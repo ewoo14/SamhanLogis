@@ -135,6 +135,27 @@ public class AccountPermissionService {
      */
     @Transactional
     public int updateAccountMatrix(UUID accountId, List<AccountPermissionUpdate> updates, String actorId) {
+        return updateAccountMatrix(accountId, updates, actorId, null);
+    }
+
+    /**
+     * 단일 계정의 권한 override 매트릭스를 일괄 upsert 한다.
+     *
+     * <p>관리권위 page-code 는 MASTER 만 grant/revoke 할 수 있다. 이 봉쇄는
+     * {@code system.permission-admin} 을 위임받은 비MASTER 의 자기상승/재위임을 막는다.
+     *
+     * @param accountId 계정 UUID
+     * @param updates   갱신 목록
+     * @param actorId   변경자
+     * @param actorRole 요청자 역할 풀네임
+     * @return 변경 행 수
+     */
+    @Transactional
+    public int updateAccountMatrix(
+            UUID accountId,
+            List<AccountPermissionUpdate> updates,
+            String actorId,
+            String actorRole) {
         if (accountId == null || updates == null || updates.isEmpty()) {
             return 0;
         }
@@ -142,6 +163,7 @@ public class AccountPermissionService {
         int changed = 0;
         for (AccountPermissionUpdate update : updates) {
             validatePageCode(update.pageCode());
+            rejectManagementPageMutation(update.pageCode(), actorRole);
             validateActions(update.actions());
             AccountPermissionOverride override = overrideRepository
                     .findByAccountIdAndPageCodeAndIsDeletedFalse(accountId, update.pageCode())
@@ -164,12 +186,26 @@ public class AccountPermissionService {
      */
     @Transactional
     public int applyTemplate(UUID accountId, String roleCode, String actorId) {
+        return applyTemplate(accountId, roleCode, actorId, null);
+    }
+
+    /**
+     * 역할 템플릿을 계정 권한으로 복사한다.
+     *
+     * @param accountId 계정 UUID
+     * @param roleCode  템플릿 역할 코드
+     * @param actorId   변경자
+     * @param actorRole 요청자 역할 풀네임
+     * @return 변경 행 수
+     */
+    @Transactional
+    public int applyTemplate(UUID accountId, String roleCode, String actorId, String actorRole) {
         List<AccountPermissionUpdate> updates = templateRepository.findByRoleCodeOrderByPageCodeAsc(roleCode).stream()
                 .map(template -> new AccountPermissionUpdate(
                         template.getPageCode(),
                         ActionMatrix.from(template)))
                 .collect(Collectors.toList());
-        return updateAccountMatrix(accountId, updates, actorId);
+        return updateAccountMatrix(accountId, updates, actorId, actorRole);
     }
 
     /**
@@ -182,13 +218,27 @@ public class AccountPermissionService {
      */
     @Transactional
     public int copyFromAccount(UUID accountId, UUID sourceAccountId, String actorId) {
+        return copyFromAccount(accountId, sourceAccountId, actorId, null);
+    }
+
+    /**
+     * 다른 계정의 권한을 대상 계정에 복사한다.
+     *
+     * @param accountId        대상 계정
+     * @param sourceAccountId  원본 계정
+     * @param actorId          변경자
+     * @param actorRole        요청자 역할 풀네임
+     * @return 변경 행 수
+     */
+    @Transactional
+    public int copyFromAccount(UUID accountId, UUID sourceAccountId, String actorId, String actorRole) {
         List<AccountPermissionUpdate> updates =
                 accountPermissionRepository.findByAccountIdOrderByPageCodeAsc(sourceAccountId).stream()
                         .map(permission -> new AccountPermissionUpdate(
                                 permission.getPageCode(),
                                 ActionMatrix.from(permission)))
                         .collect(Collectors.toList());
-        return updateAccountMatrix(accountId, updates, actorId);
+        return updateAccountMatrix(accountId, updates, actorId, actorRole);
     }
 
     /**
@@ -240,15 +290,28 @@ public class AccountPermissionService {
      */
     @Transactional
     public int bulkApply(BulkPermissionRequest request, String actorId) {
+        return bulkApply(request, actorId, null);
+    }
+
+    /**
+     * 다계정 일괄 적용.
+     *
+     * @param request   요청
+     * @param actorId   변경자
+     * @param actorRole 요청자 역할 풀네임
+     * @return 변경 행 수
+     */
+    @Transactional
+    public int bulkApply(BulkPermissionRequest request, String actorId, String actorRole) {
         if (request == null || request.accountIds() == null || request.accountIds().isEmpty()) {
             return 0;
         }
         int changed = 0;
         for (UUID accountId : request.accountIds()) {
             if ("template".equalsIgnoreCase(request.mode())) {
-                changed += applyTemplate(accountId, request.roleCode(), actorId);
+                changed += applyTemplate(accountId, request.roleCode(), actorId, actorRole);
             } else {
-                changed += updateAccountMatrix(accountId, request.grants(), actorId);
+                changed += updateAccountMatrix(accountId, request.grants(), actorId, actorRole);
             }
         }
         return changed;
@@ -356,5 +419,17 @@ public class AccountPermissionService {
         if (actions == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "권한 액션 값은 필수입니다.");
         }
+    }
+
+    private void rejectManagementPageMutation(String pageCode, String actorRole) {
+        if (PageCode.isManagementPageCode(pageCode) && !isMaster(actorRole)) {
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "관리권위 page-code 는 MASTER 만 부여하거나 회수할 수 있습니다.");
+        }
+    }
+
+    private boolean isMaster(String actorRole) {
+        return "MASTER".equalsIgnoreCase(actorRole == null ? "" : actorRole.trim());
     }
 }

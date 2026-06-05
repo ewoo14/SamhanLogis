@@ -23,6 +23,7 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.user.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.user.domain.Department;
 import com.samhanair.logis.user.domain.Employee;
@@ -231,6 +232,41 @@ class UserPermissionControllerIT {
         assertDepartmentGate("roleHistory", UUID.class);
     }
 
+    @Test
+    void employeeRoleManagementUsesDelegableHrRoleManagementPermission() throws Exception {
+        assertPermissionGate(
+                EmployeeController.class.getMethod(
+                        "updateRole",
+                        UUID.class,
+                        com.samhanair.logis.user.web.dto.UpdateRoleRequest.class,
+                        String.class,
+                        String.class),
+                "hr.role-management",
+                PermissionAction.UPDATE);
+        assertPermissionGate(
+                EmployeeController.class.getMethod(
+                        "terminate",
+                        UUID.class,
+                        com.samhanair.logis.user.web.dto.TerminateRequest.class,
+                        String.class,
+                        String.class),
+                "hr.role-management",
+                PermissionAction.DELETE);
+    }
+
+    @Test
+    void employeeRoleManagementMasterBypass_returnsSuccess() throws Exception {
+        mockMvc.perform(withActor(
+                        patch("/users/employees/{id}/role", ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"role\":\"MANAGER\",\"reason\":\"승진\"}"),
+                        "MASTER"))
+                .andExpect(status().isOk());
+
+        verify(dynamicPermissionClient, never())
+                .check(any(UUID.class), eq("hr.role-management"), eq(PermissionAction.UPDATE));
+    }
+
     static Stream<EndpointCase> endpoints() {
         return Stream.of(
                 new EndpointCase("admin user list", "admin.users", PermissionAction.VIEW, "MANAGER", 200,
@@ -271,11 +307,11 @@ class UserPermissionControllerIT {
                         () -> patch("/users/employees/{id}", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"fullName\":\"수정\"}")),
-                new EndpointCase("employee role", "admin.employees", PermissionAction.UPDATE, "MASTER", 200,
+                new EndpointCase("employee role", "hr.role-management", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> patch("/users/employees/{id}/role", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"role\":\"MANAGER\",\"reason\":\"승진\"}")),
-                new EndpointCase("employee terminate", "admin.employees", PermissionAction.DELETE, "MASTER", 204,
+                new EndpointCase("employee terminate", "hr.role-management", PermissionAction.DELETE, "MANAGER", 204,
                         () -> post("/users/employees/{id}/terminate", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"terminationDate\":\"2026-05-26\"}"))
@@ -353,6 +389,14 @@ class UserPermissionControllerIT {
         assertThat(requireDepartment).isNotNull();
         assertThat(requireDepartment.value())
                 .isEqualTo(com.samhanair.logis.security.department.Department.EXECUTIVE_OFFICE);
+        assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
+    }
+
+    private void assertPermissionGate(Method method, String page, PermissionAction action) {
+        RequirePermission requirePermission = method.getAnnotation(RequirePermission.class);
+        assertThat(requirePermission).isNotNull();
+        assertThat(requirePermission.page()).isEqualTo(page);
+        assertThat(requirePermission.action()).isEqualTo(action);
         assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
     }
 

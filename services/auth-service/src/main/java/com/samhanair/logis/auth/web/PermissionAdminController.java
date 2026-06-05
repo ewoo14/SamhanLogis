@@ -92,8 +92,13 @@ public class PermissionAdminController {
     public ApiResponse<ChangedCountResponse> updateAccountMatrix(
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
             @RequestBody List<AccountPermissionService.AccountPermissionUpdate> request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
-        int changed = accountPermissionService.updateAccountMatrix(accountId, request, callerOrSystem(actorId));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        int changed = accountPermissionService.updateAccountMatrix(
+                accountId,
+                request,
+                callerOrSystem(actorId),
+                actorRole);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -102,8 +107,9 @@ public class PermissionAdminController {
     public ApiResponse<ChangedCountResponse> applyTemplate(
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
             @RequestParam String roleCode,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
-        int changed = accountPermissionService.applyTemplate(accountId, roleCode, callerOrSystem(actorId));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        int changed = accountPermissionService.applyTemplate(accountId, roleCode, callerOrSystem(actorId), actorRole);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -112,8 +118,13 @@ public class PermissionAdminController {
     public ApiResponse<ChangedCountResponse> copyFrom(
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
             @RequestParam UUID sourceAccountId,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
-        int changed = accountPermissionService.copyFromAccount(accountId, sourceAccountId, callerOrSystem(actorId));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        int changed = accountPermissionService.copyFromAccount(
+                accountId,
+                sourceAccountId,
+                callerOrSystem(actorId),
+                actorRole);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -137,8 +148,9 @@ public class PermissionAdminController {
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<ChangedCountResponse> bulkApply(
             @RequestBody AccountPermissionService.BulkPermissionRequest request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
-        int changed = accountPermissionService.bulkApply(request, callerOrSystem(actorId));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        int changed = accountPermissionService.bulkApply(request, callerOrSystem(actorId), actorRole);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 

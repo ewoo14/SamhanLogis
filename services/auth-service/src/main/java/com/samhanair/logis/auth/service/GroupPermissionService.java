@@ -60,6 +60,25 @@ public class GroupPermissionService {
      */
     @Transactional
     public int updateGroupMatrix(UUID groupId, List<AccountPermissionService.AccountPermissionUpdate> updates) {
+        return updateGroupMatrix(groupId, updates, null);
+    }
+
+    /**
+     * 권한그룹 매트릭스를 upsert 하고 배속 계정들의 effective 권한을 재계산한다.
+     *
+     * <p>관리권위 page-code 는 MASTER 만 grant/revoke 할 수 있다. 이 봉쇄는
+     * 권한설정 위임자가 다시 관리권위를 확산하는 것을 차단한다.
+     *
+     * @param groupId   그룹 UUID
+     * @param updates   갱신할 페이지 권한 목록
+     * @param actorRole 요청자 역할 풀네임
+     * @return 갱신 행 수
+     */
+    @Transactional
+    public int updateGroupMatrix(
+            UUID groupId,
+            List<AccountPermissionService.AccountPermissionUpdate> updates,
+            String actorRole) {
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
         rejectBuiltinMutation(group);
         if (updates == null || updates.isEmpty()) {
@@ -70,6 +89,7 @@ public class GroupPermissionService {
         Map<String, AccountPermissionService.ActionMatrix> normalized = new LinkedHashMap<>();
         for (AccountPermissionService.AccountPermissionUpdate update : updates) {
             validatePageCode(update.pageCode());
+            rejectManagementPageMutation(update.pageCode(), actorRole);
             validateActions(update.actions());
             normalized.put(update.pageCode(), update.actions());
         }
@@ -83,6 +103,50 @@ public class GroupPermissionService {
         }
         materializer.materializeForGroup(groupId);
         return normalized.size();
+    }
+
+    /**
+     * 관리권위 위임 현황을 조회한다.
+     *
+     * @param groupId 그룹 UUID
+     * @return 관리 page-code 3종 보유 여부
+     */
+    @Transactional(readOnly = true)
+    public DelegationMatrix getDelegations(UUID groupId) {
+        permissionGroupService.requireGroup(groupId);
+        Map<String, GroupPagePermission> rows = groupPagePermissionRepository
+                .findByGroupIdAndIsDeletedFalse(groupId).stream()
+                .filter(permission -> PageCode.isManagementPageCode(permission.getPageCode()))
+                .collect(Collectors.toMap(
+                        GroupPagePermission::getPageCode,
+                        permission -> permission,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        return DelegationMatrix.from(rows);
+    }
+
+    /**
+     * MASTER 전용 관리권위 위임 토글.
+     *
+     * <p>각 토글은 해당 page-code 의 view/update 를 함께 부여하거나 모두 회수한다.
+     * 저장 후 그룹 배속 계정의 effective 권한을 재계산한다.
+     *
+     * @param groupId   그룹 UUID
+     * @param request   위임 토글 요청
+     * @param actorRole 요청자 역할 풀네임
+     * @return 저장 후 위임 현황
+     */
+    @Transactional
+    public DelegationMatrix updateDelegations(UUID groupId, DelegationUpdateRequest request, String actorRole) {
+        PermissionGroup group = permissionGroupService.requireGroup(groupId);
+        rejectBuiltinMutation(group);
+        requireMaster(actorRole);
+        DelegationUpdateRequest normalized = request == null ? DelegationUpdateRequest.none() : request;
+        upsertDelegation(groupId, PageCode.SYSTEM_PERMISSION_ADMIN.getCode(), normalized.permissionAdmin());
+        upsertDelegation(groupId, PageCode.HR_ROLE_MANAGEMENT.getCode(), normalized.hrRoleManagement());
+        upsertDelegation(groupId, PageCode.ADMIN_PERMISSION_GROUPS.getCode(), normalized.permissionGroups());
+        materializer.materializeForGroup(groupId);
+        return getDelegations(groupId);
     }
 
     /** 시스템/빌트인 권한그룹의 page×action 매트릭스는 운영 정책상 불변으로 유지한다. */
@@ -101,6 +165,59 @@ public class GroupPermissionService {
     private void validateActions(AccountPermissionService.ActionMatrix actions) {
         if (actions == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "권한 액션 값은 필수입니다.");
+        }
+    }
+
+    private void upsertDelegation(UUID groupId, String pageCode, boolean grant) {
+        GroupPagePermission permission = groupPagePermissionRepository
+                .findByGroupIdAndPageCodeAndIsDeletedFalse(groupId, pageCode)
+                .orElseGet(() -> GroupPagePermission.of(groupId, pageCode));
+        permission.setActions(grant, false, grant, false, false, false, false);
+        groupPagePermissionRepository.save(permission);
+    }
+
+    private void rejectManagementPageMutation(String pageCode, String actorRole) {
+        if (PageCode.isManagementPageCode(pageCode) && !isMaster(actorRole)) {
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "관리권위 page-code 는 MASTER 만 부여하거나 회수할 수 있습니다.");
+        }
+    }
+
+    private void requireMaster(String actorRole) {
+        if (!isMaster(actorRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "권한 위임은 MASTER 만 수행할 수 있습니다.");
+        }
+    }
+
+    private boolean isMaster(String actorRole) {
+        return "MASTER".equalsIgnoreCase(actorRole == null ? "" : actorRole.trim());
+    }
+
+    public record DelegationUpdateRequest(
+            boolean permissionAdmin,
+            boolean hrRoleManagement,
+            boolean permissionGroups) {
+
+        public static DelegationUpdateRequest none() {
+            return new DelegationUpdateRequest(false, false, false);
+        }
+    }
+
+    public record DelegationMatrix(
+            boolean permissionAdmin,
+            boolean hrRoleManagement,
+            boolean permissionGroups) {
+
+        private static DelegationMatrix from(Map<String, GroupPagePermission> rows) {
+            return new DelegationMatrix(
+                    isDelegated(rows.get(PageCode.SYSTEM_PERMISSION_ADMIN.getCode())),
+                    isDelegated(rows.get(PageCode.HR_ROLE_MANAGEMENT.getCode())),
+                    isDelegated(rows.get(PageCode.ADMIN_PERMISSION_GROUPS.getCode())));
+        }
+
+        private static boolean isDelegated(GroupPagePermission permission) {
+            return permission != null && permission.isCanView() && permission.isCanUpdate();
         }
     }
 }

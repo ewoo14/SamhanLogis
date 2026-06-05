@@ -24,21 +24,25 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 동적 권한그룹 Phase A 관리 API.
+ * 동적 권한그룹 관리 API.
  *
- * <p>Phase A 에서는 모든 handler 를 기존 시스템 권한 관리 권한
+ * <p>권한그룹 CRUD/매트릭스는 기존 시스템 권한 관리 권한
  * {@code system.permission-admin} 으로 보호한다. MASTER 는 PermissionAspect 의 bypass 로
- * 통과하고, 위임 계정은 후속 Phase B 에서 이 page 권한을 부여받아 접근한다.
+ * 통과하고, 위임 계정은 Phase B 에서 이 page 권한을 부여받아 접근한다.
+ * 관리권위 page-code 자체의 부여/회수는 별도 MASTER 검사를 추가해 재위임을 차단한다.
  */
 @RestController
 @RequestMapping("/auth/admin")
 @RequiredArgsConstructor
 public class PermissionGroupController {
+
+    private static final String USER_ROLE_HEADER = "X-User-Role";
 
     private final PermissionGroupService permissionGroupService;
     private final GroupPermissionService groupPermissionService;
@@ -120,9 +124,43 @@ public class PermissionGroupController {
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<ChangedCountResponse> updateGroupMatrix(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateGroupMatrixRequest request) {
-        int changed = groupPermissionService.updateGroupMatrix(id, request.rows());
+            @Valid @RequestBody UpdateGroupMatrixRequest request,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        int changed = groupPermissionService.updateGroupMatrix(id, request.rows(), actorRole);
         return ApiResponse.ok(new ChangedCountResponse(changed));
+    }
+
+    /**
+     * 권한그룹의 관리권위 위임 현황을 조회한다.
+     *
+     * @param id 권한그룹 UUID
+     * @return system.permission-admin / hr.role-management / admin.permission-groups 보유 여부
+     */
+    @GetMapping("/permission-groups/{id}/delegations")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.VIEW)
+    public ApiResponse<GroupPermissionService.DelegationMatrix> getDelegations(
+            @PathVariable UUID id) {
+        return ApiResponse.ok(groupPermissionService.getDelegations(id));
+    }
+
+    /**
+     * MASTER 전용 관리권위 위임 토글.
+     *
+     * <p>위임받은 비MASTER 가 다시 관리권위를 확산하는 것을 막기 위해
+     * {@code X-User-Role=MASTER} 추가 검사를 서비스에서 수행한다.
+     *
+     * @param id        권한그룹 UUID
+     * @param request   위임 토글
+     * @param actorRole 요청자 역할 풀네임
+     * @return 저장 후 위임 현황
+     */
+    @PutMapping("/permission-groups/{id}/delegations")
+    @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
+    public ApiResponse<GroupPermissionService.DelegationMatrix> updateDelegations(
+            @PathVariable UUID id,
+            @RequestBody GroupPermissionService.DelegationUpdateRequest request,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        return ApiResponse.ok(groupPermissionService.updateDelegations(id, request, actorRole));
     }
 
     /**

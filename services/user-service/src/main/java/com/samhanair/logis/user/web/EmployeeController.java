@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,11 +38,11 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>SP-D6-3 동적 권한 이중 가드:
  * <ul>
- *   <li>역할 변경/퇴사({@code updateRole}/{@code terminate})는 HR 고위험 작업으로 기존
- *       {@code @PreAuthorize("hasRole('MASTER')")} 를 의도적으로 유지한다
- *       ({@code @PreAuthorize} 완전제거 마이그레이션 제외, D-PAM-06). seed(admin.employees)가
- *       MANAGER 에게도 UPDATE/DELETE grant 하므로 제거 시 MANAGER widening 발생 → 제거 금지.</li>
- *   <li>POST/PATCH write → {@code @RequirePermission(page="admin.employees", action="EDIT")}</li>
+ *   <li>역할 변경/퇴사({@code updateRole}/{@code terminate})는 HR 고위험 작업이므로
+ *       {@code hr.role-management} page-code 로 일반 직원관리와 분리한다. Phase B(D-PB-03)
+ *       이후 MASTER 는 기본 seed 로 통과하고, MASTER 가 명시 위임한 그룹도 수행 가능하다.</li>
+ *   <li>일반 직원 생성/수정 write → {@code @RequirePermission(page="admin.employees")} 유지.
+ *       MANAGER 의 직원정보 관리 권한이 역할변경/퇴사로 확장되지 않도록 분리한다.</li>
  * </ul>
  */
 @RestController
@@ -114,9 +113,8 @@ public class EmployeeController {
     }
 
     @PatchMapping("/{id}/role")
-    // MASTER-only 유지(D-PAM-06, 제거 금지 — MANAGER widening)
-    @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "admin.employees", action = PermissionAction.UPDATE)
+    // Phase B(D-PB-03): 기본 MASTER-only seed, MASTER 명시 위임 그룹은 수행 가능.
+    @RequirePermission(page = "hr.role-management", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> updateRole(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRoleRequest request,
@@ -126,9 +124,8 @@ public class EmployeeController {
     }
 
     @PostMapping("/{id}/terminate")
-    // MASTER-only 유지(D-PAM-06, 제거 금지 — MANAGER widening)
-    @PreAuthorize("hasRole('MASTER')")
-    @RequirePermission(page = "admin.employees", action = PermissionAction.DELETE)
+    // Phase B(D-PB-03): 기본 MASTER-only seed, MASTER 명시 위임 그룹은 수행 가능.
+    @RequirePermission(page = "hr.role-management", action = PermissionAction.DELETE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void terminate(
             @PathVariable UUID id,

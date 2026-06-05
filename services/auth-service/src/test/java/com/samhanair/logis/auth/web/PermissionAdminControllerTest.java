@@ -170,7 +170,7 @@ class PermissionAdminControllerTest {
     @DisplayName("PUT /account/{accountId} — 계정 권한 일괄 upsert")
     void updateAccountMatrix_returnsChangedCount() throws Exception {
         UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
-        when(accountPermissionService.updateAccountMatrix(eq(accountId), any(), any())).thenReturn(1);
+        when(accountPermissionService.updateAccountMatrix(eq(accountId), any(), any(), any())).thenReturn(1);
         String body = """
                 [
                   {
@@ -196,7 +196,7 @@ class PermissionAdminControllerTest {
     @DisplayName("POST /account/{accountId}/apply-template — 템플릿 적용")
     void applyTemplate_returnsChangedCount() throws Exception {
         UUID accountId = UUID.fromString("a0000000-0000-0000-0000-000000000010");
-        when(accountPermissionService.applyTemplate(eq(accountId), eq("SALES"), any())).thenReturn(12);
+        when(accountPermissionService.applyTemplate(eq(accountId), eq("SALES"), any(), any())).thenReturn(12);
 
         MockHttpServletResponse response = mockMvc.perform(
                         MockMvcRequestBuilders.post("/auth/admin/permissions/account/{accountId}/apply-template", accountId)
@@ -212,7 +212,7 @@ class PermissionAdminControllerTest {
     @Test
     @DisplayName("POST /bulk — 다계정 일괄 적용")
     void bulkApply_returnsChangedCount() throws Exception {
-        when(accountPermissionService.bulkApply(any(), any())).thenReturn(2);
+        when(accountPermissionService.bulkApply(any(), any(), any())).thenReturn(2);
         String body = """
                 {"accountIds":["a0000000-0000-0000-0000-000000000010"],"mode":"template","roleCode":"SALES"}
                 """;

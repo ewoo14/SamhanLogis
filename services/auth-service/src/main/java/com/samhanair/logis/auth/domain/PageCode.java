@@ -1,5 +1,6 @@
 package com.samhanair.logis.auth.domain;
 
+import java.util.Set;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -261,6 +262,9 @@ public enum PageCode {
 
     /** 동적 권한그룹 관리 화면 — Phase A 신규. */
     ADMIN_PERMISSION_GROUPS("admin.permission-groups", "권한그룹 관리"),
+
+    /** 인사 역할변경/퇴사 관리 — Phase B 관리권위 위임 대상. */
+    HR_ROLE_MANAGEMENT("hr.role-management", "인사 역할관리"),
 
     /** 시스템 권한 매트릭스 관리 화면 — SP-D6-1 bootstrap 이중 가드. */
     SYSTEM_PERMISSION_ADMIN("system.permission-admin", "시스템 권한 관리"),
@@ -602,6 +606,18 @@ public enum PageCode {
     private final String displayName;
 
     /**
+     * 관리권위 위임 대상 page-code 집합.
+     *
+     * <p>Phase B 정책(D-PB-03 §3 옵션 A): 이 page-code 들은
+     * {@code system.permission-admin} 을 위임받은 비MASTER 도 자기/타인에게 재부여할 수 없다.
+     * grant/revoke 모두 MASTER 명시 행위로만 허용한다.
+     */
+    public static final Set<String> MANAGEMENT_PAGE_CODES = Set.of(
+            SYSTEM_PERMISSION_ADMIN.code,
+            HR_ROLE_MANAGEMENT.code,
+            ADMIN_PERMISSION_GROUPS.code);
+
+    /**
      * 문자열 코드로 {@link PageCode} 조회.
      *
      * @param code dot-separated 페이지 코드
@@ -630,5 +646,15 @@ public enum PageCode {
             }
         }
         return false;
+    }
+
+    /**
+     * 관리권위 위임 대상 page-code 여부.
+     *
+     * @param code dot-separated 페이지 코드
+     * @return 관리권위 page-code 이면 {@code true}
+     */
+    public static boolean isManagementPageCode(String code) {
+        return MANAGEMENT_PAGE_CODES.contains(code);
     }
 }
