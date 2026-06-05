@@ -78,7 +78,6 @@ import { TransferListPage } from './TransferListPage'
 import { TransferFormPage } from './TransferFormPage'
 import { TransferDetailPage } from './TransferDetailPage'
 import { LinkDispatchListPage } from './LinkDispatchListPage'
-import { DELIVERY_BATCH_ROLES } from '../api/delivery'
 // InvoiceView (P0-4 거래명세서 1차 mock) 은 SP-08-6-4 SalesInvoicePrintPage 로 대체됨.
 import { DispatchView } from '../print/DispatchView'
 // P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규 (출고/입고/견적/세금계산서)
@@ -120,7 +119,6 @@ import { SalesPartnerOrderListPage } from './SalesPartnerOrderListPage'
 import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
 import { SalesOrderApprovalsPage } from './SalesOrderApprovalsPage'
 import { SalesPartnerDcConfigPage } from './SalesPartnerDcConfigPage'
-import { PARTNER_DC_CONFIG_ROLES } from '../api/sales'
 // Phase 10 P0-2 — 본인 비밀번호 변경 페이지 (재로그인 강제)
 import { PasswordChangePage } from './PasswordChangePage'
 // P0-2 셀프 재설정 — 비인증 page 방식 2종 (AuthGuard 외부 최상위 등록)
@@ -128,10 +126,8 @@ import { PasswordResetRequestPage } from './PasswordResetRequestPage'
 import { PasswordResetConfirmPage } from './PasswordResetConfirmPage'
 // [Phase 10 P1-5] arologis 수동 배차 admin UI (MASTER/MANAGER).
 import { ArologisManualDispatchPage } from './ArologisManualDispatchPage'
-import { ARO_MANUAL_DISPATCH_ROLES } from '../api/arologisManualApi'
 // [Phase 10 PR-E1 FE-2] arologis 가배차 분류 admin UI (REGION 권역 + 시도 광역 2-탭, MASTER/MANAGER/DISPATCH)
 import { ArologisPreClassifyPage } from './ArologisPreClassifyPage'
-import { ARO_PRECLASSIFY_ROLES } from '../api/arologisDispatchApi'
 // [Phase 10 P2-4 / slice 8] legacy 매출 마감 — 일별/월별 (ACCOUNTANT/MANAGER/MASTER 진입, 역마감은 MASTER 만).
 import { MonthEndClosingPage } from './MonthEndClosingPage'
 // [Phase 10 P0-5 / slice 4] 관리자 통합 admin (MASTER 전용 5 페이지)
@@ -152,10 +148,8 @@ import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/Blocked
 // [PR-F1 Designer mock] 알리고 주소록 자동 동기화 — MASTER 전용 (AdminLayout 가드).
 // legacy GAS 9번 이식, BE FE-1 슬라이스 endpoint 연결 예정.
 import { AligoAddressBookPage as AdminAligoAddressBookPage } from './admin/AligoAddressBookPage'
-import { ALIGO_ADDRESS_BOOK_ROLES } from '../api/aligoAddressBookApi'
 // [PR-F1 FE-2] arologis 운송사 실배차 비교 — DISPATCH/MANAGER/MASTER.
 import { ArologisDispatchReconcilePage } from './ArologisDispatchReconcilePage'
-import { ARO_DISPATCH_RECONCILE_ROLES } from '../api/dispatchReconcileApi'
 // [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES/MANAGER/MASTER (영업 그룹).
 // legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR native 이식.
 // BE 미연결 (Tesseract OCR endpoint backlog), mock state 로 3-step UX 시뮬레이션.
@@ -163,7 +157,6 @@ import { SalesVendorOrderUploadPage } from './SalesVendorOrderUploadPage'
 // [PR-D Phase B FE-D] 단톡방 매핑 admin — MASTER/MANAGER (BE @PreAuthorize 일치)
 // AdminLayout 은 MASTER 전용이므로 별도 RoleGuard 로 MASTER/MANAGER 진입 허용.
 import { ChatRoomsPage as AdminChatRoomsPage } from './admin/ChatRoomsPage'
-import { CHAT_ROOM_ADMIN_ROLES } from '../api/chatRoomApi'
 // [Phase 10 P2-6 / slice 9] 재고 실사 3 페이지 (WAREHOUSE/MASTER)
 import { InventoryAuditListPage } from './InventoryAuditListPage'
 import { InventoryAuditFormPage } from './InventoryAuditFormPage'
@@ -172,7 +165,6 @@ import { InventoryAuditDetailPage } from './InventoryAuditDetailPage'
 import { InboundInspectionListPage } from './InboundInspectionListPage'
 // [PR-E1 FE-5] 전표 정리 리스트 (legacy GAS 13번 자동 조회 이식) — SALES/MANAGER/MASTER
 import { SlipCleanupPage } from './SlipCleanupPage'
-import { SLIP_CLEANUP_ROLES } from '../api/slipCleanupApi'
 // [PR-E1 FE-1] DPS 입고 비교 (legacy GAS 1번/16번 native 이식 — WAREHOUSE/MASTER/MANAGER/INVENTORY)
 import { InventoryDpsComparePage } from './InventoryDpsComparePage'
 // [P0-B GAS 보강] 품목별 DPS 분석 (품목별 DPS 입고 pivot — WAREHOUSE/MANAGER/MASTER)
@@ -181,15 +173,13 @@ import { DpsByProductPage } from './warehouse/DpsByProductPage'
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
 // [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
-import { DISPATCH_SMS_ROLES } from '../api/dispatchSmsApi'
 // [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회 화면 (DISPATCH / MANAGER / MASTER)
 import { DispatchSmsSendAuditPage } from './DispatchSmsSendAuditPage'
 // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — 일자 필터 + 수동 배차로 이동 link (MASTER/MANAGER/DISPATCH)
 import { ArologisUnassignedPage } from './ArologisUnassignedPage'
-import { ARO_UNASSIGNED_ROLES } from '../api/arologisDispatchApi'
+// ARO_UNASSIGNED_ROLES 는 위 ARO_PRECLASSIFY_ROLES 주석에 통합
 // [PR-E1 FE-4] 내일자 전표 이미지 페이지 + Designer NextDaySlipView 통합 print route
 import { NextDaySlipPage } from './NextDaySlipPage'
-import { NEXT_DAY_SLIP_ROLES } from '../api/nextDaySlipApi'
 import { NextDaySlipView } from '../print/NextDaySlipView'
 // [PR-E2 FE-9] 홈택스 일괄 등록 양식 export — ACCOUNTANT/MANAGER/MASTER (BE c48e156).
 import { HometaxExportPage } from './HometaxExportPage'
@@ -206,14 +196,12 @@ import { PartnerLedgerView } from '../print/PartnerLedgerView'
 // [PR-H3 FE-1] 전표 수정/삭제 요청 처리 대시보드 — WAREHOUSE/MANAGER/MASTER.
 // BE: slip-service `GET/POST /api/v1/slips/edit-requests*` (PR-H3 BE-1 슬라이스).
 import { SlipEditRequestsPage } from './admin/SlipEditRequestsPage'
-import { SLIP_EDIT_REQUEST_REVIEWER_ROLES } from '../api/slipEditRequest'
 // [Issue 4 Slice 4] 회계 수정/삭제 요청 처리 대시보드 — MANAGER/MASTER.
 // BE: accounting-service `GET/POST /api/v1/accounting/edit-requests*`.
 import { AccountingEditRequestsPage } from './admin/AccountingEditRequestsPage'
 // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER.
 // Gateway: `/api/v1/slips/admin/photo-audit` -> slip-service `/slips/admin/photo-audit`.
 import { PhotoAuditPage } from './admin/PhotoAuditPage'
-import { SLIP_PHOTO_AUDIT_ROLES } from '../api/slipPhotoAuditApi'
 // [P0-1 Slice A] 재무 보고서 3개 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
 // BE: accounting-service `/accounting/reports/income-statement` + `/balance-sheet`
 import { ReportListPage } from './ReportListPage'
@@ -246,7 +234,6 @@ import { MonthlySummaryPrintLayout } from './accounting/print/MonthlySummaryPrin
 // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE (창고 운영 그룹).
 // BE: inventory-service `GET /inventory/safety-stock-alerts` (P1-3 슬라이스).
 import { SafetyStockAlertsPage } from './SafetyStockAlertsPage'
-import { SAFETY_STOCK_ROLES } from '../api/safetyStockApi'
 // [D-SER-23] 시리얼 보상 실패 복구 — inventory.list(view) 권한 (WAREHOUSE/MANAGER/MASTER).
 // BE: slip-service `GET/PATCH /api/v1/slips/compensation-failures` (D-SER-23 슬라이스).
 import { CompensationFailuresPage } from './CompensationFailuresPage'
@@ -328,18 +315,6 @@ function NextDaySlipPrintRoute() {
 const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
 
 /**
- * 재고 현황 조회 권한 — WAREHOUSE / MANAGER / MASTER.
- *
- * 창고 담당자(WAREHOUSE) + 운영 관리자(MANAGER) + 최고 관리자(MASTER) 에 한해 접근.
- * 영업(SALES) / 회계(ACCOUNTANT) / 배차(DISPATCH) 는 재고 현황 직접 조회 불가.
- * BE: inventory-service `GET /inventory/balances` @PreAuthorize 와 1:1 일치.
- */
-const STOCK_BALANCE_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
-
-/** 전표 신규 작성 권한 — slip-service SlipController#create 와 1:1. */
-const SLIP_CREATE_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
-/**
  * PR-F2 Designer mock 단계 임시 권한 (SALES / MANAGER / MASTER).
  * BE Tesseract OCR endpoint 합류 시 정식 `VENDOR_ORDER_OCR_ROLES` 로 교체.
  * 영업 그룹 메뉴 — 거래처 (vendor) 발주서를 영업 직원이 받아 처리.
@@ -392,18 +367,18 @@ const router = createHashRouter([
       {
         path: '/sales/new',
         element: (
-          <RoleGuard allow={SLIP_CREATE_ROLES}>
+          <PermissionGuard pageCode="sales.slip.create" action="view">
             <SlipFormPage mode="OUTBOUND" />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
       // link-dispatch-slice: 링크발송 (배송 묶음) — MANAGER/MASTER, `/sales/:id` 보다 먼저 매칭되어야 함
       {
         path: '/sales/link-dispatch',
         element: (
-          <RoleGuard allow={DELIVERY_BATCH_ROLES}>
+          <PermissionGuard pageCode="slip.delivery-batch" action="view">
             <LinkDispatchListPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -412,9 +387,9 @@ const router = createHashRouter([
       {
         path: '/sales/next-day-slip',
         element: (
-          <RoleGuard allow={NEXT_DAY_SLIP_ROLES}>
+          <PermissionGuard pageCode="slip.print.next-day" action="view">
             <NextDaySlipPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
       // [PR-E1 FE-4] 내일자 전표 인쇄 미리보기 — Designer commit 1f85605 NextDaySlipView 통합.
@@ -422,9 +397,9 @@ const router = createHashRouter([
       {
         path: '/print/next-day-slip',
         element: (
-          <RoleGuard allow={NEXT_DAY_SLIP_ROLES}>
+          <PermissionGuard pageCode="slip.print.next-day" action="view">
             <NextDaySlipPrintRoute />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -459,9 +434,9 @@ const router = createHashRouter([
       {
         path: '/sales/partner-dc-config',
         element: (
-          <RoleGuard allow={PARTNER_DC_CONFIG_ROLES}>
+          <PermissionGuard pageCode="sales.partner-dc-config" action="view">
             <SalesPartnerDcConfigPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -476,9 +451,9 @@ const router = createHashRouter([
       {
         path: '/sales/slip-cleanup',
         element: (
-          <RoleGuard allow={SLIP_CLEANUP_ROLES}>
+          <PermissionGuard pageCode="slip.cleanup" action="view">
             <SlipCleanupPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -486,6 +461,7 @@ const router = createHashRouter([
       // legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR native 이식.
       // 정적 path (`/sales/vendor-order-upload`) → `/sales/:id` 보다 먼저 매칭되어야 함.
       // BE Tesseract OCR endpoint 미구현 — Designer mock state 만 3-step UX 시뮬레이션.
+      // [C2b 보류] sales.vendor-order page-code 가 seed 에 있으나 BE OCR 미구현 상태이므로 RoleGuard 유지.
       {
         path: '/sales/vendor-order-upload',
         element: (
@@ -520,9 +496,9 @@ const router = createHashRouter([
       {
         path: '/purchases/new',
         element: (
-          <RoleGuard allow={SLIP_CREATE_ROLES}>
+          <PermissionGuard pageCode="sales.slip.create" action="view">
             <SlipFormPage mode="INBOUND" />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
       { path: '/purchases/:id', element: <SlipDetailPage mode="INBOUND" /> },
@@ -543,14 +519,14 @@ const router = createHashRouter([
         ),
       },
 
-      // [Phase 2.6c] 재고 현황 — 가용/실재고/예약 3구분 (STOCK_BALANCE_ROLES 가드).
+      // [Phase 2.6c] 재고 현황 — 가용/실재고/예약 3구분.
       // 접근 허용: WAREHOUSE / MANAGER / MASTER (SALES / ACCOUNTANT / DISPATCH 차단).
       {
         path: '/inventory/stock-balance',
         element: (
-          <RoleGuard allow={STOCK_BALANCE_ROLES}>
+          <PermissionGuard pageCode="inventory.stock-balance" action="view">
             <InventoryStockBalancePage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -857,9 +833,9 @@ const router = createHashRouter([
       {
         path: '/arologis/manual',
         element: (
-          <RoleGuard allow={ARO_MANUAL_DISPATCH_ROLES}>
+          <PermissionGuard pageCode="arologis.dispatch.admin" action="view">
             <ArologisManualDispatchPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -868,9 +844,9 @@ const router = createHashRouter([
       {
         path: '/arologis/pre-classify',
         element: (
-          <RoleGuard allow={ARO_PRECLASSIFY_ROLES}>
+          <PermissionGuard pageCode="arologis.dispatch.ops" action="view">
             <ArologisPreClassifyPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -879,9 +855,9 @@ const router = createHashRouter([
       {
         path: '/arologis/unassigned',
         element: (
-          <RoleGuard allow={ARO_UNASSIGNED_ROLES}>
+          <PermissionGuard pageCode="arologis.dispatch.ops" action="view">
             <ArologisUnassignedPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -890,9 +866,9 @@ const router = createHashRouter([
       {
         path: '/arologis/dispatch-sms',
         element: (
-          <RoleGuard allow={DISPATCH_SMS_ROLES}>
+          <PermissionGuard pageCode="dispatch.batch" action="view">
             <DispatchSmsPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -924,9 +900,9 @@ const router = createHashRouter([
       {
         path: '/arologis/dispatch-reconcile',
         element: (
-          <RoleGuard allow={ARO_DISPATCH_RECONCILE_ROLES}>
+          <PermissionGuard pageCode="arologis.dispatch.admin" action="view">
             <ArologisDispatchReconcilePage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -964,9 +940,9 @@ const router = createHashRouter([
       {
         path: '/warehouse/closing',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
+          <PermissionGuard pageCode="accounting.period-close" action="view">
             <MonthEndClosingPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -1131,6 +1107,7 @@ const router = createHashRouter([
       // 일별/월별 toggle + 세금계산서 detail + CSV.
       // 매뉴얼 docs/manual/02-창고/04-매출-마감.md Stage 1 일치.
       // 정적 path 이므로 `/sales/:id` 보다 먼저 매칭됨 (react-router 정적 우선 규칙).
+      // [C2b 보류] BE endpoint/page-code 미확정 — RoleGuard 유지.
       {
         path: '/sales/closing',
         element: (
@@ -1234,6 +1211,7 @@ const router = createHashRouter([
 
       // [SP-04] 일반 사이드바에서 직접 노출되는 admin-origin 운영 화면.
       // AdminLayout 은 MASTER+대표실 전용이므로 MANAGER 공용 메뉴는 별도 RoleGuard 로 분리한다.
+      // [C2b 보류] BE 미구현 mock — RoleGuard 유지.
       {
         path: '/admin/sheet-sync',
         element: (
@@ -1254,9 +1232,9 @@ const router = createHashRouter([
       {
         path: '/admin/aligo-address-book',
         element: (
-          <RoleGuard allow={ALIGO_ADDRESS_BOOK_ROLES}>
+          <PermissionGuard pageCode="aligo.address-book" action="view">
             <AdminAligoAddressBookPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -1350,25 +1328,25 @@ const router = createHashRouter([
       },
 
       // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
-      // AdminLayout (MASTER 전용) 외부에 배치하여 MANAGER 도 접근 가능 — 자체 RoleGuard 적용.
+      // AdminLayout (MASTER 전용) 외부에 배치하여 MANAGER 도 접근 가능.
       {
         path: '/admin/chat-rooms',
         element: (
-          <RoleGuard allow={CHAT_ROOM_ADMIN_ROLES}>
+          <PermissionGuard pageCode="messenger.admin" action="view">
             <AdminChatRoomsPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
       // [PR-H3 FE-1] 전표 수정/삭제 요청 대시보드 — WAREHOUSE / MANAGER / MASTER.
-      // AdminLayout (MASTER 전용) 외부에 배치 — WAREHOUSE 도 접근 가능 (자체 RoleGuard).
+      // AdminLayout (MASTER 전용) 외부에 배치 — WAREHOUSE 도 접근 가능.
       // BE: slip-service `GET /api/v1/slips/edit-requests?status=PENDING`.
       {
         path: '/admin/slip-edit-requests',
         element: (
-          <RoleGuard allow={SLIP_EDIT_REQUEST_REVIEWER_ROLES}>
+          <PermissionGuard pageCode="slip.edit-requests" action="view">
             <SlipEditRequestsPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
       // [Issue 4 Slice 4] 회계 수정/삭제 요청 대시보드 — MANAGER / MASTER.
@@ -1387,9 +1365,9 @@ const router = createHashRouter([
       {
         path: '/admin/photo-audit',
         element: (
-          <RoleGuard allow={SLIP_PHOTO_AUDIT_ROLES}>
+          <PermissionGuard pageCode="slip.photo-audit" action="view">
             <PhotoAuditPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -1461,9 +1439,9 @@ const router = createHashRouter([
       {
         path: '/inventory/safety-stock-alerts',
         element: (
-          <RoleGuard allow={SAFETY_STOCK_ROLES}>
+          <PermissionGuard pageCode="inventory.safety-stock" action="view">
             <SafetyStockAlertsPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 

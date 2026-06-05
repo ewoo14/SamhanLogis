@@ -11,7 +11,8 @@ function readSource(relativePath: string): string {
 
 test('permission matrix route guard uses system.permission-admin PageCode', () => {
   const source = readSource('src/renderer/routes/index.tsx')
-  const routeBlock = source.match(/path: '\/admin\/permission-matrix'[\s\S]*?<PermissionMatrixPage \/>[\s\S]*?<\/RoleGuard>/)
+  // [C2b] permission-matrix 는 PermissionGuard(system.permission-admin) 단일 게이트(C2a 에서 외부 RoleGuard 제거).
+  const routeBlock = source.match(/path: '\/admin\/permission-matrix'[\s\S]*?<PermissionMatrixPage \/>[\s\S]*?<\/PermissionGuard>/)
 
   expect(routeBlock?.[0]).toContain('pageCode="system.permission-admin"')
   expect(routeBlock?.[0]).not.toContain('pageCode="admin.users"')

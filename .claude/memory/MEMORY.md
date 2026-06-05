@@ -70,3 +70,4 @@
 - [FE 가드 제거는 전체 mock suite 필수](feedback_fe_guard_removal_contract_tests.md) — 2026-06-06(C2a #402). RoleGuard 제거 시 구 가드 UX 박제(메시지 단언)+소스계약 박제(routes/index.tsx 정규식/상수)가 여러 슬라이스에 흩어져 깨짐. 핵심 스펙만 불충분, 전체 suite 필수. 접근차단 보존 확인 후 PermissionGuard 단언으로 계약 갱신
 - [Playwright 로컬 버전 skew](feedback_playwright_local_version_skew.md) — 2026-06-06. npx 전역(1.60)≠설치본(1.59) → "did not expect test.describe()". 로컬 node_modules/.bin/playwright 직접 호출 또는 npm ci(desktop package-lock 추적), desktop cwd 필수. ANSI stderr=NativeCommandError 오인 주의
 - [권한그룹 C2 widening=Option A 수용](feedback_pgc_c2_widening_option_a.md) — 2026-06-06 개발책임자. FE RoleGuard 가 seed 보다 제한적이어도 seed 진실원 수용(BE 이미 열림, FE↔BE 정합). D-PGC-01, #387/D-PAM-05 연장
+- [리뷰 게시 + skip 0 + 무중단 자율](feedback_review_posting_and_zero_skip.md) — 2026-06-06 야간 위임. Claude TM·Codex TM 리뷰 각각 따로 게시 + PM 종합 마지막 필수. 5-agent&fix 후 skip 1건이라도 PM판단시 0까지 fix. 슬라이스마다 묻지말고 PM 연속진행

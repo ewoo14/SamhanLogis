@@ -2764,3 +2764,10 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-PGC-03 | MASTER 전용 라우트(`/admin/permission-groups/delegation`=system.permission-admin 등)는 PermissionGuard(MASTER-only) 로 비-MASTER 차단 유지. **접근 차단 동일, UX 만 RoleGuard 메시지→홈 redirect(404 효과)**. `permission-delegation.spec.ts` 단언을 redirect 로 갱신. |
 
 **산출**: `routes/index.tsx` RoleGuard 75 제거 + ROLES 상수 정리(237++/460--), `permission-delegation.spec.ts` 단언 갱신. typecheck 0, Playwright 회귀 sidebar-disabled 5+sp-d1 6+sp-d4 20+permission-groups 5 = **36 passed**(delegation 실 회귀 적발·수정). spec `2026-06-06-permission-groups-phase-c2a-roleguard-removal-design.md`, dev-report `slice-phase-c2a-roleguard-removal.md`. **후속**: C2b(gap 22 라우트), C2c(버튼/부서 가드).
+
+### D-PGC (C2b 추가, 2026-06-06) — 단독 RoleGuard gap 라우트 전환 + mock 카탈로그 동기화
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-04 | C2b = PermissionGuard 미병행 단독 RoleGuard **19 라우트 전환**(page-code seed 실재 검증 후), **보류 3**(/sales/vendor-order-upload·/sales/closing·/admin/sheet-sync — BE 미구현/page-code 미확정, RoleGuard 유지). page-code 미존재 시 PermissionGuard 전원 차단 치명 → 전환 전 seed 교차검증 필수. |
+| D-PGC-05 | **mock 권한 카탈로그 동기화 = C2b 필수 동반.** PermissionGuard 는 mock 모드에서 `permissions/my` mock(SP_D1_PAGES+DEFAULT_VIEW/EDIT)으로 판정 → 전환 page-code 12개를 auth seed 의 역할별 can_view/can_edit 그대로 추가(MASTER 자동 전권). 미동기화 시 mockRole-only 진입 테스트 전원 redirect(ac-2/ac-3 등 19 spec). 핸드오프 P2 "mock PageCode 카탈로그 동기화"를 흡수. |

@@ -6990,6 +6990,19 @@ const SP_D1_PAGES = [
   'ecount.mig14.order-list',
   'ecount.mig14.aging-snapshot',
   'ecount.mig14.ledger',
+  // C2b 단독→PermissionGuard 전환 page-codes (V29/V30/V33/V34/V36 seed 기반)
+  'sales.slip.create',
+  'slip.delivery-batch',
+  'slip.print.next-day',
+  'sales.partner-dc-config',
+  'slip.cleanup',
+  'arologis.dispatch.admin',
+  'arologis.dispatch.ops',
+  'dispatch.batch',
+  'aligo.address-book',
+  'messenger.admin',
+  'slip.edit-requests',
+  'slip.photo-audit',
 ] as const
 
 /**
@@ -7048,11 +7061,18 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
     // Issue 4 Slice 4
     'accounting.edit-requests',
+    // C2b PermissionGuard 전환 — MANAGER: 전 12개 page view 허용 (V29/V30/V33/V34/V36 seed)
+    'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
+    'sales.partner-dc-config', 'slip.cleanup',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
+    'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.photo-audit',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
     // SP-D4 — DISPATCH: inventory.stock (view 전용) + arologis.*
     'inventory.stock', 'arologis.admin', 'arologis.region',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
+    'arologis.dispatch.ops', 'dispatch.batch',
   ],
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
@@ -7063,6 +7083,9 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.vendor-order', 'inventory.stock', 'inventory.list', 'inventory.transfer',
     'partners.list', 'partners.detail', 'partners.edit-request',
     'products.list', 'products.admin',
+    // C2b PermissionGuard 전환 — SALES: view 허용 (V36 seed)
+    'sales.slip.create', 'slip.print.next-day', 'sales.partner-dc-config',
+    'slip.cleanup', 'slip.edit-requests',
   ],
   ACCOUNTANT: [
     // SP-D1
@@ -7083,6 +7106,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // MIG-14 admin UI — ACCOUNTANT: view 전용
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
+    // C2b PermissionGuard 전환 — ACCOUNTANT: slip.edit-requests view (V38 broadened)
+    'slip.edit-requests',
   ],
   // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
   // (사용자 요구 ② — WAREHOUSE 에게 매출 슬립 숨김, 매입 영수증 OCR 허용)
@@ -7094,6 +7119,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.dps', 'inventory.audit', 'inventory.list', 'inventory.detail',
     'inventory.transfer', 'inventory.stock-balance', 'inventory.safety-stock',
     'products.list',
+    // C2b PermissionGuard 전환 — WAREHOUSE: slip.edit-requests(V38 broadened) + slip.photo-audit(V36)
+    'slip.edit-requests', 'slip.photo-audit',
   ],
   INVENTORY: [
     'purchases.slip.list', 'sales.slip.list', 'inbound.inspection',
@@ -7103,6 +7130,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
     'inventory.safety-stock', 'inventory.edit-requests',
     'products.list', 'products.admin',
+    // C2b PermissionGuard 전환 — INVENTORY: slip.edit-requests view (V38 broadened)
+    'slip.edit-requests',
   ],
 }
 
@@ -7153,11 +7182,19 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
     // Issue 4 Slice 4
     'accounting.edit-requests',
+    // C2b PermissionGuard 전환 — MANAGER: 전 12개 page edit 허용 (V29/V30/V33/V34/V36 seed)
+    'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
+    'sales.partner-dc-config', 'slip.cleanup',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
+    'aligo.address-book', 'messenger.admin', 'slip.edit-requests',
+    // slip.photo-audit: MANAGER can_edit=FALSE per V36
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
     // SP-D4 — DISPATCH: arologis.* edit
     'arologis.admin', 'arologis.region',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch edit (V33/V34)
+    'arologis.dispatch.ops', 'dispatch.batch',
   ],
   SALES: [
     'sales.slip.list',
@@ -7167,6 +7204,9 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.vendor-order', 'inventory.list',
     'partners.list', 'partners.detail',
     'products.admin',
+    // C2b PermissionGuard 전환 — SALES: edit 허용 (V36 seed)
+    'sales.slip.create', 'slip.print.next-day', 'slip.cleanup', 'slip.edit-requests',
+    // sales.partner-dc-config: SALES can_edit=FALSE per V29
   ],
   ACCOUNTANT: [
     // SP-D1
@@ -7180,6 +7220,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.statement-batch',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',
+    // C2b PermissionGuard 전환 — ACCOUNTANT: 12개 모두 edit 없음 (V36/V29 seed 확인)
   ],
   // SP-D3 V9 fix: purchases.receipt-ocr edit 추가 (WAREHOUSE 매입 영수증 OCR 입력 가능)
   WAREHOUSE: [
@@ -7189,6 +7230,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.stock-transfer', 'inventory.dps',
     'inventory.list', 'inventory.transfer', 'inventory.stock-balance',
     'inventory.safety-stock',
+    // C2b PermissionGuard 전환 — WAREHOUSE: slip.photo-audit can_edit=FALSE, slip.edit-requests can_edit=FALSE (V36)
   ],
   INVENTORY: [
     'inbound.inspection',
@@ -7198,6 +7240,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.adjust', 'inventory.transfer',
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'products.admin',
+    // C2b PermissionGuard 전환 — INVENTORY: 12개 모두 edit 없음 (V36 seed 확인)
   ],
 }
 
