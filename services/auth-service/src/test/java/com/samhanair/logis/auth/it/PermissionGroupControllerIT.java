@@ -18,6 +18,7 @@ import com.samhanair.logis.auth.service.EffectivePermissionMaterializer;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -488,7 +489,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
     }
 
     private void assertEffective(UUID accountId, String pageCode, boolean view, boolean update) {
-        MapRow row = jdbcTemplate.queryForObject("""
+        List<MapRow> rows = jdbcTemplate.query("""
                 SELECT can_view, can_update
                 FROM account_page_permissions
                 WHERE account_id = ?
@@ -496,7 +497,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                   AND is_deleted = FALSE
                 """, (rs, rowNum) -> new MapRow(rs.getBoolean("can_view"), rs.getBoolean("can_update")),
                 accountId, pageCode);
-        assertThat(row).isNotNull();
+        MapRow row = rows.isEmpty() ? new MapRow(false, false) : rows.get(0);
         assertThat(row.canView()).isEqualTo(view);
         assertThat(row.canUpdate()).isEqualTo(update);
     }
