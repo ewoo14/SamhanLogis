@@ -4,6 +4,29 @@
 
 ---
 
+## 🆕 2026-06-06 — 권한그룹 Phase C2a (FE RoleGuard 단일 게이트화) PR #402 발행
+
+> 🚨 세션 시작 즉시 `git fetch origin`([[feedback_agent_origin_main_sync]]). 본 세션도 stale 핸드오프 믿었다 fetch/pull 로 9커밋(#396~#401, 권한그룹 A/B/C1)을 뒤늦게 동기화. 핸드오프 항상 stale 가정.
+
+### ▶ 진행 = Phase C 전체 순서대로 (개발책임자 "전체 순서대로 진행" 선택, 2026-06-06)
+C2(FE 가드) → C3(그룹배속 일원화) → C4(MASTER bypass 키) → C5(accounts.role 제거) 순. PM 전권([[feedback_pm_permission_autonomy]]) + dual review·실QA·조기PR 엄격 적용.
+
+### 🔵 PR #402 — Phase C2a redundant 외부 RoleGuard 제거 (CI 감시 중)
+desktop `routes/index.tsx` 에서 내부 PermissionGuard 를 이미 감싸던 **외부 RoleGuard 75건 제거** → PermissionGuard(seed/그룹 grant) 단일 게이트. 237++/460--. 커밋 `9b35722b`(제거)+`cd43fbbc`(회귀 테스트 4건 갱신).
+- **개발책임자 결정 Option A(D-PGC-01)**: 일부 RoleGuard 가 seed 보다 제한적이어도 **seed 진실원 수용**(BE API 이미 열려 보안 신규노출 X, FE↔BE 정합). #387/D-PAM-05 연장.
+- **단독 RoleGuard 22건 유지**(PermissionGuard 미병행 = C2b). AdminLayout 부서 가드·상세버튼 ROLES = C2c.
+- 🔴 **실 회귀 4건 적발·수정**(정적 dual APPROVE 후 전체 mock suite 실행이 적발 — "실행이 정적리뷰를 이긴다" 재확인): 구 RoleGuard UX/구조 박제 테스트(permission-delegation·sp-d2 T5·accounting-close-menu-gap·partner-ui-menu-gap·sp-08-4-4). **전부 접근차단 보존, PermissionGuard redirect/단언으로 갱신**(widening 0).
+- 검증: typecheck 0, 핵심 회귀 sidebar 5+sp-d1 6+sp-d4 20+permission-groups 5=36 + 수정 4스펙 23 passed. dual: Codex APPROVE(무가드 0)+Claude FE APPROVE. **전체 suite 클린 = CI #402 확인 중**.
+- 🧩 **환경 함정**: 로컬 Playwright `npx`(전역 1.60.0) vs 설치본(1.59.1) skew → "did not expect test.describe()". **`clients/desktop/node_modules/.bin/playwright`(로컬) 직접 호출** 또는 `npm ci`(desktop 에 package-lock.json 존재) 로 해결. desktop cwd 필수(Push-Location).
+
+### 🗺️ C2 잔여 + 다음
+- **C2b**: RoleGuard 단독 22 라우트(slip-create/delivery-batch/vendor-ocr/dispatch-sms/sheet-sync/aligo/chat-room/safety-stock/closing 등) → 적합 page-code PermissionGuard 전환. page-code 매핑 정밀 검증.
+- **C2c**: 상세페이지 버튼 ROLES(SlipDetailPage/SalesPartnerOrderDetailPage/SalesQueryPage) action 기반 + AdminLayout 부서(EXECUTIVE_OFFICE) 가드 정합.
+- **C3~C5**: spec `2026-06-05-permission-groups-phase-c-fixed-role-removal-design.md` §4. C4/C5 는 전 서비스 인증 핵심 = 집중 세션 + 슬라이스별 실QA + 롤백.
+- 📋 P2: 기존 무가드 라우트(C2a 무관, Claude 리뷰 P2 발견) `/sales/estimates/new`·`/sales/order-approvals`·`/sales/:id`·`/sales/query` 가드 필요성 평가.
+
+---
+
 ## 🆕 2026-06-05 (오후) — 권한그룹 Phase B(위임) 머지 + Phase C(고정역할제거) spec 준비
 
 ### ✅ Phase B 위임 머지 (#398 squash `5bf465bc`) — 개발책임자 "인사권한 위임" 완성
