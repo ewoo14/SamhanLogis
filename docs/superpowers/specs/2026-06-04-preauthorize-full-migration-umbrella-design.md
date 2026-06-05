@@ -77,3 +77,4 @@
 - D-PAM-02: MASTER 전용 → 명시 `system.<domain>` page-code + MASTER 단독 grant(bypass 비의존).
 - D-PAM-03: behavior-preserving 의무 + **실 HTTP 회귀 테스트 필수**(@MockBean false-green 금지, #316 회고).
 - D-PAM-04: decomposition = 5 슬라이스(M1 tail 패턴확립 → M5 auth/arologis 최고위험 최종), 슬라이스별 auth seed 선배포.
+- D-PAM-05: **role 전환 시 widening 발생 = behavior-preserving 아님 → 개발책임자 sign-off 필수**(2026-06-05, PR #387 inventory). `@PreAuthorize` role-set 이 seed grant role-set 보다 **좁을 때**(예: @PreAuthorize 가 INVENTORY 배제, seed 는 INVENTORY grant) 제거 시 access 확대. inventory 슬라이스는 **Option A(수용)** 결정 — INVENTORY 의 `inventory.dps`/`inventory.stock-balance` 접근을 동적 권한(seed 단일소스) 모델로 정식 인정(재고원 도메인 접근 합리, 실 seed grant 실증). 단 `InspectionAttachmentController.delete` 의 `@PreAuthorize("hasAnyRole('MANAGER','MASTER')")` 는 INVENTORY 의 stock-balance `can_delete=TRUE`(실 DB 실측) 때문에 **유지**(widening guard). 교훈 [[feedback_preauth_migration_lessons]] §4: 슬라이스 착수 전 `@PreAuthorize` role-set vs seed grant role-set 완전 일치 교차확인 선행.
