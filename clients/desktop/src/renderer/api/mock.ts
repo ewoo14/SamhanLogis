@@ -7002,6 +7002,7 @@ const SP_D1_PAGES = [
   'aligo.address-book',
   'messenger.admin',
   'slip.edit-requests',
+  'slip.edit-requests.decide',
   'slip.photo-audit',
 ] as const
 
@@ -7065,7 +7066,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
-    'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.photo-audit',
+    'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
+    'slip.photo-audit',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -7186,7 +7188,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
-    'aligo.address-book', 'messenger.admin', 'slip.edit-requests',
+    'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     // slip.photo-audit: MANAGER can_edit=FALSE per V36
   ],
   DISPATCH: [

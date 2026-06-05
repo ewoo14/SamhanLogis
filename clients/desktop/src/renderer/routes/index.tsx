@@ -900,7 +900,7 @@ const router = createHashRouter([
       {
         path: '/arologis/dispatch-reconcile',
         element: (
-          <PermissionGuard pageCode="arologis.dispatch.admin" action="view">
+          <PermissionGuard pageCode="arologis.dispatch.ops" action="view">
             <ArologisDispatchReconcilePage />
           </PermissionGuard>
         ),
@@ -1339,12 +1339,13 @@ const router = createHashRouter([
       },
 
       // [PR-H3 FE-1] 전표 수정/삭제 요청 대시보드 — WAREHOUSE / MANAGER / MASTER.
-      // AdminLayout (MASTER 전용) 외부에 배치 — WAREHOUSE 도 접근 가능.
-      // BE: slip-service `GET /api/v1/slips/edit-requests?status=PENDING`.
+      // 리뷰어 대시보드 — BE `GET /api/v1/slips/edit-requests` 가 slip.edit-requests.decide(VIEW) 요구.
+      // [C2b] 따라서 라우트도 slip.edit-requests.decide 로 게이팅(seed MASTER/MANAGER). 구 RoleGuard 의
+      // REVIEWER 역할셋(WAREHOUSE 포함)은 BE 가 실제론 decide 로 막으므로 decide 가 정합.
       {
         path: '/admin/slip-edit-requests',
         element: (
-          <PermissionGuard pageCode="slip.edit-requests" action="view">
+          <PermissionGuard pageCode="slip.edit-requests.decide" action="view">
             <SlipEditRequestsPage />
           </PermissionGuard>
         ),
