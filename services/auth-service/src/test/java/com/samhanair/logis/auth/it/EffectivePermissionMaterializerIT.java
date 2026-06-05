@@ -12,9 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 권한그룹 합집합과 계정 override 를 account_page_permissions effective 캐시에 반영하는 IT. */
 @SpringBootTest(classes = AuthServiceApplication.class)
+@Transactional
 class EffectivePermissionMaterializerIT extends AbstractPostgresIT {
 
     private static final UUID MASTER_ACCOUNT_ID =

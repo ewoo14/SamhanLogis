@@ -2,6 +2,7 @@ package com.samhanair.logis.auth.repository;
 
 import com.samhanair.logis.auth.domain.AccountGroup;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -11,6 +12,8 @@ public interface AccountGroupRepository extends JpaRepository<AccountGroup, UUID
     List<AccountGroup> findByAccountIdAndIsDeletedFalse(UUID accountId);
 
     List<AccountGroup> findByGroupIdAndIsDeletedFalse(UUID groupId);
+
+    Optional<AccountGroup> findByAccountIdAndGroupIdAndIsDeletedFalse(UUID accountId, UUID groupId);
 
     long countByGroupIdAndIsDeletedFalse(UUID groupId);
 }

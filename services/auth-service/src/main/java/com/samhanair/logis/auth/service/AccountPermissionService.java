@@ -1,14 +1,18 @@
 package com.samhanair.logis.auth.service;
 
 import com.samhanair.logis.auth.domain.AccountPagePermission;
+import com.samhanair.logis.auth.domain.AccountPermissionOverride;
+import com.samhanair.logis.auth.domain.GroupPagePermission;
 import com.samhanair.logis.auth.domain.PageCode;
 import com.samhanair.logis.auth.domain.RolePagePermissionTemplate;
 import com.samhanair.logis.auth.repository.AccountPagePermissionRepository;
+import com.samhanair.logis.auth.repository.AccountPermissionOverrideRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.repository.RolePagePermissionTemplateRepository;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.EnumSet;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +32,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountPermissionService {
 
     private final AccountPagePermissionRepository accountPermissionRepository;
+    private final AccountPermissionOverrideRepository overrideRepository;
     private final RolePagePermissionTemplateRepository templateRepository;
     private final AccountRepository accountRepository;
+    private final EffectivePermissionMaterializer materializer;
 
     /**
      * 단일 계정 권한 확인.
@@ -117,7 +123,10 @@ public class AccountPermissionService {
     }
 
     /**
-     * 단일 계정의 권한 매트릭스를 일괄 upsert 한다.
+     * 단일 계정의 권한 override 매트릭스를 일괄 upsert 한다.
+     *
+     * <p>저장 대상은 {@code account_permission_overrides} 이며, 저장 후
+     * {@code account_page_permissions} enforcement 캐시를 재계산한다.
      *
      * @param accountId 계정 UUID
      * @param updates   갱신 목록
@@ -129,15 +138,19 @@ public class AccountPermissionService {
         if (accountId == null || updates == null || updates.isEmpty()) {
             return 0;
         }
+        requireAccount(accountId);
         int changed = 0;
         for (AccountPermissionUpdate update : updates) {
-            AccountPagePermission permission = accountPermissionRepository
-                    .findByAccountIdAndPageCode(accountId, update.pageCode())
-                    .orElseGet(() -> AccountPagePermission.of(accountId, update.pageCode()));
-            update.actions().applyTo(permission);
-            accountPermissionRepository.save(permission);
+            validatePageCode(update.pageCode());
+            validateActions(update.actions());
+            AccountPermissionOverride override = overrideRepository
+                    .findByAccountIdAndPageCodeAndIsDeletedFalse(accountId, update.pageCode())
+                    .orElseGet(() -> AccountPermissionOverride.of(accountId, update.pageCode()));
+            update.actions().applyTo(override);
+            overrideRepository.save(override);
             changed++;
         }
+        materializer.materializeForAccount(accountId);
         return changed;
     }
 
@@ -278,6 +291,28 @@ public class AccountPermissionService {
                     permission.isCanPrint());
         }
 
+        public static ActionMatrix from(AccountPermissionOverride override) {
+            return new ActionMatrix(
+                    override.isCanView(),
+                    override.isCanCreate(),
+                    override.isCanUpdate(),
+                    override.isCanDelete(),
+                    override.isCanRestore(),
+                    override.isCanDownload(),
+                    override.isCanPrint());
+        }
+
+        public static ActionMatrix from(GroupPagePermission permission) {
+            return new ActionMatrix(
+                    permission.isCanView(),
+                    permission.isCanCreate(),
+                    permission.isCanUpdate(),
+                    permission.isCanDelete(),
+                    permission.isCanRestore(),
+                    permission.isCanDownload(),
+                    permission.isCanPrint());
+        }
+
         public static ActionMatrix from(RolePagePermissionTemplate template) {
             return new ActionMatrix(
                     template.isCanView(),
@@ -293,8 +328,33 @@ public class AccountPermissionService {
             permission.setActions(view, create, update, delete, restore, download, print);
         }
 
+        public void applyTo(AccountPermissionOverride override) {
+            override.setActions(view, create, update, delete, restore, download, print);
+        }
+
+        public void applyTo(GroupPagePermission permission) {
+            permission.setActions(view, create, update, delete, restore, download, print);
+        }
+
         public void applyTo(RolePagePermissionTemplate template) {
             template.setActions(view, create, update, delete, restore, download, print);
+        }
+    }
+
+    private void requireAccount(UUID accountId) {
+        accountRepository.findById(accountId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다."));
+    }
+
+    private void validatePageCode(String pageCode) {
+        if (pageCode == null || pageCode.isBlank() || !PageCode.isValid(pageCode)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "등록되지 않은 페이지 코드입니다: " + pageCode);
+        }
+    }
+
+    private void validateActions(ActionMatrix actions) {
+        if (actions == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "권한 액션 값은 필수입니다.");
         }
     }
 }

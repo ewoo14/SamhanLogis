@@ -2,6 +2,7 @@ package com.samhanair.logis.auth.repository;
 
 import com.samhanair.logis.auth.domain.GroupPagePermission;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -9,4 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface GroupPagePermissionRepository extends JpaRepository<GroupPagePermission, UUID> {
 
     List<GroupPagePermission> findByGroupIdAndIsDeletedFalse(UUID groupId);
+
+    Optional<GroupPagePermission> findByGroupIdAndPageCodeAndIsDeletedFalse(UUID groupId, String pageCode);
 }

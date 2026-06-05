@@ -259,6 +259,9 @@ public enum PageCode {
     /** 동적 RBAC 권한 관리 화면 — MASTER 전용. */
     ADMIN_PERMISSIONS("admin.permissions", "권한 관리"),
 
+    /** 동적 권한그룹 관리 화면 — Phase A 신규. */
+    ADMIN_PERMISSION_GROUPS("admin.permission-groups", "권한그룹 관리"),
+
     /** 시스템 권한 매트릭스 관리 화면 — SP-D6-1 bootstrap 이중 가드. */
     SYSTEM_PERMISSION_ADMIN("system.permission-admin", "시스템 권한 관리"),
 

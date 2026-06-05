@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 import com.samhanair.logis.auth.domain.AccountPagePermission;
+import com.samhanair.logis.auth.repository.AccountPermissionOverrideRepository;
 import com.samhanair.logis.auth.repository.AccountPagePermissionRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.repository.RolePagePermissionTemplateRepository;
@@ -25,10 +26,16 @@ class AccountPermissionServiceTest {
     private AccountPagePermissionRepository accountPermissionRepository;
 
     @Mock
+    private AccountPermissionOverrideRepository overrideRepository;
+
+    @Mock
     private RolePagePermissionTemplateRepository templateRepository;
 
     @Mock
     private AccountRepository accountRepository;
+
+    @Mock
+    private EffectivePermissionMaterializer materializer;
 
     @Test
     void checkReadsAccountPagePermission() {
@@ -62,7 +69,9 @@ class AccountPermissionServiceTest {
     private AccountPermissionService service() {
         return new AccountPermissionService(
                 accountPermissionRepository,
+                overrideRepository,
                 templateRepository,
-                accountRepository);
+                accountRepository,
+                materializer);
     }
 }
