@@ -2784,3 +2784,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 |---|---|
 | D-PGC-07 | C3a = 역할 변경 시 빌트인 role-group 자동 동기화(AuthService.updateAccountRole/registerWithId → syncBuiltinRoleGroup + materialize). role↔group 발산 해소(C5 교량). 시스템그룹 가드 우회 internal 경로, 수동그룹 보존, MASTER bypass 불변(materializer systemMaster skip). **Option A(role 드롭다운 UX 유지, 그룹 동기화)** — Option B(그룹배속 UI 대체)는 개발책임자 결정 대기. |
 | D-PGC-08 | **C4·C5 자율 머지 보류**(PM 판단, 개발책임자 취침). C4(isMasterBypass role→is_system_master)가 JWT 클레임+게이트웨이 헤더+전 14서비스 필터 변경 필요 = C5 핵심 인프라 결합. spec §6 "한 세션 강행 금지(락아웃)" + 락아웃 시 대응 불가 → 계획서(`plans/2026-06-06-...-c4-c5-execution-plan.md`) 준비 후 개발책임자집중 세션 권장. 기능 목표는 A/B 로 달성, C4/C5=enum 물리제거(긴급도 낮음). |
+
+### D-PGC (C3b Option B, 2026-06-06)
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-09 | 개발책임자 "123 순서" ① — C3 Option B 채택. UsersPage 역할변경(RoleChangeModal 단일 role 드롭다운) → GroupAssignModal(권한그룹 배속). 빌트인 role-group 이 primary(그룹→role 역매핑 BUILTIN_GROUP_ROLE_MAP, V43 `...01XX`) → updateAdminUserRole(C3a 동기화). 추가 커스텀 그룹 multi-assign(Phase A permissionGroupsApi 재사용). accounts.role = 기본 그룹 파생 스냅샷(C5 전 JWT 호환), multi-role 미지원(단일 primary). BE 무변경(role 파생 FE). full multi-role 은 C5 후. |

@@ -2743,7 +2743,38 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // PATCH /admin/users/{id}/disable, /enable, /role
   const adminUserActionMatch = url.match(/\/admin\/users\/([^/]+)\/(disable|enable|role)$/)
   if (method === 'PATCH' && adminUserActionMatch) {
-    return envelope({ id: adminUserActionMatch[1], message: '처리되었습니다' })
+    const userId = adminUserActionMatch[1]!
+    const action = adminUserActionMatch[2]!
+    if (action === 'role') {
+      // C3b: role PATCH — newRole 을 받아 사용자 role 업데이트 + 빌트인 그룹 동기화 mock
+      const body = parseMockBody(config)
+      const newRole = String(body['newRole'] ?? '')
+      const userIdx = MOCK_ADMIN_USERS.findIndex((u) => u.id === userId)
+      if (userIdx >= 0 && newRole) {
+        // role 필드 업데이트
+        ;(MOCK_ADMIN_USERS[userIdx] as Record<string, unknown>)['role'] = newRole
+        // 빌트인 그룹 동기화: 기존 빌트인 그룹 제거 후 새 빌트인 그룹 추가
+        const BUILTIN_IDS_SET = new Set([
+          BUILTIN_GROUP_ID_MASTER, BUILTIN_GROUP_ID_MANAGER, BUILTIN_GROUP_ID_SALES,
+          BUILTIN_GROUP_ID_WAREHOUSE, BUILTIN_GROUP_ID_ACCOUNTANT, BUILTIN_GROUP_ID_INVENTORY,
+          BUILTIN_GROUP_ID_DISPATCH, BUILTIN_GROUP_ID_DRIVER, BUILTIN_GROUP_ID_STAFF,
+          BUILTIN_GROUP_ID_DEVELOPER,
+        ])
+        const ROLE_TO_BUILTIN: Record<string, string> = {
+          MASTER: BUILTIN_GROUP_ID_MASTER, MANAGER: BUILTIN_GROUP_ID_MANAGER,
+          SALES: BUILTIN_GROUP_ID_SALES,   WAREHOUSE: BUILTIN_GROUP_ID_WAREHOUSE,
+          ACCOUNTANT: BUILTIN_GROUP_ID_ACCOUNTANT, INVENTORY: BUILTIN_GROUP_ID_INVENTORY,
+          DISPATCH: BUILTIN_GROUP_ID_DISPATCH, DRIVER: BUILTIN_GROUP_ID_DRIVER,
+          STAFF: BUILTIN_GROUP_ID_STAFF,   DEVELOPER: BUILTIN_GROUP_ID_DEVELOPER,
+        }
+        const existing = _mockAccountGroups[userId] ?? []
+        const nonBuiltin = existing.filter((gid) => !BUILTIN_IDS_SET.has(gid))
+        const newBuiltinId = ROLE_TO_BUILTIN[newRole]
+        _mockAccountGroups[userId] = newBuiltinId ? [newBuiltinId, ...nonBuiltin] : nonBuiltin
+        return envelope(MOCK_ADMIN_USERS[userIdx])
+      }
+    }
+    return envelope({ id: userId, message: '처리되었습니다' })
   }
 
   // GET /admin/users/{id}/role-history
@@ -7347,54 +7378,69 @@ const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix 
   }
 }
 
+// ---------------------------------------------------------------------------
+// C3b: 빌트인 role-group 10개 (V43 UUID 체계 00000000-0000-0000-0000-0000000001XX)
+// ---------------------------------------------------------------------------
+const BUILTIN_GROUP_ID_MASTER     = '00000000-0000-0000-0000-000000000100'
+const BUILTIN_GROUP_ID_MANAGER    = '00000000-0000-0000-0000-000000000101'
+const BUILTIN_GROUP_ID_SALES      = '00000000-0000-0000-0000-000000000102'
+const BUILTIN_GROUP_ID_WAREHOUSE  = '00000000-0000-0000-0000-000000000103'
+const BUILTIN_GROUP_ID_ACCOUNTANT = '00000000-0000-0000-0000-000000000104'
+const BUILTIN_GROUP_ID_INVENTORY  = '00000000-0000-0000-0000-000000000105'
+const BUILTIN_GROUP_ID_DISPATCH   = '00000000-0000-0000-0000-000000000106'
+const BUILTIN_GROUP_ID_DRIVER     = '00000000-0000-0000-0000-000000000107'
+const BUILTIN_GROUP_ID_STAFF      = '00000000-0000-0000-0000-000000000108'
+const BUILTIN_GROUP_ID_DEVELOPER  = '00000000-0000-0000-0000-000000000109'
+
 const _mockPermissionGroups: MockPermissionGroup[] = [
-  {
-    id: 'mock-group-master',
-    name: '마스터',
-    description: '시스템 최고관리자 그룹',
-    builtin: true,
-    systemMaster: true,
-  },
-  {
-    id: 'mock-group-sales',
-    name: '영업팀',
-    description: '영업 운영 기본 그룹',
-    builtin: false,
-    systemMaster: false,
-  },
-  {
-    id: 'mock-group-dispatch',
-    name: '배차팀',
-    description: '아로로지스 배차 담당 그룹',
-    builtin: false,
-    systemMaster: false,
-  },
-  {
-    id: 'mock-group-accounting',
-    name: '회계팀',
-    description: '회계 처리 담당 그룹',
-    builtin: false,
-    systemMaster: false,
-  },
+  // --- 빌트인 역할 그룹 10개 (isBuiltin=true) ---
+  { id: BUILTIN_GROUP_ID_MASTER,     name: '마스터',      description: '시스템 최고관리자 (빌트인)', builtin: true, systemMaster: true },
+  { id: BUILTIN_GROUP_ID_MANAGER,    name: '매니저',      description: '운영 매니저 (빌트인)',       builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_SALES,      name: '영업원',      description: '영업 담당 (빌트인)',         builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_WAREHOUSE,  name: '창고원',      description: '창고 운영 (빌트인)',         builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_ACCOUNTANT, name: '회계원',      description: '회계 처리 (빌트인)',         builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_INVENTORY,  name: '재고원',      description: '재고 관리 (빌트인)',         builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_DISPATCH,   name: '배차담당자',  description: '배차 담당 (빌트인)',         builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_DRIVER,     name: '기사',        description: '기사 역할 (빌트인)',         builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_STAFF,      name: '사원',        description: '일반 사원 (빌트인)',         builtin: true, systemMaster: false },
+  { id: BUILTIN_GROUP_ID_DEVELOPER,  name: '개발자',      description: '시스템 개발자 (빌트인)',     builtin: true, systemMaster: false },
+  // --- 커스텀 그룹 3개 (isBuiltin=false) ---
+  { id: 'mock-group-custom-sales',      name: '영업팀',  description: '영업 운영 커스텀 그룹',          builtin: false, systemMaster: false },
+  { id: 'mock-group-custom-dispatch',   name: '배차팀',  description: '아로로지스 배차 담당 커스텀 그룹', builtin: false, systemMaster: false },
+  { id: 'mock-group-custom-accounting', name: '회계팀',  description: '회계 처리 담당 커스텀 그룹',     builtin: false, systemMaster: false },
 ]
 
 const _mockPermissionGroupMatrices: Record<string, Record<string, MockActionMatrix>> = {
-  'mock-group-master': {},
-  'mock-group-sales': Object.fromEntries(
-    SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('SALES', page)]),
-  ) as Record<string, MockActionMatrix>,
-  'mock-group-dispatch': Object.fromEntries(
-    SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH', page)]),
-  ) as Record<string, MockActionMatrix>,
-  'mock-group-accounting': Object.fromEntries(
-    SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('ACCOUNTANT', page)]),
-  ) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_MASTER]: {},
+  [BUILTIN_GROUP_ID_MANAGER]:    Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('MANAGER',    page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_SALES]:      Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('SALES',      page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_WAREHOUSE]:  Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('WAREHOUSE',  page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_ACCOUNTANT]: Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('ACCOUNTANT', page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_INVENTORY]:  Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('INVENTORY',  page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_DISPATCH]:   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH',   page)])) as Record<string, MockActionMatrix>,
+  [BUILTIN_GROUP_ID_DRIVER]: {},
+  [BUILTIN_GROUP_ID_STAFF]: {},
+  [BUILTIN_GROUP_ID_DEVELOPER]:  Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DEVELOPER',  page)])) as Record<string, MockActionMatrix>,
+  'mock-group-custom-sales':      Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('SALES',      page)])) as Record<string, MockActionMatrix>,
+  'mock-group-custom-dispatch':   Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('DISPATCH',   page)])) as Record<string, MockActionMatrix>,
+  'mock-group-custom-accounting': Object.fromEntries(SP_D1_PAGES.map((page) => [page, mockActionMatrixFromRole('ACCOUNTANT', page)])) as Record<string, MockActionMatrix>,
 }
 
+// C3b: 각 mock 사용자(user-001~user-008)에 대한 초기 빌트인 그룹 배속.
+// user-xxx → admin account UUID 로 역매핑 (mock 환경에서는 user.id 를 accountId 로 사용).
 const _mockAccountGroups: Record<string, string[]> = {
-  'mock-account-manager': ['mock-group-sales', 'mock-group-accounting'],
-  'mock-account-sales': ['mock-group-sales'],
-  'mock-account-dispatch': ['mock-group-dispatch'],
+  'user-001': [BUILTIN_GROUP_ID_MASTER],
+  'user-002': [BUILTIN_GROUP_ID_ACCOUNTANT, 'mock-group-custom-accounting'],
+  'user-003': [BUILTIN_GROUP_ID_SALES, 'mock-group-custom-sales'],
+  'user-004': [BUILTIN_GROUP_ID_SALES],
+  'user-005': [BUILTIN_GROUP_ID_WAREHOUSE],
+  'user-006': [BUILTIN_GROUP_ID_INVENTORY],
+  'user-007': [BUILTIN_GROUP_ID_DEVELOPER],
+  'user-008': [BUILTIN_GROUP_ID_MANAGER],
+  // PermissionGroupManagePage 에서 사용하는 계정 ID
+  'mock-account-manager':  [BUILTIN_GROUP_ID_MANAGER, 'mock-group-custom-accounting'],
+  'mock-account-sales':    [BUILTIN_GROUP_ID_SALES, 'mock-group-custom-sales'],
+  'mock-account-dispatch': [BUILTIN_GROUP_ID_DISPATCH, 'mock-group-custom-dispatch'],
 }
 
 function mockPermissionGroupSummary(group: MockPermissionGroup) {
