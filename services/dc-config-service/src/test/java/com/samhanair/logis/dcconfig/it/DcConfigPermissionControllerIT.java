@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -24,12 +26,17 @@ import com.samhanair.logis.dcconfig.service.DcConfigService;
 import com.samhanair.logis.dcconfig.web.DcConfigImportController;
 import com.samhanair.logis.dcconfig.web.PartnerDcConfigsController;
 import com.samhanair.logis.security.HrAuthorizationHelper;
+import com.samhanair.logis.security.InternalSecurityAutoConfiguration;
+import com.samhanair.logis.security.department.Department;
+import com.samhanair.logis.security.department.RequireDepartment;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.PermissionGuardMetrics;
 import com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -47,6 +54,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -62,9 +71,13 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
                 PartnerDcConfigsController.class,
                 DcConfigImportController.class
         },
-        properties = "spring.application.name=dc-config-service")
+        properties = {
+                "spring.application.name=dc-config-service",
+                "samhan.security.department.enabled=true"
+        })
 @Import({
         PermissionSecurityAutoConfiguration.class,
+        InternalSecurityAutoConfiguration.class,
         DcConfigPermissionControllerIT.TestSecurityConfig.class,
         DcConfigPermissionControllerIT.TestMeterConfig.class
 })
@@ -72,6 +85,7 @@ class DcConfigPermissionControllerIT {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
+    private static final String DEPARTMENT_HEADER = "X-User-Department";
     private static final String SERVICE_NAME = "dc-config-service";
     private static final String PARTNER_DC_PAGE = "sales.partner-dc-config";
     private static final String IMPORT_PAGE = "dc-config.import";
@@ -153,34 +167,86 @@ class DcConfigPermissionControllerIT {
     }
 
     @Test
-    @DisplayName("DC import는 MASTER 정적 가드 + dc-config.import EDIT 권한이면 200")
-    void dcConfigImport_withMasterAndEditGrant_returns200() throws Exception {
-        mockMvc.perform(withActor(multipart("/api/v1/dc-config/admin/import")
-                        .file(csvFile()), "MASTER"))
+    @DisplayName("DC import는 대표실 + MASTER면 200")
+    void dcConfigImport_executiveOfficeMaster_returns200() throws Exception {
+        mockMvc.perform(withActor(
+                        multipart("/api/v1/dc-config/admin/import").file(csvFile()),
+                        "MASTER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
-    @DisplayName("DC import는 비MASTER면 정적 @PreAuthorize가 403으로 차단한다")
-    void dcConfigImport_nonMaster_staticGuardReturns403() throws Exception {
-        mockMvc.perform(withActor(multipart("/api/v1/dc-config/admin/import")
-                        .file(csvFile()), "MANAGER"))
+    @DisplayName("DC import는 비대표실이면 권한 grant가 있어도 부서 게이트가 403으로 차단한다")
+    void dcConfigImport_nonExecutiveOffice_returns403BeforePermission() throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
+                .thenReturn(true);
+        double permissionBefore = deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name());
+        double departmentBefore = departmentDeniedCount("MASTER");
+
+        mockMvc.perform(withActor(
+                        multipart("/api/v1/dc-config/admin/import").file(csvFile()),
+                        "MASTER",
+                        "영업1팀"))
                 .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name()))
+                .isEqualTo(permissionBefore);
+        assertThat(departmentDeniedCount("MASTER")).isEqualTo(departmentBefore + 1.0);
+        verify(dynamicPermissionClient, never())
+                .check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE));
     }
 
     @Test
-    @DisplayName("DC import는 EDIT 권한 없으면 MASTER라도 403 + Counter 증가")
-    void dcConfigImport_withoutEditGrant_returns403AndIncrementsCounter() throws Exception {
+    @DisplayName("DC import는 대표실이어도 dc-config.import CREATE 권한 없으면 403")
+    void dcConfigImport_executiveOfficeNonMasterWithoutGrant_returns403() throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
+                .thenReturn(false);
+        double before = deniedCount(IMPORT_PAGE, "MANAGER", PermissionAction.CREATE.name());
+
+        mockMvc.perform(withActor(
+                        multipart("/api/v1/dc-config/admin/import").file(csvFile()),
+                        "MANAGER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().isForbidden());
+
+        assertThat(deniedCount(IMPORT_PAGE, "MANAGER", PermissionAction.CREATE.name()))
+                .isEqualTo(before + 1.0);
+    }
+
+    @Test
+    @DisplayName("DC import는 MASTER면 dc-config.import 권한 조회 없이 bypass로 200")
+    void dcConfigImport_masterBypassSkipsDynamicPermissionCheck() throws Exception {
         when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
         double before = deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name());
 
-        mockMvc.perform(withActor(multipart("/api/v1/dc-config/admin/import")
-                        .file(csvFile()), "MASTER"))
+        mockMvc.perform(withActor(
+                        multipart("/api/v1/dc-config/admin/import").file(csvFile()),
+                        "MASTER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
                 .andExpect(status().isOk());
 
         assertThat(deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name())).isEqualTo(before);
+        verify(dynamicPermissionClient, never())
+                .check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE));
+    }
+
+    @Test
+    @DisplayName("DC import는 @RequireDepartment + @RequirePermission 단일소스이며 @PreAuthorize를 쓰지 않는다")
+    void dcConfigImport_usesDepartmentAndPermissionAnnotations() throws Exception {
+        Method method = DcConfigImportController.class.getMethod("importCsv", MultipartFile.class);
+
+        RequireDepartment requireDepartment = method.getAnnotation(RequireDepartment.class);
+        RequirePermission requirePermission = method.getAnnotation(RequirePermission.class);
+
+        assertThat(requireDepartment).isNotNull();
+        assertThat(requireDepartment.value()).isEqualTo(Department.EXECUTIVE_OFFICE);
+        assertThat(requirePermission).isNotNull();
+        assertThat(requirePermission.page()).isEqualTo(IMPORT_PAGE);
+        assertThat(requirePermission.action()).isEqualTo(PermissionAction.CREATE);
+        assertThat(method.getAnnotation(PreAuthorize.class)).isNull();
     }
 
     private static DcConfig createDcConfig(String partnerCode) {
@@ -210,9 +276,17 @@ class DcConfigPermissionControllerIT {
     private static MockHttpServletRequestBuilder withActor(
             MockHttpServletRequestBuilder request,
             String role) {
+        return withActor(request, role, HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME);
+    }
+
+    private static MockHttpServletRequestBuilder withActor(
+            MockHttpServletRequestBuilder request,
+            String role,
+            String department) {
         return request
                 .header(USER_ID_HEADER, UUID.randomUUID().toString())
-                .header(ROLE_HEADER, role);
+                .header(ROLE_HEADER, role)
+                .header(DEPARTMENT_HEADER, department);
     }
 
     private double deniedCount(String page, String role, String action) {
@@ -225,14 +299,19 @@ class DcConfigPermissionControllerIT {
         ).count();
     }
 
+    private double departmentDeniedCount(String role) {
+        return meterRegistry.counter(
+                PermissionGuardMetrics.COUNTER_NAME,
+                "service", SERVICE_NAME,
+                "page", "department",
+                "role", role,
+                "action", Department.EXECUTIVE_OFFICE.name()
+        ).count();
+    }
+
     @TestConfiguration
     @EnableMethodSecurity
     static class TestSecurityConfig {
-
-        @Bean("hr")
-        HrAuthorizationHelper hrAuthorizationHelper() {
-            return new HrAuthorizationHelper();
-        }
 
         @Bean
         SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
