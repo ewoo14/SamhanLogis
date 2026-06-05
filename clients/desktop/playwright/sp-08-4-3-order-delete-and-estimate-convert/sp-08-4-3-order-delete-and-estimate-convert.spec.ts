@@ -63,7 +63,7 @@ test.describe('SP-08-4-3 주문 삭제 + 견적 주문 변환 정적 계약', ()
     expect(page).toContain('variant="danger"')
     expect(page).toContain("const orderId = id!")
     expect(page).toContain("<strong>{query.data?.orderNumber ?? '조회 중'}</strong>을(를)")
-    expect(page).toContain('EDIT_ROLES')
+    expect(page).toContain("canAccess('sales.partner-order.edit', 'update')")
     expect(api).toContain('apiClient.delete')
   })
 

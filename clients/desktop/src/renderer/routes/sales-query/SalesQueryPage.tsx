@@ -39,6 +39,7 @@ import { querySlips, deleteSalesSlip, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { useSessionStore, canCreateSlip, canQuerySales } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 import { canExportSlips, exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import axios from 'axios'
@@ -82,14 +83,8 @@ const SHIPPABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const
 /** SP-08-6-2: 매출 직접 수정 가능 상태 — SAVED / DRAFT */
 const SALES_EDITABLE_STATUSES = ['SAVED', 'DRAFT'] as const
 
-/** SP-08-6-2: 매출 직접 수정 권한 역할 */
-const SALES_EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
 /** SP-08-6-3: 매출 soft delete 가능 상태 — SAVED / DRAFT */
 const SALES_DELETABLE_STATUSES = ['SAVED', 'DRAFT'] as const
-
-/** SP-08-6-3: 매출 soft delete 권한 역할 */
-const SALES_DELETE_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
 function isShippable(row: SlipQueryRow): boolean {
   return SHIPPABLE_STATUSES.includes(row.status as (typeof SHIPPABLE_STATUSES)[number])
@@ -176,13 +171,14 @@ export function SalesQueryPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
   const canCreate = canCreateSlip(role)
   const canExport = canExportSlips(role)
   const canQuery  = canQuerySales(role)
-  /** SP-08-6-2: 매출 직접 수정 권한 (SALES / MANAGER / MASTER) */
-  const canEditSales = !!role && (SALES_EDIT_ROLES as readonly string[]).includes(role)
-  /** SP-08-6-3: 매출 soft delete 권한 (SALES / MANAGER / MASTER) */
-  const canDeleteSales = !!role && (SALES_DELETE_ROLES as readonly string[]).includes(role)
+  /** SP-08-6-2: 매출 직접 수정 권한 — 동적 권한(canAccess) */
+  const canEditSales = canAccess('sales.slip.edit', 'update')
+  /** SP-08-6-3: 매출 soft delete 권한 — 동적 권한(canAccess) */
+  const canDeleteSales = canAccess('sales.slip.edit', 'delete')
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {

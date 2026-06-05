@@ -33,7 +33,7 @@ test.describe('SP-08-4-4 주문 인쇄 양식 정적 계약', () => {
     const page = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')
     const routes = read('clients/desktop/src/renderer/routes/index.tsx')
 
-    expect(page).toContain('PRINT_ROLES')
+    expect(page).toContain("canAccess('sales.partner-order.print', 'print')")
     expect(page).toContain('partner-order-print-open')
     expect(page).toContain('variant="secondary"')
     expect(page).toContain('/api/v1/partner-orders/${encodeURIComponent(orderId)}/print')

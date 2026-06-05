@@ -21,7 +21,7 @@ import { formatSlipDate } from '../api/slipNumber'
 import { toOrderPathId } from '../utils/orderNo'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
-import { useSessionStore } from '../stores/session'
+import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { MergeConvertDialog } from './components/MergeConvertDialog'
 import styles from '../components/sales/sales.module.css'
@@ -45,8 +45,6 @@ const ymd = (iso: string | null) => (iso ? formatSlipDate(iso) : '-')
  */
 const MERGE_SELECTABLE_STATUS: ReadonlySet<PartnerOrderStatus> = new Set(['DRAFT', 'ON_HOLD'])
 
-/** 병합 전환 허용 역할 — sales.partner-order.convert CREATE 와 동일 매트릭스. */
-const MERGE_CONVERT_ROLES = ['SALES', 'MANAGER', 'MASTER']
 
 /**
  * P1-3: confirmedAt 없는 status(DRAFT/ON_HOLD/CONFIRMING) 는 BE 가 createdAt 기준으로
@@ -61,7 +59,7 @@ const PRE_CONFIRM_STATUSES: ReadonlySet<PartnerOrderStatus> = new Set([
 export function SalesPartnerOrderListPage() {
   const navigate = useNavigate()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
-  const auth = useSessionStore((s) => s.auth)
+  const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -76,7 +74,7 @@ export function SalesPartnerOrderListPage() {
   /** Phase 2.6b D2: 병합 전환 성공 토스트 메시지 — null 이면 비표시. */
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
 
-  const canMergeConvert = !!auth?.role && MERGE_CONVERT_ROLES.includes(auth.role)
+  const canMergeConvert = canAccess('sales.partner-order.convert', 'create')
 
   /**
    * P1-3: status 변경 시 기간 필터 초기화 + 컨텍스트 힌트 표시.

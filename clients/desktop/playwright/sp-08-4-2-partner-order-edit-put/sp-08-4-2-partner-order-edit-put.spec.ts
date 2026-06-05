@@ -36,7 +36,7 @@ test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
     const page = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')
     const api = read('clients/desktop/src/renderer/api/sales.ts')
 
-    expect(page).toContain("const EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']")
+    expect(page).toContain("canAccess('sales.partner-order.edit', 'update')")
     expect(page).toContain('partner-order-edit-open')
     expect(page).toContain('partner-order-edit-form')
     expect(page).toContain('partner-order-edit-submit')

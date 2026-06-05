@@ -204,6 +204,8 @@ export type PageCode =
   | 'sales.partner-order.edit-requests'
   | 'sales.partner-order.edit-requests.decide'
   | 'sales.partner-order.tutorial'
+  | 'sales.partner-order.convert'
+  | 'sales.partner-order.revisions'
   | 'sales.vendor-order'
   | 'inventory.warehouse'
   | 'inventory.warehouse.admin'

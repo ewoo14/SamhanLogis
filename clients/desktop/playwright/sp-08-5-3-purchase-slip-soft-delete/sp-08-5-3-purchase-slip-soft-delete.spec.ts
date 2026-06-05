@@ -69,17 +69,17 @@ test.describe('SP-08-5-3 매입 전표 soft delete 계약', () => {
   /**
    * T2 FE 계약
    *
-   * SlipDetailPage: PURCHASE_DELETE_ROLES + canDirectDeletePurchase 연산
+   * SlipDetailPage: canAccess('purchases.slip.delete', 'delete') + canDirectDeletePurchase 연산
    * data-testid 4종: purchase-slip-delete-button / confirm / confirm-yes / confirm-no
    * design-system <Modal> + <Button variant="danger"> 사용
    * deletePurchaseSlip API 함수: apiClient.delete + updatedAt 전송
    */
-  test('T2 FE contract: PURCHASE_DELETE_ROLES + testid 4종 + Modal + deletePurchaseSlip API', () => {
+  test('T2 FE contract: canAccess delete gate + testid 4종 + Modal + deletePurchaseSlip API', () => {
     const page = read('clients/desktop/src/renderer/routes/SlipDetailPage.tsx')
     const api = read('clients/desktop/src/renderer/api/slip.ts')
 
-    // roles 상수 + canDirectDeletePurchase
-    expect(page).toContain("const PURCHASE_DELETE_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']")
+    // canAccess 동적 권한 게이트 + canDirectDeletePurchase
+    expect(page).toContain("canAccess('purchases.slip.delete', 'delete')")
     expect(page).toContain('canDirectDeletePurchase')
     expect(page).toMatch(/canDirectDeletePurchase[\s\S]*mode === 'INBOUND'/)
 

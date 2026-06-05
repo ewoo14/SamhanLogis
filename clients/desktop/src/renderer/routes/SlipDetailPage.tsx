@@ -88,6 +88,7 @@ import { SlipVersionHistoryPanel } from '../components/audit/SlipVersionHistoryP
 import { SlipRealtimeClient } from '../realtime/SlipRealtimeClient'
 import { useSessionStore, canTransitionSlip } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 export interface SlipDetailPageProps {
   /** OUTBOUND 또는 INBOUND — 라우트별 listPath 결정 + ship/deliver 노출 여부. */
@@ -164,14 +165,6 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
   NOT_READY: '검수 대기',
 }
 
-const PURCHASE_EDIT_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
-const PURCHASE_DELETE_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER']
-
-/** SP-08-6-2: 매출 전표 직접 수정 권한 — SALES / MANAGER / MASTER. */
-const SALES_EDIT_ROLES = ['SALES', 'MANAGER', 'MASTER']
-
-/** SP-08-6-3: 매출 전표 soft delete 권한 — SALES / MANAGER / MASTER. */
-const SALES_DELETE_ROLES = ['SALES', 'MANAGER', 'MASTER']
 
 type PurchaseEditLine = SlipLineInput & { key: string }
 
@@ -208,6 +201,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const id = params.id ?? ''
   const navigate = useNavigate()
   const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
   const isOutbound = mode === 'OUTBOUND'
   const listPath = isOutbound ? '/sales' : '/purchases'
@@ -760,35 +754,31 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const slip = detailQuery.data
   const possibleActions = actionsForStatus(slip.status, mode)
   const canDirectEditPurchase = mode === 'INBOUND'
-    && !!role
-    && PURCHASE_EDIT_ROLES.includes(role)
+    && canAccess('purchases.slip.edit', 'update')
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   const canDirectDeletePurchase = mode === 'INBOUND'
-    && !!role
-    && PURCHASE_DELETE_ROLES.includes(role)
+    && canAccess('purchases.slip.delete', 'delete')
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   /**
    * SP-08-6-2: 매출 전표 직접 수정 권한 판단.
    * - mode = OUTBOUND (출고전표)
-   * - role = SALES / MANAGER / MASTER
+   * - canAccess('sales.slip.edit', 'update') — 동적 권한(MASTER 자동 전권)
    * - status = SAVED 또는 DRAFT
    */
   const canDirectEditSales = mode === 'OUTBOUND'
-    && !!role
-    && SALES_EDIT_ROLES.includes(role)
+    && canAccess('sales.slip.edit', 'update')
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   /**
    * SP-08-6-3: 매출 전표 soft delete 권한 판단.
    * - mode = OUTBOUND (출고전표)
-   * - role = SALES / MANAGER / MASTER
+   * - canAccess('sales.slip.edit', 'delete') — 동적 권한(MASTER 자동 전권)
    * - status = SAVED 또는 DRAFT
    */
   const canDirectDeleteSales = mode === 'OUTBOUND'
-    && !!role
-    && SALES_DELETE_ROLES.includes(role)
+    && canAccess('sales.slip.edit', 'delete')
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
 
   /**

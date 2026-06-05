@@ -2771,3 +2771,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 |---|---|
 | D-PGC-04 | C2b = PermissionGuard 미병행 단독 RoleGuard **19 라우트 전환**(page-code seed 실재 검증 후), **보류 3**(/sales/vendor-order-upload·/sales/closing·/admin/sheet-sync — BE 미구현/page-code 미확정, RoleGuard 유지). page-code 미존재 시 PermissionGuard 전원 차단 치명 → 전환 전 seed 교차검증 필수. |
 | D-PGC-05 | **mock 권한 카탈로그 동기화 = C2b 필수 동반.** PermissionGuard 는 mock 모드에서 `permissions/my` mock(SP_D1_PAGES+DEFAULT_VIEW/EDIT)으로 판정 → 전환 page-code 12개를 auth seed 의 역할별 can_view/can_edit 그대로 추가(MASTER 자동 전권). 미동기화 시 mockRole-only 진입 테스트 전원 redirect(ac-2/ac-3 등 19 spec). 핸드오프 P2 "mock PageCode 카탈로그 동기화"를 흡수. |
+
+### D-PGC (C2c 추가, 2026-06-06) — 상세페이지 버튼 동적 권한 전환 (C2 FE 완료)
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-06 | 상세페이지 액션 버튼 정적 역할 게이트(`*_ROLES.includes(role)`) → `usePermissions().canAccess(pageCode, action)` 동적 전환(4파일 10상수). 버튼은 UX, 실제 차단은 BE @RequirePermission. mock 카탈로그에 5 page-code(purchases.slip.edit/delete·sales.slip.edit·sales.partner-order.edit/convert) seed 정확 추가(D-PGC-05 동일 패턴). **AdminLayout 부서(EXECUTIVE_OFFICE) 가드는 유지**(조직 정책 = page-code 직교, C2 비목표). → **C2(FE 고정역할 게이트 제거) 완료**(C2a/C2b/C2c). |
