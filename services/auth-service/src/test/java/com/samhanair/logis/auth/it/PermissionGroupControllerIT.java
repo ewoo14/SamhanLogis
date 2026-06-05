@@ -197,6 +197,52 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("배속 차단 — MASTER 시스템 권한그룹에는 계정을 직접 배속할 수 없다")
+    void assignMasterSystemGroup_returns409() throws Exception {
+        MvcResult result = mockMvc.perform(post("/auth/admin/accounts/{accountId}/groups", SALES_ACCOUNT_ID)
+                        .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"groupId":"%s"}
+                                """.formatted(MASTER_GROUP_ID)))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        assertThat(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("시스템 권한그룹");
+
+        Integer activeAssignments = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM account_groups
+                WHERE account_id = ?
+                  AND group_id = ?
+                  AND is_deleted = FALSE
+                """, Integer.class, SALES_ACCOUNT_ID, MASTER_GROUP_ID);
+        assertThat(activeAssignments).isZero();
+    }
+
+    @Test
+    @DisplayName("매트릭스 차단 — MASTER 시스템 권한그룹 권한 매트릭스는 편집할 수 없다")
+    void updateMasterSystemGroupMatrix_returns409() throws Exception {
+        MvcResult result = mockMvc.perform(put("/auth/admin/permission-groups/{id}/permissions", MASTER_GROUP_ID)
+                        .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rows":[{"pageCode":"%s","actions":{
+                                  "view":true,"create":false,"update":true,"delete":false,
+                                  "restore":false,"download":false,"print":false
+                                }}]}
+                                """.formatted(PAGE)))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        assertThat(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("시스템 권한그룹");
+    }
+
+    @Test
     @DisplayName("그룹 매트릭스/배속/override — 갱신 후 effective 반영, override deny 우선")
     void matrixAssignAndOverride_endToEnd() throws Exception {
         UUID groupId = createGroup("IT 권한그룹 매트릭스", "권한 재계산");
@@ -323,6 +369,11 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
     }
 
     private void cleanAccountRows() {
+        jdbcTemplate.update("""
+                DELETE FROM account_groups
+                WHERE account_id = ?
+                  AND group_id = ?
+                """, SALES_ACCOUNT_ID, MASTER_GROUP_ID);
         jdbcTemplate.update("""
                 DELETE FROM account_permission_overrides
                 WHERE account_id = ?

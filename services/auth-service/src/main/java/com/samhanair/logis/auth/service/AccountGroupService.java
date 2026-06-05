@@ -52,6 +52,7 @@ public class AccountGroupService {
     public AccountGroupSummary assign(UUID accountId, UUID groupId) {
         Account account = requireAccount(accountId);
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
+        rejectSystemGroupAssignment(group);
         accountGroupRepository.findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
                 .orElseGet(() -> accountGroupRepository.save(AccountGroup.assign(accountId, groupId)));
         materializer.materializeForAccount(accountId);
@@ -82,6 +83,13 @@ public class AccountGroupService {
         }
         return accountRepository.findById(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다."));
+    }
+
+    /** 시스템/빌트인 권한그룹은 role 변경 경로로만 부여되도록 직접 배속을 차단한다. */
+    private void rejectSystemGroupAssignment(PermissionGroup group) {
+        if (group.isBuiltin() || group.isSystemMaster()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "시스템 권한그룹에는 계정을 직접 배속할 수 없습니다.");
+        }
     }
 
     private AccountGroupSummary toSummary(Account account, PermissionGroup group) {

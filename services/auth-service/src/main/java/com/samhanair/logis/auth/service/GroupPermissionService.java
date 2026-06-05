@@ -2,6 +2,7 @@ package com.samhanair.logis.auth.service;
 
 import com.samhanair.logis.auth.domain.GroupPagePermission;
 import com.samhanair.logis.auth.domain.PageCode;
+import com.samhanair.logis.auth.domain.PermissionGroup;
 import com.samhanair.logis.auth.repository.GroupPagePermissionRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -59,7 +60,8 @@ public class GroupPermissionService {
      */
     @Transactional
     public int updateGroupMatrix(UUID groupId, List<AccountPermissionService.AccountPermissionUpdate> updates) {
-        permissionGroupService.requireGroup(groupId);
+        PermissionGroup group = permissionGroupService.requireGroup(groupId);
+        rejectBuiltinMutation(group);
         if (updates == null || updates.isEmpty()) {
             materializer.materializeForGroup(groupId);
             return 0;
@@ -81,6 +83,13 @@ public class GroupPermissionService {
         }
         materializer.materializeForGroup(groupId);
         return normalized.size();
+    }
+
+    /** 시스템/빌트인 권한그룹의 page×action 매트릭스는 운영 정책상 불변으로 유지한다. */
+    private void rejectBuiltinMutation(PermissionGroup group) {
+        if (group.isBuiltin() || group.isSystemMaster()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "시스템 권한그룹은 변경하거나 삭제할 수 없습니다.");
+        }
     }
 
     private void validatePageCode(String pageCode) {
