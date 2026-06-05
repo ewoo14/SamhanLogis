@@ -34,7 +34,9 @@ import org.springframework.web.bind.annotation.RestController;
  * DPS 저장내역 API controller.
  *
  * <p>legacy GAS DPS 저장내역 탭의 Notion CRUD 를 Samhan Public inventory DB/API 로 대체한다.
- * 권한은 기존 DPS 화면과 동일하게 WAREHOUSE / MANAGER / MASTER 로 제한한다.
+ * <p>{@code @PreAuthorize} 제거 후 {@code @RequirePermission(page = "inventory.dps")} 와
+ * seed grant 가 단일 권한 소스이다. 개발책임자 Option A 결정에 따라
+ * MASTER / MANAGER / WAREHOUSE / INVENTORY 의 DPS 접근을 정식 수용한다.
  */
 @RestController
 @RequestMapping("/warehouse/audit/dps-history")

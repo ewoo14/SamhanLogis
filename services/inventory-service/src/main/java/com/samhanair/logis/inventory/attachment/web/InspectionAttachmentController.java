@@ -44,7 +44,9 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>권한 매트릭스:
  * <ul>
- *   <li>업로드 — WAREHOUSE / DRIVER / MANAGER / MASTER (DRIVER 도 검수 사진 촬영 가능 — 매뉴얼)</li>
+ *   <li>업로드 — {@code @RequirePermission(page = "inventory.stock-balance")} 와 seed grant 가 단일 권한 소스.
+ *       {@code @PreAuthorize} 제거 후 개발책임자 Option A 결정에 따라
+ *       MASTER / MANAGER / WAREHOUSE / INVENTORY 접근을 정식 수용</li>
  *   <li>조회 / 다운로드 — 모든 인증 사용자</li>
  *   <li>삭제 — MANAGER / MASTER</li>
  * </ul>
@@ -81,7 +83,8 @@ public class InspectionAttachmentController {
      * @return 201 + InspectionAttachmentResponse
      */
     @Operation(summary = "검수 사진 업로드",
-            description = "WAREHOUSE/MANAGER/MASTER 권한. ≤5MB, image/jpeg·png 만 허용. EXIF GPS 선택 첨부")
+            description = "@RequirePermission + seed grant 기준 MASTER/MANAGER/WAREHOUSE/INVENTORY 접근. "
+                    + "≤5MB, image/jpeg·png 만 허용. EXIF GPS 선택 첨부")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "업로드 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파일 크기/형식 미허용"),

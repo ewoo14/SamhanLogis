@@ -30,11 +30,14 @@ import org.springframework.web.multipart.MultipartFile;
  * 의 자체 운영 endpoint. 출고전표 = 자체 자동 조회 (slip-service Feign), DPS = 사용자 엑셀 업로드
  * 유지 (사용자 명시: "DPS 엑셀을 그대로 업로드할 수 있게 해야함 — 자동으로 가져올 수 없음").
  *
- * <p>권한 매트릭스 (memory ROLE 풀네임 의무):
+ * <p>권한 매트릭스 (memory ROLE 풀네임 의무): {@code @PreAuthorize} 제거 후
+ * {@code @RequirePermission(page = "inventory.dps")} 와 seed grant 가 단일 권한 소스이다.
+ * 개발책임자 Option A 결정에 따라 INVENTORY 접근을 정식 수용하며 compare / template /
+ * by-product 모두 같은 grant role-set 으로 수렴한다.
  * <ul>
  *   <li>POST  /warehouse/audit/dps-compare — MASTER / MANAGER / WAREHOUSE / INVENTORY</li>
  *   <li>GET   /warehouse/audit/dps-compare/template — MASTER / MANAGER / WAREHOUSE / INVENTORY</li>
- *   <li>GET   /warehouse/audit/dps-compare/by-product — WAREHOUSE / MANAGER / MASTER (P0-B)</li>
+ *   <li>GET   /warehouse/audit/dps-compare/by-product — MASTER / MANAGER / WAREHOUSE / INVENTORY (P0-B)</li>
  * </ul>
  *
  * <p>UUID 비공개 — 응답에는 slipNo / productCode / partnerCode / partnerName 비즈니스 식별자만

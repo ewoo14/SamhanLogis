@@ -247,6 +247,8 @@ class InventoryPermissionControllerIT {
                 ID, "2026/05/27-001", "photo.png", 1L, "image/png",
                 "inspection/photo.png", null, null, null, "tester", "memo");
         attachment.refreshStorageUrl("https://example.invalid/inspection/photo.png");
+        lenient().when(attachmentService.upload(any(), any(), any(), any(), any(), anyString(), any()))
+                .thenReturn(attachment);
         lenient().when(attachmentService.listBySlipId(any())).thenReturn(List.of(attachment));
         lenient().when(attachmentService.download(any()))
                 .thenReturn(new InspectionAttachmentService.DownloadView(
@@ -285,6 +287,17 @@ class InventoryPermissionControllerIT {
     void migratedEndpoint_withGrant_isNotForbidden(EndpointCase endpoint) throws Exception {
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
                 .andExpect(status().is(not(403)));
+    }
+
+    @ParameterizedTest(name = "{0} inventory grant")
+    @MethodSource("inventoryGrantEndpoints")
+    void migratedEndpoint_inventoryRoleWithGrant_isAllowed(EndpointCase endpoint) throws Exception {
+        when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(true);
+
+        mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
+                .andExpect(status().is(not(403)));
+
+        verify(dynamicPermissionClient).check(eq(ID), eq(endpoint.page()), eq(endpoint.action()));
     }
 
     @ParameterizedTest(name = "{0} deny")
@@ -471,6 +484,33 @@ class InventoryPermissionControllerIT {
                         () -> multipart("/admin/warehouses/imports/ecount").file(csv("file"))),
                 endpoint("ecount transfer import", "ecount.import.inventory", PermissionAction.CREATE, "MANAGER",
                         () -> multipart("/admin/inventory/stock-transfers/imports/ecount").file(csv("file")))
+        );
+    }
+
+    static Stream<EndpointCase> inventoryGrantEndpoints() {
+        return Stream.of(
+                endpoint("dps history save", "inventory.dps", PermissionAction.CREATE, "INVENTORY",
+                        () -> post("/warehouse/audit/dps-history").contentType(MediaType.APPLICATION_JSON).content(historyBody())),
+                endpoint("dps history list", "inventory.dps", PermissionAction.VIEW, "INVENTORY",
+                        () -> get("/warehouse/audit/dps-history")),
+                endpoint("dps history detail", "inventory.dps", PermissionAction.VIEW, "INVENTORY",
+                        () -> get("/warehouse/audit/dps-history/{id}", ID)),
+                endpoint("dps history latest", "inventory.dps", PermissionAction.VIEW, "INVENTORY",
+                        () -> get("/warehouse/audit/dps-history/latest").param("programType", "DPS_COMPARE")),
+                endpoint("dps by product", "inventory.dps", PermissionAction.VIEW, "INVENTORY",
+                        () -> get("/warehouse/audit/dps-compare/by-product")
+                                .param("fromDate", "2026-05-01").param("toDate", "2026-05-31")),
+                endpoint("inbound inspection get", "inventory.stock-balance", PermissionAction.VIEW, "INVENTORY",
+                        () -> get("/inventory/inbound-inspections/{id}", ID)),
+                endpoint("inbound inspection save result", "inventory.stock-balance", PermissionAction.UPDATE, "INVENTORY",
+                        () -> post("/inventory/inbound-inspections/{id}/inspect", ID)
+                                .contentType(MediaType.APPLICATION_JSON).content(inspectBody())),
+                endpoint("inbound inspection list", "inventory.stock-balance", PermissionAction.VIEW, "INVENTORY",
+                        () -> get("/inventory/inbound-inspections")),
+                endpoint("inbound inspection complete", "inventory.stock-balance", PermissionAction.UPDATE, "INVENTORY",
+                        () -> post("/inventory/inbound-inspections/{id}/complete", ID)),
+                endpoint("attachment upload", "inventory.stock-balance", PermissionAction.CREATE, "INVENTORY",
+                        () -> multipart("/inventory/inspections/{id}/attachments", ID).file(image("file")))
         );
     }
 

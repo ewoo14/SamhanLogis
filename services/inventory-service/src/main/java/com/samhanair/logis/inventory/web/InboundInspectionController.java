@@ -31,7 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 입고 검수 API — P0-9 검수 UI 슬라이스.
  *
- * <p>권한: WAREHOUSE / MANAGER / MASTER (검수는 창고 담당자 역할 중심).
+ * <p>권한: {@code @PreAuthorize} 제거 후
+ * {@code @RequirePermission(page = "inventory.stock-balance")} 와 seed grant 가 단일 권한
+ * 소스이다. 개발책임자 Option A 결정에 따라
+ * MASTER / MANAGER / WAREHOUSE / INVENTORY 의 검수 접근을 정식 수용한다.
  *
  * <p>엔드포인트 목록:
  * <ul>
