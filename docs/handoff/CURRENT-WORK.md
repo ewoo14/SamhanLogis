@@ -4,6 +4,28 @@
 
 ---
 
+## 🆕 2026-06-05 (오후) — 권한그룹 Phase B(위임) 머지 + Phase C(고정역할제거) spec 준비
+
+### ✅ Phase B 위임 머지 (#398 squash `5bf465bc`) — 개발책임자 "인사권한 위임" 완성
+MASTER 가 관리권한(권한설정/권한그룹/**인사 역할관리**)을 그룹에 **위임/회수**. 위임받은 계정은 MASTER 없이 작업.
+- **위임=페이지권한 부여**(별도 엔티티 X). 관리 page-code `PageCode.MANAGEMENT_PAGE_CODES`={system.permission-admin, hr.role-management, admin.permission-groups}.
+- **hr.role-management 분리**(V45): 역할변경/퇴사를 admin.employees(MANAGER 일반관리)에서 분리. EmployeeController 하드 @PreAuthorize(MASTER) 제거→@RequirePermission(hr.role-management). seed MASTER-only(widening 0).
+- **위임=MASTER 전용**(§3A): 공용 `ManagementPageMutationGuard` 가 관리 page-code grant 을 전 경로(매트릭스/그룹배속/role override/template/위임API) MASTER-only 차단 → 위임자 재위임/자기상승 0.
+- **FE**: 권한 위임 화면(RoleGuard MASTER), 운영화면 RoleGuard→**PermissionGuard(system.permission-admin)** 전환(위임자 실사용 가능).
+- dual+CI+실QA 적발·수정: 봉쇄 우회 4경로 / 위임자 운영화면 차단 / sp-d1 T6 stale / **실QA revoke soft-delete 버그** / IT assertEffective 무행=deny. spec/dev-report/QA 동일자.
+
+### 📋 Phase C(고정역할 완전제거) — spec 준비, **미착수**(최고위험 다중슬라이스)
+`docs/superpowers/specs/2026-06-05-permission-groups-phase-c-fixed-role-removal-design.md`. enum/accounts.role/X-User-Role/isMasterBypass/잔여 hasRole = 전 14서비스+인증+DB → 원자적 불가. 슬라이스(위험순):
+- **C1**(저위험) 잔여 비-INTERNAL hasRole→@RequirePermission(dc-config/slip SlipSalesQuery/arologis 등, 서비스별 page-code+seed). umbrella "@RequirePermission 미병행 서비스" 흡수.
+- **C2** FE RoleGuard→PermissionGuard(화면별).
+- **C3**(중) 역할부여 UX→그룹배속 일원화(EmployeeController.updateRole, role_snapshot).
+- **C4**(고) isMasterBypass 키 role=="MASTER"→is_system_master 그룹/전용 클레임. 전 서비스 영향.
+- **C5**(최고) accounts.role/X-User-Role 제거, JWT 그룹기반. 최종, 전 서비스 동시 실QA+롤백.
+- 🚨 한 세션 C 전체 강행 금지(락아웃). 기능 목표는 A/B 로 달성, C 는 enum 물리제거/정리. C3~C5 집중 세션 + 슬라이스별 실QA 필수.
+- **INTERNAL 컨트롤러 hasRole 유지**(서비스간 토큰, 사용자 role 아님).
+
+---
+
 ## 🆕 2026-06-05 — 동적 권한그룹(Permission Groups) Phase A 머지 + 권한코드 PM 전권
 
 > 🚨 세션 시작 즉시 `git fetch origin`([[feedback_agent_origin_main_sync]]).
