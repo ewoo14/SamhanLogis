@@ -78,3 +78,11 @@
 - D-PAM-03: behavior-preserving 의무 + **실 HTTP 회귀 테스트 필수**(@MockBean false-green 금지, #316 회고).
 - D-PAM-04: decomposition = 5 슬라이스(M1 tail 패턴확립 → M5 auth/arologis 최고위험 최종), 슬라이스별 auth seed 선배포.
 - D-PAM-05: **role 전환 시 widening 발생 = behavior-preserving 아님 → 개발책임자 sign-off 필수**(2026-06-05, PR #387 inventory). `@PreAuthorize` role-set 이 seed grant role-set 보다 **좁을 때**(예: @PreAuthorize 가 INVENTORY 배제, seed 는 INVENTORY grant) 제거 시 access 확대. inventory 슬라이스는 **Option A(수용)** 결정 — INVENTORY 의 `inventory.dps`/`inventory.stock-balance` 접근을 동적 권한(seed 단일소스) 모델로 정식 인정(재고원 도메인 접근 합리, 실 seed grant 실증). 단 `InspectionAttachmentController.delete` 의 `@PreAuthorize("hasAnyRole('MANAGER','MASTER')")` 는 INVENTORY 의 stock-balance `can_delete=TRUE`(실 DB 실측) 때문에 **유지**(widening guard). 교훈 [[feedback_preauth_migration_lessons]] §4: 슬라이스 착수 전 `@PreAuthorize` role-set vs seed grant role-set 완전 일치 교차확인 선행.
+- D-PAM-06: **EmployeeController.updateRole/terminate = 의도적 MASTER-only 유지**(개발책임자 2026-06-05). 역할변경/퇴사는 HR 고위험 작업. 실 seed(admin.employees)는 MANAGER 에게도 UPDATE/DELETE grant(role+account materialized 실측) → @PreAuthorize 제거 시 MANAGER widening(D-PAM-05 패턴). 개발책임자 결정 = **유지**(widening 거부). = INTERNAL 컨트롤러 유지 카테고리에 준함. 컨트롤러 Javadoc/주석에 제거금지 명시(추적성). **후속(선택)**: seed 의 MANAGER admin.employees UPDATE/DELETE grant 를 MASTER-only 로 좁히면 UI(버튼 노출)–API(@PreAuthorize) 정합(현재 MANAGER 는 UI 노출되나 API 차단되는 잠재 불일치) — 별도 판단.
+
+## 8. 마이그레이션 현황 (2026-06-05)
+
+@PreAuthorize 완전제거의 **순수 제거(behavior-preserving 또는 sign-off 된 widening) 가능 범위 사실상 소진**:
+- ✅ **완료**: 부서게이트 M1(#382)+M-dept(#384) `@RequireDepartment` 전환 · auth system.* role(#390/#391, widening 0) · inventory role(#387, Option A widening 수용).
+- 🟡 **유지(제거 금지)**: INTERNAL 컨트롤러 34건(서비스간·사용자 JWT 없음, D-PAM-01) · EmployeeController updateRole/terminate(D-PAM-06 MASTER-only).
+- 📋 **잔여(더 큰 작업, deferred)**: `@RequirePermission` **미병행** 컨트롤러(slip ~11·partner 6·notification 3·dashboard 1·arologis 비-Internal) — 순수 제거가 아니라 동적 권한 어노테이션 **선추가 + page-code 설계 + seed** 가 필요. 착수 시 서비스별 슬라이스 + seed 선배포(D-PAM-04). dc-config 복합(`@hr.isExecutiveOffice() and hasRole('MASTER')`)도 이 단계에서 page-code 화.

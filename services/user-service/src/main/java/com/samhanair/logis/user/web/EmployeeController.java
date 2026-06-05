@@ -39,7 +39,10 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>SP-D6-3 동적 권한 이중 가드:
  * <ul>
- *   <li>역할 변경/퇴사 처리는 기존 {@code @PreAuthorize("hasRole('MASTER')")} 보존</li>
+ *   <li>역할 변경/퇴사({@code updateRole}/{@code terminate})는 HR 고위험 작업으로 기존
+ *       {@code @PreAuthorize("hasRole('MASTER')")} 를 의도적으로 유지한다
+ *       ({@code @PreAuthorize} 완전제거 마이그레이션 제외, D-PAM-06). seed(admin.employees)가
+ *       MANAGER 에게도 UPDATE/DELETE grant 하므로 제거 시 MANAGER widening 발생 → 제거 금지.</li>
  *   <li>POST/PATCH write → {@code @RequirePermission(page="admin.employees", action="EDIT")}</li>
  * </ul>
  */
@@ -111,6 +114,7 @@ public class EmployeeController {
     }
 
     @PatchMapping("/{id}/role")
+    // MASTER-only 유지(D-PAM-06, 제거 금지 — MANAGER widening)
     @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "admin.employees", action = PermissionAction.UPDATE)
     public ApiResponse<EmployeeResponse> updateRole(
@@ -122,6 +126,7 @@ public class EmployeeController {
     }
 
     @PostMapping("/{id}/terminate")
+    // MASTER-only 유지(D-PAM-06, 제거 금지 — MANAGER widening)
     @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "admin.employees", action = PermissionAction.DELETE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
