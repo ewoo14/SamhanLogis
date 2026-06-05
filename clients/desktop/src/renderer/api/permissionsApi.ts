@@ -146,6 +146,7 @@ export type PageCode =
   | 'dispatch.batch'
   | 'admin.permissions'
   | 'admin.permission-groups'
+  | 'hr.role-management'
   | 'system.permission-admin'
   | 'system.password-admin'
   | 'system.account-admin'

@@ -26,6 +26,12 @@ export interface AccountGroupSummary {
   groupSystemMaster: boolean
 }
 
+export interface PermissionGroupDelegations {
+  permissionAdmin: boolean
+  hrRoleManagement: boolean
+  permissionGroups: boolean
+}
+
 interface RawPermissionGroupSummary {
   id: string
   name: string
@@ -126,6 +132,24 @@ export async function updatePermissionGroupMatrix(
   const res = await apiClient.put<ApiEnvelope<ChangedCountResponse>>(
     `/auth/admin/permission-groups/${encodeURIComponent(groupId)}/permissions`,
     { rows: updates.map(toGroupPermissionRow) },
+  )
+  return res.data.data
+}
+
+export async function getDelegations(groupId: string): Promise<PermissionGroupDelegations> {
+  const res = await apiClient.get<ApiEnvelope<PermissionGroupDelegations>>(
+    `/auth/admin/permission-groups/${encodeURIComponent(groupId)}/delegations`,
+  )
+  return res.data.data
+}
+
+export async function updateDelegations(
+  groupId: string,
+  payload: PermissionGroupDelegations,
+): Promise<PermissionGroupDelegations> {
+  const res = await apiClient.put<ApiEnvelope<PermissionGroupDelegations>>(
+    `/auth/admin/permission-groups/${encodeURIComponent(groupId)}/delegations`,
+    payload,
   )
   return res.data.data
 }

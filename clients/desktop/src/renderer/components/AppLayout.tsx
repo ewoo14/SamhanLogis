@@ -1240,6 +1240,13 @@ export function AppLayout() {
               >
                 권한그룹 관리
               </SidebarLink>
+              <SidebarLink
+                to="/admin/permission-groups/delegation"
+                show={showPermissionAdmin}
+                data-testid="sidebar-hr-permission-delegation"
+              >
+                권한 위임
+              </SidebarLink>
             </>
           ) : null}
         </nav>

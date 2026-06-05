@@ -5137,6 +5137,31 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(mockPermissionGroupSummary(group))
   }
 
+  const groupDelegationMatch = url.match(/\/(?:auth\/)?admin\/permission-groups\/([^/]+)\/delegations$/)
+  if (groupDelegationMatch) {
+    const groupId = decodeURIComponent(groupDelegationMatch[1]!)
+    const group = _mockPermissionGroups.find((g) => g.id === groupId)
+    if (!group) return mockError(404, 'NOT_FOUND', '권한그룹을 찾을 수 없습니다.')
+
+    if (method === 'GET') {
+      return envelope(mockGroupDelegations(groupId))
+    }
+
+    if (method === 'PUT') {
+      if (MOCK_AUTH.role !== 'MASTER') {
+        return mockError(403, 'FORBIDDEN', '권한 위임은 MASTER 만 수행할 수 있습니다.')
+      }
+      if (group.builtin || group.systemMaster) {
+        return mockError(409, 'CONFLICT', '시스템 권한그룹은 변경하거나 삭제할 수 없습니다.')
+      }
+      const body = parseMockBody(config)
+      setMockDelegation(groupId, 'system.permission-admin', Boolean(body['permissionAdmin']))
+      setMockDelegation(groupId, 'hr.role-management', Boolean(body['hrRoleManagement']))
+      setMockDelegation(groupId, 'admin.permission-groups', Boolean(body['permissionGroups']))
+      return envelope(mockGroupDelegations(groupId))
+    }
+  }
+
   const groupCrudMatch = url.match(/\/(?:auth\/)?admin\/permission-groups\/([^/]+)$/)
   if (groupCrudMatch && !url.includes('/permissions')) {
     const groupId = decodeURIComponent(groupCrudMatch[1]!)
@@ -6917,6 +6942,7 @@ const SP_D1_PAGES = [
   'dispatch.board',
   'admin.permissions',
   'admin.permission-groups',
+  'hr.role-management',
   // SP-D2 회계 7개 신규
   'accounting.accounts',
   'accounting.journals',
@@ -7325,4 +7351,31 @@ function mockAccountGroupSummary(accountId: string, group: MockPermissionGroup) 
     groupBuiltin: group.builtin,
     groupSystemMaster: group.systemMaster,
   }
+}
+
+function mockGroupDelegations(groupId: string) {
+  const matrix = _mockPermissionGroupMatrices[groupId] ?? {}
+  return {
+    permissionAdmin: isMockDelegated(matrix['system.permission-admin']),
+    hrRoleManagement: isMockDelegated(matrix['hr.role-management']),
+    permissionGroups: isMockDelegated(matrix['admin.permission-groups']),
+  }
+}
+
+function isMockDelegated(row: MockActionMatrix | undefined): boolean {
+  return Boolean(row?.view && row.update)
+}
+
+function setMockDelegation(groupId: string, pageCode: string, grant: boolean) {
+  const matrix = _mockPermissionGroupMatrices[groupId] ?? {}
+  matrix[pageCode] = {
+    view: grant,
+    create: false,
+    update: grant,
+    delete: false,
+    restore: false,
+    download: false,
+    print: false,
+  }
+  _mockPermissionGroupMatrices[groupId] = matrix
 }
