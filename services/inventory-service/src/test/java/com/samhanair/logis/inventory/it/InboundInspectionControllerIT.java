@@ -122,10 +122,12 @@ class InboundInspectionControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("INVENTORY 권한 → 403 (inventory-service 검수 계약은 WAREHOUSE/MANAGER/MASTER)")
-    void inventoryRole_returns403() throws Exception {
-        // @PreAuthorize 제거 후 @RequirePermission(inventory.stock-balance, VIEW) 단독 가드.
-        // AbstractPostgresIT 기본 stub(check → true) 을 override — V35 seed: INVENTORY 에 stock-balance 없음.
+    @DisplayName("INVENTORY 계정 + 권한 미부여 → 403 (동적 권한 부재 시 차단)")
+    void inventoryAccountWithoutGrant_returns403() throws Exception {
+        // @RequirePermission(inventory.stock-balance, VIEW) 단일 가드.
+        // 기본 stub(check → true)을 override 하여 권한 미부여 상황을 모사한다.
+        // Option A로 INVENTORY의 stock-balance 접근은 정식 수용되나(V35 seed grant 존재),
+        // 권한이 실제 부여되지 않은 계정은 차단됨을 검증한다.
         Mockito.when(dynamicPermissionClient.check(
                         Mockito.any(UUID.class),
                         Mockito.eq("inventory.stock-balance"),
