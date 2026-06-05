@@ -45,14 +45,17 @@ test.describe('Samhan Public 회계 마감 메뉴 gap', () => {
     expect(layout).not.toContain('<NavLink to="/warehouse/closing">매출 마감</NavLink>')
   })
 
-  test('정식 route는 ACCOUNTING_ROLES RoleGuard로 보호된다', () => {
+  test('정식 route는 권한 가드로 보호된다 (C2a 후 period-close 는 PermissionGuard 단일 게이트)', () => {
     const routes = read(routePath)
 
+    // /sales/closing 은 PermissionGuard 미병행 단독 RoleGuard 라우트로 유지(C2b 대상).
     expect(routes).toMatch(
       /path:\s*'\/sales\/closing'[\s\S]*?<RoleGuard allow=\{ACCOUNTING_ROLES\}>[\s\S]*?<SalesClosingPage \/>/,
     )
+    // [C2a] /accounting/period-close 는 redundant 외부 RoleGuard 제거 →
+    // PermissionGuard(accounting.period-close) 단일 게이트. seed grant 가 진실원(Option A, D-PGC-01).
     expect(routes).toMatch(
-      /path:\s*'\/accounting\/period-close'[\s\S]*?<RoleGuard allow=\{ACCOUNTING_ROLES\}>[\s\S]*?<PeriodCloseListPage \/>/,
+      /path:\s*'\/accounting\/period-close'[\s\S]*?<PermissionGuard pageCode="accounting\.period-close"[\s\S]*?<PeriodCloseListPage \/>/,
     )
   })
 })

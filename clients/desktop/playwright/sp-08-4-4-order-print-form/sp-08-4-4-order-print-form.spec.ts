@@ -41,7 +41,9 @@ test.describe('SP-08-4-4 주문 인쇄 양식 정적 계약', () => {
     expect(page).toContain('URL.createObjectURL')
     expect(page).toContain("window.open(url, '_blank')")
     expect(page).toContain('opened.opener = null')
-    expect(routes).toContain("const SALES_PARTNER_ORDER_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const")
+    // [C2a] redundant 외부 RoleGuard(SALES_PARTNER_ORDER_ROLES) 제거 → 주문 라우트는
+    // PermissionGuard(sales.partner-order.list) 단일 게이트. seed grant 가 진실원(Option A, D-PGC-01).
+    expect(routes).toContain('pageCode="sales.partner-order.list"')
   })
 
   test('T3: BE inline print stylesheet @media print 정의', () => {

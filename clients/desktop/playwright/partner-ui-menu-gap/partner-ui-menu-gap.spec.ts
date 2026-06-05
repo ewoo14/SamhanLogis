@@ -37,11 +37,13 @@ test.describe('Samhan Public 거래처 관리 UI gap', () => {
 
     expect(routes).toContain("path: '/admin/partners'")
     expect(routes).toContain("path: '/admin/partners/new'")
+    // [C2a] redundant 외부 RoleGuard(PARTNER_FULL_ROLES) 제거 → PermissionGuard(partners.*) 단일 게이트.
+    // seed grant(partners.list/partners.detail = MASTER/MANAGER/ACCOUNTANT/SALES)가 진실원(Option A, D-PGC-01).
     expect(routes).toMatch(
-      /path:\s*'\/admin\/partners'[\s\S]*?<RoleGuard allow=\{PARTNER_FULL_ROLES\}>[\s\S]*?<AdminPartnersPage \/>[\s\S]*?<\/RoleGuard>/,
+      /path:\s*'\/admin\/partners\/new'[\s\S]*?<PermissionGuard pageCode="partners\.detail"[\s\S]*?<AdminPartnerCreatePage \/>[\s\S]*?<\/PermissionGuard>/,
     )
     expect(routes).toMatch(
-      /path:\s*'\/admin\/partners\/new'[\s\S]*?<RoleGuard allow=\{PARTNER_FULL_ROLES\}>[\s\S]*?<AdminPartnerCreatePage \/>[\s\S]*?<\/RoleGuard>/,
+      /path:\s*'\/admin\/partners'[\s\S]*?<PermissionGuard pageCode="partners\.list"[\s\S]*?<AdminPartnersPage \/>[\s\S]*?<\/PermissionGuard>/,
     )
     expect(routes).not.toContain("{ path: 'partners', element: <AdminPartnersPage /> }")
   })

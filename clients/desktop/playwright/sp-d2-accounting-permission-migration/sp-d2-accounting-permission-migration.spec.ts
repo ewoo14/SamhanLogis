@@ -898,38 +898,27 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       ).toBe(true)
     })
 
-    await test.step('SALES — accounting.tax-invoice.batch-issue grant 후 라우트 가드 확인', async () => {
+    await test.step('SALES — C2a 후 PermissionGuard 단일 게이트 (list 미grant → 홈 redirect)', async () => {
       await page.goto(withMockPerms(ACCOUNTING_TAX_INVOICES_SALES_GRANTED, salesGrantedPerms), {
         waitUntil: 'domcontentloaded',
         timeout: 20000,
       })
-      await page.waitForTimeout(1500)
 
-      // RoleGuard allow={ACCOUNTING_ROLES} — SALES 는 ACCOUNTANT/MANAGER/MASTER 아님
-      // 이중 가드 패턴: RoleGuard 에서 차단 → PermissionGuard grant 해도 진입 불가 (SP-D3 전)
-      // T5 의 핵심 = "이중 가드 동작 검증"
-      const currentUrl = page.url()
-      const bodyText = (await page.textContent('body')) ?? ''
-
-      // 이중 가드 핵심 검증: SALES 는 RoleGuard(ACCOUNTING_ROLES=ACCOUNTANT/MANAGER/MASTER) 화이트리스트
-      // 밖이므로, PermissionGuard 로 tax-invoice.batch-issue 를 grant 해도 바깥 RoleGuard 가 차단해
-      // "접근 권한이 없습니다" 화면을 렌더한다(URL 유지). RoleGuard 제거(SP-D3 이후) 전까지 grant 는 무효.
-      // (grant 는 사이드바 메뉴에는 반영되나 라우트 진입은 RoleGuard 가 막는다 — 진단으로 확인.)
-      expect(
-        bodyText.includes('접근 권한이 없습니다') || bodyText.includes('권한 보유자만'),
-        `SALES 는 RoleGuard 이중 가드로 차단되어야 함(grant 무효, 접근 권한 없음 화면) — URL: ${currentUrl}, body: "${bodyText.substring(0, 120)}"`,
-      ).toBe(true)
+      // [C2a] redundant 외부 RoleGuard(ACCOUNTING_ROLES) 제거 → PermissionGuard(accounting.tax-invoice.list) 단일 게이트.
+      // (Phase C2a 가 SP-D2 주석이 예고했던 "RoleGuard 제거" 를 수행 — grant 가 진실원, Option A/D-PGC-01.)
+      // SALES 에게 grant 된 건 tax-invoice.batch-issue 뿐이라 라우트 게이트(tax-invoice.list)는 통과 못함
+      // → PermissionGuard 가 홈("/")으로 redirect(404 효과). 접근 차단 유지 = widening 0.
+      await expect
+        .poll(() => new URL(page.url()).hash, { timeout: 8000 })
+        .not.toContain('tax-invoices')
     })
 
-    await test.step('SALES — mockPerms 에 accounting.tax-invoice.batch-issue 포함 확인', async () => {
-      const decodedPerms = new URL(page.url()).hash
-      const hasTaxInvoiceBatchIssue = decodedPerms.includes('mockPerms=')
-        && salesGrantedPerms.some((p) =>
-          p.pageCode === 'accounting.tax-invoice.batch-issue' && p.view === true)
-
+    await test.step('SALES grant 페이로드에 accounting.tax-invoice.batch-issue view=true 포함 확인', async () => {
+      // redirect 후 URL 에는 mockPerms 가 남지 않으므로 grant 페이로드(salesGrantedPerms) 자체를 검증.
       expect(
-        hasTaxInvoiceBatchIssue,
-        `mockPerms 에 accounting.tax-invoice.batch-issue view=true 미포함 — grant 후 URL 주입 반영 필요. perms: ${JSON.stringify(salesGrantedPerms).substring(0, 200)}`,
+        salesGrantedPerms.some((p) =>
+          p.pageCode === 'accounting.tax-invoice.batch-issue' && p.view === true),
+        `grant 페이로드에 accounting.tax-invoice.batch-issue view=true 미포함. perms: ${JSON.stringify(salesGrantedPerms).substring(0, 200)}`,
       ).toBe(true)
     })
 
