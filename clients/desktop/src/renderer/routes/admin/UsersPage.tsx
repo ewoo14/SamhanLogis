@@ -1043,7 +1043,11 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
 
   // 빌트인 그룹 목록 (기본 권한그룹 select 소스)
   // isSystemMaster 그룹(MASTER)은 목록 포함 — MASTER 도 기본 그룹으로 변경 가능.
-  const builtinGroups = allGroups.filter((g) => g.isBuiltin)
+  // DRIVER(107) / STAFF(108) = FE AdminRole 미포함 → BUILTIN_GROUP_ROLE_MAP 에 역매핑 없음 → 선택해도 저장 불가
+  // → select 옵션에서 명시적으로 제외 (사용자 혼란 방지).
+  const builtinGroups = allGroups.filter(
+    (g) => g.isBuiltin && g.id in BUILTIN_GROUP_ROLE_MAP,
+  )
 
   // 커스텀 그룹 목록 (추가 배속 소스 — 미배속 것만)
   const customGroups = allGroups.filter((g) => !g.isBuiltin && !g.isSystemMaster)
@@ -1059,6 +1063,8 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
 
   // 변경 사유 (5자 이상 검증)
   const [reason, setReason] = useState('')
+  // P2-4: 추가 그룹 배속/해제 에러 메시지
+  const [assignError, setAssignError] = useState<string | null>(null)
   const reasonTrimmed = reason.trim()
   const reasonValid = reasonTrimmed.length === 0 || reasonTrimmed.length >= 5
 
@@ -1084,7 +1090,11 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
   const assignMutation = useMutation({
     mutationFn: (groupId: string) => assignAccountGroup(user.id, groupId),
     onSuccess: () => {
+      setAssignError(null)
       void queryClient.invalidateQueries({ queryKey: ['admin', 'permission-account-groups', user.id] })
+    },
+    onError: () => {
+      setAssignError('추가 그룹 배속에 실패했습니다.')
     },
   })
 
@@ -1092,7 +1102,11 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
   const unassignMutation = useMutation({
     mutationFn: (groupId: string) => unassignAccountGroup(user.id, groupId),
     onSuccess: () => {
+      setAssignError(null)
       void queryClient.invalidateQueries({ queryKey: ['admin', 'permission-account-groups', user.id] })
+    },
+    onError: () => {
+      setAssignError('그룹 배속 해제에 실패했습니다.')
     },
   })
 
@@ -1104,8 +1118,8 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
     if (isBuiltinChanged) {
       roleMutation.mutate()
     } else {
-      // 기본 그룹 변경 없이 추가 그룹만 수정 — 그냥 닫기
-      onCommitted()
+      // P2-5: 기본 그룹 변경 없을 때는 추가 refetch 없이 onClose() — 추가 그룹은 이미 invalidate 됨
+      onClose()
     }
   }
 
@@ -1121,10 +1135,14 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
             닫기
           </Button>
           <Button
+            type="button"
             variant="primary"
             onClick={() => {
+              // P1-2: 이중 발행 방지
+              if (roleMutation.isPending) return
               if (isBuiltinChanged) roleMutation.mutate()
-              else onCommitted()
+              // P2-5: 기본 그룹 변경 없을 때는 목록 refetch 없이 닫기 (추가 그룹은 이미 invalidate)
+              else onClose()
             }}
             loading={roleMutation.isPending}
             disabled={
@@ -1190,8 +1208,12 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
                 data-testid="group-assign-builtin-select"
                 disabled={isLoading}
               >
+                {/* DRIVER/STAFF 등 FE 미지원 role 계정 진입 시 placeholder */}
+                {!selectedBuiltinId ? (
+                  <option value="">그룹을 선택하세요</option>
+                ) : null}
                 {builtinGroups.length === 0 ? (
-                  <option value="">그룹 로딩 중…</option>
+                  <option value="" disabled>그룹 로딩 중…</option>
                 ) : (
                   builtinGroups.map((g) => (
                     <option key={g.id} value={g.id}>
@@ -1203,6 +1225,23 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
               </select>
             )}
           />
+          {/* DRIVER/STAFF 등 FE 미지원 role 안내 */}
+          {!currentBuiltinGroupId ? (
+            <div
+              style={{
+                marginTop: 4,
+                padding: '6px 10px',
+                borderRadius: 4,
+                background: 'var(--state-warning-bg)',
+                borderLeft: '3px solid var(--state-warning)',
+                fontSize: 12,
+                color: 'var(--ink-secondary)',
+              }}
+            >
+              이 계정의 현재 역할(DRIVER/STAFF)은 관리자 화면에서 직접 지정하는 빌트인 그룹이
+              없습니다. 위 목록에서 새 기본 그룹을 선택해 변경할 수 있습니다.
+            </div>
+          ) : null}
           {isBuiltinChanged ? (
             <FormField
               label="변경 사유 (입력 시 5자 이상)"
@@ -1372,6 +1411,21 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
             }}
           >
             기본 권한그룹 변경에 실패했습니다.
+          </div>
+        ) : null}
+        {/* P2-4: 추가 그룹 배속/해제 에러 피드백 */}
+        {assignError !== null ? (
+          <div
+            role="alert"
+            style={{
+              padding: '8px 12px',
+              borderRadius: 6,
+              background: 'var(--state-danger-bg)',
+              color: 'var(--state-danger)',
+              fontSize: 13,
+            }}
+          >
+            {assignError}
           </div>
         ) : null}
       </form>

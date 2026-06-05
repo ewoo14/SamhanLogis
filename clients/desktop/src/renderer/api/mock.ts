@@ -7459,11 +7459,27 @@ function mockPermissionGroupSummary(group: MockPermissionGroup) {
 }
 
 function mockAccountById(accountId: string) {
-  return [
+  // PermissionGroupManagePage 전용 3계정
+  const permPageAccounts = [
     { id: 'mock-account-manager', displayName: '김관리', role: 'MANAGER', enabled: true },
     { id: 'mock-account-sales', displayName: '이영업', role: 'SALES', enabled: true },
     { id: 'mock-account-dispatch', displayName: '박배차', role: 'DISPATCH', enabled: true },
-  ].find((account) => account.id === accountId)
+  ]
+  const found = permPageAccounts.find((account) => account.id === accountId)
+  if (found) return found
+
+  // UsersPage MOCK_ADMIN_USERS(user-001~008) fallback — GroupAssignModal 에서 accountId 로 user.id 사용
+  const adminUser = MOCK_ADMIN_USERS.find((u) => u.id === accountId)
+  if (adminUser) {
+    return {
+      id: adminUser.id,
+      displayName: adminUser.fullName,
+      role: adminUser.role as string,
+      enabled: adminUser.terminationDate === null,
+    }
+  }
+
+  return undefined
 }
 
 function mockAccountGroupSummary(accountId: string, group: MockPermissionGroup) {
