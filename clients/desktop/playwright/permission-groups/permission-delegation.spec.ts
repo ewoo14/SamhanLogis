@@ -61,8 +61,9 @@ test.describe('Permission Groups Phase B Delegation', () => {
     await expect(page.getByTestId('sidebar-hr-permission-delegation')).toBeHidden()
 
     await page.goto(MANAGER_DELEGATION_URL, { waitUntil: 'domcontentloaded' })
+    // [C2a] redundant 외부 RoleGuard 제거 → PermissionGuard(system.permission-admin, MASTER 전용) 단일 게이트.
+    // 비-MASTER 는 RoleGuard 안내 메시지 대신 홈으로 redirect(404 효과, 사이드바 미노출과 일관) — 접근 차단은 동일.
     await expect(page.getByTestId('perm-delegation-page')).toBeHidden()
-    await expect(page.getByText('접근 권한이 없습니다')).toBeVisible()
-    await expect(page.getByText('현재 role: MANAGER')).toBeVisible()
+    await expect.poll(() => new URL(page.url()).hash).not.toContain('delegation')
   })
 })

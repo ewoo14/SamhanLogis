@@ -110,7 +110,6 @@ import { TaxInvoiceDetailPage } from './TaxInvoiceDetailPage'
 // [supplier-profile + datagrid] 사업자 양식 페이지 (ACCOUNTANT read / MANAGER+MASTER write).
 // BE: accounting-service `/api/v1/accounting/supplier-profiles`
 import { SupplierProfilePage } from './accounting/SupplierProfilePage'
-import { SUPPLIER_PROFILE_READ_ROLES } from '../api/supplierProfileApi'
 // P2-1 견적서 라우트 3종 — slip-service `/slips/estimates/*` (commit 59232bd) 신규 BE 연결.
 // legacy webview (EstimateLegacyWebviewPage) 폐기 후 SamhanLogis 도메인 견적 화면으로 교체.
 import { EstimateListPage } from './EstimateListPage'
@@ -144,12 +143,10 @@ import { WarehousesPage as AdminWarehousesPage } from './admin/WarehousesPage'
 import { DepartmentsPage as AdminDepartmentsPage } from './admin/DepartmentsPage'
 // [P0-6] 거래처 4탭 신규 등록 — SALES / MANAGER / MASTER (AdminLayout MASTER 가드 외부 배치)
 import { PartnerCreatePage as AdminPartnerCreatePage } from './admin/PartnerCreatePage'
-import { PARTNER_FULL_ROLES } from '../api/partnerApi'
 // [PR-D Phase B FE-A] 구글 시트 동기화 admin (MASTER 전용 — AdminLayout 가드)
 import { SheetSyncPage as AdminSheetSyncPage } from './admin/SheetSyncPage'
 // [PR-D Phase B FE-B] arologis 지역 관리 admin UI — DISPATCH 조회 + MANAGER/MASTER 관리.
 import { RegionsPage as AdminRegionsPage } from './admin/RegionsPage'
-import { ARO_REGIONS_ADMIN_ROLES } from '../api/regionApi'
 // [PR-D Phase B FE-E] 발송금지 거래처 admin (MASTER 전용 — partner-service /api/v1/partners/admin/blocks)
 import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/BlockedPartnersPage'
 // [PR-F1 Designer mock] 알리고 주소록 자동 동기화 — MASTER 전용 (AdminLayout 가드).
@@ -178,10 +175,8 @@ import { SlipCleanupPage } from './SlipCleanupPage'
 import { SLIP_CLEANUP_ROLES } from '../api/slipCleanupApi'
 // [PR-E1 FE-1] DPS 입고 비교 (legacy GAS 1번/16번 native 이식 — WAREHOUSE/MASTER/MANAGER/INVENTORY)
 import { InventoryDpsComparePage } from './InventoryDpsComparePage'
-import { DPS_COMPARE_ROLES } from '../api/dpsCompareApi'
 // [P0-B GAS 보강] 품목별 DPS 분석 (품목별 DPS 입고 pivot — WAREHOUSE/MANAGER/MASTER)
 import { DpsByProductPage } from './warehouse/DpsByProductPage'
-import { DPS_BY_PRODUCT_ROLES } from '../api/dpsByProductApi'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
 // [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
@@ -198,18 +193,15 @@ import { NEXT_DAY_SLIP_ROLES } from '../api/nextDaySlipApi'
 import { NextDaySlipView } from '../print/NextDaySlipView'
 // [PR-E2 FE-9] 홈택스 일괄 등록 양식 export — ACCOUNTANT/MANAGER/MASTER (BE c48e156).
 import { HometaxExportPage } from './HometaxExportPage'
-import { HOMETAX_EXPORT_ROLES } from '../api/hometaxExportApi'
 // [PR-E2 FE-8] 거래명세서 일괄 페이지 + Designer StatementBatchView 통합 print route.
 // BE: accounting-service `GET /accounting/statements/batch-data` (commit c48e156).
 // 인쇄 view 는 Designer commit 69fd8f0 의 page-break per partner 활용.
 import { StatementBatchPage } from './StatementBatchPage'
-import { STATEMENT_BATCH_ROLES } from '../api/statementBatchApi'
 import { StatementBatchView } from '../print/StatementBatchView'
 // [PR-E2 FE-7] 거래처별 원장 페이지 + Designer PartnerLedgerView 통합 print route.
 // BE: accounting-service `GET /accounting/sales/aggregate` + `/accounting/journals/ledger-data` (commit c48e156).
 // 인쇄 view 는 Designer commit 69fd8f0 의 PartnerLedgerView 재사용.
 import { PartnerLedgerPage } from './PartnerLedgerPage'
-import { PARTNER_LEDGER_ROLES } from '../api/partnerLedgerApi'
 import { PartnerLedgerView } from '../print/PartnerLedgerView'
 // [PR-H3 FE-1] 전표 수정/삭제 요청 처리 대시보드 — WAREHOUSE/MANAGER/MASTER.
 // BE: slip-service `GET/POST /api/v1/slips/edit-requests*` (PR-H3 BE-1 슬라이스).
@@ -218,7 +210,6 @@ import { SLIP_EDIT_REQUEST_REVIEWER_ROLES } from '../api/slipEditRequest'
 // [Issue 4 Slice 4] 회계 수정/삭제 요청 처리 대시보드 — MANAGER/MASTER.
 // BE: accounting-service `GET/POST /api/v1/accounting/edit-requests*`.
 import { AccountingEditRequestsPage } from './admin/AccountingEditRequestsPage'
-import { ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES } from '../api/accountingEditRequest'
 // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER.
 // Gateway: `/api/v1/slips/admin/photo-audit` -> slip-service `/slips/admin/photo-audit`.
 import { PhotoAuditPage } from './admin/PhotoAuditPage'
@@ -266,7 +257,6 @@ import { CompensationFailuresPage } from './CompensationFailuresPage'
 import { KakaoAutoDispatchPage } from './KakaoAutoDispatchPage'
 import { ManualDispatchAdminPage } from './ManualDispatchAdminPage'
 import { DriverAssignmentPage } from './DriverAssignmentPage'
-import { ARO_ADMIN_DISPATCH_ROLES } from '../api/arologisAdminDispatchApi'
 // [SP-08-6-5 P2] 일마감 + 원장 신규 화면 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
 // BE: accounting-service `/accounting/daily-closings` + `/accounting/ledgers`
 import { DailyClosingPage } from './DailyClosingPage'
@@ -305,7 +295,6 @@ import { PurchaseSlipOcrUploadPage } from './PurchaseSlipOcrUploadPage'
 // BE: accounting-service POST /accounting/deposits/fetch-and-match (submitMethod=DRY_RUN|KFTC)
 // shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 KFTC 활성.
 import { DepositMatchPage } from './DepositMatchPage'
-import { DEPOSIT_MATCH_ROLES } from '../api/depositMatchApi'
 // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
 import { ForbiddenPage } from './ForbiddenPage'
 // [SP-D1 404] 인앱 한국어 404 페이지 — AuthGuard + AppLayout 내부 catch-all.
@@ -313,14 +302,12 @@ import { NotFoundPage } from './NotFoundPage'
 // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH / MANAGER / MASTER.
 // BE: slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*` (Phase A spec § 6).
 import DispatchBoardPage from './dispatch-board/DispatchBoardPage'
-const DISPATCH_BOARD_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 // [SP-D1] 동적 RBAC 권한설정 화면 — MASTER 전용.
 import { PermissionMatrixPage } from './PermissionMatrixPage'
 import { PermissionMatrixBulkPage } from './PermissionMatrixBulkPage'
 import { PermissionGroupMatrixPage } from './PermissionGroupMatrixPage'
 import { PermissionGroupManagePage } from './PermissionGroupManagePage'
 import { PermissionDelegationPage } from './PermissionDelegationPage'
-const PERMISSION_MATRIX_ROLES = ['MASTER'] as const
 // [SP-D1 cycle 2] 동적 RBAC PermissionGuard — 서버 권한 매트릭스 기반 라우트 가드.
 import { PermissionGuard } from '../components/PermissionGuard'
 
@@ -340,9 +327,6 @@ function NextDaySlipPrintRoute() {
  */
 const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
 
-/** 재고 실사 권한 — WAREHOUSE / MASTER (사용자 요구). */
-const AUDIT_ROLES = ['WAREHOUSE', 'MASTER'] as const
-
 /**
  * 재고 현황 조회 권한 — WAREHOUSE / MANAGER / MASTER.
  *
@@ -352,17 +336,8 @@ const AUDIT_ROLES = ['WAREHOUSE', 'MASTER'] as const
  */
 const STOCK_BALANCE_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
 
-/** P0-9 입고 검수 권한 — WAREHOUSE / MANAGER / MASTER (재고 적용 권한과 일치). */
-const INBOUND_INSPECTION_ROLES = ['WAREHOUSE', 'MANAGER', 'MASTER'] as const
-
 /** 전표 신규 작성 권한 — slip-service SlipController#create 와 1:1. */
 const SLIP_CREATE_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
-/** 거래처 주문 운영 화면 권한 — PARTNER 데스크톱 직접 진입은 차단한다. */
-const SALES_PARTNER_ORDER_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
-/** 재고이동 신규 작성 권한 — inventory-service StockTransferController#create 와 1:1. */
-const TRANSFER_CREATE_ROLES = ['MASTER', 'MANAGER', 'WAREHOUSE', 'INVENTORY'] as const
 
 /**
  * PR-F2 Designer mock 단계 임시 권한 (SALES / MANAGER / MASTER).
@@ -373,17 +348,6 @@ const VENDOR_ORDER_OCR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
 
 /** 설정 시트 동기화 — MANAGER / MASTER. product-service endpoint 는 인증 사용자만 강제하므로 FE에서 운영 권한을 좁힌다. */
 const SHEET_SYNC_ROLES = ['MANAGER', 'MASTER'] as const
-
-/**
- * SP-09-3 영수증 OCR 업로드 권한 — WAREHOUSE / ACCOUNTANT / MANAGER / MASTER.
- * 사용자 정정 (2026-05-18): ACCOUNTANT 추가 — 회계원도 영수증 업로드 + 매입 슬립 자동 생성 접근 허용.
- * SALES / DISPATCH 진입 시 RoleGuard 403 화면 표시.
- * BE: slip-service POST /slips/receipt-ocr @PreAuthorize("hasAnyRole('WAREHOUSE','ACCOUNTANT','MANAGER','MASTER')")
- */
-const RECEIPT_OCR_ROLES = ['WAREHOUSE', 'ACCOUNTANT', 'MANAGER', 'MASTER'] as const
-
-/** 발송금지 거래처 — MANAGER / MASTER. CSV import / 해제는 페이지 내부에서 MASTER 만 노출한다. */
-const BLOCKED_PARTNER_ROLES = ['MANAGER', 'MASTER'] as const
 
 const router = createHashRouter([
   { path: '/login', element: <LoginPage /> },
@@ -466,36 +430,29 @@ const router = createHashRouter([
 
       // P2-1 견적서 SamhanLogis 도메인 (slip-service `/slips/estimates`).
       // legacy webview (EstimateLegacyWebviewPage) 폐기. 정적 path 우선 매칭 의무.
-      // [SP-D4] estimates.list 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/sales/estimates',
         element: (
-          <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
-            <PermissionGuard pageCode="estimates.list" action="view">
-              <EstimateListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="estimates.list" action="view">
+            <EstimateListPage />
+          </PermissionGuard>
         ),
       },
       { path: '/sales/estimates/new', element: <EstimateFormPage /> },
       {
         path: '/sales/partner-orders',
         element: (
-          <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
-            <PermissionGuard pageCode="sales.partner-order.list" action="view">
-              <SalesPartnerOrderListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="sales.partner-order.list" action="view">
+            <SalesPartnerOrderListPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/sales/partner-orders/:id',
         element: (
-          <RoleGuard allow={SALES_PARTNER_ORDER_ROLES}>
-            <PermissionGuard pageCode="sales.partner-order.list" action="view">
-              <SalesPartnerOrderDetailPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="sales.partner-order.list" action="view">
+            <SalesPartnerOrderDetailPage />
+          </PermissionGuard>
         ),
       },
       { path: '/sales/order-approvals', element: <SalesOrderApprovalsPage /> },
@@ -577,15 +534,12 @@ const router = createHashRouter([
       // [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
       // shell 단계: DRY_RUN 고정 표시. Phase 11 sandbox 연동 시 CLOVA 활성.
       // 정적 path `/purchases/receipt-ocr` → `/purchases/:id` 보다 먼저 매칭되어야 함.
-      // [SP-D3] purchases.receipt-ocr 동적 RBAC 추가 (SP-D1 AppLayout 이미 전환, 라우트 이중 가드 완성).
       {
         path: '/purchases/receipt-ocr',
         element: (
-          <RoleGuard allow={RECEIPT_OCR_ROLES}>
-            <PermissionGuard pageCode="purchases.receipt-ocr" action="view">
-              <PurchaseSlipOcrUploadPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="purchases.receipt-ocr" action="view">
+            <PurchaseSlipOcrUploadPage />
+          </PermissionGuard>
         ),
       },
 
@@ -613,11 +567,9 @@ const router = createHashRouter([
       {
         path: '/transfers/new',
         element: (
-          <RoleGuard allow={TRANSFER_CREATE_ROLES}>
-            <PermissionGuard pageCode="inventory.stock-transfer" action="view">
-              <TransferFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="inventory.stock-transfer" action="view">
+            <TransferFormPage />
+          </PermissionGuard>
         ),
       },
       {
@@ -633,99 +585,79 @@ const router = createHashRouter([
       { path: '/password/change', element: <PasswordChangePage /> },
 
       // accounting-slice-A — 회계 라우트 5종 (ACCOUNTANT/MANAGER/MASTER)
-      // [SP-D2] PermissionGuard 추가 — 정적 RoleGuard 와 이중 가드 (기존 @PreAuthorize 보존).
       {
         path: '/accounting/accounts',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.accounts" action="view">
-              <AccountTreePage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.accounts" action="view">
+            <AccountTreePage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/journals',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.journals" action="view">
-              <JournalListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.journals" action="view">
+            <JournalListPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/journals/new',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.journals" action="view">
-              <JournalFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.journals" action="view">
+            <JournalFormPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/journals/:id/edit',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.journals" action="view">
-              <JournalFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.journals" action="view">
+            <JournalFormPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/journals/:id',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.journals" action="view">
-              <JournalDetailPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.journals" action="view">
+            <JournalDetailPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/balances',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.balances" action="view">
-              <TrialBalancePage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.balances" action="view">
+            <TrialBalancePage />
+          </PermissionGuard>
         ),
       },
 
       // [P0-1 Slice A] 재무 보고서 — 손익계산서 / 재무상태표 / 보고서 목록.
       // ACCOUNTANT / MASTER 만. 정적 path 우선 매칭 필수.
-      // [SP-D2] PermissionGuard 추가 — accounting.reports 동적 RBAC.
       {
         path: '/accounting/reports',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <ReportListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <ReportListPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/income-statement',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <IncomeStatementPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <IncomeStatementPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/balance-sheet',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <BalanceSheetPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <BalanceSheetPage />
+          </PermissionGuard>
         ),
       },
       // [P0-1 Slice A D5] 인쇄 전용 라우트 — 새 창 열기 패턴. AuthGuard 안쪽 유지.
@@ -733,21 +665,17 @@ const router = createHashRouter([
       {
         path: '/accounting/reports/income-statement/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <IncomeStatementPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <IncomeStatementPrintLayout />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/balance-sheet/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <BalanceSheetPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <BalanceSheetPrintLayout />
+          </PermissionGuard>
         ),
       },
 
@@ -756,175 +684,139 @@ const router = createHashRouter([
       {
         path: '/accounting/reports/vat',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <VatReportPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <VatReportPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/vat/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <VatReportPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <VatReportPrintLayout />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/corporate-tax',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <CorporateTaxReportPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <CorporateTaxReportPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/corporate-tax/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <CorporateTaxReportPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <CorporateTaxReportPrintLayout />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/partner-aging',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <PartnerAgingPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <PartnerAgingPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/partner-aging/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <PartnerAgingPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <PartnerAgingPrintLayout />
+          </PermissionGuard>
         ),
       },
 
-      // [P0-1 Slice C] 분석 보고서 4개 — ACCOUNTANT/MANAGER/MASTER.
-      // [P0-1 Slice C] 분석 보고서 4종 — ACCOUNTANT/MANAGER/MASTER.
-      // [SP-D2] PermissionGuard 추가 — accounting.reports 동적 RBAC.
+      // [P0-1 Slice C] 分析 보고서 4종 — ACCOUNTANT/MANAGER/MASTER.
       // 정적 `/print` suffix 먼저 등록 (부모 라우트 매칭 우선).
       {
         path: '/accounting/reports/cash-flow',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <CashFlowStatementPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <CashFlowStatementPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/cash-flow/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <CashFlowStatementPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <CashFlowStatementPrintLayout />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/equity-changes',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <EquityChangesPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <EquityChangesPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/equity-changes/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <EquityChangesPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <EquityChangesPrintLayout />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/daily-summary',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <DailySummaryPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <DailySummaryPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/daily-summary/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <DailySummaryPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <DailySummaryPrintLayout />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/monthly-summary',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <MonthlySummaryPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <MonthlySummaryPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/reports/monthly-summary/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.reports" action="view">
-              <MonthlySummaryPrintLayout />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.reports" action="view">
+            <MonthlySummaryPrintLayout />
+          </PermissionGuard>
         ),
       },
 
       // [PR-E2 FE-9] 홈택스 일괄 등록 양식 — ACCOUNTANT / MANAGER / MASTER.
       // BE: accounting-service `GET /accounting/tax-invoice/hometax-export` (commit c48e156).
-      // [SP-D2] PermissionGuard 추가 — accounting.partner-ledger 으로 묶음 (원장/양식 그룹).
       {
         path: '/accounting/hometax-export',
         element: (
-          <RoleGuard allow={HOMETAX_EXPORT_ROLES}>
-            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
-              <HometaxExportPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+            <HometaxExportPage />
+          </PermissionGuard>
         ),
       },
 
       // [PR-E2 FE-8] 거래명세서 일괄 — ACCOUNTANT / MASTER.
       // BE: accounting-service `GET /accounting/statements/batch-data` (commit c48e156).
       // 다중 선택 → /print/statement-batch 진입 (page-break per partner).
-      // [SP-D2] PermissionGuard 추가 — accounting.statement-batch 동적 RBAC.
       {
         path: '/accounting/statement-batch',
         element: (
-          <RoleGuard allow={STATEMENT_BATCH_ROLES}>
-            <PermissionGuard pageCode="accounting.statement-batch" action="view">
-              <StatementBatchPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.statement-batch" action="view">
+            <StatementBatchPage />
+          </PermissionGuard>
         ),
       },
       // [PR-E2 FE-8] 거래명세서 일괄 인쇄 미리보기 — Designer commit 69fd8f0 StatementBatchView 통합.
@@ -932,11 +824,9 @@ const router = createHashRouter([
       {
         path: '/print/statement-batch',
         element: (
-          <RoleGuard allow={STATEMENT_BATCH_ROLES}>
-            <PermissionGuard pageCode="accounting.statement-batch" action="view">
-              <StatementBatchView />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.statement-batch" action="view">
+            <StatementBatchView />
+          </PermissionGuard>
         ),
       },
 
@@ -944,15 +834,12 @@ const router = createHashRouter([
       // BE: accounting-service `GET /accounting/sales/aggregate` (BE-A8) +
       //     `GET /accounting/journals/ledger-data` (BE-A9) (commit c48e156).
       // 집계 → 원장 detail → 인쇄 / 일괄 인쇄 / CSV 다운로드 통합.
-      // [SP-D2] PermissionGuard 추가 — accounting.partner-ledger 동적 RBAC.
       {
         path: '/accounting/partner-ledger',
         element: (
-          <RoleGuard allow={PARTNER_LEDGER_ROLES}>
-            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
-              <PartnerLedgerPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+            <PartnerLedgerPage />
+          </PermissionGuard>
         ),
       },
       // [PR-E2 FE-7] 거래처 원장 인쇄 미리보기 — Designer commit 69fd8f0 PartnerLedgerView 통합.
@@ -960,11 +847,9 @@ const router = createHashRouter([
       {
         path: '/print/partner-ledger',
         element: (
-          <RoleGuard allow={PARTNER_LEDGER_ROLES}>
-            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
-              <PartnerLedgerView />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+            <PartnerLedgerView />
+          </PermissionGuard>
         ),
       },
 
@@ -1013,30 +898,24 @@ const router = createHashRouter([
 
       // [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회화면.
       // BE SEND_AUDIT append-only row 조회 + 수신번호 마스킹 + 상태 Badge + 날짜/결과 필터.
-      // [SP-D3] notification.dispatch-sms.send-audit 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/arologis/dispatch-sms/send-audit',
         element: (
-          <RoleGuard allow={DISPATCH_SMS_ROLES}>
-            <PermissionGuard pageCode="notification.dispatch-sms.send-audit" action="view">
-              <DispatchSmsSendAuditPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="notification.dispatch-sms.send-audit" action="view">
+            <DispatchSmsSendAuditPage />
+          </PermissionGuard>
         ),
       },
 
       // [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH / MANAGER / MASTER.
       // 미배차 출고전표 50/page + 차량 그룹 (9 종류) + drag-and-drop + arologis 발송.
       // BE: slip-service `/admin/dispatch-board/*` + `/admin/dispatch-tasks/*`.
-      // [SP-D3] dispatch.board 동적 RBAC 추가 (RoleGuard 이중 가드 유지; AppLayout 이미 전환됨).
       {
         path: '/dispatch-board',
         element: (
-          <RoleGuard allow={DISPATCH_BOARD_ROLES}>
-            <PermissionGuard pageCode="dispatch.board" action="view">
-              <DispatchBoardPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="dispatch.board" action="view">
+            <DispatchBoardPage />
+          </PermissionGuard>
         ),
       },
 
@@ -1055,35 +934,28 @@ const router = createHashRouter([
       // 매뉴얼: docs/manual/05-arologis/01-카카오톡-배차.md (Frontend admin UI ✅)
       //         docs/manual/05-arologis/02-수동-배차.md     (정식 admin 배차 UI ✅)
       //         docs/manual/05-arologis/03-기사-배정.md     (Frontend admin 배정 UI ✅)
-      // [SP-D4] arologis.admin 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/arologis/admin/auto-dispatch',
         element: (
-          <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
-            <PermissionGuard pageCode="arologis.admin" action="view">
-              <KakaoAutoDispatchPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="arologis.admin" action="view">
+            <KakaoAutoDispatchPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/arologis/admin/manual-dispatch',
         element: (
-          <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
-            <PermissionGuard pageCode="arologis.admin" action="view">
-              <ManualDispatchAdminPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="arologis.admin" action="view">
+            <ManualDispatchAdminPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/arologis/admin/driver-assignment',
         element: (
-          <RoleGuard allow={ARO_ADMIN_DISPATCH_ROLES}>
-            <PermissionGuard pageCode="arologis.admin" action="view">
-              <DriverAssignmentPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="arologis.admin" action="view">
+            <DriverAssignmentPage />
+          </PermissionGuard>
         ),
       },
 
@@ -1098,192 +970,152 @@ const router = createHashRouter([
         ),
       },
 
-      // [SP-08-6-5 P2] 일마감 — `/accounting/daily-closings` (ACCOUNTANT/MANAGER/MASTER 진입).
-      // 날짜 range 필터 + 거래처 필터 + 마감 실행 + 역마감(MASTER 만).
-      // BE: accounting-service `GET/POST /accounting/daily-closings` + `POST /{id}/reverse`.
-      // [SP-D2] PermissionGuard 추가 — accounting.daily-closing 동적 RBAC.
+      // [SP-08-6-5 P2] 일마감 관련 슬립 목록 — ACCOUNTANT/MANAGER/MASTER.
       {
         path: '/accounting/sales-slips',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
-              <SalesAccountingSlipPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
+            <SalesAccountingSlipPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/sales-slips/new',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.sales-slip.list" action="edit">
-              <SalesAccountingSlipFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.sales-slip.list" action="edit">
+            <SalesAccountingSlipFormPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/purchase-slips',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.purchase-slip.list" action="view">
-              <PurchaseAccountingSlipPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.purchase-slip.list" action="view">
+            <PurchaseAccountingSlipPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/purchase-slips/new',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.purchase-slip.list" action="edit">
-              <PurchaseAccountingSlipFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.purchase-slip.list" action="edit">
+            <PurchaseAccountingSlipFormPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/cash-disbursements',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig14.cash-list" action="view">
-              <CashDisbursementListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig14.cash-list" action="view">
+            <CashDisbursementListPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/cash-receipts',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig14.cash-list" action="view">
-              <CashReceiptListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig14.cash-list" action="view">
+            <CashReceiptListPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/orders',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-              <OrderListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
+            <OrderListPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/orders/:orderNo',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
-              <OrderDetailPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig14.order-list" action="view">
+            <OrderDetailPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/aging-snapshot',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig14.aging-snapshot" action="view">
-              <PartnerAgingSnapshotPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig14.aging-snapshot" action="view">
+            <PartnerAgingSnapshotPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/ledger/sales',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
-              <SalesLedgerPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
+            <SalesLedgerPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/ledger/purchase',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
-              <PurchaseLedgerPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig14.ledger" action="view">
+            <PurchaseLedgerPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/admin/migration-ops',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="ecount.mig.ops-dashboard" action="view">
-              <MigOpsDashboardPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="ecount.mig.ops-dashboard" action="view">
+            <MigOpsDashboardPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/daily-closings',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.daily-closing" action="view">
-              <DailyClosingPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.daily-closing" action="view">
+            <DailyClosingPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/daily-closing',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.daily-closing" action="view">
-              <DailyClosingPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.daily-closing" action="view">
+            <DailyClosingPage />
+          </PermissionGuard>
         ),
       },
 
       // [SP-08-6-5 P2] 원장 — `/accounting/ledgers` (ACCOUNTANT/MANAGER/MASTER 진입).
       // 기간 + 계정/거래처 필터 + 라인 테이블 + CSV 다운로드 + 출력.
       // BE: accounting-service `GET /accounting/ledgers`.
-      // [SP-D2] PermissionGuard 추가 — accounting.general-ledger 동적 RBAC.
       {
         path: '/accounting/ledgers',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.general-ledger" action="view">
-              <GeneralLedgerPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.general-ledger" action="view">
+            <GeneralLedgerPage />
+          </PermissionGuard>
         ),
       },
 
       // [P2-3] 월말 마감 — `/accounting/period-close` (ACCOUNTANT/MANAGER/MASTER 진입).
       // 매뉴얼 docs/manual/03-회계/04-월말-마감.md Stage 1 일치.
-      // [SP-D2] PermissionGuard 추가 — accounting.period-close 동적 RBAC.
       {
         path: '/accounting/period-close',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.period-close" action="view">
-              <PeriodCloseListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.period-close" action="view">
+            <PeriodCloseListPage />
+          </PermissionGuard>
         ),
       },
 
       // [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — ACCOUNTANT / MANAGER / MASTER.
       // BE: accounting-service POST /accounting/deposits/fetch-and-match (submitMethod=DRY_RUN|KFTC)
       // shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 KFTC 활성.
-      // [SP-D2] PermissionGuard 추가 — accounting.deposit-match 동적 RBAC.
       {
         path: '/accounting/deposit-match',
         element: (
-          <RoleGuard allow={DEPOSIT_MATCH_ROLES}>
-            <PermissionGuard pageCode="accounting.deposit-match" action="view">
-              <DepositMatchPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.deposit-match" action="view">
+            <DepositMatchPage />
+          </PermissionGuard>
         ),
       },
 
@@ -1311,121 +1143,92 @@ const router = createHashRouter([
       // [supplier-profile + datagrid] 사업자 양식 — ACCOUNTANT (read) / MANAGER / MASTER (write).
       // BE: accounting-service `/api/v1/accounting/supplier-profiles`
       // 정적 path 이므로 `/accounting/tax-invoices/:id` 등과 충돌 없음.
-      // [SP-D2] PermissionGuard 추가 — accounting.partner-ledger 으로 묶음 (원장/양식 그룹).
       {
         path: '/accounting/supplier-profiles',
         element: (
-          <RoleGuard allow={SUPPLIER_PROFILE_READ_ROLES}>
-            <PermissionGuard pageCode="accounting.partner-ledger" action="view">
-              <SupplierProfilePage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+            <SupplierProfilePage />
+          </PermissionGuard>
         ),
       },
 
       // P0-4 세금계산서 — accounting-service `/accounting/tax-invoices/*` (commit f8b8b49).
       // ACCOUNTANT / MASTER 만. 정적 path (`/new`) 우선, 다음 print, 마지막 `:id`.
-      //
-      // [SP-D1 cycle 2 POC] PermissionGuard 래핑 — accounting.tax-invoice.emit-nts 페이지에
-      // 동적 RBAC 적용. 정적 RoleGuard 와 이중 가드:
-      //   1) RoleGuard: ACCOUNTANT / MASTER 정적 화이트리스트 (기존 @PreAuthorize 보존)
-      //   2) PermissionGuard: DB override 권한 동적 체크 (SP-D1 신규 레이어)
-      // PermissionGuard 가 false 이면 홈 redirect. 점진 마이그레이션 의도로 1개 라우트 POC 적용.
       {
         path: '/accounting/tax-invoices',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
-              <TaxInvoiceListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+            <TaxInvoiceListPage />
+          </PermissionGuard>
         ),
       },
       // GAS 이식 — 세금계산서 일괄발행 4탭 (ACCOUNTANT / MANAGER / MASTER).
       // 정적 path (`/batch`) → `/accounting/tax-invoices/:id` 보다 먼저 매칭되어야 함.
-      // [SP-D2] PermissionGuard 추가 — accounting.tax-invoice.list 동적 RBAC.
       {
         path: '/accounting/tax-invoices/batch',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.batch-issue" action="view">
-              <TaxInvoiceBatchIssuePage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.tax-invoice.batch-issue" action="view">
+            <TaxInvoiceBatchIssuePage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/tax-invoices/inbound',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.inbound" action="view">
-              <TaxInvoiceInboundPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.tax-invoice.inbound" action="view">
+            <TaxInvoiceInboundPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/tax-invoices/new',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
-              <TaxInvoiceFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+            <TaxInvoiceFormPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/tax-invoices/:id/print',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
-              <TaxInvoiceView />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
+            <TaxInvoiceView />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/tax-invoices/:id/edit',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
-              <TaxInvoiceFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+            <TaxInvoiceFormPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/accounting/tax-invoices/:id',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
-            <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
-              <TaxInvoiceDetailPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
+            <TaxInvoiceDetailPage />
+          </PermissionGuard>
         ),
       },
 
       // [P0-6] 거래처 4탭 신규 등록/목록 — SALES / MANAGER / MASTER.
       // AdminLayout (MASTER 전용) 외부 — SALES/MANAGER 도 생성 후 목록 복귀 가능.
-      // [SP-D4] partners.list / partners.detail 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/admin/partners/new',
         element: (
-          <RoleGuard allow={PARTNER_FULL_ROLES}>
-            <PermissionGuard pageCode="partners.detail" action="view">
-              <AdminPartnerCreatePage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="partners.detail" action="view">
+            <AdminPartnerCreatePage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/admin/partners',
         element: (
-          <RoleGuard allow={PARTNER_FULL_ROLES}>
-            <PermissionGuard pageCode="partners.list" action="view">
-              <AdminPartnersPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="partners.list" action="view">
+            <AdminPartnersPage />
+          </PermissionGuard>
         ),
       },
 
@@ -1439,16 +1242,13 @@ const router = createHashRouter([
           </RoleGuard>
         ),
       },
-      // [SP-D4 TM cross-check fix] partners.block PermissionGuard 이중 가드 추가
-      // — TM 권장 cycle 2 fix backlog 를 PM 통합 commit 에 포함 (사이클 절약).
+      // [SP-D4 TM cross-check fix → C2a] partners.block PermissionGuard 단일 게이트.
       {
         path: '/admin/blocked-partners',
         element: (
-          <RoleGuard allow={BLOCKED_PARTNER_ROLES}>
-            <PermissionGuard pageCode="partners.block" action="view">
-              <AdminBlockedPartnersPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="partners.block" action="view">
+            <AdminBlockedPartnersPage />
+          </PermissionGuard>
         ),
       },
       {
@@ -1532,25 +1332,20 @@ const router = createHashRouter([
       {
         path: '/admin/permission-groups/delegation',
         element: (
-          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
-            <PermissionGuard pageCode="system.permission-admin" action="view">
-              <PermissionDelegationPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="system.permission-admin" action="view">
+            <PermissionDelegationPage />
+          </PermissionGuard>
         ),
       },
 
       // [PR-D Phase B FE-B] arologis 지역 관리 — DISPATCH 조회 + MANAGER/MASTER 관리.
-      // AdminLayout (MASTER 전용) 외부에 배치하여 MANAGER 도 접근 가능 — 자체 RoleGuard 적용.
-      // [SP-D4] arologis.region 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
+      // AdminLayout (MASTER 전용) 외부에 배치하여 MANAGER 도 접근 가능.
       {
         path: '/admin/regions',
         element: (
-          <RoleGuard allow={ARO_REGIONS_ADMIN_ROLES}>
-            <PermissionGuard pageCode="arologis.region" action="view">
-              <AdminRegionsPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="arologis.region" action="view">
+            <AdminRegionsPage />
+          </PermissionGuard>
         ),
       },
 
@@ -1579,15 +1374,12 @@ const router = createHashRouter([
       // [Issue 4 Slice 4] 회계 수정/삭제 요청 대시보드 — MANAGER / MASTER.
       // AdminLayout (MASTER 전용) 외부에 배치 — 회계 관리자 공용 자체 RoleGuard.
       // BE: accounting-service `GET /api/v1/accounting/edit-requests?targetRole=MANAGER`.
-      // Cycle 1e: PermissionGuard 추가 — 동적 RBAC revoke 시 직접 URL 우회 차단.
       {
         path: '/admin/accounting-edit-requests',
         element: (
-          <RoleGuard allow={ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES}>
-            <PermissionGuard pageCode="accounting.edit-requests" action="view">
-              <AccountingEditRequestsPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="accounting.edit-requests" action="view">
+            <AccountingEditRequestsPage />
+          </PermissionGuard>
         ),
       },
       // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER.
@@ -1603,78 +1395,63 @@ const router = createHashRouter([
 
       // [P0-9] 입고 검수 목록 — WAREHOUSE / MANAGER / MASTER.
       // 매뉴얼 docs/manual/02-창고/01-입고-처리.md 검수 UI ✅.
-      // [SP-D3] inbound.inspection 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/inbound-inspections',
         element: (
-          <RoleGuard allow={INBOUND_INSPECTION_ROLES}>
-            <PermissionGuard pageCode="inbound.inspection" action="view">
-              <InboundInspectionListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="inbound.inspection" action="view">
+            <InboundInspectionListPage />
+          </PermissionGuard>
         ),
       },
 
       // [Phase 10 P2-6 / slice 9] 재고 실사 — WAREHOUSE / MASTER 만.
       // 매뉴얼 docs/manual/02-창고/05-재고-실사.md 와 경로 일치.
-      // [SP-D4] inventory.audit 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/audit',
         element: (
-          <RoleGuard allow={AUDIT_ROLES}>
-            <PermissionGuard pageCode="inventory.audit" action="view">
-              <InventoryAuditListPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="inventory.audit" action="view">
+            <InventoryAuditListPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/warehouse/audit/new',
         element: (
-          <RoleGuard allow={AUDIT_ROLES}>
-            <PermissionGuard pageCode="inventory.audit" action="view">
-              <InventoryAuditFormPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="inventory.audit" action="view">
+            <InventoryAuditFormPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/warehouse/audit/:id',
         element: (
-          <RoleGuard allow={AUDIT_ROLES}>
-            <PermissionGuard pageCode="inventory.audit" action="view">
-              <InventoryAuditDetailPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="inventory.audit" action="view">
+            <InventoryAuditDetailPage />
+          </PermissionGuard>
         ),
       },
+
 
       // [PR-E1 FE-1] DPS 입고 비교 — WAREHOUSE / MASTER / MANAGER / INVENTORY.
       // BE: inventory-service `/warehouse/audit/dps-compare` (commit 4b14084).
-      // [SP-D4] inventory.dps 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/dps-compare',
         element: (
-          <RoleGuard allow={DPS_COMPARE_ROLES}>
-            <PermissionGuard pageCode="inventory.dps" action="view">
-              <InventoryDpsComparePage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="inventory.dps" action="view">
+            <InventoryDpsComparePage />
+          </PermissionGuard>
         ),
       },
 
-      // [P0-B GAS 보강] 품목별 DPS 분석 — WAREHOUSE / MANAGER / MASTER.
+      // [P0-B GAS 보강] 품목별 DPS 분析 — WAREHOUSE / MANAGER / MASTER.
       // BE: inventory-service `GET /warehouse/audit/dps-compare/by-product`
       // 정적 path — `/warehouse/dps-compare` 뒤에 등록 (정적 path 우선 react-router 규칙 준수).
-      // [SP-D4] inventory.dps 동적 RBAC 추가 (RoleGuard 이중 가드 유지).
       {
         path: '/warehouse/dps-compare/by-product',
         element: (
-          <RoleGuard allow={DPS_BY_PRODUCT_ROLES}>
-            <PermissionGuard pageCode="inventory.dps" action="view">
-              <DpsByProductPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="inventory.dps" action="view">
+            <DpsByProductPage />
+          </PermissionGuard>
         ),
       },
 

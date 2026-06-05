@@ -2750,3 +2750,17 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-SPD1-03 | 미매칭 URL → 한국어 `NotFoundPage`(catch-all `*` 2곳: AppLayout/AdminLayout children 말미). `/admin/*` 미매칭은 AdminLayout MASTER 가드 선점(/forbidden) — 의도. |
 
 **산출**: 스펙 재작성 + `NotFoundPage.tsx` 신규 + catch-all 2곳 + `PermissionMatrixPage`/`AppLayout` 한글화. **dual 5-team(Claude 5-agent + Codex 5-섹션) 사이클 1~2 — 전 팀 APPROVE 수렴**(Claude fix: T4 fallback·T2 고정셀·T6 strict·waitForTimeout·JSDoc / Codex fix: T1 ≥700+대표5셀·T5 404strict / 사이클2: 한국어404·T2 element 증빙). sp-d1 6/6 green, 회귀(sidebar-disabled 5/5·permission-overhaul 4/4·sp-d4 20/20), tsc 0. dev-report `docs/dev-reports/slice-sp-d1-rbac-regate.md`. **후속(P2)**: mock id UUID화·mock PageCode 카탈로그 동기화·BulkPage 한글화 consistency. → **3-A2-④ B/C triage 완결.**
+
+---
+
+### D-PGC. 동적 권한그룹 Phase C2a — redundant 외부 RoleGuard 제거 (2026-06-06)
+
+**배경**: desktop `routes/index.tsx` 의 다수 라우트가 이중 가드(`<RoleGuard allow={ROLES}><PermissionGuard pageCode=...>`). 동적 권한그룹(Phase A/B) 철학상 seed/그룹 grant 가 단일 진실원이므로 외부 RoleGuard 는 redundant.
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-01 | **widening 정책 = Option A(seed 진실원 수용, 개발책임자 2026-06-06)**. 일부 RoleGuard 가 seed grant 보다 제한적(예: `AUDIT_ROLES=[WAREHOUSE,MASTER]` vs `inventory.audit` seed=MASTER/MANAGER/ACCOUNTANT/WAREHOUSE/INVENTORY)이나, BE API 가 이미 해당 role 에 열려 있어 보안 신규 노출 아님(FE↔BE 정합). RoleGuard 제거 → PermissionGuard 단일 게이트. #387 inventory Option A(D-PAM-05) 연장. |
+| D-PGC-02 | 제거 대상 = **내부 PermissionGuard 를 감싸는 외부 RoleGuard 75건**. RoleGuard 단독(PermissionGuard 미병행) 22건은 **유지**(C2b 후속, page-code 매핑 후 전환). 상세페이지 버튼 ROLES·AdminLayout 부서 가드는 C2c. |
+| D-PGC-03 | MASTER 전용 라우트(`/admin/permission-groups/delegation`=system.permission-admin 등)는 PermissionGuard(MASTER-only) 로 비-MASTER 차단 유지. **접근 차단 동일, UX 만 RoleGuard 메시지→홈 redirect(404 효과)**. `permission-delegation.spec.ts` 단언을 redirect 로 갱신. |
+
+**산출**: `routes/index.tsx` RoleGuard 75 제거 + ROLES 상수 정리(237++/460--), `permission-delegation.spec.ts` 단언 갱신. typecheck 0, Playwright 회귀 sidebar-disabled 5+sp-d1 6+sp-d4 20+permission-groups 5 = **36 passed**(delegation 실 회귀 적발·수정). spec `2026-06-06-permission-groups-phase-c2a-roleguard-removal-design.md`, dev-report `slice-phase-c2a-roleguard-removal.md`. **후속**: C2b(gap 22 라우트), C2c(버튼/부서 가드).
