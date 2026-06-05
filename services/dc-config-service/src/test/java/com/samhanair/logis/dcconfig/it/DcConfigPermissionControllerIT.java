@@ -216,6 +216,23 @@ class DcConfigPermissionControllerIT {
     }
 
     @Test
+    @DisplayName("DC import는 MASTER가 grant한 대표실 비-MASTER면 200")
+    void dcConfigImport_executiveOfficeNonMasterWithGrant_returns200() throws Exception {
+        when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
+                .thenReturn(true);
+
+        mockMvc.perform(withActor(
+                        multipart("/api/v1/dc-config/admin/import").file(csvFile()),
+                        "MANAGER",
+                        HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(dynamicPermissionClient)
+                .check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE));
+    }
+
+    @Test
     @DisplayName("DC import는 MASTER면 dc-config.import 권한 조회 없이 bypass로 200")
     void dcConfigImport_masterBypassSkipsDynamicPermissionCheck() throws Exception {
         when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))

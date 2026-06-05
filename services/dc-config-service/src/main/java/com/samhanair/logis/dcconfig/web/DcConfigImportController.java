@@ -27,10 +27,13 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <p>접근 제어:
  * <ul>
- *   <li>대표실 부서만 호출 가능 ({@code @RequireDepartment(EXECUTIVE_OFFICE)})</li>
+ *   <li>대표실 부서만 호출 가능 ({@code @RequireDepartment(EXECUTIVE_OFFICE)}).
+ *       부서 판정은 {@link com.samhanair.logis.security.HrAuthorizationHelper} 의 공통 규칙을 따른다.</li>
  *   <li>{@code dc-config.import} CREATE 권한을 단일소스로 사용한다. seed 는 MASTER-only 이며
  *       MASTER 는 동적 권한 aspect 의 built-in bypass 로 통과한다.</li>
- *   <li>고정 {@code hasRole('MASTER')} 가드는 제거하여 권한그룹 Phase C 정책과 정렬한다.</li>
+ *   <li>D-PAM-05 이후 MASTER 외 계정은 MASTER 가 명시적으로 {@code dc-config.import} 를 grant 한
+ *       대표실 계정만 접근할 수 있다. 이는 고정 {@code hasRole('MASTER')} 가드를 제거한 뒤
+ *       권한그룹 Phase C 동적 권한 모델과 정렬한 의도된 동작이다.</li>
  * </ul>
  *
  * <p>UUID 비공개 — 응답에는 partner_code / 업체명 만 노출하며 partner UUID 는 노출하지 않는다.
