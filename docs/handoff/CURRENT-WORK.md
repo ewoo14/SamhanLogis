@@ -4,6 +4,33 @@
 
 ---
 
+## 🆕 2026-06-05 — 동적 권한그룹(Permission Groups) Phase A 머지 + 권한코드 PM 전권
+
+> 🚨 세션 시작 즉시 `git fetch origin`([[feedback_agent_origin_main_sync]]).
+
+### 🔑 개발책임자 전권 위임 (2026-06-05) — [[feedback_pm_permission_autonomy]]
+권한 관련 코드(RBAC/권한그룹/위임/마이그레이션/매트릭스/seed)는 **PM 이 머지까지 전권 자율**. 단 PR 워크플로우(dual review·N=2·Codex 구현·CI green·Docker 실QA·조기PR·백로그금지) 자율 엄격 적용 + 자가 지적. 멈춤 = 신규 업무규칙/정책(widening 수용 등)만 개발책임자 확인.
+
+### ✅ @PreAuthorize 완전제거 마이그레이션 — role 전환 마무리 (머지 #387/#395)
+- **#387 inventory role 전환(Option A)**: redundant @PreAuthorize 10건 제거→@RequirePermission 단일소스. INVENTORY widening **수용**(개발책임자 결정 D-PAM-05). delete 가드 유지(can_delete=TRUE 실측). 실 DB QA.
+- **#395 EmployeeController(D-PAM-06)**: updateRole/terminate 의도적 MASTER-only **유지**(seed admin.employees MANAGER grant→제거 시 widening). Javadoc 제거금지 명시.
+- **현황**: 순수 제거 가능범위 소진(auth #390/#391 + inventory #387). INTERNAL 34 + EmployeeController 유지. 잔여 = @RequirePermission 미병행 서비스(slip/partner/notification/dashboard/arologis) = 선추가 필요 deferred. umbrella spec §8.
+
+### ✅ 동적 권한그룹 Phase A 머지 (#396 squash `caf8808e`)
+고정역할(enum) → 사용자정의 권한그룹. **MASTER 만 빌트인**, 계정↔그룹 M:N 합집합, 개별 override 우선(deny), 9역할 시드이관(무중단). enforcement(account_page_permissions) 재materialize 로 무변경(저위험).
+- 신규 4테이블(permission_groups/group_page_permissions/account_groups/account_permission_overrides) + V42~44 + materializer + 컨트롤러 9 endpoint + FE(그룹 매트릭스/관리/배속).
+- spec `2026-06-05-permission-groups-phase-a-design.md`(D-PG-01~05), plan/dev-report/QA 동일자.
+- **dual review + CI + Docker 실QA 가 정적 false-green 5건 적발**(IT @Transactional flush·한글 인코딩·sp-08-2 stale @PreAuthorize·시스템그룹 가드·**FE↔BE 매트릭스 계약 불일치+mock false-green**). 교훈: 실행이 정적리뷰를 이긴다(반복 확인).
+- 실서버 QA: 그룹생성→매트릭스(중첩 actions)→배속→materialize t/t→cleanup f/f + 시스템그룹 409 실증.
+- 🚨 **Phase B/C 시한폭탄**: 현재 MASTER bypass=role 헤더 기반이라 안전하나, AccountGroupService/GroupPermissionService 의 시스템그룹 가드는 Phase B(MASTER 그룹기반 전환) 전제 방어선.
+
+### 🗺️ 다음 (권한그룹 후속 — PM 전권)
+- **Phase B(위임)**: 그룹/HR 관리권한을 페이지권한(system.permission-admin/admin.employees/admin.permission-groups)으로 부여=위임, 회수. 하드 @PreAuthorize("hasRole('MASTER')") 제거(D-PAM-06 위임 허용 갱신). "MASTER 가 인사권한 위임 선택"(개발책임자 요청) 실현.
+- **Phase C**: 잔여 hasRole/X-User-Role/accounts.role 정리, 다중그룹 토큰/헤더 반영(@PreAuthorize 완전제거 꼬리 흡수).
+- **P2 후속**: 그룹명 한글 사용자 개명(시드는 Role enum 한글명), 권한그룹 화면 사용자 dogfooding.
+
+---
+
 ## ✅ 2026-06-05 — PR #387 inventory role 전환 머지 (Option A) — role 전환 시리즈 재개
 
 > 🚨 세션 시작 즉시 `git fetch origin`([[feedback_agent_origin_main_sync]]). 본 세션도 stale 핸드오프(#385) 믿었다 fetch 로 7커밋(#386~393) 적발. 핸드오프 항상 stale 가정.
