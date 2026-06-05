@@ -5426,10 +5426,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const myCells = _mockPermissionCells.filter((c) => c.roleCode === mockRole)
     const permissions: Record<string, string[]> = {}
     for (const cell of myCells) {
-      const actions = []
+      const actions: string[] = []
       if (cell.view) actions.push('VIEW')
-      if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
-      if (cell.view) actions.push('DOWNLOAD', 'PRINT')
+      // [C2c] 특수 page-code 는 action-only(seed 정합) — 일반 edit→CRUD 도출 대신 지정 액션만.
+      // sales.partner-order.convert = create-only(V41) → update/delete 과다 grant 방지(Codex review P1).
+      const actionOnly = MOCK_ACTION_ONLY_PAGES[cell.pageCode]
+      if (actionOnly) {
+        if (cell.edit) actions.push(...actionOnly)
+      } else {
+        if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+        if (cell.view) actions.push('DOWNLOAD', 'PRINT')
+      }
       permissions[cell.pageCode] = actions
     }
     return envelope(permissions)
@@ -7011,6 +7018,14 @@ const SP_D1_PAGES = [
   'sales.partner-order.edit',
   'sales.partner-order.convert',
 ] as const
+
+/**
+ * [C2c] action-only page-codes — view/edit 셀의 일반 CRUD 도출 대신 지정 액션만 grant.
+ * seed 정합(예: V41 convert = create-only). 비-MASTER `/permissions/my` mock 도출에 적용.
+ */
+const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
+  'sales.partner-order.convert': ['CREATE'],
+}
 
 /**
  * 역할 × 페이지 기본 view 권한 (V7+V8+V10 seed 기반 — SP-D1/D2/D4 통합 매트릭스).

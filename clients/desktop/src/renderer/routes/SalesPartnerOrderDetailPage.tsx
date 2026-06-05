@@ -80,6 +80,9 @@ export function SalesPartnerOrderDetailPage() {
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
   const orderId = id!
   const canEdit = canAccess('sales.partner-order.edit', 'update')
+  // [C2c] 삭제는 BE PartnerOrderDeleteController 가 sales.partner-order.edit + DELETE 요구 →
+  // 7-action 분리 모델에서 update 와 별개로 delete 권한을 확인(Codex review P1).
+  const canDelete = canAccess('sales.partner-order.edit', 'delete')
   const canPrint = canAccess('sales.partner-order.print', 'print')
   const canConvert = canAccess('sales.partner-order.convert', 'create')
   const [editOpen, setEditOpen] = useState(false)
@@ -508,7 +511,7 @@ export function SalesPartnerOrderDetailPage() {
                 출고전표 전환
               </Button>
             ) : null}
-            {query.data && canEdit ? (
+            {query.data && canDelete ? (
               <Button
                 type="button"
                 variant="danger"
