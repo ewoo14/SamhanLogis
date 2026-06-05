@@ -604,22 +604,20 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
   // -------------------------------------------------------------------------
   /**
-   * T6: MANAGER 권한 매트릭스 진입 → RoleGuard(MASTER 전용) 차단 확인
+   * T6: MANAGER 권한 매트릭스 진입 → PermissionGuard redirect 차단 확인
    *
    * 검증 항목:
    *   - mockRole=MANAGER 로 /#/admin/permission-matrix 진입
-   *   - RoleGuard allow=['MASTER'] 차단 → RoleGuard 차단 화면 렌더:
-   *     "접근 권한이 없습니다" + "본 화면은 MASTER 권한 보유자만 접근 가능합니다." + "현재 role: MANAGER"
-   *   - strict 텍스트 단언 ("MASTER" 포함) — login fallback 제거
+   *   - system.permission-admin 미보유 → PermissionGuard Navigate to="/" replace
+   *   - /admin/permission-matrix 경로 이탈 확인
    *   - permission-matrix-table / perm-matrix-save-btn 미표시
    *   - pageerror 없음
    *
    * NOTE: page.route() 미사용 — in-process mock 직접 처리.
-   *       F4 fix: mock.ts system.permission-admin MANAGER → MASTER 정정으로
-   *       PermissionGuard 도 이제 MANAGER를 차단. RoleGuard 가 먼저 동기 차단.
-   *       RoleGuard.tsx 렌더: "접근 권한이 없습니다" / "본 화면은 MASTER 권한 보유자만 접근 가능합니다." / "현재 role: MANAGER"
+   *       PermissionGuard 는 권한 없을 때 차단 화면 문구를 렌더하지 않고 홈으로 redirect 한다.
+   *       따라서 MANAGER 차단은 보호 경로 이탈 + 매트릭스 핵심 UI 부재로 검증한다.
    */
-  test('T6: MANAGER 권한 매트릭스 진입 → 403 또는 login redirect', async ({ page }) => {
+  test('T6: MANAGER 권한 매트릭스 진입 → PermissionGuard 홈 redirect', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -631,18 +629,15 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       })
     })
 
-    await test.step('RoleGuard 차단 화면 "MASTER" 포함 텍스트 strict 단언', async () => {
-      // RoleGuard.tsx: "본 화면은 {allow.join(' / ')} 권한 보유자만 접근 가능합니다. 현재 role: {role}"
-      // allow=['MASTER'] → "본 화면은 MASTER 권한 보유자만 접근 가능합니다."
-      const body = page.locator('body')
-      await expect(
-        body,
-        'MANAGER 진입 시 RoleGuard 차단 화면 "접근 권한이 없습니다" 텍스트 필요',
-      ).toContainText('접근 권한이 없습니다', { timeout: 8000 })
-      await expect(
-        body,
-        'RoleGuard 차단 화면 "MASTER" 텍스트 필요 (allow=[\'MASTER\'] 명시)',
-      ).toContainText('MASTER', { timeout: 5000 })
+    await test.step('PermissionGuard 홈 redirect 확인 (MANAGER)', async () => {
+      await page.waitForURL(url => !url.href.includes('/admin/permission-matrix'), {
+        timeout: 8000,
+      })
+
+      expect(
+        page.url(),
+        `MANAGER 권한 매트릭스 직접 진입이 차단되지 않음 — URL: ${page.url()}. system.permission-admin 미보유 시 PermissionGuard 홈 redirect 필요.`,
+      ).not.toContain('/admin/permission-matrix')
     })
 
     await test.step('권한 매트릭스 편집 UI 미표시 확인 (MANAGER)', async () => {
@@ -654,16 +649,16 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
       expect(
         saveBtnVisible,
-        'MANAGER 403 화면에서 perm-matrix-save-btn 표시됨 — 미표시 필요',
+        'MANAGER redirect 후 perm-matrix-save-btn 표시됨 — 미표시 필요',
       ).toBe(false)
       expect(
         matrixTableVisible,
-        'MANAGER 403 화면에서 permission-matrix-table 표시됨 — 미표시 필요',
+        'MANAGER redirect 후 permission-matrix-table 표시됨 — 미표시 필요',
       ).toBe(false)
     })
 
     await page.screenshot({
-      path: path.join(QA_DIR, 'T6-manager-403-forbidden.png'),
+      path: path.join(QA_DIR, 'T6-manager-permissionguard-redirect.png'),
       fullPage: true,
     })
 
