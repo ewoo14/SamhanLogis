@@ -4,6 +4,25 @@
 
 ---
 
+## ✅ 2026-06-05 — PR #387 inventory role 전환 머지 (Option A) — role 전환 시리즈 재개
+
+> 🚨 세션 시작 즉시 `git fetch origin`([[feedback_agent_origin_main_sync]]). 본 세션도 stale 핸드오프(#385) 믿었다 fetch 로 7커밋(#386~393) 적발. 핸드오프 항상 stale 가정.
+
+### ✅ PR #387 머지 (squash `b32e7934`) — @PreAuthorize 완전제거 role 전환 첫 슬라이스 완료
+- **개발책임자 결정 = Option A**: inventory-service redundant role-only `@PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")` **10건 제거** → `@RequirePermission` 단일소스. 제거가 INVENTORY widening 유발(seed 가 INVENTORY 에 inventory.dps/stock-balance grant)이라 behavior-preserving 아님 → **INVENTORY 접근 정식 수용**(동적 seed 단일소스 모델, 재고원 도메인 접근 합리).
+- **delete 유지**: `InspectionAttachmentController.delete @PreAuthorize(MANAGER/MASTER)` 보존 — INVENTORY 의 stock-balance `can_delete=TRUE`(실 DB 실측)라 제거 시 삭제 widening. = load-bearing guard.
+- **dual review**: Claude BE/QA/DevOps 3/3 APPROVE + Codex 5-section(4 APPROVE+1 P2). P0/P1 0, P2(단언강화·DOWNLOAD커버·stale 주석) 전건 in-cycle fix. QA 가 선존 false-green(attachment upload NPE→500 인데 not(403) 통과) 적발·치유.
+- **실 데이터 QA**: `account_page_permissions`(account 모드 실 enforcement 소스) 에서 INVENTORY × 두 page all-grant 실측 → Option A 전제 실증. **live gateway HTTP 미수행**(inventory-service 미가동 + INVENTORY 계정 비번 V5 해시 불일치 = #390/#391 동일 블로커). dev-report `slice-preauth-role-inventory.md`, QA `docs/qa/preauth-role-inventory/real-qa-evidence.md`, umbrella **D-PAM-05**.
+- 🚨 **교훈 재확인**: role 전환 착수 전 `@PreAuthorize` role-set vs seed grant role-set **완전 일치 교차확인 선행**(role_page_permissions + account_page_permissions). 좁으면 widening → 개발책임자 sign-off.
+
+### 🗺️ 잔여 role 전환 맵 (다음, seed 교차확인 선행 의무)
+- ⚠️ **user `EmployeeController.updateRole/delete`**: Javadoc "MASTER 보존" = 의도적 MASTER-only(seed admin.employees 는 MANAGER 등 grant → 제거 시 widening). = inventory.delete 패턴 → **유지** 또는 개발책임자 결정.
+- 📋 **@RequirePermission 미병행 서비스**(slip ~11·partner 6·notification 3·dashboard 1·arologis Internal 7): @RequirePermission **선추가** 필요(순수 제거 아님, 더 큰 작업). INTERNAL 컨트롤러는 유지.
+- ✅ **clean 슬라이스 공식**: @PreAuthorize role-set == seed grant role-set(MASTER-only + isMasterBypass 가 가장 깨끗). 착수 전 `services/auth-service/.../V*.sql` 교차표 대조.
+- **P2 후속**: dev INVENTORY/non-MASTER 계정 비번 복구 → live gateway role-게이트 HTTP 직접 실증(현재 정적+psql+IT 로 대체 중).
+
+---
+
 ## 🌙 2026-06-04 야간 PM 전권 자율 세션 (개발책임자 취침, ~오전 7시) — sp-d1 종결 + 권한설정 한글화/404
 
 ### ✅ PR #386 — sp-d1 권한설정 재게이트 + 한글화 + 한국어 404 (3-A2-④ B/C triage **완결**)
