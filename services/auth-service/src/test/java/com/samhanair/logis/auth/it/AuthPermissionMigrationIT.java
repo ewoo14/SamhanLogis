@@ -95,9 +95,9 @@ class AuthPermissionMigrationIT extends AbstractPostgresIT {
         lenient().when(permissionService.getPermissionMatrix()).thenReturn(Map.of(
                 "MASTER", Map.of("system.permission-admin",
                         new PermissionDto("MASTER", "system.permission-admin", "시스템 권한 관리", true, true, true))));
-        lenient().when(permissionService.updatePermission(any(), anyString()))
+        lenient().when(permissionService.updatePermission(any(), anyString(), anyString()))
                 .thenReturn(permissionDto());
-        lenient().when(permissionService.updatePermissionsBatch(any(), anyString()))
+        lenient().when(permissionService.updatePermissionsBatch(any(), anyString(), anyString()))
                 .thenReturn(List.of(permissionDto()));
     }
 

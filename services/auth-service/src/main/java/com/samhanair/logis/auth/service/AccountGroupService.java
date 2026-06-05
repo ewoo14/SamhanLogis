@@ -2,9 +2,11 @@ package com.samhanair.logis.auth.service;
 
 import com.samhanair.logis.auth.domain.Account;
 import com.samhanair.logis.auth.domain.AccountGroup;
+import com.samhanair.logis.auth.domain.PageCode;
 import com.samhanair.logis.auth.domain.PermissionGroup;
 import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
+import com.samhanair.logis.auth.repository.GroupPagePermissionRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.Comparator;
@@ -24,6 +26,7 @@ public class AccountGroupService {
     private final AccountRepository accountRepository;
     private final AccountGroupRepository accountGroupRepository;
     private final PermissionGroupService permissionGroupService;
+    private final GroupPagePermissionRepository groupPagePermissionRepository;
     private final EffectivePermissionMaterializer materializer;
 
     /**
@@ -50,9 +53,25 @@ public class AccountGroupService {
      */
     @Transactional
     public AccountGroupSummary assign(UUID accountId, UUID groupId) {
+        return assign(accountId, groupId, null);
+    }
+
+    /**
+     * 계정을 권한그룹에 배속한다.
+     *
+     * <p>관리 page-code 를 가진 그룹은 배속만으로 관리권한이 상속되므로 MASTER 만 배속할 수 있다.
+     *
+     * @param accountId 계정 UUID
+     * @param groupId   권한그룹 UUID
+     * @param actorRole 요청자 role header 값
+     * @return 배속 결과 요약
+     */
+    @Transactional
+    public AccountGroupSummary assign(UUID accountId, UUID groupId, String actorRole) {
         Account account = requireAccount(accountId);
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
         rejectSystemGroupAssignment(group);
+        rejectManagementGroupAssignment(groupId, actorRole);
         accountGroupRepository.findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
                 .orElseGet(() -> accountGroupRepository.save(AccountGroup.assign(accountId, groupId)));
         materializer.materializeForAccount(accountId);
@@ -67,8 +86,23 @@ public class AccountGroupService {
      */
     @Transactional
     public void unassign(UUID accountId, UUID groupId) {
+        unassign(accountId, groupId, null);
+    }
+
+    /**
+     * 계정의 권한그룹 배속을 해제한다.
+     *
+     * <p>관리 page-code 보유 그룹의 멤버십 변경은 재위임/자기상승 방지 정책에 따라 MASTER 만 수행한다.
+     *
+     * @param accountId 계정 UUID
+     * @param groupId   권한그룹 UUID
+     * @param actorRole 요청자 role header 값
+     */
+    @Transactional
+    public void unassign(UUID accountId, UUID groupId, String actorRole) {
         requireAccount(accountId);
         permissionGroupService.requireGroup(groupId);
+        rejectManagementGroupAssignment(groupId, actorRole);
         accountGroupRepository.findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
                 .ifPresent(accountGroup -> {
                     accountGroup.markDeleted(ACTOR);
@@ -89,6 +123,16 @@ public class AccountGroupService {
     private void rejectSystemGroupAssignment(PermissionGroup group) {
         if (group.isBuiltin() || group.isSystemMaster()) {
             throw new BusinessException(ErrorCode.CONFLICT, "시스템 권한그룹에는 계정을 직접 배속할 수 없습니다.");
+        }
+    }
+
+    private void rejectManagementGroupAssignment(UUID groupId, String actorRole) {
+        boolean hasManagementPageCode = groupPagePermissionRepository.findByGroupIdAndIsDeletedFalse(groupId).stream()
+                .anyMatch(permission -> PageCode.isManagementPageCode(permission.getPageCode()));
+        if (hasManagementPageCode && !ManagementPageMutationGuard.isMaster(actorRole)) {
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "관리권한 page-code 보유 그룹의 배속 변경은 MASTER 만 수행할 수 있습니다.");
         }
     }
 

@@ -187,8 +187,9 @@ public class PermissionGroupController {
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<AccountGroupService.AccountGroupSummary> assignAccountGroup(
             @PathVariable UUID accountId,
-            @Valid @RequestBody AssignAccountGroupRequest request) {
-        return ApiResponse.ok(accountGroupService.assign(accountId, request.groupId()));
+            @Valid @RequestBody AssignAccountGroupRequest request,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        return ApiResponse.ok(accountGroupService.assign(accountId, request.groupId(), actorRole));
     }
 
     /**
@@ -202,7 +203,8 @@ public class PermissionGroupController {
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public void unassignAccountGroup(
             @PathVariable UUID accountId,
-            @PathVariable UUID groupId) {
-        accountGroupService.unassign(accountId, groupId);
+            @PathVariable UUID groupId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        accountGroupService.unassign(accountId, groupId, actorRole);
     }
 }

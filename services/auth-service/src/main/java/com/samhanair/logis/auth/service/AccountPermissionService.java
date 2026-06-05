@@ -163,7 +163,7 @@ public class AccountPermissionService {
         int changed = 0;
         for (AccountPermissionUpdate update : updates) {
             validatePageCode(update.pageCode());
-            rejectManagementPageMutation(update.pageCode(), actorRole);
+            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), actorRole);
             validateActions(update.actions());
             AccountPermissionOverride override = overrideRepository
                     .findByAccountIdAndPageCodeAndIsDeletedFalse(accountId, update.pageCode())
@@ -266,11 +266,35 @@ public class AccountPermissionService {
      */
     @Transactional
     public int updateTemplate(String roleCode, List<AccountPermissionUpdate> updates, String actorId) {
+        return updateTemplate(roleCode, updates, actorId, null);
+    }
+
+    /**
+     * 역할 템플릿을 일괄 upsert 한다.
+     *
+     * <p>관리 page-code 는 비MASTER가 템플릿에 주입할 수 없다. 템플릿은 이후 MASTER apply 경로로
+     * 계정 권한에 복사될 수 있으므로 직접 매트릭스와 같은 봉쇄 정책을 적용한다.
+     *
+     * @param roleCode  역할 코드
+     * @param updates   갱신 목록
+     * @param actorId   변경자
+     * @param actorRole 요청자 role header 값
+     * @return 변경 건수
+     */
+    @Transactional
+    public int updateTemplate(
+            String roleCode,
+            List<AccountPermissionUpdate> updates,
+            String actorId,
+            String actorRole) {
         if (roleCode == null || roleCode.isBlank() || updates == null || updates.isEmpty()) {
             return 0;
         }
         int changed = 0;
         for (AccountPermissionUpdate update : updates) {
+            validatePageCode(update.pageCode());
+            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), actorRole);
+            validateActions(update.actions());
             RolePagePermissionTemplate template = templateRepository
                     .findByRoleCodeAndPageCode(roleCode, update.pageCode())
                     .orElseGet(() -> RolePagePermissionTemplate.of(roleCode, update.pageCode()));

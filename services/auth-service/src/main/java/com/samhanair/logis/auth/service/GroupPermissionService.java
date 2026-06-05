@@ -89,7 +89,7 @@ public class GroupPermissionService {
         Map<String, AccountPermissionService.ActionMatrix> normalized = new LinkedHashMap<>();
         for (AccountPermissionService.AccountPermissionUpdate update : updates) {
             validatePageCode(update.pageCode());
-            rejectManagementPageMutation(update.pageCode(), actorRole);
+            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), actorRole);
             validateActions(update.actions());
             normalized.put(update.pageCode(), update.actions());
         }
@@ -185,7 +185,7 @@ public class GroupPermissionService {
     }
 
     private void requireMaster(String actorRole) {
-        if (!isMaster(actorRole)) {
+        if (!ManagementPageMutationGuard.isMaster(actorRole)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "권한 위임은 MASTER 만 수행할 수 있습니다.");
         }
     }

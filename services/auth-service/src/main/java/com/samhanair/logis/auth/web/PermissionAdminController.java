@@ -139,8 +139,9 @@ public class PermissionAdminController {
     public ApiResponse<ChangedCountResponse> updateTemplate(
             @org.springframework.web.bind.annotation.PathVariable String roleCode,
             @RequestBody List<AccountPermissionService.AccountPermissionUpdate> request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
-        int changed = accountPermissionService.updateTemplate(roleCode, request, callerOrSystem(actorId));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        int changed = accountPermissionService.updateTemplate(roleCode, request, callerOrSystem(actorId), actorRole);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -182,9 +183,10 @@ public class PermissionAdminController {
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<PermissionDto> updatePermission(
             @Valid @RequestBody PermissionUpdateRequest request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
         return ApiResponse.ok(
-                permissionService.updatePermission(request, callerOrSystem(actorId)));
+                permissionService.updatePermission(request, callerOrSystem(actorId), actorRole));
     }
 
     /**
@@ -200,9 +202,10 @@ public class PermissionAdminController {
     @RequirePermission(page = "system.permission-admin", action = PermissionAction.UPDATE)
     public ApiResponse<List<PermissionDto>> batchUpdate(
             @Valid @RequestBody PermissionBatchUpdateRequest request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
         return ApiResponse.ok(
-                permissionService.updatePermissionsBatch(request, callerOrSystem(actorId)));
+                permissionService.updatePermissionsBatch(request, callerOrSystem(actorId), actorRole));
     }
 
     /**
@@ -221,8 +224,9 @@ public class PermissionAdminController {
     public void deletePermission(
             @RequestParam String roleCode,
             @RequestParam String pageCode,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId) {
-        permissionService.deletePermission(roleCode, pageCode, callerOrSystem(actorId));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
+            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+        permissionService.deletePermission(roleCode, pageCode, callerOrSystem(actorId), actorRole);
     }
 
     /**

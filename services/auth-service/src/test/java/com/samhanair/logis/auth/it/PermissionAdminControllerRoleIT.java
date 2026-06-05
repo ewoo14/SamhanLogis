@@ -99,7 +99,7 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
                 .thenReturn(List.of());
 
         // PUT 케이스: updatePermission() → 유효한 PermissionDto 반환 (200 결정적)
-        lenient().when(dynamicPermissionService.updatePermission(any(), anyString()))
+        lenient().when(dynamicPermissionService.updatePermission(any(), anyString(), anyString()))
                 .thenReturn(new PermissionDto("SALES", "accounting.journals", "분개장", true, false, true));
 
         // MANAGER(UUID 002) → system.permission-admin VIEW = false (deny)

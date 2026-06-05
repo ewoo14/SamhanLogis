@@ -1500,41 +1500,33 @@ const router = createHashRouter([
       {
         path: '/admin/permission-matrix',
         element: (
-          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
-            <PermissionGuard pageCode="system.permission-admin" action="view">
-              <PermissionMatrixPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="system.permission-admin" action="view">
+            <PermissionMatrixPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/admin/permission-matrix/bulk',
         element: (
-          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
-            <PermissionGuard pageCode="system.permission-admin" action="view">
-              <PermissionMatrixBulkPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="system.permission-admin" action="view">
+            <PermissionMatrixBulkPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/admin/permission-groups/matrix',
         element: (
-          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
-            <PermissionGuard pageCode="system.permission-admin" action="view">
-              <PermissionGroupMatrixPage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="system.permission-admin" action="view">
+            <PermissionGroupMatrixPage />
+          </PermissionGuard>
         ),
       },
       {
         path: '/admin/permission-groups/manage',
         element: (
-          <RoleGuard allow={PERMISSION_MATRIX_ROLES}>
-            <PermissionGuard pageCode="admin.permission-groups" action="view">
-              <PermissionGroupManagePage />
-            </PermissionGuard>
-          </RoleGuard>
+          <PermissionGuard pageCode="system.permission-admin" action="view">
+            <PermissionGroupManagePage />
+          </PermissionGuard>
         ),
       },
       {

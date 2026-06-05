@@ -303,8 +303,8 @@ export function AppLayout() {
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
   const showAdminUsersMgmt         = dynamicCanAccess('admin.users',                  'view')
-  const showPermissionAdmin        = auth?.role === 'MASTER'
-    && dynamicCanAccess('system.permission-admin', 'view')
+  const showPermissionAdmin        = dynamicCanAccess('system.permission-admin', 'view')
+  const showPermissionDelegation   = auth?.role === 'MASTER'
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
   const showPartnersBlock          = dynamicCanAccess('partners.block',               'view')
   const showPartnersEditRequest    = dynamicCanAccess('partners.edit-request',        'view')
@@ -319,7 +319,7 @@ export function AppLayout() {
     || showInventoryDps || showInventoryAuditPage
   const showPartnersGroup  =
     showPartnersList || showPartnersBlock || showPartnersEditRequest
-  const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt || showPermissionAdmin
+  const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt || showPermissionAdmin || showPermissionDelegation
 
   // [Phase 10 P1-5] arologis 수동 배차 — DISPATCH / MANAGER / MASTER 가드
   const showArologisManual = !!auth?.role
@@ -1242,7 +1242,7 @@ export function AppLayout() {
               </SidebarLink>
               <SidebarLink
                 to="/admin/permission-groups/delegation"
-                show={showPermissionAdmin}
+                show={showPermissionDelegation}
                 data-testid="sidebar-hr-permission-delegation"
               >
                 권한 위임

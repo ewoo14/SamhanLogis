@@ -232,11 +232,28 @@ public class DynamicPermissionService {
      */
     @Transactional
     public PermissionDto updatePermission(PermissionUpdateRequest request, String actorId) {
+        return updatePermission(request, actorId, null);
+    }
+
+    /**
+     * 단일 role override 권한을 갱신한다.
+     *
+     * <p>관리 page-code 는 위임받은 비MASTER가 role override 로 부여할 수 없도록 MASTER 전용으로
+     * 차단한다.
+     *
+     * @param request   갱신 요청
+     * @param actorId   요청자 userId
+     * @param actorRole 요청자 role header 값
+     * @return 갱신된 권한
+     */
+    @Transactional
+    public PermissionDto updatePermission(PermissionUpdateRequest request, String actorId, String actorRole) {
         if ("MASTER".equalsIgnoreCase(request.roleCode())) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "MASTER 역할의 권한은 변경할 수 없습니다. MASTER 는 항상 전 페이지 전권입니다.");
         }
         validatePageCode(request.pageCode());
+        ManagementPageMutationGuard.rejectManagementPageMutation(request.pageCode(), actorRole);
         String displayName = resolveDisplayName(request.pageCode());
 
         Optional<RolePagePermission> existing =
@@ -281,8 +298,24 @@ public class DynamicPermissionService {
     @Transactional
     public List<PermissionDto> updatePermissionsBatch(
             PermissionBatchUpdateRequest request, String actorId) {
+        return updatePermissionsBatch(request, actorId, null);
+    }
+
+    /**
+     * role override 권한을 일괄 갱신한다.
+     *
+     * @param request   일괄 갱신 요청
+     * @param actorId   요청자 userId
+     * @param actorRole 요청자 role header 값
+     * @return 갱신된 권한 목록
+     */
+    @Transactional
+    public List<PermissionDto> updatePermissionsBatch(
+            PermissionBatchUpdateRequest request,
+            String actorId,
+            String actorRole) {
         return request.permissions().stream()
-                .map(item -> updatePermission(item, actorId))
+                .map(item -> updatePermission(item, actorId, actorRole))
                 .collect(Collectors.toList());
     }
 
@@ -299,10 +332,27 @@ public class DynamicPermissionService {
      */
     @Transactional
     public void deletePermission(String roleCode, String pageCode, String actorId) {
+        deletePermission(roleCode, pageCode, actorId, null);
+    }
+
+    /**
+     * role override 권한을 soft-delete 한다.
+     *
+     * <p>관리 page-code 회수도 권한 위임 구조를 바꾸는 행위이므로 MASTER 전용으로 제한한다.
+     *
+     * @param roleCode  역할 코드
+     * @param pageCode  page-code
+     * @param actorId   요청자 userId
+     * @param actorRole 요청자 role header 값
+     */
+    @Transactional
+    public void deletePermission(String roleCode, String pageCode, String actorId, String actorRole) {
         if ("MASTER".equalsIgnoreCase(roleCode)) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "MASTER 역할의 권한은 삭제할 수 없습니다. MASTER 는 항상 전 페이지 전권입니다.");
         }
+        validatePageCode(pageCode);
+        ManagementPageMutationGuard.rejectManagementPageMutation(pageCode, actorRole);
         RolePagePermission perm = repository.findByRoleCodeAndPageCode(roleCode, pageCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "권한 override 행을 찾을 수 없습니다: roleCode=" + roleCode + ", pageCode=" + pageCode));
