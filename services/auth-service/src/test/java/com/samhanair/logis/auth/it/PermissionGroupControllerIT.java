@@ -330,6 +330,11 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
     void delegationEndpoint_grantsAndRevokesManagementPages() throws Exception {
         UUID groupId = createGroup("IT 권한그룹 위임API", "관리권위 위임");
         assignGroup(SALES_ACCOUNT_ID, groupId);
+        lenient().when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(MANAGER_ACCOUNT_ID),
+                        ArgumentMatchers.eq(PAGE_PERMISSION_ADMIN),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(true);
 
         MvcResult denied = mockMvc.perform(put("/auth/admin/permission-groups/{id}/delegations", groupId)
                         .header("X-User-Id", MANAGER_ACCOUNT_ID.toString())
@@ -352,7 +357,19 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         assertThat(granted.getResponse().getStatus()).isEqualTo(200);
         assertThat(granted.getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .contains("\"hrRoleManagement\":true");
+        assertThat(activeGroupPagePermissionCount(groupId, PAGE_ROLE_MANAGEMENT)).isEqualTo(1);
         assertEffective(SALES_ACCOUNT_ID, PAGE_ROLE_MANAGEMENT, true, true);
+
+        MvcResult nonMasterAssignGrantedGroup = mockMvc.perform(post(
+                        "/auth/admin/accounts/{accountId}/groups", SALES_ACCOUNT_ID)
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"groupId":"%s"}
+                                """.formatted(groupId)))
+                .andReturn();
+        assertThat(nonMasterAssignGrantedGroup.getResponse().getStatus()).isEqualTo(403);
 
         MvcResult current = mockMvc.perform(get("/auth/admin/permission-groups/{id}/delegations", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
@@ -372,6 +389,35 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                 .andReturn();
         assertThat(revoked.getResponse().getStatus()).isEqualTo(200);
         assertEffective(SALES_ACCOUNT_ID, PAGE_ROLE_MANAGEMENT, false, false);
+        assertThat(activeGroupPagePermissionCount(groupId, PAGE_ROLE_MANAGEMENT)).isZero();
+        assertThat(revoked.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("\"hrRoleManagement\":false");
+
+        MvcResult revokedCurrent = mockMvc.perform(get("/auth/admin/permission-groups/{id}/delegations", groupId)
+                        .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MASTER"))
+                .andReturn();
+        assertThat(revokedCurrent.getResponse().getStatus()).isEqualTo(200);
+        assertThat(revokedCurrent.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("\"hrRoleManagement\":false");
+
+        MvcResult unassignedAfterRevoke = mockMvc.perform(delete(
+                        "/auth/admin/accounts/{accountId}/groups/{groupId}", SALES_ACCOUNT_ID, groupId)
+                        .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MASTER"))
+                .andReturn();
+        assertThat(unassignedAfterRevoke.getResponse().getStatus()).isEqualTo(204);
+
+        MvcResult nonMasterAssignRevokedGroup = mockMvc.perform(post(
+                        "/auth/admin/accounts/{accountId}/groups", SALES_ACCOUNT_ID)
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"groupId":"%s"}
+                                """.formatted(groupId)))
+                .andReturn();
+        assertThat(nonMasterAssignRevokedGroup.getResponse().getStatus()).isEqualTo(200);
     }
 
     private UUID createGroup(String name, String description) throws Exception {
@@ -453,6 +499,16 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         assertThat(row).isNotNull();
         assertThat(row.canView()).isEqualTo(view);
         assertThat(row.canUpdate()).isEqualTo(update);
+    }
+
+    private int activeGroupPagePermissionCount(UUID groupId, String pageCode) {
+        return jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM group_page_permissions
+                WHERE group_id = ?
+                  AND page_code = ?
+                  AND is_deleted = FALSE
+                """, Integer.class, groupId, pageCode);
     }
 
     private void cleanPermissionGroupTestRows() {

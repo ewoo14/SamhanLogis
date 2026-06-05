@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class GroupPermissionService {
 
+    private static final String DELEGATION_ACTOR = "permission-delegation";
+
     private final PermissionGroupService permissionGroupService;
     private final GroupPagePermissionRepository groupPagePermissionRepository;
     private final EffectivePermissionMaterializer materializer;
@@ -168,11 +170,26 @@ public class GroupPermissionService {
         }
     }
 
+    /**
+     * 관리권위 위임 page-code 를 부여하거나 회수한다.
+     *
+     * <p>회수는 all-false 활성 행을 남기지 않고 soft-delete 하여, 활성 관리 page-code 존재 여부를
+     * 사용하는 배속 가드가 회수된 그룹을 일반 그룹으로 판정하게 한다.
+     */
     private void upsertDelegation(UUID groupId, String pageCode, boolean grant) {
+        if (!grant) {
+            groupPagePermissionRepository.findByGroupIdAndPageCodeAndIsDeletedFalse(groupId, pageCode)
+                    .ifPresent(permission -> {
+                        permission.markDeleted(DELEGATION_ACTOR);
+                        groupPagePermissionRepository.save(permission);
+                    });
+            return;
+        }
+
         GroupPagePermission permission = groupPagePermissionRepository
                 .findByGroupIdAndPageCodeAndIsDeletedFalse(groupId, pageCode)
                 .orElseGet(() -> GroupPagePermission.of(groupId, pageCode));
-        permission.setActions(grant, false, grant, false, false, false, false);
+        permission.setActions(true, false, true, false, false, false, false);
         groupPagePermissionRepository.save(permission);
     }
 
