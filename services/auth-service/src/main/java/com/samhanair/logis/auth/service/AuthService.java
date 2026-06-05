@@ -9,6 +9,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.common.security.Role;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Phase 10 P0-2 갱신 — login 실패 시 {@link Account#incrementFailedLogin(LocalDateTime)} 으로
  * 카운터 증가 + 5 회 누적 시 자동 잠금. 잠긴 계정은 비밀번호 일치해도 거절.
+ *
+ * <p>Phase C3a 갱신 — {@link #updateAccountRole} 시 빌트인 role-group 자동 동기화 +
+ * effective 권한 재계산({@link EffectivePermissionMaterializer}).
+ * 신규 계정 등록({@link #registerWithId}) 시에도 초기 role-group 배속을 보장.
  */
 @Slf4j
 @Service
@@ -32,6 +38,11 @@ public class AuthService {
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtIssueProperties jwtIssueProperties;
+    private final AccountGroupService accountGroupService;
+    private final EffectivePermissionMaterializer effectivePermissionMaterializer;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public LoginResponse login(String loginId, String rawPassword) {
         Account account = accountRepository.findByLoginId(loginId)
@@ -93,6 +104,10 @@ public class AuthService {
      * <p>Phase 10 P0-5: MASTER 가 임시 비밀번호로 신규 직원을 등록할 때
      * {@code passwordChangeRequired = true} 로 호출하면 첫 로그인 후 비밀번호 변경이 강제됨.
      *
+     * <p>Phase C3a: 계정 저장 후 초기 역할에 대응하는 빌트인 role-group 을 자동 배속하고
+     * effective 권한을 재계산한다. V44 마이그레이션은 기존 계정 1회성 배속이므로,
+     * 신규 계정은 이 경로가 role-group 배속의 단일 진실원이 된다.
+     *
      * @param id                    User Service 가 선점한 UUID (auth-service 와 공유)
      * @param loginId               로그인 아이디
      * @param rawPassword           임시 비밀번호 (평문)
@@ -112,15 +127,47 @@ public class AuthService {
         if (passwordChangeRequired) {
             account.setPasswordChangeRequired(true);
         }
-        accountRepository.save(account);
+        // id 선세팅 계정은 JPA save() 가 merge() 를 호출해 영속 상태로 전환.
+        // merge() 반환값(managed entity)을 사용해야 pending INSERT 가 flush 에 포함됨.
+        // account_groups FK 충족을 위해 accounts INSERT 를 먼저 DB 에 반영.
+        Account managed = accountRepository.save(account);
+        entityManager.flush();
 
-        return new RegisterResponse(account.getId().toString(), account.getLoginId(), account.getRole().name());
+        // 초기 빌트인 role-group 배속 (oldRole=null → unassign 스텝 no-op, assign 스텝만 수행)
+        accountGroupService.syncBuiltinRoleGroup(managed.getId(), null, role);
+        effectivePermissionMaterializer.materializeForAccount(managed.getId());
+
+        return new RegisterResponse(managed.getId().toString(), managed.getLoginId(), managed.getRole().name());
     }
 
+    /**
+     * 계정 역할을 변경하고 빌트인 role-group 배속을 원자적으로 동기화한다.
+     *
+     * <p>Phase C3a: 단일 {@code @Transactional} 안에서 아래 순서로 수행한다.
+     * <ol>
+     *   <li>변경 전 역할의 빌트인 role-group 배속 soft-delete.</li>
+     *   <li>{@link Account#changeRole(Role)} 으로 역할 변경.</li>
+     *   <li>새 역할의 빌트인 role-group 배속 생성(없으면) 또는 유지.</li>
+     *   <li>{@link EffectivePermissionMaterializer#materializeForAccount(UUID)} 로 effective 권한 재계산.</li>
+     * </ol>
+     * 수동으로 배속된 비-빌트인 그룹은 보존되며 권한은 OR 합집합으로 반영된다.
+     *
+     * @param id   역할 변경 대상 계정 UUID
+     * @param role 새 역할
+     */
     public void updateAccountRole(UUID id, Role role) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
+
+        Role oldRole = account.getRole();
+        // 빌트인 role-group 교체 (시스템 그룹 가드 우회 내부 경로)
+        accountGroupService.syncBuiltinRoleGroup(id, oldRole, role);
+        // 역할 변경
         account.changeRole(role);
+        // effective 권한 재계산
+        effectivePermissionMaterializer.materializeForAccount(id);
+
+        log.info("[AuthService] role changed — id={}, {} → {}", id, oldRole, role);
     }
 
     public void updateAccountDisplayName(UUID id, String displayName) {

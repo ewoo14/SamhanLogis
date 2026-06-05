@@ -9,14 +9,18 @@ import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.repository.GroupPagePermissionRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.Role;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 계정과 권한그룹의 M:N 배속을 관리하고 effective 권한 재계산을 트리거한다. */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountGroupService {
@@ -109,6 +113,57 @@ public class AccountGroupService {
                     accountGroupRepository.save(accountGroup);
                 });
         materializer.materializeForAccount(accountId);
+    }
+
+    /**
+     * 역할 변경 시 빌트인 role-group 을 원자적으로 교체한다 (내부 전용 경로).
+     *
+     * <p>시스템 빌트인 그룹({@code isBuiltin=true} 또는 {@code isSystemMaster=true}) 은
+     * 공개 {@link #assign}/{@link #unassign} 경로에서 가드로 차단되므로,
+     * role 변경 시 이 내부 메서드를 통해 가드를 우회해 직접 교체한다.
+     *
+     * <ol>
+     *   <li>이전 role 의 빌트인 그룹 배속 행을 soft-delete.</li>
+     *   <li>새 role 의 빌트인 그룹 배속 행이 없으면 생성, 있으면 유지.</li>
+     * </ol>
+     *
+     * <p>수동으로 배속된 비-빌트인 그룹은 건드리지 않는다 (보존).
+     * materializer 재계산은 호출자(AuthService)가 담당한다.
+     *
+     * @param accountId 대상 계정 UUID
+     * @param oldRole   변경 전 역할
+     * @param newRole   변경 후 역할
+     */
+    @Transactional
+    public void syncBuiltinRoleGroup(UUID accountId, Role oldRole, Role newRole) {
+        log.debug("[syncBuiltinRoleGroup] accountId={} oldRole={} newRole={}", accountId, oldRole, newRole);
+
+        // 1. 이전 role 의 빌트인 그룹 배속 해제 (soft-delete)
+        Optional<UUID> oldGroupId = BuiltinRoleGroupIds.of(oldRole);
+        oldGroupId.ifPresent(groupId -> {
+            log.debug("[syncBuiltinRoleGroup] unassigning old group={} for account={}", groupId, accountId);
+            accountGroupRepository.findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
+                    .ifPresent(ag -> {
+                        ag.markDeleted(ACTOR);
+                        accountGroupRepository.save(ag);
+                        log.debug("[syncBuiltinRoleGroup] soft-deleted old group row id={}", ag.getId());
+                    });
+        });
+
+        // 2. 새 role 의 빌트인 그룹 배속 (없으면 생성, 있으면 유지)
+        Optional<UUID> newGroupId = BuiltinRoleGroupIds.of(newRole);
+        newGroupId.ifPresent(groupId -> {
+            log.debug("[syncBuiltinRoleGroup] assigning new group={} for account={}", groupId, accountId);
+            AccountGroup existing = accountGroupRepository
+                    .findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
+                    .orElse(null);
+            if (existing == null) {
+                AccountGroup saved = accountGroupRepository.save(AccountGroup.assign(accountId, groupId));
+                log.debug("[syncBuiltinRoleGroup] created new group assignment id={}", saved.getId());
+            } else {
+                log.debug("[syncBuiltinRoleGroup] group already assigned id={}", existing.getId());
+            }
+        });
     }
 
     private Account requireAccount(UUID accountId) {

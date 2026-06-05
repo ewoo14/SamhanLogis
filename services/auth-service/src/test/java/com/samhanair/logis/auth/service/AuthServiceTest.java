@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,6 +20,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.common.security.Role;
+import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,8 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
-import org.mockito.MockedStatic;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -45,6 +47,15 @@ class AuthServiceTest {
     @Mock
     private JwtIssueProperties jwtIssueProperties;
 
+    @Mock
+    private AccountGroupService accountGroupService;
+
+    @Mock
+    private EffectivePermissionMaterializer effectivePermissionMaterializer;
+
+    @Mock
+    private EntityManager entityManager;
+
     @InjectMocks
     private AuthService authService;
 
@@ -54,6 +65,8 @@ class AuthServiceTest {
     void setUp() {
         managerAccount = Account.create("alice", "$2a$encoded", "Alice", Role.MANAGER);
         ReflectionTestUtils.setField(managerAccount, "id", UUID.randomUUID());
+        // @PersistenceContext 필드는 @InjectMocks 가 처리하지 않으므로 수동 주입
+        ReflectionTestUtils.setField(authService, "entityManager", entityManager);
     }
 
     @Test
@@ -110,6 +123,8 @@ class AuthServiceTest {
             ReflectionTestUtils.setField(a, "id", UUID.randomUUID());
             return a;
         });
+        doNothing().when(accountGroupService).syncBuiltinRoleGroup(any(), any(), any());
+        doNothing().when(effectivePermissionMaterializer).materializeForAccount(any());
 
         RegisterResponse response = authService.register("bob", "plain-password", "Bob", Role.SALES);
 
@@ -135,5 +150,22 @@ class AuthServiceTest {
                         .isEqualTo(ErrorCode.CONFLICT));
 
         verify(accountRepository, never()).save(any());
+    }
+
+    @Test
+    void updateAccountRole_changesRoleAndSyncsRoleGroup() {
+        UUID accountId = UUID.randomUUID();
+        Account account = Account.create("charlie", "$2a$hash", "Charlie", Role.MANAGER);
+        ReflectionTestUtils.setField(account, "id", accountId);
+
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        doNothing().when(accountGroupService).syncBuiltinRoleGroup(eq(accountId), eq(Role.MANAGER), eq(Role.SALES));
+        doNothing().when(effectivePermissionMaterializer).materializeForAccount(accountId);
+
+        authService.updateAccountRole(accountId, Role.SALES);
+
+        assertThat(account.getRole()).isEqualTo(Role.SALES);
+        verify(accountGroupService).syncBuiltinRoleGroup(accountId, Role.MANAGER, Role.SALES);
+        verify(effectivePermissionMaterializer).materializeForAccount(accountId);
     }
 }
