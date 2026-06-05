@@ -27,4 +27,10 @@ metadata:
 - 교훈([[feedback_qa_docker_real_test]] 강화): **권한·보안 IT 는 반드시 실제 실행(로컬 Docker + CI) 확인**. 정적 리뷰 APPROVE ≠ 통과. `gh pr checks --watch` exit code 신뢰 말고 `gh pr checks` 명시 확인.
 - 권한 차원 검증 정책: **계약이 바뀐 차원만 실-HTTP 의무**(#316). M1 은 부서게이트가 신규 계약 → 실 HrAuthorizationHelper+헤더로 실 테스트. 권한(messenger.admin) 불변 → `@MockBean DynamicPermissionClient` 적절(과도한 실-HTTP 재배선이 `@WebMvcTest` 깨뜨림).
 
-관련: [[codex-implements-claude-reviews]], [[cycle-n2-mandatory]], [[enforcement-real-http-test]], [[qa-docker-real-test]], [[agent-origin-main-sync]]
+## 4. 🚨 role 전환 behavior-preserving = @PreAuthorize role-set 과 seed grant role-set **완전 일치** 확인 (PR #387 회고)
+- 순수 role `@PreAuthorize` 제거 시 "병행 @RequirePermission 이 있으면 안전"은 **불충분**. @PreAuthorize 의 role 집합과 @RequirePermission page 의 **seed default grant role 집합이 완전 일치**해야 behavior-preserving.
+- **#387 inventory 사례**: 제거 대상 `@PreAuthorize(hasAnyRole 'WAREHOUSE','MANAGER','MASTER')` 가 INVENTORY 배제했으나 seed(role_page_permissions: inventory.dps/inventory.stock-balance)는 **INVENTORY 에도 grant** → 제거 시 INVENTORY widening(seed 가 @PreAuthorize 보다 넓음). Explore 의 "100% 안전(병행 존재)" 판정이 이 차원을 놓침.
+- **반대 방향도 위험**: @PreAuthorize 가 seed 보다 넓으면(예 InspectionAttachment.delete = MANAGER/MASTER 인데 seed 가 WAREHOUSE 도 can_delete) 제거 시 WAREHOUSE 삭제 widening → @PreAuthorize 유지(의도적 descope) + widening-guard IT(`verify(check, never())` 로 @PreAuthorize 선차단 실증).
+- **절차**: 슬라이스 착수 전 각 page-code 의 seed grant(`services/auth-service/.../V*.sql` role_page_permissions)를 @PreAuthorize role-set 과 교차표로 대조. 불일치 시 (A) widening 수용+Javadoc/IT 갱신 / (B) seed 정렬 migration / (C) descope 중 **개발책임자 결정**(보안 변경은 자율 머지 금지, [[feedback-user-merge-authority]]). MASTER 는 isMasterBypass 로 동적 우회 → MASTER-only @PreAuthorize+@RequirePermission(seed MASTER-only) 조합이 가장 깨끗.
+
+관련: [[codex-implements-claude-reviews]], [[cycle-n2-mandatory]], [[enforcement-real-http-test]], [[qa-docker-real-test]], [[agent-origin-main-sync]], [[feedback-desktop-typecheck-command]]

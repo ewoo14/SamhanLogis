@@ -96,7 +96,6 @@ public class PasswordController {
 
     /** MASTER 권한 잠금 해제. */
     @PatchMapping("/admin/accounts/{id}/unlock")
-    @PreAuthorize("hasRole('MASTER')")
     @RequirePermission(page = "system.password-admin", action = PermissionAction.UPDATE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unlock(@PathVariable UUID id) {

@@ -104,14 +104,14 @@ test.describe('Phase 1 Stage 3 Task 13 permission matrix bulk wizard', () => {
 
     await page.getByTestId('perm-bulk-mode').selectOption('grants')
     await page.getByLabel('페이지').selectOption('dispatch.board')
-    await page.getByLabel('VIEW').check()
-    await page.getByLabel('DOWNLOAD').check()
+    await page.getByLabel('보기').check()
+    await page.getByLabel('엑셀').check()
     await page.getByRole('button', { name: '미리보기' }).click()
 
     await expect(page.getByTestId('perm-bulk-preview')).toContainText('2개 계정')
     await expect(page.getByTestId('perm-bulk-preview')).toContainText('dispatch.board')
-    await expect(page.getByTestId('perm-bulk-preview')).toContainText('VIEW')
-    await expect(page.getByTestId('perm-bulk-preview')).toContainText('DOWNLOAD')
+    await expect(page.getByTestId('perm-bulk-preview')).toContainText('보기')
+    await expect(page.getByTestId('perm-bulk-preview')).toContainText('엑셀')
 
     await page.getByTestId('perm-bulk-apply').click()
 

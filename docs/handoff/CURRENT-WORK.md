@@ -14,10 +14,44 @@
 - 커밋: `bb855443`(재게이트)→`9caa511e`(Claude fix)→`502c2e5c`(한글화)→`2b4eb3e3`(Codex fix)→`8d1184b5`(한국어404). dev-report `slice-sp-d1-rbac-regate.md`, DECISIONS D-SPD1.
 - **P2 후속**: mock id UUID화(`bulk.spec` 광범위 참조)·mock PageCode 카탈로그 59→전체 동기화·`PermissionMatrixBulkPage` 한글화 consistency.
 
-### ▶ 자율 진행 (PM 전권, 질문 금지)
-PR #386 머지 후 잔여/신규/Docker QA 자율 진행. **다음 백로그(아래 #380 핸드오프 참조) = role 전환 슬라이스(@PreAuthorize→@RequirePermission).**
+> ℹ️ main #380 이 sp-d1 account-select 재게이트를 이미 머지(squash `b7b85761`). PR #386 이 동일 account-select + 한글화/404/dual-review 로 **supersede**(머지됨, `c8237253`).
 
-> ℹ️ main #380 이 sp-d1 account-select 재게이트를 이미 머지(squash `b7b85761`). PR #386 은 동일 account-select 접근 + 한글화/404/dual-review 로 **supersede**(머지 시 #380 스펙 대체).
+### ✅ PR #388 — 권한 일괄 적용 화면 한글화 (머지 `4eda62b0`)
+권한설정 하위 `PermissionMatrixBulkPage` ACTION_LABEL 영문→한글(보기/생성/수정/삭제/복원/엑셀/인쇄, #386 일관) + bulk.spec 정합. Codex APPROVE, CI green. (위 P2 "BulkPage 한글화" 해소.)
+
+### ⚠️ PR #388·#386 다음 = PR #387 (inventory role 전환) — **Draft 보류, 🔴 개발책임자 결정 필요**
+@PreAuthorize 완전제거 **role 전환 첫 슬라이스**(inventory-service redundant role-only @PreAuthorize 10건 제거 → @RequirePermission single source) 착수했으나 **BE 리뷰가 INVENTORY widening 적발**:
+- 제거 대상 `@PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")` 는 **INVENTORY role 배제**. 그러나 seed(V10 inventory.dps / V35 inventory.stock-balance / V39)는 두 페이지를 **INVENTORY 에도 grant** → 제거 시 INVENTORY-role 이 10 endpoint 접근 = **access 확대**. (Explore 의 "100% 안전"이 seed role-set 동일성 검증 누락.)
+- DevOps APPROVE(PermissionAspect 프로덕션 활성 확실, 무가드화 없음). QA P1(widening-guard verify) 수정 완료(`d1fb1b2e`).
+- **보안 access 확대라 자율 머지 보류**(feedback_user_merge_authority: 결함→사용자 결정 / M-dept widening→descope 선례). **PR #387 Draft, 결정 코멘트 게시.**
+- 🔴 **개발책임자 결정 옵션**: (A) INVENTORY 접근 정식 수용(Javadoc/IT 갱신 후 머지 — 동적 seed 수렴·재고원 도메인 접근 합리) / (B) seed 에서 INVENTORY default grant 제거(behavior-preserving 화, 단 compare/downloadTemplate narrowing) / (C) descope, seed-role-set 이 @PreAuthorize 와 정확히 일치하는 서비스부터.
+- 🚨 **교훈**: role 전환 behavior-preserving 검증 = @PreAuthorize role-set 과 seed grant role-set **완전 일치** 확인 필수(@RequirePermission 병행 유무만으로 불충분). 다음 슬라이스 선정 시 seed 교차 확인 선행.
+
+### 🚨 신규 교훈 (메모리 박제)
+- **desktop 검증은 `npm run typecheck`**(tsconfig.node+web) — raw `npx tsc --noEmit` 는 느슨해 TS2367 류 놓침(#386 CI fail 회고). [[feedback-desktop-typecheck-command]]
+
+### ✅ PR #390 — auth PermissionAdminController role 전환 (머지 `eb6aa835`)
+@PreAuthorize("hasRole('MASTER')") **12건 제거** → @RequirePermission(system.permission-admin) single source. **widening 0**(seed system.permission-admin MASTER-only). BE(Codex)/QA/DevOps/Codex APPROVE, IT 양방향(MASTER 200 bypass+`verify(check never)`/non-MASTER 403), CI green.
+
+### ✅ PR #391 — auth register/password-unlock role 전환 (머지 `2bf4d6b6`)
+AuthController.register(system.account-admin)+PasswordController.unlock(system.password-admin) @PreAuthorize(MASTER) **2건 제거**. widening 0(seed MASTER-only). Codex 전섹션 APPROVE. **→ auth-service system.* admin role 전환 완성.** (GitGuardian=테스트 placeholder PM false-positive 판정.)
+
+### 🗺️ 잔여 role 전환 맵 (다음 세션, seed 교차확인 선행 의무)
+- 🔴 **inventory #387** — INVENTORY widening, 개발책임자 결정(A/B/C) 후 재개. Draft.
+- ⚠️ **user EmployeeController.updateRole/delete** — Javadoc "MASTER 보존" 명시 = **의도적 MASTER-only**(seed admin.employees 는 MANAGER 등 grant → 제거 시 widening). inventory.delete 패턴 = **유지**(제거 금지) 또는 개발책임자 결정.
+- 📋 **@RequirePermission 미병행 서비스**(slip ~11·partner 6·notification 3·dashboard 1·arologis InternalController 7) — @RequirePermission **추가 선행** 필요(순수 제거 아님, 더 큰 작업). INTERNAL 컨트롤러(auth/user/slip/partner/notification)는 **유지**(서비스간, 사용자 컨텍스트 부재).
+- ✅ **clean 슬라이스 공식**: @PreAuthorize role-set == seed grant role-set(특히 **MASTER-only + isMasterBypass** 가 가장 깨끗, widening 0). 착수 전 `services/auth-service/.../V*.sql` role_page_permissions 교차표 대조.
+
+### ▶ 기타 자율 진행 잔여 (PM 전권)
+- P2: mock id UUID화·mock PageCode 카탈로그 동기화·sp-d1 mock 7-action 구조.
+- Docker QA: 권한/부서 게이트 실 gateway 403/200(MockMvc 미포착 영역, D-SER-23 선례 = 실 QA 가 gateway 결함 포착).
+
+### 🧪 Docker QA — #390/#391 권한 게이트 실 검증 (`docs/qa/auth-system-role-preauth-migration/real-qa-evidence.md`)
+신 코드 재배포(auth image `401c39ab`) 후 실 gateway 검증: **MASTER JWT → system.permission-admin 200 / unlock 204(실 DB)** = MASTER bypass 실 작동, 미인증/위조 JWT 401, psql system.* **MASTER-only 실측** → **무가드화·widening 0 실증**.
+- ⚠️ **한계1**: non-MASTER 403 직접 실증 못함 — **dev 비-master 계정(dev_manager 등) 비번이 V5 seed 해시와 불일치**(seed 후 변경 추정) → 401. 정적(isMasterBypass)+DB 증명으로 대체. **후속: dev seed 계정 비번 복구**(향후 non-MASTER QA 가능하게).
+- 🔍 **발견(기존 이슈, #391 무관)**: `POST /auth/register` direct 는 **MASTER 도 403** — gateway `/auth/**`·`/api/v1/auth/**` 라우트에 JwtAuthentication 필터 부재 → `X-User-*` 미주입 → HeaderAuthenticationFilter 인증 실패. 실 등록경로는 user-service→`/auth/internal/accounts`(InternalTokenFilter)라 기능 우회 경로 없음. register 의 @RequirePermission(system.account-admin)은 gateway 직접경로에선 무의미(auth 컨텍스트 부재). **후속 판단**: register gateway 라우트 정비 또는 register 를 internal-only 로 명확화.
+
+> 🌙 **2026-06-04~05 야간 세션 누계**: #386(sp-d1 재게이트+한글화+404)·#388(BulkPage 한글화)·#390(auth permission-admin role)·#391(auth register/password role)·#389·#392(docs) **6 머지** + #387(inventory) Draft 보류 + Docker QA(권한게이트 실증). 교훈 2건 메모리 박제([[feedback-desktop-typecheck-command]], [[feedback_preauth_migration_lessons]] §4 role-set).
 
 ---
 
