@@ -107,6 +107,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -295,7 +296,7 @@ class InventoryPermissionControllerIT {
         when(dynamicPermissionClient.check(eq(ID), eq(endpoint.page()), eq(endpoint.action()))).thenReturn(true);
 
         mockMvc.perform(withActor(endpoint.request().get(), endpoint.role()))
-                .andExpect(status().is(not(403)));
+                .andExpect(status().is(endpoint.expectedStatus()));
 
         verify(dynamicPermissionClient).check(eq(ID), eq(endpoint.page()), eq(endpoint.action()));
     }
@@ -497,6 +498,8 @@ class InventoryPermissionControllerIT {
                         () -> get("/warehouse/audit/dps-history/{id}", ID)),
                 endpoint("dps history latest", "inventory.dps", PermissionAction.VIEW, "INVENTORY",
                         () -> get("/warehouse/audit/dps-history/latest").param("programType", "DPS_COMPARE")),
+                endpoint("dps template download", "inventory.dps", PermissionAction.DOWNLOAD, "INVENTORY",
+                        () -> get("/warehouse/audit/dps-compare/template")),
                 endpoint("dps by product", "inventory.dps", PermissionAction.VIEW, "INVENTORY",
                         () -> get("/warehouse/audit/dps-compare/by-product")
                                 .param("fromDate", "2026-05-01").param("toDate", "2026-05-31")),
@@ -510,7 +513,8 @@ class InventoryPermissionControllerIT {
                 endpoint("inbound inspection complete", "inventory.stock-balance", PermissionAction.UPDATE, "INVENTORY",
                         () -> post("/inventory/inbound-inspections/{id}/complete", ID)),
                 endpoint("attachment upload", "inventory.stock-balance", PermissionAction.CREATE, "INVENTORY",
-                        () -> multipart("/inventory/inspections/{id}/attachments", ID).file(image("file")))
+                        () -> multipart("/inventory/inspections/{id}/attachments", ID).file(image("file")),
+                        HttpStatus.CREATED.value())
         );
     }
 
@@ -527,7 +531,13 @@ class InventoryPermissionControllerIT {
     private static EndpointCase endpoint(
             String name, String page, PermissionAction action, String role,
             Supplier<MockHttpServletRequestBuilder> request) {
-        return new EndpointCase(name, page, action, role, request);
+        return endpoint(name, page, action, role, request, HttpStatus.OK.value());
+    }
+
+    private static EndpointCase endpoint(
+            String name, String page, PermissionAction action, String role,
+            Supplier<MockHttpServletRequestBuilder> request, int expectedStatus) {
+        return new EndpointCase(name, page, action, role, request, expectedStatus);
     }
 
     private static String inboundBody() {
@@ -686,7 +696,8 @@ class InventoryPermissionControllerIT {
             String page,
             PermissionAction action,
             String role,
-            Supplier<MockHttpServletRequestBuilder> request) {
+            Supplier<MockHttpServletRequestBuilder> request,
+            int expectedStatus) {
 
         @Override
         public String toString() {
