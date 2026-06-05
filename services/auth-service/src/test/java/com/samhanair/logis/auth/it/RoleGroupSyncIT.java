@@ -6,8 +6,6 @@ import com.samhanair.logis.auth.AuthServiceApplication;
 import com.samhanair.logis.auth.service.AuthService;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
 import com.samhanair.logis.common.security.Role;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -116,40 +114,58 @@ class RoleGroupSyncIT extends AbstractPostgresIT {
         assertThat(activeManualGroup).isOne();
     }
 
+    /**
+     * MANAGER→SALES 전환 후 account_page_permissions 가 SALES 그룹 권한 집합으로 재구성됐음을
+     * 특정 page_code 고정 assert 로 실증한다.
+     *
+     * <p>근거 (seed grep):
+     * <ul>
+     *   <li><b>[Positive]</b> {@code sales.partner-order.list} — V10 line 37:
+     *       SALES can_view=TRUE, can_edit=TRUE.
+     *       SALES 그룹(group102) 배속 후 account_page_permissions active 행이 반드시 존재해야 한다.</li>
+     *   <li><b>[Absence of effective access]</b> {@code accounting.edit-requests} — V28/V37:
+     *       MANAGER 그룹(group101) 은 can_view=TRUE 를 가지나, SALES(group102) 는 V37 CROSS JOIN 으로
+     *       can_view=FALSE 행만 존재한다. role-group swap 후 can_view=TRUE active 행이 없어야 한다.</li>
+     * </ul>
+     * 이 두 assert 의 조합으로 role-group swap 이 MANAGER 권한 집합을 SALES 로 실제 교체했음을 입증한다.
+     */
     @Test
     @DisplayName("MANAGER→SALES: account_page_permissions 는 SALES group 권한을 반영한다")
     void updateAccountRole_managerToSales_permissionsReflectSalesGroup() {
         authService.updateAccountRole(MANAGER_ACCOUNT_ID, Role.SALES);
 
-        // SALES 빌트인 그룹(102)에 배속된 page 중 하나가 active 로 materialise 돼야 한다
-        // SALES 는 영업 관련 페이지(예: partner-order)에 can_view=true 를 가짐
-        // MANAGER 전용 페이지(예: hr.role.management)는 SALES 그룹에 없으므로 active 행이 없어야 한다
-        // (구체적 page_code 는 실제 V43 seed 기준으로 검증)
-        Integer activePermRows = jdbc.queryForObject("""
+        // [Positive assert] sales.partner-order.list 는 SALES 에 can_view=TRUE 로 grant 됨(V10).
+        // SALES 그룹(group102) 배속 후 account_page_permissions 에 active 행이 존재해야 한다.
+        Integer salesOrderListRows = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM account_page_permissions
-                WHERE account_id = ? AND is_deleted = FALSE
+                WHERE account_id = ?
+                  AND page_code = 'sales.partner-order.list'
+                  AND is_deleted = FALSE
                 """, Integer.class, MANAGER_ACCOUNT_ID);
-        // SALES 그룹은 1개 이상의 page 권한을 보유하므로 active 행이 존재해야 한다
-        assertThat(activePermRows).isPositive();
+        assertThat(salesOrderListRows)
+                .as("SALES 그룹 grant page sales.partner-order.list 는 active 행이 1개여야 한다")
+                .isOne();
 
-        // hr.role.management 는 MANAGER 그룹 고유 페이지가 아닌지 확인(SALES 엔 없어야 함)
-        // → SALES 빌트인 그룹 seed 에 hr.role.management 가 없으면 active 행도 없어야 한다
-        List<Map<String, Object>> hrRows = jdbc.queryForList("""
-                SELECT gpp.page_code FROM group_page_permissions gpp
-                WHERE gpp.group_id = ?
-                  AND gpp.page_code = 'hr.role.management'
-                  AND gpp.is_deleted = FALSE
-                """, SALES_GROUP_ID);
-        if (hrRows.isEmpty()) {
-            // SALES 그룹에 hr.role.management 없음 → account_page_permissions 에도 없어야 함
-            Integer hrPermRows = jdbc.queryForObject("""
-                    SELECT COUNT(*) FROM account_page_permissions
-                    WHERE account_id = ?
-                      AND page_code = 'hr.role.management'
-                      AND is_deleted = FALSE
-                    """, Integer.class, MANAGER_ACCOUNT_ID);
-            assertThat(hrPermRows).isZero();
-        }
+        // [Absence assert] accounting.edit-requests 의 can_view 가 SALES 로 전환 후 FALSE 임을 검증.
+        //
+        // 근거:
+        //   - V28: accounting.edit-requests 는 MASTER(view+edit) / MANAGER(view) / ACCOUNTANT(view+edit) 전용.
+        //   - V37: CROSS JOIN 11-role matrix 로 인해 SALES 에도 can_view=FALSE, can_edit=FALSE 행이 삽입됨.
+        //   - 결과: group102 group_page_permissions 에 accounting.edit-requests 행이 존재하나 can_view=FALSE.
+        //   - materializer 는 이 행을 account_page_permissions 에 active(is_deleted=FALSE) 행으로 저장하지만
+        //     can_view=FALSE 임.
+        //   - MANAGER 그룹(group101) 은 can_view=TRUE 인 반면, SALES 로 전환 후에는 can_view=FALSE 여야 한다.
+        //   - 이 assert 로 role-group swap 이 accounting.edit-requests 의 can_view 를 TRUE→FALSE 로 바꿨음을 실증.
+        Integer canViewTrueRows = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM account_page_permissions
+                WHERE account_id = ?
+                  AND page_code = 'accounting.edit-requests'
+                  AND can_view = TRUE
+                  AND is_deleted = FALSE
+                """, Integer.class, MANAGER_ACCOUNT_ID);
+        assertThat(canViewTrueRows)
+                .as("MANAGER 전용 page accounting.edit-requests 의 can_view 는 SALES 전환 후 TRUE 가 아니어야 한다")
+                .isZero();
     }
 
     // -------------------------------------------------------------------------
@@ -300,7 +316,10 @@ class RoleGroupSyncIT extends AbstractPostgresIT {
     }
 
     private void cleanAll() {
-        UUID[] accounts = {MANAGER_ACCOUNT_ID, MASTER_ACCOUNT_ID, NEW_ACCOUNT_ID};
+        // MANAGER_ACCOUNT_ID / MASTER_ACCOUNT_ID 는 setUp 에서 고정 UUID 로 직접 INSERT하므로 정리 대상.
+        // NEW_ACCOUNT_ID 는 registerWithId 의 JPA merge 후 실제 계정 UUID 가 다를 수 있으므로
+        // 여기서 DELETE 해도 no-op이 된다. 신규 등록 계정의 실 정리는 tearDown 의 registeredAccountId 경로가 담당한다.
+        UUID[] accounts = {MANAGER_ACCOUNT_ID, MASTER_ACCOUNT_ID};
         for (UUID id : accounts) {
             jdbc.update("DELETE FROM account_page_permissions WHERE account_id = ?", id);
             jdbc.update("DELETE FROM account_groups WHERE account_id = ?", id);
