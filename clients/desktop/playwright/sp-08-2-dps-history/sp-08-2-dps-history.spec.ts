@@ -52,7 +52,7 @@ test.describe('SP-08-2 DPS 저장내역 DB/API parity', () => {
     const migration = read('services/inventory-service/src/main/resources/db/migration/V11__add_dps_save_history.sql')
 
     expect(controller).toContain('@RequestMapping("/warehouse/audit/dps-history")')
-    expect(controller).toContain('@PreAuthorize("hasAnyRole(\'WAREHOUSE\',\'MANAGER\',\'MASTER\')")')
+    expect(controller).toContain('@RequirePermission(page = "inventory.dps"')
     expect(controller).toContain('@GetMapping("/latest")')
     expect(service).toContain('MAX_RESPONSE_PAYLOAD_BYTES = 100 * 1024')
     expect(service).toContain('previous.supersedeBy(user)')
