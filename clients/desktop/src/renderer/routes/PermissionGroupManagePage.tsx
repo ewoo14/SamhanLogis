@@ -65,7 +65,9 @@ export function PermissionGroupManagePage() {
   const assignedGroups = accountGroupsQuery.data ?? []
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId)
   const assignedIds = useMemo(() => new Set(assignedGroups.map((group) => group.groupId)), [assignedGroups])
-  const assignableGroups = groups.filter((group) => !assignedIds.has(group.id))
+  const assignableGroups = groups.filter((group) =>
+    !assignedIds.has(group.id) && !group.isBuiltin && !group.isSystemMaster,
+  )
 
   useEffect(() => {
     if (!selectedAccountId && accounts.length > 0) setSelectedAccountId(accounts[0]!.id)

@@ -60,16 +60,18 @@ function actionMatrixFromRaw(raw: Partial<PermissionActionMatrix> | undefined): 
   }
 }
 
-function toCanRow(row: AccountPermissionUpdate) {
+function toGroupPermissionRow(row: AccountPermissionUpdate) {
   return {
     pageCode: row.pageCode,
-    canView: row.actions.view,
-    canCreate: row.actions.create,
-    canUpdate: row.actions.update,
-    canDelete: row.actions.delete,
-    canRestore: row.actions.restore,
-    canDownload: row.actions.download,
-    canPrint: row.actions.print,
+    actions: {
+      view: row.actions.view,
+      create: row.actions.create,
+      update: row.actions.update,
+      delete: row.actions.delete,
+      restore: row.actions.restore,
+      download: row.actions.download,
+      print: row.actions.print,
+    },
   }
 }
 
@@ -123,7 +125,7 @@ export async function updatePermissionGroupMatrix(
 ): Promise<ChangedCountResponse> {
   const res = await apiClient.put<ApiEnvelope<ChangedCountResponse>>(
     `/auth/admin/permission-groups/${encodeURIComponent(groupId)}/permissions`,
-    { rows: updates.map(toCanRow) },
+    { rows: updates.map(toGroupPermissionRow) },
   )
   return res.data.data
 }

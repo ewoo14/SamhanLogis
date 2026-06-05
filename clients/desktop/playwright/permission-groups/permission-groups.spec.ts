@@ -73,6 +73,7 @@ test.describe('Permission Groups Phase A', () => {
 
     await page.getByTestId('perm-group-account-select').selectOption({ label: '이영업 / SALES' })
     await expect(page.getByTestId('perm-group-account-assigned')).toContainText('영업팀')
+    await expect(page.getByTestId('perm-group-assign-master')).toBeHidden()
 
     await page.getByTestId('perm-group-assign-배차팀').click()
     await expect(page.getByTestId('perm-group-account-assigned')).toContainText('배차팀')

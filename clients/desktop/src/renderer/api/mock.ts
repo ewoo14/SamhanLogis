@@ -5186,23 +5186,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     if (method === 'PUT') {
       const body = parseMockBody(config) as { rows?: Array<Record<string, unknown>> }
-      const rows = Array.isArray(body.rows) ? body.rows : []
+      if (!Array.isArray(body.rows)) {
+        return mockError(400, 'INVALID_INPUT', '권한그룹 권한 rows 는 필수입니다.')
+      }
       const matrix = _mockPermissionGroupMatrices[groupId] ?? {}
-      for (const row of rows) {
+      for (const row of body.rows) {
         const pageCode = String(row['pageCode'] ?? '')
-        if (!pageCode) continue
+        const actions = row['actions']
+        if (!pageCode || typeof actions !== 'object' || actions === null || Array.isArray(actions)) {
+          return mockError(400, 'INVALID_INPUT', '권한그룹 권한 rows.actions 는 필수입니다.')
+        }
+        const actionMatrix = actions as Partial<MockActionMatrix>
         const next = matrix[pageCode] ?? emptyMockActionMatrix()
-        next.view = Boolean(row['canView'])
-        next.create = Boolean(row['canCreate'])
-        next.update = Boolean(row['canUpdate'])
-        next.delete = Boolean(row['canDelete'])
-        next.restore = Boolean(row['canRestore'])
-        next.download = Boolean(row['canDownload'])
-        next.print = Boolean(row['canPrint'])
+        next.view = Boolean(actionMatrix.view)
+        next.create = Boolean(actionMatrix.create)
+        next.update = Boolean(actionMatrix.update)
+        next.delete = Boolean(actionMatrix.delete)
+        next.restore = Boolean(actionMatrix.restore)
+        next.download = Boolean(actionMatrix.download)
+        next.print = Boolean(actionMatrix.print)
         matrix[pageCode] = next
       }
       _mockPermissionGroupMatrices[groupId] = matrix
-      return envelope({ changedCount: rows.length })
+      return envelope({ changedCount: body.rows.length })
     }
   }
 
