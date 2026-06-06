@@ -117,6 +117,7 @@ test.describe('권한그룹 C5 후속 정리', () => {
       waitUntil: 'domcontentloaded',
       timeout: 20000,
     })
+    await page.reload({ waitUntil: 'domcontentloaded' })
     await expect.poll(() => page.url(), { timeout: 15000 }).not.toContain('/admin/sheet-sync')
     await expect(page.getByTestId('admin-sheetsync-trigger-btn')).toHaveCount(0)
   })
