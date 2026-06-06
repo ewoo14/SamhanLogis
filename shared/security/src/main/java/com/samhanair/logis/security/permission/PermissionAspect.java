@@ -161,9 +161,11 @@ public class PermissionAspect {
 
         DynamicPermissionClient client = clientProvider.getIfAvailable();
         if (client == null) {
-            log.debug("[SP-PO-1] DynamicPermissionClient bean 없음 — 권한 검증 건너뜀 (page={} action={})",
+            // [실QA fail-secure] bean 미구성 시 검증 skip(fail-open) 하면 해당 서비스 전 @RequirePermission
+            // 무검증 통과 → fail-secure 로 deny (checkRolePermission 동일 분기와 일관, 정상 배포는 bean 존재로 영향 0).
+            log.error("[SP-PO-1] DynamicPermissionClient bean 없음 — fail-secure deny (page={} action={})",
                     page, actionName);
-            return joinPoint.proceed();
+            deny(page, roleCode, actionName, "permission client missing");
         }
 
         if (!client.check(accountId, page, action)) {

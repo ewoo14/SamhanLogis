@@ -115,6 +115,19 @@ class PermissionAspectTest {
         assertThat(deniedCount("accounting.journals", "ACCOUNTANT", "CREATE")).isEqualTo(1.0);
     }
 
+    /** [실QA fail-secure] DynamicPermissionClient bean 미구성(null) 시 검증 skip(fail-open) 금지 — deny. */
+    @Test
+    void missingClientDeniesFailSecure() {
+        given(clientProvider.getIfAvailable()).willReturn(null);
+        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT");
+
+        assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), "ACCOUNTANT"))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("permission client missing");
+
+        assertThat(deniedCount("accounting.journals", "ACCOUNTANT", "CREATE")).isEqualTo(1.0);
+    }
+
     @Test
     void roleModeUsesCanEditWithoutAccountId() {
         TestProtectedTarget roleProxy = createProxy(new PermissionAspect(
