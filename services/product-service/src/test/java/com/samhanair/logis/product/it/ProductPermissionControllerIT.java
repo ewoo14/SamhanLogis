@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.product.config.HeaderAuthenticationFilter;
+import com.samhanair.logis.product.client.GoogleSheetsClient;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
@@ -33,8 +34,10 @@ import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.CategoryService;
 import com.samhanair.logis.product.service.EcountProductImporter;
 import com.samhanair.logis.product.service.ProductService;
+import com.samhanair.logis.product.service.ProductSheetSyncService;
 import com.samhanair.logis.product.web.CategoryController;
 import com.samhanair.logis.product.web.EcountProductImportController;
+import com.samhanair.logis.product.web.ProductAdminController;
 import com.samhanair.logis.product.web.ProductByCodeController;
 import com.samhanair.logis.product.web.ProductController;
 import com.samhanair.logis.product.web.dto.CategoryResponse;
@@ -89,6 +92,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 ProductByCodeController.class,
                 CategoryController.class,
                 EcountProductImportController.class,
+                ProductAdminController.class,
                 ProductEditRequestController.class,
                 ProductAuditLogController.class,
                 ProductRealtimeController.class
@@ -115,6 +119,8 @@ class ProductPermissionControllerIT {
     @MockBean private ProductService productService;
     @MockBean private ProductRepository productRepository;
     @MockBean private CategoryService categoryService;
+    @MockBean private ProductSheetSyncService productSheetSyncService;
+    @MockBean private GoogleSheetsClient googleSheetsClient;
     @MockBean private EcountProductImporter ecountProductImporter;
     @MockBean private ProductEditRequestService editRequestService;
     @MockBean private ProductAuditLogService auditLogService;
@@ -159,6 +165,8 @@ class ProductPermissionControllerIT {
                 .thenReturn(Optional.of(byCodeProduct));
         lenient().when(categoryService.create(any())).thenReturn(category);
         lenient().when(categoryService.update(any(), any())).thenReturn(category);
+        lenient().doNothing().when(googleSheetsClient).invalidateCache();
+        lenient().when(productSheetSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
         lenient().when(ecountProductImporter.importCsv(any(), any(), any(), anyString()))
                 .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of()));
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString()))
@@ -281,6 +289,10 @@ class ProductPermissionControllerIT {
                                 .file(csv("itemFile"))
                                 .file(csv("relationFile"))
                                 .file(csv("groupFile"))),
+                new EndpointCase("product sheet sync trigger", "products.sync", PermissionAction.CREATE, "MANAGER", 200,
+                        () -> post("/api/v1/products/admin/sync")),
+                new EndpointCase("product sheet sync last", "products.sync", PermissionAction.VIEW, "MANAGER", 200,
+                        () -> get("/api/v1/products/admin/sync/last")),
                 new EndpointCase("edit request create", "products.edit-requests", PermissionAction.CREATE, "SALES", 201,
                         () -> post("/products/{id}/edit-request", PRODUCT_ID)
                                 .contentType(MediaType.APPLICATION_JSON)

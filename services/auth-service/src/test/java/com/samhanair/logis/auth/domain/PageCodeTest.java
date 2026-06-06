@@ -140,6 +140,7 @@ class PageCodeTest {
         assertThat(PageCode.PRODUCTS_EDIT_REQUESTS_DECIDE.getCode())
                 .isEqualTo("products.edit-requests.decide");
         assertThat(PageCode.PRODUCTS_ECOUNT_IMPORT.getCode()).isEqualTo("products.ecount-import");
+        assertThat(PageCode.PRODUCTS_SYNC.getCode()).isEqualTo("products.sync");
         assertThat(PageCode.SALES_PARTNER_ORDER_EDIT.getCode()).isEqualTo("sales.partner-order.edit");
         assertThat(PageCode.SALES_PARTNER_ORDER_EDIT_REQUESTS.getCode())
                 .isEqualTo("sales.partner-order.edit-requests");
@@ -152,6 +153,7 @@ class PageCodeTest {
         assertThat(PageCode.isValid("products.price")).isTrue();
         assertThat(PageCode.isValid("products.edit-requests.decide")).isTrue();
         assertThat(PageCode.isValid("products.ecount-import")).isTrue();
+        assertThat(PageCode.isValid("products.sync")).isTrue();
         assertThat(PageCode.isValid("sales.partner-order.edit")).isTrue();
         assertThat(PageCode.isValid("sales.partner-order.edit-requests")).isTrue();
         assertThat(PageCode.isValid("sales.partner-order.edit-requests.decide")).isTrue();

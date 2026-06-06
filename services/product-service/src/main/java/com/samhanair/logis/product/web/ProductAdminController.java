@@ -3,6 +3,8 @@ package com.samhanair.logis.product.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.product.client.GoogleSheetsClient;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
+import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.time.Instant;
@@ -24,10 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
  * ({@link #lastSync()}) 추가. admin UI 가 trigger 결과 + 직전 sync 메타 데이터를
  * 한 화면에서 확인할 수 있도록 분리. 메모리 보관 (bean field, 영속 X — V6 별도 PR).
  *
- * <p><b>인증</b>: 본 path 는 {@code /products/internal/} prefix 가 아니므로
- * {@link com.samhanair.logis.product.config.HeaderAuthenticationFilter} 가 gateway 헤더
- * (X-User-Role) 로 인증. 운영 시 ADMIN role gate 는 후속 PR (현재 SecurityConfig 의
- * {@code anyRequest().authenticated()} 만 통과). MVP 게이트.
+ * <p><b>권한</b>: C5 후속 정리부터 {@code products.sync} page-code 로 보호한다.
+ * POST {@code /sync} 는 시트→DB 반영을 실행하므로 CREATE, GET {@code /sync/last} 는
+ * 마지막 실행 메타 조회이므로 VIEW 를 요구한다.
  */
 @RestController
 @RequestMapping("/api/v1/products/admin")
@@ -59,6 +60,7 @@ public class ProductAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "시트 read 실패 / Service Account 미설정")
     })
     @PostMapping("/sync")
+    @RequirePermission(page = "products.sync", action = PermissionAction.CREATE)
     public ApiResponse<ProductSheetSyncService.SyncSummary> triggerSync() {
         sheetsClient.invalidateCache();
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
@@ -80,6 +82,7 @@ public class ProductAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping("/sync/last")
+    @RequirePermission(page = "products.sync", action = PermissionAction.VIEW)
     public ApiResponse<LastSyncSnapshot> lastSync() {
         return ApiResponse.ok(lastSnapshot.get());
     }

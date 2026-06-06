@@ -448,6 +448,9 @@ public enum PageCode {
     /** 이카운트 품목 import 화면/API — SP-D6-2. */
     PRODUCTS_ECOUNT_IMPORT("products.ecount-import", "상품 이카운트 import"),
 
+    /** 상품 시트 동기화 수동 trigger/API — C5 후속 정리. */
+    PRODUCTS_SYNC("products.sync", "상품 시트 동기화"),
+
     // ---- 아로로지스 (arologis) ----
 
     /** 아로로지스 배차 관리 화면 (SP-D4) — arologis-service ArologisAdminController. */
