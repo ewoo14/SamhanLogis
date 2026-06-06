@@ -44,8 +44,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *
  * <p>{@link DynamicPermissionClient} 는 service 별로 다른 bean 이므로
  * {@link ObjectProvider} 를 통한 lazy 주입으로 bean 미존재 시 NoSuchBeanDefinitionException 회피.
- * account 모드에서 DynamicPermissionClient bean 이 없으면 권한 검증을 건너뛴다
- * (서비스 미지원 환경 호환). role 모드는 명시 opt-in 이므로 client 누락 시 deny 한다.
+ * [실QA fail-secure] account 모드에서 DynamicPermissionClient bean 이 없으면 **fail-secure 로 deny**
+ * 한다(설정 누락 시 전 @RequirePermission 무검증 통과 방지). role 모드도 동일하게 client 누락 시 deny.
  *
  * <p>SP-D5 cycle 2 fix:
  * <ul>
