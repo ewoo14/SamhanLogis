@@ -138,11 +138,12 @@ public class SlipController {
             @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
             @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster) {
         SlipType effectiveSlipType = slipType != null ? slipType : typeAlias;
-        // 1단계: 명시적 타입 지정 시 권한 가드 (Phase C5-3: 그룹/isSystemMaster OR 경로 추가)
-        SlipPurchaseAccessGuard.guardInboundPurchaseRead(effectiveSlipType, role);
+        // 1단계: 명시적 타입 지정 시 권한 가드 (Phase C5-4: 그룹/isSystemMaster OR 경로 추가)
+        SlipPurchaseAccessGuard.guardInboundPurchaseRead(effectiveSlipType, role, userGroups, isSystemMaster);
         SlipSalesAccessGuard.guardOutboundSalesRead(effectiveSlipType, role, userGroups, isSystemMaster);
         // 2단계: 타입 미지정 시 역할에 따라 가시 범위 축소
-        effectiveSlipType = SlipPurchaseAccessGuard.restrictInboundWhenTypeOmitted(effectiveSlipType, role);
+        effectiveSlipType = SlipPurchaseAccessGuard.restrictInboundWhenTypeOmitted(effectiveSlipType, role,
+                userGroups, isSystemMaster);
         effectiveSlipType = SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role,
                 userGroups, isSystemMaster);
         // 3단계: restrict 결과에 대해 재가드 (null→OUTBOUND 후 OUTBOUND 차단 역할 검증)
@@ -172,7 +173,7 @@ public class SlipController {
             @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
             @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster) {
         SlipDetailResponse response = slipService.getOne(id);
-        SlipPurchaseAccessGuard.guardInboundPurchaseRead(response.slipType(), role);
+        SlipPurchaseAccessGuard.guardInboundPurchaseRead(response.slipType(), role, userGroups, isSystemMaster);
         SlipSalesAccessGuard.guardOutboundSalesRead(response.slipType(), role, userGroups, isSystemMaster);
         return ApiResponse.ok(response);
     }
