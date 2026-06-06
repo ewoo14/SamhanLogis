@@ -90,31 +90,56 @@ export function getSessionGroups(auth: AuthSnapshot | null): AuthGroupItem[] {
 }
 
 /**
- * 빌트인 그룹(builtin=true) 의 표시명을 반환한다.
+ * V43 빌트인 role-group UUID 카탈로그 (BE `BuiltinRoleGroupIds` 와 1:1).
+ *
+ * UUID 는 **내부 비교 전용**이며 화면 렌더 금지(feedback_uuid_no_user_visibility —
+ * 내부 식별자 비교는 규칙 위반 아님). 표시는 항상 서버가 내려준 그룹 `name` 사용.
+ * is_builtin 플래그는 V43 에서 MASTER(…100)만 TRUE 라 "빌트인 role-group 여부" 판정에
+ * 쓸 수 없음 — UUID 카탈로그 매칭이 유일하게 안전한 기준 (PR #414 dual review).
+ */
+export const BUILTIN_ROLE_GROUP_IDS: Readonly<Record<string, string>> = {
+  MASTER: '00000000-0000-0000-0000-000000000100',
+  MANAGER: '00000000-0000-0000-0000-000000000101',
+  SALES: '00000000-0000-0000-0000-000000000102',
+  WAREHOUSE: '00000000-0000-0000-0000-000000000103',
+  ACCOUNTANT: '00000000-0000-0000-0000-000000000104',
+  INVENTORY: '00000000-0000-0000-0000-000000000105',
+  DISPATCH: '00000000-0000-0000-0000-000000000106',
+  DRIVER: '00000000-0000-0000-0000-000000000107',
+  STAFF: '00000000-0000-0000-0000-000000000108',
+  DEVELOPER: '00000000-0000-0000-0000-000000000109',
+}
+
+/** 카탈로그 역인덱스 (UUID → role 코드). */
+const BUILTIN_GROUP_ID_TO_ROLE: ReadonlyMap<string, string> = new Map(
+  Object.entries(BUILTIN_ROLE_GROUP_IDS).map(([role, id]) => [id, role]),
+)
+
+/**
+ * 세션 groups 중 빌트인 role-group 의 표시명을 반환한다.
  *
  * 용도: 헤더 칩, 프로필 뱃지 등에서 role 코드 대신 한국어 그룹명 표시.
- * UUID 는 내부 식별 전용이며 이 함수에서 반환하지 않는다 (feedback_uuid_no_user_visibility).
- *
- * 예: `getBuiltinRoleLabel(auth)` → "매니저" / "창고원" / "마스터" 등.
- * 빌트인 그룹 없거나 groups 미존재 시 `null`.
+ * V43 UUID 카탈로그 매칭으로 판정하고, 표시값은 서버 그룹 `name`(관리자 rename 반영).
+ * 빌트인 role-group 미배속 또는 groups 미존재 시 `null`.
  *
  * @param auth 현재 AuthSnapshot
  */
 export function getBuiltinRoleLabel(auth: AuthSnapshot | null): string | null {
-  const groups = getSessionGroups(auth)
-  const builtin = groups.find((g) => g.builtin)
-  return builtin?.name ?? null
+  const match = getSessionGroups(auth).find((g) => BUILTIN_GROUP_ID_TO_ROLE.has(g.id))
+  return match?.name ?? null
 }
 
 /**
- * 주어진 그룹 name 이 현재 세션 groups 에 포함되어 있는지 확인한다.
+ * 현재 세션이 주어진 role 코드의 빌트인 role-group 에 배속되어 있는지 확인한다.
  *
- * PR-2 그룹 기반 소비 전환 시 사용하는 예정 헬퍼.
- * UUID 를 직접 비교하지 않고 name 을 사용한다 (feedback_uuid_no_user_visibility).
+ * PR-2 그룹 기반 소비 전환용 헬퍼. 그룹 name 은 관리자가 rename 가능해 비교 기준으로
+ * 사용 불가 — V43 UUID 카탈로그로 비교한다 (dual review P2 반영, 화면 비노출 무관 내부 비교).
  *
  * @param auth 현재 AuthSnapshot
- * @param groupName 확인할 그룹명 (예: "마스터", "매니저")
+ * @param roleName 빌트인 role 코드 (예: "MASTER", "MANAGER")
  */
-export function hasGroupByName(auth: AuthSnapshot | null, groupName: string): boolean {
-  return getSessionGroups(auth).some((g) => g.name === groupName)
+export function hasBuiltinRoleGroup(auth: AuthSnapshot | null, roleName: string): boolean {
+  const id = BUILTIN_ROLE_GROUP_IDS[roleName]
+  if (!id) return false
+  return getSessionGroups(auth).some((g) => g.id === id)
 }

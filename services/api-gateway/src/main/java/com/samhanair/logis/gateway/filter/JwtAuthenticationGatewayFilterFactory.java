@@ -56,9 +56,11 @@ import reactor.core.publisher.Mono;
  *       and (Phase 12) {@code X-User-Department} headers, then continue.</li>
  * </ul>
  *
- * <h2>allowedRoles / allowedGroups 독립 검사</h2>
- * 두 검사는 AND 가 아닌 각각 독립 검사이다.
- * allowedRoles 가 비어있지 않으면 role 검사, allowedGroups 가 비어있지 않으면 그룹 교집합 검사.
+ * <h2>allowedRoles / allowedGroups 검사 의미 — 🚨 양쪽 동시 지정 시 AND</h2>
+ * 각 목록은 비어있지 않을 때 자기 검사를 수행하는 <b>순차 검사</b>다. 따라서 두 목록을
+ * <b>동시에 지정하면 양쪽 모두 통과해야 하는 AND</b> 가 된다 — groups claim 없는
+ * 구버전 토큰이 role 검사를 통과해도 그룹 검사에서 403 (PR #414 dual review P1).
+ * 라우트에는 한쪽만 지정한다: C5-4 전 = allowedRoles 단독, C5-4 후 = allowedGroups 단독.
  * 두 목록이 모두 비어있으면 (기본 JwtAuthentication) 역할/그룹 제한 없음 — 인증만 확인.
  *
  * <h2>Phase 12 인사 카테고리 가드</h2>

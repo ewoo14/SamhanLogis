@@ -48,11 +48,10 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *       나머지 action 은 {@link DynamicPermissionClient#canEdit(String, String)} == false → deny</li>
  * </ul>
  *
- * <p>Phase C5-3 추가 — {@link #extractGroups(ProceedingJoinPoint, MethodSignature)} 헬퍼:
- * {@code X-User-Groups} 헤더를 comma-split 하여 {@code Set<String>} 으로 파싱한다.
- * 헤더 부재 또는 빈 문자열이면 빈 Set 반환 (null 안전).
- * 현재 PermissionAspect 내에서 직접 소비하지 않으며, 소비처(SlipSalesAccessGuard 등)는
- * 서비스 계층에서 HttpServletRequest 를 통해 독립적으로 소비한다.
+ * <p>Phase C5-3 추가 — {@link #parseGroupsHeader(String)} 공유 파서:
+ * {@code X-User-Groups} 헤더 raw 값을 comma-split 하여 {@code Set<String>} 으로 파싱한다.
+ * Aspect 판정 경로의 그룹 소비는 PR-2(C5-4, X-User-Role 제거)에서 도입 —
+ * 현재 소비처는 서비스 계층 guard(SlipSalesAccessGuard 등)가 본 파서를 호출하는 형태다.
  *
  * <p>deny 시: {@link PermissionGuardMetrics#incrementDenied(String, String, String, String)} 호출
  * 후 {@link AccessDeniedException} throw.
@@ -89,13 +88,6 @@ public class PermissionAspect {
      * "true" 이면 role==MASTER OR 폴백 없이도 bypass.
      */
     private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
-    /**
-     * X-User-Groups 헤더 이름 — Phase C5-1 신규.
-     * api-gateway 가 JWT {@code groups} claim(comma-join UUID 문자열)을 전파.
-     * 헤더 부재 또는 빈 문자열이면 그룹 없음으로 처리.
-     */
-    private static final String USER_GROUPS_HEADER = "X-User-Groups";
-
     private final ObjectProvider<DynamicPermissionClient> clientProvider;
     private final PermissionGuardMetrics metrics;
     private final String serviceName;
@@ -237,29 +229,15 @@ public class PermissionAspect {
     }
 
     /**
-     * {@code X-User-Groups} 헤더를 comma-split 하여 그룹 UUID 문자열 집합을 반환한다 — Phase C5-3 신규.
-     *
-     * <p>헤더 부재 또는 빈 문자열이면 빈 불변 Set 을 반환한다 (null 안전).
-     * 항목별 공백 trim 을 수행하며, 빈 항목은 제거한다.
-     * Set 은 O(1) 교집합 체크를 위해 {@link HashSet} 으로 반환한다.
-     *
-     * <p>[실측 C5-3] partner-auth-service JWT 에는 partnerCode 클레임이 없으므로
-     * PARTNER 식별에 본 메서드를 사용하지 않는다. SlipSalesAccessGuard 등 서비스 계층 guard 에서
-     * HttpServletRequest 를 통해 직접 헤더를 읽어 그룹 교집합을 판정한다.
-     *
-     * @param joinPoint AOP 조인 포인트
-     * @param signature 메서드 시그니처
-     * @return 그룹 UUID 문자열 집합 (빈 Set 가능, null 미반환)
-     */
-    Set<String> extractGroups(ProceedingJoinPoint joinPoint, MethodSignature signature) {
-        String raw = extractHeader(joinPoint, signature, USER_GROUPS_HEADER);
-        return parseGroupsHeader(raw);
-    }
-
-    /**
-     * comma-join 그룹 헤더 문자열을 {@link Set} 으로 파싱한다.
+     * comma-join 그룹 헤더({@code X-User-Groups}) 문자열을 {@link Set} 으로 파싱한다 — Phase C5-3 신규.
      *
      * <p>null 또는 blank 이면 빈 Set 반환. 각 항목 trim 및 빈 항목 제거.
+     * Set 은 O(1) 교집합 체크용. 공유 단일 구현 — 서비스 계층 guard(SlipSalesAccessGuard 등)도
+     * 본 메서드를 사용한다(중복 구현 금지, PR #414 dual review P2).
+     *
+     * <p>현재 Aspect 판정 경로는 본 메서드를 소비하지 않는다 — PR-2(C5-4)에서
+     * X-User-Role 제거와 함께 그룹 집합 기반 판정으로 소비 예정.
+     * [실측 C5-3] partner-auth JWT 에 partnerCode 클레임 부재 → PARTNER 식별 전환도 PR-2 선행 additive 후 수행.
      *
      * @param raw X-User-Groups 헤더 raw 값 (null 허용)
      * @return 그룹 UUID 문자열 집합 (null 미반환)

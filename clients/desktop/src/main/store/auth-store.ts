@@ -123,7 +123,21 @@ export function loadToken(): AuthSnapshot | null {
   const groupsJson = store.get('groupsJson')
   if (groupsJson) {
     try {
-      groups = JSON.parse(groupsJson) as AuthGroupItem[]
+      const parsed: unknown = JSON.parse(groupsJson)
+      // 손상/구버전 데이터 방어: 배열 + 각 요소 형태 검증 후에만 채택 (dual review P1)
+      if (
+        Array.isArray(parsed) &&
+        parsed.every(
+          (g): g is AuthGroupItem =>
+            typeof g === 'object' &&
+            g !== null &&
+            typeof (g as AuthGroupItem).id === 'string' &&
+            typeof (g as AuthGroupItem).name === 'string' &&
+            typeof (g as AuthGroupItem).builtin === 'boolean',
+        )
+      ) {
+        groups = parsed
+      }
     } catch {
       groups = undefined
     }

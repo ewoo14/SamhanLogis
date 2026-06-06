@@ -2,9 +2,8 @@ package com.samhanair.logis.slip.web;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.permission.PermissionAspect;
 import com.samhanair.logis.slip.domain.SlipType;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -152,8 +151,8 @@ final class SlipSalesAccessGuard {
         if ("SALES".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role)) {
             return true;
         }
-        // Phase C5-3 그룹 경로
-        Set<String> groups = parseGroupsHeader(userGroups);
+        // Phase C5-3 그룹 경로 — 파싱은 shared 공유 단일 구현 사용 (dual review P2: 중복 구현 금지)
+        Set<String> groups = PermissionAspect.parseGroupsHeader(userGroups);
         for (String groupId : groups) {
             if (OUTBOUND_ALLOWED_GROUP_IDS.contains(groupId)) {
                 return true;
@@ -174,23 +173,4 @@ final class SlipSalesAccessGuard {
         return canReadOutboundSales(role, null, null);
     }
 
-    /**
-     * X-User-Groups 헤더 문자열을 comma-split 하여 Set 으로 파싱한다.
-     *
-     * @param raw comma-join UUID 문자열 (null/blank 이면 빈 Set 반환)
-     * @return 그룹 UUID 문자열 집합 (null 미반환)
-     */
-    private static Set<String> parseGroupsHeader(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return Set.of();
-        }
-        Set<String> result = new HashSet<>();
-        for (String part : raw.split(",")) {
-            String trimmed = part.trim();
-            if (!trimmed.isEmpty()) {
-                result.add(trimmed);
-            }
-        }
-        return result;
-    }
 }

@@ -69,7 +69,7 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
                     .thenThrow(new BusinessException(ErrorCode.MIG5_CSV_HEADER_MISMATCH,
                             "MIG5_CSV_HEADER_MISMATCH"));
         }
-        if ("MEMBER".equals(role)) {
+        if ("MEMBER".equals(role) || "noRoleForbidden".equals(label)) {
             when(dynamicPermissionClient.check(
                             org.mockito.ArgumentMatchers.any(UUID.class),
                             org.mockito.ArgumentMatchers.eq("ecount.import.inventory"),
@@ -77,8 +77,11 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
                     .thenReturn(false);
         }
 
-        var request = multipart(URL).file(file)
-                .header("X-User-Id", "10000000-0000-0000-0000-000000000213");
+        var request = multipart(URL).file(file);
+        // C5-3: 진짜 anonymous(헤더 전무) 케이스만 X-User-Id 미전송
+        if (!"anonymous".equals(label)) {
+            request.header("X-User-Id", "10000000-0000-0000-0000-000000000213");
+        }
         if (role != null) {
             request.header("X-User-Role", role);
         }
@@ -93,7 +96,11 @@ class EcountStockTransferImportControllerIT extends AbstractPostgresIT {
     private static Stream<Arguments> cases() {
         return Stream.of(
                 Arguments.of("success", file("sample.csv", "text/csv"), "MANAGER", 200),
+                // C5-3: 진짜 anonymous = 헤더 전무 (구 "anonymous"=userId+role없음 은 이제 정당한 인증 형태)
                 Arguments.of("anonymous", file("sample.csv", "text/csv"), null, 403),
+                // C5-3 계약: role 없는 인증(X-User-Id 단독) — 인가는 @RequirePermission(account-mode, role-무관)
+                Arguments.of("noRoleAllowed", file("sample.csv", "text/csv"), null, 200),
+                Arguments.of("noRoleForbidden", file("sample.csv", "text/csv"), null, 403),
                 Arguments.of("memberForbidden", file("sample.csv", "text/csv"), "MEMBER", 403),
                 Arguments.of("invalidMime", file("sample.txt", "text/plain"), "MANAGER", 400),
                 Arguments.of("headerMismatch", file("broken.csv", "text/csv"), "MANAGER", 422));

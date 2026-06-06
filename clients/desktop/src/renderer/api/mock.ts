@@ -188,7 +188,10 @@ const BUILTIN_GROUP_BY_ROLE: Record<string, { id: string; name: string }> = {
 function _resolveMockGroups(role: string): Array<{ id: string; name: string; builtin: boolean }> {
   const entry = BUILTIN_GROUP_BY_ROLE[role]
   if (!entry) return []
-  return [{ id: entry.id, name: entry.name, builtin: true }]
+  // V43 seed 정합: is_builtin=TRUE 는 MASTER(…100) 단 하나 — 나머지 role 그룹은 FALSE.
+  // (PR #414 dual review P1 — mock 이 실서버와 다른 builtin 플래그를 주면
+  //  builtin 의존 로직이 mock 에서만 통과하는 위양성 발생)
+  return [{ id: entry.id, name: entry.name, builtin: role === 'MASTER' }]
 }
 
 /**

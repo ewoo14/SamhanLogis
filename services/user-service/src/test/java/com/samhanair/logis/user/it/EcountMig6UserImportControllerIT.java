@@ -66,7 +66,7 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
         if ("headerMismatch".equals(label)) {
             stubHeaderMismatch(url);
         }
-        if ("memberForbidden".equals(label)) {
+        if ("memberForbidden".equals(label) || "noRoleForbidden".equals(label)) {
             when(dynamicPermissionClient.check(
                     any(UUID.class), org.mockito.ArgumentMatchers.eq(pageCode(url)),
                     org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE))).thenReturn(false);
@@ -123,7 +123,11 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
         return endpoints().flatMap(endpoint -> Stream.of(
                 Arguments.of(endpoint[0], endpoint[1], "success", file("sample.csv", "text/csv"), "MANAGER", true, 200),
                 Arguments.of(endpoint[0], endpoint[1], "missingUserId", file("sample.csv", "text/csv"), "MANAGER", false, 401),
-                Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, true, 403),
+                // C5-3: 진짜 anonymous = 헤더 전무 (구 "anonymous"=userId+role없음 은 이제 정당한 인증 형태)
+                Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, false, 403),
+                // C5-3 계약: role 헤더 없는 인증(X-User-Id 단독) — 인가는 @RequirePermission(account-mode, role-무관)이 담당
+                Arguments.of(endpoint[0], endpoint[1], "noRoleAllowed", file("sample.csv", "text/csv"), null, true, 200),
+                Arguments.of(endpoint[0], endpoint[1], "noRoleForbidden", file("sample.csv", "text/csv"), null, true, 403),
                 Arguments.of(endpoint[0], endpoint[1], "memberForbidden", file("sample.csv", "text/csv"), "MEMBER", true, 403),
                 Arguments.of(endpoint[0], endpoint[1], "invalidMime", file("sample.txt", "text/plain"), "MANAGER", true, 400),
                 Arguments.of(endpoint[0], endpoint[1], "headerMismatch", file("broken.csv", "text/csv"), "MANAGER", true, 422)
