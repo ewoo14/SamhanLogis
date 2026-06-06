@@ -41,6 +41,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
 
+    private static final String PARTIAL_IDENTITY_GROUPS = "11111111-1111-1111-1111-111111111111";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -83,8 +85,11 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         }
         if (includeUserId) {
             request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
+        } else if (isMissingUserIdCase(label)) {
+            // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
+            request.header("X-User-Groups", PARTIAL_IDENTITY_GROUPS);
         }
-        if (role != null) {
+        if (role != null && !isMissingUserIdCase(label)) {
             request.header("X-User-Role", role);
         }
 
@@ -130,6 +135,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
     private static Stream<Arguments> endpointCases(String url) {
         return Stream.of(
                 Arguments.of("success", url, "MANAGER", true, "{}", 200),
+                // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of("missingUserId", url, "MANAGER", false, "{}", 401),
                 Arguments.of("memberForbidden", url, "MEMBER", true, "{}", 403),
                 Arguments.of("badBody", url, "MANAGER", true, "{", 400),
@@ -141,6 +147,7 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
         String url = "/admin/accounting/aging-snapshot/refresh";
         return Stream.of(
                 Arguments.of("refreshSuccess", url, "MANAGER", true, "{}", 200),
+                // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of("refreshMissingUserId", url, "MANAGER", false, "{}", 401),
                 Arguments.of("refreshMemberForbidden", url, "MEMBER", true, "{}", 403),
                 Arguments.of("refreshBadBody", url, "MANAGER", true, "{", 400),
@@ -163,6 +170,10 @@ class EcountMig9CashJournalControllerIT extends AbstractPostgresIT {
             return PermissionAction.UPDATE;
         }
         return PermissionAction.CREATE;
+    }
+
+    private static boolean isMissingUserIdCase(String label) {
+        return label.contains("missingUserId") || label.contains("MissingUserId");
     }
 
     private void whenSuccess(String url) {

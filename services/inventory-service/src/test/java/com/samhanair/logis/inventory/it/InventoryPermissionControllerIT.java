@@ -364,13 +364,12 @@ class InventoryPermissionControllerIT {
     }
 
     /**
-     * behavior-preserving 검증:
-     * InspectionAttachmentController.delete 는 @PreAuthorize("hasAnyRole('MANAGER','MASTER')")
-     * 가 의도적으로 유지되어 WAREHOUSE role 은 @RequirePermission(DELETE) 권한이 있어도 403.
-     * widening guard — @PreAuthorize 를 제거하면 WAREHOUSE 에게 삭제 권한이 열리는 것을 방지.
+     * C5 후속 검증:
+     * InspectionAttachmentController.delete 는 @RequirePermission(DELETE) 단일 가드로 판정한다.
+     * WAREHOUSE 라도 그룹 권한이 있으면 role authority 없이 삭제를 통과해야 한다.
      */
     @Test
-    void attachmentDelete_warehouseRole_isForbiddenDueToPreAuthorize() throws Exception {
+    void attachmentDelete_warehouseWithDeletePermission_passesRequirePermissionOnly() throws Exception {
         // WAREHOUSE 에게 inventory.stock-balance DELETE 동적 권한 부여
         when(dynamicPermissionClient.check(eq(ID), eq("inventory.stock-balance"), eq(PermissionAction.DELETE)))
                 .thenReturn(true);
@@ -378,13 +377,10 @@ class InventoryPermissionControllerIT {
         mockMvc.perform(delete("/inventory/inspections/{id}/attachments/{attachmentId}", ID, OTHER_ID)
                         .header(USER_ID_HEADER, ID.toString())
                         .header(ROLE_HEADER, "WAREHOUSE"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        // @PreAuthorize 가 @RequirePermission AOP 보다 먼저 차단했음을 실증:
-        // 차단이 @PreAuthorize 에서 났다면 PermissionAspect 의 check() 는 호출되지 않는다.
-        // (이 verify 가 없으면 403 이 다른 사유(인증 실패 등)로 나도 통과 = false-green.)
-        verify(dynamicPermissionClient, never())
-                .check(any(java.util.UUID.class), anyString(), any(PermissionAction.class));
+        verify(dynamicPermissionClient).check(ID, "inventory.stock-balance", PermissionAction.DELETE);
+        verify(attachmentService).delete(OTHER_ID, ID.toString());
     }
 
     static Stream<EndpointCase> endpoints() {

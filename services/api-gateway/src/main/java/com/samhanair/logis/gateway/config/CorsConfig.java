@@ -12,9 +12,10 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 /**
  * Global reactive CORS filter mounted on the gateway.
  *
- * <p>Exposes {@code Authorization}, {@code X-User-Id}, {@code X-User-Role},
- * and {@code X-User-Groups} (Phase C5-1) so the SPA can read identity headers
- * that downstream services attach. Allowed origins follow the project_plan §4 domain matrix:
+ * <p>Exposes {@code Authorization}, {@code Content-Type}, {@code X-User-Id}, and
+ * {@code X-User-Groups} so the SPA can read gateway identity headers. C5 후속 정리에서
+ * gateway 가 더 이상 주입하지 않는 {@code X-User-Role} 은 exposed header 에서 제거했다.
+ * Allowed origins follow the project_plan §4 domain matrix:
  * three production sub-domains under samhan-air.com plus local-dev Vite ports
  * (3000 / 3001 / 3002 — web SPA, 5173 — electron-vite default).
  *
@@ -61,12 +62,10 @@ public class CorsConfig {
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        // C5-1 P2: X-User-Groups 노출 추가(C5-2 cutover 시 SPA 가 그룹 집합 수신 가능 선행 준비)
-        // + identity 헤더 이름 shared HttpHeaderConstants 단일 출처 통일.
+        // C5 후속: role 헤더는 gateway 주입이 제거되어 노출하지 않는다. 그룹 identity 만 유지.
         config.setExposedHeaders(List.of(
                 "Authorization", "Content-Type",
                 HttpHeaderConstants.CALLER_ID_HEADER,
-                HttpHeaderConstants.CALLER_ROLE_HEADER,
                 HttpHeaderConstants.USER_GROUPS_HEADER));
         config.setAllowCredentials(true);
         config.setMaxAge(Duration.ofSeconds(3600));

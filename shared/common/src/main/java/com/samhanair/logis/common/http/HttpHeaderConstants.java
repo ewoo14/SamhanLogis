@@ -11,7 +11,13 @@ public final class HttpHeaderConstants {
     /** 호출자 표시명 header. */
     public static final String CALLER_NAME_HEADER = "X-User-Name";
 
-    /** 호출자 역할 header. */
+    /**
+     * Legacy role header.
+     *
+     * <p>Phase C5 이후 api-gateway 와 downstream HeaderAuthenticationFilter 는 본 헤더를
+     * 사용자 인가 authority 로 사용하지 않는다. 잔존 테스트와 role-mode 호환 문맥에서만
+     * 리터럴 중복 방지를 위해 보존한다.
+     */
     public static final String CALLER_ROLE_HEADER = "X-User-Role";
 
     /** 거래처 사용자 본인 주문 검증용 거래처 코드 header. */
@@ -31,16 +37,17 @@ public final class HttpHeaderConstants {
      *
      * <p>api-gateway 가 JWT {@code isSystemMaster} claim 을 파싱하여 {@code "true"} 또는
      * {@code "false"} 문자열로 전파. downstream {@link PermissionAspect} 에서
-     * {@code role==MASTER} 폴백과 OR 조건으로 bypass 판정에 사용된다.
+     * role 문자열 폴백 없이 시스템 마스터 bypass 판정에 사용된다.
      */
     public static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
 
     /**
      * 계정의 활성 그룹 UUID 집합 header — Phase C5-1 신규.
      *
-     * <p>api-gateway 가 JWT {@code groups} claim 을 파싱하여 comma-join UUID 문자열로 전파.
-     * 본 슬라이스(C5-1)에서는 헤더를 주입만 하며 소비처(PermissionAspect 등)는 C5-2 에서 구현된다.
-     * 그룹이 없으면 빈 문자열을 전파하여 헤더 부재와 구분한다.
+     * <p>api-gateway 가 JWT {@code groups} claim 을 파싱하여 comma-join UUID 문자열로 전파한다.
+     * downstream HeaderAuthenticationFilter 와 {@link PermissionAspect} 는 본 헤더를 기준으로
+     * group authority 및 동적 권한 OR 판정을 수행한다. 그룹이 없으면 빈 문자열을 전파하여
+     * 헤더 부재와 구분한다.
      */
     public static final String USER_GROUPS_HEADER = "X-User-Groups";
 

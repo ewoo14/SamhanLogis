@@ -15,38 +15,29 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Gateway 가 검증 후 주입한 사용자 헤더를 partner-service 의 Spring Security 인증으로 변환한다.
  *
- * <p>이렇게 하면 controller 의 {@code @PreAuthorize("hasRole('MASTER')")} 등이 정상 동작.
- * gateway 우회 직접 호출 (개발자 로컬 등) 시에는 헤더 미존재로 인증 비적재 → 401.
- *
  * <p>본 filter 는 {@link com.samhanair.logis.security.InternalTokenFilter} 가 internal token
  * 미적재로 통과시킨 경우의 downstream 처리만 담당.
  *
- * <p>Phase C5-3 갱신 — X-User-Id 단독 인증 성립:
+ * <p>Phase C5 후속 갱신 — X-User-Id 단독 인증 성립:
  * <ul>
- *   <li>X-User-Id 존재 시 인증 성립 — X-User-Role 부재여도 허용.</li>
- *   <li>X-User-Role 존재 시 {@code ROLE_<role>} authority 추가 (기존 동작 보존).</li>
- *   <li>X-User-Groups 존재 시 각 UUID 에 대해 {@code GROUP_<uuid>} authority 추가 (신규).</li>
+ *   <li>X-User-Id 존재 시 인증 성립 — X-User-Role 은 수신되더라도 무시.</li>
+ *   <li>X-User-Groups 존재 시 각 UUID 에 대해 {@code GROUP_<uuid>} authority 추가.</li>
  * </ul>
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final String USER_GROUPS_HEADER = "X-User-Groups";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String userId = request.getHeader(USER_ID_HEADER);
-        String role = request.getHeader(USER_ROLE_HEADER);
         String groups = request.getHeader(USER_GROUPS_HEADER);
 
         if (userId != null && !userId.isBlank()
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-            if (role != null && !role.isBlank()) {
-                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
-            }
             if (groups != null && !groups.isBlank()) {
                 for (String groupId : groups.split(",")) {
                     String trimmed = groupId.trim();

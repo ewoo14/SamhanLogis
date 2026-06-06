@@ -38,6 +38,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
 
+    private static final String PARTIAL_IDENTITY_GROUPS = "11111111-1111-1111-1111-111111111111";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -75,8 +77,11 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
         var request = multipart(url).file(file);
         if (includeUserId) {
             request.header("X-User-Id", "10000000-0000-0000-0000-000000000006");
+        } else if ("missingUserId".equals(label)) {
+            // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
+            request.header("X-User-Groups", PARTIAL_IDENTITY_GROUPS);
         }
-        if (role != null) {
+        if (role != null && !"missingUserId".equals(label)) {
             request.header("X-User-Role", role);
         }
 
@@ -122,6 +127,7 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
     private static Stream<Arguments> cases() {
         return endpoints().flatMap(endpoint -> Stream.of(
                 Arguments.of(endpoint[0], endpoint[1], "success", file("sample.csv", "text/csv"), "MANAGER", true, 200),
+                // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of(endpoint[0], endpoint[1], "missingUserId", file("sample.csv", "text/csv"), "MANAGER", false, 401),
                 // C5-3: 진짜 anonymous = 헤더 전무 (구 "anonymous"=userId+role없음 은 이제 정당한 인증 형태)
                 Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, false, 403),

@@ -38,6 +38,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
 
     private static final String URL = "/admin/accounting/orders/backfill-employee-cross-link";
+    private static final String PARTIAL_IDENTITY_GROUPS = "11111111-1111-1111-1111-111111111111";
 
     @Autowired
     private MockMvc mockMvc;
@@ -81,8 +82,11 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
         }
         if (includeUserId) {
             request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
+        } else if (isMissingUserIdCase(label)) {
+            // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
+            request.header("X-User-Groups", PARTIAL_IDENTITY_GROUPS);
         }
-        if (role != null) {
+        if (role != null && !isMissingUserIdCase(label)) {
             request.header("X-User-Role", role);
         }
 
@@ -98,10 +102,15 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
     private static Stream<Arguments> cases() {
         return Stream.of(
                 Arguments.of("success", "MANAGER", true, "{}", 200),
+                // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of("missingUserId", "MANAGER", false, "{}", 401),
                 Arguments.of("memberForbidden", "MEMBER", true, "{}", 403),
                 Arguments.of("badBody", "MANAGER", true, "{", 400),
                 Arguments.of("noRows", "MANAGER", true, "{}", 422)
         );
+    }
+
+    private static boolean isMissingUserIdCase(String label) {
+        return label.contains("missingUserId") || label.contains("MissingUserId");
     }
 }

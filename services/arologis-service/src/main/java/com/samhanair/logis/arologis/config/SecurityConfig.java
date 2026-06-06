@@ -62,7 +62,10 @@ public class SecurityConfig {
 
     /**
      * Servlet CORS — arologis-desktop / arologis-mobile 이 gateway 우회 직접 호출(:8097) 지원.
-     * api-gateway 의 reactive CorsConfig 와 동일 origin/method/header 정책.
+     *
+     * <p>아로로지스 독립 운영 단위 전용 정책이다. Samhan Public gateway 의
+     * {@code X-User-Groups} 노출 정책을 복제하지 않으며, exposedHeaders 의
+     * {@code X-User-Role} 은 아로로지스 자체 JWT role 시맨틱 호환을 위해 유지한다.
      */
     private CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

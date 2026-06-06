@@ -39,6 +39,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
 
+    private static final String PARTIAL_IDENTITY_GROUPS = "11111111-1111-1111-1111-111111111111";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -77,8 +79,11 @@ class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
         var request = multipart(url).file(file);
         if (includeUserId) {
             request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
+        } else if (isMissingUserIdCase(label)) {
+            // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
+            request.header("X-User-Groups", PARTIAL_IDENTITY_GROUPS);
         }
-        if (role != null) {
+        if (role != null && !isMissingUserIdCase(label)) {
             request.header("X-User-Role", role);
         }
 
@@ -112,6 +117,7 @@ class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
     private static Stream<Arguments> cases() {
         return endpoints().flatMap(endpoint -> Stream.of(
                 Arguments.of(endpoint[0], endpoint[1], "success", xlsx("sample.xlsx"), "MANAGER", true, 200),
+                // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of(endpoint[0], endpoint[1], "missingUserId", xlsx("sample.xlsx"), "MANAGER", false, 401),
                 Arguments.of(endpoint[0], endpoint[1], "memberForbidden", xlsx("sample.xlsx"), "MEMBER", true, 403),
                 Arguments.of(endpoint[0], endpoint[1], "invalidMime", file("sample.txt", "text/plain"), "MANAGER", true, 400),
@@ -130,6 +136,10 @@ class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
             return "ecount.mig11.sales-ledger";
         }
         return "ecount.mig11.purchase-ledger";
+    }
+
+    private static boolean isMissingUserIdCase(String label) {
+        return label.contains("missingUserId") || label.contains("MissingUserId");
     }
 
     private static EcountMig11Result result() {
