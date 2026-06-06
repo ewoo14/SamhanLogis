@@ -60,6 +60,23 @@ accessToken(HS512, iss=arologis-service) claim: "role":"AROLOGIS_MASTER"
 ```
 → arologis 는 자체 JWT/role 체계 유지 — Samhan role 제거 무영향.
 
+## 6.5 dual review P0/P1 교정 후 보강 실QA (재배포 — gateway/partner-order/dc-config) ✅
+
+**P1-a 게이트웨이 X-Is-Partner 스푸핑 차단** (게이트웨이 경유 실 와이어):
+```
+[A] 파트너 JWT(partnerCode 클레임) → 권한그룹 관리      : 403 (X-Is-Partner=true 정상 주입 → Aspect 거절)
+[B] Samhan직원 JWT + 위조 X-Is-Partner:true → permissions/my : 200 (게이트웨이 false 강제 덮어씀 = 위조 무시)
+[C] 대조 Samhan직원 정상                                : 200
+```
+
+**P0 파트너 자기범위 우회 차단** (partner-order :18088 직접, 게이트웨이 주입 헤더 모사):
+```
+[본인]   X-Is-Partner:true + X-Partner-Code:P-QA-001, partnerId=P-QA-001 → 200  (본인 범위 통과)
+[타거래처] X-Is-Partner:true + X-Partner-Code:P-QA-001, partnerId=P-OTHER  → 403  (자기범위 차단 = 우회 봉쇄)
+[내부직원] X-Is-Partner 없음 + groups, partnerId=P-OTHER                  → 200  (내부 role 자기범위 무관)
+```
+→ C5-4 후 ROLE_PARTNER authority 소멸로 발생했던 자기범위 우회(P0)가 X-Is-Partner 헤더 직접 판정으로 봉쇄됨을 런타임 실증. 단위 12케이스(PartnerSelfScopeGuardTest) + 게이트웨이 스푸핑 3케이스 동반.
+
 ## 7. PM 통합 검증 적발·교정 이력 (구현 agent 1·2차 이후)
 - **락아웃 클래스 누락 적발**: EstimatePermissionGuard·auth 위임 가드 3곳(actor role 판정) → X-Is-System-Master 전환(`0c3749cc`).
 - 401 강화 분기 제거 여파(missingUserId 계약 14) → **identity 부분-헤더 재키잉 복원**(`f5bb1075`).
