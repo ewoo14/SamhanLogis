@@ -1,7 +1,9 @@
 package com.samhanair.logis.auth.service;
 
+import com.samhanair.logis.auth.domain.AccountGroup;
 import com.samhanair.logis.common.security.Role;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -86,5 +88,35 @@ public final class BuiltinRoleGroupIds {
             return Optional.empty();
         }
         return Optional.ofNullable(GROUP_ID_TO_ROLE.get(groupId));
+    }
+
+    /**
+     * P2 공통 헬퍼 — 계정의 활성 그룹 배속 목록에서 빌트인 역할을 역매핑하여 반환한다.
+     *
+     * <p>login / /me / listAccounts 3곳의 중복 역매핑 로직을 단일 진실원으로 통합.
+     * groupId 오름차순 정렬된 {@code activeGroups} 에서 빌트인 UUID 에 대응하는 첫 번째 역할을 반환하며,
+     * 해당 결과가 없으면 빈 문자열을 반환한다.
+     *
+     * <p>역매핑 실패(빌트인 그룹 미배속)는 배속 누락 전용 fallback 으로 빈 문자열을 반환한다.
+     * 이 경우 {@code log.warn} 으로 추적 가능하도록 {@code accountId} 를 함께 기록한다.
+     * 인가 흐름(X-User-Groups / X-Is-System-Master)에는 영향이 없다.
+     *
+     * @param activeGroups  계정의 활성 AccountGroup 목록 (is_deleted=false)
+     * @param accountIdHint 경고 로그용 계정 식별자 (UUID 또는 loginId 문자열)
+     * @return 역할 이름 문자열, 빌트인 그룹 미매핑 시 빈 문자열
+     */
+    public static String deriveRoleName(List<AccountGroup> activeGroups, Object accountIdHint) {
+        return activeGroups.stream()
+                .map(ag -> fromGroupId(ag.getGroupId()))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(Role::name)
+                .findFirst()
+                .orElseGet(() -> {
+                    // 배속 누락 전용 fallback — 인가 불변식 무영향이지만 추적 필요
+                    org.slf4j.LoggerFactory.getLogger(BuiltinRoleGroupIds.class)
+                            .warn("[BuiltinRoleGroupIds] 빌트인 role-group 미배속 계정 감지 — accountId={}", accountIdHint);
+                    return "";
+                });
     }
 }

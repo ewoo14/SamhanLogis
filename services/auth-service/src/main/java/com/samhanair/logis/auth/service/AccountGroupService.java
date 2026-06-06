@@ -13,7 +13,9 @@ import com.samhanair.logis.common.security.Role;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -128,37 +130,47 @@ public class AccountGroupService {
      * role 변경 시 이 내부 메서드를 통해 가드를 우회해 직접 교체한다.
      *
      * <ol>
-     *   <li>이전 role 의 빌트인 그룹 배속 행을 soft-delete.</li>
+     *   <li>계정의 현재 활성 배속 중 {@link BuiltinRoleGroupIds} 에 속하는 <b>모든</b> 빌트인 그룹 배속을
+     *       soft-delete한다. (단일 빌트인 그룹 정리의 P1-a 결함 수정: oldRole 단독 역산 대신 전체 정리)</li>
      *   <li>새 role 의 빌트인 그룹 배속 행이 없으면 생성, 있으면 유지.</li>
      * </ol>
      *
      * <p>수동으로 배속된 비-빌트인 그룹은 건드리지 않는다 (보존).
      * materializer 재계산은 호출자(AuthService)가 담당한다.
      *
+     * <p>정상 운영(단일 빌트인 그룹 배속)에서는 기존 동작과 동일하다.
+     * 이례적으로 빌트인 그룹이 2개+ 활성이었던 경우에도 모두 정리한 뒤 newRole 그룹 단일 배속으로 복원된다.
+     *
      * @param accountId 대상 계정 UUID
-     * @param oldRole   변경 전 역할
+     * @param oldRole   변경 전 역할 (참조용, 더 이상 정리 범위를 결정하지 않음)
      * @param newRole   변경 후 역할
      */
     @Transactional
     public void syncBuiltinRoleGroup(UUID accountId, Role oldRole, Role newRole) {
         log.debug("[syncBuiltinRoleGroup] accountId={} oldRole={} newRole={}", accountId, oldRole, newRole);
 
-        // 1. 이전 role 의 빌트인 그룹 배속 해제 (soft-delete)
-        Optional<UUID> oldGroupId = BuiltinRoleGroupIds.of(oldRole);
-        oldGroupId.ifPresent(groupId -> {
-            log.debug("[syncBuiltinRoleGroup] unassigning old group={} for account={}", groupId, accountId);
-            accountGroupRepository.findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
-                    .ifPresent(ag -> {
-                        ag.markDeleted(ACTOR);
-                        accountGroupRepository.save(ag);
-                        log.debug("[syncBuiltinRoleGroup] soft-deleted old group row id={}", ag.getId());
-                    });
-        });
+        // 1. 계정의 활성 배속 중 BuiltinRoleGroupIds 에 속하는 모든 빌트인 그룹을 일괄 soft-delete.
+        //    P1-a 수정: oldRole 역산 단일 그룹 정리가 아닌 전체 빌트인 그룹 정리로 강화.
+        //    이례적으로 빌트인 그룹이 2개+ 활성이더라도 모두 정리하여 stale 권한 잔존을 방지한다.
+        Set<UUID> allBuiltinGroupIds = BuiltinRoleGroupIds.BUILTIN_ROLE_GROUP_IDS.values()
+                .stream()
+                .collect(Collectors.toUnmodifiableSet());
+        List<AccountGroup> activeGroups =
+                accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(accountId);
+        for (AccountGroup ag : activeGroups) {
+            if (allBuiltinGroupIds.contains(ag.getGroupId())) {
+                log.debug("[syncBuiltinRoleGroup] soft-deleting stale builtin group={} for account={}",
+                        ag.getGroupId(), accountId);
+                ag.markDeleted(ACTOR);
+                accountGroupRepository.save(ag);
+            }
+        }
 
         // 2. 새 role 의 빌트인 그룹 배속 (없으면 생성, 있으면 유지)
         Optional<UUID> newGroupId = BuiltinRoleGroupIds.of(newRole);
         newGroupId.ifPresent(groupId -> {
             log.debug("[syncBuiltinRoleGroup] assigning new group={} for account={}", groupId, accountId);
+            // 방금 soft-delete 한 행이 flush 전에 캐시에 있을 수 있으므로 is_deleted=false 조건으로 재조회.
             AccountGroup existing = accountGroupRepository
                     .findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
                     .orElse(null);

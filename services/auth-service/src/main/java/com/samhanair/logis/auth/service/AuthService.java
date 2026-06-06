@@ -8,6 +8,7 @@ import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.service.dto.LoginResponse;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
+import com.samhanair.logis.auth.web.dto.MeResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.JwtTokenProvider;
@@ -117,14 +118,9 @@ public class AuthService {
 
         // Phase C5-5: role 표시값 — account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역매핑 첫 결과.
         // accounts.role 컬럼 DROP(V46) 이후 역할은 그룹 배속으로만 표현한다.
-        // 역매핑 실패(그룹 미매칭) 시 빈 문자열 반환 — 인가 불변식 무영향(락아웃 가드).
-        String role = activeGroups.stream()
-                .map(ag -> BuiltinRoleGroupIds.fromGroupId(ag.getGroupId()))
-                .filter(java.util.Optional::isPresent)
-                .map(java.util.Optional::get)
-                .map(Role::name)
-                .findFirst()
-                .orElse("");
+        // P2: 공통 헬퍼 BuiltinRoleGroupIds.deriveRoleName 로 역매핑 로직 중복 제거.
+        // 역매핑 실패(그룹 미매칭) 시 빈 문자열 반환 + log.warn — 인가 불변식 무영향(락아웃 가드).
+        String role = BuiltinRoleGroupIds.deriveRoleName(activeGroups, loginId);
 
         // Phase 12 인사 가드 + Phase C4 isSystemMaster claim + Phase C5-1 groups claim 포함 JWT 발급
         String token = JwtTokenProvider.generate(
@@ -224,17 +220,10 @@ public class AuthService {
         accountRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
 
-        // C5-5: oldRole = account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역산
-        // syncBuiltinRoleGroup 이 oldRole=null 을 no-op(unassign 스텝 skip)으로 처리하므로
-        // 역산 실패 시에도 안전하게 신규 그룹만 배속된다.
-        Role oldRole = accountGroupRepository
-                .findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(id)
-                .stream()
-                .map(ag -> BuiltinRoleGroupIds.fromGroupId(ag.getGroupId()))
-                .filter(java.util.Optional::isPresent)
-                .map(java.util.Optional::get)
-                .findFirst()
-                .orElse(null);
+        // C5-5 / P1-a: oldRole 역산은 syncBuiltinRoleGroup 내부에서 전체 빌트인 그룹 정리로 강화됨.
+        // oldRole 파라미터는 더 이상 정리 범위를 결정하지 않으므로 null 전달로 단순화한다.
+        // (syncBuiltinRoleGroup 은 항상 활성 빌트인 그룹 전체를 soft-delete 후 newRole 단일 배속)
+        Role oldRole = null;
 
         // 빌트인 role-group 교체 (시스템 그룹 가드 우회 내부 경로)
         accountGroupService.syncBuiltinRoleGroup(id, oldRole, role);
@@ -242,6 +231,33 @@ public class AuthService {
         effectivePermissionMaterializer.materializeForAccount(id);
 
         log.info("[AuthService] role changed — id={}, {} → {}", id, oldRole, role);
+    }
+
+    /**
+     * /me 엔드포인트용 계정 정보 조회.
+     *
+     * <p>P1-b: 기존 AuthController 가 AccountGroupRepository 를 직접 주입하여
+     * role 파생을 수행하던 레이어 위반을 해소한다.
+     * Controller 는 Service 만 의존하며, 그룹 배속 저장소 접근은 이 메서드로 일원화된다.
+     *
+     * <p>P2: role 파생은 {@link BuiltinRoleGroupIds#deriveRoleName} 공통 헬퍼를 사용한다.
+     *
+     * @param userId 계정 UUID
+     * @return /me 응답 DTO
+     */
+    @Transactional(readOnly = true)
+    public MeResponse getMeResponse(UUID userId) {
+        Account account = accountRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "사용자를 찾을 수 없습니다"));
+        List<AccountGroup> activeGroups =
+                accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(userId);
+        // P2: 공통 헬퍼로 role 파생 — 빈 문자열 fallback 시 log.warn 자동 포함
+        String role = BuiltinRoleGroupIds.deriveRoleName(activeGroups, userId);
+        return new MeResponse(
+                account.getId().toString(),
+                account.getLoginId(),
+                role,
+                account.getDisplayName());
     }
 
     public void updateAccountDisplayName(UUID id, String displayName) {
