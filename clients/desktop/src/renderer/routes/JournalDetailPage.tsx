@@ -12,7 +12,7 @@
  * 권한:
  * - 진입: ACCOUNTANT / MASTER (RouteGuard)
  * - "확정" / "역분개": accounting.journals UPDATE 권한
- * - "편집": ACCOUNTANT / MASTER (DRAFT 만)
+ * - "편집": accounting.journals CREATE 권한 (DRAFT 만, 신규작성 폼 재사용)
  *
  * UUID 비공개 가드: 사용자 노출 식별자는 journalNo 와 accountCode 만. line.id /
  * journal.id 는 화면 표시 X.
@@ -120,7 +120,8 @@ export function JournalDetailPage() {
   const journal = query.data
   const isDraft = journal.status === 'DRAFT'
   const isPosted = journal.status === 'POSTED'
-  const canCreateAccountingEntry = canAccess('accounting.journals', 'create')
+  // `/accounting/journals/:id/edit` 는 DRAFT 를 hydrate 하지만 저장은 현재도 POST /accounting/journals(CREATE) 를 호출한다.
+  const canOpenDraftCreateShell = canAccess('accounting.journals', 'create')
   const canUpdateJournal = canAccess('accounting.journals', 'update')
 
   const columns: DataTableColumn<JournalLine>[] = [
@@ -220,7 +221,7 @@ export function JournalDetailPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            {isDraft && canCreateAccountingEntry ? (
+            {isDraft && canOpenDraftCreateShell ? (
               <Button
                 variant="ghost"
                 onClick={() =>

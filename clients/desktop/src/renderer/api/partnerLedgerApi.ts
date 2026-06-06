@@ -148,12 +148,3 @@ export async function getLedgerData(
   )
   return res.data.data
 }
-
-/**
- * 거래처 원장 페이지 / 인쇄 라우트 / 사이드바 entry 접근 가능 여부.
- *
- * <p>BE 는 ACCOUNTANT / MASTER 만 허용하지만, FE 는 사용자 명세에 따라 MANAGER 도
- * read-only 조회를 허용한다 (실제 호출 시 BE 403 발생 가능 — 호출측이 안내).
- *
- * <p>{@code feedback_role_naming_full.md} — 풀네임 표기 의무.
- */

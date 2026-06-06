@@ -33,17 +33,11 @@ export default defineConfig({
     // 🟢 phase-2-6c 재게이트(8/8) — 전환 모달 창고선택+qty 상호작용 + 재고현황 페이지 제목 testid 한정.
     // 🟢 sp-09-1 재게이트(5/5) — eTaxExternalId 표시(FE) + emit 낙관적 갱신.
     // 🟢 3-A2-④ B/C 재게이트 — sp-d4(잔여 7도메인 PermissionGuard, 20 TC 전부 green) 재게이트 완료.
-    //   잔여 격리 스펙은 각 기능별 verify-then-fix 필요 — triage 후 격리 유지:
+    //   잔여 격리 스펙은 각 기능별 verify-then-fix 필요 — triage 후 격리 유지
+    //   (sp-09-1 eTaxExternalId 는 위 5/5 재게이트 완료 항목으로 정정):
     //   phase-2-6c(8: 재고현황 모달), sp-09-2(5: 알리고 SMS), sp-09-3/4/5(각3: OCR/KFTC/vendor),
-    //   sp-08-6-6(2: 발행 CTA/라벨), phase-2-5(1: ON_HOLD 필터), sp-09-1(1: eTaxExternalId),
+    //   sp-08-6-6(2: 발행 CTA/라벨), phase-2-5(1: ON_HOLD 필터),
     //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
-    
-    
-
-    
-    
-
-
   ],
   timeout: 60_000,
   retries: process.env['CI'] ? 1 : 0,

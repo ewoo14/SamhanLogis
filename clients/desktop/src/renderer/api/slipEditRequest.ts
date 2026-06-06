@@ -164,15 +164,6 @@ export async function listSlipEditRequests(
   return res.data.data
 }
 
-/**
- * 작성자가 수정/삭제 요청 가능한 권한 — SALES / MANAGER / MASTER (전표 작성 권한과 동일).
- */
-export const SLIP_EDIT_REQUEST_AUTHOR_ROLES = [
-  'SALES',
-  'MANAGER',
-  'MASTER',
-] as const
-
 /** SlipEditRequestType → 한국어 라벨. */
 export const SLIP_EDIT_REQUEST_TYPE_LABEL: Record<
   SlipEditRequestType,

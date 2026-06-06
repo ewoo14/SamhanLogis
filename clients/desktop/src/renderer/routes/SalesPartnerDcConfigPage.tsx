@@ -152,7 +152,17 @@ export function SalesPartnerDcConfigPage() {
           testId="partner-dc-config-audit-info-banner"
         />
         {!canEditDcConfig ? (
-          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>
+          <p
+            style={{
+              margin: '8px 0 0',
+              padding: '8px 12px',
+              fontSize: 12,
+              color: 'var(--color-warning-700, #b45309)',
+              background: 'var(--color-warning-50, #fffbeb)',
+              border: '1px solid var(--color-warning-200, #fde68a)',
+              borderRadius: 4,
+            }}
+          >
             현재 권한은 조회 전용입니다. DC 수정은 MANAGER / MASTER 권한에서만 가능합니다.
           </p>
         ) : null}

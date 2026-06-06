@@ -157,20 +157,3 @@ export async function sendDispatchBatch(
   )
   return res.data.data
 }
-
-// ---------------------------------------------------------------------------
-// 권한 가드 — BE @PreAuthorize 와 1:1 (DISPATCH / MANAGER / MASTER 풀네임)
-// ---------------------------------------------------------------------------
-
-/**
- * 배차안내 SMS 발송 admin UI 진입 권한.
- *
- * BE {@code @PreAuthorize("hasAnyRole('DISPATCH','MANAGER','MASTER')")} 와 1:1.
- * 풀네임 의무 (feedback_role_naming_full.md).
- */
-
-/**
- * 사이드바 / 라우트 가드 — dispatch.sms page-code 권한을 사용한다.
- *
- * @param role 현재 세션 role 풀네임 (대소문자 구분 — BE 와 동일)
- */

@@ -240,6 +240,7 @@ export function TaxInvoiceDetailPage() {
   const t = query.data
   const isDraft = t.status === 'DRAFT'
   const isIssued = t.status === 'ISSUED'
+  // DRAFT 수정 저장과 발행(issue)은 모두 TaxInvoiceController accounting.tax-invoice.list UPDATE 계약이다.
   const canUpdateTaxInvoice = canAccess('accounting.tax-invoice.list', 'update')
   const canCancelTaxInvoice = canAccess('accounting.tax-invoice.cancel', 'update')
   const canEmitTaxInvoiceNts = canAccess('accounting.tax-invoice.emit-nts', 'update')
@@ -282,10 +283,7 @@ export function TaxInvoiceDetailPage() {
   }
 
   const handlePrint = () => {
-    // Designer commit 5dcbbef — TaxInvoiceView 는 `/sales/:id/print/tax-invoice` path 에 mount.
-    // 본 mock 시점에 아직 해당 print view 가 slip-id 기반이라 견적 id 와 다름.
-    // 후속 iteration 에서 `/accounting/tax-invoices/:id/print` 신규 라우트 추가 예정.
-    // 현재는 새 창에서 print view 를 열고 사용자가 window.print() 호출.
+    // 세금계산서 전용 인쇄 라우트를 새 창으로 열고 사용자가 window.print() 를 호출한다.
     const url = `${window.location.origin}/#/accounting/tax-invoices/${id}/print`
     window.open(url, '_blank', 'width=900,height=1200')
   }

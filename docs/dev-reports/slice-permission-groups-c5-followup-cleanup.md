@@ -218,7 +218,7 @@ clients/desktop/src/renderer\components\RoleGuard.tsx:25: export function RoleGu
 
 ## 5.7 사이클 3 일괄 이관
 
-PM 재기획 `docs/qa/permission-groups-c5-followup/pm-replan-cycle-3.md` 의 결론에 따라 role 문자열 인가 helper 계열을 일괄 정리했다. 실사용 12개는 호출 화면이 실제 호출하는 BE `@RequirePermission(page, action)` 을 기준으로 `usePermissions().canAccess(pageCode, action)` 에 1:1 이관했고, 고아 15개는 source/playwright grep 후 제거했다. PM 표는 "고아 14" 라고 적었지만 실제 §3-B 항목은 15개였으므로 총 27개 전수 처분표로 기록한다.
+PM 재기획 `docs/qa/permission-groups-c5-followup/pm-replan-cycle-3.md` 의 결론에 따라 role 문자열 인가 helper 계열을 일괄 정리했다. 실사용 13개는 호출 화면이 실제 호출하는 BE `@RequirePermission(page, action)` 을 기준으로 `usePermissions().canAccess(pageCode, action)` 에 1:1 이관했고, 고아 16개는 source/playwright grep 후 제거했다. PM 표는 "고아 14" 라고 적었지만 실제 §3-B 항목은 15개였고, cycle 3a 에서 `SLIP_EDIT_REQUEST_AUTHOR_ROLES` 이관 + `ARO_REGIONS_ADMIN_ROLES` 제거를 추가 반영했으므로 총 29개 전수 처분표로 기록한다.
 
 | helper/상수 | 처분 | FE 대체 기준 | BE/seed 근거 |
 |---|---|---|---|
@@ -229,12 +229,13 @@ PM 재기획 `docs/qa/permission-groups-c5-followup/pm-replan-cycle-3.md` 의 �
 | `canEditPartnerFull` | 이관 후 제거 | `partners.4tab.edit` UPDATE | `Partner4TabController`; V34 |
 | `canExportPartners` | 이관 후 제거 | `partners.edit` DOWNLOAD | `PartnerAdminController.exportXlsx`; V34/V39 |
 | `canExportSlips` | 이관 후 제거 | `slip.print.export` DOWNLOAD | `SlipController.exportXlsx`; V36/V39 |
-| `canManageAudit` | 이관 후 제거 | `inventory.adjust` CREATE/UPDATE | `InventoryAuditController`; V35 |
+| `canManageAudit` | 이관 후 제거 | ListPage=`inventory.adjust` CREATE / DetailPage=`inventory.adjust` UPDATE 분리 | `InventoryAuditController`; V35 |
 | `canRecordAuditLine` | 이관 후 제거 | `inventory.stock-balance` CREATE | `InventoryAuditController.recordLine`; V35/V39 |
 | `canMutateEstimate` | 이관 후 제거 | `estimates.list` CREATE/UPDATE | `EstimateController`; V10 |
 | `canRequestModificationOrCancel` | 이관 후 제거 | status=`DISPATCHED` + `dispatch.board` UPDATE | dispatch-task admin controller; V7/V9/V36 |
 | `canWriteSupplierProfile` | 이관 후 제거 | `accounting.supplier-profiles` CREATE/UPDATE/DELETE | `SupplierProfileController`; V37 |
 | `canAccessAligoAddressBook` / `ALIGO_ADDRESS_BOOK_ROLES` | 제거 | 호출처 0. route/sidebar 는 `aligo.address-book` VIEW | V34 |
+| `ARO_REGIONS_ADMIN_ROLES` | 제거 | 호출처 0. `/admin/regions` route/sidebar 는 `arologis.region` VIEW, 관리 버튼은 page-code 권한으로 별도 판정 | `rg` clients/desktop/src+playwright 0건; V34 |
 | `canAccessChatRoomAdmin` / `CHAT_ROOM_ADMIN_ROLES` | 제거 | 호출처 0. route/sidebar 는 `messenger.admin` VIEW | V34 |
 | `canAccessDeliveryBatch` / `DELIVERY_BATCH_ROLES` | 제거 | 호출처 0. `/sales/link-dispatch` 는 `slip.delivery-batch` VIEW | V36 |
 | `canAccessDispatchSms` / `DISPATCH_SMS_ROLES` | 제거 | 호출처 0. SMS/dispatch 메뉴는 page-code 기준 | V7/V33/V34 |
@@ -261,15 +262,26 @@ PM 재기획 `docs/qa/permission-groups-c5-followup/pm-replan-cycle-3.md` 의 �
 
 ### 사이클 3 grep 증빙
 
-`rg -n '<27 helper/ROLES pattern>' clients/desktop/src/renderer clients/desktop/playwright`
+`rg -n '<29 helper/ROLES pattern>' clients/desktop/src/renderer clients/desktop/playwright`
 
 ```
 no matches
 ```
 
+## 5.8 사이클 3a Claude review fix
+
+- F1: `full-menu-contract` 의 `/sales/new`, `/purchases/new`, `/transfers/new` 단언을 실제 `routes/index.tsx` 의 `PermissionGuard` 계약으로 현행화했다. 세 라우트는 각각 `sales.slip.create/view`, `sales.slip.create/view`, `inventory.stock-transfer/view` 이다.
+- F2/F3: 함수 제거 후 남은 API 말미 JSDoc/섹션 주석을 제거했고, `ARO_REGIONS_ADMIN_ROLES` 는 `clients/desktop/src` + `clients/desktop/playwright` 호출처 0건으로 상수와 JSDoc 을 제거했다.
+- F4: `SlipEditRequestController#createRequest` 는 `@RequirePermission(page="slip.edit-requests", action=CREATE)` 이고 V36 seed 는 MASTER/MANAGER/SALES `can_edit=TRUE` 이므로 `SLIP_EDIT_REQUEST_AUTHOR_ROLES` 를 `canAccess('slip.edit-requests', 'create')` 로 이관 후 제거했다. V38 은 VIEW broaden 만 수행하므로 CREATE widening 은 없다.
+- F5/F9: `JournalDetailPage` 의 DRAFT 편집은 `JournalFormPage` 가 아직 `POST /accounting/journals` CREATE 를 호출하는 의도적 신규작성 폼 재사용으로 명명/주석을 정리했다. 세금계산서/재고실사 권한 주석과 mock download 파생 규칙, Playwright triage 메모도 현행화했다.
+- F6/F7/F8: 배차 상세 모달 footer 는 design-system `Button` 으로 교체했고, DC 조회 전용 안내는 warning token 패턴으로 통일했다. 재고실사 입력 문구는 UUID 노출 없이 `품목코드 / 바코드` 로 정리했다.
+
 ## 6. 보류/주의
 
-- `RoleGuard` 제거는 보류: `AdminLayout` 이 아직 MASTER 전용 외부 가드로 실제 사용 중이다.
+- `ADMIN_ROLES` + `RoleGuard` 제거는 보류: `AdminLayout` 이 아직 MASTER 전용 외부 가드로 실제 사용 중이다.
+- `DEPOSIT_MATCH_ROLES` 유지: `depositMatchApi.ts` 의 SP-09-4 입금 매칭 접근 ROLE 목록은 BE `@PreAuthorize("hasAnyRole('ACCOUNTANT','MANAGER','MASTER')")` 와 1:1 일치하며 아직 page-code 이관 근거가 없다.
+- `SLIP_EDIT_REQUEST_AUTHOR_ROLES` 는 F4 판정 결과 유지하지 않는다: BE 가 `slip.edit-requests` CREATE `@RequirePermission` 이고 V36 seed 가 기존 role 목록과 정합해 `canAccess` 로 이관 후 제거했다.
+- `canQuerySales` 유지: `SlipSalesAccessGuard` 는 sales query 를 SALES/MANAGER/MASTER 중심으로 별도 제한한 전례가 있어, seed 기반 단순 이관 시 BE-FE 불일치를 재발시킬 수 있다. C3a system master 불변식 주석도 함께 유지한다.
 - `CALLER_ROLE_HEADER` 제거는 보류: partner-order-service IT 가 아직 상수를 사용한다.
 - `clients/desktop/node_modules/@samhan/design-system` junction 은 controller 환경에서 현재 repo 경로로 재생성해야 `npm run typecheck` 가 정상 검증 가능하다.
 - Gradle wrapper lock 권한과 Playwright child-process EPERM 은 controller 환경에서 재실행 필요하다.

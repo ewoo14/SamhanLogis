@@ -171,10 +171,3 @@ export function groupByChatRoom(
   }
   return { groups, blockedExcludedCount }
 }
-
-/**
- * 내일자 전표 이미지 페이지 / 사이드바 entry 접근 가능 여부.
- *
- * <p>BE {@code @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")} 와 1:1.
- * 사용자 명세 — DISPATCH 추가 가드는 backlog DISPATCH role 부재로 본 단계 제외.
- */

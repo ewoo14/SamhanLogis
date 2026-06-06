@@ -313,7 +313,3 @@ export async function getHometaxHistory(batchId: string): Promise<HometaxBatchHi
   )
   return res.data.data
 }
-
-// ---------------------------------------------------------------------------
-// 권한 헬퍼 (BE @PreAuthorize 와 일치 — feedback_role_naming_full.md 풀네임)
-// ---------------------------------------------------------------------------

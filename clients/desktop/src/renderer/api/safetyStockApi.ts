@@ -110,10 +110,3 @@ export async function setSafetyStock(
   )
   return res.data.data
 }
-
-/**
- * 안전재고 알림 진입 권한 — BE @PreAuthorize 화이트리스트와 1:1 정합.
- * MASTER / MANAGER / INVENTORY / WAREHOUSE.
- */
-
-/** 현재 role 이 안전재고 메뉴에 진입 가능한지 확인. */

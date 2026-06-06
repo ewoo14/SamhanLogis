@@ -98,9 +98,9 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
     expect(routes).toMatch(/path: '\/sales\/slip-cleanup'[\s\S]*<PermissionGuard pageCode="slip\.cleanup" action="view">[\s\S]*<SlipCleanupPage \/>/)
     expect(slipCleanup).not.toContain('SLIP_CLEANUP_ROLES')
 
-    expect(routes).toMatch(/path: '\/sales\/new'[\s\S]*RoleGuard allow=\{SLIP_CREATE_ROLES\}/)
-    expect(routes).toMatch(/path: '\/purchases\/new'[\s\S]*RoleGuard allow=\{SLIP_CREATE_ROLES\}/)
-    expect(routes).toMatch(/path: '\/transfers\/new'[\s\S]*RoleGuard allow=\{TRANSFER_CREATE_ROLES\}/)
+    expect(routes).toMatch(/path: '\/sales\/new'[\s\S]*<PermissionGuard pageCode="sales\.slip\.create" action="view">[\s\S]*<SlipFormPage mode="OUTBOUND" \/>/)
+    expect(routes).toMatch(/path: '\/purchases\/new'[\s\S]*<PermissionGuard pageCode="sales\.slip\.create" action="view">[\s\S]*<SlipFormPage mode="INBOUND" \/>/)
+    expect(routes).toMatch(/path: '\/transfers\/new'[\s\S]*<PermissionGuard pageCode="inventory\.stock-transfer" action="view">[\s\S]*<TransferFormPage \/>/)
     expect(routes).toMatch(/path: '\/sales\/link-dispatch'[\s\S]*<PermissionGuard pageCode="slip\.delivery-batch" action="view">/)
     expect(routes).toMatch(/path: '\/sales\/partner-dc-config'[\s\S]*<PermissionGuard pageCode="sales\.partner-dc-config" action="view">/)
   })

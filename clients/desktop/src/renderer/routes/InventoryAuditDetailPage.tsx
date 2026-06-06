@@ -164,6 +164,7 @@ export function InventoryAuditDetailPage() {
 
   // PR-H4c FE-B: COMPLETED/CANCELLED 단계는 본문 변경 차단 — banner 노출
   const isLocked = audit.status === 'COMPLETED' || audit.status === 'CANCELLED'
+  // start/complete/cancel 은 InventoryAuditController 의 inventory.adjust UPDATE 계약과 일치한다.
   const canTransitionAudit = canAccess('inventory.adjust', 'update')
   const canCreateAuditLine = canAccess('inventory.stock-balance', 'create')
   const auditLogs = Array.isArray(auditQuery.data) ? auditQuery.data : []
@@ -427,7 +428,7 @@ function BarcodeInput({ audit, onRecorded }: BarcodeInputProps) {
         }}
       >
         <FormField
-          label="제품 ID (바코드 스캔 또는 수동 입력)"
+          label="품목코드 / 바코드"
           required
           render={({ id }) => (
             <input
@@ -438,7 +439,7 @@ function BarcodeInput({ audit, onRecorded }: BarcodeInputProps) {
               data-testid="audit-line-barcode-input"
               autoFocus
               style={inputStyle}
-              placeholder="UUID 또는 스캔 결과"
+              placeholder="바코드 스캔 값 또는 품목코드"
             />
           )}
         />

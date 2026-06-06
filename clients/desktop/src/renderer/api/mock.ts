@@ -5547,6 +5547,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         if (cell.edit) actions.push(...actionOnly)
       } else {
         if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+        // download/print 는 BE read-side export 계약을 따르므로 view 권한에서 파생한다.
         if (cell.view) actions.push('DOWNLOAD', 'PRINT')
       }
       permissions[cell.pageCode] = actions

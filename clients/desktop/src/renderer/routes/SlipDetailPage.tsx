@@ -79,7 +79,6 @@ import {
 } from '../api/slipAudit'
 import {
   createSlipEditRequest,
-  SLIP_EDIT_REQUEST_AUTHOR_ROLES,
   SLIP_EDIT_REQUEST_STATUS_LABEL,
   type SlipEditRequest,
   type SlipEditRequestType,
@@ -237,7 +236,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const params = useParams<{ id: string }>()
   const id = params.id ?? ''
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
   const isOutbound = mode === 'OUTBOUND'
@@ -842,11 +840,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     || slip.status === 'DELIVERED'
 
   /**
-   * PR-H3: 수정/삭제 요청 권한 (작성자 그룹 — SALES/MANAGER/MASTER).
-   * MANAGER/MASTER 도 본인 작성/소속 전표에 대해 사용 가능.
+   * PR-H3: 수정/삭제 요청 생성 권한.
+   * BE `POST /api/v1/slips/{slipId}/edit-request` 는
+   * `@RequirePermission(page="slip.edit-requests", action=CREATE)` 이고,
+   * V36 seed 는 MASTER/MANAGER/SALES can_edit=TRUE 로 기존 작성자 role 목록과 정합한다.
    */
-  const canRequestEdit = !!role
-    && (SLIP_EDIT_REQUEST_AUTHOR_ROLES as readonly string[]).includes(role)
+  const canRequestEdit = canAccess('slip.edit-requests', 'create')
 
   /**
    * PR-H3: 현재 PENDING 본인 요청이 있는지.
