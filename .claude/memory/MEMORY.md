@@ -72,3 +72,5 @@
 - [권한그룹 C2 widening=Option A 수용](feedback_pgc_c2_widening_option_a.md) — 2026-06-06 개발책임자. FE RoleGuard 가 seed 보다 제한적이어도 seed 진실원 수용(BE 이미 열림, FE↔BE 정합). D-PGC-01, #387/D-PAM-05 연장
 - [리뷰 게시 + skip 0 + 무중단 자율](feedback_review_posting_and_zero_skip.md) — 2026-06-06 야간 위임. Claude TM·Codex TM 리뷰 각각 따로 게시 + PM 종합 마지막 필수. 5-agent&fix 후 skip 1건이라도 PM판단시 0까지 fix. 슬라이스마다 묻지말고 PM 연속진행
 - [FE canAccess page-code는 BE @RequirePermission 정확 일치](feedback_fe_canaccess_pagecode_be_match.md) — 2026-06-06(C2/C5). role→canAccess 이관 시 page-code=실제 BE 엔드포인트 @RequirePermission(테마틱 금지), action 정확, FE>BE 불일치(seed>BE가드) 시 이관말고 유지, 버튼 canAccess 가드 동반, mock seed 정확. dual review 의무
+- [결함 fix 계열 단위 전수 sweep](feedback_defect_family_sweep_fix.md) — 리뷰 지적 1건=동일 패턴 전수 grep 의무, page-code 전환 4종 원자 체크리스트(BE대조→FE전환→mock 동기화→spec 박제), mock 누락=silent regression (PR #417 사이클3 회고, 2026-06-07)
+- [codex exec 백그라운드 stdin hang](feedback_codex_exec_stdin_hang.md) — detached stdin 으로 codex exec 실행 시 무한 hang, </dev/null 리다이렉트 필수 (2026-06-07)

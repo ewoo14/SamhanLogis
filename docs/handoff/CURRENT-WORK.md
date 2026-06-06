@@ -4,6 +4,24 @@
 
 ---
 
+## 🆕 2026-06-07 (새벽 자율 — 최신) — **PR #417 권한그룹 C5 후속 사이클3 완결** (전 세션 중단분 재개)
+
+> 전 세션이 사이클3 구현(Codex) 도중 중단 → PM 자율 재개(개발책임자 취침 7h 위임). PM 재기획 `docs/qa/permission-groups-c5-followup/pm-replan-cycle-3.md` 에 따라 **role 헬퍼 계열 전수 처분** 완결.
+
+### ✅ 사이클3 진행 (마지막 사이클 — N=3)
+- **구현** (`bc8f7a4e`): 실사용 12 헬퍼 → BE @RequirePermission 1:1 대조 후 canAccess 이관 + 고아 15 제거 (27개 전수 처분표 dev-report §5.7) + mock 동기화 + PNG 142 원복(`1f28f0c5`)
+- **사이클 3a Claude 5-agent 리뷰** (PR comment 게시): BE 18/18 대조 PASS · FE 전수 sweep 잔존 0 · F1~F10 fix (`66bbd471`) — full-menu-contract stale 단언, 댕글링 주석 6파일, ARO_REGIONS_ADMIN_ROLES 고아 제거, **SLIP_EDIT_REQUEST_AUTHOR_ROLES → canAccess('slip.edit-requests','create') 이관**(BE CREATE+V36 정합 실증), DS Button 통일, UUID placeholder 교체
+- **QA Docker 실QA** (PR comment 게시): 역할×엔드포인트 **14/14 PASS** (slip.print.export/estimates.list/supplier-profiles 실 HTTP 200/201/403 deny 실증, 증빙 `docs/qa/permission-groups-c5-followup/screenshots/`)
+- **사이클 3b Codex 5-section 리뷰** (PR comment 게시): **P1 적발 — slip.print.export mock 카탈로그 누락**(silent regression) → C3b-1~4 fix (`d941438a`): mock+MANAGER grant+Playwright 계약 단언 박제, Swagger 409 현행화, 잔존 주석 6파일, 동적 권한 문구
+- **검증**: typecheck/lint PASS · Playwright **427/427 PASS** · slip-service compileJava PASS · diff --check clean
+- 현재: CI watch 중 → green 시 PM 종합 리뷰 게시 + 자동 머지([[feedback_pm_permission_autonomy]])
+
+### 🧠 핵심 교훈 (메모리 박제)
+- **결함 fix 계열 단위**(`feedback_defect_family_sweep_fix.md`): 인스턴스 부분 fix 가 사이클 2까지 잔존 양산. page-code 전환 4종 원자 체크리스트(BE대조→FE전환→**mock 동기화**→spec 박제) — mock 누락 2회 재발(supplier-profiles, slip.print.export) 모두 계약 단언 부재로 suite green 위장.
+- **codex exec 백그라운드 hang**(`feedback_codex_exec_stdin_hang.md`): detached stdin 시 무한 hang → `</dev/null` 필수.
+
+---
+
 ## 🎉 2026-06-06 (입회 cutover 세션 — 최신) — **권한그룹 C5 최종 cutover 완결** (PR #414·#415·#416 머지)
 
 > 개발책임자 입회 결정(끝까지/LoginResponse body 확장/accounts.role drop/C4-3 포함). 3-PR 게이트 cutover 완료 — **고정역할(role) 인가 의존 0 달성**. 계획서 `docs/superpowers/plans/2026-06-06-permission-groups-c5-cutover-execution-plan.md`. DB 백업 `backups/c5-*.sql`.
