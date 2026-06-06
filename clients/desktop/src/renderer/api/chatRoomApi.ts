@@ -171,14 +171,3 @@ export async function deleteChatRoom(id: string): Promise<void> {
     `/api/v1/notification/admin/chat-rooms/${id}`,
   )
 }
-
-/**
- * 단톡방 매핑 admin 메뉴 접근 가능 여부 — MASTER / MANAGER (BE {@code @PreAuthorize} 와 일치).
- */
-export const CHAT_ROOM_ADMIN_ROLES = ['MASTER', 'MANAGER'] as const
-
-export function canAccessChatRoomAdmin(
-  role: string | undefined | null,
-): boolean {
-  return !!role && (CHAT_ROOM_ADMIN_ROLES as readonly string[]).includes(role)
-}

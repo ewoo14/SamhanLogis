@@ -263,7 +263,7 @@
 | `QUOTE_CONVERTED` | (읽기 전용) | — |
 | 공통 | 인쇄 | `ghost` |
 
-> 권한 가드: `canMutateEstimate(role)` — SALES / MANAGER / MASTER 허용. 편집/발송/수락/거절/변환 버튼은 권한 없을 시 미노출.
+> 권한 가드: `usePermissions().canAccess('estimates.list', action)` — 작성은 CREATE, 편집/발송/수락/거절/변환은 UPDATE. 권한 없을 시 버튼 미노출.
 
 #### 1.3.5 상세 data-testid 전체 목록
 

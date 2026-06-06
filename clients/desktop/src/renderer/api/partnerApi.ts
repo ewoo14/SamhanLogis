@@ -23,7 +23,7 @@
  * <p>UUID 비공개 가드 (memory feedback_uuid_no_user_visibility) — id 는 mutation path key 전용.
  * 화면 노출 식별자 = partnerCode / name 만.
  *
- * <p>@PreAuthorize — SALES / MANAGER / MASTER (BE 와 일치).
+ * <p>화면 진입과 4탭 mutation 은 각 호출처에서 @RequirePermission page-code/action 을 사용한다.
  */
 import { apiClient, type ApiEnvelope } from './client'
 import type { PartnerOption } from '@samhan/design-system'
@@ -34,23 +34,6 @@ import type { PartnerOption } from '@samhan/design-system'
 
 /** 거래처 유형 — BE PartnerType enum 과 1:1. */
 export type PartnerType = 'CUSTOMER' | 'SUPPLIER' | 'BOTH'
-
-/** 거래처 4탭/관리 화면 권한 — BE @PreAuthorize 와 1:1. */
-export const PARTNER_FULL_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
-/** 거래처 관리 화면 진입 가능 여부. */
-export function canAccessPartnerFull(
-  role: string | undefined | null,
-): boolean {
-  return !!role && (PARTNER_FULL_ROLES as readonly string[]).includes(role)
-}
-
-/** 거래처 4탭 수정 가능 여부 — BE PATCH/탭별 쓰기 endpoint 와 일치. */
-export function canEditPartnerFull(
-  role: string | undefined | null,
-): boolean {
-  return role === 'MANAGER' || role === 'MASTER'
-}
 
 /** PartnerType → 한국어 표시 라벨. */
 export const PARTNER_TYPE_LABEL: Record<PartnerType, string> = {

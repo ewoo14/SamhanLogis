@@ -65,8 +65,6 @@ function csvNonEmptyRows(relDir: string): number {
 test.describe('SP-04 full menu and legacy migration contract', () => {
   const appLayout = read('clients/desktop/src/renderer/components/AppLayout.tsx')
   const routes = read('clients/desktop/src/renderer/routes/index.tsx')
-  const delivery = read('clients/desktop/src/renderer/api/delivery.ts')
-  const excelExport = read('clients/desktop/src/renderer/api/excelExportApi.ts')
   const slipCleanup = read('clients/desktop/src/renderer/api/slipCleanupApi.ts')
   const roleJava = read('shared/common/src/main/java/com/samhanair/logis/common/security/Role.java')
   const transferService = read('services/inventory-service/src/main/java/com/samhanair/logis/inventory/service/StockTransferService.java')
@@ -94,8 +92,8 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
   })
 
   test('sidebar links and router guards match backend write/export contracts', () => {
-    expect(delivery).toContain("DELIVERY_BATCH_ROLES = ['MANAGER', 'MASTER']")
-    expect(excelExport).toContain("role === 'MANAGER' || role === 'MASTER'")
+    expect(appLayout).toMatch(/const showDeliveryBatch = dynamicCanAccess\('slip\.delivery-batch',\s*'view'\)/)
+    expect(appLayout).toMatch(/const showPartnerDcConfig = dynamicCanAccess\('sales\.partner-dc-config',\s*'view'\)/)
     expect(appLayout).toMatch(/const showSlipCleanup = dynamicCanAccess\('slip\.cleanup', 'view'\)/)
     expect(routes).toMatch(/path: '\/sales\/slip-cleanup'[\s\S]*<PermissionGuard pageCode="slip\.cleanup" action="view">[\s\S]*<SlipCleanupPage \/>/)
     expect(slipCleanup).not.toContain('SLIP_CLEANUP_ROLES')
@@ -103,8 +101,8 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
     expect(routes).toMatch(/path: '\/sales\/new'[\s\S]*RoleGuard allow=\{SLIP_CREATE_ROLES\}/)
     expect(routes).toMatch(/path: '\/purchases\/new'[\s\S]*RoleGuard allow=\{SLIP_CREATE_ROLES\}/)
     expect(routes).toMatch(/path: '\/transfers\/new'[\s\S]*RoleGuard allow=\{TRANSFER_CREATE_ROLES\}/)
-    expect(routes).toMatch(/path: '\/sales\/link-dispatch'[\s\S]*RoleGuard allow=\{DELIVERY_BATCH_ROLES\}/)
-    expect(routes).toMatch(/path: '\/sales\/partner-dc-config'[\s\S]*RoleGuard allow=\{PARTNER_DC_CONFIG_ROLES\}/)
+    expect(routes).toMatch(/path: '\/sales\/link-dispatch'[\s\S]*<PermissionGuard pageCode="slip\.delivery-batch" action="view">/)
+    expect(routes).toMatch(/path: '\/sales\/partner-dc-config'[\s\S]*<PermissionGuard pageCode="sales\.partner-dc-config" action="view">/)
   })
 
   test('partner DC settings have gateway route and method-level role guards', () => {
@@ -112,8 +110,8 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
     expect(route).toContain('Path=/api/v1/partner-dc-configs/**')
     expect(route).toContain('JwtAuthentication')
     expect(route).not.toContain('StripPrefix=2')
-    expect(dcConfigController).toContain("@PreAuthorize(\"hasAnyRole('SALES','MANAGER','MASTER')\")")
-    expect(dcConfigController).toContain("@PreAuthorize(\"hasAnyRole('MANAGER','MASTER')\")")
+    expect(dcConfigController).toContain('@RequirePermission(page = "sales.partner-dc-config", action = PermissionAction.VIEW)')
+    expect(dcConfigController).toContain('@RequirePermission(page = "sales.partner-dc-config", action = PermissionAction.UPDATE)')
   })
 
   test('admin-origin operational screens are standalone guarded routes', () => {

@@ -15,7 +15,7 @@
  * </ol>
  *
  * <h2>접근 제어</h2>
- * <p>{@link PARTNER_LEDGER_ROLES} (ACCOUNTANT / MANAGER / MASTER) — 사용자 명세.
+ * <p>진입 권한은 accounting.partner-ledger VIEW page-code 계약을 사용한다.
  * RoleGuard 는 routes/index.tsx 에서 적용. BE 자체 가드는 ACCOUNTANT/MASTER 만이며
  * MANAGER 호출 시 403 발생 → 화면 error banner 안내.
  *

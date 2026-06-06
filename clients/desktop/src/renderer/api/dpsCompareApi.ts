@@ -136,23 +136,6 @@ export async function downloadDpsTemplate(): Promise<Blob> {
 // 권한 헬퍼 (BE @PreAuthorize 와 일치 — feedback_role_naming_full.md 풀네임)
 // ---------------------------------------------------------------------------
 
-/** DPS 입고 비교 화면 진입 — MASTER / MANAGER / WAREHOUSE / INVENTORY. */
-export function canAccessDpsCompare(role: string | undefined | null): boolean {
-  return (
-    role === 'MASTER'
-    || role === 'MANAGER'
-    || role === 'WAREHOUSE'
-    || role === 'INVENTORY'
-  )
-}
-
-/** DPS 입고 비교 화면 진입 가능 ROLE 풀네임 화이트리스트 — RoleGuard prop 용. */
-export const DPS_COMPARE_ROLES = [
-  'MASTER',
-  'MANAGER',
-  'WAREHOUSE',
-  'INVENTORY',
-] as const
 
 // ---------------------------------------------------------------------------
 // 표시용 헬퍼 (mismatch 카테고리 한국어 라벨 / 색상)

@@ -115,17 +115,5 @@ export async function setSafetyStock(
  * 안전재고 알림 진입 권한 — BE @PreAuthorize 화이트리스트와 1:1 정합.
  * MASTER / MANAGER / INVENTORY / WAREHOUSE.
  */
-export const SAFETY_STOCK_ROLES = [
-  'MASTER',
-  'MANAGER',
-  'INVENTORY',
-  'WAREHOUSE',
-] as const
 
 /** 현재 role 이 안전재고 메뉴에 진입 가능한지 확인. */
-export function canAccessSafetyStock(
-  role: string | undefined | null,
-): boolean {
-  if (!role) return false
-  return (SAFETY_STOCK_ROLES as readonly string[]).includes(role)
-}

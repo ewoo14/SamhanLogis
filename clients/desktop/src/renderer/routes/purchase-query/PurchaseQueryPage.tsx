@@ -24,10 +24,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import { querySlips, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
-import { useSessionStore } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
-import { canExportSlips, exportSlips } from '../../api/excelExportApi'
+import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import { InboundInspectionDialog } from '../components/InboundInspectionDialog'
 
@@ -111,13 +110,12 @@ const EMPTY_SEARCH: SearchForm = {
 export function PurchaseQueryPage() {
   usePageTitle('구매관리')
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
   const { canAccess } = usePermissions()
   // [C5-2b] canCreateSlip(role) → canAccess('sales.slip.create')
   const canCreate = canAccess('sales.slip.create', 'create')
   // [C5-2b] canInspectInbound(role) → canAccess('inbound.inspection')
   const canInspect = canAccess('inbound.inspection')
-  const canExport = canExportSlips(role)
+  const canExport = canAccess('slip.print.export', 'download')
 
   // ── 날짜 범위 (기본: 오늘 ±15일, Asia/Seoul) ──
   const defaultFrom = (() => {

@@ -27,13 +27,12 @@ import {
 } from '@samhan/design-system'
 import {
   TAX_INVOICE_STATUS_LABEL,
-  canAccessTaxInvoice,
   listTaxInvoices,
   type TaxInvoiceStatus,
   type TaxInvoiceSummary,
 } from '../api/taxInvoiceApi'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 const STATUS_OPTIONS: Array<{ value: TaxInvoiceStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -57,7 +56,7 @@ const fmtKrw = (raw: string): string => {
 
 export function TaxInvoiceListPage() {
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
 
   usePageTitle('세금계산서')
 
@@ -163,7 +162,7 @@ export function TaxInvoiceListPage() {
     },
   ]
 
-  const canCreate = canAccessTaxInvoice(role)
+  const canCreate = canAccess('accounting.tax-invoice.list', 'create')
 
   return (
     <>

@@ -16,7 +16,7 @@
  *
  * QA 정책: shortage = max(0, threshold - currentQty), 알림 조건 currentQty < threshold.
  *
- * 권한: SAFETY_STOCK_ROLES (MASTER / MANAGER / INVENTORY / WAREHOUSE).
+ * 권한: inventory.safety-stock VIEW page-code 계약.
  *
  * data-testid spec (Designer 7건 + FE 1건 정합):
  * - safety-stock-alerts-page     루트 div

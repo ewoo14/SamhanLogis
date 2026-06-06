@@ -47,7 +47,6 @@ import {
 import {
   TAX_INVOICE_STATUS_LABEL,
   cancelTaxInvoice,
-  canAccessTaxInvoice,
   emitTaxInvoiceToNts,
   getTaxInvoice,
   issueTaxInvoice,
@@ -62,8 +61,8 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 const STATUS_VARIANT: Record<TaxInvoiceStatus, 'neutral' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
@@ -83,7 +82,7 @@ export function TaxInvoiceDetailPage() {
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const id = params['id']!
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
 
   const query = useQuery({
     queryKey: ['accounting', 'tax-invoice', id],
@@ -241,12 +240,14 @@ export function TaxInvoiceDetailPage() {
   const t = query.data
   const isDraft = t.status === 'DRAFT'
   const isIssued = t.status === 'ISSUED'
-  const canMutate = canAccessTaxInvoice(role)
+  const canUpdateTaxInvoice = canAccess('accounting.tax-invoice.list', 'update')
+  const canCancelTaxInvoice = canAccess('accounting.tax-invoice.cancel', 'update')
+  const canEmitTaxInvoiceNts = canAccess('accounting.tax-invoice.emit-nts', 'update')
   /**
    * SP-09-1: NTS 발행 버튼 활성 조건.
    * - ISSUED 상태 + ACCOUNTANT / MASTER 권한 + 아직 eTaxExternalId 미등록 시.
    */
-  const canEmitNts = isIssued && canMutate && !t.eTaxExternalId
+  const canEmitNts = isIssued && canEmitTaxInvoiceNts && !t.eTaxExternalId
   // PR-H4c: ISSUED/CANCELLED 단계는 본문 변경 차단 — banner 노출.
   const isLocked = t.status === 'ISSUED' || t.status === 'CANCELLED'
   const auditLogs = Array.isArray(auditQuery.data) ? auditQuery.data : []
@@ -454,7 +455,7 @@ export function TaxInvoiceDetailPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {isDraft && canMutate ? (
+            {isDraft && canUpdateTaxInvoice ? (
               <Button
                 variant="ghost"
                 onClick={() =>
@@ -465,7 +466,7 @@ export function TaxInvoiceDetailPage() {
                 편집
               </Button>
             ) : null}
-            {isDraft && canMutate ? (
+            {isDraft && canUpdateTaxInvoice ? (
               <Button
                 variant="primary"
                 onClick={handleIssue}
@@ -488,7 +489,7 @@ export function TaxInvoiceDetailPage() {
                 {emitNtsMutation.isPending ? 'NTS 발행 중...' : 'NTS 발행 (DRY_RUN)'}
               </Button>
             ) : null}
-            {isIssued && canMutate ? (
+            {isIssued && canCancelTaxInvoice ? (
               <Button
                 variant="ghost"
                 onClick={handleCancelOpen}

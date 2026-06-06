@@ -125,14 +125,6 @@ export async function getStatementBatch(
  * <p>BE {@code @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")} 와 일치.
  * 회계 그룹 다른 entry 와 동일한 ACCOUNTANT/MASTER 화이트리스트.
  */
-export const STATEMENT_BATCH_ROLES = ['ACCOUNTANT', 'MASTER'] as const
-
-export function canAccessStatementBatch(
-  role: string | undefined | null,
-): boolean {
-  return !!role && (STATEMENT_BATCH_ROLES as readonly string[]).includes(role)
-}
-
 // ---------------------------------------------------------------------------
 // 표시용 헬퍼
 // ---------------------------------------------------------------------------

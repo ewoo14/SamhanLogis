@@ -11,7 +11,7 @@
  *
  * 권한:
  * - 진입: ACCOUNTANT / MASTER (RouteGuard)
- * - "확정" / "역분개": MASTER 만 (canPostJournal)
+ * - "확정" / "역분개": accounting.journals UPDATE 권한
  * - "편집": ACCOUNTANT / MASTER (DRAFT 만)
  *
  * UUID 비공개 가드: 사용자 노출 식별자는 journalNo 와 accountCode 만. line.id /
@@ -29,15 +29,13 @@ import {
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
-  canPostJournal,
-  canCreateJournal,
   getJournal,
   postJournal,
   reverseJournal,
   type JournalLine,
 } from '../api/accounting'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 const fmtKrw = (raw: string): string => {
   const n = Number.parseInt(raw, 10)
@@ -51,7 +49,7 @@ export function JournalDetailPage() {
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const journalId = params['id']!
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
 
   const query = useQuery({
     queryKey: ['accounting', 'journal', journalId],
@@ -122,6 +120,8 @@ export function JournalDetailPage() {
   const journal = query.data
   const isDraft = journal.status === 'DRAFT'
   const isPosted = journal.status === 'POSTED'
+  const canCreateAccountingEntry = canAccess('accounting.journals', 'create')
+  const canUpdateJournal = canAccess('accounting.journals', 'update')
 
   const columns: DataTableColumn<JournalLine>[] = [
     {
@@ -220,7 +220,7 @@ export function JournalDetailPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            {isDraft && canCreateJournal(role) ? (
+            {isDraft && canCreateAccountingEntry ? (
               <Button
                 variant="ghost"
                 onClick={() =>
@@ -230,7 +230,7 @@ export function JournalDetailPage() {
                 편집
               </Button>
             ) : null}
-            {isDraft && canPostJournal(role) ? (
+            {isDraft && canUpdateJournal ? (
               <Button
                 variant="primary"
                 onClick={handlePost}
@@ -239,7 +239,7 @@ export function JournalDetailPage() {
                 {postMutation.isPending ? '확정 중...' : '확정'}
               </Button>
             ) : null}
-            {isPosted && canPostJournal(role) ? (
+            {isPosted && canUpdateJournal ? (
               <Button
                 variant="ghost"
                 onClick={handleReverse}

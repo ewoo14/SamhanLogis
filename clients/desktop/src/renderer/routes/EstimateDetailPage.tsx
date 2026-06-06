@@ -36,7 +36,6 @@ import {
 import {
   ESTIMATE_STATUS_LABEL,
   acceptEstimate,
-  canMutateEstimate,
   convertEstimate,
   getEstimate,
   rejectEstimate,
@@ -52,8 +51,8 @@ import {
   AuditRevisionBadge,
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -74,7 +73,7 @@ export function EstimateDetailPage() {
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const id = params['id']!
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
 
   const query = useQuery({
     queryKey: ['estimate', id],
@@ -182,7 +181,7 @@ export function EstimateDetailPage() {
   const isDraft = e.status === 'QUOTE_DRAFT'
   const isSent = e.status === 'QUOTE_SENT'
   const isAccepted = e.status === 'QUOTE_ACCEPTED'
-  const canMutate = canMutateEstimate(role)
+  const canMutate = canAccess('estimates.list', 'update')
   // PR-H4c: 변환/거절 단계 본문 잠금
   const isLocked = e.status === 'QUOTE_CONVERTED' || e.status === 'QUOTE_REJECTED'
   const auditLogs = Array.isArray(auditQuery.data) ? auditQuery.data : []

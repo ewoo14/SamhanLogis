@@ -18,7 +18,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuditOverlay, CsvUploadDialog } from '@samhan/design-system'
 import {
   PARTNER_DC_CONFIG_COLUMNS,
-  canEditPartnerDcConfig,
   type PartnerDcConfig,
   listPartnerDcConfigs,
   updatePartnerDcConfig,
@@ -32,7 +31,6 @@ import {
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
-import { useSessionStore } from '../stores/session'
 import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
@@ -48,12 +46,11 @@ export function SalesPartnerDcConfigPage() {
   // PR-H4c: 선택 거래처 audit panel.
   const [selectedPartnerCode, setSelectedPartnerCode] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const role = useSessionStore((s) => s.auth?.role)
   const { canAccess } = usePermissions()
-  // [C5-2b] role==='MASTER' → canAccess('dc-config.import', 'create').
+  // [C5-2b] import CTA는 dc-config.import CREATE page-code/action 기준.
   // BE @RequirePermission(page="dc-config.import", action=CREATE) — DcConfigImportController.
   const canImportCsv = canAccess('dc-config.import', 'create')
-  const canEditDcConfig = canEditPartnerDcConfig(role)
+  const canEditDcConfig = canAccess('sales.partner-dc-config', 'update')
 
   useEffect(() => {
     setPageTitle({ title: '거래처 DC 설정', meta: '영업' })
@@ -298,7 +295,7 @@ export function SalesPartnerDcConfigPage() {
                           className={styles['btnMini']}
                           onClick={() => handleSaveRow(row)}
                           disabled={!canEditDcConfig || !rowDirty || saveMutation.isPending}
-                          title={canEditDcConfig ? undefined : 'MANAGER / MASTER 권한 필요'}
+                          title={canEditDcConfig ? undefined : 'DC 설정 수정 권한 필요'}
                           style={{
                             background: rowDirty ? '#059669' : '#11182710',
                             color: rowDirty ? '#fff' : '#9ca3af',

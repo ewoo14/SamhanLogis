@@ -286,13 +286,13 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    *   - 버튼 클릭 시 confirm modal 또는 window.confirm 호출
    *   - emitTaxInvoiceToNts(id, 'DRY_RUN') 함수가 taxInvoiceApi.ts 에 존재 (정적 계약)
    *   - MASTER 역할도 동일 버튼 노출 (ACCOUNTANT/MASTER 공유 권한)
-   *   - canAccessTaxInvoice() helper ACCOUNTANT/MASTER true 반환
+   *   - usePermissions().canAccess page-code/action 계약 확인
    *   - pageerror 없음
    *
    * FE 계약 근거:
    *   taxInvoiceApi.ts — emitTaxInvoiceToNts(id, submitMethod)
    *   POST /accounting/tax-invoices/{id}/emit-nts
-   *   권한: ACCOUNTANT / MASTER 만
+   *   권한: accounting.tax-invoice.list VIEW/UPDATE, accounting.tax-invoice.emit-nts UPDATE
    *   NtsSubmitMethod = 'DRY_RUN' | 'NTS'  (BE @Pattern: DRY_RUN|NTS — C1/M3 fix)
    */
   test('T2: FE 계약 — "NTS 발행" 버튼 + emit-nts API + ACCOUNTANT/MASTER 권한', async ({ page }) => {
@@ -360,8 +360,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       }
     }
 
-    // MASTER 역할도 동일 권한 — canAccessTaxInvoice 정적 계약 검증
-    // taxInvoiceApi.ts: canAccessTaxInvoice(role) = role === 'ACCOUNTANT' || role === 'MASTER'
+    // MASTER 역할도 동일 권한 — PermissionGuard + page-code/action 계약 검증
     const masterListUrl = `${BASE_URL}/#/accounting/tax-invoices?mockRole=MASTER`
     await page.goto(masterListUrl, { waitUntil: 'domcontentloaded', timeout: 20000 })
     await page.waitForTimeout(1000)
@@ -583,7 +582,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    * BE 권한 근거:
    *   TaxInvoiceController: @PreAuthorize("hasAnyRole('ACCOUNTANT','MASTER')")
    *   emit-nts: 동일 ACCOUNTANT/MASTER 제한
-   *   canAccessTaxInvoice(): role === 'ACCOUNTANT' || role === 'MASTER'
+   *   accounting.tax-invoice.list / emit-nts page-code/action 계약
    */
   test('T5: 권한 가드 — ACCOUNTANT/MASTER 허용, SALES/MANAGER/INVENTORY 403', async ({ page }) => {
     const errors: string[] = []

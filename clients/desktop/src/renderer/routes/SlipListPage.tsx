@@ -65,11 +65,10 @@ import {
   type DeliveryTagCode,
 } from '@samhan/design-system'
 import { listSlips, type SlipSummary, type SlipType } from '../api/slip'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { InboundInspectionDialog } from './components/InboundInspectionDialog'
-import { canExportSlips, exportSlips } from '../api/excelExportApi'
+import { exportSlips } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
 
 export interface SlipListPageProps {
@@ -116,13 +115,12 @@ const DELIVERY_TAG_LABEL_MAP: Record<DeliveryTagCode, string> = {
 
 export function SlipListPage({ mode }: SlipListPageProps) {
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
   const { canAccess } = usePermissions()
   const isOutbound = mode === 'OUTBOUND'
   const basePath = isOutbound ? '/sales' : '/purchases'
   const titleLabel = isOutbound ? '출고전표 목록 (legacy)' : '입고전표 목록 (legacy)'
   const newButtonLabel = isOutbound ? '새 출고전표' : '새 입고전표'
-  const canExport = canExportSlips(role)
+  const canExport = canAccess('slip.print.export', 'download')
   // [C5-2b] canCreateSlip(role) → canAccess('sales.slip.create', 'create')
   const canCreate = canAccess('sales.slip.create', 'create')
 

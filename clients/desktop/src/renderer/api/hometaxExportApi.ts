@@ -317,17 +317,3 @@ export async function getHometaxHistory(batchId: string): Promise<HometaxBatchHi
 // ---------------------------------------------------------------------------
 // 권한 헬퍼 (BE @PreAuthorize 와 일치 — feedback_role_naming_full.md 풀네임)
 // ---------------------------------------------------------------------------
-
-/** 홈택스 일괄 양식 화면 진입 — ACCOUNTANT / MANAGER / MASTER. */
-export function canAccessHometaxExport(
-  role: string | undefined | null,
-): boolean {
-  return role === 'ACCOUNTANT' || role === 'MANAGER' || role === 'MASTER'
-}
-
-/** 홈택스 일괄 양식 화면 진입 가능 ROLE 풀네임 화이트리스트 — RoleGuard prop 용. */
-export const HOMETAX_EXPORT_ROLES = [
-  'ACCOUNTANT',
-  'MANAGER',
-  'MASTER',
-] as const

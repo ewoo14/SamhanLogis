@@ -123,13 +123,6 @@ export function isEditableStatus(status: DispatchTaskStatus): boolean {
 }
 
 /**
- * DISPATCHED 상태에서만 [수정 요청] / [취소 요청] 버튼 활성 (D-DC-02).
- */
-export function canRequestModificationOrCancel(status: DispatchTaskStatus): boolean {
-  return status === 'DISPATCHED'
-}
-
-/**
  * 그룹 안 slip row — BE {@code DispatchVehicleGroupSlipResponse} 와 1:1.
  *
  * @property slip 전체 SlipBoardResponse (slipNumber/partnerCode/partnerName 포함).

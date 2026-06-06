@@ -10,7 +10,7 @@
  *   <li>탭 4: 담당자 목록</li>
  * </ul>
  *
- * <p>read-only 기본 → MANAGER / MASTER 의 [편집] 버튼 클릭 시 인라인 수정 모드 전환.
+ * <p>read-only 기본 → partners.4tab.edit UPDATE 권한의 [편집] 버튼 클릭 시 인라인 수정 모드 전환.
  * 수정 완료 후 [저장] → PATCH /api/v1/partners/{id}/full.
  *
  * <p>UUID 비공개 — 화면 노출: partnerCode / businessName 만.
@@ -33,7 +33,6 @@ import {
   Badge,
 } from '@samhan/design-system'
 import {
-  canEditPartnerFull,
   getPartnerFull,
   updatePartnerFull,
   type PartnerFullRequest,
@@ -41,8 +40,8 @@ import {
   type PartnerContactRequest,
   type PartnerFullResponse,
 } from '../../api/partnerApi'
-import { useSessionStore } from '../../stores/session'
 import { PartnerVersionHistoryPanel } from '../../components/audit/PartnerVersionHistoryPanel'
+import { usePermissions } from '../../hooks/usePermissions'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -83,8 +82,8 @@ export function PartnerDetailDialog({
   onClose,
 }: PartnerDetailDialogProps) {
   const queryClient = useQueryClient()
-  const role = useSessionStore((s) => s.auth?.role)
-  const canEdit = canEditPartnerFull(role)
+  const { canAccess } = usePermissions()
+  const canEdit = canAccess('partners.4tab.edit', 'update')
   const [activeTab, setActiveTab] = useState(0)
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<PartnerFullRequest | null>(

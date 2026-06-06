@@ -40,12 +40,11 @@ import {
   updateSupplierProfile,
   markAsPrimarySupplierProfile,
   deleteSupplierProfile,
-  canWriteSupplierProfile,
   type SupplierProfile,
   type SupplierProfileRequest,
 } from '../../api/supplierProfileApi'
-import { useSessionStore } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 
 // ── 필드 유효성 검사 ─────────────────────────────────────────────────────────
 
@@ -121,8 +120,10 @@ function profileToForm(p: SupplierProfile): SupplierProfileRequest {
 export function SupplierProfilePage() {
   usePageTitle('사업자 양식')
 
-  const role = useSessionStore((s) => s.auth?.role)
-  const canWrite = canWriteSupplierProfile(role)
+  const { canAccess } = usePermissions()
+  const canCreateSupplierProfile = canAccess('accounting.supplier-profiles', 'create')
+  const canUpdateSupplierProfile = canAccess('accounting.supplier-profiles', 'update')
+  const canDeleteSupplierProfile = canAccess('accounting.supplier-profiles', 'delete')
 
   const queryClient = useQueryClient()
 
@@ -214,6 +215,12 @@ export function SupplierProfilePage() {
 
   // ── 폼 제출 ──
   const handleSubmit = useCallback(() => {
+    const canSave =
+      modalMode === 'create'
+        ? canCreateSupplierProfile
+        : canUpdateSupplierProfile
+    if (!canSave) return
+
     const errors = validate(form)
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
@@ -224,9 +231,21 @@ export function SupplierProfilePage() {
     } else if (editTarget) {
       updateMutation.mutate({ id: editTarget.id, req: form })
     }
-  }, [form, modalMode, editTarget, createMutation, updateMutation])
+  }, [
+    canCreateSupplierProfile,
+    canUpdateSupplierProfile,
+    form,
+    modalMode,
+    editTarget,
+    createMutation,
+    updateMutation,
+  ])
 
   const isSaving = createMutation.isPending || updateMutation.isPending
+  const canSaveProfile =
+    modalMode === 'create'
+      ? canCreateSupplierProfile
+      : canUpdateSupplierProfile
 
   // ── 렌더 ──
   return (
@@ -248,7 +267,7 @@ export function SupplierProfilePage() {
             세금계산서 발행 시 사용되는 공급자 정보입니다.
           </p>
         </div>
-        {canWrite ? (
+        {canCreateSupplierProfile ? (
           <Button
             variant="primary"
             onClick={openCreate}
@@ -273,7 +292,7 @@ export function SupplierProfilePage() {
             }}
           >
             등록된 사업자 정보가 없습니다.
-            {canWrite ? (
+            {canCreateSupplierProfile ? (
               <> 위 <strong>신규 추가</strong> 버튼으로 등록하세요.</>
             ) : null}
           </p>
@@ -284,7 +303,9 @@ export function SupplierProfilePage() {
             <ProfileCard
               key={profile.id}
               profile={profile}
-              canWrite={canWrite}
+              canEdit={canUpdateSupplierProfile}
+              canMarkPrimary={canUpdateSupplierProfile}
+              canDelete={canDeleteSupplierProfile}
               onEdit={openEdit}
               onMarkPrimary={(id) => markPrimaryMutation.mutate(id)}
               onDelete={(id) => {
@@ -440,7 +461,7 @@ export function SupplierProfilePage() {
           <Button
             variant="primary"
             onClick={handleSubmit}
-            disabled={isSaving}
+            disabled={isSaving || !canSaveProfile}
             data-testid="supplier-profile-save-btn"
           >
             {isSaving ? '저장 중...' : '저장'}
@@ -455,7 +476,9 @@ export function SupplierProfilePage() {
 
 interface ProfileCardProps {
   profile: SupplierProfile
-  canWrite: boolean
+  canEdit: boolean
+  canMarkPrimary: boolean
+  canDelete: boolean
   onEdit: (p: SupplierProfile) => void
   onMarkPrimary: (id: string) => void
   onDelete: (id: string) => void
@@ -463,7 +486,9 @@ interface ProfileCardProps {
 
 function ProfileCard({
   profile,
-  canWrite,
+  canEdit,
+  canMarkPrimary,
+  canDelete,
   onEdit,
   onMarkPrimary,
   onDelete,
@@ -532,7 +557,7 @@ function ProfileCard({
         </div>
 
         {/* 액션 버튼 */}
-        {canWrite ? (
+        {canEdit || canMarkPrimary || canDelete ? (
           <div
             style={{
               display: 'flex',
@@ -541,15 +566,18 @@ function ProfileCard({
               flexShrink: 0,
             }}
           >
-            <Button
-              variant="ghost"
-              onClick={() => onEdit(profile)}
-              data-testid={`supplier-edit-btn-${profile.businessNumber}`}
-            >
-              수정
-            </Button>
+            {canEdit ? (
+              <Button
+                variant="ghost"
+                onClick={() => onEdit(profile)}
+                data-testid={`supplier-edit-btn-${profile.businessNumber}`}
+              >
+                수정
+              </Button>
+            ) : null}
             {!profile.isPrimary ? (
               <>
+                {canMarkPrimary ? (
                 <Button
                   variant="ghost"
                   onClick={() => onMarkPrimary(profile.id)}
@@ -557,6 +585,8 @@ function ProfileCard({
                 >
                   기본 전환
                 </Button>
+                ) : null}
+                {canDelete ? (
                 <Button
                   variant="danger"
                   onClick={() => onDelete(profile.id)}
@@ -564,6 +594,7 @@ function ProfileCard({
                 >
                   삭제
                 </Button>
+                ) : null}
               </>
             ) : null}
           </div>

@@ -230,15 +230,3 @@ export async function convertEstimate(id: string): Promise<EstimateDetail> {
   )
   return res.data.data
 }
-
-// ---------------------------------------------------------------------------
-// 권한 helper
-// ---------------------------------------------------------------------------
-
-/** 견적서 작성/수정/전이/변환 권한 — SALES / MANAGER / MASTER. */
-export function canMutateEstimate(
-  role: string | undefined | null,
-): boolean {
-  if (!role) return false
-  return role === 'SALES' || role === 'MANAGER' || role === 'MASTER'
-}

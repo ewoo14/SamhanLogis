@@ -40,7 +40,7 @@ import { listWarehouses, type Warehouse } from '../../api/inventory'
 import { useSessionStore, canQuerySales } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
-import { canExportSlips, exportSlips } from '../../api/excelExportApi'
+import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import axios from 'axios'
 
@@ -171,10 +171,9 @@ export function SalesQueryPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const auth = useSessionStore((s) => s.auth)
-  const role = auth?.role
   const { canAccess } = usePermissions()
   const canCreate = canAccess('sales.slip.create', 'create')
-  const canExport = canExportSlips(role)
+  const canExport = canAccess('slip.print.export', 'download')
   // [C5 follow-up] BE SlipSalesAccessGuard 는 SALES/MANAGER/MASTER 만 허용 — seed 보다 좁음.
   // role 문자열 fallback 대신 V43 빌트인 role-group UUID 로 판정한다.
   const canQuery = canQuerySales(auth)

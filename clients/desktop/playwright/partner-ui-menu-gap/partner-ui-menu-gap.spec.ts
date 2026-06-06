@@ -16,6 +16,10 @@ const desktopRoot = path.resolve(__dirname, '../..')
 const routePath = path.join(desktopRoot, 'src/renderer/routes/index.tsx')
 const layoutPath = path.join(desktopRoot, 'src/renderer/components/AppLayout.tsx')
 const partnerApiPath = path.join(desktopRoot, 'src/renderer/api/partnerApi.ts')
+const partnerDialogPath = path.join(
+  desktopRoot,
+  'src/renderer/routes/admin/PartnerDetailDialog.tsx',
+)
 const createPagePath = path.join(
   desktopRoot,
   'src/renderer/routes/admin/PartnerCreatePage.tsx',
@@ -29,15 +33,15 @@ test.describe('Samhan Public 거래처 관리 UI gap', () => {
   test('거래처 목록과 신규 등록 라우트는 SALES/MANAGER/MASTER 권한으로 정렬된다', () => {
     const routes = read(routePath)
     const partnerApi = read(partnerApiPath)
+    const partnerDialog = read(partnerDialogPath)
 
-    expect(partnerApi).toContain('PARTNER_FULL_ROLES')
-    expect(partnerApi).toContain("'SALES'")
-    expect(partnerApi).toContain("'MANAGER'")
-    expect(partnerApi).toContain("'MASTER'")
+    expect(partnerApi).not.toMatch(/PARTNER_FULL_[A-Z]+/)
+    expect(partnerApi).not.toMatch(new RegExp('can(?:Access|Edit)' + 'PartnerFull'))
+    expect(partnerDialog).toMatch(/canAccess\('partners\.4tab\.edit',\s*'update'\)/)
 
     expect(routes).toContain("path: '/admin/partners'")
     expect(routes).toContain("path: '/admin/partners/new'")
-    // [C2a] redundant 외부 RoleGuard(PARTNER_FULL_ROLES) 제거 → PermissionGuard(partners.*) 단일 게이트.
+    // [C2a] redundant 외부 RoleGuard 제거 → PermissionGuard(partners.*) 단일 게이트.
     // seed grant(partners.list/partners.detail = MASTER/MANAGER/ACCOUNTANT/SALES)가 진실원(Option A, D-PGC-01).
     expect(routes).toMatch(
       /path:\s*'\/admin\/partners\/new'[\s\S]*?<PermissionGuard pageCode="partners\.detail"[\s\S]*?<AdminPartnerCreatePage \/>[\s\S]*?<\/PermissionGuard>/,

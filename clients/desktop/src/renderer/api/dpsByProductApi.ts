@@ -114,19 +114,3 @@ export async function getDpsByProduct(
 // ---------------------------------------------------------------------------
 // 권한 헬퍼 (BE @PreAuthorize 와 일치 — feedback_role_naming_full.md 풀네임)
 // ---------------------------------------------------------------------------
-
-/** 품목별 DPS 분석 화면 진입 가능 ROLE 화이트리스트. */
-export const DPS_BY_PRODUCT_ROLES = [
-  'WAREHOUSE',
-  'MANAGER',
-  'MASTER',
-] as const
-
-/** 품목별 DPS 분석 화면 진입 — WAREHOUSE / MANAGER / MASTER. */
-export function canAccessDpsByProduct(role: string | undefined | null): boolean {
-  return (
-    role === 'WAREHOUSE'
-    || role === 'MANAGER'
-    || role === 'MASTER'
-  )
-}

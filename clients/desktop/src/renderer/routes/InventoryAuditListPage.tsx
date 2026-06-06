@@ -33,14 +33,13 @@ import {
 } from '@samhan/design-system'
 import {
   AUDIT_STATUS_LABEL,
-  canManageAudit,
   listAudits,
   type AuditStatus,
   type AuditSummary,
 } from '../api/auditApi'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { useSessionStore } from '../stores/session'
+import { usePermissions } from '../hooks/usePermissions'
 
 const STATUS_VARIANT: Record<
   AuditStatus,
@@ -65,7 +64,7 @@ function formatDiff(raw: string): string {
 export function InventoryAuditListPage() {
   usePageTitle('재고 실사')
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
 
   const currentYear = new Date().getFullYear()
   const [warehouseId, setWarehouseId] = useState('')
@@ -151,7 +150,7 @@ export function InventoryAuditListPage() {
             실시간 자동 갱신 · 30초
           </span>
         </div>
-        {canManageAudit(role) ? (
+        {canAccess('inventory.adjust', 'create') ? (
           <Button
             variant="primary"
             data-testid="audit-list-new-button"

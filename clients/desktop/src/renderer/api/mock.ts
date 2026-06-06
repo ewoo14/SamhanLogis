@@ -7046,6 +7046,7 @@ const SP_D1_PAGES = [
   // SP-D1 초기 12개
   'accounting.tax-invoice.emit-nts',
   'accounting.tax-invoice.list',
+  'accounting.tax-invoice.cancel',
   'accounting.tax-invoice.batch-issue',
   'accounting.tax-invoice.inbound',
   'accounting.sales-slip.list',
@@ -7072,6 +7073,8 @@ const SP_D1_PAGES = [
   'accounting.period-close',
   'accounting.statement-batch',
   'accounting.partner-ledger',
+  // V37 회계 전표/거래처 원장 보조 도메인
+  'accounting.supplier-profiles',
   // Issue 4 Slice 4
   'accounting.edit-requests',
   // SP-D4 잔여 7 도메인 22개 신규 (V10 seed 기반)
@@ -7100,6 +7103,8 @@ const SP_D1_PAGES = [
   'admin.users',
   'partners.list',
   'partners.detail',
+  'partners.edit',
+  'partners.4tab.edit',
   'partners.block',
   'partners.edit-request',
   'products.list',
@@ -7189,7 +7194,7 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
 const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   MANAGER: [
     // SP-D1
-    'accounting.tax-invoice.list', 'accounting.tax-invoice.batch-issue',
+    'accounting.tax-invoice.list', 'accounting.tax-invoice.cancel', 'accounting.tax-invoice.batch-issue',
     'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.deposit-match', 'accounting.daily-closing',
     'accounting.daily-closing.run',
@@ -7200,6 +7205,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
+    // V37 supplier-profiles — MANAGER: view/edit 허용
+    'accounting.supplier-profiles',
     // SP-D4 22개 — MANAGER: 대부분 view 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
@@ -7209,7 +7216,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
     'admin.employees',
-    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'partners.list', 'partners.detail', 'partners.edit', 'partners.4tab.edit',
+    'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
@@ -7264,6 +7272,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   ACCOUNTANT: [
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
+    'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.deposit-match', 'accounting.daily-closing',
@@ -7273,6 +7282,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
+    // V37 supplier-profiles — ACCOUNTANT: view only
+    'accounting.supplier-profiles',
     // SP-D4 — ACCOUNTANT: 견적/주문 이력/재고/거래처/상품 view 만
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
     'inventory.stock', 'inventory.list', 'inventory.detail', 'inventory.transfer',
@@ -7347,9 +7358,12 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
  */
 const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   MANAGER: [
+    'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.daily-closing.run',
+    // V37 supplier-profiles — MANAGER: view/edit 허용
+    'accounting.supplier-profiles',
     // SP-D1 — MANAGER: edit 미허용 (view 전용)
     // SP-D4 — MANAGER: 대부분 edit 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
@@ -7359,7 +7373,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
     'admin.employees',
-    'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
+    'partners.list', 'partners.detail', 'partners.edit', 'partners.4tab.edit',
+    'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
@@ -7412,6 +7427,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   ACCOUNTANT: [
     // SP-D1
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
+    'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.deposit-match', 'accounting.daily-closing',

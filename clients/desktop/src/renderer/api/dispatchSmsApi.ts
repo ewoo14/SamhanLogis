@@ -168,13 +168,9 @@ export async function sendDispatchBatch(
  * BE {@code @PreAuthorize("hasAnyRole('DISPATCH','MANAGER','MASTER')")} 와 1:1.
  * 풀네임 의무 (feedback_role_naming_full.md).
  */
-export const DISPATCH_SMS_ROLES = ['DISPATCH', 'MANAGER', 'MASTER'] as const
 
 /**
- * 사이드바 / 라우트 가드 — auth.role 이 DISPATCH_SMS_ROLES 에 속하는지 검사.
+ * 사이드바 / 라우트 가드 — dispatch.sms page-code 권한을 사용한다.
  *
  * @param role 현재 세션 role 풀네임 (대소문자 구분 — BE 와 동일)
  */
-export function canAccessDispatchSms(role: string | undefined | null): boolean {
-  return !!role && (DISPATCH_SMS_ROLES as readonly string[]).includes(role)
-}

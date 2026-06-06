@@ -29,13 +29,12 @@ import {
 } from '@samhan/design-system'
 import {
   listJournals,
-  canCreateJournal,
   type JournalSummary,
 } from '../api/accounting'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { exportJournals } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
+import { usePermissions } from '../hooks/usePermissions'
 
 /** 상태 필터 옵션 (검색 셀렉트). */
 const STATUS_OPTIONS: Array<{
@@ -57,7 +56,7 @@ const formatKrw = (raw: string): string => {
 
 export function JournalListPage() {
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
   const [statusFilter, setStatusFilter] = useState<JournalStatus | ''>('')
 
   // P1-6: Excel export
@@ -185,7 +184,7 @@ export function JournalListPage() {
           >
             Excel 다운로드
           </Button>
-          {canCreateJournal(role) ? (
+          {canAccess('accounting.journals', 'create') ? (
             <Button
               variant="primary"
               onClick={() => navigate('/accounting/journals/new')}

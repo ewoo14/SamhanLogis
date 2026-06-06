@@ -216,6 +216,57 @@ clients/desktop/src/renderer\components\RoleGuard.tsx:25: export function RoleGu
   - 로컬 데이터를 보존해야 하면 최신 V47 의 `products.sync` page/group/account backfill SQL 을 수동 적용한 뒤 `flyway repair` 로 checksum 을 맞춘다.
 - 위 절차는 로컬 개발 DB 전용이다. 미머지 브랜치의 V47 을 기준 브랜치에 올린 뒤에는 history 삭제/repair 를 운영 DB 에 적용하지 않는다.
 
+## 5.7 사이클 3 일괄 이관
+
+PM 재기획 `docs/qa/permission-groups-c5-followup/pm-replan-cycle-3.md` 의 결론에 따라 role 문자열 인가 helper 계열을 일괄 정리했다. 실사용 12개는 호출 화면이 실제 호출하는 BE `@RequirePermission(page, action)` 을 기준으로 `usePermissions().canAccess(pageCode, action)` 에 1:1 이관했고, 고아 15개는 source/playwright grep 후 제거했다. PM 표는 "고아 14" 라고 적었지만 실제 §3-B 항목은 15개였으므로 총 27개 전수 처분표로 기록한다.
+
+| helper/상수 | 처분 | FE 대체 기준 | BE/seed 근거 |
+|---|---|---|---|
+| `canAccessTaxInvoice` | 이관 후 제거 | `accounting.tax-invoice.list` CREATE/UPDATE, `accounting.tax-invoice.cancel` UPDATE, `accounting.tax-invoice.emit-nts` UPDATE | `TaxInvoiceController`; V7/V37/V39 |
+| `canCreateJournal` | 이관 후 제거 | `accounting.journals` CREATE | `JournalController`; V8/V39 |
+| `canPostJournal` | 이관 후 제거 | `accounting.journals` UPDATE | `JournalController`; V8/V39. 기존 MASTER-only helper 는 seed 와 불일치 |
+| `canEditPartnerDcConfig` | 이관 후 제거 | `sales.partner-dc-config` UPDATE | `PartnerDcConfigsController`; V29 |
+| `canEditPartnerFull` | 이관 후 제거 | `partners.4tab.edit` UPDATE | `Partner4TabController`; V34 |
+| `canExportPartners` | 이관 후 제거 | `partners.edit` DOWNLOAD | `PartnerAdminController.exportXlsx`; V34/V39 |
+| `canExportSlips` | 이관 후 제거 | `slip.print.export` DOWNLOAD | `SlipController.exportXlsx`; V36/V39 |
+| `canManageAudit` | 이관 후 제거 | `inventory.adjust` CREATE/UPDATE | `InventoryAuditController`; V35 |
+| `canRecordAuditLine` | 이관 후 제거 | `inventory.stock-balance` CREATE | `InventoryAuditController.recordLine`; V35/V39 |
+| `canMutateEstimate` | 이관 후 제거 | `estimates.list` CREATE/UPDATE | `EstimateController`; V10 |
+| `canRequestModificationOrCancel` | 이관 후 제거 | status=`DISPATCHED` + `dispatch.board` UPDATE | dispatch-task admin controller; V7/V9/V36 |
+| `canWriteSupplierProfile` | 이관 후 제거 | `accounting.supplier-profiles` CREATE/UPDATE/DELETE | `SupplierProfileController`; V37 |
+| `canAccessAligoAddressBook` / `ALIGO_ADDRESS_BOOK_ROLES` | 제거 | 호출처 0. route/sidebar 는 `aligo.address-book` VIEW | V34 |
+| `canAccessChatRoomAdmin` / `CHAT_ROOM_ADMIN_ROLES` | 제거 | 호출처 0. route/sidebar 는 `messenger.admin` VIEW | V34 |
+| `canAccessDeliveryBatch` / `DELIVERY_BATCH_ROLES` | 제거 | 호출처 0. `/sales/link-dispatch` 는 `slip.delivery-batch` VIEW | V36 |
+| `canAccessDispatchSms` / `DISPATCH_SMS_ROLES` | 제거 | 호출처 0. SMS/dispatch 메뉴는 page-code 기준 | V7/V33/V34 |
+| `canAccessDpsByProduct` / `DPS_BY_PRODUCT_ROLES` | 제거 | 호출처 0. 화면은 `inventory.dps` VIEW 계열 | V10/V39 |
+| `canAccessDpsCompare` / `DPS_COMPARE_ROLES` | 제거 | 호출처 0. 화면은 `inventory.dps` VIEW 계열 | V10/V39 |
+| `canAccessHometaxExport` / `HOMETAX_EXPORT_ROLES` | 제거 | 호출처 0. route/sidebar 는 `accounting.partner-ledger` VIEW 계약 유지 | V37 |
+| `canAccessNextDaySlip` / `NEXT_DAY_SLIP_ROLES` | 제거 | 호출처 0. route/sidebar 는 `slip.print.next-day` VIEW | V36 |
+| `canAccessPartnerDcConfig` / `PARTNER_DC_CONFIG_ROLES` | 제거 | 호출처 0. route/sidebar 는 `sales.partner-dc-config` VIEW | V29 |
+| `canAccessPartnerFull` / `PARTNER_FULL_ROLES` | 제거 | 호출처 0. route/sidebar 는 `partners.list`/`partners.detail` VIEW, mutation 은 `partners.4tab.edit` | V34/V39 |
+| `canAccessPartnerLedger` / `PARTNER_LEDGER_ROLES` | 제거 | 호출처 0. route/sidebar 는 `accounting.partner-ledger` VIEW | V37 |
+| `canAccessSafetyStock` / `SAFETY_STOCK_ROLES` | 제거 | 호출처 0. route/sidebar 는 `inventory.safety-stock` VIEW | V10/V39 |
+| `canAccessSlipPhotoAudit` / `SLIP_PHOTO_AUDIT_ROLES` | 제거 | 호출처 0. route/sidebar 는 `slip.photo-audit` VIEW | V36 |
+| `canAccessStatementBatch` / `STATEMENT_BATCH_ROLES` | 제거 | 호출처 0. route/sidebar 는 `accounting.statement-batch` VIEW | V8/V39 |
+| `canReadSupplierProfile` / `SUPPLIER_PROFILE_READ_ROLES` | 제거 | 호출처 0. supplier profile entry 와 mutation 은 page-code 기준 | V37 |
+
+### mock catalog 동기화
+
+- `accounting.tax-invoice.cancel` 을 `SP_D1_PAGES` 와 ACCOUNTANT/MANAGER view/edit grant 에 추가했다. seed 근거는 `V37__seed_sp_d6_7_accounting_page_codes.sql` 의 MASTER/MANAGER/ACCOUNTANT TRUE/TRUE.
+- `accounting.supplier-profiles` 를 `SP_D1_PAGES`, MANAGER view/edit grant, ACCOUNTANT view grant 에 추가했다. seed 근거는 `V37__seed_sp_d6_7_accounting_page_codes.sql` 83~85행의 MASTER TRUE/TRUE, MANAGER TRUE/TRUE, ACCOUNTANT TRUE/FALSE.
+- `partners.edit` 을 `SP_D1_PAGES` 와 MANAGER view/edit grant 에 추가했다. seed 근거는 `V34__seed_sp_d6_4_page_codes.sql` 및 V39 view materialization 의 MASTER/MANAGER.
+- `partners.4tab.edit` 을 `SP_D1_PAGES` 와 MANAGER view/edit grant 에 추가했다. seed 근거는 `V34__seed_sp_d6_4_page_codes.sql` 의 MASTER/MANAGER TRUE/TRUE.
+- MASTER 는 mock matrix 생성 규칙상 모든 `SP_D1_PAGES` view/edit 을 가진다. 위 추가 항목은 seed 외 역할에 임의 grant 하지 않았다.
+- photo-audit contract spec 에 남아 있던 제거 상수 `SLIP_PHOTO_AUDIT_ROLES` 문자열 단언 3개를 제거하고 `PermissionGuard pageCode="slip.photo-audit"` 계약 단언은 유지했다.
+
+### 사이클 3 grep 증빙
+
+`rg -n '<27 helper/ROLES pattern>' clients/desktop/src/renderer clients/desktop/playwright`
+
+```
+no matches
+```
+
 ## 6. 보류/주의
 
 - `RoleGuard` 제거는 보류: `AdminLayout` 이 아직 MASTER 전용 외부 가드로 실제 사용 중이다.

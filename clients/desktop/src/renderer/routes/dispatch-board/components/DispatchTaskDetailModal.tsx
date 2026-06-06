@@ -24,13 +24,13 @@
 import { useState } from 'react'
 import { Modal } from '@samhan/design-system'
 import {
-  canRequestModificationOrCancel,
   DISPATCH_TASK_STATUS_LABEL,
   DISPATCH_VEHICLE_TYPE_LABEL,
   type DispatchTaskResponse,
 } from '../../../api/dispatchTask'
 import { ModificationRequestDialog } from './ModificationRequestDialog'
 import { CancellationRequestDialog } from './CancellationRequestDialog'
+import { usePermissions } from '../../../hooks/usePermissions'
 
 interface DispatchTaskDetailModalProps {
   task: DispatchTaskResponse
@@ -95,8 +95,9 @@ export function DispatchTaskDetailModal({
 }: DispatchTaskDetailModalProps) {
   const [modificationOpen, setModificationOpen] = useState(false)
   const [cancellationOpen, setCancellationOpen] = useState(false)
+  const { canAccess } = usePermissions()
 
-  const showRequestButtons = canRequestModificationOrCancel(task.status)
+  const showRequestButtons = task.status === 'DISPATCHED' && canAccess('dispatch.board', 'update')
   const banner = STATUS_BANNER_STYLE[task.status]
   const totalSlips = task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)
 

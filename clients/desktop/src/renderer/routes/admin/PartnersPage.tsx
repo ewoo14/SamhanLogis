@@ -32,9 +32,8 @@ import {
   DataTable,
   type DataTableColumn,
 } from '@samhan/design-system'
-import { canExportPartners, exportPartners } from '../../api/excelExportApi'
+import { exportPartners } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
-import { useSessionStore } from '../../stores/session'
 import {
   listAdminPartners,
   PARTNER_STATUS_LABEL,
@@ -43,6 +42,7 @@ import {
 } from '../../api/adminApi'
 import { PARTNER_TYPE_LABEL, type PartnerType } from '../../api/partnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 import { PartnerDetailDialog } from './PartnerDetailDialog'
 
 // ---------------------------------------------------------------------------
@@ -76,8 +76,8 @@ function formatKrw(raw: string | number | null | undefined): string {
 export function PartnersPage() {
   usePageTitle('거래처 관리')
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
-  const canExport = canExportPartners(role)
+  const { canAccess } = usePermissions()
+  const canExport = canAccess('partners.edit', 'download')
 
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerStatus | ''>('')

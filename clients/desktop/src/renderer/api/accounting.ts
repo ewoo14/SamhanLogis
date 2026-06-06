@@ -287,25 +287,6 @@ export async function getTrialBalance(period: string): Promise<TrialBalance> {
   return res.data.data
 }
 
-/**
- * 분개 작성 권한 — ACCOUNTANT / MASTER.
- * 향후 readonly role (예: AUDITOR) 분리에 대비해 별도 함수.
- */
-export function canCreateJournal(
-  role: string | undefined | null,
-): boolean {
-  if (!role) return false
-  return role === 'ACCOUNTANT' || role === 'MASTER'
-}
-
-/**
- * 분개 확정 (POST/REVERSE) 권한 — MASTER 만. ACCOUNTANT 는 작성/조회만.
- */
-export function canPostJournal(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'MASTER'
-}
-
 // ==========================================================================
 // P0-1 Slice A: 3대 재무 보고서 API (손익계산서 / 재무상태표)
 // ==========================================================================

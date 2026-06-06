@@ -38,16 +38,6 @@ export interface SlipPhotoAuditParams {
   size?: number
 }
 
-export const SLIP_PHOTO_AUDIT_ROLES = [
-  'WAREHOUSE',
-  'MANAGER',
-  'MASTER',
-] as const
-
-export function canAccessSlipPhotoAudit(role: string | null | undefined): boolean {
-  return !!role && (SLIP_PHOTO_AUDIT_ROLES as readonly string[]).includes(role)
-}
-
 const MOCK_PHOTO_AUDIT_ITEMS: SlipPhotoAuditItem[] = [
   {
     slipNo: '2026/05/15-1',

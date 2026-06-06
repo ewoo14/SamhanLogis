@@ -25,13 +25,12 @@ import {
 } from '@samhan/design-system'
 import {
   ESTIMATE_STATUS_LABEL,
-  canMutateEstimate,
   listEstimates,
   type EstimateStatus,
   type EstimateSummary,
 } from '../api/estimateApi'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
 
@@ -60,7 +59,7 @@ const fmtKrw = (raw: string): string => {
 
 export function EstimateListPage() {
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
 
   usePageTitle('견적서 관리')
 
@@ -158,7 +157,7 @@ export function EstimateListPage() {
     },
   ]
 
-  const canCreate = canMutateEstimate(role)
+  const canCreate = canAccess('estimates.list', 'create')
 
   return (
     <div className={styles['salesScope']}>

@@ -830,26 +830,6 @@ export async function resetPartnerPassword(
 // dc-config-service — 거래처 DC 설정 (v2 §정정 14, /sales/partner-dc-config)
 // ---------------------------------------------------------------------------
 
-/** 거래처 DC 설정 조회 권한 — BE PartnerDcConfigsController 와 1:1. */
-export const PARTNER_DC_CONFIG_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
-/** 거래처 DC 설정 수정 권한 — 민감한 할인 정책 변경은 MANAGER / MASTER 로 제한. */
-export const PARTNER_DC_CONFIG_EDIT_ROLES = ['MANAGER', 'MASTER'] as const
-
-/** 거래처 DC 설정 화면 진입 가능 여부. */
-export function canAccessPartnerDcConfig(
-  role: string | undefined | null,
-): boolean {
-  return !!role && (PARTNER_DC_CONFIG_ROLES as readonly string[]).includes(role)
-}
-
-/** 거래처 DC 설정 인라인 수정 가능 여부. */
-export function canEditPartnerDcConfig(
-  role: string | undefined | null,
-): boolean {
-  return !!role && (PARTNER_DC_CONFIG_EDIT_ROLES as readonly string[]).includes(role)
-}
-
 /**
  * PartnerDcConfig — 거래처별 DC 설정 row.
  *

@@ -289,16 +289,6 @@ export async function getTaxInvoicePrintData(
 }
 
 // ---------------------------------------------------------------------------
-// 권한 helper — 세금계산서 전용 의미명으로 별도 export.
-// ---------------------------------------------------------------------------
-
-/** 세금계산서 메뉴/라우트 접근 권한 — ACCOUNTANT / MASTER 만 허용. */
-export function canAccessTaxInvoice(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'ACCOUNTANT' || role === 'MASTER'
-}
-
-// ---------------------------------------------------------------------------
 // SP-09-1: NTS e-tax 국세청 전자세금계산서 발행
 // ---------------------------------------------------------------------------
 

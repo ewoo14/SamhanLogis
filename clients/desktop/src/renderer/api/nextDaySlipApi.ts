@@ -178,10 +178,3 @@ export function groupByChatRoom(
  * <p>BE {@code @PreAuthorize("hasAnyRole('SALES','MANAGER','MASTER')")} 와 1:1.
  * 사용자 명세 — DISPATCH 추가 가드는 backlog DISPATCH role 부재로 본 단계 제외.
  */
-export const NEXT_DAY_SLIP_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
-export function canAccessNextDaySlip(
-  role: string | undefined | null,
-): boolean {
-  return !!role && (NEXT_DAY_SLIP_ROLES as readonly string[]).includes(role)
-}

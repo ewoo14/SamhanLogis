@@ -76,21 +76,6 @@ export interface SupplierProfileRequest {
   email: string
 }
 
-/** 사업자 양식 접근 가능 ROLE */
-export const SUPPLIER_PROFILE_READ_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
-/** 사업자 양식 수정 가능 ROLE */
-export const SUPPLIER_PROFILE_WRITE_ROLES = ['MANAGER', 'MASTER'] as const
-
-/** 현재 사용자가 사업자 양식 조회 권한을 가지는지 */
-export function canReadSupplierProfile(role: string | null | undefined): boolean {
-  return !!(role && (SUPPLIER_PROFILE_READ_ROLES as readonly string[]).includes(role))
-}
-
-/** 현재 사용자가 사업자 양식 쓰기 권한을 가지는지 */
-export function canWriteSupplierProfile(role: string | null | undefined): boolean {
-  return !!(role && (SUPPLIER_PROFILE_WRITE_ROLES as readonly string[]).includes(role))
-}
-
 /**
  * 사업자 목록 전체 조회.
  * 일반적으로 1~2건 (기본 사업자 + 다중 사업자).

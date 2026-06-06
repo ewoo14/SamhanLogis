@@ -60,11 +60,8 @@ test.describe('D-AX-20 사진 감사 contract', () => {
     const layout = read(layoutPath)
 
     expect(api).toContain('/api/v1/slips/admin/photo-audit')
-    expect(api).toContain("'WAREHOUSE'")
-    expect(api).toContain("'MANAGER'")
-    expect(api).toContain("'MASTER'")
     expect(routes).toContain("path: '/admin/photo-audit'")
-    // [C2b] 단독 RoleGuard(SLIP_PHOTO_AUDIT_ROLES) → PermissionGuard(slip.photo-audit) 단일 게이트.
+    // [C2b] 단독 RoleGuard 제거 → PermissionGuard(slip.photo-audit) 단일 게이트.
     expect(routes).toMatch(/path: '\/admin\/photo-audit'[\s\S]*?pageCode="slip\.photo-audit"/)
     expect(layout).toContain('sidebar-warehouse-photo-audit')
     expect(layout).toContain('사진 감사')

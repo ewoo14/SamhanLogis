@@ -193,18 +193,3 @@ export async function updateAuditLine(
   )
   return res.data.data
 }
-
-/** 신규 실사 등록 / start / complete / cancel — MASTER/MANAGER/INVENTORY (BE 와 일치). */
-export function canManageAudit(role: string | undefined | null): boolean {
-  return role === 'MASTER' || role === 'MANAGER' || role === 'INVENTORY'
-}
-
-/** 라인 입력 (바코드/수동) — MASTER/MANAGER/WAREHOUSE/INVENTORY. */
-export function canRecordAuditLine(role: string | undefined | null): boolean {
-  return (
-    role === 'MASTER'
-    || role === 'MANAGER'
-    || role === 'WAREHOUSE'
-    || role === 'INVENTORY'
-  )
-}

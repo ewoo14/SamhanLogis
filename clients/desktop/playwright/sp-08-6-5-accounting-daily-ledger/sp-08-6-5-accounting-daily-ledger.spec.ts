@@ -191,7 +191,7 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
    *
    * - [C5 후속] closingApi.ts 의 role 헬퍼(canExecuteClosing/canReverseClosing)는 제거 —
    *   마감 페이지가 usePermissions().canAccess page-code 로 BE @RequirePermission 과 1:1 판정.
-   * - partnerLedgerApi.ts 에 PARTNER_LEDGER_ROLES + canAccessPartnerLedger 함수 존재
+   * - partnerLedgerApi.ts 의 role 문자열 helper 제거
    * - 역마감은 accounting.period-close.reverse UPDATE (seed MASTER 독점)
    * - 마감 실행은 accounting.period-close CREATE (seed ACCOUNTANT/MASTER — MANAGER 불가)
    */
@@ -204,6 +204,8 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     )
     const closingApi = read('clients/desktop/src/renderer/api/closingApi.ts')
     const ledgerApi = read('clients/desktop/src/renderer/api/partnerLedgerApi.ts')
+    const routes = read('clients/desktop/src/renderer/routes/index.tsx')
+    const appLayout = read('clients/desktop/src/renderer/components/AppLayout.tsx')
 
     // BE 역마감 MASTER 독점
     expect(closeCtrl).toContain('@RequirePermission(page = "accounting.period-close.reverse"')
@@ -225,13 +227,10 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     const salesClosingPage = read('clients/desktop/src/renderer/routes/SalesClosingPage.tsx')
     expect(salesClosingPage).toMatch(/canAccess\('accounting\.period-close',\s*'create'\)/)
     expect(salesClosingPage).toMatch(/canAccess\('accounting\.period-close\.reverse',\s*'update'\)/)
-    expect(ledgerApi).toContain('PARTNER_LEDGER_ROLES')
-    expect(ledgerApi).toContain('canAccessPartnerLedger')
-
-    // PARTNER_LEDGER_ROLES 에 3개 역할 포함
-    expect(ledgerApi).toContain("'ACCOUNTANT'")
-    expect(ledgerApi).toContain("'MANAGER'")
-    expect(ledgerApi).toContain("'MASTER'")
+    expect(ledgerApi).not.toMatch(/PARTNER_LEDGER_[A-Z]+/)
+    expect(ledgerApi).not.toMatch(new RegExp('canAccess' + 'PartnerLedger'))
+    expect(appLayout).toMatch(/const showAccountingPartnerLedger = dynamicCanAccess\('accounting\.partner-ledger',\s*'view'\)/)
+    expect(routes).toMatch(/path: '\/accounting\/partner-ledger'[\s\S]*<PermissionGuard pageCode="accounting\.partner-ledger" action="view">/)
 
     // auth-service V37 seed: accounting.period-close.reverse 는 MASTER 에게만 can_view/can_edit TRUE
     // (V37__seed_sp_d6_7_accounting_page_codes.sql line 72 확인)

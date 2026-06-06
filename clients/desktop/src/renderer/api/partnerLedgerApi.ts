@@ -157,10 +157,3 @@ export async function getLedgerData(
  *
  * <p>{@code feedback_role_naming_full.md} — 풀네임 표기 의무.
  */
-export const PARTNER_LEDGER_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
-
-export function canAccessPartnerLedger(
-  role: string | undefined | null,
-): boolean {
-  return !!role && (PARTNER_LEDGER_ROLES as readonly string[]).includes(role)
-}
