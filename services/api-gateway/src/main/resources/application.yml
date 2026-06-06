@@ -237,6 +237,14 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [RC9] product-service lookup 3종 — 풀패스 컨트롤러 — strip 금지.
+        - id: product-lookups-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/material-prices,/api/v1/material-prices/**,/api/v1/odu-recommendations,/api/v1/odu-recommendations/**,/api/v1/branch-pipes,/api/v1/branch-pipes/**
+          filters:
+            - JwtAuthentication
+
         - id: product-service-v1
           uri: lb://product-service
           predicates:

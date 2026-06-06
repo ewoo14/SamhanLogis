@@ -10,4 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OduRecommendationLookupRepository extends JpaRepository<OduRecommendationLookup, UUID> {
 
     List<OduRecommendationLookup> findByRecommendationTypeOrderByIndoorCapacityAsc(RecommendationType type);
+
+    List<OduRecommendationLookup> findAllByOrderByRecommendationTypeAscIndoorCapacityAsc();
 }

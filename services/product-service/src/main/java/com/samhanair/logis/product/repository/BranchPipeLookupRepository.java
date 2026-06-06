@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.repository;
 
 import com.samhanair.logis.product.domain.BranchPipeLookup;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,4 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BranchPipeLookupRepository extends JpaRepository<BranchPipeLookup, UUID> {
 
     Optional<BranchPipeLookup> findByBranchCode(String branchCode);
+
+    List<BranchPipeLookup> findAllByOrderByBranchCodeAsc();
 }
