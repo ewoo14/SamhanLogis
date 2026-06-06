@@ -44,9 +44,11 @@ public class InventoryClient {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
-    private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String INTERNAL_USER_ROLE = "MASTER";
+    // Phase C5-4: X-User-Role 헤더 주입 제거.
+    // 수신측 inventory-service HeaderAuthenticationFilter 는 X-User-Id 단독으로 인증 성립 (C5-3).
+    // /inventory/** 경로는 /internal/ prefix 아님 → InternalTokenFilter no-op 통과.
+    // X-Internal-Token + X-User-Id 조합으로 인증 유지 (X-User-Role 불필요).
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
     private static final String INVENTORY_SERVICE_BASE = "http://inventory-service";
 
@@ -277,7 +279,6 @@ public class InventoryClient {
             restClient.post()
                     .uri(path)
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
-                    .header(USER_ROLE_HEADER, INTERNAL_USER_ROLE)
                     .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)

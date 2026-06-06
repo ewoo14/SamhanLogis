@@ -54,10 +54,12 @@ public class InventoryClient {
     private static final Logger log = LoggerFactory.getLogger(InventoryClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String INVENTORY_SERVICE_BASE = "http://inventory-service";
-    /** 서비스 간 내부 호출 시 PermissionAspect MASTER bypass 를 위해 고정 주입. */
-    private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String INTERNAL_ROLE = "MASTER";
+    // Phase C5-4: X-User-Role: MASTER 헤더 주입 제거.
+    // 수신측 inventory-service HeaderAuthenticationFilter 는 X-User-Id 단독으로 인증 성립 (C5-3).
+    // /inventory/reserve|release 경로는 /internal/ prefix 아님 → InternalTokenFilter no-op 통과.
+    // X-Internal-Token + X-User-Id 조합으로 인증 유지. PermissionAspect MASTER bypass 는
+    // X-Is-System-Master 헤더 단독으로 수행되므로 role 불필요.
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
 
     private final RestClient restClient;
@@ -114,7 +116,6 @@ public class InventoryClient {
             Map<String, Object> envelope = restClient.post()
                     .uri("/inventory/reserve")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
-                    .header(USER_ROLE_HEADER, INTERNAL_ROLE)
                     .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
@@ -199,7 +200,6 @@ public class InventoryClient {
             restClient.post()
                     .uri("/inventory/release")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
-                    .header(USER_ROLE_HEADER, INTERNAL_ROLE)
                     .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)

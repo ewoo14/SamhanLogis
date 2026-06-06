@@ -38,10 +38,11 @@ public class SlipServiceClient {
     private static final Logger log = LoggerFactory.getLogger(SlipServiceClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
-    private static final String USER_ROLE_HEADER = "X-User-Role";
     private static final String USER_ID_HEADER = "X-User-Id";
-    /** 서비스 간 내부 호출 시 PermissionAspect MASTER bypass 를 위해 고정 주입. */
-    private static final String INTERNAL_ROLE = "MASTER";
+    // Phase C5-4: X-User-Role: MASTER 헤더 주입 제거.
+    // slip-service HeaderAuthenticationFilter 는 X-User-Id 단독으로 인증 성립 (C5-3).
+    // /api/v1/slips/from-partner-order 경로는 /internal/ prefix 아님 → InternalTokenFilter no-op.
+    // X-Internal-Token + X-User-Id 조합으로 인증 유지.
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
     private static final String SLIP_SERVICE_BASE = "http://slip-service";
 
@@ -76,7 +77,6 @@ public class SlipServiceClient {
             ResponseEntity<Map<String, Object>> response = restClient.post()
                     .uri("/api/v1/slips/from-partner-order")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
-                    .header(USER_ROLE_HEADER, INTERNAL_ROLE)
                     .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .header(IDEMPOTENCY_HEADER, idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -138,7 +138,6 @@ public class SlipServiceClient {
             ResponseEntity<Map<String, Object>> response = restClient.post()
                     .uri("/api/v1/slips/from-orders-merge")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
-                    .header(USER_ROLE_HEADER, INTERNAL_ROLE)
                     .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
                     .header(IDEMPOTENCY_HEADER, idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)

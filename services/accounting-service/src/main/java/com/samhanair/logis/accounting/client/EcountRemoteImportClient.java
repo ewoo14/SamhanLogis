@@ -15,12 +15,19 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-/** MIG-20 accounting-service 밖에 있는 기존 이카운트 import endpoint 호출 client. */
+/**
+ * MIG-20 accounting-service 밖에 있는 기존 이카운트 import endpoint 호출 client.
+ *
+ * <p>Phase C5-4: X-User-Role 헤더 주입 제거.
+ * 수신측(product-service 등) HeaderAuthenticationFilter 는 X-User-Id 단독으로 인증 성립 (C5-3).
+ * 호출 경로({@code /admin/products/imports/ecount} 등)는 {@code /internal/} prefix 아님 →
+ * InternalTokenFilter no-op 통과. X-User-Id 주입으로 인증 유지. role 인가는 @RequirePermission
+ * AOP 가 DynamicPermissionClient 로 처리하므로 별도 X-User-Role 불필요.
+ */
 @Component
 public class EcountRemoteImportClient {
 
     private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String USER_ROLE_HEADER = "X-User-Role";
 
     private final RestClient.Builder builder;
     private final ObjectMapper objectMapper;
@@ -44,7 +51,6 @@ public class EcountRemoteImportClient {
                     .uri(endpoint)
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .header(USER_ID_HEADER, normalizeUser(userId))
-                    .header(USER_ROLE_HEADER, "MASTER")
                     .body(body)
                     .retrieve()
                     .body(String.class);
