@@ -39,8 +39,6 @@ import {
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
-  canExecuteClosing,
-  canReverseClosing,
   createClosing,
   listClosings,
   PERIOD_STATUS_LABEL,
@@ -57,7 +55,7 @@ import {
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { useSessionStore } from '../stores/session'
+import { usePermissions } from '../hooks/usePermissions'
 
 /** YYYY-MM-DD 오늘 날짜. */
 function today(): string {
@@ -116,9 +114,10 @@ const noticeStyle: CSSProperties = {
 }
 
 export function PeriodCloseListPage() {
-  const role = useSessionStore((s) => s.auth?.role)
-  const canExecute = canExecuteClosing(role)
-  const canReverse = canReverseClosing(role)
+  // [C5 후속 사이클1 D-005] role 문자열 직접 판정 제거 — BE @RequirePermission 과 1:1 page-code 판정.
+  const { canAccess } = usePermissions()
+  const canExecute = canAccess('accounting.period-close', 'create')
+  const canReverse = canAccess('accounting.period-close.reverse', 'update')
   const queryClient = useQueryClient()
 
   /** 월말 마감은 MONTHLY 기본 고정. */

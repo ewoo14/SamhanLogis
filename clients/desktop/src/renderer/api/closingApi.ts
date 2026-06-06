@@ -213,23 +213,10 @@ export async function getDailyClosingDetail(
   return res.data.data
 }
 
-/**
- * 마감 권한 — ACCOUNTANT / MASTER (BE `@PreAuthorize` 와 동일).
- *
- * `feedback_role_naming_full.md` — role 표기 풀네임 의무.
- */
-export function canExecuteClosing(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'ACCOUNTANT' || role === 'MASTER'
-}
-
-/**
- * 역마감 권한 — MASTER 만 (BE `@PreAuthorize("hasRole('MASTER')")` 와 동일).
- */
-export function canReverseClosing(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'MASTER'
-}
+// [C5 후속 사이클1 D-005] canExecuteClosing/canReverseClosing role 문자열 헬퍼 제거 —
+// 호출처(SalesClosingPage/MonthEndClosingPage/PeriodCloseListPage)는
+// usePermissions().canAccess('accounting.period-close','create') /
+// canAccess('accounting.period-close.reverse','update') 로 BE @RequirePermission 과 1:1 판정.
 
 /** 마감 유형 한국어 라벨. */
 export const PERIOD_TYPE_LABEL: Record<PeriodType, string> = {

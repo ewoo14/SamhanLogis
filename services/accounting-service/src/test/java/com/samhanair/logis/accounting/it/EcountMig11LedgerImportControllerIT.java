@@ -1,5 +1,7 @@
 package com.samhanair.logis.accounting.it;
 
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.PARTIAL_IDENTITY_GROUPS;
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.isMissingUserIdCase;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -39,7 +41,6 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
 
-    private static final String PARTIAL_IDENTITY_GROUPS = "11111111-1111-1111-1111-111111111111";
 
     @Autowired
     private MockMvc mockMvc;
@@ -138,9 +139,6 @@ class EcountMig11LedgerImportControllerIT extends AbstractPostgresIT {
         return "ecount.mig11.purchase-ledger";
     }
 
-    private static boolean isMissingUserIdCase(String label) {
-        return label.contains("missingUserId") || label.contains("MissingUserId");
-    }
 
     private static EcountMig11Result result() {
         return new EcountMig11Result(1, 1, 0, 0, 0, "HASH", List.of(), List.of());

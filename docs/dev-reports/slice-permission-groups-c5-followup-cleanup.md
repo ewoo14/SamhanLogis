@@ -189,6 +189,23 @@ clients/desktop/src/renderer\components\RoleGuard.tsx:25: export function RoleGu
 
 백엔드/Playwright 실패는 코드 assertion 실패가 아니라 현재 Windows 로컬 권한/링크 상태로 인한 실행 차단이다.
 
+## 5.5 사이클 1 Claude fix (TM 통합 12건 반영)
+
+| # | 항목 | 반영 |
+|---|---|---|
+| P0 QA DEF-1 | V47 → account_page_permissions 미반영 (Flyway 가 materializer 우회) | V47 말미에 enforcement 캐시 동기 INSERT (BOOL_OR 합성·시스템마스터 그룹 계정 제외=C3a 불변식·V44 계정 필터 동일) + `AuthFlywayV47SeedIT.productsSyncMaterializedIntoAccountPagePermissions` 가드 |
+| P1 수렴 (FE P1-2 + D-001/D-002) | 사이드바↔라우트 가드 소스 이원화 | AppLayout: arologis 6메뉴+SMS 2메뉴 → 라우트와 동일 page-code `dynamicCanAccess` (`arologis.dispatch.admin`/`arologis.dispatch.ops`/`dispatch.batch`/`notification.dispatch-sms.send-audit`/`arologis.admin`) · 매출 마감 2곳 `showAccountingPeriodClose` 교체 · 배차지역 관리 show 에서 manual 혼입 제거 |
+| P2 (FE P1-1 격하) | full-menu-contract stale 단언 | blocked-partners/aligo-address-book RoleGuard 단언 → PermissionGuard 단언 + ARO_DISPATCH_RECONCILE_ROLES 단언 → PermissionGuard 단언 (testIgnore 격리 spec — 격리 해제 대비 현행화) |
+| P2 BE P2-1 | prometheus authenticated() 등가 근거 | `AccountingPrometheusSecurityConfigTest` Javadoc 박제 (InternalTokenFilter allow-missing-token=false 실 게이트) |
+| P2 BE P2-2 | canQuerySales isSystemMaster 미반영 사유 | session.ts Javadoc 박제 (C3a syncBuiltinRoleGroup 불변식) |
+| P2 D-003 | showAdmin dead 빈 블록 | 제거 (showAdmin 자체는 단톡방 매핑 `!showAdmin` 분기용으로 유지+주석) |
+| P3 D-005+FE Nit-2 | 마감 페이지 role 직접 판정 | SalesClosing/MonthEndClosing/PeriodCloseList 3페이지 → `canAccess('accounting.period-close','create')`/`('accounting.period-close.reverse','update')`, closingApi role 헬퍼 제거, sp-08-6-5 spec 계약 갱신. dispatchReconcileApi 의 잔존 role 헬퍼/ROLES 상수도 동일 원칙으로 제거 |
+| P3 DevOps D-1 | V47 soft-delete 행 시나리오 | SQL 주석 박제 |
+| Nit BE-1 | V47 IT FALSE 단언 | canDelete/Restore/Download/Print FALSE 단언 추가 |
+| Nit BE-2 | InventoryPermissionControllerIT ROLE_HEADER | 라벨/메트릭 태그 용도 주석 박제 |
+| Nit BE-3 | EcountMig isMissingUserIdCase 중복 | `EcountMigPartialIdentitySupport` 공통 추출 (accounting 6 클래스). user-service 사본은 모듈 경계상 로컬 유지 |
+| Nit FE-1 | sp-d2 T5 제목 | "PermissionGuard 단일 게이트" 현행화 |
+
 ## 6. 보류/주의
 
 - `RoleGuard` 제거는 보류: `AdminLayout` 이 아직 MASTER 전용 외부 가드로 실제 사용 중이다.

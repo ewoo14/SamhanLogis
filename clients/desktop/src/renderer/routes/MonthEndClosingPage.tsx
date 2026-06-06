@@ -38,8 +38,6 @@ import {
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
-  canExecuteClosing,
-  canReverseClosing,
   createClosing,
   getDailyClosingDetail,
   listClosings,
@@ -59,7 +57,7 @@ import {
   groupAuditLogsByField,
 } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { useSessionStore } from '../stores/session'
+import { usePermissions } from '../hooks/usePermissions'
 import { today } from '../utils/dateUtils'
 
 /** YYYY-MM-DD → "YYYY-MM" (월별 input value). */
@@ -156,9 +154,10 @@ const noticeStyle: CSSProperties = {
 }
 
 export function MonthEndClosingPage() {
-  const role = useSessionStore((s) => s.auth?.role)
-  const canExecute = canExecuteClosing(role)
-  const canReverse = canReverseClosing(role)
+  // [C5 후속 사이클1 D-005] role 문자열 직접 판정 제거 — BE @RequirePermission 과 1:1 page-code 판정.
+  const { canAccess } = usePermissions()
+  const canExecute = canAccess('accounting.period-close', 'create')
+  const canReverse = canAccess('accounting.period-close.reverse', 'update')
   const queryClient = useQueryClient()
 
   const [periodType, setPeriodType] = useState<PeriodType>('MONTHLY')

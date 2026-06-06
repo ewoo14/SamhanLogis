@@ -837,7 +837,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
    * NOTE: SP-D2 작성 당시의 정적 외부 role gate 는 C2a 에서 제거됐다.
    *   T5 는 현재 PermissionGuard 단일 게이트의 grant 흐름을 검증한다.
    */
-  test('T5: 마스터가 SALES 에게 accounting.tax-invoice.batch-issue grant → 이중 가드 패턴 + 사이드바 확인', async ({ page }) => {
+  test('T5: 마스터가 SALES 에게 accounting.tax-invoice.batch-issue grant → PermissionGuard 단일 게이트 + 사이드바 확인', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()

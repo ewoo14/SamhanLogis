@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.PARTIAL_IDENTITY_GROUPS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -39,7 +40,6 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class EcountMig6AccountingImportControllerIT extends AbstractPostgresIT {
 
-    private static final String PARTIAL_IDENTITY_GROUPS = "11111111-1111-1111-1111-111111111111";
 
     @Autowired
     private MockMvc mockMvc;

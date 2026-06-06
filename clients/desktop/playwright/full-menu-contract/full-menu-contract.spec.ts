@@ -116,16 +116,19 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
   })
 
   test('admin-origin operational screens are standalone guarded routes', () => {
+    // [C5 후속] blocked-partners/aligo-address-book 은 C2b(#403)에서 PermissionGuard 전환 —
+    // 구 RoleGuard 단언은 stale 이었다 (본 spec 은 testIgnore 격리 상태이나 격리 해제 대비 현행화).
     expect(routes).toMatch(/path: '\/admin\/sheet-sync'[\s\S]*PermissionGuard pageCode="products\.sync" action="view"/)
-    expect(routes).toMatch(/path: '\/admin\/blocked-partners'[\s\S]*RoleGuard allow=\{BLOCKED_PARTNER_ROLES\}/)
-    expect(routes).toMatch(/path: '\/admin\/aligo-address-book'[\s\S]*RoleGuard allow=\{ALIGO_ADDRESS_BOOK_ROLES\}/)
+    expect(routes).toMatch(/path: '\/admin\/blocked-partners'[\s\S]*PermissionGuard pageCode="partners\.block" action="view"/)
+    expect(routes).toMatch(/path: '\/admin\/aligo-address-book'[\s\S]*PermissionGuard pageCode="aligo\.address-book" action="view"/)
   })
 
   test('dispatch role is assignable and wired to dispatch menus', () => {
     expect(roleJava).toContain('DISPATCH("배차담당자")')
     expect(appLayout).toContain('sidebar-dispatch-board')
     expect(appLayout).toContain('sidebar-arologis-dispatch-reconcile')
-    expect(routes).toContain('ARO_DISPATCH_RECONCILE_ROLES')
+    // [C5 후속] ROLES 상수 제거 — 실배차 비교 라우트는 arologis.dispatch.ops PermissionGuard.
+    expect(routes).toMatch(/path: '\/arologis\/dispatch-reconcile'[\s\S]*?PermissionGuard pageCode="arologis\.dispatch\.ops" action="view"/)
   })
 
   test('region menu has a single public entry with dispatch read-only path', () => {

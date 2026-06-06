@@ -152,6 +152,8 @@ class InventoryPermissionControllerIT {
     private static final String SERVICE_NAME = "inventory-service";
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_NAME_HEADER = "X-User-Name";
+    // (사이클1 BE Nit-2) C5 이후 HeaderAuthenticationFilter 가 X-User-Role 을 무시하므로
+    // 본 헤더는 인가에 무영향 — 테스트 케이스 라벨/거부 메트릭 role 태그 식별 용도로만 전송한다.
     private static final String ROLE_HEADER = "X-User-Role";
     private static final String DEPARTMENT_HEADER = "X-User-Department";
     private static final UUID ID = UUID.fromString("00000000-0000-0000-0000-000000000601");

@@ -1,5 +1,7 @@
 package com.samhanair.logis.accounting.it;
 
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.PARTIAL_IDENTITY_GROUPS;
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.isMissingUserIdCase;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -38,7 +40,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
 
     private static final String URL = "/admin/accounting/orders/backfill-employee-cross-link";
-    private static final String PARTIAL_IDENTITY_GROUPS = "11111111-1111-1111-1111-111111111111";
 
     @Autowired
     private MockMvc mockMvc;
@@ -110,7 +111,4 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
         );
     }
 
-    private static boolean isMissingUserIdCase(String label) {
-        return label.contains("missingUserId") || label.contains("MissingUserId");
-    }
 }

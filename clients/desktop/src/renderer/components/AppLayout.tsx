@@ -268,22 +268,23 @@ export function AppLayout() {
     showPartnersList || showPartnersBlock || showPartnersEditRequest
   const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt || showPermissionAdmin || showPermissionDelegation
 
-  // [C5 follow-up] arologis role-mode 메뉴는 role 문자열 대신 V43 빌트인 role-group UUID 로 판정한다.
-  const showArologisManual = hasAnyBuiltinRoleGroup(auth, ['MASTER', 'MANAGER'])
-  const showArologisPreClassify = hasAnyBuiltinRoleGroup(auth, ['MASTER', 'MANAGER', 'DISPATCH'])
-  const showDispatchSms = hasAnyBuiltinRoleGroup(auth, ['MASTER', 'MANAGER', 'DISPATCH'])
-  const showArologisUnassigned = hasAnyBuiltinRoleGroup(auth, ['MASTER', 'MANAGER', 'DISPATCH'])
-  const showDispatchReconcile = hasAnyBuiltinRoleGroup(auth, ['MASTER', 'MANAGER', 'DISPATCH'])
-  const showArologisAdmin = hasAnyBuiltinRoleGroup(auth, ['MASTER', 'MANAGER'])
-  // arologis 그룹 가시성 — 수동 배차 / 가배차 분류 / 미배차 리스트 / 배차안내 SMS / 실배차 비교 / P1-5 admin 중 하나라도 보이면 그룹 노출
+  // [C5 follow-up 사이클1 fix] arologis 메뉴 가시성 = 라우트 PermissionGuard 와 동일 page-code 단일 소스.
+  // (사이클1 리뷰 FE P1-2 + Designer D-002: 그룹 UUID 매칭은 라우트 가드와 소스 이원화 — seed 불일치 시
+  //  사이드바 노출↔진입 redirect 역전 발생. 라우트가 이미 page-code 게이팅이므로 동일 코드로 일원화.)
+  const showArologisManual = dynamicCanAccess('arologis.dispatch.admin', 'view')
+  // 가배차 분류 / 미배차 리스트 / 실배차 비교 — 라우트 공통 arologis.dispatch.ops
+  const showArologisOps = dynamicCanAccess('arologis.dispatch.ops', 'view')
+  const showDispatchSmsPage = dynamicCanAccess('dispatch.batch', 'view')
+  const showDispatchSmsSendAudit = dynamicCanAccess('notification.dispatch-sms.send-audit', 'view')
+  // arologis 그룹 가시성 — 수동 배차 / ops 3종 / 배차안내 SMS / 발송 이력 / P1-5 admin 중 하나라도 보이면 그룹 노출
   const showArologis
     = showArologisManual
-    || showArologisPreClassify
-    || showArologisUnassigned
-    || showDispatchSms
-    || showDispatchReconcile
-    || showArologisAdmin
+    || showArologisOps
+    || showDispatchSmsPage
+    || showDispatchSmsSendAudit
+    || showArologisAdminPage
 
+  // 단톡방 매핑 entry 의 MASTER 제외 분기에서만 사용 — 빌트인 MASTER 그룹 UUID 내부 비교(화면 노출 없음).
   const showAdmin = hasAnyBuiltinRoleGroup(auth, ['MASTER'])
   const showAudit = showInventoryAuditPage
   const showDpsCompare = showInventoryDps
@@ -432,7 +433,7 @@ export function AppLayout() {
           </SidebarLink>
           <SidebarLink
             to="/sales/closing"
-            show={showAccounting}
+            show={showAccountingPeriodClose}
             requiredRole="ACCOUNTANT / MANAGER / MASTER"
             data-testid="sidebar-sales-closing"
           >
@@ -633,7 +634,7 @@ export function AppLayout() {
               ) : null}
               <SidebarLink
                 to="/sales/closing"
-                show={showAccounting}
+                show={showAccountingPeriodClose}
                 data-testid="sidebar-accounting-sales-closing"
               >
                 매출 마감
@@ -814,7 +815,7 @@ export function AppLayout() {
               {/* [Phase 10 PR-E1 FE-2] 가배차 분류 — MASTER/MANAGER/DISPATCH. */}
               <SidebarLink
                 to="/arologis/pre-classify"
-                show={showArologisPreClassify}
+                show={showArologisOps}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-preclassify"
               >
@@ -823,7 +824,7 @@ export function AppLayout() {
               {/* [Phase 10 PR-E1 FE-3] 미배차 리스트 — MASTER/MANAGER/DISPATCH. */}
               <SidebarLink
                 to="/arologis/unassigned"
-                show={showArologisUnassigned}
+                show={showArologisOps}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-unassigned"
               >
@@ -832,7 +833,7 @@ export function AppLayout() {
               {/* [PR-E1 FE-6] 배차안내 SMS — DISPATCH/MANAGER/MASTER. */}
               <SidebarLink
                 to="/arologis/dispatch-sms"
-                show={showDispatchSms}
+                show={showDispatchSmsPage}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-dispatch-sms"
               >
@@ -841,7 +842,7 @@ export function AppLayout() {
               {/* [SP-09-2 FE] SMS 발송 이력 — SEND_AUDIT 전용 조회화면. */}
               <SidebarLink
                 to="/arologis/dispatch-sms/send-audit"
-                show={showDispatchSms}
+                show={showDispatchSmsSendAudit}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-sms-send-audit"
               >
@@ -850,7 +851,7 @@ export function AppLayout() {
               {/* [SP-04] 운송사 실배차 비교 — hidden route 를 공식 메뉴 entry 로 승격. */}
               <SidebarLink
                 to="/arologis/dispatch-reconcile"
-                show={showDispatchReconcile}
+                show={showArologisOps}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-dispatch-reconcile"
               >
@@ -859,7 +860,7 @@ export function AppLayout() {
               {/* [SP-06] 배차지역 관리 — /admin/regions 단일 entry. DISPATCH 는 조회 전용, MANAGER/MASTER 는 수정 가능. */}
               <SidebarLink
                 to="/admin/regions"
-                show={showRegionMgmt || showArologisManual || showArologisRegionPage}
+                show={showRegionMgmt || showArologisRegionPage}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-region-mgmt"
               >
@@ -868,7 +869,7 @@ export function AppLayout() {
               {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER. */}
               <SidebarLink
                 to="/arologis/admin/auto-dispatch"
-                show={showArologisAdmin || showArologisAdminPage}
+                show={showArologisAdminPage}
                 requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-auto-dispatch"
               >
@@ -876,7 +877,7 @@ export function AppLayout() {
               </SidebarLink>
               <SidebarLink
                 to="/arologis/admin/manual-dispatch"
-                show={showArologisAdmin || showArologisAdminPage}
+                show={showArologisAdminPage}
                 requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-manual-dispatch-admin"
               >
@@ -884,7 +885,7 @@ export function AppLayout() {
               </SidebarLink>
               <SidebarLink
                 to="/arologis/admin/driver-assignment"
-                show={showArologisAdmin || showArologisAdminPage}
+                show={showArologisAdminPage}
                 requiredRole="MANAGER / MASTER"
                 data-testid="sidebar-arologis-driver-assignment"
               >
@@ -994,15 +995,11 @@ export function AppLayout() {
             </>
           ) : null}
 
-          {showAdmin ? (
-            <>
-              {/*
-                [PR-HR] MASTER 시점: 관리자 그룹은 인사 카테고리(AdminLayout)로 이전.
-                AppLayout 에서는 단축 링크(사용자/권한 조회)만 유지.
-                실제 인사 관리는 사이드바 최하단 "인사" 카테고리에서 접근.
-              */}
-            </>
-          ) : null}
+          {/*
+            [PR-HR] MASTER 시점: 관리자 그룹은 인사 카테고리(AdminLayout)로 이전 —
+            구 showAdmin 빈 블록은 dead-code 라 제거 (사이클1 Designer D-003).
+            실제 인사 관리는 사이드바 최하단 "인사" 카테고리에서 접근.
+          */}
 
           {/*
             [PR-D Phase B FE-D] MANAGER 전용 — 단톡방 매핑 단독 노출.

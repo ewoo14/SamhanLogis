@@ -63,7 +63,18 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(layout).toContain("dynamicCanAccess('slip.edit-requests.decide', 'view')")
     expect(layout).toContain("dynamicCanAccess('slip.cleanup', 'view')")
     expect(layout).toMatch(/dynamicCanAccess\('products\.sync',\s*'view'\)/)
-    expect(layout).toMatch(/hasAnyBuiltinRoleGroup\(auth,\s*\['MASTER',\s*'MANAGER'\]\)/)
+
+    // [사이클1 fix] arologis 사이드바 = 라우트 PermissionGuard 와 동일 page-code 단일 소스
+    // (그룹 UUID 매칭 분기 제거 — FE P1-2 + Designer D-002 일원화).
+    expect(layout).toMatch(/dynamicCanAccess\('arologis\.dispatch\.admin',\s*'view'\)/)
+    expect(layout).toMatch(/dynamicCanAccess\('arologis\.dispatch\.ops',\s*'view'\)/)
+    expect(layout).toMatch(/dynamicCanAccess\('dispatch\.batch',\s*'view'\)/)
+    expect(layout).toMatch(/dynamicCanAccess\('notification\.dispatch-sms\.send-audit',\s*'view'\)/)
+    // 매출 마감 사이드바 = accounting.period-close 단일 page-code (D-001 과다 노출 교정).
+    expect(layout).not.toMatch(/to="\/sales\/closing"\s+show=\{showAccounting\}/)
+    // hasAnyBuiltinRoleGroup 잔존 = 단톡방 매핑 !showAdmin 분기 1곳 (UUID 내부 비교)만 허용.
+    expect(layout).toMatch(/hasAnyBuiltinRoleGroup\(auth,\s*\['MASTER'\]\)/)
+    expect(layout).not.toMatch(/hasAnyBuiltinRoleGroup\(auth,\s*\['MASTER',\s*'MANAGER'/)
   })
 
   test('S5 route 3건은 PermissionGuard page-code 단일 게이트로 전환된다', () => {

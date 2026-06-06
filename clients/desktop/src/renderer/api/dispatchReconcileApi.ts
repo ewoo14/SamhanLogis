@@ -10,8 +10,8 @@
  * → (날짜 + 슬립번호) left-join → TRUE / FALSE_LEFT / FALSE_RIGHT 분류.
  *
  * <h2>권한</h2>
- * <p>MASTER / MANAGER / DISPATCH (BE {@code @PreAuthorize} 와 일치). FE 화면 진입은
- * {@link ARO_DISPATCH_RECONCILE_ROLES} RoleGuard 적용.
+ * <p>[C5 후속] FE 화면 진입은 라우트 PermissionGuard {@code arologis.dispatch.ops} (view) —
+ * BE @RequirePermission 과 1:1. 구 role 헬퍼/ROLES 상수는 제거.
  *
  * <h2>UUID 비공개</h2>
  * <p>응답 wire-format 에서 UUID 가 제거된 상태 (dispatchId / vehicleId / stopId 미노출).
@@ -125,19 +125,8 @@ export async function reconcileDispatch(
 // 권한 헬퍼 (BE @PreAuthorize 와 일치 — feedback_role_naming_full.md 풀네임)
 // ---------------------------------------------------------------------------
 
-/** 운송사 실배차 비교 화면 진입 — MASTER / MANAGER / DISPATCH. */
-export function canAccessDispatchReconcile(
-  role: string | undefined | null,
-): boolean {
-  return role === 'MASTER' || role === 'MANAGER' || role === 'DISPATCH'
-}
-
-/** 운송사 실배차 비교 진입 가능 ROLE 풀네임 화이트리스트 — RoleGuard prop 용. */
-export const ARO_DISPATCH_RECONCILE_ROLES = [
-  'MASTER',
-  'MANAGER',
-  'DISPATCH',
-] as const
+// [C5 후속 사이클1] canAccessDispatchReconcile / ARO_DISPATCH_RECONCILE_ROLES 제거 —
+// 진입 판정은 라우트 PermissionGuard + 사이드바 dynamicCanAccess('arologis.dispatch.ops','view') 단일 소스.
 
 // ---------------------------------------------------------------------------
 // 표시용 헬퍼 (status 한국어 라벨 / 색상 — Designer mock 보존)

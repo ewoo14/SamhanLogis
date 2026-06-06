@@ -70,6 +70,9 @@ export const useSessionStore = create<SessionState>((set) => ({
  * BE 가드가 막으므로 FE 화면도 그 역할에게 노출해선 안 됨 (P1-B: FE-shows-BE-blocks 방지).
  * 현재 FE 세션 snapshot 에 별도 `isSystemMaster` 필드는 없으므로 MASTER 시스템 전권은
  * V43 MASTER 빌트인 role-group UUID 배속으로 판정한다.
+ * (사이클1 BE P2-2) isSystemMaster 미반영 사유: auth-service 는 is_system_master 계정을
+ * 항상 MASTER 빌트인 그룹(…0100)에 배속하므로(C3a syncBuiltinRoleGroup 불변식)
+ * 그룹 배속 판정이 BE 의 isSystemMaster bypass 와 실효 동일하다.
  *
  * @param auth 현재 인증 snapshot
  */
