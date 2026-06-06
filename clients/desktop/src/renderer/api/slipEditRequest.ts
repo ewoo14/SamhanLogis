@@ -165,18 +165,6 @@ export async function listSlipEditRequests(
 }
 
 /**
- * 창고 직원 대시보드 진입 가드 — WAREHOUSE / MANAGER / MASTER.
- *
- * <p>BE `@PreAuthorize("hasAnyRole('WAREHOUSE','MANAGER','MASTER')")` 와 동일.
- * MANAGER 가 운영상 처리 백업 가능 (창고 부재 시).
- */
-export const SLIP_EDIT_REQUEST_REVIEWER_ROLES = [
-  'WAREHOUSE',
-  'MANAGER',
-  'MASTER',
-] as const
-
-/**
  * 작성자가 수정/삭제 요청 가능한 권한 — SALES / MANAGER / MASTER (전표 작성 권한과 동일).
  */
 export const SLIP_EDIT_REQUEST_AUTHOR_ROLES = [

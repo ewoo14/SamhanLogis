@@ -194,15 +194,6 @@ export async function updateAuditLine(
   return res.data.data
 }
 
-// ---------------------------------------------------------------------------
-// 권한 헬퍼
-// ---------------------------------------------------------------------------
-
-/** 재고 실사 화면 접근 — WAREHOUSE / MASTER 만 (사용자 요구). */
-export function canAccessAudit(role: string | undefined | null): boolean {
-  return role === 'WAREHOUSE' || role === 'MASTER'
-}
-
 /** 신규 실사 등록 / start / complete / cancel — MASTER/MANAGER/INVENTORY (BE 와 일치). */
 export function canManageAudit(role: string | undefined | null): boolean {
   return role === 'MASTER' || role === 'MANAGER' || role === 'INVENTORY'

@@ -519,9 +519,8 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       const currentUrl = page.url()
       const bodyText = (await page.textContent('body')) ?? ''
 
-      // 이중 가드(RoleGuard ACCOUNTING_ROLES + PermissionGuard): SALES 는 바깥 RoleGuard 에서 먼저 차단되어
-      // "접근 권한이 없습니다" 화면을 in-place 렌더(URL 유지)하거나, RoleGuard 통과 시 PermissionGuard 가 "/" redirect.
-      // 둘 중 하나면 차단 성립 — sp-d4 검증 패턴 일관.
+      // C2a 이후 회계 라우트는 PermissionGuard 단일 게이트다.
+      // legacy 이중 가드 시절처럼 in-place 차단 화면이 보이거나, 현재 PermissionGuard 가 "/" redirect 하면 차단 성립.
       const isBlockedByRoleGuard =
         bodyText.includes('접근 권한이 없습니다') || bodyText.includes('권한 보유자만')
       const isRedirectedByPermGuard =
@@ -830,18 +829,13 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
    * 검증 항목:
    *   - POST /auth/admin/permissions/batch → 200 성공 (SALES + accounting.tax-invoice.batch-issue grant)
    *   - ?mockPerms= → accounting.tax-invoice.batch-issue view=true 포함
-   *   - /accounting/tax-invoices 진입 → 세금계산서 목록 표시 (이중 가드: RoleGuard ACCOUNTANT/MANAGER/MASTER 는 통과 안 함)
+   *   - /accounting/tax-invoices 진입 → 세금계산서 목록 표시 시도
    *   - 사이드바에 회계 카테고리 표시 (세금계산서 메뉴 노출)
-   *   - 단, SALES 는 RoleGuard allow={ACCOUNTING_ROLES} 차단됨 (RoleGuard + PermissionGuard 이중 가드)
-   *   - 점진 마이그레이션 패턴 검증: PermissionGuard grant → RoleGuard 벽 확인
+   *   - C2a 이후 PermissionGuard 단일 게이트가 실제 grant 를 기준으로 차단/허용
    *   - pageerror 없음
    *
-   * NOTE: SP-D2 이중 가드 구조:
-   *   1) RoleGuard: ACCOUNTANT/MANAGER/MASTER (정적 화이트리스트)
-   *   2) PermissionGuard: DB 동적 체크
-   *   SALES 는 RoleGuard 에서 이미 차단 → PermissionGuard grant 해도 RoleGuard 벽 유지.
-   *   SP-D3 에서 RoleGuard 제거 후 PermissionGuard 만 남기면 SALES grant 가 유효해짐.
-   *   T5 는 "이중 가드 패턴 + grant 흐름" 검증.
+   * NOTE: SP-D2 작성 당시의 정적 외부 role gate 는 C2a 에서 제거됐다.
+   *   T5 는 현재 PermissionGuard 단일 게이트의 grant 흐름을 검증한다.
    */
   test('T5: 마스터가 SALES 에게 accounting.tax-invoice.batch-issue grant → 이중 가드 패턴 + 사이드바 확인', async ({ page }) => {
     const errors: string[] = []
@@ -904,7 +898,7 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
         timeout: 20000,
       })
 
-      // [C2a] redundant 외부 RoleGuard(ACCOUNTING_ROLES) 제거 → PermissionGuard(accounting.tax-invoice.list) 단일 게이트.
+      // [C2a] redundant 외부 회계 role gate 제거 → PermissionGuard(accounting.tax-invoice.list) 단일 게이트.
       // (Phase C2a 가 SP-D2 주석이 예고했던 "RoleGuard 제거" 를 수행 — grant 가 진실원, Option A/D-PGC-01.)
       // SALES 에게 grant 된 건 tax-invoice.batch-issue 뿐이라 라우트 게이트(tax-invoice.list)는 통과 못함
       // → PermissionGuard 가 홈("/")으로 redirect(404 효과). 접근 차단 유지 = widening 0.

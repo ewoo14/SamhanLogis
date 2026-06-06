@@ -7093,6 +7093,8 @@ const SP_D1_PAGES = [
   'slip.reject',
   'sales.slip.cancel',
   'inventory.warehouse.admin',
+  // C5 follow-up V47 — product-service sheet sync (MANAGER view/create, MASTER bypass)
+  'products.sync',
 ] as const
 
 /**
@@ -7101,6 +7103,7 @@ const SP_D1_PAGES = [
  */
 const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'sales.partner-order.convert': ['CREATE'],
+  'products.sync': ['CREATE'],
 }
 
 /**
@@ -7176,6 +7179,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C5-2c: V35/V36 seed 기반 MANAGER VIEW 추가
     'slip.transfer.process', 'sales.slip.confirm', 'slip.reject',
     'sales.slip.cancel', 'inventory.warehouse.admin',
+    // C5 follow-up V47 — MANAGER sheet sync view.
+    'products.sync',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -7322,6 +7327,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C5-2c: V35/V36 seed 기반 MANAGER EDIT 추가
     'slip.transfer.process', 'sales.slip.confirm', 'slip.reject',
     'sales.slip.cancel', 'inventory.warehouse.admin',
+    // C5 follow-up V47 — MANAGER sheet sync create.
+    'products.sync',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',

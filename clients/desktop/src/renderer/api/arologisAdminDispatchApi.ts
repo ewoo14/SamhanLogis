@@ -41,16 +41,6 @@ import type { UnassignedEntry } from './arologisDispatchApi'
 // 공통 권한 — P1-5 3개 화면 모두 동일 (BE @PreAuthorize 와 1:1)
 // ---------------------------------------------------------------------------
 
-/**
- * P1-5 arologis admin 화면 진입 권한.
- *
- * BE: `@PreAuthorize("hasAnyRole('MASTER','MANAGER')")` (DispatchAdminV1Controller).
- *
- * NOTE — 기존 `arologisDispatchApi.ts` 의 `ARO_PRECLASSIFY_ROLES` 는 DISPATCH 도 포함하지만,
- * P1-5 신규 admin V1 controller 는 MASTER/MANAGER 만 허용. BE 정책과 1:1 일치.
- */
-export const ARO_ADMIN_DISPATCH_ROLES = ['MASTER', 'MANAGER'] as const
-
 // ---------------------------------------------------------------------------
 // DispatchType — BE com.samhanair.logis.arologis.domain.DispatchType 와 1:1
 // ---------------------------------------------------------------------------

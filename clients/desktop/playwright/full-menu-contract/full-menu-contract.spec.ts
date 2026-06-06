@@ -116,7 +116,7 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
   })
 
   test('admin-origin operational screens are standalone guarded routes', () => {
-    expect(routes).toMatch(/path: '\/admin\/sheet-sync'[\s\S]*RoleGuard allow=\{SHEET_SYNC_ROLES\}/)
+    expect(routes).toMatch(/path: '\/admin\/sheet-sync'[\s\S]*PermissionGuard pageCode="products\.sync" action="view"/)
     expect(routes).toMatch(/path: '\/admin\/blocked-partners'[\s\S]*RoleGuard allow=\{BLOCKED_PARTNER_ROLES\}/)
     expect(routes).toMatch(/path: '\/admin\/aligo-address-book'[\s\S]*RoleGuard allow=\{ALIGO_ADDRESS_BOOK_ROLES\}/)
   })

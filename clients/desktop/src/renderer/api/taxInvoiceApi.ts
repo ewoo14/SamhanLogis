@@ -289,8 +289,7 @@ export async function getTaxInvoicePrintData(
 }
 
 // ---------------------------------------------------------------------------
-// 권한 helper — accounting.ts 의 canAccessAccounting 재사용 가능하지만,
-// 세금계산서 전용 의미명으로 별도 export.
+// 권한 helper — 세금계산서 전용 의미명으로 별도 export.
 // ---------------------------------------------------------------------------
 
 /** 세금계산서 메뉴/라우트 접근 권한 — ACCOUNTANT / MASTER 만 허용. */

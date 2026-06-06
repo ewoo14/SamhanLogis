@@ -249,6 +249,7 @@ export type PageCode =
   | 'products.edit-requests'
   | 'products.edit-requests.decide'
   | 'products.ecount-import'
+  | 'products.sync'
   | 'arologis.admin'
   | 'arologis.region'
   | 'arologis.dispatch.admin'

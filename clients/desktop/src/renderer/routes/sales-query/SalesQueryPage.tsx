@@ -170,13 +170,14 @@ export function SalesQueryPage() {
   usePageTitle('매출 전표')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const role = useSessionStore((s) => s.auth?.role)
+  const auth = useSessionStore((s) => s.auth)
+  const role = auth?.role
   const { canAccess } = usePermissions()
   const canCreate = canAccess('sales.slip.create', 'create')
   const canExport = canExportSlips(role)
-  // [P1-B] canAccess('sales.slip.list') revert → canQuerySales(role)
-  // BE SlipSalesAccessGuard 는 SALES/MANAGER/MASTER 만 허용 — seed 보다 좁음.
-  const canQuery  = canQuerySales(role)
+  // [C5 follow-up] BE SlipSalesAccessGuard 는 SALES/MANAGER/MASTER 만 허용 — seed 보다 좁음.
+  // role 문자열 fallback 대신 V43 빌트인 role-group UUID 로 판정한다.
+  const canQuery = canQuerySales(auth)
   /** SP-08-6-2: 매출 직접 수정 권한 — 동적 권한(canAccess) */
   const canEditSales = canAccess('sales.slip.edit', 'update')
   /** SP-08-6-3: 매출 soft delete 권한 — 동적 권한(canAccess) */
@@ -1182,4 +1183,3 @@ function PageBtn({
     </button>
   )
 }
-

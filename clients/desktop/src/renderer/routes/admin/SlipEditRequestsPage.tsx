@@ -6,8 +6,8 @@
  *
  * <h2>접근 제어</h2>
  * <ul>
- *   <li>{@link SLIP_EDIT_REQUEST_REVIEWER_ROLES} = WAREHOUSE / MANAGER / MASTER</li>
- *   <li>라우트 단계 {@code RoleGuard} 1차 가드, BE {@code @PreAuthorize} 가 최종 강제</li>
+ *   <li>라우트 단계 {@code PermissionGuard(slip.edit-requests.decide, VIEW)} 가 진입을 제어</li>
+ *   <li>BE {@code @RequirePermission} 이 최종 강제</li>
  * </ul>
  *
  * <h2>UI 구성</h2>

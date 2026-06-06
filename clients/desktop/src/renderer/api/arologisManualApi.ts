@@ -150,7 +150,6 @@ export async function previewManualDispatch(
   )
   return res.data.data
 }
-
 /**
  * 수동 배차 저장 호출.
  *
@@ -166,13 +165,3 @@ export async function createManualDispatch(
   )
   return res.data.data
 }
-
-/**
- * arologis 수동 배차 admin UI 진입 권한.
- *
- * BE `@PreAuthorize("hasAnyRole('MASTER','MANAGER')")` 와 1:1 매핑.
- * 매뉴얼 §5 권한 표 + 풀네임 의무 (feedback_role_naming_full.md).
- *
- * 별도 DISPATCH role 은 backlog — 현재는 MASTER / MANAGER 만.
- */
-export const ARO_MANUAL_DISPATCH_ROLES = ['MASTER', 'MANAGER'] as const

@@ -136,14 +136,3 @@ export function entryFlags(entry: CleanupEntry): CleanupFlag[] {
   if (entry.regionMissing) flags.push('DUPLICATE')
   return flags
 }
-
-/**
- * 화면 진입 가드 role 화이트리스트 — SALES / MANAGER / MASTER.
- *
- * <p>BE @PreAuthorize 와 1:1 일치시켜 전표 정리 메뉴의 403 dead-end 를 제거한다.
- */
-export const SLIP_CLEANUP_ROLES = [
-  'SALES',
-  'MANAGER',
-  'MASTER',
-] as const

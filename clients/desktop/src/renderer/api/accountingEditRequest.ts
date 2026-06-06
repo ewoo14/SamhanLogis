@@ -96,11 +96,6 @@ export async function rejectAccountingEditRequest(
   return normalizeAccountingEditRequest(res.data.data)
 }
 
-export const ACCOUNTING_EDIT_REQUEST_REVIEWER_ROLES = [
-  'MANAGER',
-  'MASTER',
-] as const
-
 export const ACCOUNTING_EDIT_REQUEST_TYPE_LABEL: Record<
   AccountingEditRequestType,
   string

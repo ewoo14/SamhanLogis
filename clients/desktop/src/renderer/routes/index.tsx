@@ -66,7 +66,6 @@ import {
 } from 'react-router-dom'
 import { AuthGuard } from '../components/AuthGuard'
 import { AppLayout } from '../components/AppLayout'
-import { RoleGuard } from '../components/RoleGuard'
 import { LoginPage } from './LoginPage'
 import { DashboardPage } from './DashboardPage'
 import { NotificationHistoryPage } from './NotificationHistoryPage'
@@ -177,7 +176,6 @@ import { DispatchSmsPage } from './DispatchSmsPage'
 import { DispatchSmsSendAuditPage } from './DispatchSmsSendAuditPage'
 // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — 일자 필터 + 수동 배차로 이동 link (MASTER/MANAGER/DISPATCH)
 import { ArologisUnassignedPage } from './ArologisUnassignedPage'
-// ARO_UNASSIGNED_ROLES 는 위 ARO_PRECLASSIFY_ROLES 주석에 통합
 // [PR-E1 FE-4] 내일자 전표 이미지 페이지 + Designer NextDaySlipView 통합 print route
 import { NextDaySlipPage } from './NextDaySlipPage'
 import { NextDaySlipView } from '../print/NextDaySlipView'
@@ -307,22 +305,6 @@ function NextDaySlipPrintRoute() {
   const perRoom = params.get('perRoom') === '1'
   return <NextDaySlipView pageBreakPerRoom={perRoom} />
 }
-
-/**
- * 회계 권한 풀네임 화이트리스트 (feedback_role_naming_full.md).
- * ACCOUNTANT / MANAGER / MASTER — BE @PreAuthorize 와 1:1 일치 (PR #134 BE+QA 결함 fix).
- */
-const ACCOUNTING_ROLES = ['ACCOUNTANT', 'MANAGER', 'MASTER'] as const
-
-/**
- * PR-F2 Designer mock 단계 임시 권한 (SALES / MANAGER / MASTER).
- * BE Tesseract OCR endpoint 합류 시 정식 `VENDOR_ORDER_OCR_ROLES` 로 교체.
- * 영업 그룹 메뉴 — 거래처 (vendor) 발주서를 영업 직원이 받아 처리.
- */
-const VENDOR_ORDER_OCR_ROLES = ['SALES', 'MANAGER', 'MASTER'] as const
-
-/** 설정 시트 동기화 — MANAGER / MASTER. product-service endpoint 는 인증 사용자만 강제하므로 FE에서 운영 권한을 좁힌다. */
-const SHEET_SYNC_ROLES = ['MANAGER', 'MASTER'] as const
 
 const router = createHashRouter([
   { path: '/login', element: <LoginPage /> },
@@ -461,13 +443,12 @@ const router = createHashRouter([
       // legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR native 이식.
       // 정적 path (`/sales/vendor-order-upload`) → `/sales/:id` 보다 먼저 매칭되어야 함.
       // BE Tesseract OCR endpoint 미구현 — Designer mock state 만 3-step UX 시뮬레이션.
-      // [C2b 보류] sales.vendor-order page-code 가 seed 에 있으나 BE OCR 미구현 상태이므로 RoleGuard 유지.
       {
         path: '/sales/vendor-order-upload',
         element: (
-          <RoleGuard allow={VENDOR_ORDER_OCR_ROLES}>
+          <PermissionGuard pageCode="sales.vendor-order" action="view">
             <SalesVendorOrderUploadPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -1107,13 +1088,12 @@ const router = createHashRouter([
       // 일별/월별 toggle + 세금계산서 detail + CSV.
       // 매뉴얼 docs/manual/02-창고/04-매출-마감.md Stage 1 일치.
       // 정적 path 이므로 `/sales/:id` 보다 먼저 매칭됨 (react-router 정적 우선 규칙).
-      // [C2b 보류] BE endpoint/page-code 미확정 — RoleGuard 유지.
       {
         path: '/sales/closing',
         element: (
-          <RoleGuard allow={ACCOUNTING_ROLES}>
+          <PermissionGuard pageCode="accounting.period-close" action="view">
             <SalesClosingPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
 
@@ -1210,14 +1190,13 @@ const router = createHashRouter([
       },
 
       // [SP-04] 일반 사이드바에서 직접 노출되는 admin-origin 운영 화면.
-      // AdminLayout 은 MASTER+대표실 전용이므로 MANAGER 공용 메뉴는 별도 RoleGuard 로 분리한다.
-      // [C2b 보류] BE 미구현 mock — RoleGuard 유지.
+      // AdminLayout 은 MASTER+대표실 전용이므로 MANAGER 공용 메뉴는 별도 route 로 분리한다.
       {
         path: '/admin/sheet-sync',
         element: (
-          <RoleGuard allow={SHEET_SYNC_ROLES}>
+          <PermissionGuard pageCode="products.sync" action="view">
             <AdminSheetSyncPage />
-          </RoleGuard>
+          </PermissionGuard>
         ),
       },
       // [SP-D4 TM cross-check fix → C2a] partners.block PermissionGuard 단일 게이트.

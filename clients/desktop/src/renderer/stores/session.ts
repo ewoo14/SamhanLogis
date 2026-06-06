@@ -13,9 +13,10 @@
  *   - canTransitionSlip  → canAccess(slipActionPageCode(action), 'update')   [SlipDetailPage]
  *   - canTransitionTransfer → canAccess(transferActionPageCode(action), 'update') [TransferDetailPage]
  *
- * P1-B revert: canQuerySales 는 BE SlipSalesAccessGuard(SALES/MANAGER/MASTER 한정)와
- * 정합을 맞추기 위해 session.ts 에 복원. canAccess('sales.slip.list') 는 seed 가
- * ACCOUNTANT/INVENTORY 에도 view 부여하여 FE 화면은 열리나 API 403 발생.
+ * C5 follow-up: canQuerySales 는 BE SlipSalesAccessGuard(SALES/MANAGER/MASTER 한정)와
+ * 정합을 유지하되 role 문자열 대신 V43 빌트인 role-group UUID 로 판정한다.
+ * canAccess('sales.slip.list') 는 seed 가 ACCOUNTANT/INVENTORY 에도 view 를 부여하여
+ * FE 화면은 열리나 API 403 이 발생하므로 이 전용 헬퍼를 유지한다.
  */
 import { create } from 'zustand'
 import type { AuthSnapshot, AuthGroupItem } from '../types/electron'
@@ -67,12 +68,17 @@ export const useSessionStore = create<SessionState>((set) => ({
  * BE `SlipSalesAccessGuard#canReadOutboundSales` 와 동일 허용 집합(SALES/MANAGER/MASTER).
  * seed `sales.slip.list` 는 ACCOUNTANT/INVENTORY 에도 view=TRUE 를 부여하나,
  * BE 가드가 막으므로 FE 화면도 그 역할에게 노출해선 안 됨 (P1-B: FE-shows-BE-blocks 방지).
+ * 현재 FE 세션 snapshot 에 별도 `isSystemMaster` 필드는 없으므로 MASTER 시스템 전권은
+ * V43 MASTER 빌트인 role-group UUID 배속으로 판정한다.
  *
- * @param role 현재 사용자 role
+ * @param auth 현재 인증 snapshot
  */
-export function canQuerySales(role: string | undefined | null): boolean {
-  if (!role) return false
-  return ['SALES', 'MANAGER', 'MASTER'].includes(role)
+export function canQuerySales(auth: AuthSnapshot | null): boolean {
+  return (
+    hasBuiltinRoleGroup(auth, 'SALES')
+    || hasBuiltinRoleGroup(auth, 'MANAGER')
+    || hasBuiltinRoleGroup(auth, 'MASTER')
+  )
 }
 
 // ---------------------------------------------------------------------------

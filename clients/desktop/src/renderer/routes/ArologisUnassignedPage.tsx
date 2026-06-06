@@ -17,8 +17,8 @@
  * 사용자 노출 식별자 = slipNo / partnerCode / partnerName / address 만. dispatch /
  * slip UUID 는 응답에 포함되지 않으며 화면에도 노출 안 함.
  *
- * <p>ROLE 가드 — RoleGuard ARO_UNASSIGNED_ROLES (MASTER/MANAGER/DISPATCH).
- * 풀네임 의무 (feedback_role_naming_full.md).
+ * <p>권한 가드 — 라우트는 {@code arologis.dispatch.ops} PermissionGuard 로 보호하고,
+ * 사이드바는 V43 빌트인 role-group UUID 기준 MASTER/MANAGER/DISPATCH 배속을 사용한다.
  *
  * <p>data-testid (slice 명세):
  * <ul>

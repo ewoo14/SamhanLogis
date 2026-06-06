@@ -71,11 +71,16 @@ test.describe('SP-08-4-4 주문 인쇄 양식 정적 계약', () => {
 
     expect(controller).toContain('HttpHeaderConstants.PARTNER_CODE_HEADER')
     expect(controller).not.toContain('CALLER_ROLE_HEADER')
-    expect(service).toContain('ROLE_PARTNER')
-    expect(service).toContain('SecurityContextHolder')
+    expect(service).toContain('HttpHeaderConstants.IS_PARTNER_HEADER')
+    expect(service).toContain('request.getHeader(HttpHeaderConstants.IS_PARTNER_HEADER)')
+    expect(service).toContain('return "true".equalsIgnoreCase(isPartner)')
+    expect(service).not.toContain('SecurityContextHolder')
     expect(service).toContain('본인 거래처 주문서만 인쇄할 수 있습니다.')
+    // C5-4 P0 (#415) 에서 헤더 판정으로 전환된 계약 반영.
     expect(it).toContain('testPrintPartnerRoleSeesOwnOrderOnly')
     expect(it).toContain('testPrintPartnerSpoofedRoleHeaderRejected')
+    expect(it).toContain('HttpHeaderConstants.IS_PARTNER_HEADER')
+    expect(it).toContain('HttpHeaderConstants.PARTNER_CODE_HEADER')
     expect(it).toContain('.andExpect(status().isForbidden())')
   })
 })

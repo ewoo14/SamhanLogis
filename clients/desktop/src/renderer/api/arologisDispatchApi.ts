@@ -89,14 +89,6 @@ export interface RegionalResponse {
 }
 
 /**
- * 가배차 분류 admin 진입 권한.
- *
- * <p>BE {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER','DISPATCH')")} 와 1:1.
- * DISPATCH 가 신규로 추가됨 — 운영 가능 role 전체 노출.
- */
-export const ARO_PRECLASSIFY_ROLES = ['MASTER', 'MANAGER', 'DISPATCH'] as const
-
-/**
  * 가배차 분류 (REGION 권역) 조회.
  *
  * @param from 조회 시작일 (ISO YYYY-MM-DD)
@@ -112,7 +104,6 @@ export async function getPreClassify(
   )
   return res.data.data
 }
-
 /**
  * 지방 가배차 (시도) 조회.
  *
@@ -182,12 +173,3 @@ export async function getUnassigned(date: string): Promise<UnassignedResponse> {
   )
   return res.data.data
 }
-
-/**
- * 미배차 리스트 화면 진입 권한 (BE @PreAuthorize 와 1:1).
- *
- * <p>풀네임 의무 (feedback_role_naming_full.md). DISPATCH 역할은 backlog 단계의
- * 신규 role 이며 현재 운영 사용자는 MASTER / MANAGER 만 매핑되지만, BE 가 이미
- * 화이트리스트에 포함하므로 FE 도 동일 집합 유지.
- */
-export const ARO_UNASSIGNED_ROLES = ['MASTER', 'MANAGER', 'DISPATCH'] as const

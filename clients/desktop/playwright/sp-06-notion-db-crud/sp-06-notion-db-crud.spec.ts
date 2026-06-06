@@ -122,7 +122,10 @@ test.describe('SP-06 Notion-origin data is Samhan Public DB CRUD', () => {
   test('partner approval gateway route is accepted by downstream header authentication', () => {
     expect(partnerAuthSecurityConfig).toContain('addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)')
     expect(partnerAuthHeaderFilter).toContain('X-User-Id')
-    expect(partnerAuthHeaderFilter).toContain('ROLE_')
+    // C5 후속: role header 는 무시하고 groups header 로 GROUP_ authority 만 생성한다.
+    expect(partnerAuthHeaderFilter).toContain('X-User-Groups')
+    expect(partnerAuthHeaderFilter).toContain('GROUP_')
+    expect(partnerAuthHeaderFilter).not.toContain('ROLE_')
   })
 
   test('docs state migration into our DB followed by DB CRUD, not Notion runtime dependency', () => {
