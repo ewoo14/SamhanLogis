@@ -14,28 +14,32 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Phase C4: isSystemMaster claim generate/parse 검증 — 있음/없음/기존 토큰 backward compat.
  * <p>Phase C5-1: groups claim generate/parse 검증 — 있음/없음/구토큰 backward compat.
+ * <p>Phase C5-4: role 클레임 제거 검증 — generate 후 role claim 미포함 확인.
+ *                generateForPartner 신규 메서드 검증 (partnerCode claim 포함).
  */
 @DisplayName("JwtTokenProvider — claim 직렬화·역직렬화 검증")
+@SuppressWarnings("deprecation")
 class JwtTokenProviderTest {
 
     private static final byte[] SECRET =
             "samhanlogis-test-secret-key-must-be-at-least-32-bytes-long".getBytes(StandardCharsets.UTF_8);
 
     @Test
-    @DisplayName("기존 2-arg generate: userId·role 왕복 (하위 호환)")
-    void roundTripPreservesUserIdAndRole() {
+    @DisplayName("Phase C5-4: generate() — role claim 미포함 확인 (인가 경로 role 소멸)")
+    void generate_doesNotContainRoleClaim() {
         String token = JwtTokenProvider.generate("user-001", Role.SALES.name(), 3600L, SECRET);
 
         Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
 
         assertEquals("user-001", JwtTokenProvider.getUserId(parsed));
-        assertEquals("SALES", JwtTokenProvider.getRole(parsed));
+        // C5-4: role 클레임이 JWT 에서 제거됨 — null 반환
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
+        assertThat(parsed.getPayload().containsKey("role")).isFalse();
     }
 
     @Test
     @DisplayName("기존 토큰(isSystemMaster claim 없음) — getIsSystemMaster false 반환")
     void legacyToken_isSystemMasterFalse() {
-        // Phase 12 이전 방식 토큰 — isSystemMaster claim 미포함
         String token = JwtTokenProvider.generate("user-002", Role.MASTER.name(), 3600L, SECRET);
 
         Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
@@ -44,15 +48,16 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    @DisplayName("isSystemMaster=true claim generate/parse 왕복")
-    void isSystemMasterTrue_roundTrip() {
+    @DisplayName("C5-4: isSystemMaster=true claim generate/parse 왕복 — role claim 없음")
+    void isSystemMasterTrue_roundTrip_noRoleClaim() {
         String token = JwtTokenProvider.generate(
                 "master-user", Role.MASTER.name(), null, true, 3600L, SECRET);
 
         Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
 
         assertThat(JwtTokenProvider.getUserId(parsed)).isEqualTo("master-user");
-        assertThat(JwtTokenProvider.getRole(parsed)).isEqualTo("MASTER");
+        // C5-4: role 클레임 미포함
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
         assertThat(JwtTokenProvider.getIsSystemMaster(parsed)).isTrue();
     }
 
@@ -70,8 +75,8 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    @DisplayName("departmentName + isSystemMaster 동시 포함 토큰 왕복")
-    void departmentAndSystemMaster_roundTrip() {
+    @DisplayName("C5-4: departmentName + isSystemMaster 동시 포함 토큰 왕복 — role 없음")
+    void departmentAndSystemMaster_roundTrip_noRoleClaim() {
         String token = JwtTokenProvider.generate(
                 "master-2", Role.MASTER.name(), "대표실", true, 3600L, SECRET);
 
@@ -79,14 +84,15 @@ class JwtTokenProviderTest {
 
         assertThat(JwtTokenProvider.getDepartmentName(parsed)).isEqualTo("대표실");
         assertThat(JwtTokenProvider.getIsSystemMaster(parsed)).isTrue();
-        assertThat(JwtTokenProvider.getRole(parsed)).isEqualTo("MASTER");
+        // C5-4: role 클레임 미포함
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
     }
 
     // ── Phase C5-1 groups claim 검증 ──────────────────────────────────────────
 
     @Test
-    @DisplayName("C5-1: groups claim 포함 7-arg generate/parse 왕복")
-    void groups_generate_roundTrip() {
+    @DisplayName("C5-1+C5-4: groups claim 포함 7-arg generate/parse 왕복 — role 없음")
+    void groups_generate_roundTrip_noRoleClaim() {
         String groupsJoined = "g-uuid-1,g-uuid-2,g-uuid-3";
         String token = JwtTokenProvider.generate(
                 "user-g1", Role.MANAGER.name(), null, false, groupsJoined, 3600L, SECRET);
@@ -94,7 +100,8 @@ class JwtTokenProviderTest {
         Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
 
         assertThat(JwtTokenProvider.getGroups(parsed)).isEqualTo(groupsJoined);
-        assertThat(JwtTokenProvider.getRole(parsed)).isEqualTo("MANAGER");
+        // C5-4: role claim 없음
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
         assertThat(JwtTokenProvider.getIsSystemMaster(parsed)).isFalse();
     }
 
@@ -113,7 +120,6 @@ class JwtTokenProviderTest {
     @Test
     @DisplayName("C5-1: 구토큰(6-arg, groups claim 없음) — getGroups 빈 문자열 반환 (backward compat)")
     void legacyToken_groupsClaimAbsent_returnsEmpty() {
-        // 6-arg 오버로드 (C5-1 이전 토큰 시뮬레이션)
         String token = JwtTokenProvider.generate(
                 "legacy-u", Role.DRIVER.name(), null, false, 3600L, SECRET);
 
@@ -124,8 +130,8 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    @DisplayName("C5-1: groups + departmentName + isSystemMaster 동시 포함 토큰 왕복")
-    void allClaims_roundTrip() {
+    @DisplayName("C5-1+C5-4: groups + departmentName + isSystemMaster 동시 포함 토큰 왕복 — role 없음")
+    void allClaims_roundTrip_noRoleClaim() {
         String groups = "grp-aaa,grp-bbb";
         String token = JwtTokenProvider.generate(
                 "master-full", Role.MASTER.name(), "대표실", true, groups, 3600L, SECRET);
@@ -133,9 +139,49 @@ class JwtTokenProviderTest {
         Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
 
         assertThat(JwtTokenProvider.getUserId(parsed)).isEqualTo("master-full");
-        assertThat(JwtTokenProvider.getRole(parsed)).isEqualTo("MASTER");
+        // C5-4: role claim 없음
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
         assertThat(JwtTokenProvider.getDepartmentName(parsed)).isEqualTo("대표실");
         assertThat(JwtTokenProvider.getIsSystemMaster(parsed)).isTrue();
         assertThat(JwtTokenProvider.getGroups(parsed)).isEqualTo(groups);
+    }
+
+    // ── Phase C5-4 generateForPartner 검증 ──────────────────────────────────
+
+    @Test
+    @DisplayName("C5-4: generateForPartner — partnerCode claim 포함, role 없음")
+    void generateForPartner_containsPartnerCodeClaim_noRoleClaim() {
+        String token = JwtTokenProvider.generateForPartner(
+                "partner-001-uuid", "P001", 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(JwtTokenProvider.getUserId(parsed)).isEqualTo("partner-001-uuid");
+        assertThat(JwtTokenProvider.getPartnerCode(parsed)).isEqualTo("P001");
+        // role claim 없음
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
+        assertThat(parsed.getPayload().containsKey("role")).isFalse();
+    }
+
+    @Test
+    @DisplayName("C5-4: generateForPartner — partnerCode 없으면 claim 미포함")
+    void generateForPartner_nullPartnerCode_claimAbsent() {
+        String token = JwtTokenProvider.generateForPartner(
+                "partner-002-uuid", null, 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(JwtTokenProvider.getPartnerCode(parsed)).isNull();
+        assertThat(parsed.getPayload().containsKey(JwtTokenProvider.CLAIM_PARTNER_CODE)).isFalse();
+    }
+
+    @Test
+    @DisplayName("C5-4: Samhan JWT — getPartnerCode null 반환 (partnerCode claim 없음)")
+    void samhanJwt_getPartnerCode_returnsNull() {
+        String token = JwtTokenProvider.generate("samhan-user", Role.MANAGER.name(), 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(JwtTokenProvider.getPartnerCode(parsed)).isNull();
     }
 }

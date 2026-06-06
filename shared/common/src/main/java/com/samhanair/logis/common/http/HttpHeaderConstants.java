@@ -44,6 +44,19 @@ public final class HttpHeaderConstants {
      */
     public static final String USER_GROUPS_HEADER = "X-User-Groups";
 
+    /**
+     * 파트너(거래처) 계정 식별 header — Phase C5-4 신규.
+     *
+     * <p>api-gateway 가 JWT {@code partnerCode} claim 존재 시 {@code "true"} 를 주입한다.
+     * claim 부재 시 헤더 미전송. downstream {@link PermissionAspect} 에서
+     * PARTNER 거절 판정의 신뢰 근거로 사용된다.
+     *
+     * <p>신뢰 경계: 게이트웨이가 JWT 서명 검증 후 claim 유무로 판정하므로
+     * FE/클라이언트가 임의로 헤더를 주입해도 게이트웨이가 덮어쓴다.
+     * partner-auth JWT 에 {@code partnerCode} claim 이 있을 때만 신뢰한다.
+     */
+    public static final String IS_PARTNER_HEADER = "X-Is-Partner";
+
     private HttpHeaderConstants() {
     }
 }
