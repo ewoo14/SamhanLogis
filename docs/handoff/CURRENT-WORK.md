@@ -4,7 +4,22 @@
 
 ---
 
-## 🆕 2026-06-06 (야간 자율 — 최신) — **Phase C 안전 전체 완료(C2·C3·C4)** / 🔴 C5 정책 보류
+## 🆕 2026-06-06 (야간 자율 — 최신) — **권한 fail-secure 교정(#411 머지)** + Phase C 풀스택 실 Docker QA 보강
+
+> 개발책임자 "a"(풀스택 Docker 실QA 보강) + "모든 버그 fix" 지시. Phase C(C2~C5-2c) 머지분을 **실 Docker 스택**으로 역할 매트릭스 실증 → fail-open 1건 적발·교정 머지. 목업·합성 0, 실 캡처만([[feedback_no_fake_data_ever]]).
+
+### ✅ #411 머지 (`292580b8`) — PermissionAspect fail-open → fail-secure
+실 Docker QA 적발: `PermissionAspect` **account 모드**에서 `DynamicPermissionClient` bean 미구성 시 `joinPoint.proceed()`(검증 skip=**fail-open**) → 해당 서비스 전 `@RequirePermission` 무검증 통과. role 모드(`checkRolePermission`)는 이미 `deny`였던 **비대칭** 해소 → `deny()`(fail-secure) 교정. 로그 `debug→error` 승격, Javadoc 정정, 회귀 테스트 `missingClientDeniesFailSecure` 추가. **정상 배포 영향 0**(14개 @RequirePermission 서비스 전부 bean 존재: auth=DirectDynamicPermissionClient·accounting=PermissionSecurityAutoConfiguration default·그 외 11=DynamicPermissionClientConfig) = 분기 미도달, **설정 누락 안전망**. Claude TM·Codex TM APPROVE(P3 QA문서 whitespace 비차단)·PM 종합. CI 전 green.
+
+### ✅ 실 Docker QA 증빙 (`docs/qa/permission-groups-phase-c-fullstack/real-qa-evidence.md`)
+- **역할 매트릭스 인가 실증**: 실 로그인(dev_master/dev_sales/dev_warehouse/dev_accountant 등) → `GET /auth/admin/permissions/my` 역할별 권한 차등, `@RequirePermission` 200(허용)/403(거부) 실 캡처.
+- **C4 is_system_master bypass**: MASTER JWT isSystemMaster=true → 게이트웨이 헤더 → inventory.transfer 200/200, 비-MASTER 403.
+- **§13 C5-1 재배포 후 JWT groups 클레임 실증**: 직전 QA 컨테이너가 C5-1 머지 **이전 빌드(stale)** 근본원인 박제 → 재빌드/재배포(2026-06-06 14:26 KST) 후 MASTER/비-MASTER JWT `groups` 클레임·`X-User-Groups` 헤더 실값 채워짐 확인.
+- **부수 정비(코드버그 아님)**: 비-MASTER dev 계정 V5 seed 해시 불일치+password_change_required=TRUE → psql bcrypt UPDATE 로 실 로그인 가능화(QA 환경 한정).
+
+---
+
+## 🗄️ 2026-06-06 (야간 자율 — 이전) — **Phase C 안전 전체 완료(C2·C3·C4)** / 🔴 C5 정책 보류
 
 > 개발책임자 "123 순서"(①C3 Option B ②C4 ③C5) 지시. 야간 자율 누계 **8 PR 머지**: #402(C2a)·#403(C2b)·#404(C2c)·#405(C3a)·#406(C3b)·#407(C4) + docs. 각 PR Claude TM·Codex TM·PM 종합 리뷰 3코멘트 게시([[feedback_review_posting_and_zero_skip]]). 전부 CI green(+C4 Docker 실QA) 자율 머지.
 
