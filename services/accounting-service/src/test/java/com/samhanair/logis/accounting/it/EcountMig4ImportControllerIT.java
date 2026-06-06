@@ -96,9 +96,10 @@ class EcountMig4ImportControllerIT extends AbstractPostgresIT {
     @ParameterizedTest(name = "{0} anonymous forbidden")
     @MethodSource("endpoints")
     void anonymous_cannot_upload(String label, String url) throws Exception {
+        // C5-3: 진짜 anonymous = identity 헤더 전무. (구 형태=X-User-Id+role없음 은
+        // X-User-Id 단독 인증 도입으로 정당한 인증 형태가 됨 — 인가는 @RequirePermission 이 담당)
         mockMvc.perform(multipart(url)
                         .file(file())
-                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .with(csrf()))
                 .andExpect(status().isForbidden());
     }

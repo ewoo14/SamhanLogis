@@ -112,11 +112,11 @@ class EcountVoucherImportControllerIT extends AbstractPostgresIT {
 
     @Test
     void anonymous_cannot_upload_all_mig3_import_files() throws Exception {
-        // 게이트웨이 X-User-Role 헤더가 없으면 HeaderAuthenticationFilter 가 인증을 설정하지 않아
-        // 익명 상태가 된다. Spring Security 기본 entry point (Http403ForbiddenEntryPoint) 가 403 반환.
+        // C5-3: identity 헤더 전무 = 익명 → HeaderAuthenticationFilter 가 인증을 설정하지 않아
+        // Spring Security 기본 entry point (Http403ForbiddenEntryPoint) 가 403 반환.
+        // (X-User-Id 단독은 C5-3 부터 정당한 인증 형태 — 인가는 @RequirePermission 담당)
         forEachEndpoint((url, file) -> mockMvc.perform(multipart(url)
                         .file(file)
-                        .header("X-User-Id", "00000000-0000-0000-0000-000000000115")
                         .with(csrf()))
                 .andExpect(status().isForbidden()));
     }

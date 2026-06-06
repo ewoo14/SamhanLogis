@@ -74,7 +74,11 @@ class EcountMig5AccountingImportControllerIT extends AbstractPostgresIT {
             when(dynamicPermissionClient.canView(role, pageCode(url))).thenReturn(true);
         }
 
-        var request = multipart(url).file(file).header("X-User-Id", "00000000-0000-0000-0000-000000000115");
+        var request = multipart(url).file(file);
+        // C5-3: 진짜 anonymous(헤더 전무) 케이스만 X-User-Id 미전송
+        if (!"anonymous".equals(label)) {
+            request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
+        }
         if (role != null) {
             request.header("X-User-Role", role);
         }

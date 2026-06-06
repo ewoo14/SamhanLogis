@@ -55,11 +55,15 @@ test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
     const guard = read(slipSalesGuardPath)
     const slipResponse = read(slipResponsePath)
 
-    // guardOutboundSalesRead 호출 — 매출 권한 체크
-    expect(controller).toContain('SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role)')
+    // guardOutboundSalesRead 호출 — 매출 권한 체크 (C5-3: 그룹/isSystemMaster OR 병행 4-arg)
+    expect(controller).toContain(
+      'SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role, userGroups, isSystemMaster)',
+    )
 
-    // restrictOutboundWhenTypeOmitted — type 미지정 시 OUTBOUND row 자동 제외
-    expect(controller).toContain('SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role)')
+    // restrictOutboundWhenTypeOmitted — type 미지정 시 OUTBOUND row 자동 제외 (C5-3 4-arg, 줄바꿈 호출)
+    expect(controller).toContain(
+      'SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role,',
+    )
 
     // 기본 정렬 slipDate DESC + seqNo DESC
     expect(controller).toContain('Sort.Order.desc("slipDate")')
@@ -236,9 +240,13 @@ test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
     // restrictOutboundWhenTypeOmitted — type 미지정 시 INVENTORY/WAREHOUSE 에게 OUTBOUND 노출 안 함
     expect(guard).toContain('static SlipType restrictOutboundWhenTypeOmitted(SlipType slipType, String role)')
 
-    // controller 에서 guard 호출
-    expect(controller).toContain('SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role)')
-    expect(controller).toContain('SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role)')
+    // controller 에서 guard 호출 (C5-3: 그룹/isSystemMaster OR 병행 4-arg — role 경로 보존 + 그룹 경로 추가)
+    expect(controller).toContain(
+      'SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role, userGroups, isSystemMaster)',
+    )
+    expect(controller).toContain(
+      'SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role,',
+    )
 
     // [P1-B revert] canQuerySales 헬퍼 session.ts 에 복원 — export 존재해야 함
     expect(session).toContain('export function canQuerySales')
