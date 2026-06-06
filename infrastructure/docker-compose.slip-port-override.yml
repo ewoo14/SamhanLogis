@@ -1,7 +1,10 @@
-# 임시 override — 호스트 influxd(PID 8676)가 127.0.0.1:8086 선점 시 slip-service 호스트 포트 우회.
-# 컨테이너 내부 포트(8086)·서비스간 URL(slip-service:8086)·게이트웨이 라우팅은 불변.
-# 사용: docker compose -f docker-compose.yml -f docker-compose.local-all.yml -f docker-compose.slip-port-override.yml up -d slip-service
+# 임시 override — 호스트 influxd 가 127.0.0.1:8086/8088 선점 시 호스트 포트 우회.
+# 컨테이너 내부 포트·서비스간 URL·게이트웨이 라우팅은 불변.
+# 사용: docker compose -f docker-compose.yml -f docker-compose.local-all.yml -f docker-compose.slip-port-override.yml up -d
 services:
   slip-service:
     ports: !override
       - "127.0.0.1:18086:8086"
+  partner-order-service:
+    ports: !override
+      - "127.0.0.1:18088:8088"
