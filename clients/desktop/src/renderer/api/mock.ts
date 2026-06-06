@@ -164,6 +164,34 @@ function _resolveMockRole(): string {
 }
 
 /**
+ * V43 빌트인 그룹 UUID 카탈로그 — role 코드 → 고정 UUID + 한국어 그룹명.
+ * UUID 는 내부 식별 전용이며 사용자 화면에 직접 노출하지 않는다
+ * (feedback_uuid_no_user_visibility).
+ */
+const BUILTIN_GROUP_BY_ROLE: Record<string, { id: string; name: string }> = {
+  MASTER:       { id: '00000000-0000-0000-0000-000000000100', name: '마스터' },
+  MANAGER:      { id: '00000000-0000-0000-0000-000000000101', name: '매니저' },
+  SALES:        { id: '00000000-0000-0000-0000-000000000102', name: '영업원' },
+  WAREHOUSE:    { id: '00000000-0000-0000-0000-000000000103', name: '창고원' },
+  ACCOUNTANT:   { id: '00000000-0000-0000-0000-000000000104', name: '회계원' },
+  INVENTORY:    { id: '00000000-0000-0000-0000-000000000105', name: '재고원' },
+  DISPATCH:     { id: '00000000-0000-0000-0000-000000000106', name: '배차담당자' },
+  DRIVER:       { id: '00000000-0000-0000-0000-000000000107', name: '기사' },
+  STAFF:        { id: '00000000-0000-0000-0000-000000000108', name: '사원' },
+  DEVELOPER:    { id: '00000000-0000-0000-0000-000000000109', name: '개발자' },
+}
+
+/**
+ * role 코드에 대응하는 빌트인 그룹 항목 배열을 반환한다.
+ * 알 수 없는 role 은 빈 배열 반환. 기존 mockRole 쿼리 파라미터 호환 유지.
+ */
+function _resolveMockGroups(role: string): Array<{ id: string; name: string; builtin: boolean }> {
+  const entry = BUILTIN_GROUP_BY_ROLE[role]
+  if (!entry) return []
+  return [{ id: entry.id, name: entry.name, builtin: true }]
+}
+
+/**
  * 권한 시나리오 override — dev/test 전용. `?mockPerms=<base64(JSON)>` 로 revoke/grant 시나리오를
  * in-process mock 에 주입한다(Playwright `page.route` 가 mock 모드에서 무효인 한계 우회 — 3-A2-③).
  * JSON = Array<{ pageCode: string; view?: boolean; edit?: boolean }>. view 기본 true / edit 기본 false.
@@ -185,12 +213,15 @@ function _resolveMockPerms(): Array<{ pageCode: string; view: boolean; edit: boo
   }
 }
 
+const _mockRole = _resolveMockRole()
+
 export const MOCK_AUTH = {
   token: 'mock-jwt-token',
   userId: '00000000-0000-0000-0000-000000010001',
-  role: _resolveMockRole(),
+  role: _mockRole,
   fullName: '오병승',
   partnerCode: 'P-MOCK-001',
+  groups: _resolveMockGroups(_mockRole),
 }
 
 /**
@@ -870,8 +901,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       token: MOCK_AUTH.token,
       userId: MOCK_AUTH.userId,
       role: MOCK_AUTH.role,
-      fullName: MOCK_AUTH.fullName,
+      displayName: MOCK_AUTH.fullName,
       partnerCode: MOCK_AUTH.partnerCode,
+      groups: MOCK_AUTH.groups,
     })
   }
 

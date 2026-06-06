@@ -9,6 +9,13 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 
+/** 권한 그룹 항목 — IPC 직렬화 경유형. */
+interface AuthGroupItem {
+  id: string
+  name: string
+  builtin: boolean
+}
+
 /**
  * 메인 프로세스가 보관/반환하는 인증 스냅샷 형태.
  * `src/main/store/auth-store.ts#AuthSnapshot` 와 1:1 일치해야 한다.
@@ -19,6 +26,8 @@ interface AuthSnapshot {
   role: string
   fullName: string
   partnerCode?: string
+  /** Phase C5-3: 권한 그룹 목록. optional — 기존 저장소 호환. */
+  groups?: AuthGroupItem[]
 }
 
 /**

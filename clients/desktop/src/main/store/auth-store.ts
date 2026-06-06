@@ -12,8 +12,19 @@ import Store from 'electron-store'
 import { safeStorage } from 'electron'
 
 /**
+ * 권한 그룹 항목 — 직렬화 보관용.
+ * id(UUID) 는 내부 식별 전용이며 사용자 화면에 직접 노출하지 않는다.
+ */
+export interface AuthGroupItem {
+  id: string
+  name: string
+  builtin: boolean
+}
+
+/**
  * electron-store 에 저장되는 스키마.
  * `encryptedToken` 은 base64 로 인코딩된 암호문 (또는 평문 fallback).
+ * `groupsJson` 은 AuthGroupItem[] 의 JSON 직렬화 문자열.
  */
 interface AuthSchema {
   encryptedToken?: string
@@ -21,6 +32,7 @@ interface AuthSchema {
   role?: string
   fullName?: string
   partnerCode?: string
+  groupsJson?: string
 }
 
 const store = new Store<AuthSchema>({ name: 'samhan-auth' })
@@ -28,6 +40,8 @@ const store = new Store<AuthSchema>({ name: 'samhan-auth' })
 /**
  * 메인 프로세스에 보관할 인증 정보 묶음.
  * 렌더러는 이 형태 그대로 IPC 응답으로 받는다.
+ *
+ * `groups` 는 Phase C5-3 에서 추가. 기존 저장소 호환을 위해 optional.
  */
 export interface AuthSnapshot {
   token: string
@@ -35,6 +49,7 @@ export interface AuthSnapshot {
   role: string
   fullName: string
   partnerCode?: string
+  groups?: AuthGroupItem[]
 }
 
 /**
@@ -47,6 +62,8 @@ export interface AuthSnapshot {
  * @param userId 로그인한 사용자 UUID
  * @param role 사용자 역할 코드 (예: MANAGER, WAREHOUSE)
  * @param fullName 사용자 표시명 — 대시보드 환영 메시지 등에 사용
+ * @param partnerCode 거래처 코드 (선택)
+ * @param groups 권한 그룹 목록 (Phase C5-3, 선택) — JSON 직렬화 보관
  */
 export function saveToken(
   token: string,
@@ -54,6 +71,7 @@ export function saveToken(
   role: string,
   fullName: string,
   partnerCode?: string,
+  groups?: AuthGroupItem[],
 ): void {
   if (safeStorage.isEncryptionAvailable()) {
     const encrypted = safeStorage.encryptString(token).toString('base64')
@@ -70,6 +88,11 @@ export function saveToken(
     store.set('partnerCode', partnerCode.trim())
   } else {
     store.delete('partnerCode')
+  }
+  if (groups && groups.length > 0) {
+    store.set('groupsJson', JSON.stringify(groups))
+  } else {
+    store.delete('groupsJson')
   }
 }
 
@@ -96,12 +119,23 @@ export function loadToken(): AuthSnapshot | null {
     token = encrypted
   }
 
+  let groups: AuthGroupItem[] | undefined
+  const groupsJson = store.get('groupsJson')
+  if (groupsJson) {
+    try {
+      groups = JSON.parse(groupsJson) as AuthGroupItem[]
+    } catch {
+      groups = undefined
+    }
+  }
+
   return {
     token,
     userId: store.get('userId') ?? '',
     role: store.get('role') ?? '',
     fullName: store.get('fullName') ?? '',
     partnerCode: store.get('partnerCode'),
+    groups,
   }
 }
 

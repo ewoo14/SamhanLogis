@@ -18,7 +18,7 @@
  * ACCOUNTANT/INVENTORY 에도 view 부여하여 FE 화면은 열리나 API 403 발생.
  */
 import { create } from 'zustand'
-import type { AuthSnapshot } from '../types/electron'
+import type { AuthSnapshot, AuthGroupItem } from '../types/electron'
 import { MOCK_AUTH, isMockMode } from '../api/mock'
 
 interface SessionState {
@@ -73,4 +73,48 @@ export const useSessionStore = create<SessionState>((set) => ({
 export function canQuerySales(role: string | undefined | null): boolean {
   if (!role) return false
   return ['SALES', 'MANAGER', 'MASTER'].includes(role)
+}
+
+// ---------------------------------------------------------------------------
+// Phase C5-3: 권한 그룹 셀렉터 / 헬퍼
+// ---------------------------------------------------------------------------
+
+/**
+ * 현재 세션의 groups 배열을 반환한다.
+ * `null` 세션이거나 BE 미지원 버전 응답 시 빈 배열.
+ *
+ * @param auth 현재 AuthSnapshot
+ */
+export function getSessionGroups(auth: AuthSnapshot | null): AuthGroupItem[] {
+  return auth?.groups ?? []
+}
+
+/**
+ * 빌트인 그룹(builtin=true) 의 표시명을 반환한다.
+ *
+ * 용도: 헤더 칩, 프로필 뱃지 등에서 role 코드 대신 한국어 그룹명 표시.
+ * UUID 는 내부 식별 전용이며 이 함수에서 반환하지 않는다 (feedback_uuid_no_user_visibility).
+ *
+ * 예: `getBuiltinRoleLabel(auth)` → "매니저" / "창고원" / "마스터" 등.
+ * 빌트인 그룹 없거나 groups 미존재 시 `null`.
+ *
+ * @param auth 현재 AuthSnapshot
+ */
+export function getBuiltinRoleLabel(auth: AuthSnapshot | null): string | null {
+  const groups = getSessionGroups(auth)
+  const builtin = groups.find((g) => g.builtin)
+  return builtin?.name ?? null
+}
+
+/**
+ * 주어진 그룹 name 이 현재 세션 groups 에 포함되어 있는지 확인한다.
+ *
+ * PR-2 그룹 기반 소비 전환 시 사용하는 예정 헬퍼.
+ * UUID 를 직접 비교하지 않고 name 을 사용한다 (feedback_uuid_no_user_visibility).
+ *
+ * @param auth 현재 AuthSnapshot
+ * @param groupName 확인할 그룹명 (예: "마스터", "매니저")
+ */
+export function hasGroupByName(auth: AuthSnapshot | null, groupName: string): boolean {
+  return getSessionGroups(auth).some((g) => g.name === groupName)
 }

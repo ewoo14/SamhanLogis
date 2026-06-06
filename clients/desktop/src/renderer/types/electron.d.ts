@@ -5,12 +5,21 @@
  * 본 파일은 import/export 가 없는 ambient 모듈이며, tsconfig `include`
  * 에 잡혀 있는 한 별도 import 없이 전역 타입으로 인식된다.
  */
+/** 권한 그룹 항목 — preload IPC 경유 렌더러 노출형. */
+export interface AuthGroupItem {
+  id: string
+  name: string
+  builtin: boolean
+}
+
 export interface AuthSnapshot {
   token: string
   userId: string
   role: string
   fullName: string
   partnerCode?: string
+  /** Phase C5-3: 권한 그룹 목록. 기존 저장소 호환을 위해 optional. */
+  groups?: AuthGroupItem[]
 }
 
 declare global {

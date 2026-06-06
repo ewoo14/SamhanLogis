@@ -16,10 +16,22 @@ export interface LoginRequest {
 }
 
 /**
+ * 권한 그룹 항목 — BE `PermissionGroupSummary` 와 1:1.
+ * id(UUID) 는 내부 식별 전용이며 사용자 화면에 직접 노출하지 않는다.
+ */
+export interface LoginGroupItem {
+  id: string
+  name: string
+  builtin: boolean
+}
+
+/**
  * 로그인 응답 데이터 — BE `LoginResponse`.
  *
  * `displayName` 은 사용자 표시명 (예: "홍길동 매니저") 이며, 메인 프로세스
  * `AuthSnapshot.fullName` 에 매핑된다.
+ *
+ * `groups` 는 Phase C5-3 에서 추가된 권한 그룹 목록 (기존 서버 호환을 위해 optional).
  */
 export interface LoginResponse {
   token: string
@@ -27,6 +39,7 @@ export interface LoginResponse {
   role: string
   displayName: string
   partnerCode?: string
+  groups?: LoginGroupItem[]
 }
 
 /**
