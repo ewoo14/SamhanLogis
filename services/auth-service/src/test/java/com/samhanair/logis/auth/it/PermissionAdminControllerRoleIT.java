@@ -126,7 +126,8 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
     void getMatrix_masterRole_returns200() throws Exception {
         MvcResult result = mockMvc.perform(get("/auth/admin/permissions")
                         .header("X-User-Id", MASTER_ID)
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
 
         // MASTER bypass 로 동적 check() 미호출 실증 — isMasterBypass 가정 검증
@@ -202,6 +203,7 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
         MvcResult result = mockMvc.perform(put("/auth/admin/permissions")
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn();
@@ -221,7 +223,8 @@ class PermissionAdminControllerRoleIT extends AbstractPostgresIT {
     void getAccounts_masterRole_returns200() throws Exception {
         MvcResult result = mockMvc.perform(get("/auth/admin/permissions/accounts")
                         .header("X-User-Id", MASTER_ID)
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
 
         // MASTER bypass → 동적 check() 미호출 실증

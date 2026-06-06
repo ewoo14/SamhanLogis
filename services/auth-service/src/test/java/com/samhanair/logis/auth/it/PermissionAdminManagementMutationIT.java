@@ -106,6 +106,7 @@ class PermissionAdminManagementMutationIT extends AbstractPostgresIT {
         MvcResult master = mockMvc.perform(post("/auth/admin/accounts/{accountId}/groups", SALES_ACCOUNT_ID)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"groupId":"%s"}
@@ -132,6 +133,7 @@ class PermissionAdminManagementMutationIT extends AbstractPostgresIT {
         MvcResult master = mockMvc.perform(put("/auth/admin/permissions")
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(permissionBody(true, true)))
                 .andReturn();
@@ -156,6 +158,7 @@ class PermissionAdminManagementMutationIT extends AbstractPostgresIT {
         MvcResult master = mockMvc.perform(put("/auth/admin/permissions/templates/{roleCode}", TEST_ROLE)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(templateBody(true, true)))
                 .andReturn();
@@ -168,6 +171,7 @@ class PermissionAdminManagementMutationIT extends AbstractPostgresIT {
         MvcResult created = mockMvc.perform(post("/auth/admin/permission-groups")
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"%s","description":"관리 page-code 보유 배속 테스트"}
@@ -182,6 +186,7 @@ class PermissionAdminManagementMutationIT extends AbstractPostgresIT {
         MvcResult delegated = mockMvc.perform(put("/auth/admin/permission-groups/{id}/delegations", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"permissionAdmin":true,"hrRoleManagement":false,"permissionGroups":false}

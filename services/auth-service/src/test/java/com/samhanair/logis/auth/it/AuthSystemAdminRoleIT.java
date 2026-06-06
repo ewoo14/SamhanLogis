@@ -120,6 +120,8 @@ class AuthSystemAdminRoleIT extends AbstractPostgresIT {
         MvcResult result = mockMvc.perform(post("/auth/register")
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER")
+                        // Phase C5-4: role=MASTER 폴백 제거 — X-Is-System-Master=true 필수
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn();
@@ -179,7 +181,9 @@ class AuthSystemAdminRoleIT extends AbstractPostgresIT {
         UUID targetId = UUID.fromString("b0000000-0000-0000-0000-0000000000ff");
         MvcResult result = mockMvc.perform(patch("/auth/admin/accounts/" + targetId + "/unlock")
                         .header("X-User-Id", MASTER_ID)
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        // Phase C5-4: role=MASTER 폴백 제거 — X-Is-System-Master=true 필수
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
 
         // MASTER isMasterBypass → dynamicPermissionClient.check() 절대 미호출

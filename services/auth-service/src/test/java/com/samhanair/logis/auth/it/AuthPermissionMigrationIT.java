@@ -277,9 +277,14 @@ class AuthPermissionMigrationIT extends AbstractPostgresIT {
             MockHttpServletRequestBuilder request,
             UUID accountId,
             String role) {
-        return request
+        MockHttpServletRequestBuilder builder = request
                 .header(USER_ID_HEADER, accountId.toString())
                 .header(ROLE_HEADER, role);
+        // Phase C5-4: role=MASTER 폴백 제거 — MASTER bypass 는 X-Is-System-Master=true 필수.
+        if ("MASTER".equalsIgnoreCase(role)) {
+            builder = builder.header("X-Is-System-Master", "true");
+        }
+        return builder;
     }
 
     private static PermissionDto permissionDto() {

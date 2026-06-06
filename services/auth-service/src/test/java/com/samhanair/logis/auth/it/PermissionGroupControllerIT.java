@@ -110,7 +110,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
     void listGroups_guard() throws Exception {
         MvcResult master = mockMvc.perform(get("/auth/admin/permission-groups")
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
 
         assertThat(master.getResponse().getStatus()).isEqualTo(200);
@@ -132,6 +133,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult duplicate = mockMvc.perform(post("/auth/admin/permission-groups")
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"IT 권한그룹 CRUD","description":"중복"}
@@ -142,6 +144,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult renamed = mockMvc.perform(put("/auth/admin/permission-groups/{id}", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"IT 권한그룹 CRUD 변경","description":"변경 설명"}
@@ -158,7 +161,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
 
         MvcResult deleted = mockMvc.perform(delete("/auth/admin/permission-groups/{id}", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(deleted.getResponse().getStatus()).isEqualTo(204);
 
@@ -176,7 +180,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
     void deleteGuards_return409() throws Exception {
         MvcResult builtin = mockMvc.perform(delete("/auth/admin/permission-groups/{id}", MASTER_GROUP_ID)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(builtin.getResponse().getStatus()).isEqualTo(409);
 
@@ -185,7 +190,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
 
         MvcResult assigned = mockMvc.perform(delete("/auth/admin/permission-groups/{id}", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(assigned.getResponse().getStatus()).isEqualTo(409);
 
@@ -205,6 +211,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult result = mockMvc.perform(post("/auth/admin/accounts/{accountId}/groups", SALES_ACCOUNT_ID)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"groupId":"%s"}
@@ -231,6 +238,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult result = mockMvc.perform(put("/auth/admin/permission-groups/{id}/permissions", MASTER_GROUP_ID)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"rows":[{"pageCode":"%s","actions":{
@@ -256,7 +264,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
 
         MvcResult groups = mockMvc.perform(get("/auth/admin/accounts/{accountId}/groups", SALES_ACCOUNT_ID)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(groups.getResponse().getStatus()).isEqualTo(200);
         assertThat(groups.getResponse().getContentAsString(StandardCharsets.UTF_8))
@@ -273,7 +282,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult unassigned = mockMvc.perform(delete(
                         "/auth/admin/accounts/{accountId}/groups/{groupId}", SALES_ACCOUNT_ID, groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(unassigned.getResponse().getStatus()).isEqualTo(204);
         assertEffective(SALES_ACCOUNT_ID, PAGE, false, false);
@@ -311,6 +321,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                         "/auth/admin/permissions/account/{accountId}", SALES_ACCOUNT_ID)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(managementAccountGrantBody(PAGE_ROLE_MANAGEMENT, true)))
                 .andReturn();
@@ -320,6 +331,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
                         "/auth/admin/permission-groups/{id}/permissions", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(groupMatrixBody(PAGE_ROLE_MANAGEMENT, true, true)))
                 .andReturn();
@@ -350,6 +362,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult granted = mockMvc.perform(put("/auth/admin/permission-groups/{id}/delegations", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"permissionAdmin":false,"hrRoleManagement":true,"permissionGroups":false}
@@ -374,7 +387,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
 
         MvcResult current = mockMvc.perform(get("/auth/admin/permission-groups/{id}/delegations", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(current.getResponse().getStatus()).isEqualTo(200);
         assertThat(current.getResponse().getContentAsString(StandardCharsets.UTF_8))
@@ -383,6 +397,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult revoked = mockMvc.perform(put("/auth/admin/permission-groups/{id}/delegations", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"permissionAdmin":false,"hrRoleManagement":false,"permissionGroups":false}
@@ -396,7 +411,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
 
         MvcResult revokedCurrent = mockMvc.perform(get("/auth/admin/permission-groups/{id}/delegations", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(revokedCurrent.getResponse().getStatus()).isEqualTo(200);
         assertThat(revokedCurrent.getResponse().getContentAsString(StandardCharsets.UTF_8))
@@ -405,7 +421,8 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult unassignedAfterRevoke = mockMvc.perform(delete(
                         "/auth/admin/accounts/{accountId}/groups/{groupId}", SALES_ACCOUNT_ID, groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andReturn();
         assertThat(unassignedAfterRevoke.getResponse().getStatus()).isEqualTo(204);
 
@@ -425,6 +442,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult created = mockMvc.perform(post("/auth/admin/permission-groups")
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name":"%s","description":"%s"}
@@ -441,6 +459,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult assigned = mockMvc.perform(post("/auth/admin/accounts/{accountId}/groups", accountId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"groupId":"%s"}
@@ -454,6 +473,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult result = mockMvc.perform(put("/auth/admin/permission-groups/{id}/permissions", groupId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(groupMatrixBody(PAGE, view, update)))
                 .andReturn();
@@ -464,6 +484,7 @@ class PermissionGroupControllerIT extends AbstractPostgresIT {
         MvcResult result = mockMvc.perform(put("/auth/admin/permissions/account/{accountId}", accountId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID.toString())
                         .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(managementAccountGrantBody(PAGE, view)))
                 .andReturn();
