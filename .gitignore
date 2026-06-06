@@ -135,3 +135,6 @@ infrastructure/docker-compose.qa-override.yml
 _tmp_*
 .pr327.*
 *.class
+
+# C5 cutover DB backups (자격 포함 — 커밋 금지)
+backups/
