@@ -276,10 +276,11 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
                         eq(PermissionAction.RESTORE)))
                 .thenReturn(false);
 
+        // C5-4(C4-3): bypass 키 = X-Is-System-Master 단독 (role 폴백 제거)
         mockMvc.perform(post("/slips/estimates/{id}/revisions/{rev}/restore", estimateId, 1)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_NAME_HEADER, "마스터")
-                        .header(ROLE_HEADER, "MASTER"))
+                        .header("X-Is-System-Master", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(estimateId.toString()));
     }

@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.client;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -97,7 +98,7 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
@@ -113,7 +114,7 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/reserve-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andExpect(jsonPath("$.productCode").value("AC-S3"))
                 .andExpect(jsonPath("$.warehouseId").value(warehouseId.toString()))
@@ -130,7 +131,7 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/ship-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-2"))
                 .andExpect(jsonPath("$.productCode").value("AC-S3"))
@@ -146,7 +147,7 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/release-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-3"))
                 .andExpect(jsonPath("$.productCode").value("AC-S3"))
@@ -161,7 +162,7 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/recall-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andExpect(jsonPath("$.partnerCode").value("P-S4-001"))
                 .andExpect(jsonPath("$.productCode").value("AC-S4"))
@@ -191,7 +192,7 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/unrecall-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(header("X-User-Role", "MASTER"))
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
                 .andExpect(jsonPath("$.recallSlipNo").value("2026/06/03-3"))
                 .andExpect(jsonPath("$.productCode").value("AC-S4"))

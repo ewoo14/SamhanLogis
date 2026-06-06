@@ -254,7 +254,8 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
     void restore_whenPermissionDenied_masterRole_bypassesAndReturns200() throws Exception {
         UUID slipId = createOutboundSlipAsSales(1);
 
-        // RESTORE deny stub 이어도 MASTER 역할은 aspect bypass → 200
+        // RESTORE deny stub 이어도 시스템 마스터는 aspect bypass → 200
+        // C5-4(C4-3): bypass 키 = X-Is-System-Master 단독 (role=="MASTER" 폴백 제거)
         Mockito.when(dynamicPermissionClient.check(
                         ArgumentMatchers.any(UUID.class),
                         ArgumentMatchers.eq(AUDIT_REVERT_PAGE),
@@ -264,7 +265,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
         mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_NAME_HEADER, "마스터")
-                        .header(ROLE_HEADER, "MASTER"))
+                        .header("X-Is-System-Master", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(slipId.toString()));
     }

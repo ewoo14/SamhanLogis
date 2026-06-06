@@ -206,9 +206,10 @@ class EstimatePermissionIT extends AbstractPostgresIT {
                 .when(dynamicPermissionClient)
                 .check(eq(ACCOUNT_ID), eq(EstimatePermissionGuard.PAGE_CODE), org.mockito.ArgumentMatchers.any(PermissionAction.class));
 
+        // C5-4(C4-3): bypass 키 = X-Is-System-Master 단독 (role 폴백 제거)
         mockMvc.perform(get("/slips/estimates")
                         .header("X-User-Id", ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-Is-System-Master", "true"))
                 .andExpect(status().isOk());
     }
 
@@ -231,9 +232,10 @@ class EstimatePermissionIT extends AbstractPostgresIT {
                 .when(dynamicPermissionClient)
                 .check(eq(ACCOUNT_ID), eq(EstimatePermissionGuard.PAGE_CODE), org.mockito.ArgumentMatchers.any(PermissionAction.class));
 
+        // C5-4(C4-3): bypass 키 = X-Is-System-Master 단독 (role 폴백 제거)
         mockMvc.perform(post("/slips/estimates")
                         .header("X-User-Id", ACCOUNT_ID.toString())
-                        .header("X-User-Role", "MASTER")
+                        .header("X-Is-System-Master", "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"partnerId\":\"00000000-0000-0000-0000-000000000001\","
                                 + "\"validUntil\":\"2026-12-31\","
