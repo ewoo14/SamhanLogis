@@ -65,8 +65,9 @@ import {
   type DeliveryTagCode,
 } from '@samhan/design-system'
 import { listSlips, type SlipSummary, type SlipType } from '../api/slip'
-import { useSessionStore, canCreateSlip } from '../stores/session'
+import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 import { InboundInspectionDialog } from './components/InboundInspectionDialog'
 import { canExportSlips, exportSlips } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
@@ -116,11 +117,14 @@ const DELIVERY_TAG_LABEL_MAP: Record<DeliveryTagCode, string> = {
 export function SlipListPage({ mode }: SlipListPageProps) {
   const navigate = useNavigate()
   const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
   const isOutbound = mode === 'OUTBOUND'
   const basePath = isOutbound ? '/sales' : '/purchases'
   const titleLabel = isOutbound ? '출고전표 목록 (legacy)' : '입고전표 목록 (legacy)'
   const newButtonLabel = isOutbound ? '새 출고전표' : '새 입고전표'
   const canExport = canExportSlips(role)
+  // [C5-2b] canCreateSlip(role) → canAccess('sales.slip.create', 'create')
+  const canCreate = canAccess('sales.slip.create', 'create')
 
   // P0-9: INBOUND 모드 검수 Dialog 상태
   const [inspectionSlipId, setInspectionSlipId] = useState<string | null>(null)
@@ -264,7 +268,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
               Excel 다운로드
             </Button>
           ) : null}
-          {canCreateSlip(role) ? (
+          {canCreate ? (
             <Button variant="primary" onClick={() => navigate(`${basePath}/new`)}>
               {newButtonLabel}
             </Button>

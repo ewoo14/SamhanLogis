@@ -2802,3 +2802,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | 결정 | 내용 |
 |---|---|
 | D-PGC-11 | 개발책임자 다중그룹 표현 정책 = **JWT/헤더 그룹 집합 전파**. C5-1 = 그 인프라 additive 부설 — JWT `groups` 클레임(JwtTokenProvider 7-arg, 기존 보존) + 게이트웨이 `X-User-Groups` 헤더(소비처 0, behavior-preserving, 락아웃 0). AuthService.login 이 account_groups comma-join 산출. **C5-2(소비/X-User-Role·role 클레임·accounts.role 제거, FE role 헬퍼/~86파일 그룹 재설계)는 폴백 없는 총 락아웃 위험 → 전 서비스 동시 cutover + DB 백업 + 롤백 + 개발책임자 입회 집중 세션**(계획서 §7, 자율 금지). |
+
+### D-PGC (C5-2b, 2026-06-06)
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-12 | C5-2a 정찰 = 백엔드 사용자 경로 @PreAuthorize(hasRole) 이미 0(전부 INTERNAL/arologis 유지). C5-2b = **FE 인가용 role 의존 → canAccess(pageCode) 이관**. session.ts 헬퍼 4 제거(canCreateSlip/canInspectInbound/canQuerySales/canCreateTransfer) + 직접 role==='MASTER' 5 이관(slip.signature/dc-config.import/partners.block.bulk/arologis.region.manage/system.permission-admin, BE @RequirePermission 대조). 표시용 role·hasAdminRole(coarse)·canTransition*(action 복합)·C2b 보류·AdminLayout 부서가드 유지. 일부 Option A widening(D-PGC-01 일관). source-contract 4 갱신(헬퍼 단언→canAccess). 잔여 = hasAdminRole/canTransition page-code 확정·PARTNER/arologis·C4-3·최종 X-User-Role/role/accounts.role 제거(개발책임자 입회 cutover). |

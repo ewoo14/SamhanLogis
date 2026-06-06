@@ -33,6 +33,7 @@ import {
 } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { useSessionStore } from '../stores/session'
+import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
 
@@ -47,9 +48,11 @@ export function SalesPartnerDcConfigPage() {
   // PR-H4c: 선택 거래처 audit panel.
   const [selectedPartnerCode, setSelectedPartnerCode] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  // PR-D Phase B FE-C — CSV 일괄 업로드는 MASTER role 만 노출 (BE @PreAuthorize 와 일치).
   const role = useSessionStore((s) => s.auth?.role)
-  const canImportCsv = role === 'MASTER'
+  const { canAccess } = usePermissions()
+  // [C5-2b] role==='MASTER' → canAccess('dc-config.import', 'create').
+  // BE @RequirePermission(page="dc-config.import", action=CREATE) — DcConfigImportController.
+  const canImportCsv = canAccess('dc-config.import', 'create')
   const canEditDcConfig = canEditPartnerDcConfig(role)
 
   useEffect(() => {

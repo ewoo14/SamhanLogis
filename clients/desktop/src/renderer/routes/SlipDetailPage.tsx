@@ -1850,7 +1850,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 </div>
               ) : null}
             </div>
-            {role === 'MASTER' ? (
+            {/* [C5-2b] role==='MASTER' → canAccess('slip.signature', 'delete')
+                BE @RequirePermission(page="slip.signature", action=DELETE) — MANAGER/MASTER 허용.
+                IT: SlipPermissionControllerIT "signature invalidate" MANAGER DELETE 확인. */}
+            {canAccess('slip.signature', 'delete') ? (
               <div className="slip-signature-card-actions">
                 <Button
                   variant="danger"
@@ -1859,7 +1862,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     setInvalidateReason('')
                     setInvalidateOpen(true)
                   }}
-                  aria-label="서명 무효화 (MASTER 권한)"
+                  aria-label="서명 무효화"
                 >
                   서명 무효화
                 </Button>

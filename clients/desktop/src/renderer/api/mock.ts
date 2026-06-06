@@ -7048,6 +7048,10 @@ const SP_D1_PAGES = [
   'sales.slip.edit',
   'sales.partner-order.edit',
   'sales.partner-order.convert',
+  // C5-2b 이관 대상 page-codes (slip.signature/partners.block.bulk/arologis.region.manage)
+  'slip.signature',
+  'partners.block.bulk',
+  'arologis.region.manage',
 ] as const
 
 /**
@@ -7123,6 +7127,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C2c 동적 권한 전환 — MANAGER: view 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
+    // C5-2b — MANAGER: slip.signature view+edit, partners.block.bulk view+edit, arologis.region.manage view+edit
+    'slip.signature', 'partners.block.bulk', 'arologis.region.manage',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -7130,6 +7136,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.stock', 'arologis.admin', 'arologis.region',
     // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
     'arologis.dispatch.ops', 'dispatch.batch',
+    // C5-2b — DISPATCH: arologis.region.manage view 전용 (edit=false per RegionsPage 도메인 규칙)
+    'arologis.region.manage',
   ],
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
@@ -7252,6 +7260,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
+    // C5-2b — MANAGER: slip.signature edit(delete), partners.block.bulk edit, arologis.region.manage edit
+    'slip.signature', 'partners.block.bulk', 'arologis.region.manage',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',

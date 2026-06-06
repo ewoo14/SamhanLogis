@@ -54,21 +54,23 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
     expect(page).not.toMatch(/data-testid=\{`purchase-query-inspect-\$\{row\.id\}`\}/)
   })
 
-  test('입고 검수 권한은 메뉴와 버튼이 같은 helper를 쓴다', () => {
+  test('입고 검수 권한은 메뉴와 버튼이 같은 canAccess 패턴을 쓴다', () => {
+    // [C5-2b] canInspectInbound 정적 헬퍼 제거 — usePermissions().canAccess() 로 이관 완료.
+    // session.ts 에 canInspectInbound 함수가 존재하지 않아야 한다.
     const session = read(sessionPath)
     const layout = read(layoutPath)
     const page = read(purchasePagePath)
-    const canInspectInboundBody = session.match(
-      /export function canInspectInbound[\s\S]*?\n}\n/,
-    )?.[0] ?? ''
 
-    expect(canInspectInboundBody).toMatch(
-      /export function canInspectInbound[\s\S]*WAREHOUSE[\s\S]*MANAGER[\s\S]*MASTER/,
-    )
-    expect(canInspectInboundBody).not.toContain('INVENTORY')
+    // C5-2b: session.ts 에 canInspectInbound 정의 없음 — 제거 완료 확인
+    expect(session).not.toContain('export function canInspectInbound')
+
+    // AppLayout: dynamicCanAccess('inbound.inspection') 단독 사용 (정적 fallback 제거됨)
     expect(layout).toContain("const showInboundInspection = dynamicCanAccess('inbound.inspection', 'view')")
-    expect(layout).toContain('|| canInspectInbound(auth?.role)')
-    expect(page).toContain('const canInspect = canInspectInbound(role)')
+    // C5-2b: || canInspectInbound(auth?.role) fallback 제거됨
+    expect(layout).not.toContain('|| canInspectInbound(auth?.role)')
+
+    // PurchaseQueryPage: canAccess('inbound.inspection') 로 이관
+    expect(page).toContain("const canInspect = canAccess('inbound.inspection')")
   })
 
   test('문서는 구매관리 검수 CTA와 업무번호 독립 순번 원칙을 명시한다', () => {

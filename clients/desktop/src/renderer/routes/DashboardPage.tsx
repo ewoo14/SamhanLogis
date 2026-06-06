@@ -11,13 +11,15 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card } from '@samhan/design-system'
 import { listSlips } from '../api/slip'
-import { useSessionStore, canCreateSlip } from '../stores/session'
+import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 export function DashboardPage() {
   usePageTitle('대시보드')
   const auth = useSessionStore((s) => s.auth)
   const navigate = useNavigate()
+  const { canAccess } = usePermissions()
 
   const processingQuery = useQuery({
     queryKey: ['slips', 'processing-count'],
@@ -71,7 +73,7 @@ export function DashboardPage() {
           <Button
             variant="primary"
             onClick={() => navigate('/sales/new')}
-            disabled={!canCreateSlip(auth?.role)}
+            disabled={!canAccess('sales.slip.create', 'create')}
           >
             새 출고전표
           </Button>
@@ -88,9 +90,9 @@ export function DashboardPage() {
             창고관리
           </Button>
         </div>
-        {!canCreateSlip(auth?.role) ? (
+        {!canAccess('sales.slip.create', 'create') ? (
           <p style={{ marginTop: 12, fontSize: 13, color: 'var(--color-neutral-500)' }}>
-            전표 작성은 SALES / MANAGER / MASTER 권한에서만 가능합니다.
+            전표 작성은 전표 작성 권한이 있는 계정에서만 가능합니다.
           </p>
         ) : null}
       </Card>

@@ -56,7 +56,7 @@ import {
   type BlockedPartnerSource,
 } from '../../api/blockedPartnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { useSessionStore } from '../../stores/session'
+import { usePermissions } from '../../hooks/usePermissions'
 
 /** source enum → Badge variant 매핑. */
 const SOURCE_VARIANT: Record<
@@ -94,8 +94,10 @@ function extractMessage(err: unknown): string | null {
 export function BlockedPartnersPage() {
   usePageTitle('발송금지 거래처')
 
-  const role = useSessionStore((s) => s.auth?.role)
-  const canBulkManage = role === 'MASTER'
+  const { canAccess } = usePermissions()
+  // [C5-2b] role==='MASTER' → canAccess('partners.block.bulk', 'create').
+  // BE @RequirePermission(page="partners.block.bulk", action=CREATE/DELETE) — PartnerBlockAdminController.
+  const canBulkManage = canAccess('partners.block.bulk', 'create')
   const queryClient = useQueryClient()
   const [page, setPage] = useState(0)
   const [addOpen, setAddOpen] = useState(false)

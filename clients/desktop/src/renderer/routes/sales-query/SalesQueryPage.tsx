@@ -37,7 +37,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Modal, Input, FormField, DataGrid, type DataGridColumn } from '@samhan/design-system'
 import { querySlips, deleteSalesSlip, type SlipQueryRow } from '../../api/slip'
 import { listWarehouses, type Warehouse } from '../../api/inventory'
-import { useSessionStore, canCreateSlip, canQuerySales } from '../../stores/session'
+import { useSessionStore } from '../../stores/session'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
 import { canExportSlips, exportSlips } from '../../api/excelExportApi'
@@ -172,9 +172,10 @@ export function SalesQueryPage() {
   const queryClient = useQueryClient()
   const role = useSessionStore((s) => s.auth?.role)
   const { canAccess } = usePermissions()
-  const canCreate = canCreateSlip(role)
+  const canCreate = canAccess('sales.slip.create', 'create')
   const canExport = canExportSlips(role)
-  const canQuery  = canQuerySales(role)
+  // [C5-2b] canQuerySales(role) → canAccess('sales.slip.list')
+  const canQuery  = canAccess('sales.slip.list')
   /** SP-08-6-2: 매출 직접 수정 권한 — 동적 권한(canAccess) */
   const canEditSales = canAccess('sales.slip.edit', 'update')
   /** SP-08-6-3: 매출 soft delete 권한 — 동적 권한(canAccess) */

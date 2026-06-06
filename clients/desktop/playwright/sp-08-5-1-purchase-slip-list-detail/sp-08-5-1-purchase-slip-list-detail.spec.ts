@@ -49,11 +49,17 @@ test.describe('SP-08-5-1 매입 목록/상세 계약', () => {
   test('T3 권한 가드는 WAREHOUSE/MANAGER/MASTER만 허용하고 INVENTORY를 제외한다', () => {
     const controller = read('services/slip-service/src/main/java/com/samhanair/logis/slip/web/SlipController.java')
     const session = read('clients/desktop/src/renderer/stores/session.ts')
+    const purchasePage = read('clients/desktop/src/renderer/routes/purchase-query/PurchaseQueryPage.tsx')
     const it = read('services/slip-service/src/test/java/com/samhanair/logis/slip/it/SlipQueryPurchaseIT.java')
 
     expect(controller).toContain('SlipPurchaseAccessGuard.guardInboundPurchaseRead')
-    expect(session).toMatch(/canInspectInbound[\s\S]*WAREHOUSE[\s\S]*MANAGER[\s\S]*MASTER/)
-    expect(session.match(/canInspectInbound[\s\S]*?\n}\n/)?.[0] ?? '').not.toContain('INVENTORY')
+
+    // [C5-2b] canInspectInbound 정적 헬퍼 제거 확인 — session.ts 에 정의 없음
+    expect(session).not.toContain('export function canInspectInbound')
+
+    // [C5-2b] PurchaseQueryPage 가 canAccess('inbound.inspection') 로 게이트 구성
+    expect(purchasePage).toContain("const canInspect = canAccess('inbound.inspection')")
+
     expect(it).toContain('testListPurchaseQueryForbiddenForInventory')
     expect(it).toContain('testListPurchaseQueryForbiddenForAccountant')
     expect(it).toContain('testListInboundForbiddenForSales')

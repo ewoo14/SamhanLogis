@@ -61,7 +61,7 @@ import {
   type RegionUpsertRequest,
 } from '../../api/regionApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
-import { useSessionStore } from '../../stores/session'
+import { usePermissions } from '../../hooks/usePermissions'
 
 /** keywords 컬럼 truncate 한도 (전각 문자 1자 = 1로 단순 계산). */
 const KEYWORDS_TRUNCATE = 60
@@ -90,8 +90,10 @@ const EMPTY_FORM: FormState = {
 export function RegionsPage() {
   usePageTitle('배차지역 관리')
   const queryClient = useQueryClient()
-  const auth = useSessionStore((s) => s.auth)
-  const canManageRegions = auth?.role === 'MASTER' || auth?.role === 'MANAGER'
+  const { canAccess } = usePermissions()
+  // [C5-2b] auth?.role==='MASTER'||'MANAGER' → canAccess('arologis.region.manage', 'create').
+  // BE @RequirePermission(page="arologis.region.manage", action=CREATE/UPDATE/DELETE) — RegionAdminController.
+  const canManageRegions = canAccess('arologis.region.manage', 'create')
 
   const [form, setForm] = useState<FormState | null>(null)
   const [importOpen, setImportOpen] = useState(false)

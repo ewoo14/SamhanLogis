@@ -7,6 +7,9 @@
  * 권한 체크 헬퍼:
  * - `hasAdminRole()` — 창고 등록 등 마스터 데이터 변경 권한 확인
  *   (MASTER / MANAGER / DEVELOPER)
+ *
+ * C5-2b: canCreateSlip / canInspectInbound / canQuerySales / canCreateTransfer 헬퍼는
+ * usePermissions().canAccess() 로 이관 완료. session.ts 에서 제거됨.
  */
 import { create } from 'zustand'
 import type { AuthSnapshot } from '../types/electron'
@@ -59,47 +62,6 @@ export const useSessionStore = create<SessionState>((set) => ({
 export function hasAdminRole(role: string | undefined | null): boolean {
   if (!role) return false
   return role === 'MASTER' || role === 'MANAGER' || role === 'DEVELOPER'
-}
-
-/**
- * 전표 작성 권한 보유 여부.
- * BE `SlipController#create` 가 SALES/MANAGER/MASTER 만 허용하므로 동일 매핑.
- */
-export function canCreateSlip(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'SALES' || role === 'MANAGER' || role === 'MASTER'
-}
-
-/**
- * 입고 검수 화면/버튼 접근 권한.
- * BE `inventory-service` InboundInspectionController 와 동일 매핑.
- */
-export function canInspectInbound(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'WAREHOUSE' || role === 'MANAGER' || role === 'MASTER'
-}
-
-/**
- * 매출 전표 조회 권한 — BE `SlipController#query` 매핑.
- * SALES / MANAGER / MASTER (영업 그룹 + 관리자).
- */
-export function canQuerySales(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'SALES' || role === 'MANAGER' || role === 'MASTER'
-}
-
-/**
- * 이동전표 작성 권한 — BE `StockTransferController#create` 와 동일 매핑.
- * MASTER / MANAGER / WAREHOUSE / INVENTORY.
- */
-export function canCreateTransfer(role: string | undefined | null): boolean {
-  if (!role) return false
-  return (
-    role === 'MASTER'
-    || role === 'MANAGER'
-    || role === 'WAREHOUSE'
-    || role === 'INVENTORY'
-  )
 }
 
 /**

@@ -7,7 +7,7 @@
  *
  * 5 case:
  *   T1 — BE 계약: SlipQueryController.listForQuery SALE 분기 + ownerFullName(salesPersonName) + 정렬
- *   T2 — FE 계약: SalesQueryPage 컴포넌트 + data-testid + canQuerySales boolean + 한국어 라벨
+ *   T2 — FE 계약: SalesQueryPage 컴포넌트 + data-testid + canAccess('sales.slip.list') + 한국어 라벨
  *   T3 — inventory-service endpoint 회귀 (SP-08-5-4 정합 — 출고 흐름)
  *   T4 — audit + UUID 비공개
  *   T5 — 권한 가드 (SALES/MANAGER/MASTER 허용 + INVENTORY/WAREHOUSE 403)
@@ -89,23 +89,22 @@ test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
   })
 
   /**
-   * T2 — FE 계약: SalesQueryPage 컴포넌트 + data-testid + canQuerySales boolean + 한국어 라벨
+   * T2 — FE 계약: SalesQueryPage 컴포넌트 + data-testid + canAccess('sales.slip.list') + 한국어 라벨
    *
-   * SalesQueryPage 가 slipType='OUTBOUND' 로 querySlips 를 호출하고,
-   * canQuerySales 권한 boolean 을 사용하며,
+   * [C5-2b] SalesQueryPage 가 slipType='OUTBOUND' 로 querySlips 를 호출하고,
+   * canAccess('sales.slip.list') 권한 boolean 을 사용하며 (canQuerySales 정적 헬퍼 제거),
    * data-testid 가 UUID 대신 slipNo 기반 비즈니스 식별자를 쓰고,
    * 모든 사용자 노출 라벨이 한국어임을 검증한다.
    */
-  test('T2: SalesQueryPage canQuerySales + OUTBOUND querySlips + 한국어 라벨 + data-testid 계약', () => {
+  test('T2: SalesQueryPage canAccess(sales.slip.list) + OUTBOUND querySlips + 한국어 라벨 + data-testid 계약', () => {
     const page = read(salesQueryPagePath)
     const session = read(sessionPath)
 
-    // canQuerySales — session store 에 정의되어 있어야 함
-    expect(session).toMatch(/export function canQuerySales[\s\S]*SALES[\s\S]*MANAGER[\s\S]*MASTER/)
+    // [C5-2b] canQuerySales 정적 헬퍼 session.ts 에서 제거됨
+    expect(session).not.toContain('export function canQuerySales')
 
-    // SalesQueryPage 가 canQuerySales 를 import 하고 사용
-    expect(page).toContain('canQuerySales')
-    expect(page).toContain("const canQuery  = canQuerySales(role)")
+    // [C5-2b] SalesQueryPage 가 canAccess('sales.slip.list') 를 사용
+    expect(page).toContain("const canQuery  = canAccess('sales.slip.list')")
 
     // slipType: 'OUTBOUND' 로 매출 목록 조회
     expect(page).toContain("slipType: 'OUTBOUND'")
@@ -241,12 +240,13 @@ test.describe('SP-08-6-1 매출 목록/상세 계약', () => {
     expect(controller).toContain('SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role)')
     expect(controller).toContain('SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role)')
 
-    // canQuerySales — session store 에서 SALES/MANAGER/MASTER 체크
-    expect(session).toMatch(/export function canQuerySales[\s\S]*SALES[\s\S]*MANAGER[\s\S]*MASTER/)
+    // [C5-2b] canQuerySales 정적 헬퍼 session.ts 에서 제거됨 — canAccess('sales.slip.list') 로 이관
+    expect(session).not.toContain('export function canQuerySales')
 
-    // INVENTORY 또는 WAREHOUSE 는 canQuerySales 에서 허용하지 않아야 함
-    const canQuerySalesBlock = session.match(/export function canQuerySales[\s\S]*?\n\}/)?.[0] ?? ''
-    expect(canQuerySalesBlock).not.toContain('INVENTORY')
-    expect(canQuerySalesBlock).not.toContain('WAREHOUSE')
+    // [C5-2b] SalesQueryPage 가 canAccess('sales.slip.list') 로 인가 게이트를 구성
+    const salesPage = read(salesQueryPagePath)
+    expect(salesPage).toContain("const canQuery  = canAccess('sales.slip.list')")
+    // canAccess 는 BE @RequirePermission 과 동일 허용 집합(SALES/MANAGER/MASTER)을 DB RBAC 로 결정
+    // — INVENTORY / WAREHOUSE 는 sales.slip.list 권한을 받지 않음 (BE SlipSalesAccessGuard 와 동일)
   })
 })

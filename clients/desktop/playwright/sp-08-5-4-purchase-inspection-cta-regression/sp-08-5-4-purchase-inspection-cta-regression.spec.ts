@@ -4,8 +4,10 @@
  * 목적: SP-08-5-1/2/3 기능 변경 이후 기존 검수 CTA 계약이 깨지지 않았음을 보장.
  * 실행 환경: dev server 없이 소스 정적 분석 (파일 read + 문자열 단언).
  *
+ * [C5-2b 갱신] canInspectInbound 정적 헬퍼 → usePermissions().canAccess('inbound.inspection') 이관.
+ *
  * 5 case:
- *   T1 — SAVED 행 검수 CTA 노출 정적 단언 (canInspectInbound + INSPECTABLE_STATUSES)
+ *   T1 — SAVED 행 검수 CTA 노출 정적 단언 (canAccess('inbound.inspection') + INSPECTABLE_STATUSES)
  *   T2 — CONFIRMED 행 검수 CTA 노출 정적 단언
  *   T3 — InboundInspectionDialog 저장 onSuccess → invalidateQueries(['slips','query','INBOUND'])
  *   T4 — inventory-service endpoint /api/v1/inventory/inbound-inspections/* 계약
@@ -33,23 +35,22 @@ test.describe('SP-08-5-4 구매관리 입고 검수 CTA 회귀', () => {
   /**
    * T1 — SAVED 행 검수 CTA 노출 정적 단언
    *
-   * PurchaseQueryPage 가 INSPECTABLE_STATUSES 에 'SAVED' 를 포함하고,
-   * canInspectInbound 를 이용해 버튼을 조건부 렌더한다는 계약 유지 확인.
+   * [C5-2b] PurchaseQueryPage 가 INSPECTABLE_STATUSES 에 'SAVED' 를 포함하고,
+   * canAccess('inbound.inspection') 를 이용해 버튼을 조건부 렌더한다는 계약 유지 확인.
+   * canInspectInbound 정적 헬퍼는 session.ts 에서 제거됨 — canAccess 단독 사용.
    */
-  test('T1: SAVED 행에서 검수 CTA 노출 — INSPECTABLE_STATUSES + canInspectInbound boolean', () => {
+  test('T1: SAVED 행에서 검수 CTA 노출 — INSPECTABLE_STATUSES + canAccess(inbound.inspection) boolean', () => {
     const page = read(purchasePagePath)
     const session = read(sessionPath)
 
     // INSPECTABLE_STATUSES 에 SAVED 포함
     expect(page).toContain("const INSPECTABLE_STATUSES = ['SAVED', 'CONFIRMED'] as const")
 
-    // canInspectInbound 가 WAREHOUSE/MANAGER/MASTER 체크
-    expect(session).toMatch(
-      /export function canInspectInbound[\s\S]*WAREHOUSE[\s\S]*MANAGER[\s\S]*MASTER/,
-    )
+    // [C5-2b] canInspectInbound 정적 헬퍼 제거 확인
+    expect(session).not.toContain('export function canInspectInbound')
 
-    // PurchaseQueryPage 가 canInspectInbound 를 사용
-    expect(page).toContain('const canInspect = canInspectInbound(role)')
+    // [C5-2b] PurchaseQueryPage 가 canAccess('inbound.inspection') 를 사용
+    expect(page).toContain("const canInspect = canAccess('inbound.inspection')")
 
     // isInspectableInbound helper 가 INSPECTABLE_STATUSES.includes 를 통해 SAVED 행에서 버튼 렌더
     expect(page).toContain('function isInspectableInbound(row: SlipQueryRow, canInspect: boolean): boolean')

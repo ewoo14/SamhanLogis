@@ -30,7 +30,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { canInspectInbound, useSessionStore } from '../stores/session'
+import { useSessionStore } from '../stores/session'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { canAccessAccounting } from '../api/accounting'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
@@ -304,7 +304,9 @@ export function AppLayout() {
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
   const showAdminUsersMgmt         = dynamicCanAccess('admin.users',                  'view')
   const showPermissionAdmin        = dynamicCanAccess('system.permission-admin', 'view')
-  const showPermissionDelegation   = auth?.role === 'MASTER'
+  // [C5-2b] auth?.role === 'MASTER' → canAccess('system.permission-admin').
+  // BE @RequirePermission(page="system.permission-admin") 가 MASTER bypass 포함 단일 가드.
+  const showPermissionDelegation   = showPermissionAdmin
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
   const showPartnersBlock          = dynamicCanAccess('partners.block',               'view')
   const showPartnersEditRequest    = dynamicCanAccess('partners.edit-request',        'view')
@@ -362,9 +364,8 @@ export function AppLayout() {
   // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER
   const showPhotoAudit = canAccessSlipPhotoAudit(auth?.role)
   // [P0-9] 입고 검수 — WAREHOUSE / MANAGER / MASTER (inventory-service 권한과 일치)
-  // [SP-D3] inbound.inspection 동적 RBAC 전환 (정적 role 체크 병행 유지).
+  // [C5-2b] canInspectInbound(role) 정적 fallback 제거 — dynamicCanAccess 단독 사용.
   const showInboundInspection = dynamicCanAccess('inbound.inspection', 'view')
-    || canInspectInbound(auth?.role)
   // [P1-3] 안전재고 알림 — MASTER / MANAGER / WAREHOUSE 가시
   const showSafetyStockAlerts = canAccessSafetyStock(auth?.role)
   // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 품목별 DPS 분석 / 전표 요청 / 사진 감사 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
