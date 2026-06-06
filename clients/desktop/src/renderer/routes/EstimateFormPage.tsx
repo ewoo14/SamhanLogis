@@ -32,6 +32,8 @@ import { AuditRevisionBadge } from '../components/audit/AuditOverlaySection'
 import { searchPartners, type PartnerSummary } from '../api/sales'
 import { lookupProductByModelName } from '../api/slip'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
+import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 
 let __lineUidCounter = 0
 const nextLineUid = (): string => `est-line-${++__lineUidCounter}`
@@ -91,6 +93,8 @@ export function EstimateFormPage() {
   const params = useParams<{ id?: string }>()
   const editId = params['id']
   const isEdit = Boolean(editId)
+  const { canAccess } = usePermissions()
+  const canViewProductLookups = canAccess('products.list', 'view')
 
   usePageTitle(isEdit ? '견적서 편집' : '견적서 작성')
 
@@ -139,6 +143,7 @@ export function EstimateFormPage() {
   const [memo, setMemo] = useState<string>('')
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()])
   const [topError, setTopError] = useState<string>('')
+  const [lineLookupOpen, setLineLookupOpen] = useState(false)
 
   const [partnerKeyword, setPartnerKeyword] = useState<string>('')
   const [showPartnerSuggest, setShowPartnerSuggest] = useState<boolean>(false)
@@ -717,7 +722,7 @@ export function EstimateFormPage() {
         })}
 
         {!isReadOnly ? (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
             <Button
               variant="ghost"
               size="sm"
@@ -726,6 +731,16 @@ export function EstimateFormPage() {
             >
               + 라인 추가
             </Button>
+            {canViewProductLookups ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLineLookupOpen(true)}
+                data-testid="estimate-line-lookup-btn"
+              >
+                참조 조회
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -802,6 +817,11 @@ export function EstimateFormPage() {
           </>
         ) : null}
       </div>
+
+      <LineLookupReferenceModal
+        open={lineLookupOpen}
+        onClose={() => setLineLookupOpen(false)}
+      />
     </>
   )
 }

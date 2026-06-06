@@ -707,6 +707,29 @@ const MOCK_PRODUCTS_BY_MODEL: Record<
   },
 }
 
+const MOCK_MATERIAL_PRICE_ROWS = [
+  { materialKey: 'D2', name: '드레인 호스', price: 25000, optionLabel: '자재' },
+  { materialKey: 'D4', name: '자재 합계', price: 420000, optionLabel: '합계' },
+  { materialKey: 'D7', name: '자재 미포함 기준', price: 0, optionLabel: '미포함' },
+  { materialKey: 'D8', name: '자재 포함 기준', price: 180000, optionLabel: '포함' },
+]
+
+const MOCK_ODU_RECOMMENDATION_ROWS = [
+  { recommendationType: 'HOME_MULTI', indoorCapacity: 2.3, indoorCount: 2, outdoorHp: '4HP' },
+  { recommendationType: 'HOME_MULTI', indoorCapacity: 3.2, indoorCount: 3, outdoorHp: '5HP' },
+  { recommendationType: 'MULTI_HEATING_COOLING', indoorCapacity: 5.2, indoorCount: null, outdoorHp: '6HP' },
+  { recommendationType: 'MULTI_HEATING_COOLING', indoorCapacity: 7.2, indoorCount: null, outdoorHp: '8HP' },
+]
+
+const MOCK_BRANCH_PIPE_ROWS = [
+  { branchCode: '1509', description: '분지관 코드 1509', summaryQty: 1 },
+  { branchCode: '2512', description: '분지관 코드 2512', summaryQty: 2 },
+  { branchCode: '2812', description: '분지관 코드 2812', summaryQty: 2 },
+  { branchCode: '2815', description: '분지관 코드 2815', summaryQty: 3 },
+  { branchCode: '3419', description: '분지관 코드 3419', summaryQty: 4 },
+  { branchCode: '4119', description: '분지관 코드 4119', summaryQty: 5 },
+]
+
 /**
  * 라인 시연용 — 상세 화면 라인 표시.
  * Slice A: `specification` 필드 추가 (피드백 #4 / Designer components.md § 3).
@@ -1001,6 +1024,30 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       first: true,
       last: true,
     })
+  }
+
+  if (method === 'GET' && url.includes('/api/v1/material-prices')) {
+    return MOCK_MATERIAL_PRICE_ROWS
+  }
+
+  if (method === 'GET' && url.includes('/api/v1/odu-recommendations')) {
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const type = (config.params?.['type'] as string | undefined)
+      ?? urlObj.searchParams.get('type')
+    const oduRows = type
+      ? MOCK_ODU_RECOMMENDATION_ROWS.filter((row) => row.recommendationType === type)
+      : MOCK_ODU_RECOMMENDATION_ROWS
+    return oduRows
+  }
+
+  if (method === 'GET' && url.includes('/api/v1/branch-pipes')) {
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const branchCode = (config.params?.['branchCode'] as string | undefined)
+      ?? urlObj.searchParams.get('branchCode')
+    const branchRows = branchCode
+      ? MOCK_BRANCH_PIPE_ROWS.filter((row) => row.branchCode === branchCode)
+      : MOCK_BRANCH_PIPE_ROWS
+    return branchRows
   }
 
   // GET /slips/lookup-product?modelName=...

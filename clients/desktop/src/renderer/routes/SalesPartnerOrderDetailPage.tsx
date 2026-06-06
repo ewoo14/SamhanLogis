@@ -24,6 +24,7 @@ import {
   type PartnerOrderUpdateRequest,
 } from '../api/sales'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
+import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { usePageTitleStore } from '../stores/pageTitle'
@@ -85,6 +86,7 @@ export function SalesPartnerOrderDetailPage() {
   const canDelete = canAccess('sales.partner-order.edit', 'delete')
   const canPrint = canAccess('sales.partner-order.print', 'print')
   const canConvert = canAccess('sales.partner-order.convert', 'create')
+  const canViewProductLookups = canAccess('products.list', 'view')
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
@@ -92,6 +94,7 @@ export function SalesPartnerOrderDetailPage() {
   const [checkedLineIds, setCheckedLineIds] = useState<Set<string>>(new Set())
   /** Phase 2.6d: 재고조회 모달 open 상태. */
   const [inventoryLookupOpen, setInventoryLookupOpen] = useState(false)
+  const [lineLookupOpen, setLineLookupOpen] = useState(false)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
   const [printErrorMessage, setPrintErrorMessage] = useState<string | null>(null)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
@@ -631,6 +634,16 @@ export function SalesPartnerOrderDetailPage() {
                     선택 품목 재고조회
                     {checkedLineIds.size > 0 ? ` (${checkedLineIds.size})` : ''}
                   </Button>
+                  {canViewProductLookups ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="partner-order-line-lookup-btn"
+                      onClick={() => setLineLookupOpen(true)}
+                    >
+                      참조 조회
+                    </Button>
+                  ) : null}
                   {checkedLineIds.size > 0 && (
                     <Button
                       size="sm"
@@ -1148,6 +1161,10 @@ export function SalesPartnerOrderDetailPage() {
         open={inventoryLookupOpen}
         onClose={() => setInventoryLookupOpen(false)}
         lines={inventoryLookupLines}
+      />
+      <LineLookupReferenceModal
+        open={lineLookupOpen}
+        onClose={() => setLineLookupOpen(false)}
       />
     </div>
   )

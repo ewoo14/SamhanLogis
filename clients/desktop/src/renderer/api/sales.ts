@@ -20,17 +20,14 @@
  *       (partner-order-service, read-only).</li>
  *   <li>{@link searchPartners} — `GET /admin/partners/search` (partner-service
  *       `PartnerAdminController`) — 거래처 검색 자동완성.</li>
- *   <li>{@link listLongPendingPartners} — `GET /api/v1/partners/long-pending`
- *       (**미구현** — 대응 BE 컨트롤러 부재. 배포 전 빈 목록 반환).</li>
  * </ul>
  *
- * <p>**미구현 lookup 주의**: 자재단가(`/api/v1/material-prices`) / 추천 실외기
- * (`/api/v1/odu-recommendations`) / 분기관(`/api/v1/branch-pipes/lookup`) lookup 은
- * product-service 에 repository / domain 만 존재하고 노출 컨트롤러가 없어 본 모듈에
- * 함수가 구현되어 있지 않다 (컨트롤러 구현 후 추가 예정).
+ * <p>라인 입력 참조 lookup 3종은 product-service `ProductLookupController` 와 1:1 계약이다.
+ * `ApiResponse` envelope 없이 배열을 직접 반환한다.
  *
- * <p>내부 식별자 비공개 가드 ({@code feedback_uuid_no_user_visibility.md}): 모든 응답에서 화면
- * 노출 식별자는 {@code modelCode}, {@code estimateNumber}, {@code partnerCode} 만 사용한다.
+ * <p>내부 식별자 비공개 가드 ({@code feedback_uuid_no_user_visibility.md}): 화면 노출
+ * 식별자는 {@code modelCode}, {@code estimateNumber}, {@code partnerCode},
+ * {@code materialKey}, {@code branchCode} 같은 비즈니스 키만 사용한다.
  * 내부 식별자는 React key 또는 PATCH/DELETE path param 으로만 사용.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
@@ -94,6 +91,34 @@ export interface SpecKeyTemplate {
   isRecommended: boolean
 }
 
+/** 자재 단가 lookup row — product-service `MaterialPriceResponse` 와 1:1. */
+export interface MaterialPriceRow {
+  materialKey: string
+  name: string
+  price: number
+  optionLabel: string | null
+}
+
+/** 추천 실외기 타입 — product-service `OduRecommendationLookup.RecommendationType` 와 1:1. */
+export type OduRecommendationType =
+  | 'HOME_MULTI'
+  | 'MULTI_HEATING_COOLING'
+
+/** 추천 실외기 lookup row — product-service `OduRecommendationResponse` 와 1:1. */
+export interface OduRecommendationRow {
+  recommendationType: OduRecommendationType
+  indoorCapacity: number
+  indoorCount: number | null
+  outdoorHp: string
+}
+
+/** 분지관 lookup row — product-service `BranchPipeResponse` 와 1:1. */
+export interface BranchPipeRow {
+  branchCode: string
+  description: string | null
+  summaryQty: number | null
+}
+
 /** GET /api/v1/products 검색 옵션. */
 export interface ListProductsOptions {
   usageScope?: UsageScope
@@ -151,6 +176,37 @@ export async function listSpecKeyTemplates(
   const params: Record<string, string> = {}
   if (category) params['category'] = category
   const res = await apiClient.get<SpecKeyTemplate[]>('/api/v1/spec-key-templates', {
+    params,
+  })
+  return res.data
+}
+
+/** 자재 단가 lookup 목록 — envelope 없이 배열 직접 반환. */
+export async function listMaterialPrices(): Promise<MaterialPriceRow[]> {
+  const res = await apiClient.get<MaterialPriceRow[]>('/api/v1/material-prices')
+  return res.data
+}
+
+/** 추천 실외기 lookup 목록 — type 지정 시 BE query filter 사용. */
+export async function listOduRecommendations(
+  type?: OduRecommendationType,
+): Promise<OduRecommendationRow[]> {
+  const params: Record<string, string> = {}
+  if (type) params['type'] = type
+  const res = await apiClient.get<OduRecommendationRow[]>(
+    '/api/v1/odu-recommendations',
+    { params },
+  )
+  return res.data
+}
+
+/** 분지관 lookup 목록 — branchCode 지정 시 BE query filter 사용. */
+export async function listBranchPipes(
+  branchCode?: string,
+): Promise<BranchPipeRow[]> {
+  const params: Record<string, string> = {}
+  if (branchCode) params['branchCode'] = branchCode
+  const res = await apiClient.get<BranchPipeRow[]>('/api/v1/branch-pipes', {
     params,
   })
   return res.data
@@ -611,42 +667,6 @@ export async function holdPartnerOrder(orderNumber: string): Promise<PartnerOrde
 export async function releasePartnerOrder(orderNumber: string): Promise<PartnerOrderDetail> {
   const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
     `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/release`,
-  )
-  return res.data.data
-}
-
-// ---------------------------------------------------------------------------
-// long-pending — partner-service M5 (LongPendingScheduler 결과)
-// ---------------------------------------------------------------------------
-
-/** LongPendingPartner — 30일 이상 미발주 거래처. */
-export interface LongPendingPartner {
-  /** 사업자등록번호 (사용자 노출). */
-  businessRegistrationNumber: string
-  /** 거래처명. */
-  companyName: string
-  /** 담당자명 (FK to EmployeeMaster.employeeName). */
-  assignedManagerName: string | null
-  /** 마지막 주문일 (없으면 null). */
-  lastOrderAt: string | null
-  /** 마지막 견적일. */
-  lastEstimateAt: string | null
-  /** 최근 활동일 (주문/견적 중 가장 최근). */
-  lastActivityAt: string | null
-  /** 미발주 일수 — 30 초과 시 marker 표시. */
-  daysSinceLastActivity: number | null
-  /** PartnerAuth.status — LONG_PENDING_NO_ORDER / ACCESS_DENIED 등. */
-  authStatus: string | null
-}
-
-/** 장기미발주 거래처 페이지 조회. */
-export async function listLongPendingPartners(
-  page = 0,
-  size = 50,
-): Promise<PageResponse<LongPendingPartner>> {
-  const res = await apiClient.get<ApiEnvelope<PageResponse<LongPendingPartner>>>(
-    '/api/v1/partners/long-pending',
-    { params: { page, size } },
   )
   return res.data.data
 }
