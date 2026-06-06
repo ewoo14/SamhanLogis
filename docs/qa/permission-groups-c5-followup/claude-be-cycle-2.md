@@ -1,7 +1,7 @@
 # Claude BE 사이클 2 리뷰 (head `e96861c4` 기준)
 
 > 목적: 사이클 1 fix 2건(Claude fix `3374a0c9` + Codex fix `e96861c4`)이 새 결함을 만들지 않았는지 delta 중심 검증.
-> 검증 범위: `git diff 8c3ff6e4...e96861c4 -- services` (Codex fix delta) +  
+> 검증 범위: `git diff 8c3ff6e4...e96861c4 -- services` (Codex fix delta) +
 > `git diff origin/main...e96861c4 -- services shared` (전체 정합).
 
 ---

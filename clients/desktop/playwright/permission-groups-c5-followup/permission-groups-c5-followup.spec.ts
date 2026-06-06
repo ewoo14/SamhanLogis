@@ -23,6 +23,12 @@ function read(filePath: string): string {
   return fs.readFileSync(filePath, 'utf8')
 }
 
+type MockPerm = { pageCode: string; view?: boolean; edit?: boolean }
+
+function mockPerms(perms: MockPerm[]): string {
+  return btoa(JSON.stringify(perms))
+}
+
 test.describe('권한그룹 C5 후속 정리', () => {
   test('canQuerySales 는 세션 그룹 기반으로 SALES/MANAGER/MASTER 를 판정한다', () => {
     const session = read(sessionPath)
@@ -122,5 +128,44 @@ test.describe('권한그룹 C5 후속 정리', () => {
     })
     await expect(page).toHaveURL(/#\/sales\/closing/)
     await expect(page.getByTestId('sales-closing-new-button')).toBeVisible({ timeout: 15000 })
+  })
+
+  test('mock runtime: V37 ACCOUNTANT daily-closing.run CREATE enables daily close button', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/accounting/daily-closing?mockRole=ACCOUNTANT`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+
+    await expect(page).toHaveURL(/#\/accounting\/daily-closing/)
+    await expect(page.getByTestId('daily-closing-page')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('daily-closing-exec-button')).toBeEnabled()
+    await expect(page.getByText('일마감 실행 권한이 없습니다')).toHaveCount(0)
+  })
+
+  test('mock runtime: view-only daily closing permission keeps daily close button disabled', async ({ page }) => {
+    const viewOnly = encodeURIComponent(mockPerms([
+      { pageCode: 'accounting.daily-closing', view: true, edit: false },
+    ]))
+
+    await page.goto(`${BASE_URL}/#/accounting/daily-closing?mockRole=SALES&mockPerms=${viewOnly}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+
+    await expect(page).toHaveURL(/#\/accounting\/daily-closing/)
+    await expect(page.getByTestId('daily-closing-page')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('daily-closing-exec-button')).toBeDisabled()
+    await expect(page.getByText('일마감 실행 권한이 없습니다')).toBeVisible()
+  })
+
+  test('mock runtime: MASTER daily-closing.unlock UPDATE shows reverse action', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/accounting/daily-closing?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+
+    await expect(page).toHaveURL(/#\/accounting\/daily-closing/)
+    await expect(page.getByTestId('daily-closing-page')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId(/^daily-closing-reverse-button-/)).toBeVisible({ timeout: 15000 })
   })
 })

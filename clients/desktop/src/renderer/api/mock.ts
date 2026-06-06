@@ -3352,6 +3352,52 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  const mockDailyClosingRow = {
+    closingKind: 'SALES' as const,
+    sourceKind: 'TAX_INVOICE' as const,
+    closingDate: '2026-06-07',
+    partnerCode: null,
+    totalSupply: '1000000',
+    totalVat: '100000',
+    totalAmount: '1100000',
+    slipCount: 3,
+    isLocked: true,
+    lockedAt: '2026-06-07T18:00:00+09:00',
+    lockedBy: 'system',
+  }
+
+  // GET/POST/PATCH /accounting/daily-closings — DailyClosingPage mock runtime contract.
+  if (method === 'GET' && url.includes('/accounting/daily-closings')) {
+    return envelope({
+      content: [mockDailyClosingRow],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 20,
+      first: true,
+      last: true,
+    })
+  }
+  if (method === 'POST' && url.endsWith('/accounting/daily-closings')) {
+    const req = (config.data ? JSON.parse(config.data as string) : {}) as Record<string, unknown>
+    return envelope({
+      ...mockDailyClosingRow,
+      closingKind: req['closingKind'] === 'PURCHASE' ? 'PURCHASE' : mockDailyClosingRow.closingKind,
+      sourceKind: typeof req['sourceKind'] === 'string' ? req['sourceKind'] : mockDailyClosingRow.sourceKind,
+      closingDate: typeof req['closingDate'] === 'string' ? req['closingDate'] : mockDailyClosingRow.closingDate,
+      partnerCode: typeof req['partnerCode'] === 'string' ? req['partnerCode'] : null,
+      lockedAt: new Date().toISOString(),
+    })
+  }
+  if (method === 'PATCH' && /\/accounting\/daily-closings\/[^/]+\/lock$/.test(url)) {
+    return envelope({
+      ...mockDailyClosingRow,
+      isLocked: false,
+      lockedAt: null,
+      lockedBy: null,
+    })
+  }
+
   // GET /accounting/closing — MonthEndClosingPage
   if (method === 'GET' && url.includes('/accounting/closing')) {
     return envelope({
@@ -7006,6 +7052,8 @@ const SP_D1_PAGES = [
   'accounting.purchase-slip.list',
   'accounting.deposit-match',
   'accounting.daily-closing',
+  'accounting.daily-closing.run',
+  'accounting.daily-closing.unlock',
   'accounting.general-ledger',
   'notification.dispatch-sms.send-audit',
   'purchases.receipt-ocr',
@@ -7103,6 +7151,10 @@ const SP_D1_PAGES = [
  * seed 정합(예: V41 convert = create-only). 비-MASTER `/permissions/my` mock 도출에 적용.
  */
 const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
+  // V37: accounting.daily-closing.run 은 실행 CREATE endpoint 전용.
+  'accounting.daily-closing.run': ['CREATE'],
+  // V37: accounting.daily-closing.unlock 은 잠금 해제 UPDATE endpoint 전용.
+  'accounting.daily-closing.unlock': ['UPDATE'],
   'sales.partner-order.convert': ['CREATE'],
   'products.sync': ['CREATE'],
 }
@@ -7140,6 +7192,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.list', 'accounting.tax-invoice.batch-issue',
     'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.daily-closing.run',
     'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
     'inbound.inspection', 'dispatch.board',
@@ -7213,7 +7266,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
-    'accounting.deposit-match', 'accounting.daily-closing', 'accounting.general-ledger',
+    'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.daily-closing.run', 'accounting.general-ledger',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
@@ -7295,6 +7349,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   MANAGER: [
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
+    'accounting.daily-closing.run',
     // SP-D1 — MANAGER: edit 미허용 (view 전용)
     // SP-D4 — MANAGER: 대부분 edit 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
@@ -7360,6 +7415,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.daily-closing.run',
     'purchases.receipt-ocr',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
     'accounting.accounts', 'accounting.journals', 'accounting.period-close',
