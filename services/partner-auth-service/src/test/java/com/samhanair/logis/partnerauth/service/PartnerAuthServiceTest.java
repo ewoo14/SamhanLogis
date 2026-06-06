@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.partnerauth.client.DcConfigClient;
 import com.samhanair.logis.partnerauth.client.SmsClient;
 import com.samhanair.logis.partnerauth.config.PartnerAuthJwtProperties;
@@ -146,6 +147,7 @@ class PartnerAuthServiceTest {
 
     @Test
     @DisplayName("로그인 성공 시 token 발급 + failedAttempts reset + lastLoginAt 갱신")
+    @SuppressWarnings("deprecation")
     void login_성공_시_토큰_발급() {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(
                 "1234567890", "P001", passwordEncoder.encode("rightPw!1"), PartnerStatus.NEED_PW_INPUT);
@@ -159,6 +161,14 @@ class PartnerAuthServiceTest {
         assertThat(r.token()).isNotBlank();
         assertThat(pa.getFailedAttempts()).isZero();
         assertThat(pa.getLastLoginAt()).isNotNull();
+
+        // C5-4: generateForPartner 발급 검증 — partnerCode claim 포함, role claim 없음
+        byte[] secret = jwtProperties.getSecret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var parsed = JwtTokenProvider.parse(r.token(), secret);
+        assertThat(JwtTokenProvider.getPartnerCode(parsed)).isEqualTo("P001");
+        // C5-4: role claim 제거 확인
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
+        assertThat(parsed.getPayload().containsKey("role")).isFalse();
     }
 
     private static void setEntityId(PartnerAuth pa, UUID id) {

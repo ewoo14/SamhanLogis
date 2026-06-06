@@ -230,10 +230,13 @@ public class PartnerAuthService {
                 auth.getId(), req.bizNo(), LoginAttemptResult.SUCCESS, clientIp, userAgent, req.mobile()));
 
         // JWT 발급 + session 저장
+        // Phase C5-4: role 클레임 제거, partnerCode claim 으로 파트너 신원 식별.
+        // api-gateway 가 partnerCode claim 존재 시 X-Is-Partner: true 헤더를 주입하여
+        // PermissionAspect 의 PARTNER 거절 판정에 사용된다.
         String jti = UUID.randomUUID().toString();
-        String token = JwtTokenProvider.generate(
+        String token = JwtTokenProvider.generateForPartner(
                 auth.getId().toString(),
-                "PARTNER",
+                auth.getPartnerCode(),
                 jwtProperties.getExpirationSeconds(),
                 jwtProperties.getSecretBytes());
         LocalDateTime now = LocalDateTime.now();
