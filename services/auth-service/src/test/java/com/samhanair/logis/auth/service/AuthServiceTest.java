@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -305,29 +306,23 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("C5-5: updateAccountRole — 빌트인 그룹 역산으로 oldRole 파생 후 syncBuiltinRoleGroup 호출")
+    @DisplayName("C5-5/P1-a: updateAccountRole — syncBuiltinRoleGroup 이 활성 빌트인 그룹 전체 정리 담당(oldRole 역산 불요)")
     void updateAccountRole_changesRoleAndSyncsRoleGroup() {
         UUID accountId = UUID.randomUUID();
         // C5-5: Account.create 에 role 파라미터 없음
         Account account = Account.create("charlie", "$2a$hash", "Charlie");
         ReflectionTestUtils.setField(account, "id", accountId);
 
-        // C5-5: MANAGER 빌트인 그룹 stub (oldRole 역산용)
-        UUID managerGroupId = UUID.fromString("00000000-0000-0000-0000-000000000101");
-        AccountGroup managerGroup = AccountGroup.assign(accountId, managerGroupId);
-
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
-        // C5-5: oldRole 역산을 위한 그룹 배속 조회 stub
-        when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(accountId))
-                .thenReturn(List.of(managerGroup));
-        doNothing().when(accountGroupService).syncBuiltinRoleGroup(eq(accountId), eq(Role.MANAGER), eq(Role.SALES));
+        // P1-a: oldRole 역산 제거 — syncBuiltinRoleGroup 이 내부에서 활성 빌트인 그룹 전체를
+        // soft-delete 후 newRole 단일 배속하므로 oldRole=null 전달, 그룹 조회 stub 불필요.
+        doNothing().when(accountGroupService).syncBuiltinRoleGroup(eq(accountId), isNull(), eq(Role.SALES));
         doNothing().when(effectivePermissionMaterializer).materializeForAccount(accountId);
 
         authService.updateAccountRole(accountId, Role.SALES);
 
-        // C5-5: account.getRole() 제거됨 — role 은 account_groups 로 표현
-        // syncBuiltinRoleGroup 이 oldRole=MANAGER, newRole=SALES 로 호출됐는지 검증
-        verify(accountGroupService).syncBuiltinRoleGroup(accountId, Role.MANAGER, Role.SALES);
+        // P1-a: oldRole=null 로 호출 — 정리 범위는 syncBuiltinRoleGroup 이 활성 빌트인 전체로 결정
+        verify(accountGroupService).syncBuiltinRoleGroup(accountId, null, Role.SALES);
         verify(effectivePermissionMaterializer).materializeForAccount(accountId);
     }
 }

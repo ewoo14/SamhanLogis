@@ -40,6 +40,15 @@ login role 파생이 그룹 미매칭으로 빈 문자열을 반환해도 인증
 - user-service role_snapshot·RoleChangeHistory: HR 직무 도메인.
 - DynamicPermissionService role-mode "MASTER": 데이터 시맨틱(arologis roleBasedEnforcement).
 
+## 6.5 dual review 적발·교정 (`f6f70244`)
+- **P1 (Codex) updateAccountRole 다중 빌트인 그룹 stale**: `syncBuiltinRoleGroup` 이 oldRole 역산 단일 그룹 대신 **활성 빌트인 그룹 전부 ∩ BuiltinRoleGroupIds soft-delete 후 newRole 단일 배속**으로 강화. 신규 IT `updateAccountRole_multipleBuiltinGroups_allOldBuiltinGroupsCleaned`(MANAGER+SALES→WAREHOUSE, 잔존 빌트인 정확히 1개) + 정상 단일 그룹 behavior-preserving IT.
+- **P1 (Claude) AuthController 레이어 위반**: Repository 직접 주입 제거 → `AuthService.getMeResponse(UUID)` 위임(@Transactional readOnly).
+- **P2**: role 파생 3곳 → `BuiltinRoleGroupIds.deriveRoleName` 공통화(미배속 시 log.warn 추적, QA P1-c). listAccounts N+1 → `findByAccountIdInAndIsDeletedFalse` 일괄(1+1). seedAccount Javadoc.
+
+## 6.6 정직 고지 (스크린샷·실 endpoint)
+- 본 PR 은 **백엔드 전용**(DB 컬럼 DROP + 서비스 파생) — GUI 화면 변화 0. PR 본문 스크린샷은 #411·#413·#414·#415 와 동일하게 텍스트 원문 증빙으로 갈음(전례 일관, [[feedback_no_fake_data_ever]] "불가 시 정직 보고").
+- registerWithId(신규계정)·updateAccountRole(역할변경) 실 흐름은 user-service EmployeeController 경유 internal 계약 — 본 게이트는 **RoleGroupSyncIT 실 Testcontainers IT**(신규 SALES/MASTER 등록 + 역할변경 + 다중 빌트인 정리)로 실 DB 검증. 게이트웨이 경유 E2E 는 PR-2 게이트 2 매트릭스(전 역할 로그인/인가)로 이미 실증.
+
 ## 7. 검증 요약
 - 전 모듈 compileJava+compileTestJava + auth/user test green. auth-service IT 213 passed(실 Testcontainers).
 - 롤백: PR revert + DB 백업 복원(`backups/c5-5-pre-drop-*.sql`).
