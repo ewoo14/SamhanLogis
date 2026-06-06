@@ -35,7 +35,7 @@ import org.springframework.web.server.ResponseStatusException;
 // SP-D1 preauth-role 제거: @PreAuthorize("hasRole('MASTER')") → @RequirePermission single source
 // (system.permission-admin seed = MASTER-only, PermissionAspect.isMasterBypass() 통과 → widening 0)
 
-// SP-D1 cycle 2: getMyPermissions endpoint 에서 X-User-Role 헤더를 사용한다.
+// C5-4: getMyPermissions endpoint — X-User-Role 제거. X-Is-System-Master / X-Is-Partner 기반으로 전환 완료.
 
 /**
  * 동적 RBAC 권한 관리 API — SP-D1.
@@ -64,7 +64,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class PermissionAdminController {
 
     private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String USER_ROLE_HEADER = "X-User-Role";
+    /** C5-4: X-User-Role 제거 — actor MASTER 판정은 X-Is-System-Master, PARTNER 판정은 X-Is-Partner 로 전환. */
+    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
+    private static final String IS_PARTNER_HEADER    = "X-Is-Partner";
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final List<String> ALL_ACTION_NAMES = Arrays.stream(PermissionAction.values())
             .map(Enum::name)
@@ -93,12 +95,12 @@ public class PermissionAdminController {
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
             @RequestBody List<AccountPermissionService.AccountPermissionUpdate> request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         int changed = accountPermissionService.updateAccountMatrix(
                 accountId,
                 request,
                 callerOrSystem(actorId),
-                actorRole);
+                isSystemMaster);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -108,8 +110,8 @@ public class PermissionAdminController {
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
             @RequestParam String roleCode,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        int changed = accountPermissionService.applyTemplate(accountId, roleCode, callerOrSystem(actorId), actorRole);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        int changed = accountPermissionService.applyTemplate(accountId, roleCode, callerOrSystem(actorId), isSystemMaster);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -119,12 +121,12 @@ public class PermissionAdminController {
             @org.springframework.web.bind.annotation.PathVariable UUID accountId,
             @RequestParam UUID sourceAccountId,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         int changed = accountPermissionService.copyFromAccount(
                 accountId,
                 sourceAccountId,
                 callerOrSystem(actorId),
-                actorRole);
+                isSystemMaster);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -140,8 +142,8 @@ public class PermissionAdminController {
             @org.springframework.web.bind.annotation.PathVariable String roleCode,
             @RequestBody List<AccountPermissionService.AccountPermissionUpdate> request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        int changed = accountPermissionService.updateTemplate(roleCode, request, callerOrSystem(actorId), actorRole);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        int changed = accountPermissionService.updateTemplate(roleCode, request, callerOrSystem(actorId), isSystemMaster);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -150,8 +152,8 @@ public class PermissionAdminController {
     public ApiResponse<ChangedCountResponse> bulkApply(
             @RequestBody AccountPermissionService.BulkPermissionRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        int changed = accountPermissionService.bulkApply(request, callerOrSystem(actorId), actorRole);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        int changed = accountPermissionService.bulkApply(request, callerOrSystem(actorId), isSystemMaster);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -184,9 +186,9 @@ public class PermissionAdminController {
     public ApiResponse<PermissionDto> updatePermission(
             @Valid @RequestBody PermissionUpdateRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         return ApiResponse.ok(
-                permissionService.updatePermission(request, callerOrSystem(actorId), actorRole));
+                permissionService.updatePermission(request, callerOrSystem(actorId), isSystemMaster));
     }
 
     /**
@@ -203,9 +205,9 @@ public class PermissionAdminController {
     public ApiResponse<List<PermissionDto>> batchUpdate(
             @Valid @RequestBody PermissionBatchUpdateRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         return ApiResponse.ok(
-                permissionService.updatePermissionsBatch(request, callerOrSystem(actorId), actorRole));
+                permissionService.updatePermissionsBatch(request, callerOrSystem(actorId), isSystemMaster));
     }
 
     /**
@@ -225,8 +227,8 @@ public class PermissionAdminController {
             @RequestParam String roleCode,
             @RequestParam String pageCode,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actorId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        permissionService.deletePermission(roleCode, pageCode, callerOrSystem(actorId), actorRole);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        permissionService.deletePermission(roleCode, pageCode, callerOrSystem(actorId), isSystemMaster);
     }
 
     /**
@@ -235,23 +237,29 @@ public class PermissionAdminController {
      * <p>FE {@code GET /admin/permissions/my} 호출 대응 endpoint.
      * X-User-Id 헤더의 account UUID 로 account_page_permissions 를 조회한다.
      *
-     * <p>MASTER 역할의 경우 DB row 유무에 관계없이 모든 PageCode 에 대해 7-action true 반환.
-     * PARTNER/누락/잘못된 account UUID 는 빈 map 으로 fail-closed 한다.
+     * <p>C5-4 actor 전환: X-User-Role 헤더 대신 아래 헤더로 identity 를 판정한다:
+     * <ul>
+     *   <li>X-Is-System-Master=true → MASTER: 모든 PageCode 전권 반환</li>
+     *   <li>X-Is-Partner=true → PARTNER: 빈 map 반환 (fail-closed)</li>
+     *   <li>그 외 → X-User-Id 기반 account_page_permissions 조회</li>
+     * </ul>
+     * 누락/잘못된 account UUID 는 빈 map 으로 fail-closed 한다.
      *
-     * @param userId   요청자 계정 UUID (X-User-Id 헤더, api-gateway 에서 JWT sub 전파)
-     * @param userRole 요청자 역할 (X-User-Role 헤더, api-gateway 에서 전파)
+     * @param userId         요청자 계정 UUID (X-User-Id 헤더, api-gateway 에서 JWT sub 전파)
+     * @param isSystemMaster X-Is-System-Master 헤더 ("true" = MASTER)
+     * @param isPartner      X-Is-Partner 헤더 ("true" = PARTNER identity)
      * @return pageCode → 허용 action enum name 목록
      */
     @GetMapping("/my")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<Map<String, List<String>>> getMyPermissions(
             @RequestHeader(value = USER_ID_HEADER, required = false) String userId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String userRole) {
-        String roleCode = (userRole == null || userRole.isBlank()) ? "UNKNOWN" : userRole;
-        if ("MASTER".equalsIgnoreCase(roleCode)) {
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster,
+            @RequestHeader(value = IS_PARTNER_HEADER, required = false) String isPartner) {
+        if ("true".equalsIgnoreCase(isSystemMaster)) {
             return ApiResponse.ok(allPageActions());
         }
-        if ("PARTNER".equalsIgnoreCase(roleCode)) {
+        if ("true".equalsIgnoreCase(isPartner)) {
             return ApiResponse.ok(Map.of());
         }
         UUID accountId = parseUuid(userId);

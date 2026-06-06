@@ -65,17 +65,20 @@ public class AccountGroupService {
      *
      * <p>관리 page-code 를 가진 그룹은 배속만으로 관리권한이 상속되므로 MASTER 만 배속할 수 있다.
      *
-     * @param accountId 계정 UUID
-     * @param groupId   권한그룹 UUID
-     * @param actorRole 요청자 role header 값
+     * <p>C5-4 actor 전환: {@code isSystemMaster} 는 X-Is-System-Master 헤더 유래.
+     * 헤더 부재/false → 비MASTER 로 판정 — fail-secure.
+     *
+     * @param accountId      계정 UUID
+     * @param groupId        권한그룹 UUID
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 배속 결과 요약
      */
     @Transactional
-    public AccountGroupSummary assign(UUID accountId, UUID groupId, String actorRole) {
+    public AccountGroupSummary assign(UUID accountId, UUID groupId, String isSystemMaster) {
         Account account = requireAccount(accountId);
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
         rejectSystemGroupAssignment(group);
-        rejectManagementGroupAssignment(groupId, actorRole);
+        rejectManagementGroupAssignment(groupId, isSystemMaster);
         accountGroupRepository.findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
                 .orElseGet(() -> accountGroupRepository.save(AccountGroup.assign(accountId, groupId)));
         materializer.materializeForAccount(accountId);
@@ -98,15 +101,17 @@ public class AccountGroupService {
      *
      * <p>관리 page-code 보유 그룹의 멤버십 변경은 재위임/자기상승 방지 정책에 따라 MASTER 만 수행한다.
      *
-     * @param accountId 계정 UUID
-     * @param groupId   권한그룹 UUID
-     * @param actorRole 요청자 role header 값
+     * <p>C5-4 actor 전환: {@code isSystemMaster} 는 X-Is-System-Master 헤더 유래.
+     *
+     * @param accountId      계정 UUID
+     * @param groupId        권한그룹 UUID
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      */
     @Transactional
-    public void unassign(UUID accountId, UUID groupId, String actorRole) {
+    public void unassign(UUID accountId, UUID groupId, String isSystemMaster) {
         requireAccount(accountId);
         permissionGroupService.requireGroup(groupId);
-        rejectManagementGroupAssignment(groupId, actorRole);
+        rejectManagementGroupAssignment(groupId, isSystemMaster);
         accountGroupRepository.findByAccountIdAndGroupIdAndIsDeletedFalse(accountId, groupId)
                 .ifPresent(accountGroup -> {
                     accountGroup.markDeleted(ACTOR);
@@ -181,10 +186,15 @@ public class AccountGroupService {
         }
     }
 
-    private void rejectManagementGroupAssignment(UUID groupId, String actorRole) {
+    /**
+     * 관리 page-code 를 보유한 그룹의 배속 변경은 MASTER 전용으로 제한한다.
+     *
+     * <p>C5-4: {@code isSystemMaster} 는 X-Is-System-Master 헤더 유래.
+     */
+    private void rejectManagementGroupAssignment(UUID groupId, String isSystemMaster) {
         boolean hasManagementPageCode = groupPagePermissionRepository.findByGroupIdAndIsDeletedFalse(groupId).stream()
                 .anyMatch(permission -> PageCode.isManagementPageCode(permission.getPageCode()));
-        if (hasManagementPageCode && !ManagementPageMutationGuard.isMaster(actorRole)) {
+        if (hasManagementPageCode && !ManagementPageMutationGuard.isSystemMaster(isSystemMaster)) {
             throw new BusinessException(
                     ErrorCode.FORBIDDEN,
                     "관리권한 page-code 보유 그룹의 배속 변경은 MASTER 만 수행할 수 있습니다.");

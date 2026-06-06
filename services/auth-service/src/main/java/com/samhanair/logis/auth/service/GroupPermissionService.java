@@ -71,16 +71,21 @@ public class GroupPermissionService {
      * <p>관리권위 page-code 는 MASTER 만 grant/revoke 할 수 있다. 이 봉쇄는
      * 권한설정 위임자가 다시 관리권위를 확산하는 것을 차단한다.
      *
-     * @param groupId   그룹 UUID
-     * @param updates   갱신할 페이지 권한 목록
-     * @param actorRole 요청자 역할 풀네임
+     * <p>C5-4 actor 전환: {@code actorRole} 파라미터는 이전 X-User-Role 유래였으나
+     * 게이트웨이가 헤더를 주입하지 않으므로 {@code isSystemMaster} 로 시맨틱 전환됨.
+     * 호출처({@link com.samhanair.logis.auth.web.PermissionGroupController})는
+     * X-Is-System-Master 헤더를 직접 수신해 이 파라미터로 전달한다.
+     *
+     * @param groupId        그룹 UUID
+     * @param updates        갱신할 페이지 권한 목록
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 갱신 행 수
      */
     @Transactional
     public int updateGroupMatrix(
             UUID groupId,
             List<AccountPermissionService.AccountPermissionUpdate> updates,
-            String actorRole) {
+            String isSystemMaster) {
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
         rejectBuiltinMutation(group);
         if (updates == null || updates.isEmpty()) {
@@ -91,7 +96,7 @@ public class GroupPermissionService {
         Map<String, AccountPermissionService.ActionMatrix> normalized = new LinkedHashMap<>();
         for (AccountPermissionService.AccountPermissionUpdate update : updates) {
             validatePageCode(update.pageCode());
-            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), actorRole);
+            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), isSystemMaster);
             validateActions(update.actions());
             normalized.put(update.pageCode(), update.actions());
         }
@@ -133,16 +138,19 @@ public class GroupPermissionService {
      * <p>각 토글은 해당 page-code 의 view/update 를 함께 부여하거나 모두 회수한다.
      * 저장 후 그룹 배속 계정의 effective 권한을 재계산한다.
      *
-     * @param groupId   그룹 UUID
-     * @param request   위임 토글 요청
-     * @param actorRole 요청자 역할 풀네임
+     * <p>C5-4 actor 전환: {@code isSystemMaster} 파라미터는 X-Is-System-Master 헤더 유래.
+     * 비MASTER(헤더 부재/false) 거절 — fail-secure.
+     *
+     * @param groupId        그룹 UUID
+     * @param request        위임 토글 요청
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 저장 후 위임 현황
      */
     @Transactional
-    public DelegationMatrix updateDelegations(UUID groupId, DelegationUpdateRequest request, String actorRole) {
+    public DelegationMatrix updateDelegations(UUID groupId, DelegationUpdateRequest request, String isSystemMaster) {
         PermissionGroup group = permissionGroupService.requireGroup(groupId);
         rejectBuiltinMutation(group);
-        requireMaster(actorRole);
+        requireMaster(isSystemMaster);
         DelegationUpdateRequest normalized = request == null ? DelegationUpdateRequest.none() : request;
         upsertDelegation(groupId, PageCode.SYSTEM_PERMISSION_ADMIN.getCode(), normalized.permissionAdmin());
         upsertDelegation(groupId, PageCode.HR_ROLE_MANAGEMENT.getCode(), normalized.hrRoleManagement());
@@ -193,22 +201,26 @@ public class GroupPermissionService {
         groupPagePermissionRepository.save(permission);
     }
 
-    private void rejectManagementPageMutation(String pageCode, String actorRole) {
-        if (PageCode.isManagementPageCode(pageCode) && !isMaster(actorRole)) {
-            throw new BusinessException(
-                    ErrorCode.FORBIDDEN,
-                    "관리권위 page-code 는 MASTER 만 부여하거나 회수할 수 있습니다.");
-        }
+    /**
+     * 관리 page-code 변경 시 MASTER 여부를 확인한다 (C5-4 전환 후 isSystemMaster 기반).
+     *
+     * <p>주의: 이 메서드는 현재 사용되지 않음. 공유 정책은
+     * {@link ManagementPageMutationGuard#rejectManagementPageMutation(String, String)} 으로 위임.
+     */
+    @SuppressWarnings("unused")
+    private void rejectManagementPageMutation(String pageCode, String isSystemMaster) {
+        ManagementPageMutationGuard.rejectManagementPageMutation(pageCode, isSystemMaster);
     }
 
-    private void requireMaster(String actorRole) {
-        if (!ManagementPageMutationGuard.isMaster(actorRole)) {
+    /**
+     * MASTER 여부를 확인하고 비MASTER 면 FORBIDDEN 을 던진다 (C5-4: isSystemMaster 기반).
+     *
+     * @param isSystemMaster X-Is-System-Master 헤더 값
+     */
+    private void requireMaster(String isSystemMaster) {
+        if (!ManagementPageMutationGuard.isSystemMaster(isSystemMaster)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "권한 위임은 MASTER 만 수행할 수 있습니다.");
         }
-    }
-
-    private boolean isMaster(String actorRole) {
-        return "MASTER".equalsIgnoreCase(actorRole == null ? "" : actorRole.trim());
     }
 
     public record DelegationUpdateRequest(

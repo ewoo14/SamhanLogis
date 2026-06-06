@@ -73,13 +73,17 @@ class PermissionAdminControllerTest {
     // GET /auth/admin/permissions/my — 현재 계정 7-action 권한 조회
     // -----------------------------------------------------------------------
 
+    /**
+     * C5-4 — X-Is-System-Master=true 이면 전권 반환.
+     * X-User-Role 은 더 이상 MASTER 판정에 사용되지 않는다.
+     */
     @Test
-    @DisplayName("GET /my MASTER — 모든 PageCode 에 7-action 전체 허용 map 반환")
-    void getMyPermissions_withMasterRole_returnsAllPageActions() throws Exception {
+    @DisplayName("GET /my X-Is-System-Master=true — 모든 PageCode 에 7-action 전체 허용 map 반환")
+    void getMyPermissions_withSystemMasterHeader_returnsAllPageActions() throws Exception {
         MockHttpServletResponse response = mockMvc.perform(
                         MockMvcRequestBuilders.get("/auth/admin/permissions/my")
                                 .header("X-User-Id", "a0000000-0000-0000-0000-000000000001")
-                                .header("X-User-Role", MASTER_ROLE))
+                                .header("X-Is-System-Master", "true"))
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(200);
@@ -91,6 +95,10 @@ class PermissionAdminControllerTest {
                 "VIEW", "CREATE", "UPDATE", "DELETE", "RESTORE", "DOWNLOAD", "PRINT");
     }
 
+    /**
+     * C5-4 — X-Is-System-Master 부재(=비-MASTER)이면 계정 기반 조회.
+     * X-User-Role 헤더는 actor 판정에 사용되지 않는다.
+     */
     @Test
     @DisplayName("GET /my 일반 계정 — X-User-Id 기반 bulkLoad 결과를 7-action map 으로 반환")
     void getMyPermissions_withAccountId_returnsBulkLoadActions() throws Exception {
@@ -101,8 +109,7 @@ class PermissionAdminControllerTest {
 
         MockHttpServletResponse response = mockMvc.perform(
                         MockMvcRequestBuilders.get("/auth/admin/permissions/my")
-                                .header("X-User-Id", accountId.toString())
-                                .header("X-User-Role", ACCOUNTANT_ROLE))
+                                .header("X-User-Id", accountId.toString()))
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(200);
@@ -113,12 +120,28 @@ class PermissionAdminControllerTest {
         verify(accountPermissionService).bulkLoad(accountId);
     }
 
+    /** C5-4 — X-User-Id 없음이면 fail-closed 빈 map (X-Is-System-Master 부재 전제). */
     @Test
-    @DisplayName("GET /my 일반 계정 — X-User-Id 없음이면 fail-closed 빈 map 반환")
+    @DisplayName("GET /my X-User-Id 없음 — fail-closed 빈 map 반환")
     void getMyPermissions_withoutAccountId_returnsEmptyMap() throws Exception {
         MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/admin/permissions/my"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode data = objectMapper.readTree(response.getContentAsString()).get("data");
+        assertThat(data.isObject()).isTrue();
+        assertThat(data.size()).isZero();
+    }
+
+    /** C5-4 — X-Is-Partner=true 이면 PARTNER identity → fail-closed 빈 map. */
+    @Test
+    @DisplayName("GET /my X-Is-Partner=true — PARTNER identity, 빈 map 반환")
+    void getMyPermissions_withPartnerHeader_returnsEmptyMap() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
                         MockMvcRequestBuilders.get("/auth/admin/permissions/my")
-                                .header("X-User-Role", ACCOUNTANT_ROLE))
+                                .header("X-User-Id", "b0000000-0000-0000-0000-000000000001")
+                                .header("X-Is-Partner", "true"))
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(200);

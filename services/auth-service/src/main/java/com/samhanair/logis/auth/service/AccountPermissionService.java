@@ -144,10 +144,13 @@ public class AccountPermissionService {
      * <p>관리권위 page-code 는 MASTER 만 grant/revoke 할 수 있다. 이 봉쇄는
      * {@code system.permission-admin} 을 위임받은 비MASTER 의 자기상승/재위임을 막는다.
      *
-     * @param accountId 계정 UUID
-     * @param updates   갱신 목록
-     * @param actorId   변경자
-     * @param actorRole 요청자 역할 풀네임
+     * <p>C5-4 actor 전환: {@code isSystemMaster} 파라미터는 X-Is-System-Master 헤더 유래.
+     * 헤더 부재/false 는 비MASTER 로 판정 — fail-secure.
+     *
+     * @param accountId      계정 UUID
+     * @param updates        갱신 목록
+     * @param actorId        변경자
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 변경 행 수
      */
     @Transactional
@@ -155,7 +158,7 @@ public class AccountPermissionService {
             UUID accountId,
             List<AccountPermissionUpdate> updates,
             String actorId,
-            String actorRole) {
+            String isSystemMaster) {
         if (accountId == null || updates == null || updates.isEmpty()) {
             return 0;
         }
@@ -163,7 +166,7 @@ public class AccountPermissionService {
         int changed = 0;
         for (AccountPermissionUpdate update : updates) {
             validatePageCode(update.pageCode());
-            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), actorRole);
+            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), isSystemMaster);
             validateActions(update.actions());
             AccountPermissionOverride override = overrideRepository
                     .findByAccountIdAndPageCodeAndIsDeletedFalse(accountId, update.pageCode())
@@ -192,20 +195,20 @@ public class AccountPermissionService {
     /**
      * 역할 템플릿을 계정 권한으로 복사한다.
      *
-     * @param accountId 계정 UUID
-     * @param roleCode  템플릿 역할 코드
-     * @param actorId   변경자
-     * @param actorRole 요청자 역할 풀네임
+     * @param accountId      계정 UUID
+     * @param roleCode       템플릿 역할 코드
+     * @param actorId        변경자
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 변경 행 수
      */
     @Transactional
-    public int applyTemplate(UUID accountId, String roleCode, String actorId, String actorRole) {
+    public int applyTemplate(UUID accountId, String roleCode, String actorId, String isSystemMaster) {
         List<AccountPermissionUpdate> updates = templateRepository.findByRoleCodeOrderByPageCodeAsc(roleCode).stream()
                 .map(template -> new AccountPermissionUpdate(
                         template.getPageCode(),
                         ActionMatrix.from(template)))
                 .collect(Collectors.toList());
-        return updateAccountMatrix(accountId, updates, actorId, actorRole);
+        return updateAccountMatrix(accountId, updates, actorId, isSystemMaster);
     }
 
     /**
@@ -227,18 +230,18 @@ public class AccountPermissionService {
      * @param accountId        대상 계정
      * @param sourceAccountId  원본 계정
      * @param actorId          변경자
-     * @param actorRole        요청자 역할 풀네임
+     * @param isSystemMaster   X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 변경 행 수
      */
     @Transactional
-    public int copyFromAccount(UUID accountId, UUID sourceAccountId, String actorId, String actorRole) {
+    public int copyFromAccount(UUID accountId, UUID sourceAccountId, String actorId, String isSystemMaster) {
         List<AccountPermissionUpdate> updates =
                 accountPermissionRepository.findByAccountIdOrderByPageCodeAsc(sourceAccountId).stream()
                         .map(permission -> new AccountPermissionUpdate(
                                 permission.getPageCode(),
                                 ActionMatrix.from(permission)))
                         .collect(Collectors.toList());
-        return updateAccountMatrix(accountId, updates, actorId, actorRole);
+        return updateAccountMatrix(accountId, updates, actorId, isSystemMaster);
     }
 
     /**
@@ -275,10 +278,12 @@ public class AccountPermissionService {
      * <p>관리 page-code 는 비MASTER가 템플릿에 주입할 수 없다. 템플릿은 이후 MASTER apply 경로로
      * 계정 권한에 복사될 수 있으므로 직접 매트릭스와 같은 봉쇄 정책을 적용한다.
      *
-     * @param roleCode  역할 코드
-     * @param updates   갱신 목록
-     * @param actorId   변경자
-     * @param actorRole 요청자 role header 값
+     * <p>C5-4 actor 전환: {@code isSystemMaster} 파라미터는 X-Is-System-Master 헤더 유래.
+     *
+     * @param roleCode       역할 코드
+     * @param updates        갱신 목록
+     * @param actorId        변경자
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 변경 건수
      */
     @Transactional
@@ -286,14 +291,14 @@ public class AccountPermissionService {
             String roleCode,
             List<AccountPermissionUpdate> updates,
             String actorId,
-            String actorRole) {
+            String isSystemMaster) {
         if (roleCode == null || roleCode.isBlank() || updates == null || updates.isEmpty()) {
             return 0;
         }
         int changed = 0;
         for (AccountPermissionUpdate update : updates) {
             validatePageCode(update.pageCode());
-            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), actorRole);
+            ManagementPageMutationGuard.rejectManagementPageMutation(update.pageCode(), isSystemMaster);
             validateActions(update.actions());
             RolePagePermissionTemplate template = templateRepository
                     .findByRoleCodeAndPageCode(roleCode, update.pageCode())
@@ -320,22 +325,22 @@ public class AccountPermissionService {
     /**
      * 다계정 일괄 적용.
      *
-     * @param request   요청
-     * @param actorId   변경자
-     * @param actorRole 요청자 역할 풀네임
+     * @param request        요청
+     * @param actorId        변경자
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" = MASTER)
      * @return 변경 행 수
      */
     @Transactional
-    public int bulkApply(BulkPermissionRequest request, String actorId, String actorRole) {
+    public int bulkApply(BulkPermissionRequest request, String actorId, String isSystemMaster) {
         if (request == null || request.accountIds() == null || request.accountIds().isEmpty()) {
             return 0;
         }
         int changed = 0;
         for (UUID accountId : request.accountIds()) {
             if ("template".equalsIgnoreCase(request.mode())) {
-                changed += applyTemplate(accountId, request.roleCode(), actorId, actorRole);
+                changed += applyTemplate(accountId, request.roleCode(), actorId, isSystemMaster);
             } else {
-                changed += updateAccountMatrix(accountId, request.grants(), actorId, actorRole);
+                changed += updateAccountMatrix(accountId, request.grants(), actorId, isSystemMaster);
             }
         }
         return changed;
@@ -445,15 +450,4 @@ public class AccountPermissionService {
         }
     }
 
-    private void rejectManagementPageMutation(String pageCode, String actorRole) {
-        if (PageCode.isManagementPageCode(pageCode) && !isMaster(actorRole)) {
-            throw new BusinessException(
-                    ErrorCode.FORBIDDEN,
-                    "관리권위 page-code 는 MASTER 만 부여하거나 회수할 수 있습니다.");
-        }
-    }
-
-    private boolean isMaster(String actorRole) {
-        return "MASTER".equalsIgnoreCase(actorRole == null ? "" : actorRole.trim());
-    }
 }

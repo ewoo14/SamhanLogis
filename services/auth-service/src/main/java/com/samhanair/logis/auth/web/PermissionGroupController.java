@@ -42,7 +42,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class PermissionGroupController {
 
-    private static final String USER_ROLE_HEADER = "X-User-Role";
+    /** C5-4: X-User-Role 제거 — actor MASTER 판정은 X-Is-System-Master 헤더로만 수행. */
+    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
 
     private final PermissionGroupService permissionGroupService;
     private final GroupPermissionService groupPermissionService;
@@ -116,8 +117,11 @@ public class PermissionGroupController {
     /**
      * 권한그룹의 page×7-action 매트릭스를 갱신하고 배속 계정의 effective 권한을 재계산한다.
      *
-     * @param id      권한그룹 UUID
-     * @param request 갱신할 row 목록
+     * <p>관리 page-code grant 는 MASTER 전용 — X-Is-System-Master 헤더로 판정.
+     *
+     * @param id             권한그룹 UUID
+     * @param request        갱신할 row 목록
+     * @param isSystemMaster X-Is-System-Master 헤더 ("true" = MASTER)
      * @return 변경 행 수
      */
     @PutMapping("/permission-groups/{id}/permissions")
@@ -125,8 +129,8 @@ public class PermissionGroupController {
     public ApiResponse<ChangedCountResponse> updateGroupMatrix(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateGroupMatrixRequest request,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        int changed = groupPermissionService.updateGroupMatrix(id, request.rows(), actorRole);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        int changed = groupPermissionService.updateGroupMatrix(id, request.rows(), isSystemMaster);
         return ApiResponse.ok(new ChangedCountResponse(changed));
     }
 
@@ -147,11 +151,11 @@ public class PermissionGroupController {
      * MASTER 전용 관리권위 위임 토글.
      *
      * <p>위임받은 비MASTER 가 다시 관리권위를 확산하는 것을 막기 위해
-     * {@code X-User-Role=MASTER} 추가 검사를 서비스에서 수행한다.
+     * X-Is-System-Master 헤더 추가 검사를 서비스에서 수행한다 (C5-4 전환).
      *
-     * @param id        권한그룹 UUID
-     * @param request   위임 토글
-     * @param actorRole 요청자 역할 풀네임
+     * @param id             권한그룹 UUID
+     * @param request        위임 토글
+     * @param isSystemMaster X-Is-System-Master 헤더 ("true" = MASTER, 부재/false → 403)
      * @return 저장 후 위임 현황
      */
     @PutMapping("/permission-groups/{id}/delegations")
@@ -159,8 +163,8 @@ public class PermissionGroupController {
     public ApiResponse<GroupPermissionService.DelegationMatrix> updateDelegations(
             @PathVariable UUID id,
             @RequestBody GroupPermissionService.DelegationUpdateRequest request,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        return ApiResponse.ok(groupPermissionService.updateDelegations(id, request, actorRole));
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        return ApiResponse.ok(groupPermissionService.updateDelegations(id, request, isSystemMaster));
     }
 
     /**
@@ -179,8 +183,11 @@ public class PermissionGroupController {
     /**
      * 계정을 권한그룹에 배속한다. 이미 배속된 경우에도 같은 결과를 반환한다.
      *
-     * @param accountId 계정 UUID
-     * @param request   배속할 권한그룹 UUID
+     * <p>관리 page-code 보유 그룹 배속은 MASTER 전용 — X-Is-System-Master 헤더로 판정 (C5-4 전환).
+     *
+     * @param accountId      계정 UUID
+     * @param request        배속할 권한그룹 UUID
+     * @param isSystemMaster X-Is-System-Master 헤더 ("true" = MASTER)
      * @return 배속 결과
      */
     @PostMapping("/accounts/{accountId}/groups")
@@ -188,15 +195,18 @@ public class PermissionGroupController {
     public ApiResponse<AccountGroupService.AccountGroupSummary> assignAccountGroup(
             @PathVariable UUID accountId,
             @Valid @RequestBody AssignAccountGroupRequest request,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        return ApiResponse.ok(accountGroupService.assign(accountId, request.groupId(), actorRole));
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        return ApiResponse.ok(accountGroupService.assign(accountId, request.groupId(), isSystemMaster));
     }
 
     /**
      * 계정의 권한그룹 배속을 해제한다.
      *
-     * @param accountId 계정 UUID
-     * @param groupId   권한그룹 UUID
+     * <p>관리 page-code 보유 그룹 배속 해제도 MASTER 전용 — X-Is-System-Master 헤더로 판정 (C5-4 전환).
+     *
+     * @param accountId      계정 UUID
+     * @param groupId        권한그룹 UUID
+     * @param isSystemMaster X-Is-System-Master 헤더 ("true" = MASTER)
      */
     @DeleteMapping("/accounts/{accountId}/groups/{groupId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -204,7 +214,7 @@ public class PermissionGroupController {
     public void unassignAccountGroup(
             @PathVariable UUID accountId,
             @PathVariable UUID groupId,
-            @RequestHeader(value = USER_ROLE_HEADER, required = false) String actorRole) {
-        accountGroupService.unassign(accountId, groupId, actorRole);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        accountGroupService.unassign(accountId, groupId, isSystemMaster);
     }
 }

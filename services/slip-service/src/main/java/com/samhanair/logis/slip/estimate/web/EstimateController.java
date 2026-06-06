@@ -39,20 +39,26 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>매뉴얼 출처: {@code docs/manual/01-영업/06-견적서.md}.
  *
- * <p>권한 매트릭스 (매뉴얼 §3 권한 표 일관):
+ * <p>권한 매트릭스 — 권한그룹/동적 override 기반 (C5-4):
  * <ul>
- *   <li>작성 / 수정 / 발송 — SALES, MANAGER, MASTER</li>
- *   <li>수락 / 거절 (거래처 의사 대리 입력) — SALES, MANAGER, MASTER</li>
- *   <li>변환 (견적 → 슬립) — SALES, MANAGER, MASTER</li>
- *   <li>조회 — 모든 인증 사용자</li>
+ *   <li>작성 / 수정 / 발송 — estimates.list 권한그룹 CREATE/UPDATE 보유 계정 또는 시스템 MASTER</li>
+ *   <li>수락 / 거절 (거래처 의사 대리 입력) — estimates.list UPDATE 보유 계정 또는 시스템 MASTER</li>
+ *   <li>변환 (견적 → 슬립) — estimates.list UPDATE 보유 계정 또는 시스템 MASTER</li>
+ *   <li>조회 — 모든 인증 사용자 (estimates.list VIEW 동적 가드 추가 적용)</li>
  * </ul>
+ *
+ * <p>MASTER 판정 기준 (C5-4 actor 전환):
+ * X-User-Role 헤더는 게이트웨이에서 더 이상 주입되지 않음.
+ * 시스템 MASTER 는 {@code X-Is-System-Master: true} 헤더로만 판정한다.
+ * {@link EstimatePermissionGuard} 가 이 헤더를 직접 수신하고
+ * {@link com.samhanair.logis.security.permission.PermissionAspect} 와 동일 정책을 적용한다.
  *
  * <p>SP-D6-6 권한 가드:
  * <ul>
  *   <li>GET 조회 → {@code @PreAuthorize("isAuthenticated()")}
- *       + {@link EstimatePermissionGuard#checkView(UUID)}</li>
+ *       + {@link EstimatePermissionGuard#checkView(UUID, String)}</li>
  *   <li>POST/PUT write → {@code @RequirePermission}
- *       + {@link EstimatePermissionGuard#checkEdit(UUID, PermissionAction)}</li>
+ *       + {@link EstimatePermissionGuard#checkEdit(UUID, String, PermissionAction)}</li>
  * </ul>
  */
 @RestController
@@ -60,9 +66,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class EstimateController {
 
-    private static final String CALLER_HEADER  = "X-User-Id";
-    private static final String CALLER_NAME_HEADER = "X-User-Name";
-    private static final String ROLE_HEADER    = "X-User-Role";
+    private static final String CALLER_HEADER         = "X-User-Id";
+    private static final String CALLER_NAME_HEADER    = "X-User-Name";
+    /** C5-4: X-User-Role 제거 — MASTER 판정은 X-Is-System-Master 헤더로만 수행. */
+    private static final String SYSTEM_MASTER_HEADER  = "X-Is-System-Master";
 
     private final EstimateService estimateService;
     private final EstimatePermissionGuard estimatePermissionGuard;
@@ -82,8 +89,8 @@ public class EstimateController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkView(parseAccountId(callerHeader), roleHeader);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(estimateService.list(status, partnerId, startDate, endDate, pageable));
     }
@@ -95,8 +102,8 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> getOne(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkView(parseAccountId(callerHeader), roleHeader);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);
         return ApiResponse.ok(estimateService.getOne(id));
     }
 
@@ -113,8 +120,8 @@ public class EstimateController {
             @Valid @RequestBody CreateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.CREATE);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.CREATE);
         return ApiResponse.ok(estimateService.create(request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -127,8 +134,8 @@ public class EstimateController {
             @Valid @RequestBody UpdateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.UPDATE);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -139,8 +146,8 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> send(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.UPDATE);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.send(id, callerOrSystem(callerHeader)));
     }
 
@@ -151,8 +158,8 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> accept(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.UPDATE);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.accept(id, callerOrSystem(callerHeader)));
     }
 
@@ -163,8 +170,8 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> reject(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.UPDATE);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.reject(id, callerOrSystem(callerHeader)));
     }
 
@@ -180,8 +187,8 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> convert(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), roleHeader, PermissionAction.UPDATE);
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
         return ApiResponse.ok(estimateService.convert(id, callerOrSystem(callerHeader)));
     }
 
