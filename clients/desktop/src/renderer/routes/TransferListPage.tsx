@@ -112,8 +112,8 @@ export function TransferListPage() {
           >
             Excel 다운로드
           </ExcelDownloadButton>
-          {/* [C5-2b] canCreateTransfer(role) → canAccess('inventory.stock-transfer', 'create') */}
-          {canAccess('inventory.stock-transfer', 'create') ? (
+          {/* [P1-A] BE StockTransferController @RequirePermission(page="inventory.transfer") — stock-transfer 코드 불일치 수정 */}
+          {canAccess('inventory.transfer', 'create') ? (
             <Button
               variant="primary"
               onClick={() => navigate('/transfers/new')}

@@ -7127,8 +7127,11 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C2c 동적 권한 전환 — MANAGER: view 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
-    // C5-2b — MANAGER: slip.signature view+edit, partners.block.bulk view+edit, arologis.region.manage view+edit
-    'slip.signature', 'partners.block.bulk', 'arologis.region.manage',
+    // P1-C seed 정합 — MANAGER VIEW:
+    //   slip.signature: V36 MANAGER can_view=TRUE (유지)
+    //   partners.block.bulk: V34 MASTER-only → MANAGER VIEW 제거
+    //   arologis.region.manage: V34 MANAGER can_view=TRUE (유지)
+    'slip.signature', 'arologis.region.manage',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -7136,8 +7139,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.stock', 'arologis.admin', 'arologis.region',
     // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
     'arologis.dispatch.ops', 'dispatch.batch',
-    // C5-2b — DISPATCH: arologis.region.manage view 전용 (edit=false per RegionsPage 도메인 규칙)
-    'arologis.region.manage',
+    // P1-C: arologis.region.manage — V34 seed MASTER/MANAGER 만 허용, DISPATCH 없음 → 제거
   ],
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
@@ -7260,8 +7262,11 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
-    // C5-2b — MANAGER: slip.signature edit(delete), partners.block.bulk edit, arologis.region.manage edit
-    'slip.signature', 'partners.block.bulk', 'arologis.region.manage',
+    // P1-C seed 정합 — MANAGER EDIT:
+    //   slip.signature: V36 MANAGER can_edit=FALSE → 제거
+    //   partners.block.bulk: V34 MASTER-only → 제거
+    //   arologis.region.manage: V34 MANAGER can_edit=TRUE (유지)
+    'arologis.region.manage',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
