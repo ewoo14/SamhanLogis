@@ -31,6 +31,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * {@link PermissionAspect} 단위 테스트 — account×page×7-action 전환 검증.
+ *
+ * <p>Phase C5-4 갱신:
+ * <ul>
+ *   <li>MASTER bypass 경로: X-Is-System-Master=true 헤더 단독 판정. role="MASTER" 폴백 제거.</li>
+ *   <li>PARTNER 거절 경로: X-Is-Partner=true 헤더 기반으로 전환. role="PARTNER" 폴백 제거.</li>
+ * </ul>
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -59,9 +65,17 @@ class PermissionAspectTest {
         RequestContextHolder.resetRequestAttributes();
     }
 
+    /**
+     * C5-4: X-Is-System-Master=true → role 무관하게 bypass.
+     *
+     * <p>기존 테스트 masterBypassesWithoutClientCall 은 role=MASTER 단독 폴백을
+     * 검증했으나 C5-4 에서 폴백 제거. 본 테스트는 X-Is-System-Master=true bypass 를 검증한다.
+     */
     @Test
-    void masterBypassesWithoutClientCall() {
-        attachHeaders(null, "MASTER");
+    @DisplayName("C5-4: X-Is-System-Master=true → bypass (role 무관)")
+    void systemMasterHeader_bypasses_regardlessOfRole() {
+        // X-Is-System-Master=true 가 있으면 role 이 무엇이든 bypass
+        attachHeaders(null, "MASTER", "true", null);
 
         String result = proxy.createJournal(null, "MASTER");
 
@@ -69,32 +83,62 @@ class PermissionAspectTest {
         verifyNoInteractions(client);
     }
 
+    /**
+     * C5-4: role=MASTER 단독(X-Is-System-Master 없음) → bypass 하지 않음 (폴백 제거).
+     *
+     * <p>Phase C4 이전 동작: role=MASTER 이면 X-Is-System-Master 없어도 bypass.
+     * Phase C5-4 이후: role 클레임이 JWT 에서 소멸 → 헤더 미전달 → null 수신.
+     * 기존 폴백 보안 위험(임의 role 주입 bypass) 제거.
+     * role=MASTER 가 있어도 X-Is-System-Master=true 없으면 bypass 하지 않음.
+     */
     @Test
-    void partnerAlwaysDenied() {
-        attachHeaders(ACCOUNT_ID.toString(), "PARTNER");
+    @DisplayName("C5-4: role=MASTER + X-Is-System-Master 없음 → bypass 하지 않음 (폴백 제거)")
+    void roleMaster_withoutSystemMasterHeader_doesNotBypass() {
+        // role=MASTER 이지만 X-Is-System-Master 없음 → bypass 하지 않음
+        // accountId 없으므로 accountId deny 경로로 떨어짐
+        attachHeaders(null, "MASTER", null, null);
 
-        assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), "PARTNER"))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("role=PARTNER");
-
-        verifyNoInteractions(client);
-        assertThat(deniedCount("accounting.journals", "PARTNER", "CREATE")).isEqualTo(1.0);
+        assertThatThrownBy(() -> proxy.createJournal(null, "MASTER"))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
+    /**
+     * C5-4: X-Is-Partner=true → deny (PARTNER 거절 X-Is-Partner 기반).
+     *
+     * <p>api-gateway 가 JWT partnerCode claim 존재 시 X-Is-Partner: true 를 주입한다.
+     * role="PARTNER" 폴백은 C5-4 에서 제거되었으므로 본 테스트는 헤더 기반 경로를 검증한다.
+     */
     @Test
-    void partnerSelfServiceProceedsWithoutClientCheck() {
-        attachHeaders(ACCOUNT_ID.toString(), "PARTNER");
+    @DisplayName("C5-4: X-Is-Partner=true → deny (PARTNER identity)")
+    void isPartnerHeader_true_alwaysDenied() {
+        attachHeaders(ACCOUNT_ID.toString(), null, null, "true");
 
-        String result = proxy.printOwnOrder(ACCOUNT_ID.toString(), "PARTNER");
+        assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), null))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("PARTNER identity");
+
+        verifyNoInteractions(client);
+        assertThat(deniedCount("accounting.journals", "UNKNOWN", "CREATE")).isEqualTo(1.0);
+    }
+
+    /**
+     * C5-4: X-Is-Partner=true + partnerSelfService=true → 통과 (자기범위 endpoint).
+     */
+    @Test
+    @DisplayName("C5-4: X-Is-Partner=true + partnerSelfService → 통과")
+    void isPartnerHeader_partnerSelfService_proceeds() {
+        attachHeaders(ACCOUNT_ID.toString(), null, null, "true");
+
+        String result = proxy.printOwnOrder(ACCOUNT_ID.toString(), null);
 
         assertThat(result).isEqualTo("print-ok");
         verifyNoInteractions(client);
-        assertThat(deniedCount("sales.partner-order.print", "PARTNER", "PRINT")).isZero();
+        assertThat(deniedCount("sales.partner-order.print", "UNKNOWN", "PRINT")).isZero();
     }
 
     @Test
     void accountGrantAllows() {
-        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT");
+        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", null, null);
         given(client.check(ACCOUNT_ID, "accounting.journals", PermissionAction.CREATE)).willReturn(true);
 
         String result = proxy.createJournal(ACCOUNT_ID.toString(), "ACCOUNTANT");
@@ -105,7 +149,7 @@ class PermissionAspectTest {
 
     @Test
     void missingAccountIdDenies() {
-        attachHeaders(null, "ACCOUNTANT");
+        attachHeaders(null, "ACCOUNTANT", null, null);
 
         assertThatThrownBy(() -> proxy.createJournal(null, "ACCOUNTANT"))
                 .isInstanceOf(AccessDeniedException.class)
@@ -119,7 +163,7 @@ class PermissionAspectTest {
     @Test
     void missingClientDeniesFailSecure() {
         given(clientProvider.getIfAvailable()).willReturn(null);
-        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT");
+        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", null, null);
 
         assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), "ACCOUNTANT"))
                 .isInstanceOf(AccessDeniedException.class)
@@ -135,7 +179,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_MANAGER");
+        attachHeaders(null, "AROLOGIS_MANAGER", null, null);
         given(client.canEdit("AROLOGIS_MANAGER", "accounting.journals")).willReturn(true);
 
         String result = roleProxy.createJournal(null, "AROLOGIS_MANAGER");
@@ -152,7 +196,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_DRIVER");
+        attachHeaders(null, "AROLOGIS_DRIVER", null, null);
         given(client.canView("AROLOGIS_DRIVER", "arologis.driver")).willReturn(true);
 
         String result = roleProxy.viewDriverPage(null, "AROLOGIS_DRIVER");
@@ -169,7 +213,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_MASTER");
+        attachHeaders(null, "AROLOGIS_MASTER", null, null);
 
         String result = roleProxy.createJournal(null, "AROLOGIS_MASTER");
 
@@ -178,14 +222,14 @@ class PermissionAspectTest {
     }
 
     // -----------------------------------------------------------------------
-    // Phase C4: X-Is-System-Master 헤더 bypass + role 폴백 OR 검증
+    // Phase C4: X-Is-System-Master 헤더 bypass 검증 (C5-4 갱신)
     // -----------------------------------------------------------------------
 
     @Test
     @DisplayName("C4-(a) X-Is-System-Master=true → role 무관하게 bypass")
     void isSystemMasterHeaderTrue_bypasses() {
         // role 이 ACCOUNTANT 여도 X-Is-System-Master=true 이면 bypass
-        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", "true");
+        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", "true", null);
 
         String result = proxy.createJournal(ACCOUNT_ID.toString(), "ACCOUNTANT");
 
@@ -193,22 +237,29 @@ class PermissionAspectTest {
         verifyNoInteractions(client);
     }
 
+    /**
+     * C5-4: role=MASTER + X-Is-System-Master 없음 → bypass 하지 않음 (C4 폴백 제거).
+     *
+     * <p>Phase C4 이전: role=MASTER 이면 X-Is-System-Master 없어도 bypass(락아웃 방지 폴백).
+     * Phase C5-4: role 클레임 JWT 에서 소멸 → 헤더 미전달 → null 수신. 폴백 보안 위험 제거.
+     * role=MASTER 헤더가 존재하더라도 X-Is-System-Master=true 없으면 bypass 하지 않음.
+     * accountId 없어 accountId deny 경로로 떨어짐.
+     */
     @Test
-    @DisplayName("C4-(b) role=MASTER + 헤더 없음 → 기존 폴백으로 bypass (락아웃 0)")
-    void roleMasterWithoutHeader_bypassViaFallback() {
-        // X-Is-System-Master 헤더가 없어도 role=MASTER 이면 bypass 보장
-        attachHeaders(null, "MASTER", null);
+    @DisplayName("C5-4 (구 C4-b): role=MASTER + X-Is-System-Master 없음 → deny (폴백 제거)")
+    void roleMasterWithoutHeader_doesNotBypassAfterC54() {
+        attachHeaders(null, "MASTER", null, null);
 
-        String result = proxy.createJournal(null, "MASTER");
+        assertThatThrownBy(() -> proxy.createJournal(null, "MASTER"))
+                .isInstanceOf(AccessDeniedException.class);
 
-        assertThat(result).isEqualTo("ok");
         verifyNoInteractions(client);
     }
 
     @Test
     @DisplayName("C4-(c) X-Is-System-Master=false + role=ACCOUNTANT → grant 없으면 403")
     void isSystemMasterFalse_nonMasterRole_deniedWithoutGrant() {
-        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", "false");
+        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", "false", null);
         given(client.check(ACCOUNT_ID, "accounting.journals", PermissionAction.CREATE)).willReturn(false);
 
         assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), "ACCOUNTANT"))
@@ -222,7 +273,7 @@ class PermissionAspectTest {
     @Test
     @DisplayName("C4-(d) X-Is-System-Master=true 이면 DynamicPermissionClient 호출 0건")
     void isSystemMasterTrue_noClientCall() {
-        attachHeaders(ACCOUNT_ID.toString(), "MANAGER", "true");
+        attachHeaders(ACCOUNT_ID.toString(), "MANAGER", "true", null);
 
         proxy.createJournal(ACCOUNT_ID.toString(), "MANAGER");
 
@@ -238,7 +289,7 @@ class PermissionAspectTest {
                 new PermissionGuardMetrics(meterRegistry),
                 SERVICE_NAME,
                 true));
-        attachHeaders(null, "AROLOGIS_MANAGER");
+        attachHeaders(null, "AROLOGIS_MANAGER", null, null);
         given(client.canEdit("AROLOGIS_MANAGER", "accounting.journals")).willReturn(false);
 
         assertThatThrownBy(() -> roleProxy.createJournal(null, "AROLOGIS_MANAGER"))
@@ -255,10 +306,6 @@ class PermissionAspectTest {
                 PermissionGuardMetrics.COUNTER_NAME,
                 "service", SERVICE_NAME, "page", page, "role", role, "action", action
         ).count();
-    }
-
-    private void attachHeaders(String accountId, String role) {
-        attachHeaders(accountId, role, null);
     }
 
     // -----------------------------------------------------------------------
@@ -319,7 +366,11 @@ class PermissionAspectTest {
         assertThat(result).hasSize(2).contains("uuid-1", "uuid-2");
     }
 
-    private void attachHeaders(String accountId, String role, String isSystemMaster) {
+    private void attachHeaders(String accountId, String role) {
+        attachHeaders(accountId, role, null, null);
+    }
+
+    private void attachHeaders(String accountId, String role, String isSystemMaster, String isPartner) {
         MockHttpServletRequest req = new MockHttpServletRequest();
         if (accountId != null) {
             req.addHeader("X-User-Id", accountId);
@@ -329,6 +380,9 @@ class PermissionAspectTest {
         }
         if (isSystemMaster != null) {
             req.addHeader("X-Is-System-Master", isSystemMaster);
+        }
+        if (isPartner != null) {
+            req.addHeader("X-Is-Partner", isPartner);
         }
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
     }

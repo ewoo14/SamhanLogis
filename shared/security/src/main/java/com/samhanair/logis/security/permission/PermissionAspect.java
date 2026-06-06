@@ -25,7 +25,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * <p>Controller 메서드에 {@code @RequirePermission(page="...", action=PermissionAction.CREATE)} 를 부착하면
  * 본 Aspect 가 메서드 실행 전에 {@link DynamicPermissionClient} 를 통해 동적 권한을 검증한다.
  *
- * <p>X-User-Id / X-User-Role / X-User-Groups 헤더 추출 순서:
+ * <p>X-User-Id / X-User-Groups / X-Is-System-Master / X-Is-Partner 헤더 추출 순서:
  * <ol>
  *   <li>메서드 파라미터 중 {@code @RequestHeader("X-User-*")} 어노테이션이 붙은 첫 번째 String 파라미터</li>
  *   <li>없으면 {@link RequestContextHolder} → {@link HttpServletRequest} 헤더에서 직접 추출</li>
@@ -34,15 +34,13 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *
  * <p>deny 정책:
  * <ul>
- *   <li>MASTER: 동적 DB 조회 없이 통과 (X-Is-System-Master=true OR role=MASTER)</li>
- *   <li>PARTNER 판정: api-gateway 가 JWT role 클레임을 검증하여 {@code X-User-Role: PARTNER} 로 전파하는
- *       경로만 신뢰 가능하다.
- *       <br>[실측 결론 C5-3] partner-auth-service 는 {@code JwtTokenProvider.generate(id, "PARTNER", ...)} 로
- *       발급하며 JWT 에 partnerCode 클레임이 없다. 게이트웨이도 {@code X-Partner-Code} 를 자체 주입하지 않는다.
- *       FE/모바일이 전송하는 {@code X-Partner-Code} 는 FE origin 이므로 PermissionAspect 에서 신뢰 판정
- *       근거로 쓸 수 없다.
- *       따라서 PARTNER 거절 판정은 기존 {@code role == "PARTNER"} 로 유지한다.
- *       partnerSelfService opt-in endpoint 는 service 계층 자기범위 검증을 전제로 통과시킨다.</li>
+ *   <li>MASTER bypass: {@code X-Is-System-Master=true} → bypass (Phase C4).
+ *       Phase C5-4 (C4-3): {@code role==MASTER} 폴백 제거. X-Is-System-Master 단독 판정.
+ *       arologis roleBasedEnforcement 모드에서 {@code AROLOGIS_MASTER} role bypass 는 유지.</li>
+ *   <li>PARTNER 거절: {@code X-Is-Partner=true} 헤더 존재 시 deny (Phase C5-4).
+ *       api-gateway 가 JWT {@code partnerCode} claim 존재 시 주입. FE origin 헤더는 게이트웨이가 덮어씀.
+ *       [실측 결론 C5-3] partner-auth JWT 에 partnerCode 클레임 추가 후 전환. role 폴백 제거.
+ *       partnerSelfService opt-in endpoint 는 service 계층 자기범위 검증을 전제로 통과.</li>
  *   <li>account 모드: 그 외 {@link DynamicPermissionClient#check(UUID, String, PermissionAction)} == false → deny</li>
  *   <li>role 모드: VIEW 는 {@link DynamicPermissionClient#canView(String, String)},
  *       나머지 action 은 {@link DynamicPermissionClient#canEdit(String, String)} == false → deny</li>
@@ -50,8 +48,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *
  * <p>Phase C5-3 추가 — {@link #parseGroupsHeader(String)} 공유 파서:
  * {@code X-User-Groups} 헤더 raw 값을 comma-split 하여 {@code Set<String>} 으로 파싱한다.
- * Aspect 판정 경로의 그룹 소비는 PR-2(C5-4, X-User-Role 제거)에서 도입 —
- * 현재 소비처는 서비스 계층 guard(SlipSalesAccessGuard 등)가 본 파서를 호출하는 형태다.
+ * 소비처는 서비스 계층 guard(SlipSalesAccessGuard 등)와 본 Aspect checkPermission 경로.
  *
  * <p>deny 시: {@link PermissionGuardMetrics#incrementDenied(String, String, String, String)} 호출
  * 후 {@link AccessDeniedException} throw.
@@ -78,16 +75,29 @@ public class PermissionAspect {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionAspect.class);
 
-    /** X-User-Role 헤더 이름 — api-gateway 전파 표준. */
+    /**
+     * X-User-Role 헤더 이름 — arologis roleBasedEnforcement 모드 전용.
+     *
+     * <p>Phase C5-4: Samhan Public 인가 경로에서 X-User-Role 이 제거되었다.
+     * 이 상수는 arologis 독립 운영 단위({@code roleBasedEnforcement=true}) 전용으로만 사용되며,
+     * 일반 Samhan 서비스에서는 역할 헤더가 전송되지 않으므로 null 수신 — 판정에 영향 없음.
+     */
     private static final String ROLE_HEADER = "X-User-Role";
     /** X-User-Id 헤더 이름 — JWT sub claim(계정 UUID) 전파 표준. */
     private static final String ACCOUNT_ID_HEADER = "X-User-Id";
     /**
      * X-Is-System-Master 헤더 이름 — Phase C4 신규.
      * api-gateway 가 JWT {@code isSystemMaster} claim 에서 추출하여 전파.
-     * "true" 이면 role==MASTER OR 폴백 없이도 bypass.
+     * Phase C5-4 (C4-3): role 폴백 제거 후 이 헤더 단독 bypass 판정.
      */
     private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
+    /**
+     * X-Is-Partner 헤더 이름 — Phase C5-4 신규.
+     * api-gateway 가 JWT {@code partnerCode} claim 존재 시 {@code "true"} 로 주입.
+     * PermissionAspect PARTNER 거절 판정에 사용된다.
+     * role 폴백({@code role=="PARTNER"}) 대체.
+     */
+    private static final String IS_PARTNER_HEADER = "X-Is-Partner";
     private final ObjectProvider<DynamicPermissionClient> clientProvider;
     private final PermissionGuardMetrics metrics;
     private final String serviceName;
@@ -155,11 +165,15 @@ public class PermissionAspect {
             return joinPoint.proceed();
         }
 
-        if ("PARTNER".equalsIgnoreCase(roleCode)) {
+        // Phase C5-4: PARTNER 거절 판정을 X-Is-Partner 헤더 기반으로 전환.
+        // api-gateway 가 JWT partnerCode claim 존재 시 X-Is-Partner: true 를 주입한다.
+        // role 폴백(role=="PARTNER")은 제거 — Samhan JWT 에 role 클레임 없어 의미 상실.
+        String isPartnerHeader = extractHeader(joinPoint, signature, IS_PARTNER_HEADER);
+        if ("true".equalsIgnoreCase(isPartnerHeader)) {
             if (annotation.partnerSelfService()) {
                 return joinPoint.proceed();
             }
-            deny(page, roleCode, actionName, "PARTNER role");
+            deny(page, roleCode, actionName, "PARTNER identity (X-Is-Partner=true)");
         }
 
         if (roleBasedEnforcement) {
@@ -286,31 +300,30 @@ public class PermissionAspect {
     }
 
     /**
-     * MASTER bypass 판정 — Phase C4 OR 폴백 설계.
+     * MASTER bypass 판정 — Phase C5-4 (C4-3): X-Is-System-Master 단독 판정.
      *
      * <p>판정 순서:
      * <ol>
-     *   <li>{@code X-Is-System-Master == "true"} → bypass (Phase C4 신규 경로).</li>
-     *   <li>{@code role == "MASTER"} → bypass (기존 폴백, 락아웃 0 보장 — 제거 금지).</li>
-     *   <li>{@code roleBasedEnforcement} 모드에서 {@code role == "AROLOGIS_MASTER"} → bypass.</li>
+     *   <li>{@code X-Is-System-Master == "true"} → bypass (Phase C4 경로).</li>
+     *   <li>{@code roleBasedEnforcement} 모드에서 {@code role == "AROLOGIS_MASTER"} → bypass
+     *       (아로로지스 독립 운영 단위 전용 — 자체 JWT 가 AROLOGIS_MASTER role 포함).</li>
      * </ol>
      *
-     * <p>헤더 파이프(JWT → 게이트웨이 → 서비스)가 깨져도 role 폴백이 MASTER 접근을 보존한다.
-     * role 폴백 제거는 C4-3(검증 후) 예정.
+     * <p>Phase C5-4 (C4-3): {@code role=="MASTER"} 폴백 제거.
+     * Samhan JWT 에서 role 클레임이 소멸되었으므로 role 폴백은 의미 없고 오히려
+     * 임의 role 문자열 주입으로 bypass 되는 위험 제거. X-Is-System-Master 헤더는
+     * 게이트웨이가 JWT 서명 검증 후 claim 에서 주입하므로 신뢰 가능.
      *
-     * @param roleCode            X-User-Role 헤더 값 (null-safe, normalized)
+     * @param roleCode            X-User-Role 헤더 값 (null-safe, normalized) — arologis 전용
      * @param isSystemMasterHeader X-Is-System-Master 헤더 값 (null 허용)
      * @return bypass 허용 여부
      */
     private boolean isMasterBypass(String roleCode, String isSystemMasterHeader) {
-        // Phase C4 신규 경로: X-Is-System-Master == "true"
+        // Phase C4 경로: X-Is-System-Master == "true" (게이트웨이 JWT 클레임 기반, 신뢰)
         if ("true".equalsIgnoreCase(isSystemMasterHeader)) {
             return true;
         }
-        // 기존 role 폴백 — 락아웃 0 보장 (제거 금지, C4-3 이후 단계에서 검토)
-        if ("MASTER".equalsIgnoreCase(roleCode)) {
-            return true;
-        }
+        // 아로로지스 독립 운영 단위 전용 — roleBasedEnforcement 모드에서 AROLOGIS_MASTER bypass
         return roleBasedEnforcement && "AROLOGIS_MASTER".equalsIgnoreCase(roleCode);
     }
 
