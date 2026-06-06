@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
  * {@link JwtTokenProvider} 단위 테스트.
  *
  * <p>Phase C4: isSystemMaster claim generate/parse 검증 — 있음/없음/기존 토큰 backward compat.
+ * <p>Phase C5-1: groups claim generate/parse 검증 — 있음/없음/구토큰 backward compat.
  */
 @DisplayName("JwtTokenProvider — claim 직렬화·역직렬화 검증")
 class JwtTokenProviderTest {
@@ -79,5 +80,62 @@ class JwtTokenProviderTest {
         assertThat(JwtTokenProvider.getDepartmentName(parsed)).isEqualTo("대표실");
         assertThat(JwtTokenProvider.getIsSystemMaster(parsed)).isTrue();
         assertThat(JwtTokenProvider.getRole(parsed)).isEqualTo("MASTER");
+    }
+
+    // ── Phase C5-1 groups claim 검증 ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("C5-1: groups claim 포함 7-arg generate/parse 왕복")
+    void groups_generate_roundTrip() {
+        String groupsJoined = "g-uuid-1,g-uuid-2,g-uuid-3";
+        String token = JwtTokenProvider.generate(
+                "user-g1", Role.MANAGER.name(), null, false, groupsJoined, 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(JwtTokenProvider.getGroups(parsed)).isEqualTo(groupsJoined);
+        assertThat(JwtTokenProvider.getRole(parsed)).isEqualTo("MANAGER");
+        assertThat(JwtTokenProvider.getIsSystemMaster(parsed)).isFalse();
+    }
+
+    @Test
+    @DisplayName("C5-1: groups 빈 문자열 → claim 미포함, getGroups 빈 문자열 반환")
+    void groups_empty_claimAbsent() {
+        String token = JwtTokenProvider.generate(
+                "user-ng", Role.SALES.name(), null, false, "", 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(parsed.getPayload().containsKey(JwtTokenProvider.CLAIM_GROUPS)).isFalse();
+        assertThat(JwtTokenProvider.getGroups(parsed)).isEqualTo("");
+    }
+
+    @Test
+    @DisplayName("C5-1: 구토큰(6-arg, groups claim 없음) — getGroups 빈 문자열 반환 (backward compat)")
+    void legacyToken_groupsClaimAbsent_returnsEmpty() {
+        // 6-arg 오버로드 (C5-1 이전 토큰 시뮬레이션)
+        String token = JwtTokenProvider.generate(
+                "legacy-u", Role.DRIVER.name(), null, false, 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(JwtTokenProvider.getGroups(parsed)).isEqualTo("");
+        assertThat(parsed.getPayload().containsKey(JwtTokenProvider.CLAIM_GROUPS)).isFalse();
+    }
+
+    @Test
+    @DisplayName("C5-1: groups + departmentName + isSystemMaster 동시 포함 토큰 왕복")
+    void allClaims_roundTrip() {
+        String groups = "grp-aaa,grp-bbb";
+        String token = JwtTokenProvider.generate(
+                "master-full", Role.MASTER.name(), "대표실", true, groups, 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(JwtTokenProvider.getUserId(parsed)).isEqualTo("master-full");
+        assertThat(JwtTokenProvider.getRole(parsed)).isEqualTo("MASTER");
+        assertThat(JwtTokenProvider.getDepartmentName(parsed)).isEqualTo("대표실");
+        assertThat(JwtTokenProvider.getIsSystemMaster(parsed)).isTrue();
+        assertThat(JwtTokenProvider.getGroups(parsed)).isEqualTo(groups);
     }
 }

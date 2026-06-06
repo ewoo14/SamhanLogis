@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.auth.config.JwtIssueProperties;
 import com.samhanair.logis.auth.domain.Account;
+import com.samhanair.logis.auth.domain.AccountGroup;
+import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.repository.PermissionGroupRepository;
 import com.samhanair.logis.auth.service.dto.LoginResponse;
@@ -22,6 +24,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.common.security.Role;
 import jakarta.persistence.EntityManager;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +62,9 @@ class AuthServiceTest {
     private PermissionGroupRepository permissionGroupRepository;
 
     @Mock
+    private AccountGroupRepository accountGroupRepository;
+
+    @Mock
     private EntityManager entityManager;
 
     @InjectMocks
@@ -80,13 +86,17 @@ class AuthServiceTest {
         when(passwordEncoder.matches("password123", "$2a$encoded")).thenReturn(true);
         when(jwtIssueProperties.getTtlSeconds()).thenReturn(3600L);
         when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
+        // Phase C5-1: 그룹 조회 stub (빈 리스트)
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(managerAccount.getId()))
+                .thenReturn(List.of());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
-            // Phase C4: 6-arg overload (departmentName + isSystemMaster claim)
+            // Phase C5-1: 7-arg overload (departmentName + isSystemMaster + groups)
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), eq("MANAGER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
                     org.mockito.ArgumentMatchers.anyBoolean(),
+                    anyString(),
                     anyLong(), any(byte[].class)))
                     .thenReturn("jwt-token");
 
@@ -112,12 +122,17 @@ class AuthServiceTest {
         when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
         // Phase C4: MASTER → systemMaster 그룹 배속 → true 반환
         when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(masterId)).thenReturn(true);
+        // Phase C5-1: MASTER 그룹 조회 stub
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(masterId))
+                .thenReturn(List.of());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
+            // Phase C5-1: 7-arg overload
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), eq("MASTER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
                     eq(true),
+                    anyString(),
                     anyLong(), any(byte[].class)))
                     .thenReturn("master-jwt");
 
@@ -125,11 +140,12 @@ class AuthServiceTest {
 
             assertThat(response.token()).isEqualTo("master-jwt");
             assertThat(response.role()).isEqualTo("MASTER");
-            // isSystemMaster=true 로 generate 호출됐는지 검증
+            // isSystemMaster=true, groups="" 로 generate 호출됐는지 검증
             mocked.verify(() -> JwtTokenProvider.generate(
                     anyString(), eq("MASTER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
                     eq(true),
+                    anyString(),
                     anyLong(), any(byte[].class)));
         }
     }
@@ -144,12 +160,17 @@ class AuthServiceTest {
         // 비-MASTER → false 반환 (기본값이지만 명시)
         when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(managerAccount.getId()))
                 .thenReturn(false);
+        // Phase C5-1: 그룹 조회 stub
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(managerAccount.getId()))
+                .thenReturn(List.of());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
+            // Phase C5-1: 7-arg overload
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), eq("MANAGER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
                     eq(false),
+                    anyString(),
                     anyLong(), any(byte[].class)))
                     .thenReturn("manager-jwt");
 
@@ -161,6 +182,49 @@ class AuthServiceTest {
                     anyString(), eq("MANAGER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
                     eq(false),
+                    anyString(),
+                    anyLong(), any(byte[].class)));
+        }
+    }
+
+    @Test
+    @DisplayName("C5-1: 로그인 시 활성 그룹 UUID 집합이 comma-join 으로 generate 에 전달")
+    void login_groupsPassedToGenerate() {
+        UUID groupId1 = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
+        UUID groupId2 = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000002");
+
+        AccountGroup ag1 = AccountGroup.assign(managerAccount.getId(), groupId1);
+        AccountGroup ag2 = AccountGroup.assign(managerAccount.getId(), groupId2);
+
+        when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(managerAccount));
+        when(passwordEncoder.matches("password123", "$2a$encoded")).thenReturn(true);
+        when(jwtIssueProperties.getTtlSeconds()).thenReturn(3600L);
+        when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
+        when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(managerAccount.getId()))
+                .thenReturn(false);
+        // Phase C5-1: 그룹 2개 반환
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(managerAccount.getId()))
+                .thenReturn(List.of(ag1, ag2));
+
+        try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
+            mocked.when(() -> JwtTokenProvider.generate(
+                    anyString(), anyString(),
+                    org.mockito.ArgumentMatchers.nullable(String.class),
+                    org.mockito.ArgumentMatchers.anyBoolean(),
+                    anyString(),
+                    anyLong(), any(byte[].class)))
+                    .thenReturn("groups-jwt");
+
+            LoginResponse response = authService.login("alice", "password123");
+
+            assertThat(response.token()).isEqualTo("groups-jwt");
+            // groups 가 comma-join UUID 형태로 generate 에 전달됐는지 검증
+            String expectedGroups = groupId1 + "," + groupId2;
+            mocked.verify(() -> JwtTokenProvider.generate(
+                    anyString(), eq("MANAGER"),
+                    org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq(false),
+                    eq(expectedGroups),
                     anyLong(), any(byte[].class)));
         }
     }

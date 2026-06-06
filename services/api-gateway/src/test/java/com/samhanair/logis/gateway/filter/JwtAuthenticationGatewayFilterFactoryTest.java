@@ -25,6 +25,8 @@ import reactor.test.StepVerifier;
  * {@link MockServerWebExchange}; the downstream chain is a no-op that
  * captures the mutated request so we can assert on the headers that would
  * have been forwarded.
+ *
+ * <p>Phase C5-1: X-User-Groups 헤더 주입 검증 추가.
  */
 class JwtAuthenticationGatewayFilterFactoryTest {
 
@@ -136,6 +138,64 @@ class JwtAuthenticationGatewayFilterFactoryTest {
 
         assertThat(captured[0]).isNotNull();
         // 구버전 토큰이어도 role=MASTER 이므로 role 폴백으로 bypass 가능 (PermissionAspect 에서)
+        assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("false");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("C5-1: groups claim 없는 토큰 → X-User-Groups 빈 문자열 전파")
+    void validToken_withoutGroups_propagatesEmptyUserGroupsHeader() {
+        // groups claim 미포함 토큰 (6-arg 사용)
+        String token = JwtTokenProvider.generate(
+                "user-ng", "SALES", 3600, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/orders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        // C5-1: groups 미포함 토큰 → X-User-Groups 빈 문자열 (헤더 일관)
+        assertThat(captured[0].getHeaders().getFirst("X-User-Groups")).isEqualTo("");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("C5-1: groups claim 포함 토큰 → X-User-Groups comma-join 전파")
+    void validToken_withGroups_propagatesUserGroupsHeader() {
+        String groups = "g-uuid-1,g-uuid-2";
+        // 7-arg: groups claim 포함
+        String token = JwtTokenProvider.generate(
+                "user-g", "MANAGER", null, false, groups, 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/orders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().getFirst("X-User-Groups")).isEqualTo(groups);
+        // 기존 헤더들도 영향 없는지 확인
+        assertThat(captured[0].getHeaders().getFirst("X-User-Id")).isEqualTo("user-g");
+        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isEqualTo("MANAGER");
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("false");
     }
 

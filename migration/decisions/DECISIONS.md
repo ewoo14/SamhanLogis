@@ -2796,3 +2796,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | 결정 | 내용 |
 |---|---|
 | D-PGC-10 | C4 = MASTER bypass 키에 **is_system_master 그룹 경로 추가**(additive). `isMasterBypass = (X-Is-System-Master=="true") OR (role=="MASTER")` — 새 경로 추가, role 폴백 **유지**(락아웃 0). JWT isSystemMaster 클레임(JwtTokenProvider 6-arg 오버로드, 기존 보존)→게이트웨이 X-Is-System-Master 헤더→PermissionAspect OR. auth-service login 이 `existsByAccountIdAndSystemMasterTrue` EXISTS 로 산출. C3a 불변식(systemMaster 그룹 ⟺ role==MASTER) 토대. role 폴백 제거=C4-3(후속). 전 14서비스 compile SUCCESSFUL, Docker 실QA 의무. |
+
+### D-PGC (C5-1, 2026-06-06)
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-11 | 개발책임자 다중그룹 표현 정책 = **JWT/헤더 그룹 집합 전파**. C5-1 = 그 인프라 additive 부설 — JWT `groups` 클레임(JwtTokenProvider 7-arg, 기존 보존) + 게이트웨이 `X-User-Groups` 헤더(소비처 0, behavior-preserving, 락아웃 0). AuthService.login 이 account_groups comma-join 산출. **C5-2(소비/X-User-Role·role 클레임·accounts.role 제거, FE role 헬퍼/~86파일 그룹 재설계)는 폴백 없는 총 락아웃 위험 → 전 서비스 동시 cutover + DB 백업 + 롤백 + 개발책임자 입회 집중 세션**(계획서 §7, 자율 금지). |

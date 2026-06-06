@@ -26,6 +26,15 @@ public final class HttpHeaderConstants {
      */
     public static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
 
+    /**
+     * 계정의 활성 그룹 UUID 집합 header — Phase C5-1 신규.
+     *
+     * <p>api-gateway 가 JWT {@code groups} claim 을 파싱하여 comma-join UUID 문자열로 전파.
+     * 본 슬라이스(C5-1)에서는 헤더를 주입만 하며 소비처(PermissionAspect 등)는 C5-2 에서 구현된다.
+     * 그룹이 없으면 빈 문자열을 전파하여 헤더 부재와 구분한다.
+     */
+    public static final String USER_GROUPS_HEADER = "X-User-Groups";
+
     private HttpHeaderConstants() {
     }
 }

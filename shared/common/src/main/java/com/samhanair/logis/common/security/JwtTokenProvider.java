@@ -21,6 +21,12 @@ import javax.crypto.SecretKey;
  * {@code X-Is-System-Master} 헤더로 downstream 에 전파.
  * {@link PermissionAspect} 에서 OR 폴백(role==MASTER)과 함께 bypass 판정에 사용.
  * 기존 오버로드는 모두 하위 호환 유지.
+ *
+ * <p>Phase C5-1 그룹 집합 전파 인프라:
+ * {@code groups} claim (comma-join UUID 문자열) 을 JWT 에 포함하여 api-gateway 가
+ * {@code X-User-Groups} 헤더로 downstream 에 전파.
+ * 본 슬라이스에서는 전파만 수행하며 소비처는 C5-2 에서 구현한다.
+ * 기존 6-arg 오버로드는 groups="" 위임으로 하위 호환 유지.
  */
 public final class JwtTokenProvider {
 
@@ -34,6 +40,16 @@ public final class JwtTokenProvider {
      * 있음을 의미한다. api-gateway 가 {@code X-Is-System-Master: true} 헤더로 전파한다.
      */
     public static final String CLAIM_IS_SYSTEM_MASTER = "isSystemMaster";
+
+    /**
+     * JWT claim key — 계정의 활성 그룹 UUID 집합 (Phase C5-1).
+     *
+     * <p>값은 그룹 UUID 를 쉼표로 join 한 문자열이다 (예: {@code "uuid1,uuid2,uuid3"}).
+     * api-gateway 가 {@code X-User-Groups} 헤더로 downstream 에 전파한다.
+     * 본 슬라이스(C5-1)에서는 전파만 수행하며, 소비처(PermissionAspect 등)는 C5-2 에서 구현된다.
+     * 그룹이 없거나 빈 문자열이면 claim 을 포함하지 않는다.
+     */
+    public static final String CLAIM_GROUPS = "groups";
 
     private JwtTokenProvider() {
     }
@@ -70,7 +86,7 @@ public final class JwtTokenProvider {
     }
 
     /**
-     * isSystemMaster claim 포함 발급 메서드 — Phase C4 신규 오버로드.
+     * isSystemMaster claim 포함 발급 메서드 — Phase C4 신규 오버로드 (groups 미포함 — 하위 호환).
      *
      * <p>auth-service 로그인 시 {@code is_system_master=true} 권한그룹 멤버십을
      * JWT claim 에 포함. api-gateway 가 {@code X-Is-System-Master} 헤더로 전파하여
@@ -78,6 +94,8 @@ public final class JwtTokenProvider {
      *
      * <p>기존 role=="MASTER" 폴백은 유지(OR) — 락아웃 0 설계.
      * 헤더 파이프가 깨져도 role 폴백이 MASTER 접근을 보존한다.
+     *
+     * <p>Phase C5-1: 내부적으로 7-arg 오버로드에 {@code groups=""} 로 위임하여 하위 호환을 유지한다.
      *
      * @param userId         사용자 UUID 문자열
      * @param role           역할 문자열 (예: "MASTER")
@@ -89,6 +107,30 @@ public final class JwtTokenProvider {
      */
     public static String generate(String userId, String role, String departmentName,
                                   boolean isSystemMaster, long ttlSeconds, byte[] secret) {
+        return generate(userId, role, departmentName, isSystemMaster, "", ttlSeconds, secret);
+    }
+
+    /**
+     * groups claim 포함 발급 메서드 — Phase C5-1 신규 7-arg 오버로드.
+     *
+     * <p>auth-service 로그인 시 계정의 활성 그룹 UUID 집합(comma-join)을 JWT claim 에 포함.
+     * api-gateway 가 {@code X-User-Groups} 헤더로 downstream 에 전파한다.
+     * 본 슬라이스(C5-1)에서는 전파만 수행하며 소비처는 C5-2 에서 구현된다.
+     *
+     * <p>기존 오버로드 시그니처는 모두 보존 — backward compat.
+     *
+     * @param userId         사용자 UUID 문자열
+     * @param role           역할 문자열 (예: "MASTER")
+     * @param departmentName 소속 부서명 (null 허용 — 미설정 시 claim 미포함)
+     * @param isSystemMaster 시스템 마스터 그룹 멤버십 여부 (false 이면 claim 미포함)
+     * @param groups         활성 그룹 UUID comma-join 문자열 (null 또는 blank 이면 claim 미포함)
+     * @param ttlSeconds     만료 시간(초)
+     * @param secret         HS256 서명 secret bytes
+     * @return 서명된 JWT 문자열
+     */
+    public static String generate(String userId, String role, String departmentName,
+                                  boolean isSystemMaster, String groups,
+                                  long ttlSeconds, byte[] secret) {
         SecretKey key = Keys.hmacShaKeyFor(secret);
         Instant now = Instant.now();
         var builder = Jwts.builder()
@@ -102,6 +144,9 @@ public final class JwtTokenProvider {
         }
         if (isSystemMaster) {
             builder.claim(CLAIM_IS_SYSTEM_MASTER, true);
+        }
+        if (groups != null && !groups.isBlank()) {
+            builder.claim(CLAIM_GROUPS, groups);
         }
         return builder.compact();
     }
@@ -166,5 +211,19 @@ public final class JwtTokenProvider {
     public static boolean getIsSystemMaster(Jws<Claims> jws) {
         Boolean val = jws.getPayload().get(CLAIM_IS_SYSTEM_MASTER, Boolean.class);
         return Boolean.TRUE.equals(val);
+    }
+
+    /**
+     * groups claim 추출 — Phase C5-1 신규.
+     *
+     * <p>api-gateway 에서 {@code X-User-Groups} 헤더 전파에 사용.
+     * claim 미포함(구버전 토큰 또는 그룹 미배속 계정 토큰) 시 빈 문자열 반환 — null 안전.
+     *
+     * @param jws 파싱된 JWS
+     * @return 활성 그룹 UUID comma-join 문자열 (없으면 빈 문자열 — null 미반환)
+     */
+    public static String getGroups(Jws<Claims> jws) {
+        String val = jws.getPayload().get(CLAIM_GROUPS, String.class);
+        return val != null ? val : "";
     }
 }

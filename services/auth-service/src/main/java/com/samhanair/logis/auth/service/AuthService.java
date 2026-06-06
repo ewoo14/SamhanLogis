@@ -2,6 +2,8 @@ package com.samhanair.logis.auth.service;
 
 import com.samhanair.logis.auth.config.JwtIssueProperties;
 import com.samhanair.logis.auth.domain.Account;
+import com.samhanair.logis.auth.domain.AccountGroup;
+import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.service.dto.LoginResponse;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
@@ -12,7 +14,9 @@ import com.samhanair.logis.common.security.Role;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,6 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Phase C3a 갱신 — {@link #updateAccountRole} 시 빌트인 role-group 자동 동기화 +
  * effective 권한 재계산({@link EffectivePermissionMaterializer}).
  * 신규 계정 등록({@link #registerWithId}) 시에도 초기 role-group 배속을 보장.
+ *
+ * <p>Phase C5-1 갱신 — {@link #login} 시 계정의 활성 그룹 UUID 집합을 조회하여
+ * JWT {@code groups} claim 에 comma-join 문자열로 포함. api-gateway 가
+ * {@code X-User-Groups} 헤더로 downstream 에 전파한다.
+ * 본 슬라이스에서는 전파만 수행하며 소비처는 C5-2 에서 구현된다.
  */
 @Slf4j
 @Service
@@ -41,6 +50,8 @@ public class AuthService {
     private final AccountGroupService accountGroupService;
     private final EffectivePermissionMaterializer effectivePermissionMaterializer;
     private final com.samhanair.logis.auth.repository.PermissionGroupRepository permissionGroupRepository;
+    /** Phase C5-1: 계정 그룹 배속 저장소 — 로그인 시 그룹 집합 조회에 사용. */
+    private final AccountGroupRepository accountGroupRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -80,10 +91,16 @@ public class AuthService {
         // Phase C4: is_system_master 그룹 멤버십 산출 (EXISTS, 저비용 1쿼리)
         boolean isSystemMaster = permissionGroupRepository
                 .existsByAccountIdAndSystemMasterTrue(account.getId());
-        // Phase 12 인사 가드 + Phase C4 isSystemMaster claim 포함 JWT 발급
+        // Phase C5-1: 활성 그룹 UUID 집합 조회 → comma-join 문자열 (소비처는 C5-2 에서 구현)
+        String groups = accountGroupRepository
+                .findByAccountIdAndIsDeletedFalse(account.getId())
+                .stream()
+                .map(ag -> ag.getGroupId().toString())
+                .collect(Collectors.joining(","));
+        // Phase 12 인사 가드 + Phase C4 isSystemMaster claim + Phase C5-1 groups claim 포함 JWT 발급
         String token = JwtTokenProvider.generate(
                 userId, role, account.getDepartmentName(),
-                isSystemMaster,
+                isSystemMaster, groups,
                 jwtIssueProperties.getTtlSeconds(), jwtIssueProperties.getSecretBytes());
 
         return new LoginResponse(token, userId, role, account.getDisplayName());
