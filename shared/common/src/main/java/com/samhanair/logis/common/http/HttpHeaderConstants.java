@@ -17,6 +17,15 @@ public final class HttpHeaderConstants {
     /** 거래처 사용자 본인 주문 검증용 거래처 코드 header. */
     public static final String PARTNER_CODE_HEADER = "X-Partner-Code";
 
+    /**
+     * 시스템 마스터 그룹 멤버십 여부 header — Phase C4 신규.
+     *
+     * <p>api-gateway 가 JWT {@code isSystemMaster} claim 을 파싱하여 {@code "true"} 또는
+     * {@code "false"} 문자열로 전파. downstream {@link PermissionAspect} 에서
+     * {@code role==MASTER} 폴백과 OR 조건으로 bypass 판정에 사용된다.
+     */
+    public static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
+
     private HttpHeaderConstants() {
     }
 }

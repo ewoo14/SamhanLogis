@@ -62,6 +62,12 @@ public class JwtAuthenticationGatewayFilterFactory
     private static final String HEADER_USER_ROLE = "X-User-Role";
     /** Phase 12 인사 가드 — 소속 부서명 헤더. JWT claim {@code departmentName} 에서 추출. */
     private static final String HEADER_USER_DEPARTMENT = "X-User-Department";
+    /**
+     * Phase C4 — 시스템 마스터 그룹 멤버십 헤더.
+     * JWT claim {@code isSystemMaster} 가 {@code true} 이면 {@code "true"}, 그 외 {@code "false"} 전송.
+     * downstream {@link PermissionAspect} 가 {@code role==MASTER} OR 조건으로 bypass 판정에 사용.
+     */
+    private static final String HEADER_IS_SYSTEM_MASTER = "X-Is-System-Master";
 
     private final JwtProperties props;
 
@@ -103,6 +109,9 @@ public class JwtAuthenticationGatewayFilterFactory
             // Phase 12 인사 가드: JWT claim departmentName → X-User-Department 헤더 전파.
             // claim 미존재(구버전 토큰 포함) 시 null → 헤더 미전송.
             String departmentName = JwtTokenProvider.getDepartmentName(jws);
+            // Phase C4: JWT claim isSystemMaster → X-Is-System-Master 헤더 전파.
+            // claim 미포함(구버전 토큰 또는 비-MASTER) 시 false → "false" 전송.
+            boolean isSystemMaster = JwtTokenProvider.getIsSystemMaster(jws);
 
             if (!config.getAllowedRoles().isEmpty()) {
                 Role role;
@@ -120,7 +129,9 @@ public class JwtAuthenticationGatewayFilterFactory
 
             ServerHttpRequest.Builder requestBuilder = request.mutate()
                     .header(HEADER_USER_ID, userId)
-                    .header(HEADER_USER_ROLE, roleName);
+                    .header(HEADER_USER_ROLE, roleName)
+                    // Phase C4: isSystemMaster 는 항상 전송 ("true"/"false") — 헤더 부재와 false 를 구분
+                    .header(HEADER_IS_SYSTEM_MASTER, String.valueOf(isSystemMaster));
             // departmentName 이 존재할 때만 헤더 추가 — 미배정 계정은 헤더 미전송.
             // [RC7] HTTP 헤더는 ISO-8859-1 인코딩이라 한글 부서명("대표실")을 그대로 넣으면 다운스트림
             // Tomcat 이 모지바케로 역디코딩 → @hr.isExecutiveOffice() 비교 실패. UTF-8 URL-encode 하여

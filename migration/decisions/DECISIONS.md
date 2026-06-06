@@ -2790,3 +2790,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | 결정 | 내용 |
 |---|---|
 | D-PGC-09 | 개발책임자 "123 순서" ① — C3 Option B 채택. UsersPage 역할변경(RoleChangeModal 단일 role 드롭다운) → GroupAssignModal(권한그룹 배속). 빌트인 role-group 이 primary(그룹→role 역매핑 BUILTIN_GROUP_ROLE_MAP, V43 `...01XX`) → updateAdminUserRole(C3a 동기화). 추가 커스텀 그룹 multi-assign(Phase A permissionGroupsApi 재사용). accounts.role = 기본 그룹 파생 스냅샷(C5 전 JWT 호환), multi-role 미지원(단일 primary). BE 무변경(role 파생 FE). full multi-role 은 C5 후. |
+
+### D-PGC (C4, 2026-06-06)
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-10 | C4 = MASTER bypass 키에 **is_system_master 그룹 경로 추가**(additive). `isMasterBypass = (X-Is-System-Master=="true") OR (role=="MASTER")` — 새 경로 추가, role 폴백 **유지**(락아웃 0). JWT isSystemMaster 클레임(JwtTokenProvider 6-arg 오버로드, 기존 보존)→게이트웨이 X-Is-System-Master 헤더→PermissionAspect OR. auth-service login 이 `existsByAccountIdAndSystemMasterTrue` EXISTS 로 산출. C3a 불변식(systemMaster 그룹 ⟺ role==MASTER) 토대. role 폴백 제거=C4-3(후속). 전 14서비스 compile SUCCESSFUL, Docker 실QA 의무. |

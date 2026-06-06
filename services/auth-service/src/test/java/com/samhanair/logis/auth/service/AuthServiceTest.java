@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.auth.config.JwtIssueProperties;
 import com.samhanair.logis.auth.domain.Account;
 import com.samhanair.logis.auth.repository.AccountRepository;
+import com.samhanair.logis.auth.repository.PermissionGroupRepository;
 import com.samhanair.logis.auth.service.dto.LoginResponse;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -24,6 +25,7 @@ import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +56,9 @@ class AuthServiceTest {
     private EffectivePermissionMaterializer effectivePermissionMaterializer;
 
     @Mock
+    private PermissionGroupRepository permissionGroupRepository;
+
+    @Mock
     private EntityManager entityManager;
 
     @InjectMocks
@@ -77,10 +82,11 @@ class AuthServiceTest {
         when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
-            // Phase 12 인사 가드: 4-arg overload (departmentName claim) — nullable
+            // Phase C4: 6-arg overload (departmentName + isSystemMaster claim)
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), eq("MANAGER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    org.mockito.ArgumentMatchers.anyBoolean(),
                     anyLong(), any(byte[].class)))
                     .thenReturn("jwt-token");
 
@@ -90,6 +96,72 @@ class AuthServiceTest {
             assertThat(response.role()).isEqualTo("MANAGER");
             assertThat(response.displayName()).isEqualTo("Alice");
             assertThat(managerAccount.getLastLoginAt()).isNotNull();
+        }
+    }
+
+    @Test
+    @DisplayName("C4: MASTER 계정 로그인 시 isSystemMaster=true 산출 → JWT generate 에 true 전달")
+    void login_masterAccount_isSystemMasterTrue() {
+        Account masterAccount = Account.create("master01", "$2a$encoded", "Master", Role.MASTER);
+        UUID masterId = UUID.randomUUID();
+        ReflectionTestUtils.setField(masterAccount, "id", masterId);
+
+        when(accountRepository.findByLoginId("master01")).thenReturn(Optional.of(masterAccount));
+        when(passwordEncoder.matches("pass", "$2a$encoded")).thenReturn(true);
+        when(jwtIssueProperties.getTtlSeconds()).thenReturn(3600L);
+        when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
+        // Phase C4: MASTER → systemMaster 그룹 배속 → true 반환
+        when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(masterId)).thenReturn(true);
+
+        try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
+            mocked.when(() -> JwtTokenProvider.generate(
+                    anyString(), eq("MASTER"),
+                    org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq(true),
+                    anyLong(), any(byte[].class)))
+                    .thenReturn("master-jwt");
+
+            LoginResponse response = authService.login("master01", "pass");
+
+            assertThat(response.token()).isEqualTo("master-jwt");
+            assertThat(response.role()).isEqualTo("MASTER");
+            // isSystemMaster=true 로 generate 호출됐는지 검증
+            mocked.verify(() -> JwtTokenProvider.generate(
+                    anyString(), eq("MASTER"),
+                    org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq(true),
+                    anyLong(), any(byte[].class)));
+        }
+    }
+
+    @Test
+    @DisplayName("C4: 비-MASTER 계정 로그인 시 isSystemMaster=false 산출 → JWT generate 에 false 전달")
+    void login_nonMasterAccount_isSystemMasterFalse() {
+        when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(managerAccount));
+        when(passwordEncoder.matches("password123", "$2a$encoded")).thenReturn(true);
+        when(jwtIssueProperties.getTtlSeconds()).thenReturn(3600L);
+        when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
+        // 비-MASTER → false 반환 (기본값이지만 명시)
+        when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(managerAccount.getId()))
+                .thenReturn(false);
+
+        try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
+            mocked.when(() -> JwtTokenProvider.generate(
+                    anyString(), eq("MANAGER"),
+                    org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq(false),
+                    anyLong(), any(byte[].class)))
+                    .thenReturn("manager-jwt");
+
+            LoginResponse response = authService.login("alice", "password123");
+
+            assertThat(response.token()).isEqualTo("manager-jwt");
+            // isSystemMaster=false 로 generate 호출됐는지 검증
+            mocked.verify(() -> JwtTokenProvider.generate(
+                    anyString(), eq("MANAGER"),
+                    org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq(false),
+                    anyLong(), any(byte[].class)));
         }
     }
 

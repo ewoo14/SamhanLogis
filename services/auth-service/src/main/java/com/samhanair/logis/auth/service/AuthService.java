@@ -40,6 +40,7 @@ public class AuthService {
     private final JwtIssueProperties jwtIssueProperties;
     private final AccountGroupService accountGroupService;
     private final EffectivePermissionMaterializer effectivePermissionMaterializer;
+    private final com.samhanair.logis.auth.repository.PermissionGroupRepository permissionGroupRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -76,9 +77,13 @@ public class AuthService {
 
         String userId = account.getId().toString();
         String role = account.getRole().name();
-        // Phase 12 인사 가드: departmentName claim 포함 JWT 발급 (null 허용 — 미배정 시 claim 제외)
+        // Phase C4: is_system_master 그룹 멤버십 산출 (EXISTS, 저비용 1쿼리)
+        boolean isSystemMaster = permissionGroupRepository
+                .existsByAccountIdAndSystemMasterTrue(account.getId());
+        // Phase 12 인사 가드 + Phase C4 isSystemMaster claim 포함 JWT 발급
         String token = JwtTokenProvider.generate(
                 userId, role, account.getDepartmentName(),
+                isSystemMaster,
                 jwtIssueProperties.getTtlSeconds(), jwtIssueProperties.getSecretBytes());
 
         return new LoginResponse(token, userId, role, account.getDisplayName());

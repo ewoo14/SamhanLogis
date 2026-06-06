@@ -68,6 +68,12 @@ public class PermissionAspect {
     private static final String ROLE_HEADER = "X-User-Role";
     /** X-User-Id 헤더 이름 — JWT sub claim(계정 UUID) 전파 표준. */
     private static final String ACCOUNT_ID_HEADER = "X-User-Id";
+    /**
+     * X-Is-System-Master 헤더 이름 — Phase C4 신규.
+     * api-gateway 가 JWT {@code isSystemMaster} claim 에서 추출하여 전파.
+     * "true" 이면 role==MASTER OR 폴백 없이도 bypass.
+     */
+    private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
 
     private final ObjectProvider<DynamicPermissionClient> clientProvider;
     private final PermissionGuardMetrics metrics;
@@ -131,7 +137,8 @@ public class PermissionAspect {
         String actionName = action.name();
 
         String roleCode = normalizeHeader(extractHeader(joinPoint, signature, ROLE_HEADER), "UNKNOWN");
-        if (isMasterBypass(roleCode)) {
+        String isSystemMasterHeader = extractHeader(joinPoint, signature, IS_SYSTEM_MASTER_HEADER);
+        if (isMasterBypass(roleCode, isSystemMasterHeader)) {
             return joinPoint.proceed();
         }
 
@@ -235,7 +242,29 @@ public class PermissionAspect {
         }
     }
 
-    private boolean isMasterBypass(String roleCode) {
+    /**
+     * MASTER bypass 판정 — Phase C4 OR 폴백 설계.
+     *
+     * <p>판정 순서:
+     * <ol>
+     *   <li>{@code X-Is-System-Master == "true"} → bypass (Phase C4 신규 경로).</li>
+     *   <li>{@code role == "MASTER"} → bypass (기존 폴백, 락아웃 0 보장 — 제거 금지).</li>
+     *   <li>{@code roleBasedEnforcement} 모드에서 {@code role == "AROLOGIS_MASTER"} → bypass.</li>
+     * </ol>
+     *
+     * <p>헤더 파이프(JWT → 게이트웨이 → 서비스)가 깨져도 role 폴백이 MASTER 접근을 보존한다.
+     * role 폴백 제거는 C4-3(검증 후) 예정.
+     *
+     * @param roleCode            X-User-Role 헤더 값 (null-safe, normalized)
+     * @param isSystemMasterHeader X-Is-System-Master 헤더 값 (null 허용)
+     * @return bypass 허용 여부
+     */
+    private boolean isMasterBypass(String roleCode, String isSystemMasterHeader) {
+        // Phase C4 신규 경로: X-Is-System-Master == "true"
+        if ("true".equalsIgnoreCase(isSystemMasterHeader)) {
+            return true;
+        }
+        // 기존 role 폴백 — 락아웃 0 보장 (제거 금지, C4-3 이후 단계에서 검토)
         if ("MASTER".equalsIgnoreCase(roleCode)) {
             return true;
         }

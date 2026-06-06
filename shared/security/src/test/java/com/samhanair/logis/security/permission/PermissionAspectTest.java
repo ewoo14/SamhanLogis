@@ -2,6 +2,8 @@ package com.samhanair.logis.security.permission;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -162,6 +164,60 @@ class PermissionAspectTest {
         verifyNoInteractions(client);
     }
 
+    // -----------------------------------------------------------------------
+    // Phase C4: X-Is-System-Master 헤더 bypass + role 폴백 OR 검증
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("C4-(a) X-Is-System-Master=true → role 무관하게 bypass")
+    void isSystemMasterHeaderTrue_bypasses() {
+        // role 이 ACCOUNTANT 여도 X-Is-System-Master=true 이면 bypass
+        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", "true");
+
+        String result = proxy.createJournal(ACCOUNT_ID.toString(), "ACCOUNTANT");
+
+        assertThat(result).isEqualTo("ok");
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    @DisplayName("C4-(b) role=MASTER + 헤더 없음 → 기존 폴백으로 bypass (락아웃 0)")
+    void roleMasterWithoutHeader_bypassViaFallback() {
+        // X-Is-System-Master 헤더가 없어도 role=MASTER 이면 bypass 보장
+        attachHeaders(null, "MASTER", null);
+
+        String result = proxy.createJournal(null, "MASTER");
+
+        assertThat(result).isEqualTo("ok");
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    @DisplayName("C4-(c) X-Is-System-Master=false + role=ACCOUNTANT → grant 없으면 403")
+    void isSystemMasterFalse_nonMasterRole_deniedWithoutGrant() {
+        attachHeaders(ACCOUNT_ID.toString(), "ACCOUNTANT", "false");
+        given(client.check(ACCOUNT_ID, "accounting.journals", PermissionAction.CREATE)).willReturn(false);
+
+        assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), "ACCOUNTANT"))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("account permission missing");
+
+        verify(client).check(ACCOUNT_ID, "accounting.journals", PermissionAction.CREATE);
+        assertThat(deniedCount("accounting.journals", "ACCOUNTANT", "CREATE")).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("C4-(d) X-Is-System-Master=true 이면 DynamicPermissionClient 호출 0건")
+    void isSystemMasterTrue_noClientCall() {
+        attachHeaders(ACCOUNT_ID.toString(), "MANAGER", "true");
+
+        proxy.createJournal(ACCOUNT_ID.toString(), "MANAGER");
+
+        verify(client, never()).check(any(), anyString(), any());
+        verify(client, never()).canView(anyString(), anyString());
+        verify(client, never()).canEdit(anyString(), anyString());
+    }
+
     @Test
     void roleModeDeniesWhenCanEditFalse() {
         TestProtectedTarget roleProxy = createProxy(new PermissionAspect(
@@ -189,12 +245,19 @@ class PermissionAspectTest {
     }
 
     private void attachHeaders(String accountId, String role) {
+        attachHeaders(accountId, role, null);
+    }
+
+    private void attachHeaders(String accountId, String role, String isSystemMaster) {
         MockHttpServletRequest req = new MockHttpServletRequest();
         if (accountId != null) {
             req.addHeader("X-User-Id", accountId);
         }
         if (role != null) {
             req.addHeader("X-User-Role", role);
+        }
+        if (isSystemMaster != null) {
+            req.addHeader("X-Is-System-Master", isSystemMaster);
         }
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(req));
     }
