@@ -9,7 +9,6 @@ import com.samhanair.logis.auth.domain.Account;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.common.security.Role;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +42,8 @@ class AuthServiceLockoutTest {
 
     @BeforeEach
     void setUp() {
-        account = Account.create("alice", "$2a$encoded", "Alice", Role.MANAGER);
+        // C5-5: Account.create 에 role 파라미터 없음 — accounts.role 컬럼 DROP(V46)
+        account = Account.create("alice", "$2a$encoded", "Alice");
         ReflectionTestUtils.setField(account, "id", UUID.randomUUID());
     }
 

@@ -1,10 +1,12 @@
 package com.samhanair.logis.auth.service;
 
+import com.samhanair.logis.auth.domain.AccountGroup;
 import com.samhanair.logis.auth.domain.AccountPagePermission;
 import com.samhanair.logis.auth.domain.AccountPermissionOverride;
 import com.samhanair.logis.auth.domain.GroupPagePermission;
 import com.samhanair.logis.auth.domain.PageCode;
 import com.samhanair.logis.auth.domain.RolePagePermissionTemplate;
+import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountPagePermissionRepository;
 import com.samhanair.logis.auth.repository.AccountPermissionOverrideRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
@@ -35,6 +37,8 @@ public class AccountPermissionService {
     private final AccountPermissionOverrideRepository overrideRepository;
     private final RolePagePermissionTemplateRepository templateRepository;
     private final AccountRepository accountRepository;
+    /** C5-5: listAccounts role 파생을 위한 그룹 배속 저장소. */
+    private final AccountGroupRepository accountGroupRepository;
     private final EffectivePermissionMaterializer materializer;
 
     /**
@@ -84,16 +88,30 @@ public class AccountPermissionService {
     /**
      * MASTER 매트릭스의 계정 선택 목록.
      *
+     * <p>C5-5: role 표시값은 account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역매핑으로 파생한다.
+     * accounts.role 컬럼 DROP(V46) 이후 entity 직접 접근 불가.
+     *
      * @return 계정 요약 목록
      */
     @Transactional(readOnly = true)
     public List<AccountSummary> listAccounts() {
         return accountRepository.findAll().stream()
-                .map(account -> new AccountSummary(
-                        account.getId(),
-                        account.getDisplayName(),
-                        account.getRole().name(),
-                        account.isEnabled()))
+                .map(account -> {
+                    // C5-5: role = account_groups ∩ 빌트인 역매핑 첫 결과 (없으면 빈 문자열)
+                    String role = accountGroupRepository
+                            .findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(account.getId())
+                            .stream()
+                            .map(ag -> BuiltinRoleGroupIds.fromGroupId(ag.getGroupId()))
+                            .filter(java.util.Optional::isPresent)
+                            .map(opt -> opt.get().name())
+                            .findFirst()
+                            .orElse("");
+                    return new AccountSummary(
+                            account.getId(),
+                            account.getDisplayName(),
+                            role,
+                            account.isEnabled());
+                })
                 .collect(Collectors.toList());
     }
 

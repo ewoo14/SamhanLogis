@@ -74,21 +74,27 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        managerAccount = Account.create("alice", "$2a$encoded", "Alice", Role.MANAGER);
+        // C5-5: Account.create 에 role 파라미터 없음 — accounts.role 컬럼 DROP(V46)
+        managerAccount = Account.create("alice", "$2a$encoded", "Alice");
         ReflectionTestUtils.setField(managerAccount, "id", UUID.randomUUID());
         // @PersistenceContext 필드는 @InjectMocks 가 처리하지 않으므로 수동 주입
         ReflectionTestUtils.setField(authService, "entityManager", entityManager);
     }
 
     @Test
+    @DisplayName("C5-5: 로그인 시 role 은 빌트인 그룹 역매핑으로 파생된다")
     void login_withCorrectPassword_returnsTokenAndRole() {
+        // C5-5: MANAGER 빌트인 그룹 UUID (BuiltinRoleGroupIds.MANAGER = ...000101)
+        UUID managerGroupId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        AccountGroup managerGroup = AccountGroup.assign(managerAccount.getId(), managerGroupId);
+
         when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(managerAccount));
         when(passwordEncoder.matches("password123", "$2a$encoded")).thenReturn(true);
         when(jwtIssueProperties.getTtlSeconds()).thenReturn(3600L);
         when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
-        // Phase C5-1: 그룹 조회 stub (빈 리스트)
+        // C5-5: MANAGER 빌트인 그룹 반환 → role 파생 = "MANAGER"
         when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(managerAccount.getId()))
-                .thenReturn(List.of());
+                .thenReturn(List.of(managerGroup));
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
             // Phase C5-1: 7-arg overload (departmentName + isSystemMaster + groups)
@@ -110,11 +116,15 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("C4: MASTER 계정 로그인 시 isSystemMaster=true 산출 → JWT generate 에 true 전달")
+    @DisplayName("C4/C5-5: MASTER 계정 로그인 시 isSystemMaster=true 산출 + role='MASTER' 빌트인 그룹 파생")
     void login_masterAccount_isSystemMasterTrue() {
-        Account masterAccount = Account.create("master01", "$2a$encoded", "Master", Role.MASTER);
+        Account masterAccount = Account.create("master01", "$2a$encoded", "Master");
         UUID masterId = UUID.randomUUID();
         ReflectionTestUtils.setField(masterAccount, "id", masterId);
+
+        // C5-5: MASTER 빌트인 그룹 UUID (BuiltinRoleGroupIds.MASTER = ...000100)
+        UUID masterGroupId = UUID.fromString("00000000-0000-0000-0000-000000000100");
+        AccountGroup masterGroup = AccountGroup.assign(masterId, masterGroupId);
 
         when(accountRepository.findByLoginId("master01")).thenReturn(Optional.of(masterAccount));
         when(passwordEncoder.matches("pass", "$2a$encoded")).thenReturn(true);
@@ -122,9 +132,9 @@ class AuthServiceTest {
         when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
         // Phase C4: MASTER → systemMaster 그룹 배속 → true 반환
         when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(masterId)).thenReturn(true);
-        // Phase C5-1: MASTER 그룹 조회 stub
+        // C5-5: MASTER 빌트인 그룹 반환 → role 파생 = "MASTER"
         when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(masterId))
-                .thenReturn(List.of());
+                .thenReturn(List.of(masterGroup));
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
             // Phase C5-1: 7-arg overload
@@ -151,8 +161,12 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("C4: 비-MASTER 계정 로그인 시 isSystemMaster=false 산출 → JWT generate 에 false 전달")
+    @DisplayName("C4/C5-5: 비-MASTER 계정 로그인 시 isSystemMaster=false + role='MANAGER' 빌트인 그룹 파생")
     void login_nonMasterAccount_isSystemMasterFalse() {
+        // C5-5: MANAGER 빌트인 그룹 UUID
+        UUID managerGroupId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        AccountGroup managerGroup = AccountGroup.assign(managerAccount.getId(), managerGroupId);
+
         when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(managerAccount));
         when(passwordEncoder.matches("password123", "$2a$encoded")).thenReturn(true);
         when(jwtIssueProperties.getTtlSeconds()).thenReturn(3600L);
@@ -160,9 +174,9 @@ class AuthServiceTest {
         // 비-MASTER → false 반환 (기본값이지만 명시)
         when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(managerAccount.getId()))
                 .thenReturn(false);
-        // Phase C5-1: 그룹 조회 stub
+        // C5-5: MANAGER 빌트인 그룹 반환 → role 파생 = "MANAGER"
         when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(managerAccount.getId()))
-                .thenReturn(List.of());
+                .thenReturn(List.of(managerGroup));
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
             // Phase C5-1: 7-arg overload
@@ -218,10 +232,11 @@ class AuthServiceTest {
             LoginResponse response = authService.login("alice", "password123");
 
             assertThat(response.token()).isEqualTo("groups-jwt");
-            // groups 가 comma-join UUID 형태로 generate 에 전달됐는지 검증
+            // C5-5: groupId1/groupId2 는 비빌트인 UUID → role 파생 실패 = "" (락아웃 불변식 OK)
+            // groups 가 comma-join UUID 형태로 generate 에 전달됐는지 검증 (role 은 anyString)
             String expectedGroups = groupId1 + "," + groupId2;
             mocked.verify(() -> JwtTokenProvider.generate(
-                    anyString(), eq("MANAGER"),
+                    anyString(), anyString(),
                     org.mockito.ArgumentMatchers.nullable(String.class),
                     eq(false),
                     eq(expectedGroups),
@@ -251,6 +266,7 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("C5-5: register 시 BCrypt 해시 저장 + role 은 RegisterResponse 에서 파라미터 직접 전달")
     void register_persistsAccountWithBcryptHashedPassword() {
         when(accountRepository.existsByLoginId("bob")).thenReturn(false);
         when(passwordEncoder.encode("plain-password")).thenReturn("$2a$bcrypt-hash");
@@ -271,7 +287,7 @@ class AuthServiceTest {
         assertThat(saved.getPasswordHash()).isEqualTo("$2a$bcrypt-hash");
         assertThat(saved.getPasswordHash()).isNotEqualTo("plain-password");
         assertThat(saved.getLoginId()).isEqualTo("bob");
-        assertThat(saved.getRole()).isEqualTo(Role.SALES);
+        // C5-5: saved.getRole() 제거됨 — role 은 RegisterResponse 로 role 파라미터 직접 전달
         assertThat(response.loginId()).isEqualTo("bob");
         assertThat(response.role()).isEqualTo("SALES");
     }
@@ -289,18 +305,28 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("C5-5: updateAccountRole — 빌트인 그룹 역산으로 oldRole 파생 후 syncBuiltinRoleGroup 호출")
     void updateAccountRole_changesRoleAndSyncsRoleGroup() {
         UUID accountId = UUID.randomUUID();
-        Account account = Account.create("charlie", "$2a$hash", "Charlie", Role.MANAGER);
+        // C5-5: Account.create 에 role 파라미터 없음
+        Account account = Account.create("charlie", "$2a$hash", "Charlie");
         ReflectionTestUtils.setField(account, "id", accountId);
 
+        // C5-5: MANAGER 빌트인 그룹 stub (oldRole 역산용)
+        UUID managerGroupId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        AccountGroup managerGroup = AccountGroup.assign(accountId, managerGroupId);
+
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        // C5-5: oldRole 역산을 위한 그룹 배속 조회 stub
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(accountId))
+                .thenReturn(List.of(managerGroup));
         doNothing().when(accountGroupService).syncBuiltinRoleGroup(eq(accountId), eq(Role.MANAGER), eq(Role.SALES));
         doNothing().when(effectivePermissionMaterializer).materializeForAccount(accountId);
 
         authService.updateAccountRole(accountId, Role.SALES);
 
-        assertThat(account.getRole()).isEqualTo(Role.SALES);
+        // C5-5: account.getRole() 제거됨 — role 은 account_groups 로 표현
+        // syncBuiltinRoleGroup 이 oldRole=MANAGER, newRole=SALES 로 호출됐는지 검증
         verify(accountGroupService).syncBuiltinRoleGroup(accountId, Role.MANAGER, Role.SALES);
         verify(effectivePermissionMaterializer).materializeForAccount(accountId);
     }

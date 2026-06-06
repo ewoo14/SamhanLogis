@@ -1,8 +1,10 @@
 package com.samhanair.logis.auth.web;
 
 import com.samhanair.logis.auth.domain.Account;
+import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.service.AuthService;
+import com.samhanair.logis.auth.service.BuiltinRoleGroupIds;
 import com.samhanair.logis.auth.service.dto.LoginResponse;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
 import com.samhanair.logis.auth.web.dto.LoginRequest;
@@ -23,7 +25,12 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Public + admin auth endpoints. Method security is enabled in SecurityConfig. */
+/**
+ * 공개 + 관리자 인증 엔드포인트.
+ *
+ * <p>C5-5: /me 응답의 role 필드는 account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역매핑으로 파생한다.
+ * accounts.role 컬럼이 DROP(V46)되었으므로 entity 직접 접근 불가.
+ */
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -31,6 +38,8 @@ public class AuthController {
 
     private final AuthService authService;
     private final AccountRepository accountRepository;
+    /** C5-5: /me role 파생을 위한 그룹 배속 저장소. */
+    private final AccountGroupRepository accountGroupRepository;
 
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -57,10 +66,20 @@ public class AuthController {
         }
         Account account = accountRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "사용자를 찾을 수 없습니다"));
+        // C5-5: role = account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역매핑 파생
+        // accounts.role 컬럼이 DROP(V46)되어 entity 직접 접근 불가.
+        String role = accountGroupRepository
+                .findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(userId)
+                .stream()
+                .map(ag -> BuiltinRoleGroupIds.fromGroupId(ag.getGroupId()))
+                .filter(java.util.Optional::isPresent)
+                .map(opt -> opt.get().name())
+                .findFirst()
+                .orElse("");
         return ApiResponse.ok(new MeResponse(
                 account.getId().toString(),
                 account.getLoginId(),
-                account.getRole().name(),
+                role,
                 account.getDisplayName()));
     }
 }

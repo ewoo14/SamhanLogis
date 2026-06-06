@@ -131,10 +131,15 @@ class EffectivePermissionMaterializerIT extends AbstractPostgresIT {
         assignTestAccountToGroup(TEST_ACCOUNT_ID, ACCOUNTANT_GROUP_ID, "it-account-group");
     }
 
-    private void seedTestAccount(UUID accountId, String loginId, String displayName, String role) {
+    /**
+     * 테스트 계정 시드 — C5-5 이후 role 컬럼 없음(V46 DROP).
+     * role 파라미터는 하위 호환 시그니처 유지용이며 INSERT 에 포함되지 않는다.
+     */
+    private void seedTestAccount(UUID accountId, String loginId, String displayName,
+                                 @SuppressWarnings("unused") String role) {
         jdbcTemplate.update("""
                 INSERT INTO accounts (
-                    id, login_id, password_hash, display_name, role, enabled,
+                    id, login_id, password_hash, display_name, enabled,
                     failed_login_attempts, locked_at,
                     password_changed_at, password_history,
                     password_change_required,
@@ -142,13 +147,13 @@ class EffectivePermissionMaterializerIT extends AbstractPostgresIT {
                 ) VALUES (
                     ?, ?,
                     '$2a$12$6cxHjNrguvlnEE.4s4jrAOuGNGGmHPc4Gg8/MuMBHYh/B.Q4sU/xu',
-                    ?, ?, TRUE,
+                    ?, TRUE,
                     0, NULL,
                     NOW(), '[]'::jsonb,
                     FALSE,
                     NOW(), 'it-materializer', FALSE
                 )
-                """, accountId, loginId, displayName, role);
+                """, accountId, loginId, displayName);
     }
 
     private void cleanTestRows() {

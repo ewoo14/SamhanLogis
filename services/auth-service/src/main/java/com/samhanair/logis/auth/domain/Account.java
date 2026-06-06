@@ -1,11 +1,8 @@
 package com.samhanair.logis.auth.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
-import com.samhanair.logis.common.security.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -23,7 +20,15 @@ import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 인증 도메인 루트 — login_id / 비밀번호 hash / role / 잠금 상태 / 비밀번호 history 보유.
+ * 인증 도메인 루트 — login_id / 비밀번호 hash / 잠금 상태 / 비밀번호 history 보유.
+ *
+ * <p>C5-5: accounts.role 컬럼 물리 DROP (V46 마이그레이션). 역할 정보는
+ * account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역매핑으로 파생한다.
+ * 이 entity 는 더 이상 {@code role} 필드를 보유하지 않는다.
+ *
+ * <p>락아웃 불변식: role 파생이 실패하더라도 인증·인가는
+ * {@code X-User-Groups} / {@code X-Is-System-Master} 가 전담하므로
+ * 계정 잠금(lockout)이 발생하지 않는다.
  *
  * <p>Soft-delete 만 사용 ({@link SQLRestriction} 으로 select 단계 자동 필터). Phase 10 P0-2
  * (manual 06-트러블슈팅/01-로그인-실패.md §1-3) 에서 다음 필드가 추가됨:
@@ -63,10 +68,6 @@ public class Account extends BaseEntity {
 
     @Column(name = "display_name", nullable = false, length = 100)
     private String displayName;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
-    private Role role;
 
     @Column(name = "enabled", nullable = false)
     private boolean enabled = true;
@@ -127,25 +128,43 @@ public class Account extends BaseEntity {
     @Column(name = "department_name", length = 100)
     private String departmentName;
 
-    private Account(String loginId, String passwordHash, String displayName, Role role) {
+    private Account(String loginId, String passwordHash, String displayName) {
         this.loginId = loginId;
         this.passwordHash = passwordHash;
         this.displayName = displayName;
-        this.role = role;
         this.enabled = true;
         this.passwordHistory = new ArrayList<>();
     }
 
-    public static Account create(String loginId, String passwordHash, String displayName, Role role) {
-        return new Account(loginId, passwordHash, displayName, role);
+    /**
+     * 계정 생성 팩토리 — C5-5 이후 role 파라미터 제거.
+     *
+     * <p>역할은 account_groups 빌트인 그룹 배속으로 표현하며,
+     * accounts 테이블에는 role 컬럼이 없다(V46 DROP).
+     *
+     * @param loginId      로그인 아이디
+     * @param passwordHash BCrypt 해시
+     * @param displayName  표시 이름
+     * @return 신규 Account 인스턴스
+     */
+    public static Account create(String loginId, String passwordHash, String displayName) {
+        return new Account(loginId, passwordHash, displayName);
     }
 
     /**
      * Provisioning factory — User Service 가 미리 발급한 UUID 로 row 를 영속화.
      * Hibernate {@code @GeneratedValue} 우회를 위해 id 선세팅.
+     *
+     * <p>C5-5 이후 role 파라미터 제거. 역할 표현은 빌트인 role-group 배속으로 위임.
+     *
+     * @param id          User Service 가 선점한 UUID
+     * @param loginId     로그인 아이디
+     * @param passwordHash BCrypt 해시
+     * @param displayName 표시 이름
+     * @return id 선세팅 Account 인스턴스
      */
-    public static Account createWithId(UUID id, String loginId, String passwordHash, String displayName, Role role) {
-        Account account = new Account(loginId, passwordHash, displayName, role);
+    public static Account createWithId(UUID id, String loginId, String passwordHash, String displayName) {
+        Account account = new Account(loginId, passwordHash, displayName);
         account.id = id;
         return account;
     }
@@ -153,10 +172,6 @@ public class Account extends BaseEntity {
     public void markLogin(LocalDateTime now) {
         this.lastLoginAt = now;
         this.failedLoginAttempts = 0;
-    }
-
-    public void changeRole(Role role) {
-        this.role = role;
     }
 
     public void changeDisplayName(String displayName) {

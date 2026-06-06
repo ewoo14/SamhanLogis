@@ -41,6 +41,19 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Phase C5-3 갱신 — {@link #login} 응답 {@link LoginResponse#groups()} 필드 추가:
  * 계정의 활성 그룹 요약 목록({@link LoginResponse.GroupSummary})을 반환한다.
  * FE 는 그룹 {@code name} 만 렌더링하며 UUID 는 화면에 노출하지 않는다.
+ *
+ * <p>Phase C5-5 갱신 — accounts.role 컬럼 DROP(V46). 역할 표현을 account_groups 빌트인 그룹으로 완전 이전.
+ * <ul>
+ *   <li>{@link #login}: role 표시값 = account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역매핑 첫 결과.
+ *       역매핑 실패 시 빈 문자열 반환 — 인가 불변식 무영향(X-User-Groups/X-Is-System-Master 전담).</li>
+ *   <li>{@link #registerWithId}: role 파라미터는 internal 계약 유지용이며 accounts 컬럼에 쓰지 않는다.
+ *       역할 표현은 syncBuiltinRoleGroup(role) 그룹 배속만으로 완결.</li>
+ *   <li>{@link #updateAccountRole}: oldRole = account_groups ∩ 빌트인 역산. DB 에서 직접 조회.</li>
+ * </ul>
+ *
+ * <p>락아웃 불변식: role 파생 실패(그룹 미매칭)는 LoginResponse.role 을 빈 문자열로 처리하며
+ * 실제 인증·인가 흐름에 영향을 주지 않는다. MASTER 계정(group100)은 X-Is-System-Master=true 로
+ * 모든 권한을 bypass 하므로 role 파생 결과와 무관하게 정상 동작이 보장된다.
  */
 @Slf4j
 @Service
@@ -91,17 +104,28 @@ public class AuthService {
         account.markLogin(LocalDateTime.now());
 
         String userId = account.getId().toString();
-        String role = account.getRole().name();
         // Phase C4: is_system_master 그룹 멤버십 산출 (EXISTS, 저비용 1쿼리)
         boolean isSystemMaster = permissionGroupRepository
                 .existsByAccountIdAndSystemMasterTrue(account.getId());
-        // Phase C5-1: 활성 그룹 UUID 집합 조회 → comma-join 문자열 (소비처는 C5-2 에서 구현)
+        // Phase C5-1: 활성 그룹 UUID 집합 조회 → comma-join 문자열
         // P2: groupId 오름차순 ORDER BY 로 claim 순서 결정성 보장 (로그인마다 동일 문자열)
-        String groups = accountGroupRepository
-                .findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(account.getId())
-                .stream()
+        List<com.samhanair.logis.auth.domain.AccountGroup> activeGroups =
+                accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(account.getId());
+        String groups = activeGroups.stream()
                 .map(ag -> ag.getGroupId().toString())
                 .collect(Collectors.joining(","));
+
+        // Phase C5-5: role 표시값 — account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역매핑 첫 결과.
+        // accounts.role 컬럼 DROP(V46) 이후 역할은 그룹 배속으로만 표현한다.
+        // 역매핑 실패(그룹 미매칭) 시 빈 문자열 반환 — 인가 불변식 무영향(락아웃 가드).
+        String role = activeGroups.stream()
+                .map(ag -> BuiltinRoleGroupIds.fromGroupId(ag.getGroupId()))
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
+                .map(Role::name)
+                .findFirst()
+                .orElse("");
+
         // Phase 12 인사 가드 + Phase C4 isSystemMaster claim + Phase C5-1 groups claim 포함 JWT 발급
         String token = JwtTokenProvider.generate(
                 userId, role, account.getDepartmentName(),
@@ -157,7 +181,9 @@ public class AuthService {
         }
 
         String passwordHash = passwordEncoder.encode(rawPassword);
-        Account account = Account.createWithId(id, loginId, passwordHash, displayName, role);
+        // C5-5: Account.createWithId 에 role 파라미터 없음 — accounts.role 컬럼 DROP(V46).
+        // 역할 표현은 아래 syncBuiltinRoleGroup(role) 그룹 배속으로 완결.
+        Account account = Account.createWithId(id, loginId, passwordHash, displayName);
         if (passwordChangeRequired) {
             account.setPasswordChangeRequired(true);
         }
@@ -171,7 +197,8 @@ public class AuthService {
         accountGroupService.syncBuiltinRoleGroup(managed.getId(), null, role);
         effectivePermissionMaterializer.materializeForAccount(managed.getId());
 
-        return new RegisterResponse(managed.getId().toString(), managed.getLoginId(), managed.getRole().name());
+        // C5-5: RegisterResponse.role 은 role 파라미터 직접 전달 (accounts 컬럼 미경유)
+        return new RegisterResponse(managed.getId().toString(), managed.getLoginId(), role.name());
     }
 
     /**
@@ -179,25 +206,38 @@ public class AuthService {
      *
      * <p>Phase C3a: 단일 {@code @Transactional} 안에서 아래 순서로 수행한다.
      * <ol>
+     *   <li>현재 빌트인 그룹 멤버십 역산으로 oldRole 파생.</li>
      *   <li>변경 전 역할의 빌트인 role-group 배속 soft-delete.</li>
-     *   <li>{@link Account#changeRole(Role)} 으로 역할 변경.</li>
      *   <li>새 역할의 빌트인 role-group 배속 생성(없으면) 또는 유지.</li>
      *   <li>{@link EffectivePermissionMaterializer#materializeForAccount(UUID)} 로 effective 권한 재계산.</li>
      * </ol>
      * 수동으로 배속된 비-빌트인 그룹은 보존되며 권한은 OR 합집합으로 반영된다.
      *
+     * <p>C5-5: accounts.role 컬럼 DROP(V46) 으로 {@code account.changeRole()} 호출이 제거됨.
+     * oldRole 은 account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역산으로 파생한다.
+     *
      * @param id   역할 변경 대상 계정 UUID
      * @param role 새 역할
      */
     public void updateAccountRole(UUID id, Role role) {
-        Account account = accountRepository.findById(id)
+        // 계정 존재 확인 (조회 결과는 역할 변경에 사용하지 않음 — accounts.role 컬럼 없음)
+        accountRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
 
-        Role oldRole = account.getRole();
+        // C5-5: oldRole = account_groups ∩ 빌트인(BuiltinRoleGroupIds) 역산
+        // syncBuiltinRoleGroup 이 oldRole=null 을 no-op(unassign 스텝 skip)으로 처리하므로
+        // 역산 실패 시에도 안전하게 신규 그룹만 배속된다.
+        Role oldRole = accountGroupRepository
+                .findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(id)
+                .stream()
+                .map(ag -> BuiltinRoleGroupIds.fromGroupId(ag.getGroupId()))
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
+                .findFirst()
+                .orElse(null);
+
         // 빌트인 role-group 교체 (시스템 그룹 가드 우회 내부 경로)
         accountGroupService.syncBuiltinRoleGroup(id, oldRole, role);
-        // 역할 변경
-        account.changeRole(role);
         // effective 권한 재계산
         effectivePermissionMaterializer.materializeForAccount(id);
 

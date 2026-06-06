@@ -83,10 +83,13 @@ class AccountGroupOrderingIT extends AbstractPostgresIT {
     // Helper
     // -------------------------------------------------------------------------
 
+    /**
+     * 테스트 계정 시드 — C5-5 이후 role 컬럼 없음(V46 DROP).
+     */
     private void seedAccount() {
         jdbc.update("""
                 INSERT INTO accounts (
-                    id, login_id, password_hash, display_name, role, enabled,
+                    id, login_id, password_hash, display_name, enabled,
                     failed_login_attempts, locked_at,
                     password_changed_at, password_history,
                     password_change_required,
@@ -94,7 +97,7 @@ class AccountGroupOrderingIT extends AbstractPostgresIT {
                 ) VALUES (
                     ?, 'c51_ordering',
                     '$2a$12$6cxHjNrguvlnEE.4s4jrAOuGNGGmHPc4Gg8/MuMBHYh/B.Q4sU/xu',
-                    'C5-1 Ordering', 'SALES', TRUE,
+                    'C5-1 Ordering', TRUE,
                     0, NULL,
                     NOW(), '[]'::jsonb,
                     FALSE,

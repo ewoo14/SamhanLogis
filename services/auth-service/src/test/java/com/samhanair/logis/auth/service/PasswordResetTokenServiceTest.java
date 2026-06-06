@@ -15,7 +15,6 @@ import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.repository.PasswordResetTokenRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.common.security.Role;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -64,7 +63,8 @@ class PasswordResetTokenServiceTest {
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
-        activeAccount = Account.create("alice", "$2a$current", "Alice", Role.MANAGER);
+        // C5-5: Account.create 에 role 파라미터 없음 — accounts.role 컬럼 DROP(V46)
+        activeAccount = Account.create("alice", "$2a$current", "Alice");
         ReflectionTestUtils.setField(activeAccount, "id", userId);
         ReflectionTestUtils.setField(activeAccount, "email", "alice@samhan.com");
 

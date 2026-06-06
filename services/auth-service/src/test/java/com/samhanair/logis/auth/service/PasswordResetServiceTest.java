@@ -13,7 +13,6 @@ import com.samhanair.logis.auth.domain.Account;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.common.security.Role;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -50,7 +49,8 @@ class PasswordResetServiceTest {
 
     @BeforeEach
     void setUp() {
-        managerAccount = Account.create("alice", "$2a$current", "Alice", Role.MANAGER);
+        // C5-5: Account.create 에 role 파라미터 없음 — accounts.role 컬럼 DROP(V46)
+        managerAccount = Account.create("alice", "$2a$current", "Alice");
         managerId = UUID.randomUUID();
         ReflectionTestUtils.setField(managerAccount, "id", managerId);
     }

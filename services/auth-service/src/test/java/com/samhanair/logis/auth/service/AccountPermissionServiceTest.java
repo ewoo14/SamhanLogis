@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 import com.samhanair.logis.auth.domain.AccountPagePermission;
+import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountPermissionOverrideRepository;
 import com.samhanair.logis.auth.repository.AccountPagePermissionRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
@@ -33,6 +34,10 @@ class AccountPermissionServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+
+    /** C5-5: AccountPermissionService 생성자에 추가된 accountGroupRepository mock */
+    @Mock
+    private AccountGroupRepository accountGroupRepository;
 
     @Mock
     private EffectivePermissionMaterializer materializer;
@@ -67,11 +72,13 @@ class AccountPermissionServiceTest {
     }
 
     private AccountPermissionService service() {
+        // C5-5: accountGroupRepository 파라미터 추가 (listAccounts role 파생용)
         return new AccountPermissionService(
                 accountPermissionRepository,
                 overrideRepository,
                 templateRepository,
                 accountRepository,
+                accountGroupRepository,
                 materializer);
     }
 }

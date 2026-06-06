@@ -285,10 +285,14 @@ class RoleGroupSyncIT extends AbstractPostgresIT {
                 """, MANUAL_GROUP_ID);
     }
 
-    private void seedAccount(UUID id, String loginId, String displayName, String role) {
+    /**
+     * 테스트 계정 시드 — C5-5 이후 role 컬럼 없음(V46 DROP).
+     * 역할 표현은 이후 assignGroup(빌트인 그룹 배속)으로 완결.
+     */
+    private void seedAccount(UUID id, String loginId, String displayName, @SuppressWarnings("unused") String role) {
         jdbc.update("""
                 INSERT INTO accounts (
-                    id, login_id, password_hash, display_name, role, enabled,
+                    id, login_id, password_hash, display_name, enabled,
                     failed_login_attempts, locked_at,
                     password_changed_at, password_history,
                     password_change_required,
@@ -296,13 +300,13 @@ class RoleGroupSyncIT extends AbstractPostgresIT {
                 ) VALUES (
                     ?, ?,
                     '$2a$12$6cxHjNrguvlnEE.4s4jrAOuGNGGmHPc4Gg8/MuMBHYh/B.Q4sU/xu',
-                    ?, ?, TRUE,
+                    ?, TRUE,
                     0, NULL,
                     NOW(), '[]'::jsonb,
                     FALSE,
                     NOW(), 'it-c3a', NOW(), 'it-c3a', FALSE
                 )
-                """, id, loginId, displayName, role);
+                """, id, loginId, displayName);
     }
 
     private void assignGroup(UUID accountId, UUID groupId, String actor) {
