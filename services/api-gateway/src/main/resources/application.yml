@@ -114,11 +114,8 @@ spring:
             - JwtAuthentication
 
         # Logging service — restricted to MASTER + MANAGER per audit policy.
-        # 🚨 C5-3 dual review P1: allowedRoles 와 allowedGroups 를 동시 지정하면
-        # 필터가 순차 검사(사실상 AND)하므로 groups claim 없는 구버전 토큰(C5-1 이전
-        # 발급, TTL 1h)·그룹 미배속 MASTER/MANAGER 가 신규 차단됨(behavior-breaking).
-        # → PR-1 은 allowedRoles 단독 유지, allowedGroups 로의 교체는 PR-2(C5-4)에서
-        #   role 클레임 제거와 함께 단독 지정으로 전환한다.
+        # Phase C5-4: role 클레임 제거와 함께 allowedGroups 단독으로 전환.
+        # 빌트인 그룹 UUID: MASTER=100, MANAGER=101 (V43 BuiltinRoleGroupIds).
         - id: logging-service
           uri: lb://logging-service
           predicates:
@@ -127,9 +124,9 @@ spring:
             - StripPrefix=1
             - name: JwtAuthentication
               args:
-                allowedRoles:
-                  - MASTER
-                  - MANAGER
+                allowedGroups:
+                  - 00000000-0000-0000-0000-000000000100
+                  - 00000000-0000-0000-0000-000000000101
 
         # ============================================================
         # `/api/v1/*` 표준 routing (Phase 10 W10-6 도입). 14 service 일관.

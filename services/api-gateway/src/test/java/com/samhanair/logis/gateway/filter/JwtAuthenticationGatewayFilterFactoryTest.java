@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.gateway.config.JwtProperties;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -27,7 +28,9 @@ import reactor.test.StepVerifier;
  * have been forwarded.
  *
  * <p>Phase C5-1: X-User-Groups 헤더 주입 검증 추가.
+ * <p>Phase C5-4: X-User-Role 주입 제거 검증, X-Is-Partner 주입 신규 검증, allowedGroups 단독 logging-service.
  */
+@SuppressWarnings("deprecation")
 class JwtAuthenticationGatewayFilterFactoryTest {
 
     // 32+ byte HS256 secret so JJWT key generation is happy.
@@ -62,7 +65,8 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
-    void validToken_propagatesIdentityHeadersDownstream() {
+    @DisplayName("C5-4: 유효 토큰 → X-User-Id/X-Is-System-Master/X-User-Groups 전파, X-User-Role 미전파")
+    void validToken_propagatesIdentityHeadersDownstream_noRoleHeader() {
         String token = JwtTokenProvider.generate(
                 "user-42", "MANAGER", 3600, props.getSecretBytes());
 
@@ -83,13 +87,15 @@ class JwtAuthenticationGatewayFilterFactoryTest {
 
         assertThat(captured[0]).isNotNull();
         assertThat(captured[0].getHeaders().getFirst("X-User-Id")).isEqualTo("user-42");
-        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isEqualTo("MANAGER");
+        // C5-4: X-User-Role 헤더 미전파
+        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
         // Phase C4: isSystemMaster claim 없음 → X-Is-System-Master: false
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("false");
     }
 
     @Test
-    void masterToken_withSystemMasterClaim_propagatesIsSystemMasterTrue() {
+    @DisplayName("C5-4: isSystemMaster=true 토큰 → X-Is-System-Master: true 전파, X-User-Role 미전파")
+    void masterToken_withSystemMasterClaim_propagatesIsSystemMasterTrue_noRoleHeader() {
         // Phase C4: isSystemMaster=true claim 포함 토큰 → X-Is-System-Master: true 전파
         String token = JwtTokenProvider.generate(
                 "master-user", "MASTER", null, true, 3600L, props.getSecretBytes());
@@ -111,13 +117,14 @@ class JwtAuthenticationGatewayFilterFactoryTest {
 
         assertThat(captured[0]).isNotNull();
         assertThat(captured[0].getHeaders().getFirst("X-User-Id")).isEqualTo("master-user");
-        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isEqualTo("MASTER");
+        // C5-4: X-User-Role 미전파
+        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("true");
     }
 
     @Test
+    @DisplayName("C5-4: 구버전 토큰(isSystemMaster claim 없음) → X-Is-System-Master: false 전파")
     void legacyToken_withoutSystemMasterClaim_propagatesIsSystemMasterFalse() {
-        // Phase C4 backward compat: 구버전 토큰(claim 없음) → X-Is-System-Master: false
         String token = JwtTokenProvider.generate(
                 "legacy-master", "MASTER", 3600, props.getSecretBytes());
 
@@ -137,14 +144,12 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
 
         assertThat(captured[0]).isNotNull();
-        // 구버전 토큰이어도 role=MASTER 이므로 role 폴백으로 bypass 가능 (PermissionAspect 에서)
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("false");
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("C5-1: groups claim 없는 토큰 → X-User-Groups 빈 문자열 전파")
+    @DisplayName("C5-1: groups claim 없는 토큰 → X-User-Groups 빈 문자열 전파")
     void validToken_withoutGroups_propagatesEmptyUserGroupsHeader() {
-        // groups claim 미포함 토큰 (6-arg 사용)
         String token = JwtTokenProvider.generate(
                 "user-ng", "SALES", 3600, props.getSecretBytes());
 
@@ -164,15 +169,13 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
 
         assertThat(captured[0]).isNotNull();
-        // C5-1: groups 미포함 토큰 → X-User-Groups 빈 문자열 (헤더 일관)
         assertThat(captured[0].getHeaders().getFirst("X-User-Groups")).isEqualTo("");
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("C5-1: groups claim 포함 토큰 → X-User-Groups comma-join 전파")
-    void validToken_withGroups_propagatesUserGroupsHeader() {
+    @DisplayName("C5-1+C5-4: groups claim 포함 토큰 → X-User-Groups comma-join 전파, X-User-Role 미전파")
+    void validToken_withGroups_propagatesUserGroupsHeader_noRoleHeader() {
         String groups = "g-uuid-1,g-uuid-2";
-        // 7-arg: groups claim 포함
         String token = JwtTokenProvider.generate(
                 "user-g", "MANAGER", null, false, groups, 3600L, props.getSecretBytes());
 
@@ -193,9 +196,9 @@ class JwtAuthenticationGatewayFilterFactoryTest {
 
         assertThat(captured[0]).isNotNull();
         assertThat(captured[0].getHeaders().getFirst("X-User-Groups")).isEqualTo(groups);
-        // 기존 헤더들도 영향 없는지 확인
         assertThat(captured[0].getHeaders().getFirst("X-User-Id")).isEqualTo("user-g");
-        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isEqualTo("MANAGER");
+        // C5-4: X-User-Role 미전파
+        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("false");
     }
 
@@ -218,11 +221,70 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     // -----------------------------------------------------------------------
+    // Phase C5-4: X-Is-Partner 헤더 주입 테스트
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("C5-4: partner JWT (partnerCode claim) → X-Is-Partner: true 주입")
+    void partnerToken_withPartnerCodeClaim_propagatesIsPartnerTrue() {
+        String token = JwtTokenProvider.generateForPartner(
+                "partner-uuid-001", "P001", 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/partner-orders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().getFirst("X-User-Id")).isEqualTo("partner-uuid-001");
+        // C5-4: partnerCode claim 있음 → X-Is-Partner: true
+        assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isEqualTo("true");
+        // X-User-Role 미전파
+        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
+    }
+
+    @Test
+    @DisplayName("C5-4: Samhan 직원 JWT → X-Is-Partner 헤더 미전파 (partnerCode claim 없음)")
+    void samhanToken_withoutPartnerCodeClaim_noIsPartnerHeader() {
+        String token = JwtTokenProvider.generate(
+                "samhan-user", "MANAGER", null, false, "grp-1", 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        // C5-4: partnerCode claim 없음 → X-Is-Partner 미전파
+        assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isNull();
+    }
+
+    // -----------------------------------------------------------------------
     // Phase C5-3: allowedGroups 검사 테스트
     // -----------------------------------------------------------------------
 
     @Test
-    @org.junit.jupiter.api.DisplayName("C5-3-(a) allowedGroups 일치 → 통과 (allowedRoles 비어있음)")
+    @DisplayName("C5-3-(a) allowedGroups 일치 → 통과 (allowedRoles 비어있음)")
     void allowedGroups_matching_passes() {
         String masterGroupId = "00000000-0000-0000-0000-000000000100";
         String managerGroupId = "00000000-0000-0000-0000-000000000101";
@@ -251,16 +313,14 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("C5-3-(b) allowedGroups 불일치 → 403")
+    @DisplayName("C5-3-(b) allowedGroups 불일치 → 403")
     void allowedGroups_notMatching_returns403() {
         String salesGroupId = "00000000-0000-0000-0000-000000000102";
-        // 토큰에는 SALES 그룹만 포함
         String token = JwtTokenProvider.generate(
                 "user-sales", "SALES", null, false, salesGroupId, 3600L, props.getSecretBytes());
 
         JwtAuthenticationGatewayFilterFactory.Config config =
                 new JwtAuthenticationGatewayFilterFactory.Config();
-        // allowedGroups 에는 MASTER(100), MANAGER(101) 만 허용
         config.getAllowedGroups().add("00000000-0000-0000-0000-000000000100");
         config.getAllowedGroups().add("00000000-0000-0000-0000-000000000101");
         GatewayFilter filter = factory.apply(config);
@@ -278,15 +338,13 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("C5-3-(c) allowedGroups 비어있으면 그룹 제한 없음 (기존 라우트 영향 0)")
+    @DisplayName("C5-3-(c) allowedGroups 비어있으면 그룹 제한 없음 (기존 라우트 영향 0)")
     void allowedGroups_empty_noGroupRestriction() {
-        // groups 없는 토큰
         String token = JwtTokenProvider.generate(
                 "user-plain", "MANAGER", 3600, props.getSecretBytes());
 
         JwtAuthenticationGatewayFilterFactory.Config config =
                 new JwtAuthenticationGatewayFilterFactory.Config();
-        // allowedGroups 비어있음 → 그룹 검사 없음
         GatewayFilter filter = factory.apply(config);
 
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/users/me")
@@ -303,16 +361,15 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("C5-3-(d) allowedRoles 일치 + allowedGroups 불일치 → 각 독립 검사: allowedRoles 통과 후 allowedGroups 로 403")
+    @DisplayName("C5-3-(d) allowedRoles 일치 + allowedGroups 불일치 → allowedGroups 로 403 (AND)")
     void allowedRolesPassButAllowedGroupsFails_returns403() {
-        // 토큰 role=MASTER → allowedRoles 통과, 하지만 groups 에 해당 그룹 없음
         String token = JwtTokenProvider.generate(
                 "user-m", "MASTER", null, false, "", 3600L, props.getSecretBytes());
 
         JwtAuthenticationGatewayFilterFactory.Config config =
                 new JwtAuthenticationGatewayFilterFactory.Config();
         config.getAllowedRoles().add(com.samhanair.logis.common.security.Role.MASTER);
-        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000100"); // 토큰 groups 비어있음
+        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000100");
         GatewayFilter filter = factory.apply(config);
 
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/logs/audit")
@@ -325,6 +382,35 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
 
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("C5-4: allowedGroups 단독 (logging-service 패턴) — 그룹 일치 시 통과, X-User-Role 미전파")
+    void loggingServicePattern_allowedGroupsOnly_passesWithMatchingGroup() {
+        String masterGroupId = "00000000-0000-0000-0000-000000000100";
+        String token = JwtTokenProvider.generate(
+                "user-admin", "MASTER", null, true, masterGroupId, 3600L, props.getSecretBytes());
+
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        config.getAllowedGroups().add(masterGroupId);
+        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000101");
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/logs/audit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> { captured[0] = e.getRequest(); return Mono.empty(); };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        // C5-4: X-User-Role 미전파
+        assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
+        assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("true");
     }
 
     private static String readBody(ServerWebExchange exchange) {
