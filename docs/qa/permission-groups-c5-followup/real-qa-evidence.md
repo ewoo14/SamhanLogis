@@ -159,3 +159,23 @@ FROM group_page_permissions
 WHERE page_code='products.sync' AND is_deleted=FALSE;
 -- 결과: 00000000-0000-0000-0000-000000000101 | products.sync | t | t
 ```
+
+---
+
+## 사이클 1 Claude fix 후 재검증 (PM 대행, 2026-06-07)
+
+### DEF-1 fix 적용 절차
+1. V47 에 enforcement 캐시 동기 INSERT 추가 (commit `3374a0c9`)
+2. auth-service jar/이미지 재빌드 + `DELETE FROM flyway_schema_history WHERE version='47'` 후 재기동 → V47 신버전 재적용 확인 (`success=t`)
+3. `account_page_permissions WHERE page_code='products.sync'` → MANAGER 그룹 배속 계정 2건 (dev_manager `a000…0003` 포함) can_view=t / can_create=t 실증
+
+### 역할 매트릭스 재실증 (게이트웨이 :8080 실 JWT)
+```
+dev_manager  GET  /api/v1/products/admin/sync/last → HTTP 200 (기존 FAIL → PASS)
+dev_manager  POST /api/v1/products/admin/sync      → HTTP 200
+dev_sales    GET  /api/v1/products/admin/sync/last → HTTP 403 (비대상 유지)
+```
+- dev_manager JWT payload: `sub=a000…0003, groups=00000000-…-0101` — role 클레임 부재 (C5 계약 유지) 실측.
+- 응답 summary 의 Service Account 키 부재 오류는 로컬 환경 한정 (GOOGLE_SERVICE_ACCOUNT_KEY 미설정) — 인가와 무관.
+
+**판정**: QA DEF-1 (CRITICAL) 해소 — 사이클 1 잔존 P0 0.
