@@ -1,5 +1,6 @@
 package com.samhanair.logis.gateway.filter;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.gateway.config.JwtProperties;
@@ -58,23 +59,27 @@ public class JwtAuthenticationGatewayFilterFactory
         extends AbstractGatewayFilterFactory<JwtAuthenticationGatewayFilterFactory.Config> {
 
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final String HEADER_USER_ID = "X-User-Id";
-    private static final String HEADER_USER_ROLE = "X-User-Role";
+    // C5-1 P2: identity 헤더 이름은 shared HttpHeaderConstants 단일 출처로 통일
+    // (게이트웨이 로컬 중복 상수 제거 — downstream 필터/Aspect 와 문자열 불일치 위험 차단).
+    /** 호출자 UUID 헤더. */
+    private static final String HEADER_USER_ID = HttpHeaderConstants.CALLER_ID_HEADER;
+    /** 호출자 역할 헤더. */
+    private static final String HEADER_USER_ROLE = HttpHeaderConstants.CALLER_ROLE_HEADER;
     /** Phase 12 인사 가드 — 소속 부서명 헤더. JWT claim {@code departmentName} 에서 추출. */
-    private static final String HEADER_USER_DEPARTMENT = "X-User-Department";
+    private static final String HEADER_USER_DEPARTMENT = HttpHeaderConstants.USER_DEPARTMENT_HEADER;
     /**
      * Phase C4 — 시스템 마스터 그룹 멤버십 헤더.
      * JWT claim {@code isSystemMaster} 가 {@code true} 이면 {@code "true"}, 그 외 {@code "false"} 전송.
      * downstream {@link PermissionAspect} 가 {@code role==MASTER} OR 조건으로 bypass 판정에 사용.
      */
-    private static final String HEADER_IS_SYSTEM_MASTER = "X-Is-System-Master";
+    private static final String HEADER_IS_SYSTEM_MASTER = HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER;
     /**
      * Phase C5-1 — 계정의 활성 그룹 UUID 집합 헤더.
      * JWT claim {@code groups} (comma-join UUID 문자열) 을 그대로 전파.
      * 그룹이 없으면 빈 문자열 전송 — 헤더 부재와 구분.
      * 본 슬라이스에서는 소비처 0 (additive 전파만).
      */
-    private static final String HEADER_USER_GROUPS = "X-User-Groups";
+    private static final String HEADER_USER_GROUPS = HttpHeaderConstants.USER_GROUPS_HEADER;
 
     private final JwtProperties props;
 

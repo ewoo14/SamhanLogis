@@ -92,8 +92,9 @@ public class AuthService {
         boolean isSystemMaster = permissionGroupRepository
                 .existsByAccountIdAndSystemMasterTrue(account.getId());
         // Phase C5-1: 활성 그룹 UUID 집합 조회 → comma-join 문자열 (소비처는 C5-2 에서 구현)
+        // P2: groupId 오름차순 ORDER BY 로 claim 순서 결정성 보장 (로그인마다 동일 문자열)
         String groups = accountGroupRepository
-                .findByAccountIdAndIsDeletedFalse(account.getId())
+                .findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(account.getId())
                 .stream()
                 .map(ag -> ag.getGroupId().toString())
                 .collect(Collectors.joining(","));

@@ -87,7 +87,7 @@ class AuthServiceTest {
         when(jwtIssueProperties.getTtlSeconds()).thenReturn(3600L);
         when(jwtIssueProperties.getSecretBytes()).thenReturn("secret-bytes-32-chars-min-aaaaaaaaa".getBytes());
         // Phase C5-1: 그룹 조회 stub (빈 리스트)
-        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(managerAccount.getId()))
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(managerAccount.getId()))
                 .thenReturn(List.of());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
@@ -123,7 +123,7 @@ class AuthServiceTest {
         // Phase C4: MASTER → systemMaster 그룹 배속 → true 반환
         when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(masterId)).thenReturn(true);
         // Phase C5-1: MASTER 그룹 조회 stub
-        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(masterId))
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(masterId))
                 .thenReturn(List.of());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
@@ -161,7 +161,7 @@ class AuthServiceTest {
         when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(managerAccount.getId()))
                 .thenReturn(false);
         // Phase C5-1: 그룹 조회 stub
-        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(managerAccount.getId()))
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(managerAccount.getId()))
                 .thenReturn(List.of());
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
@@ -203,7 +203,7 @@ class AuthServiceTest {
         when(permissionGroupRepository.existsByAccountIdAndSystemMasterTrue(managerAccount.getId()))
                 .thenReturn(false);
         // Phase C5-1: 그룹 2개 반환
-        when(accountGroupRepository.findByAccountIdAndIsDeletedFalse(managerAccount.getId()))
+        when(accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(managerAccount.getId()))
                 .thenReturn(List.of(ag1, ag2));
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {

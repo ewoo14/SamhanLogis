@@ -18,6 +18,15 @@ public final class HttpHeaderConstants {
     public static final String PARTNER_CODE_HEADER = "X-Partner-Code";
 
     /**
+     * 호출자 소속 부서명 header — Phase 12 인사 카테고리 가드.
+     *
+     * <p>api-gateway 가 JWT {@code departmentName} claim 존재 시에만 UTF-8 URL-encode
+     * 하여 전파(한글 부서명 ISO-8859-1 모지바케 방지). 수신 측(HrAuthorizationHelper)이
+     * URL-decode 한다. claim 미존재 시 헤더 미전송 → 인사 가드는 부재로 판정.
+     */
+    public static final String USER_DEPARTMENT_HEADER = "X-User-Department";
+
+    /**
      * 시스템 마스터 그룹 멤버십 여부 header — Phase C4 신규.
      *
      * <p>api-gateway 가 JWT {@code isSystemMaster} claim 을 파싱하여 {@code "true"} 또는

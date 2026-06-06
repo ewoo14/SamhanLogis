@@ -42,7 +42,7 @@ public class AccountGroupService {
     @Transactional(readOnly = true)
     public List<AccountGroupSummary> getGroups(UUID accountId) {
         Account account = requireAccount(accountId);
-        return accountGroupRepository.findByAccountIdAndIsDeletedFalse(accountId).stream()
+        return accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(accountId).stream()
                 .map(accountGroup -> toSummary(account, permissionGroupService.requireGroup(accountGroup.getGroupId())))
                 .sorted(Comparator.comparing(AccountGroupSummary::groupName))
                 .toList();

@@ -1,5 +1,6 @@
 package com.samhanair.logis.gateway.config;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
@@ -11,9 +12,9 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 /**
  * Global reactive CORS filter mounted on the gateway.
  *
- * <p>Exposes {@code Authorization}, {@code X-User-Id}, and
- * {@code X-User-Role} so the SPA can read identity headers that downstream
- * services attach. Allowed origins follow the project_plan §4 domain matrix:
+ * <p>Exposes {@code Authorization}, {@code X-User-Id}, {@code X-User-Role},
+ * and {@code X-User-Groups} (Phase C5-1) so the SPA can read identity headers
+ * that downstream services attach. Allowed origins follow the project_plan §4 domain matrix:
  * three production sub-domains under samhan-air.com plus local-dev Vite ports
  * (3000 / 3001 / 3002 — web SPA, 5173 — electron-vite default).
  *
@@ -30,6 +31,15 @@ public class CorsConfig {
 
     @Bean
     public CorsWebFilter corsWebFilter() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", corsConfiguration());
+        return new CorsWebFilter(source);
+    }
+
+    /**
+     * CORS 설정 구성 — 테스트에서 exposedHeaders 등 계약 검증을 위해 분리.
+     */
+    static CorsConfiguration corsConfiguration() {
         CorsConfiguration config = new CorsConfiguration();
         // 프로덕션 웹 + 로컬 dev 웹 origin (정확 매칭)
         config.setAllowedOrigins(List.of(
@@ -51,12 +61,15 @@ public class CorsConfig {
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization", "Content-Type", "X-User-Id", "X-User-Role"));
+        // C5-1 P2: X-User-Groups 노출 추가(C5-2 cutover 시 SPA 가 그룹 집합 수신 가능 선행 준비)
+        // + identity 헤더 이름 shared HttpHeaderConstants 단일 출처 통일.
+        config.setExposedHeaders(List.of(
+                "Authorization", "Content-Type",
+                HttpHeaderConstants.CALLER_ID_HEADER,
+                HttpHeaderConstants.CALLER_ROLE_HEADER,
+                HttpHeaderConstants.USER_GROUPS_HEADER));
         config.setAllowCredentials(true);
         config.setMaxAge(Duration.ofSeconds(3600));
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return new CorsWebFilter(source);
+        return config;
     }
 }

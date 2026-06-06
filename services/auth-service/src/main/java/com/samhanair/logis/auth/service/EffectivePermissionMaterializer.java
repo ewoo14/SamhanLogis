@@ -52,7 +52,7 @@ public class EffectivePermissionMaterializer {
         }
 
         List<AccountGroup> accountGroups =
-                accountGroupRepository.findByAccountIdAndIsDeletedFalse(accountId);
+                accountGroupRepository.findByAccountIdAndIsDeletedFalseOrderByGroupIdAsc(accountId);
         softDeleteCurrentRows(accountId);
 
         if (hasSystemMasterGroup(accountGroups)) {

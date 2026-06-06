@@ -21,7 +21,14 @@
 - **전 14서비스 compileJava+compileTestJava BUILD SUCCESSFUL**(shared 변경 무파괴).
 - Docker 스팟체크: 로그인 JWT groups 클레임 + X-User-Groups 헤더 전파 + 기존 동작 불변.
 
-## 4. 잔여 = C5-2 (개발책임자 입회 cutover, 폴백 없음 = 총 락아웃 위험)
+## 4. P2 선처리 (2026-06-06, cutover 무관 안전 작업 — 개발책임자 원격 지시)
+PM 종합 P2 4건 중 3건 처리, 1건 비대상 판정:
+- **그룹 query ORDER BY**: `AccountGroupRepository.findByAccountIdAndIsDeletedFalse` → `...OrderByGroupIdAsc` rename(전 호출처 3 갱신). JWT `groups` claim comma-join 순서 결정성 — 로그인마다 동일 문자열(소비처 순서 의존/캐시 키 대비). 기존 호출처는 순서-비민감(AccountGroupService=groupName 재정렬, Materializer=union)이라 무영향.
+- **게이트웨이 상수 통일**: `JwtAuthenticationGatewayFilterFactory` 로컬 중복 헤더 문자열 5건 → shared `HttpHeaderConstants` 참조(단일 출처). `USER_DEPARTMENT_HEADER`(X-User-Department, Phase 12) 상수 신설.
+- **CorsConfig exposedHeaders**: `X-User-Groups` 노출 추가(C5-2 SPA 그룹 수신 선행 준비) + 상수 통일 + `corsConfiguration()` 분리 후 계약 테스트(`CorsConfigTest`) 박제.
+- **@SQLRestriction 이중필터**: "(기존 패턴)" — repo 전체 soft-delete 컨벤션(엔티티 @SQLRestriction + 파생쿼리 IsDeletedFalse 이중 명시)과 일치 = 변경 비대상 판정.
+
+## 5. 잔여 = C5-2 (개발책임자 입회 cutover, 폴백 없음 = 총 락아웃 위험)
 - PermissionAspect/HeaderAuthenticationFilter/@PreAuthorize 가 그룹 집합 소비.
 - X-User-Role / accounts.role / JWT role 클레임 제거.
 - FE session.ts role 헬퍼·~86파일 그룹 기반 재설계.
