@@ -4,12 +4,14 @@
  * zustand 단일 store 로 관리하며, 앱 부팅 시 `bootstrap()` 가 IPC 로
  * 메인 프로세스에서 토큰을 가져와 초기 상태를 구성한다.
  *
- * 권한 체크 헬퍼:
- * - `hasAdminRole()` — 창고 등록 등 마스터 데이터 변경 권한 확인
- *   (MASTER / MANAGER / DEVELOPER)
- *
  * C5-2b: canCreateSlip / canInspectInbound / canCreateTransfer 헬퍼는
  * usePermissions().canAccess() 로 이관 완료. session.ts 에서 제거됨.
+ *
+ * C5-2c: hasAdminRole / canTransitionSlip / canTransitionTransfer 헬퍼는
+ * usePermissions().canAccess() 로 이관 완료. session.ts 에서 제거됨.
+ *   - hasAdminRole     → canAccess('inventory.warehouse.admin', 'create')
+ *   - canTransitionSlip  → canAccess(slipActionPageCode(action), 'update')   [SlipDetailPage]
+ *   - canTransitionTransfer → canAccess(transferActionPageCode(action), 'update') [TransferDetailPage]
  *
  * P1-B revert: canQuerySales 는 BE SlipSalesAccessGuard(SALES/MANAGER/MASTER 한정)와
  * 정합을 맞추기 위해 session.ts 에 복원. canAccess('sales.slip.list') 는 seed 가
@@ -60,15 +62,6 @@ export const useSessionStore = create<SessionState>((set) => ({
 }))
 
 /**
- * 마스터 데이터 변경 권한 보유 여부.
- * 본 슬라이스에서는 창고 신규 등록 버튼 표시 여부를 결정한다.
- */
-export function hasAdminRole(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'MASTER' || role === 'MANAGER' || role === 'DEVELOPER'
-}
-
-/**
  * 매출 전표 목록 조회 권한.
  *
  * BE `SlipSalesAccessGuard#canReadOutboundSales` 와 동일 허용 집합(SALES/MANAGER/MASTER).
@@ -80,72 +73,4 @@ export function hasAdminRole(role: string | undefined | null): boolean {
 export function canQuerySales(role: string | undefined | null): boolean {
   if (!role) return false
   return ['SALES', 'MANAGER', 'MASTER'].includes(role)
-}
-
-/**
- * 전표 라이프사이클 transition 권한 — action 별 BE `@PreAuthorize` 와 동일.
- *
- * @param action transition 액션 코드
- * @param role 현재 사용자 role
- */
-export function canTransitionSlip(
-  action:
-    | 'save'
-    | 'send'
-    | 'accept'
-    | 'process'
-    | 'inspect'
-    | 'complete'
-    | 'ship'
-    | 'deliver'
-    | 'confirm'
-    | 'reject'
-    | 'cancel',
-  role: string | undefined | null,
-): boolean {
-  if (!role) return false
-  switch (action) {
-    case 'save':
-    case 'send':
-    case 'cancel':
-      return ['SALES', 'MANAGER', 'MASTER'].includes(role)
-    case 'accept':
-    case 'process':
-    case 'complete':
-    case 'ship':
-    case 'deliver':
-      return ['WAREHOUSE', 'INVENTORY', 'MANAGER', 'MASTER'].includes(role)
-    case 'inspect':
-      // Slice A 신규 (Designer ux-flow.md § 3.3 권한 매트릭스).
-      // 검수원/창고원/MANAGER/MASTER. INSPECTOR role 미존재 시 WAREHOUSE 가 검수도 수행.
-      return ['WAREHOUSE', 'INVENTORY', 'MANAGER', 'MASTER'].includes(role)
-    case 'confirm':
-      return ['ACCOUNTANT', 'MANAGER', 'MASTER'].includes(role)
-    case 'reject':
-      return ['MANAGER', 'MASTER'].includes(role)
-    default:
-      return false
-  }
-}
-
-/**
- * 이동전표 라이프사이클 transition 권한.
- */
-export function canTransitionTransfer(
-  action: 'approve' | 'reject' | 'ship' | 'receive' | 'confirm' | 'cancel',
-  role: string | undefined | null,
-): boolean {
-  if (!role) return false
-  switch (action) {
-    case 'approve':
-    case 'reject':
-    case 'confirm':
-    case 'cancel':
-      return ['MASTER', 'MANAGER', 'INVENTORY'].includes(role)
-    case 'ship':
-    case 'receive':
-      return ['MASTER', 'MANAGER', 'WAREHOUSE', 'INVENTORY'].includes(role)
-    default:
-      return false
-  }
 }

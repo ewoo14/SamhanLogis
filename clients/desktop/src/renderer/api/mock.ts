@@ -7052,6 +7052,12 @@ const SP_D1_PAGES = [
   'slip.signature',
   'partners.block.bulk',
   'arologis.region.manage',
+  // C5-2c 이관 대상 page-codes (V36 slip transition + V35 warehouse.admin seed 기반)
+  'slip.transfer.process',
+  'sales.slip.confirm',
+  'slip.reject',
+  'sales.slip.cancel',
+  'inventory.warehouse.admin',
 ] as const
 
 /**
@@ -7132,6 +7138,9 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     //   partners.block.bulk: V34 MASTER-only → MANAGER VIEW 제거
     //   arologis.region.manage: V34 MANAGER can_view=TRUE (유지)
     'slip.signature', 'arologis.region.manage',
+    // C5-2c: V35/V36 seed 기반 MANAGER VIEW 추가
+    'slip.transfer.process', 'sales.slip.confirm', 'slip.reject',
+    'sales.slip.cancel', 'inventory.warehouse.admin',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -7155,6 +7164,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'slip.cleanup', 'slip.edit-requests',
     // C2c 동적 권한 전환 — SALES: view 허용 (V36/V30/V41 seed)
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
+    // C5-2c: V36 seed 기반 SALES VIEW 추가
+    'sales.slip.cancel',
   ],
   ACCOUNTANT: [
     // SP-D1
@@ -7177,6 +7188,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
     // C2b PermissionGuard 전환 — ACCOUNTANT: slip.edit-requests view (V38 broadened)
     'slip.edit-requests',
+    // C5-2c: V36 seed 기반 ACCOUNTANT VIEW 추가
+    'sales.slip.confirm',
   ],
   // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
   // (사용자 요구 ② — WAREHOUSE 에게 매출 슬립 숨김, 매입 영수증 OCR 허용)
@@ -7192,6 +7205,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'slip.edit-requests', 'slip.photo-audit',
     // C2c 동적 권한 전환 — WAREHOUSE: purchases.slip.edit/delete view 허용 (V36 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
+    // C5-2c: V36 seed 기반 WAREHOUSE VIEW 추가
+    'slip.transfer.process',
   ],
   INVENTORY: [
     'purchases.slip.list', 'sales.slip.list', 'inbound.inspection',
@@ -7203,6 +7218,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'products.list', 'products.admin',
     // C2b PermissionGuard 전환 — INVENTORY: slip.edit-requests view (V38 broadened)
     'slip.edit-requests',
+    // C5-2c: V36 seed 기반 INVENTORY VIEW 추가
+    'slip.transfer.process',
   ],
 }
 
@@ -7267,6 +7284,9 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     //   partners.block.bulk: V34 MASTER-only → 제거
     //   arologis.region.manage: V34 MANAGER can_edit=TRUE (유지)
     'arologis.region.manage',
+    // C5-2c: V35/V36 seed 기반 MANAGER EDIT 추가
+    'slip.transfer.process', 'sales.slip.confirm', 'slip.reject',
+    'sales.slip.cancel', 'inventory.warehouse.admin',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -7288,6 +7308,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // sales.partner-dc-config: SALES can_edit=FALSE per V29
     // C2c 동적 권한 전환 — SALES: edit 허용 (V36/V30/V41 seed)
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
+    // C5-2c: V36 seed 기반 SALES EDIT 추가
+    'sales.slip.cancel',
   ],
   ACCOUNTANT: [
     // SP-D1
@@ -7302,6 +7324,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',
     // C2b PermissionGuard 전환 — ACCOUNTANT: 12개 모두 edit 없음 (V36/V29 seed 확인)
+    // C5-2c: V36 seed 기반 ACCOUNTANT EDIT 추가
+    'sales.slip.confirm',
   ],
   // SP-D3 V9 fix: purchases.receipt-ocr edit 추가 (WAREHOUSE 매입 영수증 OCR 입력 가능)
   WAREHOUSE: [
@@ -7314,6 +7338,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — WAREHOUSE: slip.photo-audit can_edit=FALSE, slip.edit-requests can_edit=FALSE (V36)
     // C2c 동적 권한 전환 — WAREHOUSE: purchases.slip.edit/delete edit 허용 (V36 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
+    // C5-2c: V36 seed 기반 WAREHOUSE EDIT 추가
+    'slip.transfer.process',
   ],
   INVENTORY: [
     'inbound.inspection',
@@ -7324,6 +7350,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'products.admin',
     // C2b PermissionGuard 전환 — INVENTORY: 12개 모두 edit 없음 (V36 seed 확인)
+    // C5-2c: V36 seed 기반 INVENTORY EDIT 추가 (can_edit=TRUE)
+    'slip.transfer.process',
   ],
 }
 

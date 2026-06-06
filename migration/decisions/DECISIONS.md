@@ -2808,3 +2808,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | 결정 | 내용 |
 |---|---|
 | D-PGC-12 | C5-2a 정찰 = 백엔드 사용자 경로 @PreAuthorize(hasRole) 이미 0(전부 INTERNAL/arologis 유지). C5-2b = **FE 인가용 role 의존 → canAccess(pageCode) 이관**. session.ts 헬퍼 4 제거(canCreateSlip/canInspectInbound/canQuerySales/canCreateTransfer) + 직접 role==='MASTER' 5 이관(slip.signature/dc-config.import/partners.block.bulk/arologis.region.manage/system.permission-admin, BE @RequirePermission 대조). 표시용 role·hasAdminRole(coarse)·canTransition*(action 복합)·C2b 보류·AdminLayout 부서가드 유지. 일부 Option A widening(D-PGC-01 일관). source-contract 4 갱신(헬퍼 단언→canAccess). 잔여 = hasAdminRole/canTransition page-code 확정·PARTNER/arologis·C4-3·최종 X-User-Role/role/accounts.role 제거(개발책임자 입회 cutover). |
+
+### D-PGC (C5-2c, 2026-06-06)
+
+| 결정 | 내용 |
+|---|---|
+| D-PGC-13 | C5-2c = FE 잔여 인가 헬퍼(hasAdminRole/canTransitionSlip/canTransitionTransfer) → action별 canAccess(pageCode,action) 이관(BE @RequirePermission 정밀 대조 — C5-2b page-code 불일치 교훈). slipActionPageCode/transferActionPageCode exhaustive 매핑. hasAdminRole→inventory.warehouse.admin(DEVELOPER 제외=FE>BE 교정). dual P1(삭제 버튼 canAccess('sales.slip.cancel') 가드 누락 → FE노출/BE403)+P2(EOF) 수정. mock 5 page-code seed 정합 보강. 전체 suite 418 passed. → **FE role 인가 의존 거의 소진**(표시용 role·canQuerySales[BE 가드 불일치로 유지]만 잔존). C5 잔여 = 입회 cutover(C4-3·PARTNER/arologis 정책·X-User-Role/accounts.role 제거). |

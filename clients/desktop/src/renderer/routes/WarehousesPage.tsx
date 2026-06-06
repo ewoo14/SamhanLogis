@@ -25,9 +25,9 @@ import {
   type Warehouse,
   type WarehouseType,
 } from '../api/inventory'
-import { useSessionStore, hasAdminRole } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { fetchIsExecutiveOffice } from '../api/adminApi'
+import { usePermissions } from '../hooks/usePermissions'
 import axios from 'axios'
 
 /**
@@ -57,8 +57,11 @@ const TYPE_VARIANT: Record<
 
 export function WarehousesPage() {
   usePageTitle('창고관리')
-  const role = useSessionStore((s) => s.auth?.role)
-  const hasWarehouseWriteRole = hasAdminRole(role)
+  // C5-2c: hasAdminRole(MASTER/MANAGER/DEVELOPER) → canAccess('inventory.warehouse.admin', 'create').
+  // BE @RequirePermission(page="inventory.warehouse.admin", action=CREATE) + V35 seed: MASTER/MANAGER only.
+  // DEVELOPER 는 FE hasAdminRole 에 포함됐으나 BE seed 미부여 → canAccess 가 DEVELOPER 를 정확히 거부함.
+  const { canAccess } = usePermissions()
+  const hasWarehouseWriteRole = canAccess('inventory.warehouse.admin', 'create')
   const [modalOpen, setModalOpen] = useState(false)
   const queryClient = useQueryClient()
 

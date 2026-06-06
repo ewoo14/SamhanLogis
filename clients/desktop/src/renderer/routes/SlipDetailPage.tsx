@@ -86,7 +86,7 @@ import {
 } from '../api/slipEditRequest'
 import { SlipVersionHistoryPanel } from '../components/audit/SlipVersionHistoryPanel'
 import { SlipRealtimeClient } from '../realtime/SlipRealtimeClient'
-import { useSessionStore, canTransitionSlip } from '../stores/session'
+import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -194,6 +194,43 @@ function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
 function formatHHmm(iso: string | null | undefined): string {
   if (!iso) return ''
   return iso.slice(11, 16)
+}
+
+/**
+ * 전표 transition action → BE @RequirePermission page-code + action 매핑.
+ *
+ * C5-2c: canTransitionSlip() 헬퍼를 canAccess() 로 이관.
+ * 근거: services/slip-service/.../SlipController.java @RequirePermission + V36 seed.
+ *
+ *   save / send          → sales.slip.edit        / update (MASTER/MANAGER/SALES)
+ *   accept/process/      → slip.transfer.process  / update (MASTER/MANAGER/WAREHOUSE/INVENTORY)
+ *     inspect/complete/
+ *     ship/deliver
+ *   confirm              → sales.slip.confirm     / update (MASTER/MANAGER/ACCOUNTANT)
+ *   reject               → slip.reject            / update (MASTER/MANAGER)
+ *   cancel               → sales.slip.cancel      / update (MASTER/MANAGER/SALES)
+ */
+function slipActionPageCode(
+  action: SlipTransitionAction,
+): { pageCode: 'sales.slip.edit' | 'slip.transfer.process' | 'sales.slip.confirm' | 'slip.reject' | 'sales.slip.cancel' } {
+  switch (action) {
+    case 'save':
+    case 'send':
+      return { pageCode: 'sales.slip.edit' }
+    case 'accept':
+    case 'process':
+    case 'inspect':
+    case 'complete':
+    case 'ship':
+    case 'deliver':
+      return { pageCode: 'slip.transfer.process' }
+    case 'confirm':
+      return { pageCode: 'sales.slip.confirm' }
+    case 'reject':
+      return { pageCode: 'slip.reject' }
+    case 'cancel':
+      return { pageCode: 'sales.slip.cancel' }
+  }
 }
 
 export function SlipDetailPage({ mode }: SlipDetailPageProps) {
@@ -1967,11 +2004,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             <Button
               variant="ghost"
               size="sm"
-              disabled={!canTransitionSlip('reject', role) || transitionMutation.isPending}
+              disabled={!canAccess('slip.reject', 'update') || transitionMutation.isPending}
               onClick={() => handleTransition('reject')}
             >
               {ACTION_LABEL['reject']}
-              {!canTransitionSlip('reject', role) ? ' (권한 부족)' : ''}
+              {!canAccess('slip.reject', 'update') ? ' (권한 부족)' : ''}
             </Button>
           </div>
         </Card>
@@ -1990,9 +2027,19 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </Button>
         <Button
           variant="ghost"
-          disabled={!possibleActions.includes('cancel') || transitionMutation.isPending}
+          disabled={
+            !possibleActions.includes('cancel')
+            || !canAccess(slipActionPageCode('cancel').pageCode, 'update')
+            || transitionMutation.isPending
+          }
           onClick={handleDeleteSlip}
-          title={possibleActions.includes('cancel') ? undefined : '현재 단계에서는 삭제(취소) 불가'}
+          title={
+            !possibleActions.includes('cancel')
+              ? '현재 단계에서는 삭제(취소) 불가'
+              : !canAccess(slipActionPageCode('cancel').pageCode, 'update')
+                ? '삭제(취소) 권한이 없습니다'
+                : undefined
+          }
         >
           삭제
         </Button>
@@ -2000,7 +2047,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           variant="primary"
           disabled={
             !nextPrimaryAction
-            || !canTransitionSlip(nextPrimaryAction, role)
+            || !canAccess(slipActionPageCode(nextPrimaryAction).pageCode, 'update')
             || transitionMutation.isPending
           }
           onClick={handleAdvanceStage}

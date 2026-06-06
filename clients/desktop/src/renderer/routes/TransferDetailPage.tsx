@@ -35,8 +35,8 @@ import {
   type TransferStatus,
   type TransferTransitionAction,
 } from '../api/inventory'
-import { useSessionStore, canTransitionTransfer } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 function actionsForStatus(status: TransferStatus): TransferTransitionAction[] {
   switch (status) {
@@ -79,11 +79,35 @@ const STATUS_VARIANT: Record<
   CANCELED: 'neutral',
 }
 
+/**
+ * 이동전표 transition action → BE @RequirePermission page-code 매핑.
+ *
+ * C5-2c: canTransitionTransfer() 헬퍼를 canAccess() 로 이관.
+ * 근거: services/inventory-service/.../StockTransferController.java @RequirePermission + V35 seed.
+ *
+ *   approve / reject / confirm / cancel → inventory.adjust   / update (MASTER/MANAGER/INVENTORY)
+ *   ship    / receive                   → inventory.transfer / update (MASTER/MANAGER/WAREHOUSE/INVENTORY)
+ */
+function transferActionPageCode(
+  action: TransferTransitionAction,
+): 'inventory.adjust' | 'inventory.transfer' {
+  switch (action) {
+    case 'approve':
+    case 'reject':
+    case 'confirm':
+    case 'cancel':
+      return 'inventory.adjust'
+    case 'ship':
+    case 'receive':
+      return 'inventory.transfer'
+  }
+}
+
 export function TransferDetailPage() {
   const params = useParams<{ id: string }>()
   const id = params.id ?? ''
   const navigate = useNavigate()
-  const role = useSessionStore((s) => s.auth?.role)
+  const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
 
   const [rejectReason, setRejectReason] = useState('')
@@ -252,7 +276,7 @@ export function TransferDetailPage() {
             ) : null}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {possibleActions.map((action) => {
-                const allowed = canTransitionTransfer(action, role)
+                const allowed = canAccess(transferActionPageCode(action), 'update')
                 const variant
                   = action === 'reject' || action === 'cancel'
                     ? 'ghost'
