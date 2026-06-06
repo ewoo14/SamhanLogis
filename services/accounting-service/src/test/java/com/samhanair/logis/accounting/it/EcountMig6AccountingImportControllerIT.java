@@ -1,6 +1,9 @@
 package com.samhanair.logis.accounting.it;
 
 import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.PARTIAL_IDENTITY_GROUPS;
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.isMissingUserIdCase;
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.isMissingUserIdSystemMasterCase;
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.suppressRoleForPartialIdentityCase;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -79,11 +82,14 @@ class EcountMig6AccountingImportControllerIT extends AbstractPostgresIT {
         var request = multipart(url).file(file);
         if (includeUserId) {
             request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
-        } else if ("missingUserId".equals(label)) {
+        } else if (isMissingUserIdSystemMasterCase(label)) {
+            // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
+            request.header("X-Is-System-Master", "true");
+        } else if (isMissingUserIdCase(label)) {
             // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
             request.header("X-User-Groups", PARTIAL_IDENTITY_GROUPS);
         }
-        if (role != null && !"missingUserId".equals(label)) {
+        if (role != null && !suppressRoleForPartialIdentityCase(label)) {
             request.header("X-User-Role", role);
         }
 
@@ -117,6 +123,9 @@ class EcountMig6AccountingImportControllerIT extends AbstractPostgresIT {
                 Arguments.of(endpoint[0], endpoint[1], "success", file("sample.csv", "text/csv"), "MANAGER", true, 200),
                 // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of(endpoint[0], endpoint[1], "missingUserId", file("sample.csv", "text/csv"), "MANAGER", false, 401),
+                Arguments.of(endpoint[0], endpoint[1], "missingUserIdSystemMaster", file("sample.csv", "text/csv"), null, false, 401),
+                // C5 후속: X-User-Role 단독은 부분-identity 신호가 아니므로 anonymous 계약(403).
+                Arguments.of(endpoint[0], endpoint[1], "missingUserIdRoleOnly", file("sample.csv", "text/csv"), "MANAGER", false, 403),
                 // C5-3: 진짜 anonymous = 헤더 전무 (X-User-Id 단독은 정당한 인증 형태 — 인가는 @RequirePermission)
                 Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, false, 403),
                 Arguments.of(endpoint[0], endpoint[1], "memberForbidden", file("sample.csv", "text/csv"), "MEMBER", true, 403),

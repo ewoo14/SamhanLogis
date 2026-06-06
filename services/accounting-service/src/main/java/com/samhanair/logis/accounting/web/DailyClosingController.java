@@ -37,12 +37,12 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>권한 매트릭스:
  * <ul>
- *   <li>POST  /api/v1/accounting/daily-closings — ACCOUNTANT, MANAGER, MASTER (일마감 실행)</li>
- *   <li>GET   /api/v1/accounting/daily-closings — ACCOUNTANT, MANAGER, MASTER (기간 조회)</li>
- *   <li>PATCH /api/v1/accounting/daily-closings/{closingDate}/lock — MASTER 만 (잠금 해제)</li>
+ *   <li>POST  /api/v1/accounting/daily-closings — {@code @RequirePermission(accounting.daily-closing.run, CREATE)}</li>
+ *   <li>GET   /api/v1/accounting/daily-closings — {@code @RequirePermission(accounting.daily-closing, VIEW)}</li>
+ *   <li>PATCH /api/v1/accounting/daily-closings/{closingDate}/lock — {@code @RequirePermission(accounting.daily-closing.unlock, UPDATE)}</li>
  * </ul>
  *
- * <p>SALES role 은 일마감 endpoint 에 접근 불가 (매뉴얼 §4 권한표).
+ * <p>일마감 실행/조회/해제는 각 endpoint 의 {@code @RequirePermission} 권한으로 판정한다.
  */
 @RestController
 @RequestMapping("/accounting/daily-closings")
@@ -66,7 +66,7 @@ public class DailyClosingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201",
                     description = "일마감 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
-                    description = "SALES role — 접근 불가"),
+                    description = "일마감 실행 권한 없음 — 접근 불가"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
                     description = "partnerCode 미존재"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
@@ -94,7 +94,7 @@ public class DailyClosingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
                     description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
-                    description = "SALES role — 접근 불가")
+                    description = "일마감 조회 권한 없음 — 접근 불가")
     })
     @GetMapping
     @RequirePermission(page = "accounting.daily-closing", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
@@ -114,7 +114,7 @@ public class DailyClosingController {
     }
 
     /**
-     * 일마감 잠금 해제 — MASTER 전용.
+     * 일마감 잠금 해제 — 잠금 해제 권한 보유자 전용.
      *
      * <p>REST 설계: {@code PATCH /daily-closings/{closingDate}/lock}
      * + body {@code {"locked": false}} — 리소스 상태 부분 변경 시맨틱.
@@ -125,13 +125,13 @@ public class DailyClosingController {
      * @param callerHeader X-User-Id
      * @return 갱신된 DailyClosingResponse
      */
-    @Operation(summary = "일마감 잠금 해제 (MASTER 전용)",
+    @Operation(summary = "일마감 잠금 해제",
             description = "PATCH body {\"locked\": false} — isLocked=false 로 전환. lockedAt/By 는 감사 추적을 위해 보존.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
                     description = "잠금 해제 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
-                    description = "MASTER 가 아닐 때"),
+                    description = "일마감 잠금 해제 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
                     description = "해당 일마감 미존재"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",

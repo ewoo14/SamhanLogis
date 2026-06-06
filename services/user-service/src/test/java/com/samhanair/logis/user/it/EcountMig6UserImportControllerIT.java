@@ -77,11 +77,14 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
         var request = multipart(url).file(file);
         if (includeUserId) {
             request.header("X-User-Id", "10000000-0000-0000-0000-000000000006");
-        } else if ("missingUserId".equals(label)) {
+        } else if (isMissingUserIdSystemMasterCase(label)) {
+            // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
+            request.header("X-Is-System-Master", "true");
+        } else if (isMissingUserIdCase(label)) {
             // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
             request.header("X-User-Groups", PARTIAL_IDENTITY_GROUPS);
         }
-        if (role != null && !"missingUserId".equals(label)) {
+        if (role != null && !suppressRoleForPartialIdentityCase(label)) {
             request.header("X-User-Role", role);
         }
 
@@ -129,6 +132,9 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
                 Arguments.of(endpoint[0], endpoint[1], "success", file("sample.csv", "text/csv"), "MANAGER", true, 200),
                 // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of(endpoint[0], endpoint[1], "missingUserId", file("sample.csv", "text/csv"), "MANAGER", false, 401),
+                Arguments.of(endpoint[0], endpoint[1], "missingUserIdSystemMaster", file("sample.csv", "text/csv"), null, false, 401),
+                // C5 후속: X-User-Role 단독은 부분-identity 신호가 아니므로 anonymous 계약(403).
+                Arguments.of(endpoint[0], endpoint[1], "missingUserIdRoleOnly", file("sample.csv", "text/csv"), "MANAGER", false, 403),
                 // C5-3: 진짜 anonymous = 헤더 전무 (구 "anonymous"=userId+role없음 은 이제 정당한 인증 형태)
                 Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, false, 403),
                 // C5-3 계약: role 헤더 없는 인증(X-User-Id 단독) — 인가는 @RequirePermission(account-mode, role-무관)이 담당
@@ -149,6 +155,18 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
 
     private static EcountMig6ImportResult result() {
         return new EcountMig6ImportResult(1, 1, 0, 0, 0, "HASH", List.of());
+    }
+
+    private static boolean isMissingUserIdCase(String label) {
+        return "missingUserId".equals(label);
+    }
+
+    private static boolean isMissingUserIdSystemMasterCase(String label) {
+        return "missingUserIdSystemMaster".equals(label);
+    }
+
+    private static boolean suppressRoleForPartialIdentityCase(String label) {
+        return isMissingUserIdCase(label) || isMissingUserIdSystemMasterCase(label);
     }
 
     private static MockMultipartFile file(String name, String contentType) {

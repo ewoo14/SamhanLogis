@@ -1114,7 +1114,7 @@ const router = createHashRouter([
       {
         path: '/accounting/tax-invoices',
         element: (
-          <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+          <PermissionGuard pageCode="accounting.tax-invoice.list" action="view">
             <TaxInvoiceListPage />
           </PermissionGuard>
         ),
@@ -1140,7 +1140,7 @@ const router = createHashRouter([
       {
         path: '/accounting/tax-invoices/new',
         element: (
-          <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+          <PermissionGuard pageCode="accounting.tax-invoice.list" action="create">
             <TaxInvoiceFormPage />
           </PermissionGuard>
         ),
@@ -1156,7 +1156,7 @@ const router = createHashRouter([
       {
         path: '/accounting/tax-invoices/:id/edit',
         element: (
-          <PermissionGuard pageCode="accounting.tax-invoice.emit-nts" action="view">
+          <PermissionGuard pageCode="accounting.tax-invoice.list" action="update">
             <TaxInvoiceFormPage />
           </PermissionGuard>
         ),
@@ -1335,7 +1335,7 @@ const router = createHashRouter([
       {
         path: '/admin/accounting-edit-requests',
         element: (
-          <PermissionGuard pageCode="accounting.edit-requests" action="view">
+          <PermissionGuard pageCode="accounting.edit-requests.decide" action="view">
             <AccountingEditRequestsPage />
           </PermissionGuard>
         ),

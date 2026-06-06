@@ -35,9 +35,9 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>권한 매트릭스 (매뉴얼 §4):
  *
  * <ul>
- *   <li>POST /accounting/closings           — ACCOUNTANT, MASTER (일별/월별 마감 실행)</li>
- *   <li>GET  /accounting/closings           — ACCOUNTANT, MANAGER, MASTER (목록 조회)</li>
- *   <li>POST /accounting/closings/{id}/reverse — MASTER 만 (역마감)</li>
+ *   <li>POST /accounting/closings           — {@code @RequirePermission(accounting.period-close, CREATE)}</li>
+ *   <li>GET  /accounting/closings           — {@code @RequirePermission(accounting.period-close, VIEW)}</li>
+ *   <li>POST /accounting/closings/{id}/reverse — {@code @RequirePermission(accounting.period-close.reverse, UPDATE)}</li>
  * </ul>
  *
  * <p>마감 실행 시 slip-service.lock-by-period 호출 → CONFIRMED 슬립 일괄 LOCKED.
@@ -79,7 +79,7 @@ public class MonthEndCloseController {
     }
 
     /** 목록 조회 — period_type / year 필터. */
-    @Operation(summary = "마감 목록 조회", description = "period_type / year 필터. MANAGER 는 조회 전용")
+    @Operation(summary = "마감 목록 조회", description = "period_type / year 필터. VIEW 권한 보유자는 조회 전용")
     @GetMapping
     @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<List<AccountingPeriodResponse>> list(
@@ -88,11 +88,11 @@ public class MonthEndCloseController {
         return ApiResponse.ok(monthEndCloseService.list(periodType, year));
     }
 
-    /** 역마감 — MASTER 만. */
-    @Operation(summary = "역마감", description = "CLOSED → OPEN. MASTER 만 가능")
+    /** 역마감 — {@code accounting.period-close.reverse} UPDATE 권한 필요. */
+    @Operation(summary = "역마감", description = "CLOSED → OPEN. 역마감 권한 필요")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "역마감 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "MASTER 가 아닐 때"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "역마감 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미존재"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CLOSED 가 아닐 때")
     })
@@ -117,7 +117,7 @@ public class MonthEndCloseController {
     /**
      * SP-D2 동적 EDIT 권한 검증 — 월말 마감 페이지 코드.
      *
-     * @param actorRole 요청자 role
+     * @param actorRole 레거시 role 헤더 기반 동적 권한 fallback 값
      */
     private void checkEditPermission(String actorRole) {
         if (actorRole == null || actorRole.isBlank()) {

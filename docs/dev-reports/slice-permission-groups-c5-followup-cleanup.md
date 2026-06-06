@@ -206,6 +206,16 @@ clients/desktop/src/renderer\components\RoleGuard.tsx:25: export function RoleGu
 | Nit BE-3 | EcountMig isMissingUserIdCase 중복 | `EcountMigPartialIdentitySupport` 공통 추출 (accounting 6 클래스). user-service 사본은 모듈 경계상 로컬 유지 |
 | Nit FE-1 | sp-d2 T5 제목 | "PermissionGuard 단일 게이트" 현행화 |
 
+## 5.6 사이클 1 Codex fix 운영 노트
+
+### V47 checksum 절차
+
+- PM 확정: V48 분리는 채택하지 않는다. `V47__seed_products_sync_group_permission.sql` 은 아직 미머지 브랜치 전용 변경이므로 프로덕션/CI 적용 이력은 없고, checksum 이슈는 구 V47 을 이미 적용한 로컬 개발 DB 에만 한정된다.
+- 구 V47 이 적용된 로컬 DB 에서 Flyway checksum mismatch 가 나면 다음 중 하나로 처리한다.
+  - 로컬 DB 를 다시 생성할 수 있으면 `flyway_schema_history` 의 version `47` 행을 삭제한 뒤 최신 V47 을 재적용한다.
+  - 로컬 데이터를 보존해야 하면 최신 V47 의 `products.sync` page/group/account backfill SQL 을 수동 적용한 뒤 `flyway repair` 로 checksum 을 맞춘다.
+- 위 절차는 로컬 개발 DB 전용이다. 미머지 브랜치의 V47 을 기준 브랜치에 올린 뒤에는 history 삭제/repair 를 운영 DB 에 적용하지 않는다.
+
 ## 6. 보류/주의
 
 - `RoleGuard` 제거는 보류: `AdminLayout` 이 아직 MASTER 전용 외부 가드로 실제 사용 중이다.

@@ -8,11 +8,11 @@
  * - 상단: 일별/월별 toggle + 기간 일자 선택 + [마감 실행] 버튼
  * - 시산표 link (새 탭) + 마감 후 변경 차단 안내
  * - 마감 list table — periodType / periodDate / status / totalSales / closedAt / closedBy
- *   - row 별 [역마감] 버튼 (CLOSED + MASTER 만)
+ *   - row 별 [역마감] 버튼 (CLOSED + 역마감 권한 보유 시)
  *
- * 권한 (BE `@PreAuthorize` 와 동일):
- * - 마감 실행: ACCOUNTANT / MASTER
- * - 역마감:    MASTER 만
+ * 권한 (BE `@RequirePermission` 과 동일):
+ * - 마감 실행: 마감 실행 권한
+ * - 역마감:    역마감 권한
  *
  * UUID 비공개 가드 (`feedback_uuid_no_user_visibility.md`):
  * - 마감 row 의 `id` 는 reverse 호출 path 에만 사용. 화면 표시는 periodType+periodDate.
@@ -20,7 +20,7 @@
  * data-testid:
  * - `closing-list-table`             — 마감 list table
  * - `closing-new-button`             — 마감 실행 버튼
- * - `closing-reverse-button`         — 역마감 버튼 (per row, MASTER 만)
+ * - `closing-reverse-button`         — 역마감 버튼 (per row, 역마감 권한 보유 시)
  * - `closing-daily-detail-table`     — 일별 detail 표 (PR-E2 BE-A12)
  * - `closing-daily-detail-row-{seq}` — 일별 detail 표 row (seq = 1-based index)
  * - `closing-daily-detail-csv-button` — 일별 detail CSV 다운로드 버튼
@@ -414,7 +414,7 @@ export function MonthEndClosingPage() {
         <h3 style={{ margin: '0 0 12px 0' }}>마감 실행</h3>
         <p style={noticeStyle}>
           ⚠ 마감 실행 시 해당 기간의 모든 CONFIRMED 전표가 LOCKED 상태로 전환되며,
-          이후 분개/전표 입력이 차단됩니다. 변경이 필요하면 MASTER 권한자에게 역마감을
+          이후 분개/전표 입력이 차단됩니다. 변경이 필요하면 역마감 권한 보유자에게 역마감을
           요청하십시오.
         </p>
 
@@ -485,7 +485,7 @@ export function MonthEndClosingPage() {
             data-testid="closing-new-button"
             onClick={() => closeMutation.mutate()}
             disabled={!canExecute || closeMutation.isPending}
-            title={!canExecute ? 'ACCOUNTANT / MASTER 권한이 필요합니다' : undefined}
+            title={!canExecute ? '마감 실행 권한 필요' : undefined}
           >
             {closeMutation.isPending ? '처리 중...' : '마감 실행'}
           </Button>
@@ -507,7 +507,7 @@ export function MonthEndClosingPage() {
 
         {!canExecute ? (
           <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--state-danger)' }}>
-            마감 실행 권한이 없습니다 — ACCOUNTANT / MASTER 권한 보유자만 가능합니다.
+            마감 실행 권한이 없습니다 — 마감 실행 권한 보유자만 가능합니다.
           </p>
         ) : null}
 

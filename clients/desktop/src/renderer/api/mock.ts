@@ -7077,6 +7077,7 @@ const SP_D1_PAGES = [
   'slip.edit-requests',
   'slip.edit-requests.decide',
   'slip.photo-audit',
+  'accounting.edit-requests.decide',
   // C2c 동적 권한 전환 page-codes (V36/V30/V41 seed 기반)
   'purchases.slip.edit',
   'purchases.slip.delete',
@@ -7161,7 +7162,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
     // Issue 4 Slice 4
-    'accounting.edit-requests',
+    'accounting.edit-requests', 'accounting.edit-requests.decide',
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page view 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
     'sales.partner-dc-config', 'slip.cleanup',
@@ -7192,7 +7193,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   ],
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
-    'accounting.tax-invoice.list', 'sales.slip.list',
+    'sales.slip.list',
     // SP-D4 — SALES: 견적/주문/거래처/상품 view
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
@@ -7309,7 +7310,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'ecount.mig14.cash-list', 'ecount.mig14.order-list',
     'ecount.mig14.aging-snapshot', 'ecount.mig14.ledger',
     // Issue 4 Slice 4
-    'accounting.edit-requests',
+    'accounting.edit-requests', 'accounting.edit-requests.decide',
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page edit 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
     'sales.partner-dc-config', 'slip.cleanup',

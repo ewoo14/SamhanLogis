@@ -1,7 +1,7 @@
 # PR #417 실 QA 증거 — 권한그룹 C5 후속 정리
 
-**날짜**: 2026-06-07  
-**브랜치**: fix/permission-groups-c5-followup-cleanup  
+**날짜**: 2026-06-07
+**브랜치**: fix/permission-groups-c5-followup-cleanup
 **QA 담당**: Claude QA agent (사이클 1)
 
 ---
@@ -59,7 +59,7 @@ SELECT version, description, installed_on, success FROM flyway_schema_history WH
 < HTTP/1.1 403 Forbidden
 {"code":"FORBIDDEN","message":"[SP-PO-1] 동적 권한 deny — page=products.sync action=VIEW role=UNKNOWN reason=account permission missing"}
 ```
-**결과**: FAIL — MANAGER 그룹에 group_page_permissions row 존재함에도 403.  
+**결과**: FAIL — MANAGER 그룹에 group_page_permissions row 존재함에도 403.
 **원인**: V47 migration이 group_page_permissions에만 INSERT하고 EffectivePermissionMaterializer를 트리거하지 않아 account_page_permissions에 products.sync row 미생성.
 
 ### 2c: dev_sales → GET /api/v1/products/admin/sync/last (비대상 → 403 expected)
@@ -104,7 +104,7 @@ curl -sv GET http://localhost:8084/api/v1/products/admin/sync/last \
 < HTTP/1.1 403
 {"message":"...role=MASTER reason=account permission missing"}
 ```
-**결과**: PASS — ROLE_ authority가 생성되지 않아 인가 미통과. X-User-Role 무시.  
+**결과**: PASS — ROLE_ authority가 생성되지 않아 인가 미통과. X-User-Role 무시.
 **비고**: role=MASTER 로그 표시는 PermissionAspect가 X-User-Role 헤더를 roleCode 로깅용으로만 읽는 것 (인가 경로 영향 없음, C5 설계 의도)
 
 ### 3e: HeaderAuthenticationFilter ROLE_ dead-code 제거 코드 검증

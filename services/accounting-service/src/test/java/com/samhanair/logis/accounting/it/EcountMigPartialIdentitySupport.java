@@ -15,8 +15,19 @@ final class EcountMigPartialIdentitySupport {
     private EcountMigPartialIdentitySupport() {
     }
 
-    /** 케이스 라벨이 missingUserId(401 강화 분기) 계약 케이스인지 판정한다. */
+    /** 케이스 라벨이 X-User-Groups 기반 missingUserId(401 강화 분기) 계약 케이스인지 판정한다. */
     static boolean isMissingUserIdCase(String label) {
-        return label.contains("missingUserId") || label.contains("MissingUserId");
+        return "missingUserId".equals(label) || "refreshMissingUserId".equals(label);
+    }
+
+    /** 케이스 라벨이 X-Is-System-Master 기반 missingUserId(401 강화 분기) 계약 케이스인지 판정한다. */
+    static boolean isMissingUserIdSystemMasterCase(String label) {
+        return "missingUserIdSystemMaster".equals(label)
+                || "refreshMissingUserIdSystemMaster".equals(label);
+    }
+
+    /** 부분-identity 계약 케이스에서는 X-User-Role 을 보내지 않아 role 헤더 무시 시맨틱을 보존한다. */
+    static boolean suppressRoleForPartialIdentityCase(String label) {
+        return isMissingUserIdCase(label) || isMissingUserIdSystemMasterCase(label);
     }
 }

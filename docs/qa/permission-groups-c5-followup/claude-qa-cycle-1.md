@@ -1,9 +1,9 @@
 # PR #417 QA 리뷰 — Claude QA 사이클 1
 
-**PR**: [FIX] 권한그룹 C5 후속 정리 — ROLE_ dead-code 제거 + FE 사이드바/가드 권한 전환 + 보류 3 라우트 PermissionGuard 화  
-**브랜치**: fix/permission-groups-c5-followup-cleanup  
-**리뷰어**: Claude QA agent  
-**날짜**: 2026-06-07  
+**PR**: [FIX] 권한그룹 C5 후속 정리 — ROLE_ dead-code 제거 + FE 사이드바/가드 권한 전환 + 보류 3 라우트 PermissionGuard 화
+**브랜치**: fix/permission-groups-c5-followup-cleanup
+**리뷰어**: Claude QA agent
+**날짜**: 2026-06-07
 **환경**: Docker 로컬 스택, auth-service/product-service/api-gateway --rerun-tasks 재빌드 후 --build 이미지 재생성
 
 ---
@@ -79,8 +79,8 @@ V47 migration SQL 뒤에 MANAGER 그룹 배속 계정 전체의 account_page_per
 `PageCode.PRODUCTS_SYNC("products.sync", "상품 시트 동기화")` line 452 정상 추가. AuthFlywayV47SeedIT가 group_page_permissions 검증 커버.
 
 ### S2 — ProductAdminController @RequirePermission 부여
-`@RequirePermission(page = "products.sync", action = PermissionAction.CREATE)` (POST /sync)  
-`@RequirePermission(page = "products.sync", action = PermissionAction.VIEW)` (GET /sync/last)  
+`@RequirePermission(page = "products.sync", action = PermissionAction.CREATE)` (POST /sync)
+`@RequirePermission(page = "products.sync", action = PermissionAction.VIEW)` (GET /sync/last)
 올바르게 부여됨.
 
 ### S3 — HeaderAuthenticationFilter ROLE_ dead-code 제거

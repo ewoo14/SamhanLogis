@@ -9,10 +9,10 @@
  *   <li>선택 행 감사 이력 패널 (PR-H4c 패턴 일치)</li>
  * </ul>
  *
- * <p>권한 (BE `@PreAuthorize` 와 동일):
+ * <p>권한 (BE `@RequirePermission` 과 동일):
  * <ul>
- *   <li>마감 실행: ACCOUNTANT / MASTER</li>
- *   <li>역마감:    MASTER 만</li>
+ *   <li>마감 실행: 마감 실행 권한</li>
+ *   <li>역마감:    역마감 권한</li>
  * </ul>
  *
  * <p>UUID 비공개 가드 (`feedback_uuid_no_user_visibility.md`):
@@ -23,7 +23,7 @@
  * data-testid:
  * - `period-close-list-table`     — 마감 이력 표
  * - `period-close-new-button`     — 마감 실행 버튼
- * - `period-close-reverse-button` — 역마감 버튼 (MASTER 만)
+ * - `period-close-reverse-button` — 역마감 버튼 (역마감 권한 보유 시)
  * - `period-close-audit-panel`    — 감사 이력 패널
  */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
@@ -284,7 +284,7 @@ export function PeriodCloseListPage() {
         <h3 style={{ margin: '0 0 12px 0' }}>월말 마감 실행</h3>
         <p style={noticeStyle}>
           마감 실행 시 해당 월의 모든 CONFIRMED 전표가 LOCKED 상태로 전환되며,
-          이후 분개/전표 입력이 차단됩니다. 변경이 필요하면 MASTER 권한자에게 역마감을
+          이후 분개/전표 입력이 차단됩니다. 변경이 필요하면 역마감 권한 보유자에게 역마감을
           요청하십시오.
         </p>
 
@@ -327,7 +327,7 @@ export function PeriodCloseListPage() {
             data-testid="period-close-new-button"
             onClick={() => closeMutation.mutate()}
             disabled={!canExecute || closeMutation.isPending}
-            title={!canExecute ? 'ACCOUNTANT / MASTER 권한이 필요합니다' : undefined}
+            title={!canExecute ? '마감 실행 권한 필요' : undefined}
           >
             {closeMutation.isPending ? '처리 중...' : '마감 실행'}
           </Button>
@@ -344,7 +344,7 @@ export function PeriodCloseListPage() {
 
         {!canExecute ? (
           <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--state-danger)' }}>
-            마감 실행 권한이 없습니다 — ACCOUNTANT / MASTER 권한 보유자만 가능합니다.
+            마감 실행 권한이 없습니다 — 마감 실행 권한 보유자만 가능합니다.
           </p>
         ) : null}
 

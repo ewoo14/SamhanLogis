@@ -3,6 +3,8 @@ package com.samhanair.logis.auth.it;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.auth.AuthServiceApplication;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,34 +72,98 @@ class AuthFlywayV47SeedIT extends AbstractPostgresIT {
     void productsSyncMaterializedIntoAccountPagePermissions() {
         // V5 dev 계정 + V44 그룹 배속이 선행되므로, MANAGER 그룹 배속 활성 계정이 1개 이상이면
         // enforcement 캐시(account_page_permissions)에도 products.sync row 가 있어야 한다.
-        Integer managerAccounts = jdbcTemplate.queryForObject(
+        List<UUID> expectedAccountIds = jdbcTemplate.queryForList(
                 """
-                SELECT COUNT(*)
+                SELECT ag.account_id
                   FROM account_groups ag
                   JOIN accounts a ON a.id = ag.account_id AND a.is_deleted = FALSE AND a.enabled = TRUE
                  WHERE ag.group_id = ?::uuid
                    AND ag.is_deleted = FALSE
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM account_groups sag
+                         JOIN permission_groups spg
+                           ON spg.id = sag.group_id
+                          AND spg.is_deleted = FALSE
+                          AND spg.is_system_master = TRUE
+                        WHERE sag.account_id = ag.account_id
+                          AND sag.is_deleted = FALSE
+                   )
+                 ORDER BY ag.account_id
                 """,
-                Integer.class,
+                UUID.class,
                 MANAGER_GROUP_ID);
 
-        Integer materialized = jdbcTemplate.queryForObject(
+        List<UUID> actualAccountIds = jdbcTemplate.queryForList(
                 """
-                SELECT COUNT(*)
+                SELECT app.account_id
                   FROM account_page_permissions app
                   JOIN account_groups ag
                     ON ag.account_id = app.account_id AND ag.group_id = ?::uuid AND ag.is_deleted = FALSE
                  WHERE app.page_code = 'products.sync'
                    AND app.can_view = TRUE
                    AND app.can_create = TRUE
+                   AND app.can_update = FALSE
+                   AND app.can_delete = FALSE
+                   AND app.can_restore = FALSE
+                   AND app.can_download = FALSE
+                   AND app.can_print = FALSE
                    AND app.is_deleted = FALSE
+                 ORDER BY app.account_id
                 """,
-                Integer.class,
+                UUID.class,
                 MANAGER_GROUP_ID);
 
-        // 시스템 마스터 그룹 동시 배속 계정은 materialize 제외 대상이므로 부분집합 관계만 단언한다.
-        assertThat(materialized).isGreaterThan(0);
-        assertThat(materialized).isLessThanOrEqualTo(managerAccounts);
+        // 시스템 마스터 그룹 동시 배속 계정을 제외한 MANAGER 배속 활성 계정 exact-set 을 단언한다.
+        assertThat(actualAccountIds).containsExactlyElementsOf(expectedAccountIds);
+        assertThat(expectedAccountIds).isNotEmpty();
+        assertDevManagerProductsSyncActions();
+        assertNoSystemMasterMaterializedRow();
+    }
+
+    private void assertDevManagerProductsSyncActions() {
+        assertThat(devManagerAction("can_view")).isTrue();
+        assertThat(devManagerAction("can_create")).isTrue();
+        assertThat(devManagerAction("can_update")).isFalse();
+        assertThat(devManagerAction("can_delete")).isFalse();
+        assertThat(devManagerAction("can_restore")).isFalse();
+        assertThat(devManagerAction("can_download")).isFalse();
+        assertThat(devManagerAction("can_print")).isFalse();
+    }
+
+    private Boolean devManagerAction(String columnName) {
+        return jdbcTemplate.queryForObject(
+                """
+                SELECT %s
+                  FROM account_page_permissions app
+                  JOIN accounts a ON a.id = app.account_id
+                 WHERE a.login_id = 'dev_manager'
+                   AND a.is_deleted = FALSE
+                   AND a.enabled = TRUE
+                   AND app.page_code = 'products.sync'
+                   AND app.is_deleted = FALSE
+                """.formatted(columnName),
+                Boolean.class);
+    }
+
+    private void assertNoSystemMasterMaterializedRow() {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                  FROM account_page_permissions app
+                  JOIN account_groups ag
+                    ON ag.account_id = app.account_id
+                   AND ag.is_deleted = FALSE
+                  JOIN permission_groups pg
+                    ON pg.id = ag.group_id
+                   AND pg.is_deleted = FALSE
+                   AND pg.is_system_master = TRUE
+                 WHERE app.page_code = 'products.sync'
+                   AND app.is_deleted = FALSE
+                """,
+                Integer.class);
+
+        assertThat(count).isZero();
     }
 
     private void assertRemainingActionsFalse(String groupId, String pageCode) {

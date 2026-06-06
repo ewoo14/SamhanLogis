@@ -6,14 +6,14 @@
  *   <li>상단: 일별/월별 toggle + 기간 일자 선택 + 마감 실행 버튼</li>
  *   <li>시산표 link (새 탭) + 마감 후 변경 차단 안내</li>
  *   <li>마감 이력 표 — periodType / periodDate / status / 매출합계 / 마감시각 / 실행자</li>
- *   <li>역마감 버튼 (CLOSED + MASTER 만)</li>
+ *   <li>역마감 버튼 (CLOSED + 역마감 권한 보유 시)</li>
  *   <li>일별 세금계산서 detail 카드 (DAILY 탭 전용) — CSV 다운로드 포함</li>
  * </ul>
  *
- * <p>권한 (BE `@PreAuthorize` 와 동일):
+ * <p>권한 (BE `@RequirePermission` 과 동일):
  * <ul>
- *   <li>마감 실행: ACCOUNTANT / MASTER</li>
- *   <li>역마감:    MASTER 만</li>
+ *   <li>마감 실행: 마감 실행 권한</li>
+ *   <li>역마감:    역마감 권한</li>
  * </ul>
  *
  * <p>UUID 비공개 가드 (`feedback_uuid_no_user_visibility.md`):
@@ -24,7 +24,7 @@
  * data-testid:
  * - `sales-closing-list-table`              — 마감 이력 표
  * - `sales-closing-new-button`              — 마감 실행 버튼
- * - `sales-closing-reverse-button`          — 역마감 버튼 (MASTER 만)
+ * - `sales-closing-reverse-button`          — 역마감 버튼 (역마감 권한 보유 시)
  * - `sales-closing-daily-detail-table`      — 일별 detail 표
  * - `sales-closing-daily-detail-csv-button` — CSV 다운로드 버튼
  */
@@ -354,7 +354,7 @@ export function SalesClosingPage() {
         <h3 style={{ margin: '0 0 12px 0' }}>매출 마감 실행</h3>
         <p style={noticeStyle}>
           마감 실행 시 해당 기간의 모든 CONFIRMED 전표가 LOCKED 상태로 전환되며,
-          이후 분개/전표 입력이 차단됩니다. 변경이 필요하면 MASTER 권한자에게 역마감을
+          이후 분개/전표 입력이 차단됩니다. 변경이 필요하면 역마감 권한 보유자에게 역마감을
           요청하십시오.
         </p>
 
@@ -422,7 +422,7 @@ export function SalesClosingPage() {
             data-testid="sales-closing-new-button"
             onClick={() => closeMutation.mutate()}
             disabled={!canExecute || closeMutation.isPending}
-            title={!canExecute ? 'ACCOUNTANT / MASTER 권한이 필요합니다' : undefined}
+            title={!canExecute ? '마감 실행 권한 필요' : undefined}
           >
             {closeMutation.isPending ? '처리 중...' : '마감 실행'}
           </Button>
@@ -439,7 +439,7 @@ export function SalesClosingPage() {
 
         {!canExecute ? (
           <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--state-danger)' }}>
-            마감 실행 권한이 없습니다 — ACCOUNTANT / MASTER 권한 보유자만 가능합니다.
+            마감 실행 권한이 없습니다 — 마감 실행 권한 보유자만 가능합니다.
           </p>
         ) : null}
 

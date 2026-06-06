@@ -31,17 +31,17 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>endpoint:
  * <ul>
- *   <li>{@code POST /accounting/entities/{entityId}/edit-request} — 요청 생성 (ACCOUNTANT/MASTER)</li>
- *   <li>{@code POST /accounting/edit-requests/{requestId}/approve} — 수락 (MANAGER/MASTER)</li>
- *   <li>{@code POST /accounting/edit-requests/{requestId}/reject} — 거절 (MANAGER/MASTER)</li>
- *   <li>{@code GET  /accounting/edit-requests?targetRole=MANAGER} — 권한자 대시보드</li>
- *   <li>{@code GET  /accounting/entities/{entityId}/edit-requests} — entity 별 요청 이력</li>
+ *   <li>{@code POST /accounting/entities/{entityId}/edit-request} — {@code accounting.edit-requests CREATE}</li>
+ *   <li>{@code POST /accounting/edit-requests/{requestId}/approve} — {@code accounting.edit-requests.decide UPDATE}</li>
+ *   <li>{@code POST /accounting/edit-requests/{requestId}/reject} — {@code accounting.edit-requests.decide UPDATE}</li>
+ *   <li>{@code GET  /accounting/edit-requests?targetRole=MANAGER} — {@code accounting.edit-requests.decide VIEW}</li>
+ *   <li>{@code GET  /accounting/entities/{entityId}/edit-requests} — {@code accounting.edit-requests VIEW}</li>
  * </ul>
  *
- * <p>권한 매트릭스 (회계 도메인 = MANAGER 권한자 우선):
+ * <p>권한 매트릭스:
  * <ul>
- *   <li>요청 생성 — ACCOUNTANT, MASTER (작성자 본인 또는 위임)</li>
- *   <li>수락/거절 — MANAGER, MASTER</li>
+ *   <li>요청 생성/이력 조회 — {@code accounting.edit-requests}</li>
+ *   <li>권한자 대시보드/수락/거절 — {@code accounting.edit-requests.decide}</li>
  * </ul>
  */
 @RestController

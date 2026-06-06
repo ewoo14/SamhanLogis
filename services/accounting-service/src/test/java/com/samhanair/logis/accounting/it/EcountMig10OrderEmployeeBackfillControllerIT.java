@@ -2,6 +2,8 @@ package com.samhanair.logis.accounting.it;
 
 import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.PARTIAL_IDENTITY_GROUPS;
 import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.isMissingUserIdCase;
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.isMissingUserIdSystemMasterCase;
+import static com.samhanair.logis.accounting.it.EcountMigPartialIdentitySupport.suppressRoleForPartialIdentityCase;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -83,11 +85,14 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
         }
         if (includeUserId) {
             request.header("X-User-Id", "00000000-0000-0000-0000-000000000115");
+        } else if (isMissingUserIdSystemMasterCase(label)) {
+            // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
+            request.header("X-Is-System-Master", "true");
         } else if (isMissingUserIdCase(label)) {
             // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
             request.header("X-User-Groups", PARTIAL_IDENTITY_GROUPS);
         }
-        if (role != null && !isMissingUserIdCase(label)) {
+        if (role != null && !suppressRoleForPartialIdentityCase(label)) {
             request.header("X-User-Role", role);
         }
 
@@ -105,6 +110,9 @@ class EcountMig10OrderEmployeeBackfillControllerIT extends AbstractPostgresIT {
                 Arguments.of("success", "MANAGER", true, "{}", 200),
                 // C5 후속: 부분-identity 신호 = groups/isSystemMaster (role 헤더는 무시 대상).
                 Arguments.of("missingUserId", "MANAGER", false, "{}", 401),
+                Arguments.of("missingUserIdSystemMaster", null, false, "{}", 401),
+                // C5 후속: X-User-Role 단독은 부분-identity 신호가 아니므로 anonymous 계약(403).
+                Arguments.of("missingUserIdRoleOnly", "MANAGER", false, "{}", 403),
                 Arguments.of("memberForbidden", "MEMBER", true, "{}", 403),
                 Arguments.of("badBody", "MANAGER", true, "{", 400),
                 Arguments.of("noRows", "MANAGER", true, "{}", 422)

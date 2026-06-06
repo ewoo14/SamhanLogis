@@ -46,21 +46,22 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>매뉴얼 출처: {@code docs/manual/03-회계/03-세금계산서.md}.
  *
- * <p>권한 매트릭스 — ACCOUNTANT, MASTER 만 (매뉴얼 §1 + 메모리 ROLE 풀네임 의무):
+ * <p>권한 매트릭스:
  *
  * <ul>
- *   <li>POST   /accounting/tax-invoices             — DRAFT 생성</li>
- *   <li>PUT    /accounting/tax-invoices/{id}        — DRAFT 수정</li>
- *   <li>POST   /accounting/tax-invoices/{id}/issue  — DRAFT → ISSUED + 자동 분개</li>
- *   <li>POST   /accounting/tax-invoices/{id}/cancel — ISSUED → CANCELLED + 자동 역분개</li>
- *   <li>GET    /accounting/tax-invoices             — 페이지 조회 (status/period/partner)</li>
- *   <li>GET    /accounting/tax-invoices/{id}        — 단건 + lines</li>
+ *   <li>POST   /accounting/tax-invoices             — {@code accounting.tax-invoice.list CREATE}</li>
+ *   <li>PUT    /accounting/tax-invoices/{id}        — {@code accounting.tax-invoice.list UPDATE}</li>
+ *   <li>POST   /accounting/tax-invoices/{id}/issue  — {@code accounting.tax-invoice.list UPDATE}</li>
+ *   <li>POST   /accounting/tax-invoices/{id}/cancel — {@code accounting.tax-invoice.cancel UPDATE}</li>
+ *   <li>GET    /accounting/tax-invoices             — {@code accounting.tax-invoice.list VIEW}</li>
+ *   <li>GET    /accounting/tax-invoices/{id}        — {@code accounting.tax-invoice.list VIEW}</li>
+ *   <li>POST   /accounting/tax-invoices/{id}/emit-nts — {@code accounting.tax-invoice.emit-nts UPDATE}</li>
  * </ul>
  *
  * <p>응답은 ApiResponse 래핑. UUID 는 mutation path 에만 사용 — 사용자 표시는 tax_invoice_no.
  *
  * <p>SP-D2 동적 권한:
- * emit-nts 는 SP-D1 {@link TaxInvoiceEmitService} 에서 처리.
+ * emit-nts 는 SP-D1 {@link TaxInvoiceEmitService} 에서 별도 page-code 로 처리.
  * 세금계산서 목록/단건 조회(VIEW)와 DRAFT 생성/수정/발행/취소(EDIT)는
  * {@code accounting.tax-invoice.list} 페이지 코드로 동적 검증 추가.
  */
@@ -258,7 +259,7 @@ public class TaxInvoiceController {
      *
      * <p>상태 전이 없음 — ISSUED 유지. eTaxExternalId 만 저장됨.
      *
-     * <p>권한: ACCOUNTANT / MASTER 만 (MANAGER 미허용 — 세금계산서 발행 권한 정책).
+     * <p>권한: {@code accounting.tax-invoice.emit-nts UPDATE}.
      */
     @Operation(summary = "e-Tax NTS 실 발행 (SP-09-1)",
             description = "ISSUED 세금계산서를 NTS 홈택스에 전송. DRY_RUN(기본) 또는 NTS 실 발행. "

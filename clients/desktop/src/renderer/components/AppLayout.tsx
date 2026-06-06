@@ -207,10 +207,7 @@ export function AppLayout() {
   const showAccountingPurchaseSlip = dynamicCanAccess('accounting.purchase-slip.list', 'view')
   const showAccountingTaxInvoiceBatch = dynamicCanAccess('accounting.tax-invoice.batch-issue', 'view')
   const showAccountingTaxInvoiceInbound = dynamicCanAccess('accounting.tax-invoice.inbound', 'view')
-  const showAccountingTaxInvoice  = dynamicCanAccess('accounting.tax-invoice.emit-nts', 'view')
-    || dynamicCanAccess('accounting.tax-invoice.list', 'view')
-    || showAccountingTaxInvoiceBatch
-    || showAccountingTaxInvoiceInbound
+  const showAccountingTaxInvoice  = dynamicCanAccess('accounting.tax-invoice.list', 'view')
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
   const showAccountingDepositMatch = dynamicCanAccess('accounting.deposit-match',  'view')
@@ -219,8 +216,7 @@ export function AppLayout() {
   const showAccountingAdminAging = dynamicCanAccess('ecount.mig14.aging-snapshot', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
   const showAccountingAdminMigOps = dynamicCanAccess('ecount.mig.ops-dashboard', 'view')
-  const showAccountingEditRequests = dynamicCanAccess('accounting.edit-requests', 'view')
-    || dynamicCanAccess('accounting.edit-requests.decide', 'view')
+  const showAccountingEditRequests = dynamicCanAccess('accounting.edit-requests.decide', 'view')
   const showAccountingAdminGroup =
     showAccountingAdminCash || showAccountingAdminOrder
     || showAccountingAdminAging || showAccountingAdminLedger
@@ -243,6 +239,7 @@ export function AppLayout() {
   const showInventoryWarehouse     = dynamicCanAccess('inventory.warehouse',          'view')
   // inventory.stock — 현재 사이드바 직접 노출 없음 (재고 현황 서브페이지). 라우트 가드에서 사용.
   const showInventoryStockTransfer = dynamicCanAccess('inventory.stock-transfer',     'view')
+  const showInventoryStockBalance  = dynamicCanAccess('inventory.stock-balance',      'view')
   const showInventoryDps           = dynamicCanAccess('inventory.dps',                'view')
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
@@ -253,7 +250,8 @@ export function AppLayout() {
   const showPermissionDelegation   = showPermissionAdmin
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
   const showPartnersBlock          = dynamicCanAccess('partners.block',               'view')
-  const showPartnersEditRequest    = dynamicCanAccess('partners.edit-request',        'view')
+  // partners.edit-request — 사이드바 직접 노출 없음 (라우트 가드 전용). C-4 로 그룹 헤더 OR 소비처 제거.
+  const _showPartnersEditRequest   = dynamicCanAccess('partners.edit-request',        'view')
   // products.* — 현재 사이드바 직접 노출 없음 (향후 상품 메뉴 추가 시 SidebarLink 연결). 라우트 가드에서 사용.
   const _showProductsList          = dynamicCanAccess('products.list',                'view')
   const _showProductsAdmin         = dynamicCanAccess('products.admin',               'view')
@@ -262,10 +260,9 @@ export function AppLayout() {
   const showArologisRegionPage     = dynamicCanAccess('arologis.region',              'view')
   // SP-D4 그룹 헤더 가시성 (1개라도 true 이면 그룹 노출)
   const showInventoryGroup =
-    showInventoryWarehouse || showInventoryStockTransfer
+    showInventoryWarehouse || showInventoryStockTransfer || showInventoryStockBalance
     || showInventoryDps || showInventoryAuditPage
-  const showPartnersGroup  =
-    showPartnersList || showPartnersBlock || showPartnersEditRequest
+  // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
   const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt || showPermissionAdmin || showPermissionDelegation
 
   // [C5 follow-up 사이클1 fix] arologis 메뉴 가시성 = 라우트 PermissionGuard 와 동일 page-code 단일 소스.
@@ -311,11 +308,11 @@ export function AppLayout() {
   const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
 
   // [Slice 2] admin GAS 이식 — 일반 카테고리 병행 노출
-  const showRegionMgmt = showArologisRegionPage || dynamicCanAccess('arologis.region.manage', 'view')
+  const showRegionMgmt = showArologisRegionPage
   const showSheetSync = showProductsSync
   const showAligoAddressBook = dynamicCanAccess('aligo.address-book', 'view')
-  const showBlockedPartners = showPartnersBlock || dynamicCanAccess('partners.block.bulk', 'view')
-  const showPartnerManagement = showPartnersGroup
+  const showBlockedPartners = showPartnersBlock
+  const showPartnerManagement = showPartnersList
   const showPartnerDcConfig = dynamicCanAccess('sales.partner-dc-config', 'view')
   // [samhan-dispatch-board Phase A + SP-D1 cycle 2] 배차 메뉴 — 동적 RBAC 권한 연동.
   // 기존 정적 역할 체크 → dispatch.board 동적 canAccess 로 전환.
@@ -413,8 +410,7 @@ export function AppLayout() {
           >
             거래처 DC 설정
           </SidebarLink>
-          {/* [SP-01] 거래처 관리 — 생성 성공 후 복귀 대상인 /admin/partners 를 SALES/MANAGER/MASTER 에 직접 노출.
-              [SP-D4] partners.* 동적 RBAC 기반. */}
+          {/* [C5 후속 C-4] 거래처 관리 — /admin/partners 라우트와 동일한 partners.list VIEW 기준. */}
           <SidebarLink
             to="/admin/partners"
             show={showPartnerManagement}
@@ -457,7 +453,7 @@ export function AppLayout() {
           >
             vendor 발주 OCR
           </SidebarLink>
-          {/* [Slice 2] 발송금지 거래처 — /admin/blocked-partners — MANAGER/MASTER */}
+          {/* [C5 후속 C-4] 발송금지 거래처 — /admin/blocked-partners 라우트와 동일한 partners.block VIEW 기준. */}
           <SidebarLink
             to="/admin/blocked-partners"
             show={showBlockedPartners}
@@ -857,10 +853,10 @@ export function AppLayout() {
               >
                 실배차 비교
               </SidebarLink>
-              {/* [SP-06] 배차지역 관리 — /admin/regions 단일 entry. DISPATCH 는 조회 전용, MANAGER/MASTER 는 수정 가능. */}
+              {/* [C5 후속 C-4] 배차지역 관리 — /admin/regions 라우트와 동일한 arologis.region VIEW 기준. */}
               <SidebarLink
                 to="/admin/regions"
-                show={showRegionMgmt || showArologisRegionPage}
+                show={showRegionMgmt}
                 requiredRole="DISPATCH / MANAGER / MASTER"
                 data-testid="sidebar-arologis-region-mgmt"
               >
@@ -964,10 +960,10 @@ export function AppLayout() {
               >
                 사진 감사
               </SidebarLink>
-              {/* [Phase 2.6c] 재고 현황 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER). */}
+              {/* [C5 후속 C-4] 재고 현황 — /inventory/stock-balance 라우트와 동일한 inventory.stock-balance VIEW 기준. */}
               <SidebarLink
                 to="/inventory/stock-balance"
-                show={showInventoryWarehouse || showInventoryStockTransfer}
+                show={showInventoryStockBalance}
                 requiredRole="WAREHOUSE / MANAGER / MASTER"
                 data-testid="sidebar-inventory-stock-balance"
               >

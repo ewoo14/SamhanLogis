@@ -1,7 +1,7 @@
 /**
  * 권한그룹 C5 후속 정리 정적 계약.
  *
- * dev server 없이 source contract 로 실행한다.
+ * source contract 와 mock runtime contract 를 함께 검증한다.
  * - SalesQueryPage 는 role 문자열이 아니라 세션 groups 기반 canQuerySales(auth) 를 사용한다.
  * - AppLayout 은 C5 대상 정적 role fallback 상수/헬퍼를 사용하지 않는다.
  * - S5 전환 라우트 3건은 PermissionGuard 단일 게이트를 사용한다.
@@ -17,6 +17,7 @@ const layoutPath = path.join(desktopRoot, 'src/renderer/components/AppLayout.tsx
 const routePath = path.join(desktopRoot, 'src/renderer/routes/index.tsx')
 const sessionPath = path.join(desktopRoot, 'src/renderer/stores/session.ts')
 const salesQueryPath = path.join(desktopRoot, 'src/renderer/routes/sales-query/SalesQueryPage.tsx')
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 function read(filePath: string): string {
   return fs.readFileSync(filePath, 'utf8')
@@ -63,6 +64,10 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(layout).toContain("dynamicCanAccess('slip.edit-requests.decide', 'view')")
     expect(layout).toContain("dynamicCanAccess('slip.cleanup', 'view')")
     expect(layout).toMatch(/dynamicCanAccess\('products\.sync',\s*'view'\)/)
+    expect(layout).toMatch(/const showSheetSync = showProductsSync/)
+    expect(layout).toMatch(/to="\/admin\/sheet-sync"[\s\S]*?show=\{showSheetSync\}/)
+    expect(layout).toMatch(/const showAccountingPeriodClose = dynamicCanAccess\('accounting\.period-close',\s*'view'\)/)
+    expect(layout).toMatch(/to="\/sales\/closing"[\s\S]*?show=\{showAccountingPeriodClose\}/)
 
     // [사이클1 fix] arologis 사이드바 = 라우트 PermissionGuard 와 동일 page-code 단일 소스
     // (그룹 UUID 매칭 분기 제거 — FE P1-2 + Designer D-002 일원화).
@@ -92,5 +97,30 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(routes).not.toContain('ACCOUNTING_ROLES')
     expect(routes).not.toContain('VENDOR_ORDER_OCR_ROLES')
     expect(routes).not.toContain('SHEET_SYNC_ROLES')
+  })
+
+  test('mock runtime: products.sync grant controls /admin/sheet-sync allow and redirect', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/admin/sheet-sync?mockRole=MANAGER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await expect(page).toHaveURL(/#\/admin\/sheet-sync/)
+    await expect(page.getByTestId('admin-sheetsync-trigger-btn')).toBeVisible({ timeout: 15000 })
+
+    await page.goto(`${BASE_URL}/#/admin/sheet-sync?mockRole=SALES`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await expect.poll(() => page.url(), { timeout: 15000 }).not.toContain('/admin/sheet-sync')
+    await expect(page.getByTestId('admin-sheetsync-trigger-btn')).toHaveCount(0)
+  })
+
+  test('mock runtime: MANAGER can enter /sales/closing and sees close action surface', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/sales/closing?mockRole=MANAGER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await expect(page).toHaveURL(/#\/sales\/closing/)
+    await expect(page.getByTestId('sales-closing-new-button')).toBeVisible({ timeout: 15000 })
   })
 })

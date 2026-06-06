@@ -96,8 +96,9 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
   test('sidebar links and router guards match backend write/export contracts', () => {
     expect(delivery).toContain("DELIVERY_BATCH_ROLES = ['MANAGER', 'MASTER']")
     expect(excelExport).toContain("role === 'MANAGER' || role === 'MASTER'")
-    expect(slipCleanup).toMatch(/SLIP_CLEANUP_ROLES[\s\S]*'SALES'[\s\S]*'MANAGER'[\s\S]*'MASTER'/)
-    expect(slipCleanup).not.toContain("'ACCOUNTANT'")
+    expect(appLayout).toMatch(/const showSlipCleanup = dynamicCanAccess\('slip\.cleanup', 'view'\)/)
+    expect(routes).toMatch(/path: '\/sales\/slip-cleanup'[\s\S]*<PermissionGuard pageCode="slip\.cleanup" action="view">[\s\S]*<SlipCleanupPage \/>/)
+    expect(slipCleanup).not.toContain('SLIP_CLEANUP_ROLES')
 
     expect(routes).toMatch(/path: '\/sales\/new'[\s\S]*RoleGuard allow=\{SLIP_CREATE_ROLES\}/)
     expect(routes).toMatch(/path: '\/purchases\/new'[\s\S]*RoleGuard allow=\{SLIP_CREATE_ROLES\}/)
