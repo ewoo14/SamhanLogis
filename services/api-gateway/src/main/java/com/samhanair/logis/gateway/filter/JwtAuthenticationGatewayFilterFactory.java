@@ -60,12 +60,14 @@ import reactor.core.publisher.Mono;
  * 잔존하나 신규 라우트에서는 사용하지 않는다. 두 목록이 모두 비어있으면
  * 역할/그룹 제한 없음 — 인증만 확인.
  *
- * <h2>Phase C5-4 PARTNER 식별 — X-Is-Partner 헤더</h2>
- * JWT {@code partnerCode} claim 존재 시 {@code X-Is-Partner: true} 를 주입한다.
- * claim 부재 시 헤더 미전송. downstream {@link PermissionAspect} 가 이 헤더로
- * PARTNER 거절을 판정한다.
- * <b>신뢰 경계</b>: 게이트웨이가 JWT 서명 검증 후 claim 유무로 판정하므로
- * FE/클라이언트가 임의로 X-Is-Partner 를 보내도 게이트웨이가 덮어쓴다.
+ * <h2>Phase C5-4 PARTNER 식별 — X-Is-Partner 헤더 (P1-a 강화)</h2>
+ * JWT {@code partnerCode} claim 존재 시 {@code X-Is-Partner: true},
+ * 부재 시 {@code X-Is-Partner: false} 를 <b>항상</b> 전송한다 (remove-then-set semantics).
+ * 이전에는 claim 존재 시만 {@code true} 를 append 했으나 Spring WebFlux
+ * {@code ServerHttpRequest.Builder.header()} 가 append semantics 라 클라이언트가 위조한
+ * {@code X-Is-Partner:true} 가 downstream 으로 유출될 수 있었다. P1-a 에서 모든 identity
+ * 헤더({@code X-User-Id/X-Is-System-Master/X-User-Groups/X-Is-Partner})를
+ * {@code headers(h -> h.remove().add())} 패턴으로 강제 override 한다.
  *
  * <h2>Phase 12 인사 카테고리 가드</h2>
  * JWT claim {@code departmentName} 존재 시 {@code X-User-Department} 헤더로 전파.
@@ -198,25 +200,40 @@ public class JwtAuthenticationGatewayFilterFactory
                 }
             }
 
+            // Phase C5-4 P1-a 스푸핑 방지: HEADER_IS_PARTNER 는 JWT claim 기준으로 강제 덮어써야 한다.
+            // Spring WebFlux ServerHttpRequest.Builder.header() 는 append semantics 라
+            // 클라이언트가 X-Is-Partner:true 를 위조 주입해도 기존 값이 남을 수 있다.
+            // → 기존 헤더를 먼저 제거(headers().remove)한 뒤 claim 기반 값을 설정한다.
+            // 동일하게 X-Is-System-Master, X-User-Id, X-User-Groups 도 remove-then-set 으로 보강한다.
             ServerHttpRequest.Builder requestBuilder = request.mutate()
-                    .header(HEADER_USER_ID, userId)
-                    // Phase C4: isSystemMaster 는 항상 전송 ("true"/"false") — 헤더 부재와 false 를 구분
-                    .header(HEADER_IS_SYSTEM_MASTER, String.valueOf(isSystemMaster))
-                    // Phase C5-1: groups 는 항상 전송 (빈 문자열 포함) — 헤더 일관
-                    .header(HEADER_USER_GROUPS, groups);
-            // Phase C5-4: partnerCode claim 존재 시 X-Is-Partner: true 주입.
-            // claim 부재 시 헤더 미전송 (Samhan 직원 JWT 는 X-Is-Partner 없음).
-            if (isPartner) {
-                requestBuilder.header(HEADER_IS_PARTNER, "true");
-                log.debug("[C5-4] X-Is-Partner=true 주입 — partnerCode={}", partnerCode);
-            }
+                    .headers(h -> {
+                        // 클라이언트 위조 헤더 제거 후 JWT claim 기반 값으로 강제 override
+                        h.remove(HEADER_USER_ID);
+                        h.remove(HEADER_IS_SYSTEM_MASTER);
+                        h.remove(HEADER_USER_GROUPS);
+                        h.remove(HEADER_IS_PARTNER);
+                        h.add(HEADER_USER_ID, userId);
+                        // Phase C4: isSystemMaster 는 항상 전송 ("true"/"false") — 헤더 부재와 false 를 구분
+                        h.add(HEADER_IS_SYSTEM_MASTER, String.valueOf(isSystemMaster));
+                        // Phase C5-1: groups 는 항상 전송 (빈 문자열 포함) — 헤더 일관
+                        h.add(HEADER_USER_GROUPS, groups);
+                        // Phase C5-4 P1-a: X-Is-Partner 는 항상 전송("true"/"false") — 클레임 기반 강제 덮어쓰기.
+                        // isPartner=false 이면 "false" 전송 → downstream 이 "true" 위조 입력을 신뢰할 수 없게 차단.
+                        h.add(HEADER_IS_PARTNER, String.valueOf(isPartner));
+                        if (isPartner) {
+                            log.debug("[C5-4-P1a] X-Is-Partner=true 강제 set — partnerCode={}", partnerCode);
+                        }
+                    });
             // departmentName 이 존재할 때만 헤더 추가 — 미배정 계정은 헤더 미전송.
             // [RC7] HTTP 헤더는 ISO-8859-1 인코딩이라 한글 부서명("대표실")을 그대로 넣으면 다운스트림
             // Tomcat 이 모지바케로 역디코딩 → @hr.isExecutiveOffice() 비교 실패. UTF-8 URL-encode 하여
             // 전파하고, 수신 측(HrAuthorizationHelper)이 URL-decode 한다.
             if (departmentName != null && !departmentName.isBlank()) {
-                requestBuilder.header(HEADER_USER_DEPARTMENT,
-                        java.net.URLEncoder.encode(departmentName, java.nio.charset.StandardCharsets.UTF_8));
+                requestBuilder.headers(h -> {
+                    h.remove(HEADER_USER_DEPARTMENT);
+                    h.add(HEADER_USER_DEPARTMENT,
+                            java.net.URLEncoder.encode(departmentName, java.nio.charset.StandardCharsets.UTF_8));
+                });
             }
 
             return chain.filter(exchange.mutate().request(requestBuilder.build()).build());

@@ -1,5 +1,6 @@
 package com.samhanair.logis.user.config;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,22 +29,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String USER_ROLE_HEADER = "X-User-Role";
-    private static final String USER_GROUPS_HEADER = "X-User-Groups";
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String userId = request.getHeader(USER_ID_HEADER);
-        String role = request.getHeader(USER_ROLE_HEADER);
-        String groups = request.getHeader(USER_GROUPS_HEADER);
+        String userId = request.getHeader(HttpHeaderConstants.CALLER_ID_HEADER);
+        String role = request.getHeader(HttpHeaderConstants.CALLER_ROLE_HEADER);
+        String groups = request.getHeader(HttpHeaderConstants.USER_GROUPS_HEADER);
 
         // Phase C5-4 재키잉: userId 부재 + 다른 identity 헤더 존재 = 비정상 조합 → 명시적 401
         // (구 "role만 존재" 분기의 의미 보존 — 신호를 role 단독에서 identity 헤더 전반으로 확장)
         boolean hasPartialIdentity = (role != null && !role.isBlank())
                 || (groups != null && !groups.isBlank())
-                || request.getHeader("X-Is-System-Master") != null;
+                || request.getHeader(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER) != null;
         if ((userId == null || userId.isBlank()) && hasPartialIdentity) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;

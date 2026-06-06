@@ -478,6 +478,8 @@ class Phase26cConvertReserveIT extends AbstractPostgresIT {
                         .content(confirmBody)
                         .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "TEST-PARTNER")
                         .header("X-Biz-Code", "9999999999")
                         .header("X-User-Name", "테스트 거래처"))

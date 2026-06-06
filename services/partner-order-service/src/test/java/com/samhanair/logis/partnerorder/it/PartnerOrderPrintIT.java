@@ -149,31 +149,42 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-43")
                         .header(HttpHeaderConstants.CALLER_ID_HEADER, PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
                         .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-PRINT-OWN"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-44")
                         .header(HttpHeaderConstants.CALLER_ID_HEADER, PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
                         .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-PRINT-OWN"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     /**
-     * PARTNER 인증된 사용자가 {@code X-User-Role: SALES} 헤더를 위조해도 BE는 SecurityContext authority만
-     * 신뢰하여 PARTNER 분기를 유지한다. 타 거래처 partnerCode 전달 시 403을 반환하며, 헤더 위조 자체는 무시되고
-     * 거부 원인은 partnerCode 불일치이다.
+     * Phase C5-4 P0: PARTNER 계정(X-Is-Partner=true)이 타 거래처 partnerCode 를 전달하면 403.
+     *
+     * <p>구 방식(C5-4 이전): @WithMockUser(roles=PARTNER) + SecurityContext ROLE_PARTNER authority 기반.
+     * 신 방식(C5-4 이후): X-Is-Partner=true 헤더 기반. 게이트웨이가 JWT claim 기반 강제 override 하므로
+     * X-User-Role 위조는 무의미하고, X-Is-Partner 헤더가 파트너 식별의 신뢰 근거이다.
+     *
+     * <p>본 테스트에서는 X-Is-Partner=true + 타 거래처 partnerCode → PartnerOrderPrintService 에서 403.
      */
     @Test
     @WithMockUser(username = "partner-user", roles = {"PARTNER"})
     void testPrintPartnerSpoofedRoleHeaderRejected() throws Exception {
         saveOrder("2026/05/17-46", "P-PRINT-OWN", "3030303030", false);
 
+        // Phase C5-4 P0: X-Is-Partner=true 로 파트너 식별 + 타 거래처 partnerCode 전달 → 403
+        // 이전 테스트 의도(위조 SALES 헤더 무시 + PARTNER 분기 유지)를 헤더 기반으로 갱신
         mockMvc.perform(get("/api/v1/partner-orders/{id}/print", "2026-05-17-46")
                         .header(HttpHeaderConstants.CALLER_ID_HEADER, PARTNER_ACCOUNT_ID)
-                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")
-                        .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-OTHER"))
+                        .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "SALES")  // 위조 role (무시됨)
+                        .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")    // 파트너 식별 (신뢰 근거)
+                        .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "P-OTHER"))  // 타 거래처
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }

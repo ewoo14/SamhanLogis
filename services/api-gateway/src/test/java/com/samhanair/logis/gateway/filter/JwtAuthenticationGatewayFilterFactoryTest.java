@@ -254,8 +254,10 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
-    @DisplayName("C5-4: Samhan 직원 JWT → X-Is-Partner 헤더 미전파 (partnerCode claim 없음)")
-    void samhanToken_withoutPartnerCodeClaim_noIsPartnerHeader() {
+    @DisplayName("C5-4: Samhan 직원 JWT → X-Is-Partner=false 전파 (partnerCode claim 없음, P1-a 강화)")
+    void samhanToken_withoutPartnerCodeClaim_propagatesIsPartnerFalse() {
+        // Phase C5-4 P1-a: Samhan 직원 JWT 에 partnerCode claim 없음
+        // → X-Is-Partner: false 를 항상 전송 (기존: 헤더 미전송 → append 취약점)
         String token = JwtTokenProvider.generate(
                 "samhan-user", "MANAGER", null, false, "grp-1", 3600L, props.getSecretBytes());
 
@@ -275,8 +277,71 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
 
         assertThat(captured[0]).isNotNull();
-        // C5-4: partnerCode claim 없음 → X-Is-Partner 미전파
-        assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isNull();
+        // C5-4 P1-a: partnerCode claim 없음 → X-Is-Partner: false (이전에는 헤더 미전송)
+        assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isEqualTo("false");
+    }
+
+    @Test
+    @DisplayName("P1-a: Samhan JWT + 위조 X-Is-Partner:true 입력 → downstream X-Is-Partner: false 로 강제 덮어쓰기")
+    void samhanToken_withSpoofedIsPartnerHeader_downstreamReceivesFalse() {
+        // P1-a 스푸핑 방지: Samhan 직원이 X-Is-Partner:true 를 위조 주입해도
+        // 게이트웨이가 JWT claim 기반으로 false 로 강제 override 해야 한다.
+        String token = JwtTokenProvider.generate(
+                "samhan-attacker", "MANAGER", null, false, "", 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        // 공격자가 X-Is-Partner:true 를 위조 주입
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/partner-orders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header("X-Is-Partner", "true")  // 위조 입력
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        // P1-a: JWT claim 기반 강제 덮어쓰기 → downstream 은 "false" 수신 (위조 "true" 차단)
+        // remove-then-set 으로 위조 헤더를 제거하고 claim 기반 값으로 설정
+        assertThat(captured[0].getHeaders().get("X-Is-Partner")).hasSize(1);
+        assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isEqualTo("false");
+    }
+
+    @Test
+    @DisplayName("P1-a: partner JWT + 위조 X-Is-Partner:false 입력 → downstream X-Is-Partner: true 로 강제 덮어쓰기")
+    void partnerToken_withSpoofedIsPartnerFalseHeader_downstreamReceivesTrue() {
+        // P1-a: 파트너 계정이 X-Is-Partner:false 로 자신의 파트너 식별을 숨기려 해도
+        // 게이트웨이가 JWT partnerCode claim 기반으로 true 로 강제 override 해야 한다.
+        String token = JwtTokenProvider.generateForPartner(
+                "partner-uuid-002", "P002", 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        // 파트너가 X-Is-Partner:false 를 위조 주입 (자기 식별 숨기기 시도)
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/partner-orders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header("X-Is-Partner", "false")  // 위조 입력
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        // P1-a: JWT claim 기반 강제 덮어쓰기 → downstream 은 "true" 수신 (위조 "false" 차단)
+        assertThat(captured[0].getHeaders().get("X-Is-Partner")).hasSize(1);
+        assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isEqualTo("true");
     }
 
     // -----------------------------------------------------------------------

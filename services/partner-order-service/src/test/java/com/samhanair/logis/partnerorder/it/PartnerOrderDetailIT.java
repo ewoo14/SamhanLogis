@@ -142,6 +142,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-4")
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "P-DETAIL-OWN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderNumber").value("2026/05/07-4"));
@@ -149,6 +151,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-5")
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "P-DETAIL-OWN"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
@@ -163,6 +167,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
         mockMvc.perform(get("/api/v1/partner-orders")
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "P-LIST-OWN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
@@ -172,6 +178,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                         .param("partnerId", "P-LIST-OTHER")
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "P-LIST-OWN"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
@@ -189,6 +197,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                         .param("to", "2027-01-01T00:00:00")
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "P-HISTORY-OWN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
@@ -200,6 +210,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                         .param("to", "2027-01-01T00:00:00")
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-Partner-Code", "P-HISTORY-OWN"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));

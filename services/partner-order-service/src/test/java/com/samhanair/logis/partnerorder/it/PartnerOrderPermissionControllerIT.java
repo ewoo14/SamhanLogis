@@ -120,6 +120,16 @@ class PartnerOrderPermissionControllerIT {
     private static final String SERVICE_NAME = "partner-order-service";
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
+    /**
+     * Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더로 판정한다.
+     * PermissionAspect 가 X-Is-Partner=true 헤더로 PARTNER 거절/self-service bypass 를 판정하므로
+     * PARTNER 계정 테스트는 이 헤더를 주입해야 한다.
+     */
+    private static final String IS_PARTNER_HEADER = "X-Is-Partner";
+    /**
+     * Phase C5-4: MASTER bypass 는 X-Is-System-Master 헤더로 판정한다.
+     */
+    private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
     private static final UUID ORDER_ID = UUID.fromString("00000000-0000-0000-0000-000000000201");
     private static final UUID REQUEST_ID = UUID.fromString("00000000-0000-0000-0000-000000000202");
 
@@ -392,12 +402,30 @@ class PartnerOrderPermissionControllerIT {
                 """;
     }
 
+    /**
+     * 테스트용 actor 헤더 주입 헬퍼.
+     *
+     * <p>Phase C5-4: "PARTNER" role 을 받으면 {@code X-Is-Partner: true} 도 함께 주입한다.
+     * PermissionAspect 는 X-Is-Partner=true 헤더로 PARTNER 거절/self-service bypass 를 판정한다.
+     * "MASTER" role 을 받으면 {@code X-Is-System-Master: true} 도 함께 주입한다.
+     *
+     * @param request MockMvc 요청 빌더
+     * @param role X-User-Role 헤더 값
+     * @return identity 헤더가 주입된 요청 빌더
+     */
     private static MockHttpServletRequestBuilder withActor(MockHttpServletRequestBuilder request, String role) {
-        return request
+        var builder = request
                 .header(USER_ID_HEADER, UUID.randomUUID().toString())
                 .header(ROLE_HEADER, role)
                 .header("X-Partner-Code", "P001")
                 .header("X-Biz-Code", "B001");
+        // Phase C5-4: PARTNER 계정은 X-Is-Partner=true, MASTER 는 X-Is-System-Master=true 주입
+        if ("PARTNER".equals(role)) {
+            builder = builder.header(IS_PARTNER_HEADER, "true");
+        } else if ("MASTER".equals(role)) {
+            builder = builder.header(IS_SYSTEM_MASTER_HEADER, "true");
+        }
+        return builder;
     }
 
     private double deniedCount(String page, String role, String action) {

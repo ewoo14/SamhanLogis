@@ -502,6 +502,8 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
                         post("/api/v1/partner-orders/{id}/revisions/{no}/restore", orderId, 1)
                                 .header("X-User-Id", PARTNER_ACCOUNT_ID)
                                 .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
+                                // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                                .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
                                 .header("X-User-Name", "거래처사용자"))
                 .andExpect(status().isForbidden());
     }

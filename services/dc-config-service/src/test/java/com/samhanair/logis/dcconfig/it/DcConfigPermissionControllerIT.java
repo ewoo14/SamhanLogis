@@ -86,6 +86,12 @@ class DcConfigPermissionControllerIT {
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String ROLE_HEADER = "X-User-Role";
     private static final String DEPARTMENT_HEADER = "X-User-Department";
+    /**
+     * Phase C5-4: MASTER bypass 는 X-Is-System-Master 헤더로 판정한다.
+     * PermissionAspect 가 X-Is-System-Master 헤더 단독 bypass 판정을 사용하므로
+     * X-User-Role: MASTER 로는 bypass 되지 않는다.
+     */
+    private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
     private static final String SERVICE_NAME = "dc-config-service";
     private static final String PARTNER_DC_PAGE = "sales.partner-dc-config";
     private static final String IMPORT_PAGE = "dc-config.import";
@@ -167,11 +173,11 @@ class DcConfigPermissionControllerIT {
     }
 
     @Test
-    @DisplayName("DC import는 대표실 + MASTER면 200")
-    void dcConfigImport_executiveOfficeMaster_returns200() throws Exception {
-        mockMvc.perform(withActor(
+    @DisplayName("DC import는 대표실 + X-Is-System-Master=true면 200 (MASTER bypass)")
+    void dcConfigImport_executiveOfficeSystemMaster_returns200() throws Exception {
+        // Phase C5-4: MASTER bypass 는 X-Is-System-Master=true 헤더 단독 판정
+        mockMvc.perform(withSystemMasterActor(
                         multipart("/api/v1/dc-config/admin/import").file(csvFile()),
-                        "MASTER",
                         HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -233,19 +239,20 @@ class DcConfigPermissionControllerIT {
     }
 
     @Test
-    @DisplayName("DC import는 MASTER면 dc-config.import 권한 조회 없이 bypass로 200")
-    void dcConfigImport_masterBypassSkipsDynamicPermissionCheck() throws Exception {
+    @DisplayName("DC import는 X-Is-System-Master=true면 dc-config.import 권한 조회 없이 bypass로 200")
+    void dcConfigImport_systemMasterHeaderBypassSkipsDynamicPermissionCheck() throws Exception {
+        // Phase C5-4: PermissionAspect 는 X-Is-System-Master 헤더 단독 bypass 판정 (X-User-Role:MASTER 제거)
         when(dynamicPermissionClient.check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
-        double before = deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name());
+        // 메트릭 레이블은 "UNKNOWN" — MASTER bypass 시 roleCode 가 UNKNOWN 으로 기록됨 (bypass 전 추출)
+        double before = deniedCount(IMPORT_PAGE, "UNKNOWN", PermissionAction.CREATE.name());
 
-        mockMvc.perform(withActor(
+        mockMvc.perform(withSystemMasterActor(
                         multipart("/api/v1/dc-config/admin/import").file(csvFile()),
-                        "MASTER",
                         HrAuthorizationHelper.EXECUTIVE_OFFICE_NAME))
                 .andExpect(status().isOk());
 
-        assertThat(deniedCount(IMPORT_PAGE, "MASTER", PermissionAction.CREATE.name())).isEqualTo(before);
+        assertThat(deniedCount(IMPORT_PAGE, "UNKNOWN", PermissionAction.CREATE.name())).isEqualTo(before);
         verify(dynamicPermissionClient, never())
                 .check(any(UUID.class), eq(IMPORT_PAGE), eq(PermissionAction.CREATE));
     }
@@ -303,6 +310,25 @@ class DcConfigPermissionControllerIT {
         return request
                 .header(USER_ID_HEADER, UUID.randomUUID().toString())
                 .header(ROLE_HEADER, role)
+                .header(DEPARTMENT_HEADER, department);
+    }
+
+    /**
+     * Phase C5-4: MASTER bypass 전용 헬퍼 — X-Is-System-Master=true 헤더 주입.
+     *
+     * <p>PermissionAspect 는 C5-4 이후 X-Is-System-Master 헤더 단독 bypass 판정을 사용한다.
+     * X-User-Role: MASTER 는 bypass 를 발동시키지 않는다.
+     *
+     * @param request MockMvc 요청 빌더
+     * @param department 부서명 헤더 값
+     * @return 시스템 마스터 헤더가 주입된 요청 빌더
+     */
+    private static MockHttpServletRequestBuilder withSystemMasterActor(
+            MockHttpServletRequestBuilder request,
+            String department) {
+        return request
+                .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                .header(IS_SYSTEM_MASTER_HEADER, "true")
                 .header(DEPARTMENT_HEADER, department);
     }
 

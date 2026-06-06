@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
@@ -9,15 +10,17 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
+import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * 거래처 주문 인쇄 HTML 렌더링 서비스.
@@ -52,6 +55,16 @@ public class PartnerOrderPrintService {
         return render(order);
     }
 
+    /**
+     * PARTNER 계정이면 본인 거래처 주문서인지 검증한다.
+     *
+     * <p>Phase C5-4 P0 수정 — PARTNER 식별을 SecurityContext {@code ROLE_PARTNER} authority 에서
+     * {@code X-Is-Partner} 헤더로 전환한다. 게이트웨이가 JWT {@code partnerCode} claim 기반으로
+     * 강제 override 하므로 신뢰한다.
+     *
+     * @param order 조회 대상 주문
+     * @param callerPartnerCode {@code X-Partner-Code} 헤더 값
+     */
     private void assertPartnerOwnOrder(PartnerOrder order, String callerPartnerCode) {
         if (!isPartnerAuthority()) {
             return;
@@ -62,13 +75,27 @@ public class PartnerOrderPrintService {
         }
     }
 
+    /**
+     * 현재 요청이 PARTNER 계정에서 온 것인지 {@code X-Is-Partner} 헤더로 판정한다.
+     *
+     * <p>Phase C5-4 P0: 게이트웨이가 JWT {@code partnerCode} claim 기반으로 강제 override 하므로
+     * SecurityContext ROLE_PARTNER authority 대신 헤더를 신뢰한다.
+     *
+     * @return X-Is-Partner=true 이면 true
+     */
     private boolean isPartnerAuthority() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return false;
+            }
+            HttpServletRequest request = attrs.getRequest();
+            String isPartner = request.getHeader(HttpHeaderConstants.IS_PARTNER_HEADER);
+            return "true".equalsIgnoreCase(isPartner);
+        } catch (Exception e) {
             return false;
         }
-        return authentication.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_PARTNER".equals(authority.getAuthority()));
     }
 
     private String render(PartnerOrder order) {

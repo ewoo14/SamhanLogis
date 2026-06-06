@@ -1,8 +1,11 @@
 package com.samhanair.logis.partnerorder.service;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * PARTNER self-service endpoint 의 거래처 자기범위 검증 helper.
@@ -10,22 +13,43 @@ import org.springframework.stereotype.Component;
  * <p>{@code @RequirePermission(partnerSelfService = true)} 는 aspect 의 PARTNER blanket deny 만
  * 해제한다. 실제 데이터 접근 범위는 service 계층에서 {@code X-Partner-Code} 와 대상 리소스의
  * partnerCode 를 대조해 강제한다.
+ *
+ * <p>Phase C5-4 P0 수정 — PARTNER 식별을 SecurityContext {@code ROLE_PARTNER} authority 에서
+ * {@code X-Is-Partner} 헤더로 전환한다.
+ * <ul>
+ *   <li>구 방식: {@link org.springframework.security.core.context.SecurityContextHolder} 에서
+ *       {@code ROLE_PARTNER} authority 검사 → C5-4 이후 게이트웨이가 role authority 를 미주입하면
+ *       항상 false → {@code assertOwnPartner()} 자기범위 검증 skip = 타 거래처 접근(P0 보안 취약점).</li>
+ *   <li>신 방식: {@link HttpServletRequest} 의 {@code X-Is-Partner} 헤더 직접 확인.
+ *       {@link com.samhanair.logis.security.permission.PermissionAspect} 가 X-Is-Partner 헤더를
+ *       읽는 방식과 동일 패턴. 게이트웨이가 JWT {@code partnerCode} claim 기반으로 강제 override
+ *       하므로 클라이언트 위조 불가.</li>
+ * </ul>
  */
 @Component
 public class PartnerSelfScopeGuard {
 
     /**
-     * 현재 인증 주체가 PARTNER role 인지 확인한다.
+     * 현재 요청이 PARTNER 계정에서 온 것인지 확인한다.
      *
-     * @return PARTNER 권한이면 true
+     * <p>{@code X-Is-Partner} 헤더 값이 {@code "true"} 이면 PARTNER 계정으로 판정한다.
+     * 헤더는 게이트웨이가 JWT {@code partnerCode} claim 기반으로 강제 override 하므로 신뢰한다.
+     *
+     * @return PARTNER 계정이면 true
      */
     public boolean isPartnerAuthority() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
+        try {
+            ServletRequestAttributes attrs =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return false;
+            }
+            HttpServletRequest request = attrs.getRequest();
+            String isPartner = request.getHeader(HttpHeaderConstants.IS_PARTNER_HEADER);
+            return "true".equalsIgnoreCase(isPartner);
+        } catch (Exception e) {
             return false;
         }
-        return authentication.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_PARTNER".equals(authority.getAuthority()));
     }
 
     /**

@@ -235,6 +235,8 @@ class PartnerOrderUpdateIT extends AbstractPostgresIT {
         mockMvc.perform(put("/api/v1/partner-orders/{id}", order.getId())
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateJson(currentModifiedAt(order.getId()), 2)))
                 .andExpect(status().isForbidden());

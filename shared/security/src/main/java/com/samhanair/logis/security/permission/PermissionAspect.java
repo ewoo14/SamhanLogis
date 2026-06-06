@@ -168,12 +168,15 @@ public class PermissionAspect {
         // Phase C5-4: PARTNER 거절 판정을 X-Is-Partner 헤더 기반으로 전환.
         // api-gateway 가 JWT partnerCode claim 존재 시 X-Is-Partner: true 를 주입한다.
         // role 폴백(role=="PARTNER")은 제거 — Samhan JWT 에 role 클레임 없어 의미 상실.
+        // P1-b: X-Is-Partner=true 분기에서 메트릭/로그의 roleCode 를 "PARTNER" 고정.
+        //       C5-4 이후 Samhan JWT 에 role 클레임이 없어 roleCode=UNKNOWN 으로 기록되던 문제 해소.
         String isPartnerHeader = extractHeader(joinPoint, signature, IS_PARTNER_HEADER);
         if ("true".equalsIgnoreCase(isPartnerHeader)) {
             if (annotation.partnerSelfService()) {
                 return joinPoint.proceed();
             }
-            deny(page, roleCode, actionName, "PARTNER identity (X-Is-Partner=true)");
+            // P1-b: PARTNER 거절 시 roleCode 를 "PARTNER" 로 고정 — 메트릭 레이블 UNKNOWN 방지
+            deny(page, "PARTNER", actionName, "PARTNER identity (X-Is-Partner=true)");
         }
 
         if (roleBasedEnforcement) {

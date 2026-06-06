@@ -103,14 +103,18 @@ class PermissionAspectTest {
     }
 
     /**
-     * C5-4: X-Is-Partner=true → deny (PARTNER 거절 X-Is-Partner 기반).
+     * C5-4 + P1-b: X-Is-Partner=true → deny, 메트릭 roleCode = "PARTNER" 고정.
      *
      * <p>api-gateway 가 JWT partnerCode claim 존재 시 X-Is-Partner: true 를 주입한다.
      * role="PARTNER" 폴백은 C5-4 에서 제거되었으므로 본 테스트는 헤더 기반 경로를 검증한다.
+     *
+     * <p>P1-b: X-Is-Partner=true 분기에서 거절 메트릭 roleCode 를 "PARTNER" 고정.
+     * C5-4 이전에는 X-User-Role 이 없어 roleCode=UNKNOWN 으로 기록되었으나
+     * P1-b 수정 후 "PARTNER" 레이블로 정확히 기록된다.
      */
     @Test
-    @DisplayName("C5-4: X-Is-Partner=true → deny (PARTNER identity)")
-    void isPartnerHeader_true_alwaysDenied() {
+    @DisplayName("C5-4 + P1-b: X-Is-Partner=true → deny, 메트릭 roleCode=PARTNER 고정")
+    void isPartnerHeader_true_alwaysDenied_withPartnerRoleCodeInMetrics() {
         attachHeaders(ACCOUNT_ID.toString(), null, null, "true");
 
         assertThatThrownBy(() -> proxy.createJournal(ACCOUNT_ID.toString(), null))
@@ -118,7 +122,10 @@ class PermissionAspectTest {
                 .hasMessageContaining("PARTNER identity");
 
         verifyNoInteractions(client);
-        assertThat(deniedCount("accounting.journals", "UNKNOWN", "CREATE")).isEqualTo(1.0);
+        // P1-b: roleCode = "PARTNER" 고정 (기존 "UNKNOWN" 아님)
+        assertThat(deniedCount("accounting.journals", "PARTNER", "CREATE")).isEqualTo(1.0);
+        // "UNKNOWN" 카운터는 0 이어야 함
+        assertThat(deniedCount("accounting.journals", "UNKNOWN", "CREATE")).isZero();
     }
 
     /**

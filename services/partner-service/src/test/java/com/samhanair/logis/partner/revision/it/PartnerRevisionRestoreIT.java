@@ -66,9 +66,13 @@ import org.springframework.test.web.servlet.MvcResult;
  * 추가/제거를 모사한다 (리스트 크기 증가=추가, 0건 리스트=전량 제거). TERMINATED 상태는 전이 endpoint 가
  * 없어 {@link PartnerRepository} 로 직접 {@link Partner#terminate()} + saveAndFlush 한다.
  *
- * <p>모든 인증 요청에 유효 {@code X-User-Id}(UUID) + 적절 {@code X-User-Role} 헤더를 부여한다
- * (account 모드 {@link PermissionAction} 게이트 + role MASTER bypass 검증). 복원/수정에는
- * {@code X-User-Name} 도 부여한다 (actorName 추적).
+ * <p>모든 인증 요청에 유효 {@code X-User-Id}(UUID) 헤더를 부여한다
+ * (account 모드 {@link PermissionAction} 게이트 검증). 복원/수정에는 {@code X-User-Name} 도 부여한다
+ * (actorName 추적).
+ *
+ * <p>Phase C5-4: MASTER bypass 테스트는 {@code X-User-Role: MASTER} 대신
+ * {@code X-Is-System-Master: true} 헤더를 사용한다.
+ * PermissionAspect 는 C5-4 이후 X-Is-System-Master 헤더 단독 bypass 판정을 사용한다.
  *
  * <p>partner-service 는 외부 RestClient 호출이 없으므로 ({@code feedback_it_mockbean_external_clients}
  * 가드 대상 client 없음) {@link DynamicPermissionClient} 만 {@code @MockBean} 으로 격리한다. partner 의
@@ -85,7 +89,12 @@ class PartnerRevisionRestoreIT extends AbstractPostgresIT {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_NAME_HEADER = "X-User-Name";
+    /**
+     * Phase C5-4: MASTER bypass 는 X-Is-System-Master 헤더로 판정한다.
+     * X-User-Role 헤더는 더 이상 bypass 의 기준이 아니므로 일반 권한 흐름 테스트에서만 사용한다.
+     */
     private static final String ROLE_HEADER = "X-User-Role";
+    private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
     /** 거래처 버전이력/복원 권한 page (PartnerRevisionController @RequirePermission). */
     private static final String PARTNERS_EDIT_PAGE = "partners.4tab.edit";
 
@@ -269,12 +278,13 @@ class PartnerRevisionRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("권한: RESTORE deny 이어도 MASTER 역할 → aspect bypass 200")
-    void restore_whenPermissionDenied_masterRole_bypassesAndReturns200() throws Exception {
+    @DisplayName("권한: RESTORE deny 이어도 X-Is-System-Master=true → aspect bypass 200")
+    void restore_whenPermissionDenied_systemMasterHeader_bypassesAndReturns200() throws Exception {
         String code = "P-REV-T6";
         registerPartner(code, 1, 1);
 
-        // RESTORE deny stub 이어도 MASTER 역할은 aspect bypass → 200
+        // RESTORE deny stub 이어도 X-Is-System-Master=true 는 aspect bypass → 200
+        // Phase C5-4: PermissionAspect 는 X-Is-System-Master 헤더 단독 bypass 판정 (role 폴백 제거)
         when(dynamicPermissionClient.check(
                         any(UUID.class), eq(PARTNERS_EDIT_PAGE), eq(PermissionAction.RESTORE)))
                 .thenReturn(false);
@@ -282,7 +292,7 @@ class PartnerRevisionRestoreIT extends AbstractPostgresIT {
         mockMvc.perform(post("/api/v1/partners/{code}/revisions/{rev}/restore", code, 1)
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(USER_NAME_HEADER, "마스터")
-                        .header(ROLE_HEADER, "MASTER"))
+                        .header(IS_SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.basic.partnerCode").value(code));
     }

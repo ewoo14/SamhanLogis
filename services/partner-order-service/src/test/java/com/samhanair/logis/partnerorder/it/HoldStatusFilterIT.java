@@ -326,6 +326,8 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
         mockMvc.perform(post("/api/v1/partner-orders/{id}/hold", orderId)
                         .header("X-User-Id", PARTNER_ACCOUNT_ID)
                         .header("X-User-Role", "PARTNER")
+                        // Phase C5-4: PARTNER 식별은 X-Is-Partner 헤더 기반
+                        .header("X-Is-Partner", "true")
                         .header("X-User-Name", "거래처사용자"))
                 .andExpect(status().isForbidden());
     }
@@ -349,6 +351,8 @@ class HoldStatusFilterIT extends AbstractPostgresIT {
         mockMvc.perform(post("/api/v1/partner-orders/{id}/hold", orderId)
                         .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER")
+                        // Phase C5-4: MASTER bypass 는 X-Is-System-Master=true 헤더 단독 판정
+                        .header("X-Is-System-Master", "true")
                         .header("X-User-Name", "관리자"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ON_HOLD"));
