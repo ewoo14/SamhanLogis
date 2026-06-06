@@ -256,11 +256,13 @@ class UserPermissionControllerIT {
 
     @Test
     void employeeRoleManagementMasterBypass_returnsSuccess() throws Exception {
+        // C5-4(C4-3): bypass 키 = X-Is-System-Master 단독 (role 폴백 제거)
         mockMvc.perform(withActor(
                         patch("/users/employees/{id}/role", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"role\":\"MANAGER\",\"reason\":\"승진\"}"),
-                        "MASTER"))
+                        "MASTER")
+                        .header("X-Is-System-Master", "true"))
                 .andExpect(status().isOk());
 
         verify(dynamicPermissionClient, never())

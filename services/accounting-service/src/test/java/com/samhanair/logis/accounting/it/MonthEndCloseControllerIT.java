@@ -173,9 +173,10 @@ class MonthEndCloseControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
 
         // 3) MASTER reverse → 200, status OPEN
+        // C5-4(C4-3): bypass 키 = X-Is-System-Master 단독 (role 폴백 제거)
         mockMvc.perform(post("/accounting/closings/" + id + "/reverse")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000100")
-                        .header("X-User-Role", "MASTER"))
+                        .header("X-Is-System-Master", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("OPEN"))
                 .andExpect(jsonPath("$.data.reversedBy").value("00000000-0000-0000-0000-000000000100"));
