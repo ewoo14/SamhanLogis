@@ -75,6 +75,8 @@ public class TaxInvoiceController {
     private static final String TAX_INVOICE_LIST_PAGE_CODE = "accounting.tax-invoice.list";
 
     private static final String CALLER_HEADER = "X-User-Id";
+    // (사이클2 BE Nit-C3) C5 이후 게이트웨이가 X-User-Role 을 주입하지 않아 항상 null —
+    // SP-D2 동적 권한 헬퍼는 null 즉시 skip = no-op.
     private static final String ROLE_HEADER = "X-User-Role";
 
     private final TaxInvoiceService taxInvoiceService;

@@ -6,6 +6,10 @@ package com.samhanair.logis.accounting.it;
  * <p>(사이클1 BE Nit-3) Mig6~11 IT 클래스에 중복돼 있던 missingUserId 케이스 판정/상수를
  * 단일 출처로 추출한다. C5 이후 부분-identity 신호 = X-User-Groups / X-Is-System-Master
  * (X-User-Role 은 무시 대상) — userId 부재 + 부분-identity 존재 = 401 강화 분기 계약.
+ *
+ * <p>(사이클2 BE Nit-C2) missingUserIdRoleOnly 케이스의 403 출처: role 헤더는 부분-identity
+ * 신호가 아니므로 필터가 401 을 발생시키지 않고 미인증 상태로 Spring Security 에 도달 —
+ * 기본 {@code Http403ForbiddenEntryPoint} 가 403 을 반환한다 (anonymous 계약과 동일 경로).
  */
 final class EcountMigPartialIdentitySupport {
 

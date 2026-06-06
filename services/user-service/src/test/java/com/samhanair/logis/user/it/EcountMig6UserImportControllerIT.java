@@ -134,6 +134,7 @@ class EcountMig6UserImportControllerIT extends AbstractPostgresIT {
                 Arguments.of(endpoint[0], endpoint[1], "missingUserId", file("sample.csv", "text/csv"), "MANAGER", false, 401),
                 Arguments.of(endpoint[0], endpoint[1], "missingUserIdSystemMaster", file("sample.csv", "text/csv"), null, false, 401),
                 // C5 후속: X-User-Role 단독은 부분-identity 신호가 아니므로 anonymous 계약(403).
+                // (사이클2 Nit-C2) 403 출처: 필터 401 미발생 → 미인증으로 Spring Security 도달 → Http403ForbiddenEntryPoint.
                 Arguments.of(endpoint[0], endpoint[1], "missingUserIdRoleOnly", file("sample.csv", "text/csv"), "MANAGER", false, 403),
                 // C5-3: 진짜 anonymous = 헤더 전무 (구 "anonymous"=userId+role없음 은 이제 정당한 인증 형태)
                 Arguments.of(endpoint[0], endpoint[1], "anonymous", file("sample.csv", "text/csv"), null, false, 403),

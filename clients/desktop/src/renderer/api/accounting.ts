@@ -1031,23 +1031,9 @@ export async function reverseDailyClosing(
   return res.data.data
 }
 
-/**
- * 일마감 실행 권한 — ACCOUNTANT / MASTER (BE `@PreAuthorize` 와 동일).
- *
- * `feedback_role_naming_full.md` — role 표기 풀네임 의무.
- */
-export function canExecuteDailyClosing(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'ACCOUNTANT' || role === 'MASTER'
-}
-
-/**
- * 일마감 역마감 권한 — MASTER 만.
- */
-export function canReverseDailyClosing(role: string | undefined | null): boolean {
-  if (!role) return false
-  return role === 'MASTER'
-}
+// [C5 후속 사이클2 D2-FE-001] canExecuteDailyClosing/canReverseDailyClosing role 문자열 헬퍼 제거 —
+// DailyClosingPage 는 usePermissions().canAccess('accounting.daily-closing.run','create') /
+// canAccess('accounting.daily-closing.unlock','update') 로 BE @RequirePermission 과 1:1 판정.
 
 /**
  * `isLocked` → UI 상태 문자열 파생.

@@ -155,7 +155,8 @@ public class InspectionAttachmentController {
      * @return 200
      */
     @Operation(summary = "검수 첨부 soft-delete",
-            description = "MANAGER/MASTER 권한. MinIO 객체는 감사 추적 위해 보존")
+            description = "@RequirePermission(inventory.stock-balance, DELETE) 단일 게이트. "
+                    + "MinIO 객체는 감사 추적 위해 보존")
     @DeleteMapping("/{attachmentId}")
     @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public ResponseEntity<ApiResponse<Void>> delete(

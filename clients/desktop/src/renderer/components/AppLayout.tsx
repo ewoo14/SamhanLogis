@@ -250,7 +250,7 @@ export function AppLayout() {
   const showPermissionDelegation   = showPermissionAdmin
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
   const showPartnersBlock          = dynamicCanAccess('partners.block',               'view')
-  // partners.edit-request — 사이드바 직접 노출 없음 (라우트 가드 전용). C-4 로 그룹 헤더 OR 소비처 제거.
+  // partners.edit-request — 현재 미사용 (사이드바 직접 노출/라우트 가드 소비처 없음 — 향후 메뉴 연결 예약).
   const _showPartnersEditRequest   = dynamicCanAccess('partners.edit-request',        'view')
   // products.* — 현재 사이드바 직접 노출 없음 (향후 상품 메뉴 추가 시 SidebarLink 연결). 라우트 가드에서 사용.
   const _showProductsList          = dynamicCanAccess('products.list',                'view')

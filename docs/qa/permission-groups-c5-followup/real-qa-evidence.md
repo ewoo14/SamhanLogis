@@ -179,3 +179,101 @@ dev_sales    GET  /api/v1/products/admin/sync/last → HTTP 403 (비대상 유�
 - 응답 summary 의 Service Account 키 부재 오류는 로컬 환경 한정 (GOOGLE_SERVICE_ACCOUNT_KEY 미설정) — 인가와 무관.
 
 **판정**: QA DEF-1 (CRITICAL) 해소 — 사이클 1 잔존 P0 0.
+
+---
+
+## 사이클 2 — 사이클1 fix 회귀 0 확인 (2026-06-07)
+
+**환경**: Docker 스택 전체 기동 중 (22 컨테이너), accounting-service Up 4h (healthy), 게이트웨이 :8080
+**head**: e96861c4 (사이클1 Codex fix TM C-1~C-10)
+**참고**: accounting-service 컨테이너는 2026-06-06T11:57 생성. C-1/C-2/C-6 변경은 Javadoc/주석 only — 기능 코드 `@RequirePermission` 애노테이션은 `3374a0c9`에서 이미 적용, 재빌드 불요.
+
+### 시나리오 C-1: GET /accounting/edit-requests 역할별 200/403
+
+페이지 코드: `accounting.edit-requests.decide:VIEW` — FE 가드 `/admin/accounting-edit-requests` 와 일치 (index.tsx line 1338).
+
+```
+dev_manager   → GET /api/v1/accounting/edit-requests   → HTTP 200  (seed …0101: decide VIEW=t)
+dev_accountant→ GET /api/v1/accounting/edit-requests   → HTTP 403  (seed …0104: decide VIEW=f) "reason=account permission missing"
+dev_sales     → GET /api/v1/accounting/edit-requests   → HTTP 403  (seed …0102: decide VIEW=f) "reason=account permission missing"
+```
+
+**판정**: PASS 3/3
+
+### 시나리오 C-2: GET /accounting/tax-invoices 역할별 200/403
+
+페이지 코드: `accounting.tax-invoice.list:VIEW` — FE 가드 `/accounting/tax-invoices` 와 일치 (index.tsx line 1117).
+
+```
+dev_manager    → GET /api/v1/accounting/tax-invoices   → HTTP 200  (seed …0101: tax-invoice.list VIEW=t, totalElements=11)
+dev_accountant → GET /api/v1/accounting/tax-invoices   → HTTP 200  (seed …0104: tax-invoice.list VIEW=t)
+dev_sales      → GET /api/v1/accounting/tax-invoices   → HTTP 403  (seed …0102: tax-invoice.list VIEW=f) "reason=account permission missing"
+```
+
+**판정**: PASS 3/3
+
+### 시나리오 2: 마감 권한 실증
+
+seed 기준 권한 (account_page_permissions):
+- `dev_accountant` (…0104): daily-closing VIEW=t, daily-closing.run CREATE=t
+- `dev_manager`    (…0101): daily-closing VIEW=t, daily-closing.run CREATE=t
+- `dev_sales`      (…0102): daily-closing VIEW=f, daily-closing.run CREATE=f
+
+```
+dev_accountant → POST /api/v1/accounting/daily-closings   → HTTP 201  (daily-closing.run CREATE=t)
+dev_manager    → POST /api/v1/accounting/daily-closings   → HTTP 201  (daily-closing.run CREATE=t)
+dev_sales      → POST /api/v1/accounting/daily-closings   → HTTP 403  (daily-closing.run CREATE=f) "page=accounting.daily-closing.run action=CREATE"
+dev_manager    → GET  /api/v1/accounting/daily-closings   → HTTP 200  (daily-closing VIEW=t, totalElements=2)
+dev_sales      → GET  /api/v1/accounting/daily-closings   → HTTP 403  (daily-closing VIEW=f) "page=accounting.daily-closing action=VIEW"
+```
+
+**판정**: PASS 5/5
+
+임시 데이터 원복: `DELETE FROM daily_closings WHERE closing_date IN ('2026-06-01','2026-06-02') ...` → 2 rows deleted, 잔존 0 확인.
+
+### 시나리오 3: products.sync 회귀 spot-check
+
+사이클1 DEF-1 fix (V47 + account_page_permissions INSERT) 유지 확인:
+
+```
+dev_manager → GET /api/v1/products/admin/sync/last → HTTP 200  (PASS, 사이클1 fix 유지)
+dev_sales   → GET /api/v1/products/admin/sync/last → HTTP 403  (PASS, 비대상 유지)
+```
+
+응답 내 `GOOGLE_SERVICE_ACCOUNT_KEY` 오류는 로컬 환경 한정 (인가와 무관).
+
+**판정**: PASS 2/2
+
+### JWT 클레임 구조 확인 (C5 계약)
+
+```json
+dev_manager JWT payload: { "sub": "a0000000-0000-0000-0000-000000000003", "groups": "00000000-0000-0000-0000-000000000101" }
+dev_master  JWT payload: { "sub": "a0000000-0000-0000-0000-000000000001", "isSystemMaster": true, "groups": "00000000-0000-0000-0000-000000000100" }
+```
+
+`role` 클레임 부재 확인 — C5 계약(JWT role 완전 제거) 유지.
+
+---
+
+## 사이클 2 최종 판정
+
+**결함 없음 — 사이클1 fix 회귀 0, 신규 결함 0. APPROVE 권고.**
+
+| 항목 | 기대 | 실측 | 판정 |
+|---|---|---|---|
+| C-1: dev_manager → edit-requests (200) | 200 | 200 | PASS |
+| C-1: dev_accountant → edit-requests (403) | 403 | 403 | PASS |
+| C-1: dev_sales → edit-requests (403) | 403 | 403 | PASS |
+| C-2: dev_manager → tax-invoices (200) | 200 | 200 | PASS |
+| C-2: dev_accountant → tax-invoices (200) | 200 | 200 | PASS |
+| C-2: dev_sales → tax-invoices (403) | 403 | 403 | PASS |
+| 마감: dev_accountant → POST daily-closings (201) | 201 | 201 | PASS |
+| 마감: dev_manager → POST daily-closings (201) | 201 | 201 | PASS |
+| 마감: dev_sales → POST daily-closings (403) | 403 | 403 | PASS |
+| 마감: dev_manager → GET daily-closings (200) | 200 | 200 | PASS |
+| 마감: dev_sales → GET daily-closings (403) | 403 | 403 | PASS |
+| DEF-1 회귀: dev_manager → products.sync (200) | 200 | 200 | PASS |
+| DEF-1 회귀: dev_sales → products.sync (403) | 403 | 403 | PASS |
+| JWT role 클레임 부재 (C5) | role 없음 | role 없음 | PASS |
+
+사이클1 DEF-1 fix (V47 materializer 동기 INSERT) 회귀 없음. 기존 매트릭스 모두 기대값 일치.

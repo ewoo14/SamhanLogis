@@ -10,8 +10,6 @@ import {
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
-  canExecuteDailyClosing,
-  canReverseDailyClosing,
   createDailyClosing,
   DAILY_CLOSING_STATUS_LABEL,
   deriveDailyClosingStatus,
@@ -26,7 +24,7 @@ import {
   type DailyTaxInvoiceRow,
 } from '../api/closingApi'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { useSessionStore } from '../stores/session'
+import { usePermissions } from '../hooks/usePermissions'
 import { today } from '../utils/dateUtils'
 import { fmtKrw } from '../utils/currencyUtils'
 
@@ -89,9 +87,11 @@ function availableSources(kind: ClosingKindFilter): DailyClosingSourceKind[] {
 }
 
 export function DailyClosingPage() {
-  const role = useSessionStore((s) => s.auth?.role)
-  const canExecute = canExecuteDailyClosing(role)
-  const canReverse = canReverseDailyClosing(role)
+  // [C5 후속 사이클2 D2-FE-001] role 문자열 직접 판정 제거 — BE @RequirePermission 과 1:1 page-code 판정.
+  // 실행 = accounting.daily-closing.run CREATE / 잠금 해제(역마감) = accounting.daily-closing.unlock UPDATE.
+  const { canAccess } = usePermissions()
+  const canExecute = canAccess('accounting.daily-closing.run', 'create')
+  const canReverse = canAccess('accounting.daily-closing.unlock', 'update')
   const queryClient = useQueryClient()
 
   usePageTitle('일마감')
@@ -410,7 +410,7 @@ export function DailyClosingPage() {
         </div>
         {!canExecute ? (
           <p style={{ margin: '8px 0 0', color: 'var(--state-danger)', fontSize: 12 }}>
-            ACCOUNTANT / MASTER 권한에서 실행할 수 있습니다.
+            일마감 실행 권한이 없습니다 — 일마감 실행 권한 보유자만 가능합니다.
           </p>
         ) : null}
         {closeMutation.isError ? (
