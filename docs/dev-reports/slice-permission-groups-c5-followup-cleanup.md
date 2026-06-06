@@ -276,6 +276,14 @@ no matches
 - F5/F9: `JournalDetailPage` 의 DRAFT 편집은 `JournalFormPage` 가 아직 `POST /accounting/journals` CREATE 를 호출하는 의도적 신규작성 폼 재사용으로 명명/주석을 정리했다. 세금계산서/재고실사 권한 주석과 mock download 파생 규칙, Playwright triage 메모도 현행화했다.
 - F6/F7/F8: 배차 상세 모달 footer 는 design-system `Button` 으로 교체했고, DC 조회 전용 안내는 warning token 패턴으로 통일했다. 재고실사 입력 문구는 UUID 노출 없이 `품목코드 / 바코드` 로 정리했다.
 
+### 사이클 3b Codex review fix
+
+- C3b-1: `SlipEditRequestController#createRequest` Swagger 설명에서 `CONFIRMED` 완전 잠금 표기를 제거하고 요청 가능 상태를 `CONFIRMED/ACCEPTED/PROCESSING` 으로 현행화했다.
+- C3b-2: 제거된 role helper 뒤에 남은 API 말미 권한 헬퍼 섹션을 제거하고, 필요한 권한 설명은 `PermissionGuard`/`canAccess(pageCode, action)` 기준으로 갱신했다.
+- C3b-3: `SalesPartnerDcConfigPage` 조회 전용 안내에서 고정 role 표기를 제거하고 동적 DC 수정 권한 문구로 교체했다.
+- C3b-4: `slip.print.export` 를 mock catalog 에 추가하고 MANAGER view/edit grant 를 V36/V39 기준으로 동기화했다.
+- `slip.print.export` 는 §5.7 `mock catalog 동기화` 목록에서 빠졌던 항목이다. 이번 fix 에서 `V36__seed_sp_d6_6_slip_page_codes.sql` 93~94행 및 V39 download materialization 기준으로 보정했다.
+
 ## 6. 보류/주의
 
 - `ADMIN_ROLES` + `RoleGuard` 제거는 보류: `AdminLayout` 이 아직 MASTER 전용 외부 가드로 실제 사용 중이다.

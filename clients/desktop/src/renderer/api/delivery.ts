@@ -13,12 +13,11 @@
  * UUID 비공개 가드: batch.id / slip.id 는 path/body 에서만 사용. 화면 표시 영역에서
  * 는 driverName / slipNo / 날짜 등 비즈니스 라벨만 사용한다 (memo
  * `feedback_uuid_no_user_visibility.md`).
+ *
+ * 권한: FE 진입은 {@code slip.delivery-batch} VIEW, mutation 은 BE {@code @RequirePermission}
+ * action 기준.
  */
 import { apiClient, type ApiEnvelope } from './client'
-
-// ---------------------------------------------------------------------------
-// 권한 헬퍼 — BE DeliveryBatchController @PreAuthorize 와 1:1
-// ---------------------------------------------------------------------------
 
 /** 배치 목록의 한 row — Designer wireframes.md § 1 인용 (LinkDispatchListPage 표 6 컬럼). */
 export interface DeliveryBatchSummary {

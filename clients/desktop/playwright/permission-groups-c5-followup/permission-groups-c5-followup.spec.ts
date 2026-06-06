@@ -130,6 +130,23 @@ test.describe('권한그룹 C5 후속 정리', () => {
     await expect(page.getByTestId('sales-closing-new-button')).toBeVisible({ timeout: 15000 })
   })
 
+  test('mock runtime: slip.print.export download controls sales export button', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/sales?mockRole=MANAGER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await expect(page).toHaveURL(/#\/sales/)
+    await expect(page.getByTestId('sales-query-excel-download')).toBeVisible({ timeout: 15000 })
+
+    await page.goto(`${BASE_URL}/#/sales?mockRole=SALES`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL(/#\/sales/)
+    await expect(page.getByTestId('sales-query-excel-download')).toHaveCount(0)
+  })
+
   test('mock runtime: V37 ACCOUNTANT daily-closing.run CREATE enables daily close button', async ({ page }) => {
     await page.goto(`${BASE_URL}/#/accounting/daily-closing?mockRole=ACCOUNTANT`, {
       waitUntil: 'domcontentloaded',

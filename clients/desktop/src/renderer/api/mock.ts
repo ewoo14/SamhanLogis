@@ -7117,12 +7117,13 @@ const SP_D1_PAGES = [
   'ecount.mig14.order-list',
   'ecount.mig14.aging-snapshot',
   'ecount.mig14.ledger',
-  // C2b 단독→PermissionGuard 전환 page-codes (V29/V30/V33/V34/V36 seed 기반)
-  'sales.slip.create',
-  'slip.delivery-batch',
-  'slip.print.next-day',
-  'sales.partner-dc-config',
-  'slip.cleanup',
+    // C2b 단독→PermissionGuard 전환 page-codes (V29/V30/V33/V34/V36 seed 기반)
+    'sales.slip.create',
+    'slip.delivery-batch',
+    'slip.print.next-day',
+    'slip.print.export',
+    'sales.partner-dc-config',
+    'slip.cleanup',
   'arologis.dispatch.admin',
   'arologis.dispatch.ops',
   'dispatch.batch',
@@ -7226,7 +7227,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // Issue 4 Slice 4
     'accounting.edit-requests', 'accounting.edit-requests.decide',
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page view 허용 (V29/V30/V33/V34/V36 seed)
-    'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
+    'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
     'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
@@ -7383,7 +7384,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // Issue 4 Slice 4
     'accounting.edit-requests', 'accounting.edit-requests.decide',
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page edit 허용 (V29/V30/V33/V34/V36 seed)
-    'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day',
+    'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
     'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',

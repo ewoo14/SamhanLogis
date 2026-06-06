@@ -122,13 +122,6 @@ export async function reconcileDispatch(
 }
 
 // ---------------------------------------------------------------------------
-// 권한 헬퍼 (BE @PreAuthorize 와 일치 — feedback_role_naming_full.md 풀네임)
-// ---------------------------------------------------------------------------
-
-// [C5 후속 사이클1] canAccessDispatchReconcile / ARO_DISPATCH_RECONCILE_ROLES 제거 —
-// 진입 판정은 라우트 PermissionGuard + 사이드바 dynamicCanAccess('arologis.dispatch.ops','view') 단일 소스.
-
-// ---------------------------------------------------------------------------
 // 표시용 헬퍼 (status 한국어 라벨 / 색상 — Designer mock 보존)
 // ---------------------------------------------------------------------------
 

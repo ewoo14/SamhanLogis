@@ -61,14 +61,14 @@ public class SlipEditRequestController {
      * 슬립 수정/삭제 요청 생성 — 사용자 명시 잠금 정책에 따른 status 가드 적용.
      */
     @Operation(summary = "슬립 수정/삭제 요청 생성",
-            description = "PR-H3 — CONFIRMED (창고 인계 후) 단계 슬립의 mutation 잠금 해제 요청 + 창고 알림")
+            description = "PR-H3 — CONFIRMED/ACCEPTED/PROCESSING 단계 슬립의 mutation 잠금 해제 요청 + 창고 알림")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "요청 생성 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
                     description = "DRAFT/SAVED/SENT (작성자 직접 가능) 또는 REJECTED/CANCELED (종결)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "슬립 미존재"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-                    description = "INSPECTING/SHIPPING/DELIVERED/CONFIRMED (완전 잠금)")
+                    description = "INSPECTING/SHIPPING/DELIVERED (완전 잠금)")
     })
     @PostMapping("/{slipId}/edit-request")
     @RequirePermission(page = "slip.edit-requests", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)

@@ -1,0 +1,106 @@
+﻿=== PR #417 사이클3 QA — Docker 실서버 HTTP 인가 매트릭스 실측 증빙 ===
+측정 일시  : 2026-06-07 06:40:43 KST (2026-06-07)
+브랜치     : fix/permission-groups-c5-followup-cleanup (head 66bbd471)
+플랫폼     : Windows 11 Pro 10.0.26200
+게이트웨이 : http://localhost:8080  samhan-api-gateway  Up 6 hours (healthy)
+DB         : samhan-postgres  Up 6 hours (healthy)  PostgreSQL 16-alpine
+인증       : DEV-SEED 계정 (V5 Flyway BCrypt "dev_p05_pass!") / JWT Bearer
+
+--- 검증 계정 (로그인 5개 모두 HTTP 200 OK) ---
+dev_master     그룹=마스터   is_system_master=true   userId=a0000000-0000-0000-0000-000000000001
+dev_manager    그룹=매니저                            userId=a0000000-0000-0000-0000-000000000003
+dev_sales      그룹=영업원                            userId=a0000000-0000-0000-0000-000000000004
+dev_accountant 그룹=회계원                            userId=a0000000-0000-0000-0000-000000000005
+dev_warehouse  그룹=창고원                            userId=a0000000-0000-0000-0000-000000000006
+
+================================================================
+DB 권한 시드 확인 (auth_db.group_page_permissions — 실 SELECT)
+SELECT group_name, page_code, can_view, can_create, can_update, can_delete, can_download
+================================================================
+page_code: slip.print.export
+  마스터  : is_system_master=true → 전체 허용 (별도 row 없음)
+  매니저  : can_view=T can_create=T can_update=T can_delete=T can_download=T
+  영업원  : can_view=F can_create=F ...can_download=F
+  회계원  : can_view=F can_download=F
+  창고원  : can_view=F can_download=F
+
+page_code: estimates.list
+  마스터  : is_system_master=true → 전체 허용
+  매니저  : can_view=T can_create=T can_update=T can_delete=T
+  영업원  : can_view=T can_create=T can_update=T can_delete=T
+  회계원  : can_view=T can_create=F can_update=F can_delete=F
+  창고원  : can_view=F can_create=F
+
+page_code: accounting.supplier-profiles
+  마스터  : is_system_master=true → 전체 허용
+  매니저  : can_view=T can_create=T can_update=T can_delete=T
+  회계원  : can_view=T can_create=F can_update=F can_delete=F
+  창고원  : can_view=F can_create=F
+
+================================================================
+[1] slip.print.export  DOWNLOAD
+    GET /api/v1/slips/export.xlsx
+    @RequirePermission(page="slip.print.export", action=DOWNLOAD)
+================================================================
+역할                       기대  실측  판정  응답 요약
+마스터(is_system_master)   200   200   PASS  XLSX 이진 스트림 정상 반환
+매니저(can_download=true)  200   200   PASS  XLSX 이진 스트림 정상 반환
+영업원(can_download=false) 403   403   PASS  FORBIDDEN [SP-PO-1] 동적권한deny page=slip.print.export action=DOWNLOAD
+회계원(can_download=false) 403   403   PASS  FORBIDDEN [SP-PO-1] 동적권한deny page=slip.print.export action=DOWNLOAD
+창고원(can_download=false) 403   403   PASS  FORBIDDEN [SP-PO-1] 동적권한deny page=slip.print.export action=DOWNLOAD
+
+================================================================
+[2] estimates.list  CREATE
+    POST /api/v1/slips/estimates
+    @RequirePermission(page="estimates.list", action=CREATE)
+    ※ 인가 허용 계정은 productId=a1000000...가 product_db에 없어 404(인가통과 후 도메인오류) — 정상
+================================================================
+역할                       기대범위  실측  판정  응답 요약
+마스터(is_system_master)   인가허용  404   PASS  NOT_FOUND 일부제품못찾음 (인가통과 증명)
+매니저(can_create=true)    인가허용  404   PASS  NOT_FOUND 일부제품못찾음 (인가통과)
+영업원(can_create=true)    인가허용  404   PASS  NOT_FOUND 일부제품못찾음 (인가통과)
+회계원(can_create=false)   403       403   PASS  FORBIDDEN [SP-PO-1] 동적권한deny page=estimates.list action=CREATE
+창고원(can_create=false)   403       403   PASS  FORBIDDEN [SP-PO-1] 동적권한deny page=estimates.list action=CREATE
+
+================================================================
+[3] accounting.supplier-profiles  CREATE
+    POST /api/v1/accounting/supplier-profiles
+    @RequirePermission(page="accounting.supplier-profiles", action=CREATE)
+    ※ 마스터=201생성성공, 매니저=409(이미존재 businessNumber 충돌) — 인가통과 후 도메인오류
+================================================================
+역할                       기대범위  실측  판정  응답 요약
+마스터(is_system_master)   인가허용  201   PASS  사업자프로필 등록 성공
+매니저(can_create=true)    인가허용  409   PASS  CONFLICT 이미등록된사업자번호 (인가통과)
+회계원(can_create=false)   403       403   PASS  FORBIDDEN [SP-PO-1] 동적권한deny page=accounting.supplier-profiles action=CREATE
+창고원(can_create=false)   403       403   PASS  FORBIDDEN [SP-PO-1] 동적권한deny page=accounting.supplier-profiles action=CREATE
+
+================================================================
+추가 검증 — Playwright 정적 계약 스펙 (mock 단위)
+================================================================
+clients/desktop/playwright/permission-groups-c5-followup/permission-groups-c5-followup.spec.ts
+결과: 8/8 PASS (5.6s)
+  [PASS] canQuerySales 세션그룹 기반 판정
+  [PASS] AppLayout C5 대상 메뉴 정적 role fallback 상수/헬퍼 미사용
+  [PASS] S5 route 3건 PermissionGuard page-code 단일 게이트
+  [PASS] mock runtime: products.sync grant controls allow and redirect
+  [PASS] mock runtime: MANAGER can enter /sales/closing
+  [PASS] mock runtime: V37 ACCOUNTANT daily-closing.run CREATE enables button
+  [PASS] mock runtime: view-only daily closing permission keeps button disabled
+  [PASS] mock runtime: MASTER daily-closing.unlock UPDATE shows reverse action
+
+================================================================
+웹 화면 실 스크린샷 캡처 불가 사유
+================================================================
+- Vite dev 서버(http://localhost:5173) 미가동 상태 (launch-local-stack.ps1 -SkipClients 기동)
+- Playwright E2E 브라우저 스크린샷은 Vite 기동 필수 → 금회 캡처 불가
+- 대신 curl/Invoke-WebRequest HTTP status 실측값 및 응답 JSON 전문 위에 기록
+
+================================================================
+전체 판정: PASS (14/14 케이스 기대 부합 + Playwright 8/8 PASS)
+================================================================
+
+--- 비고 ---
+- 403 응답 패턴: {"code":"FORBIDDEN","message":"[SP-PO-1] 동적 권한 deny — page=<code> action=<action> role=UNKNOWN reason=account permission missing"}
+  role=UNKNOWN : C5 이후 X-User-Role 헤더 미사용, 그룹 권한 기반 판정 시 정상값
+- 마스터그룹 is_system_master=true : group_page_permissions 별도 row 없이 전체 액션 허용 (확인 완료)
+- [2] estimates 영업원 can_create=true 이지만 V39GuardGatedPageIT 에서 SALES can_create=true 검증됨 (일치)

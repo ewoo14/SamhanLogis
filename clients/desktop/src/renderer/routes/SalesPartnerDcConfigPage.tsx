@@ -163,7 +163,7 @@ export function SalesPartnerDcConfigPage() {
               borderRadius: 4,
             }}
           >
-            현재 권한은 조회 전용입니다. DC 수정은 MANAGER / MASTER 권한에서만 가능합니다.
+            현재 권한은 조회 전용입니다. DC 수정 권한이 있는 계정에서 변경할 수 있습니다.
           </p>
         ) : null}
         <div className={styles['top']}>

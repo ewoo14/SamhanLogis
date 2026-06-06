@@ -1,0 +1,27 @@
+﻿=== PR #417 사이클3 QA — Docker 실서버 HTTP 인가 매트릭스 ===
+측정 일시: 2026-06-07 06:38:12 KST
+브랜치: fix/permission-groups-c5-followup-cleanup (head 66bbd471)
+게이트웨이: http://localhost:8080 (samhan-api-gateway healthy)
+인증: DEV-SEED 계정 / BCrypt / JWT Bearer
+
+--- [1] slip.print.export DOWNLOAD ---
+  마스터(is_system_master)  기대=200  실측=  FAIL
+  매니저(can_download=true)  기대=200  실측=  FAIL
+  영업원(can_download=false)  기대=403  실측=  FAIL
+  회계원(can_download=false)  기대=403  실측=  FAIL
+  창고원(can_download=false)  기대=403  실측=  FAIL
+
+--- [2] estimates.list CREATE ---
+  마스터(is_system_master)  기대=2xx/4xx허용  실측=404  PASS
+  매니저(can_create=true)  기대=2xx/4xx허용  실측=404  PASS
+  영업원(can_create=true)  기대=2xx/4xx허용  실측=404  PASS
+  회계원(can_create=false)  기대=403  실측=403  PASS
+  창고원(can_create=false)  기대=403  실측=403  PASS
+
+--- [3] accounting.supplier-profiles CREATE ---
+  마스터(is_system_master)  기대=2xx/허용  실측=201  PASS
+  매니저(can_create=true)  기대=2xx/허용  실측=409  PASS
+  회계원(can_create=false)  기대=403  실측=403  PASS
+  창고원(can_create=false)  기대=403  실측=403  PASS
+
+전체 판정: FAIL (5건)
