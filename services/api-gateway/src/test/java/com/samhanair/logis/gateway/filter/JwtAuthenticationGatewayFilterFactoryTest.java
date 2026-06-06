@@ -217,6 +217,116 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         assertThat(body).contains("INVALID_TOKEN");
     }
 
+    // -----------------------------------------------------------------------
+    // Phase C5-3: allowedGroups 검사 테스트
+    // -----------------------------------------------------------------------
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("C5-3-(a) allowedGroups 일치 → 통과 (allowedRoles 비어있음)")
+    void allowedGroups_matching_passes() {
+        String masterGroupId = "00000000-0000-0000-0000-000000000100";
+        String managerGroupId = "00000000-0000-0000-0000-000000000101";
+        String groups = masterGroupId + "," + managerGroupId;
+        String token = JwtTokenProvider.generate(
+                "user-mg", "MASTER", null, true, groups, 3600L, props.getSecretBytes());
+
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        config.getAllowedGroups().add(masterGroupId);
+        config.getAllowedGroups().add(managerGroupId);
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/logs/audit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> { captured[0] = e.getRequest(); return Mono.empty(); };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(exchange.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("C5-3-(b) allowedGroups 불일치 → 403")
+    void allowedGroups_notMatching_returns403() {
+        String salesGroupId = "00000000-0000-0000-0000-000000000102";
+        // 토큰에는 SALES 그룹만 포함
+        String token = JwtTokenProvider.generate(
+                "user-sales", "SALES", null, false, salesGroupId, 3600L, props.getSecretBytes());
+
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        // allowedGroups 에는 MASTER(100), MANAGER(101) 만 허용
+        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000100");
+        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000101");
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/logs/audit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        GatewayFilterChain chain = e -> Mono.empty();
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("C5-3-(c) allowedGroups 비어있으면 그룹 제한 없음 (기존 라우트 영향 0)")
+    void allowedGroups_empty_noGroupRestriction() {
+        // groups 없는 토큰
+        String token = JwtTokenProvider.generate(
+                "user-plain", "MANAGER", 3600, props.getSecretBytes());
+
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        // allowedGroups 비어있음 → 그룹 검사 없음
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> { captured[0] = e.getRequest(); return Mono.empty(); };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("C5-3-(d) allowedRoles 일치 + allowedGroups 불일치 → 각 독립 검사: allowedRoles 통과 후 allowedGroups 로 403")
+    void allowedRolesPassButAllowedGroupsFails_returns403() {
+        // 토큰 role=MASTER → allowedRoles 통과, 하지만 groups 에 해당 그룹 없음
+        String token = JwtTokenProvider.generate(
+                "user-m", "MASTER", null, false, "", 3600L, props.getSecretBytes());
+
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        config.getAllowedRoles().add(com.samhanair.logis.common.security.Role.MASTER);
+        config.getAllowedGroups().add("00000000-0000-0000-0000-000000000100"); // 토큰 groups 비어있음
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/logs/audit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        GatewayFilterChain chain = e -> Mono.empty();
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
     private static String readBody(ServerWebExchange exchange) {
         return ((MockServerHttpResponse) exchange.getResponse()).getBodyAsString().block();
     }

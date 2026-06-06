@@ -136,16 +136,19 @@ public class SlipQueryController {
             @Parameter(description = "페이지 크기 (기본 50)")
             @RequestParam(defaultValue = "50") int size,
 
-            @RequestHeader(value = "X-User-Role", required = false) String role) {
+            @RequestHeader(value = "X-User-Role", required = false) String role,
+            @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster) {
 
-        // 1단계: 명시적 타입 지정 시 권한 가드
+        // 1단계: 명시적 타입 지정 시 권한 가드 (Phase C5-3: 그룹/isSystemMaster OR 경로 추가)
         SlipPurchaseAccessGuard.guardInboundPurchaseRead(slipType, role);
-        SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role);
+        SlipSalesAccessGuard.guardOutboundSalesRead(slipType, role, userGroups, isSystemMaster);
         // 2단계: 타입 미지정 시 역할에 따라 가시 범위 축소
         SlipType effectiveSlipType = SlipPurchaseAccessGuard.restrictInboundWhenTypeOmitted(slipType, role);
-        effectiveSlipType = SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role);
+        effectiveSlipType = SlipSalesAccessGuard.restrictOutboundWhenTypeOmitted(effectiveSlipType, role,
+                userGroups, isSystemMaster);
         // 3단계: restrict 결과에 대해 재가드 (null→OUTBOUND 후 OUTBOUND 차단 역할 검증)
-        SlipSalesAccessGuard.guardOutboundSalesRead(effectiveSlipType, role);
+        SlipSalesAccessGuard.guardOutboundSalesRead(effectiveSlipType, role, userGroups, isSystemMaster);
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("slipDate"), Sort.Order.desc("seqNo")));
         return ApiResponse.ok(slipQueryService.listForQuery(

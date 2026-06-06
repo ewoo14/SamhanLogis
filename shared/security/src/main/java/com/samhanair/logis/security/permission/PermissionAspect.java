@@ -2,6 +2,10 @@ package com.samhanair.logis.security.permission;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Parameter;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -21,7 +25,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * <p>Controller 메서드에 {@code @RequirePermission(page="...", action=PermissionAction.CREATE)} 를 부착하면
  * 본 Aspect 가 메서드 실행 전에 {@link DynamicPermissionClient} 를 통해 동적 권한을 검증한다.
  *
- * <p>X-User-Id / X-User-Role 헤더 추출 순서:
+ * <p>X-User-Id / X-User-Role / X-User-Groups 헤더 추출 순서:
  * <ol>
  *   <li>메서드 파라미터 중 {@code @RequestHeader("X-User-*")} 어노테이션이 붙은 첫 번째 String 파라미터</li>
  *   <li>없으면 {@link RequestContextHolder} → {@link HttpServletRequest} 헤더에서 직접 추출</li>
@@ -30,14 +34,25 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  *
  * <p>deny 정책:
  * <ul>
- *   <li>MASTER: 동적 DB 조회 없이 통과</li>
- *   <li>PARTNER: 내부 서비스 접근 방어 차원에서 항상 deny.
- *       단, {@link RequirePermission#partnerSelfService()} 명시 opt-in endpoint 는 service 계층
- *       자기범위 검증을 전제로 통과</li>
+ *   <li>MASTER: 동적 DB 조회 없이 통과 (X-Is-System-Master=true OR role=MASTER)</li>
+ *   <li>PARTNER 판정: api-gateway 가 JWT role 클레임을 검증하여 {@code X-User-Role: PARTNER} 로 전파하는
+ *       경로만 신뢰 가능하다.
+ *       <br>[실측 결론 C5-3] partner-auth-service 는 {@code JwtTokenProvider.generate(id, "PARTNER", ...)} 로
+ *       발급하며 JWT 에 partnerCode 클레임이 없다. 게이트웨이도 {@code X-Partner-Code} 를 자체 주입하지 않는다.
+ *       FE/모바일이 전송하는 {@code X-Partner-Code} 는 FE origin 이므로 PermissionAspect 에서 신뢰 판정
+ *       근거로 쓸 수 없다.
+ *       따라서 PARTNER 거절 판정은 기존 {@code role == "PARTNER"} 로 유지한다.
+ *       partnerSelfService opt-in endpoint 는 service 계층 자기범위 검증을 전제로 통과시킨다.</li>
  *   <li>account 모드: 그 외 {@link DynamicPermissionClient#check(UUID, String, PermissionAction)} == false → deny</li>
  *   <li>role 모드: VIEW 는 {@link DynamicPermissionClient#canView(String, String)},
  *       나머지 action 은 {@link DynamicPermissionClient#canEdit(String, String)} == false → deny</li>
  * </ul>
+ *
+ * <p>Phase C5-3 추가 — {@link #extractGroups(ProceedingJoinPoint, MethodSignature)} 헬퍼:
+ * {@code X-User-Groups} 헤더를 comma-split 하여 {@code Set<String>} 으로 파싱한다.
+ * 헤더 부재 또는 빈 문자열이면 빈 Set 반환 (null 안전).
+ * 현재 PermissionAspect 내에서 직접 소비하지 않으며, 소비처(SlipSalesAccessGuard 등)는
+ * 서비스 계층에서 HttpServletRequest 를 통해 독립적으로 소비한다.
  *
  * <p>deny 시: {@link PermissionGuardMetrics#incrementDenied(String, String, String, String)} 호출
  * 후 {@link AccessDeniedException} throw.
@@ -74,6 +89,12 @@ public class PermissionAspect {
      * "true" 이면 role==MASTER OR 폴백 없이도 bypass.
      */
     private static final String IS_SYSTEM_MASTER_HEADER = "X-Is-System-Master";
+    /**
+     * X-User-Groups 헤더 이름 — Phase C5-1 신규.
+     * api-gateway 가 JWT {@code groups} claim(comma-join UUID 문자열)을 전파.
+     * 헤더 부재 또는 빈 문자열이면 그룹 없음으로 처리.
+     */
+    private static final String USER_GROUPS_HEADER = "X-User-Groups";
 
     private final ObjectProvider<DynamicPermissionClient> clientProvider;
     private final PermissionGuardMetrics metrics;
@@ -213,6 +234,48 @@ public class PermissionAspect {
         }
 
         return null;
+    }
+
+    /**
+     * {@code X-User-Groups} 헤더를 comma-split 하여 그룹 UUID 문자열 집합을 반환한다 — Phase C5-3 신규.
+     *
+     * <p>헤더 부재 또는 빈 문자열이면 빈 불변 Set 을 반환한다 (null 안전).
+     * 항목별 공백 trim 을 수행하며, 빈 항목은 제거한다.
+     * Set 은 O(1) 교집합 체크를 위해 {@link HashSet} 으로 반환한다.
+     *
+     * <p>[실측 C5-3] partner-auth-service JWT 에는 partnerCode 클레임이 없으므로
+     * PARTNER 식별에 본 메서드를 사용하지 않는다. SlipSalesAccessGuard 등 서비스 계층 guard 에서
+     * HttpServletRequest 를 통해 직접 헤더를 읽어 그룹 교집합을 판정한다.
+     *
+     * @param joinPoint AOP 조인 포인트
+     * @param signature 메서드 시그니처
+     * @return 그룹 UUID 문자열 집합 (빈 Set 가능, null 미반환)
+     */
+    Set<String> extractGroups(ProceedingJoinPoint joinPoint, MethodSignature signature) {
+        String raw = extractHeader(joinPoint, signature, USER_GROUPS_HEADER);
+        return parseGroupsHeader(raw);
+    }
+
+    /**
+     * comma-join 그룹 헤더 문자열을 {@link Set} 으로 파싱한다.
+     *
+     * <p>null 또는 blank 이면 빈 Set 반환. 각 항목 trim 및 빈 항목 제거.
+     *
+     * @param raw X-User-Groups 헤더 raw 값 (null 허용)
+     * @return 그룹 UUID 문자열 집합 (null 미반환)
+     */
+    public static Set<String> parseGroupsHeader(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Collections.emptySet();
+        }
+        Set<String> result = new HashSet<>();
+        for (String part : raw.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                result.add(trimmed);
+            }
+        }
+        return Collections.unmodifiableSet(result);
     }
 
     private UUID parseAccountId(String rawAccountId) {

@@ -8,7 +8,9 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
@@ -34,7 +36,13 @@ import reactor.core.publisher.Mono;
  *   filters:
  *     - JwtAuthentication
  *     - name: JwtAuthentication
- *       args: { allowedRoles: [MASTER, MANAGER] }
+ *       args:
+ *         allowedRoles: [MASTER, MANAGER]
+ *     - name: JwtAuthentication
+ *       args:
+ *         allowedGroups:
+ *           - 00000000-0000-0000-0000-000000000100
+ *           - 00000000-0000-0000-0000-000000000101
  * </pre>
  *
  * <h2>Behavior</h2>
@@ -42,9 +50,16 @@ import reactor.core.publisher.Mono;
  *   <li>Missing {@code Authorization: Bearer ...} → {@code 401 UNAUTHORIZED}.</li>
  *   <li>Signature/expiry/parse failure → {@code 401 INVALID_TOKEN}.</li>
  *   <li>Authenticated but role not in allow-list → {@code 403 FORBIDDEN}.</li>
+ *   <li>Authenticated but allowedGroups 가 비어있지 않고 X-User-Groups 와 교집합이 없으면
+ *       → {@code 403 FORBIDDEN}.</li>
  *   <li>Otherwise: mutate request to add {@code X-User-Id}, {@code X-User-Role},
  *       and (Phase 12) {@code X-User-Department} headers, then continue.</li>
  * </ul>
+ *
+ * <h2>allowedRoles / allowedGroups 독립 검사</h2>
+ * 두 검사는 AND 가 아닌 각각 독립 검사이다.
+ * allowedRoles 가 비어있지 않으면 role 검사, allowedGroups 가 비어있지 않으면 그룹 교집합 검사.
+ * 두 목록이 모두 비어있으면 (기본 JwtAuthentication) 역할/그룹 제한 없음 — 인증만 확인.
  *
  * <h2>Phase 12 인사 카테고리 가드</h2>
  * JWT claim {@code departmentName} 존재 시 {@code X-User-Department} 헤더로 전파.
@@ -128,6 +143,7 @@ public class JwtAuthenticationGatewayFilterFactory
             // claim 미포함(구버전 토큰 또는 그룹 미배속) 시 "" → 빈 문자열 전송 (소비처 0, additive).
             String groups = JwtTokenProvider.getGroups(jws);
 
+            // allowedRoles 검사 — 비어있지 않으면 role 검사 (기존 동작 100% 보존)
             if (!config.getAllowedRoles().isEmpty()) {
                 Role role;
                 try {
@@ -137,6 +153,22 @@ public class JwtAuthenticationGatewayFilterFactory
                             "FORBIDDEN", "권한이 없습니다");
                 }
                 if (!config.getAllowedRoles().contains(role)) {
+                    return writeError(exchange, HttpStatus.FORBIDDEN,
+                            "FORBIDDEN", "권한이 없습니다");
+                }
+            }
+
+            // allowedGroups 검사 — Phase C5-3 신규. allowedRoles 와 AND 아님·각각 독립 검사.
+            // 비어있으면 그룹 제한 없음 (기존 라우트 영향 0).
+            // groups claim 과 allowedGroups 의 교집합이 없으면 403.
+            if (!config.getAllowedGroups().isEmpty()) {
+                Set<String> tokenGroups = new java.util.HashSet<>(
+                        Arrays.asList(groups.split(",")));
+                // 빈 문자열 토큰 제거 (groups claim 부재 시 "" → [""] 방지)
+                tokenGroups.remove("");
+                boolean groupMatch = config.getAllowedGroups().stream()
+                        .anyMatch(tokenGroups::contains);
+                if (!groupMatch) {
                     return writeError(exchange, HttpStatus.FORBIDDEN,
                             "FORBIDDEN", "권한이 없습니다");
                 }
@@ -186,5 +218,13 @@ public class JwtAuthenticationGatewayFilterFactory
         private boolean required = true;
         /** When non-empty, role must be one of these (else 403). */
         private List<Role> allowedRoles = new ArrayList<>();
+        /**
+         * Phase C5-3 — 허용 그룹 UUID 문자열 목록.
+         *
+         * <p>비어있지 않으면 JWT {@code groups} claim 과의 교집합을 검사한다.
+         * 교집합이 없으면 403. 빈 리스트이면 그룹 제한 없음 (기존 라우트 영향 0).
+         * allowedRoles 와 AND 아님 — 각각 독립 검사.
+         */
+        private List<String> allowedGroups = new ArrayList<>();
     }
 }

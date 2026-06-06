@@ -3,6 +3,9 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.SlipType;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 매출(OUTBOUND) 전표 조회 권한 정책 공통 guard.
@@ -15,27 +18,61 @@ import com.samhanair.logis.slip.domain.SlipType;
  * <br>정책 근거: SP-03 권한 매트릭스 §4.2 — 출고(OUTBOUND) 전표는 영업/관리 직군 전용.
  * 창고/재고 직군은 배송/검수 단계(ACCEPT~COMPLETE)만 처리권한, 목록 조회권 없음.
  *
+ * <p>Phase C5-3 그룹 기반 OR 판정 추가:
+ * {@code X-User-Groups} 헤더의 그룹 집합과 아래 빌트인 그룹 UUID 집합의 교집합이 있거나
+ * {@code X-Is-System-Master=true} 이면 role 검사 없이 통과한다.
+ * 기존 role 경로는 병행 유지 — behavior-preserving (락아웃 0).
+ *
+ * <p>빌트인 그룹 UUID 상수 (V43 참조 {@code BuiltinRoleGroupIds}):
+ * <ul>
+ *   <li>MASTER  = {@code 00000000-0000-0000-0000-000000000100}</li>
+ *   <li>MANAGER = {@code 00000000-0000-0000-0000-000000000101}</li>
+ *   <li>SALES   = {@code 00000000-0000-0000-0000-000000000102}</li>
+ * </ul>
+ *
  * @see <a href="https://docs.samhanair.com/sp-03#section-4-2">SP-03 권한 매트릭스 §4.2</a>
  */
 final class SlipSalesAccessGuard {
+
+    /**
+     * 빌트인 OUTBOUND 열람 허용 그룹 UUID 집합 — V43 BuiltinRoleGroupIds 참조.
+     *
+     * <p>slip 내부 상수로 선언 (공유 폭 최소화 — 공유 모듈 의존 추가 금지).
+     * 변경 시 반드시 V43 Flyway 마이그레이션과 동기화 필요.
+     */
+    static final Set<String> OUTBOUND_ALLOWED_GROUP_IDS = Set.of(
+            "00000000-0000-0000-0000-000000000100",  // MASTER  빌트인 그룹
+            "00000000-0000-0000-0000-000000000101",  // MANAGER 빌트인 그룹
+            "00000000-0000-0000-0000-000000000102"   // SALES   빌트인 그룹
+    );
 
     private SlipSalesAccessGuard() {
     }
 
     /**
-     * OUTBOUND(매출) 전표 조회 시 role 이 허용 목록에 없으면 {@link BusinessException}(FORBIDDEN) 을 발생시킨다.
+     * OUTBOUND(매출) 전표 조회 시 허용 조건을 충족하지 않으면 {@link BusinessException}(FORBIDDEN) 을 발생시킨다.
      *
      * <p>{@code slipType} 이 {@code OUTBOUND} 가 아니면 즉시 반환 (INBOUND 가드는 별도 {@link SlipPurchaseAccessGuard}).
      *
-     * @param slipType 전표 유형 (null 이면 가드 스킵)
-     * @param role     X-User-Role 헤더 값 (null/blank 이면 403)
-     * @throws BusinessException(FORBIDDEN) INVENTORY / WAREHOUSE 또는 기타 미허용 역할
+     * <p>허용 조건 (OR):
+     * <ol>
+     *   <li>role ∈ {SALES, MANAGER, MASTER} — 기존 role 경로 (병행 유지)</li>
+     *   <li>groups ∩ {@link #OUTBOUND_ALLOWED_GROUP_IDS} ≠ ∅ — Phase C5-3 그룹 경로</li>
+     *   <li>isSystemMaster == "true" — Phase C4 시스템 마스터 경로</li>
+     * </ol>
+     *
+     * @param slipType      전표 유형 (null 이면 가드 스킵)
+     * @param role          X-User-Role 헤더 값 (null/blank 이면 그룹 경로로만 판정)
+     * @param userGroups    X-User-Groups 헤더 값 comma-join (null/blank 이면 빈 Set)
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" 이면 bypass)
+     * @throws BusinessException FORBIDDEN — 모든 허용 조건 불충족 시
      */
-    static void guardOutboundSalesRead(SlipType slipType, String role) {
+    static void guardOutboundSalesRead(SlipType slipType, String role,
+                                       String userGroups, String isSystemMaster) {
         if (slipType != SlipType.OUTBOUND) {
             return;
         }
-        if (canReadOutboundSales(role)) {
+        if (canReadOutboundSales(role, userGroups, isSystemMaster)) {
             return;
         }
         throw new BusinessException(ErrorCode.FORBIDDEN,
@@ -43,31 +80,117 @@ final class SlipSalesAccessGuard {
     }
 
     /**
+     * OUTBOUND(매출) 전표 조회 시 role 이 허용 목록에 없으면 {@link BusinessException}(FORBIDDEN) 을 발생시킨다.
+     *
+     * <p>하위 호환 오버로드 — 그룹/isSystemMaster 정보 없이 role 만으로 판정.
+     * Phase C5-3 이전 호출처와의 backward compatibility 보장.
+     *
+     * @param slipType 전표 유형 (null 이면 가드 스킵)
+     * @param role     X-User-Role 헤더 값 (null/blank 이면 403)
+     * @throws BusinessException FORBIDDEN — role 미허용 시
+     */
+    static void guardOutboundSalesRead(SlipType slipType, String role) {
+        guardOutboundSalesRead(slipType, role, null, null);
+    }
+
+    /**
      * {@code slipType} 이 null 이고 OUTBOUND 열람 권한이 없으면 INBOUND 만 허용하도록 강제한다.
      *
-     * <p>type 미지정 전체 목록 조회 시 INVENTORY/WAREHOUSE 역할은 OUTBOUND 행을 볼 수 없다.
+     * <p>type 미지정 전체 목록 조회 시 허용 조건 미충족 역할은 OUTBOUND 행을 볼 수 없다.
      * {@link SlipPurchaseAccessGuard#restrictInboundWhenTypeOmitted} 와 유사한 역할 제한.
      *
-     * @param slipType null 이면 전체 요청
-     * @param role     X-User-Role 헤더 값
+     * @param slipType      null 이면 전체 요청
+     * @param role          X-User-Role 헤더 값
+     * @param userGroups    X-User-Groups 헤더 값 (null 허용)
+     * @param isSystemMaster X-Is-System-Master 헤더 값 (null 허용)
      * @return OUTBOUND 조회 가능하면 {@code slipType} 그대로 반환; 아니면 {@code SlipType.INBOUND}
      */
-    static SlipType restrictOutboundWhenTypeOmitted(SlipType slipType, String role) {
-        if (slipType != null || canReadOutboundSales(role)) {
+    static SlipType restrictOutboundWhenTypeOmitted(SlipType slipType, String role,
+                                                     String userGroups, String isSystemMaster) {
+        if (slipType != null || canReadOutboundSales(role, userGroups, isSystemMaster)) {
             return slipType;
         }
         return SlipType.INBOUND;
     }
 
     /**
+     * {@code slipType} 이 null 이고 OUTBOUND 열람 권한이 없으면 INBOUND 만 허용하도록 강제한다.
+     *
+     * <p>하위 호환 오버로드 — role 만으로 판정.
+     *
+     * @param slipType null 이면 전체 요청
+     * @param role     X-User-Role 헤더 값
+     * @return OUTBOUND 조회 가능하면 {@code slipType} 그대로 반환; 아니면 {@code SlipType.INBOUND}
+     */
+    static SlipType restrictOutboundWhenTypeOmitted(SlipType slipType, String role) {
+        return restrictOutboundWhenTypeOmitted(slipType, role, null, null);
+    }
+
+    /**
+     * 주어진 역할/그룹/isSystemMaster 중 하나라도 허용 조건을 충족하면 true 를 반환한다.
+     *
+     * <p>판정 순서 (OR):
+     * <ol>
+     *   <li>isSystemMaster == "true" → bypass</li>
+     *   <li>role ∈ {SALES, MANAGER, MASTER} → 허용 (기존 role 경로 병행 유지)</li>
+     *   <li>userGroups ∩ {@link #OUTBOUND_ALLOWED_GROUP_IDS} ≠ ∅ → 허용 (Phase C5-3)</li>
+     * </ol>
+     *
+     * @param role           X-User-Role 헤더 값 (null/blank 허용)
+     * @param userGroups     X-User-Groups 헤더 comma-join 값 (null/blank 이면 빈 Set)
+     * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" 이면 bypass)
+     * @return 허용 조건 충족 여부
+     */
+    static boolean canReadOutboundSales(String role, String userGroups, String isSystemMaster) {
+        // Phase C4 경로 — X-Is-System-Master=true
+        if ("true".equalsIgnoreCase(isSystemMaster)) {
+            return true;
+        }
+        // 기존 role 경로 — behavior-preserving (병행 유지)
+        // ACCOUNTANT 제외 — SP-03 권한 매트릭스 §4.2 (ACCOUNTANT 는 INBOUND 확정 권한만 보유)
+        // INVENTORY / WAREHOUSE 제외 — 배송/검수 단계 처리 권한만 있고 매출 전표 열람 불가
+        if ("SALES".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role)) {
+            return true;
+        }
+        // Phase C5-3 그룹 경로
+        Set<String> groups = parseGroupsHeader(userGroups);
+        for (String groupId : groups) {
+            if (OUTBOUND_ALLOWED_GROUP_IDS.contains(groupId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 주어진 역할이 OUTBOUND 매출 전표를 조회할 수 있는지 여부.
+     *
+     * <p>하위 호환 오버로드 — role 만으로 판정.
      *
      * @param role X-User-Role 헤더 값
      * @return SALES / MANAGER / MASTER 이면 true, 그 외 false
      */
     static boolean canReadOutboundSales(String role) {
-        // ACCOUNTANT 제외 — SP-03 권한 매트릭스 §4.2 (ACCOUNTANT 는 INBOUND 확정 권한만 보유)
-        // INVENTORY / WAREHOUSE 제외 — 배송/검수 단계 처리 권한만 있고 매출 전표 열람 불가
-        return "SALES".equals(role) || "MANAGER".equals(role) || "MASTER".equals(role);
+        return canReadOutboundSales(role, null, null);
+    }
+
+    /**
+     * X-User-Groups 헤더 문자열을 comma-split 하여 Set 으로 파싱한다.
+     *
+     * @param raw comma-join UUID 문자열 (null/blank 이면 빈 Set 반환)
+     * @return 그룹 UUID 문자열 집합 (null 미반환)
+     */
+    private static Set<String> parseGroupsHeader(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Set.of();
+        }
+        Set<String> result = new HashSet<>();
+        for (String part : raw.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                result.add(trimmed);
+            }
+        }
+        return result;
     }
 }

@@ -3,6 +3,7 @@ package com.samhanair.logis.auth.service;
 import com.samhanair.logis.auth.config.JwtIssueProperties;
 import com.samhanair.logis.auth.domain.Account;
 import com.samhanair.logis.auth.domain.AccountGroup;
+import com.samhanair.logis.auth.domain.PermissionGroup;
 import com.samhanair.logis.auth.repository.AccountGroupRepository;
 import com.samhanair.logis.auth.repository.AccountRepository;
 import com.samhanair.logis.auth.service.dto.LoginResponse;
@@ -36,7 +37,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Phase C5-1 갱신 — {@link #login} 시 계정의 활성 그룹 UUID 집합을 조회하여
  * JWT {@code groups} claim 에 comma-join 문자열로 포함. api-gateway 가
  * {@code X-User-Groups} 헤더로 downstream 에 전파한다.
- * 본 슬라이스에서는 전파만 수행하며 소비처는 C5-2 에서 구현된다.
+ *
+ * <p>Phase C5-3 갱신 — {@link #login} 응답 {@link LoginResponse#groups()} 필드 추가:
+ * 계정의 활성 그룹 요약 목록({@link LoginResponse.GroupSummary})을 반환한다.
+ * FE 는 그룹 {@code name} 만 렌더링하며 UUID 는 화면에 노출하지 않는다.
  */
 @Slf4j
 @Service
@@ -104,7 +108,14 @@ public class AuthService {
                 isSystemMaster, groups,
                 jwtIssueProperties.getTtlSeconds(), jwtIssueProperties.getSecretBytes());
 
-        return new LoginResponse(token, userId, role, account.getDisplayName());
+        // Phase C5-3: 활성 그룹 요약 목록 조회 (id, name, builtin) — FE AuthSnapshot.groups 수신
+        List<LoginResponse.GroupSummary> groupSummaries = permissionGroupRepository
+                .findActiveGroupsByAccountId(account.getId())
+                .stream()
+                .map(pg -> new LoginResponse.GroupSummary(pg.getId().toString(), pg.getName(), pg.isBuiltin()))
+                .toList();
+
+        return new LoginResponse(token, userId, role, account.getDisplayName(), groupSummaries);
     }
 
     public RegisterResponse register(String loginId, String rawPassword, String displayName, Role role) {

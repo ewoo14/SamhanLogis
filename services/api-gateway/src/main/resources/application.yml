@@ -114,6 +114,8 @@ spring:
             - JwtAuthentication
 
         # Logging service — restricted to MASTER + MANAGER per audit policy.
+        # Phase C5-3: allowedGroups 추가 (빌트인 MASTER=100, MANAGER=101 그룹).
+        # allowedRoles 병행 유지 — role 폴백 OR 조건으로 behavior-preserving.
         - id: logging-service
           uri: lb://logging-service
           predicates:
@@ -125,6 +127,9 @@ spring:
                 allowedRoles:
                   - MASTER
                   - MANAGER
+                allowedGroups:
+                  - 00000000-0000-0000-0000-000000000100
+                  - 00000000-0000-0000-0000-000000000101
 
         # ============================================================
         # `/api/v1/*` 표준 routing (Phase 10 W10-6 도입). 14 service 일관.

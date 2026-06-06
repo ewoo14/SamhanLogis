@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -12,17 +13,27 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Gateway 가 주입한 {@code X-User-Id} + {@code X-User-Role} 헤더를 신뢰하여 사전 인증된
- * Authentication 을 SecurityContext 에 적재 — partner-service / dashboard-service 일관 패턴.
+ * Gateway 가 검증 후 주입한 사용자 헤더를 arologis-service 의 Spring Security 인증으로 변환한다.
+ *
+ * <p>기존 인증(자체 JWT ArologisJwtFilter 등) 이 있으면 스킵 — 아로로지스 독립 운영 단위 유지.
+ *
+ * <p>Phase C5-3 갱신 — X-User-Id 단독 인증 성립:
+ * <ul>
+ *   <li>X-User-Id 존재 시 인증 성립 — X-User-Role 부재여도 허용.</li>
+ *   <li>X-User-Role 존재 시 {@code ROLE_<role>} authority 추가 (기존 동작 보존).</li>
+ *   <li>X-User-Groups 존재 시 각 UUID 에 대해 {@code GROUP_<uuid>} authority 추가 (신규).</li>
+ * </ul>
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String USER_GROUPS_HEADER = "X-User-Groups";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        // 기존 인증(아로로지스 자체 JWT 등)이 있으면 스킵 — 독립 운영 단위 유지
         var existing = SecurityContextHolder.getContext().getAuthentication();
         if (existing != null && existing.isAuthenticated()) {
             chain.doFilter(request, response);
@@ -31,11 +42,23 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
         String userId = request.getHeader(USER_ID_HEADER);
         String role = request.getHeader(USER_ROLE_HEADER);
+        String groups = request.getHeader(USER_GROUPS_HEADER);
 
-        if (userId != null && !userId.isBlank() && role != null && !role.isBlank()
+        if (userId != null && !userId.isBlank()
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
-            var authority = new SimpleGrantedAuthority("ROLE_" + role);
-            var auth = new UsernamePasswordAuthenticationToken(userId, null, List.of(authority));
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            if (role != null && !role.isBlank()) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+            }
+            if (groups != null && !groups.isBlank()) {
+                for (String groupId : groups.split(",")) {
+                    String trimmed = groupId.trim();
+                    if (!trimmed.isEmpty()) {
+                        authorities.add(new SimpleGrantedAuthority("GROUP_" + trimmed));
+                    }
+                }
+            }
+            var auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
         }
 

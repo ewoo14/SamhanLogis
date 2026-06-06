@@ -37,4 +37,25 @@ public interface PermissionGroupRepository extends JpaRepository<PermissionGroup
               AND pg.systemMaster = true
             """)
     boolean existsByAccountIdAndSystemMasterTrue(@Param("accountId") UUID accountId);
+
+    /**
+     * 특정 계정의 활성 그룹 목록을 그룹 id 오름차순으로 조회한다 — Phase C5-3 신규.
+     *
+     * <p>로그인 시 {@link com.samhanair.logis.auth.service.dto.LoginResponse.GroupSummary} 생성에 사용된다.
+     * {@code account_groups(is_deleted=false)} JOIN {@code permission_groups(is_deleted=false)} 조인.
+     * {@code groupId} 오름차순 정렬로 순서 결정성 보장.
+     *
+     * @param accountId 조회할 계정 UUID
+     * @return 해당 계정의 활성 그룹 목록 (빈 리스트 가능)
+     */
+    @Query("""
+            SELECT pg
+            FROM AccountGroup ag
+            JOIN PermissionGroup pg ON ag.groupId = pg.id
+            WHERE ag.accountId = :accountId
+              AND ag.isDeleted = false
+              AND pg.isDeleted = false
+            ORDER BY pg.id ASC
+            """)
+    List<PermissionGroup> findActiveGroupsByAccountId(@Param("accountId") UUID accountId);
 }

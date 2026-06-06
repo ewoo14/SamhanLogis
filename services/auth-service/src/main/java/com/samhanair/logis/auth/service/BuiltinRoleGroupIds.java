@@ -1,6 +1,7 @@
 package com.samhanair.logis.auth.service;
 
 import com.samhanair.logis.common.security.Role;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,6 +41,20 @@ public final class BuiltinRoleGroupIds {
             Role.DEVELOPER,   UUID.fromString("00000000-0000-0000-0000-000000000109")
     );
 
+    /**
+     * Phase C5-3 — UUID → 역할 역매핑 (PR-3 대비).
+     *
+     * <p>BUILTIN_ROLE_GROUP_IDS 의 역방향 Map. LoginResponse.role 파생 및
+     * 그룹 UUID 에서 역할 라벨을 추론할 때 사용한다.
+     */
+    public static final Map<UUID, Role> GROUP_ID_TO_ROLE;
+
+    static {
+        Map<UUID, Role> reverse = new HashMap<>();
+        BUILTIN_ROLE_GROUP_IDS.forEach((role, uuid) -> reverse.put(uuid, role));
+        GROUP_ID_TO_ROLE = java.util.Collections.unmodifiableMap(reverse);
+    }
+
     private BuiltinRoleGroupIds() {
         // 인스턴스화 금지
     }
@@ -55,5 +70,21 @@ public final class BuiltinRoleGroupIds {
             return Optional.empty();
         }
         return Optional.ofNullable(BUILTIN_ROLE_GROUP_IDS.get(role));
+    }
+
+    /**
+     * Phase C5-3 신규 — 빌트인 그룹 UUID 에서 역할 enum 을 역매핑한다 (PR-3 대비).
+     *
+     * <p>LoginResponse.role 을 그룹 UUID 집합에서 파생할 때 사용한다.
+     * 빌트인 그룹이 아닌 UUID 는 {@link Optional#empty()} 반환.
+     *
+     * @param groupId 권한그룹 UUID
+     * @return 해당 UUID 에 대응하는 역할 enum (Optional)
+     */
+    public static Optional<Role> fromGroupId(UUID groupId) {
+        if (groupId == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(GROUP_ID_TO_ROLE.get(groupId));
     }
 }
