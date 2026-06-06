@@ -4,7 +4,27 @@
 
 ---
 
-## 🆕 2026-06-06 (야간 자율 — 최신) — **권한 fail-secure 교정(#411 머지)** + Phase C 풀스택 실 Docker QA 보강
+## 🆕 2026-06-06 (오후, 원격 세션 — 최신) — **C5-1 P2 선처리 PR #413** (cutover 무관 안전 3건)
+
+> 개발책임자 원격(remote-control) 접속, AskUserQuestion 으로 "C5-1 P2 선처리만" 선택 — C5 최종 cutover 는 입회 집중 세션 보류 유지.
+
+### 🔵 PR #413 — C5-1 P2 선처리 (`fix/permission-groups-c5-1-p2`)
+PR #408 PM 종합 P2 체크리스트 중 안전 3건:
+- **그룹 query ORDER BY**: `findByAccountIdAndIsDeletedFalse` → `...OrderByGroupIdAsc`(호출처 3+mock 4). JWT groups claim 순서 결정성. **`AccountGroupOrderingIT`**(Testcontainers, 내림차순 insertion→오름차순 단언) = CI 자동 회귀 가드.
+- **게이트웨이 헤더 상수 통일**: 필터 로컬 문자열 5건 → `HttpHeaderConstants` 단일 출처 + `USER_DEPARTMENT_HEADER` 신설. 와이어 포맷 무변경.
+- **CorsConfig exposedHeaders `X-User-Groups`** + `corsConfiguration()` 분리 + `CorsConfigTest` 계약 박제(리터럴 단언=의도, 와이어 포맷 가드).
+- @SQLRestriction 이중필터(P2 4번째) = 기존 컨벤션 일치, 변경 비대상 판정.
+- **실 Docker QA**(`docs/qa/permission-groups-c5-1-p2/real-qa-evidence.md`): 재빌드/재배포 후 CORS Expose-Headers 실 캡처 + **UUID 역순 배속 설계**로 claim 오름차순 실증(MATCH=True), QA 임시 그룹/배속 완전 원복.
+- dual review: Claude 5-team 전원 APPROVE(BE/FE 결함0, QA P1 1=리터럴 단언 → **기각**(리터럴이 와이어 포맷 가드로 옳음, 의도 Javadoc 박제), DevOps/Designer P2) + Codex APPROVE(P2 → IT 추가/dev-report 정정으로 반영).
+
+### 📋 후속 추적 (P2, 비차단)
+- **arologis SecurityConfig CORS Javadoc 불일치**(DevOps P2): "api-gateway 와 동일 정책" 선언 vs X-User-Groups 비대칭. 아로로지스는 독립 운영 단위(게이트웨이 미경유)라 Javadoc 을 "아로로지스 전용 정책"으로 명확화 권장. ※ GitHub Issue 자동 생성은 권한 거부 — 개발책임자 확인 후 수동 발행 또는 차기 PR 에 1줄 포함.
+- **C5-2 cutover 체크리스트 추가**(Designer P2): FE 가 X-User-Groups(UUID 집합) 소비 시 **UUID 화면 노출 금지**([[feedback_uuid_no_user_visibility]]) — 그룹명 매핑 경유 의무, AuthSnapshot/거부 메시지에 UUID 원문 금지.
+- C5-2 FE 그룹 수신 경로 결정(FE 리뷰): 헤더 수신 vs LoginResponse body 확장(권장=단순).
+
+---
+
+## 🆕 2026-06-06 (야간 자율 — 이전) — **권한 fail-secure 교정(#411 머지)** + Phase C 풀스택 실 Docker QA 보강
 
 > 개발책임자 "a"(풀스택 Docker 실QA 보강) + "모든 버그 fix" 지시. Phase C(C2~C5-2c) 머지분을 **실 Docker 스택**으로 역할 매트릭스 실증 → fail-open 1건 적발·교정 머지. 목업·합성 0, 실 캡처만([[feedback_no_fake_data_ever]]).
 

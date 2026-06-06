@@ -11,6 +11,10 @@ import org.springframework.web.cors.CorsConfiguration;
  *
  * <p>C5-1 P2: SPA 가 읽어야 하는 identity 헤더(exposedHeaders) 계약을 박제 —
  * {@code X-User-Groups}(Phase C5-1) 포함, 기존 헤더 회귀 0 보장.
+ *
+ * <p><b>리터럴 단언은 의도</b>: 상수({@code HttpHeaderConstants}) 참조가 아닌 와이어 포맷
+ * 문자열 원문을 단언한다 — 상수 값이 실수로 변경되면(와이어 포맷 파괴) 본 테스트가 적발한다.
+ * 상수 참조로 작성하면 상수 변경 시 테스트가 함께 통과해 변경 감지가 불가능하다.
  */
 class CorsConfigTest {
 

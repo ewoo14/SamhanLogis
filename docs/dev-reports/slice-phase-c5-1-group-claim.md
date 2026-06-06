@@ -7,7 +7,7 @@
 계정의 활성 그룹 집합을 JWT `groups` 클레임 + 게이트웨이 `X-User-Groups` 헤더로 전파. **소비처 0**(X-User-Role/role 클레임 유지) = behavior-preserving, 락아웃 0.
 - **shared/common `JwtTokenProvider`**: `groups` 클레임(`CLAIM_GROUPS`) + 7-arg generate 오버로드(기존 2/5/6-arg 보존, backward compat) + `getGroups`(null→empty).
 - **shared/common `HttpHeaderConstants`**: `USER_GROUPS_HEADER="X-User-Groups"`.
-- **auth-service `AuthService.login`**: `accountGroupRepository.findByAccountIdAndIsDeletedFalse` → groupId comma-join → generate.
+- **auth-service `AuthService.login`**: `accountGroupRepository.findByAccountIdAndIsDeletedFalse`(현재명 `...OrderByGroupIdAsc`, §4 P2 rename) → groupId comma-join → generate.
 - **api-gateway**: `groups` 클레임 → `X-User-Groups` 헤더(빈 문자열도 주입, 일관).
 
 ## 2. 형식 / 안전
@@ -23,7 +23,7 @@
 
 ## 4. P2 선처리 (2026-06-06, cutover 무관 안전 작업 — 개발책임자 원격 지시)
 PM 종합 P2 4건 중 3건 처리, 1건 비대상 판정:
-- **그룹 query ORDER BY**: `AccountGroupRepository.findByAccountIdAndIsDeletedFalse` → `...OrderByGroupIdAsc` rename(전 호출처 3 갱신). JWT `groups` claim comma-join 순서 결정성 — 로그인마다 동일 문자열(소비처 순서 의존/캐시 키 대비). 기존 호출처는 순서-비민감(AccountGroupService=groupName 재정렬, Materializer=union)이라 무영향.
+- **그룹 query ORDER BY**: `AccountGroupRepository.findByAccountIdAndIsDeletedFalse` → `...OrderByGroupIdAsc` rename(전 호출처 3 갱신). JWT `groups` claim comma-join 순서 결정성 — 로그인마다 동일 문자열(소비처 순서 의존/캐시 키 대비). 기존 호출처는 순서-비민감(AccountGroupService=groupName 재정렬, Materializer=union)이라 무영향. **`AccountGroupOrderingIT`**(Testcontainers): 내림차순 insertion 후 오름차순 반환 단언 = CI 자동 회귀 가드(dual review P2 반영).
 - **게이트웨이 상수 통일**: `JwtAuthenticationGatewayFilterFactory` 로컬 중복 헤더 문자열 5건 → shared `HttpHeaderConstants` 참조(단일 출처). `USER_DEPARTMENT_HEADER`(X-User-Department, Phase 12) 상수 신설.
 - **CorsConfig exposedHeaders**: `X-User-Groups` 노출 추가(C5-2 SPA 그룹 수신 선행 준비) + 상수 통일 + `corsConfiguration()` 분리 후 계약 테스트(`CorsConfigTest`) 박제.
 - **@SQLRestriction 이중필터**: "(기존 패턴)" — repo 전체 soft-delete 컨벤션(엔티티 @SQLRestriction + 파생쿼리 IsDeletedFalse 이중 명시)과 일치 = 변경 비대상 판정.
