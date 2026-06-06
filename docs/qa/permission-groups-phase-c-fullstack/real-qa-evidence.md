@@ -552,3 +552,105 @@ dev_inventory → 재고원 (is_system_master=false)
 | MASTER bypass + 비-MASTER 게이팅 (gateway 통해) | **확인** | inventory.transfer 200/200 |
 | slip-service @RequirePermission | **확인** | DynamicPermissionClient bean 존재, ACCOUNTANT CREATE 403 실증 |
 | 락아웃 계정 0건 (dev_locked 제외) | **확인** | failed_login_attempts=0 |
+| **C5-1 재배포 후 JWT groups 클레임 채워짐** | **확인** | §13 참조 — 재배포 이미지 2026-06-06T05:26 KST |
+
+---
+
+## 13. §C — C5-1 재배포 후 groups 클레임 실증
+
+**검증 일시**: 2026-06-06 14:26 KST  
+**재배포 배경**: 이전 QA(§11)에서 컨테이너 auth-service 이미지가 C5-1 커밋(2026-06-06 10:21 KST) 이전 빌드(00:12 KST)임이 확인됨 — groups 클레임 누락 근본원인.
+
+### 13-1. 재빌드 절차 및 신 이미지 생성 시각
+
+```
+# 1. Gradle 강제 재빌드 (--rerun-tasks)
+./gradlew.bat :services:auth-service:bootJar :services:api-gateway:bootJar --rerun-tasks -x test
+→ BUILD SUCCESSFUL in 23s
+→ AuthService.class 빌드: 2026-06-06 05:25 UTC (= 14:25 KST)
+
+# 2. Docker 이미지 재빌드
+docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml build auth-service api-gateway
+→ Image infrastructure-auth-service Built
+→ Image infrastructure-api-gateway Built
+
+# 3. 컨테이너 재시작
+docker compose ... up -d auth-service api-gateway
+→ Container samhan-auth-service Recreated → Started
+→ Container samhan-api-gateway Recreated → Started
+```
+
+| 항목 | 값 |
+|------|-----|
+| 신 auth-service 이미지 생성 시각 | **2026-06-06T05:26:19Z** (= 14:26 KST) |
+| AuthService.class JAR 내 빌드 시각 | 2026-06-06 05:25 UTC |
+| 컨테이너 기동 시각 | 2026-06-06 14:26:28 KST |
+| healthy 확인 | Up 20 seconds (healthy) |
+
+### 13-2. 실 로그인 및 JWT payload 디코드
+
+```
+POST http://localhost:8080/api/auth/login
+{"loginId":"dev_master","password":"dev_p05_pass!"}
+
+HTTP 200 OK
+```
+
+**MASTER JWT payload (base64 decode, 실값)**:
+
+```json
+{
+    "sub": "a0000000-0000-0000-0000-000000000001",
+    "role": "MASTER",
+    "iat": 1780723679,
+    "exp": 1780727279,
+    "departmentName": "대표실",
+    "isSystemMaster": true,
+    "groups": "00000000-0000-0000-0000-000000000100"
+}
+```
+
+**이전 QA 대비 변화**: `groups` 클레임이 존재하며 값 = `00000000-0000-0000-0000-000000000100` (마스터 그룹 UUID group100).
+
+### 13-3. 전 역할 JWT groups 클레임 실값
+
+| 계정 | 역할 | HTTP | JWT groups 클레임 |
+|------|------|------|-------------------|
+| dev_master | MASTER | 200 | `00000000-0000-0000-0000-000000000100` (group100 마스터) |
+| dev_manager | MANAGER | 200 | `00000000-0000-0000-0000-000000000101` (group101 매니저) |
+| dev_sales | SALES | 200 | `00000000-0000-0000-0000-000000000102` (group102 영업원) |
+| dev_warehouse | WAREHOUSE | 200 | `00000000-0000-0000-0000-000000000103` (group103 창고원) |
+| dev_accountant | ACCOUNTANT | 200 | `00000000-0000-0000-0000-000000000104` (group104 회계원) |
+| dev_inventory | INVENTORY | 200 | `00000000-0000-0000-0000-000000000105` (group105 재고원) |
+
+전 역할 groups 클레임 채워짐. §11-3 SQL 시뮬레이션 결과와 UUID 완전 일치.
+
+### 13-4. X-User-Groups 헤더 주입 확인
+
+**gateway 코드 분석 (infrastructure-api-gateway 신 이미지 05:25 빌드)**:
+
+```java
+// JwtAuthenticationGatewayFilterFactory.java L122-146
+String groups = JwtTokenProvider.getGroups(jws);
+// ...
+.header(HEADER_USER_GROUPS, groups);  // HEADER_USER_GROUPS = "X-User-Groups"
+```
+
+- `JwtTokenProvider.getGroups(jws)`: JWT payload의 `groups` claim 추출, null이면 `""` 반환.
+- MASTER 토큰 기준: `groups = "00000000-0000-0000-0000-000000000100"` (비어있지 않음).
+- gateway가 downstream(inventory-service 등)에 `X-User-Groups: 00000000-0000-0000-0000-000000000100` 헤더를 주입함.
+
+**이전 상태 대비**: 구 이미지에서는 JWT에 groups 클레임 없음 → `getGroups()` → `""` → `X-User-Groups: ""` (빈 문자열) 전파. 신 이미지에서는 groups 클레임 채워짐 → 실제 UUID 전파.
+
+**소비처**: 현재 0 (C5-2 예정). X-User-Groups 헤더는 전파되나 PermissionAspect 등에서 아직 소비하지 않음 — 기존 동작 완전 보존.
+
+### 13-5. 판정
+
+| 항목 | 이전 QA (구 이미지) | 이번 QA (신 이미지 05:26Z) |
+|------|--------------------|-----------------------------|
+| auth-service 이미지 시각 | 00:34 KST (C5-1 이전) | **14:26 KST (C5-1 이후)** |
+| JWT groups 클레임 | 없음 | **채워짐 (역할별 UUID)** |
+| X-User-Groups 헤더 | `""` (빈 문자열) | **실제 group UUID 값** |
+| 판정 | C5-1 미반영 | **C5-1 정상 반영** |
+
+C5-1 코드는 정상이었고, 이미지 미재빌드가 유일한 원인이었음 실증됨.
