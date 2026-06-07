@@ -22,6 +22,7 @@
 | `services/slip-service/src/main/java/com/samhanair/logis/slip/estimate/service/EstimateService.java` | `EstimateNumberService.next()` 경유 | fix 후 안전 | EstimateNumberService 보호 공유. |
 | `services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/service/PartnerOrderConfirmService.java` | 날짜 prefix 목록 조회 후 `max+1`, `pg_advisory_xact_lock(hashtext(partner_order_seq_...))` | 안전 | 기존 advisory transaction lock 확인. 수정 없음. |
 | `services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/service/PartnerOrderFromEstimateService.java` | 날짜 prefix 목록 조회 후 `max+1`, 동일 advisory lock | 안전 | 기존 advisory transaction lock 확인. 수정 없음. |
+| `services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/service/PartnerOrderDraftService.java` | partnerCode 별 `findMaxDraftSeqByPartnerCode(partnerCode)+1` | 불안전 | D-LOAD-05 fix8 누락 정정. `partner_order_seq_<partnerCode>` advisory transaction lock 후 max+1. draft 생성 병렬 8 IT 추가. |
 | `services/inventory-service/src/main/java/com/samhanair/logis/inventory/service/StockTransferService.java` | `findMaxSequenceByTransferNoPrefix(prefix)+1` | 불안전 | fix5 적용. `stock_transfer_seq_<prefix>` advisory transaction lock 후 max+1. 생성 병렬 8 IT 추가. |
 | `services/slip-service/src/main/java/com/samhanair/logis/slip/service/dispatch/DispatchTaskService.java` | 일자별 first-missing probe (`existsByTaskCode`) | 불안전 | fix5 적용. `dispatch_task_seq_<date>` advisory transaction lock 후 probe. 생성 병렬 8 IT 추가. |
 | `services/accounting-service/src/main/java/com/samhanair/logis/accounting/service/JournalNumberService.java` | `journal_number_sequences` row `last_seq+1` | 불안전 | fix5 적용. 최초 row `ON CONFLICT DO NOTHING`, 이후 `PESSIMISTIC_WRITE` lock 조회. 병렬 8 IT 추가. |
@@ -47,12 +48,18 @@
 - sequence table 미보유 계열: `StockTransferService`, `DispatchTaskService`, `TaxInvoiceBatchService`, `HometaxExportService`
   - prefix 단위 `pg_advisory_xact_lock(hashtext(?))` 추가
   - 기존 unique index 는 최종 백업 유지
+- D-LOAD-05 fix8 누락 정정:
+  - `PartnerOrderDraftService.create()` 의 partnerCode 별 `draftSeq max+1` 구간에
+    `partner_order_seq_<partnerCode>` advisory transaction lock 추가
+  - `ux_partner_order_drafts_partner_seq_active` 중복으로 500 이 노출되던 draft 생성 경로를
+    거래처 단위로 직렬화
 - 병렬 채번 IT 추가:
   - `EstimateNumberServiceIT`
   - `AccountingNumberServiceIT`
   - `StockTransferNumberServiceIT`
   - `DispatchTaskNumberServiceIT`
   - `TaxInvoiceBatchIT.batchNo_parallelPreview_returnsUniqueBatchNumbersForEveryCaller`
+  - `PartnerOrderDraftNumberServiceIT`
 
 ## 검증 메모
 

@@ -11,6 +11,7 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -43,6 +44,7 @@ public class PartnerOrderDraftService {
     private final PartnerOrderDraftRepository draftRepository;
     private final PartnerOrderHistoryRepository historyRepository;
     private final PartnerOrderProperties properties;
+    private final EntityManager entityManager;
 
     /**
      * 임시저장 1건 생성. draftSeq 는 거래처별 MAX+1.
@@ -57,6 +59,7 @@ public class PartnerOrderDraftService {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "partnerCode 필수");
         }
+        lockDraftSeq(partnerCode);
         long nextSeq = draftRepository.findMaxDraftSeqByPartnerCode(partnerCode) + 1L;
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(properties.getTtlDays());
 
@@ -134,5 +137,17 @@ public class PartnerOrderDraftService {
             log.info("Draft cleanup batch: {} rows expired", expired.size());
         }
         return expired.size();
+    }
+
+    /**
+     * PostgreSQL transaction advisory lock 으로 거래처별 draftSeq 채번 구간을 직렬화한다.
+     *
+     * <p>D-LOAD-05 fix8: {@code ux_partner_order_drafts_partner_seq_active} 는 최종 백업일 뿐,
+     * {@code MAX+1} 계산과 INSERT 사이를 보호하지 않으면 병렬 생성이 같은 draftSeq 를 고를 수 있다.
+     */
+    private void lockDraftSeq(String partnerCode) {
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+                .setParameter(1, "partner_order_seq_" + partnerCode)
+                .getSingleResult();
     }
 }
