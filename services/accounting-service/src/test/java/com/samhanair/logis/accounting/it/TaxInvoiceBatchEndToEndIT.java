@@ -101,7 +101,7 @@ class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
     /** SP-D2 동적 권한 client 격리 — auth-service 호출 차단 (기본값 false = fallback 통과). */
     @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
-    /** 고정 테스트 날짜 범위 */
+    /** 고정 테스트 날짜 범위: V12 세금계산서 seed 와 같은 2026-05 월 기준. */
     private static final LocalDate FROM = LocalDate.of(2026, 5, 1);
     private static final LocalDate TO   = LocalDate.of(2026, 5, 31);
 
@@ -278,7 +278,7 @@ class TaxInvoiceBatchEndToEndIT extends AbstractPostgresIT {
         for (JsonNode row : rows) {
             assertThat(row.path("slipNo").asText(""))
                     .as("history restored rows[*].slipNo")
-                    .startsWith("2026/05/");
+                    .startsWith(FROM.format(DateTimeFormatter.ofPattern("yyyy/MM")) + "/");
         }
     }
 
