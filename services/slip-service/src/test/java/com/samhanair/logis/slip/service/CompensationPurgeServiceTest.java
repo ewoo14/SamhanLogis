@@ -38,4 +38,22 @@ class CompensationPurgeServiceTest {
                 .counter()
                 .count()).isEqualTo(3);
     }
+
+    @Test
+    void purgePhysically_keepsHardPurgeCounterZeroWhenRepositoryPurgesNothing() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        CompensationPurgeService service =
+                new CompensationPurgeService(failureRepository, new CompensationMetrics(registry));
+        LocalDateTime cutoff = LocalDateTime.of(2026, 6, 7, 4, 0);
+        when(failureRepository.deleteSoftDeletedBefore(cutoff, 500)).thenReturn(0);
+
+        int purged = service.purgePhysically(cutoff, 500);
+
+        assertThat(purged).isZero();
+        verify(failureRepository).deleteSoftDeletedBefore(cutoff, 500);
+        assertThat(registry.get(CompensationMetrics.COMPENSATION_RETENTION_PURGED_TOTAL)
+                .tag("mode", "hard")
+                .counter()
+                .count()).isZero();
+    }
 }

@@ -29,7 +29,7 @@
  *   KFTC   (SP-09-4): interface KftcClient   / DRY_RUN|KFTC    / 502 KFTC_SUBMIT_FAILED
  */
 
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
@@ -54,6 +54,25 @@ function ensureQaDir(): void {
   if (!fs.existsSync(QA_DIR)) {
     fs.mkdirSync(QA_DIR, { recursive: true })
   }
+}
+
+async function gotoWithMockRoleReload(page: Page, url: string): Promise<void> {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1000)
+}
+
+async function expectPermissionGuardRedirect(
+  page: Page,
+  blockedPath: string,
+  protectedElement: Locator,
+  message: string,
+): Promise<void> {
+  await expect.poll(
+    () => page.url(),
+    { message, timeout: 5000 },
+  ).not.toContain(blockedPath)
+  await expect(protectedElement, `${message} — 보호 화면 요소가 렌더되면 안 됨`).toHaveCount(0)
 }
 
 /** dev server 가용 여부 확인 — 미가용 시 false 반환 (테스트는 반드시 FAIL) */
@@ -122,6 +141,9 @@ const KFTC_URL_ACCOUNTANT  = `${BASE_URL}/#/accounting/deposit-match?mockRole=AC
 const KFTC_URL_SALES       = `${BASE_URL}/#/accounting/deposit-match?mockRole=SALES`
 const KFTC_URL_WAREHOUSE   = `${BASE_URL}/#/accounting/deposit-match?mockRole=WAREHOUSE`
 
+// 권한 차단 step 양성 컨트롤 — mock.ts 실제 grant 보유 화면.
+const SALES_VENDOR_ORDER_URL = `${BASE_URL}/#/sales/vendor-order-upload?mockRole=SALES`
+
 // TC-T1 ~ TC-T5
 // ---------------------------------------------------------------------------
 
@@ -174,9 +196,8 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       await ntsBtn.click()
 
       const confirmBtn = page.getByTestId('tax-invoice-emit-nts-modal-confirm')
-      if (await confirmBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-        await confirmBtn.click()
-      }
+      await expect(confirmBtn, 'NTS 502 확인 모달 버튼 미표시').toBeVisible({ timeout: 5000 })
+      await confirmBtn.click()
 
       const topError = page.getByTestId('tax-invoice-detail-top-error')
       await expect(topError, 'NTS 502 topError 배너 미표시').toBeVisible({ timeout: 8000 })
@@ -404,7 +425,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
    * T3: 4 vendor 권한 매트릭스 cross-check
    *
    * 검증 항목:
-   *   - ACCOUNTANT: NTS (emit-nts 버튼 허용) + KFTC (조회 버튼 허용) + OCR 미허용 + Aligo 미허용
+   *   - ACCOUNTANT: NTS (목록/emit-nts 권한) + KFTC 허용 (mock.ts 기준 OCR 도 허용)
    *   - SALES: 4 vendor 모두 접근 차단 (403 또는 관련 버튼 미표시)
    *   - WAREHOUSE: Clova OCR 허용 + NTS/KFTC/Aligo 차단
    *   - MANAGER: Aligo 허용 + KFTC 허용 + NTS 제한 (ACCOUNTANT/MASTER 만 emit-nts)
@@ -412,7 +433,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
    * 권한 매트릭스 근거:
    *   NTS    emit-nts: ACCOUNTANT / MASTER (MANAGER 제외 — TaxInvoiceEmitNtsIT case 3)
    *   Aligo  SMS 이력: DISPATCH / MANAGER / MASTER
-   *   Clova  OCR:     WAREHOUSE / MANAGER / MASTER (ACCOUNTANT 제외 — ReceiptOcrShellIT)
+   *   Clova  OCR:     WAREHOUSE / ACCOUNTANT / MANAGER / MASTER (mock.ts SP_D1_DEFAULT_VIEW)
    *   KFTC   입금매칭: ACCOUNTANT / MANAGER / MASTER
    */
   test('T3: 4 vendor 권한 매트릭스 cross-check', async ({ page }) => {
@@ -422,17 +443,16 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
 
     // ── step 1: ACCOUNTANT — NTS 허용 (세금계산서 목록 접근 가능)
     await test.step('ACCOUNTANT — NTS 세금계산서 페이지 접근 허용', async () => {
-      await page.goto(NTS_URL_ACCOUNTANT, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(1000)
+      await gotoWithMockRoleReload(page, NTS_URL_ACCOUNTANT)
 
-      const bodyText = (await page.textContent('body')) ?? ''
-      const accountantCanAccessNts =
-        bodyText.includes('세금계산서') ||
-        bodyText.includes('발행') ||
-        bodyText.includes('임시저장') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
-      expect(accountantCanAccessNts, 'ACCOUNTANT NTS 세금계산서 페이지 접근 불가').toBe(true)
+      await expect(
+        page.getByTestId('tax-invoice-list-filter'),
+        'ACCOUNTANT NTS 세금계산서 목록 필터 미표시 — accounting.tax-invoice.list(view) 필요',
+      ).toBeVisible({ timeout: 8000 })
+      await expect(
+        page.getByTestId('tax-invoice-list-table'),
+        'ACCOUNTANT NTS 세금계산서 목록 테이블 미표시',
+      ).toBeVisible({ timeout: 5000 })
 
       await page.screenshot({
         path: path.join(QA_DIR, 'T3-accountant-nts-allowed.png'),
@@ -442,40 +462,30 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
 
     // ── step 2: ACCOUNTANT — KFTC 허용 (입금 매칭 조회 버튼 표시)
     await test.step('ACCOUNTANT — KFTC 입금 매칭 페이지 접근 허용', async () => {
-      await page.goto(KFTC_URL_ACCOUNTANT, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(1000)
+      await gotoWithMockRoleReload(page, KFTC_URL_ACCOUNTANT)
 
       const submitBtn = page.locator('[data-testid="deposit-match-submit-btn"]')
-      const submitVisible = await submitBtn.isVisible().catch(() => false)
-
-      const bodyText = (await page.textContent('body')) ?? ''
-      const accountantCanAccessKftc =
-        submitVisible ||
-        bodyText.includes('KFTC') ||
-        bodyText.includes('입금') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('로그인')
-      expect(accountantCanAccessKftc, 'ACCOUNTANT KFTC 입금 매칭 페이지 접근 불가').toBe(true)
+      await expect(
+        submitBtn,
+        'ACCOUNTANT KFTC 입금 매칭 조회 버튼 미표시 — accounting.deposit-match(view) 필요',
+      ).toBeVisible({ timeout: 8000 })
     })
 
     // ── step 3: SALES — NTS 접근 차단 (403 또는 emit-nts 버튼 미표시)
     await test.step('SALES — NTS 세금계산서 접근 차단 확인', async () => {
+      await gotoWithMockRoleReload(page, SALES_VENDOR_ORDER_URL)
+      await expect(
+        page.getByTestId('vendor-order-stepper'),
+        'SALES 양성 컨트롤 실패 — sales.vendor-order(view) 보유 화면 미표시',
+      ).toBeVisible({ timeout: 8000 })
+
       await page.goto(NTS_URL_SALES, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(1000)
-
-      const salesNtsBtnCount = await page.locator(
-        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행")',
-      ).count()
-
-      const bodyText = (await page.textContent('body')) ?? ''
-      const salesBlocked =
-        salesNtsBtnCount === 0 ||
-        bodyText.includes('권한') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('403') ||
-        page.url().includes('/login') ||
-        page.url().includes('/unauthorized')
-      expect(salesBlocked, 'SALES NTS 접근 차단 미작동 — NTS 발행 버튼 미표시 또는 403 필요').toBe(true)
+      await expectPermissionGuardRedirect(
+        page,
+        '/accounting/tax-invoices',
+        page.getByTestId('tax-invoice-list-table'),
+        'SALES NTS 접근 차단 미작동 — accounting.tax-invoice.list(view) 미보유',
+      )
 
       await page.screenshot({
         path: path.join(QA_DIR, 'T3-sales-all-vendor-blocked.png'),
@@ -485,48 +495,41 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
 
     // ── step 4: SALES — KFTC 접근 차단
     await test.step('SALES — KFTC 입금 매칭 접근 차단 확인', async () => {
+      await gotoWithMockRoleReload(page, SALES_VENDOR_ORDER_URL)
+      await expect(
+        page.getByTestId('vendor-order-stepper'),
+        'SALES 양성 컨트롤 실패 — sales.vendor-order(view) 보유 화면 미표시',
+      ).toBeVisible({ timeout: 8000 })
+
       await page.goto(KFTC_URL_SALES, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      // 직전 step 의 역할(ACCOUNTANT) 세션이 hash 네비로 SALES 로 재설정되지 않으므로 reload 로 mockRole=SALES 재독.
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForTimeout(1000)
-
-      const submitBtn = page.locator('[data-testid="deposit-match-submit-btn"]')
-      const submitBtnVisible = (await submitBtn.count()) > 0 && await submitBtn.isVisible()
-
-      const bodyText = (await page.textContent('body')) ?? ''
-      const salesKftcBlocked =
-        !submitBtnVisible ||
-        bodyText.includes('권한') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('403') ||
-        page.url().includes('/login')
-      expect(salesKftcBlocked, 'SALES KFTC 접근 차단 미작동 — deposit-match-submit-btn 미표시 또는 403 필요').toBe(true)
+      await expectPermissionGuardRedirect(
+        page,
+        '/accounting/deposit-match',
+        page.getByTestId('deposit-match-submit-btn'),
+        'SALES KFTC 접근 차단 미작동 — accounting.deposit-match(view) 미보유',
+      )
     })
 
     // ── step 5: SALES — Clova OCR 접근 차단
     await test.step('SALES — Clova OCR 접근 차단 확인', async () => {
+      await gotoWithMockRoleReload(page, SALES_VENDOR_ORDER_URL)
+      await expect(
+        page.getByTestId('vendor-order-stepper'),
+        'SALES 양성 컨트롤 실패 — sales.vendor-order(view) 보유 화면 미표시',
+      ).toBeVisible({ timeout: 8000 })
+
       await page.goto(CLOVA_URL_SALES, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(1000)
-
-      const dropZone = page.locator('[data-testid="receipt-ocr-drop-zone"]')
-      const dropZoneVisible = (await dropZone.count()) > 0 && await dropZone.isVisible()
-
-      const bodyText = (await page.textContent('body')) ?? ''
-      const salesOcrBlocked =
-        !dropZoneVisible ||
-        bodyText.includes('권한') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('403') ||
-        page.url().includes('/login')
-      expect(salesOcrBlocked, 'SALES Clova OCR 접근 차단 미작동 — receipt-ocr-drop-zone 미표시 또는 403 필요').toBe(true)
+      await expectPermissionGuardRedirect(
+        page,
+        '/purchases/receipt-ocr',
+        page.getByTestId('receipt-ocr-drop-zone'),
+        'SALES Clova OCR 접근 차단 미작동 — purchases.receipt-ocr(view) 미보유',
+      )
     })
 
     // ── step 6: WAREHOUSE — Clova OCR 허용 확인
     await test.step('WAREHOUSE — Clova OCR 접근 허용 (drop-zone 표시)', async () => {
-      await page.goto(CLOVA_URL_WAREHOUSE, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      // 직전 SALES 세션을 WAREHOUSE 로 재설정(hash 네비는 mockRole 미반영) — reload 로 재독.
-      await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForTimeout(1000)
+      await gotoWithMockRoleReload(page, CLOVA_URL_WAREHOUSE)
 
       const dropZone = page.locator('[data-testid="receipt-ocr-drop-zone"]')
       await expect(
@@ -541,21 +544,20 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
     })
 
     // ── step 7: WAREHOUSE — KFTC 접근 차단 확인
-    await test.step('WAREHOUSE — KFTC 입금 매칭 접근 차단 (RoleGuard)', async () => {
+    await test.step('WAREHOUSE — KFTC 입금 매칭 접근 차단 (PermissionGuard)', async () => {
+      await gotoWithMockRoleReload(page, CLOVA_URL_WAREHOUSE)
+      await expect(
+        page.getByTestId('receipt-ocr-drop-zone'),
+        'WAREHOUSE 양성 컨트롤 실패 — purchases.receipt-ocr(view) 보유 화면 미표시',
+      ).toBeVisible({ timeout: 8000 })
+
       await page.goto(KFTC_URL_WAREHOUSE, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(1000)
-
-      const submitBtn = page.locator('[data-testid="deposit-match-submit-btn"]')
-      const submitBtnVisible = (await submitBtn.count()) > 0 && await submitBtn.isVisible()
-
-      const bodyText = (await page.textContent('body')) ?? ''
-      const warehouseKftcBlocked =
-        !submitBtnVisible ||
-        bodyText.includes('권한') ||
-        bodyText.includes('접근') ||
-        bodyText.includes('403') ||
-        page.url().includes('/login')
-      expect(warehouseKftcBlocked, 'WAREHOUSE KFTC 접근 차단 미작동 — deposit-match-submit-btn 미표시 또는 403 필요').toBe(true)
+      await expectPermissionGuardRedirect(
+        page,
+        '/accounting/deposit-match',
+        page.getByTestId('deposit-match-submit-btn'),
+        'WAREHOUSE KFTC 접근 차단 미작동 — accounting.deposit-match(view) 미보유',
+      )
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -580,7 +582,9 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
    *   Clova (#16a34a — green-700 계열): OCR 파싱 완료 배지 (DRY_RUN 모드 표시)
    *   KFTC  (#3b82f6 — blue-500 계열):  입금 매칭 MATCHED 배지
    *
-   * NOTE: 현 shell 단계에서 vendor 토큰 색상 CSS 가 미구현 시 정적 키워드 검증으로 대체.
+   * NOTE: bodyText fallback 은 현 shell 단계에서 vendor-token-* 시각 요소가 아직 미구현인
+   *       T4 한정 임시 대체다. 권한/런타임 guard 검증에는 복제 금지이며, vendor-token-*
+   *       testid 도입 즉시 직접 visible 단언으로 전환한다.
    *       Phase 11 실 연동 완료 후 색상 contrast (WCAG 4.5:1) 자동 검사 추가 예정.
    */
   test('T4: 4 vendor 토큰 시각 구분 — vendor UI 요소 visible 검증', async ({ page }) => {

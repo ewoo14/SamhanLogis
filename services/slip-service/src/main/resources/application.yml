@@ -55,6 +55,7 @@ samhan:
       # D-SER-25 — 보상 실패 감사 retention. 기본 비활성, 운영에서 명시 활성.
       enabled: ${SAMHAN_COMPENSATION_RETENTION_ENABLED:false}
       cron: ${SAMHAN_COMPENSATION_RETENTION_CRON:0 30 3 * * *}
+      zone: ${SAMHAN_COMPENSATION_RETENTION_ZONE:Asia/Seoul}
       retention-days: ${SAMHAN_COMPENSATION_RETENTION_DAYS:90}
     purge:
       # D-SER-28 — retention soft-delete 후 grace 경과 행만 물리 삭제. 기본 비활성.

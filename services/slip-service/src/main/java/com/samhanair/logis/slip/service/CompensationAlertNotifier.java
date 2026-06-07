@@ -64,8 +64,6 @@ public class CompensationAlertNotifier {
         }
         UUID recipient = resolveRecipient();
         if (recipient == null) {
-            // 활성화했으나 수신자 미지정 — 설정 오류이므로 1회 경고로 표면화한다.
-            log.warn("[CompensationAlertNotifier] alert.enabled=true 이나 recipient-user-id 미설정 — 운영 알림 skip");
             compensationMetrics.recordAlertSendSkipped();
             return;
         }
@@ -101,12 +99,15 @@ public class CompensationAlertNotifier {
 
     private UUID resolveRecipient() {
         if (recipientUserId == null || recipientUserId.isBlank()) {
+            log.warn("[CompensationAlertNotifier] alert.enabled=true 이나 recipient-user-id 미설정 — 운영 알림 skip");
             return null;
         }
+        String normalized = recipientUserId.trim();
         try {
-            return UUID.fromString(recipientUserId.trim());
+            return UUID.fromString(normalized);
         } catch (IllegalArgumentException ex) {
-            log.warn("[CompensationAlertNotifier] recipient-user-id 형식 오류 — 운영 알림 skip");
+            log.warn("[CompensationAlertNotifier] recipient-user-id 형식 오류(UUID 아님) — 운영 알림 skip, length={}",
+                    normalized.length());
             return null;
         }
     }

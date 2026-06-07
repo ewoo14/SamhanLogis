@@ -112,7 +112,7 @@ class CompensationAlertNotifierTest {
     }
 
     @Test
-    void enabledButMalformedRecipient_doesNotSend() {
+    void enabledButMalformedRecipient_doesNotSendAndWarns(CapturedOutput output) {
         CompensationAlertNotifier notifier =
                 new CompensationAlertNotifier(notificationClient, true, "not-a-uuid", metrics);
 
@@ -120,6 +120,10 @@ class CompensationAlertNotifierTest {
 
         verify(notificationClient, never()).sendUserPush(org.mockito.ArgumentMatchers.any(),
                 anyString(), anyString());
+        assertThat(output)
+                .contains("recipient-user-id 형식 오류(UUID 아님)")
+                .doesNotContain("not-a-uuid")
+                .doesNotContain("recipient-user-id 미설정");
         assertThat(alertSendCount("skipped")).isEqualTo(1);
     }
 
