@@ -95,6 +95,7 @@ export interface SpecKeyTemplate {
 export interface MaterialPriceRow {
   materialKey: string
   name: string
+  /** BE BigDecimal → JSON number 직렬화. */
   price: number
   optionLabel: string | null
 }
@@ -107,6 +108,7 @@ export type OduRecommendationType =
 /** 추천 실외기 lookup row — product-service `OduRecommendationResponse` 와 1:1. */
 export interface OduRecommendationRow {
   recommendationType: OduRecommendationType
+  /** BE BigDecimal → JSON number 직렬화. */
   indoorCapacity: number
   indoorCount: number | null
   outdoorHp: string

@@ -69,7 +69,7 @@ public class ProductLookupController {
             @RequestParam(required = false) String branchCode) {
         List<BranchPipeLookup> rows = branchCode == null
                 ? branchPipeLookupRepository.findAllByOrderByBranchCodeAsc()
-                : branchPipeLookupRepository.findByBranchCode(branchCode).stream().toList();
+                : branchPipeLookupRepository.findAllByBranchCodeOrderByBranchCodeAsc(branchCode);
         return rows.stream()
                 .map(BranchPipeResponse::from)
                 .toList();

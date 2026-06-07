@@ -6,14 +6,14 @@
  *
  * <h2>UUID 비공개 가드</h2>
  * <p>product-service lookup 응답은 UUID/id 없이 비즈니스 식별자만 노출한다.
- * React key 역시 materialKey / branchCode / recommendation tuple 만 사용한다.
+ * React key 역시 materialKey / branchCode / recommendation tuple + index 만 사용한다.
  *
  * <h2>design-system 재사용</h2>
- * Modal / Button (자체 신규 컴포넌트 작성 금지).
+ * Modal / Tabs / Button (자체 신규 컴포넌트 작성 금지).
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Modal } from '@samhan/design-system'
+import { Button, Modal, Tabs } from '@samhan/design-system'
 import {
   listBranchPipes,
   listMaterialPrices,
@@ -28,7 +28,9 @@ interface Props {
   onClose: () => void
 }
 
-type LookupTab = 'material' | 'odu' | 'branch'
+const LOOKUP_TABS = ['material', 'odu', 'branch'] as const
+
+type LookupTab = typeof LOOKUP_TABS[number]
 
 const TAB_LABEL: Record<LookupTab, string> = {
   material: '자재 단가',
@@ -36,10 +38,16 @@ const TAB_LABEL: Record<LookupTab, string> = {
   branch: '분지관',
 }
 
+const TAB_ITEMS = [
+  { label: TAB_LABEL.material, testId: 'line-lookup-tab-material' },
+  { label: TAB_LABEL.odu, testId: 'line-lookup-tab-odu' },
+  { label: TAB_LABEL.branch, testId: 'line-lookup-tab-branch' },
+] as const
+
 const tableStyle = {
   width: '100%',
   borderCollapse: 'collapse',
-  fontSize: 13,
+  fontSize: 'var(--font-size-sm)',
 } satisfies CSSProperties
 
 const thStyle = {
@@ -47,7 +55,7 @@ const thStyle = {
   background: 'var(--surface-subtle, #F4F6F8)',
   borderBottom: '1px solid var(--line-default, #E5E7EB)',
   textAlign: 'left',
-  fontWeight: 600,
+  fontWeight: 'var(--font-weight-semibold)',
   whiteSpace: 'nowrap',
 } satisfies CSSProperties
 
@@ -62,29 +70,77 @@ function formatNumber(value: number | null): string {
   return value.toLocaleString('ko-KR')
 }
 
-function renderEmpty() {
+function renderEmpty(message: string) {
   return (
     <div
       style={{
         textAlign: 'center',
         padding: '32px 0',
         color: 'var(--ink-tertiary)',
-        fontSize: 13,
+        fontSize: 'var(--font-size-sm)',
       }}
     >
-      데이터 없음(시드 전)
+      {message}
+    </div>
+  )
+}
+
+function LoadingState() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      data-testid="line-lookup-loading"
+      style={{
+        textAlign: 'center',
+        padding: '32px 0',
+        color: 'var(--ink-secondary)',
+        fontSize: 14,
+        minHeight: 160,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      참조 데이터를 불러오는 중…
+    </div>
+  )
+}
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      data-testid="line-lookup-error"
+      style={{
+        padding: '12px 16px',
+        borderRadius: 6,
+        background: 'var(--state-danger-bg, #FEE2E2)',
+        border: '1px solid var(--state-danger, #EF4444)',
+        color: 'var(--state-danger, #EF4444)',
+        fontSize: 'var(--font-size-sm)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+      }}
+    >
+      <span>참조 데이터 조회 중 오류가 발생했습니다.</span>
+      <Button variant="secondary" size="sm" onClick={onRetry}>
+        다시 시도
+      </Button>
     </div>
   )
 }
 
 function MaterialPriceTable({ rows }: { rows: MaterialPriceRow[] }) {
-  if (rows.length === 0) return renderEmpty()
+  if (rows.length === 0) return renderEmpty('등록된 자재 단가 정보가 없습니다.')
   return (
     <TableRegion label="자재 단가 목록">
       <table style={tableStyle}>
         <thead>
           <tr>
-            <th scope="col" style={thStyle}>자재 키</th>
+            <th scope="col" style={thStyle}>자재 코드</th>
             <th scope="col" style={thStyle}>자재명</th>
             <th scope="col" style={{ ...thStyle, textAlign: 'right' }}>단가</th>
             <th scope="col" style={thStyle}>옵션</th>
@@ -108,7 +164,7 @@ function MaterialPriceTable({ rows }: { rows: MaterialPriceRow[] }) {
 }
 
 function OduRecommendationTable({ rows }: { rows: OduRecommendationRow[] }) {
-  if (rows.length === 0) return renderEmpty()
+  if (rows.length === 0) return renderEmpty('등록된 추천 실외기 정보가 없습니다.')
   return (
     <TableRegion label="추천 실외기 목록">
       <table style={tableStyle}>
@@ -121,9 +177,9 @@ function OduRecommendationTable({ rows }: { rows: OduRecommendationRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row, idx) => (
             <tr
-              key={`${row.recommendationType}:${row.indoorCapacity}:${row.indoorCount}`}
+              key={`${row.recommendationType}:${row.indoorCapacity}:${row.indoorCount}:${idx}`}
             >
               <td style={tdStyle}>{row.recommendationType}</td>
               <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
@@ -142,7 +198,7 @@ function OduRecommendationTable({ rows }: { rows: OduRecommendationRow[] }) {
 }
 
 function BranchPipeTable({ rows }: { rows: BranchPipeRow[] }) {
-  if (rows.length === 0) return renderEmpty()
+  if (rows.length === 0) return renderEmpty('등록된 분지관 정보가 없습니다.')
   return (
     <TableRegion label="분지관 목록">
       <table style={tableStyle}>
@@ -189,6 +245,7 @@ function TableRegion({
 
 export function LineLookupReferenceModal({ open, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<LookupTab>('material')
+  const activeIndex = LOOKUP_TABS.indexOf(activeTab)
 
   useEffect(() => {
     if (open) setActiveTab('material')
@@ -215,18 +272,11 @@ export function LineLookupReferenceModal({ open, onClose }: Props) {
     staleTime: 30_000,
   })
 
-  const activeQuery =
-    activeTab === 'material'
-      ? materialQuery
-      : activeTab === 'odu'
-        ? oduQuery
-        : branchQuery
-
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="참조 조회"
+      title="기준 정보 조회"
       description="라인 입력에 필요한 기준 데이터를 확인합니다."
       size="xl"
       footer={
@@ -239,87 +289,40 @@ export function LineLookupReferenceModal({ open, onClose }: Props) {
         data-testid="line-lookup-modal"
         style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
       >
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button
-            type="button"
-            size="sm"
-            variant={activeTab === 'material' ? 'secondary' : 'ghost'}
-            data-testid="line-lookup-tab-material"
-            onClick={() => setActiveTab('material')}
-          >
-            {TAB_LABEL.material}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={activeTab === 'odu' ? 'secondary' : 'ghost'}
-            data-testid="line-lookup-tab-odu"
-            onClick={() => setActiveTab('odu')}
-          >
-            {TAB_LABEL.odu}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={activeTab === 'branch' ? 'secondary' : 'ghost'}
-            data-testid="line-lookup-tab-branch"
-            onClick={() => setActiveTab('branch')}
-          >
-            {TAB_LABEL.branch}
-          </Button>
-        </div>
-
-        {activeQuery.isPending ? (
-          <div
-            role="status"
-            aria-busy="true"
-            style={{
-              textAlign: 'center',
-              padding: '32px 0',
-              color: 'var(--ink-secondary)',
-              fontSize: 14,
-              minHeight: 160,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            참조 데이터를 불러오는 중…
+        <Tabs
+          tabs={TAB_ITEMS}
+          activeIndex={activeIndex}
+          onTabChange={(index) => setActiveTab(LOOKUP_TABS[index] ?? 'material')}
+          ariaLabel="기준 정보 조회 탭"
+        >
+          <div>
+            {activeTab === 'material' && materialQuery.isPending ? <LoadingState /> : null}
+            {activeTab === 'material' && materialQuery.isError ? (
+              <ErrorState onRetry={() => { void materialQuery.refetch() }} />
+            ) : null}
+            {activeTab === 'material' && materialQuery.isSuccess ? (
+              <MaterialPriceTable rows={materialQuery.data ?? []} />
+            ) : null}
           </div>
-        ) : null}
-
-        {activeQuery.isError ? (
-          <div
-            role="alert"
-            style={{
-              padding: '12px 16px',
-              borderRadius: 6,
-              background: 'var(--state-danger-bg, #FEE2E2)',
-              border: '1px solid var(--state-danger, #EF4444)',
-              color: 'var(--state-danger, #EF4444)',
-              fontSize: 13,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <span>참조 데이터 조회 중 오류가 발생했습니다.</span>
-            <Button variant="secondary" size="sm" onClick={() => activeQuery.refetch()}>
-              다시 시도
-            </Button>
+          <div>
+            {activeTab === 'odu' && oduQuery.isPending ? <LoadingState /> : null}
+            {activeTab === 'odu' && oduQuery.isError ? (
+              <ErrorState onRetry={() => { void oduQuery.refetch() }} />
+            ) : null}
+            {activeTab === 'odu' && oduQuery.isSuccess ? (
+              <OduRecommendationTable rows={oduQuery.data ?? []} />
+            ) : null}
           </div>
-        ) : null}
-
-        {activeQuery.isSuccess && activeTab === 'material' ? (
-          <MaterialPriceTable rows={materialQuery.data ?? []} />
-        ) : null}
-        {activeQuery.isSuccess && activeTab === 'odu' ? (
-          <OduRecommendationTable rows={oduQuery.data ?? []} />
-        ) : null}
-        {activeQuery.isSuccess && activeTab === 'branch' ? (
-          <BranchPipeTable rows={branchQuery.data ?? []} />
-        ) : null}
+          <div>
+            {activeTab === 'branch' && branchQuery.isPending ? <LoadingState /> : null}
+            {activeTab === 'branch' && branchQuery.isError ? (
+              <ErrorState onRetry={() => { void branchQuery.refetch() }} />
+            ) : null}
+            {activeTab === 'branch' && branchQuery.isSuccess ? (
+              <BranchPipeTable rows={branchQuery.data ?? []} />
+            ) : null}
+          </div>
+        </Tabs>
       </div>
     </Modal>
   )

@@ -85,6 +85,39 @@ class ProductLookupControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void lookupEndpoints_returnEmptyArraysWhenTablesAreEmpty() throws Exception {
+        materialPriceRepository.deleteAll();
+        oduRecommendationLookupRepository.deleteAll();
+        branchPipeLookupRepository.deleteAll();
+        materialPriceRepository.flush();
+        oduRecommendationLookupRepository.flush();
+        branchPipeLookupRepository.flush();
+
+        mockMvc.perform(withActor(get("/api/v1/material-prices")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0]").doesNotExist());
+
+        mockMvc.perform(withActor(get("/api/v1/odu-recommendations")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0]").doesNotExist());
+
+        mockMvc.perform(withActor(get("/api/v1/branch-pipes")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0]").doesNotExist());
+    }
+
+    @Test
+    void oduRecommendations_invalidTypeReturns400() throws Exception {
+        mockMvc.perform(withActor(get("/api/v1/odu-recommendations")
+                        .param("type", "INVALID")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
     void oduRecommendations_returnsSortedRowsAndSupportsOptionalTypeFilter() throws Exception {
         OduRecommendationLookup home = OduRecommendationLookup.seed(
                 RecommendationType.HOME_MULTI, new BigDecimal("6.00"), 2, "5HP");

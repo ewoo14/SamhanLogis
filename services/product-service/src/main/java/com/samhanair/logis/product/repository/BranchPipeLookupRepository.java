@@ -11,5 +11,7 @@ public interface BranchPipeLookupRepository extends JpaRepository<BranchPipeLook
 
     Optional<BranchPipeLookup> findByBranchCode(String branchCode);
 
+    List<BranchPipeLookup> findAllByBranchCodeOrderByBranchCodeAsc(String branchCode);
+
     List<BranchPipeLookup> findAllByOrderByBranchCodeAsc();
 }

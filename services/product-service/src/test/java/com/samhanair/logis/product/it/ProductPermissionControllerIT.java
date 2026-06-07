@@ -94,6 +94,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+/**
+ * product-service controller 권한 가드 WebMvc 격리 IT.
+ *
+ * <p>신규 lookup 3 endpoint 는 기존 products.list page-code 재사용 — 권한 구조 미변경이므로
+ * DynamicPermissionClient mock 격리 허용.
+ */
 @WebMvcTest(
         controllers = {
                 ProductController.class,
@@ -186,6 +192,8 @@ class ProductPermissionControllerIT {
         lenient().when(oduRecommendationLookupRepository.findByRecommendationTypeOrderByIndoorCapacityAsc(any()))
                 .thenReturn(List.of(oduRecommendation));
         lenient().when(branchPipeLookupRepository.findAllByOrderByBranchCodeAsc())
+                .thenReturn(List.of(branchPipe));
+        lenient().when(branchPipeLookupRepository.findAllByBranchCodeOrderByBranchCodeAsc(anyString()))
                 .thenReturn(List.of(branchPipe));
         lenient().when(branchPipeLookupRepository.findByBranchCode(anyString()))
                 .thenReturn(Optional.of(branchPipe));

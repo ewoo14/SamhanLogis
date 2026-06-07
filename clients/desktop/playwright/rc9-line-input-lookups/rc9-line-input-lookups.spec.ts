@@ -42,22 +42,22 @@ function productLookupRouteBlock(gateway: string): string {
   return match![0]
 }
 
+function expectProtectedGetMapping(controller: string, pathValue: string): void {
+  expect(controller).toContain(`@GetMapping("${pathValue}")`)
+  expect(controller).toMatch(
+    new RegExp(
+      `@GetMapping\\("${pathValue}"\\)[^\\r\\n]*\\r?\\n\\s*@RequirePermission\\(page = "products\\.list", action = PermissionAction\\.VIEW\\)`,
+    ),
+  )
+}
+
 test.describe('RC9 라인 입력 lookup 정적 계약', () => {
   test('ProductLookupController 3 GET 은 products.list VIEW 권한으로 보호된다', () => {
     const controller = read(controllerPath)
 
     for (const pathValue of ['/material-prices', '/odu-recommendations', '/branch-pipes']) {
-      expect(controller).toContain(`@GetMapping("${pathValue}")`)
+      expectProtectedGetMapping(controller, pathValue)
     }
-    expect(controller).toMatch(
-      /@GetMapping\("\/material-prices"\)[\s\S]*?@RequirePermission\(page = "products\.list", action = PermissionAction\.VIEW\)/,
-    )
-    expect(controller).toMatch(
-      /@GetMapping\("\/odu-recommendations"\)[\s\S]*?@RequirePermission\(page = "products\.list", action = PermissionAction\.VIEW\)/,
-    )
-    expect(controller).toMatch(
-      /@GetMapping\("\/branch-pipes"\)[\s\S]*?@RequirePermission\(page = "products\.list", action = PermissionAction\.VIEW\)/,
-    )
   })
 
   test('견적/주문 라인 참조 조회 버튼은 products.list VIEW 가드와 testid 를 가진다', () => {
@@ -121,11 +121,13 @@ test.describe('RC9 라인 입력 lookup mock runtime', () => {
     await expect(modal).toContainText('D2')
     await expect(modal).toContainText('드레인 호스')
 
-    await page.getByTestId('line-lookup-tab-odu').click()
+    await expect(page.getByTestId('line-lookup-tab-odu')).toHaveAttribute('role', 'tab')
+    await page.getByRole('tab', { name: '추천 실외기' }).click()
     await expect(modal).toContainText('HOME_MULTI')
     await expect(modal).toContainText('MULTI_HEATING_COOLING')
 
-    await page.getByTestId('line-lookup-tab-branch').click()
+    await expect(page.getByTestId('line-lookup-tab-branch')).toHaveAttribute('role', 'tab')
+    await page.getByRole('tab', { name: '분지관' }).click()
     await expect(modal).toContainText('1509')
     await expect(modal).toContainText('분지관 코드')
   })
@@ -146,6 +148,7 @@ test.describe('RC9 라인 입력 lookup mock runtime', () => {
     })
     await page.reload({ waitUntil: 'domcontentloaded' })
 
+    await expect(page.getByTestId('sidebar-sales-estimates')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByTestId('estimate-form-add-line')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByTestId('estimate-line-lookup-btn')).toHaveCount(0)
   })
