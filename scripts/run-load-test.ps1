@@ -57,6 +57,87 @@ function Assert-Login {
     }
 }
 
+# Windows PowerShell 5.1에서는 native stderr 파이프가 종료 오류가 될 수 있어 파일로 직접 캡처한다.
+function Add-FileBytes {
+    param(
+        [string]$SourcePath,
+        [string]$TargetPath
+    )
+
+    if (-not (Test-Path $SourcePath)) {
+        return
+    }
+
+    $bytes = [System.IO.File]::ReadAllBytes($SourcePath)
+    if ($bytes.Length -eq 0) {
+        return
+    }
+
+    $stream = [System.IO.File]::Open($TargetPath, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+    try {
+        $stream.Write($bytes, 0, $bytes.Length)
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+function Invoke-DockerCaptured {
+    param(
+        [string[]]$Arguments,
+        [string]$LogPath,
+        [switch]$Append,
+        [int]$TailLines = 8
+    )
+
+    $logDir = Split-Path -Parent $LogPath
+    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+
+    if (-not $Append.IsPresent -and (Test-Path $LogPath)) {
+        Remove-Item -Path $LogPath -Force
+    }
+
+    $suffix = [Guid]::NewGuid().ToString("N")
+    $stdoutLog = Join-Path $logDir "docker-$suffix.stdout.log"
+    $stderrLog = Join-Path $logDir "docker-$suffix.stderr.log"
+
+    try {
+        $process = Start-Process -FilePath "docker" -ArgumentList $Arguments -NoNewWindow -Wait -PassThru `
+            -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+
+        Add-FileBytes -SourcePath $stdoutLog -TargetPath $LogPath
+        Add-FileBytes -SourcePath $stderrLog -TargetPath $LogPath
+
+        if ($TailLines -gt 0 -and (Test-Path $LogPath)) {
+            Get-Content -Path $LogPath -Tail $TailLines
+        }
+
+        return $process.ExitCode
+    } finally {
+        if (Test-Path $stdoutLog) {
+            Remove-Item -Path $stdoutLog -Force
+        }
+        if (Test-Path $stderrLog) {
+            Remove-Item -Path $stderrLog -Force
+        }
+    }
+}
+
+function Ensure-K6DockerImage {
+    param([string]$LogPath)
+
+    Write-Step "k6 Docker 이미지 확인"
+    $inspectExitCode = Invoke-DockerCaptured -Arguments @("image", "inspect", "grafana/k6") -LogPath $LogPath -TailLines 0
+    if ($inspectExitCode -eq 0) {
+        return
+    }
+
+    Write-Step "grafana/k6 이미지 없음: docker pull 실행"
+    $pullExitCode = Invoke-DockerCaptured -Arguments @("pull", "grafana/k6") -LogPath $LogPath -Append -TailLines 10
+    if ($pullExitCode -ne 0) {
+        throw "k6 Docker 이미지 pull 실패: exitCode=$pullExitCode, rawLog=$LogPath"
+    }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $k6Dir = Join-Path $repoRoot "perf\k6"
 $outDir = Join-Path $k6Dir "out"
@@ -78,6 +159,7 @@ Assert-Login -LoginId "dev_manager" -Password $password
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $summaryName = "summary-$Profile-$timestamp.json"
 $rawLog = Join-Path $rawDir "k6-$Profile-$timestamp.log"
+$imageLog = Join-Path $rawDir "k6-image-$timestamp.log"
 
 $mountPath = $k6Dir.Replace("\", "/")
 if ($mountPath -match "^[A-Za-z]:") {
@@ -117,6 +199,8 @@ if ($Profile -eq "stress") {
     )
 }
 
+Ensure-K6DockerImage -LogPath $imageLog
+
 if ($Profile -eq "soak" -and $Detach.IsPresent) {
     Write-Step "soak 백그라운드 컨테이너 실행"
     $detachArgs = @(
@@ -133,18 +217,21 @@ if ($Profile -eq "soak" -and $Detach.IsPresent) {
         "--summary-export", "/scripts/out/$summaryName",
         "/scripts/mixed-load.js"
     )
-    & docker @detachArgs | Tee-Object -FilePath $rawLog
+    $detachExitCode = Invoke-DockerCaptured -Arguments $detachArgs -LogPath $rawLog
+    if ($detachExitCode -ne 0) {
+        throw "soak 백그라운드 컨테이너 실행 실패: exitCode=$detachExitCode, rawLog=$rawLog"
+    }
     Write-Step "로그 확인: docker logs -f samhan-k6-soak"
     Write-Step "summary 예상 경로: perf/k6/out/$summaryName"
     exit 0
 }
 
 Write-Step "k6 실행: profile=$Profile summary=$summaryName"
-& docker @dockerArgs 2>&1 | Tee-Object -FilePath $rawLog
-$exitCode = $LASTEXITCODE
+$exitCode = Invoke-DockerCaptured -Arguments $dockerArgs -LogPath $rawLog
 if ($exitCode -ne 0) {
     throw "k6 실행 실패: exitCode=$exitCode, rawLog=$rawLog"
 }
 
+Write-Step "Docker 이미지 준비 로그: $imageLog"
 Write-Step "raw log: $rawLog"
 Write-Step "summary: $(Join-Path $outDir $summaryName)"
