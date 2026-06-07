@@ -1,0 +1,150 @@
+PR #419 QA — Docker 실서버 검증 결과
+브랜치: feat/compensation-p2-backlog (HEAD: 26c0319f)
+검증일: 2026-06-07
+검증자: QA agent (Docker 실서버 직접 검증)
+
+=============================================================
+사전 작업
+=============================================================
+1. Gradle 재빌드
+   명령: ./gradlew :services:slip-service:bootJar -x test
+   결과: BUILD SUCCESSFUL in 4s
+   jar: services/slip-service/build/libs/slip-service.jar (121,453,791 bytes, 2026-06-07 12:06)
+
+2. Docker 이미지 재빌드
+   명령: docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml build slip-service
+   결과: Image infrastructure-slip-service Built (완료)
+   비고: 호스트 8086 포트 선점(PID 9872) → slip-port-override 적용 (18086:8086)
+
+3. 컨테이너 재시작
+   명령: docker compose ... -f infrastructure/docker-compose.slip-port-override.yml up -d slip-service
+   결과: samhan-slip-service Recreated + Started
+   기동 소요: 7.871s (Started SlipServiceApplication)
+
+=============================================================
+검증 케이스 표
+=============================================================
+
+| # | 케이스                                  | 기대                                           | 실측                                                                                        | 판정 |
+|---|-----------------------------------------|------------------------------------------------|---------------------------------------------------------------------------------------------|------|
+| 1 | 컨테이너 healthy + 기동 ERROR 0         | healthy 상태, 기동 오류 없음                    | healthy/running 확인. ERROR 3건 = QA 세션 중 /actuator/beans 잘못 호출한 404 (서비스 기동 오류 아님) | PASS |
+| 2 | V33 partial index 존재                  | idx_serial_comp_failures_deleted 존재 (is_deleted=TRUE 조건) | psql pg_indexes 조회: CREATE INDEX idx_serial_comp_failures_deleted ON public.serial_compensation_failures USING btree (deleted_at) WHERE (is_deleted = true) → 1 row | PASS |
+| 3 | purge 스케줄러 기본 비활성              | CompensationPurgeScheduler 빈 미등록           | application.yml: samhan.compensation.purge.enabled=${SAMHAN_COMPENSATION_PURGE_ENABLED:false}. 컨테이너 env 미설정 → @ConditionalOnProperty(havingValue="true", matchIfMissing=false) 조건 불충족 → 빈 미등록. 기동 로그에 CompensationPurgeScheduler 언급 없음 | PASS |
+| 4 | compensation_* 메트릭 4종 사전 등록     | actuator/prometheus에서 4종 counter 노출 (값 0이라도 등록) | compensation_failure_recorded_total (6개 tag조합), compensation_alert_send_total (3개), compensation_retry_total (4개), compensation_retention_purged_total (2개) 모두 사전 등록 확인 | PASS |
+
+=============================================================
+케이스 1 상세 — 기동 로그 핵심 발췌
+=============================================================
+[기동 완료]
+2026-06-07T03:07:49.376Z INFO  c.s.logis.slip.SlipServiceApplication : Started SlipServiceApplication in 7.871 seconds (process running for 8.443)
+
+[actuator 헬스]
+{"status":"UP"}  (http://127.0.0.1:18086/actuator/health)
+
+[기동 오류 없음 확인]
+ERROR 3건 모두:
+  org.springframework.web.servlet.resource.NoResourceFoundException: No static resource actuator/beans.
+  → QA 세션 중 미노출 엔드포인트(/actuator/beans) 호출로 인한 404. 서비스 로직 오류 아님.
+
+=============================================================
+케이스 2 상세 — V33 partial index psql 조회 결과
+=============================================================
+명령: docker exec samhan-postgres psql -U samhan -d slip_db -c "\di idx_serial_comp_failures_deleted"
+
+                                     List of relations
+ Schema |               Name               | Type  | Owner  |            Table
+--------+----------------------------------+-------+--------+------------------------------
+ public | idx_serial_comp_failures_deleted | index | samhan | serial_compensation_failures
+(1 row)
+
+명령: SELECT indexname, indexdef FROM pg_indexes WHERE indexname = 'idx_serial_comp_failures_deleted';
+
+indexname                          | indexdef
+-----------------------------------+---------------------------------------------------------------------------
+idx_serial_comp_failures_deleted   | CREATE INDEX idx_serial_comp_failures_deleted ON public.serial_compensation_failures USING btree (deleted_at) WHERE (is_deleted = true)
+(1 row)
+
+Flyway 적용 로그:
+2026-06-07T03:07:44.726Z INFO  o.f.core.internal.command.DbMigrate : Current version of schema "public": 32
+2026-06-07T03:07:44.738Z INFO  o.f.core.internal.command.DbMigrate : Migrating schema "public" to version "33 - add serial comp failures purge index"
+2026-06-07T03:07:44.772Z INFO  o.f.core.internal.command.DbMigrate : Successfully applied 1 migration to schema "public", now at version v33 (execution time 00:00.018s)
+
+=============================================================
+케이스 3 상세 — purge 스케줄러 비활성 증빙
+=============================================================
+application.yml (services/slip-service/src/main/resources/application.yml, line 60-66):
+  compensation:
+    purge:
+      enabled: ${SAMHAN_COMPENSATION_PURGE_ENABLED:false}   ← 기본 false
+      cron: ${SAMHAN_COMPENSATION_PURGE_CRON:0 0 4 * * *}
+      zone: ${SAMHAN_COMPENSATION_PURGE_ZONE:Asia/Seoul}
+      grace-days: ${SAMHAN_COMPENSATION_PURGE_GRACE_DAYS:30}
+      batch-size: ${SAMHAN_COMPENSATION_PURGE_BATCH_SIZE:500}
+
+CompensationPurgeScheduler.java (line 22-26):
+  @ConditionalOnProperty(
+      prefix = "samhan.compensation.purge",
+      name = "enabled",
+      havingValue = "true",
+      matchIfMissing = false)
+
+컨테이너 환경변수:
+  docker exec samhan-slip-service env | grep PURGE → 출력 없음 (미설정)
+
+결론: SAMHAN_COMPENSATION_PURGE_ENABLED 미설정 → 기본 false → @ConditionalOnProperty 불충족 → 빈 미등록.
+기동 로그에 CompensationPurgeScheduler 관련 출력 없음 (정상 비등록 상태).
+
+=============================================================
+케이스 4 상세 — compensation_* 메트릭 4종 prometheus 출력
+=============================================================
+엔드포인트: http://127.0.0.1:18086/actuator/prometheus
+
+--- compensation_alert_send_total (3개 tag 조합) ---
+# HELP compensation_alert_send_total 보상 실패 운영 알림 발송 결과 누적 카운터
+# TYPE compensation_alert_send_total counter
+compensation_alert_send_total{application="slip-service",result="failure"} 0.0
+compensation_alert_send_total{application="slip-service",result="skipped"} 0.0
+compensation_alert_send_total{application="slip-service",result="success"} 0.0
+
+--- compensation_failure_recorded_total (6개 tag 조합: operation x phase) ---
+# HELP compensation_failure_recorded_total 보상 실패 감사 행 저장 성공 누적 카운터
+# TYPE compensation_failure_recorded_total counter
+compensation_failure_recorded_total{application="slip-service",operation="RELEASE",phase="ACCEPT_RESERVE"} 0.0
+compensation_failure_recorded_total{application="slip-service",operation="RELEASE",phase="COMPLETE_RECALL"} 0.0
+compensation_failure_recorded_total{application="slip-service",operation="RELEASE_INSTANCES",phase="ACCEPT_RESERVE"} 0.0
+compensation_failure_recorded_total{application="slip-service",operation="RELEASE_INSTANCES",phase="COMPLETE_RECALL"} 0.0
+compensation_failure_recorded_total{application="slip-service",operation="UNRECALL_INSTANCES",phase="ACCEPT_RESERVE"} 0.0
+compensation_failure_recorded_total{application="slip-service",operation="UNRECALL_INSTANCES",phase="COMPLETE_RECALL"} 0.0
+
+--- compensation_retention_purged_total (2개 tag 조합) ---
+# HELP compensation_retention_purged_total 보상 실패 감사 retention/purge 정리 건수 누적 카운터
+# TYPE compensation_retention_purged_total counter
+compensation_retention_purged_total{application="slip-service",mode="hard"} 0.0
+compensation_retention_purged_total{application="slip-service",mode="soft"} 0.0
+
+--- compensation_retry_total (4개 tag 조합) ---
+# HELP compensation_retry_total 보상 자동 재시도 outcome 누적 카운터
+# TYPE compensation_retry_total counter
+compensation_retry_total{application="slip-service",outcome="FAILED"} 0.0
+compensation_retry_total{application="slip-service",outcome="GONE"} 0.0
+compensation_retry_total{application="slip-service",outcome="SKIPPED"} 0.0
+compensation_retry_total{application="slip-service",outcome="SUCCEEDED"} 0.0
+
+=============================================================
+비고 — actuator 노출 범위
+=============================================================
+slip-service actuator 노출 엔드포인트: prometheus, health, health-path, info (4종)
+beans 엔드포인트 비노출 (운영 보안 설정) → CompensationPurgeScheduler 빈 미등록은 application.yml + 컨테이너 env 조합으로 간접 확인.
+
+=============================================================
+종합 판정
+=============================================================
+defect 없음. 케이스 4건 전원 PASS.
+
+검증 환경:
+- Docker: 29.4.0
+- PostgreSQL: 16.14 (컨테이너 내 jdbc URL 로그)
+- Java: 17.0.19
+- Spring Boot: 3.3.5
+- slip-service jar: 121,453,791 bytes (2026-06-07 12:06 재빌드)
+- 컨테이너 포트: 127.0.0.1:18086 (slip-port-override 적용)
