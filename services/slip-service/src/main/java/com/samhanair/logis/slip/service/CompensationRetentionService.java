@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CompensationRetentionService {
 
     private final SerialCompensationFailureRepository failureRepository;
+    private final CompensationMetrics compensationMetrics;
 
     /**
      * 보존기간 기준 시각보다 오래된 해소 완료 감사 행을 soft-delete 한다.
@@ -41,6 +42,7 @@ public class CompensationRetentionService {
         for (SerialCompensationFailure failure : candidates) {
             failure.softDelete(deleter);
         }
+        compensationMetrics.recordRetentionPurgedSoft(candidates.size());
         log.info("[CompensationRetention] 보상 실패 감사 retention 정리 완료 — cutoff={}, count={}",
                 cutoff, candidates.size());
         return candidates.size();

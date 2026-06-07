@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CompensationPurgeService {
 
     private final SerialCompensationFailureRepository failureRepository;
+    private final CompensationMetrics compensationMetrics;
 
     /**
      * soft-delete 후 grace 가 지난 감사 행을 단일 배치로 물리 삭제한다.
@@ -39,6 +40,7 @@ public class CompensationPurgeService {
     @Transactional
     public int purgePhysically(LocalDateTime cutoff, int batchSize) {
         int purged = failureRepository.deleteSoftDeletedBefore(cutoff, batchSize);
+        compensationMetrics.recordRetentionPurgedHard(purged);
         log.info("[CompensationPurge] 보상 실패 감사 물리 purge 완료 — cutoff={}, batchSize={}, count={}",
                 cutoff, batchSize, purged);
         return purged;

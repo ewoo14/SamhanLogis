@@ -28,6 +28,7 @@ public class CompensationAuditWriter {
 
     private final SerialCompensationFailureRepository repository;
     private final CompensationAlertNotifier alertNotifier;
+    private final CompensationMetrics compensationMetrics;
     private final Clock clock;
 
     /**
@@ -67,6 +68,7 @@ public class CompensationAuditWriter {
                     slip.getSlipNo(), phase, productCode, operation, saveFailure);
             throw saveFailure;
         }
+        compensationMetrics.recordFailureRecorded(operation, phase);
         // 감사 행 저장 성공 후 운영 알림 push (best-effort, 기본 비활성). 알림 실패는 보상 흐름에 무영향. (D-SER-26)
         // 원인 요약(failureReason 등)은 UUID 포함 가능 → 푸시 본문에 싣지 않으려 notifier 에 전달하지 않는다(Codex P1).
         alertNotifier.notifyFailure(slip, phase, productCode, operation);

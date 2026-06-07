@@ -13,8 +13,10 @@ import com.samhanair.logis.slip.domain.CompensationOperation;
 import com.samhanair.logis.slip.domain.CompensationPhase;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDate;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +37,15 @@ class CompensationAlertNotifierTest {
     @Mock
     private NotificationClient notificationClient;
 
+    private SimpleMeterRegistry registry;
+    private CompensationMetrics metrics;
+
+    @BeforeEach
+    void setUpMetrics() {
+        registry = new SimpleMeterRegistry();
+        metrics = new CompensationMetrics(registry);
+    }
+
     private Slip slip() {
         Slip slip = Slip.createOutbound("2026/06/03-99", LocalDate.of(2026, 6, 3), 99,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
@@ -54,7 +65,7 @@ class CompensationAlertNotifierTest {
     @Test
     void enabledWithRecipient_sendsPushWithBusinessIdentifiersOnly() {
         CompensationAlertNotifier notifier =
-                new CompensationAlertNotifier(notificationClient, true, RECIPIENT);
+                new CompensationAlertNotifier(notificationClient, true, RECIPIENT, metrics);
 
         notify(notifier);
 
@@ -72,22 +83,24 @@ class CompensationAlertNotifierTest {
                 .as("푸시 본문에 UUID 노출 없음").isFalse();
         assertThat(UUID_PATTERN.matcher(subject.getValue()).find())
                 .as("푸시 제목에 UUID 노출 없음").isFalse();
+        assertThat(alertSendCount("success")).isEqualTo(1);
     }
 
     @Test
     void disabled_doesNotSend() {
         CompensationAlertNotifier notifier =
-                new CompensationAlertNotifier(notificationClient, false, RECIPIENT);
+                new CompensationAlertNotifier(notificationClient, false, RECIPIENT, metrics);
 
         notify(notifier);
 
         verifyNoInteractions(notificationClient);
+        assertThat(alertSendCount("skipped")).isEqualTo(1);
     }
 
     @Test
     void enabledButBlankRecipient_doesNotSendAndWarns(CapturedOutput output) {
         CompensationAlertNotifier notifier =
-                new CompensationAlertNotifier(notificationClient, true, "  ");
+                new CompensationAlertNotifier(notificationClient, true, "  ", metrics);
 
         notify(notifier);
 
@@ -95,23 +108,25 @@ class CompensationAlertNotifierTest {
                 anyString(), anyString());
         // 활성화했으나 수신자 미설정은 설정 오류 — WARN 으로 표면화되어야 한다.
         assertThat(output).contains("recipient-user-id 미설정");
+        assertThat(alertSendCount("skipped")).isEqualTo(1);
     }
 
     @Test
     void enabledButMalformedRecipient_doesNotSend() {
         CompensationAlertNotifier notifier =
-                new CompensationAlertNotifier(notificationClient, true, "not-a-uuid");
+                new CompensationAlertNotifier(notificationClient, true, "not-a-uuid", metrics);
 
         notify(notifier);
 
         verify(notificationClient, never()).sendUserPush(org.mockito.ArgumentMatchers.any(),
                 anyString(), anyString());
+        assertThat(alertSendCount("skipped")).isEqualTo(1);
     }
 
     @Test
     void notificationException_isSwallowed() {
         CompensationAlertNotifier notifier =
-                new CompensationAlertNotifier(notificationClient, true, RECIPIENT);
+                new CompensationAlertNotifier(notificationClient, true, RECIPIENT, metrics);
         doThrow(new RuntimeException("notification down"))
                 .when(notificationClient).sendUserPush(org.mockito.ArgumentMatchers.any(),
                         anyString(), anyString());
@@ -122,5 +137,13 @@ class CompensationAlertNotifierTest {
         // 정상 인자(고정 제목)로 호출됐고 예외만 삼켜졌음을 함께 확인한다.
         verify(notificationClient).sendUserPush(eq(UUID.fromString(RECIPIENT)),
                 eq("[보상실패] 2026/06/03-99"), anyString());
+        assertThat(alertSendCount("failure")).isEqualTo(1);
+    }
+
+    private double alertSendCount(String result) {
+        return registry.get(CompensationMetrics.COMPENSATION_ALERT_SEND_TOTAL)
+                .tag("result", result)
+                .counter()
+                .count();
     }
 }

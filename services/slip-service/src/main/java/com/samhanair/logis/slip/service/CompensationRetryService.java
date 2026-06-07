@@ -31,6 +31,7 @@ public class CompensationRetryService {
 
     private final SerialCompensationFailureRepository repository;
     private final CompensationRetryExecutor executor;
+    private final CompensationMetrics compensationMetrics;
     private final Clock clock;
 
     /**
@@ -53,6 +54,7 @@ public class CompensationRetryService {
 
         for (UUID id : candidateIds) {
             CompensationRetryExecutor.Outcome outcome = executor.retryOne(id, now, backoffBaseMinutes);
+            compensationMetrics.recordRetryOutcome(outcome);
             switch (outcome) {
                 case SUCCEEDED -> {
                     attempted++;

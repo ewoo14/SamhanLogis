@@ -31,14 +31,17 @@ public class CompensationAlertNotifier {
     private final NotificationClient notificationClient;
     private final boolean enabled;
     private final String recipientUserId;
+    private final CompensationMetrics compensationMetrics;
 
     public CompensationAlertNotifier(
             NotificationClient notificationClient,
             @Value("${samhan.compensation.alert.enabled:false}") boolean enabled,
-            @Value("${samhan.compensation.alert.recipient-user-id:}") String recipientUserId) {
+            @Value("${samhan.compensation.alert.recipient-user-id:}") String recipientUserId,
+            CompensationMetrics compensationMetrics) {
         this.notificationClient = notificationClient;
         this.enabled = enabled;
         this.recipientUserId = recipientUserId;
+        this.compensationMetrics = compensationMetrics;
     }
 
     /**
@@ -56,12 +59,14 @@ public class CompensationAlertNotifier {
     public void notifyFailure(Slip slip, CompensationPhase phase, String productCode,
                               CompensationOperation operation) {
         if (!enabled) {
+            compensationMetrics.recordAlertSendSkipped();
             return;
         }
         UUID recipient = resolveRecipient();
         if (recipient == null) {
             // 활성화했으나 수신자 미지정 — 설정 오류이므로 1회 경고로 표면화한다.
             log.warn("[CompensationAlertNotifier] alert.enabled=true 이나 recipient-user-id 미설정 — 운영 알림 skip");
+            compensationMetrics.recordAlertSendSkipped();
             return;
         }
         String slipNo = slip.getSlipNo();
@@ -85,10 +90,12 @@ public class CompensationAlertNotifier {
     private void send(UUID recipient, String subject, String body, String slipNo) {
         try {
             notificationClient.sendUserPush(recipient, subject, body);
+            compensationMetrics.recordAlertSendSuccess();
         } catch (Exception ex) {
             // 알림은 보조 신호 — 어떤 예외(checked 포함)도 보상 흐름에 전파하지 않는다.
             log.warn("[CompensationAlertNotifier] 운영 알림 발송 실패(graceful) — slipNo={} msg={}",
                     slipNo, ex.getMessage());
+            compensationMetrics.recordAlertSendFailure();
         }
     }
 

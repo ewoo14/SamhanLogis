@@ -10,6 +10,7 @@ import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.SerialCompensationFailure;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SerialCompensationFailureRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,11 +32,13 @@ class CompensationRetentionServiceTest {
 
     @Test
     void purge_softDeletesOnlyResolvedFailuresOlderThanCutoff() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
         LocalDateTime cutoff = LocalDateTime.of(2026, 6, 3, 3, 30);
         SerialCompensationFailure oldResolved = failure("001", true);
         SerialCompensationFailure recentResolved = failure("002", true);
         SerialCompensationFailure oldUnresolved = failure("003", false);
-        CompensationRetentionService service = new CompensationRetentionService(failureRepository);
+        CompensationRetentionService service =
+                new CompensationRetentionService(failureRepository, new CompensationMetrics(registry));
 
         when(failureRepository.findByResolvedTrueAndCreatedAtBefore(cutoff))
                 .thenReturn(List.of(oldResolved));
@@ -51,13 +54,19 @@ class CompensationRetentionServiceTest {
         assertThat(recentResolved.getIsDeleted()).isFalse();
         assertThat(oldUnresolved.getIsDeleted()).isFalse();
         verify(failureRepository).findByResolvedTrueAndCreatedAtBefore(cutoff);
+        assertThat(registry.get(CompensationMetrics.COMPENSATION_RETENTION_PURGED_TOTAL)
+                .tag("mode", "soft")
+                .counter()
+                .count()).isEqualTo(1);
     }
 
     @Test
     void purge_blankActor_usesSystemRetentionActor() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
         LocalDateTime cutoff = LocalDateTime.of(2026, 6, 3, 3, 30);
         SerialCompensationFailure oldResolved = failure("010", true);
-        CompensationRetentionService service = new CompensationRetentionService(failureRepository);
+        CompensationRetentionService service =
+                new CompensationRetentionService(failureRepository, new CompensationMetrics(registry));
 
         when(failureRepository.findByResolvedTrueAndCreatedAtBefore(cutoff))
                 .thenReturn(List.of(oldResolved));
@@ -66,6 +75,10 @@ class CompensationRetentionServiceTest {
 
         assertThat(purged).isEqualTo(1);
         assertThat(oldResolved.getDeletedBy()).isEqualTo("system-retention");
+        assertThat(registry.get(CompensationMetrics.COMPENSATION_RETENTION_PURGED_TOTAL)
+                .tag("mode", "soft")
+                .counter()
+                .count()).isEqualTo(1);
     }
 
     private SerialCompensationFailure failure(String suffix, boolean resolved) {

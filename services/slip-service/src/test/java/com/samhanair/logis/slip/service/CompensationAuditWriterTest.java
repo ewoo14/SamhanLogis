@@ -15,6 +15,7 @@ import com.samhanair.logis.slip.domain.SerialCompensationFailure;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SerialCompensationFailureRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -45,7 +46,9 @@ class CompensationAuditWriterTest {
     @Test
     void record_savesOneRowTruncatesReasonAndWritesWarn(CapturedOutput output) {
         Clock fixedClock = Clock.fixed(Instant.parse("2026-06-03T01:02:03Z"), ZoneId.of("Asia/Seoul"));
-        CompensationAuditWriter writer = new CompensationAuditWriter(repository, alertNotifier, fixedClock);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        CompensationMetrics metrics = new CompensationMetrics(registry);
+        CompensationAuditWriter writer = new CompensationAuditWriter(repository, alertNotifier, metrics, fixedClock);
         when(repository.save(any(SerialCompensationFailure.class))).thenAnswer(inv -> inv.getArgument(0));
         Slip slip = Slip.createOutbound("2026/06/03-77", LocalDate.of(2026, 6, 3), 77,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "삼한", DeliveryTag.DAY, null, "u");
@@ -78,5 +81,10 @@ class CompensationAuditWriterTest {
         // 원인 요약은 UUID 포함 가능성 때문에 notifier 에 전달하지 않는다(Codex P1).
         verify(alertNotifier).notifyFailure(eq(slip), eq(CompensationPhase.ACCEPT_RESERVE),
                 eq("AC-WARN-001"), eq(CompensationOperation.RELEASE_INSTANCES));
+        assertThat(registry.get(CompensationMetrics.COMPENSATION_FAILURE_RECORDED_TOTAL)
+                .tag("operation", "RELEASE_INSTANCES")
+                .tag("phase", "ACCEPT_RESERVE")
+                .counter()
+                .count()).isEqualTo(1);
     }
 }

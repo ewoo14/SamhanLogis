@@ -15,6 +15,7 @@ import com.samhanair.logis.slip.domain.SerialCompensationFailure;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SerialCompensationFailureRepository;
 import com.samhanair.logis.slip.service.CompensationRetryExecutor.Outcome;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -55,6 +56,8 @@ class CompensationRetryServiceTest {
 
     @Test
     void mixedBatch_tallies_succeeded_failed_skipped_gone() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        CompensationMetrics metrics = new CompensationMetrics(registry);
         SerialCompensationFailure s = candidate("S", CompensationOperation.RELEASE_INSTANCES);
         SerialCompensationFailure f = candidate("F", CompensationOperation.UNRECALL_INSTANCES);
         SerialCompensationFailure k = candidate("K", CompensationOperation.RELEASE);
@@ -65,7 +68,7 @@ class CompensationRetryServiceTest {
         when(executor.retryOne(eq(k.getId()), any(), anyLong())).thenReturn(Outcome.SKIPPED);
         when(executor.retryOne(eq(g.getId()), any(), anyLong())).thenReturn(Outcome.GONE);
 
-        CompensationRetryService service = new CompensationRetryService(repository, executor, CLOCK);
+        CompensationRetryService service = new CompensationRetryService(repository, executor, metrics, CLOCK);
         CompensationRetryService.RetryResult result = service.retryEligible(5, 10);
 
         // 후보 4 / 시도 2(성공+실패) / 성공 1 / 실패 1 / 스킵 1 / GONE 은 집계 제외
@@ -74,13 +77,19 @@ class CompensationRetryServiceTest {
         assertThat(result.succeeded()).isEqualTo(1);
         assertThat(result.failed()).isEqualTo(1);
         assertThat(result.skipped()).isEqualTo(1);
+        assertThat(retryCount(registry, Outcome.SUCCEEDED)).isEqualTo(1);
+        assertThat(retryCount(registry, Outcome.FAILED)).isEqualTo(1);
+        assertThat(retryCount(registry, Outcome.SKIPPED)).isEqualTo(1);
+        assertThat(retryCount(registry, Outcome.GONE)).isEqualTo(1);
     }
 
     @Test
     void noCandidates_returnsZero_noExecutorCall() {
         when(repository.findRetryCandidates(eq(5), any())).thenReturn(List.of());
 
-        CompensationRetryService service = new CompensationRetryService(repository, executor, CLOCK);
+        CompensationRetryService service =
+                new CompensationRetryService(repository, executor, new CompensationMetrics(new SimpleMeterRegistry()),
+                        CLOCK);
         CompensationRetryService.RetryResult result = service.retryEligible(5, 10);
 
         assertThat(result.candidates()).isZero();
@@ -93,8 +102,16 @@ class CompensationRetryServiceTest {
         when(repository.findRetryCandidates(eq(5), any())).thenReturn(List.of(s));
         when(executor.retryOne(eq(s.getId()), any(), anyLong())).thenReturn(Outcome.SUCCEEDED);
 
-        new CompensationRetryService(repository, executor, CLOCK).retryEligible(5, 10);
+        new CompensationRetryService(repository, executor, new CompensationMetrics(new SimpleMeterRegistry()), CLOCK)
+                .retryEligible(5, 10);
 
         verify(executor).retryOne(eq(s.getId()), eq(LocalDateTime.now(CLOCK)), eq(10L));
+    }
+
+    private double retryCount(SimpleMeterRegistry registry, Outcome outcome) {
+        return registry.get(CompensationMetrics.COMPENSATION_RETRY_TOTAL)
+                .tag("outcome", outcome.name())
+                .counter()
+                .count();
     }
 }
