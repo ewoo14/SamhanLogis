@@ -11,6 +11,7 @@ import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.CreateTransferRequest;
 import com.samhanair.logis.inventory.web.dto.TransferDetailResponse;
 import com.samhanair.logis.inventory.web.dto.TransferResponse;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -35,6 +36,7 @@ public class StockTransferService {
     private final StockTransferRepository transferRepository;
     private final WarehouseRepository warehouseRepository;
     private final ProductClient productClient;
+    private final EntityManager entityManager;
 
     /**
      * 새 이동전표를 REQUESTED 상태로 생성한다. 라인의 productId 들을 ProductClient 로 일괄 검증 후
@@ -194,15 +196,31 @@ public class StockTransferService {
     /**
      * {@code YYYY/MM/DD-N} 채번 — 그날 prefix 의 마지막 순번에 +1.
      * 이동전표라는 메뉴/업무 타입이 이미 구분자이므로 별도 {@code T-}/{@code TR-} prefix 는 붙이지 않는다.
-     * 동시 요청 시 same seq 충돌 가능 (DB unique constraint 으로 방어, 별도 retry 정책 추후 도입).
+     *
+     * <p>D-LOAD-04 fix5: 보조 sequence table 이 없는 기존 구조를 유지하되, 같은 날짜 prefix 에
+     * 대해 PostgreSQL transaction advisory lock 을 잡은 뒤 max(seq)+1 을 계산한다. 번호 계산과
+     * INSERT 는 {@link #create(CreateTransferRequest, String)} 의 같은 트랜잭션 안에서 완료되므로
+     * 병렬 생성도 직렬 순번을 받는다. {@code ux_stock_transfers_no_active} 는 최종 백업이다.
      *
      * @param date 채번 기준 날짜
      * @return 채번된 transferNo 문자열
      */
     String nextTransferNo(LocalDate date) {
         String prefix = date.format(NO_DATE_FMT) + "-";
+        lockNumberSeries("stock_transfer_seq_" + prefix);
         int seq = transferRepository.findMaxSequenceByTransferNoPrefix(prefix) + 1;
         return prefix + seq;
+    }
+
+    /**
+     * PostgreSQL transaction advisory lock 으로 prefix 단위 채번 구간을 직렬화한다.
+     *
+     * @param key 채번 계열 lock key
+     */
+    private void lockNumberSeries(String key) {
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+                .setParameter(1, key)
+                .getSingleResult();
     }
 
     private StockTransfer loadOrThrow(UUID id) {

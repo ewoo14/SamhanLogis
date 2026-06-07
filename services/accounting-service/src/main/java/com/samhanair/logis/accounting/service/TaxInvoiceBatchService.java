@@ -15,6 +15,7 @@ import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchHistoryResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchPreviewResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -113,6 +114,7 @@ public class TaxInvoiceBatchService {
     private final SlipQueryClient slipQueryClient;
     private final ObjectMapper objectMapper;
     private final SupplierProfileRepository supplierProfileRepository;
+    private final EntityManager entityManager;
 
     // =========================================================================
     // A. 일괄발행 미리보기
@@ -444,7 +446,8 @@ public class TaxInvoiceBatchService {
      * 배치 번호 채번 — {@code TIB-yyyyMM-NNN} 형식.
      *
      * <p>같은 년월 내 최대 999건 채번 (3자리 zero-padding).
-     * count 기반 낙관적 채번 — 동시성 충돌 시 중복 가능하나 운영 빈도 고려 시 허용 수준.
+     * D-LOAD-04 fix5: 같은 {@code TIB-yyyyMM} prefix 에 transaction advisory lock 을 잡은 뒤
+     * count+1 을 계산한다. {@code uidx_tax_invoice_batches_batch_no_active} 는 최종 백업이다.
      *
      * @param baseDate 채번 기준 날짜 (fromDate)
      * @return 배치 번호 문자열
@@ -452,8 +455,20 @@ public class TaxInvoiceBatchService {
     private String generateBatchNo(LocalDate baseDate) {
         String ym = baseDate.format(DateTimeFormatter.ofPattern("yyyyMM"));
         String prefix = "TIB-" + ym + "-";
+        lockNumberSeries("tax_invoice_batch_seq_" + prefix);
         long count = batchRepository.countByBatchNoPrefix(prefix);
         return prefix + String.format("%03d", count + 1);
+    }
+
+    /**
+     * PostgreSQL transaction advisory lock 으로 prefix 단위 배치 채번 구간을 직렬화한다.
+     *
+     * @param key 채번 계열 lock key
+     */
+    private void lockNumberSeries(String key) {
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+                .setParameter(1, key)
+                .getSingleResult();
     }
 
     // =========================================================================

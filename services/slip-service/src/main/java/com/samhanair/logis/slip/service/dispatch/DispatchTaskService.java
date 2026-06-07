@@ -9,6 +9,7 @@ import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +44,7 @@ public class DispatchTaskService {
     private final DispatchTaskRepository taskRepo;
     private final DispatchVehicleGroupRepository groupRepo;
     private final DispatchVehicleGroupSlipRepository slipMapRepo;
+    private final EntityManager entityManager;
 
     /** 신규 배차 작업 (DRAFT) 생성 — taskCode 자동 생성. */
     public DispatchTask createTask(LocalDate dispatchDate) {
@@ -118,9 +120,16 @@ public class DispatchTaskService {
         slipMapRepo.save(mapping);
     }
 
-    /** Daily counter 기반 taskCode 발급 — YYYY/MM/DD-N. 배차 메뉴 안에서만 유일하면 된다. */
+    /**
+     * Daily counter 기반 taskCode 발급 — YYYY/MM/DD-N. 배차 메뉴 안에서만 유일하면 된다.
+     *
+     * <p>D-LOAD-04 fix5: 기존 first-missing probe 는 병렬 DRAFT 생성 시 같은 빈 번호를 동시에
+     * 발견할 수 있다. 같은 일자 prefix 에 transaction advisory lock 을 잡은 뒤 probe 를 수행해
+     * 번호 선택과 INSERT 를 {@link #createTask(LocalDate)} 트랜잭션 안에서 직렬화한다.
+     */
     public String generateTaskCode(LocalDate date) {
         String prefix = date.format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        lockNumberSeries("dispatch_task_seq_" + prefix);
         for (int n = 1; n <= MAX_DAILY_COUNTER; n++) {
             String code = prefix + "-" + n;
             if (!taskRepo.existsByTaskCodeAndIsDeletedFalse(code)) {
@@ -128,6 +137,17 @@ public class DispatchTaskService {
             }
         }
         throw new IllegalStateException("일 배차 작업 카운터 초과 (>" + MAX_DAILY_COUNTER + ")");
+    }
+
+    /**
+     * PostgreSQL transaction advisory lock 으로 일자별 배차 taskCode 채번 구간을 직렬화한다.
+     *
+     * @param key 채번 계열 lock key
+     */
+    private void lockNumberSeries(String key) {
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+                .setParameter(1, key)
+                .getSingleResult();
     }
 
     private DispatchTask findTaskOrThrow(UUID id) {

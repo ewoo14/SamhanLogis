@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -28,6 +29,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -141,6 +148,65 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
                 UUID.randomUUID());
         assertThat(result.totalRowCount()).isEqualTo(250);
         assertThat(result.splitFileCount()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("D-LOAD-04 fix5: 같은 월 병렬 previewWithRows 는 batchNo 중복 없이 저장된다")
+    void batchNo_parallelPreview_returnsUniqueBatchNumbersForEveryCaller() throws Exception {
+        int workers = 8;
+        ExecutorService executor = Executors.newFixedThreadPool(workers);
+        CountDownLatch ready = new CountDownLatch(workers);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Callable<String>> tasks = new ArrayList<>();
+        for (int i = 0; i < workers; i++) {
+            int rowSeed = i;
+            tasks.add(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("동시 배치 채번 시작 latch timeout");
+                }
+                return batchService.previewWithRows(
+                        buildHomtaxRows(1, rowSeed),
+                        LocalDate.of(2026, 6, 1),
+                        LocalDate.of(2026, 6, 30),
+                        UUID.randomUUID()).batchNo();
+            });
+        }
+
+        try {
+            List<Future<String>> futures = tasks.stream()
+                    .map(executor::submit)
+                    .toList();
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            List<String> batchNos = new ArrayList<>();
+            for (Future<String> future : futures) {
+                batchNos.add(future.get(10, TimeUnit.SECONDS));
+            }
+
+            assertThat(batchNos).hasSize(workers);
+            assertThat(batchNos).doesNotHaveDuplicates();
+            assertThat(batchNos.stream().map(TaxInvoiceBatchIT::extractTrailingSeq).sorted().toList())
+                    .containsExactly(1, 2, 3, 4, 5, 6, 7, 8);
+        } finally {
+            shutdownAndAwaitTermination(executor);
+        }
+    }
+
+    private static void shutdownAndAwaitTermination(ExecutorService executor) throws InterruptedException {
+        executor.shutdown();
+        try {
+            if (executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                return;
+            }
+            executor.shutdownNow();
+            fail("parallel number worker did not terminate within 10 seconds");
+        } catch (InterruptedException ex) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+            throw ex;
+        }
     }
 
     // =========================================================================
@@ -314,21 +380,31 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
 
     /** HomtaxRow 리스트 직접 생성 (previewWithRows 전용). */
     private List<HomtaxRow> buildHomtaxRows(int count) {
+        return buildHomtaxRows(count, 0);
+    }
+
+    private List<HomtaxRow> buildHomtaxRows(int count, int seed) {
         List<HomtaxRow> rows = new ArrayList<>();
         for (int i = 0; i < count; i++) {
+            int rowNo = seed * 1000 + i;
             rows.add(new HomtaxRow(
                     "01", "20260501", "2148720659", "",
                     "（주）삼한공조시스템", "김미선", "서울시 서초구", "도소매", "가전제품", "apjog09@daum.net",
-                    "1234567890", "", "테스트거래처" + i, "대표자", "서울시 강남구", "도소매", "가전", "a@b.com", "",
+                    "1234567890", "", "테스트거래처" + rowNo, "대표자", "서울시 강남구", "도소매", "가전", "a@b.com", "",
                     BigDecimal.valueOf(1000000), BigDecimal.valueOf(100000), "",
                     "01", "품목명", "", null, null, BigDecimal.valueOf(1000000), BigDecimal.valueOf(100000), "",
                     "", "", "", null, null, null, null, "",
                     "", "", "", null, null, null, null, "",
                     "", "", "", null, null, null, null, "",
                     null, null, null, null, "02",
-                    "SLP-" + i
+                    "SLP-" + rowNo
             ));
         }
         return rows;
+    }
+
+    private static int extractTrailingSeq(String number) {
+        int dashIdx = number.lastIndexOf('-');
+        return Integer.parseInt(number.substring(dashIdx + 1));
     }
 }

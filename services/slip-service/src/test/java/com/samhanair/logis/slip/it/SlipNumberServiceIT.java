@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.UserInternalClient;
@@ -149,7 +150,22 @@ class SlipNumberServiceIT extends AbstractPostgresIT {
             assertThat(slipNos.stream().map(slipNumberService::extractSeqNo).sorted().toList())
                     .containsExactly(1, 2, 3, 4, 5, 6, 7, 8);
         } finally {
+            shutdownAndAwaitTermination(executor);
+        }
+    }
+
+    private static void shutdownAndAwaitTermination(ExecutorService executor) throws InterruptedException {
+        executor.shutdown();
+        try {
+            if (executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                return;
+            }
             executor.shutdownNow();
+            fail("parallel number worker did not terminate within 10 seconds");
+        } catch (InterruptedException ex) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+            throw ex;
         }
     }
 }

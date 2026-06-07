@@ -108,7 +108,7 @@ function Invoke-DockerCaptured {
         Add-FileBytes -SourcePath $stderrLog -TargetPath $LogPath
 
         if ($TailLines -gt 0 -and (Test-Path $LogPath)) {
-            Get-Content -Path $LogPath -Tail $TailLines
+            Get-Content -Path $LogPath -Tail $TailLines | ForEach-Object { Write-Host $_ }
         }
 
         return $process.ExitCode
