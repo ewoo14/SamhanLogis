@@ -3,6 +3,7 @@ package com.samhanair.logis.inventory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +20,8 @@ import com.samhanair.logis.inventory.repository.StockTransferRepository;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.CreateTransferRequest;
 import com.samhanair.logis.inventory.web.dto.TransferDetailResponse;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -38,6 +41,8 @@ class StockTransferServiceTest {
     @Mock private StockTransferRepository transferRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private ProductClient productClient;
+    @Mock private EntityManager entityManager;
+    @Mock private Query advisoryLockQuery;
 
     @InjectMocks
     private StockTransferService service;
@@ -70,6 +75,10 @@ class StockTransferServiceTest {
         lenient().when(productClient.lookup(any())).thenReturn(List.of(
                 new ProductSummary(productId, "AC", "SHA", UUID.randomUUID(),
                         new BigDecimal("1000000.00"), "ACTIVE")));
+        lenient().when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))"))
+                .thenReturn(advisoryLockQuery);
+        lenient().when(advisoryLockQuery.setParameter(anyInt(), any())).thenReturn(advisoryLockQuery);
+        lenient().when(advisoryLockQuery.getSingleResult()).thenReturn(0L);
     }
 
     @Test

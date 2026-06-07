@@ -1,7 +1,6 @@
 package com.samhanair.logis.slip.estimate.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.slip.estimate.domain.EstimateNumberSequence;
@@ -32,8 +31,8 @@ class EstimateNumberServiceTest {
 
     @Test
     void next_firstCall_usesBusinessNumberStandardWithoutPrefixOrPadding() {
-        when(sequenceRepository.findByEstimateDate(today)).thenReturn(Optional.empty());
-        when(sequenceRepository.save(any(EstimateNumberSequence.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(sequenceRepository.findLockedByEstimateDate(today))
+                .thenReturn(Optional.of(EstimateNumberSequence.create(today)));
 
         String estimateNo = service.next(today);
 
@@ -45,7 +44,7 @@ class EstimateNumberServiceTest {
         EstimateNumberSequence existing = EstimateNumberSequence.create(today);
         existing.next();
         existing.next();
-        when(sequenceRepository.findByEstimateDate(today)).thenReturn(Optional.of(existing));
+        when(sequenceRepository.findLockedByEstimateDate(today)).thenReturn(Optional.of(existing));
 
         String estimateNo = service.next(today);
 

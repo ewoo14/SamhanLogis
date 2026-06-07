@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.service.dispatch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,8 @@ import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -33,10 +36,13 @@ class DispatchTaskServiceTest {
     @Mock DispatchTaskRepository taskRepo;
     @Mock DispatchVehicleGroupRepository groupRepo;
     @Mock DispatchVehicleGroupSlipRepository slipMapRepo;
+    @Mock EntityManager entityManager;
+    @Mock Query advisoryLockQuery;
     @InjectMocks DispatchTaskService svc;
 
     @Test
     void createTask_generates_daily_counter_code() {
+        stubAdvisoryLock();
         when(taskRepo.existsByTaskCodeAndIsDeletedFalse(anyString())).thenReturn(false);
         when(taskRepo.save(any(DispatchTask.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -46,6 +52,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void createTask_increments_when_first_taken() {
+        stubAdvisoryLock();
         when(taskRepo.existsByTaskCodeAndIsDeletedFalse("2026/05/14-1")).thenReturn(true);
         when(taskRepo.existsByTaskCodeAndIsDeletedFalse("2026/05/14-2")).thenReturn(false);
         when(taskRepo.save(any(DispatchTask.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -132,5 +139,12 @@ class DispatchTaskServiceTest {
         svc.removeSlipFromGroup(groupId, slipId, "ewoo");
 
         assertThat(m.getIsDeleted()).isTrue();
+    }
+
+    private void stubAdvisoryLock() {
+        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))"))
+                .thenReturn(advisoryLockQuery);
+        when(advisoryLockQuery.setParameter(anyInt(), any())).thenReturn(advisoryLockQuery);
+        when(advisoryLockQuery.getSingleResult()).thenReturn(0L);
     }
 }

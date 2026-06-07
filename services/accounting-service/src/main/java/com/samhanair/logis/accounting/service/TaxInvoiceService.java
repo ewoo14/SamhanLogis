@@ -121,7 +121,16 @@ public class TaxInvoiceService {
 
         ti.updateBasic(request.partnerBusinessNo(), request.partnerName(),
                 request.partnerAddress(), request.supplyDate(), request.description());
-        // 라인 교체 — orphan removal 로 기존 라인 영속화 제거.
+        /*
+         * 라인 교체는 기존 라인 제거를 먼저 DB에 반영한 뒤 신규 라인을 추가한다.
+         * Hibernate action queue 는 같은 flush 에서 INSERT 를 DELETE 보다 먼저 실행할 수 있어
+         * (tax_invoice_id, line_no) active UNIQUE 와 충돌한다. 특히 같은 테스트/상위
+         * 트랜잭션 안에서 update 직후 issue 채번 native query 가 AUTO flush 를 유발하면
+         * 기존 line_no 가 아직 살아 있는 상태로 신규 line_no INSERT 가 먼저 나간다.
+         */
+        ti.replaceLines(List.of());
+        taxInvoiceRepository.flush();
+
         List<TaxInvoiceLine> newLines = new ArrayList<>();
         int lineNo = 1;
         for (CreateTaxInvoiceLineRequest lineReq : request.lines()) {
