@@ -1,0 +1,636 @@
+{
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "로그인 envelope success=true": {
+                            "name": "로그인 envelope success=true",
+                            "path": "::setup::로그인 envelope success=true",
+                            "id": "842452a41dc021351d6df59003aa0149",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "로그인 token 존재": {
+                            "name": "로그인 token 존재",
+                            "path": "::setup::로그인 token 존재",
+                            "id": "58a6e9ccd794f926e5b58e80ba95e360",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "2xx 응답": {
+                            "name": "2xx 응답",
+                            "path": "::setup::2xx 응답",
+                            "id": "0406dd5b8904bff38a1fb61c605e82d4",
+                            "passes": 3,
+                            "fails": 0
+                        },
+                        "ApiResponse success=true": {
+                            "name": "ApiResponse success=true",
+                            "path": "::setup::ApiResponse success=true",
+                            "id": "05997ea0ab843628c784c03e31a26f9e",
+                            "passes": 3,
+                            "fails": 0
+                        }
+                    }
+            }
+        },
+        "checks": {
+            "로그인 envelope success=true": {
+                "id": "af184ac3f46cece8189e191c13a1074a",
+                "passes": 120,
+                "fails": 0,
+                "name": "로그인 envelope success=true",
+                "path": "::로그인 envelope success=true"
+            },
+            "로그인 token 존재": {
+                "fails": 0,
+                "name": "로그인 token 존재",
+                "path": "::로그인 token 존재",
+                "id": "05be82bdfd7b3e3b871eeea287d1ce1d",
+                "passes": 120
+            },
+            "2xx 응답": {
+                "name": "2xx 응답",
+                "path": "::2xx 응답",
+                "id": "b78669da2248779eba102589a1db6d17",
+                "passes": 440766,
+                "fails": 47756
+            },
+            "ApiResponse success=true": {
+                "name": "ApiResponse success=true",
+                "path": "::ApiResponse success=true",
+                "id": "6c6e3831cb34b44ea4610c8f7e13762f",
+                "passes": 440766,
+                "fails": 47756
+            }
+        }
+    },
+    "metrics": {
+        "http_reqs": {
+            "count": 488746,
+            "rate": 23.03215954530776
+        },
+        "http_req_receiving": {
+            "avg": 0.09589548498402115,
+            "min": -327.419145,
+            "med": 0.081738,
+            "max": 5.215991,
+            "p(90)": 0.15855950000000002,
+            "p(95)": 0.21437575
+        },
+        "http_req_blocked": {
+            "avg": 0.0037759456507058917,
+            "min": 0.000678,
+            "med": 0.003051,
+            "max": 1.023692,
+            "p(90)": 0.006049,
+            "p(95)": 0.006768
+        },
+        "http_req_connecting": {
+            "avg": 0.000008424999897697371,
+            "min": 0,
+            "med": 0,
+            "max": 0.383576,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_req_duration{expected_response:true}": {
+            "p(90)": 4.954689,
+            "p(95)": 6.00904605,
+            "avg": 3.9048950380911704,
+            "min": -324.346117,
+            "med": 3.6800110000000004,
+            "max": 403.498356
+        },
+        "http_req_tls_handshaking": {
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0
+        },
+        "data_sent": {
+            "count": 201638594,
+            "rate": 9502.22051433574
+        },
+        "http_req_failed": {
+            "passes": 47856,
+            "fails": 440890,
+            "thresholds": {
+                "rate<0.01": true
+            },
+            "value": 0.09791589087174114
+        },
+        "http_req_sending": {
+            "min": 0.002928,
+            "med": 0.010597,
+            "max": 0.536834,
+            "p(90)": 0.037761,
+            "p(95)": 0.04078875,
+            "avg": 0.017550980208533674
+        },
+        "vus_max": {
+            "max": 20,
+            "value": 20,
+            "min": 20
+        },
+        "iterations": {
+            "count": 143466,
+            "rate": 6.760836510840238
+        },
+        "http_req_duration": {
+            "avg": 3.803752698123423,
+            "min": -324.346117,
+            "med": 3.557617,
+            "max": 403.498356,
+            "p(90)": 4.785945,
+            "p(95)": 5.8911352500000005,
+            "thresholds": {
+                "p(95)<500": false,
+                "p(99)<1500": false
+            }
+        },
+        "checks": {
+            "passes": 881780,
+            "fails": 95512,
+            "value": 0.9022687180494673
+        },
+        "iteration_duration": {
+            "p(90)": 4610.992504,
+            "p(95)": 4812.466776,
+            "avg": 3011.4013417272877,
+            "min": 1008.851077,
+            "med": 3013.551507,
+            "max": 5272.465131
+        },
+        "http_req_waiting": {
+            "p(95)": 5.768521,
+            "avg": 3.6903062329308005,
+            "min": 0,
+            "med": 3.4356565000000003,
+            "max": 402.96906,
+            "p(90)": 4.658583500000001
+        },
+        "vus": {
+            "value": 2,
+            "min": 2,
+            "max": 20
+        },
+        "data_received": {
+            "count": 1367218444,
+            "rate": 64430.1811891973
+        },
+        "samhan_http_4xx": {
+            "count": 47756,
+            "rate": 2.250501919700043
+        }
+    },
+    "setup_data": {
+        "partners": [
+            {
+                "creditLimit": 5000000,
+                "name": "(주)서울에어컨",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0001",
+                "phone": "02-1017-1041",
+                "status": "ACTIVE",
+                "bizNo": "113-07-10031"
+            },
+            {
+                "name": "한국공조시스템(주)",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0002",
+                "phone": "02-1034-1082",
+                "status": "ACTIVE",
+                "bizNo": "126-14-10062",
+                "creditLimit": 10000000
+            },
+            {
+                "name": "부산냉난방테크",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0003",
+                "phone": "02-1051-1123",
+                "status": "ACTIVE",
+                "bizNo": "139-21-10093",
+                "creditLimit": 30000000
+            },
+            {
+                "bizNo": "152-28-10124",
+                "creditLimit": 50000000,
+                "name": "광주에어시스템",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0004",
+                "phone": "02-1068-1164",
+                "status": "ACTIVE"
+            },
+            {
+                "creditLimit": 1000000,
+                "name": "대구HVAC솔루션",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0005",
+                "phone": "02-1085-1205",
+                "status": "ACTIVE",
+                "bizNo": "165-35-10155"
+            },
+            {
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0006",
+                "phone": "02-1102-1246",
+                "status": "ACTIVE",
+                "bizNo": "178-42-10186",
+                "creditLimit": 5000000,
+                "name": "인천공조산업"
+            },
+            {
+                "bizNo": "191-49-10217",
+                "creditLimit": 10000000,
+                "name": "울산냉난방엔지니어링",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0007",
+                "phone": "02-1119-1287",
+                "status": "ACTIVE"
+            },
+            {
+                "creditLimit": 30000000,
+                "name": "수원에어컨센터",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0008",
+                "phone": "02-1136-1328",
+                "status": "ACTIVE",
+                "bizNo": "204-56-10248"
+            },
+            {
+                "phone": "02-1153-1369",
+                "status": "ACTIVE",
+                "bizNo": "217-63-10279",
+                "creditLimit": 50000000,
+                "name": "대전공조테크",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0009"
+            },
+            {
+                "bizNo": "230-70-10310",
+                "creditLimit": 1000000,
+                "name": "(주)성남에어시스템",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0010",
+                "phone": "02-1170-1410",
+                "status": "SUSPENDED"
+            },
+            {
+                "creditLimit": 5000000,
+                "name": "고양냉난방주식회사",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0011",
+                "phone": "02-1187-1451",
+                "status": "ACTIVE",
+                "bizNo": "243-77-10341"
+            },
+            {
+                "phone": "02-1204-1492",
+                "status": "ACTIVE",
+                "bizNo": "256-84-10372",
+                "creditLimit": 10000000,
+                "name": "용인HVAC산업",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0012"
+            },
+            {
+                "partnerCode": "P-2026-0013",
+                "phone": "02-1221-1533",
+                "status": "ACTIVE",
+                "bizNo": "269-91-10403",
+                "creditLimit": 30000000,
+                "name": "안양공조에너지",
+                "outstandingBalance": 0
+            },
+            {
+                "status": "ACTIVE",
+                "bizNo": "282-98-10434",
+                "creditLimit": 50000000,
+                "name": "부천에어테크",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0014",
+                "phone": "02-1238-1574"
+            },
+            {
+                "name": "남양주냉난방",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0015",
+                "phone": "02-1255-1615",
+                "status": "ACTIVE",
+                "bizNo": "295-05-10465",
+                "creditLimit": 1000000
+            },
+            {
+                "bizNo": "308-12-10496",
+                "creditLimit": 5000000,
+                "name": "춘천공조설비",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0016",
+                "phone": "02-1272-1656",
+                "status": "ACTIVE"
+            },
+            {
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0017",
+                "phone": "02-1289-1697",
+                "status": "ACTIVE",
+                "bizNo": "321-19-10527",
+                "creditLimit": 10000000,
+                "name": "원주에어컨공업"
+            },
+            {
+                "name": "강릉HVAC솔루션",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0018",
+                "phone": "02-1306-1738",
+                "status": "ACTIVE",
+                "bizNo": "334-26-10558",
+                "creditLimit": 30000000
+            },
+            {
+                "name": "청주공조에너지",
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0019",
+                "phone": "02-1323-1779",
+                "status": "ACTIVE",
+                "bizNo": "347-33-10589",
+                "creditLimit": 50000000
+            },
+            {
+                "outstandingBalance": 0,
+                "partnerCode": "P-2026-0020",
+                "phone": "02-1340-1820",
+                "status": "SUSPENDED",
+                "bizNo": "360-40-10620",
+                "creditLimit": 1000000,
+                "name": "(주)천안냉난방"
+            }
+        ],
+        "products": [
+            {
+                "productCode": "010002",
+                "sellingPrice": 720000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "210c51ce-f07e-3f15-a6ba-84a1f4dd2bf0",
+                "modelName": "AR06TXEAAWKNEU-02",
+                "name": "삼성 윈드프리 6평형"
+            },
+            {
+                "sellingPrice": 840000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "2e40fa30-10b2-3a9b-a99c-570ac92287ad",
+                "modelName": "AR07TXEAAWKNEU-03",
+                "name": "삼성 윈드프리 7평형",
+                "productCode": "010003"
+            },
+            {
+                "id": "d7f488a5-6259-379c-8035-ed551e75a102",
+                "modelName": "AR09TXEAAWKNEU-04",
+                "name": "삼성 윈드프리 9평형",
+                "productCode": "010004",
+                "sellingPrice": 1080000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004"
+            },
+            {
+                "sellingPrice": 1320000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "ae339262-7ca9-3f7c-8418-4339e88b3466",
+                "modelName": "AR11TXEAAWKNEU-05",
+                "name": "삼성 윈드프리 11평형",
+                "productCode": "010005"
+            },
+            {
+                "productCode": "010006",
+                "sellingPrice": 1560000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "7550826e-d6d1-3a12-98b1-3e867188c6a9",
+                "modelName": "AR13TXEAAWKNEU-06",
+                "name": "삼성 윈드프리 13평형"
+            },
+            {
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "d15a3094-1c04-3db3-93da-2e5b50a9bc7a",
+                "modelName": "AR15TXEAAWKNEU-07",
+                "name": "삼성 윈드프리 15평형",
+                "productCode": "010007",
+                "sellingPrice": 1800000,
+                "serialManaged": true
+            },
+            {
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "4599cfc1-35c1-3a8a-869b-f92f5f125b76",
+                "modelName": "AR16TXEAAWKNEU-08",
+                "name": "삼성 윈드프리 16평형",
+                "productCode": "010008",
+                "sellingPrice": 1920000,
+                "serialManaged": true,
+                "status": "ACTIVE"
+            },
+            {
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "13cce07c-8822-3d89-bd3c-dfe04660cf05",
+                "modelName": "AR18TXEAAWKNEU-09",
+                "name": "삼성 윈드프리 18평형",
+                "productCode": "010009",
+                "sellingPrice": 2160000,
+                "serialManaged": true,
+                "status": "ACTIVE"
+            },
+            {
+                "modelName": "AR20TXEAAWKNEU-10",
+                "name": "삼성 윈드프리 20평형",
+                "productCode": "010010",
+                "sellingPrice": 2400000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "ecc3d7e8-950b-3441-a60f-4b44ce7fbab5"
+            },
+            {
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "80bd3fac-6f65-3c05-8ec5-b1ac8d684b44",
+                "modelName": "AR05TXEAAWKNEU-11",
+                "name": "삼성 윈드프리 5평형",
+                "productCode": "010011",
+                "sellingPrice": 600000,
+                "serialManaged": true,
+                "status": "ACTIVE"
+            },
+            {
+                "productCode": "010012",
+                "sellingPrice": 720000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "b185b774-d801-34aa-99b5-e2abf5ff0748",
+                "modelName": "AR06TXEAAWKNEU-12",
+                "name": "삼성 윈드프리 6평형"
+            },
+            {
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "b9ed7fe2-734a-36fe-9e81-45907b92d00a",
+                "modelName": "AR07TXEAAWKNEU-13",
+                "name": "삼성 윈드프리 7평형",
+                "productCode": "010013",
+                "sellingPrice": 840000,
+                "serialManaged": true
+            },
+            {
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "c6f164a9-fe01-35d7-ae5c-8fb807ee05e7",
+                "modelName": "AR09TXEAAWKNEU-14",
+                "name": "삼성 윈드프리 9평형",
+                "productCode": "010014",
+                "sellingPrice": 1080000,
+                "serialManaged": true,
+                "status": "ACTIVE"
+            },
+            {
+                "name": "삼성 윈드프리 11평형",
+                "productCode": "010015",
+                "sellingPrice": 1320000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "ed045c04-8fe4-3cd7-b31d-4ea0a728001a",
+                "modelName": "AR11TXEAAWKNEU-15"
+            },
+            {
+                "id": "d03f3161-559e-30cf-968d-5d0b3f6a780b",
+                "modelName": "AR13TXEAAWKNEU-16",
+                "name": "삼성 윈드프리 13평형",
+                "productCode": "010016",
+                "sellingPrice": 1560000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004"
+            },
+            {
+                "sellingPrice": 1800000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "17e5da1c-b638-3cc8-a86d-254466a9ee54",
+                "modelName": "AR15TXEAAWKNEU-17",
+                "name": "삼성 윈드프리 15평형",
+                "productCode": "010017"
+            },
+            {
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "87c4b0ef-1c9f-3e93-8af0-0ebc88978d40",
+                "modelName": "AR16TXEAAWKNEU-18",
+                "name": "삼성 윈드프리 16평형",
+                "productCode": "010018",
+                "sellingPrice": 1920000,
+                "serialManaged": true,
+                "status": "ACTIVE"
+            },
+            {
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "71f0a01b-1d3f-32cc-ae07-b9ccea274466",
+                "modelName": "AR18TXEAAWKNEU-19",
+                "name": "삼성 윈드프리 18평형",
+                "productCode": "010019",
+                "sellingPrice": 2160000,
+                "serialManaged": true
+            },
+            {
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "553a8e29-99ab-3ce1-841f-cbf01cfe7aee",
+                "modelName": "AR20TXEAAWKNEU-20",
+                "name": "삼성 윈드프리 20평형",
+                "productCode": "010020",
+                "sellingPrice": 2400000,
+                "serialManaged": true
+            },
+            {
+                "name": "삼성 윈드프리 5평형",
+                "productCode": "010021",
+                "sellingPrice": 600000,
+                "serialManaged": true,
+                "status": "ACTIVE",
+                "categoryId": "00000000-0000-0000-0000-000000001004",
+                "id": "b94d18af-ef77-39ca-abf4-7a1afa43ed06",
+                "modelName": "AR05TXEAAWKNEU-21"
+            }
+        ],
+        "warehouses": [
+            {
+                "createdAt": "2026-05-09T15:55:27.018371",
+                "createdBy": "system",
+                "displayOrder": 1,
+                "id": "11111111-1111-1111-1111-000000000001",
+                "modifiedAt": null,
+                "modifiedBy": null,
+                "type": "HEADQUARTERS",
+                "address": "서울시 강남구 본사",
+                "code": "HQ-001",
+                "description": "본사 보유 메인 창고",
+                "name": "본사창고"
+            },
+            {
+                "type": "VEHICLE",
+                "address": null,
+                "code": "VH-001",
+                "createdBy": "system",
+                "description": "출장 차량 이동 재고 (창고원/기사 단위)",
+                "id": "11111111-1111-1111-1111-000000000002",
+                "name": "1호차 차량재고",
+                "createdAt": "2026-05-09T15:55:27.018371",
+                "displayOrder": 2,
+                "modifiedAt": null,
+                "modifiedBy": null
+            },
+            {
+                "createdBy": "system",
+                "description": "거래처에 위탁한 재고 (소유권은 자사)",
+                "modifiedAt": null,
+                "type": "CONSIGNMENT",
+                "address": null,
+                "code": "CS-001",
+                "createdAt": "2026-05-09T15:55:27.018371",
+                "displayOrder": 3,
+                "id": "11111111-1111-1111-1111-000000000003",
+                "modifiedBy": null,
+                "name": "거래처 위탁창고"
+            },
+            {
+                "code": "VR-001",
+                "description": "삼성 직배/반품/서비스 인보이스 등 비물리 — IN_TRANSIT 스킵",
+                "displayOrder": 4,
+                "modifiedAt": null,
+                "modifiedBy": null,
+                "address": null,
+                "createdAt": "2026-05-09T15:55:27.018371",
+                "createdBy": "system",
+                "id": "11111111-1111-1111-1111-000000000004",
+                "name": "가상창고",
+                "type": "VIRTUAL"
+            }
+        ]
+    }
+}
