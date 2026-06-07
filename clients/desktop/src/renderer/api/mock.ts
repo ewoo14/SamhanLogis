@@ -3037,7 +3037,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /admin/users/roles — 8 ROLE string array (BE AdminRole[] 직렬화)
+  // GET /admin/users/roles — 10 ROLE string array (BE AdminRole[] 직렬화)
   // 결함 #8: 기존 {code,label}[] → AdminRole[] string array 정정 ([object Object] 회피)
   if (method === 'GET' && url.endsWith('/admin/users/roles')) {
     return envelope([
@@ -3045,6 +3045,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       'DEVELOPER',
       'MANAGER',
       'DISPATCH',
+      'DRIVER',
+      'STAFF',
       'SALES',
       'ACCOUNTANT',
       'WAREHOUSE',
