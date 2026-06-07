@@ -1,0 +1,85 @@
+PR #418 QA — cycle1 HTTP 검증 매트릭스
+브랜치: feat/rc9-line-input-lookups  HEAD: fde93a97
+검증일시: 2026-06-07T10:38 KST
+검증자: QA agent
+
+===========================================================
+[환경]
+ Docker 스택: 전체 22 컨테이너 healthy
+ product-service jar: fde93a97 브랜치 최신 재빌드 (Jun 7 10:35)
+ api-gateway jar: 동일 브랜치 재빌드 (Jun 7 10:35)
+ product-service image: infrastructure-product-service:latest (재빌드)
+ api-gateway image: infrastructure-api-gateway:latest (재빌드)
+ JWT 계정: dev_manager (MANAGER role, 매니저 권한그룹 00000000-0000-0000-0000-000000000101)
+===========================================================
+
+[케이스별 기대/실측]
+
+ID   | 계정          | 요청                                                   | 기대     | 실측     | 판정
+-----|---------------|--------------------------------------------------------|----------|----------|------
+H-1  | dev_manager   | GET /api/v1/material-prices                            | 200 []   | 200 []   | PASS
+H-2  | dev_manager   | GET /api/v1/odu-recommendations                        | 200 []   | 200 []   | PASS
+H-3  | dev_manager   | GET /api/v1/branch-pipes                               | 200 []   | 200 []   | PASS
+H-4  | dev_manager   | GET /api/v1/odu-recommendations?type=INVALID           | 400      | 400      | PASS
+H-5  | dev_manager   | GET /api/v1/odu-recommendations?type=HOME_MULTI        | 200 []   | 200 []   | PASS
+H-6  | IT (mock)     | material prices lookup DENY (DynamicPermissionClient mock check=false) | 403 | 403 | PASS
+H-7  | IT (mock)     | odu recommendations lookup DENY                        | 403      | 403      | PASS
+H-8  | IT (mock)     | branch pipes lookup DENY                                | 403      | 403      | PASS
+H-9  | 임시 INSERT   | material_price 1 row INSERT → GET /api/v1/material-prices | 200 [{materialKey,name,price,optionLabel}] | 200 [{materialKey,name,price,optionLabel}] | PASS
+H-10 | (원복)        | material_price DELETE (QA-TEST1)                       | count=0  | count=0  | PASS
+
+===========================================================
+[H-1~3 실측 응답]
+HTTP 200 — []
+(3 테이블 모두 시드 row 0 — 빈 배열이 정상 계약)
+
+[H-4 실측 응답]
+HTTP 400 — {"success":false,"code":"INVALID_INPUT","message":"type: 입력값이 유효하지 않습니다","data":null}
+(C1-2 GlobalExceptionHandler MethodArgumentTypeMismatchException 400 핸들러 정상 동작)
+
+[H-5 실측 응답]
+HTTP 200 — []
+(type 필터 정상 수용, 빈 배열 반환)
+
+[H-6~8 IT 근거]
+파일: services/product-service/build/test-results/test/
+     TEST-com.samhanair.logis.product.it.ProductPermissionControllerIT.xml
+결과: tests=66 skipped=0 failures=0 errors=0
+해당 케이스:
+  "material prices lookup deny" → 403 + metrics counter +1 PASS
+  "odu recommendations lookup deny" → 403 + metrics counter +1 PASS
+  "branch pipes lookup deny" → 403 + metrics counter +1 PASS
+참고: DynamicPermissionClient @MockBean 격리 (product-service 내부 모듈 — account_page_permissions 조회 불가 컨텍스트)
+     실 서버에서 dev_manager products.list can_view=TRUE → 200 동시 실증(H-1~3)으로 end-to-end 정상 확인
+
+[H-9 실측 응답]
+HTTP 200 — [{"materialKey":"QA-TEST1","name":"QA 테스트 자재","price":99999.00,"optionLabel":"QA옵션"}]
+검증 포인트:
+  - id 필드 부재 O (계약 준수 — MaterialPriceResponse DTO 에 id 미포함)
+  - computedFormula 필드 부재 O (DTO 미노출 — 내부 전용 필드)
+  - price BigDecimal 숫자 JSON 직렬화 O
+
+[권한 DB 현황 참고]
+group_page_permissions 기준:
+  기사 (00000000-0000-0000-0000-000000000107)  products.list can_view=FALSE
+  배차담당자 (00000000-0000-0000-0000-000000000106) products.list can_view=FALSE
+  사원 (00000000-0000-0000-0000-000000000108) products.list can_view=FALSE
+  → 해당 그룹에 배속된 dev_ 시드 계정 없음 → 실 HTTP 403 deny 별도 시드 불가
+  → IT WebMvcTest mock deny 케이스로 대체 실증
+
+===========================================================
+[게이트웨이 라우팅 실증]
+product-lookups-v1 no-strip 라우트 경유 확인:
+  요청 경로: localhost:8080/api/v1/material-prices (게이트웨이 포트)
+  product-service 내부: /api/v1/material-prices (no-strip → 경로 그대로 전달)
+  HTTP 200 수신 → 라우팅 + StripPrefix 없음 계약 실증
+
+===========================================================
+[결함]
+없음
+
+[전체 판정]
+PASS — 10/10 케이스 기대 일치. defect 없음.
+
+빈 배열 계약, 라우팅, 인가, 400 enum 검증, DTO 필드 은닉 모두 실증 완료.
+===========================================================
