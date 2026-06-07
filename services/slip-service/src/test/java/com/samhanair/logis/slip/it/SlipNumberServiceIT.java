@@ -8,7 +8,15 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -30,8 +38,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
  *   <li>{@code SlipNumberService.extractSeqNo(String): int} — 채번 결과 trailing 순번 파싱.</li>
  * </ul>
  *
- * <p>본 IT 는 atomic 채번 + 일자별 독립 시퀀스만 검증한다. 동시성 충돌 (race) 검증은 unit test
- * (트랜잭션 isolation 시뮬레이션이 IT 보다 단위 테스트가 단순).
+ * <p>D-LOAD-02 이후 동시 채번 race 도 실제 PostgreSQL row lock 으로 검증한다. 기존 순차 IT 는
+ * 같은 스레드에서만 호출해 {@code ux_slips_slip_type_no_active} 중복으로 이어지는 부하 경합을
+ * 잡지 못했다.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 class SlipNumberServiceIT extends AbstractPostgresIT {
@@ -100,5 +109,47 @@ class SlipNumberServiceIT extends AbstractPostgresIT {
         assertThat(inbound1).isEqualTo("2026/05/07-1");
         assertThat(outbound2).isEqualTo("2026/05/07-2");
         assertThat(inbound2).isEqualTo("2026/05/07-2");
+    }
+
+    @Test
+    void next_sameDateParallelCreation_returnsUniqueNumbersForEveryCaller() throws Exception {
+        // D-LOAD-02: 기존 테스트는 순차 호출만 검증해 같은 날짜 동시 생성 시 같은 lastSeq 를 읽는
+        // 경합을 놓쳤다. 실제 부하의 실패 지점은 slip INSERT 이지만 근본 원인은 채번 서비스의
+        // 번호 중복 산출이므로, 같은 날짜 OUTBOUND 병렬 N 호출의 전수 성공 + slipNo 유일성을 검증한다.
+        LocalDate date = LocalDate.of(2026, 6, 8);
+        int workers = 8;
+        ExecutorService executor = Executors.newFixedThreadPool(workers);
+        CountDownLatch ready = new CountDownLatch(workers);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Callable<String>> tasks = new ArrayList<>();
+        for (int i = 0; i < workers; i++) {
+            tasks.add(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("동시 채번 시작 latch timeout");
+                }
+                return slipNumberService.next(date, SlipType.OUTBOUND);
+            });
+        }
+
+        try {
+            List<Future<String>> futures = tasks.stream()
+                    .map(executor::submit)
+                    .toList();
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            List<String> slipNos = new ArrayList<>();
+            for (Future<String> future : futures) {
+                slipNos.add(future.get(10, TimeUnit.SECONDS));
+            }
+
+            assertThat(slipNos).hasSize(workers);
+            assertThat(slipNos).doesNotHaveDuplicates();
+            assertThat(slipNos.stream().map(slipNumberService::extractSeqNo).sorted().toList())
+                    .containsExactly(1, 2, 3, 4, 5, 6, 7, 8);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }

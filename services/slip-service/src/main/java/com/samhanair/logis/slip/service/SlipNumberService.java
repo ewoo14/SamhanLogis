@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipNumberSequenceRepository;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -48,10 +49,27 @@ public class SlipNumberService {
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public String next(LocalDate slipDate, SlipType slipType) {
-        SlipNumberSequence seq = sequenceRepository.findBySlipDateAndSlipType(slipDate, slipType)
-                .orElseGet(() -> sequenceRepository.save(SlipNumberSequence.create(slipDate, slipType)));
+        SlipNumberSequence seq = loadOrCreateLockedSequence(slipDate, slipType);
         int seqNo = seq.next();
         return slipDate.format(DATE_FMT) + "-" + seqNo;
+    }
+
+    /**
+     * 날짜 + 전표 유형별 채번 row 를 배타 잠금으로 확보한다.
+     *
+     * <p>기존 구현은 row 조회 후 같은 lastSeq 를 여러 트랜잭션이 동시에 증가시킬 수 있어 실제
+     * 슬립 INSERT 시 {@code ux_slips_slip_type_no_active} 중복으로 500 이 발생했다. 기존 DB
+     * 보조 테이블을 그대로 사용하되 row-level lock 으로 채번 자체를 직렬화한다. 최초 row 생성
+     * 경합은 {@code INSERT ... ON CONFLICT DO NOTHING} 으로 예외 없이 수렴시킨 뒤 잠금 조회한다.
+     *
+     * @param slipDate 채번 기준 날짜
+     * @param slipType 판매/구매 전표 유형
+     * @return 잠금이 확보된 채번 row
+     */
+    private SlipNumberSequence loadOrCreateLockedSequence(LocalDate slipDate, SlipType slipType) {
+        sequenceRepository.insertIfAbsent(UUID.randomUUID(), slipDate, slipType.name());
+        return sequenceRepository.findLockedBySlipDateAndSlipType(slipDate, slipType)
+                .orElseThrow(() -> new IllegalStateException("전표번호 시퀀스 생성 실패"));
     }
 
     /**

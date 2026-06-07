@@ -249,16 +249,16 @@ export function setup() {
 }
 
 function dashboardCount(session) {
-  // page-code: sales.slip.list (역할 grant 근거: V7 SALES/MANAGER/ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: sales.slip.list (역할 grant 근거: V7 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
   return request(session, 'GET', '/api/v1/slips?page=0&size=1&slipType=OUTBOUND', null, 'GET /api/v1/slips size=1').body;
 }
 
 function readSlipListAndDetail(session) {
-  // page-code: sales.slip.list (역할 grant 근거: V7 SALES/MANAGER/ACCOUNTANT VIEW, V9 WAREHOUSE FALSE 보정)
+  // page-code: sales.slip.list (역할 grant 근거: V7 SALES/MANAGER VIEW, V9 WAREHOUSE FALSE 보정)
   const body = request(session, 'GET', '/api/v1/slips?page=0&size=5&slipType=OUTBOUND', null, 'GET /api/v1/slips').body;
   const row = pick(rowsOf(body));
   if (row && row.id) {
-    // page-code: sales.slip.list (역할 grant 근거: SlipController 상세는 slipType guard + V7 SALES/MANAGER/ACCOUNTANT VIEW)
+    // page-code: sales.slip.list (역할 grant 근거: SlipController 상세는 slipType guard + V7 SALES/MANAGER VIEW)
     request(session, 'GET', `/api/v1/slips/${encodeURIComponent(row.id)}`, null, 'GET /api/v1/slips/{id}');
   }
 }
@@ -476,8 +476,6 @@ function readFlow(session, data) {
   }
   if (session.role === 'accountant') {
     readAccounting(session);
-    // page-code: sales.slip.list (역할 grant 근거: V7 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
-    request(session, 'GET', '/api/v1/slips?page=0&size=5', null, 'GET /api/v1/slips');
     return;
   }
   readManager(session);
