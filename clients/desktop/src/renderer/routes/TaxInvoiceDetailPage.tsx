@@ -631,6 +631,7 @@ export function TaxInvoiceDetailPage() {
         <div
           className="error-banner"
           role="alert"
+          data-testid="tax-invoice-detail-top-error"
           style={{ marginTop: 16, padding: 12, color: '#DC2626' }}
         >
           {topError}
