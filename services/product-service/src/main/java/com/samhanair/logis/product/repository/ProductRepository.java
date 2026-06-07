@@ -34,6 +34,29 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
      */
     Optional<Product> findByModelNameAndIsDeletedFalse(String modelName);
 
+    /**
+     * 카탈로그 화면 노출 식별자 기준 단건 조회.
+     *
+     * <p>카탈로그 응답의 {@code modelCode} 는 사용자 화면 UUID 비공개 원칙상 비즈니스
+     * 식별자만 노출한다. 이카운트 원천에서는 품목코드({@code model_code})와
+     * 품목명/모델명({@code model_name})이 별도 신원이며, 기존 실데이터는
+     * {@code model_code} 가 비어 있고 {@code model_name} 만 채워진 행이 존재한다.
+     * 따라서 응답 fallback 규칙({@code model_code ?? model_name})과 mutation path
+     * 조회가 왕복 정합을 갖도록 {@code model_code} 정확 매칭 실패 시
+     * {@code model_name} 정확 매칭으로 fallback 한다.
+     *
+     * @param exposedModelCode 카탈로그 응답의 {@code modelCode} 값
+     * @return 삭제되지 않은 제품. 없으면 {@link Optional#empty()}
+     */
+    default Optional<Product> findByCatalogExposedModelCodeAndIsDeletedFalse(String exposedModelCode) {
+        if (exposedModelCode == null || exposedModelCode.isBlank()) {
+            return Optional.empty();
+        }
+        String normalized = exposedModelCode.trim();
+        return findByModelCodeAndIsDeletedFalse(normalized)
+                .or(() -> findByModelNameAndIsDeletedFalse(normalized));
+    }
+
     List<Product> findByNameAndIsDeletedFalse(String name);
 
     List<Product> findAllByIdIn(Collection<UUID> ids);

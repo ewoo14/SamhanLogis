@@ -3,6 +3,7 @@ package com.samhanair.logis.product.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -52,6 +53,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
+    }
+
+    /**
+     * JPA 단건 조회 실패를 404 로 매핑한다.
+     *
+     * <p>카탈로그 mutation/spec CRUD 는 사용자 노출 식별자(modelCode 또는 modelName fallback)
+     * 로 제품을 조회한다. 완전 미존재 식별자는 서버 오류가 아니라 리소스 부재다.
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEntityNotFound(EntityNotFoundException ex) {
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.NOT_FOUND, ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

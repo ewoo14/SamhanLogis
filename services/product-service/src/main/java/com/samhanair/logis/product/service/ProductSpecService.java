@@ -42,7 +42,14 @@ public class ProductSpecService {
         this.templateRepository = templateRepository;
     }
 
-    /** GET /api/v1/products/{code}/specs — displayOrder 정렬. */
+    /**
+     * GET /api/v1/products/{code}/specs — displayOrder 정렬.
+     *
+     * <p>{@code code} 는 카탈로그 응답의 사용자 노출 식별자다. 이카운트 원천에서는
+     * 품목코드({@code model_code})와 품목명/모델명({@code model_name})이 별도이며,
+     * {@code model_code} 가 비어 있으면 응답 {@code modelCode} 가 {@code model_name}
+     * 으로 fallback 된다. spec mutation 도 같은 fallback 조회로 왕복 정합을 유지한다.
+     */
     @Transactional(readOnly = true)
     public List<ProductSpec> listByModelCode(String modelCode) {
         Product p = findProductOrThrow(modelCode);
@@ -138,7 +145,7 @@ public class ProductSpecService {
     }
 
     private Product findProductOrThrow(String modelCode) {
-        return productRepository.findByModelCodeAndIsDeletedFalse(modelCode)
+        return productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(modelCode)
                 .orElseThrow(() -> new EntityNotFoundException("ProductMaster 없음 (modelCode=" + modelCode + ")"));
     }
 

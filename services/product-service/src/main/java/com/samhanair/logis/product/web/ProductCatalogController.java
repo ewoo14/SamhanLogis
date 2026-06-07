@@ -40,6 +40,9 @@ import org.springframework.web.bind.annotation.RestController;
  * Phase 6 M1a 카탈로그 endpoint — 9 endpoint (Migration Plan §2.1.7).
  *
  * <p>모든 응답은 {@code modelCode} 기반 (UUID 비공개 — feedback_uuid_no_user_visibility.md).
+ * 이 값은 이카운트 품목 신원 규칙상 {@code product.modelCode} 가 비어 있으면
+ * {@code product.modelName} 으로 fallback 한 사용자 노출 식별자이며, mutation path 도
+ * 동일 fallback 조회 규칙으로 왕복 정합을 보장한다.
  * 조회는 {@code products.list} VIEW, 운영 변경은 {@code products.admin} CREATE/UPDATE/DELETE
  * 권한을 {@code @RequirePermission} AOP 로 검증한다.
  *
@@ -92,7 +95,7 @@ public class ProductCatalogController {
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ProductCatalogResponse changeUsage(@PathVariable @NotBlank String modelCode,
                                               @Valid @RequestBody UsageChangeRequest req) {
-        Product p = productRepository.findByModelCodeAndIsDeletedFalse(modelCode)
+        Product p = productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(modelCode)
                 .orElseThrow(() -> new EntityNotFoundException("Product 없음: " + modelCode));
         p.changeUsage(req.usageScope(), req.estimateCategory());
         productRepository.save(p);
