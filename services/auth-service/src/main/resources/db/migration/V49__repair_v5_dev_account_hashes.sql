@@ -14,6 +14,7 @@
 -- 이중 가드:
 --   1) V5 고정 UUID 9건만 대상으로 제한한다.
 --   2) 기존 결함 해시가 그대로 남아 있는 행만 갱신한다.
+-- dev_disabled(id 009, is_deleted=TRUE)는 @SQLRestriction 으로 로그인 해시 검증 미도달이라 방어적 포함이다.
 -- 운영자가 수동 변경한 비밀번호는 덮어쓰지 않으며, 재실행 시 0 row 갱신되는 멱등 migration 이다.
 -- password_change_required 등 정책 컬럼은 변경하지 않는다.
 
