@@ -1,0 +1,56 @@
+PR #420 QA — T1 라우팅 교정 실측 증빙
+테스트 일시: 2026-06-07 16:49 KST
+환경: 게이트웨이 localhost:8080 경유 실 HTTP (curl)
+
+=== 요청 ===
+GET http://localhost:8080/api/v1/products?size=3
+Authorization: Bearer (dev_master token)
+라우트: product-catalog-v1 (Path=/api/v1/products, no StripPrefix)
+
+=== 응답 ===
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "content": [
+    {
+      "modelCode": "AR05TXEAAWKNEU-01",
+      "name": "삼성 윈드프리 5평형",
+      "usageScope": "BOTH",
+      "estimateCategory": null,
+      "releasePrice": 600000.00,
+      "deliveryPrice": 500000.00,
+      "hasVariableDiscount": false,
+      "legacyDiscountFlag": false,
+      "discountFlags": "000000"
+    },
+    {
+      "modelCode": "AR06TXEAAWKNEU-02",
+      "name": "삼성 윈드프리 6평형",
+      "usageScope": "BOTH",
+      ...
+    },
+    {
+      "modelCode": "AR07TXEAAWKNEU-03",
+      "name": "삼성 윈드프리 7평형",
+      "usageScope": "BOTH",
+      ...
+    }
+  ],
+  "pageable": {"pageNumber": 0, "pageSize": 3, ...},
+  "totalElements": 100,
+  "totalPages": 34,
+  "last": false,
+  "first": true,
+  "numberOfElements": 3,
+  "size": 3,
+  "number": 0,
+  "empty": false
+}
+
+=== 판정 ===
+PASS
+- Spring Page shape (content[], totalElements, totalPages, pageable) 확인
+- product-catalog-v1 라우트(no-strip)로 ProductCatalogController.listProducts() 정상 진입
+- 종전 product-service-v1(StripPrefix=2) 오매칭으로 인한 응답 형태 불일치 해소 실증
+- totalElements=100, content[0].modelCode=AR05TXEAAWKNEU-01 확인

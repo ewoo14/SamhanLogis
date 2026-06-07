@@ -1,0 +1,49 @@
+=== T6 재실측: MANAGER POST spec(201) → DELETE(204) → deleted_by=UUID psql 실증 ===
+테스트 일시: 2026-06-07 18:02 KST
+
+MANAGER userId: a0000000-0000-0000-0000-000000000003
+
+POST: PATCH http://localhost:8080/api/v1/products/AR05TXEAAWKNEU-01/specs
+  Body: {"specKey":"QA-verify-key","specValue":"1","unit":null,"displayOrder":99}
+HTTP Status: 201
+Response: {"id":"6bdf7f47-1060-4134-a0da-68e61c885a4b","specKey":"QA-verify-key","specValue":"1","unit":null,"displayOrder":99}
+
+DELETE: DELETE http://localhost:8080/api/v1/products/AR05TXEAAWKNEU-01/specs/6bdf7f47-1060-4134-a0da-68e61c885a4b
+HTTP Status: 204 (빈 바디)
+
+psql 실증 — product_db.product_spec 테이블:
+  id                  |   spec_key    | is_deleted |              deleted_by              |        deleted_at         
+--------------------------------------+---------------+------------+--------------------------------------+---------------------------
+ 6bdf7f47-1060-4134-a0da-68e61c885a4b | QA-verify-key | t          | a0000000-0000-0000-0000-000000000003 | 2026-06-07 09:02:12.35595
+
+deleted_by = 'a0000000-0000-0000-0000-000000000003' = dev_manager UUID
+X-User-Id actor 교정 실증 완료 (fix 전 "system" 하드코딩 → 실 호출자 UUID)
+QA row soft-delete 상태로 유지 (is_deleted=true, DB 원복 불필요)
+
+결과: PASS (201 → 204 → deleted_by=MANAGER UUID)
+
+=== T2 재실측 (D-PCR-02 우회 — psql 임시 revoke) ===
+account_page_permissions 행 ID: d6866f01-9079-49c9-a9de-80417e5ec533
+변경 전: can_view=true
+
+UPDATE can_view=false 후:
+GET http://localhost:8080/api/v1/products?size=1 (dev_sales 토큰)
+HTTP Status: 403
+Response: {"success":false,"code":"FORBIDDEN","message":"[SP-PO-1] 동적 권한 deny — page=products.list action=VIEW role=UNKNOWN reason=account permission missing","data":null}
+
+결과: PASS (@RequirePermission products.list VIEW deny 실증)
+
+=== T7b 재실측 (D-PCR-02 우회 — 동일 revoke 상태) ===
+GET http://localhost:8080/api/products/categories (dev_sales 토큰, revoke 상태)
+HTTP Status: 403
+Response: {"success":false,"code":"FORBIDDEN","message":"[SP-PO-1] 동적 권한 deny — page=products.list action=VIEW role=UNKNOWN reason=account permission missing","data":null}
+
+결과: PASS (CategoryController @RequirePermission deny 실증)
+
+=== 원복 실증 ===
+UPDATE can_view=true 복원:
+  id: d6866f01-9079-49c9-a9de-80417e5ec533 | products.list | can_view=true (1 row)
+
+원복 후 200 재확인:
+GET /api/v1/products?size=1 → HTTP 200, totalElements=100
+DB 상태: 원복 완료

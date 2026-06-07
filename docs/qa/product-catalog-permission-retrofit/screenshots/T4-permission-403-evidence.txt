@@ -1,0 +1,31 @@
+PR #420 QA — T4 @RequirePermission(products.admin UPDATE) 403 실측 증빙
+테스트 일시: 2026-06-07 16:49 KST
+환경: 게이트웨이 localhost:8080 경유 실 HTTP (curl)
+
+=== 요청 ===
+PATCH http://localhost:8080/api/v1/products/AR05TXEAAWKNEU-01/usage
+Authorization: Bearer (dev_warehouse token — 창고원 그룹, products.admin can_view=false)
+Content-Type: application/json
+Body: {"usageScope":"ESTIMATE","estimateCategory":"OTHER"}
+라우트: product-usage-v1 (Path=/api/v1/products/*/usage, no StripPrefix)
+
+=== 응답 ===
+HTTP/1.1 403 Forbidden
+
+{
+    "success": false,
+    "code": "FORBIDDEN",
+    "message": "[SP-PO-1] 동적 권한 deny — page=products.admin action=UPDATE role=UNKNOWN reason=account permission missing",
+    "data": null,
+    "timestamp": "2026-06-07T07:49:01.950366050Z"
+}
+
+=== 판정 ===
+PASS
+- product-usage-v1 라우트(no-strip)로 ProductCatalogController.changeUsage() 진입
+- @RequirePermission(page="products.admin", action=PermissionAction.UPDATE) AOP 동작 확인
+- 창고원(products.admin can_view=false) 403 FORBIDDEN 반환
+- 메시지에 page=products.admin, action=UPDATE 명시 확인
+
+=== auth_db 권한 매트릭스 (실 조회) ===
+창고원 그룹: products.admin can_view=false, can_create=false, can_update=false, can_delete=false

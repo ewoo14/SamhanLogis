@@ -198,6 +198,8 @@ class ProductPermissionControllerIT {
         lenient().when(productService.replaceTags(any(), any())).thenReturn(response);
         lenient().when(productRepository.findByModelCodeAndIsDeletedFalse(anyString()))
                 .thenReturn(Optional.of(byCodeProduct));
+        lenient().when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(anyString()))
+                .thenReturn(Optional.of(byCodeProduct));
         lenient().when(productRepository.searchByUsageScope(any(), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(byCodeProduct), PageRequest.of(0, 20), 1));
         lenient().when(productSpecService.listByModelCode(anyString())).thenReturn(List.of(productSpec));

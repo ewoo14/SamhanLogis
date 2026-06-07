@@ -52,10 +52,20 @@ PR #418(RC9 lookup) 진행 중 `ProductCatalogController` 기존 GET 무권한 �
 | 항목 | 결과 |
 |---|---|
 | product-service compileJava/compileTestJava + api-gateway compileJava | PASS |
-| 신규 계약 spec (5 project × 4 TC) | 20/20 PASS |
+| 신규 계약 spec (5 project × 4+7 TC) | PASS (hard-gate 스텝으로 CI 승격) |
 | desktop `npm run typecheck` | PASS |
-| desktop 전체 mock suite | (PR 갱신 — 실행 결과 기록) |
+| desktop 전체 mock suite | 434/434 PASS (1차) · 433+1 FS 플레이크 재실행 green (2차, mock 가드 추가 후) |
 | qa/playwright signature-c 6건 실패 | **본 변경 무관 확정** — main 베이스라인 동일 실패 (crypto.subtle insecure context 로컬 환경 한계). CI Linux 권위 |
+| **QA Docker 실서버 매트릭스 (게이트웨이 경유 실 HTTP)** | **12/12 PASS** — 라우팅 교정 실증(T1 Page shape·T3 종전404→200·T3b 404)·역할 매트릭스 200/403·deleted_by=UUID psql 실증·403 deny 는 psql 임시 revoke→실증→원복. 증빙 `docs/qa/product-catalog-permission-retrofit/` |
+
+### 3.1 dual review 사이클 요약
+- **1a Claude 5-agent**: BE APPROVE · FE/Designer/DevOps 8건 적발(CI 적발 C-0 포함) → 전건 fix. 기각 2건 근거 박제(envelope(null) 원칙·트레일링 슬래시 matchTrailingSlash=true).
+- **1b Codex 5-section**: APPROVE — 신규 0. 트레일링 슬래시 기각 동의(gateway 4.1.5 소스 확인).
+- **2a fix delta 재검증**: 신규 0 — 수렴.
+- **QA Docker 가 dual review 미적발 P1 단독 적발**: D-PCR-01 식별자 단절(아래) — 실서버 QA 의 가치 재입증.
+
+### 3.2 D-PCR-01 (P1, QA 실서버 적발) — 카탈로그 식별자 단절
+실DB products 100건 전부 `model_code=NULL` → GET 의 modelCode 필드는 model_name fallback 인데 mutation 조회는 model_code 만 검색 → GET 식별자로 PATCH 시 500. **라우팅 교정으로 처음 도달 가능해지며 노출된 잠복 결함**. fix: `findByCatalogExposedModelCodeAndIsDeletedFalse` (model_code→model_name fallback, 응답 규칙과 왕복 정합) + EntityNotFoundException→404 + model_code NULL 재현 IT. 재실측 T3/T5a/T6 전부 PASS 전환.
 
 ## 4. 구현 주체
 
@@ -63,4 +73,5 @@ Codex(MCP `mcp__codex__codex`, workspace-write, reasoning high) 구현 + Claude 
 
 ## 5. 잔여 / 후속
 
-- (없음 예정 — dual review 사이클 결과로 갱신)
+- **D-PCR-02 (P2, 비차단)**: products.list 무권한 dev 계정(기사/사원/배차담당자) V5 seed 부재 — 403 deny 실QA 는 본 PR 에서 psql 임시 revoke→실증→원복으로 충족. dev 계정 seed 추가는 별도 슬라이스 후보.
+- lookup 3종 시드 슬라이스(자재 28·ODU 24행) — #418 부터 이월, workbook.json 원천 시드 방식 개발책임자 결정 대기.

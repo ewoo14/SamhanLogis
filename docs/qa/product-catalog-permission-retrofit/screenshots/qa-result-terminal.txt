@@ -1,0 +1,54 @@
+===================================================================
+ PR #420 QA 실측 결과 — 2026-06-07 16:47:05
+===================================================================
+
+[T1] MASTER GET /api/v1/products?size=3 (라우팅 교정 실증)
+     예상: 200 Spring Page shape
+     HTTP:200
+     totalElements=100 content[0].modelCode=AR05TXEAAWKNEU-01
+     결과: PASS
+
+[T2] products.list VIEW 무권한 역할 403 실증
+     기사/사원/배차담당자 dev 계정 없음 → SKIP
+     (seed 결함 D-PCR-02)
+
+[T3] MANAGER PATCH /api/v1/products/AR05TXEAAWKNEU-01/usage
+     예상: 200 (종전 404 해소)
+     HTTP:500
+     
+     결과: FAIL — D-PCR-01 (model_code NULL, findByModelCode 조회 실패)
+
+[T4] WAREHOUSE(창고원) PATCH /usage (products.admin 무권한)
+     예상: 403
+     HTTP:403
+     결과: PASS — @RequirePermission(products.admin UPDATE) 동작 실증
+
+[T5a] SALES GET /api/v1/products/AR05TXEAAWKNEU-01/specs
+      예상: 200
+      HTTP:500
+      결과: FAIL — D-PCR-01 동일 원인
+
+[T5b] SALES GET /api/v1/spec-key-templates
+      예상: 200
+      HTTP:200 (53건)
+      결과: PASS
+
+[T6] MANAGER POST spec → DELETE → deleted_by=UUID 실증
+     D-PCR-01 동일 원인으로 실행 불가 → FAIL
+     (소스 설계 확인: callerHeader != null → markDeleted(userId))
+
+[T7a] SALES GET /api/products/categories
+      예상: 200
+      HTTP:200
+      결과: PASS
+
+[T8a] SALES GET /api/products?q=%EC%82%BC%EC%84%B1
+      HTTP:200
+      결과: PASS
+[T8b] SALES GET /api/v1/material-prices
+      HTTP:200
+      결과: PASS
+
+===================================================================
+ 요약: PASS 6 / FAIL 3(T3,T5a,T6 — D-PCR-01) / SKIP 2(T2,T7b)
+===================================================================

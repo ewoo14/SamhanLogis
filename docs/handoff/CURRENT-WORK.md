@@ -4,6 +4,17 @@
 
 ---
 
+## 🆕 2026-06-07 (저녁 — 최신) — **PR #420 ProductCatalog 권한 소급 + 풀패스 라우팅 교정** (진행 중 → 머지 시 갱신)
+
+> 핸드오프 재개 후보 ② 선택 (개발책임자 "권한 다 끝난 줄 알았는데" → 별건 비대칭 확인 후 진행). 권한코드 = PM 전권 자율.
+
+- **범위 확대**: 핸드오프 기재 GET 3건 → 정찰 결과 **무권한 endpoint 10건**(ProductCatalogController 9 — mutation 6 P1 + CategoryController.tree) + **게이트웨이 라우팅 결함 동반 발견**(/api/v1/products exact 가 strip 오매칭, usage PATCH 404 도달 불가) → @RequirePermission 10건 + no-strip 라우트 2건 + deleteSpec actor X-User-Id + mock/계약 spec + qa-e2e hard-gate.
+- **dual review**: 1a Claude 8건(전건 fix) → 1b Codex 신규 0 → 2a delta 재검증 신규 0 — 수렴. 기각 2건 근거 박제(envelope(null) mock 원칙·트레일링 슬래시 matchTrailingSlash=true).
+- **QA Docker 실서버가 P1 단독 적발**: D-PCR-01 식별자 단절(실DB model_code 전부 NULL ↔ mutation 조회 model_code 만) → model_name fallback + 404 fix → 재실측 **12/12 PASS** (403 deny 는 psql 임시 revoke 실증+원복).
+- 🧠 신규 메모리: [[feedback_pm_codex_progress_verification]](Codex 산출 즉시 검증+주기 보고) · [[feedback_pm_10min_status_report]](10분 주기 보고 의무, /loop 가동).
+
+---
+
 ## 🆕 2026-06-07 (오후 — 최신) — **PR #419 보상 P2 후속 일괄 머지** + 세션 종료 (다음 세션 재개 지점)
 
 > main `b0f630d1`. 오늘 세션 누계 **3 PR 머지** (#417 권한 C5 후속 / #418 RC9 lookup / #419 보상 P2) — 권한·RC9·P2 백로그 **3개 시리즈 종결**.
