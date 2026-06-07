@@ -460,6 +460,7 @@ public class PartnerOrder extends BaseEntity {
      * <p>추가로, slipNo 가 이미 있는 경우(confirm 흐름으로 발행 완료)도 전환 불가.
      * 이 가드가 CONFIRMED + slipNo=null (PENDING_RETRY 재시도 대기) 주문의
      * 이중발행을 원천 차단한다.
+     * FE 화이트리스트 방어에 의존하지 않도록 CONVERTED + slipNo=null 비정상 조합도 도메인에서 차단한다.
      *
      * @throws ResponseStatusException(409) 전환 불가 상태 또는 slipNo 이미 존재 시
      */
@@ -468,7 +469,9 @@ public class PartnerOrder extends BaseEntity {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "이미 출고전표가 발행된 주문은 전환할 수 없습니다. slipNo=" + this.slipNo);
         }
-        if (this.status != PartnerOrderStatus.DRAFT && this.status != PartnerOrderStatus.ON_HOLD) {
+        boolean convertibleStatus = this.status == PartnerOrderStatus.DRAFT
+                || this.status == PartnerOrderStatus.ON_HOLD;
+        if (!convertibleStatus) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "출고전표로 전환 가능한 상태가 아닙니다(진행중/보류만 가능). 현재: " + this.status);
         }

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -603,6 +604,68 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES")
                         .header("X-User-Name", "영업담당자"))
                 .andExpect(status().isConflict());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 8b — CONVERTED + slipNo=null 비정상 조합 → 상태 가드 409
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * CONVERTED + slipNo=null 이면서 잔여수량이 남아 있는 비정상 DB 조합 전환 시도 → 409 CONFLICT.
+     * slipNo 단독 가드에 의존하면 publish 경로로 진입할 수 있으므로 상태 화이트리스트가 먼저 차단해야 한다.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스8b: CONVERTED+slipNo=null+잔여수량 있음 전환 시도 → 409 (상태 화이트리스트)")
+    void case8b_convertedOrderWithNullSlipNoAndRemainingQuantity_returns409BeforePublish() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        // 운영상 없어야 하는 조합이지만, 방어 회귀를 위해 DB 직접 INSERT 로 재현한다.
+        jdbcTemplate.update("""
+                INSERT INTO partner_orders
+                  (id, partner_code, biz_code, order_no, slip_no, status,
+                   slip_publish_status, total_amount, confirmed_at, slip_published_at,
+                   due_date, memo, source_estimate_id, revision_count,
+                   idempotency_key, lock_version,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, 'P-CONV-008B', '8888888880', '2026/05/30-CONV-8B', NULL, 'CONVERTED',
+                   'NOT_REQUIRED', 0, NULL, NULL,
+                   NULL, NULL, NULL, 0,
+                   ?, 0,
+                   NOW(), 'test', NOW(), 'test',
+                   FALSE, NULL, NULL)
+                """, orderId, "idem-conv-2026/05/30-CONV-8B");
+
+        jdbcTemplate.update("""
+                INSERT INTO partner_order_lines
+                  (id, partner_order_id, product_id, model_name, product_name,
+                   category_key, quantity, price_vat, subtotal, remark,
+                   converted_quantity,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, ?, ?, 'MODEL-X', '상품X', 'homemulti', 5, 50000, 250000, NULL, 0,
+                   NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL)
+                """, lineId, orderId, UUID.randomUUID());
+
+        String body = """
+                {
+                  "items": [{"orderLineId": "%s", "quantity": 1}],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/convert-to-slip", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isConflict());
+
+        verifyNoInteractions(slipServiceClient);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
