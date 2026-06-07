@@ -184,11 +184,12 @@ auth_db 권한 행: can_view=true 원복 완료
 | screenshots/T3-200-fix-evidence.png | T3 200/원복/T3b 404/T5a 200 실측 터미널 창 | 실 캡처 (터미널 창 캡처) |
 | screenshots/T3-T3b-fix-evidence.txt | T3/T3b/T5a 상세 텍스트 | 실 증빙 |
 | screenshots/T6-T2-T7b-evidence.txt | T6 psql/T2 403/T7b 403 상세 텍스트 | 실 증빙 |
-| screenshots/T2-403-deny-evidence.png | T2 403 캡처 시도 | **캡처 불가** — Netflix Whale 브라우저 풀스크린이 화면 전체를 덮어 실 터미널 캡처 실패. 스크린샷은 검은 화면. 텍스트 증빙(T6-T2-T7b-evidence.txt)으로 대체. |
 | screenshots/T1-routing-evidence.txt | T1 라우팅 200 상세 | 1차 실 증빙 |
 | screenshots/T4-permission-403-evidence.txt | T4 창고원 403 상세 | 1차 실 증빙 |
 
-**PNG 유효 파일**: T3-200-fix-evidence.png (260KB, 실 터미널 캡처 확인), T1-T8-qa-matrix.png (1차)
+**PNG 유효 파일**: T3-200-fix-evidence.png (260KB, 실 터미널 캡처 — PM 육안 검증 완료) 1장.
+
+> ⚠️ **무효 캡처 2장 삭제 박제** (PM 검증): `T2-403-deny-evidence.png`(블랙 스크린)·`T1-T8-qa-matrix.png`(캡처 시점 사용자 미디어 화면이 찍힘 — QA 내용 0) 은 [[feedback_no_fake_data_ever]] 에 따라 증빙 부적격으로 **repo 에서 제거**. T2/T7b 403 deny·T6 deleted_by 실측은 터미널 원문 텍스트 증빙(T6-T2-T7b-evidence.txt)으로 정직 보관 — 실측 자체는 수행 완료(403 응답 본문 박제). 캡처 불가 사유: 캡처 시점 화면이 다른 전체화면 앱에 점유됨.
 
 ## 11. 라우팅 설정 실증 요약
 
