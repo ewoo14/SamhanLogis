@@ -56,6 +56,13 @@ samhan:
       enabled: ${SAMHAN_COMPENSATION_RETENTION_ENABLED:false}
       cron: ${SAMHAN_COMPENSATION_RETENTION_CRON:0 30 3 * * *}
       retention-days: ${SAMHAN_COMPENSATION_RETENTION_DAYS:90}
+    purge:
+      # D-SER-28 — retention soft-delete 후 grace 경과 행만 물리 삭제. 기본 비활성.
+      enabled: ${SAMHAN_COMPENSATION_PURGE_ENABLED:false}
+      cron: ${SAMHAN_COMPENSATION_PURGE_CRON:0 0 4 * * *}
+      zone: ${SAMHAN_COMPENSATION_PURGE_ZONE:Asia/Seoul}
+      grace-days: ${SAMHAN_COMPENSATION_PURGE_GRACE_DAYS:30}
+      batch-size: ${SAMHAN_COMPENSATION_PURGE_BATCH_SIZE:500}
     alert:
       # D-SER-26 — 보상 실패 운영 알림 푸시. 기본 비활성, 운영에서 enabled=true + recipient 지정 시 발송.
       enabled: ${SAMHAN_COMPENSATION_ALERT_ENABLED:false}
