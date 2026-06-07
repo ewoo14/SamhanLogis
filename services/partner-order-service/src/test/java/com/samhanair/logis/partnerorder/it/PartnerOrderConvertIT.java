@@ -666,6 +666,7 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
                 .andExpect(status().isConflict());
 
         verifyNoInteractions(slipServiceClient);
+        verifyNoInteractions(inventoryClient);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -727,6 +728,8 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES")
                         .header("X-User-Name", "영업담당자"))
                 .andExpect(status().isConflict());
+
+        verifyNoInteractions(slipServiceClient, inventoryClient);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
