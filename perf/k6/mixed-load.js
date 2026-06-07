@@ -112,6 +112,12 @@ function rowsOf(value) {
   return [];
 }
 
+// clients/desktop/src/renderer/utils/orderNo.ts 의 toOrderPathId 와 같은 근거:
+// 표준 주문번호는 슬래시를 유지하되, 게이트웨이가 경로의 %2F 를 차단하므로 URL path-id 에서만 하이픈으로 치환한다.
+function toOrderPathId(orderNumber) {
+  return orderNumber.replace(/\//g, '-');
+}
+
 function pick(list) {
   if (!list || list.length === 0) {
     return null;
@@ -222,13 +228,13 @@ function ensureSession() {
 
 function bootstrap() {
   const manager = login('dev_manager');
-  // page-code: products.list (役割 grant 근거: V10 MANAGER VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: products.list (역할 grant 근거: V10 MANAGER VIEW + V39/V43/V44 실권한 materialize)
   const products = rowsOf(request(manager, 'GET', '/api/products?page=0&size=20', null, 'GET /api/products').body)
     .filter((p) => p.id && p.sellingPrice !== undefined);
-  // page-code: partners.search (役割 grant 근거: V34 MANAGER VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: partners.search (역할 grant 근거: V34 MANAGER VIEW + V39/V43/V44 실권한 materialize)
   const partners = rowsOf(request(manager, 'GET', '/admin/partners/search?page=0&size=20', null, 'GET /admin/partners/search').body)
     .filter((p) => p.partnerCode && p.bizNo);
-  // page-code: inventory.warehouse (役割 grant 근거: V10 MANAGER VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: inventory.warehouse (역할 grant 근거: V10 MANAGER VIEW + V39/V43/V44 실권한 materialize)
   const warehouses = rowsOf(request(manager, 'GET', '/api/v1/inventory/warehouses', null, 'GET /api/v1/inventory/warehouses').body)
     .filter((w) => w.id && w.code);
 
@@ -243,16 +249,16 @@ export function setup() {
 }
 
 function dashboardCount(session) {
-  // page-code: sales.slip.list (役割 grant 근거: V7 SALES/MANAGER/ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: sales.slip.list (역할 grant 근거: V7 SALES/MANAGER/ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
   return request(session, 'GET', '/api/v1/slips?page=0&size=1&slipType=OUTBOUND', null, 'GET /api/v1/slips size=1').body;
 }
 
 function readSlipListAndDetail(session) {
-  // page-code: sales.slip.list (役割 grant 근거: V7 SALES/MANAGER/ACCOUNTANT VIEW, V9 WAREHOUSE FALSE 보정)
+  // page-code: sales.slip.list (역할 grant 근거: V7 SALES/MANAGER/ACCOUNTANT VIEW, V9 WAREHOUSE FALSE 보정)
   const body = request(session, 'GET', '/api/v1/slips?page=0&size=5&slipType=OUTBOUND', null, 'GET /api/v1/slips').body;
   const row = pick(rowsOf(body));
   if (row && row.id) {
-    // page-code: sales.slip.list (役割 grant 근거: SlipController 상세는 slipType guard + V7 SALES/MANAGER/ACCOUNTANT VIEW)
+    // page-code: sales.slip.list (역할 grant 근거: SlipController 상세는 slipType guard + V7 SALES/MANAGER/ACCOUNTANT VIEW)
     request(session, 'GET', `/api/v1/slips/${encodeURIComponent(row.id)}`, null, 'GET /api/v1/slips/{id}');
   }
 }
@@ -262,7 +268,7 @@ function readInventoryBatch(session, data) {
   if (!product) {
     return;
   }
-  // page-code: inventory.list (役割 grant 근거: V35 SALES/MANAGER/ACCOUNTANT/WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: inventory.list (역할 grant 근거: V35 SALES/MANAGER/ACCOUNTANT/WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'POST', '/api/v1/inventory/balances/batch', { productIds: [product.id] }, 'POST /api/v1/inventory/balances/batch');
 }
 
@@ -271,46 +277,47 @@ function readInventoryStockDetails(session, data) {
   if (!product) {
     return;
   }
-  // page-code: inventory.list (役割 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: inventory.list (역할 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'POST', '/api/v1/inventory/balances/batch', { productIds: [product.id] }, 'POST /api/v1/inventory/balances/batch');
-  // page-code: inventory.stock-balance (役割 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: inventory.stock-balance (역할 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'GET', `/api/v1/inventory/balances?productId=${encodeURIComponent(product.id)}&page=0&size=5`, null, 'GET /api/v1/inventory/balances');
-  // page-code: inventory.stock-balance (役割 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: inventory.stock-balance (역할 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'GET', `/api/v1/inventory/lots?productId=${encodeURIComponent(product.id)}&page=0&size=5`, null, 'GET /api/v1/inventory/lots');
 }
 
 function readPartnerAndOrders(session) {
-  // page-code: partners.search (役割 grant 근거: V34 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: partners.search (역할 grant 근거: V34 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
   const partners = rowsOf(request(session, 'GET', '/admin/partners/search?page=0&size=5', null, 'GET /admin/partners/search').body);
   const partner = pick(partners);
-  // page-code: sales.partner-order.list (役割 grant 근거: V10 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: sales.partner-order.list (역할 grant 근거: V10 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
   const orderBody = request(session, 'GET', '/api/v1/partner-orders?page=0&size=5', null, 'GET /api/v1/partner-orders').body;
   const order = pick(rowsOf(orderBody));
   if (order && order.orderNumber) {
-    // page-code: sales.partner-order.list (役割 grant 근거: V10 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
-    request(session, 'GET', `/api/v1/partner-orders/${encodeURIComponent(order.orderNumber)}`, null, 'GET /api/v1/partner-orders/{id}');
+    const orderPathId = toOrderPathId(order.orderNumber);
+    // page-code: sales.partner-order.list (역할 grant 근거: V10 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
+    request(session, 'GET', `/api/v1/partner-orders/${orderPathId}`, null, 'GET /api/v1/partner-orders/{id}');
   }
   if (partner && partner.partnerCode) {
-    // page-code: partners.detail (役割 grant 근거: V10 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
+    // page-code: partners.detail (역할 grant 근거: V10 SALES/MANAGER VIEW + V39/V43/V44 실권한 materialize)
     request(session, 'GET', `/admin/partners/${encodeURIComponent(partner.partnerCode)}`, null, 'GET /admin/partners/{partnerCode}');
   }
 }
 
 function readAccounting(session) {
-  // page-code: accounting.journals (役割 grant 근거: V8 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: accounting.journals (역할 grant 근거: V8 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'GET', '/api/v1/accounting/journals?page=0&size=5', null, 'GET /api/v1/accounting/journals');
-  // page-code: accounting.accounts (役割 grant 근거: V8 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: accounting.accounts (역할 grant 근거: V8 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'GET', '/api/v1/accounting/accounts', null, 'GET /api/v1/accounting/accounts');
-  // page-code: accounting.reports (役割 grant 근거: V8 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: accounting.reports (역할 grant 근거: V8 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'GET', '/api/v1/accounting/sales/aggregate?from=2026-05-01&to=2026-06-08', null, 'GET /api/v1/accounting/sales/aggregate');
 }
 
 function readManager(session) {
-  // page-code: n/a (役割 grant 근거: PermissionAdminController /my @PreAuthorize authenticated; V39 account_page_permissions 조회)
+  // page-code: n/a (역할 grant 근거: PermissionAdminController /my @PreAuthorize authenticated; V39 account_page_permissions 조회)
   request(session, 'GET', '/auth/admin/permissions/my', null, 'GET /auth/admin/permissions/my');
-  // page-code: partners.search (役割 grant 근거: V34 MANAGER VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: partners.search (역할 grant 근거: V34 MANAGER VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'GET', '/admin/partners/search?page=0&size=5', null, 'GET /admin/partners/search');
-  // page-code: products.list (役割 grant 근거: V10 MANAGER VIEW + V39/V43/V44 실권한 materialize)
+  // page-code: products.list (역할 grant 근거: V10 MANAGER VIEW + V39/V43/V44 실권한 materialize)
   request(session, 'GET', '/api/products?page=0&size=5', null, 'GET /api/products');
 }
 
@@ -322,7 +329,7 @@ function createPartnerOrder(session, data) {
   }
   session.serial += 1;
   const marker = `LOADTEST-${__VU}-${session.serial}`;
-  // page-code: sales.partner-order.draft (役割 grant 근거: V10 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
+  // page-code: sales.partner-order.draft (역할 grant 근거: V10 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
   const draft = request(
     session,
     'POST',
@@ -338,7 +345,7 @@ function createPartnerOrder(session, data) {
   if (!draftId) {
     return;
   }
-  // page-code: sales.partner-order.confirm (役割 grant 근거: V10 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
+  // page-code: sales.partner-order.confirm (역할 grant 근거: V10 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
   const confirm = request(
     session,
     'POST',
@@ -358,10 +365,11 @@ function createPartnerOrder(session, data) {
   ).body;
   const orderNo = confirm && confirm.data && confirm.data.orderNo;
   if (orderNo) {
-    // page-code: sales.partner-order.edit (役割 grant 근거: V30 SALES/MANAGER UPDATE + V39/V43/V44 실권한 materialize)
-    request(session, 'POST', `/api/v1/partner-orders/${encodeURIComponent(orderNo)}/hold`, null, 'POST /api/v1/partner-orders/{id}/hold');
-    // page-code: sales.partner-order.edit (役割 grant 근거: V30 SALES/MANAGER UPDATE + V39/V43/V44 실권한 materialize)
-    request(session, 'POST', `/api/v1/partner-orders/${encodeURIComponent(orderNo)}/release`, null, 'POST /api/v1/partner-orders/{id}/release');
+    const orderPathId = toOrderPathId(orderNo);
+    // page-code: sales.partner-order.edit (역할 grant 근거: V30 SALES/MANAGER UPDATE + V39/V43/V44 실권한 materialize)
+    request(session, 'POST', `/api/v1/partner-orders/${orderPathId}/hold`, null, 'POST /api/v1/partner-orders/{id}/hold');
+    // page-code: sales.partner-order.edit (역할 grant 근거: V30 SALES/MANAGER UPDATE + V39/V43/V44 실권한 materialize)
+    request(session, 'POST', `/api/v1/partner-orders/${orderPathId}/release`, null, 'POST /api/v1/partner-orders/{id}/release');
   }
 }
 
@@ -373,7 +381,7 @@ function createEstimate(session, data) {
   }
   session.serial += 1;
   const marker = `LOADTEST-${__VU}-${session.serial}`;
-  // page-code: estimates.list (役割 grant 근거: V10 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
+  // page-code: estimates.list (역할 grant 근거: V10 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
   request(session, 'POST', '/api/v1/slips/estimates', {
     estimateDate: new Date().toISOString().slice(0, 10),
     partnerName: partner ? partner.name : 'LOADTEST 거래처',
@@ -403,7 +411,7 @@ function createSlipDraft(session, data) {
   }
   session.serial += 1;
   const marker = `LOADTEST-${__VU}-${session.serial}`;
-  // page-code: sales.slip.create (役割 grant 근거: V36 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
+  // page-code: sales.slip.create (역할 grant 근거: V36 SALES/MANAGER CREATE + V39/V43/V44 실권한 materialize)
   request(session, 'POST', '/api/v1/slips', {
     slipType: 'OUTBOUND',
     slipDate: new Date().toISOString().slice(0, 10),
@@ -453,22 +461,22 @@ function readFlow(session, data) {
     dashboardCount(session);
     readSlipListAndDetail(session);
     readPartnerAndOrders(session);
-    // page-code: estimates.list (役割 grant 근거: V10 SALES VIEW + V39/V43/V44 실권한 materialize)
+    // page-code: estimates.list (역할 grant 근거: V10 SALES VIEW + V39/V43/V44 실권한 materialize)
     request(session, 'GET', '/api/v1/slips/estimates?page=0&size=5', null, 'GET /api/v1/slips/estimates');
     readInventoryBatch(session, data);
     return;
   }
   if (session.role === 'warehouse') {
-    // page-code: inventory.warehouse (役割 grant 근거: V10 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
+    // page-code: inventory.warehouse (역할 grant 근거: V10 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
     request(session, 'GET', '/api/v1/inventory/warehouses', null, 'GET /api/v1/inventory/warehouses');
-    // page-code: inventory.transfer (役割 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
+    // page-code: inventory.transfer (역할 grant 근거: V35 WAREHOUSE VIEW + V39/V43/V44 실권한 materialize)
     request(session, 'GET', '/api/v1/inventory/transfers?page=0&size=5', null, 'GET /api/v1/inventory/transfers');
     readInventoryStockDetails(session, data);
     return;
   }
   if (session.role === 'accountant') {
     readAccounting(session);
-    // page-code: sales.slip.list (役割 grant 근거: V7 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
+    // page-code: sales.slip.list (역할 grant 근거: V7 ACCOUNTANT VIEW + V39/V43/V44 실권한 materialize)
     request(session, 'GET', '/api/v1/slips?page=0&size=5', null, 'GET /api/v1/slips');
     return;
   }
