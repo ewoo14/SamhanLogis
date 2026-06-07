@@ -105,6 +105,24 @@ class CompensationPurgeServiceIT extends AbstractPostgresIT {
         assertThat(exists(unresolvedActive)).isTrue();
     }
 
+    @Test
+    void purgePhysically_deletesOnlySingleBatchWhenCandidatesExceedBatchSize() {
+        LocalDateTime cutoff = LocalDateTime.of(2026, 6, 7, 4, 0);
+        UUID first = insertFailure("BATCH-001", true, true,
+                LocalDateTime.of(2026, 5, 1, 3, 57));
+        UUID second = insertFailure("BATCH-002", true, true,
+                LocalDateTime.of(2026, 5, 1, 3, 58));
+        UUID third = insertFailure("BATCH-003", true, true,
+                LocalDateTime.of(2026, 5, 1, 3, 59));
+
+        int purged = purgeService.purgePhysically(cutoff, 2);
+
+        assertThat(purged).isEqualTo(2);
+        assertThat(exists(first)).isFalse();
+        assertThat(exists(second)).isFalse();
+        assertThat(exists(third)).isTrue();
+    }
+
     private UUID insertFailure(String suffix, boolean resolved, boolean deleted, LocalDateTime deletedAt) {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update("""

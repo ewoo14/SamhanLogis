@@ -12,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 원격 재고 보상 실패를 구조적 WARN 로그와 slip DB 감사 행으로 남긴다.
@@ -68,10 +70,23 @@ public class CompensationAuditWriter {
                     slip.getSlipNo(), phase, productCode, operation, saveFailure);
             throw saveFailure;
         }
-        compensationMetrics.recordFailureRecorded(operation, phase);
+        recordFailureRecordedAfterCommit(operation, phase);
         // 감사 행 저장 성공 후 운영 알림 push (best-effort, 기본 비활성). 알림 실패는 보상 흐름에 무영향. (D-SER-26)
         // 원인 요약(failureReason 등)은 UUID 포함 가능 → 푸시 본문에 싣지 않으려 notifier 에 전달하지 않는다(Codex P1).
         alertNotifier.notifyFailure(slip, phase, productCode, operation);
+    }
+
+    private void recordFailureRecordedAfterCommit(CompensationOperation operation, CompensationPhase phase) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    compensationMetrics.recordFailureRecorded(operation, phase);
+                }
+            });
+            return;
+        }
+        compensationMetrics.recordFailureRecorded(operation, phase);
     }
 
     private String summarize(Throwable ex) {

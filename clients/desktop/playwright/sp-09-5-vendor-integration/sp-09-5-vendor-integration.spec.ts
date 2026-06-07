@@ -426,13 +426,13 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
    *
    * 검증 항목:
    *   - ACCOUNTANT: NTS (목록/emit-nts 권한) + KFTC 허용 (mock.ts 기준 OCR 도 허용)
-   *   - SALES: 4 vendor 모두 접근 차단 (403 또는 관련 버튼 미표시)
+   *   - SALES: 4 vendor 모두 접근 차단 (PermissionGuard redirect 또는 관련 버튼 미표시)
    *   - WAREHOUSE: Clova OCR 허용 + NTS/KFTC/Aligo 차단
    *   - MANAGER: Aligo 허용 + KFTC 허용 + NTS 제한 (ACCOUNTANT/MASTER 만 emit-nts)
    *
    * 권한 매트릭스 근거:
    *   NTS    emit-nts: ACCOUNTANT / MASTER (MANAGER 제외 — TaxInvoiceEmitNtsIT case 3)
-   *   Aligo  SMS 이력: DISPATCH / MANAGER / MASTER
+   *   Aligo  SMS 이력: DISPATCH / MANAGER / MASTER (mock.ts grant: MANAGER/DISPATCH, SALES 미부여)
    *   Clova  OCR:     WAREHOUSE / ACCOUNTANT / MANAGER / MASTER (mock.ts SP_D1_DEFAULT_VIEW)
    *   KFTC   입금매칭: ACCOUNTANT / MANAGER / MASTER
    */
@@ -493,7 +493,57 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       })
     })
 
-    // ── step 4: SALES — KFTC 접근 차단
+    // ── step 4: SALES — Aligo SEND_AUDIT 접근 차단
+    await test.step('SALES — Aligo SMS 이력 접근 차단 확인', async () => {
+      await gotoWithMockRoleReload(page, SALES_VENDOR_ORDER_URL)
+      await expect(
+        page.getByTestId('vendor-order-stepper'),
+        'SALES 양성 컨트롤 실패 — sales.vendor-order(view) 보유 화면 미표시',
+      ).toBeVisible({ timeout: 8000 })
+
+      await page.goto(ALIGO_URL_SALES, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await expectPermissionGuardRedirect(
+        page,
+        '/arologis/dispatch-sms/send-audit',
+        page.getByTestId('sms-audit-search-btn'),
+        'SALES Aligo SEND_AUDIT 접근 차단 미작동 — notification.dispatch-sms.send-audit(view) 미보유',
+      )
+
+      await page.screenshot({
+        path: path.join(QA_DIR, 'T3-sales-aligo-send-audit-blocked.png'),
+        fullPage: true,
+      })
+    })
+
+    // ── step 5: MANAGER — Aligo SEND_AUDIT 허용
+    await test.step('MANAGER — Aligo SMS 이력 접근 허용', async () => {
+      await gotoWithMockRoleReload(page, ALIGO_URL_MANAGER)
+
+      await expect(
+        page.getByTestId('sms-audit-search-btn'),
+        'MANAGER Aligo SEND_AUDIT 조회 버튼 미표시 — notification.dispatch-sms.send-audit(view) 필요',
+      ).toBeVisible({ timeout: 8000 })
+      // DataTable testid 미전달 함정 — 필터/행 텍스트로 대체
+      await expect(
+        page.getByTestId('sms-audit-filter-from'),
+        'MANAGER Aligo SEND_AUDIT 기간 시작 필터 미표시',
+      ).toBeVisible({ timeout: 5000 })
+      await expect(
+        page.getByRole('table'),
+        'MANAGER Aligo SEND_AUDIT mock 발송 이력 row 미표시',
+      ).toContainText('2026-05-17', { timeout: 5000 })
+      await expect(
+        page.getByRole('table'),
+        'MANAGER Aligo SEND_AUDIT mock 발송 이력 부분실패 상태 미표시',
+      ).toContainText('부분실패', { timeout: 5000 })
+
+      await page.screenshot({
+        path: path.join(QA_DIR, 'T3-manager-aligo-send-audit-allowed.png'),
+        fullPage: true,
+      })
+    })
+
+    // ── step 6: SALES — KFTC 접근 차단
     await test.step('SALES — KFTC 입금 매칭 접근 차단 확인', async () => {
       await gotoWithMockRoleReload(page, SALES_VENDOR_ORDER_URL)
       await expect(
@@ -510,7 +560,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       )
     })
 
-    // ── step 5: SALES — Clova OCR 접근 차단
+    // ── step 7: SALES — Clova OCR 접근 차단
     await test.step('SALES — Clova OCR 접근 차단 확인', async () => {
       await gotoWithMockRoleReload(page, SALES_VENDOR_ORDER_URL)
       await expect(
@@ -527,7 +577,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       )
     })
 
-    // ── step 6: WAREHOUSE — Clova OCR 허용 확인
+    // ── step 8: WAREHOUSE — Clova OCR 허용 확인
     await test.step('WAREHOUSE — Clova OCR 접근 허용 (drop-zone 표시)', async () => {
       await gotoWithMockRoleReload(page, CLOVA_URL_WAREHOUSE)
 
@@ -543,7 +593,7 @@ test.describe('SP-09-5 Phase 9 vendor 통합 검증 (T1~T5)', () => {
       })
     })
 
-    // ── step 7: WAREHOUSE — KFTC 접근 차단 확인
+    // ── step 9: WAREHOUSE — KFTC 접근 차단 확인
     await test.step('WAREHOUSE — KFTC 입금 매칭 접근 차단 (PermissionGuard)', async () => {
       await gotoWithMockRoleReload(page, CLOVA_URL_WAREHOUSE)
       await expect(
