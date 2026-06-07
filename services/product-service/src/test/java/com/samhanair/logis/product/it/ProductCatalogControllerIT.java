@@ -14,11 +14,16 @@ import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
@@ -43,10 +48,24 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     private MockMvc mvc;
 
     @BeforeEach
     void setupMvc() {
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canView(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.canEdit(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(true);
+        Mockito.lenient()
+                .when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
+
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
         Category cat = categoryRepository.save(Category.create("CAT-API", "api test", null, 1));
         productRepository.save(Product.seedFromSheet("API-Home", "API_HOME_01", cat,

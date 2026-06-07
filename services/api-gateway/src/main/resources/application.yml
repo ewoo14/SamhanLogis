@@ -237,6 +237,21 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [RC9 후속] catalog 정확 경로와 usage PATCH 는 풀패스 컨트롤러라 strip 라우트 진입 시 오매칭/404.
+        - id: product-catalog-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products
+          filters:
+            - JwtAuthentication
+
+        - id: product-usage-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/*/usage
+          filters:
+            - JwtAuthentication
+
         # [RC9] product-service lookup 3종 — 풀패스 컨트롤러 — strip 금지.
         - id: product-lookups-v1
           uri: lb://product-service

@@ -67,6 +67,26 @@ function parseMockBody(config: AxiosRequestConfig): Record<string, unknown> {
   return {}
 }
 
+type MockPermissionAction = 'view' | 'create' | 'update' | 'delete'
+
+function mockCanAccess(pageCode: string, action: MockPermissionAction): boolean {
+  const mockPerms = _resolveMockPerms()
+  if (mockPerms) {
+    const override = mockPerms.find((p) => p.pageCode === pageCode)
+    if (!override) return false
+    return action === 'view' ? override.view : override.edit
+  }
+  if (MOCK_AUTH.role === 'MASTER') return true
+  const cell = _mockPermissionCells.find((p) => p.roleCode === MOCK_AUTH.role && p.pageCode === pageCode)
+  if (!cell) return false
+  return action === 'view' ? cell.view : cell.edit
+}
+
+function mockRequirePermission(pageCode: string, action: MockPermissionAction): ReturnType<typeof mockError> | null {
+  if (mockCanAccess(pageCode, action)) return null
+  return mockError(403, 'FORBIDDEN', `${pageCode} ${action} 권한이 없습니다.`)
+}
+
 function normalizeAdminPartner(row: Record<string, unknown>) {
   return {
     partnerCode: String(row['partnerCode'] ?? ''),
@@ -730,6 +750,61 @@ const MOCK_BRANCH_PIPE_ROWS = [
   { branchCode: '4119', description: '분지관 코드 4119', summaryQty: 5 },
 ]
 
+const MOCK_PRODUCT_CATALOG_ROWS = Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => ({
+  modelCode: p.modelName,
+  name: p.productName,
+  usageScope: index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
+  estimateCategory: index % 2 === 0 ? 'HOME_MULTI' : 'OTHER',
+  releasePrice: Number(p.sellingPrice),
+  deliveryPrice: Number(p.sellingPrice),
+  hasVariableDiscount: false,
+  legacyDiscountFlag: false,
+  discountFlags: null,
+}))
+
+let mockProductSpecsByModel: Record<string, Array<{
+  id: string
+  specKey: string
+  specValue: string | null
+  unit: string | null
+  displayOrder: number | null
+}>> = {
+  AJ040RXH4BC1: [
+    { id: 'spec-aj040-cooling', specKey: '냉방성능(kW)', specValue: '5.6', unit: 'kW', displayOrder: 1 },
+    { id: 'spec-aj040-power', specKey: '전원선', specValue: '2.5SQ', unit: null, displayOrder: 2 },
+  ],
+}
+
+const MOCK_SPEC_KEY_TEMPLATES = [
+  {
+    id: 'template-home-cooling',
+    estimateCategory: 'HOME_MULTI',
+    specKey: '냉방성능(kW)',
+    defaultUnit: 'kW',
+    displayOrder: 1,
+    isRecommended: true,
+  },
+  {
+    id: 'template-home-pipe',
+    estimateCategory: 'HOME_MULTI',
+    specKey: '배관경',
+    defaultUnit: null,
+    displayOrder: 2,
+    isRecommended: true,
+  },
+]
+
+const MOCK_PRODUCT_CATEGORIES = [
+  {
+    id: 'cat-home',
+    code: 'HOME_MULTI',
+    name: '홈멀티',
+    parentId: null,
+    displayOrder: 1,
+    children: [],
+  },
+]
+
 /**
  * 라인 시연용 — 상세 화면 라인 표시.
  * Slice A: `specification` 필드 추가 (피드백 #4 / Designer components.md § 3).
@@ -993,6 +1068,153 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       displayOrder: body['displayOrder'] ?? 0,
       description: body['description'],
     })
+  }
+
+  const productCategoryTreeMatch = url.match(/\/products\/categories(?:\?.*)?$/)
+  if (method === 'GET' && productCategoryTreeMatch) {
+    const denied = mockRequirePermission('products.list', 'view')
+    if (denied) return denied
+    return envelope(MOCK_PRODUCT_CATEGORIES)
+  }
+
+  const productUsageMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/usage(?:\?.*)?$/)
+  if (method === 'PATCH' && productUsageMatch) {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    const modelCode = decodeURIComponent(productUsageMatch[1]!)
+    const body = parseMockBody(config)
+    const product = MOCK_PRODUCT_CATALOG_ROWS.find((row) => row.modelCode === modelCode)
+    const fallbackProduct = product ?? MOCK_PRODUCT_CATALOG_ROWS[0]!
+    return {
+      ...fallbackProduct,
+      modelCode,
+      usageScope: body['usageScope'] ?? fallbackProduct.usageScope,
+      estimateCategory: body['estimateCategory'] ?? fallbackProduct.estimateCategory,
+    }
+  }
+
+  const productSpecReorderMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/specs\/reorder(?:\?.*)?$/)
+  if (method === 'PATCH' && productSpecReorderMatch) {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    parseMockBody(config)
+    return envelope(null)
+  }
+
+  const productSpecItemMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/specs\/([^/?]+)(?:\?.*)?$/)
+  if (productSpecItemMatch) {
+    const modelCode = decodeURIComponent(productSpecItemMatch[1]!)
+    const specId = decodeURIComponent(productSpecItemMatch[2]!)
+    if (method === 'PATCH') {
+      const denied = mockRequirePermission('products.admin', 'update')
+      if (denied) return denied
+      const body = parseMockBody(config)
+      const specs = mockProductSpecsByModel[modelCode] ?? []
+      const current = specs.find((spec) => spec.id === specId) ?? {
+        id: specId,
+        specKey: '냉방성능(kW)',
+        specValue: null,
+        unit: null,
+        displayOrder: 1,
+      }
+      const edited = {
+        ...current,
+        specValue: (body['specValue'] as string | null | undefined) ?? current.specValue,
+        unit: (body['unit'] as string | null | undefined) ?? current.unit,
+      }
+      mockProductSpecsByModel = {
+        ...mockProductSpecsByModel,
+        [modelCode]: specs.map((spec) => spec.id === specId ? edited : spec),
+      }
+      return edited
+    }
+    if (method === 'DELETE') {
+      const denied = mockRequirePermission('products.admin', 'delete')
+      if (denied) return denied
+      const specs = mockProductSpecsByModel[modelCode] ?? []
+      mockProductSpecsByModel = {
+        ...mockProductSpecsByModel,
+        [modelCode]: specs.filter((spec) => spec.id !== specId),
+      }
+      return envelope(null)
+    }
+  }
+
+  const productSpecsMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/specs(?:\?.*)?$/)
+  if (productSpecsMatch) {
+    const modelCode = decodeURIComponent(productSpecsMatch[1]!)
+    if (method === 'GET') {
+      const denied = mockRequirePermission('products.list', 'view')
+      if (denied) return denied
+      return mockProductSpecsByModel[modelCode] ?? []
+    }
+    if (method === 'POST') {
+      const denied = mockRequirePermission('products.admin', 'create')
+      if (denied) return denied
+      const body = parseMockBody(config)
+      const specs = mockProductSpecsByModel[modelCode] ?? []
+      const created = {
+        id: `spec-${Date.now()}`,
+        specKey: String(body['specKey'] ?? '스펙'),
+        specValue: (body['specValue'] as string | null | undefined) ?? '',
+        unit: (body['unit'] as string | null | undefined) ?? null,
+        displayOrder: Number(body['displayOrder'] ?? specs.length + 1),
+      }
+      mockProductSpecsByModel = {
+        ...mockProductSpecsByModel,
+        [modelCode]: [...specs, created],
+      }
+      return created
+    }
+  }
+
+  const specTemplateApplyMatch = url.match(/\/api\/v1\/spec-key-templates\/([^/?]+)\/apply-to-existing(?:\?.*)?$/)
+  if (method === 'POST' && specTemplateApplyMatch) {
+    const denied = mockRequirePermission('products.admin', 'create')
+    if (denied) return denied
+    const template = MOCK_SPEC_KEY_TEMPLATES.find((row) => row.id === decodeURIComponent(specTemplateApplyMatch[1]!))
+      ?? MOCK_SPEC_KEY_TEMPLATES[0]!
+    return {
+      specKey: template.specKey,
+      estimateCategory: template.estimateCategory,
+      previewModelCodes: MOCK_PRODUCT_CATALOG_ROWS.map((row) => row.modelCode),
+      actuallyAdded: 0,
+      dryRun: true,
+    }
+  }
+
+  if (method === 'GET' && url.includes('/api/v1/spec-key-templates')) {
+    const denied = mockRequirePermission('products.list', 'view')
+    if (denied) return denied
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const category = (config.params?.['category'] as string | undefined)
+      ?? urlObj.searchParams.get('category')
+    return category
+      ? MOCK_SPEC_KEY_TEMPLATES.filter((row) => row.estimateCategory === category)
+      : MOCK_SPEC_KEY_TEMPLATES
+  }
+
+  if (method === 'GET' && (url.endsWith('/api/v1/products') || url.includes('/api/v1/products?'))) {
+    const denied = mockRequirePermission('products.list', 'view')
+    if (denied) return denied
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const usageScope = (config.params?.['usageScope'] as string | undefined)
+      ?? urlObj.searchParams.get('usageScope')
+    const category = (config.params?.['category'] as string | undefined)
+      ?? urlObj.searchParams.get('category')
+    const filtered = MOCK_PRODUCT_CATALOG_ROWS.filter((row) =>
+      (!usageScope || row.usageScope === usageScope || row.usageScope === 'BOTH')
+      && (!category || row.estimateCategory === category),
+    )
+    return {
+      content: filtered,
+      totalElements: filtered.length,
+      totalPages: 1,
+      number: Number(config.params?.['page'] ?? urlObj.searchParams.get('page') ?? 0),
+      size: Number(config.params?.['size'] ?? urlObj.searchParams.get('size') ?? 50),
+      first: true,
+      last: true,
+    }
   }
 
   // GET /api/products?q=... — AC-2 품목 자동완성 검색 (product-service `/products?q=` 프록시)
@@ -7241,8 +7463,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
  *  partners.detail:            MASTER/MANAGER/ACCOUNTANT/SALES
  *  partners.block:             MASTER/MANAGER
  *  partners.edit-request:      MASTER/MANAGER/SALES
- *  products.list:              MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/INVENTORY
- *  products.admin:             MASTER/MANAGER/SALES/INVENTORY
+ *  products.list:              MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/INVENTORY/DEVELOPER
+ *  products.admin:             MASTER/MANAGER/SALES/INVENTORY/DEVELOPER
  *  arologis.admin:             MASTER/MANAGER/DISPATCH
  *  arologis.region:            MASTER/MANAGER/DISPATCH
  */
@@ -7382,6 +7604,10 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C5-2c: V36 seed 기반 INVENTORY VIEW 추가
     'slip.transfer.process',
   ],
+  DEVELOPER: [
+    // V30/V43 seed — product 운영 보조 그룹.
+    'products.list', 'products.admin',
+  ],
 }
 
 /**
@@ -7406,8 +7632,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
  *  partners.detail:            MASTER/MANAGER/SALES
  *  partners.block:             MASTER/MANAGER
  *  partners.edit-request:      MASTER/MANAGER (SALES view 전용)
- *  products.list:              MASTER/MANAGER/SALES/INVENTORY
- *  products.admin:             MASTER/MANAGER/SALES/INVENTORY
+ *  products.list:              MASTER/MANAGER/SALES/INVENTORY/DEVELOPER
+ *  products.admin:             MASTER/MANAGER/SALES/INVENTORY/DEVELOPER
  *  arologis.admin:             MASTER/MANAGER/DISPATCH
  *  arologis.region:            MASTER/MANAGER/DISPATCH
  */
@@ -7522,6 +7748,10 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — INVENTORY: 12개 모두 edit 없음 (V36 seed 확인)
     // C5-2c: V36 seed 기반 INVENTORY EDIT 추가 (can_edit=TRUE)
     'slip.transfer.process',
+  ],
+  DEVELOPER: [
+    // V30/V43 seed — product 운영 보조 그룹.
+    'products.list', 'products.admin',
   ],
 }
 

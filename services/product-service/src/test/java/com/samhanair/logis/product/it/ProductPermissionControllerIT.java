@@ -2,6 +2,7 @@ package com.samhanair.logis.product.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -24,8 +25,10 @@ import com.samhanair.logis.product.domain.OduRecommendationLookup;
 import com.samhanair.logis.product.domain.OduRecommendationLookup.RecommendationType;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.SpecKeyTemplate;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.audit.service.ProductAuditLogService;
 import com.samhanair.logis.product.audit.web.ProductAuditLogController;
@@ -38,14 +41,17 @@ import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
 import com.samhanair.logis.product.repository.MaterialPriceRepository;
 import com.samhanair.logis.product.repository.OduRecommendationLookupRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
+import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
 import com.samhanair.logis.product.service.CategoryService;
 import com.samhanair.logis.product.service.EcountProductImporter;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
+import com.samhanair.logis.product.service.ProductSpecService;
 import com.samhanair.logis.product.web.CategoryController;
 import com.samhanair.logis.product.web.EcountProductImportController;
 import com.samhanair.logis.product.web.ProductAdminController;
 import com.samhanair.logis.product.web.ProductByCodeController;
+import com.samhanair.logis.product.web.ProductCatalogController;
 import com.samhanair.logis.product.web.ProductController;
 import com.samhanair.logis.product.web.ProductLookupController;
 import com.samhanair.logis.product.web.dto.CategoryResponse;
@@ -104,6 +110,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
         controllers = {
                 ProductController.class,
                 ProductByCodeController.class,
+                ProductCatalogController.class,
                 CategoryController.class,
                 EcountProductImportController.class,
                 ProductAdminController.class,
@@ -133,6 +140,8 @@ class ProductPermissionControllerIT {
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private ProductService productService;
     @MockBean private ProductRepository productRepository;
+    @MockBean private ProductSpecService productSpecService;
+    @MockBean private SpecKeyTemplateRepository specKeyTemplateRepository;
     @MockBean private MaterialPriceRepository materialPriceRepository;
     @MockBean private OduRecommendationLookupRepository oduRecommendationLookupRepository;
     @MockBean private BranchPipeLookupRepository branchPipeLookupRepository;
@@ -169,6 +178,9 @@ class ProductPermissionControllerIT {
                 "Product", "MODEL-1", Category.create("CAT", "Category", null, 1),
                 BigDecimal.valueOf(1000), BigDecimal.valueOf(800), ProductType.SINGLE,
                 ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI);
+        ProductSpec productSpec = ProductSpec.create(PRODUCT_ID, "냉방성능(kW)", "5.6", "kW", 1);
+        SpecKeyTemplate specKeyTemplate = SpecKeyTemplate.create(
+                EstimateCategory.HOME_MULTI, "냉방성능(kW)", "kW", 1, true);
         MaterialPrice materialPrice = MaterialPrice.seed("D2", "자재", BigDecimal.valueOf(2000),
                 "옵션", null);
         OduRecommendationLookup oduRecommendation = OduRecommendationLookup.seed(
@@ -186,6 +198,18 @@ class ProductPermissionControllerIT {
         lenient().when(productService.replaceTags(any(), any())).thenReturn(response);
         lenient().when(productRepository.findByModelCodeAndIsDeletedFalse(anyString()))
                 .thenReturn(Optional.of(byCodeProduct));
+        lenient().when(productRepository.searchByUsageScope(any(), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(byCodeProduct), PageRequest.of(0, 20), 1));
+        lenient().when(productSpecService.listByModelCode(anyString())).thenReturn(List.of(productSpec));
+        lenient().when(productSpecService.addSpec(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(productSpec);
+        lenient().when(productSpecService.editSpec(anyString(), any(), any(), any())).thenReturn(productSpec);
+        lenient().when(productSpecService.applyTemplateToExisting(any(), anyBoolean()))
+                .thenReturn(new ProductSpecService.ApplyToExistingResult(
+                        "냉방성능(kW)", EstimateCategory.HOME_MULTI, List.of("MODEL-1"), 0, true));
+        lenient().when(specKeyTemplateRepository.findAll()).thenReturn(List.of(specKeyTemplate));
+        lenient().when(specKeyTemplateRepository.findByEstimateCategoryOrderByDisplayOrderAsc(any()))
+                .thenReturn(List.of(specKeyTemplate));
         lenient().when(materialPriceRepository.findAll()).thenReturn(List.of(materialPrice));
         lenient().when(oduRecommendationLookupRepository.findAllByOrderByRecommendationTypeAscIndoorCapacityAsc())
                 .thenReturn(List.of(oduRecommendation));
@@ -197,6 +221,7 @@ class ProductPermissionControllerIT {
                 .thenReturn(List.of(branchPipe));
         lenient().when(branchPipeLookupRepository.findByBranchCode(anyString()))
                 .thenReturn(Optional.of(branchPipe));
+        lenient().when(categoryService.getTree()).thenReturn(List.of(category));
         lenient().when(categoryService.create(any())).thenReturn(category);
         lenient().when(categoryService.update(any(), any())).thenReturn(category);
         lenient().doNothing().when(googleSheetsClient).invalidateCache();
@@ -286,6 +311,32 @@ class ProductPermissionControllerIT {
                         () -> post("/products/lookup")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"ids\":[\"" + PRODUCT_ID + "\"]}")),
+                new EndpointCase("product catalog list", "products.list", PermissionAction.VIEW, "SALES", 200,
+                        () -> get("/api/v1/products")),
+                new EndpointCase("product catalog usage", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
+                        () -> patch("/api/v1/products/MODEL-1/usage")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"usageScope\":\"ESTIMATE\",\"estimateCategory\":\"OTHER\"}")),
+                new EndpointCase("product catalog specs list", "products.list", PermissionAction.VIEW, "SALES", 200,
+                        () -> get("/api/v1/products/MODEL-1/specs")),
+                new EndpointCase("product catalog spec add", "products.admin", PermissionAction.CREATE, "MANAGER", 201,
+                        () -> post("/api/v1/products/MODEL-1/specs")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"specKey\":\"냉방성능(kW)\",\"specValue\":\"5.6\",\"unit\":\"kW\",\"displayOrder\":1}")),
+                new EndpointCase("product catalog spec edit", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
+                        () -> patch("/api/v1/products/MODEL-1/specs/{id}", REQUEST_ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"specValue\":\"6.0\",\"unit\":\"kW\"}")),
+                new EndpointCase("product catalog spec delete", "products.admin", PermissionAction.DELETE, "MANAGER", 204,
+                        () -> delete("/api/v1/products/MODEL-1/specs/{id}", REQUEST_ID)),
+                new EndpointCase("product catalog specs reorder", "products.admin", PermissionAction.UPDATE, "MANAGER", 204,
+                        () -> patch("/api/v1/products/MODEL-1/specs/reorder")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"orderMap\":{\"" + REQUEST_ID + "\":1}}")),
+                new EndpointCase("product catalog templates list", "products.list", PermissionAction.VIEW, "SALES", 200,
+                        () -> get("/api/v1/spec-key-templates")),
+                new EndpointCase("product catalog template apply", "products.admin", PermissionAction.CREATE, "MANAGER", 200,
+                        () -> post("/api/v1/spec-key-templates/{id}/apply-to-existing", REQUEST_ID)),
                 new EndpointCase("product by code", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/products/by-code/MODEL-1")),
                 new EndpointCase("product create", "products.admin", PermissionAction.CREATE, "MANAGER", 201,
@@ -318,6 +369,8 @@ class ProductPermissionControllerIT {
                                 .content("{\"name\":\"Category 2\",\"displayOrder\":2}")),
                 new EndpointCase("category delete", "products.admin", PermissionAction.DELETE, "MANAGER", 204,
                         () -> delete("/products/categories/{id}", CATEGORY_ID)),
+                new EndpointCase("category tree", "products.list", PermissionAction.VIEW, "SALES", 200,
+                        () -> get("/products/categories")),
                 new EndpointCase("ecount import", "products.ecount-import", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/admin/products/imports/ecount")
                                 .file(csv("itemFile"))

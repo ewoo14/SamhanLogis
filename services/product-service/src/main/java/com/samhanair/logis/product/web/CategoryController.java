@@ -23,7 +23,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 카테고리 트리 CRUD. 모든 mutation 은 MASTER/MANAGER/DEVELOPER 한정. */
+/**
+ * 카테고리 트리 CRUD.
+ *
+ * <p>트리 조회는 {@code products.list} VIEW, mutation 은 {@code products.admin}
+ * CREATE/UPDATE/DELETE 권한을 {@code @RequirePermission} AOP 로 검증한다.
+ */
 @RestController
 @RequestMapping("/products/categories")
 @RequiredArgsConstructor
@@ -34,6 +39,7 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<List<CategoryResponse>> tree() {
         return ApiResponse.ok(categoryService.getTree());
     }
