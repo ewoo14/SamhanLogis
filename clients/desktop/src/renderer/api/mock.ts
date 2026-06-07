@@ -74,17 +74,19 @@ function mockCanAccess(pageCode: string, action: MockPermissionAction): boolean 
   if (mockPerms) {
     const override = mockPerms.find((p) => p.pageCode === pageCode)
     if (!override) return false
+    // BE 는 7-action 을 정밀 판정하지만 mock 은 권한 매트릭스 UI 와 같은 view/edit 이진 근사로 보수 적용한다.
     return action === 'view' ? override.view : override.edit
   }
   if (MOCK_AUTH.role === 'MASTER') return true
   const cell = _mockPermissionCells.find((p) => p.roleCode === MOCK_AUTH.role && p.pageCode === pageCode)
   if (!cell) return false
+  // create/update/delete 는 mockActionMatrixFromRole 의 edit 셀과 동일하게 처리한다.
   return action === 'view' ? cell.view : cell.edit
 }
 
 function mockRequirePermission(pageCode: string, action: MockPermissionAction): ReturnType<typeof mockError> | null {
   if (mockCanAccess(pageCode, action)) return null
-  return mockError(403, 'FORBIDDEN', `${pageCode} ${action} 권한이 없습니다.`)
+  return mockError(403, 'FORBIDDEN', '해당 기능에 대한 권한이 없습니다. 관리자에게 문의해 주세요.')
 }
 
 function normalizeAdminPartner(row: Record<string, unknown>) {
@@ -1070,7 +1072,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  const productCategoryTreeMatch = url.match(/\/products\/categories(?:\?.*)?$/)
+  const productCategoryTreeMatch = url.match(/\/api\/products\/categories(?:\?.*)?$/)
   if (method === 'GET' && productCategoryTreeMatch) {
     const denied = mockRequirePermission('products.list', 'view')
     if (denied) return denied
@@ -1249,10 +1251,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   if (method === 'GET' && url.includes('/api/v1/material-prices')) {
+    const denied = mockRequirePermission('products.list', 'view')
+    if (denied) return denied
     return MOCK_MATERIAL_PRICE_ROWS
   }
 
   if (method === 'GET' && url.includes('/api/v1/odu-recommendations')) {
+    const denied = mockRequirePermission('products.list', 'view')
+    if (denied) return denied
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const type = (config.params?.['type'] as string | undefined)
       ?? urlObj.searchParams.get('type')
@@ -1263,6 +1269,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   if (method === 'GET' && url.includes('/api/v1/branch-pipes')) {
+    const denied = mockRequirePermission('products.list', 'view')
+    if (denied) return denied
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const branchCode = (config.params?.['branchCode'] as string | undefined)
       ?? urlObj.searchParams.get('branchCode')

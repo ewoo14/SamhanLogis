@@ -50,6 +50,10 @@ jobs:
           QA_API_BASE_URL: http://localhost:8080
         run: npx playwright test --reporter=list || true
 
+      - name: ProductCatalog 권한 계약 hard-gate
+        working-directory: qa/playwright
+        run: npx playwright test tests/catalog/product-catalog-permission-retrofit.spec.ts --project=web-order-app --reporter=line
+
       - name: HTML 리포트 업로드 (실패 + always)
         if: always()
         uses: actions/upload-artifact@v4

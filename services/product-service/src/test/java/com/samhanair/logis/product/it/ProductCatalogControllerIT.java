@@ -76,7 +76,8 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
 
     @Test
     void GET_products_usageScope_필터() throws Exception {
-        mvc.perform(get("/api/v1/products?usageScope=BOTH&category=HOME_MULTI"))
+        mvc.perform(get("/api/v1/products?usageScope=BOTH&category=HOME_MULTI")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[?(@.modelCode == 'API_HOME_01')]").exists());
     }
@@ -84,6 +85,7 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
     @Test
     void PATCH_usage_admin_변경() throws Exception {
         mvc.perform(patch("/api/v1/products/API_HOME_01/usage")
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"usageScope":"ESTIMATE","estimateCategory":"OTHER"}
@@ -96,6 +98,7 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
     @Test
     void POST_specs_409_on_duplicate() throws Exception {
         mvc.perform(post("/api/v1/products/API_HOME_01/specs")
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"specKey":"냉방성능(kW)","specValue":"5.6","unit":"kW","displayOrder":1}
@@ -103,6 +106,7 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated());
 
         mvc.perform(post("/api/v1/products/API_HOME_01/specs")
+                        .header("X-User-Id", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"specKey":"냉방성능(kW)","specValue":"6.0","unit":"kW"}
@@ -112,7 +116,8 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
 
     @Test
     void GET_spec_key_templates_카테고리_필터() throws Exception {
-        mvc.perform(get("/api/v1/spec-key-templates?category=HOME_MULTI"))
+        mvc.perform(get("/api/v1/spec-key-templates?category=HOME_MULTI")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 // V4 SQL 시드된 14 row 중 일부 확인
                 .andExpect(jsonPath("$[?(@.specKey == '배관경')]").exists())

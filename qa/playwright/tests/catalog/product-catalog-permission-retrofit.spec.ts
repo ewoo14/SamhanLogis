@@ -109,8 +109,14 @@ test.describe('ProductCatalog permission retrofit contract', () => {
       'view',
       'return envelope(MOCK_PRODUCT_CATEGORIES)',
     );
+    expect(sourceBlock(mock, 'const productCategoryTreeMatch = url.match', 'const productUsageMatch'))
+      .toContain('url.match(/\\/api\\/products\\/categories');
     expectMockPermissionFlow(
-      sourceBlock(mock, "if (method === 'GET' && (url.endsWith('/api/v1/products')", '// GET /api/products?q='),
+      sourceBlock(
+        mock,
+        "if (method === 'GET' && (url.endsWith('/api/v1/products')",
+        "if (method === 'GET' && (url.endsWith('/api/products')",
+      ),
       'products.list',
       'view',
       'return {',
@@ -132,6 +138,36 @@ test.describe('ProductCatalog permission retrofit contract', () => {
       'products.admin',
       'delete',
       'return envelope(null)',
+    );
+    expectMockPermissionFlow(
+      sourceBlock(
+        mock,
+        "if (method === 'GET' && url.includes('/api/v1/material-prices')",
+        "if (method === 'GET' && url.includes('/api/v1/odu-recommendations')",
+      ),
+      'products.list',
+      'view',
+      'return MOCK_MATERIAL_PRICE_ROWS',
+    );
+    expectMockPermissionFlow(
+      sourceBlock(
+        mock,
+        "if (method === 'GET' && url.includes('/api/v1/odu-recommendations')",
+        "if (method === 'GET' && url.includes('/api/v1/branch-pipes')",
+      ),
+      'products.list',
+      'view',
+      'return oduRows',
+    );
+    expectMockPermissionFlow(
+      sourceBlock(
+        mock,
+        "if (method === 'GET' && url.includes('/api/v1/branch-pipes')",
+        '// GET /slips/lookup-product?modelName=',
+      ),
+      'products.list',
+      'view',
+      'return branchRows',
     );
   });
 });

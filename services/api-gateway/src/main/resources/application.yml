@@ -228,15 +228,6 @@ spring:
           filters:
             - JwtAuthentication
 
-        # [잔여] ProductCatalogController 풀패스(@RequestMapping("/api/v1") + /products/{code}/specs,
-        # /spec-key-templates). strip=2 면 깨지므로 표적 no-strip(카탈로그 GET 은 기존 strip route 유지).
-        - id: product-specs-v1
-          uri: lb://product-service
-          predicates:
-            - Path=/api/v1/products/*/specs,/api/v1/products/*/specs/**,/api/v1/spec-key-templates,/api/v1/spec-key-templates/**
-          filters:
-            - JwtAuthentication
-
         # [RC9 후속] catalog 정확 경로와 usage PATCH 는 풀패스 컨트롤러라 strip 라우트 진입 시 오매칭/404.
         - id: product-catalog-v1
           uri: lb://product-service
@@ -249,6 +240,15 @@ spring:
           uri: lb://product-service
           predicates:
             - Path=/api/v1/products/*/usage
+          filters:
+            - JwtAuthentication
+
+        # [잔여] ProductCatalogController 풀패스(@RequestMapping("/api/v1") + /products/{code}/specs,
+        # /spec-key-templates). strip=2 면 깨지므로 specs/template 표적 no-strip.
+        - id: product-specs-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/*/specs,/api/v1/products/*/specs/**,/api/v1/spec-key-templates,/api/v1/spec-key-templates/**
           filters:
             - JwtAuthentication
 
