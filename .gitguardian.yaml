@@ -30,3 +30,5 @@ secret:
       match: "dev-internal-token-change-me"
     - name: "P0-5 seed dev password (dev_p05_pass!) — V5 seed DEV-ONLY"
       match: "dev_p05_pass!"
+    - name: "D-PCR-02 seed bcrypt hash (dev_p05_pass!) — V48 seed DEV-ONLY"
+      match: "$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y"

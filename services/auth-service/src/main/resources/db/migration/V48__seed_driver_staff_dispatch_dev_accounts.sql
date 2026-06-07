@@ -5,9 +5,13 @@
 --   PR #420 dev-report §5 권한 retro-fit 이후, 카탈로그/배차 등 deny 경로를 Docker 실서버에서
 --   매번 재현할 수 있도록 비MASTER 개발 계정을 고정 UUID 로 제공한다.
 --
--- 계정 비밀번호 BCrypt 해시: "dev_p05_pass!" (V5__seed_p0_5_test_accounts.sql 과 동일)
+-- [DEV-SEED] 식별자 — production 절대 미적용 (Flyway location 분리 필요 시 별도 조치).
+--
+-- 계정 비밀번호 BCrypt 해시: "dev_p05_pass!"
+--   V5 해시는 평문 불일치 잠복 결함 — 본 해시는 #411 QA 검증분(checkpw=true).
 -- password_change_required = FALSE:
 --   계획서 §3 기준, 실QA 계정은 최초 로그인 비밀번호 변경 화면 없이 즉시 토큰 발급되어야 한다.
+--   운영 리스크는 dev 계정 한정으로 수용하며, Phase 11 cutover 전 disable 또는 TRUE 전환을 검토한다.
 --
 -- V46 에서 accounts.role 컬럼이 제거되었으므로 역할 표현은 account_groups 배속만으로 완결한다.
 
@@ -24,7 +28,7 @@ INSERT INTO accounts (
 (
     'b0000000-0000-0000-0000-00000000000a',
     'dev_driver',
-    '$2a$12$6cxHjNrguvlnEE.4s4jrAOuGNGGmHPc4Gg8/MuMBHYh/B.Q4sU/xu',
+    '$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y',
     '[DEV-SEED] 기사',
     TRUE,
     0, NULL,
@@ -36,7 +40,7 @@ INSERT INTO accounts (
 (
     'b0000000-0000-0000-0000-00000000000b',
     'dev_staff',
-    '$2a$12$6cxHjNrguvlnEE.4s4jrAOuGNGGmHPc4Gg8/MuMBHYh/B.Q4sU/xu',
+    '$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y',
     '[DEV-SEED] 사원',
     TRUE,
     0, NULL,
@@ -48,8 +52,8 @@ INSERT INTO accounts (
 (
     'b0000000-0000-0000-0000-00000000000c',
     'dev_dispatch',
-    '$2a$12$6cxHjNrguvlnEE.4s4jrAOuGNGGmHPc4Gg8/MuMBHYh/B.Q4sU/xu',
-    '[DEV-SEED] 배차담당',
+    '$2b$12$g9/AnrEr4.fxZoV7GPOraOoMLkysbtYnO0joHqluMPGgPpjBqQf0y',
+    '[DEV-SEED] 배차담당자',
     TRUE,
     0, NULL,
     NOW(), '[]'::jsonb,

@@ -1,7 +1,7 @@
 /**
  * 관리자 — 권한 관리 (`/admin/roles`).
  *
- * Phase 10 P0-5 슬라이스 4. BE `GET /admin/users/roles` 로 전체 ROLE 7건 조회 + 각 ROLE 별
+ * Phase 10 P0-5 슬라이스 4. BE `GET /admin/users/roles` 로 전체 ROLE 조회 + 각 ROLE 별
  * 사용자 count 표시 (q=role 호출로 total 수집).
  *
  * <h2>PR-H4c FE-C 보강 — 실시간 동기화</h2>
@@ -118,7 +118,7 @@ export function RolesPage() {
         </span>
       </div>
       <p style={{ marginTop: 0, color: '#6B7280', fontSize: 13 }}>
-        8-role ROLE 정책 — 풀네임 의무 (M/M/D 약어 금지). 권한 변경은 사용자
+        10-role ROLE 정책 — 풀네임 의무 (M/M/D 약어 금지). 권한 변경은 사용자
         관리 화면에서 수행합니다.
       </p>
       <div data-testid="admin-roles-table">
@@ -139,6 +139,8 @@ const ROLE_DESCRIPTION: Record<AdminRole, string> = {
   DEVELOPER: '개발자 — 마스터 데이터 변경 + 시스템 설정',
   MANAGER: '매니저 — 부서/거래처 운영 + 승인 권한',
   DISPATCH: '배차담당자 — 배차 메뉴 + arologis 운영 조회/발송',
+  DRIVER: '기사 — 모바일/배차 수행 계정',
+  STAFF: '사원 — 일반 직원 기본 계정',
   SALES: '영업원 — 견적/판매 전표 작성',
   ACCOUNTANT: '회계원 — 분개 작성/확정 + 세금계산서',
   WAREHOUSE: '창고원 — 입출고 + 재고 실사',

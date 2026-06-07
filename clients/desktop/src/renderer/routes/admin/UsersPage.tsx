@@ -112,7 +112,7 @@ export const BUILTIN_GROUP_ROLE_MAP: Record<string, AdminRole> = {
   '00000000-0000-0000-0000-000000000104': 'ACCOUNTANT',
   '00000000-0000-0000-0000-000000000105': 'INVENTORY',
   '00000000-0000-0000-0000-000000000106': 'DISPATCH',
-  // DRIVER(107) / STAFF(108) = BE 전용 role, FE AdminRole 미포함 — 빌트인 그룹 표시만
+  // DRIVER(107) / STAFF(108) = 표시 전용 role — C3b 기본 그룹 변경 대상에서는 제외
   '00000000-0000-0000-0000-000000000109': 'DEVELOPER',
 }
 
@@ -181,6 +181,8 @@ const ROLE_BADGE_VARIANT: Record<AdminRole, 'danger' | 'warning' | 'brand' | 'ne
   DEVELOPER: 'warning',
   MANAGER: 'brand',
   DISPATCH: 'neutral',
+  DRIVER: 'neutral',
+  STAFF: 'neutral',
   SALES: 'neutral',
   ACCOUNTANT: 'neutral',
   WAREHOUSE: 'neutral',
@@ -1043,7 +1045,7 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
 
   // 빌트인 그룹 목록 (기본 권한그룹 select 소스)
   // isSystemMaster 그룹(MASTER)은 목록 포함 — MASTER 도 기본 그룹으로 변경 가능.
-  // DRIVER(107) / STAFF(108) = FE AdminRole 미포함 → BUILTIN_GROUP_ROLE_MAP 에 역매핑 없음 → 선택해도 저장 불가
+  // DRIVER(107) / STAFF(108) = 표시 전용 role → BUILTIN_GROUP_ROLE_MAP 에 역매핑 없음 → 선택해도 저장 불가
   // → select 옵션에서 명시적으로 제외 (사용자 혼란 방지).
   const builtinGroups = allGroups.filter(
     (g) => g.isBuiltin && g.id in BUILTIN_GROUP_ROLE_MAP,
@@ -1208,7 +1210,7 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
                 data-testid="group-assign-builtin-select"
                 disabled={isLoading}
               >
-                {/* DRIVER/STAFF 등 FE 미지원 role 계정 진입 시 placeholder */}
+                {/* DRIVER/STAFF 등 기본 그룹 변경 미지원 role 계정 진입 시 placeholder */}
                 {!selectedBuiltinId ? (
                   <option value="">그룹을 선택하세요</option>
                 ) : null}
@@ -1225,7 +1227,7 @@ function GroupAssignModal({ user, onClose, onCommitted }: GroupAssignModalProps)
               </select>
             )}
           />
-          {/* DRIVER/STAFF 등 FE 미지원 role 안내 */}
+          {/* DRIVER/STAFF 등 기본 그룹 변경 미지원 role 안내 */}
           {!currentBuiltinGroupId ? (
             <div
               style={{
