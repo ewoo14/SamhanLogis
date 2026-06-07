@@ -4,7 +4,18 @@
 
 ---
 
-## 🆕 2026-06-07 (새벽 자율 — 최신) — **PR #417 권한그룹 C5 후속 사이클3 완결** (전 세션 중단분 재개)
+## 🆕 2026-06-07 (오전 자율 — 최신) — **PR #418 RC9 잔여 lookup 3종 머지** (#417 후 자율 연속)
+
+> #417 머지 직후 PM 자율 다음 슬라이스 결정 → 풀사이클(계획→조기PR→Codex 구현→dual review→Docker 실QA→CI→머지) 완주. main `69123611`.
+
+- **범위**: RC9 정찰(실잔여 판별) → 자재단가/실외기추천/분지관 lookup BE 노출(`ProductLookupController`, products.list VIEW 재사용 — Flyway 0) + 게이트웨이 no-strip 라우트 + FE `LineLookupReferenceModal`(DS Tabs) + 견적/주문 진입 버튼 + long-pending 데드코드 제거 + mock/Playwright 박제 7 TC
+- **dual review**: 1a Claude 13건 적발·전건 fix → 1b Codex **신규 0 — 1사이클 수렴**. QA Docker 실QA 10/10 (재배포 후 no-strip 라우팅/인가/빈 계약/enum 400/DTO 은닉 실측). 전체 suite 434/434. CI 전 green.
+- **잔여(비차단, plan §4)**: ① 3 테이블 시드 슬라이스 후보(자재 28·ODU 24행, G13 무관) ② ProductCatalogController 기존 GET 무권한 비대칭(별도 권한 이관 슬라이스) ③ RC9 시리즈는 본 머지로 **종결**.
+- 🧠 codex exec 운영 함정 2건 메모리 박제: stdin `</dev/null` 필수([[feedback_codex_exec_stdin_hang]]) + 검증 단계 hang 시 산출물 확인 후 프로세스 정리.
+
+---
+
+## 🗄️ 2026-06-07 (새벽 자율) — **PR #417 권한그룹 C5 후속 사이클3 완결** (전 세션 중단분 재개)
 
 > 전 세션이 사이클3 구현(Codex) 도중 중단 → PM 자율 재개(개발책임자 취침 7h 위임). PM 재기획 `docs/qa/permission-groups-c5-followup/pm-replan-cycle-3.md` 에 따라 **role 헬퍼 계열 전수 처분** 완결.
 
