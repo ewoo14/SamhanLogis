@@ -233,6 +233,15 @@ class PageCodeTest {
     }
 
     @Test
+    void arologis_adminPermissions_pageCode_V52_seed와_동기화() {
+        assertThat(PageCode.AROLOGIS_ADMIN_PERMISSIONS.getCode())
+                .isEqualTo("arologis.admin.permissions");
+        assertThat(PageCode.AROLOGIS_ADMIN_PERMISSIONS.getDisplayName())
+                .isEqualTo("아로로지스 권한 관리");
+        assertThat(PageCode.isValid("arologis.admin.permissions")).isTrue();
+    }
+
+    @Test
     void spD65_pageCodes_V35_seed와_동기화() {
         assertThat(PageCode.INVENTORY_WAREHOUSE_ADMIN.getCode())
                 .isEqualTo("inventory.warehouse.admin");

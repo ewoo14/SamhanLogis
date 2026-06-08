@@ -3,6 +3,7 @@ package com.samhanair.logis.arologis.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -16,12 +17,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.samhanair.logis.arologis.client.AuthPermissionAdminClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.arologis.controller.ArologisAccountingController;
 import com.samhanair.logis.arologis.controller.ArologisAdminController;
 import com.samhanair.logis.arologis.controller.ArologisDriverAppController;
 import com.samhanair.logis.arologis.controller.ArologisHrController;
+import com.samhanair.logis.arologis.controller.ArologisPermissionAdminController;
 import com.samhanair.logis.arologis.controller.DispatchAdminV1Controller;
 import com.samhanair.logis.arologis.controller.DispatchReconcileController;
 import com.samhanair.logis.arologis.controller.RegionAdminController;
@@ -106,7 +109,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 DispatchSaveHistoryController.class,
                 ArologisDriverAppController.class,
                 ArologisHrController.class,
-                ArologisAccountingController.class
+                ArologisAccountingController.class,
+                ArologisPermissionAdminController.class
         },
         properties = {
                 "spring.application.name=arologis-service",
@@ -155,6 +159,7 @@ class ArologisPermissionControllerIT {
     @MockBean private ArologisEmployeeService arologisEmployeeService;
     @MockBean private ArologisDepartmentService arologisDepartmentService;
     @MockBean private ArologisAccountingService arologisAccountingService;
+    @MockBean private AuthPermissionAdminClient authPermissionAdminClient;
     @MockBean private JwtIssuer jwtIssuer;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
@@ -243,6 +248,16 @@ class ArologisPermissionControllerIT {
         lenient().when(arologisAccountingService.update(any(), any(), any())).thenReturn(cashTxn);
         lenient().when(arologisAccountingService.summary(any(), any())).thenReturn(summary);
         lenient().when(arologisAccountingService.monthlySummary(anyInt(), anyInt())).thenReturn(summary);
+
+        AuthPermissionAdminClient.RolePagePermissionView permView =
+                new AuthPermissionAdminClient.RolePagePermissionView(
+                        "MASTER", "arologis.admin.permissions", "아로로지스 권한 관리", true, true);
+        lenient().when(authPermissionAdminClient.getRoleMatrix(anyString()))
+                .thenReturn(java.util.Map.of("MASTER",
+                        java.util.Map.of("arologis.admin.permissions", permView)));
+        lenient().when(authPermissionAdminClient.updateRoleGrant(
+                        anyString(), anyString(), anyBoolean(), anyBoolean()))
+                .thenReturn(permView);
     }
 
     @ParameterizedTest(name = "{0} grant")
@@ -429,7 +444,15 @@ class ArologisPermissionControllerIT {
                         "AROLOGIS_MANAGER", () -> delete("/admin/arologis/accounting/cash-txns/{id}", ID)),
                 endpoint("accounting summary", "arologis.accounting.summary", PermissionAction.VIEW,
                         "AROLOGIS_MANAGER", () -> get("/admin/arologis/accounting/summary")
-                                .param("year", "2026").param("month", "6"))
+                                .param("year", "2026").param("month", "6")),
+                // 권한 게이트 메커니즘만 검증 — AROLOGIS_MASTER 는 PermissionAspect 에서 무조건 bypass 되어
+                // deny 케이스가 성립하지 않으므로(role 모드 isMasterBypass), 비-MASTER 롤로 grant/deny 를 단언한다.
+                // 실제 시드(MASTER 전용 grant)는 V52 + PageCodeTest, 위임/스코프 가드는 ArologisPermissionAdminControllerIT 에서 검증.
+                endpoint("permission matrix", "arologis.admin.permissions", PermissionAction.VIEW,
+                        "AROLOGIS_MANAGER", () -> get("/admin/arologis/permissions")),
+                endpoint("permission grant", "arologis.admin.permissions", PermissionAction.UPDATE,
+                        "AROLOGIS_MANAGER", () -> put("/admin/arologis/permissions")
+                                .contentType(MediaType.APPLICATION_JSON).content(permissionGrantBody()))
         );
     }
 
@@ -489,6 +512,10 @@ class ArologisPermissionControllerIT {
         return """
                 {"txnDate":"2026-06-08","type":"INCOME","partnerName":"한진택배","amount":150000.00,"accountCode":"4010","description":"운송료"}
                 """;
+    }
+
+    private static String permissionGrantBody() {
+        return "{\"roleCode\":\"MANAGER\",\"pageCode\":\"arologis.region\",\"canView\":true,\"canEdit\":true}";
     }
 
     private static MockMultipartFile csv(String name) {

@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.auth.domain.PageCode;
 import com.samhanair.logis.auth.service.AccountPermissionService;
+import com.samhanair.logis.auth.repository.RolePagePermissionRepository;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
 import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.auth.web.dto.PermissionUpdateRequest;
@@ -64,7 +65,8 @@ class PermissionAdminControllerTest {
                 new PermissionAdminController(permissionService, accountPermissionService, internalAuthProperties);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(adminController,
-                        new PermissionInternalController(accountPermissionService, permissionService))
+                        new PermissionInternalController(accountPermissionService, permissionService,
+                                Mockito.mock(RolePagePermissionRepository.class)))
                 .addFilters(new InternalTokenFilter(internalAuthProperties), new HeaderAuthenticationFilter())
                 .build();
     }

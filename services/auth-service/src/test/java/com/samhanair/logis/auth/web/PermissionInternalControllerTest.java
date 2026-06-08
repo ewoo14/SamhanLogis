@@ -3,15 +3,21 @@ package com.samhanair.logis.auth.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.samhanair.logis.auth.domain.RolePagePermission;
+import com.samhanair.logis.auth.repository.RolePagePermissionRepository;
 import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
+import com.samhanair.logis.auth.service.dto.PermissionDto;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -21,14 +27,17 @@ class PermissionInternalControllerTest {
 
     private AccountPermissionService accountPermissionService;
     private DynamicPermissionService dynamicPermissionService;
+    private RolePagePermissionRepository rolePagePermissionRepository;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         accountPermissionService = Mockito.mock(AccountPermissionService.class);
         dynamicPermissionService = Mockito.mock(DynamicPermissionService.class);
+        rolePagePermissionRepository = Mockito.mock(RolePagePermissionRepository.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new PermissionInternalController(accountPermissionService, dynamicPermissionService))
+                .standaloneSetup(new PermissionInternalController(
+                        accountPermissionService, dynamicPermissionService, rolePagePermissionRepository))
                 .build();
     }
 
@@ -130,5 +139,67 @@ class PermissionInternalControllerTest {
 
         assertThat(response.getStatus()).isEqualTo(400);
         Mockito.verifyNoInteractions(dynamicPermissionService);
+    }
+
+    /** role-matrix 는 pagePrefix 로 시작하는 활성 grant 행만 매트릭스로 반환한다. */
+    @Test
+    void roleMatrixReturnsOnlyRowsMatchingPrefix() throws Exception {
+        RolePagePermission arologisRow = Mockito.mock(RolePagePermission.class);
+        Mockito.when(arologisRow.getRoleCode()).thenReturn("MASTER");
+        Mockito.when(arologisRow.getPageCode()).thenReturn("arologis.admin.permissions");
+        RolePagePermission otherRow = Mockito.mock(RolePagePermission.class);
+        Mockito.when(otherRow.getRoleCode()).thenReturn("ACCOUNTANT");
+        Mockito.when(otherRow.getPageCode()).thenReturn("accounting.journals");
+        Mockito.when(rolePagePermissionRepository.findAllOrderByRoleCodeAndPageCode())
+                .thenReturn(List.of(arologisRow, otherRow));
+        Mockito.when(dynamicPermissionService.getPermission("MASTER", "arologis.admin.permissions"))
+                .thenReturn(new PermissionDto("MASTER", "arologis.admin.permissions",
+                        "아로로지스 권한 관리", true, true, true));
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/internal/permissions/role-matrix")
+                                .param("pagePrefix", "arologis."))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains("arologis.admin.permissions", "MASTER");
+        assertThat(response.getContentAsString()).doesNotContain("accounting.journals");
+        // 타 도메인 grant 는 매트릭스 구성 단계에서 제외되므로 getPermission 도 호출되지 않는다.
+        Mockito.verify(dynamicPermissionService, Mockito.never())
+                .getPermission("ACCOUNTANT", "accounting.journals");
+    }
+
+    /** role-matrix 는 pagePrefix blank 시 400 으로 거부한다(전체 매트릭스 유출 차단). */
+    @Test
+    void roleMatrixRejectsBlankPrefix() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.get("/auth/internal/permissions/role-matrix")
+                                .param("pagePrefix", "  "))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(400);
+        Mockito.verifyNoInteractions(rolePagePermissionRepository);
+    }
+
+    /** role-grant 는 DynamicPermissionService.updatePermission 으로 upsert 위임한다. */
+    @Test
+    void roleGrantDelegatesUpsert() throws Exception {
+        Mockito.when(dynamicPermissionService.updatePermission(
+                        ArgumentMatchers.any(), ArgumentMatchers.anyString()))
+                .thenReturn(new PermissionDto("MANAGER", "arologis.region",
+                        "아로로지스 지역/구역 관리", true, true, true));
+
+        MockHttpServletResponse response = mockMvc.perform(
+                        MockMvcRequestBuilders.put("/auth/internal/permissions/role-grant")
+                                .header("X-User-Id", "tester")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"roleCode\":\"MANAGER\",\"pageCode\":\"arologis.region\","
+                                        + "\"canView\":true,\"canEdit\":true}"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains("\"canEdit\":true", "arologis.region");
+        Mockito.verify(dynamicPermissionService)
+                .updatePermission(ArgumentMatchers.any(), ArgumentMatchers.eq("tester"));
     }
 }
