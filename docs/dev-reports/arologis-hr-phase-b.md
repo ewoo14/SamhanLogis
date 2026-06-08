@@ -26,7 +26,7 @@ arologis-service 에 행정직원 인사 시스템 BE + auth-service 권한 gran
 
 ## 4. 보안/정합
 - **권한 해석 체인**: AROLOGIS_MASTER=Aspect bypass / AROLOGIS_MANAGER→MASTER/MANAGER 정규화 → V50 grant 매칭. 중앙 DynamicPermissionService 무변경(blast radius 0, `AuthFlywayV50SeedIT` 가 중앙 fallback·AROLOGIS_* seed 부재 단언).
-- **권한 상승 차단**: AROLOGIS_MASTER 생성/승격은 actor=AROLOGIS_MASTER 한정(self-escalation 방지).
+- **권한 상승 차단(견고화)**: AROLOGIS_MASTER 생성/승격/강등은 **actor 의 persisted AdminUser.role 을 DB 조회**해 actor=AROLOGIS_MASTER 일 때만 허용 — X-User-Role 헤더 미신뢰(위조 무력화, 게이트웨이 의존 제거). `previousRole==MASTER || newRole==MASTER` 양방향 가드. (게이트웨이 경로 X-User-Role 전반 경화는 pre-existing C5 cutover[D-PGC-11~13] 항목으로 본 가드와 독립.)
 - **UUID 비공개**: 모든 HR 응답 비즈니스 식별자만. 임시 password BCrypt 해시 저장, 평문 생성응답 1회.
 
 ## 5. 검증
