@@ -3,7 +3,6 @@ package com.samhanair.logis.auth.it;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.auth.AuthServiceApplication;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,8 +24,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class AuthFlywayV52SeedIT extends AbstractPostgresIT {
 
     private static final String PERMISSIONS_PAGE = "arologis.admin.permissions";
-    private static final List<String> DENIED_ROLES = List.of(
-            "MANAGER", "ACCOUNTANT", "SALES", "WAREHOUSE", "DISPATCH", "INVENTORY");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -38,11 +35,11 @@ class AuthFlywayV52SeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V52는 권한 관리 page를 MANAGER 포함 비-MASTER 6롤에 명시 false로 seed한다")
-    void nonMasterRolesSeededAsDeniedRolePagePermissions() {
-        for (String roleCode : DENIED_ROLES) {
-            assertRolePagePermission(roleCode, PERMISSIONS_PAGE, false, false);
-        }
+    @DisplayName("V52는 권한 관리 page를 MANAGER에 명시 false로 seed한다(MASTER 전용)")
+    void managerSeededAsDeniedRolePagePermission() {
+        // MANAGER 는 V52/V53 모두 권한관리 false 유지(MASTER 전용). 그 외 비-MASTER 롤의 최종
+        // 상태(신규 4롤 false / 제거 5롤 행 삭제)는 AuthFlywayV53SeedIT 가 단언.
+        assertRolePagePermission("MANAGER", PERMISSIONS_PAGE, false, false);
     }
 
     @Test

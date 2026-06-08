@@ -31,28 +31,18 @@ import { canGrantMaster, useAuthStore } from '../../stores/authStore'
 const CENTRAL_MASTER_ROLE = 'MASTER'
 
 /**
- * 롤 코드 → 한국어 라벨. arologis.* page-code 는 중앙 `role_page_permissions` 에서 V10/V50/V51 시드로
- * **모든 중앙 롤**(MASTER/MANAGER/DEVELOPER/DISPATCH/DRIVER/STAFF/SALES/ACCOUNTANT/WAREHOUSE/
- * INVENTORY/PARTNER)에 행을 보유한다(대부분 FALSE,FALSE, 일부 DISPATCH TRUE). `getRoleMatrix` 가
- * prefix 매칭 행을 필터 없이 모두 반환하므로 이 롤들이 전부 매트릭스 열로 등장 → 전 롤 한국어 라벨
- * 필수(실QA 에서 미라벨 raw 코드 노출 확인 후 보강). 라벨 = Samhan Public `ADMIN_ROLE_LABEL` 정합.
- * arologis-JWT 롤(AROLOGIS_MASTER/MANAGER)은 중앙 MASTER/MANAGER 로 정규화되어 매트릭스에 직접
- * 등장하지 않으나 방어적으로 유지. 매핑 없으면 코드 그대로 노출.
+ * 롤 코드 → 한국어 라벨. **아로로지스 6-롤**(2026-06-08, 개발책임자) — arologis JWT 롤(AROLOGIS_*)이
+ * 중앙 코드로 정규화되어 매트릭스 열로 등장한다. V53 시드가 무관 5롤(DISPATCH/INVENTORY/PARTNER/
+ * STAFF/WAREHOUSE) arologis.* grant 를 제거하므로 getRoleMatrix 는 아래 6 중앙 코드만 반환.
+ * 매핑 없으면 코드 그대로 노출(방어적).
  */
 const ROLE_LABELS: Record<string, string> = {
   MASTER: '마스터',
   MANAGER: '매니저',
   DEVELOPER: '개발자',
-  DISPATCH: '배차담당자',
-  DRIVER: '기사',
-  STAFF: '사원',
-  SALES: '영업원',
-  ACCOUNTANT: '회계원',
-  WAREHOUSE: '창고원',
-  INVENTORY: '재고원',
-  PARTNER: '협력사',
-  AROLOGIS_MASTER: '아로로지스 마스터',
-  AROLOGIS_MANAGER: '아로로지스 매니저',
+  SALES: '영업사원',
+  ACCOUNTANT: '회계사원',
+  DRIVER: '배송기사',
 }
 
 /** 권한 매트릭스 react-query 키 — 조회/낙관갱신/무효화에서 공유. */
@@ -340,14 +330,12 @@ function collectPages(
     .sort((a, b) => a.pageCode.localeCompare(b.pageCode))
 }
 
-/** 롤 열 정렬 — 중앙(MASTER/MANAGER) 먼저, 그다음 아로로지스, 나머지는 알파벳. */
+/** 롤 열 정렬 — 아로로지스 6-롤 위계순(마스터>매니저>개발자>영업사원>회계사원>배송기사), 그 외 알파벳. */
+const ROLE_ORDER = ['MASTER', 'MANAGER', 'DEVELOPER', 'SALES', 'ACCOUNTANT', 'DRIVER']
 function sortRoles(roles: string[]): string[] {
   const rank = (role: string): number => {
-    if (role === 'MASTER') return 0
-    if (role === 'MANAGER') return 1
-    if (role === 'AROLOGIS_MASTER') return 2
-    if (role === 'AROLOGIS_MANAGER') return 3
-    return 4
+    const idx = ROLE_ORDER.indexOf(role)
+    return idx === -1 ? ROLE_ORDER.length : idx
   }
   return [...roles].sort((a, b) => {
     const diff = rank(a) - rank(b)

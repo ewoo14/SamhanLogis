@@ -41,10 +41,22 @@ type EmployeeModalState =
   | { mode: 'history'; employee: EmployeeRow }
   | null
 
-const ROLE_OPTIONS: ArologisRole[] = ['AROLOGIS_MANAGER', 'AROLOGIS_MASTER']
-const ROLE_LABELS: Partial<Record<ArologisRole, string>> = {
+// 아로로지스 6-롤(2026-06-08). 마스터는 마스터 actor 만 부여 가능(availableRoleOptions 게이트) → 끝에 배치.
+const ROLE_OPTIONS: ArologisRole[] = [
+  'AROLOGIS_MANAGER',
+  'AROLOGIS_DEVELOPER',
+  'AROLOGIS_SALES',
+  'AROLOGIS_ACCOUNTANT',
+  'AROLOGIS_DRIVER',
+  'AROLOGIS_MASTER',
+]
+const ROLE_LABELS: Record<ArologisRole, string> = {
   AROLOGIS_MASTER: '마스터',
   AROLOGIS_MANAGER: '매니저',
+  AROLOGIS_DEVELOPER: '개발자',
+  AROLOGIS_SALES: '영업사원',
+  AROLOGIS_ACCOUNTANT: '회계사원',
+  AROLOGIS_DRIVER: '배송기사',
 }
 
 interface DepartmentOption extends DepartmentRow {

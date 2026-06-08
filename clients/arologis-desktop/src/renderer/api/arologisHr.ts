@@ -6,7 +6,17 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 
-export type ArologisRole = 'AROLOGIS_MASTER' | 'AROLOGIS_MANAGER'
+/**
+ * 아로로지스 6-롤(2026-06-08 확장). BE AdminUserRole enum 정확 일치.
+ * 마스터/매니저/개발자/영업사원/회계사원/배송기사.
+ */
+export type ArologisRole =
+  | 'AROLOGIS_MASTER'
+  | 'AROLOGIS_MANAGER'
+  | 'AROLOGIS_DEVELOPER'
+  | 'AROLOGIS_SALES'
+  | 'AROLOGIS_ACCOUNTANT'
+  | 'AROLOGIS_DRIVER'
 
 export interface EmployeeRow {
   loginId: string

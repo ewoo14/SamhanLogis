@@ -20,8 +20,6 @@ class AuthFlywayV51SeedIT extends AbstractPostgresIT {
     private static final List<String> ACCOUNTING_PAGES = List.of(
             "arologis.accounting.cashbook",
             "arologis.accounting.summary");
-    private static final List<String> DENIED_ROLES = List.of(
-            "ACCOUNTANT", "SALES", "WAREHOUSE", "DISPATCH", "INVENTORY");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -35,15 +33,8 @@ class AuthFlywayV51SeedIT extends AbstractPostgresIT {
         }
     }
 
-    @Test
-    @DisplayName("V51은 회계 page를 ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY에 명시 false로 seed한다")
-    void nonAccountingRolesSeededAsDeniedRolePagePermissions() {
-        for (String pageCode : ACCOUNTING_PAGES) {
-            for (String roleCode : DENIED_ROLES) {
-                assertRolePagePermission(roleCode, pageCode, false, false);
-            }
-        }
-    }
+    // 비-MASTER/MANAGER 롤의 회계 page 최종 상태는 V53(아로로지스 6-롤)가 재정의한다
+    // (회계사원=true,true 로 승격, 제거 5롤=행 삭제). AuthFlywayV53SeedIT 가 단언.
 
     @Test
     @DisplayName("V51은 AROLOGIS_* role 또는 template/group/account 회계 seed를 만들지 않는다")

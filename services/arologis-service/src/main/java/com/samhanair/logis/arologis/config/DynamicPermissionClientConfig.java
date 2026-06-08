@@ -51,15 +51,19 @@ public class DynamicPermissionClientConfig {
             return delegate.bulkLoad(accountId);
         }
 
+        /** arologis 접두 롤(AdminUserRole) 정의 — prefix 제거 후 동일 중앙 코드. */
+        private static final String AROLOGIS_ROLE_PREFIX = "AROLOGIS_";
+
+        /**
+         * arologis JWT 롤(AROLOGIS_*)을 중앙 {@code role_page_permissions} 코드로 정규화한다.
+         *
+         * <p>6-롤 전부 {@code AROLOGIS_} 접두만 제거하면 중앙 코드와 일치한다(AROLOGIS_MASTER→MASTER,
+         * AROLOGIS_DEVELOPER→DEVELOPER, AROLOGIS_SALES→SALES, AROLOGIS_ACCOUNTANT→ACCOUNTANT,
+         * AROLOGIS_DRIVER→DRIVER). 접두 없는 코드는 변경 없이 통과(방어적).
+         */
         private static String normalize(String roleCode) {
-            if ("AROLOGIS_MASTER".equals(roleCode)) {
-                return "MASTER";
-            }
-            if ("AROLOGIS_MANAGER".equals(roleCode)) {
-                return "MANAGER";
-            }
-            if ("AROLOGIS_DRIVER".equals(roleCode)) {
-                return "DRIVER";
+            if (roleCode != null && roleCode.startsWith(AROLOGIS_ROLE_PREFIX)) {
+                return roleCode.substring(AROLOGIS_ROLE_PREFIX.length());
             }
             return roleCode;
         }

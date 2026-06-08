@@ -4,10 +4,16 @@
  * 앱 부팅 시 `bootstrap()` 가 `window.arologisAuth.getToken()` IPC 호출로
  * 메인 프로세스에서 토큰을 가져와 초기 상태를 구성한다.
  *
- * 권한 (Role) 매트릭스 (BE D-AX-07 일치):
- * - AROLOGIS_MASTER  — 모든 권한
- * - AROLOGIS_MANAGER — 배차 / 기사 관리 / 조회
- * - AROLOGIS_DRIVER  — 모바일 전용 (본 desktop 에서는 노출 안 됨)
+ * 권한 (Role) 모델 — 아로로지스 6-롤 (2026-06-08 확장, 개발책임자):
+ * - AROLOGIS_MASTER     — 모든 권한(bypass) + 마스터 부여 가능
+ * - AROLOGIS_MANAGER    — 배차/기사/인사/회계 관리(권한관리 제외)
+ * - AROLOGIS_DEVELOPER  — 권한관리 제외 전권(시스템 운영)
+ * - AROLOGIS_SALES      — 배차/지역 조회 중심
+ * - AROLOGIS_ACCOUNTANT — 회계 중심
+ * - AROLOGIS_DRIVER     — 기사앱(모바일) 전용
+ *
+ * ※ 실제 page 접근은 중앙 role_page_permissions(매트릭스 UI) 가 결정. 아래 가드는
+ *   desktop 관리 화면(기사/인사 CUD)의 노출 게이트로, HR 관리 주체는 MASTER|MANAGER 로 유지.
  *
  * F1 skeleton 시점에는 bootstrap / setAuth / logout 기본 동작만 제공한다.
  * F3 (LoginPage) 에서 setAuth 호출, F4 (DriverManagementPage) 에서 role 가드 활용.

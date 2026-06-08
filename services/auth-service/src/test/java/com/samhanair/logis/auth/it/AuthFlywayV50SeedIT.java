@@ -20,8 +20,6 @@ class AuthFlywayV50SeedIT extends AbstractPostgresIT {
     private static final List<String> HR_PAGES = List.of(
             "arologis.hr.employees",
             "arologis.hr.departments");
-    private static final List<String> DENIED_ROLES = List.of(
-            "ACCOUNTANT", "SALES", "WAREHOUSE", "DISPATCH", "INVENTORY");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -35,15 +33,8 @@ class AuthFlywayV50SeedIT extends AbstractPostgresIT {
         }
     }
 
-    @Test
-    @DisplayName("V50은 HR page를 ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY에 명시 false로 seed한다")
-    void nonHrRolesSeededAsDeniedRolePagePermissions() {
-        for (String pageCode : HR_PAGES) {
-            for (String roleCode : DENIED_ROLES) {
-                assertRolePagePermission(roleCode, pageCode, false, false);
-            }
-        }
-    }
+    // 비-MASTER/MANAGER 롤의 HR page 최종 상태는 V53(아로로지스 6-롤)가 재정의하므로
+    // AuthFlywayV53SeedIT 가 단언한다(V50 의 임시 false 시드는 V53 가 삭제/재적재).
 
     @Test
     @DisplayName("V50은 AROLOGIS_* role 또는 template/group/account HR seed를 만들지 않는다")
