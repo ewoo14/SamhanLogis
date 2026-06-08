@@ -31,15 +31,21 @@ import { canGrantMaster, useAuthStore } from '../../stores/authStore'
 const CENTRAL_MASTER_ROLE = 'MASTER'
 
 /**
- * 롤 코드 → 한국어 라벨. arologis.* grant 는 중앙 `role_page_permissions` 의 MASTER/MANAGER 에
- * 시드되므로 실제 등장 롤은 이 둘. 정규화 별칭(AROLOGIS_*)도 방어적으로 유지하고, 매핑 없으면
- * 코드 그대로 노출(새 롤 추가돼도 표시).
+ * 롤 코드 → 한국어 라벨. arologis.* page-code 는 중앙 `role_page_permissions` 에서 MASTER/MANAGER
+ * 뿐 아니라 V10/V50/V51 시드로 ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY 행도 보유한다
+ * (대부분 FALSE,FALSE 이나 DISPATCH 는 일부 TRUE). `getRoleMatrix` 가 prefix 매칭 행을 필터 없이
+ * 모두 반환하므로 이 롤들도 매트릭스 열로 등장 → 한국어 라벨 필수. 매핑 없으면 코드 그대로 노출.
  */
 const ROLE_LABELS: Record<string, string> = {
   MASTER: '중앙 마스터',
   MANAGER: '중앙 매니저',
   AROLOGIS_MASTER: '아로로지스 마스터',
   AROLOGIS_MANAGER: '아로로지스 매니저',
+  ACCOUNTANT: '회계',
+  SALES: '영업',
+  WAREHOUSE: '창고',
+  DISPATCH: '배차',
+  INVENTORY: '재고',
 }
 
 /** 권한 매트릭스 react-query 키 — 조회/낙관갱신/무효화에서 공유. */
@@ -88,9 +94,11 @@ export function PermissionsPage(): JSX.Element {
       canEdit: boolean
     }) => updateGrant(vars.roleCode, vars.pageCode, vars.canView, vars.canEdit),
     // 낙관적 갱신 — 토글 즉시 화면 반영(edit→view 자동 등). onError 시 스냅샷 롤백.
-    onMutate: (vars) => {
+    onMutate: async (vars) => {
       setError(null)
       setPending((prev) => new Set(prev).add(cellKey(vars.roleCode, vars.pageCode)))
+      // 진행 중 refetch 가 낙관 데이터를 덮어쓰지 않도록 취소(다중 셀 동시 토글 시 깜빡임 방지).
+      await queryClient.cancelQueries({ queryKey: MATRIX_QUERY_KEY })
       const snapshot = queryClient.getQueryData<PermissionMatrix>(MATRIX_QUERY_KEY)
       queryClient.setQueryData<PermissionMatrix>(MATRIX_QUERY_KEY, (prev) => {
         const base = prev ?? {}
