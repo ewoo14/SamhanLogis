@@ -11,6 +11,7 @@
  * - `/drivers`      기사 마스터 (phoneNumber 사전 등록 — F4)
  * - `/admin/employees`    인사 직원 관리
  * - `/admin/departments`  인사 부서 관리
+ * - `/admin/cashbook`     회계 현금출납장 (간이 회계 수입/지출)
  *
  * `ProtectedRoute` 가 토큰 부재 시 `/login` 으로 강제 리다이렉트한다.
  */
@@ -31,6 +32,7 @@ import { LoginPage } from './login/LoginPage'
 import { DriverManagementPage } from './drivers/DriverManagementPage'
 import { EmployeesPage } from './admin/EmployeesPage'
 import { DepartmentsPage } from './admin/DepartmentsPage'
+import { CashbookPage } from './admin/CashbookPage'
 import { DispatchesLayout } from './dispatches/DispatchesLayout'
 import { ArologisManualDispatchPage } from './dispatches/ManualDispatchPage'
 import { ArologisPreClassifyPage } from './dispatches/PreClassifyPage'
@@ -124,6 +126,7 @@ const router = createHashRouter([
       { path: 'drivers', element: <DriverManagementPage /> },
       { path: 'admin/employees', element: <EmployeesPage /> },
       { path: 'admin/departments', element: <DepartmentsPage /> },
+      { path: 'admin/cashbook', element: <CashbookPage /> },
     ],
   },
 ])

@@ -70,6 +70,12 @@ export function AppLayout(): JSX.Element {
             >
               부서
             </NavLink>
+            <NavLink
+              to="/admin/cashbook"
+              style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
+            >
+              회계
+            </NavLink>
           </>
         ) : null}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
