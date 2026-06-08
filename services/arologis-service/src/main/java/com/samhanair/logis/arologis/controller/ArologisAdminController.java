@@ -62,7 +62,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * Admin endpoint — Phase 10 W10-1 arologis-service.
  *
- * <p>인증 = X-User-* 헤더 + {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")}.
+ * <p>인증 = X-User-* 헤더 + 메서드별 {@code @RequirePermission(page="arologis.dispatch.admin", ...)}
+ * 동적 page-code 권한(아로로지스 6-롤 매트릭스). AROLOGIS_MASTER 는 PermissionAspect master bypass.
  *
  * <p>UUID 비공개 가드 — driverCode / partnerCode / vehicle sequence / stop sequence 응답에만 사용.
  * dispatchId 만 admin 화면 routing 용 노출.

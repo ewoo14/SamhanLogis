@@ -11,7 +11,8 @@
 --     (V10 blanket 시드가 page 별로 불일치 → 전 page 명시 재seed). MASTER/MANAGER 행 불변.
 --
 -- 기본 grant(보수적·유용, 마스터가 권한 관리 매트릭스 UI 로 즉시 조정):
---   개발자   = 권한관리 외 전권(V/E)
+--   개발자   = 인사(HR)·권한관리 제외 전권(V/E) — 개발책임자 2026-06-08: 개발자는 직원
+--              생성/롤변경 불가(권한 전파 차단, 기술 운영 역할). HR 주체는 마스터/매니저.
 --   영업사원 = 배차/지역 조회(V)
 --   회계사원 = 회계(현금출납/집계) V/E
 --   배송기사 = 기사앱(arologis.driver) V/E
@@ -39,8 +40,9 @@ VALUES
   ('DEVELOPER', 'arologis.edit-requests',        TRUE,  TRUE,  NOW(), 'system', NOW(), 'system', FALSE),
   ('DEVELOPER', 'arologis.edit-requests.decide', TRUE,  TRUE,  NOW(), 'system', NOW(), 'system', FALSE),
   ('DEVELOPER', 'arologis.driver',               TRUE,  TRUE,  NOW(), 'system', NOW(), 'system', FALSE),
-  ('DEVELOPER', 'arologis.hr.employees',         TRUE,  TRUE,  NOW(), 'system', NOW(), 'system', FALSE),
-  ('DEVELOPER', 'arologis.hr.departments',       TRUE,  TRUE,  NOW(), 'system', NOW(), 'system', FALSE),
+  -- 인사(HR)는 개발자 제외 — 직원 생성/롤변경 권한 전파 차단(개발책임자 2026-06-08).
+  ('DEVELOPER', 'arologis.hr.employees',         FALSE, FALSE, NOW(), 'system', NOW(), 'system', FALSE),
+  ('DEVELOPER', 'arologis.hr.departments',       FALSE, FALSE, NOW(), 'system', NOW(), 'system', FALSE),
   ('DEVELOPER', 'arologis.accounting.cashbook',  TRUE,  TRUE,  NOW(), 'system', NOW(), 'system', FALSE),
   ('DEVELOPER', 'arologis.accounting.summary',   TRUE,  TRUE,  NOW(), 'system', NOW(), 'system', FALSE),
   ('DEVELOPER', 'arologis.admin.permissions',    FALSE, FALSE, NOW(), 'system', NOW(), 'system', FALSE),

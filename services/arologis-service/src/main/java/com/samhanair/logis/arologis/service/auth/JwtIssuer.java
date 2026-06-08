@@ -38,7 +38,7 @@ public class JwtIssuer {
      *
      * @param userId AdminUser.id (UUID, sub claim)
      * @param loginId 사용자 노출 식별자 (loginId claim — UUID 노출 회피)
-     * @param role AROLOGIS_MASTER 또는 AROLOGIS_MANAGER
+     * @param role 아로로지스 admin 롤(AdminUserRole 6-롤 중 하나)
      */
     public String issueAccessForAdmin(UUID userId, String loginId, AdminUserRole role) {
         Instant now = Instant.now();

@@ -41,7 +41,8 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code GET  /api/v1/arologis/admin/drivers/available} — 가용 기사 list</li>
  * </ol>
  *
- * <p>권한 — {@code @PreAuthorize("hasAnyRole('MASTER','MANAGER','AROLOGIS_MASTER','AROLOGIS_MANAGER')")} 전체 적용.
+ * <p>권한 — 메서드별 {@code @RequirePermission(page="arologis.dispatch.admin", ...)} 동적 page-code
+ * 권한(아로로지스 6-롤 매트릭스). AROLOGIS_MASTER 는 master bypass.
  * UUID 비공개 가드 — dispatchId (admin routing 용) 만 노출, driver / vehicle UUID 는 미포함.
  *
  * <p>SP-D3 동적 권한 이중 가드:

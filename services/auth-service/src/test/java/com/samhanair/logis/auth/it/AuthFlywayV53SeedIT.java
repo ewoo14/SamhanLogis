@@ -58,12 +58,15 @@ class AuthFlywayV53SeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V53은 개발자(DEVELOPER)에 권한관리 외 전권(V/E)을 부여한다")
-    void developerHasFullAccessExceptPermissions() {
+    @DisplayName("V53은 개발자(DEVELOPER)에 인사(HR)·권한관리 제외 전권(V/E)을 부여한다")
+    void developerHasFullAccessExceptHrAndPermissions() {
         assertGrant("DEVELOPER", "arologis.admin", true, true);
-        assertGrant("DEVELOPER", "arologis.hr.employees", true, true);
+        assertGrant("DEVELOPER", "arologis.dispatch.ops", true, true);
         assertGrant("DEVELOPER", "arologis.accounting.cashbook", true, true);
         assertGrant("DEVELOPER", "arologis.driver", true, true);
+        // 인사(직원/부서)·권한관리는 개발자 제외 — 직원 생성/롤변경 권한 전파 차단(개발책임자).
+        assertGrant("DEVELOPER", "arologis.hr.employees", false, false);
+        assertGrant("DEVELOPER", "arologis.hr.departments", false, false);
         assertGrant("DEVELOPER", "arologis.admin.permissions", false, false);
     }
 

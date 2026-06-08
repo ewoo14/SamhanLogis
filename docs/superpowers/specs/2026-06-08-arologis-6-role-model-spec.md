@@ -48,13 +48,13 @@ arologis 롤 모델을 현 2롤(AROLOGIS_MASTER/AROLOGIS_MANAGER)에서 **6롤**
 | arologis.edit-requests | V/E | F | F | F |
 | arologis.edit-requests.decide | V/E | F | F | F |
 | arologis.driver (기사앱) | V/E | F | F | **V/E** |
-| arologis.hr.employees | V/E | F | F | F |
-| arologis.hr.departments | V/E | F | F | F |
+| arologis.hr.employees | **F** | F | F | F |
+| arologis.hr.departments | **F** | F | F | F |
 | arologis.accounting.cashbook | V/E | F | **V/E** | F |
 | arologis.accounting.summary | V/E | F | **V/E** | F |
 | arologis.admin.permissions | F | F | F | F |
 
-- 개발자 = 권한관리 외 전권(power user). 회계사원 = 회계 전용. 영업사원 = 배차/지역 조회(view). 배송기사 = 기사앱 전용(모바일).
+- 개발자 = **인사(HR)·권한관리 제외 전권**(개발책임자 2026-06-08: 직원 생성/롤변경 불가 → 권한 전파 차단, 기술 운영 역할). 회계사원 = 회계 전용. 영업사원 = 배차/지역 조회(view). 배송기사 = 기사앱 전용(모바일).
 - 마스터 = bypass(전권). 매니저 = 기존 유지(권한관리 외 V/E). **개발책임자 매트릭스 UI 로 즉시 조정 가능.**
 
 ## 5. QA
