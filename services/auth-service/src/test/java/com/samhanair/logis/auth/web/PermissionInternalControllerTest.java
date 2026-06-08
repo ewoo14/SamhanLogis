@@ -141,20 +141,22 @@ class PermissionInternalControllerTest {
         Mockito.verifyNoInteractions(dynamicPermissionService);
     }
 
-    /** role-matrix 는 pagePrefix 로 시작하는 활성 grant 행만 매트릭스로 반환한다. */
+    /**
+     * role-matrix 는 pagePrefix 로 시작하는 활성 grant 행만 매트릭스로 반환하며,
+     * 행마다 getPermission 재조회 없이(N+1 제거) 로드한 row 의 can_view/can_edit 로 DTO 를 구성한다.
+     */
     @Test
     void roleMatrixReturnsOnlyRowsMatchingPrefix() throws Exception {
         RolePagePermission arologisRow = Mockito.mock(RolePagePermission.class);
         Mockito.when(arologisRow.getRoleCode()).thenReturn("MASTER");
         Mockito.when(arologisRow.getPageCode()).thenReturn("arologis.admin.permissions");
+        Mockito.when(arologisRow.isCanView()).thenReturn(true);
+        Mockito.when(arologisRow.isCanEdit()).thenReturn(true);
         RolePagePermission otherRow = Mockito.mock(RolePagePermission.class);
         Mockito.when(otherRow.getRoleCode()).thenReturn("ACCOUNTANT");
         Mockito.when(otherRow.getPageCode()).thenReturn("accounting.journals");
         Mockito.when(rolePagePermissionRepository.findAllOrderByRoleCodeAndPageCode())
                 .thenReturn(List.of(arologisRow, otherRow));
-        Mockito.when(dynamicPermissionService.getPermission("MASTER", "arologis.admin.permissions"))
-                .thenReturn(new PermissionDto("MASTER", "arologis.admin.permissions",
-                        "아로로지스 권한 관리", true, true, true));
 
         MockHttpServletResponse response = mockMvc.perform(
                         MockMvcRequestBuilders.get("/auth/internal/permissions/role-matrix")
@@ -163,10 +165,11 @@ class PermissionInternalControllerTest {
 
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getContentAsString()).contains("arologis.admin.permissions", "MASTER");
+        // 행 row 기반으로 canView/canEdit/isOverride 를 직접 구성 (getPermission 미사용).
+        assertThat(response.getContentAsString()).contains("\"canEdit\":true", "\"isOverride\":true");
         assertThat(response.getContentAsString()).doesNotContain("accounting.journals");
-        // 타 도메인 grant 는 매트릭스 구성 단계에서 제외되므로 getPermission 도 호출되지 않는다.
-        Mockito.verify(dynamicPermissionService, Mockito.never())
-                .getPermission("ACCOUNTANT", "accounting.journals");
+        // N+1 제거 — 매트릭스 구성에 getPermission(DynamicPermissionService) 를 호출하지 않는다.
+        Mockito.verifyNoInteractions(dynamicPermissionService);
     }
 
     /** role-matrix 는 pagePrefix blank 시 400 으로 거부한다(전체 매트릭스 유출 차단). */

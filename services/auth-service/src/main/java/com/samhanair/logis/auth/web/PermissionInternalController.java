@@ -1,5 +1,6 @@
 package com.samhanair.logis.auth.web;
 
+import com.samhanair.logis.auth.domain.PageCode;
 import com.samhanair.logis.auth.repository.RolePagePermissionRepository;
 import com.samhanair.logis.auth.service.AccountPermissionService;
 import com.samhanair.logis.auth.service.DynamicPermissionService;
@@ -13,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
  *
  * <p>{@code /auth/internal/**} prefix 로 {@code X-Internal-Token} 검증을 강제한다.
  */
+@Slf4j
 @RestController
 @RequestMapping("/auth/internal/permissions")
 @RequiredArgsConstructor
@@ -104,6 +107,12 @@ public class PermissionInternalController {
      *
      * <p>{@code pagePrefix} 는 필수이며 blank 를 거부한다(빈 prefix = 전체 매트릭스 유출 차단).
      *
+     * <p><b>N+1 제거</b>: 이미 로드한 grant row 의 {@code isCanView/isCanEdit} 와 page-code 별
+     * displayName 으로 {@link PermissionDto} 를 직접 구성한다(행마다 {@code getPermission} 재조회
+     * 금지). 매트릭스는 실제 grant 행만 담으므로 모든 항목의 {@code isOverride} 는 항상 {@code true}
+     * 이고, displayName 의미는 {@link com.samhanair.logis.auth.domain.PageCode} 미등록 시 코드 그대로
+     * 사용으로 동일하게 유지된다.
+     *
      * @param pagePrefix 페이지 코드 prefix (필수, blank 거부 — 예: {@code "arologis."})
      * @return roleCode → pageCode → 권한 DTO 매트릭스
      */
@@ -122,9 +131,27 @@ public class PermissionInternalController {
                         && row.getPageCode().startsWith(normalizedPrefix))
                 .forEach(row -> matrix
                         .computeIfAbsent(row.getRoleCode(), k -> new LinkedHashMap<>())
-                        .put(row.getPageCode(), dynamicPermissionService.getPermission(
-                                row.getRoleCode(), row.getPageCode())));
+                        .put(row.getPageCode(), new PermissionDto(
+                                row.getRoleCode(), row.getPageCode(),
+                                resolveDisplayName(row.getPageCode()),
+                                row.isCanView(), row.isCanEdit(), true)));
         return ApiResponse.ok(matrix);
+    }
+
+    /**
+     * page-code 의 한국어 displayName 을 PageCode enum 에서 조회한다.
+     *
+     * <p>미등록 코드는 코드 문자열 그대로 사용한다 — {@code DynamicPermissionService} 와 동일한 의미.
+     *
+     * @param pageCode dot-separated 페이지 코드
+     * @return displayName (미등록 시 pageCode 그대로)
+     */
+    private String resolveDisplayName(String pageCode) {
+        try {
+            return PageCode.fromCode(pageCode).getDisplayName();
+        } catch (IllegalArgumentException e) {
+            return pageCode;
+        }
     }
 
     /**
@@ -132,11 +159,16 @@ public class PermissionInternalController {
      *
      * <p>중앙 {@link DynamicPermissionService#updatePermission(PermissionUpdateRequest, String)} 에
      * 위임하여 활성 행을 갱신하거나 신규 생성한다. {@code canEdit=true} 인 경우 도메인 규칙상
-     * {@code canView} 가 자동 true 로 보장된다.
+     * {@code canView} 가 자동 true 로 보장된다. page-code 유효성({@link
+     * com.samhanair.logis.auth.domain.PageCode#isValid(String)})은 위임받은 서비스가 검증하므로
+     * 미등록 코드는 {@code INVALID_INPUT}(400) 으로 거부된다.
      *
-     * <p>도메인 스코프 가드(예: arologis.* 한정)는 <b>호출 서비스 컨트롤러</b> 측에서 강제한다.
-     * 본 내부 엔드포인트는 {@code X-Internal-Token} 으로만 게이트되며 page-code 도메인을 제한하지
-     * 않으므로, 호출 측이 반드시 자기 도메인 prefix 가드를 적용해야 한다.
+     * <p><b>신뢰 모델(중요)</b>: 본 내부 엔드포인트는 {@code X-Internal-Token} 으로만 게이트되며
+     * <b>page-code 도메인을 제한하지 않는다</b>. 즉 호출 측이 어떤 도메인 grant 든 변경할 수 있는
+     * 무제한 write 면이므로, <b>도메인 스코프 가드(예: arologis.* 한정)는 반드시 호출 서비스
+     * 컨트롤러 측에서 강제</b>해야 한다. 본 EP 는 호출측 신뢰를 전제로 위임만 수행하며, 스코프
+     * 책임은 호출측에 있다. (오용 탐지를 위해 모든 변경을 actor/롤/페이지/권한과 함께 WARN 으로
+     * 감사 로깅한다.)
      *
      * <p>actor = 호출 서비스의 {@code X-User-Id} 헤더(미존재 시 service-internal 식별자).
      *
@@ -150,6 +182,11 @@ public class PermissionInternalController {
             @Valid @RequestBody PermissionUpdateRequest request,
             @RequestHeader(value = USER_ID_HEADER, required = false) String actor) {
         String actorId = (actor == null || actor.isBlank()) ? "system-internal" : actor;
+        // 신뢰경계 감사 — 도메인 무제한 write 면이므로 모든 변경을 오용 탐지용으로 WARN 기록.
+        log.warn("[PermissionInternal] role-grant 변경 — actor={} roleCode={} pageCode={} "
+                        + "canView={} canEdit={}",
+                actorId, request.roleCode(), request.pageCode(),
+                request.canView(), request.canEdit());
         return ApiResponse.ok(dynamicPermissionService.updatePermission(request, actorId));
     }
 

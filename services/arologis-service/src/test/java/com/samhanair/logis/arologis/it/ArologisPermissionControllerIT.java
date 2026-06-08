@@ -256,7 +256,7 @@ class ArologisPermissionControllerIT {
                 .thenReturn(java.util.Map.of("MASTER",
                         java.util.Map.of("arologis.admin.permissions", permView)));
         lenient().when(authPermissionAdminClient.updateRoleGrant(
-                        anyString(), anyString(), anyBoolean(), anyBoolean()))
+                        anyString(), anyString(), anyBoolean(), anyBoolean(), anyString()))
                 .thenReturn(permView);
     }
 

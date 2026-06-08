@@ -1,6 +1,7 @@
 package com.samhanair.logis.arologis.it;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -57,33 +58,56 @@ class ArologisPermissionAdminControllerIT {
         verify(client).getRoleMatrix("arologis.");
     }
 
-    /** PUT arologis.* page-code 는 가드를 통과하여 client.updateRoleGrant 로 위임한다. */
+    /**
+     * PUT arologis.* page-code 는 가드를 통과하여 client.updateRoleGrant 로 위임하며,
+     * X-User-Id 헤더(실 actor)를 그대로 전파한다.
+     */
     @Test
     void updateGrant_withArologisPageCode_delegates() throws Exception {
         RolePagePermissionView view = new RolePagePermissionView(
                 "MANAGER", "arologis.region", "아로로지스 지역/구역 관리", true, true);
-        when(client.updateRoleGrant("MANAGER", "arologis.region", true, true)).thenReturn(view);
+        when(client.updateRoleGrant("MANAGER", "arologis.region", true, true, "actor-1"))
+                .thenReturn(view);
 
         mockMvc.perform(put("/admin/arologis/permissions")
+                        .header("X-User-Id", "actor-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"MANAGER\",\"pageCode\":\"arologis.region\","
                                 + "\"canView\":true,\"canEdit\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.pageCode").value("arologis.region"));
 
-        verify(client).updateRoleGrant("MANAGER", "arologis.region", true, true);
+        verify(client).updateRoleGrant("MANAGER", "arologis.region", true, true, "actor-1");
     }
 
     /** PUT 비-arologis page-code 는 FORBIDDEN 가드로 거부하고 client 를 호출하지 않는다. */
     @Test
     void updateGrant_withNonArologisPageCode_isForbiddenAndNotDelegated() throws Exception {
         mockMvc.perform(put("/admin/arologis/permissions")
+                        .header("X-User-Id", "actor-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"ACCOUNTANT\",\"pageCode\":\"accounting.journals\","
                                 + "\"canView\":true,\"canEdit\":true}"))
                 .andExpect(status().isForbidden());
 
         verify(client, never()).updateRoleGrant(eq("ACCOUNTANT"), eq("accounting.journals"),
-                anyBoolean(), anyBoolean());
+                anyBoolean(), anyBoolean(), anyString());
+    }
+
+    /**
+     * PUT 중앙 MASTER 롤 변경 시도는 FORBIDDEN 으로 사전 거부하고 client 를 호출하지 않는다.
+     * (auth 의 MASTER 보호와 정합 — AROLOGIS_MASTER/MANAGER 등은 본 가드 비대상.)
+     */
+    @Test
+    void updateGrant_withCentralMasterRole_isForbiddenAndNotDelegated() throws Exception {
+        mockMvc.perform(put("/admin/arologis/permissions")
+                        .header("X-User-Id", "actor-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"MASTER\",\"pageCode\":\"arologis.admin.permissions\","
+                                + "\"canView\":true,\"canEdit\":true}"))
+                .andExpect(status().isForbidden());
+
+        verify(client, never()).updateRoleGrant(
+                eq("MASTER"), anyString(), anyBoolean(), anyBoolean(), anyString());
     }
 }
