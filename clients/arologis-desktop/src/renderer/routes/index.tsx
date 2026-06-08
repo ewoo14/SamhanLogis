@@ -12,6 +12,7 @@
  * - `/admin/employees`    인사 직원 관리
  * - `/admin/departments`  인사 부서 관리
  * - `/admin/cashbook`     회계 현금출납장 (간이 회계 수입/지출)
+ * - `/admin/permissions`  권한 관리 (롤×page-code 매트릭스 — AROLOGIS_MASTER 전용)
  *
  * `ProtectedRoute` 가 토큰 부재 시 `/login` 으로 강제 리다이렉트한다.
  */
@@ -33,6 +34,7 @@ import { DriverManagementPage } from './drivers/DriverManagementPage'
 import { EmployeesPage } from './admin/EmployeesPage'
 import { DepartmentsPage } from './admin/DepartmentsPage'
 import { CashbookPage } from './admin/CashbookPage'
+import { PermissionsPage } from './admin/PermissionsPage'
 import { DispatchesLayout } from './dispatches/DispatchesLayout'
 import { ArologisManualDispatchPage } from './dispatches/ManualDispatchPage'
 import { ArologisPreClassifyPage } from './dispatches/PreClassifyPage'
@@ -127,6 +129,9 @@ const router = createHashRouter([
       { path: 'admin/employees', element: <EmployeesPage /> },
       { path: 'admin/departments', element: <DepartmentsPage /> },
       { path: 'admin/cashbook', element: <CashbookPage /> },
+      // 권한 관리 = AROLOGIS_MASTER 전용. PermissionsPage 내부에서도 canGrantMaster 게이트로
+      // 비마스터 직접 진입을 방어한다(BE @RequirePermission 이 최종 방어).
+      { path: 'admin/permissions', element: <PermissionsPage /> },
     ],
   },
 ])

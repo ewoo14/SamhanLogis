@@ -5,7 +5,7 @@
  * Designer (D1~D5) 작업 결과로 후속 PR 에서 확장.
  */
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { canManageHr, useAuthStore } from '../stores/authStore'
+import { canGrantMaster, canManageHr, useAuthStore } from '../stores/authStore'
 
 const navStyle: React.CSSProperties = {
   display: 'flex',
@@ -34,6 +34,8 @@ export function AppLayout(): JSX.Element {
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
   const canManageHrMenu = canManageHr(auth?.role)
+  // 권한 관리 네비는 아로로지스 마스터만 — 매니저에겐 미노출(canManageHr 아님).
+  const canManagePermissions = canGrantMaster(auth?.role)
 
   const handleLogout = async (): Promise<void> => {
     await logout()
@@ -77,6 +79,14 @@ export function AppLayout(): JSX.Element {
               회계
             </NavLink>
           </>
+        ) : null}
+        {canManagePermissions ? (
+          <NavLink
+            to="/admin/permissions"
+            style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
+          >
+            권한
+          </NavLink>
         ) : null}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
           {auth && (
