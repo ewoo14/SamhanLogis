@@ -477,6 +477,12 @@ public enum PageCode {
     /** 아로로지스 기사앱 API — SP-D6-4. */
     AROLOGIS_DRIVER("arologis.driver", "아로로지스 기사앱"),
 
+    /** 아로로지스 HR 직원 관리 API — desktop 백오피스 Phase B. */
+    AROLOGIS_HR_EMPLOYEES("arologis.hr.employees", "아로로지스 직원 관리"),
+
+    /** 아로로지스 HR 부서 관리 API — desktop 백오피스 Phase B. */
+    AROLOGIS_HR_DEPARTMENTS("arologis.hr.departments", "아로로지스 부서 관리"),
+
     /** SAS 매출전표 목록 화면 (SP-SAS-1). */
     ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표(회계분개)"),
 

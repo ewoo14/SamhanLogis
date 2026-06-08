@@ -89,4 +89,20 @@ public class AdminUser extends BaseEntity {
         }
         this.passwordHash = newPasswordHash;
     }
+
+    /** HR 직원명 수정과 로그인 계정 표시명을 동기화한다. */
+    public void updateName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("name 필수");
+        }
+        this.name = name;
+    }
+
+    /** HR 롤 변경 시 AdminUser 권한을 갱신한다. */
+    public void updateRole(AdminUserRole role) {
+        if (role == null) {
+            throw new IllegalArgumentException("role 필수");
+        }
+        this.role = role;
+    }
 }

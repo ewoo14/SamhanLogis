@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.arologis.controller.ArologisAdminController;
 import com.samhanair.logis.arologis.controller.ArologisDriverAppController;
+import com.samhanair.logis.arologis.controller.ArologisHrController;
 import com.samhanair.logis.arologis.controller.DispatchAdminV1Controller;
 import com.samhanair.logis.arologis.controller.DispatchReconcileController;
 import com.samhanair.logis.arologis.controller.RegionAdminController;
@@ -41,6 +42,8 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.arologis.service.DispatchAdminService;
+import com.samhanair.logis.arologis.service.ArologisDepartmentService;
+import com.samhanair.logis.arologis.service.ArologisEmployeeService;
 import com.samhanair.logis.arologis.service.DispatchManualService;
 import com.samhanair.logis.arologis.service.DispatchReconcileService;
 import com.samhanair.logis.arologis.service.DispatchSaveHistoryService;
@@ -99,7 +102,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 RegionAdminController.class,
                 DispatchReconcileController.class,
                 DispatchSaveHistoryController.class,
-                ArologisDriverAppController.class
+                ArologisDriverAppController.class,
+                ArologisHrController.class
         },
         properties = {
                 "spring.application.name=arologis-service",
@@ -145,6 +149,8 @@ class ArologisPermissionControllerIT {
     @MockBean private SlipClient slipClient;
     @MockBean private SlipResolver slipResolver;
     @MockBean private SignAndSendCopyService signAndSendCopyService;
+    @MockBean private ArologisEmployeeService arologisEmployeeService;
+    @MockBean private ArologisDepartmentService arologisDepartmentService;
     @MockBean private JwtIssuer jwtIssuer;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
@@ -206,6 +212,9 @@ class ArologisPermissionControllerIT {
         lenient().when(vehicleRepository.findFirstByDispatchIdAndSequence(any(), any())).thenReturn(Optional.empty());
         lenient().when(signAndSendCopyService.execute(any(), anyInt(), anyInt(), any(), any()))
                 .thenThrow(new IllegalArgumentException("test"));
+        lenient().when(arologisEmployeeService.list(null, null)).thenReturn(List.of());
+        lenient().when(arologisEmployeeService.roleHistories("hr-kim")).thenReturn(List.of());
+        lenient().when(arologisDepartmentService.list()).thenReturn(List.of());
     }
 
     @ParameterizedTest(name = "{0} grant")
@@ -348,7 +357,33 @@ class ArologisPermissionControllerIT {
                         () -> get("/driver-app/arologis/dispatches/today/DAY/vehicles/1/stops/1/slip-detail")),
                 endpoint("driver legacy sign copy", "arologis.driver", PermissionAction.CREATE, "AROLOGIS_DRIVER",
                         () -> post("/driver-app/arologis/dispatches/{id}/vehicles/1/stops/1/sign-and-send-copy", ID)
-                                .contentType(MediaType.APPLICATION_JSON).content(signBody()))
+                                .contentType(MediaType.APPLICATION_JSON).content(signBody())),
+                endpoint("hr employee list", "arologis.hr.employees", PermissionAction.VIEW, "AROLOGIS_MANAGER",
+                        () -> get("/admin/arologis/hr/employees")),
+                endpoint("hr employee create", "arologis.hr.employees", PermissionAction.CREATE, "AROLOGIS_MANAGER",
+                        () -> post("/admin/arologis/hr/employees")
+                                .contentType(MediaType.APPLICATION_JSON).content(employeeBody())),
+                endpoint("hr employee update", "arologis.hr.employees", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
+                        () -> put("/admin/arologis/hr/employees/hr-kim")
+                                .contentType(MediaType.APPLICATION_JSON).content(employeeUpdateBody())),
+                endpoint("hr employee role", "arologis.hr.employees", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
+                        () -> put("/admin/arologis/hr/employees/hr-kim/role")
+                                .contentType(MediaType.APPLICATION_JSON).content(roleBody())),
+                endpoint("hr employee terminate", "arologis.hr.employees", PermissionAction.DELETE, "AROLOGIS_MANAGER",
+                        () -> put("/admin/arologis/hr/employees/hr-kim/terminate")
+                                .contentType(MediaType.APPLICATION_JSON).content("{\"terminationDate\":\"2026-06-30\"}")),
+                endpoint("hr role histories", "arologis.hr.employees", PermissionAction.VIEW, "AROLOGIS_MANAGER",
+                        () -> get("/admin/arologis/hr/employees/hr-kim/role-histories")),
+                endpoint("hr department list", "arologis.hr.departments", PermissionAction.VIEW, "AROLOGIS_MANAGER",
+                        () -> get("/admin/arologis/hr/departments")),
+                endpoint("hr department create", "arologis.hr.departments", PermissionAction.CREATE, "AROLOGIS_MANAGER",
+                        () -> post("/admin/arologis/hr/departments")
+                                .contentType(MediaType.APPLICATION_JSON).content(departmentBody())),
+                endpoint("hr department update", "arologis.hr.departments", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
+                        () -> put("/admin/arologis/hr/departments/ADMIN")
+                                .contentType(MediaType.APPLICATION_JSON).content(departmentUpdateBody())),
+                endpoint("hr department delete", "arologis.hr.departments", PermissionAction.DELETE, "AROLOGIS_MANAGER",
+                        () -> put("/admin/arologis/hr/departments/ADMIN/delete"))
         );
     }
 
@@ -378,6 +413,30 @@ class ArologisPermissionControllerIT {
         return """
                 {"driverSignatureBase64":"driver","recipientSignatureBase64":"recipient","capturedAt":"2026-05-26T09:00:00"}
                 """;
+    }
+
+    private static String employeeBody() {
+        return """
+                {"loginId":"hr-kim","fullName":"김인사","position":"대리","departmentCode":"ADMIN","hireDate":"2026-06-08","email":"hr-kim@example.com","phone":"010-1111-2222","role":"AROLOGIS_MANAGER"}
+                """;
+    }
+
+    private static String employeeUpdateBody() {
+        return """
+                {"fullName":"김인사","position":"과장","departmentCode":"ADMIN","email":"hr-kim@example.com","phone":"010-1111-2222"}
+                """;
+    }
+
+    private static String roleBody() {
+        return "{\"role\":\"AROLOGIS_MASTER\",\"reason\":\"승급\"}";
+    }
+
+    private static String departmentBody() {
+        return "{\"code\":\"ADMIN\",\"name\":\"행정\",\"displayOrder\":10}";
+    }
+
+    private static String departmentUpdateBody() {
+        return "{\"name\":\"행정팀\",\"displayOrder\":11}";
     }
 
     private static MockMultipartFile csv(String name) {

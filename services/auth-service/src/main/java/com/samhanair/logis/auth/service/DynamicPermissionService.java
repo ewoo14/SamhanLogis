@@ -53,8 +53,7 @@ public class DynamicPermissionService {
     /**
      * DB override 기반 조회 권한 확인.
      *
-     * <p>DB override row 존재 → DB 값 사용.
-     * row 없음 → {@code false} (보수적 fallback).
+     * <p>DB override row 존재 → DB 값 사용. row 없음 → {@code false} (보수적 fallback).
      *
      * @param roleCode 역할 코드 (예: ACCOUNTANT)
      * @param pageCode 페이지 코드 (예: accounting.tax-invoice.emit-nts)
@@ -70,8 +69,7 @@ public class DynamicPermissionService {
     /**
      * DB override 기반 편집 권한 확인.
      *
-     * <p>DB override row 존재 → DB 값 사용.
-     * row 없음 → {@code false} (보수적 fallback).
+     * <p>DB override row 존재 → DB 값 사용. row 없음 → {@code false} (보수적 fallback).
      *
      * @param roleCode 역할 코드
      * @param pageCode 페이지 코드

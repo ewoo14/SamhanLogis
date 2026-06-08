@@ -211,10 +211,14 @@ class PageCodeTest {
         assertThat(PageCode.AROLOGIS_EDIT_REQUESTS.getCode()).isEqualTo("arologis.edit-requests");
         assertThat(PageCode.AROLOGIS_EDIT_REQUESTS_DECIDE.getCode()).isEqualTo("arologis.edit-requests.decide");
         assertThat(PageCode.AROLOGIS_DRIVER.getCode()).isEqualTo("arologis.driver");
+        assertThat(PageCode.AROLOGIS_HR_EMPLOYEES.getCode()).isEqualTo("arologis.hr.employees");
+        assertThat(PageCode.AROLOGIS_HR_DEPARTMENTS.getCode()).isEqualTo("arologis.hr.departments");
 
         assertThat(PageCode.isValid("partners.edit-requests.decide")).isTrue();
         assertThat(PageCode.isValid("arologis.edit-requests.decide")).isTrue();
         assertThat(PageCode.isValid("arologis.driver")).isTrue();
+        assertThat(PageCode.isValid("arologis.hr.employees")).isTrue();
+        assertThat(PageCode.isValid("arologis.hr.departments")).isTrue();
     }
 
     @Test
