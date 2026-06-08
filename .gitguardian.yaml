@@ -19,6 +19,8 @@ secret:
     - "docs/migration/ecount-reference/**"
     - "docs/qa/**"
     - "docs/dev-reports/**"
+    - "perf/k6/**"                                       # PR #424 추가: k6 부하 하네스 (dev_p05_pass! 부하 계정 로그인)
+    - "scripts/run-load-test.ps1"                        # PR #424 추가: 부하 러너 사전 점검 로그인 (dev_p05_pass!)
 
   # 무시할 secret pattern (dev-only test password)
   ignored-matches:
