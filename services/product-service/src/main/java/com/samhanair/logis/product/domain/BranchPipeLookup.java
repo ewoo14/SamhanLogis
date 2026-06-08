@@ -61,4 +61,15 @@ public class BranchPipeLookup extends BaseEntity {
     public void updateDescription(String description) {
         this.description = description;
     }
+
+    /**
+     * 시트 sync update — branchCode natural key 는 유지하고 시트 실값만 반영한다.
+     *
+     * @param description 시트에 실값이 없으면 null
+     * @param summaryQty 시트에 실값이 없으면 null
+     */
+    public void updateFromSheet(String description, Integer summaryQty) {
+        this.description = description;
+        this.summaryQty = summaryQty;
+    }
 }

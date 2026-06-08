@@ -76,4 +76,5 @@
 - [codex exec 백그라운드 stdin hang](feedback_codex_exec_stdin_hang.md) — detached stdin 으로 codex exec 실행 시 무한 hang, </dev/null 리다이렉트 필수 (2026-06-07)
 - [PM-Codex 진행 검증 의무](feedback_pm_codex_progress_verification.md) — Codex 디스패치마다 산출물 즉시 검증 + 주기 상태 보고, 침묵 구간 금지 (2026-06-07)
 - [PM 10분 주기 진행 보고](feedback_pm_10min_status_report.md) — 작업 중 10분당 1회 상태표 보고 의무, /loop 10m 가동 (2026-06-07)
+- [lookup 3종 시드 소스](project_lookup_seed_source.md) — material/odu/branch 시드 = legacy Google Sheet `1RJqO3jT...` 3탭(싱글자재가격/추천실외기/분기계산), workbook.json 양PC 부재, SA key 게이트 (2026-06-08 SA key 제공 결정)
 - [변경 모듈 전체 test 완주 후 push](feedback_changed_module_full_test_before_push.md) — 신규 IT 타깃 실행만으로 push 금지, 기존 mock 단위테스트 구 패턴 스텁이 CI 에서만 깨짐 (PR #424 회고, 2026-06-08)

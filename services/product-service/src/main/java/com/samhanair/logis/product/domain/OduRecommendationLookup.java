@@ -40,8 +40,8 @@ public class OduRecommendationLookup extends BaseEntity {
     @Column(name = "recommendation_type", nullable = false, length = 32)
     private RecommendationType recommendationType;
 
-    /** 실내기 용량 (kW or 평형). */
-    @Column(name = "indoor_capacity", nullable = false, precision = 8, scale = 2)
+    /** 실내기 용량 (kW or 평형). HOME_MULTI 시트 row 는 실값이 없으므로 null 허용. */
+    @Column(name = "indoor_capacity", precision = 8, scale = 2)
     private BigDecimal indoorCapacity;
 
     /** 홈멀티 D열 (실내기 대수). */
@@ -64,8 +64,25 @@ public class OduRecommendationLookup extends BaseEntity {
                                                BigDecimal indoorCapacity, Integer indoorCount,
                                                String outdoorHp) {
         if (recommendationType == null) throw new IllegalArgumentException("recommendationType 필수");
-        if (indoorCapacity == null) throw new IllegalArgumentException("indoorCapacity 필수");
+        if (indoorCapacity == null && indoorCount == null)
+            throw new IllegalArgumentException("indoorCapacity 또는 indoorCount 필수");
         if (outdoorHp == null || outdoorHp.isBlank()) throw new IllegalArgumentException("outdoorHp 필수");
         return new OduRecommendationLookup(recommendationType, indoorCapacity, indoorCount, outdoorHp);
+    }
+
+    /**
+     * 시트 sync update — 추천 타입 natural key 행의 실측 컬럼을 그대로 반영한다.
+     *
+     * @param indoorCapacity A열 용량, HOME_MULTI 는 null
+     * @param indoorCount C/D열 실내기 대수, MULTI_HEATING_COOLING 은 null
+     * @param outdoorHp B/E열 마력
+     */
+    public void updateFromSheet(BigDecimal indoorCapacity, Integer indoorCount, String outdoorHp) {
+        if (indoorCapacity == null && indoorCount == null)
+            throw new IllegalArgumentException("indoorCapacity 또는 indoorCount 필수");
+        if (outdoorHp == null || outdoorHp.isBlank()) throw new IllegalArgumentException("outdoorHp 필수");
+        this.indoorCapacity = indoorCapacity;
+        this.indoorCount = indoorCount;
+        this.outdoorHp = outdoorHp;
     }
 }

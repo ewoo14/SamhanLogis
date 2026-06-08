@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.product.client.GoogleSheetsClient;
+import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,9 @@ class ProductAdminControllerTest {
     private ProductSheetSyncService syncService;
 
     @Mock
+    private ProductLookupSheetSyncService lookupSyncService;
+
+    @Mock
     private GoogleSheetsClient sheetsClient;
 
     @InjectMocks
@@ -48,7 +52,13 @@ class ProductAdminControllerTest {
         summary.totalInserted = 3;
         summary.totalUpdated = 2;
         summary.totalSoftDeleted = 1;
+        ProductLookupSheetSyncService.SyncSummary lookupSummary = new ProductLookupSheetSyncService.SyncSummary();
+        ProductLookupSheetSyncService.TabSyncResult lookupTab = new ProductLookupSheetSyncService.TabSyncResult();
+        lookupTab.inserted = 4;
+        lookupSummary.byTab.put("싱글 자재가격", lookupTab);
+        lookupSummary.totalInserted = 4;
         when(syncService.syncAll()).thenReturn(summary);
+        when(lookupSyncService.syncAll()).thenReturn(lookupSummary);
 
         // when
         ApiResponse<ProductSheetSyncService.SyncSummary> response = controller.triggerSync();
@@ -56,9 +66,11 @@ class ProductAdminControllerTest {
         // then — cache invalidate + syncAll 호출 순서 + 응답 페이로드
         verify(sheetsClient).invalidateCache();
         verify(syncService).syncAll();
-        assertThat(response.getData().totalInserted).isEqualTo(3);
+        verify(lookupSyncService).syncAll();
+        assertThat(response.getData().totalInserted).isEqualTo(7);
         assertThat(response.getData().totalUpdated).isEqualTo(2);
         assertThat(response.getData().totalSoftDeleted).isEqualTo(1);
+        assertThat(response.getData().byTab).containsKey("lookup:싱글 자재가격");
 
         // lastSnapshot 도 trigger 후 갱신 — GET /sync/last 가 즉시 시각 + summary 노출
         ApiResponse<ProductAdminController.LastSyncSnapshot> last = controller.lastSync();

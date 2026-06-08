@@ -737,19 +737,19 @@ const MOCK_MATERIAL_PRICE_ROWS = [
 ]
 
 const MOCK_ODU_RECOMMENDATION_ROWS = [
-  { recommendationType: 'HOME_MULTI', indoorCapacity: 2.3, indoorCount: 2, outdoorHp: '4HP' },
-  { recommendationType: 'HOME_MULTI', indoorCapacity: 3.2, indoorCount: 3, outdoorHp: '5HP' },
+  { recommendationType: 'HOME_MULTI', indoorCapacity: null, indoorCount: 2, outdoorHp: '4HP' },
+  { recommendationType: 'HOME_MULTI', indoorCapacity: null, indoorCount: 3, outdoorHp: '5HP' },
   { recommendationType: 'MULTI_HEATING_COOLING', indoorCapacity: 5.2, indoorCount: null, outdoorHp: '6HP' },
   { recommendationType: 'MULTI_HEATING_COOLING', indoorCapacity: 7.2, indoorCount: null, outdoorHp: '8HP' },
 ]
 
 const MOCK_BRANCH_PIPE_ROWS = [
-  { branchCode: '1509', description: '분지관 코드 1509', summaryQty: 1 },
-  { branchCode: '2512', description: '분지관 코드 2512', summaryQty: 2 },
-  { branchCode: '2812', description: '분지관 코드 2812', summaryQty: 2 },
-  { branchCode: '2815', description: '분지관 코드 2815', summaryQty: 3 },
-  { branchCode: '3419', description: '분지관 코드 3419', summaryQty: 4 },
-  { branchCode: '4119', description: '분지관 코드 4119', summaryQty: 5 },
+  { branchCode: '1509', description: null, summaryQty: null },
+  { branchCode: '2512', description: null, summaryQty: null },
+  { branchCode: '2812', description: null, summaryQty: null },
+  { branchCode: '2815', description: null, summaryQty: null },
+  { branchCode: '3419', description: null, summaryQty: null },
+  { branchCode: '4119', description: null, summaryQty: null },
 ]
 
 const MOCK_PRODUCT_CATALOG_ROWS = Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => ({

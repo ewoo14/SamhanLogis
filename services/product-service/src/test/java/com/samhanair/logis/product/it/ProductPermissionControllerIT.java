@@ -44,6 +44,7 @@ import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
 import com.samhanair.logis.product.service.CategoryService;
 import com.samhanair.logis.product.service.EcountProductImporter;
+import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
 import com.samhanair.logis.product.service.ProductSpecService;
@@ -147,6 +148,7 @@ class ProductPermissionControllerIT {
     @MockBean private BranchPipeLookupRepository branchPipeLookupRepository;
     @MockBean private CategoryService categoryService;
     @MockBean private ProductSheetSyncService productSheetSyncService;
+    @MockBean private ProductLookupSheetSyncService productLookupSheetSyncService;
     @MockBean private GoogleSheetsClient googleSheetsClient;
     @MockBean private EcountProductImporter ecountProductImporter;
     @MockBean private ProductEditRequestService editRequestService;

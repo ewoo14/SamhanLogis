@@ -109,7 +109,7 @@ export type OduRecommendationType =
 export interface OduRecommendationRow {
   recommendationType: OduRecommendationType
   /** BE BigDecimal → JSON number 직렬화. */
-  indoorCapacity: number
+  indoorCapacity: number | null
   indoorCount: number | null
   outdoorHp: string
 }

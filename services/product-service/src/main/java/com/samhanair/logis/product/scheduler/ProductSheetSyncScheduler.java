@@ -1,6 +1,7 @@
 package com.samhanair.logis.product.scheduler;
 
 import com.samhanair.logis.product.service.ProductSheetSyncService;
+import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,12 +35,15 @@ public class ProductSheetSyncScheduler {
     private static final Logger log = LoggerFactory.getLogger(ProductSheetSyncScheduler.class);
 
     private final ProductSheetSyncService syncService;
+    private final ProductLookupSheetSyncService lookupSyncService;
 
     @Value("${app.scheduling.enabled:true}")
     private boolean schedulingEnabled;
 
-    public ProductSheetSyncScheduler(ProductSheetSyncService syncService) {
+    public ProductSheetSyncScheduler(ProductSheetSyncService syncService,
+                                     ProductLookupSheetSyncService lookupSyncService) {
         this.syncService = syncService;
+        this.lookupSyncService = lookupSyncService;
     }
 
     /**
@@ -56,8 +60,11 @@ public class ProductSheetSyncScheduler {
         log.info("[ProductSheetSyncScheduler] cron sync trigger");
         try {
             ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
-            log.info("[ProductSheetSyncScheduler] cron sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+            ProductLookupSheetSyncService.SyncSummary lookupSummary = lookupSyncService.syncAll();
+            log.info("[ProductSheetSyncScheduler] cron sync 완료: product(inserted={}, updated={}, softDeleted={}), "
+                            + "lookup(inserted={}, updated={}, softDeleted={})",
+                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted,
+                    lookupSummary.totalInserted, lookupSummary.totalUpdated, lookupSummary.totalSoftDeleted);
         } catch (Exception e) {
             log.error("[ProductSheetSyncScheduler] cron sync 실패: {}", e.getMessage(), e);
         }
@@ -76,8 +83,11 @@ public class ProductSheetSyncScheduler {
         log.info("[ProductSheetSyncScheduler] 부팅 시 1회 sync trigger");
         try {
             ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
-            log.info("[ProductSheetSyncScheduler] 부팅 sync 완료: inserted={}, updated={}, softDeleted={}",
-                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted);
+            ProductLookupSheetSyncService.SyncSummary lookupSummary = lookupSyncService.syncAll();
+            log.info("[ProductSheetSyncScheduler] 부팅 sync 완료: product(inserted={}, updated={}, softDeleted={}), "
+                            + "lookup(inserted={}, updated={}, softDeleted={})",
+                    summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted,
+                    lookupSummary.totalInserted, lookupSummary.totalUpdated, lookupSummary.totalSoftDeleted);
         } catch (Exception e) {
             log.warn("[ProductSheetSyncScheduler] 부팅 sync 실패 (cron 으로 재시도): {}", e.getMessage());
         }

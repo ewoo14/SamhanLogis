@@ -2,6 +2,7 @@ package com.samhanair.logis.product.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.product.client.GoogleSheetsClient;
+import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductAdminController {
 
     private final ProductSheetSyncService syncService;
+    private final ProductLookupSheetSyncService lookupSyncService;
     private final GoogleSheetsClient sheetsClient;
 
     /**
@@ -64,6 +66,8 @@ public class ProductAdminController {
     public ApiResponse<ProductSheetSyncService.SyncSummary> triggerSync() {
         sheetsClient.invalidateCache();
         ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+        ProductLookupSheetSyncService.SyncSummary lookupSummary = lookupSyncService.syncAll();
+        mergeLookupSummary(summary, lookupSummary);
         lastSnapshot.set(new LastSyncSnapshot(Instant.now(), summary));
         return ApiResponse.ok(summary);
     }
@@ -97,5 +101,36 @@ public class ProductAdminController {
         public static LastSyncSnapshot empty() {
             return new LastSyncSnapshot(null, null);
         }
+    }
+
+    /**
+     * lookup sync 결과를 기존 admin 응답 타입에 병합한다.
+     *
+     * <p>관리 endpoint 의 공개 타입은 기존 {@link ProductSheetSyncService.SyncSummary} 를 유지하되,
+     * RC9 lookup 3탭 실행 결과도 같은 envelope 에 포함한다.
+     *
+     * @param summary ProductMaster sync summary
+     * @param lookupSummary lookup 3탭 sync summary
+     */
+    private static void mergeLookupSummary(ProductSheetSyncService.SyncSummary summary,
+                                           ProductLookupSheetSyncService.SyncSummary lookupSummary) {
+        if (lookupSummary == null) {
+            return;
+        }
+        lookupSummary.byTab.forEach((tabName, lookupTab) -> {
+            ProductSheetSyncService.TabSyncResult tab = new ProductSheetSyncService.TabSyncResult();
+            tab.inserted = lookupTab.inserted;
+            tab.updated = lookupTab.updated;
+            tab.unchanged = lookupTab.unchanged;
+            tab.softDeleted = lookupTab.softDeleted;
+            tab.skipped = lookupTab.skipped;
+            tab.error = lookupTab.error;
+            summary.byTab.put("lookup:" + tabName, tab);
+        });
+        summary.totalInserted += lookupSummary.totalInserted;
+        summary.totalUpdated += lookupSummary.totalUpdated;
+        summary.totalSoftDeleted += lookupSummary.totalSoftDeleted;
+        summary.totalSkipped += lookupSummary.totalSkipped;
+        summary.durationMs += lookupSummary.durationMs;
     }
 }
