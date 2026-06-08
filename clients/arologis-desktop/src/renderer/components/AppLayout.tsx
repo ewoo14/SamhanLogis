@@ -55,6 +55,18 @@ export function AppLayout(): JSX.Element {
         >
           기사 관리
         </NavLink>
+        <NavLink
+          to="/admin/employees"
+          style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
+        >
+          인사
+        </NavLink>
+        <NavLink
+          to="/admin/departments"
+          style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
+        >
+          부서
+        </NavLink>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
           {auth && (
             <span style={{ color: 'var(--color-text-muted)' }}>
