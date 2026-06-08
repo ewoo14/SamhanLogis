@@ -12,6 +12,8 @@ import com.samhanair.logis.inventory.it.AbstractPostgresIT;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.CreateTransferRequest;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -27,6 +29,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 이동전표번호 동시 채번 회귀 테스트.
@@ -40,6 +43,7 @@ class StockTransferNumberServiceIT extends AbstractPostgresIT {
 
     @Autowired private StockTransferService stockTransferService;
     @Autowired private WarehouseRepository warehouseRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private ProductClient productClient;
 
@@ -60,6 +64,18 @@ class StockTransferNumberServiceIT extends AbstractPostgresIT {
                 .thenReturn(List.of(new ProductSummary(
                         productId, "테스트 제품", "TEST-001", UUID.randomUUID(),
                         new BigDecimal("100000"), "ACTIVE")));
+        cleanupCurrentDateTransferNumbers();
+    }
+
+    private void cleanupCurrentDateTransferNumbers() {
+        String prefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd")) + "-";
+        jdbcTemplate.update("""
+                DELETE FROM stock_transfer_lines
+                WHERE transfer_id IN (
+                    SELECT id FROM stock_transfers WHERE transfer_no LIKE ?
+                )
+                """, prefix + "%");
+        jdbcTemplate.update("DELETE FROM stock_transfers WHERE transfer_no LIKE ?", prefix + "%");
     }
 
     @Test

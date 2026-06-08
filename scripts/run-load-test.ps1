@@ -202,6 +202,9 @@ if ($Profile -eq "stress") {
 Ensure-K6DockerImage -LogPath $imageLog
 
 if ($Profile -eq "soak" -and $Detach.IsPresent) {
+    # 같은 이름의 이전 detach 컨테이너가 남아 있으면 새 soak 가 즉시 실패하므로 선정리한다.
+    Invoke-DockerCaptured -Arguments @("rm", "-f", "samhan-k6-soak") -LogPath $rawLog -TailLines 0 | Out-Null
+
     Write-Step "soak 백그라운드 컨테이너 실행"
     $detachArgs = @(
         "run",
@@ -223,6 +226,7 @@ if ($Profile -eq "soak" -and $Detach.IsPresent) {
     }
     Write-Step "로그 확인: docker logs -f samhan-k6-soak"
     Write-Step "summary 예상 경로: perf/k6/out/$summaryName"
+    Write-Step "주의: -Detach 는 docker wait 를 수행하지 않아 summary 수집/성공 판정을 즉시 보장하지 않습니다."
     exit 0
 }
 
@@ -235,3 +239,5 @@ if ($exitCode -ne 0) {
 Write-Step "Docker 이미지 준비 로그: $imageLog"
 Write-Step "raw log: $rawLog"
 Write-Step "summary: $(Join-Path $outDir $summaryName)"
+
+# P3 한계: image/raw log 는 실행별 파일로 누적 보존한다. 장기 운영 시 별도 보관 정책으로 정리한다.

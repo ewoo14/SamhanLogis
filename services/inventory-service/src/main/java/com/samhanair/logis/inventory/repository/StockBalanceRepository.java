@@ -9,6 +9,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** StockBalance — (product, warehouse) 단위 집계 조회. */
 public interface StockBalanceRepository extends JpaRepository<StockBalance, UUID> {
@@ -17,7 +19,20 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, UUID
             UUID productId, UUID warehouseId);
 
     @EntityGraph(attributePaths = "warehouse")
-    Page<StockBalance> findAllByProductIdAndIsDeletedFalse(UUID productId, Pageable pageable);
+    @Query(
+            value = """
+                    SELECT b
+                    FROM StockBalance b
+                    WHERE b.productId = :productId
+                      AND b.isDeleted = false
+                    """,
+            countQuery = """
+                    SELECT COUNT(b)
+                    FROM StockBalance b
+                    WHERE b.productId = :productId
+                      AND b.isDeleted = false
+                    """)
+    Page<StockBalance> findAllByProductIdAndIsDeletedFalse(@Param("productId") UUID productId, Pageable pageable);
 
     Page<StockBalance> findAllByWarehouse_IdAndIsDeletedFalse(UUID warehouseId, Pageable pageable);
 

@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -49,7 +50,7 @@ class DispatchTaskNumberServiceIT extends AbstractPostgresIT {
 
     @Test
     void createTask_sameDateParallelCreation_returnsUniqueTaskCodesForEveryCaller() throws Exception {
-        LocalDate date = LocalDate.of(2026, 6, 9);
+        LocalDate date = uniqueSequenceDate();
         int workers = 8;
         ExecutorService executor = Executors.newFixedThreadPool(workers);
         CountDownLatch ready = new CountDownLatch(workers);
@@ -84,6 +85,11 @@ class DispatchTaskNumberServiceIT extends AbstractPostgresIT {
         } finally {
             shutdownAndAwaitTermination(executor);
         }
+    }
+
+    private static LocalDate uniqueSequenceDate() {
+        return LocalDate.of(2090, 1, 1)
+                .plusDays(Math.floorMod(UUID.randomUUID().getMostSignificantBits(), 30_000));
     }
 
     private static void shutdownAndAwaitTermination(ExecutorService executor) throws InterruptedException {

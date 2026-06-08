@@ -49,6 +49,10 @@ function Get-AbnormalContainerCount {
     $count = 0
     $lines = $text -split "`r?`n"
     foreach ($line in $lines) {
+        $name = ($line -split "\|", 2)[0]
+        if ($name -notlike "samhan-*") {
+            continue
+        }
         if ($line -notmatch " Up ") {
             $count += 1
         }

@@ -142,7 +142,7 @@ class DispatchTaskServiceTest {
     }
 
     private void stubAdvisoryLock() {
-        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))"))
+        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))"))
                 .thenReturn(advisoryLockQuery);
         when(advisoryLockQuery.setParameter(anyInt(), any())).thenReturn(advisoryLockQuery);
         when(advisoryLockQuery.getSingleResult()).thenReturn(0L);

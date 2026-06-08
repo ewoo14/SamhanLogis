@@ -15,8 +15,8 @@ function Invoke-Psql {
         [string]$Database,
         [string]$Sql
     )
-    $args = @("exec", "samhan-postgres", "psql", "-U", "samhan", "-d", $Database, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-c", $Sql)
-    $output = & docker @args 2>&1
+    $psqlArgs = @("exec", "samhan-postgres", "psql", "-U", "samhan", "-d", $Database, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-c", $Sql)
+    $output = & docker @psqlArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "psql 실패 database=$Database sql=$Sql output=$output"
     }
@@ -139,9 +139,13 @@ SET failed_login_attempts = 0,
     locked_at = NULL,
     modified_at = NOW(),
     modified_by = 'loadtest-cleanup'
-WHERE login_id LIKE 'dev_%'
-  AND login_id <> 'dev_locked';
+WHERE login_id IN ('dev_sales', 'dev_warehouse', 'dev_accountant', 'dev_manager');
 "@
+
+# 한계: LOADTEST 마커가 없는 채번 counter/sequence 테이블
+# (slip_number_sequences, estimate_number_sequences, journal_number_sequences,
+# tax_invoice_number_sequences 등)은 삭제하지 않는다. 장기 재사용 Testcontainers 에서는
+# 채번 IT 가 자체 격리 날짜/조건을 사용해야 하며, cleanup 은 부하 데이터 본문만 정리한다.
 
 Write-Step "partner_order_db 삭제"
 Invoke-Psql -Database "partner_order_db" -Sql $partnerOrderDeleteSql | Write-Host

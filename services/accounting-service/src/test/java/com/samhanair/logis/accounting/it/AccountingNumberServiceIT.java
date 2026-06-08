@@ -13,6 +13,7 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -44,7 +45,7 @@ class AccountingNumberServiceIT extends AbstractPostgresIT {
 
     @Test
     void journalNext_sameDateParallelCreation_returnsUniqueNumbersForEveryCaller() throws Exception {
-        LocalDate date = LocalDate.of(2026, 6, 9);
+        LocalDate date = uniqueSequenceDate();
 
         List<String> journalNos = runParallel(() -> journalNumberService.next(date));
 
@@ -56,7 +57,7 @@ class AccountingNumberServiceIT extends AbstractPostgresIT {
 
     @Test
     void taxInvoiceNext_sameDateParallelCreation_returnsUniqueNumbersForEveryCaller() throws Exception {
-        LocalDate date = LocalDate.of(2026, 6, 10);
+        LocalDate date = uniqueSequenceDate();
 
         List<String> taxInvoiceNos = runParallel(() -> taxInvoiceNumberService.next(date));
 
@@ -64,6 +65,11 @@ class AccountingNumberServiceIT extends AbstractPostgresIT {
         assertThat(taxInvoiceNos).doesNotHaveDuplicates();
         assertThat(taxInvoiceNos.stream().map(AccountingNumberServiceIT::extractSeqNo).sorted().toList())
                 .containsExactly(1, 2, 3, 4, 5, 6, 7, 8);
+    }
+
+    private static LocalDate uniqueSequenceDate() {
+        return LocalDate.of(2090, 1, 1)
+                .plusDays(Math.floorMod(UUID.randomUUID().getMostSignificantBits(), 30_000));
     }
 
     private static List<String> runParallel(Callable<String> action) throws Exception {

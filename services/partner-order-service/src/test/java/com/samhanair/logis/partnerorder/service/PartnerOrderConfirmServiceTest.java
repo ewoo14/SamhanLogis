@@ -56,9 +56,9 @@ class PartnerOrderConfirmServiceTest {
     @Test
     void nextOrderNo_usesDatePrefixAndLastVisibleSequence() {
         String today = LocalDate.now().format(DATE_FMT);
-        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))"))
+        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))"))
                 .thenReturn(advisoryLockQuery);
-        when(advisoryLockQuery.setParameter(1, "partner_order_seq_" + today))
+        when(advisoryLockQuery.setParameter(1, "partner_order_no_seq_" + today))
                 .thenReturn(advisoryLockQuery);
         when(advisoryLockQuery.getSingleResult()).thenReturn(null);
         when(orderRepository.findAllByOrderNoStartingWith(today)).thenReturn(List.of(
@@ -77,9 +77,9 @@ class PartnerOrderConfirmServiceTest {
     @Test
     void nextOrderNo_startsAtOneWhenNoSameDayOrderExists() {
         String today = LocalDate.now().format(DATE_FMT);
-        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))"))
+        when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))"))
                 .thenReturn(advisoryLockQuery);
-        when(advisoryLockQuery.setParameter(1, "partner_order_seq_" + today))
+        when(advisoryLockQuery.setParameter(1, "partner_order_no_seq_" + today))
                 .thenReturn(advisoryLockQuery);
         when(advisoryLockQuery.getSingleResult()).thenReturn(null);
         when(orderRepository.findAllByOrderNoStartingWith(today)).thenReturn(List.of());

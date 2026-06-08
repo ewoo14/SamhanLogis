@@ -218,7 +218,7 @@ public class StockTransferService {
      * @param key 채번 계열 lock key
      */
     private void lockNumberSeries(String key) {
-        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))")
                 .setParameter(1, key)
                 .getSingleResult();
     }

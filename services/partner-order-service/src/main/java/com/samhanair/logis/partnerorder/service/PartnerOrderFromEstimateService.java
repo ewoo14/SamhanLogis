@@ -97,8 +97,8 @@ public class PartnerOrderFromEstimateService {
 
     private String nextOrderNo() {
         String datePrefix = LocalDate.now().format(ORDER_NO_DATE);
-        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
-                .setParameter(1, "partner_order_seq_" + datePrefix)
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))")
+                .setParameter(1, "partner_order_no_seq_" + datePrefix)
                 .getSingleResult();
         int maxSeq = 0;
         for (PartnerOrder order : partnerOrderRepository.findAllByOrderNoStartingWith(datePrefix)) {

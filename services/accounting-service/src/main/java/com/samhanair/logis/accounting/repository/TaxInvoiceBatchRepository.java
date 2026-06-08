@@ -33,11 +33,17 @@ public interface TaxInvoiceBatchRepository extends JpaRepository<TaxInvoiceBatch
             Pageable pageable);
 
     /**
-     * 최신 배치 번호 기준 마지막 시퀀스 번호 조회 — 채번에 사용.
+     * 최신 배치 번호 기준 최대 숫자 suffix 조회 — 채번에 사용.
      *
-     * @param prefix  채번 prefix (예: {@code TIB-202605})
-     * @return 해당 prefix 의 배치 수
+     * @param prefix  채번 prefix (예: {@code TIB-202605-})
+     * @return 해당 prefix 의 최대 숫자 suffix. 없으면 0
      */
-    @Query("SELECT COUNT(b) FROM TaxInvoiceBatch b WHERE b.batchNo LIKE :prefix%")
-    long countByBatchNoPrefix(@Param("prefix") String prefix);
+    @Query(value = """
+            SELECT COALESCE(MAX(CAST(substring(batch_no from length(:prefix) + 1) AS INTEGER)), 0)
+            FROM tax_invoice_batches
+            WHERE batch_no LIKE (:prefix || '%')
+              AND is_deleted = false
+              AND substring(batch_no from length(:prefix) + 1) ~ '^[0-9]+$'
+            """, nativeQuery = true)
+    int findMaxSequenceByBatchNoPrefix(@Param("prefix") String prefix);
 }

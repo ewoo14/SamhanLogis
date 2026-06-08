@@ -146,8 +146,8 @@ public class PartnerOrderDraftService {
      * {@code MAX+1} 계산과 INSERT 사이를 보호하지 않으면 병렬 생성이 같은 draftSeq 를 고를 수 있다.
      */
     private void lockDraftSeq(String partnerCode) {
-        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
-                .setParameter(1, "partner_order_seq_" + partnerCode)
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))")
+                .setParameter(1, "partner_draft_seq_" + partnerCode)
                 .getSingleResult();
     }
 }

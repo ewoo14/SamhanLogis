@@ -31,7 +31,7 @@ public interface TaxInvoiceNumberSequenceRepository
      * 최초 채번 row 생성 경합 방어. 같은 발행일을 여러 트랜잭션이 동시에 만들면 한 쪽만
      * INSERT 되고 나머지는 no-op 후 잠금 조회로 합류한다.
      */
-    @Modifying
+    @Modifying(flushAutomatically = true)
     @Query(value = """
             INSERT INTO tax_invoice_number_sequences
                 (id, issue_date, last_seq, version, created_at, created_by, is_deleted)

@@ -75,7 +75,7 @@ class StockTransferServiceTest {
         lenient().when(productClient.lookup(any())).thenReturn(List.of(
                 new ProductSummary(productId, "AC", "SHA", UUID.randomUUID(),
                         new BigDecimal("1000000.00"), "ACTIVE")));
-        lenient().when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))"))
+        lenient().when(entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))"))
                 .thenReturn(advisoryLockQuery);
         lenient().when(advisoryLockQuery.setParameter(anyInt(), any())).thenReturn(advisoryLockQuery);
         lenient().when(advisoryLockQuery.getSingleResult()).thenReturn(0L);

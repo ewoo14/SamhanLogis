@@ -20,6 +20,8 @@ import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import com.samhanair.logis.accounting.domain.TaxInvoiceBatch;
+import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.service.TaxInvoiceBatchService;
 import com.samhanair.logis.accounting.web.dto.HomtaxRow;
 import java.math.BigDecimal;
@@ -71,6 +73,7 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private TaxInvoiceBatchService batchService;
+    @Autowired private TaxInvoiceBatchRepository batchRepository;
 
     /** 외부 client 전부 MockBean 격리 (feedback_it_mockbean_external_clients). */
     @MockBean private SlipServiceClient slipServiceClient;
@@ -153,6 +156,8 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
     @Test
     @DisplayName("D-LOAD-04 fix5: 같은 월 병렬 previewWithRows 는 batchNo 중복 없이 저장된다")
     void batchNo_parallelPreview_returnsUniqueBatchNumbersForEveryCaller() throws Exception {
+        LocalDate fromDate = uniqueBatchMonth();
+        LocalDate toDate = fromDate.plusMonths(1).minusDays(1);
         int workers = 8;
         ExecutorService executor = Executors.newFixedThreadPool(workers);
         CountDownLatch ready = new CountDownLatch(workers);
@@ -167,8 +172,8 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
                 }
                 return batchService.previewWithRows(
                         buildHomtaxRows(1, rowSeed),
-                        LocalDate.of(2026, 6, 1),
-                        LocalDate.of(2026, 6, 30),
+                        fromDate,
+                        toDate,
                         UUID.randomUUID()).batchNo();
             });
         }
@@ -192,6 +197,25 @@ class TaxInvoiceBatchIT extends AbstractPostgresIT {
         } finally {
             shutdownAndAwaitTermination(executor);
         }
+    }
+
+    @Test
+    @DisplayName("Codex P2: 배치번호 gap 이 있어도 다음 번호는 기존 최대 suffix + 1 이다")
+    void batchNo_existingGap_usesMaxSuffixPlusOne() {
+        LocalDate fromDate = uniqueBatchMonth();
+        LocalDate toDate = fromDate.plusMonths(1).minusDays(1);
+        String prefix = "TIB-" + fromDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")) + "-";
+        batchRepository.save(TaxInvoiceBatch.create(prefix + "001", fromDate, toDate, UUID.randomUUID()));
+        batchRepository.save(TaxInvoiceBatch.create(prefix + "003", fromDate, toDate, UUID.randomUUID()));
+
+        var result = batchService.previewWithRows(buildHomtaxRows(1), fromDate, toDate, UUID.randomUUID());
+
+        assertThat(result.batchNo()).isEqualTo(prefix + "004");
+    }
+
+    private static LocalDate uniqueBatchMonth() {
+        return LocalDate.of(2090, 1, 1)
+                .plusMonths(Math.floorMod(UUID.randomUUID().getMostSignificantBits(), 1_000));
     }
 
     private static void shutdownAndAwaitTermination(ExecutorService executor) throws InterruptedException {

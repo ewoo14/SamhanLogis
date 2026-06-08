@@ -127,7 +127,7 @@ public class DispatchTaskService {
      * 발견할 수 있다. 같은 일자 prefix 에 transaction advisory lock 을 잡은 뒤 probe 를 수행해
      * 번호 선택과 INSERT 를 {@link #createTask(LocalDate)} 트랜잭션 안에서 직렬화한다.
      */
-    public String generateTaskCode(LocalDate date) {
+    private String generateTaskCode(LocalDate date) {
         String prefix = date.format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         lockNumberSeries("dispatch_task_seq_" + prefix);
         for (int n = 1; n <= MAX_DAILY_COUNTER; n++) {
@@ -145,7 +145,7 @@ public class DispatchTaskService {
      * @param key 채번 계열 lock key
      */
     private void lockNumberSeries(String key) {
-        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtext(?1))")
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(CAST(hashtext(?1) AS bigint))")
                 .setParameter(1, key)
                 .getSingleResult();
     }
