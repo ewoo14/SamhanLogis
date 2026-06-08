@@ -730,10 +730,10 @@ const MOCK_PRODUCTS_BY_MODEL: Record<
 }
 
 const MOCK_MATERIAL_PRICE_ROWS = [
-  { materialKey: 'D2', name: '드레인 호스', price: 25000, optionLabel: '자재' },
-  { materialKey: 'D4', name: '자재 합계', price: 420000, optionLabel: '합계' },
-  { materialKey: 'D7', name: '자재 미포함 기준', price: 0, optionLabel: '미포함' },
-  { materialKey: 'D8', name: '자재 포함 기준', price: 180000, optionLabel: '포함' },
+  { materialKey: 'D2', name: '유선리모컨', price: 40000, optionLabel: null },
+  { materialKey: 'D3', name: '컬러유선리모컨', price: 75000, optionLabel: null },
+  { materialKey: 'D4', name: '블랙판넬', price: 50000, optionLabel: null },
+  { materialKey: 'D9', name: 'FPH-1412XS3', price: 130000, optionLabel: null },
 ]
 
 const MOCK_ODU_RECOMMENDATION_ROWS = [

@@ -1,10 +1,16 @@
 package com.samhanair.logis.product.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
+import com.samhanair.logis.product.service.ProductSheetSyncService;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * ProductSheetSyncScheduler cron expression 단위 테스트 — PR-D Part 1.
@@ -42,5 +48,35 @@ class ProductSheetSyncSchedulerTest {
         org.springframework.scheduling.support.CronExpression parsed =
                 org.springframework.scheduling.support.CronExpression.parse(defaultCron);
         assertThat(parsed).isNotNull();
+    }
+
+    @Test
+    void scheduledSync_상품_sync_실패해도_lookup_sync는_별도_실행한다() {
+        ProductSheetSyncService productSyncService = mock(ProductSheetSyncService.class);
+        ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
+        ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
+        ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        when(productSyncService.syncAll()).thenThrow(new RuntimeException("product down"));
+        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+
+        scheduler.scheduledSync();
+
+        verify(productSyncService).syncAll();
+        verify(lookupSyncService).syncAll();
+    }
+
+    @Test
+    void onApplicationReady_부팅_sync에서_lookup_sync를_실행한다() {
+        ProductSheetSyncService productSyncService = mock(ProductSheetSyncService.class);
+        ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
+        ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
+        ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        when(productSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
+        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+
+        scheduler.onApplicationReady();
+
+        verify(productSyncService).syncAll();
+        verify(lookupSyncService).syncAll();
     }
 }

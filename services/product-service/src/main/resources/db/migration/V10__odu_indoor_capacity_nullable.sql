@@ -4,3 +4,12 @@
 
 ALTER TABLE odu_recommendation_lookup
     ALTER COLUMN indoor_capacity DROP NOT NULL;
+
+-- active 추천실외기 natural key 중복 방지.
+-- NULLS NOT DISTINCT 대신 COALESCE functional index 를 사용해 PG 버전 이식성을 유지한다.
+CREATE UNIQUE INDEX ux_odu_natural_active ON odu_recommendation_lookup (
+    recommendation_type,
+    COALESCE(indoor_capacity, -1::numeric),
+    COALESCE(indoor_count, -1),
+    outdoor_hp
+) WHERE is_deleted = false;

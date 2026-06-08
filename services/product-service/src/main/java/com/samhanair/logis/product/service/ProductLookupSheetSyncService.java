@@ -54,6 +54,11 @@ public class ProductLookupSheetSyncService {
     private static final String ODU_TAB = "추천실외기";
     private static final String BRANCH_TAB = "분기계산";
     private static final String SYSTEM_ACTOR = "system-lookup-sheet-sync";
+    /**
+     * 싱글 자재가격 C/D 사이드블록은 시트 row 2~8 까지만 의미가 있다.
+     * 본 루프의 {@code i} 는 원본 rows 기준 0-based 이므로 i=7 이 sheet row 8 이다.
+     */
+    private static final int MATERIAL_SIDE_BLOCK_LAST_INDEX = 7;
 
     private final GoogleSheetsClient sheetsClient;
     private final MaterialPriceRepository materialPriceRepository;
@@ -121,7 +126,8 @@ public class ProductLookupSheetSyncService {
         List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, MATERIAL_TAB + "!A1:D");
         TabSyncResult result = new TabSyncResult();
         if (rows == null || rows.size() <= 1) {
-            return softDeleteMissingMaterials(Set.of(), result);
+            log.warn("[ProductLookupSheetSync] tab '{}' 빈 시트 — soft-delete 없이 skip", MATERIAL_TAB);
+            return result;
         }
 
         Set<String> sheetKeys = new HashSet<>();
@@ -135,12 +141,19 @@ public class ProductLookupSheetSyncService {
 
             int sheetRowNumber = i + 1;
             String materialKey = "D" + sheetRowNumber;
-            BigDecimal price = parseDecimal(safeGet(cells, 1));
-            String optionLabel = i <= 7 ? blankToNull(safeGet(cells, 2)) : null;
-            String computedFormula = i <= 7 ? blankToNull(safeGet(cells, 3)) : null;
+            sheetKeys.add(materialKey);
+            BigDecimal price = parseDecimalOrNull(safeGet(cells, 1));
+            if (price == null) {
+                result.skipped++;
+                recordError(result, "싱글 자재가격 " + materialKey + " 가격 무값/파싱 실패");
+                log.warn("[ProductLookupSheetSync] tab '{}' row {} 가격 무값/파싱 실패 — skip",
+                        MATERIAL_TAB, sheetRowNumber);
+                continue;
+            }
+            String optionLabel = i <= MATERIAL_SIDE_BLOCK_LAST_INDEX ? blankToNull(safeGet(cells, 2)) : null;
+            String computedFormula = i <= MATERIAL_SIDE_BLOCK_LAST_INDEX ? blankToNull(safeGet(cells, 3)) : null;
             String rowHash = sha256(Arrays.asList(materialKey, name, price, optionLabel, computedFormula).toString());
             String cacheKey = "material:" + materialKey;
-            sheetKeys.add(materialKey);
 
             Optional<MaterialPrice> active = materialPriceRepository.findByMaterialKey(materialKey);
             if (active.isEmpty()) {
@@ -178,23 +191,28 @@ public class ProductLookupSheetSyncService {
         List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, ODU_TAB + "!A1:E");
         TabSyncResult result = new TabSyncResult();
         if (rows == null || rows.size() <= 2) {
-            return softDeleteMissingOdu(Set.of(), result);
+            log.warn("[ProductLookupSheetSync] tab '{}' 빈 시트 — soft-delete 없이 skip", ODU_TAB);
+            return result;
         }
 
         Map<String, OduSheetRow> sheetRows = new LinkedHashMap<>();
         for (int i = 2; i < rows.size(); i++) {
             List<String> cells = GoogleSheetsClient.toStringRow(rows.get(i), 5);
-            addOduRow(sheetRows, RecommendationType.MULTI_HEATING_COOLING,
-                    parseDecimalOrNull(safeGet(cells, 0)), null, blankToNull(safeGet(cells, 1)));
-            addOduRow(sheetRows, RecommendationType.HOME_MULTI,
-                    null, parseIntegerOrNull(safeGet(cells, 2)), blankToNull(safeGet(cells, 4)));
-            addOduRow(sheetRows, RecommendationType.HOME_MULTI,
-                    null, parseIntegerOrNull(safeGet(cells, 3)), blankToNull(safeGet(cells, 4)));
+            int sheetRowNumber = i + 1;
+            addOduRow(sheetRows, result, RecommendationType.MULTI_HEATING_COOLING,
+                    parseDecimalOrNull(safeGet(cells, 0)), null, blankToNull(safeGet(cells, 1)),
+                    sheetRowNumber, "A/B");
+            addOduRow(sheetRows, result, RecommendationType.HOME_MULTI,
+                    null, parseIntegerOrNull(safeGet(cells, 2)), blankToNull(safeGet(cells, 4)),
+                    sheetRowNumber, "C/E");
+            addOduRow(sheetRows, result, RecommendationType.HOME_MULTI,
+                    null, parseIntegerOrNull(safeGet(cells, 3)), blankToNull(safeGet(cells, 4)),
+                    sheetRowNumber, "D/E");
         }
 
         for (OduSheetRow sheetRow : sheetRows.values()) {
             String cacheKey = "odu:" + sheetRow.key();
-            String rowHash = sha256(sheetRow.toString());
+            String rowHash = sha256(sheetRow.hashPayload());
             Optional<OduRecommendationLookup> active = oduRepository.findActiveByNaturalKey(
                     sheetRow.recommendationType(), sheetRow.indoorCapacity(),
                     sheetRow.indoorCount(), sheetRow.outdoorHp());
@@ -236,7 +254,8 @@ public class ProductLookupSheetSyncService {
         List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, BRANCH_TAB + "!A1:Z");
         TabSyncResult result = new TabSyncResult();
         if (rows == null || rows.size() <= 1) {
-            return softDeleteMissingBranches(Set.of(), result);
+            log.warn("[ProductLookupSheetSync] tab '{}' 빈 시트 — soft-delete 없이 skip", BRANCH_TAB);
+            return result;
         }
 
         Set<String> sheetKeys = new HashSet<>();
@@ -294,6 +313,7 @@ public class ProductLookupSheetSyncService {
             summary.totalSoftDeleted += result.softDeleted;
             summary.totalSkipped += result.skipped;
         } catch (Exception e) {
+            invalidateHashCacheForTab(tabName);
             log.error("[ProductLookupSheetSync] tab '{}' sync 실패: {}", tabName, e.getMessage(), e);
             TabSyncResult result = new TabSyncResult();
             result.error = e.getMessage();
@@ -342,13 +362,24 @@ public class ProductLookupSheetSyncService {
     }
 
     /** 추천실외기 후보 row 를 natural key 중복 없이 모은다. */
-    private static void addOduRow(Map<String, OduSheetRow> rows, RecommendationType type,
-                                  BigDecimal indoorCapacity, Integer indoorCount, String outdoorHp) {
+    private static void addOduRow(Map<String, OduSheetRow> rows, TabSyncResult result,
+                                  RecommendationType type, BigDecimal indoorCapacity,
+                                  Integer indoorCount, String outdoorHp,
+                                  int sheetRowNumber, String sourceColumns) {
         if (outdoorHp == null || (indoorCapacity == null && indoorCount == null)) {
             return;
         }
-        OduSheetRow row = new OduSheetRow(type, indoorCapacity, indoorCount, outdoorHp);
-        rows.putIfAbsent(row.key(), row);
+        OduSheetRow row = new OduSheetRow(type, indoorCapacity, indoorCount, outdoorHp,
+                sheetRowNumber, sourceColumns);
+        OduSheetRow existing = rows.putIfAbsent(row.key(), row);
+        if (existing != null && existing.sheetRowNumber() != sheetRowNumber) {
+            result.skipped++;
+            String message = "추천실외기 natural key 중복: key=" + row.key()
+                    + ", firstRow=" + existing.sheetRowNumber()
+                    + ", duplicateRow=" + sheetRowNumber;
+            recordError(result, message);
+            log.warn("[ProductLookupSheetSync] {}", message);
+        }
     }
 
     /** null 안전 cell getter. */
@@ -362,12 +393,6 @@ public class ProductLookupSheetSyncService {
             return null;
         }
         return value.trim();
-    }
-
-    /** 콤마/통화문자를 제거해 BigDecimal 로 파싱하고 실패 시 0을 반환한다. */
-    private static BigDecimal parseDecimal(String value) {
-        BigDecimal parsed = parseDecimalOrNull(value);
-        return parsed == null ? BigDecimal.ZERO : parsed;
     }
 
     /** 콤마/통화문자를 제거해 BigDecimal 로 파싱하고 무값/실패 시 null 을 반환한다. */
@@ -412,7 +437,31 @@ public class ProductLookupSheetSyncService {
     /** 추천실외기 natural key 문자열 생성. */
     private static String oduKey(RecommendationType type, BigDecimal indoorCapacity,
                                  Integer indoorCount, String outdoorHp) {
-        return type + "|" + indoorCapacity + "|" + indoorCount + "|" + outdoorHp;
+        return type + "|" + canonicalDecimal(indoorCapacity) + "|" + indoorCount + "|" + outdoorHp;
+    }
+
+    /** ODU NUMERIC scale 차이를 제거한 natural key 용 decimal 문자열. */
+    private static String canonicalDecimal(BigDecimal value) {
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
+    }
+
+    /** 탭 트랜잭션 실패 시 rollback 된 rowHash 캐시를 제거한다. */
+    private void invalidateHashCacheForTab(String tabName) {
+        String prefix = switch (tabName) {
+            case MATERIAL_TAB -> "material:";
+            case ODU_TAB -> "odu:";
+            case BRANCH_TAB -> "branch:";
+            default -> null;
+        };
+        if (prefix == null) {
+            return;
+        }
+        lastKnownRowHash.keySet().removeIf(key -> key.startsWith(prefix));
+    }
+
+    /** 탭 결과 error 문자열에 row 단위 사유를 누적한다. */
+    private static void recordError(TabSyncResult result, String message) {
+        result.error = result.error == null ? message : result.error + "\n" + message;
     }
 
     /** 탭별 sync callable. */
@@ -423,10 +472,17 @@ public class ProductLookupSheetSyncService {
 
     /** 추천실외기 시트 파싱 row. */
     private record OduSheetRow(RecommendationType recommendationType, BigDecimal indoorCapacity,
-                               Integer indoorCount, String outdoorHp) {
+                               Integer indoorCount, String outdoorHp,
+                               int sheetRowNumber, String sourceColumns) {
         /** natural key 문자열. */
         String key() {
             return oduKey(recommendationType, indoorCapacity, indoorCount, outdoorHp);
+        }
+
+        /** rowHash payload — DB NUMERIC scale 과 무관하도록 canonical decimal 을 사용한다. */
+        String hashPayload() {
+            return Arrays.asList(recommendationType, canonicalDecimal(indoorCapacity),
+                    indoorCount, outdoorHp).toString();
         }
     }
 

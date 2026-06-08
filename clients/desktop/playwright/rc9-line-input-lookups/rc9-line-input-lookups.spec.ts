@@ -119,7 +119,7 @@ test.describe('RC9 라인 입력 lookup mock runtime', () => {
     const modal = page.getByTestId('line-lookup-modal')
     await expect(modal).toBeVisible({ timeout: 10_000 })
     await expect(modal).toContainText('D2')
-    await expect(modal).toContainText('드레인 호스')
+    await expect(modal).toContainText('유선리모컨')
 
     await expect(page.getByTestId('line-lookup-tab-odu')).toHaveAttribute('role', 'tab')
     await page.getByRole('tab', { name: '추천 실외기' }).click()

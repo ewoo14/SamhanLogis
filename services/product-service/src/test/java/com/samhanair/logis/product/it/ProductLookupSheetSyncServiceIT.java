@@ -14,16 +14,18 @@ import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
 import com.samhanair.logis.product.repository.MaterialPriceRepository;
 import com.samhanair.logis.product.repository.OduRecommendationLookupRepository;
 import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * lookup 3종 시트 sync IT — 외부 GoogleSheetsClient 는 {@code @MockBean} 으로 격리한다.
@@ -44,7 +46,6 @@ import org.springframework.transaction.annotation.Transactional;
 })
 @DirtiesContext
 @WithMockUser(username = "lookup-sync-test")
-@Transactional
 class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
 
     @MockBean
@@ -62,8 +63,18 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
     @Autowired
     private BranchPipeLookupRepository branchRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManager entityManager;
+
     @BeforeEach
     void resetState() throws Exception {
+        jdbcTemplate.update("DELETE FROM material_price");
+        jdbcTemplate.update("DELETE FROM odu_recommendation_lookup");
+        jdbcTemplate.update("DELETE FROM branch_pipe_lookup");
+        entityManager.clear();
         syncService.clearHashCacheForTest();
         lenient().doNothing().when(sheetsClient).invalidateCache();
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
@@ -79,7 +90,14 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
                 materialRows(
                         row("품 명", "가격", "옵션", "계산값"),
                         row("유선리모컨", "40,000", "유선선택", "0"),
-                        row("FPH-1412XS3", "130,000", "", "")
+                        row("컬러유선리모컨", "75,000", "", ""),
+                        row("블랙판넬", "50,000", "판넬선택", "블랙"),
+                        row("", "", "", ""),
+                        row("", "", "", ""),
+                        row("", "", "", ""),
+                        row("", "", "", ""),
+                        row("FPH-1412XS3", "130,000", "사이드블록아님", "무시값"),
+                        row("가격누락자재", "", "", "")
                 ),
                 oduRows(
                         row("멀티 냉난방", "", "홈멀티", "", ""),
@@ -95,11 +113,13 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
 
         // when: 1차 sync
         ProductLookupSheetSyncService.SyncSummary first = syncService.syncAll();
+        entityManager.clear();
 
         // then: insert + null 계약
-        assertThat(first.totalInserted).isEqualTo(7);
+        assertThat(first.totalInserted).isEqualTo(9);
         assertThat(first.totalUpdated).isZero();
         assertThat(first.totalSoftDeleted).isZero();
+        assertThat(first.byTab.get("싱글 자재가격").skipped).isEqualTo(5);
 
         MaterialPrice d2 = materialPriceRepository.findByMaterialKey("D2").orElseThrow();
         assertThat(d2.getName()).isEqualTo("유선리모컨");
@@ -110,6 +130,12 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         MaterialPrice d3 = materialPriceRepository.findByMaterialKey("D3").orElseThrow();
         assertThat(d3.getOptionLabel()).isNull();
         assertThat(d3.getComputedFormula()).isNull();
+
+        MaterialPrice d9 = materialPriceRepository.findByMaterialKey("D9").orElseThrow();
+        assertThat(d9.getName()).isEqualTo("FPH-1412XS3");
+        assertThat(d9.getOptionLabel()).isNull();
+        assertThat(d9.getComputedFormula()).isNull();
+        assertThat(materialPriceRepository.findByMaterialKey("D10")).isEmpty();
 
         List<OduRecommendationLookup> oduRows = oduRepository.findAll();
         assertThat(oduRows).hasSize(3);
@@ -131,19 +157,26 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
 
         // when: 2차 sync — 동일 rowHash
         ProductLookupSheetSyncService.SyncSummary second = syncService.syncAll();
+        entityManager.clear();
 
         // then: unchanged 만 증가
         assertThat(second.totalInserted).isZero();
         assertThat(second.totalUpdated).isZero();
         assertThat(second.totalSoftDeleted).isZero();
-        assertThat(second.totalUnchanged).isEqualTo(7);
+        assertThat(second.totalUnchanged).isEqualTo(9);
 
         // given: material 가격 변경 + branch 2512 제거
         stubLookupSheets(
                 materialRows(
                         row("품 명", "가격", "옵션", "계산값"),
                         row("유선리모컨", "45,000", "유선선택", "0"),
-                        row("FPH-1412XS3", "130,000", "", "")
+                        row("컬러유선리모컨", "75,000", "", ""),
+                        row("블랙판넬", "50,000", "판넬선택", "블랙"),
+                        row("", "", "", ""),
+                        row("", "", "", ""),
+                        row("", "", "", ""),
+                        row("", "", "", ""),
+                        row("FPH-1412XS3", "130,000", "사이드블록아님", "무시값")
                 ),
                 oduRows(
                         row("멀티 냉난방", "", "홈멀티", "", ""),
@@ -158,6 +191,7 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
 
         // when
         ProductLookupSheetSyncService.SyncSummary third = syncService.syncAll();
+        entityManager.clear();
 
         // then: update + soft-delete
         assertThat(third.byTab.get("싱글 자재가격").updated).isEqualTo(1);
@@ -165,6 +199,146 @@ class ProductLookupSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(materialPriceRepository.findByMaterialKey("D2").orElseThrow().getPrice())
                 .isEqualByComparingTo(new BigDecimal("45000"));
         assertThat(branchRepository.findByBranchCode("2512")).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM branch_pipe_lookup WHERE branch_code = '2512'", Boolean.class))
+                .isTrue();
+    }
+
+    /**
+     * Sheets API 일시 빈 응답은 시트 전체 삭제 의도가 아니므로 active row 를 보존한다.
+     */
+    @Test
+    void syncAll_빈_시트_응답은_softDelete_하지_않는다() throws Exception {
+        stubLookupSheets(
+                materialRows(row("품 명", "가격", "옵션", "계산값"), row("유선리모컨", "40,000", "", "")),
+                oduRows(row("멀티 냉난방", "", "홈멀티", "", ""), row("실내기", "마력", "실내기", "실내기", "마력"), row("5.5", "4HP", "", "", "")),
+                branchRows(row("전체 분기관 개수", "수동추가"), row("1509", "0"))
+        );
+        syncService.syncAll();
+        entityManager.clear();
+
+        stubLookupSheets(List.of(), List.of(), List.of());
+
+        ProductLookupSheetSyncService.SyncSummary emptyRead = syncService.syncAll();
+        entityManager.clear();
+
+        assertThat(emptyRead.totalSoftDeleted).isZero();
+        assertThat(materialPriceRepository.findByMaterialKey("D2")).isPresent();
+        assertThat(oduRepository.findActiveByNaturalKey(
+                RecommendationType.MULTI_HEATING_COOLING, new BigDecimal("5.5"), null, "4HP"))
+                .isPresent();
+        assertThat(branchRepository.findByBranchCode("1509")).isPresent();
+    }
+
+    /**
+     * 자재 row 제거는 soft-delete 로 남기고, 시트 재등장 시 같은 id 를 복구한다.
+     */
+    @Test
+    void syncMaterialPricesTab_softDelete와_restore는_동일_row_id를_보존한다() throws Exception {
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenReturn(materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "40,000", "", ""),
+                        row("컬러유선리모컨", "75,000", "", "")
+                ));
+        syncService.syncMaterialPricesTab();
+        entityManager.clear();
+        UUID d3Id = materialPriceRepository.findByMaterialKey("D3").orElseThrow().getId();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenReturn(materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "40,000", "", "")
+                ));
+        syncService.syncMaterialPricesTab();
+        entityManager.clear();
+
+        assertThat(materialPriceRepository.findByMaterialKey("D3")).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM material_price WHERE id = ?", Boolean.class, d3Id))
+                .isTrue();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 자재가격!A1:D"))
+                .thenReturn(materialRows(
+                        row("품 명", "가격", "옵션", "계산값"),
+                        row("유선리모컨", "40,000", "", ""),
+                        row("컬러유선리모컨", "75,000", "", "")
+                ));
+        syncService.syncMaterialPricesTab();
+        entityManager.clear();
+
+        MaterialPrice restored = materialPriceRepository.findByMaterialKey("D3").orElseThrow();
+        assertThat(restored.getId()).isEqualTo(d3Id);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM material_price WHERE id = ?", Boolean.class, d3Id))
+                .isFalse();
+    }
+
+    /**
+     * ODU 는 전 컬럼이 natural key 이므로 값 변경 update 분기가 사실상 죽어 있다.
+     * 대신 사라진 key soft-delete 후 같은 key 재등장 시 기존 row id 복구를 보장한다.
+     */
+    @Test
+    void syncOduRecommendationsTab_key_변경과_재등장은_softDelete_restore로_처리한다() throws Exception {
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "추천실외기!A1:E"))
+                .thenReturn(oduRows(
+                        row("멀티 냉난방", "", "홈멀티", "", ""),
+                        row("실내기", "마력", "실내기", "실내기", "마력"),
+                        row("5.5", "4HP", "", "", "")
+                ));
+        syncService.syncOduRecommendationsTab();
+        entityManager.clear();
+        UUID originalId = oduRepository.findActiveByNaturalKey(
+                RecommendationType.MULTI_HEATING_COOLING, new BigDecimal("5.5"), null, "4HP")
+                .orElseThrow()
+                .getId();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "추천실외기!A1:E"))
+                .thenReturn(oduRows(
+                        row("멀티 냉난방", "", "홈멀티", "", ""),
+                        row("실내기", "마력", "실내기", "실내기", "마력"),
+                        row("5.5", "5HP", "", "", "")
+                ));
+        syncService.syncOduRecommendationsTab();
+        entityManager.clear();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM odu_recommendation_lookup WHERE id = ?", Boolean.class, originalId))
+                .isTrue();
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "추천실외기!A1:E"))
+                .thenReturn(oduRows(
+                        row("멀티 냉난방", "", "홈멀티", "", ""),
+                        row("실내기", "마력", "실내기", "실내기", "마력"),
+                        row("5.5", "4HP", "", "", "")
+                ));
+        syncService.syncOduRecommendationsTab();
+        entityManager.clear();
+
+        OduRecommendationLookup restored = oduRepository.findActiveByNaturalKey(
+                RecommendationType.MULTI_HEATING_COOLING, new BigDecimal("5.5"), null, "4HP")
+                .orElseThrow();
+        assertThat(restored.getId()).isEqualTo(originalId);
+    }
+
+    /**
+     * 같은 ODU natural key 가 다른 시트 row 에 반복되면 원천 이상으로 기록하고 skip 한다.
+     */
+    @Test
+    void syncOduRecommendationsTab_다른_row의_natural_key_중복은_skip_error로_기록한다() throws Exception {
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "추천실외기!A1:E"))
+                .thenReturn(oduRows(
+                        row("멀티 냉난방", "", "홈멀티", "", ""),
+                        row("실내기", "마력", "실내기", "실내기", "마력"),
+                        row("5.5", "4HP", "", "", ""),
+                        row("5.5", "4HP", "", "", "")
+                ));
+
+        ProductLookupSheetSyncService.TabSyncResult result = syncService.syncOduRecommendationsTab();
+
+        assertThat(result.inserted).isEqualTo(1);
+        assertThat(result.skipped).isEqualTo(1);
+        assertThat(result.error).contains("추천실외기 natural key 중복");
     }
 
     /**

@@ -13,8 +13,31 @@ import org.springframework.data.repository.query.Param;
 /** OduRecommendationLookup CRUD + recommendationType + indoorCapacity 매트릭스. */
 public interface OduRecommendationLookupRepository extends JpaRepository<OduRecommendationLookup, UUID> {
 
-    List<OduRecommendationLookup> findByRecommendationTypeOrderByIndoorCapacityAsc(RecommendationType type);
+    /**
+     * 추천 타입별 조회 — HOME_MULTI 의 null indoorCapacity 순서 흔들림을 방지한다.
+     */
+    @Query("""
+            SELECT o
+              FROM OduRecommendationLookup o
+             WHERE o.recommendationType = :type
+             ORDER BY o.recommendationType ASC,
+                      o.indoorCapacity ASC NULLS LAST,
+                      o.indoorCount ASC NULLS LAST,
+                      o.outdoorHp ASC
+            """)
+    List<OduRecommendationLookup> findByRecommendationTypeOrderByIndoorCapacityAsc(@Param("type") RecommendationType type);
 
+    /**
+     * 전체 추천실외기 조회 — natural key 전체 튜플로 정렬해 API 응답 순서를 고정한다.
+     */
+    @Query("""
+            SELECT o
+              FROM OduRecommendationLookup o
+             ORDER BY o.recommendationType ASC,
+                      o.indoorCapacity ASC NULLS LAST,
+                      o.indoorCount ASC NULLS LAST,
+                      o.outdoorHp ASC
+            """)
     List<OduRecommendationLookup> findAllByOrderByRecommendationTypeAscIndoorCapacityAsc();
 
     /**
