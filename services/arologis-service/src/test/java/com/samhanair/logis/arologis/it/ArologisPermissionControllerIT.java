@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.samhanair.logis.arologis.controller.ArologisAccountingController;
 import com.samhanair.logis.arologis.controller.ArologisAdminController;
 import com.samhanair.logis.arologis.controller.ArologisDriverAppController;
 import com.samhanair.logis.arologis.controller.ArologisHrController;
@@ -42,6 +43,7 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.arologis.service.DispatchAdminService;
+import com.samhanair.logis.arologis.service.ArologisAccountingService;
 import com.samhanair.logis.arologis.service.ArologisDepartmentService;
 import com.samhanair.logis.arologis.service.ArologisEmployeeService;
 import com.samhanair.logis.arologis.service.DispatchManualService;
@@ -103,7 +105,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 DispatchReconcileController.class,
                 DispatchSaveHistoryController.class,
                 ArologisDriverAppController.class,
-                ArologisHrController.class
+                ArologisHrController.class,
+                ArologisAccountingController.class
         },
         properties = {
                 "spring.application.name=arologis-service",
@@ -151,6 +154,7 @@ class ArologisPermissionControllerIT {
     @MockBean private SignAndSendCopyService signAndSendCopyService;
     @MockBean private ArologisEmployeeService arologisEmployeeService;
     @MockBean private ArologisDepartmentService arologisDepartmentService;
+    @MockBean private ArologisAccountingService arologisAccountingService;
     @MockBean private JwtIssuer jwtIssuer;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
@@ -215,6 +219,30 @@ class ArologisPermissionControllerIT {
         lenient().when(arologisEmployeeService.list(null)).thenReturn(List.of());
         lenient().when(arologisEmployeeService.roleHistories("hr-kim")).thenReturn(List.of());
         lenient().when(arologisDepartmentService.list()).thenReturn(List.of());
+
+        ArologisAccountingService.CashTxnView cashTxn = new ArologisAccountingService.CashTxnView(
+                ID,
+                java.time.LocalDate.of(2026, 6, 8),
+                com.samhanair.logis.arologis.domain.CashTxnType.INCOME,
+                "거래처",
+                new java.math.BigDecimal("1000.00"),
+                "4010",
+                "운송수입",
+                "메모");
+        ArologisAccountingService.CashSummaryView summary = new ArologisAccountingService.CashSummaryView(
+                java.time.LocalDate.of(2026, 6, 1),
+                java.time.LocalDate.of(2026, 6, 30),
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                0);
+        lenient().when(arologisAccountingService.listAccounts()).thenReturn(List.of());
+        lenient().when(arologisAccountingService.list(any(), any(), any())).thenReturn(List.of());
+        lenient().when(arologisAccountingService.get(any())).thenReturn(cashTxn);
+        lenient().when(arologisAccountingService.create(any(), any())).thenReturn(cashTxn);
+        lenient().when(arologisAccountingService.update(any(), any(), any())).thenReturn(cashTxn);
+        lenient().when(arologisAccountingService.summary(any(), any())).thenReturn(summary);
+        lenient().when(arologisAccountingService.monthlySummary(anyInt(), anyInt())).thenReturn(summary);
     }
 
     @ParameterizedTest(name = "{0} grant")
@@ -383,7 +411,25 @@ class ArologisPermissionControllerIT {
                         () -> put("/admin/arologis/hr/departments/ADMIN")
                                 .contentType(MediaType.APPLICATION_JSON).content(departmentUpdateBody())),
                 endpoint("hr department delete", "arologis.hr.departments", PermissionAction.DELETE, "AROLOGIS_MANAGER",
-                        () -> put("/admin/arologis/hr/departments/ADMIN/delete"))
+                        () -> put("/admin/arologis/hr/departments/ADMIN/delete")),
+                endpoint("accounting account list", "arologis.accounting.cashbook", PermissionAction.VIEW,
+                        "AROLOGIS_MANAGER", () -> get("/admin/arologis/accounting/accounts")),
+                endpoint("accounting txn list", "arologis.accounting.cashbook", PermissionAction.VIEW,
+                        "AROLOGIS_MANAGER", () -> get("/admin/arologis/accounting/cash-txns")
+                                .param("from", "2026-06-01").param("to", "2026-06-30")),
+                endpoint("accounting txn detail", "arologis.accounting.cashbook", PermissionAction.VIEW,
+                        "AROLOGIS_MANAGER", () -> get("/admin/arologis/accounting/cash-txns/{id}", ID)),
+                endpoint("accounting txn create", "arologis.accounting.cashbook", PermissionAction.CREATE,
+                        "AROLOGIS_MANAGER", () -> post("/admin/arologis/accounting/cash-txns")
+                                .contentType(MediaType.APPLICATION_JSON).content(cashTxnBody())),
+                endpoint("accounting txn update", "arologis.accounting.cashbook", PermissionAction.UPDATE,
+                        "AROLOGIS_MANAGER", () -> put("/admin/arologis/accounting/cash-txns/{id}", ID)
+                                .contentType(MediaType.APPLICATION_JSON).content(cashTxnBody())),
+                endpoint("accounting txn delete", "arologis.accounting.cashbook", PermissionAction.DELETE,
+                        "AROLOGIS_MANAGER", () -> delete("/admin/arologis/accounting/cash-txns/{id}", ID)),
+                endpoint("accounting summary", "arologis.accounting.summary", PermissionAction.VIEW,
+                        "AROLOGIS_MANAGER", () -> get("/admin/arologis/accounting/summary")
+                                .param("year", "2026").param("month", "6"))
         );
     }
 
@@ -437,6 +483,12 @@ class ArologisPermissionControllerIT {
 
     private static String departmentUpdateBody() {
         return "{\"name\":\"행정팀\",\"displayOrder\":11}";
+    }
+
+    private static String cashTxnBody() {
+        return """
+                {"txnDate":"2026-06-08","type":"INCOME","partnerName":"한진택배","amount":150000.00,"accountCode":"4010","description":"운송료"}
+                """;
     }
 
     private static MockMultipartFile csv(String name) {

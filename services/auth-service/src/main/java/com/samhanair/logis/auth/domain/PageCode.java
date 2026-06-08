@@ -483,6 +483,12 @@ public enum PageCode {
     /** 아로로지스 HR 부서 관리 API — desktop 백오피스 Phase B. */
     AROLOGIS_HR_DEPARTMENTS("arologis.hr.departments", "아로로지스 부서 관리"),
 
+    /** 아로로지스 간이 회계 현금출납장 CRUD API — desktop 백오피스 Phase C. */
+    AROLOGIS_ACCOUNTING_CASHBOOK("arologis.accounting.cashbook", "아로로지스 현금출납장"),
+
+    /** 아로로지스 간이 회계 월별 집계 VIEW API — desktop 백오피스 Phase C. */
+    AROLOGIS_ACCOUNTING_SUMMARY("arologis.accounting.summary", "아로로지스 회계 월별 집계"),
+
     /** SAS 매출전표 목록 화면 (SP-SAS-1). */
     ACCOUNTING_SALES_SLIP_LIST("accounting.sales-slip.list", "매출전표(회계분개)"),
 
