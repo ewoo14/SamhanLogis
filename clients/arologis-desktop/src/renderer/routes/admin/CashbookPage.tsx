@@ -23,7 +23,6 @@ import {
 import {
   createCashTxn,
   deleteCashTxn,
-  getMonthlySummary,
   getPeriodSummary,
   listAccounts,
   listCashTxns,
@@ -100,12 +99,11 @@ export function CashbookPage(): JSX.Element {
     enabled: periodValid,
   })
 
+  // 집계도 목록과 동일하게 period(from~to) 단일소스로 조회한다. month 모드는 period 가
+  // monthToPeriodSafe 환산값이라 극단 year(0/음수/대값) 입력에도 BE 500 이 발생하지 않는다.
   const summaryQuery = useQuery<CashSummaryView>({
-    queryKey: ['arologis', 'accounting', 'summary', periodMode, year, month, period.from, period.to],
-    queryFn: () =>
-      periodMode === 'month'
-        ? getMonthlySummary(year, month)
-        : getPeriodSummary(period.from, period.to),
+    queryKey: ['arologis', 'accounting', 'summary', period.from, period.to],
+    queryFn: () => getPeriodSummary(period.from, period.to),
     enabled: periodValid,
   })
 
@@ -411,7 +409,8 @@ function CashTxnFormModal({
   const [type, setType] = useState<CashTxnType>(txn?.type ?? 'INCOME')
   const [txnDate, setTxnDate] = useState(txn?.txnDate ?? todayIso())
   const [accountCode, setAccountCode] = useState(txn?.accountCode ?? '')
-  const [amount, setAmount] = useState(txn ? String(txn.amount) : '')
+  // edit 금액 초기화 — txn.amount 는 정수 원단위 가정(BE BigDecimal scale 0). 천단위 콤마로 표시한다.
+  const [amount, setAmount] = useState(txn ? formatAmount(txn.amount) : '')
   const [partnerName, setPartnerName] = useState(txn?.partnerName ?? '')
   const [description, setDescription] = useState(txn?.description ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -429,7 +428,7 @@ function CashTxnFormModal({
     txnDate,
     type,
     partnerName: blankToNull(partnerName),
-    amount: Number(amount),
+    amount: parseAmount(amount),
     accountCode,
     description: blankToNull(description),
   })
@@ -441,13 +440,17 @@ function CashTxnFormModal({
   })
 
   const updateMutation = useMutation({
-    mutationFn: () => updateCashTxn(txn?.id ?? '', buildBody()),
+    mutationFn: () => {
+      // edit 모드에서는 txn 이 항상 존재한다(아래 호출부에서 mode==='edit' && txn 보장).
+      if (!txn) throw new Error('수정할 거래가 없습니다.')
+      return updateCashTxn(txn.id, buildBody())
+    },
     onSuccess: onSaved,
     onError: (err) => setError(toErrorMessage(err, '거래 수정에 실패했습니다.')),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
-  const amountValue = Number(amount)
+  const amountValue = parseAmount(amount)
   const amountValid = amount.trim().length > 0 && Number.isFinite(amountValue) && amountValue > 0
   const canSubmit =
     amountValid
@@ -524,10 +527,10 @@ function CashTxnFormModal({
           </Select>
           <Input
             label="금액"
-            type="number"
-            min={1}
+            type="text"
+            inputMode="numeric"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(formatAmountInput(e.target.value))}
             required
             hint={amount.trim().length > 0 && amountValid ? `${formatAmount(amountValue)}원` : '0보다 큰 금액을 입력하세요.'}
           />
@@ -577,7 +580,7 @@ function CashTxnDeleteModal({
       open
       onClose={onClose}
       title="거래 삭제"
-      description={`${formatDate(txn.txnDate)} · ${txnTypeLabel(txn.type)} · ${formatAmount(txn.amount)}원`}
+      description={`${formatDate(txn.txnDate)} · ${txnTypeLabel(txn.type)}`}
       footer={
         <div style={modalFooterStyle}>
           <Button variant="ghost" onClick={onClose}>취소</Button>
@@ -600,6 +603,16 @@ function CashTxnDeleteModal({
           이 거래를 삭제하면 집계에서 제외됩니다. 계속하시겠습니까?
         </p>
         <dl style={detailListStyle}>
+          <div style={detailRowStyle}>
+            <dt style={detailLabelStyle}>금액</dt>
+            <dd style={detailValueStyle}>
+              {/* 표 행과 동일한 +/- 부호·색(수입 초록/지출 빨강)으로 통일. */}
+              <span style={txn.type === 'INCOME' ? amountIncomeStyle : amountExpenseStyle}>
+                {txn.type === 'EXPENSE' ? '-' : '+'}
+                {formatAmount(txn.amount)}원
+              </span>
+            </dd>
+          </div>
           <DetailRow label="계정" value={nullableText(txn.accountName)} />
           <DetailRow label="거래처" value={nullableText(txn.partnerName)} />
           <DetailRow label="적요" value={nullableText(txn.description)} />
@@ -690,6 +703,23 @@ function accountTypeLabel(type: AccountType): string {
 function formatAmount(value: number): string {
   if (!Number.isFinite(value)) return '0'
   return Math.round(value).toLocaleString('ko-KR')
+}
+
+/** 콤마 입력 문자열을 숫자로 환산(콤마 strip 후 파싱). 빈 값/비정상 입력은 NaN. */
+function parseAmount(value: string): number {
+  const digits = value.replace(/,/g, '').trim()
+  if (digits.length === 0) return Number.NaN
+  return Number(digits)
+}
+
+/**
+ * 금액 입력 정규화 — 콤마/숫자 외 문자는 제거하고 천단위 콤마를 다시 부여한다.
+ * 음수 입력은 부호 문자가 제거되어 자연히 차단된다(BE @Positive 정합).
+ */
+function formatAmountInput(value: string): string {
+  const digits = value.replace(/[^\d]/g, '')
+  if (digits.length === 0) return ''
+  return Number(digits).toLocaleString('ko-KR')
 }
 
 function toIntOr(value: string, fallback: number): number {
