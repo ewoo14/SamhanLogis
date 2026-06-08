@@ -17,14 +17,18 @@ import com.samhanair.logis.arologis.repository.ArologisDepartmentRepository;
 import com.samhanair.logis.arologis.repository.ArologisEmployeeRepository;
 import com.samhanair.logis.arologis.repository.ArologisRoleChangeHistoryRepository;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
-import org.junit.jupiter.api.Test;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -58,10 +62,13 @@ class ArologisEmployeeServiceTest {
         when(adminUserRepository.findByLoginIdAndIsDeletedFalse("hr-kim")).thenReturn(Optional.empty());
         when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-kim")).thenReturn(Optional.empty());
         when(departmentRepository.findByCodeAndIsDeletedFalse("DISPATCH")).thenReturn(Optional.of(department));
-        when(adminUserRepository.save(any(AdminUser.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(employeeRepository.save(any(ArologisEmployee.class))).thenAnswer(inv -> {
+        when(adminUserRepository.findById(UUID.fromString("00000000-0000-0000-0000-000000000901")))
+                .thenReturn(Optional.of(AdminUser.create(
+                        "master-admin", "$2a$10$hash", "마스터", AdminUserRole.AROLOGIS_MASTER)));
+        when(adminUserRepository.saveAndFlush(any(AdminUser.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(employeeRepository.saveAndFlush(any(ArologisEmployee.class))).thenAnswer(inv -> {
             ArologisEmployee employee = inv.getArgument(0);
-            ReflectionTestUtils.setField(employee, "id", java.util.UUID.fromString("00000000-0000-0000-0000-000000000702"));
+            ReflectionTestUtils.setField(employee, "id", UUID.fromString("00000000-0000-0000-0000-000000000702"));
             return employee;
         });
         when(historyRepository.save(any(ArologisRoleChangeHistory.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -70,12 +77,15 @@ class ArologisEmployeeServiceTest {
                 new ArologisEmployeeService.CreateEmployeeCommand(
                         "hr-kim", "김인사", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
                         "hr-kim@example.com", "010-1111-2222", AdminUserRole.AROLOGIS_MANAGER),
-                "tester");
+                "00000000-0000-0000-0000-000000000901");
 
         ArgumentCaptor<AdminUser> adminCaptor = ArgumentCaptor.forClass(AdminUser.class);
         ArgumentCaptor<ArologisEmployee> employeeCaptor = ArgumentCaptor.forClass(ArologisEmployee.class);
-        verify(adminUserRepository).save(adminCaptor.capture());
-        verify(employeeRepository).save(employeeCaptor.capture());
+        ArgumentCaptor<ArologisRoleChangeHistory> historyCaptor =
+                ArgumentCaptor.forClass(ArologisRoleChangeHistory.class);
+        verify(adminUserRepository).saveAndFlush(adminCaptor.capture());
+        verify(employeeRepository).saveAndFlush(employeeCaptor.capture());
+        verify(historyRepository).save(historyCaptor.capture());
 
         assertThat(result.employee().loginId()).isEqualTo("hr-kim");
         assertThat(result.employee().departmentName()).isEqualTo("배차");
@@ -83,6 +93,7 @@ class ArologisEmployeeServiceTest {
         assertThat(passwordEncoder.matches(result.temporaryPassword(), adminCaptor.getValue().getPasswordHash())).isTrue();
         assertThat(adminCaptor.getValue().getRole()).isEqualTo(AdminUserRole.AROLOGIS_MANAGER);
         assertThat(employeeCaptor.getValue().getAdminUser()).isSameAs(adminCaptor.getValue());
+        assertThat(historyCaptor.getValue().getChangedByLoginId()).isEqualTo("master-admin");
     }
 
     @Test
@@ -95,16 +106,41 @@ class ArologisEmployeeServiceTest {
                         "hr-kim", "김인사", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
                         null, null, AdminUserRole.AROLOGIS_MANAGER),
                 "tester"))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void createEmployee_convertsProvisioningUniqueRaceToConflict() {
+        ArologisDepartment department = ArologisDepartment.create("DISPATCH", "배차", 20);
+        when(adminUserRepository.findByLoginIdAndIsDeletedFalse("hr-race")).thenReturn(Optional.empty());
+        when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-race")).thenReturn(Optional.empty());
+        when(departmentRepository.findByCodeAndIsDeletedFalse("DISPATCH")).thenReturn(Optional.of(department));
+        when(adminUserRepository.saveAndFlush(any(AdminUser.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(employeeRepository.saveAndFlush(any(ArologisEmployee.class)))
+                .thenThrow(new DataIntegrityViolationException("ux_arologis_employee_login_id_active"));
+
+        assertThatThrownBy(() -> service.createEmployee(
+                new ArologisEmployeeService.CreateEmployeeCommand(
+                        "hr-race", "김경합", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
+                        null, null, AdminUserRole.AROLOGIS_MANAGER),
+                "tester"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
     }
 
     @Test
     void changeRole_updatesAdminUserAndAppendsHistory() {
         ArologisEmployee employee = employee("hr-lee", AdminUserRole.AROLOGIS_MANAGER);
         when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-lee")).thenReturn(Optional.of(employee));
+        when(adminUserRepository.findById(UUID.fromString("00000000-0000-0000-0000-000000000901")))
+                .thenReturn(Optional.of(AdminUser.create(
+                        "master-admin", "$2a$10$hash", "마스터", AdminUserRole.AROLOGIS_MASTER)));
         when(historyRepository.save(any(ArologisRoleChangeHistory.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.changeRole("hr-lee", AdminUserRole.AROLOGIS_MASTER, "승급", "tester");
+        service.changeRole("hr-lee", AdminUserRole.AROLOGIS_MASTER, "승급", "00000000-0000-0000-0000-000000000901");
 
         ArgumentCaptor<ArologisRoleChangeHistory> historyCaptor =
                 ArgumentCaptor.forClass(ArologisRoleChangeHistory.class);
@@ -113,6 +149,17 @@ class ArologisEmployeeServiceTest {
         assertThat(historyCaptor.getValue().getPreviousRole()).isEqualTo(AdminUserRole.AROLOGIS_MANAGER);
         assertThat(historyCaptor.getValue().getNewRole()).isEqualTo(AdminUserRole.AROLOGIS_MASTER);
         assertThat(historyCaptor.getValue().getReason()).isEqualTo("승급");
+        assertThat(historyCaptor.getValue().getChangedByLoginId()).isEqualTo("master-admin");
+    }
+
+    @Test
+    void changeRole_rejectsMissingEmployeeWithNotFound() {
+        when(employeeRepository.findByLoginIdAndIsDeletedFalse("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.changeRole("missing", AdminUserRole.AROLOGIS_MASTER, "승급", "tester"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
     }
 
     @Test
@@ -138,13 +185,41 @@ class ArologisEmployeeServiceTest {
         assertThat(employee.getAdminUser().getIsDeleted()).isTrue();
     }
 
+    @Test
+    void terminateEmployee_rejectsTerminationDateBeforeHireDate() {
+        ArologisEmployee employee = employee("hr-lee", AdminUserRole.AROLOGIS_MANAGER);
+        when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-lee")).thenReturn(Optional.of(employee));
+
+        assertThatThrownBy(() -> service.terminate("hr-lee", LocalDate.of(2026, 6, 7), "tester"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void roleHistoryView_exposesChangedByLoginIdInsteadOfCreatedByUuid() {
+        ArologisRoleChangeHistory history = ArologisRoleChangeHistory.record(
+                UUID.fromString("00000000-0000-0000-0000-000000000701"),
+                AdminUserRole.AROLOGIS_MANAGER,
+                AdminUserRole.AROLOGIS_MASTER,
+                "승급",
+                "master-admin");
+        ReflectionTestUtils.setField(history, "createdBy", "00000000-0000-0000-0000-000000000901");
+        ReflectionTestUtils.setField(history, "createdAt", LocalDateTime.of(2026, 6, 8, 10, 0));
+
+        ArologisEmployeeService.RoleHistoryView view = ArologisEmployeeService.RoleHistoryView.from(history);
+
+        assertThat(view.changedBy()).isEqualTo("master-admin");
+        assertThat(view.changedBy()).doesNotContain("00000000-0000-0000-0000-000000000901");
+    }
+
     private static ArologisEmployee employee(String loginId, AdminUserRole role) {
         ArologisDepartment department = ArologisDepartment.create("ADMIN", "행정", 10);
         AdminUser adminUser = AdminUser.create(loginId, "$2a$10$hash", "이인사", role);
         ArologisEmployee employee = ArologisEmployee.create(
                 adminUser, loginId, "이인사", "과장", department,
                 LocalDate.of(2026, 6, 8), "lee@example.com", "010-3333-4444");
-        ReflectionTestUtils.setField(employee, "id", java.util.UUID.fromString("00000000-0000-0000-0000-000000000701"));
+        ReflectionTestUtils.setField(employee, "id", UUID.fromString("00000000-0000-0000-0000-000000000701"));
         return employee;
     }
 }

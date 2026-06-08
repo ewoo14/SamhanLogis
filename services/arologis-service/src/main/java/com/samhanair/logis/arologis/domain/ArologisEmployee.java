@@ -123,6 +123,9 @@ public class ArologisEmployee extends BaseEntity {
         if (terminationDate == null) {
             throw new IllegalArgumentException("terminationDate 필수");
         }
+        if (terminationDate.isBefore(hireDate)) {
+            throw new IllegalArgumentException("퇴직일은 입사일보다 빠를 수 없습니다.");
+        }
         this.terminationDate = terminationDate;
         markDeleted(actor);
     }

@@ -2,6 +2,7 @@ package com.samhanair.logis.arologis.service;
 
 import com.samhanair.logis.arologis.domain.ArologisDepartment;
 import com.samhanair.logis.arologis.repository.ArologisDepartmentRepository;
+import com.samhanair.logis.arologis.repository.ArologisEmployeeRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.List;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ArologisDepartmentService {
 
     private final ArologisDepartmentRepository departmentRepository;
+    private final ArologisEmployeeRepository employeeRepository;
 
     /** 부서 목록 조회. */
     @Transactional(readOnly = true)
@@ -44,7 +46,11 @@ public class ArologisDepartmentService {
 
     /** 부서 soft-delete. */
     public void delete(String code, String actor) {
-        findActive(code).markDeleted(actorOrSystem(actor));
+        ArologisDepartment department = findActive(code);
+        if (employeeRepository.existsByDepartmentAndIsDeletedFalse(department)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "배속 직원이 있어 삭제할 수 없습니다");
+        }
+        department.markDeleted(actorOrSystem(actor));
     }
 
     private ArologisDepartment findActive(String code) {

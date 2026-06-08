@@ -1,5 +1,6 @@
 package com.samhanair.logis.arologis.repository;
 
+import com.samhanair.logis.arologis.domain.ArologisDepartment;
 import com.samhanair.logis.arologis.domain.ArologisEmployee;
 import java.util.List;
 import java.util.Optional;
@@ -19,8 +20,11 @@ public interface ArologisEmployeeRepository extends JpaRepository<ArologisEmploy
     /** 활성 직원 loginId 중복 확인. */
     boolean existsByLoginIdAndIsDeletedFalse(String loginId);
 
+    /** 활성 부서에 배속된 직원 존재 여부. 부서 삭제 가드에서 사용한다. */
+    boolean existsByDepartmentAndIsDeletedFalse(ArologisDepartment department);
+
     /**
-     * 부서/재직 필터 목록.
+     * 부서 필터 현직 직원 목록.
      *
      * <p>퇴직 처리는 soft-delete 를 동반하므로 기본 JPA 조회에서는 퇴직자가 제외된다.
      */
@@ -30,10 +34,8 @@ public interface ArologisEmployeeRepository extends JpaRepository<ArologisEmploy
               join fetch e.department d
               join fetch e.adminUser u
              where (:departmentCode is null or d.code = :departmentCode)
-               and (:activeOnly is null or :activeOnly = false or e.terminationDate is null)
+               and e.terminationDate is null
              order by d.displayOrder asc, e.loginId asc
             """)
-    List<ArologisEmployee> searchActive(
-            @Param("departmentCode") String departmentCode,
-            @Param("activeOnly") Boolean activeOnly);
+    List<ArologisEmployee> searchCurrent(@Param("departmentCode") String departmentCode);
 }

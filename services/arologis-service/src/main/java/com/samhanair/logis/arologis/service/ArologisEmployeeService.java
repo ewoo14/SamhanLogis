@@ -15,7 +15,9 @@ import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,24 +47,29 @@ public class ArologisEmployeeService {
     public ProvisionedEmployee createEmployee(CreateEmployeeCommand command, String actor) {
         assertUniqueLoginId(command.loginId());
         ArologisDepartment department = findDepartment(command.departmentCode());
+        String changedByLoginId = resolveChangedByLoginId(actor);
         String temporaryPassword = generateTemporaryPassword();
-        AdminUser adminUser = adminUserRepository.save(AdminUser.create(
-                command.loginId(),
-                passwordEncoder.encode(temporaryPassword),
-                command.fullName(),
-                command.role()));
-        ArologisEmployee employee = employeeRepository.save(ArologisEmployee.create(
-                adminUser,
-                command.loginId(),
-                command.fullName(),
-                command.position(),
-                department,
-                command.hireDate(),
-                command.email(),
-                command.phone()));
-        historyRepository.save(ArologisRoleChangeHistory.record(
-                employee.getId(), null, command.role(), "신규 직원 계정 생성"));
-        return new ProvisionedEmployee(EmployeeView.from(employee), temporaryPassword);
+        try {
+            AdminUser adminUser = adminUserRepository.saveAndFlush(AdminUser.create(
+                    command.loginId(),
+                    passwordEncoder.encode(temporaryPassword),
+                    command.fullName(),
+                    command.role()));
+            ArologisEmployee employee = employeeRepository.saveAndFlush(ArologisEmployee.create(
+                    adminUser,
+                    command.loginId(),
+                    command.fullName(),
+                    command.position(),
+                    department,
+                    command.hireDate(),
+                    command.email(),
+                    command.phone()));
+            historyRepository.save(ArologisRoleChangeHistory.record(
+                    employee.getId(), null, command.role(), "신규 직원 계정 생성", changedByLoginId));
+            return new ProvisionedEmployee(EmployeeView.from(employee), temporaryPassword);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 로그인 ID입니다.", ex);
+        }
     }
 
     /** 직원 기본 정보 수정. */
@@ -86,25 +93,29 @@ public class ArologisEmployeeService {
         if (previousRole == newRole) {
             return EmployeeView.from(employee);
         }
+        String changedByLoginId = resolveChangedByLoginId(actor);
         adminUser.updateRole(newRole);
         historyRepository.save(ArologisRoleChangeHistory.record(
-                employee.getId(), previousRole, newRole, reason));
+                employee.getId(), previousRole, newRole, reason, changedByLoginId));
         return EmployeeView.from(employee);
     }
 
     /** 퇴직 처리. 직원과 연결 AdminUser 를 모두 soft-delete 한다. */
     public EmployeeView terminate(String loginId, LocalDate terminationDate, String actor) {
         ArologisEmployee employee = findEmployee(loginId);
+        if (terminationDate != null && terminationDate.isBefore(employee.getHireDate())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "퇴직일은 입사일보다 빠를 수 없습니다.");
+        }
         String deletedBy = actorOrSystem(actor);
         employee.terminate(terminationDate, deletedBy);
         employee.getAdminUser().markDeleted(deletedBy);
         return EmployeeView.from(employee);
     }
 
-    /** 부서/재직 필터 직원 목록. UUID 는 응답하지 않는다. */
+    /** 부서 필터 현직 직원 목록. UUID 는 응답하지 않는다. */
     @Transactional(readOnly = true)
-    public List<EmployeeView> list(String departmentCode, Boolean activeOnly) {
-        return employeeRepository.searchActive(blankToNull(departmentCode), activeOnly).stream()
+    public List<EmployeeView> list(String departmentCode) {
+        return employeeRepository.searchCurrent(blankToNull(departmentCode)).stream()
                 .map(EmployeeView::from)
                 .toList();
     }
@@ -141,6 +152,21 @@ public class ArologisEmployeeService {
             password.append(PASSWORD_CHARS[secureRandom.nextInt(PASSWORD_CHARS.length)]);
         }
         return password.toString();
+    }
+
+    private String resolveChangedByLoginId(String actor) {
+        String normalized = actorOrSystem(actor);
+        if ("system".equals(normalized)) {
+            return normalized;
+        }
+        try {
+            UUID actorId = UUID.fromString(normalized);
+            return adminUserRepository.findById(actorId)
+                    .map(AdminUser::getLoginId)
+                    .orElse("system");
+        } catch (IllegalArgumentException ex) {
+            return normalized;
+        }
     }
 
     private static String actorOrSystem(String actor) {
@@ -220,7 +246,7 @@ public class ArologisEmployeeService {
                     history.getNewRole(),
                     history.getReason(),
                     history.getCreatedAt(),
-                    history.getCreatedBy());
+                    history.getChangedByLoginId());
         }
     }
 }

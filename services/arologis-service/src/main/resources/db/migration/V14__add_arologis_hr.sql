@@ -74,6 +74,7 @@ CREATE TABLE arologis_role_change_history (
     previous_role   VARCHAR(32)     CHECK (previous_role IS NULL OR previous_role IN ('AROLOGIS_MASTER','AROLOGIS_MANAGER')),
     new_role        VARCHAR(32)     NOT NULL CHECK (new_role IN ('AROLOGIS_MASTER','AROLOGIS_MANAGER')),
     reason          VARCHAR(500),
+    changed_by_login_id VARCHAR(64) NOT NULL,
 
     created_at      TIMESTAMP       NOT NULL,
     created_by      VARCHAR(50)     NOT NULL,

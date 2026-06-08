@@ -19,7 +19,8 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * 아로로지스 직원 롤 변경 이력.
  *
- * <p>append-only 감사 로그이다. 변경 시각/변경자는 BaseEntity createdAt/createdBy 를 사용하고,
+ * <p>append-only 감사 로그이다. 변경 시각은 BaseEntity createdAt 을 사용한다. 화면 노출용
+ * 변경자는 {@code changedByLoginId} 에 별도 저장해 내부 계정 UUID 인 createdBy 를 응답하지 않는다.
  * 동일 롤 변경 요청은 서비스에서 이력을 남기지 않는다.
  */
 @Entity
@@ -49,29 +50,43 @@ public class ArologisRoleChangeHistory extends BaseEntity {
     @Column(name = "reason", length = 500)
     private String reason;
 
+    @Column(name = "changed_by_login_id", nullable = false, length = 64)
+    private String changedByLoginId;
+
     private ArologisRoleChangeHistory(
             UUID employeeId,
             AdminUserRole previousRole,
             AdminUserRole newRole,
-            String reason) {
+            String reason,
+            String changedByLoginId) {
         if (employeeId == null) {
             throw new IllegalArgumentException("employeeId 필수");
         }
         if (newRole == null) {
             throw new IllegalArgumentException("newRole 필수");
         }
+        if (changedByLoginId == null || changedByLoginId.isBlank()) {
+            throw new IllegalArgumentException("changedByLoginId 필수");
+        }
         this.employeeId = employeeId;
         this.previousRole = previousRole;
         this.newRole = newRole;
         this.reason = reason == null || reason.isBlank() ? null : reason;
+        this.changedByLoginId = changedByLoginId;
     }
 
-    /** 롤 변경 이력 생성. previousRole 은 신규 부여 시 null 일 수 있다. */
+    /**
+     * 롤 변경 이력 생성.
+     *
+     * <p>{@code previousRole} 은 신규 부여 시 null 일 수 있다. {@code changedByLoginId} 는
+     * 사용자에게 노출 가능한 업무 식별자이며 내부 UUID 를 저장하지 않는다.
+     */
     public static ArologisRoleChangeHistory record(
             UUID employeeId,
             AdminUserRole previousRole,
             AdminUserRole newRole,
-            String reason) {
-        return new ArologisRoleChangeHistory(employeeId, previousRole, newRole, reason);
+            String reason,
+            String changedByLoginId) {
+        return new ArologisRoleChangeHistory(employeeId, previousRole, newRole, reason, changedByLoginId);
     }
 }

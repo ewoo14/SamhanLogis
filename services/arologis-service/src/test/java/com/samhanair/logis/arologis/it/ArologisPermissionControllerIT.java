@@ -212,7 +212,7 @@ class ArologisPermissionControllerIT {
         lenient().when(vehicleRepository.findFirstByDispatchIdAndSequence(any(), any())).thenReturn(Optional.empty());
         lenient().when(signAndSendCopyService.execute(any(), anyInt(), anyInt(), any(), any()))
                 .thenThrow(new IllegalArgumentException("test"));
-        lenient().when(arologisEmployeeService.list(null, null)).thenReturn(List.of());
+        lenient().when(arologisEmployeeService.list(null)).thenReturn(List.of());
         lenient().when(arologisEmployeeService.roleHistories("hr-kim")).thenReturn(List.of());
         lenient().when(arologisDepartmentService.list()).thenReturn(List.of());
     }

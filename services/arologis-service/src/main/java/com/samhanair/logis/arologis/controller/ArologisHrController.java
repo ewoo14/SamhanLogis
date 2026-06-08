@@ -45,9 +45,8 @@ public class ArologisHrController {
     @GetMapping("/employees")
     @RequirePermission(page = "arologis.hr.employees", action = PermissionAction.VIEW)
     public ApiResponse<List<ArologisEmployeeService.EmployeeView>> listEmployees(
-            @RequestParam(required = false) String departmentCode,
-            @RequestParam(required = false) Boolean activeOnly) {
-        return ApiResponse.ok(employeeService.list(departmentCode, activeOnly));
+            @RequestParam(required = false) String departmentCode) {
+        return ApiResponse.ok(employeeService.list(departmentCode));
     }
 
     /** 직원 생성 + AdminUser 자동 provisioning. */
