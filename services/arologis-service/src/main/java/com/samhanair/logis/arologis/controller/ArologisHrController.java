@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ArologisHrController {
 
     private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String ROLE_HEADER = "X-User-Role";
 
     private final ArologisEmployeeService employeeService;
     private final ArologisDepartmentService departmentService;
@@ -55,8 +56,9 @@ public class ArologisHrController {
     @RequirePermission(page = "arologis.hr.employees", action = PermissionAction.CREATE)
     public ApiResponse<ArologisEmployeeService.ProvisionedEmployee> createEmployee(
             @Valid @RequestBody CreateEmployeeRequest request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actor) {
-        return ApiResponse.ok(employeeService.createEmployee(request.toCommand(), actor));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actor,
+            @RequestHeader(value = ROLE_HEADER, required = false) String actorRole) {
+        return ApiResponse.ok(employeeService.createEmployee(request.toCommand(), actor, actorRole));
     }
 
     /** 직원 기본 정보 수정. */
@@ -76,8 +78,9 @@ public class ArologisHrController {
     public ApiResponse<ArologisEmployeeService.EmployeeView> changeRole(
             @PathVariable String loginId,
             @Valid @RequestBody ChangeRoleRequest request,
-            @RequestHeader(value = USER_ID_HEADER, required = false) String actor) {
-        return ApiResponse.ok(employeeService.changeRole(loginId, request.role(), request.reason(), actor));
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actor,
+            @RequestHeader(value = ROLE_HEADER, required = false) String actorRole) {
+        return ApiResponse.ok(employeeService.changeRole(loginId, request.role(), request.reason(), actor, actorRole));
     }
 
     /** 직원 퇴직 처리. */

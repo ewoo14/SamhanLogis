@@ -77,7 +77,8 @@ class ArologisEmployeeServiceTest {
                 new ArologisEmployeeService.CreateEmployeeCommand(
                         "hr-kim", "김인사", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
                         "hr-kim@example.com", "010-1111-2222", AdminUserRole.AROLOGIS_MANAGER),
-                "00000000-0000-0000-0000-000000000901");
+                "00000000-0000-0000-0000-000000000901",
+                "AROLOGIS_MASTER");
 
         ArgumentCaptor<AdminUser> adminCaptor = ArgumentCaptor.forClass(AdminUser.class);
         ArgumentCaptor<ArologisEmployee> employeeCaptor = ArgumentCaptor.forClass(ArologisEmployee.class);
@@ -105,14 +106,56 @@ class ArologisEmployeeServiceTest {
                 new ArologisEmployeeService.CreateEmployeeCommand(
                         "hr-kim", "김인사", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
                         null, null, AdminUserRole.AROLOGIS_MANAGER),
-                "tester"))
+                "tester",
+                "AROLOGIS_MASTER"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
     }
 
     @Test
-    void createEmployee_convertsProvisioningUniqueRaceToConflict() {
+    void createEmployee_rejectsMasterProvisioningByManagerActorRole() {
+        assertThatThrownBy(() -> service.createEmployee(
+                new ArologisEmployeeService.CreateEmployeeCommand(
+                        "hr-master", "마스터대상", "팀장", "DISPATCH", LocalDate.of(2026, 6, 8),
+                        null, null, AdminUserRole.AROLOGIS_MASTER),
+                "manager-actor",
+                "AROLOGIS_MANAGER"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(adminUserRepository, never()).saveAndFlush(any());
+        verify(employeeRepository, never()).saveAndFlush(any());
+        verify(historyRepository, never()).save(any());
+    }
+
+    @Test
+    void createEmployee_allowsMasterProvisioningByMasterActorRole() {
+        ArologisDepartment department = ArologisDepartment.create("DISPATCH", "배차", 20);
+        when(adminUserRepository.findByLoginIdAndIsDeletedFalse("hr-master")).thenReturn(Optional.empty());
+        when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-master")).thenReturn(Optional.empty());
+        when(departmentRepository.findByCodeAndIsDeletedFalse("DISPATCH")).thenReturn(Optional.of(department));
+        when(adminUserRepository.saveAndFlush(any(AdminUser.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(employeeRepository.saveAndFlush(any(ArologisEmployee.class))).thenAnswer(inv -> {
+            ArologisEmployee employee = inv.getArgument(0);
+            ReflectionTestUtils.setField(employee, "id", UUID.fromString("00000000-0000-0000-0000-000000000703"));
+            return employee;
+        });
+
+        ArologisEmployeeService.ProvisionedEmployee result = service.createEmployee(
+                new ArologisEmployeeService.CreateEmployeeCommand(
+                        "hr-master", "마스터대상", "팀장", "DISPATCH", LocalDate.of(2026, 6, 8),
+                        null, null, AdminUserRole.AROLOGIS_MASTER),
+                "master-actor",
+                "AROLOGIS_MASTER");
+
+        assertThat(result.employee().role()).isEqualTo(AdminUserRole.AROLOGIS_MASTER);
+    }
+
+    @Test
+    void createEmployee_convertsLoginIdUniqueRaceToConflict() {
         ArologisDepartment department = ArologisDepartment.create("DISPATCH", "배차", 20);
         when(adminUserRepository.findByLoginIdAndIsDeletedFalse("hr-race")).thenReturn(Optional.empty());
         when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-race")).thenReturn(Optional.empty());
@@ -125,10 +168,53 @@ class ArologisEmployeeServiceTest {
                 new ArologisEmployeeService.CreateEmployeeCommand(
                         "hr-race", "김경합", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
                         null, null, AdminUserRole.AROLOGIS_MANAGER),
-                "tester"))
+                "tester",
+                "AROLOGIS_MASTER"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void createEmployee_convertsAdminUserIdUniqueRaceToConflict() {
+        ArologisDepartment department = ArologisDepartment.create("DISPATCH", "배차", 20);
+        when(adminUserRepository.findByLoginIdAndIsDeletedFalse("hr-admin-race")).thenReturn(Optional.empty());
+        when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-admin-race")).thenReturn(Optional.empty());
+        when(departmentRepository.findByCodeAndIsDeletedFalse("DISPATCH")).thenReturn(Optional.of(department));
+        when(adminUserRepository.saveAndFlush(any(AdminUser.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(employeeRepository.saveAndFlush(any(ArologisEmployee.class)))
+                .thenThrow(new DataIntegrityViolationException("ux_arologis_employee_admin_user_active"));
+
+        assertThatThrownBy(() -> service.createEmployee(
+                new ArologisEmployeeService.CreateEmployeeCommand(
+                        "hr-admin-race", "김경합", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
+                        null, null, AdminUserRole.AROLOGIS_MANAGER),
+                "tester",
+                "AROLOGIS_MASTER"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("이미 사용 중인 로그인 ID입니다.")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void createEmployee_propagatesNonLoginIntegrityViolation() {
+        ArologisDepartment department = ArologisDepartment.create("DISPATCH", "배차", 20);
+        DataIntegrityViolationException violation =
+                new DataIntegrityViolationException("arologis_employee_full_name_not_null");
+        when(adminUserRepository.findByLoginIdAndIsDeletedFalse("hr-integrity")).thenReturn(Optional.empty());
+        when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-integrity")).thenReturn(Optional.empty());
+        when(departmentRepository.findByCodeAndIsDeletedFalse("DISPATCH")).thenReturn(Optional.of(department));
+        when(adminUserRepository.saveAndFlush(any(AdminUser.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(employeeRepository.saveAndFlush(any(ArologisEmployee.class))).thenThrow(violation);
+
+        assertThatThrownBy(() -> service.createEmployee(
+                new ArologisEmployeeService.CreateEmployeeCommand(
+                        "hr-integrity", "김무결성", "대리", "DISPATCH", LocalDate.of(2026, 6, 8),
+                        null, null, AdminUserRole.AROLOGIS_MANAGER),
+                "tester",
+                "AROLOGIS_MASTER"))
+                .isSameAs(violation);
     }
 
     @Test
@@ -140,7 +226,12 @@ class ArologisEmployeeServiceTest {
                         "master-admin", "$2a$10$hash", "마스터", AdminUserRole.AROLOGIS_MASTER)));
         when(historyRepository.save(any(ArologisRoleChangeHistory.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.changeRole("hr-lee", AdminUserRole.AROLOGIS_MASTER, "승급", "00000000-0000-0000-0000-000000000901");
+        service.changeRole(
+                "hr-lee",
+                AdminUserRole.AROLOGIS_MASTER,
+                "승급",
+                "00000000-0000-0000-0000-000000000901",
+                "AROLOGIS_MASTER");
 
         ArgumentCaptor<ArologisRoleChangeHistory> historyCaptor =
                 ArgumentCaptor.forClass(ArologisRoleChangeHistory.class);
@@ -156,10 +247,26 @@ class ArologisEmployeeServiceTest {
     void changeRole_rejectsMissingEmployeeWithNotFound() {
         when(employeeRepository.findByLoginIdAndIsDeletedFalse("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.changeRole("missing", AdminUserRole.AROLOGIS_MASTER, "승급", "tester"))
+        assertThatThrownBy(() -> service.changeRole(
+                "missing", AdminUserRole.AROLOGIS_MASTER, "승급", "tester", "AROLOGIS_MASTER"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void changeRole_rejectsMasterPromotionByManagerActorRole() {
+        ArologisEmployee employee = employee("hr-lee", AdminUserRole.AROLOGIS_MANAGER);
+
+        assertThatThrownBy(() -> service.changeRole(
+                "hr-lee", AdminUserRole.AROLOGIS_MASTER, "승급", "manager-actor", "AROLOGIS_MANAGER"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(historyRepository, never()).save(any());
+        assertThat(employee.getAdminUser().getRole()).isEqualTo(AdminUserRole.AROLOGIS_MANAGER);
     }
 
     @Test
@@ -167,7 +274,7 @@ class ArologisEmployeeServiceTest {
         ArologisEmployee employee = employee("hr-lee", AdminUserRole.AROLOGIS_MANAGER);
         when(employeeRepository.findByLoginIdAndIsDeletedFalse("hr-lee")).thenReturn(Optional.of(employee));
 
-        service.changeRole("hr-lee", AdminUserRole.AROLOGIS_MANAGER, "동일", "tester");
+        service.changeRole("hr-lee", AdminUserRole.AROLOGIS_MANAGER, "동일", "tester", "AROLOGIS_MANAGER");
 
         verify(historyRepository, never()).save(any());
         assertThat(employee.getAdminUser().getRole()).isEqualTo(AdminUserRole.AROLOGIS_MANAGER);

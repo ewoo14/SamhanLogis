@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -64,7 +65,8 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
     void createEmployee_provisionsAdminUserAndLinksEmployee() {
         ArologisEmployeeService.ProvisionedEmployee provisioned = employeeService.createEmployee(
                 command("it-hr-create", AdminUserRole.AROLOGIS_MANAGER),
-                "it-tester");
+                "it-tester",
+                "AROLOGIS_MANAGER");
 
         AdminUser adminUser = adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-create").orElseThrow();
 
@@ -79,10 +81,13 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
 
     @Test
     void changeRole_appendsHistoryAndSameRoleDoesNotAppend() {
-        employeeService.createEmployee(command("it-hr-role", AdminUserRole.AROLOGIS_MANAGER), "it-tester");
+        employeeService.createEmployee(
+                command("it-hr-role", AdminUserRole.AROLOGIS_MANAGER), "it-tester", "AROLOGIS_MANAGER");
 
-        employeeService.changeRole("it-hr-role", AdminUserRole.AROLOGIS_MASTER, "승급", "it-tester");
-        employeeService.changeRole("it-hr-role", AdminUserRole.AROLOGIS_MASTER, "동일", "it-tester");
+        employeeService.changeRole(
+                "it-hr-role", AdminUserRole.AROLOGIS_MASTER, "승급", "it-tester", "AROLOGIS_MASTER");
+        employeeService.changeRole(
+                "it-hr-role", AdminUserRole.AROLOGIS_MASTER, "동일", "it-tester", "AROLOGIS_MASTER");
 
         assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-role").orElseThrow().getRole())
                 .isEqualTo(AdminUserRole.AROLOGIS_MASTER);
@@ -94,7 +99,8 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
 
     @Test
     void terminateEmployee_softDeletesEmployeeAndAdminUser() {
-        employeeService.createEmployee(command("it-hr-term", AdminUserRole.AROLOGIS_MANAGER), "it-tester");
+        employeeService.createEmployee(
+                command("it-hr-term", AdminUserRole.AROLOGIS_MANAGER), "it-tester", "AROLOGIS_MANAGER");
 
         ArologisEmployeeService.EmployeeView terminated =
                 employeeService.terminate("it-hr-term", LocalDate.of(2026, 6, 30), "it-tester");
@@ -107,21 +113,91 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
 
     @Test
     void createEmployee_rejectsDuplicateLoginId() {
-        employeeService.createEmployee(command("it-hr-dup", AdminUserRole.AROLOGIS_MANAGER), "it-tester");
+        employeeService.createEmployee(
+                command("it-hr-dup", AdminUserRole.AROLOGIS_MANAGER), "it-tester", "AROLOGIS_MANAGER");
 
         assertThatThrownBy(() ->
-                employeeService.createEmployee(command("it-hr-dup", AdminUserRole.AROLOGIS_MASTER), "it-tester"))
+                employeeService.createEmployee(
+                        command("it-hr-dup", AdminUserRole.AROLOGIS_MASTER), "it-tester", "AROLOGIS_MASTER"))
                 .isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    void createEmployee_rejectsMasterRoleByManagerActor() {
+        assertThatThrownBy(() -> employeeService.createEmployee(
+                command("it-hr-master-deny", AdminUserRole.AROLOGIS_MASTER),
+                "it-manager",
+                "AROLOGIS_MANAGER"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(com.samhanair.logis.common.exception.ErrorCode.FORBIDDEN);
+
+        assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-master-deny")).isEmpty();
+        assertThat(employeeRepository.findByLoginIdAndIsDeletedFalse("it-hr-master-deny")).isEmpty();
+    }
+
+    @Test
+    void createEmployee_allowsMasterRoleByMasterActor() {
+        ArologisEmployeeService.ProvisionedEmployee provisioned = employeeService.createEmployee(
+                command("it-hr-master-allow", AdminUserRole.AROLOGIS_MASTER),
+                "it-master",
+                "AROLOGIS_MASTER");
+
+        assertThat(provisioned.employee().role()).isEqualTo(AdminUserRole.AROLOGIS_MASTER);
+        assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-master-allow").orElseThrow().getRole())
+                .isEqualTo(AdminUserRole.AROLOGIS_MASTER);
+    }
+
+    @Test
+    void changeRole_rejectsMasterPromotionByManagerActor() {
+        employeeService.createEmployee(
+                command("it-hr-role-deny", AdminUserRole.AROLOGIS_MANAGER), "it-manager", "AROLOGIS_MANAGER");
+
+        assertThatThrownBy(() -> employeeService.changeRole(
+                "it-hr-role-deny",
+                AdminUserRole.AROLOGIS_MASTER,
+                "승급",
+                "it-manager",
+                "AROLOGIS_MANAGER"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(com.samhanair.logis.common.exception.ErrorCode.FORBIDDEN);
+
+        assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-role-deny").orElseThrow().getRole())
+                .isEqualTo(AdminUserRole.AROLOGIS_MANAGER);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void createEmployee_rollsBackAdminUserWhenEmployeeFlushFails() {
+        String loginId = "it-hr-rollback";
+        String tooLongEmail = "a".repeat(101);
+
+        assertThatThrownBy(() -> employeeService.createEmployee(
+                command(loginId, AdminUserRole.AROLOGIS_MANAGER, tooLongEmail),
+                "it-master",
+                "AROLOGIS_MASTER"))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse(loginId)).isEmpty();
+        assertThat(employeeRepository.findByLoginIdAndIsDeletedFalse(loginId)).isEmpty();
+    }
+
     private static ArologisEmployeeService.CreateEmployeeCommand command(String loginId, AdminUserRole role) {
+        return command(loginId, role, loginId + "@example.com");
+    }
+
+    private static ArologisEmployeeService.CreateEmployeeCommand command(
+            String loginId, AdminUserRole role, String email) {
         return new ArologisEmployeeService.CreateEmployeeCommand(
                 loginId,
                 "통합테스트",
                 "대리",
                 "ADMIN",
                 LocalDate.of(2026, 6, 8),
-                loginId + "@example.com",
+                email,
                 "010-5555-6666",
                 role);
     }

@@ -2814,3 +2814,12 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | 결정 | 내용 |
 |---|---|
 | D-PGC-13 | C5-2c = FE 잔여 인가 헬퍼(hasAdminRole/canTransitionSlip/canTransitionTransfer) → action별 canAccess(pageCode,action) 이관(BE @RequirePermission 정밀 대조 — C5-2b page-code 불일치 교훈). slipActionPageCode/transferActionPageCode exhaustive 매핑. hasAdminRole→inventory.warehouse.admin(DEVELOPER 제외=FE>BE 교정). dual P1(삭제 버튼 canAccess('sales.slip.cancel') 가드 누락 → FE노출/BE403)+P2(EOF) 수정. mock 5 page-code seed 정합 보강. 전체 suite 418 passed. → **FE role 인가 의존 거의 소진**(표시용 role·canQuerySales[BE 가드 불일치로 유지]만 잔존). C5 잔여 = 입회 cutover(C4-3·PARTNER/arologis 정책·X-User-Role/accounts.role 제거). |
+
+### D-AROLO-HR (Phase B, 2026-06-08)
+
+| 결정 | 내용 |
+|---|---|
+| D-AROLO-HR-01 | arologis-desktop = 아로로지스 행정직원 전용 백오피스(Samhan Public 축소판). 자체 마스터/auth 기구축(V9). 신규 = 인사·회계·권한관리UI, 순서 B(인사)→C(간이회계)→A(권한UI). |
+| D-AROLO-HR-02 | **직원↔계정 1:1 통합** — ArologisEmployee 생성 시 AdminUser 자동 provisioning(BCrypt 임시pw 1회반환), 퇴직 시 양쪽 soft-delete. **롤 = 기존 AROLOGIS_MASTER/MANAGER 2롤 유지**, 인사 접근은 page-code `arologis.hr.*` 통제(롤 세분화 안 함). RoleChangeHistory(changedByLoginId) 포함. |
+| D-AROLO-HR-03 | **권한 grant = 중앙 auth-service 공유 유지**(arologis 는 이미 권한체크 auth 위임, 독립은 계정뿐). arologis.hr.* → `role_page_permissions`(arologis.admin V10 컨벤션, 중앙 DynamicPermissionService 무변경). `arologis.*`/`AROLOGIS_*` 네임스페이스 분리 → 향후 "auth 없이 단독 운영" 필요 시 해당 행만 arologis-service 이관(문 열어둠). |
+| D-AROLO-HR-04 | 보안: **AROLOGIS_MASTER 생성/승격은 actor=AROLOGIS_MASTER 한정**(MANAGER self-escalation 차단). UUID 비노출(changedByLoginId=loginId). 부서 삭제 현직 배속자 가드 409. login_id race→409. |
