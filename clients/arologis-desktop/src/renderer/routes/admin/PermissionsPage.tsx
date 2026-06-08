@@ -31,21 +31,28 @@ import { canGrantMaster, useAuthStore } from '../../stores/authStore'
 const CENTRAL_MASTER_ROLE = 'MASTER'
 
 /**
- * 롤 코드 → 한국어 라벨. arologis.* page-code 는 중앙 `role_page_permissions` 에서 MASTER/MANAGER
- * 뿐 아니라 V10/V50/V51 시드로 ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY 행도 보유한다
- * (대부분 FALSE,FALSE 이나 DISPATCH 는 일부 TRUE). `getRoleMatrix` 가 prefix 매칭 행을 필터 없이
- * 모두 반환하므로 이 롤들도 매트릭스 열로 등장 → 한국어 라벨 필수. 매핑 없으면 코드 그대로 노출.
+ * 롤 코드 → 한국어 라벨. arologis.* page-code 는 중앙 `role_page_permissions` 에서 V10/V50/V51 시드로
+ * **모든 중앙 롤**(MASTER/MANAGER/DEVELOPER/DISPATCH/DRIVER/STAFF/SALES/ACCOUNTANT/WAREHOUSE/
+ * INVENTORY/PARTNER)에 행을 보유한다(대부분 FALSE,FALSE, 일부 DISPATCH TRUE). `getRoleMatrix` 가
+ * prefix 매칭 행을 필터 없이 모두 반환하므로 이 롤들이 전부 매트릭스 열로 등장 → 전 롤 한국어 라벨
+ * 필수(실QA 에서 미라벨 raw 코드 노출 확인 후 보강). 라벨 = Samhan Public `ADMIN_ROLE_LABEL` 정합.
+ * arologis-JWT 롤(AROLOGIS_MASTER/MANAGER)은 중앙 MASTER/MANAGER 로 정규화되어 매트릭스에 직접
+ * 등장하지 않으나 방어적으로 유지. 매핑 없으면 코드 그대로 노출.
  */
 const ROLE_LABELS: Record<string, string> = {
-  MASTER: '중앙 마스터',
-  MANAGER: '중앙 매니저',
+  MASTER: '마스터',
+  MANAGER: '매니저',
+  DEVELOPER: '개발자',
+  DISPATCH: '배차담당자',
+  DRIVER: '기사',
+  STAFF: '사원',
+  SALES: '영업원',
+  ACCOUNTANT: '회계원',
+  WAREHOUSE: '창고원',
+  INVENTORY: '재고원',
+  PARTNER: '협력사',
   AROLOGIS_MASTER: '아로로지스 마스터',
   AROLOGIS_MANAGER: '아로로지스 매니저',
-  ACCOUNTANT: '회계',
-  SALES: '영업',
-  WAREHOUSE: '창고',
-  DISPATCH: '배차',
-  INVENTORY: '재고',
 }
 
 /** 권한 매트릭스 react-query 키 — 조회/낙관갱신/무효화에서 공유. */
