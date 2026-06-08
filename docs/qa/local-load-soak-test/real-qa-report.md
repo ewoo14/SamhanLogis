@@ -64,12 +64,12 @@ PR #424 | 브랜치 `feature/local-load-soak-test` | 실행일: 2026-06-08 (심�
 | heap/HikariCP/컨테이너 | 누수 무징후 · pending/timeout 0 · 재시작 0 | ✅ |
 | **4xx** | **47,756 (9.79%) — 전량 `GET /admin/partners/search` 403** | 🔴 **D-LOAD-06 적발** |
 
-### 🔴 D-LOAD-06 (P1): 권한 판정 deny 고착 — soak 만이 적발 가능했던 결함
-- **onset +65분 (03:56)** = 첫 JWT 만료/재로그인 웨이브와 정확히 일치 (게이트웨이 401 누적 100 = 20 VU × 시간당 재로그인 횟수 정합) → 종료까지 5시간 균일 지속 (2.7/s)
-- 같은 계정(dev_sales/dev_manager)의 **다른 권한 경로는 전 구간 200** — partners.search 만 deny
-- partner-service fallback WARN 0 → **auth-service 가 200 + allowed=false 응답** (DB account_page_permissions 판정)
-- 부하 종료 ~15분 후 신선 로그인 단발 = **200 (자가 회복)** — 로그인 트리거 materializer 동시성/만료 데이터 의심
-- 10분 100VU stress 에선 미발생 (TTL 미도달) — **장기 가동 검증의 가치 실증**. 근본 규명/fix 진행 중 (fix13)
+### D-LOAD-06 최종 판정: **하네스 결함 (제품 무결)** — 재판정 전말 박제
+- 1차 의심: onset +65분 = 첫 JWT 만료/재로그인 웨이브 정합 → 제품 P1 가설로 fix13 규명 디스패치.
+- **근본 원인 (실증)**: k6 401 재로그인 경로가 `session.role` 을 서버 role 코드(`'SALES'` 대문자)로 덮어씀 → 시나리오 분기(`'sales'` 소문자) 전부 미스 → warehouse/accountant VU 가 **fallthrough 로 manager 흐름의 partners.search 호출** → 권한상 정당한 403 (발생률 추정 2.4/s ≈ 실측 2.7/s, onset/자가회복/타경로 200 전부 정합).
+- fix13 의 auth self-heal 제안(cache stale-deny 가설)은 **오염 원인·자가 회복을 설명 못 해 기각·원복** — 미실증 가설 기반 제품 변경 배제 (no-fake 원칙의 코드 적용).
+- **검증**: 하네스 fix(`session.roleCode` 분리)만 적용 후 `verify-relogin` 프로파일(강제 재로그인, 1,136 req) → **4xx 0 / 실패 0**.
+- **긍정 결론**: RBAC 가 5시간 지속 부하 + 재로그인 사이클에서 권한 없는 호출을 **단 1건의 오허용 없이 일관 거부** — 인가 일관성의 장기 실증. (soak 가 잡은 것은 하네스의 잠복 버그였고, 그 과정에서 인가 경로의 견고함이 입증됨)
 
 ## 4. 정리(cleanup) — 완료
 

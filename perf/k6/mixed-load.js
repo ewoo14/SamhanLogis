@@ -26,6 +26,7 @@ const PROFILE_TABLE = {
   peak: { vus: 50, duration: '10m' },
   stress: { vus: 100, duration: '10m' },
   soak: { vus: 20, duration: __ENV.SOAK_DURATION || '7h' },
+  'verify-relogin': { vus: Number(__ENV.VERIFY_RELOGIN_VUS || 4), duration: __ENV.VERIFY_RELOGIN_DURATION || '2m' },
 };
 
 const selectedProfile = PROFILE_TABLE[PROFILE] || PROFILE_TABLE.smoke;
@@ -51,6 +52,7 @@ const THINK_MIN = Number(__ENV.THINK_MIN || (PROFILE === 'stress' ? 0.5 : 1));
 const THINK_MAX = Number(__ENV.THINK_MAX || (PROFILE === 'stress' ? 1 : 5));
 const WRITE_RATIO = Number(__ENV.WRITE_RATIO || 0.2);
 const WRITE_MODE = (__ENV.WRITE_MODE || 'mixed').toLowerCase();
+const FORCE_RELOGIN_EVERY = Number(__ENV.FORCE_RELOGIN_EVERY || (PROFILE === 'verify-relogin' ? 3 : 0));
 
 const ROLE_TABLE = [
   { name: 'sales', loginId: 'dev_sales', weight: 40 },
@@ -191,7 +193,7 @@ function request(session, method, path, body, endpoint, extraHeaders, retry401) 
     const refreshed = login(session.loginId);
     session.token = refreshed.token;
     session.userId = refreshed.userId;
-    session.role = refreshed.role;
+    session.roleCode = refreshed.role;
     return request(session, method, path, body, endpoint, extraHeaders, false);
   }
 
@@ -224,6 +226,17 @@ function ensureSession() {
     sessions[key].displayName = loggedIn.displayName;
   }
   return sessions[key];
+}
+
+function maybeForceRelogin(session) {
+  session.iterations = (session.iterations || 0) + 1;
+  if (FORCE_RELOGIN_EVERY <= 0 || session.iterations % FORCE_RELOGIN_EVERY !== 0) {
+    return;
+  }
+  const refreshed = login(session.loginId);
+  session.token = refreshed.token;
+  session.userId = refreshed.userId;
+  session.roleCode = refreshed.role;
 }
 
 function bootstrap() {
@@ -483,6 +496,7 @@ function readFlow(session, data) {
 
 export default function (data) {
   const session = ensureSession();
+  maybeForceRelogin(session);
   if (Math.random() < WRITE_RATIO) {
     writeFlow(session, data);
   } else {

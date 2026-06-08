@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("smoke", "baseline", "peak", "stress", "soak")]
+    [ValidateSet("smoke", "baseline", "peak", "stress", "soak", "verify-relogin")]
     [string]$Profile = "smoke",
 
     [string]$SoakDuration = "7h",
