@@ -31,6 +31,7 @@ import {
   type RoleHistoryRow,
 } from '../../api/arologisHr'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { canGrantMaster, canManageHr, useAuthStore } from '../../stores/authStore'
 
 type EmployeeModalState =
   | { mode: 'create' }
@@ -41,6 +42,14 @@ type EmployeeModalState =
   | null
 
 const ROLE_OPTIONS: ArologisRole[] = ['AROLOGIS_MANAGER', 'AROLOGIS_MASTER']
+const ROLE_LABELS: Partial<Record<ArologisRole, string>> = {
+  AROLOGIS_MASTER: '마스터',
+  AROLOGIS_MANAGER: '매니저',
+}
+
+interface DepartmentOption extends DepartmentRow {
+  disabled?: boolean
+}
 
 export function EmployeesPage(): JSX.Element {
   usePageTitle('직원 관리')
@@ -49,6 +58,9 @@ export function EmployeesPage(): JSX.Element {
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [modal, setModal] = useState<EmployeeModalState>(null)
   const [provisioned, setProvisioned] = useState<ProvisionedEmployee | null>(null)
+  const auth = useAuthStore((s) => s.auth)
+  const canManage = canManageHr(auth?.role)
+  const canGrantMasterRole = canGrantMaster(auth?.role)
 
   const departmentsQuery = useQuery({
     queryKey: ['arologis', 'hr', 'departments'],
@@ -82,6 +94,7 @@ export function EmployeesPage(): JSX.Element {
       label: '롤',
       width: 180,
       filter: 'select',
+      format: (v) => roleLabel(v as ArologisRole),
       render: (row) => (
         <Badge variant={row.role === 'AROLOGIS_MASTER' ? 'brand' : 'neutral'}>
           {roleLabel(row.role)}
@@ -99,6 +112,7 @@ export function EmployeesPage(): JSX.Element {
       label: '재직상태',
       width: 110,
       filter: 'select',
+      format: (v) => (v ? '재직' : '퇴직'),
       render: (row) => (
         <Badge variant={row.active ? 'success' : 'danger'}>
           {row.active ? '재직' : '퇴직'}
@@ -112,27 +126,33 @@ export function EmployeesPage(): JSX.Element {
       filter: false,
       render: (row) => (
         <div style={actionRowStyle}>
-          <Button size="sm" variant="secondary" onClick={() => setModal({ mode: 'edit', employee: row })}>
-            수정
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setModal({ mode: 'role', employee: row })}>
-            롤 변경
-          </Button>
+          {canManage ? (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => setModal({ mode: 'edit', employee: row })}>
+                수정
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setModal({ mode: 'role', employee: row })}>
+                롤 변경
+              </Button>
+            </>
+          ) : null}
           <Button size="sm" variant="ghost" onClick={() => setModal({ mode: 'history', employee: row })}>
             이력
           </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            disabled={!row.active}
-            onClick={() => setModal({ mode: 'terminate', employee: row })}
-          >
-            퇴직
-          </Button>
+          {canManage ? (
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={!row.active}
+              onClick={() => setModal({ mode: 'terminate', employee: row })}
+            >
+              퇴직
+            </Button>
+          ) : null}
         </div>
       ),
     },
-  ], [])
+  ], [canManage])
 
   return (
     <section style={pageStyle}>
@@ -143,9 +163,11 @@ export function EmployeesPage(): JSX.Element {
             아로로지스 행정직원 계정, 부서, 롤, 재직 상태를 관리합니다.
           </p>
         </div>
-        <Button variant="primary" onClick={() => setModal({ mode: 'create' })}>
-          직원 등록
-        </Button>
+        {canManage ? (
+          <Button variant="primary" onClick={() => setModal({ mode: 'create' })}>
+            직원 등록
+          </Button>
+        ) : null}
       </header>
 
       <div style={filterRowStyle}>
@@ -193,11 +215,12 @@ export function EmployeesPage(): JSX.Element {
         className="arologis-employee-grid"
       />
 
-      {(modal?.mode === 'create' || modal?.mode === 'edit') ? (
+      {canManage && (modal?.mode === 'create' || modal?.mode === 'edit') ? (
         <EmployeeFormModal
           mode={modal.mode}
           employee={modal.mode === 'edit' ? modal.employee : undefined}
           departments={departments}
+          canGrantMasterRole={canGrantMasterRole}
           onClose={() => setModal(null)}
           onCreated={(result) => {
             setModal(null)
@@ -211,9 +234,10 @@ export function EmployeesPage(): JSX.Element {
         />
       ) : null}
 
-      {modal?.mode === 'role' ? (
+      {canManage && modal?.mode === 'role' ? (
         <RoleChangeModal
           employee={modal.employee}
+          canGrantMasterRole={canGrantMasterRole}
           onClose={() => setModal(null)}
           onUpdated={() => {
             setModal(null)
@@ -222,7 +246,7 @@ export function EmployeesPage(): JSX.Element {
         />
       ) : null}
 
-      {modal?.mode === 'terminate' ? (
+      {canManage && modal?.mode === 'terminate' ? (
         <TerminateModal
           employee={modal.employee}
           onClose={() => setModal(null)}
@@ -254,6 +278,7 @@ function EmployeeFormModal({
   mode,
   employee,
   departments,
+  canGrantMasterRole,
   onClose,
   onCreated,
   onUpdated,
@@ -261,6 +286,7 @@ function EmployeeFormModal({
   mode: 'create' | 'edit'
   employee?: EmployeeRow
   departments: DepartmentRow[]
+  canGrantMasterRole: boolean
   onClose: () => void
   onCreated: (result: ProvisionedEmployee) => void
   onUpdated: () => void
@@ -274,6 +300,11 @@ function EmployeeFormModal({
   const [phone, setPhone] = useState(employee?.phone ?? '')
   const [role, setRole] = useState<ArologisRole>(employee?.role ?? 'AROLOGIS_MANAGER')
   const [error, setError] = useState<string | null>(null)
+  const roleOptions = availableRoleOptions(canGrantMasterRole)
+  const departmentOptions = buildDepartmentOptions(departments, employee)
+  const selectedDepartmentIsStale = departmentOptions.some(
+    (department) => department.code === departmentCode && department.disabled,
+  )
 
   const createMutation = useMutation({
     mutationFn: () => createEmployee({
@@ -306,6 +337,7 @@ function EmployeeFormModal({
   const canSubmit =
     fullName.trim().length > 0
     && departmentCode.length > 0
+    && !selectedDepartmentIsStale
     && (mode === 'edit' || (loginId.trim().length > 0 && hireDate.length > 0))
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -357,10 +389,11 @@ function EmployeeFormModal({
           value={departmentCode}
           onChange={(e) => setDepartmentCode(e.target.value)}
           required
+          hint={selectedDepartmentIsStale ? '삭제된 부서입니다. 저장하려면 활성 부서를 다시 선택하세요.' : undefined}
         >
           <option value="" disabled>부서 선택</option>
-          {departments.map((department) => (
-            <option key={department.code} value={department.code}>
+          {departmentOptions.map((department) => (
+            <option key={department.code} value={department.code} disabled={department.disabled}>
               {department.name}
             </option>
           ))}
@@ -373,18 +406,25 @@ function EmployeeFormModal({
           required
           disabled={mode === 'edit'}
         />
-        <Select
-          label="롤"
-          value={role}
-          onChange={(e) => setRole(e.target.value as ArologisRole)}
-          required
-          disabled={mode === 'edit'}
-          hint={mode === 'edit' ? '롤 변경은 별도 이력 모달에서 처리합니다.' : undefined}
-        >
-          {ROLE_OPTIONS.map((nextRole) => (
-            <option key={nextRole} value={nextRole}>{roleLabel(nextRole)}</option>
-          ))}
-        </Select>
+        {mode === 'edit' ? (
+          <Input
+            label="롤"
+            value={roleLabel(role)}
+            disabled
+            hint="롤 변경은 별도 이력 모달에서 처리합니다."
+          />
+        ) : (
+          <Select
+            label="롤"
+            value={role}
+            onChange={(e) => setRole(e.target.value as ArologisRole)}
+            required
+          >
+            {roleOptions.map((nextRole) => (
+              <option key={nextRole} value={nextRole}>{roleLabel(nextRole)}</option>
+            ))}
+          </Select>
+        )}
         <Input
           label="이메일"
           type="email"
@@ -403,14 +443,19 @@ function EmployeeFormModal({
 
 function RoleChangeModal({
   employee,
+  canGrantMasterRole,
   onClose,
   onUpdated,
 }: {
   employee: EmployeeRow
+  canGrantMasterRole: boolean
   onClose: () => void
   onUpdated: () => void
 }): JSX.Element {
-  const [role, setRole] = useState<ArologisRole>(employee.role)
+  const roleOptions = availableRoleOptions(canGrantMasterRole)
+  const [role, setRole] = useState<ArologisRole>(
+    roleOptions.includes(employee.role) ? employee.role : 'AROLOGIS_MANAGER',
+  )
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -456,7 +501,7 @@ function RoleChangeModal({
           onChange={(e) => setRole(e.target.value as ArologisRole)}
           required
         >
-          {ROLE_OPTIONS.map((nextRole) => (
+          {roleOptions.map((nextRole) => (
             <option key={nextRole} value={nextRole}>{roleLabel(nextRole)}</option>
           ))}
         </Select>
@@ -471,9 +516,11 @@ function RoleChangeModal({
             placeholder="권한 변경 사유를 입력하세요."
           />
         </label>
-        <div style={noticeStyle}>
-          AROLOGIS_MASTER 부여는 BE에서 마스터 계정만 허용합니다. 권한이 없으면 403 안내가 표시됩니다.
-        </div>
+        {canGrantMasterRole ? (
+          <div style={noticeStyle}>
+            마스터 부여는 BE에서 마스터 계정만 허용합니다. 권한이 없으면 403 안내가 표시됩니다.
+          </div>
+        ) : null}
       </div>
     </Modal>
   )
@@ -528,6 +575,7 @@ function TerminateModal({
           value={terminationDate}
           onChange={(e) => setTerminationDate(e.target.value)}
           required
+          hint={`${employee.hireDate} 이후`}
         />
         <div style={noticeStyle}>
           퇴직 처리 시 직원과 연결된 로그인 계정이 함께 비활성화됩니다.
@@ -554,12 +602,14 @@ function RoleHistoryModal({
       key: 'previousRole',
       label: '이전 롤',
       width: 180,
+      format: (v) => roleLabel(v as ArologisRole),
       render: (row) => <Badge variant="neutral">{roleLabel(row.previousRole)}</Badge>,
     },
     {
       key: 'newRole',
       label: '변경 롤',
       width: 180,
+      format: (v) => roleLabel(v as ArologisRole),
       render: (row) => <Badge variant={row.newRole === 'AROLOGIS_MASTER' ? 'brand' : 'neutral'}>{roleLabel(row.newRole)}</Badge>,
     },
     { key: 'reason', label: '사유', format: (v) => nullableText(v) },
@@ -655,7 +705,25 @@ function nullableText(value: unknown): string {
 }
 
 function roleLabel(role: ArologisRole): string {
-  return role
+  return ROLE_LABELS[role] ?? role
+}
+
+function availableRoleOptions(canGrantMasterRole: boolean): ArologisRole[] {
+  return ROLE_OPTIONS.filter((role) => role !== 'AROLOGIS_MASTER' || canGrantMasterRole)
+}
+
+function buildDepartmentOptions(departments: DepartmentRow[], employee?: EmployeeRow): DepartmentOption[] {
+  if (!employee?.departmentCode) return departments
+  if (departments.some((department) => department.code === employee.departmentCode)) return departments
+  return [
+    ...departments,
+    {
+      code: employee.departmentCode,
+      name: `${employee.departmentCode} (삭제된 부서)`,
+      displayOrder: Number.MAX_SAFE_INTEGER,
+      disabled: true,
+    },
+  ]
 }
 
 function todayIso(): string {
@@ -685,7 +753,7 @@ function formatDateTime(value: string): string {
 
 function toRoleChangeError(err: unknown): string {
   if (axios.isAxiosError(err) && err.response?.status === 403) {
-    return 'AROLOGIS_MASTER 부여는 마스터 권한 계정만 가능합니다.'
+    return '마스터 부여는 마스터 권한 계정만 가능합니다.'
   }
   return toErrorMessage(err, '롤 변경에 실패했습니다.')
 }

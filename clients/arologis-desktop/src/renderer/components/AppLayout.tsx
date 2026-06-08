@@ -5,7 +5,7 @@
  * Designer (D1~D5) 작업 결과로 후속 PR 에서 확장.
  */
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '../stores/authStore'
+import { canManageHr, useAuthStore } from '../stores/authStore'
 
 const navStyle: React.CSSProperties = {
   display: 'flex',
@@ -33,6 +33,7 @@ export function AppLayout(): JSX.Element {
   const auth = useAuthStore((s) => s.auth)
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
+  const canManageHrMenu = canManageHr(auth?.role)
 
   const handleLogout = async (): Promise<void> => {
     await logout()
@@ -55,18 +56,22 @@ export function AppLayout(): JSX.Element {
         >
           기사 관리
         </NavLink>
-        <NavLink
-          to="/admin/employees"
-          style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
-        >
-          인사
-        </NavLink>
-        <NavLink
-          to="/admin/departments"
-          style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
-        >
-          부서
-        </NavLink>
+        {canManageHrMenu ? (
+          <>
+            <NavLink
+              to="/admin/employees"
+              style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
+            >
+              인사
+            </NavLink>
+            <NavLink
+              to="/admin/departments"
+              style={({ isActive }) => (isActive ? activeLinkStyle : linkStyle)}
+            >
+              부서
+            </NavLink>
+          </>
+        ) : null}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
           {auth && (
             <span style={{ color: 'var(--color-text-muted)' }}>

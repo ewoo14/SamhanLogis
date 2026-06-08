@@ -60,3 +60,18 @@ export function canManageDrivers(role: string | undefined | null): boolean {
   if (!role) return false
   return role === 'AROLOGIS_MASTER' || role === 'AROLOGIS_MANAGER'
 }
+
+/**
+ * 인사 관리 CUD 권한 보유 여부.
+ */
+export function canManageHr(role: string | undefined | null): boolean {
+  if (!role) return false
+  return role === 'AROLOGIS_MASTER' || role === 'AROLOGIS_MANAGER'
+}
+
+/**
+ * 마스터 롤 부여 권한 보유 여부.
+ */
+export function canGrantMaster(role: string | undefined | null): boolean {
+  return role === 'AROLOGIS_MASTER'
+}

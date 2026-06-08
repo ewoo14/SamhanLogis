@@ -21,6 +21,7 @@ import {
   type DepartmentRow,
 } from '../../api/arologisHr'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { canManageHr, useAuthStore } from '../../stores/authStore'
 
 type DepartmentModalState =
   | { mode: 'create' }
@@ -33,6 +34,8 @@ export function DepartmentsPage(): JSX.Element {
 
   const queryClient = useQueryClient()
   const [modal, setModal] = useState<DepartmentModalState>(null)
+  const auth = useAuthStore((s) => s.auth)
+  const canManage = canManageHr(auth?.role)
 
   const departmentsQuery = useQuery({
     queryKey: ['arologis', 'hr', 'departments'],
@@ -43,33 +46,41 @@ export function DepartmentsPage(): JSX.Element {
     await queryClient.invalidateQueries({ queryKey: ['arologis', 'hr', 'departments'] })
   }
 
-  const columns = useMemo<DataGridColumn<DepartmentRow>[]>(() => [
-    { key: 'code', label: '부서 코드', width: 180 },
-    { key: 'name', label: '부서명' },
-    {
-      key: 'displayOrder',
-      label: '표시 순서',
-      width: 120,
-      align: 'right',
-      format: (v) => Number(v ?? 0).toLocaleString('ko-KR'),
-    },
-    {
-      key: 'actions',
-      label: '관리',
-      width: 170,
-      filter: false,
-      render: (row) => (
-        <div style={actionRowStyle}>
-          <Button size="sm" variant="secondary" onClick={() => setModal({ mode: 'edit', department: row })}>
-            수정
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => setModal({ mode: 'delete', department: row })}>
-            삭제
-          </Button>
-        </div>
-      ),
-    },
-  ], [])
+  const columns = useMemo<DataGridColumn<DepartmentRow>[]>(() => {
+    const baseColumns: DataGridColumn<DepartmentRow>[] = [
+      { key: 'code', label: '부서 코드', width: 180 },
+      { key: 'name', label: '부서명' },
+      {
+        key: 'displayOrder',
+        label: '표시 순서',
+        width: 120,
+        align: 'right',
+        format: (v) => Number(v ?? 0).toLocaleString('ko-KR'),
+      },
+    ]
+
+    if (!canManage) return baseColumns
+
+    return [
+      ...baseColumns,
+      {
+        key: 'actions',
+        label: '관리',
+        width: 170,
+        filter: false,
+        render: (row) => (
+          <div style={actionRowStyle}>
+            <Button size="sm" variant="secondary" onClick={() => setModal({ mode: 'edit', department: row })}>
+              수정
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => setModal({ mode: 'delete', department: row })}>
+              삭제
+            </Button>
+          </div>
+        ),
+      },
+    ]
+  }, [canManage])
 
   return (
     <section style={pageStyle}>
@@ -80,9 +91,11 @@ export function DepartmentsPage(): JSX.Element {
             아로로지스 직원 배속에 사용하는 부서 마스터를 관리합니다.
           </p>
         </div>
-        <Button variant="primary" onClick={() => setModal({ mode: 'create' })}>
-          부서 등록
-        </Button>
+        {canManage ? (
+          <Button variant="primary" onClick={() => setModal({ mode: 'create' })}>
+            부서 등록
+          </Button>
+        ) : null}
       </header>
 
       {departmentsQuery.error ? (
@@ -100,7 +113,7 @@ export function DepartmentsPage(): JSX.Element {
         getRowTestId={(row) => `arologis-department-row-${row.code}`}
       />
 
-      {(modal?.mode === 'create' || modal?.mode === 'edit') ? (
+      {canManage && (modal?.mode === 'create' || modal?.mode === 'edit') ? (
         <DepartmentFormModal
           mode={modal.mode}
           department={modal.mode === 'edit' ? modal.department : undefined}
@@ -112,7 +125,7 @@ export function DepartmentsPage(): JSX.Element {
         />
       ) : null}
 
-      {modal?.mode === 'delete' ? (
+      {canManage && modal?.mode === 'delete' ? (
         <DepartmentDeleteModal
           department={modal.department}
           onClose={() => setModal(null)}
