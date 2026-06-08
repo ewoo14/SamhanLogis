@@ -468,7 +468,9 @@ function RoleChangeModal({
     onError: (err) => setError(toRoleChangeError(err)),
   })
 
-  const canSubmit = role !== employee.role && reason.trim().length > 0
+  // 대상이 마스터인데 actor 가 마스터 부여 권한이 없으면, 어떤 롤 변경도 마스터 권한이 필요(강등 포함)하므로 선제 차단(BE 403 왕복 방지).
+  const targetIsProtectedMaster = employee.role === 'AROLOGIS_MASTER' && !canGrantMasterRole
+  const canSubmit = !targetIsProtectedMaster && role !== employee.role && reason.trim().length > 0
 
   return (
     <Modal
@@ -495,6 +497,9 @@ function RoleChangeModal({
     >
       <div style={formColStyle}>
         {error ? <FormError message={error} /> : null}
+        {targetIsProtectedMaster ? (
+          <div style={noticeStyle}>마스터 직원의 롤 변경(강등 포함)은 마스터 권한 계정만 가능합니다.</div>
+        ) : null}
         <Select
           label="변경할 롤"
           value={role}
