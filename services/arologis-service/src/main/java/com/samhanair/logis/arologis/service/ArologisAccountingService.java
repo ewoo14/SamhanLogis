@@ -12,7 +12,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,9 @@ public class ArologisAccountingService {
      * 현금 거래 등록.
      *
      * <p>accountCode 존재 + 거래 유형과 계정 유형 정합성을 검증한다. 금액 양수 검증은 도메인에서 한다.
+     *
+     * @param actor 감사자는 {@code AuditorAware} 가 created_by 에 기록하므로 본 메서드에서 actor 는
+     *     미사용이다(컨트롤러 시그니처 정합 유지 목적). 삭제(soft-delete)만 actor 를 직접 사용한다.
      */
     public CashTxnView create(CreateCashTxnCommand command, String actor) {
         ArologisSimpleAccount account = findAccount(command.accountCode());
@@ -50,7 +55,12 @@ public class ArologisAccountingService {
         return CashTxnView.from(txn, account.getName());
     }
 
-    /** 현금 거래 수정. soft-delete 된 거래는 조회되지 않아 자동 차단된다. */
+    /**
+     * 현금 거래 수정. soft-delete 된 거래는 조회되지 않아 자동 차단된다.
+     *
+     * @param actor 감사자는 {@code AuditorAware} 가 modified_by 에 기록하므로 본 메서드에서 actor 는
+     *     미사용이다(컨트롤러 시그니처 정합 유지 목적). 삭제(soft-delete)만 actor 를 직접 사용한다.
+     */
     public CashTxnView update(UUID id, CreateCashTxnCommand command, String actor) {
         ArologisCashTxn txn = findTxn(id);
         ArologisSimpleAccount account = findAccount(command.accountCode());
@@ -86,8 +96,11 @@ public class ArologisAccountingService {
     @Transactional(readOnly = true)
     public List<CashTxnView> list(LocalDate from, LocalDate to, CashTxnType type) {
         assertPeriod(from, to);
+        // 계정과목명은 거래마다 단건 조회(N+1)하지 않고, 진입 시 활성 계정 일괄 조회로 code→name Map 을
+        // 1회 구성해 in-memory lookup 한다. 미존재 code 는 null 로 동작이 동일하다.
+        Map<String, String> accountNames = accountNameMap();
         return cashTxnRepository.searchPeriod(from, to, type).stream()
-                .map(txn -> CashTxnView.from(txn, accountName(txn.getAccountCode())))
+                .map(txn -> CashTxnView.from(txn, accountNames.get(txn.getAccountCode())))
                 .toList();
     }
 
@@ -146,6 +159,21 @@ public class ArologisAccountingService {
         return simpleAccountRepository.findByCodeAndIsDeletedFalse(accountCode)
                 .map(ArologisSimpleAccount::getName)
                 .orElse(null);
+    }
+
+    /**
+     * 활성(미삭제) 계정과목 전체를 1회 조회해 code→name Map 으로 구성한다.
+     *
+     * <p>거래 목록 조회 시 거래당 계정명 단건 조회(N+1)를 피하기 위해 사용한다. 삭제되지 않은 계정만
+     * 포함하므로, 단건 조회용 {@link #accountName(String)}(findByCodeAndIsDeletedFalse)과 동일한
+     * 가시성을 가진다.
+     */
+    private Map<String, String> accountNameMap() {
+        return simpleAccountRepository.findAllByIsDeletedFalseOrderByDisplayOrderAscCodeAsc().stream()
+                .collect(Collectors.toMap(
+                        ArologisSimpleAccount::getCode,
+                        ArologisSimpleAccount::getName,
+                        (existing, duplicate) -> existing));
     }
 
     /**

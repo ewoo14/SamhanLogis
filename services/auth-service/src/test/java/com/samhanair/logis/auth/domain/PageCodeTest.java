@@ -222,6 +222,17 @@ class PageCodeTest {
     }
 
     @Test
+    void arologis_accountingPageCodes_V51_seed와_동기화() {
+        assertThat(PageCode.AROLOGIS_ACCOUNTING_CASHBOOK.getCode())
+                .isEqualTo("arologis.accounting.cashbook");
+        assertThat(PageCode.AROLOGIS_ACCOUNTING_SUMMARY.getCode())
+                .isEqualTo("arologis.accounting.summary");
+
+        assertThat(PageCode.isValid("arologis.accounting.cashbook")).isTrue();
+        assertThat(PageCode.isValid("arologis.accounting.summary")).isTrue();
+    }
+
+    @Test
     void spD65_pageCodes_V35_seed와_동기화() {
         assertThat(PageCode.INVENTORY_WAREHOUSE_ADMIN.getCode())
                 .isEqualTo("inventory.warehouse.admin");

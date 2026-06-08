@@ -16,6 +16,8 @@ import com.samhanair.logis.arologis.service.ArologisAccountingService;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -38,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
 class ArologisAccountingServiceIT extends AbstractPostgresIT {
 
     @Autowired private ArologisAccountingService accountingService;
+
+    @PersistenceContext private EntityManager entityManager;
 
     @MockBean private PartnerClient partnerClient;
     @MockBean private SlipClient slipClient;
@@ -107,6 +111,12 @@ class ArologisAccountingServiceIT extends AbstractPostgresIT {
 
         accountingService.delete(created.id(), "it-tester");
 
+        // soft-delete(UPDATE)는 영속성 컨텍스트(L1 캐시)에만 반영돼 같은 트랜잭션 내 재조회 시
+        // @SQLRestriction(is_deleted = false) 이 우회될 수 있다. flush 로 DB 동기화 후 clear 로
+        // 캐시를 비워 get/list/summary 가 실제 DB(@SQLRestriction 적용) 기준으로 평가되게 한다.
+        entityManager.flush();
+        entityManager.clear();
+
         assertThat(accountingService.list(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), null)).isEmpty();
         assertThat(accountingService.monthlySummary(2026, 7).expenseTotal()).isEqualByComparingTo("0");
         assertThatThrownBy(() -> accountingService.get(created.id()))
@@ -137,6 +147,32 @@ class ArologisAccountingServiceIT extends AbstractPostgresIT {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    void create_allowsAssetAccountForIncome() {
+        // ASSET 계정(1010 현금)은 단식부기 특성상 수입 거래에서 허용된다(assertTypeMatches 단식 정책 회귀 가드).
+        ArologisAccountingService.CashTxnView created = accountingService.create(
+                new ArologisAccountingService.CreateCashTxnCommand(
+                        LocalDate.of(2026, 6, 8), CashTxnType.INCOME, "현금입금",
+                        new BigDecimal("30000.00"), "1010", "현금 수입"),
+                "it-tester");
+
+        assertThat(created.accountCode()).isEqualTo("1010");
+        assertThat(created.type()).isEqualTo(CashTxnType.INCOME);
+    }
+
+    @Test
+    void create_allowsAssetAccountForExpense() {
+        // ASSET 계정(1010 현금)은 단식부기 특성상 지출 거래에서도 허용된다(assertTypeMatches 단식 정책 회귀 가드).
+        ArologisAccountingService.CashTxnView created = accountingService.create(
+                new ArologisAccountingService.CreateCashTxnCommand(
+                        LocalDate.of(2026, 6, 8), CashTxnType.EXPENSE, "현금출금",
+                        new BigDecimal("15000.00"), "1010", "현금 지출"),
+                "it-tester");
+
+        assertThat(created.accountCode()).isEqualTo("1010");
+        assertThat(created.type()).isEqualTo(CashTxnType.EXPENSE);
     }
 
     @Test
