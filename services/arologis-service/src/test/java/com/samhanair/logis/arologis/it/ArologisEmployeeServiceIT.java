@@ -212,6 +212,49 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
         assertThat(employeeRepository.findByLoginIdAndIsDeletedFalse(loginId)).isEmpty();
     }
 
+    /**
+     * 아로로지스 6-롤 확장(2026-06-08) — 신규 4롤 직원 생성이 CHECK 제약(V16) 을 통과함을 단언.
+     *
+     * <p>auth_admin_user.role / role_change_history.new_role·previous_role CHECK 가 구 2롤만
+     * 허용하던 회귀(실 QA 적발)를 가드한다. 매니저 actor 가 비-마스터 신규 롤을 부여 가능해야 한다.
+     */
+    @Test
+    void createEmployee_allowsNewSixRoleMembers() {
+        AdminUserRole[] newRoles = {
+            AdminUserRole.AROLOGIS_DEVELOPER,
+            AdminUserRole.AROLOGIS_SALES,
+            AdminUserRole.AROLOGIS_ACCOUNTANT,
+            AdminUserRole.AROLOGIS_DRIVER,
+        };
+        for (AdminUserRole role : newRoles) {
+            String loginId = "it-6role-" + role.name().toLowerCase();
+            ArologisEmployeeService.ProvisionedEmployee provisioned = employeeService.createEmployee(
+                    command(loginId, role), "it-tester", "AROLOGIS_MANAGER");
+            assertThat(provisioned.employee().role()).isEqualTo(role);
+            assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse(loginId).orElseThrow().getRole())
+                    .isEqualTo(role);
+        }
+    }
+
+    /**
+     * 신규 롤로의 롤변경이 role_change_history new_role/previous_role CHECK(V16) 를 통과함을 단언.
+     */
+    @Test
+    void changeRole_toNewSixRole_recordsHistory() {
+        employeeService.createEmployee(
+                command("it-6role-change", AdminUserRole.AROLOGIS_SALES), "it-tester", "AROLOGIS_MANAGER");
+
+        employeeService.changeRole(
+                "it-6role-change", AdminUserRole.AROLOGIS_ACCOUNTANT, "직무 전환", "it-tester", "AROLOGIS_MANAGER");
+
+        assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-6role-change").orElseThrow().getRole())
+                .isEqualTo(AdminUserRole.AROLOGIS_ACCOUNTANT);
+        assertThat(employeeService.roleHistories("it-6role-change"))
+                .filteredOn(history -> history.previousRole() == AdminUserRole.AROLOGIS_SALES
+                        && history.newRole() == AdminUserRole.AROLOGIS_ACCOUNTANT)
+                .hasSize(1);
+    }
+
     private static ArologisEmployeeService.CreateEmployeeCommand command(String loginId, AdminUserRole role) {
         return command(loginId, role, loginId + "@example.com");
     }
