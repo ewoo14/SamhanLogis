@@ -83,11 +83,12 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
     void changeRole_appendsHistoryAndSameRoleDoesNotAppend() {
         employeeService.createEmployee(
                 command("it-hr-role", AdminUserRole.AROLOGIS_MANAGER), "it-tester", "AROLOGIS_MANAGER");
+        saveActor("it-master-role", AdminUserRole.AROLOGIS_MASTER);
 
         employeeService.changeRole(
-                "it-hr-role", AdminUserRole.AROLOGIS_MASTER, "승급", "it-tester", "AROLOGIS_MASTER");
+                "it-hr-role", AdminUserRole.AROLOGIS_MASTER, "승급", "it-master-role", "AROLOGIS_MANAGER");
         employeeService.changeRole(
-                "it-hr-role", AdminUserRole.AROLOGIS_MASTER, "동일", "it-tester", "AROLOGIS_MASTER");
+                "it-hr-role", AdminUserRole.AROLOGIS_MASTER, "동일", "it-master-role", "AROLOGIS_MANAGER");
 
         assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-role").orElseThrow().getRole())
                 .isEqualTo(AdminUserRole.AROLOGIS_MASTER);
@@ -118,16 +119,18 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
 
         assertThatThrownBy(() ->
                 employeeService.createEmployee(
-                        command("it-hr-dup", AdminUserRole.AROLOGIS_MASTER), "it-tester", "AROLOGIS_MASTER"))
+                        command("it-hr-dup", AdminUserRole.AROLOGIS_MANAGER), "it-tester", "AROLOGIS_MASTER"))
                 .isInstanceOf(BusinessException.class);
     }
 
     @Test
     void createEmployee_rejectsMasterRoleByManagerActor() {
+        saveActor("it-manager", AdminUserRole.AROLOGIS_MANAGER);
+
         assertThatThrownBy(() -> employeeService.createEmployee(
                 command("it-hr-master-deny", AdminUserRole.AROLOGIS_MASTER),
                 "it-manager",
-                "AROLOGIS_MANAGER"))
+                "AROLOGIS_MASTER"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다")
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
@@ -139,10 +142,12 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
 
     @Test
     void createEmployee_allowsMasterRoleByMasterActor() {
+        saveActor("it-master", AdminUserRole.AROLOGIS_MASTER);
+
         ArologisEmployeeService.ProvisionedEmployee provisioned = employeeService.createEmployee(
                 command("it-hr-master-allow", AdminUserRole.AROLOGIS_MASTER),
                 "it-master",
-                "AROLOGIS_MASTER");
+                "AROLOGIS_MANAGER");
 
         assertThat(provisioned.employee().role()).isEqualTo(AdminUserRole.AROLOGIS_MASTER);
         assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-master-allow").orElseThrow().getRole())
@@ -153,13 +158,14 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
     void changeRole_rejectsMasterPromotionByManagerActor() {
         employeeService.createEmployee(
                 command("it-hr-role-deny", AdminUserRole.AROLOGIS_MANAGER), "it-manager", "AROLOGIS_MANAGER");
+        saveActor("it-manager", AdminUserRole.AROLOGIS_MANAGER);
 
         assertThatThrownBy(() -> employeeService.changeRole(
                 "it-hr-role-deny",
                 AdminUserRole.AROLOGIS_MASTER,
                 "승급",
                 "it-manager",
-                "AROLOGIS_MANAGER"))
+                "AROLOGIS_MASTER"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다")
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
@@ -167,6 +173,27 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
 
         assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-role-deny").orElseThrow().getRole())
                 .isEqualTo(AdminUserRole.AROLOGIS_MANAGER);
+    }
+
+    @Test
+    void changeRole_rejectsMasterDemotionByManagerActor() {
+        employeeService.createEmployee(
+                command("it-hr-demote-deny", AdminUserRole.AROLOGIS_MASTER), "admin", "AROLOGIS_MANAGER");
+        saveActor("it-demote-manager", AdminUserRole.AROLOGIS_MANAGER);
+
+        assertThatThrownBy(() -> employeeService.changeRole(
+                "it-hr-demote-deny",
+                AdminUserRole.AROLOGIS_MANAGER,
+                "강등",
+                "it-demote-manager",
+                "AROLOGIS_MASTER"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(com.samhanair.logis.common.exception.ErrorCode.FORBIDDEN);
+
+        assertThat(adminUserRepository.findByLoginIdAndIsDeletedFalse("it-hr-demote-deny").orElseThrow().getRole())
+                .isEqualTo(AdminUserRole.AROLOGIS_MASTER);
     }
 
     @Test
@@ -200,5 +227,9 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
                 email,
                 "010-5555-6666",
                 role);
+    }
+
+    private void saveActor(String loginId, AdminUserRole role) {
+        adminUserRepository.saveAndFlush(AdminUser.create(loginId, "$2a$10$hash", loginId, role));
     }
 }

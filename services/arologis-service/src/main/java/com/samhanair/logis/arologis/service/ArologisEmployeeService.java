@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -45,11 +46,11 @@ public class ArologisEmployeeService {
      *
      * <p>임시 비밀번호 평문은 본 반환값에만 포함한다. 저장되는 값은 BCrypt 해시이다.
      *
-     * @param actor 요청자 식별자. UUID 인 경우 로그인 ID 로 변환해 이력에 저장한다.
-     * @param actorRole 요청자 역할. AROLOGIS_MASTER 부여는 AROLOGIS_MASTER 만 가능하다.
+     * @param actor 요청자 식별자. UUID 인 경우 AdminUser id 로 조회하고, 아니면 loginId 로 조회한다.
+     * @param actorRole 요청자 역할 헤더. 보안 판정에는 사용하지 않고 persisted role 만 신뢰한다.
      */
     public ProvisionedEmployee createEmployee(CreateEmployeeCommand command, String actor, String actorRole) {
-        assertMasterGrantAllowed(command.role(), actorRole);
+        assertMasterGrantAllowed(command.role(), actor);
         assertUniqueLoginId(command.loginId());
         ArologisDepartment department = findDepartment(command.departmentCode());
         String changedByLoginId = resolveChangedByLoginId(actor);
@@ -96,15 +97,15 @@ public class ArologisEmployeeService {
     /**
      * 직원 롤 변경. 동일 롤 요청은 멱등 처리하고 이력을 남기지 않는다.
      *
-     * @param actor 요청자 식별자. UUID 인 경우 로그인 ID 로 변환해 이력에 저장한다.
-     * @param actorRole 요청자 역할. AROLOGIS_MASTER 승격은 AROLOGIS_MASTER 만 가능하다.
+     * @param actor 요청자 식별자. UUID 인 경우 AdminUser id 로 조회하고, 아니면 loginId 로 조회한다.
+     * @param actorRole 요청자 역할 헤더. 보안 판정에는 사용하지 않고 persisted role 만 신뢰한다.
      */
     public EmployeeView changeRole(
             String loginId, AdminUserRole newRole, String reason, String actor, String actorRole) {
-        assertMasterGrantAllowed(newRole, actorRole);
         ArologisEmployee employee = findEmployee(loginId);
         AdminUser adminUser = employee.getAdminUser();
         AdminUserRole previousRole = adminUser.getRole();
+        assertMasterChangeAllowed(previousRole, newRole, actor);
         if (previousRole == newRole) {
             return EmployeeView.from(employee);
         }
@@ -151,21 +152,35 @@ public class ArologisEmployeeService {
         }
     }
 
-    private void assertMasterGrantAllowed(AdminUserRole targetRole, String actorRole) {
-        if (targetRole == AdminUserRole.AROLOGIS_MASTER
-                && parseActorRole(actorRole) != AdminUserRole.AROLOGIS_MASTER) {
+    private void assertMasterGrantAllowed(AdminUserRole targetRole, String actor) {
+        if (targetRole == AdminUserRole.AROLOGIS_MASTER && !isPersistedMasterActor(actor)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다");
         }
     }
 
-    private AdminUserRole parseActorRole(String actorRole) {
-        if (actorRole == null || actorRole.isBlank()) {
-            return null;
+    private void assertMasterChangeAllowed(AdminUserRole previousRole, AdminUserRole newRole, String actor) {
+        if ((previousRole == AdminUserRole.AROLOGIS_MASTER || newRole == AdminUserRole.AROLOGIS_MASTER)
+                && !isPersistedMasterActor(actor)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "AROLOGIS_MASTER 권한 부여는 마스터만 가능합니다");
+        }
+    }
+
+    private boolean isPersistedMasterActor(String actor) {
+        return findActiveActor(actor)
+                .map(AdminUser::getRole)
+                .filter(AdminUserRole.AROLOGIS_MASTER::equals)
+                .isPresent();
+    }
+
+    private Optional<AdminUser> findActiveActor(String actor) {
+        String normalized = actorOrSystem(actor);
+        if ("system".equals(normalized)) {
+            return Optional.empty();
         }
         try {
-            return AdminUserRole.valueOf(actorRole.trim());
+            return adminUserRepository.findById(UUID.fromString(normalized));
         } catch (IllegalArgumentException ex) {
-            return null;
+            return adminUserRepository.findByLoginIdAndIsDeletedFalse(normalized);
         }
     }
 
@@ -173,9 +188,7 @@ public class ArologisEmployeeService {
         String message = integrityMessage(ex);
         return message.contains("ux_auth_admin_user_login_id_active")
                 || message.contains("ux_arologis_employee_login_id_active")
-                || message.contains("ux_arologis_employee_admin_user_active")
-                || (message.contains("login_id") && message.contains("unique"))
-                || (message.contains("admin_user_id") && message.contains("unique"));
+                || (message.contains("login_id") && message.contains("unique"));
     }
 
     private static String integrityMessage(DataIntegrityViolationException ex) {
