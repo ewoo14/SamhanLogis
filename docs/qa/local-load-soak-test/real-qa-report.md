@@ -73,7 +73,9 @@ PR #424 | 브랜치 `feature/local-load-soak-test` | 실행일: 2026-06-08 (심�
 | 검증 | summary | 요청/iteration | 4xx/5xx | `http_req_failed` | 한정 |
 |---|---|---|---|---|---|
 | verify-relogin | `perf/k6/out/summary-verify-relogin-20260608-085938.json` / `docs/qa/local-load-soak-test/summary-verify-relogin-20260608-085938.json` | 1,136 req · 165 iter | 0 / 0 | value 0 · threshold=false(OK) | 강제 재로그인 단발 검증 |
-| clean re-soak 2h | 현재 workspace 사본 없음 | — | — | — | `summary-soak-<신규>.json` 확보 후 본 표에 추가 필요 |
+| **clean re-soak 2h** | `summary-soak-20260608-091311.json` (docs/qa 사본) | **258,270 req · 47,611 iter** | **0 / 0** | **value 7.7e-05 · threshold=false(OK·통과)** | 하네스 fix 반영본 — 글로벌 실패임계까지 통과한 클린 장기 증빙 |
+
+**재-soak 결론**: 하네스 `session.roleCode` 분리 fix 반영본으로 2h 재가동 → **4xx 0 · 5xx 0 · checks_fail 0 · `http_req_failed rate<0.01` threshold 통과**. heap 1.37~1.66GB 경계 진동(누수 무징후), HikariCP pending/timeout 0, abnormal_container_count(fix15 후) = 1(nginx exited, 부하 무관). 원본 6h soak 가 하네스버그발 4xx 로 breach 했던 글로벌 실패임계를 **클린하게 통과** — Codex ③ P2 보강 증빙 완결.
 
 ### D-LOAD-06 최종 판정: **하네스 결함 (제품 무결)** — 재판정 전말 박제
 - 1차 의심: onset +65분 = 첫 JWT 만료/재로그인 웨이브 정합 → 제품 P1 가설로 fix13 규명 디스패치.
