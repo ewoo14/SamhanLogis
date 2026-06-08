@@ -30,18 +30,20 @@ import { canGrantMaster, useAuthStore } from '../../stores/authStore'
 /** 중앙 MASTER 롤 코드 — 서버가 변경을 거부하므로 열 전체를 읽기전용 처리. */
 const CENTRAL_MASTER_ROLE = 'MASTER'
 
-/** 롤 코드 → 한국어 라벨. 매핑 없으면 코드 그대로 노출(grant 시드에 새 롤이 추가돼도 표시). */
+/**
+ * 롤 코드 → 한국어 라벨. arologis.* grant 는 중앙 `role_page_permissions` 의 MASTER/MANAGER 에
+ * 시드되므로 실제 등장 롤은 이 둘. 정규화 별칭(AROLOGIS_*)도 방어적으로 유지하고, 매핑 없으면
+ * 코드 그대로 노출(새 롤 추가돼도 표시).
+ */
 const ROLE_LABELS: Record<string, string> = {
   MASTER: '중앙 마스터',
   MANAGER: '중앙 매니저',
   AROLOGIS_MASTER: '아로로지스 마스터',
   AROLOGIS_MANAGER: '아로로지스 매니저',
-  ACCOUNTANT: '회계',
-  SALES: '영업',
-  WAREHOUSE: '창고',
-  DISPATCH: '배차',
-  INVENTORY: '재고',
 }
+
+/** 권한 매트릭스 react-query 키 — 조회/낙관갱신/무효화에서 공유. */
+const MATRIX_QUERY_KEY = ['arologis', 'permissions', 'matrix'] as const
 
 /** 변경 진행 중인 셀 식별(roleCode + pageCode) — 토글 중 disabled 처리용. */
 type PendingKey = string
@@ -64,7 +66,7 @@ export function PermissionsPage(): JSX.Element {
   const [pending, setPending] = useState<Set<PendingKey>>(new Set())
 
   const matrixQuery = useQuery({
-    queryKey: ['arologis', 'permissions', 'matrix'],
+    queryKey: MATRIX_QUERY_KEY,
     queryFn: getMatrix,
     enabled: isMaster,
   })
@@ -81,21 +83,42 @@ export function PermissionsPage(): JSX.Element {
     mutationFn: (vars: {
       roleCode: string
       pageCode: string
+      displayName: string
       canView: boolean
       canEdit: boolean
     }) => updateGrant(vars.roleCode, vars.pageCode, vars.canView, vars.canEdit),
+    // 낙관적 갱신 — 토글 즉시 화면 반영(edit→view 자동 등). onError 시 스냅샷 롤백.
     onMutate: (vars) => {
       setError(null)
       setPending((prev) => new Set(prev).add(cellKey(vars.roleCode, vars.pageCode)))
+      const snapshot = queryClient.getQueryData<PermissionMatrix>(MATRIX_QUERY_KEY)
+      queryClient.setQueryData<PermissionMatrix>(MATRIX_QUERY_KEY, (prev) => {
+        const base = prev ?? {}
+        const roleMap = { ...(base[vars.roleCode] ?? {}) }
+        roleMap[vars.pageCode] = {
+          roleCode: vars.roleCode,
+          pageCode: vars.pageCode,
+          displayName: vars.displayName,
+          canView: vars.canView,
+          canEdit: vars.canEdit,
+        }
+        return { ...base, [vars.roleCode]: roleMap }
+      })
+      return { snapshot }
     },
-    onError: (err) => setError(toPermissionError(err)),
+    onError: (err, _vars, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(MATRIX_QUERY_KEY, context.snapshot)
+      }
+      setError(toPermissionError(err))
+    },
     onSettled: (_data, _err, vars) => {
       setPending((prev) => {
         const next = new Set(prev)
         next.delete(cellKey(vars.roleCode, vars.pageCode))
         return next
       })
-      void queryClient.invalidateQueries({ queryKey: ['arologis', 'permissions', 'matrix'] })
+      void queryClient.invalidateQueries({ queryKey: MATRIX_QUERY_KEY })
     },
   })
 
@@ -124,6 +147,7 @@ export function PermissionsPage(): JSX.Element {
     mutation.mutate({
       roleCode: cell.roleCode,
       pageCode: cell.pageCode,
+      displayName: cell.displayName,
       canView: view,
       canEdit: nextEdit,
     })
@@ -155,12 +179,11 @@ export function PermissionsPage(): JSX.Element {
         <span style={legendMutedStyle}>중앙 마스터 권한은 변경할 수 없습니다.</span>
       </div>
 
-      {error ? <div role="alert" style={errorStyle}>{error}</div> : null}
-      {matrixQuery.error ? (
-        <div role="alert" style={errorStyle}>
-          {toPermissionError(matrixQuery.error)}
-        </div>
-      ) : null}
+      {(() => {
+        // 조회 실패와 변경 실패를 단일 배너로 통합(중복 노출 방지). 변경 실패(error state)를 우선.
+        const banner = error ?? (matrixQuery.error ? toPermissionError(matrixQuery.error) : null)
+        return banner ? <div role="alert" style={errorStyle}>{banner}</div> : null
+      })()}
 
       {matrixQuery.isLoading ? (
         <div style={mutedBoxStyle}>권한 매트릭스를 불러오는 중...</div>
@@ -197,17 +220,19 @@ export function PermissionsPage(): JSX.Element {
                     <div style={pageCodeStyle}>{page.pageCode}</div>
                   </th>
                   {roleCodes.map((roleCode) => {
-                    const cell = matrix[roleCode]?.[page.pageCode]
                     const readOnly = roleCode === CENTRAL_MASTER_ROLE
                     const key = cellKey(roleCode, page.pageCode)
                     const isPending = pending.has(key)
-                    if (!cell) {
-                      return (
-                        <td key={key} style={dataCellStyle}>
-                          <span style={emptyCellStyle}>-</span>
-                        </td>
-                      )
+                    // 행 없는 (롤×페이지) 조합도 가상 false 셀로 렌더 → 토글 시 신규 grant 생성
+                    // (BE upsert 지원). 희소 매트릭스에서 미부여 셀이 토글 불가하던 문제 해소.
+                    const cell: RolePagePermissionView = matrix[roleCode]?.[page.pageCode] ?? {
+                      roleCode,
+                      pageCode: page.pageCode,
+                      displayName: page.displayName,
+                      canView: false,
+                      canEdit: false,
                     }
+                    const readOnlyHint = readOnly ? '중앙 마스터 권한은 변경할 수 없습니다.' : undefined
                     return (
                       <td key={key} style={dataCellStyle}>
                         <div style={toggleGroupStyle}>
@@ -217,7 +242,8 @@ export function PermissionsPage(): JSX.Element {
                             checked={cell.canView}
                             // edit 가 켜져 있으면 view 는 끌 수 없음(자동 true 유지).
                             disabled={readOnly || isPending || cell.canEdit}
-                            testId={`perm-${roleCode}-${page.pageCode}-view`}
+                            title={readOnlyHint ?? (cell.canEdit ? '편집이 켜져 있어 조회를 끌 수 없습니다.' : undefined)}
+                            testId={`arologis-perm-${roleCode}-${page.pageCode}-view`}
                             onChange={(checked) => applyGrant(cell, checked, cell.canEdit)}
                           />
                           <ToggleBox
@@ -225,7 +251,8 @@ export function PermissionsPage(): JSX.Element {
                             ariaLabel={`${roleLabel(roleCode)} ${page.displayName || page.pageCode} 편집`}
                             checked={cell.canEdit}
                             disabled={readOnly || isPending}
-                            testId={`perm-${roleCode}-${page.pageCode}-edit`}
+                            title={readOnlyHint}
+                            testId={`arologis-perm-${roleCode}-${page.pageCode}-edit`}
                             onChange={(checked) => applyGrant(cell, cell.canView, checked)}
                           />
                         </div>
@@ -247,6 +274,7 @@ function ToggleBox({
   ariaLabel,
   checked,
   disabled,
+  title,
   testId,
   onChange,
 }: {
@@ -254,11 +282,12 @@ function ToggleBox({
   ariaLabel: string
   checked: boolean
   disabled: boolean
+  title?: string
   testId: string
   onChange: (checked: boolean) => void
 }): JSX.Element {
   return (
-    <label style={disabled ? toggleLabelDisabledStyle : toggleLabelStyle}>
+    <label style={disabled ? toggleLabelDisabledStyle : toggleLabelStyle} title={title}>
       <input
         type="checkbox"
         checked={checked}
@@ -402,7 +431,6 @@ const toggleLabelDisabledStyle: CSSProperties = {
   opacity: 0.5,
 }
 const checkboxStyle: CSSProperties = { width: 16, height: 16, cursor: 'inherit' }
-const emptyCellStyle: CSSProperties = { color: 'var(--color-text-muted)' }
 const mutedBoxStyle: CSSProperties = {
   padding: 24,
   textAlign: 'center',
