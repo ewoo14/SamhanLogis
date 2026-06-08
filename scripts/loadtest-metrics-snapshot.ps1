@@ -49,11 +49,15 @@ function Get-AbnormalContainerCount {
     $count = 0
     $lines = $text -split "`r?`n"
     foreach ($line in $lines) {
-        $name = ($line -split "\|", 2)[0]
+        $parts = $line -split "\|", 2
+        $name = $parts[0]
         if ($name -notlike "samhan-*") {
             continue
         }
-        if ($line -notmatch " Up ") {
+        # status 토큰({{.Status}})은 "Up 25 hours (healthy)" 형식이라 줄 전체가 아닌 status 토큰을 직접 본다.
+        # 정상 = "Up" 으로 시작 + "(unhealthy)" 미포함. "(health: starting)" 은 기동 중이라 정상 취급(soak 재배포 직후 오탐 방지).
+        $status = if ($parts.Count -gt 1) { $parts[1].Trim() } else { "" }
+        if ($status -notmatch "^Up" -or $status -match "unhealthy") {
             $count += 1
         }
     }
