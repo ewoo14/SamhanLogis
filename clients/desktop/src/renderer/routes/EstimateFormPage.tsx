@@ -186,7 +186,9 @@ export function EstimateFormPage() {
             productName: l.productName ?? '',
             specification: l.specification ?? '',
             quantity: String(l.quantity),
-            unitPrice: l.unitPrice,
+            // 단가 부가세포함: 폼 단가 입력은 VAT 포함값. 편집 hydrate 시 저장된 공급단가(unitPrice)가
+            // 아니라 VAT 포함 단가(unitPriceWithVat)를 채워야 재저장(priceVatInclusive=true) 시 금액 보존.
+            unitPrice: l.unitPriceWithVat ?? l.unitPrice,
             note: l.note ?? '',
             lookupError: null,
             lookupLoading: false,
