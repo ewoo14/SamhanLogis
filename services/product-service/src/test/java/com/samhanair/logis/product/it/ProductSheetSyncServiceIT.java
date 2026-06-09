@@ -361,7 +361,8 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(comps).filteredOn(c -> c.getComponentProductCode().equals("CP_3"))
                 .singleElement()
                 .satisfies(c -> {
-                    assertThat(c.getQtyMode()).isEqualTo(BundleComponent.QtyMode.FIXED);
+                    // 숫자 N도 FOLLOW_SET(defaultQty=N) — 전개 시 setQty×N (legacy explodeCommSets_ 정합).
+                    assertThat(c.getQtyMode()).isEqualTo(BundleComponent.QtyMode.FOLLOW_SET);
                     assertThat(c.getDefaultQty()).isEqualByComparingTo("3");
                 });
     }

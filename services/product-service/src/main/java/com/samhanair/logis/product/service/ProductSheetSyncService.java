@@ -116,7 +116,7 @@ public class ProductSheetSyncService {
      * 컬럼은 고정 인덱스가 아니라 헤더 이름 기반(legacy {@code findIdx_})으로 해석한다.
      *
      * <p>싱글 구성품 = 부품당 수량 개념 없음 → 전부 FOLLOW_SET(세트수량 그대로).
-     * 상업멀티 구성 = {@code 수량} 컬럼 'Q' → FOLLOW_SET, 숫자 N → FIXED(세트수량×N).
+     * 상업멀티 구성 = {@code 수량} 컬럼 'Q' → FOLLOW_SET(1), 숫자 N → FOLLOW_SET(N) (둘 다 setQty 비례 = legacy explodeCommSets_).
      */
     private static final List<ComponentTabMapping> COMPONENT_TAB_MAPPINGS = List.of(
             new ComponentTabMapping("싱글 구성품_단가인상", ProductCategory.SINGLE_SET, false),
@@ -349,11 +349,21 @@ public class ProductSheetSyncService {
         return -1;
     }
 
-    /** 구분/이름/특징 → ComponentKind. legacy isRemote/isPanel/isFoot/isMaterial 정합. */
+    /**
+     * 구분/이름/특징 → ComponentKind. legacy isRemote/isPanel/isFoot/isMaterial 정합.
+     * 구분(kindRaw) 컬럼이 1순위 권위 — 명시되면 그것으로 판정하고, 미매칭 시에만 name+variant fallback.
+     */
     private static BundleComponent.ComponentKind mapComponentKind(String kindRaw, String name, String variant) {
-        String s = (kindRaw + " " + name + " " + variant);
+        BundleComponent.ComponentKind fromKind = matchKind(kindRaw == null ? "" : kindRaw);
+        if (fromKind != BundleComponent.ComponentKind.ACCESSORY) {
+            return fromKind;
+        }
+        return matchKind((name == null ? "" : name) + " " + (variant == null ? "" : variant));
+    }
+
+    private static BundleComponent.ComponentKind matchKind(String s) {
         if (s.matches(".*(리모컨|리모콘).*")) return BundleComponent.ComponentKind.REMOTE;
-        if (s.matches(".*(판넬|패널).*")) return BundleComponent.ComponentKind.PANEL;
+        if (s.matches(".*(판넬|판널|패널).*")) return BundleComponent.ComponentKind.PANEL;
         if (s.contains("발통")) return BundleComponent.ComponentKind.FOOT;
         if (s.contains("실내")) return BundleComponent.ComponentKind.INDOOR;
         if (s.contains("실외")) return BundleComponent.ComponentKind.OUTDOOR;
@@ -375,21 +385,25 @@ public class ProductSheetSyncService {
         return false;
     }
 
-    /** 상업 수량 컬럼 해석: 'Q'→FOLLOW_SET(1), 숫자 N→FIXED(N), 그 외→FIXED(1). 싱글→FOLLOW_SET(1). */
+    /**
+     * 구성품 수량 해석 — 전개 시 모두 세트수량에 비례(FOLLOW_SET). legacy explodeCommSets_ 정합:
+     * 'Q' → finalQty=setQty(=FOLLOW_SET, defaultQty 1), 숫자 N → finalQty=setQty×N(=FOLLOW_SET, defaultQty N).
+     * 싱글 구성품(수량 컬럼 없음)도 세트수량 그대로(FOLLOW_SET, 1). BundleExpander 의 FOLLOW_SET=setQty×defaultQty 와 정합.
+     */
     private static QtyAndMode resolveQty(boolean hasQtyColumn, String qtyRaw) {
         if (!hasQtyColumn) {
             return new QtyAndMode(BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET);
         }
         String q = qtyRaw == null ? "" : qtyRaw.trim();
-        if (q.equalsIgnoreCase("Q")) {
+        if (q.isBlank() || q.equalsIgnoreCase("Q")) {
             return new QtyAndMode(BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET);
         }
         try {
             BigDecimal n = new BigDecimal(q.replace(",", ""));
             if (n.signum() <= 0) n = BigDecimal.ONE;
-            return new QtyAndMode(n, BundleComponent.QtyMode.FIXED);
+            return new QtyAndMode(n, BundleComponent.QtyMode.FOLLOW_SET);
         } catch (NumberFormatException e) {
-            return new QtyAndMode(BigDecimal.ONE, BundleComponent.QtyMode.FIXED);
+            return new QtyAndMode(BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET);
         }
     }
 

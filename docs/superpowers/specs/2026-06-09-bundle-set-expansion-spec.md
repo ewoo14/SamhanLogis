@@ -27,15 +27,18 @@
 ### PR-1 (본 PR) — 데이터 기반: 구성품 적재 + BUNDLE 마킹
 - `ProductSheetSyncService`: 싱글구성품/상업멀티구성 탭을 **헤더이름 기반**으로 추가 파싱(`세트`/`구분`/`수량`/`구성품특징`/`규격`) → `BundleComponent` upsert.
 - 부모 Product `productType=BUNDLE` 마킹 + `bundleMode`(KEEP 패턴 → KEEP, else EXPAND) + 구성품 `parentBundleSetModel`.
-- 수량: 싱글 FOLLOW_SET(qty 1), 상업 'Q'→FOLLOW_SET / N→FIXED N. `componentKind` 매핑(구분→INDOOR/OUTDOOR/PANEL/REMOTE/MATERIAL/ACCESSORY/FOOT). variant/spec/isDefault.
+- 수량: 싱글 FOLLOW_SET(qty 1), 상업 'Q'→FOLLOW_SET(1) / N→**FOLLOW_SET(N)**(둘 다 setQty 비례 = legacy explodeCommSets_, BundleExpander FOLLOW_SET=setQty×defaultQty 정합). `componentKind` 매핑(구분 1순위→INDOOR/OUTDOOR/PANEL/REMOTE/MATERIAL/ACCESSORY/FOOT). variant/spec/isDefault. 멱등=부분 유니크 인덱스(V11).
 - 멱등 sync + soft-delete(시트에서 사라진 구성품). 실 Postgres IT(부모 BUNDLE + 구성품 N + KEEP 4종).
 - 비스코프: 가격 재배분·옵션 선별·전표 전개(PR-2/3).
 
 ### PR-2 — 전개 엔진: 6:4 재배분 + 옵션 선별 + 리모컨 교체
 - `BundleExpander` 확장: 옵션 파라미터(패널/리모컨/자재) + `splitIndoorOutdoorToK`(재배분) + KEEP 패턴 실연결. GAS fixture 단위테스트(세트→구성품 가격합=세트가 검증).
 
-### PR-3 — 견적/전표 통합 + FE 옵션 UI
-- `EstimateService`가 BUNDLE+옵션 수신 → 전개 → estimate_lines 구성품 영속. `EstimateToSlipConverter`/PartnerOrder 경로 흐름. `SlipLine`/`PartnerOrderLine` 세트헤더/구성품 참조 필드. FE 견적화면 세트+옵션 picker. 전개 회귀 IT + 풀스택 Docker 실QA(세트→전표 구성품).
+### PR-3 — 견적/전표 통합 + 직접 전표생성 + FE 옵션 UI
+> 개발책임자 2026-06-09 추가: ① 종합견적서로 판매전표 생성, ② **직접 새 전표 생성** 두 경로 모두 **등록된 품목(우리 DB 품목리스트)** 으로 전표 생성 가능해야 함.
+- `EstimateService`가 BUNDLE+옵션 수신 → 전개 → estimate_lines 구성품 영속. `EstimateToSlipConverter`/PartnerOrder 경로 흐름.
+- **직접 전표생성 경로**: slip-service 신규 전표 생성 시 **product-service 등록품목 catalog 조회**(검색/선택) + 세트 선택 시 동일 BundleExpander 전개 → 구성품 라인. (견적 경유/직접 양쪽 동일 전개 엔진.)
+- `SlipLine`/`PartnerOrderLine` 세트헤더/구성품 참조 필드. FE 견적화면 + 직접 전표화면 세트+옵션 picker(등록품목 선택). 전개 회귀 IT(견적→전표 + 직접→전표) + 풀스택 Docker 실QA(세트→전표 구성품).
 
 ## 4. 워크플로우
 6단계 슬라이스 × 3 PR. **Codex 다운(~6/11) → Claude 대체**(환경한계 예외). QA 에이전트 실 Docker 의무. 각 PR dual리뷰+CI green+Docker 실QA.
