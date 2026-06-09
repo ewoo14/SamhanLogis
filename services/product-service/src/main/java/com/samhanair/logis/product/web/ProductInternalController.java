@@ -3,6 +3,7 @@ package com.samhanair.logis.product.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.ProductService;
+import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
@@ -141,5 +142,25 @@ public class ProductInternalController {
                     expandedSet && i == 0));
         }
         return ApiResponse.ok(result);
+    }
+
+    /**
+     * 세트(BUNDLE) 구성품 정합 점검 (internal) — 운영 전/시트 sync 후 재실행.
+     *
+     * <p>모든 활성 BUNDLE 의 구성품이 활성 품목으로 해소되는지 점검. {@code healthy=false} 인 세트는
+     * 견적/전표 전개 시 "세트 구성품 일부를 찾을 수 없습니다(미등록/단종)" 로 거부되므로, 운영 투입 전
+     * issues 가 비어있어야 한다. X-Internal-Token 인증 통과 후 진입.
+     *
+     * @return 응답 envelope 안 {@link BundleIntegrityResponse} (200)
+     */
+    @Operation(summary = "세트 구성품 정합 점검 (internal)",
+            description = "X-Internal-Token 인증 후 호출. BUNDLE 구성품↔활성 품목 해소 여부 점검(운영 전/sync 후).")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "점검 완료(healthy 여부 포함)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치")
+    })
+    @GetMapping("/bundle-integrity")
+    public ApiResponse<BundleIntegrityResponse> bundleIntegrity() {
+        return ApiResponse.ok(productService.checkBundleIntegrity());
     }
 }

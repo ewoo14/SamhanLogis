@@ -4,6 +4,7 @@ import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
+import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import java.util.Collection;
 import java.util.List;
@@ -60,6 +61,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findByNameAndIsDeletedFalse(String name);
 
     List<Product> findAllByIdIn(Collection<UUID> ids);
+
+    /** 정합 점검 — 활성 BUNDLE 부모 총수 (전개 대상 세트 수). */
+    long countByProductTypeAndIsDeletedFalse(ProductType productType);
 
     Page<Product> findAllByCategory_Id(UUID categoryId, Pageable pageable);
 

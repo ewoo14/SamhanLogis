@@ -2,16 +2,22 @@ package com.samhanair.logis.product.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductStatus;
+import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
+import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,6 +41,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final BundleComponentRepository bundleComponentRepository;
 
     @Transactional(readOnly = true)
     public Page<ProductSummaryResponse> search(UUID categoryId,
@@ -159,6 +166,47 @@ public class ProductService {
         return productRepository.findAllByIdIn(ids).stream()
                 .map(ProductSummaryResponse::from)
                 .toList();
+    }
+
+    /**
+     * 세트(BUNDLE) 구성품 정합 점검 — 운영 전/시트 sync 후 재실행용.
+     *
+     * <p>모든 활성 BUNDLE 의 구성품 중 활성 품목으로 해소되지 않는(미등록/단종) 것을 세트별로 모은다.
+     * {@link com.samhanair.logis.product.service.BundleExpander#expand} 의 해소 경로와 동일 기준이므로,
+     * {@code healthy=false} 인 세트는 견적/전표 전개 시 NOT_FOUND 로 거부된다.
+     *
+     * @return 정합 점검 결과 (healthy + 세트별 미해소 구성품 목록)
+     */
+    @Transactional(readOnly = true)
+    public BundleIntegrityResponse checkBundleIntegrity() {
+        long totalBundles = productRepository.countByProductTypeAndIsDeletedFalse(ProductType.BUNDLE);
+        List<BundleComponent> unresolved = bundleComponentRepository.findUnresolvedComponents();
+
+        // 부모 BUNDLE 단위로 그룹핑 (입력 순서 = bundleProductId, componentProductCode ORDER BY 유지)
+        Map<UUID, List<BundleComponent>> byBundle = new LinkedHashMap<>();
+        for (BundleComponent bc : unresolved) {
+            byBundle.computeIfAbsent(bc.getBundleProductId(), k -> new ArrayList<>()).add(bc);
+        }
+
+        // 부모 modelCode/name 일괄 조회 (UUID 비공개 — 응답엔 modelCode/name 만)
+        Map<UUID, Product> parents = productRepository.findAllByIdIn(byBundle.keySet()).stream()
+                .collect(java.util.stream.Collectors.toMap(Product::getId, p -> p));
+
+        List<BundleIntegrityResponse.BundleIssue> issues = new ArrayList<>();
+        for (Map.Entry<UUID, List<BundleComponent>> e : byBundle.entrySet()) {
+            Product parent = parents.get(e.getKey());
+            String parentModel = parent != null ? parent.getModelCode() : "(미상 부모 " + e.getKey() + ")";
+            String parentName = parent != null ? parent.getName() : null;
+            List<BundleIntegrityResponse.UnresolvedComponent> comps = e.getValue().stream()
+                    .map(c -> new BundleIntegrityResponse.UnresolvedComponent(
+                            c.getComponentProductCode(),
+                            c.getComponentKind() == null ? null : c.getComponentKind().name()))
+                    .toList();
+            issues.add(new BundleIntegrityResponse.BundleIssue(parentModel, parentName, comps));
+        }
+
+        return new BundleIntegrityResponse(
+                unresolved.isEmpty(), totalBundles, issues.size(), unresolved.size(), issues);
     }
 
     public ProductResponse create(CreateProductRequest req) {

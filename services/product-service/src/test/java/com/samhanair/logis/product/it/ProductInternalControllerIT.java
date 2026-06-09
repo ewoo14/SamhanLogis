@@ -3,14 +3,19 @@ package com.samhanair.logis.product.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.product.ProductServiceApplication;
+import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.LookupRequest;
@@ -61,6 +66,9 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private BundleComponentRepository bundleComponentRepository;
 
     /** 에어컨 계열 카테고리(serial_managed=true)에 속하는 테스트 품목 UUID */
     private UUID serialProductId;
@@ -187,6 +195,60 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
      * <p>N-1 fix (사이클 2 QA MAJOR 결함): size 단언만 존재해 false-green 가능성 제거.
      * UUID 별 serialManaged 단언을 추가하여 실제 변환 정확성을 보장한다.
      */
+    /**
+     * 정합 점검 — 구성품이 활성 품목으로 해소되는 BUNDLE 은 issues 에 포함되지 않는다(미해소 0 → healthy).
+     */
+    @Test
+    void bundleIntegrity_resolvedComponent_notFlagged() throws Exception {
+        Category cat = categoryRepository.findAll().get(0);
+        String childCode = "IT-CHILD-OK-" + UUID.randomUUID().toString().substring(0, 8);
+        String parentCode = "IT-SET-OK-" + UUID.randomUUID().toString().substring(0, 8);
+        // 자식(활성 품목) + 부모 BUNDLE + 자식 코드로 해소되는 구성품
+        productRepository.save(Product.seedFromSheet(
+                "정합 자식 OK", childCode, cat, new BigDecimal("100000"), new BigDecimal("80000"),
+                ProductType.SINGLE, null, null, null));
+        Product parent = productRepository.save(Product.seedFromSheet(
+                "정합 세트 OK", parentCode, cat, new BigDecimal("100000"), new BigDecimal("80000"),
+                ProductType.BUNDLE, null, null, null));
+        bundleComponentRepository.save(BundleComponent.seed(
+                parent.getId(), childCode, BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.INDOOR, null, true, null));
+
+        mockMvc.perform(get("/products/internal/bundle-integrity")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                // 이 부모는 미해소 구성품이 없으므로 issues 의 bundleModelCode 목록에 등장하지 않아야 함
+                .andExpect(jsonPath("$.data.issues[?(@.bundleModelCode=='" + parentCode + "')]").isEmpty())
+                .andExpect(jsonPath("$.data.totalBundles", greaterThanOrEqualTo(1)));
+    }
+
+    /**
+     * 정합 점검 — 구성품 코드가 활성 품목에 없으면(미등록/단종) 해당 세트가 issues 로 노출되고 healthy=false.
+     * 이 세트는 실제 전개 시 "세트 구성품 일부를 찾을 수 없습니다" 로 거부되는 상태를 사전 적발.
+     */
+    @Test
+    void bundleIntegrity_unresolvedComponent_flagged() throws Exception {
+        Category cat = categoryRepository.findAll().get(0);
+        String badCode = "IT-NONEXISTENT-" + UUID.randomUUID().toString().substring(0, 8);
+        String parentCode = "IT-SET-BAD-" + UUID.randomUUID().toString().substring(0, 8);
+        Product parent = productRepository.save(Product.seedFromSheet(
+                "정합 세트 BAD", parentCode, cat, new BigDecimal("100000"), new BigDecimal("80000"),
+                ProductType.BUNDLE, null, null, null));
+        // 활성 products.modelCode 에 없는 코드로 구성품 등록 → 미해소
+        bundleComponentRepository.save(BundleComponent.seed(
+                parent.getId(), badCode, BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.REMOTE, null, true, null));
+
+        mockMvc.perform(get("/products/internal/bundle-integrity")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.healthy", is(false)))
+                .andExpect(jsonPath("$.data.unresolvedComponentCount", greaterThanOrEqualTo(1)))
+                // 해당 세트가 issues 에 등장 + 미해소 구성품 코드가 목록에 포함
+                .andExpect(jsonPath("$.data.issues[?(@.bundleModelCode=='" + parentCode + "')]"
+                        + ".unresolvedComponents[*].componentProductCode", hasItem(badCode)));
+    }
+
     @Test
     void lookup_mixed_returnsCorrectSerialManagedPerProduct() throws Exception {
         var body = new LookupRequest(List.of(serialProductId, batchProductId));
