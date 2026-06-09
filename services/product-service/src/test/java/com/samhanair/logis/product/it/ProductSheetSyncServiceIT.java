@@ -10,9 +10,13 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.product.client.GoogleSheetsClient;
 import com.samhanair.logis.product.client.GoogleSheetsClient.ValueRenderMode;
+import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.PriceHistory;
+import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
@@ -65,6 +69,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private PriceHistoryRepository priceHistoryRepository;
+
+    @Autowired
+    private BundleComponentRepository bundleComponentRepository;
 
     @BeforeEach
     void resetState() {
@@ -242,8 +249,8 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
         syncService.syncAll();
 
-        // 6 current tab + 홈멀티 base tab(인상 전 단가 PriceHistory) read.
-        verify(sheetsClient, times(7)).readSheetDisplay(eq("test-sheet-id"), anyString());
+        // 6 current tab + 홈멀티 base tab(인상 전 단가 PriceHistory) + 구성품 2 tab(싱글/상업 BUNDLE 적재) read.
+        verify(sheetsClient, times(9)).readSheetDisplay(eq("test-sheet-id"), anyString());
     }
 
     /**
@@ -271,6 +278,92 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(sheetsClient.readSheet("any-id", "any-range")).isEqualTo(dummyRaw);
         assertThat(sheetsClient.readSheet("any-id", "any-range", ValueRenderMode.FORMATTED))
                 .isEqualTo(dummyDisplay);
+    }
+
+    @Test
+    void sync_싱글세트_구성품_적재되고_부모는_BUNDLE_마킹된다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 부모 세트(싱글 세트_단가인상): EXPAND 대상 + KEEP 대상(발통세트) 2개.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),
+                row("360 CST 세트", "15", "AC060CS6PBH1SY", "SET", "2,488,200", "", "1,490,000", "1,490,000", "-"),
+                row("발통세트 원형", "", "FOOT_SET_001", "SET", "100,000", "", "80,000", "80,000", "-")
+        ));
+        // 구성품(싱글 구성품_단가인상): col0=품명, col2=모델명, col5=출고가, col7=납품가, col8=세트.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("실내기 360", "", "IN_360_A", "실내기", "대", "250,000", "", "250,000", "AC060CS6PBH1SY", "기본", "규격A"),
+                row("실외기 360", "", "OUT_360_A", "실외기", "대", "800,000", "", "800,000", "AC060CS6PBH1SY", "", "규격B"),
+                row("발통 자재", "", "FOOT_PART_A", "자재", "EA", "10,000", "", "10,000", "FOOT_SET_001", "", "")
+        ));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+        assertThat(summary.totalComponentsLinked).isEqualTo(3);
+        assertThat(summary.totalBundlesMarked).isEqualTo(2);
+
+        // EXPAND 부모
+        Product expandSet = productRepository.findByModelCodeAndIsDeletedFalse("AC060CS6PBH1SY").orElseThrow();
+        assertThat(expandSet.getProductType()).isEqualTo(ProductType.BUNDLE);
+        assertThat(expandSet.getBundleMode()).isEqualTo(BundleMode.EXPAND);
+        List<BundleComponent> comps = bundleComponentRepository.findByBundleProductId(expandSet.getId());
+        assertThat(comps).hasSize(2);
+        assertThat(comps).extracting(BundleComponent::getComponentProductCode)
+                .containsExactlyInAnyOrder("IN_360_A", "OUT_360_A");
+        assertThat(comps).allSatisfy(c ->
+                assertThat(c.getQtyMode()).isEqualTo(BundleComponent.QtyMode.FOLLOW_SET));
+        assertThat(comps).filteredOn(c -> c.getComponentProductCode().equals("IN_360_A"))
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.getComponentKind()).isEqualTo(BundleComponent.ComponentKind.INDOOR);
+                    assertThat(c.getIsDefault()).isTrue();
+                });
+        assertThat(comps).filteredOn(c -> c.getComponentProductCode().equals("OUT_360_A"))
+                .singleElement()
+                .satisfies(c -> assertThat(c.getComponentKind()).isEqualTo(BundleComponent.ComponentKind.OUTDOOR));
+
+        // 자식 parentBundleSetModel
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("IN_360_A").orElseThrow()
+                .getParentBundleSetModel()).isEqualTo("AC060CS6PBH1SY");
+
+        // KEEP 부모(발통세트)
+        Product keepSet = productRepository.findByModelCodeAndIsDeletedFalse("FOOT_SET_001").orElseThrow();
+        assertThat(keepSet.getProductType()).isEqualTo(ProductType.BUNDLE);
+        assertThat(keepSet.getBundleMode()).isEqualTo(BundleMode.KEEP);
+    }
+
+    @Test
+    void sync_상업멀티구성_수량Q는_FOLLOW_SET_숫자는_FIXED() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 부모(상업멀티_단가인상): mapping (name0, model1, release4, delivery6).
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "대분류", "출고가", "비고", "납품가"),
+                row("DVM 8HP 세트", "COMM_SET_1", "SET", "실외기", "8,000,000", "", "4,400,000")
+        ));
+        // 구성품(상업멀티 구성_단가인상): mapping (name0, model1, release3, delivery5) + 헤더 수량/세트/구분.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티 구성_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "모델명", "단위", "출고가", "수량", "납품가", "소계", "규격", "세트", "구분"),
+                row("구성Q", "CP_Q", "대", "100,000", "Q", "90,000", "", "", "COMM_SET_1", "실내기"),
+                row("구성3", "CP_3", "대", "50,000", "3", "45,000", "", "", "COMM_SET_1", "실외기")
+        ));
+
+        syncService.syncAll();
+
+        Product commSet = productRepository.findByModelCodeAndIsDeletedFalse("COMM_SET_1").orElseThrow();
+        assertThat(commSet.getProductType()).isEqualTo(ProductType.BUNDLE);
+        List<BundleComponent> comps = bundleComponentRepository.findByBundleProductId(commSet.getId());
+        assertThat(comps).hasSize(2);
+        assertThat(comps).filteredOn(c -> c.getComponentProductCode().equals("CP_Q"))
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.getQtyMode()).isEqualTo(BundleComponent.QtyMode.FOLLOW_SET);
+                    assertThat(c.getDefaultQty()).isEqualByComparingTo("1");
+                });
+        assertThat(comps).filteredOn(c -> c.getComponentProductCode().equals("CP_3"))
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.getQtyMode()).isEqualTo(BundleComponent.QtyMode.FIXED);
+                    assertThat(c.getDefaultQty()).isEqualByComparingTo("3");
+                });
     }
 
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */

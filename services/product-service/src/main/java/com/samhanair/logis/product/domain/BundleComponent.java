@@ -99,4 +99,18 @@ public class BundleComponent extends BaseEntity {
                 componentKind == null ? ComponentKind.ACCESSORY : componentKind,
                 componentVariant, isDefault, specText);
     }
+
+    /**
+     * 시트 sync 멱등 갱신 — 부모/자식코드(natural key) 동일 행의 속성 재적재.
+     * bundleProductId / componentProductCode 는 식별자이므로 변경하지 않는다.
+     */
+    public void changeAttributes(BigDecimal defaultQty, QtyMode qtyMode, ComponentKind componentKind,
+                                 String componentVariant, boolean isDefault, String specText) {
+        this.defaultQty = defaultQty == null ? BigDecimal.ONE : defaultQty;
+        this.qtyMode = qtyMode == null ? QtyMode.FIXED : qtyMode;
+        this.componentKind = componentKind == null ? ComponentKind.ACCESSORY : componentKind;
+        this.componentVariant = componentVariant;
+        this.isDefault = isDefault;
+        this.specText = specText;
+    }
 }

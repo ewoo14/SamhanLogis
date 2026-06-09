@@ -1,0 +1,41 @@
+# 세트품목 → 전표 구성품 전개 (GAS 완전 충실) — Spec / 에픽
+
+> 2026-06-09 개발책임자 지시: 세트품목이 실제 전표에 **세트구성품으로 전개**되어 올라가야 한다(기존 GAS 종합견적서/주문서 동일). 현재 우리 구현은 세트가 전표에 한 줄로 올라감 → GAS 동등성 미달. **완전 충실(가격 재배분 6:4 + 옵션 선별 포함)** 으로 이식.
+
+## 0. 현황 (검증됨)
+- `ProductSheetSyncService`: Product 전부 `SINGLE` 고정, BundleComponent 미적재, BUNDLE 미마킹.
+- `ProductSeedRunner`: dry-run 전용 → `bundle_component` 실 적재 0.
+- `BundleExpander`: 로직 골격만, **production 호출 0**(IT만). `SEND_AS_SET_IDS` = 가짜 placeholder.
+- `EstimateToSlipConverter`: estimate_lines → slip_lines **1:1 copy**(전개 없음). `SlipLine`에 세트-구성품 참조 필드 없음.
+
+## 1. GAS 전개 알고리즘 (충실 이식 대상 — `tools/legacy-gas/종합견적서|거래처 발송 주문서`)
+- **연결키**: 구성품의 `세트` 컬럼 = 부모 세트 modelCode(정규화 후 매칭). 헤더이름 기반 동적 파싱(`findIdx_`).
+- **수량 전파**: 싱글 = 구성품수량 = 세트수량(자식수량 무시, 전부 FOLLOW_SET). 상업 = `수량`='Q'→FOLLOW_SET(세트수량), 숫자 N→FIXED(세트수량×N).
+- **KEEP(통째 발송) 판정**: 모델/이름 패턴 — 유선보드(`AIM-A01N`)·실링 드레인펌프·발통세트·`SI-AL700a` + 분류 부자재/실외기받침. (정적 ID 아님 → 패턴 매칭.)
+- **가격(핵심)**:
+  - 싱글: 세트단가를 **실내:실외 6:4(가정)/4:6 비율 재배분**. 고정부품(패널/리모컨/자재/발통=실내·실외 본체 아님) 합계 선차감 → 잔액을 실내/실외 그룹 비례배분(그룹 다수면 기존단가 비례 + 잔차 마지막행), 천원 단위 반올림. 구성품 합 = 세트단가.
+  - 상업: 구성품 **개별 단가**(`getRealCommPrice(model)`), 재배분 없음.
+- **옵션 선별(picked)**: 패널 1개 선택, 리모컨 선택/교체, 자재 포함여부 — 사용자 옵션으로 구성품 일부만 전개. 발통/유연호스I형/운임/절삭 제외.
+- **표시**: 견적=세트헤더+`└[구성]` 들여쓰기 / 전표 payload=**구성품 행만**(헤더행 없음), 싱글 첫 구성품 `isSetHead`+`setId/setName`.
+
+## 2. 설계 결정 (확정)
+- **전개 위치 = BE 중심**(DB 진실원 원칙 [[sp-08-legacy-gas-db-api-parity]]). FE 견적화면이 세트+옵션선택을 BE로 전송 → BE가 전개(옵션필터+재배분) → estimate_lines에 구성품 라인 영속 → 전표 1:1 흐름. (GAS는 클라가 explode; 우리는 BE가 진실원.)
+- **충실도 = 완전(GAS 동일)** — 6:4 재배분 + 옵션 선별 + 리모컨 교체.
+- **상업 구성품 가격 우선순위 = EST(종합견적서) 기준**(납품가>출고가). (ORD와 불일치 → EST 채택.)
+
+## 3. 3-PR 분해
+### PR-1 (본 PR) — 데이터 기반: 구성품 적재 + BUNDLE 마킹
+- `ProductSheetSyncService`: 싱글구성품/상업멀티구성 탭을 **헤더이름 기반**으로 추가 파싱(`세트`/`구분`/`수량`/`구성품특징`/`규격`) → `BundleComponent` upsert.
+- 부모 Product `productType=BUNDLE` 마킹 + `bundleMode`(KEEP 패턴 → KEEP, else EXPAND) + 구성품 `parentBundleSetModel`.
+- 수량: 싱글 FOLLOW_SET(qty 1), 상업 'Q'→FOLLOW_SET / N→FIXED N. `componentKind` 매핑(구분→INDOOR/OUTDOOR/PANEL/REMOTE/MATERIAL/ACCESSORY/FOOT). variant/spec/isDefault.
+- 멱등 sync + soft-delete(시트에서 사라진 구성품). 실 Postgres IT(부모 BUNDLE + 구성품 N + KEEP 4종).
+- 비스코프: 가격 재배분·옵션 선별·전표 전개(PR-2/3).
+
+### PR-2 — 전개 엔진: 6:4 재배분 + 옵션 선별 + 리모컨 교체
+- `BundleExpander` 확장: 옵션 파라미터(패널/리모컨/자재) + `splitIndoorOutdoorToK`(재배분) + KEEP 패턴 실연결. GAS fixture 단위테스트(세트→구성품 가격합=세트가 검증).
+
+### PR-3 — 견적/전표 통합 + FE 옵션 UI
+- `EstimateService`가 BUNDLE+옵션 수신 → 전개 → estimate_lines 구성품 영속. `EstimateToSlipConverter`/PartnerOrder 경로 흐름. `SlipLine`/`PartnerOrderLine` 세트헤더/구성품 참조 필드. FE 견적화면 세트+옵션 picker. 전개 회귀 IT + 풀스택 Docker 실QA(세트→전표 구성품).
+
+## 4. 워크플로우
+6단계 슬라이스 × 3 PR. **Codex 다운(~6/11) → Claude 대체**(환경한계 예외). QA 에이전트 실 Docker 의무. 각 PR dual리뷰+CI green+Docker 실QA.
