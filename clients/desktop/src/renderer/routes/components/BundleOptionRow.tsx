@@ -5,8 +5,10 @@
  * 그대로 입력받아 BE `BundleSetOptions` 로 전달한다. BE BundleExpander 가 6:4 재분배 +
  * 옵션 필터링으로 구성품 라인을 전개하므로, 이 행은 "전개 전 선택"만 담당한다.
  *
- * <p>견적서(EstimateFormPage)·출고전표(SlipFormPage)·판매전표(SalesAccountingSlipFormPage)
- * 세 화면에서 공용. modelName lookup 결과 productType === "BUNDLE" 인 라인 아래에만 렌더.
+ * <p>견적서(EstimateFormPage)·출고/입고전표(SlipFormPage) **두 화면**에서 공용.
+ * modelName lookup 결과 productType === "BUNDLE" 인 라인 아래에만 렌더.
+ * (판매전표 SalesAccountingSlipFormPage 는 기존 전표 라인 할당 기반이라 품목 직접선택·
+ *  BUNDLE 진입점이 없어 미적용.)
  *
  * <p>옵션 modelCode 는 자유 입력(빈 값 → BE 기본값 사용). 실외기 제외 체크 시 교체 모델
  * 입력은 비활성화한다(상호배타). 판넬 360 형상은 BE 가 variant(`원형`/`사각`)와 정확 일치로
