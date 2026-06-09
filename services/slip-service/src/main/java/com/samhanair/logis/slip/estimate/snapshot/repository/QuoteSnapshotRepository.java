@@ -19,19 +19,21 @@ public interface QuoteSnapshotRepository extends JpaRepository<QuoteSnapshot, UU
     /**
      * 사용자별 + 저장일시 범위 목록 (최신순) — legacy getQuoteHistory(startDate, endDate) 정합.
      *
-     * <p>from/to 는 nullable — null 이면 해당 경계 무제한. legacy 가 담당자 이메일 eq +
-     * 저장일시 on_or_after/on_or_before 필터 후 저장일시 desc 정렬했던 동작과 동일.
+     * <p>from/to 는 항상 경계값으로 채워 전달한다(서비스 레이어가 미지정 시 FLOOR/CEIL 대입).
+     * {@code (:param IS NULL OR ...)} 형태는 PostgreSQL 이 NULL 파라미터의 타입을 추론하지 못해
+     * "could not determine data type of parameter" 로 실패하므로(IT 가 로컬 skip 시 미적발),
+     * NULL 분기 없이 항상 BETWEEN 비교한다. legacy 의 담당자 eq + 저장일시 범위 + desc 정렬 동등.
      *
      * @param userEmail 저장 담당자 이메일 (정확 일치)
-     * @param from 저장일시 하한 (nullable)
-     * @param to 저장일시 상한 (nullable)
+     * @param from 저장일시 하한 (non-null, 미지정 시 FLOOR)
+     * @param to 저장일시 상한 (non-null, 미지정 시 CEIL)
      * @return 저장일시 내림차순 스냅샷 목록
      */
     @Query("""
             SELECT q FROM QuoteSnapshot q
             WHERE q.userEmail = :userEmail
-              AND (:from IS NULL OR q.savedAt >= :from)
-              AND (:to   IS NULL OR q.savedAt <= :to)
+              AND q.savedAt >= :from
+              AND q.savedAt <= :to
             ORDER BY q.savedAt DESC
             """)
     List<QuoteSnapshot> findHistory(@Param("userEmail") String userEmail,

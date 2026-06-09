@@ -28,6 +28,10 @@ public class QuoteSnapshotService {
 
     private static final Logger log = LoggerFactory.getLogger(QuoteSnapshotService.class);
 
+    /** 날짜 미지정 시 사용할 경계값 — PostgreSQL 파라미터 타입 추론 실패 회피(NULL 분기 제거). */
+    private static final LocalDateTime FLOOR = LocalDateTime.of(1900, 1, 1, 0, 0, 0);
+    private static final LocalDateTime CEIL = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
     private final QuoteSnapshotRepository repository;
 
     /**
@@ -63,7 +67,10 @@ public class QuoteSnapshotService {
     public List<QuoteSnapshotResponse> history(String userEmail, String startDate, String endDate) {
         LocalDateTime from = parseDayStart(startDate);
         LocalDateTime to = parseDayEnd(endDate);
-        return repository.findHistory(userEmail == null ? null : userEmail.trim(), from, to)
+        // 미지정 경계는 FLOOR/CEIL 로 — repository 가 NULL 분기 없이 BETWEEN 비교(PostgreSQL 타입추론 회피)
+        return repository.findHistory(userEmail == null ? null : userEmail.trim(),
+                        from != null ? from : FLOOR,
+                        to != null ? to : CEIL)
                 .stream()
                 .map(QuoteSnapshotResponse::full)
                 .toList();
