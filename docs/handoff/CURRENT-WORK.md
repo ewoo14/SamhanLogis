@@ -4,6 +4,39 @@
 
 ---
 
+## 🌙 2026-06-10 (야간 자율) — **GAS 전체 정합성 감사 + 종합견적서 완결 에픽**
+
+> 개발책임자 지시(2026-06-09 밤): ① **모든 GAS 코드**(24앱·70,560줄)를 함수 단위로 무누락 이식 검증 ② **종합견적서는 구글드라이브 라이브 코드 재다운로드 후 재이식** ③ **Notion/Google Sheets/이카운트/엑셀 → 전부 우리 DB 데이터로 치환**(노션 페이지 데이터도 시드 DB 이식+통신호환) ④ 차이는 극명히 밝히고 재진행. **취침 → 오전 9시까지 PM 자율 판단·진행**.
+
+### 결정 (개발책임자)
+- **옵션C 폐기** → Google Sheets(견적 카탈로그/단가/거래처/담당자 포함) **전면 우리 DB 치환** ([[project_sheets_to_db_full_migration]]).
+- **실행 순서 = 종합견적서 완결 먼저** → 이후 23개 앱.
+- 라이브 종합견적서 소스 확보 = **clasp pull**(개발책임자 구글 인증 필요). 커넥터 export 는 폰트 10MB 초과로 차단.
+
+### 종합견적서 4-에이전트 정합성 감사 결과 (`docs/audit/gas-port-fidelity/종합견적서-audit-2026-06-09.md`)
+- ✅ **프론트 화면/UI/UX**: 무누락 이식(모달 72개 동일). RPC dispatch 끊김 0.
+- ⚠️ **P0 갭**: ①견적 저장/불러오기 엔드포인트 부재(=P0-A, 해소중) ②전표발행 `/api/v1/slips`(잘못)→`/from-estimate` 미연결(P0-B) ③계산 6함수 전면 재작성/축약(getSpecDetailMap_/classifyHome_/classifyCommercial_/decideWarehouseCode_/buildDefaultDcConfig_/getFormulas 수식분기 붕괴) ④Sheets 직접 read 잔존.
+- ⚠️ **P1**: 표시명 정제 깡통화, DC설정 path 불일치(항상 45% default), 재고조회 stub, MS 응답 shape 미보장.
+
+### ✅ 이번 세션 머지/진행
+- **#446 머지**(#25 견적 언제든지 전표 전환 — QUOTE_ACCEPTED 게이트 폐기, DRAFT/SENT/ACCEPTED 임의 전환. 주문서는 이미 허용).
+- **#447 PR(P0-A 견적 저장/불러오기)** — CI 진행중. slip-service `quote_snapshots`(V36)+엔티티/repo/service/controller, `/api/v1/estimates/snapshots`(permitAll), 게이트웨이 NoStripPrefix 라우트, code.js ApiResponse 봉투 언래핑, `.env.example` ESTIMATE_SERVICE_URL→8086, IT 4종 + ci.yml allowlist 등재. **실 standalone-boot QA(실 Docker Postgres slip_qa) 통과**: 저장→blob EXACT 복원(한글 무결)+날짜필터+사용자격리. 실 QA가 GET PostgreSQL 타입추론 버그 사전 적발·수정(IT 로컬 skip 미적발분).
+
+### 🔵 다음 (우선순위)
+1. **#447 CI green → 머지** (P0-A).
+2. **P0-B**: slip-bridge `/api/v1/slips`→`/from-estimate` URL+라인필드 정합. ⚠️ `/from-estimate` 는 `@RequirePermission`+anyRequest authenticated → estimate-app 무인증 server-to-server 인증(permitAll vs X-Internal-Token) 결정 + **full 스택 실 QA**(productClient 해소 필요=eureka on) 후 머지.
+3. **P0-C 계산 6함수 충실 복원** — clasp pull 라이브 소스 확보 후(현 06-04 baseline 기준 우선 가능).
+4. **Notion 페이지 데이터 → 시드 DB**(#29: DC설정/이력/인증) + **Sheets→DB 전면 치환**(#30).
+5. **종합견적서 Docker E2E 실 UI 캡처**(#31): 견적 작성→저장→불러오기→전표발행. #25 데스크톱 convert 버튼 캡처 동반.
+6. 이후 나머지 23개 GAS 앱 함수단위 감사+이식.
+
+### ⚠️ 환경/블로커
+- **clasp pull 필요**(종합견적서 라이브 06-09 변경 미확보, 폰트 10MB export 차단). NanumGothic/Bold 각 6.2MB.
+- Codex 사용한도 다운(~6/11) → dual-review Claude 대체.
+- 로컬: Docker 스택 전체 가동중(samhan-*). slip_qa 는 P0-A QA용 throwaway(정리 가능). standalone slip-service:8099 가동중일 수 있음(정리 대상).
+
+---
+
 ## 🏢 2026-06-09 (최신) — 세트 에픽 후속 + 출고전표 폼 정비 (실 UI 리뷰 주도)
 
 > 개발책임자가 **실 Docker 스택 + 데스크톱 실 UI**(실 게이트웨이 :8080 + 실 로그인 `dev_master`, VITE_MOCK_MODE 끔)로 라이브 리뷰하며 다수 개선 발견. **실서버 QA = 실사용자 UI 캡처** 규칙 박제([[feedback_real_server_check_screenshot]]).

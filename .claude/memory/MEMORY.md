@@ -86,3 +86,4 @@
 - [FE 옵션 타입 = BE DTO 타입 정확 일치](feedback_fe_option_type_matches_be_dto.md) — boolean vs String variant 불일치는 Jackson 강제변환→silent no-op. 이름만 대조 말고 타입+실 매칭처까지. 세트 전개 에픽 PR-3b 완결(panelShape360, #439, 2026-06-09)
 - [실서버 점검 = 실사용자 UI 캡처](feedback_real_server_check_screenshot.md) — 실서버 점검/QA 시 PR 에 API JSON 아닌 실사용자 데스크톱 화면 캡처(실 게이트웨이 :8080+실 로그인 dev_master, VITE_MOCK_MODE 끔). UI 없으면 그 기능이 보이는 사용자 화면으로 대체 (2026-06-09)
 - [전산=이카운트 대체, GAS는 export원](project_replaces_ecount_gas_was_exporter.md) — 우리 전산이 eCount 대체. GAS가 eCount로 보내던 데이터(공급/부가세 분해·단가VAT포함·규격 등)를 우리가 자체 소유·계산·표시. GAS 참조 시 "eCount 매핑" 아닌 1급 도메인 설계 (2026-06-09)
+- [옵션C 폐기 — 외부 4종 전면 DB 치환](project_sheets_to_db_full_migration.md) — Notion/Google Sheets/이카운트/엑셀 전부 우리 DB 데이터로 치환(노션 페이지 데이터도 시드 DB 이식+통신호환). 옵션C(시트 그대로) 폐기. 실행순서=종합견적서 완결 먼저 (2026-06-09)
