@@ -187,7 +187,7 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated()) // addLine 은 @ResponseStatus(CREATED) → 201
                 // 기존 1라인 + 전개 구성품 2라인 = 3
                 .andExpect(jsonPath("$.data.lines.length()").value(3))
                 // 구성품 2라인 전개 확인 (UUID 비공개 — productName/unitPrice 로 단언)
