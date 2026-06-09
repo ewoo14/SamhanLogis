@@ -126,8 +126,12 @@ public class ProductSheetSyncService {
 
     /**
      * 사양(ProductSpec) 적재 — 사양 보유 탭(홈멀티/싱글세트/상업멀티)의 헤더 컬럼을 spec_key=헤더명,
-     * value=셀 원본(통짜)으로 적재(legacy getSpecDetailMap_ 통짜저장 원칙). 아래는 사양 아님 → 제외.
-     * (구형/구성품 탭은 사양 미적재 — legacy getSpecDetailMap_ 범위 정합.)
+     * value=셀 원본(통짜)으로 적재(legacy getSpecDetailMap_ 통짜저장 원칙).
+     *
+     * <p><b>정책 = blocklist</b>: legacy getSpecDetailMap_ 는 알려진 사양 헤더 allowlist(idx 화이트리스트)이나,
+     * 본 sync 는 비사양(아래 SPEC_EXCLUDE + 가격성 isPriceLikeHeader + 매핑 컬럼)만 제외하고 **나머지 모든
+     * 헤더를 사양으로 적재**(allowlist 보다 포괄적). 사양 보유 탭은 getSpecDetailMap_ 범위(홈멀티/싱글세트/
+     * 상업멀티)와 동일하고, 구형/구성품 탭은 미적재. 멀티컬럼 의미병합·| / 분리·ERV 는 PR-3 렌더 영역.
      */
     // 헤더 공백제거 정규화형 기준(예: "소  계"→"소계").
     private static final Set<String> SPEC_EXCLUDE_HEADERS = Set.of(
@@ -365,7 +369,7 @@ public class ProductSheetSyncService {
                 continue;
             }
             String h = header.get(col) == null ? "" : header.get(col).replaceAll("\\s+", "");
-            if (h.isBlank() || SPEC_EXCLUDE_HEADERS.contains(h)) continue;
+            if (h.isBlank() || SPEC_EXCLUDE_HEADERS.contains(h) || isPriceLikeHeader(h)) continue;
             String value = safeGet(cells, col).trim();
             if (value.isBlank() || "-".equals(value)) continue;
             String key = h.length() > 50 ? h.substring(0, 50) : h;
@@ -389,6 +393,14 @@ public class ProductSheetSyncService {
             }
         }
         return linked;
+    }
+
+    /**
+     * 가격/금액성 헤더 차단(보조) — SPEC_EXCLUDE 명시 누락분(소비자가/단가/금액/합계 등 변형 표기)이
+     * 사양으로 새지 않도록. '소비전력'·'에너지소비효율' 등 사양 키워드는 미매칭(소비'자가' 아님).
+     */
+    private static boolean isPriceLikeHeader(String h) {
+        return h.matches(".*(가격|단가|금액|합계|총액|정가|소비자가|부가세|VAT).*");
     }
 
     /** 구성품 탭 헤더 탐색 — '세트' AND '모델' 포함 행(상위 10행). */

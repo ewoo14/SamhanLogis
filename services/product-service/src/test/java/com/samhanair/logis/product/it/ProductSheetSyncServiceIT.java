@@ -442,6 +442,37 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                 .singleElement().satisfies(s -> assertThat(s.getSpecValue()).isEqualTo("R-410A"));
     }
 
+    @Test
+    void sync_사양키_사라졌다_재등장해도_UNIQUE위반없이_재활성() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 1차: 냉매가스 사양 존재
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품 명", "모델명", "배관경", "출고가", "냉매가스", "납품가"),
+                row("Hi-Multi", "HM_CHURN", "9/15", "1,500,000", "R-32", "1,200,000")
+        ));
+        syncService.syncAll();
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("HM_CHURN").orElseThrow();
+        assertThat(productSpecRepository.findByProductIdAndSpecKey(p.getId(), "냉매가스")).isPresent();
+
+        // 2차: 냉매가스 값 비움('-') → soft-delete
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품 명", "모델명", "배관경", "출고가", "냉매가스", "납품가"),
+                row("Hi-Multi", "HM_CHURN", "9/15", "1,500,000", "-", "1,200,000")
+        ));
+        syncService.syncAll();
+        assertThat(productSpecRepository.findByProductIdAndSpecKey(p.getId(), "냉매가스")).isEmpty();
+
+        // 3차: 냉매가스 재등장 → 전체 UNIQUE 였다면 제약위반 롤백. 부분 UNIQUE(V12)면 신규 active 정상.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품 명", "모델명", "배관경", "출고가", "냉매가스", "납품가"),
+                row("Hi-Multi", "HM_CHURN", "9/15", "1,500,000", "R-410A", "1,200,000")
+        ));
+        ProductSheetSyncService.SyncSummary third = syncService.syncAll();
+        assertThat(third.byTab.get("홈멀티").error).isNull();
+        assertThat(productSpecRepository.findByProductIdAndSpecKey(p.getId(), "냉매가스"))
+                .get().satisfies(s -> assertThat(s.getSpecValue()).isEqualTo("R-410A"));
+    }
+
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */
     @SafeVarargs
     private static List<List<Object>> homeMultiRows(List<Object>... dataRows) {
