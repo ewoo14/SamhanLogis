@@ -33,9 +33,13 @@
   - design-system: `ProductOption`/`LineDraft` +productType/modelCode/setOptions, `BundleSetOptions` 신규 export (dist 재빌드 필요 — CI frontend-ds 가 선빌드).
   - desktop: `productApi.searchProducts`·`slip.ProductLookupResult`(+productType/modelCode), `SlipLineInput`/`EstimateLineRequest`.setOptions, `BundleOptionRow` 공용 컴포넌트, EstimateFormPage·SlipFormPage 배선, mock `SET-HM2WAY`(BUNDLE) fixture.
   - **판매회계전표(SalesAccountingSlipFormPage)는 배분 화면**(품목 직접선택 아님) → 전개 대상 아님(원천 전표는 SlipFormPage 에서 전개).
-- **검증**: DS 2 tsc + desktop typecheck PASS, `playwright/bundle-set-options` 5/5 + ac-2 7/7 회귀 PASS. 증빙 `docs/qa/bundle-set-expansion-pr3b/`.
-- **함정 박제**: 폴더 rename 으로 desktop `@samhan/design-system` junction 구경로(`/c/dev/SamhanLogis/...`) 깨짐 → `npm install` 재링크([[rename-filedep-junction]]).
-- **잔여**: §3 Docker 실서버 옵션-적용 전개 QA + dual 5-agent 리뷰 + CI green → 머지.
+- **검증**: DS 2 tsc + desktop typecheck PASS, `playwright/bundle-set-options` **7/7** + 회귀(ac-2·d2-6d·2-6c) **28/28** PASS. 증빙 `docs/qa/bundle-set-expansion-pr3b/`.
+- **듀얼 리뷰 (PR #439, 사이클 N=2 완료)**:
+  - 사이클1 Claude TM 5-agent: P1×4(panelShape360 boolean→**String** 계약 / 페이로드 단언 / off-brand Indigo / Docker QA) + P2×5 + P3 → 전건 fix.
+  - 사이클2 교차검토: **Codex 사용량 한도(6/11까지) 다운** → [[feedback_dual_5agent_review]] 환경한계 예외로 독립 Claude adversarial 리뷰 대체. 사이클1 fix 6건 전부 정확·완전 확인, P3 docstring 1건 fix. **APPROVE-WITH-NITS**.
+- **Docker 실서버 §3 QA PASS**: product-service standalone(:8099, 실 product_db) `/expand` 직접호출 — `remoteExcluded=true`→REMOTE 제거+6:4 재배분, `panelShape360="사각"`→패널 실제 교체(PC6NUNK1NW→PC6NUDK1NW). String 계약 실작동 실증. (stale docker 컨테이너 `/expand` 404 → 재빌드 standalone 우회 [[project_local_stack_qa_gotchas]].)
+- **함정 박제**: ① 폴더 rename → desktop `@samhan/design-system` junction 구경로 깨짐 → `npm install` 재링크([[rename-filedep-junction]]). ② mock POST `/slips`(+18곳) `JSON.parse(config.data as string)` object 본문 throw → `parseMockBody` 일괄([[inprocess-mock-principles]]).
+- **잔여**: CI green 대기 → PM 종합 → 머지.
 - **후속(머지차단 아님)**: ① 기존 전표 라인추가(addLine) 경로 전개 미적용(주 경로 create 처리됨) ② 직접전표 BUNDLE 전용 IT(로직 견적 동형) ③ ⚠️ **운영 전 bundle_component↔products 정합 확인**(미등록/단종 구성품 0 — 아니면 세트 견적 404) ④ 사양 flapping 전역 reconcile ⑤ 상업멀티 구성품 kind=ACCESSORY.
 
 ### 🗂️ (구) PR-3 7단계 잔여계획 — 완료됨
