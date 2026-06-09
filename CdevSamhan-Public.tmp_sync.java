@@ -119,8 +119,8 @@ public class ProductSheetSyncService {
      * 상업멀티 구성 = {@code 수량} 컬럼 'Q' → FOLLOW_SET(1), 숫자 N → FOLLOW_SET(N) (둘 다 setQty 비례 = legacy explodeCommSets_).
      */
     private static final List<ComponentTabMapping> COMPONENT_TAB_MAPPINGS = List.of(
-            new ComponentTabMapping("싱글 구성품_단가인상", false),
-            new ComponentTabMapping("상업멀티 구성_단가인상", true));
+            new ComponentTabMapping("싱글 구성품_단가인상", ProductCategory.SINGLE_SET, false),
+            new ComponentTabMapping("상업멀티 구성_단가인상", ProductCategory.COMMERCIAL_MULTI, true));
 
     /** 부모-자식 연결 컬럼(자식의 부모 세트 modelCode) 헤더 후보. */
     private static final List<String> SET_HEADERS = List.of("세트");
@@ -218,7 +218,7 @@ public class ProductSheetSyncService {
      * ② 자식 Product 의 {@code parentBundleSetModel} 설정. ③ BundleComponent upsert(멱등).
      * ④ 시트에서 사라진 (부모,자식) 구성품 행은 soft-delete.
      *
-     * <p>수량: 싱글 = FOLLOW_SET(1) / 상업 = {@code 수량}='Q'→FOLLOW_SET(1), 숫자 N→FOLLOW_SET(N) (둘 다 setQty 비례).
+     * <p>수량: 싱글 = FOLLOW_SET(1) / 상업 = {@code 수량}='Q'→FOLLOW_SET, 숫자 N→FIXED(N).
      * GAS 종합견적서 explodeSetParts/explodeCommSets_ 의 수량 전파와 정합.
      */
     @Transactional
@@ -413,8 +413,8 @@ public class ProductSheetSyncService {
 
     private record QtyAndMode(BigDecimal qty, BundleComponent.QtyMode mode) {}
 
-    /** 구성품 탭 매핑 record. hasQtyColumn = 상업멀티 구성(수량 컬럼 보유) 여부. */
-    public record ComponentTabMapping(String tabName, boolean hasQtyColumn) {}
+    /** 구성품 탭 매핑 record. */
+    public record ComponentTabMapping(String tabName, ProductCategory parentCategory, boolean hasQtyColumn) {}
 
     /** 구성품 tab sync 결과. */
     public static class ComponentSyncResult {

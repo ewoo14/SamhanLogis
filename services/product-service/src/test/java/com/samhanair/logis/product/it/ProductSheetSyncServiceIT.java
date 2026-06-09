@@ -332,7 +332,7 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void sync_상업멀티구성_수량Q는_FOLLOW_SET_숫자는_FIXED() throws Exception {
+    void sync_상업멀티구성_수량Q와_숫자_모두_FOLLOW_SET() throws Exception {
         when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
         // 부모(상업멀티_단가인상): mapping (name0, model1, release4, delivery6).
         when(sheetsClient.readSheetDisplay("test-sheet-id", "상업멀티_단가인상!A1:Z")).thenReturn(rows(
@@ -365,6 +365,42 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                     assertThat(c.getQtyMode()).isEqualTo(BundleComponent.QtyMode.FOLLOW_SET);
                     assertThat(c.getDefaultQty()).isEqualByComparingTo("3");
                 });
+    }
+
+    @Test
+    void sync_구성품_재sync_멱등_그리고_사라진_구성품_softDelete() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),
+                row("멱등 세트", "15", "IDEMP_SET", "SET", "2,000,000", "", "1,500,000", "1,500,000", "-")
+        ));
+        List<List<Object>> partsWith2 = rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("실내기", "", "IDEMP_IN", "실내기", "대", "250,000", "", "250,000", "IDEMP_SET", "기본", "규격A"),
+                row("실외기", "", "IDEMP_OUT", "실외기", "대", "800,000", "", "800,000", "IDEMP_SET", "", "규격B")
+        );
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(partsWith2);
+
+        // 1차 sync
+        syncService.syncAll();
+        Product set = productRepository.findByModelCodeAndIsDeletedFalse("IDEMP_SET").orElseThrow();
+        assertThat(bundleComponentRepository.findByBundleProductId(set.getId())).hasSize(2);
+
+        // 2차 sync — 동일 데이터 → 멱등(중복 active 0, V11 위반 예외 없음)
+        ProductSheetSyncService.SyncSummary second = syncService.syncAll();
+        assertThat(second.byComponentTab.get("싱글 구성품_단가인상").error).isNull();
+        assertThat(bundleComponentRepository.findByBundleProductId(set.getId())).hasSize(2);
+
+        // 3차 sync — 구성품 1개(IDEMP_OUT) 시트에서 제거 → soft-delete
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("실내기", "", "IDEMP_IN", "실내기", "대", "250,000", "", "250,000", "IDEMP_SET", "기본", "규격A")
+        ));
+        ProductSheetSyncService.SyncSummary third = syncService.syncAll();
+        assertThat(third.byComponentTab.get("싱글 구성품_단가인상").softDeleted).isEqualTo(1);
+        List<BundleComponent> remaining = bundleComponentRepository.findByBundleProductId(set.getId());
+        assertThat(remaining).hasSize(1);
+        assertThat(remaining).extracting(BundleComponent::getComponentProductCode).containsExactly("IDEMP_IN");
     }
 
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */

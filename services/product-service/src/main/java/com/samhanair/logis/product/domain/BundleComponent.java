@@ -22,7 +22,8 @@ import org.hibernate.annotations.UuidGenerator;
  * <p>출처: Migration Plan §2.1.3. 싱글 구성품 282 부모 + 1455 component / 상업멀티 구성
  * 86 부모 + ~430 component → 합계 368 부모 + 1885 component.
  *
- * <p>qtyMode: 싱글 구성품 G열 'Q' = FOLLOW_SET (= setQty), 숫자 = FIXED.
+ * <p>qtyMode: 시트 sync 는 전부 FOLLOW_SET 로 적재('Q'→defaultQty 1, 숫자 N→defaultQty N) — 전개 시
+ * setQty 비례(legacy explodeCommSets_). FIXED 는 도메인 능력으로 보존(sync 미생성).
  */
 @Entity
 @Getter
