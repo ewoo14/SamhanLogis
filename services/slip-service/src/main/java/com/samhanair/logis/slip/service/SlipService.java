@@ -117,20 +117,26 @@ public class SlipService {
     private void addSlipLinesExpanded(Slip slip, UUID productId, ProductSummary summary,
                                       String reqName, String reqModel, String specification, int quantity,
                                       java.math.BigDecimal unitPrice, String note,
-                                      com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions) {
+                                      com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+                                      boolean priceVatInclusive) {
         boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
                 && summary.modelCode() != null && !summary.modelCode().isBlank();
         if (!bundle) {
             String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
             String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
-            slip.addLine(SlipLine.create(slip, productId, productName, modelName,
-                    specification, quantity, unitPrice, note));
+            // 단가 부가세포함 전환: priceVatInclusive 면 라인 단위로 공급가액/부가세 분리.
+            slip.addLine(priceVatInclusive
+                    ? SlipLine.createFromVatInclusive(slip, productId, productName, modelName,
+                            specification, quantity, unitPrice, note, null)
+                    : SlipLine.create(slip, productId, productName, modelName,
+                            specification, quantity, unitPrice, note));
             return;
         }
         ExpandedLineDto.Options opts = setOptions == null ? null : new ExpandedLineDto.Options(
                 setOptions.remoteOption(), Boolean.TRUE.equals(setOptions.remoteExcluded()),
                 setOptions.panelOption(), setOptions.panelShape360(),
                 Boolean.TRUE.equals(setOptions.materialIncluded()));
+        // 세트 base 단가도 VAT 포함 그대로 expand 에 전달 → 구성품 단가도 VAT 포함으로 재배분.
         List<ExpandedLineDto> expanded = productClient.expand(
                 summary.modelCode(), java.math.BigDecimal.valueOf(quantity), opts, unitPrice);
         int added = 0;
@@ -143,8 +149,12 @@ public class SlipService {
             if (q <= 0) {
                 q = 1;
             }
-            SlipLine line = SlipLine.create(slip, el.productId(), el.name(), el.modelName(),
-                    specification, q, el.unitPrice() == null ? java.math.BigDecimal.ZERO : el.unitPrice(), note);
+            java.math.BigDecimal compUnit = el.unitPrice() == null ? java.math.BigDecimal.ZERO : el.unitPrice();
+            SlipLine line = priceVatInclusive
+                    ? SlipLine.createFromVatInclusive(slip, el.productId(), el.name(), el.modelName(),
+                            specification, q, compUnit, note, null)
+                    : SlipLine.create(slip, el.productId(), el.name(), el.modelName(),
+                            specification, q, compUnit, note);
             line.assignBundleComponent(summary.modelCode(), el.setHead());
             slip.addLine(line);
             added++;
@@ -206,7 +216,8 @@ public class SlipService {
         for (CreateSlipRequest.SlipLineRequest lineReq : req.lines()) {
             addSlipLinesExpanded(slip, lineReq.productId(), byId.get(lineReq.productId()),
                     lineReq.productName(), lineReq.modelName(), lineReq.specification(),
-                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note(), lineReq.setOptions());
+                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note(), lineReq.setOptions(),
+                    Boolean.TRUE.equals(lineReq.priceVatInclusive()));
         }
 
         // 5. 자동 메모 (야적/지방 등)
@@ -591,7 +602,8 @@ public class SlipService {
         // BUNDLE(세트)면 product-service expand 로 구성품 N라인(옵션 반영), 아니면 1라인.
         applyMutation(() -> addSlipLinesExpanded(slip, req.productId(), summary,
                 req.productName(), req.modelName(), req.specification(),
-                req.quantity(), req.unitPrice(), req.note(), req.setOptions()));
+                req.quantity(), req.unitPrice(), req.note(), req.setOptions(),
+                Boolean.TRUE.equals(req.priceVatInclusive())));
         // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,

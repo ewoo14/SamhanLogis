@@ -175,6 +175,42 @@ public class SlipLine extends BaseEntity {
                 quantity, unitPrice, note, null);
     }
 
+    /**
+     * VAT 포함 단가 기반 생성 — 단가 부가세포함 전환(2026-06-09 개발책임자 확정, 라인 단위 eCount 방식).
+     *
+     * <p>사용자 입력 단가는 <b>부가세 포함</b>. 라인 단위로 공급가액/부가세를 분리:
+     * <ul>
+     *   <li>합계(VAT포함) = {@code 수량 × unitPriceWithVat}</li>
+     *   <li>공급가액(supplyAmount) = {@code round(합계 ÷ 1.1)} (HALF_UP)</li>
+     *   <li>부가세(vatAmount) = {@code 합계 − 공급가액}</li>
+     *   <li>unitPrice(공급 단가, 저장용 비권위) = {@code 공급가액 ÷ 수량}</li>
+     *   <li>lineTotal = 공급가액(VAT 미포함 라인합, 기존 의미 유지)</li>
+     * </ul>
+     * 합계/공급가액/부가세는 <b>라인 단위 권위값</b>으로 저장(per-unit 재계산 drift 방지).
+     *
+     * @param unitPriceWithVat 부가세 포함 단가 (per-unit, 0 이상)
+     */
+    public static SlipLine createFromVatInclusive(Slip slip, UUID productId, String productName,
+                                                  String modelName, String specification, int quantity,
+                                                  BigDecimal unitPriceWithVat, String note,
+                                                  UUID sourceOrderLineId) {
+        validatePositive(quantity);
+        validateUnitPrice(unitPriceWithVat);
+        BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal supply = lineInclVat.divide(new BigDecimal("1.1"), 2, RoundingMode.HALF_UP);
+        BigDecimal vat = lineInclVat.subtract(supply);
+        BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
+        // 공급 단가로 일반 생성 후 라인 단위 권위값으로 덮어쓴다.
+        SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
+                quantity, supplyUnit, note, sourceOrderLineId);
+        line.lineTotal = supply;
+        line.supplyAmount = supply;
+        line.vatAmount = vat;
+        line.unitPriceWithVat = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        return line;
+    }
+
     /** 세트 전개 구성품 표시 — 전개된 세트 구성품 라인에만 부여(parentSetModel + 첫 라인 setHead). */
     public void assignBundleComponent(String parentSetModel, boolean setHead) {
         this.parentSetModel = parentSetModel;

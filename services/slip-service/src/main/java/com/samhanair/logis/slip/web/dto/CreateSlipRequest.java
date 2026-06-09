@@ -95,12 +95,25 @@ public record CreateSlipRequest(
             @NotNull @Positive Integer quantity,
             @NotNull @DecimalMin("0.00") BigDecimal unitPrice,
             @Size(max = 200) String note,
-            com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions) {
+            com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+            /**
+             * 단가 부가세포함 여부 — true 면 {@code unitPrice} 가 VAT 포함 단가(사용자 입력)이며
+             * BE 가 라인 단위로 공급가액/부가세를 분리(eCount 방식, {@link com.samhanair.logis.slip.domain.SlipLine#createFromVatInclusive}).
+             * null/false 면 기존 VAT 미포함(공급) 단가로 처리. (2026-06-09 단가 부가세포함 전환)
+             */
+            Boolean priceVatInclusive) {
 
-        /** 호환 생성자 — setOptions 미제공(기존 7-arg 호출자/테스트). */
+        /** 호환 생성자 — priceVatInclusive 미제공(8-arg 호출자). */
+        public SlipLineRequest(UUID productId, String productName, String modelName,
+                               String specification, Integer quantity, BigDecimal unitPrice, String note,
+                               com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions) {
+            this(productId, productName, modelName, specification, quantity, unitPrice, note, setOptions, null);
+        }
+
+        /** 호환 생성자 — setOptions/priceVatInclusive 미제공(기존 7-arg 호출자/테스트). */
         public SlipLineRequest(UUID productId, String productName, String modelName,
                                String specification, Integer quantity, BigDecimal unitPrice, String note) {
-            this(productId, productName, modelName, specification, quantity, unitPrice, note, null);
+            this(productId, productName, modelName, specification, quantity, unitPrice, note, null, null);
         }
     }
 }
