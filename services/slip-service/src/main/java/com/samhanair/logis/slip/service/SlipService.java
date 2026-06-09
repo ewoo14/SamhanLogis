@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
@@ -110,6 +111,45 @@ public class SlipService {
     private final CompensationAuditWriter compensationAuditWriter;
 
     /**
+     * 전표 라인 추가 — BUNDLE(세트)면 product-service expand 로 구성품 라인 N개 전개(첫 setHead+parentSetModel),
+     * 아니면 1 라인. 견적 경로(EstimateService)와 동일 전개 엔진. 직접 전표생성·등록품목 사용(개발책임자).
+     */
+    private void addSlipLinesExpanded(Slip slip, UUID productId, ProductSummary summary,
+                                      String reqName, String reqModel, String specification, int quantity,
+                                      java.math.BigDecimal unitPrice, String note,
+                                      com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions) {
+        boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
+                && summary.modelCode() != null && !summary.modelCode().isBlank();
+        if (!bundle) {
+            String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
+            String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
+            slip.addLine(SlipLine.create(slip, productId, productName, modelName,
+                    specification, quantity, unitPrice, note));
+            return;
+        }
+        ExpandedLineDto.Options opts = setOptions == null ? null : new ExpandedLineDto.Options(
+                setOptions.remoteOption(), Boolean.TRUE.equals(setOptions.remoteExcluded()),
+                setOptions.panelOption(), setOptions.panelShape360(),
+                Boolean.TRUE.equals(setOptions.materialIncluded()));
+        List<ExpandedLineDto> expanded = productClient.expand(
+                summary.modelCode(), java.math.BigDecimal.valueOf(quantity), opts, unitPrice);
+        for (ExpandedLineDto el : expanded) {
+            if (el.productId() == null) {
+                continue;
+            }
+            int q = el.quantity() == null ? quantity
+                    : el.quantity().setScale(0, java.math.RoundingMode.HALF_UP).intValue();
+            if (q <= 0) {
+                q = 1;
+            }
+            SlipLine line = SlipLine.create(slip, el.productId(), el.name(), el.modelName(),
+                    specification, q, el.unitPrice() == null ? java.math.BigDecimal.ZERO : el.unitPrice(), note);
+            line.assignBundleComponent(summary.modelCode(), el.setHead());
+            slip.addLine(line);
+        }
+    }
+
+    /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
      * ProductClient 로 라인 productId 일괄 검증, 라인 추가, applyDeliveryTagAutoMemo 자동 호출 후
      * SlipNumberService 로 채번.
@@ -153,18 +193,12 @@ public class SlipService {
                     req.deliveryTag(), req.memo(), requesterId);
         }
 
-        // 4. 라인 추가 (snapshot 명칭은 요청값 우선, 없으면 ProductSummary 보강)
+        // 4. 라인 추가 — 직접 전표생성도 등록품목으로(개발책임자). BUNDLE(세트)면 product-service expand
+        //    로 구성품 라인 N개 전개(견적 경로와 동일 단일 엔진), 아니면 1 라인.
         for (CreateSlipRequest.SlipLineRequest lineReq : req.lines()) {
-            ProductSummary summary = byId.get(lineReq.productId());
-            String productName = lineReq.productName() != null
-                    ? lineReq.productName()
-                    : (summary != null ? summary.name() : null);
-            String modelName = lineReq.modelName() != null
-                    ? lineReq.modelName()
-                    : (summary != null ? summary.modelName() : null);
-            slip.addLine(SlipLine.create(slip, lineReq.productId(),
-                    productName, modelName, lineReq.specification(),
-                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note()));
+            addSlipLinesExpanded(slip, lineReq.productId(), byId.get(lineReq.productId()),
+                    lineReq.productName(), lineReq.modelName(), lineReq.specification(),
+                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note(), lineReq.setOptions());
         }
 
         // 5. 자동 메모 (야적/지방 등)

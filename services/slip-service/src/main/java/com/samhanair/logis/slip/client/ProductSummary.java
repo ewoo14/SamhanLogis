@@ -68,4 +68,12 @@ public record ProductSummary(
                           UUID categoryId, BigDecimal sellingPrice, String status) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, null, null);
     }
+
+    /**
+     * 호환 생성자 — 구 8-arg 정규 생성자(modelCode/productType 미지원 기존 호출자/테스트).
+     */
+    public ProductSummary(UUID id, String name, String modelName, String productCode,
+                          UUID categoryId, BigDecimal sellingPrice, String status, boolean serialManaged) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, null, null);
+    }
 }

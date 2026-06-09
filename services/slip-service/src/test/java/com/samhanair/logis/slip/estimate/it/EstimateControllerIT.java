@@ -15,6 +15,7 @@ import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
@@ -257,6 +258,44 @@ class EstimateControllerIT extends AbstractPostgresIT {
     }
 
     // ===== 헬퍼 =====
+
+    @Test
+    @DisplayName("견적 세트(BUNDLE) 라인 → 구성품으로 전개되어 라인 영속 (옵션 A)")
+    void createEstimate_bundle_expandedToComponents() throws Exception {
+        UUID setId = UUID.randomUUID();
+        UUID inId = UUID.randomUUID();
+        UUID outId = UUID.randomUUID();
+        ProductSummary setSummary = new ProductSummary(setId, "360 CST 세트", "360-CST", null, null,
+                new BigDecimal("1000000.00"), null, false, "AC360SET", "BUNDLE");
+        Mockito.when(productClient.lookup(ArgumentMatchers.anyList())).thenReturn(List.of(setSummary));
+        Mockito.when(productClient.expand(ArgumentMatchers.eq("AC360SET"), ArgumentMatchers.any(),
+                        ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(
+                        new ExpandedLineDto(inId, "IN-360", "IN-M", "실내기", new BigDecimal("1"),
+                                new BigDecimal("600000"), "INDOOR", true),
+                        new ExpandedLineDto(outId, "OUT-360", "OUT-M", "실외기", new BigDecimal("1"),
+                                new BigDecimal("400000"), "OUTDOOR", false)));
+
+        Map<String, Object> lineReq = new HashMap<>();
+        lineReq.put("productId", setId.toString());
+        lineReq.put("quantity", 1);
+        lineReq.put("unitPrice", "1000000.00");
+        Map<String, Object> body = new HashMap<>();
+        body.put("partnerName", "세트거래처");
+        body.put("lines", List.of(lineReq));
+
+        mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andExpect(jsonPath("$.data.lines[0].productName").value("실내기"))
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(600000))
+                .andExpect(jsonPath("$.data.lines[1].productName").value("실외기"))
+                .andExpect(jsonPath("$.data.lines[1].unitPrice").value(400000));
+    }
 
     private Map<String, Object> buildCreateRequest() {
         Map<String, Object> lineReq = new HashMap<>();
