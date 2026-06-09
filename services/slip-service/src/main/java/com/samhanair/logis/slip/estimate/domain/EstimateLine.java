@@ -80,6 +80,13 @@ public class EstimateLine extends BaseEntity {
     @Column(name = "line_total", nullable = false, precision = 17, scale = 2)
     private BigDecimal lineTotal;
 
+    /**
+     * VAT 포함 단가 — 단가 부가세포함 전환(2026-06-09, V35). non-null 이면 이 라인은 VAT 포함 단가 입력.
+     * 화면 '단가' 표시값 + 견적→전표 변환 시 SlipLine.createFromVatInclusive 전달용. nullable(legacy).
+     */
+    @Column(name = "unit_price_with_vat", precision = 15, scale = 2)
+    private BigDecimal unitPriceWithVat;
+
     @Column(name = "note", length = 200)
     private String note;
 
@@ -127,6 +134,30 @@ public class EstimateLine extends BaseEntity {
                                       int quantity, BigDecimal unitPrice, String note) {
         return new EstimateLine(estimate, lineNo, productId, productName, modelName,
                 specification, quantity, unitPrice, note);
+    }
+
+    /**
+     * VAT 포함 단가 기반 생성 — 단가 부가세포함 전환(라인 단위 eCount, 원 단위 반올림).
+     * 합계(VAT포함)=수량×unitPriceWithVat, 공급가액=round(합계/1.1), 부가세=차액(모두 원 단위).
+     * unitPrice(공급단가, 비권위)=공급가액/수량. lineTotal=합계(VAT포함). {@link SlipLine#createFromVatInclusive} 와 동일 규칙.
+     */
+    public static EstimateLine createFromVatInclusive(Estimate estimate, int lineNo, UUID productId,
+                                                      String productName, String modelName, String specification,
+                                                      int quantity, BigDecimal unitPriceWithVat, String note) {
+        validatePositive(quantity);
+        validateUnitPrice(unitPriceWithVat);
+        BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
+                .setScale(0, RoundingMode.HALF_UP);
+        BigDecimal supply = lineInclVat.divide(new BigDecimal("1.1"), 0, RoundingMode.HALF_UP);
+        BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
+        EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,
+                specification, quantity, supplyUnit, note);
+        // 라인 단위 권위값으로 덮어쓴다(공급/부가세/합계 원 단위 + VAT포함 단가 보존).
+        line.supplyAmount = supply.setScale(2, RoundingMode.HALF_UP);
+        line.vatAmount = lineInclVat.subtract(supply).setScale(2, RoundingMode.HALF_UP);
+        line.lineTotal = lineInclVat.setScale(2, RoundingMode.HALF_UP);
+        line.unitPriceWithVat = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        return line;
     }
 
     /** 세트 전개 구성품 표시 — 전개된 세트의 구성품 라인에만 부여(parentSetModel + 첫 라인 setHead). */

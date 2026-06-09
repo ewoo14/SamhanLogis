@@ -63,6 +63,8 @@ export interface EstimateLine {
   vatAmount: string
   lineTotal: string
   note: string | null
+  /** VAT 포함 단가 — 단가 부가세포함 전환(2026-06-09). 화면 '단가' 표시값. nullable(legacy). */
+  unitPriceWithVat?: string | null
 }
 
 /** 견적서 헤더 (요약) — 페이지 조회용. BE {@code EstimateResponse}. */
@@ -110,6 +112,8 @@ export interface EstimateLineRequest {
   note?: string
   /** 세트 전개 옵션 — BUNDLE 품목 라인에 한해 전달(BE BundleExpander). */
   setOptions?: BundleSetOptions
+  /** 단가 부가세포함 여부 — true 면 unitPrice 가 VAT 포함 단가(BE 라인 단위 분해). 2026-06-09. */
+  priceVatInclusive?: boolean
 }
 
 /** 견적서 신규 생성 요청. */

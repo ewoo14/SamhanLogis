@@ -65,14 +65,19 @@ public class EstimateService {
      */
     private int addEstimateLines(Estimate estimate, int lineNo, UUID productId, ProductSummary summary,
                                  String reqName, String reqModel, String specification, int quantity,
-                                 BigDecimal unitPrice, String note, BundleSetOptions setOptions) {
+                                 BigDecimal unitPrice, String note, BundleSetOptions setOptions,
+                                 boolean priceVatInclusive) {
         boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
                 && summary.modelCode() != null && !summary.modelCode().isBlank();
         if (!bundle) {
             String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
             String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
-            estimate.addLine(EstimateLine.create(estimate, lineNo, productId, productName, modelName,
-                    specification, quantity, unitPrice, note));
+            // 단가 부가세포함: priceVatInclusive 면 라인 단위로 공급가액/부가세 분리.
+            estimate.addLine(priceVatInclusive
+                    ? EstimateLine.createFromVatInclusive(estimate, lineNo, productId, productName, modelName,
+                            specification, quantity, unitPrice, note)
+                    : EstimateLine.create(estimate, lineNo, productId, productName, modelName,
+                            specification, quantity, unitPrice, note));
             return lineNo + 1;
         }
         ExpandedLineDto.Options opts = setOptions == null ? null : new ExpandedLineDto.Options(
@@ -91,9 +96,12 @@ public class EstimateService {
             if (q <= 0) {
                 q = 1;
             }
-            EstimateLine line = EstimateLine.create(estimate, lineNo++, el.productId(),
-                    el.name(), el.modelName(), specification, q,
-                    el.unitPrice() == null ? BigDecimal.ZERO : el.unitPrice(), note);
+            BigDecimal compUnit = el.unitPrice() == null ? BigDecimal.ZERO : el.unitPrice();
+            EstimateLine line = priceVatInclusive
+                    ? EstimateLine.createFromVatInclusive(estimate, lineNo++, el.productId(),
+                            el.name(), el.modelName(), specification, q, compUnit, note)
+                    : EstimateLine.create(estimate, lineNo++, el.productId(),
+                            el.name(), el.modelName(), specification, q, compUnit, note);
             line.assignBundleComponent(summary.modelCode(), el.setHead());
             estimate.addLine(line);
             added++;
@@ -145,7 +153,8 @@ public class EstimateService {
             lineNo = addEstimateLines(estimate, lineNo, lineReq.productId(),
                     byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
                     lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
-                    lineReq.note(), lineReq.setOptions());
+                    lineReq.note(), lineReq.setOptions(),
+                    Boolean.TRUE.equals(lineReq.priceVatInclusive()));
         }
 
         Estimate saved = estimateRepository.save(estimate);
@@ -188,7 +197,8 @@ public class EstimateService {
                 lineNo = addEstimateLines(estimate, lineNo, lineReq.productId(),
                         byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
                         lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
-                        lineReq.note(), lineReq.setOptions());
+                        lineReq.note(), lineReq.setOptions(),
+                        Boolean.TRUE.equals(lineReq.priceVatInclusive()));
             }
         }
 

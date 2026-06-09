@@ -17,7 +17,9 @@ public record EstimateLineResponse(
         BigDecimal supplyAmount,
         BigDecimal vatAmount,
         BigDecimal lineTotal,
-        String note) {
+        String note,
+        /** VAT 포함 단가 — 단가 부가세포함 전환(2026-06-09). 화면 '단가' 표시값. nullable(legacy). */
+        BigDecimal unitPriceWithVat) {
 
     public static EstimateLineResponse from(EstimateLine line) {
         return new EstimateLineResponse(
@@ -32,6 +34,7 @@ public record EstimateLineResponse(
                 line.getSupplyAmount(),
                 line.getVatAmount(),
                 line.getLineTotal(),
-                line.getNote());
+                line.getNote(),
+                line.getUnitPriceWithVat());
     }
 }

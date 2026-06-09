@@ -257,10 +257,11 @@ export function EstimateDetailPage() {
     },
     {
       key: 'unitPrice',
-      header: '단가',
+      header: '단가(VAT포함)',
       width: '120px',
       align: 'right',
-      render: (l) => fmt(l.unitPrice),
+      // 단가 부가세포함 전환: unitPriceWithVat 있으면 VAT 포함 단가 표시(legacy 는 unitPrice).
+      render: (l) => fmt(l.unitPriceWithVat ?? l.unitPrice),
     },
     {
       key: 'supplyAmount',

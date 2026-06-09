@@ -65,14 +65,17 @@ public class EstimateToSlipConverter {
         // estimate_lines → slip_lines 1:1 copy (lineNo 순). 옵션 A: 세트는 이미 견적에서 구성품으로
         // 전개돼 있으므로 1:1 복사면 전표에 구성품으로 올라간다. 세트 구성품 메타(setHead/부모세트)도 복사.
         for (EstimateLine line : estimate.getLines()) {
-            SlipLine slipLine = SlipLine.create(slip,
-                    line.getProductId(),
-                    line.getProductName(),
-                    line.getModelName(),
-                    line.getSpecification(),
-                    line.getQuantity(),
-                    line.getUnitPrice(),
-                    line.getNote());
+            // 단가 부가세포함 견적 라인(unitPriceWithVat != null)은 VAT 포함 단가로 전표 라인 재생성하여
+            // 공급가액/부가세 라인 단위 분해를 보존. legacy(null)는 기존 공급단가 1:1 복사.
+            SlipLine slipLine = line.getUnitPriceWithVat() != null
+                    ? SlipLine.createFromVatInclusive(slip,
+                            line.getProductId(), line.getProductName(), line.getModelName(),
+                            line.getSpecification(), line.getQuantity(), line.getUnitPriceWithVat(),
+                            line.getNote(), null)
+                    : SlipLine.create(slip,
+                            line.getProductId(), line.getProductName(), line.getModelName(),
+                            line.getSpecification(), line.getQuantity(), line.getUnitPrice(),
+                            line.getNote());
             slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead());
             slip.addLine(slipLine);
         }

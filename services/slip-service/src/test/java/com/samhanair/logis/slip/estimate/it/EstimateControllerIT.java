@@ -297,6 +297,31 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.lines[1].unitPrice").value(400000));
     }
 
+    @Test
+    @DisplayName("견적 단가 부가세포함 → 라인 단위 공급가액/부가세 분리(원 단위)")
+    void createEstimate_priceVatInclusive_splitsPerLine() throws Exception {
+        // qty=1, 단가(VAT포함)=1000 → 합계 1000, 공급가액=round(1000/1.1)=909, 부가세=91.
+        Map<String, Object> lineReq = new HashMap<>();
+        lineReq.put("productId", productId.toString());
+        lineReq.put("productName", "VAT포함 견적");
+        lineReq.put("quantity", 1);
+        lineReq.put("unitPrice", "1000");
+        lineReq.put("priceVatInclusive", true);
+        Map<String, Object> body = new HashMap<>();
+        body.put("partnerName", "VAT견적거래처");
+        body.put("lines", List.of(lineReq));
+
+        mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(1000.0))
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(909.0))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(91.0));
+    }
+
     private Map<String, Object> buildCreateRequest() {
         Map<String, Object> lineReq = new HashMap<>();
         lineReq.put("productId", productId.toString());

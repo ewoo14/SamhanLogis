@@ -200,12 +200,18 @@ export function EstimateFormPage() {
   }, [isEdit, detailQuery.data])
 
   const totals = useMemo(() => {
-    const supply = lines.reduce(
-      (sum, l) => sum + calcLineSupply(l.quantity, l.unitPrice),
-      0,
-    )
-    const vat = Math.trunc(supply * 0.1)
-    return { supply, vat, total: supply + vat }
+    // 단가 부가세포함(라인 단위 eCount, 원 단위): 라인별 합계(VAT포함)=round(수량×단가),
+    // 공급가액=round(합계/1.1), 부가세=차액 → 라인별 반올림 후 합산(BE 와 동일).
+    let supply = 0
+    let total = 0
+    for (const l of lines) {
+      const incl = Math.round(
+        (Number.parseFloat(l.quantity || '0') || 0) * (Number.parseFloat(l.unitPrice || '0') || 0),
+      )
+      supply += Math.round(incl / 1.1)
+      total += incl
+    }
+    return { supply, vat: total - supply, total }
   }, [lines])
 
   const handleSelectPartner = (p: PartnerSummary) => {
@@ -324,6 +330,8 @@ export function EstimateFormPage() {
       unitPrice: l.unitPrice || '0',
       note: l.note.trim() || undefined,
       setOptions: toApiBundleSetOptions(l.productType, l.setOptions),
+      // 단가 부가세포함 — BE 가 라인 단위로 공급가액/부가세 분리(eCount).
+      priceVatInclusive: true,
     }))
     return {
       estimateDate: estimateDate || undefined,
@@ -593,13 +601,16 @@ export function EstimateFormPage() {
           <div>품목명</div>
           <div>규격</div>
           <div style={{ textAlign: 'right' }}>수량</div>
-          <div style={{ textAlign: 'right' }}>단가</div>
-          <div style={{ textAlign: 'right' }}>소계</div>
+          <div style={{ textAlign: 'right' }}>단가(VAT포함)</div>
+          <div style={{ textAlign: 'right' }}>합계(VAT포함)</div>
           <div />
         </div>
 
         {lines.map((line, i) => {
-          const supply = calcLineSupply(line.quantity, line.unitPrice)
+          // 단가 부가세포함: 합계(VAT포함)=round(수량×단가), 공급가액=round(합계/1.1), 부가세=차액.
+          const lineIncl = Math.round(calcLineSupply(line.quantity, line.unitPrice))
+          const lineSupply = Math.round(lineIncl / 1.1)
+          const lineVat = lineIncl - lineSupply
           const isBundle = line.productType === 'BUNDLE'
           return (
            <div key={line.uid}>
@@ -720,11 +731,14 @@ export function EstimateFormPage() {
                   color: 'var(--ink-primary)',
                   fontVariantNumeric: 'tabular-nums',
                   background: '#F9FAFB',
-                  padding: '8px',
+                  padding: '6px 8px',
                   borderRadius: 4,
                 }}
               >
-                {fmt(supply)}
+                {fmt(lineIncl)}
+                <div style={{ fontSize: 10, color: 'var(--ink-secondary, #5C6773)', fontWeight: 400 }}>
+                  공급 {fmt(lineSupply)} · VAT {fmt(lineVat)}
+                </div>
               </div>
               <button
                 type="button"
