@@ -16,9 +16,11 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.PriceHistory;
+import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
+import com.samhanair.logis.product.repository.ProductSpecRepository;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -72,6 +74,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private BundleComponentRepository bundleComponentRepository;
+
+    @Autowired
+    private ProductSpecRepository productSpecRepository;
 
     @BeforeEach
     void resetState() {
@@ -401,6 +406,40 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         List<BundleComponent> remaining = bundleComponentRepository.findByBundleProductId(set.getId());
         assertThat(remaining).hasSize(1);
         assertThat(remaining).extracting(BundleComponent::getComponentProductCode).containsExactly("IDEMP_IN");
+    }
+
+    @Test
+    void sync_사양보유탭_헤더컬럼을_ProductSpec으로_적재하고_비사양컬럼은_제외() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 홈멀티 mapping(name0, model1, release3, delivery5) → 사양 컬럼은 col2/4/6/7.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품 명", "모델명", "배관경", "출고가", "냉매가스", "납품가", "에너지소비효율", "제품중량"),
+                row("Hi-Multi 사양", "HM_SPEC_1", "9/15", "1,500,000", "R-32", "1,200,000", "1등급", "52")
+        ));
+
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+        assertThat(summary.byTab.get("홈멀티").specsLinked).isEqualTo(4);
+
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("HM_SPEC_1").orElseThrow();
+        List<ProductSpec> specs = productSpecRepository.findByProductIdOrderByDisplayOrderAsc(p.getId());
+        assertThat(specs).extracting(ProductSpec::getSpecKey)
+                .containsExactlyInAnyOrder("배관경", "냉매가스", "에너지소비효율", "제품중량");
+        // 비사양 컬럼(품명/모델명/출고가/납품가)은 제외
+        assertThat(specs).extracting(ProductSpec::getSpecKey)
+                .doesNotContain("품명", "모델명", "출고가", "납품가");
+        assertThat(specs).filteredOn(s -> s.getSpecKey().equals("냉매가스"))
+                .singleElement().satisfies(s -> assertThat(s.getSpecValue()).isEqualTo("R-32"));
+
+        // 멱등 재sync + 값 변경 → editValue(중복 생성 0)
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(rows(
+                row("품 명", "모델명", "배관경", "출고가", "냉매가스", "납품가", "에너지소비효율", "제품중량"),
+                row("Hi-Multi 사양", "HM_SPEC_1", "9/15", "1,500,000", "R-410A", "1,200,000", "1등급", "52")
+        ));
+        syncService.syncAll();
+        List<ProductSpec> after = productSpecRepository.findByProductIdOrderByDisplayOrderAsc(p.getId());
+        assertThat(after).hasSize(4); // 중복 생성 없음
+        assertThat(after).filteredOn(s -> s.getSpecKey().equals("냉매가스"))
+                .singleElement().satisfies(s -> assertThat(s.getSpecValue()).isEqualTo("R-410A"));
     }
 
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */
