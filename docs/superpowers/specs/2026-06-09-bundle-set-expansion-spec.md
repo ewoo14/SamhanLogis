@@ -40,5 +40,9 @@
 - **직접 전표생성 경로**: slip-service 신규 전표 생성 시 **product-service 등록품목 catalog 조회**(검색/선택) + 세트 선택 시 동일 BundleExpander 전개 → 구성품 라인. (견적 경유/직접 양쪽 동일 전개 엔진.)
 - `SlipLine`/`PartnerOrderLine` 세트헤더/구성품 참조 필드. FE 견적화면 + 직접 전표화면 세트+옵션 picker(등록품목 선택). 전개 회귀 IT(견적→전표 + 직접→전표) + 풀스택 Docker 실QA(세트→전표 구성품).
 
+## 3.5 PR-1b 후속(머지차단 아님 — PR-2 동반 정리 대상)
+- **사양 flapping**: 동일 modelCode 가 여러 사양탭/row 로 등장 시 `loadSpecsForProduct` 의 row-단위 soft-delete 가 서로 키를 지워 flapping + soft-deleted 누적(active set 은 last-row-wins 결정적이라 정합). → **syncAll 전역 spec-key 누적 후 1회 reconcile** 로 전환(union, 누적 차단). 실 QA: 7866 active 정상, deleted 누적 관찰.
+- **clean bootJar 교훈**: 신규 Flyway 마이그레이션 추가 시 `processResources UP-TO-DATE` 로 jar 에 미반영 → 실 QA 가 구 제약 위반 재현. **standalone QA/배포 전 `clean :bootJar` 필수**([[standalone-boot-real-qa]] 보강).
+
 ## 4. 워크플로우
 6단계 슬라이스 × 3 PR. **Codex 다운(~6/11) → Claude 대체**(환경한계 예외). QA 에이전트 실 Docker 의무. 각 PR dual리뷰+CI green+Docker 실QA.
