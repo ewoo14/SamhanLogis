@@ -158,6 +158,39 @@ class SlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void create_priceVatInclusive_splitsSupplyAndVatPerLine() throws Exception {
+        // 단가 부가세포함(라인 단위 eCount): qty=2, 단가(VAT포함)=1100 → 합계=2200,
+        // 공급가액=round(2200/1.1)=2000, 부가세=200. unitPriceWithVat=1100.
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "VAT포함 테스트");
+        line.put("modelName", "MOD-VAT");
+        line.put("quantity", 2);
+        line.put("unitPrice", 1100);
+        line.put("priceVatInclusive", true);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "OUTBOUND");
+        body.put("slipDate", "2026-06-09");
+        body.put("sourceWarehouseId", UUID.randomUUID().toString());
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerName", "VAT거래처");
+        body.put("deliveryTag", "DAY");
+        body.put("lines", List.of(line));
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                // BigDecimal scale 2 → JSON "1100.00"; Jayway 는 Double 로 파싱하므로 double 리터럴 단언.
+                .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(1100.0))
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(2000.0))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(200.0));
+    }
+
+    @Test
     void addLine_bundle_expandedToComponents() throws Exception {
         // 에픽 후속 #2 — 기존 전표(DRAFT)에 BUNDLE(세트) 라인 추가 시 create 경로와 동일하게
         // product-service expand 로 구성품 라인 N개 전개됨을 검증 (이전엔 1라인으로 직삽입되어 미전개).

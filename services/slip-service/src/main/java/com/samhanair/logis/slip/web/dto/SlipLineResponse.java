@@ -17,7 +17,13 @@ public record SlipLineResponse(
         int quantity,
         BigDecimal unitPrice,
         BigDecimal lineTotal,
-        String note) {
+        String note,
+        /** VAT 포함 단가 — 단가 부가세포함 전환(2026-06-09). 화면 '단가' 표시값. nullable(legacy). */
+        BigDecimal unitPriceWithVat,
+        /** 공급가액(라인 단위, VAT 미포함). nullable(legacy). */
+        BigDecimal supplyAmount,
+        /** 부가세(라인 단위). nullable(legacy). */
+        BigDecimal vatAmount) {
 
     public static SlipLineResponse from(SlipLine line) {
         return new SlipLineResponse(
@@ -29,6 +35,9 @@ public record SlipLineResponse(
                 line.getQuantity(),
                 line.getUnitPrice(),
                 line.getLineTotal(),
-                line.getNote());
+                line.getNote(),
+                line.getUnitPriceWithVat(),
+                line.getSupplyAmount(),
+                line.getVatAmount());
     }
 }

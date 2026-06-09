@@ -60,6 +60,12 @@ export interface SlipLineDetail {
   unitPrice: string
   lineTotal: string
   note: string | null
+  /** VAT 포함 단가 — 단가 부가세포함 전환(2026-06-09). 화면 '단가' 표시값. nullable(legacy). */
+  unitPriceWithVat?: string | null
+  /** 공급가액(라인 단위, VAT 미포함). nullable(legacy). */
+  supplyAmount?: string | null
+  /** 부가세(라인 단위). nullable(legacy). */
+  vatAmount?: string | null
 }
 
 /**

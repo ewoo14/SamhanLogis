@@ -1644,19 +1644,28 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             <th className="col-product">품목명</th>
             <th className="col-spec">규격</th>
             <th className="col-qty">수량</th>
-            <th className="col-price">단가</th>
-            <th className="col-total">합계</th>
+            <th className="col-price">단가(VAT포함)</th>
+            <th className="col-supply">공급가액</th>
+            <th className="col-vat">부가세</th>
+            <th className="col-total">합계(VAT포함)</th>
           </tr>
         </thead>
         <tbody>
           {slip.lines.length === 0 ? (
             <tr>
-              <td colSpan={8} className="slip-line-empty">라인이 없습니다.</td>
+              <td colSpan={10} className="slip-line-empty">라인이 없습니다.</td>
             </tr>
           ) : (
             slip.lines.map((l, idx) => {
               const selected = selectedLineId === l.id
               const checked = checkedLineIds.has(l.id)
+              // 단가 부가세포함 전환: unitPriceWithVat 있으면 VAT포함 단가/공급가액/부가세 표시.
+              // legacy(없음) 는 unitPrice 를 공급단가로 보고 동일 방식 분해.
+              const supplyVal = l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal)
+              const vatVal = l.vatAmount != null ? Number(l.vatAmount) : Math.round(supplyVal * 0.1)
+              const unitWithVatVal = l.unitPriceWithVat != null
+                ? Number(l.unitPriceWithVat) : Number(l.unitPrice)
+              const totalInclVal = supplyVal + vatVal
               return (
                 <tr key={l.id} className={selected ? 'is-selected' : undefined}>
                   {/* Phase 2.6d: 재고조회 체크박스 */}
@@ -1683,8 +1692,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   <td className="col-product">{l.productName ?? '-'}</td>
                   <td className="col-spec">{l.specification ?? '-'}</td>
                   <td className="col-qty">{l.quantity.toLocaleString()}</td>
-                  <td className="col-price">{Number(l.unitPrice).toLocaleString()}</td>
-                  <td className="col-total">{Number(l.lineTotal).toLocaleString()}</td>
+                  <td className="col-price">{unitWithVatVal.toLocaleString()}</td>
+                  <td className="col-supply">{supplyVal.toLocaleString()}</td>
+                  <td className="col-vat">{vatVal.toLocaleString()}</td>
+                  <td className="col-total">{totalInclVal.toLocaleString()}</td>
                 </tr>
               )
             })
