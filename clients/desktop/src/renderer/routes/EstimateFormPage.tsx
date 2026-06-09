@@ -31,7 +31,11 @@ import { estimateAuditApi } from '../api/createAuditApi'
 import { EstimateRealtimeClient } from '../realtime/EstimateRealtimeClient'
 import { AuditRevisionBadge } from '../components/audit/AuditOverlaySection'
 import { searchPartners, type PartnerSummary } from '../api/sales'
-import { lookupProductByModelName } from '../api/slip'
+import {
+  lookupProductByModelName,
+  emptyBundleSetOptions,
+  toApiBundleSetOptions,
+} from '../api/slip'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
@@ -58,14 +62,6 @@ interface DraftLine {
   setOptions: BundleSetOptions
 }
 
-const emptySetOptions = (): BundleSetOptions => ({
-  remoteOption: '',
-  remoteExcluded: false,
-  panelOption: '',
-  panelShape360: false,
-  materialIncluded: false,
-})
-
 const emptyLine = (): DraftLine => ({
   uid: nextLineUid(),
   productId: null,
@@ -78,7 +74,7 @@ const emptyLine = (): DraftLine => ({
   lookupError: null,
   lookupLoading: false,
   productType: null,
-  setOptions: emptySetOptions(),
+  setOptions: emptyBundleSetOptions(),
 })
 
 const today = (): string => {
@@ -95,22 +91,6 @@ const datePlusDays = (iso: string, days: number): string => {
 }
 
 const fmt = (n: number): string => Math.trunc(n).toLocaleString('ko-KR')
-
-/**
- * BUNDLE 라인의 setOptions 를 API 전송용으로 변환. SINGLE 라인은 undefined
- * (BE 가 전개 생략). 빈 문자열 modelCode 는 null 로 정규화하여 BE 가 기본값 사용.
- */
-const toApiSetOptions = (line: DraftLine): BundleSetOptions | undefined => {
-  if (line.productType !== 'BUNDLE') return undefined
-  const o = line.setOptions
-  return {
-    remoteOption: o.remoteOption?.trim() ? o.remoteOption.trim() : null,
-    remoteExcluded: Boolean(o.remoteExcluded),
-    panelOption: o.panelOption?.trim() ? o.panelOption.trim() : null,
-    panelShape360: Boolean(o.panelShape360),
-    materialIncluded: Boolean(o.materialIncluded),
-  }
-}
 
 const calcLineSupply = (qty: string, unitPrice: string): number => {
   const q = Number.parseFloat(qty || '0')
@@ -213,7 +193,7 @@ export function EstimateFormPage() {
             // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음
             // (개별 SINGLE 품목으로 취급, setOptions 미적용).
             productType: null,
-            setOptions: emptySetOptions(),
+            setOptions: emptyBundleSetOptions(),
           }))
         : [emptyLine()],
     )
@@ -343,7 +323,7 @@ export function EstimateFormPage() {
       quantity: Number.parseInt(l.quantity || '0', 10),
       unitPrice: l.unitPrice || '0',
       note: l.note.trim() || undefined,
-      setOptions: toApiSetOptions(l),
+      setOptions: toApiBundleSetOptions(l.productType, l.setOptions),
     }))
     return {
       estimateDate: estimateDate || undefined,

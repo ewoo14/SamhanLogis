@@ -68,6 +68,8 @@ import {
 import {
   createSlip,
   lookupPartnerForAutoFill,
+  emptyBundleSetOptions,
+  toApiBundleSetOptions,
   type SlipLineInput,
   type SlipType,
 } from '../api/slip'
@@ -95,30 +97,6 @@ const OUTBOUND_TAG_OPTIONS: DeliveryTagOption[] = [
 let __tempIdCounter = 0
 const nextTempId = (): string => `tmp-${++__tempIdCounter}`
 
-const emptySetOptions = (): BundleSetOptions => ({
-  remoteOption: '',
-  remoteExcluded: false,
-  panelOption: '',
-  panelShape360: false,
-  materialIncluded: false,
-})
-
-/**
- * BUNDLE 라인의 setOptions 를 API 전송용으로 변환. SINGLE 라인은 undefined
- * (BE 가 전개 생략). 빈 문자열 modelCode 는 null 로 정규화하여 BE 가 기본값 사용.
- */
-const toApiSetOptions = (line: LineDraft): BundleSetOptions | undefined => {
-  if (line.productType !== 'BUNDLE') return undefined
-  const o = line.setOptions ?? emptySetOptions()
-  return {
-    remoteOption: o.remoteOption?.trim() ? o.remoteOption.trim() : null,
-    remoteExcluded: Boolean(o.remoteExcluded),
-    panelOption: o.panelOption?.trim() ? o.panelOption.trim() : null,
-    panelShape360: Boolean(o.panelShape360),
-    materialIncluded: Boolean(o.materialIncluded),
-  }
-}
-
 const emptyLine = (): LineDraft => ({
   id: nextTempId(),
   productId: null,
@@ -131,7 +109,7 @@ const emptyLine = (): LineDraft => ({
   lookupLoading: false,
   productType: null,
   modelCode: null,
-  setOptions: emptySetOptions(),
+  setOptions: emptyBundleSetOptions(),
 })
 
 export interface SlipFormPageProps {
@@ -159,6 +137,11 @@ function SortableLineRow(props: {
   onDelete: () => void
   /** AC-2: 모델명 셀 커스텀 렌더 slot (ProductAutocomplete 주입). */
   modelCell?: ReactNode
+  /**
+   * 라인 하단 부가 행 slot (세트 옵션 picker 등). sortable wrapper 내부에 렌더되어
+   * 드래그 transform 이 라인+footer 를 하나로 이동시킨다(분리 방지).
+   */
+  footer?: ReactNode
 }) {
   const {
     attributes,
@@ -175,29 +158,31 @@ function SortableLineRow(props: {
     transition,
   }
 
+  // setNodeRef/transform 을 wrapper 에 부착 → LineRow + footer(옵션 picker) 동시 이동.
   return (
-    <LineRow
-      ref={setNodeRef}
-      style={style}
-      isDragging={isDragging}
-      lineNumber={props.lineNumber}
-      line={props.line}
-      selected={props.selected}
-      canDelete={props.canDelete}
-      onSelect={props.onSelect}
-      onModelNameChange={props.onModelNameChange}
-      onModelNameBlur={props.onModelNameBlur}
-      onSpecificationChange={props.onSpecificationChange}
-      onQuantityChange={props.onQuantityChange}
-      onUnitPriceChange={props.onUnitPriceChange}
-      onDelete={props.onDelete}
-      modelCell={props.modelCell}
-      dragHandleProps={{
-        attributes: attributes as unknown as Record<string, unknown>,
-        listeners: listeners as Record<string, unknown> | undefined,
-        setActivatorNodeRef,
-      }}
-    />
+    <div ref={setNodeRef} style={style}>
+      <LineRow
+        isDragging={isDragging}
+        lineNumber={props.lineNumber}
+        line={props.line}
+        selected={props.selected}
+        canDelete={props.canDelete}
+        onSelect={props.onSelect}
+        onModelNameChange={props.onModelNameChange}
+        onModelNameBlur={props.onModelNameBlur}
+        onSpecificationChange={props.onSpecificationChange}
+        onQuantityChange={props.onQuantityChange}
+        onUnitPriceChange={props.onUnitPriceChange}
+        onDelete={props.onDelete}
+        modelCell={props.modelCell}
+        dragHandleProps={{
+          attributes: attributes as unknown as Record<string, unknown>,
+          listeners: listeners as Record<string, unknown> | undefined,
+          setActivatorNodeRef,
+        }}
+      />
+      {props.footer}
+    </div>
   )
 }
 
@@ -307,7 +292,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setLines((ls) =>
       ls.map((l) =>
         l.id === id
-          ? { ...l, setOptions: { ...(l.setOptions ?? emptySetOptions()), ...patch } }
+          ? { ...l, setOptions: { ...(l.setOptions ?? emptyBundleSetOptions()), ...patch } }
           : l,
       ),
     )
@@ -475,7 +460,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             specification: l.specification.trim() || undefined,
             quantity: Number(l.quantity),
             unitPrice: l.unitPrice || '0',
-            setOptions: toApiSetOptions(l),
+            setOptions: toApiBundleSetOptions(l.productType, l.setOptions),
           })),
       }
       return createSlip(payload)
@@ -1036,8 +1021,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
 
                 const isBundle = line.productType === 'BUNDLE'
                 return (
-                  <div key={line.id}>
                   <SortableLineRow
+                    key={line.id}
                     line={line}
                     lineNumber={idx + 1}
                     selected={selectedIds.has(line.id)}
@@ -1074,18 +1059,19 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                         debounceMs={250}
                       />
                     }
+                    footer={
+                      isBundle ? (
+                        <BundleOptionRow
+                          line={{
+                            modelName: line.modelName,
+                            setOptions: line.setOptions ?? emptyBundleSetOptions(),
+                          }}
+                          index={idx}
+                          onChange={(patch) => updateSetOption(line.id, patch)}
+                        />
+                      ) : null
+                    }
                   />
-                  {isBundle ? (
-                    <BundleOptionRow
-                      line={{
-                        modelName: line.modelName,
-                        setOptions: line.setOptions ?? emptySetOptions(),
-                      }}
-                      index={idx}
-                      onChange={(patch) => updateSetOption(line.id, patch)}
-                    />
-                  ) : null}
-                  </div>
                 )
               })}
             </SortableContext>

@@ -9,7 +9,8 @@
  * 세 화면에서 공용. modelName lookup 결과 productType === "BUNDLE" 인 라인 아래에만 렌더.
  *
  * <p>옵션 modelCode 는 자유 입력(빈 값 → BE 기본값 사용). 실외기 제외 체크 시 교체 모델
- * 입력은 비활성화한다(상호배타).
+ * 입력은 비활성화한다(상호배타). 판넬 360 형상은 BE 가 variant(`원형`/`사각`)와 정확 일치로
+ * 매칭하므로 **문자열 선택**(미지정/원형/사각)으로 입력받는다(boolean 아님).
  */
 import type { BundleSetOptions } from '../../api/slip'
 
@@ -21,14 +22,23 @@ interface BundleOptionRowProps {
   onChange: (patch: Partial<BundleSetOptions>) => void
 }
 
+/** 판넬 360 형상 선택지 — BE BundleExpander variant 정확 매칭값. */
+const PANEL_SHAPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: '미지정' },
+  { value: '원형', label: '원형' },
+  { value: '사각', label: '사각' },
+]
+
 const checkboxLabelStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
   fontSize: 12,
-  color: 'var(--ink-secondary, #4B5563)',
+  color: 'var(--ink-secondary, #5C6773)',
   cursor: 'pointer',
 }
+
+const accentStyle: React.CSSProperties = { accentColor: 'var(--action-brand, #2D77A8)' }
 
 const optionInputStyle: React.CSSProperties = {
   height: 28,
@@ -37,6 +47,7 @@ const optionInputStyle: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 12,
   minWidth: 160,
+  background: 'var(--surface-card, #fff)',
 }
 
 export function BundleOptionRow({
@@ -53,9 +64,9 @@ export function BundleOptionRow({
       style={{
         padding: '8px 12px 12px 44px',
         marginBottom: 4,
-        background: '#F8FAFF',
-        borderLeft: '3px solid var(--color-primary-400, #6366F1)',
-        borderBottom: '1px solid #F3F4F6',
+        background: 'var(--color-bg-subtle, #F8FAFF)',
+        borderLeft: '3px solid var(--color-brand-400, #5BA3C9)',
+        borderBottom: '1px solid var(--color-neutral-200, #F3F4F6)',
         display: 'flex',
         flexWrap: 'wrap',
         alignItems: 'center',
@@ -66,7 +77,7 @@ export function BundleOptionRow({
         style={{
           fontSize: 11,
           fontWeight: 600,
-          color: 'var(--color-primary-600, #4F46E5)',
+          color: 'var(--color-brand-600, #2D77A8)',
         }}
       >
         세트 구성 옵션 ({line.modelName || '세트'})
@@ -76,6 +87,7 @@ export function BundleOptionRow({
       <label style={checkboxLabelStyle}>
         <input
           type="checkbox"
+          style={accentStyle}
           checked={remoteExcluded}
           disabled={disabled}
           onChange={(e) => onChange({ remoteExcluded: e.target.checked })}
@@ -95,7 +107,9 @@ export function BundleOptionRow({
           onChange={(e) => onChange({ remoteOption: e.target.value })}
           style={{
             ...optionInputStyle,
-            background: remoteExcluded ? '#F3F4F6' : '#fff',
+            background: remoteExcluded
+              ? 'var(--color-neutral-200, #F3F4F6)'
+              : 'var(--surface-card, #fff)',
           }}
           data-testid={`bundle-options-${index}-remote-option`}
         />
@@ -110,27 +124,34 @@ export function BundleOptionRow({
           placeholder="판넬 모델코드 (미입력=기본)"
           disabled={disabled}
           onChange={(e) => onChange({ panelOption: e.target.value })}
-          style={{ ...optionInputStyle, background: '#fff' }}
+          style={optionInputStyle}
           data-testid={`bundle-options-${index}-panel-option`}
         />
       </label>
 
-      {/* 판넬 360 형상 */}
+      {/* 판넬 360 형상 (문자열 선택 — BE variant 정확 매칭) */}
       <label style={checkboxLabelStyle}>
-        <input
-          type="checkbox"
-          checked={Boolean(o.panelShape360)}
-          disabled={disabled}
-          onChange={(e) => onChange({ panelShape360: e.target.checked })}
-          data-testid={`bundle-options-${index}-panel-360`}
-        />
         판넬 360 형상
+        <select
+          value={o.panelShape360 ?? ''}
+          disabled={disabled}
+          onChange={(e) => onChange({ panelShape360: e.target.value })}
+          style={{ ...optionInputStyle, minWidth: 90 }}
+          data-testid={`bundle-options-${index}-panel-360`}
+        >
+          {PANEL_SHAPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </label>
 
       {/* 자재 포함 */}
       <label style={checkboxLabelStyle}>
         <input
           type="checkbox"
+          style={accentStyle}
           checked={Boolean(o.materialIncluded)}
           disabled={disabled}
           onChange={(e) => onChange({ materialIncluded: e.target.checked })}

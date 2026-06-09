@@ -129,20 +129,27 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await expect(remoteOption).toBeEnabled()
   })
 
-  test('시나리오 4: 판넬 360 / 자재 포함 체크박스 토글', async ({ page }) => {
+  test('시나리오 4: 판넬 360 형상 선택(문자열) + 자재 포함 토글 + 텍스트 옵션 입력', async ({ page }) => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
     await selectProduct(page, 1, 'SET', /SET-HM2WAY/)
     await expect(page.getByTestId('bundle-options-0')).toBeVisible()
 
+    // 판넬 360 형상 = 문자열 셀렉트(미지정/원형/사각) — boolean 아님(BE variant 정확 매칭)
     const panel360 = page.getByTestId('bundle-options-0-panel-360')
-    const material = page.getByTestId('bundle-options-0-material-included')
+    await panel360.selectOption('원형')
+    await expect(panel360).toHaveValue('원형')
 
-    await panel360.check()
-    await expect(panel360).toBeChecked()
+    // 자재 포함 체크박스
+    const material = page.getByTestId('bundle-options-0-material-included')
     await material.check()
     await expect(material).toBeChecked()
+
+    // 텍스트 옵션(판넬 모델코드) 입력 round-trip 검증 (controlled value 바인딩)
+    const panelOption = page.getByTestId('bundle-options-0-panel-option')
+    await panelOption.fill('블랙판넬')
+    await expect(panelOption).toHaveValue('블랙판넬')
   })
 
   test('시나리오 5: UUID 비공개 가드 — 옵션 행 UUID 미노출', async ({ page }) => {
@@ -155,5 +162,91 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
 
     const text = await optionsRow.textContent()
     expect(text).not.toMatch(UUID_PATTERN)
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 6: 제출 페이로드 단언 — setOptions 가 요청 본문에 정확히 도달
+  //   (in-process mock 은 page.route 가로채기 불가 → mock 이 globalThis 에 노출한
+  //    마지막 생성 요청 본문을 page.evaluate 로 읽어 단언. [[inprocess-mock-principles]])
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 6: BUNDLE 라인 setOptions + SINGLE 라인 undefined 가 POST 본문에 반영', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    // 출발 창고 선택 (저장 가능 조건)
+    const wh = page.getByRole('combobox', { name: /출발 창고/ })
+    await wh.click()
+    await wh.fill('HQ')
+    const whListbox = page.getByRole('listbox', { name: '창고 목록' })
+    await expect(whListbox).toBeVisible({ timeout: 5_000 })
+    await whListbox.getByRole('option').first().click()
+
+    // 라인 1: BUNDLE 세트 + 옵션 (실외기 제외 + 판넬 360=사각 + 자재 포함)
+    await selectProduct(page, 1, 'SET', /SET-HM2WAY/)
+    await expect(page.getByTestId('bundle-options-0')).toBeVisible()
+    await page.getByTestId('bundle-options-0-remote-excluded').check()
+    await page.getByTestId('bundle-options-0-panel-360').selectOption('사각')
+    await page.getByTestId('bundle-options-0-material-included').check()
+
+    // 라인 2: SINGLE 품목
+    await page.getByRole('button', { name: '+ 라인 추가' }).click()
+    await selectProduct(page, 2, 'AJ040', /AJ040RXH4BC1/)
+
+    // 저장
+    await page.getByRole('button', { name: '저장' }).click()
+
+    // mock 이 노출한 마지막 생성 요청 본문 단언
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(
+            () =>
+              (globalThis as Record<string, unknown>)['__SAMHAN_LAST_SLIP_CREATE'] ??
+              null,
+          ),
+        { timeout: 5_000 },
+      )
+      .not.toBeNull()
+
+    const body = (await page.evaluate(
+      () => (globalThis as Record<string, unknown>)['__SAMHAN_LAST_SLIP_CREATE'],
+    )) as { lines: Array<{ modelName?: string; setOptions?: Record<string, unknown> }> }
+
+    const bundleLine = body.lines.find((l) => l.modelName === 'SET-HM2WAY')
+    const singleLine = body.lines.find((l) => l.modelName === 'AJ040RXH4BC1')
+
+    // BUNDLE 라인 — setOptions 정규화 결과 정확 전송
+    expect(bundleLine?.setOptions).toBeTruthy()
+    expect(bundleLine?.setOptions?.['remoteExcluded']).toBe(true)
+    expect(bundleLine?.setOptions?.['panelShape360']).toBe('사각') // boolean 아님(String 계약)
+    expect(bundleLine?.setOptions?.['materialIncluded']).toBe(true)
+    // 미입력 modelCode 는 null 정규화
+    expect(bundleLine?.setOptions?.['remoteOption']).toBeNull()
+    expect(bundleLine?.setOptions?.['panelOption']).toBeNull()
+
+    // SINGLE 라인 — setOptions 미전송(undefined → JSON 직렬화 시 키 제거)
+    expect(singleLine).toBeTruthy()
+    expect(singleLine?.setOptions).toBeUndefined()
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 7: 견적서 작성 경로(별도 lookup 핸들러) — BUNDLE 옵션 행 노출
+  //   EstimateFormPage 는 /slips/lookup-product(onBlur) 경로로 productType 획득
+  //   (SlipFormPage 의 /api/products 자동완성과 다른 핸들러 → 별도 검증).
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 7: 견적서 작성 — BUNDLE 모델 onBlur lookup → 옵션 행 노출', async ({ page }) => {
+    await installAuthMock(page)
+    await page.goto(`${BASE_URL}/#/sales/estimates/new?mockRole=MANAGER`, {
+      waitUntil: 'domcontentloaded',
+    })
+    const modelInput = page.getByTestId('estimate-form-line-0-model')
+    await expect(modelInput).toBeVisible({ timeout: 15_000 })
+
+    await modelInput.fill('SET-HM2WAY')
+    await modelInput.blur()
+
+    // onBlur lookup → productType BUNDLE → 옵션 행 노출
+    await expect(page.getByTestId('bundle-options-0')).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByTestId('bundle-options-0-panel-360')).toBeVisible()
   })
 })

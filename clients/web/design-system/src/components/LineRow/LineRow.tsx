@@ -41,8 +41,8 @@ export interface BundleSetOptions {
   remoteExcluded?: boolean | null
   /** 판넬 선택 모델코드 (미입력=기본). */
   panelOption?: string | null
-  /** 판넬 360 형상 여부. */
-  panelShape360?: boolean | null
+  /** 판넬 360 형상값 — `''` | `'원형'` | `'사각'` (BE variant 정확 매칭, String). */
+  panelShape360?: string | null
   /** 자재 포함 여부. */
   materialIncluded?: boolean | null
 }

@@ -175,10 +175,47 @@ export interface BundleSetOptions {
   remoteExcluded?: boolean | null
   /** 판넬 선택 modelCode — 1종 택1. */
   panelOption?: string | null
-  /** 판넬 360 형상 여부 — variant 정확 매칭에 사용. */
-  panelShape360?: boolean | null
+  /**
+   * 판넬 360 형상값 — BE `BundleExpander` 가 패널 variant 와 **정확 일치**로 매칭.
+   * 값: `''`(미지정) | `'원형'` | `'사각'`. (BE 계약: String, boolean 아님.)
+   */
+  panelShape360?: string | null
   /** 자재 포함 여부 — true 면 자재류 구성품 포함. */
   materialIncluded?: boolean | null
+}
+
+/** 빈 세트 옵션 — 신규 라인 초기값. */
+export function emptyBundleSetOptions(): BundleSetOptions {
+  return {
+    remoteOption: '',
+    remoteExcluded: false,
+    panelOption: '',
+    panelShape360: '',
+    materialIncluded: false,
+  }
+}
+
+/**
+ * 라인 setOptions 를 API 전송용으로 정규화.
+ * - `productType !== "BUNDLE"` → `undefined` (BE 전개 생략).
+ * - 빈 문자열 modelCode/형상 → `null` (BE 기본값 사용).
+ * 견적/전표 양 화면 공용 (중복 제거 + panelShape360 String 계약 단일점 보장).
+ */
+export function toApiBundleSetOptions(
+  productType: string | null | undefined,
+  opts: BundleSetOptions | undefined,
+): BundleSetOptions | undefined {
+  if (productType !== 'BUNDLE') return undefined
+  const o = opts ?? emptyBundleSetOptions()
+  const trimOrNull = (v: string | null | undefined): string | null =>
+    v && v.trim() ? v.trim() : null
+  return {
+    remoteOption: trimOrNull(o.remoteOption),
+    remoteExcluded: Boolean(o.remoteExcluded),
+    panelOption: trimOrNull(o.panelOption),
+    panelShape360: trimOrNull(o.panelShape360),
+    materialIncluded: Boolean(o.materialIncluded),
+  }
 }
 
 /** 라인 input — BE `CreateSlipRequest.SlipLineRequest`. */
