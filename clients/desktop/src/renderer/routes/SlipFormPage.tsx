@@ -189,9 +189,9 @@ function SortableLineRow(props: {
 /**
  * 출고/입고 공용 작성 화면.
  *
- * mode 별 차이:
- * - OUTBOUND: 출발/도착 창고 + 배송태그, 저장 후 `/sales` 로 이동
- * - INBOUND: 도착 창고 (출발은 거래처 측), 배송태그 미노출, 저장 후 `/purchases` 로 이동
+ * mode 별 차이 (출고전표 폼 정비 반영):
+ * - OUTBOUND: 출고 창고 1개 + 출고구분(배송태그), 저장 후 `/sales` 로 이동
+ * - INBOUND: 입고 창고 1개, 출고구분 미노출, 저장 후 `/purchases` 로 이동
  */
 export function SlipFormPage({ mode }: SlipFormPageProps) {
   const navigate = useNavigate()
