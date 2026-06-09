@@ -97,7 +97,7 @@ public class EstimateService {
                 q = 1;
             }
             BigDecimal compUnit = el.unitPrice() == null ? BigDecimal.ZERO : el.unitPrice();
-            // #24: 구성품 규격은 product_spec 합성값(el.specification) 우선, 없으면 요청 규격.
+            // #24: 구성품 규격은 GAS '규격'(el.specification) 우선, 없으면 요청 규격.
             String compSpec = el.specification() != null && !el.specification().isBlank()
                     ? el.specification() : specification;
             EstimateLine line = priceVatInclusive

@@ -16,7 +16,7 @@ public record ExpandedLineDto(
         BigDecimal unitPrice,
         String componentKind,
         boolean setHead,
-        /** 구성품 규격(product_spec 합성, #24). 없으면 null. */
+        /** 구성품 규격(시트 '규격' 컬럼(specText), #24). 없으면 null. */
         String specification) {
 
     /** 호환 생성자 — specification 미제공(기존 8-arg 호출자/테스트). */
