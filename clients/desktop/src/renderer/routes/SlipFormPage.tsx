@@ -216,31 +216,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // AC-3: 거래처 자동완성 선택 상태 (PartnerAutocomplete controlled value)
   const [selectedPartner, setSelectedPartner] = useState<PartnerOption | null>(null)
 
-  // PR-G1 backlog #2 — V16 e-Count 12 컬럼 form state.
-  // 거래처 자동 채움 (customerTel/Address/Representative) + 별도 입력 6 + 기간 2 + 분기 2.
-  // partnerCode 는 selectedPartner?.partnerCode 로 접근 (AC-3 이후 별도 state 불필요).
+  // 거래처 snapshot — 자동완성 선택 시 채워짐(폼 미표시, 전표 기록/주소복사용).
+  // eCount 12필드 입력 카드는 출고전표 폼 정비로 제거(ioType/timeDate/검수지/결제·할인·약정 등).
   const [customerTel, setCustomerTel] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
   const [customerRepresentative, setCustomerRepresentative] = useState('')
-  const [shippingAddress, setShippingAddress] = useState('')
-  const [inspectionAddress, setInspectionAddress] = useState('')
-  const [receiverPhone, setReceiverPhone] = useState('')
-  const [paymentDueLabel, setPaymentDueLabel] = useState('')
-  const [discountInfo, setDiscountInfo] = useState('')
-  const [collectTerm, setCollectTerm] = useState('')
-  const [agreeTerm, setAgreeTerm] = useState('')
-  // V20 신규 5필드 form state
+  // 배송 정보 — 배송주소 / 감리주소 (V20 중 프로젝트명·인수자번호·입금예정일은 정비로 제거)
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [supervisionAddress, setSupervisionAddress] = useState('')
   const [supervisionSameAsDelivery, setSupervisionSameAsDelivery] = useState(false)
-  const [projectName, setProjectName] = useState('')
-  const [recipientPhone, setRecipientPhone] = useState('')
-  const [paymentDueDate, setPaymentDueDate] = useState('')
-
-  // ioType 은 mode 분기 자동 (OUTBOUND="10" / INBOUND="11"), 사용자 toggle 가능.
-  const [ioType, setIoType] = useState<string>(isOutbound ? '10' : '11')
-  // timeDate 는 BE 가 null 시 서버 시각 자동 채움 — 사용자 명시 입력 옵션 (HHmmss).
-  const [timeDate, setTimeDate] = useState('')
   // 자동 채움 상태
   const [autoFillError, setAutoFillError] = useState<string | null>(null)
   const [autoFillLoading, setAutoFillLoading] = useState(false)
@@ -430,27 +414,16 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         // link-dispatch-slice — OUTBOUND 만 driver 정보 송신
         driverName: isOutbound && driverName.trim() ? driverName.trim() : undefined,
         driverPhone: isOutbound && driverPhone ? driverPhone : undefined,
-        // PR-G1 backlog #2 — V16 e-Count 12 컬럼 송신 (모두 옵션, 빈 값은 undefined).
-        ioType: ioType || undefined,
-        timeDate: timeDate.trim() || undefined,
+        // 거래처 snapshot — 자동완성 선택 시 채워짐(폼 표시 X, 전표 기록용). ioType 는
+        // 내부 코드라 BE 가 slipType 으로 자동 분기(미전송).
         customerTel: customerTel.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
         customerRepresentative: customerRepresentative.trim() || undefined,
-        shippingAddress: shippingAddress.trim() || undefined,
-        inspectionAddress: inspectionAddress.trim() || undefined,
-        receiverPhone: receiverPhone.trim() || undefined,
-        paymentDueLabel: paymentDueLabel.trim() || undefined,
-        discountInfo: discountInfo.trim() || undefined,
-        collectTerm: collectTerm.trim() || undefined,
-        agreeTerm: agreeTerm.trim() || undefined,
-        // V20 신규 5필드
+        // 배송 정보 — 배송주소 / 감리주소(배송주소와 동일 체크 시 복사)
         deliveryAddress: deliveryAddress.trim() || undefined,
         supervisionAddress: supervisionSameAsDelivery
           ? (deliveryAddress.trim() || undefined)
           : (supervisionAddress.trim() || undefined),
-        projectName: projectName.trim() || undefined,
-        recipientPhone: recipientPhone.trim() || undefined,
-        paymentDueDate: paymentDueDate || undefined,
         lines: lines
           .filter((l) => l.productId && Number(l.quantity) > 0)
           .map<SlipLineInput>((l) => ({
@@ -512,27 +485,35 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       {/* 헤더 정보 카드 */}
       <Card padding={6} shadow="sm" className="sfp-card">
         <div className="sfp-section-title">헤더 정보</div>
-        <div className="sfp-form-grid sfp-form-grid--3">
-          <WarehouseAutocomplete
-            label={isOutbound ? '출발 창고' : '입고 창고'}
-            required={isOutbound}
-            warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
-            value={sourceWh}
-            onChange={(id) => setSourceWh(id)}
-            placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
-            hideVirtual
-          />
-          <WarehouseAutocomplete
-            label={isOutbound ? '도착 창고' : '출발 창고 (옵션)'}
-            required={!isOutbound}
-            warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
-            value={destWh}
-            onChange={(id) => setDestWh(id)}
-            placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
-            hideVirtual
-          />
+        <div className="sfp-form-grid sfp-form-grid--2">
+          {/*
+            출고전표는 '출고 창고' 1개, 입고전표는 '입고 창고' 1개만 입력(도착 창고 제거).
+            OUTBOUND: 출고지=sourceWh / INBOUND: 입고지=destWh (requiredWh 와 일치).
+          */}
+          {isOutbound ? (
+            <WarehouseAutocomplete
+              label="출고 창고"
+              required
+              warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
+              value={sourceWh}
+              onChange={(id) => setSourceWh(id)}
+              placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
+              hideVirtual
+            />
+          ) : (
+            <WarehouseAutocomplete
+              label="입고 창고"
+              required
+              warehouses={Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []}
+              value={destWh}
+              onChange={(id) => setDestWh(id)}
+              placeholder={warehousesQuery.isLoading ? '창고 목록 불러오는 중…' : '창고 코드 또는 이름 입력…'}
+              hideVirtual
+            />
+          )}
           {isOutbound ? (
             <DeliveryTagSelector
+              label="출고구분"
               options={OUTBOUND_TAG_OPTIONS}
               value={tag}
               onChange={(code) => setTag(code)}
@@ -622,219 +603,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       </Card>
 
       {/*
-        PR-G1 backlog #2 — V16 e-Count 12 컬럼 입력 카드.
-        거래처 자동 채움 + 자동 채움 후 수동 수정 가능 + 별도 입력 6 + 결제/할인/약정 4.
+        배송 정보 — 배송주소 / 감리주소. (출고전표 폼 정비: eCount 12필드 카드 제거 +
+        프로젝트명/인수자번호/입금예정일 제거. businessNumber 는 partnerId 로 BE 자동 resolve.)
       */}
       <Card padding={6} shadow="sm" className="sfp-card">
-        <div className="sfp-section-title">거래 명세 정보 (e-Count 12 필드)</div>
-
-        {/*
-          AC-3 P0 D-AC3-01 수정: PartnerAutocomplete 는 헤더 정보 카드로 단일화.
-          이 카드에서는 거래처 선택 결과 자동 채움 값(연락처/주소/대표자)만 표시/수정.
-          autoFillError 배너는 헤더 카드 내 PartnerAutocomplete 아래에 표시됨.
-        */}
-
-        {/* 거래처 snapshot 3 (자동 채움 + 수정 가능) */}
-        <div className="sfp-form-grid sfp-form-grid--3" style={{ marginTop: 16 }}>
-          <FormField
-            label="거래처 연락처"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={customerTel}
-                onChange={(e) => setCustomerTel(e.target.value)}
-                maxLength={100}
-                className="sfp-input"
-                placeholder="자동 채움 후 수정 가능"
-                data-testid="slip-form-customer-tel"
-              />
-            )}
-          />
-          <FormField
-            label="거래처 사업장 주소"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-                maxLength={200}
-                className="sfp-input"
-                placeholder="자동 채움 후 수정 가능"
-                data-testid="slip-form-customer-address"
-              />
-            )}
-          />
-          <FormField
-            label="거래처 대표자"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={customerRepresentative}
-                onChange={(e) => setCustomerRepresentative(e.target.value)}
-                maxLength={100}
-                className="sfp-input"
-                placeholder="자동 채움 후 수정 가능"
-                data-testid="slip-form-customer-representative"
-              />
-            )}
-          />
-        </div>
-
-        {/* 배송지 / 검수지 / 수령자 (별도 입력 3) */}
-        <div className="sfp-form-grid sfp-form-grid--3" style={{ marginTop: 16 }}>
-          <FormField
-            label="배송지 주소"
-            hint="배송 도착지 (필수 권장)"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={shippingAddress}
-                onChange={(e) => setShippingAddress(e.target.value)}
-                maxLength={500}
-                className="sfp-input"
-                data-testid="slip-form-shipping-address"
-              />
-            )}
-          />
-          <FormField
-            label="검수지 주소"
-            hint="검수자 사무실 (배송 도착지와 다른 경우)"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={inspectionAddress}
-                onChange={(e) => setInspectionAddress(e.target.value)}
-                maxLength={500}
-                className="sfp-input"
-                data-testid="slip-form-inspection-address"
-              />
-            )}
-          />
-          <FormField
-            label="수령자 연락처"
-            hint="현장 수령자 직접 연락처"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={receiverPhone}
-                onChange={(e) => setReceiverPhone(e.target.value)}
-                maxLength={100}
-                className="sfp-input"
-                data-testid="slip-form-receiver-phone"
-              />
-            )}
-          />
-        </div>
-
-        {/* 결제/할인 (2) */}
-        <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 16 }}>
-          <FormField
-            label="결제 만기"
-            hint="MM-DD 또는 '익월말' / '월말' 등 라벨"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={paymentDueLabel}
-                onChange={(e) => setPaymentDueLabel(e.target.value)}
-                maxLength={200}
-                className="sfp-input"
-                placeholder="예: 06-30 또는 익월말"
-                data-testid="slip-form-payment-due-label"
-              />
-            )}
-          />
-          <FormField
-            label="할인 정보"
-            render={({ id }) => (
-              <textarea
-                id={id}
-                value={discountInfo}
-                onChange={(e) => setDiscountInfo(e.target.value)}
-                maxLength={200}
-                rows={2}
-                className="sfp-input"
-                placeholder="예: 5% 할인 / 정가 / 특가 등"
-                data-testid="slip-form-discount-info"
-              />
-            )}
-          />
-        </div>
-
-        {/* 회수/약정 (2) — 자유 입력 */}
-        <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 16 }}>
-          <FormField
-            label="대금 회수 조건"
-            hint="월말 / 익월말 / 현금 등"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={collectTerm}
-                onChange={(e) => setCollectTerm(e.target.value)}
-                maxLength={100}
-                className="sfp-input"
-                placeholder="예: 월말"
-                data-testid="slip-form-collect-term"
-              />
-            )}
-          />
-          <FormField
-            label="거래 약정"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={agreeTerm}
-                onChange={(e) => setAgreeTerm(e.target.value)}
-                maxLength={100}
-                className="sfp-input"
-                data-testid="slip-form-agree-term"
-              />
-            )}
-          />
-        </div>
-
-        {/* ioType + timeDate (분기/시간) */}
-        <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 16 }}>
-          <FormField
-            label="입출고 분기 (io_type)"
-            hint="'10'=출고 / '11'=입고. 페이지 분기로 자동 설정"
-            render={({ id }) => (
-              <select
-                id={id}
-                value={ioType}
-                onChange={(e) => setIoType(e.target.value)}
-                className="sfp-input"
-                data-testid="slip-form-io-type"
-              >
-                <option value="10">10 (출고)</option>
-                <option value="11">11 (입고)</option>
-              </select>
-            )}
-          />
-          <FormField
-            label="발행 시각 (HHmmss)"
-            hint="비워두면 BE 가 서버 시각 자동 채움"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={timeDate}
-                onChange={(e) => setTimeDate(e.target.value)}
-                maxLength={10}
-                className="sfp-input"
-                placeholder="예: 143025 (자동)"
-                data-testid="slip-form-time-date"
-              />
-            )}
-          />
-        </div>
-      </Card>
-
-      {/*
-        V20 신규 5필드 입력 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일.
-        BE V20__add_slip_v20_fields.sql 컬럼과 1:1 대응 (모두 옵션).
-        UUID 비공개 가드: 거래처 businessNumber 는 자동 표시 전용, 사용자 직접 입력 X.
-      */}
-      <Card padding={6} shadow="sm" className="sfp-card">
-        <div className="sfp-section-title">배송 정보 (V20)</div>
+        <div className="sfp-section-title">배송 정보</div>
 
         {/* 배송주소 + 거래처 주소 복사 버튼 */}
         <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 8 }}>
@@ -922,51 +695,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           />
         </div>
 
-        {/* 프로젝트명 / 인수자 번호 / 입금예정일 */}
-        <div className="sfp-form-grid sfp-form-grid--3" style={{ marginTop: 16 }}>
-          <FormField
-            label="프로젝트명"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                maxLength={200}
-                className="sfp-input"
-                placeholder="예: 강남 오피스텔 A동 공조 설치"
-                data-testid="slip-form-project-name"
-              />
-            )}
-          />
-          <FormField
-            label="인수자 번호"
-            hint="010-1234-5678 형식"
-            render={({ id }) => (
-              <input
-                id={id}
-                value={recipientPhone}
-                onChange={(e) => setRecipientPhone(e.target.value)}
-                maxLength={20}
-                className="sfp-input"
-                placeholder="010-0000-0000"
-                data-testid="slip-form-recipient-phone"
-              />
-            )}
-          />
-          <FormField
-            label="입금예정일"
-            render={({ id }) => (
-              <input
-                id={id}
-                type="date"
-                value={paymentDueDate}
-                onChange={(e) => setPaymentDueDate(e.target.value)}
-                className="sfp-input"
-                data-testid="slip-form-payment-due-date"
-              />
-            )}
-          />
-        </div>
       </Card>
 
       {/* 라인 카드 */}
