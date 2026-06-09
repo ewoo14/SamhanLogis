@@ -196,9 +196,11 @@ public class SlipLine extends BaseEntity {
                                                   UUID sourceOrderLineId) {
         validatePositive(quantity);
         validateUnitPrice(unitPriceWithVat);
+        // 한국 원화 송장 표준(eCount): 합계(VAT포함)·공급가액·부가세는 모두 원 단위(정수) 반올림.
+        // FE(SlipFormPage/LineRow 의 Math.round)와 동일 granularity 로 일치시킨다(P2 정합).
         BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal supply = lineInclVat.divide(new BigDecimal("1.1"), 2, RoundingMode.HALF_UP);
+                .setScale(0, RoundingMode.HALF_UP);
+        BigDecimal supply = lineInclVat.divide(new BigDecimal("1.1"), 0, RoundingMode.HALF_UP);
         BigDecimal vat = lineInclVat.subtract(supply);
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         // 공급 단가로 일반 생성 후 라인 단위 권위값으로 덮어쓴다.

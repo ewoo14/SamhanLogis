@@ -191,6 +191,36 @@ class SlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void create_priceVatInclusive_roundsToWholeWonPerLine() throws Exception {
+        // 원 단위 반올림(eCount): qty=1, 단가(VAT포함)=1000 → 합계 1000,
+        // 공급가액=round(1000/1.1)=909, 부가세=91 (소수 없음, FE Math.round 와 일치).
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "원단위 반올림");
+        line.put("quantity", 1);
+        line.put("unitPrice", 1000);
+        line.put("priceVatInclusive", true);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "OUTBOUND");
+        body.put("slipDate", "2026-06-09");
+        body.put("sourceWarehouseId", UUID.randomUUID().toString());
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerName", "원단위거래처");
+        body.put("deliveryTag", "DAY");
+        body.put("lines", List.of(line));
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(909.0))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(91.0));
+    }
+
+    @Test
     void addLine_bundle_expandedToComponents() throws Exception {
         // 에픽 후속 #2 — 기존 전표(DRAFT)에 BUNDLE(세트) 라인 추가 시 create 경로와 동일하게
         // product-service expand 로 구성품 라인 N개 전개됨을 검증 (이전엔 1라인으로 직삽입되어 미전개).
