@@ -70,7 +70,7 @@ jobs:
             test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.delivery.it.*" --tests "com.samhanair.logis.slip.publish.*"'
           - name: slip-it-core
             timeout: 30
-            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.repository.dispatch.*"'
+            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.repository.dispatch.*"'
           - name: accounting+partner
             timeout: 30
             test-tasks: ':services:accounting-service:test :services:partner-service:test :services:partner-auth-service:test :services:partner-order-service:test :services:dc-config-service:test'

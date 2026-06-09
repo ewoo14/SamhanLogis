@@ -37,6 +37,12 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Slice B (notification-slice-B): 공개 모바일 endpoint — 토큰만 검증
                         .requestMatchers("/public/**").permitAll()
+                        // 종합견적서(웹) 견적 저장/불러오기 — estimate-app 이 server-to-server 무인증
+                        // 호출(legacy 노션은 GAS 서비스계정이 사용자 대신 접근). 조회는 userEmail
+                        // 파라미터로 사용자별 격리, 저장 blob 은 견적 초안(저민감). 후속 하드닝 시
+                        // X-Internal-Token 도입 검토.
+                        .requestMatchers("/api/v1/estimates/snapshots",
+                                "/api/v1/estimates/snapshots/**").permitAll()
                         .anyRequest().authenticated())
                 // W10-4 (PR #99) DV-3: shared:security InternalTokenFilter 등록
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)

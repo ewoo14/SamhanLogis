@@ -1707,7 +1707,12 @@ async function getQuoteHistory(startDate, endDate) {
     `${ESTIMATE_BASE}/api/v1/estimates/snapshots`,
     { startDate, endDate, userEmail: email },
   );
-  return Array.isArray(data) ? data : data?.items || [];
+  // SamhanLogis ApiResponse 봉투 {success, data:[...]} / raw 배열 / {items} 모두 허용.
+  // 봉투의 .data 미언래핑 시 목록이 항상 비어 복원 불가(legacy 노션 대체 회귀 방지).
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
 }
 
 /* ════════════════════════════════════════════════════════════════════════

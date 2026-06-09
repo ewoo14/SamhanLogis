@@ -276,6 +276,15 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # 종합견적서(웹) 견적 저장/불러오기 — slip-service QuoteSnapshotController 가 풀패스
+        # /api/v1/estimates/snapshots 보유 → NoStripPrefix. estimate-app server-to-server
+        # 무인증 호출(legacy 노션 서비스계정 패턴) → JwtAuthentication 미적용. generic
+        # slip-service-v1(/api/v1/slips/**) 와 경로 비중첩.
+        - id: slip-service-estimates-v1
+          uri: lb://slip-service
+          predicates:
+            - Path=/api/v1/estimates/**
+
         - id: slip-service-v1
           uri: lb://slip-service
           predicates:
