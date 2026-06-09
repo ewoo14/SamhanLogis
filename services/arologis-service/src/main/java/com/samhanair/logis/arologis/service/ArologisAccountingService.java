@@ -137,12 +137,32 @@ public class ArologisAccountingService {
         return summary(ym.atDay(1), ym.atEndOfMonth());
     }
 
-    /** 활성 + 사용가능 계정과목 목록. */
+    /** 활성 + 사용가능 계정과목 목록(현금출납장 거래 등록 드롭다운용). */
     @Transactional(readOnly = true)
     public List<SimpleAccountView> listAccounts() {
         return simpleAccountRepository.findAllByIsDeletedFalseAndActiveTrueOrderByDisplayOrderAscCodeAsc().stream()
                 .map(SimpleAccountView::from)
                 .toList();
+    }
+
+    /** 전체 계정과목 목록(비활성 포함) — 계정과목 관리 화면용. */
+    @Transactional(readOnly = true)
+    public List<SimpleAccountView> listAllAccounts() {
+        return simpleAccountRepository.findAllByIsDeletedFalseOrderByDisplayOrderAscCodeAsc().stream()
+                .map(SimpleAccountView::from)
+                .toList();
+    }
+
+    /**
+     * 계정과목 활성상태 변경. 비활성 계정은 신규 거래 등록 드롭다운에서 제외되나 과거 거래는 보존된다.
+     *
+     * @param actor created/modified 감사는 {@code AuditorAware} 가 처리하므로 시그니처 정합 목적의 미사용
+     *     인자이다(현금 거래 메서드 선례 동일).
+     */
+    public SimpleAccountView setAccountActive(String code, boolean active, String actor) {
+        ArologisSimpleAccount account = findAccount(code);
+        account.changeActive(active);
+        return SimpleAccountView.from(account);
     }
 
     private ArologisCashTxn findTxn(UUID id) {
@@ -250,11 +270,16 @@ public class ArologisAccountingService {
             int count) {
     }
 
-    /** 계정과목 응답. UUID 없음(code 가 식별자). */
-    public record SimpleAccountView(String code, String name, AccountType type, int displayOrder) {
+    /** 계정과목 응답. UUID 없음(code 가 식별자). active = 활성상태(거래 등록 노출 여부). */
+    public record SimpleAccountView(
+            String code, String name, AccountType type, int displayOrder, boolean active) {
         public static SimpleAccountView from(ArologisSimpleAccount account) {
             return new SimpleAccountView(
-                    account.getCode(), account.getName(), account.getType(), account.getDisplayOrder());
+                    account.getCode(),
+                    account.getName(),
+                    account.getType(),
+                    account.getDisplayOrder(),
+                    account.isActive());
         }
     }
 }

@@ -72,4 +72,18 @@ public class ArologisSimpleAccount extends BaseEntity {
             String code, String name, AccountType type, int displayOrder, boolean active) {
         return new ArologisSimpleAccount(code, name, type, displayOrder, active);
     }
+
+    /**
+     * 활성상태 변경. 비활성(false) 계정은 신규 거래 등록 대상에서 제외되며, 이미 기록된 과거 거래는
+     * 그대로 보존된다. modified_by 는 {@code AuditorAware} 가 기록한다.
+     *
+     * @return 상태가 실제로 바뀌었으면 true, 동일 값이라 변화 없으면 false(멱등 호출 무시용)
+     */
+    public boolean changeActive(boolean active) {
+        if (this.active == active) {
+            return false;
+        }
+        this.active = active;
+        return true;
+    }
 }

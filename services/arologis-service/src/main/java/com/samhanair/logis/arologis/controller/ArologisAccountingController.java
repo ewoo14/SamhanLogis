@@ -48,12 +48,38 @@ public class ArologisAccountingController {
 
     private final ArologisAccountingService accountingService;
 
-    /** 계정과목 목록 조회(활성). */
+    /** 계정과목 목록 조회(활성) — 현금출납장 거래 등록 드롭다운용. */
     @Operation(summary = "아로로지스 간이 계정과목 목록 조회")
     @GetMapping("/accounts")
     @RequirePermission(page = "arologis.accounting.cashbook", action = PermissionAction.VIEW)
     public ApiResponse<List<ArologisAccountingService.SimpleAccountView>> listAccounts() {
         return ApiResponse.ok(accountingService.listAccounts());
+    }
+
+    /**
+     * 계정과목 전체 목록 조회(비활성 포함) — 계정과목 관리 화면용.
+     *
+     * <p>활성상태 관리 전용 page-code {@code arologis.accounting.accounts} 로 게이트한다(현금출납장과
+     * 분리). 마스터/회계사원만 grant 보유 — 대표실/회계팀이 활성상태를 관리한다.
+     */
+    @Operation(summary = "아로로지스 계정과목 전체 목록 조회(관리)")
+    @GetMapping("/accounts/all")
+    @RequirePermission(page = "arologis.accounting.accounts", action = PermissionAction.VIEW)
+    public ApiResponse<List<ArologisAccountingService.SimpleAccountView>> listAllAccounts() {
+        return ApiResponse.ok(accountingService.listAllAccounts());
+    }
+
+    /**
+     * 계정과목 활성상태 변경(관리). 비활성 계정은 거래 등록 드롭다운에서 제외되며 과거 거래는 보존된다.
+     */
+    @Operation(summary = "아로로지스 계정과목 활성상태 변경")
+    @PutMapping("/accounts/{code}/active")
+    @RequirePermission(page = "arologis.accounting.accounts", action = PermissionAction.UPDATE)
+    public ApiResponse<ArologisAccountingService.SimpleAccountView> setAccountActive(
+            @PathVariable String code,
+            @Valid @RequestBody AccountActiveRequest request,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String actor) {
+        return ApiResponse.ok(accountingService.setAccountActive(code, request.active(), actor));
     }
 
     /** 현금 거래 목록 조회(기간 + 선택적 유형 필터). */
@@ -135,5 +161,9 @@ public class ArologisAccountingController {
             return new ArologisAccountingService.CreateCashTxnCommand(
                     txnDate, type, partnerName, amount, accountCode, description);
         }
+    }
+
+    /** 계정과목 활성상태 변경 요청. */
+    public record AccountActiveRequest(@NotNull Boolean active) {
     }
 }

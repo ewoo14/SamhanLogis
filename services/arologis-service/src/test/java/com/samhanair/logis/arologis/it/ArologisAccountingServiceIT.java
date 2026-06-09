@@ -69,6 +69,61 @@ class ArologisAccountingServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void standardChartSeeded_includesEquityAccounts_realInsert() {
+        // V17 표준차트가 자본(EQUITY) 계정을 실 Postgres 에 적재했는지 검증.
+        // type CHECK 가 4유형(자본 누락)이면 V17 INSERT 가 Flyway 단계에서 거부되어 컨텍스트 로드
+        // 자체가 실패한다([[enum-expansion-check-constraint]] 교훈의 실 INSERT 적발 지점).
+        List<ArologisAccountingService.SimpleAccountView> all = accountingService.listAllAccounts();
+
+        assertThat(all).extracting(ArologisAccountingService.SimpleAccountView::code)
+                .contains("3010", "3040", "3080"); // 자본금/이익잉여금/인출금
+        assertThat(all).filteredOn(a -> a.code().equals("3010"))
+                .singleElement()
+                .satisfies(a -> assertThat(a.type()).isEqualTo(
+                        com.samhanair.logis.arologis.domain.AccountType.EQUITY));
+    }
+
+    @Test
+    void listAccounts_excludesInactive_butListAllIncludesThem() {
+        // V17 에서 1030 정기예금은 active=false(운송업 비상용) 로 적재된다.
+        List<String> activeCodes = accountingService.listAccounts().stream()
+                .map(ArologisAccountingService.SimpleAccountView::code).toList();
+        List<String> allCodes = accountingService.listAllAccounts().stream()
+                .map(ArologisAccountingService.SimpleAccountView::code).toList();
+
+        assertThat(activeCodes).doesNotContain("1030");
+        assertThat(allCodes).contains("1030");
+        // 활성 계정(1010)은 양쪽 모두에 존재.
+        assertThat(activeCodes).contains("1010");
+    }
+
+    @Test
+    void setAccountActive_togglesDropdownVisibility() {
+        // 비활성 1030 정기예금을 활성화하면 거래 등록 목록(listAccounts)에 노출되고, 되돌리면 사라진다.
+        accountingService.setAccountActive("1030", true, "it-tester");
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(accountingService.listAccounts())
+                .extracting(ArologisAccountingService.SimpleAccountView::code)
+                .contains("1030");
+
+        accountingService.setAccountActive("1030", false, "it-tester");
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(accountingService.listAccounts())
+                .extracting(ArologisAccountingService.SimpleAccountView::code)
+                .doesNotContain("1030");
+    }
+
+    @Test
+    void setAccountActive_rejectsUnknownCode() {
+        assertThatThrownBy(() -> accountingService.setAccountActive("0000", false, "it-tester"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
     void createIncomeAndExpense_thenSummaryComputesBalance() {
         accountingService.create(
                 new ArologisAccountingService.CreateCashTxnCommand(

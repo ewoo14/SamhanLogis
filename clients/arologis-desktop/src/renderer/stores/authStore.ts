@@ -81,3 +81,15 @@ export function canManageHr(role: string | undefined | null): boolean {
 export function canGrantMaster(role: string | undefined | null): boolean {
   return role === 'AROLOGIS_MASTER'
 }
+
+/**
+ * 계정과목 관리(활성상태 토글) 권한 보유 여부.
+ *
+ * 개발책임자 2026-06-09: 계정과목 활성상태 설정 = 대표실·회계팀 → 마스터·회계사원만.
+ * BE page-code `arologis.accounting.accounts` grant(V54)와 정합. 매니저는 회계 거래 입력은
+ * 가능하나 계정과목 마스터 활성상태 관리는 불가하므로 canManageHr 와 분리한다.
+ */
+export function canManageAccounts(role: string | undefined | null): boolean {
+  if (!role) return false
+  return role === 'AROLOGIS_MASTER' || role === 'AROLOGIS_ACCOUNTANT'
+}

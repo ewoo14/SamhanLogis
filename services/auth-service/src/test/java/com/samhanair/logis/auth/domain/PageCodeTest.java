@@ -242,6 +242,15 @@ class PageCodeTest {
     }
 
     @Test
+    void arologis_accountingAccounts_pageCode_V54_seed와_동기화() {
+        assertThat(PageCode.AROLOGIS_ACCOUNTING_ACCOUNTS.getCode())
+                .isEqualTo("arologis.accounting.accounts");
+        assertThat(PageCode.AROLOGIS_ACCOUNTING_ACCOUNTS.getDisplayName())
+                .isEqualTo("아로로지스 계정과목 관리");
+        assertThat(PageCode.isValid("arologis.accounting.accounts")).isTrue();
+    }
+
+    @Test
     void spD65_pageCodes_V35_seed와_동기화() {
         assertThat(PageCode.INVENTORY_WAREHOUSE_ADMIN.getCode())
                 .isEqualTo("inventory.warehouse.admin");

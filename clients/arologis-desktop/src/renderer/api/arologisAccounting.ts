@@ -16,15 +16,16 @@ import { apiClient, type ApiEnvelope } from './client'
 /** 거래 유형 — 수입/지출 단식. */
 export type CashTxnType = 'INCOME' | 'EXPENSE'
 
-/** 계정과목 유형 — 자산/부채/수입/지출. */
-export type AccountType = 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE'
+/** 계정과목 유형 — 자산/부채/자본/수입/지출 (일반기업회계기준 5분류). */
+export type AccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE'
 
-/** 계정과목(SimpleAccountView). UUID 없음 — code 가 식별자. */
+/** 계정과목(SimpleAccountView). UUID 없음 — code 가 식별자. active = 활성상태. */
 export interface SimpleAccountView {
   code: string
   name: string
   type: AccountType
   displayOrder: number
+  active: boolean
 }
 
 /** 현금 거래(CashTxnView). id 는 routing/수정·삭제 키 한정. */
@@ -68,9 +69,24 @@ export interface CashTxnListParams {
 
 const ACCOUNTING_BASE = '/admin/arologis/accounting'
 
-/** 계정과목 목록 조회(활성). */
+/** 계정과목 목록 조회(활성) — 거래 등록 드롭다운용. */
 export async function listAccounts(): Promise<SimpleAccountView[]> {
   const res = await apiClient.get<ApiEnvelope<SimpleAccountView[]>>(`${ACCOUNTING_BASE}/accounts`)
+  return res.data.data
+}
+
+/** 계정과목 전체 목록 조회(비활성 포함) — 계정과목 관리 화면용. */
+export async function listAllAccounts(): Promise<SimpleAccountView[]> {
+  const res = await apiClient.get<ApiEnvelope<SimpleAccountView[]>>(`${ACCOUNTING_BASE}/accounts/all`)
+  return res.data.data
+}
+
+/** 계정과목 활성상태 변경(관리). 마스터·회계사원만 — BE @RequirePermission 최종 방어. */
+export async function setAccountActive(code: string, active: boolean): Promise<SimpleAccountView> {
+  const res = await apiClient.put<ApiEnvelope<SimpleAccountView>>(
+    `${ACCOUNTING_BASE}/accounts/${encodeURIComponent(code)}/active`,
+    { active },
+  )
   return res.data.data
 }
 

@@ -34,6 +34,7 @@ import { DriverManagementPage } from './drivers/DriverManagementPage'
 import { EmployeesPage } from './admin/EmployeesPage'
 import { DepartmentsPage } from './admin/DepartmentsPage'
 import { CashbookPage } from './admin/CashbookPage'
+import { AccountsPage } from './admin/AccountsPage'
 import { PermissionsPage } from './admin/PermissionsPage'
 import { DispatchesLayout } from './dispatches/DispatchesLayout'
 import { ArologisManualDispatchPage } from './dispatches/ManualDispatchPage'
@@ -129,6 +130,9 @@ const router = createHashRouter([
       { path: 'admin/employees', element: <EmployeesPage /> },
       { path: 'admin/departments', element: <DepartmentsPage /> },
       { path: 'admin/cashbook', element: <CashbookPage /> },
+      // 계정과목 관리 = 마스터/회계사원 전용. AccountsPage 내부 canManageAccounts + BE
+      // @RequirePermission(arologis.accounting.accounts) 이중 방어.
+      { path: 'admin/accounts', element: <AccountsPage /> },
       // 권한 관리 = AROLOGIS_MASTER 전용. PermissionsPage 내부에서도 canGrantMaster 게이트로
       // 비마스터 직접 진입을 방어한다(BE @RequirePermission 이 최종 방어).
       { path: 'admin/permissions', element: <PermissionsPage /> },

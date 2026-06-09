@@ -2823,3 +2823,12 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-AROLO-HR-02 | **직원↔계정 1:1 통합** — ArologisEmployee 생성 시 AdminUser 자동 provisioning(BCrypt 임시pw 1회반환), 퇴직 시 양쪽 soft-delete. **롤 = 기존 AROLOGIS_MASTER/MANAGER 2롤 유지**, 인사 접근은 page-code `arologis.hr.*` 통제(롤 세분화 안 함). RoleChangeHistory(changedByLoginId) 포함. |
 | D-AROLO-HR-03 | **권한 grant = 중앙 auth-service 공유 유지**(arologis 는 이미 권한체크 auth 위임, 독립은 계정뿐). arologis.hr.* → `role_page_permissions`(arologis.admin V10 컨벤션, 중앙 DynamicPermissionService 무변경). `arologis.*`/`AROLOGIS_*` 네임스페이스 분리 → 향후 "auth 없이 단독 운영" 필요 시 해당 행만 arologis-service 이관(문 열어둠). |
 | D-AROLO-HR-04 | 보안: **AROLOGIS_MASTER 생성/승격은 actor=AROLOGIS_MASTER 한정**(MANAGER self-escalation 차단). UUID 비노출(changedByLoginId=loginId). 부서 삭제 현직 배속자 가드 409. login_id race→409. |
+
+### D-AROLO-ACCT (계정과목 표준차트 + 활성상태, 2026-06-09)
+
+| 결정 | 내용 |
+|---|---|
+| D-AROLO-ACCT-01 | arologis 백오피스 실 운영 seed 확정(개발책임자). **삼한 퍼블릭 아닌 아로로지스 독립 운영**. 부서 = **대표실/행정팀/회계팀 3개**(V17, 배차/운영 soft-delete). |
+| D-AROLO-ACCT-02 | 계정과목 = **일반기업회계기준 표준계정과목 5유형 전체 83개**(V17). `arologis_simple_account.type` CHECK 4→5유형(**자본 EQUITY 추가**) — 미확장 시 EQUITY INSERT 거부([[enum-expansion-check-constraint]]). 코드 4자리(1xxx 자산·2xxx 부채·3xxx 자본·4xxx 수익·8xxx 비용). 운송업 상용만 active=TRUE, 나머지 active=FALSE(데이터 보존, 드롭다운 숨김). |
+| D-AROLO-ACCT-03 | **활성상태 관리 = 신규 page-code `arologis.accounting.accounts`**(현금출납장 cashbook 과 분리). 권한 = 대표실·회계팀 → **마스터·회계사원만 V/E**(V54), 매니저는 거래 입력 가능하나 계정 마스터 관리 제외(권한 격리). FE canManageAccounts(MASTER\|ACCOUNTANT) + BE @RequirePermission 이중 방어. |
+| D-AROLO-ACCT-04 | 스코프 = 표준차트 고정 → **활성상태 토글만**(계정 CRUD 아님). UI 표기 = `active` 미노출 **"활성상태"**(개발책임자 지시). |

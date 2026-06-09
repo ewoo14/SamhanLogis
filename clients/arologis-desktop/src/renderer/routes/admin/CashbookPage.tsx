@@ -53,6 +53,7 @@ const TXN_TYPE_LABELS: Record<CashTxnType, string> = {
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   ASSET: '자산',
   LIABILITY: '부채',
+  EQUITY: '자본',
   INCOME: '수입',
   EXPENSE: '지출',
 }
@@ -670,6 +671,7 @@ function buildAccountOptions(
       name: `${currentCode} (사용 불가 계정)`,
       type: 'ASSET',
       displayOrder: Number.MAX_SAFE_INTEGER,
+      active: false,
       disabled: true,
     })
   }
