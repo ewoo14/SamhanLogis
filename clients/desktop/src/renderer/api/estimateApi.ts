@@ -25,6 +25,9 @@ import {
   type ApiEnvelope,
   type PageResponse,
 } from './client'
+import type { BundleSetOptions } from './slip'
+
+export type { BundleSetOptions }
 
 /** 견적서 상태 — BE EstimateStatus 와 1:1. */
 export type EstimateStatus =
@@ -105,6 +108,8 @@ export interface EstimateLineRequest {
   /** 단가 (BigDecimal — string). */
   unitPrice: string
   note?: string
+  /** 세트 전개 옵션 — BUNDLE 품목 라인에 한해 전달(BE BundleExpander). */
+  setOptions?: BundleSetOptions
 }
 
 /** 견적서 신규 생성 요청. */

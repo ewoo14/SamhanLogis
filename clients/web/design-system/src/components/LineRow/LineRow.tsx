@@ -31,6 +31,23 @@ import { Spinner } from '../Spinner/Spinner'
 import { DragHandle } from '../DragHandle/DragHandle'
 
 /**
+ * 세트(BUNDLE) 전개 옵션 — BE `BundleSetOptions` 와 구조적 호환.
+ * 모든 필드 optional 이며, 호출자(desktop)의 동명 타입과 structural 하게 assignable.
+ */
+export interface BundleSetOptions {
+  /** 실외기 교체 모델코드 (미입력=기본). */
+  remoteOption?: string | null
+  /** 실외기 제외 여부. */
+  remoteExcluded?: boolean | null
+  /** 판넬 선택 모델코드 (미입력=기본). */
+  panelOption?: string | null
+  /** 판넬 360 형상 여부. */
+  panelShape360?: boolean | null
+  /** 자재 포함 여부. */
+  materialIncluded?: boolean | null
+}
+
+/**
  * 라인 입력 폼 상태 (SlipFormPage 와 공유).
  *
  * - `productId` 는 lookup 성공 시 채워지는 UUID — 화면 미노출
@@ -60,6 +77,12 @@ export interface LineDraft {
   lookupError: string | null
   /** lookup 진행 중 — 우측 spinner 표시. */
   lookupLoading: boolean
+  /** 품목 유형 (선택) — "SINGLE" | "BUNDLE". BUNDLE 일 때만 세트 옵션 노출. */
+  productType?: string | null
+  /** 품목코드 (선택) — 세트 전개 시 부모 modelCode. */
+  modelCode?: string | null
+  /** 세트 전개 옵션 (선택) — BUNDLE 라인에 한해 채움. */
+  setOptions?: BundleSetOptions
 }
 
 export interface LineRowProps {

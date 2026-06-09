@@ -692,16 +692,36 @@ const MOCK_TRANSFERS = [
   },
 ]
 
-/** 모델명 lookup 시연용 — 5개 mock product (대소문자 구분 없음). */
+/**
+ * 모델명 lookup 시연용 — mock product (대소문자 구분 없음).
+ * PR-3b: `productType` 추가 — "BUNDLE" 이면 세트 옵션 picker 노출.
+ * `modelCode` 미지정 시 modelName 을 그대로 사용 (BE ProductSummary 기본값).
+ */
 const MOCK_PRODUCTS_BY_MODEL: Record<
   string,
-  { productId: string; modelName: string; productName: string; sellingPrice: string }
+  {
+    productId: string
+    modelName: string
+    productName: string
+    sellingPrice: string
+    productType?: string
+    modelCode?: string
+  }
 > = {
   AJ040RXH4BC1: {
     productId: 'p-aj040',
     modelName: 'AJ040RXH4BC1',
     productName: '시스템에어컨 4Way 4HP',
     sellingPrice: '1850000',
+    productType: 'SINGLE',
+  },
+  'SET-HM2WAY': {
+    productId: 'p-set-hm2way',
+    modelName: 'SET-HM2WAY',
+    productName: '가정용 멀티 2in1 세트 (실내2 + 실외1 + 판넬 + 자재)',
+    sellingPrice: '5400000',
+    productType: 'BUNDLE',
+    modelCode: 'SET-HM2WAY',
   },
   AJ052RXH5BC1: {
     productId: 'p-aj052',
@@ -1240,6 +1260,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         categoryId: null,
         sellingPrice: p.sellingPrice,
         status: 'ACTIVE',
+        modelCode: p.modelCode ?? p.modelName,
+        productType: p.productType ?? 'SINGLE',
       })),
       totalElements: matched.length,
       totalPages: 1,
@@ -1286,7 +1308,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const found = MOCK_PRODUCTS_BY_MODEL[modelName.toUpperCase()]
       ?? MOCK_PRODUCTS_BY_MODEL[modelName]
     if (found) {
-      return envelope(found)
+      return envelope({
+        ...found,
+        modelCode: found.modelCode ?? found.modelName,
+        productType: found.productType ?? 'SINGLE',
+      })
     }
     // 미존재는 mock 환경에서도 404 시뮬레이션 — null 반환 시 axios 가 실제 호출 시도
     // 하지만 백엔드 미부팅이라 실패. 간단히 envelope 안에 not-found 표시 대신

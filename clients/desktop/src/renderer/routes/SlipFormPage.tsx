@@ -37,6 +37,7 @@ import {
   PhoneInput,
   ProductAutocomplete,
   WarehouseAutocomplete,
+  type BundleSetOptions,
   type DeliveryTagOption,
   type LineDraft,
   type PartnerOption,
@@ -74,6 +75,7 @@ import { searchProducts as searchProductsApi } from '../api/productApi'
 import { searchPartners as searchPartnersApi } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
+import { BundleOptionRow } from './components/BundleOptionRow'
 
 /**
  * 본 슬라이스용 OUTBOUND 배송태그 옵션 — BE `DeliveryTag` enum 의 OUTBOUND 8종.
@@ -93,6 +95,30 @@ const OUTBOUND_TAG_OPTIONS: DeliveryTagOption[] = [
 let __tempIdCounter = 0
 const nextTempId = (): string => `tmp-${++__tempIdCounter}`
 
+const emptySetOptions = (): BundleSetOptions => ({
+  remoteOption: '',
+  remoteExcluded: false,
+  panelOption: '',
+  panelShape360: false,
+  materialIncluded: false,
+})
+
+/**
+ * BUNDLE 라인의 setOptions 를 API 전송용으로 변환. SINGLE 라인은 undefined
+ * (BE 가 전개 생략). 빈 문자열 modelCode 는 null 로 정규화하여 BE 가 기본값 사용.
+ */
+const toApiSetOptions = (line: LineDraft): BundleSetOptions | undefined => {
+  if (line.productType !== 'BUNDLE') return undefined
+  const o = line.setOptions ?? emptySetOptions()
+  return {
+    remoteOption: o.remoteOption?.trim() ? o.remoteOption.trim() : null,
+    remoteExcluded: Boolean(o.remoteExcluded),
+    panelOption: o.panelOption?.trim() ? o.panelOption.trim() : null,
+    panelShape360: Boolean(o.panelShape360),
+    materialIncluded: Boolean(o.materialIncluded),
+  }
+}
+
 const emptyLine = (): LineDraft => ({
   id: nextTempId(),
   productId: null,
@@ -103,6 +129,9 @@ const emptyLine = (): LineDraft => ({
   unitPrice: '0',
   lookupError: null,
   lookupLoading: false,
+  productType: null,
+  modelCode: null,
+  setOptions: emptySetOptions(),
 })
 
 export interface SlipFormPageProps {
@@ -274,6 +303,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const updateLine = (id: string, patch: Partial<LineDraft>) =>
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
+  const updateSetOption = (id: string, patch: Partial<BundleSetOptions>) =>
+    setLines((ls) =>
+      ls.map((l) =>
+        l.id === id
+          ? { ...l, setOptions: { ...(l.setOptions ?? emptySetOptions()), ...patch } }
+          : l,
+      ),
+    )
+
   const toggleSelect = (id: string, selected: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -437,6 +475,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             specification: l.specification.trim() || undefined,
             quantity: Number(l.quantity),
             unitPrice: l.unitPrice || '0',
+            setOptions: toApiSetOptions(l),
           })),
       }
       return createSlip(payload)
@@ -995,9 +1034,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       }
                     : null
 
+                const isBundle = line.productType === 'BUNDLE'
                 return (
+                  <div key={line.id}>
                   <SortableLineRow
-                    key={line.id}
                     line={line}
                     lineNumber={idx + 1}
                     selected={selectedIds.has(line.id)}
@@ -1021,6 +1061,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                               p?.sellingPrice != null
                                 ? String(p.sellingPrice)
                                 : line.unitPrice,
+                            productType: p?.productType ?? null,
+                            modelCode: p?.modelCode ?? null,
                             lookupError: null,
                             lookupLoading: false,
                           })
@@ -1033,6 +1075,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       />
                     }
                   />
+                  {isBundle ? (
+                    <BundleOptionRow
+                      line={{
+                        modelName: line.modelName,
+                        setOptions: line.setOptions ?? emptySetOptions(),
+                      }}
+                      index={idx}
+                      onChange={(patch) => updateSetOption(line.id, patch)}
+                    />
+                  ) : null}
+                  </div>
                 )
               })}
             </SortableContext>

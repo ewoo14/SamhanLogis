@@ -26,6 +26,10 @@ interface ProductSummaryResponse {
   modelName: string
   productCode: string | null
   sellingPrice: string | null
+  /** 품목코드 — BE ProductSummaryResponse 신규 (세트 전개 부모 식별). */
+  modelCode?: string | null
+  /** 품목 유형 — "SINGLE" | "BUNDLE". BE ProductSummaryResponse 신규. */
+  productType?: string | null
 }
 
 /**
@@ -55,6 +59,8 @@ export async function searchProducts(q: string): Promise<ProductOption[]> {
         p.sellingPrice != null
           ? Number(p.sellingPrice)
           : undefined,
+      modelCode: p.modelCode ?? undefined,
+      productType: p.productType ?? undefined,
     }))
   } catch {
     // 네트워크/서버 오류 시 graceful 빈 배열 반환

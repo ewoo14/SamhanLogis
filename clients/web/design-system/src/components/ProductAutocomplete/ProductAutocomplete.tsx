@@ -21,6 +21,10 @@ export interface ProductOption {
   productName: string
   /** 출고 단가 (선택 사항). */
   sellingPrice?: number
+  /** 품목코드 (선택) — 세트 전개 시 부모 modelCode. */
+  modelCode?: string
+  /** 품목 유형 (선택) — "SINGLE" | "BUNDLE". BUNDLE 이면 세트 옵션 노출. */
+  productType?: string
 }
 
 export interface ProductAutocompleteProps {
