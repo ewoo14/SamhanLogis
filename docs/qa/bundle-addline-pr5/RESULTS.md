@@ -31,3 +31,15 @@
 
 ## 후속(비차단)
 - `SlipDetailResponse.LineResponse` 가 `setHead`/`parentSetModel` 미노출(응답 None) — DB엔 정확 영속. FE 세트 그룹 표시용으로 추후 응답 확장 여지(에픽 #2 범위 외, convert 라인도 동일).
+
+## 실사용자 UI 캡처 (실 Docker 스택 + 데스크톱 앱)
+
+> 개발책임자 지시 — API JSON 이 아닌 **실사용자가 보는 화면** 캡처([[feedback_real_server_check_screenshot]]).
+> 데스크톱 렌더러를 실 게이트웨이(:8080, VITE_MOCK_MODE 끔)에 붙이고 실 로그인(dev_master, 실 JWT)으로 수행.
+
+| 화면 | 증빙 | 내용 |
+|---|---|---|
+| 출고전표 **상세** | `../bundle-real-ui/slip-detail-expanded.png` | 세트 전표가 **4개 구성품 라인으로 전개**되어 표시 — AC052CN1PBH1 478,495 / AC052CX1PBH1 719,010 / PC1BWSK3NW 118,580 / AR-EH05 13,915 |
+| 새 출고전표 **작성폼** | `../bundle-real-ui/slip-form-bundle-picker.png` | BUNDLE 품목(AC052CS1PBH1SY) 선택 시 **세트 구성 옵션 picker**(실외기 제외/교체·판넬 선택/360형상·자재) 실 UI 노출 |
+
+> addLine(기존 전표 라인추가)은 UI 미연결이라, 동일 전개 결과가 실 UI 에 보이는 **전표 상세 화면**으로 사용자-facing 증빙. addLine 자체의 실 HTTP 1→5 전개는 위 §실서버 QA 참조.
