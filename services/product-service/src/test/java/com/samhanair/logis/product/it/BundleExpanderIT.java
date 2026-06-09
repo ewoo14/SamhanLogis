@@ -110,4 +110,83 @@ class BundleExpanderIT extends AbstractPostgresIT {
         assertThat(lines.get(0).modelCode()).isEqualTo("SNG001");
         assertThat(lines.get(0).quantity()).isEqualByComparingTo("4");
     }
+
+    @Test
+    void 가정용_싱글세트_세트단가_실내6_실외4_재배분() {
+        Category cat = categoryRepository.save(Category.create("GH-SET", "test", null, 10));
+        Product parent = bundleSet("GH_SET", "가정용 에어컨 무풍", cat, new BigDecimal("1000000"));
+        product("GH_IN", "실내기 4평", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        product("GH_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("700000"));
+        comp(parent, "GH_IN", BundleComponent.ComponentKind.INDOOR);
+        comp(parent, "GH_OUT", BundleComponent.ComponentKind.OUTDOOR);
+        flush();
+
+        var lines = expander.expand("GH_SET", BigDecimal.ONE);
+        assertThat(lines).hasSize(2);
+        assertThat(unit(lines, "GH_IN")).isEqualByComparingTo("600000"); // 1,000,000 × 6/10
+        assertThat(unit(lines, "GH_OUT")).isEqualByComparingTo("400000"); // 잔차 4/10
+    }
+
+    @Test
+    void 비가정_4way_싱글세트_실내4_실외6_재배분() {
+        Category cat = categoryRepository.save(Category.create("CW-SET", "test", null, 11));
+        Product parent = bundleSet("CW_SET", "무풍 4way 냉난방 프리미엄", cat, new BigDecimal("1000000"));
+        product("CW_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        product("CW_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("700000"));
+        comp(parent, "CW_IN", BundleComponent.ComponentKind.INDOOR);
+        comp(parent, "CW_OUT", BundleComponent.ComponentKind.OUTDOOR);
+        flush();
+
+        var lines = expander.expand("CW_SET", BigDecimal.ONE);
+        assertThat(unit(lines, "CW_IN")).isEqualByComparingTo("400000"); // 4way → 4:6
+        assertThat(unit(lines, "CW_OUT")).isEqualByComparingTo("600000");
+    }
+
+    @Test
+    void 옵션_패널1개선택_블랙_자재제외() {
+        Category cat = categoryRepository.save(Category.create("OPT-SET", "test", null, 12));
+        Product parent = bundleSet("OPT_SET", "1way 냉난방", cat, new BigDecimal("500000"));
+        product("PNL_W", "기본 화이트 판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("50000"));
+        product("PNL_B", "블랙 판넬", cat, ProductCategory.SINGLE_PART, new BigDecimal("60000"));
+        product("MAT_1", "배관 자재", cat, ProductCategory.SINGLE_PART, new BigDecimal("30000"));
+        componentRepository.save(BundleComponent.seed(parent.getId(), "PNL_W", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.PANEL, "기본", true, null));
+        componentRepository.save(BundleComponent.seed(parent.getId(), "PNL_B", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.PANEL, null, false, null));
+        componentRepository.save(BundleComponent.seed(parent.getId(), "MAT_1", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.MATERIAL, "자재", false, null));
+        flush();
+
+        var opts = new BundleExpander.ExpandOptions("", false, "블랙판넬", "원형", false, null);
+        var lines = expander.expand("OPT_SET", BigDecimal.ONE, opts);
+        assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode)
+                .containsExactly("PNL_B"); // 블랙 판넬만(화이트 제외, 자재 제외)
+    }
+
+    // ── helpers ─────────────────────────────────────────────
+    private Product bundleSet(String code, String name, Category cat, BigDecimal price) {
+        Product p = Product.seedFromSheet(name, code, cat, price, price,
+                ProductType.BUNDLE, ProductCategory.SINGLE_SET, UsageScope.BOTH, EstimateCategory.SINGLE_SET);
+        p.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        return productRepository.save(p);
+    }
+
+    private void product(String code, String name, Category cat, ProductCategory pc, BigDecimal price) {
+        productRepository.save(Product.seedFromSheet(name, code, cat, price, price,
+                ProductType.SINGLE, pc, UsageScope.NONE, null));
+    }
+
+    private void comp(Product parent, String code, BundleComponent.ComponentKind kind) {
+        componentRepository.save(BundleComponent.seed(parent.getId(), code, BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, kind, null, false, null));
+    }
+
+    private void flush() {
+        productRepository.flush();
+        componentRepository.flush();
+    }
+
+    private static BigDecimal unit(java.util.List<BundleExpander.ExpandedLine> lines, String code) {
+        return lines.stream().filter(l -> l.modelCode().equals(code)).findFirst().orElseThrow().unitPrice();
+    }
 }
