@@ -19,9 +19,16 @@
 - 실 검증: 1100×2→공급2000/부가세200, 1000→909/91, 변환 슬립 DB VAT 보존. 조회 리스트는 헤더 합계(공급가액)라 무변경.
 - **후속(범위 외)**: 매출/매입 **편집모드 매트릭스**(SlipDetailPage in-place) VAT포함 편집 / revision restore 가 unitPriceWithVat 미보존(SlipSnapshot/EstimateSnapshot 동일 — 스냅샷 스키마 확장 추후).
 
+### 🧭 견적/전표 아키텍처 (개발책임자 확인 2026-06-09)
+- **두 경로 병행 운영**: ① **웹 estimate-app**(GAS 종합견적서 UI 포팅, slip-bridge→slip-service 즉시 발행) ② **데스크톱 견적서 관리**(신규, 견적 저장/재호출/생명주기). 둘 다 운영.
+- **견적·주문서는 임의 상태에서 출고전표 전환 가능해야 함**(현재 견적은 QUOTE_ACCEPTED 강제 → 완화 필요).
+- 전산=eCount 대체([[project_replaces_ecount_gas_was_exporter]]). 규격=GAS '규격' 컬럼(BundleComponent/Product.specText).
+
 ### 🔵 다음 (우선순위 순)
-1. **세트 구성품 규격 자동채움**(product_spec) — expand 응답에 구성품 규격 합성 포함 + addSlipLinesExpanded/EstimateService 가 라인 specification 채움. (일반 라인 규격은 수동 입력. 구성품 규격은 product_spec key/value 합성 — 일부 구성품엔 spec row 없음.)
-2. 번들 후속: #3 직접전표 BUNDLE IT / #4 ProductSpec flapping 전역 reconcile(규격과 연관) / #5 상업멀티 kind=ACCESSORY / #6 panelOption 시트옵션 dropdown.
+1. **#445 머지 대기**(규격=GAS specText + 상세표 정렬, 리뷰 APPROVE, CI 진행).
+2. **언제든지 전환**(#25): 견적 convert QUOTE_ACCEPTED 강제 제거(DRAFT/SENT/ACCEPTED 임의) + 주문서 동일.
+3. **웹 estimate-app 정합**(#26): slip-bridge(unitPriceExVat/unitPriceVat/supplyAmount→/api/v1/slips) ↔ 현 CreateSlipRequest(unitPrice+priceVatInclusive) **계약 불일치** 정합 + 웹 GAS-UI 실 QA(미테스트 갭). 둘 다 병행 운영이라 양쪽 단가/규격/전환 일관성.
+4. 번들 후속: #3 직접전표 BUNDLE IT / #4 ProductSpec flapping 전역 reconcile / #5 상업멀티 kind=ACCESSORY / #6 panelOption 시트옵션 dropdown.
 
 ### ⚠️ 환경
 - **Codex 사용량 한도 다운(6/11 오전까지)** — MCP·CLI 모두. 듀얼리뷰 사이클2는 독립 Claude adversarial 리뷰로 대체(환경한계 예외 [[feedback_dual_5agent_review]]). 회복 시 재개.
