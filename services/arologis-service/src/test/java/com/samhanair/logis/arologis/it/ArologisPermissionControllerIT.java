@@ -445,6 +445,13 @@ class ArologisPermissionControllerIT {
                 endpoint("accounting summary", "arologis.accounting.summary", PermissionAction.VIEW,
                         "AROLOGIS_MANAGER", () -> get("/admin/arologis/accounting/summary")
                                 .param("year", "2026").param("month", "6")),
+                // 계정과목 관리(활성상태) = cashbook 과 분리된 page-code. 매니저는 거래 입력(cashbook)은
+                // 되지만 계정 마스터 관리(accounts)는 격리됨 — page-code 오타 시 우회 회귀를 HTTP 레벨로 적발.
+                endpoint("accounting account list all", "arologis.accounting.accounts", PermissionAction.VIEW,
+                        "AROLOGIS_MANAGER", () -> get("/admin/arologis/accounting/accounts/all")),
+                endpoint("accounting account set active", "arologis.accounting.accounts", PermissionAction.UPDATE,
+                        "AROLOGIS_MANAGER", () -> put("/admin/arologis/accounting/accounts/1030/active")
+                                .contentType(MediaType.APPLICATION_JSON).content("{\"active\":false}")),
                 // 권한 게이트 메커니즘만 검증 — AROLOGIS_MASTER 는 PermissionAspect 에서 무조건 bypass 되어
                 // deny 케이스가 성립하지 않으므로(role 모드 isMasterBypass), 비-MASTER 롤로 grant/deny 를 단언한다.
                 // 실제 시드(MASTER 전용 grant)는 V52 + PageCodeTest, 위임/스코프 가드는 ArologisPermissionAdminControllerIT 에서 검증.
