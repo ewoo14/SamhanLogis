@@ -79,10 +79,11 @@ public class BundleExpander {
                     c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty));
         }
 
-        List<Part> picked = pickedFilter(parts, opts);
-
-        // 싱글세트만 세트단가 재배분. 상업멀티 등은 구성품 개별 단가 유지.
-        if (parent.getProductCategory() == ProductCategory.SINGLE_SET) {
+        // 싱글세트만 옵션 선별(picked) + 세트단가 재배분(explodeSetParts). 상업멀티 등은 legacy
+        // explodeCommSets_ 처럼 필터/재배분 없이 전 구성품 개별 단가 유지.
+        boolean isSingleSet = parent.getProductCategory() == ProductCategory.SINGLE_SET;
+        List<Part> picked = isSingleSet ? pickedFilter(parts, opts) : parts;
+        if (isSingleSet) {
             redistribute(picked, parent, setUnit);
         }
 

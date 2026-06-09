@@ -179,6 +179,50 @@ class BundleExpanderIT extends AbstractPostgresIT {
         assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode).containsExactly("RMT_IN");
     }
 
+    @Test
+    void 상업멀티_구성품_개별단가_재배분없음_필터없음() {
+        Category cat = categoryRepository.save(Category.create("COMM-SET", "test", null, 14));
+        // 상업멀티 = SINGLE_SET 아님 → 옵션필터/재배분 미적용, 구성품 개별단가 유지
+        Product parent = Product.seedFromSheet("DVM S2 8HP", "COMM_SET", cat,
+                new BigDecimal("8000000"), new BigDecimal("8000000"),
+                ProductType.BUNDLE, ProductCategory.COMMERCIAL_MULTI, UsageScope.BOTH, EstimateCategory.COMMERCIAL_MULTI);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        parent = productRepository.save(parent);
+        product("CM_A", "실외기 모듈", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("4000000"));
+        product("CM_B", "실내기", cat, ProductCategory.COMMERCIAL_PART, new BigDecimal("1500000"));
+        comp(parent, "CM_A", BundleComponent.ComponentKind.OUTDOOR);
+        comp(parent, "CM_B", BundleComponent.ComponentKind.INDOOR);
+        flush();
+
+        var lines = expander.expand("COMM_SET", BigDecimal.ONE);
+        assertThat(lines).hasSize(2);
+        assertThat(unit(lines, "CM_A")).isEqualByComparingTo("4000000"); // 개별단가 유지(재배분 X)
+        assertThat(unit(lines, "CM_B")).isEqualByComparingTo("1500000");
+    }
+
+    @Test
+    void 다수_실내기_비례배분_마지막_잔차흡수() {
+        Category cat = categoryRepository.save(Category.create("MULTI-IN", "test", null, 15));
+        // 가정용 세트단가 1,000,000 → 실내 6/10=600,000(2 실내기 비례), 실외 4/10=400,000
+        Product parent = bundleSet("MI_SET", "가정용 에어컨 무풍", cat, new BigDecimal("1000000"));
+        product("MI_IN1", "실내기 대", cat, ProductCategory.SINGLE_PART, new BigDecimal("200000"));
+        product("MI_IN2", "실내기 소", cat, ProductCategory.SINGLE_PART, new BigDecimal("100000"));
+        product("MI_OUT", "실외기", cat, ProductCategory.SINGLE_PART, new BigDecimal("700000"));
+        comp(parent, "MI_IN1", BundleComponent.ComponentKind.INDOOR);
+        comp(parent, "MI_IN2", BundleComponent.ComponentKind.INDOOR);
+        comp(parent, "MI_OUT", BundleComponent.ComponentKind.OUTDOOR);
+        flush();
+
+        var lines = expander.expand("MI_SET", BigDecimal.ONE);
+        // 실내 600,000 비례: IN1 200/300→400,000(roundK), IN2 잔차=600,000-400,000=200,000
+        assertThat(unit(lines, "MI_IN1")).isEqualByComparingTo("400000");
+        assertThat(unit(lines, "MI_IN2")).isEqualByComparingTo("200000");
+        assertThat(unit(lines, "MI_OUT")).isEqualByComparingTo("400000");
+        // 합 = 세트단가 보존
+        assertThat(unit(lines, "MI_IN1").add(unit(lines, "MI_IN2")).add(unit(lines, "MI_OUT")))
+                .isEqualByComparingTo("1000000");
+    }
+
     // ── helpers ─────────────────────────────────────────────
     private Product bundleSet(String code, String name, Category cat, BigDecimal price) {
         Product p = Product.seedFromSheet(name, code, cat, price, price,
