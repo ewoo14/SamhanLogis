@@ -23,7 +23,19 @@
 - BundleExpander GAS 충실 재구현: `splitIndoorOutdoorToK`(고정부품 선차감→실내:실외 6:4 가정/4:6 비가정→천원정렬→음수가드), 가정용 판정(classifySingleSetFixed else-if cascade), 옵션 선별(패널 1개/리모컨 교체/자재/발통 제외), 상업멀티 개별단가(explodeCommSets_). `expand(parentModelCode, setQty, ExpandOptions)` → 단가 포함 ExpandedLine.
 - dual 리뷰(Claude TM 수학 정확 일치 + Codex-대체 Python 재현 검증) P2/P3 전건 fix. 실 Postgres IT(6:4/4:6/다수 비례배분 합=세트가/상업 개별/패널·리모컨 옵션). CI 20 pass.
 
-### 🗺️ 다음 — PR-3 (마지막, 최대 — 통합 + 직접 전표생성 + FE)
+### 🔄 PR-3 진행 중 (#438, 옵션 A=견적 생성 시 즉시 전개) — **expand API 푸시 완료, slip 배선 잔여**
+- ✅ **product-service expand API 푸시**(`feat/bundle-set-expansion-pr3-integration`): `POST /products/internal/expand {parentModelCode, setQty, setUnitOverride, options}` → `List<ExpandedLineResponse>{modelCode,name,quantity,unitPrice,componentKind,setHead}`. BundleExpander 위임(BUNDLE→구성품 N 첫 setHead, KEEP/단일→1라인). `ExpandRequest`/`ExpandedLineResponse` DTO.
+- 🔜 **잔여 정밀 계획**(이대로 이어가면 됨):
+  1. **ProductSummary 계약 확장**(additive): product `ProductSummaryResponse` + slip `ProductSummary` record 에 **`modelCode`, `productType`(SINGLE/BUNDLE)** 추가 — slip 이 BUNDLE 판별 + modelCode 확보용(현재 modelName 만 있음, modelCode 없음).
+  2. **slip `ProductClient.expand(parentModelCode, setQty, options, setUnitOverride)`** 신규(lookup 패턴: RestClient + X-Internal-Token, `/products/internal/expand`).
+  3. **EstimateService.create/update**(`estimate/service/`): 각 요청 라인 — summary.productType==BUNDLE 면 `productClient.expand(summary.modelCode, qty, opts, unitPrice)` → 구성품 EstimateLine N개(parent_set_model + 첫 setHead), 아니면 1라인. `EstimateLineRequest` 에 옵션(remoteOption/remoteExcluded/panelOption/panelShape360/materialIncluded) 필드 추가.
+  4. **EstimateLine + estimate_lines V14**: `set_head BOOLEAN`, `parent_set_model VARCHAR(64)` 컬럼 + `EstimateLine.create` 시그니처 확장. **SlipLine + slip_lines V34** 동일 필드.
+  5. **EstimateToSlipConverter**: 1:1 유지(estimate_lines 가 이미 구성품) — set_head/parent_set_model 복사만 추가.
+  6. **직접 전표생성 SlipService.create**: 동일 전개 로직(`CreateSlipRequest.SlipLineRequest` 옵션 필드).
+  7. **IT**(slip-service, 실 Postgres + product-service @MockBean ProductClient): 견적 세트라인→구성품 EstimateLine 영속 + 변환→slip_lines 구성품. **풀스택 Docker 실QA**(실 견적 세트→전표 구성품).
+- ⚠️ 호출 위치 = **EstimateService.create(즉시 전개)** — convert 아님(옵션 A). 단일 통합 경로(라인마다 BUNDLE 판별).
+
+### 🗺️ PR-3 원래 범위 (참고)
 - **전개 배선**: BundleExpander(엔진, 호출 0 상태)를 **실제 전표 생성 경로에 연결**.
   - ① **종합견적서→판매전표**: EstimateService/EstimateToSlipConverter 가 BUNDLE+옵션 수신→전개→구성품 라인 영속.
   - ② **직접 새 전표생성**: slip-service 가 product-service **등록품목 catalog 조회/선택** + 세트 선택 시 동일 BundleExpander 전개 → 구성품 라인. (양 경로 단일 엔진.)
