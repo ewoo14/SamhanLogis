@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.it;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
@@ -153,6 +155,44 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").value(notNullValue()));
+    }
+
+    @Test
+    void addLine_bundle_expandedToComponents() throws Exception {
+        // 에픽 후속 #2 — 기존 전표(DRAFT)에 BUNDLE(세트) 라인 추가 시 create 경로와 동일하게
+        // product-service expand 로 구성품 라인 N개 전개됨을 검증 (이전엔 1라인으로 직삽입되어 미전개).
+        String slipId = createOutboundSlipAsSales(); // 생성 시 일반 라인 1개
+
+        UUID setId = UUID.randomUUID();
+        UUID inId = UUID.randomUUID();
+        UUID outId = UUID.randomUUID();
+        ProductSummary setSummary = new ProductSummary(setId, "360 CST 세트", "360-CST", null, null,
+                new BigDecimal("1000000.00"), "ACTIVE", false, "AC360SET", "BUNDLE");
+        Mockito.when(productClient.requireExists(ArgumentMatchers.eq(setId))).thenReturn(setSummary);
+        Mockito.when(productClient.expand(ArgumentMatchers.eq("AC360SET"), ArgumentMatchers.any(),
+                        ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(
+                        new ExpandedLineDto(inId, "IN-360", "IN-M", "실내기", new BigDecimal("1"),
+                                new BigDecimal("600000"), "INDOOR", true),
+                        new ExpandedLineDto(outId, "OUT-360", "OUT-M", "실외기", new BigDecimal("1"),
+                                new BigDecimal("400000"), "OUTDOOR", false)));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("productId", setId.toString());
+        body.put("quantity", 1);
+        body.put("unitPrice", "1000000.00");
+
+        mockMvc.perform(post("/slips/" + slipId + "/lines")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                // 기존 1라인 + 전개 구성품 2라인 = 3
+                .andExpect(jsonPath("$.data.lines.length()").value(3))
+                // 구성품 2라인 전개 확인 (UUID 비공개 — productName/unitPrice 로 단언)
+                .andExpect(jsonPath("$.data.lines[?(@.productName=='실내기')].unitPrice", hasItem(600000)))
+                .andExpect(jsonPath("$.data.lines[?(@.productName=='실외기')].unitPrice", hasItem(400000)));
     }
 
     @Test

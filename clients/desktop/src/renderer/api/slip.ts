@@ -494,6 +494,8 @@ export interface AddLineRequest {
   quantity: number
   unitPrice: string
   note?: string
+  /** 세트 전개 옵션 — BUNDLE 품목 라인 추가 시 전달(BE addSlipLinesExpanded). 에픽 후속 #2. */
+  setOptions?: BundleSetOptions
 }
 
 /**

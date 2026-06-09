@@ -587,11 +587,11 @@ public class SlipService {
         Slip slip = loadOrThrow(id);
         slip.requireEditable();
         ProductSummary summary = productClient.requireExists(req.productId());
-        String productName = req.productName() != null ? req.productName() : summary.name();
-        String modelName = req.modelName() != null ? req.modelName() : summary.modelName();
-        applyMutation(() -> slip.addLine(SlipLine.create(slip, req.productId(),
-                productName, modelName, req.specification(),
-                req.quantity(), req.unitPrice(), req.note())));
+        // 에픽 후속 #2 — 기존 전표 라인추가도 create 경로와 동일 전개 엔진 사용.
+        // BUNDLE(세트)면 product-service expand 로 구성품 N라인(옵션 반영), 아니면 1라인.
+        applyMutation(() -> addSlipLinesExpanded(slip, req.productId(), summary,
+                req.productName(), req.modelName(), req.specification(),
+                req.quantity(), req.unitPrice(), req.note(), req.setOptions()));
         // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
