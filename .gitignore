@@ -139,3 +139,7 @@ _tmp_*
 
 # C5 cutover DB backups (자격 포함 — 커밋 금지)
 backups/
+
+# 종합견적서 clasp 라이브 클론 (평문 자격 포함 — redact 전 커밋 금지)
+tools/legacy-gas/종합견적서-live/
+.clasp.json
