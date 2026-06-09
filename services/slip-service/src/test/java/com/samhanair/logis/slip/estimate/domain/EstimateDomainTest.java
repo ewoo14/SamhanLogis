@@ -62,10 +62,42 @@ class EstimateDomainTest {
         assertThatThrownBy(estimate::reject)
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
+    }
 
-        // DRAFT 상태에서 markConverted 호출 → CONFLICT (ACCEPTED 만 가능)
-        assertThatThrownBy(() -> estimate.markConverted(SLIP))
-                .isInstanceOf(BusinessException.class);
+    @Test
+    void markConverted_fromDraft_allowed_anyStatePolicy() {
+        // 2026-06-09 개발책임자: 견적은 임의 상태(DRAFT/SENT/ACCEPTED)에서 언제든지 출고전표 전환 가능.
+        Estimate estimate = newEstimate();
+        estimate.addLine(EstimateLine.create(estimate, 1, PRODUCT, "에어컨", null,
+                null, 1, new BigDecimal("100000"), null));
+
+        // DRAFT 상태 그대로(send/accept 없이) 전환 → 성공
+        assertThat(estimate.getStatus()).isEqualTo(EstimateStatus.QUOTE_DRAFT);
+        estimate.markConverted(SLIP);
+        assertThat(estimate.getStatus()).isEqualTo(EstimateStatus.QUOTE_CONVERTED);
+        assertThat(estimate.getConvertedSlipId()).isEqualTo(SLIP);
+    }
+
+    @Test
+    void markConverted_alreadyConvertedOrRejected_throwsConflict() {
+        // 이미 변환된 견적 재전환 → CONFLICT (이중 발행 방지)
+        Estimate converted = newEstimate();
+        converted.addLine(EstimateLine.create(converted, 1, PRODUCT, "에어컨", null,
+                null, 1, new BigDecimal("100000"), null));
+        converted.markConverted(SLIP);
+        assertThatThrownBy(() -> converted.markConverted(UUID.randomUUID()))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
+
+        // 거절된 견적 전환 → CONFLICT
+        Estimate rejected = newEstimate();
+        rejected.addLine(EstimateLine.create(rejected, 1, PRODUCT, "에어컨", null,
+                null, 1, new BigDecimal("100000"), null));
+        rejected.send();
+        rejected.reject();
+        assertThatThrownBy(() -> rejected.markConverted(SLIP))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
     }
 
     @Test

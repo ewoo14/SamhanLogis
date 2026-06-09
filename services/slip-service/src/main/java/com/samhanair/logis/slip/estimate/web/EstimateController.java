@@ -175,12 +175,12 @@ public class EstimateController {
         return ApiResponse.ok(estimateService.reject(id, callerOrSystem(callerHeader)));
     }
 
-    /** ACCEPTED → CONVERTED — Slip(OUTBOUND DRAFT) 자동 발행. */
+    /** 임의 상태(DRAFT/SENT/ACCEPTED) → CONVERTED — Slip(OUTBOUND DRAFT) 자동 발행. */
     @Operation(summary = "견적 → 슬립 자동 변환",
-            description = "QUOTE_ACCEPTED → QUOTE_CONVERTED + Slip(OUTBOUND DRAFT) 자동 발행")
+            description = "임의 상태(DRAFT/SENT/ACCEPTED)에서 언제든지 변환 → QUOTE_CONVERTED + Slip(OUTBOUND DRAFT) 자동 발행")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "변환 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ACCEPTED 가 아님")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 변환됨/거절된 견적")
     })
     @PostMapping("/{id}/convert")
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)

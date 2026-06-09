@@ -303,15 +303,23 @@ public class Estimate extends BaseEntity {
     }
 
     /**
-     * ACCEPTED → CONVERTED 전이 — Slip 자동 발행 후 service 레이어에서 호출.
+     * → CONVERTED 전이 — Slip 자동 발행 후 service 레이어에서 호출.
      * convertedSlipId / convertedAt 기록.
      *
+     * <p>2026-06-09 개발책임자: 견적은 <b>임의 상태(DRAFT/SENT/ACCEPTED)에서 언제든지</b> 출고전표 전환 가능.
+     * 종전 ACCEPTED 강제 제거 — 이미 변환됨(CONVERTED, 중복 방지) / 거절됨(REJECTED) 만 차단.
+     *
      * @param slipId 방금 발행된 Slip(OUTBOUND DRAFT) 의 id
-     * @throws BusinessException(CONFLICT) 현재 상태가 ACCEPTED 가 아닐 때
+     * @throws BusinessException(CONFLICT) 이미 변환됐거나 거절된 견적
      * @throws IllegalArgumentException slipId null
      */
     public void markConverted(UUID slipId) {
-        requireStatus(EstimateStatus.QUOTE_ACCEPTED);
+        if (this.status == EstimateStatus.QUOTE_CONVERTED) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 출고전표로 변환된 견적입니다");
+        }
+        if (this.status == EstimateStatus.QUOTE_REJECTED) {
+            throw new BusinessException(ErrorCode.CONFLICT, "거절된 견적은 출고전표로 변환할 수 없습니다");
+        }
         if (slipId == null) {
             throw new IllegalArgumentException("slipId 는 필수입니다");
         }

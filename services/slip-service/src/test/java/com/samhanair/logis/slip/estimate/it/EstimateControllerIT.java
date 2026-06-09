@@ -192,6 +192,38 @@ class EstimateControllerIT extends AbstractPostgresIT {
     }
 
     /**
+     * 언제든지 전환 정책 — DRAFT 견적을 send/accept 없이 곧바로 출고전표 전환.
+     * 2026-06-09 개발책임자: "견적서나 주문서는 언제든지 출고전표로 전환할 수 있어야 한다."
+     */
+    @Test
+    @DisplayName("언제든지 전환: DRAFT 견적 직접 convert → 200 QUOTE_CONVERTED (send/accept 생략)")
+    void convertFromDraft_directly() throws Exception {
+        MvcResult created = mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildCreateRequest())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String id = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+
+        // DRAFT 그대로 convert (send/accept 없이) → 200 + CONVERTED
+        mockMvc.perform(post("/slips/estimates/" + id + "/convert")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
+                .andExpect(jsonPath("$.data.convertedSlipId").isNotEmpty());
+
+        // 재전환 시도 → 409 CONFLICT (이미 변환됨)
+        mockMvc.perform(post("/slips/estimates/" + id + "/convert")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isConflict());
+    }
+
+    /**
      * 견적서 수정 — DRAFT 단계에서 헤더 및 라인 replace.
      */
     @Test

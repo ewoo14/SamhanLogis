@@ -233,16 +233,26 @@ public class EstimateService {
     }
 
     /**
-     * ACCEPTED → CONVERTED — Slip(OUTBOUND DRAFT) 자동 발행 + estimate.markConverted(slipId).
+     * 견적 → 출고전표 전환 — Slip(OUTBOUND DRAFT) 자동 발행 + estimate.markConverted(slipId).
+     *
+     * <p>개발책임자 정책(2026-06-09): "견적서나 주문서는 언제든지 출고전표로 전환할 수 있어야 한다."
+     * 따라서 QUOTE_ACCEPTED 강제 게이트를 폐기하고 DRAFT/SENT/ACCEPTED 어느 단계에서도 전환 허용한다.
+     * 이미 전환됨(QUOTE_CONVERTED)·거절됨(QUOTE_REJECTED)만 차단 — 차단 로직은
+     * {@link Estimate#markConverted} 가 단일 진실원으로 보유(이중 발행/거절 후 전환 방지).
      *
      * @return 변환 후 견적 상세 (convertedSlipId / convertedAt 채워짐)
-     * @throws BusinessException(CONFLICT) ACCEPTED 가 아닐 때
+     * @throws IllegalStateException 이미 변환됐거나 거절된 견적일 때 (markConverted 가 던짐)
      */
     public EstimateDetailResponse convert(UUID id, String callerId) {
         Estimate estimate = loadOrThrow(id);
-        if (estimate.getStatus() != EstimateStatus.QUOTE_ACCEPTED) {
-            throw new BusinessException(ErrorCode.CONFLICT,
-                    "변환 가능한 상태가 아닙니다: " + estimate.getStatus() + " (필요: QUOTE_ACCEPTED)");
+        // 언제든지 전환 허용 — 이미 전환됨/거절됨만 차단(이중 발행·거절 후 전환 방지).
+        // markConverted 도 동일 가드를 보유하나, 여기서 CONFLICT 로 매핑해 409 계약을 유지한다
+        // (slip-service GlobalExceptionHandler 는 IllegalStateException → 500 이므로 BE 단에서 선차단).
+        if (estimate.getStatus() == EstimateStatus.QUOTE_CONVERTED) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 출고전표로 변환된 견적입니다");
+        }
+        if (estimate.getStatus() == EstimateStatus.QUOTE_REJECTED) {
+            throw new BusinessException(ErrorCode.CONFLICT, "거절된 견적은 출고전표로 변환할 수 없습니다");
         }
         Slip slip = slipConverter.convert(estimate);
         applyMutation(() -> estimate.markConverted(slip.getId()));

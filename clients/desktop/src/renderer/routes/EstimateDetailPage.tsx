@@ -180,7 +180,6 @@ export function EstimateDetailPage() {
   const e = query.data
   const isDraft = e.status === 'QUOTE_DRAFT'
   const isSent = e.status === 'QUOTE_SENT'
-  const isAccepted = e.status === 'QUOTE_ACCEPTED'
   const canMutate = canAccess('estimates.list', 'update')
   // PR-H4c: 변환/거절 단계 본문 잠금
   const isLocked = e.status === 'QUOTE_CONVERTED' || e.status === 'QUOTE_REJECTED'
@@ -425,7 +424,9 @@ export function EstimateDetailPage() {
                 </Button>
               </>
             ) : null}
-            {isAccepted && canMutate ? (
+            {/* 언제든지 전환(2026-06-09 개발책임자): DRAFT/SENT/ACCEPTED 어느 단계서도 전표 변환 가능.
+                이미 변환됨/거절됨(isLocked)만 숨김. */}
+            {!isLocked && canMutate ? (
               <Button
                 variant="primary"
                 onClick={handleConvert}
