@@ -149,10 +149,11 @@ public class SlipService {
             slip.addLine(line);
             added++;
         }
-        if (added == 0) {
+        // 구성품 일부라도 미등록 skip 시 재배분 세트가 일부 silent 손실 → 전부/일부 모두 명시 예외.
+        if (added == 0 || added < expanded.size()) {
             throw new com.samhanair.logis.common.exception.BusinessException(
                     com.samhanair.logis.common.exception.ErrorCode.NOT_FOUND,
-                    "세트 구성품을 찾을 수 없습니다: " + summary.modelCode());
+                    "세트 구성품 일부를 찾을 수 없습니다(미등록/단종): " + summary.modelCode());
         }
     }
 

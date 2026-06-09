@@ -1,0 +1,13 @@
+{
+  "estimateDate": "2026-06-09",
+  "partnerName": "QA거래처",
+  "memo": "세트전개 QA",
+  "lines": [
+    {
+      "productId": "5410e5eb-9925-479c-a3f5-8807f6e5ae55",
+      "quantity": 1,
+      "unitPrice": 1330000,
+      "note": "세트라인"
+    }
+  ]
+}

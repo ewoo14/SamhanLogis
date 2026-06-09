@@ -98,10 +98,11 @@ public class EstimateService {
             estimate.addLine(line);
             added++;
         }
-        // 세트가 0 라인으로 전개되면(구성품 전부 미등록 등) 빈 견적 silent 생성 방지.
-        if (added == 0) {
+        // 구성품 일부라도 미등록(productId null)으로 skip 되면 6:4 재배분된 세트가 일부가 silent 손실되어
+        // 금액 정합이 깨진다(단종 구성품이 BundleComponent 에 잔존하는 케이스). 전부/일부 모두 명시 예외.
+        if (added == 0 || added < expanded.size()) {
             throw new BusinessException(ErrorCode.NOT_FOUND,
-                    "세트 구성품을 찾을 수 없습니다: " + summary.modelCode());
+                    "세트 구성품 일부를 찾을 수 없습니다(미등록/단종): " + summary.modelCode());
         }
         return lineNo;
     }
