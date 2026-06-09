@@ -81,6 +81,7 @@ public class EstimateService {
                 Boolean.TRUE.equals(setOptions.materialIncluded()));
         List<ExpandedLineDto> expanded = productClient.expand(
                 summary.modelCode(), BigDecimal.valueOf(quantity), opts, unitPrice);
+        int added = 0;
         for (ExpandedLineDto el : expanded) {
             if (el.productId() == null) {
                 continue; // 구성품 product 미존재 → 영속 불가, skip
@@ -95,6 +96,12 @@ public class EstimateService {
                     el.unitPrice() == null ? BigDecimal.ZERO : el.unitPrice(), note);
             line.assignBundleComponent(summary.modelCode(), el.setHead());
             estimate.addLine(line);
+            added++;
+        }
+        // 세트가 0 라인으로 전개되면(구성품 전부 미등록 등) 빈 견적 silent 생성 방지.
+        if (added == 0) {
+            throw new BusinessException(ErrorCode.NOT_FOUND,
+                    "세트 구성품을 찾을 수 없습니다: " + summary.modelCode());
         }
         return lineNo;
     }

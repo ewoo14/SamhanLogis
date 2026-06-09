@@ -133,6 +133,7 @@ public class SlipService {
                 Boolean.TRUE.equals(setOptions.materialIncluded()));
         List<ExpandedLineDto> expanded = productClient.expand(
                 summary.modelCode(), java.math.BigDecimal.valueOf(quantity), opts, unitPrice);
+        int added = 0;
         for (ExpandedLineDto el : expanded) {
             if (el.productId() == null) {
                 continue;
@@ -146,6 +147,12 @@ public class SlipService {
                     specification, q, el.unitPrice() == null ? java.math.BigDecimal.ZERO : el.unitPrice(), note);
             line.assignBundleComponent(summary.modelCode(), el.setHead());
             slip.addLine(line);
+            added++;
+        }
+        if (added == 0) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.NOT_FOUND,
+                    "세트 구성품을 찾을 수 없습니다: " + summary.modelCode());
         }
     }
 
