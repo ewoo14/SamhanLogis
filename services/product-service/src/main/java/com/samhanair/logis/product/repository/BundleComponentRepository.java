@@ -19,10 +19,18 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
      * <p>{@link com.samhanair.logis.product.service.BundleExpander#expand} 의 해소 경로
      * ({@code findByModelCodeAndIsDeletedFalse(componentProductCode)}) 와 동일 기준 —
      * 미해소 = 세트 전개 시 해당 구성품을 못 찾아 견적/전표 NOT_FOUND. 운영 전 0 이어야 함.
+     *
+     * <p>부모가 <b>활성 BUNDLE</b> 인 구성품만 대상 — soft-deleted/비-BUNDLE 부모의 잔여 구성품은
+     * 전개 대상이 아니므로 제외(false positive 방지, expander 동작과 엄밀 일치).
      */
     @Query("""
             SELECT bc FROM BundleComponent bc
             WHERE bc.isDeleted = false
+              AND EXISTS (
+                SELECT 1 FROM Product par
+                WHERE par.id = bc.bundleProductId
+                  AND par.isDeleted = false
+                  AND par.productType = com.samhanair.logis.product.domain.ProductType.BUNDLE)
               AND NOT EXISTS (
                 SELECT 1 FROM Product cp
                 WHERE cp.isDeleted = false AND cp.modelCode = bc.componentProductCode)

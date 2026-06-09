@@ -195,7 +195,9 @@ public class ProductService {
         List<BundleIntegrityResponse.BundleIssue> issues = new ArrayList<>();
         for (Map.Entry<UUID, List<BundleComponent>> e : byBundle.entrySet()) {
             Product parent = parents.get(e.getKey());
-            String parentModel = parent != null ? parent.getModelCode() : "(미상 부모 " + e.getKey() + ")";
+            // 쿼리가 부모=활성 BUNDLE 인 구성품만 반환하므로 parent 는 항상 존재.
+            // 방어적 fallback 도 UUID 미노출 ([[feedback_uuid_no_user_visibility]]).
+            String parentModel = parent != null ? parent.getModelCode() : "(미상 부모)";
             String parentName = parent != null ? parent.getName() : null;
             List<BundleIntegrityResponse.UnresolvedComponent> comps = e.getValue().stream()
                     .map(c -> new BundleIntegrityResponse.UnresolvedComponent(
