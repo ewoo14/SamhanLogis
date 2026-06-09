@@ -52,11 +52,33 @@
 
 **회귀 PASS**: `ac-2-product-autocomplete` 7/7 + `d2-6d-inventory-lookup` 13/13 + `phase-2-6c-inventory-deduction` 8/8 = **28/28** (SortableLineRow wrapper-ref 재구성 후에도 dnd/재고모달/자동완성 무회귀).
 
-## 3. 풀스택 Docker 실서버 QA (옵션 적용 전개)
+## 3. 풀스택 Docker 실서버 QA (옵션 적용 전개) — ✅ PASS
 
-> (작성 예정 — PR 오픈 후 후속 커밋. 실 시트 적재본 + product-service/slip-service 기동,
-> 옵션 변화에 따른 구성품 라인 수/금액 변화 실증: ① 옵션 기본 전개, ② 실외기 제외 시 실외기 구성품 누락,
-> ③ 판넬 선택 변경 시 판넬 구성품 교체.)
+> **목표**: FE picker 가 보내는 `setOptions`(특히 `panelShape360` **String** 계약)를 **실서버 +
+> 실 시트 적재본**이 honor 하여 구성품 라인이 **실제로 변하는지** 실증. (BE 전개 자체는 PR-3a 풀스택
+> Docker QA 에서 검증됨 — 본 절은 PR-3b 가 추가한 옵션 전달이 실 전개 결과를 바꾸는지에 집중.)
+
+### 기동
+- product-service `clean :bootJar` → standalone 부팅(:8099, eureka off, sync off), **실 `product_db`**(PR-1 시트 sync 적재본, `bundle_component`/`products` 전부 존재) 재사용. ([[standalone-boot-real-qa]])
+  - ⚠️ 기존 docker `samhan-product-service` 컨테이너는 PR-3a 이전 stale 이미지(`/expand` 미존재 404)였음 → 현재 jar 재빌드 standalone 으로 우회([[project_local_stack_qa_gotchas]]).
+- 대상 세트 `AC060CS6PBH1SY`(원형/사각 패널 8종 보유 SINGLE_SET, 세트가 1,490,000).
+- `POST /products/internal/expand` (X-Internal-Token) 직접 호출, 옵션 변화별 응답 비교. (한글 옵션값 UTF-8 정확 전송 위해 python urllib 사용 — bash heredoc 인코딩 깨짐 회피.)
+
+### 결과 (증빙: `expand-options-evidence.txt`)
+
+| 케이스 | options | PANEL 구성품 | 라인수 | 합계 | 판정 |
+|---|---|---|---|---|---|
+| A 기본 | 없음 | PC6NUNK1NW | 4 | 1,490,000 | baseline |
+| B 실외기 제외 | `remoteExcluded:true` | PC6NUNK1NW | **3 (REMOTE 제거)** | 1,490,000 (6:4 재배분 유지) | ✅ 옵션 honor |
+| C 360=원형 | `panelShape360:"원형"` | PC6NUNK1NW(기본=원형) | 4 | 1,490,000 | ✅ |
+| D 360=사각 | `panelShape360:"사각"` | **PC6NUDK1NW (사각 variant 로 교체)** | 4 | 1,490,000 | ✅ **String 계약 실작동** |
+| F 자재 포함 | `materialIncluded:true` | PC6NUNK1NW | 4 | 1,490,000 | ✅ (이 세트 자재 구성품 없음 → no-op 정상) |
+
+- **B**: 실외기(REMOTE) 라인이 실제로 빠지고 잔여 INDOOR/OUTDOOR 단가가 재배분되어 세트가 보존 → `remoteExcluded` 실서버 honor.
+- **D**: `panelShape360='사각'` 전송 시 패널이 `PC6NUNK1NW`→`PC6NUDK1NW`(사각 variant)로 **실제 교체** → 사이클1에서 고친 **boolean→String 교정이 실서버 전개에 정확히 반영됨을 증명**. (만약 구 boolean `"true"` 였다면 variant 불일치로 교체 안 됨.)
+- 시나리오 6(Playwright)이 FE→요청본문 정확 전송을 증명하고, 본 §3 이 그 본문을 실서버가 honor 함을 증명 → **end-to-end 계약 폐곡선**.
+
+> 참고: `panelOption` 을 modelCode 로 준 케이스(E)는 BE 가 패널 **라벨** 매칭이라 inconclusive(입력 형식 문제, BE 결함 아님). FE picker 의 panelOption 자유입력은 라벨/기본 의미로 동작 — 후속 dropdown 개선 시 라벨 목록 제공 예정.
 
 ## 사이클 1 (Claude TM 5-agent) 반영 fix
 

@@ -1,0 +1,35 @@
+### A. baseline(옵션없음)  code=OK
+  AC060CN6PBH1  INDOOR   qty=1.0 won=548975 head=True
+  AC060CXAPBH1  OUTDOOR  qty=1.0 won=823050 head=False
+  PC6NUNK1NW    PANEL    qty=1.0 won=104060 head=False
+  AR-EH05       REMOTE   qty=1.0 won=13915 head=False
+  -> lines=4 합계=1,490,000
+### B. remoteExcluded=true  code=OK
+  AC060CN6PBH1  INDOOR   qty=1.0 won=553060 head=True
+  AC060CXAPBH1  OUTDOOR  qty=1.0 won=832880 head=False
+  PC6NUNK1NW    PANEL    qty=1.0 won=104060 head=False
+  -> lines=3 합계=1,490,000
+### C. panelShape360=원형  code=OK
+  AC060CN6PBH1  INDOOR   qty=1.0 won=548975 head=True
+  AC060CXAPBH1  OUTDOOR  qty=1.0 won=823050 head=False
+  PC6NUNK1NW    PANEL    qty=1.0 won=104060 head=False
+  AR-EH05       REMOTE   qty=1.0 won=13915 head=False
+  -> lines=4 합계=1,490,000
+### D. panelShape360=사각  code=OK
+  AC060CN6PBH1  INDOOR   qty=1.0 won=548975 head=True
+  AC060CXAPBH1  OUTDOOR  qty=1.0 won=823050 head=False
+  PC6NUDK1NW    PANEL    qty=1.0 won=104060 head=False
+  AR-EH05       REMOTE   qty=1.0 won=13915 head=False
+  -> lines=4 합계=1,490,000
+### E. panelOption=PC6NBNK1NW(원형 블랙)  code=OK
+  AC060CN6PBH1  INDOOR   qty=1.0 won=548975 head=True
+  AC060CXAPBH1  OUTDOOR  qty=1.0 won=823050 head=False
+  PC6NUNK1NW    PANEL    qty=1.0 won=104060 head=False
+  AR-EH05       REMOTE   qty=1.0 won=13915 head=False
+  -> lines=4 합계=1,490,000
+### F. materialIncluded=true  code=OK
+  AC060CN6PBH1  INDOOR   qty=1.0 won=548975 head=True
+  AC060CXAPBH1  OUTDOOR  qty=1.0 won=823050 head=False
+  PC6NUNK1NW    PANEL    qty=1.0 won=104060 head=False
+  AR-EH05       REMOTE   qty=1.0 won=13915 head=False
+  -> lines=4 합계=1,490,000
