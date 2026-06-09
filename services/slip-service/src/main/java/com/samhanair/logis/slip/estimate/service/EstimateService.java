@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.estimate.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.Slip;
@@ -11,11 +12,14 @@ import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.repository.EstimateRepository;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.service.EstimateRevisionService;
+import com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions;
 import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
 import com.samhanair.logis.slip.estimate.web.dto.UpdateEstimateRequest;
 import jakarta.persistence.OptimisticLockException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -54,6 +58,48 @@ public class EstimateService {
     private final EstimateRevisionService estimateRevisionService;
 
     /**
+     * 견적 라인 추가 — BUNDLE(세트) 품목이면 product-service expand 로 구성품 라인 N개로 전개(옵션 A,
+     * 첫 구성품 setHead + parentSetModel), 아니면 1 라인. 단가는 요청값(setUnitOverride)을 base 로 재배분.
+     *
+     * @return 다음 lineNo
+     */
+    private int addEstimateLines(Estimate estimate, int lineNo, UUID productId, ProductSummary summary,
+                                 String reqName, String reqModel, String specification, int quantity,
+                                 BigDecimal unitPrice, String note, BundleSetOptions setOptions) {
+        boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
+                && summary.modelCode() != null && !summary.modelCode().isBlank();
+        if (!bundle) {
+            String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
+            String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
+            estimate.addLine(EstimateLine.create(estimate, lineNo, productId, productName, modelName,
+                    specification, quantity, unitPrice, note));
+            return lineNo + 1;
+        }
+        ExpandedLineDto.Options opts = setOptions == null ? null : new ExpandedLineDto.Options(
+                setOptions.remoteOption(), Boolean.TRUE.equals(setOptions.remoteExcluded()),
+                setOptions.panelOption(), setOptions.panelShape360(),
+                Boolean.TRUE.equals(setOptions.materialIncluded()));
+        List<ExpandedLineDto> expanded = productClient.expand(
+                summary.modelCode(), BigDecimal.valueOf(quantity), opts, unitPrice);
+        for (ExpandedLineDto el : expanded) {
+            if (el.productId() == null) {
+                continue; // 구성품 product 미존재 → 영속 불가, skip
+            }
+            int q = el.quantity() == null ? quantity
+                    : el.quantity().setScale(0, RoundingMode.HALF_UP).intValue();
+            if (q <= 0) {
+                q = 1;
+            }
+            EstimateLine line = EstimateLine.create(estimate, lineNo++, el.productId(),
+                    el.name(), el.modelName(), specification, q,
+                    el.unitPrice() == null ? BigDecimal.ZERO : el.unitPrice(), note);
+            line.assignBundleComponent(summary.modelCode(), el.setHead());
+            estimate.addLine(line);
+        }
+        return lineNo;
+    }
+
+    /**
      * 견적서 신규 생성 — DRAFT 상태로 출발.
      *
      * @param req 생성 요청 (라인 1건 이상 필수)
@@ -85,19 +131,13 @@ public class EstimateService {
                 req.partnerId(), req.partnerName(), req.partnerBusinessNo(),
                 req.partnerAddress(), req.validUntil(), req.memo(), requesterId);
 
-        // 4. 라인 추가 (snapshot 명칭은 요청값 우선, 없으면 ProductSummary 보강)
+        // 4. 라인 추가 — BUNDLE(세트)면 product-service expand 로 구성품 라인 N개 전개(옵션 A), 아니면 1 라인.
         int lineNo = 1;
         for (CreateEstimateRequest.EstimateLineRequest lineReq : req.lines()) {
-            ProductSummary summary = byId.get(lineReq.productId());
-            String productName = lineReq.productName() != null
-                    ? lineReq.productName()
-                    : (summary != null ? summary.name() : null);
-            String modelName = lineReq.modelName() != null
-                    ? lineReq.modelName()
-                    : (summary != null ? summary.modelName() : null);
-            estimate.addLine(EstimateLine.create(estimate, lineNo++, lineReq.productId(),
-                    productName, modelName, lineReq.specification(),
-                    lineReq.quantity(), lineReq.unitPrice(), lineReq.note()));
+            lineNo = addEstimateLines(estimate, lineNo, lineReq.productId(),
+                    byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
+                    lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
+                    lineReq.note(), lineReq.setOptions());
         }
 
         Estimate saved = estimateRepository.save(estimate);
@@ -137,16 +177,10 @@ public class EstimateService {
 
             int lineNo = 1;
             for (UpdateEstimateRequest.EstimateLineUpdate lineReq : req.lines()) {
-                ProductSummary summary = byId.get(lineReq.productId());
-                String productName = lineReq.productName() != null
-                        ? lineReq.productName()
-                        : (summary != null ? summary.name() : null);
-                String modelName = lineReq.modelName() != null
-                        ? lineReq.modelName()
-                        : (summary != null ? summary.modelName() : null);
-                estimate.addLine(EstimateLine.create(estimate, lineNo++, lineReq.productId(),
-                        productName, modelName, lineReq.specification(),
-                        lineReq.quantity(), lineReq.unitPrice(), lineReq.note()));
+                lineNo = addEstimateLines(estimate, lineNo, lineReq.productId(),
+                        byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
+                        lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
+                        lineReq.note(), lineReq.setOptions());
             }
         }
 

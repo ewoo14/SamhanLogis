@@ -24,14 +24,16 @@ public record ProductSummaryResponse(
         UUID categoryId,
         BigDecimal sellingPrice,
         ProductStatus status,
-        boolean serialManaged) {
+        boolean serialManaged,
+        String modelCode,
+        String productType) {
 
     /**
      * Backward-compatible 생성자 — productCode 미지원 기존 test 호환 (serialManaged=false 위임).
      */
     public ProductSummaryResponse(UUID id, String name, String modelName, UUID categoryId,
                                   BigDecimal sellingPrice, ProductStatus status) {
-        this(id, name, modelName, null, categoryId, sellingPrice, status, false);
+        this(id, name, modelName, null, categoryId, sellingPrice, status, false, null, null);
     }
 
     /**
@@ -39,7 +41,16 @@ public record ProductSummaryResponse(
      */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false);
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, null, null);
+    }
+
+    /**
+     * Backward-compatible 생성자 — modelCode/productType 미지원 기존 호출자 호환.
+     */
+    public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
+                                  UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
+                                  boolean serialManaged) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, null, null);
     }
 
     /**
@@ -58,6 +69,8 @@ public record ProductSummaryResponse(
                 p.getCategory().getId(),
                 p.getSellingPrice(),
                 p.getStatus(),
-                p.getCategory().isSerialManaged());
+                p.getCategory().isSerialManaged(),
+                p.getModelCode(),
+                p.getProductType() == null ? null : p.getProductType().name());
     }
 }

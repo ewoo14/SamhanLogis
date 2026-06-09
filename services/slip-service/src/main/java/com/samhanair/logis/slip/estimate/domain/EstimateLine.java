@@ -83,6 +83,14 @@ public class EstimateLine extends BaseEntity {
     @Column(name = "note", length = 200)
     private String note;
 
+    /** 세트 전개 그룹의 첫 구성품 라인 여부(전표 그룹 헤더 표시용). 일반 라인 = false. */
+    @Column(name = "set_head", nullable = false)
+    private boolean setHead = false;
+
+    /** 이 라인이 속한 세트의 부모 modelCode(세트 구성품일 때만). 일반 라인 = null. */
+    @Column(name = "parent_set_model", length = 64)
+    private String parentSetModel;
+
     private EstimateLine(Estimate estimate, int lineNo, UUID productId, String productName,
                          String modelName, String specification, int quantity,
                          BigDecimal unitPrice, String note) {
@@ -119,6 +127,12 @@ public class EstimateLine extends BaseEntity {
                                       int quantity, BigDecimal unitPrice, String note) {
         return new EstimateLine(estimate, lineNo, productId, productName, modelName,
                 specification, quantity, unitPrice, note);
+    }
+
+    /** 세트 전개 구성품 표시 — 전개된 세트의 구성품 라인에만 부여(parentSetModel + 첫 라인 setHead). */
+    public void assignBundleComponent(String parentSetModel, boolean setHead) {
+        this.parentSetModel = parentSetModel;
+        this.setHead = setHead;
     }
 
     /** 수량 변경 — supply/vat/lineTotal 재계산. */

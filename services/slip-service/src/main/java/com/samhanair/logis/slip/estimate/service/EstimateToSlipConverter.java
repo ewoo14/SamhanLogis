@@ -62,16 +62,19 @@ public class EstimateToSlipConverter {
                 buildSlipMemo(estimate),
                 estimate.getRequesterId());
 
-        // estimate_lines → slip_lines 1:1 copy (lineNo 순)
+        // estimate_lines → slip_lines 1:1 copy (lineNo 순). 옵션 A: 세트는 이미 견적에서 구성품으로
+        // 전개돼 있으므로 1:1 복사면 전표에 구성품으로 올라간다. 세트 구성품 메타(setHead/부모세트)도 복사.
         for (EstimateLine line : estimate.getLines()) {
-            slip.addLine(SlipLine.create(slip,
+            SlipLine slipLine = SlipLine.create(slip,
                     line.getProductId(),
                     line.getProductName(),
                     line.getModelName(),
                     line.getSpecification(),
                     line.getQuantity(),
                     line.getUnitPrice(),
-                    line.getNote()));
+                    line.getNote());
+            slipLine.assignBundleComponent(line.getParentSetModel(), line.isSetHead());
+            slip.addLine(slipLine);
         }
 
         // 발행 출처 — Phase 6 M5 패턴 일관 (sourceType=ESTIMATE, sourceId=견적번호)

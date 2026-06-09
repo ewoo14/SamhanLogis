@@ -135,7 +135,8 @@ public class ProductInternalController {
         List<ExpandedLineResponse> result = new ArrayList<>(lines.size());
         for (int i = 0; i < lines.size(); i++) {
             BundleExpander.ExpandedLine l = lines.get(i);
-            result.add(new ExpandedLineResponse(l.modelCode(), l.name(), l.quantity(), l.unitPrice(),
+            result.add(new ExpandedLineResponse(l.productId(), l.modelCode(), l.modelName(), l.name(),
+                    l.quantity(), l.unitPrice(),
                     l.componentKind() == null ? null : l.componentKind().name(),
                     expandedSet && i == 0));
         }

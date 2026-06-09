@@ -184,6 +184,73 @@ public class ProductClient {
         return objectMapper.convertValue(data, ProductSummary.class);
     }
 
+    /**
+     * 세트 전개 — product-service {@code POST /products/internal/expand} 호출. BUNDLE 부모면 옵션
+     * 선별+6:4 재배분된 구성품 라인, KEEP/단일이면 1 라인 반환(첫 구성품 setHead=true).
+     *
+     * @param parentModelCode 부모 modelCode
+     * @param setQty 세트 수량
+     * @param options 옵션(패널/리모컨/자재), null 이면 기본
+     * @param setUnitOverride 화면 단가(세트 재배분 base/단일 단가), null 이면 product 기본단가
+     * @return 전개 결과 라인(영속용)
+     */
+    @SuppressWarnings("unchecked")
+    public List<ExpandedLineDto> expand(String parentModelCode, java.math.BigDecimal setQty,
+                                        ExpandedLineDto.Options options, java.math.BigDecimal setUnitOverride) {
+        if (parentModelCode == null || parentModelCode.isBlank() || setQty == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "전개 대상 modelCode/수량이 비어있습니다");
+        }
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("parentModelCode", parentModelCode);
+        body.put("setQty", setQty);
+        if (setUnitOverride != null) {
+            body.put("setUnitOverride", setUnitOverride);
+        }
+        if (options != null) {
+            body.put("options", Map.of(
+                    "remoteOption", options.remoteOption() == null ? "" : options.remoteOption(),
+                    "remoteExcluded", options.remoteExcluded(),
+                    "panelOption", options.panelOption() == null ? "" : options.panelOption(),
+                    "panelShape360", options.panelShape360() == null ? "" : options.panelShape360(),
+                    "materialIncluded", options.materialIncluded()));
+        }
+
+        Map<String, Object> envelope;
+        try {
+            envelope = restClient.post()
+                    .uri("/products/internal/expand")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        if (res.getStatusCode().value() == 404) {
+                            throw new BusinessException(ErrorCode.NOT_FOUND, "전개 대상 제품이 없습니다");
+                        }
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "product-service 전개 실패: " + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 호출 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("ProductClient expand failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "product-service 호출 실패", ex);
+        }
+
+        Object data = envelope == null ? null : envelope.get("data");
+        if (!(data instanceof List<?> rawList)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "product-service 응답 포맷 오류 (data 누락)");
+        }
+        return ((List<Object>) rawList).stream()
+                .map(item -> objectMapper.convertValue(item, ExpandedLineDto.class))
+                .toList();
+    }
+
     private String requireToken() {
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {

@@ -59,11 +59,11 @@ public class BundleExpander {
                 : round(nz(parent.getDeliveryPrice()));
 
         if (parent.getProductType() != ProductType.BUNDLE) {
-            return List.of(ExpandedLine.of(parent.getModelCode(), parent.getName(), setQty, setUnit, null));
+            return List.of(ExpandedLine.single(parent, setQty, setUnit));
         }
         BundleMode mode = parent.getBundleMode() == null ? BundleMode.EXPAND : parent.getBundleMode();
         if (mode == BundleMode.KEEP) {
-            return List.of(ExpandedLine.of(parent.getModelCode(), parent.getName(), setQty, setUnit, null));
+            return List.of(ExpandedLine.single(parent, setQty, setUnit));
         }
 
         // ── EXPAND ──────────────────────────────────────────────
@@ -71,11 +71,13 @@ public class BundleExpander {
         for (BundleComponent c : componentRepository.findByBundleProductId(parent.getId())) {
             Product cp = productRepository.findByModelCodeAndIsDeletedFalse(c.getComponentProductCode()).orElse(null);
             String name = cp != null ? cp.getName() : c.getComponentProductCode();
+            String modelName = cp != null ? cp.getModelName() : null;
+            java.util.UUID pid = cp != null ? cp.getId() : null;
             BigDecimal price = cp != null ? nz(cp.getDeliveryPrice()) : BigDecimal.ZERO;
             BigDecimal qty = c.getQtyMode() == BundleComponent.QtyMode.FOLLOW_SET
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
-            parts.add(new Part(c.getComponentProductCode(), name, c.getComponentKind(),
+            parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, c.getComponentKind(),
                     c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty));
         }
 
@@ -90,7 +92,7 @@ public class BundleExpander {
         List<ExpandedLine> result = new ArrayList<>(picked.size());
         for (Part p : picked) {
             BigDecimal unit = round(p.price).max(BigDecimal.ZERO);
-            result.add(ExpandedLine.of(p.modelCode, p.name, p.qty, unit, p.kind));
+            result.add(new ExpandedLine(p.modelCode, p.productId, p.name, p.modelName, p.qty, unit, p.kind));
         }
         return result;
     }
@@ -387,12 +389,14 @@ public class BundleExpander {
                 .multiply(BigDecimal.valueOf(1000));
     }
 
-    /** 전개 라인 — 단가 포함. componentKind 는 KEEP/단일 라인 시 null. */
-    public record ExpandedLine(String modelCode, String name, BigDecimal quantity,
-                               BigDecimal unitPrice, BundleComponent.ComponentKind componentKind) {
-        public static ExpandedLine of(String modelCode, String name, BigDecimal quantity,
-                                      BigDecimal unitPrice, BundleComponent.ComponentKind kind) {
-            return new ExpandedLine(modelCode, name, quantity, unitPrice, kind);
+    /** 전개 라인 — productId/단가 포함. componentKind 는 KEEP/단일 라인 시 null. */
+    public record ExpandedLine(String modelCode, java.util.UUID productId, String name, String modelName,
+                               BigDecimal quantity, BigDecimal unitPrice,
+                               BundleComponent.ComponentKind componentKind) {
+        /** 단일/KEEP — 부모 1 라인. */
+        static ExpandedLine single(Product parent, BigDecimal qty, BigDecimal unitPrice) {
+            return new ExpandedLine(parent.getModelCode(), parent.getId(), parent.getName(),
+                    parent.getModelName(), qty, unitPrice, null);
         }
     }
 
@@ -418,17 +422,22 @@ public class BundleExpander {
     /** 전개 중간 가변 holder. */
     private static final class Part {
         final String modelCode;
+        final java.util.UUID productId;
         final String name;
+        final String modelName;
         final BundleComponent.ComponentKind kind;
         final String variant;
         final boolean isDefault;
         BigDecimal price;
         final BigDecimal qty;
 
-        Part(String modelCode, String name, BundleComponent.ComponentKind kind, String variant,
+        Part(String modelCode, java.util.UUID productId, String name, String modelName,
+             BundleComponent.ComponentKind kind, String variant,
              boolean isDefault, BigDecimal price, BigDecimal qty) {
             this.modelCode = modelCode;
+            this.productId = productId;
             this.name = name;
+            this.modelName = modelName;
             this.kind = kind;
             this.variant = variant;
             this.isDefault = isDefault;

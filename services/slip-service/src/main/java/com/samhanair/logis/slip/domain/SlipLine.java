@@ -99,6 +99,14 @@ public class SlipLine extends BaseEntity {
     @Column(name = "source_order_line_id")
     private UUID sourceOrderLineId;
 
+    /** 세트 전개 그룹 첫 구성품 라인 여부(PR-3, V34). 일반 라인 = false. */
+    @Column(name = "set_head", nullable = false)
+    private boolean setHead = false;
+
+    /** 세트 구성품일 때 부모 세트 modelCode(PR-3, V34). 일반 라인 = null. */
+    @Column(name = "parent_set_model", length = 64)
+    private String parentSetModel;
+
     private SlipLine(Slip slip, UUID productId, String productName, String modelName,
                      String specification, int quantity, BigDecimal unitPrice, String note,
                      UUID sourceOrderLineId) {
@@ -165,6 +173,12 @@ public class SlipLine extends BaseEntity {
                                   String note) {
         return new SlipLine(slip, productId, productName, modelName, specification,
                 quantity, unitPrice, note, null);
+    }
+
+    /** 세트 전개 구성품 표시 — 전개된 세트 구성품 라인에만 부여(parentSetModel + 첫 라인 setHead). */
+    public void assignBundleComponent(String parentSetModel, boolean setHead) {
+        this.parentSetModel = parentSetModel;
+        this.setHead = setHead;
     }
 
     /**
