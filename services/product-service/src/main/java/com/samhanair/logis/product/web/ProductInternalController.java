@@ -1,11 +1,15 @@
 package com.samhanair.logis.product.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.ProductService;
+import com.samhanair.logis.product.web.dto.ExpandRequest;
+import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
+import java.util.ArrayList;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -28,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductInternalController {
 
     private final ProductService productService;
+    private final BundleExpander bundleExpander;
 
     /**
      * 제품 ID 일괄 조회 — inventory-service 등 internal 호출자가 productId 존재 여부 검증에 사용.
@@ -103,5 +108,37 @@ public class ProductInternalController {
     @GetMapping("/by-name")
     public ApiResponse<ProductSummaryResponse> lookupByName(@RequestParam String name) {
         return ApiResponse.ok(productService.lookupSummaryByName(name));
+    }
+
+    /**
+     * 세트 전개 (internal) — slip-service 견적/전표 생성 시 라인 품목을 구성품으로 전개.
+     *
+     * <p>BUNDLE EXPAND 면 옵션 선별 + 6:4 재배분된 구성품 라인 N개(첫 라인 setHead=true), KEEP/단일이면
+     * 1 라인. legacy 종합견적서 explodeSetParts 정합. 단가는 setUnitOverride(화면 단가) base.
+     */
+    @Operation(summary = "세트 전개 (internal)",
+            description = "X-Internal-Token 인증 후 호출. slip-service 견적/전표 라인 세트→구성품 전개 전용.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "전개 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "parentModelCode 제품 없음")
+    })
+    @PostMapping("/expand")
+    public ApiResponse<List<ExpandedLineResponse>> expand(@Valid @RequestBody ExpandRequest request) {
+        ExpandRequest.Options o = request.options();
+        BundleExpander.ExpandOptions opts = o == null ? BundleExpander.ExpandOptions.defaults()
+                : new BundleExpander.ExpandOptions(o.remoteOption(), o.remoteExcluded(),
+                o.panelOption(), o.panelShape360(), o.materialIncluded(), request.setUnitOverride());
+        List<BundleExpander.ExpandedLine> lines =
+                bundleExpander.expand(request.parentModelCode(), request.setQty(), opts);
+        boolean expandedSet = lines.size() > 1;
+        List<ExpandedLineResponse> result = new ArrayList<>(lines.size());
+        for (int i = 0; i < lines.size(); i++) {
+            BundleExpander.ExpandedLine l = lines.get(i);
+            result.add(new ExpandedLineResponse(l.modelCode(), l.name(), l.quantity(), l.unitPrice(),
+                    l.componentKind() == null ? null : l.componentKind().name(),
+                    expandedSet && i == 0));
+        }
+        return ApiResponse.ok(result);
     }
 }
