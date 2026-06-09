@@ -252,7 +252,7 @@ export function EstimateDetailPage() {
       key: 'quantity',
       header: '수량',
       width: '80px',
-      align: 'right',
+      align: 'center',
       render: (l) => fmt(l.quantity),
     },
     {
@@ -474,7 +474,8 @@ export function EstimateDetailPage() {
         ) : null}
 
         <DataTable
-          columns={lineColumns}
+          // 헤더는 모두 가운데 정렬(개발책임자 정렬 지시) — 본문은 컬럼별 align(수량 가운데/금액 우측).
+          columns={lineColumns.map((c) => ({ ...c, headerAlign: 'center' as const }))}
           rows={e.lines}
           rowKey={(l) => l.id}
           emptyMessage="라인이 없습니다."

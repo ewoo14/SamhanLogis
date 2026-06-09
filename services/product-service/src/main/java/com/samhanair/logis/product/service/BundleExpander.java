@@ -35,39 +35,27 @@ public class BundleExpander {
 
     private final ProductRepository productRepository;
     private final BundleComponentRepository componentRepository;
-    private final com.samhanair.logis.product.repository.ProductSpecRepository productSpecRepository;
 
     public BundleExpander(ProductRepository productRepository,
-                          BundleComponentRepository componentRepository,
-                          com.samhanair.logis.product.repository.ProductSpecRepository productSpecRepository) {
+                          BundleComponentRepository componentRepository) {
         this.productRepository = productRepository;
         this.componentRepository = componentRepository;
-        this.productSpecRepository = productSpecRepository;
     }
 
     /**
-     * 구성품 규격 합성(#24) — product_spec 에서 한 줄 규격 문자열을 만든다.
-     * 규격/치수/크기 키 우선, 없으면 displayOrder 첫 행. 50자 절단(slip/estimate specification 컬럼 길이).
-     * spec 없으면 null. 전개 구성품 라인 specification 자동 채움용.
+     * 구성품/세트 규격(#24) — GAS 종합견적서 getSpecMap_ 와 동일하게 시트의 <b>'규격' 컬럼</b> 값을 쓴다.
+     * 우리 적재본에서는 세트 구성 탭의 '규격' 이 {@code BundleComponent.specText}(구성품) /
+     * {@code Product.specText}(단일·KEEP 부모)에 들어있다. product_spec(제품크기/냉방성능 등 detail)은
+     * GAS 규격이 아니므로 사용하지 않는다. slip/estimate specification 컬럼 길이(50)에 맞춰 절단.
      */
-    private String composeSpec(java.util.UUID productId) {
-        if (productId == null) {
+    private static String specOf(String raw) {
+        if (raw == null) {
             return null;
         }
-        List<com.samhanair.logis.product.domain.ProductSpec> specs =
-                productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId);
-        if (specs == null || specs.isEmpty()) {
+        String v = raw.trim();
+        if (v.isEmpty()) {
             return null;
         }
-        com.samhanair.logis.product.domain.ProductSpec chosen = specs.stream()
-                .filter(s -> s.getSpecKey() != null && s.getSpecKey().matches(".*(규격|치수|크기).*"))
-                .findFirst()
-                .orElse(specs.get(0));
-        String v = chosen.getSpecValue();
-        if (v == null || v.isBlank()) {
-            return null;
-        }
-        v = v.trim();
         return v.length() > 50 ? v.substring(0, 50) : v;
     }
 
@@ -87,7 +75,7 @@ public class BundleExpander {
         BigDecimal setUnit = opts.setUnitOverride() != null ? round(opts.setUnitOverride())
                 : round(nz(parent.getDeliveryPrice()));
 
-        String parentSpec = composeSpec(parent.getId());
+        String parentSpec = specOf(parent.getSpecText());
         if (parent.getProductType() != ProductType.BUNDLE) {
             return List.of(ExpandedLine.single(parent, setQty, setUnit, parentSpec));
         }
@@ -108,7 +96,7 @@ public class BundleExpander {
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
             parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, c.getComponentKind(),
-                    c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty, composeSpec(pid)));
+                    c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty, specOf(c.getSpecText())));
         }
 
         // 싱글세트만 옵션 선별(picked) + 세트단가 재배분(explodeSetParts). 상업멀티 등은 legacy

@@ -11,6 +11,8 @@ export interface DataTableColumn<T> {
   /** CSS width — 예: '120px', '20%'. */
   width?: string
   align?: 'left' | 'right' | 'center'
+  /** 헤더(th) 정렬 — 미지정 시 {@link align} 따름. 본문은 우측/가운데인데 헤더만 가운데일 때 사용. */
+  headerAlign?: 'left' | 'right' | 'center'
 }
 
 export interface DataTableProps<T> {
@@ -77,10 +79,12 @@ export function DataTable<T>({
           <thead className={styles['thead']}>
             <tr>
               {columns.map((col) => {
+                // 헤더 정렬은 headerAlign 우선, 없으면 align 따름.
+                const headerAlign = col.headerAlign ?? col.align
                 const alignClass =
-                  col.align === 'right'
+                  headerAlign === 'right'
                     ? styles['alignRight']
-                    : col.align === 'center'
+                    : headerAlign === 'center'
                       ? styles['alignCenter']
                       : styles['alignLeft']
                 const thClasses = [styles['th'], alignClass]

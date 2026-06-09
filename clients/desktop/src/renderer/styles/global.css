@@ -265,12 +265,23 @@ button {
   font-weight: 600;
   text-align: center;
 }
-.slip-line-table .col-no      { width: 44px;  text-align: center; padding: 0; }
+/* 정렬: 헤더(thead th)는 모두 가운데(위 규칙) 유지. 본문(td)만 컬럼별 정렬.
+   수량=가운데 / 단가·공급가액·부가세·합계(금액)=우측. (개발책임자 정렬 지시 2026-06-09) */
+.slip-line-table .col-no      { width: 44px;  padding: 0; }
+.slip-line-table td.col-no    { text-align: center; }
 .slip-line-table .col-model   { width: 180px; }
-.slip-line-table .col-spec    { width: 100px; text-align: center; }
-.slip-line-table .col-qty     { width: 80px;  text-align: right; }
+.slip-line-table .col-spec    { width: 100px; }
+.slip-line-table td.col-spec  { text-align: center; }
+.slip-line-table .col-qty     { width: 70px; }
+.slip-line-table td.col-qty   { text-align: center; }
 .slip-line-table .col-price,
-.slip-line-table .col-total   { width: 130px; text-align: right; }
+.slip-line-table .col-supply,
+.slip-line-table .col-vat,
+.slip-line-table .col-total   { width: 110px; }
+.slip-line-table td.col-price,
+.slip-line-table td.col-supply,
+.slip-line-table td.col-vat,
+.slip-line-table td.col-total { text-align: right; }
 .slip-line-table tr.is-selected {
   background: var(--color-brand-50, #EFF6FF);
 }
