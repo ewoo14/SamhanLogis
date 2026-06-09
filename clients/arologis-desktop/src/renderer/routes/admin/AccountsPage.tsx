@@ -115,6 +115,8 @@ export function AccountsPage(): JSX.Element {
         label: '활성상태',
         width: 160,
         filter: false,
+        // 복사/내보내기 시 render 가 무시되고 String(v) fallback 되므로 한국어로 포맷한다('true/false' 노출 방지).
+        format: (v) => (v ? '활성' : '비활성'),
         render: (row) => (
           <ActiveToggle
             account={row}

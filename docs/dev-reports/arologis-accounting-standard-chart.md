@@ -8,7 +8,7 @@
 - **V17 마이그레이션** (`V17__arologis_standard_chart_and_departments.sql`)
   - 부서 3개 확정: 대표실(EXEC)/행정팀(ADMIN)/회계팀(ACCOUNTING). 배차/운영 soft-delete.
   - `arologis_simple_account.type` CHECK 4→5유형(EQUITY 추가).
-  - 표준계정과목 83개 upsert(자산33/부채15/자본8/수익11/비용31). 운송업 상용만 active=TRUE.
+  - 표준계정과목 101개 upsert(자산35/부채15/자본8/수익11/비용32). 운송업 상용만 active=TRUE.
 - `AccountType` enum: `EQUITY` 추가(5분류).
 - `ArologisSimpleAccount.changeActive(boolean)`: 멱등 활성상태 변경(동일값 무시).
 - `ArologisAccountingService`: `listAllAccounts()`(비활성 포함) + `setAccountActive(code, active, actor)`. `SimpleAccountView` 에 `active` 추가.

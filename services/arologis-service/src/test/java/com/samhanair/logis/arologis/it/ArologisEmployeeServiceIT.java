@@ -72,7 +72,8 @@ class ArologisEmployeeServiceIT extends AbstractPostgresIT {
 
         assertThat(provisioned.employee().loginId()).isEqualTo("it-hr-create");
         assertThat(provisioned.employee().departmentCode()).isEqualTo("ADMIN");
-        assertThat(provisioned.employee().departmentName()).isEqualTo("행정");
+        // V17: ADMIN 부서명 "행정" → "행정팀" 개명(대표실/행정팀/회계팀 확정).
+        assertThat(provisioned.employee().departmentName()).isEqualTo("행정팀");
         assertThat(provisioned.temporaryPassword()).isNotBlank();
         assertThat(passwordEncoder.matches(provisioned.temporaryPassword(), adminUser.getPasswordHash())).isTrue();
         assertThat(employeeRepository.findByLoginIdAndIsDeletedFalse("it-hr-create").orElseThrow()

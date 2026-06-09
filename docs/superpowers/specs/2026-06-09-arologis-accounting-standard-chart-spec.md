@@ -21,7 +21,7 @@ arologis-desktop 백오피스(인사/간이회계/권한)의 임시 placeholder 
 ### 2.1 데이터 (arologis-service V17)
 - `arologis_department`: 대표실(EXEC)/행정팀(ADMIN)/회계팀(ACCOUNTING) 3개. 기존 배차/운영 soft-delete.
 - `arologis_simple_account.type` CHECK: 4유형 → **5유형(자본 EQUITY 추가)**. 기존 4유형이라 EQUITY INSERT 거부됨 → CHECK 확장 필수 ([[enum-expansion-check-constraint]]).
-- 표준계정과목 **83개** 적재(자산 33 / 부채 15 / 자본 8 / 수익 11 / 비용 31). 코드 체계 4자리(1xxx 자산·2xxx 부채·3xxx 자본·4xxx 수익·8xxx 비용). 운송업 상용 계정만 active=TRUE.
+- 표준계정과목 **101개** 적재(자산 35 / 부채 15 / 자본 8 / 수익 11 / 비용 32). 코드 체계 4자리(1xxx 자산·2xxx 부채·3xxx 자본·4xxx 수익·8xxx 비용). 운송업 상용 계정만 active=TRUE.
 
 ### 2.2 활성상태 관리 (신규 기능)
 - BE arologis-service:

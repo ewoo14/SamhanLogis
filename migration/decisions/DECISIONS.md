@@ -2829,6 +2829,6 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | 결정 | 내용 |
 |---|---|
 | D-AROLO-ACCT-01 | arologis 백오피스 실 운영 seed 확정(개발책임자). **삼한 퍼블릭 아닌 아로로지스 독립 운영**. 부서 = **대표실/행정팀/회계팀 3개**(V17, 배차/운영 soft-delete). |
-| D-AROLO-ACCT-02 | 계정과목 = **일반기업회계기준 표준계정과목 5유형 전체 83개**(V17). `arologis_simple_account.type` CHECK 4→5유형(**자본 EQUITY 추가**) — 미확장 시 EQUITY INSERT 거부([[enum-expansion-check-constraint]]). 코드 4자리(1xxx 자산·2xxx 부채·3xxx 자본·4xxx 수익·8xxx 비용). 운송업 상용만 active=TRUE, 나머지 active=FALSE(데이터 보존, 드롭다운 숨김). |
+| D-AROLO-ACCT-02 | 계정과목 = **일반기업회계기준 표준계정과목 5유형 전체 101개**(V17). `arologis_simple_account.type` CHECK 4→5유형(**자본 EQUITY 추가**) — 미확장 시 EQUITY INSERT 거부([[enum-expansion-check-constraint]]). 코드 4자리(1xxx 자산·2xxx 부채·3xxx 자본·4xxx 수익·8xxx 비용). 운송업 상용만 active=TRUE, 나머지 active=FALSE(데이터 보존, 드롭다운 숨김). |
 | D-AROLO-ACCT-03 | **활성상태 관리 = 신규 page-code `arologis.accounting.accounts`**(현금출납장 cashbook 과 분리). 권한 = 대표실·회계팀 → **마스터·회계사원만 V/E**(V54), 매니저는 거래 입력 가능하나 계정 마스터 관리 제외(권한 격리). FE canManageAccounts(MASTER\|ACCOUNTANT) + BE @RequirePermission 이중 방어. |
 | D-AROLO-ACCT-04 | 스코프 = 표준차트 고정 → **활성상태 토글만**(계정 CRUD 아님). UI 표기 = `active` 미노출 **"활성상태"**(개발책임자 지시). |
