@@ -163,6 +163,22 @@ class BundleExpanderIT extends AbstractPostgresIT {
                 .containsExactly("PNL_B"); // 블랙 판넬만(화이트 제외, 자재 제외)
     }
 
+    @Test
+    void 옵션_기본리모컨_없으면_리모컨_전부제외() {
+        Category cat = categoryRepository.save(Category.create("RMT-SET", "test", null, 13));
+        Product parent = bundleSet("RMT_SET", "1way 냉난방", cat, new BigDecimal("500000"));
+        product("RMT_IN", "실내기", cat, ProductCategory.SINGLE_PART, new BigDecimal("300000"));
+        product("RMT_R", "무선 리모컨", cat, ProductCategory.SINGLE_PART, new BigDecimal("20000"));
+        comp(parent, "RMT_IN", BundleComponent.ComponentKind.INDOOR);
+        // 리모컨이 isDefault=false (기본 미지정) → legacy: 기본 리모컨 0 → 리모컨 전부 제외
+        componentRepository.save(BundleComponent.seed(parent.getId(), "RMT_R", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.REMOTE, null, false, null));
+        flush();
+
+        var lines = expander.expand("RMT_SET", BigDecimal.ONE);
+        assertThat(lines).extracting(BundleExpander.ExpandedLine::modelCode).containsExactly("RMT_IN");
+    }
+
     // ── helpers ─────────────────────────────────────────────
     private Product bundleSet(String code, String name, Category cat, BigDecimal price) {
         Product p = Product.seedFromSheet(name, code, cat, price, price,

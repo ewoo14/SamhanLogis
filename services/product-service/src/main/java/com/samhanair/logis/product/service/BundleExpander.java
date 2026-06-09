@@ -148,11 +148,16 @@ public class BundleExpander {
                 return m;
             }
         }
-        // 360 형상 매칭(원형/사각)
-        boolean is360 = parts.stream().anyMatch(p -> textOf(p).matches(".*(360-?CST|CST-?360|360CST).*"));
+        // 360 형상 매칭(원형/사각) — legacy: 패널의 feat(variant)가 형상값과 정확 일치(없으면 textOf fallback).
+        boolean is360 = parts.stream().anyMatch(p ->
+                textOf(p).matches("(?i).*(360\\s*-?\\s*CST|CST\\s*-?\\s*360|360CST).*"));
         if (is360 && opts.panelShape360() != null && !opts.panelShape360().isBlank()) {
+            String shapeVal = opts.panelShape360();
             Part shape = panels.stream()
-                    .filter(p -> textOf(p).contains(opts.panelShape360())).findFirst().orElse(null);
+                    .filter(p -> shapeVal.equals(p.variant == null ? "" : p.variant.trim()))
+                    .findFirst()
+                    .orElseGet(() -> panels.stream()
+                            .filter(p -> textOf(p).contains(shapeVal)).findFirst().orElse(null));
             if (shape != null) {
                 return shape;
             }
@@ -166,9 +171,10 @@ public class BundleExpander {
         if (opts.remoteExcluded()) {
             return List.of();
         }
+        // legacy getDefaultRemoteRows: feat~/기본/ 인 행만. 기본 리모컨 없으면 빈 set(리모컨 전부 제외).
         List<Part> defaults = remotes.stream().filter(p -> p.isDefault).toList();
         if (defaults.isEmpty()) {
-            defaults = remotes;
+            return List.of();
         }
         String opt = opts.remoteOption() == null ? "" : opts.remoteOption();
         if (!opt.isBlank() && allowRemoteChange(defaults)) {
