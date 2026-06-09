@@ -1407,12 +1407,22 @@ function getSingleDefaults() {
 }
 
 // 거래처조회
-function getCustomerDataAsync(forceRefresh) { 
+function getCustomerDataAsync(forceRefresh) {
   if (forceRefresh) {
     cacheRemoveJSON_('CUS_V6');
   }
-  const raw = getCustomers_(); 
-  return raw.map(c => ({ code: c.code, name: c.name, rep: c.rep, tel: c.tel, addr: c.addr, group: c.group, note: c.note })); 
+  const raw = getCustomers_();
+
+  // 노션 거래처별 할인설정 맵 사업자번호 기준 매칭
+  const dcMap = getAllNotionDcConfigs_(forceRefresh === true);
+  const pickDc = (c) => {
+    const byBiz = c.bizno ? dcMap[String(c.bizno).replace(/[^\d]/g, '')] : null;
+    if (byBiz) return byBiz;
+    const codeKey = String(c.code || '').replace(/[^\d]/g, '');
+    return codeKey ? (dcMap[codeKey] || null) : null;
+  };
+
+  return raw.map(c => ({ code: c.code, name: c.name, bizno: c.bizno, rep: c.rep, tel: c.tel, addr: c.addr, group: c.group, note: c.note, dc: pickDc(c) }));
 }
 
 // 거래처 목록
@@ -2190,6 +2200,113 @@ function initDcConfigFromNotion(bizno) {
   return cfg;
 }
 
+// 노션 DC설정 전체조회 거래처코드별 맵 반환
+function getAllNotionDcConfigs_(forceRefresh) {
+  var cacheKey = 'NOTION_DC_MAP_V1';
+  if (forceRefresh === true) {
+    cacheRemoveJSON_(cacheKey);
+  } else {
+    var cached = cacheGetJSON_(cacheKey);
+    if (cached) return cached;
+  }
+
+  var map = {};
+  try {
+    var headers = {
+      Authorization: 'Bearer ' + NOTION_TOKEN,
+      'Notion-Version': NOTION_VER,
+      'Content-Type': 'application/json'
+    };
+
+    // 노션 최신버전 data_source 확인
+    var dataSourceId = null;
+    if (NOTION_VER === '2025-09-03') {
+      try {
+        var dbRes = UrlFetchApp.fetch('https://api.notion.com/v1/databases/' + NOTION_DB_ID, {
+          method: 'get', headers: headers, muteHttpExceptions: true
+        });
+        if (dbRes.getResponseCode() === 200) {
+          var sources = (JSON.parse(dbRes.getContentText() || '{}').data_sources) || [];
+          if (sources.length > 0 && sources[0].id) dataSourceId = sources[0].id;
+        }
+      } catch (e1) {
+        Logger.log('>> ⚠️ DC맵 data_source 예외 ' + e1);
+      }
+    }
+
+    var url = dataSourceId
+      ? 'https://api.notion.com/v1/data_sources/' + dataSourceId + '/query'
+      : 'https://api.notion.com/v1/databases/' + NOTION_DB_ID + '/query';
+
+    var hasMore = true;
+    var nextCursor = null;
+    while (hasMore) {
+      var payloadObj = { page_size: 100 };
+      if (nextCursor) payloadObj.start_cursor = nextCursor;
+      var res = UrlFetchApp.fetch(url, {
+        method: 'post', headers: headers,
+        payload: JSON.stringify(payloadObj), muteHttpExceptions: true
+      });
+      if (res.getResponseCode() !== 200) {
+        Logger.log('>> 🟥 DC맵 응답 ' + res.getResponseCode());
+        break;
+      }
+      var body = JSON.parse(res.getContentText());
+      (body.results || []).forEach(function (page) {
+        var props = page.properties || {};
+        var num = function (name) {
+          return (props[name] && typeof props[name].number === 'number') ? props[name].number : null;
+        };
+        var chk = function (name) {
+          return props[name] && props[name].checkbox === true;
+        };
+        var sel = function (name) {
+          var p = props[name];
+          if (!p || p.type !== 'select' || !p.select) return null;
+          return String(p.select.name || '').trim();
+        };
+        var codeNum = num('거래처코드');
+        if (codeNum == null) return;
+        var key = String(codeNum).replace(/[^\d]/g, '');
+        if (!key) return;
+
+        // 단위처리 해석 M원 반올림 내림 올림
+        var unitSel = sel('단위처리');
+        var roundTo = null;
+        var roundMode = null;
+        if (unitSel) {
+          var um = unitSel.match(/(\d+)\s*원?/);
+          if (um) roundTo = Number(um[1]);
+          if (/반올림/.test(unitSel)) roundMode = 'ROUND';
+          else if (/올림/.test(unitSel)) roundMode = 'CEIL';
+          else if (/내림/.test(unitSel)) roundMode = 'FLOOR';
+        }
+
+        map[key] = {
+          homeDiscount:       num('홈멀티DC'),
+          commDiscount:       num('상업멀티DC'),
+          discount360:        num('360'),
+          discount4way:       num('4way'),
+          discountStand:      num('스탠드'),
+          oneWayDiscount:     num('1way'),
+          deluxeDiscount:     num('디럭스'),
+          firstGradeDiscount: num('1등급'),
+          showIHose:          chk('유연호스I형'),
+          unitRoundTo:        roundTo,
+          unitRoundMode:      roundMode
+        };
+      });
+      hasMore = body.has_more;
+      nextCursor = body.next_cursor;
+    }
+
+    cachePutJSON_(cacheKey, map, 60 * 10);
+  } catch (e) {
+    Logger.log('>> 🟥 DC맵 조회 예외 ' + e);
+  }
+  return map;
+}
+
 // 프론트 조회용 거래처
 function searchCustomerByBizno(bizno){
   const r = searchCustomerByBizOrCode(bizno);
@@ -2295,19 +2412,22 @@ function saveOrderToNotion(info, items, slipNo) {
 }
 
 // 이력조회
-function getNotionHistory(startDate, endDate) {
+function getNotionHistory(startDate, endDate, dateField) {
   Logger.log('🚀 발송조회');
   const userEmail = Session.getActiveUser().getEmail();
+
+  // 조회기준 속성 출고일 또는 발송시각
+  const baseProp = (dateField === '발송시각') ? '생성날짜' : '출고일';
 
   const filters = [
     { property: '사용자계정', email: { equals: userEmail } }
   ];
 
   if (startDate) {
-    filters.push({ property: '출고일', date: { on_or_after: startDate } });
+    filters.push({ property: baseProp, date: { on_or_after: startDate } });
   }
   if (endDate) {
-    filters.push({ property: '출고일', date: { on_or_before: endDate } });
+    filters.push({ property: baseProp, date: { on_or_before: endDate } });
   }
 
   const url = `https://api.notion.com/v1/databases/${NOTION_DB_SEND}/query`;
@@ -2328,7 +2448,7 @@ function getNotionHistory(startDate, endDate) {
   while (hasMore) {
     const payloadObj = {
       filter: { and: filters },
-      sorts: [{ property: '출고일', direction: 'descending' }],
+      sorts: [{ property: baseProp, direction: 'descending' }],
       page_size: 100
     };
     if (nextCursor) payloadObj.start_cursor = nextCursor;
@@ -2755,6 +2875,71 @@ function getQuoteHistory(startDate, endDate) {
   }
 }
 
+// 거래처명으로 최근 30건 조회
+function getQuoteHistoryByCustomer(custName) {
+  Logger.log('🚀 거래처별 저장조회');
+  try {
+    const userEmail = Session.getActiveUser().getEmail();
+    const keyword = String(custName || '').trim();
+
+    // 거래처명은 부분검색 contains
+    const filters = [
+      { property: "담당자 계정", email: { equals: userEmail } }
+    ];
+    if (keyword) {
+      filters.push({ property: '거래처명', title: { contains: keyword } });
+    }
+
+    const payloadObj = {
+      filter: { and: filters },
+      sorts: [{ property: "저장일시", direction: "descending" }],
+      page_size: 30
+    };
+
+    const options = {
+      method: 'post',
+      headers: {
+        'Authorization': 'Bearer ' + NOTION_TOKEN_QUOTE,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28'
+      },
+      muteHttpExceptions: true,
+      payload: JSON.stringify(payloadObj)
+    };
+
+    const url = `https://api.notion.com/v1/databases/${NOTION_DB_QUOTE}/query`;
+    const res = UrlFetchApp.fetch(url, options);
+    if (res.getResponseCode() !== 200) {
+      throw new Error('응답 코드 ' + res.getResponseCode());
+    }
+
+    const json = JSON.parse(res.getContentText());
+    const results = (json.results || []).map(page => {
+      const dataProps = page.properties['데이터'] ? page.properties['데이터'].rich_text : [];
+      const fullString = dataProps.map(t => t.text.content).join('');
+
+      const imgProps1 = page.properties['미리보기1'] ? page.properties['미리보기1'].rich_text : [];
+      const imgProps2 = page.properties['미리보기2'] ? page.properties['미리보기2'].rich_text : [];
+      const imgProps3 = page.properties['미리보기3'] ? page.properties['미리보기3'].rich_text : [];
+      const imgString = imgProps1.map(t => t.text.content).join('') +
+                        imgProps2.map(t => t.text.content).join('') +
+                        imgProps3.map(t => t.text.content).join('');
+
+      const custProps = page.properties['거래처명'] ? page.properties['거래처명'].title : [];
+      const name = custProps.length > 0 ? custProps[0].text.content : "미지정";
+      const dateProp = page.properties['저장일시'] ? page.properties['저장일시'].date.start : "";
+
+      return { id: page.id, created: dateProp, custName: name, data: fullString, image: imgString };
+    });
+
+    Logger.log('✅ 거래처별 조회완료');
+    return results;
+  } catch (e) {
+    Logger.log('💥 거래처별 조회 에러');
+    throw new Error('거래처별 목록 로드 실패: ' + e.message);
+  }
+}
+
 // 단가로드
 function getPriceIncData_() {
   Logger.log('🚀 인상전단가');
@@ -2825,4 +3010,195 @@ function getPriceIncData_() {
 
   cachePutJSON_(k, out, 600);
   return out;
+}
+
+// 네이버 개발자센터 검색 자격증명
+const NAVER_SEARCH_ID = 'REDACTED_NAVER_SEARCH_CLIENT_ID';
+const NAVER_SEARCH_SECRET = 'REDACTED_NAVER_SEARCH_CLIENT_SECRET';
+
+// 네이버 클라우드 플랫폼 맵스 자격증명
+const NAVER_MAP_KEY_ID = 'REDACTED_NAVER_MAP_KEY_ID';
+const NAVER_MAP_KEY = 'REDACTED_NAVER_MAP_KEY';
+
+// 도로명주소 API 자격증명 행안부
+const ROAD_API_KEY = 'REDACTED_JUSO_ROAD_API_KEY';
+const BUILDING_API_KEY = 'REDACTED_JUSO_BUILDING_API_KEY';
+
+// 통합 주소 검색 상호 도로명 지오코딩 병렬
+function searchNaverAddress(query) {
+  const q = String(query || '').trim();
+  if (!q) return { ok: false, error: '검색어가 비었습니다.', items: [] };
+
+  const reqs = buildAddressRequests_(q);
+  let responses = [];
+  try {
+    responses = UrlFetchApp.fetchAll(reqs.map(function(r){ return r.req; }));
+  } catch (e) {
+    return { ok: false, error: '통신 오류 ' + (e && e.message || e), items: [] };
+  }
+
+  const items = [];
+  const seen = {};
+  const pushUnique = function (row) {
+    const key = (row.roadAddress || row.address || '') + '|' + (row.title || '');
+    if (!key.trim() || seen[key]) return;
+    seen[key] = 1;
+    items.push(row);
+  };
+
+  reqs.forEach(function (r, i) {
+    const parsed = r.parse(responses[i]);
+    parsed.forEach(pushUnique);
+  });
+
+  if (!items.length) {
+    return { ok: false, error: '검색 결과가 없습니다.', items: [] };
+  }
+  return { ok: true, items: items };
+}
+
+// 호출 묶음 만들기
+function buildAddressRequests_(q) {
+  const list = [];
+
+  // 도로명주소 우선
+  if (ROAD_API_KEY) {
+    list.push({
+      req: {
+        url: 'https://business.juso.go.kr/addrlink/addrLinkApi.do'
+          + '?currentPage=1&countPerPage=10&resultType=json'
+          + '&confmKey=' + encodeURIComponent(ROAD_API_KEY)
+          + '&keyword=' + encodeURIComponent(q),
+        method: 'get',
+        muteHttpExceptions: true
+      },
+      parse: parseJusoResponse_
+    });
+  }
+
+  // 네이버 지역 검색 상호
+  if (NAVER_SEARCH_ID && NAVER_SEARCH_SECRET) {
+    list.push({
+      req: {
+        url: 'https://openapi.naver.com/v1/search/local.json'
+          + '?query=' + encodeURIComponent(q)
+          + '&display=5&start=1&sort=random',
+        method: 'get',
+        muteHttpExceptions: true,
+        headers: {
+          'X-Naver-Client-Id': NAVER_SEARCH_ID,
+          'X-Naver-Client-Secret': NAVER_SEARCH_SECRET
+        }
+      },
+      parse: parseNaverLocalResponse_
+    });
+  }
+
+  // NCP 지오코딩
+  if (NAVER_MAP_KEY_ID && NAVER_MAP_KEY) {
+    list.push({
+      req: {
+        url: 'https://maps.apigw.ntruss.com/map-geocode/v2/geocode?query=' + encodeURIComponent(q),
+        method: 'get',
+        muteHttpExceptions: true,
+        headers: {
+          'x-ncp-apigw-api-key-id': NAVER_MAP_KEY_ID,
+          'x-ncp-apigw-api-key': NAVER_MAP_KEY
+        }
+      },
+      parse: parseNaverGeocodeResponse_
+    });
+  }
+
+  return list;
+}
+
+// 도로명주소 응답 파싱
+function parseJusoResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    const arr = json && json.results && json.results.juso ? json.results.juso : [];
+    return arr.map(function (it) {
+      const road = String(it.roadAddrPart1 || it.roadAddr || '').replace(/[()（）]/g, '').trim();
+      const bdName = cleanBdNm_(it.bdNm);
+      const jibun = stripTrailingName_(String(it.jibunAddr || '').trim(), bdName);
+      return {
+        source: 'juso',
+        title: bdName,
+        category: '',
+        address: jibun,
+        roadAddress: road
+      };
+    });
+  } catch (e) { return []; }
+}
+
+// 건물명 정리 괄호 제거 후 동 리 가 토큰 제외
+function cleanBdNm_(raw) {
+  if (!raw) return '';
+  const s = String(raw).replace(/[()（）]/g, '').trim();
+  if (!s) return '';
+  const parts = s.split(/[,，]/).map(function (p) { return p.trim(); }).filter(Boolean);
+  const filtered = parts.filter(function (part) {
+    return !/^[가-힣]+(동|리|가)$/.test(part);
+  });
+  return filtered.join(' ');
+}
+
+// 정규식 이스케이프
+function escapeRegex_(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// 주소 끝에 붙은 토큰 제거
+function stripTrailingName_(addr, name) {
+  const a = String(addr || '').trim();
+  const n = String(name || '').trim();
+  if (!a || !n) return a;
+  const re = new RegExp('\\s*' + escapeRegex_(n) + '\\s*$');
+  return a.replace(re, '').trim();
+}
+
+// 네이버 지역검색 응답 파싱
+function parseNaverLocalResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    const strip = function (s) { return String(s || '').replace(/<[^>]+>/g, ''); };
+    return (json.items || []).map(function (it) {
+      return {
+        source: 'local',
+        title: strip(it.title),
+        category: strip(it.category),
+        address: strip(it.address),
+        roadAddress: strip(it.roadAddress)
+      };
+    });
+  } catch (e) { return []; }
+}
+
+// 지오코딩 응답 파싱
+function parseNaverGeocodeResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    if (json.status && json.status !== 'OK') return [];
+    const pickBuilding = function (els) {
+      const f = (els || []).find(function (e) { return (e.types || []).indexOf('BUILDING_NAME') >= 0; });
+      return f ? String(f.longName || '') : '';
+    };
+    return (json.addresses || []).map(function (it) {
+      const building = pickBuilding(it.addressElements);
+      const road = stripTrailingName_(String(it.roadAddress || ''), building);
+      const jibun = stripTrailingName_(String(it.jibunAddress || ''), building);
+      return {
+        source: 'geo',
+        title: building,
+        category: '',
+        address: jibun,
+        roadAddress: road
+      };
+    });
+  } catch (e) { return []; }
 }
