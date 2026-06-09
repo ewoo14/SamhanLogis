@@ -35,11 +35,40 @@ public class BundleExpander {
 
     private final ProductRepository productRepository;
     private final BundleComponentRepository componentRepository;
+    private final com.samhanair.logis.product.repository.ProductSpecRepository productSpecRepository;
 
     public BundleExpander(ProductRepository productRepository,
-                          BundleComponentRepository componentRepository) {
+                          BundleComponentRepository componentRepository,
+                          com.samhanair.logis.product.repository.ProductSpecRepository productSpecRepository) {
         this.productRepository = productRepository;
         this.componentRepository = componentRepository;
+        this.productSpecRepository = productSpecRepository;
+    }
+
+    /**
+     * 구성품 규격 합성(#24) — product_spec 에서 한 줄 규격 문자열을 만든다.
+     * 규격/치수/크기 키 우선, 없으면 displayOrder 첫 행. 50자 절단(slip/estimate specification 컬럼 길이).
+     * spec 없으면 null. 전개 구성품 라인 specification 자동 채움용.
+     */
+    private String composeSpec(java.util.UUID productId) {
+        if (productId == null) {
+            return null;
+        }
+        List<com.samhanair.logis.product.domain.ProductSpec> specs =
+                productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId);
+        if (specs == null || specs.isEmpty()) {
+            return null;
+        }
+        com.samhanair.logis.product.domain.ProductSpec chosen = specs.stream()
+                .filter(s -> s.getSpecKey() != null && s.getSpecKey().matches(".*(규격|치수|크기).*"))
+                .findFirst()
+                .orElse(specs.get(0));
+        String v = chosen.getSpecValue();
+        if (v == null || v.isBlank()) {
+            return null;
+        }
+        v = v.trim();
+        return v.length() > 50 ? v.substring(0, 50) : v;
     }
 
     /** 기본 옵션(패널 기본/리모컨 유지/자재 별도)으로 전개. */
@@ -58,12 +87,13 @@ public class BundleExpander {
         BigDecimal setUnit = opts.setUnitOverride() != null ? round(opts.setUnitOverride())
                 : round(nz(parent.getDeliveryPrice()));
 
+        String parentSpec = composeSpec(parent.getId());
         if (parent.getProductType() != ProductType.BUNDLE) {
-            return List.of(ExpandedLine.single(parent, setQty, setUnit));
+            return List.of(ExpandedLine.single(parent, setQty, setUnit, parentSpec));
         }
         BundleMode mode = parent.getBundleMode() == null ? BundleMode.EXPAND : parent.getBundleMode();
         if (mode == BundleMode.KEEP) {
-            return List.of(ExpandedLine.single(parent, setQty, setUnit));
+            return List.of(ExpandedLine.single(parent, setQty, setUnit, parentSpec));
         }
 
         // ── EXPAND ──────────────────────────────────────────────
@@ -78,7 +108,7 @@ public class BundleExpander {
                     ? setQty.multiply(c.getDefaultQty())
                     : c.getDefaultQty();
             parts.add(new Part(c.getComponentProductCode(), pid, name, modelName, c.getComponentKind(),
-                    c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty));
+                    c.getComponentVariant(), Boolean.TRUE.equals(c.getIsDefault()), price, qty, composeSpec(pid)));
         }
 
         // 싱글세트만 옵션 선별(picked) + 세트단가 재배분(explodeSetParts). 상업멀티 등은 legacy
@@ -92,7 +122,8 @@ public class BundleExpander {
         List<ExpandedLine> result = new ArrayList<>(picked.size());
         for (Part p : picked) {
             BigDecimal unit = round(p.price).max(BigDecimal.ZERO);
-            result.add(new ExpandedLine(p.modelCode, p.productId, p.name, p.modelName, p.qty, unit, p.kind));
+            result.add(new ExpandedLine(p.modelCode, p.productId, p.name, p.modelName, p.qty, unit, p.kind,
+                    p.specification));
         }
         return result;
     }
@@ -392,11 +423,12 @@ public class BundleExpander {
     /** 전개 라인 — productId/단가 포함. componentKind 는 KEEP/단일 라인 시 null. */
     public record ExpandedLine(String modelCode, java.util.UUID productId, String name, String modelName,
                                BigDecimal quantity, BigDecimal unitPrice,
-                               BundleComponent.ComponentKind componentKind) {
+                               BundleComponent.ComponentKind componentKind,
+                               String specification) {
         /** 단일/KEEP — 부모 1 라인. */
-        static ExpandedLine single(Product parent, BigDecimal qty, BigDecimal unitPrice) {
+        static ExpandedLine single(Product parent, BigDecimal qty, BigDecimal unitPrice, String specification) {
             return new ExpandedLine(parent.getModelCode(), parent.getId(), parent.getName(),
-                    parent.getModelName(), qty, unitPrice, null);
+                    parent.getModelName(), qty, unitPrice, null, specification);
         }
     }
 
@@ -430,10 +462,11 @@ public class BundleExpander {
         final boolean isDefault;
         BigDecimal price;
         final BigDecimal qty;
+        final String specification;
 
         Part(String modelCode, java.util.UUID productId, String name, String modelName,
              BundleComponent.ComponentKind kind, String variant,
-             boolean isDefault, BigDecimal price, BigDecimal qty) {
+             boolean isDefault, BigDecimal price, BigDecimal qty, String specification) {
             this.modelCode = modelCode;
             this.productId = productId;
             this.name = name;
@@ -443,6 +476,7 @@ public class BundleExpander {
             this.isDefault = isDefault;
             this.price = price == null ? BigDecimal.ZERO : price;
             this.qty = qty;
+            this.specification = specification;
         }
     }
 }

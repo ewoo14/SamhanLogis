@@ -97,11 +97,14 @@ public class EstimateService {
                 q = 1;
             }
             BigDecimal compUnit = el.unitPrice() == null ? BigDecimal.ZERO : el.unitPrice();
+            // #24: 구성품 규격은 product_spec 합성값(el.specification) 우선, 없으면 요청 규격.
+            String compSpec = el.specification() != null && !el.specification().isBlank()
+                    ? el.specification() : specification;
             EstimateLine line = priceVatInclusive
                     ? EstimateLine.createFromVatInclusive(estimate, lineNo++, el.productId(),
-                            el.name(), el.modelName(), specification, q, compUnit, note)
+                            el.name(), el.modelName(), compSpec, q, compUnit, note)
                     : EstimateLine.create(estimate, lineNo++, el.productId(),
-                            el.name(), el.modelName(), specification, q, compUnit, note);
+                            el.name(), el.modelName(), compSpec, q, compUnit, note);
             line.assignBundleComponent(summary.modelCode(), el.setHead());
             estimate.addLine(line);
             added++;

@@ -139,7 +139,7 @@ public class ProductInternalController {
             result.add(new ExpandedLineResponse(l.productId(), l.modelCode(), l.modelName(), l.name(),
                     l.quantity(), l.unitPrice(),
                     l.componentKind() == null ? null : l.componentKind().name(),
-                    expandedSet && i == 0));
+                    expandedSet && i == 0, l.specification()));
         }
         return ApiResponse.ok(result);
     }

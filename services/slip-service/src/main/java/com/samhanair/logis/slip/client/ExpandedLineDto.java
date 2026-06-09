@@ -15,7 +15,15 @@ public record ExpandedLineDto(
         BigDecimal quantity,
         BigDecimal unitPrice,
         String componentKind,
-        boolean setHead) {
+        boolean setHead,
+        /** 구성품 규격(product_spec 합성, #24). 없으면 null. */
+        String specification) {
+
+    /** 호환 생성자 — specification 미제공(기존 8-arg 호출자/테스트). */
+    public ExpandedLineDto(UUID productId, String modelCode, String modelName, String name,
+                           BigDecimal quantity, BigDecimal unitPrice, String componentKind, boolean setHead) {
+        this(productId, modelCode, modelName, name, quantity, unitPrice, componentKind, setHead, null);
+    }
 
     /** 세트 전개 옵션 — product-service ExpandRequest.Options 와 일치. */
     public record Options(String remoteOption, boolean remoteExcluded, String panelOption,
