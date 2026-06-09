@@ -126,6 +126,12 @@ export interface LineRowProps {
    * `modelCell` 사용 라인은 lookupError/lookupLoading 을 호출자가 자체 처리.
    */
   modelCell?: ReactNode
+  /**
+   * 단가 부가세포함 모드(opt-in, 2026-06-09 전표 단가 전환). true 면 `unitPrice` 를 VAT 포함
+   * 단가로 보고 합계 셀에 **합계(VAT포함)=수량×단가** + 라인 단위 **공급가액/부가세**(round) 소표시.
+   * 미지정(기본) 시 기존 동작(합계=수량×단가, VAT 미분해) — 견적 등 비전환 화면 호환.
+   */
+  vatInclusive?: boolean
 }
 
 /**
@@ -140,6 +146,19 @@ function computeLineSum(qty: string, price: string): string {
   const p = Number(price)
   if (!Number.isFinite(q) || !Number.isFinite(p)) return '0'
   return Math.round(q * p).toLocaleString()
+}
+
+/**
+ * 단가 부가세포함 라인 분해 — 합계(VAT포함)=round(수량×단가), 공급가액=round(합계/1.1), 부가세=합계−공급가액.
+ * BE {@code SlipLine.createFromVatInclusive} 와 동일 라인 단위 반올림(eCount 방식).
+ */
+function computeVatBreakdown(qty: string, price: string): { incl: number; supply: number; vat: number } {
+  const q = Number(qty)
+  const p = Number(price)
+  if (!Number.isFinite(q) || !Number.isFinite(p)) return { incl: 0, supply: 0, vat: 0 }
+  const incl = Math.round(q * p)
+  const supply = Math.round(incl / 1.1)
+  return { incl, supply, vat: incl - supply }
 }
 
 /**
@@ -162,6 +181,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     canDelete = true,
     style,
     modelCell,
+    vatInclusive = false,
   },
   ref,
 ) {
@@ -174,6 +194,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
 
   const hasError = !!line.lookupError
   const sumDisplay = computeLineSum(line.quantity, line.unitPrice)
+  const vatBreakdown = vatInclusive ? computeVatBreakdown(line.quantity, line.unitPrice) : null
   const priceDisplay = line.unitPrice ? Number(line.unitPrice).toLocaleString() : '0'
 
   const rowClass = [
@@ -311,9 +332,19 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
           />
         </div>
 
-        {/* 9. 합계 (read-only computed) */}
+        {/* 9. 합계 (read-only computed) — vatInclusive 면 합계(VAT포함)+공급/부가세 분해 */}
         <div className={`${styles['cell']} ${styles['cellSum']}`} aria-label={`라인 ${lineNumber} 합계`}>
-          {sumDisplay}
+          {vatBreakdown ? (
+            <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.25 }}>
+              <span aria-label={`라인 ${lineNumber} 합계(VAT포함)`}>{vatBreakdown.incl.toLocaleString()}</span>
+              <span style={{ fontSize: 10, color: 'var(--ink-secondary, #5C6773)' }}
+                aria-label={`라인 ${lineNumber} 공급가액/부가세`}>
+                공급 {vatBreakdown.supply.toLocaleString()} · VAT {vatBreakdown.vat.toLocaleString()}
+              </span>
+            </span>
+          ) : (
+            sumDisplay
+          )}
         </div>
 
         {/* 10. 삭제 */}

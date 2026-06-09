@@ -163,6 +163,7 @@ function SortableLineRow(props: {
     <div ref={setNodeRef} style={style}>
       <LineRow
         isDragging={isDragging}
+        vatInclusive
         lineNumber={props.lineNumber}
         line={props.line}
         selected={props.selected}
@@ -390,13 +391,18 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // ── 합계 계산 (Designer components.md § 6.2 인용) ──────
 
   const totals = useMemo(() => {
+    // 단가 부가세포함(라인 단위 eCount): 라인별 합계(VAT포함)=round(수량×단가),
+    // 공급가액=round(합계/1.1), 부가세=차액 → 라인별 반올림 후 합산(BE 와 동일).
     const valid = lines.filter((l) => l.productId && Number(l.quantity) > 0)
-    const supply = valid.reduce(
-      (sum, l) => sum + Number(l.quantity) * Number(l.unitPrice || 0),
-      0,
-    )
-    const vat = Math.round(supply * 0.1)
-    return { count: valid.length, supply, vat, total: supply + vat }
+    let supply = 0
+    let total = 0
+    for (const l of valid) {
+      const incl = Math.round(Number(l.quantity) * Number(l.unitPrice || 0))
+      const lineSupply = Math.round(incl / 1.1)
+      supply += lineSupply
+      total += incl
+    }
+    return { count: valid.length, supply, vat: total - supply, total }
   }, [lines])
 
   // ── 저장 mutation ───────────────────────────────────────
@@ -434,6 +440,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             quantity: Number(l.quantity),
             unitPrice: l.unitPrice || '0',
             setOptions: toApiBundleSetOptions(l.productType, l.setOptions),
+            // 단가 부가세포함 — BE 가 라인 단위로 공급가액/부가세 분리(eCount 방식)
+            priceVatInclusive: true,
           })),
       }
       return createSlip(payload)
@@ -700,7 +708,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       {/* 라인 카드 */}
       <Card padding={6} shadow="sm" className="sfp-card">
         <div className="sfp-line-toolbar">
-          <div className="sfp-section-title">전표 라인</div>
+          <div className="sfp-section-title">
+            전표 라인
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--ink-secondary, #5C6773)', marginLeft: 8 }}>
+              단가는 <b>부가세 포함</b> 단가 — 공급가액/부가세는 라인별 자동 분리
+            </span>
+          </div>
           <div className="sfp-line-actions">
             <Button
               variant="secondary"
