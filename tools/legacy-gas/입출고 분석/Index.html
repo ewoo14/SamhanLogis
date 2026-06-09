@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    /* 스타일 */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f2f4f6;
+      margin: 0;
+      padding: 20px;
+      color: #333d4b;
+    }
+    
+    /* 헤더 */
+    .header {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 30px;
+      padding-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    
+    .refresh-btn {
+      padding: 8px 12px;
+      background: #3182f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+    .refresh-btn:hover {
+      background: #1b64da;
+    }
+    .refresh-btn:disabled {
+      background: #b0bec5;
+      cursor: not-allowed;
+    }
+
+    /* 카드 */
+    .toss-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    
+    .toss-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .toss-card.hiding {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    
+    /* 제목 */
+    .card-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 16px;
+    }
+    
+    /* 입력창 */
+    .filter-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 120px;
+    }
+    .filter-label {
+      font-size: 13px;
+      color: #6b7684;
+      margin-bottom: 6px;
+    }
+    .filter-input {
+      padding: 10px 14px;
+      border: 1px solid #e5e8eb;
+      border-radius: 8px;
+      font-size: 15px;
+      color: #333d4b;
+      background: #f9fafb;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .filter-input:focus {
+      border-color: #3182f6;
+    }
+
+    /* 목록 */
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #f2f4f6;
+    }
+    
+    .list-item:last-child {
+      border-bottom: none;
+    }
+    
+    /* 순위 */
+    .rank-number {
+      color: #3182f6;
+      font-weight: bold;
+      margin-right: 12px;
+    }
+    
+    /* 경고 */
+    .warning-text {
+      color: #e52528;
+      font-size: 13px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      담당자님<br>
+      수요 예측 결과를 준비했어요
+    </div>
+    <button id="refresh-btn" class="refresh-btn">최신화</button>
+  </div>
+
+  <div id="loading" class="toss-card visible">
+    데이터를 분석하고 있습니다...
+  </div>
+
+  <div id="filter-card" class="toss-card" style="display: none;">
+    <div class="card-title">조회 조건</div>
+    <div class="filter-container">
+      <div class="filter-group">
+        <div class="filter-label">기간</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <select id="start-month" class="filter-input" style="flex:1;">
+            <option value="1">1월</option>
+            <option value="2">2월</option>
+            <option value="3">3월</option>
+            <option value="4">4월</option>
+            <option value="5">5월</option>
+            <option value="6">6월</option>
+            <option value="7">7월</option>
+            <option value="8">8월</option>
+            <option value="9">9월</option>
+            <option value="10">10월</option>
+            <option value="11">11월</option>
+            <option value="12">12월</option>
+          </select>
+          <span>~</span>
+          <select id="end-month" class="filter-input" style="flex:1;">
+            <option value="1">1월</option>
+            <option value="2">2월</option>
+            <option value="3">3월</option>
+            <option value="4">4월</option>
+            <option value="5">5월</option>
+            <option value="6">6월</option>
+            <option value="7">7월</option>
+            <option value="8">8월</option>
+            <option value="9">9월</option>
+            <option value="10">10월</option>
+            <option value="11">11월</option>
+            <option value="12" selected>12월</option>
+          </select>
+        </div>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">분류</div>
+        <select id="category-filter" class="filter-input">
+          <option value="">전체</option>
+          <option value="홈멀티">홈멀티</option>
+          <option value="상업멀티">상업멀티</option>
+          <option value="싱글중대형">싱글중대형</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">검색 (자동완성)</div>
+        <input type="text" id="model-filter" class="filter-input" list="model-list" placeholder="모델명 입력">
+        <datalist id="model-list"></datalist>
+      </div>
+    </div>
+  </div>
+
+  <div id="chart-card" class="toss-card" style="display: none;">
+    <div class="card-title">출고 예측</div>
+    <canvas id="predictionChart"></canvas>
+  </div>
+
+  <div id="recommend-card" class="toss-card" style="display: none;">
+    <div class="card-title">추천 및 알림</div>
+    <div id="recommend-list"></div>
+  </div>
+
+  <div id="top-rank-card" class="toss-card" style="display: none;">
+    <div class="card-title">상위 모델 Top 3</div>
+    <div id="top-list"></div>
+  </div>
+
+  <div id="bottom-rank-card" class="toss-card" style="display: none;">
+    <div class="card-title">하위 모델 Bottom 3</div>
+    <div id="bottom-list"></div>
+  </div>
+
+  <script>
+    // 변수
+    var allOut = [];
+    var allIn = [];
+    var chartInstance = null;
+
+    // 초기화
+    window.onload = function() {
+      document.getElementById('refresh-btn').addEventListener('click', forceRefresh);
+      loadData(false);
+    };
+
+    // 로딩
+    function loadData(isForce) {
+      document.getElementById('refresh-btn').disabled = true;
+      document.getElementById('loading').innerText = '데이터를 분석하고 있습니다...';
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('loading').classList.remove('hiding');
+      document.getElementById('loading').classList.add('visible');
+      
+      var elements = ['filter-card', 'chart-card', 'recommend-card', 'top-rank-card', 'bottom-rank-card'];
+      elements.forEach(function(id) {
+        var el = document.getElementById(id);
+        if(el) {
+          el.style.display = 'none';
+          el.classList.remove('visible');
+        }
+      });
+
+      google.script.run
+        .withSuccessHandler(initApp)
+        .withFailureHandler(handleError)
+        .getDashboardData(isForce);
+    }
+
+    function forceRefresh() {
+      loadData(true);
+    }
+    
+    function handleError(err) {
+      document.getElementById('loading').innerText = '서버 통신 중 오류가 발생했습니다.';
+      document.getElementById('refresh-btn').disabled = false;
+    }
+
+    // 준빅
+    function initApp(data) {
+      document.getElementById('refresh-btn').disabled = false;
+      
+      if (!data || data.error) {
+        document.getElementById('loading').innerText = data ? data.error : '처리할 데이터가 없습니다.';
+        return;
+      }
+      
+      allOut = data.out;
+      allIn = data.in;
+
+      var loadingCard = document.getElementById('loading');
+      loadingCard.classList.add('hiding');
+      
+      setTimeout(function() {
+        loadingCard.style.display = 'none';
+        setupControls();
+        applyFilters();
+        
+        var elements = ['filter-card', 'chart-card', 'recommend-card', 'top-rank-card', 'bottom-rank-card'];
+        elements.forEach(function(id) {
+          document.getElementById(id).style.display = 'block';
+        });
+        showCardsSequentially();
+      }, 500);
+    }
+
+    // 설정
+    function setupControls() {
+      var modelSet = {};
+      allOut.forEach(function(item) { modelSet[item.model] = true; });
+      allIn.forEach(function(item) { modelSet[item.model] = true; });
+
+      var datalist = document.getElementById('model-list');
+      datalist.innerHTML = '';
+      Object.keys(modelSet).sort().forEach(function(m) {
+        var option = document.createElement('option');
+        option.value = m;
+        datalist.appendChild(option);
+      });
+
+      var selects = document.querySelectorAll('.filter-input');
+      selects.forEach(function(el) {
+        el.removeEventListener('change', applyFilters);
+        el.removeEventListener('input', applyFilters);
+        
+        el.addEventListener('change', applyFilters);
+        if (el.tagName === 'INPUT') {
+          el.addEventListener('input', applyFilters);
+        }
+      });
+    }
+
+    // 필터적용
+    function applyFilters() {
+      var cat = document.getElementById('category-filter').value;
+      var modelQuery = document.getElementById('model-filter').value.trim().toUpperCase();
+      var startM = parseInt(document.getElementById('start-month').value, 10);
+      var endM = parseInt(document.getElementById('end-month').value, 10);
+
+      var filteredOut = allOut.filter(function(item) {
+        if (cat && item.category !== cat) return false;
+        if (modelQuery && item.model.indexOf(modelQuery) === -1) return false;
+        if (item.month < startM || item.month > endM) return false;
+        return true;
+      });
+
+      var filteredIn = allIn.filter(function(item) {
+        if (cat && item.category !== cat) return false;
+        if (modelQuery && item.model.indexOf(modelQuery) === -1) return false;
+        if (item.month < startM || item.month > endM) return false;
+        return true;
+      });
+
+      analyzeFiltered(filteredOut, filteredIn);
+    }
+
+    // 분석
+    function analyzeFiltered(outData, inData) {
+      var monthlyLast = [0,0,0,0,0,0,0,0,0,0,0,0];
+      var monthlyThis = [0,0,0,0,0,0,0,0,0,0,0,0];
+      var outCounts = {};
+      var inCounts = {};
+
+      outData.forEach(function(item) {
+        var mIndex = item.month - 1;
+        if (item.year === 2025) monthlyLast[mIndex] += item.quantity;
+        else if (item.year === 2026) monthlyThis[mIndex] += item.quantity;
+        
+        if (!outCounts[item.model]) outCounts[item.model] = 0;
+        outCounts[item.model] += item.quantity;
+      });
+
+      inData.forEach(function(item) {
+        if (!inCounts[item.model]) inCounts[item.model] = 0;
+        inCounts[item.model] += item.quantity;
+      });
+
+      var totalLast = 0;
+      var totalThis = 0;
+      var lastMonth = -1;
+
+      for (var k = 0; k < 12; k++) {
+        if (monthlyThis[k] > 0) {
+          lastMonth = k;
+          totalLast += monthlyLast[k];
+          totalThis += monthlyThis[k];
+        }
+      }
+
+      var rate = 1;
+      if (totalLast > 0) rate = totalThis / totalLast;
+
+      var predicted = [null,null,null,null,null,null,null,null,null,null,null,null];
+      for (var m = lastMonth + 1; m < 12; m++) {
+        predicted[m] = Math.round(monthlyLast[m] * rate);
+      }
+      
+      for (var n = 0; n < 12; n++) {
+        if (monthlyThis[n] === 0) monthlyThis[n] = null;
+      }
+
+      var sorted = Object.keys(outCounts).sort(function(a, b) {
+        return outCounts[b] - outCounts[a];
+      });
+
+      var topRank = sorted.slice(0, 3);
+      var bottomRank = sorted.slice(-3).reverse();
+
+      var recs = [];
+      if (topRank.length > 0) {
+        var top = topRank[0];
+        var stock = (inCounts[top] || 0) - (outCounts[top] || 0);
+        if (stock <= 0) recs.push({ text: top + ' 발주 권장', subtext: '출고량 대비 잔여 재고가 부족합니다.' });
+        else recs.push({ text: top + ' 주력 상품', subtext: '현재 안정적인 재고를 보유 중입니다.' });
+      }
+      if (rate > 1.1) recs.push({ text: '전반적 수요 상승', subtext: '작년 동기 대비 판매량이 증가하고 있습니다.' });
+      if (recs.length === 0) recs.push({ text: '특이사항 없음', subtext: '현재 조건에 해당하는 특별한 알림이 없습니다.' });
+
+      drawChart(monthlyLast, monthlyThis, predicted);
+      renderLists(topRank, bottomRank, recs);
+    }
+
+    // 애니메이션
+    function showCardsSequentially() {
+      var cards = document.querySelectorAll('.toss-card:not(#loading)');
+      var delay = 0;
+      
+      cards.forEach(function(card) {
+        if (card.style.display !== 'none') {
+          setTimeout(function() {
+            card.classList.add('visible');
+          }, delay);
+          delay += 150;
+        }
+      });
+    }
+
+    // 차트
+    function drawChart(lastD, thisD, predD) {
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+      
+      var ctx = document.getElementById('predictionChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+          datasets: [
+            {
+              label: '작년 출고',
+              data: lastD,
+              borderColor: '#b0bec5',
+              borderDash: [5, 5],
+              fill: false,
+              tension: 0.4
+            },
+            {
+              label: '올해 출고',
+              data: thisD,
+              borderColor: '#3182f6',
+              fill: false,
+              tension: 0.4,
+              borderWidth: 3
+            },
+            {
+              label: '수요 예측',
+              data: predD,
+              borderColor: '#ff9800',
+              fill: false,
+              tension: 0.4,
+              borderWidth: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // 렌더링
+    function renderLists(topR, bottomR, recs) {
+      var recList = document.getElementById('recommend-list');
+      recList.innerHTML = '';
+      recs.forEach(function(rec) {
+        var div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = '<div><div style="font-weight:bold;">' + rec.text + '</div><div class="warning-text" style="color:#6b7684;">' + rec.subtext + '</div></div>';
+        recList.appendChild(div);
+      });
+
+      var topList = document.getElementById('top-list');
+      topList.innerHTML = '';
+      if(topR.length === 0) topList.innerHTML = '<div class="list-item" style="color:#8b95a1;">조회된 데이터가 없습니다.</div>';
+      topR.forEach(function(model, index) {
+        var div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = '<div><span class="rank-number">' + (index + 1) + '</span>' + model + '</div>';
+        topList.appendChild(div);
+      });
+
+      var bottomList = document.getElementById('bottom-list');
+      bottomList.innerHTML = '';
+      if(bottomR.length === 0) bottomList.innerHTML = '<div class="list-item" style="color:#8b95a1;">조회된 데이터가 없습니다.</div>';
+      bottomR.forEach(function(model) {
+        var div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = '<div><span class="rank-number warning-text">▼</span>' + model + '</div>';
+        bottomList.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>

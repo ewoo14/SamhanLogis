@@ -638,17 +638,109 @@
       if (!td) return;
       if (td.dataset.col === '이동') return;
       if (td.dataset.col !== '회계반영일자' && !((td.dataset.col === '거래처코드' || td.dataset.col === '거래처명') && td.closest('#tbody_pending'))) return;
-      
+
       td.contentEditable = "true";
       td.style.backgroundColor = "#ffffff";
       td.style.cursor = "text";
       td.focus();
-      
+
       let range = document.createRange();
       range.selectNodeContents(td);
       let sel = window.getSelection();
       sel.removeAllRanges();
       sel.addRange(range);
+    });
+
+    // 셀 편집모드 진입
+    function makeCellEditable(td) {
+      td.contentEditable = "true";
+      td.style.backgroundColor = "#ffffff";
+      td.style.cursor = "text";
+      td.focus();
+      let range = document.createRange();
+      range.selectNodeContents(td);
+      let sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    // 커서 위치 줄바꿈 삽입
+    function insertBrAtCursor() {
+      let sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      let range = sel.getRangeAt(0);
+      range.deleteContents();
+      let br = document.createElement('br');
+      range.insertNode(br);
+      let after = document.createTextNode('​');
+      br.parentNode.insertBefore(after, br.nextSibling);
+      range.setStart(after, 1);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    // 편집 엔터키 처리
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName !== 'TD' || !e.target.isContentEditable) return;
+      if (e.key !== 'Enter') return;
+
+      if (e.ctrlKey) {
+        e.preventDefault();
+        insertBrAtCursor();
+        return;
+      }
+      if (e.shiftKey) return;
+
+      e.preventDefault();
+      let currentTd = e.target;
+      let tbody = currentTd.closest('tbody');
+      let col = currentTd.dataset.col;
+
+      // 특이사항 다음행
+      if (tbody && tbody.id === 'tbody_pending') {
+        let currentTr = currentTd.parentElement;
+        let nextTr = currentTr.nextElementSibling;
+        currentTd.blur();
+        if (nextTr) {
+          let nextTd = nextTr.querySelector(`td[data-col="${col}"]`);
+          if (nextTd) makeCellEditable(nextTd);
+        }
+        return;
+      }
+
+      // 일반탭 다음셀
+      let tbodyId = tbody ? tbody.id : null;
+      let currentLogRow = parseInt(currentTd.dataset.logRow);
+      let rowSpan = currentTd.rowSpan || 1;
+      let targetLogRow = isNaN(currentLogRow) ? null : currentLogRow + rowSpan;
+
+      currentTd.blur();
+
+      if (tbodyId && targetLogRow !== null) {
+        let newTbody = document.getElementById(tbodyId);
+        if (!newTbody) return;
+        let nextTd = newTbody.querySelector(`td[data-log-row="${targetLogRow}"][data-col="${col}"]`);
+        if (!nextTd) {
+          let allTds = newTbody.querySelectorAll(`td[data-col="${col}"]`);
+          let minTd = null;
+          let minLogRow = Infinity;
+          allTds.forEach(td => {
+            let lr = parseInt(td.dataset.logRow);
+            if (!isNaN(lr) && lr >= currentLogRow && lr < minLogRow) {
+              minLogRow = lr;
+              minTd = td;
+            }
+          });
+          nextTd = minTd;
+        }
+        if (nextTd) {
+          makeCellEditable(nextTd);
+          if (typeof nextTd.scrollIntoView === 'function') {
+            nextTd.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+          }
+        }
+      }
     });
 
     document.addEventListener('focusout', (e) => {
@@ -684,9 +776,13 @@
         }
       });
       
-      if (col === '회계반영일자') reclassifyTabs();
-      
-      syncOtherTabs(tbodyId);
+      if (col === '회계반영일자') {
+        reclassifyTabs();
+        tabsInfo.forEach(tab => renderTable(tab.tbodyId, tab.dataKey));
+        updateFilterUI();
+      } else {
+        syncOtherTabs(tbodyId);
+      }
     }
 
     function createPages() {
@@ -748,7 +844,7 @@
       slider.style.transform = `translateX(${index * 100}%)`;
       navItems.forEach((el, i) => el.classList.toggle('active', i === index));
       document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
-      if (index === 4) loadPendingData();
+      // 특이사항 탭은 최초 로드 후 자동 재호출하지 않음 - 편집값 보존
       if (index === 5) loadHistory();
       calcSelectionSum();
     }
@@ -1741,28 +1837,11 @@
               cell.fill = { type: 'pattern', pattern:'solid', fgColor:{argb:'FFFECACA'} };
             }
 
-            // 병합
+            // 병합 처리
             let rs = td.rowSpan || 1;
             let cs = td.colSpan || 1;
             if (rs > 1 || cs > 1) {
-              if (colName === '회계반영일자') {
-                // 채우기
-                for (let r = 0; r < rs; r++) {
-                  for (let c = 0; c < cs; c++) {
-                    if (r === 0 && c === 0) continue;
-                    let hiddenCell = sheet.getCell(rowIndex + r, colIndex + c);
-                    hiddenCell.value = cell.value;
-                    hiddenCell.numFmt = cell.numFmt;
-                    hiddenCell.alignment = cell.alignment;
-                    hiddenCell.border = cell.border;
-                    hiddenCell.fill = cell.fill;
-                    hiddenCell.font = cell.font;
-                  }
-                }
-              } else {
-                // 유지
-                sheet.mergeCells(rowIndex, colIndex, rowIndex + rs - 1, colIndex + cs - 1);
-              }
+              sheet.mergeCells(rowIndex, colIndex, rowIndex + rs - 1, colIndex + cs - 1);
             }
 
             colIndex += cs;
@@ -1770,6 +1849,9 @@
           rowIndex++;
         });
       }
+
+      // 특이사항 시트 출력
+      addPendingSheetToWorkbook(workbook);
 
       // 다운
       const buffer = await workbook.xlsx.writeBuffer();
@@ -1786,6 +1868,62 @@
       // 복구
       filtersMap = backupFilters;
       renderAll();
+    }
+
+    // 특이사항 엑셀 시트 추가
+    function addPendingSheetToWorkbook(workbook) {
+      const sheet = workbook.addWorksheet('특이사항');
+      sheet.columns = [
+        { width: 18 }, { width: 30 }, { width: 18 }
+      ];
+
+      const headers = ['거래처코드', '거래처명', '회계반영일자'];
+      const borderStyle = {
+        top: {style:'thin', color: {argb:'FFCBD5E0'}},
+        left: {style:'thin', color: {argb:'FFCBD5E0'}},
+        bottom: {style:'thin', color: {argb:'FFCBD5E0'}},
+        right: {style:'thin', color: {argb:'FFCBD5E0'}}
+      };
+
+      headers.forEach((h, i) => {
+        const cell = sheet.getCell(1, i + 1);
+        cell.value = h;
+        cell.fill = { type: 'pattern', pattern:'solid', fgColor:{argb:'FFE2E8F0'} };
+        cell.font = { bold: true };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = borderStyle;
+      });
+      sheet.autoFilter = 'A1:C1';
+
+      const trs = document.querySelectorAll('#tbody_pending tr');
+      let row = 2;
+      const datePattern = /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/;
+
+      trs.forEach(tr => {
+        const code = tr.children[1] ? tr.children[1].innerText.trim() : '';
+        const name = tr.children[2] ? tr.children[2].innerText.trim() : '';
+        const date = tr.children[3] ? tr.children[3].innerText.trim() : '';
+
+        const codeCell = sheet.getCell(row, 1);
+        codeCell.value = code;
+        codeCell.numFmt = '@';
+
+        const nameCell = sheet.getCell(row, 2);
+        nameCell.value = name;
+
+        const dateCell = sheet.getCell(row, 3);
+        dateCell.value = date;
+
+        [codeCell, nameCell, dateCell].forEach(cell => {
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.border = borderStyle;
+        });
+
+        if (date && !datePattern.test(date)) {
+          dateCell.fill = { type: 'pattern', pattern:'solid', fgColor:{argb:'FFFECACA'} };
+        }
+        row++;
+      });
     }
 
     // 분류

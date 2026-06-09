@@ -44,7 +44,7 @@
       position: absolute;
       top: 0; left: 0;
       height: 100%;
-      width: 20%;
+      width: 25%;
       background: #1a202c;
       border-radius: 50px;
       transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -74,9 +74,47 @@
     
     /* 너비 */
     #page0 { max-width: 800px; }
-    #page1, #page2 { max-width: 33%; min-width: 500px; }
+    #page1 { width: 100%; max-width: 1400px; padding: 20px 40px; }
     #page3 { width: 100%; max-width: 100%; padding: 20px 40px; }
     #page4 { max-width: 1600px; padding: 20px 40px; }
+
+    /* 날짜탭 */
+    .date-tabbar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      margin-bottom: 15px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;
+    }
+    .date-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 12px; background: #edf2f7; color: #4a5568;
+      border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px;
+      border: 1px solid transparent; user-select: none;
+    }
+    .date-chip.active { background: #1a202c; color: white; }
+    .date-chip .chip-del {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: rgba(0,0,0,0.12); color: inherit; font-size: 11px; line-height: 1;
+    }
+    .date-chip.active .chip-del { background: rgba(255,255,255,0.25); }
+    .date-chip .chip-del:hover { background: #e53e3e; color: white; }
+    .date-add-btn {
+      padding: 7px 14px; background: #3182ce; color: white; border: none;
+      border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px;
+    }
+    .date-add-btn:hover { background: #2b6cb0; }
+
+    /* 입력판 */
+    .date-panel { display: none; }
+    .date-panel.active { display: block; }
+    .panel-date-row { text-align: center; margin-bottom: 15px; }
+    .panel-date-row input[type="date"] { padding: 6px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; }
+    .input-split { display: flex; gap: 20px; align-items: flex-start; }
+    .input-col { min-width: 0; }
+    .input-col.source-col { flex: 5; }
+    .input-col.driver-col { flex: 5; }
+    .col-head { position: relative; text-align: center; margin-bottom: 10px; }
+    .col-head h3 { margin: 0; padding: 5px 0; font-size: 15px; }
+    .col-head .reset-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
 
     /* 영역 */
     #drop_zone {
@@ -159,21 +197,22 @@
     .bg-duplicate { background-color: #fee2e2 !important; color: #991b1b; font-weight: bold; }
 
     /* 정렬 */
-    #table_source td { text-align: left; }
-    #table_driver td { text-align: center; }
+    .tbl-source td { text-align: left; }
+    .tbl-driver td { text-align: center; }
     
     #table_result td { text-align: center; }
-    #table_result td:nth-child(1),
-    #table_result td:nth-child(4),
-    #table_result td:nth-child(6) { text-align: left; }
+    #table_result td:nth-child(2),
+    #table_result td:nth-child(5),
+    #table_result td:nth-child(7) { text-align: left; }
 
     /* 비율 */
-    #col_r0 { width: 15%; }
-    #col_r1 { width: 10%; }
-    #col_r2 { width: 8%; } 
-    #col_r3 { width: 22%; }
+    #col_rd { width: 9%; }
+    #col_r0 { width: 13%; }
+    #col_r1 { width: 9%; }
+    #col_r2 { width: 7%; }
+    #col_r3 { width: 19%; }
     #col_r4 { width: 10%; }
-    #col_r5 { width: 27%; }
+    #col_r5 { width: 25%; }
     #col_r6 { width: 8%; }
 
     /* 필터 */
@@ -245,10 +284,9 @@
     <div class="nav-container">
       <div class="slider" id="slider"></div>
       <div class="nav-item active" onclick="switchTab(0)">엑셀 파일 업로드</div>
-      <div class="nav-item" onclick="switchTab(1)">배차내역</div>
-      <div class="nav-item" onclick="switchTab(2)">기사내역</div>
-      <div class="nav-item" onclick="switchTab(3)">배차결과</div>
-      <div class="nav-item" onclick="switchTab(4)">저장내역</div>
+      <div class="nav-item" onclick="switchTab(1)">배차·기사 입력</div>
+      <div class="nav-item" onclick="switchTab(2)">배차결과</div>
+      <div class="nav-item" onclick="switchTab(3)">저장내역</div>
     </div>
 
     <div id="page0" class="page active">
@@ -261,29 +299,11 @@
     </div>
 
     <div id="page1" class="page">
-      <div style="position: relative; margin-bottom: 15px; text-align: center;">
-        <h3 style="margin:0; padding: 5px 0;">배차요청내역 입력</h3>
-        <button class="reset-btn" style="position: absolute; right: 0; top: 50%; transform: translateY(-50%);" onclick="clearData('source')">초기화</button>
+      <div class="date-tabbar">
+        <div id="date_tabs" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        <button class="date-add-btn" onclick="addDatePage()">+ 날짜 추가</button>
       </div>
-      <div class="table-wrapper">
-        <table class="excel-table" id="table_source">
-          <thead><tr><th>배차요청내역</th></tr></thead>
-          <tbody id="tbody_source"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div id="page2" class="page">
-      <div style="position: relative; margin-bottom: 15px; text-align: center;">
-        <h3 style="margin:0; padding: 5px 0;">배송기사내역 입력</h3>
-        <button class="reset-btn" style="position: absolute; right: 0; top: 50%; transform: translateY(-50%);" onclick="clearData('driver')">초기화</button>
-      </div>
-      <div class="table-wrapper">
-        <table class="excel-table" id="table_driver">
-          <thead><tr><th>업체명</th><th>배송기사 연락처</th></tr></thead>
-          <tbody id="tbody_driver"></tbody>
-        </table>
-      </div>
+      <div id="date_pages"></div>
     </div>
 
     <div id="page3" class="page">
@@ -296,10 +316,11 @@
       <div class="table-wrapper">
         <table class="excel-table" id="table_result">
           <colgroup>
-            <col id="col_r0"><col id="col_r1"><col id="col_r2"><col id="col_r3"><col id="col_r4"><col id="col_r5"><col id="col_r6">
+            <col id="col_rd"><col id="col_r0"><col id="col_r1"><col id="col_r2"><col id="col_r3"><col id="col_r4"><col id="col_r5"><col id="col_r6">
           </colgroup>
           <thead>
             <tr>
+              <th><div class="th-content"><span>날짜</span><button data-col="날짜" onclick="openPopup('날짜', event)">▼</button></div></th>
               <th><div class="th-content"><span>원본내역</span><button data-col="원본내역" onclick="openPopup('원본내역', event)">▼</button></div></th>
               <th><div class="th-content"><span>거래처명</span><button data-col="거래처명" onclick="openPopup('거래처명', event)">▼</button></div></th>
               <th><div class="th-content"><span>전표번호</span><button data-col="전표번호" onclick="openPopup('전표번호', event)">▼</button></div></th>
@@ -347,7 +368,7 @@
     let curFilterCol = '';
     let sortState = null;
     const COL_MAP = {
-      '원본내역': '원본내역', '거래처명': '거래처명', '전표번호': '전표번호',
+      '날짜': '날짜', '원본내역': '원본내역', '거래처명': '거래처명', '전표번호': '전표번호',
       '배송주소': '배송주소', '인수자번호': '인수자번호', '발송멘트': '발송멘트', '단톡방': '단톡방'
     };
 
@@ -355,12 +376,124 @@
     let undoStack = [];
     let redoStack = [];
 
+    // 날짜페이지
+    let pageSeq = 0;
+    let activePid = null;
+
+    // 한국날짜
+    function todayKST() {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    }
+
+    // 칩이름
+    function chipLabel(dv) {
+      let m = String(dv || '').match(/\d{4}-(\d{2})-(\d{2})/);
+      if (!m) return '날짜';
+      return Number(m[1]) + '/' + Number(m[2]);
+    }
+
+    // 빈행생성
+    function fillEmptyRows(tbody, type) {
+      if (!tbody) return;
+      let html = '';
+      if (type === 'source') { for (let i = 0; i < 500; i++) html += '<tr><td contenteditable="true"></td></tr>'; }
+      else { for (let i = 0; i < 100; i++) html += '<tr><td contenteditable="true"></td><td contenteditable="true"></td></tr>'; }
+      tbody.innerHTML = html;
+    }
+
+    // 페이지추가
+    function addDatePage(date, opts) {
+      opts = opts || {};
+      let pid = 'p' + (pageSeq++);
+      let dv = date || todayKST();
+
+      let panel = document.createElement('div');
+      panel.className = 'date-panel';
+      panel.id = 'panel_' + pid;
+      panel.innerHTML =
+        '<div class="panel-date-row"><label style="font-weight:bold; margin-right:8px;">배차 기준일자</label>' +
+        '<input type="date" class="panel-date" value="' + dv + '" onchange="onDateChange(\'' + pid + '\')"></div>' +
+        '<div class="input-split">' +
+          '<div class="input-col source-col"><div class="col-head"><h3>배차요청내역 입력</h3>' +
+            '<button class="reset-btn" onclick="clearData(\'source\',\'' + pid + '\')">초기화</button></div>' +
+            '<div class="table-wrapper"><table class="excel-table tbl-source"><thead><tr><th>배차요청내역</th></tr></thead>' +
+            '<tbody id="tbody_source_' + pid + '"></tbody></table></div></div>' +
+          '<div class="input-col driver-col"><div class="col-head"><h3>배송기사내역 입력</h3>' +
+            '<button class="reset-btn" onclick="clearData(\'driver\',\'' + pid + '\')">초기화</button></div>' +
+            '<div class="table-wrapper"><table class="excel-table tbl-driver"><thead><tr><th>업체명</th><th>배송기사 연락처</th></tr></thead>' +
+            '<tbody id="tbody_driver_' + pid + '"></tbody></table></div></div>' +
+        '</div>';
+      document.getElementById('date_pages').appendChild(panel);
+
+      let chip = document.createElement('div');
+      chip.className = 'date-chip';
+      chip.id = 'chip_' + pid;
+      chip.onclick = function(e) { if (e.target.classList.contains('chip-del')) return; switchDatePage(pid); };
+      chip.innerHTML = '<span class="chip-label">' + chipLabel(dv) + '</span><span class="chip-del" onclick="deleteDatePage(\'' + pid + '\')">✕</span>';
+      document.getElementById('date_tabs').appendChild(chip);
+
+      let sBody = document.getElementById('tbody_source_' + pid);
+      fillEmptyRows(sBody, 'source');
+      fillEmptyRows(document.getElementById('tbody_driver_' + pid), 'driver');
+      sBody.addEventListener('input', function() { checkDuplicatesFor(this); });
+
+      if (!opts.silent) switchDatePage(pid);
+      return pid;
+    }
+
+    // 날짜변경
+    function onDateChange(pid) {
+      let inp = document.querySelector('#panel_' + pid + ' .panel-date');
+      let chip = document.querySelector('#chip_' + pid + ' .chip-label');
+      if (inp && chip) chip.innerText = chipLabel(inp.value);
+    }
+
+    // 페이지전환
+    function switchDatePage(pid) {
+      activePid = pid;
+      document.querySelectorAll('.date-panel').forEach(p => p.classList.toggle('active', p.id === 'panel_' + pid));
+      document.querySelectorAll('.date-chip').forEach(c => c.classList.toggle('active', c.id === 'chip_' + pid));
+      document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    }
+
+    // 페이지삭제
+    function deleteDatePage(pid) {
+      if (document.querySelectorAll('.date-panel').length <= 1) { alert('최소 한 개의 날짜는 필요합니다.'); return; }
+      let wasActive = (activePid === pid);
+      let panel = document.getElementById('panel_' + pid);
+      let chip = document.getElementById('chip_' + pid);
+      if (panel) panel.remove();
+      if (chip) chip.remove();
+      if (wasActive) {
+        let first = document.querySelector('.date-panel');
+        if (first) switchDatePage(first.id.replace('panel_', ''));
+      }
+    }
+
+    // 활성배차
+    function activeSourceBody() { return document.getElementById('tbody_source_' + activePid); }
+
+    // 활성기사
+    function activeDriverBody() { return document.getElementById('tbody_driver_' + activePid); }
+
+    // 페이지상태
+    function collectPagesState() {
+      let arr = [];
+      document.querySelectorAll('.date-panel').forEach(panel => {
+        arr.push({
+          date: panel.querySelector('.panel-date').value,
+          sourceHtml: panel.querySelector('table.tbl-source tbody').innerHTML,
+          driverHtml: panel.querySelector('table.tbl-driver tbody').innerHTML
+        });
+      });
+      return arr;
+    }
+
     // 보존
     function saveUndoState() {
-      let sBody = document.getElementById('tbody_source');
-      let dBody = document.getElementById('tbody_driver');
+      let sBody = activeSourceBody(), dBody = activeDriverBody();
       if (sBody && dBody) {
-        undoStack.push({ source: sBody.innerHTML, driver: dBody.innerHTML });
+        undoStack.push({ pid: activePid, source: sBody.innerHTML, driver: dBody.innerHTML });
         if (undoStack.length > 30) undoStack.shift();
         redoStack = [];
       }
@@ -369,29 +502,31 @@
     // 복원
     function performUndo() {
       if (undoStack.length === 0) return;
-      let sBody = document.getElementById('tbody_source');
-      let dBody = document.getElementById('tbody_driver');
-      if (sBody && dBody) {
-        redoStack.push({ source: sBody.innerHTML, driver: dBody.innerHTML });
-        let state = undoStack.pop();
-        sBody.innerHTML = state.source;
-        dBody.innerHTML = state.driver;
-        checkDuplicates();
-      }
+      let state = undoStack[undoStack.length - 1];
+      let sBody = document.getElementById('tbody_source_' + state.pid);
+      let dBody = document.getElementById('tbody_driver_' + state.pid);
+      if (!sBody || !dBody) { undoStack.pop(); return; }
+      redoStack.push({ pid: state.pid, source: sBody.innerHTML, driver: dBody.innerHTML });
+      undoStack.pop();
+      sBody.innerHTML = state.source;
+      dBody.innerHTML = state.driver;
+      if (state.pid !== activePid) switchDatePage(state.pid);
+      checkDuplicatesFor(sBody);
     }
 
     // 재실행
     function performRedo() {
       if (redoStack.length === 0) return;
-      let sBody = document.getElementById('tbody_source');
-      let dBody = document.getElementById('tbody_driver');
-      if (sBody && dBody) {
-        undoStack.push({ source: sBody.innerHTML, driver: dBody.innerHTML });
-        let state = redoStack.pop();
-        sBody.innerHTML = state.source;
-        dBody.innerHTML = state.driver;
-        checkDuplicates();
-      }
+      let state = redoStack[redoStack.length - 1];
+      let sBody = document.getElementById('tbody_source_' + state.pid);
+      let dBody = document.getElementById('tbody_driver_' + state.pid);
+      if (!sBody || !dBody) { redoStack.pop(); return; }
+      undoStack.push({ pid: state.pid, source: sBody.innerHTML, driver: dBody.innerHTML });
+      redoStack.pop();
+      sBody.innerHTML = state.source;
+      dBody.innerHTML = state.driver;
+      if (state.pid !== activePid) switchDatePage(state.pid);
+      checkDuplicatesFor(sBody);
     }
 
     // 초기화
@@ -448,8 +583,12 @@
     }
 
     function initApp() {
-      clearData('source');
-      clearData('driver');
+      document.getElementById('date_tabs').innerHTML = '';
+      document.getElementById('date_pages').innerHTML = '';
+      pageSeq = 0;
+      undoStack = [];
+      redoStack = [];
+      addDatePage();
     }
 
     // 이동
@@ -457,7 +596,7 @@
       document.getElementById('slider').style.transform = `translateX(${index * 100}%)`;
       document.querySelectorAll('.nav-item').forEach((el, i) => el.classList.toggle('active', i === index));
       document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
-      if (index === 4) loadHistory();
+      if (index === 3) loadHistory();
     }
 
     // 추출
@@ -475,8 +614,9 @@
     }
 
     // 중복
-    function checkDuplicates() {
-      let tds = document.querySelectorAll('#tbody_source td');
+    function checkDuplicatesFor(tbody) {
+      if (!tbody) return;
+      let tds = tbody.querySelectorAll('td');
       let numCounts = {};
       tds.forEach(td => {
         let n = extractNum(td.innerText);
@@ -489,18 +629,19 @@
       });
     }
 
+    // 활성중복
+    function checkDuplicates() { checkDuplicatesFor(activeSourceBody()); }
+
     // 생성
-    function clearData(type) {
+    function clearData(type, pid) {
+      pid = pid || activePid;
       saveUndoState();
       if (type === 'source') {
-        let html = '';
-        for(let i=0; i<500; i++) html += '<tr><td contenteditable="true"></td></tr>';
-        document.getElementById('tbody_source').innerHTML = html;
-        checkDuplicates();
+        let b = document.getElementById('tbody_source_' + pid);
+        fillEmptyRows(b, 'source');
+        checkDuplicatesFor(b);
       } else if (type === 'driver') {
-        let html = '';
-        for(let i=0; i<100; i++) html += '<tr><td contenteditable="true"></td><td contenteditable="true"></td></tr>';
-        document.getElementById('tbody_driver').innerHTML = html;
+        fillEmptyRows(document.getElementById('tbody_driver_' + pid), 'driver');
       }
     }
 
@@ -625,6 +766,42 @@
       }
     });
 
+    // 이웃
+    function findAdjacentCell(td, dir) {
+      let table = td.closest('table');
+      if (!table) return null;
+      let rect = td.getBoundingClientRect();
+      let cells = table.querySelectorAll('tbody td');
+      let best = null;
+      let bestDist = Infinity;
+      for (let i = 0; i < cells.length; i++) {
+        let cell = cells[i];
+        if (cell === td) continue;
+        let cr = cell.getBoundingClientRect();
+        if (cr.width === 0 || cr.height === 0) continue;
+        let dist;
+        if (dir === 'up') {
+          if (cr.bottom > rect.top + 0.5) continue;
+          if (cr.right <= rect.left || cr.left >= rect.right) continue;
+          dist = rect.top - cr.bottom;
+        } else if (dir === 'down') {
+          if (cr.top < rect.bottom - 0.5) continue;
+          if (cr.right <= rect.left || cr.left >= rect.right) continue;
+          dist = cr.top - rect.bottom;
+        } else if (dir === 'left') {
+          if (cr.right > rect.left + 0.5) continue;
+          if (cr.bottom <= rect.top || cr.top >= rect.bottom) continue;
+          dist = rect.left - cr.right;
+        } else if (dir === 'right') {
+          if (cr.left < rect.right - 0.5) continue;
+          if (cr.bottom <= rect.top || cr.top >= rect.bottom) continue;
+          dist = cr.left - rect.right;
+        }
+        if (dist < bestDist) { bestDist = dist; best = cell; }
+      }
+      return best;
+    }
+
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.metaKey) {
         if (e.key.toLowerCase() === 'z') {
@@ -648,14 +825,33 @@
       if (selected.length > 0 && (e.key === 'Backspace' || e.key === 'Delete') && document.activeElement.tagName !== 'TD') {
         saveUndoState();
         selected.forEach(td => { if(td.getAttribute('contenteditable') === 'true') td.innerText = ''; });
-        if (selected[0].closest('table').id === 'table_source') checkDuplicates();
+        let delTbl = selected[0].closest('table');
+        if (delTbl && delTbl.classList.contains('tbl-source')) checkDuplicatesFor(delTbl.querySelector('tbody'));
         e.preventDefault();
         return;
       }
       
       if (selected.length === 1) {
         let td = selected[0];
-        
+
+        // 방향키
+        if (document.activeElement !== td) {
+          let dirMap = { 'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right' };
+          if (dirMap[e.key]) {
+            e.preventDefault();
+            let nextTd = findAdjacentCell(td, dirMap[e.key]);
+            if (nextTd) {
+              td.classList.remove('selected');
+              nextTd.classList.add('selected');
+              startR = nextTd.parentElement.rowIndex;
+              startC = nextTd.cellIndex;
+              currentTable = nextTd.closest('table');
+              nextTd.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+            return;
+          }
+        }
+
         if (e.key === 'Enter' && document.activeElement !== td) {
           e.preventDefault();
           let tr = td.parentElement;
@@ -766,10 +962,8 @@
           }
         }
       }
-      if (table.id === 'table_source') checkDuplicates();
+      if (table.classList.contains('tbl-source')) checkDuplicatesFor(table.querySelector('tbody'));
     });
-
-    document.getElementById('tbody_source').addEventListener('input', checkDuplicates);
 
     // 필터
     function openPopup(col, e) {
@@ -816,13 +1010,18 @@
       kwGrid.innerHTML = '';
       let keywords = [];
       if (col === '배송주소') keywords = ['야적/', '지방/', '경동/', '로젠/'];
+      else if (col === '날짜') {
+        let dset = {};
+        globalResultData.forEach(d => { let v = String(d['날짜'] || '').trim(); if (v) dset[v] = true; });
+        keywords = Object.keys(dset).sort();
+      }
       
       if (keywords.length > 0) {
         kwGrid.style.display = 'grid';
         let activeStates = (f && f.kwStates) ? f.kwStates : {};
         keywords.forEach(kw => {
           let btn = document.createElement('div');
-          let disp = kw.replace('/', '');
+          let disp = kw.endsWith('/') ? kw.slice(0, -1) : kw;
           let state = activeStates[kw];
           btn.className = 'kw-btn';
           if (state === 'include') btn.classList.add('active');
@@ -942,6 +1141,55 @@
       });
     }
 
+    // 멘트조립
+    function assembleMents(list) {
+      let ai = 0;
+      while (ai < list.length) {
+        let row = list[ai];
+        if (row['에러']) {
+          row['발송멘트'] = row['라인'] || '';
+          ai++;
+          continue;
+        }
+        let roomKey = String(row['단톡방'] || '').trim();
+        let phoneKey = String(row['인수자번호'] || '').trim();
+        let key = roomKey ? 'R_' + roomKey : (phoneKey ? 'P_' + phoneKey : 'N_' + ai);
+
+        let aj = ai;
+        while (aj < list.length) {
+          let rj = list[aj];
+          if (rj['에러']) break;
+          let rr = String(rj['단톡방'] || '').trim();
+          let rp = String(rj['인수자번호'] || '').trim();
+          let k2 = rr ? 'R_' + rr : (rp ? 'P_' + rp : 'N_' + aj);
+          if (k2 !== key) break;
+          aj++;
+        }
+        let group = list.slice(ai, aj);
+
+        let dayOrder = [];
+        let dayLines = {};
+        group.forEach(g => {
+          let dk = String(g['하차일']);
+          if (!dayLines[dk]) { dayLines[dk] = []; dayOrder.push(dk); }
+          if (g['라인']) dayLines[dk].push(g['라인']);
+        });
+        dayOrder.sort((a, b) => Number(a) - Number(b));
+
+        let sections = dayOrder.map(dk => {
+          let sub = dk + '일 하차 건 배송기사님 연락처를 안내드립니다.';
+          let ls = dayLines[dk];
+          return sub + (ls.length ? '\n' + ls.join('\n') : '');
+        });
+
+        let mergedText = 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n' + sections.join('\n\n');
+        if (!roomKey) mergedText += '\n\n※출하창고 상황에 따라 지연될 수 있음을 양해 부탁드립니다.';
+
+        group.forEach(g => { g['발송멘트'] = mergedText; });
+        ai = aj;
+      }
+    }
+
     function renderResultTable() {
       let tbody = document.getElementById('tbody_result');
       if(!tbody) return;
@@ -995,6 +1243,8 @@
       });
 
       let renderList = filteredList.map(obj => ({...obj}));
+
+      assembleMents(renderList);
 
       for (let i = 0; i < renderList.length; i++) {
         renderList[i].mergeSpan = 1;
@@ -1059,6 +1309,7 @@
         `;
 
         tr.innerHTML = `
+          <td contenteditable="true">${item['날짜']}</td>
           <td contenteditable="true">${item['원본내역']}</td>
           <td contenteditable="true">${item['거래처명']}</td>
           <td contenteditable="true">${item['전표번호']}</td>
@@ -1083,24 +1334,25 @@
       if (!skipSave) {
         let state = {
           ecountData: ecountData,
-          sourceHtml: document.getElementById('tbody_source').innerHTML,
-          driverHtml: document.getElementById('tbody_driver').innerHTML
+          pages: collectPagesState()
         };
         let base64Data = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
         google.script.run.saveHistoryToNotion(base64Data, currentUserEmail, currentUserName);
       }
 
       let sourceList = [];
-      document.querySelectorAll('#tbody_source tr').forEach(tr => {
-        let val = tr.cells[0].innerText.replace(/\s+/g, ' ').trim();
-        if (val) sourceList.push({'배차요청내역': val});
-      });
-
       let driverList = [];
-      document.querySelectorAll('#tbody_driver tr').forEach(tr => {
-        let c1 = tr.cells[0].innerText.replace(/\s+/g, ' ').trim();
-        let c2 = tr.cells[1].innerText.replace(/\s+/g, ' ').trim();
-        if (c1 || c2) driverList.push({'업체명': c1, '배송기사 연락처': c2});
+      document.querySelectorAll('.date-panel').forEach(panel => {
+        let dv = panel.querySelector('.panel-date').value;
+        panel.querySelectorAll('table.tbl-source tbody tr').forEach(tr => {
+          let val = tr.cells[0].innerText.replace(/\s+/g, ' ').trim();
+          if (val) sourceList.push({'배차요청내역': val, '날짜': dv});
+        });
+        panel.querySelectorAll('table.tbl-driver tbody tr').forEach(tr => {
+          let c1 = tr.cells[0].innerText.replace(/\s+/g, ' ').trim();
+          let c2 = tr.cells[1].innerText.replace(/\s+/g, ' ').trim();
+          if (c1 || c2) driverList.push({'업체명': c1, '배송기사 연락처': c2, '날짜': dv});
+        });
       });
 
       if(sourceList.length === 0) { alert('배차내역을 입력해주세요.'); switchTab(1); return; }
@@ -1115,9 +1367,10 @@
           const res = JSON.parse(responseStr);
           if(res.status === 'success') {
             globalResultData = res.data.map(function(item, idx) {
-              item._idx = idx; 
+              item._idx = idx;
               return item;
             });
+            assembleMents(globalResultData);
             renderResultTable();
           } else {
             alert('오류 발생: ' + res.message);
@@ -1197,16 +1450,32 @@
         let jsonStr = decodeURIComponent(escape(atob(base64Data)));
         let state = JSON.parse(jsonStr);
         ecountData = state.ecountData;
-        document.getElementById('tbody_source').innerHTML = state.sourceHtml;
-        document.getElementById('tbody_driver').innerHTML = state.driverHtml;
-        checkDuplicates();
+
+        document.getElementById('date_tabs').innerHTML = '';
+        document.getElementById('date_pages').innerHTML = '';
+        pageSeq = 0;
+        undoStack = [];
+        redoStack = [];
+
+        let pages = state.pages;
+        if (!pages || !pages.length) {
+          pages = [{ date: todayKST(), sourceHtml: state.sourceHtml || '', driverHtml: state.driverHtml || '' }];
+        }
+        pages.forEach((pg, idx) => {
+          let pid = addDatePage(pg.date || todayKST(), { silent: true });
+          if (pg.sourceHtml) document.getElementById('tbody_source_' + pid).innerHTML = pg.sourceHtml;
+          if (pg.driverHtml) document.getElementById('tbody_driver_' + pid).innerHTML = pg.driverHtml;
+          checkDuplicatesFor(document.getElementById('tbody_source_' + pid));
+          if (idx === 0) switchDatePage(pid);
+        });
+
         runProcess(true);
-        
+
         if (isAuto) {
           document.getElementById('initialLoading').style.display = 'none';
         } else {
           alert('복원완료');
-          switchTab(3);
+          switchTab(2);
         }
       } catch(e) {
         if (isAuto) {

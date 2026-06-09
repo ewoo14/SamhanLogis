@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <style>
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background-color: #f0f2f5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+        margin: 0;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      .control-box {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        width: 100%;
+        max-width: 600px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        position: relative;
+        z-index: 100;
+      }
+
+      .input-group {
+        display: flex;
+        gap: 10px;
+        position: relative;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      
+      input[type="text"]:focus {
+        border-color: #4facfe;
+      }
+
+      /* 날짜 선택 스타일 (기존 디자인 유지하며 추가) */
+      .date-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-top: 5px;
+        border-top: 1px solid #f0f2f5;
+      }
+
+      .date-group label {
+        font-size: 14px;
+        font-weight: bold;
+        color: #555;
+      }
+
+      input[type="month"] {
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-family: 'Noto Sans KR', sans-serif;
+        font-size: 14px;
+        outline: none;
+      }
+
+      .warning-msg {
+        font-size: 12px;
+        color: #ff6b6b;
+        margin-left: auto;
+      }
+
+      .suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 90px;
+        background: white;
+        border: 1px solid #eee;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        max-height: 200px;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        display: none;
+        z-index: 1000;
+      }
+
+      .suggestions div {
+        padding: 10px 15px;
+        cursor: pointer;
+      }
+      
+      .suggestions div:hover {
+        background-color: #f7f9fc;
+        color: #4facfe;
+      }
+
+      .autocomplete-active {
+        background-color: #e6f7ff !important; 
+        color: #4facfe;
+      }
+
+      button {
+        padding: 0 25px;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s;
+        white-space: nowrap;
+      }
+
+      button.active {
+        background-color: #4facfe;
+        box-shadow: 0 2px 10px rgba(79, 172, 254, 0.3);
+      }
+
+      button.inactive {
+        background-color: #b0b8c1;
+        cursor: default;
+      }
+
+      .chart-wrapper {
+        margin-top: 40px;
+        width: 100%;
+        max-width: 900px;
+        height: 500px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .chart-slide {
+        width: 100%;
+        height: 100%;
+        transform: translateY(110%);
+        transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .chart-slide.visible {
+        transform: translateY(0);
+      }
+      
+      .chart-slide.hidden {
+        transform: translateY(110%);
+      }
+
+      #loader {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255,255,255,0.95);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 999;
+        color: #555;
+      }
+
+      .loader-emoji {
+        font-size: 60px;
+        margin-bottom: 20px;
+        animation: spin 2s infinite linear;
+      }
+
+      .loader-text {
+        font-size: 18px;
+        font-weight: bold;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        50% { transform: rotate(180deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+
+    <div id="loader">
+      <div class="loader-emoji">⏳</div>
+      <div class="loader-text">데이터를 불러오는 중입니다...</div>
+    </div>
+
+    <h1>삼한공조 입출고내역</h1>
+
+    <div class="control-box">
+      <div class="input-group">
+        <input type="text" id="modelInput" placeholder="모델명 검색" autocomplete="off">
+        <div id="suggestList" class="suggestions"></div>
+        <button id="searchBtn" class="inactive" disabled>조회</button>
+      </div>
+
+      <div class="date-group">
+        <label>기간:</label>
+        <input type="month" id="startDate">
+        <span>~</span>
+        <input type="month" id="endDate">
+        <span class="warning-msg">※최대 설정 기한 1년</span>
+      </div>
+    </div>
+
+    <div class="chart-wrapper">
+      <div id="chartContainer" class="chart-slide">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+
+    <script>
+      Chart.register(ChartDataLabels);
+
+      let fullData = {};
+      let modelNames = [];
+      let myChart = null;
+      let currentFocus = -1;
+
+      window.onload = function() {
+        // 기본값 2025년 1월 ~ 12월
+        document.getElementById('startDate').value = '2025-01';
+        document.getElementById('endDate').value = '2025-12';
+
+        initDateHandlers();
+
+        google.script.run
+          .withSuccessHandler(initApp)
+          .withFailureHandler(err => {
+            alert('오류: ' + err);
+            document.querySelector('.loader-text').innerText = '오류 발생';
+            document.querySelector('.loader-emoji').innerText = '❌';
+          })
+          .getChartData();
+      };
+
+      // 날짜 제어 로직
+      function initDateHandlers() {
+        const sInput = document.getElementById('startDate');
+        const eInput = document.getElementById('endDate');
+
+        function checkRange(e) {
+          if(!sInput.value || !eInput.value) return;
+
+          const start = new Date(sInput.value + '-01');
+          const end = new Date(eInput.value + '-01');
+          
+          const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+
+          if (diffMonths < 0) {
+            // 역전 방지
+            if (e.target === sInput) eInput.value = sInput.value;
+            else sInput.value = eInput.value;
+          } else if (diffMonths >= 12) {
+            // 1년 제한 (11개월 차이)
+            if (e.target === sInput) {
+              const newEnd = new Date(start);
+              newEnd.setMonth(start.getMonth() + 11);
+              eInput.value = toMonthStr(newEnd);
+            } else {
+              const newStart = new Date(end);
+              newStart.setMonth(end.getMonth() - 11);
+              sInput.value = toMonthStr(newStart);
+            }
+          }
+        }
+        
+        sInput.addEventListener('change', checkRange);
+        eInput.addEventListener('change', checkRange);
+      }
+
+      function toMonthStr(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+      }
+
+      function initApp(data) {
+        fullData = data;
+        modelNames = Object.keys(data).sort();
+        document.getElementById('loader').style.display = 'none';
+        setupListeners();
+      }
+
+      function setupListeners() {
+        const input = document.getElementById('modelInput');
+        const list = document.getElementById('suggestList');
+        const btn = document.getElementById('searchBtn');
+
+        input.addEventListener('input', function() {
+          const val = this.value.toUpperCase(); // 대소문자 무시
+          currentFocus = -1;
+          checkBtn(val);
+          list.innerHTML = '';
+          
+          if (!val) {
+            list.style.display = 'none';
+            return;
+          }
+
+          const matches = modelNames.filter(m => m.toUpperCase().includes(val));
+          if (matches.length) {
+            matches.forEach(m => {
+              const div = document.createElement('div');
+              div.textContent = m;
+              div.addEventListener('click', function() {
+                input.value = this.textContent;
+                list.style.display = 'none';
+                checkBtn(input.value.toUpperCase());
+                btn.click();
+              });
+              list.appendChild(div);
+            });
+            list.style.display = 'block';
+          } else {
+            list.style.display = 'none';
+          }
+        });
+
+        input.addEventListener('keydown', function(e) {
+          let x = document.getElementById('suggestList');
+          if (x) x = x.getElementsByTagName('div');
+          
+          if (e.key === 'ArrowDown') {
+            currentFocus++;
+            addActive(x);
+          } else if (e.key === 'ArrowUp') {
+            currentFocus--;
+            addActive(x);
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (currentFocus > -1) {
+              if (x) x[currentFocus].click();
+            } else {
+              if (!btn.disabled) btn.click();
+            }
+          }
+        });
+
+        input.addEventListener('blur', () => {
+          setTimeout(() => list.style.display = 'none', 200);
+        });
+
+        btn.addEventListener('click', () => {
+          updateChart(input.value);
+        });
+      }
+
+      function addActive(x) {
+        if (!x) return false;
+        removeActive(x);
+        if (currentFocus >= x.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = x.length - 1;
+        x[currentFocus].classList.add('autocomplete-active');
+        x[currentFocus].scrollIntoView({block: 'nearest'});
+      }
+
+      function removeActive(x) {
+        for (var i = 0; i < x.length; i++) {
+          x[i].classList.remove('autocomplete-active');
+        }
+      }
+
+      function checkBtn(val) {
+        const btn = document.getElementById('searchBtn');
+        const exists = modelNames.some(m => m.toUpperCase() === val);
+        if (exists) {
+          btn.className = 'active';
+          btn.disabled = false;
+        } else {
+          btn.className = 'inactive';
+          btn.disabled = true;
+        }
+      }
+
+      function updateChart(model) {
+        const realName = modelNames.find(m => m.toUpperCase() === model.toUpperCase());
+        if(!realName) return;
+
+        const container = document.getElementById('chartContainer');
+        
+        // 날짜 배열 생성
+        const labels = [];
+        const sVal = document.getElementById('startDate').value;
+        const eVal = document.getElementById('endDate').value;
+        
+        let cur = new Date(sVal + '-01');
+        const end = new Date(eVal + '-01');
+
+        while(cur <= end) {
+          const y = cur.getFullYear();
+          const m = String(cur.getMonth() + 1).padStart(2,'0');
+          labels.push(`${y}${m}`);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+        
+        const mData = fullData[realName];
+        const inValues = labels.map(m => mData.input[m] || 0);
+        const outValues = labels.map(m => mData.output[m] || 0);
+        
+        // 차트 갱신
+        if (myChart) {
+          container.classList.remove('visible');
+          container.classList.add('hidden');
+          
+          setTimeout(() => {
+            myChart.destroy();
+            renderCanvas(labels, inValues, outValues);
+            container.classList.remove('hidden');
+            container.classList.add('visible');
+          }, 800);
+        } else {
+          renderCanvas(labels, inValues, outValues);
+          setTimeout(() => container.classList.add('visible'), 100);
+        }
+      }
+
+      function renderCanvas(labels, inData, outData) {
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        
+        myChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: '입고수량',
+                data: inData,
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+              },
+              {
+                label: '출고수량',
+                data: outData,
+                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 1
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { 
+                beginAtZero: true,
+                suggestedMax: Math.max(...inData, ...outData) * 1.1 
+              }
+            },
+            plugins: {
+              datalabels: {
+                anchor: 'end',
+                align: 'top',
+                color: '#555',
+                font: { weight: 'bold' },
+                formatter: function(value) {
+                  return value > 0 ? value : '';
+                }
+              }
+            }
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

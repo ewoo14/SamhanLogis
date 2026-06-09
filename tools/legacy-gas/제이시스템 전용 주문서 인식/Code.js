@@ -350,7 +350,7 @@ function getScriptCreds_() {
   const sp = PropertiesService.getScriptProperties();
   const COM_CODE_D = '174539';
   const USER_ID_D  = '11840720103';
-  const KEY_D      = '117d1e405a25f4631a0aef44bee78dd857';
+  const KEY_D      = 'REDACTED_ECOUNT_API_CERT_KEY';
   return {
     COM_CODE:     (sp.getProperty('COM_CODE')     || COM_CODE_D).trim(),
     USER_ID:      (sp.getProperty('USER_ID')      || USER_ID_D ).trim(),

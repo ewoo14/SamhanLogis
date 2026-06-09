@@ -1780,7 +1780,7 @@ function getScriptCreds_() {
   const sp = PropertiesService.getScriptProperties();
   const COM_CODE_D = '174539';
   const USER_ID_D  = '11840720103';
-  const KEY_D      = '117d1e405a25f4631a0aef44bee78dd857';
+  const KEY_D      = 'REDACTED_ECOUNT_API_CERT_KEY';
   return {
     COM_CODE:     (sp.getProperty('COM_CODE')     || COM_CODE_D).trim(),
     USER_ID:      (sp.getProperty('USER_ID')      || USER_ID_D ).trim(),
@@ -3319,12 +3319,203 @@ function logFrontEvent(bizNo, action, detail, isMobile) {
   if (!bizNo) return;
 
   const cleanBiz = String(bizNo).replace(/[^\d]/g, '');
-  
+
   // 거래처명 찾기
   const cust = searchCustomerByBizOrCode(cleanBiz);
   const name = cust ? cust.name : '미확인';
   const deviceTag = isMobile ? '(모바일)' : '(PC)';
-  
+
   // 기존 노션 기록 함수 호출
   logActionToNotion(cleanBiz, name, `[${action}] ${detail} ${deviceTag}`);
+}
+
+// 네이버 개발자센터 검색 자격증명
+const NAVER_SEARCH_ID = 'REDACTED_NAVER_SEARCH_ID';
+const NAVER_SEARCH_SECRET = 'REDACTED_NAVER_SEARCH_SECRET';
+
+// 네이버 클라우드 플랫폼 맵스 자격증명
+const NAVER_MAP_KEY_ID = 'REDACTED_NAVER_MAP_KEY_ID';
+const NAVER_MAP_KEY = 'REDACTED_NAVER_MAP_KEY';
+
+// 도로명주소 API 자격증명 행안부
+const ROAD_API_KEY = 'REDACTED_ROAD_API_KEY';
+const BUILDING_API_KEY = 'REDACTED_BUILDING_API_KEY';
+
+// 통합 주소 검색 상호 도로명 지오코딩 병렬
+function searchNaverAddress(query) {
+  const q = String(query || '').trim();
+  if (!q) return { ok: false, error: '검색어가 비었습니다.', items: [] };
+
+  const reqs = buildAddressRequests_(q);
+  let responses = [];
+  try {
+    responses = UrlFetchApp.fetchAll(reqs.map(function(r){ return r.req; }));
+  } catch (e) {
+    return { ok: false, error: '통신 오류 ' + (e && e.message || e), items: [] };
+  }
+
+  const items = [];
+  const seen = {};
+  const pushUnique = function (row) {
+    const key = (row.roadAddress || row.address || '') + '|' + (row.title || '');
+    if (!key.trim() || seen[key]) return;
+    seen[key] = 1;
+    items.push(row);
+  };
+
+  reqs.forEach(function (r, i) {
+    const parsed = r.parse(responses[i]);
+    parsed.forEach(pushUnique);
+  });
+
+  if (!items.length) {
+    return { ok: false, error: '검색 결과가 없습니다.', items: [] };
+  }
+  return { ok: true, items: items };
+}
+
+// 호출 묶음 만들기
+function buildAddressRequests_(q) {
+  const list = [];
+
+  // 도로명주소 우선
+  if (ROAD_API_KEY) {
+    list.push({
+      req: {
+        url: 'https://business.juso.go.kr/addrlink/addrLinkApi.do'
+          + '?currentPage=1&countPerPage=10&resultType=json'
+          + '&confmKey=' + encodeURIComponent(ROAD_API_KEY)
+          + '&keyword=' + encodeURIComponent(q),
+        method: 'get',
+        muteHttpExceptions: true
+      },
+      parse: parseJusoResponse_
+    });
+  }
+
+  // 네이버 지역 검색 상호
+  if (NAVER_SEARCH_ID && NAVER_SEARCH_SECRET) {
+    list.push({
+      req: {
+        url: 'https://openapi.naver.com/v1/search/local.json'
+          + '?query=' + encodeURIComponent(q)
+          + '&display=5&start=1&sort=random',
+        method: 'get',
+        muteHttpExceptions: true,
+        headers: {
+          'X-Naver-Client-Id': NAVER_SEARCH_ID,
+          'X-Naver-Client-Secret': NAVER_SEARCH_SECRET
+        }
+      },
+      parse: parseNaverLocalResponse_
+    });
+  }
+
+  // NCP 지오코딩
+  if (NAVER_MAP_KEY_ID && NAVER_MAP_KEY) {
+    list.push({
+      req: {
+        url: 'https://maps.apigw.ntruss.com/map-geocode/v2/geocode?query=' + encodeURIComponent(q),
+        method: 'get',
+        muteHttpExceptions: true,
+        headers: {
+          'x-ncp-apigw-api-key-id': NAVER_MAP_KEY_ID,
+          'x-ncp-apigw-api-key': NAVER_MAP_KEY
+        }
+      },
+      parse: parseNaverGeocodeResponse_
+    });
+  }
+
+  return list;
+}
+
+// 도로명주소 응답 파싱
+function parseJusoResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    const arr = json && json.results && json.results.juso ? json.results.juso : [];
+    return arr.map(function (it) {
+      const road = String(it.roadAddrPart1 || it.roadAddr || '').replace(/[()（）]/g, '').trim();
+      const bdName = cleanBdNm_(it.bdNm);
+      const jibun = stripTrailingName_(String(it.jibunAddr || '').trim(), bdName);
+      return {
+        source: 'juso',
+        title: bdName,
+        category: '',
+        address: jibun,
+        roadAddress: road
+      };
+    });
+  } catch (e) { return []; }
+}
+
+// 건물명 정리 괄호 제거 후 동 리 가 토큰 제외
+function cleanBdNm_(raw) {
+  if (!raw) return '';
+  const s = String(raw).replace(/[()（）]/g, '').trim();
+  if (!s) return '';
+  const parts = s.split(/[,，]/).map(function (p) { return p.trim(); }).filter(Boolean);
+  const filtered = parts.filter(function (part) {
+    return !/^[가-힣]+(동|리|가)$/.test(part);
+  });
+  return filtered.join(' ');
+}
+
+// 정규식 이스케이프
+function escapeRegex_(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// 주소 끝에 붙은 토큰 제거
+function stripTrailingName_(addr, name) {
+  const a = String(addr || '').trim();
+  const n = String(name || '').trim();
+  if (!a || !n) return a;
+  const re = new RegExp('\\s*' + escapeRegex_(n) + '\\s*$');
+  return a.replace(re, '').trim();
+}
+
+// 네이버 지역검색 응답 파싱
+function parseNaverLocalResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    const strip = function (s) { return String(s || '').replace(/<[^>]+>/g, ''); };
+    return (json.items || []).map(function (it) {
+      return {
+        source: 'local',
+        title: strip(it.title),
+        category: strip(it.category),
+        address: strip(it.address),
+        roadAddress: strip(it.roadAddress)
+      };
+    });
+  } catch (e) { return []; }
+}
+
+// 지오코딩 응답 파싱
+function parseNaverGeocodeResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    if (json.status && json.status !== 'OK') return [];
+    const pickBuilding = function (els) {
+      const f = (els || []).find(function (e) { return (e.types || []).indexOf('BUILDING_NAME') >= 0; });
+      return f ? String(f.longName || '') : '';
+    };
+    return (json.addresses || []).map(function (it) {
+      const building = pickBuilding(it.addressElements);
+      const road = stripTrailingName_(String(it.roadAddress || ''), building);
+      const jibun = stripTrailingName_(String(it.jibunAddress || ''), building);
+      return {
+        source: 'geo',
+        title: building,
+        category: '',
+        address: jibun,
+        roadAddress: road
+      };
+    });
+  } catch (e) { return []; }
 }

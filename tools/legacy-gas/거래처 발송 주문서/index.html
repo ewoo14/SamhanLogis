@@ -27,7 +27,8 @@ body{ margin:0; background:var(--c-bg); color:var(--c-strong); font-family:syste
 .hidden{display:none !important}
 .wrap{max-width:2000px;margin:26px auto;padding:0 16px;display:flex;flex-direction:column;min-height:100%}
 .top{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:12px}
-.top .view-group{display:flex;gap:6px}
+.top .view-group{display:flex;gap:6px;flex-wrap:wrap}
+.top .view-group .btn-mini{white-space:nowrap;flex-shrink:0}
 .title{font-size:0 !important;color:transparent !important;font-weight:700}
 .badge{display:inline-block;margin-left:8px;background:#eef2ff;color:#3730a3 !important;border-radius:999px;padding:2px 8px;font-size:12px !important}
 .btn{appearance:none;border:0;border-radius:10px;background:#111827;color:#fff;padding:10px 14px;font-weight:600;cursor:pointer}
@@ -49,11 +50,11 @@ body.comm-active #cardComm { display:flex !important }
 body.comm-active #cardHome, body.comm-active #cardSingle { display:none !important }
 #wrapHome tfoot, #wrapSingle tfoot, #wrapComm tfoot{ display:none!important; }
 
-/* 버튼숨김 */
-body.home-active #btnGoHome { display:none !important }
-body.single-active #btnGoSingle { display:none !important }
-body.comm-active #btnGoComm { display:none !important }
-body.old-active #btnGoOld { display:none !important }
+/* 보기 버튼 활성 파란색 표시 */
+body.home-active #btnGoHome,
+body.single-active #btnGoSingle,
+body.comm-active #btnGoComm,
+body.old-active #btnGoOld { background:#2563eb !important; color:#fff !important; }
 
 .card-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--c-line);background:#f9fafb}
 .card-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px}
@@ -121,12 +122,14 @@ body.no-active .mobile-gate{display:flex} .top .view-group{display:flex;gap:6px;
 .select-big{width:100%;height:150px;border:1px solid var(--c-line);border-radius:18px;background:#fff; font-weight:800;font-size:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.2}
 .select-home{background:#eef2ff;border-color:#c7d2fe} .select-single{background:#ecfeff;border-color:#a5f3fc} .select-comm{background:#fff7ed;border-color:#fed7aa} .select-old{background:#f3e8ff;border-color:#d8b4fe}
 body.mobile-mode .grid{grid-template-columns:minmax(0,1fr)!important} body.mobile-mode .grid>.card{width:100%;grid-column:1 / -1} body.mobile-mode.home-active #cardSingle{display:none} body.mobile-mode.single-active #cardHome{display:none}
-body.old-active #cardOld { display: flex !important; } body.old-active #cardHome, body.old-active #cardSingle, body.old-active #cardComm, body.old-active #pageBranch { display: none !important; } body.old-active #btnGoOld { display: none !important; }
+body.old-active #cardOld { display: flex !important; } body.old-active #cardHome, body.old-active #cardSingle, body.old-active #cardComm, body.old-active #pageBranch { display: none !important; }
 body.home-active #cardOld, body.single-active #cardOld, body.comm-active #cardOld { display: none !important; } body.old-active #btnGoHome, body.old-active #btnGoSingle, body.old-active #btnGoComm { display:inline-block !important; }
 body.mobile-mode.old-active #cardOld { display: block !important; } body.mobile-mode.old-active #cardHome, body.mobile-mode.old-active #cardSingle, body.mobile-mode.old-active #cardComm { display: none !important; }
 #btnSwitch{display:none} #btnPreview{}
 dialog#dlgPreview .order-list table thead th{font-weight:800}
 #addrDock{position:fixed;inset:0;background:#fff;z-index:100000;display:none} #addrEmbed{width:100%;height:calc(100dvh - 52px)}
+body.mobile-mode .addr-btn-row{flex-direction:column}
+@media (max-width:1280px){ .addr-btn-row{flex-direction:column} }
 
 /* 분기버튼 */
 #btnOpenBranch{display:none} 
@@ -167,6 +170,40 @@ body.history-active .grid { display: none !important; } body.history-active #pag
   text-align: right;
 }
 
+/* 주문서 사용기한 호버 툴팁 */
+.access-limit-wrap .access-limit-tip{
+  position:absolute;
+  top:100%;
+  right:0;
+  margin-top:8px;
+  background:#1f2937;
+  color:#fff;
+  padding:10px 14px;
+  border-radius:8px;
+  font-size:13px;
+  font-weight:500;
+  line-height:1.5;
+  white-space:nowrap;
+  box-shadow:0 10px 20px rgba(0,0,0,0.18);
+  z-index:200000;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity 0.15s ease;
+}
+.access-limit-wrap .access-limit-tip::before{
+  content:'';
+  position:absolute;
+  bottom:100%;
+  right:14px;
+  border:6px solid transparent;
+  border-bottom-color:#1f2937;
+}
+.access-limit-wrap:hover .access-limit-tip{
+  opacity:1;
+  visibility:visible;
+}
+
 /* PC모바일구분 */
 .pc-only { display: table-cell; }
 .mobile-only { display: none; }
@@ -175,6 +212,8 @@ body.history-active .grid { display: none !important; } body.history-active #pag
 @media (max-width: 1280px) {
   /* 모바일버튼숨김 */
   #btnSaveSnapshot, #btnLoadSnapshot { display: none !important; }
+  /* 모바일에서 사용기한 툴팁 숨김 */
+  .access-limit-wrap .access-limit-tip{ display:none !important; }
   /* 레이아웃 */
   .wrap {
     padding:0 !important; margin:0 !important; 
@@ -674,9 +713,10 @@ button.tut-highlight { filter: brightness(1.6); }
           <button id="btnLoadSnapshot" class="btn" onclick="goSnapshotPage()" style="background:#78350f; color:#fff;">저장내역</button>
         </div>
         <div id="timerContainer" style="display:flex; gap:15px; align-items:center; margin-left:auto;">
-          <div id="accessLimitTimer" style="text-align:center; line-height:1.2; padding:0 10px; display:none;">
-            <span style="font-size:12px; color:var(--c-strong, #000); font-weight:normal;">주문서 사용기한:</span><br>
+          <div id="accessLimitTimer" class="access-limit-wrap" style="text-align:center; line-height:1.2; padding:0 10px; display:none; position:relative;">
+            <span class="access-limit-label" style="font-size:12px; color:var(--c-strong, #000); font-weight:normal; cursor:help;">주문서 사용기한:</span><br>
             <span id="accessLimitText" style="font-size:16px; color:#dc2626; font-weight:bold;"></span>
+            <div class="access-limit-tip" role="tooltip">마지막 발주일로부터 30일까지의 기한을 의미합니다.<br>영업담당자 임시승인 시에는 최대 1주일까지 기간을 연장할 수 있습니다.</div>
           </div>
           <div id="autoLogoutTimer" style="text-align:center; line-height:1.2; padding:0 10px;"></div>
         </div>
@@ -1025,7 +1065,16 @@ button.tut-highlight { filter: brightness(1.6); }
                   style="flex:1;min-width:0;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px;background:#f3f4f6;color:#6b7280"/>
             <input id="addrDetail" placeholder="상세주소 입력"
                   style="flex:1;min-width:200px;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px"/>
-            <button class="btn btn-ghost" id="btnAddrShip">주소검색</button>
+            <div class="addr-btn-row" style="display:flex; gap:6px;">
+              <button type="button" id="btnAddrShipNaver" style="height:36px; padding:0 10px; background:#03C75A; color:#fff; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">
+                <span style="display:inline-flex; width:16px; height:16px; background:#fff; color:#03C75A; border-radius:3px; align-items:center; justify-content:center; font-weight:900; font-size:11px; line-height:1;">N</span>
+                주소검색
+              </button>
+              <button type="button" id="btnAddrShipKakao" style="height:36px; padding:0 10px; background:#FEE500; color:#371D1E; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">
+                <span style="display:inline-flex; width:16px; height:16px; background:#371D1E; color:#FEE500; border-radius:50%; align-items:center; justify-content:center; font-weight:900; font-size:10px; line-height:1;">K</span>
+                주소검색
+              </button>
+            </div>
           </div>
 
           <!-- 현장주소 -->
@@ -1038,7 +1087,16 @@ button.tut-highlight { filter: brightness(1.6); }
                   style="flex:1;min-width:0;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px;background:#f3f4f6;color:#6b7280"/>
             <input id="addrAuditDetail" placeholder="상세주소 입력"
                   style="flex:1;min-width:200px;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px"/>
-            <button class="btn btn-ghost" id="btnAddrAudit">주소검색</button>
+            <div class="addr-btn-row" style="display:flex; gap:6px;">
+              <button type="button" id="btnAddrAuditNaver" style="height:36px; padding:0 10px; background:#03C75A; color:#fff; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">
+                <span style="display:inline-flex; width:16px; height:16px; background:#fff; color:#03C75A; border-radius:3px; align-items:center; justify-content:center; font-weight:900; font-size:11px; line-height:1;">N</span>
+                주소검색
+              </button>
+              <button type="button" id="btnAddrAuditKakao" style="height:36px; padding:0 10px; background:#FEE500; color:#371D1E; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">
+                <span style="display:inline-flex; width:16px; height:16px; background:#371D1E; color:#FEE500; border-radius:50%; align-items:center; justify-content:center; font-weight:900; font-size:10px; line-height:1;">K</span>
+                주소검색
+              </button>
+            </div>
           </div>
 
           <!-- 배송주소와 동일 -->
@@ -1187,6 +1245,23 @@ button.tut-highlight { filter: brightness(1.6); }
       <button id="addrClose" class="btn btn-ghost">닫기</button>
     </div>
     <div id="addrEmbed" style="width:100%;height:calc(100dvh - 52px);"></div>
+  </div>
+
+  <!-- 네이버 주소 검색 도크 -->
+  <div id="naverAddrDock" style="display:none; position:fixed; z-index:200002; inset:0; background:rgba(0,0,0,0.5);">
+    <div id="naverAddrSheet" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:480px; max-width:92vw; height:560px; max-height:88vh; background:#fff; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.3); border-radius:12px;">
+      <div style="height:50px; min-height:50px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border-bottom:1px solid #e5e7eb; background:#f9fafb;">
+        <span style="font-weight:bold; font-size:16px; color:#111827;">네이버 주소 검색</span>
+        <button type="button" id="btnCloseNaverAddr" style="border:1px solid #d1d5db; background:#fff; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:bold; color:#374151; cursor:pointer;">닫기</button>
+      </div>
+      <div style="padding:10px; display:flex; gap:6px; border-bottom:1px solid #e5e7eb; background:#fff;">
+        <input id="naverQuery" placeholder="상호 건물명 주소 입력" style="flex:1; height:36px; border:1px solid #d1d5db; border-radius:8px; padding:0 10px; font-size:14px;" />
+        <button type="button" id="naverSearchBtn" style="height:36px; padding:0 16px; border:1px solid #03c75a; background:#03c75a; color:#fff; border-radius:8px; font-weight:bold; cursor:pointer;">검색</button>
+      </div>
+      <div id="naverResults" style="flex:1; overflow-y:auto; padding:10px; background:#f9fafb;">
+        <div style="padding:30px; text-align:center; color:#6b7280; font-size:13px;">상호 건물명 도로명 등을 입력하면 자동으로 검색됩니다</div>
+      </div>
+    </div>
   </div>
 
   <!-- 모바일전용 옵션 처리 -->
@@ -2322,28 +2397,19 @@ function classifySingleSetFixed(s){
     if(is25){if(isHeatCool){L='25년형 냉난방 벽걸이';if(/무풍/.test(hay))M='무풍';}else if(isCoolOnly){L='25년형 냉전 벽걸이';M=/무풍/.test(hay)?'무풍':'일반';}}
     else{if(isHeatCool){L='냉난방 벽걸이';if(/무풍/.test(hay))M='무풍';}else if(isCoolOnly){L='냉전 벽걸이';M=/무풍/.test(hay)?'무풍':'일반';}}
   }else if(/가정용/.test(hay)){
+    // 가정용 에어컨 단일 대분류 5개 중분류로 정리
     const isPro = /무풍갤러리\s*프로/i.test(hay) || /갤러리\s*프로/i.test(hay);
     const isClassicHigh = mdl.startsWith('AF70') && (mdl.substring(8,10)==='24' || mdl.substring(8,10)==='25');
-    const isClassic = /무풍클래식/i.test(hay);
+    const isClassic = /무풍클래식/i.test(hay) || isClassicHigh;
     const isQ9000 = /q9000/i.test(hay);
+    const isGallery = /무풍갤러리/i.test(hay);
 
-    if(isPro){
-      L='26년형 가정용 에어컨';
-      M='무풍갤러리프로';
-    }else if(is25 || isClassicHigh || isClassic || isQ9000){
-      L='25년형 가정용 에어컨';
-      if(isQ9000) M='Q9000';
-      else if(isClassicHigh) M='무풍클래식(고급형)';
-      else if(isClassic) M='무풍클래식';
-      else if(/무풍갤러리/.test(hay)) M='무풍갤러리';
-      else M='';
-    }else{
-      L='24년형 가정용 에어컨';
-      if(/무풍갤러리/.test(hay)) M='무풍갤러리';
-      else if(/유풍/.test(hay)) M='유풍';
-      else if(/무풍/.test(hay)) M='무풍';
-      else M='';
-    }
+    L='가정용 에어컨';
+    if(isPro) M='무풍콤보 갤러리프로';
+    else if(isQ9000) M='Q9000';
+    else if(isClassic) M='무풍클래식';
+    else if(isGallery) M='무풍갤러리';
+    else M='24년형';
   }
   if(L==='기타'&&any(/kit|키트|중계기|리모컨|유연호스|드레인펌프|유선보드|board|보드|멀티\s*wifi/i)){L='부자재';}
   return {catL:unifyCatL_(L),catM:M};
@@ -3714,6 +3780,8 @@ function renderHome(){
   syncHomeTotals();
   updateHomeRatio();
   refreshBranchOpenButton('home');
+  // 대분류 드롭다운 갱신
+  updateHomeFilterOptions();
 }
 
 // 싱글세트렌더
@@ -3882,6 +3950,8 @@ function renderSingle(){
   el('#singleTotal').textContent=fmt(sumSingles());
   updateInlineTotals();
   refreshBranchOpenButton('single');
+  // 대분류 드롭다운 갱신
+  updateSingleFilterOptions();
 }
 
 // 싱글 세트 구성 목록 생성
@@ -5658,13 +5728,15 @@ function mountAddrSheet(){
 
 let POSTCODE_TARGET = 'ship';
 
-// 주소 검색 진입
-function openPostcode(){
-  // console.log('>> 🧱 주소 모달 열기')
+// 주소 검색 진입 소스별 분기
+function openPostcode(source){
+  const src = source === 'naver' ? 'naver' : 'kakao';
+  if (src === 'naver') {
+    openNaverAddrDock_();
+    return;
+  }
 
   const done = data => {
-    // console.log('>> ✍️ 주소 선택 완료')
-
     // 기본 주소: 도로명 > address > 지번 순
     let addr = '';
     if (data) {
@@ -5681,11 +5753,7 @@ function openPostcode(){
       addr = addr.replace(/\s+/g, ' ').trim();
     }
 
-    if (POSTCODE_TARGET === 'audit') {
-      el('#addrAuditBase').value = addr;
-    } else {
-      el('#addrBase').value = addr;
-    }
+    applyAddrFromPostcode_(addr);
 
     const sheet = document.querySelector('#addrSheet');
     if (sheet) sheet.remove();
@@ -5699,34 +5767,202 @@ function openPostcode(){
   }
 
   // 모바일은 모달 내부 시트 사용
-  const mount = mountAddrSheet()
-  if(!mount){
-    // console.log('>> ⚠️ 주소 시트 생성 실패')
-    return
-  }
-  const { wrap, fit } = mount
+  const mount = mountAddrSheet();
+  if(!mount) return;
+  const { wrap, fit } = mount;
 
-  if(!ensureKakaoPostcode()) return
+  if(!ensureKakaoPostcode()) return;
 
-  // console.log('>> 🪄 임베드 실행')
   const pc = new kakao.Postcode({
     oncomplete: function(data){
-      done(data)
+      done(data);
     },
     onresize: function(size){
-      // console.log('>> 📐 높이 동기화', size && size.height)
       if(size && size.height && size.height > 240){
-        wrap.style.height = size.height + 'px'
+        wrap.style.height = size.height + 'px';
       }else{
-        fit()
+        fit();
       }
     },
     width: '100%',
     height: '100%'
-  })
+  });
 
-  // 보이는 상태에서 임베드
-  requestAnimationFrame(()=> pc.embed(wrap))
+  requestAnimationFrame(()=> pc.embed(wrap));
+}
+
+// 선택한 주소 입력란에 반영
+function applyAddrFromPostcode_(addr){
+  if (POSTCODE_TARGET === 'audit') {
+    el('#addrAuditBase').value = addr;
+  } else {
+    el('#addrBase').value = addr;
+  }
+  checkOrderReady();
+}
+
+// 네이버 도크 열기
+function openNaverAddrDock_(){
+  const dock = document.getElementById('naverAddrDock');
+  const sheet = document.getElementById('naverAddrSheet');
+  if (!dock || !sheet) return;
+  if (isMobileNow()) {
+    sheet.style.cssText = 'position:absolute; top:60px; left:0; right:0; bottom:0; background:#fff; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 -4px 20px rgba(0,0,0,0.2); border-top-left-radius:16px; border-top-right-radius:16px;';
+  } else {
+    sheet.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:480px; max-width:92vw; height:560px; max-height:88vh; background:#fff; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.3); border-radius:12px;';
+  }
+  dock.style.display = 'block';
+  const q = document.getElementById('naverQuery');
+  const r = document.getElementById('naverResults');
+  if (q) q.value = '';
+  if (r) r.innerHTML = '<div style="padding:30px; text-align:center; color:#6b7280; font-size:13px;">상호 건물명 도로명 등을 입력하면 자동으로 검색됩니다</div>';
+  setTimeout(function(){ if (q) q.focus(); }, 80);
+}
+
+// 네이버 통합 검색 호출
+function runNaverLocalSearch(showLoading) {
+  const input = document.getElementById('naverQuery');
+  const results = document.getElementById('naverResults');
+  if (!input || !results) return;
+  const q = (input.value || '').trim();
+  if (!q) {
+    results.innerHTML = '<div style="padding:30px; text-align:center; color:#6b7280; font-size:13px;">검색어를 입력해 주세요</div>';
+    return;
+  }
+  if (showLoading) {
+    results.innerHTML = '<div style="padding:30px; text-align:center; color:#6b7280; font-size:13px;">검색 중...</div>';
+    results.style.opacity = '1';
+  } else {
+    results.style.opacity = '0.55';
+  }
+  window.__naverReqSeq = (window.__naverReqSeq || 0) + 1;
+  const seq = window.__naverReqSeq;
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (seq !== window.__naverReqSeq) return;
+      results.style.opacity = '1';
+      onNaverSearchSuccess(res, q);
+    })
+    .withFailureHandler(function(err){
+      if (seq !== window.__naverReqSeq) return;
+      results.style.opacity = '1';
+      onNaverSearchFail(err);
+    })
+    .searchNaverAddress(q);
+}
+
+// 자동완성 디바운스
+function scheduleNaverAutoSearch() {
+  const input = document.getElementById('naverQuery');
+  if (!input) return;
+  if (window.__naverDebounceTm) clearTimeout(window.__naverDebounceTm);
+  const v = (input.value || '').trim();
+  const results = document.getElementById('naverResults');
+  if (!v) {
+    if (results) results.innerHTML = '<div style="padding:30px; text-align:center; color:#6b7280; font-size:13px;">상호 건물명 도로명 등을 입력하면 자동으로 검색됩니다</div>';
+    return;
+  }
+  window.__naverDebounceTm = setTimeout(runNaverLocalSearch, 180);
+}
+
+// HTML 이스케이프
+function escapeHtmlAddr(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// 검색 성공 결과 카드 표시
+function onNaverSearchSuccess(res, queryText) {
+  const results = document.getElementById('naverResults');
+  if (!results) return;
+  if (!res || !res.ok) {
+    results.innerHTML = '<div style="padding:30px; text-align:center; color:#b91c1c; font-size:13px;">검색 실패: '
+      + escapeHtmlAddr((res && res.error) || '알 수 없는 오류') + '</div>';
+    return;
+  }
+  if (!res.items || !res.items.length) {
+    results.innerHTML = '<div style="padding:30px; text-align:center; color:#6b7280; font-size:13px;">검색 결과가 없습니다</div>';
+    return;
+  }
+  results.innerHTML = '';
+  res.items.forEach(function(it){
+    const name = it.title || '';
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px; background:#fff;';
+    if (name) {
+      const head = document.createElement('div');
+      head.style.cssText = 'font-weight:bold; color:#111827; margin-bottom:4px;';
+      head.textContent = name;
+      card.appendChild(head);
+    }
+    if (it.category) {
+      const cat = document.createElement('div');
+      cat.style.cssText = 'font-size:12px; color:#6b7280; margin-bottom:4px;';
+      cat.textContent = it.category;
+      card.appendChild(cat);
+    }
+    if (it.roadAddress) {
+      card.appendChild(makeAddrRow_('도로명', it.roadAddress, composeAddrWithBuilding_(it.roadAddress, name)));
+    }
+    if (it.address) {
+      card.appendChild(makeAddrRow_('지번', it.address, composeAddrWithBuilding_(it.address, name)));
+    }
+    results.appendChild(card);
+  });
+}
+
+// 검색 실패
+function onNaverSearchFail(err) {
+  const results = document.getElementById('naverResults');
+  if (!results) return;
+  results.innerHTML = '<div style="padding:30px; text-align:center; color:#b91c1c; font-size:13px;">통신 오류: '
+    + escapeHtmlAddr(err && err.message || err) + '</div>';
+}
+
+// 주소 행 만들기 클릭 시 해당 주소 적용
+function makeAddrRow_(label, text, fullAddr) {
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:6px 8px; margin-top:4px; border-radius:6px; cursor:pointer; background:#f9fafb; border:1px solid #e5e7eb;';
+  row.onmouseenter = function(){ row.style.background = '#eff6ff'; row.style.borderColor = '#93c5fd'; };
+  row.onmouseleave = function(){ row.style.background = '#f9fafb'; row.style.borderColor = '#e5e7eb'; };
+  const tag = document.createElement('span');
+  tag.style.cssText = 'flex:0 0 auto; font-size:11px; font-weight:bold; color:#fff; background:' + (label === '도로명' ? '#2563eb' : '#6b7280') + '; padding:2px 6px; border-radius:4px;';
+  tag.textContent = label;
+  const body = document.createElement('span');
+  body.style.cssText = 'flex:1; font-size:13px; color:#374151;';
+  body.textContent = text;
+  row.appendChild(tag);
+  row.appendChild(body);
+  row.addEventListener('click', function(){
+    applyAddrFromPostcode_(fullAddr);
+    const dock = document.getElementById('naverAddrDock');
+    if (dock) dock.style.display = 'none';
+  });
+  return row;
+}
+
+// 주소 끝에 건물명 추가 단어 중복 제거
+function composeAddrWithBuilding_(addr, name) {
+  const a = String(addr || '').trim();
+  const n = String(name || '').trim();
+  if (!a) return n;
+  if (!n) return a;
+  if (a.indexOf(n) >= 0) return a;
+  return dedupeAddrWords_(a + ' ' + n);
+}
+
+// 공백 기준 단어 중복 제거
+function dedupeAddrWords_(text) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const seen = {};
+  const out = [];
+  words.forEach(function (w) {
+    if (seen[w]) return;
+    seen[w] = 1;
+    out.push(w);
+  });
+  return out.join(' ');
 }
 
 /* 전화번호 포맷 검사 */
@@ -5838,60 +6074,70 @@ function showSector(sec){
 function initGate(){
   document.body.classList.add('no-active'); // 비활성화
 
+  // 게이트 닫힌 뒤 표 높이 재계산
+  const fitAfterGate = () => {
+    if(typeof fitAllTables !== 'function') return;
+    requestAnimationFrame(()=>{ fitAllTables(); requestAnimationFrame(fitAllTables); });
+  };
+
   // 홈멀티 진입
-  el('#btnEnterHome')?.addEventListener('click', ()=>{ 
+  el('#btnEnterHome')?.addEventListener('click', ()=>{
     sendLog('섹션이동', '홈멀티 진입');
-    
+
     document.body.classList.remove('no-active');
     document.body.classList.add('home-active');
-    
+
     el('#mobileGate')?.setAttribute('aria-hidden','true');
     el('#mobileGate').classList.add('hidden');
-    showSector('home');   
-    renderHome(); 
+    showSector('home');
+    renderHome();
+    fitAfterGate();
   });
 
   // 싱글 세트 진입
-  el('#btnEnterSingle')?.addEventListener('click', ()=>{ 
+  el('#btnEnterSingle')?.addEventListener('click', ()=>{
     sendLog('섹션이동', '싱글세트 진입');
 
-    document.body.classList.remove('no-active'); 
+    document.body.classList.remove('no-active');
     document.body.classList.add('single-active');
-    
-    el('#mobileGate')?.setAttribute('aria-hidden','true'); 
+
+    el('#mobileGate')?.setAttribute('aria-hidden','true');
     el('#mobileGate').classList.add('hidden');
-    showSector('single'); 
+    showSector('single');
     renderSingle();
+    fitAfterGate();
   });
 
   // 상업멀티 진입
-  el('#btnEnterComm')?.addEventListener('click', ()=>{ 
+  el('#btnEnterComm')?.addEventListener('click', ()=>{
     sendLog('섹션이동', '상업멀티 진입');
 
-    document.body.classList.remove('no-active'); 
+    document.body.classList.remove('no-active');
     document.body.classList.add('comm-active');
-    
-    el('#mobileGate')?.setAttribute('aria-hidden','true'); 
+
+    el('#mobileGate')?.setAttribute('aria-hidden','true');
     el('#mobileGate').classList.add('hidden');
-    showSector('comm');   
-    renderComm(); 
+    showSector('comm');
+    renderComm();
+    fitAfterGate();
   });
 
   // 구형 진입
-  el('#btnEnterOld')?.addEventListener('click', ()=>{ 
+  el('#btnEnterOld')?.addEventListener('click', ()=>{
     sendLog('섹션이동', '구형모델 진입');
 
     document.body.classList.remove('no-active');
     document.body.classList.add('old-active');
-    
-    el('#mobileGate')?.setAttribute('aria-hidden','true'); 
+
+    el('#mobileGate')?.setAttribute('aria-hidden','true');
     el('#mobileGate').classList.add('hidden');
-    
+
     if(typeof goOld === 'function') {
       goOld();
     } else {
-      el('#nav-old')?.click(); 
+      el('#nav-old')?.click();
     }
+    fitAfterGate();
   });
 }
 
@@ -6047,15 +6293,42 @@ function initEvents(){
     el('#pageOrderInfo').classList.add('hidden');      // 주문정보 페이지 닫기
     el('#dlgPreview').showModal();                     // 다시 미리보기로
   });
-  el('#btnAddrShip')?.addEventListener('click', () => {
+  el('#btnAddrShipNaver')?.addEventListener('click', () => {
     POSTCODE_TARGET = 'ship';
-    openPostcode();
+    openPostcode('naver');
   });
-  el('#btnAddrAudit')?.addEventListener('click', () => {
+  el('#btnAddrShipKakao')?.addEventListener('click', () => {
+    POSTCODE_TARGET = 'ship';
+    openPostcode('kakao');
+  });
+  el('#btnAddrAuditNaver')?.addEventListener('click', () => {
     if (el('#sameAddr')?.checked) return;
     POSTCODE_TARGET = 'audit';
-    openPostcode();
+    openPostcode('naver');
   });
+  el('#btnAddrAuditKakao')?.addEventListener('click', () => {
+    if (el('#sameAddr')?.checked) return;
+    POSTCODE_TARGET = 'audit';
+    openPostcode('kakao');
+  });
+
+  // 네이버 도크 닫기
+  el('#btnCloseNaverAddr')?.addEventListener('click', () => {
+    const dock = document.getElementById('naverAddrDock');
+    if (dock) dock.style.display = 'none';
+  });
+
+  // 네이버 검색 버튼
+  el('#naverSearchBtn')?.addEventListener('click', () => runNaverLocalSearch(true));
+
+  // 네이버 입력란 엔터키 자동완성
+  const naverInputEl = document.getElementById('naverQuery');
+  if (naverInputEl) {
+    naverInputEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); runNaverLocalSearch(true); }
+    });
+    naverInputEl.addEventListener('input', scheduleNaverAutoSearch);
+  }
   ['memo','addrBase','addrDetail','addrAuditBase','addrAuditDetail','tel'].forEach(id =>
     el('#'+id)?.addEventListener('input', checkOrderReady)
   );

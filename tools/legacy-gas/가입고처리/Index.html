@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    /* 배경 */
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
+    
+    /* 게이트 */
+    .gate { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f7f9fc; z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+    .auth-error { text-align: center; color: #e53e3e; font-size: 20px; font-weight: bold; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .auth-error span { font-size: 15px; color: #718096; font-weight: normal; margin-top: 10px; display: block; }
+    
+    /* 메인 */
+    #mainApp { display: none; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h2 { color: #0033a0; margin: 0; font-weight: 800; }
+    .header p { color: #555; font-size: 14px; margin-top: 5px; }
+
+    /* 이동 */
+    .nav-container { position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 900px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; width: 25%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+    .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
+    .nav-item.active { color: white; }
+
+    /* 크기 */
+    .page { display: none; background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0 auto; box-sizing: border-box; width: 100%; max-width: 1500px; }
+    .page.active { display: block; }
+
+    /* 영역 */
+    #drop_zone { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 60px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; font-size: 16px; font-weight: bold;}
+    #drop_zone:hover { border-color: #3182ce; background: #ebf8ff; }
+
+    /* 설정 패널 */
+    .setting-panel { margin-bottom: 20px; background: white; padding: 15px 25px; border-radius: 10px; border: 1px solid #cbd5e0; display: flex; align-items: center; justify-content: center; gap: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+    .setting-panel label { cursor: pointer; display: flex; align-items: center; gap: 6px; color: #4a5568; font-size: 14px; font-weight: bold; }
+    .setting-panel input[type="radio"] { accent-color: #3182ce; cursor: pointer; }
+    .setting-panel input[type="number"] { width: 80px; padding: 6px 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    .setting-panel input[type="number"]:focus { border-color: #3182ce; }
+
+    /* 버튼 */
+    .action-btn { margin: 0; padding: 8px 16px; background: #3182ce; color: white; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; margin-left: 5px;}
+    .action-btn:hover { background: #2b6cb0; }
+    .action-btn:disabled { background: #a0aec0; cursor: not-allowed; }
+    .btn-copy { background: #48bb78; } .btn-copy:hover { background: #38a169; }
+    .btn-save { background: #ed8936; } .btn-save:hover { background: #dd6b20; }
+    .btn-send { background: #38a169; } .btn-send:hover { background: #2f855a; }
+
+    /* 표 */
+    .table-wrapper { height: calc(100vh - 250px); margin-bottom: 30px; overflow: auto; border: 1px solid #cbd5e0; position: relative; background: white; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; user-select: none; }
+    th, td { border-bottom: 1px solid #cbd5e0; border-right: 1px solid #cbd5e0; padding: 6px 10px; font-size: 13px; text-align: center; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: cell; color: #1a202c; }
+    th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; position: sticky; top: 0; z-index: 5; border-top: 1px solid #cbd5e0; outline: 1px solid #cbd5e0; cursor: default; }
+    th:first-child, td:first-child { border-left: 1px solid #cbd5e0; }
+    
+    /* 강조행 및 캡쳐 제외 */
+    .row-mismatch, .row-mismatch td { background-color: #fee2e2 !important; }
+    .capture-mode .no-capture { display: none !important; }
+
+    /* 다중선택 */
+    td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    .row-mismatch td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
+    td[contenteditable="true"]:focus { outline: 2px solid #3182ce; outline-offset: -1px; background-color: #ffffff !important; cursor: text; user-select: text; }
+    
+    /* 로딩 */
+    .loading { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001; display: none; justify-content: center; align-items: center; flex-direction: column; }
+    .anim-line { opacity: 0; transform: translateY(20px); transition: all 0.8s ease-out; }
+  </style>
+</head>
+<body onclick="hideCtx(event)">
+
+  <div id="loading" class="loading">
+    <div style="text-align: center; color: #2b6cb0; font-weight: bold; font-size: 22px;">
+      <span style="font-size: 50px; display: block; margin-bottom: 15px;">⏳</span>
+      <span id="lt">작업 처리 중입니다...</span>
+    </div>
+  </div>
+
+  <div id="mobileGate" class="gate">
+    <div id="welcome" style="text-align: center; color: #a855f7; font-size: 28px; font-weight: 800; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; display: none;">
+      <div class="anim-line">(주)삼한공조시스템</div>
+      <div class="anim-line"><span id="wn"></span>님</div>
+      <div class="anim-line" style="transition-delay: 0.4s;">환영합니다.</div>
+    </div>
+    <div id="al" style="color: #3182ce; font-size: 18px; font-weight: bold;">사용자 인증 중... ⏳</div>
+  </div>
+
+  <div id="warningModal" class="gate" style="display:none; background: rgba(0,0,0,0.5);">
+    <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      <div style="font-size: 50px; margin-bottom: 15px;">🛑</div>
+      <h3 style="margin-top:0; color:#2d3748; line-height:1.5;">찾을 수 없는 품목이 있습니다.<br>해당 품목 제외하고 발송하시겠습니까?</h3>
+      <div style="display: flex; justify-content: center; gap: 10px; margin-top: 25px;">
+        <button class="action-btn" style="background:#e2e8f0; color:#4a5568;" onclick="document.getElementById('warningModal').style.display='none'">취소</button>
+        <button class="action-btn btn-send" onclick="proceedToDateModal()">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dateModal" class="gate" style="display:none; background: rgba(0,0,0,0.5);">
+    <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0; color:#2d3748;">이카운트 전송 날짜 설정</h3>
+      <input type="date" id="ecount_date" style="padding:10px; margin:15px 0; border:1px solid #cbd5e0; border-radius:6px; font-size:16px;">
+      <div style="display: flex; justify-content: center; gap: 10px;">
+        <button class="action-btn" style="background:#e2e8f0; color:#4a5568;" onclick="document.getElementById('dateModal').style.display='none'">취소</button>
+        <button class="action-btn btn-send" onclick="confirmEcount()">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="statusModal" class="gate" style="display:none; background: rgba(0,0,0,0.5);">
+    <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 300px; max-width: 500px;">
+      <div id="statusIcon" style="font-size: 60px; margin-bottom: 15px;">⏳</div>
+      <h3 id="statusTitle" style="margin: 0 0 10px 0; color: #2d3748;">전송 중입니다...</h3>
+      <div id="statusMessage" style="font-size: 13px; color: #718096; max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6;"></div>
+      <button id="statusCloseBtn" class="action-btn" style="margin-top: 20px; display: none;" onclick="document.getElementById('statusModal').style.display='none'">닫기</button>
+    </div>
+  </div>
+
+  <div id="mainApp">
+    <div class="header">
+      <h2>가입고처리 시스템</h2>
+      <p>DPS 입고 데이터 정제 및 이카운트 전송</p>
+    </div>
+
+    <div class="nav-container">
+      <div class="slider" id="slider"></div>
+      <div class="nav-item active" onclick="switchTab(0)">업로드</div>
+      <div class="nav-item" onclick="switchTab(1)">결과</div>
+      <div class="nav-item" onclick="switchTab(2)">품목리스트</div>
+      <div class="nav-item" onclick="switchTab(3)">저장내역</div>
+    </div>
+
+    <div id="p0" class="page active">
+      
+      <div class="setting-panel" style="margin-bottom: 20px; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 20px;">
+          <span style="font-size: 15px; color: #2d3748; font-weight: 900;">품목 발송 단위</span>
+          <label>
+            <input type="radio" name="dispatchUnit" value="ALL" checked onchange="toggleCustomUnit()"> ALL
+          </label>
+          <label>
+            <input type="radio" name="dispatchUnit" value="CUSTOM" onchange="toggleCustomUnit()"> CUSTOM
+          </label>
+          <input type="number" id="customUnitVal" value="100" min="1" style="display: none;">
+        </div>
+        <div style="text-align: center; font-size: 12px; color: #718096;">
+          ※ 하나의 창고에 많은 입고 품목으로 전표전송이 안되는 경우 CUSTOM으로 단위를 나누어 발송할 수 있습니다.
+        </div>
+      </div>
+
+      <div id="drop_zone" onclick="document.getElementById('fi').click()">[DPS 입고] 파일을 드래그하거나 클릭하세요.</div>
+      <input type="file" id="fi" style="display:none;" accept=".xlsx, .xls" onchange="handleFile(event)">
+      <div style="text-align:center; margin-top:30px;">
+        <button class="action-btn" id="br" style="padding:10px 40px; font-size:16px;" onclick="processData()" disabled>처리 실행</button>
+      </div>
+      <p id="fs" style="text-align:center; margin-top:15px; color:#48bb78; font-weight:bold;"></p>
+    </div>
+
+    <div id="p1" class="page">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <b style="color:#0033a0; font-size:15px;">데이터 건수: <span id="rc">0</span>건</b>
+        <div>
+          <button class="action-btn btn-copy" onclick="copyCurrentTable('rt')">표 복사</button>
+          <button class="action-btn btn-save" style="background:#4a5568;" onclick="saveCurrentTable('rt')">표 저장</button>
+          <button class="action-btn btn-send" onclick="openEcountModal()">이카운트 전송</button> 
+          <button class="action-btn" style="background:#805ad5;" onclick="saveManual()">결과저장</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table id="rt">
+          <thead>
+            <tr>
+              <th style="width:40px;">NO</th>
+              <th style="width:90px;">고객명</th>
+              <th style="width:160px;">모델</th>
+              <th style="width:50px;">주문</th>
+              <th style="width:60px;">배달예정</th>
+              <th style="width:60px;">물류출고</th>
+              <th style="width:80px;">진행상태</th>
+              <th style="width:100px;">차량번호</th>
+              <th style="width:70px;">기사명</th>
+              <th style="width:90px;">주문일자</th>
+              <th style="width:100px;">주문번호</th>
+              <th class="no-capture" style="width:120px; background:#ebf8ff;">품목코드(매핑)</th>
+              <th class="no-capture" style="width:80px; background:#ebf8ff;">매핑상태</th>
+            </tr>
+          </thead>
+          <tbody id="rb"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="p2" class="page">
+      <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:15px;">
+        <button class="action-btn btn-save" onclick="saveItems()">리스트 저장</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="it">
+          <thead>
+            <tr>
+              <th style="width:50px;">이동</th>
+              <th style="width:150px;">품목코드</th>
+              <th style="width:250px;">품목명</th>
+              <th style="width:50px;">삭제</th>
+            </tr>
+          </thead>
+          <tbody id="ib"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="p3" class="page">
+      <div style="text-align:center; margin-bottom:15px;">
+        <select id="ht" style="padding:6px; border:1px solid #cbd5e0; border-radius:4px; margin-right:5px;">
+          <option value="가입고처리">가입고 결과</option>
+          <option value="품목리스트">품목리스트</option>
+        </select>
+        <input type="date" id="hs" style="padding:6px; border:1px solid #cbd5e0; border-radius:4px;"> ~ 
+        <input type="date" id="he" style="padding:6px; border:1px solid #cbd5e0; border-radius:4px;">
+        <button class="action-btn" style="margin-left:10px;" onclick="loadHistory()">조회</button>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:120px;">작업자</th>
+              <th style="width:180px;">저장일시</th>
+              <th style="width:300px;">주제</th>
+              <th style="width:80px;">작업</th>
+            </tr>
+          </thead>
+          <tbody id="hb"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let rawSheets = {}; 
+    let processed = []; 
+    let payload = []; 
+    let auth = {}; 
+    let ioDate = "";
+    const filterKws = ['삼성','초월','이화','상일','신인호','삼한'];
+
+    window.onload = () => {
+      initItemTable(); 
+      initSelection();
+      initDragAndDrop();
+      
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('al').style.display='none';
+        if(res.authorized){
+          auth = res; document.getElementById('wn').innerText = res.managerName;
+          document.getElementById('welcome').style.display='flex';
+          
+          setTimeout(() => {
+            document.querySelectorAll('.anim-line').forEach(el => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+          }, 100);
+
+          setTimeout(() => { 
+            document.getElementById('mobileGate').style.display='none'; 
+            document.getElementById('mainApp').style.display='block'; 
+            checkAutoRestore();
+            autoRestore(); 
+          }, 2500);
+        } else { 
+          document.getElementById('mobileGate').innerHTML = `<div class="auth-error">인증실패<span>${res.email}</span><span style="color:#e53e3e; font-size:13px;">${res.error || '미등록'}</span></div>`; 
+        }
+      }).getUserAuth();
+      const d = new Date(); document.getElementById('he').value = d.toISOString().split('T')[0];
+      d.setDate(d.getDate()-7); document.getElementById('hs').value = d.toISOString().split('T')[0];
+    };
+
+    function toggleCustomUnit() {
+      const isCustom = document.querySelector('input[name="dispatchUnit"]:checked').value === 'CUSTOM';
+      document.getElementById('customUnitVal').style.display = isCustom ? 'inline-block' : 'none';
+    }
+
+    function initDragAndDrop() {
+      const dropZone = document.getElementById('drop_zone');
+      if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropZone.style.borderColor = '#3182ce';
+          dropZone.style.backgroundColor = '#ebf8ff';
+        });
+        dropZone.addEventListener('dragleave', (e) => {
+          e.preventDefault();
+          dropZone.style.borderColor = '#cbd5e0';
+          dropZone.style.backgroundColor = '#f8fafc';
+        });
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.style.borderColor = '#cbd5e0';
+          dropZone.style.backgroundColor = '#f8fafc';
+          if (e.dataTransfer.files.length > 0) {
+            document.getElementById('fi').files = e.dataTransfer.files;
+            handleFile({ target: { files: e.dataTransfer.files } });
+          }
+        });
+      }
+    }
+
+    function switchTab(i) {
+      document.querySelectorAll('.nav-item').forEach((n, idx) => n.classList.toggle('active', i===idx));
+      document.querySelectorAll('.page').forEach((p, idx) => p.classList.toggle('active', i===idx));
+      document.getElementById('slider').style.transform = `translateX(${i*100}%)`;
+    }
+
+    function initItemTable() {
+      let h = ""; 
+      for(let i=0; i<5000; i++) h += `<tr><td style="color:#a0aec0; user-select:none;">=</td><td contenteditable="true"></td><td contenteditable="true"></td><td><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="this.closest('tr').remove()">-</button></td></tr>`;
+      document.getElementById('ib').innerHTML = h;
+    }
+
+    function handleFile(e) {
+      const f = e.target.files[0]; if(!f) return;
+      document.getElementById('fs').innerText = "파일 분석 중...";
+      
+      const r = new FileReader();
+      r.onload = (evt) => {
+        const wb = XLSX.read(evt.target.result, {type:'binary', cellDates: true});
+        rawSheets = {}; 
+        
+        let m = f.name.match(/(\d{6})/); 
+        ioDate = m ? "20"+m[1] : new Date().toISOString().split('T')[0].replace(/-/g,'');
+
+        wb.SheetNames.forEach(n => { 
+          rawSheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:false, dateNF:'yyyy-mm-dd'}); 
+        });
+        document.getElementById('fs').innerText = f.name + " 로드 완료";
+        document.getElementById('br').disabled = false;
+      };
+      r.readAsBinaryString(f);
+    }
+
+    function processData() {
+      document.getElementById('lt').innerText = "데이터 매칭 및 그룹핑 중...";
+      document.getElementById('loading').style.display='flex';
+      
+      setTimeout(() => {
+        const items = []; 
+        document.querySelectorAll('#ib tr').forEach(tr => {
+          const c = tr.cells[1].innerText.trim(); const n = tr.cells[2].innerText.trim();
+          if(c || n) items.push({code:c, name:n, clean:n.replace(/\[.*?\]|\(.*?\)/g,'').trim()});
+        });
+
+        const isCustom = document.querySelector('input[name="dispatchUnit"]:checked').value === 'CUSTOM';
+        const chunkLimit = isCustom ? Math.max(1, parseInt(document.getElementById('customUnitVal').value) || 100) : Infinity;
+
+        const mapping = {'삼성창고':'초월','초월창고':'초월','이화창고':'상일','상일물류':'상일','상일창고':'상일'};
+        const finalRows = []; const globalUnpaired = {};
+        const requiredHdr = ["NO","고객명","모델","주문","배달예정","물류출고","진행상태","차량번호","기사명","주문일자","주문번호"];
+        const compIdx = [1,2,3,7,8,9,10];
+
+        Object.keys(rawSheets).forEach(sName => {
+          let data = rawSheets[sName]; if(data.length < 6) return;
+          data = data.slice(5); 
+          
+          const hRow1 = data[0] || [];
+          const hRow2 = data[1] || [];
+          const hMap = {};
+          const maxCol = Math.max(hRow1.length, hRow2.length);
+          for(let i=0; i<maxCol; i++) {
+            let h1 = String(hRow1[i] || '').replace(/[\r\n\s]+/g, '');
+            let h2 = String(hRow2[i] || '').replace(/[\r\n\s]+/g, '');
+            let finalH = h2 ? h2 : h1;
+            if (finalH) hMap[i] = finalH;
+          }
+
+          const colMap = {}; requiredHdr.forEach(h => { 
+            let cleanH = h.replace(/[\r\n\s]+/g, '');
+            for(let k in hMap) if(hMap[k] === cleanH) colMap[h] = k; 
+          });
+          if(colMap["고객명"] === undefined || colMap["주문번호"] === undefined) return;
+
+          const localCounts = {};
+          for(let r=2; r<data.length; r++){
+            const row = data[r]; const cust = String(row[colMap["고객명"]] || "");
+            const gIdx = filterKws.findIndex(kw => cust.includes(kw)); if(gIdx===-1) continue;
+
+            const rData = requiredHdr.map(h => {
+              let val = row[colMap[h]];
+              if(val === undefined || val === null) val = "";
+              if (h === "주문일자" && val) val = String(val).split(' ')[0];
+              return val;
+            });
+            const key = compIdx.map(i => rData[i]).join('|');
+            if(globalUnpaired[key] > 0) { globalUnpaired[key]--; continue; }
+
+            finalRows.push({gIdx, rData, sName});
+            localCounts[key] = (localCounts[key] || 0) + 1;
+          }
+          for(let k in localCounts) globalUnpaired[k] = (globalUnpaired[k] || 0) + localCounts[k];
+        });
+
+        finalRows.sort((a,b) => a.gIdx - b.gIdx);
+        processed = []; payload = [];
+        
+        let whState = {};
+        let nextSerNo = 1;
+
+        finalRows.forEach((row, idx) => {
+          const rawM = String(row.rData[2] || ''); let cleanM = rawM.replace(/\[.*?\]|\(.*?\)/g,'').trim();
+          if(rawM.toUpperCase().includes('GHP')) cleanM = cleanM.replace(/GHP/ig, '가스히트펌프');
+          
+          let wh = mapping[row.rData[1]] === '초월' ? '00003' : '2';
+          let sn = mapping[row.rData[1]] === '초월' ? '초월입고(가입고)' : '상일입고(가입고)';
+          if(rawM.toUpperCase().includes('1WAY')) { wh = '2'; sn = '상일입고(가입고)'; }
+
+          let pCd = ""; let st = "";
+          const exact = items.find(i => i.clean === cleanM || i.code === cleanM);
+          if(exact) { 
+            pCd = exact.code; 
+            st = (pCd === cleanM) ? "품목일치" : "코드불일치"; 
+          } else {
+            const part = items.find(i => i.clean.includes(cleanM) || cleanM.includes(i.clean));
+            if(part) { 
+              pCd = part.code; st = "코드불일치"; 
+            } else { 
+              const token = rawM.split(' ')[0]; 
+              const tm = items.find(i => i.code === token); 
+              if(tm) { pCd = tm.code; st = "코드불일치"; } 
+              else { pCd = cleanM; st = "검색실패"; } 
+            }
+          }
+
+          let outQtyRaw = row.rData[5];
+          let ecountQtyNum = Number(outQtyRaw);
+          if (isNaN(ecountQtyNum) || outQtyRaw === "" || outQtyRaw === undefined) {
+             ecountQtyNum = Number(row.rData[3]) || 0; 
+          }
+          const ecountQty = String(Math.round(ecountQtyNum));
+          
+          const expDelRaw = row.rData[4] !== undefined ? row.rData[4] : "";
+          const outQtyStr = outQtyRaw !== undefined ? outQtyRaw : "";
+          const noVal = row.rData[0] ? row.rData[0] : (idx + 1);
+          
+          processed.push({
+            no: noVal, cust: row.rData[1], model: row.rData[2], 
+            order: row.rData[3], expDelivery: expDelRaw, qty: outQtyStr,
+            status: row.rData[6], carNo: row.rData[7], driver: row.rData[8], 
+            orderDate: row.rData[9], orderNo: row.rData[10],
+            code: pCd, mapStatus: st
+          });
+          
+          if (!whState[wh]) whState[wh] = { serNo: nextSerNo++, count: 0 };
+          if (whState[wh].count >= chunkLimit) whState[wh] = { serNo: nextSerNo++, count: 0 };
+          
+          let uploadSerNo = whState[wh].serNo;
+          whState[wh].count++;
+          
+          payload.push({ BulkDatas: { UPLOAD_SER_NO: uploadSerNo, IO_DATE: "", CUST: "1248100998", EMP_CD: auth.empCode, WH_CD: wh, U_TXT1: sn, PROD_CD: pCd, PROD_DES: cleanM, QTY: ecountQty } });
+        });
+
+        renderResult(); 
+        document.getElementById('loading').style.display='none'; 
+        switchTab(1);
+        google.script.run.autoSaveToNotion(JSON.stringify({processed, payload}), auth.email, auth.managerName, '가입고처리', '자동저장 ('+new Date().toISOString().split('T')[0]+')');
+      }, 100);
+    }
+
+    function renderResult() {
+      let h = ""; 
+      processed.forEach(d => {
+        let bgStyle = "";
+        let fontStyle = "font-weight:bold;";
+        
+        if (d.mapStatus === '검색실패') {
+          bgStyle = "background-color: #fee2e2 !important;"; 
+          fontStyle += " color: #c53030;";
+        } else if (d.mapStatus === '코드불일치') {
+          bgStyle = "background-color: #fef08a !important;"; 
+          fontStyle += " color: #975a16;";
+        } else {
+          bgStyle = "background-color: #ebf8ff !important;"; 
+          fontStyle += " color: #3182ce;";
+        }
+        
+        let isErr = (d.mapStatus === '검색실패');
+        let rowClass = isErr ? 'row-mismatch' : '';
+
+        h += `<tr class="${rowClass}">
+          <td>${d.no}</td>
+          <td>${d.cust}</td>
+          <td style="text-align:left;">${d.model}</td>
+          <td>${d.order}</td>
+          <td>${d.expDelivery}</td>
+          <td>${d.qty}</td>
+          <td>${d.status}</td>
+          <td>${d.carNo}</td>
+          <td>${d.driver}</td>
+          <td>${d.orderDate}</td>
+          <td>${d.orderNo}</td>
+          <td class="no-capture" style="${bgStyle} ${fontStyle}">${d.code}</td>
+          <td class="no-capture" style="${bgStyle} ${fontStyle}">${d.mapStatus}</td>
+        </tr>`;
+      });
+      document.getElementById('rb').innerHTML = h; 
+      document.getElementById('rc').innerText = processed.length;
+    }
+
+    function copyCurrentTable(tableId) {
+      let target = document.getElementById(tableId);
+      target.classList.add('capture-mode');
+      let wrapper = target.closest('.table-wrapper');
+      let originScroll = wrapper.scrollTop;
+      wrapper.scrollTop = 0;
+      html2canvas(target, { ignoreElements: (node) => node.classList.contains('no-capture') }).then(canvas => {
+        target.classList.remove('capture-mode');
+        wrapper.scrollTop = originScroll;
+        canvas.toBlob(blob => {
+          navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(() => alert('복사 완료'));
+        });
+      });
+    }
+
+    function saveCurrentTable(tableId) {
+      let target = document.getElementById(tableId);
+      target.classList.add('capture-mode');
+      let wrapper = target.closest('.table-wrapper');
+      let originScroll = wrapper.scrollTop;
+      wrapper.scrollTop = 0;
+      html2canvas(target, { ignoreElements: (node) => node.classList.contains('no-capture') }).then(canvas => {
+        target.classList.remove('capture-mode');
+        wrapper.scrollTop = originScroll;
+        let link = document.createElement('a');
+        link.download = '가입고_표저장.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+
+    function openEcountModal() {
+      if(!payload.length) return alert('전송할 데이터가 없습니다.');
+      
+      let hasError = processed.some(d => d.mapStatus === '검색실패');
+      if(hasError) {
+        document.getElementById('warningModal').style.display = 'flex';
+      } else {
+        proceedToDateModal();
+      }
+    }
+
+    function proceedToDateModal() {
+      document.getElementById('warningModal').style.display = 'none';
+      let kst = new Date(new Date().getTime() + 9 * 3600 * 1000);
+      document.getElementById('ecount_date').value = kst.toISOString().split('T')[0];
+      document.getElementById('dateModal').style.display = 'flex';
+    }
+
+    function confirmEcount() {
+      document.getElementById('dateModal').style.display = 'none';
+      let selectedDate = document.getElementById('ecount_date').value;
+      if(!selectedDate) return;
+      let ioDateClean = selectedDate.replace(/-/g, '');
+      
+      let finalPayload = [];
+      for(let i=0; i<payload.length; i++) {
+         if(processed[i].mapStatus !== '검색실패') {
+             let p = JSON.parse(JSON.stringify(payload[i])); 
+             p.BulkDatas.IO_DATE = ioDateClean;
+             finalPayload.push(p);
+         }
+      }
+      
+      if(finalPayload.length === 0) {
+         return alert('전송할 유효한 데이터가 없습니다.');
+      }
+      
+      document.getElementById('statusIcon').innerText = '⏳';
+      document.getElementById('statusTitle').innerText = '전송 중입니다...';
+      document.getElementById('statusTitle').style.color = '#2d3748';
+      document.getElementById('statusMessage').innerHTML = '';
+      document.getElementById('statusCloseBtn').style.display = 'none';
+      document.getElementById('statusModal').style.display = 'flex';
+
+      google.script.run.withSuccessHandler(res => {
+        if(res.success) {
+          try {
+            let parsed = JSON.parse(res.response);
+            if (parsed.Status === "200" && parsed.Data && (!parsed.Data.FailCnt || parsed.Data.FailCnt === 0)) {
+              document.getElementById('statusIcon').innerText = '✅';
+              document.getElementById('statusTitle').innerText = '전송 완료';
+              document.getElementById('statusTitle').style.color = '#38a169';
+              let slips = parsed.Data.SlipNos ? parsed.Data.SlipNos.join('<br>') : '';
+              document.getElementById('statusMessage').innerHTML = `<strong style="font-size:15px; color:#2d3748;">[전표번호]</strong><br><br>${slips}`;
+            } else {
+              document.getElementById('statusIcon').innerText = '❌';
+              document.getElementById('statusTitle').innerText = '전송 불가';
+              document.getElementById('statusTitle').style.color = '#e53e3e';
+              let errMsg = "알 수 없는 오류";
+              if (parsed.Data && parsed.Data.ResultDetails) {
+                 errMsg = parsed.Data.ResultDetails.map(d => d.TotalError).join('<br>');
+              } else if (parsed.Error && parsed.Error.Message) {
+                 errMsg = parsed.Error.Message;
+              }
+              document.getElementById('statusMessage').innerHTML = `<strong style="font-size:13px; color:#c53030;">전송 불가 사유:</strong><br><br>${errMsg}`;
+            }
+          } catch(e) {
+            document.getElementById('statusIcon').innerText = '❌';
+            document.getElementById('statusTitle').innerText = '전송 불가';
+            document.getElementById('statusTitle').style.color = '#e53e3e';
+            document.getElementById('statusMessage').innerHTML = "응답 파싱 오류<br>" + res.response;
+          }
+        } else {
+          document.getElementById('statusIcon').innerText = '❌';
+          document.getElementById('statusTitle').innerText = '전송 불가';
+          document.getElementById('statusTitle').style.color = '#e53e3e';
+          document.getElementById('statusMessage').innerHTML = `<strong style="font-size:13px; color:#c53030;">시스템 오류:</strong><br><br>${res.error}`;
+        }
+        document.getElementById('statusCloseBtn').style.display = 'inline-block';
+      }).sendToEcountAPI(JSON.stringify({PurchasesList:finalPayload}), auth);
+    }
+
+    function saveManual() {
+      google.script.run.withSuccessHandler(()=>alert('결과 저장 완료')).autoSaveToNotion(JSON.stringify({processed, payload}), auth.email, auth.managerName, '가입고처리', '결과저장 ('+new Date().toISOString().split('T')[0]+')');
+    }
+
+    function saveItems() {
+      document.getElementById('lt').innerText = "리스트 저장 중...";
+      document.getElementById('loading').style.display='flex';
+      const items = []; document.querySelectorAll('#ib tr').forEach(tr => {
+        const c = tr.cells[1].innerText.trim(); const n = tr.cells[2].innerText.trim();
+        if(c || n) items.push({code:c, name:n});
+      });
+      google.script.run.withSuccessHandler(()=>{
+        document.getElementById('loading').style.display='none';
+        alert('리스트 저장 완료');
+      }).autoSaveToNotion(JSON.stringify(items), auth.email, auth.managerName, '품목리스트', '품목리스트');
+    }
+
+    function checkAutoRestore() {
+      document.getElementById('lt').innerText = '이전 작업 복원 중...';
+      document.getElementById('loading').style.display='flex';
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('loading').style.display='none';
+        if(res && res.data) {
+          try {
+            let parsed = JSON.parse(res.data);
+            processed = parsed.processed || [];
+            payload = parsed.payload || [];
+            if(processed.length > 0) { renderResult(); switchTab(1); }
+          } catch(e) {}
+        }
+      }).withFailureHandler(() => {
+        document.getElementById('loading').style.display='none';
+      }).getLatestHistoryFromNotion('가입고처리');
+    }
+
+    function autoRestore() {
+      google.script.run.withSuccessHandler(res => {
+        if(res?.data) {
+          const p = JSON.parse(res.data); let h = "";
+          p.forEach((item, i) => h += `<tr><td style="color:#a0aec0; user-select:none;">=</td><td contenteditable="true">${item.code}</td><td contenteditable="true">${item.name}</td><td><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="this.closest('tr').remove()">-</button></td></tr>`);
+          for(let i=p.length; i<5000; i++) h += `<tr><td style="color:#a0aec0; user-select:none;">=</td><td contenteditable="true"></td><td contenteditable="true"></td><td><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="this.closest('tr').remove()">-</button></td></tr>`;
+          document.getElementById('ib').innerHTML = h;
+        }
+      }).getLatestHistoryFromNotion('품목리스트');
+    }
+
+    function loadHistory() {
+      const s = document.getElementById('hs').value; const e = document.getElementById('he').value; const t = document.getElementById('ht').value;
+      document.getElementById('hb').innerHTML = '<tr><td colspan="4">조회중...</td></tr>';
+      google.script.run.withSuccessHandler(res => {
+        let h = ""; res.forEach(r => h += `<tr><td>${r.worker}</td><td>${new Date(r.time).toLocaleString()}</td><td style="text-align:left; padding-left:15px;">${r.topic}</td><td><button class="action-btn" style="padding:4px 12px;" onclick="restore('${r.id}','${t}')">복원</button></td></tr>`);
+        document.getElementById('hb').innerHTML = h || '<tr><td colspan="4">내역이 없습니다.</td></tr>';
+      }).getHistoryFromNotion(s, e, t);
+    }
+
+    function restore(id, type) {
+      document.getElementById('lt').innerText = "복원 중...";
+      document.getElementById('loading').style.display='flex';
+      google.script.run.withSuccessHandler(json => {
+        document.getElementById('loading').style.display='none';
+        const d = JSON.parse(json);
+        if(type==='가입고처리'){ processed = d.processed; payload = d.payload; renderResult(); switchTab(1); }
+        else {
+          let h = ""; d.forEach((item, i) => h += `<tr><td style="color:#a0aec0; user-select:none;">=</td><td contenteditable="true">${item.code}</td><td contenteditable="true">${item.name}</td><td><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="this.closest('tr').remove()">-</button></td></tr>`);
+          for(let i=d.length; i<5000; i++) h += `<tr><td style="color:#a0aec0; user-select:none;">=</td><td contenteditable="true"></td><td contenteditable="true"></td><td><button class="action-btn" style="padding:2px 8px; margin:0; background:#e53e3e;" onclick="this.closest('tr').remove()">-</button></td></tr>`;
+          document.getElementById('ib').innerHTML = h; switchTab(2);
+        }
+        alert('복원 완료');
+      }).getSpecificHistory(id);
+    }
+
+    function initSelection() {
+      let isSelecting = false;
+      let startR = -1, startC = -1;
+      let currentTable = null;
+
+      document.addEventListener('mousedown', e => {
+        if(e.button === 2) return;
+        const td = e.target.closest('td'); 
+        if(!td || !td.closest('.table-wrapper table')) {
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          return;
+        }
+
+        currentTable = td.closest('table');
+        let targetR = td.parentElement.rowIndex;
+        let targetC = td.cellIndex;
+
+        let cellSelectable = td.getAttribute('contenteditable') || td.closest('#rt');
+
+        if(e.shiftKey && startR !== -1 && startC !== -1) {
+          let minR = Math.min(startR, targetR), maxR = Math.max(startR, targetR);
+          let minC = Math.min(startC, targetC), maxC = Math.max(startC, targetC);
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          currentTable.querySelectorAll('td').forEach(cell => {
+            let r = cell.parentElement.rowIndex, c = cell.cellIndex;
+            let isSel = cell.getAttribute('contenteditable') || cell.closest('#rt');
+            if(r >= minR && r <= maxR && c >= minC && c <= maxC && isSel) cell.classList.add('selected');
+          });
+        } else if(e.ctrlKey || e.metaKey) {
+          isSelecting = true; startR = targetR; startC = targetC;
+          if(cellSelectable) td.classList.toggle('selected');
+        } else {
+          isSelecting = true; startR = targetR; startC = targetC;
+          document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+          if(cellSelectable) td.classList.add('selected');
+        }
+        if(e.shiftKey || e.ctrlKey || e.metaKey) e.preventDefault();
+      });
+
+      document.addEventListener('mouseover', e => {
+        if(!isSelecting) return;
+        const td = e.target.closest('td');
+        if(!td || td.closest('table') !== currentTable) return;
+        
+        let endR = td.parentElement.rowIndex, endC = td.cellIndex;
+        let minR = Math.min(startR, endR), maxR = Math.max(startR, endR);
+        let minC = Math.min(startC, endC), maxC = Math.max(startC, endC);
+        
+        currentTable.querySelectorAll('td').forEach(cell => {
+          let r = cell.parentElement.rowIndex, c = cell.cellIndex;
+          let isSel = cell.getAttribute('contenteditable') || cell.closest('#rt');
+          if(r >= minR && r <= maxR && c >= minC && c <= maxC && isSel) cell.classList.add('selected');
+          else cell.classList.remove('selected');
+        });
+      });
+
+      document.addEventListener('mouseup', () => { isSelecting = false; });
+
+      document.addEventListener('paste', e => {
+        const td = document.querySelector('.selected'); if(!td || !td.getAttribute('contenteditable')) return;
+        e.preventDefault(); const text = e.clipboardData.getData('text');
+        const rows = text.split('\n').map(r => r.split('\t'));
+        const tr = td.parentElement; const table = tr.parentElement;
+        const sR = tr.rowIndex - 1; const sC = td.cellIndex;
+        
+        let isSingle = (rows.length === 1 && rows[0].length === 1);
+        let singleVal = rows[0][0].replace(/^"|"$/g, '').replace(/""/g, '"');
+        let selectedCells = document.querySelectorAll('.selected');
+
+        if(isSingle && selectedCells.length > 1) {
+          selectedCells.forEach(cell => cell.innerText = singleVal);
+        } else {
+          rows.forEach((r, i) => {
+            const targetTr = table.rows[sR + i]; if(!targetTr) return;
+            r.forEach((v, j) => { 
+              const targetTd = targetTr.cells[sC + j]; 
+              if(targetTd?.getAttribute('contenteditable')) {
+                 let val = v.trim();
+                 if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
+                 targetTd.innerText = val.replace(/""/g, '"');
+              }
+            });
+          });
+        }
+      });
+      
+      document.addEventListener('copy', e => {
+        if(document.activeElement && document.activeElement.tagName === 'TD') return;
+        let selectedCells = Array.from(document.querySelectorAll('.selected'));
+        if (selectedCells.length === 0) return;
+        e.preventDefault();
+        
+        let rows = [...new Set(selectedCells.map(td => td.parentElement.rowIndex))].sort((a,b)=>a-b);
+        let cols = [...new Set(selectedCells.map(td => td.cellIndex))].sort((a,b)=>a-b);
+        let table = selectedCells[0].closest('table');
+        let textLines = [];
+        
+        for (let r of rows) {
+          let rowData = [];
+          for (let c of cols) {
+            let cell = table.rows[r].cells[c];
+            if (cell && cell.classList.contains('selected') && !cell.classList.contains('no-capture')) {
+              rowData.push(cell.innerText.replace(/\n$/, ''));
+            }
+          }
+          if(rowData.length > 0) textLines.push(rowData.join('\t'));
+        }
+        e.clipboardData.setData('text/plain', textLines.join('\n'));
+      });
+    }
+    function hideCtx(e) {}
+  </script>
+</body>
+</html>

@@ -1,0 +1,447 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>거래처 엑셀 업로드</title>
+  <style>
+    body{font-family:Arial, sans-serif; padding:16px;}
+    
+    .main-title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 24px;
+    }
+
+    .drop{
+      border:2px dashed #999; border-radius:12px; padding:24px; text-align:center;
+      color:#666; margin-bottom:12px; user-select:none; position:relative;
+      min-height:180px; display:flex; flex-direction:column; justify-content:center; gap:10px;
+    }
+    .drop.drag{border-color:#111; color:#111; background:#fafafa;}
+
+    .upload-btn{
+      padding:12px 18px; border:0; border-radius:999px; cursor:pointer;
+      background:#111; color:#fff; font-size:14px; align-self:center;
+    }
+    .upload-btn:disabled{background:#aaa; cursor:not-allowed;}
+
+    .file-pill{
+      display:inline-flex; align-items:center; gap:8px;
+      background:#f1f1f1; color:#111; padding:6px 10px; border-radius:999px;
+      font-size:13px; max-width:80%; margin:0 auto;
+    }
+    .file-pill .name{
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:420px;
+    }
+    .file-pill .remove{
+      width:18px; height:18px; line-height:18px; text-align:center;
+      border-radius:50%; background:#ddd; cursor:pointer; font-weight:bold; font-size:12px;
+      display:inline-block;
+    }
+    .file-pill .remove:hover{background:#bbb;}
+
+    .hint{font-size:13px; color:#777;}
+
+    .log{white-space:pre-wrap; font-size:12px; background:#f6f6f6; padding:8px; border-radius:8px; height:90px; overflow:auto;}
+    .bars{margin-top:12px;}
+    .row{display:flex; align-items:center; gap:8px; margin:6px 0;}
+    .label{width:220px; font-size:13px;}
+    .barWrap{flex:1; height:12px; background:#eee; border-radius:999px; overflow:hidden;}
+    .bar{height:100%; width:0%; background:#111;}
+    .pct{width:60px; font-size:12px; text-align:right;}
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <div class="main-title">종합견적서 거래처 등록</div>
+
+  <div id="drop" class="drop">
+    <div class="hint" id="hint">
+      여기에 엑셀 파일을 드래그 앤 드롭하세요.
+    </div>
+
+    <div id="filePillWrap" style="display:none;">
+      <div class="file-pill">
+        <span class="name" id="fileNameText"></span>
+        <span class="remove" id="fileRemoveBtn">x</span>
+      </div>
+    </div>
+
+    <button id="btnUpload" class="upload-btn">업로드</button>
+  </div>
+
+  <input id="fileInput" type="file" accept=".xlsx,.xls" style="display:none"/>
+
+  <div class="log" id="log"></div>
+  <div class="bars" id="bars"></div>
+
+<script>
+let pickedFile = null;
+let lastPayload = null;
+let runId = null;
+let pollTimer = null;
+
+const CHUNK_ROWS = 400;
+
+const el = s => document.querySelector(s);
+const log = (...a) => {
+  const box = el('#log');
+  box.textContent += a.join(' ') + '\n';
+  box.scrollTop = box.scrollHeight;
+  console.log(...a);
+};
+
+// UI 진행률 바 업데이트
+function setBars(payload){
+  const bars = el('#bars');
+  bars.innerHTML = '';
+
+  let order = [];
+  let progress = {};
+
+  if(payload && payload.data){
+    order = payload.order || [];
+    progress = payload.data || {};
+  }else{
+    progress = payload || {};
+    order = Object.keys(progress);
+  }
+
+  order.forEach(k => {
+    const pct = Number(progress[k] || 0);
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="label">${k}</div>
+      <div class="barWrap"><div class="bar" style="width:${pct}%"></div></div>
+      <div class="pct">${pct.toFixed(0)}%</div>
+    `;
+    bars.appendChild(row);
+  });
+}
+
+// 파일 선택 UI 상태 변경
+function showPickedFileUI(file){
+  if(!file){
+    el('#filePillWrap').style.display = 'none';
+    el('#fileNameText').textContent = '';
+    el('#hint').style.display = '';
+    el('#btnUpload').textContent = '업로드';
+    el('#btnUpload').disabled = false;
+    return;
+  }
+  el('#hint').style.display = 'none';
+  el('#filePillWrap').style.display = '';
+  el('#fileNameText').textContent = file.name;
+  el('#btnUpload').textContent = '업로드 실행';
+  el('#btnUpload').disabled = false;
+}
+
+// 선택된 파일 초기화
+function clearPickedFile(){
+  pickedFile = null;
+  lastPayload = null;
+  el('#fileInput').value = '';
+  showPickedFileUI(null);
+  log('>> 🧹 파일 제거 완료');
+}
+
+// 엑셀 파일 파싱 및 데이터 추출 (수정된 버전)
+function readExcel(file){
+  return new Promise((resolve,reject)=>{
+    const fr = new FileReader();
+    fr.onload = e=>{
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array', cellStyles: true});
+
+        const ws = wb.Sheets['거래처등록'];
+        if(!ws) throw new Error('거래처등록 시트를 찾을 수 없습니다.');
+
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        
+        // 1. 헤더 위치 찾기 (거래처코드)
+        let headerRow = -1;
+        let colMap = {};
+        
+        // 안전하게 처음 20줄까지만 탐색
+        const scanLimit = Math.min(range.e.r, 20);
+
+        for(let R = range.s.r; R <= scanLimit; ++R) {
+            for(let C = range.s.c; C <= range.e.c; ++C) {
+                const addr = XLSX.utils.encode_cell({r:R, c:C});
+                const cell = ws[addr];
+                const val = cell ? String(cell.v || '').trim() : '';
+                
+                if(val === '거래처코드') {
+                    headerRow = R;
+                    break;
+                }
+            }
+            if(headerRow !== -1) break;
+        }
+
+        if(headerRow === -1) {
+            // 헤더를 못 찾은 경우 첫 줄을 헤더로 가정
+            headerRow = 0;
+        }
+
+        // 2. 헤더 컬럼 인덱스 매핑
+        for(let C = range.s.c; C <= range.e.c; ++C) {
+            const addr = XLSX.utils.encode_cell({r:headerRow, c:C});
+            const cell = ws[addr];
+            const val = cell ? String(cell.v || '').trim() : '';
+            if(val) colMap[val] = C;
+        }
+
+        // 필요한 컬럼 목록
+        const targetCols = [
+          '거래처코드','담당자명','거래처명','대표자명','주소1','전화번호','특이사항','그룹','여신한도'
+        ];
+
+        // 3. 데이터 직접 순회 (sheet_to_json 미사용)
+        const out = [];
+        // 헤더 추가
+        out.push(targetCols.map(c => c === '주소1' ? '주소' : c));
+
+        // 헤더 다음 행부터 데이터 추출
+        for(let R = headerRow + 1; R <= range.e.r; ++R) {
+            // 빈 행 체크 (거래처코드가 없으면 스킵하는 로직 등)
+            // 여기서는 거래처코드가 있는 열을 기준으로 판단
+            let rowHasData = false;
+            const rowObj = {};
+
+            targetCols.forEach(colName => {
+                const C = colMap[colName];
+                if(C == null) {
+                    rowObj[colName] = "";
+                    return;
+                }
+
+                const addr = XLSX.utils.encode_cell({r:R, c:C});
+                const cell = ws[addr];
+                let cellVal = "";
+
+                if(cell) {
+                    rowHasData = true;
+                    // **핵심 수정**: 거래처코드는 무조건 포맷된 텍스트(.w) 우선
+                    if(colName === '거래처코드') {
+                        if(cell.w) cellVal = cell.w; // 1순위: 보이는 값 (0123)
+                        else cellVal = String(cell.v || ''); // 2순위: 원본 값
+                    } else {
+                        // 다른 컬럼은 일반적인 처리
+                        cellVal = String(cell.v || ''); 
+                        if(cell.w && (colName === '전화번호')) cellVal = cell.w; // 전화번호 등도 포맷 유지 필요시
+                    }
+                }
+                rowObj[colName] = cellVal.trim();
+            });
+
+            if(rowHasData && (rowObj['거래처코드'] || rowObj['거래처명'])) {
+                out.push([
+                    rowObj['거래처코드'],
+                    rowObj['담당자명'],
+                    rowObj['거래처명'],
+                    rowObj['대표자명'],
+                    rowObj['주소1'],
+                    rowObj['전화번호'],
+                    rowObj['특이사항'],
+                    rowObj['그룹'],
+                    rowObj['여신한도']
+                ]);
+            }
+        }
+
+        const addrColIndex = out[0].indexOf('주소');
+        const custColIndex = out[0].indexOf('거래처명');
+
+        resolve({
+          valuesMatrix: out,
+          rowCount: out.length,
+          colCount: out[0].length,
+          addrColIndex,
+          custColIndex
+        });
+
+      }catch(err){
+        reject(err);
+      }
+    };
+    fr.onerror = reject;
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+// 파일 선택 핸들러
+async function pickFile(file){
+  pickedFile = file;
+  showPickedFileUI(pickedFile);
+  log('>> 📄 파일 선택', pickedFile.name);
+
+  try{
+    el('#btnUpload').disabled = true;
+    el('#btnUpload').textContent = '파싱 중...';
+    lastPayload = await readExcel(pickedFile);
+    log('>> 🧮 엑셀 파싱 완료 행', lastPayload.rowCount-1, '열', lastPayload.colCount);
+    el('#btnUpload').disabled = false;
+    el('#btnUpload').textContent = '업로드 실행';
+  }catch(err){
+    lastPayload = null;
+    log('>> ❌ 엑셀 파싱 실패', err.message || err);
+    el('#btnUpload').disabled = false;
+    el('#btnUpload').textContent = '업로드';
+    alert(err.message || err);
+    clearPickedFile();
+  }
+}
+
+// 업로드 세션 시작 요청
+function initUploadSession(){
+  return new Promise((resolve,reject)=>{
+    google.script.run
+      .withSuccessHandler(res=>resolve(res.runId))
+      .withFailureHandler(err=>reject(err))
+      .initUploadSession({
+        rowCount:lastPayload.rowCount,
+        colCount:lastPayload.colCount,
+        addrColIndex:lastPayload.addrColIndex,
+        custColIndex:lastPayload.custColIndex,
+        totalRows:lastPayload.rowCount
+      });
+  });
+}
+
+// 청크 데이터 업로드 요청
+function uploadChunk(runId, chunk, startRow){
+  return new Promise((resolve,reject)=>{
+    google.script.run
+      .withSuccessHandler(()=>resolve(true))
+      .withFailureHandler(err=>reject(err))
+      .appendUploadChunk(runId, chunk, startRow);
+  });
+}
+
+// 최종 처리 요청
+function finalizeAndStart(runId){
+  return new Promise((resolve,reject)=>{
+    google.script.run
+      .withSuccessHandler(res=>resolve(res))
+      .withFailureHandler(err=>reject(err))
+      .finalizeUploadAndStart(runId);
+  });
+}
+
+// 청크 단위 분할 업로드 실행
+async function uploadInChunksAndStart(){
+  const matrix = lastPayload.valuesMatrix;
+
+  log('>> 🧩 청크 업로드 시작');
+
+  runId = await initUploadSession();
+  log('>> 🆔 runId', runId);
+
+  startPolling();
+
+  const totalRows = matrix.length;
+  let start = 1;
+
+  while(start <= totalRows){
+    const end = Math.min(totalRows, start + CHUNK_ROWS - 1);
+    const chunk = matrix.slice(start-1, end);
+
+    log('>> 📤 청크 전송', start, '~', end);
+    await uploadChunk(runId, chunk, start, end);
+
+    start = end + 1;
+  }
+
+  log('>> ✅ 청크 업로드 완료, 서버 처리 실행');
+
+  const res = await finalizeAndStart(runId);
+  log('>> ✅ 서버 처리 요청 완료 성공', res.successCnt, '실패', res.failCnt);
+}
+
+// 업로드 버튼 이벤트
+el('#btnUpload').addEventListener('click', async ()=>{
+  if(!pickedFile){
+    el('#fileInput').click();
+    return;
+  }
+  if(!lastPayload) return;
+
+  el('#btnUpload').disabled = true;
+  el('#btnUpload').textContent = '업로드 중...';
+
+  try{
+    await uploadInChunksAndStart();
+    el('#btnUpload').disabled = false;
+    el('#btnUpload').textContent = '업로드 실행';
+  }catch(err){
+    log('>> ❌ 업로드/처리 실패', err.message || err);
+    alert(err.message || err);
+    el('#btnUpload').disabled = false;
+    el('#btnUpload').textContent = '업로드 실행';
+  }
+});
+
+// 파일 인풋 변경 이벤트
+el('#fileInput').addEventListener('change', async (e)=>{
+  if(!e.target.files?.length) return;
+  await pickFile(e.target.files[0]);
+});
+
+// 파일 삭제 버튼 이벤트
+el('#fileRemoveBtn').addEventListener('click', ()=>{
+  clearPickedFile();
+});
+
+// 드래그 앤 드롭 이벤트
+const drop = el('#drop');
+drop.addEventListener('dragover', e=>{
+  e.preventDefault();
+  drop.classList.add('drag');
+});
+drop.addEventListener('dragleave', e=>{
+  drop.classList.remove('drag');
+});
+drop.addEventListener('drop', async e=>{
+  e.preventDefault();
+  drop.classList.remove('drag');
+  const f = e.dataTransfer.files?.[0];
+  if(!f) return;
+  await pickFile(f);
+});
+
+// 진행률 폴링 시작
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+
+  pollTimer = setInterval(()=>{
+    google.script.run
+      .withSuccessHandler(prog=>{
+        setBars(prog);
+
+        const data = prog && prog.data ? prog.data : prog;
+        const done = Object.values(data||{}).every(v=>Number(v)>=100);
+
+        if(done){
+          clearInterval(pollTimer);
+          pollTimer = null;
+          log('>> ✅ 전체 완료');
+        }
+      })
+      .withFailureHandler(err=>{
+        log('>> ⚠️ 진행률 조회 실패', err.message || err);
+      })
+      .getProgress(runId);
+  }, 700);
+}
+
+showPickedFileUI(null);
+</script>
+</body>
+</html>

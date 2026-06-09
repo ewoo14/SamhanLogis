@@ -646,16 +646,16 @@
       saveUndoState();
       
       let text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      let rows = text.split(/\r?\n/);
-      if (rows[rows.length-1] === '') rows.pop(); 
-      
+      let rows = parseClipboardTable(text);
+      if (rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') rows.pop();
+
       let table = firstCell.closest('table');
       let sR = firstCell.parentElement.rowIndex;
       let sC = firstCell.cellIndex;
       let tbody = table.querySelector('tbody');
-      
+
       for (let i = 0; i < rows.length; i++) {
-        let rowData = rows[i].split('\t');
+        let rowData = rows[i];
         let targetRow = table.rows[sR + i];
         if (!targetRow) {
           targetRow = tbody.insertRow();
@@ -665,14 +665,38 @@
         for (let j = 0; j < rowData.length; j++) {
           let targetCell = targetRow.cells[sC + j];
           if (targetCell && targetCell.getAttribute('contenteditable') === 'true') {
-            let val = rowData[j];
-            if (val.startsWith('"') && val.endsWith('"')) val = val.substring(1, val.length - 1);
-            targetCell.innerText = val.replace(/""/g, '"');
+            targetCell.innerText = rowData[j].replace(/[\r\n]+/g, ' ');
           }
         }
       }
       checkDuplicates();
     });
+
+    // 클립보드 표 파싱 따옴표 안 개행 처리
+    function parseClipboardTable(text) {
+      let rows = [];
+      let row = [];
+      let field = '';
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        let ch = text[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { field += '"'; i++; continue; }
+            inQuotes = false; continue;
+          }
+          field += ch; continue;
+        }
+        if (ch === '"' && field === '') { inQuotes = true; continue; }
+        if (ch === '\t') { row.push(field); field = ''; continue; }
+        if (ch === '\r') continue;
+        if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+        field += ch;
+      }
+      row.push(field);
+      rows.push(row);
+      return rows;
+    }
 
     document.getElementById('tbody_source').addEventListener('input', checkDuplicates);
     document.getElementById('tbody_source2').addEventListener('input', checkDuplicates);
@@ -934,7 +958,7 @@
               if (highlightClass) {
                 tr.classList.add(highlightClass);
               } else {
-                let hasMorning = /오전|7시|8시|9시|10시|11시|바로|일찍|최대|첫차/.test(spec);
+                let hasMorning = /오전|7시|8시|9시|10시|11시|바로|일찍|최대|첫차|긴급|아침/.test(spec);
                 let hasAfternoon = /오후|저녁|밤/.test(spec);
                 if (spec !== "") {
                     if (hasMorning && !hasAfternoon) {

@@ -219,9 +219,10 @@
     let ecountData = [];
     let currentUserEmail = '';
     let currentUserName = '';
-    let customPages = []; 
-    let currentTabIndex = 0; 
+    let customPages = [];
+    let currentTabIndex = 0;
     let dayExtracted = '';
+    let monthDayExtracted = '';
 
     // 메모리
     let undoStack = [];
@@ -528,11 +529,21 @@
           return newRow;
         });
 
-        if(ecountData.length > 0 && ecountData[0]['일자-No.']) {
-          let dtStr = ecountData[0]['일자-No.'].split('-')[0].trim();
-          if(dtStr) dayExtracted = dtStr.slice(-2);
-        } else {
-          dayExtracted = new Date().getDate().toString();
+        if(ecountData.length > 0) {
+          let dateField = ecountData[0]['일자-No.'] || ecountData[0]['판매번호'] || ecountData[0]['판매 번호'] || '';
+          let dtStr = String(dateField).split('-')[0].trim();
+          if(dtStr) {
+            dayExtracted = dtStr.slice(-2);
+            let cleanDt = dtStr.replace(/\D/g, '');
+            if (cleanDt.length >= 8) {
+              monthDayExtracted = cleanDt.substring(4, 6) + '/' + cleanDt.substring(6, 8);
+            }
+          }
+        }
+        if (!monthDayExtracted) {
+          let now = new Date();
+          if (!dayExtracted) dayExtracted = now.getDate().toString();
+          monthDayExtracted = ('0' + (now.getMonth() + 1)).slice(-2) + '/' + ('0' + now.getDate()).slice(-2);
         }
 
         document.getElementById('file_status').innerText = file.name + ' 업로드 완료! ' + ecountData.length + '건';
@@ -778,11 +789,30 @@
             let st = res.stats;
             if(st) {
               let statsHtml = `전표: <b>${st.total}</b> / 스킵: <b>${st.skip}</b> / 출력: <b>${st.processed}</b> / 야적: <b>${st.yajeok}</b> / 지방: <b>${st.jibang}</b> / 경동: <b>${st.kyungdong}</b> / 로젠: <b>${st.logen}</b> / 회수·회차: <b>${st.returns}</b> / 차용·대여·반납: <b>${st.borrow}</b> / 자가: <b>${st.self}</b> / 기타: <b>${st.warehouse}</b>`;
-              
+
               let statsBox = document.getElementById('stats_container');
               statsBox.innerHTML = statsHtml;
               statsBox.style.display = 'block';
               p.stats = statsHtml;
+            }
+
+            // 페이지명 자동 변경
+            let isAutoTitle = p.title === '신규페이지' || /^\d{2}\/\d{2}\s/.test(p.title);
+            if (isAutoTitle) {
+              let maxVid = -1;
+              let maxVidStr = '';
+              res.data.forEach(r => {
+                let v = String(r['전표번호'] || '').trim();
+                let n = parseInt(v, 10);
+                if (!isNaN(n) && n > maxVid) { maxVid = n; maxVidStr = v; }
+              });
+              if (maxVidStr && monthDayExtracted) {
+                let prefix = '';
+                if (mode === '4') prefix = '야적 ';
+                else if (mode === '5') prefix = '지방 ';
+                p.title = monthDayExtracted + ' ' + prefix + maxVidStr + '번까지';
+                renderTabs();
+              }
             }
 
             p.html = tbody.innerHTML;

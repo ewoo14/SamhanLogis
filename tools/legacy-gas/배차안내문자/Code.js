@@ -121,6 +121,14 @@ function isAccountingRoom_(name) {
   }
 }
 
+// 날짜키
+function toDateKey_(val) {
+  var s = String(val == null ? '' : val).trim();
+  var m = s.match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+  if (!m) return '';
+  return m[1] + '/' + ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2);
+}
+
 // 변환
 function sheetToObjects(sheet) {
   var values = sheet.getDataRange().getValues();
@@ -159,13 +167,30 @@ function processDispatchData(payloadStr) {
       if (k) blocklist[k] = true;
     });
 
-    var ecountIndex = {};
+    var ecountByComposite = {};
+    var ecountByNumber = {};
     df_ecount.forEach(function(row){
       var fullKey = String(row['판매번호'] || '').trim();
       var parts = fullKey.split('-');
       var numKey = parts.length > 1 ? parts[1].trim() : fullKey;
-      if (numKey && !ecountIndex[numKey]) ecountIndex[numKey] = row;
+      if (!numKey) return;
+      var dateKey = toDateKey_(fullKey);
+      if (dateKey && !ecountByComposite[dateKey + '-' + numKey]) ecountByComposite[dateKey + '-' + numKey] = row;
+      if (!ecountByNumber[numKey]) ecountByNumber[numKey] = [];
+      ecountByNumber[numKey].push({ row: row, dateKey: dateKey });
     });
+
+    // 조회
+    function lookupEcount(number, rowDateKey) {
+      if (!number) return null;
+      if (rowDateKey && ecountByComposite[rowDateKey + '-' + number]) return ecountByComposite[rowDateKey + '-' + number];
+      var list = ecountByNumber[number];
+      if (!list || !list.length) return null;
+      var dates = {};
+      list.forEach(function(x){ dates[x.dateKey] = true; });
+      if (Object.keys(dates).length > 1) return '__AMBIGUOUS__';
+      return list[0].row;
+    }
 
     var kakaoIndex = {};
     Object.keys(chatData).forEach(function(name){
@@ -177,13 +202,15 @@ function processDispatchData(payloadStr) {
     });
 
     var driverRows = df_driver.map(function(d){
-      return { 업체명: cleanValue(d['업체명']), 연락처: cleanValue(d['배송기사 연락처']) };
+      return { 업체명: cleanValue(d['업체명']), 연락처: cleanValue(d['배송기사 연락처']), dateKey: toDateKey_(d['날짜']) };
     });
 
     var result_rows = [];
     for (var i = 0; i < df_source.length; i++) {
       var original_text = normalizeStr(cleanValue(df_source[i]['배차요청내역']));
       if (!original_text) continue;
+
+      var rowDateKey = toDateKey_(df_source[i]['날짜']);
 
       var parens = original_text.match(/\([^)]*\)/g);
       if (!parens || !parens.length) continue;
@@ -201,7 +228,25 @@ function processDispatchData(payloadStr) {
       }
       if (!dispatch_number) continue;
 
-      var match_row = ecountIndex[dispatch_number];
+      var match_row = lookupEcount(dispatch_number, rowDateKey);
+
+      if (match_row === '__AMBIGUOUS__') {
+        result_rows.push({
+          '원본내역': original_text,
+          '거래처명': '',
+          '전표번호': dispatch_number,
+          '배송주소': '',
+          '인수자 번호': '',
+          '발송멘트': '전표번호 중복 날짜확인요망!',
+          '단톡방': '',
+          '기사번호': '',
+          'type_word': '당일배송',
+          'override_sun': 'FALSE',
+          'is_remote': false,
+          '_dateKey': rowDateKey
+        });
+        continue;
+      }
 
       if (!match_row) {
         result_rows.push({
@@ -215,7 +260,8 @@ function processDispatchData(payloadStr) {
           '기사번호': '',
           'type_word': '당일배송',
           'override_sun': 'FALSE',
-          'is_remote': false
+          'is_remote': false,
+          '_dateKey': rowDateKey
         });
         continue;
       }
@@ -240,7 +286,8 @@ function processDispatchData(payloadStr) {
           '기사번호': '',
           'type_word': '당일배송',
           'override_sun': 'FALSE',
-          'is_remote': false
+          'is_remote': false,
+          '_dateKey': rowDateKey
         });
         continue;
       }
@@ -265,6 +312,7 @@ function processDispatchData(payloadStr) {
 
       var driver_phone = '';
       for (var d = 0; d < driverRows.length && !driver_phone; d++) {
+        if (rowDateKey && driverRows[d].dateKey && driverRows[d].dateKey !== rowDateKey) continue;
         var segs = driverRows[d].업체명.split('/');
         for (var s = 0; s < segs.length; s++) {
           var seg = segs[s].trim();
@@ -280,7 +328,10 @@ function processDispatchData(payloadStr) {
       }
 
       var fullKeyStr = String(match_row['판매번호'] || '');
-      var rowBaseDate = new Date(baseDate.getTime());
+      var rowBaseDate;
+      var rdk = rowDateKey.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+      if (rdk) rowBaseDate = new Date(Number(rdk[1]), Number(rdk[2]) - 1, Number(rdk[3]));
+      else rowBaseDate = new Date(baseDate.getTime());
       
       var salesDateMatch = fullKeyStr.match(/(\d{4})[-./\s]+(\d{1,2})[-./\s]+(\d{1,2})/);
       if (salesDateMatch) {
@@ -288,19 +339,19 @@ function processDispatchData(payloadStr) {
       }
       
       var delivery_day = rowBaseDate.getDate();
-      var hasSundayWord = false;
+      var explicit_unload_day = null;
 
       if (is_remote) {
         var special_note = cleanValue(match_row['특이사항']);
-        var sangMatch = special_note.match(/(\d{1,2})\s*(?:일\s*)?(?:상|상차|출고)/);
-        
+        var sangMatch = special_note.match(/(\d{1,2})\s*(?:일\s*)?(?:상차?|출고)/);
+
         if (sangMatch) {
           delivery_day = Number(sangMatch[1]);
         } else {
           var nums = [];
           var mm2, reNum = /\d+/g;
           while ((mm2 = reNum.exec(special_note)) !== null) nums.push(Number(mm2[0]));
-          
+
           var valid_days = [];
           for (var off = -2; off <= 5; off++) {
             var testDate = new Date(rowBaseDate.getFullYear(), rowBaseDate.getMonth(), rowBaseDate.getDate() + off);
@@ -310,7 +361,11 @@ function processDispatchData(payloadStr) {
             if (nums.indexOf(valid_days[vd]) > -1) { delivery_day = valid_days[vd]; break; }
           }
         }
-        hasSundayWord = /일요일/.test(special_note);
+
+        // 하차일 직접 파싱
+        var haMatch = special_note.match(/(\d{1,2})\s*일\s*[^상하]*?하차?/);
+        if (!haMatch) haMatch = special_note.match(/(\d{1,2})\s*하/);
+        if (haMatch) explicit_unload_day = Number(haMatch[1]);
       }
 
       var type_word = '당일배송';
@@ -336,15 +391,16 @@ function processDispatchData(payloadStr) {
         'delivery_year': rowBaseDate.getFullYear(),
         'delivery_month': rowBaseDate.getMonth(),
         'delivery_day': delivery_day,
-        'override_sun': (is_remote && hasSundayWord) ? 'TRUE' : 'FALSE',
-        'is_remote': is_remote
+        'explicit_unload_day': explicit_unload_day,
+        'is_remote': is_remote,
+        '_dateKey': rowDateKey
       });
     }
 
     var uniqueMap = {};
     result_rows.forEach(function(r){
-      var k = r['전표번호'];
-      if (!k) return;
+      if (!r['전표번호']) return;
+      var k = (r['_dateKey'] || '') + '#' + r['전표번호'];
       if (!uniqueMap[k]) uniqueMap[k] = r;
       else {
         var hasOld = String(uniqueMap[k]['기사번호'] || '').trim() !== '';
@@ -372,93 +428,34 @@ function processDispatchData(payloadStr) {
     }
     dedup.sort(cmp);
 
-    var error_msgs = {'기사번호 없음 확인요망!': true, '이카운트 데이터 없음 최신화요망!': true, '발송금지 업체입니다.': true};
-    var finalData = [];
-    var iidx = 0;
-    
-    while (iidx < dedup.length) {
-      var row = dedup[iidx];
-      if (error_msgs[row['발송멘트']]) {
-        finalData.push({
-          '원본내역': row.원본내역, '거래처명': row.거래처명, '전표번호': row.전표번호,
-          '배송주소': row.배송주소, '인수자번호': row['인수자 번호'], '발송멘트': row.발송멘트, '단톡방': row.단톡방
-        });
-        iidx++;
-      } else {
-        var roomKey = String(row['단톡방'] || '').trim();
-        var phoneKey = String(row['인수자 번호'] || '').trim();
-        var key = roomKey ? 'R_' + roomKey : (phoneKey ? 'P_' + phoneKey : 'N_' + iidx);
+    var error_msgs = {'기사번호 없음 확인요망!': true, '이카운트 데이터 없음 최신화요망!': true, '발송금지 업체입니다.': true, '전표번호 중복 날짜확인요망!': true};
 
-        var j = iidx;
-        while (j < dedup.length) {
-          var rj = dedup[j];
-          if (error_msgs[rj['발송멘트']]) break;
-          
-          var rjRoom = String(rj['단톡방'] || '').trim();
-          var rjPhone = String(rj['인수자 번호'] || '').trim();
-          var k2 = rjRoom ? 'R_' + rjRoom : (rjPhone ? 'P_' + rjPhone : 'N_' + j);
-          
-          if (k2 !== key) break;
-          j++;
-        }
-        var group = dedup.slice(iidx, j);
-
-        var type0 = String(group[0]['type_word'] || '');
-        var isRemoteGroup = (type0.indexOf('지방배송') > -1) || (type0.indexOf('야적배송') > -1);
-        var head;
-        
-        var targetDayNum;
-        if (isRemoteGroup) {
-          var loadDayNum = Number(group[0]['delivery_day']);
-          var loadYear = Number(group[0]['delivery_year'] || Number(Utilities.formatDate(baseDate, tz, 'yyyy')));
-          var loadMonth = Number(group[0]['delivery_month'] || (Number(Utilities.formatDate(baseDate, tz, 'M')) - 1));
-          
-          var overrideSun = false;
-          for (var gi2 = 0; gi2 < group.length; gi2++) {
-            if (String(group[gi2]['override_sun']) === 'TRUE') { overrideSun = true; break; }
-          }
-
-          var loadDate = new Date(loadYear, loadMonth, loadDayNum);
-          var unloadDate = new Date(loadDate.getTime());
-          var dow = loadDate.getDay();
-          
-          if (dow === 6) {
-            unloadDate.setDate(unloadDate.getDate() + (overrideSun ? 1 : 2));
-          } else {
-            unloadDate.setDate(unloadDate.getDate() + 1);
-          }
-          
-          targetDayNum = Number(Utilities.formatDate(unloadDate, tz, 'd'));
-        } else {
-          targetDayNum = Number(group[0]['delivery_day']);
-        }
-
-        head = [
-          'AI 삼성무풍 시스템에어컨 배차실입니다.',
-          targetDayNum + '일 하차 건 배송기사님 연락처를 안내드립니다.'
-        ].join('\n');
-
-        var lines = group.map(function(g){ return g['발송멘트']; }).filter(function(t){ return t; });
-        var mergedText = head + (lines.length ? '\n' + lines.join('\n') : '');
-        if (!String(group[0]['단톡방'] || '').trim()) {
-          mergedText += '\n\n※출하창고 상황에 따라 지연될 수 있음을 양해 부탁드립니다.';
-        }
-        
-        for (var gi = 0; gi < group.length; gi++) {
-          finalData.push({
-            '원본내역': group[gi].원본내역,
-            '거래처명': group[gi].거래처명,
-            '전표번호': group[gi].전표번호,
-            '배송주소': group[gi].배송주소,
-            '인수자번호': group[gi]['인수자 번호'],
-            '발송멘트': mergedText,
-            '단톡방': group[gi].단톡방
-          });
-        }
-        
-        iidx = j;
+    // 하차일
+    function rowTargetDay(r) {
+      var rt = String(r['type_word'] || '');
+      var remote = (rt.indexOf('지방배송') > -1) || (rt.indexOf('야적배송') > -1);
+      if (remote) {
+        var ed = r['explicit_unload_day'];
+        if (ed != null && ed !== '' && !isNaN(Number(ed))) return Number(ed);
       }
+      return Number(r['delivery_day']);
     }
+
+    var finalData = dedup.map(function(row){
+      var isErr = error_msgs[row['발송멘트']] ? true : false;
+      return {
+        '날짜': row['_dateKey'] || '',
+        '원본내역': row.원본내역,
+        '거래처명': row.거래처명,
+        '전표번호': row.전표번호,
+        '배송주소': row.배송주소,
+        '인수자번호': row['인수자 번호'],
+        '단톡방': row.단톡방,
+        '라인': row['발송멘트'],
+        '하차일': isErr ? '' : rowTargetDay(row),
+        '에러': isErr
+      };
+    });
 
     return JSON.stringify({ status: 'success', data: finalData });
 

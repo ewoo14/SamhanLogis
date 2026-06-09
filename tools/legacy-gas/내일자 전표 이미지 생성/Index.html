@@ -464,8 +464,8 @@
         
         const customer = String(row['거래처명'] || '').trim();
         const warehouse = String(row['창고명'] || '').trim();
-        
-        const jsException = customer.includes('제이시스템');
+
+        const jsException = String(row['거래처코드'] || '').trim() === '8428102605';
         const isForbidden = forbiddenData.includes(customer) || jsException;
 
         if(!allowedWarehouses.includes(warehouse)) return;
@@ -545,7 +545,7 @@
           msgLines = [
             "안녕하세요.",
             "AI 삼성무풍 시스템에어컨 배송안내 배차실입니다.",
-            `${unloadDay_normal}일 하차 건을 현재 상차 중입니다.`,
+            `${unloadDay_normal}일 하차 예정입니다.`,
             "변동사항 있을 시 연락 부탁드립니다.",
             "(문의전화 : 02-3465-1331)"
           ];
@@ -556,10 +556,10 @@
 
           if (/야적.*\//.test(addr)) {
             targetDay = unloadDay_yajeok;
-            loadMsg = `${targetDay}일 하차 건을 현재 상차 중입니다.`;
+            loadMsg = `${targetDay}일 하차 예정입니다.`;
           } else if (/지방.*\//.test(addr)) {
             targetDay = unloadDay_jibang;
-            loadMsg = `${targetDay}일 하차 건을 현재 상차 중입니다.`;
+            loadMsg = `${targetDay}일 하차 예정입니다.`;
           }
 
           msgLines = [
