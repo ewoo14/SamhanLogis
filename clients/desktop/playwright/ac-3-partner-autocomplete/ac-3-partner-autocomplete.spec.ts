@@ -130,7 +130,7 @@ test.describe('AC-3 거래처 자동완성 PartnerAutocomplete', () => {
   // ──────────────────────────────────────────────────────────
   // 시나리오 3: 후보 클릭 선택 → name 입력란 반영 + detail fill
   // ──────────────────────────────────────────────────────────
-  test('시나리오 3: 후보 클릭 선택 → 입력란에 거래처명 표시 + 연락처/주소/대표자 채워짐', async ({ page }) => {
+  test('시나리오 3: 후보 클릭 선택 → 입력란에 거래처명 표시 + 자동채움(주소복사 버튼 활성)', async ({ page }) => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
@@ -152,12 +152,11 @@ test.describe('AC-3 거래처 자동완성 PartnerAutocomplete', () => {
     // listbox 닫힘
     await expect(listbox).not.toBeVisible()
 
-    // 2단계 채움: 연락처 확인 (mock phone: '02-1234-5678')
-    const telInput = page.getByTestId('slip-form-customer-tel')
-    await expect(telInput).toBeVisible({ timeout: 3_000 })
-    const telVal = await telInput.inputValue()
-    // 연락처가 채워졌는지 확인 (mock 데이터 반영)
-    expect(telVal.length).toBeGreaterThan(0)
+    // 2단계 자동채움: 거래처 연락처/주소/대표자는 폼 정비로 화면 미표시(전표 기록·state 보관).
+    // detail fetch(주소 '서울…테헤란로 152')가 customerAddress 에 채워지면
+    // '거래처 주소 복사' 버튼이 활성화됨 → 자동채움 동작을 버튼 enable 로 검증.
+    const copyAddrBtn = page.getByTestId('slip-form-copy-customer-address-btn')
+    await expect(copyAddrBtn).toBeEnabled({ timeout: 3_000 })
   })
 
   // ──────────────────────────────────────────────────────────

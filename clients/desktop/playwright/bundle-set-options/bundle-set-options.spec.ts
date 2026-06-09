@@ -173,8 +173,8 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await installAuthMock(page)
     await gotoSlipNewPage(page)
 
-    // 출발 창고 선택 (저장 가능 조건)
-    const wh = page.getByRole('combobox', { name: /출발 창고/ })
+    // 출고 창고 선택 (저장 가능 조건) — 폼 정비로 '출발 창고' → '출고 창고' 단일화
+    const wh = page.getByRole('combobox', { name: /출고 창고/ })
     await wh.click()
     await wh.fill('HQ')
     const whListbox = page.getByRole('listbox', { name: '창고 목록' })
