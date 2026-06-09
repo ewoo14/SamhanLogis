@@ -4,7 +4,25 @@
 
 ---
 
-## 🏢 2026-06-08 (회사 PC 세션 — 최신) — **PR #432 머지** — arologis 6-롤 모델 확장 (`8de0fe25`)
+## 🏢 2026-06-09 (회사 PC 세션 — 최신) — **PR #433** — arologis 간이회계 표준 계정과목 + 부서 확정 + 활성상태 관리
+
+> 개발책임자 지시: arologis 백오피스 임시 seed → 실 운영값 확정 + 계정과목 활성상태 관리 기능. **아로로지스 독립 운영**(삼한 퍼블릭 아님). 6단계 워크플로 완주(Codex 다운 ~6/11 → 전 단계 Claude 대체).
+
+### ✅ 결과 (PR #433)
+- **부서 3개 확정**: 대표실(EXEC)/행정팀(ADMIN)/회계팀(ACCOUNTING). 기존 배차/운영 soft-delete (V17).
+- **표준계정과목 101개**(일반기업회계기준 5유형 — 자산35/부채15/자본8/수익11/비용32). `arologis_simple_account.type` CHECK **4→5유형(자본 EQUITY 추가)** — 미확장 시 INSERT 거부([[enum-expansion-check-constraint]]). 코드 4자리(1xxx 자산·2xxx 부채·3xxx 자본·4xxx 수익·8xxx 비용). 운송업 상용만 active=TRUE(46 활성/55 비활성).
+- **활성상태 관리(신규)**: page-code `arologis.accounting.accounts`(현금출납장과 **분리**) GET /accounts/all(VIEW) + PUT /accounts/{code}/active(UPDATE). 권한 = **마스터+회계사원만**(V54, 대표실=마스터·회계팀=회계사원 매핑). 매니저는 거래입력 가능하나 계정 마스터 관리 격리.
+- **FE**: arologis-desktop AccountsPage(유형/활성상태 필터 + 토글, 낙관적 갱신+롤백). **`active` 미노출 "활성상태" 표기**(개발책임자 지시). canManageAccounts(MASTER|ACCOUNTANT) 네비/페이지 게이트 + BE 이중 방어.
+- **dual 리뷰**: Claude TM(BE P1 IT 부서명 회귀+FE P3 복사포맷) + Codex-대체(P2 enforcement HTTP 매트릭스 누락) **전건 fix, skip 0**. P1 = Windows Testcontainers skip false-green을 Linux CI 적발([[changed-module-full-test-before-push]] 실증).
+- **CI 29/29 green**. **실 Docker 풀스택 QA PASS**(재빌드 V17/V54 적용 → 마스터 101계정/EQUITY 8/토글 DB persist/매니저 403·회계사원 200 격리/EQUITY 단식거래/실화면 5컷). 증빙 `docs/qa/arologis-accounting-standard-chart/`.
+
+### 🗺️ 다음
+- arologis 백오피스(인사/간이회계/권한/6롤/표준차트) **완결**. 잔여 외부 의존: Phase 11 AWS / 알리고 SMS / 실 부서 추가 시 seed 갱신. Codex 회복(6/11) 후 추가 크로스 검증.
+- ⚠️ 로컬 dev 스택: 본 QA가 arologis-service/auth-service 재빌드(V17/V54 적용)+프로비저닝 계정 2건(qa_acct/qa_mgr) 잔존. 1030 active=false 원복 확인.
+
+---
+
+## 🏢 2026-06-08 (회사 PC 세션) — **PR #432 머지** — arologis 6-롤 모델 확장 (`8de0fe25`)
 
 > 개발책임자 지시 "아로로지스는 마스터/매니저/개발자/영업사원/회계사원/배송기사 6롤만". 적용범위=권한 모델 전체(매트릭스+HR 배정). 6단계 워크플로 완주(Codex 다운 → 전 단계 클로드 대체).
 
