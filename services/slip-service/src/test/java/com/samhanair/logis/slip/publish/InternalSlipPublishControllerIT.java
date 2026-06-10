@@ -115,6 +115,28 @@ class InternalSlipPublishControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void 토큰_미제시_X_User_헤더_위조_403_차단() throws Exception {
+        // gateway 신뢰 모델의 X-User-* 헤더를 위조해도 /internal/** 는
+        // system-internal principal 강제라 HeaderAuthenticationFilter 인증으로 우회 불가
+        mockMvc.perform(post("/internal/slips/from-estimate")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(estimateBody("WEB-INT-FORGED"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 유효_토큰과_X_User_헤더_동시제시_201_토큰우선() throws Exception {
+        mockMvc.perform(post("/internal/slips/from-estimate")
+                        .header(INTERNAL_TOKEN_HEADER, VALID_TOKEN)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(estimateBody("WEB-INT-BOTH"))))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void 토큰_불일치_401_즉시차단() throws Exception {
         mockMvc.perform(post("/internal/slips/from-estimate")
                         .header(INTERNAL_TOKEN_HEADER, "wrong-token")

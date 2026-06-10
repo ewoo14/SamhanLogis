@@ -37,6 +37,13 @@ const INTERNAL_TOKEN =
   process.env.INTERNAL_AUTH_TOKEN ||
   'dev-internal-token-change-me';
 
+// 운영 가드 — slip-service 쪽은 InternalTokenGuard 가 dev 토큰 prod 부팅을 차단하므로
+// dev 기본값으로는 운영 발행이 어차피 401 이지만, 미설정을 조기에 드러낸다.
+if (process.env.NODE_ENV === 'production'
+  && INTERNAL_TOKEN === 'dev-internal-token-change-me') {
+  Logger.log('[slip-bridge] ⚠️ SAMHAN_INTERNAL_TOKEN 미설정 (운영) — 출고전표 발행이 401 로 거부됩니다. .env 설정 필요');
+}
+
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
 
 /**
@@ -172,7 +179,7 @@ async function postSlip(legacyOrder, saleList) {
       // Phase 7 3차 정정 (BE P1) — fire-and-forget: alert 대기로 사용자 응답이 5초 지연되는 것을
       // 막기 위해 await 제거. 실패는 console.error 로 기록만 하고 호출자 응답에 영향 X.
       postSlackAlert(
-        `[samhan-estimate-app] slip-service 5xx 발생\nstatus=${resp.status}\nestimate=${legacyOrder.estimateNumber || 'N/A'}\nbody=${JSON.stringify(resp.data).slice(0, 500)}`,
+        `[samhan-estimate-app] slip-service 5xx 발생\nstatus=${resp.status}\nestimate=${body.estimateNumber || 'N/A'}\nbody=${JSON.stringify(resp.data).slice(0, 500)}`,
       ).catch((err) => console.error('[slack-alert] failed', err.message));
     }
     return { ok: false, error: `HTTP ${resp.status}`, body: resp.data };
@@ -180,7 +187,7 @@ async function postSlip(legacyOrder, saleList) {
     Logger.log(`[slip-bridge] axios error ${err.message}`);
     // fire-and-forget — 사용자 알람 차단 회피.
     postSlackAlert(
-      `[samhan-estimate-app] slip-service 네트워크 오류\nerror=${err.message}\nestimate=${legacyOrder.estimateNumber || 'N/A'}`,
+      `[samhan-estimate-app] slip-service 네트워크 오류\nerror=${err.message}\nestimate=${body.estimateNumber || 'N/A'}`,
     ).catch((slackErr) => console.error('[slack-alert] failed', slackErr.message));
     return { ok: false, error: err.message, body: null };
   }

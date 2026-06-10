@@ -43,6 +43,14 @@ public class SecurityConfig {
                         // X-Internal-Token 도입 검토.
                         .requestMatchers("/api/v1/estimates/snapshots",
                                 "/api/v1/estimates/snapshots/**").permitAll()
+                        // P0-B: /internal/** 는 X-Internal-Token 으로 인증된 system-internal
+                        // principal 만 허용 — gateway 신뢰 모델의 X-User-* 헤더 위조로
+                        // HeaderAuthenticationFilter 인증이 설정되어도 내부 게이트는 우회 불가.
+                        .requestMatchers("/internal/**").access((authentication, context) ->
+                                new org.springframework.security.authorization.AuthorizationDecision(
+                                        authentication.get() != null
+                                                && com.samhanair.logis.security.InternalTokenFilter.INTERNAL_PRINCIPAL
+                                                        .equals(authentication.get().getName())))
                         .anyRequest().authenticated())
                 // W10-4 (PR #99) DV-3: shared:security InternalTokenFilter 등록
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)

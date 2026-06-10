@@ -27,6 +27,14 @@
 - slipNo **슬래시 표준**(YYYY/MM/DD-N), 한글 spec 무결, `created_by=system-internal`(내부 토큰 principal audit 추적).
 - QA 잔여물 정리 완료: slips/slip_lines/slip_publish_audit 각 2건 삭제, 잔존 0 확인.
 
+## 사이클 1 fix 재검증 (컨테이너 재빌드 후 실 HTTP)
+
+| # | 시나리오 | 결과 | 판정 |
+|---|---|---|---|
+| ⑦ | 토큰 없음 + **위조 X-User-Id/X-User-Role: MASTER** | **403** (P1-1 fix — /internal/** system-internal principal 강제) | ✅ |
+| ⑧ | 유효 토큰 + X-User-* 동시 제시 | **201** (토큰 인증 우선) | ✅ |
+| ⑨ | 일반 경로 `/slips` X-User-* 인증 | **200** (게이트웨이 신뢰 모델 무회귀) | ✅ |
+
 ## 테스트
 
 - estimate-app jest **51/51 PASS** (slip-bridge URL/봉투/qty/estimateNumber fallback 계약 갱신).
