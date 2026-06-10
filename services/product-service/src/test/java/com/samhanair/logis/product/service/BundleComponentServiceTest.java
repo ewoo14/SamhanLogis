@@ -11,6 +11,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
+import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
@@ -31,18 +32,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * BundleComponentService 단위 테스트 (§1c/§1d 2026-06-11).
  *
  * <p>Mockito 기반 단위 테스트 — 비즈니스 룰 검증 집중:
  * <ul>
- *   <li>listComponents — BUNDLE 구성품 목록 반환</li>
- *   <li>replaceComponents — 409 BUNDLE 아님 / 400 빈배열 / 400 자기참조 / 400 미해소코드 / 정상 교체</li>
- *   <li>updateDisplayOrders — 404 미존재 / 전건 적용 원자성</li>
+ *   <li>listComponents — BUNDLE 구성품 목록 반환 / model_name fallback (D-PCE-03)</li>
+ *   <li>replaceComponents — 409 BUNDLE 아님 / 400 빈배열 / 400 자기참조 / 400 미해소코드 / 정상 교체
+ *       (D-PCE-01: 모두 BusinessException)</li>
+ *   <li>updateDisplayOrders — 404 미존재 / 전건 적용 원자성 / estimateCategory 검증 (D-PCE-02)</li>
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
@@ -121,12 +121,56 @@ class BundleComponentServiceTest {
                 .isInstanceOf(EntityNotFoundException.class);
     }
 
+    /**
+     * D-PCE-03: model_code null 레거시 행 — 1차(modelCode IN) 미매칭 시
+     * model_name 2차 조회로 componentName 해소.
+     */
+    @Test
+    void listComponents_modelCode_null_레거시_modelName_2차_조회() {
+        // 구성품 코드 = "LEGACY-IDU-001" 이지만 DB 행은 model_code=null, model_name="LEGACY-IDU-001"
+        BundleComponent bc = BundleComponent.seed(bundleId, "LEGACY-IDU-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, null);
+
+        // legacyProduct: modelCode=null, modelName="LEGACY-IDU-001"
+        Product legacyProduct = Product.seedFromSheet(
+                "레거시 실내기", "LEGACY-IDU-001", null,
+                BigDecimal.valueOf(200_000), BigDecimal.valueOf(160_000),
+                ProductType.SINGLE, null, UsageScope.NONE, null);
+        // model_code null 시뮬레이션 — seedFromSheet 은 modelCode 를 set 하므로 null 로 덮음
+        ReflectionTestUtils.setField(legacyProduct, "modelCode", null);
+        ReflectionTestUtils.setField(legacyProduct, "id", UUID.randomUUID());
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of(bc));
+        // 1차 modelCode IN 조회 → 빈 결과 (model_code=null 이므로 매칭 안 됨)
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(List.of("LEGACY-IDU-001")))
+                .thenReturn(List.of());
+        // 2차 modelName 조회 → 레거시 품목 반환
+        when(productRepository.findByModelNameAndIsDeletedFalse("LEGACY-IDU-001"))
+                .thenReturn(Optional.of(legacyProduct));
+
+        List<BundleComponentResponse> result = service.listComponents("TEST-BUNDLE-001");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).componentProductCode()).isEqualTo("LEGACY-IDU-001");
+        // D-PCE-03 fix: 코드 폴백이 아닌 실제 품목명 해소
+        assertThat(result.get(0).componentName()).isEqualTo("레거시 실내기");
+    }
+
     // ============================================================
-    // replaceComponents
+    // replaceComponents — D-PCE-01: 모두 BusinessException
     // ============================================================
 
+    /**
+     * D-PCE-01: 비-BUNDLE PUT → 409 CONFLICT — BusinessException(CONFLICT) 단언.
+     * 기존 ResponseStatusException(409) 는 GlobalExceptionHandler handleUnknown → 500 이었으나
+     * BusinessException(CONFLICT) 로 교체하여 정확히 409 반환.
+     */
     @Test
-    void replaceComponents_BUNDLE_아님_409() {
+    void replaceComponents_BUNDLE_아님_409_BusinessException() {
         // SINGLE 품목
         Product singleProduct = Product.seedFromSheet(
                 "단품", "SINGLE-001", null,
@@ -141,24 +185,24 @@ class BundleComponentServiceTest {
                 "IDU-001", BigDecimal.ONE, null, null, null, true, null);
 
         assertThatThrownBy(() -> service.replaceComponents("SINGLE-001", List.of(req)))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
-                        .isEqualTo(HttpStatus.CONFLICT));
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
     }
 
     @Test
-    void replaceComponents_빈배열_400() {
+    void replaceComponents_빈배열_400_BusinessException() {
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
 
         assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of()))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
-                        .isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
     }
 
     @Test
-    void replaceComponents_자기자신포함_400() {
+    void replaceComponents_자기자신포함_400_BusinessException() {
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
 
@@ -166,13 +210,13 @@ class BundleComponentServiceTest {
                 "TEST-BUNDLE-001", BigDecimal.ONE, null, null, null, false, null);
 
         assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(req)))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
-                        .isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
     }
 
     @Test
-    void replaceComponents_미해소코드_400() {
+    void replaceComponents_미해소코드_400_BusinessException() {
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("NO-SUCH-CODE"))
@@ -182,9 +226,9 @@ class BundleComponentServiceTest {
                 "NO-SUCH-CODE", BigDecimal.ONE, null, null, null, false, null);
 
         assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(req)))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
-                        .isEqualTo(HttpStatus.BAD_REQUEST));
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
     }
 
     @Test
@@ -262,19 +306,148 @@ class BundleComponentServiceTest {
     }
 
     /**
-     * §2-1: display-orders 요청에 다른 productCategory 품목이 섞이면 400 INVALID_INPUT.
-     * displayOrder 는 카테고리 내 정렬이므로 전역 재번호 금지.
+     * D-PCE-02 (a): 서로 다른 estimateCategory 혼합 → 400 INVALID_INPUT.
+     * 기존 productCategory 검증이 null+null 로 통과하던 케이스도 정확히 처리됨.
      */
     @Test
-    void updateDisplayOrders_다른_카테고리_혼합_400() {
+    void updateDisplayOrders_서로_다른_estimateCategory_혼합_400() {
+        // HOME_MULTI 카테고리 품목
         Product catA = Product.seedFromSheet("품목A", "PROD-A", null,
                 BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
-                ProductCategory.HOME_MULTI, UsageScope.NONE, null);
+                ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI);
+        ReflectionTestUtils.setField(catA, "id", UUID.randomUUID());
+
+        // SINGLE_SET 카테고리 품목
+        Product catB = Product.seedFromSheet("품목B", "PROD-B", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.SINGLE_SET, UsageScope.ESTIMATE, EstimateCategory.SINGLE_SET);
+        ReflectionTestUtils.setField(catB, "id", UUID.randomUUID());
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-A"))
+                .thenReturn(Optional.of(catA));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-B"))
+                .thenReturn(Optional.of(catB));
+
+        assertThatThrownBy(() -> service.updateDisplayOrders(List.of(
+                new DisplayOrderRequest("PROD-A", 1),
+                new DisplayOrderRequest("PROD-B", 2))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    /**
+     * D-PCE-02 (b): null + non-null 혼합 → 400 INVALID_INPUT.
+     * estimateCategory=null 인 품목과 non-null 인 품목을 같은 요청에 넣으면 400.
+     */
+    @Test
+    void updateDisplayOrders_null_과_nonNull_estimateCategory_혼합_400() {
+        // estimateCategory=null (미분류)
+        Product nullCat = Product.seedFromSheet("미분류", "PROD-NULL", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                null, UsageScope.NONE, null);
+        ReflectionTestUtils.setField(nullCat, "id", UUID.randomUUID());
+
+        // estimateCategory=HOME_MULTI
+        Product nonNullCat = Product.seedFromSheet("홈멀티", "PROD-HM", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI);
+        ReflectionTestUtils.setField(nonNullCat, "id", UUID.randomUUID());
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-NULL"))
+                .thenReturn(Optional.of(nullCat));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-HM"))
+                .thenReturn(Optional.of(nonNullCat));
+
+        assertThatThrownBy(() -> service.updateDisplayOrders(List.of(
+                new DisplayOrderRequest("PROD-NULL", 1),
+                new DisplayOrderRequest("PROD-HM", 2))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    /**
+     * D-PCE-02 (c): 동일 estimateCategory non-null → 204 (정상 처리).
+     */
+    @Test
+    void updateDisplayOrders_동일_estimateCategory_정상_204() {
+        Product p1 = Product.seedFromSheet("홈멀티A", "HM-001", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI);
+        ReflectionTestUtils.setField(p1, "id", UUID.randomUUID());
+
+        Product p2 = Product.seedFromSheet("홈멀티B", "HM-002", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI);
+        ReflectionTestUtils.setField(p2, "id", UUID.randomUUID());
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("HM-001"))
+                .thenReturn(Optional.of(p1));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("HM-002"))
+                .thenReturn(Optional.of(p2));
+        lenient().when(productRepository.save(any(Product.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // 예외 없이 정상 종료
+        service.updateDisplayOrders(List.of(
+                new DisplayOrderRequest("HM-001", 1),
+                new DisplayOrderRequest("HM-002", 2)));
+
+        assertThat(p1.getDisplayOrder()).isEqualTo(1);
+        assertThat(p2.getDisplayOrder()).isEqualTo(2);
+    }
+
+    /**
+     * D-PCE-02 (d): null estimateCategory 끼리 → 204 (자체 군 허용).
+     */
+    @Test
+    void updateDisplayOrders_null_estimateCategory_끼리_허용() {
+        Product p1 = Product.seedFromSheet("미분류A", "NC-001", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                null, UsageScope.NONE, null);
+        ReflectionTestUtils.setField(p1, "id", UUID.randomUUID());
+
+        Product p2 = Product.seedFromSheet("미분류B", "NC-002", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                null, UsageScope.NONE, null);
+        ReflectionTestUtils.setField(p2, "id", UUID.randomUUID());
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("NC-001"))
+                .thenReturn(Optional.of(p1));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("NC-002"))
+                .thenReturn(Optional.of(p2));
+        lenient().when(productRepository.save(any(Product.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // 예외 없이 정상 종료
+        service.updateDisplayOrders(List.of(
+                new DisplayOrderRequest("NC-001", 3),
+                new DisplayOrderRequest("NC-002", 4)));
+
+        assertThat(p1.getDisplayOrder()).isEqualTo(3);
+        assertThat(p2.getDisplayOrder()).isEqualTo(4);
+    }
+
+    // ============================================================
+    // updateDisplayOrders — 기존 productCategory 검증 (하위호환 참고용)
+    // ============================================================
+
+    /**
+     * 기존 §2-1 다른 productCategory 혼합 테스트 — D-PCE-02 fix 이후 이 케이스는
+     * productCategory 가 다르더라도 estimateCategory 가 동일하면 통과한다.
+     * 하지만 estimateCategory 도 다른 경우에는 여전히 400 을 반환한다.
+     */
+    @Test
+    void updateDisplayOrders_다른_productCategory_이어도_estimateCategory_다르면_400() {
+        Product catA = Product.seedFromSheet("품목A", "PROD-A", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI);
         ReflectionTestUtils.setField(catA, "id", UUID.randomUUID());
 
         Product catB = Product.seedFromSheet("품목B", "PROD-B", null,
                 BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
-                ProductCategory.SINGLE_SET, UsageScope.NONE, null);
+                ProductCategory.SINGLE_SET, UsageScope.ESTIMATE, EstimateCategory.SINGLE_SET);
         ReflectionTestUtils.setField(catB, "id", UUID.randomUUID());
 
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-A"))
