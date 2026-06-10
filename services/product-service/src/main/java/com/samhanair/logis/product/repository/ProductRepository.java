@@ -76,8 +76,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
      * 단일 native 쿼리로 합쳐 처리. {@code :tagFilter} 는 jsonb 형태의 문자열
      * (예: '{"hp":"1.5"}') 또는 NULL.
      *
-     * <p>usageScope/productCategory 는 order-app ({@code GET /products?usageScope=PARTNER_ORDER&category=HOME_MULTI})
-     * 및 desktop sales.ts ({@code usageScope=BOTH&category=...}) 호출이 실효화되도록 추가됨 (PR-B 2026-06-11).
+     * <p>소비처: {@code /products} (GET) 엔드포인트 — 어드민/데스크톱 품목관리 화면 전용.
+     * order-app 및 desktop sales.ts 의 카탈로그 조회는 {@link #searchByUsageScope} 를 사용한다
+     * (사이클2 지적 P3-5, 2026-06-11).
      */
     // [RC4] null→bytea 방지: CAST(:q AS text) (nativeQuery 이므로 PostgreSQL text 캐스트)
     @Query(value = """
@@ -149,7 +150,14 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
      * </ul>
      *
      * <p><b>q 파라미터 (PR-B 2026-06-11, 지적 [1][9][15])</b>:
-     * modelCode / name LIKE 검색. null/blank → 전체.
+     * model_code / model_name / name LIKE 검색. null/blank → 전체.
+     * {@code model_code} 가 비어 있고 {@code model_name} 만 있는 레거시 행도 검색 가능하도록
+     * model_name 컬럼도 검색 대상에 포함한다 (사이클2 지적 P2-1, 2026-06-11).
+     * q 바인딩 전에 호출자(서비스 계층)가 LIKE 와일드카드({@code \}, {@code %}, {@code _}) 이스케이프 적용.
+     *
+     * <p><b>정렬 (사이클2 지적 P2-2, 2026-06-11)</b>:
+     * {@code display_order ASC NULLS LAST, model_code ASC} — 시트 노출 순서 보존 + 비결정 순서 방지.
+     * count 쿼리는 ORDER BY 제외.
      */
     @Query(value = """
             SELECT * FROM products p
@@ -166,8 +174,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                AND (CAST(:estimateCategory AS text) IS NULL
                     OR p.estimate_category = CAST(:estimateCategory AS text))
                AND (CAST(:q AS text) IS NULL
-                    OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
-                    OR LOWER(p.name)       LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
+                    OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                    OR LOWER(p.name)       LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                    OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\')
+             ORDER BY p.display_order ASC NULLS LAST, p.model_code ASC
             """,
            countQuery = """
             SELECT COUNT(*) FROM products p
@@ -184,8 +194,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                AND (CAST(:estimateCategory AS text) IS NULL
                     OR p.estimate_category = CAST(:estimateCategory AS text))
                AND (CAST(:q AS text) IS NULL
-                    OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
-                    OR LOWER(p.name)       LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
+                    OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                    OR LOWER(p.name)       LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\'
+                    OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')) ESCAPE '\\')
             """,
            nativeQuery = true)
     Page<Product> searchByUsageScope(@Param("usageScope") String usageScope,

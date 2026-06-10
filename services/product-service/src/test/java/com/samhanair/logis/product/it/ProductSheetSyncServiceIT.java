@@ -738,10 +738,11 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_NOSHEET"))
                 .as("usageScopeManual=true 품목 — 시트 부재 시에도 soft-delete 보호")
                 .isPresent();
-        // softDeleted=0, skipped=1
+        // softDeleted=0, preservedManual=1, skipped=0 (파싱 skip 없음) — 사이클2 지적 P3-6 카운터 분리
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
         assertThat(homeTab.softDeleted).isZero();
-        assertThat(homeTab.skipped).isEqualTo(1);
+        assertThat(homeTab.preservedManual).isEqualTo(1);
+        assertThat(homeTab.skipped).isZero();
     }
 
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */

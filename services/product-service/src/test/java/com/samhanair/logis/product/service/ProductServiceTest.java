@@ -333,4 +333,35 @@ class ProductServiceTest {
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.NOT_FOUND));
     }
+
+    // =========================================================================
+    // 사이클2 지적 P3-4: escapeLikeWildcards 단위 테스트
+    // =========================================================================
+
+    /**
+     * P3-4: LIKE 와일드카드 이스케이프 단위 검증 (사이클2 지적 P3-4, 2026-06-11).
+     *
+     * <p>백슬래시·퍼센트·언더스코어가 각각 올바르게 이스케이프되고,
+     * 복합 입력에서도 순서 의존성 없이 정상 동작함을 확인한다.
+     */
+    @Test
+    void escapeLikeWildcards_percent_escaped() {
+        assertThat(ProductService.escapeLikeWildcards("50%DC")).isEqualTo("50\\%DC");
+    }
+
+    @Test
+    void escapeLikeWildcards_underscore_escaped() {
+        assertThat(ProductService.escapeLikeWildcards("A_B")).isEqualTo("A\\_B");
+    }
+
+    @Test
+    void escapeLikeWildcards_backslash_escaped_first() {
+        // 백슬래시를 먼저 이스케이프해야 %→\% 변환 후 이중 이스케이프 방지
+        assertThat(ProductService.escapeLikeWildcards("C:\\%DC")).isEqualTo("C:\\\\\\%DC");
+    }
+
+    @Test
+    void escapeLikeWildcards_noSpecialChars_unchanged() {
+        assertThat(ProductService.escapeLikeWildcards("AJ040RXH4BC1")).isEqualTo("AJ040RXH4BC1");
+    }
 }

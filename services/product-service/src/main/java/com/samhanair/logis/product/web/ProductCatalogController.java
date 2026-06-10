@@ -1,5 +1,7 @@
 package com.samhanair.logis.product.web;
 
+import static com.samhanair.logis.product.service.ProductService.escapeLikeWildcards;
+
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.SpecKeyTemplate;
@@ -103,7 +105,8 @@ public class ProductCatalogController {
         Pageable pageable = PageRequest.of(page, size);
         String usageScopeName = usageScope == null ? null : usageScope.name();
         String estimateCategoryName = estimateCategory == null ? null : estimateCategory.name();
-        String qNormalized = (q == null || q.isBlank()) ? null : q.trim();
+        // LIKE 와일드카드(\, %, _) 이스케이프 후 바인딩 (사이클2 지적 P3-4, 2026-06-11)
+        String qNormalized = (q == null || q.isBlank()) ? null : escapeLikeWildcards(q.trim());
         return productRepository.searchByUsageScope(usageScopeName, estimateCategoryName, qNormalized, pageable)
                 .map(ProductCatalogResponse::from);
     }

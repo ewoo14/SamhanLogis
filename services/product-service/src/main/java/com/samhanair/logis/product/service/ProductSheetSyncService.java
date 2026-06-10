@@ -210,6 +210,7 @@ public class ProductSheetSyncService {
                 summary.totalUpdated += tabResult.updated;
                 summary.totalSoftDeleted += tabResult.softDeleted;
                 summary.totalSkipped += tabResult.skipped;
+                summary.totalPreservedManual += tabResult.preservedManual;
                 summary.totalSpecsLinked += tabResult.specsLinked;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] tab '{}' sync 실패: {}", mapping.tabName, e.getMessage(), e);
@@ -236,9 +237,10 @@ public class ProductSheetSyncService {
 
         summary.durationMs = Instant.now().toEpochMilli() - started.toEpochMilli();
         log.info("[ProductSheetSync] sync 완료: 총 inserted={}, updated={}, softDeleted={}, skipped={}, "
-                        + "구성품 linked={}, bundle marked={}, 사양 linked={}, duration={}ms",
+                        + "preservedManual={}, 구성품 linked={}, bundle marked={}, 사양 linked={}, duration={}ms",
                 summary.totalInserted, summary.totalUpdated, summary.totalSoftDeleted,
-                summary.totalSkipped, summary.totalComponentsLinked, summary.totalBundlesMarked,
+                summary.totalSkipped, summary.totalPreservedManual,
+                summary.totalComponentsLinked, summary.totalBundlesMarked,
                 summary.totalSpecsLinked, summary.durationMs);
         return summary;
     }
@@ -689,10 +691,10 @@ public class ProductSheetSyncService {
             if (code == null) continue;
             if (!sheetModelCodes.contains(code)) {
                 if (p.isUsageScopeManual()) {
-                    // 수동 override 품목 — 시트에 없어도 삭제 보호
+                    // 수동 override 품목 — 시트에 없어도 삭제 보호 (별도 카운터 preservedManual 사용, 사이클2 지적 P3-6)
                     log.debug("[ProductSheetSync] tab '{}' modelCode='{}' usageScopeManual=true → soft-delete 제외",
                             mapping.tabName, code);
-                    result.skipped++;
+                    result.preservedManual++;
                     continue;
                 }
                 // BaseEntity.markDeleted: deletedAt + deletedBy + isDeleted=true 설정 (shared:common).
@@ -703,9 +705,9 @@ public class ProductSheetSyncService {
             }
         }
 
-        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, softDeleted={}, skipped={}",
+        log.info("[ProductSheetSync] tab '{}': inserted={}, updated={}, unchanged={}, softDeleted={}, skipped={}, preservedManual={}",
                 mapping.tabName, result.inserted, result.updated, result.unchanged,
-                result.softDeleted, result.skipped);
+                result.softDeleted, result.skipped, result.preservedManual);
         return result;
     }
 
@@ -885,18 +887,35 @@ public class ProductSheetSyncService {
         }
     }
 
-    /** tab 1개 sync 결과. */
+    /**
+     * tab 1개 sync 결과.
+     *
+     * <p><b>카운터 구분 (사이클2 지적 P3-6, 2026-06-11)</b>:
+     * <ul>
+     *   <li>{@code skipped} — 파싱 불가(이름/modelCode 공백) 행 수</li>
+     *   <li>{@code preservedManual} — soft-delete 대상이나 {@code usageScopeManual=true} 로 보존된 품목 수</li>
+     * </ul>
+     * 두 카운터를 분리하여 sync 리포트에서 "파싱 skip"과 "수동 보존"을 독립적으로 확인 가능.
+     */
     public static class TabSyncResult {
         public int inserted = 0;
         public int updated = 0;
         public int unchanged = 0;
         public int softDeleted = 0;
+        /** 파싱 불가(이름/modelCode 공백) 행 수. */
         public int skipped = 0;
+        /** soft-delete 대상이나 usageScopeManual=true 로 삭제 보호된 품목 수 (사이클2 지적 P3-6). */
+        public int preservedManual = 0;
         public int specsLinked = 0;
         public String error;
     }
 
-    /** 전체 sync 집계. */
+    /**
+     * 전체 sync 집계.
+     *
+     * <p>{@code totalPreservedManual} — usageScopeManual=true 로 soft-delete 에서 보호된 품목 합계.
+     * {@code totalSkipped} 와 별도 집계하여 파싱 skip 과 혼용하지 않는다 (사이클2 지적 P3-6).
+     */
     public static class SyncSummary {
         public Map<String, TabSyncResult> byTab = new HashMap<>();
         public Map<String, ComponentSyncResult> byComponentTab = new HashMap<>();
@@ -904,6 +923,8 @@ public class ProductSheetSyncService {
         public int totalUpdated = 0;
         public int totalSoftDeleted = 0;
         public int totalSkipped = 0;
+        /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */
+        public int totalPreservedManual = 0;
         public int totalComponentsLinked = 0;
         public int totalBundlesMarked = 0;
         public int totalSpecsLinked = 0;

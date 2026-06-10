@@ -60,11 +60,15 @@ public class ProductController {
     private final ProductService productService;
 
     /**
-     * 품목 목록 조회. categoryId/status/tag/q 기존 필터 + PR-B 신규 파라미터:
+     * 품목 목록 조회 (어드민/데스크톱 품목관리 화면 전용).
+     *
+     * <p>categoryId/status/tag/q 기존 필터 + usageScope/category 신규 AND 결합 필터.
+     * order-app 및 desktop sales.ts 의 카탈로그 조회는 {@link com.samhanair.logis.product.web.ProductCatalogController}
+     * ({@code /api/v1/products})에서 처리하므로 두 경로를 혼동하지 않도록 주의 (사이클2 지적 P3-5, 2026-06-11).
+     *
      * <ul>
      *   <li>{@code usageScope} — {@link UsageScope} enum 문자열 (예: {@code PARTNER_ORDER}, {@code BOTH})</li>
-     *   <li>{@code category} — {@link ProductCategory} enum 문자열 (예: {@code HOME_MULTI}) —
-     *       order-app M1a {@code getProducts(category)} 호출 + desktop sales.ts 호출 실효화.</li>
+     *   <li>{@code category} — {@link ProductCategory} enum 문자열 (예: {@code HOME_MULTI})</li>
      * </ul>
      */
     @GetMapping

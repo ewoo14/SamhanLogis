@@ -1129,22 +1129,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (denied) return denied
     const modelCode = decodeURIComponent(productUsageMatch[1]!)
     const idx = MOCK_PRODUCT_CATALOG_ROWS.findIndex((row) => row.modelCode === modelCode)
-    // 미존재 modelCode → 404 (BE 계약 동형)
+    // 미존재 modelCode → 404 (BE 계약 동형 — EntityNotFoundException → "제품을 찾을 수 없습니다")
     if (idx < 0) {
-      return mockError(404, 'NOT_FOUND', `Product 없음: ${modelCode}`)
+      return mockError(404, 'NOT_FOUND', '제품을 찾을 수 없습니다')
     }
     const existing = MOCK_PRODUCT_CATALOG_ROWS[idx]!
 
     if (method === 'PATCH') {
       const body = parseMockBody(config)
+      const newScope = (body['usageScope'] as string | undefined) ?? existing.usageScope
+      // BE markUsageManual 동형 룰: NONE / PARTNER_ORDER 는 estimateCategory 강제 null 정리
+      const estimateCategoryRaw =
+        'estimateCategory' in body
+          ? ((body['estimateCategory'] as string | null | undefined) ?? null)
+          : existing.estimateCategory
+      const estimateCategoryResolved =
+        newScope === 'NONE' || newScope === 'PARTNER_ORDER' ? null : estimateCategoryRaw
       const updated = {
         ...existing,
         modelCode,
-        usageScope: (body['usageScope'] as string | undefined) ?? existing.usageScope,
-        estimateCategory:
-          'estimateCategory' in body
-            ? ((body['estimateCategory'] as string | null | undefined) ?? null)
-            : existing.estimateCategory,
+        usageScope: newScope,
+        estimateCategory: estimateCategoryResolved,
         usageScopeManual: true,
       }
       MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row, i) =>

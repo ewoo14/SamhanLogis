@@ -234,7 +234,7 @@ export function ProductCatalogPage() {
   const [mutationError, setMutationError] = useState<string | null>(null)
 
   useEffect(() => {
-    setPageTitle({ title: '품목 관리', meta: '상품' })
+    setPageTitle({ title: '품목 관리', meta: '품목' })
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 
@@ -612,7 +612,7 @@ const pageInfoStyle: CSSProperties = {
 const errorBannerStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--color-danger-700, #991B1B)',
-  background: '#FEF2F2',
+  background: 'var(--color-danger-50, #FEF2F2)',
   border: '1px solid var(--color-danger-200, #FECACA)',
   borderRadius: 4,
   padding: '4px 8px',

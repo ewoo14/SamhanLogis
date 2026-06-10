@@ -55,15 +55,17 @@ public class ProductService {
     /**
      * 품목 목록 검색 — categoryId/status/tag/q 필터 기존 유지 + usageScope/productCategory 신규 AND 결합.
      *
-     * <p>PR-B(2026-06-11) 확장: order-app 이 {@code ?usageScope=PARTNER_ORDER&category=HOME_MULTI} 로
-     * 호출하고, desktop sales.ts 가 {@code usageScope=BOTH&category=...} 로 호출하던 파라미터가
-     * 이제 실효화된다. {@code category} 파라미터는 {@link ProductCategory} enum 문자열 바인딩.
+     * <p>{@code /products} (GET) 엔드포인트의 서비스 구현체이다. 이 경로는 어드민/데스크톱 품목관리 화면의
+     * 전체 목록 조회에 사용된다. order-app 및 desktop sales.ts 의 노출 필터 조회는
+     * {@link com.samhanair.logis.product.web.ProductCatalogController} ({@code /api/v1/products}) 가
+     * 담당하므로 두 경로를 혼동하지 않도록 주의할 것.
      *
      * @param categoryId      카테고리 UUID 필터 (null = 전체)
      * @param status          제품 상태 필터 (null = 전체)
      * @param tagKey          태그 키 필터 (null = 미사용)
      * @param tagValue        태그 값 필터 (tagKey 와 쌍)
-     * @param q               자유 텍스트 검색 (name/modelName LIKE)
+     * @param q               자유 텍스트 검색 (name/modelName LIKE). LIKE 와일드카드({@code \}, {@code %}, {@code _})
+     *                        은 이 메서드에서 이스케이프한 후 바인딩한다.
      * @param usageScope      노출 범위 필터 (null = 전체)
      * @param productCategory 품목 카테고리 필터 (null = 전체, {@link ProductCategory} enum)
      * @param pageable        페이징 정보
@@ -80,7 +82,7 @@ public class ProductService {
                                                Pageable pageable) {
         String tagFilter = buildTagFilter(tagKey, tagValue);
         String statusName = status == null ? null : status.name();
-        String qNormalised = (q == null || q.isBlank()) ? null : q.trim();
+        String qNormalised = (q == null || q.isBlank()) ? null : escapeLikeWildcards(q.trim());
         String usageScopeName = usageScope == null ? null : usageScope.name();
         String productCategoryName = productCategory == null ? null : productCategory.name();
         return productRepository
@@ -347,7 +349,11 @@ public class ProductService {
      * @param req       새 노출 범위 + 견적 카테고리
      * @return 갱신된 품목 상세 응답
      * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
+     * @deprecated 카탈로그 endpoint 는 {@link #updateUsageAndReturn(String, UpdateProductUsageRequest)} 을
+     *             사용하여 {@link com.samhanair.logis.product.web.dto.ProductCatalogResponse} 로 변환한다.
+     *             본 메서드의 운영 호출자는 없음 — 레거시 유지.
      */
+    @Deprecated
     public ProductResponse updateUsage(String modelCode, UpdateProductUsageRequest req) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.markUsageManual(req.usageScope(), req.estimateCategory());
@@ -383,14 +389,29 @@ public class ProductService {
      * hash 캐시를 무효화한다. 이 처리가 없으면 행 내용이 변경되지 않은 상태에서 sync 를
      * 재실행해도 {@code unchanged} 분기에 걸려 usageScope 가 시트 기준으로 재분류되지 않는다.
      *
-     * @param modelCode override 해제 대상 품목의 모델코드
+     * <p><b>evict 키 정합 (사이클2 지적 P3-1, 2026-06-11)</b>:
+     * hash 캐시 키는 시트 sync 시 {@code modelCode} 컬럼 값으로 적재된다.
+     * {@code model_code} 가 비어 있고 {@code model_name} 만 있는 레거시 품목의 경우
+     * 입력 파라미터({@code modelCode}) 가 실제로 modelName 값일 수 있으므로
+     * 로드된 엔티티의 {@code getModelCode()} 를 키로 사용한다.
+     * modelCode 가 null 이면 sync 에서 해당 행을 식별하는 캐시 항목이 없으므로 evict no-op.
+     *
+     * <p><b>커밋-전 evict race (사이클2 지적 P3-2)</b>:
+     * 본 메서드는 트랜잭션 커밋 직전에 evict 를 호출한다. 다중 인스턴스(JVM-local 한계)
+     * 환경에서는 다른 인스턴스의 캐시는 무효화되지 않으나, 단일 인스턴스 운영 구조에서는
+     * 허용된 트레이드오프이다 ({@code afterCommit} 훅 등록 패턴은 이 서비스에 적용된 선례 없음).
+     *
+     * @param modelCode override 해제 대상 품목의 카탈로그 노출 식별자 (modelCode ?? modelName)
      * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
      */
     public void clearUsageOverride(String modelCode) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.clearUsageManual();
-        // rowHash 캐시 evict — 다음 sync 에서 unchanged 분기에 걸리지 않고 시트 기준 재분류 보장
-        productSheetSyncService.evictRowHash(modelCode);
+        // evict: 로드된 엔티티의 실제 modelCode 를 키로 사용. null 이면 캐시 항목 없으므로 no-op.
+        String evictKey = product.getModelCode();
+        if (evictKey != null) {
+            productSheetSyncService.evictRowHash(evictKey);
+        }
     }
 
     public void delete(UUID id, String callerId) {
@@ -428,5 +449,22 @@ public class ProductService {
 
     private String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    /**
+     * PostgreSQL LIKE 와일드카드 이스케이프 (사이클2 지적 P3-4, 2026-06-11).
+     *
+     * <p>PostgreSQL 기본 ESCAPE 문자는 백슬래시이므로
+     * {@code \} → {@code \\}, {@code %} → {@code \%}, {@code _} → {@code \_} 로 변환한다.
+     * 쿼리의 {@code ESCAPE '\\'} 선언과 쌍을 이룬다.
+     * 검색어가 null/blank 인 경우 호출자가 null 을 바인딩하므로 이 메서드는 비어 있지 않은 경우에만 호출된다.
+     *
+     * @param q 원본 검색어 (trim 완료 후 전달)
+     * @return LIKE 바인딩에 안전한 이스케이프된 검색어
+     */
+    public static String escapeLikeWildcards(String q) {
+        return q.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 }
