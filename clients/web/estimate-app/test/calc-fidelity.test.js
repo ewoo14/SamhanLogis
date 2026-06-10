@@ -12,7 +12,36 @@ process.env.DEFAULT_USER_EMAIL = 'test@samhan-air.com';
 
 jest.mock('axios', () => {
   const ok = (data) => Promise.resolve({ status: 200, data });
-  const get = jest.fn().mockImplementation(() => ok({}));
+  const get = jest.fn().mockImplementation((url) => {
+    // #29 — dc-config-service internal by-bizno (ApiResponse 봉투 + nested dcConfig)
+    if (/\/internal\/partners\/by-bizno\/9876543210$/.test(url)) {
+      return ok({
+        success: true,
+        data: {
+          partner: { partnerCode: '9876543210', name: 'DC테스트거래처' },
+          dcConfig: {
+            partnerCode: '9876543210',
+            homeDiscountRate: 0.46,
+            commercialDiscountRate: 0.47,
+            showIHose: true,
+            discount360Amount: 20000.0,
+            discount4WayAmount: 25000.0,
+            discount1WayAmount: 30000.0,
+            discountStandAmount: 10000.0,
+            discountDeluxeAmount: null,
+            discountFirstGradeAmount: 0,
+            unitRoundTo: 100,
+            unitRoundMode: 'ROUND',
+          },
+        },
+      });
+    }
+    if (/\/internal\/partners\/by-bizno\/5555555555$/.test(url)) {
+      // DC 설정 미존재 거래처 — dcConfig null
+      return ok({ success: true, data: { partner: { partnerCode: '5555555555' }, dcConfig: null } });
+    }
+    return ok({});
+  });
   const post = jest.fn().mockImplementation(() => ok({ ok: true }));
   return { create: jest.fn(() => ({ get, post })), get, post };
 });
@@ -449,5 +478,27 @@ describe('initDcConfigFromNotion — 필드별 가드 merge', () => {
     const cfg = await code.initDcConfigFromNotion('123-45-67890');
     expect(cfg.homeDiscount).toBe(0.45);
     expect(cfg.unitRoundMode).toBe('ROUND');
+  });
+
+  test('#29 dc-config-service by-bizno — DcConfigResponse → legacy flat 매핑 + 가드 merge', async () => {
+    const cfg = await code.initDcConfigFromNotion('987-65-43210');
+    expect(cfg.homeDiscount).toBe(0.46);
+    expect(cfg.commDiscount).toBe(0.47);
+    expect(cfg.showIHose).toBe(true);
+    expect(cfg.discount360).toBe(20000);
+    expect(cfg.discount4way).toBe(25000);
+    expect(cfg.oneWayDiscount).toBe(30000); // discount1WayAmount → oneWayDiscount
+    expect(cfg.discountStand).toBe(10000);
+    expect(cfg.deluxeDiscount).toBe(0); // null → 가드로 default(0) 유지
+    expect(cfg.firstGradeDiscount).toBe(0); // 0 도 number 라 override (legacy 시맨틱)
+    expect(cfg.unitRoundTo).toBe(100);
+    expect(cfg.unitRoundMode).toBe('ROUND');
+  });
+
+  test('#29 dcConfig null (DC 미설정 거래처) → default 유지', async () => {
+    const cfg = await code.initDcConfigFromNotion('555-55-55555');
+    expect(cfg.homeDiscount).toBe(0.45);
+    expect(cfg.commDiscount).toBe(0.45);
+    expect(cfg.unitRoundTo).toBe(0);
   });
 });

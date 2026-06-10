@@ -60,6 +60,13 @@ const BASE_URL = process.env.SAMHAN_API_BASE_URL || 'http://localhost:8080';
 // 직접 read (개발책임자 결정 2026-05-05 — 옵션 C).
 const PARTNER_BASE = process.env.PARTNER_SERVICE_URL || BASE_URL;
 const ESTIMATE_BASE = process.env.ESTIMATE_SERVICE_URL || BASE_URL;
+// #29: 거래처별 DC 설정 = dc-config-service internal endpoint (X-Internal-Token).
+// PARTNER_SERVICE_URL(:8089) 이 dc-config-service 를 가리킨다.
+const DC_CONFIG_BASE = process.env.DC_CONFIG_SERVICE_URL || PARTNER_BASE;
+const DC_INTERNAL_TOKEN =
+  process.env.SAMHAN_INTERNAL_TOKEN ||
+  process.env.INTERNAL_AUTH_TOKEN ||
+  'dev-internal-token-change-me';
 const AUDIT_LOG_URL = process.env.AUDIT_LOG_URL || `${BASE_URL}/api/v1/audit-logs/front`;
 
 const ax = axios.create({ timeout: 15000, validateStatus: () => true });
@@ -1910,10 +1917,37 @@ async function initDcConfigFromNotion(bizno) {
   const cust = searchCustomerByBizOrCode(biznoDigits);
   let notion = null;
   try {
-    notion = await _msGet(
-      `${PARTNER_BASE}/api/v1/partners/${biznoDigits}/dc-config`,
-      null,
+    // #29 (개발책임자 결정 ③): partnerCode = 사업자번호 '-' 제외 동일값 — bizNo 키로
+    // dc-config-service internal 조회 (legacy Notion 거래처별 DC리스트 → 우리 DB 대체).
+    const resp = await ax.get(
+      `${DC_CONFIG_BASE}/internal/partners/by-bizno/${biznoDigits}`,
+      { headers: { 'X-Internal-Token': DC_INTERNAL_TOKEN } },
     );
+    if (resp.status === 200) {
+      const payload = (resp.data && resp.data.data) || resp.data || {};
+      const dc = payload.dcConfig;
+      if (dc) {
+        // DcConfigResponse → legacy Notion flat 키 매핑 (merge 가드는 아래 공통 로직)
+        const num = (v) => (v == null ? null : Number(v));
+        notion = {
+          homeDiscount: num(dc.homeDiscountRate),
+          commDiscount: num(dc.commercialDiscountRate),
+          showIHose: typeof dc.showIHose === 'boolean' ? dc.showIHose : null,
+          discount360: num(dc.discount360Amount),
+          discount4way: num(dc.discount4WayAmount),
+          discountStand: num(dc.discountStandAmount),
+          oneWayDiscount: num(dc.discount1WayAmount),
+          deluxeDiscount: num(dc.discountDeluxeAmount),
+          firstGradeDiscount: num(dc.discountFirstGradeAmount),
+          unitRoundTo: num(dc.unitRoundTo),
+          unitRoundMode: dc.unitRoundMode || null,
+        };
+      }
+    } else if (resp.status === 404) {
+      Logger.log(`[initDcConfigFromNotion] 미등록 거래처(bizNo=${biznoDigits}) → default 환원`);
+    } else {
+      Logger.log(`[initDcConfigFromNotion] dc-config 조회 ${resp.status} → default 환원`);
+    }
   } catch (e) {
     Logger.log(`[initDcConfigFromNotion] dc-config 조회 실패 → default 환원 (${e.message})`);
   }

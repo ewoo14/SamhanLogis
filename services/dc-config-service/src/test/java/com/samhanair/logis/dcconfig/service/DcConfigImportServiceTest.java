@@ -116,6 +116,72 @@ class DcConfigImportServiceTest {
     }
 
     @Test
+    @DisplayName("#29 단위처리 select 9종 — '100원 반올림' → enabled + roundTo/roundMode 보존")
+    void importUnitProcessingSelect_preservesRounding() {
+        String csv = "업체명,1way,1등급,360,4way,거래처코드,단위처리,디럭스,상업멀티DC,스탠드,유연호스I형,특이사항,홈멀티DC\n"
+                + "(주)예전,,,,,6260403108,100원 반올림,,47%,,No,,46%\n";
+
+        when(partnerRepository.findByPartnerCode("6260403108")).thenReturn(Optional.of(partner));
+        when(dcConfigRepository.findByPartner_Id(any())).thenReturn(Optional.empty());
+
+        DcConfigImportResult result = service.importCsv(toStream(csv));
+
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.rejected()).isEmpty();
+        ArgumentCaptor<DcConfig> captor = ArgumentCaptor.forClass(DcConfig.class);
+        verify(dcConfigRepository).save(captor.capture());
+        DcConfig saved = captor.getValue();
+        assertThat(saved.getUnitProcessingEnabled()).isTrue();
+        assertThat(saved.getUnitRoundTo()).isEqualTo(100);
+        assertThat(saved.getUnitRoundMode()).isEqualTo(com.samhanair.logis.dcconfig.domain.UnitRoundMode.ROUND);
+    }
+
+    @Test
+    @DisplayName("#29 단위처리 비인식 값 → reject (silent 유실 금지)")
+    void rejectUnknownUnitProcessing() {
+        String csv = "업체명,1way,1등급,360,4way,거래처코드,단위처리,디럭스,상업멀티DC,스탠드,유연호스I형,특이사항,홈멀티DC\n"
+                + "(주)예전,,,,,6260403108,오천원 막올림,,47%,,No,,46%\n";
+
+        when(partnerRepository.findByPartnerCode("6260403108")).thenReturn(Optional.of(partner));
+        // 단위처리 파싱이 findByPartner_Id 도달 전에 reject — 해당 stub 불필요
+
+        DcConfigImportResult result = service.importCsv(toStream(csv));
+
+        assertThat(result.inserted()).isZero();
+        assertThat(result.rejected()).hasSize(1);
+        assertThat(result.rejected().get(0).reason()).contains("단위처리");
+    }
+
+    @Test
+    @DisplayName("#29 parseUnitProcessing — select 9종/Yes·No 호환/빈값")
+    void parseUnitProcessingMatrix() {
+        var ceil10 = DcConfigImportService.parseUnitProcessing("10원 올림");
+        assertThat(ceil10.enabled()).isTrue();
+        assertThat(ceil10.roundTo()).isEqualTo(10);
+        assertThat(ceil10.roundMode()).isEqualTo(com.samhanair.logis.dcconfig.domain.UnitRoundMode.CEIL);
+
+        var floor1000 = DcConfigImportService.parseUnitProcessing("1000원 내림");
+        assertThat(floor1000.roundTo()).isEqualTo(1000);
+        assertThat(floor1000.roundMode()).isEqualTo(com.samhanair.logis.dcconfig.domain.UnitRoundMode.FLOOR);
+
+        var round100 = DcConfigImportService.parseUnitProcessing("100원반올림");
+        assertThat(round100.roundTo()).isEqualTo(100);
+        assertThat(round100.roundMode()).isEqualTo(com.samhanair.logis.dcconfig.domain.UnitRoundMode.ROUND);
+
+        var yes = DcConfigImportService.parseUnitProcessing("Yes");
+        assertThat(yes.enabled()).isTrue();
+        assertThat(yes.roundTo()).isNull();
+
+        var blank = DcConfigImportService.parseUnitProcessing("  ");
+        assertThat(blank.enabled()).isFalse();
+        assertThat(blank.roundTo()).isNull();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> DcConfigImportService.parseUnitProcessing("5000원 올림"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("partner_code 부재 → reject (거래처코드 부재)")
     void rejectWhenPartnerCodeMissing() {
         String csv = "업체명,1way,1등급,360,4way,거래처코드,단위처리,디럭스,상업멀티DC,스탠드,유연호스I형,특이사항,홈멀티DC\n"

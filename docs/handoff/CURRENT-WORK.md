@@ -25,10 +25,14 @@
 - slip-service `POST /internal/slips/from-estimate`(InternalSlipPublishController, InternalTokenFilter 게이트) + enforcement IT 6케이스. slip-bridge URL 전환+토큰 헤더+봉투 언래핑 fix(가짜 SLP- fallback 제거)+estimateNumber WEB- fallback+qty String 계약. **실 Docker QA**: 201/403/401/200멱등+위조 X-User-* 403 + 실 브리지 E2E + DB 실증(docs/qa/estimate-p0b/RESULTS.md).
 - **부수 하드닝**: slip-service `/internal/**` 전체 system-internal principal 강제 — X-User-* 위조 면역. 사이클1 P1 2건 fix + CI 적발 2계열(IT 토큰 정합·dispatch IT 토큰 헤더 — 운영 호출자는 전건 토큰 송신 확인) fix.
 
+### ✅ #29 DC설정 Notion→DB 진행 (PR 오픈)
+- dc-config 모델 13컬럼 기성(갭 0)·import 서비스 기성 확인. **import 단위처리 fidelity fix**(select 9종→unitRoundTo/Mode, 비인식 reject). estimate-app `initDcConfigFromNotion` → `/internal/partners/by-bizno/{bizno}`(X-Internal-Token) + DcConfigResponse→legacy flat 매핑.
+- **실 시드 완료(로컬)**: 실 Notion 227행 추출(`scripts/extract-notion-dc-csv.js`) → 실 게이트웨이 dev_master import **225+2/227, rejected 0** → 실 E2E(0.48/100원 CEIL 등 복원). 증빙 docs/qa/dc-config-notion-29/RESULTS.md + 운영 런북. ⚠️ CSV=영업데이터, 레포 PUBLIC — 커밋 금지(.claude/tmp 한정).
+- 비스코프: getAllNotionDcConfigs_ 벌크/getQuoteHistoryByCustomer — 라이브 UI(06-09 index.html) 미포팅이라 호출자 부재 → **#31 UI 정합 슬라이스로 이동**.
+
 ### 🔵 다음 (우선순위)
-1. **#29 DC설정 Notion→DB** + P0-A by-customer 확장(getQuoteHistoryByCustomer) — 키=partnerCode(=bizno digits), 레거시 13컬럼 수용.
-2. **#30 Sheets→DB 전면 치환** / **#31 종합견적서 Docker E2E 실 UI 캡처** / 나머지 23개 GAS 앱 감사·이식.
-3. P0-A snapshots permitAll → X-Internal-Token 동일 하드닝(후속).
+1. **#30 Sheets→DB 전면 치환** / **#31 종합견적서 라이브 UI 정합 + Docker E2E 실 UI 캡처**(getAllNotionDcConfigs_·getQuoteHistoryByCustomer 포함) / 나머지 23개 GAS 앱 감사·이식.
+2. P0-A snapshots permitAll → X-Internal-Token 동일 하드닝(후속). 운영 Notion 시드 1회 실행(런북).
 
 ---
 

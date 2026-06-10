@@ -8,6 +8,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.dcconfig.domain.DcConfig;
 import com.samhanair.logis.dcconfig.domain.DcConfigSource;
 import com.samhanair.logis.dcconfig.domain.Partner;
+import com.samhanair.logis.dcconfig.domain.UnitRoundMode;
 import com.samhanair.logis.dcconfig.dto.DcConfigImportResult;
 import com.samhanair.logis.dcconfig.repository.DcConfigRepository;
 import com.samhanair.logis.dcconfig.repository.PartnerRepository;
@@ -51,7 +52,9 @@ import org.springframework.transaction.annotation.Transactional;
  *   스탠드         → discount_stand_amount
  *   디럭스         → discount_deluxe_amount
  *   1등급          → discount_first_grade_amount
- *   단위처리       → unit_processing_enabled     ("Yes"/"No" → boolean, V2 신규)
+ *   단위처리       → unit_processing_enabled + unit_round_to + unit_round_mode
+ *                    (#29 fidelity: 레거시 Notion select 9종 "10/100/1000원 올림·반올림·내림"
+ *                     → enabled=true + roundTo + CEIL/ROUND/FLOOR. "Yes"/"No" 구형 포맷 호환 유지)
  *   특이사항       → note
  * </pre>
  *
@@ -163,7 +166,7 @@ public class DcConfigImportService {
                     BigDecimal stand = parseCurrency(get(row, col, COL_STAND));
                     BigDecimal deluxe = parseCurrency(get(row, col, COL_DELUXE));
                     BigDecimal firstGr = parseCurrency(get(row, col, COL_FIRST_GRADE));
-                    boolean unitProc = parseYesNo(get(row, col, COL_UNIT_PROC));
+                    UnitProcessing unitProc = parseUnitProcessing(get(row, col, COL_UNIT_PROC));
                     String note = normalize(get(row, col, COL_NOTE));
 
                     Optional<DcConfig> existing = dcConfigRepository.findByPartner_Id(partner.getId());
@@ -173,7 +176,10 @@ public class DcConfigImportService {
                     cfg.changeRates(homeRate, commRate);
                     cfg.changeShowIHose(iHose);
                     cfg.changeOptionAmounts(d360, d4way, d1way, stand, deluxe, firstGr);
-                    cfg.changeUnitProcessingEnabled(unitProc);
+                    cfg.changeUnitProcessingEnabled(unitProc.enabled());
+                    if (unitProc.roundTo() != null) {
+                        cfg.changeRounding(unitProc.roundTo(), unitProc.roundMode());
+                    }
                     cfg.changeNote(note);
                     cfg.changeSource(DcConfigSource.LEGACY_CSV);
 
@@ -289,5 +295,44 @@ public class DcConfigImportService {
             return false;
         }
         return v.equalsIgnoreCase("Yes") || v.equalsIgnoreCase("Y") || v.equalsIgnoreCase("True");
+    }
+
+    /** 단위처리 파싱 결과 — enabled + (select 포맷일 때만) roundTo/roundMode. */
+    record UnitProcessing(boolean enabled, Integer roundTo, UnitRoundMode roundMode) {
+    }
+
+    private static final java.util.regex.Pattern UNIT_PROC_PATTERN =
+            java.util.regex.Pattern.compile("^(10|100|1000)\\s*원?\\s*(올림|반올림|내림)$");
+
+    /**
+     * 단위처리 파싱 — #29 fidelity.
+     *
+     * <p>레거시 Notion select 9종("10원 올림" ~ "1000원 내림") → enabled=true +
+     * roundTo(10/100/1000) + roundMode(올림=CEIL/반올림=ROUND/내림=FLOOR).
+     * 구형 "Yes"/"No" 포맷은 enabled 만 갱신(rounding 유지). 그 외 비인식 값은
+     * 거부(IllegalArgumentException) — silent 유실 금지.
+     */
+    static UnitProcessing parseUnitProcessing(String raw) {
+        String v = normalize(raw);
+        if (v == null) {
+            return new UnitProcessing(false, null, null);
+        }
+        if (v.equalsIgnoreCase("Yes") || v.equalsIgnoreCase("Y") || v.equalsIgnoreCase("True")) {
+            return new UnitProcessing(true, null, null);
+        }
+        if (v.equalsIgnoreCase("No") || v.equalsIgnoreCase("N") || v.equalsIgnoreCase("False")) {
+            return new UnitProcessing(false, null, null);
+        }
+        java.util.regex.Matcher m = UNIT_PROC_PATTERN.matcher(v.replaceAll("\\s+", " ").trim());
+        if (m.matches()) {
+            int roundTo = Integer.parseInt(m.group(1));
+            UnitRoundMode mode = switch (m.group(2)) {
+                case "올림" -> UnitRoundMode.CEIL;
+                case "내림" -> UnitRoundMode.FLOOR;
+                default -> UnitRoundMode.ROUND;
+            };
+            return new UnitProcessing(true, roundTo, mode);
+        }
+        throw new IllegalArgumentException("단위처리 파싱 실패 [" + raw + "]");
     }
 }
