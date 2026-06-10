@@ -39,6 +39,6 @@
 
 ## 운영 런북 (시드 1회)
 
-1. `node clients/web/estimate-app/scripts/extract-notion-dc-csv.js` (NOTION_TOKEN env 또는 로컬 라이브 소스).
+1. `node tools/legacy-gas/scripts/extract-notion-dc-csv.js` (NOTION_TOKEN env 또는 로컬 라이브 소스 — 가드 제외 구역, 의존성 0/내장 fetch).
 2. 운영 게이트웨이 로그인(MASTER, `dc-config.import` 권한) 후 `POST /api/v1/dc-config/admin/import` (multipart `file`).
 3. estimate-app `.env`: `PARTNER_SERVICE_URL`(dc-config-service)+`SAMHAN_INTERNAL_TOKEN` 확인.

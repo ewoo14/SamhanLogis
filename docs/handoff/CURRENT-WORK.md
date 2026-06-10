@@ -27,7 +27,7 @@
 
 ### ✅ #29 DC설정 Notion→DB 진행 (PR 오픈)
 - dc-config 모델 13컬럼 기성(갭 0)·import 서비스 기성 확인. **import 단위처리 fidelity fix**(select 9종→unitRoundTo/Mode, 비인식 reject). estimate-app `initDcConfigFromNotion` → `/internal/partners/by-bizno/{bizno}`(X-Internal-Token) + DcConfigResponse→legacy flat 매핑.
-- **실 시드 완료(로컬)**: 실 Notion 227행 추출(`scripts/extract-notion-dc-csv.js`) → 실 게이트웨이 dev_master import **225+2/227, rejected 0** → 실 E2E(0.48/100원 CEIL 등 복원). 증빙 docs/qa/dc-config-notion-29/RESULTS.md + 운영 런북. ⚠️ CSV=영업데이터, 레포 PUBLIC — 커밋 금지(.claude/tmp 한정).
+- **실 시드 완료(로컬)**: 실 Notion 227행 추출(`tools/legacy-gas/scripts/extract-notion-dc-csv.js`) → 실 게이트웨이 dev_master import **225+2/227, rejected 0** → 실 E2E(0.48/100원 CEIL 등 복원). 증빙 docs/qa/dc-config-notion-29/RESULTS.md + 운영 런북. ⚠️ CSV=영업데이터, 레포 PUBLIC — 커밋 금지(.claude/tmp 한정).
 - 비스코프: getAllNotionDcConfigs_ 벌크/getQuoteHistoryByCustomer — 라이브 UI(06-09 index.html) 미포팅이라 호출자 부재 → **#31 UI 정합 슬라이스로 이동**.
 
 ### 🔵 다음 (우선순위)

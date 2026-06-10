@@ -1,8 +1,11 @@
 /**
  * #29 — 레거시 Notion '거래처별 DC리스트' → DcConfigImportService CSV 추출.
  *
+ * 위치: tools/legacy-gas/scripts — Notion Runtime Zero/Credential 가드 제외 구역
+ * (런타임 코드 아님 — 1회성 마이그레이션 유틸).
+ *
  * 사용:
- *   NOTION_TOKEN=<ntn_...> node scripts/extract-notion-dc-csv.js [출력경로]
+ *   NOTION_TOKEN=<ntn_...> node tools/legacy-gas/scripts/extract-notion-dc-csv.js [출력경로]
  *   (NOTION_TOKEN 미설정 시 tools/legacy-gas/종합견적서-live/Code.js 의
  *    NOTION_TOKEN 상수를 런타임 파싱 — 해당 파일은 gitignored 로컬 전용)
  *
@@ -13,9 +16,22 @@
 
 'use strict';
 
+// 의존성 0 — Node 18+ 내장 fetch 사용 (tools/legacy-gas 에는 node_modules 없음)
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
+
+async function notionApi(method, url, headers, body) {
+  const resp = await fetch(url, {
+    method,
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    throw new Error(`${resp.status} ${JSON.stringify(data).slice(0, 300)}`);
+  }
+  return data;
+}
 
 const DB_ID = '193a1006d6588161a02cc8f196d7102b'; // 거래처별 DC리스트 (식별자 — 비밀 아님)
 // 다중 data source DB 라 2025-09-03 data_sources 방식 필수 (라이브 getAllNotionDcConfigs_ 동일)
@@ -23,8 +39,7 @@ const NOTION_VER = '2025-09-03';
 
 function resolveToken() {
   if (process.env.NOTION_TOKEN) return process.env.NOTION_TOKEN.trim();
-  const livePath = path.join(__dirname, '..', '..', '..', '..',
-    'tools', 'legacy-gas', '종합견적서-live', 'Code.js');
+  const livePath = path.join(__dirname, '..', '종합견적서-live', 'Code.js');
   if (fs.existsSync(livePath)) {
     const src = fs.readFileSync(livePath, 'utf8');
     const m = src.match(/var NOTION_TOKEN = '([^']+)'/);
@@ -42,13 +57,13 @@ const csvCell = (v) => {
 async function main() {
   const token = resolveToken();
   const outPath = process.argv[2]
-    || path.join(__dirname, '..', '..', '..', '..', '.claude', 'tmp', 'dc-config-notion.csv');
+    || path.join(__dirname, '..', '..', '..', '.claude', 'tmp', 'dc-config-notion.csv');
 
   const headers = { Authorization: `Bearer ${token}`, 'Notion-Version': NOTION_VER };
 
   // data_source 해석 (라이브 getAllNotionDcConfigs_ 동일 패턴)
-  const dbResp = await axios.get(`https://api.notion.com/v1/databases/${DB_ID}`, { headers });
-  const sources = dbResp.data.data_sources || [];
+  const dbResp = await notionApi('GET', `https://api.notion.com/v1/databases/${DB_ID}`, headers);
+  const sources = dbResp.data_sources || [];
   if (!sources.length) throw new Error('data_sources 없음');
   const dsId = sources[0].id;
   console.log(`data_source: ${dsId} (총 ${sources.length}개 중 1번째)`);
@@ -57,12 +72,12 @@ async function main() {
   let cursor = null;
   let pages = 0;
   do {
-    const resp = await axios.post(
+    const body = await notionApi(
+      'POST',
       `https://api.notion.com/v1/data_sources/${dsId}/query`,
+      headers,
       cursor ? { page_size: 100, start_cursor: cursor } : { page_size: 100 },
-      { headers },
     );
-    const body = resp.data;
     for (const page of body.results || []) {
       const p = page.properties || {};
       const num = (n) => (p[n] && typeof p[n].number === 'number' ? p[n].number : null);
@@ -125,4 +140,4 @@ async function main() {
   console.log(`출력: ${outPath}`);
 }
 
-main().catch((e) => { console.error('추출 실패:', e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message); process.exit(1); });
+main().catch((e) => { console.error('추출 실패:', e.message); process.exit(1); });
