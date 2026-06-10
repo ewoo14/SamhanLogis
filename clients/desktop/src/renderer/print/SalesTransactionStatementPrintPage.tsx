@@ -120,9 +120,9 @@ export function SalesTransactionStatementPrintPage() {
         ref={fitRef}
         style={{ zoom }}
       >
-        {/* 상단 — 로고 + 제목 */}
+        {/* 상단 — 로고 + 제목 (원본 양식 청색 SAMSUNG 워드마크 — DispatchView 와 동일 텍스트 방식) */}
         <header className="stm-brand-row">
-          <img className="stm-logo" src={COMPANY.logoPath} alt="SAMSUNG" />
+          <span className="stm-logo-wordmark">SAMSUNG</span>
           <h1 className="stm-title">거래명세서</h1>
         </header>
 

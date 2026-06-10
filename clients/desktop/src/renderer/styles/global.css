@@ -4069,7 +4069,11 @@ button {
 }
 
 .stm-brand-row { display: flex; flex-direction: column; margin-bottom: 2mm; }
-.stm-logo { width: 34mm; height: auto; }
+/* 원본 양식 청색 SAMSUNG 워드마크 — DispatchView placeholder 와 동일 텍스트 방식 */
+.stm-logo-wordmark {
+  color: #1428a0; font-weight: 800; font-size: 16pt; letter-spacing: -0.5px;
+  font-style: italic; font-family: Arial, sans-serif;
+}
 .stm-title { font-size: 22pt; font-weight: 800; letter-spacing: 1.5px; margin: -1mm 0 0 8mm; }
 
 /* 공급받는자(좌) + 공급자(우) */

@@ -165,8 +165,9 @@ export function DispatchView() {
         </header>
 
         <div className="dispatch-meta-row">
+          {/* 전표번호 표준 = 슬래시 YYYY/MM/DD-{번호} (feedback_slip_order_number_format) — slipNo 그대로 */}
           <div className="dispatch-slip-no-box">
-            {slip.slipDate} -{slip.seqNo}
+            {slip.slipNo ?? `${(slip.slipDate ?? '').split('-').join('/')} -${slip.seqNo}`}
           </div>
           <div className="dispatch-warehouse-emphasis">
             {sourceWarehouseName}
