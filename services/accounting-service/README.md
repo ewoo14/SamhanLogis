@@ -118,15 +118,17 @@ MIG-14는 MIG-7~11 결과를 desktop admin UI에서 조회하기 위한 read end
 
 MIG-16 이후 Cash 조회의 `partnerName` 표시는 partner-service batch lookup으로 해결하며, aging snapshot은 Spring `Page` 응답을 반환한다.
 
-## 사업자 양식 확장 — 공급자 연락처·입금계좌·인감 (PR #459)
+## 공급자 설정 확장 — 연락처·입금계좌(노출 토글)·인감·로고 (PR #459)
 
-회계 > 사업자 양식(`SupplierProfile`)이 인쇄 양식(거래명세서/세금계산서 등)의 공급자 정보 단일 출처가 된다. desktop 인쇄 뷰의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_*` env 주입을 본 API 가 대체한다.
+회계 > 공급자 설정(`SupplierProfile`, 구 '사업자 양식')이 인쇄 양식(거래명세서/세금계산서 등)의 공급자 정보 단일 출처가 된다. desktop 인쇄 뷰의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_*` env 주입을 본 API 가 대체한다.
 
 | 항목 | 내용 |
 |---|---|
-| V35 | `supplier_profiles` +`tel`/`fax`/`stamp_png`(BYTEA)/`stamp_hash`, `supplier_bank_accounts` 신규 (7 audit + soft delete, replace-all) |
-| 인감 | `PUT /accounting/supplier-profiles/{id}/stamp` (base64 + SHA-256 검증, ≤200KB) / `DELETE /{id}/stamp` — `accounting.supplier-profiles` UPDATE |
-| 응답 | detail/`/primary` 에 `tel`/`fax`/`bankAccounts[]`/`hasStamp`/`stampPngBase64` (목록은 `hasStamp` 만 — payload 경량화) |
+| V35 | `supplier_profiles` +`tel`/`fax`/`stamp_png`(BYTEA)/`stamp_hash`/`logo_png`(BYTEA)/`logo_hash`, `supplier_bank_accounts` 신규 (7 audit + soft delete, replace-all, `exposed BOOLEAN DEFAULT TRUE`) |
+| 인감/로고 | `PUT·DELETE /accounting/supplier-profiles/{id}/stamp` 및 `/{id}/logo` (base64 + PNG magic + SHA-256 검증, ≤200KB, `@Size` base64 상한) — `accounting.supplier-profiles` UPDATE |
+| 인쇄 전용 | `GET /accounting/supplier-profiles/print-profile` — **인증-only** (사내 전 role 인쇄 허용, 권한 게이트 없음). 노출(`exposed=true`) 계좌만 + 인감/로고 base64. **외부 파트너(X-Is-Partner: true)는 403** |
+| 응답 | 목록 = `bankAccounts[]` 포함 + `hasStamp`/`hasLogo` (stamp/logo base64 만 경량화, `SupplierProfileSummary` projection 으로 BYTEA hydrate 차단) / 상세 `GET /{id}`·`/primary` = base64 포함 전체 |
+| 동시성 | 계좌 replace-all 은 `findByIdForUpdate`(PESSIMISTIC_WRITE) 로 보호 |
 | 발행 일원화 | `TaxInvoiceService` 인쇄 공급자 블록 = primary `SupplierProfile` 우선, 부재 시 `CompanyProperties`(app.company.*) fallback |
 
-⚠️ 계좌 실데이터·실인감은 public repo 비커밋 — 운영 환경에서 사업자 양식 화면으로 직접 입력한다.
+⚠️ 계좌 실데이터·실인감·실로고는 public repo 비커밋 — 운영 환경에서 공급자 설정 화면으로 직접 입력한다.
