@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>출고전표 — 양식 mock v1</title>
+<style>
+  /* 출고전표 양식 1:1 재현 mock (사용자 샘플 이미지 기준, 데이터 익명화)
+     원본: .claude/tmp/slip-form-sample/20260610_173747.png (public repo 비커밋 — 실거래처 정보 포함) */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Malgun Gothic', '맑은 고딕', Dotum, sans-serif;
+    width: 606px; margin: 0 auto; padding: 8px 10px; background: #fff; color: #000;
+  }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+
+  /* ── 로고 ── */
+  .logo { color: #1428a0; font-weight: 800; font-size: 26px; letter-spacing: -1px;
+          font-style: italic; margin: 2px 0 6px 2px; font-family: Arial, sans-serif; }
+
+  /* ── 헤더: 거래처명 + 결재표 ── */
+  .partner-box { flex: 1.4; border: 2px solid #000; display: flex; align-items: center;
+                 justify-content: center; font-size: 24px; font-weight: 800; min-height: 78px; }
+  .approval { flex: 1; border-collapse: collapse; }
+  .approval th, .approval td { border: 1px solid #000; text-align: center; font-size: 12px; }
+  .approval th { font-weight: 700; height: 24px; }
+  .approval td { height: 50px; font-weight: 700; font-size: 13px; }
+  .approval .stamp { font-size: 12px; }
+
+  /* ── 전표번호 + 창고 ── */
+  .slipno-box { flex: 1.2; border: 2px solid #000; text-align: center;
+                font-size: 22px; font-weight: 800; padding: 6px 4px; }
+  .spacer { flex: 0.55; }
+  .warehouse-box { flex: 1; border: 2px solid #000; text-align: center; color: #e60000;
+                   font-size: 18px; font-weight: 800; padding: 9px 4px; }
+
+  /* ── 품목 테이블 ── */
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  .items th { border: 1px solid #000; font-size: 13px; font-weight: 700; height: 26px; background: #fff; }
+  .items td { border: 1px solid #000; font-size: 14px; font-weight: 700; height: 30px; padding: 0 6px; }
+  .items td.dt  { text-align: center; font-size: 12px; width: 52px; }
+  .items td.nm  { text-align: left; }
+  .items td.sp  { text-align: left; width: 118px; }
+  .items td.qty { text-align: right; width: 64px; padding-right: 10px; }
+  .items tr.total td { height: 40px; }
+  .items tr.total .label { text-align: center; font-size: 15px; }
+  .items tr.total .qty { font-style: italic; font-weight: 700; font-size: 15px; }
+
+  /* ── 주소/연락처/특이사항 ── */
+  .addr-box { border: 2px solid #000; text-align: center; font-size: 21px; font-weight: 800;
+              line-height: 1.35; padding: 8px 6px; margin-bottom: 8px; }
+  .line-box { border: 2px solid #000; display: flex; align-items: center;
+              padding: 6px 10px; margin-bottom: 8px; }
+  .line-box .lbl { font-size: 19px; font-weight: 800; margin-right: 24px; white-space: nowrap; }
+  .line-box .val { flex: 1; text-align: center; font-size: 21px; font-weight: 800; }
+  .subnote-box { border: 2px solid #000; text-align: center; font-size: 15px; font-weight: 700;
+                 padding: 6px 4px; margin-bottom: 8px; }
+
+  /* ── 서명란 ── */
+  .sign-box { border: 2px solid #000; padding: 8px 12px 6px; margin-bottom: 8px; }
+  .sign-box .notice { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+  .sign-row { display: flex; align-items: flex-end; gap: 12px; min-height: 56px; }
+  .sign-cell { flex: 1; display: flex; align-items: flex-end; gap: 10px; }
+  .sign-cell .sig-label { font-size: 14px; font-weight: 700; white-space: nowrap; padding-bottom: 4px; }
+  .sign-cell .sig-area { flex: 1; min-height: 52px; display: flex; align-items: center; }
+  .sign-cell .sig-area img { max-height: 52px; max-width: 150px; }
+
+  /* ── 푸터 고지 ── */
+  .footer-box { border: 2px solid #000; text-align: center; font-size: 14.5px; font-weight: 700;
+                line-height: 1.55; padding: 7px 4px; }
+</style>
+</head>
+<body>
+  <div class="logo">SAMSUNG</div>
+
+  <!-- 거래처명 + 결재표 -->
+  <div class="row">
+    <div class="partner-box">테스트시스템(홍길동)</div>
+    <table class="approval">
+      <tr><th>담당부서</th><th>담당자</th><th>출고인</th><th>검수인</th><th>결&nbsp;제</th></tr>
+      <tr>
+        <td>영업1팀</td><td>김담당</td>
+        <td class="stamp"></td><td class="stamp"></td>
+        <td class="stamp">0610</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 전표번호 + 출고창고 -->
+  <div class="row">
+    <div class="slipno-box">2026/06/11 -130</div>
+    <div class="spacer"></div>
+    <div class="warehouse-box">삼성창고 (초월 무갑)</div>
+  </div>
+
+  <!-- 품목 테이블 -->
+  <table class="items">
+    <tr><th style="width:52px">월/일</th><th>품목명</th><th style="width:118px">규격</th><th style="width:64px">수량</th></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ040MXHNBC1 (MX단배관)</td><td class="sp">4단배관</td><td class="qty">1</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ020BN1PBC1 [홈-WIFI 모델]</td><td class="sp">내장형</td><td class="qty">1</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ023BN1PBC1 [홈-WIFI 모델]</td><td class="sp"></td><td class="qty">1</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ072BN1PBC1 [홈-WIFI 모델]</td><td class="sp"></td><td class="qty">1</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">PC1NWSK3NW (WIFI판넬)</td><td class="sp"></td><td class="qty">2</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">PC1BWSK3NW (WIFI판넬)</td><td class="sp"></td><td class="qty">1</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AR-EC05</td><td class="sp">무선냉전</td><td class="qty">3</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">FH-LFHIF 유연호스 I형 ★</td><td class="sp">I형★</td><td class="qty">3</td></tr>
+    <tr class="total"><td class="dt"></td><td class="label">총합계</td><td class="sp"></td><td class="qty">13</td></tr>
+  </table>
+
+  <!-- 배송주소 -->
+  <div class="addr-box">경기도 테스트시 샘플순환로 300 샘플 아파트<br>테스트타운 2110동 1001호</div>
+
+  <!-- 연락처 -->
+  <div class="line-box"><span class="lbl">연락처:</span><span class="val">010-0000-0000</span></div>
+
+  <!-- 특이사항 -->
+  <div class="line-box"><span class="lbl">특이사항:</span><span class="val">오전일찍 최대한 빨리</span></div>
+  <div class="subnote-box">기사님 출발전에 수요처에 전화주세요~ 감사합니다^^</div>
+
+  <!-- 서명란 (전자서명 PNG 가 sig-area 에 렌더) -->
+  <div class="sign-box">
+    <div class="notice">※ 제품수량 및 이상유무 확인 후 서명 <span style="font-size:16px">必</span></div>
+    <div class="sign-row">
+      <div class="sign-cell">
+        <span class="sig-label">용달기사 서명</span>
+        <span class="sig-area"><!-- driverSignaturePng -->
+          <svg width="120" height="46" viewBox="0 0 120 46"><path d="M8 34 C 22 6, 34 40, 48 18 S 78 8, 92 28 S 108 22, 114 30" stroke="#1a3aa8" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+        </span>
+      </div>
+      <div class="sign-cell">
+        <span class="sig-label">인수자 서명</span>
+        <span class="sig-area"><!-- signaturePng -->
+          <svg width="120" height="46" viewBox="0 0 120 46"><path d="M10 30 Q 28 4 40 26 T 66 22 Q 80 40 96 18 T 114 26" stroke="#16266e" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 책임 고지 -->
+  <div class="footer-box">제품 인수시 수량 제품상태 이상 유무 확인 후 서명 부탁드립니다.<br>서명 후 생긴 문제는 당사가 책임지지 않습니다.</div>
+</body>
+</html>

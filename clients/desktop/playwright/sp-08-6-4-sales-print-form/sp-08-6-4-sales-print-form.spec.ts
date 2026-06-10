@@ -127,13 +127,14 @@ test.describe('SP-08-6-4 거래명세서 + 계산서 인쇄 양식 정적 계약
       statementComponent.includes('합계') // 합계 unicode
     expect(hasTotals).toBeTruthy()
 
-    // 비고 섹션 또는 발행자 메모 영역
-    const hasNote =
-      statementComponent.includes('remark') ||
-      statementComponent.includes('note') ||
-      statementComponent.includes('memo') ||
-      statementComponent.includes('비고') // 비고 unicode
-    expect(hasNote).toBeTruthy()
+    // 2026-06-10 원본 양식 정렬: 비고 섹션 폐기 → 배송지(적색) + 금액(한글) 행이
+    // 원본 양식 필수 섹션 (개발책임자 샘플 — .claude/memory/project_slip_shipout_print_form.md)
+    const hasShipBox =
+      statementComponent.includes('배송지') || statementComponent.includes('stm-ship-box')
+    expect(hasShipBox).toBeTruthy()
+    const hasHangulAmount =
+      statementComponent.includes('krwHangul') || statementComponent.includes('금액:')
+    expect(hasHangulAmount).toBeTruthy()
 
     // 푸터 (발행자 서명 / 사인란)
     const hasFooter =

@@ -28,3 +28,45 @@ export function fmtDatetime(iso: string | null | undefined): string {
   if (!iso) return ''
   return iso.slice(0, 10) + ' ' + iso.slice(11, 16)
 }
+
+const HANGUL_DIGITS = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'] as const
+const HANGUL_SMALL_UNITS = ['', '십', '백', '천'] as const
+const HANGUL_BIG_UNITS = ['', '만', '억', '조'] as const
+
+/**
+ * 금액 → 한국어 표기 (수표/명세서 관행 — "이백삼십만이천삼백사십사").
+ *
+ * 거래명세서 원본 양식의 "금액: 이백삼십만이천삼백사십사원 정" 행 렌더링에 사용한다.
+ * 0 또는 비유한 값은 "영" 을 반환한다. 음수는 부호 제거 후 변환한다.
+ *
+ * @example krwHangul(2302344) → "이백삼십만이천삼백사십사"
+ */
+export function krwHangul(amount: number): string {
+  const n = Math.floor(Math.abs(Number(amount) || 0))
+  if (n === 0) return '영'
+  let out = ''
+  let rest = n
+  let bigIdx = 0
+  while (rest > 0) {
+    const chunk = rest % 10000
+    if (chunk > 0) {
+      let part = ''
+      let c = chunk
+      let smallIdx = 0
+      while (c > 0) {
+        const d = c % 10
+        if (d > 0) {
+          // 관행: 십/백/천 앞의 "일" 생략 (일십→십). 만 단위 chunk 선두 1 도 동일 (일만→만 — 수표 표기).
+          const digit = d === 1 && smallIdx > 0 ? '' : (HANGUL_DIGITS[d] ?? '')
+          part = digit + (HANGUL_SMALL_UNITS[smallIdx] ?? '') + part
+        }
+        c = Math.floor(c / 10)
+        smallIdx += 1
+      }
+      out = part + HANGUL_BIG_UNITS[bigIdx] + out
+    }
+    rest = Math.floor(rest / 10000)
+    bigIdx += 1
+  }
+  return out
+}

@@ -143,3 +143,7 @@ backups/
 # 종합견적서 clasp 라이브 클론 (평문 자격 포함 — redact 전 커밋 금지)
 tools/legacy-gas/종합견적서-live/
 .clasp.json
+
+# 양식 샘플 드롭 폴더 — 실거래처/개인정보/계좌 포함 가능 → public repo 커밋 금지 (README 만 추적)
+docs/sample/*
+!docs/sample/README.md

@@ -1,36 +1,69 @@
 /**
  * 매출 거래명세서 인쇄 양식 — `/sales/:id/print/statement`.
  *
- * SP-08-6-4 P1 신규: legacy GAS 매출 거래명세서 100% 매칭 목표.
- * SP-08-5-5 PurchaseSlipPrintPage 패턴 1:1 이식 (purchase-print-* → sales-print-* prefix).
+ * 2026-06-10 원본 양식 전면 정렬 (개발책임자 샘플 이미지 — docs/sample, 비커밋):
+ * 기존 SP-08-6-4 구조(3열 헤더/2열 거래처 그리드/8컬럼/audit 푸터)를 폐기하고
+ * legacy GAS 원본 양식 구조로 재설계.
  *
- * 구성 (A4 portrait 210mm × 297mm, padding 12mm):
- * - 상단 헤더: 좌(회사명/로고) / 중앙("거 래 명 세 서" 20pt 700) / 우(전표번호/일자/담당자) — 3열
- * - 거래처 정보 영역: 좌(거래처명/사업자번호/대표자/전화) + 우(출고창고/담당자/주소) — 2열 그리드
- * - 라인 테이블: No./품목명/규격/수량/단가/공급가액/부가세/적요 (8컬럼)
- * - 합계 영역: 공급가액 / 부가세 (10%) / 합계
- * - 비고
- * - 푸터: 담당자 / 최종수정일시 / 출력일시
+ * 구성 (A4 portrait, 원본 1:1):
+ * - 상단: SAMSUNG 로고 + 「거래명세서」 제목
+ * - 좌: 공급받는자 박스 — 거래처명 貴中 / 거래처 사업장 주소 / ☎ 전화
+ *   (주소·전화 = partner-service getPartnerFull(partnerCode) — slip 미보유 필드)
+ * - 우: 공급자 표 — 세로 '공급자' 라벨 + 일련번호·TEL / 사업자등록번호·성명 / 상호 / 주소
+ *   + 법인 인감 스탬프 overlay (COMPANY.stampUrl env 주입 시)
+ * - 배송지 행 (적색 볼드): 인수자번호 / 배송주소
+ * - 금액 행: 한글 금액 정 + (₩ 숫자) — printUtils.krwHangul
+ * - 품목표 6컬럼: 월/일 | 품목명 | 수량 | 단가(VAT포함) | 공급가액 | 부가세 + 빈행 filler
+ * - 합계행: 수량 | 공급가액 | VAT | 합계 | 인수 | 인
+ * - 계좌 푸터 (적색): COMPANY.bankNotice (env 주입 — public repo 비커밋)
  *
- * UUID 비공개 가드: `id` 는 path param / QueryKey 전용. 화면 노출 X.
- * 슬립번호(slipNo) + 거래처명(partnerName) 만 사용자 노출.
+ * 단가 컬럼 = VAT 포함 단가 (원본 검증: 13,662×3 = 공급 37,260+부가세 3,726).
+ * line.unitPriceWithVat 우선, legacy null 이면 (공급+부가세)/수량 계산.
  *
- * Iteration 가드: 1차 mock — 사용자 Edge 캡처 검토 후 추가 갱신 예정
- * (memory `feedback_print_design_iteration.md`).
+ * 가변 길이: 품목 다량 시 useFitOneA4 로 한 A4 자동 비율 축소 (개발책임자 2026-06-10),
+ * 하한(0.5) 초과 분량은 자연 다페이지 (thead 반복 + 행 잘림 방지 CSS).
+ *
+ * UUID 비공개 가드: id 는 path param / QueryKey 전용. slipNo / partnerName / partnerCode 만 노출.
  */
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getSlip, type SlipDetail } from '../api/slip'
-import { listWarehouses, type Warehouse } from '../api/inventory'
+import { getSlip, type SlipDetail, type SlipLineDetail } from '../api/slip'
+import { getPartnerFull } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
-import {
-  PrintLayout,
-  COMPANY,
-  krw,
-  krDate,
-  calcAmounts,
-} from './PrintLayout'
-import { nowPrintedAt, fmtDatetime } from './printUtils'
+import { PrintLayout, COMPANY, krw } from './PrintLayout'
+import { krwHangul } from './printUtils'
+import { useFitOneA4 } from './useFitOneA4'
+
+/** "YYYY-MM-DD" → "MM/DD" (원본 양식 월/일 컬럼). */
+function toMonthDay(isoDate: string | null | undefined): string {
+  if (!isoDate || isoDate.length < 10) return ''
+  return `${isoDate.slice(5, 7)}/${isoDate.slice(8, 10)}`
+}
+
+/** 품목명 — 원본 양식은 모델코드+괄호 설명 한 컬럼 (DispatchView 와 동일 규칙). */
+function lineDisplayName(l: SlipLineDetail): string {
+  const model = l.modelName?.trim() || ''
+  const product = l.productName?.trim() || ''
+  if (model && product && product !== model) return `${model} (${product})`
+  return model || product || '-'
+}
+
+/** 라인 금액 분해 — supplyAmount/vatAmount 우선, legacy(null) 는 lineTotal 기준 산출. */
+function lineAmounts(l: SlipLineDetail): { supply: number; vat: number; unitWithVat: number } {
+  const supply =
+    l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal) || 0
+  const vat = l.vatAmount != null ? Number(l.vatAmount) : Math.floor(supply * 0.1)
+  const unitWithVat =
+    l.unitPriceWithVat != null
+      ? Number(l.unitPriceWithVat)
+      : l.quantity > 0
+        ? Math.round((supply + vat) / l.quantity)
+        : 0
+  return { supply, vat, unitWithVat }
+}
+
+/** 빈행 filler — 원본 양식의 고정 높이 느낌 유지 (품목 적을 때 최소 행수). */
+const MIN_ROWS = 10
 
 export function SalesTransactionStatementPrintPage() {
   const params = useParams<{ id: string }>()
@@ -42,10 +75,18 @@ export function SalesTransactionStatementPrintPage() {
     enabled: !!id,
   })
 
-  const warehousesQuery = useQuery<Warehouse[]>({
-    queryKey: ['warehouses'],
-    queryFn: listWarehouses,
+  const partnerCode = detailQuery.data?.partnerCode ?? null
+  /** 공급받는자 주소/전화 — slip 미보유 → partner 기본정보 조회 (실패해도 양식은 렌더). */
+  const partnerQuery = useQuery({
+    queryKey: ['partner-full', partnerCode],
+    queryFn: () => getPartnerFull(partnerCode as string),
+    enabled: !!partnerCode,
   })
+
+  // 한 A4 자동 비율 — 품목 수 변동 시 재측정 (개발책임자 2026-06-10)
+  const { ref: fitRef, zoom } = useFitOneA4<HTMLDivElement>([
+    detailQuery.data?.lines?.length ?? 0,
+  ])
 
   usePageTitle('거래명세서', detailQuery.data?.slipNo)
 
@@ -60,195 +101,148 @@ export function SalesTransactionStatementPrintPage() {
   }
 
   const slip: SlipDetail = detailQuery.data
-
-  const totalSupply = slip.lines.reduce((sum, l) => sum + Number(l.lineTotal), 0)
-  const { supply, vat, total } = calcAmounts(totalSupply)
-
-  /** 출고창고명 — OUTBOUND 전표는 sourceWarehouseId 가 출고 창고 */
-  const srcWarehouseName =
-    warehousesQuery.data?.find((w) => w.id === slip.sourceWarehouseId)?.name ?? '-'
-
-  /** 최대 30행 1페이지 */
-  const PAGE_LINE_LIMIT = 30
   const lines = slip.lines
+  const partnerBasic = partnerQuery.data?.basic ?? null
 
-  const printedAt = nowPrintedAt()
+  const totalQty = lines.reduce((s, l) => s + l.quantity, 0)
+  const perLine = lines.map(lineAmounts)
+  const totalSupply = perLine.reduce((s, a) => s + a.supply, 0)
+  const totalVat = perLine.reduce((s, a) => s + a.vat, 0)
+  const grandTotal = totalSupply + totalVat
+
+  const fillerCount = Math.max(0, MIN_ROWS - lines.length)
 
   return (
     <PrintLayout paper="a4-portrait" backTo={`/sales/${id}`}>
-      <div className="sales-print-page" data-testid="sales-statement-print-area">
-
-        {/* 상단 헤더 — 3열 그리드 */}
-        <header className="sales-print-header sales-print-header-3col">
-          <div className="sales-print-header-left">
-            <img
-              className="sales-print-logo"
-              src={COMPANY.logoPath}
-              alt={COMPANY.legalName}
-            />
-            <span className="sales-print-company-name">{COMPANY.legalName}</span>
-          </div>
-          <div className="sales-print-header-center">
-            <h1 className="sales-print-title">거 래 명 세 서</h1>
-          </div>
-          <div className="sales-print-header-right">
-            <div className="sales-print-header-meta-row">
-              <span className="sales-print-meta-label">전표번호</span>
-              <span className="sales-print-meta-value strong">{slip.slipNo}</span>
-            </div>
-            <div className="sales-print-header-meta-row">
-              <span className="sales-print-meta-label">전표일자</span>
-              <span className="sales-print-meta-value">{krDate(slip.slipDate)}</span>
-            </div>
-            <div className="sales-print-header-meta-row">
-              <span className="sales-print-meta-label">담당자</span>
-              <span className="sales-print-meta-value">{slip.ownerFullName ?? '-'}</span>
-            </div>
-            <div className="sales-print-printed-at">출력일시: {printedAt}</div>
-          </div>
+      <div
+        className="stm-page"
+        data-testid="sales-statement-print-area"
+        ref={fitRef}
+        style={{ zoom }}
+      >
+        {/* 상단 — 로고 + 제목 */}
+        <header className="stm-brand-row">
+          <img className="stm-logo" src={COMPANY.logoPath} alt="SAMSUNG" />
+          <h1 className="stm-title">거래명세서</h1>
         </header>
 
-        {/* 거래처 정보 영역 — 2열 그리드 */}
-        <section className="sales-print-partner sales-print-partner-2col">
-          <div className="sales-print-partner-col">
-            <dl className="sales-print-partner-dl">
-              <div className="sales-print-partner-row">
-                <dt className="sales-print-partner-label">거래처</dt>
-                <dd className="sales-print-partner-value strong">{slip.partnerName ?? '-'}</dd>
-              </div>
-              {slip.businessNumber ? (
-                <div className="sales-print-partner-row">
-                  <dt className="sales-print-partner-label">사업자번호</dt>
-                  <dd className="sales-print-partner-value">{slip.businessNumber}</dd>
-                </div>
-              ) : null}
-              {slip.contactPhone ? (
-                <div className="sales-print-partner-row">
-                  <dt className="sales-print-partner-label">전화번호</dt>
-                  <dd className="sales-print-partner-value">{slip.contactPhone}</dd>
-                </div>
-              ) : null}
-            </dl>
+        {/* 공급받는자(좌) + 공급자(우) */}
+        <div className="stm-top-row">
+          <div className="stm-buyer-box">
+            <div className="stm-buyer-name">{slip.partnerName ?? '-'}貴 中</div>
+            {partnerBasic?.address ? (
+              <div className="stm-buyer-addr">{partnerBasic.address}</div>
+            ) : null}
+            {partnerBasic?.phone || partnerBasic?.mobile ? (
+              <div className="stm-buyer-tel">☎ {partnerBasic.phone ?? partnerBasic.mobile}</div>
+            ) : null}
           </div>
-          <div className="sales-print-partner-col">
-            <dl className="sales-print-partner-dl">
-              <div className="sales-print-partner-row">
-                <dt className="sales-print-partner-label">출고창고</dt>
-                <dd className="sales-print-partner-value emphasis">{srcWarehouseName}</dd>
-              </div>
-              <div className="sales-print-partner-row">
-                <dt className="sales-print-partner-label">담당자</dt>
-                <dd className="sales-print-partner-value">{slip.ownerFullName ?? '-'}</dd>
-              </div>
-              {slip.deliveryAddress ? (
-                <div className="sales-print-partner-row">
-                  <dt className="sales-print-partner-label">주소</dt>
-                  <dd className="sales-print-partner-value">{slip.deliveryAddress}</dd>
-                </div>
-              ) : null}
-            </dl>
+          <div className="stm-supplier-wrap">
+            <table className="stm-supplier">
+              <tbody>
+                <tr>
+                  <th className="stm-vlabel" rowSpan={4}>
+                    공<br />급<br />자
+                  </th>
+                  <th className="stm-k">일련번호</th>
+                  <td className="stm-v stm-num">{slip.slipNo}</td>
+                  <th className="stm-k stm-k-narrow">TEL</th>
+                  <td className="stm-v stm-nowrap">{COMPANY.tel}</td>
+                </tr>
+                <tr>
+                  <th className="stm-k">사업자등록<br />번호</th>
+                  <td className="stm-v stm-num">{COMPANY.businessRegNo}</td>
+                  <th className="stm-k stm-k-narrow">성명</th>
+                  <td className="stm-v">{COMPANY.ceo}</td>
+                </tr>
+                <tr>
+                  <th className="stm-k">상호</th>
+                  <td className="stm-v" colSpan={3}>{COMPANY.legalName}</td>
+                </tr>
+                <tr>
+                  <th className="stm-k">주소</th>
+                  <td className="stm-v" colSpan={3}>{COMPANY.address}</td>
+                </tr>
+              </tbody>
+            </table>
+            {COMPANY.stampUrl ? (
+              <img className="stm-stamp" src={COMPANY.stampUrl} alt="법인 인감" />
+            ) : null}
           </div>
-        </section>
+        </div>
 
-        {/* 라인 테이블 — 8컬럼 */}
-        <table className="sales-print-table">
+        {/* 배송지 (적색 볼드) — 인수자번호 / 배송주소 */}
+        <div className="stm-ship-box">
+          배송지: {slip.recipientPhone ?? slip.contactPhone ?? '-'} /{' '}
+          {slip.shippingAddress ?? slip.deliveryAddress ?? '-'}
+        </div>
+
+        {/* 금액 — 한글 금액 정 + (₩ 숫자) */}
+        <div className="stm-amount-box">
+          <span>금액: {krwHangul(grandTotal)}원 정</span>
+          <span className="stm-amount-won">(₩ {krw(grandTotal)})</span>
+        </div>
+
+        {/* 품목표 — 월/일 | 품목명 | 수량 | 단가(VAT포함) | 공급가액 | 부가세 */}
+        <table className="stm-items">
           <thead>
             <tr>
-              <th className="col-no">No.</th>
+              <th className="col-date">월/일</th>
               <th className="col-product">품목명</th>
-              <th className="col-spec">규격</th>
               <th className="col-qty">수량</th>
-              <th className="col-price">단가</th>
+              <th className="col-unit">단가</th>
               <th className="col-supply">공급가액</th>
               <th className="col-vat">부가세</th>
-              <th className="col-memo">적요</th>
             </tr>
           </thead>
           <tbody>
-            {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
-              const lineSupply = Number(l.lineTotal)
-              /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
-              const lineVat = Math.floor(lineSupply * 0.1)
+            {lines.map((l, idx) => {
+              const a = perLine[idx] ?? { supply: 0, vat: 0, unitWithVat: 0 }
               return (
                 <tr key={l.id}>
-                  <td className="col-no">{idx + 1}</td>
-                  <td className="col-product">{l.modelName ?? l.productName ?? '-'}</td>
-                  <td className="col-spec">{l.specification ?? '-'}</td>
+                  <td className="col-date">{toMonthDay(slip.slipDate)}</td>
+                  <td className="col-product">{lineDisplayName(l)}</td>
                   <td className="col-qty num">{l.quantity.toLocaleString('ko-KR')}</td>
-                  <td className="col-price num">{krw(l.unitPrice)}</td>
-                  <td className="col-supply num">{krw(lineSupply)}</td>
-                  <td className="col-vat num">{krw(lineVat)}</td>
-                  <td className="col-memo">{l.note ?? ''}</td>
+                  <td className="col-unit num">{a.unitWithVat ? krw(a.unitWithVat) : ''}</td>
+                  <td className="col-supply num">{krw(a.supply)}</td>
+                  <td className="col-vat num">{krw(a.vat)}</td>
                 </tr>
               )
             })}
-            {/* 최소 5행 유지 — 여백 행 */}
-            {Array.from({ length: Math.max(0, 5 - lines.length) }).map((_, i) => (
-              <tr key={`pad-${i}`} className="sales-print-pad-row">
-                <td className="col-no">&nbsp;</td>
+            {Array.from({ length: fillerCount }).map((_, i) => (
+              <tr key={`pad-${i}`} className="stm-pad-row">
+                <td className="col-date">&nbsp;</td>
                 <td className="col-product">&nbsp;</td>
-                <td className="col-spec">&nbsp;</td>
                 <td className="col-qty">&nbsp;</td>
-                <td className="col-price">&nbsp;</td>
+                <td className="col-unit">&nbsp;</td>
                 <td className="col-supply">&nbsp;</td>
                 <td className="col-vat">&nbsp;</td>
-                <td className="col-memo">&nbsp;</td>
               </tr>
             ))}
           </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={5} className="sales-print-table-totals-label">합계</td>
-              <td className="col-supply num strong">{krw(supply)}</td>
-              <td className="col-vat num strong">{krw(vat)}</td>
-              <td className="col-memo">&nbsp;</td>
-            </tr>
-          </tfoot>
         </table>
 
-        {/* 합계/인수란 — spec §6 5셀 grid: 수량 / 공급가액 / VAT / 합계 / 인수 */}
-        <section className="sales-statement-totals-grid">
-          <div className="sales-statement-total-cell">
-            <div className="sales-statement-total-label">수량</div>
-            <div className="sales-statement-total-value num">
-              {slip.lines.reduce((s, l) => s + l.quantity, 0).toLocaleString('ko-KR')}
-            </div>
-          </div>
-          <div className="sales-statement-total-cell">
-            <div className="sales-statement-total-label">공급가액</div>
-            <div className="sales-statement-total-value num">{krw(supply)}</div>
-          </div>
-          <div className="sales-statement-total-cell">
-            <div className="sales-statement-total-label">VAT</div>
-            <div className="sales-statement-total-value num">{krw(vat)}</div>
-          </div>
-          <div className="sales-statement-total-cell grand">
-            <div className="sales-statement-total-label">합계</div>
-            <div className="sales-statement-total-value num strong">{krw(total)}</div>
-          </div>
-          <div className="sales-statement-total-cell">
-            <div className="sales-statement-total-label">인수</div>
-            <div className="sales-statement-total-value">인</div>
-          </div>
-        </section>
+        {/* 합계행 — 수량 | 공급가액 | VAT | 합계 | 인수 | 인 */}
+        <table className="stm-sum">
+          <tbody>
+            <tr>
+              <td className="stm-sum-k">수량</td>
+              <td className="stm-sum-v">{totalQty.toLocaleString('ko-KR')}</td>
+              <td className="stm-sum-k">공급가액</td>
+              <td className="stm-sum-v">{krw(totalSupply)}</td>
+              <td className="stm-sum-k">VAT</td>
+              <td className="stm-sum-v">{krw(totalVat)}</td>
+              <td className="stm-sum-k">합계</td>
+              <td className="stm-sum-v">{krw(grandTotal)}</td>
+              <td className="stm-sum-k stm-sum-recv">인수</td>
+              <td className="stm-sum-recv-v">인</td>
+            </tr>
+          </tbody>
+        </table>
 
-        {/* 푸터 — 비고 + VAT 안내 + audit */}
-        <footer className="sales-print-footer">
-          {slip.memo ? (
-            <div className="sales-print-memo">
-              <span className="sales-print-memo-label">비고</span>
-              <span className="sales-print-memo-value">{slip.memo}</span>
-            </div>
-          ) : null}
-          {/* Designer MEDIUM: 단가 VAT 안내 문구 */}
-          <div className="sales-print-vat-notice">
-            단가는 공급가액 기준 (VAT 별도)
-          </div>
-          <div className="sales-print-audit-row">
-            <span>담당자: {slip.ownerFullName ?? '-'}</span>
-            <span>최종수정: {fmtDatetime(slip.updatedAt)}</span>
-            <span className="sales-print-audit-printed">출력일시: {printedAt}</span>
-          </div>
+        {/* 입금계좌 푸터 (적색) — 실 계좌는 env 주입 (public repo 비커밋) */}
+        <footer className="stm-bank-box">
+          {COMPANY.bankNotice}&nbsp;&nbsp;&nbsp;{krw(grandTotal)}원
         </footer>
       </div>
     </PrintLayout>

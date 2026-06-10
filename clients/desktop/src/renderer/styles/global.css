@@ -1214,10 +1214,15 @@ button {
   border: 1px solid #000;
 }
 
-.dispatch-table .col-model   { width: 38mm; text-align: left;  font-weight: 600; }
-.dispatch-table .col-product { text-align: left; }
-.dispatch-table .col-spec    { width: 36mm; text-align: center; font-size: 13pt; font-weight: 600; }
-.dispatch-table .col-qty     { width: 20mm; text-align: center; font-size: 13pt; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 2026-06-10 원본 양식 정렬: 모델명 컬럼 → 월/일 컬럼 (품목명에 모델+명 결합 표시) */
+.dispatch-table .col-date    { width: 16mm; text-align: center; font-size: 10pt; font-weight: 600; }
+.dispatch-table .col-product { text-align: left; font-weight: 700; }
+.dispatch-table .col-spec    { width: 30mm; text-align: left; font-size: 12pt; font-weight: 700; }
+.dispatch-table .col-qty     { width: 18mm; text-align: right; font-size: 13pt; font-weight: 700; font-variant-numeric: tabular-nums; padding-right: 3mm; }
+
+/* 인쇄 다페이지 fallback — 품목행 중간 잘림 방지 + 헤더 페이지 반복 */
+.dispatch-table thead { display: table-header-group; }
+.dispatch-table tbody tr { page-break-inside: avoid; break-inside: avoid; }
 
 .dispatch-table tfoot td {
   font-weight: 700;
@@ -1227,7 +1232,8 @@ button {
 }
 
 .dispatch-table tfoot td.total-label { text-align: center; font-size: 12pt; }
-.dispatch-table tfoot td.total-qty   { text-align: center; font-size: 13pt; }
+/* 원본 양식: 총합계 수량 이탤릭 */
+.dispatch-table tfoot td.total-qty   { text-align: right; font-size: 13pt; font-style: italic; padding-right: 3mm; }
 
 /* 하단 묶음 — 배송지/연락처/특이사항 박스, 안내문, 서명 라벨, 책임 안내 */
 .dispatch-bottom-group {
@@ -4046,4 +4052,90 @@ button {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+}
+
+/* ==========================================================================
+   거래명세서 원본 양식 (stm-*) — 2026-06-10 개발책임자 샘플 1:1 정렬
+   (SalesTransactionStatementPrintPage 전면 재설계. 기존 sales-print-* 는
+    매입/세금계산서 페이지가 계속 사용 — 미변경.)
+   ========================================================================== */
+
+.stm-page {
+  width: 186mm; /* A4 210mm - 12mm×2 여백 */
+  margin: 0 auto;
+  background: #fff;
+  color: #000;
+  font-family: 'Malgun Gothic', '맑은 고딕', Dotum, sans-serif;
+}
+
+.stm-brand-row { display: flex; flex-direction: column; margin-bottom: 2mm; }
+.stm-logo { width: 34mm; height: auto; }
+.stm-title { font-size: 22pt; font-weight: 800; letter-spacing: 1.5px; margin: -1mm 0 0 8mm; }
+
+/* 공급받는자(좌) + 공급자(우) */
+.stm-top-row { display: flex; gap: 2mm; margin-bottom: 2mm; }
+.stm-buyer-box { flex: 1; border: 0.5mm solid #000; padding: 2.5mm 3mm; min-height: 26mm; }
+.stm-buyer-name { font-size: 12pt; font-weight: 800; margin-bottom: 1.5mm; }
+.stm-buyer-addr { font-size: 9.5pt; font-weight: 600; line-height: 1.45; }
+.stm-buyer-tel  { font-size: 9.5pt; font-weight: 700; margin-top: 1mm; }
+
+.stm-supplier-wrap { flex: 1.15; position: relative; }
+.stm-supplier { width: 100%; height: 100%; border-collapse: collapse; }
+.stm-supplier th, .stm-supplier td { border: 0.3mm solid #000; font-size: 8.5pt; padding: 1mm 1.5mm; }
+.stm-vlabel { width: 6mm; font-size: 9.5pt; font-weight: 700; text-align: center; letter-spacing: 1px; }
+.stm-k { width: 20mm; font-weight: 700; text-align: center; background: #fff; }
+.stm-k-narrow { width: 11mm; }
+.stm-v { font-weight: 700; }
+.stm-num { font-variant-numeric: tabular-nums; font-size: 9.5pt; }
+.stm-nowrap { white-space: nowrap; }
+.stm-stamp {
+  position: absolute; right: 1mm; top: 4mm; width: 19mm; height: 19mm;
+  opacity: 0.75; pointer-events: none; object-fit: contain;
+}
+
+/* 배송지 (적색 볼드) */
+.stm-ship-box {
+  border: 0.5mm solid #000; padding: 1.8mm 2.5mm; margin-bottom: 2mm;
+  font-size: 10.5pt; font-weight: 800; color: #7b1010; line-height: 1.4;
+}
+
+/* 금액 (한글 + 숫자) */
+.stm-amount-box {
+  border: 0.5mm solid #000; padding: 1.8mm 2.5mm; margin-bottom: 2mm;
+  font-size: 11pt; font-weight: 800; display: flex;
+}
+.stm-amount-won { margin-left: auto; font-size: 11.5pt; }
+
+/* 품목표 6컬럼 */
+.stm-items { width: 100%; border-collapse: collapse; margin-bottom: 2mm; }
+.stm-items th { border: 0.3mm solid #000; font-size: 9.5pt; font-weight: 700; height: 6.5mm; text-align: center; }
+.stm-items td { border: 0.3mm solid #000; font-size: 9.5pt; font-weight: 700; height: 7mm; padding: 0 1.8mm; }
+.stm-items .col-date    { width: 13mm; text-align: center; font-size: 8.5pt; }
+.stm-items .col-product { text-align: left; }
+.stm-items .col-qty     { width: 14mm; text-align: right; }
+.stm-items .col-unit    { width: 23mm; text-align: right; }
+.stm-items .col-supply  { width: 25mm; text-align: right; }
+.stm-items .col-vat     { width: 21mm; text-align: right; }
+.stm-items .num { font-variant-numeric: tabular-nums; }
+/* 다페이지 fallback — 헤더 반복 + 행 잘림 방지 */
+.stm-items thead { display: table-header-group; }
+.stm-items tbody tr { page-break-inside: avoid; break-inside: avoid; }
+
+/* 합계행 */
+.stm-sum { width: 100%; border-collapse: collapse; margin-bottom: 2mm; page-break-inside: avoid; break-inside: avoid; }
+.stm-sum td { border: 0.3mm solid #000; font-size: 10pt; font-weight: 800; height: 7.5mm; padding: 0 2mm; }
+.stm-sum-k { text-align: center; width: 17mm; }
+.stm-sum-v { text-align: right; font-variant-numeric: tabular-nums; }
+.stm-sum-recv { width: 12mm; }
+.stm-sum-recv-v { width: 10mm; text-align: center; }
+
+/* 계좌 푸터 (적색) */
+.stm-bank-box {
+  border: 0.5mm solid #c00000; color: #c00000; text-align: center;
+  font-size: 10.5pt; font-weight: 800; padding: 1.5mm 1mm;
+  page-break-inside: avoid; break-inside: avoid;
+}
+
+@media print {
+  .stm-page { width: auto; margin: 0; }
 }

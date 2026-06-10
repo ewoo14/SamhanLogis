@@ -46,6 +46,19 @@ export const COMPANY = {
   businessItem: '공조설비, 냉난방기',
   /** 로고 path — `clients/desktop/public/print-logo.svg`. */
   logoPath: '/print-logo.svg',
+  /**
+   * 거래명세서 하단 입금계좌 안내 (원본 양식 적색 푸터) — 실 계좌번호는 public repo
+   * 커밋 금지(사기 표적) → 빌드 환경변수 `VITE_COMPANY_BANK_NOTICE` 로 주입.
+   * 미주입 시 placeholder (실 운영 빌드 전 .env.local 설정 필수).
+   */
+  bankNotice:
+    (import.meta.env.VITE_COMPANY_BANK_NOTICE as string | undefined) ??
+    '예금주:(주)삼한공조시스템/국민은행 000000-00-000000 기업은행 000-0000-0000',
+  /**
+   * 법인 인감 스탬프 이미지 URL (거래명세서 공급자 표 우측 적색 직인) — 실 인감은
+   * public repo 커밋 금지(위조 위험) → `VITE_COMPANY_STAMP_URL` 주입. 미주입 시 미표시.
+   */
+  stampUrl: (import.meta.env.VITE_COMPANY_STAMP_URL as string | undefined) ?? '',
 } as const
 
 /**

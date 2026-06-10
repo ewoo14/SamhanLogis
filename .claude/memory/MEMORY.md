@@ -89,3 +89,4 @@
 - [옵션C 폐기 — 외부 4종 전면 DB 치환](project_sheets_to_db_full_migration.md) — Notion/Google Sheets/이카운트/엑셀 전부 우리 DB 데이터로 치환(노션 페이지 데이터도 시드 DB 이식+통신호환). 옵션C(시트 그대로) 폐기. 실행순서=종합견적서 완결 먼저 (2026-06-09)
 - [P0-B 인증=X-Internal-Token / DC 통합키=partnerCode(=bizno digits)](project_estimate_auth_dc_key_decisions.md) — 2026-06-10 개발책임자 결정 ②③. estimate-app 발행=/internal/slips/from-estimate 내부 토큰, partnerCode 는 사업자번호 '-' 제외 동일값(매핑 불요)
 - [품목 노출구분+시트순서 / 메뉴 5대분류](project_item_exposure_and_menu_5cat.md) — 2026-06-10 개발책임자. 견적/주문 노출=usageScope(시트자동+품목별 수동토글), 시트 row 순서 보존(displayOrder). 좌측메뉴 판매/구매/회계/그룹웨어/인사 5분류+배차·창고운영 별도
+- [출고전표 양식 1:1 + 전자서명 배치 + 사원 서명 등록](project_slip_shipout_print_form.md) — 2026-06-10 개발책임자. 출력/조회(창고·기사·인수자) 시 샘플 양식 무변동 재현, 용달기사·인수자 전자서명 양식 내 정확 배치, 사원등록 메뉴 서명 등록(결재란 스탬프), 품목 수에 따라 길이 가변(A4 다페이지). 샘플원본=.claude/tmp(비커밋), mock v1 근접일치

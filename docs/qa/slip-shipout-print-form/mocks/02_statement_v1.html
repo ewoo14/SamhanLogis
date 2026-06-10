@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>거래명세서 — 양식 mock v1</title>
+<style>
+  /* 거래명세서 양식 1:1 재현 mock (사용자 샘플 이미지 기준, 데이터 익명화)
+     원본: docs/sample (gitignore — 실거래처/계좌 포함, 비커밋) */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Malgun Gothic', '맑은 고딕', Dotum, sans-serif;
+    width: 695px; margin: 0 auto; padding: 6px 8px; background: #fff; color: #000;
+  }
+  .logo { color: #1428a0; font-weight: 800; font-size: 22px; letter-spacing: -1px;
+          font-style: italic; font-family: Arial, sans-serif; }
+  .title { font-size: 30px; font-weight: 800; letter-spacing: 2px; margin: -2px 0 4px 28px; }
+
+  /* ── 상단: 공급받는자(좌) + 공급자(우) ── */
+  .top { display: flex; gap: 6px; margin-bottom: 6px; }
+  .buyer { flex: 1; }
+  .buyer-box { border: 1.5px solid #000; padding: 8px 10px; min-height: 96px; }
+  .buyer-box .nm { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+  .buyer-box .ad { font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+  .buyer-box .tel { font-size: 12.5px; font-weight: 700; margin-top: 4px; }
+
+  table.supplier { flex: 1.15; border-collapse: collapse; position: relative; }
+  .supplier th, .supplier td { border: 1px solid #000; font-size: 12px; padding: 3px 6px; }
+  .supplier th.vlabel { width: 22px; font-size: 13px; font-weight: 700; text-align: center;
+                        letter-spacing: 1px; }
+  .supplier th.k { width: 78px; font-weight: 700; text-align: center; background: #fff; }
+  .supplier td.v { font-weight: 700; }
+  .supplier td.v.num { font-size: 13px; }
+  .sup-wrap { flex: 1.15; position: relative; }
+  .stamp { position: absolute; right: 0px; top: 14px; width: 76px; height: 76px;
+           border: 3px solid #d20000; border-radius: 10px; opacity: .6; transform: rotate(3deg);
+           color: #d20000; display: flex; align-items: center; justify-content: center;
+           font-size: 18px; font-weight: 800; line-height: 1.15; text-align: center;
+           font-family: 'Batang', serif; pointer-events: none; }
+
+  /* ── 배송지 / 금액 ── */
+  .ship-box { border: 1.5px solid #000; padding: 6px 8px; font-size: 14px; font-weight: 800;
+              color: #7b1010; line-height: 1.4; margin-bottom: 6px; }
+  .amount-box { border: 1.5px solid #000; padding: 6px 8px; font-size: 15px; font-weight: 800;
+                display: flex; margin-bottom: 6px; }
+  .amount-box .won { margin-left: auto; font-size: 16px; }
+
+  /* ── 품목 테이블 ── */
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  .items th { border: 1px solid #000; font-size: 12.5px; font-weight: 700; height: 24px; }
+  .items td { border: 1px solid #000; font-size: 13px; font-weight: 700; height: 26px; padding: 0 6px; }
+  .items td.dt { text-align: center; font-size: 11.5px; width: 48px; }
+  .items td.nm { text-align: left; }
+  .items td.qty { text-align: right; width: 52px; }
+  .items td.up  { text-align: right; width: 86px; }
+  .items td.sup { text-align: right; width: 92px; }
+  .items td.vat { text-align: right; width: 80px; }
+
+  /* ── 합계 행 ── */
+  table.sum { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  .sum td { border: 1px solid #000; font-size: 13px; font-weight: 800; height: 28px; padding: 0 8px; }
+  .sum td.k { text-align: center; width: 64px; }
+  .sum td.v { text-align: right; }
+  .sum td.recv-k { text-align: center; width: 48px; }
+  .sum td.recv-v { width: 40px; text-align: center; }
+
+  /* ── 계좌 푸터 ── */
+  .bank-box { border: 1.5px solid #c00000; color: #c00000; text-align: center;
+              font-size: 14.5px; font-weight: 800; padding: 5px 4px; }
+</style>
+</head>
+<body>
+  <div style="display:flex; align-items:flex-start;">
+    <div>
+      <div class="logo">SAMSUNG</div>
+      <div class="title">거래명세서</div>
+    </div>
+  </div>
+
+  <div class="top">
+    <div class="buyer">
+      <div class="buyer-box">
+        <div class="nm">테스트시스템(홍길동)貴 中</div>
+        <div class="ad">경기도 테스트시 샘플구 샘플로90번길 24, 테스트타<br>워 1동 502호(샘플동)</div>
+        <div class="tel">☎ 010-0000-0000</div>
+      </div>
+    </div>
+    <div class="sup-wrap">
+      <table class="supplier" style="width:100%; height:100%;">
+        <tr>
+          <th class="vlabel" rowspan="4">공<br><br>급<br><br>자</th>
+          <th class="k">일련번호</th><td class="v num" style="width:128px">2026/06/11 - 130</td>
+          <th class="k" style="width:40px">TEL</th><td class="v" style="white-space:nowrap">02-0000-0000</td>
+        </tr>
+        <tr>
+          <th class="k">사업자등록<br>번호</th><td class="v num">000-00-00000</td>
+          <th class="k" style="width:40px">성명</th><td class="v">김대표</td>
+        </tr>
+        <tr>
+          <th class="k">상호</th><td class="v" colspan="3">(주)삼한공조시스템</td>
+        </tr>
+        <tr>
+          <th class="k">주소</th><td class="v" colspan="3">서울특별시 서초구 마방로2길 9 (양재동) 삼한<br>빌딩 4층</td>
+        </tr>
+      </table>
+      <div class="stamp">삼한<br>공조</div>
+    </div>
+  </div>
+
+  <div class="ship-box">배송지: 010-0000-0000 / 경기도 테스트시 샘플순환로 300 샘플 아파트 테스트타운 2110동 1001호</div>
+
+  <div class="amount-box"><span>금액: 이백삼십만이천삼백사십사원 정</span><span class="won">(<b>₩</b> 2,302,344)</span></div>
+
+  <table class="items">
+    <tr><th style="width:48px">월/일</th><th>품목명</th><th style="width:52px">수량</th><th style="width:86px">단가</th><th style="width:92px">공급가액</th><th style="width:80px">부가세</th></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ040MXHNBC1 (MX단배관)</td><td class="qty">1</td><td class="up">934,956</td><td class="sup">849,960</td><td class="vat">84,996</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ020BN1PBC1 [홈-WIFI 모델]</td><td class="qty">1</td><td class="up">289,872</td><td class="sup">263,520</td><td class="vat">26,352</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ023BN1PBC1 [홈-WIFI 모델]</td><td class="qty">1</td><td class="up">296,406</td><td class="sup">269,460</td><td class="vat">26,946</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AJ072BN1PBC1 [홈-WIFI 모델]</td><td class="qty">1</td><td class="up">457,380</td><td class="sup">415,800</td><td class="vat">41,580</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">PC1NWSK3NW (WIFI판넬)</td><td class="qty">2</td><td class="up">83,160</td><td class="sup">151,200</td><td class="vat">15,120</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">PC1BWSK3NW (WIFI판넬)</td><td class="qty">1</td><td class="up">116,424</td><td class="sup">105,840</td><td class="vat">10,584</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">AR-EC05</td><td class="qty">3</td><td class="up">13,662</td><td class="sup">37,260</td><td class="vat">3,726</td></tr>
+    <tr><td class="dt">06/11</td><td class="nm">FH-LFHIF 유연호스 I형 ★</td><td class="qty">3</td><td class="up"></td><td class="sup">0</td><td class="vat">0</td></tr>
+    <tr><td class="dt"></td><td class="nm"></td><td class="qty"></td><td class="up"></td><td class="sup"></td><td class="vat"></td></tr>
+    <tr><td class="dt"></td><td class="nm"></td><td class="qty"></td><td class="up"></td><td class="sup"></td><td class="vat"></td></tr>
+  </table>
+
+  <table class="sum">
+    <tr>
+      <td class="k">수량</td><td class="v" style="width:54px">13</td>
+      <td class="k">공급가액</td><td class="v" style="width:96px">2,093,040</td>
+      <td class="k" style="width:48px">VAT</td><td class="v" style="width:86px">209,304</td>
+      <td class="k">합계</td><td class="v" style="width:96px">2,302,344</td>
+      <td class="recv-k">인수</td><td class="recv-v">인</td>
+    </tr>
+  </table>
+
+  <div class="bank-box">예금주:(주)삼한공조시스템/국민은행 000000-00-000000 기업은행 000-0000-0000&nbsp;&nbsp;&nbsp;2,302,344원</div>
+</body>
+</html>
