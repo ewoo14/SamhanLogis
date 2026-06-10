@@ -154,3 +154,10 @@ MIG-14는 Cash / Order / AgingSnapshot / Ledger 조회 화면을 `clients/deskto
 - `PartnerAgingSnapshotPage`는 refresh 성공 시 `새로고침 완료 — refreshedAt`, 실패 시 `새로고침 실패 — 운영자 문의` toast를 표시한다.
 - `listPartnerAgingSnapshots`는 `/accounting/aging-snapshot?page&size&sort` Page 응답을 우선 사용하고, 배열 응답 fallback을 유지한다.
 - `usePermissions().canAccess()`는 권한 캐시 미로드 시 false를 반환해 AppLayout admin 메뉴 flash를 방지한다.
+
+## 인쇄 공급자 정보 단일 출처 — useCompanyProfile (2026-06-10, PR #459)
+
+- `src/renderer/print/useCompanyProfile.ts` — `GET /accounting/supplier-profiles/primary` react-query(staleTime 5분) 로 인쇄용 회사정보를 매핑한다. `PrintLayout.tsx` 의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_BANK_NOTICE`/`VITE_COMPANY_STAMP_URL` env 주입은 제거됐다 (인쇄 뷰 11 + 회계 인쇄 레이아웃 9 = 20곳 전환, 잔존 참조 0).
+- `bankNotice` 는 입금계좌(displayOrder 순) 조합 — 계좌 0건이면 빈 문자열(placeholder 인쇄 금지). 인감은 `stampPngBase64` → dataURL. API 로딩/에러 시 정적 fallback 으로 인쇄 블랭크를 방지한다.
+- 사업자 양식 화면(`routes/accounting/SupplierProfilePage.tsx`)에서 TEL/FAX·입금계좌 리스트(추가/삭제, 배열 순서 = displayOrder)·인감 업로드(PNG ≤200KB, Web Crypto SHA-256)를 직접 설정한다.
+- ⚠️ 계좌 실데이터·실인감은 repo 비커밋 — 운영 화면에서 입력.

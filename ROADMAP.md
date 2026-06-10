@@ -29,7 +29,12 @@
 
 ---
 
-### 최신 진행 메모 (2026-06-03)
+### 최신 진행 메모 (2026-06-10)
+
+- 공급자·은행계좌·인감 회계 설정 (PR #459): 회계 > 사업자 양식(`SupplierProfile`)을 TEL/FAX·입금계좌(`supplier_bank_accounts`)·인감(BYTEA)으로 확장하고, desktop 인쇄 20뷰의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_*` env 주입을 `useCompanyProfile()` API 배선으로 전수 대체했다. 세금계산서 발행 공급자 블록도 primary 사업자 양식으로 일원화 (CompanyProperties fallback).
+- 출고전표·거래명세서 원본 양식 1:1 (PR #458 머지): 결재란/정렬 정정 2회 반영 + 전자서명 배치 + 한 A4 자동 비율. 결재란 사원 서명 스탬프는 사원 서명 등록 슬라이스(후속) 대기.
+
+### 이전 진행 메모 (2026-06-03)
 
 - Phase INV-S 후속 "시리얼 재고 동시성·보상 강화" 완료:
   - S3 reserveBatch / S4 recallBatch 후보 조회를 `PESSIMISTIC_WRITE` row lock 으로 전환해 교차 전표 후보 경합을 직렬화했다.
