@@ -254,6 +254,12 @@ public class SlipService {
         // businessNumber: partnerId 가 있으면 partner-service Feign 자동 resolve.
         //                 Feign fail 시 NULL 유지 (legacy 호환, 로그만).
         String resolvedBusinessNumber = resolveBusinessNumber(req.partnerId());
+        // partnerCode snapshot (2026-06-10) — 거래명세서 공급받는자 주소/대표번호가 FE 에서
+        // getPartnerFull(partnerCode) 로 조회되므로 생성 시점에 resolve. 실패 시 NULL 유지.
+        if (req.partnerId() != null) {
+            partnerInternalClient.resolvePartnerCode(req.partnerId())
+                    .ifPresent(slip::setPartnerCode);
+        }
         slip.withProjectInfo(
                 resolvedBusinessNumber,
                 req.deliveryAddress(),
@@ -375,6 +381,11 @@ public class SlipService {
         String resolvedBusinessNumber = null;
         if (effectivePartnerId != null && (slip.getBusinessNumber() == null || req.partnerId() != null)) {
             resolvedBusinessNumber = resolveBusinessNumber(effectivePartnerId);
+        }
+        // partnerCode snapshot (2026-06-10) — partnerId 변경 또는 기존 NULL 시 resolve (businessNumber 와 동일 정책)
+        if (effectivePartnerId != null && (slip.getPartnerCode() == null || req.partnerId() != null)) {
+            partnerInternalClient.resolvePartnerCode(effectivePartnerId)
+                    .ifPresent(slip::setPartnerCode);
         }
         slip.withProjectInfo(
                 resolvedBusinessNumber,

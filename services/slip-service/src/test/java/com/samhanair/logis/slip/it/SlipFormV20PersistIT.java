@@ -142,6 +142,10 @@ class SlipFormV20PersistIT extends AbstractPostgresIT {
         Mockito.lenient()
                 .when(partnerInternalClient.resolveBusinessNumber(ArgumentMatchers.any(UUID.class)))
                 .thenReturn(Optional.empty());
+        // partnerCode resolve 기본 stub — 실패 (TC-7 기본 동작, TC-6 에서 개별 override)
+        Mockito.lenient()
+                .when(partnerInternalClient.resolvePartnerCode(ArgumentMatchers.any(UUID.class)))
+                .thenReturn(Optional.empty());
     }
 
     /**
@@ -313,6 +317,54 @@ class SlipFormV20PersistIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.businessNumber", nullValue()));
+    }
+
+    /**
+     * TC-6: partnerCode Feign resolve mock → 전표 생성 시 snapshot 채움 검증 (2026-06-10).
+     *
+     * <p>거래명세서 공급받는자(사업자주소/대표번호)가 FE getPartnerFull(partnerCode) 로
+     * 조회되므로, 생성 시점에 PartnerInternalClient.resolvePartnerCode 결과가
+     * slip.partnerCode 로 snapshot 되는지 검증한다. (V15 컬럼 '후속 슬라이스' 이행)
+     */
+    @Test
+    @DisplayName("TC-6: partnerCode Feign resolve mock → 전표 생성 응답에 snapshot 채움")
+    void tc6_partnerCodeFeignResolve_snapshotFilled() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        Mockito.when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.of("P-2026-0001"));
+
+        Map<String, Object> body = buildCreateBody(null, null, null, null, null);
+        body.put("partnerId", partnerId.toString());
+
+        mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.partnerCode", is("P-2026-0001")));
+    }
+
+    /**
+     * TC-7: partnerCode resolve 실패 시 NULL 유지 (graceful fallback — legacy 호환).
+     */
+    @Test
+    @DisplayName("TC-7: partnerCode Feign fail 시 NULL 유지")
+    void tc7_partnerCodeFeignFail_nullRetained() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        Mockito.when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.empty());
+
+        Map<String, Object> body = buildCreateBody(null, null, null, null, null);
+        body.put("partnerId", partnerId.toString());
+
+        mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.partnerCode", nullValue()));
     }
 
     // ========================================================================

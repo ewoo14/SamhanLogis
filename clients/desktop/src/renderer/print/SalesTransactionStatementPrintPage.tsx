@@ -7,11 +7,11 @@
  *
  * 구성 (A4 portrait, 원본 1:1):
  * - 상단: SAMSUNG 로고 + 「거래명세서」 제목
- * - 좌: 공급받는자 박스 — 거래처명 貴中 / 거래처 사업장 주소 / ☎ 전화
- *   (주소·전화 = partner-service getPartnerFull(partnerCode) — slip 미보유 필드)
+ * - 좌: 공급받는자 박스 — 거래처명 貴中 / 거래처 사업자주소 / ☎ 대표번호
+ *   (개발책임자 확정 2026-06-10. partner-service getPartnerFull(partnerCode) — slip 미보유 필드)
  * - 우: 공급자 표 — 세로 '공급자' 라벨 + 일련번호·TEL / 사업자등록번호·성명 / 상호 / 주소
  *   + 법인 인감 스탬프 overlay (COMPANY.stampUrl env 주입 시)
- * - 배송지 행 (적색 볼드): 인수자번호 / 배송주소
+ * - 배송지 행 (검정 볼드 — 개발책임자 정정 2026-06-10, 적색 아님): 인수자번호 / 배송주소
  * - 금액 행: 한글 금액 정 + (₩ 숫자) — printUtils.krwHangul
  * - 품목표 6컬럼: 월/일 | 품목명 | 수량 | 단가(VAT포함) | 공급가액 | 부가세 + 빈행 filler
  * - 합계행: 수량 | 공급가액 | VAT | 합계 | 인수 | 인
@@ -128,13 +128,14 @@ export function SalesTransactionStatementPrintPage() {
 
         {/* 공급받는자(좌) + 공급자(우) */}
         <div className="stm-top-row">
+          {/* 개발책임자 확정(2026-06-10): 거래처명 아래 = 거래처 '사업자주소' + '대표번호' */}
           <div className="stm-buyer-box">
             <div className="stm-buyer-name">{slip.partnerName ?? '-'}貴 中</div>
             {partnerBasic?.address ? (
               <div className="stm-buyer-addr">{partnerBasic.address}</div>
             ) : null}
-            {partnerBasic?.phone || partnerBasic?.mobile ? (
-              <div className="stm-buyer-tel">☎ {partnerBasic.phone ?? partnerBasic.mobile}</div>
+            {partnerBasic?.phone ? (
+              <div className="stm-buyer-tel">☎ {partnerBasic.phone}</div>
             ) : null}
           </div>
           <div className="stm-supplier-wrap">

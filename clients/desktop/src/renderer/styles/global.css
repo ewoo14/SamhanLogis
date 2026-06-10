@@ -4097,10 +4097,10 @@ button {
   opacity: 0.75; pointer-events: none; object-fit: contain;
 }
 
-/* 배송지 (적색 볼드) */
+/* 배송지 — 개발책임자 정정(2026-06-10): 적색 아님, 검정 볼드 */
 .stm-ship-box {
   border: 0.5mm solid #000; padding: 1.8mm 2.5mm; margin-bottom: 2mm;
-  font-size: 10.5pt; font-weight: 800; color: #7b1010; line-height: 1.4;
+  font-size: 10.5pt; font-weight: 800; color: #000; line-height: 1.4;
 }
 
 /* 금액 (한글 + 숫자) */

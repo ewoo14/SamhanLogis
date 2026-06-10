@@ -140,6 +140,64 @@ public class PartnerInternalClient {
     }
 
     /**
+     * partnerId → partnerCode resolve — 거래명세서 공급받는자(사업자주소/대표번호) 배선 (2026-06-10).
+     *
+     * <p>Slip.partnerCode (V15 컬럼) 의 "실 채움 후속 슬라이스" 를 본 메서드로 이행한다.
+     * partner-service {@code GET /internal/partners/{id}/summary} (SP-08-FU2 P2-3 기존 endpoint,
+     * PartnerInternalResponse 에 partnerCode 포함) 호출 후 partnerCode 만 추출.
+     *
+     * <p>오류 처리 — {@link #resolveBusinessNumber} 와 동일한 graceful fallback:
+     * 4xx/5xx/연결 실패/토큰 미설정 → empty Optional (slip.partnerCode NULL 유지, 운영 영향 0).
+     *
+     * @param partnerId 거래처 UUID (Slip.partnerId)
+     * @return partnerCode 문자열 Optional. 실패 시 empty.
+     */
+    public Optional<String> resolvePartnerCode(UUID partnerId) {
+        if (partnerId == null) {
+            return Optional.empty();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("PartnerInternalClient.resolvePartnerCode — internal.token 미설정, skipped (partnerId={})",
+                    partnerId);
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/partners/{id}/summary", partnerId)
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return Optional.empty();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            if (data == null || data.isNull()) {
+                return Optional.empty();
+            }
+            JsonNode codeNode = data.get("partnerCode");
+            if (codeNode == null || codeNode.isNull() || codeNode.asText().isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(codeNode.asText());
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().is5xxServerError()) {
+                log.warn("PartnerInternalClient.resolvePartnerCode 5xx — partnerId={}, status={}",
+                        partnerId, ex.getStatusCode());
+            } else {
+                log.debug("PartnerInternalClient.resolvePartnerCode 4xx — partnerId={}, status={}",
+                        partnerId, ex.getStatusCode());
+            }
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("PartnerInternalClient.resolvePartnerCode 호출 실패 — partnerId={}, msg={}",
+                    partnerId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Phase 10 PR-G1 backlog #1 — partnerCode strict 검증 + 결과 분류.
      *
      * <p>{@link #resolvePartnerId} 와 달리 호출 결과를 4가지로 분류하여 호출자

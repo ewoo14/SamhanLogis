@@ -156,6 +156,26 @@ async function createManyLineSlip(token) {
   const z2 = await capturePrint(context, token, bigSlipId, 'statement', '13-statement-many-lines.png')
   console.log(`  자동 축소 결과: dispatch zoom=${z1} / statement zoom=${z2}`)
 
+  console.log('4) 거래처 연동 전표 — 공급받는자 사업자주소+대표번호 검증')
+  {
+    const prods = await jsonReq('GET', '/api/products?size=3&page=0', null, token)
+    const list = (prods.data && (prods.data.content || prods.data)) || []
+    const created = await jsonReq('POST', '/slips', {
+      slipType: 'OUTBOUND',
+      sourceWarehouseId: '11111111-1111-1111-1111-000000000001',
+      partnerId: 'a1b2c3d4-0001-0001-0001-000000000001', // P0-6-C001 (주)한국냉동물류 (실 시드)
+      partnerName: '(주)한국냉동물류',
+      shippingAddress: '경기도 남양주시 다산순환로 300 (배송지 QA)',
+      recipientPhone: '010-0000-0000',
+      lines: list.slice(0, 3).map((p, i) => ({
+        productId: p.id, productName: p.name,
+        modelName: p.modelName || p.name, quantity: i + 1,
+        unitPrice: String(p.sellingPrice ?? 100000),
+      })),
+    }, token)
+    await capturePrint(context, token, created.data.id, 'statement', '14-statement-partner.png')
+  }
+
   await browser.close()
   console.log('[PR #458 실 캡처] 완료 →', OUT)
 })().catch((e) => { console.error('FAIL:', e.message); process.exit(1) })

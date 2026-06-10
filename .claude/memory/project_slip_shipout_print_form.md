@@ -26,7 +26,7 @@ SAMSUNG 로고(청색) → [거래처명 대형박스 | 결재표(담당부서/�
 - 기사 조회: arologis-mobile DriverSlipDetailScreen (서명/인쇄 없음).
 
 ## 거래명세서 양식 (2026-06-10 추가 첨부)
-SAMSUNG 로고+「거래명세서」제목 → [공급받는자 박스(거래처貴中/주소/☎) | 공급자 표(세로 '공급자' 라벨 + 일련번호·TEL/사업자등록번호·성명/상호/주소) + 적색 인감 스탬프 overlay] → 배송지(적색 볼드) → 금액(한글 금액 정 + ₩숫자) → 품목표(월/일·품목명·수량·단가·공급가액·부가세, 빈행 filler) → 합계행(수량/공급가액/VAT/합계/인수·인) → 계좌 푸터(적색 — **계좌번호 실데이터, 비커밋 주의**). mock v1 = `docs/qa/slip-shipout-print-form/mocks/02_statement_v1.html`. 기존 SalesTransactionStatementPrintPage(SP-08-6-4) 와 이 샘플 차이 정렬 필요.
+SAMSUNG 로고+「거래명세서」제목 → [공급받는자 박스(거래처貴中/**사업자주소**/☎**대표번호** — 개발책임자 확정 2026-06-10) | 공급자 표(세로 '공급자' 라벨 + 일련번호·TEL/사업자등록번호·성명/상호/주소) + 적색 인감 스탬프 overlay] → 배송지(**검정** 볼드 — 적색 아님, 개발책임자 정정) → 금액(한글 금액 정 + ₩숫자) → 품목표(월/일·품목명·수량·단가·공급가액·부가세, 빈행 filler) → 합계행(수량/공급가액/VAT/합계/인수·인) → 계좌 푸터(적색 — **계좌번호 실데이터, 비커밋 주의**). mock v1 = `docs/qa/slip-shipout-print-form/mocks/02_statement_v1.html`. 기존 SalesTransactionStatementPrintPage(SP-08-6-4) 와 이 샘플 차이 정렬 필요.
 ※ docs/sample = gitignore 드롭 폴더화(README 만 추적) — 샘플 자유 투입 가능, 커밋 불가.
 
 ## 가변 길이 + 한 A4 자동 비율 (2026-06-10 개발책임자 추가 — 출고전표·거래명세서 공통)
