@@ -2327,9 +2327,21 @@ async function getNotionHistory(startDate, endDate) {
  * §9 견적 snapshot — estimate-service 위임
  * ═══════════════════════════════════════════════════════════════════════ */
 
+// P0-A 하드닝(2026-06-10): 견적 snapshot 은 /internal/estimates/snapshots + X-Internal-Token
+// (결정 ②, slip-bridge·dc-config 와 동일 server-to-server 토큰 게이트). 기존 무인증 폐기.
+const SNAPSHOT_BASE = `${ESTIMATE_BASE}/internal/estimates/snapshots`;
+const SNAPSHOT_HEADERS = { 'X-Internal-Token': DC_INTERNAL_TOKEN };
+
+function unwrapList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+}
+
 /**
  * legacy saveQuoteSnapshot(payload) (line 2614).
- * SamhanLogis: POST /api/v1/estimates/snapshots
+ * SamhanLogis: POST /internal/estimates/snapshots (X-Internal-Token)
  */
 async function saveQuoteSnapshot(payload) {
   const email = Session.getActiveUser().getEmail();
@@ -2338,45 +2350,46 @@ async function saveQuoteSnapshot(payload) {
     createdAt: new Date().toISOString(),
     ...payload,
   };
-  const result = await _msPost(
-    `${ESTIMATE_BASE}/api/v1/estimates/snapshots`,
-    body,
-  );
-  return result;
+  const resp = await ax.post(SNAPSHOT_BASE, body, { headers: SNAPSHOT_HEADERS });
+  if (resp.status < 200 || resp.status >= 300) {
+    throw new Error(`snapshot 저장 실패: HTTP ${resp.status}`);
+  }
+  return (resp.data && resp.data.data) || resp.data;
 }
 
 /**
  * legacy getQuoteHistory(startDate, endDate) (line 2681).
- * SamhanLogis: GET /api/v1/estimates/snapshots?startDate=&endDate=
+ * SamhanLogis: GET /internal/estimates/snapshots?startDate=&endDate= (X-Internal-Token)
  */
 async function getQuoteHistory(startDate, endDate) {
   const email = Session.getActiveUser().getEmail();
-  const data = await _msGet(
-    `${ESTIMATE_BASE}/api/v1/estimates/snapshots`,
-    { startDate, endDate, userEmail: email },
-  );
-  // SamhanLogis ApiResponse 봉투 {success, data:[...]} / raw 배열 / {items} 모두 허용.
-  // 봉투의 .data 미언래핑 시 목록이 항상 비어 복원 불가(legacy 노션 대체 회귀 방지).
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.items)) return data.items;
-  return [];
+  const resp = await ax.get(SNAPSHOT_BASE, {
+    params: { startDate, endDate, userEmail: email },
+    headers: SNAPSHOT_HEADERS,
+  });
+  if (resp.status < 200 || resp.status >= 300) {
+    Logger.log(`[getQuoteHistory] ${resp.status} → 빈 목록`);
+    return [];
+  }
+  // ApiResponse 봉투 {success, data:[...]} 언래핑(미언래핑 시 목록 항상 빈값 회귀).
+  return unwrapList(resp.data);
 }
 
 /**
  * legacy getQuoteHistoryByCustomer(custName) — 거래처명 부분검색 최근 30건 (#31).
- * SamhanLogis: GET /api/v1/estimates/snapshots/by-customer?custName=&userEmail=
+ * SamhanLogis: GET /internal/estimates/snapshots/by-customer?custName=&userEmail= (X-Internal-Token)
  */
 async function getQuoteHistoryByCustomer(custName) {
   const email = Session.getActiveUser().getEmail();
-  const data = await _msGet(
-    `${ESTIMATE_BASE}/api/v1/estimates/snapshots/by-customer`,
-    { custName: String(custName || '').trim(), userEmail: email },
-  );
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.items)) return data.items;
-  return [];
+  const resp = await ax.get(`${SNAPSHOT_BASE}/by-customer`, {
+    params: { custName: String(custName || '').trim(), userEmail: email },
+    headers: SNAPSHOT_HEADERS,
+  });
+  if (resp.status < 200 || resp.status >= 300) {
+    Logger.log(`[getQuoteHistoryByCustomer] ${resp.status} → 빈 목록`);
+    return [];
+  }
+  return unwrapList(resp.data);
 }
 
 /* ════════════════════════════════════════════════════════════════════════

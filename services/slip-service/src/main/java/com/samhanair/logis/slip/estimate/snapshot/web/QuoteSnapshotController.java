@@ -22,16 +22,16 @@ import org.springframework.web.bind.annotation.RestController;
  * 종합견적서(웹) 견적 저장/불러오기 — legacy 종합견적서 Code.js 노션 견적 DB
  * (saveQuoteSnapshot / getQuoteHistory) 의 우리 DB 대체 엔드포인트.
  *
- * <p>full-path {@code /api/v1/estimates/snapshots} — 웹 estimate-app lib/code.js 가 직접 호출
- * (ESTIMATE_SERVICE_URL=slip-service:8086 직결, slip-bridge 와 동일 패턴). 게이트웨이 경유 시
- * {@code /api/v1/estimates/**} NoStripPrefix 라우트로도 도달.
+ * <p>full-path {@code /internal/estimates/snapshots} — 웹 estimate-app lib/code.js 가 직접 호출
+ * (ESTIMATE_SERVICE_URL=slip-service:8086 직결, slip-bridge 와 동일 패턴).
  *
- * <p>인증: 종합견적서는 사용자 단위 견적 초안 저장이며 estimate-app 이 server-to-server
- * 무인증 호출(감사로그/auth-me 패턴)하므로 별도 @RequirePermission 미적용. 조회는 userEmail
- * 파라미터로 사용자별 격리.
+ * <p>인증 (P0-A 하드닝, 2026-06-10): {@code /internal/} prefix → {@code InternalTokenFilter}
+ * 가 X-Internal-Token 검증 → system-internal principal. SecurityConfig 의 {@code /internal/**}
+ * 규칙으로 토큰 미제시 403 / 불일치 401 / 유효 통과. 기존 무인증 permitAll 폐기(저민감 견적
+ * 초안이라도 server-to-server 게이트 일원화 — 결정 ②). 조회는 userEmail 파라미터로 사용자 격리.
  */
 @RestController
-@RequestMapping("/api/v1/estimates/snapshots")
+@RequestMapping("/internal/estimates/snapshots")
 @RequiredArgsConstructor
 public class QuoteSnapshotController {
 

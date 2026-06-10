@@ -24,7 +24,7 @@ jest.mock('axios', () => {
       return ok({ success: true, data: { fullName: '테스트담당자', loginId: 'TST-001' } });
     }
     if (/\/api\/v1\/partner-orders($|\?|\/$)/.test(url)) return ok([]);
-    if (/\/api\/v1\/estimates\/snapshots/.test(url)) return ok([]);
+    if (/\/internal\/estimates\/snapshots/.test(url)) return ok([]); // P0-A 하드닝
     if (/\/dc-config$/.test(url)) return ok(null);
     return ok({});
   });
@@ -33,8 +33,8 @@ jest.mock('axios', () => {
       // slip-service ApiResponse 봉투 (P0-B InternalSlipPublishController)
       return Promise.resolve({ status: 201, data: { success: true, data: { slipNo: 'TEST-SLIP-1', slipId: 'id-1' } } });
     }
-    if (/\/api\/v1\/estimates\/snapshots/.test(url)) {
-      return ok({ ok: true, snapshotId: 'TEST-SNAP-1' });
+    if (/\/internal\/estimates\/snapshots/.test(url)) { // P0-A 하드닝
+      return ok({ success: true, data: { id: 'TEST-SNAP-1', custName: '삼한' } });
     }
     if (/\/api\/v1\/audit-logs\/front/.test(url)) return ok({ ok: true });
     return ok({ ok: true });

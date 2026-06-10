@@ -48,7 +48,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class QuoteSnapshotControllerIT extends AbstractPostgresIT {
 
-    private static final String PATH = "/api/v1/estimates/snapshots";
+    private static final String PATH = "/internal/estimates/snapshots";
+    private static final String TOKEN_HEADER = "X-Internal-Token";
+    // AbstractPostgresIT @DynamicPropertySource 고정 주입값
+    private static final String VALID_TOKEN = "test-internal-token";
     private static final String USER_A = "alice@samhan-air.com";
     private static final String USER_B = "bob@samhan-air.com";
 
@@ -86,7 +89,7 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
         String blob = "eyJsaW5lcyI6W3sibW9kZWwiOiJBQzA1MiJ9XX0=";  // base64 작업상태 blob
         String image = "data:image/png;base64,AAAABBBBCCCC";
 
-        mockMvc.perform(post(PATH)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 saveBody(USER_A, "삼한공조", blob, image, "2026-06-09T12:00:00+09:00"))))
@@ -95,7 +98,7 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.custName").value("삼한공조"));
 
         // 불러오기 — 저장한 blob/이미지가 그대로(EXACT) 복원되는지
-        mockMvc.perform(get(PATH).param("userEmail", USER_A))
+        mockMvc.perform(get(PATH).header(TOKEN_HEADER, VALID_TOKEN).param("userEmail", USER_A))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", org.hamcrest.Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.data[0].custName").value("삼한공조"))
@@ -107,13 +110,13 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("사용자별 격리 — 다른 userEmail 은 빈 목록")
     void userIsolation() throws Exception {
-        mockMvc.perform(post(PATH)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 saveBody(USER_A, "거래처A", "ZGF0YUE=", null, "2026-06-09T10:00:00+09:00"))))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(get(PATH).param("userEmail", USER_B))
+        mockMvc.perform(get(PATH).header(TOKEN_HEADER, VALID_TOKEN).param("userEmail", USER_B))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", org.hamcrest.Matchers.hasSize(0)));
     }
@@ -121,21 +124,21 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("#31 거래처명 부분검색 — contains + 사용자 격리 + 최신순")
     void historyByCustomer() throws Exception {
-        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 saveBody(USER_A, "삼한공조(주)", "ZGF0YTE=", null, "2026-06-08T10:00:00+09:00"))))
                 .andExpect(status().isCreated());
-        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 saveBody(USER_A, "영에어시스템", "ZGF0YTI=", null, "2026-06-09T10:00:00+09:00"))))
                 .andExpect(status().isCreated());
-        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 saveBody(USER_B, "삼한설비", "ZGF0YTM=", null, "2026-06-09T11:00:00+09:00"))))
                 .andExpect(status().isCreated());
 
         // '삼한' contains — USER_A 의 삼한공조(주) 만 (USER_B 의 삼한설비는 격리)
-        mockMvc.perform(get(PATH + "/by-customer")
+        mockMvc.perform(get(PATH + "/by-customer").header(TOKEN_HEADER, VALID_TOKEN)
                         .param("userEmail", USER_A)
                         .param("custName", "삼한"))
                 .andExpect(status().isOk())
@@ -144,7 +147,7 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].data").value("ZGF0YTE="));
 
         // 미매칭 키워드 → 빈 목록
-        mockMvc.perform(get(PATH + "/by-customer")
+        mockMvc.perform(get(PATH + "/by-customer").header(TOKEN_HEADER, VALID_TOKEN)
                         .param("userEmail", USER_A)
                         .param("custName", "없는거래처"))
                 .andExpect(status().isOk())
@@ -154,24 +157,24 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
     @Test
     @DisplayName("최신순 정렬 + 날짜 범위 필터")
     void historyOrderingAndDateFilter() throws Exception {
-        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 saveBody(USER_A, "예전", "b2xk", null, "2026-05-01T09:00:00+09:00"))))
                 .andExpect(status().isCreated());
-        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 saveBody(USER_A, "최근", "bmV3", null, "2026-06-08T09:00:00+09:00"))))
                 .andExpect(status().isCreated());
 
         // 최신순 — 최근 먼저
-        mockMvc.perform(get(PATH).param("userEmail", USER_A))
+        mockMvc.perform(get(PATH).header(TOKEN_HEADER, VALID_TOKEN).param("userEmail", USER_A))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", org.hamcrest.Matchers.hasSize(2)))
                 .andExpect(jsonPath("$.data[0].custName").value("최근"))
                 .andExpect(jsonPath("$.data[1].custName").value("예전"));
 
         // 6월 범위만 — 최근 1건
-        mockMvc.perform(get(PATH)
+        mockMvc.perform(get(PATH).header(TOKEN_HEADER, VALID_TOKEN)
                         .param("userEmail", USER_A)
                         .param("startDate", "2026-06-01")
                         .param("endDate", "2026-06-30"))
@@ -185,9 +188,35 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
     void missingData_badRequest() throws Exception {
         Map<String, Object> body = saveBody(USER_A, "삼한", null, null, "2026-06-09T12:00:00+09:00");
         body.remove("data");
-        mockMvc.perform(post(PATH)
+        mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("P0-A 하드닝 — X-Internal-Token 미제시 저장 → 403")
+    void noToken_forbidden() throws Exception {
+        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                saveBody(USER_A, "무토큰", "ZGF0YQ==", null, "2026-06-10T10:00:00+09:00"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("P0-A 하드닝 — 토큰 불일치 조회 → 401")
+    void wrongToken_unauthorized() throws Exception {
+        mockMvc.perform(get(PATH).header(TOKEN_HEADER, "wrong-token").param("userEmail", USER_A))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("P0-A 하드닝 — 위조 X-User-* 헤더로 /internal 우회 불가 → 403")
+    void forgedUserHeader_forbidden() throws Exception {
+        mockMvc.perform(get(PATH)
+                        .header("X-User-Id", java.util.UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .param("userEmail", USER_A))
+                .andExpect(status().isForbidden());
     }
 }

@@ -51,7 +51,7 @@ jest.mock('axios', () => {
       });
     }
     // #31 — 거래처별 견적 이력
-    if (/\/api\/v1\/estimates\/snapshots\/by-customer/.test(url)) {
+    if (/\/internal\/estimates\/snapshots\/by-customer/.test(url)) {
       return ok({ success: true, data: [{ id: 'snap-1', custName: '삼한공조', data: 'YmxvYg==', created: '2026-06-10T10:00:00' }] });
     }
     return ok({});
