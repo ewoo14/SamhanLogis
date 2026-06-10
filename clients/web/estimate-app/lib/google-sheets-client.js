@@ -142,12 +142,20 @@ async function readSheetGrid(spreadsheetId, sheetName) {
   ]);
   const values = valResp.data.values || [[]];
   const rawFormulas = formResp.data.values || [[]];
-  const formulas = values.map((row, r) =>
-    row.map((_, c) => {
-      const f = (rawFormulas[r] || [])[c];
-      return typeof f === 'string' && f.startsWith('=') ? f : '';
-    }),
-  );
+  // Sheets API 는 trailing 빈 셀을 절단(ragged rows)하므로 값 행이 수식 행보다
+  // 짧을 수 있다(수식 결과가 '' 인 셀 등). 행별 union 폭으로 순회해 수식 유실 방지.
+  const numRows = Math.max(values.length, rawFormulas.length);
+  const formulas = [];
+  for (let r = 0; r < numRows; r++) {
+    const fRow = rawFormulas[r] || [];
+    const width = Math.max((values[r] || []).length, fRow.length);
+    const out = [];
+    for (let c = 0; c < width; c++) {
+      const f = fRow[c];
+      out.push(typeof f === 'string' && f.startsWith('=') ? f : '');
+    }
+    formulas.push(out);
+  }
 
   const grid = { values, formulas };
   cache.set(cacheKey, { value: grid, expireAt: now + TTL_MS });

@@ -279,21 +279,32 @@ class FakeSheet {
   constructor(name, values, formulas) {
     this._name = name;
     this._values = values && values.length ? values : [[]];
-    this._formulas = (formulas && formulas.length)
-      ? formulas
-      : this._values.map((r) => r.map(() => ''));
+    // GAS getFormulas() 는 직사각형 그리드를 보장한다. Sheets API ragged rows
+    // (trailing 빈 셀 절단) 로 값 행이 수식 행보다 짧아도 수식 인덱스가
+    // 유실되지 않도록 행별 union 폭으로 정규화해 보관한다.
+    const base = (formulas && formulas.length) ? formulas : [];
+    this._formulas = this._values.map((row, i) => {
+      const fRow = base[i] || [];
+      const width = Math.max(row.length, fRow.length);
+      return Array.from({ length: width }, (_, j) => fRow[j] || '');
+    });
   }
   getName() { return this._name; }
   getDataRange() {
     const vals = this._values;
     const forms = this._formulas;
+    const numCols = Math.max(
+      vals.reduce((m, r) => Math.max(m, r.length), 0),
+      forms.reduce((m, r) => Math.max(m, r.length), 0),
+    );
     return {
       getValues: () => vals,
       // legacy 는 getDisplayValues 로 string 형 결과를 기대 — 시트 client 가 이미
       // FORMATTED_STRING/UNFORMATTED_VALUE 혼용으로 받지만, 본 호출 사이트는
       // 모두 문자열 trim/정규화를 다시 수행하므로 raw getValues 와 동등.
       getDisplayValues: () => vals.map((r) => r.map((v) => (v == null ? '' : String(v)))),
-      getFormulas: () => vals.map((r, i) => r.map((_, j) => (forms[i] || [])[j] || '')),
+      // GAS 직사각형 불변식: 모든 행을 numCols 폭으로 패딩해 반환.
+      getFormulas: () => forms.map((fr) => Array.from({ length: numCols }, (_, j) => fr[j] || '')),
       getNumRows: () => vals.length,
       getNumColumns: () => vals.reduce((m, r) => Math.max(m, r.length), 0),
     };

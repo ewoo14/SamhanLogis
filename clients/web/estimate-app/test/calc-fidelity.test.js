@@ -199,6 +199,44 @@ describe('수식분기 — shim getFormulas 실 수식 전달', () => {
     expect(out[0].price).toBe(2200000); // 우측 납품가 확정
   });
 
+  test('ragged rows — 값 행이 절단되어도 수식 인덱스 보존 (P1 fix)', () => {
+    code.cacheRemoveJSON_('HM_FIX_V13');
+    const header = ['품명', '모델명', '단위', '납품가', '용량', '규격', '출고가', '고정DC', '비고', '최대 연결 실내기 대수'];
+    // Sheets API 가 trailing 빈 셀을 절단한 값 행(4셀) — 납품가 수식은 존재
+    const values = [
+      header,
+      ['실내기 4WAY WIFI내장', 'AM071', 'EA', ''],
+    ];
+    const formulas = [
+      [],
+      ['', '', '', '=ROUND(G2*$L$2,0)'],
+    ];
+    shim.injectSheet(SHEET_ID, HOME_NAME, values, formulas);
+
+    const out = code.getHomeMulti();
+    expect(out).toHaveLength(1);
+    expect(out[0].useK2).toBe(true); // 절단된 값 행에서도 수식분기 생존
+  });
+
+  test('getSingleSets 헤더 0행 — 레거시 GAS quirk 박제 (hdrRow===0 → 2 강제)', () => {
+    // 라이브 GAS 는 hdrRow 초기값 0 + `if (hdrRow === 0) hdrRow = 2` 로
+    // 헤더가 0행에 있으면 2행을 헤더로 오인한다. 충실 복원 = 동일 quirk 유지.
+    code.cacheRemoveJSON_('SS_FIX_V16');
+    const header = ['품명', '평형', '모델명', '단위', '비고', '출고가', '납품가', '납품가'];
+    const values = [
+      header,
+      ['세트A', '18', 'AR060', 'SET', '', '3,000,000', '2,000,000', '2,200,000'],
+      ['세트B', '13', 'AR040', 'SET', '', '2,500,000', '1,800,000', '1,900,000'],
+      ['세트C', '15', 'AR050', 'SET', '', '2,000,000', '1,500,000', '1,600,000'],
+    ];
+    shim.injectSheet(SHEET_ID, SINGLE_NAME, values);
+
+    const out = code.getSingleSets();
+    // hdrRow 가 2(데이터 행)로 강제 → 컬럼 헤더 미발견 → 전 행 skip = 빈 결과.
+    // 라이브 GAS 와 동일한 quirk (실 시트는 헤더가 2행 이후라 미발현).
+    expect(out).toHaveLength(0);
+  });
+
   test('getOldProducts_ isDisc — F열 수식 $I$1 참조 감지', () => {
     const values = [
       ['품명', '모델', '단위', '출고가', '', '납품가', '', '적요', '규격'],
