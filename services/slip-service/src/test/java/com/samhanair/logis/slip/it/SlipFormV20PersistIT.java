@@ -443,6 +443,48 @@ class SlipFormV20PersistIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.partnerCode", nullValue()));
     }
 
+    /**
+     * TC-10: 같은 partnerId 재전송(FE 전체필드 전송 관행) + resolve 실패 → 기존 partnerCode 유지.
+     *
+     * <p>사이클2 BE cross-check P1 — '변경' 판정이 req.partnerId() != null 이면 같은 거래처
+     * 재전송 시 정상 code 가 NULL clear 되는 회귀. 진짜 변경(이전 partnerId 상이) 시에만 clear.
+     */
+    @Test
+    @DisplayName("TC-10: 같은 partnerId 재전송 + resolve 실패 → partnerCode 유지")
+    void tc10_samePartnerResubmit_resolveFail_partnerCodeRetained() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        Mockito.when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.of("P-KEEP-0001"));
+
+        Map<String, Object> body = buildCreateBody(null, null, null, null, null);
+        body.put("partnerId", partnerId.toString());
+        MvcResult createResult = mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.partnerCode", is("P-KEEP-0001")))
+                .andReturn();
+        String slipId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+
+        // 이후 resolve 실패로 전환 — 같은 partnerId 재전송 시 기존 code 유지되어야 함
+        Mockito.when(partnerInternalClient.resolvePartnerCode(partnerId))
+                .thenReturn(Optional.empty());
+
+        Map<String, Object> patchBody = new HashMap<>();
+        patchBody.put("partnerId", partnerId.toString()); // 동일 거래처 (FE 전체필드 전송)
+        patchBody.put("projectName", "재전송 갱신");
+        mockMvc.perform(patch("/slips/{id}/v20", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patchBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.partnerCode", is("P-KEEP-0001")));
+    }
+
     // ========================================================================
     // 헬퍼 메서드
     // ========================================================================

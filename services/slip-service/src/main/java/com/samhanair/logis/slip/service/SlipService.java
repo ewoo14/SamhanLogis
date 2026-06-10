@@ -370,6 +370,8 @@ public class SlipService {
     public SlipDetailResponse updateSlip(UUID id, UpdateSlipRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        // editHeader 가 partnerId 를 덮어쓰기 전에 캡처 — partnerCode 진짜 변경 판정용 (사이클2 BE)
+        UUID previousPartnerId = slip.getPartnerId();
         // 기존 헤더 필드 수정 (도메인 메서드 chain — Slip.editHeader)
         applyMutation(() -> slip.editHeader(req.partnerId(), req.partnerName(),
                 req.deliveryTag(), req.memo(), req.driverName(), req.driverPhone()));
@@ -383,12 +385,15 @@ public class SlipService {
             resolvedBusinessNumber = resolveBusinessNumber(effectivePartnerId);
         }
         // partnerCode snapshot (2026-06-10) — partnerId 변경 또는 기존 NULL 시 resolve.
-        // 거래처 '변경' 시 resolve 실패면 NULL 로 clear — 이전 거래처 code 잔존(stale) 방지
-        // (사이클1 BE 리뷰 P1). 백필(기존 NULL) 경로는 성공 시에만 채움.
-        if (effectivePartnerId != null && (slip.getPartnerCode() == null || req.partnerId() != null)) {
+        // '진짜 변경'(이전 partnerId 와 상이) 시에만 resolve 실패를 NULL clear 로 처리 —
+        // 이전 거래처 code 잔존(stale) 방지 (사이클1 P1). 같은 partnerId 재전송(FE 전체필드
+        // 전송 관행)은 백필 의미론(성공 시만 채움)이라 정상 code 가 clear 되지 않음 (사이클2 P1).
+        boolean partnerActuallyChanged =
+                req.partnerId() != null && !req.partnerId().equals(previousPartnerId);
+        if (effectivePartnerId != null && (slip.getPartnerCode() == null || partnerActuallyChanged)) {
             java.util.Optional<String> resolvedCode =
                     partnerInternalClient.resolvePartnerCode(effectivePartnerId);
-            if (req.partnerId() != null) {
+            if (partnerActuallyChanged) {
                 slip.setPartnerCode(resolvedCode.orElse(null));
             } else {
                 resolvedCode.ifPresent(slip::setPartnerCode);
