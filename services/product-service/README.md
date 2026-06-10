@@ -36,6 +36,20 @@ SamhanLogis Product 마스터 + Category 트리 + Google Sheets 동기화 서비
 | PATCH | `/products/categories/{id}` | MASTER / MANAGER / DEVELOPER |
 | DELETE | `/products/categories/{id}` | MASTER / MANAGER / DEVELOPER (자식 존재 시 409) |
 
+## 품목 노출 수동 토글 + usageScope 질의 (요구사항1 PR-B, PR #460)
+
+품목별 견적/주문 노출을 시트 탭 자동 분류 + **수동 토글**로 운영한다 (개발책임자 2026-06-10 결정 — 시트에 없는 품목도 수동 노출 가능).
+
+| 항목 | 내용 |
+|---|---|
+| V14 | `products.usage_scope_manual BOOLEAN NOT NULL DEFAULT FALSE` — 수동 override 플래그 |
+| 수동 토글 | `PATCH /api/v1/products/{modelCode}/usage` body `{usageScope, estimateCategory?}` → manual=true (NONE/PARTNER_ORDER 시 estimateCategory 강제 null). `DELETE /api/v1/products/{modelCode}/usage` → 플래그 해제(값 유지) + **rowHash 캐시 evict** — 다음 sync 가 시트 기준 재분류. 권한 `products.admin` UPDATE |
+| sync 보존 | `usageScopeManual=true` 품목은 sync 가 usageScope/estimateCategory 무변경 + **시트 부재 시 soft-delete 제외** (`preservedManual` 카운터) |
+| catalog 질의 | `GET /api/v1/products` (ProductCatalogController — 게이트웨이 정확경로): `q`(model_code/name/model_name LIKE, 와일드카드 이스케이프) + `usageScope` **IN-확장**(ESTIMATE→+BOTH, PARTNER_ORDER→+BOTH) + `category`(EstimateCategory) + `ORDER BY display_order NULLS LAST, model_code` 결정 페이징 |
+| ⚠️ 시멘틱 분기 | `/products`(ProductController, `/api/products/**` strip 경로) 의 usageScope 는 **exact-match** — 실호출자 0, catalog 경로와 의미 상이 (Javadoc 명시) |
+
+데스크톱 소비처: `/products/catalog` 품목 관리 화면 (견적/주문 노출 토글 + 시트자동·수동 뱃지). order-app 은 `usageScope=PARTNER_ORDER` 로 본 catalog 질의를 사용.
+
 ## SP-D7 조회성 부가 endpoint 권한
 
 상품 audit log와 realtime SSE는 SP-D7 전용 `products.list.view` VIEW, 상품 edit-request 목록은

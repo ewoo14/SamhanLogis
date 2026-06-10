@@ -29,9 +29,10 @@
 
 ---
 
-### 최신 진행 메모 (2026-06-10)
+### 최신 진행 메모 (2026-06-11)
 
-- 공급자·은행계좌·인감 회계 설정 (PR #459): 회계 > 사업자 양식(`SupplierProfile`)을 TEL/FAX·입금계좌(`supplier_bank_accounts`)·인감(BYTEA)으로 확장하고, desktop 인쇄 20뷰의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_*` env 주입을 `useCompanyProfile()` API 배선으로 전수 대체했다. 세금계산서 발행 공급자 블록도 primary 사업자 양식으로 일원화 (CompanyProperties fallback).
+- 품목 노출 수동 토글 + 품목관리 화면 (요구사항1 PR-B, PR #460): `usage_scope_manual` 플래그(V14)로 시트 sync 가 수동 토글을 보존(soft-delete 보호 포함)하고, 시트 복귀 시 rowHash 캐시 evict 로 재분류를 보장. catalog 경로(`/api/v1/products`)에 q 검색 + usageScope **IN-확장**(PARTNER_ORDER→+BOTH) + 결정 페이징(ORDER BY displayOrder) — 주문서 PARTNER_ORDER 분기 실효화. desktop '품목 관리' 화면 신설(견적/주문 노출 토글, 시트자동·수동 뱃지). 메뉴명 '공급자 설정' 라벨은 #459 에서 확정.
+- 공급자·은행계좌·인감·로고 회계 설정 (PR #459 머지): 회계 > **공급자 설정**(`SupplierProfile`)을 TEL/FAX·입금계좌(`supplier_bank_accounts`, 계좌별 명세서 노출 토글)·인감/로고(BYTEA)로 확장하고, desktop 인쇄 20뷰의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_*` env 주입을 `useCompanyProfile()`(인쇄 전용 인증-only `print-profile` — 외부 파트너 403) 배선으로 전수 대체했다. 세금계산서 발행 공급자 블록도 primary 공급자 설정으로 일원화 (CompanyProperties fallback).
 - 출고전표·거래명세서 원본 양식 1:1 (PR #458 머지): 결재란/정렬 정정 2회 반영 + 전자서명 배치 + 한 A4 자동 비율. 결재란 사원 서명 스탬프는 사원 서명 등록 슬라이스(후속) 대기.
 
 ### 이전 진행 메모 (2026-06-03)
