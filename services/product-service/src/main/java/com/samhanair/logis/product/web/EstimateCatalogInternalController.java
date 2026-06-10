@@ -159,6 +159,11 @@ public class EstimateCatalogInternalController {
     /**
      * 카테고리별 세트 구성품 — legacy getSingleParts/getCommercialParts.
      *
+     * <p>노출 구분(usageScope) 필터 미적용 의도: 구성품은 사용자 직접 선택 대상이 아니라 이미
+     * 노출 필터된 부모 세트(BUNDLE) 전개 시 따라붙는 자식이다. 부모(products endpoint)에서
+     * usageScope 필터되므로 구성품 단계는 무관. price-baseline 도 동일(인상 전/후 단가 비교용
+     * 전 품목 baseline — 노출 구분과 직교).
+     *
      * @param category SINGLE_SET(싱글 구성품) / COMMERCIAL_MULTI(상업멀티 구성)
      */
     @Operation(summary = "[내부] estimate 세트 구성품 벌크 (#30)",

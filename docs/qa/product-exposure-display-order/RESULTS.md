@@ -44,6 +44,16 @@ count 276
 
 **실 시트 '싱글 세트_단가인상' 상위 8행과 모델·순서 정확 일치**(시트 직접 read 대조). 노출 제외 품목(NONE)은 미반환.
 
+## ④ 실 Docker QA — 종합견적서 실 UI(실사용자 화면)
+
+- 실행: Docker 스택 product-service(8084, V13+stomping fix 적용본) + user-service(8083, 인증 게이트) 가동.
+- estimate-app `CATALOG_SOURCE=db` 로 :5183 기동 → 실 사원 인증(`dev_master@samhan-air.com` → user-service by-email → `[DEV-SEED] 개발마스터` 통과) → 싱글세트 카탈로그 렌더.
+- 브라우저 `SS_RAW`(노출 카탈로그 원천) **count 276**, 상위 6 모델 = `AC060CS6PBH1SY, AC072CS6PBH1SY, AC090CS6PBH1SY, AC100CS6PBH1SY, AC100CS6PHH1SY, AC110CS6PBH1SY` — ③ 엔드포인트와 **정확 일치**.
+
+![싱글세트 카탈로그 — 노출 필터 + 시트 순서](01-single-catalog-sheet-order.png)
+
+화면의 싱글 세트 테이블이 `360 CST UV 15평형(AC060CS6PBH1SY) → 18평형(AC072) → 25평형(AC090) → …` 시트 row 순서 그대로 렌더(노출 designated 품목만, NONE 제외). 캡처 스크립트: `clients/web/estimate-app/scripts/qa-capture-457.mjs`.
+
 ## 테스트
 
 - product-service 전체 테스트 green. ProductRepositoryIT `findExposedCatalog_filtersByUsageScope_ordersByDisplayOrder`(BOTH/ESTIMATE 필터 + display_order ASC NULLS LAST 검증) 신규.

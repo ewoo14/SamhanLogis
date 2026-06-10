@@ -615,6 +615,12 @@ public class ProductSheetSyncService {
                     : parseFixedDcRate(fixedDcColumn >= 0 ? safeGet(cells, fixedDcColumn) : null);
             String discountFlags = discountDetector.detectDiscountFlags(modelCode);
 
+            // 노출 분류 홈 탭 불변식: TAB_MAPPINGS 는 견적 탭(홈멀티/싱글세트/상업멀티/구형)을
+            // 구성품 탭(싱글구성품/상업멀티구성)보다 먼저 처리한다(L96-115 순서 고정). 따라서 품목의
+            // 최초 insert = 견적 탭 → productCategory 가 견적 카테고리로 고정되고, 이후 구성품 탭의
+            // update 는 아래 가드(productCategory 불일치)로 usageScope/display_order 미변경.
+            // 구성품 탭에만 존재하는 모델은 SINGLE_PART/NONE 으로 insert 됨이 정상(노출 비대상).
+            // ※ 신규 탭 추가 시 견적 탭은 구성품 탭보다 앞에 둘 것.
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
             UUID productId;
             if (existing.isEmpty()) {
