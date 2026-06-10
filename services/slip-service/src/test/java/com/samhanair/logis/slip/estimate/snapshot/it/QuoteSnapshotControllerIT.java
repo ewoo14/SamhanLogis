@@ -34,11 +34,12 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>검증 시나리오:
  * <ol>
- *   <li>저장(POST) 201 + 무인증 통과(permitAll) + meta 반환</li>
+ *   <li>저장(POST) 201 + X-Internal-Token 인증(P0-A 하드닝) + meta 반환</li>
  *   <li>불러오기(GET) — 저장한 blob/이미지 그대로 복원(EXACT) + 최신순</li>
  *   <li>사용자별 격리 — 다른 userEmail 은 빈 목록</li>
  *   <li>날짜 범위 필터 (startDate/endDate)</li>
  *   <li>userEmail/data 누락 시 400</li>
+ *   <li>P0-A 하드닝 enforcement — 무토큰 403 / 오토큰 401 / 위조 X-User-* 403</li>
  * </ol>
  *
  * <p>외부 client 전체 {@code @MockBean} 격리(EstimateControllerIT 와 동일 세트 — 컨텍스트 캐시 재사용).
