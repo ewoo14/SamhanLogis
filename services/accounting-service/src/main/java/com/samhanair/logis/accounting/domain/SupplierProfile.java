@@ -13,8 +13,10 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 사업자 프로필 — 사업자양식(홈택스 공급자 정보) 관리 도메인 엔티티.
@@ -23,8 +25,12 @@ import org.hibernate.annotations.UuidGenerator;
  * 데이터베이스 기반으로 전환한 도메인 모델이다. 회계 카테고리 "사업자 양식" 메뉴에서
  * 사용자가 수정 가능하며, 기존 하드코딩 값이 Flyway V14 시드로 적재된다.
  *
+ * <p>V35 (2026-06-10) 확장 — 전화({@link #tel}) / FAX({@link #fax}) / 인감 PNG({@link #stampPng})
+ * / 인감 SHA-256({@link #stampHash}) 추가. 은행계좌는 별도 {@code SupplierBankAccount} 엔티티.
+ *
  * <p>상태/불변 필드는 도메인 메서드({@link #update}, {@link #markPrimary},
- * {@link #unmarkPrimary})만으로 변경한다 — 직접 setter 호출 금지.
+ * {@link #unmarkPrimary}, {@link #registerStamp}, {@link #clearStamp})만으로 변경한다
+ * — 직접 setter 호출 금지.
  *
  * <p>isPrimary = true 인 row 는 항상 1개만 존재해야 한다.
  * DB 레벨 부분 유니크 인덱스({@code uq_supplier_primary_active})로 보장하며,
@@ -106,6 +112,39 @@ public class SupplierProfile extends BaseEntity {
     private String email;
 
     /**
+     * 전화번호 — 예: {@code 02-3461-0000}. nullable.
+     * 세금계산서·거래명세서 인쇄 공급자 블록에 출력된다.
+     */
+    @Column(name = "tel", length = 30)
+    private String tel;
+
+    /**
+     * FAX 번호 — 예: {@code 02-3461-0001}. nullable.
+     * 세금계산서·거래명세서 인쇄 공급자 블록에 출력된다.
+     */
+    @Column(name = "fax", length = 30)
+    private String fax;
+
+    /**
+     * 인감 PNG 바이너리. nullable.
+     *
+     * <p>⚠️ {@code @Lob} 사용 금지 — Hibernate 6 + PostgreSQL bytea 컬럼에서
+     * OID(Large Object) 타입으로 오매핑되어 {@code PSQLException: large object not supported}
+     * 가 발생한다 (Slip.java:263 NOTE 동일 패턴).
+     * {@code @JdbcTypeCode(SqlTypes.BINARY)} 로 bytea 직접 매핑.
+     */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "stamp_png", columnDefinition = "BYTEA")
+    private byte[] stampPng;
+
+    /**
+     * 인감 PNG 의 SHA-256 해시 (소문자 hex 64자). nullable.
+     * 업로드 시 클라이언트가 계산하여 전송하고, 서비스 레이어에서 재계산 검증한다.
+     */
+    @Column(name = "stamp_hash", length = 64)
+    private String stampHash;
+
+    /**
      * 기본 사업자 여부.
      * {@code true} 인 row 는 DB 전체에서 1개만 유지된다.
      * {@link TaxInvoiceBatchService} 가 공급자 정보 조회 시 이 flag 로 단건 fetch.
@@ -133,6 +172,8 @@ public class SupplierProfile extends BaseEntity {
      * @param businessType       업태 (nullable)
      * @param businessItem       종목 (nullable)
      * @param email              이메일 (nullable)
+     * @param tel                전화번호 (nullable)
+     * @param fax                FAX 번호 (nullable)
      * @param isPrimary          기본 사업자 여부
      * @return 신규 {@link SupplierProfile}
      * @throws IllegalArgumentException 필수 인자 누락 또는 형식 오류
@@ -146,6 +187,8 @@ public class SupplierProfile extends BaseEntity {
             String businessType,
             String businessItem,
             String email,
+            String tel,
+            String fax,
             boolean isPrimary) {
         validateBusinessNumber(businessNumber);
         validateNotBlank(companyName, "companyName");
@@ -163,9 +206,39 @@ public class SupplierProfile extends BaseEntity {
         p.businessType = businessType;
         p.businessItem = businessItem;
         p.email = email;
+        p.tel = tel;
+        p.fax = fax;
         p.isPrimary = isPrimary;
         p.version = 0L;
         return p;
+    }
+
+    /**
+     * 신규 사업자 프로필 생성 (tel/fax 생략 오버로드 — 기존 호출부 호환용).
+     *
+     * @param businessNumber     사업자등록번호 (10자리 숫자)
+     * @param subBusinessNumber  종사업장번호 (4자리, nullable)
+     * @param companyName        상호
+     * @param representativeName 대표 성명
+     * @param businessAddress    사업장 주소
+     * @param businessType       업태 (nullable)
+     * @param businessItem       종목 (nullable)
+     * @param email              이메일 (nullable)
+     * @param isPrimary          기본 사업자 여부
+     * @return 신규 {@link SupplierProfile}
+     */
+    public static SupplierProfile create(
+            String businessNumber,
+            String subBusinessNumber,
+            String companyName,
+            String representativeName,
+            String businessAddress,
+            String businessType,
+            String businessItem,
+            String email,
+            boolean isPrimary) {
+        return create(businessNumber, subBusinessNumber, companyName, representativeName,
+                businessAddress, businessType, businessItem, email, null, null, isPrimary);
     }
 
     // =========================================================================
@@ -176,15 +249,19 @@ public class SupplierProfile extends BaseEntity {
      * 사업자 프로필 정보 갱신 (체이닝 가능).
      *
      * <p>모든 mutable 필드를 한 번에 수정한다. null 인자는 기존 값을 유지한다.
+     * 단, nullable 필드(businessType / businessItem / email / tel / fax)는
+     * null 전달 시 명시적으로 null 로 설정된다 (기존값 덮어쓰기 시맨틱).
      *
      * @param businessNumber     새 사업자등록번호 (null 이면 기존 유지)
      * @param subBusinessNumber  새 종사업장번호 (null 이면 기존 유지)
      * @param companyName        새 상호 (null 이면 기존 유지)
      * @param representativeName 새 대표 성명 (null 이면 기존 유지)
      * @param businessAddress    새 사업장 주소 (null 이면 기존 유지)
-     * @param businessType       새 업태 (null 허용)
-     * @param businessItem       새 종목 (null 허용)
-     * @param email              새 이메일 (null 허용)
+     * @param businessType       새 업태 (null 이면 null 로 설정)
+     * @param businessItem       새 종목 (null 이면 null 로 설정)
+     * @param email              새 이메일 (null 이면 null 로 설정)
+     * @param tel                새 전화번호 (null 이면 null 로 설정)
+     * @param fax                새 FAX 번호 (null 이면 null 로 설정)
      * @return {@code this} (체이닝용)
      * @throws IllegalArgumentException 형식 오류
      */
@@ -196,7 +273,9 @@ public class SupplierProfile extends BaseEntity {
             String businessAddress,
             String businessType,
             String businessItem,
-            String email) {
+            String email,
+            String tel,
+            String fax) {
         if (businessNumber != null) {
             validateBusinessNumber(businessNumber);
             this.businessNumber = businessNumber.trim();
@@ -223,6 +302,67 @@ public class SupplierProfile extends BaseEntity {
         this.businessType = businessType;
         this.businessItem = businessItem;
         this.email = email;
+        this.tel = tel;
+        this.fax = fax;
+        return this;
+    }
+
+    /**
+     * 사업자 프로필 정보 갱신 (tel/fax 생략 오버로드 — 기존 호출부 호환용).
+     *
+     * @param businessNumber     새 사업자등록번호 (null 이면 기존 유지)
+     * @param subBusinessNumber  새 종사업장번호 (null 이면 기존 유지)
+     * @param companyName        새 상호 (null 이면 기존 유지)
+     * @param representativeName 새 대표 성명 (null 이면 기존 유지)
+     * @param businessAddress    새 사업장 주소 (null 이면 기존 유지)
+     * @param businessType       새 업태 (null 이면 null 로 설정)
+     * @param businessItem       새 종목 (null 이면 null 로 설정)
+     * @param email              새 이메일 (null 이면 null 로 설정)
+     * @return {@code this} (체이닝용)
+     */
+    public SupplierProfile update(
+            String businessNumber,
+            String subBusinessNumber,
+            String companyName,
+            String representativeName,
+            String businessAddress,
+            String businessType,
+            String businessItem,
+            String email) {
+        return update(businessNumber, subBusinessNumber, companyName, representativeName,
+                businessAddress, businessType, businessItem, email, this.tel, this.fax);
+    }
+
+    /**
+     * 인감 PNG 등록.
+     *
+     * <p>서비스 레이어에서 base64 디코드 후 SHA-256 재계산 검증 완료 후 호출한다.
+     *
+     * @param png  PNG 바이너리 (≤ 200KB 검증 완료)
+     * @param hash SHA-256 소문자 hex (64자)
+     * @return {@code this} (체이닝용)
+     * @throws IllegalArgumentException png 또는 hash 가 null 인 경우
+     */
+    public SupplierProfile registerStamp(byte[] png, String hash) {
+        if (png == null || png.length == 0) {
+            throw new IllegalArgumentException("인감 PNG 는 비어있을 수 없습니다");
+        }
+        if (hash == null || hash.length() != 64) {
+            throw new IllegalArgumentException("stampHash 는 SHA-256 소문자 hex 64자여야 합니다");
+        }
+        this.stampPng = png;
+        this.stampHash = hash;
+        return this;
+    }
+
+    /**
+     * 인감 삭제 (stampPng / stampHash 를 null 로 초기화).
+     *
+     * @return {@code this} (체이닝용)
+     */
+    public SupplierProfile clearStamp() {
+        this.stampPng = null;
+        this.stampHash = null;
         return this;
     }
 

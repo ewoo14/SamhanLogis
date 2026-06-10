@@ -14,6 +14,7 @@ import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoiceType;
+import com.samhanair.logis.accounting.repository.SupplierProfileRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceCancelRequest;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceCreateRequest;
@@ -69,6 +70,7 @@ class TaxInvoiceServiceTest {
     @Mock private TaxInvoiceNumberService taxInvoiceNumberService;
     @Mock private JournalService journalService;
     @Mock private CompanyProperties companyProperties;
+    @Mock private SupplierProfileRepository supplierProfileRepository;
 
     @InjectMocks private TaxInvoiceService taxInvoiceService;
 
@@ -77,13 +79,17 @@ class TaxInvoiceServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 회사 정보 stub
+        // 회사 정보 stub (CompanyProperties fallback)
         lenient().when(companyProperties.getName()).thenReturn("(주)삼한공조시스템");
         lenient().when(companyProperties.getBusinessNumber()).thenReturn("123-45-67890");
         lenient().when(companyProperties.getCeo()).thenReturn("김미선");
         lenient().when(companyProperties.getAddress()).thenReturn("서울특별시 강남구");
         lenient().when(companyProperties.getBusinessType()).thenReturn("도소매");
         lenient().when(companyProperties.getBusinessItem()).thenReturn("공조기기");
+
+        // SupplierProfile primary — 기본값 empty (CompanyProperties fallback 경로 활성화)
+        lenient().when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.empty());
 
         // repository.save stub — 저장된 엔티티 그대로 반환
         lenient().when(taxInvoiceRepository.save(any(TaxInvoice.class)))
@@ -311,6 +317,56 @@ class TaxInvoiceServiceTest {
                 TaxInvoiceStatus.ISSUED, TaxInvoiceType.SALES,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
                 null, PageRequest.of(0, 20));
+    }
+
+    // ── 시나리오 11 ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("11. print — primary SupplierProfile 존재 시 그 값 사용 (CompanyProperties 아님)")
+    void scenario11_print_usesSupplierProfileWhenPresent() throws Exception {
+        // primary SupplierProfile stub
+        com.samhanair.logis.accounting.domain.SupplierProfile sp =
+                com.samhanair.logis.accounting.domain.SupplierProfile.create(
+                        "2148720659", null, "（주）삼한공조시스템DB", "김미선DB",
+                        "서울 DB 주소", "도소매DB", "가전DB", null, "02-0000-0000", null, true);
+        lenient().when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.of(sp));
+
+        TaxInvoice ti = buildIssuedInvoice();
+        UUID tiId = UUID.randomUUID();
+        setId(ti, tiId);
+        when(taxInvoiceRepository.findById(tiId)).thenReturn(Optional.of(ti));
+
+        TaxInvoicePrintResponse res = taxInvoiceService.print(tiId);
+
+        // SupplierProfile 값 사용 검증
+        assertThat(res.supplierName()).isEqualTo("（주）삼한공조시스템DB");
+        assertThat(res.supplierCeo()).isEqualTo("김미선DB");
+        assertThat(res.supplierAddress()).isEqualTo("서울 DB 주소");
+        // CompanyProperties 값(강남구) 미사용 확인
+        assertThat(res.supplierAddress()).doesNotContain("강남구");
+    }
+
+    // ── 시나리오 12 ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("12. print — primary SupplierProfile 부재 시 CompanyProperties fallback")
+    void scenario12_print_fallbackToCompanyPropertiesWhenNoPrimary() throws Exception {
+        // primary SupplierProfile 없음 (BeforeEach 에서 empty 로 설정됨)
+        lenient().when(supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.empty());
+
+        TaxInvoice ti = buildIssuedInvoice();
+        UUID tiId = UUID.randomUUID();
+        setId(ti, tiId);
+        when(taxInvoiceRepository.findById(tiId)).thenReturn(Optional.of(ti));
+
+        TaxInvoicePrintResponse res = taxInvoiceService.print(tiId);
+
+        // CompanyProperties fallback 값 사용 검증
+        assertThat(res.supplierName()).isEqualTo("(주)삼한공조시스템");
+        assertThat(res.supplierCeo()).isEqualTo("김미선");
+        assertThat(res.supplierAddress()).isEqualTo("서울특별시 강남구");
     }
 
     // ── 헬퍼 메서드 ──────────────────────────────────────────────────────────

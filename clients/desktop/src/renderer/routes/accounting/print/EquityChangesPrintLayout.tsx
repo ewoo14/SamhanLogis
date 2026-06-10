@@ -14,7 +14,8 @@
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@samhan/design-system'
-import { PrintLayout, COMPANY, krw } from '../../../print/PrintLayout'
+import { PrintLayout, krw } from '../../../print/PrintLayout'
+import { useCompanyProfile } from '../../../print/useCompanyProfile'
 import {
   getEquityChanges,
   type EquityChangesResponse,
@@ -131,6 +132,7 @@ interface BodyProps {
 
 /** 자본변동표 인쇄 본문. */
 function EquityChangesPrintBody({ data }: BodyProps) {
+  const { company } = useCompanyProfile()
   const totalBeginning = String(
     Number.parseInt(data.beginningCapitalStock, 10) +
     Number.parseInt(data.beginningRetainedEarnings, 10),
@@ -144,9 +146,9 @@ function EquityChangesPrintBody({ data }: BodyProps) {
     <div style={{ fontFamily: 'var(--font-family-sans)', color: 'var(--color-neutral-900)' }}>
       {/* 헤더 */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{COMPANY.legalName}</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{company.legalName}</div>
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 2 }}>
-          사업자등록번호: {COMPANY.businessRegNo}
+          사업자등록번호: {company.businessRegNo}
         </div>
         <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700, marginTop: 8, letterSpacing: '0.2em' }}>
           자 본 변 동 표

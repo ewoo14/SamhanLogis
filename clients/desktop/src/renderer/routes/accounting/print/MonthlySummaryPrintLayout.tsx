@@ -16,7 +16,8 @@
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@samhan/design-system'
-import { PrintLayout, COMPANY, krw } from '../../../print/PrintLayout'
+import { PrintLayout, krw } from '../../../print/PrintLayout'
+import { useCompanyProfile } from '../../../print/useCompanyProfile'
 import {
   getMonthlySummary,
   type DailyBreakdownLine,
@@ -133,6 +134,7 @@ interface BodyProps {
 
 /** 월계표 인쇄 본문 — 총계 요약 + (옵션) 일별 breakdown 2페이지. */
 function MonthlySummaryPrintBody({ data, period, showDailyBreakdown = false }: BodyProps) {
+  const { company } = useCompanyProfile()
   // B-3 fix: DailyBreakdownLine `journalDate` 기준 정렬 (구 `date` X)
   const dailySorted = [...data.dailyBreakdown].sort((a, b) =>
     a.journalDate.localeCompare(b.journalDate),
@@ -142,9 +144,9 @@ function MonthlySummaryPrintBody({ data, period, showDailyBreakdown = false }: B
     <div style={{ fontFamily: 'var(--font-family-sans)', color: 'var(--color-neutral-900)' }}>
       {/* 헤더 */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{COMPANY.legalName}</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{company.legalName}</div>
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 2 }}>
-          사업자등록번호: {COMPANY.businessRegNo}
+          사업자등록번호: {company.businessRegNo}
         </div>
         <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700, marginTop: 8, letterSpacing: '0.2em' }}>
           월 계 표

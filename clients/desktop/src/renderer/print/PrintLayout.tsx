@@ -17,49 +17,9 @@ import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@samhan/design-system'
 
-/**
- * (주)삼한공조시스템 표준 회사 정보 — 인쇄 양식 5건 공통.
- *
- * memory 회사 명칭 / `InvoiceView` 기존 placeholder 와 동일 정보를 단일 출처화.
- * 사용자 명시 (실제 운영) 정보로 후속 iteration 에서 교체 예정 (회사명만 확정).
- */
-export const COMPANY = {
-  /** 한국어 정식 상호 — 인쇄 양식 헤더 / 푸터 / 공급자 박스 모두 동일. */
-  legalName: '(주)삼한공조시스템',
-  /** 영문 상호 — placeholder. 후속 iteration 에서 교체. */
-  legalNameEn: 'SAMHAN AIR-CONDITIONING SYSTEMS CO., LTD.',
-  /** 사업자등록번호 — placeholder (10자리). 후속 iteration 에서 실제 값 교체. */
-  businessRegNo: '214-87-20659',
-  /** 종사업장번호 — 본점만 (0000). 종사업장 분리 시 후속 iteration. */
-  subBusinessNo: '0000',
-  /** 대표자 성명 — placeholder. 후속 iteration. */
-  ceo: '김미선',
-  /** 본사 주소 — placeholder. 후속 iteration. */
-  address: '서울특별시 서초구 마방로2길 9 (양재동) 삼한빌딩 4층',
-  /** 대표 전화 — placeholder. */
-  tel: '02-3461-0000',
-  /** 대표 팩스 — placeholder. */
-  fax: '02-3461-0001',
-  /** 업태 — placeholder (e-Tax 표준). */
-  businessType: '도매 및 소매업',
-  /** 종목 — placeholder (e-Tax 표준). */
-  businessItem: '공조설비, 냉난방기',
-  /** 로고 path — `clients/desktop/public/print-logo.svg`. */
-  logoPath: '/print-logo.svg',
-  /**
-   * 거래명세서 하단 입금계좌 안내 (원본 양식 적색 푸터) — 실 계좌번호는 public repo
-   * 커밋 금지(사기 표적) → 빌드 환경변수 `VITE_COMPANY_BANK_NOTICE` 로 주입.
-   * 미주입 시 placeholder (실 운영 빌드 전 .env.local 설정 필수).
-   */
-  bankNotice:
-    (import.meta.env.VITE_COMPANY_BANK_NOTICE as string | undefined) ??
-    '예금주:(주)삼한공조시스템/국민은행 000000-00-000000 기업은행 000-0000-0000',
-  /**
-   * 법인 인감 스탬프 이미지 URL (거래명세서 공급자 표 우측 적색 직인) — 실 인감은
-   * public repo 커밋 금지(위조 위험) → `VITE_COMPANY_STAMP_URL` 주입. 미주입 시 미표시.
-   */
-  stampUrl: (import.meta.env.VITE_COMPANY_STAMP_URL as string | undefined) ?? '',
-} as const
+// COMPANY 정적 상수는 useCompanyProfile 훅으로 대체됨 (spec §2c, 2026-06-10).
+// 외부에서 COMPANY 를 직접 import 하지 말 것 — useCompanyProfile() 훅 사용.
+// 아래 DEFAULT_COMPANY 는 useCompanyProfile.ts 내부에서 fallback 으로만 사용.
 
 /**
  * Paper size 종류 — `<PrintLayout>` 의 `paper` prop.

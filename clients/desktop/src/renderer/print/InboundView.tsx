@@ -22,7 +22,8 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, COMPANY, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
+import { PrintLayout, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 
 export function InboundView() {
   const params = useParams<{ id: string }>()
@@ -51,6 +52,8 @@ export function InboundView() {
     )
   }
 
+  const { company } = useCompanyProfile()
+
   const slip: SlipDetail = detailQuery.data
   const totalSupply = slip.lines.reduce((sum, l) => sum + Number(l.lineTotal), 0)
   const totalQty = slip.lines.reduce((sum, l) => sum + l.quantity, 0)
@@ -70,10 +73,10 @@ export function InboundView() {
       <div className={`inbound-page inbound-${variant}`} data-testid="inbound-print-area">
         <header className="inbound-header">
           <div className="inbound-company-row">
-            <img className="inbound-logo" src={COMPANY.logoPath} alt={COMPANY.legalName} />
+            <img className="inbound-logo" src={company.logoPath} alt={company.legalName} />
             <div className="inbound-issuer">
-              <div className="name">{COMPANY.legalName}</div>
-              <div className="meta">사업자번호 {COMPANY.businessRegNo} / TEL {COMPANY.tel}</div>
+              <div className="name">{company.legalName}</div>
+              <div className="meta">사업자번호 {company.businessRegNo} / TEL {company.tel}</div>
             </div>
           </div>
           <h1 className="inbound-title">입 고 전 표</h1>

@@ -117,8 +117,8 @@ async function addSupplierProfile(
   await expect(modal, '신규 등록 모달 미오픈').toBeVisible({ timeout: 5000 })
   await page.getByTestId('supplier-field-businessNumber').fill(opts.bizNo)
   await page.getByTestId('supplier-field-companyName').fill(opts.company)
-  await page.getByTestId('supplier-field-ceoName').fill(opts.ceo ?? '김큐에이')
-  await page.getByTestId('supplier-field-address').fill(opts.address ?? '서울특별시 송파구 QA로 200')
+  await page.getByTestId('supplier-field-representativeName').fill(opts.ceo ?? '김큐에이')
+  await page.getByTestId('supplier-field-businessAddress').fill(opts.address ?? '서울특별시 송파구 QA로 200')
   await page.getByTestId('supplier-field-businessType').fill('서비스')
   await page.getByTestId('supplier-field-businessItem').fill('소프트웨어 품질검증')
   await page.getByTestId('supplier-profile-save-btn').click()
@@ -130,8 +130,8 @@ async function addSupplierProfile(
 // seed 데이터 상수
 // ---------------------------------------------------------------------------
 
-// mock seed(`/accounting/supplier-profiles` primary) 와 정합 — 드리프트 정정(3-A2-④ B/C).
-const SEED_BUSINESS_NUMBER = '1112233333'
+// mock seed(`/accounting/supplier-profiles` primary) 와 정합 — spec §2d 신규 필드 seed 반영.
+const SEED_BUSINESS_NUMBER = '2148720659'
 const SEED_COMPANY_NAME = '(주)삼한공조시스템'
 
 // ---------------------------------------------------------------------------
@@ -230,7 +230,7 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     await expect(modal).toContainText('수정')
 
     // 사업장 주소 갱신 → 저장 (stateful PUT → 목록 카드에 반영).
-    const addressInput = page.getByTestId('supplier-field-address')
+    const addressInput = page.getByTestId('supplier-field-businessAddress')
     await addressInput.fill(newAddress)
     await page.getByTestId('supplier-profile-save-btn').click()
     await expect(modal, '저장 후 모달 미닫힘 — 수정 실패').toBeHidden({ timeout: 8000 })
@@ -284,8 +284,8 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const NEW_COMPANY = '큐에이테스트물류'
     await page.getByTestId('supplier-field-businessNumber').fill('2208123456')
     await page.getByTestId('supplier-field-companyName').fill(NEW_COMPANY)
-    await page.getByTestId('supplier-field-ceoName').fill('김큐에이')
-    await page.getByTestId('supplier-field-address').fill('서울특별시 송파구 QA로 200')
+    await page.getByTestId('supplier-field-representativeName').fill('김큐에이')
+    await page.getByTestId('supplier-field-businessAddress').fill('서울특별시 송파구 QA로 200')
     await page.getByTestId('supplier-field-businessType').fill('서비스')
     await page.getByTestId('supplier-field-businessItem').fill('소프트웨어 품질검증')
 

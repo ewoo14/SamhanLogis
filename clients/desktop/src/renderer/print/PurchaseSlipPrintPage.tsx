@@ -26,12 +26,12 @@ import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   PrintLayout,
-  COMPANY,
   krw,
   krDate,
   calcAmounts,
 } from './PrintLayout'
 import { nowPrintedAt, fmtDatetime } from './printUtils'
+import { useCompanyProfile } from './useCompanyProfile'
 
 export function PurchaseSlipPrintPage() {
   const params = useParams<{ id: string }>()
@@ -60,6 +60,8 @@ export function PurchaseSlipPrintPage() {
     )
   }
 
+  const { company } = useCompanyProfile()
+
   const slip: SlipDetail = detailQuery.data
 
   const totalSupply = slip.lines.reduce((sum, l) => sum + Number(l.lineTotal), 0)
@@ -84,10 +86,10 @@ export function PurchaseSlipPrintPage() {
           <div className="purchase-print-header-left">
             <img
               className="purchase-print-logo"
-              src={COMPANY.logoPath}
-              alt={COMPANY.legalName}
+              src={company.logoPath}
+              alt={company.legalName}
             />
-            <span className="purchase-print-company-name">{COMPANY.legalName}</span>
+            <span className="purchase-print-company-name">{company.legalName}</span>
           </div>
           <div className="purchase-print-header-center">
             <h1 className="purchase-print-title">매 입 전 표</h1>

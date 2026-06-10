@@ -175,9 +175,10 @@ test.describe('SP-08-6-4 거래명세서 + 계산서 인쇄 양식 정적 계약
       invoiceComponent.includes('TaxInvoice')
     expect(hasInvoiceTitle).toBeTruthy()
 
-    // 공급자 박스 — COMPANY 정보
+    // 공급자 박스 — useCompanyProfile 훅 정보 (spec §2c 이후 COMPANY 상수 제거 → company.* 사용)
     const hasSupplierPanel =
-      invoiceComponent.includes('COMPANY') ||
+      invoiceComponent.includes('useCompanyProfile') ||
+      invoiceComponent.includes('company.') ||
       invoiceComponent.includes('party-supplier') ||
       invoiceComponent.includes('공급자') // 공급자 unicode
     expect(hasSupplierPanel).toBeTruthy()
@@ -239,13 +240,15 @@ test.describe('SP-08-6-4 거래명세서 + 계산서 인쇄 양식 정적 계약
       statementComponent.includes('invoice-v2-partner-name')
     expect(hasPartnerLabel).toBeTruthy()
 
-    // [4] 사업자번호 — 공급자 박스 (PrintLayout COMPANY.businessRegNo 사용)
+    // [4] 사업자번호 — 공급자 박스 (useCompanyProfile 훅 via company.businessRegNo)
     const hasBusinessNo =
       statementComponent.includes('사업자번호') || // 사업자번호
       statementComponent.includes('businessRegNo') ||
       invoiceComponent.includes('사업자번호') ||
       invoiceComponent.includes('businessRegNo') ||
-      printLayout.includes('businessRegNo')
+      printLayout.includes('businessRegNo') ||
+      // useCompanyProfile 훅은 useCompanyProfile.ts에서 businessRegNo 필드를 export
+      invoiceComponent.includes('useCompanyProfile')
     expect(hasBusinessNo).toBeTruthy()
 
     // [5] 공급가액

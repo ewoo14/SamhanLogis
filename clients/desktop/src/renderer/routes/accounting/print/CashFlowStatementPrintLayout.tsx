@@ -15,7 +15,8 @@
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@samhan/design-system'
-import { PrintLayout, COMPANY, krw } from '../../../print/PrintLayout'
+import { PrintLayout, krw } from '../../../print/PrintLayout'
+import { useCompanyProfile } from '../../../print/useCompanyProfile'
 import {
   getCashFlowStatement,
   type CashFlowItem,
@@ -148,6 +149,7 @@ interface BodyProps {
 
 /** 현금흐름표 인쇄 본문. */
 function CashFlowPrintBody({ data, period }: BodyProps) {
+  const { company } = useCompanyProfile()
   const operatingItems: CashFlowItem[] = [
     { label: '당기순이익', amount: data.netIncome, sortOrder: 0 },
     ...data.operatingAdjustments,
@@ -157,9 +159,9 @@ function CashFlowPrintBody({ data, period }: BodyProps) {
     <div style={{ fontFamily: 'var(--font-family-sans)', color: 'var(--color-neutral-900)' }}>
       {/* 헤더 */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{COMPANY.legalName}</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{company.legalName}</div>
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 2 }}>
-          사업자등록번호: {COMPANY.businessRegNo}
+          사업자등록번호: {company.businessRegNo}
         </div>
         <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700, marginTop: 8, letterSpacing: '0.2em' }}>
           현 금 흐 름 표

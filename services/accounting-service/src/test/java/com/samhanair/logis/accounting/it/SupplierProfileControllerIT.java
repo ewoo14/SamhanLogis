@@ -23,7 +23,12 @@ import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.repository.SupplierProfileRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -45,12 +50,16 @@ import org.springframework.test.web.servlet.MvcResult;
  *
  * <p>TC 목록:
  * <ol>
- *   <li>TC-SP-1: GET /supplier-profiles/primary → Flyway V14 seed 값 검증</li>
+ *   <li>TC-SP-1: GET /supplier-profiles/primary → Flyway V14 seed 값 검증 (V35 신규 필드 포함)</li>
  *   <li>TC-SP-2: PUT /supplier-profiles/{id} → 갱신 후 primary 응답에 신규 값</li>
  *   <li>TC-SP-3: POST 신규 추가 → list size 2</li>
  *   <li>TC-SP-4: PATCH /{id}/primary → 다른 row 가 primary 로 전환</li>
  *   <li>TC-SP-5: DELETE primary 시 BusinessException (409)</li>
  *   <li>TC-SP-6: ACCOUNTANT GET 통과, PUT 거부 (403)</li>
+ *   <li>TC-SP-7: PUT tel/fax/bankAccounts → 갱신 후 primary 응답에 신규 필드 반영</li>
+ *   <li>TC-SP-8: PUT /{id}/stamp → 인감 등록 + hasStamp=true / DELETE /{id}/stamp → hasStamp=false</li>
+ *   <li>TC-SP-9: PUT /{id}/stamp hash mismatch → 400</li>
+ *   <li>TC-SP-10: 계좌 replace-all → 기존 1건 삭제 후 신규 2건</li>
  * </ol>
  *
  * <p>외부 client 전부 {@code @MockBean} 격리
@@ -82,12 +91,12 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
     @MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     // =========================================================================
-    // TC-SP-1: GET /primary — Flyway V14 seed 값 검증
+    // TC-SP-1: GET /primary — Flyway V14+V35 seed 값 검증
     // =========================================================================
 
     @Test
     @Order(1)
-    @DisplayName("TC-SP-1: GET /primary → Flyway V14 seed businessNumber=2148720659 검증")
+    @DisplayName("TC-SP-1: GET /primary → Flyway seed 값 + V35 신규 필드(tel/fax/bankAccounts/hasStamp) 검증")
     void tcSp1_getPrimary_seedValues() throws Exception {
         mockMvc.perform(get(BASE_URL + "/primary")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -100,7 +109,16 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.businessType").value("도소매"))
                 .andExpect(jsonPath("$.data.businessItem").value("가전제품"))
                 .andExpect(jsonPath("$.data.email").value("apjog09@daum.net"))
-                .andExpect(jsonPath("$.data.isPrimary").value(true));
+                .andExpect(jsonPath("$.data.isPrimary").value(true))
+                // V35 신규 필드 — V35 migration backfill 값
+                .andExpect(jsonPath("$.data.tel").value("02-3461-0000"))
+                .andExpect(jsonPath("$.data.fax").value("02-3461-0001"))
+                // bankAccounts: 빈 배열 (seed 없음)
+                .andExpect(jsonPath("$.data.bankAccounts").isArray())
+                // hasStamp: false (인감 미등록)
+                .andExpect(jsonPath("$.data.hasStamp").value(false))
+                // stampPngBase64: null
+                .andExpect(jsonPath("$.data.stampPngBase64").doesNotExist());
     }
 
     // =========================================================================
@@ -297,6 +315,183 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
     }
 
     // =========================================================================
+    // TC-SP-7: tel/fax/bankAccounts 수정 → primary 응답 신규 필드 반영
+    // =========================================================================
+
+    @Test
+    @Order(7)
+    @DisplayName("TC-SP-7: PUT tel/fax/bankAccounts → primary 응답에 신규 필드 반영")
+    void tcSp7_updateTelFaxBankAccounts() throws Exception {
+        String primaryId = getPrimaryId();
+
+        Map<String, Object> updateBody = new HashMap<>();
+        updateBody.put("tel", "02-9999-8888");
+        updateBody.put("fax", "02-9999-7777");
+        updateBody.put("bankAccounts", List.of(
+                Map.of("accountHolder", "（주）삼한공조시스템",
+                        "bankName", "국민은행",
+                        "accountNumber", "123456-78-901234")
+        ));
+
+        mockMvc.perform(put(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tel").value("02-9999-8888"))
+                .andExpect(jsonPath("$.data.fax").value("02-9999-7777"))
+                .andExpect(jsonPath("$.data.bankAccounts").isArray())
+                .andExpect(jsonPath("$.data.bankAccounts[0].bankName").value("국민은행"))
+                .andExpect(jsonPath("$.data.bankAccounts[0].accountNumber").value("123456-78-901234"));
+
+        // GET /primary 에서도 반영 확인
+        mockMvc.perform(get(BASE_URL + "/primary")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tel").value("02-9999-8888"))
+                .andExpect(jsonPath("$.data.bankAccounts[0].bankName").value("국민은행"));
+
+        // 원복
+        Map<String, Object> revert = new HashMap<>();
+        revert.put("tel", "02-3461-0000");
+        revert.put("fax", "02-3461-0001");
+        revert.put("bankAccounts", List.of());
+        mockMvc.perform(put(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(revert)))
+                .andExpect(status().isOk());
+    }
+
+    // =========================================================================
+    // TC-SP-8: 인감 등록 + DELETE 삭제
+    // =========================================================================
+
+    @Test
+    @Order(8)
+    @DisplayName("TC-SP-8: PUT /{id}/stamp → hasStamp=true / DELETE /{id}/stamp → hasStamp=false")
+    void tcSp8_stampRegisterAndDelete() throws Exception {
+        String primaryId = getPrimaryId();
+
+        // 소형 PNG 생성 (1KB 미만)
+        byte[] pngBytes = "fake-png-data-for-it-test".getBytes(StandardCharsets.UTF_8);
+        String base64 = Base64.getEncoder().encodeToString(pngBytes);
+        String hash = sha256Hex(pngBytes);
+
+        Map<String, Object> stampBody = new HashMap<>();
+        stampBody.put("stampPngBase64", base64);
+        stampBody.put("stampHash", hash);
+
+        // 인감 등록
+        mockMvc.perform(put(BASE_URL + "/" + primaryId + "/stamp")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(stampBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hasStamp").value(true))
+                .andExpect(jsonPath("$.data.stampPngBase64").isNotEmpty());
+
+        // GET /primary — hasStamp=true
+        mockMvc.perform(get(BASE_URL + "/primary")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hasStamp").value(true));
+
+        // 인감 삭제
+        mockMvc.perform(delete(BASE_URL + "/" + primaryId + "/stamp")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNoContent());
+
+        // GET /primary — hasStamp=false
+        mockMvc.perform(get(BASE_URL + "/primary")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hasStamp").value(false));
+    }
+
+    // =========================================================================
+    // TC-SP-9: 인감 hash mismatch → 400
+    // =========================================================================
+
+    @Test
+    @Order(9)
+    @DisplayName("TC-SP-9: PUT /{id}/stamp hash mismatch → 400 INVALID_INPUT")
+    void tcSp9_stampHashMismatch() throws Exception {
+        String primaryId = getPrimaryId();
+
+        byte[] pngBytes = "some-png".getBytes(StandardCharsets.UTF_8);
+        String base64 = Base64.getEncoder().encodeToString(pngBytes);
+        String wrongHash = "f".repeat(64);  // 잘못된 hash
+
+        Map<String, Object> stampBody = new HashMap<>();
+        stampBody.put("stampPngBase64", base64);
+        stampBody.put("stampHash", wrongHash);
+
+        mockMvc.perform(put(BASE_URL + "/" + primaryId + "/stamp")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(stampBody)))
+                .andExpect(status().isBadRequest());
+    }
+
+    // =========================================================================
+    // TC-SP-10: 계좌 replace-all 시맨틱
+    // =========================================================================
+
+    @Test
+    @Order(10)
+    @DisplayName("TC-SP-10: 계좌 2건 등록 → replace-all 1건 → bankAccounts.length=1")
+    void tcSp10_bankAccountReplaceAll() throws Exception {
+        String primaryId = getPrimaryId();
+
+        // 2건 등록
+        Map<String, Object> twoAccounts = new HashMap<>();
+        twoAccounts.put("bankAccounts", List.of(
+                Map.of("accountHolder", "삼한A", "bankName", "국민은행", "accountNumber", "111-111"),
+                Map.of("accountHolder", "삼한B", "bankName", "신한은행", "accountNumber", "222-222")
+        ));
+        mockMvc.perform(put(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(twoAccounts)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bankAccounts.length()").value(2));
+
+        // replace-all: 1건으로 교체
+        Map<String, Object> oneAccount = new HashMap<>();
+        oneAccount.put("bankAccounts", List.of(
+                Map.of("accountHolder", "삼한C", "bankName", "우리은행", "accountNumber", "333-333")
+        ));
+        mockMvc.perform(put(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(oneAccount)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bankAccounts.length()").value(1))
+                .andExpect(jsonPath("$.data.bankAccounts[0].bankName").value("우리은행"));
+
+        // 원복 (계좌 비우기)
+        Map<String, Object> empty = new HashMap<>();
+        empty.put("bankAccounts", List.of());
+        mockMvc.perform(put(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(empty)))
+                .andExpect(status().isOk());
+    }
+
+    // =========================================================================
     // 보조 메서드
     // =========================================================================
 
@@ -313,5 +508,11 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asText();
+    }
+
+    /** SHA-256 소문자 hex. */
+    private static String sha256Hex(byte[] data) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(md.digest(data));
     }
 }

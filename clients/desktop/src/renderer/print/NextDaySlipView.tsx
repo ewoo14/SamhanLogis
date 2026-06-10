@@ -35,7 +35,8 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, COMPANY, krDate } from './PrintLayout'
+import { PrintLayout, krDate } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 import styles from './NextDaySlipView.module.css'
 
 /**
@@ -219,6 +220,8 @@ export function NextDaySlipView({ pageBreakPerRoom = false }: NextDaySlipViewPro
     [targetDate],
   )
 
+  const { company } = useCompanyProfile()
+
   usePageTitle('내일자 전표', krDate(targetDate))
 
   const totalSlipCount = data.chatRooms.reduce((s, r) => s + r.rows.length, 0)
@@ -227,7 +230,7 @@ export function NextDaySlipView({ pageBreakPerRoom = false }: NextDaySlipViewPro
     <PrintLayout paper="a4-portrait" backTo="/sales">
       <div className={styles.page} data-testid="next-day-slip-print-area">
         <header className={styles.header}>
-          <div className={styles.brand}>{COMPANY.legalName}</div>
+          <div className={styles.brand}>{company.legalName}</div>
           <h1 className={styles.title}>내일자 전표</h1>
           <div className={styles.targetDate}>{krDate(targetDate)}</div>
           <div className={styles.metaRow}>
@@ -290,7 +293,7 @@ export function NextDaySlipView({ pageBreakPerRoom = false }: NextDaySlipViewPro
           <span className={styles.blockedNote}>
             ※ 발송금지 거래처 {data.blockedExcludedCount.toLocaleString('ko-KR')}건 자동 제외
           </span>
-          <span>발행: {COMPANY.legalName}</span>
+          <span>발행: {company.legalName}</span>
         </footer>
       </div>
     </PrintLayout>

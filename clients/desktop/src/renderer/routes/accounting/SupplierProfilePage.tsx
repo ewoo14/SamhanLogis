@@ -7,6 +7,9 @@
  * - 신규 추가 버튼 (다중 사업자 대비, MANAGER/MASTER 만)
  * - 기본 사업자 전환 토글 (MANAGER/MASTER 만)
  * - 삭제 버튼 (비기본 row 만, MANAGER/MASTER 만)
+ * - TEL/FAX 입력 (신규 — spec §2b)
+ * - 입금계좌 리스트 편집기 (신규 — spec §2b): 행 추가/삭제, 예금주/은행/계좌번호, 순서 = displayOrder
+ * - 인감 업로드 (신규 — spec §2b): PNG only, ≤200KB, base64 + SHA-256 → PUT /{id}/stamp, 미리보기 + 삭제
  *
  * RoleGuard:
  * - ACCOUNTANT: 조회 (read-only — 수정/추가/삭제 버튼 미표시)
@@ -19,13 +22,16 @@
  * - businessNumber: 10자리 숫자 (@Pattern)
  * - subBusinessNumber: 4자리 숫자 optional (@Pattern, nullable)
  * - companyName: 필수 (@NotBlank)
- * - ceoName: 필수 (@NotBlank)
- * - address: 필수 (@NotBlank)
+ * - representativeName: 필수 (@NotBlank)
+ * - businessAddress: 필수 (@NotBlank)
  * - businessType: 필수 (@NotBlank)
  * - businessItem: 필수 (@NotBlank)
  * - email: 이메일 형식 (@Email, nullable)
+ * - tel: nullable, 최대 30자
+ * - fax: nullable, 최대 30자
+ * - bankAccounts: replace-all 시맨틱
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, type ChangeEvent } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Button,
@@ -40,11 +46,22 @@ import {
   updateSupplierProfile,
   markAsPrimarySupplierProfile,
   deleteSupplierProfile,
+  uploadSupplierStamp,
+  deleteSupplierStamp,
   type SupplierProfile,
   type SupplierProfileRequest,
+  type SupplierBankAccountRequest,
 } from '../../api/supplierProfileApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
+
+// ── 입금계좌 행 편집 타입 ──────────────────────────────────────────────────────
+
+interface BankAccountRow {
+  accountHolder: string
+  bankName: string
+  accountNumber: string
+}
 
 // ── 필드 유효성 검사 ─────────────────────────────────────────────────────────
 
@@ -52,11 +69,14 @@ interface FieldErrors {
   businessNumber?: string
   subBusinessNumber?: string
   companyName?: string
-  ceoName?: string
-  address?: string
+  representativeName?: string
+  businessAddress?: string
   businessType?: string
   businessItem?: string
   email?: string
+  tel?: string
+  fax?: string
+  bankAccounts?: string
 }
 
 /** Bean Validation 기준 클라이언트 사이드 검사 */
@@ -73,13 +93,15 @@ function validate(form: SupplierProfileRequest): FieldErrors {
     errors.subBusinessNumber = '종사업장번호는 4자리 숫자여야 합니다.'
   }
   if (!form.companyName.trim()) errors.companyName = '상호를 입력해 주세요.'
-  if (!form.ceoName.trim()) errors.ceoName = '대표 성명을 입력해 주세요.'
-  if (!form.address.trim()) errors.address = '사업장 주소를 입력해 주세요.'
+  if (!form.representativeName.trim()) errors.representativeName = '대표 성명을 입력해 주세요.'
+  if (!form.businessAddress.trim()) errors.businessAddress = '사업장 주소를 입력해 주세요.'
   if (!form.businessType.trim()) errors.businessType = '업태를 입력해 주세요.'
   if (!form.businessItem.trim()) errors.businessItem = '종목을 입력해 주세요.'
   if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = '이메일 형식이 올바르지 않습니다.'
   }
+  if (form.tel && form.tel.length > 30) errors.tel = '전화번호는 30자 이하여야 합니다.'
+  if (form.fax && form.fax.length > 30) errors.fax = '팩스 번호는 30자 이하여야 합니다.'
   return errors
 }
 
@@ -95,11 +117,14 @@ const EMPTY_FORM: SupplierProfileRequest = {
   businessNumber: '',
   subBusinessNumber: null,
   companyName: '',
-  ceoName: '',
-  address: '',
+  representativeName: '',
+  businessAddress: '',
   businessType: '',
   businessItem: '',
   email: '',
+  tel: null,
+  fax: null,
+  bankAccounts: [],
 }
 
 function profileToForm(p: SupplierProfile): SupplierProfileRequest {
@@ -107,12 +132,51 @@ function profileToForm(p: SupplierProfile): SupplierProfileRequest {
     businessNumber: p.businessNumber,
     subBusinessNumber: p.subBusinessNumber,
     companyName: p.companyName,
-    ceoName: p.ceoName,
-    address: p.address,
+    representativeName: p.representativeName ?? p.ceoName ?? '',
+    businessAddress: p.businessAddress ?? p.address ?? '',
     businessType: p.businessType,
     businessItem: p.businessItem,
     email: p.email,
+    tel: p.tel ?? null,
+    fax: p.fax ?? null,
+    bankAccounts: (p.bankAccounts ?? []).map((a, i) => ({
+      accountHolder: a.accountHolder,
+      bankName: a.bankName,
+      accountNumber: a.accountNumber,
+      displayOrder: a.displayOrder ?? i,
+    })),
   }
+}
+
+// ── Web Crypto SHA-256 ───────────────────────────────────────────────────────
+
+/**
+ * File → SHA-256 hex 64자 계산 (Web Crypto API).
+ * BE stamp 업로드 요청에 포함 필수.
+ */
+async function sha256Hex(file: File): Promise<string> {
+  const buf = await file.arrayBuffer()
+  const hashBuf = await crypto.subtle.digest('SHA-256', buf)
+  const hashArr = Array.from(new Uint8Array(hashBuf))
+  return hashArr.map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * File → base64 문자열 (data: prefix 제외).
+ * FileReader 비동기 패턴 (SalesVendorOrderUploadPage 재사용).
+ */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      // "data:image/png;base64,XXXXX" → "XXXXX"
+      const base64 = result.split(',')[1] ?? result
+      resolve(base64)
+    }
+    reader.onerror = () => reject(new Error('파일 읽기에 실패했습니다.'))
+    reader.readAsDataURL(file)
+  })
 }
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────────────────
@@ -139,24 +203,46 @@ export function SupplierProfilePage() {
   const [modalMode, setModalMode] = useState<ModalMode>('create')
   const [editTarget, setEditTarget] = useState<SupplierProfile | null>(null)
   const [form, setForm] = useState<SupplierProfileRequest>(EMPTY_FORM)
+  const [bankRows, setBankRows] = useState<BankAccountRow[]>([])
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [apiError, setApiError] = useState<string | null>(null)
 
+  // ── 인감 업로드 상태 ──
+  const [stampPreviewUrl, setStampPreviewUrl] = useState<string | null>(null)
+  const [stampFile, setStampFile] = useState<File | null>(null)
+  const [stampError, setStampError] = useState<string | null>(null)
+  const stampInputRef = useRef<HTMLInputElement>(null)
+
   const openCreate = useCallback(() => {
     setForm(EMPTY_FORM)
+    setBankRows([])
     setFieldErrors({})
     setApiError(null)
     setEditTarget(null)
     setModalMode('create')
+    setStampPreviewUrl(null)
+    setStampFile(null)
+    setStampError(null)
     setModalOpen(true)
   }, [])
 
   const openEdit = useCallback((profile: SupplierProfile) => {
-    setForm(profileToForm(profile))
+    const f = profileToForm(profile)
+    setForm(f)
+    setBankRows(f.bankAccounts.map((a) => ({
+      accountHolder: a.accountHolder,
+      bankName: a.bankName,
+      accountNumber: a.accountNumber,
+    })))
     setFieldErrors({})
     setApiError(null)
     setEditTarget(profile)
     setModalMode('edit')
+    setStampPreviewUrl(
+      profile.stampPngBase64 ? `data:image/png;base64,${profile.stampPngBase64}` : null,
+    )
+    setStampFile(null)
+    setStampError(null)
     setModalOpen(true)
   }, [])
 
@@ -164,6 +250,8 @@ export function SupplierProfilePage() {
     setModalOpen(false)
     setEditTarget(null)
     setApiError(null)
+    setStampFile(null)
+    setStampError(null)
   }, [])
 
   // 폼 필드 변경
@@ -175,11 +263,70 @@ export function SupplierProfilePage() {
     [],
   )
 
+  // ── 입금계좌 행 편집 ──
+  const addBankRow = useCallback(() => {
+    setBankRows((prev) => [...prev, { accountHolder: '', bankName: '', accountNumber: '' }])
+  }, [])
+
+  const removeBankRow = useCallback((idx: number) => {
+    setBankRows((prev) => prev.filter((_, i) => i !== idx))
+  }, [])
+
+  const setBankRowField = useCallback(
+    (idx: number, key: keyof BankAccountRow, value: string) => {
+      setBankRows((prev) =>
+        prev.map((row, i) => (i === idx ? { ...row, [key]: value } : row)),
+      )
+    },
+    [],
+  )
+
+  /** bankRows → SupplierBankAccountRequest[] (배열 인덱스 = displayOrder) */
+  const buildBankAccounts = useCallback(
+    (): SupplierBankAccountRequest[] =>
+      bankRows.map((row, i) => ({
+        accountHolder: row.accountHolder,
+        bankName: row.bankName,
+        accountNumber: row.accountNumber,
+        displayOrder: i,
+      })),
+    [bankRows],
+  )
+
+  // ── 인감 파일 입력 ──
+  const handleStampFileChange = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.type !== 'image/png') {
+      setStampError('PNG 파일만 업로드 가능합니다.')
+      if (stampInputRef.current) stampInputRef.current.value = ''
+      return
+    }
+    if (file.size > 200 * 1024) {
+      setStampError('인감 이미지는 200KB 이하여야 합니다.')
+      if (stampInputRef.current) stampInputRef.current.value = ''
+      return
+    }
+    setStampError(null)
+    setStampFile(file)
+    // 미리보기 URL
+    const objectUrl = URL.createObjectURL(file)
+    setStampPreviewUrl(objectUrl)
+  }, [])
+
+  const handleStampRemove = useCallback(() => {
+    setStampFile(null)
+    setStampPreviewUrl(null)
+    setStampError(null)
+    if (stampInputRef.current) stampInputRef.current.value = ''
+  }, [])
+
   // ── 뮤테이션 ──
   const createMutation = useMutation({
     mutationFn: createSupplierProfile,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['supplier-profiles'] })
+      void queryClient.invalidateQueries({ queryKey: ['supplier-profile-primary'] })
       closeModal()
     },
     onError: (err: unknown) => {
@@ -190,8 +337,22 @@ export function SupplierProfilePage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, req }: { id: string; req: SupplierProfileRequest }) =>
       updateSupplierProfile(id, req),
-    onSuccess: () => {
+    onSuccess: async (updated) => {
+      // 수정 후 인감 파일이 있으면 stamp 업로드도 실행
+      if (stampFile) {
+        try {
+          const [base64, hash] = await Promise.all([
+            fileToBase64(stampFile),
+            sha256Hex(stampFile),
+          ])
+          await uploadSupplierStamp(updated.id, { stampPngBase64: base64, stampHash: hash })
+        } catch (err) {
+          setApiError(err instanceof Error ? err.message : '인감 업로드에 실패했습니다.')
+          return
+        }
+      }
       void queryClient.invalidateQueries({ queryKey: ['supplier-profiles'] })
+      void queryClient.invalidateQueries({ queryKey: ['supplier-profile-primary'] })
       closeModal()
     },
     onError: (err: unknown) => {
@@ -203,6 +364,7 @@ export function SupplierProfilePage() {
     mutationFn: markAsPrimarySupplierProfile,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['supplier-profiles'] })
+      void queryClient.invalidateQueries({ queryKey: ['supplier-profile-primary'] })
     },
   })
 
@@ -210,6 +372,17 @@ export function SupplierProfilePage() {
     mutationFn: deleteSupplierProfile,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['supplier-profiles'] })
+      void queryClient.invalidateQueries({ queryKey: ['supplier-profile-primary'] })
+    },
+  })
+
+  const deleteStampMutation = useMutation({
+    mutationFn: ({ id }: { id: string }) => deleteSupplierStamp(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['supplier-profiles'] })
+      void queryClient.invalidateQueries({ queryKey: ['supplier-profile-primary'] })
+      setStampPreviewUrl(null)
+      setStampFile(null)
     },
   })
 
@@ -221,15 +394,19 @@ export function SupplierProfilePage() {
         : canUpdateSupplierProfile
     if (!canSave) return
 
-    const errors = validate(form)
+    const reqWithBanks: SupplierProfileRequest = {
+      ...form,
+      bankAccounts: buildBankAccounts(),
+    }
+    const errors = validate(reqWithBanks)
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
       return
     }
     if (modalMode === 'create') {
-      createMutation.mutate(form)
+      createMutation.mutate(reqWithBanks)
     } else if (editTarget) {
-      updateMutation.mutate({ id: editTarget.id, req: form })
+      updateMutation.mutate({ id: editTarget.id, req: reqWithBanks })
     }
   }, [
     canCreateSupplierProfile,
@@ -237,6 +414,7 @@ export function SupplierProfilePage() {
     form,
     modalMode,
     editTarget,
+    buildBankAccounts,
     createMutation,
     updateMutation,
   ])
@@ -264,7 +442,7 @@ export function SupplierProfilePage() {
             사업자 양식
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--color-neutral-500)' }}>
-            세금계산서 발행 시 사용되는 공급자 정보입니다.
+            세금계산서 발행 및 인쇄 양식에 사용되는 공급자 정보입니다.
           </p>
         </div>
         {canCreateSupplierProfile ? (
@@ -308,6 +486,11 @@ export function SupplierProfilePage() {
               canDelete={canDeleteSupplierProfile}
               onEdit={openEdit}
               onMarkPrimary={(id) => markPrimaryMutation.mutate(id)}
+              onDeleteStamp={(id) => {
+                if (window.confirm('등록된 인감을 삭제하시겠습니까?')) {
+                  deleteStampMutation.mutate({ id })
+                }
+              }}
               onDelete={(id) => {
                 if (window.confirm('사업자 정보를 삭제하시겠습니까?')) {
                   deleteMutation.mutate(id)
@@ -340,7 +523,7 @@ export function SupplierProfilePage() {
             hint="숫자 10자리 (하이픈 없이 입력)"
             value={form.businessNumber}
             onChange={(e) => setField('businessNumber', e.target.value.replace(/\D/g, ''))}
-            placeholder="1112233333"
+            placeholder="2148720659"
             maxLength={10}
             data-testid="supplier-field-businessNumber"
           />
@@ -374,11 +557,11 @@ export function SupplierProfilePage() {
           <Input
             label="대표 성명"
             required
-            error={fieldErrors.ceoName}
-            value={form.ceoName}
-            onChange={(e) => setField('ceoName', e.target.value)}
+            error={fieldErrors.representativeName}
+            value={form.representativeName}
+            onChange={(e) => setField('representativeName', e.target.value)}
             placeholder="홍길동"
-            data-testid="supplier-field-ceoName"
+            data-testid="supplier-field-representativeName"
           />
 
           {/* 사업장 주소 — 2컬럼 전체 */}
@@ -386,11 +569,11 @@ export function SupplierProfilePage() {
             <Input
               label="사업장 주소"
               required
-              error={fieldErrors.address}
-              value={form.address}
-              onChange={(e) => setField('address', e.target.value)}
-              placeholder="서울특별시 강남구 테헤란로 152, 10층"
-              data-testid="supplier-field-address"
+              error={fieldErrors.businessAddress}
+              value={form.businessAddress}
+              onChange={(e) => setField('businessAddress', e.target.value)}
+              placeholder="서울특별시 서초구 마방로2길 9 삼한빌딩 4층"
+              data-testid="supplier-field-businessAddress"
             />
           </div>
 
@@ -400,7 +583,7 @@ export function SupplierProfilePage() {
             error={fieldErrors.businessType}
             value={form.businessType}
             onChange={(e) => setField('businessType', e.target.value)}
-            placeholder="도소매"
+            placeholder="도매 및 소매업"
             data-testid="supplier-field-businessType"
           />
 
@@ -410,8 +593,30 @@ export function SupplierProfilePage() {
             error={fieldErrors.businessItem}
             value={form.businessItem}
             onChange={(e) => setField('businessItem', e.target.value)}
-            placeholder="냉난방 설비, 물류 운송"
+            placeholder="공조설비, 냉난방기"
             data-testid="supplier-field-businessItem"
+          />
+
+          <Input
+            label="대표 전화"
+            error={fieldErrors.tel}
+            hint="선택 입력 (예: 02-3461-0000)"
+            value={form.tel ?? ''}
+            onChange={(e) => setField('tel', e.target.value || null)}
+            placeholder="02-3461-0000"
+            maxLength={30}
+            data-testid="supplier-field-tel"
+          />
+
+          <Input
+            label="팩스"
+            error={fieldErrors.fax}
+            hint="선택 입력 (예: 02-3461-0001)"
+            value={form.fax ?? ''}
+            onChange={(e) => setField('fax', e.target.value || null)}
+            placeholder="02-3461-0001"
+            maxLength={30}
+            data-testid="supplier-field-fax"
           />
 
           {/* 이메일 — 2컬럼 전체 */}
@@ -428,6 +633,198 @@ export function SupplierProfilePage() {
             />
           </div>
         </div>
+
+        {/* 입금계좌 리스트 편집기 */}
+        <div style={{ marginTop: 20 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-neutral-700)',
+              }}
+            >
+              입금계좌
+            </span>
+            <Button
+              variant="ghost"
+              onClick={addBankRow}
+              data-testid="supplier-bank-add-btn"
+            >
+              + 계좌 추가
+            </Button>
+          </div>
+          {bankRows.length === 0 ? (
+            <p
+              style={{
+                fontSize: 12,
+                color: 'var(--color-neutral-400)',
+                padding: '8px 0',
+              }}
+            >
+              등록된 입금계좌가 없습니다. 계좌 추가 버튼으로 등록하세요.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {bankRows.map((row, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1.5fr auto',
+                    gap: 8,
+                    alignItems: 'end',
+                    padding: '8px 12px',
+                    background: 'var(--color-neutral-50)',
+                    borderRadius: 6,
+                    border: '1px solid var(--color-neutral-100)',
+                  }}
+                  data-testid={`supplier-bank-row-${idx}`}
+                >
+                  <Input
+                    label={idx === 0 ? '예금주' : undefined}
+                    value={row.accountHolder}
+                    onChange={(e) => setBankRowField(idx, 'accountHolder', e.target.value)}
+                    placeholder="예금주"
+                    data-testid={`supplier-bank-holder-${idx}`}
+                  />
+                  <Input
+                    label={idx === 0 ? '은행명' : undefined}
+                    value={row.bankName}
+                    onChange={(e) => setBankRowField(idx, 'bankName', e.target.value)}
+                    placeholder="국민은행"
+                    data-testid={`supplier-bank-name-${idx}`}
+                  />
+                  <Input
+                    label={idx === 0 ? '계좌번호' : undefined}
+                    value={row.accountNumber}
+                    onChange={(e) => setBankRowField(idx, 'accountNumber', e.target.value)}
+                    placeholder="000000-00-000000"
+                    data-testid={`supplier-bank-number-${idx}`}
+                  />
+                  <Button
+                    variant="danger"
+                    onClick={() => removeBankRow(idx)}
+                    data-testid={`supplier-bank-remove-${idx}`}
+                  >
+                    삭제
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 인감 업로드 영역 (수정 모달에서만 표시 — 신규 등록은 저장 후 수정에서 업로드) */}
+        {modalMode === 'edit' ? (
+          <div style={{ marginTop: 20 }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-neutral-700)',
+                marginBottom: 8,
+              }}
+            >
+              법인 인감 (PNG, 최대 200KB)
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+              {/* 미리보기 */}
+              {stampPreviewUrl ? (
+                <div style={{ position: 'relative' }}>
+                  <img
+                    src={stampPreviewUrl}
+                    alt="법인 인감 미리보기"
+                    style={{
+                      width: 100,
+                      height: 100,
+                      objectFit: 'contain',
+                      border: '1px solid var(--color-neutral-200)',
+                      borderRadius: 4,
+                    }}
+                    data-testid="supplier-stamp-preview"
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    width: 100,
+                    height: 100,
+                    border: '2px dashed var(--color-neutral-300)',
+                    borderRadius: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    color: 'var(--color-neutral-400)',
+                  }}
+                >
+                  미등록
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input
+                  ref={stampInputRef}
+                  type="file"
+                  accept="image/png"
+                  onChange={handleStampFileChange}
+                  style={{ display: 'none' }}
+                  data-testid="supplier-stamp-file-input"
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => stampInputRef.current?.click()}
+                  data-testid="supplier-stamp-upload-btn"
+                >
+                  {stampPreviewUrl ? '인감 교체' : 'PNG 업로드'}
+                </Button>
+                {stampPreviewUrl && editTarget?.hasStamp && !stampFile ? (
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      if (editTarget && window.confirm('등록된 인감을 삭제하시겠습니까?')) {
+                        deleteStampMutation.mutate({ id: editTarget.id })
+                      }
+                    }}
+                    data-testid="supplier-stamp-delete-btn"
+                  >
+                    인감 삭제
+                  </Button>
+                ) : null}
+                {stampFile ? (
+                  <Button
+                    variant="ghost"
+                    onClick={handleStampRemove}
+                    data-testid="supplier-stamp-clear-btn"
+                  >
+                    선택 취소
+                  </Button>
+                ) : null}
+                {stampError ? (
+                  <p
+                    style={{ margin: 0, fontSize: 12, color: 'var(--color-danger-600)' }}
+                    data-testid="supplier-stamp-error"
+                  >
+                    {stampError}
+                  </p>
+                ) : null}
+                {stampFile ? (
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+                    {stampFile.name} ({Math.round(stampFile.size / 1024)}KB) — 저장 시 업로드
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {apiError ? (
           <p
@@ -481,6 +878,7 @@ interface ProfileCardProps {
   canDelete: boolean
   onEdit: (p: SupplierProfile) => void
   onMarkPrimary: (id: string) => void
+  onDeleteStamp: (id: string) => void
   onDelete: (id: string) => void
 }
 
@@ -491,8 +889,12 @@ function ProfileCard({
   canDelete,
   onEdit,
   onMarkPrimary,
+  onDeleteStamp,
   onDelete,
 }: ProfileCardProps) {
+  const representativeName = profile.representativeName ?? profile.ceoName ?? ''
+  const businessAddress = profile.businessAddress ?? profile.address ?? ''
+
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -523,6 +925,11 @@ function ProfileCard({
             ) : (
               <Badge variant="neutral">보조</Badge>
             )}
+            {profile.hasStamp ? (
+              <Badge variant="neutral" data-testid="supplier-stamp-badge">
+                인감 등록됨
+              </Badge>
+            ) : null}
           </div>
 
           {/* 정보 그리드 */}
@@ -542,18 +949,58 @@ function ProfileCard({
             {profile.subBusinessNumber ? (
               <InfoRow label="종사업장번호" value={profile.subBusinessNumber} />
             ) : null}
-            <InfoRow label="대표 성명" value={profile.ceoName} />
+            <InfoRow label="대표 성명" value={representativeName} />
             <InfoRow
               label="사업장 주소"
-              value={profile.address}
+              value={businessAddress}
               fullWidth
             />
             <InfoRow label="업태" value={profile.businessType} />
             <InfoRow label="종목" value={profile.businessItem} />
+            {profile.tel ? (
+              <InfoRow label="대표 전화" value={profile.tel} testId="supplier-tel" />
+            ) : null}
+            {profile.fax ? (
+              <InfoRow label="팩스" value={profile.fax} testId="supplier-fax" />
+            ) : null}
             {profile.email ? (
               <InfoRow label="이메일" value={profile.email} />
             ) : null}
           </dl>
+
+          {/* 입금계좌 목록 */}
+          {profile.bankAccounts && profile.bankAccounts.length > 0 ? (
+            <div style={{ marginTop: 10 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-neutral-500)',
+                  textTransform: 'uppercase' as const,
+                  letterSpacing: 0.3,
+                }}
+              >
+                입금계좌
+              </span>
+              <ul
+                style={{
+                  margin: '4px 0 0',
+                  padding: '0 0 0 16px',
+                  fontSize: 13,
+                  color: 'var(--color-neutral-700)',
+                }}
+                data-testid="supplier-bank-list"
+              >
+                {[...profile.bankAccounts]
+                  .sort((a, b) => a.displayOrder - b.displayOrder)
+                  .map((acct, i) => (
+                    <li key={i}>
+                      {acct.accountHolder} / {acct.bankName} {acct.accountNumber}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         {/* 액션 버튼 */}
@@ -596,6 +1043,15 @@ function ProfileCard({
                 </Button>
                 ) : null}
               </>
+            ) : null}
+            {profile.hasStamp && canEdit ? (
+              <Button
+                variant="ghost"
+                onClick={() => onDeleteStamp(profile.id)}
+                data-testid={`supplier-stamp-delete-card-btn-${profile.businessNumber}`}
+              >
+                인감 삭제
+              </Button>
             ) : null}
           </div>
         ) : null}

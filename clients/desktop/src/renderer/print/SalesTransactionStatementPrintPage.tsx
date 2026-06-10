@@ -10,12 +10,12 @@
  * - 좌: 공급받는자 박스 — 거래처명 貴中 / 거래처 사업자주소 / ☎ 대표번호
  *   (개발책임자 확정 2026-06-10. partner-service getPartnerFull(partnerCode) — slip 미보유 필드)
  * - 우: 공급자 표 — 세로 '공급자' 라벨 + 일련번호·TEL / 사업자등록번호·성명 / 상호 / 주소
- *   + 법인 인감 스탬프 overlay (COMPANY.stampUrl env 주입 시)
+ *   + 법인 인감 스탬프 overlay (company.stampUrl — useCompanyProfile 훅)
  * - 배송지 행 (검정 볼드 — 개발책임자 정정 2026-06-10, 적색 아님): 인수자번호 / 배송주소
  * - 금액 행: 한글 금액 정 + (₩ 숫자) — printUtils.krwHangul
  * - 품목표 6컬럼: 월/일 | 품목명 | 수량 | 단가(VAT포함) | 공급가액 | 부가세 + 빈행 filler
  * - 합계행: 수량 | 공급가액 | VAT | 합계 | 인수 | 인
- * - 계좌 푸터 (적색): COMPANY.bankNotice (env 주입 — public repo 비커밋)
+ * - 계좌 푸터 (적색): company.bankNotice (useCompanyProfile 훅 — API에서 실시간 조회)
  *
  * 단가 컬럼 = VAT 포함 단가 (원본 검증: 13,662×3 = 공급 37,260+부가세 3,726).
  * line.unitPriceWithVat 우선, legacy null 이면 (공급+부가세)/수량 계산.
@@ -30,9 +30,10 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail, type SlipLineDetail } from '../api/slip'
 import { getPartnerFull } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, COMPANY, krw } from './PrintLayout'
+import { PrintLayout, krw } from './PrintLayout'
 import { krwHangul } from './printUtils'
 import { useFitOneA4 } from './useFitOneA4'
+import { useCompanyProfile } from './useCompanyProfile'
 
 /** "YYYY-MM-DD" → "MM/DD" (원본 양식 월/일 컬럼). */
 function toMonthDay(isoDate: string | null | undefined): string {
@@ -82,6 +83,8 @@ export function SalesTransactionStatementPrintPage() {
     queryFn: () => getPartnerFull(partnerCode as string),
     enabled: !!partnerCode,
   })
+
+  const { company } = useCompanyProfile()
 
   // 한 A4 자동 비율 — 품목 수 변동 시 재측정 (개발책임자 2026-06-10)
   const { ref: fitRef, zoom } = useFitOneA4<HTMLDivElement>([
@@ -148,26 +151,26 @@ export function SalesTransactionStatementPrintPage() {
                   <th className="stm-k">일련번호</th>
                   <td className="stm-v stm-num">{slip.slipNo}</td>
                   <th className="stm-k stm-k-narrow">TEL</th>
-                  <td className="stm-v stm-nowrap">{COMPANY.tel}</td>
+                  <td className="stm-v stm-nowrap">{company.tel}</td>
                 </tr>
                 <tr>
                   <th className="stm-k">사업자등록<br />번호</th>
-                  <td className="stm-v stm-num">{COMPANY.businessRegNo}</td>
+                  <td className="stm-v stm-num">{company.businessRegNo}</td>
                   <th className="stm-k stm-k-narrow">성명</th>
-                  <td className="stm-v">{COMPANY.ceo}</td>
+                  <td className="stm-v">{company.ceo}</td>
                 </tr>
                 <tr>
                   <th className="stm-k">상호</th>
-                  <td className="stm-v" colSpan={3}>{COMPANY.legalName}</td>
+                  <td className="stm-v" colSpan={3}>{company.legalName}</td>
                 </tr>
                 <tr>
                   <th className="stm-k">주소</th>
-                  <td className="stm-v" colSpan={3}>{COMPANY.address}</td>
+                  <td className="stm-v" colSpan={3}>{company.address}</td>
                 </tr>
               </tbody>
             </table>
-            {COMPANY.stampUrl ? (
-              <img className="stm-stamp" src={COMPANY.stampUrl} alt="법인 인감" />
+            {company.stampUrl ? (
+              <img className="stm-stamp" src={company.stampUrl} alt="법인 인감" />
             ) : null}
           </div>
         </div>
@@ -241,10 +244,12 @@ export function SalesTransactionStatementPrintPage() {
           </tbody>
         </table>
 
-        {/* 입금계좌 푸터 (적색) — 실 계좌는 env 주입 (public repo 비커밋) */}
-        <footer className="stm-bank-box">
-          {COMPANY.bankNotice}&nbsp;&nbsp;&nbsp;{krw(grandTotal)}원
-        </footer>
+        {/* 입금계좌 푸터 (적색) — API에서 실시간 조회 (bankNotice 빈 문자열이면 미표시) */}
+        {company.bankNotice ? (
+          <footer className="stm-bank-box">
+            {company.bankNotice}&nbsp;&nbsp;&nbsp;{krw(grandTotal)}원
+          </footer>
+        ) : null}
       </div>
     </PrintLayout>
   )

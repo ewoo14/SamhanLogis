@@ -35,7 +35,8 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, COMPANY, krw, krDate } from './PrintLayout'
+import { PrintLayout, krw, krDate } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 import styles from './PartnerLedgerView.module.css'
 
 /**
@@ -219,13 +220,15 @@ export function PartnerLedgerView() {
     [partnerCodeParam, periodFrom, periodTo],
   )
 
+  const { company } = useCompanyProfile()
+
   usePageTitle('거래처 원장', `${data.partnerCode} ${data.partnerName}`)
 
   return (
     <PrintLayout paper="a4-portrait" backTo="/accounting">
       <div className={styles.page} data-testid="partner-ledger-print-area">
         <header className={styles.header}>
-          <div className={styles.brand}>{COMPANY.legalName}</div>
+          <div className={styles.brand}>{company.legalName}</div>
           <h1 className={styles.title}>거래처 원장</h1>
           <div className={styles.period}>
             기간: {krDate(data.periodFrom)} ~ {krDate(data.periodTo)}
@@ -326,9 +329,9 @@ export function PartnerLedgerView() {
         )}
 
         <footer className={styles.footer}>
-          <span>발행: {COMPANY.legalName}</span>
+          <span>발행: {company.legalName}</span>
           <span className={styles.issuer}>
-            사업자번호 {COMPANY.businessRegNo} / 대표 {COMPANY.ceo}
+            사업자번호 {company.businessRegNo} / 대표 {company.ceo}
           </span>
         </footer>
       </div>

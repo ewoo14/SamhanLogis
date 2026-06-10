@@ -1,10 +1,12 @@
 package com.samhanair.logis.accounting.web.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 
 /**
  * 사업자 프로필 신규 등록 요청 DTO.
@@ -56,7 +58,19 @@ public record CreateSupplierProfileRequest(
         @Size(max = 100, message = "이메일은 최대 100자입니다")
         String email,
 
+        @Schema(description = "전화번호 (최대 30자)", example = "02-3461-0000")
+        @Size(max = 30, message = "전화번호는 최대 30자입니다")
+        String tel,
+
+        @Schema(description = "FAX 번호 (최대 30자)", example = "02-3461-0001")
+        @Size(max = 30, message = "FAX 번호는 최대 30자입니다")
+        String fax,
+
         @Schema(description = "기본 사업자 여부 (true 면 기존 primary 해제 후 설정)")
-        boolean isPrimary
+        boolean isPrimary,
+
+        @Schema(description = "은행계좌 목록 (replace-all — 기존 계좌 전체 교체)")
+        @Valid
+        List<BankAccountRequest> bankAccounts
 
 ) {}

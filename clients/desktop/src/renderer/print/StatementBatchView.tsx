@@ -37,7 +37,8 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, COMPANY, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
+import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 import styles from './StatementBatchView.module.css'
 
 /**
@@ -262,6 +263,8 @@ export function StatementBatchView() {
     [periodFrom, periodTo, issueDate],
   )
 
+  const { company } = useCompanyProfile()
+
   usePageTitle(
     '거래명세서 일괄',
     `${data.partners.length}개 거래처`,
@@ -288,7 +291,7 @@ export function StatementBatchView() {
               >
                 {/* 상단 헤더 — 회사 표기 + 타이틀 + 발행일 */}
                 <header className={styles.header}>
-                  <div className={styles.brand}>{COMPANY.legalName}</div>
+                  <div className={styles.brand}>{company.legalName}</div>
                   <h1 className={styles.title}>거래명세서</h1>
                   <div className={styles.metaRow}>
                     <span>발행일: {krDate(data.issueDate)}</span>
@@ -311,23 +314,23 @@ export function StatementBatchView() {
                     <tbody>
                       <tr>
                         <th>상호</th>
-                        <td>{COMPANY.legalName}</td>
+                        <td>{company.legalName}</td>
                       </tr>
                       <tr>
                         <th>대표자</th>
-                        <td>{COMPANY.ceo}</td>
+                        <td>{company.ceo}</td>
                       </tr>
                       <tr>
                         <th>사업자번호</th>
-                        <td className={styles.num}>{COMPANY.businessRegNo}</td>
+                        <td className={styles.num}>{company.businessRegNo}</td>
                       </tr>
                       <tr>
                         <th>주소</th>
-                        <td>{COMPANY.address}</td>
+                        <td>{company.address}</td>
                       </tr>
                       <tr>
                         <th>TEL</th>
-                        <td className={styles.num}>{COMPANY.tel}</td>
+                        <td className={styles.num}>{company.tel}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -462,7 +465,7 @@ export function StatementBatchView() {
                   <div className={styles.signBox}>
                     <div className={styles.signLabel}>발행자</div>
                     <div className={styles.signValue}>
-                      <span>{COMPANY.legalName}</span>
+                      <span>{company.legalName}</span>
                       <span className={styles.seal}>[직인]</span>
                     </div>
                   </div>

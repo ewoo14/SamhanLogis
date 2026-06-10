@@ -22,7 +22,8 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getEstimate, type EstimateDetail } from '../api/sales'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, COMPANY, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
+import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 
 /**
  * 견적 유효기간 — `createdAt + 30 일` 기본 (실제 운영은 EstimateDetail 에 expirationDate 추가
@@ -57,6 +58,8 @@ export function QuoteView() {
     )
   }
 
+  const { company } = useCompanyProfile()
+
   const est: EstimateDetail = detailQuery.data
   const totalSupply = est.lines.reduce((sum, l) => sum + l.subtotal, 0)
   const { supply, vat, total } = calcAmounts(totalSupply)
@@ -67,28 +70,28 @@ export function QuoteView() {
       <div className="quote-page" data-testid="quote-print-area">
         <header className="quote-header">
           <div className="quote-supplier">
-            <img className="quote-logo" src={COMPANY.logoPath} alt={COMPANY.legalName} />
+            <img className="quote-logo" src={company.logoPath} alt={company.legalName} />
             <table className="quote-supplier-table">
               <tbody>
                 <tr>
                   <th>상호</th>
-                  <td>{COMPANY.legalName}</td>
+                  <td>{company.legalName}</td>
                 </tr>
                 <tr>
                   <th>대표자</th>
-                  <td>{COMPANY.ceo}</td>
+                  <td>{company.ceo}</td>
                 </tr>
                 <tr>
                   <th>사업자번호</th>
-                  <td className="num">{COMPANY.businessRegNo}</td>
+                  <td className="num">{company.businessRegNo}</td>
                 </tr>
                 <tr>
                   <th>주소</th>
-                  <td>{COMPANY.address}</td>
+                  <td>{company.address}</td>
                 </tr>
                 <tr>
                   <th>TEL / FAX</th>
-                  <td className="num">{COMPANY.tel} / {COMPANY.fax}</td>
+                  <td className="num">{company.tel} / {company.fax}</td>
                 </tr>
               </tbody>
             </table>
@@ -237,9 +240,9 @@ export function QuoteView() {
         {/* 회사 직인 영역 */}
         <footer className="quote-footer">
           <div className="quote-issuer-block">
-            <div className="issuer-name">{COMPANY.legalName}</div>
-            <div className="issuer-meta">사업자번호 {COMPANY.businessRegNo}</div>
-            <div className="issuer-meta">대표 {COMPANY.ceo}</div>
+            <div className="issuer-name">{company.legalName}</div>
+            <div className="issuer-meta">사업자번호 {company.businessRegNo}</div>
+            <div className="issuer-meta">대표 {company.ceo}</div>
             <div className="issuer-seal">[직인]</div>
           </div>
         </footer>

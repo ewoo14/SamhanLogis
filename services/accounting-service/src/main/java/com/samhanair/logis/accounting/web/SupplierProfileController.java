@@ -5,6 +5,7 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.SupplierProfileService;
 import com.samhanair.logis.accounting.web.dto.CreateSupplierProfileRequest;
 import com.samhanair.logis.accounting.web.dto.SupplierProfileResponse;
+import com.samhanair.logis.accounting.web.dto.UpdateStampRequest;
 import com.samhanair.logis.accounting.web.dto.UpdateSupplierProfileRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -129,20 +130,23 @@ public class SupplierProfileController {
      * 사업자 프로필 수정.
      *
      * <p>null 필드는 기존 값 유지 (부분 업데이트 패턴).
+     * {@code bankAccounts} 가 null 이 아니면 replace-all 시맨틱으로 계좌 교체.
      *
-     * @param id  수정 대상 UUID (경로 파라미터)
-     * @param req 수정 요청 DTO
-     * @return 수정된 사업자 프로필
+     * @param id          수정 대상 UUID (경로 파라미터)
+     * @param req         수정 요청 DTO
+     * @param actorUserId 수정 실행자 user-id (X-User-Id 헤더)
+     * @return 수정된 사업자 프로필 (bankAccounts + hasStamp 포함)
      */
     @PutMapping("/{id}")
     @RequirePermission(page = "accounting.supplier-profiles", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    @Operation(summary = "사업자 프로필 수정", description = "null 필드는 기존 값 유지. isPrimary 변경은 PATCH /{id}/primary 사용")
+    @Operation(summary = "사업자 프로필 수정", description = "null 필드는 기존 값 유지. bankAccounts 가 있으면 replace-all. isPrimary 변경은 PATCH /{id}/primary 사용")
     public ApiResponse<SupplierProfileResponse> update(
             @PathVariable UUID id,
             @RequestBody @Valid UpdateSupplierProfileRequest req,
+            @RequestHeader("X-User-Id") String actorUserId,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         checkEditPermission(roleHeader);
-        return ApiResponse.ok(service.update(id, req), "사업자 프로필이 수정되었습니다.");
+        return ApiResponse.ok(service.update(id, req, actorUserId), "사업자 프로필이 수정되었습니다.");
     }
 
     // =========================================================================
@@ -162,6 +166,55 @@ public class SupplierProfileController {
     @Operation(summary = "기본 사업자 전환", description = "기존 primary 해제 후 지정 사업자를 primary 로 설정")
     public ApiResponse<SupplierProfileResponse> setPrimary(@PathVariable UUID id) {
         return ApiResponse.ok(service.setPrimary(id), "기본 사업자가 변경되었습니다.");
+    }
+
+    // =========================================================================
+    // PUT /api/v1/accounting/supplier-profiles/{id}/stamp
+    // =========================================================================
+
+    /**
+     * 인감 PNG 등록/교체.
+     *
+     * <p>처리:
+     * <ol>
+     *   <li>base64 디코드 → 200KB 가드 → SHA-256 재계산 검증</li>
+     *   <li>검증 통과 후 저장</li>
+     * </ol>
+     *
+     * @param id          대상 사업자 프로필 UUID
+     * @param req         인감 등록 요청 (stampPngBase64 + stampHash)
+     * @return 갱신된 사업자 프로필 응답 (hasStamp=true)
+     */
+    @PutMapping("/{id}/stamp")
+    @RequirePermission(page = "accounting.supplier-profiles", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
+    @Operation(summary = "인감 PNG 등록/교체",
+               description = "Base64 PNG 업로드. ≤200KB + SHA-256 hash 검증. mismatch → 400")
+    public ApiResponse<SupplierProfileResponse> registerStamp(
+            @PathVariable UUID id,
+            @RequestBody @Valid UpdateStampRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        return ApiResponse.ok(service.registerStamp(id, req), "인감이 등록되었습니다.");
+    }
+
+    // =========================================================================
+    // DELETE /api/v1/accounting/supplier-profiles/{id}/stamp
+    // =========================================================================
+
+    /**
+     * 인감 삭제.
+     *
+     * @param id 대상 사업자 프로필 UUID
+     */
+    @DeleteMapping("/{id}/stamp")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequirePermission(page = "accounting.supplier-profiles", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
+    @Operation(summary = "인감 삭제", description = "stampPng / stampHash 를 null 로 초기화")
+    public void clearStamp(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        service.clearStamp(id);
     }
 
     // =========================================================================

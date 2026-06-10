@@ -22,34 +22,74 @@
 import { apiClient, type ApiEnvelope } from './client'
 
 /**
+ * 입금계좌 DTO (BE `SupplierBankAccountResponse` 와 1:1).
+ *
+ * @property accountHolder - 예금주
+ * @property bankName      - 은행명
+ * @property accountNumber - 계좌번호
+ * @property displayOrder  - 표시 순서 (배열 인덱스와 일치)
+ */
+export interface SupplierBankAccount {
+  accountHolder: string
+  bankName: string
+  accountNumber: string
+  displayOrder: number
+}
+
+/**
  * 사업자 정보 DTO (BE `SupplierProfileResponse` 와 1:1).
  *
- * @property id           - 내부 UUID (화면 미노출)
- * @property businessNumber - 사업자등록번호 (10자리 숫자, 하이픈 없음)
+ * @property id               - 내부 UUID (화면 미노출)
+ * @property businessNumber   - 사업자등록번호 (10자리 숫자, 하이픈 없음)
  * @property subBusinessNumber - 종사업장번호 (4자리, optional)
- * @property companyName  - 상호
- * @property ceoName      - 대표 성명
- * @property address      - 사업장 주소
- * @property businessType - 업태
- * @property businessItem - 종목
- * @property email        - 이메일 (세금계산서 수신용)
- * @property isPrimary    - 기본 사업자 여부
- * @property createdAt    - 등록 일시 (ISO8601)
- * @property updatedAt    - 수정 일시 (ISO8601)
+ * @property companyName      - 상호
+ * @property representativeName - 대표 성명 (BE DTO 필드명 일치)
+ * @property businessAddress  - 사업장 주소 (BE DTO 필드명 일치)
+ * @property businessType     - 업태
+ * @property businessItem     - 종목
+ * @property email            - 이메일 (세금계산서 수신용)
+ * @property isPrimary        - 기본 사업자 여부
+ * @property tel              - 대표 전화 (nullable)
+ * @property fax              - 팩스 번호 (nullable)
+ * @property bankAccounts     - 입금계좌 목록 (displayOrder 순)
+ * @property hasStamp         - 인감 등록 여부
+ * @property stampPngBase64   - 인감 PNG base64 (detail/primary 전용; 목록에는 null)
+ * @property createdAt        - 등록 일시 (ISO8601)
+ * @property updatedAt        - 수정 일시 (ISO8601)
  */
 export interface SupplierProfile {
   id: string
   businessNumber: string
   subBusinessNumber: string | null
   companyName: string
-  ceoName: string
-  address: string
+  /** @deprecated ceoName → representativeName (BE DTO 필드명 일치). 기존 호환용 alias. */
+  ceoName?: string
+  representativeName: string
+  address?: string
+  businessAddress: string
   businessType: string
   businessItem: string
   email: string
   isPrimary: boolean
+  tel: string | null
+  fax: string | null
+  bankAccounts: SupplierBankAccount[]
+  hasStamp: boolean
+  stampPngBase64: string | null
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * 입금계좌 등록/수정 요청 DTO.
+ *
+ * displayOrder 는 배열 내 인덱스(0-based)로 자동 결정 — 개별 필드로 전송.
+ */
+export interface SupplierBankAccountRequest {
+  accountHolder: string
+  bankName: string
+  accountNumber: string
+  displayOrder: number
 }
 
 /**
@@ -59,21 +99,38 @@ export interface SupplierProfile {
  * - businessNumber: @Pattern(regexp = "\\d{10}")  10자리 숫자
  * - subBusinessNumber: @Pattern(regexp = "\\d{4}") 4자리 숫자, nullable
  * - companyName: @NotBlank
- * - ceoName: @NotBlank
- * - address: @NotBlank
+ * - representativeName: @NotBlank
+ * - businessAddress: @NotBlank
  * - businessType: @NotBlank
  * - businessItem: @NotBlank
  * - email: @Email, nullable
+ * - tel: nullable, 최대 30자
+ * - fax: nullable, 최대 30자
+ * - bankAccounts: replace-all 시맨틱 — 배열 전체를 새로 기록
  */
 export interface SupplierProfileRequest {
   businessNumber: string
   subBusinessNumber: string | null
   companyName: string
-  ceoName: string
-  address: string
+  representativeName: string
+  businessAddress: string
   businessType: string
   businessItem: string
   email: string
+  tel: string | null
+  fax: string | null
+  bankAccounts: SupplierBankAccountRequest[]
+}
+
+/**
+ * 인감 업로드 요청 DTO.
+ *
+ * @property stampPngBase64 - PNG 파일을 base64 인코딩한 문자열 (data: prefix 제외)
+ * @property stampHash      - PNG bytes 의 SHA-256 hex (64자) — BE 검증용
+ */
+export interface StampUploadRequest {
+  stampPngBase64: string
+  stampHash: string
 }
 
 /**
@@ -119,7 +176,7 @@ export async function createSupplierProfile(
  * 사업자 정보 수정 (MANAGER/MASTER 전용).
  *
  * @param id  - 내부 UUID (화면 미노출 — path param 전용)
- * @param req - 수정 필드
+ * @param req - 수정 필드 (bankAccounts replace-all, tel/fax nullable)
  */
 export async function updateSupplierProfile(
   id: string,
@@ -130,6 +187,35 @@ export async function updateSupplierProfile(
     req,
   )
   return res.data.data
+}
+
+/**
+ * 인감 업로드/교체 (MANAGER/MASTER 전용).
+ *
+ * PNG only, ≤200KB. stampHash = PNG bytes SHA-256 hex 64자.
+ * BE 가 hash mismatch 시 400 (INVALID_INPUT) 반환.
+ *
+ * @param id  - 내부 UUID (path param 전용)
+ * @param req - stampPngBase64 + stampHash
+ */
+export async function uploadSupplierStamp(
+  id: string,
+  req: StampUploadRequest,
+): Promise<SupplierProfile> {
+  const res = await apiClient.put<ApiEnvelope<SupplierProfile>>(
+    `/accounting/supplier-profiles/${id}/stamp`,
+    req,
+  )
+  return res.data.data
+}
+
+/**
+ * 인감 삭제 (MANAGER/MASTER 전용).
+ *
+ * @param id - 내부 UUID (path param 전용)
+ */
+export async function deleteSupplierStamp(id: string): Promise<void> {
+  await apiClient.delete(`/accounting/supplier-profiles/${id}/stamp`)
 }
 
 /**

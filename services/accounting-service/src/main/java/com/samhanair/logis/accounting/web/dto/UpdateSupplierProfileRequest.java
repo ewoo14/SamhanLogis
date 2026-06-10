@@ -1,9 +1,11 @@
 package com.samhanair.logis.accounting.web.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 
 /**
  * 사업자 프로필 수정 요청 DTO.
@@ -46,6 +48,18 @@ public record UpdateSupplierProfileRequest(
         @Schema(description = "사업자 이메일 (null 이면 null 로 설정)", example = "apjog09@daum.net")
         @Email(message = "올바른 이메일 형식이어야 합니다")
         @Size(max = 100, message = "이메일은 최대 100자입니다")
-        String email
+        String email,
+
+        @Schema(description = "전화번호 (null 이면 null 로 설정)", example = "02-3461-0000")
+        @Size(max = 30, message = "전화번호는 최대 30자입니다")
+        String tel,
+
+        @Schema(description = "FAX 번호 (null 이면 null 로 설정)", example = "02-3461-0001")
+        @Size(max = 30, message = "FAX 번호는 최대 30자입니다")
+        String fax,
+
+        @Schema(description = "은행계좌 목록 (null 이면 기존 계좌 유지, 빈 배열이면 전체 삭제, replace-all)")
+        @Valid
+        List<BankAccountRequest> bankAccounts
 
 ) {}

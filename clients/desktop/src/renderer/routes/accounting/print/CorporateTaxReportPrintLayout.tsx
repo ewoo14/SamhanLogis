@@ -18,9 +18,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@samhan/design-system'
 import {
   PrintLayout,
-  COMPANY,
   krw,
 } from '../../../print/PrintLayout'
+import { useCompanyProfile } from '../../../print/useCompanyProfile'
 import { getCorporateTaxReport, type CorporateTaxReportResponse } from '../../../api/accounting'
 
 // --------------------------------------------------------------------------
@@ -192,6 +192,7 @@ interface BodyProps {
 
 /** 법인세 신고서 인쇄 본문. */
 function CorporateTaxPrintBody({ data }: BodyProps) {
+  const { company } = useCompanyProfile()
   const taxPayableN = Number.parseInt(data.taxPayable, 10)
   const isRefund = Number.isFinite(taxPayableN) && taxPayableN < 0
   const taxBrackets = calcTaxBrackets(Number.parseInt(data.taxableIncome, 10))
@@ -200,9 +201,9 @@ function CorporateTaxPrintBody({ data }: BodyProps) {
     <div style={{ fontFamily: 'var(--font-family-sans)', color: 'var(--color-neutral-900)' }}>
       {/* 헤더 */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{COMPANY.legalName}</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{company.legalName}</div>
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 2 }}>
-          사업자등록번호: {COMPANY.businessRegNo}
+          사업자등록번호: {company.businessRegNo}
         </div>
         <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700, marginTop: 8, letterSpacing: '0.2em' }}>
           법 인 세 신 고 서

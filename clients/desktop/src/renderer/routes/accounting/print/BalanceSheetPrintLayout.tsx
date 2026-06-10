@@ -20,9 +20,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@samhan/design-system'
 import {
   PrintLayout,
-  COMPANY,
   krw,
 } from '../../../print/PrintLayout'
+import { useCompanyProfile } from '../../../print/useCompanyProfile'
 import {
   getBalanceSheet,
   type BalanceSheetLine,
@@ -166,6 +166,7 @@ interface BodyProps {
 
 /** 인쇄 본문 — 헤더 + 2단 표 + 균형여부 + 푸터. */
 function BalanceSheetPrintBody({ data, asOfDate }: BodyProps) {
+  const { company } = useCompanyProfile()
   const assets = sortedLines(data.assets)
   const liabilities = sortedLines(data.liabilities)
   const equity = sortedLines(data.equity)
@@ -175,10 +176,10 @@ function BalanceSheetPrintBody({ data, asOfDate }: BodyProps) {
       {/* 헤더 — D6: font-size → print token */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
         {/* D6: 회사명 16pt */}
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{COMPANY.legalName}</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{company.legalName}</div>
         {/* D6: 사업자번호 var(--print-text-sm) 11pt */}
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 2 }}>
-          사업자등록번호: {COMPANY.businessRegNo}
+          사업자등록번호: {company.businessRegNo}
         </div>
         {/* D6: 보고서명 var(--print-text-lg) 18pt */}
         <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700, marginTop: 8, letterSpacing: '0.2em' }}>

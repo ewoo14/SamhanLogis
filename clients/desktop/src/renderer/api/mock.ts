@@ -3425,46 +3425,109 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   /**
    * 사업자 seed 1건 — (주)삼한공조시스템 기본 사업자.
+   *
+   * 신규 필드(spec §2a):
+   * - tel / fax: 대표 전화 / 팩스
+   * - bankAccounts: 입금계좌 목록 (replace-all, displayOrder 배열 순)
+   * - hasStamp: 인감 등록 여부 (초기 false)
+   * - stampPngBase64: 인감 PNG base64 (목록은 null, detail/primary 는 실 값)
+   * - representativeName: 대표자 성명 (BE DTO 필드명 일치 — ceoName 대체)
+   * - businessAddress: 사업장 주소 (BE DTO 필드명 일치 — address 대체)
+   *
    * UUID 비공개 가드: id 는 내부 경로용. 화면은 businessNumber / companyName 표시.
    */
   const MOCK_SUPPLIER_PRIMARY = {
     id: '00000000-0000-0000-0000-supplier0001',
-    businessNumber: '1112233333',
+    businessNumber: '2148720659',
     subBusinessNumber: null,
     companyName: '(주)삼한공조시스템',
+    representativeName: '김미선',
+    /** @deprecated mock 호환용 — representativeName 사용 권장 */
     ceoName: '김미선',
-    address: '서울특별시 강남구 테헤란로 152, 10층',
-    businessType: '도소매',
-    businessItem: '냉난방 설비, 물류 운송',
+    businessAddress: '서울특별시 서초구 마방로2길 9 (양재동) 삼한빌딩 4층',
+    /** @deprecated mock 호환용 — businessAddress 사용 권장 */
+    address: '서울특별시 서초구 마방로2길 9 (양재동) 삼한빌딩 4층',
+    businessType: '도매 및 소매업',
+    businessItem: '공조설비, 냉난방기',
     email: 'accounting@samhan-air.com',
     isPrimary: true,
+    tel: '02-3461-0000',
+    fax: '02-3461-0001',
+    bankAccounts: [] as Array<{ accountHolder: string; bankName: string; accountNumber: string; displayOrder: number }>,
+    hasStamp: false,
+    stampPngBase64: null as string | null,
     createdAt: '2026-01-01T00:00:00+09:00',
     updatedAt: '2026-01-01T00:00:00+09:00',
   }
 
   // 첫 접근 시 seed 1건 주입 (테스트별 fresh page → 모듈 재평가로 재seed).
   if (mockSupplierProfileList.length === 0) {
-    mockSupplierProfileList.push({ ...MOCK_SUPPLIER_PRIMARY })
+    mockSupplierProfileList.push({ ...MOCK_SUPPLIER_PRIMARY, bankAccounts: [] })
   }
 
-  // GET /accounting/supplier-profiles/primary → 기본 사업자
+  // stamp PUT/DELETE 는 id match 패턴보다 앞에 위치해야 함 (더 구체적인 경로)
+  // PUT /accounting/supplier-profiles/{id}/stamp → 인감 업로드/교체
+  const supplierStampPutMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/stamp$/)
+  if (method === 'PUT' && supplierStampPutMatch) {
+    const stampId = supplierStampPutMatch[1]!
+    const body = parseMockBody(config) as { stampPngBase64: string; stampHash: string }
+    const idx = mockSupplierProfileList.findIndex((p) => p['id'] === stampId)
+    if (idx < 0) {
+      return mockError(404, 'NOT_FOUND', '사업자 정보를 찾을 수 없습니다.')
+    }
+    mockSupplierProfileList[idx] = {
+      ...mockSupplierProfileList[idx],
+      hasStamp: true,
+      stampPngBase64: body.stampPngBase64 ?? null,
+      updatedAt: new Date().toISOString(),
+    }
+    return envelope(mockSupplierProfileList[idx])
+  }
+
+  // DELETE /accounting/supplier-profiles/{id}/stamp → 인감 삭제
+  const supplierStampDeleteMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/stamp$/)
+  if (method === 'DELETE' && supplierStampDeleteMatch) {
+    const stampId = supplierStampDeleteMatch[1]!
+    const idx = mockSupplierProfileList.findIndex((p) => p['id'] === stampId)
+    if (idx >= 0) {
+      mockSupplierProfileList[idx] = {
+        ...mockSupplierProfileList[idx],
+        hasStamp: false,
+        stampPngBase64: null,
+        updatedAt: new Date().toISOString(),
+      }
+    }
+    return envelope({ deleted: true })
+  }
+
+  // GET /accounting/supplier-profiles/primary → 기본 사업자 (stamp payload 포함)
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles/primary')) {
-    return envelope(mockSupplierProfileList.find((p) => p['isPrimary']) ?? MOCK_SUPPLIER_PRIMARY)
+    const primary = mockSupplierProfileList.find((p) => p['isPrimary']) ?? MOCK_SUPPLIER_PRIMARY
+    return envelope(primary)
   }
 
-  // GET /accounting/supplier-profiles → 목록 (POST 등록분 포함)
+  // GET /accounting/supplier-profiles → 목록 (stamp payload 제외 — hasStamp 만)
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles')) {
-    return envelope([...mockSupplierProfileList])
+    return envelope(
+      [...mockSupplierProfileList].map((p) => {
+        const { stampPngBase64: _stamp, ...rest } = p as Record<string, unknown>
+        void _stamp // 목록 응답에서 stamp payload 제외
+        return rest
+      }),
+    )
   }
 
   // POST /accounting/supplier-profiles → 신규 등록 (목록에 실제 append)
   if (method === 'POST' && url.endsWith('/accounting/supplier-profiles')) {
-    const body = parseMockBody(config)
-    const created = {
+    const body = parseMockBody(config) as Record<string, unknown>
+    const created: Record<string, unknown> = {
       ...MOCK_SUPPLIER_PRIMARY,
       ...body,
       id: `00000000-0000-0000-0000-supplier${Date.now()}`,
       isPrimary: false,
+      hasStamp: false,
+      stampPngBase64: null,
+      bankAccounts: (body['bankAccounts'] as unknown[] | undefined) ?? [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -3472,16 +3535,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(created)
   }
 
-  // PUT /accounting/supplier-profiles/{id} → echo 수정
+  // PUT /accounting/supplier-profiles/{id} → echo 수정 (bankAccounts replace-all)
+  // ※ stamp/mark-primary 경로보다 아래에 위치 (정규식 중복 방지)
   const supplierPutMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
   if (method === 'PUT' && supplierPutMatch) {
-    const body = parseMockBody(config)
+    const body = parseMockBody(config) as Record<string, unknown>
     const updatedId = supplierPutMatch[1]!
     const idx = mockSupplierProfileList.findIndex((p) => p['id'] === updatedId)
-    const updated = {
-      ...(idx >= 0 ? mockSupplierProfileList[idx] : MOCK_SUPPLIER_PRIMARY),
+    const base = idx >= 0 ? (mockSupplierProfileList[idx] as Record<string, unknown>) : (MOCK_SUPPLIER_PRIMARY as unknown as Record<string, unknown>)
+    const updated: Record<string, unknown> = {
+      ...base,
       ...body,
       id: updatedId,
+      bankAccounts: (body['bankAccounts'] as unknown[] | undefined) ?? base['bankAccounts'] ?? [],
       updatedAt: new Date().toISOString(),
     }
     if (idx >= 0) mockSupplierProfileList[idx] = updated
@@ -3496,7 +3562,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     mockSupplierProfileList.forEach((p) => {
       const isTarget = p['id'] === targetId
       p['isPrimary'] = isTarget
-      if (isTarget) target = p
+      if (isTarget) target = p as Record<string, unknown>
     })
     return envelope(target ?? { ...MOCK_SUPPLIER_PRIMARY, isPrimary: true, id: targetId })
   }

@@ -19,9 +19,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@samhan/design-system'
 import {
   PrintLayout,
-  COMPANY,
   krw,
 } from '../../../print/PrintLayout'
+import { useCompanyProfile } from '../../../print/useCompanyProfile'
 import {
   getPartnerAging,
   type PartnerAgingResponse,
@@ -193,6 +193,7 @@ interface BodyProps {
 
 /** 거래처별 미수/미지급 인쇄 본문. */
 function PartnerAgingPrintBody({ data }: BodyProps) {
+  const { company } = useCompanyProfile()
   const typeLabel = data.type === 'RECEIVABLE' ? '미수금' : '미지급금'
   const lines = sortedLines(data.lines)
 
@@ -200,9 +201,9 @@ function PartnerAgingPrintBody({ data }: BodyProps) {
     <div style={{ fontFamily: 'var(--font-family-sans)', color: 'var(--color-neutral-900)' }}>
       {/* 헤더 */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{COMPANY.legalName}</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{company.legalName}</div>
         <div style={{ fontSize: 'var(--print-text-sm)', color: 'var(--color-neutral-500)', marginTop: 2 }}>
-          사업자등록번호: {COMPANY.businessRegNo}
+          사업자등록번호: {company.businessRegNo}
         </div>
         <div style={{ fontSize: 'var(--print-text-lg)', fontWeight: 700, marginTop: 8, letterSpacing: '0.2em' }}>
           거 래 처 별 {typeLabel} 잔 액

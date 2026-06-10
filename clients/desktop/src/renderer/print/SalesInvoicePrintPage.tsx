@@ -25,12 +25,12 @@ import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   PrintLayout,
-  COMPANY,
   krw,
   krDate,
   calcAmounts,
 } from './PrintLayout'
 import { nowPrintedAt, fmtDatetime } from './printUtils'
+import { useCompanyProfile } from './useCompanyProfile'
 
 export function SalesInvoicePrintPage() {
   const params = useParams<{ id: string }>()
@@ -46,6 +46,8 @@ export function SalesInvoicePrintPage() {
     queryKey: ['warehouses'],
     queryFn: listWarehouses,
   })
+
+  const { company } = useCompanyProfile()
 
   usePageTitle('세금계산서', detailQuery.data?.slipNo)
 
@@ -83,10 +85,10 @@ export function SalesInvoicePrintPage() {
           <div className="sales-print-header-left">
             <img
               className="sales-print-logo"
-              src={COMPANY.logoPath}
-              alt={COMPANY.legalName}
+              src={company.logoPath}
+              alt={company.legalName}
             />
-            <span className="sales-print-company-name">{COMPANY.legalName}</span>
+            <span className="sales-print-company-name">{company.legalName}</span>
           </div>
           <div className="sales-print-header-center">
             <h1 className="sales-print-title">세 금 계 산 서</h1>
@@ -110,30 +112,30 @@ export function SalesInvoicePrintPage() {
 
         {/* 공급자 / 공급받는자 정보 박스 — 2열 */}
         <section className="sales-invoice-parties">
-          {/* 공급자 (발행자) — COMPANY 상수 */}
+          {/* 공급자 (발행자) — useCompanyProfile 훅 */}
           <div className="sales-invoice-party-box">
             <div className="sales-invoice-party-title">공급자 (발행자)</div>
             <dl className="sales-invoice-party-dl">
               <div className="sales-invoice-party-row">
                 <dt className="sales-invoice-party-label">상호</dt>
-                <dd className="sales-invoice-party-value strong">{COMPANY.legalName}</dd>
+                <dd className="sales-invoice-party-value strong">{company.legalName}</dd>
               </div>
               <div className="sales-invoice-party-row">
                 <dt className="sales-invoice-party-label">사업자번호</dt>
-                <dd className="sales-invoice-party-value">{COMPANY.businessRegNo}</dd>
+                <dd className="sales-invoice-party-value">{company.businessRegNo}</dd>
               </div>
               <div className="sales-invoice-party-row">
                 <dt className="sales-invoice-party-label">대표자</dt>
-                <dd className="sales-invoice-party-value">{COMPANY.ceo}</dd>
+                <dd className="sales-invoice-party-value">{company.ceo}</dd>
               </div>
               <div className="sales-invoice-party-row">
                 <dt className="sales-invoice-party-label">주소</dt>
-                <dd className="sales-invoice-party-value">{COMPANY.address}</dd>
+                <dd className="sales-invoice-party-value">{company.address}</dd>
               </div>
               <div className="sales-invoice-party-row">
                 <dt className="sales-invoice-party-label">업태/종목</dt>
                 <dd className="sales-invoice-party-value">
-                  {COMPANY.businessType} / {COMPANY.businessItem}
+                  {company.businessType} / {company.businessItem}
                 </dd>
               </div>
             </dl>

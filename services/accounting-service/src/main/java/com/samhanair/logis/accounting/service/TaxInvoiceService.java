@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.config.CompanyProperties;
+import com.samhanair.logis.accounting.domain.SupplierProfile;
+import com.samhanair.logis.accounting.repository.SupplierProfileRepository;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
@@ -75,6 +77,7 @@ public class TaxInvoiceService {
     private final TaxInvoiceNumberService taxInvoiceNumberService;
     private final JournalService journalService;
     private final CompanyProperties companyProperties;
+    private final SupplierProfileRepository supplierProfileRepository;
 
     /**
      * shared:realtime-abstraction audit recorder — PR-H4b. AccountingAuditLogService 가 본
@@ -347,13 +350,40 @@ public class TaxInvoiceService {
                 ))
                 .toList();
 
+        // 공급자 정보: primary SupplierProfile 우선, 부재 시 CompanyProperties fallback
+        // (spec §1d — TaxInvoicePrintResponse 계약 불변)
+        java.util.Optional<SupplierProfile> primaryOpt =
+                supplierProfileRepository.findByIsPrimaryTrueAndIsDeletedFalse();
+        String supplierName;
+        String supplierBusinessNo;
+        String supplierCeo;
+        String supplierAddress;
+        String supplierBusinessType;
+        String supplierBusinessItem;
+        if (primaryOpt.isPresent()) {
+            SupplierProfile sp = primaryOpt.get();
+            supplierName = sp.getCompanyName();
+            supplierBusinessNo = sp.getBusinessNumber();
+            supplierCeo = sp.getRepresentativeName();
+            supplierAddress = sp.getBusinessAddress();
+            supplierBusinessType = sp.getBusinessType();
+            supplierBusinessItem = sp.getBusinessItem();
+        } else {
+            supplierName = companyProperties.getName();
+            supplierBusinessNo = companyProperties.getBusinessNumber();
+            supplierCeo = companyProperties.getCeo();
+            supplierAddress = companyProperties.getAddress();
+            supplierBusinessType = companyProperties.getBusinessType();
+            supplierBusinessItem = companyProperties.getBusinessItem();
+        }
+
         return new TaxInvoicePrintResponse(
-                companyProperties.getName(),
-                companyProperties.getBusinessNumber(),
-                companyProperties.getCeo(),
-                companyProperties.getAddress(),
-                companyProperties.getBusinessType(),
-                companyProperties.getBusinessItem(),
+                supplierName,
+                supplierBusinessNo,
+                supplierCeo,
+                supplierAddress,
+                supplierBusinessType,
+                supplierBusinessItem,
                 ti.getPartnerName(),
                 ti.getPartnerBusinessNo(),
                 ti.getPartnerAddress(),

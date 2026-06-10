@@ -25,7 +25,8 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, COMPANY, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
+import { PrintLayout, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 
 export function OutboundView() {
   const params = useParams<{ id: string }>()
@@ -54,6 +55,8 @@ export function OutboundView() {
     )
   }
 
+  const { company } = useCompanyProfile()
+
   const slip: SlipDetail = detailQuery.data
   const totalSupply = slip.lines.reduce((sum, l) => sum + Number(l.lineTotal), 0)
   const totalQty = slip.lines.reduce((sum, l) => sum + l.quantity, 0)
@@ -72,7 +75,7 @@ export function OutboundView() {
     >
       <div className={`outbound-page outbound-${variant}`} data-testid="outbound-print-area">
         <header className="outbound-header">
-          <div className="outbound-company">{COMPANY.legalName}</div>
+          <div className="outbound-company">{company.legalName}</div>
           <h1 className="outbound-title">출 고 전 표</h1>
           <div className="outbound-meta-row">
             <span>전표번호: <strong>{slip.slipNo}</strong></span>
@@ -187,7 +190,7 @@ export function OutboundView() {
             </div>
           </div>
           <p className="outbound-issuer-note">
-            발행: {COMPANY.legalName} / TEL {COMPANY.tel}
+            발행: {company.legalName} / TEL {company.tel}
           </p>
         </footer>
       </div>
