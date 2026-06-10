@@ -66,6 +66,18 @@ export interface SlipLineDetail {
   supplyAmount?: string | null
   /** 부가세(라인 단위). nullable(legacy). */
   vatAmount?: string | null
+  /**
+   * 세트 전개 첫 구성품 여부 — PR-3 V34 / PR #461.
+   * BUNDLE 세트가 전개 저장될 때 첫 번째 구성품 라인 = true, 나머지 = false.
+   * 일반 단품 라인 = false (기본값).
+   */
+  setHead?: boolean
+  /**
+   * 세트 구성품의 부모 세트 modelCode — PR-3 V34 / PR #461.
+   * 해당 라인이 세트 전개 구성품인 경우 부모 세트의 modelCode 값.
+   * 일반 단품 라인 = null.
+   */
+  parentSetModel?: string | null
 }
 
 /**

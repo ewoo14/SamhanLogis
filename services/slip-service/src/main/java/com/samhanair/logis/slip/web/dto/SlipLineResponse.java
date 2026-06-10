@@ -6,7 +6,17 @@ import java.util.UUID;
 
 /**
  * 라인 응답 — id, product 정보, 규격, 수량, 단가, lineTotal, note.
- * Slice A (sales-polish-2): {@code specification} 필드 신규 응답 (사용자 피드백 #4).
+ *
+ * <p>Slice A (sales-polish-2): {@code specification} 필드 신규 응답 (사용자 피드백 #4).
+ *
+ * <p>PR-3 세트 전개 식별 필드 (PR #461 갱신):
+ * <ul>
+ *   <li>{@code setHead} — 세트 전개 첫 구성품 여부. 일반 라인/비전개 구성품 = false.</li>
+ *   <li>{@code parentSetModel} — 세트 구성품일 때 부모 세트 modelCode. 일반 라인 = null.</li>
+ * </ul>
+ * FE SlipDetailPage 가 구성품 그룹을 시각 표시하거나 재고조회 제외 여부를 판단할 때 사용한다.
+ * BUNDLE 부모 라인은 전개 저장이므로 전표 라인 목록에 존재하지 않는다 — 구성품 라인이
+ * 재고조회 대상인 경우 단품 기준 조회가 올바른 동작.
  */
 public record SlipLineResponse(
         UUID id,
@@ -23,8 +33,24 @@ public record SlipLineResponse(
         /** 공급가액(라인 단위, VAT 미포함). nullable(legacy). */
         BigDecimal supplyAmount,
         /** 부가세(라인 단위). nullable(legacy). */
-        BigDecimal vatAmount) {
+        BigDecimal vatAmount,
+        /**
+         * 세트 전개 첫 구성품 여부 — PR-3 V34 신규 (PR #461 갱신).
+         * 세트 전개된 첫 번째 구성품 라인 = true. 일반 단품 라인 = false.
+         */
+        boolean setHead,
+        /**
+         * 세트 구성품의 부모 세트 modelCode — PR-3 V34 신규 (PR #461 갱신).
+         * 세트 구성품 라인인 경우 부모 세트의 modelCode. 일반 단품 라인 = null.
+         */
+        String parentSetModel) {
 
+    /**
+     * {@link SlipLine} 도메인 객체에서 응답 DTO 로 변환한다.
+     *
+     * @param line 전표 라인 엔티티
+     * @return 라인 응답 DTO (setHead / parentSetModel 포함)
+     */
     public static SlipLineResponse from(SlipLine line) {
         return new SlipLineResponse(
                 line.getId(),
@@ -38,6 +64,8 @@ public record SlipLineResponse(
                 line.getNote(),
                 line.getUnitPriceWithVat(),
                 line.getSupplyAmount(),
-                line.getVatAmount());
+                line.getVatAmount(),
+                line.isSetHead(),
+                line.getParentSetModel());
     }
 }
