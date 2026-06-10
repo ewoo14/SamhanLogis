@@ -12,6 +12,7 @@ import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.BundleComponentRequest;
 import com.samhanair.logis.product.web.dto.BundleComponentResponse;
 import com.samhanair.logis.product.web.dto.DisplayOrderRequest;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,13 +63,16 @@ public class BundleComponentService {
     private final ProductRepository productRepository;
     private final BundleComponentRepository bundleComponentRepository;
     private final ProductRealtimeBroker broker;
+    private final EntityManager entityManager;
 
     public BundleComponentService(ProductRepository productRepository,
                                   BundleComponentRepository bundleComponentRepository,
-                                  ProductRealtimeBroker broker) {
+                                  ProductRealtimeBroker broker,
+                                  EntityManager entityManager) {
         this.productRepository = productRepository;
         this.bundleComponentRepository = bundleComponentRepository;
         this.broker = broker;
+        this.entityManager = entityManager;
     }
 
     // ============================================================
@@ -196,10 +200,15 @@ public class BundleComponentService {
             bc.markDeleted("bundle-component-replace-all");
             bundleComponentRepository.save(bc);
         }
+        // P1-D: soft-delete UPDATE 를 INSERT 보다 먼저 flush — 부분 유니크 인덱스(is_deleted=false) 위반 방지.
+        // Hibernate 는 기본적으로 세션 flush 순서를 INSERT→UPDATE 로 처리하여 동일 코드 재INSERT 시
+        // (bundle_product_id, component_product_code, is_deleted=false) 중복으로 500 을 유발한다.
+        entityManager.flush();
 
-        // 신규 구성품 INSERT
+        // 신규 구성품 INSERT (배열 인덱스 = display_order 1-based)
         List<BundleComponent> saved = new ArrayList<>(requests.size());
-        for (BundleComponentRequest req : requests) {
+        for (int idx = 0; idx < requests.size(); idx++) {
+            BundleComponentRequest req = requests.get(idx);
             BundleComponent.QtyMode qtyMode = req.qtyMode() != null
                     ? req.qtyMode() : BundleComponent.QtyMode.FOLLOW_SET;
             BundleComponent.ComponentKind kind = req.componentKind() != null
@@ -214,6 +223,7 @@ public class BundleComponentService {
                     req.isDefault(),
                     blankToNull(req.specText())
             );
+            bc.changeDisplayOrder(idx + 1); // 1-based 표시 순서 기록 (P2-4)
             saved.add(bundleComponentRepository.save(bc));
         }
 

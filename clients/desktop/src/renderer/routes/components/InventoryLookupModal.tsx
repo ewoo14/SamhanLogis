@@ -57,9 +57,21 @@ interface Props {
    * true 시 재고 조회 대신 안내 메시지를 표시한다.
    */
   bundleOnlyLines?: boolean
+  /**
+   * 혼합 선택 시 제외된 세트 품목 수 (P2-3).
+   * 0 또는 undefined 이면 캡션 미표시.
+   * bundleOnlyLines=true 시에는 캡션 대신 전용 안내가 표시되므로 무시.
+   */
+  excludedBundleCount?: number
 }
 
-export function InventoryLookupModal({ open, onClose, lines, bundleOnlyLines = false }: Props) {
+export function InventoryLookupModal({
+  open,
+  onClose,
+  lines,
+  bundleOnlyLines = false,
+  excludedBundleCount = 0,
+}: Props) {
   /** 0수량 창고도 표시 여부 (기본 OFF). 모달 재오픈 시 초기화 (P1-2). */
   const [showZero, setShowZero] = useState(false)
 
@@ -163,6 +175,24 @@ export function InventoryLookupModal({ open, onClose, lines, bundleOnlyLines = f
         data-testid="inventory-lookup-modal"
         style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
       >
+        {/* 혼합 선택 안내 — 세트+단품 혼합 시 제외된 세트 건수 표시 (P2-3) */}
+        {!bundleOnlyLines && excludedBundleCount > 0 && (
+          <div
+            role="status"
+            data-testid="inventory-lookup-mixed-bundle-notice"
+            style={{
+              padding: '6px 12px',
+              borderRadius: 4,
+              background: 'var(--color-neutral-50, #F7F8FA)',
+              border: '1px solid var(--color-border, #E5E7EB)',
+              fontSize: 12,
+              color: 'var(--ink-secondary, #5C6773)',
+            }}
+          >
+            세트 {excludedBundleCount}건은 제외됨 (구성품 단위로 조회됩니다)
+          </div>
+        )}
+
         {/* 세트 전용 안내 — BUNDLE 품목만 선택된 경우 (§2-2 세트 재고 가드) */}
         {bundleOnlyLines && (
           <div

@@ -135,10 +135,57 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
   })
 
   // ---------------------------------------------------------------------------
-  // Scenario 4: 구성품 모달 왕복 — 추가·수량·저장
+  // Scenario 4: 구성품 모달 왕복 — 추가·수량·저장 (명시 단언 강화 — P2 vacuous pass 수정)
   // ---------------------------------------------------------------------------
 
-  test('시나리오 4: 구성품 모달 왕복 — 구성품 추가·수량 변경·저장', async ({ page }) => {
+  test('시나리오 4: 구성품 모달 왕복 — 구성품 추가·수량 변경·저장·componentCount 갱신', async ({ page }) => {
+    await installAuth(page)
+    await gotoProductCatalog(page, 'MASTER')
+    await loadTable(page)
+
+    // 1. 구성품 버튼 존재 단언
+    const componentsBtn = page.getByTestId('product-catalog-components-button-SET-HM2WAY')
+    await expect(componentsBtn).toBeVisible({ timeout: 5_000 })
+
+    // 2. 모달 열기
+    await componentsBtn.click()
+    const modal = page.getByTestId('components-modal')
+    await expect(modal).toBeVisible({ timeout: 5_000 })
+
+    // 3. 기존 구성품 row-0 존재 단언 (mock 시드 3개)
+    const firstRow = page.getByTestId('components-modal-component-row-0')
+    await expect(firstRow).toBeVisible({ timeout: 5_000 })
+
+    // 4. 첫 번째 구성품 모델코드 텍스트 단언 (BE 필드명 componentProductCode 기반 — P1-A 검증)
+    const firstRowText = await firstRow.textContent()
+    expect(firstRowText).toContain('AJ040RXH4BC1')
+
+    // 5. 수량 변경 (3으로)
+    const quantityInput = page.getByTestId('components-modal-quantity-0')
+    await expect(quantityInput).toBeVisible()
+    await quantityInput.fill('3')
+
+    // 6. 저장 버튼 클릭
+    const saveBtn = page.getByTestId('components-modal-save-button')
+    await expect(saveBtn).toBeVisible()
+    await saveBtn.click()
+
+    // 7. 모달 닫힘 단언
+    await expect(modal).not.toBeVisible({ timeout: 5_000 })
+
+    // 8. 세트 뱃지 여전히 표시 단언 (componentCount 갱신)
+    const setBadge = page.getByTestId('product-catalog-set-badge-SET-HM2WAY')
+    await expect(setBadge).toBeVisible({ timeout: 5_000 })
+    const badgeText = await setBadge.textContent()
+    // 저장 후 componentCount = 3 (수량 변경만, 행 개수 유지)
+    expect(badgeText).toMatch(/세트\s*·\s*3/)
+  })
+
+  // ---------------------------------------------------------------------------
+  // Scenario 4b: 구성품 모달 — 새 품목 추가 실제 수행 (P2 vacuous pass 수정)
+  // ---------------------------------------------------------------------------
+
+  test('시나리오 4b: 구성품 모달 — 품목 검색 후 추가 실제 수행·행 개수 증가 단언', async ({ page }) => {
     await installAuth(page)
     await gotoProductCatalog(page, 'MASTER')
     await loadTable(page)
@@ -150,21 +197,27 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
     const modal = page.getByTestId('components-modal')
     await expect(modal).toBeVisible({ timeout: 5_000 })
 
-    const firstRow = page.getByTestId('components-modal-component-row-0')
-    await expect(firstRow).toBeVisible({ timeout: 5_000 })
+    // 기존 행 수 확인 (mock 시드 3개)
+    const rowsBefore = modal.locator('[data-testid^="components-modal-component-row-"]')
+    const countBefore = await rowsBefore.count()
+    expect(countBefore).toBeGreaterThan(0)
 
-    const quantityInput = page.getByTestId('components-modal-quantity-0')
-    await expect(quantityInput).toBeVisible()
-    await quantityInput.fill('3')
+    // 품목 검색 — AJ052RXH5BC1 (mock 에 존재하는 단품)
+    const searchInput = page.getByTestId('components-modal-search-input')
+    await searchInput.fill('AJ052')
+    // 검색 결과 대기
+    const addBtn = page.getByTestId('components-modal-add-AJ052RXH5BC1')
+    await expect(addBtn).toBeVisible({ timeout: 5_000 })
+    await addBtn.click()
 
+    // 행 수 증가 단언
+    const rowsAfter = modal.locator('[data-testid^="components-modal-component-row-"]')
+    await expect(rowsAfter).toHaveCount(countBefore + 1, { timeout: 3_000 })
+
+    // 저장 후 모달 닫힘
     const saveBtn = page.getByTestId('components-modal-save-button')
-    await expect(saveBtn).toBeVisible()
     await saveBtn.click()
-
     await expect(modal).not.toBeVisible({ timeout: 5_000 })
-
-    const setBadge = page.getByTestId('product-catalog-set-badge-SET-HM2WAY')
-    await expect(setBadge).toBeVisible({ timeout: 5_000 })
   })
 
   // ---------------------------------------------------------------------------
@@ -206,22 +259,43 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
   // Scenario 6: view-only 권한 — 체크박스·구성품 버튼 비활성
   // ---------------------------------------------------------------------------
 
-  test('시나리오 6: view-only 권한(WAREHOUSE) — 토글·구성품 버튼 비활성', async ({ page }) => {
+  test('시나리오 6: view-only 권한(WAREHOUSE) — 토글·구성품 버튼 비활성 (명시 단언 강화)', async ({ page }) => {
     await installAuth(page)
     await gotoProductCatalog(page, 'WAREHOUSE')
     await loadTable(page)
 
+    // 조회 전용 배너 노출 단언
     const banner = page.getByTestId('product-catalog-readonly-banner')
     await expect(banner).toBeVisible()
+    const bannerText = await banner.textContent()
+    expect(bannerText).toContain('조회 전용')
 
     const table = page.getByTestId('product-catalog-table')
+
+    // 견적 노출 체크박스 비활성 단언
     const firstEstimateToggle = table.locator('[data-testid^="product-catalog-estimate-toggle-"]').first()
     await expect(firstEstimateToggle).toBeVisible()
     await expect(firstEstimateToggle).toBeDisabled()
 
+    // 주문 노출 체크박스 비활성 단언
     const firstOrderToggle = table.locator('[data-testid^="product-catalog-order-toggle-"]').first()
     await expect(firstOrderToggle).toBeVisible()
     await expect(firstOrderToggle).toBeDisabled()
+
+    // 구성품 버튼: view-only 에서도 조회용으로 노출 (설계 의도 — canEdit=false 시 저장버튼 없음)
+    // 구성품 버튼이 있으면 클릭 후 모달 저장 버튼이 없음을 단언, 없으면 pass
+    const componentsButtons = page.locator('[data-testid^="product-catalog-components-button-"]')
+    const btnCount = await componentsButtons.count()
+    if (btnCount > 0) {
+      await componentsButtons.first().click()
+      const modal = page.getByTestId('components-modal')
+      await expect(modal).toBeVisible({ timeout: 5_000 })
+      const saveBtn = page.getByTestId('components-modal-save-button')
+      expect(await saveBtn.count()).toBe(0)
+      // 모달 닫기
+      await page.keyboard.press('Escape')
+      await expect(modal).not.toBeVisible({ timeout: 3_000 })
+    }
 
     // 카테고리 미선택 드래그 비활성 캡션은 view-only 에서도 없음 (canEdit=false)
     const caption = page.getByTestId('product-catalog-drag-disabled-caption')
@@ -232,30 +306,47 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
   // Scenario 7: §2-1 NONE 품목 — displayOrder '—' 표시 + 드래그 핸들 없음
   // ---------------------------------------------------------------------------
 
-  test('시나리오 7: §2-1 NONE 품목 — displayOrder \'—\' + 카테고리 선택 후 핸들 없음', async ({ page }) => {
+  test('시나리오 7: §2-1 NONE 품목 — displayOrder \'—\' + 드래그 핸들 없음 (명시 단언 강화)', async ({ page }) => {
     await installAuth(page)
     await gotoProductCatalog(page, 'MASTER')
     await loadTable(page)
 
-    // MOCK-NONE-ITEM 이 목록에 표시되는지 확인
-    const noneRow = page.getByTestId('product-catalog-row-MOCK-NONE-ITEM')
-    if (await noneRow.count() === 0) {
-      // 검색으로 찾기
-      const searchInput = page.getByTestId('product-catalog-search-input')
-      await searchInput.fill('MOCK-NONE-ITEM')
-      await page.getByTestId('product-catalog-query-button').click()
-      await page.waitForTimeout(500)
-    }
+    // MOCK-NONE-ITEM 검색으로 확실히 로드
+    const searchInput = page.getByTestId('product-catalog-search-input')
+    await searchInput.fill('MOCK-NONE-ITEM')
+    await page.getByTestId('product-catalog-query-button').click()
+    // 검색 결과 반영 대기 — mock 환경에서 쿼리 재실행 후 DOM 업데이트 대기
+    await page.waitForTimeout(1000)
 
-    const noneRowFound = page.getByTestId('product-catalog-row-MOCK-NONE-ITEM')
-    if (await noneRowFound.count() > 0) {
-      // 행이 표시되면 displayOrder 셀이 '—' 인지 확인
-      const displayOrderCell = noneRowFound.locator('td').nth(
-        // drag 컬럼이 있는 경우 +1, 없으면 기본 (노출되는 컬럼 순서)
-        6,
-      )
-      const cellText = await displayOrderCell.textContent()
-      expect(cellText?.trim()).toBe('—')
-    }
+    // 검색 결과 table 에서 MOCK-NONE-ITEM 텍스트가 있는 행 찾기
+    // 드래그 비활성(DataTable) 시 product-catalog-row-{modelCode} testid 없음 — 텍스트 기반 탐색
+    const tableSection = page.getByTestId('product-catalog-table')
+    await expect(tableSection).toBeVisible({ timeout: 8_000 })
+
+    // MOCK-NONE-ITEM 모델명 텍스트가 테이블에 있어야 함 (mock 시드에 포함)
+    const noneItemCell = tableSection.locator('td', { hasText: 'MOCK-NONE-ITEM' }).first()
+    await expect(noneItemCell).toBeVisible({ timeout: 8_000 })
+
+    // 해당 행의 표시순서 셀(마지막 td) = '—' 단언
+    const noneItemRow = noneItemCell.locator('..') // tr
+    const tds = noneItemRow.locator('td')
+    const tdCount = await tds.count()
+    const lastCell = tds.nth(tdCount - 1)
+    const cellText = await lastCell.textContent()
+    expect(cellText?.trim()).toBe('—')
+
+    // 카테고리 선택 + 검색 초기화 → 조회 → 드래그 활성 상태 확인
+    await searchInput.fill('')
+    await page.getByTestId('product-catalog-query-button').click()
+    await page.waitForTimeout(500)
+
+    const categorySelect = page.getByTestId('product-catalog-category-select')
+    await categorySelect.selectOption('HOME_MULTI')
+    await page.waitForTimeout(500)
+
+    // HOME_MULTI 카테고리 + 드래그 활성 → SortableRow 에서 일반 행에 drag aria-label 존재 확인
+    const dragHandles = page.locator('[aria-label*="드래그"]')
+    // 최소 1개 이상의 드래그 핸들이 있어야 함 (노출 품목 존재)
+    await expect(dragHandles.first()).toBeVisible({ timeout: 8_000 })
   })
 })

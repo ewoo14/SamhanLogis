@@ -74,6 +74,14 @@ public class BundleComponent extends BaseEntity {
     @Column(name = "spec_text", length = 255)
     private String specText;
 
+    /**
+     * 표시 순서 (§2-4 2026-06-11). NULL 허용 — 기존 행 backfill 미완 시 ORDER BY NULLS LAST 처리.
+     * replace-all 저장 시 배열 인덱스(0-based + 1 = 1-based) 를 기록한다.
+     * 시트 sync 적재 시에는 설정하지 않는다 (NULL = sync 미설정 행).
+     */
+    @Column(name = "display_order")
+    private Integer displayOrder;
+
     private BundleComponent(UUID bundleProductId, String componentProductCode,
                             BigDecimal defaultQty, QtyMode qtyMode, ComponentKind componentKind,
                             String componentVariant, boolean isDefault, String specText) {
@@ -99,6 +107,15 @@ public class BundleComponent extends BaseEntity {
                 qtyMode == null ? QtyMode.FIXED : qtyMode,
                 componentKind == null ? ComponentKind.ACCESSORY : componentKind,
                 componentVariant, isDefault, specText);
+    }
+
+    /**
+     * 표시 순서 갱신 — replace-all 저장 시 배열 인덱스(1-based) 를 주입.
+     *
+     * @param displayOrder 1-based 표시 순서
+     */
+    public void changeDisplayOrder(int displayOrder) {
+        this.displayOrder = displayOrder;
     }
 
     /**

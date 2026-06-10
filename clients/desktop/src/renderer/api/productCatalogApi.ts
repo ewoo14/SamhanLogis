@@ -66,28 +66,68 @@ export interface ProductCatalogRow {
 }
 
 /**
+ * 수량 모드 — BE BundleComponent.QtyMode enum 과 정확히 일치.
+ * FIXED: 고정 수량, FOLLOW_SET: 세트 수량에 비례.
+ */
+export type QtyMode = 'FIXED' | 'FOLLOW_SET'
+
+/**
+ * 구성 분류 — BE BundleComponent.ComponentKind enum 과 정확히 일치.
+ */
+export type ComponentKind =
+  | 'INDOOR'
+  | 'OUTDOOR'
+  | 'PANEL'
+  | 'REMOTE'
+  | 'MATERIAL'
+  | 'ACCESSORY'
+  | 'FOOT'
+
+/**
  * 구성품 항목 — `GET /api/v1/products/{modelCode}/components` 응답 DTO.
- * BundleComponent 엔티티 실 필드 기반.
+ * BE BundleComponentResponse record 1:1 대응 (§1c 2026-06-11).
  */
 export interface BundleComponentItem {
-  /** 구성 품목 모델코드 */
-  componentModelCode: string
-  /** 구성 품목명 (BE 선택적 포함) */
-  name?: string
-  /** 수량 */
-  quantity: number
-  /** 표시 순서 */
+  /** 구성 품목 모델코드 (식별자 — UUID 아님) */
+  componentProductCode: string
+  /** 구성 품목명 (Product.name join; 없으면 componentProductCode) */
+  componentName: string
+  /** 기본 수량 */
+  defaultQty: number
+  /** 수량 모드 */
+  qtyMode: QtyMode
+  /** 구성 분류 */
+  componentKind: ComponentKind
+  /** 구성품 특징 (기본/사각/WIFI 등; null 가능) */
+  componentVariant: string | null
+  /** 기본 옵션 여부 */
+  isDefault: boolean
+  /** 규격 (null 가능) */
+  specText: string | null
+  /** 표시 순서 (PUT 시 배열 인덱스 기준 부여) */
   displayOrder: number
 }
 
 /**
  * `PUT /api/v1/products/{modelCode}/components` 요청 body 항목.
- * index = 순서 (displayOrder 는 BE 에서 자동 계산하나 명시 전달).
+ * BE BundleComponentRequest record 1:1 대응 (§1c 2026-06-11).
+ * 배열 인덱스가 표시 순서(0-based)가 된다.
  */
 export interface BundleComponentInput {
-  componentModelCode: string
-  quantity: number
-  displayOrder: number
+  /** 구성 품목 모델코드 */
+  componentProductCode: string
+  /** 기본 수량 (양수 필수) */
+  defaultQty: number
+  /** 수량 모드 (null → BE 기본 FOLLOW_SET) */
+  qtyMode?: QtyMode | null
+  /** 구성 분류 (null → BE 기본 ACCESSORY) */
+  componentKind?: ComponentKind | null
+  /** 구성품 특징 */
+  componentVariant?: string | null
+  /** 기본 옵션 여부 */
+  isDefault?: boolean
+  /** 규격 */
+  specText?: string | null
 }
 
 /**
@@ -182,7 +222,8 @@ export async function clearProductUsage(modelCode: string): Promise<void> {
 /**
  * 구성품 목록 조회 — `GET /api/v1/products/{modelCode}/components`.
  *
- * BUNDLE 품목 전용. 권한: products.list VIEW.
+ * BUNDLE 품목 전용. 비-BUNDLE 에 대해서는 BE 가 200 빈배열 반환.
+ * 권한: products.list VIEW.
  *
  * @param modelCode BUNDLE 품목코드
  */
@@ -199,10 +240,11 @@ export async function listBundleComponents(
  * 구성품 replace-all 저장 — `PUT /api/v1/products/{modelCode}/components`.
  *
  * 현재 구성품을 전량 교체. 빈 배열/비-BUNDLE/미해소 모델코드 시 BE 오류.
+ * 배열 인덱스가 displayOrder(0-based) 역할을 한다 (별도 displayOrder 필드 불필요).
  * 권한: products.admin UPDATE.
  *
  * @param modelCode BUNDLE 품목코드
- * @param components 교체할 구성품 목록 (index=순서)
+ * @param components 교체할 구성품 목록 (배열 순서 = displayOrder)
  */
 export async function updateBundleComponents(
   modelCode: string,

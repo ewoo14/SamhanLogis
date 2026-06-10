@@ -5,6 +5,7 @@ import static com.samhanair.logis.product.service.BundleComponentService.EVENT_C
 import static com.samhanair.logis.product.service.ProductService.escapeLikeWildcards;
 
 import com.samhanair.logis.product.domain.EstimateCategory;
+import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.SpecKeyTemplate;
@@ -48,6 +49,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -88,6 +90,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1")
+@Validated
 public class ProductCatalogController {
 
     private static final String CALLER_HEADER = "X-User-Id";
@@ -146,38 +149,38 @@ public class ProductCatalogController {
         // LIKE 와일드카드(\, %, _) 이스케이프 후 바인딩 (사이클2 지적 P3-4, 2026-06-11)
         String qNormalized = (q == null || q.isBlank()) ? null : escapeLikeWildcards(q.trim());
 
-        Page<ProductCatalogResponse> rawPage = productRepository
-                .searchByUsageScope(usageScopeName, estimateCategoryName, qNormalized, pageable)
-                .map(ProductCatalogResponse::from);
+        // P2-2 N+1 방지: searchByUsageScope 가 반환한 Page<Product> 를 직접 사용.
+        // 기존 코드는 page.getContent() 의 각 BUNDLE 행마다 findByCatalogExposedModelCodeAndIsDeletedFalse 를
+        // 2회 호출하여 N+1 을 유발했다. 여기서는 Product 엔티티(id 포함)를 이미 보유하므로
+        // 재조회 없이 UUID 집합을 수집 → 벌크 count 1쿼리로 대체한다.
+        Page<Product> productPage = productRepository
+                .searchByUsageScope(usageScopeName, estimateCategoryName, qNormalized, pageable);
+        List<Product> products = productPage.getContent();
 
-        // §1b — BUNDLE 품목의 componentCount 벌크 채우기 (N+1 방지)
-        List<ProductCatalogResponse> content = rawPage.getContent();
-        Set<UUID> bundleIds = content.stream()
-                .filter(r -> r.productType() == ProductType.BUNDLE)
-                .map(r -> productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(r.modelCode()))
-                .filter(java.util.Optional::isPresent)
-                .map(opt -> opt.get().getId())
+        // BUNDLE UUID 집합 → 벌크 count 1쿼리 (재조회 없음)
+        Set<UUID> bundleIds = products.stream()
+                .filter(p -> p.getProductType() == ProductType.BUNDLE)
+                .map(Product::getId)
                 .collect(Collectors.toSet());
 
-        if (!bundleIds.isEmpty()) {
-            Map<UUID, Long> countMap = bundleComponentRepository.countMapByBundleProductIds(bundleIds);
-            // Page 의 content 는 불변 → map 변환
-            List<ProductCatalogResponse> enriched = content.stream()
-                    .map(r -> {
-                        if (r.productType() != ProductType.BUNDLE) {
-                            return r;
-                        }
-                        return productRepository
-                                .findByCatalogExposedModelCodeAndIsDeletedFalse(r.modelCode())
-                                .map(p -> r.withComponentCount(
-                                        countMap.getOrDefault(p.getId(), 0L).intValue()))
-                                .orElse(r);
-                    })
-                    .toList();
-            return new org.springframework.data.domain.PageImpl<>(enriched, rawPage.getPageable(),
-                    rawPage.getTotalElements());
-        }
-        return rawPage;
+        Map<UUID, Long> countMap = bundleIds.isEmpty()
+                ? Map.of()
+                : bundleComponentRepository.countMapByBundleProductIds(bundleIds);
+
+        // DTO 변환 + componentCount 주입
+        List<ProductCatalogResponse> enriched = products.stream()
+                .map(p -> {
+                    ProductCatalogResponse r = ProductCatalogResponse.from(p);
+                    if (p.getProductType() != ProductType.BUNDLE) {
+                        return r;
+                    }
+                    long cnt = countMap.getOrDefault(p.getId(), 0L);
+                    return r.withComponentCount((int) cnt);
+                })
+                .toList();
+
+        return new org.springframework.data.domain.PageImpl<>(enriched,
+                productPage.getPageable(), productPage.getTotalElements());
     }
 
     /**
@@ -335,7 +338,7 @@ public class ProductCatalogController {
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public List<BundleComponentResponse> replaceComponents(
             @PathVariable @NotBlank String modelCode,
-            @RequestBody List<BundleComponentRequest> items) {
+            @Valid @RequestBody List<BundleComponentRequest> items) {
         return bundleComponentService.replaceComponents(modelCode, items);
     }
 
@@ -356,7 +359,7 @@ public class ProductCatalogController {
     @PutMapping("/products/display-orders")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
-    public void updateDisplayOrders(@RequestBody List<DisplayOrderRequest> requests) {
+    public void updateDisplayOrders(@Valid @RequestBody List<DisplayOrderRequest> requests) {
         bundleComponentService.updateDisplayOrders(requests);
     }
 

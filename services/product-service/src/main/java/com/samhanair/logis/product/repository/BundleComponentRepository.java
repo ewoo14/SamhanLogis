@@ -18,6 +18,21 @@ import org.springframework.data.repository.query.Param;
  */
 public interface BundleComponentRepository extends JpaRepository<BundleComponent, UUID> {
 
+    /**
+     * 구성품 목록 조회 — display_order ASC NULLS LAST 정렬.
+     *
+     * <p>V15 마이그레이션으로 {@code display_order} 컬럼이 추가되었다.
+     * 기존 행(NULL)은 NULLS LAST 로 후순위 처리하고, replace-all 저장 행은 1-based 순서로 정렬된다.
+     *
+     * @param bundleProductId 부모 BUNDLE Product.id
+     * @return 표시 순서 기준 오름차순 구성품 목록
+     */
+    @Query("""
+            SELECT bc FROM BundleComponent bc
+            WHERE bc.bundleProductId = :bundleProductId
+              AND bc.isDeleted = false
+            ORDER BY bc.displayOrder ASC NULLS LAST
+            """)
     List<BundleComponent> findByBundleProductId(UUID bundleProductId);
 
     List<BundleComponent> findByComponentProductCode(String componentProductCode);

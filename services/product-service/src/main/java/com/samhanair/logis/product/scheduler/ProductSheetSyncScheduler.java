@@ -111,11 +111,20 @@ public class ProductSheetSyncScheduler {
     /**
      * 부팅 시 1회 sync — Spring 컨텍스트 ready 직후.
      * Service Account JSON 부재 등으로 실패해도 catch + log (부팅 차단 X).
+     *
+     * <p><b>P1-E cron 게이트 (2026-06-11)</b>:
+     * 부팅 sync 도 동일 게이트 적용 ({@code samhan.product.sheet-sync.cron-enabled}).
+     * 기본 {@code false} — 재시작마다 시트 재적재로 사용자 표시순서 소실을 방지.
+     * 수동 트리거(POST /api/v1/products/admin/sync)만 사용한다.
      */
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
         if (!schedulingEnabled) {
             log.info("[ProductSheetSyncScheduler] scheduling 비활성 — 부팅 sync skip");
+            return;
+        }
+        if (!cronEnabled) {
+            log.info("[ProductSheetSyncScheduler] cron-enabled=false — 부팅 sync skip (수동 trigger 전용)");
             return;
         }
         log.info("[ProductSheetSyncScheduler] 부팅 시 1회 sync trigger");

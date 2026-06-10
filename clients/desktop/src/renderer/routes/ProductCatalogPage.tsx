@@ -117,8 +117,8 @@ import {
   type ProductCatalogRow,
   type EstimateCategory,
   type UsageScope,
-  type BundleComponentItem,
   type BundleComponentInput,
+  type ComponentKind,
 } from '../api/productCatalogApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -146,6 +146,16 @@ const ESTIMATE_CATEGORY_OPTIONS: Array<{ value: EstimateCategory; label: string 
   { value: 'COMMERCIAL_MULTI', label: '상업멀티' },
   { value: 'LEGACY', label: '레거시' },
   { value: 'OTHER', label: '기타' },
+]
+
+const COMPONENT_KIND_OPTIONS: Array<{ value: ComponentKind; label: string }> = [
+  { value: 'INDOOR', label: '실내기' },
+  { value: 'OUTDOOR', label: '실외기' },
+  { value: 'PANEL', label: '판넬' },
+  { value: 'REMOTE', label: '리모컨' },
+  { value: 'MATERIAL', label: '자재' },
+  { value: 'ACCESSORY', label: '부속품' },
+  { value: 'FOOT', label: '받침대' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -278,9 +288,26 @@ interface ComponentsModalProps {
   onSaved: () => void
 }
 
-interface ComponentDraft extends BundleComponentItem {
-  /** 검색/추가 후 신규 여부 (로컬 임시 ID — 저장 시 제거) */
+/**
+ * 구성품 draft — BE 응답 필드 전체 보존 + 로컬 메타.
+ * 기존 행: GET 응답의 qtyMode/componentKind/componentVariant/isDefault/specText 유지 (hidden round-trip).
+ * 신규 행: componentKind 사용자 선택 가능 (null → BE 기본 ACCESSORY), 나머지 null.
+ */
+interface ComponentDraft {
+  /** BE BundleComponentItem 필드 전체 */
+  componentProductCode: string
+  componentName: string
+  defaultQty: number
+  qtyMode: 'FIXED' | 'FOLLOW_SET'
+  componentKind: ComponentKind | null
+  componentVariant: string | null
+  isDefault: boolean
+  specText: string | null
+  displayOrder: number
+  /** 로컬 임시 ID — 저장 시 제거 */
   _localId: string
+  /** 신규 추가 여부 — true: componentKind 셀렉트 노출 */
+  _isNew: boolean
 }
 
 function ComponentsModal({
@@ -327,14 +354,22 @@ function ComponentsModal({
     },
   })
 
-  // 모달 열릴 때 drafts 초기화
+  // 모달 열릴 때 drafts 초기화 — BE 응답 메타 전체 보존 (hidden round-trip)
   useEffect(() => {
     if (open && componentsQuery.data) {
       setDrafts(
         componentsQuery.data.map((c, idx) => ({
-          ...c,
+          componentProductCode: c.componentProductCode,
+          componentName: c.componentName,
+          defaultQty: c.defaultQty,
+          qtyMode: c.qtyMode,
+          componentKind: c.componentKind,
+          componentVariant: c.componentVariant,
+          isDefault: c.isDefault,
+          specText: c.specText,
           displayOrder: idx + 1,
-          _localId: `existing-${c.componentModelCode}-${idx}`,
+          _localId: `existing-${c.componentProductCode}-${idx}`,
+          _isNew: false,
         })),
       )
     }
@@ -353,10 +388,20 @@ function ComponentsModal({
   }, [searchQuery.data, modelCode])
 
   const handleQuantityChange = (localId: string, value: string) => {
-    const num = parseInt(value, 10)
-    if (isNaN(num) || num < 1) return
+    const parsed = parseInt(value, 10)
+    if (!isFinite(parsed) || parsed < 1) return
     setDrafts((prev) =>
-      prev.map((d) => (d._localId === localId ? { ...d, quantity: num } : d)),
+      prev.map((d) => (d._localId === localId ? { ...d, defaultQty: parsed } : d)),
+    )
+  }
+
+  const handleKindChange = (localId: string, value: string) => {
+    setDrafts((prev) =>
+      prev.map((d) =>
+        d._localId === localId
+          ? { ...d, componentKind: value ? (value as ComponentKind) : null }
+          : d,
+      ),
     )
   }
 
@@ -391,13 +436,19 @@ function ComponentsModal({
 
   const handleAdd = (product: ProductCatalogRow) => {
     // 중복 추가 방지
-    if (drafts.some((d) => d.componentModelCode === product.modelCode)) return
+    if (drafts.some((d) => d.componentProductCode === product.modelCode)) return
     const newDraft: ComponentDraft = {
-      componentModelCode: product.modelCode,
-      name: product.name,
-      quantity: 1,
+      componentProductCode: product.modelCode,
+      componentName: product.name,
+      defaultQty: 1,
+      qtyMode: 'FOLLOW_SET',
+      componentKind: null, // 신규: 사용자가 선택하거나 BE 기본(ACCESSORY) 적용
+      componentVariant: null,
+      isDefault: false,
+      specText: null,
       displayOrder: drafts.length + 1,
       _localId: `new-${product.modelCode}-${Date.now()}`,
+      _isNew: true,
     }
     setDrafts((prev) => [...prev, newDraft])
     setSearchInput('')
@@ -409,10 +460,15 @@ function ComponentsModal({
       setModalError('구성품이 없습니다. 최소 1개 이상 등록해 주세요.')
       return
     }
-    const components: BundleComponentInput[] = drafts.map((d, idx) => ({
-      componentModelCode: d.componentModelCode,
-      quantity: d.quantity,
-      displayOrder: idx + 1,
+    // BE BundleComponentRequest 1:1 매핑 — 배열 인덱스가 displayOrder
+    const components: BundleComponentInput[] = drafts.map((d) => ({
+      componentProductCode: d.componentProductCode,
+      defaultQty: d.defaultQty,
+      qtyMode: d.qtyMode ?? undefined,
+      componentKind: d.componentKind ?? undefined,
+      componentVariant: d.componentVariant ?? undefined,
+      isDefault: d.isDefault,
+      specText: d.specText ?? undefined,
     }))
     saveMutation.mutate(components)
   }
@@ -484,22 +540,46 @@ function ComponentsModal({
                 style={componentRowStyle}
               >
                 <span style={{ flex: 1, fontSize: 12 }}>
-                  <span style={{ fontFamily: 'monospace' }}>{draft.componentModelCode}</span>
-                  {draft.name ? (
-                    <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>{draft.name}</span>
+                  <span style={{ fontFamily: 'monospace' }}>{draft.componentProductCode}</span>
+                  {draft.componentName ? (
+                    <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>{draft.componentName}</span>
                   ) : null}
                 </span>
+                {/* 신규 행: componentKind 선택 가능 (design-system Select) */}
+                {draft._isNew && canEdit ? (
+                  <Select
+                    value={draft.componentKind ?? ''}
+                    disabled={isSaving}
+                    onChange={(e) => handleKindChange(draft._localId, e.target.value)}
+                    data-testid={`components-modal-kind-${idx}`}
+                    selectSize="sm"
+                    fullWidth={false}
+                    style={{ minWidth: 80 }}
+                  >
+                    <option value="">분류</option>
+                    {COMPONENT_KIND_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </Select>
+                ) : draft.componentKind ? (
+                  <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>
+                    {COMPONENT_KIND_OPTIONS.find((o) => o.value === draft.componentKind)?.label ?? draft.componentKind}
+                  </span>
+                ) : null}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>수량</span>
-                  <input
+                  <Input
                     type="number"
-                    min={1}
-                    value={draft.quantity}
+                    value={String(draft.defaultQty)}
                     disabled={!canEdit || isSaving}
                     onChange={(e) => handleQuantityChange(draft._localId, e.target.value)}
                     data-testid={`components-modal-quantity-${idx}`}
-                    style={quantityInputStyle}
+                    inputSize="sm"
+                    fullWidth={false}
+                    style={{ width: 64, textAlign: 'right' }}
                     aria-label={`수량 ${idx + 1}`}
+                    min={1}
+                    step={1}
                   />
                 </div>
                 {canEdit ? (
@@ -562,7 +642,7 @@ function ComponentsModal({
             {searchResults.length > 0 ? (
               <div style={searchResultsStyle}>
                 {searchResults.map((p) => {
-                  const alreadyAdded = drafts.some((d) => d.componentModelCode === p.modelCode)
+                  const alreadyAdded = drafts.some((d) => d.componentProductCode === p.modelCode)
                   return (
                     <div key={p.modelCode} style={searchResultRowStyle}>
                       <span style={{ flex: 1, fontSize: 12 }}>
@@ -806,41 +886,58 @@ export function ProductCatalogPage() {
   }, [])
 
   /**
-   * 표시 순서 저장 — §2-1 + §2-2 정책:
-   * 카테고리 한정 재번호: 선택된 카테고리의 usageScope≠NONE 품목만 재번호 전송.
-   * NONE 품목은 displayOrder 그대로 유지 (재번호 대상 제외).
-   * BE 는 동일 카테고리 검증 후 처리 (혼합 시 400).
+   * 표시 순서 저장 — §2-1 + §2-2 정책 (P2 재번호 붕괴 수정):
+   *
+   * 재번호 기준 = 카테고리 전체의 기존 displayOrder 정렬 순서.
+   * 드래그로 이동한 항목만 새 위치에 삽입한 시퀀스로 전건 재번호 (페이지와 무관하게 안정).
+   *
+   * 알고리즘:
+   * 1. 전체 목록(충분히 큰 size)을 기존 displayOrder 오름차순으로 조회.
+   * 2. NONE 품목 제외 (재번호 대상 아님).
+   * 3. 전체 목록에서 현재 페이지 품목들을 제거.
+   * 4. sortableRows(현재 페이지 드래그 결과 순서)를 기준으로 현재 페이지 품목들을
+   *    "첫 번째 현재 페이지 항목이 원래 있던 인덱스 위치"에 삽입.
+   * 5. 전건 1-based 재번호 후 PUT /display-orders.
    */
   const handleSaveOrder = useCallback(async () => {
     if (!committedCategory) return // 카테고리 미선택 시 저장 불가 (isDragEnabled 가 이미 가드)
     setOrderSaving(true)
     setOrderError(null)
     try {
-      // 선택된 카테고리의 전체 목록(충분히 큰 size)을 재조회하여 NONE 제외 후 재번호 전송.
+      // 1. 선택된 카테고리의 전체 목록을 기존 displayOrder 오름차순으로 조회
       const allRows = await listProducts({
         category: committedCategory,
         size: DISPLAY_ORDER_FULL_SIZE,
       })
-      const allItems = allRows.content
+      // BE 는 displayOrder asc 정렬 반환; NONE 제외
+      const allExposed = allRows.content.filter((r) => r.usageScope !== 'NONE')
 
-      // sortableRows 의 현재 화면 순서를 기준으로 재번호 계산.
-      // usageScope=NONE 품목은 재번호 대상 제외 (displayOrder '—' — NONE 은 순서 없음).
-      const exposedSortedCodes = sortableRows
-        .filter((r) => r.usageScope !== 'NONE')
-        .map((r) => r.modelCode)
-
-      // 화면에 없는 노출 품목(다른 페이지) = sortableRows 에 없는 카테고리 품목 뒤에 붙임
-      const otherExposedItems = allItems.filter(
-        (r) => r.usageScope !== 'NONE' && !exposedSortedCodes.includes(r.modelCode),
+      // 현재 페이지의 modelCode 집합
+      const currentPageCodes = new Set(
+        sortableRows.filter((r) => r.usageScope !== 'NONE').map((r) => r.modelCode),
       )
 
-      // sortableRows 에서 NONE 제외된 순서 + 나머지 노출 품목 (NONE 제외)
-      const exposedOrdered = [
-        ...sortableRows.filter((r) => r.usageScope !== 'NONE'),
-        ...otherExposedItems,
+      // 2. 전체 목록에서 현재 페이지 항목 제거 → 나머지 항목의 원래 순서 유지
+      const outsideItems = allExposed.filter((r) => !currentPageCodes.has(r.modelCode))
+
+      // 3. 현재 페이지 항목이 전체 목록에서 차지하던 첫 번째 인덱스 찾기
+      //    (삽입 위치 — 원래 위치 보존)
+      const firstPageItemOriginalIdx = allExposed.findIndex((r) =>
+        currentPageCodes.has(r.modelCode),
+      )
+      const insertAt = firstPageItemOriginalIdx < 0 ? outsideItems.length : firstPageItemOriginalIdx
+
+      // 4. 현재 페이지 드래그 결과 순서 (NONE 제외)
+      const currentPageOrdered = sortableRows.filter((r) => r.usageScope !== 'NONE')
+
+      // 5. outsideItems 앞부분 + 현재 페이지 + outsideItems 뒷부분 합산
+      const merged = [
+        ...outsideItems.slice(0, insertAt),
+        ...currentPageOrdered,
+        ...outsideItems.slice(insertAt),
       ]
 
-      const orders = exposedOrdered.map((r, idx) => ({
+      const orders = merged.map((r, idx) => ({
         modelCode: r.modelCode,
         displayOrder: idx + 1,
       }))
@@ -1334,14 +1431,6 @@ const componentRowStyle: CSSProperties = {
   borderRadius: 4,
 }
 
-const quantityInputStyle: CSSProperties = {
-  width: 56,
-  padding: '2px 6px',
-  fontSize: 12,
-  border: '1px solid var(--color-border, #E5E7EB)',
-  borderRadius: 3,
-  textAlign: 'right',
-}
 
 const orderButtonStyle: CSSProperties = {
   appearance: 'none',

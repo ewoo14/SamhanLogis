@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
@@ -22,6 +24,7 @@ import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.BundleComponentRequest;
 import com.samhanair.logis.product.web.dto.BundleComponentResponse;
 import com.samhanair.logis.product.web.dto.DisplayOrderRequest;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -57,6 +60,9 @@ class BundleComponentServiceTest {
     @Mock
     private ProductRealtimeBroker broker;
 
+    @Mock
+    private EntityManager entityManager;
+
     private BundleComponentService service;
 
     private Product bundleProduct;
@@ -66,7 +72,7 @@ class BundleComponentServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new BundleComponentService(productRepository, bundleComponentRepository, broker);
+        service = new BundleComponentService(productRepository, bundleComponentRepository, broker, entityManager);
         Category cat = Category.create("INDOOR_WALL", "벽걸이형", null, 1);
 
         // BUNDLE 부모
@@ -257,6 +263,47 @@ class BundleComponentServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).componentProductCode()).isEqualTo("IDU-001");
         assertThat(result.get(0).defaultQty()).isEqualByComparingTo(BigDecimal.valueOf(2));
+        assertThat(result.get(0).displayOrder()).isEqualTo(1);
+    }
+
+    /**
+     * P1-D (2026-06-11): 동일 코드 유지 편집(수량만 변경) 시
+     * entityManager.flush() 가 soft-delete 후, INSERT 전에 호출됨을 검증.
+     *
+     * <p>실제 DB 부분 유니크 인덱스(is_deleted=false) 충돌 방지를 위해
+     * flush 가 반드시 soft-delete save 직후, 신규 INSERT 전에 발화해야 한다.
+     * Mockito 로 flush 호출 순서를 단언한다.
+     */
+    @Test
+    void replaceComponents_동일코드_유지_편집_flush_호출_확인() {
+        // 기존 구성품: IDU-001 (동일 코드 유지)
+        BundleComponent existingBc = BundleComponent.seed(bundleId, "IDU-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, null);
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+                .thenReturn(Optional.of(componentProduct));
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of(existingBc));
+        lenient().when(bundleComponentRepository.save(any(BundleComponent.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(componentProduct));
+
+        // 동일 코드(IDU-001) 유지하되 수량만 3으로 변경
+        BundleComponentRequest req = new BundleComponentRequest(
+                "IDU-001", BigDecimal.valueOf(3), BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, null);
+
+        List<BundleComponentResponse> result = service.replaceComponents("TEST-BUNDLE-001", List.of(req));
+
+        // flush 가 1회 호출되어야 함 (soft-delete 후, INSERT 전)
+        verify(entityManager).flush();
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).componentProductCode()).isEqualTo("IDU-001");
+        assertThat(result.get(0).defaultQty()).isEqualByComparingTo(BigDecimal.valueOf(3));
         assertThat(result.get(0).displayOrder()).isEqualTo(1);
     }
 

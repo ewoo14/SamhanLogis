@@ -826,17 +826,22 @@ let MOCK_PRODUCT_CATALOG_ROWS: Array<{
   },
 ]
 
-// 구성품 데이터 (BUNDLE 품목 전용) — PUT replace-all 로 업데이트됨.
+// 구성품 데이터 (BUNDLE 품목 전용) — BE BundleComponentResponse 1:1 동형 — PUT replace-all 로 업데이트됨.
 let MOCK_BUNDLE_COMPONENTS: Record<string, Array<{
-  componentModelCode: string
-  name: string
-  quantity: number
+  componentProductCode: string
+  componentName: string
+  defaultQty: number
+  qtyMode: 'FIXED' | 'FOLLOW_SET'
+  componentKind: 'INDOOR' | 'OUTDOOR' | 'PANEL' | 'REMOTE' | 'MATERIAL' | 'ACCESSORY' | 'FOOT'
+  componentVariant: string | null
+  isDefault: boolean
+  specText: string | null
   displayOrder: number
 }>> = {
   'SET-HM2WAY': [
-    { componentModelCode: 'AJ040RXH4BC1', name: '시스템에어컨 4Way 4HP', quantity: 2, displayOrder: 1 },
-    { componentModelCode: 'AJ100NCDKH', name: '실외기 10HP', quantity: 1, displayOrder: 2 },
-    { componentModelCode: 'MWR-WE10N', name: '유선 리모컨 (WE10N)', quantity: 2, displayOrder: 3 },
+    { componentProductCode: 'AJ040RXH4BC1', componentName: '시스템에어컨 4Way 4HP', defaultQty: 2, qtyMode: 'FOLLOW_SET', componentKind: 'INDOOR', componentVariant: '기본', isDefault: true, specText: null, displayOrder: 1 },
+    { componentProductCode: 'AJ100NCDKH', componentName: '실외기 10HP', defaultQty: 1, qtyMode: 'FOLLOW_SET', componentKind: 'OUTDOOR', componentVariant: null, isDefault: true, specText: '10HP', displayOrder: 2 },
+    { componentProductCode: 'MWR-WE10N', componentName: '유선 리모컨 (WE10N)', defaultQty: 2, qtyMode: 'FIXED', componentKind: 'REMOTE', componentVariant: null, isDefault: false, specText: null, displayOrder: 3 },
   ],
 }
 
@@ -1165,8 +1170,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (orders.length === 0) {
       return mockError(400, 'BAD_REQUEST', '표시 순서 목록이 비어 있습니다.')
     }
+    // estimateCategory 혼합 400 검증 (BE c91e5e2f 시멘틱 동형)
+    // 전송된 modelCode 들이 서로 다른 estimateCategory 를 가지면 400
+    const affectedRows = (orders as Array<{ modelCode?: unknown }>)
+      .map((o) => MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === String(o.modelCode ?? '')))
+      .filter((r): r is NonNullable<typeof r> => r != null)
+    const distinctCategories = new Set(affectedRows.map((r) => r.estimateCategory ?? '__NULL__'))
+    if (distinctCategories.size > 1) {
+      return mockError(400, 'BAD_REQUEST', '표시 순서 갱신 대상 품목이 서로 다른 카테고리에 속합니다.')
+    }
     MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) => {
-      const entry = orders.find((o) => o.modelCode === row.modelCode)
+      const entry = orders.find((o) => String(o.modelCode ?? '') === row.modelCode)
       if (!entry) return row
       return { ...row, displayOrder: Number(entry.displayOrder ?? row.displayOrder) }
     })
@@ -1188,8 +1202,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (method === 'GET') {
       const denied = mockRequirePermission('products.list', 'view')
       if (denied) return denied
+      // 비-BUNDLE 에 대해서는 BE 계약 동형: 200 빈배열 (409 대신 — P1-A fix)
       if (catalogRow.productType !== 'BUNDLE') {
-        return mockError(409, 'CONFLICT', '세트(BUNDLE) 품목만 구성품 조회가 가능합니다.')
+        return []
       }
       return MOCK_BUNDLE_COMPONENTS[modelCode] ?? []
     }
@@ -1202,14 +1217,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       }
       const body = parseMockBody(config)
       const components = Array.isArray(body)
-        ? (body as Array<{ componentModelCode?: unknown; quantity?: unknown; displayOrder?: unknown }>)
+        ? (body as Array<{
+            componentProductCode?: unknown
+            defaultQty?: unknown
+            qtyMode?: unknown
+            componentKind?: unknown
+            componentVariant?: unknown
+            isDefault?: unknown
+            specText?: unknown
+          }>)
         : []
       if (components.length === 0) {
         return mockError(400, 'BAD_REQUEST', '구성품 목록이 비어 있습니다.')
       }
       // 구성 모델코드 존재 확인 (활성 품목 검증 동형)
       for (const comp of components) {
-        const compCode = String(comp.componentModelCode ?? '')
+        const compCode = String(comp.componentProductCode ?? '')
         const compRow = MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === compCode)
         if (!compRow) {
           return mockError(400, 'BAD_REQUEST', `구성 품목 '${compCode}'을(를) 찾을 수 없습니다.`)
@@ -1218,12 +1241,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           return mockError(400, 'BAD_REQUEST', '세트 품목 자신을 구성품으로 포함할 수 없습니다.')
         }
       }
-      const newComponents = components.map((comp, idx) => ({
-        componentModelCode: String(comp.componentModelCode ?? ''),
-        name: MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === String(comp.componentModelCode ?? ''))?.name ?? '',
-        quantity: Number(comp.quantity ?? 1),
-        displayOrder: Number(comp.displayOrder ?? idx + 1),
-      }))
+      // BE BundleComponentResponse 1:1 동형 변환
+      const newComponents = components.map((comp, idx) => {
+        const compCode = String(comp.componentProductCode ?? '')
+        const compRow = MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === compCode)
+        return {
+          componentProductCode: compCode,
+          componentName: compRow?.name ?? compCode,
+          defaultQty: Number(comp.defaultQty ?? 1),
+          qtyMode: (comp.qtyMode as 'FIXED' | 'FOLLOW_SET' | undefined) ?? 'FOLLOW_SET',
+          componentKind: (comp.componentKind as string | undefined) ?? 'ACCESSORY',
+          componentVariant: (comp.componentVariant as string | null | undefined) ?? null,
+          isDefault: Boolean(comp.isDefault ?? false),
+          specText: (comp.specText as string | null | undefined) ?? null,
+          displayOrder: idx + 1,
+        } as (typeof MOCK_BUNDLE_COMPONENTS)[string][number]
+      })
       MOCK_BUNDLE_COMPONENTS = { ...MOCK_BUNDLE_COMPONENTS, [modelCode]: newComponents }
       // componentCount 갱신
       MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) =>

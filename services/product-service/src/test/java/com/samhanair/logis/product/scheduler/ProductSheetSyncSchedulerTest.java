@@ -73,6 +73,8 @@ class ProductSheetSyncSchedulerTest {
         ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
         ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
         ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        // P1-E: 부팅 sync 게이트 — cronEnabled=true 를 명시적으로 주입해야 sync 실행 (기본값 false)
+        ReflectionTestUtils.setField(scheduler, "cronEnabled", true);
         when(productSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
         when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
 
@@ -135,5 +137,51 @@ class ProductSheetSyncSchedulerTest {
             }
         }
         assertThat(found).as("samhan.product.sheet-sync.cron-enabled @Value 필드가 존재해야 함").isTrue();
+    }
+
+    // ============================================================
+    // P1-E: 부팅 sync 게이트 (2026-06-11)
+    // ============================================================
+
+    /**
+     * P1-E: cronEnabled=false 시 onApplicationReady 가 sync 를 실행하지 않아야 한다.
+     *
+     * <p>기존 onApplicationReady 는 schedulingEnabled 게이트만 있고 cronEnabled 게이트가
+     * 없어서 재시작마다 시트 재적재로 사용자 표시순서가 소실될 수 있었다.
+     * cronEnabled=false(기본) 시 부팅 sync 를 skip 해야 함을 단언한다.
+     */
+    @Test
+    void onApplicationReady_cronEnabled_false이면_부팅_sync를_실행하지_않는다() {
+        ProductSheetSyncService productSyncService = mock(ProductSheetSyncService.class);
+        ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
+        ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
+        ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        // P1-E: cronEnabled=false 주입
+        ReflectionTestUtils.setField(scheduler, "cronEnabled", false);
+
+        scheduler.onApplicationReady();
+
+        // syncAll 이 호출되지 않아야 한다
+        org.mockito.Mockito.verifyNoInteractions(productSyncService);
+        org.mockito.Mockito.verifyNoInteractions(lookupSyncService);
+    }
+
+    /**
+     * P1-E: cronEnabled=true 시 onApplicationReady 가 sync 를 실행해야 한다.
+     */
+    @Test
+    void onApplicationReady_cronEnabled_true이면_부팅_sync를_실행한다() {
+        ProductSheetSyncService productSyncService = mock(ProductSheetSyncService.class);
+        ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
+        ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
+        ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        ReflectionTestUtils.setField(scheduler, "cronEnabled", true);
+        when(productSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
+        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+
+        scheduler.onApplicationReady();
+
+        verify(productSyncService).syncAll();
+        verify(lookupSyncService).syncAll();
     }
 }

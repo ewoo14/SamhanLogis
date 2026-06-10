@@ -431,7 +431,19 @@ class ProductPermissionControllerIT {
                 new EndpointCase("edit requests by product", "products.edit-requests", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/products/{id}/edit-requests", PRODUCT_ID)),
                 new EndpointCase("product realtime", "products.list.view", PermissionAction.VIEW, "STAFF", 200,
-                        () -> get("/products/{id}/realtime", PRODUCT_ID))
+                        () -> get("/products/{id}/realtime", PRODUCT_ID)),
+                // §1c/§1d (P2-5 2026-06-11) — components GET/PUT + display-orders PUT 권한 가드
+                new EndpointCase("bundle components list", "products.list", PermissionAction.VIEW, "SALES", 200,
+                        () -> get("/api/v1/products/MODEL-1/components")),
+                new EndpointCase("bundle components replace", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
+                        () -> put("/api/v1/products/MODEL-1/components")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("[{\"componentProductCode\":\"IDU-001\",\"defaultQty\":1,\"qtyMode\":\"FOLLOW_SET\","
+                                        + "\"componentKind\":\"INDOOR\",\"isDefault\":true}]")),
+                new EndpointCase("display orders update", "products.admin", PermissionAction.UPDATE, "MANAGER", 204,
+                        () -> put("/api/v1/products/display-orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("[{\"modelCode\":\"MODEL-1\",\"displayOrder\":1}]"))
         );
     }
 
