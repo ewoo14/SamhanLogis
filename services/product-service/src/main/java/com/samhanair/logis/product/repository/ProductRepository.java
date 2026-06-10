@@ -72,9 +72,12 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     Page<Product> findAllByCategory_IdAndStatus(UUID categoryId, ProductStatus status, Pageable pageable);
 
     /**
-     * 자유 텍스트 검색 (name / model_name LIKE) + 선택적 카테고리/상태/태그 필터를
+     * 자유 텍스트 검색 (name / model_name LIKE) + 선택적 카테고리/상태/태그/usageScope/productCategory 필터를
      * 단일 native 쿼리로 합쳐 처리. {@code :tagFilter} 는 jsonb 형태의 문자열
      * (예: '{"hp":"1.5"}') 또는 NULL.
+     *
+     * <p>usageScope/productCategory 는 order-app ({@code GET /products?usageScope=PARTNER_ORDER&category=HOME_MULTI})
+     * 및 desktop sales.ts ({@code usageScope=BOTH&category=...}) 호출이 실효화되도록 추가됨 (PR-B 2026-06-11).
      */
     // [RC4] null→bytea 방지: CAST(:q AS text) (nativeQuery 이므로 PostgreSQL text 캐스트)
     @Query(value = """
@@ -85,6 +88,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
               AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
                                         OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
               AND (CAST(:tagFilter AS text) IS NULL OR p.tags @> CAST(:tagFilter AS jsonb))
+              AND (CAST(:usageScope AS text) IS NULL OR p.usage_scope = CAST(:usageScope AS text))
+              AND (CAST(:productCategory AS text) IS NULL OR p.product_category = CAST(:productCategory AS text))
             """,
            countQuery = """
             SELECT COUNT(*) FROM products p
@@ -94,13 +99,26 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
               AND (CAST(:q AS text) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
                                         OR LOWER(p.model_name) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
               AND (CAST(:tagFilter AS text) IS NULL OR p.tags @> CAST(:tagFilter AS jsonb))
+              AND (CAST(:usageScope AS text) IS NULL OR p.usage_scope = CAST(:usageScope AS text))
+              AND (CAST(:productCategory AS text) IS NULL OR p.product_category = CAST(:productCategory AS text))
             """,
            nativeQuery = true)
     Page<Product> search(@Param("categoryId") UUID categoryId,
                          @Param("status") String status,
                          @Param("q") String q,
                          @Param("tagFilter") String tagFilter,
+                         @Param("usageScope") String usageScope,
+                         @Param("productCategory") String productCategory,
                          Pageable pageable);
+
+    /**
+     * usageScope 단일 필터 전용 페이징 조회 (기존 호출자 backward-compat 보조).
+     * @deprecated 신규 코드는 {@link #search(UUID, String, String, String, String, String, Pageable)} 사용.
+     */
+    @Deprecated
+    default Page<Product> search(UUID categoryId, String status, String q, String tagFilter, Pageable pageable) {
+        return search(categoryId, status, q, tagFilter, null, null, pageable);
+    }
 
     // ============================================================
     // V3 마이그 신규 — modelCode + usageScope/estimateCategory 필터

@@ -1,7 +1,9 @@
 package com.samhanair.logis.product.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
+import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
@@ -57,6 +59,14 @@ public class ProductController {
 
     private final ProductService productService;
 
+    /**
+     * 품목 목록 조회. categoryId/status/tag/q 기존 필터 + PR-B 신규 파라미터:
+     * <ul>
+     *   <li>{@code usageScope} — {@link UsageScope} enum 문자열 (예: {@code PARTNER_ORDER}, {@code BOTH})</li>
+     *   <li>{@code category} — {@link ProductCategory} enum 문자열 (예: {@code HOME_MULTI}) —
+     *       order-app M1a {@code getProducts(category)} 호출 + desktop sales.ts 호출 실효화.</li>
+     * </ul>
+     */
     @GetMapping
     @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public ApiResponse<Page<ProductSummaryResponse>> search(
@@ -65,11 +75,14 @@ public class ProductController {
             @RequestParam(required = false) String tagKey,
             @RequestParam(required = false) String tagValue,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) UsageScope usageScope,
+            @RequestParam(required = false) ProductCategory category,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(productService.search(categoryId, status, tagKey, tagValue, q, pageable));
+        return ApiResponse.ok(productService.search(categoryId, status, tagKey, tagValue, q,
+                usageScope, category, pageable));
     }
 
     @GetMapping("/{id}")

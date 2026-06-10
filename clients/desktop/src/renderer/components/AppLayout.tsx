@@ -252,8 +252,8 @@ export function AppLayout() {
   const showPartnersBlock          = dynamicCanAccess('partners.block',               'view')
   // partners.edit-request — 현재 미사용 (사이드바 직접 노출/라우트 가드 소비처 없음 — 향후 메뉴 연결 예약).
   const _showPartnersEditRequest   = dynamicCanAccess('partners.edit-request',        'view')
-  // products.* — 현재 사이드바 직접 노출 없음 (향후 상품 메뉴 추가 시 SidebarLink 연결). 라우트 가드에서 사용.
-  const _showProductsList          = dynamicCanAccess('products.list',                'view')
+  // products.* — [PR-B] products.list VIEW → '품목 관리' 사이드바 진입점.
+  const showProductsList           = dynamicCanAccess('products.list',                'view')
   const _showProductsAdmin         = dynamicCanAccess('products.admin',               'view')
   const showProductsSync           = dynamicCanAccess('products.sync',                'view')
   const showArologisAdminPage      = dynamicCanAccess('arologis.admin',               'view')
@@ -1058,8 +1058,44 @@ export function AppLayout() {
             </>
           ) : null}
 
+          {/* [PR-B] 품목 관리 — products.list VIEW 게이트. 5대분류 재편 전 현 구조 내 추가. */}
+          {showProductsList ? (
+            <>
+              <div
+                className="app-sidebar-group"
+                aria-hidden="true"
+                style={{
+                  marginTop: 16,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-neutral-400)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                }}
+              >
+                상품
+              </div>
+              <SidebarLink
+                to="/products/catalog"
+                show={showProductsList}
+                data-testid="sidebar-products-catalog"
+              >
+                품목 관리
+              </SidebarLink>
+              <SidebarLink
+                to="/admin/sheet-sync"
+                show={showSheetSync}
+                requiredRole="MANAGER / MASTER"
+                data-testid="sidebar-settings-sheet-sync-in-products"
+              >
+                시트 동기화
+              </SidebarLink>
+            </>
+          ) : null}
+
           {/* [Slice 2] 설정 카테고리 — 시트 동기화 (MANAGER/MASTER). */}
-          {showSheetSync ? (
+          {showSheetSync && !showProductsList ? (
             <>
               <div
                 className="app-sidebar-group"

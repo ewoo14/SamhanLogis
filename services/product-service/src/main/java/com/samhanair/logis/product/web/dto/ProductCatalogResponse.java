@@ -13,12 +13,20 @@ import java.math.BigDecimal;
  * 별도이며, 운영 실데이터에는 {@code model_code} 가 비어 있고 {@code model_name} 만
  * 채워진 행이 있다. 따라서 응답 {@code modelCode} 는 {@code model_code ?? model_name}
  * 규칙으로 채우며, 카탈로그 mutation path 도 동일 규칙으로 조회되어야 한다.
+ *
+ * <p>PR-B(2026-06-11) 추가 필드:
+ * <ul>
+ *   <li>{@code usageScopeManual} — 수동 override 여부. true 이면 sync 가 덮어쓰지 않음.</li>
+ *   <li>{@code displayOrder} — 시트 노출 순서 (null 이면 정렬 후순위).</li>
+ * </ul>
  */
 public record ProductCatalogResponse(
         String modelCode,
         String name,
         UsageScope usageScope,
         EstimateCategory estimateCategory,
+        boolean usageScopeManual,
+        Integer displayOrder,
         BigDecimal releasePrice,
         BigDecimal deliveryPrice,
         boolean hasVariableDiscount,
@@ -31,6 +39,8 @@ public record ProductCatalogResponse(
                 p.getName(),
                 p.getUsageScope(),
                 p.getEstimateCategory(),
+                p.isUsageScopeManual(),
+                p.getDisplayOrder(),
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
                 Boolean.TRUE.equals(p.getHasVariableDiscount()),

@@ -7,10 +7,12 @@ import com.samhanair.logis.product.domain.SpecKeyTemplate;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
+import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.ProductSpecService;
 import com.samhanair.logis.product.web.dto.ProductCatalogResponse;
 import com.samhanair.logis.product.web.dto.ProductSpecResponse;
 import com.samhanair.logis.product.web.dto.SpecKeyTemplateResponse;
+import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.persistence.EntityNotFoundException;
@@ -68,13 +70,16 @@ public class ProductCatalogController {
     private final ProductRepository productRepository;
     private final ProductSpecService specService;
     private final SpecKeyTemplateRepository templateRepository;
+    private final ProductService productService;
 
     public ProductCatalogController(ProductRepository productRepository,
                                     ProductSpecService specService,
-                                    SpecKeyTemplateRepository templateRepository) {
+                                    SpecKeyTemplateRepository templateRepository,
+                                    ProductService productService) {
         this.productRepository = productRepository;
         this.specService = specService;
         this.templateRepository = templateRepository;
+        this.productService = productService;
     }
 
     /** GET /api/v1/products?usageScope=BOTH&category=HOME_MULTI&page=0&size=20. */
@@ -90,16 +95,40 @@ public class ProductCatalogController {
                 .map(ProductCatalogResponse::from);
     }
 
-    /** PATCH /api/v1/products/{code}/usage — admin only (운영 분류 재조정). */
+    /**
+     * 품목 노출 범위 수동 override 설정 (PR-B 2026-06-11).
+     *
+     * <p>usageScope/estimateCategory 를 변경하고 {@code usageScopeManual=true} 를 마킹한다.
+     * 이후 시트 sync 가 이 품목의 노출 분류를 덮어쓰지 않는다.
+     * NONE/PARTNER_ORDER 선택 시 estimateCategory 가 자동 null 처리된다.
+     *
+     * @param modelCode 수동 override 대상 품목의 모델코드 (카탈로그 노출 식별자)
+     * @param req       새 노출 범위 + 견적 카테고리
+     * @return 갱신된 카탈로그 응답 (usageScopeManual=true 포함)
+     */
     @PatchMapping("/products/{modelCode}/usage")
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ProductCatalogResponse changeUsage(@PathVariable @NotBlank String modelCode,
-                                              @Valid @RequestBody UsageChangeRequest req) {
+                                              @Valid @RequestBody UpdateProductUsageRequest req) {
         Product p = productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(modelCode)
                 .orElseThrow(() -> new EntityNotFoundException("Product 없음: " + modelCode));
-        p.changeUsage(req.usageScope(), req.estimateCategory());
+        p.markUsageManual(req.usageScope(), req.estimateCategory());
         productRepository.save(p);
         return ProductCatalogResponse.from(p);
+    }
+
+    /**
+     * 품목 노출 범위 수동 override 해제 (PR-B 2026-06-11).
+     *
+     * <p>{@code usageScopeManual=false} 로 복귀. 다음 시트 sync 에서 시트 기준으로 재분류된다.
+     *
+     * @param modelCode override 해제 대상 품목의 모델코드 (카탈로그 노출 식별자)
+     */
+    @DeleteMapping("/products/{modelCode}/usage")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
+    public void clearUsage(@PathVariable @NotBlank String modelCode) {
+        productService.clearUsageOverride(modelCode);
     }
 
     @GetMapping("/products/{modelCode}/specs")
@@ -171,7 +200,7 @@ public class ProductCatalogController {
         return specService.applyTemplateToExisting(templateId, dryRun).toMap();
     }
 
-    public record UsageChangeRequest(UsageScope usageScope, EstimateCategory estimateCategory) {}
+    // UsageChangeRequest 는 PR-B 에서 UpdateProductUsageRequest 로 대체됨.
 
     public record SpecCreateRequest(@NotBlank String specKey, String specValue, String unit, Integer displayOrder) {}
 

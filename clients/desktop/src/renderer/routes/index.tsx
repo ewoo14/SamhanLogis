@@ -295,6 +295,8 @@ import { PermissionGroupManagePage } from './PermissionGroupManagePage'
 import { PermissionDelegationPage } from './PermissionDelegationPage'
 // [SP-D1 cycle 2] 동적 RBAC PermissionGuard — 서버 권한 매트릭스 기반 라우트 가드.
 import { PermissionGuard } from '../components/PermissionGuard'
+// [PR-B] 품목 관리 — 품목별 no출 범위 수동 토글 (products.list VIEW 게이트).
+import { ProductCatalogPage } from './ProductCatalogPage'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -1185,6 +1187,17 @@ const router = createHashRouter([
         element: (
           <PermissionGuard pageCode="partners.list" action="view">
             <AdminPartnersPage />
+          </PermissionGuard>
+        ),
+      },
+
+      // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
+      // 토글/복귀 CTA 는 페이지 내부에서 products.admin UPDATE canAccess 로 read-only 전환.
+      {
+        path: '/products/catalog',
+        element: (
+          <PermissionGuard pageCode="products.list" action="view">
+            <ProductCatalogPage />
           </PermissionGuard>
         ),
       },

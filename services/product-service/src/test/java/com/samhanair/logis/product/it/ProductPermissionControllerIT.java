@@ -167,9 +167,12 @@ class ProductPermissionControllerIT {
                 PRODUCT_ID, "Product", "MODEL-1", "MODEL-1", CATEGORY_ID,
                 BigDecimal.valueOf(1000), ProductStatus.ACTIVE);
         ProductResponse response = new ProductResponse(
-                PRODUCT_ID, "Product", "MODEL-1", CATEGORY_ID, "Category",
+                PRODUCT_ID, "Product", "MODEL-1", "MODEL-1", CATEGORY_ID, "Category",
                 BigDecimal.valueOf(1000), BigDecimal.valueOf(800), "KRW",
                 ProductStatus.ACTIVE, Map.of(), "memo",
+                com.samhanair.logis.product.domain.UsageScope.BOTH,
+                com.samhanair.logis.product.domain.EstimateCategory.HOME_MULTI,
+                false, null,
                 LocalDateTime.of(2026, 5, 26, 9, 0), "system",
                 LocalDateTime.of(2026, 5, 26, 9, 0), "system");
         CategoryResponse category = new CategoryResponse(CATEGORY_ID, "CAT", "Category", null, 1, List.of());
@@ -191,6 +194,11 @@ class ProductPermissionControllerIT {
 
         lenient().when(productService.search(any(), any(), any(), any(), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
+        lenient().when(productService.search(any(), any(), any(), any(), any(), any(), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
+        lenient().when(productService.updateUsage(anyString(), any()))
+                .thenReturn(response);
+        lenient().doNothing().when(productService).clearUsageOverride(anyString());
         lenient().when(productService.getOne(any())).thenReturn(response);
         lenient().when(productService.getByModelName(anyString())).thenReturn(response);
         lenient().when(productService.lookup(any())).thenReturn(List.of(summary));
@@ -317,10 +325,12 @@ class ProductPermissionControllerIT {
                                 .content("{\"ids\":[\"" + PRODUCT_ID + "\"]}")),
                 new EndpointCase("product catalog list", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/products")),
-                new EndpointCase("product catalog usage", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
+                new EndpointCase("product catalog usage patch", "products.admin", PermissionAction.UPDATE, "MANAGER", 200,
                         () -> patch("/api/v1/products/MODEL-1/usage")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"usageScope\":\"ESTIMATE\",\"estimateCategory\":\"OTHER\"}")),
+                new EndpointCase("product catalog usage delete", "products.admin", PermissionAction.UPDATE, "MANAGER", 204,
+                        () -> delete("/api/v1/products/MODEL-1/usage")),
                 new EndpointCase("product catalog specs list", "products.list", PermissionAction.VIEW, "SALES", 200,
                         () -> get("/api/v1/products/MODEL-1/specs")),
                 new EndpointCase("product catalog spec add", "products.admin", PermissionAction.CREATE, "MANAGER", 201,

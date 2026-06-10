@@ -163,6 +163,20 @@ public class Product extends BaseEntity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
+    /**
+     * 수동 노출 override 플래그(V14, 2026-06-11).
+     *
+     * <p>{@code true} 이면 {@link com.samhanair.logis.product.service.ProductSheetSyncService}
+     * upsert 경로에서 {@code usageScope}/{@code estimateCategory} 를 시트 기준으로 덮어쓰지 않는다.
+     * {@code displayOrder} 는 시트 순서이므로 플래그 무관하게 계속 갱신된다.
+     *
+     * <p>초기값 {@code false} — 기존 row 는 전부 시트 자동 분류 상태.
+     * {@link #markUsageManual(UsageScope, EstimateCategory)} 로 {@code true} 전환,
+     * {@link #clearUsageManual()} 로 {@code false} 복귀 (다음 sync 에서 시트 기준 재분류).
+     */
+    @Column(name = "usage_scope_manual", nullable = false)
+    private boolean usageScopeManual = false;
+
     /** (legacy) 시트 규격 컬럼 — ProductSpec 1:N 으로 대체. read-only fallback. */
     @Column(name = "spec_text", length = 255)
     private String specText;
@@ -405,6 +419,42 @@ public class Product extends BaseEntity {
     public void changeUsage(UsageScope usageScope, EstimateCategory estimateCategory) {
         this.usageScope = usageScope == null ? UsageScope.NONE : usageScope;
         this.estimateCategory = estimateCategory;
+    }
+
+    /**
+     * 수동 노출 override 설정 — usageScope/estimateCategory 를 지정값으로 변경하고
+     * {@code usageScopeManual=true} 를 마킹한다.
+     *
+     * <p>이후 {@link com.samhanair.logis.product.service.ProductSheetSyncService} upsert 에서
+     * 시트 기준 자동 재분류가 차단된다. {@link #clearUsageManual()} 로 해제하면 다음 sync 에서
+     * 시트 기준으로 재분류된다.
+     *
+     * <p>NONE/PARTNER_ORDER 선택 시 견적 카테고리가 무의미하므로 {@code estimateCategory} 를
+     * {@code null} 로 정리한다 (기존 {@link #changeUsage(UsageScope, EstimateCategory)} 와 동일 룰).
+     *
+     * @param scope            새 노출 범위 (null 이면 {@link UsageScope#NONE} 처리)
+     * @param estimateCategory 견적 카테고리 (scope 가 ESTIMATE/BOTH 일 때만 유효)
+     */
+    public void markUsageManual(UsageScope scope, EstimateCategory estimateCategory) {
+        this.usageScope = scope == null ? UsageScope.NONE : scope;
+        // NONE 또는 PARTNER_ORDER 는 견적 카테고리가 불필요 → null 정리
+        if (this.usageScope == UsageScope.NONE || this.usageScope == UsageScope.PARTNER_ORDER) {
+            this.estimateCategory = null;
+        } else {
+            this.estimateCategory = estimateCategory;
+        }
+        this.usageScopeManual = true;
+    }
+
+    /**
+     * 수동 노출 override 해제 — {@code usageScopeManual=false} 로 복귀.
+     *
+     * <p>usageScope/estimateCategory 값 자체는 변경하지 않는다. 다음
+     * {@link com.samhanair.logis.product.service.ProductSheetSyncService} sync 가
+     * 시트 기준으로 재분류한다.
+     */
+    public void clearUsageManual() {
+        this.usageScopeManual = false;
     }
 
     /** 변동DC 룰 적용 — VariableDiscountDetector 호출 결과 set. */

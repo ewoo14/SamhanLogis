@@ -192,6 +192,75 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isNotFound());
     }
 
+    // =========================================================================
+    // PR-B (2026-06-11): 수동 override + DELETE usage + GET 필터 실효화 IT
+    // =========================================================================
+
+    /**
+     * PATCH /usage — usageScopeManual=true 응답 포함.
+     */
+    @Test
+    void PATCH_usage_수동override_usageScopeManual_true_응답() throws Exception {
+        mvc.perform(patch("/api/v1/products/API_HOME_01/usage")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"usageScope":"PARTNER_ORDER"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usageScopeManual").value(true))
+                .andExpect(jsonPath("$.usageScope").value("PARTNER_ORDER"))
+                .andExpect(jsonPath("$.estimateCategory").isEmpty());
+    }
+
+    /**
+     * DELETE /usage — 수동 override 해제 후 usageScopeManual=false 로 복귀.
+     */
+    @Test
+    void DELETE_usage_수동override_해제() throws Exception {
+        // 먼저 수동 override
+        mvc.perform(patch("/api/v1/products/API_HOME_01/usage")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"usageScope":"ESTIMATE","estimateCategory":"HOME_MULTI"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usageScopeManual").value(true));
+
+        // override 해제
+        mvc.perform(delete("/api/v1/products/API_HOME_01/usage")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isNoContent());
+
+        // 이후 GET 으로 플래그 확인
+        mvc.perform(get("/api/v1/products?usageScope=ESTIMATE&category=HOME_MULTI")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk());
+        // DB 에서 직접 확인 — usageScopeManual=false
+        var p = productRepository.findByModelCodeAndIsDeletedFalse("API_HOME_01");
+        org.assertj.core.api.Assertions.assertThat(p).isPresent();
+        org.assertj.core.api.Assertions.assertThat(p.get().isUsageScopeManual()).isFalse();
+    }
+
+    /**
+     * GET /products?usageScope=PARTNER_ORDER&category=HOME_MULTI — 실제 필터 적용 확인.
+     * order-app M1a getProducts(category) 호출 패턴 실효화 검증.
+     */
+    @Test
+    void GET_products_usageScope_category_복합_필터_적용() throws Exception {
+        // API_HOME_01 는 BOTH 이므로 PARTNER_ORDER 단독 필터에선 안 보임 (searchByUsageScope 쿼리)
+        // (ProductCatalogController GET /api/v1/products 는 searchByUsageScope 사용)
+        mvc.perform(get("/api/v1/products?usageScope=PARTNER_ORDER&category=HOME_MULTI")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk());
+        // 응답이 200 이고 필터가 작동함을 확인 (PARTNER_ORDER 에만 해당하는 품목이 없으므로 빈 페이지)
+        mvc.perform(get("/api/v1/products?usageScope=BOTH")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'API_HOME_01')]").exists());
+    }
+
     private Product saveModelNameOnlyProduct(String modelName) {
         Category cat = categoryRepository.save(Category.create("CAT-" + modelName, "model name only", null, 2));
         Product product = Product.create("model name only", modelName, cat,

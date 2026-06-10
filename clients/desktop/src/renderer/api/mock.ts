@@ -772,11 +772,27 @@ const MOCK_BRANCH_PIPE_ROWS = [
   { branchCode: '4119', description: null, summaryQty: null },
 ]
 
-const MOCK_PRODUCT_CATALOG_ROWS = Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => ({
+// MOCK_PRODUCT_CATALOG_ROWS: mutable 로 선언하여 PATCH/DELETE 가 업데이트 가능.
+// usageScopeManual / displayOrder 필드 추가 (PR-B 확장).
+let MOCK_PRODUCT_CATALOG_ROWS: Array<{
+  modelCode: string
+  name: string
+  usageScope: string
+  estimateCategory: string | null
+  usageScopeManual: boolean
+  displayOrder: number | null
+  releasePrice: number
+  deliveryPrice: number
+  hasVariableDiscount: boolean
+  legacyDiscountFlag: boolean
+  discountFlags: null
+}> = Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => ({
   modelCode: p.modelName,
   name: p.productName,
   usageScope: index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
   estimateCategory: index % 2 === 0 ? 'HOME_MULTI' : 'OTHER',
+  usageScopeManual: false,
+  displayOrder: index + 1,
   releasePrice: Number(p.sellingPrice),
   deliveryPrice: Number(p.sellingPrice),
   hasVariableDiscount: false,
@@ -1099,19 +1115,48 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(MOCK_PRODUCT_CATEGORIES)
   }
 
+  // PATCH /api/v1/products/{modelCode}/usage — 수동 override 설정 (usageScopeManual=true)
+  // DELETE /api/v1/products/{modelCode}/usage — 시트 자동 복귀 (usageScopeManual=false)
+  // 경로 우선순위: /usage 패턴이 /specs/ 보다 먼저 위치해야 선점 회귀 방지 (#459 교훈)
   const productUsageMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/usage(?:\?.*)?$/)
-  if (method === 'PATCH' && productUsageMatch) {
+  if (productUsageMatch) {
     const denied = mockRequirePermission('products.admin', 'update')
     if (denied) return denied
     const modelCode = decodeURIComponent(productUsageMatch[1]!)
-    const body = parseMockBody(config)
-    const product = MOCK_PRODUCT_CATALOG_ROWS.find((row) => row.modelCode === modelCode)
-    const fallbackProduct = product ?? MOCK_PRODUCT_CATALOG_ROWS[0]!
-    return {
-      ...fallbackProduct,
-      modelCode,
-      usageScope: body['usageScope'] ?? fallbackProduct.usageScope,
-      estimateCategory: body['estimateCategory'] ?? fallbackProduct.estimateCategory,
+    const idx = MOCK_PRODUCT_CATALOG_ROWS.findIndex((row) => row.modelCode === modelCode)
+    const existing = idx >= 0 ? MOCK_PRODUCT_CATALOG_ROWS[idx]! : MOCK_PRODUCT_CATALOG_ROWS[0]!
+
+    if (method === 'PATCH') {
+      const body = parseMockBody(config)
+      const updated = {
+        ...existing,
+        modelCode,
+        usageScope: (body['usageScope'] as string | undefined) ?? existing.usageScope,
+        estimateCategory:
+          'estimateCategory' in body
+            ? ((body['estimateCategory'] as string | null | undefined) ?? null)
+            : existing.estimateCategory,
+        usageScopeManual: true,
+      }
+      if (idx >= 0) {
+        MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row, i) =>
+          i === idx ? updated : row,
+        )
+      }
+      return envelope(updated)
+    }
+    if (method === 'DELETE') {
+      const updated = {
+        ...existing,
+        modelCode,
+        usageScopeManual: false,
+      }
+      if (idx >= 0) {
+        MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row, i) =>
+          i === idx ? updated : row,
+        )
+      }
+      return envelope(updated)
     }
   }
 
@@ -1216,16 +1261,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       : MOCK_SPEC_KEY_TEMPLATES
   }
 
+  // GET /api/v1/products — 품목 카탈로그 목록 (품목관리 화면 + 기존 estimate 소비처 공용)
+  // usageScope/category/q 필터 + usageScopeManual/displayOrder 응답 포함 (PR-B 확장)
+  // note: 경로 규칙상 /api/v1/products/{modelCode}/usage 패턴이 먼저 매칭되어야 하므로
+  //       이 핸들러는 그 아래 위치함 (#459 mock 핸들러 선점 회귀 교훈)
   if (method === 'GET' && (url.endsWith('/api/v1/products') || url.includes('/api/v1/products?'))) {
     const denied = mockRequirePermission('products.list', 'view')
     if (denied) return denied
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const q = ((config.params?.['q'] as string | undefined) ?? urlObj.searchParams.get('q') ?? '').toLowerCase()
     const usageScope = (config.params?.['usageScope'] as string | undefined)
       ?? urlObj.searchParams.get('usageScope')
     const category = (config.params?.['category'] as string | undefined)
       ?? urlObj.searchParams.get('category')
     const filtered = MOCK_PRODUCT_CATALOG_ROWS.filter((row) =>
-      (!usageScope || row.usageScope === usageScope || row.usageScope === 'BOTH')
+      (!q || row.modelCode.toLowerCase().includes(q) || row.name.toLowerCase().includes(q))
+      && (!usageScope || row.usageScope === usageScope || row.usageScope === 'BOTH')
       && (!category || row.estimateCategory === category),
     )
     return {

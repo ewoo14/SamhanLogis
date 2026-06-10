@@ -5,8 +5,10 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
@@ -16,6 +18,7 @@ import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
+import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +46,48 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final BundleComponentRepository bundleComponentRepository;
 
+    /**
+     * 품목 목록 검색 — categoryId/status/tag/q 필터 기존 유지 + usageScope/productCategory 신규 AND 결합.
+     *
+     * <p>PR-B(2026-06-11) 확장: order-app 이 {@code ?usageScope=PARTNER_ORDER&category=HOME_MULTI} 로
+     * 호출하고, desktop sales.ts 가 {@code usageScope=BOTH&category=...} 로 호출하던 파라미터가
+     * 이제 실효화된다. {@code category} 파라미터는 {@link ProductCategory} enum 문자열 바인딩.
+     *
+     * @param categoryId      카테고리 UUID 필터 (null = 전체)
+     * @param status          제품 상태 필터 (null = 전체)
+     * @param tagKey          태그 키 필터 (null = 미사용)
+     * @param tagValue        태그 값 필터 (tagKey 와 쌍)
+     * @param q               자유 텍스트 검색 (name/modelName LIKE)
+     * @param usageScope      노출 범위 필터 (null = 전체)
+     * @param productCategory 품목 카테고리 필터 (null = 전체, {@link ProductCategory} enum)
+     * @param pageable        페이징 정보
+     * @return 조건에 맞는 품목 요약 페이지
+     */
+    @Transactional(readOnly = true)
+    public Page<ProductSummaryResponse> search(UUID categoryId,
+                                               ProductStatus status,
+                                               String tagKey,
+                                               String tagValue,
+                                               String q,
+                                               UsageScope usageScope,
+                                               ProductCategory productCategory,
+                                               Pageable pageable) {
+        String tagFilter = buildTagFilter(tagKey, tagValue);
+        String statusName = status == null ? null : status.name();
+        String qNormalised = (q == null || q.isBlank()) ? null : q.trim();
+        String usageScopeName = usageScope == null ? null : usageScope.name();
+        String productCategoryName = productCategory == null ? null : productCategory.name();
+        return productRepository
+                .search(categoryId, statusName, qNormalised, tagFilter, usageScopeName, productCategoryName, pageable)
+                .map(ProductSummaryResponse::from);
+    }
+
+    /**
+     * 기존 search 시그니처 — backward-compat (usageScope/productCategory 없음).
+     *
+     * @deprecated 신규 코드는 {@link #search(UUID, ProductStatus, String, String, String, UsageScope, ProductCategory, Pageable)} 사용.
+     */
+    @Deprecated
     @Transactional(readOnly = true)
     public Page<ProductSummaryResponse> search(UUID categoryId,
                                                ProductStatus status,
@@ -50,12 +95,7 @@ public class ProductService {
                                                String tagValue,
                                                String q,
                                                Pageable pageable) {
-        String tagFilter = buildTagFilter(tagKey, tagValue);
-        String statusName = status == null ? null : status.name();
-        String qNormalised = (q == null || q.isBlank()) ? null : q.trim();
-        return productRepository
-                .search(categoryId, statusName, qNormalised, tagFilter, pageable)
-                .map(ProductSummaryResponse::from);
+        return search(categoryId, status, tagKey, tagValue, q, null, null, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -290,6 +330,38 @@ public class ProductService {
         loadOrThrow(id).reactivate();
     }
 
+    /**
+     * 품목 노출 범위 수동 override — modelCode 로 품목을 조회하고
+     * {@link Product#markUsageManual(UsageScope, EstimateCategory)} 을 호출한다.
+     *
+     * <p>이후 ProductSheetSyncService sync 에서 이 품목의 usageScope/estimateCategory 는
+     * 시트 기준으로 덮어쓰이지 않는다 (displayOrder 는 계속 갱신).
+     *
+     * @param modelCode 수동 override 대상 품목의 모델코드
+     * @param req       새 노출 범위 + 견적 카테고리
+     * @return 갱신된 품목 상세 응답
+     * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
+     */
+    public ProductResponse updateUsage(String modelCode, UpdateProductUsageRequest req) {
+        Product product = loadByModelCodeOrThrow(modelCode);
+        product.markUsageManual(req.usageScope(), req.estimateCategory());
+        return ProductResponse.from(product);
+    }
+
+    /**
+     * 품목 노출 범위 수동 override 해제 — modelCode 로 품목을 조회하고
+     * {@link Product#clearUsageManual()} 을 호출하여 플래그를 해제한다.
+     *
+     * <p>플래그 해제 후 다음 ProductSheetSyncService sync 에서 시트 기준으로 재분류된다.
+     *
+     * @param modelCode override 해제 대상 품목의 모델코드
+     * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
+     */
+    public void clearUsageOverride(String modelCode) {
+        Product product = loadByModelCodeOrThrow(modelCode);
+        product.clearUsageManual();
+    }
+
     public void delete(UUID id, String callerId) {
         Product product = loadOrThrow(id);
         product.markDeleted(callerId == null ? "system" : callerId);
@@ -298,6 +370,20 @@ public class ProductService {
     private Product loadOrThrow(UUID id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "제품을 찾을 수 없습니다"));
+    }
+
+    /**
+     * modelCode 기반 단건 조회 — catalog 노출 식별자 fallback 규칙 적용
+     * (modelCode 없으면 modelName 으로 fallback, {@link ProductRepository#findByCatalogExposedModelCodeAndIsDeletedFalse}).
+     *
+     * @param modelCode 카탈로그 노출 모델코드
+     * @return 활성 Product 엔티티
+     * @throws BusinessException(NOT_FOUND) 해당 모델코드의 품목이 없을 때
+     */
+    private Product loadByModelCodeOrThrow(String modelCode) {
+        return productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(modelCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "모델코드에 해당하는 품목을 찾을 수 없습니다: " + modelCode));
     }
 
     /** {@code tagKey=hp&tagValue=1.5} → {@code {"hp":"1.5"}} 의 jsonb literal 문자열로 변환. */

@@ -646,8 +646,15 @@ public class ProductSheetSyncService {
                 // productCategory 일치 탭)에서만 설정 — 다른 탭(예: 싱글세트가 구성품 탭에 재출현)이
                 // NONE/다른 순번으로 덮어쓰는 stomping 방지(2026-06-10 노출구분 결정). 가격/변동DC/
                 // 사양은 어느 탭에서든 갱신(단가인상 탭 권위).
+                //
+                // V14 수동 override 보존 가드 (2026-06-11 PR-B):
+                //   usageScopeManual=true 인 품목은 usageScope/estimateCategory 를 시트 기준으로
+                //   덮어쓰지 않는다. displayOrder 는 시트 노출 순서이므로 manual 여부와 무관하게
+                //   항상 갱신한다(사용자가 시트 행 순서를 재정렬해도 반영되어야 함).
                 if (p.getProductCategory() == mapping.productCategory) {
-                    p.changeUsage(mapping.usageScope, mapping.estimateCategory);
+                    if (!p.isUsageScopeManual()) {
+                        p.changeUsage(mapping.usageScope, mapping.estimateCategory);
+                    }
                     applyPyongSize(p, mapping, cells);
                     p.changeDisplayOrder(displayOrder);
                 }

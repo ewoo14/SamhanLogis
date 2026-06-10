@@ -545,6 +545,75 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                 .extracting(Product::getModelCode).contains("STOMP_TEST");
     }
 
+    /**
+     * V14 수동 override 보존 가드 — usageScopeManual=true 인 품목은 sync 시 usageScope/estimateCategory 불변.
+     * displayOrder 는 시트 노출 순서이므로 manual 여부와 무관하게 계속 갱신된다.
+     */
+    @Test
+    void sync_수동override_true인_품목은_usageScope_불변_displayOrder는_갱신() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 1차 sync — 홈멀티(BOTH) 로 insert
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi 수동테스트", "MANUAL_GUARD", "", "1,500,000", "", "1,200,000")
+        ));
+        syncService.syncAll();
+
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_GUARD").orElseThrow();
+        assertThat(p.getUsageScope()).isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+        assertThat(p.getDisplayOrder()).isEqualTo(1);
+
+        // 수동 override: usageScope 를 PARTNER_ORDER 로 변경하고 플래그 true
+        p.markUsageManual(com.samhanair.logis.product.domain.UsageScope.PARTNER_ORDER, null);
+        productRepository.save(p);
+        assertThat(p.isUsageScopeManual()).isTrue();
+
+        // 2차 sync — 시트 row 변경(가격 변경 → hash 변경으로 update 경로 진입)
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi 수동테스트", "MANUAL_GUARD", "", "1,600,000", "", "1,300,000")  // 가격 변경
+        ));
+        syncService.syncAll();
+
+        // 보존 가드: usageScope 는 수동 설정값(PARTNER_ORDER) 유지 — 시트(BOTH) 로 덮어쓰이지 않음
+        Product after = productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_GUARD").orElseThrow();
+        assertThat(after.getUsageScope())
+                .as("수동 override 보존 — 시트 BOTH 로 덮어쓰이면 안 됨")
+                .isEqualTo(com.samhanair.logis.product.domain.UsageScope.PARTNER_ORDER);
+        assertThat(after.isUsageScopeManual()).isTrue();
+
+        // displayOrder 는 계속 갱신 (시트에서 1번 행이므로 1)
+        assertThat(after.getDisplayOrder())
+                .as("displayOrder 는 manual 여부와 무관하게 시트 순서로 갱신")
+                .isEqualTo(1);
+        // 가격은 갱신됨
+        assertThat(after.getReleasePrice()).isEqualByComparingTo(new BigDecimal("1600000"));
+    }
+
+    /**
+     * V14 수동 override 보존 가드 — usageScopeManual=false(기본) 인 품목은 기존대로 시트 기준 갱신.
+     */
+    @Test
+    void sync_수동override_false인_품목은_기존대로_시트기준_갱신() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi 자동", "AUTO_GUARD", "", "1,500,000", "", "1,200,000")
+        ));
+        syncService.syncAll();
+
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("AUTO_GUARD").orElseThrow();
+        assertThat(p.isUsageScopeManual()).isFalse();
+        assertThat(p.getUsageScope()).isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+
+        // 2차 sync — 가격 변경으로 update 경로
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi 자동", "AUTO_GUARD", "", "1,700,000", "", "1,400,000")
+        ));
+        syncService.syncAll();
+
+        Product after = productRepository.findByModelCodeAndIsDeletedFalse("AUTO_GUARD").orElseThrow();
+        // 기존 동작 유지 — 시트 기준(BOTH) 으로 계속 갱신
+        assertThat(after.getUsageScope()).isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+    }
+
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */
     @SafeVarargs
     private static List<List<Object>> homeMultiRows(List<Object>... dataRows) {
