@@ -38,10 +38,12 @@ import com.samhanair.logis.product.editrequest.web.ProductEditRequestController;
 import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
 import com.samhanair.logis.product.realtime.ProductRealtimeController;
 import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
+import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.MaterialPriceRepository;
 import com.samhanair.logis.product.repository.OduRecommendationLookupRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
+import com.samhanair.logis.product.service.BundleComponentService;
 import com.samhanair.logis.product.service.CategoryService;
 import com.samhanair.logis.product.service.EcountProductImporter;
 import com.samhanair.logis.product.service.ProductLookupSheetSyncService;
@@ -155,6 +157,9 @@ class ProductPermissionControllerIT {
     @MockBean private ProductAuditLogService auditLogService;
     @MockBean private ProductRealtimeBroker realtimeBroker;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+    // §1c/§1d 신규 빈 (ProductCatalogController 신규 의존성 — feedback_it_mockbean_external_clients.md)
+    @MockBean private BundleComponentService bundleComponentService;
+    @MockBean private BundleComponentRepository bundleComponentRepository;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -238,6 +243,11 @@ class ProductPermissionControllerIT {
         lenient().when(categoryService.getTree()).thenReturn(List.of(category));
         lenient().when(categoryService.create(any())).thenReturn(category);
         lenient().when(categoryService.update(any(), any())).thenReturn(category);
+        // §1b/§1c lenient stub (ProductCatalogController 신규 경로 — N+1 방지 벌크 count)
+        lenient().when(bundleComponentRepository.countMapByBundleProductIds(any()))
+                .thenReturn(Map.of());
+        lenient().when(bundleComponentService.listComponents(anyString())).thenReturn(List.of());
+        lenient().when(bundleComponentService.replaceComponents(anyString(), any())).thenReturn(List.of());
         lenient().doNothing().when(googleSheetsClient).invalidateCache();
         lenient().when(productSheetSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
         lenient().when(ecountProductImporter.importCsv(any(), any(), any(), anyString()))

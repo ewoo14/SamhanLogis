@@ -774,6 +774,7 @@ const MOCK_BRANCH_PIPE_ROWS = [
 
 // MOCK_PRODUCT_CATALOG_ROWS: mutable 로 선언하여 PATCH/DELETE 가 업데이트 가능.
 // usageScopeManual / displayOrder 필드 추가 (PR-B 확장).
+// productType / componentCount 추가 (PR-E 확장).
 let MOCK_PRODUCT_CATALOG_ROWS: Array<{
   modelCode: string
   name: string
@@ -786,19 +787,40 @@ let MOCK_PRODUCT_CATALOG_ROWS: Array<{
   hasVariableDiscount: boolean
   legacyDiscountFlag: boolean
   discountFlags: null
-}> = Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => ({
-  modelCode: p.modelName,
-  name: p.productName,
-  usageScope: index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
-  estimateCategory: index % 2 === 0 ? 'HOME_MULTI' : 'OTHER',
-  usageScopeManual: false,
-  displayOrder: index + 1,
-  releasePrice: Number(p.sellingPrice),
-  deliveryPrice: Number(p.sellingPrice),
-  hasVariableDiscount: false,
-  legacyDiscountFlag: false,
-  discountFlags: null,
-}))
+  productType: string
+  componentCount: number
+}> = Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => {
+  const isBundle = p.productType === 'BUNDLE'
+  return {
+    modelCode: p.modelName,
+    name: p.productName,
+    usageScope: index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
+    estimateCategory: index % 2 === 0 ? 'HOME_MULTI' : 'OTHER',
+    usageScopeManual: false,
+    displayOrder: index + 1,
+    releasePrice: Number(p.sellingPrice),
+    deliveryPrice: Number(p.sellingPrice),
+    hasVariableDiscount: false,
+    legacyDiscountFlag: false,
+    discountFlags: null,
+    productType: p.productType ?? 'SINGLE',
+    componentCount: isBundle ? 3 : 0,
+  }
+})
+
+// 구성품 데이터 (BUNDLE 품목 전용) — PUT replace-all 로 업데이트됨.
+let MOCK_BUNDLE_COMPONENTS: Record<string, Array<{
+  componentModelCode: string
+  name: string
+  quantity: number
+  displayOrder: number
+}>> = {
+  'SET-HM2WAY': [
+    { componentModelCode: 'AJ040RXH4BC1', name: '시스템에어컨 4Way 4HP', quantity: 2, displayOrder: 1 },
+    { componentModelCode: 'AJ100NCDKH', name: '실외기 10HP', quantity: 1, displayOrder: 2 },
+    { componentModelCode: 'MWR-WE10N', name: '유선 리모컨 (WE10N)', quantity: 2, displayOrder: 3 },
+  ],
+}
 
 let mockProductSpecsByModel: Record<string, Array<{
   id: string
@@ -1113,6 +1135,84 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('products.list', 'view')
     if (denied) return denied
     return envelope(MOCK_PRODUCT_CATEGORIES)
+  }
+
+  // PUT /api/v1/products/display-orders — 표시 순서 일괄 갱신 (드래그 후 저장)
+  // 경로 우선순위: 리터럴 /display-orders 가 /{modelCode}/components 패턴보다 먼저 매칭돼야 함.
+  if (method === 'PUT' && url.match(/\/api\/v1\/products\/display-orders(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const orders = Array.isArray(body) ? (body as Array<{ modelCode?: unknown; displayOrder?: unknown }>) : []
+    if (orders.length === 0) {
+      return mockError(400, 'BAD_REQUEST', '표시 순서 목록이 비어 있습니다.')
+    }
+    MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) => {
+      const entry = orders.find((o) => o.modelCode === row.modelCode)
+      if (!entry) return row
+      return { ...row, displayOrder: Number(entry.displayOrder ?? row.displayOrder) }
+    })
+    // 204 No Content 동형 — non-null 마커 반환
+    return { updated: true }
+  }
+
+  // GET /api/v1/products/{modelCode}/components — 구성품 목록 (BUNDLE 전용)
+  // PUT /api/v1/products/{modelCode}/components — 구성품 replace-all 저장
+  // 경로 우선순위: /components 패턴이 /usage, /specs, /display-orders 보다 아래, /{modelCode} 패턴보다 위.
+  const productComponentsMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/components(?:\?.*)?$/)
+  if (productComponentsMatch) {
+    const modelCode = decodeURIComponent(productComponentsMatch[1]!)
+    const catalogRow = MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === modelCode)
+    if (!catalogRow) {
+      return mockError(404, 'NOT_FOUND', '품목을 찾을 수 없습니다.')
+    }
+
+    if (method === 'GET') {
+      const denied = mockRequirePermission('products.list', 'view')
+      if (denied) return denied
+      if (catalogRow.productType !== 'BUNDLE') {
+        return mockError(409, 'CONFLICT', '세트(BUNDLE) 품목만 구성품 조회가 가능합니다.')
+      }
+      return MOCK_BUNDLE_COMPONENTS[modelCode] ?? []
+    }
+
+    if (method === 'PUT') {
+      const denied = mockRequirePermission('products.admin', 'update')
+      if (denied) return denied
+      if (catalogRow.productType !== 'BUNDLE') {
+        return mockError(409, 'CONFLICT', '세트(BUNDLE) 품목만 구성품 편집이 가능합니다.')
+      }
+      const body = parseMockBody(config)
+      const components = Array.isArray(body)
+        ? (body as Array<{ componentModelCode?: unknown; quantity?: unknown; displayOrder?: unknown }>)
+        : []
+      if (components.length === 0) {
+        return mockError(400, 'BAD_REQUEST', '구성품 목록이 비어 있습니다.')
+      }
+      // 구성 모델코드 존재 확인 (활성 품목 검증 동형)
+      for (const comp of components) {
+        const compCode = String(comp.componentModelCode ?? '')
+        const compRow = MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === compCode)
+        if (!compRow) {
+          return mockError(400, 'BAD_REQUEST', `구성 품목 '${compCode}'을(를) 찾을 수 없습니다.`)
+        }
+        if (compCode === modelCode) {
+          return mockError(400, 'BAD_REQUEST', '세트 품목 자신을 구성품으로 포함할 수 없습니다.')
+        }
+      }
+      const newComponents = components.map((comp, idx) => ({
+        componentModelCode: String(comp.componentModelCode ?? ''),
+        name: MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === String(comp.componentModelCode ?? ''))?.name ?? '',
+        quantity: Number(comp.quantity ?? 1),
+        displayOrder: Number(comp.displayOrder ?? idx + 1),
+      }))
+      MOCK_BUNDLE_COMPONENTS = { ...MOCK_BUNDLE_COMPONENTS, [modelCode]: newComponents }
+      // componentCount 갱신
+      MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) =>
+        row.modelCode === modelCode ? { ...row, componentCount: newComponents.length } : row,
+      )
+      return newComponents
+    }
   }
 
   // PATCH /api/v1/products/{modelCode}/usage — 수동 override 설정 (usageScopeManual=true)

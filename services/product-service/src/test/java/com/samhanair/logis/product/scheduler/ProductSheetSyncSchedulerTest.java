@@ -56,6 +56,8 @@ class ProductSheetSyncSchedulerTest {
         ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
         ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
         ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        // cronEnabled=true 로 설정해야 실제 sync 경로 진입 (§1a 기본값 false 게이트)
+        ReflectionTestUtils.setField(scheduler, "cronEnabled", true);
         when(productSyncService.syncAll()).thenThrow(new RuntimeException("product down"));
         when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
 
@@ -78,5 +80,60 @@ class ProductSheetSyncSchedulerTest {
 
         verify(productSyncService).syncAll();
         verify(lookupSyncService).syncAll();
+    }
+
+    // ============================================================
+    // §1a cron 게이트 테스트 (2026-06-11)
+    // ============================================================
+
+    @Test
+    void scheduledSync_cronEnabled_false이면_sync를_실행하지_않는다() {
+        ProductSheetSyncService productSyncService = mock(ProductSheetSyncService.class);
+        ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
+        ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
+        ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        // cronEnabled=false 설정 (기본값과 동일하지만 명시적으로 주입)
+        ReflectionTestUtils.setField(scheduler, "cronEnabled", false);
+
+        scheduler.scheduledSync();
+
+        // syncAll 이 호출되지 않아야 한다
+        org.mockito.Mockito.verifyNoInteractions(productSyncService);
+        org.mockito.Mockito.verifyNoInteractions(lookupSyncService);
+    }
+
+    @Test
+    void scheduledSync_cronEnabled_true이면_sync를_실행한다() {
+        ProductSheetSyncService productSyncService = mock(ProductSheetSyncService.class);
+        ProductLookupSheetSyncService lookupSyncService = mock(ProductLookupSheetSyncService.class);
+        ProductSheetSyncScheduler scheduler = new ProductSheetSyncScheduler(productSyncService, lookupSyncService);
+        ReflectionTestUtils.setField(scheduler, "schedulingEnabled", true);
+        ReflectionTestUtils.setField(scheduler, "cronEnabled", true);
+        when(productSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
+        when(lookupSyncService.syncAll()).thenReturn(new ProductLookupSheetSyncService.SyncSummary());
+
+        scheduler.scheduledSync();
+
+        verify(productSyncService).syncAll();
+        verify(lookupSyncService).syncAll();
+    }
+
+    @Test
+    void cronEnabled_프로퍼티_플레이스홀더가_samhan_product_sheet_sync_cron_enabled() {
+        // application.yml 의 samhan.product.sheet-sync.cron-enabled 와 일치하는지 확인
+        // (@Value 어노테이션의 placeholder 를 리플렉션으로 검증)
+        java.lang.reflect.Field[] fields = ProductSheetSyncScheduler.class.getDeclaredFields();
+        boolean found = false;
+        for (java.lang.reflect.Field f : fields) {
+            org.springframework.beans.factory.annotation.Value val =
+                    f.getAnnotation(org.springframework.beans.factory.annotation.Value.class);
+            if (val != null && val.value().contains("samhan.product.sheet-sync.cron-enabled")) {
+                found = true;
+                // 기본값이 false 인지 확인
+                assertThat(val.value()).contains(":false");
+                break;
+            }
+        }
+        assertThat(found).as("samhan.product.sheet-sync.cron-enabled @Value 필드가 존재해야 함").isTrue();
     }
 }

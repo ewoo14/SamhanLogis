@@ -48,6 +48,10 @@ app:
   # Stage 1 local-test seed (HvacProductSeeder) toggle. dev profile + 본 toggle 모두 true 인 경우만
   # Samsung HVAC 100건 seed. 운영 / staging 데이터 오염 방지 — default false.
   product:
+    # 2026-06-11 개발책임자 확정: 구글 시트는 최초 시드 전용 — 자동 cron 기본 비활성.
+    # 시드 재적재 비상 수단으로 수동 trigger(POST /api/v1/products/admin/sync)만 유지.
+    sheet-sync:
+      cron-enabled: ${SAMHAN_PRODUCT_SHEET_SYNC_CRON_ENABLED:false}
     seed-test-data: ${SAMHAN_PRODUCT_SEED_TEST_DATA:false}
     # PR-H4b (Phase 12 Step 4b BE-C) — 제품 마스터 수정/삭제 요청 자동 만료 (시간 단위, default 24h).
     # ProductEditRequest.requestedAt + expires-hours < now() → status = EXPIRED 전환 (스케줄러 1h 주기).
@@ -112,3 +116,8 @@ eureka:
 app:
   scheduling:
     enabled: false
+
+samhan:
+  product:
+    sheet-sync:
+      cron-enabled: false

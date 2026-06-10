@@ -1,19 +1,26 @@
 /**
- * 품목 관리 페이지 (`/products/catalog`) — PR-B 품목 노출 수동 토글 신설.
+ * 품목 관리 페이지 (`/products/catalog`) — PR-B 품목 노출 수동 토글 + PR-E 세트·구성품·표시순서.
  *
  * <h2>핵심 기능</h2>
  * <ul>
  *   <li>전 품목 목록 (제한 없음 — products.list VIEW)</li>
- *   <li>컬럼: 모델명 / 카테고리 / 견적 노출 / 주문 노출 / 출처 뱃지 / displayOrder</li>
+ *   <li>컬럼: 모델명 / 품목명 / 카테고리 / 세트 / 노출 설정 / displayOrder</li>
  *   <li>수동 토글: '견적 노출' / '주문 노출' 체크 2개 → usageScope 매핑 → PATCH</li>
  *   <li>estimateCategory 셀렉트: ESTIMATE/BOTH 선택 시에만 노출</li>
- *   <li>시트 자동 복귀 버튼: DELETE /usage</li>
+ *   <li>세트 컬럼: BUNDLE 품목이면 '세트' 뱃지 + 구성품 수 ("세트 · 3"), 일반 품목은 —</li>
+ *   <li>구성품 편집 모달: BUNDLE 행 '구성품' 버튼 → 구성 목록 + 추가/삭제/수량/순서 → PUT replace-all</li>
+ *   <li>표시 순서 드래그: @dnd-kit/sortable 행 드래그 → '순서 저장' 버튼 → PUT /display-orders</li>
  * </ul>
+ *
+ * <h2>순서 저장 방침</h2>
+ * <p>드래그 결과 반영 시 전체 목록을 충분히 큰 size(999)로 재조회하여 새 displayOrder 전량 전송한다.
+ * 페이지 단위 부분 재번호는 전체 순서 모호로 인해 사용하지 않는다.
+ * 검색(q)/필터 활성 시 드래그 비활성 — 부분 목록 드래그는 순서 모호.</p>
  *
  * <h2>게이트</h2>
  * <ul>
  *   <li>페이지 진입: products.list VIEW (PermissionGuard)</li>
- *   <li>토글/복귀 CTA: products.admin UPDATE (canAccess 기반 read-only)</li>
+ *   <li>토글/구성품 편집/순서 저장: products.admin UPDATE (canAccess 기반 read-only)</li>
  * </ul>
  *
  * <h2>UUID 비공개</h2>
@@ -21,9 +28,13 @@
  *
  * <h2>design-system 컴포넌트</h2>
  * <ul>
- *   <li>{@code Button} — 조회, 시트 자동 복귀</li>
- *   <li>{@code Badge} — 출처 뱃지 (시트 자동 / 수동)</li>
+ *   <li>{@code Button} — 조회, 순서 저장, 구성품 모달 저장/닫기</li>
+ *   <li>{@code Badge} — 세트 뱃지</li>
  *   <li>{@code DataTable} — 품목 목록</li>
+ *   <li>{@code Modal} — 구성품 편집 모달</li>
+ *   <li>{@code Input} — 수량 입력, 품목 검색</li>
+ *   <li>{@code Select} — estimateCategory 셀렉트</li>
+ *   <li>{@code DragHandle} — 행 드래그 핸들</li>
  * </ul>
  *
  * <h2>data-testid</h2>
@@ -35,23 +46,73 @@
  *   <li>{@code product-catalog-estimate-toggle-{modelCode}} — 견적 노출 체크박스</li>
  *   <li>{@code product-catalog-order-toggle-{modelCode}} — 주문 노출 체크박스</li>
  *   <li>{@code product-catalog-estimate-category-{modelCode}} — 카테고리 셀렉트</li>
- *   <li>{@code product-catalog-clear-{modelCode}} — 시트 자동 복귀 버튼</li>
- *   <li>{@code product-catalog-source-badge-{modelCode}} — 출처 뱃지</li>
+ *   <li>{@code product-catalog-set-badge-{modelCode}} — 세트 뱃지</li>
+ *   <li>{@code product-catalog-components-button-{modelCode}} — 구성품 편집 버튼</li>
  *   <li>{@code product-catalog-list-error} — 목록 조회 오류 배너 (isError + rows.length===0 시)</li>
  *   <li>{@code product-catalog-mutation-error} — 변형(토글/복귀) 오류 배너</li>
  *   <li>{@code product-catalog-readonly-banner} — 조회 전용 안내 배너 (canEdit=false 시)</li>
+ *   <li>{@code product-catalog-save-order-button} — 순서 저장 버튼</li>
+ *   <li>{@code components-modal} — 구성품 편집 모달 (data-testid on modal wrapper)</li>
+ *   <li>{@code components-modal-component-row-{index}} — 구성품 행</li>
+ *   <li>{@code components-modal-quantity-{index}} — 수량 입력</li>
+ *   <li>{@code components-modal-delete-{index}} — 구성품 삭제 버튼</li>
+ *   <li>{@code components-modal-up-{index}} — 위로 버튼</li>
+ *   <li>{@code components-modal-down-{index}} — 아래로 버튼</li>
+ *   <li>{@code components-modal-search-input} — 품목 검색 인풋</li>
+ *   <li>{@code components-modal-add-{modelCode}} — 품목 추가 버튼</li>
+ *   <li>{@code components-modal-save-button} — 저장 버튼</li>
  * </ul>
  */
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  type CSSProperties,
+} from 'react'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
+  Badge,
+  Button,
+  DataTable,
+  DragHandle,
+  Input,
+  Modal,
+  Select,
+  type DataTableColumn,
+} from '@samhan/design-system'
 import {
   listProducts,
   updateProductUsage,
-  clearProductUsage,
+  listBundleComponents,
+  updateBundleComponents,
+  updateDisplayOrders,
   type ProductCatalogRow,
   type EstimateCategory,
   type UsageScope,
+  type BundleComponentItem,
+  type BundleComponentInput,
 } from '../api/productCatalogApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -59,6 +120,9 @@ import { usePermissions } from '../hooks/usePermissions'
 // ---------------------------------------------------------------------------
 // 상수
 // ---------------------------------------------------------------------------
+
+/** 표시 순서 일괄 저장 시 사용하는 전체 조회 size (충분히 크게 — 부분 재번호 방지) */
+const DISPLAY_ORDER_FULL_SIZE = 999
 
 const PAGE_SIZE = 50
 
@@ -124,12 +188,10 @@ interface ToggleCellProps {
   row: ProductCatalogRow
   canEdit: boolean
   onPatch: (modelCode: string, scope: UsageScope, estimateCategory: EstimateCategory | null) => void
-  onClear: (modelCode: string) => void
   patchLoading: boolean
-  clearLoading: boolean
 }
 
-function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading }: ToggleCellProps) {
+function ToggleCell({ row, canEdit, onPatch, patchLoading }: ToggleCellProps) {
   const { estimate, order } = fromUsageScope(row.usageScope)
 
   const handleEstimateChange = (checked: boolean) => {
@@ -153,7 +215,6 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
   }
 
   const showEstimateCategory = estimate && (row.usageScope === 'ESTIMATE' || row.usageScope === 'BOTH')
-  const isLoading = patchLoading || clearLoading
 
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -161,7 +222,7 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
         <input
           type="checkbox"
           checked={estimate}
-          disabled={!canEdit || isLoading}
+          disabled={!canEdit || patchLoading}
           onChange={(e) => handleEstimateChange(e.target.checked)}
           data-testid={`product-catalog-estimate-toggle-${row.modelCode}`}
           aria-label="견적 노출"
@@ -172,7 +233,7 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
         <input
           type="checkbox"
           checked={order}
-          disabled={!canEdit || isLoading}
+          disabled={!canEdit || patchLoading}
           onChange={(e) => handleOrderChange(e.target.checked)}
           data-testid={`product-catalog-order-toggle-${row.modelCode}`}
           aria-label="주문 노출"
@@ -182,7 +243,7 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
       {showEstimateCategory ? (
         <Select
           value={row.estimateCategory ?? ''}
-          disabled={!canEdit || isLoading}
+          disabled={!canEdit || patchLoading}
           onChange={(e) => handleCategoryChange(e.target.value)}
           data-testid={`product-catalog-estimate-category-${row.modelCode}`}
           selectSize="sm"
@@ -195,19 +256,385 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
           ))}
         </Select>
       ) : null}
-      {row.usageScopeManual && canEdit ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => onClear(row.modelCode)}
-          loading={clearLoading}
-          disabled={isLoading}
-          data-testid={`product-catalog-clear-${row.modelCode}`}
-        >
-          시트 자동 복귀
-        </Button>
-      ) : null}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 구성품 편집 모달
+// ---------------------------------------------------------------------------
+
+interface ComponentsModalProps {
+  open: boolean
+  modelCode: string
+  canEdit: boolean
+  onClose: () => void
+  onSaved: () => void
+}
+
+interface ComponentDraft extends BundleComponentItem {
+  /** 검색/추가 후 신규 여부 (로컬 임시 ID — 저장 시 제거) */
+  _localId: string
+}
+
+function ComponentsModal({
+  open,
+  modelCode,
+  canEdit,
+  onClose,
+  onSaved,
+}: ComponentsModalProps) {
+  const queryClient = useQueryClient()
+  const [drafts, setDrafts] = useState<ComponentDraft[]>([])
+  const [searchInput, setSearchInput] = useState('')
+  const [searchResults, setSearchResults] = useState<ProductCatalogRow[]>([])
+  const [modalError, setModalError] = useState<string | null>(null)
+
+  // 구성품 목록 로드
+  const componentsQuery = useQuery({
+    queryKey: ['bundle-components', modelCode],
+    queryFn: () => listBundleComponents(modelCode),
+    enabled: open && modelCode.length > 0,
+    staleTime: 0,
+  })
+
+  // 품목 검색 (기존 listProducts 재사용 — 자기 자신·BUNDLE 제외)
+  const searchQuery = useQuery({
+    queryKey: ['product-catalog-search', searchInput],
+    queryFn: () => listProducts({ q: searchInput, size: 20 }),
+    enabled: searchInput.trim().length >= 1,
+    staleTime: 10_000,
+  })
+
+  // 구성품 저장 (PUT replace-all)
+  const saveMutation = useMutation({
+    mutationFn: (components: BundleComponentInput[]) =>
+      updateBundleComponents(modelCode, components),
+    onSuccess: () => {
+      setModalError(null)
+      void queryClient.invalidateQueries({ queryKey: ['product-catalog'] })
+      void queryClient.invalidateQueries({ queryKey: ['bundle-components', modelCode] })
+      onSaved()
+    },
+    onError: (err) => {
+      setModalError(errorMsg(err))
+    },
+  })
+
+  // 모달 열릴 때 drafts 초기화
+  useEffect(() => {
+    if (open && componentsQuery.data) {
+      setDrafts(
+        componentsQuery.data.map((c, idx) => ({
+          ...c,
+          displayOrder: idx + 1,
+          _localId: `existing-${c.componentModelCode}-${idx}`,
+        })),
+      )
+    }
+  }, [open, componentsQuery.data])
+
+  // 검색 결과 업데이트 (자기 자신·BUNDLE 제외)
+  useEffect(() => {
+    if (searchQuery.data) {
+      const results = searchQuery.data.content.filter(
+        (p) => p.modelCode !== modelCode && p.productType !== 'BUNDLE',
+      )
+      setSearchResults(results)
+    } else {
+      setSearchResults([])
+    }
+  }, [searchQuery.data, modelCode])
+
+  const handleQuantityChange = (localId: string, value: string) => {
+    const num = parseInt(value, 10)
+    if (isNaN(num) || num < 1) return
+    setDrafts((prev) =>
+      prev.map((d) => (d._localId === localId ? { ...d, quantity: num } : d)),
+    )
+  }
+
+  const handleDelete = (localId: string) => {
+    setDrafts((prev) => {
+      const next = prev.filter((d) => d._localId !== localId)
+      return next.map((d, idx) => ({ ...d, displayOrder: idx + 1 }))
+    })
+  }
+
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return
+    setDrafts((prev) => {
+      const next = [...prev]
+      const temp = next[index - 1]!
+      next[index - 1] = next[index]!
+      next[index] = temp
+      return next.map((d, idx) => ({ ...d, displayOrder: idx + 1 }))
+    })
+  }
+
+  const handleMoveDown = (index: number) => {
+    setDrafts((prev) => {
+      if (index >= prev.length - 1) return prev
+      const next = [...prev]
+      const temp = next[index + 1]!
+      next[index + 1] = next[index]!
+      next[index] = temp
+      return next.map((d, idx) => ({ ...d, displayOrder: idx + 1 }))
+    })
+  }
+
+  const handleAdd = (product: ProductCatalogRow) => {
+    // 중복 추가 방지
+    if (drafts.some((d) => d.componentModelCode === product.modelCode)) return
+    const newDraft: ComponentDraft = {
+      componentModelCode: product.modelCode,
+      name: product.name,
+      quantity: 1,
+      displayOrder: drafts.length + 1,
+      _localId: `new-${product.modelCode}-${Date.now()}`,
+    }
+    setDrafts((prev) => [...prev, newDraft])
+    setSearchInput('')
+    setSearchResults([])
+  }
+
+  const handleSave = () => {
+    if (drafts.length === 0) {
+      setModalError('구성품이 없습니다. 최소 1개 이상 등록해 주세요.')
+      return
+    }
+    const components: BundleComponentInput[] = drafts.map((d, idx) => ({
+      componentModelCode: d.componentModelCode,
+      quantity: d.quantity,
+      displayOrder: idx + 1,
+    }))
+    saveMutation.mutate(components)
+  }
+
+  const handleClose = () => {
+    setSearchInput('')
+    setSearchResults([])
+    setModalError(null)
+    onClose()
+  }
+
+  const isLoading = componentsQuery.isLoading
+  const isSaving = saveMutation.isPending
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={`구성품 편집 — ${modelCode}`}
+      size="lg"
+      footer={
+        canEdit ? (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={handleClose} disabled={isSaving}>
+              닫기
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              loading={isSaving}
+              disabled={isSaving || isLoading}
+              data-testid="components-modal-save-button"
+            >
+              저장
+            </Button>
+          </div>
+        ) : (
+          <Button variant="secondary" onClick={handleClose}>닫기</Button>
+        )
+      }
+    >
+      <div
+        style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 200 }}
+        data-testid="components-modal"
+      >
+        {isLoading ? (
+          <p style={{ color: 'var(--color-neutral-500)', fontSize: 13 }}>불러오는 중…</p>
+        ) : null}
+
+        {modalError ? (
+          <div role="alert" style={errorBannerStyle} data-testid="components-modal-error">
+            {modalError}
+          </div>
+        ) : null}
+
+        {/* 현재 구성품 목록 */}
+        <section aria-label="구성품 목록">
+          <h4 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--color-neutral-700)' }}>
+            구성품 ({drafts.length}개)
+          </h4>
+          {drafts.length === 0 && !isLoading ? (
+            <p style={{ fontSize: 12, color: 'var(--color-neutral-400)' }}>구성품이 없습니다.</p>
+          ) : null}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {drafts.map((draft, idx) => (
+              <div
+                key={draft._localId}
+                data-testid={`components-modal-component-row-${idx}`}
+                style={componentRowStyle}
+              >
+                <span style={{ flex: 1, fontSize: 12 }}>
+                  <span style={{ fontFamily: 'monospace' }}>{draft.componentModelCode}</span>
+                  {draft.name ? (
+                    <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>{draft.name}</span>
+                  ) : null}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>수량</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={draft.quantity}
+                    disabled={!canEdit || isSaving}
+                    onChange={(e) => handleQuantityChange(draft._localId, e.target.value)}
+                    data-testid={`components-modal-quantity-${idx}`}
+                    style={quantityInputStyle}
+                    aria-label={`수량 ${idx + 1}`}
+                  />
+                </div>
+                {canEdit ? (
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveUp(idx)}
+                      disabled={idx === 0 || isSaving}
+                      data-testid={`components-modal-up-${idx}`}
+                      style={orderButtonStyle}
+                      aria-label="위로"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveDown(idx)}
+                      disabled={idx >= drafts.length - 1 || isSaving}
+                      data-testid={`components-modal-down-${idx}`}
+                      style={orderButtonStyle}
+                      aria-label="아래로"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(draft._localId)}
+                      disabled={isSaving}
+                      data-testid={`components-modal-delete-${idx}`}
+                      style={{ ...orderButtonStyle, color: 'var(--color-danger-600, #DC2626)' }}
+                      aria-label="삭제"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 품목 검색 + 추가 (canEdit 시에만) */}
+        {canEdit ? (
+          <section aria-label="구성품 추가">
+            <h4 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--color-neutral-700)' }}>
+              품목 추가 (단품만)
+            </h4>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <Input
+                label="품목 검색"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="모델명 또는 품목명 입력"
+                inputSize="sm"
+                fullWidth={false}
+                style={{ minWidth: 200 }}
+                data-testid="components-modal-search-input"
+              />
+            </div>
+            {searchResults.length > 0 ? (
+              <div style={searchResultsStyle}>
+                {searchResults.map((p) => {
+                  const alreadyAdded = drafts.some((d) => d.componentModelCode === p.modelCode)
+                  return (
+                    <div key={p.modelCode} style={searchResultRowStyle}>
+                      <span style={{ flex: 1, fontSize: 12 }}>
+                        <span style={{ fontFamily: 'monospace' }}>{p.modelCode}</span>
+                        <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>{p.name}</span>
+                      </span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleAdd(p)}
+                        disabled={alreadyAdded || isSaving}
+                        data-testid={`components-modal-add-${p.modelCode}`}
+                      >
+                        {alreadyAdded ? '추가됨' : '추가'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : searchInput.trim().length >= 1 && !searchQuery.isFetching ? (
+              <p style={{ fontSize: 11, color: 'var(--color-neutral-400)', marginTop: 4 }}>
+                검색 결과가 없습니다.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sortable 행 (dnd-kit) — 드래그 활성 시 커스텀 테이블에서 사용
+// ---------------------------------------------------------------------------
+
+interface SortableRowProps {
+  row: ProductCatalogRow
+  columns: DataTableColumn<ProductCatalogRow>[]
+}
+
+function SortableRow({ row, columns }: SortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: row.modelCode })
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <tr ref={setNodeRef} style={style} data-testid={`product-catalog-row-${row.modelCode}`}>
+      {/* 드래그 핸들 셀 */}
+      <td style={sortableTdStyle}>
+        <DragHandle
+          label={`${row.modelCode} 드래그`}
+          listeners={listeners as Record<string, unknown> | undefined}
+          attributes={attributes as unknown as Record<string, unknown>}
+          setActivatorNodeRef={setActivatorNodeRef}
+          dragging={isDragging}
+        />
+      </td>
+      {/* 데이터 셀 (drag 컬럼 제외) */}
+      {columns.filter((c) => c.key !== '_drag').map((col) => (
+        <td key={String(col.key)} style={sortableTdStyle}>
+          {col.render
+            ? col.render(row)
+            : String((row as unknown as Record<string, unknown>)[String(col.key)] ?? '')}
+        </td>
+      ))}
+    </tr>
   )
 }
 
@@ -216,7 +643,7 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
 // ---------------------------------------------------------------------------
 
 /**
- * 품목 관리 페이지 — 전 품목 목록 + usageScope 수동 토글.
+ * 품목 관리 페이지 — 전 품목 목록 + usageScope 수동 토글 + 세트·구성품·표시순서.
  */
 export function ProductCatalogPage() {
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
@@ -228,10 +655,29 @@ export function ProductCatalogPage() {
   const [committedSearch, setCommittedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
 
-  // 활성 패치/클리어 중인 modelCode 추적
+  // 활성 패치 중인 modelCode 추적
   const [patchingCode, setPatchingCode] = useState<string | null>(null)
-  const [clearingCode, setClearingCode] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
+
+  // 구성품 모달
+  const [componentsModalCode, setComponentsModalCode] = useState<string | null>(null)
+
+  // 드래그 표시 순서 상태
+  // sortableRows: 현재 화면에 보이는 순서 (드래그로 변경됨)
+  const [sortableRows, setSortableRows] = useState<ProductCatalogRow[]>([])
+  const [orderDirty, setOrderDirty] = useState(false)
+  const [orderSaving, setOrderSaving] = useState(false)
+  const [orderError, setOrderError] = useState<string | null>(null)
+
+  // 드래그 활성 여부 (검색/필터 없을 때만 + canEdit)
+  const isDragEnabled = canEdit && !committedSearch
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   useEffect(() => {
     setPageTitle({ title: '품목 관리', meta: '품목' })
@@ -248,6 +694,17 @@ export function ProductCatalogPage() {
       }),
     staleTime: 30_000,
   })
+
+  // rows → sortableRows 동기화 (query 결과 변경 시 또는 드래그 dirty 아닐 때)
+  const rows = listQuery.data?.content ?? []
+  const prevRowsRef = useRef<ProductCatalogRow[]>([])
+
+  useEffect(() => {
+    if (!orderDirty) {
+      setSortableRows(rows)
+      prevRowsRef.current = rows
+    }
+  }, [rows, orderDirty])
 
   const patchMutation = useMutation({
     mutationFn: ({
@@ -274,21 +731,9 @@ export function ProductCatalogPage() {
     },
   })
 
-  const clearMutation = useMutation({
-    mutationFn: (modelCode: string) => clearProductUsage(modelCode),
-    onSuccess: () => {
-      setMutationError(null)
-      setClearingCode(null)
-      void queryClient.invalidateQueries({ queryKey: ['product-catalog'] })
-    },
-    onError: (err) => {
-      setMutationError(errorMsg(err))
-      setClearingCode(null)
-    },
-  })
-
   const handleQuery = useCallback(() => {
     setCurrentPage(0)
+    setOrderDirty(false)
     setCommittedSearch(searchInput)
   }, [searchInput])
 
@@ -308,16 +753,50 @@ export function ProductCatalogPage() {
     [patchMutation],
   )
 
-  const handleClear = useCallback(
-    (modelCode: string) => {
-      setClearingCode(modelCode)
-      setMutationError(null)
-      clearMutation.mutate(modelCode)
-    },
-    [clearMutation],
-  )
+  // 드래그 종료 처리
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setSortableRows((prev) => {
+      const oldIndex = prev.findIndex((r) => r.modelCode === String(active.id))
+      const newIndex = prev.findIndex((r) => r.modelCode === String(over.id))
+      if (oldIndex < 0 || newIndex < 0) return prev
+      return arrayMove(prev, oldIndex, newIndex)
+    })
+    setOrderDirty(true)
+  }, [])
 
-  const rows = listQuery.data?.content ?? []
+  // 표시 순서 저장
+  const handleSaveOrder = useCallback(async () => {
+    setOrderSaving(true)
+    setOrderError(null)
+    try {
+      // 전체 목록을 충분히 큰 size 로 재조회 후 새 순서대로 재번호 전송
+      // 페이지 단위 부분 재번호는 전체 순서 모호로 사용하지 않는다.
+      const allRows = await listProducts({ size: DISPLAY_ORDER_FULL_SIZE })
+      const allItems = allRows.content
+
+      // sortableRows 의 현재 순서를 기준으로 재번호 계산
+      // sortableRows 에 없는 행은 기존 displayOrder 유지 (뒤에 붙임)
+      const sortedModelCodes = sortableRows.map((r) => r.modelCode)
+      const otherItems = allItems.filter((r) => !sortedModelCodes.includes(r.modelCode))
+      const orderedAll = [...sortableRows, ...otherItems]
+
+      const orders = orderedAll.map((r, idx) => ({
+        modelCode: r.modelCode,
+        displayOrder: idx + 1,
+      }))
+
+      await updateDisplayOrders(orders)
+      setOrderDirty(false)
+      void queryClient.invalidateQueries({ queryKey: ['product-catalog'] })
+    } catch (err) {
+      setOrderError(errorMsg(err))
+    } finally {
+      setOrderSaving(false)
+    }
+  }, [sortableRows, queryClient])
+
   const totalElements = listQuery.data?.totalElements ?? 0
   const totalPages = listQuery.data?.totalPages ?? 1
 
@@ -326,6 +805,16 @@ export function ProductCatalogPage() {
   // ---------------------------------------------------------------------------
 
   const columns: DataTableColumn<ProductCatalogRow>[] = [
+    ...(isDragEnabled
+      ? [
+          {
+            key: '_drag' as const,
+            header: '',
+            width: '32px',
+            render: () => null, // SortableRow 내에서 DragHandle 렌더 — 컬럼 셀은 비워둠
+          } as DataTableColumn<ProductCatalogRow>,
+        ]
+      : []),
     {
       key: 'modelCode',
       header: '모델명',
@@ -349,32 +838,49 @@ export function ProductCatalogPage() {
           : '—',
     },
     {
+      key: 'productType',
+      header: '세트',
+      width: '100px',
+      render: (row) =>
+        row.productType === 'BUNDLE' ? (
+          <Badge
+            variant="brand"
+            data-testid={`product-catalog-set-badge-${row.modelCode}`}
+          >
+            {`세트 · ${row.componentCount ?? 0}`}
+          </Badge>
+        ) : (
+          <span style={{ color: 'var(--color-neutral-400)' }}>—</span>
+        ),
+    },
+    {
       key: 'usageScope',
       header: '노출 설정',
-      width: '320px',
+      width: '280px',
       render: (row) => (
         <ToggleCell
           row={row}
           canEdit={canEdit}
           onPatch={handlePatch}
-          onClear={handleClear}
           patchLoading={patchingCode === row.modelCode}
-          clearLoading={clearingCode === row.modelCode}
         />
       ),
     },
     {
-      key: 'usageScopeManual',
-      header: '출처',
+      key: '_components' as const,
+      header: '구성품',
       width: '90px',
-      render: (row) => (
-        <Badge
-          variant={row.usageScopeManual ? 'warning' : 'neutral'}
-          data-testid={`product-catalog-source-badge-${row.modelCode}`}
-        >
-          {row.usageScopeManual ? '수동' : '시트자동'}
-        </Badge>
-      ),
+      render: (row) =>
+        row.productType === 'BUNDLE' ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setComponentsModalCode(row.modelCode)}
+            data-testid={`product-catalog-components-button-${row.modelCode}`}
+          >
+            구성품
+          </Button>
+        ) : null,
     },
     {
       key: 'displayOrder',
@@ -391,7 +897,7 @@ export function ProductCatalogPage() {
       <div style={headerRowStyle}>
         <h3 style={{ margin: 0 }}>품목 관리</h3>
         <span style={subtitleStyle}>
-          품목별 견적/주문 노출 범위 수동 설정
+          품목별 견적/주문 노출 범위 수동 설정 + 세트 구성품 편집
         </span>
       </div>
 
@@ -427,6 +933,27 @@ export function ProductCatalogPage() {
           >
             조회
           </Button>
+          {canEdit && orderDirty ? (
+            <Button
+              variant="primary"
+              onClick={() => { void handleSaveOrder() }}
+              loading={orderSaving}
+              disabled={orderSaving || listQuery.isFetching}
+              data-testid="product-catalog-save-order-button"
+            >
+              순서 저장
+            </Button>
+          ) : null}
+          {isDragEnabled && !orderDirty && rows.length > 0 ? (
+            <span style={{ fontSize: 11, color: 'var(--color-neutral-400)' }}>
+              행을 드래그하여 순서 조정
+            </span>
+          ) : null}
+          {committedSearch ? (
+            <span style={{ fontSize: 11, color: 'var(--color-neutral-400)' }}>
+              검색 중 — 드래그 비활성
+            </span>
+          ) : null}
           {listQuery.isError ? (
             <span role="alert" style={errorBannerStyle}>
               {errorMsg(listQuery.error)}
@@ -442,15 +969,85 @@ export function ProductCatalogPage() {
         </div>
       ) : null}
 
-      {/* ── DataTable ─────────────────────────────────── */}
+      {/* ── 순서 오류 배너 ────────────────────────────── */}
+      {orderError ? (
+        <div role="alert" style={errorBannerStyle} data-testid="product-catalog-order-error">
+          {orderError}
+        </div>
+      ) : null}
+
+      {/* ── DataTable (드래그 활성 시 DndContext + 커스텀 테이블) ── */}
       <section style={tableSectionStyle} data-testid="product-catalog-table">
-        <DataTable<ProductCatalogRow>
-          columns={columns}
-          rows={rows}
-          rowKey={(row) => row.modelCode}
-          loading={listQuery.isFetching}
-          emptyMessage="조회 결과가 없습니다."
-        />
+        {isDragEnabled ? (
+          /* 드래그 활성: DndContext + SortableContext + 커스텀 <table>
+           * DataTable 은 renderRow 미지원이므로 같은 시각 스타일을 인라인 복제.
+           * 열 헤더는 drag 핸들 컬럼(+) + 나머지 data 컬럼.
+           */
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sortableRows.map((r) => r.modelCode)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div style={sortableTableWrapStyle}>
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <table style={sortableTableStyle}>
+                    <thead style={sortableTheadStyle}>
+                      <tr>
+                        {/* 드래그 핸들 헤더 */}
+                        <th style={{ ...sortableThStyle, width: 32 }} />
+                        {/* 나머지 컬럼 헤더 (drag 더미 컬럼 제외) */}
+                        {columns.filter((c) => c.key !== '_drag').map((col) => (
+                          <th
+                            key={String(col.key)}
+                            style={{
+                              ...sortableThStyle,
+                              ...(col.width ? { width: col.width } : {}),
+                            }}
+                          >
+                            {col.header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortableRows.length === 0 && !listQuery.isFetching ? (
+                        <tr>
+                          <td
+                            colSpan={columns.length + 1}
+                            style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--color-neutral-400)', fontSize: 13 }}
+                          >
+                            조회 결과가 없습니다.
+                          </td>
+                        </tr>
+                      ) : (
+                        sortableRows.map((row) => (
+                          <SortableRow key={row.modelCode} row={row} columns={columns} />
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {listQuery.isFetching ? (
+                  <div style={loadingOverlayStyle} role="status" aria-live="polite">
+                    로딩 중…
+                  </div>
+                ) : null}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <DataTable<ProductCatalogRow>
+            columns={columns}
+            rows={sortableRows}
+            rowKey={(row) => row.modelCode}
+            loading={listQuery.isFetching}
+            emptyMessage="조회 결과가 없습니다."
+          />
+        )}
       </section>
 
       {/* ── 오류 안내 ─────────────────────────────────── */}
@@ -461,7 +1058,6 @@ export function ProductCatalogPage() {
       ) : null}
 
       {/* ── 하단 요약 + 페이지네이션 ───────────────────── */}
-      {/* refetch 중에도 데이터 보유 시 footer 유지 (isFetching 이 아닌 rows.length 기준) */}
       {rows.length > 0 ? (
         <div style={summaryStyle} data-testid="product-catalog-summary">
           <span>
@@ -500,6 +1096,17 @@ export function ProductCatalogPage() {
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {/* ── 구성품 편집 모달 ───────────────────────────── */}
+      {componentsModalCode ? (
+        <ComponentsModal
+          open={true}
+          modelCode={componentsModalCode}
+          canEdit={canEdit}
+          onClose={() => setComponentsModalCode(null)}
+          onSaved={() => setComponentsModalCode(null)}
+        />
       ) : null}
     </div>
   )
@@ -544,10 +1151,6 @@ const fieldStyle: CSSProperties = {
   flexDirection: 'column',
   gap: 4,
 }
-
-// fieldLabelStyle 제거 — DS Input 의 label prop 으로 렌더됨 (P2 [17])
-
-// inputStyle / selectSmallStyle 제거 — design-system Input / Select 로 교체됨 (P2 [17])
 
 const checkboxLabelStyle: CSSProperties = {
   display: 'inline-flex',
@@ -625,4 +1228,104 @@ const readOnlyBannerStyle: CSSProperties = {
   border: '1px solid var(--color-border, #E5E7EB)',
   borderRadius: 4,
   padding: '6px 10px',
+}
+
+const componentRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '6px 8px',
+  background: 'var(--color-neutral-50, #F7F8FA)',
+  border: '1px solid var(--color-border, #E5E7EB)',
+  borderRadius: 4,
+}
+
+const quantityInputStyle: CSSProperties = {
+  width: 56,
+  padding: '2px 6px',
+  fontSize: 12,
+  border: '1px solid var(--color-border, #E5E7EB)',
+  borderRadius: 3,
+  textAlign: 'right',
+}
+
+const orderButtonStyle: CSSProperties = {
+  appearance: 'none',
+  border: '1px solid var(--color-border, #E5E7EB)',
+  borderRadius: 3,
+  background: 'var(--color-bg, #FFFFFF)',
+  cursor: 'pointer',
+  padding: '2px 5px',
+  fontSize: 10,
+  lineHeight: 1,
+}
+
+const searchResultsStyle: CSSProperties = {
+  marginTop: 8,
+  border: '1px solid var(--color-border, #E5E7EB)',
+  borderRadius: 4,
+  maxHeight: 180,
+  overflowY: 'auto',
+}
+
+const searchResultRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '6px 10px',
+  borderBottom: '1px solid var(--color-border, #E5E7EB)',
+}
+
+// Sortable 테이블 (드래그 활성 시 DataTable 대체 — renderRow 미지원 우회)
+const sortableTableWrapStyle: CSSProperties = {
+  position: 'relative',
+  width: '100%',
+  border: '1px solid var(--color-border, #E5E7EB)',
+  borderRadius: 6,
+  background: 'var(--color-bg, #FFFFFF)',
+  overflow: 'hidden',
+}
+
+const sortableTableStyle: CSSProperties = {
+  width: '100%',
+  borderCollapse: 'separate',
+  borderSpacing: 0,
+  fontSize: 13,
+  color: 'var(--color-text, #1A1D23)',
+}
+
+const sortableTheadStyle: CSSProperties = {
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+  background: 'var(--color-bg-subtle, #F7F8FA)',
+}
+
+const sortableThStyle: CSSProperties = {
+  padding: '8px 12px',
+  borderBottom: '1px solid var(--color-border, #E5E7EB)',
+  background: 'var(--color-bg-subtle, #F7F8FA)',
+  color: 'var(--color-text-muted, #6B7280)',
+  fontSize: 12,
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+  textAlign: 'left',
+}
+
+const sortableTdStyle: CSSProperties = {
+  padding: '6px 12px',
+  borderBottom: '1px solid var(--color-border, #E5E7EB)',
+  verticalAlign: 'middle',
+}
+
+const loadingOverlayStyle: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'rgba(255,255,255,0.6)',
+  pointerEvents: 'none',
+  fontSize: 12,
+  color: 'var(--color-neutral-500, #6B7280)',
 }
