@@ -68,17 +68,19 @@ describe('순수 유틸 (Apps Script 호환)', () => {
     expect(code.isBlockedByNote_('재고 충분')).toBe(false);
   });
 
-  test('hpFromText_ HP 추출', () => {
-    expect(code.hpFromText_('실외기 18HP')).toBe(18);
-    expect(code.hpFromText_('실외기 5.5HP 상업용')).toBe(5.5);
-    expect(code.hpFromText_('패널')).toBe(0);
+  test('hpFromText_ HP/마력 추출 — 라이브 GAS 동작 (NHP 문자열)', () => {
+    expect(code.hpFromText_('실외기 18HP')).toBe('18HP');
+    expect(code.hpFromText_('실외기 5.5HP 상업용')).toBe('5.5HP');
+    expect(code.hpFromText_('실외기 3마력')).toBe('3HP');
+    expect(code.hpFromText_('패널')).toBe('');
   });
 
-  test('classifyHome_ 대분류 (estimate-legacy 1:1 포팅)', () => {
-    // estimate-legacy 시그니처: { catL, catM, catS, disp }
+  test('classifyHome_ 대분류 (라이브 GAS verbatim)', () => {
+    // 라이브 시그니처: { catL, catM, catS, disp } — 8단계 cascade
     expect(code.classifyHome_('실외기 18HP').catL).toBe('실외기');
-    expect(code.classifyHome_('실내기 4WAY').catL).toBe('실내기');
-    expect(code.classifyHome_('리모컨').catL).toBe('리모컨');
+    expect(code.classifyHome_('실내기 4WAY WIFI내장').catL).toBe('실내기');
+    expect(code.classifyHome_('리모컨').catL).toBe('부자재');
+    expect(code.classifyHome_('리모컨').catM).toBe('리모컨');
     expect(code.classifyHome_('판넬 정사각형').catL).toBe('판넬');
     expect(code.classifyHome_('기타 부품').catL).toBe('부자재');
   });
@@ -92,10 +94,21 @@ describe('순수 유틸 (Apps Script 호환)', () => {
     expect(code.classifySingleSetLM_({ name: '냉방전용', model: 'ZZ' }).M).toBe('cool');
   });
 
-  test('decideWarehouseCode_ 싱글 → 00003 / 그외 → 2', () => {
-    expect(code.decideWarehouseCode_([{ section: 'SINGLE', model: 'AC181' }])).toBe('00003');
-    expect(code.decideWarehouseCode_([{ section: 'HOME', model: 'AJ100' }])).toBe('2');
-    expect(code.decideWarehouseCode_([])).toBe('2');
+  test('decideWarehouseCode_ — 라이브 GAS: 기본 00003, 키워드 hit 시에만 2', () => {
+    // 기본값 = '00003' (빈 배열 포함)
+    expect(code.decideWarehouseCode_([])).toBe('00003');
+    expect(code.decideWarehouseCode_([{ section: 'SINGLE', name: '일반 세트' }])).toBe('00003');
+    expect(code.decideWarehouseCode_([{ section: 'HOME', name: '실내기 4WAY' }])).toBe('00003');
+    // HOME × 인피니트 → '2'
+    expect(code.decideWarehouseCode_([{ section: 'HOME', name: '실내기 1-Way 인피니트' }])).toBe('2');
+    // SINGLE × 360/1등급/벽걸이 등 → '2'
+    expect(code.decideWarehouseCode_([{ section: 'SINGLE', name: '360CST 세트' }])).toBe('2');
+    expect(code.decideWarehouseCode_([{ section: 'SINGLE', name: '1등급 세트' }])).toBe('2');
+    expect(code.decideWarehouseCode_([{ section: 'SINGLE', name: '벽걸이 세트' }])).toBe('2');
+    // nameRaw 우선 추출
+    expect(code.decideWarehouseCode_([{ section: 'SINGLE', nameRaw: '비스포크 세트', name: '일반' }])).toBe('2');
+    // 섹션 비매칭 시 키워드 무시
+    expect(code.decideWarehouseCode_([{ section: 'COMM', name: '360CST' }])).toBe('00003');
   });
 
   test('detectHomeOrder home/HM 시그너처', () => {
@@ -104,11 +117,24 @@ describe('순수 유틸 (Apps Script 호환)', () => {
     expect(code.detectHomeOrder([{ section: 'COMM' }], {})).toBe(false);
   });
 
-  test('buildDefaultDcConfig_ 4 카테고리', () => {
+  test('buildDefaultDcConfig_ — 라이브 GAS flat 11키', () => {
     const cfg = code.buildDefaultDcConfig_();
-    expect(cfg.home.rate).toBe(0.45);
-    expect(cfg.comm.rate).toBe(0.45);
-    expect(cfg.old.rate).toBe(0.5);
+    expect(cfg.homeDiscount).toBe(0.45);
+    expect(cfg.commDiscount).toBe(0.45);
+    expect(cfg.showIHose).toBe(false);
+    expect(cfg.discount360).toBe(0);
+    expect(cfg.discount4way).toBe(0);
+    expect(cfg.discountStand).toBe(0);
+    expect(cfg.oneWayDiscount).toBe(0);
+    expect(cfg.deluxeDiscount).toBe(0);
+    expect(cfg.firstGradeDiscount).toBe(0);
+    expect(cfg.unitRoundTo).toBe(0);
+    expect(cfg.unitRoundMode).toBe('ROUND');
+  });
+
+  test('detectHomeOrder 모델 prefix (AJ0/AJ1/AM0/AM1) — 라이브 분기 복원', () => {
+    expect(code.detectHomeOrder([{ section: 'COMM', model: 'AJ050TXJ3CH' }], {})).toBe(true);
+    expect(code.detectHomeOrder([{ section: 'COMM', model: 'AC145' }], {})).toBe(false);
   });
 });
 

@@ -181,34 +181,46 @@ function normalizeSize_(v) {
 }
 
 function findIdx_(row, keys) {
-  for (let k = 0; k < keys.length; k++) { const i = row.indexOf(keys[k]); if (i >= 0) return i; }
+  for (let i = 0; i < row.length; i++) if (keys.some((k) => row[i] === k.replace(/\s+/g, ''))) return i;
   return -1;
 }
 
 function parseKRNumber_(v) {
-  if (v == null || v === '') return 0;
-  const s = String(v).replace(/[^\d.\-]/g, '');
-  return Math.round(parseFloat(s) || 0);
+  const s = String(v == null ? '' : v).replace(/[^\d.-]/g, '').replace(/^-+/, '-');
+  if (!s || s === '-') return 0;
+  const n = Number(s);
+  return isFinite(n) ? Math.round(n) : 0;
 }
 
 function parseKRFloat_(v) {
-  if (v == null || v === '') return 0;
-  const s = String(v).replace(/[^\d.\-]/g, '');
-  return parseFloat(s) || 0;
+  const s = String(v == null ? '' : v).replace(/[^\d.+-]/g, '').replace(/^-+/, '-').replace(',', '.');
+  if (!s || s === '-') return 0;
+  const n = Number(s);
+  return isFinite(n) ? n : 0;
 }
 
 function toYmd_(v, tz) {
   if (!v) return '';
-  return Utilities.formatDate(new Date(v), tz || 'Asia/Seoul', 'yyyyMMdd');
+  const z = tz || Session.getScriptTimeZone();
+  if (/^\d{8}$/.test(String(v))) return String(v);
+  const d = new Date(v); if (isNaN(d)) return '';
+  return Utilities.formatDate(d, z, 'yyyyMMdd');
 }
 
 function toMmDd_(v, tz) {
   if (!v) return '';
-  return Utilities.formatDate(new Date(v), tz || 'Asia/Seoul', 'MMdd');
+  const z = tz || Session.getScriptTimeZone();
+  const d = /^\d{8}$/.test(String(v)) ? new Date(String(v).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) : new Date(v);
+  if (isNaN(d)) return '';
+  return Utilities.formatDate(d, z, 'MMdd');
 }
 
 function normalizeTel_(s) {
-  return String(s || '').replace(/[^\d]/g, '');
+  const n = String(s || '').replace(/[^\d]/g, '');
+  if (!n) return '';
+  if (n.length === 11 && n.startsWith('010')) return `010-${n.slice(3, 7)}-${n.slice(7)}`;
+  if (n.length === 10 && n.startsWith('010')) return `010-${n.slice(3, 6)}-${n.slice(6)}`;
+  return n;
 }
 
 function todayYMD_() {
@@ -220,32 +232,44 @@ function _normSpec_(s) {
 }
 
 function sanitizeKoreanParen_(text) {
-  return String(text || '')
-    .replace(/[(]/g, '(')
-    .replace(/[)]/g, ')');
+  let s = String(text || '');
+  s = s.replace(/\(([^)]*)\)/g, function (m, inner) { return /[가-힣]/.test(inner) ? m : ''; });
+  s = s.replace(/\[([^\]]*)\]/g, function (m, inner) { return /[가-힣]/.test(inner) ? m : ''; });
+  s = s.replace(/\{([^}]*)\}/g, function (m, inner) { return /[가-힣]/.test(inner) ? m : ''; });
+  s = s.replace(/<([^>]*)>/g, function (m, inner) { return /[가-힣]/.test(inner) ? m : ''; });
+  return s;
 }
 
 function trimSymbols_(text) {
-  return String(text || '').trim();
+  return String(text || '').replace(/[~`!@#$%^&*_\-+=\\|/;:'",.<>?·•]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function sanitizeDisp_(text) {
   return trimSymbols_(sanitizeKoreanParen_(text));
 }
 
+// 마력 추출
 function hpFromText_(s) {
   const t = String(s || '');
-  const m = t.match(/(\d+(\.\d+)?)\s*HP/i);
-  if (m) return parseFloat(m[1]);
-  return 0;
+  let m = t.match(/(\d+(?:[.,]\d+)?)\s*hp/i);
+  if (!m) m = t.match(/(\d+(?:[.,]\d+)?)\s*마력/i);
+  if (!m) return '';
+  const num = String(m[1]).replace(',', '.');
+  return `${num}HP`;
 }
 
+// 미표시 품목
 function isBlockedByNote_(note) {
-  return /미판매|단종/.test(String(note || ''));
+  const s = String(note || '').replace(/\s+/g, '');
+  if (!s) return false;
+  return /미판매|단종/.test(s);
 }
 
+// 품절표시 품목
 function isSoldOutByNote_(note) {
-  return /품절/.test(String(note || ''));
+  const s = String(note || '').replace(/\s+/g, '');
+  if (!s) return false;
+  return /품절/.test(s);
 }
 
 function unifyCatL_(L) {
@@ -253,29 +277,53 @@ function unifyCatL_(L) {
   return t === '부자재2' ? '부자재' : t;
 }
 
+// 헤더 인덱스 찾기 공백 무시
 function findHeaderIndex_(headers, key) {
+  const norm = (s) => String(s || '').replace(/\s+/g, '').trim();
+  const target = norm(key);
   if (!Array.isArray(headers)) return -1;
-  return headers.indexOf(key);
+  for (let i = 0; i < headers.length; i++) {
+    if (norm(headers[i]) === target) return i;
+  }
+  return -1;
 }
 
+// 세트참조
 function extractRowsFromFormula_(formula) {
-  const out = [];
-  const re = /\$([A-Z]+)\$(\d+)/g;
-  let m;
-  while ((m = re.exec(String(formula || '')))) out.push({ col: m[1], row: parseInt(m[2], 10) });
-  return out;
+  if (!formula) return [];
+  const f = String(formula);
+  const rows = [];
+  const re = /'싱글 세트(?:_단가인상)?'!\$?[A-Z]\$?(\d+)/ig;
+  let m; while ((m = re.exec(f))) rows.push(parseInt(m[1], 10));
+  return rows;
 }
 
+// 금액형 DC 축약
 function formatWonDiscountLabel_(amt) {
-  const n = Number(amt) || 0;
-  if (n === 0) return '';
-  return `(${n.toLocaleString('ko-KR')}원 할인)`;
+  const v = Math.round(Number(amt) || 0);
+  if (!v) return '';
+
+  const abs = Math.abs(v);
+  const man = Math.floor(abs / 10000);
+  const chun = Math.round((abs % 10000) / 1000);
+
+  let label = '';
+  if (man > 0 && chun > 0) {
+    label = `${man}만${chun}천`;
+  } else if (man > 0) {
+    label = `${man}만`;
+  } else {
+    label = `${chun}천`;
+  }
+  // 항상 할인은 '-' 로
+  return `-${label}`;
 }
 
+// 퍼센트 DC 텍스트
 function formatPercentLabel_(rate) {
-  const r = Number(rate) || 0;
-  if (r === 0) return '';
-  return `(${(r * 100).toFixed(1)}%)`;
+  const r = Number(rate);
+  if (!isFinite(r)) return '';
+  return `${Math.round(r * 100)}%`;
 }
 
 function combineRemarks_(base, extra) {
@@ -295,53 +343,125 @@ function detectHomeOrder(items, order) {
       const U = (v) => String(v || '').toUpperCase();
       const scopes = [U(it.section), U(it.group), U(it.kind), U(it.category), U(it.tags)];
       if (scopes.some((s) => /HOME|HOME-MULTI|HOMEMULTI|HM/.test(s))) return true;
+
+      const m = String(it.model || '').toUpperCase();
+      if (/AJ0|AJ1|AM0|AM1/.test(m)) { return true; }
     }
   }
   return false;
 }
 
+// DC 설정 기본값 생성 — legacy 라이브 flat shape (homeDiscount 등 11키)
 function buildDefaultDcConfig_() {
   return {
-    home: { rate: DISCOUNT_RATE_HOME, fixed: 0 },
-    comm: { rate: DISCOUNT_RATE_COMM, fixed: 0 },
-    single: { rate: 0, fixed: 0 },
-    old: { rate: 0.5, fixed: 0 },
+    homeDiscount: DISCOUNT_RATE_HOME,
+    commDiscount: DISCOUNT_RATE_COMM,
+    showIHose: SHOW_I_HOSE,
+    discount360: DISCOUNT_360_AMT,
+    discount4way: DISCOUNT_4WAY_AMT,
+    discountStand: DISCOUNT_STAND_AMT,
+    oneWayDiscount: ONEWAY_DISCOUNT_AMT,
+    deluxeDiscount: DELUXE_DISCOUNT_AMT,
+    firstGradeDiscount: FIRSTGRADE_DISCOUNT_AMT,
+    unitRoundTo: UNIT_ROUND_TO,
+    unitRoundMode: UNIT_ROUND_MODE,
   };
 }
 
 /**
  * legacy classifyHome_(name) — 홈멀티 분류 (대/중/소 + disp).
- * estimate-legacy/lib/code.js 기준 (1:1 포팅).
+ * 라이브 종합견적서 Code.js (line 274) verbatim — 8단계 cascade:
+ * 받침대 → 전열교환기 → 인테리어핏 → 제습기 → 실외기(단·다배관, HP disp)
+ * → 실내기(1-Way WIFI/인피니트, 4WAY, 360, 벽걸이 + 소중대형 + 평형/무풍 disp)
+ * → 판넬(공기청정 WIFI 등) → 부자재(리모컨/분기관/유연호스/기타).
  */
 function classifyHome_(rawName) {
-  const s0 = String(rawName || '');
-  const s = sanitizeDisp_(s0);
-  let catL = '', catM = '', catS = '', disp = '';
-  if (/실외기/.test(s)) {
-    catL = '실외기';
-    if (/프레스티지/.test(s)) catM = '프레스티지';
-    else if (/프리미엄/.test(s)) catM = '프리미엄';
-    else if (/스탠다드/.test(s)) catM = '스탠다드';
-  } else if (/실내기/.test(s)) {
-    catL = '실내기';
-    if (/4\s*WAY|4WAY/i.test(s)) catM = '4WAY';
-    else if (/1\s*WAY|1WAY/i.test(s)) catM = '1WAY';
-    else if (/360/.test(s)) catM = '360CST';
-    else if (/덕트/.test(s)) catM = '덕트';
-    else if (/스탠드/.test(s)) catM = '스탠드';
-    else if (/벽걸이/.test(s)) catM = '벽걸이';
-  } else if (/리모컨/.test(s)) {
-    catL = '리모컨';
-  } else if (/판넬|패널/.test(s)) {
-    catL = '판넬';
-  } else if (/배관|호스/.test(s)) {
-    catL = '부자재';
-    catM = '배관';
-  } else {
-    catL = '부자재';
+  const n = String(rawName || '').trim();
+  let catL = ''; let catM = ''; let catS = ''; let disp = '';
+
+  if (/원형\s*발통|발통\s*세트|받침대|일자발|평발|플랫/i.test(n)) {
+    catL = '실외기 받침대';
+    if (/원형|발통/i.test(n)) catM = '원형발통';
+    else if (/일자발|평발|플랫/i.test(n)) catM = '일자발';
+    disp = sanitizeDisp_(n.replace(/실외기|원형|발통|세트|받침대|일자발|평발|플랫/gi, ''));
+    return { catL: unifyCatL_(catL), catM, catS: '', disp };
   }
-  disp = sanitizeDisp_(s0);
-  return { catL, catM, catS, disp };
+
+  if (/전열\s*교환기|에어콤보|에어콤포/i.test(n)) {
+    catL = '전열교환기';
+    if (/에어콤보|에어콤포/i.test(n)) catM = '에어콤보';
+    disp = sanitizeDisp_(n.replace(/전열\s*교환기|에어콤보|에어콤포/gi, ''));
+    return { catL: unifyCatL_(catL), catM, catS: '', disp };
+  }
+
+  if (/인테리어\s*핏|인테리어핏/i.test(n)) {
+    catL = '인테리어핏';
+    disp = sanitizeDisp_(n.replace(/인테리어\s*핏|인테리어핏/gi, ''));
+    return { catL: unifyCatL_((catL)), catM: '', catS: '', disp };
+  }
+
+  if (/시스템\s*제습기|제습기/i.test(n) && !/가정용/i.test(n)) {
+    catL = '시스템제습기';
+    disp = sanitizeDisp_(n.replace(/시스템\s*제습기|제습기/gi, ''));
+    return { catL: unifyCatL_(catL), catM: '', catS: '', disp };
+  }
+
+  if (/^실외기|[\s_\-]실외기/.test(n) || /^실외기/.test(n)) {
+    catL = '실외기';
+    if (/단배관/i.test(n)) catM = '단배관';
+    else if (/다배관/i.test(n)) catM = '다배관';
+    const hp = hpFromText_(n);
+    disp = hp || sanitizeDisp_(n.replace(/실외기|단배관|다배관/gi, ''));
+    return { catL: unifyCatL_(catL), catM, catS: '', disp };
+  }
+
+  if (/^실내기|[\s_\-]실내기/.test(n) || /벽걸이/.test(n)) {
+    catL = '실내기';
+    if (/1\s*-?\s*Way/i.test(n)) {
+      if (/WIFI\s*내장/i.test(n)) catM = '1-Way WIFI';
+      else if (/인피니트\s*UV/i.test(n)) catM = '1-Way 인피니트UV';
+      else if (/인피니트/i.test(n)) catM = '1-Way 인피니트';
+      else catM = '1-Way 미내장';
+    } else if (/4\s*WAY|4\s*-?\s*Way/i.test(n)) {
+      if (/WIFI\s*내장/i.test(n)) catM = '4WAY WIFI';
+      else catM = '4WAY 미내장';
+    } else if (/360\s*CST/i.test(n)) {
+      if (/WIFI/i.test(n)) catM = '360 WIFI';
+      else catM = '360 미내장';
+    } else if (/벽걸이/i.test(n)) {
+      catM = '벽걸이';
+    }
+
+    if (/소형/i.test(n)) catS = '소형';
+    else if (/중형/i.test(n)) catS = '중형';
+    else if (/대형/i.test(n)) catS = '대형';
+
+    const size = n.match(/(\d+(?:\.\d+)?)\s*평형/);
+    const hasMupung = /무풍/i.test(n);
+    const sizeTxt = size ? `${size[1]}평형` : '';
+    disp = sanitizeDisp_(`${hasMupung ? '무풍' : ''} ${sizeTxt}`.trim());
+    if (!disp) disp = sanitizeDisp_(n.replace(/실내기|무풍|유풍|소형|중형|대형|WIFI|내장|미내장|1\s*-?\s*Way|4\s*-?\s*Way|4\s*WAY|360\s*CST|인피니트|벽걸이/gi, ''));
+    return { catL: unifyCatL_(catL), catM, catS, disp };
+  }
+
+  if (/판넬|패널/i.test(n)) {
+    catL = '판넬';
+    if (/공기청정|공청/i.test(n) && /WIFI/i.test(n)) catM = '공기청정 WIFI';
+    else if (/공기청정|공청/i.test(n) && /미내장/i.test(n)) catM = '공기청정 미내장';
+    else if (/WIFI/i.test(n)) catM = 'WIFI';
+    else if (/미내장/i.test(n)) catM = '미내장';
+    else if (/인피니트/i.test(n)) catM = '인피니트';
+    disp = sanitizeDisp_(n.replace(/판넬|패널|WIFI|공기청정|공청|미내장|인피니트/gi, ''));
+    return { catL: unifyCatL_(catL), catM, catS: '', disp };
+  }
+
+  catL = '부자재';
+  if (/리모컨|리모콘/i.test(n)) catM = '리모컨';
+  else if (/분\s*기\s*관|분기관/i.test(n)) catM = '분기관';
+  else if (/유연호스/i.test(n)) catM = '유연호스';
+  else catM = '기타';
+  disp = sanitizeDisp_(n.replace(/리모컨|리모콘|분\s*기\s*관|드레인펌프|유선보드|분기관|유연호스/gi, ''));
+  return { catL: unifyCatL_(catL), catM, catS: '', disp };
 }
 
 /**
@@ -404,24 +524,61 @@ function classifyCommercial_(name, model) {
     { re: /리뉴얼/i, m: 'ECO 리뉴얼' },
     { re: /냉방전용/i, m: '냉방전용' },
   ];
-  if (isOutdoorByModel || /실외기/.test(n)) {
-    catL = '실외기';
-    for (const k of outKeys) { if (k.re.test(n)) { catM = k.m; break; } }
-  } else if (isIndoorByModel || /실내기/.test(n)) {
-    catL = '실내기';
-    if (/4\s*WAY|4WAY/i.test(n)) catM = '4WAY';
-    else if (/1\s*WAY|1WAY/i.test(n)) catM = '1WAY';
-    else if (/360/.test(n)) catM = '360CST';
-    else if (/덕트/.test(n)) catM = '덕트';
-    else if (/스탠드/.test(n)) catM = '스탠드';
-    else if (/벽걸이/.test(n)) catM = '벽걸이';
-  } else if (/리모컨/.test(n)) {
-    catL = '리모컨';
-  } else if (/판넬|패널|panel/i.test(n)) {
-    catL = '판넬';
-  } else {
-    catL = '부자재';
+
+  // 실내기 중분류 키워드
+  const inKeys = [
+    { re: /\b1\s*-?\s*Way\b|1WAY/i, m: (/WIFI/i.test(n) ? '1-Way WIFI내장' : /인피니트/i.test(n) ? '1-Way 인피니트' : '1WAY 미내장') },
+    { re: /\b2\s*Way\b|2Way/i, m: '2Way' },
+    { re: /\b4\s*-?\s*Way\b|4Way/i, m: (/UV-?C/i.test(n) && /WIFI/i.test(n) ? '4-Way UV-C WIFI내장'
+      : /MINI/i.test(n) && /WIFI/i.test(n) ? 'MINI 4WAY WIFI내장'
+      : /WIFI/i.test(n) ? '4-Way WIFI내장'
+      : /MINI/i.test(n) ? 'MINI 4WAY 미내장'
+      : '4WAY 미내장') },
+    { re: /360\s*CST|360CST/i, m: (/WIFI/i.test(n) ? '360CST WIFI내장' : '360CST 미내장') },
+    { re: /벽걸이/i, m: '벽걸이' },
+    { re: /스탠드|PAC/i, m: '스탠드형(PAC)' },
+    { re: /실링/i, m: '실링' },
+    { re: /DUCT/i, m: 'DUCT' },
+    { re: /전열\s*교환기/i, m: '전열교환기' },
+  ];
+
+  // 실외기 우선 탐지
+  for (const k of outKeys) if (k.re.test(n)) { catL = '실외기'; catM = k.m; break; }
+  // 실내기 탐지
+  if (!catM) for (const k of inKeys) if (k.re.test(n)) { catL = '실내기'; catM = k.m; break; }
+
+  // L 보정
+  if (!catL) {
+    if (isOutdoorByModel || /실외기/i.test(n) || /DVM\s*(S2|ECO)/i.test(n)) catL = '실외기';
+    else if (isIndoorByModel || /실내기/i.test(n)) catL = '실내기';
   }
+
+  // 소분류
+  if (catM === '1-Way WIFI내장' || catM === '1-Way 인피니트' || catM === '1WAY 미내장') {
+    if (/소형/i.test(n)) catS = '소형';
+    else if (/대형/i.test(n)) catS = '대형';
+    else catS = '중형';
+  }
+  if (catM === 'DUCT') {
+    if (/저정압.*SLIM/i.test(n)) catS = '저정압 SLIM';
+    else if (/중정압/i.test(n)) catS = '중정압';
+    else if (/고정압/i.test(n)) catS = '고정압';
+  }
+  if (catM === '전열교환기') {
+    if (/상업용/i.test(n)) catS = '상업용';
+    else if (/주택용/i.test(n)) catS = '주택용';
+  }
+  if (catL === '실외기' && /^ECO/i.test(catM || '')) {
+    if (/단상형/i.test(n)) catS = '단상형';
+    else if (/삼상형/i.test(n)) catS = '삼상형';
+    else if (/상부\s*토출형|상부토출형/i.test(n)) catS = '상부토출형';
+  }
+
+  // 판넬
+  if (!catL && /판넬|패널|panel/i.test(n)) catL = '판넬';
+
+  // 나머지
+  if (!catL) catL = '부자재';
 
   return { catL, catM, catS };
 }
@@ -1051,10 +1208,10 @@ function getSpecMap_() {
 
 /**
  * legacy getSpecDetailMap_() — 모델별 상세 spec 맵 (홈 / 싱글 / 상업).
- * estimate-legacy/lib/code.js (line 1040) 의 핵심 logic 만 컴팩트하게 포팅.
- *
- * 본 PR scope: legacy 1:1 환원의 최소 골격 (모델 키 존재 보장 + home/single/comm 슬롯).
- * 상세 spec 필드 맵핑은 후속 PR (estimate-legacy 의 scanHome/scanSingle/scanComm 1100라인 별도 적용).
+ * 라이브 종합견적서 Code.js (line 996) verbatim — scanHome(냉방성능 2컬럼 +
+ * 포장/최대장배관/고저차) / scanSingle(성능·소비전력 cool|heat splitBar, 전원/차단
+ * splitSlash, in/out 크기·중량·포장, 배관길이/고낙차) / scanComm(ERV layout 감지 +
+ * joinCols, 냉난방 kcal/kW 4그룹).
  */
 function getSpecDetailMap_() {
   const key = 'SPEC_DETAIL_MAP_V10';
@@ -1063,52 +1220,356 @@ function getSpecDetailMap_() {
 
   const ss = SpreadsheetApp.openById(SRC_SHEET_ID);
   const out = {};
-  const normH = (v) => String(v || '').trim().replace(/\s+/g, '');
 
-  function findHeaderRow(vr) {
+  const normH = (v) => String(v || '').trim().replace(/\s+/g, '');
+  const findHeaderRow = (vr) => {
     for (let i = 0; i < Math.min(vr.length, 10); i++) {
       const H = (vr[i] || []).map(normH);
       if (H.includes('모델명') || H.includes('모델') || H.includes('품목코드')) return i;
     }
     return -1;
-  }
+  };
+  const idx = (H, labels) => {
+    for (const lb of labels) {
+      const i = H.indexOf(normH(lb));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const findContains = (H, rx) => {
+    for (let i = 0; i < H.length; i++) {
+      if (rx.test(H[i])) return i;
+    }
+    return -1;
+  };
 
-  function scanSlot(sheetName, slot) {
-    const sh = ss.getSheetByName(sheetName);
+  function scanHome() {
+    const sh = ss.getSheetByName(HOME_NAME);
     if (!sh) return;
+
     const vr = sh.getDataRange().getDisplayValues();
     const hr = findHeaderRow(vr);
     if (hr < 0) return;
-    const H = (vr[hr] || []).map(normH);
-    const iModel = findIdx_(H, ['모델명', '모델', '품목코드', '기종']);
-    const iPipe = findIdx_(H, ['배관경']);
-    const iGas = findIdx_(H, ['냉매가스']);
-    const iBrk = findIdx_(H, ['차단기']);
-    const iLine = findIdx_(H, ['전원선']);
-    const iSize = findIdx_(H, ['제품크기']);
-    const iWeight = findIdx_(H, ['제품중량']);
-    if (iModel < 0) return;
+
+    const Hraw = (vr[hr] || []);
+    const H = Hraw.map(normH);
+
+    const iModel = idx(H, ['모델명', '모델', '품목코드', '기종']);
+    const iPipe = idx(H, ['배관경']);
+
+    // 냉방성능(정격) 중복 2개 처리
+    const coolCols = [];
+    H.forEach((h, i) => {
+      if (h === normH('냉방성능(정격)') || /냉방성능/.test(h)) coolCols.push(i);
+    });
+
+    let iCoolKw = coolCols[0] ?? -1;
+    let iCoolKcal = coolCols[1] ?? -1;
+
+    // 혹시 순서가 뒤바뀐 시트도 대비
+    const guessKcal = findContains(Hraw, /kcal/i);
+    const guessKw = findContains(Hraw, /kW/i);
+    if (iCoolKcal < 0 && guessKcal >= 0) iCoolKcal = guessKcal;
+    if (iCoolKw < 0 && guessKw >= 0) iCoolKw = guessKw;
+
+    let iPowKw = idx(H, ['소비전력(정격)']);
+    if (iPowKw < 0) iPowKw = findContains(H, /소비전력/);
+
+    let iEff = idx(H, ['에너지소비효율', '에너지소비효율등급']);
+    if (iEff < 0) iEff = findContains(H, /에너지소비효율/);
+
+    const iGas = idx(H, ['냉매가스']);
+    const iBrk = idx(H, ['차단기']);
+    const iLine = idx(H, ['전원선']);
+    const iSize = idx(H, ['제품크기']);
+    const iWeight = idx(H, ['제품중량']);
+    const iPackSize = idx(H, ['포장치수']);
+    const iPackWeight = idx(H, ['포장중량']);
+    const iMaxPipe = idx(H, ['최대장배관', '최대 장배관']);
+    const iMaxDrop = idx(H, ['최대고저차', '최대 고저차']);
+
     for (let r = hr + 1; r < vr.length; r++) {
       const row = vr[r] || [];
       const model = String(row[iModel] || '').trim();
       if (!model) continue;
+
       if (!out[model]) out[model] = {};
-      out[model][slot] = {
-        pipeDia: iPipe >= 0 ? row[iPipe] || '' : '',
-        gas: iGas >= 0 ? row[iGas] || '' : '',
-        breaker: iBrk >= 0 ? row[iBrk] || '' : '',
-        powerLine: iLine >= 0 ? row[iLine] || '' : '',
-        size: iSize >= 0 ? row[iSize] || '' : '',
-        weight: iWeight >= 0 ? row[iWeight] || '' : '',
+
+      const spec = {
+        pipeDia: row[iPipe] || '',
+        gas: row[iGas] || '',
+        breaker: row[iBrk] || '',
+        powerLine: row[iLine] || '',
+        size: row[iSize] || '',
+        weight: row[iWeight] || '',
+        packSize: row[iPackSize] || '',
+        packWeight: row[iPackWeight] || '',
+        maxPipe: row[iMaxPipe] || '',
+        maxDrop: row[iMaxDrop] || '',
+
+        cool_kcal: row[iCoolKcal] || '',
+        cool_kw: row[iCoolKw] || '',
+        cool_power: row[iPowKw] || '',
+        effGrade: row[iEff] || '',
+
+        cool_cap_kcal: row[iCoolKcal] || '',
+        cool_cap_kw: row[iCoolKw] || '',
+        cool_pow_kw: row[iPowKw] || '',
+        grade: row[iEff] || '',
+      };
+
+      out[model].home = spec;
+    }
+
+    Logger.log('>> 🧊 홈멀티 인덱스 iCoolKw=%s iCoolKcal=%s iPowKw=%s iEff=%s coolCols=%s',
+      iCoolKw, iCoolKcal, iPowKw, iEff, JSON.stringify(coolCols));
+  }
+
+  function scanSingle() {
+    const sh = ss.getSheetByName(SINGLE_NAME);
+    if (!sh) return;
+
+    const vr = sh.getDataRange().getDisplayValues();
+    const hr = findHeaderRow(vr);
+    if (hr < 0) return;
+
+    const H = (vr[hr] || []).map(normH);
+
+    const iModel = idx(H, ['모델명', '모델', '품목코드', '기종']);
+    const iGrade = idx(H, ['등급(냉방/난방)', '등급 (냉방/난방)']);
+    const iPipe = idx(H, ['배관경']);
+    const iPowKw = idx(H, ['소비전력(kW)(최소/정격/최대)', '소비전력(kW) (최소 / 정격 / 최대)']);
+    const iCapKw = idx(H, ['성능(kW)(최소/정격/최대)', '성능(kW) (최소 / 정격 / 최대)']);
+    const iCapKcal = idx(H, ['성능(kcal/h)(최소/정격/최대)', '성능(kcal/h) (최소 / 정격 / 최대)']);
+    const iPowerBrk = idx(H, ['전원(mm²)/차단(A)', '전원(mm²) / 차단(A)']);
+    const iInSize = idx(H, ['실내기크기(mm)', '실내기 크기(mm)']);
+    const iOutSize = idx(H, ['실외기크기(mm)', '실외기 크기(mm)']);
+    const iInWeight = idx(H, ['실내기중량(kg)', '실내기 중량(kg)']);
+    const iOutWeight = idx(H, ['실외기중량(kg)', '실외기 중량(kg)']);
+    const iInPackSize = idx(H, ['실내기포장(mm)', '실내기 포장(mm)']);
+    const iOutPackSize = idx(H, ['실외기포장(mm)', '실외기 포장(mm)']);
+    const iInPackWeight = idx(H, ['실내기포장중량(kg)', '실내기 포장중량(kg)']);
+    const iOutPackWeight = idx(H, ['실외기포장중량(kg)', '실외기 포장중량(kg)']);
+    const iPipeDrop = idx(H, ['배관길이/고낙차(m)', '배관길이 / 고낙차(m)']);
+    const iGas = idx(H, ['냉매가스']);
+
+    const splitBar = (v) => {
+      const s = String(v || '');
+      const [a, b] = s.split('|').map((x) => x.trim());
+      return { cool: a || '', heat: b || '' };
+    };
+    const splitSlash = (v) => {
+      const s = String(v || '');
+      const [a, b] = s.split('/').map((x) => x.trim());
+      return { a: a || '', b: b || '' };
+    };
+
+    for (let r = hr + 1; r < vr.length; r++) {
+      const row = vr[r] || [];
+      const model = String(row[iModel] || '').trim();
+      if (!model) continue;
+
+      const pow = splitBar(row[iPowKw]);
+      const capKw = splitBar(row[iCapKw]);
+      const capKcal = splitBar(row[iCapKcal]);
+      const pb = splitSlash(row[iPowerBrk]);
+      const pd = splitSlash(row[iPipeDrop]);
+
+      if (!out[model]) out[model] = {};
+      out[model].single = {
+        grade: row[iGrade] || '',
+        pipeDia: row[iPipe] || '',
+        cool_pow_kw: pow.cool,
+        heat_pow_kw: pow.heat,
+        cool_cap_kw: capKw.cool,
+        heat_cap_kw: capKw.heat,
+        cool_cap_kcal: capKcal.cool,
+        heat_cap_kcal: capKcal.heat,
+        powerLine: pb.a,
+        breaker: pb.b,
+        inSize: row[iInSize] || '',
+        outSize: row[iOutSize] || '',
+        inWeight: row[iInWeight] || '',
+        outWeight: row[iOutWeight] || '',
+        inPackSize: row[iInPackSize] || '',
+        outPackSize: row[iOutPackSize] || '',
+        inPackWeight: row[iInPackWeight] || '',
+        outPackWeight: row[iOutPackWeight] || '',
+        pipeLen: pd.a,
+        drop: pd.b,
+        gas: row[iGas] || '',
       };
     }
   }
 
-  scanSlot(HOME_NAME, 'home');
-  scanSlot(SINGLE_NAME, 'single');
-  scanSlot(COMM_NAME, 'comm');
+  function scanComm() {
+    const sh = ss.getSheetByName(COMM_NAME);
+    if (!sh) return;
+
+    const vr = sh.getDataRange().getDisplayValues();
+    const hr = findHeaderRow(vr);
+    if (hr < 0) return;
+
+    const Hraw = vr[hr] || [];
+    const H = Hraw.map(normH);
+
+    const iModel = idx(H, ['모델명', '모델', '품목코드', '기종']);
+    const iPipe = idx(H, ['배관경']);
+    const iGas = idx(H, ['냉매가스']);
+    const iBrk = idx(H, ['차단기']);
+    const iLine = idx(H, ['전원선']);
+    const iSize = idx(H, ['제품크기']);
+    const iWeight = idx(H, ['제품중량']);
+    const iPackSize = idx(H, ['포장치수']);
+    const iPackWeight = idx(H, ['포장중량']);
+    const iEff = idx(H, ['소비효율등급', '에너지소비효율등급']);
+    const iMaxPipe = idx(H, ['최대장배관', '최대 장배관', '배관길이']);
+    const iMaxDrop = idx(H, ['최대고저차', '최대 고저차', '고낙차']);
+
+    const groups = [];
+    let cur = null;
+
+    const iDuct = (() => {
+      let i = idx(H, ['덕트구경', '덕트 구경']);
+      if (i < 0) {
+        for (let k = 0; k < Hraw.length; k++) {
+          if (/덕트\s*구경/i.test(String(Hraw[k] || ''))) return k;
+        }
+      }
+      return i;
+    })();
+
+    for (let i = 0; i < Hraw.length; i++) {
+      const h = String(Hraw[i] || '');
+      let type = null;
+      if (/냉방\s*성능/.test(h)) type = 'coolCap';
+      else if (/난방\s*성능/.test(h)) type = 'heatCap';
+      else if (/소비\s*전력/.test(h)) type = 'power';
+
+      if (type) {
+        if (!cur || cur.type !== type) {
+          cur = { type: type, cols: [] };
+          groups.push(cur);
+        }
+        cur.cols.push(i);
+      } else {
+        cur = null;
+      }
+    }
+
+    const coolCapCols = groups[0]?.cols || [];
+    const coolPowCols = groups[1]?.cols || [];
+    const heatCapCols = groups[2]?.cols || [];
+    const heatPowCols = groups[3]?.cols || [];
+
+    const joinCols = (row, cols) =>
+      cols.map((i) => String(row[i] || '').trim()).filter(Boolean).join(' / ');
+
+    const subRow = vr[hr + 1] || [];
+    const hasTurboStrongWeak = coolCapCols.concat(coolPowCols, heatCapCols, heatPowCols)
+      .some((i) => /터보|강|약/.test(String(subRow[i] || '')));
+
+    const isErvLayout3 =
+      hasTurboStrongWeak &&
+      coolCapCols.length === 3 &&
+      coolPowCols.length === 3 &&
+      heatCapCols.length === 3 &&
+      heatPowCols.length === 3;
+
+    const isErvLayout2 =
+      !hasTurboStrongWeak &&
+      coolCapCols.length === 2 &&
+      coolPowCols.length === 1 &&
+      heatCapCols.length === 2 &&
+      heatPowCols.length === 1;
+
+    const isErvLayout = isErvLayout3 || isErvLayout2;
+
+    const coolCols = [];
+    const heatCols = [];
+    const powCols = [];
+    Hraw.forEach((h, i) => {
+      const t = String(h || '');
+      if (/냉방\s*성능/.test(t)) coolCols.push(i);
+      if (/난방\s*성능/.test(t)) heatCols.push(i);
+      if (/소비\s*전력/.test(t)) powCols.push(i);
+    });
+
+    const iCoolKcal = coolCols[0] ?? -1;
+    const iCoolKw = (coolCols.length >= 2) ? coolCols[1] : (iCoolKcal >= 0 ? iCoolKcal + 1 : -1);
+    const iHeatKcal = heatCols[0] ?? -1;
+    const iHeatKw = (heatCols.length >= 2) ? heatCols[1] : (iHeatKcal >= 0 ? iHeatKcal + 1 : -1);
+
+    const iPowCool = powCols[0] ?? -1;
+    const iPowHeat = (powCols.length >= 2) ? powCols[powCols.length - 1] : (iPowCool >= 0 ? iPowCool + 1 : -1);
+
+    for (let r = hr + 1; r < vr.length; r++) {
+      const row = vr[r] || [];
+      const model = String(row[iModel] || '').trim();
+      if (!model) continue;
+
+      if (!out[model]) out[model] = {};
+
+      if (isErvLayout) {
+        out[model].comm = {
+          gas: row[iDuct] || '',
+          cool_kcal: joinCols(row, coolCapCols),
+          cool_power: joinCols(row, coolPowCols),
+          heat_kcal: joinCols(row, heatCapCols),
+          heat_power: joinCols(row, heatPowCols),
+          pipeDia: '',
+          cool_kw: '',
+          heat_kw: '',
+          cool_cap_kcal: '',
+          cool_cap_kw: '',
+          heat_cap_kcal: '',
+          heat_cap_kw: '',
+          cool_pow_kw: '',
+          heat_pow_kw: '',
+          breaker: row[iBrk] || '',
+          powerLine: row[iLine] || '',
+          size: row[iSize] || '',
+          weight: row[iWeight] || '',
+          packSize: row[iPackSize] || '',
+          packWeight: row[iPackWeight] || '',
+          grade: row[iEff] || '',
+          maxPipe: row[iMaxPipe] || '',
+          maxDrop: row[iMaxDrop] || '',
+        };
+        continue;
+      }
+
+      out[model].comm = {
+        pipeDia: row[iPipe] || '',
+        gas: row[iGas] || '',
+        cool_cap_kcal: row[iCoolKcal] || '',
+        cool_cap_kw: row[iCoolKw] || '',
+        heat_cap_kcal: row[iHeatKcal] || '',
+        heat_cap_kw: row[iHeatKw] || '',
+        cool_pow_kw: row[iPowCool] || '',
+        heat_pow_kw: row[iPowHeat] || '',
+        breaker: row[iBrk] || '',
+        powerLine: row[iLine] || '',
+        size: row[iSize] || '',
+        weight: row[iWeight] || '',
+        packSize: row[iPackSize] || '',
+        packWeight: row[iPackWeight] || '',
+        grade: row[iEff] || '',
+        maxPipe: row[iMaxPipe] || '',
+        maxDrop: row[iMaxDrop] || '',
+      };
+    }
+
+    Logger.log('>> 🔥 상업멀티 ERV=%s coolCols=%s heatCols=%s powCols=%s groups=%s',
+      isErvLayout, JSON.stringify(coolCols), JSON.stringify(heatCols), JSON.stringify(powCols), JSON.stringify(groups.map((g) => g.cols)));
+  }
+
+  scanHome();
+  scanSingle();
+  scanComm();
 
   cachePutJSON_(key, out, 60 * 10);
+  Logger.log('>> 📌 스펙상세맵 생성 완료 count=%s', Object.keys(out).length);
   return out;
 }
 
@@ -1440,20 +1901,40 @@ function getManagersForInput(input) {
  */
 async function initDcConfigFromNotion(bizno) {
   const biznoDigits = String(bizno || '').replace(/[^\d]/g, '');
-  if (!biznoDigits) return buildDefaultDcConfig_();
+  const cfg = buildDefaultDcConfig_();
+  if (!biznoDigits || biznoDigits.length !== 10) {
+    Logger.log(`[initDcConfigFromNotion] DC 설정 기본값 사용 (유효하지 않은 사업자번호) ${biznoDigits}`);
+    return cfg;
+  }
 
   const cust = searchCustomerByBizOrCode(biznoDigits);
-  let data = null;
+  let notion = null;
   try {
-    data = await _msGet(
+    notion = await _msGet(
       `${PARTNER_BASE}/api/v1/partners/${biznoDigits}/dc-config`,
       null,
     );
   } catch (e) {
     Logger.log(`[initDcConfigFromNotion] dc-config 조회 실패 → default 환원 (${e.message})`);
   }
-  if (!data) return Object.assign(buildDefaultDcConfig_(), { customer: cust });
-  return Object.assign(buildDefaultDcConfig_(), data, { customer: cust });
+
+  // legacy 라이브 merge 시맨틱 — homeDiscount/commDiscount 는 number && ≠0 일 때만,
+  // 나머지는 type 가드 통과 시에만 override (blanket Object.assign 금지: null/0 오염 방지)
+  if (notion) {
+    if (typeof notion.homeDiscount === 'number' && notion.homeDiscount !== 0) cfg.homeDiscount = notion.homeDiscount;
+    if (typeof notion.commDiscount === 'number' && notion.commDiscount !== 0) cfg.commDiscount = notion.commDiscount;
+    if (typeof notion.discount360 === 'number') cfg.discount360 = notion.discount360;
+    if (typeof notion.discount4way === 'number') cfg.discount4way = notion.discount4way;
+    if (typeof notion.discountStand === 'number') cfg.discountStand = notion.discountStand;
+    if (typeof notion.oneWayDiscount === 'number') cfg.oneWayDiscount = notion.oneWayDiscount;
+    if (typeof notion.deluxeDiscount === 'number') cfg.deluxeDiscount = notion.deluxeDiscount;
+    if (typeof notion.firstGradeDiscount === 'number') cfg.firstGradeDiscount = notion.firstGradeDiscount;
+    if (typeof notion.showIHose === 'boolean') cfg.showIHose = notion.showIHose;
+    if (typeof notion.unitRoundTo === 'number') cfg.unitRoundTo = notion.unitRoundTo;
+    if (notion.unitRoundMode) cfg.unitRoundMode = notion.unitRoundMode;
+  }
+
+  return Object.assign(cfg, { customer: cust });
 }
 
 async function fetchNotionDcConfig_(biznoDigits) {
@@ -1499,16 +1980,51 @@ async function getInventoryTable(dateVal, itemCodes) {
  * legacy line 1762-1967 의 e-Count proxy 호출을 slip-service 로 대체
  * ═══════════════════════════════════════════════════════════════════════ */
 
+/**
+ * legacy decideWarehouseCode_(items) — 출고 창고 결정.
+ * 라이브 종합견적서 Code.js (line 1639) verbatim — 기본 '00003'.
+ * HOME×인피니트 또는 SINGLE×(360/1등급/냉방전용/1way/덕트/냉전/비스포크/벽걸이/
+ * 가정용 에어컨) hit 시에만 '2'.
+ */
 function decideWarehouseCode_(items) {
-  function getOrigName_(it) { return String(it.origName || it.name || it.model || ''); }
-  function getSection_(it) { return String(it.section || '').toUpperCase(); }
-  if (!Array.isArray(items)) return '2';
-  for (const it of items) {
-    const sec = getSection_(it);
-    const nm = getOrigName_(it);
-    if (sec === 'SINGLE' || /^A[CPRF]/.test(nm)) return '00003';
+  if (!Array.isArray(items) || !items.length) return '00003';
+
+  // 원본 품명 후보 추출
+  function getOrigName_(it) {
+    if (!it) return '';
+    const cand = it.nameRaw || it.rawName || it.nameOrig || it.name || it.pname || '';
+    return String(cand || '');
   }
-  return '2';
+
+  function getSection_(it) {
+    return String(it.section || '').toUpperCase();
+  }
+
+  // 홈멀티: 인피니트
+  const homeHit = items.some(function (it) {
+    if (getSection_(it) !== 'HOME') return false;
+    const nm = getOrigName_(it);
+    return /인피니트/.test(nm);
+  });
+
+  // 싱글 세트: 360, 1등급, 냉방전용, 1way, 덕트, 냉전, 비스포크, 벽걸이, 가정용 에어컨
+  const singleHit = items.some(function (it) {
+    if (getSection_(it) !== 'SINGLE') return false;
+    const nm = getOrigName_(it);
+    if (!nm) return false;
+    if (/360/i.test(nm)) return true;
+    if (/1등급/.test(nm)) return true;
+    if (/냉방전용/.test(nm)) return true;
+    if (/1\s*way/i.test(nm)) return true;
+    if (/덕트/.test(nm)) return true;
+    if (/냉전/.test(nm)) return true;
+    if (/비스포크/.test(nm)) return true;
+    if (/벽걸이/.test(nm)) return true;
+    if (/가정용\s*에어컨/.test(nm)) return true;
+    return false;
+  });
+
+  return (homeHit || singleHit) ? '2' : '00003';
 }
 
 /**

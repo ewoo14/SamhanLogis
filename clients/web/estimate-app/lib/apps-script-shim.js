@@ -270,45 +270,56 @@ const UrlFetchApp = {
  * 지원 메서드:
  *  - getName / getDataRange / getRange / getLastRow / getLastColumn
  *  - getDataRange().getValues() / .getDisplayValues() (legacy 가 모두 사용)
- *  - getDataRange().getFormulas() — 빈 수식 배열 (Sheets API readonly 에서는 미수신)
- *
- * legacy 가 priceFormula 검사 (`/\$L\$2/i.test(priceFormula)` 등) 를 하더라도
- * 모두 false 로 떨어져도 시트 raw 단가 (납품가) 로 graceful 작동한다.
+ *  - getDataRange().getFormulas() — 실 수식 그리드 (readSheetGrid 의
+ *    valueRenderOption=FORMULA 결과; 미제공 시 '' 그리드 fallback).
+ *    legacy 수식분기 (납품가 `$L$2` useK2 / `$D$7`·`$D$8` matKey / 구형 `$I$1`
+ *    isDisc) 가 GAS 와 동일하게 작동한다.
  */
 class FakeSheet {
-  constructor(name, values) {
+  constructor(name, values, formulas) {
     this._name = name;
     this._values = values && values.length ? values : [[]];
+    this._formulas = (formulas && formulas.length)
+      ? formulas
+      : this._values.map((r) => r.map(() => ''));
   }
   getName() { return this._name; }
   getDataRange() {
     const vals = this._values;
+    const forms = this._formulas;
     return {
       getValues: () => vals,
       // legacy 는 getDisplayValues 로 string 형 결과를 기대 — 시트 client 가 이미
       // FORMATTED_STRING/UNFORMATTED_VALUE 혼용으로 받지만, 본 호출 사이트는
       // 모두 문자열 trim/정규화를 다시 수행하므로 raw getValues 와 동등.
       getDisplayValues: () => vals.map((r) => r.map((v) => (v == null ? '' : String(v)))),
-      getFormulas: () => vals.map((r) => r.map(() => '')),
+      getFormulas: () => vals.map((r, i) => r.map((_, j) => (forms[i] || [])[j] || '')),
       getNumRows: () => vals.length,
       getNumColumns: () => vals.reduce((m, r) => Math.max(m, r.length), 0),
     };
   }
   getRange(r1, c1, rows, cols) {
     const slice = [];
+    const formSlice = [];
     const _rows = rows || 1;
     const _cols = cols || 1;
     for (let i = 0; i < _rows; i++) {
       const row = this._values[r1 - 1 + i] || [];
+      const formRow = this._formulas[r1 - 1 + i] || [];
       const out = [];
-      for (let j = 0; j < _cols; j++) out.push(row[c1 - 1 + j]);
+      const formOut = [];
+      for (let j = 0; j < _cols; j++) {
+        out.push(row[c1 - 1 + j]);
+        formOut.push(formRow[c1 - 1 + j] || '');
+      }
       slice.push(out);
+      formSlice.push(formOut);
     }
     return {
       getValues: () => slice,
       getDisplayValues: () => slice.map((r) => r.map((v) => (v == null ? '' : String(v)))),
       getValue: () => (slice[0] ? slice[0][0] : null),
-      getFormulas: () => slice.map((r) => r.map(() => '')),
+      getFormulas: () => formSlice,
     };
   }
   getLastRow() { return this._values.length; }
@@ -356,14 +367,14 @@ const SpreadsheetApp = {
  * @returns {Promise<Array<Array<any>>>} legacy values 와 동일 shape (2차원 배열).
  */
 async function preloadSheet(spreadsheetId, sheetName) {
-  const values = await sheetsClient.readSheet(spreadsheetId, sheetName);
+  const grid = await sheetsClient.readSheetGrid(spreadsheetId, sheetName);
   let ss = _spreadCache.get(spreadsheetId);
   if (!ss) {
     ss = new FakeSpreadsheet(spreadsheetId, {});
     _spreadCache.set(spreadsheetId, ss);
   }
-  ss._sheets[sheetName] = new FakeSheet(sheetName, values);
-  return values;
+  ss._sheets[sheetName] = new FakeSheet(sheetName, grid.values, grid.formulas);
+  return grid.values;
 }
 
 /**
@@ -394,14 +405,15 @@ function clearSheetCache() {
 
 /**
  * 외부에서 시트 dump 를 직접 주입할 때 사용 (테스트 보조).
+ * formulas 는 옵션 — 미지정 시 빈 수식 그리드.
  */
-function injectSheet(spreadsheetId, sheetName, values) {
+function injectSheet(spreadsheetId, sheetName, values, formulas) {
   let ss = _spreadCache.get(spreadsheetId);
   if (!ss) {
     ss = new FakeSpreadsheet(spreadsheetId, {});
     _spreadCache.set(spreadsheetId, ss);
   }
-  ss._sheets[sheetName] = new FakeSheet(sheetName, values);
+  ss._sheets[sheetName] = new FakeSheet(sheetName, values, formulas);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

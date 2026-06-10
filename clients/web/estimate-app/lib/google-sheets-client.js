@@ -106,6 +106,55 @@ async function readSheet(spreadsheetId, sheetName) {
 }
 
 /**
+ * 시트 read (값 + 수식) — `getDataRange().getValues()` + `.getFormulas()` 동등.
+ *
+ * legacy Apps Script 의 getFormulas() 는 수식 셀만 수식 문자열, 그 외 '' 를
+ * 반환한다. Sheets API 의 valueRenderOption=FORMULA 는 수식 셀은 수식, 일반
+ * 셀은 literal 값을 반환하므로 `=` 시작 셀만 보존하여 GAS 시맨틱에 맞춘다.
+ * (종합견적서 수식분기: 납품가 `$L$2` useK2 / `$D$7`·`$D$8` matKey / 구형 `$I$1` isDisc)
+ *
+ * @param {string} spreadsheetId
+ * @param {string} sheetName
+ * @returns {Promise<{values:Array<Array<any>>, formulas:Array<Array<string>>}>}
+ */
+async function readSheetGrid(spreadsheetId, sheetName) {
+  const range = `'${sheetName}'!A1:ZZ`;
+  const cacheKey = `${spreadsheetId}!${range}#grid`;
+  const now = Date.now();
+
+  const hit = cache.get(cacheKey);
+  if (hit && hit.expireAt > now) return hit.value;
+
+  const sheets = _getSheets();
+  const [valResp, formResp] = await Promise.all([
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+      dateTimeRenderOption: 'FORMATTED_STRING',
+    }),
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+      valueRenderOption: 'FORMULA',
+      dateTimeRenderOption: 'FORMATTED_STRING',
+    }),
+  ]);
+  const values = valResp.data.values || [[]];
+  const rawFormulas = formResp.data.values || [[]];
+  const formulas = values.map((row, r) =>
+    row.map((_, c) => {
+      const f = (rawFormulas[r] || [])[c];
+      return typeof f === 'string' && f.startsWith('=') ? f : '';
+    }),
+  );
+
+  const grid = { values, formulas };
+  cache.set(cacheKey, { value: grid, expireAt: now + TTL_MS });
+  return grid;
+}
+
+/**
  * 캐시 전체 무효화 (sheet schema 변경 시).
  */
 function clearCache() {
@@ -126,4 +175,4 @@ function healthz() {
   }
 }
 
-module.exports = { readSheet, clearCache, healthz };
+module.exports = { readSheet, readSheetGrid, clearCache, healthz };
