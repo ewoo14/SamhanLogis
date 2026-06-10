@@ -17,10 +17,17 @@
 ### ⚠️ 환경
 - Codex 한도 다운 지속 — **6/11 10:11 회복 예정**(`codex exec` 실측). 구현·dual리뷰 Claude 대체 예외 적용 중, 회복 시 즉시 Codex 복귀.
 
+### 🟢 결정 ②③ 해소 (개발책임자 2026-06-10, [.claude/memory/project_estimate_auth_dc_key_decisions.md])
+- **② P0-B 인증모델 = X-Internal-Token** (permitAll 금지).
+- **③ DC 통합키: partnerCode = 사업자번호 '-' 제외 동일값** — bizno↔partnerCode 매핑 불요.
+
+### ✅ P0-B 진행 (PR 오픈)
+- slip-service `POST /internal/slips/from-estimate`(InternalSlipPublishController, InternalTokenFilter 게이트) + enforcement IT 4케이스. slip-bridge URL 전환+토큰 헤더+봉투 언래핑 fix(가짜 SLP- fallback 제거)+estimateNumber WEB- fallback+qty String 계약. **실 Docker QA**: 201/403/401/200멱등 + 실 브리지 E2E + DB 실증(docs/qa/estimate-p0b/RESULTS.md).
+
 ### 🔵 다음 (우선순위)
-1. **P0-B 전표 발행** `/from-estimate` 연결 — **결정 ② 인증모델 대기**.
-2. **#29 DC설정 Notion→DB** + P0-A by-customer 확장(getQuoteHistoryByCustomer) — **결정 ③ 통합키 대기**.
-3. **#30 Sheets→DB 전면 치환** / **#31 종합견적서 Docker E2E 실 UI 캡처** / 나머지 23개 GAS 앱 감사·이식.
+1. **#29 DC설정 Notion→DB** + P0-A by-customer 확장(getQuoteHistoryByCustomer) — 키=partnerCode(=bizno digits), 레거시 13컬럼 수용.
+2. **#30 Sheets→DB 전면 치환** / **#31 종합견적서 Docker E2E 실 UI 캡처** / 나머지 23개 GAS 앱 감사·이식.
+3. P0-A snapshots permitAll → X-Internal-Token 동일 하드닝(후속).
 
 ---
 

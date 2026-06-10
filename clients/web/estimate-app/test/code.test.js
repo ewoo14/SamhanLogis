@@ -28,8 +28,9 @@ jest.mock('axios', () => {
     return ok({});
   });
   const post = jest.fn().mockImplementation((url) => {
-    if (/\/api\/v1\/slips$/.test(url)) {
-      return Promise.resolve({ status: 200, data: { slipNo: 'TEST-SLIP-1' } });
+    if (/\/internal\/slips\/from-estimate$/.test(url)) {
+      // slip-service ApiResponse 봉투 (P0-B InternalSlipPublishController)
+      return Promise.resolve({ status: 201, data: { success: true, data: { slipNo: 'TEST-SLIP-1', slipId: 'id-1' } } });
     }
     if (/\/api\/v1\/estimates\/snapshots/.test(url)) {
       return ok({ ok: true, snapshotId: 'TEST-SNAP-1' });
@@ -177,14 +178,19 @@ describe('slip-bridge — 견적 finalize → slip-service POST', () => {
       },
     }];
     const body = slipBridge.buildSlipRequest(order, saleList);
-    expect(body.sourceType).toBe('ESTIMATE');
     expect(body.estimateNumber).toBe('EST-1');
     expect(body.partnerCode).toBe('C1');
     expect(body.warehouseCode).toBe('00003');
     expect(body.lines).toHaveLength(1);
     expect(body.lines[0].productCode).toBe('AC181');
-    expect(body.lines[0].qty).toBe(2);
+    expect(body.lines[0].qty).toBe('2'); // PublishLineRequest.qty String 계약
     expect(body.lines[0].unitPriceVat).toBe(550000);
+  });
+
+  test('buildSlipRequest estimateNumber 미전달 시 WEB- 고유 식별자 생성 (@NotBlank 계약)', () => {
+    const saleList = [{ BulkDatas: { IO_DATE: '20260610', CUST: 'C1', PROD_CD: 'AC1', QTY: '1', PRICE: '100', USER_PRICE_VAT: '110' } }];
+    const body = slipBridge.buildSlipRequest({}, saleList);
+    expect(body.estimateNumber).toMatch(/^WEB-20260610-\d+$/);
   });
 
   test('postSlip — slip-service 200 응답 시 slipNo 반환 (axios mock)', async () => {

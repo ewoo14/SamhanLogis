@@ -3,18 +3,21 @@
  *
  * legacy estimate Code.js sendOrderFromUi (line 1762-1967) 가 e-Count proxy
  * (`http://152.69.228.109:3000/proxy/ecount/sale`) 호출로 SaleList POST 했던
- * 동작을, B2 마이그레이션 결정 (DECISIONS Phase 6 v4 후속 정정 §) 에 따라
- * SamhanLogis slip-service 의 `POST /api/v1/slips` 호출로 1:1 대체한다.
+ * 동작을 slip-service 발행 endpoint 호출로 1:1 대체한다.
  *
- * 사용자 명시 요건 (estimate-app v2 사양 §4):
- *   "견적 finalize → SamhanLogis slip-service POST /api/v1/slips
- *    (즉시 출고전표 자동 생성) — legacy 가 e-Count /sale 호출했던 동작 그대로"
+ * P0-B (2026-06-10, 개발책임자 결정 ②): 대상 = `POST /internal/slips/from-estimate`
+ * (slip-service InternalSlipPublishController). estimate-app 은 자체 로그인 체계가
+ * 없는 server-to-server 호출자이므로 **X-Internal-Token** 헤더로 인증
+ * (permitAll 금지). 계약은 공개 /api/v1/slips/from-estimate 의
+ * PublishFromEstimateRequest 와 동일.
  *
  * 환경변수:
  *   - SLIP_SERVICE_URL: slip-service base URL (기본 http://localhost:8086)
- *   - SAMHAN_API_BASE_URL: gateway URL (SLIP_SERVICE_URL 미지정시 fallback)
+ *   - SAMHAN_API_BASE_URL: gateway URL (SLIP_SERVICE_URL 미지정시 fallback —
+ *     단, /internal/** 는 게이트웨이 비노출이므로 운영은 slip-service 직결 필수)
+ *   - SAMHAN_INTERNAL_TOKEN: X-Internal-Token 값 (slip-service 와 동일 값,
+ *     INTERNAL_AUTH_TOKEN legacy fallback)
  *
- * Phase 6 M5 (slip-service 통합 발행 endpoint, PR #76 머지) 가용성 가정.
  * USE_MOCK_FALLBACK 분기는 폐기 — non-2xx / 네트워크 오류는 호출자에게
  * 그대로 전파해 사용자 alert 로 처리한다.
  */
@@ -28,6 +31,11 @@ const SLIP_BASE =
   process.env.SLIP_SERVICE_URL ||
   process.env.SAMHAN_API_BASE_URL ||
   'http://localhost:8086';
+
+const INTERNAL_TOKEN =
+  process.env.SAMHAN_INTERNAL_TOKEN ||
+  process.env.INTERNAL_AUTH_TOKEN ||
+  'dev-internal-token-change-me';
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
 
@@ -81,9 +89,13 @@ function buildSlipRequest(legacyOrder, saleList) {
   }
   const head = saleList[0].BulkDatas || {};
 
+  // estimateNumber 는 PublishFromEstimateRequest @NotBlank — legacy GAS UI 에는
+  // 견적번호 개념이 없으므로 미전달 시 발행 단위 고유 식별자를 생성해 sourceId 로 보존.
+  const estimateNumber =
+    legacyOrder.estimateNumber || `WEB-${head.IO_DATE || 'NA'}-${Date.now()}`;
+
   return {
-    sourceType: 'ESTIMATE',
-    estimateNumber: legacyOrder.estimateNumber || null,
+    estimateNumber,
     ioDate: head.IO_DATE,                 // yyyyMMdd
     timeDate: head.TIME_DATE,
     partnerCode: head.CUST,               // 거래처 코드
@@ -108,7 +120,8 @@ function buildSlipRequest(legacyOrder, saleList) {
         productCode: b.PROD_CD,
         productName: b.PROD_DES || '',
         spec: b.SIZE_DES || '',
-        qty: Number(b.QTY) || 0,
+        // PublishLineRequest.qty 는 String 계약 (서비스 레이어 parse)
+        qty: String(Number(b.QTY) || 0),
         unitPriceExVat: Number(b.PRICE) || 0,
         unitPriceVat: Number(b.USER_PRICE_VAT) || 0,
         supplyAmount: Number(b.SUPPLY_AMT) || 0,
@@ -120,14 +133,14 @@ function buildSlipRequest(legacyOrder, saleList) {
 }
 
 /**
- * slip-service `POST /api/v1/slips` 호출.
+ * slip-service `POST /internal/slips/from-estimate` 호출 (X-Internal-Token).
  *
  * @param {object} legacyOrder — sendOrderFromUi(data) 의 input (header 필드 추출용)
  * @param {Array<object>} saleList — legacy SaleList (line per BulkDatas)
  * @returns {Promise<{ok:boolean, slipNo?:string, body:object}>}
  */
 async function postSlip(legacyOrder, saleList) {
-  const url = `${SLIP_BASE}/api/v1/slips`;
+  const url = `${SLIP_BASE}/internal/slips/from-estimate`;
   let body;
   try {
     body = buildSlipRequest(legacyOrder, saleList);
@@ -141,11 +154,16 @@ async function postSlip(legacyOrder, saleList) {
     const resp = await axios.post(url, body, {
       timeout: 15000,
       validateStatus: () => true,
+      headers: {
+        'X-Internal-Token': INTERNAL_TOKEN,
+        'X-Caller': 'estimate-app',
+      },
     });
     if (resp.status >= 200 && resp.status < 300) {
-      const slipNo =
-        (resp.data && (resp.data.slipNo || resp.data.slipNumber)) ||
-        `SLP-${Date.now()}`;
+      // slip-service 는 ApiResponse 봉투 { success, data: { slipId, slipNo, ... } } 반환.
+      // 비봉투 응답도 방어적으로 수용. 가짜 slipNo 생성 금지 — 미수신 시 그대로 보고.
+      const payload = (resp.data && resp.data.data) || resp.data || {};
+      const slipNo = payload.slipNo || payload.slipNumber || '';
       return { ok: true, slipNo: String(slipNo), body: resp.data };
     }
     Logger.log(`[slip-bridge] non-2xx status=${resp.status} body=${JSON.stringify(resp.data)}`);
