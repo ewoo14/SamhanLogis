@@ -6,12 +6,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.BundleComponentRequest;
@@ -25,7 +29,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -51,7 +54,9 @@ class BundleComponentServiceTest {
     @Mock
     private BundleComponentRepository bundleComponentRepository;
 
-    @InjectMocks
+    @Mock
+    private ProductRealtimeBroker broker;
+
     private BundleComponentService service;
 
     private Product bundleProduct;
@@ -61,6 +66,7 @@ class BundleComponentServiceTest {
 
     @BeforeEach
     void setUp() {
+        service = new BundleComponentService(productRepository, bundleComponentRepository, broker);
         Category cat = Category.create("INDOOR_WALL", "벽걸이형", null, 1);
 
         // BUNDLE 부모
@@ -253,5 +259,34 @@ class BundleComponentServiceTest {
     void updateDisplayOrders_빈_목록_noop() {
         // 예외 없이 정상 종료
         service.updateDisplayOrders(List.of());
+    }
+
+    /**
+     * §2-1: display-orders 요청에 다른 productCategory 품목이 섞이면 400 INVALID_INPUT.
+     * displayOrder 는 카테고리 내 정렬이므로 전역 재번호 금지.
+     */
+    @Test
+    void updateDisplayOrders_다른_카테고리_혼합_400() {
+        Product catA = Product.seedFromSheet("품목A", "PROD-A", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.NONE, null);
+        ReflectionTestUtils.setField(catA, "id", UUID.randomUUID());
+
+        Product catB = Product.seedFromSheet("품목B", "PROD-B", null,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.SINGLE_SET, UsageScope.NONE, null);
+        ReflectionTestUtils.setField(catB, "id", UUID.randomUUID());
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-A"))
+                .thenReturn(Optional.of(catA));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-B"))
+                .thenReturn(Optional.of(catB));
+
+        assertThatThrownBy(() -> service.updateDisplayOrders(List.of(
+                new DisplayOrderRequest("PROD-A", 1),
+                new DisplayOrderRequest("PROD-B", 2))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
     }
 }

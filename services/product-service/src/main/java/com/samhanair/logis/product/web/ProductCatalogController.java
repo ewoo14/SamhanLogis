@@ -1,5 +1,7 @@
 package com.samhanair.logis.product.web;
 
+import static com.samhanair.logis.product.service.BundleComponentService.CATALOG_CHANNEL_ID;
+import static com.samhanair.logis.product.service.BundleComponentService.EVENT_CATALOG_CHANGED;
 import static com.samhanair.logis.product.service.ProductService.escapeLikeWildcards;
 
 import com.samhanair.logis.product.domain.EstimateCategory;
@@ -7,6 +9,7 @@ import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.SpecKeyTemplate;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
@@ -95,19 +98,22 @@ public class ProductCatalogController {
     private final ProductService productService;
     private final BundleComponentService bundleComponentService;
     private final BundleComponentRepository bundleComponentRepository;
+    private final ProductRealtimeBroker broker;
 
     public ProductCatalogController(ProductRepository productRepository,
                                     ProductSpecService specService,
                                     SpecKeyTemplateRepository templateRepository,
                                     ProductService productService,
                                     BundleComponentService bundleComponentService,
-                                    BundleComponentRepository bundleComponentRepository) {
+                                    BundleComponentRepository bundleComponentRepository,
+                                    ProductRealtimeBroker broker) {
         this.productRepository = productRepository;
         this.specService = specService;
         this.templateRepository = templateRepository;
         this.productService = productService;
         this.bundleComponentService = bundleComponentService;
         this.bundleComponentRepository = bundleComponentRepository;
+        this.broker = broker;
     }
 
     /**
@@ -192,8 +198,12 @@ public class ProductCatalogController {
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ProductCatalogResponse changeUsage(@PathVariable @NotBlank String modelCode,
                                               @Valid @RequestBody UpdateProductUsageRequest req) {
-        return ProductCatalogResponse.from(
+        ProductCatalogResponse response = ProductCatalogResponse.from(
                 productService.updateUsageAndReturn(modelCode, req));
+        // §2-2 실시간 publish — usage PATCH 성공 시 카탈로그 목록 invalidate 트리거
+        broker.publish(CATALOG_CHANNEL_ID, EVENT_CATALOG_CHANGED,
+                java.util.Map.of("event", EVENT_CATALOG_CHANGED, "modelCode", modelCode));
+        return response;
     }
 
     /**
@@ -208,6 +218,9 @@ public class ProductCatalogController {
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public void clearUsage(@PathVariable @NotBlank String modelCode) {
         productService.clearUsageOverride(modelCode);
+        // §2-2 실시간 publish — usage DELETE 성공 시 카탈로그 목록 invalidate 트리거
+        broker.publish(CATALOG_CHANNEL_ID, EVENT_CATALOG_CHANGED,
+                java.util.Map.of("event", EVENT_CATALOG_CHANGED, "modelCode", modelCode));
     }
 
     @GetMapping("/products/{modelCode}/specs")

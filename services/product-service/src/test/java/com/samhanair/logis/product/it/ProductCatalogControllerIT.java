@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -430,6 +431,36 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
         // DB 확인 — usageScopeManual=false
         productRepository.findByModelNameAndIsDeletedFalse("MC_NULL_EVICT_01")
                 .ifPresent(p -> org.assertj.core.api.Assertions.assertThat(p.isUsageScopeManual()).isFalse());
+    }
+
+    /**
+     * §2-1: PUT /api/v1/products/display-orders — 다른 카테고리 혼합 시 400 INVALID_INPUT.
+     *
+     * <p>displayOrder 는 카테고리 내 정렬 ({@code findExposedCatalog} 소비) 이므로
+     * 전역 재번호(다른 카테고리 혼합) 는 금지. 혼합 시 400 응답.
+     */
+    @Test
+    void PUT_display_orders_다른_카테고리_혼합_400() throws Exception {
+        Category catM = categoryRepository.save(Category.create("CAT-MIX-M", "mix test M", null, 20));
+        Category catS = categoryRepository.save(Category.create("CAT-MIX-S", "mix test S", null, 21));
+        productRepository.save(Product.seedFromSheet("Mix Home", "MIX_HOME_01", catM,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI));
+        productRepository.save(Product.seedFromSheet("Mix Single", "MIX_SINGLE_01", catS,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.SINGLE_SET, UsageScope.BOTH, null));
+        productRepository.flush();
+
+        mvc.perform(put("/api/v1/products/display-orders")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [
+                                  {"modelCode":"MIX_HOME_01","displayOrder":1},
+                                  {"modelCode":"MIX_SINGLE_01","displayOrder":2}
+                                ]
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     private Product saveModelNameOnlyProduct(String modelName) {

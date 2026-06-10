@@ -252,6 +252,34 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [RC9 후속] 구성품 CRUD — /products/*/components 는 specs 패턴과 세그먼트가 달라
+        # product-specs-v1 에 미매칭. 풀패스 컨트롤러라 strip 금지. product-service-v1(strip=2) 보다 먼저 선언.
+        - id: product-components-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/*/components
+          filters:
+            - JwtAuthentication
+
+        # [RC9 후속] 표시 순서 일괄 갱신 — /products/display-orders 는 strip=2 통과 시
+        # /products/display-orders 가 되어 컨트롤러 매핑 /api/v1/products/display-orders 불일치.
+        # 풀패스 no-strip. product-service-v1(strip=2) 보다 먼저 선언.
+        - id: product-display-orders-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/display-orders
+          filters:
+            - JwtAuthentication
+
+        # [RC9 후속] 카탈로그 목록 레벨 SSE 구독 (§2-2) — catalog-realtime 고정 세그먼트.
+        # product-service-v1(strip=2) 보다 먼저 선언. 풀패스 no-strip.
+        - id: product-catalog-realtime-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/products/catalog-realtime
+          filters:
+            - JwtAuthentication
+
         # [RC9] product-service lookup 3종 — 풀패스 컨트롤러 — strip 금지.
         - id: product-lookups-v1
           uri: lb://product-service

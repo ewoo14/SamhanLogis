@@ -789,24 +789,42 @@ let MOCK_PRODUCT_CATALOG_ROWS: Array<{
   discountFlags: null
   productType: string
   componentCount: number
-}> = Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => {
-  const isBundle = p.productType === 'BUNDLE'
-  return {
-    modelCode: p.modelName,
-    name: p.productName,
-    usageScope: index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
-    estimateCategory: index % 2 === 0 ? 'HOME_MULTI' : 'OTHER',
+}> = [
+  ...Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => {
+    const isBundle = p.productType === 'BUNDLE'
+    return {
+      modelCode: p.modelName,
+      name: p.productName,
+      usageScope: index % 2 === 0 ? 'BOTH' : 'ESTIMATE',
+      estimateCategory: index % 2 === 0 ? 'HOME_MULTI' : 'OTHER',
+      usageScopeManual: false,
+      displayOrder: index + 1,
+      releasePrice: Number(p.sellingPrice),
+      deliveryPrice: Number(p.sellingPrice),
+      hasVariableDiscount: false,
+      legacyDiscountFlag: false,
+      discountFlags: null,
+      productType: p.productType ?? 'SINGLE',
+      componentCount: isBundle ? 3 : 0,
+    }
+  }),
+  // §2-1 NONE 품목 시드 — 노출 한정 시나리오 검증용 (displayOrder=null, 정렬 대상 제외).
+  {
+    modelCode: 'MOCK-NONE-ITEM',
+    name: '미노출 품목 (테스트)',
+    usageScope: 'NONE' as const,
+    estimateCategory: null,
     usageScopeManual: false,
-    displayOrder: index + 1,
-    releasePrice: Number(p.sellingPrice),
-    deliveryPrice: Number(p.sellingPrice),
+    displayOrder: null,
+    releasePrice: 0,
+    deliveryPrice: 0,
     hasVariableDiscount: false,
     legacyDiscountFlag: false,
     discountFlags: null,
-    productType: p.productType ?? 'SINGLE',
-    componentCount: isBundle ? 3 : 0,
-  }
-})
+    productType: 'SINGLE',
+    componentCount: 0,
+  },
+]
 
 // 구성품 데이터 (BUNDLE 품목 전용) — PUT replace-all 로 업데이트됨.
 let MOCK_BUNDLE_COMPONENTS: Record<string, Array<{

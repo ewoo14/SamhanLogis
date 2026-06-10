@@ -236,6 +236,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [stockSelectedSnapshot, setStockSelectedSnapshot] = useState<
     StockBalanceLookupLine[]
   >([])
+  /** 세트 전용 안내 스냅샷 (모달 열릴 때 확정) — §2-2 세트 재고 가드. */
+  const [stockBundleOnlySnapshot, setStockBundleOnlySnapshot] = useState(false)
 
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
@@ -370,6 +372,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     }
   }
 
+  /** 선택된 라인 중 productId 가 있는 전체 라인 (BUNDLE 포함). */
   const selectedProductLines = useMemo(() => {
     return lines
       .filter((l) => selectedIds.has(l.id) && l.productId)
@@ -377,12 +380,30 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         productId: l.productId!,
         modelName: l.modelName,
         productName: l.productName,
+        productType: l.productType ?? null,
       }))
   }, [lines, selectedIds])
 
+  /**
+   * 세트 재고 가드 (§2-2): BUNDLE 라인은 재고조회 대상 제외.
+   * 선택 라인이 전부 BUNDLE 인 경우 bundleOnlyLines=true 로 모달에 안내 표시.
+   */
+  const nonBundleLookupLines = useMemo(
+    () =>
+      selectedProductLines
+        .filter((l) => l.productType !== 'BUNDLE')
+        .map(({ productId, modelName, productName }) => ({ productId, modelName, productName })),
+    [selectedProductLines],
+  )
+
+  const allSelectedAreBundle =
+    selectedProductLines.length > 0 &&
+    selectedProductLines.every((l) => l.productType === 'BUNDLE')
+
   const openStockModal = () => {
     if (selectedProductLines.length === 0) return
-    setStockSelectedSnapshot(selectedProductLines)
+    setStockSelectedSnapshot(nonBundleLookupLines)
+    setStockBundleOnlySnapshot(allSelectedAreBundle)
     setStockModalOpen(true)
   }
 
@@ -871,10 +892,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       </Card>
 
       {/* 재고조회 모달 — 신 공용 InventoryLookupModal (가용/실/예약 자체 페치) */}
+      {/* §2-2 세트 재고 가드: BUNDLE 라인은 제외 후 전달, 전부 세트면 bundleOnlyLines=true */}
       <InventoryLookupModal
         open={stockModalOpen}
         onClose={closeStockModal}
         lines={stockSelectedSnapshot}
+        bundleOnlyLines={stockBundleOnlySnapshot}
       />
     </div>
   )

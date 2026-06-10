@@ -12,10 +12,12 @@
  *   <li>표시 순서 드래그: @dnd-kit/sortable 행 드래그 → '순서 저장' 버튼 → PUT /display-orders</li>
  * </ul>
  *
- * <h2>순서 저장 방침</h2>
- * <p>드래그 결과 반영 시 전체 목록을 충분히 큰 size(999)로 재조회하여 새 displayOrder 전량 전송한다.
- * 페이지 단위 부분 재번호는 전체 순서 모호로 인해 사용하지 않는다.
- * 검색(q)/필터 활성 시 드래그 비활성 — 부분 목록 드래그는 순서 모호.</p>
+ * <h2>순서 저장 방침 (§2-1, §2-2 갱신)</h2>
+ * <p>드래그 활성 조건: canEdit=true + <b>카테고리 필터 선택</b> (검색/전체 목록 상태 비활성).
+ * 전체 목록 상태에서는 드래그 비활성 + "카테고리를 선택하면 순서를 조정할 수 있습니다" 캡션.
+ * 재번호 전송 = 해당 카테고리의 usageScope≠NONE 품목만 (카테고리 한정 재번호 BE 계약).
+ * NONE 품목은 displayOrder '—' + 드래그 핸들 미노출 + 재번호 대상 제외.
+ * 카테고리 검증은 BE PUT /display-orders 에서도 혼합 400 처리.</p>
  *
  * <h2>게이트</h2>
  * <ul>
@@ -51,6 +53,8 @@
  *   <li>{@code product-catalog-list-error} — 목록 조회 오류 배너 (isError + rows.length===0 시)</li>
  *   <li>{@code product-catalog-mutation-error} — 변형(토글/복귀) 오류 배너</li>
  *   <li>{@code product-catalog-readonly-banner} — 조회 전용 안내 배너 (canEdit=false 시)</li>
+ *   <li>{@code product-catalog-category-select} — 카테고리 필터 셀렉트</li>
+ *   <li>{@code product-catalog-drag-disabled-caption} — 카테고리 미선택 드래그 비활성 캡션</li>
  *   <li>{@code product-catalog-save-order-button} — 순서 저장 버튼</li>
  *   <li>{@code components-modal} — 구성품 편집 모달 (data-testid on modal wrapper)</li>
  *   <li>{@code components-modal-component-row-{index}} — 구성품 행</li>
@@ -75,6 +79,8 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { isMockMode } from '../api/mock'
+import { ProductRealtimeClient } from '../realtime/ProductRealtimeClient'
 import {
   DndContext,
   PointerSensor,
@@ -608,6 +614,9 @@ function SortableRow({ row, columns }: SortableRowProps) {
     isDragging,
   } = useSortable({ id: row.modelCode })
 
+  /** §2-1: NONE 품목은 드래그 핸들 미노출 (정렬 대상 제외). */
+  const isNone = row.usageScope === 'NONE'
+
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -616,15 +625,17 @@ function SortableRow({ row, columns }: SortableRowProps) {
 
   return (
     <tr ref={setNodeRef} style={style} data-testid={`product-catalog-row-${row.modelCode}`}>
-      {/* 드래그 핸들 셀 */}
+      {/* 드래그 핸들 셀 — NONE 품목은 핸들 미노출 (빈 셀) */}
       <td style={sortableTdStyle}>
-        <DragHandle
-          label={`${row.modelCode} 드래그`}
-          listeners={listeners as Record<string, unknown> | undefined}
-          attributes={attributes as unknown as Record<string, unknown>}
-          setActivatorNodeRef={setActivatorNodeRef}
-          dragging={isDragging}
-        />
+        {isNone ? null : (
+          <DragHandle
+            label={`${row.modelCode} 드래그`}
+            listeners={listeners as Record<string, unknown> | undefined}
+            attributes={attributes as unknown as Record<string, unknown>}
+            setActivatorNodeRef={setActivatorNodeRef}
+            dragging={isDragging}
+          />
+        )}
       </td>
       {/* 데이터 셀 (drag 컬럼 제외) */}
       {columns.filter((c) => c.key !== '_drag').map((col) => (
@@ -653,6 +664,7 @@ export function ProductCatalogPage() {
 
   const [searchInput, setSearchInput] = useState('')
   const [committedSearch, setCommittedSearch] = useState('')
+  const [committedCategory, setCommittedCategory] = useState<EstimateCategory | ''>('')
   const [currentPage, setCurrentPage] = useState(0)
 
   // 활성 패치 중인 modelCode 추적
@@ -669,8 +681,13 @@ export function ProductCatalogPage() {
   const [orderSaving, setOrderSaving] = useState(false)
   const [orderError, setOrderError] = useState<string | null>(null)
 
-  // 드래그 활성 여부 (검색/필터 없을 때만 + canEdit)
-  const isDragEnabled = canEdit && !committedSearch
+  /**
+   * 드래그 활성 여부 — §2-2 정책:
+   * - canEdit=true
+   * - 카테고리 필터 선택됨 (committedCategory 비어있지 않음)
+   * - 검색(q) 비활성 (검색 중 드래그 순서 모호)
+   */
+  const isDragEnabled = canEdit && !!committedCategory && !committedSearch
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -684,11 +701,26 @@ export function ProductCatalogPage() {
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 
+  /**
+   * §2-2 실시간 동기화: ProductCatalogPage 마운트 시 카탈로그 레벨 SSE 구독.
+   * 이벤트 수신 시 react-query cache invalidate → 목록 자동 갱신.
+   * VITE_MOCK_MODE 에서는 구독 skip (SSE 서버 미가동).
+   * unmount 시 abort() 로 cleanup ([[SlipDetailPage 348행 패턴]]).
+   */
+  useEffect(() => {
+    if (isMockMode()) return // mock 모드: SSE 구독 skip
+    const ctrl = ProductRealtimeClient.subscribe('catalog', () => {
+      void queryClient.invalidateQueries({ queryKey: ['product-catalog'] })
+    })
+    return () => ctrl.abort()
+  }, [queryClient])
+
   const listQuery = useQuery({
-    queryKey: ['product-catalog', committedSearch, currentPage],
+    queryKey: ['product-catalog', committedSearch, committedCategory, currentPage],
     queryFn: () =>
       listProducts({
         q: committedSearch || undefined,
+        category: committedCategory || undefined,
         page: currentPage,
         size: PAGE_SIZE,
       }),
@@ -737,6 +769,13 @@ export function ProductCatalogPage() {
     setCommittedSearch(searchInput)
   }, [searchInput])
 
+  /** 카테고리 필터 즉시 반영 (조회 버튼 불필요 — 카테고리 변경 즉시 적용). */
+  const handleCategoryChange = useCallback((value: EstimateCategory | '') => {
+    setCommittedCategory(value)
+    setCurrentPage(0)
+    setOrderDirty(false)
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') handleQuery()
@@ -766,26 +805,50 @@ export function ProductCatalogPage() {
     setOrderDirty(true)
   }, [])
 
-  // 표시 순서 저장
+  /**
+   * 표시 순서 저장 — §2-1 + §2-2 정책:
+   * 카테고리 한정 재번호: 선택된 카테고리의 usageScope≠NONE 품목만 재번호 전송.
+   * NONE 품목은 displayOrder 그대로 유지 (재번호 대상 제외).
+   * BE 는 동일 카테고리 검증 후 처리 (혼합 시 400).
+   */
   const handleSaveOrder = useCallback(async () => {
+    if (!committedCategory) return // 카테고리 미선택 시 저장 불가 (isDragEnabled 가 이미 가드)
     setOrderSaving(true)
     setOrderError(null)
     try {
-      // 전체 목록을 충분히 큰 size 로 재조회 후 새 순서대로 재번호 전송
-      // 페이지 단위 부분 재번호는 전체 순서 모호로 사용하지 않는다.
-      const allRows = await listProducts({ size: DISPLAY_ORDER_FULL_SIZE })
+      // 선택된 카테고리의 전체 목록(충분히 큰 size)을 재조회하여 NONE 제외 후 재번호 전송.
+      const allRows = await listProducts({
+        category: committedCategory,
+        size: DISPLAY_ORDER_FULL_SIZE,
+      })
       const allItems = allRows.content
 
-      // sortableRows 의 현재 순서를 기준으로 재번호 계산
-      // sortableRows 에 없는 행은 기존 displayOrder 유지 (뒤에 붙임)
-      const sortedModelCodes = sortableRows.map((r) => r.modelCode)
-      const otherItems = allItems.filter((r) => !sortedModelCodes.includes(r.modelCode))
-      const orderedAll = [...sortableRows, ...otherItems]
+      // sortableRows 의 현재 화면 순서를 기준으로 재번호 계산.
+      // usageScope=NONE 품목은 재번호 대상 제외 (displayOrder '—' — NONE 은 순서 없음).
+      const exposedSortedCodes = sortableRows
+        .filter((r) => r.usageScope !== 'NONE')
+        .map((r) => r.modelCode)
 
-      const orders = orderedAll.map((r, idx) => ({
+      // 화면에 없는 노출 품목(다른 페이지) = sortableRows 에 없는 카테고리 품목 뒤에 붙임
+      const otherExposedItems = allItems.filter(
+        (r) => r.usageScope !== 'NONE' && !exposedSortedCodes.includes(r.modelCode),
+      )
+
+      // sortableRows 에서 NONE 제외된 순서 + 나머지 노출 품목 (NONE 제외)
+      const exposedOrdered = [
+        ...sortableRows.filter((r) => r.usageScope !== 'NONE'),
+        ...otherExposedItems,
+      ]
+
+      const orders = exposedOrdered.map((r, idx) => ({
         modelCode: r.modelCode,
         displayOrder: idx + 1,
       }))
+
+      if (orders.length === 0) {
+        setOrderError('노출 품목이 없어 순서를 저장할 수 없습니다.')
+        return
+      }
 
       await updateDisplayOrders(orders)
       setOrderDirty(false)
@@ -795,7 +858,7 @@ export function ProductCatalogPage() {
     } finally {
       setOrderSaving(false)
     }
-  }, [sortableRows, queryClient])
+  }, [sortableRows, queryClient, committedCategory])
 
   const totalElements = listQuery.data?.totalElements ?? 0
   const totalPages = listQuery.data?.totalPages ?? 1
@@ -887,7 +950,12 @@ export function ProductCatalogPage() {
       header: '표시순서',
       width: '80px',
       render: (row) =>
-        row.displayOrder != null ? String(row.displayOrder) : '—',
+        // §2-1: NONE 품목은 displayOrder '—' 표시 (정렬 대상 제외)
+        row.usageScope === 'NONE'
+          ? <span style={{ color: 'var(--color-neutral-400)' }}>—</span>
+          : row.displayOrder != null
+          ? String(row.displayOrder)
+          : '—',
     },
   ]
 
@@ -923,6 +991,23 @@ export function ProductCatalogPage() {
             style={{ minWidth: 220 }}
           />
         </div>
+        {/* 카테고리 필터 — 드래그 순서 조정 활성화 조건 (§2-2) */}
+        <div style={fieldStyle}>
+          <Select
+            label="카테고리"
+            value={committedCategory}
+            onChange={(e) => handleCategoryChange(e.target.value as EstimateCategory | '')}
+            selectSize="sm"
+            fullWidth={false}
+            style={{ minWidth: 130 }}
+            data-testid="product-catalog-category-select"
+          >
+            <option value="">전체</option>
+            {ESTIMATE_CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </Select>
+        </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           <Button
             variant="primary"
@@ -947,6 +1032,15 @@ export function ProductCatalogPage() {
           {isDragEnabled && !orderDirty && rows.length > 0 ? (
             <span style={{ fontSize: 11, color: 'var(--color-neutral-400)' }}>
               행을 드래그하여 순서 조정
+            </span>
+          ) : null}
+          {/* §2-2: 전체 목록(카테고리 미선택) 상태 드래그 비활성 캡션 */}
+          {canEdit && !committedCategory && !committedSearch ? (
+            <span
+              style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}
+              data-testid="product-catalog-drag-disabled-caption"
+            >
+              카테고리를 선택하면 순서를 조정할 수 있습니다
             </span>
           ) : null}
           {committedSearch ? (
