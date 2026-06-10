@@ -52,6 +52,14 @@
    - 가드: BUNDLE 품목 재고조회 진입 시 수치 대신 "세트 품목 — 재고는 구성품 단위" 안내 (FE) + (BE 가 세트 재고를 합성 반환하는 경로가 있으면 차단). 품목관리 화면에는 재고 컬럼 자체를 두지 않음.
 2. **표시 순서 자동 갱신 시멘틱 확정**: 이동 시 영향 행 **자동 재번호** (개별 번호 직접 입력으로 충돌 나는 모델 금지). **재번호 범위 = 동일 카테고리(productCategory/시트 탭) 품목군** — display_order 소비처(findExposedCatalog 등)가 카테고리 내 정렬이므로 전역 재번호 금지. BE display-orders 일괄 PUT 은 요청 항목들이 동일 카테고리인지 검증(혼합 시 400) 권장.
 
+## 2-2. 3차 지시 (2026-06-11 새벽 — 구현 중 수신, 정합 pass 반영)
+
+> "종합견적서 및 주문서 표시가 체크된 경우에만 표시순서를 표시하며, 품목뿐 아니라 모든 설정이 전표처럼 실시간표시 되기를 원함. 즉 누군가 설정을 수정하면 그 수정이 그대로 같은 화면을 보는 타인에게도 표시"
+
+1. **표시순서 조건부 표시**: displayOrder 컬럼·드래그 정렬은 **견적/주문 노출 체크 품목(usageScope ≠ NONE)에만** 표시·적용. NONE 품목은 '—' + 정렬 대상 제외.
+2. **설정 실시간 동기화 (전표 패턴)**: 기성 자산 재사용 — BE `ProductRealtimeBroker`(shared RealtimePublishHook, SP-D7) 에 품목 설정 mutation(usage PATCH/DELETE·components PUT·display-orders PUT) 이벤트 publish + FE `SlipRealtimeClient` 패턴 복제(ProductRealtimeClient)로 ProductCatalogPage SSE 구독 → 수신 시 react-query invalidate → 동시 시청자 화면 실시간 갱신.
+3. **전사 일반화는 후속 슬라이스**: "모든 설정 화면" (공급자 설정 등) 실시간 전파는 본 슬라이스에서 패턴 확립 후 별도 슬라이스로 수평 전개 — 메모리 박제.
+
 ## 3. QA (Docker 실서버)
 
 - T1 세트 컬럼 + 구성품 수 실표시 / T2 구성품 편집 왕복 → DB 실증 → **전표 폼 전개에 편집 반영** (핵심: 구성 변경 후 SlipFormPage 전개 라인이 새 구성으로) / T3 순서 드래그 저장 → DB + 견적 카탈로그/품목 목록 순서 반영 / T4 cron 비활성 확인 (로그) + 수동 sync 메뉴 동작 유지 / T5 권한 deny / T6 비-BUNDLE 구성품 PUT 409.
