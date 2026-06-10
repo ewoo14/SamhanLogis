@@ -156,6 +156,13 @@ public class Product extends BaseEntity {
     @Column(name = "estimate_category", length = 20)
     private EstimateCategory estimateCategory;
 
+    /**
+     * 시트 노출 순서(V13, 2026-06-10) — 견적서/주문서 품목 리스트를 구글 시트 행 순서로 표시.
+     * sync 가 각 탭의 데이터 행 순번(1부터)을 적재. 미적재(legacy)는 null → 정렬 시 후순위.
+     */
+    @Column(name = "display_order")
+    private Integer displayOrder;
+
     /** (legacy) 시트 규격 컬럼 — ProductSpec 1:N 으로 대체. read-only fallback. */
     @Column(name = "spec_text", length = 255)
     private String specText;
@@ -424,6 +431,11 @@ public class Product extends BaseEntity {
 
     public void changeRemark(String remark) {
         this.remark = remark;
+    }
+
+    /** 시트 노출 순서 set (V13) — sync 가 탭 내 데이터 행 순번 적재. */
+    public void changeDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
     }
 
     public void changeSpecText(String specText) {

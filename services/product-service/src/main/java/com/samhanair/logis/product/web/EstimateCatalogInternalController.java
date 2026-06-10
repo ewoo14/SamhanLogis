@@ -10,6 +10,7 @@ import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductSpec;
+import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.MaterialPriceRepository;
@@ -112,7 +113,8 @@ public class EstimateCatalogInternalController {
      * @param category HOME_MULTI / SINGLE_SET / COMMERCIAL_MULTI / LEGACY(구형)
      */
     @Operation(summary = "[내부] estimate 카탈로그 벌크 (#30 Sheets→DB)",
-            description = "legacy 시트 getter 대체 — 변동DC 분기·사양 파생 포함 전량 반환.")
+            description = "legacy 시트 getter 대체 — 견적 노출(usageScope) 필터 + 시트 순서(display_order) "
+                    + "정렬 + 변동DC 분기·사양 파생 포함.")
     @GetMapping("/products")
     @Transactional(readOnly = true)
     public ApiResponse<List<CatalogRow>> products(@RequestParam("category") EstimateCategory category) {
@@ -123,8 +125,9 @@ public class EstimateCatalogInternalController {
             case LEGACY -> ProductCategory.OLD;
             default -> throw new IllegalArgumentException("지원하지 않는 카테고리: " + category);
         };
-        List<Product> products = productRepository
-                .findByProductCategoryAndIsDeletedFalse(productCategory);
+        // 개발책임자 결정(2026-06-10): 견적서엔 designated 품목만(ESTIMATE/BOTH), 구글 시트 순서 유지.
+        List<Product> products = productRepository.findExposedCatalog(
+                productCategory, java.util.List.of(UsageScope.ESTIMATE, UsageScope.BOTH));
 
         Map<UUID, Map<String, String>> specByProduct = loadSpecs(
                 products.stream().map(Product::getId).toList());

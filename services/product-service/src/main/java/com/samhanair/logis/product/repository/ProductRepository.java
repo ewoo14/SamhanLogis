@@ -132,5 +132,21 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     List<Product> findByProductCategoryAndIsDeletedFalse(ProductCategory productCategory);
 
+    /**
+     * 견적/주문 카탈로그 — 카테고리 + 노출범위(usageScope) 필터 + 시트 노출순서 정렬.
+     * 개발책임자 결정(2026-06-10): 견적/주문엔 designated 품목만, 구글 시트 순서 유지.
+     * usageScope 는 ESTIMATE/PARTNER_ORDER/BOTH 중 호출자가 IN 목록으로 전달.
+     * display_order NULL(미sync)은 후순위(NULLS LAST), 동순위는 modelCode.
+     */
+    @Query("""
+            SELECT p FROM Product p
+              WHERE p.productCategory = :productCategory
+                AND p.isDeleted = false
+                AND p.usageScope IN :scopes
+              ORDER BY p.displayOrder ASC NULLS LAST, p.modelCode ASC
+            """)
+    List<Product> findExposedCatalog(@Param("productCategory") ProductCategory productCategory,
+            @Param("scopes") java.util.Collection<UsageScope> scopes);
+
     List<Product> findByParentBundleSetModelAndIsDeletedFalse(String parentBundleSetModel);
 }

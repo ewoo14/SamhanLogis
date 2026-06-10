@@ -150,6 +150,47 @@ class ProductRepositoryIT extends AbstractPostgresIT {
         );
     }
 
+    /**
+     * #노출구분 — findExposedCatalog: 카테고리 + 노출범위(usageScope) 필터 + 시트순서(display_order)
+     * 정렬(NULLS LAST). 개발책임자 결정(2026-06-10): 견적/주문엔 designated 품목만, 시트 순서 유지.
+     */
+    @Test
+    void findExposedCatalog_filtersByUsageScope_ordersByDisplayOrder() {
+        // SINGLE_SET 4종: BOTH(노출, order 2,1), NONE(미노출), ESTIMATE(노출, order null)
+        Product b2 = seedSingle("노출2", "S-EXP-2",
+                com.samhanair.logis.product.domain.UsageScope.BOTH, 2);
+        Product b1 = seedSingle("노출1", "S-EXP-1",
+                com.samhanair.logis.product.domain.UsageScope.BOTH, 1);
+        Product none = seedSingle("미노출", "S-NONE",
+                com.samhanair.logis.product.domain.UsageScope.NONE, 3);
+        Product estNull = seedSingle("노출순번없음", "S-EST-NULL",
+                com.samhanair.logis.product.domain.UsageScope.ESTIMATE, null);
+        productRepository.flush();
+        entityManager.clear();
+
+        List<Product> exposed = productRepository.findExposedCatalog(
+                com.samhanair.logis.product.domain.ProductCategory.SINGLE_SET,
+                List.of(com.samhanair.logis.product.domain.UsageScope.ESTIMATE,
+                        com.samhanair.logis.product.domain.UsageScope.BOTH));
+
+        // NONE 제외 + display_order ASC(1,2) 후 NULL 후순위
+        assertThat(exposed).extracting(Product::getModelCode)
+                .containsExactly("S-EXP-1", "S-EXP-2", "S-EST-NULL");
+    }
+
+    private Product seedSingle(String name, String modelCode,
+            com.samhanair.logis.product.domain.UsageScope scope, Integer displayOrder) {
+        Product p = Product.seedFromSheet(name, modelCode, indoorWall,
+                new BigDecimal("1000000"), new BigDecimal("800000"),
+                com.samhanair.logis.product.domain.ProductType.SINGLE,
+                com.samhanair.logis.product.domain.ProductCategory.SINGLE_SET,
+                scope,
+                scope == com.samhanair.logis.product.domain.UsageScope.NONE
+                        ? null : com.samhanair.logis.product.domain.EstimateCategory.SINGLE_SET);
+        p.changeDisplayOrder(displayOrder);
+        return productRepository.save(p);
+    }
+
     @SuppressWarnings("unused")
     private static UUID anyId() {
         return UUID.randomUUID();
