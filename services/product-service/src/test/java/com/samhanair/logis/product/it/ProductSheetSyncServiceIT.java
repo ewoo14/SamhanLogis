@@ -473,6 +473,78 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
                 .get().satisfies(s -> assertThat(s.getSpecValue()).isEqualTo("R-410A"));
     }
 
+    /**
+     * #노출구분(2026-06-10) — display_order: sync 가 각 탭의 유효 데이터 행 순번(1부터)을
+     * display_order 로 적재. 견적/주문 카탈로그가 구글 시트 행 순서 그대로 표시되도록 보존.
+     */
+    @Test
+    void sync_display_order_시트_행순서대로_적재() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 싱글 세트 mapping(name0, model2, release4, delivery7) — 3 행 시트 순서대로.
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),
+                row("360 CST UV", "15", "DO_FIRST", "SET", "2,488,200", "", "1,490,000", "1,490,000", "-"),
+                row("360 CST UV", "18", "DO_SECOND", "SET", "2,500,000", "", "1,520,000", "1,520,000", "-"),
+                row("360 CST UV", "25", "DO_THIRD", "SET", "2,700,000", "", "1,690,000", "1,690,000", "-")
+        ));
+
+        syncService.syncAll();
+
+        // 시트 행 순서(1,2,3) = display_order 그대로
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("DO_FIRST").orElseThrow()
+                .getDisplayOrder()).isEqualTo(1);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("DO_SECOND").orElseThrow()
+                .getDisplayOrder()).isEqualTo(2);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("DO_THIRD").orElseThrow()
+                .getDisplayOrder()).isEqualTo(3);
+
+        // findExposedCatalog 정렬도 시트 순서대로
+        List<Product> exposed = productRepository.findExposedCatalog(
+                ProductCategory.SINGLE_SET,
+                List.of(com.samhanair.logis.product.domain.UsageScope.ESTIMATE,
+                        com.samhanair.logis.product.domain.UsageScope.BOTH));
+        assertThat(exposed).extracting(Product::getModelCode)
+                .containsExactly("DO_FIRST", "DO_SECOND", "DO_THIRD");
+    }
+
+    /**
+     * #노출구분(2026-06-10) — stomping 방지 회귀: 견적 탭(싱글 세트, BOTH)에서 먼저 적재된 품목이
+     * 같은 modelCode 로 구성품 탭(싱글 구성품, NONE)에 재출현해도 노출분류(usageScope/estimateCategory/
+     * display_order)가 NONE 으로 덮어쓰이지 않아야 한다. 가드 {@code p.getProductCategory()==mapping.productCategory}
+     * 제거 시 본 테스트가 실패한다(실 데이터에서 SINGLE_SET 276개 전부 NONE 으로 손상되었던 버그).
+     */
+    @Test
+    void sync_견적탭_품목이_구성품탭에_재출현해도_노출분류_미stomping() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 싱글 세트(BOTH, 견적 탭 — TAB_MAPPINGS 상 구성품 탭보다 먼저 처리)
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 세트_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "단위", "출고가", "수량", "납품가", "납품가", "소계"),
+                row("360 CST UV", "15", "STOMP_TEST", "SET", "2,488,200", "", "1,490,000", "1,490,000", "-")
+        ));
+        // 싱글 구성품(NONE) — 같은 modelCode 가 구성품 행으로 재출현(col2=model, col8=세트).
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(rows(
+                row("품명", "평형", "모델명", "구분", "단위", "출고가", "비고", "납품가", "세트", "구성품특징", "규격"),
+                row("재출현 구성", "", "STOMP_TEST", "실내기", "대", "250,000", "", "250,000", "OTHER_SET", "기본", "규격A")
+        ));
+
+        syncService.syncAll();
+
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("STOMP_TEST").orElseThrow();
+        // 견적 탭(SINGLE_SET) 분류 유지 — 구성품 탭(SINGLE_PART/NONE)이 덮어쓰지 않음
+        assertThat(p.getProductCategory()).isEqualTo(ProductCategory.SINGLE_SET);
+        assertThat(p.getUsageScope())
+                .isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+        assertThat(p.getEstimateCategory())
+                .isEqualTo(com.samhanair.logis.product.domain.EstimateCategory.SINGLE_SET);
+        assertThat(p.getDisplayOrder()).isEqualTo(1);
+        // 노출 카탈로그에 정상 노출(NONE 으로 stomp 되었다면 미반환)
+        assertThat(productRepository.findExposedCatalog(
+                ProductCategory.SINGLE_SET,
+                List.of(com.samhanair.logis.product.domain.UsageScope.ESTIMATE,
+                        com.samhanair.logis.product.domain.UsageScope.BOTH)))
+                .extracting(Product::getModelCode).contains("STOMP_TEST");
+    }
+
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */
     @SafeVarargs
     private static List<List<Object>> homeMultiRows(List<Object>... dataRows) {
