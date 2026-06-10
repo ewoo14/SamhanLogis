@@ -32,7 +32,6 @@ export function useFitOneA4<T extends HTMLElement>(
     const minZoom = opts?.minZoom ?? 0.5
     const next = naturalHeight > target ? Math.max(minZoom, target / naturalHeight) : 1
     setZoom((cur) => (Math.abs(cur - next) > 0.01 ? next : cur))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
 
   return { ref, zoom }
