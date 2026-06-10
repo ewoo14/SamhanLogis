@@ -382,10 +382,17 @@ public class SlipService {
         if (effectivePartnerId != null && (slip.getBusinessNumber() == null || req.partnerId() != null)) {
             resolvedBusinessNumber = resolveBusinessNumber(effectivePartnerId);
         }
-        // partnerCode snapshot (2026-06-10) — partnerId 변경 또는 기존 NULL 시 resolve (businessNumber 와 동일 정책)
+        // partnerCode snapshot (2026-06-10) — partnerId 변경 또는 기존 NULL 시 resolve.
+        // 거래처 '변경' 시 resolve 실패면 NULL 로 clear — 이전 거래처 code 잔존(stale) 방지
+        // (사이클1 BE 리뷰 P1). 백필(기존 NULL) 경로는 성공 시에만 채움.
         if (effectivePartnerId != null && (slip.getPartnerCode() == null || req.partnerId() != null)) {
-            partnerInternalClient.resolvePartnerCode(effectivePartnerId)
-                    .ifPresent(slip::setPartnerCode);
+            java.util.Optional<String> resolvedCode =
+                    partnerInternalClient.resolvePartnerCode(effectivePartnerId);
+            if (req.partnerId() != null) {
+                slip.setPartnerCode(resolvedCode.orElse(null));
+            } else {
+                resolvedCode.ifPresent(slip::setPartnerCode);
+            }
         }
         slip.withProjectInfo(
                 resolvedBusinessNumber,

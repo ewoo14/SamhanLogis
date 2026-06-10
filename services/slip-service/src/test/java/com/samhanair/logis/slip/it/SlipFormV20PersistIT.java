@@ -367,6 +367,82 @@ class SlipFormV20PersistIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.partnerCode", nullValue()));
     }
 
+    /**
+     * TC-8: updateSlip 거래처 변경 → 신규 partnerCode 재resolve 검증 (사이클1 BE 리뷰).
+     */
+    @Test
+    @DisplayName("TC-8: PATCH /v20 거래처 변경 → 신규 partnerCode 재resolve")
+    void tc8_updatePartnerChanged_partnerCodeReResolved() throws Exception {
+        UUID oldPartnerId = UUID.randomUUID();
+        UUID newPartnerId = UUID.randomUUID();
+        Mockito.when(partnerInternalClient.resolvePartnerCode(oldPartnerId))
+                .thenReturn(Optional.of("P-OLD-0001"));
+        Mockito.when(partnerInternalClient.resolvePartnerCode(newPartnerId))
+                .thenReturn(Optional.of("P-NEW-0002"));
+
+        Map<String, Object> body = buildCreateBody(null, null, null, null, null);
+        body.put("partnerId", oldPartnerId.toString());
+        MvcResult createResult = mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.partnerCode", is("P-OLD-0001")))
+                .andReturn();
+        String slipId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+
+        Map<String, Object> patchBody = new HashMap<>();
+        patchBody.put("partnerId", newPartnerId.toString());
+        mockMvc.perform(patch("/slips/{id}/v20", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patchBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.partnerCode", is("P-NEW-0002")));
+    }
+
+    /**
+     * TC-9: updateSlip 거래처 변경 + resolve 실패 → partnerCode NULL clear (stale 방지).
+     *
+     * <p>이전 거래처의 code 가 잔존하면 새 partnerId 와 불일치(stale) — 사이클1 BE 리뷰 P1.
+     */
+    @Test
+    @DisplayName("TC-9: PATCH /v20 거래처 변경 + resolve 실패 → partnerCode NULL clear")
+    void tc9_updatePartnerChanged_resolveFail_partnerCodeCleared() throws Exception {
+        UUID oldPartnerId = UUID.randomUUID();
+        UUID newPartnerId = UUID.randomUUID();
+        Mockito.when(partnerInternalClient.resolvePartnerCode(oldPartnerId))
+                .thenReturn(Optional.of("P-OLD-0001"));
+        Mockito.when(partnerInternalClient.resolvePartnerCode(newPartnerId))
+                .thenReturn(Optional.empty());
+
+        Map<String, Object> body = buildCreateBody(null, null, null, null, null);
+        body.put("partnerId", oldPartnerId.toString());
+        MvcResult createResult = mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.partnerCode", is("P-OLD-0001")))
+                .andReturn();
+        String slipId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+
+        Map<String, Object> patchBody = new HashMap<>();
+        patchBody.put("partnerId", newPartnerId.toString());
+        mockMvc.perform(patch("/slips/{id}/v20", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patchBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.partnerCode", nullValue()));
+    }
+
     // ========================================================================
     // 헬퍼 메서드
     // ========================================================================
