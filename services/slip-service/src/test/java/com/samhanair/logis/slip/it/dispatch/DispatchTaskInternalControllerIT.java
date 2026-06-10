@@ -35,8 +35,9 @@ import org.springframework.test.web.servlet.MockMvc;
 /**
  * arologis 회신 receive IT — BE Task B11 (confirm / unavailable).
  *
- * <p>X-Internal-Token 인증은 InternalTokenFilter 가 부여하지만 본 테스트는
- * {@code @WithMockUser ROLE_MASTER} 로 PreAuthorize 통과 검증.
+ * <p>/admin/** 는 {@code @WithMockUser ROLE_MASTER} 로 PreAuthorize 통과 검증.
+ * /internal/** 는 P0-B(PR #452)부터 system-internal principal 강제 — 실 운영 호출자
+ * (arologis SlipDispatchTaskClient)와 동일하게 X-Internal-Token 헤더로 인증한다.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
@@ -112,6 +113,7 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
                 "confirmedAt", Instant.now().toString()
         );
         mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/confirm", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(confirmBody)))
                 .andExpect(status().isNoContent());
@@ -149,6 +151,7 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
                 "failedVehicleGroups", List.of(1)
         );
         mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/unavailable", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(unavailBody)))
                 .andExpect(status().isNoContent());

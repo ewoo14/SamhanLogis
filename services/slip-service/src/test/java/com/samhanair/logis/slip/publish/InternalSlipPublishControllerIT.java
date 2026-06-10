@@ -51,14 +51,15 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.security.internal.token=test-internal-token-p0b",
         "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111",
         "app.publish.warehouse-code-map.2=22222222-2222-2222-2222-222222222222"
 })
 class InternalSlipPublishControllerIT extends AbstractPostgresIT {
 
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
-    private static final String VALID_TOKEN = "test-internal-token-p0b";
+    // AbstractPostgresIT 의 @DynamicPropertySource 가 app.security.internal.token 을
+    // 고정 주입(TestPropertySource 보다 우선) — 그 값과 일치해야 한다.
+    private static final String VALID_TOKEN = "test-internal-token";
 
     @Autowired
     private MockMvc mockMvc;

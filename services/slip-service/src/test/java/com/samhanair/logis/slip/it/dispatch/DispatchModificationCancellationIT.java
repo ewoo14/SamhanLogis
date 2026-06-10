@@ -157,6 +157,7 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
                 "arologisDispatchId", UUID.randomUUID().toString(),
                 "decidedAt", Instant.now().toString());
         mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/modification-accepted", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNoContent());
@@ -176,6 +177,7 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
                 "arologisDispatchId", UUID.randomUUID().toString(),
                 "rejectionReason", "기사 일정 충돌");
         mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/modification-rejected", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNoContent());
@@ -195,6 +197,7 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
                 "arologisDispatchId", UUID.randomUUID().toString(),
                 "decidedAt", Instant.now().toString());
         mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/cancellation-accepted", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNoContent());
@@ -245,6 +248,7 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
                 "confirmedAt", Instant.now().toString()
         );
         mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/confirm", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(confirmBody)))
                 .andExpect(status().isNoContent());
