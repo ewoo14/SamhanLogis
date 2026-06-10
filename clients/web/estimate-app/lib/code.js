@@ -69,6 +69,16 @@ const DC_INTERNAL_TOKEN =
   'dev-internal-token-change-me';
 const AUDIT_LOG_URL = process.env.AUDIT_LOG_URL || `${BASE_URL}/api/v1/audit-logs/front`;
 
+// #31 — 라이브(06-09) 주소검색/지오코딩 자격 (legacy Code.js 3014-3025, env 주입).
+// 미설정 키는 해당 검색 소스만 제외 (legacy 동작 동일 — if (KEY) 가드).
+const NAVER_SEARCH_ID = process.env.NAVER_SEARCH_CLIENT_ID || '';
+const NAVER_SEARCH_SECRET = process.env.NAVER_SEARCH_CLIENT_SECRET || '';
+const NAVER_MAP_KEY_ID = process.env.NAVER_MAP_KEY_ID || '';
+const NAVER_MAP_KEY = process.env.NAVER_MAP_KEY || '';
+const ROAD_API_KEY = process.env.JUSO_ROAD_API_KEY || '';
+// #31 — 접속 게이트(checkUserAuth) = user-service internal by-email
+const USER_SERVICE_BASE = process.env.USER_SERVICE_URL || 'http://localhost:8083';
+
 const ax = axios.create({ timeout: 15000, validateStatus: () => true });
 
 /**
@@ -1753,14 +1763,79 @@ function clearSheetCache() {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /**
- * legacy getCustomerDataAsync(forceRefresh) — 거래처 목록 (시트 직접 read).
- * estimate-legacy/lib/code.js (line 1454) 1:1 포팅.
+ * legacy getAllNotionDcConfigs_(forceRefresh) — 거래처코드별 DC 설정 전체 맵 (#31).
+ *
+ * <p>라이브(06-09) 는 Notion 거래처별 DC리스트를 페이지네이션 일괄 조회했다.
+ * 우리는 dc-config-service `GET /internal/partner-dc-configs` (X-Internal-Token) 벌크로
+ * 치환 — DcConfigResponse 목록을 legacy flat 키 맵 { partnerCode: dc } 로 변환.
+ * 캐시 키/TTL 은 라이브 동일(NOTION_DC_MAP_V1, 10분).
  */
-function getCustomerDataAsync(forceRefresh) {
+async function getAllNotionDcConfigs_(forceRefresh) {
+  const cacheKey = 'NOTION_DC_MAP_V1';
+  if (forceRefresh === true) {
+    cacheRemoveJSON_(cacheKey);
+  } else {
+    const cached = cacheGetJSON_(cacheKey);
+    if (cached) return cached;
+  }
+
+  const map = {};
+  try {
+    const resp = await ax.get(`${DC_CONFIG_BASE}/internal/partner-dc-configs`, {
+      headers: { 'X-Internal-Token': DC_INTERNAL_TOKEN },
+    });
+    if (resp.status !== 200) {
+      Logger.log(`[getAllNotionDcConfigs_] dc-config 벌크 ${resp.status} → 빈 맵`);
+      return map;
+    }
+    const list = (resp.data && resp.data.data) || [];
+    const num = (v) => (v == null ? null : Number(v));
+    list.forEach((dc) => {
+      const key = String(dc.partnerCode || '').replace(/[^\d]/g, '');
+      if (!key) return;
+      map[key] = {
+        homeDiscount: num(dc.homeDiscountRate),
+        commDiscount: num(dc.commercialDiscountRate),
+        discount360: num(dc.discount360Amount),
+        discount4way: num(dc.discount4WayAmount),
+        discountStand: num(dc.discountStandAmount),
+        oneWayDiscount: num(dc.discount1WayAmount),
+        deluxeDiscount: num(dc.discountDeluxeAmount),
+        firstGradeDiscount: num(dc.discountFirstGradeAmount),
+        showIHose: dc.showIHose === true,
+        unitRoundTo: num(dc.unitRoundTo),
+        unitRoundMode: dc.unitRoundMode || null,
+      };
+    });
+    cachePutJSON_(cacheKey, map, 60 * 10);
+  } catch (e) {
+    Logger.log(`[getAllNotionDcConfigs_] 벌크 조회 예외 → 빈 맵 (${e.message})`);
+  }
+  return map;
+}
+
+/**
+ * legacy getCustomerDataAsync(forceRefresh) — 거래처 목록 + DC 설정 매칭 (#31 라이브 verbatim).
+ *
+ * <p>라이브(06-09): 거래처마다 사업자번호(없으면 거래처코드 숫자) 키로 DC 맵 매칭 → `dc` 부착.
+ * 프론트 initCustomerSearch 가 거래처 선택 시 applyCustomerDiscounts(c.dc) 자동 적용.
+ */
+async function getCustomerDataAsync(forceRefresh) {
   if (forceRefresh) cacheRemoveJSON_('CUS_V6');
   const raw = getCustomers_();
+
+  // 노션 거래처별 할인설정 맵 사업자번호 기준 매칭 (우리 DB 벌크 치환)
+  const dcMap = await getAllNotionDcConfigs_(forceRefresh === true);
+  const pickDc = (c) => {
+    const byBiz = c.bizno ? dcMap[String(c.bizno).replace(/[^\d]/g, '')] : null;
+    if (byBiz) return byBiz;
+    const codeKey = String(c.code || '').replace(/[^\d]/g, '');
+    return codeKey ? (dcMap[codeKey] || null) : null;
+  };
+
   return raw.map((c) => ({
-    code: c.code, name: c.name, rep: c.rep, tel: c.tel, addr: c.addr, group: c.group, note: c.note,
+    code: c.code, name: c.name, bizno: c.bizno, rep: c.rep, tel: c.tel,
+    addr: c.addr, group: c.group, note: c.note, dc: pickDc(c),
   }));
 }
 
@@ -2265,20 +2340,248 @@ async function getQuoteHistory(startDate, endDate) {
   return [];
 }
 
+/**
+ * legacy getQuoteHistoryByCustomer(custName) — 거래처명 부분검색 최근 30건 (#31).
+ * SamhanLogis: GET /api/v1/estimates/snapshots/by-customer?custName=&userEmail=
+ */
+async function getQuoteHistoryByCustomer(custName) {
+  const email = Session.getActiveUser().getEmail();
+  const data = await _msGet(
+    `${ESTIMATE_BASE}/api/v1/estimates/snapshots/by-customer`,
+    { custName: String(custName || '').trim(), userEmail: email },
+  );
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+ * §9b 주소검색 — 라이브(06-09) 신규 8함수 verbatim (legacy Code.js 3028-3204)
+ * Juso 도로명 + 네이버 지역검색 + NCP 지오코딩 병렬, UrlFetchApp.fetchAll(shim) 사용
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+// 통합 주소 검색 상호 도로명 지오코딩 병렬
+async function searchNaverAddress(query) {
+  const q = String(query || '').trim();
+  if (!q) return { ok: false, error: '검색어가 비었습니다.', items: [] };
+
+  const reqs = buildAddressRequests_(q);
+  if (!reqs.length) {
+    return { ok: false, error: '주소검색 자격(env) 미설정입니다.', items: [] };
+  }
+  let responses = [];
+  try {
+    responses = await UrlFetchApp.fetchAll(reqs.map(function (r) { return r.req; }));
+  } catch (e) {
+    return { ok: false, error: '통신 오류 ' + ((e && e.message) || e), items: [] };
+  }
+
+  const items = [];
+  const seen = {};
+  const pushUnique = function (row) {
+    const key = (row.roadAddress || row.address || '') + '|' + (row.title || '');
+    if (!key.trim() || seen[key]) return;
+    seen[key] = 1;
+    items.push(row);
+  };
+
+  reqs.forEach(function (r, i) {
+    const parsed = r.parse(responses[i]);
+    parsed.forEach(pushUnique);
+  });
+
+  if (!items.length) {
+    return { ok: false, error: '검색 결과가 없습니다.', items: [] };
+  }
+  return { ok: true, items: items };
+}
+
+// 호출 묶음 만들기
+function buildAddressRequests_(q) {
+  const list = [];
+
+  // 도로명주소 우선
+  if (ROAD_API_KEY) {
+    list.push({
+      req: {
+        url: 'https://business.juso.go.kr/addrlink/addrLinkApi.do'
+          + '?currentPage=1&countPerPage=10&resultType=json'
+          + '&confmKey=' + encodeURIComponent(ROAD_API_KEY)
+          + '&keyword=' + encodeURIComponent(q),
+        method: 'get',
+        muteHttpExceptions: true,
+      },
+      parse: parseJusoResponse_,
+    });
+  }
+
+  // 네이버 지역 검색 상호
+  if (NAVER_SEARCH_ID && NAVER_SEARCH_SECRET) {
+    list.push({
+      req: {
+        url: 'https://openapi.naver.com/v1/search/local.json'
+          + '?query=' + encodeURIComponent(q)
+          + '&display=5&start=1&sort=random',
+        method: 'get',
+        muteHttpExceptions: true,
+        headers: {
+          'X-Naver-Client-Id': NAVER_SEARCH_ID,
+          'X-Naver-Client-Secret': NAVER_SEARCH_SECRET,
+        },
+      },
+      parse: parseNaverLocalResponse_,
+    });
+  }
+
+  // NCP 지오코딩
+  if (NAVER_MAP_KEY_ID && NAVER_MAP_KEY) {
+    list.push({
+      req: {
+        url: 'https://maps.apigw.ntruss.com/map-geocode/v2/geocode?query=' + encodeURIComponent(q),
+        method: 'get',
+        muteHttpExceptions: true,
+        headers: {
+          'x-ncp-apigw-api-key-id': NAVER_MAP_KEY_ID,
+          'x-ncp-apigw-api-key': NAVER_MAP_KEY,
+        },
+      },
+      parse: parseNaverGeocodeResponse_,
+    });
+  }
+
+  return list;
+}
+
+// 도로명주소 응답 파싱
+function parseJusoResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    const arr = json && json.results && json.results.juso ? json.results.juso : [];
+    return arr.map(function (it) {
+      const road = String(it.roadAddrPart1 || it.roadAddr || '').replace(/[()（）]/g, '').trim();
+      const bdName = cleanBdNm_(it.bdNm);
+      const jibun = stripTrailingName_(String(it.jibunAddr || '').trim(), bdName);
+      return {
+        source: 'juso',
+        title: bdName,
+        category: '',
+        address: jibun,
+        roadAddress: road,
+      };
+    });
+  } catch (e) { return []; }
+}
+
+// 건물명 정리 괄호 제거 후 동 리 가 토큰 제외
+function cleanBdNm_(raw) {
+  if (!raw) return '';
+  const s = String(raw).replace(/[()（）]/g, '').trim();
+  if (!s) return '';
+  const parts = s.split(/[,，]/).map(function (p) { return p.trim(); }).filter(Boolean);
+  const filtered = parts.filter(function (part) {
+    return !/^[가-힣]+(동|리|가)$/.test(part);
+  });
+  return filtered.join(' ');
+}
+
+// 정규식 이스케이프
+function escapeRegex_(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// 주소 끝에 붙은 토큰 제거
+function stripTrailingName_(addr, name) {
+  const a = String(addr || '').trim();
+  const n = String(name || '').trim();
+  if (!a || !n) return a;
+  const re = new RegExp('\\s*' + escapeRegex_(n) + '\\s*$');
+  return a.replace(re, '').trim();
+}
+
+// 네이버 지역검색 응답 파싱
+function parseNaverLocalResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    const strip = function (s) { return String(s || '').replace(/<[^>]+>/g, ''); };
+    return (json.items || []).map(function (it) {
+      return {
+        source: 'local',
+        title: strip(it.title),
+        category: strip(it.category),
+        address: strip(it.address),
+        roadAddress: strip(it.roadAddress),
+      };
+    });
+  } catch (e) { return []; }
+}
+
+// 지오코딩 응답 파싱
+function parseNaverGeocodeResponse_(res) {
+  try {
+    if (!res || res.getResponseCode() !== 200) return [];
+    const json = JSON.parse(res.getContentText());
+    if (json.status && json.status !== 'OK') return [];
+    const pickBuilding = function (els) {
+      const f = (els || []).find(function (e) { return (e.types || []).indexOf('BUILDING_NAME') >= 0; });
+      return f ? String(f.longName || '') : '';
+    };
+    return (json.addresses || []).map(function (it) {
+      const building = pickBuilding(it.addressElements);
+      const road = stripTrailingName_(String(it.roadAddress || ''), building);
+      const jibun = stripTrailingName_(String(it.jibunAddress || ''), building);
+      return {
+        source: 'geo',
+        title: building,
+        category: '',
+        address: jibun,
+        roadAddress: road,
+      };
+    });
+  } catch (e) { return []; }
+}
+
 /* ════════════════════════════════════════════════════════════════════════
  * §10 인증 & 로그
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /**
- * legacy checkUserAuth(email) (line 2442).
- * SamhanLogis: GET /api/v1/auth/me?email=
+ * legacy checkUserAuth(email) — 접속 승인 게이트 (#31 재배선).
+ *
+ * <p>legacy 는 Notion AUTH DB 에서 email 승인 여부를 조회했다. 기존 매핑
+ * (`/api/v1/auth/me?email=`) 은 JWT(X-User-Id) 계약과 불일치해 실 스택에서 상시
+ * 미승인 → 페이지 차단 회귀였다(#31 실 QA 적발). 치환 = user-service
+ * `GET /internal/users/by-email` (X-Internal-Token) — 사용자 마스터 존재 = 승인.
+ * UI 소비 필드: authorized + managerName (ecount* 는 폐기 유산 — 빈 값 유지).
  */
 async function checkUserAuth(email) {
-  const data = await _msGet(
-    `${BASE_URL}/api/v1/auth/me`,
-    { email: email || Session.getActiveUser().getEmail() },
-  );
-  return data;
+  const em = String(email || Session.getActiveUser().getEmail() || '').trim();
+  if (!em) return { authorized: false };
+  try {
+    const resp = await ax.get(`${USER_SERVICE_BASE}/internal/users/by-email`, {
+      params: { email: em },
+      headers: { 'X-Internal-Token': DC_INTERNAL_TOKEN },
+    });
+    if (resp.status === 200) {
+      const u = (resp.data && resp.data.data) || {};
+      return {
+        authorized: true,
+        managerName: u.fullName || '',
+        managerCode: u.loginId || '',
+        ecountId: '',
+        ecountApi: '',
+      };
+    }
+    if (resp.status !== 404) {
+      Logger.log(`[checkUserAuth] by-email ${resp.status} → 미승인 처리`);
+    }
+    return { authorized: false };
+  } catch (e) {
+    Logger.log(`[checkUserAuth] 조회 실패 → 미승인 처리 (${e.message})`);
+    return { authorized: false };
+  }
 }
 
 async function forceAuth() {
@@ -2366,7 +2669,12 @@ module.exports = {
   // §8 Notion 이력
   getNotionHistory,
   // §9 snapshot
-  saveQuoteSnapshot, getQuoteHistory,
+  saveQuoteSnapshot, getQuoteHistory, getQuoteHistoryByCustomer,
+  // §9b 주소검색 (#31 라이브)
+  searchNaverAddress, buildAddressRequests_, parseJusoResponse_, cleanBdNm_,
+  escapeRegex_, stripTrailingName_, parseNaverLocalResponse_, parseNaverGeocodeResponse_,
+  // §5b DC 벌크 (#31 라이브)
+  getAllNotionDcConfigs_,
   // §10 인증 / 로그
   checkUserAuth, forceAuth, logFrontEvent,
   // §11 spec map

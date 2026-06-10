@@ -25,4 +25,9 @@ public interface DcConfigRepository extends JpaRepository<DcConfig, UUID> {
                      OR LOWER(dc.partner.partnerCode) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
             """)
     Page<DcConfig> search(String keyword, Pageable pageable);
+
+    /** #31 — estimate-app 벌크 prefetch (legacy getAllNotionDcConfigs_ 대체). partner fetch join. */
+    @EntityGraph(attributePaths = "partner")
+    @Query("SELECT dc FROM DcConfig dc")
+    java.util.List<DcConfig> findAllWithPartner();
 }

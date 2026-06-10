@@ -119,6 +119,39 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("#31 거래처명 부분검색 — contains + 사용자 격리 + 최신순")
+    void historyByCustomer() throws Exception {
+        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                saveBody(USER_A, "삼한공조(주)", "ZGF0YTE=", null, "2026-06-08T10:00:00+09:00"))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                saveBody(USER_A, "영에어시스템", "ZGF0YTI=", null, "2026-06-09T10:00:00+09:00"))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                saveBody(USER_B, "삼한설비", "ZGF0YTM=", null, "2026-06-09T11:00:00+09:00"))))
+                .andExpect(status().isCreated());
+
+        // '삼한' contains — USER_A 의 삼한공조(주) 만 (USER_B 의 삼한설비는 격리)
+        mockMvc.perform(get(PATH + "/by-customer")
+                        .param("userEmail", USER_A)
+                        .param("custName", "삼한"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.data[0].custName").value("삼한공조(주)"))
+                .andExpect(jsonPath("$.data[0].data").value("ZGF0YTE="));
+
+        // 미매칭 키워드 → 빈 목록
+        mockMvc.perform(get(PATH + "/by-customer")
+                        .param("userEmail", USER_A)
+                        .param("custName", "없는거래처"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", org.hamcrest.Matchers.hasSize(0)));
+    }
+
+    @Test
     @DisplayName("최신순 정렬 + 날짜 범위 필터")
     void historyOrderingAndDateFilter() throws Exception {
         mockMvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON)

@@ -39,4 +39,20 @@ public interface QuoteSnapshotRepository extends JpaRepository<QuoteSnapshot, UU
     List<QuoteSnapshot> findHistory(@Param("userEmail") String userEmail,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
+
+    /**
+     * #31 — 거래처명 부분검색 이력 (legacy getQuoteHistoryByCustomer 정합).
+     *
+     * <p>legacy: 담당자 eq + 거래처명 contains + 저장일시 desc + 최근 30건(page_size).
+     * 호출자(서비스)가 Pageable.ofSize(30) 으로 limit 을 전달한다.
+     */
+    @Query("""
+            SELECT q FROM QuoteSnapshot q
+            WHERE q.userEmail = :userEmail
+              AND LOWER(q.custName) LIKE LOWER(CONCAT('%', CAST(:custName AS string), '%'))
+            ORDER BY q.savedAt DESC
+            """)
+    List<QuoteSnapshot> findByCustomer(@Param("userEmail") String userEmail,
+            @Param("custName") String custName,
+            org.springframework.data.domain.Pageable pageable);
 }

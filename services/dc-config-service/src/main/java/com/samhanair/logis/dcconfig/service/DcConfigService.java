@@ -36,6 +36,16 @@ public class DcConfigService {
     }
 
     /**
+     * 전체 DC 설정 벌크 조회 — #31 estimate-app prefetch (legacy getAllNotionDcConfigs_ 대체).
+     *
+     * <p>거래처별 DC리스트는 수백 행 규모(2026-06 기준 227행)라 비페이징 전량 반환.
+     * partner fetch join 으로 N+1 없이 partnerCode 동반.
+     */
+    public java.util.List<DcConfig> listAll() {
+        return dcConfigRepository.findAllWithPartner();
+    }
+
+    /**
      * partnerCode 로 DC 설정 강제 조회 (없으면 404).
      */
     public DcConfig getByPartnerCode(String partnerCode) {

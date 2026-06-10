@@ -82,6 +82,29 @@ public class InternalUserController {
     }
 
     /**
+     * 이메일 exact lookup — #31 estimate-app(종합견적서 웹) 접속 게이트.
+     *
+     * <p>legacy 는 Notion AUTH DB 에서 email 로 승인 여부를 조회했다. 우리 치환 = 사용자
+     * 마스터(Employee, soft-delete 활성만) 존재 여부. 미존재 404 → caller 가 미승인 처리.
+     */
+    @GetMapping("/by-email")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<InternalUserResponse> findByEmail(@RequestParam("email") String email) {
+        String normalized = email == null ? "" : email.trim();
+        if (normalized.isBlank()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "이메일이 비었습니다");
+        }
+        var emp = employeeRepository.findByEmail(normalized)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "직원을 찾을 수 없습니다: " + normalized));
+        return ApiResponse.ok(new InternalUserResponse(
+                emp.getId(),
+                emp.getLoginId(),
+                emp.getFullName(),
+                emp.getRoleSnapshot()));
+    }
+
+    /**
      * 사용자 다건 존재 검증 — Phase 9 W3 BE backlog #4 채택. notification-service / groupware-service 의
      * UserClient.verifyBulk 가 호출. 한 번의 RPC 로 N user 의 존재 여부 일괄 응답.
      *

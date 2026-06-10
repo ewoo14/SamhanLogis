@@ -19,8 +19,9 @@ process.env.DEFAULT_USER_EMAIL = 'test@samhan-air.com';
 jest.mock('axios', () => {
   const ok = (data) => Promise.resolve({ status: 200, data });
   const get = jest.fn().mockImplementation((url) => {
-    if (/\/api\/v1\/auth\/me/.test(url)) {
-      return ok({ authorized: true, managerName: '테스트담당자', managerCode: 'TST-001', ecountId: '', ecountApi: '' });
+    if (/\/internal\/users\/by-email/.test(url)) {
+      // #31 — user-service by-email (ApiResponse 봉투)
+      return ok({ success: true, data: { fullName: '테스트담당자', loginId: 'TST-001' } });
     }
     if (/\/api\/v1\/partner-orders($|\?|\/$)/.test(url)) return ok([]);
     if (/\/api\/v1\/estimates\/snapshots/.test(url)) return ok([]);
@@ -157,10 +158,16 @@ describe('부트스트랩 (axios mock — 실 endpoint 응답 stub)', () => {
     expect(JSON.parse(bs.config).homeDiscount).toBe(0.45);
   }, 15000);
 
-  test('checkUserAuth — axios mock 응답 통과', async () => {
+  test('checkUserAuth — user-service by-email 매핑 (#31)', async () => {
     const auth = await code.checkUserAuth('test@samhan-air.com');
     expect(auth.authorized).toBe(true);
+    expect(auth.managerName).toBe('테스트담당자');
     expect(auth.managerCode).toBe('TST-001');
+  });
+
+  test('checkUserAuth — 이메일 미전달 시 세션 이메일 fallback (#31)', async () => {
+    const auth = await code.checkUserAuth('');
+    expect(auth.authorized).toBe(true); // DEFAULT_USER_EMAIL fallback → by-email 매칭
   });
 });
 

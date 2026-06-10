@@ -75,4 +75,23 @@ public class QuoteSnapshotController {
             @RequestParam(name = "endDate", required = false) String endDate) {
         return ApiResponse.ok(quoteSnapshotService.history(userEmail, startDate, endDate));
     }
+
+    /**
+     * 거래처명 부분검색 이력 — legacy getQuoteHistoryByCustomer(custName) (#31).
+     *
+     * @param userEmail 저장 담당자 이메일 (필수)
+     * @param custName 거래처명 키워드 (부분 일치, 필수)
+     * @return 저장일시 내림차순 최근 30건 (blob 포함)
+     */
+    @Operation(summary = "거래처별 견적 이력 조회 (종합견적서)",
+            description = "사용자별 + 거래처명 부분검색 최근 30건(최신순). legacy getQuoteHistoryByCustomer 대체.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공")
+    })
+    @GetMapping("/by-customer")
+    public ApiResponse<List<QuoteSnapshotResponse>> historyByCustomer(
+            @RequestParam(name = "userEmail") String userEmail,
+            @RequestParam(name = "custName") String custName) {
+        return ApiResponse.ok(quoteSnapshotService.historyByCustomer(userEmail, custName));
+    }
 }

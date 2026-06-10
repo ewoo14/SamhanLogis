@@ -40,6 +40,20 @@ jest.mock('axios', () => {
       // DC 설정 미존재 거래처 — dcConfig null
       return ok({ success: true, data: { partner: { partnerCode: '5555555555' }, dcConfig: null } });
     }
+    // #31 — DC 벌크 (legacy getAllNotionDcConfigs_ 대체)
+    if (/\/internal\/partner-dc-configs$/.test(url)) {
+      return ok({
+        success: true,
+        data: [
+          { partnerCode: '9876543210', homeDiscountRate: 0.46, commercialDiscountRate: 0.47, showIHose: true, discount360Amount: 20000, unitRoundTo: 100, unitRoundMode: 'ROUND' },
+          { partnerCode: '1112223334', homeDiscountRate: 0.5, commercialDiscountRate: null, showIHose: false },
+        ],
+      });
+    }
+    // #31 — 거래처별 견적 이력
+    if (/\/api\/v1\/estimates\/snapshots\/by-customer/.test(url)) {
+      return ok({ success: true, data: [{ id: 'snap-1', custName: '삼한공조', data: 'YmxvYg==', created: '2026-06-10T10:00:00' }] });
+    }
     return ok({});
   });
   const post = jest.fn().mockImplementation(() => ok({ ok: true }));
@@ -500,5 +514,110 @@ describe('initDcConfigFromNotion — 필드별 가드 merge', () => {
     expect(cfg.homeDiscount).toBe(0.45);
     expect(cfg.commDiscount).toBe(0.45);
     expect(cfg.unitRoundTo).toBe(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+ * 7. #31 라이브 신규 — DC 벌크 / 거래처 dc 부착 / by-customer / 주소검색 파서
+ * ═══════════════════════════════════════════════════════════════════════ */
+describe('#31 getAllNotionDcConfigs_ / getCustomerDataAsync dc 부착', () => {
+  test('벌크 → legacy flat 맵 {partnerCode: dc} + 캐시', async () => {
+    code.cacheRemoveJSON_('NOTION_DC_MAP_V1');
+    const map = await code.getAllNotionDcConfigs_(true);
+    expect(Object.keys(map).sort()).toEqual(['1112223334', '9876543210']);
+    expect(map['9876543210'].homeDiscount).toBe(0.46);
+    expect(map['9876543210'].discount360).toBe(20000);
+    expect(map['9876543210'].showIHose).toBe(true);
+    expect(map['9876543210'].unitRoundTo).toBe(100);
+    expect(map['1112223334'].commDiscount).toBeNull();
+    // 캐시 재사용 (라이브 NOTION_DC_MAP_V1 동일)
+    expect(code.cacheGetJSON_('NOTION_DC_MAP_V1')).not.toBeNull();
+  });
+
+  test('getCustomerDataAsync — 라이브 verbatim: bizno 우선, 없으면 거래처코드 숫자키 매칭', async () => {
+    code.cacheRemoveJSON_('CUS_V6');
+    code.cacheRemoveJSON_('NOTION_DC_MAP_V1');
+    const shim2 = require('../lib/apps-script-shim');
+    shim2.injectSheet('1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ', '거래처', [
+      ['거래처코드', '거래처명', '사업자등록번호', '담당자명', '대표자명', '주소', '전화번호', '특이사항', '그룹', '싱글 할인', '담당자연락처'],
+      ['C-001', 'DC있는거래처', '987-65-43210', '', '', '', '', '', '', '', ''],
+      ['1112223334', '코드키거래처', '', '', '', '', '', '', '', '', ''],
+      ['C-003', 'DC없는거래처', '123-12-12345', '', '', '', '', '', '', '', ''],
+    ]);
+    const out = await code.getCustomerDataAsync(true);
+    expect(out).toHaveLength(3);
+    expect(out[0].dc.homeDiscount).toBe(0.46); // bizno 매칭
+    expect(out[1].dc.homeDiscount).toBe(0.5); // 거래처코드 숫자키 매칭
+    expect(out[2].dc).toBeNull(); // 미등록 → null
+    expect(out[0].bizno).toBe('9876543210');
+  });
+});
+
+describe('#31 getQuoteHistoryByCustomer', () => {
+  test('by-customer endpoint 봉투 언래핑 + 배열 반환', async () => {
+    const rows = await code.getQuoteHistoryByCustomer('삼한');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].custName).toBe('삼한공조');
+    expect(rows[0].data).toBe('YmxvYg==');
+  });
+});
+
+describe('#31 주소검색 파서 — 라이브 verbatim', () => {
+  const wrap = (code200, body) => ({
+    getResponseCode: () => code200,
+    getContentText: () => JSON.stringify(body),
+  });
+
+  test('parseJusoResponse_ — 건물명 정리 + 지번 끝 건물명 제거', () => {
+    const res = wrap(200, {
+      results: { juso: [{ roadAddrPart1: '서울 강남구 테헤란로 1 (역삼동)', jibunAddr: '서울 강남구 역삼동 1-1 삼한빌딩', bdNm: '삼한빌딩, 역삼동' }] },
+    });
+    const out = code.parseJusoResponse_(res);
+    expect(out).toHaveLength(1);
+    expect(out[0].source).toBe('juso');
+    expect(out[0].title).toBe('삼한빌딩'); // 콤마 분리 후 '역삼동'(동 토큰) 제외
+    expect(out[0].roadAddress).toBe('서울 강남구 테헤란로 1 역삼동');
+    expect(out[0].address).toBe('서울 강남구 역삼동 1-1'); // 끝 건물명 제거
+  });
+
+  test('parseNaverLocalResponse_ — HTML 태그 strip', () => {
+    const res = wrap(200, { items: [{ title: '<b>삼한</b>공조', category: '에어컨', address: '지번A', roadAddress: '도로A' }] });
+    const out = code.parseNaverLocalResponse_(res);
+    expect(out[0].title).toBe('삼한공조');
+    expect(out[0].source).toBe('local');
+  });
+
+  test('parseNaverGeocodeResponse_ — BUILDING_NAME 추출 + 주소 끝 건물명 제거', () => {
+    const res = wrap(200, {
+      status: 'OK',
+      addresses: [{
+        roadAddress: '서울 송파구 올림픽로 1 한빛타워',
+        jibunAddress: '서울 송파구 방이동 2-2 한빛타워',
+        addressElements: [{ types: ['BUILDING_NAME'], longName: '한빛타워' }],
+      }],
+    });
+    const out = code.parseNaverGeocodeResponse_(res);
+    expect(out[0].title).toBe('한빛타워');
+    expect(out[0].roadAddress).toBe('서울 송파구 올림픽로 1');
+    expect(out[0].address).toBe('서울 송파구 방이동 2-2');
+  });
+
+  test('비200/비OK 응답 → 빈 배열 graceful', () => {
+    expect(code.parseJusoResponse_(wrap(500, {}))).toEqual([]);
+    expect(code.parseNaverGeocodeResponse_(wrap(200, { status: 'INVALID_REQUEST' }))).toEqual([]);
+    expect(code.parseNaverLocalResponse_(null)).toEqual([]);
+  });
+
+  test('cleanBdNm_ / stripTrailingName_ / escapeRegex_', () => {
+    expect(code.cleanBdNm_('(주)타워, 신천동')).toBe('주타워');
+    expect(code.stripTrailingName_('서울 어딘가 1-1 별관(A)', '별관(A)')).toBe('서울 어딘가 1-1');
+    expect(code.escapeRegex_('a+b(c)')).toBe('a\\+b\\(c\\)');
+  });
+
+  test('searchNaverAddress — 키 전무 시 자격 미설정 graceful', async () => {
+    // 테스트 env 에는 NAVER/JUSO 키 미설정 → 요청 0건 경로
+    const r = await code.searchNaverAddress('테헤란로');
+    expect(r.ok).toBe(false);
+    expect(r.items).toEqual([]);
   });
 });

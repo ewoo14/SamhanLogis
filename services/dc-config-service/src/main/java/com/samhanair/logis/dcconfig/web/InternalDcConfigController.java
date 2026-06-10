@@ -76,6 +76,22 @@ public class InternalDcConfigController {
     }
 
     /**
+     * 전체 DC 설정 벌크 조회 — #31 estimate-app 이 거래처 목록 prefetch 시 호출
+     * (legacy {@code getAllNotionDcConfigs_} 의 Notion 일괄 조회 대체).
+     */
+    @Operation(summary = "거래처 DC 설정 전체 벌크 조회 (internal)",
+            description = "X-Internal-Token 인증 후 호출. 거래처별 DC리스트 전량(비페이징) 반환 — "
+                    + "estimate-app 거래처 목록 prefetch 용.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치")
+    })
+    @GetMapping("/partner-dc-configs")
+    public ApiResponse<java.util.List<DcConfigResponse>> listDcConfigs() {
+        return ApiResponse.ok(dcConfigService.listAll().stream().map(DcConfigResponse::from).toList());
+    }
+
+    /**
      * DC 설정 단건 조회 — 가격 계산 화면이 호출.
      */
     @Operation(summary = "거래처 DC 설정 단건 조회 (internal)",

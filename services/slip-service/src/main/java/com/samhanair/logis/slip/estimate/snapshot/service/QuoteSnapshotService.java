@@ -76,6 +76,26 @@ public class QuoteSnapshotService {
                 .toList();
     }
 
+    /**
+     * 거래처명 부분검색 이력 — legacy getQuoteHistoryByCustomer(custName) (#31).
+     *
+     * <p>legacy 시맨틱: 담당자 eq + 거래처명 contains + 저장일시 desc + 최근 30건.
+     *
+     * @param userEmail 저장 담당자 이메일 (필수)
+     * @param custName 거래처명 키워드 (부분 일치, 필수)
+     * @return 저장일시 내림차순 최근 30건 (blob 포함)
+     */
+    @Transactional(readOnly = true)
+    public List<QuoteSnapshotResponse> historyByCustomer(String userEmail, String custName) {
+        return repository.findByCustomer(
+                        userEmail == null ? null : userEmail.trim(),
+                        custName == null ? "" : custName.trim(),
+                        org.springframework.data.domain.PageRequest.of(0, 30))
+                .stream()
+                .map(QuoteSnapshotResponse::full)
+                .toList();
+    }
+
     /** ISO-8601(offset 포함 가능) 또는 date 문자열 → LocalDateTime. 실패 시 now. */
     private LocalDateTime parseDateTimeOrNow(String value) {
         if (value == null || value.isBlank()) {
