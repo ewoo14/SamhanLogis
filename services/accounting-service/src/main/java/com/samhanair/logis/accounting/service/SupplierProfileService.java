@@ -356,15 +356,18 @@ public class SupplierProfileService {
      * <ol>
      *   <li>base64 디코드</li>
      *   <li>200KB 초과 가드 ({@link #MAX_STAMP_BYTES})</li>
+     *   <li>PNG magic bytes 검증 (첫 8바이트 {@code 89 50 4E 47 0D 0A 1A 0A})</li>
      *   <li>SHA-256 재계산 후 {@code req.stampHash()} 와 비교 — mismatch → 400</li>
      *   <li>도메인 메서드 {@link SupplierProfile#registerStamp} 호출</li>
      * </ol>
+     *
+     * <p>로고 등록({@link #registerLogo})과 동일 처리 순서로 대칭 유지.
      *
      * @param id  대상 사업자 프로필 UUID
      * @param req 인감 등록 요청 DTO
      * @return 갱신된 사업자 프로필 응답
      * @throws BusinessException(NOT_FOUND)    미존재 시
-     * @throws BusinessException(INVALID_INPUT) base64 오류 / 크기 초과 / hash mismatch
+     * @throws BusinessException(INVALID_INPUT) base64 오류 / 크기 초과 / PNG magic 불일치 / hash mismatch
      */
     public SupplierProfileResponse registerStamp(UUID id, UpdateStampRequest req) {
         SupplierProfile profile = findByIdOrThrow(id);

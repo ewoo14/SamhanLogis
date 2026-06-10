@@ -452,7 +452,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.period-close.reverse': '월말 마감 취소',
   'accounting.statement-batch': '거래명세서 일괄',
   'accounting.partner-ledger': '거래처 원장',
-  'accounting.supplier-profiles': '공급처 프로필',
+  'accounting.supplier-profiles': '공급자 설정',
   'ecount.mig2.account': 'MIG-2 계정',
   'ecount.mig2.card': 'MIG-2 카드',
   'ecount.mig3.purchase-slip': 'MIG-3 매입전표',

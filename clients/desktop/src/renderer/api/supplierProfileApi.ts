@@ -21,6 +21,7 @@
  * - ACCOUNTANT: 조회만 (read-only)
  * - MANAGER / MASTER: 전체 CRUD
  */
+import axios from 'axios'
 import { apiClient, type ApiEnvelope } from './client'
 
 /**
@@ -205,6 +206,7 @@ export async function getSupplierProfile(id: string): Promise<SupplierProfile> {
 /**
  * 기본 사업자 단건 조회.
  * 등록된 기본 사업자가 없으면 BE 404 → catch 로 null 반환.
+ * Fix 7: axios 404 (primary 미등록) 만 null 반환, 그 외 에러는 rethrow (retry:2 발동 보장).
  */
 export async function getPrimarySupplierProfile(): Promise<SupplierProfile | null> {
   try {
@@ -212,14 +214,16 @@ export async function getPrimarySupplierProfile(): Promise<SupplierProfile | nul
       '/accounting/supplier-profiles/primary',
     )
     return res.data.data
-  } catch {
-    return null
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response?.status === 404) return null
+    throw err
   }
 }
 
 /**
  * 인쇄용 기본 사업자 공개 정보 조회 (인증만, 권한 게이트 없음).
  * primary 부재 시 BE 404 → catch 로 null 반환.
+ * Fix 7: axios 404 (primary 미등록) 만 null 반환, 그 외 에러는 rethrow (retry:2 발동 보장).
  */
 export async function getSupplierPrintProfile(): Promise<SupplierPrintProfile | null> {
   try {
@@ -227,8 +231,9 @@ export async function getSupplierPrintProfile(): Promise<SupplierPrintProfile | 
       '/accounting/supplier-profiles/print-profile',
     )
     return res.data.data
-  } catch {
-    return null
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response?.status === 404) return null
+    throw err
   }
 }
 

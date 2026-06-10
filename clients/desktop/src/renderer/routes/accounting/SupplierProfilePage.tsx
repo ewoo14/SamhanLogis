@@ -107,6 +107,13 @@ function validate(form: SupplierProfileRequest): FieldErrors {
   }
   if (form.tel && form.tel.length > 30) errors.tel = '전화번호는 30자 이하여야 합니다.'
   if (form.fax && form.fax.length > 30) errors.fax = '팩스 번호는 30자 이하여야 합니다.'
+  // Fix 4: 입금계좌 행 빈 필드 검증 (BE @NotBlank 동형)
+  const blankBankRow = form.bankAccounts.findIndex(
+    (a) => !a.accountHolder.trim() || !a.bankName.trim() || !a.accountNumber.trim(),
+  )
+  if (blankBankRow >= 0) {
+    errors.bankAccounts = `${blankBankRow + 1}번째 계좌의 예금주·은행명·계좌번호를 모두 입력해 주세요.`
+  }
   return errors
 }
 
@@ -269,7 +276,25 @@ export function SupplierProfilePage() {
       setLogoError(null)
       setModalOpen(true)
     } catch (err) {
-      setApiError(err instanceof Error ? err.message : '상세 조회에 실패했습니다.')
+      // Fix 3: 상세 조회 실패 시에도 모달을 열어 에러 표시 (기존 목록 row 데이터로 fallback)
+      const f = profileToForm(profile)
+      setForm(f)
+      setBankRows(f.bankAccounts.map((a) => ({
+        accountHolder: a.accountHolder,
+        bankName: a.bankName,
+        accountNumber: a.accountNumber,
+        exposed: a.exposed !== false,
+      })))
+      setEditTarget(profile)
+      setModalMode('edit')
+      setStampPreviewUrl(null)
+      setStampFile(null)
+      setStampError(null)
+      setLogoPreviewUrl(null)
+      setLogoFile(null)
+      setLogoError(null)
+      setApiError(err instanceof Error ? err.message : '상세 조회에 실패했습니다. 일부 정보가 누락될 수 있습니다.')
+      setModalOpen(true)
     }
   }, [])
 
@@ -757,6 +782,15 @@ export function SupplierProfilePage() {
               + 계좌 추가
             </Button>
           </div>
+          {/* Fix 4: 계좌 빈 필드 에러 표시 */}
+          {fieldErrors.bankAccounts ? (
+            <p
+              style={{ margin: '0 0 6px', fontSize: 12, color: 'var(--color-danger-600)' }}
+              data-testid="supplier-bank-accounts-error"
+            >
+              {fieldErrors.bankAccounts}
+            </p>
+          ) : null}
           {bankRows.length === 0 ? (
             <p
               style={{

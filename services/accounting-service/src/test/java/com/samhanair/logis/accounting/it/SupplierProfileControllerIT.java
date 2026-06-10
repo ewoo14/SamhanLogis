@@ -513,20 +513,54 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
     }
 
     // =========================================================================
-    // TC-SP-12: GET /print-profile — 비회계 role 접근 (권한 게이트 없음)
+    // TC-SP-12: GET /print-profile — 4단언 구조 (사이클2 Fix)
+    // ① VIEW deny 상태 → /print-profile 200 (권한 게이트 없음)
+    // ② VIEW deny 상태 → /primary 403 (대조)
+    // ③ X-Is-Partner: true → /print-profile 403 (외부 파트너 거절)
+    // ④ X-Is-Partner 미설정 → /print-profile 200
     // =========================================================================
 
     @Test
     @Order(12)
-    @DisplayName("TC-SP-12: GET /print-profile → SALES role 접근 200 (권한 게이트 없음)")
-    void tcSp12_printProfile_salesRoleAccess() throws Exception {
-        // @RequirePermission 없음 → SALES role 도 200
+    @DisplayName("TC-SP-12: ① VIEW deny → /print-profile 200 / ② deny → /primary 403 / ③ X-Is-Partner:true → 403 / ④ 헤더 미설정 → 200")
+    void tcSp12_printProfile_fourAssertions() throws Exception {
+
+        // ① accounting.supplier-profiles VIEW 전면 deny 상태에서 /print-profile → 200
+        denyRequirePermission("accounting.supplier-profiles",
+                com.samhanair.logis.security.permission.PermissionAction.VIEW);
         mockMvc.perform(get(BASE_URL + "/print-profile")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.companyName").value("（주）삼한공조시스템"))
                 .andExpect(jsonPath("$.data.bankAccounts").isArray());
+
+        // ② 같은 deny 상태에서 /primary → 403 (대조 — @RequirePermission VIEW 차단 확인)
+        mockMvc.perform(get(BASE_URL + "/primary")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isForbidden());
+
+        // 권한 원복 (이후 단언에서 fallback 통과 보장)
+        lenient().when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(com.samhanair.logis.security.permission.PermissionAction.class)))
+                .thenReturn(true);
+
+        // ③ X-Is-Partner: true → /print-profile 403 (외부 파트너 계정 거절)
+        mockMvc.perform(get(BASE_URL + "/print-profile")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Is-Partner", "true"))
+                .andExpect(status().isForbidden());
+
+        // ④ X-Is-Partner 미설정 → /print-profile 200
+        mockMvc.perform(get(BASE_URL + "/print-profile")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.companyName").isNotEmpty());
     }
 
     // =========================================================================

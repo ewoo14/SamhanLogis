@@ -78,7 +78,8 @@ public class SupplierBankAccount extends BaseEntity {
     /**
      * 거래명세서·세금계산서 인쇄 bankNotice 노출 여부.
      *
-     * <p>기본값 {@code true}. {@code false} 로 설정한 계좌는 {@link #getPrintProfile()}
+     * <p>기본값 {@code true}. {@code false} 로 설정한 계좌는
+     * {@link com.samhanair.logis.accounting.service.SupplierProfileService#getPrintProfile()}
      * 응답의 bankAccounts 에서 제외된다. 관리 화면(CRUD)에서는 전체 계좌 포함.
      */
     @Column(name = "exposed", nullable = false)

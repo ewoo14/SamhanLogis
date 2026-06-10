@@ -12,6 +12,7 @@ import com.samhanair.logis.accounting.web.dto.UpdateSupplierProfileRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -118,13 +119,29 @@ public class SupplierProfileController {
      * <p>주의: Spring MVC 리터럴 경로 우선 매칭 규칙 — {@code /print-profile} 은 리터럴 경로이므로
      * {@code /{id}} UUID 패턴보다 우선 매칭된다 (안전).
      *
+     * <p>신뢰 경계 (사이클2 Fix):
+     * <ul>
+     *   <li>사내 JWT ({@code X-Is-Partner} 헤더 없음 또는 {@code false}) — 전 role 통과 (P1-C 보존)</li>
+     *   <li>외부 파트너 JWT ({@code X-Is-Partner: true}) — 403 거절.
+     *       api-gateway 가 partner-auth JWT 의 {@code partnerCode} claim 존재 시 헤더를 주입한다.
+     *       외부 거래처 계정은 공급자(삼한) 인쇄 정보에 접근할 수 없음.</li>
+     * </ul>
+     *
+     * @param isPartner api-gateway 주입 파트너 식별 헤더 ({@code X-Is-Partner}, optional)
      * @return 인쇄용 공급자 정보 (exposed=true 계좌 + 인감/로고 포함)
+     * @throws BusinessException(FORBIDDEN) 외부 거래처 계정 접근 시
      */
     @GetMapping("/print-profile")
     @Operation(summary = "인쇄용 공급자 정보 조회",
                description = "거래명세서·세금계산서 인쇄 전용. 권한 게이트 없음 — JWT 인증만. "
-                       + "exposed=true 계좌 + 인감 + 로고 포함.")
-    public ApiResponse<PrintProfileResponse> getPrintProfile() {
+                       + "exposed=true 계좌 + 인감 + 로고 포함. X-Is-Partner:true 시 403 거절.")
+    public ApiResponse<PrintProfileResponse> getPrintProfile(
+            @RequestHeader(value = HttpHeaderConstants.IS_PARTNER_HEADER, required = false)
+            String isPartner) {
+        if ("true".equalsIgnoreCase(isPartner)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "외부 거래처 계정은 공급자 인쇄 정보에 접근할 수 없습니다.");
+        }
         return ApiResponse.ok(service.getPrintProfile());
     }
 

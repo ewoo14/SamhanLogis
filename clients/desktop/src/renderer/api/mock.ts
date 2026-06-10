@@ -3464,8 +3464,24 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // 첫 접근 시 seed 1건 주입 (테스트별 fresh page → 모듈 재평가로 재seed).
+  // Fix 2: seed에 계좌 1건(exposed=true) + 인감 stub base64 포함 — TC-SP-10 런타임 단언 지원.
+  const STUB_STAMP_BASE64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
   if (mockSupplierProfileList.length === 0) {
-    mockSupplierProfileList.push({ ...MOCK_SUPPLIER_PRIMARY, bankAccounts: [] })
+    mockSupplierProfileList.push({
+      ...MOCK_SUPPLIER_PRIMARY,
+      bankAccounts: [
+        {
+          accountHolder: '삼한공조시스템',
+          bankName: '국민은행',
+          accountNumber: '123456-78-901234',
+          displayOrder: 0,
+          exposed: true,
+        },
+      ],
+      hasStamp: true,
+      stampPngBase64: STUB_STAMP_BASE64,
+    })
   }
 
   // stamp PUT/DELETE 는 id match 패턴보다 앞에 위치해야 함 (더 구체적인 경로)
@@ -3533,22 +3549,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ deleted: true })
   }
 
-  // GET /accounting/supplier-profiles/{id} 상세 → stamp/logo payload 포함 전체 반환
-  // ※ /primary, /print-profile 리터럴 경로와 충돌 방지 — 리터럴 핸들러 아래에 위치해야 하나
-  //   stamp/logo 패턴보다 아래 배치. 패턴: /supplier-profiles/{id} (trailing 없음)
-  const supplierDetailMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
-  if (method === 'GET' && supplierDetailMatch) {
-    const detailId = supplierDetailMatch[1]!
-    // /primary 는 별도 핸들러가 먼저 처리되므로 여기에 도달 시 id=UUID
-    const found = mockSupplierProfileList.find((p) => p['id'] === detailId)
-    if (!found) {
-      return mockError(404, 'NOT_FOUND', '사업자 정보를 찾을 수 없습니다.')
-    }
-    return envelope(found)
-  }
-
   // GET /accounting/supplier-profiles/print-profile → primary 공개 정보 (권한 게이트 없음)
-  // exposed=true 계좌만 반환 (BE 동형)
+  // ※ 반드시 GET /{id} 정규식 핸들러보다 앞에 위치해야 함 — 'print-profile' 이 [^/]+ 에 매칭되어
+  //   상세 핸들러가 가로채는 것을 방지. exposed=true 계좌만 반환 (BE 동형).
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles/print-profile')) {
     const primary = mockSupplierProfileList.find((p) => p['isPrimary']) ?? MOCK_SUPPLIER_PRIMARY
     const accounts = ((primary['bankAccounts'] as unknown[]) ?? []).filter(
@@ -3572,9 +3575,28 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /accounting/supplier-profiles/primary → 기본 사업자 (stamp/logo payload 포함)
+  // ※ 반드시 GET /{id} 정규식 핸들러보다 앞에 위치해야 함 (동일 이유)
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles/primary')) {
     const primary = mockSupplierProfileList.find((p) => p['isPrimary']) ?? MOCK_SUPPLIER_PRIMARY
     return envelope(primary)
+  }
+
+  // GET /accounting/supplier-profiles/{id} 상세 → stamp/logo payload 포함 전체 반환
+  // ※ /primary, /print-profile 리터럴 핸들러 뒤에 위치해야 함 — 'primary'/'print-profile' 문자열이
+  //   [^/]+ 에 매칭되어 리터럴 핸들러를 dead code 로 만드는 버그 방지.
+  //   안전망: detailId 가 리터럴 예약어와 같으면 skip 가드 적용.
+  const supplierDetailMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
+  if (method === 'GET' && supplierDetailMatch) {
+    const detailId = supplierDetailMatch[1]!
+    if (detailId === 'primary' || detailId === 'print-profile') {
+      // 리터럴 핸들러가 위에서 이미 처리했어야 하는 경로 — 여기 도달 시 미매칭으로 처리
+      return null
+    }
+    const found = mockSupplierProfileList.find((p) => p['id'] === detailId)
+    if (!found) {
+      return mockError(404, 'NOT_FOUND', '사업자 정보를 찾을 수 없습니다.')
+    }
+    return envelope(found)
   }
 
   // GET /accounting/supplier-profiles → 목록 (stamp/logo payload 제외 — hasStamp/hasLogo 만)
@@ -3593,6 +3615,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.endsWith('/accounting/supplier-profiles')) {
     const body = parseMockBody(config) as Record<string, unknown>
     const rawAccounts = (body['bankAccounts'] as unknown[] | undefined) ?? []
+    // Fix 4: 빈 필드 검증 — BE @NotBlank 동형 400 반환
+    const blankIdx = rawAccounts.findIndex((a) => {
+      const acct = a as Record<string, unknown>
+      return !String(acct['accountHolder'] ?? '').trim() || !String(acct['bankName'] ?? '').trim() || !String(acct['accountNumber'] ?? '').trim()
+    })
+    if (blankIdx >= 0) {
+      return mockError(400, 'INVALID_INPUT', `${blankIdx + 1}번째 계좌의 예금주·은행명·계좌번호를 모두 입력해 주세요.`)
+    }
     // exposed 기본값 true 채움, displayOrder = 배열 index (BE 동형)
     const bankAccounts = rawAccounts.map((a, i) => {
       const acct = a as Record<string, unknown>
@@ -3629,6 +3659,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const idx = mockSupplierProfileList.findIndex((p) => p['id'] === updatedId)
     const base = idx >= 0 ? (mockSupplierProfileList[idx] as Record<string, unknown>) : (MOCK_SUPPLIER_PRIMARY as unknown as Record<string, unknown>)
     const rawAccounts = (body['bankAccounts'] as unknown[] | undefined) ?? (base['bankAccounts'] as unknown[]) ?? []
+    // Fix 4: 빈 필드 검증 — BE @NotBlank 동형 400 반환
+    const blankPutIdx = rawAccounts.findIndex((a) => {
+      const acct = a as Record<string, unknown>
+      return !String(acct['accountHolder'] ?? '').trim() || !String(acct['bankName'] ?? '').trim() || !String(acct['accountNumber'] ?? '').trim()
+    })
+    if (blankPutIdx >= 0) {
+      return mockError(400, 'INVALID_INPUT', `${blankPutIdx + 1}번째 계좌의 예금주·은행명·계좌번호를 모두 입력해 주세요.`)
+    }
     // exposed 기본값 true 채움, displayOrder = 배열 index 재계산 (BE 동형)
     const bankAccounts = rawAccounts.map((a, i) => {
       const acct = a as Record<string, unknown>

@@ -1817,6 +1817,7 @@ button {
 .invoice-v2-logo {
   height: 14mm;
   width: auto;
+  max-width: 55mm;
   object-fit: contain;
   align-self: flex-start;
 }
@@ -2315,6 +2316,7 @@ button {
 .inbound-logo {
   height: 14mm;
   width: auto;
+  max-width: 55mm;
   object-fit: contain;
 }
 
@@ -2597,6 +2599,7 @@ button {
 .purchase-print-logo {
   height: 12mm;
   width: auto;
+  max-width: 50mm;
   object-fit: contain;
 }
 
@@ -2995,6 +2998,7 @@ button {
 .sales-print-logo {
   height: 12mm;
   width: auto;
+  max-width: 50mm;
   object-fit: contain;
 }
 
@@ -3416,6 +3420,7 @@ button {
 .quote-logo {
   height: 14mm;
   width: auto;
+  max-width: 55mm;
   object-fit: contain;
   align-self: flex-start;
 }

@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,8 +19,11 @@ import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import java.security.MessageDigest;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>BE agent 의 {@code SupplierProfileControllerIT.java} 와 시나리오 분리.
  * 본 파일은 FE 연동 수준의 응답 schema / 갱신 흐름 / TaxInvoiceBatch 동적 조회를 검증한다.
  *
- * <p>TC 목록 (3건):
+ * <p>TC 목록 (5건):
  * <ol>
  *   <li>SP-FE-1: GET /supplier-profiles/primary 응답 schema 검증
  *       (businessNumber, companyName, representativeName, businessAddress,
@@ -53,6 +57,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>SP-FE-2: PUT 갱신 후 후속 GET primary 에 신규 값 반영 (FE 갱신 흐름 시뮬)</li>
  *   <li>SP-FE-3: TaxInvoiceBatchService 변환 시 primary supplier 동적 조회 검증
  *       (mock 변경 후 결과 echo)</li>
+ *   <li>SP-FE-4: GET /print-profile 응답 13필드 키 존재 + bankAccounts 배열 + exposed 항목 키</li>
+ *   <li>SP-FE-5: PUT /{id}/logo → GET /{id} logoPngBase64 동등 + DELETE 원복</li>
  * </ol>
  *
  * <p>외부 client 전부 {@code @MockBean} 격리
@@ -376,8 +382,203 @@ class SupplierProfileFEMatchIT extends AbstractPostgresIT {
     }
 
     // =========================================================================
+    // SP-FE-4: GET /print-profile 응답 13필드 + bankAccounts 배열 + exposed 키 검증
+    // =========================================================================
+
+    /**
+     * SP-FE-4: GET /accounting/supplier-profiles/print-profile 응답이 FE 인쇄 연동에 필요한
+     * 13 필드 (companyName / businessNumber / subBusinessNumber / representativeName /
+     * businessAddress / businessType / businessItem / email / tel / fax /
+     * bankAccounts / stampPngBase64 / logoPngBase64) 키를 모두 포함하는지 검증.
+     *
+     * <p>bankAccounts 항목에 {@code exposed} 필드가 포함되어야 한다.
+     *
+     * <p>인쇄 전용 endpoint: 권한 게이트 없음 — SALES role 접근 가능.
+     */
+    @Test
+    @DisplayName("SP-FE-4: GET /print-profile → 13필드 키 존재 + bankAccounts 배열 + exposed 항목 키")
+    @Transactional
+    void spFe4_printProfileSchema() throws Exception {
+        // 계좌 1건 등록 (exposed 포함) → print-profile 응답에서 키 확인
+        MvcResult primaryResult = mockMvc.perform(
+                        get("/accounting/supplier-profiles/primary")
+                                .header("X-User-Id", testUserId)
+                                .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String profileId = objectMapper.readTree(primaryResult.getResponse().getContentAsString())
+                .path("data").path("id").asText("");
+
+        if (!profileId.isEmpty()) {
+            // 계좌 1건 등록
+            Map<String, Object> addAccount = new HashMap<>();
+            addAccount.put("bankAccounts", List.of(
+                    Map.of("accountHolder", "SP-FE4-예금주", "bankName", "테스트은행",
+                            "accountNumber", "FE4-001", "exposed", true)));
+            mockMvc.perform(put("/accounting/supplier-profiles/" + profileId)
+                            .header("X-User-Id", testUserId)
+                            .header("X-User-Role", "MASTER")
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addAccount)))
+                    .andExpect(status().isOk());
+        }
+
+        // GET /print-profile 응답 13필드 키 검증
+        MvcResult printResult = mockMvc.perform(
+                        get("/accounting/supplier-profiles/print-profile")
+                                .header("X-User-Id", testUserId)
+                                .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").exists())
+                .andReturn();
+
+        JsonNode data = objectMapper.readTree(printResult.getResponse().getContentAsString()).path("data");
+
+        // 13 필드 키 존재 검증
+        assertThat(data.has("companyName")).as("companyName 키 누락").isTrue();
+        assertThat(data.has("businessNumber")).as("businessNumber 키 누락").isTrue();
+        assertThat(data.has("subBusinessNumber")).as("subBusinessNumber 키 누락").isTrue();
+        assertThat(data.has("representativeName")).as("representativeName 키 누락").isTrue();
+        assertThat(data.has("businessAddress")).as("businessAddress 키 누락").isTrue();
+        assertThat(data.has("businessType")).as("businessType 키 누락").isTrue();
+        assertThat(data.has("businessItem")).as("businessItem 키 누락").isTrue();
+        assertThat(data.has("email")).as("email 키 누락").isTrue();
+        assertThat(data.has("tel")).as("tel 키 누락").isTrue();
+        assertThat(data.has("fax")).as("fax 키 누락").isTrue();
+        assertThat(data.has("bankAccounts")).as("bankAccounts 키 누락").isTrue();
+        assertThat(data.get("bankAccounts").isArray()).as("bankAccounts 는 배열이어야 함").isTrue();
+        // stampPngBase64, logoPngBase64 — null 허용, 키 존재 필수
+        assertThat(data.has("stampPngBase64")).as("stampPngBase64 키 누락").isTrue();
+        assertThat(data.has("logoPngBase64")).as("logoPngBase64 키 누락").isTrue();
+
+        // bankAccounts 항목에 exposed 키 존재 검증 (계좌가 1건 이상인 경우)
+        JsonNode accounts = data.get("bankAccounts");
+        if (accounts.isArray() && accounts.size() > 0) {
+            JsonNode firstAcc = accounts.get(0);
+            assertThat(firstAcc.has("exposed")).as("bankAccounts[0].exposed 키 누락").isTrue();
+        }
+
+        // 원복 (계좌 비우기)
+        if (!profileId.isEmpty()) {
+            Map<String, Object> empty = new HashMap<>();
+            empty.put("bankAccounts", List.of());
+            mockMvc.perform(put("/accounting/supplier-profiles/" + profileId)
+                            .header("X-User-Id", testUserId)
+                            .header("X-User-Role", "MASTER")
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(empty)))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    // =========================================================================
+    // SP-FE-5: PUT /{id}/logo → GET /{id} logoPngBase64 동등 + 원복 검증
+    // =========================================================================
+
+    /**
+     * SP-FE-5: {@code PUT /accounting/supplier-profiles/{id}/logo} 로 로고 업로드 후
+     * {@code GET /accounting/supplier-profiles/{id}} 응답의 {@code logoPngBase64} 가
+     * 업로드한 base64 와 동등한지 검증한 뒤 원복(DELETE /{id}/logo).
+     *
+     * <p>검증 흐름:
+     * <ol>
+     *   <li>fakePngBytes() 로 유효 PNG (magic 8바이트 + padding) 생성</li>
+     *   <li>SHA-256 해시 계산</li>
+     *   <li>PUT /{id}/logo → 200 + hasLogo=true</li>
+     *   <li>GET /{id} → logoPngBase64 == 업로드 base64</li>
+     *   <li>DELETE /{id}/logo → 204 원복</li>
+     * </ol>
+     */
+    @Test
+    @DisplayName("SP-FE-5: PUT /{id}/logo → GET /{id} logoPngBase64 동등 + DELETE 원복")
+    @Transactional
+    void spFe5_logoUploadAndVerify() throws Exception {
+        // primary id 조회
+        MvcResult primaryResult = mockMvc.perform(
+                        get("/accounting/supplier-profiles/primary")
+                                .header("X-User-Id", testUserId)
+                                .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String profileId = objectMapper.readTree(primaryResult.getResponse().getContentAsString())
+                .path("data").path("id").asText("");
+
+        if (profileId.isEmpty()) {
+            System.out.println("SP-FE-5: primary id 미반환 — seed 없거나 schema 불일치. skip.");
+            return;
+        }
+
+        // PNG magic 8바이트 + 24바이트 패딩
+        byte[] pngBytes = fakePngBytes(24);
+        String uploadBase64 = Base64.getEncoder().encodeToString(pngBytes);
+        String hash = sha256Hex(pngBytes);
+
+        Map<String, Object> logoBody = new HashMap<>();
+        logoBody.put("logoPngBase64", uploadBase64);
+        logoBody.put("logoHash", hash);
+
+        // PUT /{id}/logo → 200 + hasLogo=true
+        mockMvc.perform(put("/accounting/supplier-profiles/" + profileId + "/logo")
+                        .header("X-User-Id", testUserId)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logoBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hasLogo").value(true));
+
+        // GET /{id} → logoPngBase64 == uploadBase64
+        MvcResult getResult = mockMvc.perform(
+                        get("/accounting/supplier-profiles/" + profileId)
+                                .header("X-User-Id", testUserId)
+                                .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode getData = objectMapper.readTree(getResult.getResponse().getContentAsString()).path("data");
+        String retrievedBase64 = getData.path("logoPngBase64").asText("");
+
+        assertThat(retrievedBase64)
+                .as("GET /{id} logoPngBase64 는 업로드한 base64 와 동등해야 함")
+                .isEqualTo(uploadBase64);
+
+        // 원복: DELETE /{id}/logo → 204
+        mockMvc.perform(delete("/accounting/supplier-profiles/" + profileId + "/logo")
+                        .header("X-User-Id", testUserId)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNoContent());
+    }
+
+    // =========================================================================
     // 보조 메서드
     // =========================================================================
+
+    /**
+     * 유효한 PNG magic header (8바이트) + 패딩 데이터 바이트 배열 생성.
+     * PNG magic: 89 50 4E 47 0D 0A 1A 0A.
+     * 서비스의 PNG 검증 통과를 위해 사용.
+     *
+     * @param extraSize magic 이후 추가 바이트 수
+     * @return PNG magic 포함 바이트 배열
+     */
+    private static byte[] fakePngBytes(int extraSize) {
+        byte[] pngMagic = new byte[]{(byte)0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+        byte[] result = new byte[pngMagic.length + extraSize];
+        System.arraycopy(pngMagic, 0, result, 0, pngMagic.length);
+        return result;
+    }
+
+    /**
+     * SHA-256 소문자 hex.
+     *
+     * @param data 입력 데이터
+     * @return SHA-256 소문자 hex (64자)
+     */
+    private static String sha256Hex(byte[] data) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(md.digest(data));
+    }
 
     /**
      * slip-service 응답 형식 Map 생성.
