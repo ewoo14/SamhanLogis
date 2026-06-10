@@ -20,3 +20,8 @@ metadata:
 
 **Why**: 견적/주문 노출 품목을 정확히 통제(전 품목 노출 방지) + 시트 운영 순서 유지. 메뉴 가독성·업무 권역 정리.
 **How to apply**: #30 카탈로그([[project-sheets-to-db-full-migration]]) 후속으로 usageScope 필터+displayOrder 적용. 관련 EstimateCatalogInternalController(#455)·ProductSheetSyncService. 메뉴는 clients/desktop AppLayout.tsx 재구성. 대형 UI 변경이라 Codex 회복(6/11 10:11) 후 구현 적합.
+
+## 2-보강 (2026-06-10 개발책임자 추가 지시)
+- **권한 기반 메뉴 필터**: 좌측 메뉴는 기본적으로 **권한이 있는 메뉴만 표시** (canAccess/permission 기반 — 메뉴가 너무 많음).
+- **'홈' 최상단 신규**: 대시보드 첫 진입 시 보이는 홈 화면을 '홈' 메뉴로 제일 상단에 추가.
+- **'알림 내역'만 상단 유지**, 나머지 전부 판매/회계 등 해당 영역(5대 분류 + 배차·창고운영)으로 이동.
