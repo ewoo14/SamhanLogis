@@ -45,6 +45,9 @@ export function OutboundView() {
 
   usePageTitle('출고전표', detailQuery.data?.slipNo)
 
+  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
+  const { company } = useCompanyProfile()
+
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
   if (detailQuery.isError || !detailQuery.data) {
@@ -54,8 +57,6 @@ export function OutboundView() {
       </div>
     )
   }
-
-  const { company } = useCompanyProfile()
 
   const slip: SlipDetail = detailQuery.data
   const totalSupply = slip.lines.reduce((sum, l) => sum + Number(l.lineTotal), 0)

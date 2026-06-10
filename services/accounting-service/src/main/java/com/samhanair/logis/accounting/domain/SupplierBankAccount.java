@@ -75,18 +75,28 @@ public class SupplierBankAccount extends BaseEntity {
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
+    /**
+     * 거래명세서·세금계산서 인쇄 bankNotice 노출 여부.
+     *
+     * <p>기본값 {@code true}. {@code false} 로 설정한 계좌는 {@link #getPrintProfile()}
+     * 응답의 bankAccounts 에서 제외된다. 관리 화면(CRUD)에서는 전체 계좌 포함.
+     */
+    @Column(name = "exposed", nullable = false)
+    private boolean exposed = true;
+
     // =========================================================================
     // 팩토리 메서드
     // =========================================================================
 
     /**
-     * 신규 은행계좌 생성.
+     * 신규 은행계좌 생성 (exposed 명시).
      *
      * @param supplierProfileId 연결 사업자 프로필 UUID
      * @param accountHolder     예금주
      * @param bankName          은행명
      * @param accountNumber     계좌번호
      * @param displayOrder      표시 순서
+     * @param exposed           인쇄 노출 여부 (false 이면 인쇄 bankNotice 에서 제외)
      * @return 신규 {@link SupplierBankAccount}
      * @throws IllegalArgumentException 필수 인자 누락 시
      */
@@ -95,7 +105,8 @@ public class SupplierBankAccount extends BaseEntity {
             String accountHolder,
             String bankName,
             String accountNumber,
-            int displayOrder) {
+            int displayOrder,
+            boolean exposed) {
         if (supplierProfileId == null) {
             throw new IllegalArgumentException("supplierProfileId 는 필수입니다");
         }
@@ -109,7 +120,27 @@ public class SupplierBankAccount extends BaseEntity {
         account.bankName = bankName.trim();
         account.accountNumber = accountNumber.trim();
         account.displayOrder = displayOrder;
+        account.exposed = exposed;
         return account;
+    }
+
+    /**
+     * 신규 은행계좌 생성 (exposed=true 기본값 오버로드 — 기존 호출부 호환용).
+     *
+     * @param supplierProfileId 연결 사업자 프로필 UUID
+     * @param accountHolder     예금주
+     * @param bankName          은행명
+     * @param accountNumber     계좌번호
+     * @param displayOrder      표시 순서
+     * @return 신규 {@link SupplierBankAccount} (exposed=true)
+     */
+    public static SupplierBankAccount create(
+            UUID supplierProfileId,
+            String accountHolder,
+            String bankName,
+            String accountNumber,
+            int displayOrder) {
+        return create(supplierProfileId, accountHolder, bankName, accountNumber, displayOrder, true);
     }
 
     // =========================================================================

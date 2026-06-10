@@ -157,7 +157,7 @@ MIG-14는 Cash / Order / AgingSnapshot / Ledger 조회 화면을 `clients/deskto
 
 ## 인쇄 공급자 정보 단일 출처 — useCompanyProfile (2026-06-10, PR #459)
 
-- `src/renderer/print/useCompanyProfile.ts` — `GET /accounting/supplier-profiles/primary` react-query(staleTime 5분) 로 인쇄용 회사정보를 매핑한다. `PrintLayout.tsx` 의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_BANK_NOTICE`/`VITE_COMPANY_STAMP_URL` env 주입은 제거됐다 (인쇄 뷰 11 + 회계 인쇄 레이아웃 9 = 20곳 전환, 잔존 참조 0).
-- `bankNotice` 는 입금계좌(displayOrder 순) 조합 — 계좌 0건이면 빈 문자열(placeholder 인쇄 금지). 인감은 `stampPngBase64` → dataURL. API 로딩/에러 시 정적 fallback 으로 인쇄 블랭크를 방지한다.
-- 사업자 양식 화면(`routes/accounting/SupplierProfilePage.tsx`)에서 TEL/FAX·입금계좌 리스트(추가/삭제, 배열 순서 = displayOrder)·인감 업로드(PNG ≤200KB, Web Crypto SHA-256)를 직접 설정한다.
+- `src/renderer/print/useCompanyProfile.ts` — `GET /accounting/supplier-profiles/print-profile` react-query(staleTime 5분) 로 인쇄용 회사정보를 매핑한다 (권한 게이트 없는 인쇄 전용 endpoint — SALES 등 비회계 role 인쇄에서도 계좌/인감 유지). `PrintLayout.tsx` 의 `COMPANY` 하드코딩 상수와 `VITE_COMPANY_BANK_NOTICE`/`VITE_COMPANY_STAMP_URL` env 주입은 제거됐다 (인쇄 뷰 11 + 회계 인쇄 레이아웃 9 = 20곳 전환, 잔존 참조 0).
+- `bankNotice` 는 노출(`exposed=true`) 입금계좌(displayOrder 순) 조합 — 계좌 0건이면 빈 문자열(placeholder 인쇄 금지). 인감은 `stampPngBase64` → dataURL, 로고는 `logoPngBase64` → dataURL(미설정 시 정적 `/print-logo.svg` fallback). API 로딩/에러 시 정적 fallback 으로 인쇄 블랭크를 방지한다.
+- 공급자 설정 화면(`routes/accounting/SupplierProfilePage.tsx`, 좌측 메뉴 라벨 '공급자 설정' — 라우트 `/accounting/supplier-profiles` 유지)에서 TEL/FAX·입금계좌 리스트(추가/삭제, 배열 순서 = displayOrder, 계좌별 명세서 노출 토글)·인감/로고 업로드(PNG ≤200KB, Web Crypto SHA-256)를 직접 설정한다.
 - ⚠️ 계좌 실데이터·실인감은 repo 비커밋 — 운영 화면에서 입력.

@@ -48,6 +48,9 @@ export function QuoteView() {
 
   usePageTitle('견적서', detailQuery.data?.estimateNumber)
 
+  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
+  const { company } = useCompanyProfile()
+
   if (!estimateNumber) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
   if (detailQuery.isError || !detailQuery.data) {
@@ -57,8 +60,6 @@ export function QuoteView() {
       </div>
     )
   }
-
-  const { company } = useCompanyProfile()
 
   const est: EstimateDetail = detailQuery.data
   const totalSupply = est.lines.reduce((sum, l) => sum + l.subtotal, 0)

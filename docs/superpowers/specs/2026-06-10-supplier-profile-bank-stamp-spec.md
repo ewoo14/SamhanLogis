@@ -5,6 +5,17 @@
 >
 > PR #458 의 임시 env 주입(`VITE_COMPANY_BANK_NOTICE`/`VITE_COMPANY_STAMP_URL`) 및 하드코딩 `COMPANY` 상수를 설정 API 로 대체.
 
+## 0-1. 2026-06-10 추가 지시 (스코프 확장 — 구현 중 정밀화)
+
+> "우리 회사 정보가 모두 설정 가능해야함. 공급자 등록번호, 공급자 상호, 공급자 성명, 공급자 사업장주소, 공급자 업태, 공급자 종목, 공급자 이메일, 공급자 계좌번호(복수 등록 가능, 각 명세서 노출 토글 설정 가능), 공급자 로고(이미지), 공급자 인감(이미지) 이렇게 설정가능해야 하며, 메뉴명은 '공급자 설정'으로 진행"
+
+확장 3건 (기존 구현에 추가):
+1. **계좌 노출 토글**: `supplier_bank_accounts.exposed BOOLEAN NOT NULL DEFAULT TRUE` — 계좌별 명세서 노출 여부. 인쇄 bankNotice 는 `exposed=true` 계좌만 조합. `print-profile` 응답은 노출 계좌만 반환, CRUD 응답은 전체 + `exposed` 필드.
+2. **로고 이미지**: `supplier_profiles.logo_png BYTEA + logo_hash` — 인감과 동일 패턴 (PNG magic + ≤200KB + SHA-256, `PUT·DELETE /{id}/logo`). 인쇄 뷰 로고 = 설정 이미지 우선, 미설정 시 기존 정적 `/print-logo.svg` fallback.
+3. **메뉴명 '공급자 설정'**: 좌측 메뉴/페이지 타이틀 라벨 변경 (라우트 `/accounting/supplier-profiles` 및 권한 페이지코드는 유지).
+
+V35 는 본 PR 미머지 마이그레이션이므로 파일 직접 수정 (로컬 QA DB 는 재생성).
+
 ## 0. 정찰 결론 — 신규 엔티티가 아니라 기존 자산 확장
 
 | 자산 | 현황 | 갭 |

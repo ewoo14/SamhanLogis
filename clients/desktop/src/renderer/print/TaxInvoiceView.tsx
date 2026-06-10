@@ -80,6 +80,9 @@ export function TaxInvoiceView() {
 
   usePageTitle('세금계산서', detailQuery.data?.taxInvoiceNo ?? undefined)
 
+  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
+  const { company } = useCompanyProfile()
+
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
   if (detailQuery.isError || !detailQuery.data) {
@@ -89,8 +92,6 @@ export function TaxInvoiceView() {
       </div>
     )
   }
-
-  const { company } = useCompanyProfile()
 
   const ti: TaxInvoiceDetail = detailQuery.data
   const supply = num(ti.supplyAmount)

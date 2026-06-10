@@ -71,6 +71,8 @@ class SupplierProfileServiceTest {
 
         // 기본 stub
         lenient().when(profileRepository.findById(profileId)).thenReturn(Optional.of(seedProfile));
+        // P3-2: findByIdForUpdate(PESSIMISTIC_WRITE) — update() 경로에서 사용
+        lenient().when(profileRepository.findByIdForUpdate(profileId)).thenReturn(Optional.of(seedProfile));
         lenient().when(profileRepository.save(any(SupplierProfile.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         lenient().when(bankAccountRepository.save(any(SupplierBankAccount.class)))
@@ -87,8 +89,8 @@ class SupplierProfileServiceTest {
     @DisplayName("TC-1: update bankAccounts → replace-all (기존 0건 삭제 + 신규 2건 insert)")
     void tc1_bankAccountsReplaceAll() {
         List<BankAccountRequest> newAccounts = List.of(
-                new BankAccountRequest("（주）삼한공조시스템", "국민은행", "123456-78-901234"),
-                new BankAccountRequest("（주）삼한공조시스템", "우리은행", "987654-32-109876")
+                new BankAccountRequest("（주）삼한공조시스템", "국민은행", "123456-78-901234", null),
+                new BankAccountRequest("（주）삼한공조시스템", "우리은행", "987654-32-109876", null)
         );
 
         UpdateSupplierProfileRequest req = new UpdateSupplierProfileRequest(
@@ -109,7 +111,8 @@ class SupplierProfileServiceTest {
     @Test
     @DisplayName("TC-2: registerStamp — base64 + SHA-256 검증 통과 후 저장")
     void tc2_registerStamp_success() throws Exception {
-        byte[] pngBytes = "fake-png-data-for-test".getBytes(StandardCharsets.UTF_8);
+        // PNG magic header 포함 바이트 (8-byte magic + 16-byte padding = 유효한 PNG 헤더 시작)
+        byte[] pngBytes = fakePngBytes(16);
         String base64 = Base64.getEncoder().encodeToString(pngBytes);
         String hash = sha256Hex(pngBytes);
 
@@ -126,7 +129,8 @@ class SupplierProfileServiceTest {
     @Test
     @DisplayName("TC-3: registerStamp — hash mismatch → BusinessException INVALID_INPUT")
     void tc3_registerStamp_hashMismatch() {
-        byte[] pngBytes = "test-png-data".getBytes(StandardCharsets.UTF_8);
+        // PNG magic 포함 (magic 검증 통과) 후 hash mismatch 단계에서 실패해야 함
+        byte[] pngBytes = fakePngBytes(16);
         String base64 = Base64.getEncoder().encodeToString(pngBytes);
         String wrongHash = "a".repeat(64);  // 잘못된 hash
 
@@ -163,8 +167,8 @@ class SupplierProfileServiceTest {
     @Test
     @DisplayName("TC-5: clearStamp — stampPng / stampHash null 초기화")
     void tc5_clearStamp() {
-        // 먼저 인감 등록 (도메인 직접 호출)
-        byte[] png = "png-data".getBytes(StandardCharsets.UTF_8);
+        // 먼저 인감 등록 (도메인 직접 호출 — 도메인은 PNG magic 검증 없음)
+        byte[] png = fakePngBytes(8);
         seedProfile.registerStamp(png, "c".repeat(64));
 
         service.clearStamp(profileId);
@@ -198,6 +202,67 @@ class SupplierProfileServiceTest {
         assertThat(res.stampPngBase64()).isNull();
     }
 
+    // ── TC-7: 로고 업로드 성공 ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("TC-7: registerLogo — base64 + SHA-256 검증 통과 후 저장 (hasLogo=true)")
+    void tc7_registerLogo_success() throws Exception {
+        byte[] pngBytes = fakePngBytes(16);
+        String base64 = Base64.getEncoder().encodeToString(pngBytes);
+        String hash = sha256Hex(pngBytes);
+
+        com.samhanair.logis.accounting.web.dto.UpdateLogoRequest req =
+                new com.samhanair.logis.accounting.web.dto.UpdateLogoRequest(base64, hash);
+
+        SupplierProfileResponse res = service.registerLogo(profileId, req);
+
+        assertThat(res.hasLogo()).isTrue();
+        verify(profileRepository).save(any(SupplierProfile.class));
+    }
+
+    // ── TC-8: 로고 삭제 ───────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("TC-8: clearLogo — logoPng / logoHash null 초기화")
+    void tc8_clearLogo() throws Exception {
+        // 도메인에 로고 직접 등록
+        byte[] png = fakePngBytes(8);
+        seedProfile.registerLogo(png, "d".repeat(64));
+
+        service.clearLogo(profileId);
+
+        assertThat(seedProfile.getLogoPng()).isNull();
+        assertThat(seedProfile.getLogoHash()).isNull();
+        verify(profileRepository).save(seedProfile);
+    }
+
+    // ── TC-9: getPrintProfile exposed 필터 ──────────────────────────────
+
+    @Test
+    @DisplayName("TC-9: getPrintProfile → exposed=true 계좌만 반환")
+    void tc9_getPrintProfile_exposedFilter() {
+        when(profileRepository.findByIsPrimaryTrueAndIsDeletedFalse())
+                .thenReturn(Optional.of(seedProfile));
+
+        // exposed=true 계좌 1건, exposed=false 계좌 1건
+        SupplierBankAccount exposedAcc = SupplierBankAccount.create(
+                profileId, "（주）삼한공조시스템", "국민은행", "111-111", 0, true);
+        SupplierBankAccount hiddenAcc = SupplierBankAccount.create(
+                profileId, "（주）삼한공조시스템", "신한은행", "222-222", 1, false);
+
+        when(bankAccountRepository.findBySupplierProfileIdOrderByDisplayOrderAsc(profileId))
+                .thenReturn(java.util.List.of(exposedAcc, hiddenAcc));
+
+        com.samhanair.logis.accounting.web.dto.PrintProfileResponse res = service.getPrintProfile();
+
+        // exposed=true 계좌만 포함 (1건)
+        assertThat(res.bankAccounts()).hasSize(1);
+        assertThat(res.bankAccounts().get(0).bankName()).isEqualTo("국민은행");
+        // exposed=false 계좌는 제외
+        assertThat(res.bankAccounts().stream()
+                .anyMatch(a -> "신한은행".equals(a.bankName()))).isFalse();
+    }
+
     // ── 헬퍼 ─────────────────────────────────────────────────────────────
 
     private void setId(SupplierProfile profile, UUID id) throws Exception {
@@ -209,5 +274,22 @@ class SupplierProfileServiceTest {
     private static String sha256Hex(byte[] data) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         return HexFormat.of().formatHex(md.digest(data));
+    }
+
+    /**
+     * 유효한 PNG magic header (8바이트) + 패딩 데이터 바이트 배열 생성.
+     * PNG magic: 89 50 4E 47 0D 0A 1A 0A.
+     *
+     * @param extraSize magic 이후 추가 바이트 수
+     * @return PNG magic 포함 바이트 배열
+     */
+    private static byte[] fakePngBytes(int extraSize) {
+        byte[] pngMagic = new byte[]{(byte)0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+        byte[] extra = new byte[extraSize];
+        java.util.Arrays.fill(extra, (byte) 0x00);
+        byte[] result = new byte[pngMagic.length + extraSize];
+        System.arraycopy(pngMagic, 0, result, 0, pngMagic.length);
+        System.arraycopy(extra, 0, result, pngMagic.length, extraSize);
+        return result;
     }
 }

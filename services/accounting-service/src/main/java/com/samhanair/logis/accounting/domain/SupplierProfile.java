@@ -145,6 +145,25 @@ public class SupplierProfile extends BaseEntity {
     private String stampHash;
 
     /**
+     * 로고 PNG 바이너리. nullable.
+     *
+     * <p>⚠️ {@code @Lob} 사용 금지 — Hibernate 6 + PostgreSQL bytea 컬럼에서
+     * OID(Large Object) 타입으로 오매핑되어 {@code PSQLException: large object not supported}
+     * 가 발생한다 (Slip.java:263 NOTE 동일 패턴).
+     * {@code @JdbcTypeCode(SqlTypes.BINARY)} 로 bytea 직접 매핑.
+     */
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(name = "logo_png", columnDefinition = "BYTEA")
+    private byte[] logoPng;
+
+    /**
+     * 로고 PNG 의 SHA-256 해시 (소문자 hex 64자). nullable.
+     * 업로드 시 클라이언트가 계산하여 전송하고, 서비스 레이어에서 재계산 검증한다.
+     */
+    @Column(name = "logo_hash", length = 64)
+    private String logoHash;
+
+    /**
      * 기본 사업자 여부.
      * {@code true} 인 row 는 DB 전체에서 1개만 유지된다.
      * {@link TaxInvoiceBatchService} 가 공급자 정보 조회 시 이 flag 로 단건 fetch.
@@ -363,6 +382,40 @@ public class SupplierProfile extends BaseEntity {
     public SupplierProfile clearStamp() {
         this.stampPng = null;
         this.stampHash = null;
+        return this;
+    }
+
+    /**
+     * 로고 PNG 등록.
+     *
+     * <p>서비스 레이어에서 base64 디코드 후 SHA-256 재계산 검증 완료 후 호출한다.
+     * 인감 등록({@link #registerStamp})과 동일 패턴.
+     *
+     * @param png  PNG 바이너리 (≤ 200KB 검증 완료)
+     * @param hash SHA-256 소문자 hex (64자)
+     * @return {@code this} (체이닝용)
+     * @throws IllegalArgumentException png 또는 hash 가 null 인 경우
+     */
+    public SupplierProfile registerLogo(byte[] png, String hash) {
+        if (png == null || png.length == 0) {
+            throw new IllegalArgumentException("로고 PNG 는 비어있을 수 없습니다");
+        }
+        if (hash == null || hash.length() != 64) {
+            throw new IllegalArgumentException("logoHash 는 SHA-256 소문자 hex 64자여야 합니다");
+        }
+        this.logoPng = png;
+        this.logoHash = hash;
+        return this;
+    }
+
+    /**
+     * 로고 삭제 (logoPng / logoHash 를 null 로 초기화).
+     *
+     * @return {@code this} (체이닝용)
+     */
+    public SupplierProfile clearLogo() {
+        this.logoPng = null;
+        this.logoHash = null;
         return this;
     }
 

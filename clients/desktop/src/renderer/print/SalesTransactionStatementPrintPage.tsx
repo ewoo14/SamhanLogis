@@ -87,8 +87,10 @@ export function SalesTransactionStatementPrintPage() {
   const { company } = useCompanyProfile()
 
   // 한 A4 자동 비율 — 품목 수 변동 시 재측정 (개발책임자 2026-06-10)
+  // P3 fix: bankNotice 로드 시 계좌 푸터 높이 변동 → 재측정 의무 (사이클1)
   const { ref: fitRef, zoom } = useFitOneA4<HTMLDivElement>([
     detailQuery.data?.lines?.length ?? 0,
+    company.bankNotice,
   ])
 
   usePageTitle('거래명세서', detailQuery.data?.slipNo)

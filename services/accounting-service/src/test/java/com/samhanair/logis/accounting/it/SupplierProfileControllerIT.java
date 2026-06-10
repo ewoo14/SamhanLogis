@@ -376,8 +376,8 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
     void tcSp8_stampRegisterAndDelete() throws Exception {
         String primaryId = getPrimaryId();
 
-        // 소형 PNG 생성 (1KB 미만)
-        byte[] pngBytes = "fake-png-data-for-it-test".getBytes(StandardCharsets.UTF_8);
+        // PNG magic header (89 50 4E 47 0D 0A 1A 0A) 포함 소형 PNG 생성 (서비스 PNG 검증 통과용)
+        byte[] pngBytes = fakePngBytes(24);
         String base64 = Base64.getEncoder().encodeToString(pngBytes);
         String hash = sha256Hex(pngBytes);
 
@@ -426,7 +426,8 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
     void tcSp9_stampHashMismatch() throws Exception {
         String primaryId = getPrimaryId();
 
-        byte[] pngBytes = "some-png".getBytes(StandardCharsets.UTF_8);
+        // PNG magic 포함 (magic 검증 통과) + hash mismatch 시나리오
+        byte[] pngBytes = fakePngBytes(16);
         String base64 = Base64.getEncoder().encodeToString(pngBytes);
         String wrongHash = "f".repeat(64);  // 잘못된 hash
 
@@ -492,6 +493,234 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
     }
 
     // =========================================================================
+    // TC-SP-11: GET /{id} 상세 조회
+    // =========================================================================
+
+    @Test
+    @Order(11)
+    @DisplayName("TC-SP-11: GET /{id} → 상세 응답 (hasStamp/hasLogo 포함)")
+    void tcSp11_getById_detailResponse() throws Exception {
+        String primaryId = getPrimaryId();
+
+        mockMvc.perform(get(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(primaryId))
+                .andExpect(jsonPath("$.data.businessNumber").value("2148720659"))
+                .andExpect(jsonPath("$.data.hasStamp").isBoolean())
+                .andExpect(jsonPath("$.data.hasLogo").isBoolean());
+    }
+
+    // =========================================================================
+    // TC-SP-12: GET /print-profile — 비회계 role 접근 (권한 게이트 없음)
+    // =========================================================================
+
+    @Test
+    @Order(12)
+    @DisplayName("TC-SP-12: GET /print-profile → SALES role 접근 200 (권한 게이트 없음)")
+    void tcSp12_printProfile_salesRoleAccess() throws Exception {
+        // @RequirePermission 없음 → SALES role 도 200
+        mockMvc.perform(get(BASE_URL + "/print-profile")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.companyName").value("（주）삼한공조시스템"))
+                .andExpect(jsonPath("$.data.bankAccounts").isArray());
+    }
+
+    // =========================================================================
+    // TC-SP-13: 로고 등록 + 삭제
+    // =========================================================================
+
+    @Test
+    @Order(13)
+    @DisplayName("TC-SP-13: PUT /{id}/logo → hasLogo=true / DELETE /{id}/logo → hasLogo=false")
+    void tcSp13_logoRegisterAndDelete() throws Exception {
+        String primaryId = getPrimaryId();
+
+        byte[] logoPng = fakePngBytes(24);
+        String base64 = Base64.getEncoder().encodeToString(logoPng);
+        String hash = sha256Hex(logoPng);
+
+        Map<String, Object> logoBody = new HashMap<>();
+        logoBody.put("logoPngBase64", base64);
+        logoBody.put("logoHash", hash);
+
+        // 로고 등록
+        mockMvc.perform(put(BASE_URL + "/" + primaryId + "/logo")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logoBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hasLogo").value(true));
+
+        // GET /{id} — hasLogo=true
+        mockMvc.perform(get(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hasLogo").value(true));
+
+        // 로고 삭제
+        mockMvc.perform(delete(BASE_URL + "/" + primaryId + "/logo")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNoContent());
+
+        // GET /{id} — hasLogo=false
+        mockMvc.perform(get(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hasLogo").value(false));
+    }
+
+    // =========================================================================
+    // TC-SP-14: exposed 토글 왕복
+    // =========================================================================
+
+    @Test
+    @Order(14)
+    @DisplayName("TC-SP-14: exposed=false 계좌 → /print-profile bankAccounts 에 미포함")
+    void tcSp14_exposedToggle() throws Exception {
+        String primaryId = getPrimaryId();
+
+        // 계좌 2건 등록: 1건 exposed=true, 1건 exposed=false
+        Map<String, Object> twoAccounts = new HashMap<>();
+        twoAccounts.put("bankAccounts", List.of(
+                Map.of("accountHolder", "삼한노출", "bankName", "국민은행",
+                        "accountNumber", "111-111", "exposed", true),
+                Map.of("accountHolder", "삼한비노출", "bankName", "신한은행",
+                        "accountNumber", "222-222", "exposed", false)
+        ));
+        mockMvc.perform(put(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(twoAccounts)))
+                .andExpect(status().isOk())
+                // 관리 응답은 2건 모두 포함
+                .andExpect(jsonPath("$.data.bankAccounts.length()").value(2));
+
+        // GET /print-profile — exposed=true 계좌만 포함 (1건)
+        mockMvc.perform(get(BASE_URL + "/print-profile")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bankAccounts.length()").value(1))
+                .andExpect(jsonPath("$.data.bankAccounts[0].bankName").value("국민은행"));
+
+        // 원복 (계좌 비우기)
+        Map<String, Object> empty = new HashMap<>();
+        empty.put("bankAccounts", List.of());
+        mockMvc.perform(put(BASE_URL + "/" + primaryId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(empty)))
+                .andExpect(status().isOk());
+    }
+
+    // =========================================================================
+    // TC-SP-15: stamp UPDATE 권한 deny IT (P2-2)
+    // =========================================================================
+
+    @Test
+    @Order(15)
+    @DisplayName("TC-SP-15: P2-2 stamp PUT — view-only role 403 / MASTER 200")
+    void tcSp15_stampPermissionDeny() throws Exception {
+        String primaryId = getPrimaryId();
+
+        byte[] pngBytes = fakePngBytes(16);
+        String base64 = Base64.getEncoder().encodeToString(pngBytes);
+        String hash = sha256Hex(pngBytes);
+
+        Map<String, Object> stampBody = new HashMap<>();
+        stampBody.put("stampPngBase64", base64);
+        stampBody.put("stampHash", hash);
+
+        // VIEW-only role 에서 canEdit=false → 403
+        denyRequirePermission("accounting.supplier-profiles", PermissionAction.UPDATE);
+        lenient().when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), anyString())).thenReturn(false);
+        mockMvc.perform(put(BASE_URL + "/" + primaryId + "/stamp")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(stampBody)))
+                .andExpect(status().isForbidden());
+
+        // MASTER 에서 UPDATE 권한 복구 후 200
+        lenient().when(dynamicPermissionClient.check(
+                org.mockito.ArgumentMatchers.any(UUID.class),
+                eq("accounting.supplier-profiles"),
+                eq(PermissionAction.UPDATE))).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(eq("MASTER"), anyString())).thenReturn(true);
+        mockMvc.perform(put(BASE_URL + "/" + primaryId + "/stamp")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(stampBody)))
+                .andExpect(status().isOk());
+
+        // 원복 (인감 삭제)
+        lenient().when(dynamicPermissionClient.canEdit(eq("MASTER"), anyString())).thenReturn(true);
+        mockMvc.perform(delete(BASE_URL + "/" + primaryId + "/stamp")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNoContent());
+    }
+
+    // =========================================================================
+    // TC-SP-16: logo UPDATE 권한 deny IT (P2-2)
+    // =========================================================================
+
+    @Test
+    @Order(16)
+    @DisplayName("TC-SP-16: P2-2 logo PUT — view-only role 403 / MASTER 200")
+    void tcSp16_logoPermissionDeny() throws Exception {
+        String primaryId = getPrimaryId();
+
+        byte[] logoPng = fakePngBytes(16);
+        String base64 = Base64.getEncoder().encodeToString(logoPng);
+        String hash = sha256Hex(logoPng);
+
+        Map<String, Object> logoBody = new HashMap<>();
+        logoBody.put("logoPngBase64", base64);
+        logoBody.put("logoHash", hash);
+
+        // VIEW-only role 에서 canEdit=false → 403
+        denyRequirePermission("accounting.supplier-profiles", PermissionAction.UPDATE);
+        lenient().when(dynamicPermissionClient.canEdit(eq("ACCOUNTANT"), anyString())).thenReturn(false);
+        mockMvc.perform(put(BASE_URL + "/" + primaryId + "/logo")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logoBody)))
+                .andExpect(status().isForbidden());
+
+        // MASTER 에서 UPDATE 권한 복구 후 200
+        lenient().when(dynamicPermissionClient.check(
+                org.mockito.ArgumentMatchers.any(UUID.class),
+                eq("accounting.supplier-profiles"),
+                eq(PermissionAction.UPDATE))).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(eq("MASTER"), anyString())).thenReturn(true);
+        mockMvc.perform(put(BASE_URL + "/" + primaryId + "/logo")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logoBody)))
+                .andExpect(status().isOk());
+
+        // 원복 (로고 삭제)
+        mockMvc.perform(delete(BASE_URL + "/" + primaryId + "/logo")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNoContent());
+    }
+
+    // =========================================================================
     // 보조 메서드
     // =========================================================================
 
@@ -514,5 +743,20 @@ class SupplierProfileControllerIT extends AbstractPostgresIT {
     private static String sha256Hex(byte[] data) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         return HexFormat.of().formatHex(md.digest(data));
+    }
+
+    /**
+     * 유효한 PNG magic header (8바이트) + 패딩 데이터 바이트 배열 생성.
+     * PNG magic: 89 50 4E 47 0D 0A 1A 0A.
+     * 서비스의 PNG 검증 통과를 위해 사용 (실 PNG 파일 불필요).
+     *
+     * @param extraSize magic 이후 추가 바이트 수
+     * @return PNG magic 포함 바이트 배열
+     */
+    private static byte[] fakePngBytes(int extraSize) {
+        byte[] pngMagic = new byte[]{(byte)0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+        byte[] result = new byte[pngMagic.length + extraSize];
+        System.arraycopy(pngMagic, 0, result, 0, pngMagic.length);
+        return result;
     }
 }

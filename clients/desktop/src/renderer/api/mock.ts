@@ -3438,26 +3438,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
    */
   const MOCK_SUPPLIER_PRIMARY = {
     id: '00000000-0000-0000-0000-supplier0001',
+    version: 0,
     businessNumber: '2148720659',
     subBusinessNumber: null,
     companyName: '(주)삼한공조시스템',
     representativeName: '김미선',
-    /** @deprecated mock 호환용 — representativeName 사용 권장 */
-    ceoName: '김미선',
     businessAddress: '서울특별시 서초구 마방로2길 9 (양재동) 삼한빌딩 4층',
-    /** @deprecated mock 호환용 — businessAddress 사용 권장 */
-    address: '서울특별시 서초구 마방로2길 9 (양재동) 삼한빌딩 4층',
     businessType: '도매 및 소매업',
     businessItem: '공조설비, 냉난방기',
     email: 'accounting@samhan-air.com',
     isPrimary: true,
     tel: '02-3461-0000',
     fax: '02-3461-0001',
-    bankAccounts: [] as Array<{ accountHolder: string; bankName: string; accountNumber: string; displayOrder: number }>,
+    bankAccounts: [] as Array<{
+      accountHolder: string
+      bankName: string
+      accountNumber: string
+      displayOrder: number
+      exposed: boolean
+    }>,
     hasStamp: false,
     stampPngBase64: null as string | null,
-    createdAt: '2026-01-01T00:00:00+09:00',
-    updatedAt: '2026-01-01T00:00:00+09:00',
+    hasLogo: false,
+    logoPngBase64: null as string | null,
   }
 
   // 첫 접근 시 seed 1건 주입 (테스트별 fresh page → 모듈 재평가로 재seed).
@@ -3479,7 +3482,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ...mockSupplierProfileList[idx],
       hasStamp: true,
       stampPngBase64: body.stampPngBase64 ?? null,
-      updatedAt: new Date().toISOString(),
     }
     return envelope(mockSupplierProfileList[idx])
   }
@@ -3494,24 +3496,94 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         ...mockSupplierProfileList[idx],
         hasStamp: false,
         stampPngBase64: null,
-        updatedAt: new Date().toISOString(),
       }
     }
     return envelope({ deleted: true })
   }
 
-  // GET /accounting/supplier-profiles/primary → 기본 사업자 (stamp payload 포함)
+  // PUT /accounting/supplier-profiles/{id}/logo → 로고 업로드/교체 (stamp 패턴 동형)
+  const supplierLogoPutMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/logo$/)
+  if (method === 'PUT' && supplierLogoPutMatch) {
+    const logoId = supplierLogoPutMatch[1]!
+    const body = parseMockBody(config) as { logoPngBase64: string; logoHash: string }
+    const idx = mockSupplierProfileList.findIndex((p) => p['id'] === logoId)
+    if (idx < 0) {
+      return mockError(404, 'NOT_FOUND', '사업자 정보를 찾을 수 없습니다.')
+    }
+    mockSupplierProfileList[idx] = {
+      ...mockSupplierProfileList[idx],
+      hasLogo: true,
+      logoPngBase64: body.logoPngBase64 ?? null,
+    }
+    return envelope(mockSupplierProfileList[idx])
+  }
+
+  // DELETE /accounting/supplier-profiles/{id}/logo → 로고 삭제 (stamp 패턴 동형)
+  const supplierLogoDeleteMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/logo$/)
+  if (method === 'DELETE' && supplierLogoDeleteMatch) {
+    const logoId = supplierLogoDeleteMatch[1]!
+    const idx = mockSupplierProfileList.findIndex((p) => p['id'] === logoId)
+    if (idx >= 0) {
+      mockSupplierProfileList[idx] = {
+        ...mockSupplierProfileList[idx],
+        hasLogo: false,
+        logoPngBase64: null,
+      }
+    }
+    return envelope({ deleted: true })
+  }
+
+  // GET /accounting/supplier-profiles/{id} 상세 → stamp/logo payload 포함 전체 반환
+  // ※ /primary, /print-profile 리터럴 경로와 충돌 방지 — 리터럴 핸들러 아래에 위치해야 하나
+  //   stamp/logo 패턴보다 아래 배치. 패턴: /supplier-profiles/{id} (trailing 없음)
+  const supplierDetailMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
+  if (method === 'GET' && supplierDetailMatch) {
+    const detailId = supplierDetailMatch[1]!
+    // /primary 는 별도 핸들러가 먼저 처리되므로 여기에 도달 시 id=UUID
+    const found = mockSupplierProfileList.find((p) => p['id'] === detailId)
+    if (!found) {
+      return mockError(404, 'NOT_FOUND', '사업자 정보를 찾을 수 없습니다.')
+    }
+    return envelope(found)
+  }
+
+  // GET /accounting/supplier-profiles/print-profile → primary 공개 정보 (권한 게이트 없음)
+  // exposed=true 계좌만 반환 (BE 동형)
+  if (method === 'GET' && url.endsWith('/accounting/supplier-profiles/print-profile')) {
+    const primary = mockSupplierProfileList.find((p) => p['isPrimary']) ?? MOCK_SUPPLIER_PRIMARY
+    const accounts = ((primary['bankAccounts'] as unknown[]) ?? []).filter(
+      (a) => (a as Record<string, unknown>)['exposed'] !== false,
+    )
+    return envelope({
+      companyName: primary['companyName'],
+      businessNumber: primary['businessNumber'],
+      subBusinessNumber: primary['subBusinessNumber'] ?? null,
+      representativeName: primary['representativeName'],
+      businessAddress: primary['businessAddress'],
+      businessType: primary['businessType'],
+      businessItem: primary['businessItem'],
+      email: primary['email'],
+      tel: primary['tel'] ?? null,
+      fax: primary['fax'] ?? null,
+      bankAccounts: accounts,
+      stampPngBase64: primary['stampPngBase64'] ?? null,
+      logoPngBase64: primary['logoPngBase64'] ?? null,
+    })
+  }
+
+  // GET /accounting/supplier-profiles/primary → 기본 사업자 (stamp/logo payload 포함)
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles/primary')) {
     const primary = mockSupplierProfileList.find((p) => p['isPrimary']) ?? MOCK_SUPPLIER_PRIMARY
     return envelope(primary)
   }
 
-  // GET /accounting/supplier-profiles → 목록 (stamp payload 제외 — hasStamp 만)
+  // GET /accounting/supplier-profiles → 목록 (stamp/logo payload 제외 — hasStamp/hasLogo 만)
   if (method === 'GET' && url.endsWith('/accounting/supplier-profiles')) {
     return envelope(
       [...mockSupplierProfileList].map((p) => {
-        const { stampPngBase64: _stamp, ...rest } = p as Record<string, unknown>
+        const { stampPngBase64: _stamp, logoPngBase64: _logo, ...rest } = p as Record<string, unknown>
         void _stamp // 목록 응답에서 stamp payload 제외
+        void _logo // 목록 응답에서 logo payload 제외
         return rest
       }),
     )
@@ -3520,43 +3592,67 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // POST /accounting/supplier-profiles → 신규 등록 (목록에 실제 append)
   if (method === 'POST' && url.endsWith('/accounting/supplier-profiles')) {
     const body = parseMockBody(config) as Record<string, unknown>
+    const rawAccounts = (body['bankAccounts'] as unknown[] | undefined) ?? []
+    // exposed 기본값 true 채움, displayOrder = 배열 index (BE 동형)
+    const bankAccounts = rawAccounts.map((a, i) => {
+      const acct = a as Record<string, unknown>
+      return {
+        accountHolder: acct['accountHolder'] ?? '',
+        bankName: acct['bankName'] ?? '',
+        accountNumber: acct['accountNumber'] ?? '',
+        displayOrder: i,
+        exposed: acct['exposed'] !== false,
+      }
+    })
     const created: Record<string, unknown> = {
       ...MOCK_SUPPLIER_PRIMARY,
       ...body,
       id: `00000000-0000-0000-0000-supplier${Date.now()}`,
+      version: 0,
       isPrimary: false,
       hasStamp: false,
       stampPngBase64: null,
-      bankAccounts: (body['bankAccounts'] as unknown[] | undefined) ?? [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      hasLogo: false,
+      logoPngBase64: null,
+      bankAccounts,
     }
     mockSupplierProfileList.push(created)
     return envelope(created)
   }
 
   // PUT /accounting/supplier-profiles/{id} → echo 수정 (bankAccounts replace-all)
-  // ※ stamp/mark-primary 경로보다 아래에 위치 (정규식 중복 방지)
+  // ※ stamp/logo/mark-primary 경로보다 아래에 위치 (정규식 중복 방지)
   const supplierPutMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)$/)
   if (method === 'PUT' && supplierPutMatch) {
     const body = parseMockBody(config) as Record<string, unknown>
     const updatedId = supplierPutMatch[1]!
     const idx = mockSupplierProfileList.findIndex((p) => p['id'] === updatedId)
     const base = idx >= 0 ? (mockSupplierProfileList[idx] as Record<string, unknown>) : (MOCK_SUPPLIER_PRIMARY as unknown as Record<string, unknown>)
+    const rawAccounts = (body['bankAccounts'] as unknown[] | undefined) ?? (base['bankAccounts'] as unknown[]) ?? []
+    // exposed 기본값 true 채움, displayOrder = 배열 index 재계산 (BE 동형)
+    const bankAccounts = rawAccounts.map((a, i) => {
+      const acct = a as Record<string, unknown>
+      return {
+        accountHolder: acct['accountHolder'] ?? '',
+        bankName: acct['bankName'] ?? '',
+        accountNumber: acct['accountNumber'] ?? '',
+        displayOrder: i,
+        exposed: acct['exposed'] !== false,
+      }
+    })
     const updated: Record<string, unknown> = {
       ...base,
       ...body,
       id: updatedId,
-      bankAccounts: (body['bankAccounts'] as unknown[] | undefined) ?? base['bankAccounts'] ?? [],
-      updatedAt: new Date().toISOString(),
+      bankAccounts,
     }
     if (idx >= 0) mockSupplierProfileList[idx] = updated
     return envelope(updated)
   }
 
-  // POST /accounting/supplier-profiles/{id}/mark-primary → 목록 전체 isPrimary swap
-  const supplierMarkPrimaryMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/mark-primary$/)
-  if (method === 'POST' && supplierMarkPrimaryMatch) {
+  // PATCH /accounting/supplier-profiles/{id}/primary → 목록 전체 isPrimary swap (P2-1)
+  const supplierMarkPrimaryMatch = url.match(/\/accounting\/supplier-profiles\/([^/]+)\/primary$/)
+  if (method === 'PATCH' && supplierMarkPrimaryMatch) {
     const targetId = supplierMarkPrimaryMatch[1]!
     let target: Record<string, unknown> | null = null
     mockSupplierProfileList.forEach((p) => {

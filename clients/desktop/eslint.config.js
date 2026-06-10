@@ -1,6 +1,7 @@
 // Flat ESLint v9 config for @samhan/desktop
 import tsParser from '@typescript-eslint/parser'
 import tsPlugin from '@typescript-eslint/eslint-plugin'
+import reactHooksPlugin from 'eslint-plugin-react-hooks'
 
 export default [
   {
@@ -43,6 +44,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
+      'react-hooks': reactHooksPlugin,
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
@@ -53,6 +55,10 @@ export default [
       '@typescript-eslint/consistent-type-imports': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-undef': 'off',
+      // 훅 규칙 — conditional/early-return 안 훅 호출 감지
+      'react-hooks/rules-of-hooks': 'error',
+      // exhaustive-deps 는 기존 코드 경고 폭탄 방지 위해 off
+      'react-hooks/exhaustive-deps': 'off',
     },
   },
 ]

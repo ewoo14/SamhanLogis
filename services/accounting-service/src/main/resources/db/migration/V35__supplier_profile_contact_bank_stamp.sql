@@ -15,7 +15,9 @@ ALTER TABLE supplier_profiles
     ADD COLUMN IF NOT EXISTS tel        VARCHAR(30),
     ADD COLUMN IF NOT EXISTS fax        VARCHAR(30),
     ADD COLUMN IF NOT EXISTS stamp_png  BYTEA,
-    ADD COLUMN IF NOT EXISTS stamp_hash VARCHAR(64);
+    ADD COLUMN IF NOT EXISTS stamp_hash VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS logo_png   BYTEA,
+    ADD COLUMN IF NOT EXISTS logo_hash  VARCHAR(64);
 
 -- 기존 primary seed row 에 현행 인쇄 표기값 backfill (운영 UI 에서 정정 가능)
 UPDATE supplier_profiles
@@ -44,6 +46,9 @@ CREATE TABLE IF NOT EXISTS supplier_bank_accounts (
     deleted_at  TIMESTAMP,
     deleted_by  VARCHAR(50),
     is_deleted  BOOLEAN      NOT NULL DEFAULT FALSE,
+
+    -- 3a: 계좌 노출 토글 — 거래명세서/세금계산서 인쇄 bankNotice 에 노출 여부
+    exposed     BOOLEAN      NOT NULL DEFAULT TRUE,
 
     CONSTRAINT pk_supplier_bank_accounts PRIMARY KEY (id)
 );

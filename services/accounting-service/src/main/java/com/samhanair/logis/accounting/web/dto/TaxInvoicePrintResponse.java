@@ -22,7 +22,10 @@ public record TaxInvoicePrintResponse(
         /** 회사명 — (주)삼한공조시스템. */
         String supplierName,
 
-        /** 사업자등록번호 — 예: 123-45-67890. */
+        /**
+         * 사업자등록번호 — DB {@code business_number} 컬럼 raw 10자리 숫자 (예: 2148720659).
+         * dash 포함 형식 아님. FE 에서 표시 형식 변환 시 {@code formatBizNo} 헬퍼 사용.
+         */
         String supplierBusinessNumber,
 
         /** 대표자. */

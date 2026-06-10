@@ -17,8 +17,10 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "인감 등록 요청")
 public record UpdateStampRequest(
 
-        @Schema(description = "Base64 인코딩된 PNG 바이너리 (≤ 200KB)", example = "iVBORw0KGgoAAAAN...")
+        @Schema(description = "Base64 인코딩된 PNG 바이너리 (≤ 200KB). 200KB 바이너리의 base64 ≈ 273,068자",
+                example = "iVBORw0KGgoAAAAN...")
         @NotBlank(message = "인감 PNG Base64 는 필수입니다")
+        @Size(max = 280_000, message = "인감 PNG Base64 는 280,000자(200KB 바이너리 상한)를 초과할 수 없습니다")
         String stampPngBase64,
 
         @Schema(description = "PNG 의 SHA-256 소문자 hex (64자)", example = "a7ffc6f8bf1ed760...")

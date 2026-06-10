@@ -4,7 +4,9 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.SupplierProfileService;
 import com.samhanair.logis.accounting.web.dto.CreateSupplierProfileRequest;
+import com.samhanair.logis.accounting.web.dto.PrintProfileResponse;
 import com.samhanair.logis.accounting.web.dto.SupplierProfileResponse;
+import com.samhanair.logis.accounting.web.dto.UpdateLogoRequest;
 import com.samhanair.logis.accounting.web.dto.UpdateStampRequest;
 import com.samhanair.logis.accounting.web.dto.UpdateSupplierProfileRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
@@ -97,6 +99,53 @@ public class SupplierProfileController {
     @Operation(summary = "기본 사업자 단건 조회", description = "isPrimary=true 사업자 단건 반환")
     public ApiResponse<SupplierProfileResponse> getPrimary() {
         return ApiResponse.ok(service.getPrimary());
+    }
+
+    // =========================================================================
+    // GET /api/v1/accounting/supplier-profiles/print-profile
+    // =========================================================================
+
+    /**
+     * 인쇄용 공개 공급자 정보 조회 — 권한 게이트 없음 (JWT 인증만).
+     *
+     * <p>P1-C 결정: 거래명세서·세금계산서 인쇄 시 공급자 블록에 출력되는 공개 정보.
+     * 인쇄물은 거래처에 전달되므로 회계 role 이 아닌 SALES 등 일반 role 에서도 인쇄 가능해야 한다.
+     * {@code @RequirePermission} 을 붙이면 비회계 role 의 인쇄에서 계좌·인감이 silent 소실되므로
+     * 의도적으로 권한 게이트를 생략한다.
+     *
+     * <p>반환되는 모든 정보는 인쇄물에 공개되는 데이터이므로 seed widening 아님.
+     *
+     * <p>주의: Spring MVC 리터럴 경로 우선 매칭 규칙 — {@code /print-profile} 은 리터럴 경로이므로
+     * {@code /{id}} UUID 패턴보다 우선 매칭된다 (안전).
+     *
+     * @return 인쇄용 공급자 정보 (exposed=true 계좌 + 인감/로고 포함)
+     */
+    @GetMapping("/print-profile")
+    @Operation(summary = "인쇄용 공급자 정보 조회",
+               description = "거래명세서·세금계산서 인쇄 전용. 권한 게이트 없음 — JWT 인증만. "
+                       + "exposed=true 계좌 + 인감 + 로고 포함.")
+    public ApiResponse<PrintProfileResponse> getPrintProfile() {
+        return ApiResponse.ok(service.getPrintProfile());
+    }
+
+    // =========================================================================
+    // GET /api/v1/accounting/supplier-profiles/{id}
+    // =========================================================================
+
+    /**
+     * 사업자 프로필 단건 상세 조회 (은행계좌 + 인감 + 로고 포함).
+     *
+     * <p>P1-B 신설 — 사업자 프로필 편집 화면에서 stamp/logo 포함 전체 응답 조회.
+     *
+     * @param id 조회 UUID
+     * @return 상세 응답 (bankAccounts + stampPngBase64 + logoPngBase64 포함)
+     */
+    @GetMapping("/{id}")
+    @RequirePermission(page = "accounting.supplier-profiles", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    @Operation(summary = "사업자 프로필 단건 상세 조회",
+               description = "stamp + logo + bankAccounts 포함 전체 상세 응답")
+    public ApiResponse<SupplierProfileResponse> getById(@PathVariable UUID id) {
+        return ApiResponse.ok(service.getById(id));
     }
 
     // =========================================================================
@@ -215,6 +264,52 @@ public class SupplierProfileController {
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         checkEditPermission(roleHeader);
         service.clearStamp(id);
+    }
+
+    // =========================================================================
+    // PUT /api/v1/accounting/supplier-profiles/{id}/logo
+    // =========================================================================
+
+    /**
+     * 로고 PNG 등록/교체.
+     *
+     * <p>인감 등록({@code PUT /{id}/stamp})과 동일 패턴.
+     * 처리: base64 디코드 → 200KB 가드 → PNG magic → SHA-256 재계산 검증 → 저장.
+     *
+     * @param id          대상 사업자 프로필 UUID
+     * @param req         로고 등록 요청 (logoPngBase64 + logoHash)
+     * @return 갱신된 사업자 프로필 응답 (hasLogo=true)
+     */
+    @PutMapping("/{id}/logo")
+    @RequirePermission(page = "accounting.supplier-profiles", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
+    @Operation(summary = "로고 PNG 등록/교체",
+               description = "Base64 PNG 업로드. ≤200KB + SHA-256 hash 검증. mismatch → 400")
+    public ApiResponse<SupplierProfileResponse> registerLogo(
+            @PathVariable UUID id,
+            @RequestBody @Valid UpdateLogoRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        return ApiResponse.ok(service.registerLogo(id, req), "로고가 등록되었습니다.");
+    }
+
+    // =========================================================================
+    // DELETE /api/v1/accounting/supplier-profiles/{id}/logo
+    // =========================================================================
+
+    /**
+     * 로고 삭제.
+     *
+     * @param id 대상 사업자 프로필 UUID
+     */
+    @DeleteMapping("/{id}/logo")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequirePermission(page = "accounting.supplier-profiles", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
+    @Operation(summary = "로고 삭제", description = "logoPng / logoHash 를 null 로 초기화")
+    public void clearLogo(
+            @PathVariable UUID id,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        service.clearLogo(id);
     }
 
     // =========================================================================

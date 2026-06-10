@@ -666,13 +666,13 @@ export function AppLayout() {
               >
                 홈택스 일괄 양식
               </SidebarLink>
-              {/* [supplier-profile + datagrid] 사업자 양식 — accounting.partner-ledger 동적 RBAC. */}
+              {/* [supplier-profile + datagrid] 공급자 설정 — accounting.partner-ledger 동적 RBAC. */}
               <SidebarLink
                 to="/accounting/supplier-profiles"
                 show={showAccountingPartnerLedger}
                 data-testid="sidebar-accounting-supplier-profile"
               >
-                사업자 양식
+                공급자 설정
               </SidebarLink>
               {/* [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — accounting.deposit-match 동적 RBAC. */}
               <SidebarLink

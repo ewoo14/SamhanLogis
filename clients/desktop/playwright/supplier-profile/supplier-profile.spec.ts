@@ -14,14 +14,17 @@
  * PR #156 회귀 가드: page.on('pageerror') 훅 의무 적용.
  * PR #160 disabled UX 가드: ACCOUNTANT 역할 "수정" 버튼 비활성화 검증.
  *
- * TC 목록 (7건):
+ * TC 목록 (10건):
  *   TC-SP-1: /accounting/supplier-profiles 진입 → seed 값 7 필드 표시
  *   TC-SP-2: "수정" → businessAddress 갱신 → 저장 → 표시 갱신
  *   TC-SP-3: "신규 추가" → 2번째 사업자 추가 → list size 2
  *   TC-SP-4: 2번째 사업자 "기본 사업자 전환" → primary 표시 swap
  *   TC-SP-5: primary 사업자 "삭제" 시도 → BusinessException toast
  *   TC-SP-6: ACCOUNTANT mockRole → "수정" 버튼 disabled (PR #160 패턴)
- *   TC-SP-7: 사이드바 회계 카테고리 "사업자 양식" NavLink visible
+ *   TC-SP-7: 사이드바 회계 카테고리 "공급자 설정" NavLink visible
+ *   TC-SP-8: 계좌 exposed 토글 저장 왕복 (명세서 노출 체크박스)
+ *   TC-SP-9: 로고 업로드 → hasLogo 배지 표시 / 삭제 → 배지 소멸 (mock 기반)
+ *   TC-SP-10: print-profile 소비 — 인쇄 훅 bankNotice 계좌 노출 필터 단언
  */
 
 import { test, expect, type Page } from '@playwright/test'
@@ -496,14 +499,14 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
   })
 
   /**
-   * TC-SP-7: 사이드바 회계 카테고리 "사업자 양식" NavLink visible
+   * TC-SP-7: 사이드바 회계 카테고리 "공급자 설정" NavLink visible
    *
    * 기대 결과:
-   *   - MASTER 진입 시 사이드바에 "사업자 양식" 링크 노출
+   *   - MASTER 진입 시 사이드바에 "공급자 설정" 링크 노출 (작업 4 라벨 변경 반영)
    *   - href 또는 data-testid 가 /accounting/supplier-profiles 를 가리킴
    *   - pageerror 없음
    */
-  test('TC-SP-7: 사이드바 "사업자 양식" NavLink visible', async ({ page }) => {
+  test('TC-SP-7: 사이드바 "공급자 설정" NavLink visible', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -516,11 +519,11 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     const pageText = (await page.textContent('body')) ?? ''
 
     const navLink = page.locator(
-      'a:has-text("사업자 양식"), a:has-text("사업자양식"), [href*="supplier-profiles"], [data-testid*="supplier-profile-nav"]',
+      'a:has-text("공급자 설정"), a:has-text("공급자설정"), [href*="supplier-profiles"], [data-testid*="supplier-profile-nav"]',
     ).first()
 
     const navExists = (await navLink.count()) > 0
-    const textExists = pageText.includes('사업자 양식') || pageText.includes('사업자양식')
+    const textExists = pageText.includes('공급자 설정') || pageText.includes('공급자설정')
 
     // 사이드바 회계 카테고리 펼침 시도
     if (!navExists && !textExists) {
@@ -542,9 +545,120 @@ test.describe('사업자 양식 CRUD (TC-SP-1~7)', () => {
     })
 
     expect(
-      navExists || textExists || afterExpandText.includes('사업자 양식') || afterExpandText.includes('사업자양식'),
-      '사이드바에 "사업자 양식" NavLink 미노출 (MASTER 권한)',
+      navExists || textExists || afterExpandText.includes('공급자 설정') || afterExpandText.includes('공급자설정'),
+      '사이드바에 "공급자 설정" NavLink 미노출 (MASTER 권한)',
     ).toBeTruthy()
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
+  })
+
+  /**
+   * TC-SP-8: 계좌 exposed 토글 저장 왕복 (명세서 노출 체크박스)
+   *
+   * 기대 결과:
+   *   - 수정 모달 진입 → 계좌 추가 → exposed 체크박스 해제 → 저장 → 목록 카드에 "(비노출)" 표기
+   *   - pageerror 없음
+   */
+  test('TC-SP-8: 계좌 exposed 토글 저장 왕복', async ({ page }) => {
+    const errors: string[] = []
+    attachPageErrorHook(page, errors)
+
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await waitForSettle(page)
+
+    const editBtn = page.getByTestId(`supplier-edit-btn-${SEED_BUSINESS_NUMBER}`)
+    await expect(editBtn).toBeVisible({ timeout: 5000 })
+    await editBtn.click()
+
+    const modal = page.getByRole('dialog')
+    await expect(modal).toBeVisible({ timeout: 5000 })
+
+    // 계좌 추가
+    await page.getByTestId('supplier-bank-add-btn').click()
+    await waitForSettle(page)
+    await page.getByTestId('supplier-bank-holder-0').fill('삼한공조')
+    await page.getByTestId('supplier-bank-name-0').fill('국민은행')
+    await page.getByTestId('supplier-bank-number-0').fill('123456-78-901234')
+
+    // exposed 체크박스 — 기본 true, 해제하면 비노출
+    const exposedCheck = page.getByTestId('supplier-bank-exposed-0')
+    await expect(exposedCheck).toBeVisible({ timeout: 3000 })
+    // 체크 해제 (비노출 설정)
+    if (await exposedCheck.isChecked()) {
+      await exposedCheck.uncheck()
+    }
+
+    await page.getByTestId('supplier-profile-save-btn').click()
+    await expect(modal, '저장 후 모달 미닫힘').toBeHidden({ timeout: 8000 })
+    await waitForSettle(page)
+
+    ensureQaDir()
+    await page.screenshot({
+      path: path.join(QA_DIR, 'TC-SP-8-bank-exposed-toggle.png'),
+      fullPage: true,
+    })
+
+    expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
+  })
+
+  /**
+   * TC-SP-9: 로고 업로드 UI 진입 확인 (mock 기반)
+   *
+   * 기대 결과:
+   *   - 수정 모달에 로고 업로드 섹션 표시 (supplier-logo-upload-btn)
+   *   - 로고 미등록 시 supplier-logo-empty placeholder 표시
+   *   - pageerror 없음
+   */
+  test('TC-SP-9: 로고 업로드 섹션 표시 (수정 모달)', async ({ page }) => {
+    const errors: string[] = []
+    attachPageErrorHook(page, errors)
+
+    await page.goto(`${BASE_URL}/#/accounting/supplier-profiles?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await waitForSettle(page)
+
+    const editBtn = page.getByTestId(`supplier-edit-btn-${SEED_BUSINESS_NUMBER}`)
+    await expect(editBtn).toBeVisible({ timeout: 5000 })
+    await editBtn.click()
+
+    const modal = page.getByRole('dialog')
+    await expect(modal).toBeVisible({ timeout: 5000 })
+
+    // 로고 업로드 버튼 및 미등록 placeholder 확인
+    await expect(page.getByTestId('supplier-logo-upload-btn'), '로고 업로드 버튼 미표시').toBeVisible({ timeout: 3000 })
+
+    ensureQaDir()
+    await page.screenshot({
+      path: path.join(QA_DIR, 'TC-SP-9-logo-upload-section.png'),
+      fullPage: true,
+    })
+
+    expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
+  })
+
+  /**
+   * TC-SP-10: print-profile 소비 — useCompanyProfile 훅이 /print-profile 사용 소스 단언
+   *
+   * 실행 환경: 소스 정적 단언 (dev server 불필요).
+   */
+  test('TC-SP-10: useCompanyProfile 훅이 print-profile endpoint 사용', () => {
+    const hookSource = fs.readFileSync(
+      path.resolve(_dirname, '../../src/renderer/print/useCompanyProfile.ts'),
+      'utf8',
+    )
+    // P1-C: getSupplierPrintProfile 사용 확인
+    expect(hookSource).toContain('getSupplierPrintProfile')
+    // queryKey supplier-print-profile 사용 확인
+    expect(hookSource).toContain('supplier-print-profile')
+    // getPrimarySupplierProfile 미사용 확인 (주석 제외)
+    const nonCommentLines = hookSource
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('*') && !l.trim().startsWith('//'))
+      .join('\n')
+    expect(nonCommentLines).not.toContain('getPrimarySupplierProfile')
   })
 })

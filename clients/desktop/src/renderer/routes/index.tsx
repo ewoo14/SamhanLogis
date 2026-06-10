@@ -1097,7 +1097,7 @@ const router = createHashRouter([
         ),
       },
 
-      // [supplier-profile + datagrid] 사업자 양식 — ACCOUNTANT (read) / MANAGER / MASTER (write).
+      // [supplier-profile + datagrid] 공급자 설정 — ACCOUNTANT (read) / MANAGER / MASTER (write).
       // BE: accounting-service `/api/v1/accounting/supplier-profiles`
       // 정적 path 이므로 `/accounting/tax-invoices/:id` 등과 충돌 없음.
       {

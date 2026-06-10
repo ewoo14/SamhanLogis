@@ -26,6 +26,10 @@ public record BankAccountRequest(
         @Schema(description = "계좌번호", example = "123456-78-901234")
         @NotBlank(message = "계좌번호는 필수입니다")
         @Size(max = 50, message = "계좌번호는 최대 50자입니다")
-        String accountNumber
+        String accountNumber,
+
+        @Schema(description = "명세서 노출 여부 — null 이면 true 로 저장 (인쇄 bankNotice 노출 제어)",
+                example = "true")
+        Boolean exposed
 
 ) {}

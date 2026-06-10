@@ -4,16 +4,20 @@ import com.samhanair.logis.accounting.domain.SupplierBankAccount;
 import com.samhanair.logis.accounting.domain.SupplierProfile;
 import com.samhanair.logis.accounting.repository.SupplierBankAccountRepository;
 import com.samhanair.logis.accounting.repository.SupplierProfileRepository;
+import com.samhanair.logis.accounting.repository.projection.SupplierProfileSummary;
 import com.samhanair.logis.accounting.web.dto.BankAccountRequest;
 import com.samhanair.logis.accounting.web.dto.BankAccountResponse;
 import com.samhanair.logis.accounting.web.dto.CreateSupplierProfileRequest;
+import com.samhanair.logis.accounting.web.dto.PrintProfileResponse;
 import com.samhanair.logis.accounting.web.dto.SupplierProfileResponse;
+import com.samhanair.logis.accounting.web.dto.UpdateLogoRequest;
 import com.samhanair.logis.accounting.web.dto.UpdateStampRequest;
 import com.samhanair.logis.accounting.web.dto.UpdateSupplierProfileRequest;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -52,6 +56,10 @@ public class SupplierProfileService {
     /** 인감 PNG 최대 크기 (200KB). */
     private static final int MAX_STAMP_BYTES = 200 * 1024;
 
+    /** PNG magic bytes (8-byte signature: 89 50 4E 47 0D 0A 1A 0A). */
+    private static final byte[] PNG_MAGIC =
+            new byte[]{(byte)0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+
     private final SupplierProfileRepository repository;
     private final SupplierBankAccountRepository bankAccountRepository;
 
@@ -60,18 +68,103 @@ public class SupplierProfileService {
     // =========================================================================
 
     /**
-     * 전체 사업자 프로필 목록 조회 (Soft Delete 제외, stamp payload 제외 경량화).
+     * 전체 사업자 프로필 목록 조회 (Soft Delete 제외, stamp BYTEA 로드 차단).
      *
-     * <p>목록 응답은 {@code bankAccounts=null}, {@code stampPngBase64=null} — payload 경량화.
-     * {@code hasStamp} 는 포함.
+     * <p>P1-B + P3-1 사이클1 fix:
+     * <ul>
+     *   <li>stamp_png BYTEA 를 hydrate 하지 않도록 {@link SupplierProfileSummary} 프로젝션 사용.</li>
+     *   <li>프로필별 은행계좌를 batch 조회하여 응답에 포함 (FE 편집 시 계좌 소실 방지).</li>
+     * </ul>
      *
-     * @return 전체 사업자 프로필 목록 (경량화)
+     * <p>프로필 건수가 일반적으로 1~2건이므로 loop 내 계좌 조회 허용.
+     * 건수 증가 시 {@code findBySupplierProfileIdIn} batch 쿼리로 전환 가능.
+     *
+     * @return 전체 사업자 프로필 목록 (bankAccounts 포함, stampPngBase64=null)
      */
     @Transactional(readOnly = true)
     public List<SupplierProfileResponse> listAll() {
-        return repository.findAll().stream()
-                .map(SupplierProfileResponse::of)
+        List<SupplierProfileSummary> summaries = repository.findAllSummary();
+        return summaries.stream()
+                .map(summary -> {
+                    List<BankAccountResponse> accounts =
+                            bankAccountRepository
+                                    .findBySupplierProfileIdOrderByDisplayOrderAsc(summary.getId())
+                                    .stream()
+                                    .map(BankAccountResponse::of)
+                                    .toList();
+                    return SupplierProfileResponse.of(summary, accounts);
+                })
                 .toList();
+    }
+
+    /**
+     * 사업자 프로필 단건 상세 조회 (은행계좌 + 인감 포함).
+     *
+     * <p>P1-B 신설 — {@code GET /accounting/supplier-profiles/{id}} 상세 endpoint.
+     * stamp PNG 를 포함한 전체 응답을 반환한다.
+     *
+     * @param id 조회 UUID
+     * @return 상세 응답 (bankAccounts + stampPngBase64 포함)
+     * @throws BusinessException(NOT_FOUND) 미존재 시
+     */
+    @Transactional(readOnly = true)
+    public SupplierProfileResponse getById(UUID id) {
+        SupplierProfile profile = findByIdOrThrow(id);
+        return toDetailResponse(profile);
+    }
+
+    /**
+     * 인쇄용 공개 정보 조회 — primary 프로필 기반, 권한 게이트 없는 인쇄 전용 endpoint.
+     *
+     * <p>P1-C 신설: 인쇄물(거래명세서/세금계산서)에 인쇄되어 거래처에 전달되는 공개 정보.
+     * env 상수 시절 전 role 동일 동작 보존. 권한 게이트 시 SALES 등 비회계 role 인쇄에서
+     * 계좌/인감 silent 소실 (사이클1 P1-C).
+     *
+     * <p>반환 필드: companyName, businessNumber, subBusinessNumber, representativeName,
+     * businessAddress, businessType, businessItem, email, tel, fax,
+     * bankAccounts[], stampPngBase64 (인감 등록 시).
+     *
+     * @return 인쇄 공개 정보 응답
+     * @throws BusinessException(NOT_FOUND) primary 프로필 미존재 시
+     */
+    @Transactional(readOnly = true)
+    public PrintProfileResponse getPrintProfile() {
+        SupplierProfile profile = repository.findByIsPrimaryTrueAndIsDeletedFalse()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "기본 사업자 양식이 설정되어 있지 않습니다."));
+        // 인쇄 bankNotice 는 exposed=true 계좌만 조합 (§3a)
+        List<BankAccountResponse> accounts =
+                bankAccountRepository
+                        .findBySupplierProfileIdOrderByDisplayOrderAsc(profile.getId())
+                        .stream()
+                        .filter(acc -> acc.isExposed())
+                        .map(BankAccountResponse::of)
+                        .toList();
+        byte[] stampPng = profile.getStampPng();
+        String stampPngBase64 = (stampPng != null && stampPng.length > 0)
+                ? Base64.getEncoder().encodeToString(stampPng)
+                : null;
+        // 로고 base64
+        byte[] logoPng = profile.getLogoPng();
+        String logoPngBase64 = (logoPng != null && logoPng.length > 0)
+                ? Base64.getEncoder().encodeToString(logoPng)
+                : null;
+
+        return new PrintProfileResponse(
+                profile.getCompanyName(),
+                profile.getBusinessNumber(),
+                profile.getSubBusinessNumber(),
+                profile.getRepresentativeName(),
+                profile.getBusinessAddress(),
+                profile.getBusinessType(),
+                profile.getBusinessItem(),
+                profile.getEmail(),
+                profile.getTel(),
+                profile.getFax(),
+                accounts,
+                stampPngBase64,
+                logoPngBase64
+        );
     }
 
     /**
@@ -146,6 +239,10 @@ public class SupplierProfileService {
      * <p>null 필드는 기존 값 유지. 사업자등록번호 변경 시 중복 체크.
      * 은행계좌({@code bankAccounts}) 가 null 이 아닌 경우 replace-all 시맨틱으로 교체.
      *
+     * <p>P3-2: 은행계좌 replace-all 경로에서 동시 요청에 의한 중복 활성 계좌 방지를 위해
+     * {@link SupplierProfileRepository#findByIdForUpdate} 를 통해 프로필 row 에
+     * {@link jakarta.persistence.LockModeType#PESSIMISTIC_WRITE} 락을 획득한다.
+     *
      * @param id          수정 대상 UUID
      * @param req         수정 요청 DTO
      * @param actorUserId 수정 실행자 user-id (Soft Delete audit 용)
@@ -154,7 +251,10 @@ public class SupplierProfileService {
      * @throws BusinessException(CONFLICT)  다른 사업자와 사업자등록번호 중복 시
      */
     public SupplierProfileResponse update(UUID id, UpdateSupplierProfileRequest req, String actorUserId) {
-        SupplierProfile profile = findByIdOrThrow(id);
+        // P3-2: 계좌 replace-all 동시성 보호 — PESSIMISTIC_WRITE 락
+        SupplierProfile profile = repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "사업자 프로필을 찾을 수 없습니다: " + id));
 
         // 사업자등록번호 변경 시 중복 체크 (자기 자신 제외)
         if (req.businessNumber() != null) {
@@ -268,30 +368,8 @@ public class SupplierProfileService {
      */
     public SupplierProfileResponse registerStamp(UUID id, UpdateStampRequest req) {
         SupplierProfile profile = findByIdOrThrow(id);
-
-        // base64 디코드
-        byte[] pngBytes;
-        try {
-            pngBytes = Base64.getDecoder().decode(req.stampPngBase64());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "stampPngBase64 가 유효한 Base64 형식이 아닙니다");
-        }
-
-        // 200KB 가드
-        if (pngBytes.length > MAX_STAMP_BYTES) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "인감 PNG 크기가 200KB 를 초과합니다: " + pngBytes.length + " bytes");
-        }
-
-        // SHA-256 재계산 검증
-        String computedHash = sha256Hex(pngBytes);
-        if (!computedHash.equals(req.stampHash())) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "stampHash 가 PNG 의 실제 SHA-256 해시와 일치하지 않습니다");
-        }
-
-        profile.registerStamp(pngBytes, computedHash);
+        byte[] pngBytes = decodePngAndValidate(req.stampPngBase64(), req.stampHash(), "인감");
+        profile.registerStamp(pngBytes, sha256Hex(pngBytes));
         return toDetailResponse(repository.save(profile));
     }
 
@@ -304,6 +382,49 @@ public class SupplierProfileService {
     public void clearStamp(UUID id) {
         SupplierProfile profile = findByIdOrThrow(id);
         profile.clearStamp();
+        repository.save(profile);
+    }
+
+    // =========================================================================
+    // 로고 관리
+    // =========================================================================
+
+    /**
+     * 로고 PNG 등록/교체.
+     *
+     * <p>처리 순서:
+     * <ol>
+     *   <li>base64 디코드</li>
+     *   <li>200KB 초과 가드 ({@link #MAX_STAMP_BYTES})</li>
+     *   <li>PNG magic bytes 검증</li>
+     *   <li>SHA-256 재계산 후 {@code req.logoHash()} 와 비교 — mismatch → 400</li>
+     *   <li>도메인 메서드 {@link SupplierProfile#registerLogo} 호출</li>
+     * </ol>
+     *
+     * <p>인감 등록({@link #registerStamp})과 동일 패턴.
+     *
+     * @param id  대상 사업자 프로필 UUID
+     * @param req 로고 등록 요청 DTO
+     * @return 갱신된 사업자 프로필 응답
+     * @throws BusinessException(NOT_FOUND)    미존재 시
+     * @throws BusinessException(INVALID_INPUT) base64 오류 / 크기 초과 / hash mismatch
+     */
+    public SupplierProfileResponse registerLogo(UUID id, UpdateLogoRequest req) {
+        SupplierProfile profile = findByIdOrThrow(id);
+        byte[] pngBytes = decodePngAndValidate(req.logoPngBase64(), req.logoHash(), "로고");
+        profile.registerLogo(pngBytes, sha256Hex(pngBytes));
+        return toDetailResponse(repository.save(profile));
+    }
+
+    /**
+     * 로고 삭제.
+     *
+     * @param id 대상 사업자 프로필 UUID
+     * @throws BusinessException(NOT_FOUND) 미존재 시
+     */
+    public void clearLogo(UUID id) {
+        SupplierProfile profile = findByIdOrThrow(id);
+        profile.clearLogo();
         repository.save(profile);
     }
 
@@ -345,12 +466,15 @@ public class SupplierProfileService {
         if (bankAccounts != null && !bankAccounts.isEmpty()) {
             for (int i = 0; i < bankAccounts.size(); i++) {
                 BankAccountRequest req = bankAccounts.get(i);
+                // exposed null 이면 true (명세 §3a)
+                boolean exposed = req.exposed() == null ? true : req.exposed();
                 SupplierBankAccount newAcc = SupplierBankAccount.create(
                         profileId,
                         req.accountHolder(),
                         req.bankName(),
                         req.accountNumber(),
-                        i   // displayOrder = 배열 index
+                        i,          // displayOrder = 배열 index
+                        exposed
                 );
                 bankAccountRepository.save(newAcc);
             }
@@ -371,6 +495,62 @@ public class SupplierProfileService {
                         .map(BankAccountResponse::of)
                         .toList();
         return SupplierProfileResponse.ofDetail(profile, bankAccounts);
+    }
+
+    /**
+     * PNG 공통 검증 헬퍼 — 인감/로고 모두 사용.
+     *
+     * <p>처리 순서:
+     * <ol>
+     *   <li>base64 디코드</li>
+     *   <li>200KB 크기 가드 ({@link #MAX_STAMP_BYTES})</li>
+     *   <li>PNG magic bytes 검증</li>
+     *   <li>SHA-256 재계산 후 expectedHash 와 비교</li>
+     * </ol>
+     *
+     * @param base64       Base64 인코딩된 PNG 문자열
+     * @param expectedHash 클라이언트가 전송한 SHA-256 해시 (64자 소문자 hex)
+     * @param label        오류 메시지 접두사 ("인감" / "로고")
+     * @return 디코딩된 PNG 바이너리
+     * @throws BusinessException(INVALID_INPUT) 검증 실패 시
+     */
+    private byte[] decodePngAndValidate(String base64, String expectedHash, String label) {
+        byte[] pngBytes;
+        try {
+            pngBytes = Base64.getDecoder().decode(base64);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + " PNG Base64 가 유효한 Base64 형식이 아닙니다");
+        }
+        if (pngBytes.length > MAX_STAMP_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + " PNG 크기가 200KB 를 초과합니다: " + pngBytes.length + " bytes");
+        }
+        if (!isPngMagic(pngBytes)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + " 파일이 PNG 형식이 아닙니다. PNG 파일만 허용됩니다.");
+        }
+        String computedHash = sha256Hex(pngBytes);
+        if (!computedHash.equals(expectedHash)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + " hash 가 PNG 의 실제 SHA-256 해시와 일치하지 않습니다");
+        }
+        return pngBytes;
+    }
+
+    /**
+     * PNG magic bytes 검증 — 첫 8바이트가 PNG signature 와 일치하는지 확인.
+     *
+     * <p>PNG 8-byte signature: {@code 89 50 4E 47 0D 0A 1A 0A}. 길이가 8 미만이면 false.
+     *
+     * @param data 검증할 바이너리 데이터
+     * @return PNG magic 일치 여부
+     */
+    private static boolean isPngMagic(byte[] data) {
+        if (data == null || data.length < 8) {
+            return false;
+        }
+        return Arrays.equals(Arrays.copyOfRange(data, 0, 8), PNG_MAGIC);
     }
 
     /**

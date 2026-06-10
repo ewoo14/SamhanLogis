@@ -50,6 +50,9 @@ export function PurchaseSlipPrintPage() {
 
   usePageTitle('매입 전표', detailQuery.data?.slipNo)
 
+  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
+  const { company } = useCompanyProfile()
+
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
   if (detailQuery.isError || !detailQuery.data) {
@@ -59,8 +62,6 @@ export function PurchaseSlipPrintPage() {
       </div>
     )
   }
-
-  const { company } = useCompanyProfile()
 
   const slip: SlipDetail = detailQuery.data
 

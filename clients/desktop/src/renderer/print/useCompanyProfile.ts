@@ -1,7 +1,11 @@
 /**
  * useCompanyProfile — 인쇄 양식 공급자 정보 훅.
  *
- * `GET /accounting/supplier-profiles/primary` (react-query, staleTime 5분) 로
+ * P1-C (사이클1 fix): 데이터 소스를 getPrimarySupplierProfile → getSupplierPrintProfile 로 교체.
+ * 사유: print-profile 은 권한 게이트 없는 인쇄 전용 endpoint — SALES 등 비회계 role 인쇄 시
+ *       /primary 에 대한 권한 거부(403)로 계좌·인감이 소실되는 문제 방지.
+ *
+ * `GET /accounting/supplier-profiles/print-profile` (react-query, staleTime 5분) 로
  * COMPANY 동형 객체를 반환한다. 로딩 중·에러·기본 사업자 미등록 시 DEFAULT_COMPANY
  * fallback 을 즉시 반환하여 인쇄 양식이 항상 데이터를 가질 수 있도록 보장한다.
  *
@@ -16,7 +20,7 @@
  * - fax              팩스 (없으면 '')
  * - businessType     업태
  * - businessItem     종목
- * - logoPath         로고 경로 (정적 '/print-logo.svg')
+ * - logoPath         로고 경로 (logoPngBase64 있으면 data URL, 없으면 '/print-logo.svg')
  * - bankNotice       입금계좌 안내 문자열 (0건이면 빈 문자열 — placeholder 문구 인쇄 금지)
  * - stampUrl         인감 data URL (없으면 빈 문자열 → 미표시)
  *
@@ -27,7 +31,7 @@
  * @see PrintLayout DEFAULT_COMPANY
  */
 import { useQuery } from '@tanstack/react-query'
-import { getPrimarySupplierProfile, type SupplierProfile } from '../api/supplierProfileApi'
+import { getSupplierPrintProfile, type SupplierPrintProfile } from '../api/supplierProfileApi'
 
 /** COMPANY 동형 인터페이스 — 12개 인쇄 뷰가 동일 형태로 사용. */
 export interface CompanyProfile {
@@ -63,13 +67,15 @@ function formatBizNoFull(raw: string): string {
 /**
  * bankAccounts 배열 → 입금계좌 안내 문자열.
  *
+ * print-profile 의 bankAccounts 는 BE 가 exposed=true 만 반환하므로 추가 필터 불필요.
+ *
  * 형식: "예금주:{holder}/{bank1} {acct1} {bank2} {acct2}…"
  * 0건이면 빈 문자열 (placeholder 문구 인쇄 금지 — spec §2c).
  *
  * 동일 예금주인 경우 첫 번째 계좌만 "예금주:{holder}/" prefix 를 붙이고
  * 이후 계좌는 "{bank} {acct}" 로 이어붙인다.
  */
-function buildBankNotice(accounts: SupplierProfile['bankAccounts']): string {
+function buildBankNotice(accounts: SupplierPrintProfile['bankAccounts']): string {
   if (!accounts || accounts.length === 0) return ''
   const sorted = [...accounts].sort((a, b) => a.displayOrder - b.displayOrder)
   const firstHolder = sorted[0]!.accountHolder
@@ -85,23 +91,27 @@ function buildBankNotice(accounts: SupplierProfile['bankAccounts']): string {
 }
 
 /**
- * BE SupplierProfile → CompanyProfile 매핑.
+ * BE SupplierPrintProfile → CompanyProfile 매핑.
+ *
+ * print-profile 은 정확 필드 보장 — legacy fallback(ceoName/address) 제거.
+ * logoPath: logoPngBase64 있으면 data URL, 없으면 정적 '/print-logo.svg' fallback (확장②).
  */
-function toCompanyProfile(p: SupplierProfile): CompanyProfile {
-  const representativeName = p.representativeName ?? p.ceoName ?? ''
-  const businessAddress = p.businessAddress ?? p.address ?? ''
+function toCompanyProfile(p: SupplierPrintProfile): CompanyProfile {
   return {
     legalName: p.companyName,
     legalNameEn: 'SAMHAN AIR-CONDITIONING SYSTEMS CO., LTD.',
     businessRegNo: formatBizNoFull(p.businessNumber),
     subBusinessNo: p.subBusinessNumber ?? '0000',
-    ceo: representativeName,
-    address: businessAddress,
+    ceo: p.representativeName,
+    address: p.businessAddress,
     tel: p.tel ?? '',
     fax: p.fax ?? '',
     businessType: p.businessType,
     businessItem: p.businessItem,
-    logoPath: '/print-logo.svg',
+    // 확장② — logoPngBase64 있으면 data URL, 없으면 정적 로고 fallback
+    logoPath: p.logoPngBase64
+      ? `data:image/png;base64,${p.logoPngBase64}`
+      : '/print-logo.svg',
     bankNotice: buildBankNotice(p.bankAccounts),
     stampUrl: p.stampPngBase64 ? `data:image/png;base64,${p.stampPngBase64}` : '',
   }
@@ -132,13 +142,15 @@ export const DEFAULT_COMPANY: CompanyProfile = {
 /**
  * 인쇄 양식 공급자 정보 훅.
  *
+ * P1-C: /print-profile (권한 게이트 없음) 사용 — SALES 등 비회계 role 인쇄 시 계좌/인감 소실 방지.
+ *
  * @returns company  - CompanyProfile (로딩 중에도 DEFAULT_COMPANY 즉시 반환)
  * @returns isLoading - true 이면 API 응답 대기 중 (현재 DEFAULT_COMPANY 표시)
  */
 export function useCompanyProfile(): { company: CompanyProfile; isLoading: boolean } {
   const { data, isLoading } = useQuery({
-    queryKey: ['supplier-profile-primary'],
-    queryFn: getPrimarySupplierProfile,
+    queryKey: ['supplier-print-profile'],
+    queryFn: getSupplierPrintProfile,
     staleTime: 5 * 60 * 1000, // 5분
     // 에러 시 retry 2회 후 포기 → fallback 유지
     retry: 2,
