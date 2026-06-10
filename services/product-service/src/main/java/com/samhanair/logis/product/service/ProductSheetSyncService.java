@@ -5,6 +5,7 @@ import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.EstimateCategory;
+import com.samhanair.logis.product.domain.MaterialKey;
 import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
@@ -153,6 +154,7 @@ public class ProductSheetSyncService {
     private final PriceHistoryRepository priceHistoryRepository;
     private final BundleComponentRepository bundleComponentRepository;
     private final ProductSpecRepository productSpecRepository;
+    private final VariableDiscountDetector discountDetector;
 
     /** rowHash 캐시 — JVM 메모리. (시트 row → SHA-256). 다음 sync 시 비교. */
     private final Map<String, String> lastKnownRowHash = new ConcurrentHashMap<>();
@@ -162,13 +164,15 @@ public class ProductSheetSyncService {
                                    CategoryRepository categoryRepository,
                                    PriceHistoryRepository priceHistoryRepository,
                                    BundleComponentRepository bundleComponentRepository,
-                                   ProductSpecRepository productSpecRepository) {
+                                   ProductSpecRepository productSpecRepository,
+                                   VariableDiscountDetector discountDetector) {
         this.sheetsClient = sheetsClient;
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.priceHistoryRepository = priceHistoryRepository;
         this.bundleComponentRepository = bundleComponentRepository;
         this.productSpecRepository = productSpecRepository;
+        this.discountDetector = discountDetector;
     }
 
     /** 사양 보유 카테고리(legacy getSpecDetailMap_ scanHome/scanSingle/scanComm). */
@@ -488,6 +492,26 @@ public class ProductSheetSyncService {
         return (s == null || s.isBlank()) ? null : s;
     }
 
+    /** 싱글 세트 평형(B열=idx 1) → pyong_size (legacy getSingleSets size 정합). 그 외 탭 무동작. */
+    private static void applyPyongSize(Product p, SheetTabMapping mapping, List<String> cells) {
+        if (mapping.productCategory != ProductCategory.SINGLE_SET) {
+            return;
+        }
+        String raw = safeGet(cells, 1); // 싱글 세트 B열 = 평형
+        if (raw == null || raw.isBlank()) {
+            return;
+        }
+        String digits = raw.replaceAll("[^\\d.]", "");
+        if (digits.isBlank()) {
+            return;
+        }
+        try {
+            p.changePyongSize(new BigDecimal(digits));
+        } catch (NumberFormatException ignored) {
+            // 비숫자 평형 표기 — skip
+        }
+    }
+
     private record QtyAndMode(BigDecimal qty, BundleComponent.QtyMode mode) {}
 
     /** 구성품 탭 매핑 record. hasQtyColumn = 상업멀티 구성(수량 컬럼 보유) 여부. */
@@ -538,6 +562,25 @@ public class ProductSheetSyncService {
         List<String> headerCells = isSpecBearing(mapping.productCategory)
                 ? GoogleSheetsClient.toStringRow(rows.get(headerIdx), 30) : null;
 
+        // #30 — 변동DC 4컬럼 적재: FORMULA render 행을 DISPLAY row 와 동일 인덱스로 정렬해
+        // 행 전체 수식을 join → useK2($L$2)/matKey($D$4·7·8)/구형 isDisc($I$1) 판정
+        // (legacy 수식분기 동등). FORMULA render 와 DISPLAY render 는 동일 range·동일 행순서라
+        // 인덱스 정렬됨. modelCode 키 매칭은 modelCode 셀 자체가 수식일 때 깨져 부정확 →
+        // 인덱스 기반 채택. 수식 read 실패 시 가격 sync 는 계속(분기만 미적용).
+        List<List<Object>> formulaRows = null;
+        try {
+            formulaRows = sheetsClient.readSheetFormulas(sheetId, range);
+        } catch (Exception e) {
+            log.warn("[ProductSheetSync] tab '{}' 수식 read 실패 — 변동DC 판정 skip: {}",
+                    mapping.tabName, e.getMessage());
+        }
+        // 고정DC 컬럼(홈멀티/상업멀티) — 헤더명 기반.
+        int fixedDcColumn = -1;
+        {
+            List<String> fullHeader = GoogleSheetsClient.toStringRow(rows.get(headerIdx), 30);
+            fixedDcColumn = findColumnByHeader(fullHeader, List.of("고정DC"));
+        }
+
         for (int i = headerIdx + 1; i < rows.size(); i++) {
             List<Object> row = rows.get(i);
             if (row == null || row.isEmpty()) continue;
@@ -557,6 +600,18 @@ public class ProductSheetSyncService {
             BigDecimal releasePrice = parseDecimal(safeGet(cells, mapping.releasePriceColumn));
             BigDecimal deliveryPrice = parseDecimal(safeGet(cells, mapping.deliveryPriceColumn));
 
+            // #30 — 변동DC 판정 (DISPLAY/FORMULA 동일 인덱스 i 행 수식 join). useK2/matKey/
+            // 구형 isDisc 마커는 단가 수식에만 출현 → 행 전체 스캔 오검출 무시.
+            String rowFormula = joinRowFormulas(formulaRows, i);
+            boolean hasVariableDiscount = discountDetector.detectHasVariableDiscount(rowFormula);
+            MaterialKey materialKey = discountDetector.detectMaterialKey(rowFormula).orElse(null);
+            boolean legacyDiscount = mapping.productCategory == ProductCategory.OLD
+                    && discountDetector.detectLegacyDiscount(rowFormula);
+            BigDecimal fixedRate = legacyDiscount
+                    ? discountDetector.legacyFixedDiscountRate()
+                    : parseFixedDcRate(fixedDcColumn >= 0 ? safeGet(cells, fixedDcColumn) : null);
+            String discountFlags = discountDetector.detectDiscountFlags(modelCode);
+
             Optional<Product> existing = productRepository.findByModelCodeAndIsDeletedFalse(modelCode);
             UUID productId;
             if (existing.isEmpty()) {
@@ -566,6 +621,9 @@ public class ProductSheetSyncService {
                         mapping.productCategory,
                         mapping.usageScope,
                         mapping.estimateCategory);
+                p.applyDiscountRules(hasVariableDiscount, materialKey, legacyDiscount, fixedRate);
+                p.changeDiscountFlags(discountFlags);
+                applyPyongSize(p, mapping, cells);
                 productRepository.save(p);
                 upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                 lastKnownRowHash.put(modelCode, rowHash);
@@ -575,6 +633,9 @@ public class ProductSheetSyncService {
                 Product p = existing.get();
                 p.changePrices(releasePrice, deliveryPrice);
                 p.changeUsage(mapping.usageScope, mapping.estimateCategory);
+                p.applyDiscountRules(hasVariableDiscount, materialKey, legacyDiscount, fixedRate);
+                p.changeDiscountFlags(discountFlags);
+                applyPyongSize(p, mapping, cells);
                 productRepository.save(p);
                 upsertPriceHistory(p.getId(), PRICE_INCREASE_EFFECTIVE_DATE, releasePrice, deliveryPrice);
                 lastKnownRowHash.put(modelCode, rowHash);
@@ -678,6 +739,48 @@ public class ProductSheetSyncService {
 
     private static String safeGet(List<String> cells, int idx) {
         return idx < cells.size() ? cells.get(idx) : "";
+    }
+
+    /** DISPLAY row 와 동일 인덱스의 FORMULA row 에서 '=' 시작 셀을 공백 join (변동DC 마커 검출용). */
+    private static String joinRowFormulas(List<List<Object>> formulaRows, int rowIdx) {
+        if (formulaRows == null || rowIdx >= formulaRows.size()) {
+            return "";
+        }
+        List<Object> row = formulaRows.get(rowIdx);
+        if (row == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Object cell : row) {
+            if (cell == null) continue;
+            String v = cell.toString();
+            if (v.startsWith("=")) sb.append(v).append(' ');
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 고정DC 셀 → rate (0~0.99). legacy UI parseFixedDc 정합 — "50%" / "50" / "0.5" 모두
+     * 0.5 로 정규화. 빈/비숫자 → null.
+     */
+    private static BigDecimal parseFixedDcRate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("-?\\d+(?:\\.\\d+)?").matcher(raw);
+        if (!m.find()) {
+            return null;
+        }
+        BigDecimal v = new BigDecimal(m.group());
+        if (v.compareTo(BigDecimal.ONE) > 0) {
+            v = v.divide(new BigDecimal("100"), 4, java.math.RoundingMode.HALF_UP);
+        }
+        if (v.signum() < 0) {
+            v = v.abs();
+        }
+        BigDecimal cap = new BigDecimal("0.99");
+        return v.min(cap);
     }
 
     private static BigDecimal parseDecimal(String s) {

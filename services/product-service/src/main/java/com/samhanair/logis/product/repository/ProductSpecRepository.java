@@ -14,4 +14,8 @@ public interface ProductSpecRepository extends JpaRepository<ProductSpec, UUID> 
     Optional<ProductSpec> findByProductIdAndSpecKey(UUID productId, String specKey);
 
     boolean existsByProductIdAndSpecKey(UUID productId, String specKey);
+
+    /** #30 — estimate 카탈로그 벌크: 용량/최대연결실내기대수 일괄 조회. */
+    List<ProductSpec> findByProductIdInAndSpecKeyIn(java.util.Collection<UUID> productIds,
+            java.util.Collection<String> specKeys);
 }

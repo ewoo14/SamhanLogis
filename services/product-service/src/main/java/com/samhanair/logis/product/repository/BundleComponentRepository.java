@@ -13,6 +13,9 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
 
     List<BundleComponent> findByComponentProductCode(String componentProductCode);
 
+    /** #30 — estimate 카탈로그 벌크: 부모(세트) 묶음 일괄 조회. */
+    List<BundleComponent> findByBundleProductIdIn(java.util.Collection<UUID> bundleProductIds);
+
     /**
      * 정합 점검 — componentProductCode 가 활성 products.modelCode 에 해소되지 않는 구성품.
      *

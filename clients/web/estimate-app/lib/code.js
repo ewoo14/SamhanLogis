@@ -600,6 +600,15 @@ function classifyCommercial_(name, model) {
   return { catL, catM, catS };
 }
 
+/**
+ * #30 — 상업멀티 카탈로그용 어댑터: classifyCommercial_ + disp(=sanitizeDisp_(name)).
+ * legacy getCommercialMulti 의 disp 규칙(line 851) 정합 — DB 모드에서 multiCatalog 가 사용.
+ */
+function classifyCommercialDisp_(name, model) {
+  const cls = classifyCommercial_(name, model);
+  return { catL: cls.catL, catM: cls.catM, catS: cls.catS, disp: sanitizeDisp_(name) };
+}
+
 /* ════════════════════════════════════════════════════════════════════════
  * §3 부트스트랩 데이터 — google-sheets-client 직접 read
  *
@@ -1692,24 +1701,22 @@ function getGateImages() {
  * @returns {Promise<object>} EJS render 데이터 (legacy doGet 가 t.* 로 채우는 항목)
  */
 async function bootstrap(userEmail) {
+  // #30: 카탈로그 소스 — CATALOG_SOURCE=db 시 product-service 벌크 endpoint, 기본 legacy 시트.
+  // 거래처/담당자/사양맵/기본값은 본 슬라이스 범위 외 → 시트 read 유지(후속 PR).
+  // 기본값 'sheet': DB 카탈로그는 가격/단위/규격/구성품/자재/추천/baseline/pyong + 홈·싱글·구형
+  // 변동DC 까지 시트 동등 검증 완료. 상업멀티 useK2 검출 parity 미달(QA RESULTS 명시) → 해당
+  // 항목 parity 종결 시 운영 default 를 db 로 전환(현재는 opt-in).
+  const useDb = String(process.env.CATALOG_SOURCE || 'sheet').toLowerCase() === 'db';
+
   // legacy 가 read 하는 전 탭 prefetch (병렬). 누락 탭은 빈 sheet 반환.
-  const sheetsToPreload = [
-    HOME_NAME,
-    SINGLE_NAME,
-    SINGLE_PARTS_NAME,
-    COMM_NAME,
-    COMM_PARTS_NAME,
-    CUSTOMERS_NAME,
-    MANAGERS_NAME,
-    '싱글 자재가격',
-    '구형',
-    '추천실외기',
-    '홈멀티',
-    '상업멀티',
-    '상업멀티 구성',
-    '싱글 세트',
-    '싱글 구성품',
-  ];
+  // DB 모드에서도 거래처/담당자/사양맵/기본값/추천(homeEx)은 시트 의존이라 prefetch 유지.
+  const sheetsToPreload = useDb
+    ? [CUSTOMERS_NAME, MANAGERS_NAME, HOME_NAME, SINGLE_NAME, COMM_NAME]
+    : [
+      HOME_NAME, SINGLE_NAME, SINGLE_PARTS_NAME, COMM_NAME, COMM_PARTS_NAME,
+      CUSTOMERS_NAME, MANAGERS_NAME, '싱글 자재가격', '구형', '추천실외기',
+      '홈멀티', '상업멀티', '상업멀티 구성', '싱글 세트', '싱글 구성품',
+    ];
   try {
     await preloadSheets(SRC_SHEET_ID, sheetsToPreload);
   } catch (e) {
@@ -1720,18 +1727,34 @@ async function bootstrap(userEmail) {
   const t = {};
   t.userEmail = email;
   try { t.authData = JSON.stringify(await checkUserAuth(email)); } catch (_) { t.authData = '{}'; }
-  try { t.homemulti = JSON.stringify(getHomeMulti()); } catch (_) { t.homemulti = '[]'; }
-  try { t.singleSets = JSON.stringify(getSingleSets()); } catch (_) { t.singleSets = '[]'; }
-  try { t.singleParts = JSON.stringify(getSingleParts()); } catch (_) { t.singleParts = '[]'; }
+
+  if (useDb) {
+    // #30 — 카탈로그 9종을 product-service 벌크 endpoint 에서 read (시트 직접 read 폐기).
+    const dbCatalog = require('./db-catalog');
+    try { t.homemulti = JSON.stringify(await dbCatalog.multiCatalog('HOME_MULTI', classifyHome_)); } catch (e) { Logger.log('[bootstrap] db homemulti: ' + e.message); t.homemulti = '[]'; }
+    try { t.singleSets = JSON.stringify(await dbCatalog.singleSets(classifySingleSetLM_, normalizeSize_, sanitizeDisp_)); } catch (e) { Logger.log('[bootstrap] db singleSets: ' + e.message); t.singleSets = '[]'; }
+    try { t.singleParts = JSON.stringify(await dbCatalog.components('SINGLE_SET', sanitizeDisp_)); } catch (e) { Logger.log('[bootstrap] db singleParts: ' + e.message); t.singleParts = '[]'; }
+    try { t.singleMatPrices = JSON.stringify(await dbCatalog.materialPrices()); } catch (e) { Logger.log('[bootstrap] db matPrices: ' + e.message); t.singleMatPrices = '{}'; }
+    try { t.commercialMulti = JSON.stringify(await dbCatalog.multiCatalog('COMMERCIAL_MULTI', classifyCommercialDisp_)); } catch (e) { Logger.log('[bootstrap] db commMulti: ' + e.message); t.commercialMulti = '[]'; }
+    try { t.commercialParts = JSON.stringify(await dbCatalog.components('COMMERCIAL_MULTI', sanitizeDisp_)); } catch (e) { Logger.log('[bootstrap] db commParts: ' + e.message); t.commercialParts = '[]'; }
+    try { t.oldProducts = JSON.stringify(await dbCatalog.oldProducts()); } catch (e) { Logger.log('[bootstrap] db old: ' + e.message); t.oldProducts = '[]'; }
+    try { t.recommendData = JSON.stringify(await dbCatalog.recommendOduData()); } catch (e) { Logger.log('[bootstrap] db recommend: ' + e.message); t.recommendData = '{"comm":[],"home":[],"homeEx":[]}'; }
+    try { t.priceInc = JSON.stringify(await dbCatalog.priceIncData()); } catch (e) { Logger.log('[bootstrap] db priceInc: ' + e.message); t.priceInc = '{"home":{},"comm":{},"single":{}}'; }
+  } else {
+    try { t.homemulti = JSON.stringify(getHomeMulti()); } catch (_) { t.homemulti = '[]'; }
+    try { t.singleSets = JSON.stringify(getSingleSets()); } catch (_) { t.singleSets = '[]'; }
+    try { t.singleParts = JSON.stringify(getSingleParts()); } catch (_) { t.singleParts = '[]'; }
+    try { t.singleMatPrices = JSON.stringify(getSingleMatPrices()); } catch (_) { t.singleMatPrices = '{}'; }
+    try { t.commercialMulti = JSON.stringify(getCommercialMulti()); } catch (_) { t.commercialMulti = '[]'; }
+    try { t.commercialParts = JSON.stringify(getCommercialParts()); } catch (_) { t.commercialParts = '[]'; }
+    try { t.oldProducts = JSON.stringify(getOldProducts_()); } catch (_) { t.oldProducts = '[]'; }
+    try { t.recommendData = JSON.stringify(getRecommendOduData()); } catch (_) { t.recommendData = '{"comm":[],"home":[],"homeEx":[]}'; }
+    try { t.priceInc = JSON.stringify(getPriceIncData_()); } catch (_) { t.priceInc = '{"home":{},"comm":{},"single":{}}'; }
+  }
+
   try { t.homeDefaults = JSON.stringify(getHomeDefaults()); } catch (_) { t.homeDefaults = '{}'; }
   try { t.singleDefaults = JSON.stringify(getSingleDefaults()); } catch (_) { t.singleDefaults = '{}'; }
-  try { t.singleMatPrices = JSON.stringify(getSingleMatPrices()); } catch (_) { t.singleMatPrices = '{}'; }
-  try { t.commercialMulti = JSON.stringify(getCommercialMulti()); } catch (_) { t.commercialMulti = '[]'; }
-  try { t.commercialParts = JSON.stringify(getCommercialParts()); } catch (_) { t.commercialParts = '[]'; }
-  try { t.oldProducts = JSON.stringify(getOldProducts_()); } catch (_) { t.oldProducts = '[]'; }
-  try { t.recommendData = JSON.stringify(getRecommendOduData()); } catch (_) { t.recommendData = '{"comm":[],"home":[],"homeEx":[]}'; }
   try { t.specDetailMap = JSON.stringify(getSpecDetailMap_()); } catch (_) { t.specDetailMap = '{}'; }
-  try { t.priceInc = JSON.stringify(getPriceIncData_()); } catch (_) { t.priceInc = '{"home":{},"comm":{},"single":{}}'; }
   try { t.logoData = getLogoImage(); } catch (_) { t.logoData = ''; }
   t.config = JSON.stringify({
     homeDiscount: DISCOUNT_RATE_HOME,

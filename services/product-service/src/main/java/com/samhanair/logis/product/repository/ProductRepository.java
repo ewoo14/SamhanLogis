@@ -108,6 +108,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByModelCodeAndIsDeletedFalse(String modelCode);
 
+    /** #30 — estimate 카탈로그 벌크: 구성품 modelCode 묶음 조회. */
+    List<Product> findByModelCodeInAndIsDeletedFalse(java.util.Collection<String> modelCodes);
+
     boolean existsByModelCodeAndIsDeletedFalse(String modelCode);
 
     Optional<Product> findByProductCodeAndIsDeletedFalse(String productCode);
