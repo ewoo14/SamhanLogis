@@ -1,0 +1,11 @@
+[T9] SALES 게이트웨이 경유 검증 결과
+실행 시각: 2026-06-10T16:21:23.710Z
+
+1) GET /api/v1/accounting/supplier-profiles → 403 (403 expected)
+   PASS: true
+
+2) GET /api/v1/accounting/supplier-profiles/print-profile → 200 (200 expected)
+   PASS: true
+   companyName: (?)???????
+   tel: 02-3461-0000
+   bankAccounts: 국민은행/000000-00-000000, 기업은행/000-0000-0000

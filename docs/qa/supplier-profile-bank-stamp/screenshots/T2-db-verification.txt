@@ -1,0 +1,35 @@
+{
+  "id": "bfeda4fc-b7b5-439d-a717-15d98a216da3",
+  "businessNumber": "2148720659",
+  "subBusinessNumber": null,
+  "companyName": "(?)???????",
+  "representativeName": "???",
+  "businessAddress": "????? ??? ???2? 9, 4?(???)",
+  "businessType": "???",
+  "businessItem": "????",
+  "email": "apjog09@daum.net",
+  "tel": "02-3461-0000",
+  "fax": "02-3461-0001",
+  "isPrimary": true,
+  "version": 6,
+  "bankAccounts": [
+    {
+      "accountHolder": "(주)삼한공조시스템",
+      "bankName": "국민은행",
+      "accountNumber": "000000-00-000000",
+      "displayOrder": 0,
+      "exposed": true
+    },
+    {
+      "accountHolder": "(주)삼한공조시스템",
+      "bankName": "기업은행",
+      "accountNumber": "000-0000-0000",
+      "displayOrder": 1,
+      "exposed": true
+    }
+  ],
+  "hasStamp": true,
+  "stampPngBase64": "iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAIAAACRXR/mAAAARUlEQVR4nO3OMREAIAwAsWqqfymIwQA7P+QuAjJnN2i+D7S0tLS0tBq0tLQKtLS0CrS0tAq0tLQKtLS0CrS0tArm++DZurG0NbUDw5oDAAAAAElFTkSuQmCC",
+  "hasLogo": false,
+  "logoPngBase64": null
+}

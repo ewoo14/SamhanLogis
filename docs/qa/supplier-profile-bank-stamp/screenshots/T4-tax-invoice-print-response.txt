@@ -1,0 +1,18 @@
+{
+  "supplierName": "(?)???????",
+  "supplierBusinessNumber": "2148720659",
+  "supplierCeo": "???",
+  "supplierAddress": "????? ??? ???2? 9, 4?(???)",
+  "supplierBusinessType": "???",
+  "supplierBusinessItem": "????",
+  "recipientName": "(주)삼한물류",
+  "recipientBusinessNumber": "123-45-67001",
+  "recipientAddress": "서울시 강남구 역삼동 100-1",
+  "invoiceNo": "SEED-VAT-S001",
+  "issueDate": "2026-04-05",
+  "lines": [],
+  "totalSupplyAmount": 5000000,
+  "totalVatAmount": 500000,
+  "totalAmount": 5500000,
+  "totalAmountKorean": "일금오백오십만원정"
+}
