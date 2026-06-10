@@ -37,11 +37,14 @@
  *   <li>{@code product-catalog-estimate-category-{modelCode}} — 카테고리 셀렉트</li>
  *   <li>{@code product-catalog-clear-{modelCode}} — 시트 자동 복귀 버튼</li>
  *   <li>{@code product-catalog-source-badge-{modelCode}} — 출처 뱃지</li>
+ *   <li>{@code product-catalog-list-error} — 목록 조회 오류 배너 (isError + rows.length===0 시)</li>
+ *   <li>{@code product-catalog-mutation-error} — 변형(토글/복귀) 오류 배너</li>
+ *   <li>{@code product-catalog-readonly-banner} — 조회 전용 안내 배너 (canEdit=false 시)</li>
  * </ul>
  */
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, DataTable, type DataTableColumn } from '@samhan/design-system'
+import { Badge, Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import {
   listProducts,
   updateProductUsage,
@@ -98,6 +101,17 @@ function fromUsageScope(scope: UsageScope): { estimate: boolean; order: boolean 
 // ---------------------------------------------------------------------------
 
 function errorMsg(err: unknown): string {
+  // axios error 의 envelope message 우선 추출 (BE ApiResponse.message 한국어)
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'response' in err &&
+    typeof (err as { response?: unknown }).response === 'object' &&
+    (err as { response?: { data?: { message?: unknown } } }).response?.data?.message
+  ) {
+    const msg = (err as { response: { data: { message: unknown } } }).response.data.message
+    if (typeof msg === 'string' && msg.length > 0) return msg
+  }
   if (err instanceof Error) return err.message
   return '처리 중 오류가 발생했습니다. 다시 시도해 주세요.'
 }
@@ -150,8 +164,9 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
           disabled={!canEdit || isLoading}
           onChange={(e) => handleEstimateChange(e.target.checked)}
           data-testid={`product-catalog-estimate-toggle-${row.modelCode}`}
+          aria-label="견적 노출"
         />
-        견적
+        견적 노출
       </label>
       <label style={checkboxLabelStyle}>
         <input
@@ -160,22 +175,25 @@ function ToggleCell({ row, canEdit, onPatch, onClear, patchLoading, clearLoading
           disabled={!canEdit || isLoading}
           onChange={(e) => handleOrderChange(e.target.checked)}
           data-testid={`product-catalog-order-toggle-${row.modelCode}`}
+          aria-label="주문 노출"
         />
-        주문
+        주문 노출
       </label>
       {showEstimateCategory ? (
-        <select
+        <Select
           value={row.estimateCategory ?? ''}
           disabled={!canEdit || isLoading}
           onChange={(e) => handleCategoryChange(e.target.value)}
           data-testid={`product-catalog-estimate-category-${row.modelCode}`}
-          style={selectSmallStyle}
+          selectSize="sm"
+          fullWidth={false}
+          style={{ minWidth: 100 }}
         >
           <option value="">카테고리 선택</option>
           {ESTIMATE_CATEGORY_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
-        </select>
+        </Select>
       ) : null}
       {row.usageScopeManual && canEdit ? (
         <Button
@@ -386,15 +404,17 @@ export function ProductCatalogPage() {
       {/* ── Toolbar ──────────────────────────────────── */}
       <section style={toolbarStyle} aria-label="조회 조건">
         <div style={fieldStyle}>
-          <span style={fieldLabelStyle}>모델명 검색</span>
-          <input
+          <Input
+            label="모델명 검색"
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="모델명 또는 품목명 입력"
             data-testid="product-catalog-search-input"
-            style={{ ...inputStyle, minWidth: 220 }}
+            inputSize="sm"
+            fullWidth={false}
+            style={{ minWidth: 220 }}
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
@@ -433,17 +453,29 @@ export function ProductCatalogPage() {
         />
       </section>
 
+      {/* ── 오류 안내 ─────────────────────────────────── */}
+      {listQuery.isError && rows.length === 0 ? (
+        <div role="alert" style={errorBannerStyle} data-testid="product-catalog-list-error">
+          목록 조회 중 오류가 발생했습니다. {errorMsg(listQuery.error)}
+        </div>
+      ) : null}
+
       {/* ── 하단 요약 + 페이지네이션 ───────────────────── */}
-      {!listQuery.isFetching && rows.length > 0 ? (
+      {/* refetch 중에도 데이터 보유 시 footer 유지 (isFetching 이 아닌 rows.length 기준) */}
+      {rows.length > 0 ? (
         <div style={summaryStyle} data-testid="product-catalog-summary">
           <span>
             총 <strong>{totalElements.toLocaleString('ko-KR')}</strong>건
+            {listQuery.isFetching ? <span style={{ marginLeft: 6, color: 'var(--color-neutral-400)' }}>갱신 중…</span> : null}
           </span>
           {totalPages > 1 ? (
             <div style={paginationStyle}>
               <button
                 type="button"
-                style={pageButtonStyle}
+                style={{
+                  ...pageButtonStyle,
+                  ...(currentPage === 0 || listQuery.isFetching ? pageButtonDisabledStyle : {}),
+                }}
                 disabled={currentPage === 0 || listQuery.isFetching}
                 onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
                 aria-label="이전 페이지"
@@ -455,7 +487,10 @@ export function ProductCatalogPage() {
               </span>
               <button
                 type="button"
-                style={pageButtonStyle}
+                style={{
+                  ...pageButtonStyle,
+                  ...(currentPage >= totalPages - 1 || listQuery.isFetching ? pageButtonDisabledStyle : {}),
+                }}
                 disabled={currentPage >= totalPages - 1 || listQuery.isFetching}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
                 aria-label="다음 페이지"
@@ -510,29 +545,9 @@ const fieldStyle: CSSProperties = {
   gap: 4,
 }
 
-const fieldLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: 'var(--color-neutral-700, #363D49)',
-  fontWeight: 500,
-}
+// fieldLabelStyle 제거 — DS Input 의 label prop 으로 렌더됨 (P2 [17])
 
-const inputStyle: CSSProperties = {
-  height: 32,
-  padding: '0 10px',
-  border: '1px solid #D1D5DB',
-  borderRadius: 6,
-  fontSize: 13,
-  outline: 'none',
-}
-
-const selectSmallStyle: CSSProperties = {
-  height: 26,
-  padding: '0 6px',
-  border: '1px solid #D1D5DB',
-  borderRadius: 4,
-  fontSize: 12,
-  outline: 'none',
-}
+// inputStyle / selectSmallStyle 제거 — design-system Input / Select 로 교체됨 (P2 [17])
 
 const checkboxLabelStyle: CSSProperties = {
   display: 'inline-flex',
@@ -579,6 +594,12 @@ const pageButtonStyle: CSSProperties = {
   padding: '2px 10px',
   fontSize: 12,
   cursor: 'pointer',
+}
+
+const pageButtonDisabledStyle: CSSProperties = {
+  opacity: 0.4,
+  cursor: 'not-allowed',
+  background: 'var(--color-neutral-50, #F7F8FA)',
 }
 
 const pageInfoStyle: CSSProperties = {

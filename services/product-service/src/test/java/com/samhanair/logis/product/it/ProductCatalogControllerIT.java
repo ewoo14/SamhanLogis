@@ -244,21 +244,78 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
     }
 
     /**
-     * GET /products?usageScope=PARTNER_ORDER&category=HOME_MULTI — 실제 필터 적용 확인.
-     * order-app M1a getProducts(category) 호출 패턴 실효화 검증.
+     * GET /api/v1/products?usageScope=PARTNER_ORDER — IN 확장 시멘틱 포함·배제 양면 단언.
+     *
+     * <p>지적 [24][25] (PR-B 2026-06-11):
+     * PARTNER_ORDER 질의 시 BOTH 품목이 포함되어야 하고 (포함 단언),
+     * ESTIMATE 품목은 배제되어야 한다 (배제 단언).
+     * catalog 경로(/api/v1/products 풀패스) 왕복 검증.
      */
     @Test
-    void GET_products_usageScope_category_복합_필터_적용() throws Exception {
-        // API_HOME_01 는 BOTH 이므로 PARTNER_ORDER 단독 필터에선 안 보임 (searchByUsageScope 쿼리)
-        // (ProductCatalogController GET /api/v1/products 는 searchByUsageScope 사용)
-        mvc.perform(get("/api/v1/products?usageScope=PARTNER_ORDER&category=HOME_MULTI")
-                        .header("X-User-Id", UUID.randomUUID().toString()))
-                .andExpect(status().isOk());
-        // 응답이 200 이고 필터가 작동함을 확인 (PARTNER_ORDER 에만 해당하는 품목이 없으므로 빈 페이지)
-        mvc.perform(get("/api/v1/products?usageScope=BOTH")
+    void GET_products_usageScope_PARTNER_ORDER_BOTH포함_단언_양면() throws Exception {
+        Category cat2 = categoryRepository.save(Category.create("CAT-BOTH-TEST", "both test", null, 9));
+        // PARTNER_ORDER 전용 품목
+        productRepository.save(Product.seedFromSheet("PO Only", "PO_ONLY_01", cat2,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.PARTNER_ORDER, null));
+        // ESTIMATE 전용 품목 — PARTNER_ORDER 질의에서 배제되어야 함
+        productRepository.save(Product.seedFromSheet("EST Only", "EST_ONLY_01", cat2,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI));
+        productRepository.flush();
+
+        // API_HOME_01(BOTH) + PO_ONLY_01(PARTNER_ORDER) 포함 단언
+        mvc.perform(get("/api/v1/products?usageScope=PARTNER_ORDER")
                         .header("X-User-Id", UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[?(@.modelCode == 'API_HOME_01')]").exists());
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'API_HOME_01')]").exists())   // BOTH 포함
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'PO_ONLY_01')]").exists())    // PARTNER_ORDER 포함
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'EST_ONLY_01')]").doesNotExist()); // ESTIMATE 배제
+    }
+
+    /**
+     * GET /api/v1/products?usageScope=ESTIMATE — IN 확장 시멘틱 포함·배제 양면 단언.
+     *
+     * <p>지적 [24][25] (PR-B 2026-06-11):
+     * ESTIMATE 질의 시 BOTH 품목이 포함되어야 하고 (포함 단언),
+     * PARTNER_ORDER 전용 품목은 배제되어야 한다 (배제 단언).
+     */
+    @Test
+    void GET_products_usageScope_ESTIMATE_BOTH포함_단언_양면() throws Exception {
+        Category cat3 = categoryRepository.save(Category.create("CAT-EST-TEST", "est test", null, 10));
+        productRepository.save(Product.seedFromSheet("PO Only", "PO_ONLY_02", cat3,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.PARTNER_ORDER, null));
+        productRepository.save(Product.seedFromSheet("EST Only", "EST_ONLY_02", cat3,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI));
+        productRepository.flush();
+
+        mvc.perform(get("/api/v1/products?usageScope=ESTIMATE")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'API_HOME_01')]").exists())    // BOTH 포함
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'EST_ONLY_02')]").exists())   // ESTIMATE 포함
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'PO_ONLY_02')]").doesNotExist()); // PARTNER_ORDER 배제
+    }
+
+    /**
+     * GET /api/v1/products?q=PO_ONLY — catalog 경로 q 파라미터 검색 단언 (지적 [1][9][15]).
+     */
+    @Test
+    void GET_products_q_파라미터_검색() throws Exception {
+        Category cat4 = categoryRepository.save(Category.create("CAT-Q-TEST", "q test", null, 11));
+        productRepository.save(Product.seedFromSheet("Q Test Product", "Q_SEARCH_MODEL", cat4,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI));
+        productRepository.flush();
+
+        // 모델코드 부분 일치
+        mvc.perform(get("/api/v1/products?q=Q_SEARCH")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'Q_SEARCH_MODEL')]").exists())
+                .andExpect(jsonPath("$.content[?(@.modelCode == 'API_HOME_01')]").doesNotExist());
     }
 
     private Product saveModelNameOnlyProduct(String modelName) {

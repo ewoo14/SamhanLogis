@@ -47,6 +47,12 @@ public class ProductService {
     private final BundleComponentRepository bundleComponentRepository;
 
     /**
+     * rowHash 캐시 evict 를 위해 직접 주입.
+     * ProductSheetSyncService → ProductService 방향의 의존이 없으므로 순환 없음.
+     */
+    private final ProductSheetSyncService productSheetSyncService;
+
+    /**
      * 품목 목록 검색 — categoryId/status/tag/q 필터 기존 유지 + usageScope/productCategory 신규 AND 결합.
      *
      * <p>PR-B(2026-06-11) 확장: order-app 이 {@code ?usageScope=PARTNER_ORDER&category=HOME_MULTI} 로
@@ -349,10 +355,33 @@ public class ProductService {
     }
 
     /**
+     * 품목 노출 범위 수동 override — 갱신된 {@link Product} 도메인 객체를 직접 반환한다.
+     *
+     * <p>{@link com.samhanair.logis.product.web.ProductCatalogController#changeUsage} 에서
+     * {@link com.samhanair.logis.product.web.dto.ProductCatalogResponse} 로 변환하기 위해
+     * 사용한다 (지적 [6][13][32] — 이중 구현 제거).
+     *
+     * @param modelCode 수동 override 대상 품목의 모델코드
+     * @param req       새 노출 범위 + 견적 카테고리
+     * @return 갱신된 Product 엔티티 (트랜잭션 내 — 호출자가 DTO 변환)
+     * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
+     */
+    public Product updateUsageAndReturn(String modelCode, UpdateProductUsageRequest req) {
+        Product product = loadByModelCodeOrThrow(modelCode);
+        product.markUsageManual(req.usageScope(), req.estimateCategory());
+        return product;
+    }
+
+    /**
      * 품목 노출 범위 수동 override 해제 — modelCode 로 품목을 조회하고
      * {@link Product#clearUsageManual()} 을 호출하여 플래그를 해제한다.
      *
      * <p>플래그 해제 후 다음 ProductSheetSyncService sync 에서 시트 기준으로 재분류된다.
+     *
+     * <p><b>rowHash 캐시 evict (PR-B 2026-06-11, 지적 [2])</b>:
+     * 해제 직후 {@link ProductSheetSyncService#evictRowHash(String)} 를 호출하여 인메모리
+     * hash 캐시를 무효화한다. 이 처리가 없으면 행 내용이 변경되지 않은 상태에서 sync 를
+     * 재실행해도 {@code unchanged} 분기에 걸려 usageScope 가 시트 기준으로 재분류되지 않는다.
      *
      * @param modelCode override 해제 대상 품목의 모델코드
      * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
@@ -360,6 +389,8 @@ public class ProductService {
     public void clearUsageOverride(String modelCode) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.clearUsageManual();
+        // rowHash 캐시 evict — 다음 sync 에서 unchanged 분기에 걸리지 않고 시트 기준 재분류 보장
+        productSheetSyncService.evictRowHash(modelCode);
     }
 
     public void delete(UUID id, String callerId) {

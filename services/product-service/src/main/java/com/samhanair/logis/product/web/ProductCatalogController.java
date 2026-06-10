@@ -1,7 +1,6 @@
 package com.samhanair.logis.product.web;
 
 import com.samhanair.logis.product.domain.EstimateCategory;
-import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.SpecKeyTemplate;
 import com.samhanair.logis.product.domain.UsageScope;
@@ -15,7 +14,6 @@ import com.samhanair.logis.product.web.dto.SpecKeyTemplateResponse;
 import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
@@ -82,16 +80,31 @@ public class ProductCatalogController {
         this.productService = productService;
     }
 
-    /** GET /api/v1/products?usageScope=BOTH&category=HOME_MULTI&page=0&size=20. */
+    /**
+     * 카탈로그 목록 조회.
+     *
+     * <p>GET /api/v1/products?usageScope=BOTH&amp;category=HOME_MULTI&amp;q=AJ040&amp;page=0&amp;size=20
+     *
+     * <p><b>usageScope IN 확장 시멘틱 (PR-B 2026-06-11, 지적 [10][3])</b>:
+     * ESTIMATE → IN (ESTIMATE, BOTH), PARTNER_ORDER → IN (PARTNER_ORDER, BOTH),
+     * BOTH·NONE → exact match, null → 전체.
+     *
+     * <p><b>q 파라미터 (지적 [1][9][15])</b>:
+     * modelCode / name LIKE 검색. null/blank → 전체 (신규 품목관리 화면 검색 실효화).
+     */
     @GetMapping("/products")
     @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
     public Page<ProductCatalogResponse> listProducts(
             @RequestParam(required = false) UsageScope usageScope,
             @RequestParam(required = false, name = "category") EstimateCategory estimateCategory,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return productRepository.searchByUsageScope(usageScope, estimateCategory, pageable)
+        String usageScopeName = usageScope == null ? null : usageScope.name();
+        String estimateCategoryName = estimateCategory == null ? null : estimateCategory.name();
+        String qNormalized = (q == null || q.isBlank()) ? null : q.trim();
+        return productRepository.searchByUsageScope(usageScopeName, estimateCategoryName, qNormalized, pageable)
                 .map(ProductCatalogResponse::from);
     }
 
@@ -102,6 +115,9 @@ public class ProductCatalogController {
      * 이후 시트 sync 가 이 품목의 노출 분류를 덮어쓰지 않는다.
      * NONE/PARTNER_ORDER 선택 시 estimateCategory 가 자동 null 처리된다.
      *
+     * <p>구현은 {@link com.samhanair.logis.product.service.ProductService#updateUsage} 에
+     * 위임한다 (지적 [6][13][32] — 이중 구현 제거, 응답 DTO 변환만 이 계층에서).
+     *
      * @param modelCode 수동 override 대상 품목의 모델코드 (카탈로그 노출 식별자)
      * @param req       새 노출 범위 + 견적 카테고리
      * @return 갱신된 카탈로그 응답 (usageScopeManual=true 포함)
@@ -110,11 +126,8 @@ public class ProductCatalogController {
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public ProductCatalogResponse changeUsage(@PathVariable @NotBlank String modelCode,
                                               @Valid @RequestBody UpdateProductUsageRequest req) {
-        Product p = productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(modelCode)
-                .orElseThrow(() -> new EntityNotFoundException("Product 없음: " + modelCode));
-        p.markUsageManual(req.usageScope(), req.estimateCategory());
-        productRepository.save(p);
-        return ProductCatalogResponse.from(p);
+        return ProductCatalogResponse.from(
+                productService.updateUsageAndReturn(modelCode, req));
     }
 
     /**

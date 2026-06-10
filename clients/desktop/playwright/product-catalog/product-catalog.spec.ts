@@ -163,7 +163,8 @@ test.describe('품목 관리 페이지 — PR-B 노출 수동 토글', () => {
   // ---------------------------------------------------------------------------
 
   test('시나리오 4: view-only 권한(WAREHOUSE) — 토글 체크박스 비활성', async ({ page }) => {
-    // WAREHOUSE: products.list VIEW 허용 + products.admin UPDATE 없음 (mock seed 기준)
+    // WAREHOUSE: products.list VIEW 허용 + products.admin UPDATE 없음 (mock seed 기준).
+    // SALES 역할이 아닌 WAREHOUSE 역할로 검증 — products.admin 미부여 역할로 view-only 동작 확인.
     // mockRole=WAREHOUSE 를 URL 로 주입 → mock.ts MOCK_AUTH.role=WAREHOUSE
     await installAuth(page)
     await gotoProductCatalog(page, 'WAREHOUSE')

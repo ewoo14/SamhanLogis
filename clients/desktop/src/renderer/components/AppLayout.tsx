@@ -1074,7 +1074,7 @@ export function AppLayout() {
                   letterSpacing: 0.5,
                 }}
               >
-                상품
+                품목
               </div>
               <SidebarLink
                 to="/products/catalog"

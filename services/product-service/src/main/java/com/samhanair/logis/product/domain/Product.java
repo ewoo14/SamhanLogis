@@ -429,11 +429,15 @@ public class Product extends BaseEntity {
      * 시트 기준 자동 재분류가 차단된다. {@link #clearUsageManual()} 로 해제하면 다음 sync 에서
      * 시트 기준으로 재분류된다.
      *
-     * <p>NONE/PARTNER_ORDER 선택 시 견적 카테고리가 무의미하므로 {@code estimateCategory} 를
-     * {@code null} 로 정리한다 (기존 {@link #changeUsage(UsageScope, EstimateCategory)} 와 동일 룰).
+     * <p><b>{@link #changeUsage(UsageScope, EstimateCategory)} 보다 엄격한 null 정리 룰</b>
+     * (지적 [5], PR-B 2026-06-11):
+     * NONE/PARTNER_ORDER 선택 시 견적 카테고리가 무의미하므로 {@code estimateCategory} 를
+     * 무조건 {@code null} 로 정리한다. {@code changeUsage} 는 호출자가 전달한 값을 그대로
+     * 저장하지만, 본 메서드는 scope 에 따라 자동 null 정리를 강제한다.
      *
      * @param scope            새 노출 범위 (null 이면 {@link UsageScope#NONE} 처리)
-     * @param estimateCategory 견적 카테고리 (scope 가 ESTIMATE/BOTH 일 때만 유효)
+     * @param estimateCategory 견적 카테고리 (scope 가 ESTIMATE/BOTH 일 때만 유효;
+     *                         NONE/PARTNER_ORDER 전달 시 자동 null 처리)
      */
     public void markUsageManual(UsageScope scope, EstimateCategory estimateCategory) {
         this.usageScope = scope == null ? UsageScope.NONE : scope;

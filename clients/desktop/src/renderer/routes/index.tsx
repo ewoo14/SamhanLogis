@@ -295,7 +295,7 @@ import { PermissionGroupManagePage } from './PermissionGroupManagePage'
 import { PermissionDelegationPage } from './PermissionDelegationPage'
 // [SP-D1 cycle 2] 동적 RBAC PermissionGuard — 서버 권한 매트릭스 기반 라우트 가드.
 import { PermissionGuard } from '../components/PermissionGuard'
-// [PR-B] 품목 관리 — 품목별 no출 범위 수동 토글 (products.list VIEW 게이트).
+// [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
 import { ProductCatalogPage } from './ProductCatalogPage'
 
 /**

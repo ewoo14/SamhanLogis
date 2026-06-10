@@ -590,6 +590,10 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     /**
      * V14 수동 override 보존 가드 — usageScopeManual=false(기본) 인 품목은 기존대로 시트 기준 갱신.
+     *
+     * <p>지적 [26] (PR-B 2026-06-11): false 케이스는 단순 "BOTH 항상 참" 이 아닌
+     * 실제 변조(PARTNER_ORDER) 후 복원(BOTH) 단언으로 강화.
+     * true 케이스에 estimateCategory null 단언 추가.
      */
     @Test
     void sync_수동override_false인_품목은_기존대로_시트기준_갱신() throws Exception {
@@ -603,15 +607,141 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(p.isUsageScopeManual()).isFalse();
         assertThat(p.getUsageScope()).isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
 
-        // 2차 sync — 가격 변경으로 update 경로
+        // 변조: DB 에서 PARTNER_ORDER 로 직접 변경 후 manual=false 유지
+        p.changeUsage(com.samhanair.logis.product.domain.UsageScope.PARTNER_ORDER, null);
+        productRepository.save(p);
+        assertThat(p.isUsageScopeManual()).isFalse();
+
+        // 2차 sync — 가격 변경으로 update 경로 진입 (hash 변경)
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("Hi-Multi 자동", "AUTO_GUARD", "", "1,700,000", "", "1,400,000")
         ));
         syncService.syncAll();
 
         Product after = productRepository.findByModelCodeAndIsDeletedFalse("AUTO_GUARD").orElseThrow();
-        // 기존 동작 유지 — 시트 기준(BOTH) 으로 계속 갱신
-        assertThat(after.getUsageScope()).isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+        // manual=false 이므로 시트 기준(BOTH) 으로 복원되어야 함
+        assertThat(after.getUsageScope())
+                .as("manual=false → 시트 기준(BOTH) 으로 복원")
+                .isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+    }
+
+    /**
+     * V14 수동 override 보존 가드 — true 케이스에 estimateCategory null 단언 추가 (지적 [26]).
+     *
+     * <p>PARTNER_ORDER 로 manual 설정 시 estimateCategory 가 null 로 정리되어야 한다.
+     */
+    @Test
+    void sync_수동override_true_PARTNER_ORDER_estimateCategory_null() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        // 홈멀티(BOTH + HOME_MULTI estimateCategory) 로 insert
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi EC-TEST", "EC_GUARD", "", "1,500,000", "", "1,200,000")
+        ));
+        syncService.syncAll();
+
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("EC_GUARD").orElseThrow();
+        assertThat(p.getEstimateCategory())
+                .isEqualTo(com.samhanair.logis.product.domain.EstimateCategory.HOME_MULTI);
+
+        // PARTNER_ORDER 로 수동 override
+        p.markUsageManual(com.samhanair.logis.product.domain.UsageScope.PARTNER_ORDER, null);
+        productRepository.save(p);
+
+        // estimateCategory 가 null 로 정리되어야 함
+        assertThat(p.getEstimateCategory())
+                .as("PARTNER_ORDER 수동 설정 시 estimateCategory null 정리")
+                .isNull();
+        assertThat(p.isUsageScopeManual()).isTrue();
+
+        // 2차 sync — 가격 변경 후 manual=true 이므로 estimateCategory 계속 null
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi EC-TEST", "EC_GUARD", "", "1,600,000", "", "1,300,000")
+        ));
+        syncService.syncAll();
+
+        Product after = productRepository.findByModelCodeAndIsDeletedFalse("EC_GUARD").orElseThrow();
+        assertThat(after.getUsageScope()).isEqualTo(com.samhanair.logis.product.domain.UsageScope.PARTNER_ORDER);
+        assertThat(after.getEstimateCategory())
+                .as("sync 후에도 estimateCategory null 유지")
+                .isNull();
+    }
+
+    /**
+     * V14 rowHash 캐시 evict — 수동 override 해제(DELETE /usage) 후 행 내용 무변경 상태로
+     * sync 재실행 시 시트 기준으로 재분류되어야 한다 (지적 [2], PR-B 2026-06-11).
+     *
+     * <p>시나리오:
+     * 1차 sync → insert(BOTH). 수동 PARTNER_ORDER 토글 → evictRowHash. 2차 sync(행 무변경)
+     * → hash miss → update 경로 진입 → BOTH 재분류.
+     */
+    @Test
+    void sync_rowHash_evict_후_행무변경_sync_시트기준_재분류() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        List<List<Object>> sameRows = homeMultiRows(
+                row("Hi-Multi EvictTest", "EVICT_MODEL", "", "1,500,000", "", "1,200,000")
+        );
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(sameRows);
+
+        // 1차 sync — insert (BOTH)
+        syncService.syncAll();
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("EVICT_MODEL").orElseThrow();
+        assertThat(p.getUsageScope()).isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+
+        // 수동 override: PARTNER_ORDER 로 변경
+        p.markUsageManual(com.samhanair.logis.product.domain.UsageScope.PARTNER_ORDER, null);
+        productRepository.save(p);
+        assertThat(p.isUsageScopeManual()).isTrue();
+
+        // clearUsageManual + evictRowHash (DELETE /usage 경로와 동일)
+        p.clearUsageManual();
+        productRepository.save(p);
+        syncService.evictRowHash("EVICT_MODEL");
+
+        // 2차 sync — 시트 행 내용 무변경 (동일 sameRows)
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(sameRows);
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        // hash evict → update 경로 진입 → BOTH 재분류
+        ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
+        assertThat(homeTab.updated)
+                .as("hash evict 로 행 무변경에도 update 경로 진입")
+                .isEqualTo(1);
+
+        Product after = productRepository.findByModelCodeAndIsDeletedFalse("EVICT_MODEL").orElseThrow();
+        assertThat(after.getUsageScope())
+                .as("시트 기준(BOTH) 재분류 복원")
+                .isEqualTo(com.samhanair.logis.product.domain.UsageScope.BOTH);
+        assertThat(after.isUsageScopeManual()).isFalse();
+    }
+
+    /**
+     * V14 soft-delete 가드 — usageScopeManual=true 인 품목은 시트 부재 시에도 삭제 보호 (지적 [4]).
+     */
+    @Test
+    void sync_수동override_품목은_시트_부재시_softDelete_제외() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Hi-Multi Manual", "MANUAL_NOSHEET", "", "1,500,000", "", "1,200,000")
+        ));
+        syncService.syncAll();
+
+        // 수동 override 설정
+        Product p = productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_NOSHEET").orElseThrow();
+        p.markUsageManual(com.samhanair.logis.product.domain.UsageScope.PARTNER_ORDER, null);
+        productRepository.save(p);
+
+        // 2차 sync — 시트에서 해당 row 제거 (빈 응답)
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows());
+        ProductSheetSyncService.SyncSummary summary = syncService.syncAll();
+
+        // manual=true 이므로 soft-delete 제외 — 여전히 활성
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("MANUAL_NOSHEET"))
+                .as("usageScopeManual=true 품목 — 시트 부재 시에도 soft-delete 보호")
+                .isPresent();
+        // softDeleted=0, skipped=1
+        ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
+        assertThat(homeTab.softDeleted).isZero();
+        assertThat(homeTab.skipped).isEqualTo(1);
     }
 
     /** 홈멀티 시트 헤더 + data row 를 ValueRange.values() 형태로 생성. */

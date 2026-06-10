@@ -12,9 +12,9 @@
 | `EstimateCatalogInternalController` | ✅ usageScope IN (ESTIMATE, BOTH) 필터 **이미 적용** (#455/#457) | 변경 불요 |
 | `ProductSheetSyncService` | 시트 탭 기반 usageScope 자동 분류 | **sync 마다 무조건 덮어씀** — 수동 토글 유실 |
 | `PATCH /api/v1/products/{modelCode}/usage` | ❌ BE 부재 | desktop mock(1102행) 만 선행 — false-green 주의 |
-| `GET /api/v1/products` (ProductController.list) | categoryId(UUID)/status/tag/q 만 | **usageScope·category(ProductCategory) 파라미터 미수신** |
-| order-app `getProducts(category)` | `GET /products?usageScope=PARTNER_ORDER&category=...` 송신 ("M1a 완료" 주석) | **BE 가 두 파라미터 silent 무시 → 전 품목 노출** (silent no-op 계열) |
-| desktop `api/sales.ts` 품목 fetch | `usageScope=BOTH&category=...` 송신 (견적/주문 폼) | 동일 silent no-op |
+| `GET /api/v1/products` 라우팅 | **게이트웨이 정확경로 `product-catalog-v1` → `ProductCatalogController.listProducts`** (no-strip). `ProductController.search` 는 `/api/products/**` (StripPrefix=1) 전용 | ⚠️ 사이클1 정정: 최초 정찰이 `/api/v1/products` 담당을 ProductController 로 오인 — order-app/sales.ts 의 usageScope·EstimateCategory 는 catalog 컨트롤러에서 **기실효** 였음. 실제 갭 = catalog 경로의 `q` 부재 + usageScope exact-match(BOTH 미포함) 시멘틱 |
+| order-app `getProducts(category)` | `GET /api/v1/products?usageScope=PARTNER_ORDER&category=...` → catalog 컨트롤러 도달 | exact-match 라 **BOTH 품목 제외** → PARTNER_ORDER 분기 실질 공집합 위험 (시트 4대 탭 = BOTH 시드) |
+| desktop `api/sales.ts` 품목 fetch | `usageScope=BOTH&category=...` → catalog 컨트롤러 도달 | BOTH exact 는 동작 — 단 시멘틱 통일 필요 |
 | desktop `productApi.searchProducts` (SlipFormPage 전표 품목 검색) | usageScope 없음 | **의도적 전 품목 유지** (전표는 노출 제한 대상 아님 — 메모리 "일반 품목관리 리스트는 전체 노출" 준용) |
 | 데스크톱 품목관리 화면 | ❌ 부재 (products.list 는 권한코드/피커만 존재) | **신규 페이지** 필요 |
 
@@ -64,6 +64,14 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS usage_scope_manual BOOLEAN NOT NUL
 ## 4. QA (Docker 실서버 — 의무)
 - T1 품목관리 목록 + 토글 UI 실 캡처 / T2 PATCH 후 DB 실증(usage_scope/usage_scope_manual) / T3 **시트 sync 재실행 후 수동 override 보존** 실증 / T4 GET /products?usageScope=PARTNER_ORDER 필터 실효 (주문서 분기) / T5 견적 카탈로그 수동 노출 반영 / T6 권한 deny / T7 DELETE 복귀 후 sync 재분류.
 - 실QA 실행은 디렉터리 한정 (#459 회고 — testMatch 광역 함정).
+
+## 4-1. 사이클1 확정 시멘틱 (2026-06-11 심야 — PM 자율 결정, 개발책임자 박제 결정 범위 내)
+
+- **usageScope 질의 시멘틱 = 노출 대상 확장**: 요청 ESTIMATE → IN (ESTIMATE, BOTH) / PARTNER_ORDER → IN (PARTNER_ORDER, BOTH) / BOTH·NONE → exact. (`findExposedCatalog` 기존 패턴과 통일 — BOTH 품목이 양쪽 질의에 모두 노출.)
+- **catalog 경로(`/api/v1/products`)에 `q` 추가** — 신규 품목관리 화면 검색 실효화. ProductController 신규 파라미터는 `/api/products` 경로 지원으로 유지 (라우팅 정정 문서화).
+- **sync soft-delete 가드**: `usageScopeManual=true` 품목은 시트 부재 시에도 soft-delete 제외 — 개발책임자 박제 결정("시트에 없는 품목도 수동 노출 가능")에 부합.
+- **rowHash 캐시 evict**: 시트 복귀(DELETE /usage) 시 해당 modelCode 의 sync hash 캐시 무효화 — 다음 sync 재분류 보장.
+- 수동 PARTNER_ORDER 품목의 order-app 카테고리 탭 노출(estimateCategory 부여 허용 여부)은 **개발책임자 확인 항목** — 현 구현은 category 미지정 질의에서만 노출.
 
 ## 5. 비스코프 (별도 슬라이스)
 - 좌측 메뉴 5대분류 + 권한 필터 + '홈' (대기 큐 3번 — Codex 회복 후).

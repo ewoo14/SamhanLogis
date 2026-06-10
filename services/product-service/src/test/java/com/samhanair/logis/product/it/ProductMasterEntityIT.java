@@ -106,7 +106,7 @@ class ProductMasterEntityIT extends AbstractPostgresIT {
         productRepository.saveAll(java.util.List.of(home, part));
         productRepository.flush();
 
-        var page = productRepository.searchByUsageScope(UsageScope.BOTH, EstimateCategory.HOME_MULTI,
+        var page = productRepository.searchByUsageScope("BOTH", "HOME_MULTI", null,
                 org.springframework.data.domain.PageRequest.of(0, 10));
         assertThat(page.getContent()).extracting(Product::getModelCode).contains("MC001").doesNotContain("MC002");
     }

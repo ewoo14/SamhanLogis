@@ -198,6 +198,8 @@ class ProductPermissionControllerIT {
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
         lenient().when(productService.updateUsage(anyString(), any()))
                 .thenReturn(response);
+        lenient().when(productService.updateUsageAndReturn(anyString(), any()))
+                .thenReturn(byCodeProduct);
         lenient().doNothing().when(productService).clearUsageOverride(anyString());
         lenient().when(productService.getOne(any())).thenReturn(response);
         lenient().when(productService.getByModelName(anyString())).thenReturn(response);
@@ -210,7 +212,7 @@ class ProductPermissionControllerIT {
                 .thenReturn(Optional.of(byCodeProduct));
         lenient().when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(anyString()))
                 .thenReturn(Optional.of(byCodeProduct));
-        lenient().when(productRepository.searchByUsageScope(any(), any(), any(Pageable.class)))
+        lenient().when(productRepository.searchByUsageScope(any(), any(), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(byCodeProduct), PageRequest.of(0, 20), 1));
         lenient().when(productSpecService.listByModelCode(anyString())).thenReturn(List.of(productSpec));
         lenient().when(productSpecService.addSpec(anyString(), anyString(), anyString(), any(), any()))

@@ -136,14 +136,61 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     boolean existsByProductCodeAndIsDeletedFalse(String productCode);
 
     /**
-     * 카탈로그 endpoint 필터 — usageScope/estimateCategory 조합 검색.
-     * GET /api/v1/products?usageScope={enum}&category={enum}.
+     * 카탈로그 endpoint 필터 — usageScope(IN 확장 시멘틱)/estimateCategory/q 조합 검색.
+     *
+     * <p>GET /api/v1/products?usageScope={enum}&amp;category={enum}&amp;q={keyword}.
+     *
+     * <p><b>usageScope IN 확장 시멘틱 (PR-B 2026-06-11, 지적 [10][3])</b>:
+     * <ul>
+     *   <li>ESTIMATE 요청 → IN (ESTIMATE, BOTH) — BOTH 품목이 견적 카탈로그에 포함</li>
+     *   <li>PARTNER_ORDER 요청 → IN (PARTNER_ORDER, BOTH) — BOTH 품목이 주문 카탈로그에 포함</li>
+     *   <li>BOTH/NONE 요청 → exact match (기존 동작 유지)</li>
+     *   <li>null → 전체 (필터 없음)</li>
+     * </ul>
+     *
+     * <p><b>q 파라미터 (PR-B 2026-06-11, 지적 [1][9][15])</b>:
+     * modelCode / name LIKE 검색. null/blank → 전체.
      */
-    @Query("SELECT p FROM Product p WHERE p.isDeleted = false "
-            + "AND (:usageScope IS NULL OR p.usageScope = :usageScope) "
-            + "AND (:estimateCategory IS NULL OR p.estimateCategory = :estimateCategory)")
-    Page<Product> searchByUsageScope(@Param("usageScope") UsageScope usageScope,
-                                     @Param("estimateCategory") EstimateCategory estimateCategory,
+    @Query(value = """
+            SELECT * FROM products p
+             WHERE p.is_deleted = false
+               AND (
+                     CAST(:usageScope AS text) IS NULL
+                     OR (CAST(:usageScope AS text) = 'ESTIMATE'
+                         AND p.usage_scope IN ('ESTIMATE', 'BOTH'))
+                     OR (CAST(:usageScope AS text) = 'PARTNER_ORDER'
+                         AND p.usage_scope IN ('PARTNER_ORDER', 'BOTH'))
+                     OR (CAST(:usageScope AS text) NOT IN ('ESTIMATE', 'PARTNER_ORDER')
+                         AND p.usage_scope = CAST(:usageScope AS text))
+                   )
+               AND (CAST(:estimateCategory AS text) IS NULL
+                    OR p.estimate_category = CAST(:estimateCategory AS text))
+               AND (CAST(:q AS text) IS NULL
+                    OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
+                    OR LOWER(p.name)       LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
+            """,
+           countQuery = """
+            SELECT COUNT(*) FROM products p
+             WHERE p.is_deleted = false
+               AND (
+                     CAST(:usageScope AS text) IS NULL
+                     OR (CAST(:usageScope AS text) = 'ESTIMATE'
+                         AND p.usage_scope IN ('ESTIMATE', 'BOTH'))
+                     OR (CAST(:usageScope AS text) = 'PARTNER_ORDER'
+                         AND p.usage_scope IN ('PARTNER_ORDER', 'BOTH'))
+                     OR (CAST(:usageScope AS text) NOT IN ('ESTIMATE', 'PARTNER_ORDER')
+                         AND p.usage_scope = CAST(:usageScope AS text))
+                   )
+               AND (CAST(:estimateCategory AS text) IS NULL
+                    OR p.estimate_category = CAST(:estimateCategory AS text))
+               AND (CAST(:q AS text) IS NULL
+                    OR LOWER(p.model_code) LIKE LOWER(CONCAT('%', CAST(:q AS text), '%'))
+                    OR LOWER(p.name)       LIKE LOWER(CONCAT('%', CAST(:q AS text), '%')))
+            """,
+           nativeQuery = true)
+    Page<Product> searchByUsageScope(@Param("usageScope") String usageScope,
+                                     @Param("estimateCategory") String estimateCategory,
+                                     @Param("q") String q,
                                      Pageable pageable);
 
     List<Product> findByUsageScopeAndIsDeletedFalse(UsageScope usageScope);

@@ -649,8 +649,9 @@ public class ProductSheetSyncService {
                 //
                 // V14 수동 override 보존 가드 (2026-06-11 PR-B):
                 //   usageScopeManual=true 인 품목은 usageScope/estimateCategory 를 시트 기준으로
-                //   덮어쓰지 않는다. displayOrder 는 시트 노출 순서이므로 manual 여부와 무관하게
-                //   항상 갱신한다(사용자가 시트 행 순서를 재정렬해도 반영되어야 함).
+                //   덮어쓰지 않는다.
+                //   displayOrder 는 '홈 탭' update 분기 진입 시 갱신한다 (지적 [8], PR-B 2026-06-11).
+                //   manual 여부와 무관하게 갱신 — 사용자가 시트 행 순서를 재정렬해도 반영되어야 함.
                 if (p.getProductCategory() == mapping.productCategory) {
                     if (!p.isUsageScopeManual()) {
                         p.changeUsage(mapping.usageScope, mapping.estimateCategory);
@@ -679,12 +680,21 @@ public class ProductSheetSyncService {
 
         syncBeforeIncreasePriceHistory(mapping, sheetModelCodes);
 
-        // soft-delete: DB 의 같은 productCategory row 중 시트에서 사라진 것
+        // soft-delete: DB 의 같은 productCategory row 중 시트에서 사라진 것.
+        // usageScopeManual=true 인 품목은 시트 부재 시에도 soft-delete 제외 — 개발책임자 결정
+        // "시트에 없는 품목도 수동 노출 가능" 에 부합 (PR-B 2026-06-11, 지적 [4]).
         List<Product> dbProducts = productRepository.findByProductCategoryAndIsDeletedFalse(mapping.productCategory);
         for (Product p : dbProducts) {
             String code = p.getModelCode();
             if (code == null) continue;
             if (!sheetModelCodes.contains(code)) {
+                if (p.isUsageScopeManual()) {
+                    // 수동 override 품목 — 시트에 없어도 삭제 보호
+                    log.debug("[ProductSheetSync] tab '{}' modelCode='{}' usageScopeManual=true → soft-delete 제외",
+                            mapping.tabName, code);
+                    result.skipped++;
+                    continue;
+                }
                 // BaseEntity.markDeleted: deletedAt + deletedBy + isDeleted=true 설정 (shared:common).
                 p.markDeleted("system-sheet-sync");
                 productRepository.save(p);
@@ -827,6 +837,24 @@ public class ProductSheetSyncService {
         } catch (NoSuchAlgorithmException e) {
             // SHA-256 always available on JVM
             return Integer.toHexString(s.hashCode());
+        }
+    }
+
+    /**
+     * 특정 modelCode 의 rowHash 캐시 무효화 — 수동 override 해제 시 호출.
+     *
+     * <p>인메모리 {@link #lastKnownRowHash} 에서 해당 모델의 hash 를 제거하여
+     * 다음 sync 에서 {@code unchanged} 분기를 건너뛰고 usageScope/estimateCategory 를
+     * 시트 기준으로 재분류하도록 강제한다 (지적 [2], PR-B 2026-06-11).
+     *
+     * <p>시트 행 내용이 바뀌지 않았어도 override 해제 후 반드시 재분류가 필요하므로
+     * hash 자체를 제거한다. 제거 후 다음 sync = 신규 insert 가 아닌 hash miss → update 경로.
+     *
+     * @param modelCode override 해제된 품목의 modelCode
+     */
+    public void evictRowHash(String modelCode) {
+        if (modelCode != null) {
+            lastKnownRowHash.remove(modelCode);
         }
     }
 

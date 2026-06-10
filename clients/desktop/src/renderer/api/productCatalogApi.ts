@@ -125,12 +125,12 @@ export async function updateProductUsage(
  * 품목 노출 시트 자동 복귀 — `DELETE /api/v1/products/{modelCode}/usage`.
  *
  * usageScopeManual=false 로 해제. 값은 유지되며 다음 시트 sync 에서 자동 재분류됨.
+ * BE 응답은 204 무본문 — 반환값 없음.
  *
  * @param modelCode 품목코드 (사용자 식별자)
  */
-export async function clearProductUsage(modelCode: string): Promise<ProductCatalogRow> {
-  const res = await apiClient.delete<ProductCatalogRow>(
+export async function clearProductUsage(modelCode: string): Promise<void> {
+  await apiClient.delete(
     `/api/v1/products/${encodeURIComponent(modelCode)}/usage`,
   )
-  return res.data
 }
