@@ -1214,11 +1214,15 @@ button {
   border: 1px solid #000;
 }
 
-/* 2026-06-10 원본 양식 정렬: 모델명 컬럼 → 월/일 컬럼 (품목명에 모델+명 결합 표시) */
+/* 2026-06-10 원본 양식 정렬: 모델명 컬럼 → 월/일 컬럼 (품목명에 모델+명 결합 표시)
+   개발책임자 정정: 헤더 전부 가운데(thead th 공통 center), 수량 데이터 가운데 */
 .dispatch-table .col-date    { width: 16mm; text-align: center; font-size: 10pt; font-weight: 600; }
 .dispatch-table .col-product { text-align: left; font-weight: 700; }
 .dispatch-table .col-spec    { width: 30mm; text-align: left; font-size: 12pt; font-weight: 700; }
-.dispatch-table .col-qty     { width: 18mm; text-align: right; font-size: 13pt; font-weight: 700; font-variant-numeric: tabular-nums; padding-right: 3mm; }
+.dispatch-table .col-qty     { width: 18mm; text-align: center; font-size: 13pt; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dispatch-table thead th.col-product,
+.dispatch-table thead th.col-spec,
+.dispatch-table thead th.col-qty { text-align: center; }
 
 /* 인쇄 다페이지 fallback — 품목행 중간 잘림 방지 + 헤더 페이지 반복 */
 .dispatch-table thead { display: table-header-group; }
@@ -1232,8 +1236,13 @@ button {
 }
 
 .dispatch-table tfoot td.total-label { text-align: center; font-size: 12pt; }
-/* 원본 양식: 총합계 수량 이탤릭 */
-.dispatch-table tfoot td.total-qty   { text-align: right; font-size: 13pt; font-style: italic; padding-right: 3mm; }
+/* 원본 양식: 총합계 수량 이탤릭 (수량 데이터 가운데 정렬 — 개발책임자 2026-06-10) */
+.dispatch-table tfoot td.total-qty   { text-align: center; font-size: 13pt; font-style: italic; }
+
+/* 결재칸 서명 스탬프 — 서명(위) + 이름(아래). 사원 서명 슬라이스 전까지 placeholder 공간 */
+.dispatch-role-stamp { max-width: 100%; max-height: 9mm; object-fit: contain; display: block; margin: 0 auto; }
+.dispatch-role-stamp-space { display: block; min-height: 6mm; }
+.dispatch-role-value .name { display: block; text-align: center; }
 
 /* 하단 묶음 — 배송지/연락처/특이사항 박스, 안내문, 서명 라벨, 책임 안내 */
 .dispatch-bottom-group {
@@ -1297,10 +1306,15 @@ button {
   margin: 4mm 0;
 }
 
+/* 개발책임자 정정(2026-06-10): 전자서명은 라벨 '우측' 에 표시 — flex row */
 .dispatch-sign-label-only {
   font-size: 12pt;
   font-weight: 700;
   padding: 2mm 0;
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  min-height: 14mm;
 }
 
 /*
@@ -1310,11 +1324,11 @@ button {
  * 화면 미리보기 (인쇄 전 표시) 에서는 본 base 스타일 적용.
  */
 .dispatch-recipient-sign-cell .dispatch-role-signature-img {
-  display: block;
-  max-width: 100%;
+  display: inline-block;
+  max-width: 42mm;
   max-height: 60px;
   object-fit: contain;
-  margin: 4px auto 2px;
+  margin: 0;
 }
 
 .dispatch-recipient-sign-cell .dispatch-role-signature-meta {

@@ -50,35 +50,32 @@ function toMonthDay(isoDate: string | null | undefined): string {
 }
 
 /**
- * "2026-05-04T14:32:18+09:00" → "14:32" (Designer print-spec.md § 3.4).
- * 빈 ISO 시 빈 문자열.
- */
-function formatHHmm(iso: string | null | undefined): string {
-  if (!iso) return ''
-  return iso.slice(11, 16)
-}
-
-/**
  * `<RoleCell>` — 결재란 5칸 셀 (Designer components.md § 4.4).
  *
- * 출고인/검수인 셀은 value (이름) + time (HH:mm) 둘 다 표시.
- * 그 외 (담당부서/담당자/결재) 는 value 만.
+ * 2026-06-10 개발책임자 정정: 작성자/출고인/검수인 칸은 **서명(위) + 바로 아래 이름** 구조.
+ * 서명 이미지는 사원 서명 등록 슬라이스(별도 PR — 사원등록 메뉴) 후 signaturePng 주입,
+ * 그 전까지는 서명 영역 placeholder 빈 공간 + 이름만 하단 표시. time(HH:mm) 표시는 폐기.
  */
 function RoleCell({
   label,
   value,
-  time,
+  signaturePng,
 }: {
   label: string
   value?: string | null
-  time?: string | null
+  /** 사원 등록 서명 PNG dataURL — 사원 서명 슬라이스 후 배선 (현재 undefined). */
+  signaturePng?: string | null
 }) {
   return (
     <div className="dispatch-role-cell">
       <div className="dispatch-role-label">{label}</div>
       <div className="dispatch-role-value">
+        {signaturePng ? (
+          <img className="dispatch-role-stamp" src={signaturePng} alt={`${label} 서명`} />
+        ) : (
+          <span className="dispatch-role-stamp-space" />
+        )}
         {value ? <span className="name">{value}</span> : null}
-        {time ? <span className="time">{formatHHmm(time)}</span> : null}
       </div>
     </div>
   )
@@ -121,11 +118,8 @@ export function DispatchView() {
     warehousesQuery.data?.find((w) => w.id === slip.sourceWarehouseId)?.name ?? '-'
   const monthDay = toMonthDay(slip.slipDate)
   /** 결재칸 발행일 MMDD (샘플 '0610' = 발행 당일). */
-  const issuedMmdd = (() => {
-    const d = new Date()
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${pad(d.getMonth() + 1)}${pad(d.getDate())}`
-  })()
+  // 결제예정일 (개발책임자 정정 2026-06-10: '결제' → '결제예정일', 값 = slip.paymentDueDate MM/DD)
+  const paymentDueMmdd = slip.paymentDueDate ? toMonthDay(slip.paymentDueDate) : ''
 
   return (
     <div>
@@ -147,20 +141,13 @@ export function DispatchView() {
           <div className="dispatch-partner-name-box">
             {slip.partnerName ?? '-'}
           </div>
-          <div className="dispatch-roles" aria-label="담당자 및 결재">
+          {/* 2026-06-10 개발책임자 정정: 담당자→작성자, 결제→결제예정일. 작성자/출고인/검수인 = 서명+이름 */}
+          <div className="dispatch-roles" aria-label="작성자 및 결재">
             <RoleCell label="담당부서" value={slip.ownerDepartment ?? null} />
-            <RoleCell label="담당자" value={slip.ownerFullName ?? null} />
-            <RoleCell
-              label="출고인"
-              value={slip.dispatcher?.fullName ?? null}
-              time={slip.dispatcher?.signedAt ?? null}
-            />
-            <RoleCell
-              label="검수인"
-              value={slip.inspector?.fullName ?? null}
-              time={slip.inspector?.signedAt ?? null}
-            />
-            <RoleCell label="결 제" value={issuedMmdd} />
+            <RoleCell label="작성자" value={slip.ownerFullName ?? null} />
+            <RoleCell label="출고인" value={slip.dispatcher?.fullName ?? null} />
+            <RoleCell label="검수인" value={slip.inspector?.fullName ?? null} />
+            <RoleCell label="결제예정일" value={paymentDueMmdd} />
           </div>
         </header>
 

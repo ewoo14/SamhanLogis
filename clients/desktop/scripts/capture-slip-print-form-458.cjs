@@ -128,6 +128,7 @@ async function createManyLineSlip(token) {
     slipType: 'OUTBOUND',
     sourceWarehouseId: '11111111-1111-1111-1111-000000000001', // 본사창고 (실 시드)
     partnerName: 'QA 다량품목 자동축소 검증',
+    paymentDueDate: '2026-06-30', // 결제예정일 칸 QA (개발책임자 정정)
     memo: '오전일찍 최대한 빨리 (PR #458 자동 축소 QA)',
     shippingAddress: '경기도 광주시 초월읍 무갑길 100 (자동축소 QA 배송지)',
     customerTel: '010-0000-0000',
