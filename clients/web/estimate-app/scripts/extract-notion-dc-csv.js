@@ -89,8 +89,20 @@ async function main() {
     pages++;
   } while (cursor);
 
-  const pct = (v) => (v == null ? '' : `${(v * 100).toFixed(v * 100 % 1 === 0 ? 0 : 2)}%`);
+  const pct = (v) => {
+    if (v == null) return '';
+    const n = Math.round(v * 10000) / 100; // 소수 2자리 정밀
+    return `${n}%`;
+  };
   const won = (v) => (v == null ? '' : String(Math.trunc(v)));
+
+  // 정합 가드 — 사업자번호는 10자리 (Notion number 타입의 leading-zero 손실은
+  // 구조적으로 비발현: 세무서코드(앞 3자리)는 0 시작 불가 + 레거시도 number 운영.
+  // 그래도 10자리 미만 발견 시 경고로 드러낸다 — silent 적재 금지).
+  const badCodes = rows.filter((r) => r.code && r.code.length !== 10).map((r) => `${r.code}(${r.name})`);
+  if (badCodes.length) {
+    console.warn(`⚠️ 10자리 아닌 거래처코드 ${badCodes.length}건 — 수동 확인 필요: ${badCodes.slice(0, 10).join(', ')}`);
+  }
 
   const header = ['거래처코드', '업체명', '홈멀티DC', '상업멀티DC', '유연호스I형',
     '360', '4way', '1way', '스탠드', '디럭스', '1등급', '단위처리', '특이사항'];

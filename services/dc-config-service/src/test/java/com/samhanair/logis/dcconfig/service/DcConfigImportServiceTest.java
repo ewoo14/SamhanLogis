@@ -137,6 +137,25 @@ class DcConfigImportServiceTest {
     }
 
     @Test
+    @DisplayName("#29 구형 'Yes'/'No' update — 기존 rounding 정책 보존 (toggle 만 갱신)")
+    void importYesNo_preservesExistingRounding() {
+        String csv = "업체명,1way,1등급,360,4way,거래처코드,단위처리,디럭스,상업멀티DC,스탠드,유연호스I형,특이사항,홈멀티DC\n"
+                + "(주)예전,,,,,6260403108,No,,50%,,Yes,,40%\n";
+
+        DcConfig existing = DcConfig.create(partner, DcConfigSource.ADMIN_EDIT);
+        existing.changeRounding(1000, com.samhanair.logis.dcconfig.domain.UnitRoundMode.CEIL);
+        when(partnerRepository.findByPartnerCode("6260403108")).thenReturn(Optional.of(partner));
+        when(dcConfigRepository.findByPartner_Id(any())).thenReturn(Optional.of(existing));
+
+        service.importCsv(toStream(csv));
+
+        // 'No' = 활성 토글만 끔 — 기존 반올림 정책(1000원 올림)은 유지
+        assertThat(existing.getUnitProcessingEnabled()).isFalse();
+        assertThat(existing.getUnitRoundTo()).isEqualTo(1000);
+        assertThat(existing.getUnitRoundMode()).isEqualTo(com.samhanair.logis.dcconfig.domain.UnitRoundMode.CEIL);
+    }
+
+    @Test
     @DisplayName("#29 단위처리 비인식 값 → reject (silent 유실 금지)")
     void rejectUnknownUnitProcessing() {
         String csv = "업체명,1way,1등급,360,4way,거래처코드,단위처리,디럭스,상업멀티DC,스탠드,유연호스I형,특이사항,홈멀티DC\n"
