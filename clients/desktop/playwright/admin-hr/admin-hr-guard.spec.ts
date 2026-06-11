@@ -4,11 +4,11 @@
  * 인사 카테고리 + 대표실 가드 Playwright 통합 스펙.
  *
  * 검증 목표:
- *   TC-HR1 — MASTER+대표실: /admin/users 진입 가능 + 인사 사이드바 카테고리 7 메뉴 visible (활성)
+ *   TC-HR1 — MASTER+대표실: /admin/users 진입 가능 + 인사 사이드바 카테고리 6 메뉴 visible (활성)
  *   TC-HR2 — MASTER+영업: /admin/users 직접 URL 진입 시 forbidden 또는 redirect
  *   TC-HR3 — SALES role: 인사 카테고리 NavLink 회색 disabled + onClick preventDefault
  *   TC-HR4 — AdminLayout 헤더 라벨 "인사" 검증 (이전 "관리자" 잔존 0건)
- *   TC-HR5 — 인사 메뉴 7건 각 testId visible 검증
+ *   TC-HR5 — 인사 메뉴 6건 각 testId visible 검증
  *
  * 실행 방법:
  *   cd clients/desktop
@@ -136,15 +136,14 @@ async function waitForSettle(page: Page): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// 인사 메뉴 7건 testId 목록
-// 신규인사 / 권한조정 / 부서관리 / 단톡방 / DC설정 / 거래처 / 창고관리
+// 인사 메뉴 6건 testId 목록 (Round B: 단톡방 매핑 그룹웨어 단일화로 7→6)
+// 신규인사 / 권한조정 / 부서관리 / DC설정 / 거래처 / 창고관리
 // ---------------------------------------------------------------------------
 
 const HR_MENU_TEST_IDS = [
   'admin-nav-users-new',     // 신규인사 / 사용자관리
   'admin-nav-roles',         // 권한조정
   'admin-nav-departments',   // 부서관리
-  'admin-nav-chat-rooms',    // 단톡방
   'admin-nav-dc-config',     // DC설정
   'admin-nav-partners',      // 거래처
   'admin-nav-warehouses',    // 창고관리
@@ -165,10 +164,10 @@ test.describe('인사 카테고리 + 대표실 가드', () => {
   })
 
 // ---------------------------------------------------------------------------
-// TC-HR1: MASTER + 대표실 → /admin/users 진입 가능 + 7 메뉴 visible (활성)
+// TC-HR1: MASTER + 대표실 → /admin/users 진입 가능 + 6 메뉴 visible (활성)
 // ---------------------------------------------------------------------------
 
-test('TC-HR1: MASTER+대표실 — /admin/users 진입 가능 + 인사 사이드바 7 메뉴 visible', async ({
+test('TC-HR1: MASTER+대표실 — /admin/users 진입 가능 + 인사 사이드바 6 메뉴 visible', async ({
   page,
 }) => {
   const errors: string[] = []
@@ -185,7 +184,7 @@ test('TC-HR1: MASTER+대표실 — /admin/users 진입 가능 + 인사 사이드
   const url = page.url()
   expect(url, 'TC-HR1: URL 이 /admin/users 이어야 함').toContain('/admin/users')
 
-  // 2) 사이드바 인사 카테고리 7 메뉴 중 최소 5건 이상 visible (구현 단계에 따라 유연)
+  // 2) 사이드바 인사 카테고리 6 메뉴 중 최소 5건 이상 visible (구현 단계에 따라 유연)
   let visibleCount = 0
   for (const testId of HR_MENU_TEST_IDS) {
     const el = page.getByTestId(testId)
@@ -380,10 +379,10 @@ test('TC-HR4: AdminLayout 헤더 라벨 "인사" 검증 — "관리자" 텍스�
 })
 
 // ---------------------------------------------------------------------------
-// TC-HR5: 인사 메뉴 7건 testId visible 검증 (MASTER + 대표실)
+// TC-HR5: 인사 메뉴 6건 testId visible 검증 (MASTER + 대표실)
 // ---------------------------------------------------------------------------
 
-test('TC-HR5: 인사 메뉴 7건 testId visible 검증', async ({ page }) => {
+test('TC-HR5: 인사 메뉴 6건 testId visible 검증', async ({ page }) => {
   const errors: string[] = []
   attachPageErrorHook(page, errors)
 
@@ -407,18 +406,18 @@ test('TC-HR5: 인사 메뉴 7건 testId visible 검증', async ({ page }) => {
     .filter(([, visible]) => !visible)
     .map(([id]) => id)
 
-  // 최소 5건 이상 visible (7건 전체 구현 전 단계 허용)
+  // 최소 5건 이상 visible (6건 전체 구현 전 단계 허용)
   const visibleCount = Object.values(results).filter(Boolean).length
   if (missingMenus.length > 0) {
     console.warn(
       `TC-HR5: 미구현 또는 testId 불일치 메뉴 — ${missingMenus.join(', ')}. ` +
-        `visible: ${visibleCount}/7`,
+        `visible: ${visibleCount}/6`,
     )
   }
 
   expect(
     visibleCount,
-    `TC-HR5: 인사 메뉴 7건 중 최소 5건 이상 visible 이어야 함 (실제: ${visibleCount})`,
+    `TC-HR5: 인사 메뉴 6건 중 최소 5건 이상 visible 이어야 함 (실제: ${visibleCount})`,
   ).toBeGreaterThanOrEqual(5)
 
   expect(errors, `TC-HR5: pageerror 발생 — ${errors.join(', ')}`).toHaveLength(0)

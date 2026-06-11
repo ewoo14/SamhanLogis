@@ -57,6 +57,54 @@ function categoryBlock(text: string, label: string): string {
   return text.slice(start, next < 0 ? text.length : next)
 }
 
+/**
+ * [Round B P2] 카테고리 블록 안에서 특정 data-testid 를 가진 단일 <SidebarLink> 블록만 잘라 반환한다.
+ * 시작 = 해당 testid 를 포함하는 <SidebarLink 여는 태그, 끝 = 그 블록의 </SidebarLink>.
+ *
+ * 같은 블록(같은 SidebarLink) 안에서 to=·data-testid=·label 3종을 함께 hard 단언하기 위함.
+ * 기존 categoryBlock 전역 매칭은 to/testid/label 이 서로 다른 항목에 흩어져 있어도 통과하던
+ * false-green 갭이 있었다(예: 품목 관리 route 미단언, 시트 동기화 testid 미단언).
+ *
+ * @param block categoryBlock() 로 잘라낸 카테고리 텍스트
+ * @param testId 대상 SidebarLink 의 data-testid 값
+ */
+function sidebarLinkBlock(block: string, testId: string): string {
+  const testIdToken = `data-testid="${testId}"`
+  const testIdIndex = block.indexOf(testIdToken)
+  expect(
+    testIdIndex,
+    `data-testid="${testId}" SidebarLink 가 블록 안에 존재해야 함`,
+  ).toBeGreaterThanOrEqual(0)
+  // testid 앞쪽에서 가장 가까운 <SidebarLink 여는 태그 시작점
+  const open = block.lastIndexOf('<SidebarLink', testIdIndex)
+  expect(open, `${testId} 의 <SidebarLink 여는 태그를 찾아야 함`).toBeGreaterThanOrEqual(0)
+  // testid 뒤쪽에서 가장 가까운 </SidebarLink> 닫는 태그 끝점
+  const closeToken = '</SidebarLink>'
+  const closeStart = block.indexOf(closeToken, testIdIndex)
+  expect(closeStart, `${testId} 의 </SidebarLink> 닫는 태그를 찾아야 함`).toBeGreaterThanOrEqual(0)
+  return block.slice(open, closeStart + closeToken.length)
+}
+
+/**
+ * 단일 SidebarLink 블록 안에서 to / data-testid / label 3종을 모두 hard 단언한다.
+ *
+ * @param block categoryBlock() 결과
+ * @param testId data-testid 값
+ * @param to 기대 to(route) 값
+ * @param label 블록 안에 포함되어야 할 라벨 텍스트
+ */
+function assertSidebarLink(
+  block: string,
+  testId: string,
+  to: string,
+  label: string,
+): void {
+  const linkBlock = sidebarLinkBlock(block, testId)
+  expect(linkBlock, `${testId}: to="${to}" 단언`).toContain(`to="${to}"`)
+  expect(linkBlock, `${testId}: data-testid 단언`).toContain(`data-testid="${testId}"`)
+  expect(linkBlock, `${testId}: 라벨 "${label}" 단언`).toContain(label)
+}
+
 test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
   const appLayout = read('clients/desktop/src/renderer/components/AppLayout.tsx')
 
@@ -78,7 +126,8 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
       'label="회계"',
       'label="그룹웨어"',
       'label="인사"',
-      'label="arologis"',
+      // [Round B P2] 배차 그룹 헤더 라벨 'arologis'(코드명) → '배차'(업무 라벨).
+      'label="배차"',
       'label="창고 운영"',
     ])
 
@@ -89,27 +138,43 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
     expect(appLayout).not.toContain('<SidebarCategory label="설정"')
   })
 
-  // (b) 이동 항목이 지정 그룹 블록 안에서 route+testid 를 보존하는지 — 블록 경계 한정.
-  test('이동 항목: 각 카테고리 블록 안에서 route+testid 보존', () => {
+  // (b) 이동 항목이 지정 그룹 블록 안에서 route+testid+label 3종을 동일 SidebarLink 블록에서
+  //     보존하는지 — sidebarLinkBlock 으로 블록을 잘라 hard 단언(false-green 잔여 갭 제거).
+  //     [Round B P2] 기존 categoryBlock 전역 매칭은 to/testid/label 이 서로 다른 항목에 흩어져도
+  //     통과했다(품목 관리 route 미단언, 시트 동기화 testid 미단언, 단톡방/배차 route 미단언).
+  test('이동 항목: 각 카테고리 블록 안에서 route+testid+label 동일 블록 hard 보존', () => {
     const salesBlock = categoryBlock(appLayout, '판매')
-    expect(salesBlock).toMatch(/to="\/sales"[\s\S]*?data-testid="sidebar-sales"[\s\S]*?판매관리/)
-    expect(salesBlock).toMatch(/data-testid="sidebar-products-catalog"[\s\S]*?품목 관리/)
-    expect(salesBlock).toMatch(/to="\/admin\/sheet-sync"[\s\S]*?시트 동기화/)
+    assertSidebarLink(salesBlock, 'sidebar-sales', '/sales', '판매관리')
+    assertSidebarLink(salesBlock, 'sidebar-products-catalog', '/products/catalog', '품목 관리')
+    // 시트 동기화 — 품목 권한 동반 노출 변형(testid in-products) 의 route+testid+label 동시 단언.
+    assertSidebarLink(
+      salesBlock,
+      'sidebar-settings-sheet-sync-in-products',
+      '/admin/sheet-sync',
+      '시트 동기화',
+    )
 
     const purchaseBlock = categoryBlock(appLayout, '구매')
-    expect(purchaseBlock).toMatch(/to="\/purchases"[\s\S]*?data-testid="sidebar-purchases"[\s\S]*?구매관리/)
-    expect(purchaseBlock).toMatch(/data-testid="sidebar-purchases-receipt-ocr"[\s\S]*?영수증 OCR/)
-    expect(purchaseBlock).toMatch(/to="\/transfers"[\s\S]*?data-testid="sidebar-transfers"[\s\S]*?재고이동 관리/)
+    assertSidebarLink(purchaseBlock, 'sidebar-purchases', '/purchases', '구매관리')
+    assertSidebarLink(purchaseBlock, 'sidebar-purchases-receipt-ocr', '/purchases/receipt-ocr', '영수증 OCR')
+    assertSidebarLink(purchaseBlock, 'sidebar-transfers', '/transfers', '재고이동 관리')
 
     const groupwareBlock = categoryBlock(appLayout, '그룹웨어')
-    expect(groupwareBlock).toMatch(/data-testid="sidebar-link-dispatch"[\s\S]*?링크발송/)
-    expect(groupwareBlock).toMatch(/data-testid="sidebar-messenger-aligo-address-book"[\s\S]*?알리고 주소록/)
-    expect(groupwareBlock).toMatch(/data-testid="sidebar-admin-chat-rooms"[\s\S]*?단톡방 매핑/)
+    assertSidebarLink(groupwareBlock, 'sidebar-link-dispatch', '/sales/link-dispatch', '링크발송')
+    assertSidebarLink(
+      groupwareBlock,
+      'sidebar-messenger-aligo-address-book',
+      '/admin/aligo-address-book',
+      '알리고 주소록',
+    )
+    // 단톡방 매핑 — route(/admin/chat-rooms) 까지 hard 단언(기존 testid+label 만).
+    assertSidebarLink(groupwareBlock, 'sidebar-admin-chat-rooms', '/admin/chat-rooms', '단톡방 매핑')
 
-    const arologisBlock = categoryBlock(appLayout, 'arologis')
-    expect(arologisBlock).toMatch(/data-testid="sidebar-dispatch-board"[\s\S]*?배차 메뉴/)
+    // [Round B P2] 배차 그룹 — 라벨 '배차'(구 'arologis'). 배차 메뉴 route(/dispatch-board) hard 단언.
+    const dispatchBlock = categoryBlock(appLayout, '배차')
+    assertSidebarLink(dispatchBlock, 'sidebar-dispatch-board', '/dispatch-board', '배차 메뉴')
 
     const warehouseOpsBlock = categoryBlock(appLayout, '창고 운영')
-    expect(warehouseOpsBlock).toMatch(/to="\/warehouses"[\s\S]*?data-testid="sidebar-warehouses"[\s\S]*?창고관리/)
+    assertSidebarLink(warehouseOpsBlock, 'sidebar-warehouses', '/warehouses', '창고관리')
   })
 })

@@ -1,8 +1,9 @@
 /**
  * 좌측 메뉴 5대분류 재편 (PR #462) Docker 실서버 QA Playwright spec.
  *
- * 대상: AppLayout.tsx IA 재편 — 홈 + 알림 내역 + 7그룹(판매/구매/회계/그룹웨어/인사/arologis/창고 운영)
+ * 대상: AppLayout.tsx IA 재편 — 홈 + 알림 내역 + 7그룹(판매/구매/회계/그룹웨어/인사/배차/창고 운영)
  *       동적 RBAC(usePermissions → /auth/admin/permissions/my) 기반 그룹/항목 hidden 필터 실 캡처.
+ *       [Round B P2] 배차 그룹 헤더 라벨 'arologis'(코드명) → '배차'(업무 라벨) 변경 반영.
  *
  * 실서버:
  *   - api-gateway: http://localhost:8080 (실 권한 API)
@@ -44,7 +45,7 @@ const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/menu-5catego
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 /** 7대 그룹 카테고리 헤더 라벨(AppLayout SidebarCategory label 과 1:1). */
-const GROUP_LABELS = ['판매', '구매', '회계', '그룹웨어', '인사', 'arologis', '창고 운영'] as const
+const GROUP_LABELS = ['판매', '구매', '회계', '그룹웨어', '인사', '배차', '창고 운영'] as const
 
 /**
  * 실 게이트웨이 권한 매트릭스(/auth/admin/permissions/my) 로부터 역할별 기대 그룹 가시성을
@@ -98,7 +99,7 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
   ],
   그룹웨어: ['slip.delivery-batch', 'aligo.address-book', 'messenger.admin'],
   인사: ['admin.employees', 'admin.users', 'system.permission-admin'],
-  arologis: [
+  배차: [
     'dispatch.board',
     'arologis.dispatch.admin',
     'arologis.dispatch.ops',

@@ -14,7 +14,7 @@
  * - 회계     — 매출·매입전표/계정과목/분개장/세금계산서/시산표/재무보고서/마감/원장/회계 관리자(중첩 토글)
  * - 그룹웨어 — 링크발송/알리고 주소록/단톡방 매핑
  * - 인사     — 인사 관리/권한설정/권한 일괄/그룹 권한/권한그룹 관리/권한 위임
- * - arologis — 배차 메뉴/수동 배차/가배차 분류/미배차/배차안내 SMS/실배차 비교/배차지역 관리/배차 admin
+ * - 배차     — 배차 메뉴/수동 배차/가배차 분류/미배차/배차안내 SMS/실배차 비교/배차지역 관리/배차 admin
  * - 창고 운영 — 창고관리/재고 현황/안전재고/보상 실패 복구/전표 수정 요청/사진 감사
  *
  * 그룹/항목 권한은 usePermissions().canAccess(pageCode, action) 동적 RBAC 단일 소스이며,
@@ -35,11 +35,10 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { hasBuiltinRoleGroup, useSessionStore } from '../stores/session'
+import { useSessionStore } from '../stores/session'
 import { usePageTitleStore } from '../stores/pageTitle'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
 import { usePermissions } from '../hooks/usePermissions'
-import type { AuthSnapshot } from '../types/electron'
 import { NotificationBellDropdown } from './NotificationBellDropdown'
 
 /**
@@ -147,11 +146,19 @@ function SidebarCategory({
 }) {
   if (!show) return null
 
+  // [Round B P3] 그룹 헤더 접근성 — 기존 aria-hidden="true" 는 스크린리더가 그룹 구분(라벨)을
+  //   읽지 못하게 막았다. 헤더를 heading(aria-level=2)으로 시멘틱화하고 자식 항목을
+  //   role="group" + aria-labelledby 로 묶어 그룹 라벨이 보조기술에 전달되도록 한다.
+  //   시각 스타일(className/style)은 그대로 보존한다.
+  const headingId = `sidebar-group-heading-${encodeURIComponent(label)}`
+
   return (
     <>
       <div
         className="app-sidebar-group"
-        aria-hidden="true"
+        id={headingId}
+        role="heading"
+        aria-level={2}
         style={{
           marginTop: 16,
           padding: '4px 8px',
@@ -164,7 +171,9 @@ function SidebarCategory({
       >
         {label}
       </div>
-      {children}
+      <div role="group" aria-labelledby={headingId}>
+        {children}
+      </div>
     </>
   )
 }
@@ -173,10 +182,6 @@ function SidebarCategory({
  * [samhan-dispatch-board Phase A] 배차 메뉴 (/dispatch-board) — DISPATCH/MANAGER/MASTER.
  * Samhan Public 배차담당자 → 차량 그룹 + arologis 발송 흐름.
  */
-
-function hasAnyBuiltinRoleGroup(auth: AuthSnapshot | null, roles: readonly string[]): boolean {
-  return roles.some((role) => hasBuiltinRoleGroup(auth, role))
-}
 
 export function AppLayout() {
   const auth = useSessionStore((s) => s.auth)
@@ -259,12 +264,16 @@ export function AppLayout() {
     showAccountingAdminCash || showAccountingAdminOrder
     || showAccountingAdminAging || showAccountingAdminLedger
     || showAccountingAdminMigOps || showAccountingEditRequests
-  // 회계 카테고리 헤더: 12 PageCode 중 1개라도 가시이면 표시
+  // 회계 카테고리 헤더: 회계 PageCode 중 1개라도 가시이면 표시.
+  // [Round B P1] 세금계산서 발행 묶음(batch-issue)·수신 세금계산서(inbound) 누락 보강 —
+  //   해당 권한 단독 보유자(자식 링크 597/604행 존재)가 회계 그룹 전체를 잃던 갭 해소.
   const showAccounting =
     showAccountingAccounts || showAccountingJournals || showAccountingBalances
     || showAccountingReports || showAccountingPeriodClose || showAccountingStatBatch
     || showAccountingSalesSlip || showAccountingPurchaseSlip
-    || showAccountingPartnerLedger || showAccountingTaxInvoice || showAccountingDailyClose
+    || showAccountingPartnerLedger || showAccountingTaxInvoice
+    || showAccountingTaxInvoiceBatch || showAccountingTaxInvoiceInbound
+    || showAccountingDailyClose
     || showAccountingLedger || showAccountingDepositMatch
     || showAccountingAdminGroup
   const showDeliveryBatch = dynamicCanAccess('slip.delivery-batch', 'view')
@@ -283,7 +292,10 @@ export function AppLayout() {
   const showInventoryDps           = dynamicCanAccess('inventory.dps',                'view')
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
-  const showAdminUsersMgmt         = dynamicCanAccess('admin.users',                  'view')
+  // admin.users — 인사 그룹 자식 링크 소비처 없음('인사 관리'/admin/users 는 admin.employees 게이트).
+  // [Round B P3] showAdminHrGroup 에서 제거 — admin.users 단독 권한자가 빈 '인사' 헤더만 보던 갭 해소.
+  // 사이드바/라우트 직접 소비처 없으나 page-code 자체는 유효 → 향후 메뉴 연결 예약(underscore).
+  const _showAdminUsersMgmt        = dynamicCanAccess('admin.users',                  'view')
   const showPermissionAdmin        = dynamicCanAccess('system.permission-admin', 'view')
   // [C5-2b] MASTER role 문자열 fallback 제거 → system.permission-admin 동적 권한만 사용.
   // BE @RequirePermission(page="system.permission-admin") 가 MASTER bypass 포함 단일 가드.
@@ -301,7 +313,7 @@ export function AppLayout() {
   // [Round A P3] 구 showInventoryGroup 집계 변수 삭제 — 창고운영 그룹 게이트는
   // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
-  const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt || showPermissionAdmin || showPermissionDelegation
+  const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation
 
   // [C5 follow-up 사이클1 fix] arologis 메뉴 가시성 = 라우트 PermissionGuard 와 동일 page-code 단일 소스.
   // (사이클1 리뷰 FE P1-2 + Designer D-002: 그룹 UUID 매칭은 라우트 가드와 소스 이원화 — seed 불일치 시
@@ -319,8 +331,6 @@ export function AppLayout() {
     || showDispatchSmsSendAudit
     || showArologisAdminPage
 
-  // 단톡방 매핑 entry 의 MASTER 제외 분기에서만 사용 — 빌트인 MASTER 그룹 UUID 내부 비교(화면 노출 없음).
-  const showAdmin = hasAnyBuiltinRoleGroup(auth, ['MASTER'])
   const showAudit = showInventoryAuditPage
   const showDpsCompare = showInventoryDps
   const showDpsByProduct = showInventoryDps
@@ -333,8 +343,7 @@ export function AppLayout() {
   const showSafetyStockAlerts = dynamicCanAccess('inventory.safety-stock', 'view')
   // [Round A P3] 구 showWarehouseOps 집계 변수 삭제 — 창고운영 그룹 게이트 교체 후 미소비(dead) 였음.
   //   실제 그룹 가시성은 아래 showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 가 담당한다.
-  // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
-  // showAdmin 이 false 인 MANAGER 도 entry 가 가시되도록 별도 분기.
+  // [PR-D Phase B FE-D] 단톡방 매핑 — messenger.admin (MASTER/MANAGER). 그룹웨어 단일 노출.
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER
   const showSlipCleanup = dynamicCanAccess('slip.cleanup', 'view')
   const showNextDaySlip = dynamicCanAccess('slip.print.next-day', 'view')
@@ -364,7 +373,7 @@ export function AppLayout() {
     showPurchaseSlipList || showReceiptOcr || showInventoryStockTransfer
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
   const showGroupware =
-    showDeliveryBatch || showAligoAddressBook || (showChatRoomAdmin && !showAdmin)
+    showDeliveryBatch || showAligoAddressBook || showChatRoomAdmin
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
   const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
@@ -875,9 +884,13 @@ export function AppLayout() {
             >
               알리고 주소록
             </SidebarLink>
+            {/* [Round B P2] 단톡방 매핑 — 그룹웨어 단일화(5대분류 consolidation).
+                기존 가드는 MASTER 그룹(빌트인) 사용자를 그룹웨어에서 배제하고 AdminLayout(인사 셸)의
+                중복 nav 로만 노출했으나, 그 중복을 제거하고 messenger.admin 권한자(MASTER 포함) 전원을
+                그룹웨어 단일 경로로 통일한다(showChatRoomAdmin 단독 게이트). */}
             <SidebarLink
               to="/admin/chat-rooms"
-              show={showChatRoomAdmin && !showAdmin}
+              show={showChatRoomAdmin}
               requiredRole="MASTER / MANAGER"
               data-testid="sidebar-admin-chat-rooms"
             >
@@ -940,7 +953,9 @@ export function AppLayout() {
             </SidebarLink>
           </SidebarCategory>
 
-          <SidebarCategory label="arologis" show={showArologisGroup}>
+          {/* [Round B P2] 그룹 헤더 라벨 'arologis'(코드명 노출) → 한국어 업무 라벨 '배차'.
+              다른 6그룹과 일관(판매/구매/회계/그룹웨어/인사/창고 운영). testid 무관(라벨만). */}
+          <SidebarCategory label="배차" show={showArologisGroup}>
               {/* [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH/MANAGER/MASTER.
                   Samhan Public 배차담당자 → 미배차 출고전표 + 차량 그룹 + arologis 발송. */}
               <SidebarLink

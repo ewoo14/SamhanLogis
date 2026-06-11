@@ -324,27 +324,36 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     })
     await page.waitForTimeout(1500)
 
-    // 기존 마스터 메뉴 4가지 확인 (경로 또는 메뉴 텍스트 기준)
+    // 기존 마스터 메뉴 4가지 확인 (정확 경로 AND 메뉴 텍스트 기준).
     // [Round A P3] '제품 관리'/'/admin/products' → 현행 '품목 관리'/'/products/catalog'.
+    // [Round B P2] '사용자 관리' 라벨은 현행 사이드바 표기 '인사 관리'(admin.employees 게이트)와 일치시킨다
+    //   (구 라벨 'admin-nav-users-new' 신규인사 와 혼동 금지). alt 로 구 표기 '사용자 관리' 보존.
     const legacyMenus = [
       { label: '배차지역 관리', path: '/admin/regions', alt: '배차지역관리' },
-      { label: '사용자 관리', path: '/admin/users', alt: '사용자관리' },
+      { label: '인사 관리', path: '/admin/users', alt: '사용자 관리' },
       { label: '거래처 관리', path: '/admin/partners', alt: '거래처관리' },
       { label: '품목 관리', path: '/products/catalog', alt: '품목관리' },
     ]
 
     const foundResults: Record<string, boolean> = {}
+    const detailResults: Record<string, { hrefMatch: number; labelPresent: boolean }> = {}
 
     for (const menu of legacyMenus) {
-      // 사이드바 링크 또는 메뉴 텍스트 탐색
-      const byHref = page.locator(`a[href="${menu.path}"], a[href*="${menu.path}"]`).first()
-      const byLabel = page.locator(`nav a:has-text("${menu.label}"), aside a:has-text("${menu.label}"), a:has-text("${menu.alt}")`).first()
+      // [Round B P2] 정확 path href 존재 AND 라벨/alt 포함을 함께 요구(기존 href OR label false-green 제거).
+      //   path 가 깨져도 라벨만 있으면 통과하던 OR 가드를 AND 로 강화한다. HashRouter 라 실제 href 는
+      //   '#/admin/regions' 형태이므로 path 를 포함(*=)하는 anchor 가 정확히 1건이어야 한다(중복 셸 미마운트).
+      //   라벨/alt 도 동반 노출되어야 한다.
+      const byHrefPath = page.locator(`a[href*="${menu.path}"]`)
+      const byLabel = page.locator(
+        `nav a:has-text("${menu.label}"), aside a:has-text("${menu.label}"), a:has-text("${menu.alt}")`,
+      ).first()
 
-      const hrefCount = await byHref.count()
-      const labelCount = await byLabel.count()
-      const found = hrefCount > 0 || labelCount > 0
+      const hrefMatch = await byHrefPath.count()
+      const labelPresent = (await byLabel.count()) > 0
+      const found = hrefMatch === 1 && labelPresent
       foundResults[menu.label] = found
-      console.log(`[TC-M5] "${menu.label}" (${menu.path}) 유지: ${found} (href=${hrefCount}, label=${labelCount})`)
+      detailResults[menu.label] = { hrefMatch, labelPresent }
+      console.log(`[TC-M5] "${menu.label}" (${menu.path}) 유지: ${found} (hrefMatch=${hrefMatch}, labelPresent=${labelPresent})`)
     }
 
     await page.screenshot({
@@ -356,11 +365,23 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     const foundCount = Object.values(foundResults).filter(v => v).length
     console.log(`[TC-M5] 기존 마스터 메뉴 유지 확인: ${foundCount}/4`)
 
-    // [Round A P3] soft warn → hard 단언 승격.
-    //   MASTER 는 모든 page-code bypass 라 4개 메뉴(배차지역/사용자/거래처/품목) 가 전부 visible 이어야 한다.
-    //   항목별 단언으로 어느 메뉴가 빠졌는지 메시지로 드러낸다.
+    // [Round A P3 → Round B P2] soft warn → hard AND 단언.
+    //   MASTER 는 모든 page-code bypass 라 4개 메뉴(배차지역/인사/거래처/품목) 가 전부 visible 이어야 한다.
+    //   정확 path href 1건 AND 라벨/alt 포함을 각각 단언해 어느 차원이 빠졌는지 메시지로 드러낸다.
     for (const menu of legacyMenus) {
-      expect(foundResults[menu.label], `TC-M5: MASTER 는 "${menu.label}"(${menu.path}) 메뉴가 유지되어야 함`).toBe(true)
+      const d = detailResults[menu.label]
+      expect(
+        d.hrefMatch,
+        `TC-M5: MASTER 는 "${menu.label}" path href(${menu.path})를 포함하는 anchor 가 정확히 1건이어야 함 (실제: ${d.hrefMatch})`,
+      ).toBe(1)
+      expect(
+        d.labelPresent,
+        `TC-M5: MASTER 는 "${menu.label}"(또는 alt "${menu.alt}") 라벨이 사이드바에 노출되어야 함`,
+      ).toBe(true)
+      expect(
+        foundResults[menu.label],
+        `TC-M5: MASTER 는 "${menu.label}"(${menu.path}) 메뉴가 정확 path href+라벨 모두로 유지되어야 함`,
+      ).toBe(true)
     }
     expect(foundCount, 'TC-M5: 기존 마스터 메뉴 4개 모두 유지되어야 함').toBe(4)
 

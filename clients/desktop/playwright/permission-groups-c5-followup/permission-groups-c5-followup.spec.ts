@@ -71,7 +71,10 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(layout).toContain("dynamicCanAccess('slip.cleanup', 'view')")
     expect(layout).toMatch(/dynamicCanAccess\('products\.sync',\s*'view'\)/)
     expect(layout).toMatch(/const showSheetSync = showProductsSync/)
-    expect(layout).toMatch(/to="\/admin\/sheet-sync"[\s\S]*?show=\{showSheetSync\}/)
+    // [Round B] 시트 동기화 링크는 품목 권한 동반 노출 분기 도입으로 show={showSheetSync && showProductsList}
+    //   / show={showSheetSync && !showProductsList} 두 변형을 갖는다(기존 단일 show={showSheetSync} 가정은
+    //   stale → 상시 FAIL 이던 선재 갭). showSheetSync 게이트 보존만 박제하도록 표현식 시작을 허용 매칭한다.
+    expect(layout).toMatch(/to="\/admin\/sheet-sync"[\s\S]*?show=\{showSheetSync\b/)
     expect(layout).toMatch(/const showAccountingPeriodClose = dynamicCanAccess\('accounting\.period-close',\s*'view'\)/)
     expect(layout).toMatch(/to="\/sales\/closing"[\s\S]*?show=\{showAccountingPeriodClose\}/)
 
@@ -83,9 +86,14 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(layout).toMatch(/dynamicCanAccess\('notification\.dispatch-sms\.send-audit',\s*'view'\)/)
     // 매출 마감 사이드바 = accounting.period-close 단일 page-code (D-001 과다 노출 교정).
     expect(layout).not.toMatch(/to="\/sales\/closing"\s+show=\{showAccounting\}/)
-    // hasAnyBuiltinRoleGroup 잔존 = 단톡방 매핑 !showAdmin 분기 1곳 (UUID 내부 비교)만 허용.
-    expect(layout).toMatch(/hasAnyBuiltinRoleGroup\(auth,\s*\['MASTER'\]\)/)
-    expect(layout).not.toMatch(/hasAnyBuiltinRoleGroup\(auth,\s*\['MASTER',\s*'MANAGER'/)
+    // [Round B P2] 단톡방 매핑 그룹웨어 단일화 — 기존 !showAdmin 분기(빌트인 MASTER 그룹 UUID 비교)
+    //   제거. hasAnyBuiltinRoleGroup 헬퍼/ showAdmin 변수가 dead 가 되어 완전 삭제되었음을 박제한다.
+    //   (단톡방 매핑은 messenger.admin 동적 권한자 전원이 그룹웨어에서 단일 노출 — AdminLayout 중복 제거.)
+    expect(layout).not.toContain('hasAnyBuiltinRoleGroup')
+    expect(layout).not.toMatch(/const showAdmin\b/)
+    // 단톡방 매핑 entry 는 그룹웨어 블록에서 messenger.admin 단독 게이트(showChatRoomAdmin)로 노출.
+    expect(layout).toMatch(/to="\/admin\/chat-rooms"[\s\S]*?show=\{showChatRoomAdmin\}/)
+    expect(layout).not.toMatch(/show=\{showChatRoomAdmin\s*&&\s*!showAdmin\}/)
   })
 
   test('S5 route 3건은 PermissionGuard page-code 단일 게이트로 전환된다', () => {
