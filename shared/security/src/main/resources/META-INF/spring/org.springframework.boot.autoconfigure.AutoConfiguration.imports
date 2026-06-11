@@ -1,2 +1,3 @@
 com.samhanair.logis.security.InternalSecurityAutoConfiguration
+com.samhanair.logis.security.UserHeaderDecodingAutoConfiguration
 com.samhanair.logis.security.permission.PermissionSecurityAutoConfiguration

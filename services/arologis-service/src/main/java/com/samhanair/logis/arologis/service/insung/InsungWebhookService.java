@@ -92,9 +92,15 @@ public class InsungWebhookService {
         String driverCode = "INSUNG-" + req.vendorDriverId();
         String phoneNumber = req.driverPhone() != null ? req.driverPhone() : "010-0000-0000";
         Driver driver = driverRepository.findByDriverCode(driverCode)
+                .map(existing -> {
+                    existing.updateVendorProfile(req.driverName(), phoneNumber,
+                            req.vehicleType(), req.vehiclePlateNumber());
+                    return existing;
+                })
                 .orElseGet(() -> driverRepository.save(
-                        Driver.of(driverCode, phoneNumber, req.vehicleType(),
-                                DriverSource.EXTERNAL_INSUNG_QUICK, Boolean.FALSE, null)));
+                        Driver.of(driverCode, req.driverName(), phoneNumber, req.vehicleType(),
+                                req.vehiclePlateNumber(), DriverSource.EXTERNAL_INSUNG_QUICK,
+                                Boolean.FALSE, null)));
 
         if (vehicle.getStatus() == VehicleStatus.MATCHING
                 || vehicle.getStatus() == VehicleStatus.PENDING) {

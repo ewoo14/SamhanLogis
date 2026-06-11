@@ -233,6 +233,32 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
+    @DisplayName("name claim 부재 구토큰 + 위조 X-User-Name 입력 → downstream X-User-Name strip")
+    void legacyToken_withoutDisplayNameClaim_stripsSpoofedUserNameHeader() {
+        String token = JwtTokenProvider.generate(
+                "legacy-name", "MANAGER", 3600, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/dispatch")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header("X-User-Name", "%ED%99%8D%EA%B8%B8%EB%8F%99")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().containsKey("X-User-Name")).isFalse();
+    }
+
+    @Test
     void invalidToken_returns401InvalidToken() {
         GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
 

@@ -11,6 +11,7 @@ package com.samhanair.logis.arologis.dto.insung;
  * @param driverName     기사 이름 (옵션)
  * @param driverPhone    기사 전화번호 (매칭 성공 시)
  * @param vehicleType    차량 종류 (옵션)
+ * @param vehiclePlateNumber 차량번호 (옵션)
  * @param failReason     매칭 실패 사유 (실패 시)
  */
 public record InsungMatchResultRequest(
@@ -20,6 +21,7 @@ public record InsungMatchResultRequest(
         String driverName,
         String driverPhone,
         String vehicleType,
+        String vehiclePlateNumber,
         String failReason
 ) {
 }

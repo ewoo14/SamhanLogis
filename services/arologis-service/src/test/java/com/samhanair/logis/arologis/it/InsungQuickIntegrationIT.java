@@ -207,7 +207,7 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
         // match-result webhook payload
         InsungMatchResultRequest req = new InsungMatchResultRequest(
                 "WEBHOOK-ORD-002", true,
-                "DRV-WH-002", "웹훅기사", "010-2222-3333", "2.5톤", null);
+                "DRV-WH-002", "웹훅기사", "010-2222-3333", "2.5톤", "서울12바3456", null);
 
         mockMvc.perform(post("/internal/arologis/insung/match-result")
                         .header("X-Internal-Token", "test-internal-token")
@@ -223,7 +223,11 @@ class InsungQuickIntegrationIT extends AbstractPostgresIT {
         assertThat(updated.getStatus()).isEqualTo(VehicleStatus.ASSIGNED);
 
         // Driver upsert 확인
-        assertThat(driverRepository.findByDriverCode("INSUNG-DRV-WH-002")).isPresent();
+        Driver savedDriver = driverRepository.findByDriverCode("INSUNG-DRV-WH-002").orElseThrow();
+        assertThat(savedDriver.getDriverName()).isEqualTo("웹훅기사");
+        assertThat(savedDriver.getPhoneNumber()).isEqualTo("010-2222-3333");
+        assertThat(savedDriver.getVehicleType()).isEqualTo("2.5톤");
+        assertThat(savedDriver.getVehiclePlateNumber()).isEqualTo("서울12바3456");
     }
 
     // ─── TC-3: webhook status-update DEPARTED → Vehicle.status DEPARTED ───

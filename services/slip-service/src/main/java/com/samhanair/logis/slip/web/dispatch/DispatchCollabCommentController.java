@@ -155,7 +155,7 @@ public class DispatchCollabCommentController {
         if (callerName == null || callerName.isBlank()) {
             return "system";
         }
-        String normalized = decodeHeaderValue(callerName.trim()).trim();
+        String normalized = callerName.trim();
         if (normalized.isBlank()) {
             return "system";
         }
@@ -163,17 +163,6 @@ public class DispatchCollabCommentController {
             return "system";
         }
         return normalized;
-    }
-
-    private String decodeHeaderValue(String value) {
-        if (!value.contains("%") && !value.contains("+")) {
-            return value;
-        }
-        try {
-            return java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException ex) {
-            return value;
-        }
     }
 
     private String resolveDeleter(String callerId) {
