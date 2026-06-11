@@ -6,6 +6,8 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * 주문 상세 응답.
@@ -37,12 +39,30 @@ public record PartnerOrderDetailResponse(
 ) {
 
     /**
-     * Entity 를 상세 DTO 로 변환한다.
+     * Entity 를 상세 DTO 로 변환한다 (productType enrich 없음 — 모든 라인 {@code productType=null}).
      *
      * <p>{@code partnerName} 은 현재 partner-order-service entity 에 컬럼이 없어 {@code null} 로
      * 반환한다. 후속 sub-task (SP-08-4-2 이후) 에서 partner-service lookup 으로 채운다.
      */
     public static PartnerOrderDetailResponse from(PartnerOrder order) {
+        return from(order, Map.of());
+    }
+
+    /**
+     * Entity 를 상세 DTO 로 변환하되, 라인의 {@code productType} 을 product-service 조회 결과 맵으로
+     * enrich 한다 (Round C #23 세트 재고 가드).
+     *
+     * <p>{@code productTypeByProductId} 는 {@code productId → "SINGLE"/"BUNDLE"} 매핑이며,
+     * product-service 조회 실패(fail-soft) 시 빈 맵이 전달되어 모든 라인 {@code productType=null} 로
+     * 둔다(기존 동작 동일). FE 재고조회 모달(2.6d)은 {@code productType="BUNDLE"} 라인을 재고조회
+     * 대상에서 제외한다.
+     *
+     * @param order 주문 엔티티
+     * @param productTypeByProductId productId 문자열 → productType 매핑 (빈 맵이면 enrich 없음)
+     * @return 상세 DTO
+     */
+    public static PartnerOrderDetailResponse from(
+            PartnerOrder order, Map<UUID, String> productTypeByProductId) {
         return new PartnerOrderDetailResponse(
                 order.getOrderNo(),
                 order.getPartnerCode(),
@@ -58,7 +78,10 @@ public record PartnerOrderDetailResponse(
                 null,
                 order.getDueDate() == null ? null : order.getDueDate().toString(),
                 order.getMemo(),
-                order.getLines().stream().map(LineResponse::from).toList());
+                order.getLines().stream()
+                        .map(line -> LineResponse.from(
+                                line, productTypeByProductId.get(line.getProductId())))
+                        .toList());
     }
 
     /**
@@ -74,6 +97,10 @@ public record PartnerOrderDetailResponse(
      * @param subtotal 라인 소계.
      * @param convertedQuantity 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0.
      * @param bundleMode 번들 처리 방식. 현재 저장 컬럼이 없어 {@code null}.
+     * @param productType 품목 유형("SINGLE"/"BUNDLE") — product-service 조회 enrich (Round C #23).
+     *        조회 실패(fail-soft) 또는 enrich 미수행 시 {@code null}. FE 재고조회 모달(2.6d)이
+     *        "BUNDLE" 라인을 재고조회 대상에서 제외하는 데 사용한다. {@link JsonInclude#NON_NULL}
+     *        로 null 이면 직렬화에서 제외(기존 IT 정합).
      * @param expandedComponents 번들 펼침 구성품. 현재 저장 컬럼이 없어 빈 배열.
      */
     public record LineResponse(
@@ -87,9 +114,24 @@ public record PartnerOrderDetailResponse(
             BigDecimal subtotal,
             int convertedQuantity,
             String bundleMode,
+            String productType,
             List<ComponentResponse> expandedComponents
     ) {
+        /**
+         * productType enrich 없이 변환한다(productType=null). 하위 호환 진입점.
+         */
         static LineResponse from(PartnerOrderLine line) {
+            return from(line, null);
+        }
+
+        /**
+         * productType 을 enrich 하여 변환한다 (Round C #23 세트 재고 가드).
+         *
+         * @param line 주문 라인 엔티티
+         * @param productType product-service 조회 결과("SINGLE"/"BUNDLE") 또는 {@code null}
+         * @return 라인 응답
+         */
+        static LineResponse from(PartnerOrderLine line, String productType) {
             return new LineResponse(
                     line.getProductId().toString(),
                     line.getId().toString(),
@@ -101,6 +143,7 @@ public record PartnerOrderDetailResponse(
                     line.getSubtotal(),
                     line.getConvertedQuantity(),
                     null,
+                    productType,
                     List.of());
         }
     }

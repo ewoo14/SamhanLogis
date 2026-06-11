@@ -902,6 +902,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   /**
    * Phase 2.6d: 선택 품목 재고조회 모달 열기.
    * 선택된 라인의 {productId, modelName, productName} 배열로 모달 open.
+   *
+   * <p>세트(BUNDLE) 재고 가드 불필요 — 5d3bb017/Round C #23 판정: 신규 전표는
+   * {@code addSlipLinesExpanded} 로 BUNDLE 을 구성품 라인으로 "전개 저장"하므로 전표 라인에
+   * BUNDLE 부모(productType=BUNDLE)가 남지 않는다(이미 구성품 단위 재고조회). 따라서 SlipFormPage·
+   * SalesPartnerOrderDetailPage 와 달리 여기서는 BUNDLE 제외 필터가 필요 없다(가짜 가드 금지).
    */
   const inventoryLookupLines: StockBalanceLookupLine[] = slip.lines
     .filter((l) => checkedLineIds.has(l.id) && l.productId)

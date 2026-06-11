@@ -396,17 +396,42 @@ export function SalesPartnerOrderDetailPage() {
   }, [id])
 
   // Phase 2.6d: 재고조회 모달 lines — useMemo로 본문 최상위 계산 (P1-3 IIFE 제거)
+  // Round C #23 세트 재고 가드(§2-1): BUNDLE 라인은 재고조회 대상 제외(SlipFormPage 동형).
+  //   product-service enrich 로 BE 가 productType 을 전사 → FE 가 "BUNDLE" 라인을 걸러낸다.
+  //   세트는 재고를 구성품 단위로 조회하므로 세트 단위 재고(0행/0수량)를 표시하지 않는다.
+
+  /** 선택된 주문 라인 중 productId 가 있는 전체 라인 (BUNDLE 포함). productType 동반. */
+  const selectedOrderLines = useMemo(
+    () =>
+      (query.data?.lines ?? []).filter(
+        (l) => checkedLineIds.has(l.lineId) && !!l.productId,
+      ),
+    [query.data?.lines, checkedLineIds],
+  )
+
+  /** 재고조회 매트릭스 전달 라인 — BUNDLE 제외 후 modelCode→modelName 매핑(UUID 미노출). */
   const inventoryLookupLines = useMemo<StockBalanceLookupLine[]>(
     () =>
-      (query.data?.lines ?? [])
-        .filter((l) => checkedLineIds.has(l.lineId) && !!l.productId)
+      selectedOrderLines
+        .filter((l) => l.productType !== 'BUNDLE')
         .map((l) => ({
           productId: l.productId,
           // modelCode = modelName 매핑 (주문 라인 필드명 차이)
           modelName: l.modelCode,
           productName: l.productName,
         })),
-    [query.data?.lines, checkedLineIds],
+    [selectedOrderLines],
+  )
+
+  /** 선택 라인이 전부 BUNDLE 인 경우 — 모달에 세트 전용 안내 표시(bundleOnlyLines). */
+  const allSelectedAreBundle =
+    selectedOrderLines.length > 0 &&
+    selectedOrderLines.every((l) => l.productType === 'BUNDLE')
+
+  /** 선택 라인 중 세트(BUNDLE) 건수 — 혼합 선택 시 제외 고지에 사용. */
+  const selectedBundleCount = useMemo(
+    () => selectedOrderLines.filter((l) => l.productType === 'BUNDLE').length,
+    [selectedOrderLines],
   )
 
   if (!isValidId) {
@@ -1157,10 +1182,14 @@ export function SalesPartnerOrderDetailPage() {
       </Modal>
 
       {/* Phase 2.6d: 재고조회 모달 */}
+      {/* Round C #23 세트 재고 가드: BUNDLE 라인 제외 후 전달, 전부 세트면 bundleOnlyLines=true,
+          혼합이면 excludedBundleCount 로 "세트 N건 제외" 안내 (SlipFormPage 동형) */}
       <InventoryLookupModal
         open={inventoryLookupOpen}
         onClose={() => setInventoryLookupOpen(false)}
         lines={inventoryLookupLines}
+        bundleOnlyLines={allSelectedAreBundle}
+        excludedBundleCount={allSelectedAreBundle ? 0 : selectedBundleCount}
       />
       <LineLookupReferenceModal
         open={lineLookupOpen}

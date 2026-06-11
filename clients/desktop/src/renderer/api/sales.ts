@@ -432,6 +432,12 @@ export interface PartnerOrderLine {
   /** 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0. */
   convertedQuantity: number
   bundleMode: 'EXPAND' | 'KEEP' | null
+  /**
+   * 품목 유형 — BE PartnerOrderDetailResponse.LineResponse.productType (Round C #23 enrich).
+   * "BUNDLE" 이면 세트 품목 → 재고조회 모달(2.6d) 대상에서 제외(세트 단위 재고 표시 금지).
+   * product-service 조회 실패(fail-soft) 또는 미부착 시 null/undefined.
+   */
+  productType?: string | null
   /** Bundle EXPAND 시 펼친 component 라인 (read-only 표시). */
   expandedComponents: Array<{
     modelCode: string

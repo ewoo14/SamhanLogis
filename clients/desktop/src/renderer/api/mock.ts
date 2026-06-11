@@ -5136,9 +5136,62 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             deliveryPrice: 100000,
             subtotal: 100000,
             bundleMode: null,
+            productType: 'SINGLE',
             expandedComponents: [],
           },
         ],
+      })
+    }
+
+    // Round C #23: 세트(BUNDLE) 재고 가드 fixture
+    //   ord-bundle-only  → BUNDLE 라인 1건만 → 재고조회 시 bundle-only 안내(세트 단위 재고 미표시)
+    //   ord-bundle-mixed → BUNDLE 1 + SINGLE 1 → 혼합: "세트 1건 제외" 캡션 + 단품 매트릭스
+    if (poId === 'ord-bundle-only' || poId === 'ord-bundle-mixed') {
+      const bundleLine = {
+        productId: 'p-set-hm2way',
+        lineId: 'line-bundle-001',
+        modelCode: 'SET-HM2WAY',
+        productName: '홈멀티 2way 세트',
+        categoryKey: 'singleSets',
+        quantity: 1,
+        convertedQuantity: 0,
+        deliveryPrice: 2500000,
+        subtotal: 2500000,
+        bundleMode: 'KEEP' as const,
+        // BE PartnerOrderDetailResponse.LineResponse.productType enrich 정합 (product-service 조회)
+        productType: 'BUNDLE',
+        expandedComponents: [],
+      }
+      const singleLine = {
+        productId: 'p-aj040',
+        lineId: 'line-bundle-002',
+        modelCode: 'AJ040RXH4BC1',
+        productName: '실외기',
+        categoryKey: 'homemulti',
+        quantity: 2,
+        convertedQuantity: 0,
+        deliveryPrice: 120000,
+        subtotal: 240000,
+        bundleMode: null,
+        productType: 'SINGLE',
+        expandedComponents: [],
+      }
+      return envelope({
+        orderNumber: poId === 'ord-bundle-only' ? '2026/06/11-SET1' : '2026/06/11-MIX1',
+        partnerCode: '1234567890',
+        bizCode: '1234567890',
+        partnerName: '엘에이시스템에어',
+        submittedAt: '2026-06-11T10:00:00',
+        updatedAt: '2026-06-11T10:00:00',
+        status: 'DRAFT',
+        totalAmount: poId === 'ord-bundle-only' ? 2500000 : 2740000,
+        linkedSlipNo: null,
+        deliveryAddress: '서울시 강남구 테헤란로 1',
+        siteAddress: '현장 A동',
+        contactPhone: '010-1234-5678',
+        dueDate: '2026-06-20',
+        memo: null,
+        lines: poId === 'ord-bundle-only' ? [bundleLine] : [bundleLine, singleLine],
       })
     }
 
@@ -5177,6 +5230,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               deliveryPrice: 120000,
               subtotal: 240000,
               bundleMode: null,
+              productType: 'SINGLE',
               expandedComponents: [],
             },
             {
@@ -5190,6 +5244,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               deliveryPrice: 85000,
               subtotal: 255000,
               bundleMode: null,
+              productType: 'SINGLE',
               expandedComponents: [],
             },
           ]
@@ -5205,6 +5260,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               deliveryPrice: 120000,
               subtotal: 240000,
               bundleMode: null,
+              productType: 'SINGLE',
               expandedComponents: [],
             },
           ]

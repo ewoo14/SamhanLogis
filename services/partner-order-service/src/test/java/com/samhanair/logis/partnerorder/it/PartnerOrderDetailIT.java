@@ -1,8 +1,10 @@
 package com.samhanair.logis.partnerorder.it;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,6 +14,7 @@ import com.samhanair.logis.partnerorder.client.DcConfigClient;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
+import com.samhanair.logis.partnerorder.client.ProductSummary;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
@@ -22,6 +25,7 @@ import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -97,6 +101,53 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.lines[0].productName").value("실외기"))
                 .andExpect(jsonPath("$.data.lines[0].id").doesNotExist())
                 .andExpect(jsonPath("$.data.lines[0].productId").exists());
+    }
+
+    /**
+     * Round C #23(세트 재고 가드): 주문 상세 라인 응답에 productType 이 product-service 조회로
+     * enrich 되어 BUNDLE 라인은 {@code productType="BUNDLE"} 로 전사되는지 검증한다.
+     * FE 재고조회 모달(2.6d)이 이 값으로 세트 라인을 재고조회 대상에서 제외한다.
+     */
+    @Test
+    @WithMockUser(username = "owner", roles = {"SALES"})
+    void detail_line_productType_is_enriched_from_product_service() throws Exception {
+        UUID bundleProductId = UUID.fromString("b0b0b0b0-0000-0000-0000-000000000023");
+        saveOrderWithProduct("2026/05/07-23", "P-DETAIL-BUNDLE", "2323232323",
+                bundleProductId, "SET-HM2WAY", "홈멀티 2way 세트");
+        // product-service 조회가 BUNDLE 을 반환하도록 stub (productType="BUNDLE")
+        when(productClient.lookup(anyList())).thenReturn(List.of(
+                new ProductSummary(bundleProductId, "홈멀티 2way 세트", "SET-HM2WAY",
+                        null, new BigDecimal("2500000"), "ACTIVE", "BUNDLE")));
+
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-23")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines.length()").value(1))
+                .andExpect(jsonPath("$.data.lines[0].modelCode").value("SET-HM2WAY"))
+                .andExpect(jsonPath("$.data.lines[0].productType").value("BUNDLE"));
+    }
+
+    /**
+     * Round C #23 fail-soft: product-service 조회가 실패해도(예: 회로 차단) 상세 조회는 정상
+     * 반환되며 라인 productType 은 응답에서 제외된다(@JsonInclude NON_NULL). 조회 가용성 우선.
+     */
+    @Test
+    @WithMockUser(username = "owner", roles = {"SALES"})
+    void detail_productType_absent_when_product_lookup_fails() throws Exception {
+        UUID productId = UUID.fromString("b0b0b0b0-0000-0000-0000-000000000024");
+        saveOrderWithProduct("2026/05/07-24", "P-DETAIL-FAILSOFT", "2424242424",
+                productId, "AJ040RXH4BC1", "실외기");
+        when(productClient.lookup(anyList()))
+                .thenThrow(new RuntimeException("product-service 호출 실패(테스트)"));
+
+        mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-24")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines.length()").value(1))
+                .andExpect(jsonPath("$.data.lines[0].productName").value("실외기"))
+                .andExpect(jsonPath("$.data.lines[0].productType").doesNotExist());
     }
 
     @Test
@@ -215,6 +266,22 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                         .header("X-Partner-Code", "P-HISTORY-OWN"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    /**
+     * 고정 productId/modelName 라인 1건의 주문을 저장한다 (productType enrich 검증용 —
+     * productClient.lookup stub 의 ProductSummary.id 와 매칭하기 위해 결정적 productId 사용).
+     */
+    private void saveOrderWithProduct(String orderNo, String partnerCode, String bizCode,
+                                      UUID productId, String modelName, String productName) {
+        PartnerOrder order = PartnerOrder.create(
+                partnerCode, bizCode, orderNo,
+                "IT-SP0841-DETAIL-" + orderNo, BigDecimal.ZERO);
+        order.markSlipPublished("S-" + orderNo.replace("/", "").replace("-", ""));
+        order.addLine(PartnerOrderLine.create(
+                productId, modelName, productName, "homemulti",
+                1, new BigDecimal("120000"), "현장 납품"));
+        orderRepository.saveAndFlush(order);
     }
 
     private void saveOrder(String orderNo, String partnerCode, String bizCode, boolean deleted) {

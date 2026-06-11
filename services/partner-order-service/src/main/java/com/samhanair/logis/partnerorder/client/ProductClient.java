@@ -94,7 +94,9 @@ public class ProductClient {
                                 m.get("sellingPrice") == null
                                         ? null
                                         : new java.math.BigDecimal(m.get("sellingPrice").toString()),
-                                (String) m.get("status"));
+                                (String) m.get("status"),
+                                // Round C #23: 세트 재고 가드용 productType("SINGLE"/"BUNDLE") 전사
+                                (String) m.get("productType"));
                     })
                     .toList();
         } catch (BusinessException ex) {

@@ -392,6 +392,79 @@ test.describe('회귀 — SlipFormPage 재고모달 일원화(InventoryLookupMod
 })
 
 // ============================================================
+// 시나리오 14~15: 세트(BUNDLE) 재고 가드 (Round C #23, 스펙 §2-1 sweep)
+//   SalesPartnerOrderDetailPage 도 SlipFormPage 동형으로 BUNDLE 라인을 재고조회 제외.
+//   BE 가 라인 응답에 productType 을 enrich → FE 가 "BUNDLE" 라인을 걸러낸다.
+// ============================================================
+
+test.describe('주문서 상세 — 세트(BUNDLE) 재고 가드', () => {
+
+  test('시나리오 14: BUNDLE 라인만 선택 → 재고조회 → 세트 전용 안내(매트릭스 미표시)', async ({
+    page,
+  }) => {
+    await installAuthMock(page)
+    // ord-bundle-only: 라인 1건(productType=BUNDLE) — mock.ts Round C #23 fixture
+    await gotoPartnerOrderDetail(page, 'ord-bundle-only')
+
+    const btn = page.getByTestId('partner-order-inventory-lookup-btn')
+    await expect(btn).toBeVisible({ timeout: 10_000 })
+
+    // 세트 라인 선택 — 선택 자체는 가능(버튼은 선택 수 기준 활성)
+    const checkboxes = page.getByRole('checkbox', { name: /재고조회 선택/ })
+    await checkboxes.first().check()
+    await expect(btn).toBeEnabled()
+    await btn.click()
+
+    const modal = page.getByTestId('inventory-lookup-modal')
+    await expect(modal).toBeVisible({ timeout: 10_000 })
+
+    // 세트 전용 안내 표시 + 매트릭스(셀) 미표시 단언
+    const bundleNotice = page.getByTestId('inventory-lookup-bundle-only-notice')
+    await expect(bundleNotice).toBeVisible()
+    await expect(bundleNotice).toContainText('세트 품목은 재고를 표시하지 않습니다')
+    // 세트 단위 재고(0행/0수량) 미표시 — 매트릭스 컬럼 헤더("가용") 부재
+    await expect(modal).not.toContainText('가용')
+    // 혼합 캡션은 미표시(전부 세트)
+    await expect(page.getByTestId('inventory-lookup-mixed-bundle-notice')).toHaveCount(0)
+  })
+
+  test('시나리오 15: BUNDLE+SINGLE 혼합 선택 → 세트 제외 캡션 + 단품 매트릭스', async ({
+    page,
+  }) => {
+    await installAuthMock(page)
+    // ord-bundle-mixed: BUNDLE 1 + SINGLE(p-aj040) 1
+    await gotoPartnerOrderDetail(page, 'ord-bundle-mixed')
+
+    const btn = page.getByTestId('partner-order-inventory-lookup-btn')
+    await expect(btn).toBeVisible({ timeout: 10_000 })
+
+    // 전체 선택 → 두 라인 모두 선택(혼합 → excludedBundleCount=1)
+    const allCheck = page.getByRole('checkbox', { name: '전체 선택' }).first()
+    await expect(allCheck).toBeVisible({ timeout: 5_000 })
+    await allCheck.check()
+    await expect(btn).toBeEnabled()
+    await btn.click()
+
+    const modal = page.getByTestId('inventory-lookup-modal')
+    await expect(modal).toBeVisible({ timeout: 10_000 })
+
+    // 혼합 제외 캡션 표시(세트 1건 제외) — bundleOnlyLines 안내는 미표시
+    const mixedNotice = page.getByTestId('inventory-lookup-mixed-bundle-notice')
+    await expect(mixedNotice).toBeVisible()
+    await expect(mixedNotice).toContainText('세트 1건은 제외됨')
+    await expect(page.getByTestId('inventory-lookup-bundle-only-notice')).toHaveCount(0)
+
+    // 단품(AJ040)은 매트릭스로 조회됨 — 셀 실수치 단언(mock: p-aj040/HQ-001 → 가용 10)
+    const hqCell = modal.getByTestId('inventory-lookup-cell-AJ040RXH4BC1-HQ-001')
+    await expect(hqCell).toContainText('10')
+
+    // UUID 비공개 가드 — 세트 productId(p-set-hm2way) 등 미노출 + UUID 패턴 부재
+    const modalText = await modal.innerText()
+    expect(UUID_PATTERN.test(modalText)).toBe(false)
+  })
+})
+
+// ============================================================
 // 시나리오 13: API 에러 시 에러 배너 노출 (R-4)
 // ============================================================
 
