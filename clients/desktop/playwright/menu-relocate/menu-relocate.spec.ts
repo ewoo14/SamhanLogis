@@ -306,9 +306,12 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
    * 기존 /admin/regions 등 마스터 전용 메뉴가 그대로 유지되는지 확인
    *
    * 기대 결과:
-   *   - /admin/regions, /admin/users, /admin/partners, /admin/products 4개 메뉴 또는 경로 유지
+   *   - /admin/regions, /admin/users, /admin/partners, /products/catalog 4개 메뉴 또는 경로 유지
    *   - 메뉴 이식 후 기존 관리자 메뉴 미삭제
    *   - pageerror 0건
+   *
+   * [Round A P3] '제품 관리'/'/admin/products' → 현행 '품목 관리'/'/products/catalog' 로 갱신.
+   *   MASTER 는 products.list bypass 라 품목 관리가 항상 visible → soft warn 을 hard 단언으로 승격.
    */
   test('TC-M5: 기존 마스터 메뉴 4개 regression 가드 — 메뉴 이식 후에도 유지', async ({ page }) => {
     const errors: string[] = []
@@ -322,11 +325,12 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     await page.waitForTimeout(1500)
 
     // 기존 마스터 메뉴 4가지 확인 (경로 또는 메뉴 텍스트 기준)
+    // [Round A P3] '제품 관리'/'/admin/products' → 현행 '품목 관리'/'/products/catalog'.
     const legacyMenus = [
       { label: '배차지역 관리', path: '/admin/regions', alt: '배차지역관리' },
       { label: '사용자 관리', path: '/admin/users', alt: '사용자관리' },
       { label: '거래처 관리', path: '/admin/partners', alt: '거래처관리' },
-      { label: '제품 관리', path: '/admin/products', alt: '제품관리' },
+      { label: '품목 관리', path: '/products/catalog', alt: '품목관리' },
     ]
 
     const foundResults: Record<string, boolean> = {}
@@ -352,10 +356,13 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     const foundCount = Object.values(foundResults).filter(v => v).length
     console.log(`[TC-M5] 기존 마스터 메뉴 유지 확인: ${foundCount}/4`)
 
-    if (foundCount < 4) {
-      console.warn('[TC-M5] 일부 기존 마스터 메뉴 미발견. 메뉴 이식으로 삭제 여부 FE agent 확인 필요')
-      console.warn('결과:', JSON.stringify(foundResults, null, 2))
+    // [Round A P3] soft warn → hard 단언 승격.
+    //   MASTER 는 모든 page-code bypass 라 4개 메뉴(배차지역/사용자/거래처/품목) 가 전부 visible 이어야 한다.
+    //   항목별 단언으로 어느 메뉴가 빠졌는지 메시지로 드러낸다.
+    for (const menu of legacyMenus) {
+      expect(foundResults[menu.label], `TC-M5: MASTER 는 "${menu.label}"(${menu.path}) 메뉴가 유지되어야 함`).toBe(true)
     }
+    expect(foundCount, 'TC-M5: 기존 마스터 메뉴 4개 모두 유지되어야 함').toBe(4)
 
     expect(errors, `TC-M5 pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
   })

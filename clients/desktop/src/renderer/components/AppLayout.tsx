@@ -1,20 +1,25 @@
 /**
  * 인증된 사용자용 앱 셸 레이아웃 — 좌측 사이드바 + 우측 본문 (Outlet).
  *
- * 사이드바 메뉴 (slip-output-format 슬라이스 IA 재편 — Q1=A 새 슬라이스):
- * - 홈 (`/`)
- * - 창고 관리 (`/warehouses`)
- * - 판매관리 (`/sales`)     — [2a 통합] SalesQueryPage 직행. 영업원 메인. legacy SlipListPage 는 `/sales/slips`.
- * - 구매관리 (`/purchases`) — [2a 통합] PurchaseQueryPage 직행. 회계원 메인. legacy SlipListPage 는 `/purchases/slips`.
- * - 재고이동 관리 (`/transfers`) — 창고 간 이동, 창고원/재고원
- * - 링크발송 (`/sales/link-dispatch`) — 배송 묶음 + e-sign URL SMS 발송, MANAGER/MASTER
+ * 사이드바 IA (desktop-menu-5category 슬라이스 — 5대분류 재편, PR #462):
+ * 상단 고정 링크 2개 + 7개 SidebarCategory 그룹 구조.
  *
- * accounting-slice-A 신규 그룹 "회계" — ACCOUNTANT/MANAGER/MASTER 가시:
- * - 계정과목 (`/accounting/accounts`)
- * - 분개장   (`/accounting/journals`)
- * - 시산표   (`/accounting/balances`)
+ * 상단 고정 (그룹 미소속, 항상 표시):
+ * - 홈        (`/`, NavLink end) — 대시보드 라벨 폐기, "홈" 단독.
+ * - 알림 내역 (`/notifications`)
  *
- * 기존 PR #18 의 `/slips` IA 는 폐기. 영업/회계/창고 흐름 분리.
+ * 7 SidebarCategory 그룹 (각 그룹은 권한 1개라도 보이면 헤더+자식 노출, 전무 시 완전 미렌더):
+ * - 판매     — 판매관리/견적서/주문서/거래처/DC설정/발송금지/전표정리/내일자전표/vendor OCR/품목 관리/시트 동기화
+ * - 구매     — 구매관리/영수증 OCR/재고이동 관리/입고 검수/재고실사/DPS 비교
+ * - 회계     — 매출·매입전표/계정과목/분개장/세금계산서/시산표/재무보고서/마감/원장/회계 관리자(중첩 토글)
+ * - 그룹웨어 — 링크발송/알리고 주소록/단톡방 매핑
+ * - 인사     — 인사 관리/권한설정/권한 일괄/그룹 권한/권한그룹 관리/권한 위임
+ * - arologis — 배차 메뉴/수동 배차/가배차 분류/미배차/배차안내 SMS/실배차 비교/배차지역 관리/배차 admin
+ * - 창고 운영 — 창고관리/재고 현황/안전재고/보상 실패 복구/전표 수정 요청/사진 감사
+ *
+ * 그룹/항목 권한은 usePermissions().canAccess(pageCode, action) 동적 RBAC 단일 소스이며,
+ * 라우트 PermissionGuard 와 동일 page-code 로 일원화한다 (사이드바 노출↔진입 redirect 역전 방지).
+ * 기존 PR #18 의 `/slips` IA 및 평면(홈/창고/판매/구매 단일 NavLink) IA 는 폐기.
  *
  * 우상단에는 현재 사용자명 + 역할 + 사용자 dropdown 메뉴 (비밀번호 변경 / 로그아웃) 를 표시한다.
  * 인쇄 화면 (`/print/...`) 에서는 @media print CSS 가 사이드바/헤더를 숨긴다.
@@ -293,10 +298,8 @@ export function AppLayout() {
   const showProductsSync           = dynamicCanAccess('products.sync',                'view')
   const showArologisAdminPage      = dynamicCanAccess('arologis.admin',               'view')
   const showArologisRegionPage     = dynamicCanAccess('arologis.region',              'view')
-  // SP-D4 그룹 헤더 가시성 (1개라도 true 이면 그룹 노출)
-  const showInventoryGroup =
-    showInventoryWarehouse || showInventoryStockTransfer || showInventoryStockBalance
-    || showInventoryDps || showInventoryAuditPage
+  // [Round A P3] 구 showInventoryGroup 집계 변수 삭제 — 창고운영 그룹 게이트는
+  // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
   const showAdminHrGroup   = showAdminEmployees || showAdminUsersMgmt || showPermissionAdmin || showPermissionDelegation
 
@@ -328,9 +331,8 @@ export function AppLayout() {
   // [C5-2b] 입고 검수 정적 fallback 제거 — dynamicCanAccess 단독 사용.
   const showInboundInspection = dynamicCanAccess('inbound.inspection', 'view')
   const showSafetyStockAlerts = dynamicCanAccess('inventory.safety-stock', 'view')
-  // 창고 운영 그룹 가시성 — 재고 실사 / DPS 입고 비교 / 품목별 DPS 분석 / 전표 요청 / 사진 감사 / 입고 검수 / 안전재고 알림 중 하나라도 보이면 그룹 노출
-  // [SP-D4] inventory 그룹 PageCode 변수 병합 (showInventoryGroup 은 이 시점에서 미정의이므로 개별 항목 직접 OR)
-  const showWarehouseOps = showAudit || showDpsCompare || showDpsByProduct || showSlipEditRequests || showPhotoAudit || showInboundInspection || showSafetyStockAlerts
+  // [Round A P3] 구 showWarehouseOps 집계 변수 삭제 — 창고운영 그룹 게이트 교체 후 미소비(dead) 였음.
+  //   실제 그룹 가시성은 아래 showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 가 담당한다.
   // [PR-D Phase B FE-D] 단톡방 매핑 — MASTER / MANAGER (BE @PreAuthorize 일치).
   // showAdmin 이 false 인 MANAGER 도 entry 가 가시되도록 별도 분기.
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER
@@ -363,7 +365,9 @@ export function AppLayout() {
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
   const showGroupware =
     showDeliveryBatch || showAligoAddressBook || (showChatRoomAdmin && !showAdmin)
-  const showArologisGroup = showDispatchBoard || showArologis
+  // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
+  //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
+  const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
   const showWarehouseOpsGroup =
     showInventoryWarehouse || showInventoryStockBalance || showSafetyStockAlerts
     || showInventoryCompensationFailures || showSlipEditRequests || showPhotoAudit
