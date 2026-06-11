@@ -227,7 +227,7 @@ class DispatchCollabConfigTest {
     }
 
     @Test
-    void dispatchController_decodesUrlEncodedCallerNameFromGateway() {
+    void dispatchController_usesAlreadyDecodedCallerNameAsAuthor() {
         @SuppressWarnings("unchecked")
         CollabCommentService<DispatchCollabComment> commentService =
                 org.mockito.Mockito.mock(CollabCommentService.class);
@@ -237,8 +237,6 @@ class DispatchCollabConfigTest {
                 new DispatchCollabCommentController(commentService, broker, taskRepository);
         UUID taskId = UUID.randomUUID();
         UUID callerId = UUID.randomUUID();
-        String encodedCallerName = java.net.URLEncoder.encode(
-                "홍길동", java.nio.charset.StandardCharsets.UTF_8);
         DispatchCollabComment saved = DispatchCollabComment.create(
                 CollabDocumentType.DISPATCH_TASK,
                 taskId,
@@ -264,7 +262,7 @@ class DispatchCollabConfigTest {
                 taskId,
                 new AddDispatchCommentRequest("실명 표시 확인", null, "vehicleGroups[0]"),
                 callerId.toString(),
-                encodedCallerName);
+                "홍길동");
 
         assertThat(response.getData().authorName()).isEqualTo("홍길동");
         verify(commentService).add(
