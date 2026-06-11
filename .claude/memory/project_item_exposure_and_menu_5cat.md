@@ -44,3 +44,6 @@ usageScope/displayOrder + 수동 토글(usage_scope_manual, sync 보존·soft-de
 - **권한 기반 메뉴 필터**: 좌측 메뉴는 기본적으로 **권한이 있는 메뉴만 표시** (canAccess/permission 기반 — 메뉴가 너무 많음).
 - **'홈' 최상단 신규**: 대시보드 첫 진입 시 보이는 홈 화면을 '홈' 메뉴로 제일 상단에 추가.
 - **'알림 내역'만 상단 유지**, 나머지 전부 판매/회계 등 해당 영역(5대 분류 + 배차·창고운영)으로 이동.
+
+### ✅ §2 구현·머지 완결 (#462, 2026-06-11)
+좌측 메뉴 7그룹 IA 재배치(홈·알림 내역 상단 고정 + 판매/구매/회계/그룹웨어/인사 + 배차·창고운영 별도) + **권한필터는 기성(dynamicCanAccess) 보존** + **홈 최상단**(대시보드 리라벨). **접기/펼치기 추가**(개발책임자 추가요구 — SidebarCategory collapsible, **기본 접힘 + 활성 라우트 그룹 자동펼침 + localStorage 영속**, 좌측 과도메뉴 최소화). 배차 그룹 라벨='배차'(arologis 아님). 단톡방 그룹웨어 단일화. **주문서 승인 fail-open 보안 게이트 신설**(partner-auth-service shared:security 의존조차 없던 갭). 임시 워크플로우([[temp-multimodel-review-workflow]]) 전체 순서 첫 적용 — Round C(Fable5)가 CI-RED·보안 적발. **AROLOGIS = 배차담당자 완료·전송 내역(전표 포함) 조회 전용 뷰는 별도 슬라이스**(2026-06-11 개발책임자 분리, [[project-arologis-independent]] 독립 단위) — 배차 작업 그룹과 구분.

@@ -4,6 +4,22 @@
 
 ---
 
+## 좌측 메뉴 5대분류 + 접기/펼치기 (2026-06-11, PR #462)
+
+**배경**: 개발책임자 지시 ([[project_item_exposure_and_menu_5cat]] §2 + 2-보강, 2026-06-10) — 좌측 메뉴를 5대분류 + 배차/창고운영 별도(실질 7그룹)로 재편, 홈 최상단 신규, 권한 있는 메뉴만 노출(기성 보존). 추가 요구로 하위 메뉴 접기/펼치기 도입. spec `docs/superpowers/specs/2026-06-11-desktop-menu-5category-spec.md`. dev-report `docs/dev-reports/2026-06-11-desktop-menu-5category.md`.
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-M5C-01 | 좌측 메뉴 IA = **상단 고정 2(홈·알림 내역) + 7 그룹**(① 판매 ② 구매 ③ 회계 ④ 그룹웨어 ⑤ 인사 ⑥ 배차(arologis) ⑦ 창고 운영). top-level 이동(창고관리→⑦, 판매관리→①, 구매관리/영수증OCR/재고이동→②, 링크발송→④, 배차→⑥) + 매출 마감 회계 단일화 + 품목 관리/시트 동기화 → ① 판매. **본 슬라이스 = IA 재배치(컴포넌트 이동·그룹핑·라벨)만** — 라우트·page-code·권한 로직 무변경. 그룹 헤더 노출은 기성 `dynamicCanAccess`(SP-D1~D4 동적 RBAC) 단일 소스 기반(그룹 자식 권한 1개라도 true면 헤더+자식 노출, 전무 시 완전 미렌더). '홈' 라벨은 기존 '대시보드' 리라벨, 배차 그룹 라벨은 코드명 `arologis`→업무 라벨 '배차'. |
+| D-M5C-02 | 하위 메뉴 **접기/펼치기 기본 = 접힘**(과도 메뉴 최소화). `SidebarCategory` 헤더를 토글 버튼으로 일반화하고, 활성 라우트가 속한 그룹만 `useEffect(activeByRoute)` 로 자동 펼침, 사용자 토글 상태는 `localStorage['samhan.sidebar.group.<label>']` 영속(접근 차단 환경 try/catch 세션 내 폴백). 접근성 = `role=heading`/`aria-level=2` + `aria-expanded`/`aria-controls` + `role=group`/`aria-labelledby`. 회계 관리자 중첩 토글은 유지. |
+| D-M5C-03 | **단톡방 매핑 = 그룹웨어 단일 노출로 통일**. 기존 인사 셸(AdminLayout, MASTER 전용 `admin-nav-chat-rooms`)과 AppLayout 그룹웨어 양쪽 중복을 제거하고 그룹웨어 단일 경로로 확정한다(`show={showChatRoomAdmin}`, MASTER 포함). 라우트(`/admin/chat-rooms`)·권한 가드(`messenger.admin`)는 그대로 유지(인사 사이드바 7→6 entry). |
+| D-M5C-04 | **주문서 승인(`/sales/order-approvals`) 권한 게이트 = page-code `sales.partner-order.list`** 로 FE·BE 일원화. 가드 전에는 controller 에 `@RequirePermission` 전무(fail-open) → 해당 권한 없는 인증 직원(WAREHOUSE/DISPATCH/INVENTORY 등)이 URL 직접 진입으로 거래처 승인변경·비밀번호 강제초기화가 가능했다. ① FE 라우트 `PermissionGuard(sales.partner-order.list, view)`(사이드바 노출 `showPartnerOrderList` 와 동일 page-code). ② BE `PartnerApprovalsController` 3 endpoint `@RequirePermission`(목록 VIEW / 상태변경 PATCH·비번초기화 POST UPDATE, `partnerSelfService` 미지정 → 거래처 본인 deny). partner-auth-service 에 `:shared:security` 의존 신설 + `DynamicPermissionClientConfig` 명시 bean(본 서비스에 `loadBalancedRestClientBuilder` bean 부재 → autoconfig @ConditionalOnBean 비활성 → bean 부재 시 aspect fail-secure 로 **정상 영업직원 lockout** — base URL 기반 bean 등록으로 차단) + `samhan.auth-service.url`/`app.security.internal.token` config. enforcement IT(`@WebMvcTest`, grant→!403·deny→403+counter·MASTER bypass·PARTNER deny, [[feedback_enforcement_real_http_test]] 실 HTTP 회귀, `DynamicPermissionClient` @MockBean 격리). |
+| D-M5C-05 | **AROLOGIS = 완료 배차 내역뷰는 별도 슬라이스로 분리**한다. 본 슬라이스의 desktop ⑥ 배차 그룹은 Samhan Public 배차담당자용 배차 메뉴(`/dispatch-board`)·수동 배차·ops·SMS 등 기존 화면의 IA 재배치만 포함하며, arologis 운영 단위의 완료 배차 내역(read-only 뷰어)은 본 PR 범위 밖(후속 슬라이스). |
+
+영향: clients/desktop `AppLayout.tsx`(7그룹 IA + SidebarCategory 토글화)·`AdminLayout.tsx`(단톡방 단일화)·`routes/index.tsx`(주문서 승인 가드), partner-auth-service `PartnerApprovalsController`/`DynamicPermissionClientConfig`(신규)/`build.gradle`(:shared:security)/`application.yml` + 신규 enforcement IT. 라우트·page-code·권한 시드 무변경. 4-라운드 다모델 리뷰(Opus 5확정 + Codex 7확정 + Fable5 14확정 — Fable5 가 CI-RED 2·보안 1 적발) + Docker 실서버 QA 13컷(`docs/qa/menu-5category/`). desktop mock 468 pass·partner-auth IT 13/13.
+
+---
+
 ## 품목관리 고도화 결정 (2026-06-11, PR #461)
 
 **배경**: 개발책임자 지시 — 구글 시트를 "최초 시드 데이터고 추후 조회하지 않는다"로 격하하고, 세트(BUNDLE) 가시화 + 구성품 직접 편집 + 표시 순서 직접 조정 + 품목 설정 실시간 동기화 + 세트 재고 표시 금지를 요구. spec `docs/superpowers/specs/2026-06-11-product-catalog-enhance-spec.md`.

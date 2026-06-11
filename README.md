@@ -29,6 +29,14 @@
 
 ### 최신 진행 메모 (2026-06-11)
 
+- 좌측 메뉴 5대분류 재편 + 접기/펼치기 완료 (PR #462):
+  - 좌측 메뉴를 **상단 고정 2(홈·알림 내역) + 7 그룹**(판매/구매/회계/그룹웨어/인사 + 배차·창고 운영)으로 재편하고 '홈'을 최상단 신규 항목으로 두었다(기존 '대시보드' 리라벨). 본 슬라이스는 **IA 재배치(컴포넌트 이동·그룹핑·라벨)만**이며 라우트·page-code·권한 로직은 무변경이다. 그룹 헤더 노출은 기성 `dynamicCanAccess`(SP-D1~D4 동적 RBAC) 단일 소스로 그룹 자식 권한이 1개라도 있으면 표시하고, 전무 시 그룹을 완전 미렌더한다(권한 필터 보존). 배차 그룹 라벨은 코드명 `arologis`→업무 라벨 '배차'로 정정했다.
+  - 하위 메뉴 **접기/펼치기**를 도입했다. `SidebarCategory` 헤더를 토글 버튼으로 일반화하고 기본은 접힘(과도 메뉴 최소화), 활성 라우트가 속한 그룹만 자동 펼침, 사용자 토글 상태는 `localStorage['samhan.sidebar.group.<label>']`로 영속한다(`role=heading`/`aria-expanded`/`aria-controls`/`role=group` 접근성).
+  - **단톡방 매핑을 그룹웨어 단일 노출로 통일**했다(인사 셸 AdminLayout 중복 제거, 라우트/권한 가드 유지).
+  - **주문서 승인(`/sales/order-approvals`) 보안 게이트**를 추가했다. 가드 전에는 controller 에 `@RequirePermission`이 전무하여(fail-open) 권한 없는 인증 직원이 URL 직접 진입으로 거래처 승인변경·비밀번호 강제초기화가 가능했다. FE 라우트 PermissionGuard + **partner-auth-service `PartnerApprovalsController` @RequirePermission**(`sales.partner-order.list`, FE 사이드바 게이트와 동일 page-code)을 page-code 일원화로 추가하고, `:shared:security` 의존과 lockout 방지 bean(`DynamicPermissionClientConfig`), enforcement IT(grant→!403/deny→403+counter/MASTER bypass/PARTNER deny, 실 HTTP 회귀)를 신설했다.
+  - 4-라운드 다모델 리뷰(Opus 5확정 + Codex 7확정 + Fable5 14확정 — Fable5 가 CI-RED 2·보안 1 적발) + Docker 실서버 QA 13컷(`docs/qa/menu-5category/`). desktop mock 468 pass / partner-auth IT 13/13.
+  - dev-report: `docs/dev-reports/2026-06-11-desktop-menu-5category.md`. 결정: `migration/decisions/DECISIONS.md` D-M5C-01 ~ D-M5C-05.
+
 - 품목관리 고도화 완료 (PR #461):
   - 구글 시트를 **최초 시드 전용**으로 격하했다. `ProductSheetSyncScheduler` 의 cron + 부팅 sync 를 `samhan.product.sheet-sync.cron-enabled`(기본 false) 게이트로 비활성하고(재시작·주기 sync 로 사용자 표시순서가 시트 기준 재적재되어 소실되는 것 방지), 시드 재적재는 비상 수단인 수동 trigger 만 유지한다. desktop 품목관리 화면의 출처 컬럼·뱃지는 제거했다.
   - **세트 가시화 + 구성품 편집기**를 추가했다. 카탈로그 목록에 `productType`/`componentCount`(BUNDLE 구성품 수, 벌크 count N+1 방지)를 노출하고, `GET·PUT /api/v1/products/{code}/components`(replace-all)로 세트 구성품을 직접 편집한다. 검증은 BUNDLE 아님 409 / 빈 배열·자기참조·미해소 코드·세트-안-세트·중복 코드 400이며, 해소 축은 전개(expander)와 동일한 `model_code`-only로 두어 전표 전개 단가 오류를 차단한다. V15 가 `bundle_component.display_order` 컬럼 + 부분 인덱스를 추가한다.

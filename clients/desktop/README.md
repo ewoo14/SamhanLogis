@@ -162,6 +162,15 @@ MIG-14는 Cash / Order / AgingSnapshot / Ledger 조회 화면을 `clients/deskto
 - 공급자 설정 화면(`routes/accounting/SupplierProfilePage.tsx`, 좌측 메뉴 라벨 '공급자 설정' — 라우트 `/accounting/supplier-profiles` 유지)에서 TEL/FAX·입금계좌 리스트(추가/삭제, 배열 순서 = displayOrder, 계좌별 명세서 노출 토글)·인감/로고 업로드(PNG ≤200KB, Web Crypto SHA-256)를 직접 설정한다.
 - ⚠️ 계좌 실데이터·실인감은 repo 비커밋 — 운영 화면에서 입력.
 
+## 좌측 메뉴 5대분류 재편 + 접기/펼치기 (2026-06-11, PR #462)
+
+- `components/AppLayout.tsx` 좌측 메뉴 IA 를 **상단 고정 2(홈·알림 내역) + 7 그룹**(① 판매 ② 구매 ③ 회계 ④ 그룹웨어 ⑤ 인사 ⑥ 배차(arologis) ⑦ 창고 운영)으로 재편했다. 기존 비정규 평면/그룹(대시보드/창고관리/판매관리/구매관리/영수증OCR/재고이동/링크발송/배차 top-level + 비정규 그룹)을 7그룹으로 이동·그룹핑한 **IA 재배치(컴포넌트 이동·라벨)만**이며 라우트·page-code·권한 로직은 무변경이다. '홈'은 기존 '대시보드' 리라벨(`NavLink to="/" end`), 배차 그룹 라벨은 코드명 `arologis`→업무 라벨 '배차'다.
+- 모든 항목/그룹 노출은 기성 `usePermissions().canAccess(pageCode, action)`(동적 RBAC, SP-D1~D4) 단일 소스를 보존한다. 신규 `SidebarCategory({label, show, activeTargets, testId, children})` 는 그룹 자식 권한이 1개라도 있으면(`show`) 헤더+자식을 노출하고 전무 시 완전 미렌더한다. 그룹 OR 보정: `showAccounting`에 세금계산서 batch/inbound, `showArologisGroup = showDispatchBoard ‖ showArologis ‖ showRegionMgmt`(배차지역 단독 권한자 그룹 숨김 갭 해소), `showAdminHrGroup`에서 고아 `admin.users` 제거(빈 인사그룹 방지).
+- **접기/펼치기**: `SidebarCategory` 헤더를 토글 버튼(`SidebarGroupToggle`)으로 일반화했다. 기본은 접힘(과도 메뉴 최소화), 활성 라우트가 속한 그룹만 `useEffect(activeByRoute)` 로 자동 펼침, 사용자 토글 상태는 `localStorage['samhan.sidebar.group.<label>']`(`readSidebarGroupOpen`/`writeSidebarGroupOpen`, 접근 차단 환경 try/catch 세션 폴백)로 영속한다. 접근성 = `role=heading`/`aria-level=2` + `aria-expanded`/`aria-controls` + `role=group`/`aria-labelledby`. 회계 관리자 중첩 토글은 유지.
+- **단톡방 매핑 그룹웨어 단일화**: `components/AdminLayout.tsx` 의 단톡방 `AdminNav`(`admin-nav-chat-rooms`)를 제거하고(인사 사이드바 7→6 entry) 그룹웨어 단일 노출(`show={showChatRoomAdmin}`, MASTER 포함)로 통일했다. 라우트(`/admin/chat-rooms`)·권한 가드(`messenger.admin`)는 유지.
+- **주문서 승인 라우트 가드**: `routes/index.tsx` 에서 `/sales/order-approvals` 를 `PermissionGuard pageCode="sales.partner-order.list" action="view"` 로 래핑했다(사이드바 노출 `showPartnerOrderList` 와 동일 page-code → 노출↔진입 역전 갭 차단). BE 측 `PartnerApprovalsController` @RequirePermission 동반 게이트는 partner-auth-service 에 신설(fail-open 차단).
+- 검증: typecheck 0, eslint 0, Playwright mock 전체 468 pass / 0 fail / 0 skip. 신규 spec `menu-relocate/menu-ia-contract.spec.ts`(CI 수집 IA 단언) + `menu-5category-real-qa/{menu-5category-real-qa, roundB-targeted-real-qa, roundC-collapsible-real-qa}.spec.ts`(Docker 실서버 실 권한 매트릭스/접기·펼치기). QA 13컷 `docs/qa/menu-5category/`.
+
 ## 품목관리 고도화 — 세트 구성품 편집 + 표시 순서 직접 조정 + 실시간 동기화 (2026-06-11, PR #461)
 
 - `routes/ProductCatalogPage.tsx` 전면 개편: 출처 컬럼·'시트자동/수동' 뱃지·'시트 자동 복귀' 버튼을 제거하고(시드 전용 정책), **세트 컬럼**(BUNDLE 뱃지 + 구성품 수 "세트 · 13", SINGLE 은 '—')을 추가했다. usage 토글·수동 마킹은 내부 동작으로 유지.

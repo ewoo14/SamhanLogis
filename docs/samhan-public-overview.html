@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">PR #461 · 품목관리 고도화 — 시드 전용 sync(자동 cron 비활성) + 세트 컬럼·구성품 편집기 + 표시 순서 직접 조정 + 설정 실시간 SSE + 세트 재고 가드</span>
+    <span class="nav-badge">PR #462 · 좌측 메뉴 5대분류 재편(판매/구매/회계/그룹웨어/인사 + 배차·창고운영) + 홈 최상단 + 접기/펼치기(기본접힘·활성그룹 자동펼침·localStorage 영속) + 주문서 승인 권한 게이트</span>
   </div>
 </nav>
 
@@ -514,7 +514,7 @@ body {
         </div>
         <div class="arch-node">
           <div class="node-name">partner-auth-service :8091</div>
-          <div class="node-desc">거래처 자체 인증 7 endpoint · Passwordless</div>
+          <div class="node-desc">거래처 자체 인증 7 endpoint · Passwordless · 주문서 승인 @RequirePermission 게이트(#462)</div>
         </div>
       </div>
     </div>
