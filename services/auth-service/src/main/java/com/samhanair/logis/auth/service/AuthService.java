@@ -122,9 +122,9 @@ public class AuthService {
         // 역매핑 실패(그룹 미매칭) 시 빈 문자열 반환 + log.warn — 인가 불변식 무영향(락아웃 가드).
         String role = BuiltinRoleGroupIds.deriveRoleName(activeGroups, loginId);
 
-        // Phase 12 인사 가드 + Phase C4 isSystemMaster claim + Phase C5-1 groups claim 포함 JWT 발급
+        // Phase 12 인사 가드 + 표시명 claim + Phase C4 isSystemMaster claim + Phase C5-1 groups claim 포함 JWT 발급
         String token = JwtTokenProvider.generate(
-                userId, role, account.getDepartmentName(),
+                userId, role, account.getDepartmentName(), account.getDisplayName(),
                 isSystemMaster, groups,
                 jwtIssueProperties.getTtlSeconds(), jwtIssueProperties.getSecretBytes());
 

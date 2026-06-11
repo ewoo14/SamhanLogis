@@ -14,6 +14,7 @@ import javax.crypto.SecretKey;
  * <p>Phase 12 인사 카테고리 가드 슬라이스:
  * {@code departmentName} claim 을 JWT 에 포함하여 api-gateway 가
  * {@code X-User-Department} 헤더로 downstream 에 전파할 수 있도록 확장.
+ * {@code name} claim 은 같은 패턴으로 {@code X-User-Name} 헤더 전파에 사용한다.
  * 기존 {@link #generate(String, String, long, byte[])} 는 하위 호환 유지.
  *
  * <p>Phase C4 MASTER bypass 클레임:
@@ -29,7 +30,7 @@ import javax.crypto.SecretKey;
  * 기존 6-arg 오버로드는 groups="" 위임으로 하위 호환 유지.
  *
  * <p>Phase C5-4 role 클레임 제거:
- * Samhan 발급 경로({@code auth-service})는 {@link #generate(String, String, String, boolean, String, long, byte[])} 에서
+ * Samhan 발급 경로({@code auth-service})는 {@link #generate(String, String, String, String, boolean, String, long, byte[])} 에서
  * role 클레임을 더 이상 포함하지 않는다. partner-auth 발급 경로는 {@code partnerCode} claim 으로 식별한다.
  * {@link #getRole(Jws)} 는 잔존 토큰 하위 호환 및 arologis 독립 경로를 위해 유지되나 신규 발급에서는 사용하지 않는다.
  * {@link #generateForPartner(String, String, long, byte[])} 를 파트너 JWT 발급 전용 메서드로 신설한다.
@@ -38,6 +39,8 @@ public final class JwtTokenProvider {
 
     /** JWT claim key — 부서명 (한국어 문자열, 예: "대표실"). */
     public static final String CLAIM_DEPARTMENT_NAME = "departmentName";
+    /** JWT claim key — 사용자 표시명 (한국어 문자열, 예: "홍길동"). */
+    public static final String CLAIM_DISPLAY_NAME = "name";
 
     /**
      * JWT claim key — 파트너(거래처) 코드 (Phase C5-4 신규).
@@ -97,7 +100,23 @@ public final class JwtTokenProvider {
      */
     public static String generate(String userId, String role, String departmentName,
                                   long ttlSeconds, byte[] secret) {
-        return generate(userId, role, departmentName, false, ttlSeconds, secret);
+        return generate(userId, role, departmentName, null, ttlSeconds, secret);
+    }
+
+    /**
+     * departmentName + displayName claim 포함 발급 메서드 (isSystemMaster 미포함 — 하위 호환).
+     *
+     * @param userId         사용자 UUID 문자열
+     * @param role           역할 문자열 (예: "MASTER")
+     * @param departmentName 소속 부서명 (null 허용 — 미설정 시 claim 미포함)
+     * @param displayName    표시명 (null 허용 — 미설정 시 claim 미포함)
+     * @param ttlSeconds     만료 시간(초)
+     * @param secret         HS256 서명 secret bytes
+     * @return 서명된 JWT 문자열
+     */
+    public static String generate(String userId, String role, String departmentName, String displayName,
+                                  long ttlSeconds, byte[] secret) {
+        return generate(userId, role, departmentName, displayName, false, ttlSeconds, secret);
     }
 
     /**
@@ -122,7 +141,24 @@ public final class JwtTokenProvider {
      */
     public static String generate(String userId, String role, String departmentName,
                                   boolean isSystemMaster, long ttlSeconds, byte[] secret) {
-        return generate(userId, role, departmentName, isSystemMaster, "", ttlSeconds, secret);
+        return generate(userId, role, departmentName, null, isSystemMaster, ttlSeconds, secret);
+    }
+
+    /**
+     * displayName + isSystemMaster claim 포함 발급 메서드 (groups 미포함 — 하위 호환).
+     *
+     * @param userId         사용자 UUID 문자열
+     * @param role           역할 문자열 (예: "MASTER")
+     * @param departmentName 소속 부서명 (null 허용 — 미설정 시 claim 미포함)
+     * @param displayName    표시명 (null 허용 — 미설정 시 claim 미포함)
+     * @param isSystemMaster 시스템 마스터 그룹 멤버십 여부 (false 이면 claim 미포함)
+     * @param ttlSeconds     만료 시간(초)
+     * @param secret         HS256 서명 secret bytes
+     * @return 서명된 JWT 문자열
+     */
+    public static String generate(String userId, String role, String departmentName, String displayName,
+                                  boolean isSystemMaster, long ttlSeconds, byte[] secret) {
+        return generate(userId, role, departmentName, displayName, isSystemMaster, "", ttlSeconds, secret);
     }
 
     /**
@@ -147,6 +183,29 @@ public final class JwtTokenProvider {
     public static String generate(String userId, String role, String departmentName,
                                   boolean isSystemMaster, String groups,
                                   long ttlSeconds, byte[] secret) {
+        return generate(userId, role, departmentName, null, isSystemMaster, groups, ttlSeconds, secret);
+    }
+
+    /**
+     * groups + displayName claim 포함 발급 메서드.
+     *
+     * <p>{@code displayName} 은 JWT {@code name} claim 으로 저장되며 api-gateway 가
+     * {@code X-User-Name} 헤더로 전파한다. claim 포함 조건은 {@code departmentName} 과
+     * 동일하게 null/blank 제외이다.
+     *
+     * @param userId         사용자 UUID 문자열
+     * @param role           역할 문자열 — Phase C5-4 이후 JWT 에 포함하지 않음 (시그니처 유지용)
+     * @param departmentName 소속 부서명 (null 허용 — 미설정 시 claim 미포함)
+     * @param displayName    표시명 (null 허용 — 미설정 시 claim 미포함)
+     * @param isSystemMaster 시스템 마스터 그룹 멤버십 여부 (false 이면 claim 미포함)
+     * @param groups         활성 그룹 UUID comma-join 문자열 (null 또는 blank 이면 claim 미포함)
+     * @param ttlSeconds     만료 시간(초)
+     * @param secret         HS256 서명 secret bytes
+     * @return 서명된 JWT 문자열
+     */
+    public static String generate(String userId, String role, String departmentName, String displayName,
+                                  boolean isSystemMaster, String groups,
+                                  long ttlSeconds, byte[] secret) {
         SecretKey key = Keys.hmacShaKeyFor(secret);
         Instant now = Instant.now();
         // Phase C5-4: role 클레임 제거 — 인가 경로에서 role 완전 소멸.
@@ -158,6 +217,9 @@ public final class JwtTokenProvider {
                 .signWith(key, Jwts.SIG.HS256);
         if (departmentName != null && !departmentName.isBlank()) {
             builder.claim(CLAIM_DEPARTMENT_NAME, departmentName);
+        }
+        if (displayName != null && !displayName.isBlank()) {
+            builder.claim(CLAIM_DISPLAY_NAME, displayName);
         }
         if (isSystemMaster) {
             builder.claim(CLAIM_IS_SYSTEM_MASTER, true);
@@ -270,6 +332,19 @@ public final class JwtTokenProvider {
      */
     public static String getDepartmentName(Jws<Claims> jws) {
         return jws.getPayload().get(CLAIM_DEPARTMENT_NAME, String.class);
+    }
+
+    /**
+     * displayName claim 추출.
+     *
+     * <p>api-gateway 에서 {@code X-User-Name} 헤더 전파에 사용.
+     * 구버전 토큰(claim 미포함) 은 null 반환.
+     *
+     * @param jws 파싱된 JWS
+     * @return 표시명 문자열 또는 null
+     */
+    public static String getDisplayName(Jws<Claims> jws) {
+        return jws.getPayload().get(CLAIM_DISPLAY_NAME, String.class);
     }
 
     /**

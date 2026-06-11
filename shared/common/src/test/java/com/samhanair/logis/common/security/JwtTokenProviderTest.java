@@ -88,6 +88,21 @@ class JwtTokenProviderTest {
         assertThat(JwtTokenProvider.getRole(parsed)).isNull();
     }
 
+    @Test
+    @DisplayName("displayName claim(name) 포함 토큰 왕복 — departmentName 패턴과 동일하게 blank 제외")
+    void displayName_roundTrip_noRoleClaim() {
+        String token = JwtTokenProvider.generate(
+                "display-user", Role.MANAGER.name(), "배차팀", "홍길동", false, "grp-1", 3600L, SECRET);
+
+        Jws<Claims> parsed = JwtTokenProvider.parse(token, SECRET);
+
+        assertThat(JwtTokenProvider.getDepartmentName(parsed)).isEqualTo("배차팀");
+        assertThat(JwtTokenProvider.getDisplayName(parsed)).isEqualTo("홍길동");
+        assertThat(parsed.getPayload().get(JwtTokenProvider.CLAIM_DISPLAY_NAME, String.class))
+                .isEqualTo("홍길동");
+        assertThat(JwtTokenProvider.getRole(parsed)).isNull();
+    }
+
     // ── Phase C5-1 groups claim 검증 ──────────────────────────────────────────
 
     @Test

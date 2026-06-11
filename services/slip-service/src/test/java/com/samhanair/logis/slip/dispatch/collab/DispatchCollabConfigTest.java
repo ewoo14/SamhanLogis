@@ -225,4 +225,55 @@ class DispatchCollabConfigTest {
                 eq("UUID 이름 마스킹"),
                 isNull());
     }
+
+    @Test
+    void dispatchController_decodesUrlEncodedCallerNameFromGateway() {
+        @SuppressWarnings("unchecked")
+        CollabCommentService<DispatchCollabComment> commentService =
+                org.mockito.Mockito.mock(CollabCommentService.class);
+        RealtimeBroker broker = org.mockito.Mockito.mock(RealtimeBroker.class);
+        DispatchTaskRepository taskRepository = org.mockito.Mockito.mock(DispatchTaskRepository.class);
+        DispatchCollabCommentController controller =
+                new DispatchCollabCommentController(commentService, broker, taskRepository);
+        UUID taskId = UUID.randomUUID();
+        UUID callerId = UUID.randomUUID();
+        String encodedCallerName = java.net.URLEncoder.encode(
+                "홍길동", java.nio.charset.StandardCharsets.UTF_8);
+        DispatchCollabComment saved = DispatchCollabComment.create(
+                CollabDocumentType.DISPATCH_TASK,
+                taskId,
+                "vehicleGroups[0]",
+                callerId,
+                "홍길동",
+                "실명 표시 확인",
+                null);
+        ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
+
+        when(taskRepository.existsByIdAndIsDeletedFalse(taskId)).thenReturn(true);
+        when(commentService.add(
+                eq(CollabDocumentType.DISPATCH_TASK),
+                eq(taskId),
+                eq("vehicleGroups[0]"),
+                eq(callerId),
+                eq("홍길동"),
+                eq("실명 표시 확인"),
+                isNull()))
+                .thenReturn(saved);
+
+        ApiResponse<DispatchCommentResponse> response = controller.add(
+                taskId,
+                new AddDispatchCommentRequest("실명 표시 확인", null, "vehicleGroups[0]"),
+                callerId.toString(),
+                encodedCallerName);
+
+        assertThat(response.getData().authorName()).isEqualTo("홍길동");
+        verify(commentService).add(
+                eq(CollabDocumentType.DISPATCH_TASK),
+                eq(taskId),
+                eq("vehicleGroups[0]"),
+                eq(callerId),
+                eq("홍길동"),
+                eq("실명 표시 확인"),
+                isNull());
+    }
 }

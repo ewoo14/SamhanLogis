@@ -51,6 +51,7 @@ import reactor.core.publisher.Mono;
  *   <li>Authenticated but allowedGroups 가 비어있지 않고 X-User-Groups 와 교집합이 없으면
  *       → {@code 403 FORBIDDEN}.</li>
  *   <li>Otherwise: mutate request to add {@code X-User-Id}, {@code X-User-Department},
+ *       {@code X-User-Name},
  *       {@code X-Is-System-Master}, {@code X-User-Groups}, {@code X-Is-Partner} headers,
  *       then continue.</li>
  * </ul>
@@ -71,6 +72,7 @@ import reactor.core.publisher.Mono;
  *
  * <h2>Phase 12 인사 카테고리 가드</h2>
  * JWT claim {@code departmentName} 존재 시 {@code X-User-Department} 헤더로 전파.
+ * JWT claim {@code name} 존재 시 같은 인코딩 방식으로 {@code X-User-Name} 헤더로 전파.
  * claim 미존재 시 헤더 미전송 → downstream 인사 가드는 부재로 판정 → 403.
  * 기존 {@code X-User-Department} 를 사용하지 않는 endpoint 는 영향 0건 (backward compatible).
  *
@@ -108,7 +110,7 @@ public class JwtAuthenticationGatewayFilterFactory
      * downstream {@link PermissionAspect} 가 PARTNER 거절 판정에 사용한다.
      */
     private static final String HEADER_IS_PARTNER = HttpHeaderConstants.IS_PARTNER_HEADER;
-    /** 표시명 claim 부재 상태에서 inbound 표시명 위조를 제거하는 헤더. */
+    /** 표시명 헤더. JWT claim {@code name} 에서 추출. */
     private static final String HEADER_USER_NAME = HttpHeaderConstants.CALLER_NAME_HEADER;
 
     private final JwtProperties props;
@@ -150,6 +152,8 @@ public class JwtAuthenticationGatewayFilterFactory
             // Phase 12 인사 가드: JWT claim departmentName → X-User-Department 헤더 전파.
             // claim 미존재(구버전 토큰 포함) 시 null → 헤더 미전송.
             String departmentName = JwtTokenProvider.getDepartmentName(jws);
+            // 표시명 claim name → X-User-Name 헤더 전파. claim 미존재 시 위조 헤더 strip 만 수행.
+            String displayName = JwtTokenProvider.getDisplayName(jws);
             // Phase C4: JWT claim isSystemMaster → X-Is-System-Master 헤더 전파.
             // claim 미포함(구버전 토큰 또는 비-MASTER) 시 false → "false" 전송.
             boolean isSystemMaster = JwtTokenProvider.getIsSystemMaster(jws);
@@ -214,7 +218,6 @@ public class JwtAuthenticationGatewayFilterFactory
                         h.remove(HEADER_IS_SYSTEM_MASTER);
                         h.remove(HEADER_USER_GROUPS);
                         h.remove(HEADER_IS_PARTNER);
-                        // JWT 표시명 claim 부재 — strip 으로 위조 차단, 실명 표시는 claim 추가 후속.
                         h.remove(HEADER_USER_NAME);
                         h.add(HEADER_USER_ID, userId);
                         // Phase C4: isSystemMaster 는 항상 전송 ("true"/"false") — 헤더 부재와 false 를 구분
@@ -237,6 +240,15 @@ public class JwtAuthenticationGatewayFilterFactory
                     h.remove(HEADER_USER_DEPARTMENT);
                     h.add(HEADER_USER_DEPARTMENT,
                             java.net.URLEncoder.encode(departmentName, java.nio.charset.StandardCharsets.UTF_8));
+                });
+            }
+            // displayName 이 존재할 때만 헤더 추가 — 구토큰은 헤더 미전송.
+            // X-User-Department 와 같은 UTF-8 URL-encode 방식으로 한글 표시명 헤더 손상을 방지한다.
+            if (displayName != null && !displayName.isBlank()) {
+                requestBuilder.headers(h -> {
+                    h.remove(HEADER_USER_NAME);
+                    h.add(HEADER_USER_NAME,
+                            java.net.URLEncoder.encode(displayName, java.nio.charset.StandardCharsets.UTF_8));
                 });
             }
 

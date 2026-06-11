@@ -98,10 +98,11 @@ class AuthServiceTest {
                 .thenReturn(List.of(managerGroup));
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
-            // Phase C5-1: 7-arg overload (departmentName + isSystemMaster + groups)
+            // displayName 포함 8-arg overload (departmentName + displayName + isSystemMaster + groups)
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), eq("MANAGER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq("Alice"),
                     org.mockito.ArgumentMatchers.anyBoolean(),
                     anyString(),
                     anyLong(), any(byte[].class)))
@@ -138,10 +139,11 @@ class AuthServiceTest {
                 .thenReturn(List.of(masterGroup));
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
-            // Phase C5-1: 7-arg overload
+            // displayName 포함 8-arg overload
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), eq("MASTER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq("Master"),
                     eq(true),
                     anyString(),
                     anyLong(), any(byte[].class)))
@@ -155,6 +157,7 @@ class AuthServiceTest {
             mocked.verify(() -> JwtTokenProvider.generate(
                     anyString(), eq("MASTER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq("Master"),
                     eq(true),
                     anyString(),
                     anyLong(), any(byte[].class)));
@@ -180,10 +183,11 @@ class AuthServiceTest {
                 .thenReturn(List.of(managerGroup));
 
         try (MockedStatic<JwtTokenProvider> mocked = Mockito.mockStatic(JwtTokenProvider.class)) {
-            // Phase C5-1: 7-arg overload
+            // displayName 포함 8-arg overload
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), eq("MANAGER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq("Alice"),
                     eq(false),
                     anyString(),
                     anyLong(), any(byte[].class)))
@@ -196,6 +200,7 @@ class AuthServiceTest {
             mocked.verify(() -> JwtTokenProvider.generate(
                     anyString(), eq("MANAGER"),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq("Alice"),
                     eq(false),
                     anyString(),
                     anyLong(), any(byte[].class)));
@@ -225,6 +230,7 @@ class AuthServiceTest {
             mocked.when(() -> JwtTokenProvider.generate(
                     anyString(), anyString(),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq("Alice"),
                     org.mockito.ArgumentMatchers.anyBoolean(),
                     anyString(),
                     anyLong(), any(byte[].class)))
@@ -239,6 +245,7 @@ class AuthServiceTest {
             mocked.verify(() -> JwtTokenProvider.generate(
                     anyString(), anyString(),
                     org.mockito.ArgumentMatchers.nullable(String.class),
+                    eq("Alice"),
                     eq(false),
                     eq(expectedGroups),
                     anyLong(), any(byte[].class)));
