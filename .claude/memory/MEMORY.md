@@ -91,3 +91,4 @@
 - [품목 노출구분+시트순서 / 메뉴 5대분류](project_item_exposure_and_menu_5cat.md) — 2026-06-10 개발책임자. 견적/주문 노출=usageScope(시트자동+품목별 수동토글), 시트 row 순서 보존(displayOrder). 좌측메뉴 판매/구매/회계/그룹웨어/인사 5분류+배차·창고운영 별도
 - [출고전표 양식 1:1 + 전자서명 배치 + 사원 서명 등록](project_slip_shipout_print_form.md) — 2026-06-10 개발책임자. 출력/조회(창고·기사·인수자) 시 샘플 양식 무변동 재현, 용달기사·인수자 전자서명 양식 내 정확 배치, 사원등록 메뉴 서명 등록(결재란 스탬프), 품목 수에 따라 길이 가변(A4 다페이지). 샘플원본=.claude/tmp(비커밋), mock v1 근접일치
 - [공급자·은행계좌 회계 설정 메뉴](project_company_config_menu.md) — 2026-06-10. 거래명세서+세금계산서 공용 공급자정보/입금계좌/인감 설정 (회계 메뉴, env 주입·COMPANY 상수 대체). accounting-service company-profile + FE 설정화면
+- [임시 다모델 리뷰 워크플로우](feedback_temp_multimodel_workflow.md) — 2026-06-11 개발책임자 임시. Opus 계획/PR → Codex(GPT5.5) 개발 → Opus 5-agent → Codex 5-agent → Fable5 5-agent(6/22까지) → PM. 각 라운드 리뷰+fix+게시, Codex는 토큰 회복 시
