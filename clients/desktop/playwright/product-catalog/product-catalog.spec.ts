@@ -471,4 +471,79 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
     // 드래그 전 첫 행이 첫 위치를 벗어남
     expect(codesAfter[0]).not.toBe(codesBefore[0])
   })
+
+  test('시나리오 9: 1000건 초과 카테고리 순서 저장 — totalPages 끝까지 수집 후 전건 재번호', async ({ page }) => {
+    await installAuth(page)
+    await page.addInitScript(() => {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_MOCK_PRODUCT_CATALOG_EXTRA_ROWS'] =
+        Array.from({ length: 1001 }, (_, i) => ({
+          modelCode: `HM-BULK-${String(i + 1).padStart(4, '0')}`,
+          name: `홈멀티 대량 품목 ${i + 1}`,
+          usageScope: 'BOTH',
+          estimateCategory: 'HOME_MULTI',
+          usageScopeManual: false,
+          displayOrder: 1000 + i,
+          releasePrice: 100000 + i,
+          deliveryPrice: 100000 + i,
+          hasVariableDiscount: false,
+          legacyDiscountFlag: false,
+          discountFlags: null,
+          productType: 'SINGLE',
+          componentCount: 0,
+        }))
+    })
+    await gotoProductCatalog(page, 'MASTER')
+    await loadTable(page)
+
+    await page.evaluate(() => {
+      delete (globalThis as Record<string, unknown>)['__SAMHAN_LAST_DISPLAY_ORDERS']
+    })
+
+    const categorySelect = page.getByTestId('product-catalog-category-select')
+    await categorySelect.selectOption('HOME_MULTI')
+
+    const summary = page.getByTestId('product-catalog-summary')
+    await expect
+      .poll(
+        async () => {
+          const text = await summary.innerText()
+          return Number(text.match(/총\s+([\d,]+)건/)?.[1]?.replaceAll(',', '') ?? 0)
+        },
+        { timeout: 10_000, message: '1000건 초과 HOME_MULTI fixture 미반영' },
+      )
+      .toBeGreaterThan(1000)
+
+    const dragHandles = page.locator('[aria-label$="드래그"]')
+    await expect(dragHandles.first()).toBeVisible({ timeout: 8_000 })
+    await dragHandles.first().focus()
+    await page.keyboard.press('Space')
+    await page.waitForTimeout(150)
+    await page.keyboard.press('ArrowDown')
+    await page.waitForTimeout(150)
+    await page.keyboard.press('Space')
+
+    const saveOrderBtn = page.getByTestId('product-catalog-save-order-button')
+    await expect(saveOrderBtn).toBeVisible({ timeout: 8_000 })
+    await saveOrderBtn.click()
+
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(
+            () => (globalThis as Record<string, unknown>)['__SAMHAN_LAST_DISPLAY_ORDERS'] ?? null,
+          ),
+        { timeout: 8_000, message: 'PUT /display-orders 페이로드 미수신 (순서 저장 미발사)' },
+      )
+      .not.toBeNull()
+
+    const payload = (await page.evaluate(
+      () => (globalThis as Record<string, unknown>)['__SAMHAN_LAST_DISPLAY_ORDERS'],
+    )) as Array<{ modelCode: string; displayOrder: number }>
+
+    expect(payload.length).toBeGreaterThan(1000)
+    expect(payload.some((o) => o.modelCode === 'HM-BULK-1001')).toBe(true)
+    expect(payload.map((o) => o.displayOrder)).toEqual(
+      Array.from({ length: payload.length }, (_, i) => i + 1),
+    )
+  })
 })

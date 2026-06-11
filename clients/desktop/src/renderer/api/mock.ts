@@ -772,10 +772,7 @@ const MOCK_BRANCH_PIPE_ROWS = [
   { branchCode: '4119', description: null, summaryQty: null },
 ]
 
-// MOCK_PRODUCT_CATALOG_ROWS: mutable 로 선언하여 PATCH/DELETE 가 업데이트 가능.
-// usageScopeManual / displayOrder 필드 추가 (PR-B 확장).
-// productType / componentCount 추가 (PR-E 확장).
-let MOCK_PRODUCT_CATALOG_ROWS: Array<{
+type MockProductCatalogRow = {
   modelCode: string
   name: string
   usageScope: string
@@ -789,7 +786,12 @@ let MOCK_PRODUCT_CATALOG_ROWS: Array<{
   discountFlags: null
   productType: string
   componentCount: number
-}> = [
+}
+
+// MOCK_PRODUCT_CATALOG_ROWS: mutable 로 선언하여 PATCH/DELETE 가 업데이트 가능.
+// usageScopeManual / displayOrder 필드 추가 (PR-B 확장).
+// productType / componentCount 추가 (PR-E 확장).
+let MOCK_PRODUCT_CATALOG_ROWS: MockProductCatalogRow[] = [
   ...Object.values(MOCK_PRODUCTS_BY_MODEL).map((p, index) => {
     const isBundle = p.productType === 'BUNDLE'
     return {
@@ -825,6 +827,49 @@ let MOCK_PRODUCT_CATALOG_ROWS: Array<{
     componentCount: 0,
   },
 ]
+
+let mockProductCatalogExtraRowsSeeded = false
+
+/**
+ * Playwright 회귀 전용 대량 fixture 주입.
+ * in-process mock 은 route() 로 가로챌 수 없어 globalThis seed 를 모듈 로드 후 1회 반영한다.
+ */
+function ensureMockProductCatalogRowsSeeded() {
+  if (mockProductCatalogExtraRowsSeeded) return
+  mockProductCatalogExtraRowsSeeded = true
+  const seed = (globalThis as Record<string, unknown>)['__SAMHAN_MOCK_PRODUCT_CATALOG_EXTRA_ROWS']
+  if (!Array.isArray(seed)) return
+
+  const existing = new Set(MOCK_PRODUCT_CATALOG_ROWS.map((row) => row.modelCode))
+  const extraRows = seed
+    .map((raw): MockProductCatalogRow | null => {
+      if (!raw || typeof raw !== 'object') return null
+      const row = raw as Partial<MockProductCatalogRow>
+      const modelCode = String(row.modelCode ?? '').trim()
+      if (!modelCode || existing.has(modelCode)) return null
+      existing.add(modelCode)
+      return {
+        modelCode,
+        name: String(row.name ?? modelCode),
+        usageScope: String(row.usageScope ?? 'BOTH'),
+        estimateCategory: row.estimateCategory == null ? null : String(row.estimateCategory),
+        usageScopeManual: Boolean(row.usageScopeManual ?? false),
+        displayOrder: row.displayOrder == null ? null : Number(row.displayOrder),
+        releasePrice: Number(row.releasePrice ?? 0),
+        deliveryPrice: Number(row.deliveryPrice ?? 0),
+        hasVariableDiscount: Boolean(row.hasVariableDiscount ?? false),
+        legacyDiscountFlag: Boolean(row.legacyDiscountFlag ?? false),
+        discountFlags: null,
+        productType: String(row.productType ?? 'SINGLE'),
+        componentCount: Number(row.componentCount ?? 0),
+      }
+    })
+    .filter((row): row is MockProductCatalogRow => row != null)
+
+  if (extraRows.length > 0) {
+    MOCK_PRODUCT_CATALOG_ROWS = [...MOCK_PRODUCT_CATALOG_ROWS, ...extraRows]
+  }
+}
 
 // 구성품 데이터 (BUNDLE 품목 전용) — BE BundleComponentResponse 1:1 동형 — PUT replace-all 로 업데이트됨.
 let MOCK_BUNDLE_COMPONENTS: Record<string, Array<{
@@ -1165,6 +1210,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'PUT' && url.match(/\/api\/v1\/products\/display-orders(?:\?.*)?$/)) {
     const denied = mockRequirePermission('products.admin', 'update')
     if (denied) return denied
+    ensureMockProductCatalogRowsSeeded()
     const body = parseMockBody(config)
     const orders = Array.isArray(body) ? (body as Array<{ modelCode?: unknown; displayOrder?: unknown }>) : []
     // [#20] BE updateDisplayOrders 동형 — 빈 배열은 no-op 으로 204 성공(기존: 400 BAD_REQUEST 오정).
@@ -1175,8 +1221,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // [#10] BE updateDisplayOrders H fix 동형 — 요청 내 중복 modelCode → 400 INVALID_INPUT.
     //   같은 modelCode 가 두 번 들어오면 마지막 값으로 덮어써 의도와 다른 순서가 저장된다.
     const seenModelCodes = new Set<string>()
-    for (const o of orders as Array<{ modelCode?: unknown }>) {
-      const code = String(o.modelCode ?? '')
+    for (const o of orders as Array<{ modelCode?: unknown; displayOrder?: unknown }>) {
+      const code = String(o.modelCode ?? '').trim()
+      if (!code) {
+        return mockError(400, 'INVALID_INPUT', 'modelCode는 필수입니다')
+      }
+      if (o.displayOrder == null || !isFinite(Number(o.displayOrder))) {
+        return mockError(400, 'INVALID_INPUT', 'displayOrder는 필수입니다')
+      }
       if (seenModelCodes.has(code)) {
         return mockError(400, 'INVALID_INPUT', `표시 순서 갱신에 중복 modelCode 가 있습니다: ${code}`)
       }
@@ -1197,7 +1249,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       .filter((r): r is NonNullable<typeof r> => r != null)
     const distinctCategories = new Set(affectedRows.map((r) => r.estimateCategory ?? '__NULL__'))
     if (distinctCategories.size > 1) {
-      return mockError(400, 'BAD_REQUEST', '표시 순서 갱신 대상 품목이 서로 다른 카테고리에 속합니다.')
+      return mockError(
+        400,
+        'INVALID_INPUT',
+        '표시 순서 일괄 갱신은 동일 견적 카테고리(estimateCategory) 품목만 허용됩니다.',
+      )
     }
     MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) => {
       const entry = orders.find((o) => String(o.modelCode ?? '') === row.modelCode)
@@ -1220,6 +1276,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // 경로 우선순위: /components 패턴이 /usage, /specs, /display-orders 보다 아래, /{modelCode} 패턴보다 위.
   const productComponentsMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/components(?:\?.*)?$/)
   if (productComponentsMatch) {
+    ensureMockProductCatalogRowsSeeded()
     const modelCode = decodeURIComponent(productComponentsMatch[1]!)
     const catalogRow = MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === modelCode)
     if (!catalogRow) {
@@ -1270,6 +1327,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         }
         if (compCode === modelCode) {
           return mockError(400, 'INVALID_INPUT', '세트 품목 자신을 구성품으로 포함할 수 없습니다.')
+        }
+        if (compRow.productType === 'BUNDLE') {
+          return mockError(400, 'INVALID_INPUT', `세트 품목은 구성품으로 등록할 수 없습니다: ${compCode}`)
         }
         if (seenCompCodes.has(compCode)) {
           return mockError(400, 'INVALID_INPUT', `구성품에 중복 모델코드가 있습니다: ${compCode}`)
@@ -1472,6 +1532,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && (url.endsWith('/api/v1/products') || url.includes('/api/v1/products?'))) {
     const denied = mockRequirePermission('products.list', 'view')
     if (denied) return denied
+    ensureMockProductCatalogRowsSeeded()
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const q = ((config.params?.['q'] as string | undefined) ?? urlObj.searchParams.get('q') ?? '').toLowerCase()
     const usageScope = (config.params?.['usageScope'] as string | undefined)
@@ -5098,6 +5159,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
   if (method === 'GET' && partnerOrderDetailMatch) {
     const poId = partnerOrderDetailMatch[1]!
+    try {
+      const key = `__SAMHAN_PARTNER_ORDER_DETAIL_GET_COUNT_${poId}`
+      const g = globalThis as Record<string, unknown>
+      g[key] = Number(g[key] ?? 0) + 1
+    } catch {
+      /* noop */
+    }
     // Phase 2.4/2.5/2.6a spec 용: orderId 별 status 분기
     // ord-draft               → DRAFT     (Phase 2.4 복원 + Phase 2.5 보류 + Phase 2.6a 전환 진입점)
     // ord-hold                → ON_HOLD   (Phase 2.5 보류 해제 진입점 + Phase 2.6a 전환 가능)
@@ -5284,9 +5352,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   if (method === 'PUT' && partnerOrderDetailMatch) {
+    ensureMockProductCatalogRowsSeeded()
     const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
     if (body?.updatedAt === '409') {
       return mockError(409, 'PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT', '최신 내용으로 다시 확인해 주세요.')
+    }
+    const lineIdByModelCode: Record<string, string> = {
+      'SET-HM2WAY': 'line-bundle-001',
+      AJ040RXH4BC1: 'line-bundle-002',
     }
     return envelope({
       orderNumber: '2026/05/04-1',
@@ -5303,16 +5376,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       contactPhone: '010-1234-5678',
       dueDate: body?.dueDate ?? null,
       memo: body?.memo ?? null,
-      lines: body?.lines?.map((line: Record<string, unknown>) => ({
-        modelCode: line['modelCode'],
-        productName: line['productName'],
-        categoryKey: line['categoryKey'],
-        quantity: line['quantity'],
-        deliveryPrice: line['deliveryPrice'],
-        subtotal: Number(line['quantity']) * Number(line['deliveryPrice']),
-        bundleMode: null,
-        expandedComponents: [],
-      })) ?? [],
+      lines: body?.lines?.map((line: Record<string, unknown>, index: number) => {
+        const modelCode = String(line['modelCode'] ?? '')
+        const product = Object.values(MOCK_PRODUCTS_BY_MODEL).find(
+          (p) => p.modelName === modelCode || p.modelCode === modelCode,
+        )
+        const catalogRow = MOCK_PRODUCT_CATALOG_ROWS.find((row) => row.modelCode === modelCode)
+        return {
+          productId: product?.productId ?? `mock-product-${index + 1}`,
+          lineId: lineIdByModelCode[modelCode] ?? `line-po-${String(index + 1).padStart(3, '0')}`,
+          modelCode,
+          productName: line['productName'],
+          categoryKey: line['categoryKey'],
+          quantity: line['quantity'],
+          convertedQuantity: 0,
+          deliveryPrice: line['deliveryPrice'],
+          subtotal: Number(line['quantity']) * Number(line['deliveryPrice']),
+          bundleMode: modelCode === 'SET-HM2WAY' ? 'KEEP' : null,
+          productType: product?.productType ?? catalogRow?.productType ?? 'SINGLE',
+          expandedComponents: [],
+        }
+      }) ?? [],
     })
   }
 

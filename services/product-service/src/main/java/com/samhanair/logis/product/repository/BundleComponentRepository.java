@@ -47,8 +47,8 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
      *
      * <p>파생 쿼리(ORDER BY 부재)는 부모별 구성품 순서가 비결정적이라 소비처
      * {@link com.samhanair.logis.product.web.EstimateCatalogInternalController#components}
-     * 의 응답 순서가 흔들린다. {@code bundleProductId, displayOrder ASC NULLS LAST,
-     * componentProductCode} 로 결정화한다(부모별 그룹 → display_order → 코드 타이브레이커).
+     * 의 응답 순서가 흔들린다. 단건 조회와 동일하게 {@code bundleProductId, displayOrder ASC NULLS LAST,
+     * createdAt ASC, id ASC} 로 결정화한다(부모별 그룹 → display_order → 생성시각 → UUID 타이브레이커).
      *
      * @param ids 부모 Product.id 집합
      * @return 부모/표시순서 기준 정렬된 구성품 목록
@@ -57,7 +57,7 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
             SELECT bc FROM BundleComponent bc
             WHERE bc.bundleProductId IN :ids
               AND bc.isDeleted = false
-            ORDER BY bc.bundleProductId, bc.displayOrder ASC NULLS LAST, bc.componentProductCode
+            ORDER BY bc.bundleProductId, bc.displayOrder ASC NULLS LAST, bc.createdAt ASC, bc.id ASC
             """)
     List<BundleComponent> findByBundleProductIdIn(@Param("ids") Collection<UUID> ids);
 

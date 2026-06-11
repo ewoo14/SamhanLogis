@@ -7,7 +7,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * 주문 상세 응답.
@@ -52,17 +51,18 @@ public record PartnerOrderDetailResponse(
      * Entity 를 상세 DTO 로 변환하되, 라인의 {@code productType} 을 product-service 조회 결과 맵으로
      * enrich 한다 (Round C #23 세트 재고 가드).
      *
-     * <p>{@code productTypeByProductId} 는 {@code productId → "SINGLE"/"BUNDLE"} 매핑이며,
+     * <p>{@code productTypeByModelCode} 는 {@code modelCode → "SINGLE"/"BUNDLE"} 매핑이며,
      * product-service 조회 실패(fail-soft) 시 빈 맵이 전달되어 모든 라인 {@code productType=null} 로
-     * 둔다(기존 동작 동일). FE 재고조회 모달(2.6d)은 {@code productType="BUNDLE"} 라인을 재고조회
-     * 대상에서 제외한다.
+     * 둔다(기존 동작 동일). direct PUT 라인은 synthetic productId 를 저장할 수 있으므로 modelCode
+     * snapshot 을 기준으로 매칭한다. FE 재고조회 모달(2.6d)은 {@code productType="BUNDLE"} 라인을
+     * 재고조회 대상에서 제외한다.
      *
      * @param order 주문 엔티티
-     * @param productTypeByProductId productId 문자열 → productType 매핑 (빈 맵이면 enrich 없음)
+     * @param productTypeByModelCode modelCode 문자열 → productType 매핑 (빈 맵이면 enrich 없음)
      * @return 상세 DTO
      */
     public static PartnerOrderDetailResponse from(
-            PartnerOrder order, Map<UUID, String> productTypeByProductId) {
+            PartnerOrder order, Map<String, String> productTypeByModelCode) {
         return new PartnerOrderDetailResponse(
                 order.getOrderNo(),
                 order.getPartnerCode(),
@@ -80,8 +80,15 @@ public record PartnerOrderDetailResponse(
                 order.getMemo(),
                 order.getLines().stream()
                         .map(line -> LineResponse.from(
-                                line, productTypeByProductId.get(line.getProductId())))
+                                line, productTypeByModelCode.get(trimToNull(line.getModelName()))))
                         .toList());
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     /**

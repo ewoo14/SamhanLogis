@@ -21,6 +21,7 @@ import com.samhanair.logis.product.web.dto.UpdateProductRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -212,6 +213,39 @@ public class ProductService {
                     "한 번에 조회할 수 있는 최대 제품 수는 " + LOOKUP_MAX + "건입니다");
         }
         return productRepository.findAllByIdIn(ids).stream()
+                .map(ProductSummaryResponse::from)
+                .toList();
+    }
+
+    /**
+     * modelCode 리스트의 카탈로그 정보를 일괄 조회한다.
+     *
+     * <p>partner-order 상세 enrich 는 direct PUT 라인의 synthetic productId 와 무관하게
+     * 주문 라인에 저장된 사용자 식별자(modelName/modelCode snapshot)를 기준으로 productType 을 붙인다.
+     *
+     * @param modelCodes 조회할 modelCode 목록
+     * @return 활성 Product 요약 목록 (미매칭 modelCode 는 UUID lookup 과 동일하게 생략)
+     */
+    @Transactional(readOnly = true)
+    public List<ProductSummaryResponse> lookupByModelCodes(List<String> modelCodes) {
+        if (modelCodes == null || modelCodes.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelCode가 비어있습니다");
+        }
+        if (modelCodes.size() > LOOKUP_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 최대 제품 수는 " + LOOKUP_MAX + "건입니다");
+        }
+        List<String> normalized = modelCodes.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toCollection(LinkedHashSet::new),
+                        ArrayList::new));
+        if (normalized.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelCode가 비어있습니다");
+        }
+        return productRepository.findByModelCodeInAndIsDeletedFalse(normalized).stream()
                 .map(ProductSummaryResponse::from)
                 .toList();
     }

@@ -462,6 +462,47 @@ test.describe('주문서 상세 — 세트(BUNDLE) 재고 가드', () => {
     const modalText = await modal.innerText()
     expect(UUID_PATTERN.test(modalText)).toBe(false)
   })
+
+  test('시나리오 16: BUNDLE 주문 수정 직후 → 상세 refetch 후 세트 재고 가드 유지', async ({
+    page,
+  }) => {
+    await installAuthMock(page)
+    await gotoPartnerOrderDetail(page, 'ord-bundle-mixed')
+    const getCountBeforeSave = await page.evaluate(
+      () => Number((globalThis as Record<string, unknown>)['__SAMHAN_PARTNER_ORDER_DETAIL_GET_COUNT_ord-bundle-mixed'] ?? 0),
+    )
+
+    await page.getByTestId('partner-order-edit-open').click()
+    await expect(page.getByTestId('partner-order-edit-form')).toBeVisible({ timeout: 5_000 })
+    await page.getByTestId('partner-order-edit-submit').click()
+    await expect(page.getByTestId('partner-order-edit-form')).toHaveCount(0, { timeout: 10_000 })
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(
+            () => Number((globalThis as Record<string, unknown>)['__SAMHAN_PARTNER_ORDER_DETAIL_GET_COUNT_ord-bundle-mixed'] ?? 0),
+          ),
+        { timeout: 10_000, message: '주문 수정 성공 후 상세 GET refetch 가 발생하지 않음' },
+      )
+      .toBeGreaterThan(getCountBeforeSave)
+
+    const btn = page.getByTestId('partner-order-inventory-lookup-btn')
+    await expect(btn).toBeVisible({ timeout: 10_000 })
+
+    const allCheck = page.getByRole('checkbox', { name: '전체 선택' }).first()
+    await expect(allCheck).toBeVisible({ timeout: 5_000 })
+    await allCheck.check()
+    await expect(btn).toBeEnabled()
+    await btn.click()
+
+    const modal = page.getByTestId('inventory-lookup-modal')
+    await expect(modal).toBeVisible({ timeout: 10_000 })
+
+    const mixedNotice = page.getByTestId('inventory-lookup-mixed-bundle-notice')
+    await expect(mixedNotice).toBeVisible()
+    await expect(mixedNotice).toContainText('세트 1건은 제외됨')
+    await expect(page.getByTestId('inventory-lookup-cell-AJ040RXH4BC1-HQ-001')).toContainText('10')
+  })
 })
 
 // ============================================================

@@ -7,6 +7,7 @@ import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
+import com.samhanair.logis.product.web.dto.LookupByModelCodesRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
@@ -51,6 +52,25 @@ public class ProductInternalController {
     @PostMapping("/lookup")
     public ApiResponse<List<ProductSummaryResponse>> lookup(@Valid @RequestBody LookupRequest request) {
         return ApiResponse.ok(productService.lookup(request.ids()));
+    }
+
+    /**
+     * 모델코드 일괄 조회 (internal) — partner-order 상세 productType enrich 경로.
+     *
+     * <p>direct PUT 주문 라인은 실제 product UUID 대신 synthetic stableProductId 를 저장할 수 있으므로,
+     * productId 가 아니라 주문 라인 snapshot 의 modelCode 로 BUNDLE 여부를 조회한다.
+     */
+    @Operation(summary = "모델코드 일괄 조회 (internal)",
+            description = "X-Internal-Token 인증 후 호출. partner-order 상세 productType enrich 전용.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "modelCodes 누락/공백"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치")
+    })
+    @PostMapping("/lookup-by-model-codes")
+    public ApiResponse<List<ProductSummaryResponse>> lookupByModelCodes(
+            @Valid @RequestBody LookupByModelCodesRequest request) {
+        return ApiResponse.ok(productService.lookupByModelCodes(request.modelCodes()));
     }
 
     /**

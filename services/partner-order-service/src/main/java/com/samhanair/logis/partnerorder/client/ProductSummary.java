@@ -21,6 +21,7 @@ public record ProductSummary(
         UUID categoryId,
         BigDecimal sellingPrice,
         String status,
+        String modelCode,
         String productType) {
 
     /**
@@ -35,6 +36,22 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status) {
-        this(id, name, modelName, categoryId, sellingPrice, status, null);
+        this(id, name, modelName, categoryId, sellingPrice, status, null, null);
+    }
+
+    /**
+     * 구 7-arg 호환 생성자 — modelCode 미제공 기존 호출자/테스트(modelCode=null).
+     *
+     * @param id           제품 UUID
+     * @param name         제품명
+     * @param modelName    모델명
+     * @param categoryId   카테고리 UUID
+     * @param sellingPrice 판매가
+     * @param status       제품 상태
+     * @param productType  품목 유형
+     */
+    public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
+                          BigDecimal sellingPrice, String status, String productType) {
+        this(id, name, modelName, categoryId, sellingPrice, status, null, productType);
     }
 }

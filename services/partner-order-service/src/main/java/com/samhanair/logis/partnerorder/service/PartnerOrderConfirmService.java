@@ -160,8 +160,10 @@ public class PartnerOrderConfirmService {
             ConfirmLineRequest line = reqLines.get(i);
             ProductSummary p = productMap.get(line.productId());
             BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), p.sellingPrice());
+            // 주문 라인 modelName 컬럼은 화면 표시 modelCode snapshot 으로 사용한다.
+            String lineModelCode = modelCodeSnapshot(p);
             PartnerOrderLine entity = PartnerOrderLine.create(
-                    p.id(), p.modelName(), p.name(), line.categoryKey(),
+                    p.id(), lineModelCode, p.name(), line.categoryKey(),
                     line.quantity(), priceVat, line.remark());
             order.addLine(entity); // totalAmount 자동 누적
         }
@@ -254,6 +256,13 @@ public class PartnerOrderConfirmService {
             case "commercialMulti" -> "COMMERCIAL_MULTI";
             default -> "OTHER";
         };
+    }
+
+    private String modelCodeSnapshot(ProductSummary product) {
+        if (product.modelCode() != null && !product.modelCode().isBlank()) {
+            return product.modelCode().trim();
+        }
+        return product.modelName();
     }
 
     /**

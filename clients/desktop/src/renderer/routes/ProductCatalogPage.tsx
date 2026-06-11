@@ -127,7 +127,7 @@ import { usePermissions } from '../hooks/usePermissions'
 // 상수
 // ---------------------------------------------------------------------------
 
-/** 표시 순서 일괄 저장 시 사용하는 전체 조회 size (충분히 크게 — 부분 재번호 방지) */
+/** 표시 순서 일괄 저장 시 사용하는 페이지 조회 size (BE PageRequest 기반). */
 const DISPLAY_ORDER_FULL_SIZE = 999
 
 const PAGE_SIZE = 50
@@ -906,12 +906,25 @@ export function ProductCatalogPage() {
     setOrderError(null)
     try {
       // 1. 선택된 카테고리의 전체 목록을 기존 displayOrder 오름차순으로 조회
-      const allRows = await listProducts({
+      //    BE 목록은 PageRequest 기반이므로 totalPages 끝까지 수집해야 1000건+ 카테고리도
+      //    부분 재번호로 오염되지 않는다.
+      const firstPage = await listProducts({
         category: committedCategory,
+        page: 0,
         size: DISPLAY_ORDER_FULL_SIZE,
       })
+      const remainingPages = await Promise.all(
+        Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, i) =>
+          listProducts({
+            category: committedCategory,
+            page: i + 1,
+            size: DISPLAY_ORDER_FULL_SIZE,
+          }),
+        ),
+      )
+      const allRows = [firstPage, ...remainingPages].flatMap((page) => page.content)
       // BE 는 displayOrder asc 정렬 반환; NONE 제외
-      const allExposed = allRows.content.filter((r) => r.usageScope !== 'NONE')
+      const allExposed = allRows.filter((r) => r.usageScope !== 'NONE')
 
       // 현재 페이지의 modelCode 집합
       const currentPageCodes = new Set(

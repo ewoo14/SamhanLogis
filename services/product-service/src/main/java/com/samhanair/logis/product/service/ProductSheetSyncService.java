@@ -284,6 +284,8 @@ public class ProductSheetSyncService {
 
         // 부모 Product.id → 이번 시트에서 본 자식코드 set (soft-delete 대상 산출용).
         Map<UUID, Set<String>> seenByParent = new HashMap<>();
+        // 부모 Product.id → PESSIMISTIC_WRITE 획득 여부. 같은 부모는 sync 트랜잭션 안에서 1회만 잠근다.
+        Set<UUID> lockedParents = new HashSet<>();
         // 부모 Product.id → 이미 BUNDLE 마킹했는지(중복 마킹 회피).
         Set<UUID> markedBundles = new HashSet<>();
 
@@ -304,6 +306,13 @@ public class ProductSheetSyncService {
             }
             Product parent = parentOpt.get();
             Product child = childOpt.get();
+            if (!lockedParents.contains(parent.getId())) {
+                // replaceComponents 와 같은 부모 행 잠금을 사용해 manual replace-all ↔ sheet sync 를 직렬화한다.
+                parent = productRepository.findByIdForUpdate(parent.getId())
+                        .orElseThrow(() -> new IllegalStateException("구성품 부모 품목을 잠금 조회할 수 없습니다: "
+                                + parentOpt.get().getId()));
+                lockedParents.add(parent.getId());
+            }
 
             String kindRaw = cKind >= 0 ? safeGet(cells, cKind).trim() : "";
             String variant = cVariant >= 0 ? safeGet(cells, cVariant).trim() : "";

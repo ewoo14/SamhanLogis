@@ -81,23 +81,7 @@ public class ProductClient {
                         "product-service 응답 포맷 오류 (data 누락)");
             }
             return rawList.stream()
-                    .map(item -> {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> m = (Map<String, Object>) item;
-                        return new ProductSummary(
-                                UUID.fromString((String) m.get("id")),
-                                (String) m.get("name"),
-                                (String) m.get("modelName"),
-                                m.get("categoryId") == null
-                                        ? null
-                                        : UUID.fromString((String) m.get("categoryId")),
-                                m.get("sellingPrice") == null
-                                        ? null
-                                        : new java.math.BigDecimal(m.get("sellingPrice").toString()),
-                                (String) m.get("status"),
-                                // Round C #23: 세트 재고 가드용 productType("SINGLE"/"BUNDLE") 전사
-                                (String) m.get("productType"));
-                    })
+                    .map(this::toProductSummary)
                     .toList();
         } catch (BusinessException ex) {
             throw ex;
@@ -105,6 +89,76 @@ public class ProductClient {
             log.error("ProductClient lookup failed: {}", ex.getMessage());
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "product-service 호출 실패", ex);
         }
+    }
+
+    /**
+     * modelCode 리스트의 카탈로그 정보를 일괄 조회.
+     *
+     * <p>거래처 주문 direct PUT 라인은 실제 product UUID 대신 synthetic stableProductId 를 저장할 수 있어
+     * 주문 상세 productType enrich 는 productId 가 아니라 라인 modelCode snapshot 을 기준으로 수행한다.
+     *
+     * @param modelCodes 1~100건
+     * @return ProductSummary 리스트 (입력 순서와 무관)
+     */
+    public List<ProductSummary> lookupByModelCodes(List<String> modelCodes) {
+        if (modelCodes == null || modelCodes.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "modelCodes 비어있음");
+        }
+        if (modelCodes.size() > 100) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "한 번에 최대 100건");
+        }
+
+        Map<String, Object> body = Map.of("modelCodes", modelCodes);
+
+        try {
+            Map<String, Object> envelope = restClient.post()
+                    .uri("/products/internal/lookup-by-model-codes")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "product-service 4xx: " + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 5xx: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+
+            Object data = envelope == null ? null : envelope.get("data");
+            if (!(data instanceof List<?> rawList)) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "product-service 응답 포맷 오류 (data 누락)");
+            }
+            return rawList.stream()
+                    .map(this::toProductSummary)
+                    .toList();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("ProductClient lookupByModelCodes failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "product-service 호출 실패", ex);
+        }
+    }
+
+    private ProductSummary toProductSummary(Object item) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> m = (Map<String, Object>) item;
+        return new ProductSummary(
+                UUID.fromString((String) m.get("id")),
+                (String) m.get("name"),
+                (String) m.get("modelName"),
+                m.get("categoryId") == null
+                        ? null
+                        : UUID.fromString((String) m.get("categoryId")),
+                m.get("sellingPrice") == null
+                        ? null
+                        : new java.math.BigDecimal(m.get("sellingPrice").toString()),
+                (String) m.get("status"),
+                (String) m.get("modelCode"),
+                (String) m.get("productType"));
     }
 
     private String requireToken() {

@@ -136,11 +136,12 @@ export function SalesPartnerOrderDetailPage() {
 
   const updateMutation = useMutation({
     mutationFn: (request: PartnerOrderUpdateRequest) => updatePartnerOrder(orderId, request),
-    onSuccess: async (updated) => {
+    onSuccess: async () => {
       setConflictMessage(null)
       setReloadSuccessMessage(null)
       setEditOpen(false)
-      queryClient.setQueryData(['partner-order', id], updated)
+      // PUT 응답은 product-service enrich 필드(productType 등)가 빠질 수 있어 상세 GET 재조회로 보정한다.
+      await queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
     },
     onError: (error) => {

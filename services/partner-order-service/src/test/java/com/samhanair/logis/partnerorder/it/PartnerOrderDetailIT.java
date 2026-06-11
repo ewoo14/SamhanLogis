@@ -1,9 +1,10 @@
 package com.samhanair.logis.partnerorder.it;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -111,13 +112,15 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
     @Test
     @WithMockUser(username = "owner", roles = {"SALES"})
     void detail_line_productType_is_enriched_from_product_service() throws Exception {
-        UUID bundleProductId = UUID.fromString("b0b0b0b0-0000-0000-0000-000000000023");
+        UUID syntheticLineProductId = UUID.fromString("b0b0b0b0-0000-0000-0000-000000000123");
+        UUID catalogBundleProductId = UUID.fromString("b0b0b0b0-0000-0000-0000-000000000023");
         saveOrderWithProduct("2026/05/07-23", "P-DETAIL-BUNDLE", "2323232323",
-                bundleProductId, "SET-HM2WAY", "홈멀티 2way 세트");
-        // product-service 조회가 BUNDLE 을 반환하도록 stub (productType="BUNDLE")
-        when(productClient.lookup(anyList())).thenReturn(List.of(
-                new ProductSummary(bundleProductId, "홈멀티 2way 세트", "SET-HM2WAY",
-                        null, new BigDecimal("2500000"), "ACTIVE", "BUNDLE")));
+                syntheticLineProductId, "SET-HM2WAY", "홈멀티 2way 세트");
+        // product-service 조회가 modelCode 기준 BUNDLE 을 반환하도록 stub (productType="BUNDLE").
+        when(productClient.lookupByModelCodes(argThat(modelCodes ->
+                modelCodes != null && modelCodes.equals(List.of("SET-HM2WAY"))))).thenReturn(List.of(
+                new ProductSummary(catalogBundleProductId, "홈멀티 2way 세트", "SET-HM2WAY",
+                        null, new BigDecimal("2500000"), "ACTIVE", "SET-HM2WAY", "BUNDLE")));
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-23")
                         .header("X-User-Id", ACCOUNT_ID)
@@ -126,6 +129,9 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.lines.length()").value(1))
                 .andExpect(jsonPath("$.data.lines[0].modelCode").value("SET-HM2WAY"))
                 .andExpect(jsonPath("$.data.lines[0].productType").value("BUNDLE"));
+
+        verify(productClient).lookupByModelCodes(argThat(modelCodes ->
+                modelCodes != null && modelCodes.equals(List.of("SET-HM2WAY"))));
     }
 
     /**
@@ -138,7 +144,8 @@ class PartnerOrderDetailIT extends AbstractPostgresIT {
         UUID productId = UUID.fromString("b0b0b0b0-0000-0000-0000-000000000024");
         saveOrderWithProduct("2026/05/07-24", "P-DETAIL-FAILSOFT", "2424242424",
                 productId, "AJ040RXH4BC1", "실외기");
-        when(productClient.lookup(anyList()))
+        when(productClient.lookupByModelCodes(argThat(modelCodes ->
+                modelCodes != null && modelCodes.equals(List.of("AJ040RXH4BC1")))))
                 .thenThrow(new RuntimeException("product-service 호출 실패(테스트)"));
 
         mockMvc.perform(get("/api/v1/partner-orders/{id}", "2026-05-07-24")
