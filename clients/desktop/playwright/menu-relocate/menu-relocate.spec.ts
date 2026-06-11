@@ -84,6 +84,34 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
   })
 }
 
+const SIDEBAR_GROUP_LABELS = ['판매', '구매', '회계', '그룹웨어', '인사', '배차', '창고 운영'] as const
+
+async function clearSidebarGroupStorage(page: Page): Promise<void> {
+  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 20_000 })
+  await page.evaluate((labels: readonly string[]) => {
+    for (const label of labels) {
+      localStorage.removeItem(`samhan.sidebar.group.${label}`)
+    }
+  }, SIDEBAR_GROUP_LABELS)
+}
+
+async function waitForSidebar(page: Page): Promise<void> {
+  await page.waitForSelector('aside.app-sidebar', { timeout: 20_000 })
+}
+
+function sidebarCategoryToggle(page: Page, label: string) {
+  return page.getByTestId(`sidebar-category-toggle-${label.replace(/\s+/g, '')}`)
+}
+
+async function openSidebarCategory(page: Page, label: string): Promise<void> {
+  const toggle = sidebarCategoryToggle(page, label)
+  await expect(toggle, `${label} 그룹 토글 버튼이 보여야 함`).toBeVisible({ timeout: 10_000 })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+    await expect(toggle, `${label} 그룹 토글 후 펼침 상태`).toHaveAttribute('aria-expanded', 'true')
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 사이드바 메뉴 헬퍼
 // ---------------------------------------------------------------------------
@@ -91,6 +119,11 @@ function attachPageErrorHook(page: Page, errors: string[]): void {
 /**
  * 사이드바에서 특정 카테고리 + 메뉴 항목 visible 여부 확인.
  * 카테고리가 접혀 있으면 먼저 클릭해서 펼친다.
+ *
+ * [Round C P3 #14] 그룹 소속 검증 — 기존엔 categoryLabel 펼침만 하고 메뉴 항목은 사이드바 전역에서
+ *   검색해 "어느 그룹에 있든" 통과했다(장식 파라미터). 이제 펼친 그룹의 content 블록
+ *   (role=group, aria-labelledby == 카테고리 토글 id) 안으로 스코프를 좁혀, 해당 항목이 정확히
+ *   그 그룹 소속일 때만 visible 로 판정한다.
  */
 async function isSidebarMenuVisible(
   page: Page,
@@ -102,27 +135,102 @@ async function isSidebarMenuVisible(
     '[data-testid="sidebar"], nav[aria-label="사이드바"], aside, .sidebar'
   ).first()
 
-  // 카테고리 헤더 탐색
-  const categoryHeader = sidebar.locator(
-    `[data-testid="sidebar-category-${categoryLabel}"], button:has-text("${categoryLabel}"), span:has-text("${categoryLabel}")`
-  ).first()
-
-  if (await categoryHeader.count() > 0) {
-    // 접혀있으면 펼치기
-    const isExpanded = await categoryHeader.getAttribute('aria-expanded')
-    if (isExpanded === 'false') {
-      await categoryHeader.click()
-      await page.waitForTimeout(300)
-    }
+  // 카테고리 헤더 탐색 — 미존재 시(권한 없음 등) 그룹 자체가 없으므로 항목도 없음.
+  const categoryToggle = sidebarCategoryToggle(page, categoryLabel)
+  if (await categoryToggle.count() === 0) {
+    return false
   }
+  await openSidebarCategory(page, categoryLabel)
 
-  // 메뉴 항목 탐색
-  const menuItem = sidebar.locator(
+  // 펼친 그룹의 content 블록(role=group, aria-labelledby==토글 id)으로 스코프 한정 → 그룹 소속 단언.
+  const headingId = await categoryToggle.getAttribute('id')
+  const groupScope = headingId
+    ? sidebar.locator(`[role="group"][aria-labelledby="${headingId}"]`)
+    : sidebar
+
+  // 메뉴 항목 탐색 (그룹 블록 내부 한정)
+  const menuItem = groupScope.locator(
     `[data-testid="menu-${menuItemLabel}"], a:has-text("${menuItemLabel}"), li:has-text("${menuItemLabel}"), span:has-text("${menuItemLabel}")`
   ).first()
 
   return await menuItem.count() > 0 && await menuItem.isVisible()
 }
+
+// ---------------------------------------------------------------------------
+// Collapsible sidebar category 계약
+// ---------------------------------------------------------------------------
+
+test.describe('좌측 메뉴 7그룹 collapsible 계약', () => {
+
+  test.skip(SKIP_UI, 'dev server 미가용 — VITE_MOCK_MODE=1 && npx vite --port 5173 후 PLAYWRIGHT_SKIP_UI=0 으로 재시도')
+
+  test.beforeEach(async ({ page }) => {
+    const ok = await isServerAvailable()
+    test.skip(!ok, `dev server 미접근: ${BASE_URL}`)
+    await clearSidebarGroupStorage(page)
+  })
+
+  test('기본 접힘: 권한 있는 그룹 헤더는 보이고 자식 메뉴는 펼치기 전 미렌더된다', async ({ page }) => {
+    const errors: string[] = []
+    attachPageErrorHook(page, errors)
+
+    await page.goto(`${BASE_URL}/#/?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await waitForSidebar(page)
+
+    const salesToggle = sidebarCategoryToggle(page, '판매')
+    await expect(salesToggle).toBeVisible()
+    await expect(salesToggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.getByTestId('sidebar-sales')).toHaveCount(0)
+
+    await openSidebarCategory(page, '판매')
+    await expect(page.getByTestId('sidebar-sales')).toBeVisible()
+    expect(errors, `pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
+  })
+
+  test('사용자가 펼친 그룹 상태는 localStorage 에 영속된다', async ({ page }) => {
+    const errors: string[] = []
+    attachPageErrorHook(page, errors)
+
+    await page.goto(`${BASE_URL}/#/?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await waitForSidebar(page)
+    await openSidebarCategory(page, '구매')
+
+    await expect.poll(
+      () => page.evaluate(() => localStorage.getItem('samhan.sidebar.group.구매')),
+      { message: '구매 그룹 open 상태가 localStorage 에 저장되어야 함' },
+    ).toBe('true')
+
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await waitForSidebar(page)
+    await expect(sidebarCategoryToggle(page, '구매')).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByTestId('sidebar-purchases')).toBeVisible()
+    expect(errors, `pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
+  })
+
+  test('현재 활성 라우트가 속한 그룹은 저장값이 접힘이어도 자동 펼침된다', async ({ page }) => {
+    const errors: string[] = []
+    attachPageErrorHook(page, errors)
+    await page.addInitScript(() => {
+      localStorage.setItem('samhan.sidebar.group.회계', 'false')
+    })
+
+    await page.goto(`${BASE_URL}/#/accounting/accounts?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    })
+    await waitForSidebar(page)
+
+    await expect(sidebarCategoryToggle(page, '회계')).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByTestId('sidebar-accounting-accounts')).toBeVisible()
+    expect(errors, `pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // TC-M1 ~ TC-M5
@@ -334,6 +442,11 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       { label: '거래처 관리', path: '/admin/partners', alt: '거래처관리' },
       { label: '품목 관리', path: '/products/catalog', alt: '품목관리' },
     ]
+
+    // 기본 접힘 도입 후 자식 anchor 는 그룹을 펼친 뒤에만 DOM 에 존재한다.
+    await openSidebarCategory(page, '배차')
+    await openSidebarCategory(page, '인사')
+    await openSidebarCategory(page, '판매')
 
     const foundResults: Record<string, boolean> = {}
     const detailResults: Record<string, { hrefMatch: number; labelPresent: boolean }> = {}

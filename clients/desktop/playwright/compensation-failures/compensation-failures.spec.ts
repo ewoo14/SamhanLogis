@@ -38,6 +38,22 @@ async function gotoPage(
     .waitFor({ state: 'visible', timeout: 10_000 })
 }
 
+/**
+ * [Round C] 사이드바 카테고리는 기본 접힘이므로 자식 링크 단언 전 해당 그룹을 펼친다.
+ * 이미 펼쳐져 있으면(활성 라우트 자동 펼침 등) 클릭을 건너뛴다.
+ */
+async function openSidebarCategory(
+  page: import('@playwright/test').Page,
+  label: string,
+): Promise<void> {
+  const toggle = page.getByTestId(`sidebar-category-toggle-${label.replace(/\s+/g, '')}`)
+  await expect(toggle, `${label} 그룹 토글 버튼`).toBeVisible({ timeout: 10_000 })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+  }
+  await expect(toggle, `${label} 그룹 펼침 상태`).toHaveAttribute('aria-expanded', 'true')
+}
+
 test.describe('D-SER-23 보상 실패 복구 화면', () => {
   test('미해소 목록 기본 렌더 — 전표번호 행 + 미해소 배지 표시', async ({ page }) => {
     await gotoPage(page)
@@ -186,6 +202,8 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
       .waitForLoadState('networkidle', { timeout: 8_000 })
       .catch(() => {})
 
+    // [Round C] 보상 실패 복구는 '창고 운영' 카테고리 자식 — 기본 접힘이므로 먼저 펼친다.
+    await openSidebarCategory(page, '창고 운영')
     await expect(
       page.locator('[data-testid="sidebar-warehouse-compensation-failures"]'),
     ).toBeVisible()

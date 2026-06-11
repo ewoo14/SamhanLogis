@@ -34,7 +34,7 @@
  * - 외부 클릭 / Esc 키 dropdown 자동 닫기
  */
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../stores/session'
 import { usePageTitleStore } from '../stores/pageTitle'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
@@ -83,15 +83,22 @@ function SidebarGroupToggle({
   onToggle,
   testId,
   controls,
+  id,
+  variant = 'subgroup',
 }: {
   label: string
   open: boolean
   onToggle: () => void
   testId: string
   controls: string
+  id?: string
+  variant?: 'subgroup' | 'category'
 }) {
+  const isCategory = variant === 'category'
+
   return (
     <button
+      id={id}
       type="button"
       data-testid={testId}
       aria-expanded={open}
@@ -102,16 +109,18 @@ function SidebarGroupToggle({
         alignItems: 'center',
         justifyContent: 'space-between',
         width: '100%',
-        minHeight: 34,
-        padding: 'var(--space-2) var(--space-3)',
+        minHeight: isCategory ? 26 : 34,
+        padding: isCategory ? '4px 8px' : 'var(--space-2) var(--space-3)',
         border: 'none',
-        borderRadius: 'var(--radius-md)',
+        borderRadius: isCategory ? 0 : 'var(--radius-md)',
         background: 'transparent',
-        color: 'var(--color-neutral-700)',
+        color: isCategory ? 'var(--color-neutral-400)' : 'var(--color-neutral-700)',
         cursor: 'pointer',
-        fontSize: 13,
+        fontSize: isCategory ? 11 : 13,
         fontWeight: 600,
         textAlign: 'left',
+        textTransform: isCategory ? 'uppercase' : undefined,
+        letterSpacing: isCategory ? 0.5 : undefined,
       }}
     >
       <span>{label}</span>
@@ -135,45 +144,109 @@ function SidebarGroupToggle({
   )
 }
 
+function compactSidebarLabel(label: string): string {
+  return label.replace(/\s+/g, '')
+}
+
+function readSidebarGroupOpen(storageKey: string): boolean {
+  if (typeof window === 'undefined') return false
+
+  try {
+    return window.localStorage.getItem(storageKey) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function writeSidebarGroupOpen(storageKey: string, open: boolean): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.localStorage.setItem(storageKey, String(open))
+  } catch {
+    // localStorage 접근이 막힌 환경에서는 세션 내 상태만 유지한다.
+  }
+}
+
+function isSidebarTargetActive(currentPathname: string, currentFullPath: string, to: string): boolean {
+  const [targetPathname, targetSearch] = to.split('?')
+
+  if (!targetPathname || targetPathname === '/') {
+    return currentPathname === targetPathname
+  }
+
+  if (targetSearch) {
+    return currentFullPath === to
+  }
+
+  return currentPathname === targetPathname || currentPathname.startsWith(`${targetPathname}/`)
+}
+
 function SidebarCategory({
   label,
   show,
+  activeTargets,
+  testId,
   children,
 }: {
   label: string
   show: boolean
+  activeTargets: string[]
+  testId: string
   children: React.ReactNode
 }) {
+  const location = useLocation()
+  const currentFullPath = `${location.pathname}${location.search}`
+  const activeByRoute = activeTargets.some((to) =>
+    isSidebarTargetActive(location.pathname, currentFullPath, to),
+  )
+  const storageKey = `samhan.sidebar.group.${label}`
+  const [open, setOpen] = useState(() => readSidebarGroupOpen(storageKey))
+
+  useEffect(() => {
+    if (activeByRoute) {
+      setOpen(true)
+    }
+  }, [activeByRoute, currentFullPath])
+
   if (!show) return null
 
-  // [Round B P3] 그룹 헤더 접근성 — 기존 aria-hidden="true" 는 스크린리더가 그룹 구분(라벨)을
-  //   읽지 못하게 막았다. 헤더를 heading(aria-level=2)으로 시멘틱화하고 자식 항목을
-  //   role="group" + aria-labelledby 로 묶어 그룹 라벨이 보조기술에 전달되도록 한다.
-  //   시각 스타일(className/style)은 그대로 보존한다.
-  const headingId = `sidebar-group-heading-${encodeURIComponent(label)}`
+  // [2026-06-11] 그룹 헤더 자체를 토글 버튼으로 일반화한다.
+  // 기본은 접힘이며, 현재 route 가 그룹 자식 경로에 속하면 해당 그룹만 자동 펼침된다.
+  const compactLabel = compactSidebarLabel(label)
+  const headingId = `sidebar-group-heading-${compactLabel}`
+  const controls = `sidebar-group-content-${compactLabel}`
+  const handleToggle = () => {
+    setOpen((current) => {
+      const next = !current
+      writeSidebarGroupOpen(storageKey, next)
+      return next
+    })
+  }
 
   return (
     <>
       <div
         className="app-sidebar-group"
-        id={headingId}
         role="heading"
         aria-level={2}
-        style={{
-          marginTop: 16,
-          padding: '4px 8px',
-          fontSize: 11,
-          fontWeight: 600,
-          color: 'var(--color-neutral-400)',
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-        }}
+        style={{ marginTop: 16 }}
       >
-        {label}
+        <SidebarGroupToggle
+          id={headingId}
+          label={label}
+          open={open}
+          onToggle={handleToggle}
+          testId={testId}
+          controls={controls}
+          variant="category"
+        />
       </div>
-      <div role="group" aria-labelledby={headingId}>
-        {children}
-      </div>
+      {open ? (
+        <div id={controls} role="group" aria-labelledby={headingId}>
+          {children}
+        </div>
+      ) : null}
     </>
   )
 }
@@ -395,7 +468,25 @@ export function AppLayout() {
 
           {/* [Phase 6 v4 → P2-1] 판매 그룹 — 견적서 SamhanLogis 도메인 (legacy webview 폐기) + 4종 sub.
               [SP-D4] estimates.list / sales.partner-order.list 동적 RBAC 연동. */}
-          <SidebarCategory label="판매" show={showSales}>
+          <SidebarCategory
+            label="판매"
+            show={showSales}
+            testId="sidebar-category-toggle-판매"
+            activeTargets={[
+              '/sales',
+              '/sales/estimates',
+              '/sales/partner-orders',
+              '/sales/order-approvals',
+              '/admin/partners',
+              '/sales/partner-dc-config',
+              '/admin/blocked-partners',
+              '/sales/slip-cleanup',
+              '/sales/next-day-slip',
+              '/sales/vendor-order-upload',
+              '/products/catalog',
+              '/admin/sheet-sync',
+            ]}
+          >
             <SidebarLink
               to="/sales"
               show={showSalesSlipList}
@@ -502,7 +593,20 @@ export function AppLayout() {
             </SidebarLink>
           </SidebarCategory>
 
-          <SidebarCategory label="구매" show={showPurchase}>
+          <SidebarCategory
+            label="구매"
+            show={showPurchase}
+            testId="sidebar-category-toggle-구매"
+            activeTargets={[
+              '/purchases',
+              '/purchases/receipt-ocr',
+              '/transfers',
+              '/warehouse/inbound-inspections',
+              '/warehouse/audit',
+              '/warehouse/dps-compare',
+              '/warehouse/dps-compare/by-product',
+            ]}
+          >
             <SidebarLink
               to="/purchases"
               show={showPurchaseSlipList}
@@ -563,7 +667,39 @@ export function AppLayout() {
             </SidebarLink>
           </SidebarCategory>
 
-          <SidebarCategory label="회계" show={showAccounting}>
+          <SidebarCategory
+            label="회계"
+            show={showAccounting}
+            testId="sidebar-category-toggle-회계"
+            activeTargets={[
+              '/accounting/sales-slips',
+              '/accounting/purchase-slips',
+              '/accounting/accounts',
+              '/accounting/journals',
+              '/accounting/tax-invoices',
+              '/accounting/tax-invoices/batch',
+              '/accounting/tax-invoices/inbound',
+              '/accounting/balances',
+              '/accounting/reports',
+              '/sales/closing',
+              '/accounting/period-close',
+              '/accounting/statement-batch',
+              '/accounting/partner-ledger',
+              '/accounting/hometax-export',
+              '/accounting/supplier-profiles',
+              '/accounting/deposit-match',
+              '/accounting/daily-closing',
+              '/accounting/ledgers',
+              '/accounting/admin/cash-disbursements',
+              '/accounting/admin/cash-receipts',
+              '/accounting/admin/orders',
+              '/accounting/admin/aging-snapshot',
+              '/accounting/admin/ledger/sales',
+              '/accounting/admin/ledger/purchase',
+              '/accounting/admin/migration-ops',
+              '/admin/accounting-edit-requests',
+            ]}
+          >
               {/* [SP-D2] 회계 각 메뉴 — SidebarLink + dynamicCanAccess 로 전환.
                   권한 없는 메뉴는 완전 미노출(null). 회색 비활성 X. */}
               <SidebarLink
@@ -867,7 +1003,16 @@ export function AppLayout() {
           {/* [SP-D2] MANAGER 전용 단독 노출 블록 폐기 — 동적 RBAC 통합으로 메인 회계 블록에서 처리.
               showAccounting 이 dynamicCanAccess 기반으로 전환되어 MANAGER 도 포함됨. */}
 
-          <SidebarCategory label="그룹웨어" show={showGroupware}>
+          <SidebarCategory
+            label="그룹웨어"
+            show={showGroupware}
+            testId="sidebar-category-toggle-그룹웨어"
+            activeTargets={[
+              '/sales/link-dispatch',
+              '/admin/aligo-address-book',
+              '/admin/chat-rooms',
+            ]}
+          >
             <SidebarLink
               to="/sales/link-dispatch"
               show={showDeliveryBatch}
@@ -906,7 +1051,19 @@ export function AppLayout() {
           {/* SP-D1: 인사 카테고리 — 권한 캐시 미로드 시 완전 미노출.
               SP-D4: admin.employees / admin.users 동적 RBAC 연동 — showAdminHrGroup 추가.
               Phase 1 Task 14: 권한 관리 진입점은 MASTER + system.permission-admin(view) 로 fail-closed. */}
-          <SidebarCategory label="인사" show={showAdminHrGroup}>
+          <SidebarCategory
+            label="인사"
+            show={showAdminHrGroup}
+            testId="sidebar-category-toggle-인사"
+            activeTargets={[
+              '/admin/users',
+              '/admin/permission-matrix',
+              '/admin/permission-matrix/bulk',
+              '/admin/permission-groups/matrix',
+              '/admin/permission-groups/manage',
+              '/admin/permission-groups/delegation',
+            ]}
+          >
             {/* admin.employees — MASTER/MANAGER (SP-D4 §2). */}
             <SidebarLink
               to="/admin/users"
@@ -955,7 +1112,24 @@ export function AppLayout() {
 
           {/* [Round B P2] 그룹 헤더 라벨 'arologis'(코드명 노출) → 한국어 업무 라벨 '배차'.
               다른 6그룹과 일관(판매/구매/회계/그룹웨어/인사/창고 운영). testid 무관(라벨만). */}
-          <SidebarCategory label="배차" show={showArologisGroup}>
+          <SidebarCategory
+            label="배차"
+            show={showArologisGroup}
+            testId="sidebar-category-toggle-배차"
+            activeTargets={[
+              '/dispatch-board',
+              '/arologis/manual',
+              '/arologis/pre-classify',
+              '/arologis/unassigned',
+              '/arologis/dispatch-sms',
+              '/arologis/dispatch-sms/send-audit',
+              '/arologis/dispatch-reconcile',
+              '/admin/regions',
+              '/arologis/admin/auto-dispatch',
+              '/arologis/admin/manual-dispatch',
+              '/arologis/admin/driver-assignment',
+            ]}
+          >
               {/* [samhan-dispatch-board Phase A] 배차 메뉴 — DISPATCH/MANAGER/MASTER.
                   Samhan Public 배차담당자 → 미배차 출고전표 + 차량 그룹 + arologis 발송. */}
               <SidebarLink
@@ -1054,7 +1228,19 @@ export function AppLayout() {
               </SidebarLink>
           </SidebarCategory>
 
-          <SidebarCategory label="창고 운영" show={showWarehouseOpsGroup}>
+          <SidebarCategory
+            label="창고 운영"
+            show={showWarehouseOpsGroup}
+            testId="sidebar-category-toggle-창고운영"
+            activeTargets={[
+              '/warehouses',
+              '/inventory/stock-balance',
+              '/inventory/safety-stock-alerts',
+              '/inventory/compensation-failures',
+              '/admin/slip-edit-requests',
+              '/admin/photo-audit',
+            ]}
+          >
               <SidebarLink
                 to="/warehouses"
                 show={showInventoryWarehouse}

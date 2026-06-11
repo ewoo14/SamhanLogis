@@ -45,6 +45,9 @@ dependencies {
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 
     implementation project(':shared:common')
+    // PR #462 Round C #4 — 주문서 승인 controller @RequirePermission 동적 RBAC 가드.
+    // PermissionAspect / RequirePermission / DefaultDynamicPermissionClient 사용.
+    implementation project(':shared:security')
 
     runtimeOnly 'org.postgresql:postgresql'
 

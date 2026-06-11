@@ -95,10 +95,12 @@ test.describe('Samhan Public 구매관리 입고 검수 CTA', () => {
     const layout = read(layoutPath)
     const salesSubNav = read(path.join(desktopRoot, 'src/renderer/components/sales/SalesSubNav.tsx'))
 
-    expect(layout).toContain('>창고관리</NavLink>')
-    expect(layout).toContain('>판매관리</NavLink>')
-    expect(layout).toContain('>구매관리</NavLink>')
-    expect(layout).toContain('>재고이동 관리</NavLink>')
+    // [Round C P1 #7] 4개 관리형 메뉴는 top-level <NavLink> 리터럴 → SidebarLink(내부 NavLink) 전환됨.
+    //   견적서 관리(아래 103행)와 동일하게 라벨~</SidebarLink> 블록 패턴으로 갱신한다.
+    expect(layout).toMatch(/창고관리[\s\S]*?<\/SidebarLink>/)
+    expect(layout).toMatch(/판매관리[\s\S]*?<\/SidebarLink>/)
+    expect(layout).toMatch(/구매관리[\s\S]*?<\/SidebarLink>/)
+    expect(layout).toMatch(/재고이동 관리[\s\S]*?<\/SidebarLink>/)
     // SidebarLink(내부 NavLink) 닫힘 구조로 강화 — '견적서 관리\n          </SidebarLink>' 형태 실재
     expect(layout).toMatch(/견적서 관리[\s\S]*?<\/SidebarLink>/)
     expect(layout).toContain('주문서 관리')

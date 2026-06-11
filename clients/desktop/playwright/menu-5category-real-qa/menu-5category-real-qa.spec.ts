@@ -87,6 +87,9 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
     'accounting.purchase-slip.list',
     'accounting.partner-ledger',
     'accounting.tax-invoice.list',
+    // [Round C P3 #1] AppLayout showAccounting OR 식과 1:1 — batch-issue/inbound 단독 권한자도 회계 그룹.
+    'accounting.tax-invoice.batch-issue',
+    'accounting.tax-invoice.inbound',
     'accounting.daily-closing',
     'accounting.general-ledger',
     'accounting.deposit-match',
@@ -98,7 +101,9 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
     'accounting.edit-requests.decide',
   ],
   그룹웨어: ['slip.delivery-batch', 'aligo.address-book', 'messenger.admin'],
-  인사: ['admin.employees', 'admin.users', 'system.permission-admin'],
+  // [Round C P3 #11] AppLayout showAdminHrGroup OR 식과 1:1 — admin.users 는 그룹 게이트에서 제외됨
+  //   (admin.users 단독 권한자 빈 '인사' 헤더 방지, Round B #3). 게이트 코드도 제거해 정합.
+  인사: ['admin.employees', 'system.permission-admin'],
   배차: [
     'dispatch.board',
     'arologis.dispatch.admin',
@@ -106,6 +111,8 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
     'dispatch.batch',
     'notification.dispatch-sms.send-audit',
     'arologis.admin',
+    // [Round C P3 #5] AppLayout showArologisGroup 은 showRegionMgmt(arologis.region) 도 OR 구성원.
+    'arologis.region',
   ],
   '창고 운영': [
     'inventory.warehouse',
@@ -203,6 +210,15 @@ async function fetchExpectedGroupVisibility(
   return out
 }
 
+async function openSidebarCategory(page: Page, label: string): Promise<void> {
+  const toggle = page.getByTestId(`sidebar-category-toggle-${label.replace(/\s+/g, '')}`)
+  await expect(toggle, `${label} 그룹 토글 버튼`).toBeVisible({ timeout: 10_000 })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+  }
+  await expect(toggle, `${label} 그룹 펼침 상태`).toHaveAttribute('aria-expanded', 'true')
+}
+
 // ---------------------------------------------------------------------------
 // 역할별 좌측 메뉴 캡처 + 7그룹/홈/알림내역/권한필터 단언
 // ---------------------------------------------------------------------------
@@ -233,7 +249,8 @@ for (const rc of ROLE_CASES) {
     const sidebar = page.locator('aside.app-sidebar')
 
     // (1) 홈 최상단
-    const homeLink = sidebar.locator('a', { hasText: '홈' }).first()
+    // [Round C P3 #9] hasText('홈') 은 '홈택스 일괄 양식' 을 오매칭 → 정확 이름(exact) 로케이터로 한정.
+    const homeLink = sidebar.getByRole('link', { name: '홈', exact: true }).first()
     await expect(homeLink, '홈 메뉴가 사이드바에 보여야 함').toBeVisible()
 
     // (2) 알림 내역 상단
@@ -297,6 +314,7 @@ test('MASTER 링크 동작 샘플 — 판매관리/계정과목 클릭 → 정�
   const sidebar = page.locator('aside.app-sidebar')
 
   // 샘플 1: 판매 그룹 — 판매관리(/sales)
+  await openSidebarCategory(page, '판매')
   const salesLink = sidebar.locator('[data-testid="sidebar-sales"]')
   await expect(salesLink, '판매관리 링크가 보여야 함').toBeVisible({ timeout: 10000 })
   await salesLink.click()
@@ -316,6 +334,7 @@ test('MASTER 링크 동작 샘플 — 판매관리/계정과목 클릭 → 정�
   await page.goto(`${BASE_URL}/#/`)
   await page.waitForSelector('aside.app-sidebar', { timeout: 30000 })
   await page.waitForTimeout(1200)
+  await openSidebarCategory(page, '회계')
   const acctLink = sidebar.locator('[data-testid="sidebar-accounting-accounts"]')
   await expect(acctLink, '계정과목 링크가 보여야 함').toBeVisible({ timeout: 10000 })
   await acctLink.click()

@@ -50,10 +50,12 @@ function assertInOrder(text: string, labels: string[]): void {
  * 항목이 다른 그룹에 있어도 통과하던 전역 greedy 매칭 갭을 제거하기 위함.
  */
 function categoryBlock(text: string, label: string): string {
-  const startToken = `<SidebarCategory label="${label}"`
-  const start = text.indexOf(startToken)
+  const startMatch = new RegExp(`<SidebarCategory\\b[\\s\\S]*?label="${label}"`).exec(text)
+  const start = startMatch?.index ?? -1
   expect(start, `SidebarCategory label="${label}" 블록이 존재해야 함`).toBeGreaterThanOrEqual(0)
-  const next = text.indexOf('<SidebarCategory label="', start + startToken.length)
+
+  const nextToken = '<SidebarCategory'
+  const next = text.indexOf(nextToken, start + (startMatch?.[0].length ?? nextToken.length))
   return text.slice(start, next < 0 ? text.length : next)
 }
 
@@ -105,6 +107,10 @@ function assertSidebarLink(
   expect(linkBlock, `${testId}: 라벨 "${label}" 단언`).toContain(label)
 }
 
+function compactLabel(label: string): string {
+  return label.replace(/\s+/g, '')
+}
+
 test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
   const appLayout = read('clients/desktop/src/renderer/components/AppLayout.tsx')
 
@@ -112,15 +118,22 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
   test('상단 고정 링크: 홈(NavLink to="/" end) 존재 + 대시보드 라벨 부재', () => {
     // 홈 NavLink 블록 한정 — 상단 주석의 "홈"·회계 그룹 "홈택스" 오매칭 방지.
     expect(appLayout).toMatch(/<NavLink to="\/" end>[\s\S]*?홈[\s\S]*?<\/NavLink>/)
-    // 같은 to="/" end NavLink 가 "대시보드" 라벨이 아니어야 함(라벨 폐기 박제).
-    expect(appLayout).not.toMatch(/<NavLink to="\/" end>[\s\S]*?대시보드[\s\S]*?<\/NavLink>/)
+    // [Round C P3 #10] 같은 to="/" end NavLink 의 라벨(여는/닫는 태그 사이 \s* 텍스트)이 "대시보드" 가
+    //   아니어야 함(라벨 폐기 박제). 라벨을 태그 사이로 한정해 '운영 대시보드'(회계 관리자 SidebarLink)
+    //   오매칭을 차단한다(기존 [\s\S]*? 광역 매칭 위험 제거).
+    expect(appLayout).not.toMatch(/<NavLink to="\/" end>\s*대시보드\s*<\/NavLink>/)
+    // 홈 NavLink 의 라벨 텍스트(태그 사이)가 정확히 '홈' 이어야 함(>홈< 정밀 토큰).
+    expect(appLayout).toMatch(/<NavLink to="\/" end>\s*홈\s*<\/NavLink>/)
   })
 
   // (b) 7그룹 순서 + 폐기된 구 그룹 부재.
   test('사이드바: 상단 고정 2개 + 7 카테고리 순서, 구 그룹 부재', () => {
+    // [Round C P2 #2/#9] '홈'/'알림 내역' 평문 토큰은 AppLayout Javadoc 주석(8-9행)에도 등장해
+    //   assertInOrder 단언이 vacuous(주석 매칭) 였다. JSX 한정 토큰으로 좁혀 첫 SidebarCategory
+    //   (label="판매") 앞에 상단 고정 2개(홈 NavLink·알림 내역 testid)가 오는 것을 박제한다.
     assertInOrder(appLayout, [
-      '홈',
-      '알림 내역',
+      '<NavLink to="/" end>',
+      'data-testid="sidebar-notifications"',
       'label="판매"',
       'label="구매"',
       'label="회계"',
@@ -136,6 +149,49 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
     expect(appLayout).not.toContain('<SidebarCategory label="알림 매핑"')
     expect(appLayout).not.toContain('<SidebarCategory label="품목"')
     expect(appLayout).not.toContain('<SidebarCategory label="설정"')
+  })
+
+  test('7 카테고리는 접근성 속성을 가진 collapsible 토글로 렌더된다', () => {
+    expect(appLayout).toContain('aria-expanded={open}')
+    expect(appLayout).toContain('aria-controls={controls}')
+    expect(appLayout).toContain('role="group"')
+    expect(appLayout).toContain('aria-labelledby={headingId}')
+    expect(appLayout).toContain('localStorage')
+    expect(appLayout).toContain('useLocation')
+
+    for (const label of ['판매', '구매', '회계', '그룹웨어', '인사', '배차', '창고 운영']) {
+      const block = categoryBlock(appLayout, label)
+      const testId = `sidebar-category-toggle-${compactLabel(label)}`
+      expect(block, `${label}: 카테고리 토글 testid 보존`).toContain(`testId="${testId}"`)
+      expect(block, `${label}: activeTargets 로 활성 라우트 자동 펼침 대상 명시`).toContain('activeTargets={[')
+    }
+  })
+
+  // [Round C P3 #12] 그룹 가시성 OR 구성원 정적 단언 — Round A/B 의 OR fix(단독 권한자 그룹 누락
+  //   해소)가 향후 revert 되면 CI 에서 즉시 적발되도록 박제한다. AppLayout 의 show* 집계식이
+  //   각 핵심 구성원을 포함하는지 소스 텍스트로 단언한다(런타임 의존 없음).
+  test('그룹 가시성 OR 구성원 정적 박제 — showAccounting/showArologisGroup/showAdminHrGroup', () => {
+    // (회계) Round B 보강: 세금계산서 발행 묶음(batch-issue)·수신 세금계산서(inbound) 단독 권한자도
+    //   회계 그룹을 얻어야 한다 → OR 식에 두 변수가 포함되어야 한다.
+    expect(appLayout, '회계 OR 식에 showAccountingTaxInvoiceBatch 포함').toMatch(
+      /const showAccounting\s*=[\s\S]*?showAccountingTaxInvoiceBatch/,
+    )
+    expect(appLayout, '회계 OR 식에 showAccountingTaxInvoiceInbound 포함').toMatch(
+      /const showAccounting\s*=[\s\S]*?showAccountingTaxInvoiceInbound/,
+    )
+    expect(appLayout, '회계 OR 식에 회계 관리자 그룹(showAccountingAdminGroup) 포함').toMatch(
+      /const showAccounting\s*=[\s\S]*?showAccountingAdminGroup/,
+    )
+
+    // (배차) Round A 보강: 배차지역 관리 단독 권한자(showRegionMgmt)도 배차 그룹을 얻어야 한다.
+    expect(appLayout, '배차 OR 식 = showDispatchBoard || showArologis || showRegionMgmt').toMatch(
+      /const showArologisGroup\s*=\s*showDispatchBoard\s*\|\|\s*showArologis\s*\|\|\s*showRegionMgmt/,
+    )
+
+    // (인사) showAdminHrGroup = 직원 || 권한관리 || 권한위임. admin.users 는 제외(빈 헤더 방지, Round B #3).
+    expect(appLayout, '인사 OR 식 = showAdminEmployees || showPermissionAdmin || showPermissionDelegation').toMatch(
+      /const showAdminHrGroup\s*=\s*showAdminEmployees\s*\|\|\s*showPermissionAdmin\s*\|\|\s*showPermissionDelegation/,
+    )
   })
 
   // (b) 이동 항목이 지정 그룹 블록 안에서 route+testid+label 3종을 동일 SidebarLink 블록에서

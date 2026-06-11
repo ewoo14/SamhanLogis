@@ -191,10 +191,12 @@ test('TC-HR1: MASTER+대표실 — /admin/users 진입 가능 + 인사 사이드
     const isVisible = await el.isVisible().catch(() => false)
     if (isVisible) visibleCount++
   }
+  // [Round C P3 #13] soft 임계(≥5) → hard(==6). AdminLayout 은 6 AdminNav 를 무조건 렌더하므로
+  //   MASTER+대표실에서 6건 전부 visible 이어야 한다(누락 시 회귀로 적발).
   expect(
     visibleCount,
-    `TC-HR1: 인사 메뉴 최소 5건 이상 visible 이어야 함 (실제: ${visibleCount})`,
-  ).toBeGreaterThanOrEqual(5)
+    `TC-HR1: 인사 메뉴 6건 전부 visible 이어야 함 (실제: ${visibleCount})`,
+  ).toBe(HR_MENU_TEST_IDS.length)
 
   // 3) pageerror 없어야 함
   expect(errors, `TC-HR1: pageerror 발생 — ${errors.join(', ')}`).toHaveLength(0)
@@ -406,7 +408,6 @@ test('TC-HR5: 인사 메뉴 6건 testId visible 검증', async ({ page }) => {
     .filter(([, visible]) => !visible)
     .map(([id]) => id)
 
-  // 최소 5건 이상 visible (6건 전체 구현 전 단계 허용)
   const visibleCount = Object.values(results).filter(Boolean).length
   if (missingMenus.length > 0) {
     console.warn(
@@ -415,10 +416,20 @@ test('TC-HR5: 인사 메뉴 6건 testId visible 검증', async ({ page }) => {
     )
   }
 
+  // [Round C P3 #13] soft 임계(≥5) → hard(==6). AdminLayout 6 AdminNav 전부 visible 강제.
   expect(
     visibleCount,
-    `TC-HR5: 인사 메뉴 6건 중 최소 5건 이상 visible 이어야 함 (실제: ${visibleCount})`,
-  ).toBeGreaterThanOrEqual(5)
+    `TC-HR5: 인사 메뉴 6건 전부 visible 이어야 함 (실제: ${visibleCount}, 누락: ${missingMenus.join(', ') || '없음'})`,
+  ).toBe(HR_MENU_TEST_IDS.length)
+
+  // [Round C P3 #13] 단톡방 재유입 가드 — 단톡방 매핑은 그룹웨어(AppLayout) 단일화로 AdminLayout(인사 셸)
+  //   nav 에서 제거됐다. AdminLayout 사이드바에 chat-rooms nav 가 재유입되면 즉시 적발한다.
+  const adminSidebar = page.locator('aside.admin-sidebar')
+  await expect(adminSidebar, 'AdminLayout(인사 셸) 사이드바가 렌더되어야 함').toBeVisible()
+  await expect(
+    adminSidebar.locator('[data-testid="sidebar-admin-chat-rooms"], a[href*="/admin/chat-rooms"]'),
+    'TC-HR5: AdminLayout 인사 셸에 단톡방 매핑 nav 가 없어야 함(그룹웨어 단일화)',
+  ).toHaveCount(0)
 
   expect(errors, `TC-HR5: pageerror 발생 — ${errors.join(', ')}`).toHaveLength(0)
 })

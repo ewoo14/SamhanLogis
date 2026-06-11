@@ -330,6 +330,19 @@ function buildSalesWithRevokedConfirm() {
   }
 }
 
+/**
+ * [Round C] 사이드바 카테고리는 기본 접힘이므로 자식 링크 단언 전 해당 그룹을 펼친다.
+ * 활성 라우트 자동 펼침 등으로 이미 펼쳐져 있으면 클릭을 건너뛴다.
+ */
+async function openSidebarCategory(page: Page, label: string): Promise<void> {
+  const toggle = page.getByTestId(`sidebar-category-toggle-${label.replace(/\s+/g, '')}`)
+  await expect(toggle, `${label} 그룹 토글 버튼`).toBeVisible({ timeout: 10_000 })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+  }
+  await expect(toggle, `${label} 그룹 펼침 상태`).toHaveAttribute('aria-expanded', 'true')
+}
+
 // ---------------------------------------------------------------------------
 // URL 상수 — HashRouter 라우트
 // ---------------------------------------------------------------------------
@@ -426,6 +439,8 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
       const sidebarVisible = await sidebar.isVisible().catch(() => false)
       expect(sidebarVisible, '사이드바가 렌더링되어야 함').toBe(true)
 
+      // [Round C] 자동매칭은 '배차' 카테고리 자식 — 기본 접힘이므로 먼저 펼친다.
+      await openSidebarCategory(page, '배차')
       // arologis.admin 기반 SidebarLink 의 실제 data-testid: sidebar-arologis-auto-dispatch
       const arologisAdminLink = page.locator('[data-testid="sidebar-arologis-auto-dispatch"]')
       const arologisAdminVisible = await arologisAdminLink.isVisible().catch(() => false)
@@ -1298,6 +1313,8 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
       const sidebarVisible = await sidebar.isVisible().catch(() => false)
       expect(sidebarVisible, '사이드바가 렌더링되어야 함').toBe(true)
 
+      // [Round C] 주문서 관리는 '판매' 카테고리 자식 — 기본 접힘이므로 먼저 펼친다.
+      await openSidebarCategory(page, '판매')
       // 사이드바 주문서 관리 링크는 sales.partner-order.list 기반 → 여전히 표시
       const partnerOrdersLink = page.locator('[data-testid="sidebar-sales-partner-orders"]')
       const partnerOrdersVisible = await partnerOrdersLink.isVisible().catch(() => false)
@@ -1399,15 +1416,16 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
       ).toBe(true)
     })
 
-    await test.step('SALES — redirect 목적지 확인 (대시보드 또는 로그인)', async () => {
+    await test.step('SALES — redirect 목적지 확인 (홈 또는 로그인)', async () => {
       const currentUrl = page.url()
       const bodyText = (await page.textContent('body')) ?? ''
 
+      // [Round C P1 #8] '대시보드' 라벨 폐기 → 홈 sentinel 정합.
       const isValidRedirectDest =
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         currentUrl.includes('/login') ||
-        bodyText.includes('대시보드') ||
+        bodyText.includes('홈') ||
         bodyText.includes('Dashboard') ||
         bodyText.includes('로그인') ||
         bodyText.includes('이메일')

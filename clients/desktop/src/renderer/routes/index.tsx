@@ -414,7 +414,17 @@ const router = createHashRouter([
           </PermissionGuard>
         ),
       },
-      { path: '/sales/order-approvals', element: <SalesOrderApprovalsPage /> },
+      {
+        // [Round C P1 #4 FE] 주문서 승인 — 사이드바 노출(showPartnerOrderList)과 동일 page-code 로
+        // 라우트도 가드해 사이드바↔진입 역전(노출되나 무가드 직접 진입) 갭을 막는다.
+        // BE @RequirePermission 가드는 별도 에이전트가 처리.
+        path: '/sales/order-approvals',
+        element: (
+          <PermissionGuard pageCode="sales.partner-order.list" action="view">
+            <SalesOrderApprovalsPage />
+          </PermissionGuard>
+        ),
+      },
       {
         path: '/sales/partner-dc-config',
         element: (

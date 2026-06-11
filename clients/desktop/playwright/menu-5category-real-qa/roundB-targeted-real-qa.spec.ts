@@ -89,6 +89,15 @@ async function loadSidebar(page: Page): Promise<void> {
   await page.waitForTimeout(1500)
 }
 
+async function openSidebarCategory(page: Page, label: string): Promise<void> {
+  const toggle = page.getByTestId(`sidebar-category-toggle-${label.replace(/\s+/g, '')}`)
+  await expect(toggle, `${label} 그룹 토글 버튼`).toBeVisible({ timeout: 10_000 })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+  }
+  await expect(toggle, `${label} 그룹 펼침 상태`).toHaveAttribute('aria-expanded', 'true')
+}
+
 test('Round B — MASTER 좌측메뉴: 배차 라벨 + 단톡방 매핑 그룹웨어 노출 + 7그룹/홈/알림', async ({
   page,
 }) => {
@@ -124,20 +133,21 @@ test('Round B — MASTER 좌측메뉴: 배차 라벨 + 단톡방 매핑 그룹�
   }
 
   // (b) 홈 최상단 + 알림 내역
-  await expect(sidebar.locator('a', { hasText: '홈' }).first(), '홈 메뉴').toBeVisible()
+  // [Round C P3 #9] hasText('홈') 은 '홈택스 일괄 양식' 오매칭 → 정확 이름(exact) 로케이터로 한정.
+  await expect(sidebar.getByRole('link', { name: '홈', exact: true }).first(), '홈 메뉴').toBeVisible()
   await expect(
     sidebar.locator('[data-testid="sidebar-notifications"]'),
     '알림 내역 메뉴',
   ).toBeVisible()
 
   // (c) 단톡방 매핑 — MASTER 도 그룹웨어 그룹 내 노출(Round B 단일화)
+  await openSidebarCategory(page, '그룹웨어')
   const chatRoom = sidebar.locator('[data-testid="sidebar-admin-chat-rooms"]')
   await expect(chatRoom, 'MASTER 도 단톡방 매핑 항목이 보여야 함(Round B 그룹웨어 단일화)').toBeVisible()
   await expect(chatRoom, '단톡방 매핑 라벨').toHaveText(/단톡방 매핑/)
   // 단톡방 매핑이 그룹웨어 그룹(role=group, aria-labelledby == 그룹웨어 헤더) 안에 위치하는지 확인
   const groupwareHeadingId = await sidebar
-    .locator('.app-sidebar-group', { hasText: '그룹웨어' })
-    .first()
+    .locator('[data-testid="sidebar-category-toggle-그룹웨어"]')
     .getAttribute('id')
   expect(groupwareHeadingId, '그룹웨어 헤더 id(접근성 aria-labelledby 연결)').toBeTruthy()
   const chatInGroupware = sidebar.locator(

@@ -78,6 +78,15 @@ async function mockAccountMatrix(page: Page) {
   })
 }
 
+async function openSidebarCategory(page: Page, label: string): Promise<void> {
+  const toggle = page.getByTestId(`sidebar-category-toggle-${label.replace(/\s+/g, '')}`)
+  await expect(toggle, `${label} 그룹 토글 버튼`).toBeVisible({ timeout: 10_000 })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+  }
+  await expect(toggle, `${label} 그룹 펼침 상태`).toHaveAttribute('aria-expanded', 'true')
+}
+
 test.describe('Phase 1 Stage 3 Task 14 AppLayout permission gates', () => {
   test('권한 응답 후 matrix/bulk 진입 링크가 동작한다', async ({ page }) => {
     await installAuthMock(page)
@@ -87,6 +96,7 @@ test.describe('Phase 1 Stage 3 Task 14 AppLayout permission gates', () => {
 
     await page.goto(MATRIX_URL, { waitUntil: 'domcontentloaded' })
 
+    await openSidebarCategory(page, '인사')
     await expect(page.getByTestId('sidebar-hr-permission-matrix')).toBeVisible()
     await expect(page.getByTestId('sidebar-hr-permission-bulk')).toBeVisible()
 
