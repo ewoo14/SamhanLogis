@@ -18,6 +18,7 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import com.samhanair.logis.product.realtime.ProductCatalogChangePublisher;
 import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
@@ -30,12 +31,14 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * BundleComponentService 단위 테스트 (§1c/§1d 2026-06-11).
@@ -58,10 +61,14 @@ class BundleComponentServiceTest {
     private BundleComponentRepository bundleComponentRepository;
 
     @Mock
-    private ProductRealtimeBroker broker;
-
-    @Mock
     private EntityManager entityManager;
+
+    /**
+     * 실제 broker + 실제 publisher 사용 (mock 아님) — afterCommit 지연/발화 시점을
+     * publishCount() 로 실측하기 위함. 구독자가 없어도 publish 시도 카운터는 증가한다.
+     */
+    private ProductRealtimeBroker broker;
+    private ProductCatalogChangePublisher catalogChangePublisher;
 
     private BundleComponentService service;
 
@@ -72,7 +79,10 @@ class BundleComponentServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new BundleComponentService(productRepository, bundleComponentRepository, broker, entityManager);
+        broker = new ProductRealtimeBroker();
+        catalogChangePublisher = new ProductCatalogChangePublisher(broker);
+        service = new BundleComponentService(
+                productRepository, bundleComponentRepository, catalogChangePublisher, entityManager);
         Category cat = Category.create("INDOOR_WALL", "벽걸이형", null, 1);
 
         // BUNDLE 부모
@@ -91,6 +101,14 @@ class BundleComponentServiceTest {
                 ProductType.SINGLE, null, UsageScope.NONE, null);
         componentId = UUID.randomUUID();
         ReflectionTestUtils.setField(componentProduct, "id", componentId);
+    }
+
+    @AfterEach
+    void tearDown() {
+        // afterCommit 테스트가 동기화를 활성화하면 다른 테스트로 누수되지 않도록 정리.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clear();
+        }
     }
 
     // ============================================================
@@ -190,7 +208,7 @@ class BundleComponentServiceTest {
         BundleComponentRequest req = new BundleComponentRequest(
                 "IDU-001", BigDecimal.ONE, null, null, null, true, null);
 
-        assertThatThrownBy(() -> service.replaceComponents("SINGLE-001", List.of(req)))
+        assertThatThrownBy(() -> service.replaceComponents("SINGLE-001", List.of(req), "system"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
@@ -201,7 +219,7 @@ class BundleComponentServiceTest {
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
 
-        assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of()))
+        assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(), "system"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
@@ -215,7 +233,7 @@ class BundleComponentServiceTest {
         BundleComponentRequest req = new BundleComponentRequest(
                 "TEST-BUNDLE-001", BigDecimal.ONE, null, null, null, false, null);
 
-        assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(req)))
+        assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(req), "system"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
@@ -231,7 +249,7 @@ class BundleComponentServiceTest {
         BundleComponentRequest req = new BundleComponentRequest(
                 "NO-SUCH-CODE", BigDecimal.ONE, null, null, null, false, null);
 
-        assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(req)))
+        assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(req), "system"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
@@ -258,7 +276,7 @@ class BundleComponentServiceTest {
                 "IDU-001", BigDecimal.valueOf(2), BundleComponent.QtyMode.FOLLOW_SET,
                 BundleComponent.ComponentKind.INDOOR, null, true, "규격A");
 
-        List<BundleComponentResponse> result = service.replaceComponents("TEST-BUNDLE-001", List.of(req));
+        List<BundleComponentResponse> result = service.replaceComponents("TEST-BUNDLE-001", List.of(req), "tester-user");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).componentProductCode()).isEqualTo("IDU-001");
@@ -297,7 +315,7 @@ class BundleComponentServiceTest {
                 "IDU-001", BigDecimal.valueOf(3), BundleComponent.QtyMode.FOLLOW_SET,
                 BundleComponent.ComponentKind.INDOOR, null, true, null);
 
-        List<BundleComponentResponse> result = service.replaceComponents("TEST-BUNDLE-001", List.of(req));
+        List<BundleComponentResponse> result = service.replaceComponents("TEST-BUNDLE-001", List.of(req), "tester-user");
 
         // flush 가 1회 호출되어야 함 (soft-delete 후, INSERT 전)
         verify(entityManager).flush();
@@ -305,6 +323,147 @@ class BundleComponentServiceTest {
         assertThat(result.get(0).componentProductCode()).isEqualTo("IDU-001");
         assertThat(result.get(0).defaultQty()).isEqualByComparingTo(BigDecimal.valueOf(3));
         assertThat(result.get(0).displayOrder()).isEqualTo(1);
+    }
+
+    /**
+     * P3-2 (2026-06-11): 요청 내 중복 componentProductCode → 400 INVALID_INPUT.
+     *
+     * <p>중복 코드는 부분 유니크 인덱스(bundle_product_id, component_product_code, is_deleted=false)
+     * 위반으로 INSERT 단계에서 500 을 유발하므로, 사전 검증으로 400 거부한다.
+     */
+    @Test
+    void replaceComponents_중복_componentProductCode_400_BusinessException() {
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        lenient().when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+                .thenReturn(Optional.of(componentProduct));
+
+        BundleComponentRequest first = new BundleComponentRequest(
+                "IDU-001", BigDecimal.ONE, null, null, null, true, null);
+        BundleComponentRequest dup = new BundleComponentRequest(
+                "IDU-001", BigDecimal.valueOf(2), null, null, null, false, null);
+
+        assertThatThrownBy(() -> service.replaceComponents(
+                "TEST-BUNDLE-001", List.of(first, dup), "system"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT))
+                .hasMessageContaining("IDU-001");
+    }
+
+    /**
+     * P3-3 (2026-06-11): 기존 구성품 soft-delete actor = 전달된 X-User-Id.
+     *
+     * <p>{@code markDeleted} 가 호출된 기존 BundleComponent 의 {@code deletedBy} 가
+     * 리터럴("bundle-component-replace-all") 이 아닌 실제 호출자 식별자와 일치해야 한다.
+     */
+    @Test
+    void replaceComponents_soft_delete_actor_X_User_Id_기록() {
+        BundleComponent oldBc = BundleComponent.seed(bundleId, "OLD-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.ACCESSORY, null, false, null);
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+                .thenReturn(Optional.of(componentProduct));
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of(oldBc));
+        lenient().when(bundleComponentRepository.save(any(BundleComponent.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(componentProduct));
+
+        BundleComponentRequest req = new BundleComponentRequest(
+                "IDU-001", BigDecimal.ONE, null, null, null, true, null);
+
+        service.replaceComponents("TEST-BUNDLE-001", List.of(req), "caller-42");
+
+        // 기존 구성품이 caller-42 로 soft-delete 되어야 한다 (리터럴 아님)
+        assertThat(oldBc.getIsDeleted()).isTrue();
+        assertThat(oldBc.getDeletedBy()).isEqualTo("caller-42");
+    }
+
+    /**
+     * P3-3 보강: actor 가 null 이면 "system" 으로 soft-delete 된다.
+     */
+    @Test
+    void replaceComponents_actor_null_이면_system_으로_soft_delete() {
+        BundleComponent oldBc = BundleComponent.seed(bundleId, "OLD-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.ACCESSORY, null, false, null);
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+                .thenReturn(Optional.of(componentProduct));
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of(oldBc));
+        lenient().when(bundleComponentRepository.save(any(BundleComponent.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(componentProduct));
+
+        BundleComponentRequest req = new BundleComponentRequest(
+                "IDU-001", BigDecimal.ONE, null, null, null, true, null);
+
+        service.replaceComponents("TEST-BUNDLE-001", List.of(req), null);
+
+        assertThat(oldBc.getDeletedBy()).isEqualTo("system");
+    }
+
+    /**
+     * P3-1 (2026-06-11): 활성 트랜잭션 내에서는 SSE publish 가 커밋 전 발화되지 않고
+     * afterCommit 동기화로 지연 등록되어야 한다.
+     *
+     * <p>실제 {@link ProductRealtimeBroker} + {@link ProductCatalogChangePublisher} 를 사용하여
+     * {@code publishCount()} 로 발화 여부를 실측한다.
+     * <ul>
+     *   <li>{@code TransactionSynchronizationManager.initSynchronization()} 으로 활성 트랜잭션을 모사</li>
+     *   <li>replaceComponents 직후(커밋 전) publishCount 는 0 (지연됨)</li>
+     *   <li>동기화 콜백을 수동으로 {@code afterCommit()} 호출 → publishCount 1 로 증가 (발화)</li>
+     * </ul>
+     */
+    @Test
+    void replaceComponents_활성_트랜잭션_내_publish_는_afterCommit_으로_지연() {
+        BundleComponent oldBc = BundleComponent.seed(bundleId, "OLD-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.ACCESSORY, null, false, null);
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+                .thenReturn(Optional.of(componentProduct));
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of(oldBc));
+        lenient().when(bundleComponentRepository.save(any(BundleComponent.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(componentProduct));
+
+        BundleComponentRequest req = new BundleComponentRequest(
+                "IDU-001", BigDecimal.ONE, null, null, null, true, null);
+
+        // 활성 트랜잭션 동기화 모사 (실제 @Transactional 진입 시 Spring 이 하는 작업)
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            long before = broker.publishCount();
+
+            service.replaceComponents("TEST-BUNDLE-001", List.of(req), "caller-tx");
+
+            // 커밋 전 — publish 지연됨 (아직 발화 안 됨)
+            assertThat(broker.publishCount()).isEqualTo(before);
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+
+            // 커밋 모사 — afterCommit 콜백 수동 발화
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+
+            // 발화 후 — publishCount 증가
+            assertThat(broker.publishCount()).isEqualTo(before + 1);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     // ============================================================

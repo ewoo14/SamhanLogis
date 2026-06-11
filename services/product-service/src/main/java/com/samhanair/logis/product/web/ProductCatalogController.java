@@ -1,7 +1,5 @@
 package com.samhanair.logis.product.web;
 
-import static com.samhanair.logis.product.service.BundleComponentService.CATALOG_CHANNEL_ID;
-import static com.samhanair.logis.product.service.BundleComponentService.EVENT_CATALOG_CHANGED;
 import static com.samhanair.logis.product.service.ProductService.escapeLikeWildcards;
 
 import com.samhanair.logis.product.domain.EstimateCategory;
@@ -10,7 +8,7 @@ import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.SpecKeyTemplate;
 import com.samhanair.logis.product.domain.UsageScope;
-import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
+import com.samhanair.logis.product.realtime.ProductCatalogChangePublisher;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
@@ -101,7 +99,7 @@ public class ProductCatalogController {
     private final ProductService productService;
     private final BundleComponentService bundleComponentService;
     private final BundleComponentRepository bundleComponentRepository;
-    private final ProductRealtimeBroker broker;
+    private final ProductCatalogChangePublisher catalogChangePublisher;
 
     public ProductCatalogController(ProductRepository productRepository,
                                     ProductSpecService specService,
@@ -109,14 +107,14 @@ public class ProductCatalogController {
                                     ProductService productService,
                                     BundleComponentService bundleComponentService,
                                     BundleComponentRepository bundleComponentRepository,
-                                    ProductRealtimeBroker broker) {
+                                    ProductCatalogChangePublisher catalogChangePublisher) {
         this.productRepository = productRepository;
         this.specService = specService;
         this.templateRepository = templateRepository;
         this.productService = productService;
         this.bundleComponentService = bundleComponentService;
         this.bundleComponentRepository = bundleComponentRepository;
-        this.broker = broker;
+        this.catalogChangePublisher = catalogChangePublisher;
     }
 
     /**
@@ -204,8 +202,8 @@ public class ProductCatalogController {
         ProductCatalogResponse response = ProductCatalogResponse.from(
                 productService.updateUsageAndReturn(modelCode, req));
         // §2-2 실시간 publish — usage PATCH 성공 시 카탈로그 목록 invalidate 트리거
-        broker.publish(CATALOG_CHANNEL_ID, EVENT_CATALOG_CHANGED,
-                java.util.Map.of("event", EVENT_CATALOG_CHANGED, "modelCode", modelCode));
+        // P3-1: ProductCatalogChangePublisher 단일 경로 통일 (트랜잭션 종료 후 발화)
+        catalogChangePublisher.publishCatalogChanged(modelCode);
         return response;
     }
 
@@ -222,8 +220,8 @@ public class ProductCatalogController {
     public void clearUsage(@PathVariable @NotBlank String modelCode) {
         productService.clearUsageOverride(modelCode);
         // §2-2 실시간 publish — usage DELETE 성공 시 카탈로그 목록 invalidate 트리거
-        broker.publish(CATALOG_CHANNEL_ID, EVENT_CATALOG_CHANGED,
-                java.util.Map.of("event", EVENT_CATALOG_CHANGED, "modelCode", modelCode));
+        // P3-1: ProductCatalogChangePublisher 단일 경로 통일 (트랜잭션 종료 후 발화)
+        catalogChangePublisher.publishCatalogChanged(modelCode);
     }
 
     @GetMapping("/products/{modelCode}/specs")
@@ -330,16 +328,18 @@ public class ProductCatalogController {
      *   <li>빈 배열 → 400 BAD_REQUEST (전개 불능 세트 방지)</li>
      * </ul>
      *
-     * @param modelCode 대상 BUNDLE 모델코드
-     * @param items     replace-all 구성품 목록 (인덱스=순서)
+     * @param modelCode    대상 BUNDLE 모델코드
+     * @param items        replace-all 구성품 목록 (인덱스=순서)
+     * @param callerHeader X-User-Id — 기존 구성품 soft-delete actor 로 기록 (P3-3)
      * @return 갱신된 구성품 목록
      */
     @PutMapping("/products/{modelCode}/components")
     @RequirePermission(page = "products.admin", action = PermissionAction.UPDATE)
     public List<BundleComponentResponse> replaceComponents(
             @PathVariable @NotBlank String modelCode,
-            @Valid @RequestBody List<BundleComponentRequest> items) {
-        return bundleComponentService.replaceComponents(modelCode, items);
+            @Valid @RequestBody List<BundleComponentRequest> items,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return bundleComponentService.replaceComponents(modelCode, items, callerHeader);
     }
 
     // ============================================================

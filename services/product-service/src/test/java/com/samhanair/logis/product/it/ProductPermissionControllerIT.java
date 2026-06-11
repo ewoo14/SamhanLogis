@@ -35,6 +35,7 @@ import com.samhanair.logis.product.audit.web.ProductAuditLogController;
 import com.samhanair.logis.product.editrequest.domain.ProductEditRequest;
 import com.samhanair.logis.product.editrequest.service.ProductEditRequestService;
 import com.samhanair.logis.product.editrequest.web.ProductEditRequestController;
+import com.samhanair.logis.product.realtime.ProductCatalogChangePublisher;
 import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
 import com.samhanair.logis.product.realtime.ProductRealtimeController;
 import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
@@ -160,6 +161,8 @@ class ProductPermissionControllerIT {
     // §1c/§1d 신규 빈 (ProductCatalogController 신규 의존성 — feedback_it_mockbean_external_clients.md)
     @MockBean private BundleComponentService bundleComponentService;
     @MockBean private BundleComponentRepository bundleComponentRepository;
+    // P3-1: SSE publish 시점 통일 게이트웨이 (ProductCatalogController 신규 의존성)
+    @MockBean private ProductCatalogChangePublisher catalogChangePublisher;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -247,7 +250,7 @@ class ProductPermissionControllerIT {
         lenient().when(bundleComponentRepository.countMapByBundleProductIds(any()))
                 .thenReturn(Map.of());
         lenient().when(bundleComponentService.listComponents(anyString())).thenReturn(List.of());
-        lenient().when(bundleComponentService.replaceComponents(anyString(), any())).thenReturn(List.of());
+        lenient().when(bundleComponentService.replaceComponents(anyString(), any(), any())).thenReturn(List.of());
         lenient().doNothing().when(googleSheetsClient).invalidateCache();
         lenient().when(productSheetSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
         lenient().when(ecountProductImporter.importCsv(any(), any(), any(), anyString()))

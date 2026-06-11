@@ -6,6 +6,7 @@ import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.realtime.ProductCatalogChangePublisher;
 import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
@@ -16,9 +17,12 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,16 +66,16 @@ public class BundleComponentService {
 
     private final ProductRepository productRepository;
     private final BundleComponentRepository bundleComponentRepository;
-    private final ProductRealtimeBroker broker;
+    private final ProductCatalogChangePublisher catalogChangePublisher;
     private final EntityManager entityManager;
 
     public BundleComponentService(ProductRepository productRepository,
                                   BundleComponentRepository bundleComponentRepository,
-                                  ProductRealtimeBroker broker,
+                                  ProductCatalogChangePublisher catalogChangePublisher,
                                   EntityManager entityManager) {
         this.productRepository = productRepository;
         this.bundleComponentRepository = bundleComponentRepository;
-        this.broker = broker;
+        this.catalogChangePublisher = catalogChangePublisher;
         this.entityManager = entityManager;
     }
 
@@ -145,21 +149,28 @@ public class BundleComponentService {
      *   <li>빈 배열 → 400 BAD_REQUEST (전개 불능 세트 방지)</li>
      *   <li>자기 자신 modelCode 포함 → 400 BAD_REQUEST</li>
      *   <li>구성 모델코드가 활성 품목으로 해소 안 됨 → 400 BAD_REQUEST</li>
+     *   <li>중복 componentProductCode → 400 BAD_REQUEST (부분 유니크 인덱스 위반 사전 차단, P3-2)</li>
      * </ol>
      * 전건 검증 후 기존 구성품 전체 soft-delete → 신규 구성품 INSERT.
      * 트랜잭션 단일(부분 적용 금지).
      *
      * <p>BundleExpander 는 캐시를 두지 않으므로 evict 불필요.
      *
+     * <p><b>soft-delete actor (P3-3)</b>: 기존 구성품 soft-delete 시 호출자
+     * {@code X-User-Id} 를 {@code deletedBy} 로 기록한다. {@code actor} 가 null/blank 이면
+     * {@code "system"} 으로 대체한다.
+     *
      * @param modelCode 대상 BUNDLE 모델코드
      * @param requests  replace-all 구성품 목록 (배열 인덱스 = 표시 순서)
+     * @param actor     soft-delete 수행 주체 (X-User-Id, null/blank → "system")
      * @return 갱신된 구성품 응답 목록
      * @throws BusinessException(CONFLICT)      대상 품목이 BUNDLE 이 아닌 경우
-     * @throws BusinessException(INVALID_INPUT) 빈 배열 / 자기 자신 포함 / 미해소 코드
+     * @throws BusinessException(INVALID_INPUT) 빈 배열 / 자기 자신 포함 / 미해소 코드 / 중복 코드
      */
     @Transactional
     public List<BundleComponentResponse> replaceComponents(String modelCode,
-                                                           List<BundleComponentRequest> requests) {
+                                                           List<BundleComponentRequest> requests,
+                                                           String actor) {
         Product parent = findProductByModelCodeOrThrow(modelCode);
         String parentModelCode = parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName();
 
@@ -175,12 +186,20 @@ public class BundleComponentService {
                     "구성품 목록이 비어 있습니다. BUNDLE 세트에는 최소 1개 이상의 구성품이 필요합니다.");
         }
 
-        // 검증 3 + 4: 자기 자신 포함 / 미해소 코드 전건 검증
+        // 검증 3 + 4 + 5: 자기 자신 포함 / 미해소 코드 / 중복 코드 전건 검증
+        // P3-2: 요청 내 중복 componentProductCode 사전 차단 — 부분 유니크 인덱스
+        //       (bundle_product_id, component_product_code, is_deleted=false) 위반으로
+        //       INSERT 단계에서 500 이 나는 것을 400 으로 선제 거부한다.
+        Set<String> seenCodes = new HashSet<>();
+        Set<String> duplicateCodes = new LinkedHashSet<>();
         List<String> unresolvedCodes = new ArrayList<>();
         for (BundleComponentRequest req : requests) {
             if (req.componentProductCode().equals(parentModelCode)) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
                         "구성품에 자기 자신('" + parentModelCode + "')을 포함할 수 없습니다.");
+            }
+            if (!seenCodes.add(req.componentProductCode())) {
+                duplicateCodes.add(req.componentProductCode());
             }
             boolean resolved = productRepository
                     .findByCatalogExposedModelCodeAndIsDeletedFalse(req.componentProductCode())
@@ -189,15 +208,20 @@ public class BundleComponentService {
                 unresolvedCodes.add(req.componentProductCode());
             }
         }
+        if (!duplicateCodes.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "구성품에 중복 모델코드가 있습니다: " + duplicateCodes);
+        }
         if (!unresolvedCodes.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "다음 구성 모델코드가 활성 품목으로 해소되지 않습니다: " + unresolvedCodes);
         }
 
-        // 기존 구성품 전량 soft-delete
+        // 기존 구성품 전량 soft-delete — actor = X-User-Id (P3-3, null/blank → "system")
+        String deleteActor = (actor == null || actor.isBlank()) ? "system" : actor;
         List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(parent.getId());
         for (BundleComponent bc : existing) {
-            bc.markDeleted("bundle-component-replace-all");
+            bc.markDeleted(deleteActor);
             bundleComponentRepository.save(bc);
         }
         // P1-D: soft-delete UPDATE 를 INSERT 보다 먼저 flush — 부분 유니크 인덱스(is_deleted=false) 위반 방지.
@@ -250,8 +274,8 @@ public class BundleComponentService {
         }
 
         // §2-2 실시간 publish — components PUT 성공 시 카탈로그 목록 invalidate 트리거
-        broker.publish(CATALOG_CHANNEL_ID, EVENT_CATALOG_CHANGED,
-                Map.of("event", EVENT_CATALOG_CHANGED, "modelCode", modelCode));
+        // P3-1: afterCommit 지연 발화로 통일 (롤백 시 헛이벤트 방지)
+        catalogChangePublisher.publishCatalogChanged(modelCode);
 
         return result;
     }
@@ -331,8 +355,8 @@ public class BundleComponentService {
         }
 
         // §2-2 실시간 publish — display-orders PUT 성공 시 카탈로그 목록 invalidate 트리거
-        broker.publish(CATALOG_CHANNEL_ID, EVENT_CATALOG_CHANGED,
-                Map.of("event", EVENT_CATALOG_CHANGED));
+        // P3-1: afterCommit 지연 발화로 통일 (롤백 시 헛이벤트 방지)
+        catalogChangePublisher.publishCatalogChanged();
     }
 
     // ============================================================
