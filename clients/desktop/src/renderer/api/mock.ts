@@ -1898,7 +1898,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
   const slipDetailMatch = url.match(/\/slips\/([^/?]+)$/)
-  if (method === 'GET' && slipDetailMatch && !url.includes('lookup-product') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {
+  if (method === 'GET' && slipDetailMatch && !url.includes('lookup-product') && !url.includes('/slips/edit-requests') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {
     const id = slipDetailMatch[1]!
     const found = MOCK_SLIPS.find((s) => s.id === id) ?? MOCK_SLIPS[0]!
     return envelope({
@@ -2305,6 +2305,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     && url.includes('/slips')
     && !url.includes('/slips/lookup-product')
     && !url.includes('/slips/estimates') // Phase 2.2: estimate path 는 위 estimate 블록이 처리
+    && !url.includes('/slips/edit-requests')
     && !url.match(/\/slips\/cleanup/)
     && !slipDetailMatch
   ) {

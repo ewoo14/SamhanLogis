@@ -41,6 +41,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 import { UnDispatchedSlipList } from './components/UnDispatchedSlipList'
 import { VehicleGroupColumn } from './components/VehicleGroupColumn'
 import { SlipDetailModal } from './components/SlipDetailModal'
@@ -71,6 +72,8 @@ export interface DispatchGroupSlipDragData {
  */
 export default function DispatchBoardPage() {
   usePageTitle('배차 메뉴')
+  const { canAccess } = usePermissions()
+  const canEditDispatch = canAccess('dispatch.board', 'update')
 
   // 슬립 상세 modal (slipId 보유 시 open).
   const [detailSlipId, setDetailSlipId] = useState<string | null>(null)
@@ -117,8 +120,9 @@ export default function DispatchBoardPage() {
    * over.data.current 의 type 으로 drop target 판별:
    *  - `group` → 우측 그룹 컨테이너 drop (slip 할당).
    *  - `group-slip` → 그룹 안 다른 slip 자리 drop (순서 변경).
-   */
+  */
   const handleDragEnd = (event: DragEndEvent) => {
+    if (!canEditDispatch) return
     const { active, over } = event
     if (!over || !taskId || !task) return
     const activeData = active.data.current as
@@ -200,6 +204,7 @@ export default function DispatchBoardPage() {
             matchedDrivers={task?.matchedDrivers ?? []}
             groups={groups}
             task={task ?? null}
+            canEditDispatch={canEditDispatch}
             onOpenSlipDetail={(id) => setDetailSlipId(id)}
           />
         </DndContext>

@@ -38,6 +38,7 @@ interface VehicleGroupColumnProps {
   groups: DispatchVehicleGroupResponse[]
   /** 상세 modal 진입 시 사용. 전체 task 객체 (badge 클릭 시 modal 에 전달). */
   task: DispatchTaskResponse | null
+  canEditDispatch: boolean
   onOpenSlipDetail: (slipId: string) => void
 }
 
@@ -105,6 +106,7 @@ export function VehicleGroupColumn({
   matchedDrivers,
   groups,
   task,
+  canEditDispatch,
   onOpenSlipDetail,
 }: VehicleGroupColumnProps) {
   const [addOpen, setAddOpen] = useState(false)
@@ -121,7 +123,7 @@ export function VehicleGroupColumn({
   }, [matchedDrivers])
 
   // Phase C — DRAFT 또는 MODIFICATION_ACCEPTED 시 편집 가능 (D-DC-08).
-  const canEdit = isEditableStatus(taskStatus)
+  const canEdit = isEditableStatus(taskStatus) && canEditDispatch
   const canDispatch =
     canEdit && groups.length > 0 && groups.some((g) => g.slips.length > 0)
 
@@ -379,6 +381,7 @@ export function VehicleGroupColumn({
         <AddVehicleModal
           onClose={() => setAddOpen(false)}
           onAdd={(vt) => {
+            if (!canEditDispatch) return
             addMutation.mutate(vt, {
               onSettled: () => setAddOpen(false),
             })

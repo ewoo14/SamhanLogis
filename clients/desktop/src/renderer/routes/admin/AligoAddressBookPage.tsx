@@ -46,6 +46,7 @@ import {
   type AligoAddressBookSyncResponse,
 } from '../../api/aligoAddressBookApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 
 // ---------------------------------------------------------------------------
 // 컴포넌트
@@ -53,6 +54,8 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 
 export function AligoAddressBookPage() {
   usePageTitle('알리고 주소록 자동 동기화')
+  const { canAccess } = usePermissions()
+  const canSync = canAccess('aligo.address-book', 'update')
 
   // CSV 다운로드 mutation — Blob 응답 → anchor click.
   const csvMutation = useMutation({
@@ -126,8 +129,11 @@ export function AligoAddressBookPage() {
             type="button"
             variant="primary"
             data-testid="admin-aligo-sync-btn"
-            disabled={syncPending}
-            onClick={() => syncMutation.mutate()}
+            disabled={syncPending || !canSync}
+            onClick={() => {
+              if (!canSync) return
+              syncMutation.mutate()
+            }}
           >
             {syncPending ? '동기화 중…' : '주소록 동기화 실행'}
           </Button>

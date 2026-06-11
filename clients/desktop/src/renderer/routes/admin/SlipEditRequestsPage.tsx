@@ -55,6 +55,7 @@ import {
   type SlipEditRequestType,
 } from '../../api/slipEditRequest'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 
 /** type → Badge variant. */
 const TYPE_VARIANT: Record<SlipEditRequestType, BadgeVariant> = {
@@ -89,6 +90,8 @@ export function SlipEditRequestsPage() {
   usePageTitle('전표 수정/삭제 요청')
 
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
+  const canDecide = canAccess('slip.edit-requests.decide', 'update')
   const [rejectTarget, setRejectTarget] = useState<SlipEditRequest | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -132,6 +135,7 @@ export function SlipEditRequestsPage() {
   })
 
   const handleApprove = (req: SlipEditRequest) => {
+    if (!canDecide) return
     const typeLabel = SLIP_EDIT_REQUEST_TYPE_LABEL[req.type]
     if (
       !window.confirm(
@@ -148,12 +152,14 @@ export function SlipEditRequestsPage() {
   }
 
   const handleOpenReject = (req: SlipEditRequest) => {
+    if (!canDecide) return
     setRejectTarget(req)
     setRejectReason('')
   }
 
   const handleRejectSubmit = () => {
     if (!rejectTarget) return
+    if (!canDecide) return
     const trimmed = rejectReason.trim()
     if (trimmed.length < 5) return
     rejectMutation.mutate({ req: rejectTarget, reason: trimmed })
@@ -265,7 +271,7 @@ export function SlipEditRequestsPage() {
                       variant="primary"
                       size="sm"
                       data-testid={`admin-slip-edit-requests-approve-${req.slipNo}`}
-                      disabled={approveMutation.isPending}
+                      disabled={approveMutation.isPending || !canDecide}
                       onClick={() => handleApprove(req)}
                     >
                       수락
@@ -275,7 +281,7 @@ export function SlipEditRequestsPage() {
                       variant="ghost"
                       size="sm"
                       data-testid={`admin-slip-edit-requests-reject-${req.slipNo}`}
-                      disabled={rejectMutation.isPending}
+                      disabled={rejectMutation.isPending || !canDecide}
                       onClick={() => handleOpenReject(req)}
                     >
                       거절
@@ -313,12 +319,12 @@ export function SlipEditRequestsPage() {
             >
               취소
             </Button>
-            <Button
-              variant="danger"
-              loading={rejectMutation.isPending}
-              disabled={rejectReason.trim().length < 5}
-              onClick={handleRejectSubmit}
-              data-testid="admin-slip-edit-requests-reject-submit"
+              <Button
+                variant="danger"
+                loading={rejectMutation.isPending}
+                disabled={rejectReason.trim().length < 5 || !canDecide}
+                onClick={handleRejectSubmit}
+                data-testid="admin-slip-edit-requests-reject-submit"
             >
               거절 처리
             </Button>

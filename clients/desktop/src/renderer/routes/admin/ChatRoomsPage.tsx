@@ -54,6 +54,7 @@ import {
   listChatRooms,
 } from '../../api/chatRoomApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 
 const SOURCE_VARIANT: Record<
   ChatRoomMappingSource,
@@ -108,6 +109,9 @@ export function ChatRoomsPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
+  const canDeleteChatRoom = canAccess('messenger.admin', 'delete')
+  const canCreateChatRoom = canAccess('messenger.admin', 'create')
 
   const query = useQuery({
     queryKey: ['admin', 'chat-rooms', committedKeyword],
@@ -144,6 +148,7 @@ export function ChatRoomsPage() {
   }
 
   function handleDelete(row: ChatRoomMapping) {
+    if (!canDeleteChatRoom) return
     const ok = window.confirm(
       `다음 매핑을 삭제하시겠습니까?\n\n`
       + `거래처: ${row.partnerCode} (${row.partnerBusinessName})\n`
@@ -219,7 +224,11 @@ export function ChatRoomsPage() {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => setAddOpen(true)}
+          onClick={() => {
+            if (!canCreateChatRoom) return
+            setAddOpen(true)
+          }}
+          disabled={!canCreateChatRoom}
           data-testid="admin-chatrooms-add-button"
         >
           단건 추가
@@ -227,7 +236,11 @@ export function ChatRoomsPage() {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => setImportOpen(true)}
+          onClick={() => {
+            if (!canCreateChatRoom) return
+            setImportOpen(true)
+          }}
+          disabled={!canCreateChatRoom}
           data-testid="admin-chatrooms-import-button"
         >
           CSV 업로드
@@ -297,6 +310,7 @@ export function ChatRoomsPage() {
                       ? deleteMutation.variables ?? null
                       : null
                   }
+                  canDelete={canDeleteChatRoom}
                 />
               ))
             )}
@@ -306,6 +320,7 @@ export function ChatRoomsPage() {
 
       <ChatRoomAddDialog
         open={addOpen}
+        canCreate={canCreateChatRoom}
         onClose={() => setAddOpen(false)}
         onSuccess={() => {
           setAddOpen(false)
@@ -321,6 +336,9 @@ export function ChatRoomsPage() {
         title="단톡방 매핑 일괄 등록"
         description="이카운트 사업자명을 거래처코드로 자동 변환합니다. 변환 실패는 reject 보고서로 다운로드 가능합니다."
         onUpload={async (file) => {
+          if (!canCreateChatRoom) {
+            return { inserted: 0, updated: 0, rejected: [] }
+          }
           const result = await importChatRoomsCsv(file)
           void queryClient.invalidateQueries({
             queryKey: ['admin', 'chat-rooms'],
@@ -336,12 +354,14 @@ interface ChatRoomGroupRowsProps {
   group: ChatRoomGroup
   onDelete: (row: ChatRoomMapping) => void
   deletingId: string | null
+  canDelete: boolean
 }
 
 function ChatRoomGroupRows({
   group,
   onDelete,
   deletingId,
+  canDelete,
 }: ChatRoomGroupRowsProps) {
   const groupSize = group.rows.length
   return (
@@ -396,7 +416,7 @@ function ChatRoomGroupRows({
               variant="ghost"
               size="sm"
               onClick={() => onDelete(row)}
-              disabled={deletingId === row.id}
+              disabled={deletingId === row.id || !canDelete}
               data-testid={`admin-chatrooms-delete-${row.id}`}
             >
               {deletingId === row.id ? '삭제 중…' : '삭제'}
@@ -410,6 +430,7 @@ function ChatRoomGroupRows({
 
 interface ChatRoomAddDialogProps {
   open: boolean
+  canCreate: boolean
   onClose: () => void
   onSuccess: () => void
 }
@@ -422,6 +443,7 @@ interface ChatRoomAddDialogProps {
  */
 function ChatRoomAddDialog({
   open,
+  canCreate,
   onClose,
   onSuccess,
 }: ChatRoomAddDialogProps) {
@@ -446,6 +468,7 @@ function ChatRoomAddDialog({
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (!canCreate) return
     setErrorMessage(null)
     if (!partnerCode.trim() || !partnerBusinessName.trim() || !chatRoomName.trim()) {
       setErrorMessage('모든 필드를 입력해 주세요.')
@@ -489,7 +512,7 @@ function ChatRoomAddDialog({
                   new Event('submit', { cancelable: true, bubbles: true }),
                 )
             }
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !canCreate}
             data-testid="admin-chatrooms-add-submit"
           >
             {mutation.isPending ? '등록 중…' : '등록'}

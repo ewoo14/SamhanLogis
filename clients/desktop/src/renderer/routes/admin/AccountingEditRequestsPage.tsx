@@ -16,6 +16,7 @@ import {
   type AccountingEditRequestType,
 } from '../../api/accountingEditRequest'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { usePermissions } from '../../hooks/usePermissions'
 
 const TYPE_VARIANT: Record<AccountingEditRequestType, BadgeVariant> = {
   EDIT: 'warning',
@@ -52,6 +53,8 @@ export function AccountingEditRequestsPage() {
   usePageTitle('회계 수정/삭제 요청')
 
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
+  const canDecide = canAccess('accounting.edit-requests.decide', 'update')
   const [rejectTarget, setRejectTarget] =
     useState<AccountingEditRequest | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -89,6 +92,7 @@ export function AccountingEditRequestsPage() {
   })
 
   const handleApprove = (req: AccountingEditRequest) => {
+    if (!canDecide) return
     const typeLabel = ACCOUNTING_EDIT_REQUEST_TYPE_LABEL[req.requestType]
     if (
       !window.confirm(
@@ -101,12 +105,14 @@ export function AccountingEditRequestsPage() {
   }
 
   const handleOpenReject = (req: AccountingEditRequest) => {
+    if (!canDecide) return
     setRejectTarget(req)
     setRejectReason('')
   }
 
   const handleRejectSubmit = () => {
     if (!rejectTarget) return
+    if (!canDecide) return
     const trimmed = rejectReason.trim()
     if (trimmed.length < 5) return
     rejectMutation.mutate({ req: rejectTarget, reason: trimmed })
@@ -216,7 +222,7 @@ export function AccountingEditRequestsPage() {
                         variant="primary"
                         size="sm"
                         data-testid={`admin-accounting-edit-requests-approve-${testIdSlice}`}
-                        disabled={approveMutation.isPending}
+                        disabled={approveMutation.isPending || !canDecide}
                         onClick={() => handleApprove(req)}
                       >
                         수락
@@ -226,7 +232,7 @@ export function AccountingEditRequestsPage() {
                         variant="ghost"
                         size="sm"
                         data-testid={`admin-accounting-edit-requests-reject-${testIdSlice}`}
-                        disabled={rejectMutation.isPending}
+                        disabled={rejectMutation.isPending || !canDecide}
                         onClick={() => handleOpenReject(req)}
                       >
                         거절
@@ -267,7 +273,7 @@ export function AccountingEditRequestsPage() {
             <Button
               variant="danger"
               loading={rejectMutation.isPending}
-              disabled={rejectReason.trim().length < 5}
+              disabled={rejectReason.trim().length < 5 || !canDecide}
               onClick={handleRejectSubmit}
               data-testid="admin-accounting-edit-requests-reject-submit"
             >

@@ -28,6 +28,7 @@ import {
 import { DispatchSmsRestoredBanner } from '../components/DispatchSmsRestoredBanner'
 import { DispatchSmsSaveDialog } from '../components/DispatchSmsSaveDialog'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
 
 type EditedMessages = Record<string, string>
@@ -139,6 +140,8 @@ function sendAuditRequestParams(
 export function DispatchSmsPage() {
   usePageTitle('배차안내 SMS 발송')
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
+  const canBatch = canAccess('dispatch.batch', 'create')
 
   const [date, setDate] = useState<string>(todayIso())
   const [preview, setPreview] = useState<DispatchSmsPreviewResponse | null>(null)
@@ -203,6 +206,7 @@ export function DispatchSmsPage() {
   }, [edited, latestRestoreSettled, preview, queryClient])
 
   const handlePreview = async () => {
+    if (!canBatch) return
     setPreviewLoading(true)
     setPreviewError(null)
     setSendResult(null)
@@ -314,9 +318,10 @@ export function DispatchSmsPage() {
     )
   }, [preview])
 
-  const sendDisabled = !preview || !confirmChecked || sendableCount === 0 || sendMutation.isPending
+  const sendDisabled = !preview || !confirmChecked || sendableCount === 0 || sendMutation.isPending || !canBatch
 
   const handleSend = () => {
+    if (!canBatch) return
     if (sendDisabled) return
     const firstOk = window.confirm(
       `발송 전 최종 확인입니다.\n발송 대상 ${sendableCount}건, 발송금지 ${blockedCount}건 제외 상태입니다.`,
@@ -375,6 +380,7 @@ export function DispatchSmsPage() {
             edited={edited}
             previewError={previewError}
             previewLoading={previewLoading}
+            canPreview={canBatch}
             onDateChange={setDate}
             onPreview={() => void handlePreview()}
             onMessageChange={(partnerCode, message) => {
@@ -446,6 +452,7 @@ function PreviewSection({
   edited,
   previewError,
   previewLoading,
+  canPreview,
   onDateChange,
   onPreview,
   onMessageChange,
@@ -455,6 +462,7 @@ function PreviewSection({
   edited: EditedMessages
   previewError: string | null
   previewLoading: boolean
+  canPreview: boolean
   onDateChange: (value: string) => void
   onPreview: () => void
   onMessageChange: (partnerCode: string, message: string) => void
@@ -483,6 +491,7 @@ function PreviewSection({
             variant="secondary"
             onClick={onPreview}
             loading={previewLoading}
+            disabled={!canPreview}
           >
             미리보기
           </Button>
