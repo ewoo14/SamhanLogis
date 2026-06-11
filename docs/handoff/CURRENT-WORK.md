@@ -16,6 +16,7 @@
 
 ### 리뷰 경위 (5→7→14, Fable5가 CI-RED·보안 적발)
 - Round A(Opus) 5확정 / Round B(Codex) 7확정 / **Round C(Fable5) 14확정 — Opus·Codex 둘 다 놓친 CI-RED 2(purchase-inspection-cta·sp-d3 산재 spec 파급, 변경모듈 전체 suite 미완주 회고) + 보안 1(주문서 승인 fail-open) 적발**. 종합 fix가 **데스크톱 mock 전체 suite 처음으로 완주 GREEN(468 pass)**. 라운드별 실서버 QA(역할별 메뉴 + 접기/펼치기, docs/qa/menu-5category/ 13컷). CI 전건 green.
+- **세션 복구 후 사이클2 재리뷰 14 + 사이클3 결함-계열 폴드인**(2026-06-11 세션 갑자기 끊김 복구): 끊긴 세션이 사이클2 fix 를 미커밋으로 남김 → 복구·검증·커밋(`270bd5e7`). cross-group 자동펼침 오탐(`exactTargets`)·승인 FE권한·**partner-auth InternalTokenFilter 표준 2단 배선**·vacuous sentinel 제거·CI-RED(sp-06 소스계약 박제) 전건 fix. 이어 cross-check 결함-계열 sweep 이 #6 동형 **6페이지 view-only 변경 게이트** 누락 적발 → 개발책임자 폴드인(`bc90e894`, Codex 구현, **전체 desktop mock 482/482**, 실서버 QA dev_master/manager ENABLED 실증). cross-check revert 실증으로 non-vacuous 확인. CI 전건 green → 머지(D-M5C-06/07 추가).
 
 ### 다음 대기 큐
 - **AROLOGIS 완료배차 내역 뷰**(배차담당자가 완료·전송한 내역, 전표 포함, 조회 전용) — 별도 슬라이스(개발책임자 2026-06-11 분리 지시, [[project-arologis-independent]] 독립 단위).

@@ -100,3 +100,21 @@
 - **변경 모듈 전체 suite 미완주 false-green** — IA 재배치/홈 리라벨이 `purchase-inspection-cta`·`sp-d3` 등 무관해 보이는 spec 의 구 NavLink 리터럴/'대시보드' sentinel 을 깨뜨림(Round C CI-RED 2건). 신규 IT 타깃만 실행하지 말고 변경 모듈 전체 suite 완주 후 push ([[feedback_changed_module_full_test_before_push]]).
 - **테스트 위치가 false-green 좌우** — IA 단언이 `testIgnore` 잡(`full-menu-contract`)에 있어 CI 미수집(Round A). 계약 단언은 CI 수집 잡으로 이전 + `--list` 수집 확인 필수.
 - **AppLayout 단독 변경처럼 보이는 보안 게이트** — FE 라우트 가드만으로는 URL 직접 진입을 막지 못함. BE @RequirePermission 동반 + `:shared:security` 의존 신규 도입 시 `DynamicPermissionClient` bean 부재 lockout 함정(fail-secure 전직원 deny) 사전 차단 필요([[feedback_enforcement_real_http_test]]).
+
+## 사이클2 재리뷰 + 사이클3 결함-계열 폴드인 (2026-06-11 세션 복구 후속)
+
+> 위 4-라운드 후 **사이클2 cross-check 재리뷰(#1~#14)** 가 추가 적발 → 끊긴 세션이 미커밋으로 남긴 fix 를 복구·검증·커밋. 이어 **cross-check 결함-계열 sweep** 이 #6 동형 6페이지를 적발 → 개발책임자 폴드인 결정(사이클3).
+
+### 사이클2 재리뷰 14건 (`270bd5e7` + CI-RED fix `8084b4ff`)
+- **cross-group 자동펼침 오탐**(P2 #1/#5/#7): `AppLayout` `exactTargets` 신설 — bare `/sales` prefix 가 `/sales/closing`(회계)·`/sales/link-dispatch`(그룹웨어) 진입 시 판매 그룹까지 동시 자동펼침하던 갭 차단(`/sales` 는 exact 분리). `menu-ia-contract` `categoryBlock` greedy 매칭 버그(그룹 격리 단언 vacuous) 교정 + bare `/sales` 제외 정적 박제.
+- **승인 FE 권한 게이트**(P3 #6): `SalesOrderApprovalsPage` 상태변경·비번초기화에 `canAccess('sales.partner-order.list','update')`(버튼 disabled + 핸들러 early-return) — BE @RequirePermission 정합.
+- **vacuous sentinel 제거**(P3 #9/#14): sp-d2/d3/d4 의 앱셸 상존 '홈'/'Dashboard' bodyText 절 제거(음성회귀 은폐) → URL·로그인 고유문구·RoleGuard 문구만 판정.
+- **partner-auth shared:security 배선**(재리뷰 #3/#4/#8/#11/#12): `SecurityConfig` `InternalTokenFilter`(addFilterBefore) + `HeaderAuthenticationFilter`(addFilterAfter) 2단 명시 배선(13 service 표준 — 전수 14/14 정합). `application.yml` internal-token dev 기본값 `dev-internal-token-change-me` 통일(auth-service default·`InternalTokenGuard.DEV_DEFAULT`·docker-compose 3중 정합 — 구 값은 prod 부팅 차단가드 무력화 결함). IT javadoc 역할분담 정확화(PartnerAuthControllerIT 는 부팅·bean 배선 검증, per-request filter chain 미실행 명시).
+- **CI-RED 1건**(`8084b4ff`): `sp-06-notion-db-crud` 소스계약 박제가 옛 단일 필터 배선을 toContain 단언 → 2단 배선으로 깨짐(변경 소스 박제가 변경 모듈 밖이라 CI 에서만 적발 — [[feedback_changed_module_full_test_before_push]] 재현). 박제 새 2단 배선으로 갱신.
+
+### 사이클3 결함-계열 폴드인 — view-only 변경 게이트 6페이지 (`bc90e894`)
+- cross-check sweep 가 #6(SalesOrderApprovals)와 **동형 패턴** 6페이지 적발: route=VIEW 가드인데 변경 액션이 BE `@RequirePermission(UPDATE/CREATE/DELETE)` 인 FE 화면에 canAccess 게이트 부재 → 일괄 추가(BE 서버단 403 이미 enforce = 보안홀 아님, FE 방어심층 UX 정합).
+- 적용(grep 실측 page-code, 테마틱 금지): SlipEditRequests(`slip.edit-requests.decide`/update) · AccountingEditRequests(동일/update) · DispatchBoard+VehicleGroupColumn(`dispatch.board`/update — drag assign·reorder + 차량추가·배차완료 canEdit 합성) · ChatRooms(`messenger.admin`/delete+create) · AligoAddressBook(`aligo.address-book`/update, CSV 다운로드 제외) · DispatchSms(`dispatch.batch`/create — preview+send).
+- mock.ts generic slip-list + 상세 matcher 에 `/slips/edit-requests` 제외(전용 핸들러 도달). 신규 권한 seed 0(`?mockPerms=` override). 신규 박제 `menu-5category-view-only-gates/`(view-only disabled / has-action enabled 12 케이스 + false-green guard).
+- 구현 Codex(gpt-5.5 codex exec). **검증: typecheck clean · 신규 spec 13/13 · 전체 desktop mock suite 482/482(cascade 회귀 0)**. 실서버 QA: dev_master/manager Aligo sync ENABLED 실증(over-gating 0) — 실 seed 엔 자연 view-only 부재(view+update 동반 = 방어심층 실증), view-only DISABLED 는 mock spec(실 FE canAccess 로직+mockPerms)+BE 서버단 enforce 보증.
+- cross-check(사이클2 4-agent + 사이클3 1-agent **게이트 revert→테스트 FAIL 실증**): BE 6/6 정합·완전성·non-vacuous 확인. P3 관찰 2건(DispatchBoard mount createMutation 무조건 발화=기존 mount-effect·scope 외 / SlipEditRequests JSX 들여쓰기 cosmetic) 비차단.
