@@ -85,11 +85,18 @@ public class InsungQuickDriverMatcher implements DriverMatcher {
             String driverCode = "INSUNG-" + matchResp.vendorDriverId();
             String phoneNumber = matchResp.driverPhone() != null ? matchResp.driverPhone() : "010-0000-0000";
             Driver driver = driverRepository.findByDriverCode(driverCode)
+                    .map(existing -> {
+                        existing.updateVendorProfile(matchResp.driverName(), phoneNumber,
+                                matchResp.vehicleType(), matchResp.vehiclePlateNumber());
+                        return existing;
+                    })
                     .orElseGet(() -> driverRepository.save(
                             Driver.of(
                                     driverCode,
+                                    matchResp.driverName(),
                                     phoneNumber,
                                     matchResp.vehicleType(),
+                                    matchResp.vehiclePlateNumber(),
                                     DriverSource.EXTERNAL_INSUNG_QUICK,
                                     Boolean.FALSE,
                                     null

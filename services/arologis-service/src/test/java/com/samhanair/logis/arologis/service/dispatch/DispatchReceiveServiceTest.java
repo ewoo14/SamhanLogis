@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -58,8 +59,8 @@ class DispatchReceiveServiceTest {
         when(vehicleRepo.save(any())).thenReturn(vehicle);
         when(vehicleRepo.findById(vehicleId)).thenReturn(Optional.of(vehicle));
         when(stopRepo.findAllByVehicleIdOrderBySequenceAsc(vehicleId)).thenReturn(List.of());
-        Driver driver = Driver.of("D-001", "010-1234-5678", "1톤",
-                DriverSource.INTERNAL, Boolean.FALSE, null);
+        Driver driver = Driver.of("D-001", "김배차", "010-1234-5678", "1톤",
+                "서울12바3456", DriverSource.INTERNAL, Boolean.FALSE, null);
         Field driverIdField = Driver.class.getDeclaredField("id");
         driverIdField.setAccessible(true);
         driverIdField.set(driver, UUID.randomUUID());
@@ -79,7 +80,15 @@ class DispatchReceiveServiceTest {
 
         verify(stopRepo).save(any());
         verify(driverMatcher).match(any(), any());
-        verify(slipClient).confirm(eq(samhanTaskId), any(SlipDispatchConfirmRequest.class));
+        ArgumentCaptor<SlipDispatchConfirmRequest> confirmCaptor =
+                ArgumentCaptor.forClass(SlipDispatchConfirmRequest.class);
+        verify(slipClient).confirm(eq(samhanTaskId), confirmCaptor.capture());
+        SlipDispatchConfirmRequest.MatchedDriverPayload matched =
+                confirmCaptor.getValue().matchedDrivers().get(0);
+        assertThat(matched.driverCode()).isEqualTo("D-001");
+        assertThat(matched.driverName()).isEqualTo("김배차");
+        assertThat(matched.driverPhoneNumber()).isEqualTo("010-1234-5678");
+        assertThat(matched.vehiclePlateNumber()).isEqualTo("서울12바3456");
     }
 
     @Test

@@ -40,11 +40,17 @@ public class Driver extends BaseEntity {
     @Column(name = "driver_code", nullable = false, length = 50)
     private String driverCode;
 
+    @Column(name = "driver_name", length = 50)
+    private String driverName;
+
     @Column(name = "phone_number", nullable = false, length = 20)
     private String phoneNumber;
 
     @Column(name = "vehicle_type", length = 20)
     private String vehicleType;
+
+    @Column(name = "vehicle_plate_number", length = 20)
+    private String vehiclePlateNumber;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "source", nullable = false, length = 30)
@@ -66,6 +72,11 @@ public class Driver extends BaseEntity {
 
     private Driver(String driverCode, String phoneNumber, String vehicleType,
                    DriverSource source, Boolean appInstalled, UUID appUserId) {
+        this(driverCode, null, phoneNumber, vehicleType, null, source, appInstalled, appUserId);
+    }
+
+    private Driver(String driverCode, String driverName, String phoneNumber, String vehicleType,
+                   String vehiclePlateNumber, DriverSource source, Boolean appInstalled, UUID appUserId) {
         if (driverCode == null || driverCode.isBlank()) {
             throw new IllegalArgumentException("driverCode 필수");
         }
@@ -76,8 +87,10 @@ public class Driver extends BaseEntity {
             throw new IllegalArgumentException("source 필수");
         }
         this.driverCode = driverCode;
+        this.driverName = blankToNull(driverName);
         this.phoneNumber = phoneNumber;
         this.vehicleType = vehicleType;
+        this.vehiclePlateNumber = blankToNull(vehiclePlateNumber);
         this.source = source;
         this.appInstalled = appInstalled == null ? Boolean.FALSE : appInstalled;
         this.appUserId = appUserId;
@@ -99,6 +112,26 @@ public class Driver extends BaseEntity {
         return new Driver(driverCode, phoneNumber, vehicleType, source, appInstalled, appUserId);
     }
 
+    /**
+     * 신규 Driver 생성.
+     *
+     * @param driverCode 사용자 노출 식별자
+     * @param driverName 기사명 (옵션)
+     * @param phoneNumber 전화번호 (010-XXXX-XXXX)
+     * @param vehicleType 차량 종류 (옵션)
+     * @param vehiclePlateNumber 차량번호 (옵션)
+     * @param source 기사 소스
+     * @param appInstalled 본 어플 설치 여부
+     * @param appUserId user-service userId (INTERNAL 일 때만)
+     * @return 영속화 가능한 신규 인스턴스
+     */
+    public static Driver of(String driverCode, String driverName, String phoneNumber, String vehicleType,
+                            String vehiclePlateNumber, DriverSource source, Boolean appInstalled,
+                            UUID appUserId) {
+        return new Driver(driverCode, driverName, phoneNumber, vehicleType, vehiclePlateNumber,
+                source, appInstalled, appUserId);
+    }
+
     /** 어플 설치 상태 갱신 (어플 설치/삭제 트리거). */
     public void updateAppInstalled(Boolean appInstalled, UUID appUserId) {
         this.appInstalled = appInstalled == null ? Boolean.FALSE : appInstalled;
@@ -108,5 +141,26 @@ public class Driver extends BaseEntity {
     /** 차량 종류 갱신. */
     public void updateVehicleType(String vehicleType) {
         this.vehicleType = vehicleType;
+    }
+
+    /** vendor 매칭 응답 기반 기사 프로필 갱신. null/blank 응답은 기존 값을 보존한다. */
+    public void updateVendorProfile(String driverName, String phoneNumber, String vehicleType,
+                                    String vehiclePlateNumber) {
+        if (driverName != null && !driverName.isBlank()) {
+            this.driverName = driverName;
+        }
+        if (phoneNumber != null && !phoneNumber.isBlank()) {
+            this.phoneNumber = phoneNumber;
+        }
+        if (vehicleType != null && !vehicleType.isBlank()) {
+            this.vehicleType = vehicleType;
+        }
+        if (vehiclePlateNumber != null && !vehiclePlateNumber.isBlank()) {
+            this.vehiclePlateNumber = vehiclePlateNumber;
+        }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

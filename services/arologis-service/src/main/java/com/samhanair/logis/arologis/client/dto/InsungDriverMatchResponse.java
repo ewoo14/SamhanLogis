@@ -11,6 +11,7 @@ package com.samhanair.logis.arologis.client.dto;
  * @param driverName    기사 이름 (옵션)
  * @param driverPhone   기사 전화번호
  * @param vehicleType   차량 종류 (옵션, 예: "1톤")
+ * @param vehiclePlateNumber 차량번호 (옵션)
  * @param failReason    매칭 실패 사유 (실패 시만)
  */
 public record InsungDriverMatchResponse(
@@ -19,6 +20,7 @@ public record InsungDriverMatchResponse(
         String driverName,
         String driverPhone,
         String vehicleType,
+        String vehiclePlateNumber,
         String failReason
 ) {
 
@@ -32,14 +34,30 @@ public record InsungDriverMatchResponse(
      */
     public static InsungDriverMatchResponse matched(String vendorDriverId, String driverName,
                                                      String driverPhone, String vehicleType) {
-        return new InsungDriverMatchResponse(true, vendorDriverId, driverName, driverPhone, vehicleType, null);
+        return matched(vendorDriverId, driverName, driverPhone, vehicleType, null);
+    }
+
+    /**
+     * 매칭 성공 응답 생성.
+     *
+     * @param vendorDriverId 인성 vendor 기사 식별자
+     * @param driverName     기사 이름
+     * @param driverPhone    기사 전화번호
+     * @param vehicleType    차량 종류
+     * @param vehiclePlateNumber 차량번호
+     */
+    public static InsungDriverMatchResponse matched(String vendorDriverId, String driverName,
+                                                     String driverPhone, String vehicleType,
+                                                     String vehiclePlateNumber) {
+        return new InsungDriverMatchResponse(true, vendorDriverId, driverName, driverPhone,
+                vehicleType, vehiclePlateNumber, null);
     }
 
     /**
      * 매칭 진행 중 응답 생성.
      */
     public static InsungDriverMatchResponse pending() {
-        return new InsungDriverMatchResponse(false, null, null, null, null, "매칭 진행 중");
+        return new InsungDriverMatchResponse(false, null, null, null, null, null, "매칭 진행 중");
     }
 
     /**
@@ -48,6 +66,6 @@ public record InsungDriverMatchResponse(
      * @param reason 실패 사유
      */
     public static InsungDriverMatchResponse failed(String reason) {
-        return new InsungDriverMatchResponse(false, null, null, null, null, reason);
+        return new InsungDriverMatchResponse(false, null, null, null, null, null, reason);
     }
 }

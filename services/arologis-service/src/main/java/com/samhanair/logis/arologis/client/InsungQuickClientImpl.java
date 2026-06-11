@@ -189,7 +189,8 @@ public class InsungQuickClientImpl implements InsungQuickClient {
                     "SANDBOX-DRV-001",
                     "인성기사(sandbox)",
                     "010-9999-9999",
-                    "1톤"
+                    "1톤",
+                    null
             );
         }
         guardApiKey();
@@ -213,7 +214,9 @@ public class InsungQuickClientImpl implements InsungQuickClient {
                     String.valueOf(response.get("driverId")),
                     (String) response.get("driverName"),
                     (String) response.get("driverPhone"),
-                    (String) response.get("vehicleType")
+                    (String) response.get("vehicleType"),
+                    // 인성데이타 응답 키 확정 후 매핑: 현재 협의 후보 키 vehiclePlateNumber.
+                    (String) response.get("vehiclePlateNumber")
             );
         } catch (HttpClientErrorException ex) {
             log.warn("[InsungQuick] requestMatch 4xx — vendorOrderId={} status={} msg={}",

@@ -42,6 +42,7 @@ class MockDriverMatcherTest {
         DriverMatchResult result = matcher.match(vehicle, List.of());
         assertThat(result.driver()).isPresent();
         assertThat(result.driver().get().getDriverCode()).isEqualTo(MockDriverMatcher.MOCK_DRIVER_CODE);
+        assertThat(result.driver().get().getVehiclePlateNumber()).isNull();
         assertThat(result.source()).isEqualTo(MatchSource.INTERNAL_APP);
         assertThat(result.externalRefId()).startsWith("MOCK-");
     }

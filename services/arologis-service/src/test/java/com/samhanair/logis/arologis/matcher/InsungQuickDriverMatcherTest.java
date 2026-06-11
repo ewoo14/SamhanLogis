@@ -22,6 +22,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * InsungQuickDriverMatcher 단위 테스트 — Phase 10 W10-2 실 구현.
@@ -87,38 +88,42 @@ class InsungQuickDriverMatcherTest {
     }
 
     @Test
-    @DisplayName("매칭 성공 → Driver upsert + DriverMatchResult.of() 반환")
+    @DisplayName("매칭 성공 → Driver upsert + 기사명/차량번호 저장 + DriverMatchResult.of() 반환")
     void match_success_upserts_driver_and_returns_result() {
         Vehicle vehicle = Vehicle.of(UUID.randomUUID(), 1, VehicleTonnage.TONNAGE_1, null);
         String vendorOrderId = "VENDOR-ORD-123";
         InsungDriverMatchResponse matchResp = InsungDriverMatchResponse.matched(
-                "DRV-999", "홍길동", "010-1234-5678", "1톤");
+                "DRV-999", "홍길동", "010-1234-5678", "1톤", "서울12바3456");
 
         when(insungClient.requestOrder(any(), anyList())).thenReturn(vendorOrderId);
         when(insungClient.requestMatch(vendorOrderId)).thenReturn(matchResp);
         when(driverRepository.findByDriverCode("INSUNG-DRV-999")).thenReturn(Optional.empty());
 
-        Driver mockDriver = Driver.of("INSUNG-DRV-999", "010-1234-5678", "1톤",
-                DriverSource.EXTERNAL_INSUNG_QUICK, Boolean.FALSE, null);
-        when(driverRepository.save(any())).thenReturn(mockDriver);
+        when(driverRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         DriverMatchResult result = matcher.match(vehicle, List.of());
 
         assertThat(result.driver()).isPresent();
         assertThat(result.driver().get().getDriverCode()).isEqualTo("INSUNG-DRV-999");
+        assertThat(result.driver().get().getDriverName()).isEqualTo("홍길동");
+        assertThat(result.driver().get().getVehiclePlateNumber()).isEqualTo("서울12바3456");
         assertThat(result.source()).isEqualTo(MatchSource.EXTERNAL_INSUNG_QUICK);
         assertThat(result.externalRefId()).isEqualTo(vendorOrderId);
         assertThat(vehicle.getVendorOrderId()).isEqualTo(vendorOrderId);
         verify(vehicleRepository).save(vehicle);
+        ArgumentCaptor<Driver> driverCaptor = ArgumentCaptor.forClass(Driver.class);
+        verify(driverRepository).save(driverCaptor.capture());
+        assertThat(driverCaptor.getValue().getDriverName()).isEqualTo("홍길동");
+        assertThat(driverCaptor.getValue().getVehiclePlateNumber()).isEqualTo("서울12바3456");
     }
 
     @Test
-    @DisplayName("기존 Driver 존재 시 upsert 없이 기존 Driver 반환")
-    void match_success_returns_existing_driver_without_upsert() {
+    @DisplayName("기존 Driver 존재 시 vendor 기사명/차량번호 갱신 후 반환")
+    void match_success_updates_existing_driver_with_vendor_profile() {
         Vehicle vehicle = Vehicle.of(UUID.randomUUID(), 1, VehicleTonnage.TONNAGE_1, null);
         String vendorOrderId = "VENDOR-ORD-456";
         InsungDriverMatchResponse matchResp = InsungDriverMatchResponse.matched(
-                "DRV-111", "이순신", "010-9876-5432", "2.5톤");
+                "DRV-111", "이순신", "010-9876-5432", "2.5톤", "부산34사5678");
 
         when(insungClient.requestOrder(any(), anyList())).thenReturn(vendorOrderId);
         when(insungClient.requestMatch(vendorOrderId)).thenReturn(matchResp);
@@ -131,6 +136,8 @@ class InsungQuickDriverMatcherTest {
 
         assertThat(result.driver()).isPresent();
         assertThat(result.driver().get().getDriverCode()).isEqualTo("INSUNG-DRV-111");
+        assertThat(result.driver().get().getDriverName()).isEqualTo("이순신");
+        assertThat(result.driver().get().getVehiclePlateNumber()).isEqualTo("부산34사5678");
         assertThat(result.source()).isEqualTo(MatchSource.EXTERNAL_INSUNG_QUICK);
     }
 

@@ -21,6 +21,7 @@ public record SlipDispatchConfirmRequest(
             String driverCode,
             String driverName,
             String driverPhoneNumber,
-            String source
+            String source,
+            String vehiclePlateNumber
     ) {}
 }

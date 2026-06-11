@@ -123,11 +123,15 @@ public class DispatchReceiveService {
                 MatchSource src = result.source() == null ? driverMatcher.source() : result.source();
                 vehicle.assignDriver(driver.getId(), src, result.externalRefId());
                 vehicleRepo.save(vehicle);
+                String driverName = driver.getDriverName() == null || driver.getDriverName().isBlank()
+                        ? driver.getDriverCode()
+                        : driver.getDriverName();
                 matched.add(new SlipDispatchConfirmRequest.MatchedDriverPayload(
                         vp.sequence(), vp.vehicleType(),
-                        driver.getDriverCode(), driver.getDriverCode(),  // driverName 미보유 — code 재사용
+                        driver.getDriverCode(), driverName,
                         driver.getPhoneNumber(),
-                        src.name()));
+                        src.name(),
+                        driver.getVehiclePlateNumber()));
             } else {
                 failedGroups.add(vp.sequence());
             }
