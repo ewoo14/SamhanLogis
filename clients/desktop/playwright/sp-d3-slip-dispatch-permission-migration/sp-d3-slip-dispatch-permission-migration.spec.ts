@@ -875,13 +875,15 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       const bodyText = (await page.textContent('body')) ?? ''
 
       // 이중 가드: PermissionGuard redirect(홈/로그인) 또는 RoleGuard in-place 차단 화면 중 하나.
-      // [Round C P1 #8] '대시보드' 라벨 폐기 → 홈 sentinel 정합.
+      // [2026-06-11 P3 #9/#14] 앱 셸 상존 텍스트 '홈'/'Dashboard' bodyText sentinel 제거 —
+      //   홈 NavLink('홈')는 권한과 무관하게 앱 셸에 항상 렌더되므로(차단 실패로 금지 페이지가
+      //   셸과 함께 떠도 '홈' 매칭) OR 단언이 vacuous(음성 회귀 은폐) 였다. 홈 redirect 는 URL
+      //   ('/#/'·'/#'), 로그인 redirect 는 URL('/login') + 로그인 화면 고유 텍스트(로그인/이메일),
+      //   in-place 차단은 RoleGuard 고유 문구(접근 권한이 없습니다/권한 보유자만)로만 판정한다.
       const isValidBlockedDest =
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         currentUrl.includes('/login') ||
-        bodyText.includes('홈') ||
-        bodyText.includes('Dashboard') ||
         bodyText.includes('로그인') ||
         bodyText.includes('이메일') ||
         bodyText.includes('접근 권한이 없습니다') ||

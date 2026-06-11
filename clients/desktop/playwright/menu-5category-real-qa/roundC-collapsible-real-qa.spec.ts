@@ -261,6 +261,89 @@ test('Round C — 활성 라우트 자동 펼침: /sales 진입 시 판매 그�
   expect(pageErrors, `pageerror 발생: ${pageErrors.join('; ')}`).toHaveLength(0)
 })
 
+test('Round C — cross-group 회귀가드: /sales/closing 진입 시 회계만 펼침, 판매는 접힘', async ({ page }) => {
+  // [2026-06-11 P2 #1/#5] 판매 activeTargets 의 bare '/sales' 가 prefix 매칭으로
+  //   '/sales/closing'(회계 자식)·'/sales/link-dispatch'(그룹웨어 자식) 진입 시 판매 그룹까지
+  //   동시 자동펼침되던 cross-group 오탐을 박제한다. 활성 그룹만 펼쳐야 한다(spec).
+  const pageErrors: string[] = []
+  page.on('pageerror', (e) => pageErrors.push(e.message))
+
+  const login = await realLogin(page, 'dev_master')
+  await installAuthStub(page, login)
+  await page.addInitScript(() => {
+    try {
+      Object.keys(window.localStorage)
+        .filter((k) => k.startsWith('samhan.sidebar.group.'))
+        .forEach((k) => window.localStorage.removeItem(k))
+    } catch {
+      /* ignore */
+    }
+  })
+
+  // 직접 /sales/closing(매출 마감 — 회계 그룹 자식) 진입.
+  await page.goto(`${BASE_URL}/#/sales/closing`)
+  await page.waitForSelector('aside.app-sidebar', { timeout: 30000 })
+  await page.waitForSelector('aside.app-sidebar [data-testid="sidebar-category-toggle-회계"]', {
+    timeout: 15000,
+  })
+  await page.waitForTimeout(1500)
+
+  // 회계 그룹은 자동 펼침
+  await expect(
+    toggleLocator(page, '회계'),
+    '/sales/closing 진입 시 회계 그룹 자동 펼침',
+  ).toHaveAttribute('aria-expanded', 'true')
+
+  // 판매 그룹은 접힘 유지(bare /sales prefix 오매칭 회귀 차단)
+  await expect(
+    toggleLocator(page, '판매'),
+    '/sales/closing 진입 시 판매 그룹은 접힘 유지(cross-group 오탐 차단)',
+  ).toHaveAttribute('aria-expanded', 'false')
+
+  expect(pageErrors, `pageerror 발생: ${pageErrors.join('; ')}`).toHaveLength(0)
+})
+
+test('Round C — cross-group 회귀가드: /sales/link-dispatch 진입 시 그룹웨어만 펼침, 판매는 접힘', async ({ page }) => {
+  // [2026-06-11 P2 #1/#5] '/sales/link-dispatch'(그룹웨어 자식) 진입 시 판매 그룹이 bare '/sales'
+  //   prefix 오매칭으로 동시 펼쳐지지 않아야 한다.
+  const pageErrors: string[] = []
+  page.on('pageerror', (e) => pageErrors.push(e.message))
+
+  const login = await realLogin(page, 'dev_master')
+  await installAuthStub(page, login)
+  await page.addInitScript(() => {
+    try {
+      Object.keys(window.localStorage)
+        .filter((k) => k.startsWith('samhan.sidebar.group.'))
+        .forEach((k) => window.localStorage.removeItem(k))
+    } catch {
+      /* ignore */
+    }
+  })
+
+  // 직접 /sales/link-dispatch(링크발송 — 그룹웨어 그룹 자식) 진입.
+  await page.goto(`${BASE_URL}/#/sales/link-dispatch`)
+  await page.waitForSelector('aside.app-sidebar', { timeout: 30000 })
+  await page.waitForSelector('aside.app-sidebar [data-testid="sidebar-category-toggle-그룹웨어"]', {
+    timeout: 15000,
+  })
+  await page.waitForTimeout(1500)
+
+  // 그룹웨어 그룹은 자동 펼침
+  await expect(
+    toggleLocator(page, '그룹웨어'),
+    '/sales/link-dispatch 진입 시 그룹웨어 그룹 자동 펼침',
+  ).toHaveAttribute('aria-expanded', 'true')
+
+  // 판매 그룹은 접힘 유지(cross-group 오탐 차단)
+  await expect(
+    toggleLocator(page, '판매'),
+    '/sales/link-dispatch 진입 시 판매 그룹은 접힘 유지(cross-group 오탐 차단)',
+  ).toHaveAttribute('aria-expanded', 'false')
+
+  expect(pageErrors, `pageerror 발생: ${pageErrors.join('; ')}`).toHaveLength(0)
+})
+
 test('Round C — localStorage 영속: 토글 후 새로고침해도 펼침 유지', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (e) => pageErrors.push(e.message))

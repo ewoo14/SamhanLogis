@@ -46,16 +46,38 @@ function assertInOrder(text: string, labels: string[]): void {
 
 /**
  * 특정 SidebarCategory label 블록 텍스트만 잘라 반환한다.
- * 시작 = `<SidebarCategory label="X"`, 끝 = 다음 `<SidebarCategory label=` 직전(없으면 문서 끝).
- * 항목이 다른 그룹에 있어도 통과하던 전역 greedy 매칭 갭을 제거하기 위함.
+ *
+ * 시작 = 해당 `label="X"` 직전의 가장 가까운 `<SidebarCategory` 여는 태그,
+ * 끝   = 그 시작 이후 다음 `<SidebarCategory` 직전(없으면 문서 끝).
+ *
+ * [2026-06-11 P2 #7] 기존 구현은 `<SidebarCategory\b[\s\S]*?label="X"` 정규식을 썼는데,
+ *   `[\s\S]*?` lazy 매칭이 **첫 번째** `<SidebarCategory`(판매)에서 시작해 대상 label 까지
+ *   확장되어 start 가 항상 첫 카테고리로 anchor 됐다. 결과 슬라이스가 대상 그룹 앞의
+ *   다른 그룹(판매·구매…)까지 포함해 '그룹 격리' 단언이 vacuous 였다(예: '회계' 블록이
+ *   판매~회계 전체를 포함 → 다른 그룹 항목도 통과). label 위치를 먼저 찾고 그 직전
+ *   가장 가까운 여는 태그로 anchor 하도록 교정한다.
  */
 function categoryBlock(text: string, label: string): string {
-  const startMatch = new RegExp(`<SidebarCategory\\b[\\s\\S]*?label="${label}"`).exec(text)
-  const start = startMatch?.index ?? -1
-  expect(start, `SidebarCategory label="${label}" 블록이 존재해야 함`).toBeGreaterThanOrEqual(0)
+  const labelToken = `label="${label}"`
+  const labelIndex = text.indexOf(labelToken)
+  expect(labelIndex, `SidebarCategory label="${label}" 가 존재해야 함`).toBeGreaterThanOrEqual(0)
 
-  const nextToken = '<SidebarCategory'
-  const next = text.indexOf(nextToken, start + (startMatch?.[0].length ?? nextToken.length))
+  // label 직전의 가장 가까운 <SidebarCategory 여는 태그 = 해당 그룹의 시작점.
+  const openToken = '<SidebarCategory'
+  const start = text.lastIndexOf(openToken, labelIndex)
+  expect(
+    start,
+    `label="${label}" 직전 <SidebarCategory 여는 태그가 존재해야 함`,
+  ).toBeGreaterThanOrEqual(0)
+  // 여는 태그와 label 사이에 다른 <SidebarCategory 가 끼면 안 됨(같은 태그여야 함).
+  const between = text.slice(start + openToken.length, labelIndex)
+  expect(
+    between.includes(openToken),
+    `label="${label}" 가 자신의 <SidebarCategory 여는 태그 속성이어야 함(다른 카테고리 침범 없음)`,
+  ).toBe(false)
+
+  // 다음 카테고리 직전까지가 이 그룹의 경계.
+  const next = text.indexOf(openToken, start + openToken.length)
   return text.slice(start, next < 0 ? text.length : next)
 }
 
@@ -165,6 +187,34 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
       expect(block, `${label}: 카테고리 토글 testid 보존`).toContain(`testId="${testId}"`)
       expect(block, `${label}: activeTargets 로 활성 라우트 자동 펼침 대상 명시`).toContain('activeTargets={[')
     }
+  })
+
+  // [Round A 재리뷰 사이클2 P2 #1/#5] cross-group 자동펼침 오탐 방지 정적 박제 —
+  //   판매 그룹의 진입점 '/sales' 는 bare prefix 로 두면 '/sales/closing'(회계)·
+  //   '/sales/link-dispatch'(그룹웨어) 진입 시 판매 그룹까지 동시 자동펼침되므로,
+  //   activeTargets 에서 bare '/sales' 를 제거하고 exactTargets 로 분리해야 한다.
+  test('판매 그룹: bare /sales 는 activeTargets 에서 제외 + exactTargets 로 정확 매칭(cross-group 오탐 차단)', () => {
+    const salesBlock = categoryBlock(appLayout, '판매')
+
+    // activeTargets 안의 bare '/sales'(prefix 매칭) 부재 — 따옴표 정확 토큰으로 하위 경로
+    //   ('/sales/estimates' 등)와 구분해 단언한다.
+    const activeTargetsMatch = /activeTargets=\{\[([\s\S]*?)\]\}/.exec(salesBlock)
+    expect(activeTargetsMatch, '판매 activeTargets 배열 존재').not.toBeNull()
+    const activeTargetsBody = activeTargetsMatch?.[1] ?? ''
+    expect(
+      /(^|[\s,[])'\/sales'\s*,/.test(activeTargetsBody),
+      "판매 activeTargets 에 bare '/sales' 가 없어야 함(cross-group prefix 오매칭 차단)",
+    ).toBe(false)
+
+    // exactTargets 로 '/sales' 정확 매칭 분리 박제.
+    expect(salesBlock, "판매 그룹은 exactTargets={['/sales']} 로 진입점을 정확 매칭해야 함").toMatch(
+      /exactTargets=\{\[\s*'\/sales'\s*\]\}/,
+    )
+
+    // 판매 전용 하위 경로는 여전히 activeTargets 에 존재(자동펼침 보존).
+    expect(activeTargetsBody, "판매 activeTargets 에 '/sales/partner-orders' 보존").toContain(
+      "'/sales/partner-orders'",
+    )
   })
 
   // [Round C P3 #12] 그룹 가시성 OR 구성원 정적 단언 — Round A/B 의 OR fix(단독 권한자 그룹 누락

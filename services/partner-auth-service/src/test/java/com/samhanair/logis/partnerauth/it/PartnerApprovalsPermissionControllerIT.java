@@ -64,6 +64,16 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 실 {@link com.samhanair.logis.security.permission.PermissionAspect}(AOP) + service 의
  * {@link HeaderAuthenticationFilter}(X-User-Id → principal) + SecurityFilterChain 매칭을 통과한다.
  *
+ * <p><b>재리뷰 #8 (역할 분담 명시)</b>: 본 slice IT 는 운영 {@code SecurityConfig} 대신 동등 최소형
+ * {@link TestSecurityConfig}(HeaderAuthenticationFilter + {@code anyRequest().authenticated()}) 로 인증
+ * principal 만 성립시킨다. 본 IT 의 핵심 가드는 <b>@RequirePermission enforcement(403/deny-counter/MASTER
+ * bypass/PARTNER deny) — {@code PermissionAspect} 실 AOP</b> 이며, 이 AOP 는 어느 SecurityFilterChain 으로
+ * 인증되든 controller 메서드 진입 시 동일하게 발동하므로 운영 chain 의존성이 없다(계약 바뀐 차원만 실-HTTP —
+ * [[feedback_preauth_migration_lessons]]). 운영 {@code SecurityConfig}(shared:security InternalTokenFilter 명시
+ * 배선 포함) + 7개 공개 거래처 endpoint(login/register 등)의 부팅·실 filter chain 검증은 full {@code @SpringBootTest}
+ * 인 {@link PartnerAuthControllerIT}(Testcontainers, CI Linux)가 담당한다. slice IT 에 운영 SecurityConfig 를
+ * import 하면 InternalSecurityAutoConfiguration/properties 결합만 늘 뿐 AOP 커버리지는 동일 — 중복 회피.
+ *
  * <p>{@link DynamicPermissionClient} 는 {@code @MockBean} 으로 격리(auth-service 호출 차단,
  * SP-D2 P04 트랩 회귀 방지 패턴). account 모드: aspect 가 {@code check(accountId, page, action)} 로 판정.
  */

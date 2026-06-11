@@ -168,7 +168,23 @@ function writeSidebarGroupOpen(storageKey: string, open: boolean): void {
   }
 }
 
-function isSidebarTargetActive(currentPathname: string, currentFullPath: string, to: string): boolean {
+/**
+ * 현재 경로가 사이드바 그룹의 활성 대상(to)에 해당하는지 판정한다.
+ *
+ * [2026-06-11 P2 #1/#5] cross-group 자동펼침 오탐 차단 —
+ *   기본 매칭은 prefix(`${to}/` 하위 포함)이지만, `exact=true` 면 정확 일치만 활성으로 본다.
+ *   예: 판매 그룹의 진입점 `/sales` 를 exact 로 두면 `/sales/closing`(회계)·`/sales/link-dispatch`
+ *   (그룹웨어) 진입 시 판매 그룹이 prefix 매칭으로 동시 자동펼침되던 갭을 제거한다
+ *   (spec '활성 그룹만 펼침' 준수).
+ *
+ * @param exact true 면 prefix 하위 경로를 활성으로 보지 않고 정확 일치만 활성 처리.
+ */
+function isSidebarTargetActive(
+  currentPathname: string,
+  currentFullPath: string,
+  to: string,
+  exact = false,
+): boolean {
   const [targetPathname, targetSearch] = to.split('?')
 
   if (!targetPathname || targetPathname === '/') {
@@ -179,6 +195,10 @@ function isSidebarTargetActive(currentPathname: string, currentFullPath: string,
     return currentFullPath === to
   }
 
+  if (exact) {
+    return currentPathname === targetPathname
+  }
+
   return currentPathname === targetPathname || currentPathname.startsWith(`${targetPathname}/`)
 }
 
@@ -186,20 +206,31 @@ function SidebarCategory({
   label,
   show,
   activeTargets,
+  exactTargets = [],
   testId,
   children,
 }: {
   label: string
   show: boolean
   activeTargets: string[]
+  /**
+   * [2026-06-11 P2 #1/#5] 정확 일치(exact)로만 그룹을 활성화할 경로 목록.
+   * prefix 매칭이 다른 그룹 하위 경로(예: '/sales' ⊃ '/sales/closing')를 오활성화하는
+   * cross-group 자동펼침을 방지하기 위해, 1세그먼트 진입점은 여기에 둔다.
+   */
+  exactTargets?: string[]
   testId: string
   children: React.ReactNode
 }) {
   const location = useLocation()
   const currentFullPath = `${location.pathname}${location.search}`
-  const activeByRoute = activeTargets.some((to) =>
-    isSidebarTargetActive(location.pathname, currentFullPath, to),
-  )
+  const activeByRoute =
+    activeTargets.some((to) =>
+      isSidebarTargetActive(location.pathname, currentFullPath, to),
+    )
+    || exactTargets.some((to) =>
+      isSidebarTargetActive(location.pathname, currentFullPath, to, true),
+    )
   const storageKey = `samhan.sidebar.group.${label}`
   const [open, setOpen] = useState(() => readSidebarGroupOpen(storageKey))
 
@@ -472,8 +503,11 @@ export function AppLayout() {
             label="판매"
             show={showSales}
             testId="sidebar-category-toggle-판매"
+            // [2026-06-11 P2 #1/#5] bare '/sales' 제거 — '/sales/closing'(회계)·'/sales/link-dispatch'
+            //   (그룹웨어) prefix 오매칭으로 판매 그룹이 cross-group 동시 자동펼침되던 갭 해소.
+            //   판매 전용 정확 경로만 나열하고, 판매관리 진입점('/sales')은 exactTargets 로 분리해
+            //   하위 경로가 판매를 오활성화하지 않게 한다.
             activeTargets={[
-              '/sales',
               '/sales/estimates',
               '/sales/partner-orders',
               '/sales/order-approvals',
@@ -486,6 +520,7 @@ export function AppLayout() {
               '/products/catalog',
               '/admin/sheet-sync',
             ]}
+            exactTargets={['/sales']}
           >
             <SidebarLink
               to="/sales"

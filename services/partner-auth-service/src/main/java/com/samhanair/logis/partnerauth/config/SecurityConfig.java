@@ -1,5 +1,6 @@
 package com.samhanair.logis.partnerauth.config;
 
+import com.samhanair.logis.security.InternalTokenFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -24,6 +25,15 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * 의 DelegatingPasswordEncoder 를 그대로 사용하므로 BCrypt({prefix bcrypt}) +
  * 레거시 SHA-256({prefix sha256}) 동시 호환 (legacy 비밀번호 마이그 시 prefix 만
  * {@code {sha256}} 로 시드, 첫 로그인 시 BCrypt 로 재인코딩 — service 위임).
+ *
+ * <p>PR #462 Round C #4 — {@code shared:security} 의존 신설 후속(재리뷰 #3): {@code shared:security}
+ * 자동 설정({@link com.samhanair.logis.security.InternalSecurityAutoConfiguration})이 노출하는
+ * {@link InternalTokenFilter} bean 은 13 service 표준대로 본 SecurityFilterChain 에 명시 배선한다
+ * ({@code .addFilterBefore(internalTokenFilter, ...)}). 미배선 시 해당 filter bean 이 Spring Boot 의
+ * servlet 자동 등록으로만 체인 외부에서 실행되어 순서가 불명확해진다. {@code path-prefix=/internal/}
+ * (default) + {@code allow-missing-token=true} (default) 이므로 외부 거래처 공개 흐름
+ * ({@code /api/v1/auth/partner-**} = login/register) 은 prefix 불일치로 즉시 통과(no-op) —
+ * 기존 공개 흐름 회귀 0. (inventory/partner-order SecurityConfig 와 동일 2단 filter chain.)
  */
 @Configuration
 @EnableWebSecurity
@@ -31,7 +41,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter)
+            throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -42,7 +53,9 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+                // shared:security InternalTokenFilter 명시 배선 (13 service 표준). 토큰 미제시/prefix 외 → no-op.
+                .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new HeaderAuthenticationFilter(), InternalTokenFilter.class);
         return http.build();
     }
 

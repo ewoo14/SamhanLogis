@@ -28,6 +28,7 @@ import {
 } from '../api/sales'
 import { AuditInfoBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitleStore } from '../stores/pageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
 
@@ -55,6 +56,12 @@ export function SalesOrderApprovalsPage() {
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const [statusFilter, setStatusFilter] = useState<PartnerApprovalStatus | ''>('')
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
+  // [2026-06-11 P3 #6] 승인상태 변경·비밀번호 초기화는 BE 가 @RequirePermission(page="sales.partner-order.list",
+  //   action=UPDATE) 로 가드한다(PartnerApprovalsController). FE 도 동일 page-code 의 update 권한으로
+  //   변경 액션을 가드해 BE 와 정합한다(view 만 가진 영업 보조 계정은 변경 불가). route 는 view 만 가드하므로
+  //   본 화면 진입은 가능하되 변경 버튼만 비활성화한다.
+  const canUpdateApproval = canAccess('sales.partner-order.list', 'update')
 
   useEffect(() => {
     setPageTitle({ title: '주문서 승인', meta: '영업' })
@@ -86,6 +93,8 @@ export function SalesOrderApprovalsPage() {
   })
 
   function handleStatusChange(approval: PartnerApproval, next: PartnerApprovalStatus) {
+    // [2026-06-11 P3 #6] update 권한 없으면 변경 시도 자체를 차단(버튼 비활성과 이중 방어).
+    if (!canUpdateApproval) return
     if (approval.status === next) return
     if (
       next === 'ACCESS_DENIED'
@@ -97,6 +106,8 @@ export function SalesOrderApprovalsPage() {
   }
 
   function handleResetPassword(approval: PartnerApproval) {
+    // [2026-06-11 P3 #6] update 권한 없으면 초기화 시도 자체를 차단(버튼 비활성과 이중 방어).
+    if (!canUpdateApproval) return
     if (
       !window.confirm(
         `${approval.partnerName} 거래처의 비밀번호를 초기화하시겠습니까?\n\n초기화 후 거래처 다음 접속 시 비밀번호 재설정 페이지가 표시됩니다.`,
@@ -192,7 +203,7 @@ export function SalesOrderApprovalsPage() {
                         )
                       }
                       aria-label={`${a.partnerName} 상태 변경`}
-                      disabled={updateStatus.isPending}
+                      disabled={updateStatus.isPending || !canUpdateApproval}
                     >
                       {(
                         Object.keys(
@@ -217,6 +228,7 @@ export function SalesOrderApprovalsPage() {
                       disabled={
                         resetPw.isPending
                         || a.status === 'PASSWORD_RESET_PENDING'
+                        || !canUpdateApproval
                       }
                       aria-label={`${a.partnerName} 비밀번호 초기화`}
                     >

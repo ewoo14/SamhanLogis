@@ -794,15 +794,16 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
       const bodyText = (await page.textContent('body')) ?? ''
 
       // batch 차단 후 계정과목은 허용되므로 최종 위치는 계정과목/홈/로그인 중 하나.
-      // [Round C P1 #8] '대시보드' 라벨 폐기 → 홈 sentinel 정합.
+      // [2026-06-11 P3 #9/#14] 앱 셸 상존 텍스트 '홈'/'Dashboard' bodyText sentinel 제거 —
+      //   홈 NavLink('홈')는 권한 무관 앱 셸 상존이라 어떤 화면이 떠도 매칭되어 vacuous 였다.
+      //   허용 도착은 URL('/accounting/accounts')·콘텐츠('계정과목'), 홈 redirect 는 URL('/#/'·'/#'),
+      //   로그인 redirect 는 URL('/login')·로그인 화면 고유 텍스트(로그인/이메일)로만 판정한다.
       const isValidRedirectDest =
         currentUrl.includes('/accounting/accounts') ||
         currentUrl.endsWith('/#/') ||
         currentUrl.endsWith('/#') ||
         currentUrl.includes('/login') ||
         bodyText.includes('계정과목') ||
-        bodyText.includes('홈') ||
-        bodyText.includes('Dashboard') ||
         bodyText.includes('로그인') ||
         bodyText.includes('이메일')
 
