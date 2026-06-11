@@ -43,11 +43,15 @@ import org.springframework.transaction.annotation.Transactional;
  * 사용 금지). {@link GlobalExceptionHandler} 는 {@link BusinessException} 의 {@link ErrorCode}
  * httpStatus 를 그대로 반환하므로 409/400 매핑이 보장된다.
  *
- * <p><b>display-orders 카테고리 검증 축 (D-PCE-02 fix)</b>:
- * 검증 기준은 {@link EstimateCategory} — FE 카테고리 선택 및
- * {@code findExposedCatalog} 정렬 군과 동일 차원.
+ * <p><b>display-orders 카테고리 검증 축 (D-PCE-02 + G fix)</b>:
+ * 검증 기준 축은 {@link EstimateCategory} — FE 카탈로그 카테고리 선택과 동일하다.
+ * {@code findExposedCatalog} 는 실제로 {@link com.samhanair.logis.product.domain.ProductCategory}
+ * (별개 enum) 로 WHERE/ORDER BY 하므로 '동일 차원' 이 아니다(G fix — 허위 문구 제거).
+ * 시트 기본 적재 데이터는 productCategory↔estimateCategory 가 1:1 이나, 수동 override
+ * (markUsageManual) 시 desync 가능하다.
  * null {@code estimateCategory} 군은 자체 군으로 허용(null끼리 OK),
  * null + non-null 혼합은 400, 서로 다른 non-null 혼합도 400.
+ * display_order 충돌은 {@code findExposedCatalog} 의 {@code modelCode ASC} 타이브레이커로 결정적 해소된다.
  */
 @Service
 public class BundleComponentService {
@@ -154,6 +158,17 @@ public class BundleComponentService {
      * 전건 검증 후 기존 구성품 전체 soft-delete → 신규 구성품 INSERT.
      * 트랜잭션 단일(부분 적용 금지).
      *
+     * <p><b>구성품 해소 검증 축 (A fix, 2026-06-11)</b>:
+     * 구성 모델코드 해소 검증은 {@link ProductRepository#findByModelCodeAndIsDeletedFalse}
+     * ({@code model_code} 정확 매칭, model_name fallback 없음) 으로 수행한다 —
+     * 실 소비처인 전개(expander) 해소 기준({@link BundleExpander#expand} /
+     * {@link BundleComponentRepository#findUnresolvedComponents}) 과 동일하게
+     * {@code modelCode-only} 로 검증하여 <b>전개 불가 구성품을 사전 차단</b>한다.
+     * {@code model_code=NULL / model_name only} 레거시 행을 구성품으로 저장하면
+     * PUT 은 200 으로 통과하나 전표/견적 전개 시 단가 0·productId null 로 silent 방출되어
+     * 금액 오류가 발생하는 결함을 막는다(write-path 와 expander 의 해소 축 정렬).
+     * 단 {@code listComponents}(read) 의 model_name fallback(D-PCE-03) 은 표시용이므로 유지한다.
+     *
      * <p>BundleExpander 는 캐시를 두지 않으므로 evict 불필요.
      *
      * <p><b>soft-delete actor (P3-3)</b>: 기존 구성품 soft-delete 시 호출자
@@ -201,8 +216,11 @@ public class BundleComponentService {
             if (!seenCodes.add(req.componentProductCode())) {
                 duplicateCodes.add(req.componentProductCode());
             }
+            // A fix: 전개(expander) 해소 기준과 동일하게 modelCode-only 검증.
+            // model_name fallback 을 쓰면 전개 시 못 찾는 레거시 행이 PUT 200 으로 통과해
+            // 전표/견적 전개에서 단가 0·productId null silent 방출 → 금액 오류.
             boolean resolved = productRepository
-                    .findByCatalogExposedModelCodeAndIsDeletedFalse(req.componentProductCode())
+                    .findByModelCodeAndIsDeletedFalse(req.componentProductCode())
                     .isPresent();
             if (!resolved) {
                 unresolvedCodes.add(req.componentProductCode());
@@ -290,9 +308,18 @@ public class BundleComponentService {
      * <p>전건 검증 후 일괄 적용 — 부분 적용 금지, 단일 트랜잭션.
      * 미존재 modelCode 가 하나라도 있으면 {@link EntityNotFoundException}(→ 404) 을 던진다.
      *
-     * <p><b>카테고리 동일 검증 (D-PCE-02 fix, 2026-06-11)</b>:
-     * 검증 기준 축은 {@link EstimateCategory} — FE 카탈로그 카테고리 선택 및
-     * {@code findExposedCatalog} 정렬 군과 동일 차원.
+     * <p><b>요청 내 중복 modelCode 검증 (H fix, 2026-06-11)</b>:
+     * 같은 modelCode 가 두 번 들어오면 마지막 값으로 덮어써 의도와 다른 순서가 저장되므로,
+     * {@code replaceComponents} 의 {@code duplicateCodes(LinkedHashSet)} 패턴을 재사용해
+     * 전건 검증 단계(적용 전)에서 중복을 검출하고 400 {@code INVALID_INPUT} 으로 거부한다.
+     *
+     * <p><b>카테고리 동일 검증 (D-PCE-02 + G fix, 2026-06-11)</b>:
+     * 검증 기준 축은 {@link EstimateCategory} — FE 카탈로그 카테고리 선택과 동일하다.
+     * {@code findExposedCatalog} 는 실제로 {@link com.samhanair.logis.product.domain.ProductCategory}
+     * (별개 enum) 로 WHERE/ORDER BY 하므로 '동일 차원' 이 아니다(G fix — 허위 문구 제거).
+     * 시트 기본 적재 데이터는 productCategory↔estimateCategory 가 1:1 이나 수동 override
+     * (markUsageManual) 시 desync 가능하다. display_order 충돌은 {@code findExposedCatalog} 의
+     * {@code modelCode ASC} 타이브레이커로 결정적 해소된다.
      * <ul>
      *   <li>null {@code estimateCategory} 군은 자체 군으로 허용 (null끼리 OK)</li>
      *   <li>null + non-null 혼합 → 400 {@code INVALID_INPUT}</li>
@@ -302,13 +329,27 @@ public class BundleComponentService {
      * <p>성공 시 {@code product:catalog:changed} 이벤트 broadcast — FE 카탈로그 목록 invalidate 트리거.
      *
      * @param requests modelCode + displayOrder 목록
-     * @throws BusinessException(INVALID_INPUT) 다른 estimateCategory 혼합 / null+non-null 혼합 시
+     * @throws BusinessException(INVALID_INPUT) 중복 modelCode / 다른 estimateCategory 혼합 / null+non-null 혼합 시
      * @throws EntityNotFoundException          404 — 미존재 modelCode 포함 시
      */
     @Transactional
     public void updateDisplayOrders(List<DisplayOrderRequest> requests) {
         if (requests == null || requests.isEmpty()) {
             return;
+        }
+
+        // H fix: 요청 내 중복 modelCode 사전 차단 (replaceComponents duplicateCodes 패턴 재사용).
+        // 같은 modelCode 가 두 번 들어오면 마지막 값으로 덮어써 의도와 다른 순서가 저장된다.
+        Set<String> seenModelCodes = new HashSet<>();
+        Set<String> duplicateModelCodes = new LinkedHashSet<>();
+        for (DisplayOrderRequest req : requests) {
+            if (!seenModelCodes.add(req.modelCode())) {
+                duplicateModelCodes.add(req.modelCode());
+            }
+        }
+        if (!duplicateModelCodes.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "표시 순서 갱신에 중복 modelCode 가 있습니다: " + duplicateModelCodes);
         }
 
         // 전건 검증 — 미존재 코드가 있으면 즉시 404

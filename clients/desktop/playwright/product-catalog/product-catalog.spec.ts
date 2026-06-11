@@ -349,4 +349,99 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
     // 최소 1개 이상의 드래그 핸들이 있어야 함 (노출 품목 존재)
     await expect(dragHandles.first()).toBeVisible({ timeout: 8_000 })
   })
+
+  // ---------------------------------------------------------------------------
+  // Scenario 8: 드래그→순서 저장 왕복 — 키보드 reorder 후 PUT /display-orders
+  //   페이로드의 displayOrder 가 1..N 연속 재번호인지 단언 ([F] 신규 회귀 가드).
+  //   in-process mock 은 page.route 가로채기 불가 → mock 이 globalThis 에 노출한
+  //   마지막 표시순서 저장 페이로드(__SAMHAN_LAST_DISPLAY_ORDERS)를 page.evaluate 로 단언.
+  //   [[inprocess-mock-principles]]
+  // ---------------------------------------------------------------------------
+
+  test('시나리오 8: 드래그→순서 저장 — PUT /display-orders 페이로드 1..N 연속 재번호 단언', async ({ page }) => {
+    await installAuth(page)
+    await gotoProductCatalog(page, 'MASTER')
+    await loadTable(page)
+
+    // 이전 테스트 잔여 캡처 초기화 (테스트별 격리)
+    await page.evaluate(() => {
+      delete (globalThis as Record<string, unknown>)['__SAMHAN_LAST_DISPLAY_ORDERS']
+    })
+
+    // 카테고리 HOME_MULTI 선택 → 드래그 활성 (committedCategory 즉시 반영)
+    const categorySelect = page.getByTestId('product-catalog-category-select')
+    await expect(categorySelect).toBeVisible()
+    await categorySelect.selectOption('HOME_MULTI')
+
+    // 드래그 활성 후 SortableRow 렌더 — 첫 행 드래그 핸들 확보
+    const dragHandles = page.locator('[aria-label$="드래그"]')
+    await expect(dragHandles.first()).toBeVisible({ timeout: 8_000 })
+    const handleCount = await dragHandles.count()
+    // HOME_MULTI 노출 품목 2건 이상이어야 reorder 가능 (mock 시드: 3건 BOTH)
+    expect(handleCount).toBeGreaterThanOrEqual(2)
+
+    // 드래그 전 행 순서(모델명 컬럼) 캡처 — reorder 검증용
+    const sortableRowsLoc = page.locator('[data-testid^="product-catalog-row-"]')
+    await expect(sortableRowsLoc.first()).toBeVisible()
+    const codesBefore = (
+      await sortableRowsLoc.evaluateAll((rows) =>
+        rows.map((r) => r.getAttribute('data-testid')?.replace('product-catalog-row-', '') ?? ''),
+      )
+    ).filter(Boolean)
+    expect(codesBefore.length).toBeGreaterThanOrEqual(2)
+
+    // 키보드 dnd-kit reorder: 첫 핸들 focus → Space(드래그 시작) → ArrowDown(한 칸 이동) → Space(드롭).
+    // dnd-kit KeyboardSensor 는 keydown(Space/Enter)으로 pickup, ArrowDown 으로 coordinateGetter
+    // 재계산 후 다시 Space/Enter 로 drop → onDragEnd 발사. headless 에서 각 단계 사이
+    // React 커밋 + sensor 상태 전이를 위해 짧은 settle 을 둔다(드롭 누락 방지).
+    const firstHandle = dragHandles.first()
+    await firstHandle.focus()
+    await page.keyboard.press('Space')
+    await page.waitForTimeout(150)
+    await page.keyboard.press('ArrowDown')
+    await page.waitForTimeout(150)
+    await page.keyboard.press('Space')
+
+    // 드래그 완료(orderDirty=true) → '순서 저장' 버튼 노출 능동 대기
+    const saveOrderBtn = page.getByTestId('product-catalog-save-order-button')
+    await expect(saveOrderBtn).toBeVisible({ timeout: 8_000 })
+
+    // 순서 저장 클릭 → PUT /display-orders 발사
+    await saveOrderBtn.click()
+
+    // mock 이 노출한 마지막 페이로드 능동 대기
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(
+            () => (globalThis as Record<string, unknown>)['__SAMHAN_LAST_DISPLAY_ORDERS'] ?? null,
+          ),
+        { timeout: 8_000, message: 'PUT /display-orders 페이로드 미수신 (순서 저장 미발사)' },
+      )
+      .not.toBeNull()
+
+    const payload = (await page.evaluate(
+      () => (globalThis as Record<string, unknown>)['__SAMHAN_LAST_DISPLAY_ORDERS'],
+    )) as Array<{ modelCode: string; displayOrder: number }>
+
+    // (1) 비어 있지 않음
+    expect(Array.isArray(payload)).toBe(true)
+    expect(payload.length).toBeGreaterThanOrEqual(2)
+
+    // (2) displayOrder 가 1..N 연속 재번호 (정렬 시 [1,2,...,N])
+    const orders = payload.map((o) => o.displayOrder).sort((a, b) => a - b)
+    expect(orders).toEqual(Array.from({ length: payload.length }, (_, i) => i + 1))
+
+    // (3) 재번호는 페이로드 배열 순서 그대로 1-based 부여 (드래그 결과 순서 보존)
+    payload.forEach((o, idx) => {
+      expect(o.displayOrder).toBe(idx + 1)
+    })
+
+    // (4) 드래그로 첫 행이 실제 이동됨 — 페이로드 선두 modelCode 가 드래그 전 선두와 다름
+    //     (ArrowDown 1칸 → 원래 1번이 2번 위치로 내려감)
+    expect(payload[0]?.modelCode).not.toBe(codesBefore[0])
+
+    // (5) 저장 성공 시 dirty 해제 → '순서 저장' 버튼 사라짐
+    await expect(saveOrderBtn).not.toBeVisible({ timeout: 5_000 })
+  })
 })

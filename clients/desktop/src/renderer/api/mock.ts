@@ -1170,6 +1170,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (orders.length === 0) {
       return mockError(400, 'BAD_REQUEST', '표시 순서 목록이 비어 있습니다.')
     }
+    // 미존재 modelCode 404 전건 롤백 (BE BundleComponentService.updateDisplayOrders 동형)
+    // 하나라도 카탈로그에 없으면 EntityNotFoundException→404, 부분 적용 없음.
+    const missing = (orders as Array<{ modelCode?: unknown }>).find(
+      (o) => !MOCK_PRODUCT_CATALOG_ROWS.some((r) => r.modelCode === String(o.modelCode ?? '')),
+    )
+    if (missing) {
+      return mockError(404, 'NOT_FOUND', '품목을 찾을 수 없습니다.')
+    }
     // estimateCategory 혼합 400 검증 (BE c91e5e2f 시멘틱 동형)
     // 전송된 modelCode 들이 서로 다른 estimateCategory 를 가지면 400
     const affectedRows = (orders as Array<{ modelCode?: unknown }>)
@@ -1184,6 +1192,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       if (!entry) return row
       return { ...row, displayOrder: Number(entry.displayOrder ?? row.displayOrder) }
     })
+    // in-process mock 은 page.route 로 가로챌 수 없으므로([[inprocess-mock-principles]])
+    // 마지막 표시순서 저장 요청 본문을 globalThis 에 노출 → Playwright page.evaluate 로 displayOrder 재번호 단언.
+    try {
+      ;(globalThis as Record<string, unknown>)['__SAMHAN_LAST_DISPLAY_ORDERS'] = orders
+    } catch {
+      /* noop */
+    }
     // 204 No Content 동형 — non-null 마커 반환
     return { updated: true }
   }

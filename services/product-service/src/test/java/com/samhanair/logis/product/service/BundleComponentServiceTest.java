@@ -243,7 +243,8 @@ class BundleComponentServiceTest {
     void replaceComponents_미해소코드_400_BusinessException() {
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("NO-SUCH-CODE"))
+        // A fix: 구성품 해소는 modelCode-only (expander 와 동일 축)
+        when(productRepository.findByModelCodeAndIsDeletedFalse("NO-SUCH-CODE"))
                 .thenReturn(Optional.empty());
 
         BundleComponentRequest req = new BundleComponentRequest(
@@ -263,7 +264,7 @@ class BundleComponentServiceTest {
 
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+        when(productRepository.findByModelCodeAndIsDeletedFalse("IDU-001"))
                 .thenReturn(Optional.of(componentProduct));
         when(bundleComponentRepository.findByBundleProductId(bundleId))
                 .thenReturn(List.of(oldBc));
@@ -301,7 +302,7 @@ class BundleComponentServiceTest {
 
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+        when(productRepository.findByModelCodeAndIsDeletedFalse("IDU-001"))
                 .thenReturn(Optional.of(componentProduct));
         when(bundleComponentRepository.findByBundleProductId(bundleId))
                 .thenReturn(List.of(existingBc));
@@ -335,7 +336,7 @@ class BundleComponentServiceTest {
     void replaceComponents_중복_componentProductCode_400_BusinessException() {
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        lenient().when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+        lenient().when(productRepository.findByModelCodeAndIsDeletedFalse("IDU-001"))
                 .thenReturn(Optional.of(componentProduct));
 
         BundleComponentRequest first = new BundleComponentRequest(
@@ -365,7 +366,7 @@ class BundleComponentServiceTest {
 
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+        when(productRepository.findByModelCodeAndIsDeletedFalse("IDU-001"))
                 .thenReturn(Optional.of(componentProduct));
         when(bundleComponentRepository.findByBundleProductId(bundleId))
                 .thenReturn(List.of(oldBc));
@@ -395,7 +396,7 @@ class BundleComponentServiceTest {
 
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+        when(productRepository.findByModelCodeAndIsDeletedFalse("IDU-001"))
                 .thenReturn(Optional.of(componentProduct));
         when(bundleComponentRepository.findByBundleProductId(bundleId))
                 .thenReturn(List.of(oldBc));
@@ -432,7 +433,7 @@ class BundleComponentServiceTest {
 
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
                 .thenReturn(Optional.of(bundleProduct));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("IDU-001"))
+        when(productRepository.findByModelCodeAndIsDeletedFalse("IDU-001"))
                 .thenReturn(Optional.of(componentProduct));
         when(bundleComponentRepository.findByBundleProductId(bundleId))
                 .thenReturn(List.of(oldBc));
@@ -509,6 +510,24 @@ class BundleComponentServiceTest {
     void updateDisplayOrders_빈_목록_noop() {
         // 예외 없이 정상 종료
         service.updateDisplayOrders(List.of());
+    }
+
+    /**
+     * H fix (2026-06-11): 요청 내 중복 modelCode → 400 INVALID_INPUT.
+     *
+     * <p>같은 modelCode 가 두 번 들어오면 마지막 값으로 덮어써 의도와 다른 순서가 저장되므로,
+     * 전건 검증 단계(적용 전, 미존재 조회 전)에서 중복을 검출하고 거부한다.
+     */
+    @Test
+    void updateDisplayOrders_중복_modelCode_400_BusinessException() {
+        // 중복 검출이 미존재 조회보다 먼저 일어나므로 repository stub 불필요.
+        assertThatThrownBy(() -> service.updateDisplayOrders(List.of(
+                new DisplayOrderRequest("DUP-001", 1),
+                new DisplayOrderRequest("DUP-001", 2))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT))
+                .hasMessageContaining("DUP-001");
     }
 
     /**

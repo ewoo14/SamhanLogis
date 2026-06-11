@@ -36,6 +36,7 @@ import com.samhanair.logis.product.editrequest.domain.ProductEditRequest;
 import com.samhanair.logis.product.editrequest.service.ProductEditRequestService;
 import com.samhanair.logis.product.editrequest.web.ProductEditRequestController;
 import com.samhanair.logis.product.realtime.ProductCatalogChangePublisher;
+import com.samhanair.logis.product.realtime.ProductCatalogRealtimeController;
 import com.samhanair.logis.product.realtime.ProductRealtimeBroker;
 import com.samhanair.logis.product.realtime.ProductRealtimeController;
 import com.samhanair.logis.product.repository.BranchPipeLookupRepository;
@@ -121,7 +122,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 ProductLookupController.class,
                 ProductEditRequestController.class,
                 ProductAuditLogController.class,
-                ProductRealtimeController.class
+                ProductRealtimeController.class,
+                ProductCatalogRealtimeController.class
         },
         properties = "spring.application.name=product-service")
 @Import({
@@ -446,7 +448,11 @@ class ProductPermissionControllerIT {
                 new EndpointCase("display orders update", "products.admin", PermissionAction.UPDATE, "MANAGER", 204,
                         () -> put("/api/v1/products/display-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("[{\"modelCode\":\"MODEL-1\",\"displayOrder\":1}]"))
+                                .content("[{\"modelCode\":\"MODEL-1\",\"displayOrder\":1}]")),
+                // §2-2 (D fix 2026-06-11) — catalog-realtime SSE 구독 권한 가드 (products.list VIEW)
+                new EndpointCase("catalog realtime sse", "products.list", PermissionAction.VIEW, "SALES", 200,
+                        () -> get("/api/v1/products/catalog-realtime")
+                                .accept(MediaType.TEXT_EVENT_STREAM))
         );
     }
 

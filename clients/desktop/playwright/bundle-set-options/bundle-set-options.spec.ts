@@ -249,4 +249,70 @@ test.describe('PR-3b 세트(BUNDLE) 전개 옵션 picker', () => {
     await expect(page.getByTestId('bundle-options-0')).toBeVisible({ timeout: 5_000 })
     await expect(page.getByTestId('bundle-options-0-panel-360')).toBeVisible()
   })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 8: 세트 재고 가드 — BUNDLE 라인만 선택 후 재고조회 시 안내 표시
+  //   (§2-2 세트 재고 가드 — [F] 신규 회귀 가드. SlipFormPage openStockModal 흐름)
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 8: BUNDLE 라인만 선택 → 재고조회 → 세트 전용 안내 표시', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    // 라인 1: BUNDLE 세트 선택
+    await selectProduct(page, 1, 'SET', /SET-HM2WAY/)
+    await expect(productInput(page, 1)).toHaveValue('SET-HM2WAY')
+
+    // 라인 1 행 선택 체크박스 ON (selectedIds 에 추가 → selectedProductLines=1 BUNDLE)
+    await page.getByRole('checkbox', { name: '라인 1 선택' }).check()
+
+    // 재고조회 버튼 활성 + 클릭
+    const lookupBtn = page.getByTestId('slip-form-inventory-lookup-btn')
+    await expect(lookupBtn).toBeEnabled()
+    await lookupBtn.click()
+
+    // 모달 열림 + 세트 전용 안내(bundle-only-notice) 표시 단언
+    await expect(page.getByTestId('inventory-lookup-modal')).toBeVisible({ timeout: 5_000 })
+    const bundleNotice = page.getByTestId('inventory-lookup-bundle-only-notice')
+    await expect(bundleNotice).toBeVisible()
+    await expect(bundleNotice).toContainText('세트 품목은 재고를 표시하지 않습니다')
+
+    // 전부 BUNDLE 이므로 혼합 캡션은 미표시
+    await expect(page.getByTestId('inventory-lookup-mixed-bundle-notice')).toHaveCount(0)
+  })
+
+  // ──────────────────────────────────────────────────────────
+  // 시나리오 9: 혼합 선택 — BUNDLE+SINGLE 동시 선택 시 제외 세트 캡션 표시
+  //   excludedBundleCount 배선 검증 ([I] fix 연동 — [F] 신규 회귀 가드)
+  // ──────────────────────────────────────────────────────────
+  test('시나리오 9: BUNDLE+SINGLE 혼합 선택 → 재고조회 → 제외 세트 캡션 + 단품 매트릭스', async ({ page }) => {
+    await installAuthMock(page)
+    await gotoSlipNewPage(page)
+
+    // 라인 1: BUNDLE 세트
+    await selectProduct(page, 1, 'SET', /SET-HM2WAY/)
+    await expect(productInput(page, 1)).toHaveValue('SET-HM2WAY')
+
+    // 라인 2: SINGLE 품목
+    await page.getByRole('button', { name: '+ 라인 추가' }).click()
+    await selectProduct(page, 2, 'AJ040', /AJ040RXH4BC1/)
+    await expect(productInput(page, 2)).toHaveValue('AJ040RXH4BC1')
+
+    // 두 라인 모두 행 선택 (혼합 선택 → excludedBundleCount=1)
+    await page.getByRole('checkbox', { name: '라인 1 선택' }).check()
+    await page.getByRole('checkbox', { name: '라인 2 선택' }).check()
+
+    // 재고조회 클릭
+    const lookupBtn = page.getByTestId('slip-form-inventory-lookup-btn')
+    await expect(lookupBtn).toBeEnabled()
+    await lookupBtn.click()
+
+    // 모달 열림 + 혼합 제외 캡션 표시 단언 ([I] excludedBundleCount 배선)
+    await expect(page.getByTestId('inventory-lookup-modal')).toBeVisible({ timeout: 5_000 })
+    const mixedNotice = page.getByTestId('inventory-lookup-mixed-bundle-notice')
+    await expect(mixedNotice).toBeVisible()
+    await expect(mixedNotice).toContainText('세트 1건은 제외됨')
+
+    // 혼합이므로 세트 전용 안내(bundle-only)는 미표시 — 단품(AJ040) 은 매트릭스로 조회됨
+    await expect(page.getByTestId('inventory-lookup-bundle-only-notice')).toHaveCount(0)
+  })
 })

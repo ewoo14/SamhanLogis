@@ -238,6 +238,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   >([])
   /** 세트 전용 안내 스냅샷 (모달 열릴 때 확정) — §2-2 세트 재고 가드. */
   const [stockBundleOnlySnapshot, setStockBundleOnlySnapshot] = useState(false)
+  /** 혼합 선택 시 제외된 세트 건수 스냅샷 (모달 열릴 때 확정) — P2-3 혼합선택 무고지 방지. */
+  const [stockExcludedBundleSnapshot, setStockExcludedBundleSnapshot] = useState(0)
 
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
@@ -400,10 +402,18 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     selectedProductLines.length > 0 &&
     selectedProductLines.every((l) => l.productType === 'BUNDLE')
 
+  /** 선택 라인 중 세트(BUNDLE) 건수 — 혼합 선택 시 제외 고지에 사용 (P2-3). */
+  const selectedBundleCount = useMemo(
+    () => selectedProductLines.filter((l) => l.productType === 'BUNDLE').length,
+    [selectedProductLines],
+  )
+
   const openStockModal = () => {
     if (selectedProductLines.length === 0) return
     setStockSelectedSnapshot(nonBundleLookupLines)
     setStockBundleOnlySnapshot(allSelectedAreBundle)
+    // 전부 세트면 bundleOnlyLines 안내가 표시되므로 혼합 캡션은 0 으로 둔다.
+    setStockExcludedBundleSnapshot(allSelectedAreBundle ? 0 : selectedBundleCount)
     setStockModalOpen(true)
   }
 
@@ -898,6 +908,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         onClose={closeStockModal}
         lines={stockSelectedSnapshot}
         bundleOnlyLines={stockBundleOnlySnapshot}
+        excludedBundleCount={stockExcludedBundleSnapshot}
       />
     </div>
   )

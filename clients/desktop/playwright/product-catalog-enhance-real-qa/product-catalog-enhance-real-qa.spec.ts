@@ -200,25 +200,43 @@ test('T7: SSE 실시간 — A에서 토글 변경 후 B 화면 갱신 확인', a
   await pageB.goto(`${BASE_URL}/#/products/catalog`)
   await pageB.waitForSelector('[data-testid="product-catalog-table"]', { timeout: 30000 })
 
+  // PATCH 전 pageB 대상 행의 '주문 노출' 토글 상태 캡처 (BOTH 시작 → checked).
+  // usageScope BOTH→ESTIMATE 변경은 order 토글 checked=true→false 로 관찰됨.
+  const orderToggleB = pageB.locator(
+    '[data-testid="product-catalog-order-toggle-TEST-BUNDLE-SET-01"]',
+  )
+  await expect(orderToggleB).toHaveCount(1)
+  const orderCheckedBefore = await orderToggleB.isChecked()
   await screenshot(pageB, 'T7-B-before-toggle')
-  console.log('[T7] B 초기 상태 캡처')
+  console.log(`[T7] B 초기 상태 캡처 — 주문 노출 토글 checked=${orderCheckedBefore}`)
 
-  // A에서 API로 노출 토글 변경
-  await pageA.request.patch(
+  // A에서 API로 노출 토글 변경 (BOTH → ESTIMATE: 주문 노출 OFF)
+  const patchRes = await pageA.request.patch(
     `${API_BASE}/api/v1/products/TEST-BUNDLE-SET-01/usage`,
     {
       headers: { Authorization: `Bearer ${masterToken}`, 'Content-Type': 'application/json' },
       data: { usageScope: 'ESTIMATE', estimateCategory: 'HOME_MULTI' },
     },
   )
-  console.log('[T7] A에서 토글 변경 완료, B SSE 갱신 대기 5초...')
+  // (1) PATCH 응답이 성공이어야 한다 — 실패 시 테스트 실패.
+  expect(patchRes.ok(), `usage PATCH 실패: HTTP ${patchRes.status()}`).toBeTruthy()
+  console.log('[T7] A에서 토글 변경 완료(ESTIMATE), B SSE 갱신 능동 대기...')
 
-  // B 화면 SSE 자동 갱신 대기
-  await pageB.waitForTimeout(5000)
+  // (3) B 화면이 SSE 로 자동 갱신되어 주문 노출 토글이 변경될 때까지 능동 대기.
+  // waitForTimeout 고정 대기 대신 expect.poll 로 before≠after 단언 — SSE 회귀 시 실패.
+  await expect
+    .poll(async () => orderToggleB.isChecked(), {
+      timeout: 15000,
+      message: 'SSE 미수신 — pageB 주문 노출 토글이 PATCH 후에도 변경되지 않음',
+    })
+    .toBe(!orderCheckedBefore)
+
+  const orderCheckedAfter = await orderToggleB.isChecked()
+  expect(orderCheckedAfter, 'SSE 갱신 후 토글 상태가 변경되지 않음').not.toBe(orderCheckedBefore)
   await screenshot(pageB, 'T7-B-after-sse-update')
-  console.log('[T7] B 갱신 후 캡처')
+  console.log(`[T7] B 갱신 후 캡처 — 주문 노출 토글 checked=${orderCheckedAfter} (변경 확인)`)
 
-  // 원복
+  // 원복 (BOTH 복원)
   await pageA.request.patch(
     `${API_BASE}/api/v1/products/TEST-BUNDLE-SET-01/usage`,
     {
