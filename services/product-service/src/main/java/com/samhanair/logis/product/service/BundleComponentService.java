@@ -22,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -147,12 +148,22 @@ public class BundleComponentService {
     /**
      * BUNDLE 구성품 replace-all (§1c 2026-06-11).
      *
+     * <p><b>동일 BUNDLE 동시 편집 직렬화 (#2, PESSIMISTIC_WRITE)</b>:
+     * 부모 해소 직후 {@link ProductRepository#findByIdForUpdate}(PESSIMISTIC_WRITE) 로 부모
+     * BUNDLE 행을 재조회하여 동일 세트에 대한 동시 PUT 을 직렬화한다. 두 PUT 이 같은 부모의
+     * 구성품 집합을 동시에 replace-all 하면 부분 유니크 인덱스
+     * (bundle_product_id, component_product_code, is_deleted=false) 경합으로 유니크 500 또는
+     * 집합 병합 오염이 발생하므로, 한 트랜잭션이 먼저 부모 행을 잠가 순서화한다.
+     * {@link GlobalExceptionHandler} 의 {@code DataIntegrityViolation→409} 매핑(#1)이 보조 방어.
+     *
      * <p>검증 순서:
      * <ol>
      *   <li>대상 품목이 BUNDLE 아님 → 409 CONFLICT</li>
+     *   <li>부모 model_code 가 null(전개 불능 죽은 세트) → 409 CONFLICT (#7)</li>
      *   <li>빈 배열 → 400 BAD_REQUEST (전개 불능 세트 방지)</li>
      *   <li>자기 자신 modelCode 포함 → 400 BAD_REQUEST</li>
      *   <li>구성 모델코드가 활성 품목으로 해소 안 됨 → 400 BAD_REQUEST</li>
+     *   <li>구성품이 BUNDLE 타입(세트-안-세트) → 400 BAD_REQUEST (#3)</li>
      *   <li>중복 componentProductCode → 400 BAD_REQUEST (부분 유니크 인덱스 위반 사전 차단, P3-2)</li>
      * </ol>
      * 전건 검증 후 기존 구성품 전체 soft-delete → 신규 구성품 INSERT.
@@ -186,13 +197,28 @@ public class BundleComponentService {
     public List<BundleComponentResponse> replaceComponents(String modelCode,
                                                            List<BundleComponentRequest> requests,
                                                            String actor) {
-        Product parent = findProductByModelCodeOrThrow(modelCode);
+        Product resolved = findProductByModelCodeOrThrow(modelCode);
+
+        // #2 동시성 가드: 부모 해소 직후 id 로 PESSIMISTIC_WRITE 재조회하여 동일 세트
+        // replace-all 을 직렬화한다. 동시 PUT 이 같은 부모의 구성품 집합을 동시에 교체하면
+        // 부분 유니크 인덱스(bundle_product_id, component_product_code, is_deleted=false) 경합으로
+        // 유니크 500 또는 집합 병합 오염이 발생하므로, 먼저 부모 행을 잠가 순서화한다.
+        // (#1 의 DataIntegrityViolation→409 매핑이 보조 방어.)
+        Product parent = productRepository.findByIdForUpdate(resolved.getId())
+                .orElseThrow(() -> new EntityNotFoundException("품목을 찾을 수 없습니다: " + modelCode));
         String parentModelCode = parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName();
 
         // 검증 1: BUNDLE 아님 → 409 CONFLICT (D-PCE-01: ResponseStatusException → BusinessException)
         if (parent.getProductType() != ProductType.BUNDLE) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "품목 '" + modelCode + "' 은 BUNDLE 이 아닙니다. 구성품 편집 대상 아님.");
+        }
+
+        // #7 전개 불능 세트 가드: 부모 model_code 가 null 이면 expander 가 modelCode-only 로
+        // 부모를 해소하지 못해 영구 전개 불능(죽은 세트)이 된다. 구성품 편집을 사전 거부한다.
+        if (parent.getModelCode() == null) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "전개 불능 세트(모델코드 없음) — 구성품 편집 불가: " + modelCode);
         }
 
         // 검증 2: 빈 배열 → 400 INVALID_INPUT
@@ -219,11 +245,14 @@ public class BundleComponentService {
             // A fix: 전개(expander) 해소 기준과 동일하게 modelCode-only 검증.
             // model_name fallback 을 쓰면 전개 시 못 찾는 레거시 행이 PUT 200 으로 통과해
             // 전표/견적 전개에서 단가 0·productId null silent 방출 → 금액 오류.
-            boolean resolved = productRepository
-                    .findByModelCodeAndIsDeletedFalse(req.componentProductCode())
-                    .isPresent();
-            if (!resolved) {
+            // #3: 이미 조회한 Product 를 받아 BUNDLE 타입이면 세트-안-세트 거부(추가 쿼리 0).
+            Optional<Product> componentOpt = productRepository
+                    .findByModelCodeAndIsDeletedFalse(req.componentProductCode());
+            if (componentOpt.isEmpty()) {
                 unresolvedCodes.add(req.componentProductCode());
+            } else if (componentOpt.get().getProductType() == ProductType.BUNDLE) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "세트 품목은 구성품으로 등록할 수 없습니다: " + req.componentProductCode());
             }
         }
         if (!duplicateCodes.isEmpty()) {
@@ -352,13 +381,39 @@ public class BundleComponentService {
                     "표시 순서 갱신에 중복 modelCode 가 있습니다: " + duplicateModelCodes);
         }
 
-        // 전건 검증 — 미존재 코드가 있으면 즉시 404
+        // 전건 검증 — 미존재 코드가 있으면 즉시 404.
+        // #5 N+1 제거: 항목별 findByCatalogExposedModelCodeAndIsDeletedFalse(최대 2쿼리/항목) 루프를
+        // 벌크화한다. 1차 modelCode IN 1쿼리 + 미해소분 modelName IN 1쿼리로 Map 을 구성하고,
+        // 요청 순서(인덱스)를 보존하며 매칭한다(원자 적용이 requests[i]↔products[i] 정합에 의존).
+        List<String> requestedCodes = requests.stream()
+                .map(DisplayOrderRequest::modelCode)
+                .toList();
+
+        Map<String, Product> byModelCode = new HashMap<>();
+        productRepository.findByModelCodeInAndIsDeletedFalse(requestedCodes)
+                .forEach(p -> byModelCode.putIfAbsent(p.getModelCode(), p));
+
+        // 1차(modelCode) 미해소 식별자 → modelName IN 2차 조회 (catalog fallback 벌크화)
+        List<String> unresolvedForName = requestedCodes.stream()
+                .filter(code -> !byModelCode.containsKey(code))
+                .distinct()
+                .toList();
+        Map<String, Product> byModelName = new HashMap<>();
+        if (!unresolvedForName.isEmpty()) {
+            productRepository.findByModelNameInAndIsDeletedFalse(unresolvedForName)
+                    .forEach(p -> byModelName.putIfAbsent(p.getModelName(), p));
+        }
+
+        // 요청 순서 보존 매칭 — 미존재 시 기존과 동일하게 404(EntityNotFoundException)
         List<Product> products = new ArrayList<>(requests.size());
         for (DisplayOrderRequest req : requests) {
-            Product p = productRepository
-                    .findByCatalogExposedModelCodeAndIsDeletedFalse(req.modelCode())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "품목을 찾을 수 없습니다: " + req.modelCode()));
+            Product p = byModelCode.get(req.modelCode());
+            if (p == null) {
+                p = byModelName.get(req.modelCode());
+            }
+            if (p == null) {
+                throw new EntityNotFoundException("품목을 찾을 수 없습니다: " + req.modelCode());
+            }
             products.add(p);
         }
 

@@ -1167,8 +1167,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (denied) return denied
     const body = parseMockBody(config)
     const orders = Array.isArray(body) ? (body as Array<{ modelCode?: unknown; displayOrder?: unknown }>) : []
+    // [#20] BE updateDisplayOrders 동형 — 빈 배열은 no-op 으로 204 성공(기존: 400 BAD_REQUEST 오정).
+    //   BE: `if (requests == null || requests.isEmpty()) return;` → 컨트롤러 204 No Content.
     if (orders.length === 0) {
-      return mockError(400, 'BAD_REQUEST', '표시 순서 목록이 비어 있습니다.')
+      return { updated: true }
+    }
+    // [#10] BE updateDisplayOrders H fix 동형 — 요청 내 중복 modelCode → 400 INVALID_INPUT.
+    //   같은 modelCode 가 두 번 들어오면 마지막 값으로 덮어써 의도와 다른 순서가 저장된다.
+    const seenModelCodes = new Set<string>()
+    for (const o of orders as Array<{ modelCode?: unknown }>) {
+      const code = String(o.modelCode ?? '')
+      if (seenModelCodes.has(code)) {
+        return mockError(400, 'INVALID_INPUT', `표시 순서 갱신에 중복 modelCode 가 있습니다: ${code}`)
+      }
+      seenModelCodes.add(code)
     }
     // 미존재 modelCode 404 전건 롤백 (BE BundleComponentService.updateDisplayOrders 동형)
     // 하나라도 카탈로그에 없으면 EntityNotFoundException→404, 부분 적용 없음.
@@ -1245,15 +1257,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       if (components.length === 0) {
         return mockError(400, 'BAD_REQUEST', '구성품 목록이 비어 있습니다.')
       }
-      // 구성 모델코드 존재 확인 (활성 품목 검증 동형)
+      // [#10] BE BundleComponentService.replaceComponents 동형 검증 — 존재/자기참조 + 중복코드 + 수량범위.
+      //   (1) 미존재/자기참조: 기존 유지.
+      //   (2) 요청 내 중복 componentProductCode → 400 INVALID_INPUT (부분 유니크 인덱스 사전 차단).
+      //   (3) defaultQty 범위 0.01~999.99 (BE @DecimalMin/@DecimalMax NUMERIC(5,2)) 위반 → 400.
+      const seenCompCodes = new Set<string>()
       for (const comp of components) {
         const compCode = String(comp.componentProductCode ?? '')
         const compRow = MOCK_PRODUCT_CATALOG_ROWS.find((r) => r.modelCode === compCode)
         if (!compRow) {
-          return mockError(400, 'BAD_REQUEST', `구성 품목 '${compCode}'을(를) 찾을 수 없습니다.`)
+          return mockError(400, 'INVALID_INPUT', `구성 품목 '${compCode}'을(를) 찾을 수 없습니다.`)
         }
         if (compCode === modelCode) {
-          return mockError(400, 'BAD_REQUEST', '세트 품목 자신을 구성품으로 포함할 수 없습니다.')
+          return mockError(400, 'INVALID_INPUT', '세트 품목 자신을 구성품으로 포함할 수 없습니다.')
+        }
+        if (seenCompCodes.has(compCode)) {
+          return mockError(400, 'INVALID_INPUT', `구성품에 중복 모델코드가 있습니다: ${compCode}`)
+        }
+        seenCompCodes.add(compCode)
+        const qty = Number(comp.defaultQty ?? 1)
+        if (!isFinite(qty) || qty < 0.01 || qty > 999.99) {
+          return mockError(400, 'INVALID_INPUT', '구성품 수량은 0.01~999.99 범위여야 합니다.')
         }
       }
       // BE BundleComponentResponse 1:1 동형 변환
@@ -1471,14 +1495,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       && (!usageScope || matchesUsageScope(row.usageScope, usageScope))
       && (!category || row.estimateCategory === category),
     )
+    // [#9] BE 정렬 동형 — displayOrder asc(null=맨뒤), 동률 시 modelCode 사전순.
+    //   순서 저장(PUT /display-orders) 후 displayOrder 가 갱신되면 재조회 시 그 순서로 보여야
+    //   가시 반영이 일치한다(기존: 시드 순서 전량 반환 → 영구 불일치).
+    filtered.sort(
+      (a, b) =>
+        (a.displayOrder ?? Infinity) - (b.displayOrder ?? Infinity)
+        || a.modelCode.localeCompare(b.modelCode),
+    )
+    // [#9] BE 페이지 슬라이싱 동형 — page/size slice + totalPages 계산(기존: 전량+totalPages=1).
+    const page = Number(config.params?.['page'] ?? urlObj.searchParams.get('page') ?? 0)
+    const size = Number(config.params?.['size'] ?? urlObj.searchParams.get('size') ?? 50)
+    const totalElements = filtered.length
+    const totalPages = size > 0 ? Math.max(1, Math.ceil(totalElements / size)) : 1
+    const start = page * size
+    const content = filtered.slice(start, start + size)
     return {
-      content: filtered,
-      totalElements: filtered.length,
-      totalPages: 1,
-      number: Number(config.params?.['page'] ?? urlObj.searchParams.get('page') ?? 0),
-      size: Number(config.params?.['size'] ?? urlObj.searchParams.get('size') ?? 50),
-      first: true,
-      last: true,
+      content,
+      totalElements,
+      totalPages,
+      number: page,
+      size,
+      first: page === 0,
+      last: page >= totalPages - 1,
     }
   }
 

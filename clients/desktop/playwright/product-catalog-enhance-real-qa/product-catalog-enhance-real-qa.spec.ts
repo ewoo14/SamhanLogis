@@ -10,7 +10,7 @@
  *   cd C:\dev\Samhan-Public\clients\desktop
  *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts playwright/product-catalog-enhance-real-qa --reporter=line --timeout=60000
  */
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, request, type Page } from '@playwright/test'
 import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -76,10 +76,112 @@ async function loginAndInstallStub(
 }
 
 // ---------------------------------------------------------------------------
+// [#22] 전제 데이터 셋업 — TEST-BUNDLE-SET-01 BUNDLE + 구성품.
+//   신선 Docker 스택에서 T1/T7 재현 가능하도록 beforeAll 에서 idempotent 셋업.
+//   - dev_master 토큰으로 GET /api/v1/products?q=TEST-BUNDLE-SET-01 조회.
+//   - 존재 + BUNDLE 이면: usage 를 BOTH/HOME_MULTI 로 정규화 + 구성품 PUT(known set) 으로 갱신(idempotent).
+//   - 존재하지 않거나 BUNDLE 이 아니면: BUNDLE 타입은 시트 sync 경로로만 생성되고 공개 REST
+//     create 엔드포인트(CreateProductRequest)에 productType 필드가 없어 위조 생성 불가 →
+//     T1/T7 을 skip 처리(no-fake-data: 가짜 BUNDLE 날조 금지, 정직 보고).
+//   구성품 셋업이 성공하면 setupReady=true → T1/T7 진행.
+// ---------------------------------------------------------------------------
+
+const SETUP_BUNDLE_CODE = 'TEST-BUNDLE-SET-01'
+let setupReady = false
+let setupSkipReason = ''
+
+test.beforeAll(async () => {
+  const ctx = await request.newContext()
+  try {
+    const loginRes = await ctx.post(`${API_BASE}/auth/login`, {
+      data: { loginId: 'dev_master', password: 'dev_p05_pass!' },
+    })
+    if (!loginRes.ok()) {
+      setupSkipReason = `로그인 실패: HTTP ${loginRes.status()} (Docker 스택 미기동?)`
+      return
+    }
+    const token: string = (await loginRes.json()).data?.token ?? ''
+    const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+
+    // 1. TEST-BUNDLE-SET-01 존재 + BUNDLE 여부 확인
+    const listRes = await ctx.get(`${API_BASE}/api/v1/products`, {
+      headers: authHeaders,
+      params: { q: SETUP_BUNDLE_CODE, size: '20' },
+    })
+    if (!listRes.ok()) {
+      setupSkipReason = `품목 조회 실패: HTTP ${listRes.status()}`
+      return
+    }
+    const content: Array<{ modelCode: string; productType?: string }> =
+      (await listRes.json()).content ?? []
+    const target = content.find((r) => r.modelCode === SETUP_BUNDLE_CODE)
+    if (!target) {
+      setupSkipReason =
+        `${SETUP_BUNDLE_CODE} 미존재 — BUNDLE 은 시트 sync 로만 생성되며 REST 위조 불가(seed 필요)`
+      return
+    }
+    if (target.productType !== 'BUNDLE') {
+      setupSkipReason =
+        `${SETUP_BUNDLE_CODE} 가 BUNDLE 이 아님(productType=${target.productType}) — seed 필요`
+      return
+    }
+
+    // 2. usage 정규화 — BOTH/HOME_MULTI (T7 가 BOTH→ESTIMATE 토글을 관찰)
+    const usageRes = await ctx.patch(`${API_BASE}/api/v1/products/${SETUP_BUNDLE_CODE}/usage`, {
+      headers: authHeaders,
+      data: { usageScope: 'BOTH', estimateCategory: 'HOME_MULTI' },
+    })
+    if (!usageRes.ok()) {
+      setupSkipReason = `usage 정규화 실패: HTTP ${usageRes.status()}`
+      return
+    }
+
+    // 3. 구성품 known set PUT — 활성 단품을 동적으로 골라 구성(시드 모델코드 하드코딩 회피).
+    //    카탈로그에서 BUNDLE 이 아닌 활성 품목 2건을 선택해 구성품으로 등록(idempotent replace-all).
+    const singlesRes = await ctx.get(`${API_BASE}/api/v1/products`, {
+      headers: authHeaders,
+      params: { usageScope: 'BOTH', size: '50' },
+    })
+    const singles: Array<{ modelCode: string; productType?: string }> =
+      (singlesRes.ok() ? (await singlesRes.json()).content : []) ?? []
+    const componentCodes = singles
+      .filter((r) => r.productType !== 'BUNDLE' && r.modelCode !== SETUP_BUNDLE_CODE)
+      .slice(0, 2)
+      .map((r) => r.modelCode)
+    if (componentCodes.length === 0) {
+      setupSkipReason = '구성품으로 쓸 활성 단품이 없어 구성품 셋업 불가'
+      return
+    }
+    const compBody = componentCodes.map((code, idx) => ({
+      componentProductCode: code,
+      defaultQty: idx + 1,
+      qtyMode: 'FOLLOW_SET',
+      isDefault: idx === 0,
+    }))
+    const compRes = await ctx.put(`${API_BASE}/api/v1/products/${SETUP_BUNDLE_CODE}/components`, {
+      headers: authHeaders,
+      data: compBody,
+    })
+    if (!compRes.ok()) {
+      setupSkipReason = `구성품 PUT 실패: HTTP ${compRes.status()}`
+      return
+    }
+
+    setupReady = true
+  } catch (err) {
+    setupSkipReason = `셋업 예외: ${(err as Error).message}`
+  } finally {
+    await ctx.dispose()
+  }
+})
+
+// ---------------------------------------------------------------------------
 // T1: 세트 컬럼 + 구성품 수 실 캡처
 // ---------------------------------------------------------------------------
 
 test('T1: 품목관리 — BUNDLE 세트 뱃지 + 구성품 수 + 조회 전용 배너', async ({ page }) => {
+  // [#22] 전제 데이터(TEST-BUNDLE-SET-01) 셋업 실패 시 정직하게 skip (가짜 통과 금지).
+  test.skip(!setupReady, `전제 데이터 셋업 미완료: ${setupSkipReason}`)
   await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
 
   await page.goto(`${BASE_URL}/#/products/catalog`)
@@ -137,16 +239,35 @@ test('T5: warehouse 역할 — 품목관리 접근 결과 캡처', async ({ page
   await screenshot(page, 'T5-warehouse-access-result')
   console.log(`[T5] URL: ${url}`)
 
+  // [#17] vacuous(단언 0) 제거 — 양 분기 모두 강제 단언.
+  //   warehouse 역할(products.admin UPDATE 없음)은 둘 중 하나여야 한다:
+  //   (A) products.list VIEW 도 없으면 → 로그인/forbidden 으로 redirect.
+  //   (B) products.list VIEW 만 있으면 → 접근 가능 + 조회 전용 배너 + 첫 토글 disabled.
   if (url.includes('login') || url.includes('forbidden')) {
+    // (A) redirect 분기 — URL 이 실제로 차단 경로여야 한다.
+    expect(url).toMatch(/login|forbidden/)
     console.log('[T5] PASS: warehouse 역할 → 품목관리 접근 거부 (redirect)')
   } else {
-    // 조회 전용 배너가 있는지 확인
+    // (B) 접근 가능 분기 — 조회 전용 배너 + 첫 토글 비활성을 강제 단언.
     const readOnlyBanner = page.locator('[data-testid="product-catalog-readonly-banner"]')
-    if (await readOnlyBanner.isVisible()) {
-      console.log('[T5] PASS: 조회 전용 배너 표시')
-    } else {
-      console.log('[T5] INFO: warehouse 역할로 품목관리 접근 가능 (토글 비활성 확인 필요)')
-    }
+    await expect(
+      readOnlyBanner,
+      'warehouse 접근 가능 시 조회 전용 배너가 보여야 함',
+    ).toBeVisible({ timeout: 10000 })
+
+    // 테이블 로드 대기 후 첫 토글 비활성 단언 (편집 권한 차단 가시 확인)
+    await page.waitForSelector('[data-testid="product-catalog-table"]', { timeout: 30000 })
+    const firstEstimateToggle = page
+      .locator('[data-testid^="product-catalog-estimate-toggle-"]')
+      .first()
+    await expect(firstEstimateToggle).toBeVisible({ timeout: 10000 })
+    await expect(
+      firstEstimateToggle,
+      'warehouse 조회 전용 — 견적 노출 토글이 비활성이어야 함',
+    ).toBeDisabled()
+
+    await screenshot(page, 'T5-warehouse-readonly-view')
+    console.log('[T5] PASS: 조회 전용 배너 + 첫 토글 비활성 단언 통과')
   }
 })
 
@@ -155,6 +276,8 @@ test('T5: warehouse 역할 — 품목관리 접근 결과 캡처', async ({ page
 // ---------------------------------------------------------------------------
 
 test('T7: SSE 실시간 — A에서 토글 변경 후 B 화면 갱신 확인', async ({ browser }) => {
+  // [#22] 전제 데이터(TEST-BUNDLE-SET-01) 셋업 실패 시 정직하게 skip (가짜 통과 금지).
+  test.skip(!setupReady, `전제 데이터 셋업 미완료: ${setupSkipReason}`)
   // 실서버 토큰 직접 취득
   const loginCtx = await browser.newContext()
   const tmpPage = await loginCtx.newPage()

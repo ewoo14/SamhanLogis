@@ -101,6 +101,12 @@ class BundleComponentServiceTest {
                 ProductType.SINGLE, null, UsageScope.NONE, null);
         componentId = UUID.randomUUID();
         ReflectionTestUtils.setField(componentProduct, "id", componentId);
+
+        // #2 동시성 가드: replaceComponents 가 부모 해소 직후 findByIdForUpdate(PESSIMISTIC_WRITE)
+        // 로 부모를 재조회한다. bundleProduct 를 부모로 쓰는 케이스가 대부분이므로 lenient 공통 stub.
+        // (BUNDLE_아님_409 등 다른 부모를 쓰는 케이스는 각 테스트에서 별도 stub.)
+        lenient().when(productRepository.findByIdForUpdate(bundleId))
+                .thenReturn(Optional.of(bundleProduct));
     }
 
     @AfterEach
@@ -200,9 +206,13 @@ class BundleComponentServiceTest {
                 "단품", "SINGLE-001", null,
                 BigDecimal.valueOf(100_000), BigDecimal.valueOf(80_000),
                 ProductType.SINGLE, null, UsageScope.NONE, null);
-        ReflectionTestUtils.setField(singleProduct, "id", UUID.randomUUID());
+        UUID singleId = UUID.randomUUID();
+        ReflectionTestUtils.setField(singleProduct, "id", singleId);
 
         when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("SINGLE-001"))
+                .thenReturn(Optional.of(singleProduct));
+        // #2: 부모 해소 직후 PESSIMISTIC_WRITE 재조회 — 비-BUNDLE 부모도 잠금 후 409 판정.
+        when(productRepository.findByIdForUpdate(singleId))
                 .thenReturn(Optional.of(singleProduct));
 
         BundleComponentRequest req = new BundleComponentRequest(
@@ -254,6 +264,37 @@ class BundleComponentServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    /**
+     * #3 (2026-06-11): 구성품이 BUNDLE 타입(세트-안-세트) → 400 INVALID_INPUT.
+     *
+     * <p>해소 검증 루프에서 이미 조회한 Product 의 productType==BUNDLE 이면 거부한다(추가 쿼리 0).
+     * 세트가 다른 세트의 구성품이 되면 전개가 재귀/순환될 수 있어 사전 차단한다.
+     */
+    @Test
+    void replaceComponents_구성품이_BUNDLE_타입이면_400_세트안세트_거부() {
+        // 구성품 후보가 BUNDLE 인 품목
+        Product bundleComponentCandidate = Product.seedFromSheet(
+                "세트 구성후보", "INNER-BUNDLE-001", null,
+                BigDecimal.valueOf(500_000), BigDecimal.valueOf(400_000),
+                ProductType.SINGLE, null, UsageScope.BOTH, null);
+        ReflectionTestUtils.setField(bundleComponentCandidate, "id", UUID.randomUUID());
+        bundleComponentCandidate.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("TEST-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleProduct));
+        when(productRepository.findByModelCodeAndIsDeletedFalse("INNER-BUNDLE-001"))
+                .thenReturn(Optional.of(bundleComponentCandidate));
+
+        BundleComponentRequest req = new BundleComponentRequest(
+                "INNER-BUNDLE-001", BigDecimal.ONE, null, null, null, true, null);
+
+        assertThatThrownBy(() -> service.replaceComponents("TEST-BUNDLE-001", List.of(req), "system"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT))
+                .hasMessageContaining("INNER-BUNDLE-001");
     }
 
     @Test
@@ -473,8 +514,11 @@ class BundleComponentServiceTest {
 
     @Test
     void updateDisplayOrders_미존재_modelCode_404() {
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("NO-CODE"))
-                .thenReturn(Optional.empty());
+        // #5 벌크 해소: modelCode IN / modelName IN 모두 빈 결과 → 404
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of());
+        when(productRepository.findByModelNameInAndIsDeletedFalse(any()))
+                .thenReturn(List.of());
 
         DisplayOrderRequest req = new DisplayOrderRequest("NO-CODE", 1);
 
@@ -491,10 +535,8 @@ class BundleComponentServiceTest {
                 BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE, null, UsageScope.NONE, null);
         ReflectionTestUtils.setField(p2, "id", UUID.randomUUID());
 
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-001"))
-                .thenReturn(Optional.of(p1));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-002"))
-                .thenReturn(Optional.of(p2));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(p1, p2));
         lenient().when(productRepository.save(any(Product.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -548,10 +590,8 @@ class BundleComponentServiceTest {
                 ProductCategory.SINGLE_SET, UsageScope.ESTIMATE, EstimateCategory.SINGLE_SET);
         ReflectionTestUtils.setField(catB, "id", UUID.randomUUID());
 
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-A"))
-                .thenReturn(Optional.of(catA));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-B"))
-                .thenReturn(Optional.of(catB));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(catA, catB));
 
         assertThatThrownBy(() -> service.updateDisplayOrders(List.of(
                 new DisplayOrderRequest("PROD-A", 1),
@@ -579,10 +619,8 @@ class BundleComponentServiceTest {
                 ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI);
         ReflectionTestUtils.setField(nonNullCat, "id", UUID.randomUUID());
 
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-NULL"))
-                .thenReturn(Optional.of(nullCat));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-HM"))
-                .thenReturn(Optional.of(nonNullCat));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(nullCat, nonNullCat));
 
         assertThatThrownBy(() -> service.updateDisplayOrders(List.of(
                 new DisplayOrderRequest("PROD-NULL", 1),
@@ -607,10 +645,8 @@ class BundleComponentServiceTest {
                 ProductCategory.HOME_MULTI, UsageScope.ESTIMATE, EstimateCategory.HOME_MULTI);
         ReflectionTestUtils.setField(p2, "id", UUID.randomUUID());
 
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("HM-001"))
-                .thenReturn(Optional.of(p1));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("HM-002"))
-                .thenReturn(Optional.of(p2));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(p1, p2));
         lenient().when(productRepository.save(any(Product.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -638,10 +674,8 @@ class BundleComponentServiceTest {
                 null, UsageScope.NONE, null);
         ReflectionTestUtils.setField(p2, "id", UUID.randomUUID());
 
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("NC-001"))
-                .thenReturn(Optional.of(p1));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("NC-002"))
-                .thenReturn(Optional.of(p2));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(p1, p2));
         lenient().when(productRepository.save(any(Product.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
@@ -675,10 +709,8 @@ class BundleComponentServiceTest {
                 ProductCategory.SINGLE_SET, UsageScope.ESTIMATE, EstimateCategory.SINGLE_SET);
         ReflectionTestUtils.setField(catB, "id", UUID.randomUUID());
 
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-A"))
-                .thenReturn(Optional.of(catA));
-        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("PROD-B"))
-                .thenReturn(Optional.of(catB));
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(any()))
+                .thenReturn(List.of(catA, catB));
 
         assertThatThrownBy(() -> service.updateDisplayOrders(List.of(
                 new DisplayOrderRequest("PROD-A", 1),

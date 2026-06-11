@@ -682,6 +682,81 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$[1].defaultQty").value(3.0));
     }
 
+    /**
+     * (g) #1 박제: PUT components 요소 제약(@DecimalMax 999.99) 위반 → 400 (500 아님).
+     *
+     * <p>클래스 레벨 {@code @Validated} + {@code @Valid @RequestBody List<DTO>} 라서 요소의
+     * {@code @DecimalMax("999.99")} 위반은 {@code jakarta.validation.ConstraintViolationException}
+     * 으로 throw 된다. GlobalExceptionHandler 에 핸들러가 없으면 catch-all 500 으로 위장되므로
+     * 400 단언으로 K-fix 완결을 박제한다(defaultQty=1000.00 → NUMERIC(5,2) 상한 초과).
+     */
+    @Test
+    void PUT_components_defaultQty_상한초과_400() throws Exception {
+        seedBundleParent("BNDL_MAXQTY_01");
+        seedComponentProduct("MAXQTY_IDU_01", "실내기 MAXQTY");
+        productRepository.flush();
+
+        mvc.perform(put("/api/v1/products/BNDL_MAXQTY_01/components")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"componentProductCode":"MAXQTY_IDU_01","defaultQty":1000.00,"qtyMode":"FOLLOW_SET",
+                                  "componentKind":"INDOOR","isDefault":true}]
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * (h) #18 PUT /display-orders happy-path: 동일 estimateCategory 2건 → 204 →
+     * display_order DB 반영 단언 + GET /api/v1/products 순서 역전 단언.
+     *
+     * <p>m1(처음 displayOrder=10), m2(처음 displayOrder=20) 을 시드한 뒤
+     * PUT [{m1,2},{m2,1}] 로 순서를 역전시키고, DB display_order 값과 목록 순서(m2 먼저)를 단언한다.
+     */
+    @Test
+    void PUT_display_orders_정상경로_204_DB반영_및_목록순서_역전() throws Exception {
+        Category cat = categoryRepository.save(Category.create("CAT-DOHP", "display-order happy", null, 22));
+        Product m1 = Product.seedFromSheet("표시순서 M1", "DOHP_M1", cat,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI);
+        m1.changeDisplayOrder(10);
+        Product m2 = Product.seedFromSheet("표시순서 M2", "DOHP_M2", cat,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI);
+        m2.changeDisplayOrder(20);
+        productRepository.save(m1);
+        productRepository.save(m2);
+        productRepository.flush();
+
+        // PUT 순서 역전: m1→2, m2→1 (이제 m2 가 앞)
+        mvc.perform(put("/api/v1/products/display-orders")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [
+                                  {"modelCode":"DOHP_M1","displayOrder":2},
+                                  {"modelCode":"DOHP_M2","displayOrder":1}
+                                ]
+                                """))
+                .andExpect(status().isNoContent());
+
+        // DB display_order 값 단언
+        productRepository.flush();
+        var m1After = productRepository.findByModelCodeAndIsDeletedFalse("DOHP_M1");
+        var m2After = productRepository.findByModelCodeAndIsDeletedFalse("DOHP_M2");
+        org.assertj.core.api.Assertions.assertThat(m1After).isPresent();
+        org.assertj.core.api.Assertions.assertThat(m2After).isPresent();
+        org.assertj.core.api.Assertions.assertThat(m1After.get().getDisplayOrder()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(m2After.get().getDisplayOrder()).isEqualTo(1);
+
+        // GET /api/v1/products 순서 역전 단언 — q=DOHP_ 로 좁혀 결정적 검증 (m2 먼저, m1 나중)
+        mvc.perform(get("/api/v1/products?q=DOHP_")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].modelCode").value("DOHP_M2"))
+                .andExpect(jsonPath("$.content[1].modelCode").value("DOHP_M1"));
+    }
+
     // ── 시드 헬퍼 ───────────────────────────────────────────────────────────
 
     /** 부모 BUNDLE(EXPAND) 품목 1건 저장 (구성품 없음). category=HOME_MULTI, usage=BOTH. */
@@ -703,23 +778,35 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
         return productRepository.save(comp);
     }
 
-    /** 부모 BUNDLE + 구성품 2건(displayOrder 1,2) 직접 INSERT 시드. */
+    /**
+     * 부모 BUNDLE + 구성품 2건(displayOrder 1,2) 직접 INSERT 시드.
+     *
+     * <p>#19 판별성 강화: 삽입 순서를 displayOrder 와 <b>역순</b>으로 한다 —
+     * ODU(displayOrder=2) 를 먼저 save 하고 IDU(displayOrder=1) 를 나중에 save.
+     * 이렇게 하면 GET 의 {@code ORDER BY display_order} 가 누락될 경우 결과 [0] 이
+     * 삽입 순서대로 ODU 가 되어 {@code GET[0]=IDU(displayOrder 1)} 단언이 즉시 실패한다
+     * (삽입순=displayOrder 였던 기존 시드는 ORDER BY 부재를 검출하지 못했음).
+     */
     private void seedBundleWithComponents(String parentCode, String idu, String odu) {
         Product parent = seedBundleParent(parentCode);
         seedComponentProduct(idu, "실내기 " + idu);
         seedComponentProduct(odu, "실외기 " + odu);
         productRepository.flush();
 
-        BundleComponent c1 = BundleComponent.seed(parent.getId(), idu,
-                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
-                BundleComponent.ComponentKind.INDOOR, null, true, "규격I");
-        c1.changeDisplayOrder(1);
+        // ODU 를 먼저 save 하되 displayOrder=2 (삽입순 != 표시순서)
         BundleComponent c2 = BundleComponent.seed(parent.getId(), odu,
                 BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
                 BundleComponent.ComponentKind.OUTDOOR, null, true, "규격O");
         c2.changeDisplayOrder(2);
-        bundleComponentRepository.save(c1);
         bundleComponentRepository.save(c2);
+        bundleComponentRepository.flush();
+
+        // IDU 를 나중에 save 하되 displayOrder=1 → ORDER BY 부재 시 GET[0]=ODU 로 단언 실패
+        BundleComponent c1 = BundleComponent.seed(parent.getId(), idu,
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, "규격I");
+        c1.changeDisplayOrder(1);
+        bundleComponentRepository.save(c1);
         bundleComponentRepository.flush();
     }
 

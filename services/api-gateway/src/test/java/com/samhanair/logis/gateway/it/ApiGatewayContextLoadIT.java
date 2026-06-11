@@ -70,12 +70,14 @@ class ApiGatewayContextLoadIT {
      *   <li>{@code product-catalog-realtime-v1} → {@code /api/v1/products/catalog-realtime} (목록 SSE 구독)</li>
      * </ul>
      *
-     * <p>단언 3축:
+     * <p>단언 4축:
      * <ol>
      *   <li><b>존재 + Path predicate</b> — 각 id 가 선언돼 있고 기대 Path 패턴을 정확히 보유.</li>
      *   <li><b>no-strip</b> — 세 라우트 모두 {@code StripPrefix} 필터 미보유(strip 시 컨트롤러 매핑 불일치 → 404).</li>
      *   <li><b>선언 순서</b> — 세 라우트 모두 generic {@code product-service-v1}(StripPrefix=2) 보다 먼저 선언
      *       (Spring Cloud Gateway 는 선언 순서 = 매칭 우선순위 — generic 이 먼저면 strip 라우트가 가로채 깨짐).</li>
+     *   <li><b>JwtAuthentication 필터 보유</b> (#24) — 세 라우트 모두 {@code JwtAuthentication} 필터 보유.
+     *       필터 누락 = 인증 우회 회귀(무인증 노출)이므로 계약으로 박제한다.</li>
      * </ol>
      *
      * <p>리액티브 {@link RouteDefinitionLocator} 의 {@code Flux} 는 {@code .collectList().block()} 으로
@@ -115,6 +117,11 @@ class ApiGatewayContextLoadIT {
                     .isGreaterThanOrEqualTo(0)
                     .isLessThan(genericIndex);
         }
+
+        // (4) #24 JwtAuthentication 필터 보유 — 필터 제거 = 인증 우회 회귀 가드.
+        assertHasJwtAuthenticationFilter(routes, "product-components-v1");
+        assertHasJwtAuthenticationFilter(routes, "product-display-orders-v1");
+        assertHasJwtAuthenticationFilter(routes, "product-catalog-realtime-v1");
     }
 
     /** 주어진 id 의 라우트가 존재하고 단일 Path predicate 가 기대 패턴과 정확히 일치하는지 단언. */
@@ -139,6 +146,15 @@ class ApiGatewayContextLoadIT {
                 .as("%s 는 no-strip 이어야 한다 — StripPrefix 필터 미보유", id)
                 .extracting(FilterDefinition::getName)
                 .doesNotContain("StripPrefix");
+    }
+
+    /** 주어진 id 의 라우트가 {@code JwtAuthentication} 필터를 보유하는지(#24 인증 우회 회귀 가드) 단언. */
+    private static void assertHasJwtAuthenticationFilter(List<RouteDefinition> routes, String id) {
+        RouteDefinition route = findRoute(routes, id);
+        assertThat(route.getFilters())
+                .as("%s 는 JwtAuthentication 필터를 보유해야 한다 — 누락 시 인증 우회 회귀", id)
+                .extracting(FilterDefinition::getName)
+                .contains("JwtAuthentication");
     }
 
     /** 선언 라우트 목록에서 id 의 인덱스(선언 순서). 미존재 시 -1. */

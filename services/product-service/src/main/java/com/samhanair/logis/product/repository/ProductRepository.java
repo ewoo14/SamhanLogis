@@ -6,6 +6,7 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
+import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +14,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -127,8 +129,35 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByModelCodeAndIsDeletedFalse(String modelCode);
 
+    /**
+     * 구성품 replace-all 직렬화용 PESSIMISTIC_WRITE 잠금 단건 조회 (#2 동시성 가드).
+     *
+     * <p>{@code BundleComponentService.replaceComponents} 시작부에서 부모 BUNDLE 을
+     * {@code id} 로 재조회하여 동일 세트에 대한 동시 PUT 을 행 잠금으로 직렬화한다.
+     * 동시 PUT 이 같은 부모의 구성품 집합을 동시에 replace-all 하면 부분 유니크 인덱스
+     * (bundle_product_id, component_product_code, is_deleted=false) 경합으로 유니크 500 또는
+     * 집합 병합 오염이 발생하므로, 한 트랜잭션이 먼저 부모 행을 잠가 순서화한다.
+     * {@link com.samhanair.logis.product.editrequest.repository.ProductEditRequestRepository#findByIdForDecision}
+     * 선례와 동일 패턴.
+     *
+     * @param id 부모 Product.id
+     * @return 잠금 획득한 Product Optional (soft-delete 행은 {@code @SQLRestriction} 으로 제외)
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Product p WHERE p.id = :id")
+    Optional<Product> findByIdForUpdate(@Param("id") UUID id);
+
     /** #30 — estimate 카탈로그 벌크: 구성품 modelCode 묶음 조회. */
     List<Product> findByModelCodeInAndIsDeletedFalse(java.util.Collection<String> modelCodes);
+
+    /**
+     * modelName 묶음 조회 (#5 display-orders 벌크 해소 2차).
+     *
+     * <p>{@code model_code} 1차 IN 조회에서 미해소된 식별자를 {@code model_name} 으로
+     * 일괄 재조회한다 — {@link #findByCatalogExposedModelCodeAndIsDeletedFalse} 의
+     * model_name fallback 을 벌크화하여 N+1 을 제거하기 위함.
+     */
+    List<Product> findByModelNameInAndIsDeletedFalse(java.util.Collection<String> modelNames);
 
     boolean existsByModelCodeAndIsDeletedFalse(String modelCode);
 

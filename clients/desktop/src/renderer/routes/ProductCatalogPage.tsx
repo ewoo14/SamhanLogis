@@ -579,6 +579,7 @@ function ComponentsModal({
                     style={{ width: 64, textAlign: 'right' }}
                     aria-label={`수량 ${idx + 1}`}
                     min={1}
+                    max={999}
                     step={1}
                   />
                 </div>
@@ -1264,7 +1265,13 @@ export function ProductCatalogPage() {
                   ...(currentPage === 0 || listQuery.isFetching ? pageButtonDisabledStyle : {}),
                 }}
                 disabled={currentPage === 0 || listQuery.isFetching}
-                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                onClick={() => {
+                  // [#8] 페이지 이동 시 미저장 드래그 폐기 (handleQuery 와 동일 시멘틱).
+                  // setOrderDirty(false) 없으면 rows→sortableRows 동기 effect 가 스킵돼
+                  // 새 페이지가 이전 페이지 드래그 결과로 고정되고, 저장 시 잘못된 순서 점프.
+                  setOrderDirty(false)
+                  setCurrentPage((p) => Math.max(0, p - 1))
+                }}
                 aria-label="이전 페이지"
               >
                 이전
@@ -1279,7 +1286,11 @@ export function ProductCatalogPage() {
                   ...(currentPage >= totalPages - 1 || listQuery.isFetching ? pageButtonDisabledStyle : {}),
                 }}
                 disabled={currentPage >= totalPages - 1 || listQuery.isFetching}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+                onClick={() => {
+                  // [#8] 페이지 이동 시 미저장 드래그 폐기 (이전 버튼과 동일 시멘틱).
+                  setOrderDirty(false)
+                  setCurrentPage((p) => Math.min(totalPages - 1, p + 1))
+                }}
                 aria-label="다음 페이지"
               >
                 다음

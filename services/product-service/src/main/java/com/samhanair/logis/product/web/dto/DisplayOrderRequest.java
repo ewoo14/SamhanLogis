@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotNull;
  * 전건 검증 후 일괄 적용 (부분 적용 금지, 트랜잭션 단일).
  *
  * @param modelCode    카탈로그 노출 식별자 (model_code ?? model_name fallback)
- * @param displayOrder 새 표시 순서 (null 허용 — null 전달 시 순서 미지정 처리)
+ * @param displayOrder 새 표시 순서 (필수 — {@code @NotNull}, null 시 400; 순서 해제는 미지원)
  */
 public record DisplayOrderRequest(
         @NotBlank String modelCode,

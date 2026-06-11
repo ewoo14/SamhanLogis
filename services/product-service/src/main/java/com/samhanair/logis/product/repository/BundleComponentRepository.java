@@ -19,10 +19,15 @@ import org.springframework.data.repository.query.Param;
 public interface BundleComponentRepository extends JpaRepository<BundleComponent, UUID> {
 
     /**
-     * 구성품 목록 조회 — display_order ASC NULLS LAST 정렬.
+     * 구성품 목록 조회 — display_order ASC NULLS LAST 정렬 + 결정적 타이브레이커 (#4).
      *
      * <p>V15 마이그레이션으로 {@code display_order} 컬럼이 추가되었다.
      * 기존 행(NULL)은 NULLS LAST 로 후순위 처리하고, replace-all 저장 행은 1-based 순서로 정렬된다.
+     *
+     * <p><b>타이브레이커 (#4)</b>: {@code display_order} 가 NULL 인 행(시트 sync 적재 군)이 여러 개면
+     * NULLS LAST 만으로는 그 군의 내부 순서가 비결정적이다. {@code createdAt ASC, id ASC} 를
+     * 추가해 NULL 군 내부 순서까지 결정화한다(V15 {@code ix_bundle_component_order} 와 호환 —
+     * 인덱스는 prefix 가속만 담당, ORDER BY 결정성은 쿼리가 보장).
      *
      * @param bundleProductId 부모 BUNDLE Product.id
      * @return 표시 순서 기준 오름차순 구성품 목록
@@ -31,14 +36,30 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
             SELECT bc FROM BundleComponent bc
             WHERE bc.bundleProductId = :bundleProductId
               AND bc.isDeleted = false
-            ORDER BY bc.displayOrder ASC NULLS LAST
+            ORDER BY bc.displayOrder ASC NULLS LAST, bc.createdAt ASC, bc.id ASC
             """)
     List<BundleComponent> findByBundleProductId(UUID bundleProductId);
 
     List<BundleComponent> findByComponentProductCode(String componentProductCode);
 
-    /** #30 — estimate 카탈로그 벌크: 부모(세트) 묶음 일괄 조회. */
-    List<BundleComponent> findByBundleProductIdIn(Collection<UUID> bundleProductIds);
+    /**
+     * #30 — estimate 카탈로그 벌크: 부모(세트) 묶음 일괄 조회 + 결정적 ORDER BY (#12).
+     *
+     * <p>파생 쿼리(ORDER BY 부재)는 부모별 구성품 순서가 비결정적이라 소비처
+     * {@link com.samhanair.logis.product.web.EstimateCatalogInternalController#components}
+     * 의 응답 순서가 흔들린다. {@code bundleProductId, displayOrder ASC NULLS LAST,
+     * componentProductCode} 로 결정화한다(부모별 그룹 → display_order → 코드 타이브레이커).
+     *
+     * @param ids 부모 Product.id 집합
+     * @return 부모/표시순서 기준 정렬된 구성품 목록
+     */
+    @Query("""
+            SELECT bc FROM BundleComponent bc
+            WHERE bc.bundleProductId IN :ids
+              AND bc.isDeleted = false
+            ORDER BY bc.bundleProductId, bc.displayOrder ASC NULLS LAST, bc.componentProductCode
+            """)
+    List<BundleComponent> findByBundleProductIdIn(@Param("ids") Collection<UUID> ids);
 
     /**
      * 카탈로그 목록 componentCount 벌크 집계 — N+1 방지 (§1b 2026-06-11).

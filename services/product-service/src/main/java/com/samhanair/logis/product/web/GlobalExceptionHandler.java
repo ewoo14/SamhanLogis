@@ -4,13 +4,16 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** Maps {@link BusinessException} and validation errors to {@link ApiResponse} envelopes. */
@@ -47,6 +50,57 @@ public class GlobalExceptionHandler {
         String msg = ex.getName() + ": 입력값이 유효하지 않습니다";
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
+    }
+
+    /**
+     * 요소 단위 제약(@Valid 컬렉션 요소) 위반을 400 으로 매핑한다 (K-fix 완결).
+     *
+     * <p>{@code ProductCatalogController} 는 클래스 레벨 {@code @Validated} + 본문이
+     * {@code @Valid @RequestBody List<DTO>} 라서, 컬렉션 <b>요소</b>의 빈 제약
+     * (@NotBlank / @NotNull / @DecimalMax(999.99) / @Digits) 위반은
+     * {@link MethodArgumentNotValidException} 이 아닌
+     * {@link ConstraintViolationException} 으로 throw 된다. 핸들러가 없으면
+     * catch-all {@link #handleUnknown}(500) 으로 흘러가 bean-validation 위반이
+     * 500 으로 위장되므로 여기서 400 으로 선제 매핑한다.
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
+        String msg = ex.getConstraintViolations().stream()
+                .findFirst()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .orElse("입력값이 유효하지 않습니다");
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
+    }
+
+    /**
+     * 핸들러 메서드 파라미터 검증 실패를 400 으로 매핑한다 (향후 {@code @Validated} 제거 대비).
+     *
+     * <p>Spring 6.1+ 에서 컨트롤러 메서드 파라미터 제약 검증 실패는
+     * {@link HandlerMethodValidationException} 으로 표면화될 수 있다(클래스 레벨
+     * {@code @Validated} 가 제거되어 메서드 단위 검증 경로로 전환될 경우 등).
+     * catch-all 500 회귀를 막기 위해 명시적으로 400 으로 매핑한다.
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandlerMethodValidation(HandlerMethodValidationException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "입력값이 유효하지 않습니다"));
+    }
+
+    /**
+     * DB 무결성 제약 위반(부분 유니크 인덱스 등)을 409 CONFLICT 로 매핑한다 (#2 보조 방어).
+     *
+     * <p>구성품 replace-all 의 동시 PUT 경합으로 부분 유니크 인덱스
+     * (bundle_product_id, component_product_code, is_deleted=false) 가 INSERT 단계에서
+     * 위반되면 {@link DataIntegrityViolationException} 이 던져진다. PESSIMISTIC_WRITE
+     * 직렬화(#2)로 1차 방어하되, 그래도 빠져나간 경합은 catch-all 500 이 아니라
+     * 409 로 매핑하여 클라이언트가 재시도 가능한 충돌로 인식하게 한다.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("DataIntegrityViolation (동시 편집 충돌 또는 제약 위반)", ex);
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.CONFLICT, "동시 편집 충돌 또는 제약 위반"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

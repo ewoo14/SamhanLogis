@@ -443,5 +443,32 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
 
     // (5) 저장 성공 시 dirty 해제 → '순서 저장' 버튼 사라짐
     await expect(saveOrderBtn).not.toBeVisible({ timeout: 5_000 })
+
+    // (6) [#9 박제] 저장 후 행 순서 가시 재정렬 단언 — mock GET /api/v1/products 가 BE 동형으로
+    //     displayOrder asc 정렬 + page slice 를 반영하므로, react-query 재조회 후 화면 행 순서가
+    //     저장 페이로드 순서(=드래그 결과)와 일치해야 한다. 기존(시드 전량 반환 totalPages=1)에서는
+    //     저장해도 화면이 그대로라 가시 불일치를 영구 통과시켰음(회귀 가드).
+    //     원래 선두였던 modelCode 가 더 이상 첫 행이 아니어야 한다(한 칸 아래로 내려감).
+    await expect
+      .poll(
+        async () =>
+          await sortableRowsLoc.evaluateAll((rows) =>
+            rows.map((r) => r.getAttribute('data-testid')?.replace('product-catalog-row-', '') ?? ''),
+          ),
+        { timeout: 8_000, message: '저장 후 행 순서가 재정렬되지 않음 (mock 정렬·슬라이스 미반영)' },
+      )
+      .not.toEqual(codesBefore)
+
+    const codesAfter = (
+      await sortableRowsLoc.evaluateAll((rows) =>
+        rows.map((r) => r.getAttribute('data-testid')?.replace('product-catalog-row-', '') ?? ''),
+      )
+    ).filter(Boolean)
+    // 노출 품목(payload 대상) 순서가 저장 페이로드 순서와 정확히 일치 (재조회 후 가시 반영)
+    const payloadCodes = payload.map((o) => o.modelCode)
+    const exposedAfter = codesAfter.filter((c) => payloadCodes.includes(c))
+    expect(exposedAfter).toEqual(payloadCodes)
+    // 드래그 전 첫 행이 첫 위치를 벗어남
+    expect(codesAfter[0]).not.toBe(codesBefore[0])
   })
 })
