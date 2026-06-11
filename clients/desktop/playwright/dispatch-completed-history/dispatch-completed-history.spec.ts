@@ -103,6 +103,35 @@ test.describe('AROLOGIS 배차현황 뷰 mock', () => {
     await expect(detail).toContainText('기사 김배차 (DRV-101) 010-9000-1001')
   })
 
+  test('UPDATE 권한 사용자는 배차현황 상세에서 타사 기사/차량을 수동 입력한다', async ({ page }) => {
+    await gotoHistory(page)
+
+    await page.getByTestId(`dispatch-history-row-${CURRENT_TASK_CODE}`).click()
+    const detail = page.getByTestId('dispatch-task-detail-body')
+    await expect(detail).toBeVisible()
+
+    await page.getByTestId('dispatch-task-detail-set-matched-driver-1').click()
+    await page.getByTestId('matched-driver-driver-name').fill('이경기')
+    await page.getByTestId('matched-driver-vehicle-plate-number').fill('12가9999')
+    await page.getByTestId('matched-driver-driver-phone-number').fill('010-7777-8888')
+    await page.getByTestId('matched-driver-driver-source').fill('경기퀵')
+    await page.getByTestId('matched-driver-submit').click()
+
+    await expect(detail).toContainText('기사 이경기 (MANUAL) 010-7777-8888')
+    await expect(detail).toContainText('차량번호 12가9999')
+  })
+
+  test('VIEW 전용 사용자는 기사/차량 입력 액션을 볼 수 없다', async ({ page }) => {
+    await gotoHistory(page, 'DISPATCH', [
+      { pageCode: 'dispatch.board', view: true, edit: false },
+    ])
+
+    await page.getByTestId(`dispatch-history-row-${CURRENT_TASK_CODE}`).click()
+    await expect(page.getByTestId('dispatch-task-detail-body')).toBeVisible()
+    await expect(page.getByTestId('dispatch-task-detail-set-matched-driver-1')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '기사/차량 입력' })).toHaveCount(0)
+  })
+
   test('dispatch.board view 없는 역할은 홈으로 redirect 된다', async ({ page }) => {
     await gotoHistory(page, 'DISPATCH', [
       { pageCode: 'dispatch.board', view: false, edit: false },

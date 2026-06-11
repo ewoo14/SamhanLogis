@@ -17,6 +17,7 @@ import type { AxiosRequestConfig } from 'axios'
 import type {
   DispatchTaskResponse,
   DispatchTaskSummaryResponse,
+  SetMatchedDriverPayload,
 } from './dispatchTask'
 import type { DispatchComment } from './dispatchCollab'
 
@@ -4637,6 +4638,52 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ]
       return envelope(created)
     }
+  }
+
+  const setMatchedDriverMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/matched-driver(?:\?.*)?$/,
+  )
+  if (method === 'PUT' && setMatchedDriverMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(setMatchedDriverMatch[1]!)
+    const groupId = decodeURIComponent(setMatchedDriverMatch[2]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    if (!task || !group) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
+    }
+    const body = parseMockBody(config) as Partial<SetMatchedDriverPayload>
+    const driverName = String(body.driverName ?? '').trim()
+    const driverPhoneNumber = String(body.driverPhoneNumber ?? '').trim()
+    const vehiclePlateNumber = String(body.vehiclePlateNumber ?? '').trim()
+    const driverSource = String(body.driverSource ?? '').trim()
+    if (!driverName || !driverPhoneNumber || !vehiclePlateNumber || !driverSource) {
+      return mockError(400, 'INVALID_INPUT', '기사/차량 입력값은 필수입니다.')
+    }
+    const nextMatched = {
+      vehicleGroupSequence: group.sequence,
+      driverCode: 'MANUAL',
+      driverName,
+      driverPhoneNumber,
+      driverSource,
+      vehiclePlateNumber,
+    }
+    const currentIndex = task.matchedDrivers.findIndex(
+      (driver) => driver.vehicleGroupSequence === group.sequence,
+    )
+    if (currentIndex >= 0) {
+      task.matchedDrivers[currentIndex] = nextMatched
+    } else {
+      task.matchedDrivers.push(nextMatched)
+    }
+    const summary = MOCK_DISPATCH_TASK_SUMMARIES.find(
+      (item) => item.arologisDispatchId === task.arologisDispatchId,
+    )
+    if (summary) {
+      summary.driverCount = task.matchedDrivers.length
+    }
+    return envelope(task)
   }
 
   const dispatchTaskDetailMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)(?:\?.*)?$/)

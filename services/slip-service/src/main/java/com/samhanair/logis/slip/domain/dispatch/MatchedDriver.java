@@ -55,6 +55,17 @@ public class MatchedDriver extends BaseEntity {
     private MatchedDriver(UUID vehicleGroupId, String driverCode, String driverName,
                           String driverPhoneNumber, String driverSource,
                           String vehiclePlateNumber) {
+        validate(vehicleGroupId, driverCode, driverName, driverPhoneNumber, driverSource);
+        this.vehicleGroupId = vehicleGroupId;
+        this.driverCode = driverCode;
+        this.driverName = driverName;
+        this.driverPhoneNumber = driverPhoneNumber;
+        this.driverSource = driverSource;
+        this.vehiclePlateNumber = vehiclePlateNumber;
+    }
+
+    private static void validate(UUID vehicleGroupId, String driverCode, String driverName,
+                                 String driverPhoneNumber, String driverSource) {
         if (vehicleGroupId == null) {
             throw new IllegalArgumentException("vehicleGroupId 필수");
         }
@@ -70,12 +81,6 @@ public class MatchedDriver extends BaseEntity {
         if (driverSource == null || driverSource.isBlank()) {
             throw new IllegalArgumentException("driverSource 필수");
         }
-        this.vehicleGroupId = vehicleGroupId;
-        this.driverCode = driverCode;
-        this.driverName = driverName;
-        this.driverPhoneNumber = driverPhoneNumber;
-        this.driverSource = driverSource;
-        this.vehiclePlateNumber = vehiclePlateNumber;
     }
 
     /** 신규 매칭 기사 기록. */
@@ -84,5 +89,16 @@ public class MatchedDriver extends BaseEntity {
                                        String vehiclePlateNumber) {
         return new MatchedDriver(vehicleGroupId, driverCode, driverName, driverPhoneNumber, driverSource,
                 vehiclePlateNumber);
+    }
+
+    /** 배차담당자가 타사 기사/차량 정보를 수동 갱신한다. */
+    public void updateManual(String driverCode, String driverName, String driverPhoneNumber,
+                             String driverSource, String vehiclePlateNumber) {
+        validate(this.vehicleGroupId, driverCode, driverName, driverPhoneNumber, driverSource);
+        this.driverCode = driverCode;
+        this.driverName = driverName;
+        this.driverPhoneNumber = driverPhoneNumber;
+        this.driverSource = driverSource;
+        this.vehiclePlateNumber = vehiclePlateNumber;
     }
 }

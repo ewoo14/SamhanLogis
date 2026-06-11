@@ -3,14 +3,15 @@ package com.samhanair.logis.slip.it.dispatch;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -189,6 +190,111 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("DISPATCHING"));
 
         Mockito.verify(arologisDispatchClient).send(ArgumentMatchers.any());
+    }
+
+    @Test
+    void PUT_matched_driver_upserts_manual_driver_and_detail_reflects_it() throws Exception {
+        UUID taskId = createTask("2026-05-15");
+        UUID groupId = addGroup(taskId, "TONNAGE_1");
+
+        mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "driverName", "이경기",
+                                "driverPhoneNumber", "010-1111-2222",
+                                "vehiclePlateNumber", "12가3456",
+                                "driverSource", "경기퀵"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverCode").value("MANUAL"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("이경기"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverPhoneNumber").value("010-1111-2222"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].vehiclePlateNumber").value("12가3456"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("경기퀵"));
+
+        mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "driverName", "전국기사",
+                                "driverPhoneNumber", "010-3333-4444",
+                                "vehiclePlateNumber", "98바7654",
+                                "driverSource", "전국화물"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.matchedDrivers.length()").value(1))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverCode").value("MANUAL"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("전국기사"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("전국화물"));
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.matchedDrivers.length()").value(1))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("전국기사"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].vehiclePlateNumber").value("98바7654"));
+    }
+
+    @Test
+    void PUT_matched_driver_requires_dispatch_board_update_permission() throws Exception {
+        UUID taskId = createTask("2026-05-16");
+        UUID groupId = addGroup(taskId, "TONNAGE_1");
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
+
+        mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "driverName", "조회전용",
+                                "driverPhoneNumber", "010-1111-2222",
+                                "vehiclePlateNumber", "12가3456",
+                                "driverSource", "경기퀵"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void PUT_matched_driver_returns_404_when_group_does_not_belong_to_task() throws Exception {
+        UUID taskId = createTask("2026-05-17");
+        UUID otherTaskId = createTask("2026-05-18");
+        UUID otherGroupId = addGroup(otherTaskId, "TONNAGE_1");
+
+        mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, otherGroupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "driverName", "소속오류",
+                                "driverPhoneNumber", "010-1111-2222",
+                                "vehiclePlateNumber", "12가3456",
+                                "driverSource", "경기퀵"))))
+                .andExpect(status().isNotFound());
+    }
+
+    private UUID createTask(String dispatchDate) throws Exception {
+        String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("dispatchDate", dispatchDate))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString((String) dataMap(taskRes).get("id"));
+    }
+
+    private UUID addGroup(UUID taskId, String vehicleType) throws Exception {
+        String groupRes = mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("vehicleType", vehicleType))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString((String) dataMap(groupRes).get("id"));
     }
 
     @SuppressWarnings("unchecked")

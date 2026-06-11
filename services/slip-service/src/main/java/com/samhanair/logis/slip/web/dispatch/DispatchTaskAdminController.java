@@ -16,6 +16,8 @@ import com.samhanair.logis.slip.dto.dispatch.DispatchTaskSummaryResponse;
 import com.samhanair.logis.slip.dto.dispatch.DispatchVehicleGroupResponse;
 import com.samhanair.logis.slip.dto.dispatch.DispatchVehicleGroupSlipResponse;
 import com.samhanair.logis.slip.dto.dispatch.ReorderSlipsRequest;
+import com.samhanair.logis.slip.dto.dispatch.SetMatchedDriverRequest;
+import com.samhanair.logis.slip.service.dispatch.DispatchMatchedDriverManualService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskCancellationRequestService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskCompletionService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskHistoryQueryService;
@@ -71,6 +73,7 @@ public class DispatchTaskAdminController {
 
     private final DispatchTaskService taskService;
     private final DispatchTaskCompletionService completionService;
+    private final DispatchMatchedDriverManualService matchedDriverManualService;
     private final DispatchTaskModificationRequestService modificationRequestService;
     private final DispatchTaskCancellationRequestService cancellationRequestService;
     private final DispatchTaskHistoryQueryService historyQueryService;
@@ -226,6 +229,26 @@ public class DispatchTaskAdminController {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
         checkEditPermission(roleHeader);
         taskService.removeSlipFromGroup(groupId, slipId, actor != null ? actor : "system");
+    }
+
+    /**
+     * 타사 기사/차량 수동 기입 upsert.
+     *
+     * <p>경기퀵/전국화물 등 arologis 자동 공급이 아닌 차량 그룹에 배차담당자가 기사명·연락처·차량번호·출처를
+     * 수동 저장한다. 응답은 갱신된 상세 read model 이다.
+     */
+    @Operation(summary = "타사 기사/차량 수동 기입")
+    @PutMapping("/{taskId}/vehicle-groups/{groupId}/matched-driver")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
+    public ApiResponse<DispatchTaskDetailResponse> setMatchedDriver(
+            @PathVariable UUID taskId,
+            @PathVariable UUID groupId,
+            @Valid @RequestBody SetMatchedDriverRequest req,
+            @RequestHeader(value = "X-User-Id", required = false) String actor,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — dispatch.board
+        checkEditPermission(roleHeader);
+        return ApiResponse.ok(matchedDriverManualService.setMatchedDriver(taskId, groupId, req));
     }
 
     /**

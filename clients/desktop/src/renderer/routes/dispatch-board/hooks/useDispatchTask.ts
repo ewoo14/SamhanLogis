@@ -21,10 +21,12 @@ import {
   reorderGroupSlips,
   requestCancellation,
   requestModification,
+  setMatchedDriver,
   type ListDispatchTasksParams,
   type DispatchTaskResponse,
   type DispatchTaskSummaryResponse,
   type DispatchVehicleType,
+  type SetMatchedDriverPayload,
 } from '../../../api/dispatchTask'
 import { DISPATCH_BOARD_QUERY_KEY } from './useUnDispatchedSlipsQuery'
 
@@ -87,6 +89,35 @@ export function useDeleteVehicleGroupMutation(taskId: string | null) {
     mutationFn: (groupId: string) => deleteVehicleGroup(taskId as string, groupId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
+    },
+  })
+}
+
+/**
+ * 타사 기사/차량 수동 기입 mutation.
+ *
+ * <p>배차현황 상세는 arologisDispatchId 로도 열리므로 성공 응답을 두 detail key 에 모두 반영한다.
+ */
+export function useSetMatchedDriverMutation(taskId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      groupId,
+      payload,
+    }: {
+      groupId: string
+      payload: SetMatchedDriverPayload
+    }) => setMatchedDriver(taskId as string, groupId, payload),
+    onSuccess: (updated) => {
+      qc.setQueryData(dispatchTaskQueryKey(updated.id), updated)
+      if (updated.arologisDispatchId) {
+        qc.setQueryData(dispatchTaskQueryKey(updated.arologisDispatchId), updated)
+      }
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
+      if (updated.arologisDispatchId) {
+        void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.arologisDispatchId) })
+      }
+      void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
   })
 }

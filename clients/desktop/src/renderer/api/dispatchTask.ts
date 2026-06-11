@@ -161,6 +161,13 @@ export interface MatchedDriverResponse {
   vehiclePlateNumber?: string | null
 }
 
+export interface SetMatchedDriverPayload {
+  driverName: string
+  driverPhoneNumber: string
+  vehiclePlateNumber: string
+  driverSource: string
+}
+
 /**
  * 차량 그룹 응답 — BE {@code DispatchVehicleGroupResponse} 와 1:1.
  *
@@ -317,6 +324,23 @@ export async function deleteVehicleGroup(
   await apiClient.delete(
     `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}`,
   )
+}
+
+/**
+ * 타사 기사/차량 수동 기입 — `PUT .../vehicle-groups/{groupId}/matched-driver`.
+ *
+ * <p>수동 입력의 driverCode 는 BE 가 `MANUAL` 로 고정 저장한다.
+ */
+export async function setMatchedDriver(
+  taskId: string,
+  groupId: string,
+  payload: SetMatchedDriverPayload,
+): Promise<DispatchTaskResponse> {
+  const res = await apiClient.put<ApiEnvelope<DispatchTaskResponse>>(
+    `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/matched-driver`,
+    payload,
+  )
+  return res.data.data
 }
 
 // ---------------------------------------------------------------------------
