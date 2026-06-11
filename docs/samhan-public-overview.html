@@ -427,7 +427,7 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">PR #460 · 품목 노출 수동 토글 + 품목관리 화면 — usageScope IN-확장 주문서 분기 실효화 (#459 공급자 설정 머지)</span>
+    <span class="nav-badge">PR #461 · 품목관리 고도화 — 시드 전용 sync(자동 cron 비활성) + 세트 컬럼·구성품 편집기 + 표시 순서 직접 조정 + 설정 실시간 SSE + 세트 재고 가드</span>
   </div>
 </nav>
 
@@ -654,12 +654,13 @@ body {
         </div>
       </div>
       <div class="svc-card-db">product_db</div>
-      <div class="svc-card-desc">제품 마스터 + 카테고리 트리. jsonb 태그 컬럼(GIN 인덱스)으로 유연한 속성 관리. Google Sheets 단가 Cron 동기화. 14 REST endpoint. 안전재고 알림 임계값 관리.</div>
+      <div class="svc-card-desc">제품 마스터 + 카테고리 트리. jsonb 태그 컬럼(GIN 인덱스). 세트(BUNDLE) 구성품 replace-all 편집 + 표시 순서 직접 조정(카테고리 한정 자동 재번호) + 카탈로그 설정 실시간 SSE. Google Sheets 는 최초 시드 전용(자동 cron 비활성, 수동 비상 재적재만). 안전재고 알림 임계값 관리.</div>
       <div class="svc-tags">
         <span class="stag green">jsonb + GIN Index</span>
         <span class="stag blue">Hibernate 6 JsonbType</span>
-        <span class="stag yellow">Google Sheets Cron</span>
-        <span class="stag cyan">SpringDoc OpenAPI</span>
+        <span class="stag purple">세트 구성품 편집</span>
+        <span class="stag yellow">시드 전용 Sheets</span>
+        <span class="stag cyan">Catalog SSE</span>
       </div>
     </div>
 

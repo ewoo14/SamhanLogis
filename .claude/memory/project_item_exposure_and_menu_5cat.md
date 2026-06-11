@@ -34,6 +34,9 @@ usageScope/displayOrder + 수동 토글(usage_scope_manual, sync 보존·soft-de
 - 사실 확인: 전표 자동 전개는 **기성** (SlipFormPage BUNDLE → BundleOptionRow 옵션 + BundleExpander 6:4 재배분 전개, #439).
 - **2차 지시 (동일 새벽)**: ① **세트(BUNDLE) 단위 재고 표시 금지** — 재고는 구성품(시리얼) 단위만. 재고조회/전표 가용재고 경로 감사+가드 ② 표시 순서 수정 시 **관련 품목(동일 카테고리군) 자동 재번호** — 개별 번호 직접 입력·전역 재번호 금지, display_order 는 카테고리 내 정렬.
 
+### ✅ §1-보강 구현·머지 완결 (#461, 2026-06-11)
+세트 컬럼(componentCount) · 구성품 편집기(GET/PUT replace-all — **model_code-only 해소축**[expander 정합]·중복/자기참조/미해소/세트안세트 400·비BUNDLE 409) · 표시순서 @dnd-kit 드래그(**estimateCategory 한정 재번호**·노출품목만·전건 paginate) · 실시간 SSE(ProductCatalogChangePublisher **afterCommit 통일**) · **세트 재고 표시금지 가드**(SlipForm + 주문상세 #23 — partner-order 라인 **modelCode enrich** fail-soft, BUNDLE 생성은 시트sync 전용이라 productId≠modelCode synthetic 주의) · 동시성(replaceComponents+sync PESSIMISTIC_WRITE). 신규 endpoint 4종(components·display-orders·lookup-by-model-codes·catalog-realtime) + **V15**. 4-라운드 다모델 리뷰(Opus16·Fable5 24·Codex8 전건fix)+T2 FE모달 실QA 12컷. **§2(메뉴 5대분류·권한필터·홈 — 2·2-보강) 은 미착수 = 다음 대기 큐.**
+
 **Why**: 견적/주문 노출 품목을 정확히 통제(전 품목 노출 방지) + 시트 운영 순서 유지. 메뉴 가독성·업무 권역 정리.
 **How to apply**: #30 카탈로그([[project-sheets-to-db-full-migration]]) 후속으로 usageScope 필터+displayOrder 적용. 관련 EstimateCatalogInternalController(#455)·ProductSheetSyncService. 메뉴는 clients/desktop AppLayout.tsx 재구성. 대형 UI 변경이라 Codex 회복(6/11 10:11) 후 구현 적합.
 

@@ -48,7 +48,20 @@ SamhanLogis Product 마스터 + Category 트리 + Google Sheets 동기화 서비
 | catalog 질의 | `GET /api/v1/products` (ProductCatalogController — 게이트웨이 정확경로): `q`(model_code/name/model_name LIKE, 와일드카드 이스케이프) + `usageScope` **IN-확장**(ESTIMATE→+BOTH, PARTNER_ORDER→+BOTH) + `category`(EstimateCategory) + `ORDER BY display_order NULLS LAST, model_code` 결정 페이징 |
 | ⚠️ 시멘틱 분기 | `/products`(ProductController, `/api/products/**` strip 경로) 의 usageScope 는 **exact-match** — 실호출자 0, catalog 경로와 의미 상이 (Javadoc 명시) |
 
-데스크톱 소비처: `/products/catalog` 품목 관리 화면 (견적/주문 노출 토글 + 시트자동·수동 뱃지). order-app 은 `usageScope=PARTNER_ORDER` 로 본 catalog 질의를 사용.
+데스크톱 소비처: `/products/catalog` 품목 관리 화면 (견적/주문 노출 토글). order-app 은 `usageScope=PARTNER_ORDER` 로 본 catalog 질의를 사용. (출처 컬럼·시트자동/수동 뱃지는 PR #461 시드 전용 정책으로 제거.)
+
+## 품목관리 고도화 — 세트 컬럼 + 구성품 편집 + 표시 순서 + 실시간 SSE (PR #461, 2026-06-11)
+
+| 항목 | 내용 |
+|---|---|
+| 세트 정보 | catalog 응답(`ProductCatalogResponse`)에 `productType`(SINGLE/BUNDLE) + `componentCount`(BUNDLE 활성 구성품 수, SINGLE=0) 추가. 페이지 내 BUNDLE UUID 집합 → `BundleComponentRepository.countMapByBundleProductIds(IN)` 1쿼리 벌크 채움(N+1 방지). |
+| 구성품 조회 | `GET /api/v1/products/{modelCode}/components` (products.list VIEW) — 구성품 목록(코드/명칭/수량/순서/옵션 메타). 명칭은 1차 model_code IN → 2차 model_name IN fallback(레거시 model_code null 행 표시 해소, D-PCE-03). |
+| 구성품 편집 | `PUT /api/v1/products/{modelCode}/components` (products.admin UPDATE) — **replace-all**(배열 인덱스=1-based display_order). 검증: BUNDLE 아님 409 / 부모 model_code null(죽은 세트) 409 / 빈 배열·자기참조·미해소·세트-안-세트·중복 코드 400. 해소 축 = `model_code`-only(전개 expander 정합 — model_name fallback 저장 시 전표 전개 단가 0·productId null silent 방출 차단, D-PCE-03). soft-delete actor=`X-User-Id`. 동일 BUNDLE 동시 PUT 은 부모 행 `PESSIMISTIC_WRITE`(`findByIdForUpdate`)로 직렬화. |
+| 표시 순서 | `PUT /api/v1/products/display-orders` (products.admin UPDATE) — body `[{modelCode, displayOrder}]` 일괄. 전건 검증(미존재 1건 → 404 전체 롤백) + 중복 modelCode 400. **검증 축 = `estimateCategory` 동일 군**(null끼리 허용, null+non-null/서로다른 non-null 400) — 자동 재번호 카테고리 한정(D-PCE-02). `Product.changeDisplayOrder` 도메인 메서드. |
+| 실시간 SSE | `GET /api/v1/products/catalog-realtime` (products.list VIEW) — 목록 레벨 SSE(채널 = well-known UUID, event `product:catalog:changed`, 30s heartbeat). `ProductCatalogChangePublisher` 가 usage PATCH/DELETE·components PUT·display-orders PUT publish 를 **afterCommit 으로 통일**(롤백 헛이벤트 제거). 기성 `ProductRealtimeBroker`(SP-D7) 재사용(D-PCE-05). |
+| internal #23 | `POST /products/internal/lookup-by-model-codes` (X-Internal-Token) — modelCode 일괄 조회. partner-order 주문 상세 productType enrich 전용(direct PUT 라인 synthetic productId 대비 modelCode snapshot 기준). |
+| V15 | `bundle_component.display_order INTEGER`(NULL 허용, ORDER BY NULLS LAST) + 기존 활성 행 ROW_NUMBER backfill + 부분 인덱스 `ix_bundle_component_order` + 잉여 `ix_bc_bundle` DROP. |
+| 게이트웨이 | api-gateway `product-components-v1`/`product-display-orders-v1`/`product-catalog-realtime-v1` no-strip 라우트 3종(`product-service-v1` strip=2 앞 선언). |
 
 ## SP-D7 조회성 부가 endpoint 권한
 
@@ -56,10 +69,11 @@ SamhanLogis Product 마스터 + Category 트리 + Google Sheets 동기화 서비
 `products.edit-requests` VIEW 동적 권한으로 전환했다. `products.list` 기존 VIEW endpoint widening을 피하기 위해
 auth-service V38은 전용 page에만 내부 role VIEW grant를 insert하고, `PARTNER`는 제외한다.
 
-## Google Sheets 동기화 (Phase 6)
+## Google Sheets 동기화 (Phase 6, PR #461 시드 전용 격하)
 
 - PR #68 / #75 — google sheets cron 동기화. `getDisplayValues` / `getFormulas` 로 표시값과 수식을 모두 채취하여 model 정보 정확화.
 - 환경변수: `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON 파일 경로 또는 base64 `GOOGLE_SA_KEY_JSON_BASE64`), `SRC_SHEET_ID` (legacy 견적 spreadsheet ID).
+- ⚠️ **시드 전용 격하 (PR #461, D-PCE-04)**: 구글 시트는 **최초 시드 데이터**로, 자동 cron + 부팅 sync 는 `samhan.product.sheet-sync.cron-enabled`(기본 **false**) 게이트로 비활성한다(재시작·주기 sync 가 사용자 표시순서를 시트 기준 재적재하여 소실하는 것 방지). 시드 재적재는 비상 수단인 수동 trigger(`POST /api/v1/products/admin/sync`)만 사용하며 게이트와 무관하게 항시 유효. manual 보존 가드·rowHash evict 는 #460 자산 유지.
 
 ## by-code endpoint (Phase 7 3차)
 

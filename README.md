@@ -27,6 +27,17 @@
 
 ---
 
+### 최신 진행 메모 (2026-06-11)
+
+- 품목관리 고도화 완료 (PR #461):
+  - 구글 시트를 **최초 시드 전용**으로 격하했다. `ProductSheetSyncScheduler` 의 cron + 부팅 sync 를 `samhan.product.sheet-sync.cron-enabled`(기본 false) 게이트로 비활성하고(재시작·주기 sync 로 사용자 표시순서가 시트 기준 재적재되어 소실되는 것 방지), 시드 재적재는 비상 수단인 수동 trigger 만 유지한다. desktop 품목관리 화면의 출처 컬럼·뱃지는 제거했다.
+  - **세트 가시화 + 구성품 편집기**를 추가했다. 카탈로그 목록에 `productType`/`componentCount`(BUNDLE 구성품 수, 벌크 count N+1 방지)를 노출하고, `GET·PUT /api/v1/products/{code}/components`(replace-all)로 세트 구성품을 직접 편집한다. 검증은 BUNDLE 아님 409 / 빈 배열·자기참조·미해소 코드·세트-안-세트·중복 코드 400이며, 해소 축은 전개(expander)와 동일한 `model_code`-only로 두어 전표 전개 단가 오류를 차단한다. V15 가 `bundle_component.display_order` 컬럼 + 부분 인덱스를 추가한다.
+  - **표시 순서 직접 조정**(`@dnd-kit/sortable` 드래그 → `PUT /api/v1/products/display-orders` 일괄)을 추가했다. 견적/주문 노출 품목에만 표시·적용하고, 자동 재번호 범위는 `estimateCategory` 동일 군으로 한정한다(혼합 400).
+  - **품목 설정 실시간 동기화**를 전표 SSE 패턴으로 재사용했다. `ProductCatalogChangePublisher` 가 usage PATCH/DELETE·components PUT·display-orders PUT publish 를 afterCommit 으로 통일하고, FE `ProductRealtimeClient` 가 `GET /api/v1/products/catalog-realtime`(목록 레벨 SSE)를 구독해 동시 시청자 화면을 실시간 갱신한다.
+  - **세트 재고 표시 금지** 가드를 적용했다. SlipFormPage·주문 상세 재고조회 모달은 BUNDLE 라인을 제외하고(전부 세트면 "구성품 단위" 안내, 혼합이면 제외 캡션), SlipDetailPage 는 전개 저장으로 BUNDLE 부모 라인이 없어 가드 불요로 판정했다. partner-order 주문 상세는 `#23` productType enrich(modelCode 일괄조회 fail-soft)로 라인 BUNDLE 여부를 전사한다.
+  - api-gateway 라우트 3종(`product-components-v1`/`product-display-orders-v1`/`product-catalog-realtime-v1`) 추가. 4-라운드 다모델 리뷰(사이클1 통합 + Opus 16 + Fable5 + Codex 8) + Docker 실서버 QA 12컷(`docs/qa/product-catalog-enhance/`).
+  - dev-report: `docs/dev-reports/2026-06-11-product-catalog-enhance.md`. 결정: `migration/decisions/DECISIONS.md` D-PCE-01 ~ D-PCE-07.
+
 ### 최신 진행 메모 (2026-06-03)
 
 - 시리얼 재고 동시성·보상 강화 완료:

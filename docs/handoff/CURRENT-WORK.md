@@ -4,6 +4,27 @@
 
 ---
 
+## ✅ 2026-06-11 (주간, 집 PC) — **#461 품목관리 고도화 머지** (4-라운드 다모델 리뷰 + 통합 실 QA)
+
+> 개발책임자 임시 워크플로우(2026-06-11): **Opus 계획/PR → Codex(GPT5.5) 개발 → Opus 5-agent → Codex 5-agent → Fable5 5-agent(6/22까지) → PM**, 각 라운드 review+fix+게시. **다음 슬라이스부터 각 라운드 5 agents 에 QA agent 실서버 스크린샷 게시 의무** ([[temp-multimodel-review-workflow]]). #461 은 진행 중 전환이라 A/C/B 코드리뷰 후 통합 실 QA 1회로 처리(예외).
+
+### #461 내용 (품목관리 고도화)
+- **시드 전용 정책**: 출처 UI 제거·자동 cron 비활성(+부팅 sync 게이트)·수동 sync 비상수단 유지.
+- **세트 컬럼**(BUNDLE 뱃지+componentCount) + **구성품 편집기**(GET/PUT replace-all, model_code-only 해소축, 중복·자기참조·미해소·세트안세트 400, BUNDLE 409).
+- **표시순서 직접조정**(@dnd-kit 드래그·estimateCategory 한정 재번호·노출품목만) + **실시간 SSE**(ProductCatalogChangePublisher afterCommit 통일, 동시 시청자 invalidate).
+- **세트 재고 표시금지 가드**(SlipForm + 주문상세 #23 — partner-order 라인 modelCode enrich fail-soft) + **동시성**(replaceComponents PESSIMISTIC_WRITE, sync 동일 락).
+- 신규 endpoint: `GET·PUT /products/{code}/components`·`PUT /products/display-orders`·`POST /products/internal/lookup-by-model-codes`·`GET /products/catalog-realtime`. **V15** 마이그레이션.
+
+### 리뷰 경위 (수렴 16→24→8, 미해소 0)
+- 사이클1 P3(3) + **Round A Opus 16** + **Round C Fable5 24** + **Round B Codex 8**(직전 라운드 fix 갭 적발: #23 synthetic productId·tiebreaker 불일치·수정후 가드풀림). 전건 사이클 내 fix(no-backlog). 보안축 0결함.
+- **CI green**(GitGuardian dev seed FP만). **#16 T2 FE모달 실 QA PASS** + 통합 보강 12컷(docs/qa/product-catalog-enhance/, DB pristine 원복).
+- docs 동기화 동반(dev-report `2026-06-11-product-catalog-enhance.md`·DECISIONS D-PCE-01~07·overview·README×3·ROADMAP).
+
+### 다음 대기 큐
+- 좌측메뉴 5대분류 ([[item-exposure-and-menu-5cat]] §2) · 사원 서명 등록(정찰 완료 spec) · #30 후속(거래처/담당자/사양맵 DB 치환·상업 useK2 parity) · Java FORMULA-read 조사. **다음 신규 슬라이스부터 라운드별 QA 스크린샷 게시 적용.**
+
+---
+
 ## 🌙 2026-06-11 (심야, 집 PC — 야간 자율 위임) — **#459 머지** (공급자 설정) + 요구사항1 PR-B 진입
 
 > 개발책임자 취침 전 위임: "이번 슬라이스 끝나면 다음 슬라이스 자율 머지, 오전 7:30 까지 자율 진행. 토큰 소진 시 회복 후 재개."

@@ -4,6 +4,24 @@
 
 ---
 
+## 품목관리 고도화 결정 (2026-06-11, PR #461)
+
+**배경**: 개발책임자 지시 — 구글 시트를 "최초 시드 데이터고 추후 조회하지 않는다"로 격하하고, 세트(BUNDLE) 가시화 + 구성품 직접 편집 + 표시 순서 직접 조정 + 품목 설정 실시간 동기화 + 세트 재고 표시 금지를 요구. spec `docs/superpowers/specs/2026-06-11-product-catalog-enhance-spec.md`.
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-PCE-01 | 구성품/표시순서 서비스의 모든 비즈니스 오류는 `BusinessException(ErrorCode)` 로 통일한다(`ResponseStatusException` 금지). `GlobalExceptionHandler` 가 `ErrorCode.httpStatus` 를 그대로 반환하므로 BUNDLE 아님=409 / 검증 실패=400 매핑이 보장된다. 실 QA 가 ResponseStatusException 의 상태 불일치를 적발하여 확정. |
+| D-PCE-02 | 표시 순서 일괄 갱신(`PUT /api/v1/products/display-orders`)의 카테고리 동일 검증 축은 **`estimateCategory`** 로 둔다(FE 카탈로그 카테고리 선택과 동일 축). null 군은 null끼리 허용, null+non-null 혼합 및 서로 다른 non-null 혼합은 400. 자동 재번호 범위 = 동일 카테고리 품목군(전역 재번호 금지). display_order 충돌은 `findExposedCatalog` 의 `modelCode ASC` 타이브레이커로 결정적 해소. ※ `findExposedCatalog` 의 실 정렬/WHERE 축은 `ProductCategory`(별개 enum)이라 '동일 차원'은 아니며, 시트 적재분은 productCategory↔estimateCategory 1:1 이나 `markUsageManual` override 시 desync 가능(허위 '동일 차원' 문구 제거 — G fix). |
+| D-PCE-03 | 구성품 명칭 read 해소(`listComponents`)는 1차 `model_code` IN → 미매칭분 `model_name` IN 2차 fallback 으로 표시 명칭을 채운다(레거시 `model_code=NULL` 행 표시 해소용). 단 구성품 **저장**(replaceComponents) 검증 축은 `model_code`-only(`findByModelCodeAndIsDeletedFalse`)로 두어 전개(expander) 해소 기준과 정렬한다 — model_name fallback 으로 저장하면 전표/견적 전개에서 단가 0·productId null 로 silent 방출되어 금액 오류가 발생하므로 write-path 와 expander 해소 축을 일치시킨다(A fix). |
+| D-PCE-04 | 구글 시트 자동 sync 를 **시드 전용**으로 격하한다. `ProductSheetSyncScheduler` 의 cron + 부팅 sync 모두 `samhan.product.sheet-sync.cron-enabled`(기본 **false**) 게이트로 비활성한다(재시작·주기 sync 로 사용자 표시순서가 시트 기준 재적재되어 소실되는 것 방지). 시드 재적재는 비상 수단인 수동 trigger(`POST /api/v1/products/admin/sync`)만 사용하며 게이트와 무관하게 항시 유효하다. 따라서 sync displayOrder 보존 가드는 불요(비상 재적재 시 시트 기준 재시드가 의도 동작). |
+| D-PCE-05 | 품목 설정 실시간 동기화는 전표 SSE 패턴을 재사용한다. 기성 `ProductRealtimeBroker`(shared realtime, SP-D7) + 신규 단일 게이트웨이 `ProductCatalogChangePublisher` 로 usage PATCH/DELETE·components PUT·display-orders PUT 의 publish 를 **`afterCommit` 으로 통일**(활성 트랜잭션 없으면 즉시 fallback)하여 롤백 시 헛이벤트를 제거한다. 채널 = well-known 내부 UUID `…0001`(카탈로그 목록 전체 invalidate), 이벤트 = `product:catalog:changed`. FE `ProductRealtimeClient` 가 `GET /api/v1/products/catalog-realtime`(products.list VIEW) 구독 → react-query invalidate. '모든 설정 화면' 전사 일반화는 본 슬라이스에서 패턴 확립 후 별도 슬라이스로 수평 전개(후속). |
+| D-PCE-06 | 세트(BUNDLE)는 재고 수치를 표시하지 않는다 — 재고는 구성품(시리얼) 단위에만 존재. ① 품목관리 화면에는 재고 컬럼 자체 부재. ② SlipFormPage·SalesPartnerOrderDetailPage 재고조회 모달은 BUNDLE 라인을 제외 후 전달(전부 세트면 "세트 품목 — 재고는 구성품 단위" 안내, 혼합 선택이면 "세트 N건 제외" 캡션). ③ SlipDetailPage 는 신규 전표가 `addSlipLinesExpanded` 로 BUNDLE 을 구성품 라인으로 전개 저장하여 BUNDLE 부모 라인이 남지 않으므로 가드 불필요(가짜 가드 금지 — 5d3bb017 판정). |
+| D-PCE-07 | 주문 상세의 라인 productType(SINGLE/BUNDLE) enrich(#23 세트 재고 가드 데이터원)는 신규 DB 컬럼 없이 조회 시점에 부착한다. direct PUT 라인이 synthetic stableProductId 를 저장할 수 있어 productId 가 아니라 라인 modelCode snapshot 으로 조회한다 — partner-order `ProductClient.lookupByModelCodes` → product-service `POST /products/internal/lookup-by-model-codes`. product-service 조회 실패 시 **fail-soft**(전 라인 productType=null, 상세 조회 가용성 우선, productClient 회로 차단기 정책과 일관). FE 수정 PUT 후에는 GET 재조회(invalidate)로 enrich 필드를 보정한다. |
+
+영향: product-service V15(`bundle_component.display_order` + 부분 인덱스, `ix_bc_bundle` DROP), 신규 endpoint 6종(GET·PUT `/products/{code}/components`, PUT `/products/display-orders`, GET `/products/catalog-realtime`, POST `/products/internal/lookup-by-model-codes`, GET `/products` 응답 확장), api-gateway 라우트 3종(`product-components-v1`/`product-display-orders-v1`/`product-catalog-realtime-v1`), partner-order `ProductSummary` 필드 확장 + 상세 enrich, slip `SlipLineResponse` setHead/parentSetModel 노출, desktop ProductCatalogPage 전면 개편 + 세트 재고 가드 3화면. 4-라운드 다모델 리뷰(사이클1 통합 + Opus 16 + Fable5 + Codex 8) + Docker 실서버 QA 12컷.
+
+---
+
 ## Phase 2.6a 주문→출고전표 부분전환 인프라 결정 (2026-05-30)
 
 **배경**: 거래처 주문서를 출고전표로 전환하는 기존 경로(confirm 자동 1:1 발행)가 부분 전환을 지원하지 않았다. 품목별 부분전환 + 라인 단위 잔여수량 추적 신규 구현.

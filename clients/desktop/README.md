@@ -161,3 +161,11 @@ MIG-14는 Cash / Order / AgingSnapshot / Ledger 조회 화면을 `clients/deskto
 - `bankNotice` 는 노출(`exposed=true`) 입금계좌(displayOrder 순) 조합 — 계좌 0건이면 빈 문자열(placeholder 인쇄 금지). 인감은 `stampPngBase64` → dataURL, 로고는 `logoPngBase64` → dataURL(미설정 시 정적 `/print-logo.svg` fallback). API 로딩/에러 시 정적 fallback 으로 인쇄 블랭크를 방지한다.
 - 공급자 설정 화면(`routes/accounting/SupplierProfilePage.tsx`, 좌측 메뉴 라벨 '공급자 설정' — 라우트 `/accounting/supplier-profiles` 유지)에서 TEL/FAX·입금계좌 리스트(추가/삭제, 배열 순서 = displayOrder, 계좌별 명세서 노출 토글)·인감/로고 업로드(PNG ≤200KB, Web Crypto SHA-256)를 직접 설정한다.
 - ⚠️ 계좌 실데이터·실인감은 repo 비커밋 — 운영 화면에서 입력.
+
+## 품목관리 고도화 — 세트 구성품 편집 + 표시 순서 직접 조정 + 실시간 동기화 (2026-06-11, PR #461)
+
+- `routes/ProductCatalogPage.tsx` 전면 개편: 출처 컬럼·'시트자동/수동' 뱃지·'시트 자동 복귀' 버튼을 제거하고(시드 전용 정책), **세트 컬럼**(BUNDLE 뱃지 + 구성품 수 "세트 · 13", SINGLE 은 '—')을 추가했다. usage 토글·수동 마킹은 내부 동작으로 유지.
+- **구성품 편집 모달**: BUNDLE 행 '구성품' 버튼 → 현 구성 목록 + 행 추가(기존 q 검색 재사용)/삭제/수량/순서 → `PUT /api/v1/products/{code}/components`(replace-all). products.admin 게이트. `api/productCatalogApi.ts` 에 components GET/PUT 함수, `api/mock.ts` 에 동형 핸들러 + 세트 시드.
+- **표시 순서 드래그**: `@dnd-kit/sortable` 행 드래그 → '순서 저장' 일괄 `PUT /api/v1/products/display-orders`. **견적/주문 노출(usageScope ≠ NONE) 품목에만** 컬럼·드래그 표시(NONE 은 '—' + 정렬 제외). 검색/필터 활성 또는 카테고리 미선택 시 드래그 비활성(부분 목록 순서 모호 → 카테고리 한정에서만).
+- **실시간 동기화**: `realtime/ProductRealtimeClient.ts`(`SlipRealtimeClient` 패턴 복제)가 `GET /api/v1/products/catalog-realtime` SSE 를 구독해 `product:catalog:changed` 수신 시 react-query invalidate — 동시 시청자 화면이 usage/구성품/표시순서 변경에 실시간 반영된다.
+- **세트 재고 가드**: `routes/components/InventoryLookupModal.tsx` 에 `bundleOnlyLines`(전부 세트면 "재고는 구성품 단위" 안내)·`excludedBundleCount`(혼합 선택 시 "세트 N건 제외" 캡션) props 추가. `SlipFormPage.tsx`·`SalesPartnerOrderDetailPage.tsx` 가 BUNDLE 라인을 재고조회에서 제외한다(BE productType enrich 기반). `SlipDetailPage.tsx` 는 신규 전표가 BUNDLE 을 구성품 라인으로 전개 저장하므로 가드 불필요로 명문화(가짜 가드 금지). 주문 상세는 수정 PUT 후 GET 재조회(invalidate)로 enrich 필드를 보정한다.
