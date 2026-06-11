@@ -14,6 +14,16 @@ function countOccurrences(text: string, needle: string): number {
   return text.split(needle).length - 1
 }
 
+function assertInOrder(text: string, labels: string[]): void {
+  let previous = -1
+  for (const label of labels) {
+    const index = text.indexOf(label)
+    expect(index, `${label} should exist`).toBeGreaterThanOrEqual(0)
+    expect(index, `${label} should be after previous label`).toBeGreaterThan(previous)
+    previous = index
+  }
+}
+
 function ymlRouteBlock(text: string, routeId: string): string {
   const start = text.indexOf(`- id: ${routeId}`)
   if (start < 0) return ''
@@ -83,12 +93,47 @@ test.describe('SP-04 full menu and legacy migration contract', () => {
   const partnerOrderApplication = read('services/partner-order-service/src/main/resources/application.yml')
 
   test('management labels replace 조회-only primary menu labels', () => {
+    expect(appLayout).toContain('홈')
+    expect(appLayout).not.toMatch(/<NavLink to="\/" end>[\s\S]*대시보드[\s\S]*<\/NavLink>/)
     expect(appLayout).toContain('판매관리')
     expect(appLayout).toContain('구매관리')
     expect(appLayout).toContain('재고이동 관리')
     expect(appLayout).toContain('창고관리')
     expect(appLayout).not.toContain('>판매조회<')
     expect(appLayout).not.toContain('>구매조회<')
+  })
+
+  test('desktop sidebar follows fixed top links plus 7 category IA', () => {
+    assertInOrder(appLayout, [
+      '홈',
+      '알림 내역',
+      'label="판매"',
+      'label="구매"',
+      'label="회계"',
+      'label="그룹웨어"',
+      'label="인사"',
+      'label="arologis"',
+      'label="창고 운영"',
+    ])
+
+    expect(appLayout).not.toContain('label="메신저"')
+    expect(appLayout).not.toContain('label="알림 매핑"')
+    expect(appLayout).not.toContain('label="품목"')
+    expect(appLayout).not.toContain('label="설정"')
+  })
+
+  test('relocated menu items keep their routes and test ids under the new category contract', () => {
+    expect(appLayout).toMatch(/label="판매"[\s\S]*to="\/sales"[\s\S]*data-testid="sidebar-sales"[\s\S]*판매관리/)
+    expect(appLayout).toMatch(/label="판매"[\s\S]*data-testid="sidebar-products-catalog"[\s\S]*품목 관리/)
+    expect(appLayout).toMatch(/label="판매"[\s\S]*to="\/admin\/sheet-sync"[\s\S]*시트 동기화/)
+    expect(appLayout).toMatch(/label="구매"[\s\S]*to="\/purchases"[\s\S]*data-testid="sidebar-purchases"[\s\S]*구매관리/)
+    expect(appLayout).toMatch(/label="구매"[\s\S]*data-testid="sidebar-purchases-receipt-ocr"[\s\S]*영수증 OCR/)
+    expect(appLayout).toMatch(/label="구매"[\s\S]*to="\/transfers"[\s\S]*data-testid="sidebar-transfers"[\s\S]*재고이동 관리/)
+    expect(appLayout).toMatch(/label="그룹웨어"[\s\S]*data-testid="sidebar-link-dispatch"[\s\S]*링크발송/)
+    expect(appLayout).toMatch(/label="그룹웨어"[\s\S]*data-testid="sidebar-messenger-aligo-address-book"[\s\S]*알리고 주소록/)
+    expect(appLayout).toMatch(/label="그룹웨어"[\s\S]*data-testid="sidebar-admin-chat-rooms"[\s\S]*단톡방 매핑/)
+    expect(appLayout).toMatch(/label="arologis"[\s\S]*data-testid="sidebar-dispatch-board"[\s\S]*배차 메뉴/)
+    expect(appLayout).toMatch(/label="창고 운영"[\s\S]*to="\/warehouses"[\s\S]*data-testid="sidebar-warehouses"[\s\S]*창고관리/)
   })
 
   test('sidebar links and router guards match backend write/export contracts', () => {

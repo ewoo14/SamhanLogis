@@ -2,7 +2,7 @@
  * Samhan Public 회계 마감 메뉴 UI gap contract.
  *
  * dev server 없이 실행되는 정적 회귀 스펙:
- * - 매출 마감 메뉴는 판매/회계 양쪽에서 정식 route `/sales/closing`으로 이동해야 한다.
+ * - 매출 마감 메뉴는 회계 그룹에서만 정식 route `/sales/closing`으로 이동해야 한다.
  * - 월말 마감 메뉴는 회계 사이드바에서 `/accounting/period-close`로 발견 가능해야 한다.
  * - 두 route 모두 page-code PermissionGuard 와 연결되어야 한다.
  */
@@ -21,13 +21,10 @@ function read(filePath: string): string {
 }
 
 test.describe('Samhan Public 회계 마감 메뉴 gap', () => {
-  test('판매와 회계 사이드바는 정식 매출/월말 마감 route를 노출한다', () => {
+  test('회계 사이드바는 정식 매출/월말 마감 route를 노출한다', () => {
     const layout = read(layoutPath)
 
-    expect(layout).toContain('sidebar-sales-closing')
-    expect(layout).toMatch(
-      /to="\/sales\/closing"[\s\S]*data-testid="sidebar-sales-closing"[\s\S]*매출 마감/,
-    )
+    expect(layout).not.toContain('sidebar-sales-closing')
 
     expect(layout).toContain('sidebar-accounting-sales-closing')
     expect(layout).toMatch(

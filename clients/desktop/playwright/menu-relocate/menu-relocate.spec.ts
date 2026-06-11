@@ -13,7 +13,7 @@
  *
  * 역할별 테스트:
  *   - mockRole=DISPATCH / MANAGER / MASTER / SALES
- *   - URL ?mockRole=<ROLE> param 으로 ROLE 변경 후 메뉴 표시 검증
+ *   - URL ?mockRole=<ROLE> param 으로 ROLE 변경 후 7그룹 메뉴 표시 검증
  */
 
 import { test, expect, type Page } from '@playwright/test'
@@ -38,9 +38,8 @@ const QA_DIR = path.resolve(
 )
 
 function ensureQaDir(): void {
-  if (!fs.existsSync(QA_DIR)) {
-    fs.mkdirSync(QA_DIR, { recursive: true })
-  }
+  // Mock 계약 스펙은 Playwright test-results 아래에 스크린샷을 남긴다.
+  // docs/qa 는 PC별 파일 권한 차이로 EPERM 이 날 수 있어 real QA 산출물 전용으로 둔다.
 }
 
 /** dev server 가용 여부 확인 */
@@ -163,7 +162,7 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     }
 
     await page.screenshot({
-      path: path.join(QA_DIR, 'tc-m1-dispatch-region-manage.png'),
+      path: test.info().outputPath('tc-m1-dispatch-region-manage.png'),
       fullPage: true,
     })
 
@@ -175,14 +174,19 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       console.warn('발견된 메뉴 항목:', allLinks.slice(0, 20))
     }
 
+    expect(results, 'TC-M1: DISPATCH/MANAGER/MASTER 모두 배차 그룹의 배차지역 관리가 보여야 함').toEqual({
+      DISPATCH: true,
+      MANAGER: true,
+      MASTER: true,
+    })
     expect(errors, `TC-M1 pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
   })
 
   /**
-   * TC-M2: 메신저 카테고리에 "알리고 주소록" 항목 visible
+   * TC-M2: 그룹웨어 카테고리에 "알리고 주소록" 항목 visible
    * 접근 가능 역할: MANAGER / MASTER
    */
-  test('TC-M2: 메신저 카테고리 — "알리고 주소록" 항목 MANAGER/MASTER 진입 가능', async ({ page }) => {
+  test('TC-M2: 그룹웨어 카테고리 — "알리고 주소록" 항목 MANAGER/MASTER 진입 가능', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -197,7 +201,7 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       })
       await page.waitForTimeout(1000)
 
-      const visible = await isSidebarMenuVisible(page, '메신저', '알리고 주소록')
+      const visible = await isSidebarMenuVisible(page, '그룹웨어', '알리고 주소록')
       results[role] = visible
       console.log(`[TC-M2] role=${role}, "알리고 주소록" visible: ${visible}`)
     }
@@ -208,26 +212,27 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       timeout: 20000,
     })
     await page.waitForTimeout(800)
-    const salesVisible = await isSidebarMenuVisible(page, '메신저', '알리고 주소록')
+    const salesVisible = await isSidebarMenuVisible(page, '그룹웨어', '알리고 주소록')
     console.log(`[TC-M2] role=SALES, "알리고 주소록" visible (기대=false): ${salesVisible}`)
 
     await page.screenshot({
-      path: path.join(QA_DIR, 'tc-m2-messenger-aligo-addressbook.png'),
+      path: test.info().outputPath('tc-m2-groupware-aligo-addressbook.png'),
       fullPage: true,
     })
 
-    if (!Object.values(results).some(v => v)) {
-      console.warn('[TC-M2] "알리고 주소록" 메뉴 미발견 — FE agent 작업 완료 후 재확인 필요')
-    }
-
+    expect(results, 'TC-M2: MANAGER/MASTER 는 그룹웨어의 알리고 주소록이 보여야 함').toEqual({
+      MANAGER: true,
+      MASTER: true,
+    })
+    expect(salesVisible, 'TC-M2: SALES 는 알리고 주소록 권한이 없으므로 hidden').toBe(false)
     expect(errors, `TC-M2 pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
   })
 
   /**
-   * TC-M3: 영업 카테고리에 "발송금지 거래처" 항목 visible
-   * 접근 가능 역할: SALES / MANAGER / MASTER
+   * TC-M3: 판매 카테고리에 "발송금지 거래처" 항목 visible
+   * 접근 가능 역할: MANAGER / MASTER
    */
-  test('TC-M3: 영업 카테고리 — "발송금지 거래처" 항목 SALES/MANAGER/MASTER 진입 가능', async ({ page }) => {
+  test('TC-M3: 판매 카테고리 — "발송금지 거래처" 항목 MANAGER/MASTER visible, SALES hidden', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -242,28 +247,29 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       })
       await page.waitForTimeout(1000)
 
-      const visible = await isSidebarMenuVisible(page, '영업', '발송금지 거래처')
+      const visible = await isSidebarMenuVisible(page, '판매', '발송금지 거래처')
       results[role] = visible
       console.log(`[TC-M3] role=${role}, "발송금지 거래처" visible: ${visible}`)
     }
 
     await page.screenshot({
-      path: path.join(QA_DIR, 'tc-m3-sales-block-partner.png'),
+      path: test.info().outputPath('tc-m3-sales-block-partner.png'),
       fullPage: true,
     })
 
-    if (!Object.values(results).some(v => v)) {
-      console.warn('[TC-M3] "발송금지 거래처" 메뉴 미발견 — FE agent 작업 완료 후 재확인 필요')
-    }
-
+    expect(results, 'TC-M3: partners.block 권한에 따라 판매 그룹 발송금지 거래처 노출이 갈려야 함').toEqual({
+      SALES: false,
+      MANAGER: true,
+      MASTER: true,
+    })
     expect(errors, `TC-M3 pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
   })
 
   /**
-   * TC-M4: 설정/앱정보 카테고리에 "시트 동기화" 항목 visible
+   * TC-M4: 판매 카테고리에 "시트 동기화" 항목 visible
    * 접근 가능 역할: MANAGER / MASTER
    */
-  test('TC-M4: 설정/앱정보 카테고리 — "시트 동기화" 항목 MANAGER/MASTER 진입 가능', async ({ page }) => {
+  test('TC-M4: 판매 카테고리 — "시트 동기화" 항목 MANAGER/MASTER 진입 가능', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureQaDir()
@@ -278,27 +284,20 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       })
       await page.waitForTimeout(1000)
 
-      // "설정/앱정보" 또는 "설정" 카테고리 탐색
-      let visible = await isSidebarMenuVisible(page, '설정/앱정보', '시트 동기화')
-      if (!visible) {
-        visible = await isSidebarMenuVisible(page, '설정', '시트 동기화')
-      }
-      if (!visible) {
-        visible = await isSidebarMenuVisible(page, '앱정보', '시트 동기화')
-      }
+      const visible = await isSidebarMenuVisible(page, '판매', '시트 동기화')
       results[role] = visible
       console.log(`[TC-M4] role=${role}, "시트 동기화" visible: ${visible}`)
     }
 
     await page.screenshot({
-      path: path.join(QA_DIR, 'tc-m4-settings-sheet-sync.png'),
+      path: test.info().outputPath('tc-m4-sales-sheet-sync.png'),
       fullPage: true,
     })
 
-    if (!Object.values(results).some(v => v)) {
-      console.warn('[TC-M4] "시트 동기화" 메뉴 미발견 — FE agent 작업 완료 후 재확인 필요')
-    }
-
+    expect(results, 'TC-M4: MANAGER/MASTER 는 판매 그룹의 시트 동기화가 보여야 함').toEqual({
+      MANAGER: true,
+      MASTER: true,
+    })
     expect(errors, `TC-M4 pageerror 발생: ${errors.join('; ')}`).toHaveLength(0)
   })
 
@@ -345,7 +344,7 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
     }
 
     await page.screenshot({
-      path: path.join(QA_DIR, 'tc-m5-master-menu-regression.png'),
+      path: test.info().outputPath('tc-m5-master-menu-regression.png'),
       fullPage: true,
     })
 
