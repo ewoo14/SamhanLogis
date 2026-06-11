@@ -70,8 +70,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * bypass/PARTNER deny) — {@code PermissionAspect} 실 AOP</b> 이며, 이 AOP 는 어느 SecurityFilterChain 으로
  * 인증되든 controller 메서드 진입 시 동일하게 발동하므로 운영 chain 의존성이 없다(계약 바뀐 차원만 실-HTTP —
  * [[feedback_preauth_migration_lessons]]). 운영 {@code SecurityConfig}(shared:security InternalTokenFilter 명시
- * 배선 포함) + 7개 공개 거래처 endpoint(login/register 등)의 부팅·실 filter chain 검증은 full {@code @SpringBootTest}
- * 인 {@link PartnerAuthControllerIT}(Testcontainers, CI Linux)가 담당한다. slice IT 에 운영 SecurityConfig 를
+ * 배선 포함)의 부팅·bean 배선 검증(context-load 시 InternalTokenFilter 주입 회귀 적발)은 full {@code @SpringBootTest}
+ * 인 {@link PartnerAuthControllerIT}(Testcontainers, CI Linux)가 담당한다(해당 IT 는 webAppContextSetup 기반이라
+ * per-request security filter chain 실행까지는 미검증 — InternalTokenFilter 의 실 동작 회귀는 동일 2단 체인을 쓰는
+ * inventory/partner-order 등 13 service 공통 패턴 + shared:security 테스트가 보증). slice IT 에 운영 SecurityConfig 를
  * import 하면 InternalSecurityAutoConfiguration/properties 결합만 늘 뿐 AOP 커버리지는 동일 — 중복 회피.
  *
  * <p>{@link DynamicPermissionClient} 는 {@code @MockBean} 으로 격리(auth-service 호출 차단,
