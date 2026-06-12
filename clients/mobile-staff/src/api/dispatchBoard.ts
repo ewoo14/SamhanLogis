@@ -88,7 +88,7 @@ export const DISPATCH_TASK_STATUS_LABEL: Record<DispatchTaskStatus, string> = {
   DISPATCHED: '배차 완료',
   FAILED: '배차 불가',
   MODIFICATION_REQUESTED: '수정 요청 중',
-  MODIFICATION_ACCEPTED: '수정 가능 (편집 모드)',
+  MODIFICATION_ACCEPTED: '수정 수락됨 — 데스크톱 배차현황에서 재배차',
   MODIFICATION_REJECTED: '수정 거부됨',
   CANCEL_REQUESTED: '취소 요청 중',
   CANCEL_ACCEPTED: '취소 수락됨',
@@ -97,11 +97,15 @@ export const DISPATCH_TASK_STATUS_LABEL: Record<DispatchTaskStatus, string> = {
 };
 
 /**
- * 수정/취소 편집 가능 상태 — DRAFT 또는 MODIFICATION_ACCEPTED (D-DC-08).
- * Phase A = DRAFT 만 편집. Phase C = MODIFICATION_ACCEPTED 추가.
+ * 모바일 편집/발송 가능 상태 — DRAFT 만.
+ *
+ * <p>재배차(MODIFICATION_ACCEPTED → 재발송)는 개발책임자 결정(Option A)으로 데스크톱
+ * 배차현황에서만 수행한다. 모바일에는 배차현황·[재배차 시작] 진입점이 없고, BE 는
+ * MODIFICATION_ACCEPTED 직접 발송을 409 로 차단하므로, 모바일에서는 본 상태를 편집/발송
+ * 불가로 두어 막다른 [배차 완료] 흐름을 제거한다 (Round D 적발 보정).
  */
 export function isEditableStatus(status: DispatchTaskStatus): boolean {
-  return status === 'DRAFT' || status === 'MODIFICATION_ACCEPTED';
+  return status === 'DRAFT';
 }
 
 /**

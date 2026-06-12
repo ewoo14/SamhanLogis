@@ -294,7 +294,8 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
 
   const matchedByGroup = useMemo(() => {
     const m = new Map<number, string>();
-    task?.matchedDrivers.forEach((d) => {
+    // 수정/취소 요청 mutation 은 slim 응답(matchedDrivers 미포함)을 반환하므로 옵셔널 체이닝 가드.
+    task?.matchedDrivers?.forEach((d) => {
       m.set(
         d.vehicleGroupSequence,
         `${d.driverName} (${d.driverCode}) ${d.driverPhoneNumber}`,
@@ -374,7 +375,7 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
       {task.status === 'MODIFICATION_ACCEPTED' ? (
         <View style={styles.acceptedBanner}>
           <Text style={styles.acceptedBannerText}>
-            수정 가능 (편집 모드 활성): 차량/슬립 구성을 수정한 뒤 [배차 완료] 를 다시 누르세요.
+            수정 수락됨 — 재배차(차량/슬립 수정 후 재발송)는 데스크톱 배차현황에서 진행하세요. 모바일에서는 재배차를 시작할 수 없습니다.
           </Text>
         </View>
       ) : null}
