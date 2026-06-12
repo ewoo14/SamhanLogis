@@ -66,6 +66,72 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
+    @DisplayName("#P3: required=false 무-토큰 익명 통과는 위조 identity header 전부 제거")
+    void optionalJwtMissingAuthorizationHeader_stripsSpoofedIdentityHeadersBeforePassingDownstream() {
+        JwtAuthenticationGatewayFilterFactory.Config config =
+                new JwtAuthenticationGatewayFilterFactory.Config();
+        config.setRequired(false);
+        GatewayFilter filter = factory.apply(config);
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/public/optional")
+                .header(HttpHeaderConstants.CALLER_ID_HEADER, "spoof-user")
+                .header(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER, "true")
+                .header(HttpHeaderConstants.USER_GROUPS_HEADER, "00000000-0000-0000-0000-000000000100")
+                .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
+                .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "SPOOF-PARTNER")
+                .header(HttpHeaderConstants.CALLER_NAME_HEADER, "%EA%B4%80%EB%A6%AC%EC%9E%90")
+                .header(HttpHeaderConstants.USER_DEPARTMENT_HEADER, "%EB%8C%80%ED%91%9C%EC%8B%A4")
+                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER")
+                .header("X-Request-Id", "req-optional")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertIdentityHeadersRemoved(captured[0]);
+        assertThat(captured[0].getHeaders().getFirst("X-Request-Id")).isEqualTo("req-optional");
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("#P3: required=true 무-토큰은 위조 identity header 여부와 무관하게 downstream 차단")
+    void requiredJwtMissingAuthorizationHeaderWithSpoofedIdentityHeaders_returns401AndDoesNotCallDownstream() {
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/users/me")
+                .header(HttpHeaderConstants.CALLER_ID_HEADER, "spoof-user")
+                .header(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER, "true")
+                .header(HttpHeaderConstants.USER_GROUPS_HEADER, "00000000-0000-0000-0000-000000000100")
+                .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
+                .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "SPOOF-PARTNER")
+                .header(HttpHeaderConstants.CALLER_NAME_HEADER, "%EA%B4%80%EB%A6%AC%EC%9E%90")
+                .header(HttpHeaderConstants.USER_DEPARTMENT_HEADER, "%EB%8C%80%ED%91%9C%EC%8B%A4")
+                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        boolean[] downstreamCalled = {false};
+        GatewayFilterChain chain = e -> {
+            downstreamCalled[0] = true;
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(downstreamCalled[0]).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        String body = readBody(exchange);
+        assertThat(body).contains("UNAUTHORIZED");
+    }
+
+    @Test
     @DisplayName("C5-4: 유효 토큰 → X-User-Id/X-Is-System-Master/X-User-Groups 전파, X-User-Role 미전파")
     void validToken_propagatesIdentityHeadersDownstream_noRoleHeader() {
         String token = JwtTokenProvider.generate(
@@ -672,5 +738,13 @@ class JwtAuthenticationGatewayFilterFactoryTest {
 
     private static String readBody(ServerWebExchange exchange) {
         return ((MockServerHttpResponse) exchange.getResponse()).getBodyAsString().block();
+    }
+
+    private static void assertIdentityHeadersRemoved(ServerHttpRequest request) {
+        for (String header : HttpHeaderConstants.INBOUND_IDENTITY_HEADERS) {
+            assertThat(request.getHeaders().containsKey(header))
+                    .as("%s 는 익명 요청 downstream 으로 전달되면 안 된다", header)
+                    .isFalse();
+        }
     }
 }

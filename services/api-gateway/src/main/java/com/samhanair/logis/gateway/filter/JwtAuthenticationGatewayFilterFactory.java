@@ -144,7 +144,8 @@ public class JwtAuthenticationGatewayFilterFactory
                     return writeError(exchange, HttpStatus.UNAUTHORIZED,
                             "UNAUTHORIZED", "인증 토큰이 없습니다");
                 }
-                return chain.filter(exchange);
+                // required=false 익명 통과도 신뢰된 identity 가 없으므로 클라이언트 위조 헤더는 제거만 수행한다.
+                return chain.filter(stripInboundIdentityHeaders(exchange));
             }
 
             String token = header.substring(BEARER_PREFIX.length()).trim();
@@ -279,6 +280,14 @@ public class JwtAuthenticationGatewayFilterFactory
         DataBufferFactory factory = response.bufferFactory();
         DataBuffer buffer = factory.wrap(body.getBytes(StandardCharsets.UTF_8));
         return response.writeWith(Mono.just(buffer));
+    }
+
+    private static ServerWebExchange stripInboundIdentityHeaders(ServerWebExchange exchange) {
+        return exchange.mutate()
+                .request(exchange.getRequest().mutate()
+                        .headers(headers -> HttpHeaderConstants.INBOUND_IDENTITY_HEADERS.forEach(headers::remove))
+                        .build())
+                .build();
     }
 
     /** Per-route configuration knobs for the JWT filter. */
