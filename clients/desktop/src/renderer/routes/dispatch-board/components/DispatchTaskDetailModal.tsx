@@ -8,7 +8,8 @@
  *
  * 본 모달의 책임:
  *  1) DispatchTask 요약 노출 — taskCode / dispatchDate / 상태 / 차량 그룹 + 정차 + 매칭 기사.
- *  2) DISPATCHED 상태에서만 [수정 요청] / [취소 요청] 버튼 노출 (D-DC-02).
+ *  2) DISPATCHED + arologisDispatchId 보유 task 만 [수정 요청] / [취소 요청] 버튼 노출
+ *     (D-DC-02 + Round E — 수동-only 완료 task 는 arologis dispatch 가 없어 미노출).
  *  3) MODIFICATION_REJECTED / CANCEL_REJECTED 상태에서 rejectionReason 안내 (빨강 배너).
  *  4) MODIFICATION_REQUESTED / CANCEL_REQUESTED 상태에서 "회신 대기" 안내 (보라 배너).
  *  5) MODIFICATION_ACCEPTED 상태에서 [재배차 시작] 안내 (녹색 배너).

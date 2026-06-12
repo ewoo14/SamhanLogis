@@ -4831,6 +4831,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!task) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
     }
+    // BE parity (DispatchTaskModificationRequestService) — 수동-only 완료 task 는
+    // arologis dispatch 가 없어 수정 요청 발송 자체가 409 (Round E 버튼 게이트의 서버측 근거).
+    if (!task.arologisDispatchId) {
+      return mockError(409, 'CONFLICT', `arologisDispatchId 가 없어 수정 요청 발송 불가 — taskCode=${task.taskCode}`)
+    }
     if (task.status !== 'DISPATCHED') {
       return mockError(409, 'CONFLICT', `MODIFICATION_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=${task.status}`)
     }
@@ -4861,6 +4866,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     if (!task) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
+    }
+    // BE parity (DispatchTaskCancellationRequestService) — 수동-only 완료 task 는
+    // arologis dispatch 가 없어 취소 요청 발송 자체가 409 (Round E 버튼 게이트의 서버측 근거).
+    if (!task.arologisDispatchId) {
+      return mockError(409, 'CONFLICT', `arologisDispatchId 가 없어 취소 요청 발송 불가 — taskCode=${task.taskCode}`)
     }
     if (task.status !== 'DISPATCHED') {
       return mockError(409, 'CONFLICT', `CANCEL_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=${task.status}`)

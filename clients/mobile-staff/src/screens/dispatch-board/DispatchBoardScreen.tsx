@@ -237,7 +237,8 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
     }
   };
 
-  // Phase C — DRAFT 또는 MODIFICATION_ACCEPTED 시 편집 가능 (D-DC-08).
+  // 모바일 편집/발송 = DRAFT 만 (Round D — MODIFICATION_ACCEPTED 재배차는 데스크톱
+  // 배차현황 Option A 한정, api/dispatchBoard.ts isEditableStatus 참조).
   const canEdit = !!task && isEditableStatus(task.status);
   const canDispatch =
     canEdit &&
