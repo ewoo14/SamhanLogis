@@ -39,3 +39,33 @@
 
 ## 원칙 준수
 [[codex-implements-claude-reviews]](Codex 구현) · [[no-fake-data-ever]](실데이터/실QA) · [[qa-docker-real-test]](Docker 실서버) · [[enum-expansion-check-constraint]](CHECK 마이그) · [[jeonpyo-not-slip]](전표) · [[pr-qa-screenshots]](본문 인라인) · [[korean-commits]]. 머지 = 0 error/0 skip + CI green + Docker 실QA 후.
+
+---
+
+# PR #464 — 배차현황 실 데이터 (코멘트 실명 + 차량번호/기사명) · 2026-06-12
+
+#463 머지 후 배차현황의 실 데이터 갭 2건을 완성. 다모델 워크플로우 3라운드 완주.
+
+## 구현 (Codex)
+- **#1 코멘트 작성자 실명**: shared/common `JwtTokenProvider` displayName("name") claim → auth-service login JWT → api-gateway `X-User-Name`(URLEncode UTF-8, 위조 strip) → slip 코멘트 작성자 실명. "system" 폴백 유지.
+- **#1 모지바케 해소(charset-repair)**: 게이트웨이 URL-encoded `X-User-Name` 을 Tomcat 이 ISO-8859-1 로 읽어 0xED("터") 깨지는 경로 → 공용 `shared/security/UserHeaderDecodingFilter`(OncePerRequestFilter, FilterRegistrationBean 자동등록) 중앙 디코딩 + high-bit ISO-8859-1→UTF-8 복원(well-formed 게이트). [[x-user-name-header-charset-mockmvc]]
+- **#2a arologis 자동공급**: Insung 응답 driverName/vehiclePlateNumber → Driver(V18) → confirm payload(MatchedDriverPayload 7필드) → slip 표시. MockDriverMatcher plate=null 유지([[no-fake-data-ever]]).
+- **#2b 타사 수동기입**: PUT matched-driver(배차담당자, driverCode=MANUAL, @RequirePermission dispatch.board UPDATE, cross-task 404). FE 화면엔 driverSource(경기퀵 등) 표시(MANUAL sentinel 숨김).
+- **전화번호 nullable 전 계층**: 외부 기사 phone 더미("010-0000-0000") 제거 → null 허용. arologis drivers phone nullable+partial unique(V19)+더미 backfill(V20), slip dispatch_matched_driver phone nullable(V40)·driver_code 50(V39). [[no-fake-data-ever]]
+- **용어**: 화면 라벨 "협업 코멘트" → "코멘트"([[comment-not-collab-comment]]).
+
+## 다모델 리뷰 3라운드 (각 QA agent + Docker 실QA 스크린샷 라운드 코멘트 인라인)
+- **Opus 5-agent**: P1 게이트웨이 X-User-Name 인코딩 광역화→다수 서비스 모지바케(공용 필터 sweep) · P2 webhook name/plate 대칭. fix 완료.
+- **Codex 5-agent(GPT-5.5)**: P1 게이트웨이 X-User-Department 스푸핑 strip 누락 · P1 confirm 검증 전 전이/silent skip · P2×9(404 UUID·필터 트리거·Insung 결손·길이정합·IT). 전건 fix.
+- **Fable5 5-agent**: P1 전화번호 nullable 전 계층 전파(배차 task 고착 회귀) · P2 authorName 길이 500·vendor 길이·수동기입 soft-delete/409·MANUAL 노출·테스트 공백. 전건 fix. REFUTE: 필터 MockMvc 미포함(경험적 반증) → ApplicationContextRunner 와이어링 테스트.
+
+## 🔴 보안 발견 → 분리 (이슈 #465)
+Fable5 보안 에이전트: 게이트웨이 `/auth/**` catch-all(JwtAuthentication 미적용) + `default-filters` identity 헤더 무strip → 위조 `X-Is-System-Master:true` 로 `POST /auth/register` @RequirePermission 우회(권한 상승). **기존 결함(#464 비기인), 전 라우트 영향 → 이슈 #465 + 전용 PR(개발책임자 승인)**.
+
+## DEFER (개발책임자 정책 대기)
+confirm sequence 완결성(groups⊆payload, unavailable 상호작용) · 수동기입 task-status 게이트 + vendor가 MANUAL 덮어쓰기 우선순위.
+
+## QA
+docs/qa/dispatch-author-plate/author-plate-live.png — 실 게이트웨이:8080 · 실 Postgres · mock OFF · dev_master. 작성자 "[DEV-SEED] 개발마스터"(한글 정상) + 차량번호 "12가7890" + 기사 "(경기퀵)" + "코멘트" 라벨. 라운드마다 재빌드 후 재캡처 인라인 게시.
+
+머지 = 3라운드 0 error/0 skip + CI green + Docker 실QA 후 PM 종합.
