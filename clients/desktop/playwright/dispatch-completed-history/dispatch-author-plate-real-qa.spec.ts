@@ -63,9 +63,10 @@ test('배차현황 실 데이터 라이브 캡처 — 실명 작성자 + 타사 
   expect(taskId && groupId, 'task.id/groupId 없음').toBeTruthy()
 
   // (#2b) 타사 기사/차량번호 수동 기입 (PUT matched-driver)
+  // driverSource 는 BE MatchedDriverSource enum 값 — free-text('경기퀵')는 400 거부됨 (D-DMR-02).
   const setRes = await page.request.put(
     `${API_BASE}/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/matched-driver`,
-    { headers: auth, data: { driverName: '이용달', driverPhoneNumber: '010-5555-6789', vehiclePlateNumber: '12가7890', driverSource: '경기퀵' } },
+    { headers: auth, data: { driverName: '이용달', driverPhoneNumber: '010-5555-6789', vehiclePlateNumber: '12가7890', driverSource: 'GYEONGGI_QUICK' } },
   )
   expect(setRes.ok(), `수동 기입 HTTP ${setRes.status()}: ${await setRes.text()}`).toBeTruthy()
 

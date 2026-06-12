@@ -291,9 +291,13 @@ export function DispatchHistoryPage() {
       ) : null}
 
       {selectedDetailKey && detailQuery.data ? (
+        // Round C Option A — 배차현황 상세에서 수정/취소 요청·재배차 시작 허용.
+        // readOnly 는 코멘트 조회 전용 유지, task 액션은 allowTaskActions 로 개방
+        // (UPDATE 권한 가드는 모달 내부 canAccess('dispatch.board','update') 가 적용).
         <DispatchTaskDetailModal
           task={detailQuery.data}
           readOnly
+          allowTaskActions
           onClose={() => setSelectedDetailKey(null)}
         />
       ) : null}

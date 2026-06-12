@@ -35,6 +35,13 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>모든 그룹이 발송된 경우에만 DispatchTask → DISPATCHING</li>
  * </ol>
  *
+ * <p><strong>추가 부분발송 금지 (Round C P1-2, D-DMR-06)</strong>: 이미 DISPATCHED 그룹이 있는
+ * task 에 대한 추가 발송은 409 로 명시 차단한다. task 는 단일 {@code arologisDispatchId} 만
+ * 보유하므로 (D-DMR-04) 2차 발송이 1차 dispatch id 를 덮어쓰고, arologis 측 insert-only 수신
+ * (Round C P1-1) 과 결합하면 같은 task 의 2번째 active dispatch INSERT 가 unique 위반으로
+ * 실패한다. 허용 경로는 첫 발송(전체/선택)과 재배차([재배차 시작] 후 전 그룹 PENDING) 뿐이다.
+ * 부분 발송 후 남은 그룹은 수동 발송완료 또는 재배차 루프로 닫는다.
+ *
  * <p>매칭 회신 (DISPATCHED / FAILED) 은 별도 service 의 internal endpoint 가 처리.
  */
 @Slf4j
@@ -68,19 +75,20 @@ public class DispatchTaskCompletionService {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "차량 그룹이 없습니다 — 배차 발송 불가");
         }
-        boolean hasPendingGroup = groups.stream().anyMatch(DispatchVehicleGroup::isDispatchPending);
-        boolean dispatchableTaskStatus = task.getStatus() == DispatchTaskStatus.DRAFT
-                || (task.getStatus() == DispatchTaskStatus.DISPATCHING && hasPendingGroup);
-        if (!dispatchableTaskStatus) {
+        // Round C P1-2 — 이미 발송된 그룹이 있으면 추가 부분발송을 명시적으로 차단한다 (D-DMR-06).
+        // (수동 발송완료 그룹 포함 — 발송 이력이 생긴 task 의 수정은 재배차 루프로만 진행.)
+        boolean hasDispatchedGroup = groups.stream().anyMatch(group -> !group.isDispatchPending());
+        if (hasDispatchedGroup) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 아로로지스로 발송된 배차입니다 — 수정하려면 [재배차 시작] 후 전체 재발송하세요");
+        }
+        // 첫 발송·재배차(전 그룹 PENDING) 는 DRAFT 에서만 진행한다.
+        if (task.getStatus() != DispatchTaskStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "발송 가능한 미발송 차량 그룹이 없습니다 — 현재=" + task.getStatus());
         }
 
         List<DispatchVehicleGroup> selectedGroups = selectGroups(groups, groupIds);
-        if (groupIds != null && selectedGroups.stream().anyMatch(group -> !group.isDispatchPending())) {
-            throw new BusinessException(ErrorCode.CONFLICT,
-                    "이미 발송된 차량 그룹이 선택에 포함되어 있습니다.");
-        }
 
         List<DispatchVehicleGroup> targetGroups = selectedGroups.stream()
                 .filter(DispatchVehicleGroup::isDispatchPending)
@@ -94,8 +102,9 @@ public class DispatchTaskCompletionService {
                 .map(this::buildPayloadGroup)
                 .toList();
 
-        // arologis confirm endpoint 는 원 taskId 로 회신한다. arologis 쪽 samhanDispatchTaskId unique
-        // 제약은 없으므로 부분 발송도 원 taskId 를 유지해 callback 라우팅을 보존한다.
+        // arologis confirm endpoint 는 원 taskId 로 회신한다. arologis 는 task 당 active dispatch 1건을
+        // partial unique(ux_dispatches_samhan_task_active, V21) 로 강제하고 insert-only 로 수신하므로,
+        // 본 메서드 진입 시점에는 위 가드로 발송 이력이 없는 상태(첫 발송 또는 재배차)만 허용된다.
         ArologisDispatchRequest request = new ArologisDispatchRequest(
                 task.getId(), task.getTaskCode(), task.getDispatchDate(), payloadGroups);
 

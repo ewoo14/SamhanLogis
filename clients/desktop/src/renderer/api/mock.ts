@@ -4793,13 +4793,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const body = parseMockBody(config) as { groupIds?: string[] }
     const groupIds = Array.isArray(body.groupIds) ? body.groupIds : undefined
     window.__SAMHAN_MOCK_LAST_DISPATCH_BODY__ = groupIds ? { groupIds } : {}
-    const targetGroupIds = new Set(groupIds ?? task.vehicleGroups.map((group) => group.id))
-    if (groupIds) {
-      const selectedGroups = task.vehicleGroups.filter((group) => targetGroupIds.has(group.id))
-      if (selectedGroups.some((group) => group.dispatchStatus !== 'PENDING')) {
-        return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹이 선택에 포함되어 있습니다.')
-      }
+    // Round C P1-2 BE parity — 발송 이력이 있는 task 의 추가 부분발송 명시 차단 (D-DMR-06).
+    if (task.vehicleGroups.some((group) => group.dispatchStatus !== 'PENDING')) {
+      return mockError(409, 'CONFLICT', '이미 아로로지스로 발송된 배차입니다 — 수정하려면 [재배차 시작] 후 전체 재발송하세요')
     }
+    if (task.status !== 'DRAFT') {
+      return mockError(409, 'CONFLICT', `발송 가능한 미발송 차량 그룹이 없습니다 — 현재=${task.status}`)
+    }
+    const targetGroupIds = new Set(groupIds ?? task.vehicleGroups.map((group) => group.id))
     const targetGroups = task.vehicleGroups
       .filter((group) => targetGroupIds.has(group.id) && group.dispatchStatus === 'PENDING')
     if (targetGroups.length === 0) {
@@ -4815,6 +4816,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ? 'DISPATCHING'
       : 'DRAFT'
     refreshMockDuplicateSlipIds(task)
+    syncMockDispatchTaskSummary(task)
     return envelope(task)
   }
 
@@ -4845,6 +4847,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     } else {
       task.status = 'MODIFICATION_REQUESTED'
     }
+    syncMockDispatchTaskSummary(task)
     return envelope(task)
   }
 
@@ -4881,6 +4884,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     } else {
       task.status = 'CANCEL_REQUESTED'
     }
+    syncMockDispatchTaskSummary(task)
     return envelope(task)
   }
 
@@ -4910,6 +4914,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
     task.matchedDrivers = []
     refreshMockDuplicateSlipIds(task)
+    syncMockDispatchTaskSummary(task)
     return envelope(task)
   }
 
@@ -4982,7 +4987,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const driverName = String(body.driverName ?? '').trim()
     const driverPhoneNumber = String(body.driverPhoneNumber ?? '').trim()
     const vehiclePlateNumber = String(body.vehiclePlateNumber ?? '').trim()
-    const driverSource = toManualMatchedDriverSource(String(body.driverSource ?? '').trim())
+    const rawDriverSource = String(body.driverSource ?? '').trim()
+    // BE parity (DispatchMatchedDriverManualService) — AROLOGIS 출처는 자동 매칭 회신 전용 409.
+    if (rawDriverSource === 'AROLOGIS') {
+      return mockError(409, 'CONFLICT', '아로로지스 출처는 자동 매칭 회신으로만 기록할 수 있습니다.')
+    }
+    const driverSource = toManualMatchedDriverSource(rawDriverSource)
     if (!driverName || !vehiclePlateNumber || !driverSource) {
       return mockError(400, 'INVALID_INPUT', '기사/차량 입력값은 필수입니다.')
     }
@@ -5002,12 +5012,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     } else {
       task.matchedDrivers.push(nextMatched)
     }
-    const summary = MOCK_DISPATCH_TASK_SUMMARIES.find(
-      (item) => item.arologisDispatchId === task.arologisDispatchId,
-    )
-    if (summary) {
-      summary.driverCount = task.matchedDrivers.length
-    }
+    syncMockDispatchTaskSummary(task)
     return envelope(task)
   }
 
@@ -5044,6 +5049,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       task.status = 'DISPATCHED'
     }
     refreshMockDuplicateSlipIds(task)
+    syncMockDispatchTaskSummary(task)
     return envelope(task)
   }
 
@@ -8034,6 +8040,24 @@ function refreshMockDuplicateSlipIds(task: DispatchTaskResponse): DispatchTaskRe
     .filter(([, count]) => count > 1)
     .map(([slipId]) => slipId)
   return task
+}
+
+/**
+ * 배차현황 목록 summary 를 상세 task 상태와 동기화한다 (Round C).
+ *
+ * <p>수정요청/재배차/수동완료/발송 같은 상태 전이 후 목록 refetch 가 stale status 를 보지
+ * 않도록 한다. 재배차 후 arologisDispatchId 가 null 로 바뀌므로 매칭 키는 taskCode (안정 키).
+ * 보드에서 새로 만든 task 는 seed summary 가 없어 no-op (배차현황 목록은 seed 한정 — 날짜
+ * 민감 flake 방지를 위해 upsert 하지 않는다).
+ */
+function syncMockDispatchTaskSummary(task: DispatchTaskResponse): void {
+  const summary = MOCK_DISPATCH_TASK_SUMMARIES.find((row) => row.taskCode === task.taskCode)
+  if (!summary) return
+  summary.status = task.status
+  summary.arologisDispatchId = task.arologisDispatchId
+  summary.vehicleGroupCount = task.vehicleGroups.length
+  summary.slipCount = task.vehicleGroups.reduce((sum, group) => sum + group.slips.length, 0)
+  summary.driverCount = task.matchedDrivers.length
 }
 
 function mockDispatchBoardSlipById(slipId: string) {

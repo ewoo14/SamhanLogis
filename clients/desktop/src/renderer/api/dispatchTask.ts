@@ -437,6 +437,27 @@ export interface DispatchTaskResponse {
 }
 
 /**
+ * BE 슬림 DispatchTaskResponse — task 단위 mutation ack (start-redispatch / 수정·취소 요청 등).
+ *
+ * <p>상세 read model 인 {@link DispatchTaskResponse} 와 달리 {@code vehicleGroups} /
+ * {@code matchedDrivers} / {@code duplicateSlipIds} 를 포함하지 않는다 (BE
+ * {@code DispatchTaskResponse.from(task)}). 상세 cache 갱신은
+ * {@code useDispatchTask.ts} 의 슬림 병합 헬퍼가 담당한다.
+ */
+export interface DispatchTaskSlimResponse {
+  id: string
+  taskCode: string
+  dispatchDate: string
+  status: DispatchTaskStatus
+  arologisDispatchId: string | null
+  failureReason: string | null
+  modificationReason?: string | null
+  rejectionReason?: string | null
+  modificationRequestedAt?: string | null
+  modificationDecidedAt?: string | null
+}
+
+/**
  * 완료배차 내역 목록 요약 행 — UUID 비공개, taskCode 중심.
  */
 export interface DispatchTaskSummaryResponse {
@@ -670,11 +691,13 @@ export async function dispatchToArologis(
  * 재배차 시작 — `POST /admin/dispatch-tasks/{taskId}/start-redispatch`.
  *
  * <p>MODIFICATION_ACCEPTED 상태에서 DRAFT 로 되돌리고 기존 발송 그룹을 다시 편집 가능하게 연다.
+ * 응답은 BE 슬림 ack — 그룹 PENDING / slip UNDISPATCHED 즉시 반영은
+ * {@code useStartRedispatchMutation} 의 상세 cache 병합이 수행한다.
  */
 export async function startRedispatch(
   taskId: string,
-): Promise<DispatchTaskResponse> {
-  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+): Promise<DispatchTaskSlimResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskSlimResponse>>(
     `/admin/dispatch-tasks/${taskId}/start-redispatch`,
   )
   return res.data.data
@@ -696,8 +719,8 @@ export async function startRedispatch(
 export async function requestModification(
   taskId: string,
   reason: string,
-): Promise<DispatchTaskResponse> {
-  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+): Promise<DispatchTaskSlimResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskSlimResponse>>(
     `/admin/dispatch-tasks/${taskId}/modification-request`,
     { reason },
   )
@@ -713,8 +736,8 @@ export async function requestModification(
 export async function requestCancellation(
   taskId: string,
   reason: string,
-): Promise<DispatchTaskResponse> {
-  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+): Promise<DispatchTaskSlimResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskSlimResponse>>(
     `/admin/dispatch-tasks/${taskId}/cancellation-request`,
     { reason },
   )

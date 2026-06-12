@@ -137,12 +137,10 @@ export function VehicleGroupColumn({
       window.removeEventListener(DISPATCH_TASK_LOCAL_MUTATION_EVENT, rerenderAfterLocalMutation)
   }, [])
 
-  // Phase C — DISPATCHED 이후 (배차 완료 후) 상태에서 상세 모달 진입 가능.
-  // 단순화: DRAFT/DISPATCHING 외 모든 상태에서 상세 보기 활성.
-  const canOpenDetail =
-    !!task &&
-    taskStatus !== 'DRAFT' &&
-    taskStatus !== 'DISPATCHING'
+  // Round C P1-4 — 모든 상태에서 상세 모달 진입 허용. DRAFT/DISPATCHING 에서도 상세 모달의
+  // [기사/차량 입력] + [수동 발송완료] (타사 vendor 수동기입, spec § 8) 에 보드에서 도달해야 한다.
+  // readOnly 는 배차현황(DispatchHistoryPage) 한정.
+  const canOpenDetail = !!task
 
   // 거부 사유 / 요청 사유가 있을 때 헤더에 inline 안내 노출.
   const showRejectionBanner =
@@ -404,16 +402,14 @@ export function VehicleGroupColumn({
         >
           선택 전송 ({selectedDispatchGroupIds.length})
         </button>
+        {/* Round C P1-3 — MODIFICATION_ACCEPTED 직접 편집 모델의 '수정 배차 완료' 구 라벨 제거.
+            수정수락 후에는 [재배차 시작] → DRAFT 복귀 후 일반 [배차 완료] 만 사용한다 (D-DMR-01). */}
         <button
           type="button"
           disabled={!canDispatch}
           onClick={() => setCompleteGroupIds([])}
           data-testid="dispatch-board-complete-button"
-          aria-label={
-            taskStatus === 'MODIFICATION_ACCEPTED'
-              ? '수정 배차 완료 — 아로로지스로 재 발송'
-              : '배차 완료 — 아로로지스로 발송'
-          }
+          aria-label="배차 완료 — 아로로지스로 발송"
           style={{
             width: '100%',
             padding: '10px 12px',
@@ -428,9 +424,7 @@ export function VehicleGroupColumn({
             fontWeight: 600,
           }}
         >
-          {taskStatus === 'MODIFICATION_ACCEPTED'
-            ? '✓ 수정 배차 완료 (재 발송)'
-            : '✓ 배차 완료'}
+          ✓ 배차 완료
         </button>
       </footer>
 

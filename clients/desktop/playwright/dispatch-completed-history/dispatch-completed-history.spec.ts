@@ -76,17 +76,33 @@ test.describe('AROLOGIS 배차현황 뷰 mock', () => {
     await expect(page.getByTestId(`dispatch-history-row-${CURRENT_TASK_CODE}`)).toBeVisible()
   })
 
-  test('상세 모달은 조회 전용이며 수정/취소 mutation 버튼이 없다', async ({ page }) => {
+  // Round C Option A (개발책임자 결정) — 배차현황 상세는 더 이상 전면 조회 전용이 아니다.
+  // UPDATE 권한이면 DISPATCHED 상세에서 [수정 요청]/[취소 요청] 으로 재배차 루프에 진입한다.
+  // 코멘트 스레드는 배차현황에서 계속 조회 전용 (readOnly 유지).
+  test('UPDATE 권한은 상세에서 수정/취소 요청 버튼이 노출되고 코멘트는 조회 전용을 유지한다', async ({ page }) => {
     await gotoHistory(page)
+
+    await page.getByTestId(`dispatch-history-row-${CURRENT_TASK_CODE}`).click()
+    await expect(page.getByTestId('dispatch-task-detail-body')).toBeVisible()
+
+    await expect(page.getByTestId('dispatch-task-detail-request-modification')).toBeVisible()
+    await expect(page.getByTestId('dispatch-task-detail-request-cancellation')).toBeVisible()
+    // 코멘트는 배차현황에서 여전히 조회 전용 (dispatch-comments.spec.ts 와 동일 계약)
+    await expect(page.getByTestId('dispatch-comment-input')).toHaveCount(0)
+    await expect(page.getByTestId('dispatch-comment-submit')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '코멘트 삭제' })).toHaveCount(0)
+  })
+
+  test('VIEW 전용 사용자는 상세에서 수정/취소 요청 버튼을 볼 수 없다', async ({ page }) => {
+    await gotoHistory(page, 'DISPATCH', [
+      { pageCode: 'dispatch.board', view: true, edit: false },
+    ])
 
     await page.getByTestId(`dispatch-history-row-${CURRENT_TASK_CODE}`).click()
     await expect(page.getByTestId('dispatch-task-detail-body')).toBeVisible()
 
     await expect(page.getByTestId('dispatch-task-detail-request-modification')).toHaveCount(0)
     await expect(page.getByTestId('dispatch-task-detail-request-cancellation')).toHaveCount(0)
-    await expect(page.getByTestId('dispatch-comment-input')).toHaveCount(0)
-    await expect(page.getByTestId('dispatch-comment-submit')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '코멘트 삭제' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '수정 요청' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '취소 요청' })).toHaveCount(0)
   })

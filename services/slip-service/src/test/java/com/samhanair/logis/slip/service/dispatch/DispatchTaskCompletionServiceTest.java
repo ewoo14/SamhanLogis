@@ -170,12 +170,18 @@ class DispatchTaskCompletionServiceTest {
         verify(slipRepo, times(1)).save(selectedSlip);
     }
 
+    /**
+     * Round C P1-2 (D-DMR-06) — 부분발송 후 추가 발송은 409 로 명시 차단.
+     *
+     * <p>과거에는 남은 PENDING 그룹의 추가 부분발송을 허용했지만, task 단일
+     * arologisDispatchId 모델에서 2차 발송이 1차 dispatch id 를 덮어쓰고 arologis
+     * insert-only 수신과 충돌한다. 수정은 [재배차 시작] 후 전체 재발송으로만 진행한다.
+     */
     @Test
-    void dispatch_after_partial_send_allows_remaining_pending_group_and_completes_task_gate() throws Exception {
+    void dispatch_after_partial_send_rejects_additional_partial_send_with_conflict() throws Exception {
         UUID taskId = UUID.randomUUID();
         UUID sentGroupId = UUID.randomUUID();
         UUID pendingGroupId = UUID.randomUUID();
-        UUID pendingSlipId = UUID.randomUUID();
 
         DispatchTask task = DispatchTask.create("2026/06/12-2", LocalDate.now());
         setIdViaReflection(task, taskId);
@@ -188,33 +194,62 @@ class DispatchTaskCompletionServiceTest {
                 taskId, 2, DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_1);
         setIdViaReflection(pendingGroup, pendingGroupId);
 
-        DispatchVehicleGroupSlip pendingMapping =
-                DispatchVehicleGroupSlip.create(pendingGroupId, pendingSlipId, 1);
-        Slip pendingSlip = mock(Slip.class);
-        when(pendingSlip.getId()).thenReturn(pendingSlipId);
-        when(pendingSlip.getSlipNo()).thenReturn("2026/06/12-PEND");
-
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
                 .thenReturn(List.of(sentGroup, pendingGroup));
-        when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(pendingGroupId))
-                .thenReturn(List.of(pendingMapping));
-        when(slipRepo.findById(pendingSlipId)).thenReturn(Optional.of(pendingSlip));
+
+        assertThatThrownBy(() -> svc.dispatch(taskId, List.of(pendingGroupId)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 아로로지스로 발송된 배차입니다 — 수정하려면 [재배차 시작] 후 전체 재발송하세요");
+        assertThat(task.getStatus()).isEqualTo(DispatchTaskStatus.DRAFT);
+        assertThat(pendingGroup.getDispatchStatus().name()).isEqualTo("PENDING");
+        verify(arologisClient, never()).send(any());
+    }
+
+    /**
+     * Round C P1-2 — 재배차([재배차 시작] 후 전 그룹 PENDING + DRAFT) 는 전체 재발송 허용.
+     */
+    @Test
+    void dispatch_after_start_redispatch_with_all_pending_groups_is_allowed() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+
+        DispatchTask task = DispatchTask.create("2026/06/12-5", LocalDate.now());
+        setIdViaReflection(task, taskId);
+        // 도메인 전이 체인으로 재배차 직후 상태 재현: DRAFT → DISPATCHING → DISPATCHED →
+        // MODIFICATION_REQUESTED → MODIFICATION_ACCEPTED → (start-redispatch) DRAFT.
+        task.markDispatching();
+        task.markDispatched(UUID.randomUUID());
+        task.markModificationRequested("정차 수정");
+        task.markModificationAccepted();
+        task.markBackToDraftForRedispatch();
+
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        setIdViaReflection(group, groupId);
+
+        DispatchVehicleGroupSlip mapping = DispatchVehicleGroupSlip.create(groupId, slipId, 1);
+        Slip slip = mock(Slip.class);
+        when(slip.getId()).thenReturn(slipId);
+        when(slip.getSlipNo()).thenReturn("2026/06/12-REDO");
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(group));
+        when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId))
+                .thenReturn(List.of(mapping));
+        when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
         when(arologisClient.send(any(ArologisDispatchRequest.class)))
                 .thenReturn(new ArologisDispatchResponse(
                         UUID.randomUUID(), taskId, Instant.now(), Instant.now()));
 
-        DispatchTask result = svc.dispatch(taskId, List.of(pendingGroupId));
+        DispatchTask result = svc.dispatch(taskId);
 
         assertThat(result.getStatus()).isEqualTo(DispatchTaskStatus.DISPATCHING);
-        assertThat(pendingGroup.getDispatchStatus().name()).isEqualTo("DISPATCHED");
-        verify(pendingSlip).markDispatchPending();
-        ArgumentCaptor<ArologisDispatchRequest> captor =
-                ArgumentCaptor.forClass(ArologisDispatchRequest.class);
-        verify(arologisClient).send(captor.capture());
-        assertThat(captor.getValue().vehicles())
-                .extracting(ArologisDispatchRequest.VehicleGroup::sequence)
-                .containsExactly(2);
+        assertThat(group.getDispatchStatus().name()).isEqualTo("DISPATCHED");
+        verify(slip).markDispatchPending();
+        verify(arologisClient).send(any(ArologisDispatchRequest.class));
     }
 
     @Test
@@ -234,7 +269,7 @@ class DispatchTaskCompletionServiceTest {
 
         assertThatThrownBy(() -> svc.dispatch(taskId, List.of(groupId)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("이미 발송된 차량 그룹이 선택에 포함되어 있습니다.");
+                .hasMessageContaining("이미 아로로지스로 발송된 배차입니다");
         verify(arologisClient, never()).send(any());
     }
 
@@ -259,7 +294,7 @@ class DispatchTaskCompletionServiceTest {
 
         assertThatThrownBy(() -> svc.dispatch(taskId, List.of(dispatchedGroupId, pendingGroupId)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("이미 발송된 차량 그룹이 선택에 포함되어 있습니다.");
+                .hasMessageContaining("이미 아로로지스로 발송된 배차입니다");
         verify(arologisClient, never()).send(any());
     }
 

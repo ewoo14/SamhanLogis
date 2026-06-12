@@ -142,7 +142,9 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
 
     @Test
     void start_redispatch_rejects_non_accepted_task_with_409() throws Exception {
-        UUID taskId = createTask("2099-06-13");
+        // 2099-08 사용 — DispatchTaskRepositoryIT 의 2099-06-13~15 조회창 오염 방지
+        // (본 IT 는 MockMvc 커밋형이라 rollback 되지 않는다 — Round C 수정).
+        UUID taskId = createTask("2099-08-13");
 
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/start-redispatch", taskId)
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
@@ -153,7 +155,7 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
 
     @Test
     void manual_matched_driver_accepts_enum_vendor_and_manual_complete_marks_group_dispatched() throws Exception {
-        UUID taskId = createTask("2099-06-14");
+        UUID taskId = createTask("2099-08-14");
         UUID groupId = addGroup(taskId);
         Slip slip = slipRepo.saveAndFlush(newSlip(4));
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/slips", taskId, groupId)
@@ -237,7 +239,7 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
 
     @Test
     void manual_dispatch_complete_denies_sales_without_edit_permission() throws Exception {
-        UUID taskId = createTask("2099-06-15");
+        UUID taskId = createTask("2099-08-15");
         UUID groupId = addGroup(taskId);
         Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
         Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
@@ -255,7 +257,7 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
                 .thenReturn(new ArologisDispatchResponse(
                         arologisId, UUID.randomUUID(), Instant.now(), Instant.now()));
 
-        UUID taskId = createTask("2099-06-12");
+        UUID taskId = createTask("2099-08-12");
         UUID groupId = addGroup(taskId);
         Slip slip = slipRepo.saveAndFlush(newSlip(seq));
 
@@ -313,8 +315,8 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
 
     private Slip newSlip(int seq) {
         Slip slip = Slip.createOutbound(
-                "2099/06/12-DMR-%03d".formatted(seq),
-                LocalDate.of(2099, 6, 12),
+                "2099/08/12-DMR-%03d".formatted(seq),
+                LocalDate.of(2099, 8, 12),
                 seq,
                 UUID.randomUUID(),
                 UUID.randomUUID(),

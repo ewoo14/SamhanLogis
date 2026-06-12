@@ -53,13 +53,25 @@ public class DispatchReceiveService {
     private final DriverMatcher driverMatcher;
     private final SlipDispatchTaskClient slipClient;
 
-    /** 배차 발송 수신 — Dispatch + Vehicle + Stop 생성 + 비동기 매칭 trigger. */
+    /**
+     * 배차 발송 수신 — Dispatch + Vehicle + Stop 생성 + 비동기 매칭 trigger.
+     *
+     * <p><strong>insert-only (Round C P1-1)</strong>: 수신 시 기존 active dispatch 를 절대 닫지 않는다.
+     * 과거에는 {@code samhanDispatchTaskId} → {@code (dispatchDate, dispatchType)} 순으로 기존 row 를
+     * soft-delete 했는데, 링크 없는 fallback 이 같은 날짜의 <em>kakao-native dispatch 를 silent 파괴</em>
+     * 하는 결함이 있었다. 거버넌스는 DB partial unique 로 위임한다:
+     * <ul>
+     *   <li>{@code ux_dispatches_samhan_task_active} (V21) — 같은 Samhan task 의 active dispatch 는 1개.
+     *       재배차는 Samhan 측이 기존 dispatch cancel(soft-delete) 을 먼저 호출한 뒤 재발송한다.
+     *       cancel 누락 시 본 INSERT 가 unique 위반으로 명시적으로 실패한다 (silent 파괴 금지).</li>
+     *   <li>{@code ux_dispatches_date_type_active} (V22) — kakao-native({@code samhan_dispatch_task_id IS NULL})
+     *       한정 (dispatch_date, dispatch_type) unique. samhan dispatch 는 같은 날 다회차·kakao 공존 허용.</li>
+     * </ul>
+     */
     @Transactional
     public ArologisDispatchResponse receive(ArologisDispatchRequest req) {
         log.info("[DispatchReceiveService] receive — samhanTaskId={} taskCode={} groups={}",
                 req.samhanDispatchTaskId(), req.taskCode(), req.vehicles().size());
-
-        softDeleteExistingActiveDispatch(req);
 
         Dispatch dispatch = Dispatch.receivedFromSamhan(req.dispatchDate(), DispatchType.DAY,
                 "[Samhan Public] taskCode=" + req.taskCode(), req.samhanDispatchTaskId());
@@ -98,31 +110,6 @@ public class DispatchReceiveService {
 
         Instant now = Instant.now();
         return new ArologisDispatchResponse(savedDispatch.getId(), req.samhanDispatchTaskId(), now, now);
-    }
-
-    /**
-     * Samhan Public 재발송 수신 멱등성 처리.
-     *
-     * <p>우선 {@code samhanDispatchTaskId} 로 같은 작업의 활성 Dispatch 를 닫고, 구버전 데이터처럼
-     * 링크가 없는 경우에는 기존 partial unique 키인 {@code dispatchDate + dispatchType} 으로 닫는다.
-     * soft-delete 후 즉시 flush 해 같은 트랜잭션의 새 INSERT 가 {@code ux_dispatches_date_type_active}
-     * 와 충돌하지 않도록 한다.
-     */
-    private void softDeleteExistingActiveDispatch(ArologisDispatchRequest req) {
-        Dispatch existing = dispatchRepo.findBySamhanDispatchTaskIdAndIsDeletedFalse(req.samhanDispatchTaskId())
-                .or(() -> dispatchRepo.findAllByDispatchDateAndDispatchTypeOrderByCreatedAtDesc(
-                                req.dispatchDate(), DispatchType.DAY)
-                        .stream()
-                        .findFirst())
-                .orElse(null);
-        if (existing == null) {
-            return;
-        }
-        existing.markDeleted("samhan-redispatch-receive");
-        dispatchRepo.save(existing);
-        dispatchRepo.flush();
-        log.info("[DispatchReceiveService] 기존 active dispatch soft-delete — dispatchId={} samhanTaskId={}",
-                existing.getId(), req.samhanDispatchTaskId());
     }
 
     /**

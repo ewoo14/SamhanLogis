@@ -424,7 +424,6 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
           matchedByGroup={matchedByGroup}
           canEdit={!!canEdit}
           canDispatch={!!canDispatch}
-          isEditMode={task.status === 'MODIFICATION_ACCEPTED'}
           onAddVehicle={() => setAddVehicleOpen(true)}
           onCompleteDispatch={() => setCompleteOpen(true)}
           onDeleteGroup={handleDeleteGroup}
@@ -903,8 +902,6 @@ interface GroupsTabProps {
   matchedByGroup: Map<number, string>;
   canEdit: boolean;
   canDispatch: boolean;
-  /** Phase C — MODIFICATION_ACCEPTED 시 true → [배차 완료] 라벨 "수정 배차 완료" 로 전환. */
-  isEditMode: boolean;
   onAddVehicle: () => void;
   onCompleteDispatch: () => void;
   onDeleteGroup: (groupId: string) => void;
@@ -916,7 +913,6 @@ function GroupsTab({
   matchedByGroup,
   canEdit,
   canDispatch,
-  isEditMode,
   onAddVehicle,
   onCompleteDispatch,
   onDeleteGroup,
@@ -997,21 +993,18 @@ function GroupsTab({
           ))
         )}
       </ScrollView>
+      {/* Round C P1-3 — MODIFICATION_ACCEPTED 직접 편집 모델의 '수정 배차 완료' 구 라벨 제거.
+          수정수락 후 재발송은 [재배차 시작](start-redispatch) → DRAFT 복귀 후 일반
+          [배차 완료] 만 사용한다 (D-DMR-01 — BE 가 MODIFICATION_ACCEPTED 직접 발송을 409 차단). */}
       <View style={styles.bottomRow}>
         <TouchableOpacity
           style={[styles.completeBtn, !canDispatch && styles.actionBtnDisabled]}
           disabled={!canDispatch}
           onPress={onCompleteDispatch}
-          accessibilityLabel={
-            isEditMode
-              ? '수정 배차 완료 — 아로로지스로 재 발송'
-              : '배차 완료 — 아로로지스 발송'
-          }
+          accessibilityLabel="배차 완료 — 아로로지스 발송"
           testID="dispatch-board-mobile-complete"
         >
-          <Text style={styles.completeBtnText}>
-            {isEditMode ? '✓ 수정 배차 완료 (재 발송)' : '✓ 배차 완료'}
-          </Text>
+          <Text style={styles.completeBtnText}>✓ 배차 완료</Text>
         </TouchableOpacity>
       </View>
     </View>

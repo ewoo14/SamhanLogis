@@ -10,10 +10,19 @@
  *
  * 발송 성공:
  * - 부모 `VehicleGroupColumn` 이 invalidate 한 task query 가 자동 refetch → DISPATCHING 상태 배지로 갱신.
- * - dialog 는 발송 성공/실패 모두 자동 닫힘.
+ * - dialog 는 성공 시에만 자동 닫힘. 실패 시 유지되어 서버 메시지를 노출한다 (Round C P2 —
+ *   부분발송 409 "이미 아로로지스로 발송된 배차입니다 …" 안내가 사용자에게 보여야 재배차 루프로 유도 가능).
  */
+import { isAxiosError } from 'axios'
 import { Modal } from '@samhan/design-system'
 import { useDispatchToArologisMutation } from '../hooks/useDispatchTask'
+
+/** axios 오류 응답의 ApiResponse.message 를 추출한다 (없으면 null). */
+function extractServerMessage(error: unknown): string | null {
+  if (!isAxiosError(error)) return null
+  const data = error.response?.data as { message?: unknown } | undefined
+  return typeof data?.message === 'string' && data.message.trim() ? data.message : null
+}
 
 interface DispatchCompleteDialogProps {
   taskId: string
@@ -36,7 +45,8 @@ export function DispatchCompleteDialog({
 
   const handleSubmit = () => {
     mutation.mutate(groupIds, {
-      onSettled: () => onClose(),
+      // 성공 시에만 닫는다 — 실패 시 dialog 를 유지해 아래 inline 오류(서버 메시지) 를 노출.
+      onSuccess: () => onClose(),
     })
   }
 
@@ -107,6 +117,7 @@ export function DispatchCompleteDialog({
       </dl>
       {mutation.isError ? (
         <div
+          data-testid="dispatch-board-complete-error"
           style={{
             marginTop: 12,
             padding: 8,
@@ -118,7 +129,7 @@ export function DispatchCompleteDialog({
           }}
           role="alert"
         >
-          발송 실패. 잠시 후 다시 시도해주세요.
+          {extractServerMessage(mutation.error) ?? '발송 실패. 잠시 후 다시 시도해주세요.'}
         </div>
       ) : null}
     </Modal>

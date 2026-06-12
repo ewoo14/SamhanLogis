@@ -7,7 +7,7 @@
  *
  * 차량 그룹 / slip 할당 / 순서 / 배차 완료 mutation 일관 처리.
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { PageResponse } from '../../../api/client'
 import {
   addVehicleGroup,
@@ -27,6 +27,7 @@ import {
   startRedispatch,
   type ListDispatchTasksParams,
   type DispatchTaskResponse,
+  type DispatchTaskSlimResponse,
   type DispatchTaskSummaryResponse,
   type AddVehicleGroupPayload,
   type SetMatchedDriverPayload,
@@ -40,6 +41,58 @@ export const dispatchTaskQueryKey = (taskId: string | null) =>
   ['dispatchTask', taskId] as const
 
 export const DISPATCH_TASK_LOCAL_MUTATION_EVENT = 'samhan-dispatch-task-local-mutation'
+
+/**
+ * BE 슬림 mutation ack 를 모든 상세 cache 에 병합한다.
+ *
+ * <p>배차현황 상세는 {@code arologisDispatchId} 를 query key 로 쓰고, 보드는 task UUID 를 쓴다.
+ * 슬림 응답(BE {@code DispatchTaskResponse.from}) 은 {@code vehicleGroups}/{@code matchedDrivers}
+ * 가 없어 그대로 setQueryData 하면 상세 화면이 깨지므로, cached 상세에 슬림 필드만 덮어쓴다.
+ * {@code transform} 으로 그룹/slip 상태 파생 갱신(재배차 reset 등)을 함께 적용할 수 있다.
+ */
+function mergeSlimTaskIntoDetailCaches(
+  qc: QueryClient,
+  updated: DispatchTaskSlimResponse,
+  transform?: (merged: DispatchTaskResponse) => DispatchTaskResponse,
+) {
+  qc.setQueriesData<DispatchTaskResponse>({ queryKey: ['dispatchTask'] }, (cached) => {
+    if (!cached || cached.id !== updated.id) return cached
+    const merged: DispatchTaskResponse = {
+      ...cached,
+      status: updated.status,
+      arologisDispatchId: updated.arologisDispatchId,
+      failureReason: updated.failureReason,
+      modificationReason: updated.modificationReason ?? null,
+      rejectionReason: updated.rejectionReason ?? null,
+      modificationRequestedAt: updated.modificationRequestedAt ?? null,
+      modificationDecidedAt: updated.modificationDecidedAt ?? null,
+    }
+    return transform ? transform(merged) : merged
+  })
+}
+
+/**
+ * 재배차 시작 ack 파생 갱신 — DRAFT 복귀에 맞춰 발송 그룹을 PENDING 으로, 매핑 전표를
+ * UNDISPATCHED 로 되돌리고 매칭 기사 표시를 비운다 (BE 동작과 동일한 즉시 반영).
+ */
+function resetGroupsForRedispatch(merged: DispatchTaskResponse): DispatchTaskResponse {
+  return {
+    ...merged,
+    matchedDrivers: [],
+    vehicleGroups: merged.vehicleGroups.map((group) =>
+      group.dispatchStatus === 'DISPATCHED'
+        ? {
+            ...group,
+            dispatchStatus: 'PENDING' as const,
+            slips: group.slips.map((row) => ({
+              ...row,
+              slip: { ...row.slip, dispatchStatus: 'UNDISPATCHED' },
+            })),
+          }
+        : group,
+    ),
+  }
+}
 
 /**
  * DispatchTask 단건 query — taskId 가 null/undefined 면 disabled.
@@ -228,6 +281,11 @@ export function useDispatchToArologisMutation(taskId: string | null) {
 
 /**
  * Phase C — 재배차 시작 mutation (MODIFICATION_ACCEPTED → DRAFT).
+ *
+ * <p>BE ack 는 슬림 응답이므로 상세 cache (보드 task UUID key + 배차현황 arologisDispatchId
+ * key 양쪽) 에 병합해 DRAFT + 그룹 PENDING + slip UNDISPATCHED 를 즉시 반영한다 (Option A —
+ * 배차현황 상세에서 재배차 진입). 주의: 재배차 후 arologisDispatchId 는 null 이라 배차현황
+ * key 의 refetch 는 불가하므로 invalidate 는 task UUID key 만 수행한다.
  */
 export function useStartRedispatchMutation(taskId: string | null) {
   const qc = useQueryClient()
@@ -239,6 +297,7 @@ export function useStartRedispatchMutation(taskId: string | null) {
       return startRedispatch(taskId)
     },
     onSuccess: (updated) => {
+      mergeSlimTaskIntoDetailCaches(qc, updated, resetGroupsForRedispatch)
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
       void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
@@ -249,14 +308,17 @@ export function useStartRedispatchMutation(taskId: string | null) {
 /**
  * Phase C — 수정 요청 mutation (DISPATCHED → MODIFICATION_REQUESTED).
  *
- * <p>plan FE F2.1. 성공 시 task query invalidate → 상태 배지 즉시 보라색으로 갱신.
+ * <p>plan FE F2.1. 슬림 ack 를 상세 cache (보드/배차현황 양쪽 key) 에 병합해 상태 배지·배너를
+ * 즉시 갱신하고, 배차현황 목록(DISPATCHED 필터) 도 invalidate 한다.
  */
 export function useRequestModificationMutation(taskId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (reason: string) => requestModification(taskId as string, reason),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
+    onSuccess: (updated) => {
+      mergeSlimTaskIntoDetailCaches(qc, updated)
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
+      void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
   })
 }
@@ -264,14 +326,16 @@ export function useRequestModificationMutation(taskId: string | null) {
 /**
  * Phase C — 취소 요청 mutation (DISPATCHED → CANCEL_REQUESTED).
  *
- * <p>plan FE F2.1. 성공 시 task query invalidate.
+ * <p>plan FE F2.1. 슬림 ack 를 상세 cache 에 병합 + 배차현황 목록 invalidate.
  */
 export function useRequestCancellationMutation(taskId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (reason: string) => requestCancellation(taskId as string, reason),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
+    onSuccess: (updated) => {
+      mergeSlimTaskIntoDetailCaches(qc, updated)
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
+      void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
   })
 }

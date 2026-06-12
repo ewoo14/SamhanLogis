@@ -25,6 +25,8 @@ import { useState, type FormEvent } from 'react'
 import { Button, Input, Modal, Select } from '@samhan/design-system'
 import {
   DISPATCH_TASK_STATUS_LABEL,
+  DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL,
+  DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE,
   MANUAL_MATCHED_DRIVER_SOURCE_OPTIONS,
   MATCHED_DRIVER_SOURCE_LABEL,
   formatDispatchVehicleGroupLabel,
@@ -44,7 +46,16 @@ import {
 interface DispatchTaskDetailModalProps {
   task: DispatchTaskResponse
   onClose: () => void
+  /** 코멘트 작성/삭제 차단 등 조회 전용 표시 — 배차현황(DispatchHistoryPage) 한정. */
   readOnly?: boolean
+  /**
+   * task 단위 mutation 버튼([수정 요청]/[취소 요청]/[재배차 시작]) 노출 허용 — Round C Option A.
+   *
+   * <p>배차현황 상세는 {@code readOnly} (코멘트 조회 전용) 를 유지하면서도 본 플래그로 수정/취소
+   * 요청과 재배차 진입을 허용한다. 미지정 시 기존 의미 보존을 위해 {@code !readOnly} 를 따른다.
+   * UPDATE 권한 가드 (canAccess dispatch.board update) 는 본 플래그와 별개로 항상 적용된다.
+   */
+  allowTaskActions?: boolean
 }
 
 /**
@@ -145,6 +156,7 @@ export function DispatchTaskDetailModal({
   task,
   onClose,
   readOnly = false,
+  allowTaskActions = !readOnly,
 }: DispatchTaskDetailModalProps) {
   const [modificationOpen, setModificationOpen] = useState(false)
   const [cancellationOpen, setCancellationOpen] = useState(false)
@@ -173,10 +185,11 @@ export function DispatchTaskDetailModal({
     ),
   ) as MatchedDriverFormErrors
 
+  // Round C Option A — 배차현황 상세에서도 UPDATE 권한이면 수정/취소 요청·재배차 시작 허용.
   const showRequestButtons =
-    !readOnly && task.status === 'DISPATCHED' && canAccess('dispatch.board', 'update')
+    allowTaskActions && task.status === 'DISPATCHED' && canAccess('dispatch.board', 'update')
   const showRedispatchButton =
-    !readOnly && task.status === 'MODIFICATION_ACCEPTED' && canAccess('dispatch.board', 'update')
+    allowTaskActions && task.status === 'MODIFICATION_ACCEPTED' && canAccess('dispatch.board', 'update')
   const canEditMatchedDriver =
     canAccess('dispatch.board', 'update') &&
     (task.status === 'DRAFT' ||
@@ -431,6 +444,9 @@ export function DispatchTaskDetailModal({
                       ? MATCHED_DRIVER_SOURCE_LABEL[matched.driverSource]
                       : matched?.driverCode
                   const vehicleLabel = formatDispatchVehicleGroupLabel(g)
+                  const groupDispatchStatus = g.dispatchStatus ?? 'PENDING'
+                  const groupStatusTone =
+                    DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE[groupDispatchStatus]
                   const canManualComplete =
                     canEditMatchedDriver &&
                     (task.status === 'DRAFT' || task.status === 'DISPATCHING') &&
@@ -468,6 +484,23 @@ export function DispatchTaskDetailModal({
                           }}
                         >
                           ({g.slips.length}건)
+                        </span>
+                        {/* Round C — 그룹 단위 발송 상태 배지 (보드 카드와 동일 라벨/톤).
+                            재배차 시작 직후 '미발송' 복귀를 모달 레벨에서 검증 가능. */}
+                        <span
+                          data-testid={`dispatch-task-detail-group-${g.sequence}-dispatch-status`}
+                          style={{
+                            padding: '1px 6px',
+                            borderRadius: 10,
+                            border: `1px solid ${groupStatusTone.borderColor}`,
+                            background: groupStatusTone.background,
+                            color: groupStatusTone.color,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL[groupDispatchStatus]}
                         </span>
                         {matched ? (
                           <span
@@ -584,7 +617,9 @@ export function DispatchTaskDetailModal({
         </div>
       </Modal>
 
-      {/* 수정 요청 dialog */}
+      {/* 수정 요청 dialog — 발송 후 상세 모달은 유지한다 (Round C Option A).
+          요청 직후 상태 배너(회신 대기/수락/거부)를 같은 모달에서 바로 확인하고,
+          mock/실회신 수락 시 [재배차 시작] 까지 같은 세션에서 진입한다. */}
       {modificationOpen ? (
         <ModificationRequestDialog
           taskId={task.id}
@@ -592,12 +627,11 @@ export function DispatchTaskDetailModal({
           onClose={() => setModificationOpen(false)}
           onSubmitted={() => {
             setModificationOpen(false)
-            onClose()
           }}
         />
       ) : null}
 
-      {/* 취소 요청 dialog */}
+      {/* 취소 요청 dialog — 동일하게 상세 모달 유지. */}
       {cancellationOpen ? (
         <CancellationRequestDialog
           taskId={task.id}
@@ -605,7 +639,6 @@ export function DispatchTaskDetailModal({
           onClose={() => setCancellationOpen(false)}
           onSubmitted={() => {
             setCancellationOpen(false)
-            onClose()
           }}
         />
       ) : null}
