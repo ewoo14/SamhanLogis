@@ -87,10 +87,17 @@ public class InsungWebhookService {
                     req.vendorOrderId(), req.failReason(), vehicle.getStatus());
             return;
         }
+        String vendorDriverId = normalize(req.vendorDriverId());
+        if (vendorDriverId == null) {
+            vehicle.updateVendorStatus("MATCH_FAILED");
+            log.warn("[InsungWebhook] 매칭 성공 응답의 vendorDriverId 결손 — vendorOrderId={}, skip",
+                    req.vendorOrderId());
+            return;
+        }
 
         // Driver upsert — driverCode = INSUNG-<vendorDriverId>
-        String driverCode = "INSUNG-" + req.vendorDriverId();
-        String phoneNumber = req.driverPhone() != null ? req.driverPhone() : "010-0000-0000";
+        String driverCode = "INSUNG-" + vendorDriverId;
+        String phoneNumber = normalize(req.driverPhone());
         Driver driver = driverRepository.findByDriverCode(driverCode)
                 .map(existing -> {
                     existing.updateVendorProfile(req.driverName(), phoneNumber,
@@ -253,6 +260,10 @@ public class InsungWebhookService {
             log.info("[InsungWebhook] 모든 정차 완료 — vendorOrderId={} vehicle.status={}",
                     req.vendorOrderId(), vehicle.getStatus());
         }
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

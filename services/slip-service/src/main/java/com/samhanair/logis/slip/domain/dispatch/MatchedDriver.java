@@ -37,7 +37,7 @@ public class MatchedDriver extends BaseEntity {
     @Column(name = "vehicle_group_id", nullable = false)
     private UUID vehicleGroupId;
 
-    @Column(name = "driver_code", nullable = false, length = 32)
+    @Column(name = "driver_code", nullable = false, length = 50)
     private String driverCode;
 
     @Column(name = "driver_name", nullable = false, length = 100)
@@ -94,6 +94,12 @@ public class MatchedDriver extends BaseEntity {
     /** 배차담당자가 타사 기사/차량 정보를 수동 갱신한다. */
     public void updateManual(String driverCode, String driverName, String driverPhoneNumber,
                              String driverSource, String vehiclePlateNumber) {
+        updateMatched(driverCode, driverName, driverPhoneNumber, driverSource, vehiclePlateNumber);
+    }
+
+    /** arologis 회신 또는 수동 입력으로 확정된 기사/차량 정보를 갱신한다. */
+    public void updateMatched(String driverCode, String driverName, String driverPhoneNumber,
+                              String driverSource, String vehiclePlateNumber) {
         validate(this.vehicleGroupId, driverCode, driverName, driverPhoneNumber, driverSource);
         this.driverCode = driverCode;
         this.driverName = driverName;

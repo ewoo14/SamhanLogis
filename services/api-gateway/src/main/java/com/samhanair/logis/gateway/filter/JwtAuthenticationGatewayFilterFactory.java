@@ -219,6 +219,7 @@ public class JwtAuthenticationGatewayFilterFactory
                         h.remove(HEADER_USER_GROUPS);
                         h.remove(HEADER_IS_PARTNER);
                         h.remove(HEADER_USER_NAME);
+                        h.remove(HEADER_USER_DEPARTMENT);
                         h.add(HEADER_USER_ID, userId);
                         // Phase C4: isSystemMaster 는 항상 전송 ("true"/"false") — 헤더 부재와 false 를 구분
                         h.add(HEADER_IS_SYSTEM_MASTER, String.valueOf(isSystemMaster));

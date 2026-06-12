@@ -43,7 +43,7 @@ public class Driver extends BaseEntity {
     @Column(name = "driver_name", length = 50)
     private String driverName;
 
-    @Column(name = "phone_number", nullable = false, length = 20)
+    @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
     @Column(name = "vehicle_type", length = 20)
@@ -80,17 +80,14 @@ public class Driver extends BaseEntity {
         if (driverCode == null || driverCode.isBlank()) {
             throw new IllegalArgumentException("driverCode 필수");
         }
-        if (phoneNumber == null || phoneNumber.isBlank()) {
-            throw new IllegalArgumentException("phoneNumber 필수");
-        }
         if (source == null) {
             throw new IllegalArgumentException("source 필수");
         }
         this.driverCode = driverCode;
-        this.driverName = blankToNull(driverName);
-        this.phoneNumber = phoneNumber;
+        this.driverName = normalizeLength(driverName, 50);
+        this.phoneNumber = blankToNull(phoneNumber);
         this.vehicleType = vehicleType;
-        this.vehiclePlateNumber = blankToNull(vehiclePlateNumber);
+        this.vehiclePlateNumber = normalizeLength(vehiclePlateNumber, 20);
         this.source = source;
         this.appInstalled = appInstalled == null ? Boolean.FALSE : appInstalled;
         this.appUserId = appUserId;
@@ -147,20 +144,28 @@ public class Driver extends BaseEntity {
     public void updateVendorProfile(String driverName, String phoneNumber, String vehicleType,
                                     String vehiclePlateNumber) {
         if (driverName != null && !driverName.isBlank()) {
-            this.driverName = driverName;
+            this.driverName = normalizeLength(driverName, 50);
         }
         if (phoneNumber != null && !phoneNumber.isBlank()) {
-            this.phoneNumber = phoneNumber;
+            this.phoneNumber = phoneNumber.trim();
         }
         if (vehicleType != null && !vehicleType.isBlank()) {
             this.vehicleType = vehicleType;
         }
         if (vehiclePlateNumber != null && !vehiclePlateNumber.isBlank()) {
-            this.vehiclePlateNumber = vehiclePlateNumber;
+            this.vehiclePlateNumber = normalizeLength(vehiclePlateNumber, 20);
         }
     }
 
     private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String normalizeLength(String value, int maxLength) {
+        String normalized = blankToNull(value);
+        if (normalized == null || normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength);
     }
 }

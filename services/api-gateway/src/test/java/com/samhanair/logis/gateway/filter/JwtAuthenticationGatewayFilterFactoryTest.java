@@ -259,6 +259,32 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     }
 
     @Test
+    @DisplayName("departmentName claim 부재 구토큰 + 위조 X-User-Department 입력 → downstream X-User-Department strip")
+    void legacyToken_withoutDepartmentNameClaim_stripsSpoofedUserDepartmentHeader() {
+        String token = JwtTokenProvider.generate(
+                "legacy-department", "MANAGER", 3600, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/hr/employees")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header("X-User-Department", "%EB%8C%80%ED%91%9C%EC%8B%A4")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().containsKey("X-User-Department")).isFalse();
+    }
+
+    @Test
     void invalidToken_returns401InvalidToken() {
         GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
 

@@ -26,8 +26,6 @@ import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
@@ -126,15 +124,16 @@ class DispatchCollabCommentIT extends AbstractPostgresIT {
     }
 
     @Test
-    void post_comment_decodes_urlEncodedKoreanUserNameHeader_beforeAuthorNameResolution() throws Exception {
+    void post_comment_persistsKoreanAuthorName_roundTrip() throws Exception {
         UUID taskId = seedTask("2099/06/12-COMMENT-ENCODED-AUTHOR").getId();
         String displayName = "[DEV-SEED] \uAC1C\uBC1C\uB9C8\uC2A4\uD130";
         String body = "\uBC30\uCC28 \uCF54\uBA58\uD2B8 \uBCF8\uBB38\uC740 \uC815\uC0C1 \uC800\uC7A5";
-        String encodedDisplayName = URLEncoder.encode(displayName, StandardCharsets.UTF_8);
 
+        // FilterRegistrationBean 기반 UserHeaderDecodingFilter 는 MockMvc 체인에 자동 포함되지 않는다.
+        // URL/charset 복원은 shared/security 단위 테스트가 맡고, 본 IT 는 한글 JPA/Postgres 왕복만 고정한다.
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/comments", taskId)
                         .header(USER_ID_HEADER, DISPATCH_ACCOUNT_ID)
-                        .header(USER_NAME_HEADER, encodedDisplayName)
+                        .header(USER_NAME_HEADER, displayName)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "body", body,
@@ -143,6 +142,14 @@ class DispatchCollabCommentIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.body").value(body))
                 .andExpect(jsonPath("$.data.authorName").value(displayName));
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}/comments", taskId)
+                        .header(USER_ID_HEADER, DISPATCH_ACCOUNT_ID)
+                        .param("limit", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].body").value(body))
+                .andExpect(jsonPath("$.data[0].authorName").value(displayName));
     }
 
     @Test

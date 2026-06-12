@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,6 +40,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 @RestController
 @RequestMapping("/admin/dispatch-tasks/{taskId}")
+@Slf4j
 public class DispatchCollabCommentController {
 
     private static final String CALLER_ID_HEADER = "X-User-Id";
@@ -171,7 +173,8 @@ public class DispatchCollabCommentController {
 
     private void ensureTaskExists(UUID taskId) {
         if (!dispatchTaskRepository.existsByIdAndIsDeletedFalse(taskId)) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "배차 작업을 찾을 수 없습니다: " + taskId);
+            log.warn("[DispatchCollabCommentController] 배차 작업 미존재 — taskId={}", taskId);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "대상 배차 작업을 찾을 수 없습니다");
         }
     }
 }

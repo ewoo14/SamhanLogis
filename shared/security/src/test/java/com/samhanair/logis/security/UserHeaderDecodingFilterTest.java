@@ -78,6 +78,23 @@ class UserHeaderDecodingFilterTest {
     }
 
     @Test
+    void rawUtf8UserNameHeaderWithoutC1Control_isRestoredForDownstreamConsumers() throws Exception {
+        UserHeaderDecodingFilter filter = new UserHeaderDecodingFilter();
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/slips");
+        String displayName = "\uACE0";
+        String servletMojibake = new String(
+                displayName.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.ISO_8859_1);
+        req.addHeader("X-User-Name", servletMojibake);
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        CapturingChain chain = new CapturingChain();
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(chain.userName()).isEqualTo(displayName);
+    }
+
+    @Test
     void mixedValidKoreanAndRawUtf8ByteTail_isRestoredWithoutCorruptingValidPrefix() throws Exception {
         UserHeaderDecodingFilter filter = new UserHeaderDecodingFilter();
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/slips");

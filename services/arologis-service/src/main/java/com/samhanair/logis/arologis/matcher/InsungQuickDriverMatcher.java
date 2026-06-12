@@ -80,10 +80,16 @@ public class InsungQuickDriverMatcher implements DriverMatcher {
                 // vendorOrderId 는 이미 등록됨 — webhook callback 에서 나중에 처리 가능
                 return DriverMatchResult.empty(MatchSource.EXTERNAL_INSUNG_QUICK);
             }
+            String vendorDriverId = normalize(matchResp.vendorDriverId());
+            if (vendorDriverId == null) {
+                log.warn("[InsungQuick] 매칭 성공 응답의 vendorDriverId 결손 — vehicleSeq={} vendorOrderId={}, empty 반환",
+                        vehicle.getSequence(), vendorOrderId);
+                return DriverMatchResult.empty(MatchSource.EXTERNAL_INSUNG_QUICK);
+            }
 
             // 3. Driver upsert — driverCode = INSUNG-<vendorDriverId>
-            String driverCode = "INSUNG-" + matchResp.vendorDriverId();
-            String phoneNumber = matchResp.driverPhone() != null ? matchResp.driverPhone() : "010-0000-0000";
+            String driverCode = "INSUNG-" + vendorDriverId;
+            String phoneNumber = normalize(matchResp.driverPhone());
             Driver driver = driverRepository.findByDriverCode(driverCode)
                     .map(existing -> {
                         existing.updateVendorProfile(matchResp.driverName(), phoneNumber,
@@ -121,5 +127,9 @@ public class InsungQuickDriverMatcher implements DriverMatcher {
     @Override
     public MatchSource source() {
         return MatchSource.EXTERNAL_INSUNG_QUICK;
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

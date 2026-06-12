@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -115,6 +116,46 @@ class InsungQuickDriverMatcherTest {
         verify(driverRepository).save(driverCaptor.capture());
         assertThat(driverCaptor.getValue().getDriverName()).isEqualTo("홍길동");
         assertThat(driverCaptor.getValue().getVehiclePlateNumber()).isEqualTo("서울12바3456");
+    }
+
+    @Test
+    @DisplayName("매칭 성공 응답의 vendorDriverId 결손 → INSUNG-null 생성 없이 empty 반환")
+    void match_success_without_vendorDriverId_returns_empty_without_driver_upsert() {
+        Vehicle vehicle = Vehicle.of(UUID.randomUUID(), 1, VehicleTonnage.TONNAGE_1, null);
+        String vendorOrderId = "VENDOR-ORD-NO-DRIVER";
+        InsungDriverMatchResponse matchResp = InsungDriverMatchResponse.matched(
+                null, "홍길동", "010-1234-5678", "1톤", "서울12바3456");
+
+        when(insungClient.requestOrder(any(), anyList())).thenReturn(vendorOrderId);
+        when(insungClient.requestMatch(vendorOrderId)).thenReturn(matchResp);
+
+        DriverMatchResult result = matcher.match(vehicle, List.of());
+
+        assertThat(result.driver()).isEmpty();
+        verify(driverRepository, never()).findByDriverCode(any());
+        verify(driverRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("매칭 성공 응답의 기사 전화번호 결손 → 더미 없이 null 저장")
+    void match_success_without_driverPhone_saves_null_phone() {
+        Vehicle vehicle = Vehicle.of(UUID.randomUUID(), 1, VehicleTonnage.TONNAGE_1, null);
+        String vendorOrderId = "VENDOR-ORD-NO-PHONE";
+        InsungDriverMatchResponse matchResp = InsungDriverMatchResponse.matched(
+                "DRV-NO-PHONE", "홍길동", null, "1톤", "서울12바3456");
+
+        when(insungClient.requestOrder(any(), anyList())).thenReturn(vendorOrderId);
+        when(insungClient.requestMatch(vendorOrderId)).thenReturn(matchResp);
+        when(driverRepository.findByDriverCode("INSUNG-DRV-NO-PHONE")).thenReturn(Optional.empty());
+        when(driverRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DriverMatchResult result = matcher.match(vehicle, List.of());
+
+        assertThat(result.driver()).isPresent();
+        assertThat(result.driver().get().getPhoneNumber()).isNull();
+        ArgumentCaptor<Driver> driverCaptor = ArgumentCaptor.forClass(Driver.class);
+        verify(driverRepository).save(driverCaptor.capture());
+        assertThat(driverCaptor.getValue().getPhoneNumber()).isNull();
     }
 
     @Test

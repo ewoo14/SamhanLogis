@@ -16,8 +16,10 @@ import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupReposito
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,26 +61,29 @@ public class DispatchTaskConfirmService {
                     "DISPATCHING 만 DISPATCHED 로 전이 가능 — 현재=" + task.getStatus());
         }
 
-        task.markDispatched(req.arologisDispatchId());
-        taskRepo.save(task);
-
         List<DispatchVehicleGroup> groups =
                 groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(task.getId());
         Map<Integer, DispatchVehicleGroup> bySeq = new HashMap<>();
         for (DispatchVehicleGroup g : groups) {
             bySeq.put(g.getSequence(), g);
         }
+        validateMatchedDriverSequences(req, bySeq);
+
+        task.markDispatched(req.arologisDispatchId());
+        taskRepo.save(task);
 
         for (var md : req.matchedDrivers()) {
             DispatchVehicleGroup g = bySeq.get(md.vehicleGroupSequence());
-            if (g == null) {
-                log.warn("[DispatchTaskConfirmService] vehicle group sequence={} 미발견 — skip",
-                        md.vehicleGroupSequence());
-                continue;
-            }
-            MatchedDriver matched = MatchedDriver.create(
-                    g.getId(), md.driverCode(), md.driverName(),
-                    md.driverPhoneNumber(), md.source(), md.vehiclePlateNumber());
+            MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(g.getId())
+                    .map(existing -> {
+                        existing.updateMatched(
+                                md.driverCode(), md.driverName(),
+                                md.driverPhoneNumber(), md.source(), md.vehiclePlateNumber());
+                        return existing;
+                    })
+                    .orElseGet(() -> MatchedDriver.create(
+                            g.getId(), md.driverCode(), md.driverName(),
+                            md.driverPhoneNumber(), md.source(), md.vehiclePlateNumber()));
             matchedRepo.save(matched);
 
             // 매핑된 slip 모두 DISPATCHED 전이
@@ -105,5 +110,22 @@ public class DispatchTaskConfirmService {
 
         log.info("[DispatchTaskConfirmService] confirm 완료 — taskCode={} matched={}",
                 task.getTaskCode(), req.matchedDrivers().size());
+    }
+
+    private static void validateMatchedDriverSequences(
+            DispatchTaskConfirmRequest req,
+            Map<Integer, DispatchVehicleGroup> bySeq) {
+        Set<Integer> seen = new HashSet<>();
+        for (var md : req.matchedDrivers()) {
+            int seq = md.vehicleGroupSequence();
+            if (!seen.add(seq)) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "matchedDriver vehicleGroupSequence 중복: " + seq);
+            }
+            if (!bySeq.containsKey(seq)) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "matchedDriver vehicleGroupSequence 미존재: " + seq);
+            }
+        }
     }
 }

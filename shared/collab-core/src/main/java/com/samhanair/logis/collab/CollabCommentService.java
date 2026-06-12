@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
  * typed bean 을 등록한다. collab-core 는 문서별 최근 조회, 상태 전이, SSE publish 흐름만 제공한다.
  */
 public class CollabCommentService<T extends CollabCommentRecord> {
+
+    private static final Logger log = LoggerFactory.getLogger(CollabCommentService.class);
 
     /** 최근 백필 기본 limit. */
     public static final int DEFAULT_RECENT_LIMIT = 20;
@@ -92,8 +96,18 @@ public class CollabCommentService<T extends CollabCommentRecord> {
     private T find(CollabDocumentType documentType, UUID documentId,
                    UUID commentId, String messagePrefix) {
         return repository.findByIdAndDocumentTypeAndDocumentId(commentId, documentType, documentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        messagePrefix + commentId));
+                .orElseThrow(() -> {
+                    log.warn("[CollabCommentService] 댓글 미존재 — documentType={} documentId={} commentId={}",
+                            documentType, documentId, commentId);
+                    return new BusinessException(ErrorCode.NOT_FOUND, genericNotFoundMessage(messagePrefix));
+                });
+    }
+
+    private static String genericNotFoundMessage(String messagePrefix) {
+        if (messagePrefix != null && messagePrefix.startsWith("부모 댓글")) {
+            return "부모 댓글을 찾을 수 없습니다";
+        }
+        return "댓글을 찾을 수 없습니다";
     }
 
     private Map<String, Object> payload(T comment) {

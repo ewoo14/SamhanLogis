@@ -54,7 +54,7 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
     }
 
     private static String repairUtf8BytesReadAsIso88591(String value) {
-        if (value == null || !hasC1Control(value)) {
+        if (value == null || !hasIso88591HighBit(value)) {
             return value;
         }
         StringBuilder repaired = new StringBuilder(value.length());
@@ -67,14 +67,14 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
                 continue;
             }
             int end = start + 1;
-            boolean hasControl = ch >= '\u0080' && ch <= '\u009F';
+            boolean hasHighBit = ch >= '\u0080';
             while (end < value.length() && value.charAt(end) <= '\u00FF') {
                 char next = value.charAt(end);
-                hasControl = hasControl || (next >= '\u0080' && next <= '\u009F');
+                hasHighBit = hasHighBit || next >= '\u0080';
                 end++;
             }
             String segment = value.substring(start, end);
-            repaired.append(hasControl ? repairIso88591Segment(segment) : segment);
+            repaired.append(hasHighBit ? repairIso88591Segment(segment) : segment);
             start = end;
         }
         return repaired.toString();
@@ -87,7 +87,7 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(segment.getBytes(StandardCharsets.ISO_8859_1)))
                     .toString();
-            if (!hasC1Control(repaired) && !repaired.equals(segment)) {
+            if (!repaired.equals(segment)) {
                 return repaired;
             }
         } catch (CharacterCodingException ex) {
@@ -96,10 +96,10 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
         return segment;
     }
 
-    private static boolean hasC1Control(String value) {
+    private static boolean hasIso88591HighBit(String value) {
         for (int i = 0; i < value.length(); i++) {
             char ch = value.charAt(i);
-            if (ch >= '\u0080' && ch <= '\u009F') {
+            if (ch >= '\u0080' && ch <= '\u00FF') {
                 return true;
             }
         }
