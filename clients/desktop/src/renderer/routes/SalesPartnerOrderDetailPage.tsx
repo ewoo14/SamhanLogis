@@ -28,7 +28,6 @@ import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { usePageTitleStore } from '../stores/pageTitle'
-import { useSessionStore } from '../stores/session'
 import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { PartnerOrderVersionHistoryPanel } from '../components/audit/PartnerOrderVersionHistoryPanel'
@@ -73,7 +72,6 @@ function toEditLines(order: PartnerOrderDetail): EditLine[] {
 export function SalesPartnerOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
-  const auth = useSessionStore((s) => s.auth)
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -336,10 +334,7 @@ export function SalesPartnerOrderDetailPage() {
     try {
       const response = await apiClient.get(
         `/api/v1/partner-orders/${encodeURIComponent(orderId)}/print`,
-        {
-          responseType: 'blob',
-          headers: auth?.partnerCode ? { 'X-Partner-Code': auth.partnerCode } : undefined,
-        },
+        { responseType: 'blob' },
       )
       const blob = new Blob([response.data], { type: 'text/html;charset=UTF-8' })
       const url = URL.createObjectURL(blob)
@@ -373,7 +368,7 @@ export function SalesPartnerOrderDetailPage() {
       }
       setPrintErrorMessage('주문서 인쇄 파일을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
-  }, [auth?.partnerCode, orderId])
+  }, [orderId])
 
   useEffect(() => {
     setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? '조회 중'}`, meta: '영업' })

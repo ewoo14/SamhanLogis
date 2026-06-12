@@ -34,7 +34,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Employee CRUD + lookup. Authorization is via gateway-injected X-User-Role headers.
+ * Employee CRUD + lookup. Authorization is enforced by dynamic {@code @RequirePermission}
+ * page grants from the gateway-provided account identity.
  *
  * <p>SP-D6-3 동적 권한 이중 가드:
  * <ul>
@@ -56,7 +57,6 @@ public class EmployeeController {
     private final EmployeeProvisioningService provisioningService;
     private final OrgChartService orgChartService;
     private final EmployeeRepository employeeRepository;
-    private final EmployeePermissionGuard employeePermissionGuard;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -69,11 +69,10 @@ public class EmployeeController {
     }
 
     @GetMapping
+    @RequirePermission(page = "admin.employees", action = PermissionAction.VIEW)
     public ApiResponse<List<EmployeeResponse>> list(
             @RequestParam(required = false) UUID departmentId,
-            @RequestParam(required = false) Role role,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        employeePermissionGuard.checkView(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
+            @RequestParam(required = false) Role role) {
         List<Employee> result;
         if (departmentId != null && role != null) {
             result = employeeRepository.findAllByDepartment_IdAndRoleSnapshot(departmentId, role);
@@ -88,10 +87,8 @@ public class EmployeeController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<EmployeeResponse> getOne(
-            @PathVariable UUID id,
-            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        employeePermissionGuard.checkView(roleHeader, EmployeePermissionGuard.PAGE_EMPLOYEES);
+    @RequirePermission(page = "admin.employees", action = PermissionAction.VIEW)
+    public ApiResponse<EmployeeResponse> getOne(@PathVariable UUID id) {
         Employee e = employeeRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "직원을 찾을 수 없습니다"));
         return ApiResponse.ok(EmployeeResponse.from(e));

@@ -236,6 +236,19 @@ class UserPermissionControllerIT {
     void employeeRoleManagementUsesDelegableHrRoleManagementPermission() throws Exception {
         assertPermissionGate(
                 EmployeeController.class.getMethod(
+                        "list",
+                        UUID.class,
+                        Role.class),
+                "admin.employees",
+                PermissionAction.VIEW);
+        assertPermissionGate(
+                EmployeeController.class.getMethod(
+                        "getOne",
+                        UUID.class),
+                "admin.employees",
+                PermissionAction.VIEW);
+        assertPermissionGate(
+                EmployeeController.class.getMethod(
                         "updateRole",
                         UUID.class,
                         com.samhanair.logis.user.web.dto.UpdateRoleRequest.class,
@@ -301,6 +314,10 @@ class UserPermissionControllerIT {
                         () -> multipart("/admin/user/employee-cards/imports/ecount").file(csv())),
                 new EndpointCase("payroll employee import", "ecount.mig6.payroll-employee", PermissionAction.CREATE, "MANAGER", 200,
                         () -> multipart("/admin/user/payroll-employees/imports/ecount").file(csv())),
+                new EndpointCase("employee list", "admin.employees", PermissionAction.VIEW, "MANAGER", 200,
+                        () -> get("/users/employees")),
+                new EndpointCase("employee detail", "admin.employees", PermissionAction.VIEW, "MANAGER", 200,
+                        () -> get("/users/employees/{id}", ID)),
                 new EndpointCase("employee create", "admin.employees", PermissionAction.CREATE, "MANAGER", 201,
                         () -> post("/users/employees")
                                 .contentType(MediaType.APPLICATION_JSON)

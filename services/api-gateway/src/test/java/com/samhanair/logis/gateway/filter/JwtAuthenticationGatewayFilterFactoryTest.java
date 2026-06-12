@@ -218,6 +218,7 @@ class JwtAuthenticationGatewayFilterFactoryTest {
                 .header(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER, "true")
                 .header(HttpHeaderConstants.USER_GROUPS_HEADER, "spoof-group")
                 .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
+                .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "SPOOF-PARTNER")
                 .header(HttpHeaderConstants.CALLER_NAME_HEADER, "spoof-name")
                 .header(HttpHeaderConstants.USER_DEPARTMENT_HEADER, "spoof-department")
                 .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER")
@@ -241,6 +242,9 @@ class JwtAuthenticationGatewayFilterFactoryTest {
                 .containsExactly(groups);
         assertThat(captured[0].getHeaders().get(HttpHeaderConstants.IS_PARTNER_HEADER))
                 .containsExactly("false");
+        assertThat(captured[0].getHeaders().containsKey(HttpHeaderConstants.PARTNER_CODE_HEADER))
+                .as("직원 JWT 에는 partnerCode claim 이 없으므로 위조 X-Partner-Code 는 제거돼야 한다")
+                .isFalse();
         assertThat(captured[0].getHeaders().get(HttpHeaderConstants.CALLER_NAME_HEADER))
                 .containsExactly(java.net.URLEncoder.encode("홍길동", java.nio.charset.StandardCharsets.UTF_8));
         assertThat(captured[0].getHeaders().get(HttpHeaderConstants.USER_DEPARTMENT_HEADER))
@@ -355,7 +359,7 @@ class JwtAuthenticationGatewayFilterFactoryTest {
     // -----------------------------------------------------------------------
 
     @Test
-    @DisplayName("C5-4: partner JWT (partnerCode claim) → X-Is-Partner: true 주입")
+    @DisplayName("C5-4: partner JWT (partnerCode claim) → X-Is-Partner=true + X-Partner-Code claim 값 주입")
     void partnerToken_withPartnerCodeClaim_propagatesIsPartnerTrue() {
         String token = JwtTokenProvider.generateForPartner(
                 "partner-uuid-001", "P001", 3600L, props.getSecretBytes());
@@ -379,6 +383,7 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         assertThat(captured[0].getHeaders().getFirst("X-User-Id")).isEqualTo("partner-uuid-001");
         // C5-4: partnerCode claim 있음 → X-Is-Partner: true
         assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isEqualTo("true");
+        assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.PARTNER_CODE_HEADER)).isEqualTo("P001");
         // X-User-Role 미전파
         assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
     }
@@ -409,6 +414,7 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         assertThat(captured[0]).isNotNull();
         // C5-4 P1-a: partnerCode claim 없음 → X-Is-Partner: false (이전에는 헤더 미전송)
         assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isEqualTo("false");
+        assertThat(captured[0].getHeaders().containsKey(HttpHeaderConstants.PARTNER_CODE_HEADER)).isFalse();
     }
 
     @Test
@@ -472,6 +478,62 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         // P1-a: JWT claim 기반 강제 덮어쓰기 → downstream 은 "true" 수신 (위조 "false" 차단)
         assertThat(captured[0].getHeaders().get("X-Is-Partner")).hasSize(1);
         assertThat(captured[0].getHeaders().getFirst("X-Is-Partner")).isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("#467: partner JWT + 위조 X-Partner-Code 입력 → downstream 은 claim 값 1개만 수신")
+    void partnerToken_withSpoofedPartnerCodeHeader_downstreamReceivesClaimPartnerCodeOnly() {
+        String token = JwtTokenProvider.generateForPartner(
+                "partner-uuid-467", "1234567890", 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/partner-orders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "OTHER")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().get(HttpHeaderConstants.PARTNER_CODE_HEADER)).hasSize(1);
+        assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.PARTNER_CODE_HEADER))
+                .isEqualTo("1234567890");
+        assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.IS_PARTNER_HEADER)).isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("#467: 직원 JWT + 위조 X-Partner-Code 입력 → downstream X-Partner-Code 제거")
+    void samhanToken_withSpoofedPartnerCodeHeader_downstreamPartnerCodeRemoved() {
+        String token = JwtTokenProvider.generate(
+                "samhan-user-467", "MANAGER", null, false, "", 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/partner-orders")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "OTHER")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().containsKey(HttpHeaderConstants.PARTNER_CODE_HEADER)).isFalse();
+        assertThat(captured[0].getHeaders().getFirst(HttpHeaderConstants.IS_PARTNER_HEADER)).isEqualTo("false");
     }
 
     // -----------------------------------------------------------------------

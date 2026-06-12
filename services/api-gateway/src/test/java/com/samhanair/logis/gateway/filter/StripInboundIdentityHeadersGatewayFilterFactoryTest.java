@@ -23,7 +23,7 @@ class StripInboundIdentityHeadersGatewayFilterFactoryTest {
             new StripInboundIdentityHeadersGatewayFilterFactory();
 
     @Test
-    @DisplayName("#465: /auth/register 공개 라우트 위조 identity header 7개 전부 제거")
+    @DisplayName("#465/#467: /auth/register 공개 라우트 위조 identity header 전부 제거")
     void publicRegisterRoute_stripsAllSpoofedIdentityHeaders() {
         ServerHttpRequest captured = filterAndCapture("/auth/register");
 
@@ -34,7 +34,7 @@ class StripInboundIdentityHeadersGatewayFilterFactoryTest {
     }
 
     @Test
-    @DisplayName("#465: /auth/login 공개 라우트도 위조 identity header 7개 전부 제거")
+    @DisplayName("#465/#467: /auth/login 공개 라우트도 위조 identity header 전부 제거")
     void publicLoginRoute_stripsAllSpoofedIdentityHeaders() {
         ServerHttpRequest captured = filterAndCapture("/auth/login");
 
@@ -53,6 +53,7 @@ class StripInboundIdentityHeadersGatewayFilterFactoryTest {
                 .header(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER, "true")
                 .header(HttpHeaderConstants.USER_GROUPS_HEADER, "00000000-0000-0000-0000-000000000100")
                 .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
+                .header(HttpHeaderConstants.PARTNER_CODE_HEADER, "SPOOF-PARTNER")
                 .header(HttpHeaderConstants.CALLER_NAME_HEADER, "%EA%B4%80%EB%A6%AC%EC%9E%90")
                 .header(HttpHeaderConstants.USER_DEPARTMENT_HEADER, "%EB%8C%80%ED%91%9C%EC%8B%A4")
                 .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER")

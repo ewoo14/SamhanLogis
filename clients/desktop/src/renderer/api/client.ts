@@ -4,6 +4,7 @@
  * 인터셉터 동작:
  * 1) 요청 — `window.samhanAuth.getToken()` 으로 메인 프로세스에서 JWT 를
  *    가져와 `Authorization: Bearer ...` 헤더에 주입한다.
+ *    파트너 자기범위 키인 `X-Partner-Code` 는 게이트웨이가 JWT claim 에서 권위 주입한다.
  * 2) 응답 — 401 발생 시 토큰을 즉시 클리어하고 hash 라우팅으로
  *    `#/login` 에 강제 리다이렉트한다.
  *
@@ -68,9 +69,6 @@ apiClient.interceptors.request.use(
       const auth = await window.samhanAuth.getToken()
       if (auth?.token) {
         config.headers.set('Authorization', `Bearer ${auth.token}`)
-      }
-      if (auth?.role === 'PARTNER' && auth.partnerCode) {
-        config.headers.set('X-Partner-Code', auth.partnerCode)
       }
     } catch (err) {
       // IPC 실패는 치명적 — 다음 단계 axios 가 401/네트워크 오류로 핸들.

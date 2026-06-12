@@ -52,7 +52,8 @@ import reactor.core.publisher.Mono;
  *       → {@code 403 FORBIDDEN}.</li>
  *   <li>Otherwise: mutate request to add {@code X-User-Id}, {@code X-User-Department},
  *       {@code X-User-Name},
- *       {@code X-Is-System-Master}, {@code X-User-Groups}, {@code X-Is-Partner} headers,
+ *       {@code X-Is-System-Master}, {@code X-User-Groups}, {@code X-Is-Partner},
+ *       {@code X-Partner-Code} headers,
  *       then continue.</li>
  * </ul>
  *
@@ -61,13 +62,15 @@ import reactor.core.publisher.Mono;
  * 잔존하나 신규 라우트에서는 사용하지 않는다. 두 목록이 모두 비어있으면
  * 역할/그룹 제한 없음 — 인증만 확인.
  *
- * <h2>Phase C5-4 PARTNER 식별 — X-Is-Partner 헤더 (P1-a 강화)</h2>
+ * <h2>Phase C5-4 PARTNER 식별 — X-Is-Partner / X-Partner-Code 헤더 (P1-a 강화)</h2>
  * JWT {@code partnerCode} claim 존재 시 {@code X-Is-Partner: true},
  * 부재 시 {@code X-Is-Partner: false} 를 <b>항상</b> 전송한다 (remove-then-set semantics).
+ * {@code X-Partner-Code} 는 claim 존재 시 claim 값으로만 주입하고, 부재 시 제거만 수행한다.
  * 이전에는 claim 존재 시만 {@code true} 를 append 했으나 Spring WebFlux
  * {@code ServerHttpRequest.Builder.header()} 가 append semantics 라 클라이언트가 위조한
- * {@code X-Is-Partner:true} 가 downstream 으로 유출될 수 있었다. P1-a 에서 모든 identity
- * 헤더({@code X-User-Id/X-Is-System-Master/X-User-Groups/X-Is-Partner/X-User-Name})를
+ * {@code X-Is-Partner:true} 또는 {@code X-Partner-Code} 가 downstream 으로 유출될 수 있었다.
+ * P1-a 에서 모든 identity
+ * 헤더({@code X-User-Id/X-Is-System-Master/X-User-Groups/X-Is-Partner/X-Partner-Code/X-User-Name})를
  * {@code headers(h -> h.remove().add())} 패턴으로 강제 override 한다.
  *
  * <h2>Phase 12 인사 카테고리 가드</h2>
@@ -110,6 +113,11 @@ public class JwtAuthenticationGatewayFilterFactory
      * downstream {@link PermissionAspect} 가 PARTNER 거절 판정에 사용한다.
      */
     private static final String HEADER_IS_PARTNER = HttpHeaderConstants.IS_PARTNER_HEADER;
+    /**
+     * 파트너 자기범위 검증용 거래처 코드 헤더.
+     * JWT {@code partnerCode} claim 값만 신뢰해 주입한다.
+     */
+    private static final String HEADER_PARTNER_CODE = HttpHeaderConstants.PARTNER_CODE_HEADER;
     /** 표시명 헤더. JWT claim {@code name} 에서 추출. */
     private static final String HEADER_USER_NAME = HttpHeaderConstants.CALLER_NAME_HEADER;
 
@@ -206,9 +214,10 @@ public class JwtAuthenticationGatewayFilterFactory
                 }
             }
 
-            // Phase C5-4 P1-a 스푸핑 방지: HEADER_IS_PARTNER 는 JWT claim 기준으로 강제 덮어써야 한다.
+            // Phase C5-4 P1-a 스푸핑 방지: HEADER_IS_PARTNER/HEADER_PARTNER_CODE 는 JWT claim 기준으로
+            // 강제 덮어써야 한다.
             // Spring WebFlux ServerHttpRequest.Builder.header() 는 append semantics 라
-            // 클라이언트가 X-Is-Partner:true 를 위조 주입해도 기존 값이 남을 수 있다.
+            // 클라이언트가 X-Is-Partner:true 또는 X-Partner-Code 를 위조 주입해도 기존 값이 남을 수 있다.
             // → 기존 헤더를 먼저 제거(headers().remove)한 뒤 claim 기반 값을 설정한다.
             // 동일하게 X-Is-System-Master, X-User-Id, X-User-Groups 도 remove-then-set 으로 보강한다.
             ServerHttpRequest.Builder requestBuilder = request.mutate()
@@ -225,6 +234,9 @@ public class JwtAuthenticationGatewayFilterFactory
                         // isPartner=false 이면 "false" 전송 → downstream 이 "true" 위조 입력을 신뢰할 수 없게 차단.
                         h.add(HEADER_IS_PARTNER, String.valueOf(isPartner));
                         if (isPartner) {
+                            // X-Partner-Code 는 PARTNER self-scope 의 테넌트 키이므로 클라이언트 입력을 신뢰하지 않고
+                            // 서명 검증된 JWT partnerCode claim 값만 downstream 으로 전파한다.
+                            h.add(HEADER_PARTNER_CODE, partnerCode);
                             log.debug("[C5-4-P1a] X-Is-Partner=true 강제 set — partnerCode={}", partnerCode);
                         }
                     });
