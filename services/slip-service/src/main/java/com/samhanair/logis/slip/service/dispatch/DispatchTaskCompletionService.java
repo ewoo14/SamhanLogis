@@ -14,7 +14,9 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,13 @@ public class DispatchTaskCompletionService {
 
     /** 배차 작업 발송 — DRAFT 만 허용. 멱등성: DISPATCHING 재호출 시 CONFLICT. */
     public DispatchTask dispatch(UUID dispatchTaskId) {
+        return dispatch(dispatchTaskId, null);
+    }
+
+    /**
+     * 배차 작업 발송. groupIds 가 null 이면 전체, 있으면 선택 그룹만 발송/상태 전이한다.
+     */
+    public DispatchTask dispatch(UUID dispatchTaskId, List<UUID> groupIds) {
         DispatchTask task = taskRepo.findById(dispatchTaskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + dispatchTaskId));
@@ -63,7 +72,9 @@ public class DispatchTaskCompletionService {
                     "차량 그룹이 없습니다 — 배차 발송 불가");
         }
 
-        List<ArologisDispatchRequest.VehicleGroup> payloadGroups = groups.stream()
+        List<DispatchVehicleGroup> targetGroups = selectGroups(groups, groupIds);
+
+        List<ArologisDispatchRequest.VehicleGroup> payloadGroups = targetGroups.stream()
                 .map(this::buildPayloadGroup)
                 .toList();
 
@@ -79,7 +90,7 @@ public class DispatchTaskCompletionService {
         taskRepo.save(task);
 
         // 매핑된 모든 slip 의 dispatchStatus → DISPATCHING
-        for (DispatchVehicleGroup group : groups) {
+        for (DispatchVehicleGroup group : targetGroups) {
             List<DispatchVehicleGroupSlip> mappings =
                     slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(group.getId());
             for (DispatchVehicleGroupSlip m : mappings) {
@@ -92,6 +103,23 @@ public class DispatchTaskCompletionService {
         }
 
         return task;
+    }
+
+    private List<DispatchVehicleGroup> selectGroups(List<DispatchVehicleGroup> groups, List<UUID> groupIds) {
+        if (groupIds == null) {
+            return groups;
+        }
+        if (groupIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택 전송할 차량 그룹이 없습니다.");
+        }
+        Set<UUID> selectedIds = new LinkedHashSet<>(groupIds);
+        List<DispatchVehicleGroup> selected = groups.stream()
+                .filter(group -> selectedIds.contains(group.getId()))
+                .toList();
+        if (selected.size() != selectedIds.size()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택한 차량 그룹이 배차 작업에 속하지 않습니다.");
+        }
+        return selected;
     }
 
     private ArologisDispatchRequest.VehicleGroup buildPayloadGroup(DispatchVehicleGroup g) {

@@ -20,6 +20,7 @@ interface DispatchCompleteDialogProps {
   taskCode: string | null
   totalGroups: number
   totalSlips: number
+  groupIds?: string[]
   onClose: () => void
 }
 
@@ -28,12 +29,13 @@ export function DispatchCompleteDialog({
   taskCode,
   totalGroups,
   totalSlips,
+  groupIds,
   onClose,
 }: DispatchCompleteDialogProps) {
   const mutation = useDispatchToArologisMutation(taskId)
 
   const handleSubmit = () => {
-    mutation.mutate(undefined, {
+    mutation.mutate(groupIds, {
       onSettled: () => onClose(),
     })
   }

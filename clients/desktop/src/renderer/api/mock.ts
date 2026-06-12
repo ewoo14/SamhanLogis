@@ -27,6 +27,7 @@ import type {
   DispatchTaskSummaryResponse,
   DispatchVehicleBodyType,
   DispatchVehicleGroupResponse,
+  DispatchVehicleGroupSlipResponse,
   DispatchVehicleType,
   SetMatchedDriverPayload,
 } from './dispatchTask'
@@ -35,6 +36,7 @@ import type { DispatchComment } from './dispatchCollab'
 declare global {
   interface Window {
     __SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__?: AddVehicleGroupPayload
+    __SAMHAN_MOCK_LAST_DISPATCH_BODY__?: { groupIds?: string[] }
   }
 }
 
@@ -2349,7 +2351,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // POST /slips → 신규 전표 1건 (라인 포함, V20 필드 echo)
-  if (method === 'POST' && url.endsWith('/slips')) {
+  if (method === 'POST' && url.endsWith('/slips') && !url.includes('/vehicle-groups/')) {
     // parseMockBody — config.data 가 object/string 모두 안전 처리(직 JSON.parse 는 object 에서 throw,
     // [[inprocess-mock-principles]] 원칙①). 신규 전표 저장 mock QA 가 최초 적발한 잠복 버그.
     const reqBody = parseMockBody(config) as {
@@ -4625,6 +4627,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       rejectionReason: null,
       modificationRequestedAt: null,
       modificationDecidedAt: null,
+      duplicateSlipIds: [],
       vehicleGroups: [],
       matchedDrivers: [],
     }
@@ -4675,6 +4678,69 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     task.vehicleGroups.push(created)
     return envelope(created)
+  }
+
+  const assignDispatchSlipMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/slips(?:\?.*)?$/,
+  )
+  if (method === 'POST' && assignDispatchSlipMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(assignDispatchSlipMatch[1]!)
+    const groupId = decodeURIComponent(assignDispatchSlipMatch[2]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    if (!task || !group) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
+    }
+    const body = parseMockBody(config) as { slipId?: string }
+    const slipId = String(body.slipId ?? '')
+    const source =
+      mockDispatchBoardSlipById(slipId) ??
+      task.vehicleGroups.flatMap((item) => item.slips).find((row) => row.slipId === slipId)?.slip
+    if (!source) {
+      return mockError(404, 'NOT_FOUND', '미배차 전표를 찾을 수 없습니다.')
+    }
+    const created: DispatchVehicleGroupSlipResponse = {
+      id: `44444444-dddd-4ddd-8ddd-${String(Date.now()).slice(-12)}`,
+      slipId,
+      sequence: group.slips.length + 1,
+      slip: {
+        slipNo: source.slipNo,
+        partnerCode: source.partnerCode,
+        partnerName: source.partnerName,
+        deliveryAddress: source.deliveryAddress,
+        recipientPhone: source.recipientPhone,
+        dispatchStatus: 'UNDISPATCHED',
+      },
+    }
+    group.slips.push(created)
+    refreshMockDuplicateSlipIds(task)
+    return envelope(created)
+  }
+
+  const dispatchTaskSendMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)\/dispatch(?:\?.*)?$/)
+  if (method === 'POST' && dispatchTaskSendMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(dispatchTaskSendMatch[1]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    if (!task) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
+    }
+    const body = parseMockBody(config) as { groupIds?: string[] }
+    const groupIds = Array.isArray(body.groupIds) ? body.groupIds : undefined
+    window.__SAMHAN_MOCK_LAST_DISPATCH_BODY__ = groupIds ? { groupIds } : {}
+    const targetGroupIds = new Set(groupIds ?? task.vehicleGroups.map((group) => group.id))
+    task.vehicleGroups
+      .filter((group) => targetGroupIds.has(group.id))
+      .flatMap((group) => group.slips)
+      .forEach((row) => {
+        row.slip.dispatchStatus = 'DISPATCHING'
+      })
+    task.status = 'DISPATCHING'
+    refreshMockDuplicateSlipIds(task)
+    return envelope(task)
   }
 
   const dispatchCommentItemMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)\/comments\/([^/?]+)(?:\?.*)?$/)
@@ -4786,7 +4852,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!found) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
     }
-    return envelope(found)
+    return envelope(refreshMockDuplicateSlipIds(found))
   }
 
   if (method === 'GET' && url.match(/\/admin\/dispatch-tasks(?:\?.*)?$/)) {
@@ -7750,6 +7816,40 @@ function mockDeriveLegacyVehicleType(
   }
 }
 
+function refreshMockDuplicateSlipIds(task: DispatchTaskResponse): DispatchTaskResponse {
+  const counts = new Map<string, number>()
+  for (const row of task.vehicleGroups.flatMap((group) => group.slips)) {
+    counts.set(row.slipId, (counts.get(row.slipId) ?? 0) + 1)
+  }
+  task.duplicateSlipIds = [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([slipId]) => slipId)
+  return task
+}
+
+function mockDispatchBoardSlipById(slipId: string) {
+  return [
+    {
+      id: '77777777-d333-4d33-8d33-000000000001',
+      slipNo: '2026/06/11-SPD3-001',
+      partnerCode: 'P-SPD3-001',
+      partnerName: '동탄공조',
+      deliveryAddress: '경기도 화성시 동탄대로 10',
+      recipientPhone: '010-1111-2222',
+      dispatchStatus: 'UNDISPATCHED',
+    },
+    {
+      id: '77777777-d333-4d33-8d33-000000000002',
+      slipNo: '2026/06/11-SPD3-002',
+      partnerCode: 'P-SPD3-002',
+      partnerName: '성남냉열',
+      deliveryAddress: '경기도 성남시 분당구 판교로 20',
+      recipientPhone: '010-3333-4444',
+      dispatchStatus: 'UNDISPATCHED',
+    },
+  ].find((slip) => slip.id === slipId)
+}
+
 const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
   {
     id: '11111111-aaaa-4aaa-8aaa-000000000001',
@@ -7762,6 +7862,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
     rejectionReason: null,
     modificationRequestedAt: null,
     modificationDecidedAt: null,
+    duplicateSlipIds: [],
     vehicleGroups: [
       {
         id: '33333333-aaaa-4aaa-8aaa-000000000001',
@@ -7824,6 +7925,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
     rejectionReason: null,
     modificationRequestedAt: null,
     modificationDecidedAt: null,
+    duplicateSlipIds: [],
     vehicleGroups: [
       {
         id: '33333333-bbbb-4bbb-8bbb-000000000002',

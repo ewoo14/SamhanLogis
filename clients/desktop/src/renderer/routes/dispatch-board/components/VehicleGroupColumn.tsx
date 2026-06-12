@@ -14,16 +14,20 @@
  *  - DISPATCHED — "배차 완료" (녹색) + 기사 정보.
  *  - FAILED — "배차 불가" (빨강) + 사유 + [재배차] (재배차 backlog Phase A 후속).
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   DISPATCH_TASK_STATUS_LABEL,
+  DISPATCH_TASK_STATUS_TONE,
   isEditableStatus,
   type DispatchTaskResponse,
   type DispatchTaskStatus,
   type DispatchVehicleGroupResponse,
   type MatchedDriverResponse,
 } from '../../../api/dispatchTask'
-import { useAddVehicleGroupMutation } from '../hooks/useDispatchTask'
+import {
+  DISPATCH_TASK_LOCAL_MUTATION_EVENT,
+  useAddVehicleGroupMutation,
+} from '../hooks/useDispatchTask'
 import { VehicleGroupCard } from './VehicleGroupCard'
 import { AddVehicleModal } from './AddVehicleModal'
 import { DispatchCompleteDialog } from './DispatchCompleteDialog'
@@ -51,52 +55,17 @@ interface VehicleGroupColumnProps {
  *  - MODIFICATION_REJECTED / CANCEL_REJECTED → 빨강 (거부됨)
  *  - CANCELLED → 회색 (취소 완료, 종착 상태)
  */
-const STATUS_BADGE_STYLE: Record<DispatchTaskStatus, React.CSSProperties> = {
-  DRAFT: {
-    background: 'var(--color-neutral-200)',
-    color: 'var(--color-neutral-700)',
-  },
-  DISPATCHING: {
-    background: 'var(--color-info-100, #DBEAFE)',
-    color: 'var(--color-info-700, #1E40AF)',
-  },
-  DISPATCHED: {
-    background: 'var(--color-success-100, #D1FAE5)',
-    color: 'var(--color-success-700, #047857)',
-  },
-  FAILED: {
-    background: 'var(--color-danger-100, #FEE2E2)',
-    color: 'var(--color-danger-700, #B91C1C)',
-  },
-  MODIFICATION_REQUESTED: {
-    background: 'var(--color-purple-100, #EDE9FE)',
-    color: 'var(--color-purple-700, #6B21A8)',
-  },
-  MODIFICATION_ACCEPTED: {
-    background: 'var(--color-success-100, #D1FAE5)',
-    color: 'var(--color-success-700, #047857)',
-  },
-  MODIFICATION_REJECTED: {
-    background: 'var(--color-danger-100, #FEE2E2)',
-    color: 'var(--color-danger-700, #B91C1C)',
-  },
-  CANCEL_REQUESTED: {
-    background: 'var(--color-purple-100, #EDE9FE)',
-    color: 'var(--color-purple-700, #6B21A8)',
-  },
-  CANCEL_ACCEPTED: {
-    background: 'var(--color-success-100, #D1FAE5)',
-    color: 'var(--color-success-700, #047857)',
-  },
-  CANCEL_REJECTED: {
-    background: 'var(--color-danger-100, #FEE2E2)',
-    color: 'var(--color-danger-700, #B91C1C)',
-  },
-  CANCELLED: {
-    background: 'var(--color-neutral-200)',
-    color: 'var(--color-neutral-700)',
-  },
-}
+const STATUS_BADGE_STYLE: Record<DispatchTaskStatus, React.CSSProperties> =
+  Object.fromEntries(
+    Object.entries(DISPATCH_TASK_STATUS_TONE).map(([status, tone]) => [
+      status,
+      {
+        background: tone.background,
+        color: tone.color,
+        borderColor: tone.borderColor,
+      },
+    ]),
+  ) as Record<DispatchTaskStatus, React.CSSProperties>
 
 export function VehicleGroupColumn({
   taskId,
@@ -110,8 +79,10 @@ export function VehicleGroupColumn({
   onOpenSlipDetail,
 }: VehicleGroupColumnProps) {
   const [addOpen, setAddOpen] = useState(false)
-  const [completeOpen, setCompleteOpen] = useState(false)
+  const [completeGroupIds, setCompleteGroupIds] = useState<string[] | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(() => new Set())
+  const [, setLocalMutationVersion] = useState(0)
 
   const addMutation = useAddVehicleGroupMutation(taskId)
 
@@ -126,6 +97,37 @@ export function VehicleGroupColumn({
   const canEdit = isEditableStatus(taskStatus) && canEditDispatch
   const canDispatch =
     canEdit && groups.length > 0 && groups.some((g) => g.slips.length > 0)
+  const selectedDispatchGroupIds = groups
+    .filter((g) => selectedGroupIds.has(g.id) && g.slips.length > 0)
+    .map((g) => g.id)
+  const canDispatchSelected = canEdit && selectedDispatchGroupIds.length > 0
+  const assignedSlips = groups.flatMap((g) => g.slips)
+  const duplicateSlipIds = useMemo(() => {
+    const ids = new Set(task?.duplicateSlipIds ?? [])
+    const counts = new Map<string, number>()
+    for (const row of assignedSlips) {
+      counts.set(row.slipId, (counts.get(row.slipId) ?? 0) + 1)
+    }
+    for (const [slipId, count] of counts) {
+      if (count > 1) ids.add(slipId)
+    }
+    return [...ids]
+  }, [assignedSlips, task?.duplicateSlipIds])
+
+  useEffect(() => {
+    const liveGroupIds = new Set(groups.map((g) => g.id))
+    setSelectedGroupIds((prev) => {
+      const next = new Set([...prev].filter((id) => liveGroupIds.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [groups])
+
+  useEffect(() => {
+    const rerenderAfterLocalMutation = () => setLocalMutationVersion((v) => v + 1)
+    window.addEventListener(DISPATCH_TASK_LOCAL_MUTATION_EVENT, rerenderAfterLocalMutation)
+    return () =>
+      window.removeEventListener(DISPATCH_TASK_LOCAL_MUTATION_EVENT, rerenderAfterLocalMutation)
+  }, [])
 
   // Phase C — DISPATCHED 이후 (배차 완료 후) 상태에서 상세 모달 진입 가능.
   // 단순화: DRAFT/DISPATCHING 외 모든 상태에서 상세 보기 활성.
@@ -334,6 +336,18 @@ export function VehicleGroupColumn({
               group={g}
               matchedDriver={matchedByGroupSeq.get(g.sequence) ?? null}
               canEdit={canEdit}
+              taskStatus={taskStatus}
+              duplicateSlipIds={duplicateSlipIds}
+              assignedSlips={assignedSlips}
+              selected={selectedGroupIds.has(g.id)}
+              onSelectedChange={(checked) => {
+                setSelectedGroupIds((prev) => {
+                  const next = new Set(prev)
+                  if (checked) next.add(g.id)
+                  else next.delete(g.id)
+                  return next
+                })
+              }}
               onOpenSlipDetail={onOpenSlipDetail}
             />
           ))
@@ -349,8 +363,31 @@ export function VehicleGroupColumn({
       >
         <button
           type="button"
+          disabled={!canDispatchSelected}
+          onClick={() => setCompleteGroupIds(selectedDispatchGroupIds)}
+          data-testid="dispatch-board-selected-complete-button"
+          aria-label="선택한 차량 그룹만 아로로지스로 전송"
+          style={{
+            width: '100%',
+            marginBottom: 8,
+            padding: '10px 12px',
+            background: canDispatchSelected
+              ? 'var(--color-action-brand, #1E40AF)'
+              : 'var(--color-neutral-200)',
+            color: canDispatchSelected ? 'var(--color-neutral-0)' : 'var(--color-neutral-500)',
+            border: 'none',
+            borderRadius: 4,
+            cursor: canDispatchSelected ? 'pointer' : 'not-allowed',
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          선택 전송 ({selectedDispatchGroupIds.length})
+        </button>
+        <button
+          type="button"
           disabled={!canDispatch}
-          onClick={() => setCompleteOpen(true)}
+          onClick={() => setCompleteGroupIds([])}
           data-testid="dispatch-board-complete-button"
           aria-label={
             taskStatus === 'MODIFICATION_ACCEPTED'
@@ -390,13 +427,20 @@ export function VehicleGroupColumn({
         />
       ) : null}
 
-      {completeOpen && taskId ? (
+      {completeGroupIds !== null && taskId ? (
         <DispatchCompleteDialog
           taskId={taskId}
           taskCode={taskCode}
-          totalSlips={groups.reduce((sum, g) => sum + g.slips.length, 0)}
-          totalGroups={groups.length}
-          onClose={() => setCompleteOpen(false)}
+          totalSlips={
+            completeGroupIds.length > 0
+              ? groups
+                  .filter((g) => completeGroupIds.includes(g.id))
+                  .reduce((sum, g) => sum + g.slips.length, 0)
+              : groups.reduce((sum, g) => sum + g.slips.length, 0)
+          }
+          totalGroups={completeGroupIds.length > 0 ? completeGroupIds.length : groups.length}
+          groupIds={completeGroupIds.length > 0 ? completeGroupIds : undefined}
+          onClose={() => setCompleteGroupIds(null)}
         />
       ) : null}
 

@@ -227,6 +227,67 @@ export const DISPATCH_TASK_STATUS_LABEL: Record<DispatchTaskStatus, string> = {
   CANCELLED: '배차 취소 완료',
 }
 
+export const DISPATCH_TASK_STATUS_TONE: Record<
+  DispatchTaskStatus,
+  { background: string; color: string; borderColor: string }
+> = {
+  DRAFT: {
+    background: 'var(--color-neutral-100, #F3F4F6)',
+    color: 'var(--color-neutral-700, #374151)',
+    borderColor: 'var(--color-neutral-300, #D1D5DB)',
+  },
+  DISPATCHING: {
+    background: 'var(--color-info-50, #EFF6FF)',
+    color: 'var(--color-info-700, #1E40AF)',
+    borderColor: 'var(--color-info-200, #BFDBFE)',
+  },
+  DISPATCHED: {
+    background: 'var(--color-success-50, #ECFDF5)',
+    color: 'var(--color-success-700, #047857)',
+    borderColor: 'var(--color-success-200, #A7F3D0)',
+  },
+  FAILED: {
+    background: 'var(--color-danger-50, #FEF2F2)',
+    color: 'var(--color-danger-700, #B91C1C)',
+    borderColor: 'var(--color-danger-200, #FECACA)',
+  },
+  MODIFICATION_REQUESTED: {
+    background: 'var(--color-purple-50, #FAF5FF)',
+    color: 'var(--color-purple-700, #6B21A8)',
+    borderColor: 'var(--color-purple-200, #E9D5FF)',
+  },
+  MODIFICATION_ACCEPTED: {
+    background: 'var(--color-success-50, #ECFDF5)',
+    color: 'var(--color-success-700, #047857)',
+    borderColor: 'var(--color-success-200, #A7F3D0)',
+  },
+  MODIFICATION_REJECTED: {
+    background: 'var(--color-danger-50, #FEF2F2)',
+    color: 'var(--color-danger-700, #B91C1C)',
+    borderColor: 'var(--color-danger-200, #FECACA)',
+  },
+  CANCEL_REQUESTED: {
+    background: 'var(--color-purple-50, #FAF5FF)',
+    color: 'var(--color-purple-700, #6B21A8)',
+    borderColor: 'var(--color-purple-200, #E9D5FF)',
+  },
+  CANCEL_ACCEPTED: {
+    background: 'var(--color-success-50, #ECFDF5)',
+    color: 'var(--color-success-700, #047857)',
+    borderColor: 'var(--color-success-200, #A7F3D0)',
+  },
+  CANCEL_REJECTED: {
+    background: 'var(--color-danger-50, #FEF2F2)',
+    color: 'var(--color-danger-700, #B91C1C)',
+    borderColor: 'var(--color-danger-200, #FECACA)',
+  },
+  CANCELLED: {
+    background: 'var(--color-neutral-100, #F3F4F6)',
+    color: 'var(--color-neutral-700, #374151)',
+    borderColor: 'var(--color-neutral-300, #D1D5DB)',
+  },
+}
+
 /**
  * 수정/취소 편집 가능 상태 — DRAFT 또는 MODIFICATION_ACCEPTED.
  *
@@ -330,6 +391,7 @@ export interface DispatchTaskResponse {
   arologisDispatchId: string | null
   vehicleGroups: DispatchVehicleGroupResponse[]
   matchedDrivers: MatchedDriverResponse[]
+  duplicateSlipIds: string[]
   failureReason: string | null
   modificationReason?: string | null
   rejectionReason?: string | null
@@ -481,11 +543,12 @@ export async function assignSlipToGroup(
   taskId: string,
   groupId: string,
   slipId: string,
-): Promise<void> {
-  await apiClient.post(
+): Promise<DispatchVehicleGroupSlipResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchVehicleGroupSlipResponse>>(
     `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/slips`,
     { slipId },
   )
+  return res.data.data
 }
 
 /**
@@ -529,9 +592,11 @@ export async function removeSlipFromGroup(
  */
 export async function dispatchToArologis(
   taskId: string,
+  groupIds?: string[],
 ): Promise<DispatchTaskResponse> {
   const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
     `/admin/dispatch-tasks/${taskId}/dispatch`,
+    groupIds ? { groupIds } : undefined,
   )
   return res.data.data
 }

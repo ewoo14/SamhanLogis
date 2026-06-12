@@ -18,21 +18,33 @@
  */
 import { useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { useQueryClient } from '@tanstack/react-query'
+import { useMemo, useRef, useState } from 'react'
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
+  DISPATCH_TASK_STATUS_TONE,
   formatDispatchVehicleGroupLabel,
+  type DispatchTaskStatus,
   type DispatchVehicleGroupResponse,
   type DispatchVehicleGroupSlipResponse,
   type MatchedDriverResponse,
 } from '../../../api/dispatchTask'
 import {
+  type SlipBoardResponse,
+} from '../../../api/dispatchBoard'
+import {
+  type PageResponse,
+} from '../../../api/client'
+import {
+  useAssignSlipToGroupMutation,
   useDeleteVehicleGroupMutation,
   useRemoveSlipFromGroupMutation,
 } from '../hooks/useDispatchTask'
+import { DISPATCH_BOARD_QUERY_KEY, useUnDispatchedSlipsQuery } from '../hooks/useUnDispatchedSlipsQuery'
 import type { DispatchGroupSlipDragData } from '../DispatchBoardPage'
 
 interface VehicleGroupCardProps {
@@ -40,6 +52,11 @@ interface VehicleGroupCardProps {
   group: DispatchVehicleGroupResponse
   matchedDriver: MatchedDriverResponse | null
   canEdit: boolean
+  taskStatus: DispatchTaskStatus
+  duplicateSlipIds: string[]
+  assignedSlips: DispatchVehicleGroupSlipResponse[]
+  selected: boolean
+  onSelectedChange: (checked: boolean) => void
   onOpenSlipDetail: (slipId: string) => void
 }
 
@@ -48,6 +65,11 @@ export function VehicleGroupCard({
   group,
   matchedDriver,
   canEdit,
+  taskStatus,
+  duplicateSlipIds,
+  assignedSlips,
+  selected,
+  onSelectedChange,
   onOpenSlipDetail,
 }: VehicleGroupCardProps) {
   const { setNodeRef, isOver } = useDroppable({
@@ -56,10 +78,48 @@ export function VehicleGroupCard({
   })
 
   const deleteMutation = useDeleteVehicleGroupMutation(taskId)
+  const assignMutation = useAssignSlipToGroupMutation(taskId)
   const removeSlipMutation = useRemoveSlipFromGroupMutation(taskId)
+  const unDispatchedQuery = useUnDispatchedSlipsQuery({ page: 0, size: 50 })
+  const queryClient = useQueryClient()
+  const slipNoInputRef = useRef<HTMLInputElement | null>(null)
+  const [slipNoError, setSlipNoError] = useState<string | null>(null)
 
   const slipIdsSorted = group.slips.map((s) => s.slipId)
   const vehicleLabel = formatDispatchVehicleGroupLabel(group)
+  const duplicateSlipIdSet = useMemo(() => new Set(duplicateSlipIds), [duplicateSlipIds])
+  const statusTone = DISPATCH_TASK_STATUS_TONE[taskStatus]
+
+  const handleAssignBySlipNo = () => {
+    if (!taskId || !canEdit || assignMutation.isPending) return
+    const normalized = (slipNoInputRef.current?.value ?? '').trim()
+    if (!normalized) {
+      setSlipNoError('전표번호를 입력하세요.')
+      return
+    }
+    const cachedPages = queryClient.getQueriesData<PageResponse<SlipBoardResponse>>({
+      queryKey: DISPATCH_BOARD_QUERY_KEY,
+    })
+    const cachedSlips = cachedPages.flatMap(([, page]) => page?.content ?? [])
+    const fromPool = [...(unDispatchedQuery.data?.content ?? []), ...cachedSlips]
+      .find((slip) => slip.slipNo === normalized)
+    const fromCurrentTask = assignedSlips.find((row) => row.slip.slipNo === normalized)
+    const targetSlipId = fromPool?.id ?? fromCurrentTask?.slipId
+    if (!targetSlipId) {
+      setSlipNoError('미배차 전표 풀에서 찾을 수 없습니다.')
+      return
+    }
+    assignMutation.mutate(
+      { groupId: group.id, slipId: targetSlipId },
+      {
+        onSuccess: () => {
+          if (slipNoInputRef.current) slipNoInputRef.current.value = ''
+          setSlipNoError(null)
+        },
+        onError: () => setSlipNoError('전표 추가에 실패했습니다. 상태를 확인하세요.'),
+      },
+    )
+  }
 
   return (
     <article
@@ -69,9 +129,9 @@ export function VehicleGroupCard({
       style={{
         border: isOver
           ? '2px solid var(--color-action-brand, #1E40AF)'
-          : '1px solid var(--color-neutral-200)',
+          : `1px solid ${statusTone.borderColor}`,
         borderRadius: 8,
-        background: isOver ? 'var(--color-action-brandSubtle, #DBEAFE)' : 'var(--color-neutral-0)',
+        background: isOver ? 'var(--color-action-brandSubtle, #DBEAFE)' : statusTone.background,
         transition: 'border-color 120ms, background-color 120ms',
       }}
     >
@@ -82,12 +142,22 @@ export function VehicleGroupCard({
           gap: 8,
           padding: '8px 12px',
           borderBottom: '1px solid var(--color-neutral-100)',
-          background: 'var(--color-neutral-50)',
+          background: statusTone.background,
           borderTopLeftRadius: 8,
           borderTopRightRadius: 8,
         }}
       >
-        <span style={{ fontWeight: 600, fontSize: 13 }}>
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={!canEdit || group.slips.length === 0}
+          onChange={(event) => onSelectedChange(event.currentTarget.checked)}
+          data-testid={`dispatch-board-vehicle-group-${group.sequence}-select`}
+          aria-label={`${vehicleLabel} #${group.sequence} 선택 전송 대상`}
+          style={{ width: 16, height: 16 }}
+        />
+        <span aria-hidden="true" style={{ fontSize: 16 }}>🚚</span>
+        <span style={{ fontWeight: 600, fontSize: 13, color: statusTone.color }}>
           {vehicleLabel} #{group.sequence}
         </span>
         <span
@@ -140,7 +210,71 @@ export function VehicleGroupCard({
         )}
       </header>
 
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: 8, background: 'var(--color-neutral-0)' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto',
+            gap: 6,
+            marginBottom: 8,
+          }}
+        >
+          <input
+            ref={slipNoInputRef}
+            onInput={() => {
+              if (slipNoError) setSlipNoError(null)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') handleAssignBySlipNo()
+            }}
+            disabled={!canEdit || assignMutation.isPending}
+            placeholder="전표번호"
+            data-testid={`dispatch-board-vehicle-group-${group.sequence}-slip-input`}
+            aria-label={`${vehicleLabel} #${group.sequence} 전표번호 입력`}
+            style={{
+              minWidth: 0,
+              padding: '7px 8px',
+              border: '1px solid var(--color-neutral-200)',
+              borderRadius: 4,
+              fontSize: 12,
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleAssignBySlipNo}
+            disabled={!canEdit || assignMutation.isPending}
+            data-testid={`dispatch-board-vehicle-group-${group.sequence}-slip-add`}
+            style={{
+              padding: '7px 10px',
+              border: 'none',
+              borderRadius: 4,
+              background: canEdit ? 'var(--color-action-brand, #1E40AF)' : 'var(--color-neutral-200)',
+              color: canEdit ? 'var(--color-neutral-0)' : 'var(--color-neutral-500)',
+              cursor: canEdit ? 'pointer' : 'not-allowed',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            추가
+          </button>
+        </div>
+        {slipNoError ? (
+          <div
+            role="alert"
+            data-testid={`dispatch-board-vehicle-group-${group.sequence}-slip-error`}
+            style={{
+              marginBottom: 8,
+              padding: 6,
+              border: '1px solid var(--color-danger-200, #FECACA)',
+              borderRadius: 4,
+              background: 'var(--color-danger-50, #FEF2F2)',
+              color: 'var(--color-danger-700, #B91C1C)',
+              fontSize: 12,
+            }}
+          >
+            {slipNoError}
+          </div>
+        ) : null}
         {group.slips.length === 0 ? (
           <div
             style={{
@@ -163,6 +297,7 @@ export function VehicleGroupCard({
                   groupId={group.id}
                   row={row}
                   canEdit={canEdit}
+                  isDuplicate={duplicateSlipIdSet.has(row.slipId)}
                   onOpenDetail={() => onOpenSlipDetail(row.slipId)}
                   onRemove={() =>
                     removeSlipMutation.mutate({
@@ -189,12 +324,14 @@ function SortableSlipRow({
   groupId,
   row,
   canEdit,
+  isDuplicate,
   onOpenDetail,
   onRemove,
 }: {
   groupId: string
   row: DispatchVehicleGroupSlipResponse
   canEdit: boolean
+  isDuplicate: boolean
   onOpenDetail: () => void
   onRemove: () => void
 }) {
@@ -230,8 +367,11 @@ function SortableSlipRow({
         padding: '6px 8px',
         borderBottom: '1px solid var(--color-neutral-100)',
         fontSize: 12,
-        background: 'var(--color-neutral-0)',
+        background: isDuplicate ? 'var(--color-danger-50, #FEF2F2)' : 'var(--color-neutral-0)',
+        border: isDuplicate ? '1px solid var(--color-danger-300, #FCA5A5)' : undefined,
+        borderRadius: isDuplicate ? 4 : undefined,
       }}
+      data-duplicate={isDuplicate ? 'true' : 'false'}
       data-testid={`dispatch-board-group-slip-${row.slip.slipNo}`}
     >
       <span
@@ -276,6 +416,16 @@ function SortableSlipRow({
           color: 'var(--color-neutral-800)',
         }}
       >
+        {isDuplicate ? (
+          <span
+            aria-label="중복 전표"
+            title="중복 전표"
+            data-testid={`dispatch-board-group-slip-${row.slip.slipNo}-duplicate-warning`}
+            style={{ marginRight: 6, color: 'var(--color-danger-700, #B91C1C)' }}
+          >
+            ⚠
+          </span>
+        ) : null}
         <span style={{ fontWeight: 600, marginRight: 6 }}>{row.slip.slipNo}</span>
         <span>{row.slip.partnerName}</span>
       </button>

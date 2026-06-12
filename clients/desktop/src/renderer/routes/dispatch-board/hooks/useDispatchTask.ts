@@ -36,6 +36,8 @@ import { DISPATCH_BOARD_QUERY_KEY } from './useUnDispatchedSlipsQuery'
 export const dispatchTaskQueryKey = (taskId: string | null) =>
   ['dispatchTask', taskId] as const
 
+export const DISPATCH_TASK_LOCAL_MUTATION_EVENT = 'samhan-dispatch-task-local-mutation'
+
 /**
  * DispatchTask 단건 query — taskId 가 null/undefined 면 disabled.
  */
@@ -132,9 +134,42 @@ export function useAssignSlipToGroupMutation(taskId: string | null) {
   return useMutation({
     mutationFn: ({ groupId, slipId }: { groupId: string; slipId: string }) =>
       assignSlipToGroup(taskId as string, groupId, slipId),
-    onSuccess: () => {
+    onSuccess: (created, vars) => {
+      const applyAssignedSlip = (current: DispatchTaskResponse | undefined) => {
+        if (!current) return current
+        const vehicleGroups = current.vehicleGroups.map((group) =>
+          group.id === vars.groupId
+            ? {
+                ...group,
+                slips: group.slips.some((row) => row.id === created.id)
+                  ? group.slips
+                  : [...group.slips, created],
+              }
+            : group,
+        )
+        const slipCounts = new Map<string, number>()
+        for (const row of vehicleGroups.flatMap((group) => group.slips)) {
+          slipCounts.set(row.slipId, (slipCounts.get(row.slipId) ?? 0) + 1)
+        }
+        return {
+          ...current,
+          vehicleGroups,
+          duplicateSlipIds: [...slipCounts.entries()]
+            .filter(([, count]) => count > 1)
+            .map(([slipId]) => slipId),
+        }
+      }
+      qc.setQueryData<DispatchTaskResponse | undefined>(
+        dispatchTaskQueryKey(taskId),
+        applyAssignedSlip,
+      )
+      qc.setQueriesData<DispatchTaskResponse | undefined>(
+        { queryKey: ['dispatchTask'] },
+        applyAssignedSlip,
+      )
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+      window.dispatchEvent(new CustomEvent(DISPATCH_TASK_LOCAL_MUTATION_EVENT))
     },
   })
 }
@@ -181,7 +216,7 @@ export function useRemoveSlipFromGroupMutation(taskId: string | null) {
 export function useDispatchToArologisMutation(taskId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => dispatchToArologis(taskId as string),
+    mutationFn: (groupIds?: string[]) => dispatchToArologis(taskId as string, groupIds),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })

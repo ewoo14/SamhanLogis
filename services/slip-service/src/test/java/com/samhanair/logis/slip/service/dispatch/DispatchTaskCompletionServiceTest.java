@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -113,6 +114,54 @@ class DispatchTaskCompletionServiceTest {
 
         assertThatThrownBy(() -> svc.dispatch(taskId))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void dispatch_with_selected_group_ids_sends_and_marks_only_selected_groups() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID selectedGroupId = UUID.randomUUID();
+        UUID skippedGroupId = UUID.randomUUID();
+        UUID selectedSlipId = UUID.randomUUID();
+        UUID skippedSlipId = UUID.randomUUID();
+
+        DispatchTask task = DispatchTask.create("2026/06/12-1", LocalDate.now());
+        setIdViaReflection(task, taskId);
+
+        DispatchVehicleGroup selectedGroup = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        setIdViaReflection(selectedGroup, selectedGroupId);
+        DispatchVehicleGroup skippedGroup = DispatchVehicleGroup.create(
+                taskId, 2, DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_1);
+        setIdViaReflection(skippedGroup, skippedGroupId);
+
+        DispatchVehicleGroupSlip selectedMapping =
+                DispatchVehicleGroupSlip.create(selectedGroupId, selectedSlipId, 1);
+        Slip selectedSlip = mock(Slip.class);
+        when(selectedSlip.getId()).thenReturn(selectedSlipId);
+        when(selectedSlip.getSlipNo()).thenReturn("2026/06/12-SEL");
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(selectedGroup, skippedGroup));
+        when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(selectedGroupId))
+                .thenReturn(List.of(selectedMapping));
+        when(slipRepo.findById(selectedSlipId)).thenReturn(Optional.of(selectedSlip));
+        when(arologisClient.send(any(ArologisDispatchRequest.class)))
+                .thenReturn(new ArologisDispatchResponse(
+                        UUID.randomUUID(), taskId, Instant.now(), Instant.now()));
+
+        svc.dispatch(taskId, List.of(selectedGroupId));
+
+        ArgumentCaptor<ArologisDispatchRequest> captor =
+                ArgumentCaptor.forClass(ArologisDispatchRequest.class);
+        verify(arologisClient).send(captor.capture());
+        assertThat(captor.getValue().vehicles()).hasSize(1);
+        assertThat(captor.getValue().vehicles().get(0).slips())
+                .extracting(ArologisDispatchRequest.SlipRef::slipId)
+                .containsExactly(selectedSlipId);
+        verify(selectedSlip).markDispatchPending();
+        verify(slipRepo, never()).findById(skippedSlipId);
+        verify(slipRepo, times(1)).save(selectedSlip);
     }
 
     @Test

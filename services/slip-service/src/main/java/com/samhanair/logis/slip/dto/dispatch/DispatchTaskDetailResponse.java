@@ -25,13 +25,15 @@ public record DispatchTaskDetailResponse(
         LocalDateTime modificationRequestedAt,
         LocalDateTime modificationDecidedAt,
         List<VehicleGroup> vehicleGroups,
-        List<MatchedDriverDto> matchedDrivers
+        List<MatchedDriverDto> matchedDrivers,
+        List<UUID> duplicateSlipIds
 ) {
 
     public static DispatchTaskDetailResponse of(
             DispatchTask task,
             List<VehicleGroup> vehicleGroups,
-            List<MatchedDriverDto> matchedDrivers
+            List<MatchedDriverDto> matchedDrivers,
+            List<UUID> duplicateSlipIds
     ) {
         return new DispatchTaskDetailResponse(
                 task.getId(),
@@ -45,7 +47,8 @@ public record DispatchTaskDetailResponse(
                 task.getModificationRequestedAt(),
                 task.getModificationDecidedAt(),
                 vehicleGroups,
-                matchedDrivers
+                matchedDrivers,
+                duplicateSlipIds
         );
     }
 

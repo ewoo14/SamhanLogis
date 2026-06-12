@@ -123,7 +123,23 @@ public class DispatchTaskHistoryQueryService {
                         groupsById.get(driver.getVehicleGroupId())))
                 .toList();
 
-        return DispatchTaskDetailResponse.of(task, groups, drivers);
+        return DispatchTaskDetailResponse.of(task, groups, drivers, duplicateSlipIds(groups));
+    }
+
+    /**
+     * 전체 차량 그룹에서 같은 전표가 2회 이상 들어간 경우 붉은 경고 대상 slipId 로 반환한다.
+     */
+    private List<UUID> duplicateSlipIds(List<DispatchTaskDetailResponse.VehicleGroup> groups) {
+        Map<UUID, Long> counts = groups.stream()
+                .flatMap(group -> group.slips().stream())
+                .collect(Collectors.groupingBy(
+                        DispatchTaskDetailResponse.VehicleGroupSlip::slipId,
+                        LinkedHashMap::new,
+                        Collectors.counting()));
+        return counts.entrySet().stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .toList();
     }
 
     private DispatchSnapshot loadSnapshot(List<DispatchTask> tasks) {

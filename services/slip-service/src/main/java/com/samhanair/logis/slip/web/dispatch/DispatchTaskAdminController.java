@@ -11,6 +11,7 @@ import com.samhanair.logis.slip.dto.dispatch.AddVehicleGroupRequest;
 import com.samhanair.logis.slip.dto.dispatch.AssignSlipToGroupRequest;
 import com.samhanair.logis.slip.dto.dispatch.CreateDispatchTaskRequest;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskDetailResponse;
+import com.samhanair.logis.slip.dto.dispatch.DispatchTaskDispatchRequest;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskResponse;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskSummaryResponse;
 import com.samhanair.logis.slip.dto.dispatch.DispatchVehicleGroupResponse;
@@ -261,11 +262,14 @@ public class DispatchTaskAdminController {
     @PostMapping("/{taskId}/dispatch")
     @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DispatchTaskResponse> dispatch(@PathVariable UUID taskId,
+                                                      @Valid @RequestBody(required = false) DispatchTaskDispatchRequest req,
                                                       @RequestHeader(value = "X-User-Id", required = false) String actor,
                                                       @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
         checkEditPermission(roleHeader);
-        return ApiResponse.ok(DispatchTaskResponse.from(completionService.dispatch(taskId)));
+        return ApiResponse.ok(DispatchTaskResponse.from(completionService.dispatch(
+                taskId,
+                req != null ? req.groupIds() : null)));
     }
 
     // ---------- Phase C (배차 수정/취소 요청, D-DC-02 / D-DC-07) ----------

@@ -148,3 +148,5 @@ tools/legacy-gas/종합견적서-live/
 docs/sample/*
 !docs/sample/README.md
 .codex-gradle-cache/
+.codex-temp/
+.gradle-codex-cache/
