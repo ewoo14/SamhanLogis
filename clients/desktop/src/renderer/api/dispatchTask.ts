@@ -156,7 +156,7 @@ export interface MatchedDriverResponse {
   vehicleGroupSequence: number
   driverCode: string
   driverName: string
-  driverPhoneNumber: string
+  driverPhoneNumber: string | null
   driverSource: string
   vehiclePlateNumber?: string | null
 }

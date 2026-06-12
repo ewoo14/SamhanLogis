@@ -137,6 +137,25 @@ class InsungQuickDriverMatcherTest {
     }
 
     @Test
+    @DisplayName("vendorDriverId가 driverCode 50자를 넘기면 식별자 절단 없이 매칭을 skip")
+    void match_success_with_too_long_vendorDriverId_returns_empty_without_driver_upsert() {
+        Vehicle vehicle = Vehicle.of(UUID.randomUUID(), 1, VehicleTonnage.TONNAGE_1, null);
+        String vendorOrderId = "VENDOR-ORD-LONG-DRIVER";
+        String vendorDriverId = "D".repeat(44);
+        InsungDriverMatchResponse matchResp = InsungDriverMatchResponse.matched(
+                vendorDriverId, "Long Driver", "010-1234-5678", "1T", "12A3456");
+
+        when(insungClient.requestOrder(any(), anyList())).thenReturn(vendorOrderId);
+        when(insungClient.requestMatch(vendorOrderId)).thenReturn(matchResp);
+
+        DriverMatchResult result = matcher.match(vehicle, List.of());
+
+        assertThat(result.driver()).isEmpty();
+        verify(driverRepository, never()).findByDriverCode(any());
+        verify(driverRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("매칭 성공 응답의 기사 전화번호 결손 → 더미 없이 null 저장")
     void match_success_without_driverPhone_saves_null_phone() {
         Vehicle vehicle = Vehicle.of(UUID.randomUUID(), 1, VehicleTonnage.TONNAGE_1, null);
@@ -156,6 +175,30 @@ class InsungQuickDriverMatcherTest {
         ArgumentCaptor<Driver> driverCaptor = ArgumentCaptor.forClass(Driver.class);
         verify(driverRepository).save(driverCaptor.capture());
         assertThat(driverCaptor.getValue().getPhoneNumber()).isNull();
+    }
+
+    @Test
+    @DisplayName("vendor profile 생성 시 phone/vehicleType 길이를 DB 컬럼 길이로 정규화")
+    void match_success_normalizes_phone_and_vehicleType_lengths() {
+        Vehicle vehicle = Vehicle.of(UUID.randomUUID(), 1, VehicleTonnage.TONNAGE_1, null);
+        String vendorOrderId = "VENDOR-ORD-LONG-FIELDS";
+        InsungDriverMatchResponse matchResp = InsungDriverMatchResponse.matched(
+                "DRV-LONG-FIELDS",
+                "Driver",
+                "010-1234-5678-EXTRA-LONG",
+                "VEHICLE-TYPE-OVER-20-CHARS",
+                "12A3456");
+
+        when(insungClient.requestOrder(any(), anyList())).thenReturn(vendorOrderId);
+        when(insungClient.requestMatch(vendorOrderId)).thenReturn(matchResp);
+        when(driverRepository.findByDriverCode("INSUNG-DRV-LONG-FIELDS")).thenReturn(Optional.empty());
+        when(driverRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DriverMatchResult result = matcher.match(vehicle, List.of());
+
+        assertThat(result.driver()).isPresent();
+        assertThat(result.driver().get().getPhoneNumber()).hasSize(20);
+        assertThat(result.driver().get().getVehicleType()).hasSize(20);
     }
 
     @Test

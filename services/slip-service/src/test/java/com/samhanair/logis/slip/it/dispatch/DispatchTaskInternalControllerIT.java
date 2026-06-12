@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.dto.dispatch.ArologisDispatchResponse;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -112,6 +113,52 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
                 )),
                 "confirmedAt", Instant.now().toString()
         );
+        mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/confirm", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(confirmBody)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void confirm_accepts_null_driver_phone_after_dispatch_flow() throws Exception {
+        UUID arologisId = UUID.randomUUID();
+        Mockito.when(arologisDispatchClient.send(ArgumentMatchers.any()))
+                .thenReturn(new ArologisDispatchResponse(
+                        arologisId, UUID.randomUUID(),
+                        Instant.now(), Instant.now()));
+
+        String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-20"))))
+                .andReturn().getResponse().getContentAsString();
+        UUID taskId = UUID.fromString((String) dataMap(taskRes).get("id"));
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"))));
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk());
+
+        Map<String, Object> matchedDriver = new LinkedHashMap<>();
+        matchedDriver.put("vehicleGroupSequence", 1);
+        matchedDriver.put("vehicleType", "TONNAGE_1");
+        matchedDriver.put("driverCode", "INSUNG-DRV-NO-PHONE");
+        matchedDriver.put("driverName", "No Phone Driver");
+        matchedDriver.put("driverPhoneNumber", null);
+        matchedDriver.put("source", "EXTERNAL_INSUNG_QUICK");
+        Map<String, Object> confirmBody = new LinkedHashMap<>();
+        confirmBody.put("arologisDispatchId", arologisId.toString());
+        confirmBody.put("matchedDrivers", List.of(matchedDriver));
+        confirmBody.put("confirmedAt", Instant.now().toString());
+
         mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/confirm", taskId)
                         .header("X-Internal-Token", "test-internal-token")
                         .contentType(MediaType.APPLICATION_JSON)

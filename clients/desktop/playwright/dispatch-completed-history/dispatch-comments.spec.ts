@@ -35,7 +35,7 @@ async function gotoHistoryWithEditPermission(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {})
 }
 
-test.describe('AROLOGIS 배차현황 협업 코멘트 mock', () => {
+test.describe('AROLOGIS 배차현황 코멘트 mock', () => {
   test('상세 모달에서 코멘트 목록을 보여주고 조회 전용으로 작성/삭제를 막는다', async ({ page }) => {
     await gotoHistoryWithEditPermission(page)
 

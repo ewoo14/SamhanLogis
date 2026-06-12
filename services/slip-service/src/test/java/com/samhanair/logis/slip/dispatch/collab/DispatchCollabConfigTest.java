@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.collab.CollabCommentService;
+import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabRealtimePublisher;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -223,6 +224,57 @@ class DispatchCollabConfigTest {
                 eq(callerId),
                 eq("system"),
                 eq("UUID 이름 마스킹"),
+                isNull());
+    }
+
+    @Test
+    void dispatchController_truncatesLongCallerNameToAuthorNameLimit() {
+        @SuppressWarnings("unchecked")
+        CollabCommentService<DispatchCollabComment> commentService =
+                org.mockito.Mockito.mock(CollabCommentService.class);
+        RealtimeBroker broker = org.mockito.Mockito.mock(RealtimeBroker.class);
+        DispatchTaskRepository taskRepository = org.mockito.Mockito.mock(DispatchTaskRepository.class);
+        DispatchCollabCommentController controller =
+                new DispatchCollabCommentController(commentService, broker, taskRepository);
+        UUID taskId = UUID.randomUUID();
+        UUID callerId = UUID.randomUUID();
+        String callerName = "A".repeat(60);
+        String truncated = callerName.substring(0, CollabCommentRecord.MAX_AUTHOR_NAME_LENGTH);
+        DispatchCollabComment saved = DispatchCollabComment.create(
+                CollabDocumentType.DISPATCH_TASK,
+                taskId,
+                "vehicleGroups[0]",
+                callerId,
+                truncated,
+                "long author name",
+                null);
+        ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
+
+        when(taskRepository.existsByIdAndIsDeletedFalse(taskId)).thenReturn(true);
+        when(commentService.add(
+                eq(CollabDocumentType.DISPATCH_TASK),
+                eq(taskId),
+                eq("vehicleGroups[0]"),
+                eq(callerId),
+                eq(truncated),
+                eq("long author name"),
+                isNull()))
+                .thenReturn(saved);
+
+        ApiResponse<DispatchCommentResponse> response = controller.add(
+                taskId,
+                new AddDispatchCommentRequest("long author name", null, "vehicleGroups[0]"),
+                callerId.toString(),
+                callerName);
+
+        assertThat(response.getData().authorName()).isEqualTo(truncated);
+        verify(commentService).add(
+                eq(CollabDocumentType.DISPATCH_TASK),
+                eq(taskId),
+                eq("vehicleGroups[0]"),
+                eq(callerId),
+                eq(truncated),
+                eq("long author name"),
                 isNull());
     }
 

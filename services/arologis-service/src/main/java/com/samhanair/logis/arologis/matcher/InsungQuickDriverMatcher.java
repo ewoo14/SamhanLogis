@@ -41,6 +41,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class InsungQuickDriverMatcher implements DriverMatcher {
 
+    private static final int DRIVER_CODE_MAX_LENGTH = 50;
+    private static final String INSUNG_DRIVER_CODE_PREFIX = "INSUNG-";
+
     private final InsungQuickClient insungQuickClient;
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
@@ -88,7 +91,12 @@ public class InsungQuickDriverMatcher implements DriverMatcher {
             }
 
             // 3. Driver upsert — driverCode = INSUNG-<vendorDriverId>
-            String driverCode = "INSUNG-" + vendorDriverId;
+            String driverCode = INSUNG_DRIVER_CODE_PREFIX + vendorDriverId;
+            if (driverCode.length() > DRIVER_CODE_MAX_LENGTH) {
+                log.warn("[InsungQuick] 매칭 성공 응답의 vendorDriverId 초과 — vehicleSeq={} vendorOrderId={}, empty 반환",
+                        vehicle.getSequence(), vendorOrderId);
+                return DriverMatchResult.empty(MatchSource.EXTERNAL_INSUNG_QUICK);
+            }
             String phoneNumber = normalize(matchResp.driverPhone());
             Driver driver = driverRepository.findByDriverCode(driverCode)
                     .map(existing -> {

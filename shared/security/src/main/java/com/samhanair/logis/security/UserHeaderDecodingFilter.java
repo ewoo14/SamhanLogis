@@ -21,6 +21,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *
  * <p>디코딩 대상은 {@code X-User-Name} 단일 헤더다. {@code X-User-Department} 는 기존
  * {@link HrAuthorizationHelper} 등 소비처에서 이미 디코딩하므로 여기서 건드리지 않는다.
+ *
+ * <p>한계: URL decoding 은 form 규칙을 따르므로 {@code +} 는 공백으로 해석된다. Latin-1 복구는
+ * servlet 컨테이너가 UTF-8 bytes 를 ISO-8859-1 문자로 읽은 연속 구간만 대상으로 하며, 유효한 유니코드와
+ * mojibake byte 가 섞인 경계는 보수적으로 원문을 유지한다.
  */
 public class UserHeaderDecodingFilter extends OncePerRequestFilter {
 
@@ -39,7 +43,7 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
     }
 
     private static String decodeUserName(String value) {
-        return repairUtf8BytesReadAsIso88591(decodeUrlEncodedUserName(value));
+        return stripControlCharacters(repairUtf8BytesReadAsIso88591(decodeUrlEncodedUserName(value)));
     }
 
     private static String decodeUrlEncodedUserName(String value) {
@@ -104,6 +108,21 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
             }
         }
         return false;
+    }
+
+    private static String stripControlCharacters(String value) {
+        if (value == null) {
+            return null;
+        }
+        StringBuilder sanitized = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if ((ch <= '\u001F') || (ch >= '\u007F' && ch <= '\u009F')) {
+                continue;
+            }
+            sanitized.append(ch);
+        }
+        return sanitized.toString();
     }
 
     private static boolean isUserNameHeader(String name) {

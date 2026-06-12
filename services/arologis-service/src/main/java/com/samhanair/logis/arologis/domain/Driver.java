@@ -85,8 +85,8 @@ public class Driver extends BaseEntity {
         }
         this.driverCode = driverCode;
         this.driverName = normalizeLength(driverName, 50);
-        this.phoneNumber = blankToNull(phoneNumber);
-        this.vehicleType = vehicleType;
+        this.phoneNumber = normalizeLength(phoneNumber, 20);
+        this.vehicleType = normalizeLength(vehicleType, 20);
         this.vehiclePlateNumber = normalizeLength(vehiclePlateNumber, 20);
         this.source = source;
         this.appInstalled = appInstalled == null ? Boolean.FALSE : appInstalled;
@@ -147,10 +147,10 @@ public class Driver extends BaseEntity {
             this.driverName = normalizeLength(driverName, 50);
         }
         if (phoneNumber != null && !phoneNumber.isBlank()) {
-            this.phoneNumber = phoneNumber.trim();
+            this.phoneNumber = normalizeLength(phoneNumber, 20);
         }
         if (vehicleType != null && !vehicleType.isBlank()) {
-            this.vehicleType = vehicleType;
+            this.vehicleType = normalizeLength(vehicleType, 20);
         }
         if (vehiclePlateNumber != null && !vehiclePlateNumber.isBlank()) {
             this.vehiclePlateNumber = normalizeLength(vehiclePlateNumber, 20);

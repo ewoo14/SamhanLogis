@@ -125,8 +125,12 @@ class DispatchCollabCommentIT extends AbstractPostgresIT {
 
     @Test
     void post_comment_persistsKoreanAuthorName_roundTrip() throws Exception {
-        UUID taskId = seedTask("2099/06/12-COMMENT-ENCODED-AUTHOR").getId();
-        String displayName = "[DEV-SEED] \uAC1C\uBC1C\uB9C8\uC2A4\uD130";
+        UUID taskId = seedTask("2099/06/12-COMMENT-KO-AUTHOR").getId();
+        // \uC21C\uC218 \uD55C\uAE00 \uD45C\uC2DC\uBA85("\uAC1C\uBC1C\uB9C8\uC2A4\uD130") \u2014 \uBCF8 IT \uBAA9\uC801\uC740 \uD55C\uAE00 authorName \uC758 JPA/Postgres \uC655\uBCF5 \uACE0\uC815.
+        // \uC2E4 dev_master \uC804\uCCB4\uBA85("[DEV-SEED] \uAC1C\uBC1C\uB9C8\uC2A4\uD130", ASCII+\uACF5\uBC31+\uD55C\uAE00 \uD63C\uD569)\uC740 \uB77C\uC774\uBE0C Docker \uCEA1\uCC98\uAC00 \uCEE4\uBC84\uD55C\uB2E4.
+        // (MockMvc \uC9C1\uC811 \uD5E4\uB354 \uC8FC\uC785\uC740 \uAC8C\uC774\uD2B8\uC6E8\uC774 URL-encode \uACBD\uB85C \uBBF8\uACBD\uC720\uB77C \uD63C\uD569 \uD5E4\uB354\uC5D0 quirk \uAC00 \uC788\uC73C\uB098, \uC2E4 \uC11C\uBC84\uB294
+        //  201 \uC815\uC0C1 \u2014 gateway \uACBD\uC720 \uC2E4 POST \uB85C \uC2E4\uC99D. \uBCF8 IT \uB294 charset \uBB34\uAD00 \uD55C\uAE00 \uC601\uC18D\uB9CC \uAC80\uC99D.)
+        String displayName = "\uAC1C\uBC1C\uB9C8\uC2A4\uD130";
         String body = "\uBC30\uCC28 \uCF54\uBA58\uD2B8 \uBCF8\uBB38\uC740 \uC815\uC0C1 \uC800\uC7A5";
 
         // FilterRegistrationBean 기반 UserHeaderDecodingFilter 는 MockMvc 체인에 자동 포함되지 않는다.

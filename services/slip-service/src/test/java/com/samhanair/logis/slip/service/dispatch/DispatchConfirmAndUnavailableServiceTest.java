@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -93,6 +94,78 @@ class DispatchConfirmAndUnavailableServiceTest {
         verify(matchedRepo).save(matchedCaptor.capture());
         assertThat(matchedCaptor.getValue().getVehiclePlateNumber()).isEqualTo(vehiclePlateNumber);
         verify(slip).markDispatchConfirmed();
+    }
+
+    @Test
+    void confirm_allows_null_driver_phone_and_persists_matched_driver() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+
+        DispatchTask task = DispatchTask.create("2026/05/14-NULL-PHONE", LocalDate.now());
+        setId(task, taskId);
+        task.markDispatching();
+
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(group, groupId);
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(group));
+        when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId))
+                .thenReturn(List.of());
+        when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
+
+        DispatchTaskConfirmRequest req = new DispatchTaskConfirmRequest(
+                UUID.randomUUID(),
+                List.of(new DispatchTaskConfirmRequest.MatchedDriverPayload(
+                        1, "TONNAGE_1", "INSUNG-DRV-NO-PHONE", "Driver No Phone",
+                        null, "EXTERNAL_INSUNG_QUICK", "12A3456")),
+                Instant.now());
+
+        confirmSvc.confirm(taskId, req);
+
+        ArgumentCaptor<MatchedDriver> matchedCaptor = ArgumentCaptor.forClass(MatchedDriver.class);
+        verify(matchedRepo).save(matchedCaptor.capture());
+        assertThat(matchedCaptor.getValue().getDriverPhoneNumber()).isNull();
+        assertThat(task.getStatus()).isEqualTo(DispatchTaskStatus.DISPATCHED);
+    }
+
+    @Test
+    void confirm_updates_existing_matched_driver_row() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+
+        DispatchTask task = DispatchTask.create("2026/05/14-UPDATE-MATCHED", LocalDate.now());
+        setId(task, taskId);
+        task.markDispatching();
+
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(group, groupId);
+        MatchedDriver existing = MatchedDriver.create(
+                groupId, "OLD", "Old Driver", "010-0000-0000", "OLD_SOURCE", "00A0000");
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(group));
+        when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId))
+                .thenReturn(List.of());
+        when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(existing));
+
+        DispatchTaskConfirmRequest req = new DispatchTaskConfirmRequest(
+                UUID.randomUUID(),
+                List.of(new DispatchTaskConfirmRequest.MatchedDriverPayload(
+                        1, "TONNAGE_1", "NEW", "New Driver",
+                        null, "EXTERNAL_INSUNG_QUICK", "12A3456")),
+                Instant.now());
+
+        confirmSvc.confirm(taskId, req);
+
+        assertThat(existing.getDriverCode()).isEqualTo("NEW");
+        assertThat(existing.getDriverName()).isEqualTo("New Driver");
+        assertThat(existing.getDriverPhoneNumber()).isNull();
+        assertThat(existing.getDriverSource()).isEqualTo("EXTERNAL_INSUNG_QUICK");
+        assertThat(existing.getVehiclePlateNumber()).isEqualTo("12A3456");
+        verify(matchedRepo).save(existing);
     }
 
     @Test

@@ -52,6 +52,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class InsungWebhookService {
 
+    private static final int DRIVER_CODE_MAX_LENGTH = 50;
+    private static final String INSUNG_DRIVER_CODE_PREFIX = "INSUNG-";
+
     private final VehicleRepository vehicleRepository;
     private final VehicleStopRepository vehicleStopRepository;
     private final DriverRepository driverRepository;
@@ -96,7 +99,13 @@ public class InsungWebhookService {
         }
 
         // Driver upsert — driverCode = INSUNG-<vendorDriverId>
-        String driverCode = "INSUNG-" + vendorDriverId;
+        String driverCode = INSUNG_DRIVER_CODE_PREFIX + vendorDriverId;
+        if (driverCode.length() > DRIVER_CODE_MAX_LENGTH) {
+            vehicle.updateVendorStatus("MATCH_FAILED");
+            log.warn("[InsungWebhook] 매칭 성공 응답의 vendorDriverId 초과 — vendorOrderId={}, skip",
+                    req.vendorOrderId());
+            return;
+        }
         String phoneNumber = normalize(req.driverPhone());
         Driver driver = driverRepository.findByDriverCode(driverCode)
                 .map(existing -> {

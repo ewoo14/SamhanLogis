@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.web.dispatch;
 
 import com.samhanair.logis.collab.CollabCommentService;
+import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -158,13 +159,12 @@ public class DispatchCollabCommentController {
             return "system";
         }
         String normalized = callerName.trim();
-        if (normalized.isBlank()) {
-            return "system";
-        }
         if (UUID_SHAPE.matcher(normalized).matches()) {
             return "system";
         }
-        return normalized;
+        return normalized.length() <= CollabCommentRecord.MAX_AUTHOR_NAME_LENGTH
+                ? normalized
+                : normalized.substring(0, CollabCommentRecord.MAX_AUTHOR_NAME_LENGTH);
     }
 
     private String resolveDeleter(String callerId) {

@@ -117,7 +117,7 @@ test.describe('AROLOGIS 배차현황 뷰 mock', () => {
     await page.getByTestId('matched-driver-driver-source').fill('경기퀵')
     await page.getByTestId('matched-driver-submit').click()
 
-    await expect(detail).toContainText('기사 이경기 (MANUAL) 010-7777-8888')
+    await expect(detail).toContainText('기사 이경기 (경기퀵) 010-7777-8888')
     await expect(detail).toContainText('차량번호 12가9999')
   })
 

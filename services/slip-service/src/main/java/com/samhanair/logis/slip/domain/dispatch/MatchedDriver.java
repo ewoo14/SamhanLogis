@@ -43,7 +43,7 @@ public class MatchedDriver extends BaseEntity {
     @Column(name = "driver_name", nullable = false, length = 100)
     private String driverName;
 
-    @Column(name = "driver_phone_number", nullable = false, length = 20)
+    @Column(name = "driver_phone_number", length = 20)
     private String driverPhoneNumber;
 
     @Column(name = "vehicle_plate_number", length = 20)
@@ -74,9 +74,6 @@ public class MatchedDriver extends BaseEntity {
         }
         if (driverName == null || driverName.isBlank()) {
             throw new IllegalArgumentException("driverName 필수");
-        }
-        if (driverPhoneNumber == null || driverPhoneNumber.isBlank()) {
-            throw new IllegalArgumentException("driverPhoneNumber 필수");
         }
         if (driverSource == null || driverSource.isBlank()) {
             throw new IllegalArgumentException("driverSource 필수");

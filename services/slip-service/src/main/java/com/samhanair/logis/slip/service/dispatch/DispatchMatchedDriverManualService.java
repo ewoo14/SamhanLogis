@@ -11,6 +11,7 @@ import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupReposito
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,36 +38,44 @@ public class DispatchMatchedDriverManualService {
         if (!taskRepo.existsByIdAndIsDeletedFalse(taskId)) {
             throw notFound();
         }
-        DispatchVehicleGroup group = groupRepo.findById(groupId)
+        DispatchVehicleGroup group = groupRepo.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(DispatchMatchedDriverManualService::notFound);
         if (!group.getDispatchTaskId().equals(taskId)) {
             throw notFound();
         }
 
         MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)
-                .map(existing -> {
-                    existing.updateManual(
-                            MANUAL_DRIVER_CODE,
-                            normalize(req.driverName()),
-                            normalize(req.driverPhoneNumber()),
-                            normalize(req.driverSource()),
-                            normalize(req.vehiclePlateNumber()));
-                    return existing;
-                })
-                .orElseGet(() -> MatchedDriver.create(
+                .orElse(null);
+        if (matched != null) {
+            matched.updateManual(
+                    MANUAL_DRIVER_CODE,
+                    normalize(req.driverName()),
+                    normalize(req.driverPhoneNumber()),
+                    normalize(req.driverSource()),
+                    normalize(req.vehiclePlateNumber()));
+            matchedRepo.save(matched);
+        } else {
+            try {
+                matchedRepo.saveAndFlush(MatchedDriver.create(
                         groupId,
                         MANUAL_DRIVER_CODE,
                         normalize(req.driverName()),
                         normalize(req.driverPhoneNumber()),
                         normalize(req.driverSource()),
                         normalize(req.vehiclePlateNumber())));
-
-        matchedRepo.save(matched);
+            } catch (DataIntegrityViolationException ex) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "이미 해당 차량 그룹의 매칭 기사 정보가 등록되었습니다.", ex);
+            }
+        }
         return historyQueryService.detail(taskId);
     }
 
     private static String normalize(String value) {
-        return value == null ? null : value.trim();
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private static BusinessException notFound() {

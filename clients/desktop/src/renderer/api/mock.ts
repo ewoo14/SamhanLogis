@@ -4658,7 +4658,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const driverPhoneNumber = String(body.driverPhoneNumber ?? '').trim()
     const vehiclePlateNumber = String(body.vehiclePlateNumber ?? '').trim()
     const driverSource = String(body.driverSource ?? '').trim()
-    if (!driverName || !driverPhoneNumber || !vehiclePlateNumber || !driverSource) {
+    if (!driverName || !vehiclePlateNumber || !driverSource) {
       return mockError(400, 'INVALID_INPUT', '기사/차량 입력값은 필수입니다.')
     }
     const nextMatched = {

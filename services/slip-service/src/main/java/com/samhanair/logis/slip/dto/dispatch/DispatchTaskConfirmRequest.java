@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -39,7 +40,7 @@ public record DispatchTaskConfirmRequest(
             String vehicleType,
             @NotBlank String driverCode,
             @NotBlank String driverName,
-            @NotBlank String driverPhoneNumber,
+            @Size(max = 20) String driverPhoneNumber,
             @NotBlank String source,
             String vehiclePlateNumber
     ) {}

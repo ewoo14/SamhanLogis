@@ -60,6 +60,19 @@ class UserHeaderDecodingFilterTest {
     }
 
     @Test
+    void decodedUserNameHeader_strips_c0_and_c1_control_characters() throws Exception {
+        UserHeaderDecodingFilter filter = new UserHeaderDecodingFilter();
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/slips");
+        req.addHeader("X-User-Name", "Alice%0D%0A%E2%80%8B%C2%85Bob");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        CapturingChain chain = new CapturingChain();
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(chain.userName()).isEqualTo("Alice\u200BBob");
+    }
+
+    @Test
     void rawUtf8UserNameHeaderReadAsIso88591_isRestoredForDownstreamConsumers() throws Exception {
         UserHeaderDecodingFilter filter = new UserHeaderDecodingFilter();
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/slips");

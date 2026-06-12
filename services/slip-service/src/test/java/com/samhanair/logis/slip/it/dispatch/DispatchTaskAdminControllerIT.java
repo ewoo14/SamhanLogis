@@ -239,6 +239,27 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void PUT_matched_driver_accepts_blank_phone_and_persists_manual_driver() throws Exception {
+        UUID taskId = createTask("2026-05-21");
+        UUID groupId = addGroup(taskId, "TONNAGE_1");
+
+        mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "driverName", "Manual Driver",
+                                "driverPhoneNumber", "",
+                                "vehiclePlateNumber", "12A3456",
+                                "driverSource", "Manual Source"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverCode").value("MANUAL"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("Manual Driver"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("Manual Source"));
+    }
+
+    @Test
     void PUT_matched_driver_requires_dispatch_board_update_permission() throws Exception {
         UUID taskId = createTask("2026-05-16");
         UUID groupId = addGroup(taskId, "TONNAGE_1");

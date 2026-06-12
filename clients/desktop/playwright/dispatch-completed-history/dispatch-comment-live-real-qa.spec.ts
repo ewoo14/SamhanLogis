@@ -1,8 +1,8 @@
 /**
- * 배차 협업 코멘트 — 라이브 실서버 캡처(mock OFF).
+ * 배차 코멘트 — 라이브 실서버 캡처(mock OFF).
  *
  * 실 게이트웨이(:8080) → 재빌드 slip-service(C1a, V37) → 실 Postgres.
- * 실 API 로 코멘트 등록 → 배차현황 상세 모달의 협업 코멘트 스레드에 렌더됨을 실 화면 캡처.
+ * 실 API 로 코멘트 등록 → 배차현황 상세 모달의 코멘트 스레드에 렌더됨을 실 화면 캡처.
  * 산출: docs/qa/dispatch-collab-comment/comment-live.png
  */
 import { expect, test, type Page } from '@playwright/test'
@@ -43,7 +43,7 @@ async function installAuthStub(page: Page, login: LoginResult): Promise<void> {
   )
 }
 
-test('배차 협업 코멘트 라이브 캡처 (실 API 등록 → 배차현황 상세 렌더)', async ({ page }) => {
+test('배차 코멘트 라이브 캡처 (실 API 등록 → 배차현황 상세 렌더)', async ({ page }) => {
   const login = await realLogin(page, 'dev_master')
   await installAuthStub(page, login)
   const auth = { Authorization: `Bearer ${login.token}` }
@@ -62,15 +62,15 @@ test('배차 협업 코멘트 라이브 캡처 (실 API 등록 → 배차현황 
   const taskId = (await detailRes.json()).data?.id
   expect(taskId, 'task.id 없음').toBeTruthy()
 
-  // 2) 실 API 로 협업 코멘트 등록(게이트웨이 → slip-service → Postgres)
-  const body = '야간 배차 협업 코멘트 — 라이브 실서버 캡처 (collab-core C1a)'
+  // 2) 실 API 로 코멘트 등록(게이트웨이 → slip-service → Postgres)
+  const body = '야간 배차 코멘트 — 라이브 실서버 캡처 (collab-core C1a)'
   const postRes = await page.request.post(`${API_BASE}/admin/dispatch-tasks/${taskId}/comments`, {
     headers: auth,
     data: { body },
   })
   expect(postRes.ok(), `코멘트 등록 HTTP ${postRes.status()}: ${await postRes.text()}`).toBeTruthy()
 
-  // 3) 배차현황 상세 진입 → 협업 코멘트 스레드에 방금 등록 코멘트 렌더 확인 + 캡처
+  // 3) 배차현황 상세 진입 → 코멘트 스레드에 방금 등록 코멘트 렌더 확인 + 캡처
   await page.goto(`${BASE_URL}/#/dispatch-board/history`)
   await page.waitForSelector('[data-testid="dispatch-history-table"]', { timeout: 30000 })
   await page.getByTestId('dispatch-history-from').fill('2025-01-01')

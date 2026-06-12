@@ -101,6 +101,7 @@ const EMPTY_MATCHED_DRIVER_FORM: SetMatchedDriverPayload = {
 }
 
 type MatchedDriverFormErrors = Partial<Record<keyof SetMatchedDriverPayload, string>>
+type MatchedDriverFormTouched = Partial<Record<keyof SetMatchedDriverPayload, boolean>>
 
 const PHONE_PATTERN = /^[0-9+\-\s()]{7,20}$/
 
@@ -137,11 +138,21 @@ export function DispatchTaskDetailModal({
   } | null>(null)
   const [matchedDriverForm, setMatchedDriverForm] =
     useState<SetMatchedDriverPayload>(EMPTY_MATCHED_DRIVER_FORM)
+  const [matchedDriverFormTouched, setMatchedDriverFormTouched] =
+    useState<MatchedDriverFormTouched>({})
+  const [matchedDriverSubmitAttempted, setMatchedDriverSubmitAttempted] =
+    useState(false)
   const { canAccess } = usePermissions()
   const setMatchedDriverMutation = useSetMatchedDriverMutation(task.id)
   const matchedDriverFormErrors = validateMatchedDriverForm(matchedDriverForm)
   const hasMatchedDriverFormErrors =
     Object.keys(matchedDriverFormErrors).length > 0
+  const visibleMatchedDriverFormErrors = Object.fromEntries(
+    Object.entries(matchedDriverFormErrors).filter(([key]) =>
+      matchedDriverSubmitAttempted ||
+      matchedDriverFormTouched[key as keyof SetMatchedDriverPayload],
+    ),
+  ) as MatchedDriverFormErrors
 
   const showRequestButtons =
     !readOnly && task.status === 'DISPATCHED' && canAccess('dispatch.board', 'update')
@@ -156,6 +167,9 @@ export function DispatchTaskDetailModal({
 
   const startMatchedDriverEdit = (groupId: string, sequence: number) => {
     const matched = matchedByGroup.get(sequence)
+    setMatchedDriverMutation.reset()
+    setMatchedDriverFormTouched({})
+    setMatchedDriverSubmitAttempted(false)
     setEditingGroup({ id: groupId, sequence })
     setMatchedDriverForm({
       driverName: matched?.driverName ?? '',
@@ -170,11 +184,13 @@ export function DispatchTaskDetailModal({
     value: string,
   ) => {
     setMatchedDriverForm((current) => ({ ...current, [key]: value }))
+    setMatchedDriverFormTouched((current) => ({ ...current, [key]: true }))
   }
 
   const handleMatchedDriverSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!editingGroup) return
+    setMatchedDriverSubmitAttempted(true)
     if (hasMatchedDriverFormErrors) return
     setMatchedDriverMutation.mutate(
       {
@@ -190,9 +206,19 @@ export function DispatchTaskDetailModal({
         onSuccess: () => {
           setEditingGroup(null)
           setMatchedDriverForm(EMPTY_MATCHED_DRIVER_FORM)
+          setMatchedDriverFormTouched({})
+          setMatchedDriverSubmitAttempted(false)
         },
       },
     )
+  }
+
+  const closeMatchedDriverEdit = () => {
+    setMatchedDriverMutation.reset()
+    setEditingGroup(null)
+    setMatchedDriverForm(EMPTY_MATCHED_DRIVER_FORM)
+    setMatchedDriverFormTouched({})
+    setMatchedDriverSubmitAttempted(false)
   }
 
   return (
@@ -327,6 +353,10 @@ export function DispatchTaskDetailModal({
               >
                 {task.vehicleGroups.map((g) => {
                   const matched = matchedByGroup.get(g.sequence) ?? null
+                  const matchedDriverCodeLabel =
+                    matched?.driverCode === 'MANUAL'
+                      ? matched.driverSource
+                      : matched?.driverCode
                   return (
                     <div
                       key={g.id}
@@ -368,7 +398,7 @@ export function DispatchTaskDetailModal({
                               color: 'var(--color-success-700, #047857)',
                             }}
                           >
-                            기사 {matched.driverName} ({matched.driverCode}){' '}
+                            기사 {matched.driverName} ({matchedDriverCodeLabel}){' '}
                             {matched.driverPhoneNumber?.trim() || '-'} · 차량번호{' '}
                             {matched.vehiclePlateNumber?.trim() || '-'}
                           </span>
@@ -486,7 +516,7 @@ export function DispatchTaskDetailModal({
       {editingGroup ? (
         <Modal
           open
-          onClose={() => setEditingGroup(null)}
+          onClose={closeMatchedDriverEdit}
           title={`차량 #${editingGroup.sequence} 기사/차량 입력`}
           description="타사 배차 기사명, 차량번호, 연락처, 출처"
           size="sm"
@@ -496,7 +526,7 @@ export function DispatchTaskDetailModal({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => setEditingGroup(null)}
+                onClick={closeMatchedDriverEdit}
               >
                 취소
               </Button>
@@ -527,21 +557,21 @@ export function DispatchTaskDetailModal({
                 onChange={(e) => updateMatchedDriverForm('driverName', e.currentTarget.value)}
                 maxLength={100}
                 required
-                aria-invalid={matchedDriverFormErrors.driverName ? true : undefined}
+                aria-invalid={visibleMatchedDriverFormErrors.driverName ? true : undefined}
                 aria-describedby={
-                  matchedDriverFormErrors.driverName
+                  visibleMatchedDriverFormErrors.driverName
                     ? 'matched-driver-driver-name-error'
                     : undefined
                 }
                 data-testid="matched-driver-driver-name"
               />
-              {matchedDriverFormErrors.driverName ? (
+              {visibleMatchedDriverFormErrors.driverName ? (
                 <span
                   id="matched-driver-driver-name-error"
                   role="alert"
                   style={{ color: 'var(--color-danger-700, #B91C1C)' }}
                 >
-                  {matchedDriverFormErrors.driverName}
+                  {visibleMatchedDriverFormErrors.driverName}
                 </span>
               ) : null}
             </label>
@@ -555,22 +585,22 @@ export function DispatchTaskDetailModal({
                 maxLength={20}
                 required
                 aria-invalid={
-                  matchedDriverFormErrors.vehiclePlateNumber ? true : undefined
+                  visibleMatchedDriverFormErrors.vehiclePlateNumber ? true : undefined
                 }
                 aria-describedby={
-                  matchedDriverFormErrors.vehiclePlateNumber
+                  visibleMatchedDriverFormErrors.vehiclePlateNumber
                     ? 'matched-driver-vehicle-plate-number-error'
                     : undefined
                 }
                 data-testid="matched-driver-vehicle-plate-number"
               />
-              {matchedDriverFormErrors.vehiclePlateNumber ? (
+              {visibleMatchedDriverFormErrors.vehiclePlateNumber ? (
                 <span
                   id="matched-driver-vehicle-plate-number-error"
                   role="alert"
                   style={{ color: 'var(--color-danger-700, #B91C1C)' }}
                 >
-                  {matchedDriverFormErrors.vehiclePlateNumber}
+                  {visibleMatchedDriverFormErrors.vehiclePlateNumber}
                 </span>
               ) : null}
             </label>
@@ -583,22 +613,22 @@ export function DispatchTaskDetailModal({
                 }
                 maxLength={20}
                 aria-invalid={
-                  matchedDriverFormErrors.driverPhoneNumber ? true : undefined
+                  visibleMatchedDriverFormErrors.driverPhoneNumber ? true : undefined
                 }
                 aria-describedby={
-                  matchedDriverFormErrors.driverPhoneNumber
+                  visibleMatchedDriverFormErrors.driverPhoneNumber
                     ? 'matched-driver-driver-phone-number-error'
                     : undefined
                 }
                 data-testid="matched-driver-driver-phone-number"
               />
-              {matchedDriverFormErrors.driverPhoneNumber ? (
+              {visibleMatchedDriverFormErrors.driverPhoneNumber ? (
                 <span
                   id="matched-driver-driver-phone-number-error"
                   role="alert"
                   style={{ color: 'var(--color-danger-700, #B91C1C)' }}
                 >
-                  {matchedDriverFormErrors.driverPhoneNumber}
+                  {visibleMatchedDriverFormErrors.driverPhoneNumber}
                 </span>
               ) : null}
             </label>
@@ -609,22 +639,22 @@ export function DispatchTaskDetailModal({
                 onChange={(e) => updateMatchedDriverForm('driverSource', e.currentTarget.value)}
                 maxLength={32}
                 required
-                aria-invalid={matchedDriverFormErrors.driverSource ? true : undefined}
+                aria-invalid={visibleMatchedDriverFormErrors.driverSource ? true : undefined}
                 aria-describedby={
-                  matchedDriverFormErrors.driverSource
+                  visibleMatchedDriverFormErrors.driverSource
                     ? 'matched-driver-driver-source-error'
                     : undefined
                 }
                 placeholder="경기퀵"
                 data-testid="matched-driver-driver-source"
               />
-              {matchedDriverFormErrors.driverSource ? (
+              {visibleMatchedDriverFormErrors.driverSource ? (
                 <span
                   id="matched-driver-driver-source-error"
                   role="alert"
                   style={{ color: 'var(--color-danger-700, #B91C1C)' }}
                 >
-                  {matchedDriverFormErrors.driverSource}
+                  {visibleMatchedDriverFormErrors.driverSource}
                 </span>
               ) : null}
             </label>
