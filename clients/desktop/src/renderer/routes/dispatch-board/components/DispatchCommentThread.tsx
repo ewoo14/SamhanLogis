@@ -1,5 +1,5 @@
 /**
- * DispatchTask 협업 코멘트 스레드 — C1c.
+ * DispatchTask 코멘트 스레드 — C1c.
  *
  * 목록/등록/삭제는 REST API 로 동작하고, SSE 는 live-update enhancement 로만 사용한다.
  */
@@ -98,14 +98,14 @@ export function DispatchCommentThread({ taskId, readOnly = false }: DispatchComm
   return (
     <section
       data-testid="dispatch-comment-thread"
-      aria-label="협업 코멘트"
+      aria-label="코멘트"
       style={{
         borderTop: '1px solid var(--color-neutral-200)',
         paddingTop: 12,
       }}
     >
       <h4 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 600 }}>
-        협업 코멘트
+        코멘트
       </h4>
 
       <div

@@ -1,5 +1,5 @@
 /**
- * DispatchTask 협업 코멘트 API client — C1c.
+ * DispatchTask 코멘트 API client — C1c.
  *
  * UUID 비공개: id / parentId 는 React key 와 API path 에만 사용한다.
  * 화면에는 authorName, body, createdAt 만 노출한다.
