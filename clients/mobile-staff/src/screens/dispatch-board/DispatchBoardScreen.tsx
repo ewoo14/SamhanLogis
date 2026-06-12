@@ -79,6 +79,14 @@ type Tab = 'undispatched' | 'groups';
 const PAGE_SIZE = 50;
 const DEFAULT_STATUSES: SlipDispatchStatus[] = ['UNDISPATCHED'];
 
+function getSlipDisplayNo(slip: { slipNo?: string; slipNumber?: string }): string {
+  return slip.slipNo ?? slip.slipNumber ?? '-';
+}
+
+function getSlipStatusLabel(status: SlipDispatchStatus | null | undefined): string {
+  return status ? SLIP_DISPATCH_STATUS_LABEL[status] : '-';
+}
+
 export default function DispatchBoardScreen({ token }: Props): JSX.Element {
   const [tab, setTab] = useState<Tab>('undispatched');
 
@@ -239,12 +247,16 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
 
   // 모바일 편집/발송 = DRAFT 만 (Round D — MODIFICATION_ACCEPTED 재배차는 데스크톱
   // 배차현황 Option A 한정, api/dispatchBoard.ts isEditableStatus 참조).
+  const vehicleGroups = task?.vehicleGroups ?? [];
+  const assignedSlipCount = vehicleGroups.reduce(
+    (sum, group) => sum + (group.slips?.length ?? 0),
+    0,
+  );
   const canEdit = !!task && isEditableStatus(task.status);
   const canDispatch =
     canEdit &&
-    !!task &&
-    task.vehicleGroups.length > 0 &&
-    task.vehicleGroups.some((g) => g.slips.length > 0);
+    vehicleGroups.length > 0 &&
+    vehicleGroups.some((g) => (g.slips?.length ?? 0) > 0);
 
   // Phase C — DISPATCHED 이후 상태에서 상세 sheet 진입 가능.
   const canOpenDetail =
@@ -335,7 +347,7 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
           testID="dispatch-board-mobile-tab-undispatched"
         />
         <TabButton
-          label={`차량 그룹 (${task.vehicleGroups.length})`}
+          label={`차량 그룹 (${vehicleGroups.length})`}
           active={tab === 'groups'}
           onPress={() => setTab('groups')}
           testID="dispatch-board-mobile-tab-groups"
@@ -443,31 +455,34 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
         <View style={styles.sheetBackdrop}>
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>
-              출고전표 {selectedSlip?.slipNumber} — 차량 그룹 선택
+              출고전표 {selectedSlip ? getSlipDisplayNo(selectedSlip) : '-'} — 차량 그룹 선택
             </Text>
             <Text style={styles.sheetSub}>
               {selectedSlip?.partnerName} ({selectedSlip?.partnerCode})
             </Text>
             <ScrollView style={styles.sheetBody}>
-              {task.vehicleGroups.length === 0 ? (
+              {vehicleGroups.length === 0 ? (
                 <Text style={styles.muted}>
                   차량 그룹이 없습니다. 먼저 [차량 그룹] 탭에서 [+ 차량 추가] 를 사용하세요.
                 </Text>
               ) : (
-                task.vehicleGroups.map((g) => (
-                  <TouchableOpacity
-                    key={g.id}
-                    style={styles.sheetGroupRow}
-                    onPress={() => handleAssignSlipToGroup(g.id)}
-                    accessibilityLabel={`차량 ${DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #${g.sequence} 그룹에 할당`}
-                    testID={`dispatch-board-mobile-assign-group-${g.sequence}`}
-                  >
-                    <Text style={styles.sheetGroupLabel}>
-                      {DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #{g.sequence}
-                    </Text>
-                    <Text style={styles.muted}>({g.slips.length}건)</Text>
-                  </TouchableOpacity>
-                ))
+                vehicleGroups.map((g) => {
+                  const groupSlipCount = g.slips?.length ?? 0;
+                  return (
+                    <TouchableOpacity
+                      key={g.id}
+                      style={styles.sheetGroupRow}
+                      onPress={() => handleAssignSlipToGroup(g.id)}
+                      accessibilityLabel={`차량 ${DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #${g.sequence} 그룹에 할당`}
+                      testID={`dispatch-board-mobile-assign-group-${g.sequence}`}
+                    >
+                      <Text style={styles.sheetGroupLabel}>
+                        {DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #{g.sequence}
+                      </Text>
+                      <Text style={styles.muted}>({groupSlipCount}건)</Text>
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </ScrollView>
             <TouchableOpacity
@@ -531,8 +546,7 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
               {task.taskCode} 작업을 아로로지스로 발송합니다.
             </Text>
             <Text style={styles.muted}>
-              차량 {task.vehicleGroups.length}대 / 슬립{' '}
-              {task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)}건
+              차량 {vehicleGroups.length}대 / 슬립 {assignedSlipCount}건
             </Text>
             <View style={styles.confirmButtons}>
               <TouchableOpacity
@@ -575,8 +589,7 @@ export default function DispatchBoardScreen({ token }: Props): JSX.Element {
             <ScrollView style={styles.sheetBody}>
               <Text style={styles.muted}>배차 일자: {task.dispatchDate}</Text>
               <Text style={styles.muted}>
-                차량 {task.vehicleGroups.length}대 · 슬립{' '}
-                {task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)}건
+                차량 {vehicleGroups.length}대 · 슬립 {assignedSlipCount}건
               </Text>
               {task.modificationReason ? (
                 <Text style={styles.muted}>
@@ -871,6 +884,7 @@ function SlipRow({
   slip: SlipBoardResponse;
   onLongPress: () => void;
 }): JSX.Element {
+  const slipNo = getSlipDisplayNo(slip);
   return (
     <Pressable
       onLongPress={onLongPress}
@@ -879,17 +893,17 @@ function SlipRow({
         styles.slipRow,
         pressed && { backgroundColor: colors.surface.selected },
       ]}
-      accessibilityLabel={`출고전표 ${slip.slipNumber} ${slip.partnerName} 길게 눌러서 차량 그룹에 추가`}
+      accessibilityLabel={`출고전표 ${slipNo} ${slip.partnerName} 길게 눌러서 차량 그룹에 추가`}
       accessibilityHint="250ms 이상 길게 누르면 차량 그룹 선택 화면이 열립니다"
-      testID={`dispatch-board-mobile-slip-${slip.slipNumber}`}
+      testID={`dispatch-board-mobile-slip-${slipNo}`}
     >
-      <Text style={styles.slipNumber}>{slip.slipNumber}</Text>
+      <Text style={styles.slipNumber}>{slipNo}</Text>
       <Text style={styles.slipPartner}>
         {slip.partnerName}{' '}
         <Text style={styles.muted}>({slip.partnerCode})</Text>
       </Text>
       <Text style={styles.slipStatus}>
-        {SLIP_DISPATCH_STATUS_LABEL[slip.dispatchStatus]}
+        {getSlipStatusLabel(slip.dispatchStatus)}
       </Text>
     </Pressable>
   );
@@ -920,6 +934,7 @@ function GroupsTab({
   onDeleteGroup,
   onRemoveSlip,
 }: GroupsTabProps): JSX.Element {
+  const vehicleGroups = task.vehicleGroups ?? [];
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.actionRow}>
@@ -934,24 +949,26 @@ function GroupsTab({
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={styles.list}>
-        {task.vehicleGroups.length === 0 ? (
+        {vehicleGroups.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.muted}>
               차량 그룹이 없습니다. [+ 차량 추가] 로 시작하세요.
             </Text>
           </View>
         ) : (
-          task.vehicleGroups.map((g) => (
-            <View
-              key={g.id}
-              style={styles.groupCard}
-              accessibilityLabel={`차량 ${DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #${g.sequence} 그룹, ${g.slips.length}건`}
-            >
+          vehicleGroups.map((g) => {
+            const slips = g.slips ?? [];
+            return (
+              <View
+                key={g.id}
+                style={styles.groupCard}
+                accessibilityLabel={`차량 ${DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #${g.sequence} 그룹, ${slips.length}건`}
+              >
               <View style={styles.groupHeader}>
                 <Text style={styles.groupTitle}>
                   {DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #{g.sequence}
                 </Text>
-                <Text style={styles.muted}>({g.slips.length}건)</Text>
+                <Text style={styles.muted}>({slips.length}건)</Text>
                 {matchedByGroup.has(g.sequence) ? (
                   <Text style={styles.driverText}>
                     {matchedByGroup.get(g.sequence)}
@@ -960,9 +977,9 @@ function GroupsTab({
                   <TouchableOpacity
                     style={[
                       styles.groupDeleteBtn,
-                      (!canEdit || g.slips.length > 0) && styles.actionBtnDisabled,
+                      (!canEdit || slips.length > 0) && styles.actionBtnDisabled,
                     ]}
-                    disabled={!canEdit || g.slips.length > 0}
+                    disabled={!canEdit || slips.length > 0}
                     onPress={() => onDeleteGroup(g.id)}
                     accessibilityLabel={`${DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #${g.sequence} 그룹 삭제`}
                   >
@@ -970,29 +987,33 @@ function GroupsTab({
                   </TouchableOpacity>
                 )}
               </View>
-              {g.slips.length === 0 ? (
+              {slips.length === 0 ? (
                 <Text style={styles.muted}>
                   슬립이 없습니다. [미배차 전표] 탭에서 슬립을 길게 눌러 할당하세요.
                 </Text>
               ) : (
-                g.slips.map((row) => (
-                  <View key={row.slip.id} style={styles.groupSlipRow}>
-                    <Text style={styles.muted}>{row.sequence}.</Text>
-                    <Text style={styles.slipNumberSmall}>{row.slip.slipNumber}</Text>
-                    <Text style={styles.slipPartnerSmall}>{row.slip.partnerName}</Text>
-                    {canEdit ? (
-                      <TouchableOpacity
-                        onPress={() => onRemoveSlip(g.id, row.slip.id)}
-                        accessibilityLabel={`${row.slip.slipNumber} 그룹에서 제거`}
-                      >
-                        <Text style={styles.removeText}>제거</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                ))
+                slips.map((row) => {
+                  const slipNo = getSlipDisplayNo(row.slip);
+                  return (
+                    <View key={row.id ?? row.slipId} style={styles.groupSlipRow}>
+                      <Text style={styles.muted}>{row.sequence}.</Text>
+                      <Text style={styles.slipNumberSmall}>{slipNo}</Text>
+                      <Text style={styles.slipPartnerSmall}>{row.slip.partnerName}</Text>
+                      {canEdit ? (
+                        <TouchableOpacity
+                          onPress={() => onRemoveSlip(g.id, row.slipId)}
+                          accessibilityLabel={`${slipNo} 그룹에서 제거`}
+                        >
+                          <Text style={styles.removeText}>제거</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  );
+                })
               )}
-            </View>
-          ))
+              </View>
+            );
+          })
         )}
       </ScrollView>
       {/* Round C P1-3 — MODIFICATION_ACCEPTED 직접 편집 모델의 '수정 배차 완료' 구 라벨 제거.

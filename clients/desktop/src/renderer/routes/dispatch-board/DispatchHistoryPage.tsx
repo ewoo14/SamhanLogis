@@ -118,9 +118,8 @@ export function DispatchHistoryPage() {
   }
 
   const handleRowClick = (row: DispatchTaskSummaryResponse) => {
-    if (!row.arologisDispatchId) return
     setDetailErrorVisible(false)
-    setSelectedDetailKey(row.arologisDispatchId)
+    setSelectedDetailKey(row.id)
   }
 
   useEffect(() => {

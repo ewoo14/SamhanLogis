@@ -121,19 +121,25 @@ export function canRequestModificationOrCancel(status: DispatchTaskStatus): bool
 
 export interface SlipBoardResponse {
   id: string;
-  slipNumber: string;
+  slipNo?: string;
+  slipNumber?: string;
+  slipDate?: string;
   partnerCode: string;
   partnerName: string;
-  address: string;
-  recipientPhoneNumber: string;
-  notes: string;
-  createdAt: string;
-  dispatchStatus: SlipDispatchStatus;
+  deliveryAddress?: string | null;
+  recipientPhone?: string | null;
+  address?: string | null;
+  recipientPhoneNumber?: string | null;
+  notes?: string | null;
+  createdAt?: string | null;
+  dispatchStatus: SlipDispatchStatus | null;
 }
 
 export interface DispatchVehicleGroupSlipResponse {
-  slip: SlipBoardResponse;
+  id?: string;
+  slipId: string;
   sequence: number;
+  slip: Omit<SlipBoardResponse, 'id'>;
 }
 
 export interface MatchedDriverResponse {
@@ -142,14 +148,16 @@ export interface MatchedDriverResponse {
   driverCode: string;
   driverName: string;
   driverPhoneNumber: string;
-  source: string;
+  driverSource: string;
+  source?: string;
+  vehiclePlateNumber?: string | null;
 }
 
 export interface DispatchVehicleGroupResponse {
   id: string;
   sequence: number;
   vehicleType: DispatchVehicleType;
-  slips: DispatchVehicleGroupSlipResponse[];
+  slips?: DispatchVehicleGroupSlipResponse[];
 }
 
 export interface DispatchTaskResponse {
@@ -157,9 +165,11 @@ export interface DispatchTaskResponse {
   taskCode: string;
   dispatchDate: string;
   status: DispatchTaskStatus;
-  vehicleGroups: DispatchVehicleGroupResponse[];
-  matchedDrivers: MatchedDriverResponse[];
-  failureReason: string | null;
+  arologisDispatchId?: string | null;
+  vehicleGroups?: DispatchVehicleGroupResponse[];
+  matchedDrivers?: MatchedDriverResponse[];
+  duplicateSlipIds?: string[];
+  failureReason?: string | null;
   /** Phase C — 수정/취소 요청 시점 사용자 입력 사유. */
   modificationReason?: string | null;
   /** Phase C — 아로로지스 거부 시점 사유. */

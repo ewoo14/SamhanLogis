@@ -5092,14 +5092,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const effectiveStatuses = statuses.length > 0 ? statuses : ['DISPATCHED']
     const pageNo = Number(params.get('page') ?? 0)
     const size = Number(params.get('size') ?? 20)
-    const forceDetailError = mockLocationParams().get('mockDispatchDetailError') === '1'
+    const forceArologisDetailError = mockLocationParams().get('mockDispatchDetailError') === '1'
+    const forceTaskIdDetailError = mockLocationParams().get('mockDispatchTaskIdDetailError') === '1'
     const filtered = MOCK_DISPATCH_TASK_SUMMARIES.filter((row) =>
       row.dispatchDate >= from &&
       row.dispatchDate <= to &&
       effectiveStatuses.includes(row.status),
     ).map((row, index) =>
-      forceDetailError && index === 0
+      forceArologisDetailError && index === 0
         ? { ...row, arologisDispatchId: 'mock-detail-error' }
+        : forceTaskIdDetailError && index === 0
+          ? { ...row, id: 'mock-detail-error' }
         : row,
     )
     const start = pageNo * size
@@ -8209,6 +8212,57 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
       },
     ],
   },
+  {
+    id: '11111111-cccc-4ccc-8ccc-000000000003',
+    taskCode: `${MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')}-MANUAL`,
+    dispatchDate: MOCK_DISPATCH_HISTORY_TODAY,
+    status: 'DISPATCHED',
+    arologisDispatchId: null,
+    failureReason: null,
+    modificationReason: null,
+    rejectionReason: null,
+    modificationRequestedAt: null,
+    modificationDecidedAt: null,
+    duplicateSlipIds: [],
+    vehicleGroups: [
+      {
+        id: '33333333-cccc-4ccc-8ccc-000000000003',
+        vehicleType: 'TONNAGE_1',
+        vehicleTypeDisplay: '1톤',
+        vehicleBodyType: 'CARGO',
+        vehicleBodyTypeDisplay: '카고',
+        tonnage: 'T_1',
+        tonnageDisplay: '1톤',
+        dispatchStatus: 'DISPATCHED',
+        sequence: 1,
+        slips: [
+          {
+            id: '44444444-cccc-4ccc-8ccc-000000000004',
+            slipId: '55555555-cccc-4ccc-8ccc-000000000004',
+            sequence: 1,
+            slip: {
+              slipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-MANUAL`,
+              partnerCode: 'P-DCH-MANUAL',
+              partnerName: '수동완료거래처',
+              deliveryAddress: '경기도 안양시 동안구 시민대로 40',
+              recipientPhone: '010-7777-9999',
+              dispatchStatus: 'DISPATCHED',
+            },
+          },
+        ],
+      },
+    ],
+    matchedDrivers: [
+      {
+        vehicleGroupSequence: 1,
+        driverCode: 'MANUAL',
+        driverName: '이경기',
+        driverPhoneNumber: '010-7777-8888',
+        driverSource: 'GYEONGGI_QUICK',
+        vehiclePlateNumber: '12가9999',
+      },
+    ],
+  },
 ]
 
 const MOCK_DISPATCH_TASK_SUMMARIES: DispatchTaskSummaryResponse[] = MOCK_DISPATCH_TASK_DETAILS.map((task) => {
@@ -8217,6 +8271,7 @@ const MOCK_DISPATCH_TASK_SUMMARIES: DispatchTaskSummaryResponse[] = MOCK_DISPATC
   const head = partnerNames.slice(0, 3).join(', ')
   const rest = partnerNames.length - 3
   return {
+    id: task.id,
     taskCode: task.taskCode,
     dispatchDate: task.dispatchDate,
     status: task.status,

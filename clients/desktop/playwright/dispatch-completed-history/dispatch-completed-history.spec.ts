@@ -31,6 +31,7 @@ const CURRENT_DISPATCH_DATE = todayIsoSeoul()
 const PREVIOUS_DISPATCH_DATE = offsetIsoSeoul(CURRENT_DISPATCH_DATE, -6)
 const CURRENT_TASK_CODE = taskCode(CURRENT_DISPATCH_DATE, '1')
 const PREVIOUS_TASK_CODE = taskCode(PREVIOUS_DISPATCH_DATE, '2')
+const MANUAL_ONLY_TASK_CODE = taskCode(CURRENT_DISPATCH_DATE, 'MANUAL')
 const CURRENT_SLIP_NO = `${CURRENT_DISPATCH_DATE.replace(/-/g, '/')}-001`
 
 function mockPerms(perms: MockPerm[]): string {
@@ -119,6 +120,29 @@ test.describe('AROLOGIS 배차현황 뷰 mock', () => {
     await expect(detail).toContainText('기사 김배차 (DRV-101) 010-9000-1001')
   })
 
+  test('행 클릭은 arologisDispatchId 대신 task UUID 상세 key 를 사용한다', async ({ page }) => {
+    await gotoHistory(page, 'DISPATCH', undefined, { mockDispatchDetailError: '1' })
+
+    await page.getByTestId(`dispatch-history-row-${CURRENT_TASK_CODE}`).click()
+
+    const detail = page.getByTestId('dispatch-task-detail-body')
+    await expect(detail).toBeVisible()
+    await expect(detail).toContainText(CURRENT_TASK_CODE)
+    await expect(page.getByTestId('dispatch-history-detail-error')).toHaveCount(0)
+  })
+
+  test('arologisDispatchId 없는 수동-only 완료 task 도 행 클릭으로 상세를 연다', async ({ page }) => {
+    await gotoHistory(page)
+
+    await page.getByTestId(`dispatch-history-row-${MANUAL_ONLY_TASK_CODE}`).click()
+
+    const detail = page.getByTestId('dispatch-task-detail-body')
+    await expect(detail).toBeVisible()
+    await expect(detail).toContainText(MANUAL_ONLY_TASK_CODE)
+    await expect(detail).toContainText('수동완료거래처')
+    await expect(detail).toContainText('기사 이경기 (경기퀵) 010-7777-8888')
+  })
+
   test('UPDATE 권한 사용자는 배차현황 상세에서 타사 기사/차량을 수동 입력한다', async ({ page }) => {
     await gotoHistory(page)
 
@@ -158,7 +182,7 @@ test.describe('AROLOGIS 배차현황 뷰 mock', () => {
   })
 
   test('상세 조회 실패 시 오류 배너를 표시하고 같은 행을 다시 열 수 있다', async ({ page }) => {
-    await gotoHistory(page, 'DISPATCH', undefined, { mockDispatchDetailError: '1' })
+    await gotoHistory(page, 'DISPATCH', undefined, { mockDispatchTaskIdDetailError: '1' })
 
     await page.getByTestId(`dispatch-history-row-${CURRENT_TASK_CODE}`).click()
     await expect(page.getByRole('alert')).toContainText('배차현황 상세를 불러오지 못했습니다.')

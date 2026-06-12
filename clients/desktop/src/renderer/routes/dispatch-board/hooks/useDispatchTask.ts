@@ -45,7 +45,7 @@ export const DISPATCH_TASK_LOCAL_MUTATION_EVENT = 'samhan-dispatch-task-local-mu
 /**
  * BE 슬림 mutation ack 를 모든 상세 cache 에 병합한다.
  *
- * <p>배차현황 상세는 {@code arologisDispatchId} 를 query key 로 쓰고, 보드는 task UUID 를 쓴다.
+ * <p>배차현황 상세와 보드는 task UUID 를 query key 로 쓴다.
  * 슬림 응답(BE {@code DispatchTaskResponse.from}) 은 {@code vehicleGroups}/{@code matchedDrivers}
  * 가 없어 그대로 setQueryData 하면 상세 화면이 깨지므로, cached 상세에 슬림 필드만 덮어쓴다.
  * {@code transform} 으로 그룹/slip 상태 파생 갱신(재배차 reset 등)을 함께 적용할 수 있다.
@@ -163,7 +163,8 @@ export function useDeleteVehicleGroupMutation(taskId: string | null) {
 /**
  * 타사 기사/차량 수동 기입 mutation.
  *
- * <p>배차현황 상세는 arologisDispatchId 로도 열리므로 성공 응답을 두 detail key 에 모두 반영한다.
+ * <p>상세 query key 는 task UUID 를 기준으로 한다. 기존 arologisDispatchId key cache 가 남아 있을 수
+ * 있어 성공 응답은 legacy key 에도 반영하되, refetch/invalidate 는 task UUID 로 수렴시킨다.
  */
 export function useSetMatchedDriverMutation(taskId: string | null) {
   const qc = useQueryClient()
@@ -181,9 +182,6 @@ export function useSetMatchedDriverMutation(taskId: string | null) {
         qc.setQueryData(dispatchTaskQueryKey(updated.arologisDispatchId), updated)
       }
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
-      if (updated.arologisDispatchId) {
-        void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.arologisDispatchId) })
-      }
       void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
   })
@@ -202,9 +200,6 @@ export function useMarkManualDispatchCompleteMutation(taskId: string | null) {
         qc.setQueryData(dispatchTaskQueryKey(updated.arologisDispatchId), updated)
       }
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
-      if (updated.arologisDispatchId) {
-        void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.arologisDispatchId) })
-      }
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
       void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
@@ -282,10 +277,9 @@ export function useDispatchToArologisMutation(taskId: string | null) {
 /**
  * Phase C — 재배차 시작 mutation (MODIFICATION_ACCEPTED → DRAFT).
  *
- * <p>BE ack 는 슬림 응답이므로 상세 cache (보드 task UUID key + 배차현황 arologisDispatchId
- * key 양쪽) 에 병합해 DRAFT + 그룹 PENDING + slip UNDISPATCHED 를 즉시 반영한다 (Option A —
- * 배차현황 상세에서 재배차 진입). 주의: 재배차 후 arologisDispatchId 는 null 이라 배차현황
- * key 의 refetch 는 불가하므로 invalidate 는 task UUID key 만 수행한다.
+ * <p>BE ack 는 슬림 응답이므로 상세 cache 에 병합해 DRAFT + 그룹 PENDING + slip UNDISPATCHED 를
+ * 즉시 반영한다 (Option A — 배차현황 상세에서 재배차 진입). 재배차 후 arologisDispatchId 는 null
+ * 이므로 invalidate 는 task UUID key 만 수행한다.
  */
 export function useStartRedispatchMutation(taskId: string | null) {
   const qc = useQueryClient()

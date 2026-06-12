@@ -458,9 +458,10 @@ export interface DispatchTaskSlimResponse {
 }
 
 /**
- * 완료배차 내역 목록 요약 행 — UUID 비공개, taskCode 중심.
+ * 완료배차 내역 목록 요약 행 — id 는 상세 진입/query key 내부용, 화면 표시는 taskCode 중심.
  */
 export interface DispatchTaskSummaryResponse {
+  id: string
   taskCode: string
   dispatchDate: string
   status: DispatchTaskStatus

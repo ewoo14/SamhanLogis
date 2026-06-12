@@ -1,5 +1,7 @@
 package com.samhanair.logis.slip.it;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -112,7 +114,7 @@ class DispatchTaskHistoryAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content[0].slipCount").value(1))
                 .andExpect(jsonPath("$.data.content[0].partnerNames").value("거래처A"))
                 .andExpect(jsonPath("$.data.content[0].driverCount").value(1))
-                .andExpect(jsonPath("$.data.content[0].id").doesNotExist());
+                .andExpect(jsonPath("$.data.content[0].id").value(first.task().getId().toString()));
     }
 
     @Test
@@ -151,6 +153,39 @@ class DispatchTaskHistoryAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void list_and_detail_include_manual_only_dispatched_task_without_arologis_dispatch_id() throws Exception {
+        SeededDispatch manualOnly = seedManualOnlyDispatched(
+                "2099/06/11-HIST-MANUAL", BASE_DATE, "수동완료거래처", 5);
+
+        mvc.perform(get("/admin/dispatch-tasks")
+                        .param("from", BASE_DATE.toString())
+                        .param("to", BASE_DATE.toString())
+                        .param("status", "DISPATCHED")
+                        .param("page", "0")
+                        .param("size", "20")
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[?(@.taskCode=='%s')].id",
+                        manualOnly.task().getTaskCode()).value(contains(manualOnly.task().getId().toString())))
+                .andExpect(jsonPath("$.data.content[?(@.taskCode=='%s')].arologisDispatchId",
+                        manualOnly.task().getTaskCode()).value(contains(nullValue())));
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}", manualOnly.task().getId())
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(manualOnly.task().getId().toString()))
+                .andExpect(jsonPath("$.data.taskCode").value(manualOnly.task().getTaskCode()))
+                .andExpect(jsonPath("$.data.arologisDispatchId").value((Object) null))
+                .andExpect(jsonPath("$.data.vehicleGroups[0].slips[0].slip.partnerName")
+                        .value("수동완료거래처"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("GYEONGGI_QUICK"));
+    }
+
+    @Test
     void list_requires_dispatch_board_view_permission() throws Exception {
         when(dynamicPermissionClient.check(any(UUID.class), eq("dispatch.board"), eq(PermissionAction.VIEW)))
                 .thenReturn(false);
@@ -185,6 +220,35 @@ class DispatchTaskHistoryAdminControllerIT extends AbstractPostgresIT {
                 "010-9999-%04d".formatted(seq),
                 MatchedDriverSource.AROLOGIS,
                 "12가%04d".formatted(seq)));
+        return new SeededDispatch(task, group, mapping, slip);
+    }
+
+    private SeededDispatch seedManualOnlyDispatched(
+            String taskCode,
+            LocalDate dispatchDate,
+            String partnerName,
+            int seq
+    ) {
+        DispatchTask task = DispatchTask.create(taskCode, dispatchDate);
+        task.markDispatching();
+        task.markDispatched(null);
+        task = taskRepo.save(task);
+
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(task.getId(), 1, DispatchVehicleType.TONNAGE_1);
+        group.markDispatched();
+        group = groupRepo.save(group);
+        Slip slip = slipRepo.save(newSlip(dispatchDate, partnerName, seq));
+        slip.markDispatchPending();
+        slip.markDispatchConfirmed();
+        DispatchVehicleGroupSlip mapping = groupSlipRepo.save(
+                DispatchVehicleGroupSlip.create(group.getId(), slip.getId(), 1));
+        driverRepo.save(MatchedDriver.create(
+                group.getId(),
+                "MANUAL",
+                "수동기사%d".formatted(seq),
+                "010-8888-%04d".formatted(seq),
+                MatchedDriverSource.GYEONGGI_QUICK,
+                "98허%04d".formatted(seq)));
         return new SeededDispatch(task, group, mapping, slip);
     }
 
