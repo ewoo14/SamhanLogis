@@ -4,6 +4,17 @@
 
 ---
 
+## 🔵 2026-06-13 (야간 자율, 집 PC) — **#473 배차현황 task-UUID 진입 통일 진행 중** (dispatch-integration 후속 #1, dev 완료·리뷰 대기)
+
+> #3 머지 후 PM 자율 다음 슬라이스(개발책임자 "다음 슬라이스까지 진행"). 큰 #4(§7 전역 협업)는 아키텍처 설계라 개발책임자 스코핑 대기 → PM 판단으로 #3 deferred 후속(scoped)부터.
+
+- **내용**: 배차현황 상세 진입 key = arologisDispatchId → **task UUID** 통일 → 재배차 직후 404·수동-only 완료 task 행클릭 불가 해소(UUID 비공개 내부key 한정) + 모바일 dispatch `DispatchTaskResponse` 슬림 계약 정렬(크래시 가드). spec `docs/superpowers/specs/2026-06-13-dispatch-history-task-uuid-entry.md`.
+- **진행**: PR #473 개설(조기) → Codex 개발(`08d0fa38`, summary task UUID 추가·행클릭 row.id·모바일 옵셔널 가드) → 개발사항 게시. 검증: slip compileTestJava green·desktop+mobile typecheck green·배차 Playwright 18/18·BE IT/FE 전체 suite 검증 중.
+- **잔여 (다음 세션 연속)**: ① Opus·Codex·Fable5 **리뷰 라운드** (각 모델 자기 라운드 직접 fix — 정정 프로세스) ② **머지 게이트 = 다음 리뷰어 0 오류** (개발책임자 지시) ③ CI green → 머지 → docs.
+- **여전히 deferred (후속 큐)**: 그룹별 dispatch-id 정밀화(D-DMR-04)·matchAndNotify AFTER_COMMIT(D-DMR-05) = arologis async 아키텍처 슬라이스 · **#4 §7 전역 협업** = 개발책임자 스코핑.
+
+---
+
 ## ✅ 2026-06-13 (야간 자율, 집 PC) — **배차 #3 수정제안 재배차 루프 + 수동기입 + Option A 머지 (PR #472)** + 워크플로우 2건 정정
 
 > 개발책임자 취침 위임: "다음 슬라이스까지 PM 자율 진행. **반드시 다음 리뷰어 리뷰로 오류 0 이어야만 머지**." → 6 리뷰 라운드 수렴 후 머지.
