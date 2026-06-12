@@ -3,6 +3,7 @@ package com.samhanair.logis.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import jakarta.servlet.FilterChain;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -41,6 +42,56 @@ class UserHeaderDecodingFilterTest {
         filter.doFilter(req, res, chain);
 
         assertThat(chain.userName()).isEqualTo("Hong Gil Dong");
+    }
+
+    @Test
+    void encodedDevSeedKoreanUserNameHeader_isDecodedForDownstreamConsumers() throws Exception {
+        UserHeaderDecodingFilter filter = new UserHeaderDecodingFilter();
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/slips");
+        req.addHeader(
+                "X-User-Name",
+                "%5BDEV-SEED%5D+%EA%B0%9C%EB%B0%9C%EB%A7%88%EC%8A%A4%ED%84%B0");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        CapturingChain chain = new CapturingChain();
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(chain.userName()).isEqualTo("[DEV-SEED] \uAC1C\uBC1C\uB9C8\uC2A4\uD130");
+    }
+
+    @Test
+    void rawUtf8UserNameHeaderReadAsIso88591_isRestoredForDownstreamConsumers() throws Exception {
+        UserHeaderDecodingFilter filter = new UserHeaderDecodingFilter();
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/slips");
+        String displayName = "[DEV-SEED] \uAC1C\uBC1C\uB9C8\uC2A4\uD130";
+        String servletMojibake = new String(
+                displayName.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.ISO_8859_1);
+        req.addHeader("X-User-Name", servletMojibake);
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        CapturingChain chain = new CapturingChain();
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(chain.userName()).isEqualTo(displayName);
+        assertThat(Collections.list(chain.request.getHeaders("X-User-Name"))).containsExactly(displayName);
+    }
+
+    @Test
+    void mixedValidKoreanAndRawUtf8ByteTail_isRestoredWithoutCorruptingValidPrefix() throws Exception {
+        UserHeaderDecodingFilter filter = new UserHeaderDecodingFilter();
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/slips");
+        String displayName = "[DEV-SEED] \uAC1C\uBC1C\uB9C8\uC2A4\uD130";
+        String rawByteTail = new String(
+                "\uD130".getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.ISO_8859_1);
+        req.addHeader("X-User-Name", "[DEV-SEED] \uAC1C\uBC1C\uB9C8\uC2A4" + rawByteTail);
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        CapturingChain chain = new CapturingChain();
+
+        filter.doFilter(req, res, chain);
+
+        assertThat(chain.userName()).isEqualTo(displayName);
     }
 
     @Test

@@ -7,6 +7,9 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -36,6 +39,10 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
     }
 
     private static String decodeUserName(String value) {
+        return repairUtf8BytesReadAsIso88591(decodeUrlEncodedUserName(value));
+    }
+
+    private static String decodeUrlEncodedUserName(String value) {
         if (value == null || (!value.contains("%") && !value.contains("+"))) {
             return value;
         }
@@ -44,6 +51,59 @@ public class UserHeaderDecodingFilter extends OncePerRequestFilter {
         } catch (IllegalArgumentException ex) {
             return value;
         }
+    }
+
+    private static String repairUtf8BytesReadAsIso88591(String value) {
+        if (value == null || !hasC1Control(value)) {
+            return value;
+        }
+        StringBuilder repaired = new StringBuilder(value.length());
+        int start = 0;
+        while (start < value.length()) {
+            char ch = value.charAt(start);
+            if (ch > '\u00FF') {
+                repaired.append(ch);
+                start++;
+                continue;
+            }
+            int end = start + 1;
+            boolean hasControl = ch >= '\u0080' && ch <= '\u009F';
+            while (end < value.length() && value.charAt(end) <= '\u00FF') {
+                char next = value.charAt(end);
+                hasControl = hasControl || (next >= '\u0080' && next <= '\u009F');
+                end++;
+            }
+            String segment = value.substring(start, end);
+            repaired.append(hasControl ? repairIso88591Segment(segment) : segment);
+            start = end;
+        }
+        return repaired.toString();
+    }
+
+    private static String repairIso88591Segment(String segment) {
+        try {
+            String repaired = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(segment.getBytes(StandardCharsets.ISO_8859_1)))
+                    .toString();
+            if (!hasC1Control(repaired) && !repaired.equals(segment)) {
+                return repaired;
+            }
+        } catch (CharacterCodingException ex) {
+            return segment;
+        }
+        return segment;
+    }
+
+    private static boolean hasC1Control(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch >= '\u0080' && ch <= '\u009F') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isUserNameHeader(String name) {

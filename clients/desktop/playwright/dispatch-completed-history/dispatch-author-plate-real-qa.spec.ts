@@ -83,10 +83,13 @@ test('배차현황 실 데이터 라이브 캡처 — 실명 작성자 + 타사 
   await page.waitForSelector('[data-testid^="dispatch-history-row-"]', { timeout: 15000 })
   await page.locator('[data-testid^="dispatch-history-row-"]').first().click()
   await expect(page.getByTestId('dispatch-task-detail-body')).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText('12가7890')).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText(body)).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText('12가7890').first()).toBeVisible({ timeout: 10000 })
+  // 반복 캡처로 동일 본문 코멘트가 누적될 수 있어 .first() 로 존재만 단언
+  await expect(page.getByText(body).first()).toBeVisible({ timeout: 10000 })
   // 작성자 실명(= 로그인 displayName) 표시 — "시스템" 아님
-  await expect(page.getByTestId('dispatch-comment-thread').getByText(login.displayName)).toBeVisible({ timeout: 10000 })
+  await expect(
+    page.getByTestId('dispatch-comment-thread').getByText(login.displayName).first(),
+  ).toBeVisible({ timeout: 10000 })
   await page.waitForTimeout(800)
   await page.screenshot({ path: path.join(SHOTS, 'author-plate-live.png'), fullPage: true })
 })
