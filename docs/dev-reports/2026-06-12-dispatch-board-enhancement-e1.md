@@ -32,3 +32,36 @@ slip `DispatchVehicleGroup.vehicleType`(단일 9-enum, 종류+톤수 혼합)을 
 - E2 체크박스 일괄전송 / E3 수정이력 / E4 취소연동 / E5 실시간 / E6 전표 모달.
 
 원칙: [[codex-implements-claude-reviews]]·[[temp-multimodel-workflow]](각 라운드 QA 스크린샷)·[[enum-expansion-check-constraint]]·[[no-fake-data-ever]]·[[review-posting-and-zero-skip]](Opus·Codex·Fable5 각 별도 게시).
+
+---
+
+# #2 2-pane 배차 보드 고도화 (PR #471)
+
+## 구현 (Codex)
+좌 미배차 전표 풀 ↔ 우 차량 캡슐 2-pane. 전표 드래그/전표번호 입력 그룹핑·중복 붉은표시·차종 가시·상태색·체크박스 **선택 전송(그룹 단위 발송상태 추적)**.
+
+- **그룹 단위 발송상태**(`DispatchVehicleGroupDispatchStatus` PENDING/DISPATCHED, V42): 선택 전송 = PENDING 그룹만 arologis 발송 → markDispatched. 전 그룹 DISPATCHED 시에만 task DISPATCHING. confirm 은 DISPATCHED 그룹 sequence 만 수락. **미배차/가배차 균일**(개발책임자 결정).
+- **차종/톤수 축소**(active subset): 승용차·축차·추레라 + 1.2·14·18·25톤 선택지 제외 → 차종9/톤수6. enum 값 유지·matrix/FE/validate 만 제한(마이그 불요). 부수효과로 14·18·25톤 lossy 대부분 해소.
+
+## 다모델 리뷰 3라운드 (각 QA agent + Docker 실QA 스크린샷, 각 별도 게시)
+- **Opus 5-agent**(P1 0, FE/UX CLEAN): BE 정합 P1(선택전송 task 전체 전이→미선택 그룹 좌초) → 그룹 단위 추적 도입. QA: active subset(차종9/톤수6) + 캡슐(미발송 배지·전표번호·체크박스).
+- **Codex 5-agent**(P1 5): 발송그룹 전표변경 BE 가드 누락(false-green)·cross-task race·unavailable 비대칭·FE optimistic slipNo 누락·MODIFICATION redispatch. QA: today-draft 재사용(F5 동일 taskCode).
+- **Fable5 5-agent**(P1 2, Codex 와 수렴): DISPATCHED 그룹 drop 무방비·mount-creates-new-task 교착. QA: active subset 라이브.
+
+## P1 수렴 fix (`6b8fd514`)
+- **DispatchTaskService**: assignSlip/reorderSlips/removeSlipFromGroup 에 `isDispatchPending()` else CONFLICT 가드(FE/mock 계약 BE 누락 false-green 해소). assignSlip cross-task advisory xact lock. `findOrCreateTodayDraft`(오늘 최신 DRAFT 재사용 → F5 교착 해소).
+- **DispatchTaskCompletionService**: 선택전송 mixed selection CONFLICT. **DispatchTaskUnavailableService**: confirm 대칭 DRAFT 허용. **Controller**: POST /today-draft. **Repository**: findFirst…DispatchDateAndStatus…CreatedAtDesc.
+- **DispatchEndToEndIT**: confirm/unavailable 실 dispatch 경로(CI red 해소) + 음성 IT(3가드·today-draft 멱등성).
+- **FE**: assignSlip optimistic 제거→invalidate-only(실 응답 slipNo 누락 해소). DispatchBoardPage ensureTodayDraft + drag 발송그룹 가드. VehicleGroupCard droppable disabled. mock today-draft + mixed 거부.
+
+## 🚩 개발책임자 결정 (PR 결정 기록 누적)
+- 선택 전송 = 그룹 단위 발송상태 추적("제대로"). 그룹 단위 발송 = 미배차/가배차 균일.
+- 차종/톤수 축소: 승용차·축차·추레라·1.2·14·18·25톤 제외(미배차·가배차 모두).
+
+## 후속(#3 수정제안 영역, 미배선이라 회귀 아님)
+- `markBackToDraftForRedispatch`(MODIFICATION_ACCEPTED→DRAFT) 가 #3 에서 배선될 때 **그룹 dispatchStatus PENDING 리셋** 동반 의무. arologis multi-dispatch-id 정밀 전이는 별도 트랙.
+
+## QA (라이브 실서버, mock OFF, 재빌드 slip V42, dev_master)
+- docs/qa/dispatch-board-2pane/add-vehicle-active-subset.png·board-capsule.png (Opus 라운드).
+- codex-round-today-draft-reuse.png (F5 reload 동일 taskCode=교착 해소 실증), fable5-round-active-subset.png (Fable5 라운드).
+- slip-service compileJava+compileTestJava·desktop typecheck·dispatch-board mock 2 passed·라이브 fixes-real-qa 2 passed. slip-it-core IT CI Linux green.
