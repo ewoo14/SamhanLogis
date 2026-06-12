@@ -146,6 +146,17 @@ public class ArologisInternalController {
         modificationRequestReceiveService.receiveCancellation(arologisDispatchId, req);
     }
 
+    /**
+     * Samhan Public 재배차 시작 시 기존 Dispatch soft-delete.
+     */
+    @Operation(summary = "Samhan Public 기존 배차 soft-delete (재배차)")
+    @PostMapping("/dispatches/{arologisDispatchId}/cancel")
+    @PreAuthorize("hasAnyRole('MASTER','AROLOGIS_MASTER')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelDispatchForRedispatch(@PathVariable UUID arologisDispatchId) {
+        modificationRequestReceiveService.softDeleteForRedispatch(arologisDispatchId);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Phase 10 W10-2 — 인성데이타 퀵프로그램 webhook 3 sub-endpoint
     // ─────────────────────────────────────────────────────────────────────────

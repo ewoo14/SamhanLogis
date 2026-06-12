@@ -27,6 +27,7 @@ import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriver;
+import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
@@ -182,7 +183,7 @@ class DispatchTaskHistoryAdminControllerIT extends AbstractPostgresIT {
                 "DRV-%03d".formatted(seq),
                 "기사%d".formatted(seq),
                 "010-9999-%04d".formatted(seq),
-                "AROLOGIS",
+                MatchedDriverSource.AROLOGIS,
                 "12가%04d".formatted(seq)));
         return new SeededDispatch(task, group, mapping, slip);
     }

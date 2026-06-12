@@ -27,6 +27,7 @@ import {
 import {
   DISPATCH_TASK_LOCAL_MUTATION_EVENT,
   useAddVehicleGroupMutation,
+  useStartRedispatchMutation,
 } from '../hooks/useDispatchTask'
 import { VehicleGroupCard } from './VehicleGroupCard'
 import { AddVehicleModal } from './AddVehicleModal'
@@ -85,6 +86,7 @@ export function VehicleGroupColumn({
   const [, setLocalMutationVersion] = useState(0)
 
   const addMutation = useAddVehicleGroupMutation(taskId)
+  const startRedispatchMutation = useStartRedispatchMutation(taskId)
 
   // matchedDrivers 를 vehicleGroupSequence 기준 dict 화 (그룹 카드 헤더에 inline 노출).
   const matchedByGroupSeq = useMemo(() => {
@@ -93,7 +95,7 @@ export function VehicleGroupColumn({
     return m
   }, [matchedDrivers])
 
-  // Phase C — DRAFT 또는 MODIFICATION_ACCEPTED 시 편집 가능 (D-DC-08).
+  // Phase C — MODIFICATION_ACCEPTED 는 start-redispatch 후 DRAFT 로 돌아와야 편집 가능.
   const canEdit = isEditableStatus(taskStatus) && canEditDispatch
   const dispatchableGroups = groups.filter((g) => (g.dispatchStatus ?? 'PENDING') === 'PENDING')
   const canDispatch =
@@ -238,7 +240,29 @@ export function VehicleGroupColumn({
               borderRadius: 4,
             }}
           >
-            <strong>수정 가능 (편집 모드 활성):</strong> 차량/슬립 구성을 수정한 뒤 [배차 완료] 를 다시 누르면 아로로지스로 재 발송됩니다.
+            <strong>수정 수락됨:</strong> [재배차 시작] 을 누르면 기존 발송 그룹이 편집 가능한 상태로 돌아갑니다.
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => startRedispatchMutation.mutate()}
+                disabled={!taskId || startRedispatchMutation.isPending || !canEditDispatch}
+                data-testid="dispatch-board-start-redispatch-button"
+                style={{
+                  padding: '7px 10px',
+                  border: 'none',
+                  borderRadius: 4,
+                  background: canEditDispatch
+                    ? 'var(--color-success-600, #059669)'
+                    : 'var(--color-neutral-200)',
+                  color: canEditDispatch ? 'var(--color-neutral-0)' : 'var(--color-neutral-500)',
+                  cursor: canEditDispatch ? 'pointer' : 'not-allowed',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                재배차 시작
+              </button>
+            </div>
           </div>
         ) : null}
         {showRequestBanner ? (

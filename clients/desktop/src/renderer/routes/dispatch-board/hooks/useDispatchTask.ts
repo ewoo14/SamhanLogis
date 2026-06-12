@@ -18,11 +18,13 @@ import {
   ensureTodayDraftTask,
   getDispatchTask,
   getDispatchTasks,
+  markManualDispatchComplete,
   removeSlipFromGroup,
   reorderGroupSlips,
   requestCancellation,
   requestModification,
   setMatchedDriver,
+  startRedispatch,
   type ListDispatchTasksParams,
   type DispatchTaskResponse,
   type DispatchTaskSummaryResponse,
@@ -135,6 +137,25 @@ export function useSetMatchedDriverMutation(taskId: string | null) {
 }
 
 /**
+ * 타사 수동 발송완료 mutation.
+ */
+export function useMarkManualDispatchCompleteMutation(taskId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (groupId: string) => markManualDispatchComplete(taskId as string, groupId),
+    onSuccess: (updated) => {
+      qc.setQueryData(dispatchTaskQueryKey(updated.id), updated)
+      if (updated.arologisDispatchId) {
+        qc.setQueryData(dispatchTaskQueryKey(updated.arologisDispatchId), updated)
+      }
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
+      void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+      void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
+    },
+  })
+}
+
+/**
  * slip 그룹 할당 mutation — drag-and-drop drop 시 호출.
  *
  * <p>성공 시 task query + 미배차 전표 query 양쪽 invalidate (UNDISPATCHED → DISPATCHING 상태 변화).
@@ -198,6 +219,22 @@ export function useDispatchToArologisMutation(taskId: string | null) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+    },
+  })
+}
+
+/**
+ * Phase C — 재배차 시작 mutation (MODIFICATION_ACCEPTED → DRAFT).
+ */
+export function useStartRedispatchMutation(taskId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => startRedispatch(taskId as string),
+    onSuccess: (updated) => {
+      qc.setQueryData(dispatchTaskQueryKey(updated.id), updated)
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
+      void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+      void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
   })
 }

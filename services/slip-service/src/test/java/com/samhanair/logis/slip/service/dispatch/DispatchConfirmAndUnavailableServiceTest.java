@@ -17,6 +17,7 @@ import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriver;
+import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskConfirmRequest;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskUnavailableRequest;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -145,7 +146,7 @@ class DispatchConfirmAndUnavailableServiceTest {
         setId(group, groupId);
         group.markDispatched();
         MatchedDriver existing = MatchedDriver.create(
-                groupId, "OLD", "Old Driver", "010-0000-0000", "OLD_SOURCE", "00A0000");
+                groupId, "OLD", "Old Driver", "010-0000-0000", MatchedDriverSource.OTHER, "00A0000");
 
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
@@ -166,7 +167,7 @@ class DispatchConfirmAndUnavailableServiceTest {
         assertThat(existing.getDriverCode()).isEqualTo("NEW");
         assertThat(existing.getDriverName()).isEqualTo("New Driver");
         assertThat(existing.getDriverPhoneNumber()).isNull();
-        assertThat(existing.getDriverSource()).isEqualTo("EXTERNAL_INSUNG_QUICK");
+        assertThat(existing.getDriverSource()).isEqualTo(MatchedDriverSource.AROLOGIS);
         assertThat(existing.getVehiclePlateNumber()).isEqualTo("12A3456");
         verify(matchedRepo).save(existing);
     }

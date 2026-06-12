@@ -244,14 +244,14 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                                 "driverName", "이경기",
                                 "driverPhoneNumber", "010-1111-2222",
                                 "vehiclePlateNumber", "12가3456",
-                                "driverSource", "경기퀵"))))
+                                "driverSource", "GYEONGGI_QUICK"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].driverCode").value("MANUAL"))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("이경기"))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].driverPhoneNumber").value("010-1111-2222"))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].vehiclePlateNumber").value("12가3456"))
-                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("경기퀵"));
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("GYEONGGI_QUICK"));
 
         mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, groupId)
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
@@ -261,12 +261,12 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                                 "driverName", "전국기사",
                                 "driverPhoneNumber", "010-3333-4444",
                                 "vehiclePlateNumber", "98바7654",
-                                "driverSource", "전국화물"))))
+                                "driverSource", "JEONGUK_HWAMUL"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.matchedDrivers.length()").value(1))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].driverCode").value("MANUAL"))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("전국기사"))
-                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("전국화물"));
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("JEONGUK_HWAMUL"));
 
         mvc.perform(get("/admin/dispatch-tasks/{taskId}", taskId)
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
@@ -290,12 +290,12 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                                 "driverName", "Manual Driver",
                                 "driverPhoneNumber", "",
                                 "vehiclePlateNumber", "12A3456",
-                                "driverSource", "Manual Source"))))
+                                "driverSource", "OTHER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].driverCode").value("MANUAL"))
                 .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("Manual Driver"))
-                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("Manual Source"));
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("OTHER"));
     }
 
     @Test
@@ -313,7 +313,7 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                                 "driverName", "조회전용",
                                 "driverPhoneNumber", "010-1111-2222",
                                 "vehiclePlateNumber", "12가3456",
-                                "driverSource", "경기퀵"))))
+                                "driverSource", "GYEONGGI_QUICK"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -331,7 +331,7 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                                 "driverName", "소속오류",
                                 "driverPhoneNumber", "010-1111-2222",
                                 "vehiclePlateNumber", "12가3456",
-                                "driverSource", "경기퀵"))))
+                                "driverSource", "GYEONGGI_QUICK"))))
                 .andExpect(status().isNotFound());
     }
 

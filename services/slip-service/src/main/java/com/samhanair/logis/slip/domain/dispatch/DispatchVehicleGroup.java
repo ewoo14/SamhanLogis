@@ -117,6 +117,17 @@ public class DispatchVehicleGroup extends BaseEntity {
     }
 
     /**
+     * 재배차 편집 진입을 위해 그룹 발송상태를 미발송으로 되돌린다.
+     *
+     * <p>이미 {@code PENDING} 인 그룹은 그대로 둔다. 수정제안 수락 후 재배차 루프에서는
+     * 기존 arologis Dispatch 를 삭제하고 같은 그룹/정차 구성을 다시 편집해야 하므로,
+     * 본 도메인 메서드만 통해 {@code DISPATCHED -> PENDING} 전이를 수행한다.
+     */
+    public void resetToPending() {
+        this.dispatchStatus = DispatchVehicleGroupDispatchStatus.PENDING;
+    }
+
+    /**
      * 차종/톤수에서 arologis 호환 legacy 차량 enum 으로 근사 변환한다.
      *
      * <p>slice1 은 Samhan Public 내부 저장/표시만 2축으로 확장하고, arologis wire 계약은 후속

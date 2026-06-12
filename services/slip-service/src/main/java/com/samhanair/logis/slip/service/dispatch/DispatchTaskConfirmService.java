@@ -10,6 +10,7 @@ import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupDispatchStat
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriver;
+import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskConfirmRequest;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
@@ -79,12 +80,12 @@ public class DispatchTaskConfirmService {
                     .map(existing -> {
                         existing.updateMatched(
                                 md.driverCode(), md.driverName(),
-                                md.driverPhoneNumber(), md.source(), md.vehiclePlateNumber());
+                                md.driverPhoneNumber(), MatchedDriverSource.AROLOGIS, md.vehiclePlateNumber());
                         return existing;
                     })
                     .orElseGet(() -> MatchedDriver.create(
                             g.getId(), md.driverCode(), md.driverName(),
-                            md.driverPhoneNumber(), md.source(), md.vehiclePlateNumber()));
+                            md.driverPhoneNumber(), MatchedDriverSource.AROLOGIS, md.vehiclePlateNumber()));
             matchedRepo.save(matched);
 
             // 매핑된 slip 모두 DISPATCHED 전이

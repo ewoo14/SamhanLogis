@@ -42,6 +42,8 @@ public class ArologisDispatchClient {
             "/internal/arologis/dispatches/{id}/modification-request";
     private static final String CANCELLATION_REQUEST_PATH =
             "/internal/arologis/dispatches/{id}/cancellation-request";
+    private static final String CANCEL_DISPATCH_PATH =
+            "/internal/arologis/dispatches/{id}/cancel";
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
@@ -125,6 +127,18 @@ public class ArologisDispatchClient {
         sendDecisionRequest(CANCELLATION_REQUEST_PATH, arologisDispatchId, request, "취소 요청");
     }
 
+    /**
+     * 기존 arologis Dispatch soft-delete 요청.
+     *
+     * <p>재배차 시작 시 delete-recreate 정책을 보존하기 위한 내부 호출이다. 호출 실패는 client 에서
+     * 예외로 전달하고, 재배차 service 가 graceful fallback 으로 경고 로그만 남긴다.
+     *
+     * @param arologisDispatchId 삭제 대상 arologis Dispatch UUID
+     */
+    public void cancelDispatch(UUID arologisDispatchId) {
+        sendDecisionRequest(CANCEL_DISPATCH_PATH, arologisDispatchId, null, "기존 배차 삭제");
+    }
+
     private void sendDecisionRequest(String path, UUID arologisDispatchId, Object body, String label) {
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
@@ -136,7 +150,7 @@ public class ArologisDispatchClient {
                     .uri(path, arologisDispatchId)
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
+                    .body(body != null ? body : java.util.Map.of())
                     .retrieve()
                     .toBodilessEntity();
             log.info("[ArologisDispatchClient] {} 발송 완료 — arologisDispatchId={}", label, arologisDispatchId);

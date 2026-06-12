@@ -29,6 +29,7 @@ import {
   DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL,
   DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE,
   DISPATCH_TASK_STATUS_TONE,
+  MATCHED_DRIVER_SOURCE_LABEL,
   formatDispatchVehicleGroupLabel,
   type DispatchTaskStatus,
   type DispatchVehicleGroupResponse,
@@ -95,6 +96,11 @@ export function VehicleGroupCard({
     disabled: !canMutateGroup,
   })
   const canHighlightDrop = canMutateGroup && isOver
+  const matchedDriverLabel = matchedDriver
+    ? matchedDriver.driverCode === 'MANUAL'
+      ? MATCHED_DRIVER_SOURCE_LABEL[matchedDriver.driverSource]
+      : matchedDriver.driverCode
+    : null
 
   const handleAssignBySlipNo = () => {
     if (!taskId || !canMutateGroup || assignMutation.isPending) return
@@ -197,8 +203,8 @@ export function VehicleGroupCard({
               fontWeight: 500,
             }}
           >
-            기사 {matchedDriver.driverName} ({matchedDriver.driverCode}){' '}
-            {matchedDriver.driverPhoneNumber}
+            기사 {matchedDriver.driverName} ({matchedDriverLabel}){' '}
+            {matchedDriver.driverPhoneNumber?.trim() || '-'} · {matchedDriver.vehiclePlateNumber?.trim() || '-'}
           </span>
         ) : (
           <button

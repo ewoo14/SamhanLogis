@@ -3,6 +3,8 @@ package com.samhanair.logis.slip.domain.dispatch;
 import com.samhanair.logis.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -49,11 +51,12 @@ public class MatchedDriver extends BaseEntity {
     @Column(name = "vehicle_plate_number", length = 20)
     private String vehiclePlateNumber;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "driver_source", nullable = false, length = 32)
-    private String driverSource;
+    private MatchedDriverSource driverSource;
 
     private MatchedDriver(UUID vehicleGroupId, String driverCode, String driverName,
-                          String driverPhoneNumber, String driverSource,
+                          String driverPhoneNumber, MatchedDriverSource driverSource,
                           String vehiclePlateNumber) {
         validate(vehicleGroupId, driverCode, driverName, driverPhoneNumber, driverSource);
         this.vehicleGroupId = vehicleGroupId;
@@ -65,7 +68,7 @@ public class MatchedDriver extends BaseEntity {
     }
 
     private static void validate(UUID vehicleGroupId, String driverCode, String driverName,
-                                 String driverPhoneNumber, String driverSource) {
+                                 String driverPhoneNumber, MatchedDriverSource driverSource) {
         if (vehicleGroupId == null) {
             throw new IllegalArgumentException("vehicleGroupId 필수");
         }
@@ -75,14 +78,14 @@ public class MatchedDriver extends BaseEntity {
         if (driverName == null || driverName.isBlank()) {
             throw new IllegalArgumentException("driverName 필수");
         }
-        if (driverSource == null || driverSource.isBlank()) {
+        if (driverSource == null) {
             throw new IllegalArgumentException("driverSource 필수");
         }
     }
 
     /** 신규 매칭 기사 기록. */
     public static MatchedDriver create(UUID vehicleGroupId, String driverCode, String driverName,
-                                       String driverPhoneNumber, String driverSource,
+                                       String driverPhoneNumber, MatchedDriverSource driverSource,
                                        String vehiclePlateNumber) {
         return new MatchedDriver(vehicleGroupId, driverCode, driverName, driverPhoneNumber, driverSource,
                 vehiclePlateNumber);
@@ -90,13 +93,13 @@ public class MatchedDriver extends BaseEntity {
 
     /** 배차담당자가 타사 기사/차량 정보를 수동 갱신한다. */
     public void updateManual(String driverCode, String driverName, String driverPhoneNumber,
-                             String driverSource, String vehiclePlateNumber) {
+                             MatchedDriverSource driverSource, String vehiclePlateNumber) {
         updateMatched(driverCode, driverName, driverPhoneNumber, driverSource, vehiclePlateNumber);
     }
 
     /** arologis 회신 또는 수동 입력으로 확정된 기사/차량 정보를 갱신한다. */
     public void updateMatched(String driverCode, String driverName, String driverPhoneNumber,
-                              String driverSource, String vehiclePlateNumber) {
+                              MatchedDriverSource driverSource, String vehiclePlateNumber) {
         validate(this.vehicleGroupId, driverCode, driverName, driverPhoneNumber, driverSource);
         this.driverCode = driverCode;
         this.driverName = driverName;

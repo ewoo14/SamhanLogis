@@ -87,6 +87,17 @@ public class ModificationRequestReceiveService {
         });
     }
 
+    /**
+     * 재배차 delete-recreate 정책에 따라 Dispatch 를 soft-delete 한다.
+     *
+     * <p>Dispatch 가 없으면 graceful warn 후 반환한다. slip-service 의 재배차 시작 endpoint 는 본 호출
+     * 실패 여부와 무관하게 자체 재배차 상태 전이를 진행한다.
+     */
+    @Transactional
+    public void softDeleteForRedispatch(UUID arologisDispatchId) {
+        softDeleteDispatch(arologisDispatchId, "samhan-redispatch");
+    }
+
     /** Dispatch soft-delete (Mock 자동 수락 정책 일관). Dispatch 가 없으면 graceful warn. */
     private void softDeleteDispatch(UUID arologisDispatchId, String actor) {
         Dispatch dispatch = dispatchRepo.findById(arologisDispatchId).orElse(null);

@@ -2,13 +2,21 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
+import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriver;
+import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskDetailResponse;
 import com.samhanair.logis.slip.dto.dispatch.SetMatchedDriverRequest;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
+import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -25,6 +33,8 @@ public class DispatchMatchedDriverManualService {
 
     private final DispatchTaskRepository taskRepo;
     private final DispatchVehicleGroupRepository groupRepo;
+    private final DispatchVehicleGroupSlipRepository slipMapRepo;
+    private final SlipRepository slipRepo;
     private final MatchedDriverRepository matchedRepo;
     private final DispatchTaskHistoryQueryService historyQueryService;
 
@@ -35,14 +45,10 @@ public class DispatchMatchedDriverManualService {
      * 노출하지 않는다.
      */
     public DispatchTaskDetailResponse setMatchedDriver(UUID taskId, UUID groupId, SetMatchedDriverRequest req) {
-        if (!taskRepo.existsByIdAndIsDeletedFalse(taskId)) {
-            throw notFound();
-        }
-        DispatchVehicleGroup group = groupRepo.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(DispatchMatchedDriverManualService::notFound);
-        if (!group.getDispatchTaskId().equals(taskId)) {
-            throw notFound();
-        }
+        DispatchTask task = findTask(taskId);
+        DispatchVehicleGroup group = findGroup(taskId, groupId);
+        requireManualEditable(task, group);
+        MatchedDriverSource driverSource = req.driverSource();
 
         MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)
                 .orElse(null);
@@ -51,7 +57,7 @@ public class DispatchMatchedDriverManualService {
                     MANUAL_DRIVER_CODE,
                     normalize(req.driverName()),
                     normalize(req.driverPhoneNumber()),
-                    normalize(req.driverSource()),
+                    driverSource,
                     normalize(req.vehiclePlateNumber()));
             matchedRepo.save(matched);
         } else {
@@ -61,7 +67,7 @@ public class DispatchMatchedDriverManualService {
                         MANUAL_DRIVER_CODE,
                         normalize(req.driverName()),
                         normalize(req.driverPhoneNumber()),
-                        normalize(req.driverSource()),
+                        driverSource,
                         normalize(req.vehiclePlateNumber())));
             } catch (DataIntegrityViolationException ex) {
                 throw new BusinessException(ErrorCode.CONFLICT,
@@ -71,11 +77,70 @@ public class DispatchMatchedDriverManualService {
         return historyQueryService.detail(taskId);
     }
 
+    /**
+     * 타사 수동기입 그룹을 수동 발송완료로 표시한다.
+     *
+     * <p>그룹은 {@code PENDING} 이어야 하고, 먼저 수동 기사/차량 정보가 등록되어 있어야 한다.
+     * 매핑된 전표는 아로로지스 confirm 없이 즉시 {@code DISPATCHED} 로 확정한다.
+     */
+    public DispatchTaskDetailResponse markManualDispatchComplete(UUID taskId, UUID groupId) {
+        DispatchTask task = findTask(taskId);
+        DispatchVehicleGroup group = findGroup(taskId, groupId);
+        requireManualEditable(task, group);
+        MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT,
+                        "수동 발송완료 전 기사/차량 정보를 먼저 입력해야 합니다."));
+        if (matched.getDriverSource() == MatchedDriverSource.AROLOGIS) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "아로로지스 자동 매칭 그룹은 수동 발송완료 처리할 수 없습니다.");
+        }
+
+        group.markDispatched();
+        groupRepo.save(group);
+        List<DispatchVehicleGroupSlip> mappings =
+                slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId);
+        for (DispatchVehicleGroupSlip mapping : mappings) {
+            Slip slip = slipRepo.findById(mapping.getSlipId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                            "slip 누락: " + mapping.getSlipId()));
+            slip.markDispatchConfirmed();
+            slipRepo.save(slip);
+        }
+        return historyQueryService.detail(taskId);
+    }
+
     private static String normalize(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         return value.trim();
+    }
+
+    private DispatchTask findTask(UUID taskId) {
+        return taskRepo.findByIdAndIsDeletedFalse(taskId)
+                .orElseThrow(DispatchMatchedDriverManualService::notFound);
+    }
+
+    private DispatchVehicleGroup findGroup(UUID taskId, UUID groupId) {
+        DispatchVehicleGroup group = groupRepo.findByIdAndIsDeletedFalse(groupId)
+                .orElseThrow(DispatchMatchedDriverManualService::notFound);
+        if (!group.getDispatchTaskId().equals(taskId)) {
+            throw notFound();
+        }
+        return group;
+    }
+
+    private static void requireManualEditable(DispatchTask task, DispatchVehicleGroup group) {
+        boolean editableTask = task.getStatus() == DispatchTaskStatus.DRAFT
+                || task.getStatus() == DispatchTaskStatus.DISPATCHING;
+        if (!editableTask) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "수동기입은 작성 중이거나 일부 발송 중인 배차 작업에서만 가능합니다 — 현재=" + task.getStatus());
+        }
+        if (!group.isDispatchPending()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹에는 수동기입할 수 없습니다.");
+        }
     }
 
     private static BusinessException notFound() {

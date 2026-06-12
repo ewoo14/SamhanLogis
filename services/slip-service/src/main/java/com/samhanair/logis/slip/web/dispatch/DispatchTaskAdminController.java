@@ -23,6 +23,7 @@ import com.samhanair.logis.slip.service.dispatch.DispatchTaskCancellationRequest
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskCompletionService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskHistoryQueryService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskModificationRequestService;
+import com.samhanair.logis.slip.service.dispatch.DispatchTaskRedispatchService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -77,6 +78,7 @@ public class DispatchTaskAdminController {
     private final DispatchMatchedDriverManualService matchedDriverManualService;
     private final DispatchTaskModificationRequestService modificationRequestService;
     private final DispatchTaskCancellationRequestService cancellationRequestService;
+    private final DispatchTaskRedispatchService redispatchService;
     private final DispatchTaskHistoryQueryService historyQueryService;
     private final DynamicPermissionClient dynamicPermissionClient;
 
@@ -272,6 +274,24 @@ public class DispatchTaskAdminController {
     }
 
     /**
+     * 타사 수동 발송완료 표시.
+     *
+     * <p>경기퀵/전국화물/기타 등 arologis 자동 연동이 아닌 그룹에 수동 기사/차량 입력이 끝났을 때
+     * 그룹을 발송완료로 닫고 매핑된 전표 배차상태도 완료로 확정한다.
+     */
+    @Operation(summary = "타사 수동 발송완료 표시")
+    @PostMapping("/{taskId}/vehicle-groups/{groupId}/manual-dispatch-complete")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
+    public ApiResponse<DispatchTaskDetailResponse> markManualDispatchComplete(
+            @PathVariable UUID taskId,
+            @PathVariable UUID groupId,
+            @RequestHeader(value = "X-User-Id", required = false) String actor,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        return ApiResponse.ok(matchedDriverManualService.markManualDispatchComplete(taskId, groupId));
+    }
+
+    /**
      * 배차 완료 trigger (DRAFT → DISPATCHING → arologis 발송).
      *
      * <p>SP-D3 동적 권한 EDIT 가드 — dispatch.board 페이지 코드 적용.
@@ -288,6 +308,23 @@ public class DispatchTaskAdminController {
         return ApiResponse.ok(DispatchTaskResponse.from(completionService.dispatch(
                 taskId,
                 req != null ? req.groupIds() : null)));
+    }
+
+    /**
+     * 수정수락된 배차 작업의 재배차 편집을 시작한다.
+     *
+     * <p>{@code MODIFICATION_ACCEPTED -> DRAFT}, 기존 발송 그룹 {@code DISPATCHED -> PENDING},
+     * 매핑 전표 {@code DISPATCHED -> UNDISPATCHED} 복귀를 원자적으로 수행한다.
+     */
+    @Operation(summary = "재배차 시작 (MODIFICATION_ACCEPTED → DRAFT)")
+    @PostMapping("/{taskId}/start-redispatch")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
+    public ApiResponse<DispatchTaskResponse> startRedispatch(
+            @PathVariable UUID taskId,
+            @RequestHeader(value = "X-User-Id", required = false) String actor,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        return ApiResponse.ok(DispatchTaskResponse.from(redispatchService.startRedispatch(taskId)));
     }
 
     // ---------- Phase C (배차 수정/취소 요청, D-DC-02 / D-DC-07) ----------

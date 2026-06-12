@@ -190,7 +190,7 @@ export function formatDispatchVehicleGroupLabel(
  * <p>spec docs/superpowers/specs/2026-05-14-samhan-dispatch-modification-design.md § 4.1.
  *
  * Phase C 신규 상태 흐름 (D-DC-03):
- *  - DISPATCHED → MODIFICATION_REQUESTED → MODIFICATION_ACCEPTED (편집 모드) → DISPATCHING → DISPATCHED
+ *  - DISPATCHED → MODIFICATION_REQUESTED → MODIFICATION_ACCEPTED → start-redispatch → DRAFT → DISPATCHING → DISPATCHED
  *  - DISPATCHED → MODIFICATION_REQUESTED → MODIFICATION_REJECTED (DISPATCHED 유지, rejectionReason 표시)
  *  - DISPATCHED → CANCEL_REQUESTED → CANCEL_ACCEPTED → CANCELLED
  *  - DISPATCHED → CANCEL_REQUESTED → CANCEL_REJECTED (DISPATCHED 유지)
@@ -305,14 +305,33 @@ export const DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE: Record<
 }
 
 /**
- * 수정/취소 편집 가능 상태 — DRAFT 또는 MODIFICATION_ACCEPTED.
+ * 배차 구성 편집 가능 상태 — DRAFT.
  *
- * <p>Phase A = DRAFT 만 편집. Phase C = MODIFICATION_ACCEPTED 추가 (D-DC-08).
+ * <p>MODIFICATION_ACCEPTED 는 [재배차 시작] mutation 으로 DRAFT 복귀 후 편집한다.
  * drag-and-drop 활성 + [배차 완료] 버튼 노출 여부 판정에 사용.
  */
 export function isEditableStatus(status: DispatchTaskStatus): boolean {
-  return status === 'DRAFT' || status === 'MODIFICATION_ACCEPTED'
+  return status === 'DRAFT'
 }
+
+export type MatchedDriverSource =
+  | 'AROLOGIS'
+  | 'GYEONGGI_QUICK'
+  | 'JEONGUK_HWAMUL'
+  | 'OTHER'
+
+export const MATCHED_DRIVER_SOURCE_LABEL: Record<MatchedDriverSource, string> = {
+  AROLOGIS: '아로로지스',
+  GYEONGGI_QUICK: '경기퀵',
+  JEONGUK_HWAMUL: '전국화물',
+  OTHER: '기타',
+}
+
+export const MANUAL_MATCHED_DRIVER_SOURCE_OPTIONS: MatchedDriverSource[] = [
+  'GYEONGGI_QUICK',
+  'JEONGUK_HWAMUL',
+  'OTHER',
+]
 
 /**
  * 그룹 안 slip row — BE {@code DispatchVehicleGroupSlipResponse} 와 1:1.
@@ -350,7 +369,7 @@ export interface MatchedDriverResponse {
   driverCode: string
   driverName: string
   driverPhoneNumber: string | null
-  driverSource: string
+  driverSource: MatchedDriverSource
   vehiclePlateNumber?: string | null
 }
 
@@ -358,7 +377,7 @@ export interface SetMatchedDriverPayload {
   driverName: string
   driverPhoneNumber: string
   vehiclePlateNumber: string
-  driverSource: string
+  driverSource: MatchedDriverSource
 }
 
 /**
@@ -561,6 +580,19 @@ export async function setMatchedDriver(
   return res.data.data
 }
 
+/**
+ * 타사 수동 발송완료 표시 — `POST .../manual-dispatch-complete`.
+ */
+export async function markManualDispatchComplete(
+  taskId: string,
+  groupId: string,
+): Promise<DispatchTaskResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+    `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/manual-dispatch-complete`,
+  )
+  return res.data.data
+}
+
 // ---------------------------------------------------------------------------
 // VehicleGroupSlip 매핑
 // ---------------------------------------------------------------------------
@@ -630,6 +662,20 @@ export async function dispatchToArologis(
   const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
     `/admin/dispatch-tasks/${taskId}/dispatch`,
     groupIds ? { groupIds } : undefined,
+  )
+  return res.data.data
+}
+
+/**
+ * 재배차 시작 — `POST /admin/dispatch-tasks/{taskId}/start-redispatch`.
+ *
+ * <p>MODIFICATION_ACCEPTED 상태에서 DRAFT 로 되돌리고 기존 발송 그룹을 다시 편집 가능하게 연다.
+ */
+export async function startRedispatch(
+  taskId: string,
+): Promise<DispatchTaskResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+    `/admin/dispatch-tasks/${taskId}/start-redispatch`,
   )
   return res.data.data
 }

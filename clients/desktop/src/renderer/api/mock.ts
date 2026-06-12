@@ -30,6 +30,7 @@ import type {
   DispatchVehicleGroupResponse,
   DispatchVehicleGroupSlipResponse,
   DispatchVehicleType,
+  MatchedDriverSource,
   SetMatchedDriverPayload,
 } from './dispatchTask'
 import type { DispatchComment } from './dispatchCollab'
@@ -4678,6 +4679,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!task) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
     }
+    if (task.status !== 'DRAFT') {
+      return mockError(409, 'CONFLICT', `배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=${task.status}`)
+    }
 
     const body = parseMockBody(config) as Partial<AddVehicleGroupPayload>
     const vehicleBodyType = body.vehicleBodyType as DispatchVehicleBodyType | undefined
@@ -4734,6 +4738,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     if (group.dispatchStatus === 'DISPATCHED') {
       return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹에는 전표를 추가할 수 없습니다.')
+    }
+    if (task.status !== 'DRAFT') {
+      return mockError(409, 'CONFLICT', `배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=${task.status}`)
     }
     const body = parseMockBody(config) as { slipId?: string }
     const slipId = String(body.slipId ?? '')
@@ -4794,6 +4801,101 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     task.status = task.vehicleGroups.every((group) => group.dispatchStatus === 'DISPATCHED')
       ? 'DISPATCHING'
       : 'DRAFT'
+    refreshMockDuplicateSlipIds(task)
+    return envelope(task)
+  }
+
+  const modificationRequestMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/modification-request(?:\?.*)?$/,
+  )
+  if (method === 'POST' && modificationRequestMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(modificationRequestMatch[1]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    if (!task) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
+    }
+    if (task.status !== 'DISPATCHED') {
+      return mockError(409, 'CONFLICT', `MODIFICATION_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=${task.status}`)
+    }
+    const body = parseMockBody(config) as { reason?: string }
+    const decision = mockLocationParams().get('mockModificationDecision')
+    task.modificationReason = String(body.reason ?? '').trim() || null
+    task.modificationRequestedAt = new Date().toISOString()
+    task.modificationDecidedAt = decision ? new Date().toISOString() : null
+    if (decision === 'accepted') {
+      task.status = 'MODIFICATION_ACCEPTED'
+    } else if (decision === 'rejected') {
+      task.status = 'MODIFICATION_REJECTED'
+      task.rejectionReason = 'mock 수정 거부'
+    } else {
+      task.status = 'MODIFICATION_REQUESTED'
+    }
+    return envelope(task)
+  }
+
+  const cancellationRequestMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/cancellation-request(?:\?.*)?$/,
+  )
+  if (method === 'POST' && cancellationRequestMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(cancellationRequestMatch[1]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    if (!task) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
+    }
+    if (task.status !== 'DISPATCHED') {
+      return mockError(409, 'CONFLICT', `CANCEL_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=${task.status}`)
+    }
+    const body = parseMockBody(config) as { reason?: string }
+    const decision = mockLocationParams().get('mockCancellationDecision')
+    task.modificationReason = String(body.reason ?? '').trim() || null
+    task.modificationRequestedAt = new Date().toISOString()
+    task.modificationDecidedAt = decision ? new Date().toISOString() : null
+    if (decision === 'accepted') {
+      task.status = 'CANCELLED'
+      task.vehicleGroups.forEach((group) => {
+        group.dispatchStatus = 'PENDING'
+        group.slips.forEach((row) => {
+          row.slip.dispatchStatus = 'UNDISPATCHED'
+        })
+      })
+    } else if (decision === 'rejected') {
+      task.status = 'CANCEL_REJECTED'
+      task.rejectionReason = 'mock 취소 거부'
+    } else {
+      task.status = 'CANCEL_REQUESTED'
+    }
+    return envelope(task)
+  }
+
+  const startRedispatchMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/start-redispatch(?:\?.*)?$/,
+  )
+  if (method === 'POST' && startRedispatchMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(startRedispatchMatch[1]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    if (!task) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
+    }
+    if (task.status !== 'MODIFICATION_ACCEPTED') {
+      return mockError(409, 'CONFLICT', `DRAFT 재 진입은 MODIFICATION_ACCEPTED 에서만 가능 — 현재=${task.status}`)
+    }
+    task.status = 'DRAFT'
+    task.arologisDispatchId = null
+    task.vehicleGroups.forEach((group) => {
+      if (group.dispatchStatus === 'DISPATCHED') {
+        group.dispatchStatus = 'PENDING'
+        group.slips.forEach((row) => {
+          row.slip.dispatchStatus = 'UNDISPATCHED'
+        })
+      }
+    })
+    task.matchedDrivers = []
     refreshMockDuplicateSlipIds(task)
     return envelope(task)
   }
@@ -4860,13 +4962,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!task || !group) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
+    if (task.status !== 'DRAFT' && task.status !== 'DISPATCHING') {
+      return mockError(409, 'CONFLICT', `수동기입은 작성 중이거나 일부 발송 중인 배차 작업에서만 가능합니다 — 현재=${task.status}`)
+    }
+    if (group.dispatchStatus !== 'PENDING') {
+      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹에는 수동기입할 수 없습니다.')
+    }
     const body = parseMockBody(config) as Partial<SetMatchedDriverPayload>
     const driverName = String(body.driverName ?? '').trim()
     const driverPhoneNumber = String(body.driverPhoneNumber ?? '').trim()
     const vehiclePlateNumber = String(body.vehiclePlateNumber ?? '').trim()
-    const driverSource = String(body.driverSource ?? '').trim()
+    const driverSource = String(body.driverSource ?? '').trim() as MatchedDriverSource
     if (!driverName || !vehiclePlateNumber || !driverSource) {
       return mockError(400, 'INVALID_INPUT', '기사/차량 입력값은 필수입니다.')
+    }
+    if (!['GYEONGGI_QUICK', 'JEONGUK_HWAMUL', 'OTHER'].includes(driverSource)) {
+      return mockError(400, 'INVALID_INPUT', '지원하지 않는 수동기입 vendor 입니다.')
     }
     const nextMatched = {
       vehicleGroupSequence: group.sequence,
@@ -4890,6 +5001,39 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (summary) {
       summary.driverCount = task.matchedDrivers.length
     }
+    return envelope(task)
+  }
+
+  const manualDispatchCompleteMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/manual-dispatch-complete(?:\?.*)?$/,
+  )
+  if (method === 'POST' && manualDispatchCompleteMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(manualDispatchCompleteMatch[1]!)
+    const groupId = decodeURIComponent(manualDispatchCompleteMatch[2]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    if (!task || !group) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
+    }
+    if (task.status !== 'DRAFT' && task.status !== 'DISPATCHING') {
+      return mockError(409, 'CONFLICT', `수동기입은 작성 중이거나 일부 발송 중인 배차 작업에서만 가능합니다 — 현재=${task.status}`)
+    }
+    if (group.dispatchStatus !== 'PENDING') {
+      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹에는 수동기입할 수 없습니다.')
+    }
+    const matched = task.matchedDrivers.find(
+      (driver) => driver.vehicleGroupSequence === group.sequence,
+    )
+    if (!matched || matched.driverCode !== 'MANUAL' || matched.driverSource === 'AROLOGIS') {
+      return mockError(409, 'CONFLICT', '수동 발송완료 전 기사/차량 정보를 먼저 입력해야 합니다.')
+    }
+    group.dispatchStatus = 'DISPATCHED'
+    group.slips.forEach((row) => {
+      row.slip.dispatchStatus = 'DISPATCHED'
+    })
+    refreshMockDuplicateSlipIds(task)
     return envelope(task)
   }
 

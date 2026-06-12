@@ -17,6 +17,8 @@ public interface DispatchTaskRepository extends JpaRepository<DispatchTask, UUID
 
     Optional<DispatchTask> findByTaskCodeAndIsDeletedFalse(String taskCode);
 
+    Optional<DispatchTask> findByIdAndIsDeletedFalse(UUID id);
+
     Optional<DispatchTask> findByArologisDispatchIdAndIsDeletedFalse(UUID arologisDispatchId);
 
     Optional<DispatchTask> findFirstByDispatchDateAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(

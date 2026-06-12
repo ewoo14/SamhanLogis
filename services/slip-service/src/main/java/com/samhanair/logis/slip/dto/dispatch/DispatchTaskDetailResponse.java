@@ -132,7 +132,7 @@ public record DispatchTaskDetailResponse(
                     driver.getDriverCode(),
                     driver.getDriverName(),
                     driver.getDriverPhoneNumber(),
-                    driver.getDriverSource(),
+                    driver.getDriverSource().name(),
                     driver.getVehiclePlateNumber()
             );
         }

@@ -2868,3 +2868,12 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-AROLO-ACCT-02 | 계정과목 = **일반기업회계기준 표준계정과목 5유형 전체 101개**(V17). `arologis_simple_account.type` CHECK 4→5유형(**자본 EQUITY 추가**) — 미확장 시 EQUITY INSERT 거부([[enum-expansion-check-constraint]]). 코드 4자리(1xxx 자산·2xxx 부채·3xxx 자본·4xxx 수익·8xxx 비용). 운송업 상용만 active=TRUE, 나머지 active=FALSE(데이터 보존, 드롭다운 숨김). |
 | D-AROLO-ACCT-03 | **활성상태 관리 = 신규 page-code `arologis.accounting.accounts`**(현금출납장 cashbook 과 분리). 권한 = 대표실·회계팀 → **마스터·회계사원만 V/E**(V54), 매니저는 거래 입력 가능하나 계정 마스터 관리 제외(권한 격리). FE canManageAccounts(MASTER\|ACCOUNTANT) + BE @RequirePermission 이중 방어. |
 | D-AROLO-ACCT-04 | 스코프 = 표준차트 고정 → **활성상태 토글만**(계정 CRUD 아님). UI 표기 = `active` 미노출 **"활성상태"**(개발책임자 지시). |
+
+### D-DMR (배차 #3 수정제안 재배차/수동기입, 2026-06-12)
+
+| 결정 | 내용 |
+|---|---|
+| D-DMR-01 | 재배차 진입 = 전용 endpoint `POST /admin/dispatch-tasks/{taskId}/start-redispatch`. `MODIFICATION_ACCEPTED` 상태에서 바로 편집하지 않고, endpoint 가 `markBackToDraftForRedispatch()` + 발송그룹 `resetToPending()` + 매핑 slip `UNDISPATCHED` 복귀를 원자 처리한다. |
+| D-DMR-02 | 수동기입 vendor = enum + CHECK. 허용값은 `AROLOGIS`, `GYEONGGI_QUICK`, `JEONGUK_HWAMUL`, `OTHER`; 기존 arologis/외부 자동 매칭 source 문자열은 `AROLOGIS` 대표값으로 정규화하고, 기존 `MANUAL` 값은 `OTHER` 로 보존한다. |
+| D-DMR-03 | arologis 재배차 = delete-recreate. 기존 `arologisDispatchId` 로 internal soft-delete 호출 후 task 단일 id 를 null 처리한다. arologis 무연동/실패는 graceful warning 이며 재배차 자체는 진행한다. |
+| D-DMR-04 | 그룹별 dispatch-id 테이블화는 후속. #3 은 단일 `DispatchTask.arologisDispatchId` 모델을 유지하되, 재배차 시작 시 기존 id 명시 처리와 재발송 confirm 시 새 id 저장 흐름을 일관화한다. |

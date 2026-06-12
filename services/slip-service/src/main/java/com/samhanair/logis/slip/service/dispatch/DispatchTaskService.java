@@ -82,7 +82,7 @@ public class DispatchTaskService {
             DispatchVehicleBodyType vehicleBodyType,
             DispatchTonnage tonnage
     ) {
-        findTaskOrThrow(dispatchTaskId);
+        requireDraftTask(dispatchTaskId);
         int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;
         DispatchVehicleGroup g;
         try {
@@ -100,7 +100,7 @@ public class DispatchTaskService {
      * <p>기존 테스트/fixture 코드 호환용이다. 사용자-facing 신규 API 는 차종/톤수 2축을 받는다.
      */
     public DispatchVehicleGroup addVehicleGroup(UUID dispatchTaskId, DispatchVehicleType vehicleType) {
-        findTaskOrThrow(dispatchTaskId);
+        requireDraftTask(dispatchTaskId);
         int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;
         DispatchVehicleGroup g = DispatchVehicleGroup.create(dispatchTaskId, nextSeq, vehicleType);
         return groupRepo.save(g);
@@ -112,6 +112,7 @@ public class DispatchTaskService {
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
         }
+        requireDraftTask(dispatchTaskId);
         slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId)
                 .forEach(m -> {
                     m.markDeleted(actor);
@@ -132,6 +133,7 @@ public class DispatchTaskService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 발송된 차량 그룹에는 전표를 추가할 수 없습니다.");
         }
+        requireDraftTask(dispatchTaskId);
         Slip slip = slipRepo.findById(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "slip 이 존재하지 않습니다: " + slipId));
@@ -162,6 +164,7 @@ public class DispatchTaskService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 발송된 차량 그룹의 전표 순서는 변경할 수 없습니다.");
         }
+        requireDraftTask(group.getDispatchTaskId());
         var mappings = slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId);
         Map<UUID, DispatchVehicleGroupSlip> bySlipId = new HashMap<>();
         for (DispatchVehicleGroupSlip m : mappings) {
@@ -185,6 +188,7 @@ public class DispatchTaskService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 발송된 차량 그룹의 전표는 제거할 수 없습니다.");
         }
+        requireDraftTask(group.getDispatchTaskId());
         DispatchVehicleGroupSlip mapping = slipMapRepo
                 .findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId)
                 .stream()
@@ -230,6 +234,15 @@ public class DispatchTaskService {
         return taskRepo.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + id));
+    }
+
+    private DispatchTask requireDraftTask(UUID id) {
+        DispatchTask task = findTaskOrThrow(id);
+        if (task.getStatus() != DispatchTaskStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=" + task.getStatus());
+        }
+        return task;
     }
 
     private DispatchVehicleGroup findGroupOrThrow(UUID id) {

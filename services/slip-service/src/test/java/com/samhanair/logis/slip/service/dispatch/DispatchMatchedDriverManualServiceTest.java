@@ -8,14 +8,19 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriver;
+import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
 import com.samhanair.logis.slip.dto.dispatch.SetMatchedDriverRequest;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
+import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -33,6 +38,8 @@ class DispatchMatchedDriverManualServiceTest {
 
     @Mock DispatchTaskRepository taskRepo;
     @Mock DispatchVehicleGroupRepository groupRepo;
+    @Mock DispatchVehicleGroupSlipRepository slipMapRepo;
+    @Mock SlipRepository slipRepo;
     @Mock MatchedDriverRepository matchedRepo;
     @Mock DispatchTaskHistoryQueryService historyQueryService;
 
@@ -40,17 +47,19 @@ class DispatchMatchedDriverManualServiceTest {
     void setMatchedDriver_allows_blank_phone_and_persists_null() throws Exception {
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2099/06/12-1", LocalDate.of(2099, 6, 12));
+        setId(task, taskId);
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
         setId(group, groupId);
 
-        when(taskRepo.existsByIdAndIsDeletedFalse(taskId)).thenReturn(true);
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
         when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
         service.setMatchedDriver(taskId, groupId,
-                new SetMatchedDriverRequest("Manual Driver", "", "12A3456", "Manual Source"));
+                new SetMatchedDriverRequest("Manual Driver", "", "12A3456", MatchedDriverSource.OTHER));
 
         ArgumentCaptor<MatchedDriver> matchedCaptor = ArgumentCaptor.forClass(MatchedDriver.class);
         verify(matchedRepo).saveAndFlush(matchedCaptor.capture());
@@ -62,14 +71,15 @@ class DispatchMatchedDriverManualServiceTest {
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
 
-        when(taskRepo.existsByIdAndIsDeletedFalse(taskId)).thenReturn(true);
+        DispatchTask task = DispatchTask.create("2099/06/12-2", LocalDate.of(2099, 6, 12));
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
 
         assertThatThrownBy(() -> service.setMatchedDriver(taskId, groupId,
-                new SetMatchedDriverRequest("Manual Driver", null, "12A3456", "Manual Source")))
+                new SetMatchedDriverRequest("Manual Driver", null, "12A3456", MatchedDriverSource.OTHER)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.NOT_FOUND));
@@ -79,20 +89,22 @@ class DispatchMatchedDriverManualServiceTest {
     void setMatchedDriver_create_unique_conflict_returns_business_conflict() throws Exception {
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2099/06/12-3", LocalDate.of(2099, 6, 12));
+        setId(task, taskId);
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
         setId(group, groupId);
 
-        when(taskRepo.existsByIdAndIsDeletedFalse(taskId)).thenReturn(true);
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
         when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
         when(matchedRepo.saveAndFlush(any(MatchedDriver.class)))
                 .thenThrow(new DataIntegrityViolationException("uq_matched_driver_group_active"));
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
 
         assertThatThrownBy(() -> service.setMatchedDriver(taskId, groupId,
-                new SetMatchedDriverRequest("Manual Driver", null, "12A3456", "Manual Source")))
+                new SetMatchedDriverRequest("Manual Driver", null, "12A3456", MatchedDriverSource.OTHER)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
