@@ -80,6 +80,50 @@ class SlipDocumentCollaborationPortTest {
     }
 
     @Test
+    void applyChangeSetRejectsEntryWithoutAfterField() {
+        SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
+        SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
+        SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
+        DynamicPermissionClient permissionClient =
+                org.mockito.Mockito.mock(DynamicPermissionClient.class);
+        UUID slipId = UUID.randomUUID();
+
+        SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
+                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.applyChangeSet(slipId, """
+                {
+                  "memo": {"before": "old"}
+                }
+                """))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("after");
+        org.mockito.Mockito.verifyNoInteractions(slipService);
+    }
+
+    @Test
+    void applyChangeSetRejectsScalarEntryInsteadOfTreatingItAsNullPatch() {
+        SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
+        SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
+        SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
+        DynamicPermissionClient permissionClient =
+                org.mockito.Mockito.mock(DynamicPermissionClient.class);
+        UUID slipId = UUID.randomUUID();
+
+        SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
+                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.applyChangeSet(slipId, """
+                {
+                  "memo": null
+                }
+                """))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("after");
+        org.mockito.Mockito.verifyNoInteractions(slipService);
+    }
+
+    @Test
     void canProposeRejectsNullAndZeroUuidActorWithoutPermissionCheck() {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);

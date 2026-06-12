@@ -1799,7 +1799,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const collabCommentCollectionMatch = url.match(/\/slips\/([^/?]+)\/collab\/comments(?:\?.*)?$/)
   if (collabCommentCollectionMatch) {
     const slipId = collabCommentCollectionMatch[1]!
-    if (method === 'GET') return envelope([...(collabCommentsStore[slipId] ?? [])])
+    if (method === 'GET') {
+      const query = url.split('?')[1] ?? ''
+      const rawLimit = Number.parseInt(new URLSearchParams(query).get('limit') ?? '20', 10)
+      const safeLimit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 100)) : 20
+      return envelope([...(collabCommentsStore[slipId] ?? [])].slice(0, safeLimit))
+    }
     if (method === 'POST') {
       const body = parseMockBody(config)
       const created: MockSlipCollabComment = {

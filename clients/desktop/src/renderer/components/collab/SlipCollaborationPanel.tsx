@@ -105,7 +105,8 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
   const suggestionQueryKey = useMemo(() => ['slipCollabSuggestions', slipId] as const, [slipId])
 
   const canWriteComments = canAccess('slip.comments', 'create')
-  const canManageComments = canAccess('slip.comments', 'update')
+  const canResolveComments = canAccess('slip.comments', 'update')
+  const canDeleteComments = canAccess('slip.comments', 'delete')
   const canSuggest = canAccess('slip.audit-overlay', 'update')
 
   const commentsQuery = useQuery({
@@ -230,7 +231,7 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
                     <strong>{displayName(comment.authorName)}</strong>
                     <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(comment.createdAt)}</span>
                     {comment.status === 'RESOLVED' ? <Badge variant="success">해결</Badge> : null}
-                    {canManageComments && comment.status === 'OPEN' ? (
+                    {canResolveComments && comment.status === 'OPEN' ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -241,7 +242,7 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
                         해결
                       </Button>
                     ) : null}
-                    {canManageComments ? (
+                    {canDeleteComments ? (
                       <Button
                         type="button"
                         variant="ghost"

@@ -100,7 +100,12 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> entry = fields.next();
             String fieldName = normalizePath(entry.getKey());
-            JsonNode afterNode = entry.getValue() == null ? null : entry.getValue().get("after");
+            JsonNode change = entry.getValue();
+            if (change == null || !change.isObject() || !change.has("after")) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "changeSet entry 는 after 필드를 가진 JSON object 여야 합니다: " + entry.getKey());
+            }
+            JsonNode afterNode = change.get("after");
             patches.put(fieldName, toNullableText(afterNode));
         }
         if (patches.isEmpty()) {

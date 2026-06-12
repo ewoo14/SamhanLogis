@@ -78,6 +78,9 @@ class SlipCollabIT extends AbstractPostgresIT {
     /** 권한 stub 에 사용할 고정 사용자 UUID. proposerId 로도 재사용. */
     private static final String ACTOR_ID = "20000000-0000-0000-0000-000000000001";
 
+    /** Non-proposer withdraw edge verification actor. */
+    private static final String OTHER_ACTOR_ID = "20000000-0000-0000-0000-000000000002";
+
     /** 테스트 slipNo 의 날짜 prefix — 미래 날짜 사용으로 seqNo 충돌 최소화. */
     private static final LocalDate TEST_DATE = LocalDate.of(2099, 6, 13);
 
@@ -359,6 +362,32 @@ class SlipCollabIT extends AbstractPostgresIT {
     /**
      * {@code slip.comments} CREATE 권한이 거부된 사용자는 댓글 등록 시 403 을 받는다.
      */
+    /**
+     * Non-proposer cannot withdraw a suggestion; original status remains PROPOSED.
+     */
+    @Test
+    void suggestion_withdraw_by_non_proposer_returns_403_and_keeps_proposed() throws Exception {
+        UUID slipId = seedOutboundSlip("2099/06/13-SUGG-WD-NP-" + SEQ.getAndIncrement()).getId();
+
+        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "원제안자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"타인 철회 거부\"}}"))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
+
+        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/withdraw",
+                        slipId, suggestionId)
+                        .header(USER_ID_HEADER, OTHER_ACTOR_ID))
+                .andExpect(status().isForbidden());
+
+        var saved = suggestionRepository.findById(suggestionId).orElseThrow();
+        assertThat(saved.getStatus().name()).isEqualTo("PROPOSED");
+    }
+
     @Test
     void comment_add_denied_when_permission_false() throws Exception {
         UUID slipId = seedOutboundSlip("2099/06/13-PERM-CMT-" + SEQ.getAndIncrement()).getId();
@@ -553,6 +582,34 @@ class SlipCollabIT extends AbstractPostgresIT {
      * @param slipNo 전표번호 (유니크, 미래일자 권장)
      * @return 저장된 전표
      */
+    /**
+     * Suggestion created under slip A cannot be accepted through slip B path.
+     */
+    @Test
+    void accept_suggestion_through_other_slip_scope_returns_404() throws Exception {
+        UUID slipA = seedOutboundSlip("2099/06/13-SCOPE-SUG-A-" + SEQ.getAndIncrement()).getId();
+        UUID slipB = seedOutboundSlip("2099/06/13-SCOPE-SUG-B-" + SEQ.getAndIncrement()).getId();
+
+        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipA)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "스코프제안자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"전표A 제안\"}}"))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
+
+        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/accept",
+                        slipB, suggestionId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "스코프결정자"))
+                .andExpect(status().isNotFound());
+
+        var saved = suggestionRepository.findById(suggestionId).orElseThrow();
+        assertThat(saved.getStatus().name()).isEqualTo("PROPOSED");
+    }
+
     private Slip seedOutboundSlip(String slipNo) {
         Slip slip = Slip.createOutbound(
                 slipNo,
