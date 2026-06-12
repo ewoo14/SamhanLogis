@@ -88,4 +88,6 @@
 - [공급자·은행계좌 회계 설정 메뉴](project_company_config_menu.md) — 2026-06-10. 거래명세서+세금계산서 공용 공급자정보/입금계좌/인감 설정 (회계 메뉴, env 주입·COMPANY 상수 대체). accounting-service company-profile + FE 설정화면
 - [다모델 리뷰 워크플로우 (현행 단일)](feedback_temp_multimodel_workflow.md) — 2026-06-11/12 개발책임자. Opus 계획/PR → Codex 개발 → Opus 5-agent → Codex 5-agent → Fable5(6/22까지) → PM 종합 → 머지. **각 리뷰 라운드 5-agent에 QA agent 포함 + Docker 실QA 스크린샷을 그 라운드 리뷰 코멘트에 인라인 게시 의무**. Opus만 돌리고 머지 금지·구 워크플로우 전부 대체
 - [전표 용어 — 슬립 금지](feedback_jeonpyo_not_slip.md) — 2026-06-11 개발책임자. 한글 "슬립"(slip 음차) 금지 "전표" 사용. 영문 식별자(slipId/slipNo/Slip)는 별개. 기존 895회/250파일 점진 치환·신규는 처음부터 전표
+- [코멘트 용어 — 협업 코멘트 금지](feedback_comment_not_collab_comment.md) — 2026-06-12 개발책임자. 사용자 노출 라벨은 "협업 코멘트" 금지 "코멘트". 영문 식별자(CollabComment/collab-core)는 유지
 - [야간 위임 = 라이브 Docker 실QA 캡처 미루지 말 것](feedback_overnight_live_capture.md) — 2026-06-12 개발책임자 지적. 야간 위임 시 서비스 재빌드(docker compose up --build)해서라도 라이브 실서버 캡처 진행. "스택 안전" deferral 금지. CI IT 로 라이브 캡처 대체 금지
+- [X-User-Name 헤더 charset + FilterRegistrationBean MockMvc 함정](feedback_x_user_name_header_charset_mockmvc.md) — 2026-06-12 PR #464. 게이트웨이 URLEncode X-User-Name → Tomcat ISO-8859-1 헤더 디코딩으로 0xED(터) 모지바케 → 공용 charset-repair 필터. FilterRegistrationBean 필터는 @AutoConfigureMockMvc 미적용 → 컨트롤러 IT 는 평문(디코딩된 값) 전달, 디코딩은 단위테스트+라이브 캡처 분담
