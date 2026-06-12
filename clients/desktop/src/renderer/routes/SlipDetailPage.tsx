@@ -68,11 +68,6 @@ import { type StockBalanceLookupLine } from '../api/inventory'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { invalidateSignature } from '../api/signature'
 import {
-  addSlipComment,
-  listSlipComments,
-  type SlipComment,
-} from '../api/slipComment'
-import {
   listAuditLogs,
   revertToRevision,
   type SlipAuditLogEntry,
@@ -83,9 +78,8 @@ import {
   type SlipEditRequest,
   type SlipEditRequestType,
 } from '../api/slipEditRequest'
-import { SlipVersionHistoryPanel } from '../components/audit/SlipVersionHistoryPanel'
+import { SlipCollaborationPanel } from '../components/collab/SlipCollaborationPanel'
 import { SlipRealtimeClient } from '../realtime/SlipRealtimeClient'
-import { useSessionStore } from '../stores/session'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -255,8 +249,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   // signature-slice-C 신규: 서명 무효화 modal state (MASTER only)
   const [invalidateOpen, setInvalidateOpen] = useState(false)
   const [invalidateReason, setInvalidateReason] = useState('')
-  // PR-H1: 코멘트 입력 state
-  const [commentInput, setCommentInput] = useState('')
   // PR-H3: 수정/삭제 요청 다이얼로그 state — null 이면 미오픈, 'EDIT'/'DELETE' 면 해당 type 으로 오픈.
   const [editRequestDialogType, setEditRequestDialogType]
     = useState<SlipEditRequestType | null>(null)
@@ -320,13 +312,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     enabled: !!id,
   })
   const { refetch: refetchDetail } = detailQuery
-
-  // PR-H1: 코멘트 목록 백필 (최근 20건) — useQuery cache 키는 ['slipComments', id]
-  const commentsQuery = useQuery({
-    queryKey: ['slipComments', id],
-    queryFn: () => listSlipComments(id, 20),
-    enabled: !!id,
-  })
 
   // PR-H2: audit log 백필 — useQuery cache 키 ['slipAuditLogs', id]
   // SSE "slip:edit" event 수신 시 함께 invalidate.
@@ -406,41 +391,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       ctrl.abort()
     }
   }, [id, queryClient])
-
-  // PR-H1: 코멘트 등록 mutation — optimistic add 후 응답 시 cache 갱신
-  const addCommentMutation = useMutation({
-    mutationFn: (body: string) => addSlipComment(id, { body }),
-    onMutate: async (body) => {
-      await queryClient.cancelQueries({ queryKey: ['slipComments', id] })
-      const previous = queryClient.getQueryData<SlipComment[]>([
-        'slipComments',
-        id,
-      ])
-      const optimistic: SlipComment = {
-        id: `optimistic-${Date.now()}`,
-        authorId: '',
-        authorName:
-          useSessionStore.getState().auth?.fullName ?? '나',
-        body,
-        createdAt: new Date().toISOString(),
-      }
-      queryClient.setQueryData<SlipComment[]>(
-        ['slipComments', id],
-        [...(previous ?? []), optimistic],
-      )
-      return { previous }
-    },
-    onError: (_err, _body, ctx) => {
-      if (ctx?.previous) {
-        queryClient.setQueryData(['slipComments', id], ctx.previous)
-      }
-      alert('코멘트 등록에 실패했습니다.')
-    },
-    onSuccess: () => {
-      setCommentInput('')
-      void queryClient.invalidateQueries({ queryKey: ['slipComments', id] })
-    },
-  })
 
   // PR-H3: CONFIRMED 단계 수정/삭제 요청 mutation. 성공 시 dialog 닫기 + latestEditRequest 갱신.
   const editRequestMutation = useMutation({
@@ -1382,11 +1332,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </div>
       </Card>
 
-      {/*
-        Phase 2.1 Task 6: 전표 버전이력 패널 + 복원 — AuditOverlay 인접 배치.
-        UUID 비공개 가드: slipId 는 path/key 전용, 화면 노출 X.
-      */}
-      <SlipVersionHistoryPanel slipId={id} />
+      <SlipCollaborationPanel slipId={id} />
 
       {/*
         V20 신규 필드 표시 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일
@@ -1746,109 +1692,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             <span className="detail-label">담당자</span>
             <span className="detail-value">{slip.ownerFullName ?? '-'}</span>
           </div>
-        </div>
-      </Card>
-
-      {/*
-        PR-H1 FE-1: 코멘트 영역 (Card) — useQuery 백필 + SSE 실시간 업데이트.
-        UUID 비공개 가드: id/authorId 화면 노출 금지. authorName + body + createdAt 만 표시.
-      */}
-      <Card padding={4} shadow="sm" style={{ marginTop: 24 }}>
-        <h4 style={{ marginTop: 0 }}>코멘트</h4>
-        <div
-          data-testid="slip-detail-comment-list"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            maxHeight: 320,
-            overflowY: 'auto',
-            marginBottom: 12,
-          }}
-        >
-          {commentsQuery.isLoading ? (
-            <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>
-              코멘트를 불러오는 중...
-            </p>
-          ) : commentsQuery.isError ? (
-            <p
-              role="alert"
-              style={{ margin: 0, color: 'var(--color-danger-600)' }}
-            >
-              코멘트를 불러오지 못했습니다.
-            </p>
-          ) : (Array.isArray(commentsQuery.data) ? commentsQuery.data : []).length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>
-              아직 코멘트가 없습니다.
-            </p>
-          ) : (
-            (Array.isArray(commentsQuery.data) ? commentsQuery.data : []).map((c) => (
-              <div
-                key={c.id}
-                data-testid={`slip-detail-comment-row-${c.id}`}
-                style={{
-                  borderBottom: '1px solid var(--color-neutral-200)',
-                  paddingBottom: 6,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    color: 'var(--color-neutral-600)',
-                  }}
-                >
-                  <strong style={{ color: 'var(--color-neutral-900)' }}>
-                    {c.authorName}
-                  </strong>
-                  <span>{c.createdAt.slice(0, 16).replace('T', ' ')}</span>
-                </div>
-                <div style={{ fontSize: 14, marginTop: 2, whiteSpace: 'pre-wrap' }}>
-                  {c.body}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            data-testid="slip-detail-comment-input"
-            type="text"
-            value={commentInput}
-            onChange={(e) => setCommentInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (
-                e.key === 'Enter'
-                && !e.nativeEvent.isComposing
-                && commentInput.trim().length > 0
-                && !addCommentMutation.isPending
-              ) {
-                addCommentMutation.mutate(commentInput.trim())
-              }
-            }}
-            placeholder="코멘트 입력..."
-            maxLength={1000}
-            style={{
-              flex: 1,
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: '1px solid var(--color-neutral-300)',
-              fontSize: 14,
-            }}
-          />
-          <Button
-            data-testid="slip-detail-comment-submit"
-            variant="primary"
-            size="sm"
-            disabled={
-              commentInput.trim().length === 0 || addCommentMutation.isPending
-            }
-            loading={addCommentMutation.isPending}
-            onClick={() => addCommentMutation.mutate(commentInput.trim())}
-          >
-            전송
-          </Button>
         </div>
       </Card>
 

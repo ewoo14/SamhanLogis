@@ -1765,6 +1765,120 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
+  // §7: slip collab-core mock (comments + suggestions)
+  // - 화면 노출 = authorName/proposerName/decidedByName (UUID 비공개 가드)
+  // ==========================================================================
+  type MockSlipCollabComment = {
+    id: string
+    anchor: string | null
+    authorName: string
+    body: string
+    parentId: string | null
+    status: 'OPEN' | 'RESOLVED'
+    createdAt: string
+  }
+  type MockSlipCollabSuggestion = {
+    id: string
+    changeSet: string
+    reason: string | null
+    proposerName: string
+    status: 'PROPOSED' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'
+    decidedByName: string | null
+    decidedAt: string | null
+    createdAt: string
+  }
+  const gc = globalThis as unknown as {
+    __SAMHAN_MOCK_SLIP_COLLAB_COMMENTS?: Record<string, MockSlipCollabComment[]>
+    __SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS?: Record<string, MockSlipCollabSuggestion[]>
+  }
+  if (!gc.__SAMHAN_MOCK_SLIP_COLLAB_COMMENTS) gc.__SAMHAN_MOCK_SLIP_COLLAB_COMMENTS = {}
+  if (!gc.__SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS) gc.__SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS = {}
+  const collabCommentsStore = gc.__SAMHAN_MOCK_SLIP_COLLAB_COMMENTS
+  const collabSuggestionsStore = gc.__SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS
+
+  const collabCommentCollectionMatch = url.match(/\/slips\/([^/?]+)\/collab\/comments(?:\?.*)?$/)
+  if (collabCommentCollectionMatch) {
+    const slipId = collabCommentCollectionMatch[1]!
+    if (method === 'GET') return envelope([...(collabCommentsStore[slipId] ?? [])])
+    if (method === 'POST') {
+      const body = parseMockBody(config)
+      const created: MockSlipCollabComment = {
+        id: `mock-slip-collab-comment-${Date.now()}`,
+        anchor: (body['anchor'] as string | null | undefined) ?? null,
+        authorName: MOCK_AUTH.fullName,
+        body: String(body['body'] ?? ''),
+        parentId: (body['parentId'] as string | null | undefined) ?? null,
+        status: 'OPEN',
+        createdAt: new Date().toISOString(),
+      }
+      collabCommentsStore[slipId] = [created, ...(collabCommentsStore[slipId] ?? [])]
+      return envelope(created)
+    }
+  }
+
+  const collabCommentItemMatch = url.match(/\/slips\/([^/?]+)\/collab\/comments\/([^/?]+)(?:\/(resolve))?(?:\?.*)?$/)
+  if (collabCommentItemMatch) {
+    const slipId = collabCommentItemMatch[1]!
+    const commentId = collabCommentItemMatch[2]!
+    const action = collabCommentItemMatch[3]
+    const list = collabCommentsStore[slipId] ?? []
+    const target = list.find((item) => item.id === commentId)
+    if (method === 'POST' && action === 'resolve' && target) {
+      target.status = 'RESOLVED'
+      return envelope(target)
+    }
+    if (method === 'DELETE') {
+      collabCommentsStore[slipId] = list.filter((item) => item.id !== commentId)
+      return envelope(null)
+    }
+  }
+
+  const collabSuggestionCollectionMatch = url.match(/\/slips\/([^/?]+)\/collab\/suggestions(?:\?.*)?$/)
+  if (collabSuggestionCollectionMatch) {
+    const slipId = collabSuggestionCollectionMatch[1]!
+    if (method === 'GET') return envelope([...(collabSuggestionsStore[slipId] ?? [])])
+    if (method === 'POST') {
+      const body = parseMockBody(config)
+      const created: MockSlipCollabSuggestion = {
+        id: `mock-slip-collab-suggestion-${Date.now()}`,
+        changeSet: String(body['changeSet'] ?? '{}'),
+        reason: (body['reason'] as string | null | undefined) ?? null,
+        proposerName: MOCK_AUTH.fullName,
+        status: 'PROPOSED',
+        decidedByName: null,
+        decidedAt: null,
+        createdAt: new Date().toISOString(),
+      }
+      collabSuggestionsStore[slipId] = [created, ...(collabSuggestionsStore[slipId] ?? [])]
+      return envelope(created)
+    }
+  }
+
+  const collabSuggestionActionMatch = url.match(/\/slips\/([^/?]+)\/collab\/suggestions\/([^/?]+)\/(accept|reject|withdraw)$/)
+  if (method === 'POST' && collabSuggestionActionMatch) {
+    const slipId = collabSuggestionActionMatch[1]!
+    const suggestionId = collabSuggestionActionMatch[2]!
+    const action = collabSuggestionActionMatch[3]!
+    const target = (collabSuggestionsStore[slipId] ?? []).find((item) => item.id === suggestionId)
+    if (!target) return mockError(404, 'NOT_FOUND', '제안을 찾을 수 없습니다')
+    if (action === 'accept') {
+      target.status = 'ACCEPTED'
+      target.decidedByName = MOCK_AUTH.fullName
+      target.decidedAt = new Date().toISOString()
+    } else if (action === 'reject') {
+      const body = parseMockBody(config)
+      target.status = 'REJECTED'
+      target.reason = (body['reason'] as string | null | undefined) ?? target.reason
+      target.decidedByName = MOCK_AUTH.fullName
+      target.decidedAt = new Date().toISOString()
+    } else {
+      target.status = 'WITHDRAWN'
+      target.decidedAt = new Date().toISOString()
+    }
+    return envelope(target)
+  }
+
+  // ==========================================================================
   // PR-H2: slip audit-log mock (in-memory per-context — capture-pr-h2.js 지원)
   // - 화면 노출 = actorName (UUID 비공개 가드, actorId 는 색상 hash 입력 전용)
   // - addInitScript 로 globalThis.__SAMHAN_MOCK_AUDIT_LOGS_SEED 사전 주입 가능
