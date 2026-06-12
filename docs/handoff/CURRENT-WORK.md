@@ -4,6 +4,33 @@
 
 ---
 
+## ✅ 2026-06-13 (야간 자율, 집 PC) — **배차 #3 수정제안 재배차 루프 + 수동기입 + Option A 머지 (PR #472)** + 워크플로우 2건 정정
+
+> 개발책임자 취침 위임: "다음 슬라이스까지 PM 자율 진행. **반드시 다음 리뷰어 리뷰로 오류 0 이어야만 머지**." → 6 리뷰 라운드 수렴 후 머지.
+
+### #3 내용
+- **재배차 루프**: `start-redispatch`(MODIFICATION_ACCEPTED→DRAFT + 발송그룹 `resetToPending` + slip UNDISPATCHED + arologis cancel graceful) → 편집 → 재발송. `markBackToDraftForRedispatch` 배선.
+- **수동기입 vendor**: `MatchedDriverSource` enum(AROLOGIS/GYEONGGI_QUICK/JEONGUK_HWAMUL/OTHER) + V43 CHECK + 수동 발송완료 게이트(setMatchedDriver=DRAFT/DISPATCHING/DISPATCHED·AROLOGIS 거부 / manual-complete=편집상태+PENDING).
+- **arologis 안전화(Fable5 적발)**: receive **insert-only** + **V22**(date,type unique→kakao-native 한정) → 같은날 2회차·kakao 공존, silent 파괴 차단. 부분발송 **명시 409**(D-DMR-06).
+- **🟢 Option A (개발책임자 결정, D-DMR-07)**: 재배차 진입 = **배차현황(완료배차) 상세에서 수정요청 허용**(조회전용 완화, allowTaskActions+권한가드). 보드 today-draft 모델로 발송 task in-place 수정 불가를 해소. 모바일은 재배차 미지원(데스크톱 안내).
+
+### 6 리뷰 라운드 수렴 (각 모델 자기 라운드 직접 fix)
+A Opus(7P1/5P2+회귀3) → B Codex(보안하드닝+범위밖 revert) → C Fable5(**A/B false-green 4 P1 적발** — silent arologis 파괴·수동완료 dead path·real-qa 파손·신규흐름 무커버) → D Opus(모바일 막다른흐름 P2) → E Codex(수동-only 수정버튼 게이트 P2) → **F Fable5 = 0 P1/P2(게이트 충족)**. 각 라운드 PR 게시. CI 6× green.
+
+### ⚠️ 워크플로우 정정 2건 ([[temp-multimodel-workflow]] 갱신)
+1. **"코덱스 구현 완료되면 PR 리뷰 게시" = 개발사항(무엇을 개발했는지) PR 게시** (step 2.5). 5-agent 리뷰 findings 미완 게시 아님. **완결 산출만 게시.**
+2. **리뷰-라운드 fix 는 그 라운드 모델이 직접** (Opus 라운드=Opus fix, Fable5 라운드=Fable5 fix). Codex 일괄 디스패치 금지. [[codex-implements-claude-reviews]] "Codex 구현 의무"는 **step 2(초기 개발) 한정**. (PM 2회 오해 후 정정 — Round C 를 Codex→Fable5 재작업.)
+
+### 🔭 Deferred (후속 슬라이스 큐)
+- **D-DMR-04 그룹별/batch별 dispatch-id 정밀화** (부분발송 다회 정밀 추적) + **D-DMR-05 matchAndNotify AFTER_COMMIT**(실 vendor 연동 시 트랜잭션 경계 재설계) → "dispatch-integration" 후속.
+- **배차현황 상세 query key = arologisDispatchId → task UUID 통일** (재배차 직후 404 한계·수동-only 완료 task 행클릭 불가 해소).
+- **모바일 dispatch BE 계약 부패**(pre-existing, `DispatchTaskResponse` 슬림화 #188부터 — 모바일 TS 풀계약 가정) → 모바일 계약 정렬 슬라이스.
+
+### ⚠️ QA 갭 (정직 박제)
+- **재배차 루프 실서버 화면 캡처 미수행** — auth `/auth/login` 이 보안 분류기에 dev seed 로그인 재시도를 credential-exploration 으로 오판·차단(가드 존중·미우회). 재배차 실증 = **BE IT(실 Postgres 전 루프) + arologis 풀(실 Postgres V22) + CI 6× green + Round A 실 수동기입 캡처**(`docs/qa/dispatch-modification-redispatch/manual-entry-vendor-dispatch-complete.png`). 화면 캡처 필요 시 dev_master JWT 제공 시 보강 가능.
+
+---
+
 ## ✅ 2026-06-12 (야간 자율, 집 PC) — **배차 보드 에픽 #1·#2 머지 (2축 차량 모델 + 2-pane 보드)**
 
 > 다모델 워크플로우([[temp-multimodel-workflow]]) — Codex 개발 → Opus/Codex/Fable5 3라운드(각 별도 게시 + Docker 실QA) → PM 종합. 개발책임자 "1,2,3,4 순서대로 진행".
