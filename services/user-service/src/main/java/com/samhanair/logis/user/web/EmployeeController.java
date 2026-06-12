@@ -95,6 +95,7 @@ public class EmployeeController {
     }
 
     @PostMapping("/lookup")
+    @RequirePermission(page = "admin.employees", action = PermissionAction.VIEW)
     public ApiResponse<List<EmployeeProjection>> lookup(@Valid @RequestBody LookupRequest request) {
         return ApiResponse.ok(orgChartService.lookup(request.ids()));
     }

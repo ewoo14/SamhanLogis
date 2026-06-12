@@ -41,7 +41,6 @@ import com.samhanair.logis.user.web.EcountEmployeeCardImportController;
 import com.samhanair.logis.user.web.EcountEmployeeImportController;
 import com.samhanair.logis.user.web.EcountPayrollEmployeeImportController;
 import com.samhanair.logis.user.web.EmployeeController;
-import com.samhanair.logis.user.web.EmployeePermissionGuard;
 import com.samhanair.logis.user.web.dto.AdminUserCreateResponse;
 import com.samhanair.logis.user.web.dto.EcountDepartmentImportResult;
 import com.samhanair.logis.user.web.dto.EmployeeResponse;
@@ -120,7 +119,6 @@ class UserPermissionControllerIT {
     @MockBean private EcountEmployeeCardImporter ecountEmployeeCardImporter;
     @MockBean private EcountPayrollEmployeeImporter ecountPayrollEmployeeImporter;
     @MockBean private OrgChartService orgChartService;
-    @MockBean private EmployeePermissionGuard employeePermissionGuard;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @BeforeEach

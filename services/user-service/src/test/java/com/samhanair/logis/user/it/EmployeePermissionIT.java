@@ -32,6 +32,8 @@ import org.springframework.test.web.servlet.MockMvc;
  *   <li>C3: MASTER canEdit=true → POST /users/employees checkEdit 통과</li>
  *   <li>C4: MANAGER canEdit=false + canView=true → POST 403 (view-only override)</li>
  *   <li>C5: role header 부재 + VIEW deny → GET /users/employees/{id} 403 FORBIDDEN</li>
+ *   <li>C6: MANAGER admin.employees VIEW deny → POST /users/employees/lookup 403 FORBIDDEN</li>
+ *   <li>C7: MANAGER admin.employees VIEW deny → GET /users/org-chart 403 FORBIDDEN</li>
  * </ol>
  */
 @SpringBootTest(classes = UserServiceApplication.class)
@@ -153,5 +155,69 @@ class EmployeePermissionIT extends AbstractPostgresIT {
         mockMvc.perform(get("/users/employees/{id}", UUID.fromString("00000000-0000-0000-0000-000000000030"))
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000020"))
                 .andExpect(status().isForbidden());
+    }
+
+    // -------------------------------------------------------------------------
+    // C6: EmployeeProjection lookup PII surface — VIEW deny → 403, grant → 200
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("C6: admin.employees VIEW deny → 직원 lookup PII surface 403 FORBIDDEN")
+    @WithMockUser(username = "manager-denied", authorities = {"ROLE_MANAGER"})
+    void C6_lookup_viewDeny_returns_403() throws Exception {
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("admin.employees"), Mockito.eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+
+        mockMvc.perform(post("/users/employees/lookup")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000020")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[\"00000000-0000-0000-0000-000000000030\"]}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("C6-allow: admin.employees VIEW grant → 직원 lookup PII surface 200 OK")
+    @WithMockUser(username = "manager-granted", authorities = {"ROLE_MANAGER"})
+    void C6_lookup_viewGrant_returns_200() throws Exception {
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("admin.employees"), Mockito.eq(PermissionAction.VIEW)))
+                .thenReturn(true);
+
+        mockMvc.perform(post("/users/employees/lookup")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000020")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\":[\"00000000-0000-0000-0000-000000000030\"]}"))
+                .andExpect(status().isOk());
+    }
+
+    // -------------------------------------------------------------------------
+    // C7: org-chart 전체 직원 EmployeeProjection 덤프 — VIEW deny → 403, grant → 200
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("C7: admin.employees VIEW deny → 조직도 PII surface 403 FORBIDDEN")
+    @WithMockUser(username = "manager-denied", authorities = {"ROLE_MANAGER"})
+    void C7_orgChart_viewDeny_returns_403() throws Exception {
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("admin.employees"), Mockito.eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+
+        mockMvc.perform(get("/users/org-chart")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000020"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("C7-allow: admin.employees VIEW grant → 조직도 PII surface 200 OK")
+    @WithMockUser(username = "manager-granted", authorities = {"ROLE_MANAGER"})
+    void C7_orgChart_viewGrant_returns_200() throws Exception {
+        Mockito.when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.eq("admin.employees"), Mockito.eq(PermissionAction.VIEW)))
+                .thenReturn(true);
+
+        mockMvc.perform(get("/users/org-chart")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000020"))
+                .andExpect(status().isOk());
     }
 }

@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
 import com.samhanair.logis.partnerorder.web.dto.DraftDetailResponse;
@@ -39,7 +40,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class PartnerOrderDraftController {
 
     private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String PARTNER_CODE_HEADER = "X-Partner-Code";
 
     private final PartnerOrderDraftService draftService;
 
@@ -55,7 +55,7 @@ public class PartnerOrderDraftController {
             partnerSelfService = true)
     public ApiResponse<DraftResponse> create(
             @Valid @RequestBody DraftCreateRequest request,
-            @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode,
+            @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode,
             @RequestHeader(value = USER_ID_HEADER, required = false) String userId) {
         return ApiResponse.ok(draftService.create(partnerCode, fallback(userId), request));
     }
@@ -72,7 +72,7 @@ public class PartnerOrderDraftController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
+            @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode) {
         Pageable pageable = PageRequest.of(page, size);
         return ApiResponse.ok(draftService.list(partnerCode, from, to, pageable));
     }
@@ -86,7 +86,7 @@ public class PartnerOrderDraftController {
             partnerSelfService = true)
     public ApiResponse<DraftDetailResponse> getOne(
             @PathVariable UUID draftId,
-            @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
+            @RequestHeader(value = HttpHeaderConstants.PARTNER_CODE_HEADER, required = false) String partnerCode) {
         return ApiResponse.ok(draftService.getOne(partnerCode, draftId));
     }
 
