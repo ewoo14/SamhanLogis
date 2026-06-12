@@ -52,6 +52,11 @@ public record DispatchTaskDetailResponse(
     public record VehicleGroup(
             UUID id,
             String vehicleType,
+            String vehicleTypeDisplay,
+            String vehicleBodyType,
+            String vehicleBodyTypeDisplay,
+            String tonnage,
+            String tonnageDisplay,
             int sequence,
             List<VehicleGroupSlip> slips
     ) {
@@ -59,6 +64,11 @@ public record DispatchTaskDetailResponse(
             return new VehicleGroup(
                     group.getId(),
                     group.getVehicleType().name(),
+                    group.getVehicleType().getDisplayName(),
+                    group.getVehicleBodyType().name(),
+                    group.getVehicleBodyType().getDisplayName(),
+                    group.getTonnage() != null ? group.getTonnage().name() : null,
+                    group.getTonnage() != null ? group.getTonnage().getDisplayName() : null,
                     group.getSequence(),
                     slips
             );

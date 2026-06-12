@@ -152,7 +152,8 @@ public class DispatchTaskAdminController {
             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
         checkEditPermission(roleHeader);
-        return ApiResponse.ok(DispatchVehicleGroupResponse.from(taskService.addVehicleGroup(taskId, req.vehicleType())));
+        return ApiResponse.ok(DispatchVehicleGroupResponse.from(
+                taskService.addVehicleGroup(taskId, req.vehicleBodyType(), req.tonnage())));
     }
 
     /**

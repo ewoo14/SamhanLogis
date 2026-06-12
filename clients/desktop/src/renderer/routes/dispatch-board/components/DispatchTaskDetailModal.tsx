@@ -25,7 +25,7 @@ import { useState, type FormEvent } from 'react'
 import { Button, Input, Modal } from '@samhan/design-system'
 import {
   DISPATCH_TASK_STATUS_LABEL,
-  DISPATCH_VEHICLE_TYPE_LABEL,
+  formatDispatchVehicleGroupLabel,
   type DispatchTaskResponse,
   type SetMatchedDriverPayload,
 } from '../../../api/dispatchTask'
@@ -357,6 +357,7 @@ export function DispatchTaskDetailModal({
                     matched?.driverCode === 'MANUAL'
                       ? matched.driverSource
                       : matched?.driverCode
+                  const vehicleLabel = formatDispatchVehicleGroupLabel(g)
                   return (
                     <div
                       key={g.id}
@@ -379,8 +380,7 @@ export function DispatchTaskDetailModal({
                         }}
                       >
                         <span>
-                          {DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #
-                          {g.sequence}
+                          {vehicleLabel} #{g.sequence}
                         </span>
                         <span
                           style={{
@@ -410,7 +410,7 @@ export function DispatchTaskDetailModal({
                             size="sm"
                             onClick={() => startMatchedDriverEdit(g.id, g.sequence)}
                             data-testid={`dispatch-task-detail-set-matched-driver-${g.sequence}`}
-                            aria-label={`${DISPATCH_VEHICLE_TYPE_LABEL[g.vehicleType]} #${g.sequence} 기사/차량 입력`}
+                            aria-label={`${vehicleLabel} #${g.sequence} 기사/차량 입력`}
                           >
                             기사/차량 입력
                           </Button>

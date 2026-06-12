@@ -117,7 +117,9 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
         UUID taskId = UUID.fromString((String) taskJson.get("id"));
 
         // 2) 차량 그룹 추가
-        String groupBody = objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"));
+        String groupBody = objectMapper.writeValueAsString(Map.of(
+                "vehicleBodyType", "CARGO",
+                "tonnage", "T_1"));
         String groupRes = mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "MASTER")
@@ -127,6 +129,10 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.sequence").value(1))
                 .andExpect(jsonPath("$.data.vehicleType").value("TONNAGE_1"))
+                .andExpect(jsonPath("$.data.vehicleBodyType").value("CARGO"))
+                .andExpect(jsonPath("$.data.vehicleBodyTypeDisplay").value("카고"))
+                .andExpect(jsonPath("$.data.tonnage").value("T_1"))
+                .andExpect(jsonPath("$.data.tonnageDisplay").value("1톤"))
                 .andReturn().getResponse().getContentAsString();
         Map<?, ?> groupJson = dataMap(groupRes);
         UUID groupId = UUID.fromString((String) groupJson.get("id"));
@@ -179,7 +185,9 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"))));
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "vehicleBodyType", "CARGO",
+                                "tonnage", "T_1"))));
 
         // 2) dispatch
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
@@ -312,10 +320,25 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("vehicleType", vehicleType))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "vehicleBodyType", "CARGO",
+                                "tonnage", vehicleTypeToTonnage(vehicleType)))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return UUID.fromString((String) dataMap(groupRes).get("id"));
+    }
+
+    private String vehicleTypeToTonnage(String vehicleType) {
+        return switch (vehicleType) {
+            case "TONNAGE_1" -> "T_1";
+            case "TONNAGE_1_5" -> "T_1_4";
+            case "TONNAGE_2_5" -> "T_2_5";
+            case "TONNAGE_3" -> "T_3_5";
+            case "TONNAGE_5" -> "T_5";
+            case "TONNAGE_10" -> "T_11";
+            case "TONNAGE_20" -> "T_25";
+            default -> "T_1";
+        };
     }
 
     @SuppressWarnings("unchecked")

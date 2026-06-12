@@ -12,9 +12,10 @@ import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTonnage;
+import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleBodyType;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
-import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
 import com.samhanair.logis.slip.dto.dispatch.ArologisDispatchRequest;
 import com.samhanair.logis.slip.dto.dispatch.ArologisDispatchResponse;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,7 +57,8 @@ class DispatchTaskCompletionServiceTest {
         DispatchTask task = DispatchTask.create("2026/05/14-1", LocalDate.now());
         setIdViaReflection(task, taskId);
 
-        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_1_4);
         setIdViaReflection(group, groupId);
 
         DispatchVehicleGroupSlip mapping = DispatchVehicleGroupSlip.create(groupId, slipId, 1);
@@ -78,7 +81,11 @@ class DispatchTaskCompletionServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(DispatchTaskStatus.DISPATCHING);
         verify(slip).markDispatchPending();
-        verify(arologisClient).send(any(ArologisDispatchRequest.class));
+        ArgumentCaptor<ArologisDispatchRequest> captor =
+                ArgumentCaptor.forClass(ArologisDispatchRequest.class);
+        verify(arologisClient).send(captor.capture());
+        assertThat(captor.getValue().vehicles().get(0).vehicleType())
+                .isEqualTo("TONNAGE_1_5");
     }
 
     @Test

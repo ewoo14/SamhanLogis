@@ -3,6 +3,8 @@ package com.samhanair.logis.slip.service.dispatch;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTonnage;
+import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleBodyType;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
@@ -56,6 +58,22 @@ public class DispatchTaskService {
     }
 
     /** 차량 그룹 추가 — sequence 는 자동 증가 (현재 그룹 개수 + 1). */
+    public DispatchVehicleGroup addVehicleGroup(
+            UUID dispatchTaskId,
+            DispatchVehicleBodyType vehicleBodyType,
+            DispatchTonnage tonnage
+    ) {
+        findTaskOrThrow(dispatchTaskId);
+        int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;
+        DispatchVehicleGroup g = DispatchVehicleGroup.create(dispatchTaskId, nextSeq, vehicleBodyType, tonnage);
+        return groupRepo.save(g);
+    }
+
+    /**
+     * legacy enum 기반 차량 그룹 추가.
+     *
+     * <p>기존 테스트/fixture 코드 호환용이다. 사용자-facing 신규 API 는 차종/톤수 2축을 받는다.
+     */
     public DispatchVehicleGroup addVehicleGroup(UUID dispatchTaskId, DispatchVehicleType vehicleType) {
         findTaskOrThrow(dispatchTaskId);
         int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;

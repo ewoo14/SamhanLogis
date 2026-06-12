@@ -7634,6 +7634,11 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
       {
         id: '33333333-aaaa-4aaa-8aaa-000000000001',
         vehicleType: 'TONNAGE_1',
+        vehicleTypeDisplay: '1톤',
+        vehicleBodyType: 'CARGO',
+        vehicleBodyTypeDisplay: '카고',
+        tonnage: 'T_1',
+        tonnageDisplay: '1톤',
         sequence: 1,
         slips: [
           {
@@ -7691,6 +7696,11 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
       {
         id: '33333333-bbbb-4bbb-8bbb-000000000002',
         vehicleType: 'DAMAS',
+        vehicleTypeDisplay: '다마스',
+        vehicleBodyType: 'DAMAS',
+        vehicleBodyTypeDisplay: '다마스',
+        tonnage: null,
+        tonnageDisplay: null,
         sequence: 1,
         slips: [
           {

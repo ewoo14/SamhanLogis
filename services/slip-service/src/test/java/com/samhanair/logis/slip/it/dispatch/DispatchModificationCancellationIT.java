@@ -228,7 +228,9 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "MASTER")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("vehicleType", "TONNAGE_1"))));
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "vehicleBodyType", "CARGO",
+                                "tonnage", "T_1"))));
 
         // dispatch (DRAFT → DISPATCHING)
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)

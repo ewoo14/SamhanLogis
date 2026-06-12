@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTonnage;
+import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleBodyType;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
@@ -68,12 +70,14 @@ class DispatchTaskServiceTest {
                 Optional.of(DispatchTask.create("2026/05/14-9", LocalDate.now())));
         when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(any()))
                 .thenReturn(List.of(
-                        DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1),
-                        DispatchVehicleGroup.create(taskId, 2, DispatchVehicleType.DAMAS)));
+                        DispatchVehicleGroup.create(taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1),
+                        DispatchVehicleGroup.create(taskId, 2, DispatchVehicleBodyType.DAMAS, null)));
         when(groupRepo.save(any(DispatchVehicleGroup.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        DispatchVehicleGroup added = svc.addVehicleGroup(taskId, DispatchVehicleType.TONNAGE_5);
+        DispatchVehicleGroup added = svc.addVehicleGroup(taskId, DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_5);
         assertThat(added.getSequence()).isEqualTo(3);
+        assertThat(added.getVehicleBodyType()).isEqualTo(DispatchVehicleBodyType.WINGBODY);
+        assertThat(added.getTonnage()).isEqualTo(DispatchTonnage.T_5);
         assertThat(added.getVehicleType()).isEqualTo(DispatchVehicleType.TONNAGE_5);
     }
 
@@ -82,7 +86,7 @@ class DispatchTaskServiceTest {
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();
-        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
         when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(any()))
                 .thenReturn(List.of(DispatchVehicleGroupSlip.create(groupId, UUID.randomUUID(), 1)));
@@ -101,7 +105,7 @@ class DispatchTaskServiceTest {
         UUID taskId = UUID.randomUUID();
         UUID otherTaskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
-        DispatchVehicleGroup group = DispatchVehicleGroup.create(otherTaskId, 1, DispatchVehicleType.TONNAGE_1);
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(otherTaskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
 
         assertThatThrownBy(() -> svc.assignSlip(taskId, groupId, UUID.randomUUID()))

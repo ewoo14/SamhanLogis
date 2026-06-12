@@ -25,7 +25,7 @@ import {
   type ListDispatchTasksParams,
   type DispatchTaskResponse,
   type DispatchTaskSummaryResponse,
-  type DispatchVehicleType,
+  type AddVehicleGroupPayload,
   type SetMatchedDriverPayload,
 } from '../../../api/dispatchTask'
 import { DISPATCH_BOARD_QUERY_KEY } from './useUnDispatchedSlipsQuery'
@@ -72,8 +72,8 @@ export function useCreateDispatchTaskMutation() {
 export function useAddVehicleGroupMutation(taskId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (vehicleType: DispatchVehicleType) =>
-      addVehicleGroup(taskId as string, vehicleType),
+    mutationFn: (payload: AddVehicleGroupPayload) =>
+      addVehicleGroup(taskId as string, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
     },

@@ -17,9 +17,9 @@
  * - 응답에 포함된 UUID 는 React state / API path 에만 사용. 사용자 노출은 taskCode / slipNumber /
  *   partnerCode / partnerName / driverCode / driverPhoneNumber / vehiclePlateNumber 한정.
  *
- * 차량 종류 (9 active enum, spec § 4.3):
- *   MOTORCYCLE / DAMAS / TONNAGE_1 / TONNAGE_1_5 / TONNAGE_2_5 / TONNAGE_3 / TONNAGE_5 / TONNAGE_10 / TONNAGE_20.
- *   legacy 2 (TONNAGE_1_4 / TONNAGE_BIG) 는 backward compat 만 — UI 에는 노출 X.
+ * 차량 종류:
+ *   FE 신규 계약은 vehicleBodyType(차종 12) + tonnage(톤수 10) 2축.
+ *   legacy vehicleType(9 enum) 은 arologis wire 호환 파생값으로 응답에만 남긴다.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
 
@@ -69,6 +69,137 @@ export const DISPATCH_VEHICLE_TYPE_OPTIONS: DispatchVehicleType[] = [
   'TONNAGE_10',
   'TONNAGE_20',
 ]
+
+/**
+ * 배차 차량 차종 12종.
+ */
+export type DispatchVehicleBodyType =
+  | 'MOTORCYCLE'
+  | 'SEDAN'
+  | 'DAMAS'
+  | 'LABO'
+  | 'CARGO'
+  | 'WINGBODY'
+  | 'TOPCAR'
+  | 'LIFT'
+  | 'REEFER'
+  | 'VIBRATION_FREE'
+  | 'AXLE'
+  | 'TRAILER'
+
+/**
+ * 배차 차량 톤수 10종. 소형 차종은 null 로 전송한다.
+ */
+export type DispatchTonnage =
+  | 'T_1'
+  | 'T_1_2'
+  | 'T_1_4'
+  | 'T_2_5'
+  | 'T_3_5'
+  | 'T_5'
+  | 'T_11'
+  | 'T_14'
+  | 'T_18'
+  | 'T_25'
+
+export const DISPATCH_VEHICLE_BODY_TYPE_LABEL: Record<DispatchVehicleBodyType, string> = {
+  MOTORCYCLE: '오토바이',
+  SEDAN: '승용차',
+  DAMAS: '다마스',
+  LABO: '라보',
+  CARGO: '카고',
+  WINGBODY: '윙바디',
+  TOPCAR: '탑차',
+  LIFT: '리프트',
+  REEFER: '냉장냉동탑',
+  VIBRATION_FREE: '무진동',
+  AXLE: '축차',
+  TRAILER: '추레라',
+}
+
+export const DISPATCH_TONNAGE_LABEL: Record<DispatchTonnage, string> = {
+  T_1: '1톤',
+  T_1_2: '1.2톤',
+  T_1_4: '1.4톤',
+  T_2_5: '2.5톤',
+  T_3_5: '3.5톤',
+  T_5: '5톤',
+  T_11: '11톤',
+  T_14: '14톤',
+  T_18: '18톤',
+  T_25: '25톤',
+}
+
+export const VEHICLE_BODY_TYPE_OPTIONS: DispatchVehicleBodyType[] = [
+  'MOTORCYCLE',
+  'SEDAN',
+  'DAMAS',
+  'LABO',
+  'CARGO',
+  'WINGBODY',
+  'TOPCAR',
+  'LIFT',
+  'REEFER',
+  'VIBRATION_FREE',
+  'AXLE',
+  'TRAILER',
+]
+
+export const TONNAGE_OPTIONS: DispatchTonnage[] = [
+  'T_1',
+  'T_1_2',
+  'T_1_4',
+  'T_2_5',
+  'T_3_5',
+  'T_5',
+  'T_11',
+  'T_14',
+  'T_18',
+  'T_25',
+]
+
+/**
+ * BE DispatchVehicleTypeMatrix 와 동일한 차종별 유효 톤수.
+ */
+export const DISPATCH_VEHICLE_TYPE_MATRIX: Record<
+  DispatchVehicleBodyType,
+  readonly DispatchTonnage[]
+> = {
+  MOTORCYCLE: [],
+  SEDAN: [],
+  DAMAS: [],
+  LABO: [],
+  CARGO: TONNAGE_OPTIONS,
+  WINGBODY: TONNAGE_OPTIONS,
+  TOPCAR: TONNAGE_OPTIONS,
+  LIFT: TONNAGE_OPTIONS,
+  REEFER: TONNAGE_OPTIONS,
+  VIBRATION_FREE: TONNAGE_OPTIONS,
+  AXLE: TONNAGE_OPTIONS,
+  TRAILER: TONNAGE_OPTIONS,
+}
+
+export interface AddVehicleGroupPayload {
+  vehicleBodyType: DispatchVehicleBodyType
+  tonnage: DispatchTonnage | null
+}
+
+export function formatDispatchVehicleGroupLabel(
+  group: Pick<
+    DispatchVehicleGroupResponse,
+    'vehicleType' | 'vehicleBodyType' | 'vehicleBodyTypeDisplay' | 'tonnage' | 'tonnageDisplay'
+  >,
+): string {
+  if (group.vehicleBodyType) {
+    const bodyLabel =
+      group.vehicleBodyTypeDisplay ?? DISPATCH_VEHICLE_BODY_TYPE_LABEL[group.vehicleBodyType]
+    const tonnageLabel =
+      group.tonnageDisplay ??
+      (group.tonnage ? DISPATCH_TONNAGE_LABEL[group.tonnage] : null)
+    return tonnageLabel ? `${bodyLabel} ${tonnageLabel}` : bodyLabel
+  }
+  return DISPATCH_VEHICLE_TYPE_LABEL[group.vehicleType]
+}
 
 /**
  * DispatchTask 11 상태 — Phase A 4 + Phase C 7 (6 신규 + CANCELLED 최종).
@@ -173,13 +304,20 @@ export interface SetMatchedDriverPayload {
  *
  * @property id 그룹 UUID — drop target ID + API path 에만 사용 (UUID 비공개).
  * @property sequence 그룹 추가 순서 (1 base, 헤더 `#{sequence}` 노출).
- * @property vehicleType 9 enum 값 (헤더 한국어 라벨 변환).
+ * @property vehicleType legacy 9 enum 값 (arologis wire 호환 파생값).
+ * @property vehicleBodyType 신 차종 12 enum 값.
+ * @property tonnage 신 톤수 10 enum 값. 소형 차종은 null.
  * @property slips 그룹 안 slip rows (sequence 순서 보장).
  */
 export interface DispatchVehicleGroupResponse {
   id: string
   sequence: number
   vehicleType: DispatchVehicleType
+  vehicleTypeDisplay?: string
+  vehicleBodyType: DispatchVehicleBodyType
+  vehicleBodyTypeDisplay: string
+  tonnage: DispatchTonnage | null
+  tonnageDisplay: string | null
   slips: DispatchVehicleGroupSlipResponse[]
 }
 
@@ -299,15 +437,15 @@ export async function getDispatchTasks(
  * 차량 그룹 추가 — `POST /admin/dispatch-tasks/{taskId}/vehicle-groups`.
  *
  * @param taskId 부모 DispatchTask UUID.
- * @param vehicleType 9 active enum 값.
+ * @param payload 차종/톤수 2축 payload.
  */
 export async function addVehicleGroup(
   taskId: string,
-  vehicleType: DispatchVehicleType,
+  payload: AddVehicleGroupPayload,
 ): Promise<DispatchVehicleGroupResponse> {
   const res = await apiClient.post<ApiEnvelope<DispatchVehicleGroupResponse>>(
     `/admin/dispatch-tasks/${taskId}/vehicle-groups`,
-    { vehicleType },
+    payload,
   )
   return res.data.data
 }

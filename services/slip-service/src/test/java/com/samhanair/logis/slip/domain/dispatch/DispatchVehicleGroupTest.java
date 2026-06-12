@@ -14,15 +14,44 @@ class DispatchVehicleGroupTest {
     @Test
     void create_group_ok() {
         UUID taskId = UUID.randomUUID();
-        DispatchVehicleGroup g = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        DispatchVehicleGroup g = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
         assertThat(g.getDispatchTaskId()).isEqualTo(taskId);
         assertThat(g.getSequence()).isEqualTo(1);
+        assertThat(g.getVehicleBodyType()).isEqualTo(DispatchVehicleBodyType.CARGO);
+        assertThat(g.getTonnage()).isEqualTo(DispatchTonnage.T_1);
         assertThat(g.getVehicleType()).isEqualTo(DispatchVehicleType.TONNAGE_1);
     }
 
     @Test
+    void create_group_derives_legacy_vehicle_type_lossy_for_arologis_wire() {
+        assertThat(DispatchVehicleGroup.create(UUID.randomUUID(), 1,
+                DispatchVehicleBodyType.SEDAN, null).getVehicleType())
+                .isEqualTo(DispatchVehicleType.DAMAS);
+        assertThat(DispatchVehicleGroup.create(UUID.randomUUID(), 1,
+                DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_1_4).getVehicleType())
+                .isEqualTo(DispatchVehicleType.TONNAGE_1_5);
+        assertThat(DispatchVehicleGroup.create(UUID.randomUUID(), 1,
+                DispatchVehicleBodyType.TRAILER, DispatchTonnage.T_25).getVehicleType())
+                .isEqualTo(DispatchVehicleType.TONNAGE_20);
+    }
+
+    @Test
+    void create_group_validates_matrix() {
+        assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
+                DispatchVehicleBodyType.CARGO, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tonnage 필수");
+
+        assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
+                DispatchVehicleBodyType.MOTORCYCLE, DispatchTonnage.T_1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tonnage 불필요");
+    }
+
+    @Test
     void create_group_zero_sequence_throws() {
-        assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 0, DispatchVehicleType.TONNAGE_1))
+        assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 0,
+                DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

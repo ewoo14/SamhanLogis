@@ -24,7 +24,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
-  DISPATCH_VEHICLE_TYPE_LABEL,
+  formatDispatchVehicleGroupLabel,
   type DispatchVehicleGroupResponse,
   type DispatchVehicleGroupSlipResponse,
   type MatchedDriverResponse,
@@ -59,12 +59,13 @@ export function VehicleGroupCard({
   const removeSlipMutation = useRemoveSlipFromGroupMutation(taskId)
 
   const slipIdsSorted = group.slips.map((s) => s.slipId)
+  const vehicleLabel = formatDispatchVehicleGroupLabel(group)
 
   return (
     <article
       ref={setNodeRef}
       data-testid={`dispatch-board-vehicle-group-${group.sequence}`}
-      aria-label={`차량 그룹 ${DISPATCH_VEHICLE_TYPE_LABEL[group.vehicleType]} #${group.sequence}`}
+      aria-label={`차량 그룹 ${vehicleLabel} #${group.sequence}`}
       style={{
         border: isOver
           ? '2px solid var(--color-action-brand, #1E40AF)'
@@ -87,7 +88,7 @@ export function VehicleGroupCard({
         }}
       >
         <span style={{ fontWeight: 600, fontSize: 13 }}>
-          {DISPATCH_VEHICLE_TYPE_LABEL[group.vehicleType]} #{group.sequence}
+          {vehicleLabel} #{group.sequence}
         </span>
         <span
           style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}
@@ -114,7 +115,7 @@ export function VehicleGroupCard({
             disabled={!canEdit || group.slips.length > 0 || deleteMutation.isPending}
             onClick={() => deleteMutation.mutate(group.id)}
             data-testid={`dispatch-board-vehicle-group-${group.sequence}-delete`}
-            aria-label={`${DISPATCH_VEHICLE_TYPE_LABEL[group.vehicleType]} #${group.sequence} 그룹 삭제`}
+            aria-label={`${vehicleLabel} #${group.sequence} 그룹 삭제`}
             title={
               group.slips.length > 0
                 ? '전표가 남아있으면 삭제할 수 없습니다'
