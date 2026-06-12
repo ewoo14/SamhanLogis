@@ -19,6 +19,7 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
+import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
 import com.samhanair.logis.slip.dto.dispatch.ArologisDispatchResponse;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskConfirmRequest;
 import com.samhanair.logis.slip.dto.dispatch.DispatchTaskUnavailableRequest;
@@ -112,7 +113,7 @@ class DispatchEndToEndIT extends AbstractPostgresIT {
                 arologisId,
                 List.of(new DispatchTaskConfirmRequest.MatchedDriverPayload(
                         1, "TONNAGE_1", "D-001", "홍길동",
-                        "010-1234-5678", "EXTERNAL_INSUNG_QUICK", null)),
+                        "010-1234-5678", MatchedDriverSource.AROLOGIS, null)),
                 Instant.now());
         confirmService.confirm(t.getId(), req);
 

@@ -70,6 +70,16 @@ class DispatchVehicleGroupTest {
     }
 
     @Test
+    void resetToPending_rejects_non_dispatched_group() {
+        DispatchVehicleGroup g = DispatchVehicleGroup.create(
+                UUID.randomUUID(), 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+
+        assertThatThrownBy(g::resetToPending)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DISPATCHED 만 PENDING");
+    }
+
+    @Test
     void create_slip_mapping_ok() {
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();

@@ -105,6 +105,23 @@ public class DispatchTask extends BaseEntity {
         this.arologisDispatchId = arologisDispatchId;
     }
 
+    /**
+     * arologis 발송 ack 로 받은 Dispatch UUID 를 confirm 전 임시 기록한다.
+     *
+     * <p>부분 발송/재배차 루프에서 confirm 이 도착하기 전 수정·취소 요청이 다시 발생해도 arologis
+     * cancel 대상이 유실되지 않도록 한다. 상태 전이는 수행하지 않는다.
+     */
+    public void recordPendingArologisDispatchId(UUID arologisDispatchId) {
+        if (arologisDispatchId == null) {
+            return;
+        }
+        if (this.status != DispatchTaskStatus.DRAFT && this.status != DispatchTaskStatus.DISPATCHING) {
+            throw new IllegalStateException(
+                    "발송 대기/진행 중인 작업만 arologisDispatchId 기록 가능 — 현재=" + this.status);
+        }
+        this.arologisDispatchId = arologisDispatchId;
+    }
+
     /** DISPATCHING → FAILED (arologis unavailable 회신). */
     public void markFailed(String reason) {
         if (this.status != DispatchTaskStatus.DISPATCHING) {

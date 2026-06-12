@@ -42,7 +42,7 @@ public class DispatchTaskRedispatchService {
 
     /** 수정수락된 배차 작업을 편집 가능한 DRAFT 재배차 상태로 되돌린다. */
     public DispatchTask startRedispatch(UUID taskId) {
-        DispatchTask task = taskRepo.findById(taskId)
+        DispatchTask task = taskRepo.findByIdAndIsDeletedFalse(taskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + taskId));
         UUID previousArologisDispatchId = task.getArologisDispatchId();
@@ -53,15 +53,6 @@ public class DispatchTaskRedispatchService {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
         taskRepo.save(task);
-
-        if (previousArologisDispatchId != null) {
-            try {
-                arologisDispatchClient.cancelDispatch(previousArologisDispatchId);
-            } catch (Exception ex) {
-                log.warn("[DispatchTaskRedispatchService] arologis 기존 dispatch cancel 실패 (graceful) — taskCode={} arologisDispatchId={} msg={}",
-                        task.getTaskCode(), previousArologisDispatchId, ex.getMessage());
-            }
-        }
 
         List<DispatchVehicleGroup> groups =
                 groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(task.getId());
@@ -77,6 +68,15 @@ public class DispatchTaskRedispatchService {
                         matchedRepo.save(driver);
                     });
             resetMappedSlips(group);
+        }
+
+        if (previousArologisDispatchId != null) {
+            try {
+                arologisDispatchClient.cancelDispatch(previousArologisDispatchId);
+            } catch (Exception ex) {
+                log.warn("[DispatchTaskRedispatchService] arologis 기존 dispatch cancel 실패 (graceful) — taskCode={} arologisDispatchId={} msg={}",
+                        task.getTaskCode(), previousArologisDispatchId, ex.getMessage());
+            }
         }
 
         log.info("[DispatchTaskRedispatchService] 재배차 시작 — taskCode={} previousArologisDispatchId={}",

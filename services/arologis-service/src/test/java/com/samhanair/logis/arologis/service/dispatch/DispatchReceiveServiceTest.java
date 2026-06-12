@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -185,6 +186,39 @@ class DispatchReceiveServiceTest {
         svc.receive(req);
 
         verify(slipClient).unavailable(eq(samhanTaskId), any());
+    }
+
+    @Test
+    void receive_recreate_soft_deletes_existing_active_dispatch_by_samhan_task_id() throws Exception {
+        UUID oldDispatchId = UUID.randomUUID();
+        UUID newDispatchId = UUID.randomUUID();
+        UUID oldVehicleId = UUID.randomUUID();
+        UUID newVehicleId = UUID.randomUUID();
+        UUID samhanTaskId = UUID.randomUUID();
+
+        Dispatch oldDispatch = mockDispatch(oldDispatchId);
+        Dispatch newDispatch = mockDispatch(newDispatchId);
+        Vehicle newVehicle = mockVehicle(newVehicleId, newDispatchId);
+
+        when(dispatchRepo.findBySamhanDispatchTaskIdAndIsDeletedFalse(samhanTaskId))
+                .thenReturn(Optional.of(oldDispatch));
+        when(dispatchRepo.save(any())).thenReturn(oldDispatch, newDispatch);
+        when(vehicleRepo.save(any())).thenReturn(newVehicle);
+        when(vehicleRepo.findById(newVehicleId)).thenReturn(Optional.of(newVehicle));
+        when(stopRepo.findAllByVehicleIdOrderBySequenceAsc(newVehicleId)).thenReturn(List.of());
+        when(driverMatcher.match(any(), any()))
+                .thenReturn(DriverMatchResult.empty(MatchSource.INTERNAL_APP));
+
+        ArologisDispatchRequest req = new ArologisDispatchRequest(
+                samhanTaskId, "2026/05/14-RETRY", LocalDate.of(2026, 5, 14),
+                List.of(new ArologisDispatchRequest.VehicleGroup(1, "TONNAGE_1", List.of())));
+
+        ArologisDispatchResponse res = svc.receive(req);
+
+        assertThat(res.arologisDispatchId()).isEqualTo(newDispatchId);
+        assertThat(oldDispatch.getIsDeleted()).isTrue();
+        verify(dispatchRepo).save(oldDispatch);
+        verify(dispatchRepo, Mockito.times(2)).save(any());
     }
 
     @Test

@@ -111,7 +111,7 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
                         "driverCode", "D-001",
                         "driverName", "홍길동",
                         "driverPhoneNumber", "010-1234-5678",
-                        "source", "EXTERNAL_INSUNG_QUICK"
+                        "source", "AROLOGIS"
                 )),
                 "confirmedAt", Instant.now().toString()
         );
@@ -157,7 +157,7 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
         matchedDriver.put("driverCode", "INSUNG-DRV-NO-PHONE");
         matchedDriver.put("driverName", "No Phone Driver");
         matchedDriver.put("driverPhoneNumber", null);
-        matchedDriver.put("source", "EXTERNAL_INSUNG_QUICK");
+        matchedDriver.put("source", "AROLOGIS");
         Map<String, Object> confirmBody = new LinkedHashMap<>();
         confirmBody.put("arologisDispatchId", arologisId.toString());
         confirmBody.put("matchedDrivers", List.of(matchedDriver));

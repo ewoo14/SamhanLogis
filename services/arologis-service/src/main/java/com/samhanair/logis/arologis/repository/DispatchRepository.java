@@ -4,6 +4,7 @@ import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -18,6 +19,8 @@ public interface DispatchRepository extends JpaRepository<Dispatch, UUID> {
 
     List<Dispatch> findAllByDispatchDateAndDispatchTypeOrderByCreatedAtDesc(
             LocalDate dispatchDate, DispatchType dispatchType);
+
+    Optional<Dispatch> findBySamhanDispatchTaskIdAndIsDeletedFalse(UUID samhanDispatchTaskId);
 
     /**
      * 기간 내 모든 dispatch 조회 — Phase 10 PR-F1 BE-2 (운송사 실배차 비교).

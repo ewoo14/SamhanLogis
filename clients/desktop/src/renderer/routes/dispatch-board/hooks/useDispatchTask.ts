@@ -149,6 +149,9 @@ export function useMarkManualDispatchCompleteMutation(taskId: string | null) {
         qc.setQueryData(dispatchTaskQueryKey(updated.arologisDispatchId), updated)
       }
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
+      if (updated.arologisDispatchId) {
+        void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.arologisDispatchId) })
+      }
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
       void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
@@ -229,7 +232,12 @@ export function useDispatchToArologisMutation(taskId: string | null) {
 export function useStartRedispatchMutation(taskId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => startRedispatch(taskId as string),
+    mutationFn: () => {
+      if (!taskId) {
+        return Promise.reject(new Error('배차 작업을 먼저 선택하세요.'))
+      }
+      return startRedispatch(taskId)
+    },
     onSuccess: (updated) => {
       qc.setQueryData(dispatchTaskQueryKey(updated.id), updated)
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })

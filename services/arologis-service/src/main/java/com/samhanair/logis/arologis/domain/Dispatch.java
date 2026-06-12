@@ -47,7 +47,11 @@ public class Dispatch extends BaseEntity {
     @Column(name = "raw_kakao_text", columnDefinition = "TEXT")
     private String rawKakaoText;
 
-    private Dispatch(LocalDate dispatchDate, DispatchType dispatchType, String rawKakaoText) {
+    @Column(name = "samhan_dispatch_task_id")
+    private UUID samhanDispatchTaskId;
+
+    private Dispatch(LocalDate dispatchDate, DispatchType dispatchType, String rawKakaoText,
+                     UUID samhanDispatchTaskId) {
         if (dispatchDate == null) {
             throw new IllegalArgumentException("dispatchDate 필수");
         }
@@ -57,6 +61,7 @@ public class Dispatch extends BaseEntity {
         this.dispatchDate = dispatchDate;
         this.dispatchType = dispatchType;
         this.rawKakaoText = rawKakaoText;
+        this.samhanDispatchTaskId = samhanDispatchTaskId;
     }
 
     /**
@@ -67,6 +72,22 @@ public class Dispatch extends BaseEntity {
      * @param rawKakaoText 카톡 원본 메시지 (audit 용)
      */
     public static Dispatch of(LocalDate dispatchDate, DispatchType dispatchType, String rawKakaoText) {
-        return new Dispatch(dispatchDate, dispatchType, rawKakaoText);
+        return new Dispatch(dispatchDate, dispatchType, rawKakaoText, null);
+    }
+
+    /**
+     * Samhan Public DispatchTask 와 연결된 신규 Dispatch 생성.
+     *
+     * @param dispatchDate 배차 도착 일자
+     * @param dispatchType 배차 유형
+     * @param rawKakaoText 수신 원문 또는 생성 메타
+     * @param samhanDispatchTaskId Samhan Public dispatch_task UUID (재수신 멱등성 키)
+     */
+    public static Dispatch receivedFromSamhan(LocalDate dispatchDate, DispatchType dispatchType,
+                                              String rawKakaoText, UUID samhanDispatchTaskId) {
+        if (samhanDispatchTaskId == null) {
+            throw new IllegalArgumentException("samhanDispatchTaskId 필수");
+        }
+        return new Dispatch(dispatchDate, dispatchType, rawKakaoText, samhanDispatchTaskId);
     }
 }

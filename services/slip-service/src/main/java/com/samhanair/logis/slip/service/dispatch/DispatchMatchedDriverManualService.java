@@ -47,7 +47,7 @@ public class DispatchMatchedDriverManualService {
     public DispatchTaskDetailResponse setMatchedDriver(UUID taskId, UUID groupId, SetMatchedDriverRequest req) {
         DispatchTask task = findTask(taskId);
         DispatchVehicleGroup group = findGroup(taskId, groupId);
-        requireManualEditable(task, group);
+        requireMatchedDriverRecordable(task);
         MatchedDriverSource driverSource = req.driverSource();
 
         MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)
@@ -86,7 +86,7 @@ public class DispatchMatchedDriverManualService {
     public DispatchTaskDetailResponse markManualDispatchComplete(UUID taskId, UUID groupId) {
         DispatchTask task = findTask(taskId);
         DispatchVehicleGroup group = findGroup(taskId, groupId);
-        requireManualEditable(task, group);
+        requireManualDispatchCompletable(task, group);
         MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT,
                         "수동 발송완료 전 기사/차량 정보를 먼저 입력해야 합니다."));
@@ -106,7 +106,35 @@ public class DispatchMatchedDriverManualService {
             slip.markDispatchConfirmed();
             slipRepo.save(slip);
         }
+        closeTaskIfAllGroupsCompleted(task);
         return historyQueryService.detail(taskId);
+    }
+
+    /**
+     * 모든 그룹이 수동/자동 발송완료이면 task 를 final DISPATCHED 로 닫는다.
+     *
+     * <p>아로로지스 발송 없이 수동으로만 닫힌 task 는 arologisDispatchId 가 없을 수 있으므로,
+     * 기존 도메인 전이 순서(DRAFT → DISPATCHING → DISPATCHED)를 유지하되 UUID 는 null 로 기록한다.
+     */
+    private void closeTaskIfAllGroupsCompleted(DispatchTask task) {
+        List<DispatchVehicleGroup> groups =
+                groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(task.getId());
+        boolean allGroupsCompleted = !groups.isEmpty()
+                && groups.stream().allMatch(group -> !group.isDispatchPending());
+        if (!allGroupsCompleted) {
+            return;
+        }
+        try {
+            if (task.getStatus() == DispatchTaskStatus.DRAFT) {
+                task.markDispatching();
+            }
+            if (task.getStatus() == DispatchTaskStatus.DISPATCHING) {
+                task.markDispatched(task.getArologisDispatchId());
+            }
+            taskRepo.save(task);
+        } catch (IllegalStateException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
+        }
     }
 
     private static String normalize(String value) {
@@ -130,7 +158,17 @@ public class DispatchMatchedDriverManualService {
         return group;
     }
 
-    private static void requireManualEditable(DispatchTask task, DispatchVehicleGroup group) {
+    private static void requireMatchedDriverRecordable(DispatchTask task) {
+        boolean recordableTask = task.getStatus() == DispatchTaskStatus.DRAFT
+                || task.getStatus() == DispatchTaskStatus.DISPATCHING
+                || task.getStatus() == DispatchTaskStatus.DISPATCHED;
+        if (!recordableTask) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "기사/차량 기록은 작성/발송/완료 상태의 배차 작업에서만 가능합니다 — 현재=" + task.getStatus());
+        }
+    }
+
+    private static void requireManualDispatchCompletable(DispatchTask task, DispatchVehicleGroup group) {
         boolean editableTask = task.getStatus() == DispatchTaskStatus.DRAFT
                 || task.getStatus() == DispatchTaskStatus.DISPATCHING;
         if (!editableTask) {

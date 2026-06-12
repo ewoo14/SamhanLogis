@@ -102,6 +102,14 @@ public class DispatchTaskCompletionService {
         ArologisDispatchResponse response = arologisClient.send(request);
         log.info("[DispatchTaskCompletionService] arologis 발송 완료 — taskCode={} arologisDispatchId={}",
                 task.getTaskCode(), response != null ? response.arologisDispatchId() : null);
+        if (response != null) {
+            try {
+                task.recordPendingArologisDispatchId(response.arologisDispatchId());
+                taskRepo.save(task);
+            } catch (IllegalStateException ex) {
+                throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
+            }
+        }
 
         // 대상 그룹 + 매핑된 slip 만 발송 상태로 전이한다.
         for (DispatchVehicleGroup group : targetGroups) {

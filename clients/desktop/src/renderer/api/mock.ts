@@ -42,6 +42,19 @@ declare global {
   }
 }
 
+function toManualMatchedDriverSource(value: string): MatchedDriverSource | null {
+  switch (value) {
+    case 'GYEONGGI_QUICK':
+      return 'GYEONGGI_QUICK'
+    case 'JEONGUK_HWAMUL':
+      return 'JEONGUK_HWAMUL'
+    case 'OTHER':
+      return 'OTHER'
+    default:
+      return null
+  }
+}
+
 /** ApiResponse envelope 형태 — `shared/common/dto/ApiResponse.java` 와 동일. */
 function envelope<T>(data: T) {
   return {
@@ -4962,22 +4975,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!task || !group) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
-    if (task.status !== 'DRAFT' && task.status !== 'DISPATCHING') {
-      return mockError(409, 'CONFLICT', `수동기입은 작성 중이거나 일부 발송 중인 배차 작업에서만 가능합니다 — 현재=${task.status}`)
-    }
-    if (group.dispatchStatus !== 'PENDING') {
-      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹에는 수동기입할 수 없습니다.')
+    if (task.status !== 'DRAFT' && task.status !== 'DISPATCHING' && task.status !== 'DISPATCHED') {
+      return mockError(409, 'CONFLICT', `기사/차량 기록은 작성/발송/완료 상태의 배차 작업에서만 가능합니다 — 현재=${task.status}`)
     }
     const body = parseMockBody(config) as Partial<SetMatchedDriverPayload>
     const driverName = String(body.driverName ?? '').trim()
     const driverPhoneNumber = String(body.driverPhoneNumber ?? '').trim()
     const vehiclePlateNumber = String(body.vehiclePlateNumber ?? '').trim()
-    const driverSource = String(body.driverSource ?? '').trim() as MatchedDriverSource
+    const driverSource = toManualMatchedDriverSource(String(body.driverSource ?? '').trim())
     if (!driverName || !vehiclePlateNumber || !driverSource) {
       return mockError(400, 'INVALID_INPUT', '기사/차량 입력값은 필수입니다.')
-    }
-    if (!['GYEONGGI_QUICK', 'JEONGUK_HWAMUL', 'OTHER'].includes(driverSource)) {
-      return mockError(400, 'INVALID_INPUT', '지원하지 않는 수동기입 vendor 입니다.')
     }
     const nextMatched = {
       vehicleGroupSequence: group.sequence,
@@ -5033,6 +5040,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     group.slips.forEach((row) => {
       row.slip.dispatchStatus = 'DISPATCHED'
     })
+    if (task.vehicleGroups.every((item) => item.dispatchStatus === 'DISPATCHED')) {
+      task.status = 'DISPATCHED'
+    }
     refreshMockDuplicateSlipIds(task)
     return envelope(task)
   }

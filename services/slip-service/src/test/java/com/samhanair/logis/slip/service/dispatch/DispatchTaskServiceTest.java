@@ -97,6 +97,7 @@ class DispatchTaskServiceTest {
         Slip slip = org.mockito.Mockito.mock(Slip.class);
         when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
         when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
         when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId)).thenReturn(List.of());
         when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(any()))
@@ -120,6 +121,7 @@ class DispatchTaskServiceTest {
         DispatchVehicleGroup group = DispatchVehicleGroup.create(
                 taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
         when(slipRepo.findById(slipId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> svc.assignSlip(taskId, groupId, slipId))
@@ -139,6 +141,7 @@ class DispatchTaskServiceTest {
         Slip slip = org.mockito.Mockito.mock(Slip.class);
         when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.DISPATCHING);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
         when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
 
         assertThatThrownBy(() -> svc.assignSlip(taskId, groupId, slipId))
@@ -162,6 +165,7 @@ class DispatchTaskServiceTest {
         Slip slip = org.mockito.Mockito.mock(Slip.class);
         when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
         when(groupRepo.findById(otherGroupId)).thenReturn(Optional.of(otherTaskGroup));
         when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
         when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId))
@@ -216,6 +220,7 @@ class DispatchTaskServiceTest {
         DispatchVehicleGroupSlip m2 = DispatchVehicleGroupSlip.create(groupId, slip2, 2);
         DispatchVehicleGroupSlip m3 = DispatchVehicleGroupSlip.create(groupId, slip3, 3);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
         when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId))
                 .thenReturn(List.of(m1, m2, m3));
 
@@ -250,6 +255,7 @@ class DispatchTaskServiceTest {
                 taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
         DispatchVehicleGroupSlip m = DispatchVehicleGroupSlip.create(groupId, slipId, 1);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
         when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId))
                 .thenReturn(List.of(m));
         when(slipMapRepo.save(any(DispatchVehicleGroupSlip.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -310,5 +316,9 @@ class DispatchTaskServiceTest {
                 .thenReturn(advisoryLockQuery);
         org.mockito.Mockito.lenient().when(advisoryLockQuery.setParameter(anyInt(), any())).thenReturn(advisoryLockQuery);
         org.mockito.Mockito.lenient().when(advisoryLockQuery.getSingleResult()).thenReturn(0L);
+    }
+
+    private static DispatchTask draftTask() {
+        return DispatchTask.create("2026/05/14-1", LocalDate.of(2026, 5, 14));
     }
 }

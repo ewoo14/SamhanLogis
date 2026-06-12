@@ -59,8 +59,10 @@ public class DispatchReceiveService {
         log.info("[DispatchReceiveService] receive — samhanTaskId={} taskCode={} groups={}",
                 req.samhanDispatchTaskId(), req.taskCode(), req.vehicles().size());
 
-        Dispatch dispatch = Dispatch.of(req.dispatchDate(), DispatchType.DAY,
-                "[Samhan Public] taskCode=" + req.taskCode());
+        softDeleteExistingActiveDispatch(req);
+
+        Dispatch dispatch = Dispatch.receivedFromSamhan(req.dispatchDate(), DispatchType.DAY,
+                "[Samhan Public] taskCode=" + req.taskCode(), req.samhanDispatchTaskId());
         Dispatch savedDispatch = dispatchRepo.save(dispatch);
 
         // 각 차량 그룹 + 정차 생성
@@ -99,6 +101,31 @@ public class DispatchReceiveService {
     }
 
     /**
+     * Samhan Public 재발송 수신 멱등성 처리.
+     *
+     * <p>우선 {@code samhanDispatchTaskId} 로 같은 작업의 활성 Dispatch 를 닫고, 구버전 데이터처럼
+     * 링크가 없는 경우에는 기존 partial unique 키인 {@code dispatchDate + dispatchType} 으로 닫는다.
+     * soft-delete 후 즉시 flush 해 같은 트랜잭션의 새 INSERT 가 {@code ux_dispatches_date_type_active}
+     * 와 충돌하지 않도록 한다.
+     */
+    private void softDeleteExistingActiveDispatch(ArologisDispatchRequest req) {
+        Dispatch existing = dispatchRepo.findBySamhanDispatchTaskIdAndIsDeletedFalse(req.samhanDispatchTaskId())
+                .or(() -> dispatchRepo.findAllByDispatchDateAndDispatchTypeOrderByCreatedAtDesc(
+                                req.dispatchDate(), DispatchType.DAY)
+                        .stream()
+                        .findFirst())
+                .orElse(null);
+        if (existing == null) {
+            return;
+        }
+        existing.markDeleted("samhan-redispatch-receive");
+        dispatchRepo.save(existing);
+        dispatchRepo.flush();
+        log.info("[DispatchReceiveService] 기존 active dispatch soft-delete — dispatchId={} samhanTaskId={}",
+                existing.getId(), req.samhanDispatchTaskId());
+    }
+
+    /**
      * 매칭 시도 + 회신. Phase A 는 Mock matcher 활용 → 항상 성공 가정.
      *
      * <p>매칭 실패가 있으면 unavailable 호출, 전체 성공이면 confirm 호출.
@@ -130,7 +157,7 @@ public class DispatchReceiveService {
                         vp.sequence(), vp.vehicleType(),
                         driver.getDriverCode(), driverName,
                         driver.getPhoneNumber(),
-                        src.name(),
+                        "AROLOGIS",
                         driver.getVehiclePlateNumber()));
             } else {
                 failedGroups.add(vp.sequence());

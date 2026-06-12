@@ -114,7 +114,7 @@ test.describe('AROLOGIS 배차현황 뷰 mock', () => {
     await page.getByTestId('matched-driver-driver-name').fill('이경기')
     await page.getByTestId('matched-driver-vehicle-plate-number').fill('12가9999')
     await page.getByTestId('matched-driver-driver-phone-number').fill('010-7777-8888')
-    await page.getByTestId('matched-driver-driver-source').fill('경기퀵')
+    await page.getByTestId('matched-driver-driver-source').selectOption('GYEONGGI_QUICK')
     await page.getByTestId('matched-driver-submit').click()
 
     await expect(detail).toContainText('기사 이경기 (경기퀵) 010-7777-8888')

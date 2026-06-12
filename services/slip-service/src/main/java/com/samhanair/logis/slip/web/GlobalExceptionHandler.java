@@ -6,6 +6,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -70,6 +71,16 @@ public class GlobalExceptionHandler {
                 + " (입력값: " + ex.getValue() + ")";
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
+    }
+
+    /**
+     * JSON 본문 역직렬화 실패 — enum 자유 문자열 등 요청 body 타입 오류를 400 으로 고정한다.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(
+            HttpMessageNotReadableException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 본문 형식이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

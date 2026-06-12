@@ -67,6 +67,34 @@ class DispatchMatchedDriverManualServiceTest {
     }
 
     @Test
+    void setMatchedDriver_allows_dispatched_task_history_record() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2099/06/12-4", LocalDate.of(2099, 6, 12));
+        task.markDispatching();
+        task.markDispatched(UUID.randomUUID());
+        setId(task, taskId);
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        group.markDispatched();
+        setId(group, groupId);
+
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
+        when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
+
+        DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
+        service.setMatchedDriver(taskId, groupId,
+                new SetMatchedDriverRequest("경기기사", "010-1111-2222", "12가3456",
+                        MatchedDriverSource.GYEONGGI_QUICK));
+
+        ArgumentCaptor<MatchedDriver> matchedCaptor = ArgumentCaptor.forClass(MatchedDriver.class);
+        verify(matchedRepo).saveAndFlush(matchedCaptor.capture());
+        assertThat(matchedCaptor.getValue().getDriverSource()).isEqualTo(MatchedDriverSource.GYEONGGI_QUICK);
+        assertThat(matchedCaptor.getValue().getDriverName()).isEqualTo("경기기사");
+    }
+
+    @Test
     void setMatchedDriver_ignores_soft_deleted_group() {
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();

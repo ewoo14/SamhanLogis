@@ -153,6 +153,13 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
     void manual_matched_driver_accepts_enum_vendor_and_manual_complete_marks_group_dispatched() throws Exception {
         UUID taskId = createTask("2099-06-14");
         UUID groupId = addGroup(taskId);
+        Slip slip = slipRepo.saveAndFlush(newSlip(4));
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/slips", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("slipId", slip.getId().toString()))))
+                .andExpect(status().isCreated());
 
         mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, groupId)
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
@@ -171,11 +178,15 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
                         .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISPATCHED"))
                 .andExpect(jsonPath("$.data.vehicleGroups[0].dispatchStatus").value("DISPATCHED"));
+
+        assertThat(taskRepo.findById(taskId).orElseThrow().getStatus())
+                .isEqualTo(DispatchTaskStatus.DISPATCHED);
     }
 
     @Test
-    void manual_matched_driver_rejects_free_text_vendor_and_dispatched_group_update() throws Exception {
+    void manual_matched_driver_rejects_free_text_vendor_and_allows_dispatched_history_update() throws Exception {
         SeededDispatch seeded = dispatchedTaskWithSlip(2);
 
         mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver",
@@ -200,7 +211,40 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
                                 "driverPhoneNumber", "010-1111-2222",
                                 "vehiclePlateNumber", "12가3456",
                                 "driverSource", "GYEONGGI_QUICK"))))
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISPATCHED"))
+                .andExpect(jsonPath("$.data.vehicleGroups[0].dispatchStatus").value("DISPATCHED"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverCode").value("MANUAL"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverName").value("경기기사"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverPhoneNumber").value("010-1111-2222"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].vehiclePlateNumber").value("12가3456"))
+                .andExpect(jsonPath("$.data.matchedDrivers[0].driverSource").value("GYEONGGI_QUICK"));
+    }
+
+    @Test
+    void start_redispatch_denies_sales_without_edit_permission() throws Exception {
+        SeededDispatch seeded = dispatchedTaskWithSlip(5);
+        Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/start-redispatch", seeded.taskId())
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void manual_dispatch_complete_denies_sales_without_edit_permission() throws Exception {
+        UUID taskId = createTask("2099-06-15");
+        UUID groupId = addGroup(taskId);
+        Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/manual-dispatch-complete",
+                        taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isForbidden());
     }
 
     private SeededDispatch dispatchedTaskWithSlip(int seq) throws Exception {

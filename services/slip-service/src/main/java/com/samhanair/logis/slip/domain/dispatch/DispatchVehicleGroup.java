@@ -116,14 +116,12 @@ public class DispatchVehicleGroup extends BaseEntity {
         this.dispatchStatus = DispatchVehicleGroupDispatchStatus.DISPATCHED;
     }
 
-    /**
-     * 재배차 편집 진입을 위해 그룹 발송상태를 미발송으로 되돌린다.
-     *
-     * <p>이미 {@code PENDING} 인 그룹은 그대로 둔다. 수정제안 수락 후 재배차 루프에서는
-     * 기존 arologis Dispatch 를 삭제하고 같은 그룹/정차 구성을 다시 편집해야 하므로,
-     * 본 도메인 메서드만 통해 {@code DISPATCHED -> PENDING} 전이를 수행한다.
-     */
+    /** 재배차 편집 진입을 위해 발송 완료 그룹을 미발송 상태로 되돌린다. */
     public void resetToPending() {
+        if (this.dispatchStatus != DispatchVehicleGroupDispatchStatus.DISPATCHED) {
+            throw new IllegalStateException(
+                    "DISPATCHED 만 PENDING 으로 되돌릴 수 있습니다 — 현재=" + this.dispatchStatus);
+        }
         this.dispatchStatus = DispatchVehicleGroupDispatchStatus.PENDING;
     }
 

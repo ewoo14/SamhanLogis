@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.dto.dispatch;
 
+import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -32,7 +33,7 @@ public record DispatchTaskConfirmRequest(
      * @param driverCode 사용자 노출 식별자 (예: D-001)
      * @param driverName 기사명
      * @param driverPhoneNumber 기사 전화번호
-     * @param source 매칭 출처 (예: EXTERNAL_INSUNG_QUICK / INTERNAL_APP)
+     * @param source 매칭 출처. arologis 회신은 현재 {@code AROLOGIS} 로 정규화한다.
      * @param vehiclePlateNumber 차량번호 (arologis 미공급 시 null)
      */
     public record MatchedDriverPayload(
@@ -41,7 +42,7 @@ public record DispatchTaskConfirmRequest(
             @NotBlank String driverCode,
             @NotBlank String driverName,
             @Size(max = 20) String driverPhoneNumber,
-            @NotBlank String source,
+            @NotNull MatchedDriverSource source,
             String vehiclePlateNumber
     ) {}
 }

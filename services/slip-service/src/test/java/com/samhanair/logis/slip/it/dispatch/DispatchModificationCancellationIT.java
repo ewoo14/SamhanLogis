@@ -247,7 +247,7 @@ class DispatchModificationCancellationIT extends AbstractPostgresIT {
                         "driverCode", "D-001",
                         "driverName", "홍길동",
                         "driverPhoneNumber", "010-1234-5678",
-                        "source", "EXTERNAL_INSUNG_QUICK"
+                        "source", "AROLOGIS"
                 )),
                 "confirmedAt", Instant.now().toString()
         );
