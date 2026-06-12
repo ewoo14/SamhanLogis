@@ -56,21 +56,6 @@ export const DISPATCH_VEHICLE_TYPE_LABEL: Record<DispatchVehicleType, string> = 
 }
 
 /**
- * 모든 차량 종류 옵션 (carousel 노출 순서 — 가벼운 → 무거운 순).
- */
-export const DISPATCH_VEHICLE_TYPE_OPTIONS: DispatchVehicleType[] = [
-  'MOTORCYCLE',
-  'DAMAS',
-  'TONNAGE_1',
-  'TONNAGE_1_5',
-  'TONNAGE_2_5',
-  'TONNAGE_3',
-  'TONNAGE_5',
-  'TONNAGE_10',
-  'TONNAGE_20',
-]
-
-/**
  * 배차 차량 차종 12종.
  */
 export type DispatchVehicleBodyType =

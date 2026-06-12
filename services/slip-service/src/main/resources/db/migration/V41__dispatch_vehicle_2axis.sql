@@ -1,6 +1,8 @@
 -- V41__dispatch_vehicle_2axis.sql
 -- 배차 차량 모델 2축 확장: 차종(bodyType) + 톤수(tonnage).
 -- legacy vehicle_type 은 arologis wire 호환용 파생값으로 유지한다.
+-- ELSE 'T_1' 은 운영 중 알 수 없는 legacy 값이 들어왔을 때 migration 중단을 피하는 slice1 안전망이다.
+-- 실제 신규 입력 정합성은 domain/service matrix 검증과 CHECK 제약이 담당한다.
 
 ALTER TABLE dispatch_vehicle_group
     ADD COLUMN vehicle_body_type VARCHAR(32),
@@ -22,6 +24,7 @@ SET vehicle_body_type = CASE vehicle_type
         WHEN 'TONNAGE_5' THEN 'T_5'
         WHEN 'TONNAGE_10' THEN 'T_11'
         WHEN 'TONNAGE_20' THEN 'T_25'
+        -- slice1 안전망: 기존 row backfill 중단 방지용 기본값. 신규 입력에는 사용되지 않는다.
         ELSE 'T_1'
     END;
 

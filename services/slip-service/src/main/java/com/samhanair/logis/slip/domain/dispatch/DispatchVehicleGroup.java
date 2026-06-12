@@ -99,7 +99,13 @@ public class DispatchVehicleGroup extends BaseEntity {
         return create(dispatchTaskId, sequence, axes.bodyType(), axes.tonnage());
     }
 
-    /** 차종/톤수에서 arologis 호환 legacy 차량 enum 으로 근사 변환한다. */
+    /**
+     * 차종/톤수에서 arologis 호환 legacy 차량 enum 으로 근사 변환한다.
+     *
+     * <p>slice1 은 Samhan Public 내부 저장/표시만 2축으로 확장하고, arologis wire 계약은 후속
+     * VehicleTonnage 확장 전까지 유지한다. 따라서 {@code T_14 -> TONNAGE_10},
+     * {@code T_18 -> TONNAGE_20} 처럼 일부 값은 손실 근사로 전달된다.
+     */
     public static DispatchVehicleType deriveLegacyVehicleType(
             DispatchVehicleBodyType bodyType,
             DispatchTonnage tonnage

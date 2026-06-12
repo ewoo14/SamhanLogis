@@ -14,12 +14,29 @@
  * - `GET /inventory/transfers` + `POST` + `GET /{id}` + transition mock
  */
 import type { AxiosRequestConfig } from 'axios'
+import {
+  DISPATCH_TONNAGE_LABEL,
+  DISPATCH_VEHICLE_BODY_TYPE_LABEL,
+  DISPATCH_VEHICLE_TYPE_LABEL,
+  DISPATCH_VEHICLE_TYPE_MATRIX,
+} from './dispatchTask'
 import type {
+  AddVehicleGroupPayload,
+  DispatchTonnage,
   DispatchTaskResponse,
   DispatchTaskSummaryResponse,
+  DispatchVehicleBodyType,
+  DispatchVehicleGroupResponse,
+  DispatchVehicleType,
   SetMatchedDriverPayload,
 } from './dispatchTask'
 import type { DispatchComment } from './dispatchCollab'
+
+declare global {
+  interface Window {
+    __SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__?: AddVehicleGroupPayload
+  }
+}
 
 /** ApiResponse envelope 형태 — `shared/common/dto/ApiResponse.java` 와 동일. */
 function envelope<T>(data: T) {
@@ -4591,6 +4608,75 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  if (method === 'POST' && url.match(/\/admin\/dispatch-tasks(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const dispatchDate = String(body['dispatchDate'] ?? mockTodayIsoSeoul())
+    const nextSequence = mockDispatchTaskCreateSequence++
+    const created: DispatchTaskResponse = {
+      id: `11111111-dddd-4ddd-8ddd-${String(nextSequence).padStart(12, '0')}`,
+      taskCode: mockTaskCode(dispatchDate, String(nextSequence)),
+      dispatchDate,
+      status: 'DRAFT',
+      arologisDispatchId: null,
+      failureReason: null,
+      modificationReason: null,
+      rejectionReason: null,
+      modificationRequestedAt: null,
+      modificationDecidedAt: null,
+      vehicleGroups: [],
+      matchedDrivers: [],
+    }
+    MOCK_DISPATCH_TASK_DETAILS.push(created)
+    return envelope(created)
+  }
+
+  const addDispatchVehicleGroupMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups(?:\?.*)?$/,
+  )
+  if (method === 'POST' && addDispatchVehicleGroupMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(addDispatchVehicleGroupMatch[1]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    if (!task) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
+    }
+
+    const body = parseMockBody(config) as Partial<AddVehicleGroupPayload>
+    const vehicleBodyType = body.vehicleBodyType as DispatchVehicleBodyType | undefined
+    const tonnage = (body.tonnage ?? null) as DispatchTonnage | null
+    recordMockAddVehicleGroupBody({ vehicleBodyType, tonnage })
+
+    if (!vehicleBodyType || !(vehicleBodyType in DISPATCH_VEHICLE_TYPE_MATRIX)) {
+      return mockError(400, 'INVALID_INPUT', 'vehicleBodyType 은 필수입니다.')
+    }
+    const allowedTonnages = DISPATCH_VEHICLE_TYPE_MATRIX[vehicleBodyType]
+    if (allowedTonnages.length === 0 && tonnage !== null) {
+      return mockError(400, 'INVALID_INPUT', '소형 차종은 tonnage 불필요')
+    }
+    if (allowedTonnages.length > 0 && (tonnage === null || !allowedTonnages.includes(tonnage))) {
+      return mockError(400, 'INVALID_INPUT', '허용되지 않은 차종/톤수 조합')
+    }
+
+    const sequence = task.vehicleGroups.length + 1
+    const vehicleType = mockDeriveLegacyVehicleType(vehicleBodyType, tonnage)
+    const created: DispatchVehicleGroupResponse = {
+      id: `33333333-dddd-4ddd-8ddd-${String(mockDispatchVehicleGroupCreateSequence++).padStart(12, '0')}`,
+      vehicleType,
+      vehicleTypeDisplay: DISPATCH_VEHICLE_TYPE_LABEL[vehicleType],
+      vehicleBodyType,
+      vehicleBodyTypeDisplay: DISPATCH_VEHICLE_BODY_TYPE_LABEL[vehicleBodyType],
+      tonnage,
+      tonnageDisplay: tonnage ? DISPATCH_TONNAGE_LABEL[tonnage] : null,
+      sequence,
+      slips: [],
+    }
+    task.vehicleGroups.push(created)
+    return envelope(created)
+  }
+
   const dispatchCommentItemMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)\/comments\/([^/?]+)(?:\?.*)?$/)
   if (method === 'DELETE' && dispatchCommentItemMatch) {
     const taskId = decodeURIComponent(dispatchCommentItemMatch[1]!)
@@ -7617,6 +7703,52 @@ const MOCK_DISPATCH_COMMENTS: Record<string, DispatchComment[]> = {
   ],
 }
 let mockDispatchCommentSequence = 3
+let mockDispatchTaskCreateSequence = 1
+let mockDispatchVehicleGroupCreateSequence = 3
+
+function recordMockAddVehicleGroupBody(body: {
+  vehicleBodyType?: DispatchVehicleBodyType
+  tonnage: DispatchTonnage | null
+}) {
+  if (typeof window === 'undefined' || !body.vehicleBodyType) return
+  window.__SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__ = {
+    vehicleBodyType: body.vehicleBodyType,
+    tonnage: body.tonnage,
+  }
+}
+
+function mockDeriveLegacyVehicleType(
+  bodyType: DispatchVehicleBodyType,
+  tonnage: DispatchTonnage | null,
+): DispatchVehicleType {
+  if (bodyType === 'MOTORCYCLE') {
+    return 'MOTORCYCLE'
+  }
+  if (bodyType === 'DAMAS' || bodyType === 'SEDAN' || bodyType === 'LABO') {
+    return 'DAMAS'
+  }
+  switch (tonnage) {
+    case 'T_1':
+    case 'T_1_2':
+      return 'TONNAGE_1'
+    case 'T_1_4':
+      return 'TONNAGE_1_5'
+    case 'T_2_5':
+      return 'TONNAGE_2_5'
+    case 'T_3_5':
+      return 'TONNAGE_3'
+    case 'T_5':
+      return 'TONNAGE_5'
+    case 'T_11':
+    case 'T_14':
+      return 'TONNAGE_10'
+    case 'T_18':
+    case 'T_25':
+      return 'TONNAGE_20'
+    default:
+      return 'TONNAGE_1'
+  }
+}
 
 const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
   {

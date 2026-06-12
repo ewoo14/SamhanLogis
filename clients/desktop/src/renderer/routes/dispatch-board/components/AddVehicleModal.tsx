@@ -36,9 +36,13 @@ export function AddVehicleModal({ onClose, onAdd, submitting }: AddVehicleModalP
   const canSubmit = !submitting && (!requiresTonnage || allowedTonnages.includes(selectedTonnage))
 
   function selectBodyType(bodyType: DispatchVehicleBodyType) {
+    const currentRequiresTonnage = DISPATCH_VEHICLE_TYPE_MATRIX[selectedBodyType].length > 0
     setSelectedBodyType(bodyType)
     const nextTonnages = DISPATCH_VEHICLE_TYPE_MATRIX[bodyType]
-    if (nextTonnages.length > 0 && !nextTonnages.includes(selectedTonnage)) {
+    if (
+      nextTonnages.length > 0 &&
+      (!currentRequiresTonnage || !nextTonnages.includes(selectedTonnage))
+    ) {
       setSelectedTonnage(nextTonnages[0] ?? 'T_1')
     }
   }

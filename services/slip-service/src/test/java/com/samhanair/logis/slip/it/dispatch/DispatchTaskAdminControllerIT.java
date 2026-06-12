@@ -145,6 +145,37 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void POST_add_vehicle_group_rejects_cargo_without_tonnage_as_400() throws Exception {
+        UUID taskId = createTask("2026-05-22");
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "vehicleBodyType", "CARGO"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
+    void POST_add_vehicle_group_rejects_motorcycle_with_tonnage_as_400() throws Exception {
+        UUID taskId = createTask("2026-05-23");
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "vehicleBodyType", "MOTORCYCLE",
+                                "tonnage", "T_1"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
     void POST_dispatch_with_no_groups_returns_400() throws Exception {
         String taskBody = objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-14"));
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")

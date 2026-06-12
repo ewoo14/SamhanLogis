@@ -65,7 +65,13 @@ public class DispatchTaskService {
     ) {
         findTaskOrThrow(dispatchTaskId);
         int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;
-        DispatchVehicleGroup g = DispatchVehicleGroup.create(dispatchTaskId, nextSeq, vehicleBodyType, tonnage);
+        DispatchVehicleGroup g;
+        try {
+            g = DispatchVehicleGroup.create(dispatchTaskId, nextSeq, vehicleBodyType, tonnage);
+        } catch (IllegalArgumentException ex) {
+            // 사용자 입력 2축 matrix 오류는 서비스 경계에서 400 INVALID_INPUT 으로 변환한다.
+            throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage(), ex);
+        }
         return groupRepo.save(g);
     }
 

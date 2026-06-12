@@ -1,64 +1,74 @@
 /**
- * @file 배차 2축 차량 모델 FE 정적 계약.
+ * @file 배차 2축 차량 모델 FE 런타임 계약.
  *
- * Local-only execution: clients/desktop Playwright suite 에서 API/컴포넌트 계약을 잠근다.
+ * VITE_MOCK_MODE=1 in-process mock 과 실제 /dispatch-board 화면을 통해
+ * AddVehicleModal 렌더링, 차종/톤수 matrix, 요청 body, 그룹 라벨을 함께 검증한다.
  */
 import { expect, test } from '@playwright/test'
-import * as fs from 'fs'
-import * as path from 'path'
-import { fileURLToPath } from 'url'
 
-const filename = fileURLToPath(import.meta.url)
-const dirname = path.dirname(filename)
-const repoRoot = path.resolve(dirname, '../../../..')
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
-function read(relPath: string): string {
-  return fs.readFileSync(path.join(repoRoot, relPath), 'utf8')
+async function openDispatchBoard(page: import('@playwright/test').Page) {
+  await page.goto(`${BASE_URL}/#/dispatch-board?mockRole=DISPATCH`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 20_000,
+  })
+  await expect(page.getByTestId('dispatch-board-page')).toBeVisible()
+  await expect(page.getByTestId('dispatch-board-add-vehicle-button')).toBeEnabled()
 }
 
-test.describe('배차 2축 차량 모델 FE 계약', () => {
-  test('dispatchTask API 는 차종 12 + 톤수 10 + matrix 를 고정한다', () => {
-    const source = read('clients/desktop/src/renderer/api/dispatchTask.ts')
+async function openAddVehicleModal(page: import('@playwright/test').Page) {
+  await page.getByTestId('dispatch-board-add-vehicle-button').click()
+  await expect(page.getByTestId('dispatch-board-add-vehicle-submit')).toBeVisible()
+}
 
-    for (const bodyType of [
-      'MOTORCYCLE',
-      'SEDAN',
-      'DAMAS',
-      'LABO',
-      'CARGO',
-      'WINGBODY',
-      'TOPCAR',
-      'LIFT',
-      'REEFER',
-      'VIBRATION_FREE',
-      'AXLE',
-      'TRAILER',
-    ]) {
-      expect(source).toContain(bodyType)
+async function lastAddVehicleBody(page: import('@playwright/test').Page) {
+  return page.evaluate(() => {
+    const win = window as typeof window & {
+      __SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__?: unknown
     }
-    for (const tonnage of ['T_1', 'T_1_2', 'T_1_4', 'T_2_5', 'T_3_5', 'T_5', 'T_11', 'T_14', 'T_18', 'T_25']) {
-      expect(source).toContain(tonnage)
-    }
-    expect(source).toContain('MOTORCYCLE: []')
-    expect(source).toContain('SEDAN: []')
-    expect(source).toContain('CARGO: TONNAGE_OPTIONS')
-    expect(source).toContain('TRAILER: TONNAGE_OPTIONS')
+    return win.__SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__
   })
+}
 
-  test('AddVehicleModal 은 차종 선택 후 유효 톤수만 노출하고 소형은 tonnage null 로 보낸다', () => {
-    const source = read('clients/desktop/src/renderer/routes/dispatch-board/components/AddVehicleModal.tsx')
+test.describe('배차 2축 차량 모델 FE 런타임 계약', () => {
+  test('AddVehicleModal 은 소형 tonnage null, 화물 톤수 stale reset, 추가 그룹 라벨을 검증한다', async ({ page }) => {
+    await openDispatchBoard(page)
 
-    expect(source).toContain("useState<DispatchVehicleBodyType>('CARGO')")
-    expect(source).toContain("useState<DispatchTonnage>('T_1')")
-    expect(source).toContain('DISPATCH_VEHICLE_TYPE_MATRIX[selectedBodyType]')
-    expect(source).toContain("data-testid=\"dispatch-board-add-vehicle-tonnage-options\"")
-    expect(source).toContain('tonnage: requiresTonnage ? selectedTonnage : null')
-  })
+    await test.step('소형 차종은 톤수 옵션을 숨기고 tonnage null 로 제출한다', async () => {
+      await openAddVehicleModal(page)
+      await page.getByTestId('dispatch-board-add-vehicle-body-option-MOTORCYCLE').click()
+      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(0)
+      await page.getByTestId('dispatch-board-add-vehicle-submit').click()
 
-  test('VehicleGroupCard 는 legacy vehicleType 대신 차종+톤수 표시 라벨을 사용한다', () => {
-    const source = read('clients/desktop/src/renderer/routes/dispatch-board/components/VehicleGroupCard.tsx')
+      await expect(page.getByTestId('dispatch-board-vehicle-group-1')).toContainText('오토바이 #1')
+      await expect.poll(() => lastAddVehicleBody(page)).toMatchObject({
+        vehicleBodyType: 'MOTORCYCLE',
+        tonnage: null,
+      })
+    })
 
-    expect(source).toContain('formatDispatchVehicleGroupLabel(group)')
-    expect(source).not.toContain('DISPATCH_VEHICLE_TYPE_LABEL[group.vehicleType]')
+    await test.step('화물 차종은 10개 톤수를 노출하고 차종 전환 후 stale 톤수를 초기화한다', async () => {
+      await openAddVehicleModal(page)
+      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(10)
+
+      await page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_18').click()
+      await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_18')).toHaveAttribute('aria-checked', 'true')
+
+      await page.getByTestId('dispatch-board-add-vehicle-body-option-MOTORCYCLE').click()
+      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(0)
+
+      await page.getByTestId('dispatch-board-add-vehicle-body-option-CARGO').click()
+      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(10)
+      await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_1')).toHaveAttribute('aria-checked', 'true')
+      await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_18')).toHaveAttribute('aria-checked', 'false')
+
+      await page.getByTestId('dispatch-board-add-vehicle-submit').click()
+      await expect(page.getByTestId('dispatch-board-vehicle-group-2')).toContainText('카고 1톤 #2')
+      await expect.poll(() => lastAddVehicleBody(page)).toMatchObject({
+        vehicleBodyType: 'CARGO',
+        tonnage: 'T_1',
+      })
+    })
   })
 })
