@@ -11,7 +11,7 @@
  *  2) DISPATCHED 상태에서만 [수정 요청] / [취소 요청] 버튼 노출 (D-DC-02).
  *  3) MODIFICATION_REJECTED / CANCEL_REJECTED 상태에서 rejectionReason 안내 (빨강 배너).
  *  4) MODIFICATION_REQUESTED / CANCEL_REQUESTED 상태에서 "회신 대기" 안내 (보라 배너).
- *  5) MODIFICATION_ACCEPTED 상태에서 "수정 가능 (편집 모드)" 안내 (녹색 배너).
+ *  5) MODIFICATION_ACCEPTED 상태에서 [재배차 시작] 안내 (녹색 배너).
  *
  * UUID 비공개:
  *  - 사용자 노출 = taskCode / slipNo / partnerCode / partnerName / driverCode / driverName / driverPhoneNumber / vehiclePlateNumber.
@@ -186,8 +186,12 @@ export function DispatchTaskDetailModal({
   ) as MatchedDriverFormErrors
 
   // Round C Option A — 배차현황 상세에서도 UPDATE 권한이면 수정/취소 요청·재배차 시작 허용.
+  // 단, 수동-only 완료 task 는 arologisDispatchId 가 없으므로 arologis 수정/취소 요청 진입을 막는다.
   const showRequestButtons =
-    allowTaskActions && task.status === 'DISPATCHED' && canAccess('dispatch.board', 'update')
+    allowTaskActions &&
+    task.status === 'DISPATCHED' &&
+    !!task.arologisDispatchId &&
+    canAccess('dispatch.board', 'update')
   const showRedispatchButton =
     allowTaskActions && task.status === 'MODIFICATION_ACCEPTED' && canAccess('dispatch.board', 'update')
   const canEditMatchedDriver =

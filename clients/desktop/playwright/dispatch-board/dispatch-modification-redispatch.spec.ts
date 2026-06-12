@@ -138,5 +138,8 @@ test.describe('배차 수정제안 재배차 루프 (배차현황 경유, Option
     await expect(detail).toContainText('차량번호 12가9999')
     // 발송완료 그룹에는 수동완료 버튼이 다시 노출되지 않는다
     await expect(page.getByTestId('dispatch-task-detail-manual-complete-1')).toHaveCount(0)
+    // 수동-only 완료는 arologisDispatchId 가 없으므로 수정/취소 요청 진입을 노출하지 않는다
+    await expect(page.getByTestId('dispatch-task-detail-request-modification')).toHaveCount(0)
+    await expect(page.getByTestId('dispatch-task-detail-request-cancellation')).toHaveCount(0)
   })
 })

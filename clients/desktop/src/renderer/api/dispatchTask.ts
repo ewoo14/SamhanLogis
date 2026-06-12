@@ -217,7 +217,7 @@ export const DISPATCH_TASK_STATUS_LABEL: Record<DispatchTaskStatus, string> = {
   DISPATCHED: '배차 완료',
   FAILED: '배차 불가',
   MODIFICATION_REQUESTED: '수정 요청 중',
-  MODIFICATION_ACCEPTED: '수정 가능 (편집 모드)',
+  MODIFICATION_ACCEPTED: '수정 수락됨',
   MODIFICATION_REJECTED: '수정 거부됨',
   CANCEL_REQUESTED: '취소 요청 중',
   CANCEL_ACCEPTED: '취소 수락됨',
