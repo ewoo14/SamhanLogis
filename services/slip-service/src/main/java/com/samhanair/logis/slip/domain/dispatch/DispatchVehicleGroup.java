@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -110,6 +111,7 @@ public class DispatchVehicleGroup extends BaseEntity {
             DispatchVehicleBodyType bodyType,
             DispatchTonnage tonnage
     ) {
+        Objects.requireNonNull(bodyType, "bodyType 필수");
         if (bodyType == DispatchVehicleBodyType.MOTORCYCLE) {
             return DispatchVehicleType.MOTORCYCLE;
         }

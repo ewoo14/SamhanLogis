@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.it.dispatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
@@ -116,6 +117,26 @@ class DispatchVehicle2AxisMigrationBackfillIT extends AbstractPostgresIT {
                 Integer.class,
                 groupId.toString());
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void v41_check_constraints_reject_body_type_tonnage_mismatch() {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO dispatch_task(
+                    id, task_code, dispatch_date, status, created_at, created_by, is_deleted
+                ) VALUES (?::uuid, ?, DATE '2026-06-12', 'DRAFT', NOW(), 'migration-it', FALSE)
+                """, taskId.toString(), "V41-REJECT-" + taskId.toString().substring(0, 8));
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO dispatch_vehicle_group(
+                    id, dispatch_task_id, sequence, vehicle_type, vehicle_body_type, tonnage,
+                    created_at, created_by, is_deleted
+                ) VALUES (?::uuid, ?::uuid, 1, 'DAMAS', 'SEDAN', 'T_5',
+                    NOW(), 'migration-it', FALSE)
+                """, groupId.toString(), taskId.toString()))
+                .hasRootCauseInstanceOf(java.sql.SQLException.class);
     }
 
     private String readV41BackfillUpdateSql() throws Exception {

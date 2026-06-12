@@ -138,7 +138,11 @@ async function routeSlipEditRequests(page: Page): Promise<void> {
   })
 }
 
-async function routeDispatchTask(page: Page): Promise<void> {
+async function routeDispatchTask(
+  page: Page,
+  options: { allowCreate: boolean } = { allowCreate: true },
+): Promise<{ getCreateCallCount: () => number }> {
+  let createCallCount = 0
   const task = {
     id: 'dispatch-task-view-only-001',
     taskCode: '2026/06/11-1',
@@ -154,6 +158,21 @@ async function routeDispatchTask(page: Page): Promise<void> {
   }
   await page.route(/^http:\/\/localhost:8080\/admin\/dispatch-tasks(?:\?.*)?$/, async route => {
     if (route.request().method() === 'POST') {
+      createCallCount++
+      if (!options.allowCreate) {
+        await route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            code: 'FORBIDDEN',
+            message: 'dispatch.board 수정 권한이 필요합니다.',
+            data: null,
+            timestamp: new Date().toISOString(),
+          }),
+        })
+        return
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -174,6 +193,37 @@ async function routeDispatchTask(page: Page): Promise<void> {
     }
     await route.continue()
   })
+  await page.route(/^http:\/\/localhost:8080\/admin\/dispatch-board\/undispatched-slips(?:\?.*)?$/, async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(envelope({
+          content: [
+            {
+              id: 'slip-view-only-001',
+              slipNo: '2026/06/11-VIEW-001',
+              slipDate: '2026-06-11',
+              partnerCode: 'P-VIEW-001',
+              partnerName: '권한조회공조',
+              deliveryAddress: '서울시 강남구 테헤란로 10',
+              recipientPhone: '010-1000-2000',
+              dispatchStatus: 'UNDISPATCHED',
+            },
+          ],
+          totalElements: 1,
+          totalPages: 1,
+          number: 0,
+          size: 50,
+          first: true,
+          last: true,
+        })),
+      })
+      return
+    }
+    await route.continue()
+  })
+  return { getCreateCallCount: () => createCallCount }
 }
 
 test.describe('menu-5category view-only mutation gates', () => {
@@ -217,11 +267,14 @@ test.describe('menu-5category view-only mutation gates', () => {
     await expect(page.locator('[data-testid^="admin-accounting-edit-requests-reject-"]').first()).not.toBeDisabled()
   })
 
-  test('배차 보드 view-only: 차량 추가 버튼이 비활성화된다', async ({ page }) => {
-    await routeDispatchTask(page)
+  test('배차 보드 view-only: 진입 가능하고 자동 생성 없이 변경 버튼이 비활성화된다', async ({ page }) => {
+    await routeDispatchTask(page, { allowCreate: false })
     await gotoWithPerm(page, '/dispatch-board', 'dispatch.board', false, 'DISPATCH')
 
+    await expect(page.getByTestId('dispatch-board-slip-row-2026/06/11-SPD3-001')).toBeVisible()
     await expect(page.locator('[data-testid="dispatch-board-add-vehicle-button"]')).toBeDisabled()
+    await expect(page.locator('[data-testid="dispatch-board-complete-button"]')).toBeDisabled()
+    await expect(page.getByText('배차 작업 초기화 실패')).toHaveCount(0)
   })
 
   test('배차 보드 update 보유: 차량 추가 버튼이 활성화된다', async ({ page }) => {

@@ -29,5 +29,6 @@ class DispatchVehicle2AxisMigrationSqlTest {
         assertThat(sql).contains("ALTER COLUMN vehicle_body_type SET NOT NULL");
         assertThat(sql).contains("chk_dispatch_vehicle_group_body_type");
         assertThat(sql).contains("chk_dispatch_vehicle_group_tonnage");
+        assertThat(sql).contains("chk_dispatch_vehicle_group_body_tonnage_matrix");
     }
 }

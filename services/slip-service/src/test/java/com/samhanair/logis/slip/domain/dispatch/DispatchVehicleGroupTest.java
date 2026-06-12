@@ -36,6 +36,13 @@ class DispatchVehicleGroupTest {
     }
 
     @Test
+    void derive_legacy_vehicle_type_rejects_null_body_type() {
+        assertThatThrownBy(() -> DispatchVehicleGroup.deriveLegacyVehicleType(null, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("bodyType 필수");
+    }
+
+    @Test
     void create_group_validates_matrix() {
         assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
                 DispatchVehicleBodyType.CARGO, null))

@@ -72,7 +72,7 @@ export interface DispatchGroupSlipDragData {
  */
 export default function DispatchBoardPage() {
   usePageTitle('배차 메뉴')
-  const { canAccess } = usePermissions()
+  const { canAccess, isLoading: permissionsLoading } = usePermissions()
   const canEditDispatch = canAccess('dispatch.board', 'update')
 
   // 전표 상세 modal (slipId 보유 시 open).
@@ -85,13 +85,15 @@ export default function DispatchBoardPage() {
   const taskQuery = useDispatchTaskQuery(taskId)
 
   useEffect(() => {
+    // VIEW 전용 사용자는 보드 조회만 허용한다. mount 시 task 생성은 UPDATE 권한 보유자만 실행.
+    if (permissionsLoading || !canEditDispatch) return
     if (taskId) return
     if (createMutation.isPending || createMutation.isError) return
     createMutation.mutate(todayIsoSeoul(), {
       onSuccess: (task) => setTaskId(task.id),
     })
     // intentionally exclude createMutation from deps (mutate stable reference)
-  }, [taskId])
+  }, [canEditDispatch, permissionsLoading, taskId])
 
   const task = taskQuery.data
 
@@ -162,8 +164,8 @@ export default function DispatchBoardPage() {
   }
 
   // task 가 아직 없으면 spinner.
-  const initializing = !taskId && createMutation.isPending
-  const failed = !taskId && createMutation.isError
+  const initializing = canEditDispatch && !taskId && createMutation.isPending
+  const failed = canEditDispatch && !taskId && createMutation.isError
 
   const groups = useMemo(() => task?.vehicleGroups ?? [], [task])
 

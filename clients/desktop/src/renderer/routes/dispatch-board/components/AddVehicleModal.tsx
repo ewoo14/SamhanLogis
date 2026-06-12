@@ -6,7 +6,7 @@
  * 차종 선택 → 유효 톤수만 동적 노출 → `onAdd({ vehicleBodyType, tonnage })` 호출.
  *
  * accessibility:
- * - 각 carousel 버튼 = `aria-pressed` 로 선택 상태 표시.
+ * - 각 carousel 버튼 = `role="radio"` + `aria-checked` 로 선택 상태 표시.
  * - `Modal` (design-system) 의 focus trap + ESC 닫기 + 한국어 닫기 라벨 활용.
  */
 import { useState } from 'react'

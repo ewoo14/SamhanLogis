@@ -40,4 +40,19 @@ ALTER TABLE dispatch_vehicle_group
     ADD CONSTRAINT chk_dispatch_vehicle_group_tonnage
         CHECK (tonnage IS NULL OR tonnage IN (
             'T_1','T_1_2','T_1_4','T_2_5','T_3_5','T_5','T_11','T_14','T_18','T_25'
+        )),
+    ADD CONSTRAINT chk_dispatch_vehicle_group_body_tonnage_matrix
+        CHECK (
+            (
+                vehicle_body_type IN ('MOTORCYCLE','SEDAN','DAMAS','LABO')
+                AND tonnage IS NULL
+            )
+            OR
+            (
+                vehicle_body_type IN (
+                    'CARGO','WINGBODY','TOPCAR','LIFT',
+                    'REEFER','VIBRATION_FREE','AXLE','TRAILER'
+                )
+                AND tonnage IS NOT NULL
+            )
         ));

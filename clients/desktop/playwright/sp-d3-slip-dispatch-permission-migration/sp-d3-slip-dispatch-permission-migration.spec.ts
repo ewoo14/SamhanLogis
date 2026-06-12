@@ -166,11 +166,30 @@ function apiEnvelope<T>(data: T) {
   }
 }
 
-async function installDispatchBoardApiStubs(page: Page): Promise<void> {
+async function installDispatchBoardApiStubs(
+  page: Page,
+  options: { allowCreate: boolean } = { allowCreate: true },
+): Promise<{ getCreateCallCount: () => number }> {
+  let createCallCount = 0
   await page.route('**/admin/dispatch-tasks**', async route => {
     const request = route.request()
     const url = new URL(request.url())
     if (request.method() === 'POST' && url.pathname.endsWith('/admin/dispatch-tasks')) {
+      createCallCount++
+      if (!options.allowCreate) {
+        await route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            code: 'FORBIDDEN',
+            message: 'dispatch.board 수정 권한이 필요합니다.',
+            data: null,
+            timestamp: '2026-06-11T00:00:00Z',
+          }),
+        })
+        return
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -196,6 +215,7 @@ async function installDispatchBoardApiStubs(page: Page): Promise<void> {
       body: JSON.stringify(apiEnvelope(SP_D3_UNDISPATCHED_SLIPS_PAGE)),
     })
   })
+  return { getCreateCallCount: () => createCallCount }
 }
 
 /**
@@ -593,7 +613,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
   test('T3: DISPATCH → 배차 보드 route + SMS 이력 접근 가능 + 매입/매출 슬립 차단', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
-    await installDispatchBoardApiStubs(page)
+    await installDispatchBoardApiStubs(page, { allowCreate: false })
 
     const dispatchPerms = mockPermsFromResponse(buildDispatchPermissions())
 
@@ -628,6 +648,9 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await expect(page.getByTestId('dispatch-board-slip-row-2026/06/11-SPD3-001')).toBeVisible()
       await expect(page.getByTestId('dispatch-board-slip-open-2026/06/11-SPD3-001')).toContainText('동탄공조')
       await expect(page.getByTestId('dispatch-board-slip-open-2026/06/11-SPD3-001')).toContainText('P-SPD3-001')
+      await expect(page.getByTestId('dispatch-board-add-vehicle-button')).toBeDisabled()
+      await expect(page.getByTestId('dispatch-board-complete-button')).toBeDisabled()
+      await expect(page.getByText('배차 작업 초기화 실패')).toHaveCount(0)
     })
 
     await test.step('DISPATCH — SMS 발송 이력 (/arologis/dispatch-sms/send-audit) 접근 가능 확인', async () => {
