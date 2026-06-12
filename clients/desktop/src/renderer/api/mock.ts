@@ -4636,6 +4636,37 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(created)
   }
 
+  if (method === 'POST' && url.match(/\/admin\/dispatch-tasks\/today-draft(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const dispatchDate = String(body['dispatchDate'] ?? mockTodayIsoSeoul())
+    const existing = [...MOCK_DISPATCH_TASK_DETAILS]
+      .reverse()
+      .find((task) => task.dispatchDate === dispatchDate && task.status === 'DRAFT')
+    if (existing) {
+      return envelope(existing)
+    }
+    const nextSequence = mockDispatchTaskCreateSequence++
+    const created: DispatchTaskResponse = {
+      id: `11111111-dddd-4ddd-8ddd-${String(nextSequence).padStart(12, '0')}`,
+      taskCode: mockTaskCode(dispatchDate, String(nextSequence)),
+      dispatchDate,
+      status: 'DRAFT',
+      arologisDispatchId: null,
+      failureReason: null,
+      modificationReason: null,
+      rejectionReason: null,
+      modificationRequestedAt: null,
+      modificationDecidedAt: null,
+      duplicateSlipIds: [],
+      vehicleGroups: [],
+      matchedDrivers: [],
+    }
+    MOCK_DISPATCH_TASK_DETAILS.push(created)
+    return envelope(created)
+  }
+
   const addDispatchVehicleGroupMatch = url.match(
     /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups(?:\?.*)?$/,
   )
@@ -4743,6 +4774,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const groupIds = Array.isArray(body.groupIds) ? body.groupIds : undefined
     window.__SAMHAN_MOCK_LAST_DISPATCH_BODY__ = groupIds ? { groupIds } : {}
     const targetGroupIds = new Set(groupIds ?? task.vehicleGroups.map((group) => group.id))
+    if (groupIds) {
+      const selectedGroups = task.vehicleGroups.filter((group) => targetGroupIds.has(group.id))
+      if (selectedGroups.some((group) => group.dispatchStatus !== 'PENDING')) {
+        return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹이 선택에 포함되어 있습니다.')
+      }
+    }
     const targetGroups = task.vehicleGroups
       .filter((group) => targetGroupIds.has(group.id) && group.dispatchStatus === 'PENDING')
     if (targetGroups.length === 0) {

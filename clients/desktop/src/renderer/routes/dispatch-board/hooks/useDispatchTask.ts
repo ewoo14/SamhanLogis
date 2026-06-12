@@ -15,6 +15,7 @@ import {
   createDispatchTask,
   deleteVehicleGroup,
   dispatchToArologis,
+  ensureTodayDraftTask,
   getDispatchTask,
   getDispatchTasks,
   removeSlipFromGroup,
@@ -65,6 +66,15 @@ export function useDispatchTasksQuery(params: ListDispatchTasksParams) {
 export function useCreateDispatchTaskMutation() {
   return useMutation({
     mutationFn: (dispatchDate: string) => createDispatchTask(dispatchDate),
+  })
+}
+
+/**
+ * 오늘의 미발송 DRAFT 보장 mutation — 보드 mount/F5 재진입 전용.
+ */
+export function useEnsureTodayDraftTaskMutation() {
+  return useMutation({
+    mutationFn: (dispatchDate: string) => ensureTodayDraftTask(dispatchDate),
   })
 }
 
@@ -134,39 +144,7 @@ export function useAssignSlipToGroupMutation(taskId: string | null) {
   return useMutation({
     mutationFn: ({ groupId, slipId }: { groupId: string; slipId: string }) =>
       assignSlipToGroup(taskId as string, groupId, slipId),
-    onSuccess: (created, vars) => {
-      const applyAssignedSlip = (current: DispatchTaskResponse | undefined) => {
-        if (!current) return current
-        const vehicleGroups = current.vehicleGroups.map((group) =>
-          group.id === vars.groupId
-            ? {
-                ...group,
-                slips: group.slips.some((row) => row.id === created.id)
-                  ? group.slips
-                  : [...group.slips, created],
-              }
-            : group,
-        )
-        const slipCounts = new Map<string, number>()
-        for (const row of vehicleGroups.flatMap((group) => group.slips)) {
-          slipCounts.set(row.slipId, (slipCounts.get(row.slipId) ?? 0) + 1)
-        }
-        return {
-          ...current,
-          vehicleGroups,
-          duplicateSlipIds: [...slipCounts.entries()]
-            .filter(([, count]) => count > 1)
-            .map(([slipId]) => slipId),
-        }
-      }
-      qc.setQueryData<DispatchTaskResponse | undefined>(
-        dispatchTaskQueryKey(taskId),
-        applyAssignedSlip,
-      )
-      qc.setQueriesData<DispatchTaskResponse | undefined>(
-        { queryKey: ['dispatchTask'] },
-        applyAssignedSlip,
-      )
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
       window.dispatchEvent(new CustomEvent(DISPATCH_TASK_LOCAL_MUTATION_EVENT))

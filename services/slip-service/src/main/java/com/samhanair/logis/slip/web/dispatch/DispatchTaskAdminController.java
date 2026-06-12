@@ -138,6 +138,24 @@ public class DispatchTaskAdminController {
     }
 
     /**
+     * 오늘의 미발송 DRAFT 보장.
+     *
+     * <p>명시적 신규 회차 생성은 기존 {@code POST /admin/dispatch-tasks} 를 유지하고, 보드 mount/F5
+     * 재진입은 이 endpoint 로 최신 DRAFT 를 재사용한다.
+     */
+    @Operation(summary = "오늘의 미발송 DRAFT 조회 또는 생성")
+    @PostMapping("/today-draft")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
+    public ApiResponse<DispatchTaskResponse> todayDraft(
+            @Valid @RequestBody CreateDispatchTaskRequest req,
+            @RequestHeader(value = "X-User-Id", required = false) String actor,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        // SP-D3 동적 권한 EDIT 가드 — dispatch.board
+        checkEditPermission(roleHeader);
+        return ApiResponse.ok(DispatchTaskResponse.from(taskService.findOrCreateTodayDraft(req.dispatchDate())));
+    }
+
+    /**
      * 차량 그룹 추가.
      *
      * <p>SP-D3 동적 권한 EDIT 가드 — dispatch.board 페이지 코드 적용.

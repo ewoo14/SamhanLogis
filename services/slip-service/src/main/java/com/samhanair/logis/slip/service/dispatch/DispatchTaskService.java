@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
+import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTonnage;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleBodyType;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
@@ -61,6 +62,20 @@ public class DispatchTaskService {
         return saved;
     }
 
+    /**
+     * 배차 보드 재진입용 오늘 DRAFT 보장.
+     *
+     * <p>F5/메뉴 재진입 때마다 새 task 를 만들면 기존 task 에 묶인 전표가 cross-task 가드에 막힌다.
+     * 같은 일자 채번 lock 안에서 최신 DRAFT 를 먼저 찾고, 없을 때만 새 회차를 생성한다.
+     */
+    public DispatchTask findOrCreateTodayDraft(LocalDate dispatchDate) {
+        String prefix = dispatchDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        lockNumberSeries("dispatch_task_seq_" + prefix);
+        return taskRepo.findFirstByDispatchDateAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(
+                        dispatchDate, DispatchTaskStatus.DRAFT)
+                .orElseGet(() -> createTask(dispatchDate));
+    }
+
     /** 차량 그룹 추가 — sequence 는 자동 증가 (현재 그룹 개수 + 1). */
     public DispatchVehicleGroup addVehicleGroup(
             UUID dispatchTaskId,
@@ -108,9 +123,14 @@ public class DispatchTaskService {
 
     /** slip 을 그룹에 추가 — sequence 자동 증가 (현재 group 내 slip 개수 + 1). */
     public DispatchVehicleGroupSlip assignSlip(UUID dispatchTaskId, UUID vehicleGroupId, UUID slipId) {
+        lockNumberSeries("dispatch_slip_assign_" + slipId);
         DispatchVehicleGroup group = findGroupOrThrow(vehicleGroupId);
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
+        }
+        if (!group.isDispatchPending()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹에는 전표를 추가할 수 없습니다.");
         }
         Slip slip = slipRepo.findById(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
@@ -137,6 +157,11 @@ public class DispatchTaskService {
 
     /** 그룹 내 slip 순서 재정렬 — orderedSlipIds 순서대로 sequence 1, 2, 3... 갱신. */
     public void reorderSlips(UUID vehicleGroupId, List<UUID> orderedSlipIds) {
+        DispatchVehicleGroup group = findGroupOrThrow(vehicleGroupId);
+        if (!group.isDispatchPending()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹의 전표 순서는 변경할 수 없습니다.");
+        }
         var mappings = slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId);
         Map<UUID, DispatchVehicleGroupSlip> bySlipId = new HashMap<>();
         for (DispatchVehicleGroupSlip m : mappings) {
@@ -155,6 +180,11 @@ public class DispatchTaskService {
 
     /** 그룹에서 slip 제거 (soft-delete). */
     public void removeSlipFromGroup(UUID vehicleGroupId, UUID slipId, String actor) {
+        DispatchVehicleGroup group = findGroupOrThrow(vehicleGroupId);
+        if (!group.isDispatchPending()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹의 전표는 제거할 수 없습니다.");
+        }
         DispatchVehicleGroupSlip mapping = slipMapRepo
                 .findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId)
                 .stream()

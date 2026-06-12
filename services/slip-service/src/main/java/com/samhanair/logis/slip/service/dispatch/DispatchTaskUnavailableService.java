@@ -51,11 +51,17 @@ public class DispatchTaskUnavailableService {
         DispatchTask task = taskRepo.findById(dispatchTaskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + dispatchTaskId));
-        if (task.getStatus() != DispatchTaskStatus.DISPATCHING) {
+        if (task.getStatus() != DispatchTaskStatus.DISPATCHING
+                && task.getStatus() != DispatchTaskStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "DISPATCHING 만 FAILED 로 전이 가능 — 현재=" + task.getStatus());
+                    "발송 중인 배차 작업만 매칭 불가 처리 가능 — 현재=" + task.getStatus());
         }
 
+        // 부분 발송 task 는 미발송 그룹이 남아 DRAFT 일 수 있다. multi-dispatch-id 정밀 전이 전까지는
+        // 기존 FAILED 전이 규칙을 재사용해 arologis 불가 회신의 비대칭 409 만 해소한다.
+        if (task.getStatus() == DispatchTaskStatus.DRAFT) {
+            task.markDispatching();
+        }
         task.markFailed(req.reason());
         taskRepo.save(task);
 

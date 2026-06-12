@@ -5,6 +5,7 @@
  * BE 출처 (Phase A BE Team):
  * <ul>
  *   <li>{@code POST /admin/dispatch-tasks}                                            — 신규 DispatchTask (DRAFT)</li>
+ *   <li>{@code POST /admin/dispatch-tasks/today-draft}                                — 오늘의 DRAFT 조회 또는 생성</li>
  *   <li>{@code POST /admin/dispatch-tasks/{taskId}/vehicle-groups}                    — 차량 그룹 추가</li>
  *   <li>{@code DELETE /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}}        — 빈 그룹 삭제</li>
  *   <li>{@code POST /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/slips}    — slip 그룹 할당</li>
@@ -452,6 +453,21 @@ export async function createDispatchTask(
 ): Promise<DispatchTaskResponse> {
   const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
     '/admin/dispatch-tasks',
+    { dispatchDate },
+  )
+  return res.data.data
+}
+
+/**
+ * 오늘의 미발송 DRAFT 보장 — `POST /admin/dispatch-tasks/today-draft`.
+ *
+ * <p>보드 F5/메뉴 재진입 시 기존 DRAFT 를 재사용해 cross-task 전표 배정 교착을 방지한다.
+ */
+export async function ensureTodayDraftTask(
+  dispatchDate: string,
+): Promise<DispatchTaskResponse> {
+  const res = await apiClient.post<ApiEnvelope<DispatchTaskResponse>>(
+    '/admin/dispatch-tasks/today-draft',
     { dispatchDate },
   )
   return res.data.data

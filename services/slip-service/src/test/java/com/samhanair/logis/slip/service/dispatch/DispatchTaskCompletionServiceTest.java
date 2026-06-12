@@ -234,7 +234,32 @@ class DispatchTaskCompletionServiceTest {
 
         assertThatThrownBy(() -> svc.dispatch(taskId, List.of(groupId)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("발송할 미발송 차량 그룹이 없습니다");
+                .hasMessageContaining("이미 발송된 차량 그룹이 선택에 포함되어 있습니다.");
+        verify(arologisClient, never()).send(any());
+    }
+
+    @Test
+    void dispatch_rejects_mixed_selection_that_contains_already_dispatched_group() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID dispatchedGroupId = UUID.randomUUID();
+        UUID pendingGroupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2026/06/12-4", LocalDate.now());
+        setIdViaReflection(task, taskId);
+        DispatchVehicleGroup dispatchedGroup = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        setIdViaReflection(dispatchedGroup, dispatchedGroupId);
+        dispatchedGroup.markDispatched();
+        DispatchVehicleGroup pendingGroup = DispatchVehicleGroup.create(
+                taskId, 2, DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_1);
+        setIdViaReflection(pendingGroup, pendingGroupId);
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(dispatchedGroup, pendingGroup));
+
+        assertThatThrownBy(() -> svc.dispatch(taskId, List.of(dispatchedGroupId, pendingGroupId)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 발송된 차량 그룹이 선택에 포함되어 있습니다.");
         verify(arologisClient, never()).send(any());
     }
 

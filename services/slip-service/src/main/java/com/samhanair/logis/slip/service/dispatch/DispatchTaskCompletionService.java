@@ -76,7 +76,13 @@ public class DispatchTaskCompletionService {
                     "발송 가능한 미발송 차량 그룹이 없습니다 — 현재=" + task.getStatus());
         }
 
-        List<DispatchVehicleGroup> targetGroups = selectGroups(groups, groupIds).stream()
+        List<DispatchVehicleGroup> selectedGroups = selectGroups(groups, groupIds);
+        if (groupIds != null && selectedGroups.stream().anyMatch(group -> !group.isDispatchPending())) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹이 선택에 포함되어 있습니다.");
+        }
+
+        List<DispatchVehicleGroup> targetGroups = selectedGroups.stream()
                 .filter(DispatchVehicleGroup::isDispatchPending)
                 .toList();
         if (targetGroups.isEmpty()) {

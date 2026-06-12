@@ -74,11 +74,6 @@ export function VehicleGroupCard({
   onSelectedChange,
   onOpenSlipDetail,
 }: VehicleGroupCardProps) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `group:${group.id}`,
-    data: { type: 'group', groupId: group.id },
-  })
-
   const deleteMutation = useDeleteVehicleGroupMutation(taskId)
   const assignMutation = useAssignSlipToGroupMutation(taskId)
   const removeSlipMutation = useRemoveSlipFromGroupMutation(taskId)
@@ -94,6 +89,12 @@ export function VehicleGroupCard({
   const groupStatusTone = DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE[groupDispatchStatus]
   const groupDispatched = groupDispatchStatus === 'DISPATCHED'
   const canMutateGroup = canEdit && !groupDispatched
+  const { setNodeRef, isOver } = useDroppable({
+    id: `group:${group.id}`,
+    data: { type: 'group', groupId: group.id },
+    disabled: !canMutateGroup,
+  })
+  const canHighlightDrop = canMutateGroup && isOver
 
   const handleAssignBySlipNo = () => {
     if (!taskId || !canMutateGroup || assignMutation.isPending) return
@@ -132,11 +133,11 @@ export function VehicleGroupCard({
       data-testid={`dispatch-board-vehicle-group-${group.sequence}`}
       aria-label={`차량 그룹 ${vehicleLabel} #${group.sequence}`}
       style={{
-        border: isOver
+        border: canHighlightDrop
           ? '2px solid var(--color-action-brand, #1E40AF)'
           : `1px solid ${statusTone.borderColor}`,
         borderRadius: 8,
-        background: isOver ? 'var(--color-action-brandSubtle, #DBEAFE)' : statusTone.background,
+        background: canHighlightDrop ? 'var(--color-action-brandSubtle, #DBEAFE)' : statusTone.background,
         transition: 'border-color 120ms, background-color 120ms',
       }}
     >
