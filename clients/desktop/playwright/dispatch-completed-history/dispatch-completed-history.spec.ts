@@ -199,5 +199,13 @@ test.describe('AROLOGIS 배차현황 뷰 mock', () => {
 
     const bodyText = await page.locator('body').textContent()
     expect(bodyText ?? '').not.toMatch(UUID_REGEX)
+
+    const domAttributes = await page.locator('body').evaluate((body) => {
+      const elements = [body, ...Array.from(body.querySelectorAll('*'))]
+      return elements.flatMap((element) =>
+        Array.from(element.attributes).map((attr) => `${attr.name}=${attr.value}`),
+      )
+    })
+    expect(domAttributes.join('\n')).not.toMatch(UUID_REGEX)
   })
 })
