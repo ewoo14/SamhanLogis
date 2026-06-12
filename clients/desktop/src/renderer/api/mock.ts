@@ -1828,6 +1828,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return envelope(target)
     }
     if (method === 'DELETE') {
+      if (!target) return mockError(404, 'NOT_FOUND', '코멘트를 찾을 수 없습니다')
       collabCommentsStore[slipId] = list.filter((item) => item.id !== commentId)
       return envelope(null)
     }

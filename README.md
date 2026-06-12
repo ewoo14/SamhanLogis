@@ -27,6 +27,15 @@
 
 ---
 
+### 최신 진행 메모 (2026-06-13)
+
+- **§7 전역 협업 1차 — 입출고전표(slip) 풀 협업** (PR #474, 진행 중):
+  - 배차 보드 에픽(#463) spec §7(전역 협업 문서 플랫폼)의 첫 레퍼런스. 이미 범용 구축된 `shared:collab-core`(배차 코멘트만 실배선)를 **slip 에 풀 적용**(코멘트 + 수정제안 + 회귀) — 빅뱅 아님, 이후 회계/주문/견적 단계 롤아웃. slip 기존 자산(`Slip#toSnapshot`/`restoreFromSnapshot`/`SlipService.applyOverlayPatch`/`SlipRevisionService`) 재사용, 신규 추상 0.
+  - **BE**: `SlipCollabComment`(스레드·OPEN/RESOLVED)·`SlipCollabSuggestion`(changeSet JSONB·`@Version`)·`SlipDocumentCollaborationPort`(OUTBOUND/INBOUND 2빈)·`SlipCollabController`(코멘트 CRUD/resolve + 제안 propose/accept/reject/withdraw + SSE)·Flyway V44(document_type/status CHECK·BaseEntity 7 audit·active 인덱스). 권한 `slip.comments`/`slip.audit-overlay` 기존 page-code 재사용(lockout 위험 0).
+  - **수정제안 수락 = 단일 배치 적용**: `SlipService.applyOverlayPatchBatch` 신규 — 제안 1건의 다중 필드를 **잠금 가드 1회 + APPROVED 1회 소진 + EDIT revision 1건**으로 일괄 적용한다(필드별 호출 시 잠금 전표 둘째 필드 CONFLICT + revision 오염 결함 차단). 협업 수락은 직접 편집과 **동일한 잠금 정책**을 따른다(우회 없음).
+  - **FE**: 출고/입고전표 상세 협업 패널(코멘트 스레드 + 제안 목록 + 회귀 이력 + 실시간 SSE, `createRealtimeClient` 재사용). design-system `Input`/`Select` 적용. UUID 비공개(작성자/제안자 실명만).
+  - **검증**: `SlipCollabIT` 실 Testcontainers PostgreSQL **13건** 통과(accept 실적용·다중필드 단일 revision·403 deny·OUTBOUND/INBOUND·CHECK 거부·스코프 격리). ci.yml `slip.collab.*` 등재(false-green 차단). 다모델 리뷰 Round A(Opus 5-agent) 수렴 — Codex·Fable5 라운드 진행 중. **머지 = 다음 리뷰어 0 error + Docker 실 QA 후**.
+
 ### 최신 진행 메모 (2026-06-11)
 
 - 좌측 메뉴 5대분류 재편 + 접기/펼치기 완료 (PR #462):

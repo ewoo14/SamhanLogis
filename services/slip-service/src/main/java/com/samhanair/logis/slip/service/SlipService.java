@@ -459,6 +459,60 @@ public class SlipService {
     }
 
     /**
+     * 협업 제안 수락 — 여러 overlay 필드를 단일 잠금 가드 / 단일 revision 으로 일괄 적용한다 (§7 협업).
+     *
+     * <p>{@link #applyOverlayPatch} 를 필드마다 호출하면 두 가지 결함이 발생한다.
+     * <ol>
+     *   <li>잠금 단계(CONFIRMED/ACCEPTED/PROCESSING) 전표는 APPROVED 요청 1건이 <b>첫 필드</b>에서
+     *       소진되어 둘째 필드가 {@link ErrorCode#CONFLICT} → 다중 필드 제안 수락이 항상 실패한다.</li>
+     *   <li>필드 수만큼 EDIT revision 이 쌓여 "제안 1건 = 변경 1건" 의미가 깨지고 버전이력이 오염된다.</li>
+     * </ol>
+     * 본 메서드는 잠금 가드 / APPROVED 소진 / revision 캡처를 1회로 묶어 두 결함을 모두 차단한다.
+     * 잠금 정책 자체는 직접 편집과 <b>동일</b>하게 적용한다(협업 수락이 잠금을 우회하지 않음 — 일관 정책).
+     *
+     * @param id 전표 ID
+     * @param patches 필드명 → 새 값 (순서 보존)
+     * @param callerId 호출자 user-id (audit actor)
+     * @param callerName 호출자 표시명 (UUID 비공개 가드, null 이면 callerId 사용)
+     * @return 갱신된 상세 응답
+     * @throws BusinessException(NOT_FOUND) 전표 미발견
+     * @throws BusinessException(INVALID_INPUT) 미지원 필드 또는 길이 초과
+     * @throws BusinessException(CONFLICT) 마감 lock 적용 슬립
+     */
+    public SlipDetailResponse applyOverlayPatchBatch(UUID id, Map<String, String> patches,
+                                                     String callerId, String callerName) {
+        Slip slip = loadOrThrow(id);
+        // 잠금 가드 1회 — 직접 overlay-patch 와 동일 정책 (협업 수락이 우회하지 않음)
+        Optional<SlipEditRequest> consumedApproval = guardLockPolicy(slip, callerId);
+        UUID actorId = parseActorId(callerId);
+        String auditActorName = (callerName != null && !callerName.isBlank())
+                ? callerName
+                : (callerId == null || callerId.isBlank() ? "system" : callerId);
+        boolean anyChanged = false;
+        for (Map.Entry<String, String> patch : patches.entrySet()) {
+            String fieldName = patch.getKey();
+            String newValue = patch.getValue();
+            String oldValue = slip.readOverlayField(fieldName);
+            applyMutation(() -> slip.applyOverlayPatch(fieldName, newValue));
+            String actualNew = slip.readOverlayField(fieldName);
+            if (!java.util.Objects.equals(oldValue, actualNew)) {
+                auditLogService.recordOverlayPatch(id, actorId, auditActorName, null,
+                        fieldName, oldValue, actualNew);
+                anyChanged = true;
+            }
+        }
+        // APPROVED 요청 1회만 소진 (필드 수와 무관)
+        consumedApproval.ifPresent(approval ->
+                editRequestService.consumeApproval(approval.getId(), callerId));
+        // 제안 1건 = EDIT revision 1건 (변경된 필드가 있을 때만)
+        if (anyChanged) {
+            slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
+                    actorId, resolveActorName(callerName, callerId), null);
+        }
+        return SlipDetailResponse.from(slip);
+    }
+
+    /**
      * 슬립 soft-delete — PR-H3 신규. 사용자 명시 잠금 정책 가드 후 BaseEntity.markDeleted 적용.
      *
      * <p>DRAFT/SAVED — 작성자 자유 삭제. CONFIRMED/ACCEPTED/PROCESSING — APPROVED 요청 1건 필요.

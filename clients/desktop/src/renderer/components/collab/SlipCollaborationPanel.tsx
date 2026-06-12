@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
 import {
   acceptSlipCollabSuggestion,
   addSlipCollabComment,
@@ -261,35 +261,52 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
             </div>
 
             {canWriteComments ? (
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
-                <textarea
-                  data-testid="slip-collab-comment-input"
-                  value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
-                  maxLength={500}
-                  rows={2}
-                  placeholder="코멘트 입력..."
-                  style={{
-                    flex: 1,
-                    minHeight: 56,
-                    resize: 'vertical',
-                    border: '1px solid var(--color-neutral-300)',
-                    borderRadius: 4,
-                    padding: '8px 10px',
-                    font: 'inherit',
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  disabled={trimmedComment.length === 0 || addCommentMutation.isPending}
-                  loading={addCommentMutation.isPending}
-                  onClick={() => addCommentMutation.mutate(trimmedComment)}
-                >
-                  등록
-                </Button>
-              </div>
+              <>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
+                  <textarea
+                    data-testid="slip-collab-comment-input"
+                    value={commentBody}
+                    onChange={(event) => setCommentBody(event.target.value)}
+                    maxLength={500}
+                    rows={2}
+                    placeholder="코멘트 입력..."
+                    style={{
+                      flex: 1,
+                      minHeight: 56,
+                      resize: 'vertical',
+                      border: '1px solid var(--color-neutral-300)',
+                      borderRadius: 4,
+                      padding: '8px 10px',
+                      font: 'inherit',
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={trimmedComment.length === 0 || addCommentMutation.isPending}
+                    loading={addCommentMutation.isPending}
+                    onClick={() => addCommentMutation.mutate(trimmedComment)}
+                  >
+                    등록
+                  </Button>
+                </div>
+                {addCommentMutation.isError ? (
+                  <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                    코멘트를 등록하지 못했습니다.
+                  </p>
+                ) : null}
+                {deleteCommentMutation.isError ? (
+                  <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                    코멘트를 삭제하지 못했습니다.
+                  </p>
+                ) : null}
+                {resolveCommentMutation.isError ? (
+                  <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                    코멘트를 해결 처리하지 못했습니다.
+                  </p>
+                ) : null}
+              </>
             ) : null}
           </section>
 
@@ -297,51 +314,59 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 제안</h5>
 
             {canSuggest ? (
-              <div
-                data-testid="slip-collab-suggestion-form"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(120px, 0.35fr) minmax(160px, 1fr)',
-                  gap: 8,
-                  marginBottom: 12,
-                }}
-              >
-                <select
-                  value={suggestField}
-                  onChange={(event) => setSuggestField(event.target.value as typeof suggestField)}
-                  style={{ border: '1px solid var(--color-neutral-300)', borderRadius: 4, padding: '8px 10px' }}
-                  aria-label="제안 필드"
+              <>
+                <div
+                  data-testid="slip-collab-suggestion-form"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(120px, 0.35fr) minmax(160px, 1fr)',
+                    gap: 8,
+                    marginBottom: 12,
+                  }}
                 >
-                  {OVERLAY_FIELD_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-                <input
-                  value={suggestAfter}
-                  onChange={(event) => setSuggestAfter(event.target.value)}
-                  placeholder="변경 후 값"
-                  style={{ border: '1px solid var(--color-neutral-300)', borderRadius: 4, padding: '8px 10px' }}
-                  aria-label="변경 후 값"
-                />
-                <input
-                  value={suggestReason}
-                  onChange={(event) => setSuggestReason(event.target.value)}
-                  placeholder="사유"
-                  maxLength={500}
-                  style={{ gridColumn: '1 / -1', border: '1px solid var(--color-neutral-300)', borderRadius: 4, padding: '8px 10px' }}
-                  aria-label="제안 사유"
-                />
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  loading={proposeMutation.isPending}
-                  disabled={proposeMutation.isPending}
-                  onClick={() => proposeMutation.mutate()}
-                >
-                  제안
-                </Button>
-              </div>
+                  <Select
+                    value={suggestField}
+                    onChange={(event) => setSuggestField(event.target.value as typeof suggestField)}
+                    aria-label="제안 필드"
+                    selectSize="sm"
+                  >
+                    {OVERLAY_FIELD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                  <Input
+                    value={suggestAfter}
+                    onChange={(event) => setSuggestAfter(event.target.value)}
+                    placeholder="변경 후 값"
+                    aria-label="변경 후 값"
+                    inputSize="sm"
+                  />
+                  <Input
+                    value={suggestReason}
+                    onChange={(event) => setSuggestReason(event.target.value)}
+                    placeholder="사유"
+                    maxLength={500}
+                    style={{ gridColumn: '1 / -1' }}
+                    aria-label="제안 사유"
+                    inputSize="sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    loading={proposeMutation.isPending}
+                    disabled={proposeMutation.isPending}
+                    onClick={() => proposeMutation.mutate()}
+                  >
+                    제안
+                  </Button>
+                </div>
+                {proposeMutation.isError ? (
+                  <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                    수정 제안을 등록하지 못했습니다.
+                  </p>
+                ) : null}
+              </>
             ) : null}
 
             <div
@@ -383,46 +408,64 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
                     </p>
                   ) : null}
                   {suggestion.status === 'PROPOSED' && canSuggest ? (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        disabled={acceptMutation.isPending}
-                        onClick={() => acceptMutation.mutate(suggestion.id)}
-                      >
-                        수락
-                      </Button>
-                      <input
-                        value={rejectReasonById[suggestion.id] ?? ''}
-                        onChange={(event) => setRejectReasonById((prev) => ({
-                          ...prev,
-                          [suggestion.id]: event.target.value,
-                        }))}
-                        placeholder="거절 사유"
-                        maxLength={500}
-                        style={{ border: '1px solid var(--color-neutral-300)', borderRadius: 4, padding: '6px 8px' }}
-                        aria-label="거절 사유"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={rejectMutation.isPending}
-                        onClick={() => rejectMutation.mutate(suggestion.id)}
-                      >
-                        거절
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={withdrawMutation.isPending}
-                        onClick={() => withdrawMutation.mutate(suggestion.id)}
-                      >
-                        철회
-                      </Button>
-                    </div>
+                    <>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          disabled={acceptMutation.isPending}
+                          onClick={() => acceptMutation.mutate(suggestion.id)}
+                        >
+                          수락
+                        </Button>
+                        <Input
+                          value={rejectReasonById[suggestion.id] ?? ''}
+                          onChange={(event) => setRejectReasonById((prev) => ({
+                            ...prev,
+                            [suggestion.id]: event.target.value,
+                          }))}
+                          placeholder="거절 사유"
+                          maxLength={500}
+                          aria-label="거절 사유"
+                          inputSize="sm"
+                          fullWidth={false}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={rejectMutation.isPending}
+                          onClick={() => rejectMutation.mutate(suggestion.id)}
+                        >
+                          거절
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={withdrawMutation.isPending}
+                          onClick={() => withdrawMutation.mutate(suggestion.id)}
+                        >
+                          철회
+                        </Button>
+                      </div>
+                      {acceptMutation.isError ? (
+                        <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                          수락 처리에 실패했습니다.
+                        </p>
+                      ) : null}
+                      {rejectMutation.isError ? (
+                        <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                          거절 처리에 실패했습니다.
+                        </p>
+                      ) : null}
+                      {withdrawMutation.isError ? (
+                        <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                          철회 처리에 실패했습니다.
+                        </p>
+                      ) : null}
+                    </>
                   ) : null}
                 </article>
               ))}

@@ -46,9 +46,11 @@ export interface ProposeSlipCollabSuggestionInput {
 
 export async function getSlipCollabComments(
   slipId: string,
+  limit = 20,
 ): Promise<SlipCollabComment[]> {
   const res = await apiClient.get<ApiEnvelope<SlipCollabComment[]>>(
     `/api/v1/slips/${encodeURIComponent(slipId)}/collab/comments`,
+    { params: { limit } },
   )
   return res.data.data
 }

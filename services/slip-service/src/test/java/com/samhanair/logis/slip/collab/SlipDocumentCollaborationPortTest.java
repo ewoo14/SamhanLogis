@@ -51,7 +51,7 @@ class SlipDocumentCollaborationPortTest {
     }
 
     @Test
-    void applyChangeSetUsesExistingOverlayPatchPathForEachAfterValue() {
+    void applyChangeSetAppliesAllFieldsInSingleBatch() {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
@@ -69,9 +69,35 @@ class SlipDocumentCollaborationPortTest {
                 }
                 """);
 
-        verify(slipService).applyOverlayPatch(slipId, "memo", "new", "collab-core", "협업 제안");
-        verify(slipService).applyOverlayPatch(
-                slipId, "shippingAddress", "서울시 강남구", "collab-core", "협업 제안");
+        // 제안 1건 = 잠금 가드 1회 + revision 1건. 필드별 applyOverlayPatch 가 아니라 단일 배치 호출이어야 한다
+        // (필드마다 호출하면 잠금 전표 APPROVED 가 첫 필드에서 소진되어 둘째 필드 CONFLICT + revision 오염).
+        java.util.Map<String, String> expected = new java.util.LinkedHashMap<>();
+        expected.put("memo", "new");
+        expected.put("shippingAddress", "서울시 강남구");
+        verify(slipService).applyOverlayPatchBatch(slipId, expected, "collab-core", "협업 제안");
+        org.mockito.Mockito.verify(slipService, org.mockito.Mockito.never())
+                .applyOverlayPatch(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void canProposeRejectsNullAndZeroUuidActorWithoutPermissionCheck() {
+        SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
+        SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
+        SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
+        DynamicPermissionClient permissionClient =
+                org.mockito.Mockito.mock(DynamicPermissionClient.class);
+        UUID slipId = UUID.randomUUID();
+
+        SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
+                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+
+        // 헤더 부재(null) / 파싱 실패(zero-UUID) actor 는 권한 조회 없이 즉시 거부
+        org.assertj.core.api.Assertions.assertThat(port.canPropose(null, slipId)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(
+                port.canPropose(new UUID(0L, 0L), slipId)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(
+                port.canDecide(new UUID(0L, 0L), slipId)).isFalse();
+        org.mockito.Mockito.verifyNoInteractions(permissionClient);
     }
 
     @Test

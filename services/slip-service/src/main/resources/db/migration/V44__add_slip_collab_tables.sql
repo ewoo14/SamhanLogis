@@ -87,6 +87,11 @@ COMMENT ON COLUMN slip_collab_suggestions.proposer_name IS
 CREATE INDEX IF NOT EXISTS ix_slip_collab_suggestions_document_timeline
     ON slip_collab_suggestions (document_type, document_id, created_at);
 
+-- 전표별 활성 제안 목록 조회(listSuggestions) 최적화 — comments 의 _document_active 와 대칭.
+CREATE INDEX IF NOT EXISTS ix_slip_collab_suggestions_document_active
+    ON slip_collab_suggestions (document_type, document_id)
+    WHERE is_deleted = FALSE;
+
 CREATE INDEX IF NOT EXISTS ix_slip_collab_suggestions_status
     ON slip_collab_suggestions (status)
     WHERE is_deleted = FALSE;

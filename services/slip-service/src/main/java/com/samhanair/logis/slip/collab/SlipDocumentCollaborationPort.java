@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.service.SlipService;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -94,15 +95,20 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     @Transactional
     public void applyChangeSet(UUID documentId, String changeSetJson) {
         JsonNode root = parseObject(changeSetJson, "changeSet");
+        Map<String, String> patches = new LinkedHashMap<>();
         Iterator<Map.Entry<String, JsonNode>> fields = root.fields();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> entry = fields.next();
             String fieldName = normalizePath(entry.getKey());
             JsonNode afterNode = entry.getValue() == null ? null : entry.getValue().get("after");
-            String afterValue = toNullableText(afterNode);
-            slipService.applyOverlayPatch(
-                    documentId, fieldName, afterValue, "collab-core", SYSTEM_ACTOR_NAME);
+            patches.put(fieldName, toNullableText(afterNode));
         }
+        if (patches.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet 에 적용할 필드가 없습니다");
+        }
+        // 단일 잠금 가드 + APPROVED 1회 소진 + EDIT revision 1건으로 일괄 적용 (제안 1건 = 변경 1건).
+        // 필드마다 applyOverlayPatch 를 호출하면 잠금 전표에서 둘째 필드가 CONFLICT 되고 revision 이 오염된다.
+        slipService.applyOverlayPatchBatch(documentId, patches, "collab-core", SYSTEM_ACTOR_NAME);
     }
 
     /**
@@ -129,7 +135,10 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
 
     @Override
     public boolean canPropose(UUID userId, UUID documentId) {
+        // 헤더 부재/파싱 실패 시 controller 가 넘기는 zero-UUID(SYSTEM_ACTOR_ID)는 무효 actor 로 거부한다.
+        // (null 아님이라 단순 != null 검사를 통과하므로 명시적 zero 거부 필요)
         return userId != null
+                && !SYSTEM_ACTOR_ID.equals(userId)
                 && permissionClient.check(userId, SLIP_COLLAB_PAGE_CODE, PermissionAction.UPDATE);
     }
 

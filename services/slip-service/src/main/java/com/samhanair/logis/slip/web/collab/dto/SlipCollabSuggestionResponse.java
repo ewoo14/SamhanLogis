@@ -2,8 +2,8 @@ package com.samhanair.logis.slip.web.collab.dto;
 
 import com.samhanair.logis.collab.CollabSuggestionStatus;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestion;
-import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 /**
@@ -11,6 +11,10 @@ import java.util.UUID;
  *
  * <p>UUID 비공개 가드: proposerId/decidedById 는 응답하지 않는다. 사용자 화면에는
  * proposerName/decidedByName 만 표시한다.
+ *
+ * <p>{@code decidedAt} 은 collab-core 가 {@code Instant} 로 기록하나, {@code createdAt}
+ * (BaseEntity {@code LocalDateTime}) 과 화면 표기를 일치시키기 위해 시스템 기본 타임존
+ * {@code LocalDateTime} 으로 변환해 응답한다 (UTC/로컬 9시간 어긋남 방지).
  */
 public record SlipCollabSuggestionResponse(
         UUID id,
@@ -19,7 +23,7 @@ public record SlipCollabSuggestionResponse(
         String proposerName,
         CollabSuggestionStatus status,
         String decidedByName,
-        Instant decidedAt,
+        LocalDateTime decidedAt,
         LocalDateTime createdAt
 ) {
 
@@ -31,7 +35,8 @@ public record SlipCollabSuggestionResponse(
                 suggestion.getProposerName(),
                 suggestion.getStatus(),
                 suggestion.getDecidedByName(),
-                suggestion.getDecidedAt(),
+                suggestion.getDecidedAt() == null ? null
+                        : LocalDateTime.ofInstant(suggestion.getDecidedAt(), ZoneId.systemDefault()),
                 suggestion.getCreatedAt());
     }
 }
