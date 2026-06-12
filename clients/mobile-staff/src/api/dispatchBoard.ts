@@ -144,7 +144,6 @@ export interface DispatchVehicleGroupSlipResponse {
 
 export interface MatchedDriverResponse {
   vehicleGroupSequence: number;
-  vehicleType: DispatchVehicleType;
   driverCode: string;
   driverName: string;
   driverPhoneNumber: string;
