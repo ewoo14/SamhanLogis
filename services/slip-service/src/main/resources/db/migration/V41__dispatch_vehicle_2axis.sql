@@ -55,4 +55,4 @@ ALTER TABLE dispatch_vehicle_group
                 )
                 AND tonnage IS NOT NULL
             )
-        ));
+        );
