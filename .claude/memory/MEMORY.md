@@ -34,6 +34,7 @@
 - [UUID 사용자 비공개 원칙](feedback_uuid_no_user_visibility.md) — 모든 클라이언트 화면에서 UUID 노출 금지. 비즈니스 식별자 (슬립번호/창고 코드/모델명/거래처명) 만 사용자 노출 (PR #18 회고)
 - [함수 단위 문서화 3-layer](feedback_function_documentation.md) — 모든 슬라이스에 (1) 한국어 Javadoc 의무, (2) springdoc-openapi 자동 생성, (3) docs/dev-reports/<slice>.md 누적 의무
 - [PowerShell UTF-8 트랩](feedback_powershell_utf8_writes.md) — body-file 은 Write/Edit/heredoc 만 사용. PowerShell `Set-Content` 기본값 UTF-16 LE BOM → 한글 깨짐
+- [Bash 커밋 메시지 = -F 파일](feedback_bash_commit_message_file.md) — Bash 도구에서 `@'...'@` here-string 금지(제목 `@`로 깨짐). 멀티라인 커밋 = Write→`git commit -F 파일` (PR #474 회고)
 - [권한 표기 풀네임](feedback_role_naming_full.md) — PR/Issue/문서에서 Role 표기는 풀네임 (MASTER/MANAGER/...). M/M/D 약어 금지
 - [PR 발행 후 PM 자동 CI 모니터링](feedback_pr_ci_monitoring.md) — PR 발행 즉시 `gh pr checks --watch` 자동 시작, fail 시 즉시 fix, green 후 PM 승인 → 개발책임자 머지 요청 (PR #34 회고)
 - [Monitor 도구 자동 사용](feedback_monitor_no_permission.md) — Monitor/CI watch 사용자 허락 없이 즉시 시작, confirm/announce 불필요
