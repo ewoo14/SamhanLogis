@@ -5,15 +5,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTonnage;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleBodyType;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
+import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
@@ -38,6 +43,7 @@ class DispatchTaskServiceTest {
     @Mock DispatchTaskRepository taskRepo;
     @Mock DispatchVehicleGroupRepository groupRepo;
     @Mock DispatchVehicleGroupSlipRepository slipMapRepo;
+    @Mock SlipRepository slipRepo;
     @Mock EntityManager entityManager;
     @Mock Query advisoryLockQuery;
     @InjectMocks DispatchTaskService svc;
@@ -87,7 +93,11 @@ class DispatchTaskServiceTest {
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
         when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
+        when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId)).thenReturn(List.of());
         when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(any()))
                 .thenReturn(List.of(DispatchVehicleGroupSlip.create(groupId, UUID.randomUUID(), 1)));
         when(slipMapRepo.save(any(DispatchVehicleGroupSlip.class)))
@@ -98,6 +108,65 @@ class DispatchTaskServiceTest {
         DispatchVehicleGroupSlip mapping = svc.assignSlip(taskId, groupId, slipId);
         assertThat(mapping.getSequence()).isEqualTo(2);
         assertThat(mapping.getSlipId()).isEqualTo(slipId);
+    }
+
+    @Test
+    void assignSlip_missing_slip_throws_not_found_before_mapping() {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(slipRepo.findById(slipId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> svc.assignSlip(taskId, groupId, slipId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("slip 이 존재하지 않습니다");
+        verify(slipMapRepo, never()).save(any());
+    }
+
+    @Test
+    void assignSlip_dispatching_or_dispatched_slip_throws_conflict() {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.DISPATCHING);
+        when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
+
+        assertThatThrownBy(() -> svc.assignSlip(taskId, groupId, slipId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("미배차 전표만 배차 그룹에 추가할 수 있습니다");
+        verify(slipMapRepo, never()).save(any());
+    }
+
+    @Test
+    void assignSlip_already_mapped_to_another_task_throws_conflict() {
+        UUID taskId = UUID.randomUUID();
+        UUID otherTaskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID otherGroupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        DispatchVehicleGroup otherTaskGroup = DispatchVehicleGroup.create(
+                otherTaskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
+        when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(groupRepo.findById(otherGroupId)).thenReturn(Optional.of(otherTaskGroup));
+        when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
+        when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId))
+                .thenReturn(List.of(DispatchVehicleGroupSlip.create(otherGroupId, slipId, 1)));
+
+        assertThatThrownBy(() -> svc.assignSlip(taskId, groupId, slipId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 다른 배차 작업에 추가된 전표입니다");
+        verify(slipMapRepo, never()).save(any());
     }
 
     @Test

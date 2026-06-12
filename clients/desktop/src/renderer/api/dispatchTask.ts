@@ -19,6 +19,7 @@
  *
  * 차량 종류:
  *   FE 신규 계약은 vehicleBodyType(차종 12) + tonnage(톤수 10) 2축.
+ *   현재 화면 선택지는 active subset(차종 9 + 톤수 6)만 노출한다.
  *   legacy vehicleType(9 enum) 은 arologis wire 호환 파생값으로 응답에만 남긴다.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
@@ -56,7 +57,7 @@ export const DISPATCH_VEHICLE_TYPE_LABEL: Record<DispatchVehicleType, string> = 
 }
 
 /**
- * 배차 차량 차종 12종.
+ * 배차 차량 차종 12종. excluded 값도 응답/legacy 표시 호환 때문에 타입에는 유지한다.
  */
 export type DispatchVehicleBodyType =
   | 'MOTORCYCLE'
@@ -73,7 +74,7 @@ export type DispatchVehicleBodyType =
   | 'TRAILER'
 
 /**
- * 배차 차량 톤수 10종. 소형 차종은 null 로 전송한다.
+ * 배차 차량 톤수 10종. excluded 값도 응답/legacy 표시 호환 때문에 타입에는 유지한다.
  */
 export type DispatchTonnage =
   | 'T_1'
@@ -117,7 +118,6 @@ export const DISPATCH_TONNAGE_LABEL: Record<DispatchTonnage, string> = {
 
 export const VEHICLE_BODY_TYPE_OPTIONS: DispatchVehicleBodyType[] = [
   'MOTORCYCLE',
-  'SEDAN',
   'DAMAS',
   'LABO',
   'CARGO',
@@ -126,32 +126,25 @@ export const VEHICLE_BODY_TYPE_OPTIONS: DispatchVehicleBodyType[] = [
   'LIFT',
   'REEFER',
   'VIBRATION_FREE',
-  'AXLE',
-  'TRAILER',
 ]
 
 export const TONNAGE_OPTIONS: DispatchTonnage[] = [
   'T_1',
-  'T_1_2',
   'T_1_4',
   'T_2_5',
   'T_3_5',
   'T_5',
   'T_11',
-  'T_14',
-  'T_18',
-  'T_25',
 ]
 
 /**
- * BE DispatchVehicleTypeMatrix 와 동일한 차종별 유효 톤수.
+ * BE DispatchVehicleTypeMatrix 와 동일한 active 차종별 유효 톤수.
  */
-export const DISPATCH_VEHICLE_TYPE_MATRIX: Record<
+export const DISPATCH_VEHICLE_TYPE_MATRIX: Partial<Record<
   DispatchVehicleBodyType,
   readonly DispatchTonnage[]
-> = {
+>> = {
   MOTORCYCLE: [],
-  SEDAN: [],
   DAMAS: [],
   LABO: [],
   CARGO: TONNAGE_OPTIONS,
@@ -160,8 +153,12 @@ export const DISPATCH_VEHICLE_TYPE_MATRIX: Record<
   LIFT: TONNAGE_OPTIONS,
   REEFER: TONNAGE_OPTIONS,
   VIBRATION_FREE: TONNAGE_OPTIONS,
-  AXLE: TONNAGE_OPTIONS,
-  TRAILER: TONNAGE_OPTIONS,
+}
+
+export function getAllowedDispatchTonnages(
+  vehicleBodyType: DispatchVehicleBodyType,
+): readonly DispatchTonnage[] | null {
+  return DISPATCH_VEHICLE_TYPE_MATRIX[vehicleBodyType] ?? null
 }
 
 export interface AddVehicleGroupPayload {
@@ -288,6 +285,24 @@ export const DISPATCH_TASK_STATUS_TONE: Record<
   },
 }
 
+export type DispatchVehicleGroupDispatchStatus = 'PENDING' | 'DISPATCHED'
+
+export const DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL: Record<
+  DispatchVehicleGroupDispatchStatus,
+  string
+> = {
+  PENDING: '미발송',
+  DISPATCHED: '발송완료',
+}
+
+export const DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE: Record<
+  DispatchVehicleGroupDispatchStatus,
+  { background: string; color: string; borderColor: string }
+> = {
+  PENDING: DISPATCH_TASK_STATUS_TONE.DRAFT,
+  DISPATCHED: DISPATCH_TASK_STATUS_TONE.DISPATCHED,
+}
+
 /**
  * 수정/취소 편집 가능 상태 — DRAFT 또는 MODIFICATION_ACCEPTED.
  *
@@ -353,6 +368,7 @@ export interface SetMatchedDriverPayload {
  * @property vehicleType legacy 9 enum 값 (arologis wire 호환 파생값).
  * @property vehicleBodyType 신 차종 12 enum 값.
  * @property tonnage 신 톤수 10 enum 값. 소형 차종은 null.
+ * @property dispatchStatus 그룹 단위 arologis 발송 상태.
  * @property slips 그룹 안 slip rows (sequence 순서 보장).
  */
 export interface DispatchVehicleGroupResponse {
@@ -364,6 +380,7 @@ export interface DispatchVehicleGroupResponse {
   vehicleBodyTypeDisplay: string
   tonnage: DispatchTonnage | null
   tonnageDisplay: string | null
+  dispatchStatus: DispatchVehicleGroupDispatchStatus
   slips: DispatchVehicleGroupSlipResponse[]
 }
 

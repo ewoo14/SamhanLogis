@@ -1,5 +1,5 @@
 /**
- * AddVehicleModal — 차량 추가 modal (차종 12 + 톤수 10 2축).
+ * AddVehicleModal — 차량 추가 modal (active 차종 9 + active 톤수 6 2축).
  *
  * <p>Phase A FE-5.1.
  *
@@ -14,8 +14,8 @@ import { Modal } from '@samhan/design-system'
 import {
   DISPATCH_TONNAGE_LABEL,
   DISPATCH_VEHICLE_BODY_TYPE_LABEL,
-  DISPATCH_VEHICLE_TYPE_MATRIX,
   VEHICLE_BODY_TYPE_OPTIONS,
+  getAllowedDispatchTonnages,
   type AddVehicleGroupPayload,
   type DispatchTonnage,
   type DispatchVehicleBodyType,
@@ -31,14 +31,14 @@ export function AddVehicleModal({ onClose, onAdd, submitting }: AddVehicleModalP
   const [selectedBodyType, setSelectedBodyType] =
     useState<DispatchVehicleBodyType>('CARGO')
   const [selectedTonnage, setSelectedTonnage] = useState<DispatchTonnage>('T_1')
-  const allowedTonnages = DISPATCH_VEHICLE_TYPE_MATRIX[selectedBodyType]
+  const allowedTonnages = getAllowedDispatchTonnages(selectedBodyType) ?? []
   const requiresTonnage = allowedTonnages.length > 0
   const canSubmit = !submitting && (!requiresTonnage || allowedTonnages.includes(selectedTonnage))
 
   function selectBodyType(bodyType: DispatchVehicleBodyType) {
-    const currentRequiresTonnage = DISPATCH_VEHICLE_TYPE_MATRIX[selectedBodyType].length > 0
+    const currentRequiresTonnage = (getAllowedDispatchTonnages(selectedBodyType)?.length ?? 0) > 0
     setSelectedBodyType(bodyType)
-    const nextTonnages = DISPATCH_VEHICLE_TYPE_MATRIX[bodyType]
+    const nextTonnages = getAllowedDispatchTonnages(bodyType) ?? []
     if (
       nextTonnages.length > 0 &&
       (!currentRequiresTonnage || !nextTonnages.includes(selectedTonnage))

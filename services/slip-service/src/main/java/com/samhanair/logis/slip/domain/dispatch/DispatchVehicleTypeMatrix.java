@@ -13,7 +13,7 @@ import java.util.Objects;
  */
 public final class DispatchVehicleTypeMatrix {
 
-    private static final List<DispatchTonnage> ALL_TONNAGES = List.of(DispatchTonnage.values());
+    private static final List<DispatchTonnage> ACTIVE_TONNAGES = DispatchTonnage.activeValues();
 
     /** 차종별 허용 톤수. 빈 목록이면 tonnage null 허용/불요. */
     public static final Map<DispatchVehicleBodyType, List<DispatchTonnage>> ALLOWED_TONNAGES =
@@ -23,7 +23,12 @@ public final class DispatchVehicleTypeMatrix {
 
     /** 차종별 허용 톤수 목록. */
     public static List<DispatchTonnage> allowedTonnages(DispatchVehicleBodyType bodyType) {
-        return ALLOWED_TONNAGES.get(Objects.requireNonNull(bodyType, "bodyType 필수"));
+        Objects.requireNonNull(bodyType, "bodyType 필수");
+        List<DispatchTonnage> allowed = ALLOWED_TONNAGES.get(bodyType);
+        if (allowed == null) {
+            throw new IllegalArgumentException("선택할 수 없는 차종: " + bodyType);
+        }
+        return allowed;
     }
 
     /** 해당 차종이 톤수 입력을 요구하는지 여부. */
@@ -34,6 +39,12 @@ public final class DispatchVehicleTypeMatrix {
     /** 차종/톤수 조합 검증. */
     public static void validate(DispatchVehicleBodyType bodyType, DispatchTonnage tonnage) {
         Objects.requireNonNull(bodyType, "bodyType 필수");
+        if (!bodyType.isActive()) {
+            throw new IllegalArgumentException("선택할 수 없는 차종: " + bodyType);
+        }
+        if (tonnage != null && !tonnage.isActive()) {
+            throw new IllegalArgumentException("선택할 수 없는 톤수: " + tonnage);
+        }
         List<DispatchTonnage> allowed = allowedTonnages(bodyType);
         if (allowed.isEmpty()) {
             if (tonnage != null) {
@@ -53,17 +64,14 @@ public final class DispatchVehicleTypeMatrix {
         EnumMap<DispatchVehicleBodyType, List<DispatchTonnage>> map =
                 new EnumMap<>(DispatchVehicleBodyType.class);
         map.put(DispatchVehicleBodyType.MOTORCYCLE, List.of());
-        map.put(DispatchVehicleBodyType.SEDAN, List.of());
         map.put(DispatchVehicleBodyType.DAMAS, List.of());
         map.put(DispatchVehicleBodyType.LABO, List.of());
-        map.put(DispatchVehicleBodyType.CARGO, ALL_TONNAGES);
-        map.put(DispatchVehicleBodyType.WINGBODY, ALL_TONNAGES);
-        map.put(DispatchVehicleBodyType.TOPCAR, ALL_TONNAGES);
-        map.put(DispatchVehicleBodyType.LIFT, ALL_TONNAGES);
-        map.put(DispatchVehicleBodyType.REEFER, ALL_TONNAGES);
-        map.put(DispatchVehicleBodyType.VIBRATION_FREE, ALL_TONNAGES);
-        map.put(DispatchVehicleBodyType.AXLE, ALL_TONNAGES);
-        map.put(DispatchVehicleBodyType.TRAILER, ALL_TONNAGES);
+        map.put(DispatchVehicleBodyType.CARGO, ACTIVE_TONNAGES);
+        map.put(DispatchVehicleBodyType.WINGBODY, ACTIVE_TONNAGES);
+        map.put(DispatchVehicleBodyType.TOPCAR, ACTIVE_TONNAGES);
+        map.put(DispatchVehicleBodyType.LIFT, ACTIVE_TONNAGES);
+        map.put(DispatchVehicleBodyType.REEFER, ACTIVE_TONNAGES);
+        map.put(DispatchVehicleBodyType.VIBRATION_FREE, ACTIVE_TONNAGES);
         return Map.copyOf(map);
     }
 }

@@ -64,6 +64,7 @@ class DispatchConfirmAndUnavailableServiceTest {
 
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
         setId(group, groupId);
+        group.markDispatched();
 
         DispatchVehicleGroupSlip mapping = DispatchVehicleGroupSlip.create(groupId, slipId, 1);
         Slip slip = org.mockito.Mockito.mock(Slip.class);
@@ -107,6 +108,7 @@ class DispatchConfirmAndUnavailableServiceTest {
 
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
         setId(group, groupId);
+        group.markDispatched();
 
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
@@ -141,6 +143,7 @@ class DispatchConfirmAndUnavailableServiceTest {
 
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
         setId(group, groupId);
+        group.markDispatched();
         MatchedDriver existing = MatchedDriver.create(
                 groupId, "OLD", "Old Driver", "010-0000-0000", "OLD_SOURCE", "00A0000");
 
@@ -177,6 +180,7 @@ class DispatchConfirmAndUnavailableServiceTest {
 
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
         setId(group, UUID.randomUUID());
+        group.markDispatched();
 
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
@@ -206,6 +210,7 @@ class DispatchConfirmAndUnavailableServiceTest {
 
         DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
         setId(group, UUID.randomUUID());
+        group.markDispatched();
 
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
         when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
@@ -231,19 +236,58 @@ class DispatchConfirmAndUnavailableServiceTest {
     }
 
     @Test
-    void confirm_from_DRAFT_throws() throws Exception {
+    void confirm_rejects_pending_group_sequence_and_does_not_confirm_unsent_slips() throws Exception {
         UUID taskId = UUID.randomUUID();
+        UUID sentGroupId = UUID.randomUUID();
+        UUID pendingGroupId = UUID.randomUUID();
+
+        DispatchTask task = DispatchTask.create("2026/05/14-PENDING-SEQ", LocalDate.now());
+        setId(task, taskId);
+        task.markDispatching();
+
+        DispatchVehicleGroup sentGroup = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(sentGroup, sentGroupId);
+        sentGroup.markDispatched();
+        DispatchVehicleGroup pendingGroup = DispatchVehicleGroup.create(taskId, 2, DispatchVehicleType.TONNAGE_1);
+        setId(pendingGroup, pendingGroupId);
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(sentGroup, pendingGroup));
+
+        DispatchTaskConfirmRequest req = new DispatchTaskConfirmRequest(
+                UUID.randomUUID(),
+                List.of(new DispatchTaskConfirmRequest.MatchedDriverPayload(
+                        2, "TONNAGE_1", "D-002", "이몽룡", "010-x", "INTERNAL_APP", null)),
+                Instant.now());
+        assertThatThrownBy(() -> confirmSvc.confirm(taskId, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("아직 발송되지 않은 차량 그룹입니다");
+        verify(slipRepo, never()).findById(any());
+        verify(matchedRepo, never()).save(any());
+    }
+
+    @Test
+    void confirm_from_DRAFT_with_pending_only_throws() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
         DispatchTask task = DispatchTask.create("2026/05/14-2", LocalDate.now());
         setId(task, taskId);
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(group, groupId);
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(group));
 
         DispatchTaskConfirmRequest req = new DispatchTaskConfirmRequest(
                 UUID.randomUUID(),
                 List.of(new DispatchTaskConfirmRequest.MatchedDriverPayload(
                         1, "TONNAGE_1", "D-001", "홍길동", "010-x", "INTERNAL_APP", null)),
                 Instant.now());
+
         assertThatThrownBy(() -> confirmSvc.confirm(taskId, req))
-                .isInstanceOf(BusinessException.class);
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("아직 발송되지 않은 차량 그룹입니다");
     }
 
     @Test

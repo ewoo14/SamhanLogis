@@ -6,6 +6,7 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
+import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupDispatchStatus;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriver;
@@ -56,9 +57,10 @@ public class DispatchTaskConfirmService {
         DispatchTask task = taskRepo.findById(dispatchTaskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + dispatchTaskId));
-        if (task.getStatus() != DispatchTaskStatus.DISPATCHING) {
+        if (task.getStatus() != DispatchTaskStatus.DISPATCHING
+                && task.getStatus() != DispatchTaskStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "DISPATCHING 만 DISPATCHED 로 전이 가능 — 현재=" + task.getStatus());
+                    "발송 중인 배차 작업만 confirm 가능 — 현재=" + task.getStatus());
         }
 
         List<DispatchVehicleGroup> groups =
@@ -69,11 +71,10 @@ public class DispatchTaskConfirmService {
         }
         validateMatchedDriverSequences(req, bySeq);
 
-        task.markDispatched(req.arologisDispatchId());
-        taskRepo.save(task);
-
+        Set<UUID> confirmedGroupIds = new HashSet<>();
         for (var md : req.matchedDrivers()) {
             DispatchVehicleGroup g = bySeq.get(md.vehicleGroupSequence());
+            confirmedGroupIds.add(g.getId());
             MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(g.getId())
                     .map(existing -> {
                         existing.updateMatched(
@@ -98,14 +99,33 @@ public class DispatchTaskConfirmService {
             }
         }
 
+        Set<UUID> matchedGroupIds = new HashSet<>(confirmedGroupIds);
+        matchedRepo.findByVehicleGroupIdInAndIsDeletedFalse(groups.stream().map(DispatchVehicleGroup::getId).toList())
+                .forEach(driver -> matchedGroupIds.add(driver.getVehicleGroupId()));
+        boolean allGroupsDispatched = groups.stream()
+                .allMatch(group -> group.getDispatchStatus() == DispatchVehicleGroupDispatchStatus.DISPATCHED);
+        boolean allGroupsMatched = groups.stream()
+                .map(DispatchVehicleGroup::getId)
+                .allMatch(matchedGroupIds::contains);
+        boolean completed = allGroupsDispatched && allGroupsMatched;
+        if (completed) {
+            if (task.getStatus() == DispatchTaskStatus.DRAFT) {
+                task.markDispatching();
+            }
+            task.markDispatched(req.arologisDispatchId());
+            taskRepo.save(task);
+        }
+
         // notification — 배차담당자 알림 (graceful fallback)
-        try {
-            notificationClient.sendExternalSms(
-                    /* phone = */ null,  // Phase A: 배차담당자 phone resolve 는 후속 (notification-service 큐)
-                    "[배차 완료]",
-                    task.getTaskCode() + " 배차 완료 — 기사 " + req.matchedDrivers().size() + "명 매칭");
-        } catch (Exception ex) {
-            log.warn("[DispatchTaskConfirmService] notification 발송 실패 (graceful) — msg={}", ex.getMessage());
+        if (completed) {
+            try {
+                notificationClient.sendExternalSms(
+                        /* phone = */ null,  // Phase A: 배차담당자 phone resolve 는 후속 (notification-service 큐)
+                        "[배차 완료]",
+                        task.getTaskCode() + " 배차 완료 — 기사 " + req.matchedDrivers().size() + "명 매칭");
+            } catch (Exception ex) {
+                log.warn("[DispatchTaskConfirmService] notification 발송 실패 (graceful) — msg={}", ex.getMessage());
+            }
         }
 
         log.info("[DispatchTaskConfirmService] confirm 완료 — taskCode={} matched={}",
@@ -125,6 +145,11 @@ public class DispatchTaskConfirmService {
             if (!bySeq.containsKey(seq)) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
                         "matchedDriver vehicleGroupSequence 미존재: " + seq);
+            }
+            DispatchVehicleGroup group = bySeq.get(seq);
+            if (group.getDispatchStatus() != DispatchVehicleGroupDispatchStatus.DISPATCHED) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "아직 발송되지 않은 차량 그룹입니다: " + seq);
             }
         }
     }

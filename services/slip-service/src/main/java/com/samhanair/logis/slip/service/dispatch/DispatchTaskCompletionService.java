@@ -24,14 +24,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 배차 완료 trigger — DRAFT → DISPATCHING 전이 + arologis 발송 (BE Task B9).
+ * 배차 완료 trigger — 그룹 단위 arologis 발송 + 기존 confirm 흐름 연결 (BE Task B9).
  *
  * <p>흐름:
  * <ol>
- *   <li>DispatchTask 의 상태가 DRAFT 인지 확인</li>
+ *   <li>DispatchTask 의 상태와 미발송 차량 그룹 존재 여부 확인</li>
  *   <li>차량 그룹 + 정차 slip snapshot 으로 ArologisDispatchRequest 조립</li>
  *   <li>ArologisDispatchClient.send() 호출 (실패 시 트랜잭션 롤백)</li>
- *   <li>DispatchTask → DISPATCHING + 매핑된 모든 slip 의 dispatchStatus → DISPATCHING</li>
+ *   <li>대상 그룹 → DISPATCHED + 대상 slip 의 dispatchStatus → DISPATCHING</li>
+ *   <li>모든 그룹이 발송된 경우에만 DispatchTask → DISPATCHING</li>
  * </ol>
  *
  * <p>매칭 회신 (DISPATCHED / FAILED) 은 별도 service 의 internal endpoint 가 처리.
@@ -48,7 +49,7 @@ public class DispatchTaskCompletionService {
     private final SlipRepository slipRepo;
     private final ArologisDispatchClient arologisClient;
 
-    /** 배차 작업 발송 — DRAFT 만 허용. 멱등성: DISPATCHING 재호출 시 CONFLICT. */
+    /** 배차 작업 발송 — 미발송 그룹만 arologis 로 전송한다. */
     public DispatchTask dispatch(UUID dispatchTaskId) {
         return dispatch(dispatchTaskId, null);
     }
@@ -60,10 +61,6 @@ public class DispatchTaskCompletionService {
         DispatchTask task = taskRepo.findById(dispatchTaskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + dispatchTaskId));
-        if (task.getStatus() != DispatchTaskStatus.DRAFT) {
-            throw new BusinessException(ErrorCode.CONFLICT,
-                    "DRAFT 만 발송 가능 — 현재=" + task.getStatus());
-        }
 
         List<DispatchVehicleGroup> groups =
                 groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(task.getId());
@@ -71,13 +68,28 @@ public class DispatchTaskCompletionService {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "차량 그룹이 없습니다 — 배차 발송 불가");
         }
+        boolean hasPendingGroup = groups.stream().anyMatch(DispatchVehicleGroup::isDispatchPending);
+        boolean dispatchableTaskStatus = task.getStatus() == DispatchTaskStatus.DRAFT
+                || (task.getStatus() == DispatchTaskStatus.DISPATCHING && hasPendingGroup);
+        if (!dispatchableTaskStatus) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "발송 가능한 미발송 차량 그룹이 없습니다 — 현재=" + task.getStatus());
+        }
 
-        List<DispatchVehicleGroup> targetGroups = selectGroups(groups, groupIds);
+        List<DispatchVehicleGroup> targetGroups = selectGroups(groups, groupIds).stream()
+                .filter(DispatchVehicleGroup::isDispatchPending)
+                .toList();
+        if (targetGroups.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "발송할 미발송 차량 그룹이 없습니다.");
+        }
 
         List<ArologisDispatchRequest.VehicleGroup> payloadGroups = targetGroups.stream()
                 .map(this::buildPayloadGroup)
                 .toList();
 
+        // arologis confirm endpoint 는 원 taskId 로 회신한다. arologis 쪽 samhanDispatchTaskId unique
+        // 제약은 없으므로 부분 발송도 원 taskId 를 유지해 callback 라우팅을 보존한다.
         ArologisDispatchRequest request = new ArologisDispatchRequest(
                 task.getId(), task.getTaskCode(), task.getDispatchDate(), payloadGroups);
 
@@ -85,12 +97,10 @@ public class DispatchTaskCompletionService {
         log.info("[DispatchTaskCompletionService] arologis 발송 완료 — taskCode={} arologisDispatchId={}",
                 task.getTaskCode(), response != null ? response.arologisDispatchId() : null);
 
-        // 상태 전이
-        task.markDispatching();
-        taskRepo.save(task);
-
-        // 매핑된 모든 slip 의 dispatchStatus → DISPATCHING
+        // 대상 그룹 + 매핑된 slip 만 발송 상태로 전이한다.
         for (DispatchVehicleGroup group : targetGroups) {
+            group.markDispatched();
+            groupRepo.save(group);
             List<DispatchVehicleGroupSlip> mappings =
                     slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(group.getId());
             for (DispatchVehicleGroupSlip m : mappings) {
@@ -100,6 +110,12 @@ public class DispatchTaskCompletionService {
                 slip.markDispatchPending();
                 slipRepo.save(slip);
             }
+        }
+
+        if (groups.stream().allMatch(group -> !group.isDispatchPending())
+                && task.getStatus() == DispatchTaskStatus.DRAFT) {
+            task.markDispatching();
+            taskRepo.save(task);
         }
 
         return task;

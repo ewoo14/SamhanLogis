@@ -18,7 +18,8 @@ import {
   DISPATCH_TONNAGE_LABEL,
   DISPATCH_VEHICLE_BODY_TYPE_LABEL,
   DISPATCH_VEHICLE_TYPE_LABEL,
-  DISPATCH_VEHICLE_TYPE_MATRIX,
+  TONNAGE_OPTIONS,
+  getAllowedDispatchTonnages,
 } from './dispatchTask'
 import type {
   AddVehicleGroupPayload,
@@ -4652,10 +4653,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const tonnage = (body.tonnage ?? null) as DispatchTonnage | null
     recordMockAddVehicleGroupBody({ vehicleBodyType, tonnage })
 
-    if (!vehicleBodyType || !(vehicleBodyType in DISPATCH_VEHICLE_TYPE_MATRIX)) {
+    if (!vehicleBodyType) {
       return mockError(400, 'INVALID_INPUT', 'vehicleBodyType 은 필수입니다.')
     }
-    const allowedTonnages = DISPATCH_VEHICLE_TYPE_MATRIX[vehicleBodyType]
+    const allowedTonnages = getAllowedDispatchTonnages(vehicleBodyType)
+    if (allowedTonnages === null) {
+      return mockError(400, 'INVALID_INPUT', '선택할 수 없는 차종입니다.')
+    }
+    if (tonnage !== null && !TONNAGE_OPTIONS.includes(tonnage)) {
+      return mockError(400, 'INVALID_INPUT', '선택할 수 없는 톤수입니다.')
+    }
     if (allowedTonnages.length === 0 && tonnage !== null) {
       return mockError(400, 'INVALID_INPUT', '소형 차종은 tonnage 불필요')
     }
@@ -4673,6 +4680,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       vehicleBodyTypeDisplay: DISPATCH_VEHICLE_BODY_TYPE_LABEL[vehicleBodyType],
       tonnage,
       tonnageDisplay: tonnage ? DISPATCH_TONNAGE_LABEL[tonnage] : null,
+      dispatchStatus: 'PENDING',
       sequence,
       slips: [],
     }
@@ -4692,6 +4700,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
     if (!task || !group) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
+    }
+    if (group.dispatchStatus === 'DISPATCHED') {
+      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹에는 전표를 추가할 수 없습니다.')
     }
     const body = parseMockBody(config) as { slipId?: string }
     const slipId = String(body.slipId ?? '')
@@ -4732,13 +4743,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const groupIds = Array.isArray(body.groupIds) ? body.groupIds : undefined
     window.__SAMHAN_MOCK_LAST_DISPATCH_BODY__ = groupIds ? { groupIds } : {}
     const targetGroupIds = new Set(groupIds ?? task.vehicleGroups.map((group) => group.id))
-    task.vehicleGroups
-      .filter((group) => targetGroupIds.has(group.id))
-      .flatMap((group) => group.slips)
-      .forEach((row) => {
+    const targetGroups = task.vehicleGroups
+      .filter((group) => targetGroupIds.has(group.id) && group.dispatchStatus === 'PENDING')
+    if (targetGroups.length === 0) {
+      return mockError(400, 'INVALID_INPUT', '발송할 미발송 차량 그룹이 없습니다.')
+    }
+    targetGroups.forEach((group) => {
+      group.dispatchStatus = 'DISPATCHED'
+      group.slips.forEach((row) => {
         row.slip.dispatchStatus = 'DISPATCHING'
       })
-    task.status = 'DISPATCHING'
+    })
+    task.status = task.vehicleGroups.every((group) => group.dispatchStatus === 'DISPATCHED')
+      ? 'DISPATCHING'
+      : 'DRAFT'
     refreshMockDuplicateSlipIds(task)
     return envelope(task)
   }
@@ -7872,6 +7890,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
         vehicleBodyTypeDisplay: '카고',
         tonnage: 'T_1',
         tonnageDisplay: '1톤',
+        dispatchStatus: 'DISPATCHED',
         sequence: 1,
         slips: [
           {
@@ -7935,6 +7954,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
         vehicleBodyTypeDisplay: '다마스',
         tonnage: null,
         tonnageDisplay: null,
+        dispatchStatus: 'DISPATCHED',
         sequence: 1,
         slips: [
           {

@@ -11,7 +11,8 @@ public record DispatchVehicleGroupResponse(
         String vehicleBodyType,
         String vehicleBodyTypeDisplay,
         String tonnage,
-        String tonnageDisplay
+        String tonnageDisplay,
+        String dispatchStatus
 ) {
     public static DispatchVehicleGroupResponse from(DispatchVehicleGroup g) {
         return new DispatchVehicleGroupResponse(
@@ -21,6 +22,7 @@ public record DispatchVehicleGroupResponse(
                 g.getVehicleBodyType().name(),
                 g.getVehicleBodyType().getDisplayName(),
                 g.getTonnage() != null ? g.getTonnage().name() : null,
-                g.getTonnage() != null ? g.getTonnage().getDisplayName() : null);
+                g.getTonnage() != null ? g.getTonnage().getDisplayName() : null,
+                g.getDispatchStatus().name());
     }
 }

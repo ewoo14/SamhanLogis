@@ -169,8 +169,9 @@ class DispatchTaskHistoryAdminControllerIT extends AbstractPostgresIT {
         task.markDispatched(UUID.nameUUIDFromBytes(("arologis-" + taskCode).getBytes()));
         task = taskRepo.save(task);
 
-        DispatchVehicleGroup group = groupRepo.save(
-                DispatchVehicleGroup.create(task.getId(), 1, DispatchVehicleType.TONNAGE_1));
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(task.getId(), 1, DispatchVehicleType.TONNAGE_1);
+        group.markDispatched();
+        group = groupRepo.save(group);
         Slip slip = slipRepo.save(newSlip(dispatchDate, partnerName, seq));
         slip.markDispatchPending();
         slip.markDispatchConfirmed();

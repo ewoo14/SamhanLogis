@@ -24,14 +24,11 @@ class DispatchVehicleGroupTest {
 
     @Test
     void create_group_derives_legacy_vehicle_type_lossy_for_arologis_wire() {
-        assertThat(DispatchVehicleGroup.create(UUID.randomUUID(), 1,
-                DispatchVehicleBodyType.SEDAN, null).getVehicleType())
+        assertThat(DispatchVehicleGroup.deriveLegacyVehicleType(DispatchVehicleBodyType.SEDAN, null))
                 .isEqualTo(DispatchVehicleType.DAMAS);
-        assertThat(DispatchVehicleGroup.create(UUID.randomUUID(), 1,
-                DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_1_4).getVehicleType())
+        assertThat(DispatchVehicleGroup.deriveLegacyVehicleType(DispatchVehicleBodyType.WINGBODY, DispatchTonnage.T_1_4))
                 .isEqualTo(DispatchVehicleType.TONNAGE_1_5);
-        assertThat(DispatchVehicleGroup.create(UUID.randomUUID(), 1,
-                DispatchVehicleBodyType.TRAILER, DispatchTonnage.T_25).getVehicleType())
+        assertThat(DispatchVehicleGroup.deriveLegacyVehicleType(DispatchVehicleBodyType.TRAILER, DispatchTonnage.T_25))
                 .isEqualTo(DispatchVehicleType.TONNAGE_20);
     }
 
@@ -53,6 +50,16 @@ class DispatchVehicleGroupTest {
                 DispatchVehicleBodyType.MOTORCYCLE, DispatchTonnage.T_1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("tonnage 불필요");
+
+        assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
+                DispatchVehicleBodyType.TRAILER, DispatchTonnage.T_11))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("선택할 수 없는 차종");
+
+        assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
+                DispatchVehicleBodyType.CARGO, DispatchTonnage.T_25))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("선택할 수 없는 톤수");
     }
 
     @Test

@@ -54,6 +54,14 @@ import {
 } from './hooks/useDispatchTask'
 import type { DispatchSlipDragData } from './components/UnDispatchedSlipList'
 
+function initialDispatchTaskIdFromLocation(): string | null {
+  if (typeof window === 'undefined') return null
+  const hashQuery = window.location.hash.split('?')[1]
+  const params = new URLSearchParams(hashQuery ?? window.location.search)
+  const taskId = params.get('taskId')
+  return taskId && taskId.trim() ? taskId.trim() : null
+}
+
 /**
  * 그룹 안 sortable slip row 가 useSortable 에 넘기는 data.
  */
@@ -79,7 +87,7 @@ export default function DispatchBoardPage() {
   const [detailSlipId, setDetailSlipId] = useState<string | null>(null)
 
   // 현재 task UUID — mount 직후 자동 생성.
-  const [taskId, setTaskId] = useState<string | null>(null)
+  const [taskId, setTaskId] = useState<string | null>(() => initialDispatchTaskIdFromLocation())
 
   const createMutation = useCreateDispatchTaskMutation()
   const taskQuery = useDispatchTaskQuery(taskId)

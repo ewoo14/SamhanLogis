@@ -52,6 +52,11 @@ public class DispatchVehicleGroup extends BaseEntity {
     @Column(name = "tonnage", length = 16)
     private DispatchTonnage tonnage;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dispatch_status", nullable = false, length = 20)
+    private DispatchVehicleGroupDispatchStatus dispatchStatus =
+            DispatchVehicleGroupDispatchStatus.PENDING;
+
     private DispatchVehicleGroup(
             UUID dispatchTaskId,
             int sequence,
@@ -73,6 +78,7 @@ public class DispatchVehicleGroup extends BaseEntity {
         this.vehicleBodyType = vehicleBodyType;
         this.tonnage = tonnage;
         this.vehicleType = deriveLegacyVehicleType(vehicleBodyType, tonnage);
+        this.dispatchStatus = DispatchVehicleGroupDispatchStatus.PENDING;
     }
 
     /**
@@ -98,6 +104,16 @@ public class DispatchVehicleGroup extends BaseEntity {
     public static DispatchVehicleGroup create(UUID dispatchTaskId, int sequence, DispatchVehicleType vehicleType) {
         LegacyVehicleAxes axes = fromLegacy(vehicleType);
         return create(dispatchTaskId, sequence, axes.bodyType(), axes.tonnage());
+    }
+
+    /** 아직 arologis 발송 전인 그룹인지 여부. */
+    public boolean isDispatchPending() {
+        return dispatchStatus == DispatchVehicleGroupDispatchStatus.PENDING;
+    }
+
+    /** 선택/전체 전송 성공 후 그룹 단위 발송 완료로 전이한다. */
+    public void markDispatched() {
+        this.dispatchStatus = DispatchVehicleGroupDispatchStatus.DISPATCHED;
     }
 
     /**
@@ -147,7 +163,7 @@ public class DispatchVehicleGroup extends BaseEntity {
             case TONNAGE_3 -> new LegacyVehicleAxes(DispatchVehicleBodyType.CARGO, DispatchTonnage.T_3_5);
             case TONNAGE_5 -> new LegacyVehicleAxes(DispatchVehicleBodyType.CARGO, DispatchTonnage.T_5);
             case TONNAGE_10 -> new LegacyVehicleAxes(DispatchVehicleBodyType.CARGO, DispatchTonnage.T_11);
-            case TONNAGE_20 -> new LegacyVehicleAxes(DispatchVehicleBodyType.CARGO, DispatchTonnage.T_25);
+            case TONNAGE_20 -> new LegacyVehicleAxes(DispatchVehicleBodyType.CARGO, DispatchTonnage.T_11);
         };
     }
 

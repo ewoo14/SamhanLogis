@@ -37,6 +37,10 @@ test.describe('배차 2축 차량 모델 FE 런타임 계약', () => {
 
     await test.step('소형 차종은 톤수 옵션을 숨기고 tonnage null 로 제출한다', async () => {
       await openAddVehicleModal(page)
+      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-body-option-"]')).toHaveCount(9)
+      await expect(page.getByTestId('dispatch-board-add-vehicle-body-option-SEDAN')).toHaveCount(0)
+      await expect(page.getByTestId('dispatch-board-add-vehicle-body-option-AXLE')).toHaveCount(0)
+      await expect(page.getByTestId('dispatch-board-add-vehicle-body-option-TRAILER')).toHaveCount(0)
       await page.getByTestId('dispatch-board-add-vehicle-body-option-MOTORCYCLE').click()
       await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(0)
       await page.getByTestId('dispatch-board-add-vehicle-submit').click()
@@ -48,20 +52,20 @@ test.describe('배차 2축 차량 모델 FE 런타임 계약', () => {
       })
     })
 
-    await test.step('화물 차종은 10개 톤수를 노출하고 차종 전환 후 stale 톤수를 초기화한다', async () => {
+    await test.step('화물 차종은 active 6개 톤수를 노출하고 차종 전환 후 stale 톤수를 초기화한다', async () => {
       await openAddVehicleModal(page)
-      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(10)
+      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(6)
 
-      await page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_18').click()
-      await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_18')).toHaveAttribute('aria-checked', 'true')
+      await page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_11').click()
+      await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_11')).toHaveAttribute('aria-checked', 'true')
 
       await page.getByTestId('dispatch-board-add-vehicle-body-option-MOTORCYCLE').click()
       await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(0)
 
       await page.getByTestId('dispatch-board-add-vehicle-body-option-CARGO').click()
-      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(10)
+      await expect(page.locator('[data-testid^="dispatch-board-add-vehicle-tonnage-option-"]')).toHaveCount(6)
       await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_1')).toHaveAttribute('aria-checked', 'true')
-      await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_18')).toHaveAttribute('aria-checked', 'false')
+      await expect(page.getByTestId('dispatch-board-add-vehicle-tonnage-option-T_11')).toHaveAttribute('aria-checked', 'false')
 
       await page.getByTestId('dispatch-board-add-vehicle-submit').click()
       await expect(page.getByTestId('dispatch-board-vehicle-group-2')).toContainText('카고 1톤 #2')

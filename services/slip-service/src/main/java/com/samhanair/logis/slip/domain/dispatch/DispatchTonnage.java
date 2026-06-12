@@ -1,5 +1,8 @@
 package com.samhanair.logis.slip.domain.dispatch;
 
+import java.util.List;
+import java.util.Set;
+
 /**
  * 배차 차량 톤수 축.
  *
@@ -28,6 +31,16 @@ public enum DispatchTonnage {
     /** 25톤 */
     T_25("25톤");
 
+    private static final List<DispatchTonnage> ACTIVE = List.of(
+            T_1,
+            T_1_4,
+            T_2_5,
+            T_3_5,
+            T_5,
+            T_11);
+
+    private static final Set<DispatchTonnage> ACTIVE_SET = Set.copyOf(ACTIVE);
+
     private final String displayName;
 
     DispatchTonnage(String displayName) {
@@ -37,5 +50,15 @@ public enum DispatchTonnage {
     /** 사용자 노출용 한국어 라벨. */
     public String getDisplayName() {
         return displayName;
+    }
+
+    /** 배차 화면에서 현재 선택 가능한 톤수인지 여부. */
+    public boolean isActive() {
+        return ACTIVE_SET.contains(this);
+    }
+
+    /** 배차 화면 선택지에 노출할 active 톤수 목록. */
+    public static List<DispatchTonnage> activeValues() {
+        return ACTIVE;
     }
 }

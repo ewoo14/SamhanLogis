@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.domain.dispatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -22,10 +23,20 @@ class DispatchVehicleTypeMatrixTest {
     }
 
     @Test
-    void small_body_types_do_not_require_tonnage_and_trucks_have_all_tonnages() {
+    void active_body_types_and_active_tonnages_are_selection_subset() {
+        assertThat(DispatchVehicleTypeMatrix.ALLOWED_TONNAGES.keySet())
+                .containsExactlyInAnyOrder(
+                        DispatchVehicleBodyType.MOTORCYCLE,
+                        DispatchVehicleBodyType.DAMAS,
+                        DispatchVehicleBodyType.LABO,
+                        DispatchVehicleBodyType.CARGO,
+                        DispatchVehicleBodyType.WINGBODY,
+                        DispatchVehicleBodyType.TOPCAR,
+                        DispatchVehicleBodyType.LIFT,
+                        DispatchVehicleBodyType.REEFER,
+                        DispatchVehicleBodyType.VIBRATION_FREE);
+
         assertThat(DispatchVehicleTypeMatrix.allowedTonnages(DispatchVehicleBodyType.MOTORCYCLE))
-                .isEmpty();
-        assertThat(DispatchVehicleTypeMatrix.allowedTonnages(DispatchVehicleBodyType.SEDAN))
                 .isEmpty();
         assertThat(DispatchVehicleTypeMatrix.allowedTonnages(DispatchVehicleBodyType.DAMAS))
                 .isEmpty();
@@ -33,8 +44,27 @@ class DispatchVehicleTypeMatrixTest {
                 .isEmpty();
 
         assertThat(DispatchVehicleTypeMatrix.allowedTonnages(DispatchVehicleBodyType.CARGO))
-                .containsExactly(DispatchTonnage.values());
-        assertThat(DispatchVehicleTypeMatrix.allowedTonnages(DispatchVehicleBodyType.TRAILER))
-                .containsExactly(DispatchTonnage.values());
+                .containsExactly(
+                        DispatchTonnage.T_1,
+                        DispatchTonnage.T_1_4,
+                        DispatchTonnage.T_2_5,
+                        DispatchTonnage.T_3_5,
+                        DispatchTonnage.T_5,
+                        DispatchTonnage.T_11);
+    }
+
+    @Test
+    void validate_rejects_inactive_body_types_and_tonnages() {
+        assertThatThrownBy(() -> DispatchVehicleTypeMatrix.validate(DispatchVehicleBodyType.SEDAN, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("선택할 수 없는 차종");
+
+        assertThatThrownBy(() -> DispatchVehicleTypeMatrix.validate(DispatchVehicleBodyType.AXLE, DispatchTonnage.T_11))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("선택할 수 없는 차종");
+
+        assertThatThrownBy(() -> DispatchVehicleTypeMatrix.validate(DispatchVehicleBodyType.CARGO, DispatchTonnage.T_14))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("선택할 수 없는 톤수");
     }
 }

@@ -95,10 +95,11 @@ export function VehicleGroupColumn({
 
   // Phase C — DRAFT 또는 MODIFICATION_ACCEPTED 시 편집 가능 (D-DC-08).
   const canEdit = isEditableStatus(taskStatus) && canEditDispatch
+  const dispatchableGroups = groups.filter((g) => (g.dispatchStatus ?? 'PENDING') === 'PENDING')
   const canDispatch =
-    canEdit && groups.length > 0 && groups.some((g) => g.slips.length > 0)
+    canEdit && dispatchableGroups.length > 0 && dispatchableGroups.some((g) => g.slips.length > 0)
   const selectedDispatchGroupIds = groups
-    .filter((g) => selectedGroupIds.has(g.id) && g.slips.length > 0)
+    .filter((g) => selectedGroupIds.has(g.id) && (g.dispatchStatus ?? 'PENDING') === 'PENDING' && g.slips.length > 0)
     .map((g) => g.id)
   const canDispatchSelected = canEdit && selectedDispatchGroupIds.length > 0
   const assignedSlips = groups.flatMap((g) => g.slips)
@@ -115,9 +116,13 @@ export function VehicleGroupColumn({
   }, [assignedSlips, task?.duplicateSlipIds])
 
   useEffect(() => {
-    const liveGroupIds = new Set(groups.map((g) => g.id))
+    const selectableGroupIds = new Set(
+      groups
+        .filter((g) => (g.dispatchStatus ?? 'PENDING') === 'PENDING' && g.slips.length > 0)
+        .map((g) => g.id),
+    )
     setSelectedGroupIds((prev) => {
-      const next = new Set([...prev].filter((id) => liveGroupIds.has(id)))
+      const next = new Set([...prev].filter((id) => selectableGroupIds.has(id)))
       return next.size === prev.size ? prev : next
     })
   }, [groups])
@@ -436,9 +441,9 @@ export function VehicleGroupColumn({
               ? groups
                   .filter((g) => completeGroupIds.includes(g.id))
                   .reduce((sum, g) => sum + g.slips.length, 0)
-              : groups.reduce((sum, g) => sum + g.slips.length, 0)
+              : dispatchableGroups.reduce((sum, g) => sum + g.slips.length, 0)
           }
-          totalGroups={completeGroupIds.length > 0 ? completeGroupIds.length : groups.length}
+          totalGroups={completeGroupIds.length > 0 ? completeGroupIds.length : dispatchableGroups.length}
           groupIds={completeGroupIds.length > 0 ? completeGroupIds : undefined}
           onClose={() => setCompleteGroupIds(null)}
         />

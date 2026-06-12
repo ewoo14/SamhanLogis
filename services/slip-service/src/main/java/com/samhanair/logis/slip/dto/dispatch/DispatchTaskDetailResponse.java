@@ -60,6 +60,7 @@ public record DispatchTaskDetailResponse(
             String vehicleBodyTypeDisplay,
             String tonnage,
             String tonnageDisplay,
+            String dispatchStatus,
             int sequence,
             List<VehicleGroupSlip> slips
     ) {
@@ -72,6 +73,7 @@ public record DispatchTaskDetailResponse(
                     group.getVehicleBodyType().getDisplayName(),
                     group.getTonnage() != null ? group.getTonnage().name() : null,
                     group.getTonnage() != null ? group.getTonnage().getDisplayName() : null,
+                    group.getDispatchStatus().name(),
                     group.getSequence(),
                     slips
             );

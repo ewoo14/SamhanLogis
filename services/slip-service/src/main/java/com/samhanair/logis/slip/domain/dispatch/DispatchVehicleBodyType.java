@@ -1,5 +1,8 @@
 package com.samhanair.logis.slip.domain.dispatch;
 
+import java.util.List;
+import java.util.Set;
+
 /**
  * 배차 차량 차종 축.
  *
@@ -32,6 +35,19 @@ public enum DispatchVehicleBodyType {
     /** 추레라 */
     TRAILER("추레라");
 
+    private static final List<DispatchVehicleBodyType> ACTIVE = List.of(
+            MOTORCYCLE,
+            DAMAS,
+            LABO,
+            CARGO,
+            WINGBODY,
+            TOPCAR,
+            LIFT,
+            REEFER,
+            VIBRATION_FREE);
+
+    private static final Set<DispatchVehicleBodyType> ACTIVE_SET = Set.copyOf(ACTIVE);
+
     private final String displayName;
 
     DispatchVehicleBodyType(String displayName) {
@@ -41,5 +57,15 @@ public enum DispatchVehicleBodyType {
     /** 사용자 노출용 한국어 라벨. */
     public String getDisplayName() {
         return displayName;
+    }
+
+    /** 배차 화면에서 현재 선택 가능한 차종인지 여부. */
+    public boolean isActive() {
+        return ACTIVE_SET.contains(this);
+    }
+
+    /** 배차 화면 선택지에 노출할 active 차종 목록. */
+    public static List<DispatchVehicleBodyType> activeValues() {
+        return ACTIVE;
     }
 }

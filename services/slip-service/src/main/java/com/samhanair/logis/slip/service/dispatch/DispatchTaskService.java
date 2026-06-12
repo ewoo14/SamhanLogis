@@ -2,12 +2,15 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTonnage;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleBodyType;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
+import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
@@ -46,6 +49,7 @@ public class DispatchTaskService {
     private final DispatchTaskRepository taskRepo;
     private final DispatchVehicleGroupRepository groupRepo;
     private final DispatchVehicleGroupSlipRepository slipMapRepo;
+    private final SlipRepository slipRepo;
     private final EntityManager entityManager;
 
     /** 신규 배차 작업 (DRAFT) 생성 — taskCode 자동 생성. */
@@ -107,6 +111,24 @@ public class DispatchTaskService {
         DispatchVehicleGroup group = findGroupOrThrow(vehicleGroupId);
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
+        }
+        Slip slip = slipRepo.findById(slipId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "slip 이 존재하지 않습니다: " + slipId));
+        if (slip.getDispatchStatus() != SlipDispatchStatus.UNDISPATCHED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "미배차 전표만 배차 그룹에 추가할 수 있습니다: " + slip.getDispatchStatus());
+        }
+        for (DispatchVehicleGroupSlip existing : slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId)) {
+            if (existing.getVehicleGroupId().equals(vehicleGroupId)) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "이미 같은 차량 그룹에 추가된 전표입니다.");
+            }
+            DispatchVehicleGroup existingGroup = findGroupOrThrow(existing.getVehicleGroupId());
+            if (!existingGroup.getDispatchTaskId().equals(dispatchTaskId)) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "이미 다른 배차 작업에 추가된 전표입니다.");
+            }
         }
         int nextSeq = slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId).size() + 1;
         DispatchVehicleGroupSlip mapping = DispatchVehicleGroupSlip.create(vehicleGroupId, slipId, nextSeq);
