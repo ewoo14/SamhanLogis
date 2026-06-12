@@ -213,13 +213,9 @@ public class JwtAuthenticationGatewayFilterFactory
             // 동일하게 X-Is-System-Master, X-User-Id, X-User-Groups 도 remove-then-set 으로 보강한다.
             ServerHttpRequest.Builder requestBuilder = request.mutate()
                     .headers(h -> {
-                        // 클라이언트 위조 헤더 제거 후 JWT claim 기반 값으로 강제 override
-                        h.remove(HEADER_USER_ID);
-                        h.remove(HEADER_IS_SYSTEM_MASTER);
-                        h.remove(HEADER_USER_GROUPS);
-                        h.remove(HEADER_IS_PARTNER);
-                        h.remove(HEADER_USER_NAME);
-                        h.remove(HEADER_USER_DEPARTMENT);
+                        // 클라이언트 위조 identity 헤더를 단일 목록으로 제거 후 JWT claim 기반 값만 재주입한다.
+                        // X-User-Role 도 legacy 인가 폴백 오용을 막기 위해 명시적으로 제거한다.
+                        HttpHeaderConstants.INBOUND_IDENTITY_HEADERS.forEach(h::remove);
                         h.add(HEADER_USER_ID, userId);
                         // Phase C4: isSystemMaster 는 항상 전송 ("true"/"false") — 헤더 부재와 false 를 구분
                         h.add(HEADER_IS_SYSTEM_MASTER, String.valueOf(isSystemMaster));

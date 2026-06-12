@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cloud.gateway.config.GatewayProperties;
 import org.springframework.cloud.gateway.filter.FilterDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
@@ -46,6 +47,10 @@ class ApiGatewayContextLoadIT {
     /** 선언된 라우트 정의(application.yml 순서 보존) 를 주입 — 라우트 계약 단언용. */
     @Autowired
     private RouteDefinitionLocator routeDefinitionLocator;
+
+    /** default-filters 계약 확인용 gateway 설정 객체. */
+    @Autowired
+    private GatewayProperties gatewayProperties;
 
     /**
      * ApplicationContext 가 예외 없이 기동되면 PASS.
@@ -124,6 +129,57 @@ class ApiGatewayContextLoadIT {
         assertHasJwtAuthenticationFilter(routes, "product-catalog-realtime-v1");
     }
 
+    /**
+     * #465 공개 라우트 identity header spoof 차단 계약.
+     *
+     * <p>JwtAuthentication 미적용 라우트는 JWT claim 재주입 근거가 없으므로
+     * {@code StripInboundIdentityHeaders} 로 7개 identity header 를 제거해야 한다.
+     * 전역 {@code default-filters} 에서는 제거하지 않는다. 보호 라우트의
+     * JwtAuthentication claim 기반 재주입 순서와 충돌할 수 있기 때문이다.
+     */
+    @Test
+    @DisplayName("#465 JwtAuthentication 미적용 라우트 전수 — StripInboundIdentityHeaders 보유")
+    void publicRoutesWithoutJwtAuthentication_haveStripInboundIdentityHeaders() {
+        List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions()
+                .collectList()
+                .block();
+
+        assertThat(routes)
+                .as("RouteDefinitionLocator 가 선언 라우트를 반환해야 한다")
+                .isNotNull()
+                .isNotEmpty();
+
+        List<String> noJwtRouteIds = routes.stream()
+                .filter(route -> !filterNames(route).contains("JwtAuthentication"))
+                .map(RouteDefinition::getId)
+                .toList();
+
+        assertThat(noJwtRouteIds)
+                .as("JwtAuthentication 미적용 공개 라우트 전수")
+                .containsExactly(
+                        "auth-service",
+                        "slip-service-public",
+                        "partner-auth-public-v1",
+                        "auth-service-v1",
+                        "auth-service-legacy",
+                        "partner-auth-service-v1"
+                );
+
+        for (String id : noJwtRouteIds) {
+            assertHasStripInboundIdentityHeadersFilter(routes, id);
+        }
+    }
+
+    /** #465: default-filters 에 identity strip 을 추가하지 않았는지 회귀 가드. */
+    @Test
+    @DisplayName("#465 default-filters 는 identity header strip 미보유")
+    void defaultFilters_doNotStripIdentityHeaders() {
+        assertThat(gatewayProperties.getDefaultFilters())
+                .as("default-filters 는 보호 라우트 JwtAuthentication 재주입 순서와 충돌하지 않아야 한다")
+                .extracting(FilterDefinition::getName)
+                .doesNotContain("StripInboundIdentityHeaders", "RemoveRequestHeader");
+    }
+
     /** 주어진 id 의 라우트가 존재하고 단일 Path predicate 가 기대 패턴과 정확히 일치하는지 단언. */
     private static void assertRoutePath(List<RouteDefinition> routes, String id, String expectedPath) {
         RouteDefinition route = findRoute(routes, id);
@@ -151,10 +207,24 @@ class ApiGatewayContextLoadIT {
     /** 주어진 id 의 라우트가 {@code JwtAuthentication} 필터를 보유하는지(#24 인증 우회 회귀 가드) 단언. */
     private static void assertHasJwtAuthenticationFilter(List<RouteDefinition> routes, String id) {
         RouteDefinition route = findRoute(routes, id);
-        assertThat(route.getFilters())
+        assertThat(filterNames(route))
                 .as("%s 는 JwtAuthentication 필터를 보유해야 한다 — 누락 시 인증 우회 회귀", id)
-                .extracting(FilterDefinition::getName)
                 .contains("JwtAuthentication");
+    }
+
+    /** 주어진 id 의 라우트가 공개 identity strip 필터를 보유하는지(#465) 단언. */
+    private static void assertHasStripInboundIdentityHeadersFilter(List<RouteDefinition> routes, String id) {
+        RouteDefinition route = findRoute(routes, id);
+        assertThat(filterNames(route))
+                .as("%s 는 StripInboundIdentityHeaders 필터를 보유해야 한다 — 누락 시 공개 라우트 spoof 위험", id)
+                .contains("StripInboundIdentityHeaders");
+    }
+
+    /** RouteDefinition 의 필터명 목록. */
+    private static List<String> filterNames(RouteDefinition route) {
+        return route.getFilters().stream()
+                .map(FilterDefinition::getName)
+                .toList();
     }
 
     /** 선언 라우트 목록에서 id 의 인덱스(선언 순서). 미존재 시 -1. */

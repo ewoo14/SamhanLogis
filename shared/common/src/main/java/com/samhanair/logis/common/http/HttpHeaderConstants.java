@@ -1,5 +1,7 @@
 package com.samhanair.logis.common.http;
 
+import java.util.List;
+
 /**
  * 서비스 간 공통 HTTP header 이름.
  */
@@ -63,6 +65,23 @@ public final class HttpHeaderConstants {
      * partner-auth JWT 에 {@code partnerCode} claim 이 있을 때만 신뢰한다.
      */
     public static final String IS_PARTNER_HEADER = "X-Is-Partner";
+
+    /**
+     * 클라이언트가 직접 신뢰 경계 안으로 들여보내면 안 되는 identity header 집합.
+     *
+     * <p>api-gateway 는 보호 라우트에서 JWT claim 기반으로 이 값을 제거 후 재주입하고,
+     * JWT 미적용 공개 라우트에서는 전부 제거만 수행한다. 새 identity header 추가 시
+     * 이 목록을 먼저 갱신해야 공개 라우트 strip 누락을 막을 수 있다.
+     */
+    public static final List<String> INBOUND_IDENTITY_HEADERS = List.of(
+            CALLER_ID_HEADER,
+            IS_SYSTEM_MASTER_HEADER,
+            USER_GROUPS_HEADER,
+            IS_PARTNER_HEADER,
+            CALLER_NAME_HEADER,
+            USER_DEPARTMENT_HEADER,
+            CALLER_ROLE_HEADER
+    );
 
     private HttpHeaderConstants() {
     }

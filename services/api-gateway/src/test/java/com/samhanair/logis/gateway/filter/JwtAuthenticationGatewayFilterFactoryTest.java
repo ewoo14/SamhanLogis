@@ -2,6 +2,7 @@ package com.samhanair.logis.gateway.filter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.gateway.config.JwtProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -200,6 +201,53 @@ class JwtAuthenticationGatewayFilterFactoryTest {
         // C5-4: X-User-Role 미전파
         assertThat(captured[0].getHeaders().getFirst("X-User-Role")).isNull();
         assertThat(captured[0].getHeaders().getFirst("X-Is-System-Master")).isEqualTo("false");
+    }
+
+    @Test
+    @DisplayName("#465: JwtAuthentication 보호 라우트는 위조 identity 제거 후 claim 기반 값만 재주입")
+    void jwtProtectedSlipRoute_overridesSpoofedIdentityHeadersWithClaims() {
+        String groups = "group-a,group-b";
+        String token = JwtTokenProvider.generate(
+                "jwt-user", "MANAGER", "영업팀", "홍길동", false, groups, 3600L, props.getSecretBytes());
+
+        GatewayFilter filter = factory.apply(new JwtAuthenticationGatewayFilterFactory.Config());
+
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/slips/query")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaderConstants.CALLER_ID_HEADER, "spoof-user")
+                .header(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER, "true")
+                .header(HttpHeaderConstants.USER_GROUPS_HEADER, "spoof-group")
+                .header(HttpHeaderConstants.IS_PARTNER_HEADER, "true")
+                .header(HttpHeaderConstants.CALLER_NAME_HEADER, "spoof-name")
+                .header(HttpHeaderConstants.USER_DEPARTMENT_HEADER, "spoof-department")
+                .header(HttpHeaderConstants.CALLER_ROLE_HEADER, "MASTER")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ServerHttpRequest[] captured = new ServerHttpRequest[1];
+        GatewayFilterChain chain = e -> {
+            captured[0] = e.getRequest();
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(captured[0]).isNotNull();
+        assertThat(captured[0].getHeaders().get(HttpHeaderConstants.CALLER_ID_HEADER))
+                .containsExactly("jwt-user");
+        assertThat(captured[0].getHeaders().get(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER))
+                .containsExactly("false");
+        assertThat(captured[0].getHeaders().get(HttpHeaderConstants.USER_GROUPS_HEADER))
+                .containsExactly(groups);
+        assertThat(captured[0].getHeaders().get(HttpHeaderConstants.IS_PARTNER_HEADER))
+                .containsExactly("false");
+        assertThat(captured[0].getHeaders().get(HttpHeaderConstants.CALLER_NAME_HEADER))
+                .containsExactly(java.net.URLEncoder.encode("홍길동", java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(captured[0].getHeaders().get(HttpHeaderConstants.USER_DEPARTMENT_HEADER))
+                .containsExactly(java.net.URLEncoder.encode("영업팀", java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(captured[0].getHeaders().containsKey(HttpHeaderConstants.CALLER_ROLE_HEADER))
+                .as("X-User-Role 은 JWT claim 재주입 대상이 아니므로 위조 입력도 제거돼야 한다")
+                .isFalse();
     }
 
     @Test

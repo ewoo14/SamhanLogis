@@ -147,3 +147,4 @@ tools/legacy-gas/종합견적서-live/
 # 양식 샘플 드롭 폴더 — 실거래처/개인정보/계좌 포함 가능 → public repo 커밋 금지 (README 만 추적)
 docs/sample/*
 !docs/sample/README.md
+.codex-gradle-cache/

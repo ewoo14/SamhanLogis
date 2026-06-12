@@ -43,6 +43,7 @@ spring:
           predicates:
             - Path=/api/auth/**
           filters:
+            - StripInboundIdentityHeaders
             - StripPrefix=1
 
         - id: user-service
@@ -77,6 +78,7 @@ spring:
           predicates:
             - Path=/api/public/**
           filters:
+            - StripInboundIdentityHeaders
             - StripPrefix=1
 
         - id: product-service
@@ -144,6 +146,8 @@ spring:
           uri: lb://partner-auth-service
           predicates:
             - Path=/api/v1/auth/partner-status,/api/v1/auth/partner-register,/api/v1/auth/partner-password,/api/v1/auth/partner-login,/api/v1/auth/partner-temp-password,/api/v1/auth/partner-expiration,/api/v1/auth/partner-tutorial
+          filters:
+            - StripInboundIdentityHeaders
 
         # auth-service — login/token endpoint, JWT 필터 미적용
         - id: auth-service-v1
@@ -151,6 +155,7 @@ spring:
           predicates:
             - Path=/api/v1/auth/**
           filters:
+            - StripInboundIdentityHeaders
             - StripPrefix=2
 
         # [RC1] 인증 필요 auth-service endpoint(권한 admin / 비밀번호 변경) — JwtAuthentication 필터로
@@ -172,6 +177,8 @@ spring:
           uri: lb://auth-service
           predicates:
             - Path=/auth/**
+          filters:
+            - StripInboundIdentityHeaders
 
         # [RC3] UserMeController 는 풀패스 @RequestMapping("/api/v1/users/me") → strip=2 면 불일치.
         # generic user-service-v1(/api/v1/users/**, strip=2)보다 먼저 no-strip 으로 선언.
@@ -414,6 +421,7 @@ spring:
           predicates:
             - Path=/api/v1/partner-auth/**
           filters:
+            - StripInboundIdentityHeaders
             - StripPrefix=2
 
         # dc-config-service — DC정보는 Notion 원본 CSV 를 dc-config DB 로 이관한 뒤
