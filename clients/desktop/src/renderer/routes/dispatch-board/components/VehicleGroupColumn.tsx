@@ -15,6 +15,7 @@
  *  - FAILED — "배차 불가" (빨강) + 사유 + [재배차] (재배차 backlog Phase A 후속).
  */
 import { useEffect, useMemo, useState } from 'react'
+import { Button } from '@samhan/design-system'
 import {
   DISPATCH_TASK_STATUS_LABEL,
   DISPATCH_TASK_STATUS_TONE,
@@ -242,26 +243,16 @@ export function VehicleGroupColumn({
           >
             <strong>수정 수락됨:</strong> [재배차 시작] 을 누르면 기존 발송 그룹이 편집 가능한 상태로 돌아갑니다.
             <div style={{ marginTop: 8 }}>
-              <button
+              <Button
                 type="button"
                 onClick={() => startRedispatchMutation.mutate()}
                 disabled={!taskId || startRedispatchMutation.isPending || !canEditDispatch}
                 data-testid="dispatch-board-start-redispatch-button"
-                style={{
-                  padding: '7px 10px',
-                  border: 'none',
-                  borderRadius: 4,
-                  background: canEditDispatch
-                    ? 'var(--color-success-600, #059669)'
-                    : 'var(--color-neutral-200)',
-                  color: canEditDispatch ? 'var(--color-neutral-0)' : 'var(--color-neutral-500)',
-                  cursor: canEditDispatch ? 'pointer' : 'not-allowed',
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
+                variant="primary"
+                size="sm"
               >
                 재배차 시작
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}

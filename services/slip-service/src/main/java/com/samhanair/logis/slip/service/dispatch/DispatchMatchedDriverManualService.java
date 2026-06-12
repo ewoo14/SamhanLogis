@@ -49,6 +49,10 @@ public class DispatchMatchedDriverManualService {
         DispatchVehicleGroup group = findGroup(taskId, groupId);
         requireMatchedDriverRecordable(task);
         MatchedDriverSource driverSource = req.driverSource();
+        if (driverSource == MatchedDriverSource.AROLOGIS) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "아로로지스 출처는 자동 매칭 회신으로만 기록할 수 있습니다.");
+        }
 
         MatchedDriver matched = matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)
                 .orElse(null);

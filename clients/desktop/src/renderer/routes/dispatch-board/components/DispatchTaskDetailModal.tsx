@@ -177,7 +177,11 @@ export function DispatchTaskDetailModal({
     !readOnly && task.status === 'DISPATCHED' && canAccess('dispatch.board', 'update')
   const showRedispatchButton =
     !readOnly && task.status === 'MODIFICATION_ACCEPTED' && canAccess('dispatch.board', 'update')
-  const canEditMatchedDriver = canAccess('dispatch.board', 'update')
+  const canEditMatchedDriver =
+    canAccess('dispatch.board', 'update') &&
+    (task.status === 'DRAFT' ||
+      task.status === 'DISPATCHING' ||
+      task.status === 'DISPATCHED')
   const banner = STATUS_BANNER_STYLE[task.status]
   const totalSlips = task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)
 

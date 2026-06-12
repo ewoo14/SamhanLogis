@@ -136,6 +136,8 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
                         .header(USER_ROLE_HEADER, "MASTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DISPATCHING"));
+        assertThat(taskRepo.findById(seeded.taskId()).orElseThrow().getArologisDispatchId())
+                .isEqualTo(secondArologisId);
     }
 
     @Test

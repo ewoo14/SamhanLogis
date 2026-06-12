@@ -43,6 +43,12 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // 2026-05-14 분리 — 자체 auth endpoint (login 은 인증 전 진입).
                         .requestMatchers("/auth/admin/login", "/auth/driver/login", "/auth/refresh").permitAll()
+                        // 내부 RPC 는 X-Internal-Token 으로 인증된 system-internal principal 만 허용한다.
+                        .requestMatchers("/internal/**").access((authentication, context) ->
+                                new org.springframework.security.authorization.AuthorizationDecision(
+                                        authentication.get() != null
+                                                && InternalTokenFilter.INTERNAL_PRINCIPAL
+                                                        .equals(authentication.get().getName())))
                         .anyRequest().authenticated())
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 // 2026-05-14 — Bearer JWT 자체 검증 (gateway 우회 직접 호출 대응). InternalToken 다음.

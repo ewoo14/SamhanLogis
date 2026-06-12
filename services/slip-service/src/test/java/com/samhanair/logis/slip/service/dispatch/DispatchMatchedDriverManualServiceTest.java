@@ -95,6 +95,29 @@ class DispatchMatchedDriverManualServiceTest {
     }
 
     @Test
+    void setMatchedDriver_rejects_arologis_source_from_manual_path() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2099/06/12-5", LocalDate.of(2099, 6, 12));
+        setId(task, taskId);
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(group, groupId);
+
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
+
+        DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
+
+        assertThatThrownBy(() -> service.setMatchedDriver(taskId, groupId,
+                new SetMatchedDriverRequest("아로로지스 위장", "010-1111-2222", "12가3456",
+                        MatchedDriverSource.AROLOGIS)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
     void setMatchedDriver_ignores_soft_deleted_group() {
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();

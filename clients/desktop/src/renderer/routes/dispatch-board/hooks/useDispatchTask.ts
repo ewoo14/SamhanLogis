@@ -239,7 +239,6 @@ export function useStartRedispatchMutation(taskId: string | null) {
       return startRedispatch(taskId)
     },
     onSuccess: (updated) => {
-      qc.setQueryData(dispatchTaskQueryKey(updated.id), updated)
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(updated.id) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
       void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
