@@ -208,6 +208,34 @@ class EstimateCollabIT extends AbstractPostgresIT {
                 .contains(EstimateRevisionType.EDIT);
     }
 
+    /**
+     * 권한 없는(비-MASTER) 계정의 수정완료 요청은 403 으로 거부되고 이력이 저장되지 않아야 한다.
+     *
+     * <p>{@code @RequirePermission}(PermissionAspect) + EstimatePermissionGuard 이중 가드의 deny 경로를
+     * 실 HTTP 로 회귀 검증한다([enforcement-real-http-test]). MASTER bypass 헤더 없이 동적 권한이
+     * 거부되면 두 가드 모두 deny → 403.
+     */
+    @Test
+    void commitEdit_withoutPermission_returns403AndPersistsNothing() throws Exception {
+        Estimate estimate = seedAcceptedEstimate("DENY");
+        UUID deniedAccount = UUID.fromString("20000000-0000-0000-0000-0000000003ff");
+        when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(false);
+        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+
+        mvc.perform(post("/slips/estimates/{estimateId}/collab/edits", estimate.getId())
+                        .header(USER_ID_HEADER, deniedAccount.toString())
+                        .header(USER_NAME_HEADER, "권한없는사원")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"무단 수정\"}}",
+                                "reason", "권한 거부 회귀"))))
+                .andExpect(status().isForbidden());
+
+        assertThat(suggestionRepository.count()).isZero();
+    }
+
     /** REJECTED / CONVERTED 견적은 협업 수정완료가 409 로 거부되고 이력이 저장되지 않아야 한다. */
     @Test
     void commitEdit_onLockedStatuses_returns409AndPersistsNothing() throws Exception {

@@ -8,6 +8,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabComment;
 import com.samhanair.logis.slip.estimate.collab.EstimateCollabEditService;
@@ -83,6 +84,7 @@ public class EstimateCollabController {
     @Operation(summary = "견적 협업 댓글 등록 + SSE push")
     @PostMapping("/{estimateId}/collab/comments")
     @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateCollabCommentResponse> addComment(
             @PathVariable UUID estimateId,
             @Valid @RequestBody AddEstimateCollabCommentRequest request,
@@ -105,6 +107,7 @@ public class EstimateCollabController {
     /** 견적 협업 최근 댓글 백필. */
     @Operation(summary = "견적 협업 최근 댓글 조회")
     @GetMapping("/{estimateId}/collab/comments")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<EstimateCollabCommentResponse>> listComments(
             @PathVariable UUID estimateId,
             @RequestParam(defaultValue = "20") int limit,
@@ -123,6 +126,7 @@ public class EstimateCollabController {
     /** 견적 협업 댓글 soft-delete. */
     @Operation(summary = "견적 협업 댓글 soft delete")
     @DeleteMapping("/{estimateId}/collab/comments/{commentId}")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<Void> deleteComment(
             @PathVariable UUID estimateId,
             @PathVariable UUID commentId,
@@ -138,6 +142,7 @@ public class EstimateCollabController {
     /** 견적 협업 댓글 해결 처리. */
     @Operation(summary = "견적 협업 댓글 해결 처리")
     @PostMapping("/{estimateId}/collab/comments/{commentId}/resolve")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateCollabCommentResponse> resolveComment(
             @PathVariable UUID estimateId,
             @PathVariable UUID commentId,
@@ -153,6 +158,7 @@ public class EstimateCollabController {
     @Operation(summary = "견적 협업 수정완료")
     @PostMapping("/{estimateId}/collab/edits")
     @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateCollabEditResponse> commitEdit(
             @PathVariable UUID estimateId,
             @Valid @RequestBody CommitEstimateCollabEditRequest request,
@@ -172,6 +178,7 @@ public class EstimateCollabController {
     /** 견적 수정 이력 목록. */
     @Operation(summary = "견적 협업 수정 이력 목록")
     @GetMapping("/{estimateId}/collab/edits")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<EstimateCollabSuggestionResponse>> listEdits(
             @PathVariable UUID estimateId,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
@@ -190,6 +197,7 @@ public class EstimateCollabController {
     /** 견적 협업 SSE stream. 댓글/수정 이벤트는 estimateId 채널로 전달된다. */
     @Operation(summary = "견적 협업 SSE stream 구독")
     @GetMapping(value = "/{estimateId}/collab/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public SseEmitter stream(
             @PathVariable UUID estimateId,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,

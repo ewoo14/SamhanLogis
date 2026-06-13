@@ -125,9 +125,10 @@ function formatKrw(raw: string | number): string {
 }
 
 function isCollabEvent(eventName: string): boolean {
+  // 협업 stream(/collab/stream) 은 comment.* / suggestion.* 만 발행한다.
+  // 본문 수정(estimate:edit)은 별도 EstimateRealtimeClient 채널 소관이므로 여기서 받지 않는다.
   return eventName.startsWith('comment.')
     || eventName.startsWith('suggestion.')
-    || eventName === 'estimate:edit'
     || eventName === 'message'
 }
 
@@ -352,6 +353,7 @@ export function EstimateCollaborationPanel({
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
                   <textarea
                     data-testid="estimate-collab-comment-input"
+                    aria-label="코멘트 입력"
                     value={commentBody}
                     onChange={(event) => setCommentBody(event.target.value)}
                     maxLength={500}
@@ -378,9 +380,19 @@ export function EstimateCollaborationPanel({
                     등록
                   </Button>
                 </div>
-                {addCommentMutation.isError || deleteCommentMutation.isError || resolveCommentMutation.isError ? (
+                {addCommentMutation.isError ? (
                   <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                    코멘트를 처리하지 못했습니다.
+                    코멘트를 등록하지 못했습니다.
+                  </p>
+                ) : null}
+                {deleteCommentMutation.isError ? (
+                  <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                    코멘트를 삭제하지 못했습니다.
+                  </p>
+                ) : null}
+                {resolveCommentMutation.isError ? (
+                  <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                    코멘트를 해결 처리하지 못했습니다.
                   </p>
                 ) : null}
               </>
