@@ -275,9 +275,12 @@ public class AuthService {
         if (loginId == null || loginId.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "loginId 는 필수입니다");
         }
-        return accountRepository.findByLoginId(loginId)
-                .map(Account::getId)
+        Account account = accountRepository.findByLoginId(loginId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
+        if (!account.isEnabled()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다");
+        }
+        return account.getId();
     }
 
     public void updateAccountDisplayName(UUID id, String displayName) {

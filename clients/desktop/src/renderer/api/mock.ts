@@ -638,6 +638,20 @@ const MOCK_SLIPS = [
   },
 ]
 
+// §7 협업 수정완료: BE SlipDetailResponse 가 V16 audit overlay 10필드를 상세 응답에 포함한다.
+// mock 시드가 누락한 필드는 기존 표시 필드에서 보수적으로 보강해 mock QA가 빈 현재값으로 통과하지 않게 한다.
+for (const slip of MOCK_SLIPS as Array<Record<string, unknown>>) {
+  if (slip.inspectionAddress === undefined) slip.inspectionAddress = null
+  if (slip.receiverPhone === undefined) slip.receiverPhone = slip.contactPhone ?? null
+  if (slip.customerTel === undefined) slip.customerTel = slip.contactPhone ?? null
+  if (slip.customerAddress === undefined) slip.customerAddress = slip.shippingAddress ?? null
+  if (slip.customerRepresentative === undefined) slip.customerRepresentative = null
+  if (slip.paymentDueLabel === undefined) slip.paymentDueLabel = null
+  if (slip.discountInfo === undefined) slip.discountInfo = null
+  if (slip.collectTerm === undefined) slip.collectTerm = null
+  if (slip.agreeTerm === undefined) slip.agreeTerm = null
+}
+
 /** 시연용 mock 이동전표 5건 */
 const MOCK_TRANSFERS = [
   {

@@ -799,15 +799,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const collabEditValues: Record<string, string | null | undefined> = {
     memo: slip.memo,
     shippingAddress: slip.shippingAddress,
-    inspectionAddress: slip.supervisionAddress,
-    receiverPhone: slip.recipientPhone,
-    customerTel: slip.contactPhone,
-    customerAddress: slip.deliveryAddress,
-    customerRepresentative: undefined,
-    paymentDueLabel: slip.paymentDueDate,
-    discountInfo: undefined,
-    collectTerm: undefined,
-    agreeTerm: undefined,
+    inspectionAddress: slip.inspectionAddress,
+    receiverPhone: slip.receiverPhone,
+    customerTel: slip.customerTel ?? slip.contactPhone,
+    customerAddress: slip.customerAddress,
+    customerRepresentative: slip.customerRepresentative,
+    paymentDueLabel: slip.paymentDueLabel,
+    discountInfo: slip.discountInfo,
+    collectTerm: slip.collectTerm,
+    agreeTerm: slip.agreeTerm,
   }
 
   /**

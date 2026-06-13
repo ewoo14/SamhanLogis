@@ -126,8 +126,26 @@ export interface SlipDetail extends SlipSummary {
   ownerFullName?: string | null
   /** 배송지 — DispatchView 에서 14pt 본문으로 표시. */
   shippingAddress?: string | null
+  /** 검수지 주소 — audit overlay / 협업 수정완료 대상. */
+  inspectionAddress?: string | null
+  /** 수령자 연락처 — audit overlay / 협업 수정완료 대상. */
+  receiverPhone?: string | null
   /** 거래처 연락처 — DispatchView 에서 14pt 본문으로 표시. */
   contactPhone?: string | null
+  /** 거래처 연락처 snapshot — audit overlay / 협업 수정완료 대상. */
+  customerTel?: string | null
+  /** 거래처 주소 snapshot — audit overlay / 협업 수정완료 대상. */
+  customerAddress?: string | null
+  /** 거래처 대표자 snapshot — audit overlay / 협업 수정완료 대상. */
+  customerRepresentative?: string | null
+  /** 결제 만기 라벨 — audit overlay / 협업 수정완료 대상. */
+  paymentDueLabel?: string | null
+  /** 할인 정보 — audit overlay / 협업 수정완료 대상. */
+  discountInfo?: string | null
+  /** 회수 조건 — audit overlay / 협업 수정완료 대상. */
+  collectTerm?: string | null
+  /** 약정 조건 — audit overlay / 협업 수정완료 대상. */
+  agreeTerm?: string | null
   /**
    * signature-slice-C 신규 필드 7개 (모두 nullable, 미서명 시 null).
    *

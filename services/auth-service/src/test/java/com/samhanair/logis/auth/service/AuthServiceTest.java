@@ -332,4 +332,16 @@ class AuthServiceTest {
         verify(accountGroupService).syncBuiltinRoleGroup(accountId, null, Role.SALES);
         verify(effectivePermissionMaterializer).materializeForAccount(accountId);
     }
+
+    @Test
+    @DisplayName("내부 by-login 조회는 비활성 계정을 알림 수신자로 반환하지 않는다")
+    void findAccountIdByLoginId_disabledAccount_throwsNotFound() {
+        managerAccount.disable();
+        when(accountRepository.findByLoginId("alice")).thenReturn(Optional.of(managerAccount));
+
+        assertThatThrownBy(() -> authService.findAccountIdByLoginId("alice"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.NOT_FOUND));
+    }
 }
