@@ -54,3 +54,13 @@ slip-service 의 `shared:collab-core` 협업 패턴(수정완료 1-인 + 코멘�
 ## 6. 비결함 처리 (PM 검증)
 - V36 `decided_at TIMESTAMPTZ` — `CollabSuggestionRecord.decidedAt=Instant` 정확 매핑(거짓양성).
 - canAccess granularity — FE writes=`accounting.journals/update` = BE `@RequirePermission` 정확 일치(의도된 정책).
+
+## 7. 회계 문서번호 표준 슬래시 표준화 (개발책임자 추가 지시, 스코프 확장)
+
+Round C 중 개발책임자가 스크린샷에서 회계 문서 번호의 표준 미준수를 적발 → "슬래 모두 표준화" 지시. 본 PR 에 포함.
+
+- **생성기(production)**: JournalNumberService·TaxInvoiceNumberService(`yyyyMMdd`→`yyyy/MM/dd`), Sales/PurchaseAccountingSlipNumberGenerator(`SAS-`/`PAS-` prefix 제거+`yyyy/MM/dd`). 표준 = SlipNumberService. 회계 문서 UUID 라우팅이라 게이트웨이 `%2F` 무관.
+- **Flyway 시드(체크섬 안전)**: 기존 V2/V6/V8/V9/V10/V12 **원복** + 신규 forward **V37** seed journal_no/tax_invoice_no slash UPDATE(28건 per-row). 기존 dev DB 재부팅 healthy 실증.
+- **JournalSeeder(데모 50건)**: `yyyy/MM/dd-{날짜별 순번}` + 시드-UUID를 journalNo 파생→**seq 안정키 분리**(형식 독립 멱등 유지). dev DB 클린 리셋 후 66건 전부 slash·중복 0.
+- 2대 함정 박제: [[feedback_slip_order_number_format]] (①기존 마이그 수정 금지=forward UPDATE ②결정적 시드 UUID 를 비즈니스번호 파생 금지).
+- 검증: full 회계 테스트 BUILD SUCCESSFUL(seed IT 4종 slash 정합) + 전체 desktop playwright 506/506 + 실서버 분개장 all-slash 캡처.
