@@ -20,6 +20,7 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
+import com.samhanair.logis.slip.client.AuthAccountLookupClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -28,15 +29,21 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.collab.SlipCollabComment;
+import com.samhanair.logis.slip.collab.SlipCollabCommentRepository;
+import com.samhanair.logis.slip.collab.SlipCollabSuggestion;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestionRepository;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.revision.domain.SlipRevision;
+import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.mockito.ArgumentCaptor;
@@ -94,6 +101,7 @@ class SlipCollabIT extends AbstractPostgresIT {
     @Autowired private SlipRepository slipRepository;
     @Autowired private SlipRevisionRepository revisionRepository;
     @Autowired private SlipCollabSuggestionRepository suggestionRepository;
+    @Autowired private SlipCollabCommentRepository commentRepository;
     /** 시나리오 8(a) — accept 경유 audit revision_no(N-분열 차단) 단언용. */
     @Autowired private SlipAuditLogRepository auditLogRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -102,6 +110,7 @@ class SlipCollabIT extends AbstractPostgresIT {
     /* 외부 client MockBean — 누락 시 Eureka 비활성 → 500 ([it-mockbean-external-clients]) */
     /* ------------------------------------------------------------------ */
     @MockBean private ArologisDispatchClient arologisDispatchClient;
+    @MockBean private AuthAccountLookupClient authAccountLookupClient;
     @MockBean private InventoryClient inventoryClient;
     @MockBean private NotificationClient notificationClient;
     @MockBean private NotificationChatRoomClient notificationChatRoomClient;
@@ -283,21 +292,43 @@ class SlipCollabIT extends AbstractPostgresIT {
     }
 
     /**
-     * 수정완료가 성공하면 해당 전표의 출고자와 검수자에게만 변경 요약 푸시를 보낸다.
+     * 수정완료가 성공하면 해당 전표의 기여자와 다음 결재자에게 변경 요약 푸시를 보낸다.
      *
-     * <p>창고 직원 전체가 아니라 {@link Slip#getDispatcherUserId()} 와
-     * {@link Slip#getInspectorUserId()} 에 기록된 user-id 2명만 대상이다. 본문에는 수정자 실명과
-     * before→after 변경 요약이 포함되고, 내부 UUID 는 노출하지 않는다.
+     * <p>수신자 소스는 작성자(createdBy/requesterId), 버전 이력 actor, 수정 이력 proposer/decider,
+     * 댓글 author, 출고자/검수자다. username 식별자는 auth-service by-login 내부 조회로 UUID 를
+     * 변환하고, 현재 수정자는 self skip 된다. 본문에는 수정자 실명과 before→after 변경 요약만 포함하고
+     * 내부 UUID 는 노출하지 않는다.
      */
     @Test
-    void commitEdit_notifies_dispatcher_and_inspector_after_successful_history_save()
+    void commitEdit_notifies_contributors_and_next_approvers_after_successful_history_save()
             throws Exception {
-        UUID dispatcherId = UUID.randomUUID();
+        UUID requesterAccountId = UUID.randomUUID();
+        UUID createdByAccountId = UUID.randomUUID();
+        UUID revisionActorId = UUID.randomUUID();
+        UUID suggestionActorId = UUID.randomUUID();
+        UUID commentAuthorId = UUID.randomUUID();
+        UUID editorId = UUID.fromString(ACTOR_ID);
         UUID inspectorId = UUID.randomUUID();
         Slip slip = seedCompletedOutboundSlip(
                 "2099/06/13-NOTI-A-" + SEQ.getAndIncrement(),
-                dispatcherId.toString(),
+                ACTOR_ID,
                 inspectorId.toString());
+        revisionRepository.save(SlipRevision.of(
+                slip.getId(), 77, SlipRevisionType.EDIT, null,
+                slip.getSlipNo(), TEST_DATE, slip.toSnapshot(),
+                revisionActorId, "이전수정자", null));
+        SlipCollabSuggestion previousEdit = SlipCollabSuggestion.create(
+                CollabDocumentType.SLIP_OUTBOUND, slip.getId(),
+                suggestionActorId, "이전제안자", "{\"memo\":{\"after\":\"이전\"}}", null);
+        previousEdit.accept(suggestionActorId, "이전제안자");
+        suggestionRepository.save(previousEdit);
+        commentRepository.save(SlipCollabComment.create(
+                CollabDocumentType.SLIP_OUTBOUND, slip.getId(),
+                "memo", commentAuthorId, "댓글작성자", "확인했습니다", null));
+        when(authAccountLookupClient.findAccountIdByLoginId("collab-it-seeder"))
+                .thenReturn(Optional.of(requesterAccountId));
+        when(authAccountLookupClient.findAccountIdByLoginId("slip-user"))
+                .thenReturn(Optional.of(createdByAccountId));
 
         mvc.perform(post("/slips/{slipId}/collab/edits", slip.getId())
                         .header(USER_ID_HEADER, ACTOR_ID)
@@ -308,13 +339,25 @@ class SlipCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
-        verify(notificationClient).sendUserPush(eq(dispatcherId),
+        verify(notificationClient).sendUserPush(eq(requesterAccountId),
+                eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
+        verify(notificationClient).sendUserPush(eq(createdByAccountId),
+                eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
+        verify(notificationClient).sendUserPush(eq(revisionActorId),
+                eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
+        verify(notificationClient).sendUserPush(eq(suggestionActorId),
+                eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
+        verify(notificationClient).sendUserPush(eq(commentAuthorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
         verify(notificationClient).sendUserPush(eq(inspectorId),
                 eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
+        verify(notificationClient, never()).sendUserPush(eq(editorId),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        verify(authAccountLookupClient).findAccountIdByLoginId("collab-it-seeder");
+        verify(authAccountLookupClient).findAccountIdByLoginId("slip-user");
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(notificationClient, times(2)).sendUserPush(
+        verify(notificationClient, times(6)).sendUserPush(
                 org.mockito.ArgumentMatchers.any(UUID.class),
                 eq("[전표 수정] " + slip.getSlipNo()),
                 bodyCaptor.capture());

@@ -11,11 +11,14 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
+import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.service.SlipService;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,13 +44,16 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     private final SlipService slipService;
     private final SlipRevisionService revisionService;
     private final ObjectMapper objectMapper;
+    private final SlipRevisionRepository revisionRepository;
+    private final SlipCollabSuggestionRepository suggestionRepository;
+    private final SlipCollabCommentRepository commentRepository;
 
     public SlipDocumentCollaborationPort(SlipRepository slipRepository,
                                          SlipService slipService,
                                          SlipRevisionService revisionService,
                                          ObjectMapper objectMapper) {
         this(CollabDocumentType.SLIP_OUTBOUND, slipRepository, slipService, revisionService,
-                objectMapper);
+                objectMapper, null, null, null);
     }
 
     public SlipDocumentCollaborationPort(CollabDocumentType documentType,
@@ -55,11 +61,37 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
                                          SlipService slipService,
                                          SlipRevisionService revisionService,
                                          ObjectMapper objectMapper) {
+        this(documentType, slipRepository, slipService, revisionService, objectMapper,
+                null, null, null);
+    }
+
+    public SlipDocumentCollaborationPort(SlipRepository slipRepository,
+                                         SlipService slipService,
+                                         SlipRevisionService revisionService,
+                                         ObjectMapper objectMapper,
+                                         SlipRevisionRepository revisionRepository,
+                                         SlipCollabSuggestionRepository suggestionRepository,
+                                         SlipCollabCommentRepository commentRepository) {
+        this(CollabDocumentType.SLIP_OUTBOUND, slipRepository, slipService, revisionService,
+                objectMapper, revisionRepository, suggestionRepository, commentRepository);
+    }
+
+    public SlipDocumentCollaborationPort(CollabDocumentType documentType,
+                                         SlipRepository slipRepository,
+                                         SlipService slipService,
+                                         SlipRevisionService revisionService,
+                                         ObjectMapper objectMapper,
+                                         SlipRevisionRepository revisionRepository,
+                                         SlipCollabSuggestionRepository suggestionRepository,
+                                         SlipCollabCommentRepository commentRepository) {
         this.documentType = documentType;
         this.slipRepository = slipRepository;
         this.slipService = slipService;
         this.revisionService = revisionService;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
+        this.revisionRepository = revisionRepository;
+        this.suggestionRepository = suggestionRepository;
+        this.commentRepository = commentRepository;
     }
 
     @Override
@@ -252,10 +284,71 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         return canPropose(userId, documentId);
     }
 
+    /**
+     * 입출고전표 수정완료 알림 수신자를 해석한다.
+     *
+     * <p>입출고전표 레퍼런스 규칙은 아래 소스를 distinct 순서 보존 set 으로 합산한다.
+     * <ol>
+     *   <li>전표 작성자: {@code requesterId} 와 {@code createdBy}</li>
+     *   <li>수정 이력: {@code slip_revisions.actorId},
+     *       {@code slip_collab_suggestions.proposerId/decidedById}</li>
+     *   <li>코멘트 작성자: {@code slip_collab_comments.authorId}</li>
+     *   <li>다음 결재자: {@code dispatcherUserId}, {@code inspectorUserId}</li>
+     * </ol>
+     * null/blank 값과 현재 수정자 UUID 는 제외한다. 반환 문자열은 UUID 또는 loginId 가 섞일 수 있으며,
+     * 발송 service 가 최종 UUID 로 정규화한다.
+     *
+     * @param documentId 대상 전표 UUID
+     * @param excludeUserId 현재 수정자 UUID
+     * @return distinct 수신자 식별자 set
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Set<String> resolveNotificationRecipients(UUID documentId, UUID excludeUserId) {
+        Slip slip = loadSlip(documentId);
+        Set<String> recipients = new LinkedHashSet<>();
+        addRecipient(recipients, slip.getRequesterId(), excludeUserId);
+        addRecipient(recipients, slip.getCreatedBy(), excludeUserId);
+        if (revisionRepository != null) {
+            revisionRepository.findBySlipIdOrderByRevisionNoDesc(documentId)
+                    .forEach(revision -> addRecipient(
+                            recipients,
+                            revision.getActorId() == null ? null : revision.getActorId().toString(),
+                            excludeUserId));
+        }
+        if (suggestionRepository != null) {
+            suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(documentType, documentId)
+                    .forEach(suggestion -> {
+                        addRecipient(recipients, suggestion.getProposerId().toString(), excludeUserId);
+                        addRecipient(recipients,
+                                suggestion.getDecidedById() == null ? null : suggestion.getDecidedById().toString(),
+                                excludeUserId);
+                    });
+        }
+        if (commentRepository != null) {
+            commentRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(documentType, documentId)
+                    .forEach(comment -> addRecipient(recipients, comment.getAuthorId().toString(), excludeUserId));
+        }
+        addRecipient(recipients, slip.getDispatcherUserId(), excludeUserId);
+        addRecipient(recipients, slip.getInspectorUserId(), excludeUserId);
+        return recipients;
+    }
+
     private Slip loadSlip(UUID documentId) {
         return slipRepository.findById(documentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "전표를 찾을 수 없습니다: " + documentId));
+    }
+
+    private void addRecipient(Set<String> recipients, String rawUserId, UUID excludeUserId) {
+        if (rawUserId == null || rawUserId.isBlank()) {
+            return;
+        }
+        String normalized = rawUserId.trim();
+        if (excludeUserId != null && excludeUserId.toString().equals(normalized)) {
+            return;
+        }
+        recipients.add(normalized);
     }
 
     private JsonNode parseObject(String json, String label) {
@@ -317,20 +410,30 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         private final SlipService slipService;
         private final SlipRevisionService revisionService;
         private final ObjectMapper objectMapper;
+        private final SlipRevisionRepository revisionRepository;
+        private final SlipCollabSuggestionRepository suggestionRepository;
+        private final SlipCollabCommentRepository commentRepository;
 
         public Factory(SlipRepository slipRepository,
                        SlipService slipService,
                        SlipRevisionService revisionService,
-                       ObjectMapper objectMapper) {
+                       ObjectMapper objectMapper,
+                       SlipRevisionRepository revisionRepository,
+                       SlipCollabSuggestionRepository suggestionRepository,
+                       SlipCollabCommentRepository commentRepository) {
             this.slipRepository = slipRepository;
             this.slipService = slipService;
             this.revisionService = revisionService;
             this.objectMapper = objectMapper;
+            this.revisionRepository = revisionRepository;
+            this.suggestionRepository = suggestionRepository;
+            this.commentRepository = commentRepository;
         }
 
         public SlipDocumentCollaborationPort create(CollabDocumentType documentType) {
             return new SlipDocumentCollaborationPort(documentType, slipRepository, slipService,
-                    revisionService, objectMapper);
+                    revisionService, objectMapper, revisionRepository, suggestionRepository,
+                    commentRepository);
         }
     }
 }

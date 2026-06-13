@@ -7,13 +7,16 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.revision.domain.SlipRevision;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
+import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.service.SlipService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -238,6 +241,73 @@ class SlipDocumentCollaborationPortTest {
         // 유효 actor 이면 permissionClient 호출 없이 true 반환 (권한 판정은 @RequirePermission Aspect 담당)
         org.assertj.core.api.Assertions.assertThat(port.canPropose(userId, slipId)).isTrue();
         org.assertj.core.api.Assertions.assertThat(port.canDecide(userId, slipId)).isTrue();
+    }
+
+    /**
+     * 수정완료 알림 수신자는 전표 작성자/기여 이력/댓글/다음 결재자를 합산하고 현재 수정자는 제외한다.
+     *
+     * <p>입출고전표 레퍼런스 계약: requesterId 또는 createdBy, revision.actorId,
+     * suggestion.proposerId/decidedById, comment.authorId, dispatcherUserId, inspectorUserId 를
+     * distinct 문자열 set 으로 반환한다. UUID 가 아닌 과거 username 식별자는 slip-service
+     * {@code UserIdResolver} 가 후단에서 auth-service by-login 으로 변환한다.
+     */
+    @Test
+    void resolveNotificationRecipientsCollectsContributorsApproversAndSkipsCurrentEditor() {
+        SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
+        SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
+        SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
+        SlipRevisionRepository revisionRepository = org.mockito.Mockito.mock(SlipRevisionRepository.class);
+        SlipCollabSuggestionRepository suggestionRepository =
+                org.mockito.Mockito.mock(SlipCollabSuggestionRepository.class);
+        SlipCollabCommentRepository commentRepository =
+                org.mockito.Mockito.mock(SlipCollabCommentRepository.class);
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        UUID slipId = UUID.randomUUID();
+        UUID editorId = UUID.fromString("20000000-0000-0000-0000-000000000001");
+        UUID revisionActorId = UUID.fromString("20000000-0000-0000-0000-000000000002");
+        UUID proposerId = UUID.fromString("20000000-0000-0000-0000-000000000003");
+        UUID deciderId = UUID.fromString("20000000-0000-0000-0000-000000000004");
+        UUID commentAuthorId = UUID.fromString("20000000-0000-0000-0000-000000000005");
+        UUID inspectorId = UUID.fromString("20000000-0000-0000-0000-000000000006");
+
+        org.mockito.Mockito.when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        org.mockito.Mockito.when(slip.getRequesterId()).thenReturn("legacy_writer");
+        org.mockito.Mockito.when(slip.getCreatedBy()).thenReturn("created_user");
+        org.mockito.Mockito.when(slip.getDispatcherUserId()).thenReturn(editorId.toString());
+        org.mockito.Mockito.when(slip.getInspectorUserId()).thenReturn(inspectorId.toString());
+        org.mockito.Mockito.when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(SlipRevision.of(slipId, 1, SlipRevisionType.EDIT, null,
+                        "2026/06/13-1", LocalDate.of(2026, 6, 13), snapshot("2026/06/13-1", "M"),
+                        revisionActorId, "수정자", null)));
+        SlipCollabSuggestion suggestion = SlipCollabSuggestion.create(
+                com.samhanair.logis.collab.CollabDocumentType.SLIP_OUTBOUND, slipId,
+                proposerId, "제안자", "{\"memo\":{\"after\":\"x\"}}", null);
+        suggestion.accept(deciderId, "결정자");
+        org.mockito.Mockito.when(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                        com.samhanair.logis.collab.CollabDocumentType.SLIP_OUTBOUND, slipId))
+                .thenReturn(List.of(suggestion));
+        org.mockito.Mockito.when(commentRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                        com.samhanair.logis.collab.CollabDocumentType.SLIP_OUTBOUND, slipId))
+                .thenReturn(List.of(SlipCollabComment.create(
+                        com.samhanair.logis.collab.CollabDocumentType.SLIP_OUTBOUND, slipId,
+                        "memo", commentAuthorId, "댓글작성자", "확인", null)));
+
+        SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
+                slipRepository, slipService, revisionService, new ObjectMapper(),
+                revisionRepository, suggestionRepository, commentRepository);
+
+        Set<String> recipients = port.resolveNotificationRecipients(slipId, editorId);
+
+        org.assertj.core.api.Assertions.assertThat(recipients)
+                .containsExactly(
+                        "legacy_writer",
+                        "created_user",
+                        revisionActorId.toString(),
+                        proposerId.toString(),
+                        deciderId.toString(),
+                        commentAuthorId.toString(),
+                        inspectorId.toString())
+                .doesNotContain(editorId.toString());
     }
 
     private static SlipSnapshot snapshot(String slipNo, String memo) {

@@ -260,6 +260,26 @@ public class AuthService {
                 account.getDisplayName());
     }
 
+    /**
+     * loginId 로 내부 계정 UUID 를 조회한다.
+     *
+     * <p>서비스 간 알림 수신자 정규화에서 과거 username 식별자를 push 가능한 accountId 로 변환하기 위한
+     * read-only 계약이다. 계정 UUID 는 user-service 직원 UUID 와 동일 공간을 사용한다.
+     *
+     * @param loginId 로그인 아이디
+     * @return accountId UUID
+     * @throws BusinessException NOT_FOUND — loginId 에 해당하는 활성 계정이 없을 때
+     */
+    @Transactional(readOnly = true)
+    public UUID findAccountIdByLoginId(String loginId) {
+        if (loginId == null || loginId.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "loginId 는 필수입니다");
+        }
+        return accountRepository.findByLoginId(loginId)
+                .map(Account::getId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));
+    }
+
     public void updateAccountDisplayName(UUID id, String displayName) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "계정을 찾을 수 없습니다"));

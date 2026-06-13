@@ -33,4 +33,8 @@ public interface SlipCollabCommentRepository extends JpaRepository<SlipCollabCom
             @Param("documentType") CollabDocumentType documentType,
             @Param("documentId") UUID documentId,
             Pageable pageable);
+
+    /** 전표별 전체 댓글 작성자 해석용 목록. 최신 댓글순 우선. */
+    List<SlipCollabComment> findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+            CollabDocumentType documentType, UUID documentId);
 }

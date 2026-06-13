@@ -198,8 +198,55 @@ class InternalAccountControllerTest {
         verify(authService, never()).unlockAccount(any());
     }
 
+    /**
+     * 로그인 ID 로 내부 계정 UUID 를 조회한다.
+     *
+     * <p>slip-service 알림 수신자 해석에서 과거 이력의 username 식별자를 push 대상 UUID 로 변환할 때
+     * 사용하는 내부 계약이다. {@code X-Internal-Token} 이 맞으면 accountId 만 반환하고, 화면 표시용
+     * 사용자 정보는 노출하지 않는다.
+     */
+    @Test
+    void findByLogin_withValidToken_returnsAccountId() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        when(authService.findAccountIdByLoginId("dev_master")).thenReturn(accountId);
+
+        MockHttpServletResponse response = mockMvc.perform(get("/auth/internal/accounts/by-login")
+                        .header("X-Internal-Token", VALID_TOKEN)
+                        .param("loginId", "dev_master"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).contains(accountId.toString());
+        verify(authService).findAccountIdByLoginId("dev_master");
+    }
+
+    /**
+     * 미존재 loginId 는 404 로 반환한다.
+     *
+     * <p>호출 service 는 404 를 best-effort skip 으로 처리하여 알림 발송 트랜잭션을 방해하지 않는다.
+     */
+    @Test
+    void findByLogin_whenMissing_returns404() throws Exception {
+        when(authService.findAccountIdByLoginId("missing"))
+                .thenThrow(new com.samhanair.logis.common.exception.BusinessException(
+                        com.samhanair.logis.common.exception.ErrorCode.NOT_FOUND,
+                        "계정을 찾을 수 없습니다"));
+
+        MockHttpServletResponse response = mockMvc.perform(get("/auth/internal/accounts/by-login")
+                        .header("X-Internal-Token", VALID_TOKEN)
+                        .param("loginId", "missing"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(404);
+        verify(authService).findAccountIdByLoginId("missing");
+    }
+
     private static MockHttpServletRequestBuilder post(String url) {
         return MockMvcRequestBuilders.post(url);
+    }
+
+    private static MockHttpServletRequestBuilder get(String url) {
+        return MockMvcRequestBuilders.get(url);
     }
 
     private static MockHttpServletRequestBuilder patch(String url) {

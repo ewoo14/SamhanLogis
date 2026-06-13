@@ -7,6 +7,7 @@ import com.samhanair.logis.collab.CollabSuggestionService;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.NotificationClient;
+import com.samhanair.logis.slip.client.UserIdResolver;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -31,15 +32,18 @@ public class SlipCollabEditService {
     private final SlipCollabSuggestionRepository suggestionRepository;
     private final CollabRealtimePublisher publisher;
     private final NotificationClient notificationClient;
+    private final UserIdResolver userIdResolver;
     private final ObjectMapper objectMapper;
 
     public SlipCollabEditService(SlipCollabSuggestionRepository suggestionRepository,
                                  CollabRealtimePublisher publisher,
                                  NotificationClient notificationClient,
+                                 UserIdResolver userIdResolver,
                                  ObjectMapper objectMapper) {
         this.suggestionRepository = suggestionRepository;
         this.publisher = publisher;
         this.notificationClient = notificationClient;
+        this.userIdResolver = userIdResolver;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
     }
 
@@ -63,7 +67,7 @@ public class SlipCollabEditService {
                 port.documentType(), slipId, editorId, editorName, enrichedChangeSet, blankToNull(reason));
         edit.accept(editorId, editorName);
         SlipCollabSuggestion saved = suggestionRepository.save(edit);
-        notifyDispatcherAndInspector(updated, editorName, enrichedChangeSet);
+        notifyResolvedRecipients(port, slipId, editorId, updated, editorName, enrichedChangeSet);
         publisher.publish(slipId, CollabSuggestionService.EVENT_SUGGESTION_ACCEPTED,
                 java.util.Map.of(
                         "id", saved.getId().toString(),
@@ -79,18 +83,23 @@ public class SlipCollabEditService {
     }
 
     /**
-     * 수정완료 성공 후 해당 전표의 출고자와 검수자에게만 푸시 알림을 보낸다.
+     * 수정완료 성공 후 해당 전표의 기여자와 다음 결재자에게 푸시 알림을 보낸다.
      *
      * <p>알림은 전표 수정 트랜잭션의 부가 효과이므로 실패해도 수정완료 적용/이력 저장을 되돌리지 않는다.
-     * 수신자는 {@code dispatcherUserId}, {@code inspectorUserId} 두 필드에서 resolve 하며 null/blank,
-     * UUID 파싱 실패, 중복 수신자는 skip 한다. 본문에는 전표번호·수정자명·필드별 before→after 요약만
-     * 포함하고 내부 UUID 는 노출하지 않는다.
+     * 수신자 식별자는 도메인 포트가 작성자/수정 이력/댓글/다음 결재자에서 모으고, UUID 가 아닌
+     * username 은 auth-service 내부 조회로 accountId 를 확인한다. null/blank, resolve 실패, 중복,
+     * 현재 수정자는 skip 한다. 본문에는 전표번호·수정자명·필드별 before→after 요약만 포함하고 내부
+     * UUID 는 노출하지 않는다.
      */
-    private void notifyDispatcherAndInspector(SlipDetailResponse slip, String editorName,
-                                              String enrichedChangeSet) {
+    private void notifyResolvedRecipients(SlipDocumentCollaborationPort port, UUID slipId, UUID editorId,
+                                          SlipDetailResponse slip, String editorName,
+                                          String enrichedChangeSet) {
         Set<UUID> recipients = new LinkedHashSet<>();
-        addRecipient(recipients, slip.dispatcherUserId());
-        addRecipient(recipients, slip.inspectorUserId());
+        for (String rawRecipient : port.resolveNotificationRecipients(slipId, editorId)) {
+            userIdResolver.resolve(rawRecipient)
+                    .filter(resolved -> !resolved.equals(editorId))
+                    .ifPresent(recipients::add);
+        }
         if (recipients.isEmpty()) {
             return;
         }
@@ -105,25 +114,6 @@ public class SlipCollabEditService {
                 log.warn("[SlipCollab] 전표 수정완료 알림 발송 실패 — slipNo={} recipient={}",
                         slip.slipNo(), recipient, ex);
             }
-        }
-    }
-
-    private void addRecipient(Set<UUID> recipients, String rawUserId) {
-        UUID parsed = parseUuidOrNull(rawUserId);
-        if (parsed != null) {
-            recipients.add(parsed);
-        }
-    }
-
-    private UUID parseUuidOrNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException ex) {
-            log.debug("[SlipCollab] 전표 수정완료 알림 user-id UUID 파싱 실패 — value={}", value);
-            return null;
         }
     }
 

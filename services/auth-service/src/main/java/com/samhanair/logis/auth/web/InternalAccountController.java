@@ -4,22 +4,28 @@ import com.samhanair.logis.security.InternalTokenFilter;
 import com.samhanair.logis.auth.service.AuthService;
 import com.samhanair.logis.auth.service.dto.RegisterResponse;
 import com.samhanair.logis.auth.web.dto.internal.CreateAccountInternalRequest;
+import com.samhanair.logis.auth.web.dto.internal.InternalAccountLookupResponse;
 import com.samhanair.logis.auth.web.dto.internal.UpdateDepartmentNameInternalRequest;
 import com.samhanair.logis.auth.web.dto.internal.UpdateDisplayNameInternalRequest;
 import com.samhanair.logis.auth.web.dto.internal.UpdateRoleInternalRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Internal service-to-service endpoints used by User Service to provision Account
@@ -42,6 +48,29 @@ public class InternalAccountController {
                 request.displayName(),
                 request.role(),
                 request.passwordChangeRequired()));
+    }
+
+    /**
+     * loginId 로 내부 계정 UUID 를 조회한다.
+     *
+     * <p>slip-service 등 도메인 service 가 협업 알림 수신자 목록의 username 식별자를 push 가능한
+     * accountId 로 정규화할 때 사용하는 내부 endpoint 다. {@code X-Internal-Token} 인증은
+     * {@link InternalTokenFilter} 가 담당한다.
+     *
+     * @param loginId 조회할 로그인 아이디
+     * @return accountId 만 포함한 내부 응답
+     */
+    @GetMapping("/by-login")
+    public ApiResponse<InternalAccountLookupResponse> findByLogin(@RequestParam String loginId) {
+        try {
+            return ApiResponse.ok(new InternalAccountLookupResponse(
+                    authService.findAccountIdByLoginId(loginId)));
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() == ErrorCode.NOT_FOUND) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage(), ex);
+            }
+            throw ex;
+        }
     }
 
     @PatchMapping("/{id}/role")
