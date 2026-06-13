@@ -29,12 +29,13 @@
 
 ### 최신 진행 메모 (2026-06-13)
 
-- **§7 전역 협업 1차 — 입출고전표(slip) 풀 협업** (PR #474, 진행 중):
-  - 배차 보드 에픽(#463) spec §7(전역 협업 문서 플랫폼)의 첫 레퍼런스. 이미 범용 구축된 `shared:collab-core`(배차 코멘트만 실배선)를 **slip 에 풀 적용**(코멘트 + 수정제안 + 회귀) — 빅뱅 아님, 이후 회계/주문/견적 단계 롤아웃. slip 기존 자산(`Slip#toSnapshot`/`restoreFromSnapshot`/`SlipService.applyOverlayPatch`/`SlipRevisionService`) 재사용, 신규 추상 0.
-  - **BE**: `SlipCollabComment`(스레드·OPEN/RESOLVED)·`SlipCollabSuggestion`(changeSet JSONB·`@Version`)·`SlipDocumentCollaborationPort`(OUTBOUND/INBOUND 2빈)·`SlipCollabController`(코멘트 CRUD/resolve + 제안 propose/accept/reject/withdraw + SSE)·Flyway V44(document_type/status CHECK·BaseEntity 7 audit·active 인덱스). 권한 `slip.comments`/`slip.audit-overlay` 기존 page-code 재사용(lockout 위험 0).
-  - **수정제안 수락 = 단일 배치 적용**: `SlipService.applyOverlayPatchBatch` 신규 — 제안 1건의 다중 필드를 **잠금 가드 1회 + APPROVED 1회 소진 + EDIT revision 1건**으로 일괄 적용한다(필드별 호출 시 잠금 전표 둘째 필드 CONFLICT + revision 오염 결함 차단). 협업 수락은 직접 편집과 **동일한 잠금 정책**을 따른다(우회 없음).
-  - **FE**: 출고/입고전표 상세 협업 패널(코멘트 스레드 + 제안 목록 + 회귀 이력 + 실시간 SSE, `createRealtimeClient` 재사용). design-system `Input`/`Select` 적용. UUID 비공개(작성자/제안자 실명만).
-  - **검증**: `SlipCollabIT` 실 Testcontainers PostgreSQL **13건** 통과(accept 실적용·다중필드 단일 revision·403 deny·OUTBOUND/INBOUND·CHECK 거부·스코프 격리). ci.yml `slip.collab.*` 등재(false-green 차단). 다모델 리뷰 Round A(Opus 5-agent) 수렴 — Codex·Fable5 라운드 진행 중. **머지 = 다음 리뷰어 0 error + Docker 실 QA 후**.
+- **§7 전역 협업 에픽 — 입출고전표 "수정완료(1-인)" 레퍼런스** (PR #474, 슬라이스 0):
+  - §7 = **전역 협업 플랫폼 에픽**(대부분 메뉴 화면 — 전표·견적·회계전표·주문·배차·미배차/가배차·그룹웨어 결재 등 — 에 협업: 수정완료 + 코멘트 + diff + 알림). 슬라이스 0 = **입출고전표를 레퍼런스로 확정** 후 문서별 슬라이스로 동일 워크플로우 롤아웃. `shared:collab-core` 재사용.
+  - **본질 = 제안/수락(2-인) 아닌 전표 "수정(1-인)"**: 확정(CONFIRMED)/완료(COMPLETED) 전표를 **권한자 본인이 "수정"→편집→"수정완료" 1회 커밋**(별도 수락자 없음). Google Docs 참조 = "무엇이 어떻게 바뀌었는지 한눈에"(diff). 기존 "직접 수정 잠김→수정 요청"(edit-request) 흐름 **완전 대체**(삭제 요청만 보존).
+  - **BE**: `SlipCollabEditService.commitEdit`(`POST /collab/edits`, 단일 트랜잭션: 권한 → enrich(before diff) → `applyOverlayPatchBatch`(물리종결 SHIPPING/DELIVERED/CANCELED/REJECTED만 409·다필드 1버전·audit델타·SSE) → ACCEPTED 이력 → AFTER_COMMIT 알림). 수정 이력 diff(`GET /collab/edits`). 코멘트(`SlipCollabComment`)·실시간 SSE. 권한 `slip.audit-overlay`/`slip.comments` 재사용.
+  - **알림 일반화(슬라이스 0)**: 수정완료 시 **① 기여자(작성·수정 이력·코멘트 작성자) + ② 다음 결재자(출고인·검수인, 없으면 skip)** 에게 알림(현재 수정자 제외). `collab-core.resolveNotificationRecipients` 추상 + `UserIdResolver`(username/사번 → auth `by-login` → UUID).
+  - **FE**: 전표 상세 "수정" 버튼(COMPLETED=완료 버튼 자리 대체)→편집모드(overlay 11필드)→"수정완료". 수정 이력 **diff 뷰**(이전값→새값·수정자·시각). UUID 비공개. design-system.
+  - **검증**: slip+auth 전체 테스트 0실패(`SlipCollabIT` 실 Testcontainers Postgres, UserIdResolver/auth by-login). 실서버 Docker QA — dev_master 실로그인, 확정전표 수정완료 → memo 실변경 + diff 이력(UI 9컷). 다모델 리뷰 사이클 진행(각 라운드 실서버 스크린샷, 다음 리뷰어 0에러까지 → PM 머지).
 
 ### 최신 진행 메모 (2026-06-11)
 

@@ -1842,7 +1842,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       // BE CollabCommentService.softDelete 와 동일 메시지 ("댓글을 찾을 수 없습니다").
       if (!target) return mockError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다')
       collabCommentsStore[slipId] = list.filter((item) => item.id !== commentId)
-      return envelope(null)
+      return envelope({ deleted: true })
     }
   }
 

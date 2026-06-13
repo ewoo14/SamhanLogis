@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
+import { Badge, Button, Card, Input } from '@samhan/design-system'
 import {
   addSlipCollabComment,
   commitSlipCollabEdit,
@@ -134,6 +134,7 @@ export function SlipCollaborationPanel({
   const [editValues, setEditValues] = useState<Record<string, string>>({})
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
+  const [commitError, setCommitError] = useState<string | null>(null)
 
   const commentQueryKey = useMemo(() => ['slipCollabComments', slipId] as const, [slipId])
   const editQueryKey = useMemo(() => ['slipCollabEdits', slipId] as const, [slipId])
@@ -164,6 +165,7 @@ export function SlipCollaborationPanel({
     setEditValues(next)
     setEditReason('')
     setEditNotice(null)
+    setCommitError(null)
   }, [currentValues, editMode])
 
   useEffect(() => {
@@ -230,6 +232,13 @@ export function SlipCollaborationPanel({
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slip', slipId] })
       onCommitted?.()
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error && error.message === '변경된 필드가 없습니다.'
+          ? '변경된 필드가 없습니다.'
+          : '수정 저장에 실패했습니다. 다시 시도해 주세요.'
+      setCommitError(message)
     },
   })
 
@@ -363,9 +372,17 @@ export function SlipCollaborationPanel({
                     marginBottom: 12,
                   }}
                 >
-                  <Select value="all" aria-label="수정 가능 필드" selectSize="sm" disabled>
-                    <option value="all">수정 가능 필드 11종</option>
-                  </Select>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--color-neutral-600)',
+                      gridColumn: '1 / -1',
+                    }}
+                  >
+                    수정 가능 필드 11종
+                  </p>
                   {OVERLAY_FIELD_OPTIONS.map((option) => (
                     <label key={option.value} style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
                       {option.label}
@@ -409,9 +426,9 @@ export function SlipCollaborationPanel({
                     취소
                   </Button>
                 </div>
-                {commitMutation.isError ? (
+                {commitError ? (
                   <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                    수정완료에 실패했습니다.
+                    {commitError}
                   </p>
                 ) : null}
               </>

@@ -11,6 +11,7 @@ import com.samhanair.logis.slip.client.UserIdResolver;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
@@ -50,16 +51,24 @@ public class SlipCollabEditService {
     /**
      * changeSet 검증, overlay batch 적용, ACCEPTED 이력 저장을 하나의 트랜잭션으로 수행한다.
      *
+     * <p>권한 검사는 DB read({@code enrichChangeSetWithBefore}) 이전에 수행하여 무효 actor 가
+     * DB 조회를 유발하지 못하도록 차단한다.
+     *
+     * <p>알림 발송은 기존 {@code SlipEditRequestService.notifyTargetRole} 와 동일하게 트랜잭션 내 동기
+     * best-effort 다(발송 실패가 수정완료를 되돌리지 않음). 수신자 소수 + 타임아웃 가드로 커넥션 점유는 제한적.
+     *
      * @return ACCEPTED 이력과 변경 후 전표 상세
      */
     @Transactional
     public Result commitEdit(SlipDocumentCollaborationPort port, UUID slipId,
                              UUID editorId, String editorName, String changeSet, String reason) {
-        String enrichedChangeSet = port.enrichChangeSetWithBefore(slipId, changeSet);
+        // fix 2 — 권한 체크를 enrichChangeSetWithBefore(DB read) 이전으로 이동
         if (!port.canPropose(editorId, slipId) || !port.canDecide(editorId, slipId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "전표 수정완료 권한이 없습니다");
         }
+
+        String enrichedChangeSet = port.enrichChangeSetWithBefore(slipId, changeSet);
 
         SlipDetailResponse updated = port.applyOverlayPatchBatch(slipId, enrichedChangeSet, editorId, editorName);
 
@@ -67,7 +76,17 @@ public class SlipCollabEditService {
                 port.documentType(), slipId, editorId, editorName, enrichedChangeSet, blankToNull(reason));
         edit.accept(editorId, editorName);
         SlipCollabSuggestion saved = suggestionRepository.save(edit);
-        notifyResolvedRecipients(port, slipId, editorId, updated, editorName, enrichedChangeSet);
+
+        // 알림 — 기여자+다음결재자에게 best-effort 발송. 기존 SlipEditRequestService.notifyTargetRole 와
+        // 동일하게 트랜잭션 내 동기 발송이다(발송 실패가 수정완료 적용/이력 저장을 되돌리지 않음, 수신자 소수
+        // + NotificationClient connect/read 타임아웃 가드). collab-core 전 문서가 따를 일관 패턴.
+        sendNotifications(
+                List.copyOf(port.resolveNotificationRecipients(slipId, editorId)),
+                "[전표 수정] " + updated.slipNo(),
+                limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
+                        displayActor(editorName), updated.slipNo(), summarizeChangeSet(enrichedChangeSet))),
+                updated.slipNo(), editorId);
+
         publisher.publish(slipId, CollabSuggestionService.EVENT_SUGGESTION_ACCEPTED,
                 java.util.Map.of(
                         "id", saved.getId().toString(),
@@ -83,19 +102,23 @@ public class SlipCollabEditService {
     }
 
     /**
-     * 수정완료 성공 후 해당 전표의 기여자와 다음 결재자에게 푸시 알림을 보낸다.
+     * 수정완료 적용/이력 저장 후 수신자 목록에 푸시 알림을 발송한다(트랜잭션 내 동기 best-effort).
      *
-     * <p>알림은 전표 수정 트랜잭션의 부가 효과이므로 실패해도 수정완료 적용/이력 저장을 되돌리지 않는다.
-     * 수신자 식별자는 도메인 포트가 작성자/수정 이력/댓글/다음 결재자에서 모으고, UUID 가 아닌
-     * username 은 auth-service 내부 조회로 accountId 를 확인한다. null/blank, resolve 실패, 중복,
-     * 현재 수정자는 skip 한다. 본문에는 전표번호·수정자명·필드별 before→after 요약만 포함하고 내부
-     * UUID 는 노출하지 않는다.
+     * <p>알림은 best-effort 이므로 개별 발송 실패가 전체 수정완료 적용/이력 저장을 되돌리지 않는다.
+     * 수신자 식별자(UUID 또는 loginId)는 auth-service 내부 조회로 accountId 로 정규화하며,
+     * resolve 실패·중복·현재 수정자는 skip 한다. 본문에는 전표번호·수정자명·필드별 before→after
+     * 요약만 포함하고 내부 UUID 는 노출하지 않는다.
+     *
+     * @param rawRecipients 포트가 모은 수신자 식별자 목록 (UUID 또는 loginId 혼합)
+     * @param subject       알림 제목
+     * @param body          알림 본문 (2000자 이내)
+     * @param slipNo        로그용 전표번호
+     * @param editorId      현재 수정자 UUID (self-skip 용)
      */
-    private void notifyResolvedRecipients(SlipDocumentCollaborationPort port, UUID slipId, UUID editorId,
-                                          SlipDetailResponse slip, String editorName,
-                                          String enrichedChangeSet) {
+    private void sendNotifications(List<String> rawRecipients, String subject, String body,
+                                   String slipNo, UUID editorId) {
         Set<UUID> recipients = new LinkedHashSet<>();
-        for (String rawRecipient : port.resolveNotificationRecipients(slipId, editorId)) {
+        for (String rawRecipient : rawRecipients) {
             userIdResolver.resolve(rawRecipient)
                     .filter(resolved -> !resolved.equals(editorId))
                     .ifPresent(recipients::add);
@@ -104,15 +127,12 @@ public class SlipCollabEditService {
             return;
         }
 
-        String subject = "[전표 수정] " + slip.slipNo();
-        String body = limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
-                displayActor(editorName), slip.slipNo(), summarizeChangeSet(enrichedChangeSet)));
         for (UUID recipient : recipients) {
             try {
                 notificationClient.sendUserPush(recipient, subject, body);
             } catch (RuntimeException ex) {
                 log.warn("[SlipCollab] 전표 수정완료 알림 발송 실패 — slipNo={} recipient={}",
-                        slip.slipNo(), recipient, ex);
+                        slipNo, recipient, ex);
             }
         }
     }

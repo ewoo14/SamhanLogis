@@ -293,7 +293,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
      *   <li>수정 이력: {@code slip_revisions.actorId},
      *       {@code slip_collab_suggestions.proposerId/decidedById}</li>
      *   <li>코멘트 작성자: {@code slip_collab_comments.authorId}</li>
-     *   <li>다음 결재자: {@code dispatcherUserId}, {@code inspectorUserId}</li>
+     *   <li>출고인·검수인(전표 처리 담당자, 서명 완료 포함): {@code dispatcherUserId}, {@code inspectorUserId}</li>
      * </ol>
      * null/blank 값과 현재 수정자 UUID 는 제외한다. 반환 문자열은 UUID 또는 loginId 가 섞일 수 있으며,
      * 발송 service 가 최종 UUID 로 정규화한다.

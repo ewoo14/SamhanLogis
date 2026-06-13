@@ -5,6 +5,7 @@
  * proposerName, decidedByName, body, 사유, 시각만 노출한다.
  */
 import { apiClient, type ApiEnvelope } from './client'
+import type { SlipDetail } from './slip'
 
 export interface SlipCollabComment {
   id: string
@@ -42,7 +43,7 @@ export interface CommitSlipCollabEditInput {
 
 export interface CommitSlipCollabEditResponse {
   edit: SlipCollabEdit
-  slip: unknown
+  slip: SlipDetail
 }
 
 export async function getSlipCollabComments(
