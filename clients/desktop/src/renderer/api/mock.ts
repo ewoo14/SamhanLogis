@@ -2948,7 +2948,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     description: string | null
     lines: Array<{
       lineNo: number
-      note: string | null
+      memo: string | null
     }>
   }
   const gjc = globalThis as unknown as {
@@ -3049,7 +3049,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             const lineNo = Number.parseInt(lineMemoMatch[1]!, 10)
             const line = journal.lines.find((item) => item.lineNo === lineNo)
             if (!line) return mockError(400, 'INVALID_INPUT', '라인 번호가 올바르지 않습니다')
-            line.note = change.after == null ? null : String(change.after)
+            line.memo = change.after == null ? null : String(change.after)
             continue
           }
           return mockError(400, 'INVALID_INPUT', '수정 가능한 필드는 적요와 라인 메모뿐입니다')
@@ -7492,23 +7492,23 @@ const MOCK_JOURNALS = [
     lines: [
       {
         id: 'jl-001-1',
-        lineNo: 0,
+        lineNo: 1,
         accountCode: '1020',
         accountName: '보통예금',
         debit: '3700000',
         credit: '0',
         partnerName: '주식회사 윌리',
-        note: '국민은행 입금',
+        memo: '국민은행 입금',
       },
       {
         id: 'jl-001-2',
-        lineNo: 1,
+        lineNo: 2,
         accountCode: '4010',
         accountName: '제품매출',
         debit: '0',
         credit: '3700000',
         partnerName: '주식회사 윌리',
-        note: '시스템에어컨 4Way 4HP 2EA',
+        memo: '시스템에어컨 4Way 4HP 2EA',
       },
     ],
   },
@@ -7530,33 +7530,33 @@ const MOCK_JOURNALS = [
     lines: [
       {
         id: 'jl-002-1',
-        lineNo: 0,
+        lineNo: 1,
         accountCode: '8010',
         accountName: '급여',
         debit: '12000000',
         credit: '0',
         partnerName: null,
-        note: '4월분 정규직 급여',
+        memo: '4월분 정규직 급여',
       },
       {
         id: 'jl-002-2',
-        lineNo: 1,
+        lineNo: 2,
         accountCode: '2110',
         accountName: '예수금',
         debit: '0',
         credit: '1080000',
         partnerName: null,
-        note: '소득세 + 4대보험 원천징수',
+        memo: '소득세 + 4대보험 원천징수',
       },
       {
         id: 'jl-002-3',
-        lineNo: 2,
+        lineNo: 3,
         accountCode: '1020',
         accountName: '보통예금',
         debit: '0',
         credit: '10920000',
         partnerName: null,
-        note: '실지급액 이체',
+        memo: '실지급액 이체',
       },
     ],
   },
@@ -7578,23 +7578,23 @@ const MOCK_JOURNALS = [
     lines: [
       {
         id: 'jl-003-1',
-        lineNo: 0,
+        lineNo: 1,
         accountCode: '8120',
         accountName: '임차료',
         debit: '2000000',
         credit: '0',
         partnerName: '한일빌딩',
-        note: '5월분',
+        memo: '5월분',
       },
       {
         id: 'jl-003-2',
-        lineNo: 1,
+        lineNo: 2,
         accountCode: '1020',
         accountName: '보통예금',
         debit: '0',
         credit: '2000000',
         partnerName: '한일빌딩',
-        note: '계좌이체',
+        memo: '계좌이체',
       },
     ],
   },
@@ -7616,23 +7616,23 @@ const MOCK_JOURNALS = [
     lines: [
       {
         id: 'jl-004-1',
-        lineNo: 0,
+        lineNo: 1,
         accountCode: '8210',
         accountName: '광고선전비',
         debit: '500000',
         credit: '0',
         partnerName: '네이버',
-        note: '5월 검색광고',
+        memo: '5월 검색광고',
       },
       {
         id: 'jl-004-2',
-        lineNo: 1,
+        lineNo: 2,
         accountCode: '2030',
         accountName: '미지급금',
         debit: '0',
         credit: '500000',
         partnerName: '네이버',
-        note: '카드 후불',
+        memo: '카드 후불',
       },
     ],
   },
@@ -7654,23 +7654,23 @@ const MOCK_JOURNALS = [
     lines: [
       {
         id: 'jl-005-1',
-        lineNo: 0,
+        lineNo: 1,
         accountCode: '1110',
         accountName: '외상매출금',
         debit: '1500000',
         credit: '0',
         partnerName: '○○종합건설',
-        note: '5/1 출고분',
+        memo: '5/1 출고분',
       },
       {
         id: 'jl-005-2',
-        lineNo: 1,
+        lineNo: 2,
         accountCode: '4010',
         accountName: '제품매출',
         debit: '0',
         credit: '1500000',
         partnerName: '○○종합건설',
-        note: '시스템에어컨 4Way 5HP 1EA (오등록)',
+        memo: '시스템에어컨 4Way 5HP 1EA (오등록)',
       },
     ],
   },

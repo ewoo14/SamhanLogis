@@ -156,6 +156,10 @@ class JournalCollabIT extends AbstractPostgresIT {
         assertThat(reloaded.requireLineByLineNo(1).getMemo()).isEqualTo("새 차변 메모");
         assertThat(reloaded.requireLineByLineNo(1).getDebitAmount()).isEqualByComparingTo("1000");
         assertThat(reloaded.requireLineByLineNo(1).getAccountCode()).isEqualTo("101000");
+        // 다중 라인 불변: 변경 대상이 아닌 2번 라인 메모/금액/계정은 그대로 유지된다.
+        assertThat(reloaded.requireLineByLineNo(2).getMemo()).isEqualTo("대변 메모");
+        assertThat(reloaded.requireLineByLineNo(2).getCreditAmount()).isEqualByComparingTo("1000");
+        assertThat(reloaded.requireLineByLineNo(2).getAccountCode()).isEqualTo("201000");
 
         JournalCollabSuggestion saved = suggestionRepository.findById(editId).orElseThrow();
         assertThat(saved.getStatus().name()).isEqualTo("ACCEPTED");
@@ -282,6 +286,64 @@ class JournalCollabIT extends AbstractPostgresIT {
                         "0, NOW(), 'system', false)",
                 UUID.randomUUID(), journalId, authorId))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /** 정책: COLLAB_LOCKED 은 REVERSED 만 — DRAFT 회계전표도 적요/라인메모 수정완료가 허용된다. */
+    @Test
+    void commitEdit_onDraftJournal_succeeds() throws Exception {
+        Journal journal = seedDraftJournal("20990613-DRAFT-" + SEQ.getAndIncrement());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/edits", journal.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "작성자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"description\":{\"after\":\"초안 적요 정정\"}}"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.journal.description").value("초안 적요 정정"));
+
+        journalRepository.flush();
+        assertThat(journalRepository.findById(journal.getId()).orElseThrow().getDescription())
+                .isEqualTo("초안 적요 정정");
+    }
+
+    /** 수정완료 후 GET /edits 가 ACCEPTED 이력을 반환하고, 빈 changeSet 은 400 으로 거부한다. */
+    @Test
+    void listEdits_returnsAcceptedHistory_andEmptyChangeSetRejected() throws Exception {
+        Journal journal = seedPostedJournal("20990613-LIST-" + SEQ.getAndIncrement());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/edits", journal.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "수정자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("changeSet", "{}"))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/edits", journal.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "수정자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"description\":{\"after\":\"목록용 적요\"}}"))))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/edits", journal.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data[0].changeSet",
+                        org.hamcrest.Matchers.containsString("목록용 적요")));
+    }
+
+    private Journal seedDraftJournal(String journalNo) {
+        Journal journal = Journal.create(journalNo, TEST_DATE, "초기 적요",
+                JournalSourceType.MANUAL, null);
+        journal.addLine(JournalLine.create(journal, 1, "101000",
+                BigDecimal.valueOf(1000), BigDecimal.ZERO, null, "차변 메모"));
+        journal.addLine(JournalLine.create(journal, 2, "201000",
+                BigDecimal.ZERO, BigDecimal.valueOf(1000), null, "대변 메모"));
+        return journalRepository.saveAndFlush(journal);
     }
 
     private Journal seedPostedJournal(String journalNo) {

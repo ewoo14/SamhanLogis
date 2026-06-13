@@ -235,7 +235,7 @@ export function JournalDetailPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            {canCollabEdit ? (
+            {canCollabEdit && !collabEditMode ? (
               <Button
                 variant="primary"
                 data-testid="journal-collab-edit-open"

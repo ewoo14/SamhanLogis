@@ -70,8 +70,8 @@ function labelForPath(path: string): string {
   if (normalized === 'description') return '적요'
   const lineMatch = normalized.match(/^line\.(\d+)\.memo$/)
   if (lineMatch) {
-    const lineNo = Number.parseInt(lineMatch[1]!, 10)
-    return `${Number.isFinite(lineNo) ? lineNo + 1 : lineMatch[1]}번 라인 메모`
+    // lineNo 는 BE 1-based(JournalService lineNo=1.. / line.{lineNo}.memo) — 그대로 표기한다.
+    return `${lineMatch[1]}번 라인 메모`
   }
   return normalized
 }
@@ -247,10 +247,11 @@ export function JournalCollaborationPanel({
         reason: editReason.trim() || undefined,
       })
     },
-    onSuccess: (result) => {
+    onSuccess: () => {
       onEditModeChange?.(false)
       setEditNotice('수정완료되었습니다.')
-      queryClient.setQueryData(journalQueryKey, result.journal)
+      // setQueryData(result.journal) 금지 — commit 응답 journal 은 상세 조회 DTO 의 부분집합이라
+      // reversedAt/reverseReason 등이 undefined 로 덮여 사라진다. invalidate 로 권위 있는 재조회에 위임.
       void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: journalQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
@@ -432,7 +433,7 @@ export function JournalCollaborationPanel({
                       }}
                     >
                       <div style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                        <strong>{line.lineNo + 1}번 라인</strong>
+                        <strong>{line.lineNo}번 라인</strong>
                         <span style={{ marginLeft: 6 }}>
                           {line.accountCode} {line.accountName ?? ''}
                         </span>
@@ -448,7 +449,7 @@ export function JournalCollaborationPanel({
                             ...prev,
                             [line.lineNo]: event.target.value,
                           }))}
-                          aria-label={`${line.lineNo + 1}번 라인 메모 수정값`}
+                          aria-label={`${line.lineNo}번 라인 메모 수정값`}
                           inputSize="sm"
                         />
                       </label>
