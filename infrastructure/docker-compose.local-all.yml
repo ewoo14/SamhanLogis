@@ -13,6 +13,7 @@ x-spring-build: &spring-build
 
 x-spring-env: &spring-env
   SPRING_PROFILES_ACTIVE: dev
+  TZ: "Asia/Seoul"
   DB_HOST: postgres
   DB_PORT: "5432"
   DB_USER: samhan
@@ -30,7 +31,7 @@ x-spring-env: &spring-env
   LOGGING_FILE_PATH: /logs/samhan-service.log
   # MIG-23 사이클 1e fix (Codex Performance MAJOR) — Container heap 비율 cap.
   # Docker Desktop 8GB + 14 service + 8 client 환경에서 OOM 차단.
-  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
 
 # MIG-23 사이클 1e fix (Codex Performance MAJOR) — Container memory hard cap.
 x-service-memory: &service-memory
@@ -69,8 +70,10 @@ services:
     mem_reservation: 512m
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      TZ: "Asia/Seoul"
       SERVER_PORT: "8761"
       EUREKA_INSTANCE_HOSTNAME: eureka-server
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
     ports:
       - "127.0.0.1:8761:8761"
     depends_on:
@@ -99,9 +102,11 @@ services:
     mem_limit: 1g
     mem_reservation: 512m
     environment:
+      TZ: "Asia/Seoul"
       SERVER_PORT: "8080"
       EUREKA_URL: http://eureka-server:8761/eureka/
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
