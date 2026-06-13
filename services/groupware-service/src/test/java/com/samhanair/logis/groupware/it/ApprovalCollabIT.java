@@ -173,6 +173,24 @@ class ApprovalCollabIT extends AbstractPostgresIT {
                 CollabDocumentType.APPROVAL_LINE, approval.getId())).isEmpty();
     }
 
+    /** REJECTED/WITHDRAWN(물리 종결) 결재도 APPROVED 와 동일하게 COLLAB_LOCKED 409 로 거부된다. */
+    @Test
+    void commitEdit_onRejectedOrWithdrawnApproval_returns409AndPersistsNothing() throws Exception {
+        for (ApprovalLine approval : List.of(seedRejectedApproval(), seedWithdrawnApproval())) {
+            mvc.perform(post("/admin/groupware/approvals/{approvalId}/collab/edits", approval.getId())
+                            .header(USER_ID_HEADER, ACTOR_ID)
+                            .header(USER_NAME_HEADER, "잠금수정자")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of(
+                                    "changeSet", "{\"title\":{\"after\":\"종결 변경\"}}"))))
+                    .andExpect(status().isConflict());
+
+            assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                    CollabDocumentType.APPROVAL_LINE, approval.getId())).isEmpty();
+        }
+        verify(notificationPublisher, never()).publish(any());
+    }
+
     /** 결재번호/status/requester/steps 같은 핵심 필드는 400 으로 조기 거부한다. */
     @Test
     void commitEdit_withCoreFields_returns400AndPersistsNothing() throws Exception {
@@ -274,6 +292,8 @@ class ApprovalCollabIT extends AbstractPostgresIT {
         assertThat(suggestionRepository.count()).isZero();
         ApprovalLine reloaded = approvalLineRepository.findById(approval.getId()).orElseThrow();
         assertThat(reloaded.getTitle()).isEqualTo("권한 제목");
+        // 403 거부 시 알림도 발송되지 않아야 한다(트랜잭션 내 동기 best-effort 가 권한 가드 이후이므로).
+        verify(notificationPublisher, never()).publish(any());
     }
 
     /** VIEW 권한 없는 계정은 댓글/이력/stream 조회도 403 으로 거부된다. */
@@ -341,6 +361,23 @@ class ApprovalCollabIT extends AbstractPostgresIT {
         ApprovalLine approval = approvalLineService.create(new ApprovalLineCreateRequest(
                 UUID.randomUUID(), "승인완료 결재", "승인완료 본문", List.of(approver)));
         approval.approve(approver);
+        return approvalLineRepository.saveAndFlush(approval);
+    }
+
+    private ApprovalLine seedRejectedApproval() {
+        UUID approver = UUID.randomUUID();
+        ApprovalLine approval = approvalLineService.create(new ApprovalLineCreateRequest(
+                UUID.randomUUID(), "반려 결재", "반려 본문", List.of(approver)));
+        approval.reject(approver, "반려 사유");
+        return approvalLineRepository.saveAndFlush(approval);
+    }
+
+    private ApprovalLine seedWithdrawnApproval() {
+        UUID requester = UUID.randomUUID();
+        UUID approver = UUID.randomUUID();
+        ApprovalLine approval = approvalLineService.create(new ApprovalLineCreateRequest(
+                requester, "회수 결재", "회수 본문", List.of(approver)));
+        approval.withdraw(requester);
         return approvalLineRepository.saveAndFlush(approval);
     }
 

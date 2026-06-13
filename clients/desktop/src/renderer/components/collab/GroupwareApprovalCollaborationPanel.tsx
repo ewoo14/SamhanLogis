@@ -100,7 +100,6 @@ function serverErrorMessage(error: unknown): string | null {
 function isCollabEvent(eventName: string): boolean {
   return eventName.startsWith('comment.')
     || eventName.startsWith('suggestion.')
-    || eventName === 'message'
 }
 
 function isEditableStatus(status: ApprovalStatus): boolean {
@@ -190,20 +189,16 @@ export function GroupwareApprovalCollaborationPanel({
 
   const commitMutation = useMutation({
     mutationFn: () => {
-      const changeSet: Record<string, { before: string | null; after: string | null }> = {}
+      // BE 계약 = path -> {after} (before 는 GroupwareApprovalDocumentCollaborationPort
+      // .enrichChangeSetWithBefore 가 DB 현재값으로 채운다 — FE before 전송은 무시·덮어쓰기됨).
+      const changeSet: Record<string, { after: string | null }> = {}
       const beforeTitle = valueForEdit(currentValues.title)
       if (beforeTitle !== titleDraft) {
-        changeSet.title = {
-          before: valueForChange(beforeTitle),
-          after: valueForChange(titleDraft),
-        }
+        changeSet.title = { after: valueForChange(titleDraft) }
       }
       const beforeContent = valueForEdit(currentValues.content)
       if (beforeContent !== contentDraft) {
-        changeSet.content = {
-          before: valueForChange(beforeContent),
-          after: valueForChange(contentDraft),
-        }
+        changeSet.content = { after: valueForChange(contentDraft) }
       }
       if (Object.keys(changeSet).length === 0) {
         throw new Error('변경된 필드가 없습니다.')

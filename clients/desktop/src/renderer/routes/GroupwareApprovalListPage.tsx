@@ -110,7 +110,7 @@ export function GroupwareApprovalListPage() {
       >
         <h3 style={{ margin: 0 }}>
           결재
-          <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-neutral-500, #6B7280)', marginLeft: 8 }}>
             전체 {rows.length}건
           </span>
         </h3>
