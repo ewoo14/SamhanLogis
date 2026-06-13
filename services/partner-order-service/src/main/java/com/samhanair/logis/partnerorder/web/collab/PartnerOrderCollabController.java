@@ -5,10 +5,15 @@ import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabComment;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabEditService;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabSuggestionRepository;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderDocumentCollaborationPort;
+import com.samhanair.logis.partnerorder.domain.PartnerOrder;
+import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.collab.dto.AddPartnerOrderCollabCommentRequest;
 import com.samhanair.logis.partnerorder.web.collab.dto.CommitPartnerOrderCollabEditRequest;
 import com.samhanair.logis.partnerorder.web.collab.dto.PartnerOrderCollabCommentResponse;
@@ -58,17 +63,20 @@ public class PartnerOrderCollabController {
     private final PartnerOrderCollabSuggestionRepository suggestionRepository;
     private final PartnerOrderDocumentCollaborationPort port;
     private final RealtimeBroker broker;
+    private final PartnerOrderRepository partnerOrderRepository;
 
     public PartnerOrderCollabController(CollabCommentService<PartnerOrderCollabComment> commentService,
                                         PartnerOrderCollabEditService editService,
                                         PartnerOrderCollabSuggestionRepository suggestionRepository,
                                         PartnerOrderDocumentCollaborationPort port,
-                                        RealtimeBroker broker) {
+                                        RealtimeBroker broker,
+                                        PartnerOrderRepository partnerOrderRepository) {
         this.commentService = commentService;
         this.editService = editService;
         this.suggestionRepository = suggestionRepository;
         this.port = port;
         this.broker = broker;
+        this.partnerOrderRepository = partnerOrderRepository;
     }
 
     /** 주문 협업 댓글 등록. */
@@ -77,14 +85,14 @@ public class PartnerOrderCollabController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = WRITE_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<PartnerOrderCollabCommentResponse> addComment(
-            @PathVariable UUID orderId,
+            @PathVariable String orderId,
             @Valid @RequestBody AddPartnerOrderCollabCommentRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        ensureOrderExists(orderId);
+        UUID resolvedOrderId = resolveOrderId(orderId);
         PartnerOrderCollabComment saved = commentService.add(
                 CollabDocumentType.PARTNER_ORDER,
-                orderId,
+                resolvedOrderId,
                 request.anchor(),
                 resolveActorId(callerId),
                 resolveActorName(callerName),
@@ -98,11 +106,11 @@ public class PartnerOrderCollabController {
     @GetMapping("/comments")
     @RequirePermission(page = READ_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerOrderCollabCommentResponse>> listComments(
-            @PathVariable UUID orderId,
+            @PathVariable String orderId,
             @RequestParam(defaultValue = "20") int limit) {
-        ensureOrderExists(orderId);
+        UUID resolvedOrderId = resolveOrderId(orderId);
         List<PartnerOrderCollabCommentResponse> items = commentService
-                .listRecent(CollabDocumentType.PARTNER_ORDER, orderId, limit)
+                .listRecent(CollabDocumentType.PARTNER_ORDER, resolvedOrderId, limit)
                 .stream()
                 .map(PartnerOrderCollabCommentResponse::from)
                 .toList();
@@ -114,12 +122,12 @@ public class PartnerOrderCollabController {
     @DeleteMapping("/comments/{commentId}")
     @RequirePermission(page = WRITE_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<Void> deleteComment(
-            @PathVariable UUID orderId,
+            @PathVariable String orderId,
             @PathVariable UUID commentId,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId) {
-        ensureOrderExists(orderId);
+        UUID resolvedOrderId = resolveOrderId(orderId);
         commentService.softDelete(
-                CollabDocumentType.PARTNER_ORDER, orderId, commentId, resolveDeleter(callerId));
+                CollabDocumentType.PARTNER_ORDER, resolvedOrderId, commentId, resolveDeleter(callerId));
         return ApiResponse.ok(null);
     }
 
@@ -128,11 +136,11 @@ public class PartnerOrderCollabController {
     @PostMapping("/comments/{commentId}/resolve")
     @RequirePermission(page = WRITE_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<PartnerOrderCollabCommentResponse> resolveComment(
-            @PathVariable UUID orderId,
+            @PathVariable String orderId,
             @PathVariable UUID commentId) {
-        ensureOrderExists(orderId);
+        UUID resolvedOrderId = resolveOrderId(orderId);
         return ApiResponse.ok(PartnerOrderCollabCommentResponse.from(
-                commentService.resolve(CollabDocumentType.PARTNER_ORDER, orderId, commentId)));
+                commentService.resolve(CollabDocumentType.PARTNER_ORDER, resolvedOrderId, commentId)));
     }
 
     /** 주문 수정완료. */
@@ -141,14 +149,14 @@ public class PartnerOrderCollabController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = WRITE_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<PartnerOrderCollabEditResponse> commitEdit(
-            @PathVariable UUID orderId,
+            @PathVariable String orderId,
             @Valid @RequestBody CommitPartnerOrderCollabEditRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        ensureOrderExists(orderId);
+        UUID resolvedOrderId = resolveOrderId(orderId);
         port.validateChangeSet(request.changeSet());
         PartnerOrderCollabEditService.Result result = editService.commitEdit(
-                port, orderId, resolveActorId(callerId), resolveActorName(callerName),
+                port, resolvedOrderId, resolveActorId(callerId), resolveActorName(callerName),
                 request.changeSet(), request.reason());
         return ApiResponse.ok(new PartnerOrderCollabEditResponse(
                 PartnerOrderCollabSuggestionResponse.from(result.edit()), result.order()));
@@ -159,11 +167,11 @@ public class PartnerOrderCollabController {
     @GetMapping("/edits")
     @RequirePermission(page = READ_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<PartnerOrderCollabSuggestionResponse>> listEdits(
-            @PathVariable UUID orderId) {
-        ensureOrderExists(orderId);
+            @PathVariable String orderId) {
+        UUID resolvedOrderId = resolveOrderId(orderId);
         List<PartnerOrderCollabSuggestionResponse> items = suggestionRepository
                 .findByDocumentTypeAndDocumentIdAndStatusOrderByCreatedAtDesc(
-                        CollabDocumentType.PARTNER_ORDER, orderId, CollabSuggestionStatus.ACCEPTED)
+                        CollabDocumentType.PARTNER_ORDER, resolvedOrderId, CollabSuggestionStatus.ACCEPTED)
                 .stream()
                 .map(PartnerOrderCollabSuggestionResponse::from)
                 .toList();
@@ -174,13 +182,17 @@ public class PartnerOrderCollabController {
     @Operation(summary = "주문 협업 SSE stream 구독")
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission(page = READ_PAGE_CODE, action = PermissionAction.VIEW)
-    public SseEmitter stream(@PathVariable UUID orderId) {
-        ensureOrderExists(orderId);
-        return broker.subscribe(orderId);
+    public SseEmitter stream(@PathVariable String orderId) {
+        UUID resolvedOrderId = resolveOrderId(orderId);
+        return broker.subscribe(resolvedOrderId);
     }
 
-    private void ensureOrderExists(UUID orderId) {
-        port.loadSnapshot(orderId);
+    private UUID resolveOrderId(String orderId) {
+        return PartnerOrderIdResolver.findByIdentifier(partnerOrderRepository, orderId)
+                .map(PartnerOrder::getId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.PARTNER_ORDER_NOT_FOUND,
+                        ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
     }
 
     private UUID resolveActorId(String header) {

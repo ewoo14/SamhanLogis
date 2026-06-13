@@ -207,6 +207,27 @@ class PartnerOrderCollabIT extends AbstractPostgresIT {
                 .contains("요청사항", "납기", "라인 1 비고");
     }
 
+    /** FE 상세 라우트의 하이픈형 orderNumber path-id 로도 협업 수정완료가 동작해야 한다. */
+    @Test
+    void commitEdit_acceptsHyphenOrderNumberPathId() throws Exception {
+        PartnerOrder order = seedConfirmedOrder("2099/06/13-PATH-" + SEQ.getAndIncrement());
+        String pathId = order.getOrderNo().replace("/", "-");
+
+        mvc.perform(post("/api/v1/partner-orders/{orderId}/collab/edits", pathId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "수정자박과장")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"path-id 수정\"}}"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.order.orderNumber").value(order.getOrderNo()))
+                .andExpect(jsonPath("$.data.order.memo").value("path-id 수정"));
+
+        orderRepository.flush();
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getMemo())
+                .isEqualTo("path-id 수정");
+    }
+
     /** CANCELED / CONVERTED / CONFIRMING 주문은 협업 수정완료가 409 로 거부되고 이력이 저장되지 않아야 한다. */
     @Test
     void commitEdit_onLockedStatuses_returns409AndPersistsNothing() throws Exception {
