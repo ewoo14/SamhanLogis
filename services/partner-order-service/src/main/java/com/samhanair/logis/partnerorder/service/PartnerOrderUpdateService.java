@@ -131,15 +131,20 @@ public class PartnerOrderUpdateService {
             applyOverlayPath(order, path, after, changes);
         }
 
-        PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
-        if (!changes.isEmpty()) {
-            UUID actorId = parseActorId(actorUserId);
-            String actorName = "협업 수정완료";
-            auditLogService.recordBatch(saved, actorId, actorName, null, changes);
-            revisionService.capture(saved, PartnerOrderRevisionType.EDIT, null,
-                    actorId, actorName, null);
+        try {
+            PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
+            if (!changes.isEmpty()) {
+                UUID actorId = parseActorId(actorUserId);
+                String actorName = "협업 수정완료";
+                auditLogService.recordBatch(saved, actorId, actorName, null, changes);
+                revisionService.capture(saved, PartnerOrderRevisionType.EDIT, null,
+                        actorId, actorName, null);
+            }
+            return PartnerOrderDetailResponse.from(saved);
+        } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
+            // 동시 수정(PUT update / 다른 수정완료)과 충돌 시 update() 경로와 동일하게 409 로 변환.
+            throw optimisticLockConflict();
         }
-        return PartnerOrderDetailResponse.from(saved);
     }
 
     private PartnerOrder load(String id) {
