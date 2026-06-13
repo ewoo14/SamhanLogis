@@ -137,6 +137,9 @@ public enum PageCode {
     /** 메신저 발송/수신함/일정 일반 기능 — SP-D6-2. */
     MESSENGER_SEND("messenger.send", "메신저 발송"),
 
+    /** 그룹웨어 결재 문서 목록/상세 + 협업(수정완료/코멘트) — §7 슬라이스6. */
+    GROUPWARE_APPROVALS("groupware.approvals", "그룹웨어 결재"),
+
     // ---- 매입 (purchases) ----
 
     /** Naver Clova OCR 영수증 발급 화면 (SP-09-3). */
