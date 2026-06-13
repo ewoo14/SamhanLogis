@@ -179,6 +179,23 @@ class DispatchCollabIT extends AbstractPostgresIT {
                 CollabDocumentType.DISPATCH_TASK, task.getId())).isEmpty();
     }
 
+    /** CANCEL_ACCEPTED task(취소 수락, 물리 종결 직전) 도 COLLAB_LOCKED 409 로 거부되어야 한다. */
+    @Test
+    void commitEdit_onCancelAcceptedTask_returns409AndPersistsNothing() throws Exception {
+        DispatchTask task = seedCancelAcceptedTask("LOCK-CA");
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/edits", task.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "잠금수정자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"변경 시도\"}}"))))
+                .andExpect(status().isConflict());
+
+        assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                CollabDocumentType.DISPATCH_TASK, task.getId())).isEmpty();
+    }
+
     /** memo 외 핵심 필드는 400 으로 조기 거부한다. */
     @Test
     void commitEdit_withCoreFields_returns400AndPersistsNothing() throws Exception {
@@ -346,6 +363,13 @@ class DispatchCollabIT extends AbstractPostgresIT {
         task.markCancelRequested("취소 요청");
         task.markCancelAccepted();
         task.markCancelled();
+        return taskRepository.saveAndFlush(task);
+    }
+
+    private DispatchTask seedCancelAcceptedTask(String suffix) {
+        DispatchTask task = seedDispatchedTask(suffix);
+        task.markCancelRequested("취소 요청");
+        task.markCancelAccepted();
         return taskRepository.saveAndFlush(task);
     }
 

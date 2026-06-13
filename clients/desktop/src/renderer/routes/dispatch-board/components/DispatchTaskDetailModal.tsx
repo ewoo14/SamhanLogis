@@ -25,7 +25,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Input, Modal, Select } from '@samhan/design-system'
+import { Badge, Button, Input, Modal, Select } from '@samhan/design-system'
 import {
   DISPATCH_TASK_STATUS_LABEL,
   DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL,
@@ -756,7 +756,7 @@ export function DispatchTaskDetailModal({
 
           <section
             data-testid="dispatch-collab-edit-section"
-            aria-label="수정 이력"
+            aria-labelledby="dispatch-collab-edit-heading"
             style={{
               borderTop: '1px solid var(--color-neutral-200)',
               paddingTop: 12,
@@ -773,7 +773,7 @@ export function DispatchTaskDetailModal({
                 flexWrap: 'wrap',
               }}
             >
-              <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>수정 이력</h4>
+              <h4 id="dispatch-collab-edit-heading" style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>수정 이력</h4>
               {canStartCollabEdit && !collabEditMode ? (
                 <Button
                   type="button"
@@ -785,6 +785,16 @@ export function DispatchTaskDetailModal({
                 >
                   수정
                 </Button>
+              ) : null}
+              {!collabEditMode && !canStartCollabEdit && canAccess('dispatch.board', 'update') ? (
+                <span
+                  data-testid="dispatch-collab-edit-unavailable"
+                  style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
+                >
+                  {collabLocked
+                    ? '배차 취소 처리 후에는 비고를 수정할 수 없습니다.'
+                    : 'DISPATCHED 상태에서만 비고를 수정할 수 있습니다.'}
+                </span>
               ) : null}
             </header>
 
@@ -835,6 +845,7 @@ export function DispatchTaskDetailModal({
                     size="sm"
                     disabled={commitMutation.isPending}
                     onClick={() => setCollabEditMode(false)}
+                    data-testid="dispatch-collab-edit-cancel"
                   >
                     취소
                   </Button>
@@ -927,19 +938,7 @@ export function DispatchTaskDetailModal({
                         }}
                       >
                         <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
-                        <span
-                          style={{
-                            padding: '1px 6px',
-                            borderRadius: 10,
-                            border: '1px solid var(--color-success-200, #A7F3D0)',
-                            background: 'var(--color-success-50, #ECFDF5)',
-                            color: 'var(--color-success-700, #047857)',
-                            fontSize: 10,
-                            fontWeight: 700,
-                          }}
-                        >
-                          수정완료
-                        </span>
+                        <Badge variant="success">수정완료</Badge>
                         <span style={{ color: 'var(--color-neutral-500)' }}>
                           {formatDateTime(edit.decidedAt ?? edit.createdAt)}
                         </span>
