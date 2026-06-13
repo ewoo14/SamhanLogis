@@ -12,7 +12,8 @@ import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 const CONFIRMED_ORDER_ID = 'ord-confirmed'
-const CANCELED_ORDER_ID = 'ord-canceled'
+/** 잠금 상태(수정완료 미노출) 3종 — CANCELED·CONVERTED·CONFIRMING. */
+const LOCKED_ORDER_IDS = ['ord-canceled', 'ord-converted', 'ord-confirming'] as const
 
 const detailUrl = (id: string) =>
   `${BASE_URL}/#/sales/partner-orders/${encodeURIComponent(id)}?mockRole=MASTER`
@@ -93,14 +94,15 @@ test.describe('§7 주문 협업 패널', () => {
     await expect(panel.getByText('아직 수정 이력이 없습니다.')).toHaveCount(0)
   })
 
-  test('잠금 상태 주문에서는 수정 버튼이 노출되지 않는다', async ({ page }) => {
-    await installAuthMock(page)
-    await page.goto(detailUrl(CANCELED_ORDER_ID), { waitUntil: 'domcontentloaded' })
+  // 잠금 상태(CANCELED·CONVERTED·CONFIRMING) 3종 모두에서 협업 수정완료 버튼 미노출.
+  for (const lockedId of LOCKED_ORDER_IDS) {
+    test(`잠금 상태 주문(${lockedId})에서는 수정 버튼이 노출되지 않는다`, async ({ page }) => {
+      await installAuthMock(page)
+      await page.goto(detailUrl(lockedId), { waitUntil: 'domcontentloaded' })
 
-    await expect(page.getByTestId('partner-order-collaboration-panel')).toBeVisible()
-    // '취소'는 상태 배지·액션 버튼 등 여러 곳에 나타나므로 first 로 스코프(잠금상태 로드 확인용).
-    await expect(page.getByText('취소').first()).toBeVisible()
-    // 핵심: 잠금(CANCELED) 주문은 협업 수정완료 버튼 미노출.
-    await expect(page.getByTestId('partner-order-collab-edit-open')).toHaveCount(0)
-  })
+      await expect(page.getByTestId('partner-order-collaboration-panel')).toBeVisible()
+      // 핵심: 잠금 주문은 협업 수정완료 버튼 미노출.
+      await expect(page.getByTestId('partner-order-collab-edit-open')).toHaveCount(0)
+    })
+  }
 })

@@ -180,6 +180,9 @@ class PartnerOrderCollabIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.edit.decidedByName").value("수정자박과장"))
                 .andExpect(jsonPath("$.data.order.memo").value("새 요청사항"))
                 .andExpect(jsonPath("$.data.order.dueDate").value("2099-06-25"))
+                // HTTP 응답 본문(DTO 직렬화)에도 라인 remark 가 정확히 반영되는지 — 1번 변경/2번 불변.
+                .andExpect(jsonPath("$.data.order.lines[0].remark").value("새 1번 비고"))
+                .andExpect(jsonPath("$.data.order.lines[1].remark").value("초기 2번 비고"))
                 .andReturn().getResponse().getContentAsString();
 
         @SuppressWarnings("unchecked")
@@ -253,6 +256,7 @@ class PartnerOrderCollabIT extends AbstractPostgresIT {
         UUID createdByAccountId = UUID.randomUUID();
         UUID previousEditorId = UUID.randomUUID();
         UUID commentAuthorId = UUID.randomUUID();
+        UUID revisionActorId = UUID.randomUUID();
         UUID editorId = UUID.fromString(ACTOR_ID);
         PartnerOrder order = seedConfirmedOrder("2099/06/13-NOTI-" + SEQ.getAndIncrement());
         PartnerOrderCollabSuggestion previousEdit = PartnerOrderCollabSuggestion.create(
@@ -263,6 +267,14 @@ class PartnerOrderCollabIT extends AbstractPostgresIT {
         commentRepository.save(PartnerOrderCollabComment.create(
                 CollabDocumentType.PARTNER_ORDER, order.getId(),
                 "memo", commentAuthorId, "댓글작성자", "확인했습니다", null));
+        // PartnerOrderRevision actor 도 기여자 알림 수신자 — 실 DB revision row 를 seed 해
+        // resolveNotificationRecipients 의 revision 경로를 end-to-end 로 검증(단위테스트 외 실증).
+        jdbcTemplate.update(
+                "INSERT INTO partner_order_revisions "
+                        + "(id, partner_order_id, revision_no, revision_type, snapshot, actor_id, actor_name, "
+                        + "created_at, created_by, is_deleted) "
+                        + "VALUES (?, ?, 1, 'EDIT', '{}'::jsonb, ?, '리비전수정자', NOW(), 'system', false)",
+                UUID.randomUUID(), order.getId(), revisionActorId);
         when(authAccountLookupClient.findAccountIdByLoginId("collab-user"))
                 .thenReturn(Optional.of(createdByAccountId));
 
@@ -279,6 +291,8 @@ class PartnerOrderCollabIT extends AbstractPostgresIT {
         verify(notificationClient).sendUserPush(eq(previousEditorId),
                 eq("[주문 수정] " + order.getOrderNo()), org.mockito.ArgumentMatchers.anyString());
         verify(notificationClient).sendUserPush(eq(commentAuthorId),
+                eq("[주문 수정] " + order.getOrderNo()), org.mockito.ArgumentMatchers.anyString());
+        verify(notificationClient).sendUserPush(eq(revisionActorId),
                 eq("[주문 수정] " + order.getOrderNo()), org.mockito.ArgumentMatchers.anyString());
         org.mockito.Mockito.verify(notificationClient, org.mockito.Mockito.never())
                 .sendUserPush(eq(editorId), org.mockito.ArgumentMatchers.anyString(),

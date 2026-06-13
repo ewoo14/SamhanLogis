@@ -9,6 +9,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import org.springframework.http.HttpStatus;
@@ -105,7 +106,10 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "idempotency_key", nullable = false, length = 80, unique = true)
     private String idempotencyKey;
 
+    // @OrderBy 결정적 정렬 — 협업 lineKey(활성라인 1-based index)가 loadSnapshot/applyOverlayPatchBatch
+    // 세션 간 + 상세 응답/FE 표시에서 동일 라인을 가리키도록 보장(DB heap 반환 순서 비보장 회피).
     @OneToMany(mappedBy = "partnerOrder", cascade = CascadeType.ALL, orphanRemoval = false)
+    @OrderBy("createdAt ASC, id ASC")
     private List<PartnerOrderLine> lines = new ArrayList<>();
 
     /**
