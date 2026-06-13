@@ -3,11 +3,8 @@ package com.samhanair.logis.slip.collab;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
@@ -33,17 +30,15 @@ class SlipDocumentCollaborationPortTest {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
         Slip slip = org.mockito.Mockito.mock(Slip.class);
         UUID slipId = UUID.randomUUID();
         SlipSnapshot snapshot = snapshot("2026/06/13-1", "메모");
 
-        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
-        when(slip.toSnapshot()).thenReturn(snapshot);
+        org.mockito.Mockito.when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        org.mockito.Mockito.when(slip.toSnapshot()).thenReturn(snapshot);
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+                slipRepository, slipService, revisionService, new ObjectMapper());
 
         String json = port.loadSnapshot(slipId);
 
@@ -55,12 +50,10 @@ class SlipDocumentCollaborationPortTest {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
         UUID slipId = UUID.randomUUID();
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+                slipRepository, slipService, revisionService, new ObjectMapper());
 
         port.applyChangeSet(slipId, """
                 {
@@ -84,12 +77,10 @@ class SlipDocumentCollaborationPortTest {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
         UUID slipId = UUID.randomUUID();
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+                slipRepository, slipService, revisionService, new ObjectMapper());
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.applyChangeSet(slipId, """
                 {
@@ -106,12 +97,10 @@ class SlipDocumentCollaborationPortTest {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
         UUID slipId = UUID.randomUUID();
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+                slipRepository, slipService, revisionService, new ObjectMapper());
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.applyChangeSet(slipId, """
                 {
@@ -134,11 +123,9 @@ class SlipDocumentCollaborationPortTest {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+                slipRepository, slipService, revisionService, new ObjectMapper());
 
         // (a) 비JSON 문자열 — jsonb cast 500 대신 propose 시점 INVALID_INPUT
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.validateChangeSet("not-json"))
@@ -158,25 +145,28 @@ class SlipDocumentCollaborationPortTest {
         org.mockito.Mockito.verifyNoInteractions(slipService);
     }
 
+    /**
+     * null actor(헤더 부재) 와 zero-UUID actor(파싱 실패)는 권한 client 없이 즉시 거부된다.
+     *
+     * <p>포트는 무효 actor 가드만 수행하므로 {@code DynamicPermissionClient} 에 의존하지 않는다.
+     * 정상 userId 의 권한 판정은 컨트롤러 {@code @RequirePermission} Aspect 가 담당한다.
+     */
     @Test
     void canProposeRejectsNullAndZeroUuidActorWithoutPermissionCheck() {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
         UUID slipId = UUID.randomUUID();
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+                slipRepository, slipService, revisionService, new ObjectMapper());
 
-        // 헤더 부재(null) / 파싱 실패(zero-UUID) actor 는 권한 조회 없이 즉시 거부
+        // 헤더 부재(null) / 파싱 실패(zero-UUID) actor 는 즉시 거부
         org.assertj.core.api.Assertions.assertThat(port.canPropose(null, slipId)).isFalse();
         org.assertj.core.api.Assertions.assertThat(
                 port.canPropose(new UUID(0L, 0L), slipId)).isFalse();
         org.assertj.core.api.Assertions.assertThat(
                 port.canDecide(new UUID(0L, 0L), slipId)).isFalse();
-        org.mockito.Mockito.verifyNoInteractions(permissionClient);
     }
 
     @Test
@@ -184,16 +174,14 @@ class SlipDocumentCollaborationPortTest {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
         Slip slip = org.mockito.Mockito.mock(Slip.class);
         UUID slipId = UUID.randomUUID();
         SlipSnapshot snapshot = snapshot("2026/06/13-2", "복원 메모");
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        org.mockito.Mockito.when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, objectMapper);
+                slipRepository, slipService, revisionService, objectMapper);
 
         port.restoreSnapshot(slipId, objectMapper.writeValueAsString(snapshot));
 
@@ -204,21 +192,27 @@ class SlipDocumentCollaborationPortTest {
                 any(UUID.class), eq("협업 복원"), eq(null));
     }
 
+    /**
+     * 유효 userId(non-null, non-zero-UUID) 에 대해 canPropose/canDecide 가 true 를 반환한다.
+     *
+     * <p>실서버 QA 회귀 락인 (2026-06-13): master/역할보유자가 컨트롤러 {@code @RequirePermission}
+     * Aspect 를 통과한 뒤 포트의 계정단위 permissionClient.check 에서 오거부되지 않음을 보장한다.
+     * 권한 판정은 Aspect 가 담당하므로 포트는 {@code DynamicPermissionClient} 에 의존하지 않는다.
+     *
+     * <p>([[enforcement-real-http-test]] 계열 — 실 HTTP 게이트에서 검증된 계약 박제)
+     */
     @Test
-    void canProposeUsesSlipAuditOverlayUpdatePermission() {
+    void canProposeAllowsValidActorAndDelegatesPermissionToEndpoint() {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
         SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
         SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
-        DynamicPermissionClient permissionClient =
-                org.mockito.Mockito.mock(DynamicPermissionClient.class);
-        UUID userId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID(); // 유효 actor — non-null, non-zero-UUID
         UUID slipId = UUID.randomUUID();
-        when(permissionClient.check(userId, "slip.audit-overlay", PermissionAction.UPDATE))
-                .thenReturn(true);
 
         SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
-                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+                slipRepository, slipService, revisionService, new ObjectMapper());
 
+        // 유효 actor 이면 permissionClient 호출 없이 true 반환 (권한 판정은 @RequirePermission Aspect 담당)
         org.assertj.core.api.Assertions.assertThat(port.canPropose(userId, slipId)).isTrue();
         org.assertj.core.api.Assertions.assertThat(port.canDecide(userId, slipId)).isTrue();
     }

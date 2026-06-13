@@ -7,8 +7,6 @@ import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.DocumentCollaborationPort;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
@@ -42,29 +40,25 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
     private final SlipRepository slipRepository;
     private final SlipService slipService;
     private final SlipRevisionService revisionService;
-    private final DynamicPermissionClient permissionClient;
     private final ObjectMapper objectMapper;
 
     public SlipDocumentCollaborationPort(SlipRepository slipRepository,
                                          SlipService slipService,
                                          SlipRevisionService revisionService,
-                                         DynamicPermissionClient permissionClient,
                                          ObjectMapper objectMapper) {
         this(CollabDocumentType.SLIP_OUTBOUND, slipRepository, slipService, revisionService,
-                permissionClient, objectMapper);
+                objectMapper);
     }
 
     public SlipDocumentCollaborationPort(CollabDocumentType documentType,
                                          SlipRepository slipRepository,
                                          SlipService slipService,
                                          SlipRevisionService revisionService,
-                                         DynamicPermissionClient permissionClient,
                                          ObjectMapper objectMapper) {
         this.documentType = documentType;
         this.slipRepository = slipRepository;
         this.slipService = slipService;
         this.revisionService = revisionService;
-        this.permissionClient = permissionClient;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
     }
 
@@ -174,15 +168,40 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         }
     }
 
+    /**
+     * 제안 가능 여부를 판정한다.
+     *
+     * <p><b>권한 판정은 컨트롤러 {@code @RequirePermission(slip.audit-overlay, UPDATE)} 이 담당한다</b>
+     * (PermissionAspect 의 {@code X-Is-System-Master} master bypass 포함).
+     * 포트의 계정단위 {@code permissionClient.check} 재검은 master bypass 와 분기되어
+     * role 보유·master 사용자를 오거부하는 실서버 QA 적발 버그를 초래했다 (2026-06-13).
+     *
+     * <p>따라서 포트는 <b>무효 actor(null/zero-UUID) 가드만</b> 수행한다.
+     * null → 헤더 부재, zero-UUID → 파싱 실패 (controller {@code resolveActorId} 반환값).
+     *
+     * <p>[[enforcement-real-http-test]] — 실서버 QA 회귀 락인.
+     *
+     * @param userId   X-User-Id 헤더에서 파싱한 actor UUID (null or zero-UUID = 무효)
+     * @param documentId 대상 전표 ID (현재 사용 안 함 — 미래 문서 소유자 체크용 확장점)
+     * @return 유효 actor 이면 true; null 또는 zero-UUID 이면 false
+     */
     @Override
     public boolean canPropose(UUID userId, UUID documentId) {
-        // 헤더 부재/파싱 실패 시 controller 가 넘기는 zero-UUID(SYSTEM_ACTOR_ID)는 무효 actor 로 거부한다.
-        // (null 아님이라 단순 != null 검사를 통과하므로 명시적 zero 거부 필요)
-        return userId != null
-                && !SYSTEM_ACTOR_ID.equals(userId)
-                && permissionClient.check(userId, SLIP_COLLAB_PAGE_CODE, PermissionAction.UPDATE);
+        // 헤더 부재(null) 또는 파싱 실패(zero-UUID)인 무효 actor 만 거부한다.
+        // 권한(slip.audit-overlay UPDATE) 판정은 컨트롤러 @RequirePermission 이 담당한다.
+        return userId != null && !SYSTEM_ACTOR_ID.equals(userId);
     }
 
+    /**
+     * 수락/거절 가능 여부를 판정한다.
+     *
+     * <p>제안과 동일하게 권한 판정은 컨트롤러 {@code @RequirePermission(slip.audit-overlay, UPDATE)} 이
+     * 담당하며 포트는 무효 actor 가드만 수행한다. {@link #canPropose} 참조.
+     *
+     * @param userId   X-User-Id 헤더에서 파싱한 actor UUID (null or zero-UUID = 무효)
+     * @param documentId 대상 전표 ID
+     * @return 유효 actor 이면 true; null 또는 zero-UUID 이면 false
+     */
     @Override
     public boolean canDecide(UUID userId, UUID documentId) {
         return canPropose(userId, documentId);
@@ -241,30 +260,32 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         }
     }
 
-    /** documentType 별 포트 bean 생성 factory. */
+    /**
+     * documentType 별 포트 bean 생성 factory.
+     *
+     * <p>권한 판정을 포트에서 제거함에 따라 {@code DynamicPermissionClient} 의존이 삭제됐다.
+     * 권한은 컨트롤러 {@code @RequirePermission} Aspect 가 일괄 처리한다.
+     */
     @Component
     public static class Factory {
         private final SlipRepository slipRepository;
         private final SlipService slipService;
         private final SlipRevisionService revisionService;
-        private final DynamicPermissionClient permissionClient;
         private final ObjectMapper objectMapper;
 
         public Factory(SlipRepository slipRepository,
                        SlipService slipService,
                        SlipRevisionService revisionService,
-                       DynamicPermissionClient permissionClient,
                        ObjectMapper objectMapper) {
             this.slipRepository = slipRepository;
             this.slipService = slipService;
             this.revisionService = revisionService;
-            this.permissionClient = permissionClient;
             this.objectMapper = objectMapper;
         }
 
         public SlipDocumentCollaborationPort create(CollabDocumentType documentType) {
             return new SlipDocumentCollaborationPort(documentType, slipRepository, slipService,
-                    revisionService, permissionClient, objectMapper);
+                    revisionService, objectMapper);
         }
     }
 }

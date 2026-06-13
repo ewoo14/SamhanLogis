@@ -4,6 +4,27 @@
 
 ---
 
+## ▶ 현재 슬라이스 — §7 입출고전표 수정(협업) · PR #474 (2026-06-13, 모델 재정의 중)
+
+**최종 모델(개발책임자 확정)**: "제안/수락(2-인)"이 아니라 **전표 수정(1-인)**. Google Docs 참조 = "무엇이 어떻게 바뀌었는지 한눈에" **diff 시각화**용.
+- 진입: 확정(CONFIRMED)/완료(COMPLETED) 전표 상세 "**수정**" 버튼(완료상태=기존 "완료" 버튼 자리 대체) → 편집모드.
+- 커밋: "**수정완료**" → 권한자 본인 즉시 적용(배치 1버전·잠금우회·SSE 알림). 별도 수락자 불필요.
+- 한눈에: 수정 이력 **diff 뷰**(필드별 이전값→새값·수정자·시각). 코멘트(논의)·버전 복원·실시간. presence=후속.
+
+**완료(커밋·푸시·실서버 검증)**:
+- 다모델 4라운드(Opus/Codex/Fable5/Opus확정) 리뷰+fix, PR 게시. BE 990테스트 0실패(SlipCollabIT 실 Postgres).
+- 실서버 QA 발견 fix 2건(`41094592`): ①MASTER 락아웃(canPropose 계정단위 check vs aspect master-bypass 분기 → 권한 엔드포인트 위임) ②잠금우회 공인수정(`guardCollabModifiable`: 물리종결 SHIPPING/DELIVERED/CANCELED/REJECTED만 차단). 확정전표 dev_master propose 201+accept 200+memo 실변경 입증.
+- BE 커밋 엔진 `applyOverlayPatchBatch`(다필드 1배치→1버전→audit델타→SSE) = 수정완료 재사용.
+
+**다음 단계**: ①spec 최종모델 갱신 ②Codex 구현(BE 1-인 "수정완료" endpoint + FE 수정버튼/편집모드/수정완료/diff뷰; propose/accept 2단계→수정완료 통합) ③다모델 재리뷰+각 라운드 실서버 스크린샷 ④실 데스크톱 UI 캡처 ⑤CI green ⑥PM 종합+머지.
+
+**🚨 워크플로우(반복위반 주의)**: 각 라운드 리뷰=PR게시+실서버 스크린샷 / CI green前 PM종합 금지 / Bash커밋=`git commit -F 파일` / 실QA=가짜금지.
+
+> 게이트웨이 :8080, dev_master/`dev_p05_pass!`(loginId 필드), 확정전표 `1c72f28a`(2026/04/08-001).
+
+---
+<!-- 이하 누적 핸드오프 이력 (이전 슬라이스) -->
+
 ## ✅ 2026-06-13 (야간 자율, 집 PC) — **#473 배차현황 task-UUID 진입 통일 머지** (dispatch-integration 후속 #1, PR #473)
 
 > #3 머지 후 PM 자율 다음 슬라이스(개발책임자 "다음 슬라이스까지 진행"). 큰 #4(§7 전역 협업)는 아키텍처 설계라 개발책임자 스코핑 대기 → PM 판단으로 #3 deferred 후속(scoped)부터.
