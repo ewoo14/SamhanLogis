@@ -41,4 +41,23 @@
 BaseEntity·Soft Delete·도메인 메서드 체인·한국어 Javadoc·**UUID 비공개(작성자/제안자 실명만, documentId/authorId 내부)**·enum/CHECK Flyway 멱등·게이트웨이 no-strip 라우트(신규 collab endpoint). collab-core 재사용 우선(중복 추상 신규 금지).
 
 ## 4. 워크플로우
-다모델 정정판: Opus 계획+조기 PR → Codex 개발 → 개발사항 게시 → Opus·Codex·Fable5 리뷰(각 모델 자기 라운드 직접 fix) → 다음 리뷰어 0 오류 → 머지. ([[temp-multimodel-workflow]])
+다모델 정정판: Opus 계획+조기 PR → Codex 개발 → 개발사항 게시 → Opus·Codex·Fable5 리뷰(각 모델 자기 라운드 직접 fix, **각 라운드 PR 게시 + 실서버 스크린샷 인라인**) → 다음 리뷰어 0 오류 → **CI green** → **Docker 실 데스크톱 UI 캡처** → PM 종합 → 머지. ([[temp-multimodel-workflow]], [[review-posting-and-zero-skip]], [[early-pr-docker-qa-screenshots]])
+
+---
+
+## 5. 최종 모델 정정 (2026-06-13 개발책임자 — "제안" → "수정" 1-인)
+대화 중 명확화: 본 기능은 **"제안/수락(2-인)"이 아니라 전표 "수정(1-인)"**이다. Google Docs 참조는 **"무엇이 어떻게 바뀌었는지 한눈에"(diff 시각화)** 벤치마킹용일 뿐 propose/accept 모델이 아니다. propose/accept 2-step 을 **단일 "수정완료" 커밋**으로 통합한다.
+
+### 5-1. UX (FE, 이번 슬라이스)
+- **진입**: 확정(CONFIRMED)/완료(COMPLETED) 등 수정가능 전표 상세에 **"수정" 버튼**. **완료(COMPLETED) 상태면 기존 "완료" 버튼이 "수정" 버튼으로 대체**.
+- **편집모드**: "수정" 클릭 → 수정가능 overlay 필드 인라인 편집(여러 필드 동시).
+- **커밋**: "**수정완료**" → **권한자 본인이 즉시 적용**(별도 수락자 없음). 여러 필드 = 수정완료 1회 = **1 버전**(배치). 잠금 우회(물리종결 SHIPPING/DELIVERED/CANCELED/REJECTED 제외 — `guardCollabModifiable`).
+- **"한눈에" diff 뷰**: 수정 이력을 **필드별 이전값→새값·수정자·시각**(Google Docs 추적변경 식)으로 표시. 코멘트(논의)·버전(시점) 복원·실시간 SSE 알림 병행.
+
+### 5-2. BE (1-인 수정완료)
+- propose/accept 2-step → **단일 "수정완료" endpoint**(예 `POST /slips/{id}/collab/edits`): 권한 `@RequirePermission(slip.audit-overlay, UPDATE)` → `validateChangeSet` → `applyOverlayPatchBatch`(적용+audit델타+SlipRevision+SSE) → **수정 이력 1건 기록**(slip_collab_suggestions 재활용: proposer=decider=editor, status=ACCEPTED, changeSet=필드 diff, reason 선택). 원자적(기록+적용 1 트랜잭션).
+- 기존 standalone propose-only/accept/reject/withdraw 는 1-인 모델에서 불필요 → 제거 또는 내부화. canPropose/canDecide = 무효 actor 가드(권한은 엔드포인트 위임 — 실서버 QA fix 유지).
+- "수정 이력 diff" 데이터 = slip_collab_suggestions(ACCEPTED entries) 또는 SlipAuditLog(필드 델타) — diff 뷰가 필드별 old→new·actor·시각 제공.
+
+### 5-3. 재사용 / 유지
+`applyOverlayPatchBatch`(배치 커밋·잠금우회·1버전) · SlipAuditLog(old→new) · SlipRevision(복원) · SlipCollabComment(코멘트) · SSE. presence(접속자+색상)=**후속 슬라이스**.

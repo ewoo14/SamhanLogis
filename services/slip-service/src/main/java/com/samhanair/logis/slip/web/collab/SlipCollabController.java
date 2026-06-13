@@ -3,8 +3,7 @@ package com.samhanair.logis.slip.web.collab;
 import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
-import com.samhanair.logis.collab.CollabSuggestionService;
-import com.samhanair.logis.collab.DocumentCollaborationPort;
+import com.samhanair.logis.collab.CollabSuggestionStatus;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -12,15 +11,15 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.slip.collab.SlipCollabComment;
-import com.samhanair.logis.slip.collab.SlipCollabSuggestion;
+import com.samhanair.logis.slip.collab.SlipCollabEditService;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestionRepository;
 import com.samhanair.logis.slip.collab.SlipDocumentCollaborationPort;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.web.collab.dto.AddSlipCollabCommentRequest;
-import com.samhanair.logis.slip.web.collab.dto.CreateSlipCollabSuggestionRequest;
-import com.samhanair.logis.slip.web.collab.dto.RejectSlipCollabSuggestionRequest;
+import com.samhanair.logis.slip.web.collab.dto.CommitSlipCollabEditRequest;
+import com.samhanair.logis.slip.web.collab.dto.SlipCollabEditResponse;
 import com.samhanair.logis.slip.web.collab.dto.SlipCollabCommentResponse;
 import com.samhanair.logis.slip.web.collab.dto.SlipCollabSuggestionResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,7 +45,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * 입출고전표 협업 REST/SSE endpoint.
  *
- * <p>댓글/수정제안은 shared/collab-core generic service 를 사용하고, 회귀/복원은 기존
+ * <p>댓글은 shared/collab-core generic service 를 사용하고, 수정은 1-인 수정완료 모델로
+ * 기존 수정 이력 테이블을 재사용한다. 회귀/복원은 기존
  * {@code /slips/{slipId}/revisions} API 를 source-of-truth 로 유지한다.
  */
 @RestController
@@ -59,12 +59,12 @@ public class SlipCollabController {
             "(?i)^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$");
 
     private final CollabCommentService<SlipCollabComment> commentService;
-    private final CollabSuggestionService<SlipCollabSuggestion> suggestionService;
+    private final SlipCollabEditService editService;
     private final SlipCollabSuggestionRepository suggestionRepository;
     private final SlipRepository slipRepository;
     private final RealtimeBroker broker;
     /**
-     * 포트는 concrete 타입으로 주입한다 — propose 시점
+     * 포트는 concrete 타입으로 주입한다 — 수정완료 시점
      * {@link SlipDocumentCollaborationPort#validateChangeSet} 조기 검증 호출용 (Round C P2).
      */
     private final SlipDocumentCollaborationPort outboundPort;
@@ -72,14 +72,14 @@ public class SlipCollabController {
 
     public SlipCollabController(
             CollabCommentService<SlipCollabComment> commentService,
-            CollabSuggestionService<SlipCollabSuggestion> suggestionService,
+            SlipCollabEditService editService,
             SlipCollabSuggestionRepository suggestionRepository,
             SlipRepository slipRepository,
             RealtimeBroker broker,
             @Qualifier("slipOutboundCollaborationPort") SlipDocumentCollaborationPort outboundPort,
             @Qualifier("slipInboundCollaborationPort") SlipDocumentCollaborationPort inboundPort) {
         this.commentService = commentService;
-        this.suggestionService = suggestionService;
+        this.editService = editService;
         this.suggestionRepository = suggestionRepository;
         this.slipRepository = slipRepository;
         this.broker = broker;
@@ -151,103 +151,42 @@ public class SlipCollabController {
     }
 
     /**
-     * 전표 수정 제안 등록.
+     * 전표 수정완료.
      *
-     * <p>changeSet 구조는 저장 <b>전에</b> {@link SlipDocumentCollaborationPort#validateChangeSet}
-     * 으로 조기 검증한다 — 비JSON 은 jsonb cast 500, 구조 불량은 accept 마다 400 이 반복되는
-     * poison suggestion 이 되므로 propose 시점에 400 으로 거부한다 (accept 측 검증과 대칭, Round C P2).
+     * <p>권한자가 본인 편집 내용을 즉시 커밋한다. 별도 제안자/수락자 2단계는 만들지 않는다.
+     * 기존 {@code slip_collab_suggestions} row 는 ACCEPTED 수정 이력으로 재사용한다.
      */
-    @Operation(summary = "전표 협업 수정 제안 등록")
-    @PostMapping("/suggestions")
+    @Operation(summary = "전표 협업 수정완료")
+    @PostMapping("/edits")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = "slip.audit-overlay", action = PermissionAction.UPDATE)
-    public ApiResponse<SlipCollabSuggestionResponse> propose(
+    public ApiResponse<SlipCollabEditResponse> commitEdit(
             @PathVariable UUID slipId,
-            @Valid @RequestBody CreateSlipCollabSuggestionRequest request,
+            @Valid @RequestBody CommitSlipCollabEditRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         SlipDocumentCollaborationPort port = resolvePort(loadSlip(slipId));
-        port.validateChangeSet(request.changeSet());
-        SlipCollabSuggestion saved = suggestionService.propose(
-                port,
-                slipId,
-                resolveActorId(callerId),
-                resolveActorName(callerName),
-                request.changeSet(),
-                request.reason());
-        return ApiResponse.ok(SlipCollabSuggestionResponse.from(saved));
+        SlipCollabEditService.Result result = editService.commitEdit(
+                port, slipId, resolveActorId(callerId), resolveActorName(callerName),
+                request.changeSet(), request.reason());
+        return ApiResponse.ok(new SlipCollabEditResponse(
+                SlipCollabSuggestionResponse.from(result.edit()), result.slip()));
     }
 
-    /** 전표 수정 제안 목록. */
-    @Operation(summary = "전표 협업 수정 제안 목록")
-    @GetMapping("/suggestions")
+    /** 전표 수정 이력 목록. */
+    @Operation(summary = "전표 협업 수정 이력 목록")
+    @GetMapping("/edits")
     @RequirePermission(page = "slip.audit-overlay", action = PermissionAction.VIEW)
-    public ApiResponse<List<SlipCollabSuggestionResponse>> listSuggestions(
+    public ApiResponse<List<SlipCollabSuggestionResponse>> listEdits(
             @PathVariable UUID slipId) {
         CollabDocumentType documentType = resolveDocumentType(loadSlip(slipId));
         List<SlipCollabSuggestionResponse> items = suggestionRepository
-                .findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(documentType, slipId)
+                .findByDocumentTypeAndDocumentIdAndStatusOrderByCreatedAtDesc(
+                        documentType, slipId, CollabSuggestionStatus.ACCEPTED)
                 .stream()
                 .map(SlipCollabSuggestionResponse::from)
                 .toList();
         return ApiResponse.ok(items);
-    }
-
-    /** 전표 수정 제안 수락. */
-    @Operation(summary = "전표 협업 수정 제안 수락")
-    @PostMapping("/suggestions/{suggestionId}/accept")
-    @RequirePermission(page = "slip.audit-overlay", action = PermissionAction.UPDATE)
-    public ApiResponse<SlipCollabSuggestionResponse> accept(
-            @PathVariable UUID slipId,
-            @PathVariable UUID suggestionId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        Slip slip = loadSlip(slipId);
-        DocumentCollaborationPort port = resolvePort(slip);
-        ensureSuggestionExistsInPath(suggestionId, port.documentType(), slipId);
-        SlipCollabSuggestion accepted = suggestionService.accept(
-                suggestionId,
-                port,
-                resolveActorId(callerId),
-                resolveActorName(callerName));
-        return ApiResponse.ok(SlipCollabSuggestionResponse.from(accepted));
-    }
-
-    /** 전표 수정 제안 거절. */
-    @Operation(summary = "전표 협업 수정 제안 거절")
-    @PostMapping("/suggestions/{suggestionId}/reject")
-    @RequirePermission(page = "slip.audit-overlay", action = PermissionAction.UPDATE)
-    public ApiResponse<SlipCollabSuggestionResponse> reject(
-            @PathVariable UUID slipId,
-            @PathVariable UUID suggestionId,
-            @Valid @RequestBody(required = false) RejectSlipCollabSuggestionRequest request,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        Slip slip = loadSlip(slipId);
-        DocumentCollaborationPort port = resolvePort(slip);
-        ensureSuggestionExistsInPath(suggestionId, port.documentType(), slipId);
-        SlipCollabSuggestion rejected = suggestionService.reject(
-                suggestionId,
-                port,
-                resolveActorId(callerId),
-                resolveActorName(callerName),
-                request == null ? null : request.reason());
-        return ApiResponse.ok(SlipCollabSuggestionResponse.from(rejected));
-    }
-
-    /** 전표 수정 제안 철회. */
-    @Operation(summary = "전표 협업 수정 제안 철회")
-    @PostMapping("/suggestions/{suggestionId}/withdraw")
-    @RequirePermission(page = "slip.audit-overlay", action = PermissionAction.UPDATE)
-    public ApiResponse<SlipCollabSuggestionResponse> withdraw(
-            @PathVariable UUID slipId,
-            @PathVariable UUID suggestionId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId) {
-        CollabDocumentType documentType = resolveDocumentType(loadSlip(slipId));
-        ensureSuggestionExistsInPath(suggestionId, documentType, slipId);
-        SlipCollabSuggestion withdrawn = suggestionService.withdraw(
-                suggestionId, resolveActorId(callerId));
-        return ApiResponse.ok(SlipCollabSuggestionResponse.from(withdrawn));
     }
 
     /** 전표 협업 SSE stream. 댓글/제안/복원 이벤트는 slipId 채널로 전달된다. */
@@ -275,12 +214,6 @@ public class SlipCollabController {
         return slip.getSlipType() == SlipType.OUTBOUND
                 ? CollabDocumentType.SLIP_OUTBOUND
                 : CollabDocumentType.SLIP_INBOUND;
-    }
-
-    private void ensureSuggestionExistsInPath(UUID suggestionId, CollabDocumentType documentType,
-                                              UUID slipId) {
-        suggestionRepository.findByIdAndDocumentTypeAndDocumentId(suggestionId, documentType, slipId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "제안을 찾을 수 없습니다"));
     }
 
     private UUID resolveActorId(String header) {

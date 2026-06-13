@@ -1765,7 +1765,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ==========================================================================
-  // §7: slip collab-core mock (comments + suggestions)
+  // §7: slip collab-core mock (comments + direct edits)
   // - 화면 노출 = authorName/proposerName/decidedByName (UUID 비공개 가드)
   // ==========================================================================
   type MockSlipCollabComment = {
@@ -1777,19 +1777,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     status: 'OPEN' | 'RESOLVED'
     createdAt: string
   }
-  type MockSlipCollabSuggestion = {
+  type MockSlipCollabEdit = {
     id: string
     changeSet: string
     reason: string | null
     proposerName: string
-    status: 'PROPOSED' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'
+    status: 'ACCEPTED'
     decidedByName: string | null
     decidedAt: string | null
     createdAt: string
   }
   const gc = globalThis as unknown as {
     __SAMHAN_MOCK_SLIP_COLLAB_COMMENTS?: Record<string, MockSlipCollabComment[]>
-    __SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS?: Record<string, MockSlipCollabSuggestion[]>
+    __SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS?: Record<string, MockSlipCollabEdit[]>
   }
   if (!gc.__SAMHAN_MOCK_SLIP_COLLAB_COMMENTS) gc.__SAMHAN_MOCK_SLIP_COLLAB_COMMENTS = {}
   if (!gc.__SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS) gc.__SAMHAN_MOCK_SLIP_COLLAB_SUGGESTIONS = {}
@@ -1846,55 +1846,36 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
-  const collabSuggestionCollectionMatch = url.match(/\/slips\/([^/?]+)\/collab\/suggestions(?:\?.*)?$/)
-  if (collabSuggestionCollectionMatch) {
-    const slipId = collabSuggestionCollectionMatch[1]!
+  const collabEditCollectionMatch = url.match(/\/slips\/([^/?]+)\/collab\/edits(?:\?.*)?$/)
+  if (collabEditCollectionMatch) {
+    const slipId = collabEditCollectionMatch[1]!
     if (method === 'GET') return envelope([...(collabSuggestionsStore[slipId] ?? [])])
     if (method === 'POST') {
       const body = parseMockBody(config)
-      const created: MockSlipCollabSuggestion = {
-        id: `mock-slip-collab-suggestion-${Date.now()}`,
+      const created: MockSlipCollabEdit = {
+        id: `mock-slip-collab-edit-${Date.now()}`,
         changeSet: String(body['changeSet'] ?? '{}'),
         reason: (body['reason'] as string | null | undefined) ?? null,
         proposerName: MOCK_AUTH.fullName,
-        status: 'PROPOSED',
-        decidedByName: null,
-        decidedAt: null,
+        status: 'ACCEPTED',
+        decidedByName: MOCK_AUTH.fullName,
+        decidedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       }
       collabSuggestionsStore[slipId] = [created, ...(collabSuggestionsStore[slipId] ?? [])]
-      return envelope(created)
-    }
-  }
-
-  const collabSuggestionActionMatch = url.match(/\/slips\/([^/?]+)\/collab\/suggestions\/([^/?]+)\/(accept|reject|withdraw)$/)
-  if (method === 'POST' && collabSuggestionActionMatch) {
-    const slipId = collabSuggestionActionMatch[1]!
-    const suggestionId = collabSuggestionActionMatch[2]!
-    const action = collabSuggestionActionMatch[3]!
-    const target = (collabSuggestionsStore[slipId] ?? []).find((item) => item.id === suggestionId)
-    if (!target) return mockError(404, 'NOT_FOUND', '제안을 찾을 수 없습니다')
-    if (action === 'accept') {
-      target.status = 'ACCEPTED'
-      target.decidedByName = MOCK_AUTH.fullName
-      target.decidedAt = new Date().toISOString()
-    } else if (action === 'reject') {
-      const body = parseMockBody(config)
-      target.status = 'REJECTED'
-      target.reason = (body['reason'] as string | null | undefined) ?? target.reason
-      target.decidedByName = MOCK_AUTH.fullName
-      target.decidedAt = new Date().toISOString()
-    } else {
-      // BE CollabSuggestionService.withdraw — proposer-only(403 FORBIDDEN "제안자만 철회할 수
-      // 있습니다"). mock 응답엔 proposerId 가 없으므로(UUID 비공개) proposerName 으로 본인 판정.
-      // (BE 원문은 ": {suggestionId}" 를 덧붙이나 mock 은 UUID 노출 방지 위해 생략.)
-      if (target.proposerName !== MOCK_AUTH.fullName) {
-        return mockError(403, 'FORBIDDEN', '제안자만 철회할 수 있습니다')
+      const slip = MOCK_SLIPS.find((s) => s.id === slipId) as Record<string, unknown> | undefined
+      if (slip) {
+        try {
+          const parsed = JSON.parse(created.changeSet) as Record<string, { after?: unknown }>
+          for (const [field, change] of Object.entries(parsed)) {
+            slip[field] = change.after ?? null
+          }
+        } catch {
+          return mockError(400, 'INVALID_INPUT', 'changeSet JSON 형식이 올바르지 않습니다')
+        }
       }
-      target.status = 'WITHDRAWN'
-      target.decidedAt = new Date().toISOString()
+      return envelope({ edit: created, slip: slip ?? {} })
     }
-    return envelope(target)
   }
 
   // ==========================================================================

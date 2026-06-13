@@ -5,12 +5,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * 전표 수정 제안 등록 요청.
+ * 전표 협업 수정완료 요청.
  *
- * @param changeSet path → {before, after} JSON 문자열. 1차 범위는 overlay 필드 path.
- * @param reason 제안 사유.
+ * @param changeSet path -> {after} JSON 문자열. overlay 필드만 허용한다.
+ * @param reason 수정 사유. 빈 값이면 이력에 null 로 보존한다.
  */
-public record CreateSlipCollabSuggestionRequest(
+public record CommitSlipCollabEditRequest(
         @NotBlank(message = "changeSet 은 필수입니다")
         String changeSet,
         @Size(max = CollabSuggestionRecord.MAX_REASON_LENGTH, message = "사유는 최대 500자입니다")

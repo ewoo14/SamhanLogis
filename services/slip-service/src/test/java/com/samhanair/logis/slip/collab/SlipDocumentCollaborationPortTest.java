@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 전표 협업 포트 테스트.
  *
- * <p>변경 제안 수락 시 collab-core 가 전달한 changeSet 을 기존 overlay patch 경로로 적용하고,
+ * <p>기존 DocumentCollaborationPort 호환 경로와 수정완료 실사용 경로가 모두 overlay batch 를 사용하고,
  * 권한 판정은 기존 slip.audit-overlay page-code 를 재사용하는 계약을 고정한다.
  */
 class SlipDocumentCollaborationPortTest {
@@ -67,9 +67,32 @@ class SlipDocumentCollaborationPortTest {
         java.util.Map<String, String> expected = new java.util.LinkedHashMap<>();
         expected.put("memo", "new");
         expected.put("shippingAddress", "서울시 강남구");
-        verify(slipService).applyOverlayPatchBatch(slipId, expected, "collab-core", "협업 제안");
+        verify(slipService).applyOverlayPatchBatch(
+                slipId, expected, "00000000-0000-0000-0000-000000000000", "협업 제안");
         org.mockito.Mockito.verify(slipService, org.mockito.Mockito.never())
                 .applyOverlayPatch(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void applyOverlayPatchBatchUsesEditorActorForDirectEdit() {
+        SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
+        SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
+        SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
+        UUID slipId = UUID.randomUUID();
+        UUID editorId = UUID.fromString("20000000-0000-0000-0000-000000000001");
+
+        SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
+                slipRepository, slipService, revisionService, new ObjectMapper());
+
+        port.applyOverlayPatchBatch(slipId, """
+                {
+                  "memo": {"after": "수정 메모"}
+                }
+                """, editorId, "수정자김대리");
+
+        java.util.Map<String, String> expected = new java.util.LinkedHashMap<>();
+        expected.put("memo", "수정 메모");
+        verify(slipService).applyOverlayPatchBatch(slipId, expected, editorId.toString(), "수정자김대리");
     }
 
     @Test

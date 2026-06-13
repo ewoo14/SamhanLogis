@@ -7,10 +7,10 @@ import java.time.ZoneId;
 import java.util.UUID;
 
 /**
- * 전표 수정 제안 응답 DTO.
+ * 전표 수정 이력 응답 DTO.
  *
  * <p>UUID 비공개 가드: proposerId/decidedById 는 응답하지 않는다. 사용자 화면에는
- * proposerName/decidedByName 만 표시한다.
+ * proposerName/decidedByName 만 표시한다. 1-인 수정완료 모델에서는 둘 다 같은 수정자다.
  *
  * <p>{@code decidedAt} 은 collab-core 가 {@code Instant} 로 기록하나, {@code createdAt}
  * (BaseEntity {@code LocalDateTime}) 과 화면 표기를 일치시키기 위해 시스템 기본 타임존

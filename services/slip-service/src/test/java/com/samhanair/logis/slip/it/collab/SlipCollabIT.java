@@ -53,22 +53,18 @@ import org.springframework.transaction.annotation.Transactional;
  * 입출고전표 협업 실 Postgres IT.
  *
  * <p>slip_collab_comments / slip_collab_suggestions 테이블의 INSERT/SELECT/soft-delete 경로와
- * 제안 accept 시 {@code applyOverlayPatchBatch} 실 적용 + EDIT revision 1건 캡처를
+ * 수정완료 시 {@code applyOverlayPatchBatch} 실 적용 + EDIT revision 1건 캡처를
  * MockMvc + Testcontainers PostgreSQL 로 검증한다. (§7 협업, PR #474)
  *
  * <p>시나리오:
  * <ol>
  *   <li>댓글 라운드트립 (add → list → resolve → soft-delete → list 0건 + 스레드 부모댓글 1건 포함)</li>
- *   <li>제안 propose→accept 실 적용 (slip.memo 실 변경 + EDIT revision 1건, 다중필드 단일 revision)</li>
- *   <li>제안 reject / withdraw + 이미 종결된 제안 재accept → 409</li>
+ *   <li>수정완료 실 적용 (slip.memo 실 변경 + ACCEPTED 이력 + audit old→new + EDIT revision 1건)</li>
  *   <li>권한 deny 403 (slip.comments CREATE, slip.audit-overlay UPDATE)</li>
  *   <li>OUTBOUND/INBOUND documentType 분기 — 저장된 documentType 실 확인</li>
  *   <li>CHECK 제약 실 INSERT 거부 (document_type='INVALID_TYPE', status='BAD')</li>
- *   <li>타 전표 스코프 격리 — 전표 A 댓글/제안을 전표 B 경로로 DELETE/accept → 404</li>
- *   <li>협업 제안 수락 잠금 정책 (2026-06-13 정책 정정) —
- *       (a) CONFIRMED 전표 + APPROVED 수정요청 없음 → 수락 성공 (수락=공인 수정, guardCollabModifiable),
- *       (b) 물리 종결(DELIVERED) 전표 → 409 (COLLAB_LOCKED, recordBatch 단일 계약 유지)</li>
- *   <li>propose 시점 changeSet 구조 검증 — 비JSON/구조불량 → 400 + 미저장 (Round C P2)</li>
+ *   <li>협업 수정완료 잠금 정책 — CONFIRMED 성공, 물리 종결(DELIVERED) 409</li>
+ *   <li>수정완료 changeSet 구조 검증 — 비JSON/구조불량 → 400 + 미저장</li>
  * </ol>
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
@@ -80,11 +76,8 @@ class SlipCollabIT extends AbstractPostgresIT {
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_NAME_HEADER = "X-User-Name";
 
-    /** 권한 stub 에 사용할 고정 사용자 UUID. proposerId 로도 재사용. */
+    /** 권한 stub 에 사용할 고정 사용자 UUID. 수정자 ID 로도 재사용. */
     private static final String ACTOR_ID = "20000000-0000-0000-0000-000000000001";
-
-    /** Non-proposer withdraw edge verification actor. */
-    private static final String OTHER_ACTOR_ID = "20000000-0000-0000-0000-000000000002";
 
     /** 테스트 slipNo 의 날짜 prefix — 미래 날짜 사용으로 seqNo 충돌 최소화. */
     private static final LocalDate TEST_DATE = LocalDate.of(2099, 6, 13);
@@ -197,169 +190,92 @@ class SlipCollabIT extends AbstractPostgresIT {
     }
 
     /* ====================================================================
-     * 시나리오 2a — 제안 propose→accept 단일 필드 실 적용
+     * 시나리오 2a — 수정완료 단일 필드 실 적용
      * slip.memo 실 변경 + EDIT revision 1건 캡처 검증
      * ==================================================================== */
 
     /**
-     * 수정 제안 등록 후 수락 시 전표 memo 필드가 실제 변경되고 EDIT revision 이 1건 생성되는지 검증한다.
+     * 수정완료 1회 호출로 전표 memo 필드가 실제 변경되고 ACCEPTED 이력/audit/EDIT revision 이 생성되는지 검증한다.
      *
      * <p>{@code applyOverlayPatchBatch} 가 단일 잠금 가드 + 단일 EDIT revision 으로 묶이는지
      * SlipRevisionRepository 직접 조회로 단언한다.
      */
     @Test
-    void suggestion_propose_accept_applies_memo_and_captures_one_edit_revision() throws Exception {
+    void commitEdit_applies_memo_and_records_accepted_history_audit_and_revision() throws Exception {
         Slip slip = seedOutboundSlip("2099/06/13-SUGG-A-" + SEQ.getAndIncrement());
         UUID slipId = slip.getId();
         int beforeRevCount = revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId).size();
 
-        // 1. 제안 등록 (memo 변경 제안)
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        String response = mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "제안자박과장")
+                        .header(USER_NAME_HEADER, "수정자박과장")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "changeSet", "{\"memo\":{\"after\":\"새 메모 내용\"}}",
-                                "reason", "메모 수정 제안"))))
+                                "reason", "메모 수정"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("PROPOSED"))
-                .andExpect(jsonPath("$.data.proposerName").value("제안자박과장"))
+                .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data.edit.proposerName").value("수정자박과장"))
+                .andExpect(jsonPath("$.data.edit.decidedByName").value("수정자박과장"))
+                .andExpect(jsonPath("$.data.slip.memo").value("새 메모 내용"))
                 .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> edit = (Map<String, Object>) ((Map<String, Object>) dataMap(response).get("edit"));
+        UUID editId = UUID.fromString((String) edit.get("id"));
 
-        // 2. 수락
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/accept",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "결정자김팀장"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
-                .andExpect(jsonPath("$.data.decidedByName").value("결정자김팀장"));
-
-        // 3. 전표 memo 가 실제로 변경됐는지 repository 재조회로 단언
-        // @Transactional 롤백 경계 내이므로 1차 캐시를 피해 flush/clear 후 조회
         slipRepository.flush();
         Slip reloaded = slipRepository.findById(slipId).orElseThrow();
         assertThat(reloaded.getMemo()).isEqualTo("새 메모 내용");
 
-        // 4. EDIT revision 이 beforeRevCount 보다 정확히 1건 더 생성됐는지 단언
+        var saved = suggestionRepository.findById(editId).orElseThrow();
+        assertThat(saved.getStatus().name()).isEqualTo("ACCEPTED");
+        assertThat(saved.getProposerName()).isEqualTo("수정자박과장");
+        assertThat(saved.getDecidedByName()).isEqualTo("수정자박과장");
+
+        var auditRows = auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(slipId);
+        assertThat(auditRows).anySatisfy(row -> {
+            assertThat(row.getFieldName()).isEqualTo("memo");
+            assertThat(row.getOldValue()).isEqualTo("초기 메모");
+            assertThat(row.getNewValue()).isEqualTo("새 메모 내용");
+            assertThat(row.getActorName()).isEqualTo("수정자박과장");
+        });
         int afterRevCount = revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId).size();
         assertThat(afterRevCount).isEqualTo(beforeRevCount + 1);
     }
 
     /* ====================================================================
-     * 시나리오 2b — 다중 필드 changeSet accept → revision 1건만 (배치 단일 revision)
+     * 시나리오 2b — 다중 필드 수정완료 → revision 1건만 (배치 단일 revision)
      * ==================================================================== */
 
     /**
-     * 다중 필드(memo + shippingAddress)를 담은 제안을 수락할 때 EDIT revision 이 1건만
-     * 생성되는지(배치 단일 revision 정책) 검증한다.
+     * 다중 필드(memo + shippingAddress)를 담은 수정완료가 EDIT revision 을 1건만 생성하는지 검증한다.
      */
     @Test
-    void suggestion_accept_multiField_changeSet_produces_single_revision() throws Exception {
+    void commitEdit_multiField_changeSet_produces_single_revision() throws Exception {
         Slip slip = seedOutboundSlip("2099/06/13-SUGG-MF-" + SEQ.getAndIncrement());
         UUID slipId = slip.getId();
         int beforeRevCount = revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId).size();
 
-        // 1. 다중 필드 제안 등록
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "제안자다중")
+                        .header(USER_NAME_HEADER, "수정자다중")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "changeSet",
                                 "{\"memo\":{\"after\":\"M\"},\"shippingAddress\":{\"after\":\"서울 강남구\"}}"))))
                 .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
+                .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
-        // 2. 수락
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/accept",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "결정자이부장"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
-
-        // 3. revision 이 1건만 추가됐는지 확인 (필드 수 N건 아님)
         int afterRevCount = revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId).size();
         assertThat(afterRevCount).isEqualTo(beforeRevCount + 1);
 
-        // 4. 두 필드 모두 변경됐는지 확인
         slipRepository.flush();
         Slip reloaded = slipRepository.findById(slipId).orElseThrow();
         assertThat(reloaded.getMemo()).isEqualTo("M");
         assertThat(reloaded.getShippingAddress()).isEqualTo("서울 강남구");
-    }
-
-    /* ====================================================================
-     * 시나리오 3a — 제안 거절
-     * ==================================================================== */
-
-    /**
-     * 제안을 거절하면 status=REJECTED, reason 이 저장되고 목록에서 확인된다.
-     */
-    @Test
-    void suggestion_reject_updates_status_to_rejected() throws Exception {
-        UUID slipId = seedOutboundSlip("2099/06/13-SUGG-RJ-" + SEQ.getAndIncrement()).getId();
-
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "제안자거절")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"거절될 제안\"}}"))))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
-
-        // 거절
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/reject",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "결정자거절")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("reason", "내용 부적절"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("REJECTED"))
-                .andExpect(jsonPath("$.data.decidedByName").value("결정자거절"));
-    }
-
-    /* ====================================================================
-     * 시나리오 3b — 제안 철회
-     * ==================================================================== */
-
-    /**
-     * 제안자 본인이 철회하면 status=WITHDRAWN 이 되고,
-     * 이미 종결된(WITHDRAWN) 제안을 재accept 시 409 가 반환된다.
-     */
-    @Test
-    void suggestion_withdraw_and_re_accept_returns_409() throws Exception {
-        UUID slipId = seedOutboundSlip("2099/06/13-SUGG-WD-" + SEQ.getAndIncrement()).getId();
-
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "철회제안자")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"철회 대상\"}}"))))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
-
-        // 철회 (proposerId == ACTOR_ID)
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/withdraw",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("WITHDRAWN"));
-
-        // 이미 종결된 제안 재accept → 409 (requireProposed 가드)
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/accept",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "재accept시도자"))
-                .andExpect(status().isConflict());
+        assertThat(auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(slipId))
+                .filteredOn(row -> row.getRevisionNo() == reloaded.getRevisionCount())
+                .hasSize(2);
     }
 
     /* ====================================================================
@@ -367,29 +283,22 @@ class SlipCollabIT extends AbstractPostgresIT {
      * ==================================================================== */
 
     /**
-     * 제안자가 아닌 사용자가 철회를 시도하면 403 이 반환되고 제안 status 는 PROPOSED 로 유지된다.
+     * 무효 actor 로 수정완료를 시도하면 403 이 반환되고 수정 이력은 저장되지 않는다.
      */
     @Test
-    void suggestion_withdraw_by_non_proposer_returns_403_and_keeps_proposed() throws Exception {
-        UUID slipId = seedOutboundSlip("2099/06/13-SUGG-WD-NP-" + SEQ.getAndIncrement()).getId();
+    void commitEdit_with_invalid_actor_returns_403_and_persists_nothing() throws Exception {
+        UUID slipId = seedOutboundSlip("2099/06/13-EDIT-NA-" + SEQ.getAndIncrement()).getId();
 
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "원제안자")
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
+                        .header(USER_ID_HEADER, "not-a-uuid")
+                        .header(USER_NAME_HEADER, "무효수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"타인 철회 거부\"}}"))))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
-
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/withdraw",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, OTHER_ACTOR_ID))
+                                "changeSet", "{\"memo\":{\"after\":\"거부\"}}"))))
                 .andExpect(status().isForbidden());
 
-        var saved = suggestionRepository.findById(suggestionId).orElseThrow();
-        assertThat(saved.getStatus().name()).isEqualTo("PROPOSED");
+        assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                CollabDocumentType.SLIP_OUTBOUND, slipId)).isEmpty();
     }
 
     /**
@@ -414,7 +323,7 @@ class SlipCollabIT extends AbstractPostgresIT {
     }
 
     /**
-     * {@code slip.audit-overlay} UPDATE 권한이 거부된 사용자는 제안 등록 시 403 을 받는다.
+     * {@code slip.audit-overlay} UPDATE 권한이 거부된 사용자는 수정완료 시 403 을 받는다.
      *
      * <p>403 은 컨트롤러 {@code @RequirePermission(slip.audit-overlay, UPDATE)} Aspect 에서 발생한다.
      * 포트의 {@code canPropose} 는 권한 client 를 호출하지 않으며(무효 actor 가드만 수행),
@@ -422,7 +331,7 @@ class SlipCollabIT extends AbstractPostgresIT {
      * (실서버 QA 회귀 락인 — 2026-06-13 permissionClient 이중 체크 제거 fix)
      */
     @Test
-    void suggestion_propose_denied_when_permission_false() throws Exception {
+    void commitEdit_denied_when_permission_false() throws Exception {
         UUID slipId = seedOutboundSlip("2099/06/13-PERM-SUG-" + SEQ.getAndIncrement()).getId();
 
         // @RequirePermission Aspect 가 check/canEdit 를 참조하여 403 을 반환한다
@@ -432,7 +341,7 @@ class SlipCollabIT extends AbstractPostgresIT {
         when(dynamicPermissionClient.canEdit(any(), eq("slip.audit-overlay")))
                 .thenReturn(false);
 
-        mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -446,13 +355,13 @@ class SlipCollabIT extends AbstractPostgresIT {
      * ==================================================================== */
 
     /**
-     * OUTBOUND 전표에 등록된 제안의 documentType 이 SLIP_OUTBOUND 인지 검증한다.
+     * OUTBOUND 전표에 등록된 수정 이력의 documentType 이 SLIP_OUTBOUND 인지 검증한다.
      */
     @Test
-    void suggestion_on_outbound_slip_stores_SLIP_OUTBOUND_documentType() throws Exception {
+    void commitEdit_on_outbound_slip_stores_SLIP_OUTBOUND_documentType() throws Exception {
         UUID slipId = seedOutboundSlip("2099/06/13-DT-OUT-" + SEQ.getAndIncrement()).getId();
 
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        String response = mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
                         .header(USER_NAME_HEADER, "타입확인자")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -460,21 +369,21 @@ class SlipCollabIT extends AbstractPostgresIT {
                                 "changeSet", "{\"memo\":{\"after\":\"아웃바운드\"}}"))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
+        @SuppressWarnings("unchecked")
+        UUID editId = UUID.fromString((String) ((Map<String, Object>) dataMap(response).get("edit")).get("id"));
 
-        // repository 직접 조회 — documentType = SLIP_OUTBOUND
-        var saved = suggestionRepository.findById(suggestionId).orElseThrow();
+        var saved = suggestionRepository.findById(editId).orElseThrow();
         assertThat(saved.getDocumentType()).isEqualTo(CollabDocumentType.SLIP_OUTBOUND);
     }
 
     /**
-     * INBOUND 전표에 등록된 제안의 documentType 이 SLIP_INBOUND 인지 검증한다.
+     * INBOUND 전표에 등록된 수정 이력의 documentType 이 SLIP_INBOUND 인지 검증한다.
      */
     @Test
-    void suggestion_on_inbound_slip_stores_SLIP_INBOUND_documentType() throws Exception {
+    void commitEdit_on_inbound_slip_stores_SLIP_INBOUND_documentType() throws Exception {
         UUID slipId = seedInboundSlip("2099/06/13-DT-IN-" + SEQ.getAndIncrement()).getId();
 
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        String response = mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
                         .header(USER_NAME_HEADER, "인바운드타입")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -482,10 +391,10 @@ class SlipCollabIT extends AbstractPostgresIT {
                                 "changeSet", "{\"memo\":{\"after\":\"인바운드 메모\"}}"))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
+        @SuppressWarnings("unchecked")
+        UUID editId = UUID.fromString((String) ((Map<String, Object>) dataMap(response).get("edit")).get("id"));
 
-        // repository 직접 조회 — documentType = SLIP_INBOUND
-        var saved = suggestionRepository.findById(suggestionId).orElseThrow();
+        var saved = suggestionRepository.findById(editId).orElseThrow();
         assertThat(saved.getDocumentType()).isEqualTo(CollabDocumentType.SLIP_INBOUND);
     }
 
@@ -583,54 +492,47 @@ class SlipCollabIT extends AbstractPostgresIT {
     }
 
     /**
-     * 전표 A 에 등록된 제안을 전표 B 의 경로로 수락 시도하면 404 가 반환되고
-     * 제안 status 는 PROPOSED 로 유지된다 ({@code ensureSuggestionExistsInPath} 스코프 격리).
+     * 전표 A 의 수정 이력은 전표 B 의 {@code /collab/edits} 목록에 섞이지 않는다.
      */
     @Test
-    void accept_suggestion_through_other_slip_scope_returns_404() throws Exception {
+    void list_edits_isolated_by_slip_scope() throws Exception {
         UUID slipA = seedOutboundSlip("2099/06/13-SCOPE-SUG-A-" + SEQ.getAndIncrement()).getId();
         UUID slipB = seedOutboundSlip("2099/06/13-SCOPE-SUG-B-" + SEQ.getAndIncrement()).getId();
 
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipA)
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipA)
                         .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "스코프제안자")
+                        .header(USER_NAME_HEADER, "스코프수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"전표A 제안\"}}"))))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
+                                "changeSet", "{\"memo\":{\"after\":\"전표A 수정\"}}"))))
+                .andExpect(status().isCreated());
 
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/accept",
-                        slipB, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "스코프결정자"))
-                .andExpect(status().isNotFound());
-
-        var saved = suggestionRepository.findById(suggestionId).orElseThrow();
-        assertThat(saved.getStatus().name()).isEqualTo("PROPOSED");
+        mvc.perform(get("/slips/{slipId}/collab/edits", slipB)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     /* ====================================================================
-     * 시나리오 8 — 협업 제안 수락 잠금 정책 (개발책임자 2026-06-13 정책 정정)
+     * 시나리오 8 — 협업 수정완료 잠금 정책 (개발책임자 2026-06-13 정책 정정)
      * ==================================================================== */
 
     /**
-     * 시나리오 8(a) — CONFIRMED 전표 제안 수락은 APPROVED 수정요청 없이 즉시 성공한다.
+     * 시나리오 8(a) — CONFIRMED 전표 수정완료는 APPROVED 수정요청 없이 즉시 성공한다.
      *
-     * <p>개발책임자 2026-06-13 정책 정정: 제안 수락은 확정/완료 전표의 공인(authorized) 수정 경로.
-     * 수락자(권한자)가 곧 승인자이므로 별도 APPROVED 수정요청 없이 수락이 즉시 적용된다({@code guardCollabModifiable}).
+     * <p>개발책임자 2026-06-13 정책 정정: 수정완료는 확정/완료 전표의 공인(authorized) 수정 경로.
+     * 편집자(권한자)가 곧 승인자이므로 별도 APPROVED 수정요청 없이 즉시 적용된다({@code guardCollabModifiable}).
      * 직접 편집({@code guardLockPolicy} — CONFIRMED = APPROVED 요청 필요)과의 차이를 실증한다.
      *
      * <p>실증 계약:
      * <ul>
-     *   <li>CONFIRMED 슬립 + APPROVED 수정요청 없음 → propose → accept → 200 성공</li>
+     *   <li>CONFIRMED 슬립 + APPROVED 수정요청 없음 → 수정완료 → 201 성공</li>
      *   <li>memo 실 변경 반영 확인</li>
      *   <li>audit revision_no 정확히 1 증가 + EDIT revision 정확히 1건 추가 (recordBatch 단일 계약 유지)</li>
      * </ul>
      */
     @Test
-    void accept_on_confirmed_slip_without_approval_succeeds_collab_is_authorized_path()
+    void commitEdit_on_confirmed_slip_without_approval_succeeds_collab_is_authorized_path()
             throws Exception {
         Slip slip = seedConfirmedInboundSlip("2099/06/13-COLLAB-A-" + SEQ.getAndIncrement());
         UUID slipId = slip.getId();
@@ -638,28 +540,19 @@ class SlipCollabIT extends AbstractPostgresIT {
         int beforeEditRevisions = revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId).size();
         // APPROVED 수정요청 생성 없음 — 새 정책에서는 불필요
 
-        // propose 등록 → 201 (제안 등록은 mutation 이 아님)
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "확정제안자")
+                        .header(USER_NAME_HEADER, "확정수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "changeSet", "{\"memo\":{\"after\":\"확정 전표 공인 수락\"}}"))))
+                                "changeSet", "{\"memo\":{\"after\":\"확정 전표 공인 수정\"}}"))))
                 .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
-
-        // accept → guardCollabModifiable: CONFIRMED = 물리 종결 아님 → 200 (APPROVED 불요)
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/accept",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "확정수락자"))
-                .andExpect(status().isOk());
+                .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
 
         // memo 실 변경 확인
         slipRepository.flush();
         Slip reloaded = slipRepository.findById(slipId).orElseThrow();
-        assertThat(reloaded.getMemo()).isEqualTo("확정 전표 공인 수락");
+        assertThat(reloaded.getMemo()).isEqualTo("확정 전표 공인 수정");
 
         // audit revision_no 정확히 1 증가 + EDIT revision 1건 추가 (recordBatch 단일 계약 유지)
         assertThat(reloaded.getRevisionCount()).isEqualTo(beforeAuditRevision + 1);
@@ -668,79 +561,68 @@ class SlipCollabIT extends AbstractPostgresIT {
     }
 
     /**
-     * 시나리오 8(b) — 물리 종결(DELIVERED) 전표 제안 수락은 409 로 거부된다.
+     * 시나리오 8(b) — 물리 종결(DELIVERED) 전표 수정완료는 409 로 거부된다.
      *
      * <p>개발책임자 2026-06-13 정책 정정: SHIPPING/DELIVERED/CANCELED/REJECTED 만 물리 종결 차단
      * ({@code guardCollabModifiable} / {@code COLLAB_LOCKED}).
-     * 409 후 제안 status 는 PROPOSED 유지, 전표 memo 는 불변이어야 한다.
+     * 409 후 수정 이력은 저장되지 않고 전표 memo 는 불변이어야 한다.
      *
      * <p>출고전표 전이 체인: DRAFT→save→send→accept→process→complete(INSPECTING)
      * →inspect(COMPLETED)→ship(SHIPPING)→deliver(DELIVERED).
      */
     @Test
-    void accept_on_delivered_slip_returns_409_physical_terminal_guard() throws Exception {
+    void commitEdit_on_delivered_slip_returns_409_physical_terminal_guard() throws Exception {
         Slip slip = seedDeliveredOutboundSlip("2099/06/13-COLLAB-B-" + SEQ.getAndIncrement());
         UUID slipId = slip.getId();
 
-        // propose 등록 → 201 (제안 등록은 mutation 이 아님)
-        String proposeResp = mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "배송완료제안자")
+                        .header(USER_NAME_HEADER, "배송완료수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "changeSet", "{\"memo\":{\"after\":\"배송완료 변경 시도\"}}"))))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        UUID suggestionId = UUID.fromString((String) dataMap(proposeResp).get("id"));
-
-        // accept → guardCollabModifiable: DELIVERED ∈ COLLAB_LOCKED → 409
-        mvc.perform(post("/slips/{slipId}/collab/suggestions/{suggestionId}/accept",
-                        slipId, suggestionId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "배송완료수락시도자"))
                 .andExpect(status().isConflict());
 
-        // 제안 PROPOSED 유지 + memo 불변 (롤백 — 부분 적용 없음)
-        var saved = suggestionRepository.findById(suggestionId).orElseThrow();
-        assertThat(saved.getStatus().name()).isEqualTo("PROPOSED");
+        assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                CollabDocumentType.SLIP_OUTBOUND, slipId)).isEmpty();
         Slip reloaded = slipRepository.findById(slipId).orElseThrow();
         assertThat(reloaded.getMemo()).isEqualTo("출고 메모");
     }
 
     /* ====================================================================
-     * 시나리오 9 — propose 시점 changeSet 구조 검증 (Round C P2 #4)
+     * 시나리오 9 — 수정완료 changeSet 구조 검증
      * ==================================================================== */
 
     /**
-     * 구조가 잘못된 changeSet 은 propose 시점에 400 으로 조기 거부되고 저장되지 않는다.
+     * 구조가 잘못된 changeSet 은 수정완료 시점에 400 으로 조기 거부되고 저장되지 않는다.
      *
      * <p>(a) 비JSON 문자열 — 기존에는 jsonb cast 실패로 500. (b) entry 가 {@code {after}} object 가
-     * 아닌 scalar — 기존에는 저장 후 accept 마다 400 인 poison suggestion. 둘 다
-     * {@code SlipDocumentCollaborationPort.validateChangeSet} 이 저장 전에 400 으로 거부해야 한다.
+     * 아닌 scalar — 둘 다 {@code SlipDocumentCollaborationPort.validateChangeSet} 이 저장 전에
+     * 400 으로 거부해야 한다.
      */
     @Test
-    void propose_malformed_changeSet_returns_400_and_persists_nothing() throws Exception {
+    void commitEdit_malformed_changeSet_returns_400_and_persists_nothing() throws Exception {
         UUID slipId = seedOutboundSlip("2099/06/13-MAL-" + SEQ.getAndIncrement()).getId();
 
         // (a) 비JSON 문자열 → 400 (jsonb cast 500 차단)
-        mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "불량제안자")
+                        .header(USER_NAME_HEADER, "불량수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "changeSet", "not-json"))))
                 .andExpect(status().isBadRequest());
 
         // (b) 구조 불량 — after object 가 아닌 scalar → 400 (poison suggestion 차단)
-        mvc.perform(post("/slips/{slipId}/collab/suggestions", slipId)
+        mvc.perform(post("/slips/{slipId}/collab/edits", slipId)
                         .header(USER_ID_HEADER, ACTOR_ID)
-                        .header(USER_NAME_HEADER, "불량제안자")
+                        .header(USER_NAME_HEADER, "불량수정자")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "changeSet", "{\"memo\":\"x\"}"))))
                 .andExpect(status().isBadRequest());
 
-        // 잘못된 제안은 저장 자체가 차단 — 해당 전표 제안 0건
+        // 잘못된 수정은 저장 자체가 차단 — 해당 전표 수정 이력 0건
         assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
                 CollabDocumentType.SLIP_OUTBOUND, slipId)).isEmpty();
     }
@@ -799,7 +681,7 @@ class SlipCollabIT extends AbstractPostgresIT {
      *
      * <p>출고전표 전이 체인: {@code save→send→accept→process→complete(→INSPECTING)
      * →inspect(→COMPLETED)→ship(→SHIPPING)→deliver(→DELIVERED)}.
-     * {@code COLLAB_LOCKED} 포함 상태 — 협업 제안 수락이 {@code guardCollabModifiable} 에 의해 차단됨을
+     * {@code COLLAB_LOCKED} 포함 상태 — 협업 수정완료가 {@code guardCollabModifiable} 에 의해 차단됨을
      * 시나리오 8(b) 에서 실증한다.
      *
      * @param slipNo 전표번호 (유니크, 미래일자 권장)

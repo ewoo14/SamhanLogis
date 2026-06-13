@@ -1,25 +1,21 @@
 /**
  * 입출고전표 협업 패널 — collab-core slip rollout.
  *
- * 댓글, 수정 제안, 기존 버전 이력을 한 화면에 모아 보여준다. UUID 는 API key/path 에만 쓰고,
- * 화면에는 작성자/제안자 실명과 전표번호/내용만 표시한다.
+ * 댓글, 수정완료 이력, 기존 버전 이력을 한 화면에 모아 보여준다. UUID 는 API key/path 에만 쓰고,
+ * 화면에는 작성자/수정자 실명과 전표번호/내용만 표시한다.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
 import {
-  acceptSlipCollabSuggestion,
   addSlipCollabComment,
+  commitSlipCollabEdit,
   deleteSlipCollabComment,
   getSlipCollabComments,
-  getSlipCollabSuggestions,
-  proposeSlipCollabSuggestion,
-  rejectSlipCollabSuggestion,
+  getSlipCollabEdits,
   resolveSlipCollabComment,
-  withdrawSlipCollabSuggestion,
   type SlipCollabComment,
-  type SlipCollabSuggestion,
-  type SlipCollabSuggestionStatus,
+  type SlipCollabEdit,
 } from '../../api/slipCollab'
 import { SlipCollabRealtimeClient } from '../../realtime/SlipCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -28,26 +24,17 @@ import { SlipVersionHistoryPanel } from '../audit/SlipVersionHistoryPanel'
 export interface SlipCollaborationPanelProps {
   /** 전표 UUID — query key/API path 전용. 화면 텍스트 노출 금지. */
   slipId: string
+  /** overlay 편집 필드의 현재 값 snapshot. */
+  currentValues?: Record<string, string | null | undefined>
+  /** 상세 상단 "수정" 버튼과 연결되는 편집모드 상태. */
+  editMode?: boolean
+  /** 편집모드 상태 변경 콜백. */
+  onEditModeChange?: (next: boolean) => void
+  /** 수정완료 후 상세 화면이 추가 동작을 해야 할 때 사용. */
+  onCommitted?: () => void
 }
 
-const SUGGESTION_STATUS_LABEL: Record<SlipCollabSuggestionStatus, string> = {
-  PROPOSED: '제안',
-  ACCEPTED: '수락',
-  REJECTED: '거절',
-  WITHDRAWN: '철회',
-}
-
-const SUGGESTION_STATUS_VARIANT: Record<
-  SlipCollabSuggestionStatus,
-  'neutral' | 'brand' | 'success' | 'danger'
-> = {
-  PROPOSED: 'brand',
-  ACCEPTED: 'success',
-  REJECTED: 'danger',
-  WITHDRAWN: 'neutral',
-}
-
-const OVERLAY_FIELD_OPTIONS = [
+export const OVERLAY_FIELD_OPTIONS = [
   { value: 'memo', label: '메모' },
   { value: 'shippingAddress', label: '배송지' },
   { value: 'inspectionAddress', label: '검수지' },
@@ -86,14 +73,41 @@ function summarizeChangeSet(changeSet: string): string {
   }
 }
 
+function parseChangeSetDiffs(changeSet: string): Array<{
+  fieldName: string
+  label: string
+  before: string | null
+  after: string | null
+}> {
+  try {
+    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
+    return Object.entries(parsed).map(([path, change]) => {
+      const fieldName = path.replace(/^\/+/, '')
+      const label = OVERLAY_FIELD_OPTIONS.find((option) => option.value === fieldName)?.label ?? fieldName
+      return {
+        fieldName,
+        label,
+        before: change.before == null ? null : String(change.before),
+        after: change.after == null ? null : String(change.after),
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
+function valueForEdit(value: string | null | undefined): string {
+  return value ?? ''
+}
+
 /**
  * 협업 패널이 invalidate 해야 하는 SSE 이벤트 화이트리스트.
  *
  * <p>SlipDetailPage(SlipRealtimeClient)와 본 패널(SlipCollabRealtimeClient)이 같은 slipId
  * 채널을 2중 구독하므로, `slip:` prefix 전체를 잡으면 비협업 이벤트(slip:edit /
- * slip:edit-request:*)에도 4개 query key 가 중복 invalidate 된다(제안 수락 1건에 burst).
- * 협업 산출물(comment.created/resolved/deleted · suggestion.proposed/accepted/rejected/
- * withdrawn)과 버전이력 변동(slip:restored / slip:reverted)만 수신한다 — 나머지 slip:*
+ * slip:edit-request:*)에도 4개 query key 가 중복 invalidate 된다.
+ * 협업 산출물(comment.created/resolved/deleted · suggestion.accepted)과
+ * 수정완료/버전이력 변동(slip:edit / slip:restored / slip:reverted)만 수신한다 — 나머지 slip:*
  * 이벤트는 SlipDetailPage 구독이 담당.
  *
  * <p>DEFER: 2중 구독 자체의 공유 구독(단일 채널 fan-out) 리팩토링은 침습적이라 본 fix
@@ -102,26 +116,32 @@ function summarizeChangeSet(changeSet: string): string {
 function isCollabEvent(eventName: string): boolean {
   return eventName.startsWith('comment.')
     || eventName.startsWith('suggestion.')
+    || eventName === 'slip:edit'
     || eventName === 'slip:restored'
     || eventName === 'slip:reverted'
 }
 
-export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) {
+export function SlipCollaborationPanel({
+  slipId,
+  currentValues = {},
+  editMode = false,
+  onEditModeChange,
+  onCommitted,
+}: SlipCollaborationPanelProps) {
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [commentBody, setCommentBody] = useState('')
-  const [suggestField, setSuggestField] = useState<(typeof OVERLAY_FIELD_OPTIONS)[number]['value']>('memo')
-  const [suggestAfter, setSuggestAfter] = useState('')
-  const [suggestReason, setSuggestReason] = useState('')
-  const [rejectReasonById, setRejectReasonById] = useState<Record<string, string>>({})
+  const [editValues, setEditValues] = useState<Record<string, string>>({})
+  const [editReason, setEditReason] = useState('')
+  const [editNotice, setEditNotice] = useState<string | null>(null)
 
   const commentQueryKey = useMemo(() => ['slipCollabComments', slipId] as const, [slipId])
-  const suggestionQueryKey = useMemo(() => ['slipCollabSuggestions', slipId] as const, [slipId])
+  const editQueryKey = useMemo(() => ['slipCollabEdits', slipId] as const, [slipId])
 
   const canWriteComments = canAccess('slip.comments', 'create')
   const canResolveComments = canAccess('slip.comments', 'update')
   const canDeleteComments = canAccess('slip.comments', 'delete')
-  const canSuggest = canAccess('slip.audit-overlay', 'update')
+  const canEdit = canAccess('slip.audit-overlay', 'update')
 
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
@@ -129,23 +149,35 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
     enabled: !!slipId,
   })
 
-  const suggestionsQuery = useQuery({
-    queryKey: suggestionQueryKey,
-    queryFn: () => getSlipCollabSuggestions(slipId),
+  const editsQuery = useQuery({
+    queryKey: editQueryKey,
+    queryFn: () => getSlipCollabEdits(slipId),
     enabled: !!slipId,
   })
+
+  useEffect(() => {
+    if (!editMode) return
+    const next: Record<string, string> = {}
+    for (const option of OVERLAY_FIELD_OPTIONS) {
+      next[option.value] = valueForEdit(currentValues[option.value])
+    }
+    setEditValues(next)
+    setEditReason('')
+    setEditNotice(null)
+  }, [currentValues, editMode])
 
   useEffect(() => {
     if (!slipId) return
     const ctrl = SlipCollabRealtimeClient.subscribe(slipId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
-      void queryClient.invalidateQueries({ queryKey: suggestionQueryKey })
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
+      void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slip', slipId] })
     })
     return () => ctrl.abort()
-  }, [commentQueryKey, queryClient, slipId, suggestionQueryKey])
+  }, [commentQueryKey, editQueryKey, queryClient, slipId])
 
   const addCommentMutation = useMutation({
     mutationFn: (body: string) => addSlipCollabComment(slipId, { body }),
@@ -169,49 +201,41 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
     },
   })
 
-  const proposeMutation = useMutation({
-    mutationFn: () => proposeSlipCollabSuggestion(slipId, {
-      changeSet: JSON.stringify({
-        [suggestField]: {
-          after: suggestAfter.trim().length === 0 ? null : suggestAfter.trim(),
-        },
-      }),
-      reason: suggestReason.trim() || undefined,
-    }),
-    onSuccess: () => {
-      setSuggestAfter('')
-      setSuggestReason('')
-      void queryClient.invalidateQueries({ queryKey: suggestionQueryKey })
+  const commitMutation = useMutation({
+    mutationFn: () => {
+      const changeSet: Record<string, { before: string | null; after: string | null }> = {}
+      for (const option of OVERLAY_FIELD_OPTIONS) {
+        const before = valueForEdit(currentValues[option.value])
+        const after = valueForEdit(editValues[option.value])
+        if (before !== after) {
+          changeSet[option.value] = {
+            before: before.length === 0 ? null : before,
+            after: after.length === 0 ? null : after,
+          }
+        }
+      }
+      if (Object.keys(changeSet).length === 0) {
+        throw new Error('변경된 필드가 없습니다.')
+      }
+      return commitSlipCollabEdit(slipId, {
+        changeSet: JSON.stringify(changeSet),
+        reason: editReason.trim() || undefined,
+      })
     },
-  })
-
-  const acceptMutation = useMutation({
-    mutationFn: (suggestionId: string) => acceptSlipCollabSuggestion(slipId, suggestionId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: suggestionQueryKey })
+      onEditModeChange?.(false)
+      setEditNotice('수정완료되었습니다.')
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slip', slipId] })
-    },
-  })
-
-  const rejectMutation = useMutation({
-    mutationFn: (suggestionId: string) =>
-      rejectSlipCollabSuggestion(slipId, suggestionId, rejectReasonById[suggestionId]?.trim()),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: suggestionQueryKey })
-    },
-  })
-
-  const withdrawMutation = useMutation({
-    mutationFn: (suggestionId: string) => withdrawSlipCollabSuggestion(slipId, suggestionId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: suggestionQueryKey })
+      onCommitted?.()
     },
   })
 
   const comments: SlipCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
-  const suggestions: SlipCollabSuggestion[] = Array.isArray(suggestionsQuery.data)
-    ? suggestionsQuery.data
+  const edits: SlipCollabEdit[] = Array.isArray(editsQuery.data)
+    ? editsQuery.data
     : []
   const trimmedComment = commentBody.trim()
 
@@ -325,162 +349,125 @@ export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) 
             ) : null}
           </section>
 
-          <section aria-label="수정 제안">
-            <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 제안</h5>
+          <section aria-label="수정 이력">
+            <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
 
-            {canSuggest ? (
+            {canEdit && editMode ? (
               <>
                 <div
-                  data-testid="slip-collab-suggestion-form"
+                  data-testid="slip-collab-edit-form"
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'minmax(120px, 0.35fr) minmax(160px, 1fr)',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                     gap: 8,
                     marginBottom: 12,
                   }}
                 >
-                  <Select
-                    value={suggestField}
-                    onChange={(event) => setSuggestField(event.target.value as typeof suggestField)}
-                    aria-label="제안 필드"
-                    selectSize="sm"
-                  >
-                    {OVERLAY_FIELD_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
+                  <Select value="all" aria-label="수정 가능 필드" selectSize="sm" disabled>
+                    <option value="all">수정 가능 필드 11종</option>
                   </Select>
+                  {OVERLAY_FIELD_OPTIONS.map((option) => (
+                    <label key={option.value} style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
+                      {option.label}
+                      <Input
+                        value={editValues[option.value] ?? ''}
+                        onChange={(event) => setEditValues((prev) => ({
+                          ...prev,
+                          [option.value]: event.target.value,
+                        }))}
+                        aria-label={`${option.label} 수정값`}
+                        inputSize="sm"
+                      />
+                    </label>
+                  ))}
                   <Input
-                    value={suggestAfter}
-                    onChange={(event) => setSuggestAfter(event.target.value)}
-                    placeholder="변경 후 값"
-                    aria-label="변경 후 값"
-                    inputSize="sm"
-                  />
-                  <Input
-                    value={suggestReason}
-                    onChange={(event) => setSuggestReason(event.target.value)}
+                    value={editReason}
+                    onChange={(event) => setEditReason(event.target.value)}
                     placeholder="사유"
                     maxLength={500}
                     style={{ gridColumn: '1 / -1' }}
-                    aria-label="제안 사유"
+                    aria-label="수정 사유"
                     inputSize="sm"
                   />
                   <Button
                     type="button"
                     variant="primary"
                     size="sm"
-                    loading={proposeMutation.isPending}
-                    disabled={proposeMutation.isPending}
-                    onClick={() => proposeMutation.mutate()}
+                    loading={commitMutation.isPending}
+                    disabled={commitMutation.isPending}
+                    onClick={() => commitMutation.mutate()}
                   >
-                    제안
+                    수정완료
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={commitMutation.isPending}
+                    onClick={() => onEditModeChange?.(false)}
+                  >
+                    취소
                   </Button>
                 </div>
-                {proposeMutation.isError ? (
+                {commitMutation.isError ? (
                   <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                    수정 제안을 등록하지 못했습니다.
+                    수정완료에 실패했습니다.
                   </p>
                 ) : null}
               </>
             ) : null}
+            {editNotice ? (
+              <p role="status" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
+                {editNotice}
+              </p>
+            ) : null}
 
             <div
-              data-testid="slip-collab-suggestion-list"
+              data-testid="slip-collab-edit-list"
               style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
             >
-              {suggestionsQuery.isLoading ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>제안을 불러오는 중...</p>
-              ) : suggestionsQuery.isError ? (
+              {editsQuery.isLoading ? (
+                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
+              ) : editsQuery.isError ? (
                 <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
-                  제안을 불러오지 못했습니다.
+                  수정 이력을 불러오지 못했습니다.
                 </p>
-              ) : suggestions.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 제안이 없습니다.</p>
-              ) : suggestions.map((suggestion) => (
+              ) : edits.length === 0 ? (
+                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
+              ) : edits.map((edit) => (
                 <article
-                  key={suggestion.id}
-                  data-testid="slip-collab-suggestion-item"
+                  key={edit.id}
+                  data-testid="slip-collab-edit-item"
                   style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                    <strong>{displayName(suggestion.proposerName)}</strong>
-                    <Badge variant={SUGGESTION_STATUS_VARIANT[suggestion.status]}>
-                      {SUGGESTION_STATUS_LABEL[suggestion.status]}
-                    </Badge>
-                    <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(suggestion.createdAt)}</span>
-                    {suggestion.decidedByName ? (
-                      <span style={{ color: 'var(--color-neutral-600)' }}>
-                        결정: {displayName(suggestion.decidedByName)}
-                      </span>
+                    <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
+                    <Badge variant="success">수정완료</Badge>
+                    <span style={{ color: 'var(--color-neutral-500)' }}>
+                      {formatDateTime(edit.decidedAt ?? edit.createdAt)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+                    {parseChangeSetDiffs(edit.changeSet).map((diff) => (
+                      <div key={`${edit.id}-${diff.fieldName}`} style={{ fontSize: 13 }}>
+                        <strong>{diff.label}</strong>
+                        <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
+                          {diff.before ?? '이전값 미기록'}
+                        </span>
+                        <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
+                        <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
+                          {diff.after ?? '비움'}
+                        </span>
+                      </div>
+                    ))}
+                    {parseChangeSetDiffs(edit.changeSet).length === 0 ? (
+                      <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet)}</p>
                     ) : null}
                   </div>
-                  <p style={{ margin: '6px 0 4px', fontSize: 13 }}>
-                    {summarizeChangeSet(suggestion.changeSet)}
-                  </p>
-                  {suggestion.reason ? (
+                  {edit.reason ? (
                     <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                      사유: {suggestion.reason}
+                      사유: {edit.reason}
                     </p>
-                  ) : null}
-                  {suggestion.status === 'PROPOSED' && canSuggest ? (
-                    <>
-                      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <Button
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          disabled={acceptMutation.isPending}
-                          onClick={() => acceptMutation.mutate(suggestion.id)}
-                        >
-                          수락
-                        </Button>
-                        <Input
-                          value={rejectReasonById[suggestion.id] ?? ''}
-                          onChange={(event) => setRejectReasonById((prev) => ({
-                            ...prev,
-                            [suggestion.id]: event.target.value,
-                          }))}
-                          placeholder="거절 사유"
-                          maxLength={500}
-                          aria-label="거절 사유"
-                          inputSize="sm"
-                          fullWidth={false}
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          disabled={rejectMutation.isPending}
-                          onClick={() => rejectMutation.mutate(suggestion.id)}
-                        >
-                          거절
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={withdrawMutation.isPending}
-                          onClick={() => withdrawMutation.mutate(suggestion.id)}
-                        >
-                          철회
-                        </Button>
-                      </div>
-                      {acceptMutation.isError ? (
-                        <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                          수락 처리에 실패했습니다.
-                        </p>
-                      ) : null}
-                      {rejectMutation.isError ? (
-                        <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                          거절 처리에 실패했습니다.
-                        </p>
-                      ) : null}
-                      {withdrawMutation.isError ? (
-                        <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                          철회 처리에 실패했습니다.
-                        </p>
-                      ) : null}
-                    </>
                   ) : null}
                 </article>
               ))}

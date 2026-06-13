@@ -22,26 +22,27 @@ export interface AddSlipCollabCommentInput {
   anchor?: string
 }
 
-export type SlipCollabSuggestionStatus =
-  | 'PROPOSED'
-  | 'ACCEPTED'
-  | 'REJECTED'
-  | 'WITHDRAWN'
+export type SlipCollabEditStatus = 'ACCEPTED'
 
-export interface SlipCollabSuggestion {
+export interface SlipCollabEdit {
   id: string
   changeSet: string
   reason: string | null
   proposerName: string
-  status: SlipCollabSuggestionStatus
+  status: SlipCollabEditStatus
   decidedByName: string | null
   decidedAt: string | null
   createdAt: string
 }
 
-export interface ProposeSlipCollabSuggestionInput {
+export interface CommitSlipCollabEditInput {
   changeSet: string
   reason?: string
+}
+
+export interface CommitSlipCollabEditResponse {
+  edit: SlipCollabEdit
+  slip: unknown
 }
 
 export async function getSlipCollabComments(
@@ -85,54 +86,22 @@ export async function resolveSlipCollabComment(
   return res.data.data
 }
 
-export async function getSlipCollabSuggestions(
+export async function getSlipCollabEdits(
   slipId: string,
-): Promise<SlipCollabSuggestion[]> {
-  const res = await apiClient.get<ApiEnvelope<SlipCollabSuggestion[]>>(
-    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/suggestions`,
+): Promise<SlipCollabEdit[]> {
+  const res = await apiClient.get<ApiEnvelope<SlipCollabEdit[]>>(
+    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/edits`,
   )
   return res.data.data
 }
 
-export async function proposeSlipCollabSuggestion(
+export async function commitSlipCollabEdit(
   slipId: string,
-  input: ProposeSlipCollabSuggestionInput,
-): Promise<SlipCollabSuggestion> {
-  const res = await apiClient.post<ApiEnvelope<SlipCollabSuggestion>>(
-    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/suggestions`,
+  input: CommitSlipCollabEditInput,
+): Promise<CommitSlipCollabEditResponse> {
+  const res = await apiClient.post<ApiEnvelope<CommitSlipCollabEditResponse>>(
+    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/edits`,
     input,
-  )
-  return res.data.data
-}
-
-export async function acceptSlipCollabSuggestion(
-  slipId: string,
-  suggestionId: string,
-): Promise<SlipCollabSuggestion> {
-  const res = await apiClient.post<ApiEnvelope<SlipCollabSuggestion>>(
-    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/suggestions/${encodeURIComponent(suggestionId)}/accept`,
-  )
-  return res.data.data
-}
-
-export async function rejectSlipCollabSuggestion(
-  slipId: string,
-  suggestionId: string,
-  reason?: string,
-): Promise<SlipCollabSuggestion> {
-  const res = await apiClient.post<ApiEnvelope<SlipCollabSuggestion>>(
-    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/suggestions/${encodeURIComponent(suggestionId)}/reject`,
-    { reason },
-  )
-  return res.data.data
-}
-
-export async function withdrawSlipCollabSuggestion(
-  slipId: string,
-  suggestionId: string,
-): Promise<SlipCollabSuggestion> {
-  const res = await apiClient.post<ApiEnvelope<SlipCollabSuggestion>>(
-    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/suggestions/${encodeURIComponent(suggestionId)}/withdraw`,
   )
   return res.data.data
 }

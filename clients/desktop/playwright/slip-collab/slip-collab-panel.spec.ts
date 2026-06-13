@@ -3,7 +3,7 @@
  *
  * 검증 대상: {@code SlipCollaborationPanel} (전표 상세 `/sales/:id` 하단 협업 섹션) 의
  *   1) 코멘트 등록 → 목록 반영 (+ 해결 처리 → '해결' 배지)
- *   2) 수정 제안 propose → accept → 상태 ACCEPTED('수락' 배지 + 결정자 표시)
+ *   2) 수정 버튼 → 편집 → 수정완료 → 수정 이력 diff 표시
  *
  * <h2>권한 전제 — mock 매트릭스 (Round C P2-1 fix)</h2>
  * <p>패널 버튼은 {@code canAccess('slip.comments'|'slip.audit-overlay', ...)} 로 가드된다.
@@ -17,7 +17,7 @@
  * 협업 store 는 {@code globalThis} in-memory 라 테스트별 새 page = 자동 초기화.
  *
  * <h2>UUID 비공개 가드</h2>
- * <p>화면 단언은 작성자/제안자 실명(오병승)·필드 라벨(메모)·본문 텍스트만 사용한다
+ * <p>화면 단언은 작성자/수정자 실명(오병승)·필드 라벨(메모)·본문 텍스트만 사용한다
  * (slipId 'slip-001' 은 path 전용) — [[uuid-no-user-visibility]].
  *
  * 실행 (slip-version-history.spec 패턴 동일):
@@ -88,35 +88,32 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(commentItem).toContainText('해결')
   })
 
-  test('수정 제안 propose → accept → 상태 ACCEPTED', async ({ page }) => {
+  test('수정 버튼 → 편집 → 수정완료 → 이력 diff 반영', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
-    await expect(panel.getByText('아직 수정 제안이 없습니다.')).toBeVisible()
+    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toBeVisible()
 
-    // 1) 제안 폼 노출 자체가 canAccess('slip.audit-overlay','update') 회귀 가드.
-    const form = panel.getByTestId('slip-collab-suggestion-form')
+    // 1) 상세 상단 수정 버튼 노출 자체가 canAccess('slip.audit-overlay','update') 회귀 가드.
+    await page.getByTestId('slip-collab-edit-open').click()
+
+    // 2) 편집모드 — 메모 필드 수정 + 사유 입력.
+    const form = panel.getByTestId('slip-collab-edit-form')
     await expect(form).toBeVisible()
+    await form.getByLabel('메모 수정값').fill('출고 전 거래처 통화 완료')
+    await form.getByLabel('수정 사유').fill('현장 요청 반영')
+    await form.getByRole('button', { name: '수정완료' }).click()
 
-    // 2) propose — 필드 기본값(메모) 유지 + 변경 후 값/사유 입력.
-    await form.getByLabel('변경 후 값').fill('출고 전 거래처 통화 완료')
-    await form.getByLabel('제안 사유').fill('현장 요청 반영')
-    await form.getByRole('button', { name: '제안' }).click()
-
-    // 3) 목록 반영 — PROPOSED 상태('제안' 배지) + 변경요약 라벨 + 사유.
-    const item = panel.getByTestId('slip-collab-suggestion-item')
+    // 3) 목록 반영 — 수정완료 배지 + 이전값 → 새값 diff + 사유.
+    const item = panel.getByTestId('slip-collab-edit-item')
     await expect(item).toHaveCount(1)
     await expect(item).toContainText('오병승')
-    await expect(item).toContainText('제안')
-    await expect(item).toContainText('메모: 출고 전 거래처 통화 완료')
+    await expect(item).toContainText('수정완료')
+    await expect(item).toContainText('메모')
+    await expect(item).toContainText('출고 전 거래처 통화 완료')
     await expect(item).toContainText('사유: 현장 요청 반영')
-
-    // 4) accept → ACCEPTED — 결정 버튼 행 사라지고 '수락' 배지 + 결정자 실명 표시.
-    await item.getByRole('button', { name: '수락' }).click()
-    await expect(item.getByRole('button', { name: '수락' })).toHaveCount(0)
-    await expect(item).toContainText('수락')
-    await expect(item).toContainText('결정: 오병승')
+    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toHaveCount(0)
   })
 })

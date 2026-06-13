@@ -13,7 +13,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 입출고전표 협업 수정 제안.
+ * 입출고전표 협업 수정 이력.
  *
  * <p>changeSet 저장/상태 전이는 collab-core base 가 소유한다. 본 entity 는 전표 도메인 테이블,
  * UUID PK, 제안 동시 결정 방지를 위한 optimistic lock 버전만 제공한다.
@@ -52,14 +52,14 @@ public class SlipCollabSuggestion extends CollabSuggestionRecord {
     }
 
     /**
-     * 신규 전표 수정 제안 factory.
+     * 신규 전표 수정 이력 factory.
      *
      * @param documentType SLIP_OUTBOUND 또는 SLIP_INBOUND
      * @param documentId 전표 UUID
-     * @param proposerId 제안자 UUID. 화면 노출 금지.
-     * @param proposerName 제안자 표시명.
+     * @param proposerId 수정자 UUID. 화면 노출 금지.
+     * @param proposerName 수정자 표시명.
      * @param changeSet path → {before, after} JSON 문자열
-     * @param reason 제안 사유
+     * @param reason 수정 사유
      * @return 영속화 전 신규 제안
      */
     public static SlipCollabSuggestion create(CollabDocumentType documentType, UUID documentId,

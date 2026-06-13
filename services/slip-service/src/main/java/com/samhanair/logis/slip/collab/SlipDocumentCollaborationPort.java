@@ -84,20 +84,31 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
      * path → {after} changeSet 을 기존 overlay patch 경로로 적용한다.
      *
      * <p>path 는 {@code memo} 또는 JSON Pointer 형태 {@code /memo} 를 허용한다.
-     * 파싱/구조 검증은 {@link #parseChangeSet} 을 재사용한다 — propose 시점
+     * 파싱/구조 검증은 {@link #parseChangeSet} 을 재사용한다 — 수정완료 시점
      * {@link #validateChangeSet} 과 동일 규칙 (검증 대칭, 중복 제거).
      */
     @Override
     @Transactional
     public void applyChangeSet(UUID documentId, String changeSetJson) {
-        Map<String, String> patches = parseChangeSet(changeSetJson);
-        // 단일 잠금 가드 + APPROVED 1회 소진 + EDIT revision 1건으로 일괄 적용 (제안 1건 = 변경 1건).
-        // 필드마다 applyOverlayPatch 를 호출하면 잠금 전표에서 둘째 필드가 CONFLICT 되고 revision 이 오염된다.
-        slipService.applyOverlayPatchBatch(documentId, patches, "collab-core", SYSTEM_ACTOR_NAME);
+        applyOverlayPatchBatch(documentId, changeSetJson, SYSTEM_ACTOR_ID, SYSTEM_ACTOR_NAME);
     }
 
     /**
-     * changeSet JSON 의 구조를 propose 시점에 조기 검증한다 (§7 협업 Round C P2).
+     * 수정완료 actor 로 overlay batch 를 적용한다.
+     *
+     * <p>기존 {@link #applyChangeSet} 은 collab-core accept 호환용 시스템 actor 를 사용한다. 1-인
+     * 수정완료 endpoint 는 실제 편집자 실명으로 audit/revision 을 남겨야 하므로 본 메서드를 사용한다.
+     */
+    @Transactional
+    public com.samhanair.logis.slip.web.dto.SlipDetailResponse applyOverlayPatchBatch(
+            UUID documentId, String changeSetJson, UUID actorId, String actorName) {
+        Map<String, String> patches = parseChangeSet(changeSetJson);
+        return slipService.applyOverlayPatchBatch(
+                documentId, patches, actorId == null ? null : actorId.toString(), actorName);
+    }
+
+    /**
+     * changeSet JSON 의 구조를 수정완료 시점에 조기 검증한다 (§7 협업 Round C P2).
      *
      * <p>{@link #applyChangeSet} 과 동일한 파싱·after-검증을 재사용한다. 본 검증 없이 제안이 저장되면:
      * <ul>
@@ -113,6 +124,40 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
      */
     public void validateChangeSet(String changeSetJson) {
         parseChangeSet(changeSetJson);
+    }
+
+    /**
+     * changeSet 에 현재 전표의 before 값을 보강한다.
+     *
+     * <p>외부 요청 계약은 path → {after} 이지만 수정 이력 UI 는 old → new diff 를 즉시 보여줘야 한다.
+     * 따라서 이력 저장 전 현재 overlay 필드 값을 읽어 path → {before, after} 형태로 정규화한다.
+     */
+    @Transactional(readOnly = true)
+    public String enrichChangeSetWithBefore(UUID documentId, String changeSetJson) {
+        Map<String, String> patches = parseChangeSet(changeSetJson);
+        Slip slip = loadSlip(documentId);
+        com.fasterxml.jackson.databind.node.ObjectNode root = objectMapper.createObjectNode();
+        for (Map.Entry<String, String> patch : patches.entrySet()) {
+            com.fasterxml.jackson.databind.node.ObjectNode change = objectMapper.createObjectNode();
+            String before = slip.readOverlayField(patch.getKey());
+            if (before == null) {
+                change.putNull("before");
+            } else {
+                change.put("before", before);
+            }
+            if (patch.getValue() == null) {
+                change.putNull("after");
+            } else {
+                change.put("after", patch.getValue());
+            }
+            root.set(patch.getKey(), change);
+        }
+        try {
+            return objectMapper.writeValueAsString(root);
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "전표 수정 이력 changeSet 직렬화 실패");
+        }
     }
 
     /**

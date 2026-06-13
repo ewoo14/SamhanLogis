@@ -47,7 +47,7 @@ public class SlipCollabConfig {
      * 출고전표 협업 포트.
      *
      * <p>반환 타입을 concrete {@link SlipDocumentCollaborationPort} 로 선언한다 — controller 가
-     * propose 시점 {@link SlipDocumentCollaborationPort#validateChangeSet} 을 호출할 수 있도록
+     * 수정완료 시점 {@link SlipDocumentCollaborationPort#validateChangeSet} 을 호출할 수 있도록
      * (Round C P2, collab-core 인터페이스는 변경하지 않음).
      */
     @Bean(name = "slipOutboundCollaborationPort")

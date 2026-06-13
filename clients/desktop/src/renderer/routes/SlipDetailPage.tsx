@@ -305,6 +305,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const [purchasePaymentDueDate, setPurchasePaymentDueDate] = useState('')
   const [purchaseEditLines, setPurchaseEditLines] = useState<PurchaseEditLine[]>([])
   const purchaseReloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // §7 협업 수정완료: 확정/완료 전표도 물리 종결 전이면 overlay 필드 편집 가능.
+  const [collabEditMode, setCollabEditMode] = useState(false)
 
   const detailQuery = useQuery({
     queryKey: ['slip', id],
@@ -783,11 +785,29 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * COMPLETED 는 검수 직후 ship 대기 단계로 본 FE 에서 동일 차단 처리 (기존 정책 보존).
    * 사용자에게 "현재 변경 불가" 안내 + 모든 액션 disabled.
    */
-  const isLocked
-    = slip.status === 'INSPECTING'
-    || slip.status === 'COMPLETED'
-    || slip.status === 'SHIPPING'
+  const isPhysicalTerminal
+    = slip.status === 'SHIPPING'
     || slip.status === 'DELIVERED'
+    || slip.status === 'CANCELED'
+    || slip.status === 'REJECTED'
+
+  const isLocked = isPhysicalTerminal
+
+  const canCollabEdit = canAccess('slip.audit-overlay', 'update') && !isPhysicalTerminal
+
+  const collabEditValues: Record<string, string | null | undefined> = {
+    memo: slip.memo,
+    shippingAddress: slip.shippingAddress,
+    inspectionAddress: slip.supervisionAddress,
+    receiverPhone: slip.recipientPhone,
+    customerTel: slip.contactPhone,
+    customerAddress: slip.deliveryAddress,
+    customerRepresentative: undefined,
+    paymentDueLabel: slip.paymentDueDate,
+    discountInfo: undefined,
+    collectTerm: undefined,
+    agreeTerm: undefined,
+  }
 
   /**
    * PR-H3: 수정/삭제 요청 생성 권한.
@@ -1098,6 +1118,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               수정
             </Button>
           ) : null}
+          {canCollabEdit && !canDirectEditSales && !canDirectEditPurchase ? (
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="slip-collab-edit-open"
+              onClick={() => setCollabEditMode(true)}
+            >
+              수정
+            </Button>
+          ) : null}
           {canDirectDeletePurchase ? (
             <Button
               variant="danger"
@@ -1332,7 +1362,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </div>
       </Card>
 
-      <SlipCollaborationPanel slipId={id} />
+      <SlipCollaborationPanel
+        slipId={id}
+        currentValues={collabEditValues}
+        editMode={collabEditMode}
+        onEditModeChange={setCollabEditMode}
+        onCommitted={() => {
+          void queryClient.invalidateQueries({ queryKey: ['slip', id] })
+          void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
+        }}
+      />
 
       {/*
         V20 신규 필드 표시 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일
@@ -1901,22 +1940,32 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         >
           삭제
         </Button>
-        <Button
-          variant="primary"
-          disabled={
-            !nextPrimaryAction
-            || !canAccess(slipActionPageCode(nextPrimaryAction).pageCode, 'update')
-            || transitionMutation.isPending
-          }
-          onClick={handleAdvanceStage}
-          title={
-            nextPrimaryAction
-              ? `다음 단계: ${ACTION_LABEL[nextPrimaryAction]}`
-              : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
-          }
-        >
-          {nextPrimaryAction ? `완료 (${ACTION_LABEL[nextPrimaryAction]})` : '완료'}
-        </Button>
+        {slip.status === 'COMPLETED' && canCollabEdit ? (
+          <Button
+            variant="primary"
+            data-testid="slip-collab-edit-footer"
+            onClick={() => setCollabEditMode(true)}
+          >
+            수정
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            disabled={
+              !nextPrimaryAction
+              || !canAccess(slipActionPageCode(nextPrimaryAction).pageCode, 'update')
+              || transitionMutation.isPending
+            }
+            onClick={handleAdvanceStage}
+            title={
+              nextPrimaryAction
+                ? `다음 단계: ${ACTION_LABEL[nextPrimaryAction]}`
+                : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
+            }
+          >
+            {nextPrimaryAction ? `완료 (${ACTION_LABEL[nextPrimaryAction]})` : '완료'}
+          </Button>
+        )}
       </div>
 
       {errorMessage ? (
