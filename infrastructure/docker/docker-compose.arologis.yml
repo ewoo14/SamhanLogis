@@ -83,8 +83,10 @@ services:
       SAMHAN_AROLOGIS_GPS_PRIORITY: ${SAMHAN_AROLOGIS_GPS_PRIORITY:-insung-lbs,app-gps,manual}
       SAMHAN_AROLOGIS_GPS_STALE_THRESHOLD_MS: ${SAMHAN_AROLOGIS_GPS_STALE_THRESHOLD_MS:-60000}
 
+      # 타임존 (KST 전역 표준 — Phase 11 prod 아로로지스 독립 기동)
+      TZ: "Asia/Seoul"
       # JVM 옵션 (m5.xlarge = 4 vCPU / 16 GB → 아로로지스 1.5 GB heap)
-      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms512m -Xmx1536m -XX:+UseG1GC}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms512m -Xmx1536m -XX:+UseG1GC -Duser.timezone=Asia/Seoul}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8097/actuator/health || exit 1"]
       interval: 30s

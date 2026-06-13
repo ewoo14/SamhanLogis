@@ -34,6 +34,8 @@ services:
       - "max_connections=300"
       - "-c"
       - "shared_buffers=256MB"
+      - "-c"
+      - "timezone=Asia/Seoul"
     environment:
       POSTGRES_USER: samhan
       POSTGRES_PASSWORD: samhan_dev_pw   # DEV-ONLY

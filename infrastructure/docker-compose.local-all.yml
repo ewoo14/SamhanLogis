@@ -73,7 +73,7 @@ services:
       TZ: "Asia/Seoul"
       SERVER_PORT: "8761"
       EUREKA_INSTANCE_HOSTNAME: eureka-server
-      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
       - "127.0.0.1:8761:8761"
     depends_on:
@@ -106,7 +106,7 @@ services:
       SERVER_PORT: "8080"
       EUREKA_URL: http://eureka-server:8761/eureka/
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
-      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

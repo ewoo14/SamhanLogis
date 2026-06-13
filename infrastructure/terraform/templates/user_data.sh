@@ -20,7 +20,7 @@ echo "=== SamhanLogis Phase 11 EC2 초기화 시작 $(date) ==="
 
 # ─── 1. 시스템 업데이트 ──────────────────────────────────────────────────────
 echo "[1/5] 시스템 업데이트"
-timedatectl set-timezone Asia/Seoul
+timedatectl set-timezone Asia/Seoul || true
 dnf update -y
 
 # ─── 2. Docker 설치 ───────────────────────────────────────────────────────────
