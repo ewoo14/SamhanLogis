@@ -1888,7 +1888,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           return mockError(400, 'INVALID_INPUT', 'changeSet JSON 형식이 올바르지 않습니다')
         }
       }
-      return envelope({ edit: created, slip: slip ?? {} })
+      if (!slip) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다')
+      return envelope({ edit: created, slip })
     }
   }
 

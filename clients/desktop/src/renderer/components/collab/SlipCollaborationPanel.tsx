@@ -5,6 +5,7 @@
  * 화면에는 작성자/수정자 실명과 전표번호/내용만 표시한다.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Input } from '@samhan/design-system'
 import {
@@ -234,11 +235,18 @@ export function SlipCollaborationPanel({
       onCommitted?.()
     },
     onError: (error: unknown) => {
-      const message =
-        error instanceof Error && error.message === '변경된 필드가 없습니다.'
-          ? '변경된 필드가 없습니다.'
-          : '수정 저장에 실패했습니다. 다시 시도해 주세요.'
-      setCommitError(message)
+      if (error instanceof Error && error.message === '변경된 필드가 없습니다.') {
+        setCommitError('변경된 필드가 없습니다.')
+        return
+      }
+      const serverMessage = isAxiosError(error)
+        ? (() => {
+            const data = error.response?.data as { message?: unknown } | undefined
+            const msg = data?.message
+            return typeof msg === 'string' && msg.trim() ? msg.trim() : null
+          })()
+        : null
+      setCommitError(serverMessage ?? '수정 저장에 실패했습니다. 다시 시도해 주세요.')
     },
   })
 

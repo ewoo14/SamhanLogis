@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.client;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -11,10 +12,30 @@ import org.springframework.stereotype.Component;
  * <p>새 데이터는 UUID 문자열을 우선 사용하지만 과거/도메인별 기여 이력에는 loginId(username) 가
  * 남아 있을 수 있다. UUID 형식이면 그대로 반환하고, 아니면 auth-service 내부 조회로 accountId 를
  * 확인한다. 조회 실패는 알림 대상 skip 으로 처리한다.
+ *
+ * <p>시스템 actor({@code "system"} 등 감사 리터럴) 또는 zero-UUID({@code 00000000-0000-0000-0000-000000000000})는
+ * by-login 원격 호출 없이 즉시 {@code empty} 를 반환한다. 이로써 JpaAuditingConfig 폴백에서 삽입된
+ * {@code createdBy="system"} 행이 auth-service by-login 404 (최대 5초 타임아웃 인-트랜잭션 호출)를
+ * 유발하는 것을 방지한다.
  */
 @Slf4j
 @Component
 public class UserIdResolver {
+
+    /**
+     * JPA 감사 폴백에서 기록되는 시스템 actor 리터럴 집합.
+     *
+     * <p>대소문자 구분 없이 비교하므로 "System", "SYSTEM" 도 포함된다.
+     */
+    private static final Set<String> SYSTEM_ACTOR_LITERALS = Set.of(
+            "system",
+            "anonymous",
+            "schedulertask",
+            "batchjob"
+    );
+
+    /** zero-UUID: JPA 감사 또는 collab-core 시스템 actor 를 나타내는 특수 UUID. */
+    private static final UUID ZERO_UUID = new UUID(0L, 0L);
 
     private final AuthAccountLookupClient authAccountLookupClient;
 
@@ -25,6 +46,13 @@ public class UserIdResolver {
     /**
      * raw 식별자를 사용자 UUID 로 변환한다.
      *
+     * <p>아래 입력은 by-login 호출 없이 즉시 {@code empty} 를 반환한다.
+     * <ul>
+     *   <li>null 또는 blank</li>
+     *   <li>"system" 등 시스템 actor 감사 리터럴({@link #SYSTEM_ACTOR_LITERALS})</li>
+     *   <li>zero-UUID({@code 00000000-0000-0000-0000-000000000000}) — collab-core 시스템 actor</li>
+     * </ul>
+     *
      * @param rawUserId UUID 문자열 또는 loginId
      * @return push 수신자 UUID Optional
      */
@@ -33,9 +61,23 @@ public class UserIdResolver {
             return Optional.empty();
         }
         String normalized = rawUserId.trim();
+
+        // 시스템 actor 리터럴 조기 차단 — by-login 404 타임아웃 방지
+        if (SYSTEM_ACTOR_LITERALS.contains(normalized.toLowerCase(java.util.Locale.ROOT))) {
+            log.debug("[SlipCollab] 시스템 actor 리터럴 skip — rawUserId={}", normalized);
+            return Optional.empty();
+        }
+
         try {
-            return Optional.of(UUID.fromString(normalized));
+            UUID parsed = UUID.fromString(normalized);
+            // zero-UUID: 시스템 actor 를 나타내는 특수 UUID — 사용자 알림 대상 아님
+            if (ZERO_UUID.equals(parsed)) {
+                log.debug("[SlipCollab] zero-UUID actor skip — rawUserId={}", normalized);
+                return Optional.empty();
+            }
+            return Optional.of(parsed);
         } catch (IllegalArgumentException ignored) {
+            // UUID 형식이 아닌 경우 loginId 로 간주하여 by-login 조회 시도
             Optional<UUID> resolved = authAccountLookupClient.findAccountIdByLoginId(normalized);
             if (resolved == null || resolved.isEmpty()) {
                 log.debug("[SlipCollab] 알림 수신자 loginId resolve 실패 — loginId={}", normalized);

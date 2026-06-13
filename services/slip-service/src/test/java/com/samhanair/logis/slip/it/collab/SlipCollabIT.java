@@ -373,9 +373,24 @@ class SlipCollabIT extends AbstractPostgresIT {
 
     /**
      * 전표에 출고자와 검수자가 아직 기록되지 않았다면 수정완료 알림을 보내지 않는다.
+     *
+     * <p>명시적 의도 박제:
+     * <ul>
+     *   <li>{@code dispatcherUserId}/{@code inspectorUserId} = null (DRAFT 전표)</li>
+     *   <li>기여자 username({@code "collab-it-seeder"}, {@code "slip-user"})도
+     *       by-login 조회가 empty 를 반환하도록 stub → resolve 실패 → 알림 없음</li>
+     * </ul>
+     * 이로써 테스트가 "stub 누락으로 silent-empty" 가 아닌 "의도된 no-notification 경로"임을
+     * 명시적으로 검증한다 (vacuous pass 방지 — §7 협업 Round C P2 fix).
      */
     @Test
     void commitEdit_skips_notification_when_dispatcher_and_inspector_are_null() throws Exception {
+        // by-login 조회 결과를 명시적으로 empty 로 고정 — stub 누락 vacuous pass 방지
+        when(authAccountLookupClient.findAccountIdByLoginId("collab-it-seeder"))
+                .thenReturn(Optional.empty());
+        when(authAccountLookupClient.findAccountIdByLoginId("slip-user"))
+                .thenReturn(Optional.empty());
+
         Slip slip = seedOutboundSlip("2099/06/13-NOTI-N-" + SEQ.getAndIncrement());
 
         mvc.perform(post("/slips/{slipId}/collab/edits", slip.getId())
@@ -386,10 +401,14 @@ class SlipCollabIT extends AbstractPostgresIT {
                                 "changeSet", "{\"memo\":{\"after\":\"미출고 수정\"}}"))))
                 .andExpect(status().isCreated());
 
+        // 알림 수신자 없음: dispatcher/inspector null + 기여자 by-login empty
         verify(notificationClient, never()).sendUserPush(
                 org.mockito.ArgumentMatchers.any(UUID.class),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString());
+        // by-login 조회가 실제로 시도됐는지 검증 (stub 경로 실증)
+        verify(authAccountLookupClient).findAccountIdByLoginId("collab-it-seeder");
+        verify(authAccountLookupClient).findAccountIdByLoginId("slip-user");
     }
 
     /**

@@ -298,8 +298,10 @@ class SlipDocumentCollaborationPortTest {
 
         Set<String> recipients = port.resolveNotificationRecipients(slipId, editorId);
 
+        // LinkedHashSet 내부 순서는 구현 세부사항이므로 순서 독립 단언 사용
+        // self-skip(editorId 제외) 과 distinct 계약만 검증한다
         org.assertj.core.api.Assertions.assertThat(recipients)
-                .containsExactly(
+                .containsExactlyInAnyOrder(
                         "legacy_writer",
                         "created_user",
                         revisionActorId.toString(),
