@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,6 +39,7 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -276,6 +280,97 @@ class SlipCollabIT extends AbstractPostgresIT {
         assertThat(auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(slipId))
                 .filteredOn(row -> row.getRevisionNo() == reloaded.getRevisionCount())
                 .hasSize(2);
+    }
+
+    /**
+     * 수정완료가 성공하면 해당 전표의 출고자와 검수자에게만 변경 요약 푸시를 보낸다.
+     *
+     * <p>창고 직원 전체가 아니라 {@link Slip#getDispatcherUserId()} 와
+     * {@link Slip#getInspectorUserId()} 에 기록된 user-id 2명만 대상이다. 본문에는 수정자 실명과
+     * before→after 변경 요약이 포함되고, 내부 UUID 는 노출하지 않는다.
+     */
+    @Test
+    void commitEdit_notifies_dispatcher_and_inspector_after_successful_history_save()
+            throws Exception {
+        UUID dispatcherId = UUID.randomUUID();
+        UUID inspectorId = UUID.randomUUID();
+        Slip slip = seedCompletedOutboundSlip(
+                "2099/06/13-NOTI-A-" + SEQ.getAndIncrement(),
+                dispatcherId.toString(),
+                inspectorId.toString());
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slip.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "수정자박과장")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"알림 메모\"}}"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.edit.status").value("ACCEPTED"));
+
+        verify(notificationClient).sendUserPush(eq(dispatcherId),
+                eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
+        verify(notificationClient).sendUserPush(eq(inspectorId),
+                eq("[전표 수정] " + slip.getSlipNo()), org.mockito.ArgumentMatchers.anyString());
+
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificationClient, times(2)).sendUserPush(
+                org.mockito.ArgumentMatchers.any(UUID.class),
+                eq("[전표 수정] " + slip.getSlipNo()),
+                bodyCaptor.capture());
+        assertThat(bodyCaptor.getAllValues()).allSatisfy(body -> {
+            assertThat(body).contains("수정자박과장");
+            assertThat(body).contains("memo");
+            assertThat(body).contains("출고 메모");
+            assertThat(body).contains("알림 메모");
+            assertThat(body).doesNotContain(ACTOR_ID);
+            assertThat(body.length()).isLessThanOrEqualTo(2000);
+        });
+    }
+
+    /**
+     * 전표에 출고자와 검수자가 아직 기록되지 않았다면 수정완료 알림을 보내지 않는다.
+     */
+    @Test
+    void commitEdit_skips_notification_when_dispatcher_and_inspector_are_null() throws Exception {
+        Slip slip = seedOutboundSlip("2099/06/13-NOTI-N-" + SEQ.getAndIncrement());
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slip.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "수정자무알림")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"미출고 수정\"}}"))))
+                .andExpect(status().isCreated());
+
+        verify(notificationClient, never()).sendUserPush(
+                org.mockito.ArgumentMatchers.any(UUID.class),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    /**
+     * 출고자와 검수자가 같은 user-id 이면 같은 전표 수정 알림을 1회만 보낸다.
+     */
+    @Test
+    void commitEdit_deduplicates_notification_when_dispatcher_equals_inspector() throws Exception {
+        UUID workerId = UUID.randomUUID();
+        Slip slip = seedCompletedOutboundSlip(
+                "2099/06/13-NOTI-D-" + SEQ.getAndIncrement(),
+                workerId.toString(),
+                workerId.toString());
+
+        mvc.perform(post("/slips/{slipId}/collab/edits", slip.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "수정자중복")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"memo\":{\"after\":\"중복 제거\"}}"))))
+                .andExpect(status().isCreated());
+
+        verify(notificationClient, times(1)).sendUserPush(eq(workerId),
+                eq("[전표 수정] " + slip.getSlipNo()),
+                org.mockito.ArgumentMatchers.anyString());
     }
 
     /* ====================================================================
@@ -707,6 +802,39 @@ class SlipCollabIT extends AbstractPostgresIT {
         slip.inspect("검수자시스템"); // INSPECTING → COMPLETED
         slip.ship();               // COMPLETED → SHIPPING
         slip.deliver();            // SHIPPING → DELIVERED
+        return slipRepository.save(slip);
+    }
+
+    /**
+     * COMPLETED(검수완료) 단계까지 전이된 OUTBOUND 전표를 저장하고 반환한다.
+     *
+     * <p>{@code accept(dispatcherUserId)} 로 출고자, {@code inspect(inspectorUserId)} 로 검수자를
+     * 도메인 필드에 기록한다. 수정완료 알림 대상 resolve 테스트에서 사용한다.
+     *
+     * @param slipNo 전표번호
+     * @param dispatcherUserId 출고자 user-id 문자열
+     * @param inspectorUserId 검수자 user-id 문자열
+     * @return COMPLETED 상태로 저장된 전표
+     */
+    private Slip seedCompletedOutboundSlip(String slipNo, String dispatcherUserId,
+                                           String inspectorUserId) {
+        Slip slip = Slip.createOutbound(
+                slipNo,
+                TEST_DATE,
+                SEQ.getAndIncrement(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "테스트출고거래처",
+                DeliveryTag.DAY,
+                "출고 메모",
+                "collab-it-seeder");
+        slip.save();
+        slip.send();
+        slip.accept(dispatcherUserId);
+        slip.process();
+        slip.complete();
+        slip.inspect(inspectorUserId);
         return slipRepository.save(slip);
     }
 

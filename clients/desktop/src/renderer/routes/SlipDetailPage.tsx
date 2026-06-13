@@ -771,7 +771,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   /**
    * PR-H3: 창고/관리자 수락이 필요한 단계 (LOCKED_REQUIRES_APPROVAL).
    * BE {@code SlipEditRequestService.LOCKED_REQUIRES_APPROVAL} 와 정확히 일치 —
-   * CONFIRMED/ACCEPTED/PROCESSING. "수정/삭제 요청" UI 노출 + 요청 후 창고 수락 필요.
+   * CONFIRMED/ACCEPTED/PROCESSING. 삭제 요청 UI 노출 + 요청 후 창고 수락 필요.
+   * 수정은 §7 협업 수정완료가 완전 대체하므로 edit-request 진입을 노출하지 않는다.
    * 사용자 명시 정책 정합 (QA Major 회귀 가드).
    */
   const isApprovalRequired
@@ -810,12 +811,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   /**
-   * PR-H3: 수정/삭제 요청 생성 권한.
+   * PR-H3: 삭제 요청 생성 권한.
    * BE `POST /api/v1/slips/{slipId}/edit-request` 는
    * `@RequirePermission(page="slip.edit-requests", action=CREATE)` 이고,
    * V36 seed 는 MASTER/MANAGER/SALES can_edit=TRUE 로 기존 작성자 role 목록과 정합한다.
+   * 수정 요청은 §7 수정완료로 대체되어 화면에서 제거한다.
    */
-  const canRequestEdit = canAccess('slip.edit-requests', 'create')
+  const canRequestDelete = canAccess('slip.edit-requests', 'create')
 
   /**
    * PR-H3: 현재 PENDING 본인 요청이 있는지.
@@ -1220,12 +1222,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       ) : null}
 
       {/*
-        PR-H3: 단계별 안내 + 수정/삭제 요청 버튼.
+        PR-H3: 단계별 안내 + 삭제 요청 버튼.
         - DRAFT/SAVED/SENT: 본인 직접 수정/삭제 가능 → 별도 안내 없음
-        - CONFIRMED/ACCEPTED/PROCESSING: 직접 변경 차단, "수정/삭제 요청" 버튼 노출 (창고 수락 필요)
-        - INSPECTING/COMPLETED/SHIPPING/DELIVERED: 모든 변경 차단 안내
+        - CONFIRMED/ACCEPTED/PROCESSING: 직접 삭제 차단, "삭제 요청" 버튼 노출 (창고 수락 필요)
+        - 수정은 §7 수정완료가 유일 경로이므로 "수정 요청" 버튼을 노출하지 않음
+        - SHIPPING/DELIVERED/CANCELED/REJECTED: 모든 변경 차단 안내
       */}
-      {isApprovalRequired && canRequestEdit ? (
+      {isApprovalRequired && canRequestDelete ? (
         <Card
           padding={4}
           shadow="sm"
@@ -1242,9 +1245,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <strong style={{ fontSize: 14 }}>창고 인계 후 — 수락 필요</strong>
+              <strong style={{ fontSize: 14 }}>창고 인계 후 — 삭제 요청</strong>
               <span style={{ fontSize: 13, color: 'var(--color-neutral-700)' }}>
-                직접 수정/삭제가 잠겼습니다. 창고 직원에게 처리를 요청할 수 있습니다.
+                직접 삭제가 잠겼습니다. 창고 직원에게 삭제 처리를 요청할 수 있습니다.
               </span>
               {latestEditRequest ? (
                 <Badge
@@ -1262,20 +1265,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               ) : null}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={hasPendingRequest || editRequestMutation.isPending}
-                onClick={() => setEditRequestDialogType('EDIT')}
-                title={
-                  hasPendingRequest
-                    ? '이미 처리 대기 중인 요청이 있습니다.'
-                    : undefined
-                }
-                data-testid="slip-detail-edit-request-button"
-              >
-                수정 요청
-              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1318,7 +1307,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           data-testid="slip-detail-locked-banner"
           className="warning-banner"
         >
-          현재 단계({slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 처리가 끝나면 확정 후 수정/삭제 요청이 가능합니다.
+          현재 단계({slipStatusLabel(slip.status)})에서는 전표 변경이 차단됩니다. 물리 종결 전 단계에서만 권한자 수정 또는 삭제 요청이 가능합니다.
         </div>
       ) : null}
 

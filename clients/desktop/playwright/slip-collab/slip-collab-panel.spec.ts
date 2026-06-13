@@ -95,6 +95,8 @@ test.describe('§7 입출고전표 협업 패널', () => {
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
     await expect(panel.getByText('아직 수정 이력이 없습니다.')).toBeVisible()
+    await expect(page.getByTestId('slip-detail-edit-request-button')).toHaveCount(0)
+    await expect(page.getByTestId('slip-detail-delete-request-button')).toBeVisible()
 
     // 1) 상세 상단 수정 버튼 노출 자체가 canAccess('slip.audit-overlay','update') 회귀 가드.
     await page.getByTestId('slip-collab-edit-open').click()

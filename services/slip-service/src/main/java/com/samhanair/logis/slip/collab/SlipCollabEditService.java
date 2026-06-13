@@ -1,11 +1,19 @@
 package com.samhanair.logis.slip.collab;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.collab.CollabRealtimePublisher;
 import com.samhanair.logis.collab.CollabSuggestionService;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,16 +24,23 @@ import org.springframework.transaction.annotation.Transactional;
  * 내부 이력 테이블은 기존 {@code slip_collab_suggestions} 를 재사용하되, 신규 row 는
  * 생성 즉시 ACCEPTED 로 닫아 proposer=decider=editor 계약을 보존한다.
  */
+@Slf4j
 @Service
 public class SlipCollabEditService {
 
     private final SlipCollabSuggestionRepository suggestionRepository;
     private final CollabRealtimePublisher publisher;
+    private final NotificationClient notificationClient;
+    private final ObjectMapper objectMapper;
 
     public SlipCollabEditService(SlipCollabSuggestionRepository suggestionRepository,
-                                 CollabRealtimePublisher publisher) {
+                                 CollabRealtimePublisher publisher,
+                                 NotificationClient notificationClient,
+                                 ObjectMapper objectMapper) {
         this.suggestionRepository = suggestionRepository;
         this.publisher = publisher;
+        this.notificationClient = notificationClient;
+        this.objectMapper = objectMapper.copy().findAndRegisterModules();
     }
 
     /**
@@ -48,6 +63,7 @@ public class SlipCollabEditService {
                 port.documentType(), slipId, editorId, editorName, enrichedChangeSet, blankToNull(reason));
         edit.accept(editorId, editorName);
         SlipCollabSuggestion saved = suggestionRepository.save(edit);
+        notifyDispatcherAndInspector(updated, editorName, enrichedChangeSet);
         publisher.publish(slipId, CollabSuggestionService.EVENT_SUGGESTION_ACCEPTED,
                 java.util.Map.of(
                         "id", saved.getId().toString(),
@@ -60,6 +76,108 @@ public class SlipCollabEditService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    /**
+     * 수정완료 성공 후 해당 전표의 출고자와 검수자에게만 푸시 알림을 보낸다.
+     *
+     * <p>알림은 전표 수정 트랜잭션의 부가 효과이므로 실패해도 수정완료 적용/이력 저장을 되돌리지 않는다.
+     * 수신자는 {@code dispatcherUserId}, {@code inspectorUserId} 두 필드에서 resolve 하며 null/blank,
+     * UUID 파싱 실패, 중복 수신자는 skip 한다. 본문에는 전표번호·수정자명·필드별 before→after 요약만
+     * 포함하고 내부 UUID 는 노출하지 않는다.
+     */
+    private void notifyDispatcherAndInspector(SlipDetailResponse slip, String editorName,
+                                              String enrichedChangeSet) {
+        Set<UUID> recipients = new LinkedHashSet<>();
+        addRecipient(recipients, slip.dispatcherUserId());
+        addRecipient(recipients, slip.inspectorUserId());
+        if (recipients.isEmpty()) {
+            return;
+        }
+
+        String subject = "[전표 수정] " + slip.slipNo();
+        String body = limitBody(String.format("%s 님이 전표 %s 를 수정완료했습니다.%n변경: %s",
+                displayActor(editorName), slip.slipNo(), summarizeChangeSet(enrichedChangeSet)));
+        for (UUID recipient : recipients) {
+            try {
+                notificationClient.sendUserPush(recipient, subject, body);
+            } catch (RuntimeException ex) {
+                log.warn("[SlipCollab] 전표 수정완료 알림 발송 실패 — slipNo={} recipient={}",
+                        slip.slipNo(), recipient, ex);
+            }
+        }
+    }
+
+    private void addRecipient(Set<UUID> recipients, String rawUserId) {
+        UUID parsed = parseUuidOrNull(rawUserId);
+        if (parsed != null) {
+            recipients.add(parsed);
+        }
+    }
+
+    private UUID parseUuidOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            log.debug("[SlipCollab] 전표 수정완료 알림 user-id UUID 파싱 실패 — value={}", value);
+            return null;
+        }
+    }
+
+    private String summarizeChangeSet(String enrichedChangeSet) {
+        try {
+            JsonNode root = objectMapper.readTree(enrichedChangeSet);
+            if (root == null || !root.isObject()) {
+                return "변경 내역을 확인하세요.";
+            }
+            StringJoiner joiner = new StringJoiner("; ");
+            Iterator<java.util.Map.Entry<String, JsonNode>> fields = root.fields();
+            while (fields.hasNext()) {
+                java.util.Map.Entry<String, JsonNode> field = fields.next();
+                JsonNode change = field.getValue();
+                String before = readNullableText(change, "before");
+                String after = readNullableText(change, "after");
+                joiner.add(field.getKey() + ": " + compact(before) + " → " + compact(after));
+            }
+            String summary = joiner.toString();
+            return summary.isBlank() ? "변경 내역을 확인하세요." : summary;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException | RuntimeException ex) {
+            log.debug("[SlipCollab] 전표 수정완료 알림 changeSet 요약 실패", ex);
+            return "변경 내역을 확인하세요.";
+        }
+    }
+
+    private String readNullableText(JsonNode change, String fieldName) {
+        if (change == null || !change.has(fieldName) || change.get(fieldName).isNull()) {
+            return "(비어 있음)";
+        }
+        JsonNode value = change.get(fieldName);
+        if (value.isTextual() || value.isNumber() || value.isBoolean()) {
+            return value.asText();
+        }
+        return value.toString();
+    }
+
+    private String compact(String value) {
+        String normalized = value == null ? "(비어 있음)" : value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 120) {
+            return normalized;
+        }
+        return normalized.substring(0, 117) + "...";
+    }
+
+    private String displayActor(String editorName) {
+        return editorName == null || editorName.isBlank() ? "수정자" : editorName;
+    }
+
+    private String limitBody(String body) {
+        if (body.length() <= 2000) {
+            return body;
+        }
+        return body.substring(0, 1997) + "...";
     }
 
     /** 수정완료 결과. */
