@@ -88,7 +88,7 @@
 - [품목 노출구분+시트순서 / 메뉴 5대분류](project_item_exposure_and_menu_5cat.md) — 2026-06-10 개발책임자. 견적/주문 노출=usageScope(시트자동+품목별 수동토글), 시트 row 순서 보존(displayOrder). 좌측메뉴 판매/구매/회계/그룹웨어/인사 5분류+배차·창고운영 별도
 - [출고전표 양식 1:1 + 전자서명 배치 + 사원 서명 등록](project_slip_shipout_print_form.md) — 2026-06-10 개발책임자. 출력/조회(창고·기사·인수자) 시 샘플 양식 무변동 재현, 용달기사·인수자 전자서명 양식 내 정확 배치, 사원등록 메뉴 서명 등록(결재란 스탬프), 품목 수에 따라 길이 가변(A4 다페이지). 샘플원본=.claude/tmp(비커밋), mock v1 근접일치
 - [공급자·은행계좌 회계 설정 메뉴](project_company_config_menu.md) — 2026-06-10. 거래명세서+세금계산서 공용 공급자정보/입금계좌/인감 설정 (회계 메뉴, env 주입·COMPANY 상수 대체). accounting-service company-profile + FE 설정화면
-- [다모델 리뷰 워크플로우 (현행 단일)](feedback_temp_multimodel_workflow.md) — 2026-06-11/12 개발책임자. Opus 계획/PR → Codex 개발 → Opus 5-agent → Codex 5-agent → Fable5(6/22까지) → PM 종합 → 머지. **각 리뷰 라운드 5-agent에 QA agent 포함 + Docker 실QA 스크린샷을 그 라운드 리뷰 코멘트에 인라인 게시 의무**. Opus만 돌리고 머지 금지·구 워크플로우 전부 대체
+- [다모델 리뷰 워크플로우 (현행 단일)](feedback_temp_multimodel_workflow.md) — 2026-06-11/12 개발책임자 / **2026-06-13 Fable5 영구 제외**(엔트로픽 사용중지). Opus 4.8 계획/PR → Codex 개발 → Opus 4.8 5-agent → Codex 5-agent → PM 종합 → 머지. **Opus 4.8↔Codex 2모델만 번갈아**(에러 0까지 무제한 반복). **각 리뷰 라운드 5-agent에 QA agent 포함 + Docker 실QA 스크린샷을 그 라운드 리뷰 코멘트에 인라인 게시 의무**. Opus만 돌리고 머지 금지·구 워크플로우 전부 대체
 - [전표 용어 — 슬립 금지](feedback_jeonpyo_not_slip.md) — 2026-06-11 개발책임자. 한글 "슬립"(slip 음차) 금지 "전표" 사용. 영문 식별자(slipId/slipNo/Slip)는 별개. 기존 895회/250파일 점진 치환·신규는 처음부터 전표
 - [코멘트 용어 — 협업 코멘트 금지](feedback_comment_not_collab_comment.md) — 2026-06-12 개발책임자. 사용자 노출 라벨은 "협업 코멘트" 금지 "코멘트". 영문 식별자(CollabComment/collab-core)는 유지
 - [§7 전역 협업 에픽](project_global_collab_epic.md) — 수정완료(1-인) 모델(제안/수락 아님)+collab-core 공유모듈+문서별 롤아웃. 알림=기여자+다음결재자(username→UUID resolve). slip 레퍼런스 슬라이스 0 머지(PR #474, 2026-06-13). 다음=회계전표/주문/견적/배차/그룹웨어결재. presence=후속
