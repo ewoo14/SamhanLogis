@@ -22,7 +22,7 @@
  *  - aria-label 한국어 풀네임 ("배차 작업 2026/05/14-1 상세").
  *  - Modal (design-system) 의 focus trap + ESC 닫기 + 한국어 닫기 라벨 활용.
  */
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Input, Modal, Select } from '@samhan/design-system'
@@ -38,7 +38,10 @@ import {
 } from '../../../api/dispatchTask'
 import { ModificationRequestDialog } from './ModificationRequestDialog'
 import { CancellationRequestDialog } from './CancellationRequestDialog'
-import { DispatchCommentThread } from './DispatchCommentThread'
+import {
+  DispatchCommentThread,
+  dispatchCommentsQueryKey,
+} from './DispatchCommentThread'
 import {
   commitDispatchCollabEdit,
   getDispatchCollabEdits,
@@ -125,6 +128,18 @@ const EMPTY_MATCHED_DRIVER_FORM: SetMatchedDriverPayload = {
   vehiclePlateNumber: '',
   driverPhoneNumber: '',
   driverSource: 'GYEONGGI_QUICK',
+}
+
+const VISUALLY_HIDDEN_STYLE: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 }
 
 type MatchedDriverFormErrors = Partial<Record<keyof SetMatchedDriverPayload, string>>
@@ -284,10 +299,15 @@ export function DispatchTaskDetailModal({
   useEffect(() => {
     if (!task.id) return
     const ctrl = DispatchCollabRealtimeClient.subscribe(task.id, (evt) => {
-      if (!evt.event.startsWith('suggestion.') && evt.event !== 'message') return
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
-      void queryClient.invalidateQueries({ queryKey: dispatchTaskQueryKey(task.id) })
-      void queryClient.invalidateQueries({ queryKey: ['dispatchTasks'] })
+      if (evt.event.startsWith('comment.')) {
+        void queryClient.invalidateQueries({ queryKey: dispatchCommentsQueryKey(task.id) })
+        return
+      }
+      if (evt.event.startsWith('suggestion.') || evt.event === 'message') {
+        void queryClient.invalidateQueries({ queryKey: editQueryKey })
+        void queryClient.invalidateQueries({ queryKey: dispatchTaskQueryKey(task.id) })
+        void queryClient.invalidateQueries({ queryKey: ['dispatchTasks'] })
+      }
     })
     return () => ctrl.abort()
   }, [editQueryKey, queryClient, task.id])
@@ -793,7 +813,7 @@ export function DispatchTaskDetailModal({
                 >
                   {collabLocked
                     ? '배차 취소 처리 후에는 비고를 수정할 수 없습니다.'
-                    : 'DISPATCHED 상태에서만 비고를 수정할 수 있습니다.'}
+                    : `${DISPATCH_TASK_STATUS_LABEL.DISPATCHED} 상태에서만 비고를 수정할 수 있습니다.`}
                 </span>
               ) : null}
             </header>
@@ -949,29 +969,35 @@ export function DispatchTaskDetailModal({
                             key={`${edit.id}-${diff.fieldName}`}
                             style={{ fontSize: 13, overflowWrap: 'anywhere' }}
                           >
-                            <strong>{diff.label}</strong>
-                            <span
-                              style={{
-                                marginLeft: 8,
-                                color: 'var(--color-neutral-500)',
-                                textDecoration: 'line-through',
-                              }}
-                            >
-                              {diff.before ?? '이전값 미기록'}
+                            <span style={VISUALLY_HIDDEN_STYLE}>
+                              {`${diff.label}: 변경 전 ${diff.before ?? '이전값 미기록'}, 변경 후 ${diff.after ?? '비움'}`}
                             </span>
                             <span
                               aria-hidden="true"
-                              style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}
                             >
-                              →
-                            </span>
-                            <span
-                              style={{
-                                color: 'var(--color-brand-700, #0F766E)',
-                                fontWeight: 700,
-                              }}
-                            >
-                              {diff.after ?? '비움'}
+                              <strong>{diff.label}</strong>
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  color: 'var(--color-neutral-500)',
+                                  textDecoration: 'line-through',
+                                }}
+                              >
+                                {diff.before ?? '이전값 미기록'}
+                              </span>
+                              <span
+                                style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}
+                              >
+                                →
+                              </span>
+                              <span
+                                style={{
+                                  color: 'var(--color-brand-700, #0F766E)',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {diff.after ?? '비움'}
+                              </span>
                             </span>
                           </div>
                         ))}

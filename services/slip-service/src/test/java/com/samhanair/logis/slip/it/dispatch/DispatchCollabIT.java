@@ -270,6 +270,7 @@ class DispatchCollabIT extends AbstractPostgresIT {
                                 "changeSet", "{\"memo\":{\"after\":\"알림 배차 비고\"}}"))))
                 .andExpect(status().isCreated());
 
+        // 알림 = 트랜잭션 내 동기 best-effort → mvc 수정완료 호출 중 발송(에픽 AFTER_COMMIT 금지, 형제 슬라이스 일관).
         verify(notificationClient).sendUserPush(eq(createdByAccountId),
                 eq("[배차 수정] " + task.getTaskCode()), anyString());
         verify(notificationClient).sendUserPush(eq(previousEditorId),

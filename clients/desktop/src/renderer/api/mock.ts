@@ -5210,18 +5210,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const commentId = decodeURIComponent(dispatchCommentItemMatch[2]!)
     const denied = mockRequirePermission('dispatch.board', 'update')
     if (denied) return denied
-    const comments = MOCK_DISPATCH_COMMENTS[taskId] ?? []
-    MOCK_DISPATCH_COMMENTS[taskId] = comments.filter((comment) => comment.id !== commentId)
+    const dispatchCommentsStore = getMockDispatchCommentsStore()
+    const comments = dispatchCommentsStore[taskId] ?? []
+    dispatchCommentsStore[taskId] = comments.filter((comment) => comment.id !== commentId)
     return envelope(null)
   }
 
   const dispatchCommentCollectionMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)\/comments(?:\?.*)?$/)
   if (dispatchCommentCollectionMatch) {
+    const dispatchCommentsStore = getMockDispatchCommentsStore()
     const taskId = decodeURIComponent(dispatchCommentCollectionMatch[1]!)
     if (method === 'GET') {
       const denied = mockRequirePermission('dispatch.board', 'view')
       if (denied) return denied
-      return envelope([...(MOCK_DISPATCH_COMMENTS[taskId] ?? [])])
+      return envelope([...(dispatchCommentsStore[taskId] ?? [])])
     }
     if (method === 'POST') {
       const denied = mockRequirePermission('dispatch.board', 'update')
@@ -5245,9 +5247,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         status: 'OPEN',
         createdAt: new Date().toISOString(),
       }
-      MOCK_DISPATCH_COMMENTS[taskId] = [
+      dispatchCommentsStore[taskId] = [
         created,
-        ...(MOCK_DISPATCH_COMMENTS[taskId] ?? []),
+        ...(dispatchCommentsStore[taskId] ?? []),
       ]
       return envelope(created)
     }
@@ -5255,6 +5257,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   const dispatchEditCollectionMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)\/edits(?:\?.*)?$/)
   if (dispatchEditCollectionMatch) {
+    const dispatchEditsStore = getMockDispatchEditsStore()
     const taskId = decodeURIComponent(dispatchEditCollectionMatch[1]!)
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     if (!task) {
@@ -5263,13 +5266,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (method === 'GET') {
       const denied = mockRequirePermission('dispatch.board', 'view')
       if (denied) return denied
-      return envelope([...(MOCK_DISPATCH_EDITS[taskId] ?? [])])
+      return envelope([...(dispatchEditsStore[taskId] ?? [])])
     }
     if (method === 'POST') {
       const denied = mockRequirePermission('dispatch.board', 'update')
       if (denied) return denied
-      if (task.status === 'CANCEL_ACCEPTED' || task.status === 'CANCELLED') {
-        return mockError(409, 'CONFLICT', `배차 협업 수정완료가 불가능한 상태입니다: ${task.status}`)
+      if (task.status !== 'DISPATCHED') {
+        return mockError(409, 'CONFLICT', `배차 협업 수정완료는 배차 완료 상태에서만 가능합니다: ${task.status}`)
       }
       const body = parseMockBody(config) as { changeSet?: string; reason?: string }
       let parsed: Record<string, { after?: unknown }>
@@ -5302,7 +5305,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         decidedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       }
-      MOCK_DISPATCH_EDITS[taskId] = [created, ...(MOCK_DISPATCH_EDITS[taskId] ?? [])]
+      dispatchEditsStore[taskId] = [created, ...(dispatchEditsStore[taskId] ?? [])]
       syncMockDispatchTaskSummary(task)
       return envelope({ edit: created, task })
     }
@@ -8539,6 +8542,63 @@ const MOCK_DISPATCH_EDITS: Record<string, DispatchCollabEdit[]> = {
 let mockDispatchEditSequence = 2
 let mockDispatchTaskCreateSequence = 1
 let mockDispatchVehicleGroupCreateSequence = 3
+
+type DispatchMockCollabStores = {
+  __SAMHAN_MOCK_DISPATCH_COMMENTS?: Record<string, DispatchComment[]>
+  __SAMHAN_MOCK_DISPATCH_COMMENTS_SEED?: Record<string, DispatchComment[]>
+  __SAMHAN_MOCK_DISPATCH_EDITS?: Record<string, DispatchCollabEdit[]>
+  __SAMHAN_MOCK_DISPATCH_EDITS_SEED?: Record<string, DispatchCollabEdit[]>
+}
+
+function cloneDispatchComments(
+  source: Record<string, DispatchComment[]>,
+): Record<string, DispatchComment[]> {
+  return Object.fromEntries(
+    Object.entries(source).map(([taskId, comments]) => [
+      taskId,
+      comments.map((comment) => ({ ...comment })),
+    ]),
+  )
+}
+
+function cloneDispatchEdits(
+  source: Record<string, DispatchCollabEdit[]>,
+): Record<string, DispatchCollabEdit[]> {
+  return Object.fromEntries(
+    Object.entries(source).map(([taskId, edits]) => [
+      taskId,
+      edits.map((edit) => ({ ...edit })),
+    ]),
+  )
+}
+
+function getMockDispatchCommentsStore(): Record<string, DispatchComment[]> {
+  const g = globalThis as unknown as DispatchMockCollabStores
+  if (!g.__SAMHAN_MOCK_DISPATCH_COMMENTS) {
+    g.__SAMHAN_MOCK_DISPATCH_COMMENTS = cloneDispatchComments(MOCK_DISPATCH_COMMENTS)
+    if (g.__SAMHAN_MOCK_DISPATCH_COMMENTS_SEED) {
+      Object.assign(
+        g.__SAMHAN_MOCK_DISPATCH_COMMENTS,
+        cloneDispatchComments(g.__SAMHAN_MOCK_DISPATCH_COMMENTS_SEED),
+      )
+    }
+  }
+  return g.__SAMHAN_MOCK_DISPATCH_COMMENTS
+}
+
+function getMockDispatchEditsStore(): Record<string, DispatchCollabEdit[]> {
+  const g = globalThis as unknown as DispatchMockCollabStores
+  if (!g.__SAMHAN_MOCK_DISPATCH_EDITS) {
+    g.__SAMHAN_MOCK_DISPATCH_EDITS = cloneDispatchEdits(MOCK_DISPATCH_EDITS)
+    if (g.__SAMHAN_MOCK_DISPATCH_EDITS_SEED) {
+      Object.assign(
+        g.__SAMHAN_MOCK_DISPATCH_EDITS,
+        cloneDispatchEdits(g.__SAMHAN_MOCK_DISPATCH_EDITS_SEED),
+      )
+    }
+  }
+  return g.__SAMHAN_MOCK_DISPATCH_EDITS
+}
 
 function recordMockAddVehicleGroupBody(body: {
   vehicleBodyType?: DispatchVehicleBodyType

@@ -1,9 +1,9 @@
 /**
  * DispatchTask 코멘트 스레드 — C1c.
  *
- * 목록/등록/삭제는 REST API 로 동작하고, SSE 는 live-update enhancement 로만 사용한다.
+ * 목록/등록/삭제는 REST API 로 동작한다. SSE 구독은 부모 상세 모달의 단일 stream 이 담당한다.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@samhan/design-system'
 import {
@@ -12,7 +12,6 @@ import {
   getDispatchComments,
   type DispatchComment,
 } from '../../../api/dispatchCollab'
-import { DispatchCollabRealtimeClient } from '../../../realtime/DispatchCollabRealtimeClient'
 import { usePermissions } from '../../../hooks/usePermissions'
 
 interface DispatchCommentThreadProps {
@@ -21,6 +20,9 @@ interface DispatchCommentThreadProps {
 }
 
 const QUERY_KEY_PREFIX = 'dispatch-comments'
+
+export const dispatchCommentsQueryKey = (taskId: string) =>
+  [QUERY_KEY_PREFIX, taskId] as const
 
 function formatDateTime(value: string): string {
   const date = new Date(value)
@@ -34,10 +36,6 @@ function formatDateTime(value: string): string {
   })
 }
 
-function isDispatchCommentEvent(eventName: string): boolean {
-  return eventName.startsWith('comment.')
-}
-
 function displayAuthorName(authorName: string): string {
   return authorName === 'system' ? '시스템' : authorName
 }
@@ -47,26 +45,13 @@ export function DispatchCommentThread({ taskId, readOnly = false }: DispatchComm
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canWrite = !readOnly && canAccess('dispatch.board', 'update')
-  const queryKey = useMemo(() => [QUERY_KEY_PREFIX, taskId] as const, [taskId])
+  const queryKey = useMemo(() => dispatchCommentsQueryKey(taskId), [taskId])
 
   const commentsQuery = useQuery({
     queryKey,
     queryFn: () => getDispatchComments(taskId),
     enabled: taskId.length > 0,
   })
-
-  useEffect(() => {
-    if (!taskId) return
-    const ctrl = DispatchCollabRealtimeClient.subscribe(taskId, (evt) => {
-      if (isDispatchCommentEvent(evt.event)) {
-        void queryClient.invalidateQueries({ queryKey })
-      }
-    })
-    // subscribe() handles reconnect/backoff internally; cleanup only aborts the active stream.
-    return () => {
-      ctrl.abort()
-    }
-  }, [queryClient, queryKey, taskId])
 
   const addMutation = useMutation({
     mutationFn: (nextBody: string) =>

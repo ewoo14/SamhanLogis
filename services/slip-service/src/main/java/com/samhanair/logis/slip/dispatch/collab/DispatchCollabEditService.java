@@ -73,6 +73,7 @@ public class DispatchCollabEditService {
         edit.accept(editorId, editorName);
         DispatchCollabSuggestion saved = suggestionRepository.save(edit);
 
+        // 알림 = 트랜잭션 내 동기 best-effort (§7 에픽 결정 — AFTER_COMMIT 금지, slip/회계/주문/견적 슬라이스 일관).
         sendNotifications(
                 List.copyOf(port.resolveNotificationRecipients(taskId, editorId)),
                 "[배차 수정] " + updated.taskCode(),
