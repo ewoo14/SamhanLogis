@@ -104,6 +104,13 @@ cd /opt/samhanlogis
 
 # 또는 S3 에서 docker-compose.yml 다운로드
 # aws s3 cp s3://samhan-attachments/deploy/docker-compose.prod.yml ./docker-compose.yml
+#
+# ⚠️ KST 전역 표준화 (Phase 11 cutover 체크리스트):
+#   - prod compose 의 모든 Spring 서비스 env 에 TZ=Asia/Seoul + JAVA_TOOL_OPTIONS 에 -Duser.timezone=Asia/Seoul
+#     포함 필수(host timedatectl 만으로는 컨테이너 JVM TZ 보장 불가). local-all.yml x-spring-env 앵커 참조.
+#   - postgres(자체 호스팅 시) command 에 -c timezone=Asia/Seoul. RDS 사용 시 rds.tf 파라미터그룹
+#     timezone=Asia/Seoul attach/apply 후 writer/reader 각각 SHOW timezone 확인(필요 시 reboot).
+#   - 기존 TIMESTAMP(tz 없음) 데이터: UTC→KST 의미 전환점 — 운영 데이터 있으면 변환 정책(무변환/+9h/수동) 결정.
 
 # ─── 5. 환경변수 설정 ─────────────────────────────────────────────────────────
 echo "[5/5] 환경변수 설정"

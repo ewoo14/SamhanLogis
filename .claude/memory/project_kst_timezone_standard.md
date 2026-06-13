@@ -23,3 +23,10 @@ metadata:
 **주의 (기존 데이터)**: TIMESTAMP(tz 없음) 컬럼은 UTC 벽시계값으로 저장돼 있어 적용 후 신규 쓰기는 KST·기존은 UTC 혼재 → dev 는 재시드로 정리. TIMESTAMPTZ(decided_at 등)는 tz-aware 라 표시만 KST 로 시프트(정상).
 
 **시점**: §7 배차 collab 머지(#478) 후 → 본 KST 전담 PR → 이후 §7 그룹웨어 결재. (개발책임자 "배차 머지 후 전담 PR" 선택.) 워크플로우 = [[temp-multimodel-workflow]] (Opus 4.8↔Codex, Fable5 제외) + DevOps 주도.
+
+**✅ dev 환경 완료 (PR #479, 2026-06-14)**: 라이브 검증 — postgres `SHOW timezone=Asia/Seoul`·`now()=+09`, 서비스 JVM `-Duser.timezone`, 신규 배차 수정완료 타임스탬프 `2026-06-14 01:29`(KST) 캡처. Opus 라운드 핵심 fix = **postgres `command` 에 `-c timezone=Asia/Seoul`**(TZ env 만으론 GUC 미변경 — 라이브 적발). eureka/gateway RAM cap, arologis compose TZ, user_data `|| true` 동반.
+
+**⚠️ Phase 11 prod cutover 체크리스트 (Codex 라운드 후속, 미적용)**:
+1. **prod compose**(S3 `docker-compose.prod.yml`, 레포 부재) 의 전 Spring 서비스 env 에 `TZ=Asia/Seoul` + `JAVA_TOOL_OPTIONS` 에 `-Duser.timezone=Asia/Seoul` 포함 필수(EC2 host `timedatectl` 만으론 컨테이너 JVM TZ 보장 불가). user_data.sh S3 다운로드 구간 주석에 박제됨.
+2. **RDS**: `rds.tf` 파라미터그룹 `timezone=Asia/Seoul` attach/apply 후 writer/reader 각각 `SHOW timezone` 확인(필요 시 reboot).
+3. **기존 TIMESTAMP(tz없음) 데이터**: UTC→KST 의미 전환점 — prod 운영 데이터 있으면 변환 정책(무변환/+9h/수동) 운영 결정 + audit/표시 smoke check.
