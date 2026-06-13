@@ -256,7 +256,7 @@ test.describe('SP-08-6-6 세금계산서 발행 (T1~T5)', () => {
    * T4: UUID 비공개 — taxInvoiceNo 노출, UUID 미노출
    *
    * 기대 결과:
-   *   - 목록 화면에서 "세금계산서번호" 컬럼에 yyyyMMdd-NNNN 형식 또는 "—" 표시
+   *   - 목록 화면에서 "세금계산서번호" 컬럼에 yyyy/MM/dd-NNNN 형식 또는 "—" 표시
    *   - id(UUID v4 패턴) 가 DOM 텍스트에 미노출 (path param 이나 data-attribute 제외)
    *   - journalId, partnerId 텍스트 미노출 (링크 href 제외)
    *   - pageerror 없음

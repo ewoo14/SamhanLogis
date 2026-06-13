@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>검증 목적:
  * <ul>
- *   <li>V6 Flyway seed (SEED-RPT-001 ~ SEED-RPT-007) 7건이 DB 에 POSTED 상태로 적재됨</li>
+ *   <li>V6 Flyway seed (2026/01/15-1 ~ 2026/12/31-1) 7건이 DB 에 POSTED 상태로 적재됨</li>
  *   <li>각 분개의 복식부기 균형 (sum debit = sum credit) 통과</li>
  *   <li>보고서 집계 대상 계정코드 (401/404/501/801/819/901/991) 가 라인에 존재함</li>
  * </ul>
@@ -116,7 +116,7 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V6 seed — SEED-RPT-001 상품매출 분개 금액 정확성")
+    @DisplayName("V6 seed — 2026/01/15-1 상품매출 분개 금액 정확성")
     void rpt001ProductSalesAmount() {
         Journal j = journalRepository.findById(Objects.requireNonNull(ID_RPT_001)).orElseThrow();
         // 차변 합계: 외상매출금 2,200,000
@@ -131,7 +131,7 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V6 seed — SEED-RPT-002 제품매출 분개 금액 정확성")
+    @DisplayName("V6 seed — 2026/02/10-1 제품매출 분개 금액 정확성")
     void rpt002ProductManufactureSalesAmount() {
         Journal j = journalRepository.findById(Objects.requireNonNull(ID_RPT_002)).orElseThrow();
         assertThat(j.totalDebit()).isEqualByComparingTo(new BigDecimal("5500000.00"));
@@ -143,7 +143,7 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V6 seed — SEED-RPT-004 급여 분개 원천세 예수금 분리 확인")
+    @DisplayName("V6 seed — 2026/01/31-1 급여 분개 원천세 예수금 분리 확인")
     void rpt004SalaryWithholdingTax() {
         Journal j = journalRepository.findById(Objects.requireNonNull(ID_RPT_004)).orElseThrow();
         // 차변 801(급여) 3,000,000
@@ -164,7 +164,7 @@ class ReportValidationSeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V6 seed — SEED-RPT-007 법인세비용 부채 계상 확인")
+    @DisplayName("V6 seed — 2026/12/31-1 법인세비용 부채 계상 확인")
     void rpt007IncomeTaxExpense() {
         Journal j = journalRepository.findById(Objects.requireNonNull(ID_RPT_007)).orElseThrow();
         boolean hasExpense = j.getLines().stream()

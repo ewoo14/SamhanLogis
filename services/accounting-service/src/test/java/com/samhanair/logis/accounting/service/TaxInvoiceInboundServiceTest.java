@@ -56,7 +56,7 @@ class TaxInvoiceInboundServiceTest {
         LocalDate from = LocalDate.of(2026, 5, 1);
         LocalDate to = LocalDate.of(2026, 5, 31);
         TaxInvoice invoice = TaxInvoice.createInbound(
-                "20260519-0001",
+                "2026/05/19-0001",
                 LocalDate.of(2026, 5, 19),
                 UUID.randomUUID(),
                 "V-001",
@@ -73,7 +73,7 @@ class TaxInvoiceInboundServiceTest {
         var responses = service.listInbound(from, to, "V-001");
 
         assertThat(responses).hasSize(1);
-        assertThat(responses.get(0).taxInvoiceNo()).isEqualTo("20260519-0001");
+        assertThat(responses.get(0).taxInvoiceNo()).isEqualTo("2026/05/19-0001");
         assertThat(responses.get(0).partnerCode()).isEqualTo("V-001");
         assertThat(responses.get(0).status()).isEqualTo(TaxInvoiceStatus.ISSUED);
         verify(taxInvoiceRepository).findInboundByFilters(from, to, "V-001");
@@ -92,7 +92,7 @@ class TaxInvoiceInboundServiceTest {
                 .thenReturn(Optional.of(new PartnerSummary(
                         partnerId, "P-001", "한국공조", "123-45-67890", "서울")));
         when(taxInvoiceNumberService.next(LocalDate.of(2026, 5, 19)))
-                .thenReturn("20260519-0001");
+                .thenReturn("2026/05/19-0001");
         when(taxInvoiceRepository.save(any(TaxInvoice.class))).thenAnswer(inv -> {
             TaxInvoice taxInvoice = inv.getArgument(0);
             setId(taxInvoice, taxInvoiceId);
@@ -102,7 +102,7 @@ class TaxInvoiceInboundServiceTest {
         var response = service.registerInbound(
                 new RegisterInboundTaxInvoiceRequest(ids, "2026-05-19"), "actor-1");
 
-        assertThat(response.taxInvoiceNo()).isEqualTo("20260519-0001");
+        assertThat(response.taxInvoiceNo()).isEqualTo("2026/05/19-0001");
         assertThat(response.partnerCode()).isEqualTo("P-001");
         assertThat(response.partnerName()).isEqualTo("한국공조");
         assertThat(response.totalSupplyAmount()).isEqualByComparingTo("100000.00");
@@ -139,7 +139,7 @@ class TaxInvoiceInboundServiceTest {
         when(partnerLookupClient.findByPartnerCode("P-001"))
                 .thenReturn(Optional.empty());
         when(taxInvoiceNumberService.next(LocalDate.of(2026, 5, 19)))
-                .thenReturn("20260519-0002");
+                .thenReturn("2026/05/19-0002");
         when(taxInvoiceRepository.save(any(TaxInvoice.class))).thenAnswer(inv -> {
             TaxInvoice taxInvoice = inv.getArgument(0);
             setId(taxInvoice, taxInvoiceId);

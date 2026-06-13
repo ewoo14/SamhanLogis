@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 세금계산서 발행번호 채번 — {@code yyyyMMdd-NNNN} 형식 (NNNN 4자리 zero-pad).
+ * 세금계산서 발행번호 채번 — {@code yyyy/MM/dd-NNNN} 형식 (NNNN 4자리 zero-pad).
  *
  * <p>날짜별 sequence row 를 배타 잠금으로 확보한 뒤 증가시킨다. partial UNIQUE INDEX 는
  * 최종 백업이다.
@@ -20,15 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TaxInvoiceNumberService {
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
     private final TaxInvoiceNumberSequenceRepository sequenceRepository;
 
     /**
-     * 다음 발행번호 채번 — 시퀀스 조회 → 없으면 새로 생성 → next() → {@code yyyyMMdd-NNNN} 포맷.
+     * 다음 발행번호 채번 — 시퀀스 조회 → 없으면 새로 생성 → next() → {@code yyyy/MM/dd-NNNN} 포맷.
      *
      * @param issueDate 채번 기준 날짜 (보통 supplyDate)
-     * @return {@code yyyyMMdd-NNNN} 형식 발행번호 (NNNN 4자리)
+     * @return {@code yyyy/MM/dd-NNNN} 형식 발행번호 (NNNN 4자리)
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public String next(LocalDate issueDate) {

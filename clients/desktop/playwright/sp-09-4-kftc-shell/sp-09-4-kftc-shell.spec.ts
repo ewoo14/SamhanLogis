@@ -149,7 +149,7 @@ function buildDepositMatchResponse(overrides?: Partial<{
       amount: 1100000.00,
       transactionDate: '2026-05-01',
       matchedPartnerCode: 'P-001',
-      matchedTaxInvoiceNo: 'TI-20260502-001',
+      matchedTaxInvoiceNo: '2026/05/02-0001',
       status: 'MATCHED',
     },
     {
@@ -165,7 +165,7 @@ function buildDepositMatchResponse(overrides?: Partial<{
       amount: 3300000.00,
       transactionDate: '2026-05-02',
       matchedPartnerCode: 'PARTNER-003',
-      matchedTaxInvoiceNo: 'TAX-2026-05-002',
+      matchedTaxInvoiceNo: '2026/05/02-0002',
       status: 'MATCHED',
     },
     {
@@ -349,7 +349,7 @@ test.describe('SP-09-4 KFTC 오픈뱅킹 입금 매칭 shell QA (T1~T5)', () => 
    *   - data-testid="deposit-match-table" 테이블 표시
    *   - data-testid="deposit-match-row-1" ~ row-5 표시 (5건)
    *   - MATCHED row (row-1): matchedPartnerCode "P-001" 텍스트
-   *   - MATCHED row (row-1): matchedTaxInvoiceNo "TI-20260502-001" 텍스트
+   *   - MATCHED row (row-1): matchedTaxInvoiceNo "2026/05/02-0001" 텍스트
    *   - UUID 텍스트 미노출 (journalDraftId UUID 는 화면 미표시)
    *   - pageerror 없음
    *
@@ -450,7 +450,7 @@ test.describe('SP-09-4 KFTC 오픈뱅킹 입금 매칭 shell QA (T1~T5)', () => 
     })
 
     // ── step 7: MATCHED row-1 — 매칭 거래처코드 + 세금계산서번호 표시 확인
-    await test.step('MATCHED row-1 — matchedPartnerCode "P-001" + matchedTaxInvoiceNo "TI-20260502-001" 표시', async () => {
+    await test.step('MATCHED row-1 — matchedPartnerCode "P-001" + matchedTaxInvoiceNo "2026/05/02-0001" 표시', async () => {
       const row1 = page.locator('[data-testid="deposit-match-row-1"]')
       await expect(row1, 'row-1 미표시').toBeVisible({ timeout: 5000 })
 
@@ -462,8 +462,8 @@ test.describe('SP-09-4 KFTC 오픈뱅킹 입금 매칭 shell QA (T1~T5)', () => 
 
       // matchedTaxInvoiceNo 표시 확인 (비즈니스 식별자)
       await expect(
-        row1.getByText('TI-20260502-001', { exact: false }),
-        'row-1 매칭 세금계산서번호 "TI-20260502-001" 미표시 — matchedTaxInvoiceNo 비즈니스 식별자 표시 필요',
+        row1.getByText('2026/05/02-0001', { exact: false }),
+        'row-1 매칭 세금계산서번호 "2026/05/02-0001" 미표시 — matchedTaxInvoiceNo 비즈니스 식별자 표시 필요',
       ).toBeVisible({ timeout: 5000 })
 
       await page.screenshot({
@@ -628,7 +628,7 @@ test.describe('SP-09-4 KFTC 오픈뱅킹 입금 매칭 shell QA (T1~T5)', () => 
    *   - modal 내 분개 미리보기 차변 (보통예금 102) 표시
    *   - modal 내 분개 미리보기 대변 (외상매출금 110) 표시
    *   - modal 내 거래처 코드 "P-001" 표시
-   *   - modal 내 세금계산서번호 "TI-20260502-001" 표시
+   *   - modal 내 세금계산서번호 "2026/05/02-0001" 표시
    *   - modal UUID 미노출 (journalDraftId UUID 텍스트 없음)
    *   - pageerror 없음
    *
@@ -747,7 +747,7 @@ test.describe('SP-09-4 KFTC 오픈뱅킹 입금 매칭 shell QA (T1~T5)', () => 
     })
 
     // ── step 7: modal 내 비즈니스 식별자 표시 확인
-    await test.step('modal — 거래처코드 "P-001" + 세금계산서번호 "TI-20260502-001" 표시', async () => {
+    await test.step('modal — 거래처코드 "P-001" + 세금계산서번호 "2026/05/02-0001" 표시', async () => {
       const detailModal = page.locator('[data-testid="deposit-match-detail-modal"]')
 
       await expect(
@@ -756,8 +756,8 @@ test.describe('SP-09-4 KFTC 오픈뱅킹 입금 매칭 shell QA (T1~T5)', () => 
       ).toBeVisible({ timeout: 5000 })
 
       await expect(
-        detailModal.getByText('TI-20260502-001', { exact: false }),
-        'modal 내 매칭 세금계산서번호 "TI-20260502-001" 미표시',
+        detailModal.getByText('2026/05/02-0001', { exact: false }),
+        'modal 내 매칭 세금계산서번호 "2026/05/02-0001" 미표시',
       ).toBeVisible({ timeout: 5000 })
     })
 

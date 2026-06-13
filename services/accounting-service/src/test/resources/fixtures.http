@@ -58,7 +58,7 @@ Accept: application/json
 
 ###############################################################################
 ### 시나리오 2: 분개 입력 (DRAFT) — ACCOUNTANT, 5월 임차료 500,000원 지급
-### 기대: 201 + $.data.status="DRAFT", $.data.journalNo (yyyyMMdd-N)
+### 기대: 201 + $.data.status="DRAFT", $.data.journalNo (yyyy/MM/dd-N)
 ### Designer ux-flow.md 시나리오 1 의 표준 케이스
 ###############################################################################
 POST {{host}}/accounting/journals

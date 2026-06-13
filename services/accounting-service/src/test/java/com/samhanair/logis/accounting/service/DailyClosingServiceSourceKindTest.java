@@ -59,7 +59,7 @@ class DailyClosingServiceSourceKindTest {
     @Test
     @DisplayName("기본 요청은 SALES + TAX_INVOICE 집계로 하위 호환된다")
     void defaultRequestAggregatesTaxInvoiceSales() {
-        TaxInvoice invoice = issuedTaxInvoice("TI-20260519-001", TaxInvoiceType.SALES,
+        TaxInvoice invoice = issuedTaxInvoice("2026/05/19-0001", TaxInvoiceType.SALES,
                 new BigDecimal("100000"), new BigDecimal("10000"));
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(invoice));
@@ -85,7 +85,7 @@ class DailyClosingServiceSourceKindTest {
     @Test
     @DisplayName("SALES_SLIP sourceKind 는 POSTED 매출전표를 집계한다")
     void salesSlipSourceAggregatesPostedSalesSlips() {
-        SalesAccountingSlip slip = postedSalesSlip("SAS-20260519-001",
+        SalesAccountingSlip slip = postedSalesSlip("2026/05/19-0001",
                 new BigDecimal("200000"), new BigDecimal("20000"));
         when(salesAccountingSlipRepository.findBySlipDateAndStatus(DATE, SalesSlipStatus.POSTED))
                 .thenReturn(List.of(slip));
@@ -111,7 +111,7 @@ class DailyClosingServiceSourceKindTest {
     @Test
     @DisplayName("PURCHASE_SLIP sourceKind 는 POSTED 매입전표를 집계한다")
     void purchaseSlipSourceAggregatesPostedPurchaseSlips() {
-        PurchaseAccountingSlip slip = postedPurchaseSlip("PAS-20260519-001",
+        PurchaseAccountingSlip slip = postedPurchaseSlip("2026/05/19-0001",
                 new BigDecimal("300000"), new BigDecimal("30000"));
         when(purchaseAccountingSlipRepository.findBySlipDateAndStatus(DATE, PurchaseSlipStatus.POSTED))
                 .thenReturn(List.of(slip));

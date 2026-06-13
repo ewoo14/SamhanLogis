@@ -64,7 +64,7 @@ public class Journal extends BaseEntity {
     private UUID id;
 
     /**
-     * 분개번호 — {@code yyyyMMdd-N} ({@link com.samhanair.logis.accounting.service.JournalNumberService}).
+     * 분개번호 — {@code yyyy/MM/dd-N} ({@link com.samhanair.logis.accounting.service.JournalNumberService}).
      * partial UNIQUE INDEX 로 active 분개 안에서 유일성 보장.
      */
     @Column(name = "journal_no", nullable = false, length = 40)
@@ -136,7 +136,7 @@ public class Journal extends BaseEntity {
     /**
      * 신규 분개 생성 (DRAFT). 라인은 별도 {@link #addLine} 으로 추가.
      *
-     * @param journalNo 채번된 분개번호 ({@code yyyyMMdd-N})
+     * @param journalNo 채번된 분개번호 ({@code yyyy/MM/dd-N})
      * @param journalDate 분개 일자
      * @param description 적요 (선택, ≤500자)
      * @param sourceType 출처 (MANUAL/SLIP/CLOSING)

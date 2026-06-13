@@ -55,7 +55,7 @@ class JournalServiceTest {
 
     @BeforeEach
     void common() {
-        lenient().when(journalNumberService.next(any(LocalDate.class))).thenReturn("20260504-1");
+        lenient().when(journalNumberService.next(any(LocalDate.class))).thenReturn("2026/05/04-1");
         // 마감 가드 — 기본 stub 으로 "마감 없음" 반환 (Phase 10 Step 8 P2-4 service-layer guard).
         lenient().when(monthEndCloseService.findClosedPeriodCovering(any(LocalDate.class)))
                 .thenReturn(Optional.empty());
@@ -109,12 +109,12 @@ class JournalServiceTest {
             return saved;
         }).when(journalRepository).save(any(Journal.class));
 
-        when(journalNumberService.next(TODAY)).thenReturn("20260504-2");
+        when(journalNumberService.next(TODAY)).thenReturn("2026/05/04-2");
 
         JournalDetailResponse resp = journalService.reverse(original.getId(), "user-B");
 
         assertThat(resp.status()).isEqualTo(JournalStatus.POSTED);
-        assertThat(resp.journalNo()).isEqualTo("20260504-2");
+        assertThat(resp.journalNo()).isEqualTo("2026/05/04-2");
         // 차/대 swap 검증 — 첫 라인은 원래 debit=100000 / credit=0 → swap 후 debit=0 / credit=100000
         assertThat(resp.lines().get(0).debitAmount()).isEqualByComparingTo("0");
         assertThat(resp.lines().get(0).creditAmount()).isEqualByComparingTo("100000");
@@ -135,7 +135,7 @@ class JournalServiceTest {
     }
 
     private Journal newPersistedDraft() {
-        Journal j = Journal.create("20260504-1", TODAY, "테스트",
+        Journal j = Journal.create("2026/05/04-1", TODAY, "테스트",
                 JournalSourceType.MANUAL, (UUID) null);
         UUID id = UUID.randomUUID();
         setField(j, "id", id);

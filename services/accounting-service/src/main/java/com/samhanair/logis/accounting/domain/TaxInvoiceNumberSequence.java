@@ -16,7 +16,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 세금계산서 발행번호 채번 시퀀스 — {@code yyyyMMdd-NNNN} 의 NNNN 부분을 일자별로 atomic 관리.
+ * 세금계산서 발행번호 채번 시퀀스 — {@code yyyy/MM/dd-NNNN} 의 NNNN 부분을 일자별로 atomic 관리.
  * JournalNumberSequence 답습 패턴.
  */
 @Entity

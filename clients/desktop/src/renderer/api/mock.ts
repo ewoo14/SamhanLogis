@@ -3123,7 +3123,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
     return envelope({
       id: 'jv-new-' + Date.now(),
-      journalNo: 'JV-2026/05-099',
+      journalNo: '2026/05/04-099',
       journalDate: body.journalDate ?? '2026-05-04',
       status: 'DRAFT',
       description: body.description ?? null,
@@ -4385,7 +4385,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[1]!
     return envelope({
       ...found,
-      taxInvoiceNo: found.taxInvoiceNo ?? `TI-2026/05-${String(Date.now()).slice(-3)}`,
+      taxInvoiceNo: found.taxInvoiceNo ?? `2026/05/19-${String(Date.now()).slice(-4)}`,
       status: 'ISSUED' as const,
       issuedAt: new Date().toISOString(),
       issuedBy: '이정훈',
@@ -6909,7 +6909,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         amount: 2750000,
         transactionDate: `${ym}-02`,
         matchedPartnerCode: 'P-001',
-        matchedTaxInvoiceNo: 'TI-20260502-001',
+        matchedTaxInvoiceNo: '2026/05/02-0001',
         status: 'MATCHED',
         journalDraft: {
           lines: [
@@ -6939,7 +6939,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         amount: 4180000,
         transactionDate: `${ym}-12`,
         matchedPartnerCode: 'P-004',
-        matchedTaxInvoiceNo: 'TI-20260512-003',
+        matchedTaxInvoiceNo: '2026/05/12-0003',
         status: 'MATCHED',
         journalDraft: {
           lines: [
@@ -7477,7 +7477,7 @@ const MOCK_JOURNALS = [
   // 1. POSTED: 보통예금 입금 (제품매출 대금)
   {
     id: 'jv-001',
-    journalNo: 'JV-2026/05-001',
+    journalNo: '2026/05/01-001',
     journalDate: '2026-05-04',
     status: 'POSTED' as const,
     description: '5월 1주차 제품매출 대금 입금 (윌리)',
@@ -7515,7 +7515,7 @@ const MOCK_JOURNALS = [
   // 2. POSTED: 급여 지급
   {
     id: 'jv-002',
-    journalNo: 'JV-2026/05-002',
+    journalNo: '2026/05/03-002',
     journalDate: '2026-05-03',
     status: 'POSTED' as const,
     description: '4월 급여 지급',
@@ -7563,7 +7563,7 @@ const MOCK_JOURNALS = [
   // 3. POSTED: 임차료 지급
   {
     id: 'jv-003',
-    journalNo: 'JV-2026/05-003',
+    journalNo: '2026/05/02-003',
     journalDate: '2026-05-02',
     status: 'POSTED' as const,
     description: '5월 사무실 임차료',
@@ -7601,7 +7601,7 @@ const MOCK_JOURNALS = [
   // 4. DRAFT: 광고비 (작성중)
   {
     id: 'jv-004',
-    journalNo: 'JV-2026/05-004',
+    journalNo: '2026/05/04-004',
     journalDate: '2026-05-04',
     status: 'DRAFT' as const,
     description: '5월 네이버 광고 (검토중)',
@@ -7639,7 +7639,7 @@ const MOCK_JOURNALS = [
   // 5. REVERSED: 잘못 등록한 매출 (역분개됨)
   {
     id: 'jv-005',
-    journalNo: 'JV-2026/05-005',
+    journalNo: '2026/05/01-005',
     journalDate: '2026-05-01',
     status: 'REVERSED' as const,
     description: '오등록 매출 (월말 정정)',
@@ -8038,7 +8038,7 @@ const MOCK_BLOCKED_PARTNERS = [
 const MOCK_TAX_INVOICES = [
   {
     id: 'ti-001',
-    taxInvoiceNo: 'TI-2026/05-001',
+    taxInvoiceNo: '2026/05/02-0001',
     invoiceType: 'SALES' as const,
     partnerId: 'partner-uuid-0001',
     partnerCode: 'P-LASYS-001',
@@ -8114,7 +8114,7 @@ const MOCK_TAX_INVOICES = [
   },
   {
     id: 'ti-003',
-    taxInvoiceNo: 'TI-2026/04-099',
+    taxInvoiceNo: '2026/04/28-0099',
     invoiceType: 'SALES' as const,
     partnerId: 'partner-uuid-0003',
     partnerCode: 'P-HANBIT-003',

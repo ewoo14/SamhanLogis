@@ -96,7 +96,7 @@ class TaxInvoiceServiceTest {
                 .thenAnswer(inv -> inv.getArgument(0));
 
         // 발행번호 채번 stub
-        lenient().when(taxInvoiceNumberService.next(any())).thenReturn("202605-0001");
+        lenient().when(taxInvoiceNumberService.next(any())).thenReturn("2026/05/11-0001");
     }
 
     // ── 시나리오 1 ───────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ class TaxInvoiceServiceTest {
     // ── 시나리오 5 ───────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("5. issue — DRAFT → ISSUED, invoiceNo 202605-0001, journalId 연결")
+    @DisplayName("5. issue — DRAFT → ISSUED, invoiceNo 2026/05/11-0001, journalId 연결")
     void scenario5_issue_draftToIssued() throws Exception {
         TaxInvoice ti = buildIssuableDraft();
         UUID tiId = UUID.randomUUID();
@@ -209,7 +209,7 @@ class TaxInvoiceServiceTest {
         TaxInvoiceDetailResponse res = taxInvoiceService.issue(tiId, "accountant-1");
 
         assertThat(res.status()).isEqualTo(TaxInvoiceStatus.ISSUED);
-        assertThat(res.taxInvoiceNo()).isEqualTo("202605-0001");
+        assertThat(res.taxInvoiceNo()).isEqualTo("2026/05/11-0001");
         assertThat(res.issuedBy()).isEqualTo("accountant-1");
         assertThat(res.journalId()).isEqualTo(mockJournal.getId());
     }
@@ -392,7 +392,7 @@ class TaxInvoiceServiceTest {
      */
     private TaxInvoice buildIssuedInvoice() throws Exception {
         TaxInvoice ti = buildIssuableDraft();
-        ti.issue("202605-0001", "system");
+        ti.issue("2026/05/11-0001", "system");
         // journalId reflection 주입 — cancel 시 autoReverse 경로 활성화
         Field journalIdField = TaxInvoice.class.getDeclaredField("journalId");
         journalIdField.setAccessible(true);
@@ -406,7 +406,7 @@ class TaxInvoiceServiceTest {
      * (단위 테스트에서는 journal 의 상태보다 id 만 필요)
      */
     private Journal buildMockJournal() throws Exception {
-        Journal j = Journal.create("20260511-0001", ISSUE_DATE,
+        Journal j = Journal.create("2026/05/11-1", ISSUE_DATE,
                 "테스트 분개", JournalSourceType.SLIP, UUID.randomUUID());
         Field idField = Journal.class.getDeclaredField("id");
         idField.setAccessible(true);

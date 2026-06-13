@@ -92,7 +92,7 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("issue — DRAFT → ISSUED + 자동 분개 (journalId 채워짐, 발행번호 yyyyMMdd-NNNN)")
+    @DisplayName("issue — DRAFT → ISSUED + 자동 분개 (journalId 채워짐, 발행번호 yyyy/MM/dd-NNNN)")
     void issueGeneratesJournal() throws Exception {
         Mockito.lenient().when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
 

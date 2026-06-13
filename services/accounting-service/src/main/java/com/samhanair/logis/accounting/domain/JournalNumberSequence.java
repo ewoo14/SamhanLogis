@@ -16,7 +16,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 분개번호 채번 시퀀스 — {@code yyyyMMdd-N} 의 N 부분을 일자별로 atomic 관리.
+ * 분개번호 채번 시퀀스 — {@code yyyy/MM/dd-N} 의 N 부분을 일자별로 atomic 관리.
  * SlipNumberSequence 답습 패턴.
  */
 @Entity

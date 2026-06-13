@@ -93,7 +93,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
         when(eTaxClient.submit(any(TaxInvoice.class), any()))
-                .thenReturn(ETaxSubmitResult.success("DRY-20260518-0001-999", "DRY_RUN"));
+                .thenReturn(ETaxSubmitResult.success("DRY-2026/05/18-0001-999", "DRY_RUN"));
 
         String id = createAndIssueDraft();
 
@@ -106,7 +106,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(emitBody)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
-                .andExpect(jsonPath("$.data.eTaxExternalId").value("DRY-20260518-0001-999"))
+                .andExpect(jsonPath("$.data.eTaxExternalId").value("DRY-2026/05/18-0001-999"))
                 .andExpect(jsonPath("$.data.submitMethod").value("DRY_RUN"))
                 .andExpect(jsonPath("$.data.submittedAt").exists())
                 .andExpect(jsonPath("$.data.taxInvoiceNo").exists());
@@ -221,7 +221,7 @@ class TaxInvoiceEmitNtsIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);
         when(eTaxClient.submit(any(TaxInvoice.class), any()))
-                .thenReturn(ETaxSubmitResult.success("DRY-20260518-0001-111", "DRY_RUN"));
+                .thenReturn(ETaxSubmitResult.success("DRY-2026/05/18-0001-111", "DRY_RUN"));
 
         String id = createAndIssueDraft();
         Map<String, Object> emitBody = Map.of("submitMethod", "DRY_RUN");

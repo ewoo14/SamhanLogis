@@ -93,7 +93,7 @@ class SalesAccountingSlipServiceTest {
     void createDraft_1대1_정상생성_VAT자동분리() {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-2026-05-0001");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0001");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-2026-05-0042", sourceLineId, "RX다배관",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
@@ -113,7 +113,7 @@ class SalesAccountingSlipServiceTest {
 
         SalesAccountingSlipResponse resp = service.createDraft(req, "actor-1");
 
-        assertThat(resp.slipNo()).isEqualTo("SAS-2026-05-0001");
+        assertThat(resp.slipNo()).isEqualTo("2026/05/19-0001");
         assertThat(resp.status()).isEqualTo("DRAFT");
         assertThat(resp.totalSupplyAmount()).isEqualByComparingTo("1363636");
         assertThat(resp.totalVatAmount()).isEqualByComparingTo("136364");
@@ -150,7 +150,7 @@ class SalesAccountingSlipServiceTest {
     void overAllocation_정확boundary_next가_lineTotal이면_허용() {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-2026-05-0002");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0002");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-B", sourceLineId, "P", 10,
                 new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
@@ -168,7 +168,7 @@ class SalesAccountingSlipServiceTest {
 
     @Test
     void createDraft_empty_allocations_거부() {
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-2026-05-0003");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0003");
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
                 LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
@@ -221,7 +221,7 @@ class SalesAccountingSlipServiceTest {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
         long expectedLockKey = sourceLineId.getMostSignificantBits() ^ sourceLineId.getLeastSignificantBits();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-2026-05-0004");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0004");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-L", sourceLineId, "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));

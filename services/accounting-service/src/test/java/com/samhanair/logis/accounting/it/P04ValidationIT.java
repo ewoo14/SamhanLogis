@@ -49,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <ol>
  *   <li>POST /accounting/tax-invoices — DRAFT 생성 (ACCOUNTANT 201 / 입력 검증 400)</li>
  *   <li>POST /accounting/tax-invoices/{id}/issue — DRAFT → ISSUED 전이
- *       (발행번호 yyyyMMdd-NNNN + journalId 자동 생성)</li>
+ *       (발행번호 yyyy/MM/dd-NNNN + journalId 자동 생성)</li>
  *   <li>POST /accounting/tax-invoices/{id}/cancel — ISSUED → CANCELLED
  *       (cancelledBy 설정 + reverseJournalId 채워짐)</li>
  *   <li>GET /accounting/tax-invoices/{id} — 단건 조회 (라인 포함 인쇄 응답)</li>
@@ -207,7 +207,7 @@ class P04ValidationIT extends AbstractPostgresIT {
      * <ul>
      *   <li>status = ISSUED</li>
      *   <li>issuedBy = 요청 X-User-Id 헤더값</li>
-     *   <li>taxInvoiceNo 채번됨 (형식: yyyyMMdd-NNNN)</li>
+     *   <li>taxInvoiceNo 채번됨 (형식: yyyy/MM/dd-NNNN)</li>
      *   <li>journalId 연결됨</li>
      * </ul>
      */
@@ -332,7 +332,7 @@ class P04ValidationIT extends AbstractPostgresIT {
      * <p>V12 seed ISSUED-001 ({@code c0d0e0f0-...-000000000201}) — (주)CJ대한통운, ISSUED.
      * 라인 3건 포함 확인:
      * <ul>
-     *   <li>taxInvoiceNo = SEED-P04-I001</li>
+     *   <li>taxInvoiceNo = 2026/05/03-0001</li>
      *   <li>status = ISSUED</li>
      *   <li>lines 배열 크기 = 3</li>
      *   <li>supplyAmount = 3,000,000 / vatAmount = 300,000 / totalAmount = 3,300,000</li>
@@ -345,7 +345,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-I001"))
+                .andExpect(jsonPath("$.data.taxInvoiceNo").value("2026/05/03-0001"))
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
                 .andExpect(jsonPath("$.data.partnerName").value("(주)CJ대한통운"))
                 .andExpect(jsonPath("$.data.supplyAmount").value(3000000.00))
@@ -382,7 +382,7 @@ class P04ValidationIT extends AbstractPostgresIT {
      * GET /accounting/tax-invoices/{id} — V12 seed CANCELLED-001 단건 조회.
      *
      * <p>CANCELLED-001 ({@code c0d0e0f0-...-000000000301}) — (주)범한판토스, CANCELLED.
-     * taxInvoiceNo = SEED-P04-C001, 라인 3건 포함 확인.
+     * taxInvoiceNo = 2026/04/28-0001, 라인 3건 포함 확인.
      */
     @Test
     @DisplayName("GET /tax-invoices/{id} — V12 seed CANCELLED-001 단건 조회 (CANCELLED + 라인 3건)")
@@ -391,7 +391,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-C001"))
+                .andExpect(jsonPath("$.data.taxInvoiceNo").value("2026/04/28-0001"))
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.data.partnerName").value("(주)범한판토스"))
                 .andExpect(jsonPath("$.data.supplyAmount").value(4000000.00))
@@ -451,12 +451,12 @@ class P04ValidationIT extends AbstractPostgresIT {
         long v12IssuedCount = 0;
         for (JsonNode item : content) {
             String no = item.path("taxInvoiceNo").asText("");
-            if (no.startsWith("SEED-P04-I")) {
+            if (List.of("2026/05/03-0001", "2026/05/07-0001", "2026/05/09-0001").contains(no)) {
                 v12IssuedCount++;
             }
         }
         assertThat(v12IssuedCount)
-                .as("V12 SEED-P04-I* ISSUED 건수")
+                .as("V12 slash-format ISSUED seed ISSUED 건수")
                 .isGreaterThanOrEqualTo(3L);
     }
 
@@ -516,7 +516,7 @@ class P04ValidationIT extends AbstractPostgresIT {
         long count = 0;
         for (JsonNode item : content) {
             String no = item.path("taxInvoiceNo").asText("");
-            if (no.startsWith("SEED-P04-I")) {
+            if (List.of("2026/05/03-0001", "2026/05/07-0001", "2026/05/09-0001").contains(no)) {
                 count++;
             }
         }
@@ -538,7 +538,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-I002"))
+                .andExpect(jsonPath("$.data.taxInvoiceNo").value("2026/05/07-0001"))
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
                 .andExpect(jsonPath("$.data.partnerName").value("롯데글로벌로지스(주)"))
                 .andExpect(jsonPath("$.data.partnerBusinessNo").value("116-81-20302"))
@@ -552,7 +552,7 @@ class P04ValidationIT extends AbstractPostgresIT {
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000104")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.taxInvoiceNo").value("SEED-P04-I003"))
+                .andExpect(jsonPath("$.data.taxInvoiceNo").value("2026/05/09-0001"))
                 .andExpect(jsonPath("$.data.status").value("ISSUED"))
                 .andExpect(jsonPath("$.data.partnerName").value("(주)SK에너지"))
                 .andExpect(jsonPath("$.data.partnerBusinessNo").value("125-81-20303"))

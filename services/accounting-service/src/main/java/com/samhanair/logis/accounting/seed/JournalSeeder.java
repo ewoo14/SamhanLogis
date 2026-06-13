@@ -9,7 +9,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 실행. 운영 / staging 환경 데이터 오염 방지. application.yml default {@code false}.
  *
  * <p><b>Idempotency</b>: {@link JournalRepository#existsById(Object)} 로 결정적 UUID 중복 확인 후 skip.
- * 모든 Journal UUID 는 {@code UUID.nameUUIDFromBytes("samhan-seed:journal:" + journalNo)} 결정 도출.
+ * 모든 Journal UUID 는 {@code UUID.nameUUIDFromBytes("samhan-seed:journal:seq:" + seq)} 결정 도출.
+ * journal_no 는 {@code yyyy/MM/dd-N} 형식이며 N 은 해당 분개 일자 내 1-based 순번이다.
  *
  * <p><b>외부 의존</b>:
  * <ul>
@@ -97,12 +100,14 @@ public class JournalSeeder implements CommandLineRunner {
         int skipped = 0;
         long debitGrand = 0L;
         long creditGrand = 0L;
+        Map<LocalDate, Integer> journalNoCounters = new HashMap<>();
 
         // 30 SLIP_ISSUE + 10 PAYMENT + 5 SGA + 5 ADJUSTMENT = 50
         for (int seq = 1; seq <= 50; seq++) {
             JournalSpec spec = pickSpec(seq);
-            String journalNo = String.format("J-2026-%05d", seq);
-            UUID journalId = deterministicId("journal", journalNo);
+            LocalDate journalDate = pickJournalDate(seq);
+            String journalNo = nextJournalNo(journalDate, journalNoCounters);
+            UUID journalId = deterministicId("journal", "seq:" + seq);
 
             // Idempotent — UUID + journalNo 양쪽 체크 (cleanup 후 deterministic UUID 가
             // random 생성된 잔존 row 와 충돌 회피).
@@ -114,7 +119,7 @@ public class JournalSeeder implements CommandLineRunner {
             }
 
             try {
-                Journal journal = buildJournal(seq, spec, journalNo, journalId);
+                Journal journal = buildJournal(seq, spec, journalNo, journalDate, journalId);
                 Journal saved = journalRepository.save(journal);
                 created++;
                 BigDecimal d = saved.totalDebit();
@@ -142,8 +147,8 @@ public class JournalSeeder implements CommandLineRunner {
     // 분개 생성 — type 별 라인 패턴
     // ------------------------------------------------------------------
 
-    private Journal buildJournal(int seq, JournalSpec spec, String journalNo, UUID journalId) {
-        LocalDate journalDate = pickJournalDate(seq);
+    private Journal buildJournal(int seq, JournalSpec spec, String journalNo,
+                                 LocalDate journalDate, UUID journalId) {
         UUID partnerId = deterministicId("partner",
                 String.format(PARTNER_CODE_FMT, ((seq - 1) % 50) + 1));
         UUID sourceRefId = null;
@@ -174,7 +179,7 @@ public class JournalSeeder implements CommandLineRunner {
         for (LineSpec ls : lines) {
             JournalLine line = JournalLine.create(journal, lineNo,
                     ls.accountCode, ls.debit, ls.credit, ls.partnerId, ls.memo);
-            forceId(line, deterministicId("journal-line", journalNo + ":" + lineNo));
+            forceId(line, deterministicId("journal-line", "seq:" + seq + ":" + lineNo));
             journal.addLine(line);
             lineNo++;
         }
@@ -282,6 +287,12 @@ public class JournalSeeder implements CommandLineRunner {
             offset = offset % (span + 1);
         }
         return JOURNAL_BASE_DATE.plusDays(offset);
+    }
+
+    private String nextJournalNo(LocalDate journalDate, Map<LocalDate, Integer> counters) {
+        int seqInDay = counters.merge(journalDate, 1, Integer::sum);
+        return String.format("%d/%02d/%02d-%d",
+                journalDate.getYear(), journalDate.getMonthValue(), journalDate.getDayOfMonth(), seqInDay);
     }
 
     /** 30 SLIP_ISSUE 에 매핑할 slip 번호 — Stage 2 의 100 slip 중 결정적 30건. */

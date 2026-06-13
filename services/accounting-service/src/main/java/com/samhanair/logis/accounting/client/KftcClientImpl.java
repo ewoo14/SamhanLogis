@@ -93,7 +93,7 @@ public class KftcClientImpl implements KftcClient {
      * DRY_RUN 모드 — mock 5건 즉시 반환.
      *
      * <p>입금자명은 거래처명 매칭 검증용 샘플 데이터 포함.
-     * 모든 mock transactionId 는 비즈니스 식별자 형식 ("DRY-yyyyMMdd-N").
+     * 모든 mock transactionId 는 비즈니스 식별자 형식 ("DRY-{documentNo}-{suffix}").
      *
      * @param from         조회 시작 일자 (mock 거래일 기준)
      * @param accountFinNo 계좌 금융기관 코드 (mock 데이터에 그대로 반영)

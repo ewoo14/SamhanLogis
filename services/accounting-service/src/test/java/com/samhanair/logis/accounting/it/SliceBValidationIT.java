@@ -41,7 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>검증 목적:
  * <ul>
- *   <li>V8 Flyway seed (SEED-VAT-S001~S003, SEED-VAT-P001~P002) 5건 TaxInvoice 적재 확인</li>
+ *   <li>V8 Flyway seed (2026/04/05-0001~S003, 2026/04/10-0001~P002) 5건 TaxInvoice 적재 확인</li>
  *   <li>VAT report endpoint GET /accounting/reports/vat?period=202604 — 2Q 집계 검증</li>
  *   <li>법인세 report endpoint GET /accounting/reports/corporate-tax?year=2026 — 법인세 집계 검증</li>
  *   <li>V9 partner_aging seed 5건 — 110(외상매출금) 차변 / 201(외상매입금) 대변 잔액 검증</li>
@@ -128,10 +128,10 @@ class SliceBValidationIT extends AbstractPostgresIT {
             var invoice = taxInvoiceRepository.findById(id)
                     .orElseThrow(() -> new AssertionError("V8 seed 매출 TaxInvoice 미존재 — id=" + id));
             assertThat(invoice.getStatus())
-                    .as("SEED-VAT-S00x ISSUED 상태")
+                    .as("slash-format SALES VAT seed ISSUED 상태")
                     .isEqualTo(TaxInvoiceStatus.ISSUED);
             assertThat(invoice.getInvoiceType())
-                    .as("SEED-VAT-S00x SALES 타입")
+                    .as("slash-format SALES VAT seed SALES 타입")
                     .isEqualTo(TaxInvoiceType.SALES);
         }
 
@@ -168,10 +168,10 @@ class SliceBValidationIT extends AbstractPostgresIT {
             var invoice = taxInvoiceRepository.findById(id)
                     .orElseThrow(() -> new AssertionError("V8 seed 매입 TaxInvoice 미존재 — id=" + id));
             assertThat(invoice.getStatus())
-                    .as("SEED-VAT-P00x ISSUED 상태")
+                    .as("slash-format PURCHASE VAT seed ISSUED 상태")
                     .isEqualTo(TaxInvoiceStatus.ISSUED);
             assertThat(invoice.getInvoiceType())
-                    .as("SEED-VAT-P00x PURCHASE 타입")
+                    .as("slash-format PURCHASE VAT seed PURCHASE 타입")
                     .isEqualTo(TaxInvoiceType.PURCHASE);
         }
 
@@ -218,7 +218,7 @@ class SliceBValidationIT extends AbstractPostgresIT {
     /**
      * Corporate Tax report endpoint — GET /accounting/reports/corporate-tax?fiscalYear=2026.
      *
-     * <p>V6 seed 분개 (SEED-RPT-007 법인세비용 700,000) 가 포함된 2026 사업연도 신고서.
+     * <p>V6 seed 분개 (2026/12/31-1 법인세비용 700,000) 가 포함된 2026 사업연도 신고서.
      * 신고 기한: 결산일(2026-12-31) + 3개월 = 2027-03-31.
      *
      * <p>TM PR #136 fix: BE controller 가 {@code @RequestParam int fiscalYear} 를
@@ -323,8 +323,8 @@ class SliceBValidationIT extends AbstractPostgresIT {
     /**
      * V9 seed — 복식부기 균형 검증.
      *
-     * <p>SEED-AGE-001 ~ 003 (미수): 110 차변 합계 = 7,700,000
-     * SEED-AGE-004 ~ 005 (미지급): 101 차변 합계 = 각각 대변과 동일
+     * <p>2026/04/05-1 ~ 003 (미수): 110 차변 합계 = 7,700,000
+     * 2026/04/10-1 ~ 005 (미지급): 101 차변 합계 = 각각 대변과 동일
      * 전체 5건 분개에서 차변 합계 = 대변 합계 검증 (2026-04-01 ~ 2026-04-30 기간).
      */
     @Test

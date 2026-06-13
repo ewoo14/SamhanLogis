@@ -11,8 +11,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 분개번호 채번 — {@code yyyyMMdd-N} 형식. 날짜별 {@link JournalNumberSequence} 시퀀스를
- * 트랜잭션 안에서 조회/생성/증가시키고 {@code yyyyMMdd-N} 문자열로 포맷한다.
+ * 분개번호 채번 — {@code yyyy/MM/dd-N} 형식. 날짜별 {@link JournalNumberSequence} 시퀀스를
+ * 트랜잭션 안에서 조회/생성/증가시키고 {@code yyyy/MM/dd-N} 문자열로 포맷한다.
  *
  * <p>날짜별 sequence row 를 배타 잠금으로 확보한 뒤 증가시킨다. partial UNIQUE INDEX 는
  * 최종 백업이다.
@@ -21,15 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class JournalNumberService {
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
     private final JournalNumberSequenceRepository sequenceRepository;
 
     /**
-     * 다음 분개번호 채번 — 시퀀스 조회 → 없으면 새로 생성 → next() → {@code yyyyMMdd-N} 포맷.
+     * 다음 분개번호 채번 — 시퀀스 조회 → 없으면 새로 생성 → next() → {@code yyyy/MM/dd-N} 포맷.
      *
      * @param journalDate 채번 기준 날짜
-     * @return {@code yyyyMMdd-N} 형식 분개번호 (N 은 1, 2, 3, ... 자릿수 가변)
+     * @return {@code yyyy/MM/dd-N} 형식 분개번호 (N 은 1, 2, 3, ... 자릿수 가변)
      */
     @Transactional(propagation = Propagation.REQUIRED)
     public String next(LocalDate journalDate) {

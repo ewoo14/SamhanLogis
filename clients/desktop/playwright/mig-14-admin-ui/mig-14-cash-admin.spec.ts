@@ -39,7 +39,7 @@ const disbursementRows = [
     partnerCode: 'P-001',
     partnerName: '삼한테스트상사',
     amount: '125000',
-    journalNo: 'J-2026-0001',
+    journalNo: '2026/05/21-1',
     kind: 'EXPENSE_VOUCHER',
     transactionDate: '2026-05-21',
     memo: '운송비',
@@ -49,7 +49,7 @@ const disbursementRows = [
     partnerCode: 'P-002',
     partnerName: '아로물류',
     amount: '78000',
-    journalNo: 'J-2026-0002',
+    journalNo: '2026/05/22-1',
     kind: 'MANUAL',
     transactionDate: '2026-05-22',
     memo: '수기 지출',
@@ -62,7 +62,7 @@ const receiptRows = [
     partnerCode: 'P-101',
     partnerName: '서울유통',
     amount: '250000',
-    journalNo: 'J-2026-0101',
+    journalNo: '2026/05/21-2',
     kind: 'DEPOSIT_REPORT',
     transactionDate: '2026-05-21',
     memo: '입금보고',
@@ -72,7 +72,7 @@ const receiptRows = [
     partnerCode: 'P-102',
     partnerName: '부산건재',
     amount: '95000',
-    journalNo: 'J-2026-0102',
+    journalNo: '2026/05/22-2',
     kind: 'MANUAL',
     transactionDate: '2026-05-22',
     memo: '수기 회수',
@@ -98,7 +98,7 @@ test.describe('MIG-14 Cash admin UI', () => {
     await waitForSettle(page)
     await capture(page, 'cash-admin-01-disbursement-list.png')
 
-    await expectAnyVisibleText(page, ['지출', 'CD-2026-0001', '삼한테스트상사', 'J-2026-0001'], '지출 목록 row 표시')
+    await expectAnyVisibleText(page, ['지출', 'CD-2026-0001', '삼한테스트상사', '2026/05/21-1'], '지출 목록 row 표시')
     await expectNoUuidVisible(page)
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -130,7 +130,7 @@ test.describe('MIG-14 Cash admin UI', () => {
     await waitForSettle(page)
     await capture(page, 'cash-admin-05-receipt-pagination.png')
 
-    await expectAnyVisibleText(page, ['회수', 'CR-2026-0001', '서울유통', 'J-2026-0101'], '회수 목록 row 표시')
+    await expectAnyVisibleText(page, ['회수', 'CR-2026-0001', '서울유통', '2026/05/21-2'], '회수 목록 row 표시')
     await expectAnyVisibleText(page, ['다음', '2', '75', '페이지'], '회수 목록 페이지네이션 표시')
     await expectNoUuidVisible(page)
   })

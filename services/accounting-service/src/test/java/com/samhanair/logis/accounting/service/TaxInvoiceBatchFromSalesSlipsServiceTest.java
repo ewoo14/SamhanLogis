@@ -92,7 +92,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
                 .thenReturn(Optional.of(new PartnerSummary(
                         partnerId, "P-001", "한국공조", "123-45-67890", "서울")));
         when(taxInvoiceNumberService.next(LocalDate.of(2026, 5, 19)))
-                .thenReturn("20260519-0001");
+                .thenReturn("2026/05/19-0001");
         when(taxInvoiceRepository.save(any(TaxInvoice.class))).thenAnswer(inv -> {
             TaxInvoice taxInvoice = inv.getArgument(0);
             setId(taxInvoice, taxInvoiceId);
@@ -103,7 +103,7 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
                 new CreateTaxInvoiceFromSalesSlipsRequest(ids, "2026-05-19"),
                 "actor-1");
 
-        assertThat(response.taxInvoiceNo()).isEqualTo("20260519-0001");
+        assertThat(response.taxInvoiceNo()).isEqualTo("2026/05/19-0001");
         assertThat(response.partnerCode()).isEqualTo("P-001");
         assertThat(response.partnerName()).isEqualTo("한국공조");
         assertThat(response.totalSupplyAmount()).isEqualByComparingTo("600000.00");
