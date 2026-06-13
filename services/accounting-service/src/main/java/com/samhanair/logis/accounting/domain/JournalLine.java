@@ -105,6 +105,23 @@ public class JournalLine extends BaseEntity {
                 partnerId, memo);
     }
 
+    /**
+     * 협업 수정완료 overlay 라인메모 변경.
+     *
+     * <p>차대변 금액·계정코드·거래처 등 원장 필드는 불변으로 두고, 설명성 보조 필드인 memo 만
+     * 갱신한다.
+     *
+     * @param memo 신규 라인 메모. null 허용, 500자 이하.
+     * @return 현재 JournalLine (도메인 메서드 체인용)
+     */
+    public JournalLine updateMemo(String memo) {
+        if (memo != null && memo.length() > 500) {
+            throw new IllegalArgumentException("memo 는 최대 500자입니다");
+        }
+        this.memo = memo;
+        return this;
+    }
+
     private static void validateAmounts(BigDecimal debit, BigDecimal credit) {
         if (debit == null || credit == null) {
             throw new IllegalArgumentException("debit/credit 금액은 필수입니다 (0 이상)");

@@ -49,6 +49,7 @@ dependencies {
 
     implementation project(':shared:common')
     implementation project(':shared:ecount-io')
+    implementation project(':shared:collab-core')
     implementation project(':shared:security')
     // PR-H4b (Phase 12 Step 4b) — shared:realtime-abstraction 활용. SSE broker / audit overlay /
     // edit-request lock 정책 통합. accounting-service 의 TaxInvoice / Journal / AccountingPeriod

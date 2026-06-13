@@ -9,10 +9,15 @@ import com.samhanair.logis.accounting.web.dto.CreateJournalLineRequest;
 import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
 import com.samhanair.logis.accounting.web.dto.JournalDetailResponse;
 import com.samhanair.logis.accounting.web.dto.JournalResponse;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
+import java.util.EnumSet;
+import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +40,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class JournalService {
+
+    private static final EnumSet<JournalStatus> COLLAB_LOCKED = EnumSet.of(JournalStatus.REVERSED);
+    private static final Pattern LINE_MEMO_PATH = Pattern.compile("^line\\.(\\d+)\\.memo$");
 
     private final JournalRepository journalRepository;
     private final JournalNumberService journalNumberService;
@@ -210,6 +218,45 @@ public class JournalService {
     }
 
     /**
+     * 협업 수정완료 overlay batch 적용.
+     *
+     * <p>허용 필드는 {@code description}, {@code line.{lineNo}.memo} 뿐이다. 계정코드, 차대변 금액,
+     * 일자, 전표번호 등 원장 필드는 400으로 거부한다. REVERSED 회계전표는 물리 종결 상태이므로
+     * 409로 차단하고, DRAFT/POSTED 는 overlay 편집을 허용한다.
+     *
+     * @param journalId 분개 UUID
+     * @param beforeAfterPatches path → after 또는 path → {before, after}
+     * @param actorUserId 수정자 user-id 문자열
+     * @return 변경 후 분개 상세
+     */
+    public JournalDetailResponse applyOverlayPatchBatch(UUID journalId,
+                                                        Map<String, Object> beforeAfterPatches,
+                                                        String actorUserId) {
+        if (beforeAfterPatches == null || beforeAfterPatches.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "적용할 회계전표 변경 내역이 없습니다");
+        }
+        Journal journal = findOrThrow(journalId);
+        guardCollabModifiable(journal);
+        for (Map.Entry<String, Object> entry : beforeAfterPatches.entrySet()) {
+            String path = normalizeOverlayPath(entry.getKey());
+            Object after = extractAfter(entry.getValue());
+            if ("description".equals(path)) {
+                journal.updateOverlayDescription(toNullableString(after));
+                continue;
+            }
+            Matcher matcher = LINE_MEMO_PATH.matcher(path);
+            if (matcher.matches()) {
+                int lineNo = Integer.parseInt(matcher.group(1));
+                journal.requireLineByLineNo(lineNo)
+                        .updateMemo(toNullableString(after));
+                continue;
+            }
+            throw unsupportedOverlayPath(path);
+        }
+        return JournalDetailResponse.of(journal);
+    }
+
+    /**
      * 자동 분개 라인 spec — {@link #postAutoJournal} 입력. record 로 immutable.
      */
     public record AutoJournalLineSpec(
@@ -218,6 +265,51 @@ public class JournalService {
             java.math.BigDecimal creditAmount,
             UUID partnerId,
             String memo) {}
+
+    private void guardCollabModifiable(Journal journal) {
+        if (COLLAB_LOCKED.contains(journal.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "역분개 처리된 회계전표는 협업 수정완료를 적용할 수 없습니다");
+        }
+    }
+
+    private Object extractAfter(Object rawValue) {
+        if (rawValue instanceof Map<?, ?> map && map.containsKey("after")) {
+            return map.get("after");
+        }
+        if (rawValue instanceof JsonNode node && node.isObject() && node.has("after")) {
+            JsonNode after = node.get("after");
+            if (after == null || after.isNull()) {
+                return null;
+            }
+            return after.isValueNode() ? after.asText() : after.toString();
+        }
+        return rawValue;
+    }
+
+    private String normalizeOverlayPath(String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet path 는 필수입니다");
+        }
+        String normalized = rawPath.trim();
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        normalized = normalized.replace("/", ".");
+        if ("description".equals(normalized) || LINE_MEMO_PATH.matcher(normalized).matches()) {
+            return normalized;
+        }
+        throw unsupportedOverlayPath(normalized);
+    }
+
+    private BusinessException unsupportedOverlayPath(String path) {
+        return new BusinessException(ErrorCode.INVALID_INPUT,
+                "원장 필드는 협업 수정완료로 변경할 수 없습니다: " + path);
+    }
+
+    private String toNullableString(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
 
     private Journal findOrThrow(UUID id) {
         return journalRepository.findById(id)

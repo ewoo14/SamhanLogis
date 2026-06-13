@@ -252,6 +252,38 @@ public class Journal extends BaseEntity {
         this.reversedJournalId = reversalJournalId;
     }
 
+    /**
+     * 협업 수정완료 overlay 적요 변경.
+     *
+     * <p>원장 불변 원칙에 따라 전표번호/일자/차대변/계정은 변경하지 않고, 설명성 보조 필드인
+     * 적요만 갱신한다. DRAFT/POSTED 에서 허용되며 REVERSED 잠금 판단은 service 가 수행한다.
+     *
+     * @param description 신규 적요. null 허용, 500자 이하.
+     * @return 현재 Journal (도메인 메서드 체인용)
+     */
+    public Journal updateOverlayDescription(String description) {
+        if (description != null && description.length() > 500) {
+            throw new IllegalArgumentException("description 은 최대 500자입니다");
+        }
+        this.description = description;
+        return this;
+    }
+
+    /**
+     * 라인 번호로 분개 라인을 찾는다.
+     *
+     * @param lineNo 화면 라인 번호
+     * @return 해당 라인
+     * @throws BusinessException(NOT_FOUND) 라인이 없을 때
+     */
+    public JournalLine requireLineByLineNo(int lineNo) {
+        return this.lines.stream()
+                .filter(line -> line.getLineNo() == lineNo)
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "분개 라인을 찾을 수 없습니다: lineNo=" + lineNo));
+    }
+
     /** 차변 합계 — 라인 debitAmount 합. */
     public BigDecimal totalDebit() {
         return this.lines.stream()
