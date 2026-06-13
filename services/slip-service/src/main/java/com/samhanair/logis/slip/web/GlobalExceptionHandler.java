@@ -3,8 +3,10 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.OptimisticLockException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -87,6 +89,26 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
+    }
+
+    /**
+     * 낙관적 락({@code @Version}) 충돌 — 409 CONFLICT 반환 (§7 협업 Round C P2).
+     *
+     * <p>service 레이어가 {@code applyMutation} 등으로 직접 매핑하지 못하고 flush/commit 시점에
+     * 터지는 {@code ObjectOptimisticLockingFailureException}(Spring, StaleObjectStateException wrap)
+     * 과 {@code OptimisticLockException}(jakarta) 이 기존에는 {@link #handleUnknown} 으로 폴백되어
+     * 500 + entity FQCN/PK 등 내부 메시지가 노출되던 문제를 차단한다. 내부 메시지는 응답에 싣지 않고
+     * 일반 한국어 메시지만 반환한다 — EstimateService/SlipService 의 OptimisticLock→CONFLICT 매핑
+     * 컨벤션과 정렬 (전 전표 endpoint 공통 수혜).
+     *
+     * @param ex 낙관적 락 충돌 예외
+     * @return 409 CONFLICT ApiResponse (내부 메시지 미노출)
+     */
+    @ExceptionHandler({OptimisticLockException.class, OptimisticLockingFailureException.class})
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(Exception ex) {
+        log.warn("Optimistic lock conflict: {}", ex.getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.CONFLICT, "동시 수정 충돌 — 다시 시도해 주세요"));
     }
 
     @ExceptionHandler(Exception.class)

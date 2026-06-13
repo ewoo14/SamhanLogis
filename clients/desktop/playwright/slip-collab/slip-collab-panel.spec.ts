@@ -1,0 +1,122 @@
+/**
+ * §7 입출고전표 협업 패널 — Playwright mock 회귀 (Fable5 Round C P2-4).
+ *
+ * 검증 대상: {@code SlipCollaborationPanel} (전표 상세 `/sales/:id` 하단 협업 섹션) 의
+ *   1) 코멘트 등록 → 목록 반영 (+ 해결 처리 → '해결' 배지)
+ *   2) 수정 제안 propose → accept → 상태 ACCEPTED('수락' 배지 + 결정자 표시)
+ *
+ * <h2>권한 전제 — mock 매트릭스 (Round C P2-1 fix)</h2>
+ * <p>패널 버튼은 {@code canAccess('slip.comments'|'slip.audit-overlay', ...)} 로 가드된다.
+ * mock {@code SP_D1_PAGES} + DEFAULT_VIEW/EDIT 에 두 page-code 가 등재되어 있어야
+ * (auth V36 seed: MASTER/MANAGER/SALES/WAREHOUSE view+edit) 버튼이 노출된다 — 본 spec 이
+ * 그 silent regression 의 회귀 가드다.
+ *
+ * <h2>Mock 전략 — mock.ts fixture (VITE_MOCK_MODE=1)</h2>
+ * <p>{@code VITE_MOCK_MODE=1} 일 때 axios request interceptor 가 {@code getMockResponse()}
+ * 로 백엔드 호출을 대체한다(실 HTTP 미발생, page.route 불요 — interceptor 가 앞단).
+ * 협업 store 는 {@code globalThis} in-memory 라 테스트별 새 page = 자동 초기화.
+ *
+ * <h2>UUID 비공개 가드</h2>
+ * <p>화면 단언은 작성자/제안자 실명(오병승)·필드 라벨(메모)·본문 텍스트만 사용한다
+ * (slipId 'slip-001' 은 path 전용) — [[uuid-no-user-visibility]].
+ *
+ * 실행 (slip-version-history.spec 패턴 동일):
+ *   cd clients/desktop
+ *   (별도 터미널) set VITE_MOCK_MODE=1 && npx vite src/renderer --port 5174
+ *   set PLAYWRIGHT_SKIP_WEB_SERVER=1 && set AUDIT_BASE_URL=http://127.0.0.1:5174
+ *     && node_modules/.bin/playwright test playwright/slip-collab --reporter=line
+ */
+import { expect, test, type Page } from '@playwright/test'
+
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
+
+/** mock.ts MOCK_SLIPS[0] (OUTBOUND / PROCESSING) 의 id — fixture getSlip 이 이 전표를 반환. */
+const SLIP_ID = 'slip-001'
+const PAGE_URL = `${BASE_URL}/#/sales/${SLIP_ID}?mockRole=MASTER`
+
+/**
+ * window.samhanAuth stub — AuthGuard 통과용 (slip-version-history.spec 패턴 동일).
+ * mock 모드라도 client.ts interceptor 가 getToken() 을 호출하므로 stub 필요.
+ */
+async function installAuthMock(page: Page) {
+  await page.addInitScript(() => {
+    const auth = {
+      token: 'playwright-token',
+      userId: '00000000-0000-0000-0000-000000010001',
+      role: 'MASTER',
+      fullName: '오병승',
+      partnerCode: 'P-MOCK-001',
+    }
+    Object.defineProperty(window, 'samhanAuth', {
+      configurable: true,
+      value: {
+        getToken: async () => auth,
+        setToken: async () => undefined,
+        clearToken: async () => undefined,
+      },
+    })
+  })
+}
+
+test.describe('§7 입출고전표 협업 패널', () => {
+  test('코멘트 등록 → 목록 반영 → 해결 처리', async ({ page }) => {
+    await installAuthMock(page)
+    await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+
+    const panel = page.getByTestId('slip-collaboration-panel')
+    await expect(panel).toBeVisible()
+
+    // 1) 초기 빈 목록 — fresh page = fresh mock store.
+    await expect(panel.getByText('아직 코멘트가 없습니다.')).toBeVisible()
+
+    // 2) 코멘트 입력 폼 노출 자체가 canAccess('slip.comments','create') 회귀 가드.
+    const input = panel.getByTestId('slip-collab-comment-input')
+    await expect(input).toBeVisible()
+    await input.fill('배송 전 검수 부탁드립니다')
+    await panel.getByRole('button', { name: '등록' }).click()
+
+    // 3) 목록 반영 — 작성자 실명 + 본문 (UUID 비노출).
+    const commentItem = panel.getByTestId('slip-collab-comment-item')
+    await expect(commentItem).toHaveCount(1)
+    await expect(commentItem).toContainText('오병승')
+    await expect(commentItem).toContainText('배송 전 검수 부탁드립니다')
+    await expect(panel.getByText('아직 코멘트가 없습니다.')).toHaveCount(0)
+
+    // 4) 해결 처리 — canAccess('slip.comments','update') 가드 + mock resolve 핸들러.
+    await commentItem.getByRole('button', { name: '해결' }).click()
+    await expect(commentItem.getByRole('button', { name: '해결' })).toHaveCount(0)
+    await expect(commentItem).toContainText('해결')
+  })
+
+  test('수정 제안 propose → accept → 상태 ACCEPTED', async ({ page }) => {
+    await installAuthMock(page)
+    await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+
+    const panel = page.getByTestId('slip-collaboration-panel')
+    await expect(panel).toBeVisible()
+    await expect(panel.getByText('아직 수정 제안이 없습니다.')).toBeVisible()
+
+    // 1) 제안 폼 노출 자체가 canAccess('slip.audit-overlay','update') 회귀 가드.
+    const form = panel.getByTestId('slip-collab-suggestion-form')
+    await expect(form).toBeVisible()
+
+    // 2) propose — 필드 기본값(메모) 유지 + 변경 후 값/사유 입력.
+    await form.getByLabel('변경 후 값').fill('출고 전 거래처 통화 완료')
+    await form.getByLabel('제안 사유').fill('현장 요청 반영')
+    await form.getByRole('button', { name: '제안' }).click()
+
+    // 3) 목록 반영 — PROPOSED 상태('제안' 배지) + 변경요약 라벨 + 사유.
+    const item = panel.getByTestId('slip-collab-suggestion-item')
+    await expect(item).toHaveCount(1)
+    await expect(item).toContainText('오병승')
+    await expect(item).toContainText('제안')
+    await expect(item).toContainText('메모: 출고 전 거래처 통화 완료')
+    await expect(item).toContainText('사유: 현장 요청 반영')
+
+    // 4) accept → ACCEPTED — 결정 버튼 행 사라지고 '수락' 배지 + 결정자 실명 표시.
+    await item.getByRole('button', { name: '수락' }).click()
+    await expect(item.getByRole('button', { name: '수락' })).toHaveCount(0)
+    await expect(item).toContainText('수락')
+    await expect(item).toContainText('결정: 오병승')
+  })
+})

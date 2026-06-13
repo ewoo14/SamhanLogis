@@ -65,7 +65,10 @@ CREATE TABLE IF NOT EXISTS slip_collab_suggestions (
                        CHECK (status IN ('PROPOSED','ACCEPTED','REJECTED','WITHDRAWN')),
     decided_by_id      UUID,
     decided_by_name    VARCHAR(50),
-    decided_at         TIMESTAMP,
+    -- CollabSuggestionRecord.decidedAt 은 Instant(절대시각) — naive TIMESTAMP 로 두면 같은 row 의
+    -- created_at(LocalDateTime, JVM-local wall) 과 시간 의미가 혼재되어 컨테이너 TZ(Asia/Seoul) 또는
+    -- Hibernate NATIVE 전환 시 9h 분열 위험. Hibernate 가 Instant 에 기대하는 PG 타입 = timestamptz.
+    decided_at         TIMESTAMPTZ,
     version            BIGINT       NOT NULL DEFAULT 0,
 
     -- BaseEntity 7 audit

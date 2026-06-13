@@ -459,15 +459,23 @@ public class SlipService {
     }
 
     /**
-     * 협업 제안 수락 — 여러 overlay 필드를 단일 잠금 가드 / 단일 revision 으로 일괄 적용한다 (§7 협업).
+     * 협업 제안 수락 — 여러 overlay 필드를 단일 잠금 가드 / 단일 audit revision / 단일 EDIT revision
+     * 으로 일괄 적용한다 (§7 협업).
      *
-     * <p>{@link #applyOverlayPatch} 를 필드마다 호출하면 두 가지 결함이 발생한다.
+     * <p>{@link #applyOverlayPatch} 또는 {@link SlipAuditLogService#recordOverlayPatch} 를
+     * 필드마다 호출하면 세 가지 결함이 발생한다.
      * <ol>
      *   <li>잠금 단계(CONFIRMED/ACCEPTED/PROCESSING) 전표는 APPROVED 요청 1건이 <b>첫 필드</b>에서
      *       소진되어 둘째 필드가 {@link ErrorCode#CONFLICT} → 다중 필드 제안 수락이 항상 실패한다.</li>
      *   <li>필드 수만큼 EDIT revision 이 쌓여 "제안 1건 = 변경 1건" 의미가 깨지고 버전이력이 오염된다.</li>
+     *   <li>호출마다 audit revision_no 가 +1 되고 {@code slip:edit} SSE 가 즉시 발화되어, 제안 1건의
+     *       audit 이력이 필드 수 N 으로 분열되며, 루프 중간 필드 실패 시 앞 필드 SSE 는 이미 송출됐는데
+     *       트랜잭션은 롤백 → phantom SSE 가 남는다 (Round C P2).</li>
      * </ol>
-     * 본 메서드는 잠금 가드 / APPROVED 소진 / revision 캡처를 1회로 묶어 두 결함을 모두 차단한다.
+     * 본 메서드는 잠금 가드 / APPROVED 소진 / audit 기록(SSE) / revision 캡처를 각 1회로 묶어
+     * 세 결함을 모두 차단한다. 변경분은 루프에서 {@link SlipAuditLogService.ChangeEntry} 로 수집만 하고,
+     * 모든 필드의 mutation·검증이 통과한 뒤 {@link SlipAuditLogService#recordBatch} 1회로 기록한다
+     * (editHeader 등 다중필드 직접수정과 동일 패턴 — 제안 1건 = audit revision_no 1 + SSE 1 + EDIT revision 1).
      * 잠금 정책 자체는 직접 편집과 <b>동일</b>하게 적용한다(협업 수락이 잠금을 우회하지 않음 — 일관 정책).
      *
      * @param id 전표 ID
@@ -488,7 +496,8 @@ public class SlipService {
         String auditActorName = (callerName != null && !callerName.isBlank())
                 ? callerName
                 : (callerId == null || callerId.isBlank() ? "system" : callerId);
-        boolean anyChanged = false;
+        // 루프에서는 변경분 수집만 — audit 기록/SSE 발화는 모든 mutation·검증 통과 후 1회 (phantom 차단)
+        List<SlipAuditLogService.ChangeEntry> changes = new ArrayList<>(patches.size());
         for (Map.Entry<String, String> patch : patches.entrySet()) {
             String fieldName = patch.getKey();
             String newValue = patch.getValue();
@@ -496,16 +505,15 @@ public class SlipService {
             applyMutation(() -> slip.applyOverlayPatch(fieldName, newValue));
             String actualNew = slip.readOverlayField(fieldName);
             if (!java.util.Objects.equals(oldValue, actualNew)) {
-                auditLogService.recordOverlayPatch(id, actorId, auditActorName, null,
-                        fieldName, oldValue, actualNew);
-                anyChanged = true;
+                changes.add(new SlipAuditLogService.ChangeEntry(fieldName, oldValue, actualNew));
             }
         }
         // APPROVED 요청 1회만 소진 (필드 수와 무관)
         consumedApproval.ifPresent(approval ->
                 editRequestService.consumeApproval(approval.getId(), callerId));
-        // 제안 1건 = EDIT revision 1건 (변경된 필드가 있을 때만)
-        if (anyChanged) {
+        // 제안 1건 = audit revision_no 1건 + slip:edit SSE 1건 + EDIT revision 1건 (변경 0건이면 모두 skip)
+        if (!changes.isEmpty()) {
+            auditLogService.recordBatch(id, actorId, auditActorName, null, changes);
             slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,
                     actorId, resolveActorName(callerName, callerId), null);
         }

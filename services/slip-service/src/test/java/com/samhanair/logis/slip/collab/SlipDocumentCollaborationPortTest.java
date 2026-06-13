@@ -123,6 +123,41 @@ class SlipDocumentCollaborationPortTest {
         org.mockito.Mockito.verifyNoInteractions(slipService);
     }
 
+    /**
+     * propose 시점 changeSet 조기 검증 — 비JSON/구조불량은 거부하고, 정상 구조는 도메인 호출 없이 통과한다.
+     *
+     * <p>검증만 수행하므로 어떤 입력에서도 {@code slipService} (mutation 경로) 와는 상호작용하지
+     * 않아야 한다 — accept 측 {@code applyChangeSet} 과 동일 파싱 규칙 재사용 계약 (Round C P2).
+     */
+    @Test
+    void validateChangeSetRejectsMalformedInputWithoutTouchingDomain() {
+        SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
+        SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
+        SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
+        DynamicPermissionClient permissionClient =
+                org.mockito.Mockito.mock(DynamicPermissionClient.class);
+
+        SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
+                slipRepository, slipService, revisionService, permissionClient, new ObjectMapper());
+
+        // (a) 비JSON 문자열 — jsonb cast 500 대신 propose 시점 INVALID_INPUT
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.validateChangeSet("not-json"))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("JSON");
+
+        // (b) 구조 불량 — entry 가 {after} object 가 아닌 scalar (poison suggestion 차단)
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> port.validateChangeSet("{\"memo\":\"x\"}"))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("after");
+
+        // (c) 정상 구조 — 예외 없이 통과
+        port.validateChangeSet("{\"memo\":{\"after\":\"새 값\"}}");
+
+        // 검증은 파싱만 — 도메인 mutation 경로 무접촉
+        org.mockito.Mockito.verifyNoInteractions(slipService);
+    }
+
     @Test
     void canProposeRejectsNullAndZeroUuidActorWithoutPermissionCheck() {
         SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);

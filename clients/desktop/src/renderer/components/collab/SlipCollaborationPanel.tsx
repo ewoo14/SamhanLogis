@@ -86,10 +86,24 @@ function summarizeChangeSet(changeSet: string): string {
   }
 }
 
+/**
+ * 협업 패널이 invalidate 해야 하는 SSE 이벤트 화이트리스트.
+ *
+ * <p>SlipDetailPage(SlipRealtimeClient)와 본 패널(SlipCollabRealtimeClient)이 같은 slipId
+ * 채널을 2중 구독하므로, `slip:` prefix 전체를 잡으면 비협업 이벤트(slip:edit /
+ * slip:edit-request:*)에도 4개 query key 가 중복 invalidate 된다(제안 수락 1건에 burst).
+ * 협업 산출물(comment.created/resolved/deleted · suggestion.proposed/accepted/rejected/
+ * withdrawn)과 버전이력 변동(slip:restored / slip:reverted)만 수신한다 — 나머지 slip:*
+ * 이벤트는 SlipDetailPage 구독이 담당.
+ *
+ * <p>DEFER: 2중 구독 자체의 공유 구독(단일 채널 fan-out) 리팩토링은 침습적이라 본 fix
+ * 범위 밖.
+ */
 function isCollabEvent(eventName: string): boolean {
   return eventName.startsWith('comment.')
     || eventName.startsWith('suggestion.')
-    || eventName.startsWith('slip:')
+    || eventName === 'slip:restored'
+    || eventName === 'slip:reverted'
 }
 
 export function SlipCollaborationPanel({ slipId }: SlipCollaborationPanelProps) {

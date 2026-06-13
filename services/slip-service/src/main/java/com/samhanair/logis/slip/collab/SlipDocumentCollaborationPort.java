@@ -90,10 +90,48 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
      * path → {after} changeSet 을 기존 overlay patch 경로로 적용한다.
      *
      * <p>path 는 {@code memo} 또는 JSON Pointer 형태 {@code /memo} 를 허용한다.
+     * 파싱/구조 검증은 {@link #parseChangeSet} 을 재사용한다 — propose 시점
+     * {@link #validateChangeSet} 과 동일 규칙 (검증 대칭, 중복 제거).
      */
     @Override
     @Transactional
     public void applyChangeSet(UUID documentId, String changeSetJson) {
+        Map<String, String> patches = parseChangeSet(changeSetJson);
+        // 단일 잠금 가드 + APPROVED 1회 소진 + EDIT revision 1건으로 일괄 적용 (제안 1건 = 변경 1건).
+        // 필드마다 applyOverlayPatch 를 호출하면 잠금 전표에서 둘째 필드가 CONFLICT 되고 revision 이 오염된다.
+        slipService.applyOverlayPatchBatch(documentId, patches, "collab-core", SYSTEM_ACTOR_NAME);
+    }
+
+    /**
+     * changeSet JSON 의 구조를 propose 시점에 조기 검증한다 (§7 협업 Round C P2).
+     *
+     * <p>{@link #applyChangeSet} 과 동일한 파싱·after-검증을 재사용한다. 본 검증 없이 제안이 저장되면:
+     * <ul>
+     *   <li>비JSON 문자열({@code "{broken"}) — jsonb cast 가 INSERT flush 에서 실패해 500.</li>
+     *   <li>구조 불량({@code {"memo":"x"}}) — 저장은 되지만 accept 마다 400 이 반복되는
+     *       poison suggestion 이 된다.</li>
+     * </ul>
+     * controller 가 제안 저장 <b>전에</b> 본 메서드를 호출해 잘못된 입력을
+     * 400({@link ErrorCode#INVALID_INPUT})으로 거부한다 — accept 측 검증과 대칭.
+     *
+     * @param changeSetJson 검증 대상 changeSet JSON 문자열
+     * @throws BusinessException(INVALID_INPUT) JSON 형식 오류 / 구조 불량 / 적용 필드 0건
+     */
+    public void validateChangeSet(String changeSetJson) {
+        parseChangeSet(changeSetJson);
+    }
+
+    /**
+     * changeSet JSON 을 {@code 필드명 → after 값} map 으로 파싱·검증한다 (propose/accept 공용).
+     *
+     * <p>각 entry 는 {@code after} 필드를 가진 JSON object 여야 하며, path 는 단일 overlay
+     * 필드명({@code memo} 또는 {@code /memo})만 허용한다. 적용할 필드가 0건이면 거부한다.
+     *
+     * @param changeSetJson changeSet JSON 문자열
+     * @return 필드명 → after 값 (입력 순서 보존, after=null 은 필드 clear)
+     * @throws BusinessException(INVALID_INPUT) JSON 형식 오류 / 구조 불량 / 적용 필드 0건
+     */
+    private Map<String, String> parseChangeSet(String changeSetJson) {
         JsonNode root = parseObject(changeSetJson, "changeSet");
         Map<String, String> patches = new LinkedHashMap<>();
         Iterator<Map.Entry<String, JsonNode>> fields = root.fields();
@@ -111,9 +149,7 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
         if (patches.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet 에 적용할 필드가 없습니다");
         }
-        // 단일 잠금 가드 + APPROVED 1회 소진 + EDIT revision 1건으로 일괄 적용 (제안 1건 = 변경 1건).
-        // 필드마다 applyOverlayPatch 를 호출하면 잠금 전표에서 둘째 필드가 CONFLICT 되고 revision 이 오염된다.
-        slipService.applyOverlayPatchBatch(documentId, patches, "collab-core", SYSTEM_ACTOR_NAME);
+        return patches;
     }
 
     /**

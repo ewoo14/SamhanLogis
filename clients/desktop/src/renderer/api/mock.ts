@@ -1800,8 +1800,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (collabCommentCollectionMatch) {
     const slipId = collabCommentCollectionMatch[1]!
     if (method === 'GET') {
-      const query = url.split('?')[1] ?? ''
-      const rawLimit = Number.parseInt(new URLSearchParams(query).get('limit') ?? '20', 10)
+      // FE 호출부(slipCollab.ts getSlipCollabComments)는 limit 을 axios `params` 로 전달하므로
+      // config.params 우선 — URL querystring 만 읽으면 dead 파싱 (compensation-failures 7195행 패턴).
+      const params = config.params as Record<string, unknown> | undefined
+      const urlLimit = new URLSearchParams(url.split('?')[1] ?? '').get('limit')
+      const rawLimit = Number.parseInt(String(params?.['limit'] ?? urlLimit ?? '20'), 10)
       const safeLimit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 100)) : 20
       return envelope([...(collabCommentsStore[slipId] ?? [])].slice(0, safeLimit))
     }
@@ -1828,12 +1831,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const action = collabCommentItemMatch[3]
     const list = collabCommentsStore[slipId] ?? []
     const target = list.find((item) => item.id === commentId)
-    if (method === 'POST' && action === 'resolve' && target) {
+    if (method === 'POST' && action === 'resolve') {
+      // BE CollabCommentService.resolve — 대상 부재 시 NOT_FOUND. target 없을 때 fallthrough
+      // 하면 미매칭 블랭크(null envelope)로 위장되므로 404 명시 ([[inprocess-mock-principles]]).
+      if (!target) return mockError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다')
       target.status = 'RESOLVED'
       return envelope(target)
     }
     if (method === 'DELETE') {
-      if (!target) return mockError(404, 'NOT_FOUND', '코멘트를 찾을 수 없습니다')
+      // BE CollabCommentService.softDelete 와 동일 메시지 ("댓글을 찾을 수 없습니다").
+      if (!target) return mockError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다')
       collabCommentsStore[slipId] = list.filter((item) => item.id !== commentId)
       return envelope(null)
     }
@@ -1878,6 +1885,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       target.decidedByName = MOCK_AUTH.fullName
       target.decidedAt = new Date().toISOString()
     } else {
+      // BE CollabSuggestionService.withdraw — proposer-only(403 FORBIDDEN "제안자만 철회할 수
+      // 있습니다"). mock 응답엔 proposerId 가 없으므로(UUID 비공개) proposerName 으로 본인 판정.
+      // (BE 원문은 ": {suggestionId}" 를 덧붙이나 mock 은 UUID 노출 방지 위해 생략.)
+      if (target.proposerName !== MOCK_AUTH.fullName) {
+        return mockError(403, 'FORBIDDEN', '제안자만 철회할 수 있습니다')
+      }
       target.status = 'WITHDRAWN'
       target.decidedAt = new Date().toISOString()
     }
@@ -9119,6 +9132,19 @@ const SP_D1_PAGES = [
   'inventory.warehouse.admin',
   // C5 follow-up V47 — product-service sheet sync (MANAGER view/create, MASTER bypass)
   'products.sync',
+  // §7 입출고전표 협업 — V36 seed(MASTER/MANAGER/SALES/WAREHOUSE view+edit)
+  // + V38 view 보강(내부 전 role can_view=TRUE). 누락 시 mock 모드 canAccess 전건
+  // false → 협업 패널 버튼 전부 숨김 (silent regression — Fable5 Round C P2 fix).
+  'slip.comments',
+  'slip.audit-overlay',
+  // V36 동일 블록 — 버전이력 revert(MASTER/MANAGER view+edit). canAccess 소비자는
+  // 아직 없으나 매트릭스 화면 행 정합 + 동일 silent regression 예방 (계열 sweep).
+  'slip.audit-revert',
+  // [Round C 계열 sweep] canAccess 소비자 있는데 mock 부재였던 MASTER-only 코드 2건 —
+  // 누락 시 mock 모드에서 MASTER 조차 false (V37: 역마감 버튼 / V29: DC CSV import CTA).
+  // 비-MASTER 는 seed 전건 FALSE 이므로 DEFAULT_VIEW/EDIT 등재 없음이 정확.
+  'accounting.period-close.reverse',
+  'dc-config.import',
 ] as const
 
 /**
@@ -9213,6 +9239,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.cancel', 'inventory.warehouse.admin',
     // C5 follow-up V47 — MANAGER sheet sync view.
     'products.sync',
+    // §7 협업 — V36: MANAGER view+edit (slip.comments / slip.audit-overlay / slip.audit-revert)
+    'slip.comments', 'slip.audit-overlay', 'slip.audit-revert',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -9221,6 +9249,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
     'arologis.dispatch.ops', 'dispatch.batch',
     // P1-C: arologis.region.manage — V34 seed MASTER/MANAGER 만 허용, DISPATCH 없음 → 제거
+    // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
+    'slip.comments', 'slip.audit-overlay',
   ],
   // SP-D3 V9 fix: SALES dispatch.board 제거 (사용자 요구 ② — SALES 에게 배차 메뉴 숨김)
   SALES: [
@@ -9238,6 +9268,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
     // C5-2c: V36 seed 기반 SALES VIEW 추가
     'sales.slip.cancel',
+    // §7 협업 — V36: SALES view+edit
+    'slip.comments', 'slip.audit-overlay',
   ],
   ACCOUNTANT: [
     // SP-D1
@@ -9266,6 +9298,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'slip.edit-requests',
     // C5-2c: V36 seed 기반 ACCOUNTANT VIEW 추가
     'sales.slip.confirm',
+    // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
+    'slip.comments', 'slip.audit-overlay',
   ],
   // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
   // (사용자 요구 ② — WAREHOUSE 에게 매출 전표 숨김, 매입 영수증 OCR 허용)
@@ -9283,6 +9317,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'purchases.slip.edit', 'purchases.slip.delete',
     // C5-2c: V36 seed 기반 WAREHOUSE VIEW 추가
     'slip.transfer.process',
+    // §7 협업 — V36: WAREHOUSE view+edit
+    'slip.comments', 'slip.audit-overlay',
   ],
   INVENTORY: [
     'purchases.slip.list', 'sales.slip.list', 'inbound.inspection',
@@ -9296,10 +9332,14 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'slip.edit-requests',
     // C5-2c: V36 seed 기반 INVENTORY VIEW 추가
     'slip.transfer.process',
+    // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
+    'slip.comments', 'slip.audit-overlay',
   ],
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
+    // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
+    'slip.comments', 'slip.audit-overlay',
   ],
 }
 
@@ -9374,6 +9414,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.cancel', 'inventory.warehouse.admin',
     // C5 follow-up V47 — MANAGER sheet sync create.
     'products.sync',
+    // §7 협업 — V36: MANAGER can_edit=TRUE (slip.audit-revert 포함)
+    'slip.comments', 'slip.audit-overlay', 'slip.audit-revert',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',
@@ -9397,6 +9439,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.edit', 'sales.partner-order.edit', 'sales.partner-order.convert',
     // C5-2c: V36 seed 기반 SALES EDIT 추가
     'sales.slip.cancel',
+    // §7 협업 — V36: SALES can_edit=TRUE
+    'slip.comments', 'slip.audit-overlay',
   ],
   ACCOUNTANT: [
     // SP-D1
@@ -9429,6 +9473,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'purchases.slip.edit', 'purchases.slip.delete',
     // C5-2c: V36 seed 기반 WAREHOUSE EDIT 추가
     'slip.transfer.process',
+    // §7 협업 — V36: WAREHOUSE can_edit=TRUE
+    'slip.comments', 'slip.audit-overlay',
   ],
   INVENTORY: [
     'inbound.inspection',

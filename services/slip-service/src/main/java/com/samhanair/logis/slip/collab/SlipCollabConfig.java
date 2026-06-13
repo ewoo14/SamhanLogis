@@ -4,7 +4,6 @@ import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabRealtimePublisher;
 import com.samhanair.logis.collab.CollabSuggestionService;
-import com.samhanair.logis.collab.DocumentCollaborationPort;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -44,18 +43,24 @@ public class SlipCollabConfig {
                 publisher);
     }
 
-    /** 출고전표 협업 포트. */
+    /**
+     * 출고전표 협업 포트.
+     *
+     * <p>반환 타입을 concrete {@link SlipDocumentCollaborationPort} 로 선언한다 — controller 가
+     * propose 시점 {@link SlipDocumentCollaborationPort#validateChangeSet} 을 호출할 수 있도록
+     * (Round C P2, collab-core 인터페이스는 변경하지 않음).
+     */
     @Bean(name = "slipOutboundCollaborationPort")
     @Qualifier("slipOutboundCollaborationPort")
-    public DocumentCollaborationPort slipOutboundCollaborationPort(
+    public SlipDocumentCollaborationPort slipOutboundCollaborationPort(
             SlipDocumentCollaborationPort.Factory factory) {
         return factory.create(CollabDocumentType.SLIP_OUTBOUND);
     }
 
-    /** 입고전표 협업 포트. */
+    /** 입고전표 협업 포트. 반환 타입 정책은 {@link #slipOutboundCollaborationPort} 와 동일. */
     @Bean(name = "slipInboundCollaborationPort")
     @Qualifier("slipInboundCollaborationPort")
-    public DocumentCollaborationPort slipInboundCollaborationPort(
+    public SlipDocumentCollaborationPort slipInboundCollaborationPort(
             SlipDocumentCollaborationPort.Factory factory) {
         return factory.create(CollabDocumentType.SLIP_INBOUND);
     }

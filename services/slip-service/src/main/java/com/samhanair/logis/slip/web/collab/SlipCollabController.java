@@ -14,6 +14,7 @@ import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.slip.collab.SlipCollabComment;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestion;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestionRepository;
+import com.samhanair.logis.slip.collab.SlipDocumentCollaborationPort;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -62,8 +63,12 @@ public class SlipCollabController {
     private final SlipCollabSuggestionRepository suggestionRepository;
     private final SlipRepository slipRepository;
     private final RealtimeBroker broker;
-    private final DocumentCollaborationPort outboundPort;
-    private final DocumentCollaborationPort inboundPort;
+    /**
+     * 포트는 concrete 타입으로 주입한다 — propose 시점
+     * {@link SlipDocumentCollaborationPort#validateChangeSet} 조기 검증 호출용 (Round C P2).
+     */
+    private final SlipDocumentCollaborationPort outboundPort;
+    private final SlipDocumentCollaborationPort inboundPort;
 
     public SlipCollabController(
             CollabCommentService<SlipCollabComment> commentService,
@@ -71,8 +76,8 @@ public class SlipCollabController {
             SlipCollabSuggestionRepository suggestionRepository,
             SlipRepository slipRepository,
             RealtimeBroker broker,
-            @Qualifier("slipOutboundCollaborationPort") DocumentCollaborationPort outboundPort,
-            @Qualifier("slipInboundCollaborationPort") DocumentCollaborationPort inboundPort) {
+            @Qualifier("slipOutboundCollaborationPort") SlipDocumentCollaborationPort outboundPort,
+            @Qualifier("slipInboundCollaborationPort") SlipDocumentCollaborationPort inboundPort) {
         this.commentService = commentService;
         this.suggestionService = suggestionService;
         this.suggestionRepository = suggestionRepository;
@@ -145,7 +150,13 @@ public class SlipCollabController {
                 commentService.resolve(documentType, slipId, commentId)));
     }
 
-    /** 전표 수정 제안 등록. */
+    /**
+     * 전표 수정 제안 등록.
+     *
+     * <p>changeSet 구조는 저장 <b>전에</b> {@link SlipDocumentCollaborationPort#validateChangeSet}
+     * 으로 조기 검증한다 — 비JSON 은 jsonb cast 500, 구조 불량은 accept 마다 400 이 반복되는
+     * poison suggestion 이 되므로 propose 시점에 400 으로 거부한다 (accept 측 검증과 대칭, Round C P2).
+     */
     @Operation(summary = "전표 협업 수정 제안 등록")
     @PostMapping("/suggestions")
     @ResponseStatus(HttpStatus.CREATED)
@@ -155,7 +166,8 @@ public class SlipCollabController {
             @Valid @RequestBody CreateSlipCollabSuggestionRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        DocumentCollaborationPort port = resolvePort(loadSlip(slipId));
+        SlipDocumentCollaborationPort port = resolvePort(loadSlip(slipId));
+        port.validateChangeSet(request.changeSet());
         SlipCollabSuggestion saved = suggestionService.propose(
                 port,
                 slipId,
@@ -253,7 +265,7 @@ public class SlipCollabController {
                         "대상 전표를 찾을 수 없습니다"));
     }
 
-    private DocumentCollaborationPort resolvePort(Slip slip) {
+    private SlipDocumentCollaborationPort resolvePort(Slip slip) {
         return resolveDocumentType(slip) == CollabDocumentType.SLIP_OUTBOUND
                 ? outboundPort
                 : inboundPort;
