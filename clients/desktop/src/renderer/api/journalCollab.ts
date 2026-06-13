@@ -5,7 +5,7 @@
  * proposerName, decidedByName, body, 사유, 시각, journalNo/lineNo 라벨만 노출한다.
  */
 import { apiClient, type ApiEnvelope } from './client'
-import type { Journal } from './accounting'
+import { normalizeJournal, type Journal } from './accounting'
 
 export interface JournalCollabComment {
   id: string
@@ -104,5 +104,8 @@ export async function commitJournalCollabEdit(
     `/accounting/journals/${encodeURIComponent(journalId)}/collab/edits`,
     input,
   )
-  return res.data.data
+  return {
+    ...res.data.data,
+    journal: normalizeJournal(res.data.data.journal),
+  }
 }

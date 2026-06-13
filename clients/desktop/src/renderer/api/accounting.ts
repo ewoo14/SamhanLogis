@@ -32,7 +32,7 @@ export type { Account } from '@samhan/design-system'
 export interface JournalLine {
   /** 라인 UUID — 화면 미노출. */
   id: string
-  /** 0-based 라인 순서 (BE 가 정렬 보장). */
+  /** 1-based 라인 번호 (BE JournalLine.lineNo 그대로). */
   lineNo: number
   /** 4자리 계정 코드. */
   accountCode: string
@@ -82,6 +82,55 @@ export interface Journal {
   lines: JournalLine[]
   /** Optimistic lock version. */
   version: number
+}
+
+type RawJournalLine = Partial<JournalLine> & {
+  lineId?: string
+  debitAmount?: string | number
+  creditAmount?: string | number
+  memo?: string | null
+}
+
+type RawJournal = Partial<Journal> & {
+  lines?: RawJournalLine[]
+}
+
+function amountText(value: unknown): string {
+  return value == null ? '0' : String(value)
+}
+
+function normalizeJournalLine(line: RawJournalLine): JournalLine {
+  const memo = line.memo ?? line.note ?? null
+  return {
+    id: String(line.id ?? line.lineId ?? line.lineNo ?? ''),
+    lineNo: Number(line.lineNo ?? 0),
+    accountCode: String(line.accountCode ?? ''),
+    accountName: line.accountName ?? null,
+    debit: amountText(line.debit ?? line.debitAmount),
+    credit: amountText(line.credit ?? line.creditAmount),
+    partnerName: line.partnerName ?? null,
+    note: memo,
+    memo,
+  }
+}
+
+export function normalizeJournal(raw: RawJournal): Journal {
+  return {
+    id: String(raw.id ?? ''),
+    journalNo: String(raw.journalNo ?? ''),
+    journalDate: String(raw.journalDate ?? ''),
+    status: raw.status as JournalStatus,
+    description: raw.description ?? null,
+    totalDebit: amountText(raw.totalDebit),
+    totalCredit: amountText(raw.totalCredit),
+    createdByName: raw.createdByName ?? null,
+    createdAt: String(raw.createdAt ?? ''),
+    postedAt: raw.postedAt ?? null,
+    reversedAt: raw.reversedAt ?? null,
+    reverseReason: raw.reverseReason ?? null,
+    lines: (raw.lines ?? []).map(normalizeJournalLine),
+    version: Number(raw.version ?? 0),
+  }
 }
 
 /**
@@ -225,10 +274,10 @@ export async function listJournals(
  * @param id 분개 UUID (path param 으로만 사용, 화면 표시 X)
  */
 export async function getJournal(id: string): Promise<Journal> {
-  const res = await apiClient.get<ApiEnvelope<Journal>>(
+  const res = await apiClient.get<ApiEnvelope<RawJournal>>(
     `/accounting/journals/${id}`,
   )
-  return res.data.data
+  return normalizeJournal(res.data.data)
 }
 
 /**
@@ -239,11 +288,11 @@ export async function getJournal(id: string): Promise<Journal> {
 export async function createJournal(
   body: CreateJournalRequest,
 ): Promise<Journal> {
-  const res = await apiClient.post<ApiEnvelope<Journal>>(
+  const res = await apiClient.post<ApiEnvelope<RawJournal>>(
     '/accounting/journals',
     body,
   )
-  return res.data.data
+  return normalizeJournal(res.data.data)
 }
 
 /**
@@ -252,11 +301,11 @@ export async function createJournal(
  * BE 가 sum(debit) == sum(credit) 재검증. 불일치 시 422.
  */
 export async function postJournal(id: string): Promise<Journal> {
-  const res = await apiClient.post<ApiEnvelope<Journal>>(
+  const res = await apiClient.post<ApiEnvelope<RawJournal>>(
     `/accounting/journals/${id}/post`,
     {},
   )
-  return res.data.data
+  return normalizeJournal(res.data.data)
 }
 
 /**
@@ -269,11 +318,11 @@ export async function reverseJournal(
   id: string,
   reason: string,
 ): Promise<Journal> {
-  const res = await apiClient.post<ApiEnvelope<Journal>>(
+  const res = await apiClient.post<ApiEnvelope<RawJournal>>(
     `/accounting/journals/${id}/reverse`,
     { reason },
   )
-  return res.data.data
+  return normalizeJournal(res.data.data)
 }
 
 /**

@@ -296,7 +296,16 @@ public class JournalService {
             normalized = normalized.substring(1);
         }
         normalized = normalized.replace("/", ".");
-        if ("description".equals(normalized) || LINE_MEMO_PATH.matcher(normalized).matches()) {
+        if ("description".equals(normalized)) {
+            return normalized;
+        }
+        Matcher lineMemoMatcher = LINE_MEMO_PATH.matcher(normalized);
+        if (lineMemoMatcher.matches()) {
+            int lineNo = Integer.parseInt(lineMemoMatcher.group(1));
+            if (lineNo < 1) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "lineNo 는 1 이상이어야 합니다: " + rawPath);
+            }
             return normalized;
         }
         throw unsupportedOverlayPath(normalized);
