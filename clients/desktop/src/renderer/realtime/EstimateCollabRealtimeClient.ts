@@ -1,0 +1,12 @@
+/**
+ * 견적 협업 SSE client.
+ *
+ * createRealtimeClient 공통 backoff/heartbeat 구현을 재사용한다.
+ */
+import { createRealtimeClient } from './createRealtimeClient'
+
+export const EstimateCollabRealtimeClient = createRealtimeClient({
+  name: 'estimate-collab',
+  endpointPath: (estimateId) =>
+    `/slips/estimates/${encodeURIComponent(estimateId)}/collab/stream`,
+})

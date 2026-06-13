@@ -13,6 +13,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
@@ -61,6 +62,10 @@ public class Estimate extends BaseEntity {
     /** 수정 가능 단계 — DRAFT/SENT 만. ACCEPTED 이후는 라인 변경 차단 (회계 일관성). */
     private static final Set<EstimateStatus> EDITABLE_STATUSES =
             EnumSet.of(EstimateStatus.QUOTE_DRAFT, EstimateStatus.QUOTE_SENT);
+
+    /** 협업 수정완료가 차단되는 물리 종결 단계. */
+    private static final Set<EstimateStatus> COLLAB_LOCKED_STATUSES =
+            EnumSet.of(EstimateStatus.QUOTE_REJECTED, EstimateStatus.QUOTE_CONVERTED);
 
     /** 한국 부가세율 10% — VAT 자동 계산 (도메인 상수, 추후 사용 예정). */
     @SuppressWarnings("unused")
@@ -144,6 +149,7 @@ public class Estimate extends BaseEntity {
 
     @OneToMany(mappedBy = "estimate", cascade = CascadeType.ALL, orphanRemoval = true,
             fetch = FetchType.LAZY)
+    @OrderBy("lineNo ASC, id ASC")
     private List<EstimateLine> lines = new ArrayList<>();
 
     private Estimate(String estimateNo, LocalDate estimateDate, int seqNo,
@@ -339,6 +345,61 @@ public class Estimate extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "수정 가능한 상태가 아닙니다: " + this.status);
         }
+    }
+
+    /**
+     * 협업 수정완료 가능 단계인지 검증한다.
+     *
+     * <p>일반 편집({@link #requireEditable()})은 DRAFT/SENT 만 허용하지만, 협업 수정완료는
+     * ACCEPTED 견적의 비고/유효기간/라인 메모 같은 soft overlay 를 허용한다. 단 REJECTED/CONVERTED
+     * 는 물리 종결 단계이므로 409 로 차단한다.
+     */
+    public void guardCollabModifiable() {
+        if (COLLAB_LOCKED_STATUSES.contains(this.status)) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "협업 수정완료가 불가능한 상태입니다: " + this.status);
+        }
+    }
+
+    /** 협업 수정완료로 견적 비고를 덮어쓴다. */
+    public Estimate overlayMemo(String memo) {
+        guardCollabModifiable();
+        this.memo = memo;
+        return this;
+    }
+
+    /** 협업 수정완료로 견적 유효기간을 덮어쓴다. */
+    public Estimate overlayValidUntil(LocalDate validUntil) {
+        guardCollabModifiable();
+        this.validUntil = validUntil;
+        return this;
+    }
+
+    /**
+     * 협업 수정완료로 1-based 활성 라인 index 의 메모를 덮어쓴다.
+     *
+     * @param lineKey 활성 라인 기준 1-based index
+     * @param note 라인 메모
+     * @return this
+     * @throws BusinessException lineKey 가 범위를 벗어났을 때
+     */
+    public Estimate overlayLineNote(int lineKey, String note) {
+        guardCollabModifiable();
+        requireLineByLineKey(lineKey).changeNote(note);
+        return this;
+    }
+
+    /**
+     * 1-based 활성 라인 index 로 견적 라인을 조회한다.
+     *
+     * <p>{@link #lines} 컬렉션은 {@code lineNo ASC, id ASC} 로 정렬되어 lineKey 가 결정적이다.
+     */
+    public EstimateLine requireLineByLineKey(int lineKey) {
+        if (lineKey < 1 || lineKey > this.lines.size()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "견적 라인 lineKey 범위가 올바르지 않습니다: " + lineKey);
+        }
+        return this.lines.get(lineKey - 1);
     }
 
     /**
