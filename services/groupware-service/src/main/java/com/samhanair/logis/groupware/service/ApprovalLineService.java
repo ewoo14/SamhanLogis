@@ -31,6 +31,7 @@ public class ApprovalLineService {
 
     private final ApprovalLineRepository repository;
     private final UserClient userClient;
+    private final ApprovalNumberService approvalNumberService;
 
     /**
      * 신규 결재선 생성 + chain 등록. 요청자 본인 차단 / 결재자 0명 차단 / 사용자 미존재 차단 가드.
@@ -52,11 +53,14 @@ public class ApprovalLineService {
         if (!Boolean.TRUE.equals(existsMap.get(req.requesterId()))) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "요청자 미존재: " + req.requesterId());
         }
-        ApprovalLine line = ApprovalLine.open(req.requesterId(), req.title(), req.content());
         for (UUID approverId : req.approverIds()) {
             if (!Boolean.TRUE.equals(existsMap.get(approverId))) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "결재자 미존재: " + approverId);
             }
+        }
+        ApprovalLine line = ApprovalLine.open(
+                approvalNumberService.next(), req.requesterId(), req.title(), req.content());
+        for (UUID approverId : req.approverIds()) {
             line.appendStep(approverId);
         }
         return repository.save(line);

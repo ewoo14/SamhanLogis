@@ -9,6 +9,7 @@ import com.samhanair.logis.groupware.domain.ScheduleStatus;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.groupware.repository.ScheduleRepository;
+import com.samhanair.logis.groupware.service.ApprovalNumberService;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -152,13 +153,16 @@ public class GroupwareSeeder implements CommandLineRunner {
     private final ApprovalLineRepository approvalLineRepository;
     private final MessageRepository messageRepository;
     private final ScheduleRepository scheduleRepository;
+    private final ApprovalNumberService approvalNumberService;
 
     public GroupwareSeeder(ApprovalLineRepository approvalLineRepository,
                            MessageRepository messageRepository,
-                           ScheduleRepository scheduleRepository) {
+                           ScheduleRepository scheduleRepository,
+                           ApprovalNumberService approvalNumberService) {
         this.approvalLineRepository = approvalLineRepository;
         this.messageRepository = messageRepository;
         this.scheduleRepository = scheduleRepository;
+        this.approvalNumberService = approvalNumberService;
     }
 
     @Override
@@ -189,7 +193,8 @@ public class GroupwareSeeder implements CommandLineRunner {
                 UUID approver1Id = employeeId(seed.approver1Login);
                 UUID approver2Id = employeeId(seed.approver2Login);
 
-                ApprovalLine line = ApprovalLine.open(requesterId, seed.title, seed.content);
+                ApprovalLine line = ApprovalLine.open(
+                        approvalNumberService.next(), requesterId, seed.title, seed.content);
                 forceId(line, lineId);
 
                 ApprovalStep step1 = line.appendStep(approver1Id);

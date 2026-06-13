@@ -1,6 +1,8 @@
 package com.samhanair.logis.groupware.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,9 +13,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -44,11 +49,22 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class ApprovalLine extends BaseEntity {
 
+    /** 협업 수정완료가 차단되는 물리 종결 상태. */
+    private static final Set<ApprovalStatus> COLLAB_LOCKED_STATUSES =
+            EnumSet.of(ApprovalStatus.APPROVED, ApprovalStatus.REJECTED, ApprovalStatus.WITHDRAWN);
+
+    private static final int TITLE_MAX_LENGTH = 200;
+    private static final int CONTENT_MAX_LENGTH = 2000;
+
     @Id
     @GeneratedValue
     @UuidGenerator
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
+
+    /** 결재문서번호 — 전표번호 표준 {@code yyyy/MM/dd-N}. */
+    @Column(name = "approval_no", nullable = false, length = 30)
+    private String approvalNo;
 
     /** 요청자 user UUID (user-service). */
     @Column(name = "requester_id", nullable = false, updatable = false)
@@ -66,33 +82,45 @@ public class ApprovalLine extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     private ApprovalStatus status;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     /** chain — sequence ASC. */
     @OneToMany(mappedBy = "approvalLine", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sequence ASC")
     private List<ApprovalStep> steps = new ArrayList<>();
 
-    private ApprovalLine(UUID requesterId, String title, String content) {
+    private ApprovalLine(String approvalNo, UUID requesterId, String title, String content) {
+        if (approvalNo == null || approvalNo.isBlank()) {
+            throw new IllegalArgumentException("approvalNo 필수");
+        }
         if (requesterId == null) {
             throw new IllegalArgumentException("requesterId 필수");
         }
         if (title == null || title.isBlank()) {
             throw new IllegalArgumentException("title 필수");
         }
+        validateOverlayLength(title, "결재 제목", TITLE_MAX_LENGTH);
+        validateOverlayLength(content, "결재 본문", CONTENT_MAX_LENGTH);
+        this.approvalNo = approvalNo;
         this.requesterId = requesterId;
         this.title = title;
         this.content = content;
         this.status = ApprovalStatus.PENDING;
+        this.version = 0L;
     }
 
     /**
      * 신규 결재선 발의. status=PENDING, chain 미부여 (caller 가 후속 {@link #appendStep} 호출 의무).
      *
+     * @param approvalNo 채번된 결재문서번호 ({@code yyyy/MM/dd-N})
      * @param requesterId 요청자
      * @param title 제목
      * @param content 본문 (nullable)
      */
-    public static ApprovalLine open(UUID requesterId, String title, String content) {
-        return new ApprovalLine(requesterId, title, content);
+    public static ApprovalLine open(String approvalNo, UUID requesterId, String title, String content) {
+        return new ApprovalLine(approvalNo, requesterId, title, content);
     }
 
     /**
@@ -171,6 +199,45 @@ public class ApprovalLine extends BaseEntity {
     /** 결재 chain 의 현재 시점 snapshot — 외부 호출자가 list 조작 불가. */
     public List<ApprovalStep> getStepsView() {
         return Collections.unmodifiableList(this.steps);
+    }
+
+    /**
+     * 협업 수정완료 가능 상태인지 검증한다.
+     *
+     * <p>PENDING/IN_PROGRESS 는 title/content soft overlay 를 허용하고, APPROVED/REJECTED/WITHDRAWN
+     * 은 물리 종결 상태이므로 409 로 차단한다.
+     */
+    public void guardCollabModifiable() {
+        if (COLLAB_LOCKED_STATUSES.contains(this.status)) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "협업 수정완료가 불가능한 상태입니다: " + this.status);
+        }
+    }
+
+    /** 협업 수정완료로 결재 제목을 덮어쓴다. */
+    public ApprovalLine overlayTitle(String title) {
+        guardCollabModifiable();
+        if (title == null || title.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "결재 제목은 필수입니다");
+        }
+        validateOverlayLength(title, "결재 제목", TITLE_MAX_LENGTH);
+        this.title = title;
+        return this;
+    }
+
+    /** 협업 수정완료로 결재 본문을 덮어쓴다. */
+    public ApprovalLine overlayContent(String content) {
+        guardCollabModifiable();
+        validateOverlayLength(content, "결재 본문", CONTENT_MAX_LENGTH);
+        this.content = content;
+        return this;
+    }
+
+    private static void validateOverlayLength(String value, String fieldName, int maxLength) {
+        if (value != null && value.length() > maxLength) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    fieldName + "은(는) " + maxLength + "자 이하여야 합니다");
+        }
     }
 
     private void ensureMutable() {

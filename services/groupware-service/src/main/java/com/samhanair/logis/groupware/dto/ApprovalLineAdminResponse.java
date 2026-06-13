@@ -15,6 +15,7 @@ import java.util.UUID;
  * 사용자 표시명 (user-service lookup 결과) 으로 추가 매핑하는 것이 후속 슬라이스 책임.
  *
  * @param approvalId 결재선 식별자 (form hidden / 후속 호출 path)
+ * @param approvalNo 결재문서번호 ({@code yyyy/MM/dd-N})
  * @param requesterId 요청자
  * @param title 제목
  * @param content 본문
@@ -23,6 +24,7 @@ import java.util.UUID;
  */
 public record ApprovalLineAdminResponse(
         UUID approvalId,
+        String approvalNo,
         UUID requesterId,
         String title,
         String content,
@@ -46,7 +48,7 @@ public record ApprovalLineAdminResponse(
 
     public static ApprovalLineAdminResponse from(ApprovalLine line) {
         List<StepView> steps = line.getStepsView().stream().map(StepView::from).toList();
-        return new ApprovalLineAdminResponse(line.getId(), line.getRequesterId(), line.getTitle(),
+        return new ApprovalLineAdminResponse(line.getId(), line.getApprovalNo(), line.getRequesterId(), line.getTitle(),
                 line.getContent(), line.getStatus(), steps);
     }
 }

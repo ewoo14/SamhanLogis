@@ -12,19 +12,21 @@ import java.util.UUID;
  * 호출 service 가 별도 user lookup 으로 displayName 보강.
  *
  * @param approvalId 결재선 식별자 (caller 외래 키 보관)
+ * @param approvalNo 결재문서번호
  * @param requesterId 요청자 user UUID
  * @param title 제목
  * @param status 종합 상태
  */
 public record ApprovalLineInternalResponse(
         UUID approvalId,
+        String approvalNo,
         UUID requesterId,
         String title,
         ApprovalStatus status
 ) {
 
     public static ApprovalLineInternalResponse from(ApprovalLine line) {
-        return new ApprovalLineInternalResponse(line.getId(), line.getRequesterId(),
+        return new ApprovalLineInternalResponse(line.getId(), line.getApprovalNo(), line.getRequesterId(),
                 line.getTitle(), line.getStatus());
     }
 }

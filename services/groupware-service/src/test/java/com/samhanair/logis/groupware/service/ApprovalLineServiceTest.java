@@ -30,7 +30,7 @@ class ApprovalLineServiceTest {
     @Test
     void open_then_appendStep_creates_chain_in_sequence_order() {
         UUID requester = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "휴가", "본문");
+        ApprovalLine line = open(requester, "휴가", "본문");
 
         line.appendStep(UUID.randomUUID());
         line.appendStep(UUID.randomUUID());
@@ -46,7 +46,7 @@ class ApprovalLineServiceTest {
         UUID requester = UUID.randomUUID();
         UUID a1 = UUID.randomUUID();
         UUID a2 = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "결재", null);
+        ApprovalLine line = open(requester, "결재", null);
         line.appendStep(a1);
         line.appendStep(a2);
 
@@ -62,7 +62,7 @@ class ApprovalLineServiceTest {
         UUID requester = UUID.randomUUID();
         UUID a1 = UUID.randomUUID();
         UUID a2 = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "결재", null);
+        ApprovalLine line = open(requester, "결재", null);
         line.appendStep(a1);
         line.appendStep(a2);
 
@@ -78,7 +78,7 @@ class ApprovalLineServiceTest {
         UUID requester = UUID.randomUUID();
         UUID a1 = UUID.randomUUID();
         UUID a2 = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "결재", null);
+        ApprovalLine line = open(requester, "결재", null);
         line.appendStep(a1);
         line.appendStep(a2);
 
@@ -92,7 +92,7 @@ class ApprovalLineServiceTest {
     @Test
     void appendStep_blocks_requester_self_as_approver() {
         UUID requester = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "결재", null);
+        ApprovalLine line = open(requester, "결재", null);
 
         assertThatThrownBy(() -> line.appendStep(requester))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -103,7 +103,7 @@ class ApprovalLineServiceTest {
     void withdraw_by_requester_terminates_to_withdrawn() {
         UUID requester = UUID.randomUUID();
         UUID a1 = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "결재", null);
+        ApprovalLine line = open(requester, "결재", null);
         line.appendStep(a1);
 
         line.withdraw(requester);
@@ -115,7 +115,7 @@ class ApprovalLineServiceTest {
     void approve_after_terminal_state_is_rejected() {
         UUID requester = UUID.randomUUID();
         UUID a1 = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "결재", null);
+        ApprovalLine line = open(requester, "결재", null);
         line.appendStep(a1);
         line.approve(a1); // chain 종료 → APPROVED
 
@@ -129,7 +129,7 @@ class ApprovalLineServiceTest {
         UUID requester = UUID.randomUUID();
         UUID a1 = UUID.randomUUID();
         UUID a2 = UUID.randomUUID();
-        ApprovalLine line = ApprovalLine.open(requester, "결재", null);
+        ApprovalLine line = open(requester, "결재", null);
         line.appendStep(a1);
         line.appendStep(a2);
 
@@ -142,5 +142,9 @@ class ApprovalLineServiceTest {
         ApprovalStep current = line.currentStep();
         assertThat(current).isNotNull();
         assertThat(current.getApproverId()).isEqualTo(a1);
+    }
+
+    private ApprovalLine open(UUID requester, String title, String content) {
+        return ApprovalLine.open("2099/01/01-1", requester, title, content);
     }
 }

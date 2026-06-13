@@ -102,7 +102,8 @@ class GroupwarePermissionControllerIT {
         lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
                 .thenReturn(true);
 
-        ApprovalLine approval = ApprovalLine.open(UUID.randomUUID(), "SP-D6-2 결재", "테스트");
+        ApprovalLine approval = ApprovalLine.open(
+                "2099/01/01-1", UUID.randomUUID(), "SP-D6-2 결재", "테스트");
         approval.appendStep(UUID.randomUUID());
         Message message = Message.send(UUID.randomUUID(), UUID.randomUUID(), "테스트 메시지");
         Schedule schedule = Schedule.create(

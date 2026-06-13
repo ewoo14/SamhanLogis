@@ -9,6 +9,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 /** 결재선 저장소 — 요청자 / 결재자 / 상태 검색. */
@@ -19,6 +21,10 @@ public interface ApprovalLineRepository extends JpaRepository<ApprovalLine, UUID
     @Override
     @EntityGraph(attributePaths = "steps")
     Optional<ApprovalLine> findById(UUID id);
+
+    /** 협업 overlay 전용 flat 조회 — steps fetch/lock 없이 부모 단일 row 만 로드한다. */
+    @Query("select a from ApprovalLine a where a.id = :id")
+    Optional<ApprovalLine> findFlatById(@Param("id") UUID id);
 
     /** 요청자별 결재선 페이지 — 본인 결재선 inbox 조회. */
     @EntityGraph(attributePaths = "steps")

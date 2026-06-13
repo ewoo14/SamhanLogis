@@ -12,7 +12,8 @@ public enum CollabDocumentType {
     SLIP_INBOUND("입고전표"),
     ACCOUNTING_VOUCHER("회계 전표"),
     PARTNER_ORDER("거래처 주문서"),
-    ESTIMATE("견적서");
+    ESTIMATE("견적서"),
+    APPROVAL_LINE("결재선");
 
     private final String displayName;
 }

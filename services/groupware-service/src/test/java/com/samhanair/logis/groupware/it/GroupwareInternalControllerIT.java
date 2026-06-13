@@ -60,7 +60,8 @@ class GroupwareInternalControllerIT extends AbstractPostgresIT {
             return result;
         });
         approvalLineRepository.deleteAll();
-        ApprovalLine line = ApprovalLine.open(UUID.randomUUID(), "Internal IT 결재선", "본문");
+        ApprovalLine line = ApprovalLine.open(
+                "2099/01/01-1", UUID.randomUUID(), "Internal IT 결재선", "본문");
         line.appendStep(UUID.randomUUID());
         ApprovalLine saved = approvalLineRepository.save(line);
         seededApprovalId = saved.getId();
