@@ -32,7 +32,7 @@
 - **§7 전역 협업 에픽 — 입출고전표 "수정완료(1-인)" 레퍼런스** (PR #474, 슬라이스 0):
   - §7 = **전역 협업 플랫폼 에픽**(대부분 메뉴 화면 — 전표·견적·회계전표·주문·배차·미배차/가배차·그룹웨어 결재 등 — 에 협업: 수정완료 + 코멘트 + diff + 알림). 슬라이스 0 = **입출고전표를 레퍼런스로 확정** 후 문서별 슬라이스로 동일 워크플로우 롤아웃. `shared:collab-core` 재사용.
   - **본질 = 제안/수락(2-인) 아닌 전표 "수정(1-인)"**: 확정(CONFIRMED)/완료(COMPLETED) 전표를 **권한자 본인이 "수정"→편집→"수정완료" 1회 커밋**(별도 수락자 없음). Google Docs 참조 = "무엇이 어떻게 바뀌었는지 한눈에"(diff). 기존 "직접 수정 잠김→수정 요청"(edit-request) 흐름 **완전 대체**(삭제 요청만 보존).
-  - **BE**: `SlipCollabEditService.commitEdit`(`POST /collab/edits`, 단일 트랜잭션: 권한 → enrich(before diff) → `applyOverlayPatchBatch`(물리종결 SHIPPING/DELIVERED/CANCELED/REJECTED만 409·다필드 1버전·audit델타·SSE) → ACCEPTED 이력 → AFTER_COMMIT 알림). 수정 이력 diff(`GET /collab/edits`). 코멘트(`SlipCollabComment`)·실시간 SSE. 권한 `slip.audit-overlay`/`slip.comments` 재사용.
+  - **BE**: `SlipCollabEditService.commitEdit`(`POST /collab/edits`, 단일 트랜잭션: 권한 → enrich(before diff) → `applyOverlayPatchBatch`(물리종결 SHIPPING/DELIVERED/CANCELED/REJECTED만 409·다필드 1버전·audit델타·SSE) → ACCEPTED 이력 → 인-트랜잭션 동기 알림(best-effort)). 수정 이력 diff(`GET /collab/edits`). 코멘트(`SlipCollabComment`)·실시간 SSE. 권한 `slip.audit-overlay`/`slip.comments` 재사용.
   - **알림 일반화(슬라이스 0)**: 수정완료 시 **① 기여자(작성·수정 이력·코멘트 작성자) + ② 다음 결재자(출고인·검수인, 없으면 skip)** 에게 알림(현재 수정자 제외). `collab-core.resolveNotificationRecipients` 추상 + `UserIdResolver`(username/사번 → auth `by-login` → UUID).
   - **FE**: 전표 상세 "수정" 버튼(COMPLETED=완료 버튼 자리 대체)→편집모드(overlay 11필드)→"수정완료". 수정 이력 **diff 뷰**(이전값→새값·수정자·시각). UUID 비공개. design-system.
   - **검증**: slip+auth 전체 테스트 0실패(`SlipCollabIT` 실 Testcontainers Postgres, UserIdResolver/auth by-login). 실서버 Docker QA — dev_master 실로그인, 확정전표 수정완료 → memo 실변경 + diff 이력(UI 9컷). 다모델 리뷰 사이클 진행(각 라운드 실서버 스크린샷, 다음 리뷰어 0에러까지 → PM 머지).

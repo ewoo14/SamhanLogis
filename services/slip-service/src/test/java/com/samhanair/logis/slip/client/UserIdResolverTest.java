@@ -38,4 +38,24 @@ class UserIdResolverTest {
         assertThat(resolver.resolve(" ")).isEmpty();
         assertThat(resolver.resolve(null)).isEmpty();
     }
+
+    /**
+     * 시스템 audit 리터럴(JpaAuditingConfig 폴백 {@code "system"} 등)과 zero-UUID(collab-core
+     * 시스템 actor)는 by-login 조회 없이 즉시 skip 한다 — 불필요한 auth-service 404/타임아웃 인-트랜잭션
+     * 호출 차단 + 시스템 actor 에게 알림 발송 방지 (§7 Round C P2).
+     */
+    @Test
+    void resolve_skipsSystemLiteralsAndZeroUuidWithoutLookup() {
+        AuthAccountLookupClient lookupClient = org.mockito.Mockito.mock(AuthAccountLookupClient.class);
+        UserIdResolver resolver = new UserIdResolver(lookupClient);
+
+        // 시스템 audit 리터럴 — 대소문자 무관 즉시 skip
+        assertThat(resolver.resolve("system")).isEmpty();
+        assertThat(resolver.resolve("System")).isEmpty();
+        // zero-UUID — UUID 파싱은 성공하나 시스템 actor 이므로 skip
+        assertThat(resolver.resolve(new UUID(0L, 0L).toString())).isEmpty();
+
+        // 위 분기는 auth-service by-login 을 호출하지 않아야 한다(불필요 호출 차단)
+        org.mockito.Mockito.verifyNoInteractions(lookupClient);
+    }
 }

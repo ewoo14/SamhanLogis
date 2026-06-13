@@ -70,13 +70,13 @@ collab-core 3종(코멘트/수정제안/회귀)을 slip 에 확장 적용. slip 
 ## 3-E. 최종 모델 재정의 — "제안/수락 2-인" → "수정완료 1-인" + 알림 일반화 (2026-06-13)
 개발책임자 추가 정정: 본 기능은 propose/accept 2-인이 아니라 **전표 수정(1-인)**. Google Docs 참조 = "무엇이 어떻게 바뀌었는지 한눈에"(diff 시각화). §2/§3 의 propose/accept 서술은 본 절로 **supersede**.
 
-- **BE 1-인 수정완료**: `SlipCollabEditService.commitEdit`(단일 트랜잭션: 권한검사 → enrichChangeSetWithBefore → `applyOverlayPatchBatch`(물리종결 409·다필드 1revision·audit델타·SSE) → ACCEPTED 이력 save → **AFTER_COMMIT 알림**). `POST /collab/edits`(수정완료) + `GET /collab/edits`(수정 이력). standalone propose/accept/reject/withdraw 컨트롤러 endpoint **제거**(SlipCollabSuggestion = 수정 이력, proposer=decider=editor).
+- **BE 1-인 수정완료**: `SlipCollabEditService.commitEdit`(단일 트랜잭션: 권한검사 → enrichChangeSetWithBefore → `applyOverlayPatchBatch`(물리종결 409·다필드 1revision·audit델타·SSE) → ACCEPTED 이력 save → **인-트랜잭션 동기 알림(best-effort, 기존 SlipEditRequestService 패턴 일관)**). `POST /collab/edits`(수정완료) + `GET /collab/edits`(수정 이력). standalone propose/accept/reject/withdraw 컨트롤러 endpoint **제거**(SlipCollabSuggestion = 수정 이력, proposer=decider=editor).
 - **FE**: 확정/완료 전표 상세 "**수정**" 버튼(COMPLETED=기존 "완료" 버튼 자리 대체) → 편집모드(overlay 11필드) → "**수정완료**" 1회 커밋. 기존 "직접 수정 잠김→수정 요청"(edit-request) 배너 **완전 대체**(삭제 요청만 보존). 수정 이력 **diff 뷰**(이전값→새값·수정자·시각, audit-overlay 재사용).
 
 ### 슬라이스 0 — 알림 규칙 일반화 (이후 문서별 롤아웃 복제 패턴)
 - **알림 규칙(모든 문서 공통)**: 수정완료 시 = **① 기여자(작성·수정 이력·코멘트 작성자) 전원 + ② 다음 결재자(있으면, 없으면 skip)**. 현재 수정자 self skip.
 - collab-core `DocumentCollaborationPort.resolveNotificationRecipients(documentId, excludeUserId)` default 메서드 추상. slip 구현 = requesterId·createdBy + SlipRevision actor + SlipCollabSuggestion proposer/decider + SlipCollabComment author + 출고인(dispatcherUserId)·검수인(inspectorUserId).
-- **username→UUID resolve**: `UserIdResolver` + `AuthAccountLookupClient` → auth-service `GET /auth/internal/accounts/by-login`(X-Internal-Token, 404). UUID면 그대로, username/사번이면 변환. 알림은 AFTER_COMMIT(커넥션 홀딩 차단).
+- **username→UUID resolve**: `UserIdResolver` + `AuthAccountLookupClient` → auth-service `GET /auth/internal/accounts/by-login`(X-Internal-Token, 404). UUID면 그대로, username/사번이면 변환(system 리터럴·zero-UUID 조기 skip). 알림은 **인-트랜잭션 동기 best-effort**(기존 SlipEditRequestService 패턴 일관, 수신자 소수+타임아웃 가드).
 
 ### 에픽 구조 (전역 협업 플랫폼)
 §7 = **에픽** — 대부분 메뉴 화면(전표·견적·회계전표·주문·배차·미배차/가배차·그룹웨어 결재 등)에 협업(수정완료+코멘트+diff+알림). **슬라이스 0 = 입출고전표 레퍼런스 확정** → 이후 문서별 슬라이스로 동일 워크플로우 롤아웃(각 슬라이스 Codex 개발→5-agent 리뷰+실서버 스크린샷→0까지 사이클→PM 머지).
