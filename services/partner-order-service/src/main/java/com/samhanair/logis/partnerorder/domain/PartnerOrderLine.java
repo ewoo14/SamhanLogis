@@ -162,6 +162,23 @@ public class PartnerOrderLine extends BaseEntity {
         this.convertedQuantity += qty;
     }
 
+    /**
+     * 협업 수정완료 overlay 라인 비고 변경.
+     *
+     * <p>품목/수량/단가/금액/전환수량 등 주문 핵심 필드는 불변으로 두고, 설명성 보조 필드인
+     * remark 만 갱신한다.
+     *
+     * @param remark 신규 라인 비고. null 허용, 500자 이하.
+     * @return 현재 PartnerOrderLine (도메인 메서드 체인용)
+     */
+    public PartnerOrderLine updateRemark(String remark) {
+        if (remark != null && remark.length() > 500) {
+            throw new IllegalArgumentException("remark 는 최대 500자입니다");
+        }
+        this.remark = remark == null || remark.isBlank() ? null : remark.trim();
+        return this;
+    }
+
     /** PartnerOrder.addLine 내부 호출 — bidirectional 관계 동기화. */
     void bind(PartnerOrder partnerOrder) {
         this.partnerOrder = partnerOrder;

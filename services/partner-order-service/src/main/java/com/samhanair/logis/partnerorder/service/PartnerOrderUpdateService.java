@@ -1,10 +1,12 @@
 package com.samhanair.logis.partnerorder.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.audit.service.PartnerOrderAuditLogService;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
+import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
@@ -17,10 +19,15 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -35,6 +42,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class PartnerOrderUpdateService {
+
+    private static final Pattern LINE_REMARK_PATH = Pattern.compile("^line\\.(\\d+)\\.remark$");
+    private static final Set<PartnerOrderStatus> COLLAB_LOCKED = Set.of(
+            PartnerOrderStatus.CANCELED,
+            PartnerOrderStatus.CONVERTED,
+            PartnerOrderStatus.CONFIRMING);
+    private static final Set<String> CORE_HEADER_FIELDS = Set.of(
+            "orderNo", "orderNumber", "partnerCode", "bizCode", "status", "slipNo",
+            "slipPublishStatus", "totalAmount", "confirmedAt", "slipPublishedAt",
+            "sourceEstimateId", "idempotencyKey", "lockVersion", "revisionCount");
+    private static final Set<String> CORE_LINE_FIELDS = Set.of(
+            "productId", "modelName", "modelCode", "productName", "categoryKey", "quantity",
+            "priceVat", "deliveryPrice", "subtotal", "convertedQuantity", "lineId", "id");
 
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerOrderAuditLogService auditLogService;
@@ -80,6 +100,48 @@ public class PartnerOrderUpdateService {
         }
     }
 
+    /**
+     * 협업 수정완료 overlay batch 적용.
+     *
+     * <p>허용 필드는 {@code memo}, {@code dueDate}, {@code line.{lineKey}.remark} 뿐이다.
+     * 품목/수량/단가/금액/전환수량/주문번호/거래처코드 등 주문 핵심 필드는 400으로 거부한다.
+     * CANCELED/CONVERTED/CONFIRMING 주문은 물리 종결 또는 전이중 상태이므로 409로 차단한다.
+     *
+     * @param orderId 주문 UUID
+     * @param beforeAfterPatches path → after 또는 path → {before, after}
+     * @param actorUserId 수정자 user-id 문자열
+     * @return 변경 후 주문 상세
+     */
+    @Transactional
+    public PartnerOrderDetailResponse applyOverlayPatchBatch(UUID orderId,
+                                                             Map<String, Object> beforeAfterPatches,
+                                                             String actorUserId) {
+        if (beforeAfterPatches == null || beforeAfterPatches.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "적용할 주문 변경 내역이 없습니다");
+        }
+        PartnerOrder order = partnerOrderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARTNER_ORDER_NOT_FOUND,
+                        ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
+        guardCollabModifiable(order);
+
+        List<ChangeEntry> changes = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : beforeAfterPatches.entrySet()) {
+            String path = normalizeOverlayPath(entry.getKey());
+            Object after = extractAfter(entry.getValue());
+            applyOverlayPath(order, path, after, changes);
+        }
+
+        PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
+        if (!changes.isEmpty()) {
+            UUID actorId = parseActorId(actorUserId);
+            String actorName = "협업 수정완료";
+            auditLogService.recordBatch(saved, actorId, actorName, null, changes);
+            revisionService.capture(saved, PartnerOrderRevisionType.EDIT, null,
+                    actorId, actorName, null);
+        }
+        return PartnerOrderDetailResponse.from(saved);
+    }
+
     private PartnerOrder load(String id) {
         return PartnerOrderIdResolver.findByIdentifier(partnerOrderRepository, id)
                 .orElseThrow(() -> new BusinessException(
@@ -98,6 +160,141 @@ public class PartnerOrderUpdateService {
         return new BusinessException(
                 ErrorCode.PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT,
                 ErrorCode.PARTNER_ORDER_OPTIMISTIC_LOCK_CONFLICT.getDefaultMessage());
+    }
+
+    private void guardCollabModifiable(PartnerOrder order) {
+        if (COLLAB_LOCKED.contains(order.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "해당 상태의 주문은 협업 수정완료를 적용할 수 없습니다: " + order.getStatus());
+        }
+    }
+
+    private void applyOverlayPath(PartnerOrder order, String path, Object after, List<ChangeEntry> changes) {
+        if ("memo".equals(path)) {
+            String before = order.getMemo();
+            String next = toNullableString(after);
+            if (!Objects.equals(before, normalizeNullableText(next))) {
+                order.updateOverlayMemo(next);
+                changes.add(new ChangeEntry("요청사항", before, order.getMemo()));
+            }
+            return;
+        }
+        if ("dueDate".equals(path)) {
+            LocalDate before = order.getDueDate();
+            LocalDate next = toNullableDate(after);
+            if (!Objects.equals(before, next)) {
+                order.updateOverlayDueDate(next);
+                changes.add(new ChangeEntry("납기", toText(before), toText(next)));
+            }
+            return;
+        }
+        Matcher matcher = LINE_REMARK_PATH.matcher(path);
+        if (matcher.matches()) {
+            int lineKey = Integer.parseInt(matcher.group(1));
+            PartnerOrderLine line = order.requireLineByLineKey(lineKey);
+            String before = line.getRemark();
+            String next = toNullableString(after);
+            if (!Objects.equals(before, normalizeNullableText(next))) {
+                line.updateRemark(next);
+                changes.add(new ChangeEntry("라인 " + lineKey + " 비고", before, line.getRemark()));
+            }
+            return;
+        }
+        throw unsupportedOverlayPath(path);
+    }
+
+    private Object extractAfter(Object rawValue) {
+        if (rawValue instanceof Map<?, ?> map && map.containsKey("after")) {
+            return map.get("after");
+        }
+        if (rawValue instanceof JsonNode node && node.isObject() && node.has("after")) {
+            JsonNode after = node.get("after");
+            if (after == null || after.isNull()) {
+                return null;
+            }
+            return after.isValueNode() ? after.asText() : after.toString();
+        }
+        return rawValue;
+    }
+
+    private String normalizeOverlayPath(String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet path 는 필수입니다");
+        }
+        String normalized = rawPath.trim();
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        normalized = normalized.replace("/", ".");
+        if ("memo".equals(normalized) || "dueDate".equals(normalized)) {
+            return normalized;
+        }
+        Matcher lineRemarkMatcher = LINE_REMARK_PATH.matcher(normalized);
+        if (lineRemarkMatcher.matches()) {
+            int lineKey = Integer.parseInt(lineRemarkMatcher.group(1));
+            if (lineKey < 1) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "lineKey 는 1 이상이어야 합니다: " + rawPath);
+            }
+            return normalized;
+        }
+        rejectCorePath(normalized);
+        throw unsupportedOverlayPath(normalized);
+    }
+
+    private void rejectCorePath(String normalized) {
+        if (CORE_HEADER_FIELDS.contains(normalized)) {
+            throw coreFieldException(normalized);
+        }
+        if (normalized.startsWith("line.")) {
+            String[] parts = normalized.split("\\.");
+            String field = parts.length >= 3 ? parts[2] : normalized;
+            if (CORE_LINE_FIELDS.contains(field)) {
+                throw coreFieldException(normalized);
+            }
+        }
+    }
+
+    private BusinessException unsupportedOverlayPath(String path) {
+        return new BusinessException(ErrorCode.INVALID_INPUT,
+                "주문 협업은 memo, dueDate, line.{lineKey}.remark 만 수정할 수 있습니다: " + path);
+    }
+
+    private BusinessException coreFieldException(String path) {
+        return new BusinessException(ErrorCode.INVALID_INPUT,
+                "주문 핵심 필드는 협업 수정완료로 변경할 수 없습니다: " + path);
+    }
+
+    private LocalDate toNullableDate(Object value) {
+        String text = toNullableString(value);
+        if (text == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(text);
+        } catch (DateTimeParseException ex) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "dueDate 는 ISO 날짜(yyyy-MM-dd) 형식이어야 합니다: " + text);
+        }
+    }
+
+    private String toNullableString(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private String normalizeNullableText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private UUID parseActorId(String actorUserId) {
+        if (actorUserId == null || actorUserId.isBlank()) {
+            return new UUID(0L, 0L);
+        }
+        try {
+            return UUID.fromString(actorUserId);
+        } catch (IllegalArgumentException ex) {
+            return new UUID(0L, 0L);
+        }
     }
 
     private void validateLines(List<PartnerOrderUpdateRequest.LineRequest> lines) {

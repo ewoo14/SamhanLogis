@@ -102,6 +102,7 @@ public record PartnerOrderDetailResponse(
      * @param quantity 수량.
      * @param deliveryPrice 납품 단가.
      * @param subtotal 라인 소계.
+     * @param remark 라인 비고.
      * @param convertedQuantity 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0.
      * @param bundleMode 번들 처리 방식. 현재 저장 컬럼이 없어 {@code null}.
      * @param productType 품목 유형("SINGLE"/"BUNDLE") — product-service 조회 enrich (Round C #23).
@@ -119,6 +120,7 @@ public record PartnerOrderDetailResponse(
             int quantity,
             BigDecimal deliveryPrice,
             BigDecimal subtotal,
+            String remark,
             int convertedQuantity,
             String bundleMode,
             String productType,
@@ -148,6 +150,7 @@ public record PartnerOrderDetailResponse(
                     line.getQuantity(),
                     line.getPriceVat(),
                     line.getSubtotal(),
+                    line.getRemark(),
                     line.getConvertedQuantity(),
                     null,
                     productType,

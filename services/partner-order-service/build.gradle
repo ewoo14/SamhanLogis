@@ -72,6 +72,7 @@ dependencies {
 
     implementation project(':shared:common')
     implementation project(':shared:security')
+    implementation project(':shared:collab-core')
     // PR-H4b (Phase 12 Step 4b BE-C) — shared:realtime-abstraction module 적용.
     // partner-order-service 의 PartnerOrder / VendorOrder confirm 흐름에 audit overlay + SSE +
     // EditLockGuard (CONFIRMED 후 잠금) 활성. slip-service (PR-H4a 시범) 와 동일 패턴.
