@@ -27,9 +27,15 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID> {
      *
      * <p>라인 메모만 변경되는 경우 자식 {@code estimate_lines} 만 dirty 가 되어 부모 {@code Estimate}
      * {@code @Version} 충돌이 빠질 수 있으므로, 부모 버전을 강제 증가시켜 동시 수정 손실을 방지한다.
+     *
+     * <p><b>주의</b>: {@code left join fetch e.lines} 를 함께 쓰면 lock 모드가 fetch 된
+     * {@code EstimateLine}(버전 없음)에도 적용되어 fresh 세션에서
+     * {@code OPTIMISTIC_FORCE_INCREMENT not supported for non-versioned entities} 가 발생한다
+     * (동일 트랜잭션 IT 의 1-차 캐시가 이를 가려 false-green). 따라서 부모 {@code Estimate} 만 잠그고
+     * 라인은 트랜잭션 내 lazy 로드로 처리한다.
      */
     @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
-    @Query("select distinct e from Estimate e left join fetch e.lines where e.id = :id")
+    @Query("select e from Estimate e where e.id = :id")
     Optional<Estimate> findByIdForCollabOverlay(@Param("id") UUID id);
 
     /** 활성 전체 페이지. */

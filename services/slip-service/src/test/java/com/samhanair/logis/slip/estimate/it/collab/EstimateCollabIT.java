@@ -41,6 +41,8 @@ import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevision;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.repository.EstimateRevisionRepository;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
@@ -86,6 +88,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
     @Autowired private EstimateCollabSuggestionRepository suggestionRepository;
     @Autowired private EstimateCollabCommentRepository commentRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @PersistenceContext private EntityManager entityManager;
 
     @MockBean private ArologisDispatchClient arologisDispatchClient;
     @MockBean private AuthAccountLookupClient authAccountLookupClient;
@@ -207,6 +210,32 @@ class EstimateCollabIT extends AbstractPostgresIT {
         assertThat(revisionRepository.findByEstimateIdOrderByRevisionNoDesc(estimate.getId()))
                 .extracting("revisionType")
                 .contains(EstimateRevisionType.EDIT);
+    }
+
+    /**
+     * 1-차 영속성 캐시가 비워진 fresh 세션에서도 라인 메모 수정완료가 동작해야 한다.
+     *
+     * <p>협업 overlay lock 쿼리({@code findByIdForCollabOverlay})가 비-버전 {@code EstimateLine}
+     * 까지 fetch+lock 하면 {@code OPTIMISTIC_FORCE_INCREMENT not supported for non-versioned entities}
+     * 가 fresh 세션에서만 발생한다(동일 트랜잭션 1-차 캐시가 가리는 false-green — 실서버 QA 가 적발).
+     * flush+clear 로 lock 쿼리가 라인을 fresh fetch 하는 경로를 강제해 회귀를 잡는다.
+     */
+    @Test
+    void commitEdit_afterPersistenceContextClear_succeeds() throws Exception {
+        Estimate estimate = seedAcceptedEstimate("FRESH");
+        estimateRepository.flush();
+        entityManager.clear();
+
+        mvc.perform(post("/slips/estimates/{estimateId}/collab/edits", estimate.getId())
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "신선세션사원")
+                        .header(SYSTEM_MASTER_HEADER, "true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "changeSet", "{\"line.1.note\":{\"after\":\"fresh 세션 라인 메모\"}}",
+                                "reason", "fresh 세션 force-increment 회귀 가드"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.estimate.lines[0].note").value("fresh 세션 라인 메모"));
     }
 
     /**
