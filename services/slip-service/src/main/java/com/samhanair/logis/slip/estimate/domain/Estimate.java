@@ -67,6 +67,9 @@ public class Estimate extends BaseEntity {
     private static final Set<EstimateStatus> COLLAB_LOCKED_STATUSES =
             EnumSet.of(EstimateStatus.QUOTE_REJECTED, EstimateStatus.QUOTE_CONVERTED);
 
+    private static final int MEMO_MAX_LENGTH = 1000;
+    private static final int LINE_NOTE_MAX_LENGTH = 200;
+
     /** 한국 부가세율 10% — VAT 자동 계산 (도메인 상수, 추후 사용 예정). */
     @SuppressWarnings("unused")
     private static final BigDecimal VAT_RATE = new BigDecimal("0.10");
@@ -364,6 +367,7 @@ public class Estimate extends BaseEntity {
     /** 협업 수정완료로 견적 비고를 덮어쓴다. */
     public Estimate overlayMemo(String memo) {
         guardCollabModifiable();
+        validateOverlayLength(memo, "견적 비고", MEMO_MAX_LENGTH);
         this.memo = memo;
         return this;
     }
@@ -385,8 +389,16 @@ public class Estimate extends BaseEntity {
      */
     public Estimate overlayLineNote(int lineKey, String note) {
         guardCollabModifiable();
+        validateOverlayLength(note, "견적 라인 메모", LINE_NOTE_MAX_LENGTH);
         requireLineByLineKey(lineKey).changeNote(note);
         return this;
+    }
+
+    private void validateOverlayLength(String value, String fieldName, int maxLength) {
+        if (value != null && value.length() > maxLength) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    fieldName + "은(는) " + maxLength + "자 이하여야 합니다");
+        }
     }
 
     /**

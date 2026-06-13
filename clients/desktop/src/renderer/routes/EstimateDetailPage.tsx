@@ -228,6 +228,7 @@ export function EstimateDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['estimate', id] })
     void queryClient.invalidateQueries({ queryKey: ['estimates'] })
     void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', id] })
+    void queryClient.invalidateQueries({ queryKey: ['estimate', id, 'audit-logs'] })
   }
 
   const lineColumns: DataTableColumn<EstimateLine>[] = [
@@ -306,6 +307,16 @@ export function EstimateDetailPage() {
           testId="estimate-detail-locked-banner"
           message="변환/거절 후에는 본문 수정이 불가합니다."
         />
+      ) : null}
+
+      {topError ? (
+        <div
+          className="error-banner"
+          role="alert"
+          style={{ marginBottom: 16, padding: 12, color: 'var(--state-danger)' }}
+        >
+          {topError}
+        </div>
       ) : null}
 
       <Card>
@@ -552,15 +563,6 @@ export function EstimateDetailPage() {
         onCommitted={handleCollabCommitted}
       />
 
-      {topError ? (
-        <div
-          className="error-banner"
-          role="alert"
-          style={{ marginTop: 16, padding: 12, color: 'var(--state-danger)' }}
-        >
-          {topError}
-        </div>
-      ) : null}
     </>
   )
 }

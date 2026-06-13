@@ -117,6 +117,13 @@ function valueForChange(value: string): string | null {
   return value.length === 0 ? null : value
 }
 
+function serverErrorMessage(error: unknown): string | null {
+  if (!isAxiosError(error)) return null
+  const data = error.response?.data as { message?: unknown } | undefined
+  const msg = data?.message
+  return typeof msg === 'string' && msg.trim() ? msg.trim() : null
+}
+
 function formatKrw(raw: string | number): string {
   const n = typeof raw === 'string' ? Number.parseFloat(raw) : raw
   if (!Number.isFinite(n)) return '-'
@@ -195,6 +202,8 @@ export function EstimateCollaborationPanel({
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
       void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: estimateQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })
+      void queryClient.invalidateQueries({ queryKey: ['estimate', estimateId, 'audit-logs'] })
       void queryClient.invalidateQueries({ queryKey: ['estimates'] })
     })
     return () => ctrl.abort()
@@ -265,6 +274,8 @@ export function EstimateCollaborationPanel({
       setEditNotice('수정완료되었습니다.')
       void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: estimateQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })
+      void queryClient.invalidateQueries({ queryKey: ['estimate', estimateId, 'audit-logs'] })
       void queryClient.invalidateQueries({ queryKey: ['estimates'] })
       onCommitted?.()
     },
@@ -273,14 +284,7 @@ export function EstimateCollaborationPanel({
         setCommitError('변경된 필드가 없습니다.')
         return
       }
-      const serverMessage = isAxiosError(error)
-        ? (() => {
-            const data = error.response?.data as { message?: unknown } | undefined
-            const msg = data?.message
-            return typeof msg === 'string' && msg.trim() ? msg.trim() : null
-          })()
-        : null
-      setCommitError(serverMessage ?? '수정 저장에 실패했습니다. 다시 시도해 주세요.')
+      setCommitError(serverErrorMessage(error) ?? '수정 저장에 실패했습니다. 다시 시도해 주세요.')
     },
   })
 
@@ -323,6 +327,7 @@ export function EstimateCollaborationPanel({
                         type="button"
                         variant="ghost"
                         size="sm"
+                        aria-label={`${displayName(comment.authorName)} 코멘트 해결`}
                         disabled={resolveCommentMutation.isPending}
                         onClick={() => resolveCommentMutation.mutate(comment.id)}
                       >
@@ -334,6 +339,7 @@ export function EstimateCollaborationPanel({
                         type="button"
                         variant="ghost"
                         size="sm"
+                        aria-label={`${displayName(comment.authorName)} 코멘트 삭제`}
                         disabled={deleteCommentMutation.isPending}
                         onClick={() => deleteCommentMutation.mutate(comment.id)}
                       >
@@ -341,7 +347,15 @@ export function EstimateCollaborationPanel({
                       </Button>
                     ) : null}
                   </div>
-                  <p style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                  <p
+                    style={{
+                      margin: '4px 0 0',
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
                     {comment.body}
                   </p>
                 </article>
@@ -382,17 +396,17 @@ export function EstimateCollaborationPanel({
                 </div>
                 {addCommentMutation.isError ? (
                   <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                    코멘트를 등록하지 못했습니다.
+                    {serverErrorMessage(addCommentMutation.error) ?? '코멘트를 등록하지 못했습니다.'}
                   </p>
                 ) : null}
                 {deleteCommentMutation.isError ? (
                   <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                    코멘트를 삭제하지 못했습니다.
+                    {serverErrorMessage(deleteCommentMutation.error) ?? '코멘트를 삭제하지 못했습니다.'}
                   </p>
                 ) : null}
                 {resolveCommentMutation.isError ? (
                   <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
-                    코멘트를 해결 처리하지 못했습니다.
+                    {serverErrorMessage(resolveCommentMutation.error) ?? '코멘트를 해결 처리하지 못했습니다.'}
                   </p>
                 ) : null}
               </>
@@ -551,7 +565,10 @@ export function EstimateCollaborationPanel({
                     </div>
                     <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
                       {diffs.map((diff) => (
-                        <div key={`${edit.id}-${diff.fieldName}`} style={{ fontSize: 13 }}>
+                        <div
+                          key={`${edit.id}-${diff.fieldName}`}
+                          style={{ fontSize: 13, overflowWrap: 'anywhere' }}
+                        >
                           <strong>{diff.label}</strong>
                           <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
                             {diff.before ?? '이전값 미기록'}

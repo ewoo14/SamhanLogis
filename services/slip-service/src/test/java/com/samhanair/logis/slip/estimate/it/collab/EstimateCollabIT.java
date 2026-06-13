@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -234,6 +235,33 @@ class EstimateCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
 
         assertThat(suggestionRepository.count()).isZero();
+        Estimate reloaded = estimateRepository.findById(estimate.getId()).orElseThrow();
+        assertThat(reloaded.getMemo()).isEqualTo("초기 견적 비고");
+        assertThat(reloaded.getValidUntil()).isEqualTo(LocalDate.of(2099, 6, 30));
+        assertThat(revisionRepository.findByEstimateIdOrderByRevisionNoDesc(estimate.getId())).isEmpty();
+    }
+
+    /** VIEW 권한 없는 계정은 협업 조회/stream endpoint 에도 접근할 수 없어야 한다. */
+    @Test
+    void readEndpoints_withoutPermission_return403() throws Exception {
+        UUID estimateId = seedAcceptedEstimate("VIEW-DENY").getId();
+        UUID deniedAccount = UUID.fromString("20000000-0000-0000-0000-0000000003fe");
+        when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(false);
+
+        mvc.perform(get("/slips/estimates/{estimateId}/collab/comments", estimateId)
+                        .header(USER_ID_HEADER, deniedAccount.toString()))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(get("/slips/estimates/{estimateId}/collab/edits", estimateId)
+                        .header(USER_ID_HEADER, deniedAccount.toString()))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(get("/slips/estimates/{estimateId}/collab/stream", estimateId)
+                        .header(USER_ID_HEADER, deniedAccount.toString())
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isForbidden());
     }
 
     /** REJECTED / CONVERTED 견적은 협업 수정완료가 409 로 거부되고 이력이 저장되지 않아야 한다. */
@@ -290,6 +318,44 @@ class EstimateCollabIT extends AbstractPostgresIT {
                 CollabDocumentType.ESTIMATE, estimateId)).isEmpty();
     }
 
+    /** changeSet JSON 형식/구조/라인키/날짜 오류는 400 으로 거부하고 이력을 남기지 않는다. */
+    @Test
+    void commitEdit_withMalformedChangeSet_returns400AndPersistsNothing() throws Exception {
+        UUID estimateId = seedAcceptedEstimate("BAD-CS").getId();
+
+        for (String changeSet : java.util.List.of(
+                "not-json",
+                "[]",
+                "{\"memo\":{\"before\":\"x\"}}",
+                "{\"validUntil\":{\"after\":\"2099-99-99\"}}",
+                "{\"line.0.note\":{\"after\":\"0번 라인\"}}",
+                "{\"line.3.note\":{\"after\":\"없는 라인\"}}",
+                "{\"memo\":{\"after\":\"" + "가".repeat(1001) + "\"}}",
+                "{\"line.1.note\":{\"after\":\"" + "나".repeat(201) + "\"}}")) {
+            mvc.perform(post("/slips/estimates/{estimateId}/collab/edits", estimateId)
+                            .header(USER_ID_HEADER, ACTOR_ID)
+                            .header(USER_NAME_HEADER, "형식검증자")
+                            .header(SYSTEM_MASTER_HEADER, "true")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(Map.of("changeSet", changeSet))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mvc.perform(post("/slips/estimates/{estimateId}/collab/edits", estimateId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "공백검증자")
+                        .header(SYSTEM_MASTER_HEADER, "true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("changeSet", " "))))
+                .andExpect(status().isBadRequest());
+
+        assertThat(suggestionRepository.findByDocumentTypeAndDocumentIdOrderByCreatedAtDesc(
+                CollabDocumentType.ESTIMATE, estimateId)).isEmpty();
+        Estimate reloaded = estimateRepository.findById(estimateId).orElseThrow();
+        assertThat(reloaded.getMemo()).isEqualTo("초기 견적 비고");
+        assertThat(reloaded.getValidUntil()).isEqualTo(LocalDate.of(2099, 6, 30));
+    }
+
     /** 기여자 수신자와 username->UUID resolve 후 현재 수정자를 제외하고 push 를 보낸다. */
     @Test
     void commitEdit_notifiesContributorsAndResolvesUsernameRecipients() throws Exception {
@@ -339,6 +405,11 @@ class EstimateCollabIT extends AbstractPostgresIT {
         verify(notificationClient, never())
                 .sendUserPush(eq(editorId), org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.anyString());
+        ArgumentCaptor<UUID> recipientCaptor = ArgumentCaptor.forClass(UUID.class);
+        verify(notificationClient, times(5)).sendUserPush(
+                recipientCaptor.capture(), eq("[견적 수정] " + estimate.getEstimateNo()), anyString());
+        assertThat(recipientCaptor.getAllValues()).containsExactlyInAnyOrder(
+                requesterAccountId, createdByAccountId, previousEditorId, commentAuthorId, revisionActorId);
 
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
         verify(notificationClient).sendUserPush(eq(requesterAccountId),

@@ -117,7 +117,7 @@ public class EstimateDocumentCollaborationPort implements DocumentCollaborationP
     public EstimateDetailResponse applyOverlayPatchBatch(UUID documentId, String changeSetJson,
                                                          UUID actorId, String actorName) {
         Map<String, Object> patches = parseChangeSet(changeSetJson);
-        Estimate estimate = loadEstimate(documentId);
+        Estimate estimate = loadEstimateForCollabOverlay(documentId);
         estimate.guardCollabModifiable();
         for (Map.Entry<String, Object> patch : patches.entrySet()) {
             applyOverlayField(estimate, patch.getKey(), patch.getValue());
@@ -250,7 +250,7 @@ public class EstimateDocumentCollaborationPort implements DocumentCollaborationP
 
     private EstimateDetailResponse applyParsedPatches(UUID documentId, Map<String, Object> patches,
                                                       UUID actorId, String actorName) {
-        Estimate estimate = loadEstimate(documentId);
+        Estimate estimate = loadEstimateForCollabOverlay(documentId);
         estimate.guardCollabModifiable();
         for (Map.Entry<String, Object> patch : patches.entrySet()) {
             applyOverlayField(estimate, patch.getKey(), patch.getValue());
@@ -394,6 +394,12 @@ public class EstimateDocumentCollaborationPort implements DocumentCollaborationP
 
     private Estimate loadEstimate(UUID documentId) {
         return estimateRepository.findById(documentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "견적서를 찾을 수 없습니다: " + documentId));
+    }
+
+    private Estimate loadEstimateForCollabOverlay(UUID documentId) {
+        return estimateRepository.findByIdForCollabOverlay(documentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "견적서를 찾을 수 없습니다: " + documentId));
     }
