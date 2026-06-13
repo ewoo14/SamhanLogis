@@ -144,7 +144,8 @@ export function JournalDetailPage() {
       header: '#',
       width: '40px',
       align: 'center',
-      render: (l) => l.lineNo + 1,
+      // lineNo 는 BE 1-based(JournalService lineNo=1..) — 협업 패널 라인 라벨과 일관되게 그대로 표기.
+      render: (l) => l.lineNo,
     },
     {
       key: 'accountCode',
