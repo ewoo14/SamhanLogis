@@ -12,7 +12,7 @@
 
 **✅ 슬라이스 0 머지 완료 (PR #474, `30b0ce93a`, 2026-06-13)**: `shared:collab-core`(CollabComment/CollabSuggestion Service·DocumentCollaborationPort·CollabDocumentType ENUM) 도입 + slip 레퍼런스 구현. 다모델 4라운드(Opus A→Codex B→Opus C→Opus 확정 D) 전건 fix·차단 0. CI 25/25 green. 실서버 QA: 확정전표 수정완료→memo 실변경+diff(UI 9컷 `docs/qa/slip-edit-collab/`) + 시드전표(출고자/검수자 username형) 수정완료→기여자+출고인+검수인 3건 알림 발송 실증(username→UUID resolve). auth `by-login` 신설.
 
-**진행 위치**: 슬라이스 0(slip 레퍼런스) **머지 완료**. **다음 = 슬라이스 1 (문서별 롤아웃)** — collab-core 패턴을 다음 문서에 복제. 후보: 회계전표(ACCOUNTING_VOUCHER)·주문(PARTNER_ORDER)·견적(ESTIMATE)·배차(DISPATCH_TASK 일부 기구현)·그룹웨어 결재. **각 슬라이스 = 동일 워크플로우**(기획 → Codex 개발 → 순차 5-agent 라운드[각 PR게시+실서버 스크린샷] → 다음 리뷰어 0에러까지 사이클 → PM 최종점검+머지). presence(동시접속자+색상)=후속.
+**진행 위치**: 슬라이스 0(slip 레퍼런스) 머지 완료. **슬라이스 1 = 회계전표(Journal) 진행 — PR #475**(개발책임자 선정). collab-core 패턴 accounting-service 복제: 수정완료 편집=적요+라인메모만(차대변 금액/계정 불변=역분개, 원장키 400)·COLLAB_LOCKED={REVERSED}·알림=기여자만(결재자 없음)·page-code accounting.journals 재사용. PM 근본fix=collab-core `@AutoConfigureAfter(RealtimeAutoConfiguration)`(auto-config broker 의존 서비스 publisher 누락 방지=에픽 전체 이득). **Round A(Opus 5-agent) 완료**(P1 4건+IT보강+실QA DataTable off-by-one fix, 실서버 9컷 게시) → **Round B(Codex) 진행 예정**. 검증: JournalCollabIT 9건(실 Postgres)·전체 playwright. **다음 후보**: 주문(PARTNER_ORDER)·견적(ESTIMATE)·배차·그룹웨어 결재. presence=후속. **각 슬라이스 = 동일 워크플로우**(기획→Codex 개발→순차 5-agent 라운드[각 PR게시+실서버 스크린샷]→다음 리뷰어 0에러까지→PM 머지).
 
 **🚨 워크플로우(반복위반 주의)**: 각 라운드 5-agent 리뷰=PR게시+실서버 데스크톱 스크린샷 인라인 / 다음 리뷰어 0에러까지 사이클 / CI green前 PM종합 금지 / Bash커밋=heredoc 또는 `-F 파일`(`@'...'@` 금지) / 실QA=가짜금지 / Codex 샌드박스 wrapper-lock으로 컴파일 못함→PM이 매번 직접 컴파일 검증.
 

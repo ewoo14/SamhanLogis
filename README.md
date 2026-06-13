@@ -36,6 +36,7 @@
   - **알림 일반화(슬라이스 0)**: 수정완료 시 **① 기여자(작성·수정 이력·코멘트 작성자) + ② 다음 결재자(출고인·검수인, 없으면 skip)** 에게 알림(현재 수정자 제외). `collab-core.resolveNotificationRecipients` 추상 + `UserIdResolver`(username/사번 → auth `by-login` → UUID).
   - **FE**: 전표 상세 "수정" 버튼(COMPLETED=완료 버튼 자리 대체)→편집모드(overlay 11필드)→"수정완료". 수정 이력 **diff 뷰**(이전값→새값·수정자·시각). UUID 비공개. design-system.
   - **검증**: slip+auth 전체 테스트 0실패(`SlipCollabIT` 실 Testcontainers Postgres, UserIdResolver/auth by-login). 실서버 Docker QA — dev_master 실로그인, 확정전표 수정완료 → memo 실변경 + diff 이력(UI 9컷). 다모델 리뷰 사이클 진행(각 라운드 실서버 스크린샷, 다음 리뷰어 0에러까지 → PM 머지).
+- **§7 슬라이스 1 — 회계전표(`Journal`/분개) 협업** (PR #475): collab-core 패턴을 accounting-service 에 복제. 엔티티=`Journal`(DRAFT→POSTED→REVERSED), 확정/완료=POSTED. **수정완료 편집 = 적요(`description`)+라인메모(`JournalLine.memo`) 비-원장 필드만**(차대변 금액/계정 불변=역분개 경로, 원장키 changeSet 400 거부 — 회계 무결성). `COLLAB_LOCKED={REVERSED}`. **알림=기여자만**(결재자 없음 → "다음 결재자 없으면 예외"). page-code `accounting.journals` 재사용. `JournalCollabController`(`/accounting/journals/{id}/collab`) + V36 + FE `JournalDetailPage` 협업 패널. **collab-core 근본 fix**: `CollabCoreAutoConfiguration @AutoConfigureAfter(RealtimeAutoConfiguration)`(auto-config broker 의존 서비스 publisher 누락 방지, 에픽 전체 이득). 검증: `JournalCollabIT` 9건(실 Postgres)·실서버 Docker QA 9컷(수정완료·diff·코멘트).
 
 ### 최신 진행 메모 (2026-06-11)
 
