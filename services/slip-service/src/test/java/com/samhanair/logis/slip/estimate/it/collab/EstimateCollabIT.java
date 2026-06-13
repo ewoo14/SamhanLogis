@@ -319,10 +319,19 @@ class EstimateCollabIT extends AbstractPostgresIT {
         assertThat(bodyCaptor.getValue()).doesNotContain(estimate.getId().toString());
     }
 
-    /** DB CHECK 제약이 유효하지 않은 document_type / status 를 거부하는지 검증한다. */
+    /**
+     * estimate_collab_comments 에 유효하지 않은 document_type 을 네이티브 INSERT 하면
+     * DB CHECK 제약이 {@link DataIntegrityViolationException} 을 던져야 한다.
+     *
+     * <p>위반 INSERT 는 PG 트랜잭션을 abort 시키므로([enum-expansion-check-constraint]),
+     * 같은 {@code @Transactional} 안에서 위반 INSERT 를 2건 연속 실행하면 두 번째는
+     * 자신의 CHECK(23514) 가 아니라 "current transaction is aborted"(25P02) 로 실패한다.
+     * 따라서 comments / suggestions CHECK 는 형제 {@code SlipCollabIT} 처럼
+     * 각각 독립 트랜잭션(@Test)에서 검증한다.
+     */
     @Test
-    void checkConstraintRejectsInvalidDocumentTypeAndStatus() {
-        UUID estimateId = seedEstimate("CHK").getId();
+    void checkConstraintRejectsInvalidDocumentTypeInComments() {
+        UUID estimateId = seedEstimate("CHK-CMT").getId();
         UUID authorId = UUID.fromString(ACTOR_ID);
 
         assertThatThrownBy(() -> jdbcTemplate.update(
@@ -332,6 +341,16 @@ class EstimateCollabIT extends AbstractPostgresIT {
                         "(?, 'INVALID_TYPE', ?, NULL, ?, 'tester', '본문', 'OPEN', NOW(), 'system', false)",
                 UUID.randomUUID(), estimateId, authorId))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /**
+     * estimate_collab_suggestions 에 유효하지 않은 status 를 네이티브 INSERT 하면
+     * DB CHECK 제약이 {@link DataIntegrityViolationException} 을 던져야 한다.
+     */
+    @Test
+    void checkConstraintRejectsInvalidStatusInSuggestions() {
+        UUID estimateId = seedEstimate("CHK-SUG").getId();
+        UUID proposerId = UUID.fromString(ACTOR_ID);
 
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "INSERT INTO estimate_collab_suggestions " +
@@ -339,7 +358,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
                         "version, created_at, created_by, is_deleted) VALUES " +
                         "(?, 'ESTIMATE', ?, ?, '테스터', '{\"f\":{\"after\":\"v\"}}', 'BAD', " +
                         "0, NOW(), 'system', false)",
-                UUID.randomUUID(), estimateId, authorId))
+                UUID.randomUUID(), estimateId, proposerId))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
