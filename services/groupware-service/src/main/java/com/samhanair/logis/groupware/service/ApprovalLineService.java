@@ -4,6 +4,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
+import com.samhanair.logis.groupware.domain.ApprovalStatus;
+import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import java.util.ArrayList;
@@ -72,6 +74,28 @@ public class ApprovalLineService {
         return repository.findById(approvalId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "결재선을 찾을 수 없습니다: " + approvalId));
+    }
+
+    /** 관리자 결재 문서 목록 조회. status/requesterId 는 선택 필터이며 응답 DTO 로 반환한다. */
+    @Transactional(readOnly = true)
+    public List<ApprovalLineAdminResponse> findAll(ApprovalStatus status, UUID requesterId) {
+        List<ApprovalLine> lines;
+        if (status != null && requesterId != null) {
+            lines = repository.findAllByRequesterIdAndStatusOrderByCreatedAtDesc(requesterId, status);
+        } else if (status != null) {
+            lines = repository.findAllByStatusOrderByCreatedAtDesc(status);
+        } else if (requesterId != null) {
+            lines = repository.findAllByRequesterIdOrderByCreatedAtDesc(requesterId);
+        } else {
+            lines = repository.findAllByOrderByCreatedAtDesc();
+        }
+        return lines.stream().map(ApprovalLineAdminResponse::from).toList();
+    }
+
+    /** 관리자 결재 문서 상세 조회. */
+    @Transactional(readOnly = true)
+    public ApprovalLineAdminResponse findResponseById(UUID approvalId) {
+        return ApprovalLineAdminResponse.from(findById(approvalId));
     }
 
     /** 결재자 승인 처리 — chain 의 현재 step 결재자만 호출 허용. */

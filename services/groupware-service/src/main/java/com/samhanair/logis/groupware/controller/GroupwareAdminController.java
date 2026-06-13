@@ -1,6 +1,7 @@
 package com.samhanair.logis.groupware.controller;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.groupware.domain.ApprovalStatus;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
 import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
@@ -50,6 +51,24 @@ public class GroupwareAdminController {
     private final ScheduleService scheduleService;
 
     // ================================ 결재선 ================================
+
+    /** 결재 문서 목록 조회 — 전체 또는 status/requesterId 필터. */
+    @Operation(summary = "결재 문서 목록 조회")
+    @GetMapping("/approvals")
+    @RequirePermission(page = "groupware.approvals", action = PermissionAction.VIEW)
+    public ApiResponse<List<ApprovalLineAdminResponse>> listApprovals(
+            @RequestParam(required = false) ApprovalStatus status,
+            @RequestParam(required = false) UUID requesterId) {
+        return ApiResponse.ok(approvalLineService.findAll(status, requesterId));
+    }
+
+    /** 결재 문서 상세 조회. */
+    @Operation(summary = "결재 문서 상세 조회")
+    @GetMapping("/approvals/{approvalId}")
+    @RequirePermission(page = "groupware.approvals", action = PermissionAction.VIEW)
+    public ApiResponse<ApprovalLineAdminResponse> getApproval(@PathVariable UUID approvalId) {
+        return ApiResponse.ok(approvalLineService.findResponseById(approvalId));
+    }
 
     /** 결재선 생성 + chain 등록. */
     @Operation(summary = "결재선 생성", description = "MASTER / MANAGER 권한 필요")

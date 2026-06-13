@@ -34,6 +34,14 @@ import type {
   SetMatchedDriverPayload,
 } from './dispatchTask'
 import type { DispatchCollabEdit, DispatchComment } from './dispatchCollab'
+import type {
+  ApprovalLineAdminResponse,
+  ApprovalStatus,
+} from './groupwareApproval'
+import type {
+  GroupwareApprovalCollabComment,
+  GroupwareApprovalCollabEdit,
+} from './groupwareApprovalCollab'
 
 declare global {
   interface Window {
@@ -5311,6 +5319,246 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
+  const groupwareApprovalCommentResolveMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/comments\/([^/?]+)\/resolve(?:\?.*)?$/,
+  )
+  if (method === 'POST' && groupwareApprovalCommentResolveMatch) {
+    const denied = mockRequirePermission('groupware.approvals', 'update')
+    if (denied) return denied
+    const approvalId = decodeURIComponent(groupwareApprovalCommentResolveMatch[1]!)
+    const commentId = decodeURIComponent(groupwareApprovalCommentResolveMatch[2]!)
+    const commentsStore = getMockGroupwareApprovalCommentsStore()
+    const comment = (commentsStore[approvalId] ?? []).find((item) => item.id === commentId)
+    if (!comment) {
+      return mockError(404, 'NOT_FOUND', '결재 코멘트를 찾을 수 없습니다.')
+    }
+    comment.status = 'RESOLVED'
+    return envelope(comment)
+  }
+
+  const groupwareApprovalCommentItemMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/comments\/([^/?]+)(?:\?.*)?$/,
+  )
+  if (method === 'DELETE' && groupwareApprovalCommentItemMatch) {
+    const denied = mockRequirePermission('groupware.approvals', 'update')
+    if (denied) return denied
+    const approvalId = decodeURIComponent(groupwareApprovalCommentItemMatch[1]!)
+    const commentId = decodeURIComponent(groupwareApprovalCommentItemMatch[2]!)
+    const commentsStore = getMockGroupwareApprovalCommentsStore()
+    commentsStore[approvalId] = (commentsStore[approvalId] ?? []).filter((comment) => comment.id !== commentId)
+    return envelope(null)
+  }
+
+  const groupwareApprovalCommentCollectionMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/comments(?:\?.*)?$/,
+  )
+  if (groupwareApprovalCommentCollectionMatch) {
+    const approvalId = decodeURIComponent(groupwareApprovalCommentCollectionMatch[1]!)
+    const approvals = getMockGroupwareApprovalsStore()
+    if (!approvals.some((approval) => approval.approvalId === approvalId)) {
+      return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+    }
+    const commentsStore = getMockGroupwareApprovalCommentsStore()
+    if (method === 'GET') {
+      const denied = mockRequirePermission('groupware.approvals', 'view')
+      if (denied) return denied
+      return envelope([...(commentsStore[approvalId] ?? [])])
+    }
+    if (method === 'POST') {
+      const denied = mockRequirePermission('groupware.approvals', 'update')
+      if (denied) return denied
+      const body = parseMockBody(config) as {
+        body?: string
+        parentId?: string
+        anchor?: string
+      }
+      const text = String(body.body ?? '').trim()
+      if (!text) {
+        return mockError(400, 'INVALID_INPUT', '코멘트 내용은 필수입니다.')
+      }
+      const nextSequence = mockGroupwareApprovalCommentSequence++
+      const created: GroupwareApprovalCollabComment = {
+        id: `77777777-bbbb-4bbb-8bbb-${String(nextSequence).padStart(12, '0')}`,
+        anchor: typeof body.anchor === 'string' && body.anchor.trim() ? body.anchor.trim() : null,
+        authorName: MOCK_AUTH.fullName,
+        body: text,
+        parentId: typeof body.parentId === 'string' && body.parentId.trim() ? body.parentId.trim() : null,
+        status: 'OPEN',
+        createdAt: new Date().toISOString(),
+      }
+      commentsStore[approvalId] = [created, ...(commentsStore[approvalId] ?? [])]
+      return envelope(created)
+    }
+  }
+
+  const groupwareApprovalEditCollectionMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/edits(?:\?.*)?$/,
+  )
+  if (groupwareApprovalEditCollectionMatch) {
+    const approvalId = decodeURIComponent(groupwareApprovalEditCollectionMatch[1]!)
+    const approval = getMockGroupwareApprovalsStore().find((item) => item.approvalId === approvalId)
+    if (!approval) {
+      return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+    }
+    const editsStore = getMockGroupwareApprovalEditsStore()
+    if (method === 'GET') {
+      const denied = mockRequirePermission('groupware.approvals', 'view')
+      if (denied) return denied
+      return envelope([...(editsStore[approvalId] ?? [])])
+    }
+    if (method === 'POST') {
+      const denied = mockRequirePermission('groupware.approvals', 'update')
+      if (denied) return denied
+      if (approval.status !== 'PENDING' && approval.status !== 'IN_PROGRESS') {
+        return mockError(409, 'CONFLICT', `협업 수정완료가 불가능한 상태입니다: ${approval.status}`)
+      }
+      const body = parseMockBody(config) as { changeSet?: string; reason?: string }
+      let parsed: Record<string, { after?: unknown; before?: unknown }>
+      try {
+        parsed = JSON.parse(String(body.changeSet ?? ''))
+      } catch {
+        return mockError(400, 'INVALID_INPUT', 'changeSet JSON 형식이 올바르지 않습니다')
+      }
+      const entries = Object.entries(parsed)
+      if (entries.length === 0) {
+        return mockError(400, 'INVALID_INPUT', 'changeSet 에 적용할 필드가 없습니다')
+      }
+      if (entries.some(([path, change]) => {
+        const normalized = path.replace(/^\/+/, '').replace(/\//g, '.')
+        return (normalized !== 'title' && normalized !== 'content') || !change || !('after' in change)
+      })) {
+        return mockError(400, 'INVALID_INPUT', '결재 협업은 title/content 만 수정할 수 있습니다')
+      }
+      const normalizedChangeSet: Record<string, { before: string | null; after: string | null }> = {}
+      for (const [path, change] of entries) {
+        const normalized = path.replace(/^\/+/, '').replace(/\//g, '.')
+        const after = change.after == null ? null : String(change.after)
+        if (normalized === 'title') {
+          if (!after || !after.trim()) {
+            return mockError(400, 'INVALID_INPUT', '결재 제목은 필수입니다')
+          }
+          if (after.length > 200) {
+            return mockError(400, 'INVALID_INPUT', '결재 제목은 200자 이하여야 합니다')
+          }
+          normalizedChangeSet.title = { before: approval.title, after }
+          approval.title = after
+        }
+        if (normalized === 'content') {
+          if (after && after.length > 2000) {
+            return mockError(400, 'INVALID_INPUT', '결재 본문은 2000자 이하여야 합니다')
+          }
+          normalizedChangeSet.content = { before: approval.content ?? null, after }
+          approval.content = after
+        }
+      }
+      const nextSequence = mockGroupwareApprovalEditSequence++
+      const created: GroupwareApprovalCollabEdit = {
+        id: `77777777-cccc-4ccc-8ccc-${String(nextSequence).padStart(12, '0')}`,
+        changeSet: JSON.stringify(normalizedChangeSet),
+        reason: typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : null,
+        proposerName: MOCK_AUTH.fullName,
+        status: 'ACCEPTED',
+        decidedByName: MOCK_AUTH.fullName,
+        decidedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+      editsStore[approvalId] = [created, ...(editsStore[approvalId] ?? [])]
+      return envelope({ edit: created, approval })
+    }
+  }
+
+  const groupwareApprovalDecisionMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/(approve|reject)(?:\?.*)?$/,
+  )
+  if ((method === 'PUT' || method === 'POST') && groupwareApprovalDecisionMatch) {
+    const denied = mockRequirePermission('messenger.admin', 'update')
+    if (denied) return denied
+    const approvalId = decodeURIComponent(groupwareApprovalDecisionMatch[1]!)
+    const action = groupwareApprovalDecisionMatch[2]!
+    const approval = getMockGroupwareApprovalsStore().find((item) => item.approvalId === approvalId)
+    if (!approval) {
+      return mockError(404, 'NOT_FOUND', '결재 문서를 찾을 수 없습니다.')
+    }
+    const body = parseMockBody(config) as { reason?: string }
+    const current = approval.steps.find((step) => step.status === 'PENDING')
+    if (!current) {
+      return mockError(409, 'CONFLICT', '처리 대기 중인 결재 단계가 없습니다')
+    }
+    if (action === 'approve') {
+      current.status = 'APPROVED'
+      current.decidedAt = new Date().toISOString()
+      approval.status = approval.steps.every((step) => step.status === 'APPROVED') ? 'APPROVED' : 'IN_PROGRESS'
+    } else {
+      current.status = 'REJECTED'
+      current.decidedAt = new Date().toISOString()
+      current.reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : null
+      approval.status = 'REJECTED'
+    }
+    return envelope(approval)
+  }
+
+  const groupwareApprovalDetailMatch = url.match(/\/admin\/groupware\/approvals\/([^/?]+)(?:\?.*)?$/)
+  if (method === 'GET' && groupwareApprovalDetailMatch) {
+    const denied = mockRequirePermission('groupware.approvals', 'view')
+    if (denied) return denied
+    const approvalId = decodeURIComponent(groupwareApprovalDetailMatch[1]!)
+    const approval = getMockGroupwareApprovalsStore().find((item) => item.approvalId === approvalId)
+    if (!approval) {
+      return mockError(404, 'NOT_FOUND', '결재 문서를 찾을 수 없습니다.')
+    }
+    return envelope(approval)
+  }
+
+  if (url.match(/\/admin\/groupware\/approvals(?:\?.*)?$/)) {
+    const approvals = getMockGroupwareApprovalsStore()
+    if (method === 'GET') {
+      const denied = mockRequirePermission('groupware.approvals', 'view')
+      if (denied) return denied
+      const params = new URLSearchParams(url.split('?')[1] ?? '')
+      const configParams = config.params as Record<string, unknown> | undefined
+      const status = String(configParams?.status ?? params.get('status') ?? '')
+      const requesterId = String(configParams?.requesterId ?? params.get('requesterId') ?? '')
+      return envelope(approvals.filter((approval) => {
+        const statusOk = !status || approval.status === status
+        const requesterOk = !requesterId || approval.requesterId === requesterId
+        return statusOk && requesterOk
+      }))
+    }
+    if (method === 'POST') {
+      const denied = mockRequirePermission('messenger.admin', 'create')
+      if (denied) return denied
+      const body = parseMockBody(config) as {
+        requesterId?: string
+        title?: string
+        content?: string
+        approverIds?: string[]
+      }
+      const title = String(body.title ?? '').trim()
+      const approverIds = Array.isArray(body.approverIds) ? body.approverIds : []
+      if (!body.requesterId || !title || approverIds.length === 0) {
+        return mockError(400, 'INVALID_INPUT', '요청자, 제목, 결재자는 필수입니다.')
+      }
+      const next = approvals.length + 1
+      const created: ApprovalLineAdminResponse = {
+        approvalId: `77777777-aaaa-4aaa-8aaa-${String(next + 10).padStart(12, '0')}`,
+        approvalNo: `${MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')}-${next}`,
+        requesterId: body.requesterId,
+        title,
+        content: typeof body.content === 'string' && body.content.trim() ? body.content : null,
+        status: 'PENDING',
+        steps: approverIds.map((approverId, sequence) => ({
+          sequence,
+          approverId,
+          status: 'PENDING',
+          decidedAt: null,
+          reason: null,
+        })),
+      }
+      approvals.unshift(created)
+      return envelope(created)
+    }
+  }
+
   const setMatchedDriverMatch = url.match(
     /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/matched-driver(?:\?.*)?$/,
   )
@@ -8497,6 +8745,190 @@ const MOCK_DISPATCH_HISTORY_PREVIOUS_CODE = mockTaskCode(MOCK_DISPATCH_HISTORY_P
 const MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX = MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')
 const MOCK_DISPATCH_HISTORY_PREVIOUS_SLIP_PREFIX = MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')
 
+const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
+  {
+    approvalId: '77777777-aaaa-4aaa-8aaa-000000000001',
+    approvalNo: `${MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')}-1`,
+    requesterId: MOCK_AUTH.userId,
+    title: '6월 2주차 배송비 정산 승인',
+    content: '아로로지스 외주 배차 정산 내역 승인 요청입니다.',
+    status: 'PENDING',
+    steps: [
+      {
+        sequence: 0,
+        approverId: '00000000-0000-0000-0000-000000010002',
+        status: 'PENDING',
+        decidedAt: null,
+        reason: null,
+      },
+      {
+        sequence: 1,
+        approverId: '00000000-0000-0000-0000-000000010003',
+        status: 'PENDING',
+        decidedAt: null,
+        reason: null,
+      },
+    ],
+  },
+  {
+    approvalId: '77777777-aaaa-4aaa-8aaa-000000000002',
+    approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-2`,
+    requesterId: MOCK_AUTH.userId,
+    title: '창고 소모품 구매 품의',
+    content: '분류 라벨과 포장재 구매 건입니다.',
+    status: 'IN_PROGRESS',
+    steps: [
+      {
+        sequence: 0,
+        approverId: '00000000-0000-0000-0000-000000010002',
+        status: 'APPROVED',
+        decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T11:20:00`,
+        reason: null,
+      },
+      {
+        sequence: 1,
+        approverId: '00000000-0000-0000-0000-000000010003',
+        status: 'PENDING',
+        decidedAt: null,
+        reason: null,
+      },
+    ],
+  },
+  {
+    approvalId: '77777777-aaaa-4aaa-8aaa-000000000003',
+    approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-3`,
+    requesterId: MOCK_AUTH.userId,
+    title: '반품 운송비 예외 처리',
+    content: '거래처 요청에 따른 운송비 예외 승인 건입니다.',
+    status: 'APPROVED',
+    steps: [
+      {
+        sequence: 0,
+        approverId: '00000000-0000-0000-0000-000000010002',
+        status: 'APPROVED',
+        decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T14:00:00`,
+        reason: null,
+      },
+    ],
+  },
+]
+
+const MOCK_GROUPWARE_APPROVAL_COMMENTS: Record<string, GroupwareApprovalCollabComment[]> = {
+  '77777777-aaaa-4aaa-8aaa-000000000001': [
+    {
+      id: '77777777-bbbb-4bbb-8bbb-000000000001',
+      anchor: null,
+      authorName: '오병승',
+      body: '정산 첨부 기준으로 제목만 보강하면 될 것 같습니다.',
+      parentId: null,
+      status: 'OPEN',
+      createdAt: `${MOCK_DISPATCH_HISTORY_TODAY}T10:10:00`,
+    },
+  ],
+}
+
+const MOCK_GROUPWARE_APPROVAL_EDITS: Record<string, GroupwareApprovalCollabEdit[]> = {
+  '77777777-aaaa-4aaa-8aaa-000000000002': [
+    {
+      id: '77777777-cccc-4ccc-8ccc-000000000001',
+      changeSet: JSON.stringify({
+        title: {
+          before: '창고 소모품 구매',
+          after: '창고 소모품 구매 품의',
+        },
+      }),
+      reason: '문서 성격 명확화',
+      proposerName: '오병승',
+      status: 'ACCEPTED',
+      decidedByName: '오병승',
+      decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T10:40:00`,
+      createdAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T10:40:00`,
+    },
+  ],
+}
+
+let mockGroupwareApprovalCommentSequence = 2
+let mockGroupwareApprovalEditSequence = 2
+
+type GroupwareApprovalMockStores = {
+  __SAMHAN_MOCK_GROUPWARE_APPROVALS?: ApprovalLineAdminResponse[]
+  __SAMHAN_MOCK_GROUPWARE_APPROVALS_SEED?: ApprovalLineAdminResponse[]
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS?: Record<string, GroupwareApprovalCollabComment[]>
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS_SEED?: Record<string, GroupwareApprovalCollabComment[]>
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS?: Record<string, GroupwareApprovalCollabEdit[]>
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS_SEED?: Record<string, GroupwareApprovalCollabEdit[]>
+}
+
+function cloneGroupwareApprovals(source: ApprovalLineAdminResponse[]): ApprovalLineAdminResponse[] {
+  return source.map((approval) => ({
+    ...approval,
+    steps: approval.steps.map((step) => ({ ...step })),
+  }))
+}
+
+function cloneGroupwareApprovalComments(
+  source: Record<string, GroupwareApprovalCollabComment[]>,
+): Record<string, GroupwareApprovalCollabComment[]> {
+  return Object.fromEntries(
+    Object.entries(source).map(([approvalId, comments]) => [
+      approvalId,
+      comments.map((comment) => ({ ...comment })),
+    ]),
+  )
+}
+
+function cloneGroupwareApprovalEdits(
+  source: Record<string, GroupwareApprovalCollabEdit[]>,
+): Record<string, GroupwareApprovalCollabEdit[]> {
+  return Object.fromEntries(
+    Object.entries(source).map(([approvalId, edits]) => [
+      approvalId,
+      edits.map((edit) => ({ ...edit })),
+    ]),
+  )
+}
+
+function getMockGroupwareApprovalsStore(): ApprovalLineAdminResponse[] {
+  const g = globalThis as unknown as GroupwareApprovalMockStores
+  if (!g.__SAMHAN_MOCK_GROUPWARE_APPROVALS) {
+    g.__SAMHAN_MOCK_GROUPWARE_APPROVALS = cloneGroupwareApprovals([
+      ...MOCK_GROUPWARE_APPROVALS,
+      ...(g.__SAMHAN_MOCK_GROUPWARE_APPROVALS_SEED ?? []),
+    ])
+  }
+  return g.__SAMHAN_MOCK_GROUPWARE_APPROVALS
+}
+
+function getMockGroupwareApprovalCommentsStore(): Record<string, GroupwareApprovalCollabComment[]> {
+  const g = globalThis as unknown as GroupwareApprovalMockStores
+  if (!g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS) {
+    g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS =
+      cloneGroupwareApprovalComments(MOCK_GROUPWARE_APPROVAL_COMMENTS)
+    if (g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS_SEED) {
+      Object.assign(
+        g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS,
+        cloneGroupwareApprovalComments(g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS_SEED),
+      )
+    }
+  }
+  return g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS
+}
+
+function getMockGroupwareApprovalEditsStore(): Record<string, GroupwareApprovalCollabEdit[]> {
+  const g = globalThis as unknown as GroupwareApprovalMockStores
+  if (!g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS) {
+    g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS =
+      cloneGroupwareApprovalEdits(MOCK_GROUPWARE_APPROVAL_EDITS)
+    if (g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS_SEED) {
+      Object.assign(
+        g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS,
+        cloneGroupwareApprovalEdits(g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS_SEED),
+      )
+    }
+  }
+  return g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS
+}
+
 const MOCK_DISPATCH_COMMENTS: Record<string, DispatchComment[]> = {
   '11111111-aaaa-4aaa-8aaa-000000000001': [
     {
@@ -9579,6 +10011,7 @@ const SP_D1_PAGES = [
   'arologis.dispatch.ops',
   'dispatch.batch',
   'aligo.address-book',
+  'groupware.approvals',
   'messenger.admin',
   'slip.edit-requests',
   'slip.edit-requests.decide',
@@ -9694,7 +10127,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
-    'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
+    'aligo.address-book', 'groupware.approvals', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     'slip.photo-audit',
     // C2c 동적 권한 전환 — MANAGER: view 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
@@ -9869,7 +10302,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
-    'aligo.address-book', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
+    'aligo.address-book', 'groupware.approvals', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     // slip.photo-audit: MANAGER can_edit=FALSE per V36
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
