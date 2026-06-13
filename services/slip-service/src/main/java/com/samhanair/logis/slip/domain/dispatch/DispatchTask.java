@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.domain.dispatch;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -8,8 +10,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -36,6 +41,12 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class DispatchTask extends BaseEntity {
 
+    /** 협업 수정완료가 차단되는 물리 종결 단계. */
+    private static final Set<DispatchTaskStatus> COLLAB_LOCKED_STATUSES =
+            EnumSet.of(DispatchTaskStatus.CANCEL_ACCEPTED, DispatchTaskStatus.CANCELLED);
+
+    private static final int MEMO_MAX_LENGTH = 1000;
+
     @Id
     @GeneratedValue
     @UuidGenerator
@@ -57,6 +68,13 @@ public class DispatchTask extends BaseEntity {
 
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
+
+    @Column(name = "memo", length = MEMO_MAX_LENGTH)
+    private String memo;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     // ---------- Phase C (수정/취소 흐름) 신규 4 column ----------
     @Column(name = "modification_reason", length = 500)
@@ -81,6 +99,7 @@ public class DispatchTask extends BaseEntity {
         this.taskCode = taskCode;
         this.dispatchDate = dispatchDate;
         this.status = DispatchTaskStatus.DRAFT;
+        this.version = 0L;
     }
 
     /** 신규 DispatchTask 생성 (DRAFT 상태). */
@@ -244,5 +263,38 @@ public class DispatchTask extends BaseEntity {
         this.status = DispatchTaskStatus.DRAFT;
         // arologisDispatchId 는 새 dispatch 발송 후 markDispatched() 에서 재 설정.
         this.arologisDispatchId = null;
+    }
+
+    /**
+     * 협업 수정완료 가능 단계인지 검증한다.
+     *
+     * <p>배차 협업 편집은 memo 같은 soft overlay 만 허용한다. 단 취소 수락/취소 완료 상태는
+     * 물리 종결 단계이므로 더 이상 1-인 수정완료로 덮어쓰지 않는다.
+     */
+    public void guardCollabModifiable() {
+        if (COLLAB_LOCKED_STATUSES.contains(this.status)) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 협업 수정완료가 불가능한 상태입니다: " + this.status);
+        }
+    }
+
+    /**
+     * 협업 수정완료로 배차 비고를 덮어쓴다.
+     *
+     * @param memo 비고. null 은 비움으로 보존한다.
+     * @return this
+     */
+    public DispatchTask overlayMemo(String memo) {
+        guardCollabModifiable();
+        validateOverlayLength(memo, "배차 비고", MEMO_MAX_LENGTH);
+        this.memo = memo;
+        return this;
+    }
+
+    private void validateOverlayLength(String value, String fieldName, int maxLength) {
+        if (value != null && value.length() > maxLength) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    fieldName + "은(는) " + maxLength + "자 이하여야 합니다");
+        }
     }
 }

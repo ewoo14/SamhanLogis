@@ -22,7 +22,9 @@
  *  - aria-label 한국어 풀네임 ("배차 작업 2026/05/14-1 상세").
  *  - Modal (design-system) 의 focus trap + ESC 닫기 + 한국어 닫기 라벨 활용.
  */
-import { useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { isAxiosError } from 'axios'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Input, Modal, Select } from '@samhan/design-system'
 import {
   DISPATCH_TASK_STATUS_LABEL,
@@ -37,8 +39,15 @@ import {
 import { ModificationRequestDialog } from './ModificationRequestDialog'
 import { CancellationRequestDialog } from './CancellationRequestDialog'
 import { DispatchCommentThread } from './DispatchCommentThread'
+import {
+  commitDispatchCollabEdit,
+  getDispatchCollabEdits,
+  type DispatchCollabEdit,
+} from '../../../api/dispatchCollab'
+import { DispatchCollabRealtimeClient } from '../../../realtime/DispatchCollabRealtimeClient'
 import { usePermissions } from '../../../hooks/usePermissions'
 import {
+  dispatchTaskQueryKey,
   useMarkManualDispatchCompleteMutation,
   useSetMatchedDriverMutation,
   useStartRedispatchMutation,
@@ -123,6 +132,57 @@ type MatchedDriverFormTouched = Partial<Record<keyof SetMatchedDriverPayload, bo
 
 const PHONE_PATTERN = /^[0-9+\-\s()]{7,20}$/
 
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return '-'
+  return value.slice(0, 16).replace('T', ' ')
+}
+
+function displayName(value: string | null | undefined): string {
+  return value && value !== 'system' ? value : '시스템'
+}
+
+function valueForEdit(value: string | null | undefined): string {
+  return value ?? ''
+}
+
+function valueForChange(value: string): string | null {
+  return value.length === 0 ? null : value
+}
+
+function serverErrorMessage(error: unknown): string | null {
+  if (!isAxiosError(error)) return null
+  const data = error.response?.data as { message?: unknown } | undefined
+  const msg = data?.message
+  return typeof msg === 'string' && msg.trim() ? msg.trim() : null
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/^\/+/, '').replace(/\//g, '.')
+}
+
+function labelForPath(path: string): string {
+  return normalizePath(path) === 'memo' ? '비고' : normalizePath(path)
+}
+
+function parseChangeSetDiffs(changeSet: string): Array<{
+  fieldName: string
+  label: string
+  before: string | null
+  after: string | null
+}> {
+  try {
+    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
+    return Object.entries(parsed).map(([path, change]) => ({
+      fieldName: normalizePath(path),
+      label: labelForPath(path),
+      before: change.before == null ? null : String(change.before),
+      after: change.after == null ? null : String(change.after),
+    }))
+  } catch {
+    return []
+  }
+}
+
 function validateMatchedDriverForm(
   form: SetMatchedDriverPayload,
 ): MatchedDriverFormErrors {
@@ -172,10 +232,17 @@ export function DispatchTaskDetailModal({
   const [matchedDriverSubmitAttempted, setMatchedDriverSubmitAttempted] =
     useState(false)
   const [taskActionError, setTaskActionError] = useState<string | null>(null)
+  const [collabEditMode, setCollabEditMode] = useState(false)
+  const [memoDraft, setMemoDraft] = useState('')
+  const [editReason, setEditReason] = useState('')
+  const [editNotice, setEditNotice] = useState<string | null>(null)
+  const [commitError, setCommitError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const setMatchedDriverMutation = useSetMatchedDriverMutation(task.id)
   const manualCompleteMutation = useMarkManualDispatchCompleteMutation(task.id)
   const startRedispatchMutation = useStartRedispatchMutation(task.id)
+  const editQueryKey = useMemo(() => ['dispatchCollabEdits', task.id] as const, [task.id])
   const matchedDriverFormErrors = validateMatchedDriverForm(matchedDriverForm)
   const hasMatchedDriverFormErrors =
     Object.keys(matchedDriverFormErrors).length > 0
@@ -195,6 +262,11 @@ export function DispatchTaskDetailModal({
     canAccess('dispatch.board', 'update')
   const showRedispatchButton =
     allowTaskActions && task.status === 'MODIFICATION_ACCEPTED' && canAccess('dispatch.board', 'update')
+  const collabLocked = task.status === 'CANCEL_ACCEPTED' || task.status === 'CANCELLED'
+  const canStartCollabEdit =
+    task.status === 'DISPATCHED' &&
+    !collabLocked &&
+    canAccess('dispatch.board', 'update')
   const canEditMatchedDriver =
     canAccess('dispatch.board', 'update') &&
     (task.status === 'DRAFT' ||
@@ -202,6 +274,66 @@ export function DispatchTaskDetailModal({
       task.status === 'DISPATCHED')
   const banner = STATUS_BANNER_STYLE[task.status]
   const totalSlips = task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)
+
+  const editsQuery = useQuery({
+    queryKey: editQueryKey,
+    queryFn: () => getDispatchCollabEdits(task.id),
+    enabled: task.id.length > 0,
+  })
+
+  useEffect(() => {
+    if (!task.id) return
+    const ctrl = DispatchCollabRealtimeClient.subscribe(task.id, (evt) => {
+      if (!evt.event.startsWith('suggestion.') && evt.event !== 'message') return
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
+      void queryClient.invalidateQueries({ queryKey: dispatchTaskQueryKey(task.id) })
+      void queryClient.invalidateQueries({ queryKey: ['dispatchTasks'] })
+    })
+    return () => ctrl.abort()
+  }, [editQueryKey, queryClient, task.id])
+
+  useEffect(() => {
+    if (!collabEditMode) return
+    setMemoDraft(valueForEdit(task.memo))
+    setEditReason('')
+    setEditNotice(null)
+    setCommitError(null)
+  }, [collabEditMode, task.memo])
+
+  const commitMutation = useMutation({
+    mutationFn: () => {
+      const beforeMemo = valueForEdit(task.memo)
+      if (beforeMemo === memoDraft) {
+        throw new Error('변경된 필드가 없습니다.')
+      }
+      return commitDispatchCollabEdit(task.id, {
+        changeSet: JSON.stringify({
+          memo: {
+            before: valueForChange(beforeMemo),
+            after: valueForChange(memoDraft),
+          },
+        }),
+        reason: editReason.trim() || undefined,
+      })
+    },
+    onSuccess: (response) => {
+      setCollabEditMode(false)
+      setEditNotice('수정완료되었습니다.')
+      queryClient.setQueryData(dispatchTaskQueryKey(response.task.id), response.task)
+      void queryClient.invalidateQueries({ queryKey: dispatchTaskQueryKey(response.task.id) })
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ['dispatchTasks'] })
+    },
+    onError: (error: unknown) => {
+      if (error instanceof Error && error.message === '변경된 필드가 없습니다.') {
+        setCommitError('변경된 필드가 없습니다.')
+        return
+      }
+      setCommitError(serverErrorMessage(error) ?? '수정 저장에 실패했습니다. 다시 시도해 주세요.')
+    },
+  })
+
+  const edits: DispatchCollabEdit[] = Array.isArray(editsQuery.data) ? editsQuery.data : []
 
   // matchedDrivers 를 그룹 sequence 로 dict 화 (그룹 헤더 inline 노출).
   const matchedByGroup = new Map(
@@ -422,6 +554,10 @@ export function DispatchTaskDetailModal({
               <dd style={{ margin: 0 }}>
                 {DISPATCH_TASK_STATUS_LABEL[task.status]}
               </dd>
+              <dt style={{ color: 'var(--color-neutral-500)' }}>비고</dt>
+              <dd style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {task.memo?.trim() ? task.memo : '-'}
+              </dd>
             </dl>
           </section>
 
@@ -617,6 +753,246 @@ export function DispatchTaskDetailModal({
               <strong>배차 불가 사유:</strong> {task.failureReason}
             </div>
           ) : null}
+
+          <section
+            data-testid="dispatch-collab-edit-section"
+            aria-label="수정 이력"
+            style={{
+              borderTop: '1px solid var(--color-neutral-200)',
+              paddingTop: 12,
+              display: 'grid',
+              gap: 10,
+            }}
+          >
+            <header
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>수정 이력</h4>
+              {canStartCollabEdit && !collabEditMode ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setCollabEditMode(true)}
+                  data-testid="dispatch-collab-edit-start"
+                  aria-label={`배차 작업 ${task.taskCode} 비고 수정`}
+                >
+                  수정
+                </Button>
+              ) : null}
+            </header>
+
+            {collabEditMode ? (
+              <div
+                data-testid="dispatch-collab-edit-form"
+                style={{
+                  display: 'grid',
+                  gap: 8,
+                  padding: 10,
+                  border: '1px solid var(--color-neutral-200)',
+                  borderRadius: 4,
+                  background: 'var(--color-neutral-50)',
+                }}
+              >
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
+                  비고
+                  <textarea
+                    value={memoDraft}
+                    onChange={(event) => setMemoDraft(event.target.value)}
+                    maxLength={1000}
+                    rows={3}
+                    aria-label="비고 수정값"
+                    data-testid="dispatch-collab-edit-memo"
+                    style={{
+                      resize: 'vertical',
+                      minHeight: 72,
+                      padding: '8px 10px',
+                      borderRadius: 4,
+                      border: '1px solid var(--color-neutral-300)',
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
+                <Input
+                  value={editReason}
+                  onChange={(event) => setEditReason(event.target.value)}
+                  placeholder="사유"
+                  maxLength={500}
+                  aria-label="수정 사유"
+                  inputSize="sm"
+                />
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={commitMutation.isPending}
+                    onClick={() => setCollabEditMode(false)}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    loading={commitMutation.isPending}
+                    disabled={commitMutation.isPending}
+                    onClick={() => commitMutation.mutate()}
+                    data-testid="dispatch-collab-edit-submit"
+                  >
+                    수정완료
+                  </Button>
+                </div>
+                {commitError ? (
+                  <p
+                    role="alert"
+                    style={{
+                      margin: 0,
+                      fontSize: 12,
+                      color: 'var(--color-danger-700, #B91C1C)',
+                    }}
+                  >
+                    {commitError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {editNotice ? (
+              <p
+                role="status"
+                style={{
+                  margin: 0,
+                  fontSize: 12,
+                  color: 'var(--color-success-700, #047857)',
+                }}
+              >
+                {editNotice}
+              </p>
+            ) : null}
+
+            <div
+              data-testid="dispatch-collab-edit-list"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                maxHeight: 220,
+                overflowY: 'auto',
+              }}
+            >
+              {editsQuery.isLoading ? (
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+                  수정 이력을 불러오는 중...
+                </p>
+              ) : editsQuery.isError ? (
+                <p
+                  role="alert"
+                  style={{ margin: 0, fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}
+                >
+                  수정 이력을 불러오지 못했습니다.
+                </p>
+              ) : edits.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+                  아직 수정 이력이 없습니다.
+                </p>
+              ) : (
+                edits.map((edit) => {
+                  const diffs = parseChangeSetDiffs(edit.changeSet)
+                  return (
+                    <article
+                      key={edit.id}
+                      data-testid="dispatch-collab-edit-item"
+                      style={{
+                        border: '1px solid var(--color-neutral-200)',
+                        borderRadius: 4,
+                        padding: 8,
+                        background: 'var(--color-neutral-0, #fff)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                          fontSize: 12,
+                        }}
+                      >
+                        <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
+                        <span
+                          style={{
+                            padding: '1px 6px',
+                            borderRadius: 10,
+                            border: '1px solid var(--color-success-200, #A7F3D0)',
+                            background: 'var(--color-success-50, #ECFDF5)',
+                            color: 'var(--color-success-700, #047857)',
+                            fontSize: 10,
+                            fontWeight: 700,
+                          }}
+                        >
+                          수정완료
+                        </span>
+                        <span style={{ color: 'var(--color-neutral-500)' }}>
+                          {formatDateTime(edit.decidedAt ?? edit.createdAt)}
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+                        {diffs.map((diff) => (
+                          <div
+                            key={`${edit.id}-${diff.fieldName}`}
+                            style={{ fontSize: 13, overflowWrap: 'anywhere' }}
+                          >
+                            <strong>{diff.label}</strong>
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                color: 'var(--color-neutral-500)',
+                                textDecoration: 'line-through',
+                              }}
+                            >
+                              {diff.before ?? '이전값 미기록'}
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}
+                            >
+                              →
+                            </span>
+                            <span
+                              style={{
+                                color: 'var(--color-brand-700, #0F766E)',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {diff.after ?? '비움'}
+                            </span>
+                          </div>
+                        ))}
+                        {diffs.length === 0 ? (
+                          <p style={{ margin: 0, fontSize: 13 }}>
+                            변경 내용 형식을 해석하지 못했습니다.
+                          </p>
+                        ) : null}
+                      </div>
+                      {edit.reason ? (
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                          사유: {edit.reason}
+                        </p>
+                      ) : null}
+                    </article>
+                  )
+                })
+              )}
+            </div>
+          </section>
 
           <DispatchCommentThread taskId={task.id} readOnly={readOnly} />
         </div>

@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.dispatch.collab;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabRealtimePublisher;
+import com.samhanair.logis.collab.CollabSuggestionService;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +31,17 @@ public class DispatchCollabConfig {
                 publisher);
     }
 
+    /** DispatchTask concrete suggestion service. */
+    @Bean
+    public CollabSuggestionService<DispatchCollabSuggestion> dispatchCollabSuggestionService(
+            DispatchCollabSuggestionRepository repository,
+            CollabRealtimePublisher publisher) {
+        return new CollabSuggestionService<>(
+                new DispatchSuggestionRepositoryAdapter(repository),
+                DispatchCollabSuggestion::create,
+                publisher);
+    }
+
     private record DispatchCommentRepositoryAdapter(DispatchCollabCommentRepository repository)
             implements CollabCommentService.CommentRepository<DispatchCollabComment> {
 
@@ -50,6 +62,20 @@ public class DispatchCollabConfig {
                                                       UUID documentId,
                                                       Pageable pageable) {
             return repository.findRecent(documentType, documentId, pageable);
+        }
+    }
+
+    private record DispatchSuggestionRepositoryAdapter(DispatchCollabSuggestionRepository repository)
+            implements CollabSuggestionService.SuggestionRepository<DispatchCollabSuggestion> {
+
+        @Override
+        public DispatchCollabSuggestion save(DispatchCollabSuggestion suggestion) {
+            return repository.save(suggestion);
+        }
+
+        @Override
+        public Optional<DispatchCollabSuggestion> findById(UUID suggestionId) {
+            return repository.findById(suggestionId);
         }
     }
 }

@@ -185,7 +185,13 @@ class DispatchCollabConfigTest {
         RealtimeBroker broker = org.mockito.Mockito.mock(RealtimeBroker.class);
         DispatchTaskRepository taskRepository = org.mockito.Mockito.mock(DispatchTaskRepository.class);
         DispatchCollabCommentController controller =
-                new DispatchCollabCommentController(commentService, broker, taskRepository);
+                new DispatchCollabCommentController(
+                        commentService,
+                        org.mockito.Mockito.mock(DispatchCollabEditService.class),
+                        org.mockito.Mockito.mock(DispatchCollabSuggestionRepository.class),
+                        org.mockito.Mockito.mock(DispatchDocumentCollaborationPort.class),
+                        broker,
+                        taskRepository);
         UUID taskId = UUID.randomUUID();
         UUID callerId = UUID.randomUUID();
         String uuidShapedCallerName = UUID.randomUUID().toString();
@@ -235,7 +241,13 @@ class DispatchCollabConfigTest {
         RealtimeBroker broker = org.mockito.Mockito.mock(RealtimeBroker.class);
         DispatchTaskRepository taskRepository = org.mockito.Mockito.mock(DispatchTaskRepository.class);
         DispatchCollabCommentController controller =
-                new DispatchCollabCommentController(commentService, broker, taskRepository);
+                new DispatchCollabCommentController(
+                        commentService,
+                        org.mockito.Mockito.mock(DispatchCollabEditService.class),
+                        org.mockito.Mockito.mock(DispatchCollabSuggestionRepository.class),
+                        org.mockito.Mockito.mock(DispatchDocumentCollaborationPort.class),
+                        broker,
+                        taskRepository);
         UUID taskId = UUID.randomUUID();
         UUID callerId = UUID.randomUUID();
         String callerName = "A".repeat(60);
@@ -286,7 +298,13 @@ class DispatchCollabConfigTest {
         RealtimeBroker broker = org.mockito.Mockito.mock(RealtimeBroker.class);
         DispatchTaskRepository taskRepository = org.mockito.Mockito.mock(DispatchTaskRepository.class);
         DispatchCollabCommentController controller =
-                new DispatchCollabCommentController(commentService, broker, taskRepository);
+                new DispatchCollabCommentController(
+                        commentService,
+                        org.mockito.Mockito.mock(DispatchCollabEditService.class),
+                        org.mockito.Mockito.mock(DispatchCollabSuggestionRepository.class),
+                        org.mockito.Mockito.mock(DispatchDocumentCollaborationPort.class),
+                        broker,
+                        taskRepository);
         UUID taskId = UUID.randomUUID();
         UUID callerId = UUID.randomUUID();
         DispatchCollabComment saved = DispatchCollabComment.create(

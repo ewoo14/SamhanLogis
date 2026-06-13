@@ -62,6 +62,7 @@ function mergeSlimTaskIntoDetailCaches(
       status: updated.status,
       arologisDispatchId: updated.arologisDispatchId,
       failureReason: updated.failureReason,
+      memo: updated.memo ?? cached.memo ?? null,
       modificationReason: updated.modificationReason ?? null,
       rejectionReason: updated.rejectionReason ?? null,
       modificationRequestedAt: updated.modificationRequestedAt ?? null,

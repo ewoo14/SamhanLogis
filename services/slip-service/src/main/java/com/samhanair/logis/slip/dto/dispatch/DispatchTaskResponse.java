@@ -17,6 +17,7 @@ import java.util.UUID;
  * @param status 상태 enum name (11 값)
  * @param arologisDispatchId 회신 시 채워짐 (UI 노출 X, 디버그 용)
  * @param failureReason FAILED 시 사유
+ * @param memo 배차 비고. 협업 수정완료 대상.
  * @param modificationReason MODIFICATION_REQUESTED / CANCEL_REQUESTED 시 사유
  * @param rejectionReason MODIFICATION_REJECTED / CANCEL_REJECTED 시 사유
  * @param modificationRequestedAt 수정/취소 요청 발송 시점
@@ -29,6 +30,7 @@ public record DispatchTaskResponse(
         String status,
         UUID arologisDispatchId,
         String failureReason,
+        String memo,
         String modificationReason,
         String rejectionReason,
         LocalDateTime modificationRequestedAt,
@@ -43,6 +45,7 @@ public record DispatchTaskResponse(
                 t.getStatus().name(),
                 t.getArologisDispatchId(),
                 t.getFailureReason(),
+                t.getMemo(),
                 t.getModificationReason(),
                 t.getRejectionReason(),
                 t.getModificationRequestedAt(),

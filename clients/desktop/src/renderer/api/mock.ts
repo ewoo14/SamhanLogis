@@ -33,7 +33,7 @@ import type {
   MatchedDriverSource,
   SetMatchedDriverPayload,
 } from './dispatchTask'
-import type { DispatchComment } from './dispatchCollab'
+import type { DispatchCollabEdit, DispatchComment } from './dispatchCollab'
 
 declare global {
   interface Window {
@@ -4912,6 +4912,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       status: 'DRAFT',
       arologisDispatchId: null,
       failureReason: null,
+      memo: null,
       modificationReason: null,
       rejectionReason: null,
       modificationRequestedAt: null,
@@ -4943,6 +4944,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       status: 'DRAFT',
       arologisDispatchId: null,
       failureReason: null,
+      memo: null,
       modificationReason: null,
       rejectionReason: null,
       modificationRequestedAt: null,
@@ -5248,6 +5250,61 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         ...(MOCK_DISPATCH_COMMENTS[taskId] ?? []),
       ]
       return envelope(created)
+    }
+  }
+
+  const dispatchEditCollectionMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)\/edits(?:\?.*)?$/)
+  if (dispatchEditCollectionMatch) {
+    const taskId = decodeURIComponent(dispatchEditCollectionMatch[1]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    if (!task) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 를 찾을 수 없습니다.')
+    }
+    if (method === 'GET') {
+      const denied = mockRequirePermission('dispatch.board', 'view')
+      if (denied) return denied
+      return envelope([...(MOCK_DISPATCH_EDITS[taskId] ?? [])])
+    }
+    if (method === 'POST') {
+      const denied = mockRequirePermission('dispatch.board', 'update')
+      if (denied) return denied
+      if (task.status === 'CANCEL_ACCEPTED' || task.status === 'CANCELLED') {
+        return mockError(409, 'CONFLICT', `배차 협업 수정완료가 불가능한 상태입니다: ${task.status}`)
+      }
+      const body = parseMockBody(config) as { changeSet?: string; reason?: string }
+      let parsed: Record<string, { after?: unknown }>
+      try {
+        parsed = JSON.parse(String(body.changeSet ?? ''))
+      } catch {
+        return mockError(400, 'INVALID_INPUT', 'changeSet JSON 형식이 올바르지 않습니다')
+      }
+      const entries = Object.entries(parsed)
+      if (entries.length === 0) {
+        return mockError(400, 'INVALID_INPUT', 'changeSet 에 적용할 필드가 없습니다')
+      }
+      if (entries.some(([path, change]) => path.replace(/^\/+/, '').replace(/\//g, '.') !== 'memo' || !change || !('after' in change))) {
+        return mockError(400, 'INVALID_INPUT', '배차 협업은 memo 만 수정할 수 있습니다')
+      }
+      const after = parsed.memo?.after == null ? null : String(parsed.memo.after)
+      if (after && after.length > 1000) {
+        return mockError(400, 'INVALID_INPUT', '배차 비고는 1000자 이하여야 합니다')
+      }
+      const before = task.memo ?? null
+      task.memo = after
+      const nextSequence = mockDispatchEditSequence++
+      const created: DispatchCollabEdit = {
+        id: `66666666-bbbb-4bbb-8bbb-${String(nextSequence).padStart(12, '0')}`,
+        changeSet: JSON.stringify({ memo: { before, after } }),
+        reason: typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : null,
+        proposerName: MOCK_AUTH.fullName,
+        status: 'ACCEPTED',
+        decidedByName: MOCK_AUTH.fullName,
+        decidedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+      MOCK_DISPATCH_EDITS[taskId] = [created, ...(MOCK_DISPATCH_EDITS[taskId] ?? [])]
+      syncMockDispatchTaskSummary(task)
+      return envelope({ edit: created, task })
     }
   }
 
@@ -8460,6 +8517,26 @@ const MOCK_DISPATCH_COMMENTS: Record<string, DispatchComment[]> = {
   ],
 }
 let mockDispatchCommentSequence = 3
+const MOCK_DISPATCH_EDITS: Record<string, DispatchCollabEdit[]> = {
+  '11111111-aaaa-4aaa-8aaa-000000000001': [
+    {
+      id: '66666666-bbbb-4bbb-8bbb-000000000001',
+      changeSet: JSON.stringify({
+        memo: {
+          before: null,
+          after: '성남냉열 연락처 오전 재확인',
+        },
+      }),
+      reason: '기사 안내 보강',
+      proposerName: '이운영',
+      status: 'ACCEPTED',
+      decidedByName: '이운영',
+      decidedAt: `${MOCK_DISPATCH_HISTORY_TODAY}T10:30:00`,
+      createdAt: `${MOCK_DISPATCH_HISTORY_TODAY}T10:30:00`,
+    },
+  ],
+}
+let mockDispatchEditSequence = 2
 let mockDispatchTaskCreateSequence = 1
 let mockDispatchVehicleGroupCreateSequence = 3
 
@@ -8567,6 +8644,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
     status: 'DISPATCHED',
     arologisDispatchId: '22222222-aaaa-4aaa-8aaa-000000000001',
     failureReason: null,
+    memo: '성남냉열 연락처 오전 재확인',
     modificationReason: null,
     rejectionReason: null,
     modificationRequestedAt: null,
@@ -8631,6 +8709,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
     status: 'DISPATCHED',
     arologisDispatchId: '22222222-bbbb-4bbb-8bbb-000000000002',
     failureReason: null,
+    memo: null,
     modificationReason: null,
     rejectionReason: null,
     modificationRequestedAt: null,
@@ -8682,6 +8761,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
     status: 'DISPATCHED',
     arologisDispatchId: null,
     failureReason: null,
+    memo: '경기퀵 수동 발송완료',
     modificationReason: null,
     rejectionReason: null,
     modificationRequestedAt: null,

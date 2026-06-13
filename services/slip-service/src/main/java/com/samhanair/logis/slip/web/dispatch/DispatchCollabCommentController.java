@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web.dispatch;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabDocumentType;
+import com.samhanair.logis.collab.CollabSuggestionStatus;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -10,8 +11,14 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.slip.dispatch.collab.DispatchCollabComment;
+import com.samhanair.logis.slip.dispatch.collab.DispatchCollabEditService;
+import com.samhanair.logis.slip.dispatch.collab.DispatchCollabSuggestionRepository;
+import com.samhanair.logis.slip.dispatch.collab.DispatchDocumentCollaborationPort;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.web.dispatch.dto.AddDispatchCommentRequest;
+import com.samhanair.logis.slip.web.dispatch.dto.CommitDispatchCollabEditRequest;
+import com.samhanair.logis.slip.web.dispatch.dto.DispatchCollabEditResponse;
+import com.samhanair.logis.slip.web.dispatch.dto.DispatchCollabSuggestionResponse;
 import com.samhanair.logis.slip.web.dispatch.dto.DispatchCommentResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -34,10 +41,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * DispatchTask 협업 댓글 REST/SSE endpoint.
+ * DispatchTask 협업 댓글/수정완료 REST/SSE endpoint.
  *
  * <p>shared/collab-core 의 {@link CollabCommentService} 를 배차 도메인에 연결하는 첫 reference.
- * arologis 전송/수정 요청 흐름과 분리된 순수 댓글 채널이다.
+ * arologis 전송/수정 요청 흐름과 분리된 협업 채널이다.
  */
 @RestController
 @RequestMapping("/admin/dispatch-tasks/{taskId}")
@@ -50,14 +57,23 @@ public class DispatchCollabCommentController {
             "(?i)^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$");
 
     private final CollabCommentService<DispatchCollabComment> commentService;
+    private final DispatchCollabEditService editService;
+    private final DispatchCollabSuggestionRepository suggestionRepository;
+    private final DispatchDocumentCollaborationPort port;
     private final RealtimeBroker broker;
     private final DispatchTaskRepository dispatchTaskRepository;
 
     public DispatchCollabCommentController(
             CollabCommentService<DispatchCollabComment> commentService,
+            DispatchCollabEditService editService,
+            DispatchCollabSuggestionRepository suggestionRepository,
+            DispatchDocumentCollaborationPort port,
             RealtimeBroker broker,
             DispatchTaskRepository dispatchTaskRepository) {
         this.commentService = commentService;
+        this.editService = editService;
+        this.suggestionRepository = suggestionRepository;
+        this.port = port;
         this.broker = broker;
         this.dispatchTaskRepository = dispatchTaskRepository;
     }
@@ -134,7 +150,41 @@ public class DispatchCollabCommentController {
                 CollabDocumentType.DISPATCH_TASK, taskId, commentId)));
     }
 
-    /** DispatchTask 협업 SSE stream. 댓글 이벤트는 taskId 채널로 전달된다. */
+    /** DispatchTask memo 수정완료. */
+    @Operation(summary = "배차 협업 수정완료")
+    @PostMapping("/edits")
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
+    public ApiResponse<DispatchCollabEditResponse> commitEdit(
+            @PathVariable UUID taskId,
+            @Valid @RequestBody CommitDispatchCollabEditRequest request,
+            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+        ensureTaskExists(taskId);
+        port.validateChangeSet(request.changeSet());
+        DispatchCollabEditService.Result result = editService.commitEdit(
+                port, taskId, resolveAuthorId(callerId), resolveAuthorName(callerId, callerName),
+                request.changeSet(), request.reason());
+        return ApiResponse.ok(new DispatchCollabEditResponse(
+                DispatchCollabSuggestionResponse.from(result.edit()), result.task()));
+    }
+
+    /** DispatchTask 수정 이력 목록. */
+    @Operation(summary = "배차 협업 수정 이력 목록")
+    @GetMapping("/edits")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
+    public ApiResponse<List<DispatchCollabSuggestionResponse>> listEdits(@PathVariable UUID taskId) {
+        ensureTaskExists(taskId);
+        List<DispatchCollabSuggestionResponse> items = suggestionRepository
+                .findByDocumentTypeAndDocumentIdAndStatusOrderByCreatedAtDesc(
+                        CollabDocumentType.DISPATCH_TASK, taskId, CollabSuggestionStatus.ACCEPTED)
+                .stream()
+                .map(DispatchCollabSuggestionResponse::from)
+                .toList();
+        return ApiResponse.ok(items);
+    }
+
+    /** DispatchTask 협업 SSE stream. 댓글/수정 이벤트는 taskId 채널로 전달된다. */
     @Operation(summary = "배차 협업 SSE stream 구독")
     @GetMapping(value = "/collab/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)

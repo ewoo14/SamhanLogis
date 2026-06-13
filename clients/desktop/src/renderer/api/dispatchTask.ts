@@ -415,6 +415,7 @@ export interface DispatchVehicleGroupResponse {
  * @property vehicleGroups 차량 그룹 리스트 (sequence 순서 보장).
  * @property matchedDrivers DISPATCHED 시점 채워지는 기사 매칭 결과.
  * @property failureReason FAILED 시점 사유 (UI 빨강 배지 노출).
+ * @property memo 배차 비고. §7 수정완료 단일 편집 대상.
  * @property modificationReason MODIFICATION_REQUESTED / CANCEL_REQUESTED 시점 사유 (Phase C).
  * @property rejectionReason MODIFICATION_REJECTED / CANCEL_REJECTED 시점 사유 (Phase C).
  * @property modificationRequestedAt 수정/취소 요청 시각 (ISO instant).
@@ -430,6 +431,7 @@ export interface DispatchTaskResponse {
   matchedDrivers: MatchedDriverResponse[]
   duplicateSlipIds: string[]
   failureReason: string | null
+  memo?: string | null
   modificationReason?: string | null
   rejectionReason?: string | null
   modificationRequestedAt?: string | null
@@ -451,6 +453,7 @@ export interface DispatchTaskSlimResponse {
   status: DispatchTaskStatus
   arologisDispatchId: string | null
   failureReason: string | null
+  memo?: string | null
   modificationReason?: string | null
   rejectionReason?: string | null
   modificationRequestedAt?: string | null

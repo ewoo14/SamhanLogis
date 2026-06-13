@@ -5,6 +5,7 @@
  * 화면에는 authorName, body, createdAt 만 노출한다.
  */
 import { apiClient, type ApiEnvelope } from './client'
+import type { DispatchTaskResponse } from './dispatchTask'
 
 export interface DispatchComment {
   id: string
@@ -22,11 +23,51 @@ export interface AddDispatchCommentInput {
   anchor?: string
 }
 
+export type DispatchCollabEditStatus = 'ACCEPTED'
+
+export interface DispatchCollabEdit {
+  id: string
+  changeSet: string
+  reason: string | null
+  proposerName: string
+  status: DispatchCollabEditStatus
+  decidedByName: string | null
+  decidedAt: string | null
+  createdAt: string
+}
+
+export interface CommitDispatchCollabEditInput {
+  changeSet: string
+  reason?: string
+}
+
+export interface CommitDispatchCollabEditResponse {
+  edit: DispatchCollabEdit
+  task: DispatchTaskResponse
+}
+
+async function collabHeaders(): Promise<Record<string, string>> {
+  try {
+    const auth = await window.samhanAuth.getToken()
+    const headers: Record<string, string> = {}
+    if (auth?.userId) headers['X-User-Id'] = auth.userId
+    if (auth?.fullName) headers['X-User-Name'] = auth.fullName
+    return headers
+  } catch {
+    return {}
+  }
+}
+
+function dispatchTaskPath(taskId: string, suffix: string): string {
+  return `/admin/dispatch-tasks/${encodeURIComponent(taskId)}/${suffix}`
+}
+
 export async function getDispatchComments(
   taskId: string,
 ): Promise<DispatchComment[]> {
   const res = await apiClient.get<ApiEnvelope<DispatchComment[]>>(
-    `/admin/dispatch-tasks/${taskId}/comments`,
+    dispatchTaskPath(taskId, 'comments'),
+    { headers: await collabHeaders() },
   )
   return res.data.data
 }
@@ -36,8 +77,9 @@ export async function addDispatchComment(
   input: AddDispatchCommentInput,
 ): Promise<DispatchComment> {
   const res = await apiClient.post<ApiEnvelope<DispatchComment>>(
-    `/admin/dispatch-tasks/${taskId}/comments`,
+    dispatchTaskPath(taskId, 'comments'),
     input,
+    { headers: await collabHeaders() },
   )
   return res.data.data
 }
@@ -47,6 +89,29 @@ export async function deleteDispatchComment(
   commentId: string,
 ): Promise<void> {
   await apiClient.delete(
-    `/admin/dispatch-tasks/${taskId}/comments/${commentId}`,
+    dispatchTaskPath(taskId, `comments/${encodeURIComponent(commentId)}`),
+    { headers: await collabHeaders() },
   )
+}
+
+export async function getDispatchCollabEdits(
+  taskId: string,
+): Promise<DispatchCollabEdit[]> {
+  const res = await apiClient.get<ApiEnvelope<DispatchCollabEdit[]>>(
+    dispatchTaskPath(taskId, 'edits'),
+    { headers: await collabHeaders() },
+  )
+  return res.data.data
+}
+
+export async function commitDispatchCollabEdit(
+  taskId: string,
+  input: CommitDispatchCollabEditInput,
+): Promise<CommitDispatchCollabEditResponse> {
+  const res = await apiClient.post<ApiEnvelope<CommitDispatchCollabEditResponse>>(
+    dispatchTaskPath(taskId, 'edits'),
+    input,
+    { headers: await collabHeaders() },
+  )
+  return res.data.data
 }
