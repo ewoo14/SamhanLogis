@@ -5998,6 +5998,276 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // ==========================================================================
   // partner-orders detail (기존 빈 list 옆에 detail mock)
   // ==========================================================================
+  type MockPartnerOrderCollabComment = {
+    id: string
+    anchor: string | null
+    authorName: string
+    body: string
+    parentId: string | null
+    status: 'OPEN' | 'RESOLVED'
+    createdAt: string
+  }
+  type MockPartnerOrderCollabEdit = {
+    id: string
+    changeSet: string
+    reason: string | null
+    proposerName: string
+    status: 'ACCEPTED'
+    decidedByName: string | null
+    decidedAt: string | null
+    createdAt: string
+  }
+  type MockPartnerOrderMutable = {
+    orderNumber: string
+    partnerCode: string
+    bizCode: string
+    partnerName: string | null
+    submittedAt: string
+    updatedAt: string
+    status: string
+    totalAmount: number
+    linkedSlipNo: string | null
+    deliveryAddress: string | null
+    siteAddress: string | null
+    contactPhone: string | null
+    dueDate: string | null
+    memo: string | null
+    lines: Array<{
+      productId: string
+      lineId: string
+      modelCode: string
+      productName: string
+      categoryKey: string
+      quantity: number
+      convertedQuantity: number
+      deliveryPrice: number
+      subtotal: number
+      remark: string | null
+      bundleMode: 'EXPAND' | 'KEEP' | null
+      productType: string
+      expandedComponents: Array<{ modelCode: string; productName: string; quantity: number }>
+    }>
+  }
+  const gpoc = globalThis as unknown as {
+    __SAMHAN_MOCK_PARTNER_ORDER_COLLAB_COMMENTS?: Record<string, MockPartnerOrderCollabComment[]>
+    __SAMHAN_MOCK_PARTNER_ORDER_COLLAB_EDITS?: Record<string, MockPartnerOrderCollabEdit[]>
+    __SAMHAN_MOCK_PARTNER_ORDER_COLLAB_DETAILS?: Record<string, MockPartnerOrderMutable>
+  }
+  if (!gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_COMMENTS) gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_COMMENTS = {}
+  if (!gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_EDITS) gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_EDITS = {}
+  if (!gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_DETAILS) gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_DETAILS = {}
+  const partnerOrderCollabCommentsStore = gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_COMMENTS!
+  const partnerOrderCollabEditsStore = gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_EDITS!
+  const partnerOrderCollabDetailsStore = gpoc.__SAMHAN_MOCK_PARTNER_ORDER_COLLAB_DETAILS!
+
+  const buildPartnerOrderDetail = (poId: string): MockPartnerOrderMutable => {
+    const poStatus: string =
+      poId === 'ord-draft' || poId === 'ord-partially-converted' || poId === 'ord-linked-slip'
+        ? 'DRAFT'
+        : poId === 'ord-hold'
+          ? 'ON_HOLD'
+          : poId === 'ord-confirming'
+            ? 'CONFIRMING'
+            : poId === 'ord-canceled'
+              ? 'CANCELED'
+              : poId === 'ord-converted'
+                ? 'CONVERTED'
+                : 'CONFIRMED'
+    const poLinkedSlip =
+      poId === 'ord-linked-slip' || poId === 'ord-converted'
+        ? 'SL-20260504-001'
+        : poStatus === 'CONFIRMED'
+          ? 'SL-20260504-001'
+          : null
+    const poLines =
+      poId === 'ord-partially-converted'
+        ? [
+            {
+              productId: 'p-aj040',
+              lineId: 'line-po-001',
+              modelCode: 'AJ040RXH4BC1',
+              productName: '실외기',
+              categoryKey: 'homemulti',
+              quantity: 2,
+              convertedQuantity: 1,
+              deliveryPrice: 120000,
+              subtotal: 240000,
+              remark: '실외기는 1층 하역장으로 입고',
+              bundleMode: null,
+              productType: 'SINGLE',
+              expandedComponents: [],
+            },
+            {
+              productId: 'p-mwr10',
+              lineId: 'line-po-002',
+              modelCode: 'MWR-WE10N',
+              productName: '유선 리모컨',
+              categoryKey: 'homemulti',
+              quantity: 3,
+              convertedQuantity: 3,
+              deliveryPrice: 85000,
+              subtotal: 255000,
+              remark: '전환 완료 라인',
+              bundleMode: null,
+              productType: 'SINGLE',
+              expandedComponents: [],
+            },
+          ]
+        : [
+            {
+              productId: 'p-aj040',
+              lineId: 'line-po-001',
+              modelCode: 'AJ040RXH4BC1',
+              productName: '실외기',
+              categoryKey: 'homemulti',
+              quantity: 2,
+              convertedQuantity: 0,
+              deliveryPrice: 120000,
+              subtotal: 240000,
+              remark: '초기 라인 비고',
+              bundleMode: null,
+              productType: 'SINGLE',
+              expandedComponents: [],
+            },
+          ]
+    return {
+      orderNumber: poId === 'ord-canceled'
+        ? '2026/05/04-CAN'
+        : poId === 'ord-converted'
+          ? '2026/05/04-CVT'
+          : '2026/05/04-1',
+      partnerCode: '1234567890',
+      bizCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-04T10:30:00',
+      updatedAt: '2026-05-17T10:00:00',
+      status: poStatus,
+      totalAmount: 3700000,
+      linkedSlipNo: poLinkedSlip,
+      deliveryAddress: '서울시 강남구 테헤란로 1',
+      siteAddress: '현장 A동',
+      contactPhone: '010-1234-5678',
+      dueDate: '2026-05-30',
+      memo: '5/5 오전 배송 부탁드립니다',
+      lines: poLines,
+    }
+  }
+
+  const getPartnerOrderMutable = (poId: string): MockPartnerOrderMutable => {
+    if (!partnerOrderCollabDetailsStore[poId]) {
+      partnerOrderCollabDetailsStore[poId] = buildPartnerOrderDetail(poId)
+    }
+    return partnerOrderCollabDetailsStore[poId]!
+  }
+
+  const partnerOrderCollabStreamMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/collab\/stream(?:\?.*)?$/)
+  if (method === 'GET' && partnerOrderCollabStreamMatch) {
+    return new Blob([': mock partner order collab stream\n\n'], { type: 'text/event-stream;charset=utf-8' })
+  }
+
+  const partnerOrderCollabCommentCollectionMatch = url.match(
+    /\/api\/v1\/partner-orders\/([^/?]+)\/collab\/comments(?:\?.*)?$/,
+  )
+  if (partnerOrderCollabCommentCollectionMatch) {
+    const poId = partnerOrderCollabCommentCollectionMatch[1]!
+    if (method === 'GET') {
+      const params = config.params as Record<string, unknown> | undefined
+      const urlLimit = new URLSearchParams(url.split('?')[1] ?? '').get('limit')
+      const rawLimit = Number.parseInt(String(params?.['limit'] ?? urlLimit ?? '20'), 10)
+      const safeLimit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 100)) : 20
+      return envelope([...(partnerOrderCollabCommentsStore[poId] ?? [])].slice(0, safeLimit))
+    }
+    if (method === 'POST') {
+      const body = parseMockBody(config)
+      const created: MockPartnerOrderCollabComment = {
+        id: `mock-partner-order-collab-comment-${Date.now()}`,
+        anchor: (body['anchor'] as string | null | undefined) ?? null,
+        authorName: MOCK_AUTH.fullName,
+        body: String(body['body'] ?? ''),
+        parentId: (body['parentId'] as string | null | undefined) ?? null,
+        status: 'OPEN',
+        createdAt: new Date().toISOString(),
+      }
+      partnerOrderCollabCommentsStore[poId] = [created, ...(partnerOrderCollabCommentsStore[poId] ?? [])]
+      return envelope(created)
+    }
+  }
+
+  const partnerOrderCollabCommentItemMatch = url.match(
+    /\/api\/v1\/partner-orders\/([^/?]+)\/collab\/comments\/([^/?]+)(?:\/(resolve))?(?:\?.*)?$/,
+  )
+  if (partnerOrderCollabCommentItemMatch) {
+    const poId = partnerOrderCollabCommentItemMatch[1]!
+    const commentId = partnerOrderCollabCommentItemMatch[2]!
+    const action = partnerOrderCollabCommentItemMatch[3]
+    const list = partnerOrderCollabCommentsStore[poId] ?? []
+    const target = list.find((item) => item.id === commentId)
+    if (method === 'POST' && action === 'resolve') {
+      if (!target) return mockError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다')
+      target.status = 'RESOLVED'
+      return envelope(target)
+    }
+    if (method === 'DELETE') {
+      if (!target) return mockError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다')
+      partnerOrderCollabCommentsStore[poId] = list.filter((item) => item.id !== commentId)
+      return envelope({ deleted: true })
+    }
+  }
+
+  const partnerOrderCollabEditCollectionMatch = url.match(
+    /\/api\/v1\/partner-orders\/([^/?]+)\/collab\/edits(?:\?.*)?$/,
+  )
+  if (partnerOrderCollabEditCollectionMatch) {
+    const poId = partnerOrderCollabEditCollectionMatch[1]!
+    if (method === 'GET') return envelope([...(partnerOrderCollabEditsStore[poId] ?? [])])
+    if (method === 'POST') {
+      const order = getPartnerOrderMutable(poId)
+      if (['CANCELED', 'CONVERTED', 'CONFIRMING'].includes(order.status)) {
+        return mockError(409, 'COLLAB_LOCKED', '잠금 상태 주문은 수정할 수 없습니다')
+      }
+      const body = parseMockBody(config)
+      const created: MockPartnerOrderCollabEdit = {
+        id: `mock-partner-order-collab-edit-${Date.now()}`,
+        changeSet: String(body['changeSet'] ?? '{}'),
+        reason: (body['reason'] as string | null | undefined) ?? null,
+        proposerName: MOCK_AUTH.fullName,
+        status: 'ACCEPTED',
+        decidedByName: MOCK_AUTH.fullName,
+        decidedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+
+      try {
+        const parsed = JSON.parse(created.changeSet) as Record<string, { after?: unknown }>
+        for (const [field, change] of Object.entries(parsed)) {
+          if (field === 'memo') {
+            order.memo = change.after == null ? null : String(change.after)
+            continue
+          }
+          if (field === 'dueDate') {
+            order.dueDate = change.after == null ? null : String(change.after)
+            continue
+          }
+          const lineRemarkMatch = field.match(/^line\.(\d+)\.remark$/)
+          if (lineRemarkMatch) {
+            const lineKey = Number.parseInt(lineRemarkMatch[1]!, 10)
+            const line = order.lines[lineKey - 1]
+            if (!line) return mockError(400, 'INVALID_INPUT', '라인 번호가 올바르지 않습니다')
+            line.remark = change.after == null ? null : String(change.after)
+            continue
+          }
+          return mockError(400, 'INVALID_INPUT', '수정 가능한 필드는 요청사항, 납기, 라인 비고뿐입니다')
+        }
+      } catch {
+        return mockError(400, 'INVALID_INPUT', 'changeSet JSON 형식이 올바르지 않습니다')
+      }
+
+      order.updatedAt = new Date().toISOString()
+      partnerOrderCollabEditsStore[poId] = [created, ...(partnerOrderCollabEditsStore[poId] ?? [])]
+      return envelope({ edit: created, order })
+    }
+  }
+
   const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
   if (method === 'GET' && partnerOrderDetailMatch) {
     const poId = partnerOrderDetailMatch[1]!
@@ -6045,6 +6315,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             convertedQuantity: 0,
             deliveryPrice: 100000,
             subtotal: 100000,
+            remark: '에러 테스트 라인 비고',
             bundleMode: null,
             productType: 'SINGLE',
             expandedComponents: [],
@@ -6067,6 +6338,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         convertedQuantity: 0,
         deliveryPrice: 2500000,
         subtotal: 2500000,
+        remark: '세트 라인 비고',
         bundleMode: 'KEEP' as const,
         // BE PartnerOrderDetailResponse.LineResponse.productType enrich 정합 (product-service 조회)
         productType: 'BUNDLE',
@@ -6082,6 +6354,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         convertedQuantity: 0,
         deliveryPrice: 120000,
         subtotal: 240000,
+        remark: '단품 라인 비고',
         bundleMode: null,
         productType: 'SINGLE',
         expandedComponents: [],
@@ -6105,92 +6378,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       })
     }
 
-    const poStatus: string =
-      poId === 'ord-draft' || poId === 'ord-partially-converted' || poId === 'ord-linked-slip'
-        ? 'DRAFT'
-        : poId === 'ord-hold'
-          ? 'ON_HOLD'
-          : poId === 'ord-confirming'
-            ? 'CONFIRMING'
-            : poId === 'ord-canceled'
-              ? 'CANCELED'
-              : 'CONFIRMED'
-    const poLinkedSlip =
-      poId === 'ord-linked-slip'
-        ? 'SL-20260504-001'
-        : poStatus === 'CONFIRMED'
-          ? 'SL-20260504-001'
-          : null
-    // Phase 2.6a: 라인별 convertedQuantity 분기
-    //   ord-partially-converted → line-po-001: quantity=2, convertedQuantity=1 (잔여 1)
-    //                             line-po-002: quantity=3, convertedQuantity=3 (전환완료, 잔여 0)
-    //   그 외 DRAFT/ON_HOLD 전환 가능 fixture → convertedQuantity=0
-    // Phase 2.6d: 주문 라인에 productId 추가 (재고 batch 조회 키. 화면 미노출)
-    const poLines =
-      poId === 'ord-partially-converted'
-        ? [
-            {
-              productId: 'p-aj040',
-              lineId: 'line-po-001',
-              modelCode: 'AJ040RXH4BC1',
-              productName: '실외기',
-              categoryKey: 'homemulti',
-              quantity: 2,
-              convertedQuantity: 1,
-              deliveryPrice: 120000,
-              subtotal: 240000,
-              bundleMode: null,
-              productType: 'SINGLE',
-              expandedComponents: [],
-            },
-            {
-              productId: 'p-mwr10',
-              lineId: 'line-po-002',
-              modelCode: 'MWR-WE10N',
-              productName: '유선 리모컨',
-              categoryKey: 'homemulti',
-              quantity: 3,
-              convertedQuantity: 3,
-              deliveryPrice: 85000,
-              subtotal: 255000,
-              bundleMode: null,
-              productType: 'SINGLE',
-              expandedComponents: [],
-            },
-          ]
-        : [
-            {
-              productId: 'p-aj040',
-              lineId: 'line-po-001',
-              modelCode: 'AJ040RXH4BC1',
-              productName: '실외기',
-              categoryKey: 'homemulti',
-              quantity: 2,
-              convertedQuantity: 0,
-              deliveryPrice: 120000,
-              subtotal: 240000,
-              bundleMode: null,
-              productType: 'SINGLE',
-              expandedComponents: [],
-            },
-          ]
-    return envelope({
-      orderNumber: '2026/05/04-1',
-      partnerCode: '1234567890',
-      bizCode: '1234567890',
-      partnerName: '엘에이시스템에어',
-      submittedAt: '2026-05-04T10:30:00',
-      updatedAt: '2026-05-17T10:00:00',
-      status: poStatus,
-      totalAmount: 3700000,
-      linkedSlipNo: poLinkedSlip,
-      deliveryAddress: '서울시 강남구 테헤란로 1',
-      siteAddress: '현장 A동',
-      contactPhone: '010-1234-5678',
-      dueDate: '2026-05-30',
-      memo: '5/5 오전 배송 부탁드립니다',
-      lines: poLines,
-    })
+    return envelope(getPartnerOrderMutable(poId))
   }
 
   if (method === 'PUT' && partnerOrderDetailMatch) {
@@ -6234,6 +6422,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           convertedQuantity: 0,
           deliveryPrice: line['deliveryPrice'],
           subtotal: Number(line['quantity']) * Number(line['deliveryPrice']),
+          remark: (line['remark'] as string | null | undefined) ?? null,
           bundleMode: modelCode === 'SET-HM2WAY' ? 'KEEP' : null,
           productType: product?.productType ?? catalogRow?.productType ?? 'SINGLE',
           expandedComponents: [],

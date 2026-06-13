@@ -27,6 +27,7 @@ import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
+import { PartnerOrderCollaborationPanel } from '../components/collab/PartnerOrderCollaborationPanel'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
@@ -47,6 +48,7 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
  *       (slipNo=null + status=CONVERTED 가 BE 를 통과할 수 있음) FE 에서 화이트리스트로 방어.
  */
 const CONVERTIBLE_STATUS: ReadonlySet<string> = new Set(['DRAFT', 'ON_HOLD'])
+const COLLAB_LOCKED_STATUS: ReadonlySet<string> = new Set(['CANCELED', 'CONVERTED', 'CONFIRMING'])
 
 type EditLine = PartnerOrderUpdateRequest['lines'][number] & { key: string }
 
@@ -65,7 +67,7 @@ function toEditLines(order: PartnerOrderDetail): EditLine[] {
     categoryKey: line.categoryKey ?? 'homemulti',
     quantity: line.quantity,
     deliveryPrice: line.deliveryPrice,
-    remark: null,
+    remark: line.remark,
   }))
 }
 
@@ -86,6 +88,7 @@ export function SalesPartnerOrderDetailPage() {
   const canConvert = canAccess('sales.partner-order.convert', 'create')
   const canViewProductLookups = canAccess('products.list', 'view')
   const [editOpen, setEditOpen] = useState(false)
+  const [collabEditMode, setCollabEditMode] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [convertOpen, setConvertOpen] = useState(false)
   /** Phase 2.6d: 재고조회 다중선택 라인 ID 집합. */
@@ -430,6 +433,29 @@ export function SalesPartnerOrderDetailPage() {
     [selectedOrderLines],
   )
 
+  const canCollabEdit =
+    !!query.data &&
+    canAccess('sales.partner-order.edit', 'update') &&
+    !COLLAB_LOCKED_STATUS.has(query.data.status)
+
+  const collabCurrentValues = query.data
+    ? {
+        memo: query.data.memo,
+        dueDate: query.data.dueDate,
+        lines: query.data.lines.map((line, index) => ({
+          // BE PartnerOrderDocumentCollaborationPort lineKey = order.getLines() 순회 1-based index.
+          lineKey: index + 1,
+          modelCode: line.modelCode,
+          productName: line.productName,
+          quantity: line.quantity,
+          deliveryPrice: line.deliveryPrice,
+          subtotal: line.subtotal,
+          convertedQuantity: line.convertedQuantity ?? 0,
+          remark: line.remark,
+        })),
+      }
+    : null
+
   if (!isValidId) {
     return (
       <div className={styles['salesScope']}>
@@ -467,17 +493,27 @@ export function SalesPartnerOrderDetailPage() {
                 인쇄
               </Button>
             ) : null}
-            {query.data && canEdit ? (
+            {query.data && canCollabEdit && !collabEditMode ? (
               <Button
                 type="button"
                 variant="primary"
+                data-testid="partner-order-collab-edit-open"
+                onClick={() => setCollabEditMode(true)}
+              >
+                수정
+              </Button>
+            ) : null}
+            {query.data && canEdit ? (
+              <Button
+                type="button"
+                variant="secondary"
                 data-testid="partner-order-edit-open"
                 onClick={() => {
                   syncFormFromData(query.data!)
                   setEditOpen(true)
                 }}
               >
-                수정
+                정식 편집
               </Button>
             ) : null}
             {query.data && canEdit && query.data.status === 'DRAFT' ? (
@@ -783,6 +819,20 @@ export function SalesPartnerOrderDetailPage() {
               orderId={orderId}
               status={query.data.status}
             />
+
+            {collabCurrentValues ? (
+              <PartnerOrderCollaborationPanel
+                orderId={orderId}
+                currentValues={collabCurrentValues}
+                editMode={collabEditMode}
+                onEditModeChange={setCollabEditMode}
+                onCommitted={() => {
+                  void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
+                  void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+                  void queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
+                }}
+              />
+            ) : null}
 
             <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
               <div className={styles['cardHead']}>

@@ -429,6 +429,8 @@ export interface PartnerOrderLine {
   quantity: number
   deliveryPrice: number
   subtotal: number
+  /** 라인 비고 — 협업 overlay `line.{lineKey}.remark` 의 현재값. */
+  remark: string | null
   /** 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0. */
   convertedQuantity: number
   bundleMode: 'EXPAND' | 'KEEP' | null
@@ -511,6 +513,78 @@ export interface PartnerOrderDetail extends PartnerOrderSummary {
   lines: PartnerOrderLine[]
 }
 
+type RawPartnerOrderLine = Partial<Omit<PartnerOrderLine, 'deliveryPrice' | 'subtotal' | 'expandedComponents'>>
+  & {
+    deliveryPrice?: number | string | null
+    priceVat?: number | string | null
+    subtotal?: number | string | null
+    modelName?: string | null
+    modelCode?: string | null
+    expandedComponents?: PartnerOrderLine['expandedComponents'] | null
+  }
+
+type RawPartnerOrderDetail = Partial<Omit<PartnerOrderDetail, 'totalAmount' | 'lines'>>
+  & {
+    totalAmount?: number | string | null
+    lines?: RawPartnerOrderLine[] | null
+  }
+
+function numberValue(value: number | string | null | undefined): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function normalizePartnerOrderLine(line: RawPartnerOrderLine, index: number): PartnerOrderLine {
+  const deliveryPrice = numberValue(line.deliveryPrice ?? line.priceVat)
+  return {
+    productId: line.productId ?? `missing-product-${index + 1}`,
+    lineId: line.lineId ?? `missing-line-${index + 1}`,
+    modelCode: line.modelCode ?? line.modelName ?? '',
+    productName: line.productName ?? '',
+    categoryKey: line.categoryKey,
+    quantity: numberValue(line.quantity),
+    deliveryPrice,
+    subtotal: numberValue(line.subtotal) || deliveryPrice * numberValue(line.quantity),
+    remark: line.remark ?? null,
+    convertedQuantity: numberValue(line.convertedQuantity),
+    bundleMode: line.bundleMode ?? null,
+    productType: line.productType,
+    expandedComponents: line.expandedComponents ?? [],
+  }
+}
+
+/**
+ * PartnerOrderDetailResponse 정규화.
+ *
+ * BE DTO 는 현재 FE 모델과 동일하게 `deliveryPrice`/`modelCode` 를 내려주지만, 협업 commit
+ * 응답이나 mock 이 도메인 snapshot 형태(`priceVat`/`modelName`)로 들어와도 화면 모델을 유지한다.
+ */
+export function normalizePartnerOrderDetail(raw: PartnerOrderDetail): PartnerOrderDetail
+export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): PartnerOrderDetail
+export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): PartnerOrderDetail {
+  return {
+    orderNumber: raw.orderNumber ?? '',
+    partnerCode: raw.partnerCode ?? '',
+    partnerName: raw.partnerName ?? null,
+    submittedAt: raw.submittedAt ?? null,
+    status: (raw.status ?? 'DRAFT') as PartnerOrderStatus,
+    totalAmount: numberValue(raw.totalAmount),
+    linkedSlipNo: raw.linkedSlipNo ?? null,
+    bizCode: raw.bizCode ?? '',
+    updatedAt: raw.updatedAt ?? '',
+    deliveryAddress: raw.deliveryAddress ?? null,
+    siteAddress: raw.siteAddress ?? null,
+    contactPhone: raw.contactPhone ?? null,
+    dueDate: raw.dueDate ?? null,
+    memo: raw.memo ?? null,
+    lines: (raw.lines ?? []).map(normalizePartnerOrderLine),
+  }
+}
+
 /** 주문 수정 요청 — 본사 direct PUT 전용. */
 export interface PartnerOrderUpdateRequest {
   updatedAt: string
@@ -562,7 +636,7 @@ export async function getPartnerOrder(
   const res = await apiClient.get<ApiEnvelope<PartnerOrderDetail>>(
     `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
   )
-  return res.data.data
+  return normalizePartnerOrderDetail(res.data.data)
 }
 
 /** 주문 헤더/라인 direct PUT 수정. */
@@ -574,7 +648,7 @@ export async function updatePartnerOrder(
     `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
     request,
   )
-  return res.data.data
+  return normalizePartnerOrderDetail(res.data.data)
 }
 
 // ---------------------------------------------------------------------------
@@ -661,7 +735,7 @@ export async function holdPartnerOrder(orderNumber: string): Promise<PartnerOrde
   const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
     `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/hold`,
   )
-  return res.data.data
+  return normalizePartnerOrderDetail(res.data.data)
 }
 
 /**
@@ -676,7 +750,7 @@ export async function releasePartnerOrder(orderNumber: string): Promise<PartnerO
   const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
     `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/release`,
   )
-  return res.data.data
+  return normalizePartnerOrderDetail(res.data.data)
 }
 
 // ---------------------------------------------------------------------------
