@@ -44,8 +44,10 @@ export interface JournalLine {
   credit: string
   /** 거래처명 (자유 입력). */
   partnerName: string | null
-  /** 메모. */
+  /** 메모. 기존 FE/fixture 필드명. */
   note: string | null
+  /** 메모. 신규 BE 도메인 명칭 호환 필드. */
+  memo?: string | null
 }
 
 /**

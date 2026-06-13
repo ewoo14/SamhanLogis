@@ -2918,6 +2918,151 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // accounting-slice-A: 회계 mock endpoint
   // ==========================================================================
 
+  // ==========================================================================
+  // §7: journal collab-core mock (comments + direct edits)
+  // - 화면 노출 = authorName/proposerName/decidedByName + journalNo/lineNo (UUID 비공개 가드)
+  // - 일반 /accounting/journals/{id} 매칭보다 먼저 처리해야 /collab/* 경로를 빼앗기지 않는다.
+  // ==========================================================================
+  type MockJournalCollabComment = {
+    id: string
+    anchor: string | null
+    authorName: string
+    body: string
+    parentId: string | null
+    status: 'OPEN' | 'RESOLVED'
+    createdAt: string
+  }
+  type MockJournalCollabEdit = {
+    id: string
+    changeSet: string
+    reason: string | null
+    proposerName: string
+    status: 'ACCEPTED'
+    decidedByName: string | null
+    decidedAt: string | null
+    createdAt: string
+  }
+  type MockJournalMutable = {
+    id: string
+    status: string
+    description: string | null
+    lines: Array<{
+      lineNo: number
+      note: string | null
+    }>
+  }
+  const gjc = globalThis as unknown as {
+    __SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS?: Record<string, MockJournalCollabComment[]>
+    __SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS?: Record<string, MockJournalCollabEdit[]>
+  }
+  if (!gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS) gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS = {}
+  if (!gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS) gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS = {}
+  const journalCollabCommentsStore = gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS
+  const journalCollabSuggestionsStore = gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS
+
+  const journalCollabStreamMatch = url.match(/\/accounting\/journals\/([^/?]+)\/collab\/stream(?:\?.*)?$/)
+  if (method === 'GET' && journalCollabStreamMatch) {
+    return new Blob([': mock journal collab stream\n\n'], { type: 'text/event-stream;charset=utf-8' })
+  }
+
+  const journalCollabCommentCollectionMatch = url.match(
+    /\/accounting\/journals\/([^/?]+)\/collab\/comments(?:\?.*)?$/,
+  )
+  if (journalCollabCommentCollectionMatch) {
+    const journalId = journalCollabCommentCollectionMatch[1]!
+    if (method === 'GET') {
+      const params = config.params as Record<string, unknown> | undefined
+      const urlLimit = new URLSearchParams(url.split('?')[1] ?? '').get('limit')
+      const rawLimit = Number.parseInt(String(params?.['limit'] ?? urlLimit ?? '20'), 10)
+      const safeLimit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 100)) : 20
+      return envelope([...(journalCollabCommentsStore[journalId] ?? [])].slice(0, safeLimit))
+    }
+    if (method === 'POST') {
+      const body = parseMockBody(config)
+      const created: MockJournalCollabComment = {
+        id: `mock-journal-collab-comment-${Date.now()}`,
+        anchor: (body['anchor'] as string | null | undefined) ?? null,
+        authorName: MOCK_AUTH.fullName,
+        body: String(body['body'] ?? ''),
+        parentId: (body['parentId'] as string | null | undefined) ?? null,
+        status: 'OPEN',
+        createdAt: new Date().toISOString(),
+      }
+      journalCollabCommentsStore[journalId] = [created, ...(journalCollabCommentsStore[journalId] ?? [])]
+      return envelope(created)
+    }
+  }
+
+  const journalCollabCommentItemMatch = url.match(
+    /\/accounting\/journals\/([^/?]+)\/collab\/comments\/([^/?]+)(?:\/(resolve))?(?:\?.*)?$/,
+  )
+  if (journalCollabCommentItemMatch) {
+    const journalId = journalCollabCommentItemMatch[1]!
+    const commentId = journalCollabCommentItemMatch[2]!
+    const action = journalCollabCommentItemMatch[3]
+    const list = journalCollabCommentsStore[journalId] ?? []
+    const target = list.find((item) => item.id === commentId)
+    if (method === 'POST' && action === 'resolve') {
+      if (!target) return mockError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다')
+      target.status = 'RESOLVED'
+      return envelope(target)
+    }
+    if (method === 'DELETE') {
+      if (!target) return mockError(404, 'NOT_FOUND', '댓글을 찾을 수 없습니다')
+      journalCollabCommentsStore[journalId] = list.filter((item) => item.id !== commentId)
+      return envelope({ deleted: true })
+    }
+  }
+
+  const journalCollabEditCollectionMatch = url.match(
+    /\/accounting\/journals\/([^/?]+)\/collab\/edits(?:\?.*)?$/,
+  )
+  if (journalCollabEditCollectionMatch) {
+    const journalId = journalCollabEditCollectionMatch[1]!
+    if (method === 'GET') return envelope([...(journalCollabSuggestionsStore[journalId] ?? [])])
+    if (method === 'POST') {
+      const journal = MOCK_JOURNALS.find((j) => j.id === journalId) as MockJournalMutable | undefined
+      if (!journal) return mockError(404, 'NOT_FOUND', '분개를 찾을 수 없습니다')
+      if (journal.status === 'REVERSED') return mockError(409, 'COLLAB_LOCKED', '역분개된 분개는 수정할 수 없습니다')
+
+      const body = parseMockBody(config)
+      const created: MockJournalCollabEdit = {
+        id: `mock-journal-collab-edit-${Date.now()}`,
+        changeSet: String(body['changeSet'] ?? '{}'),
+        reason: (body['reason'] as string | null | undefined) ?? null,
+        proposerName: MOCK_AUTH.fullName,
+        status: 'ACCEPTED',
+        decidedByName: MOCK_AUTH.fullName,
+        decidedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+
+      try {
+        const parsed = JSON.parse(created.changeSet) as Record<string, { after?: unknown }>
+        for (const [field, change] of Object.entries(parsed)) {
+          if (field === 'description') {
+            journal.description = change.after == null ? null : String(change.after)
+            continue
+          }
+          const lineMemoMatch = field.match(/^line\.(\d+)\.memo$/)
+          if (lineMemoMatch) {
+            const lineNo = Number.parseInt(lineMemoMatch[1]!, 10)
+            const line = journal.lines.find((item) => item.lineNo === lineNo)
+            if (!line) return mockError(400, 'INVALID_INPUT', '라인 번호가 올바르지 않습니다')
+            line.note = change.after == null ? null : String(change.after)
+            continue
+          }
+          return mockError(400, 'INVALID_INPUT', '수정 가능한 필드는 적요와 라인 메모뿐입니다')
+        }
+      } catch {
+        return mockError(400, 'INVALID_INPUT', 'changeSet JSON 형식이 올바르지 않습니다')
+      }
+
+      journalCollabSuggestionsStore[journalId] = [created, ...(journalCollabSuggestionsStore[journalId] ?? [])]
+      return envelope({ edit: created, journal })
+    }
+  }
+
   // GET /accounting/accounts — 한국 일반기업회계기준 표준 계정과목
   if (method === 'GET' && url.endsWith('/accounting/accounts')) {
     return envelope(MOCK_ACCOUNTS)

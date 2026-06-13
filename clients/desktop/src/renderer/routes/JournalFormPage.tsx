@@ -109,7 +109,7 @@ export function JournalFormPage() {
         debit: Number.parseInt(l.debit, 10) || 0,
         credit: Number.parseInt(l.credit, 10) || 0,
         partnerName: l.partnerName ?? '',
-        note: l.note ?? '',
+        note: l.memo ?? l.note ?? '',
       })),
     )
   }, [isEdit, journalQuery.data])

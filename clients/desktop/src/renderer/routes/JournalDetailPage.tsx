@@ -34,6 +34,7 @@ import {
   reverseJournal,
   type JournalLine,
 } from '../api/accounting'
+import { JournalCollaborationPanel } from '../components/collab/JournalCollaborationPanel'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -60,6 +61,7 @@ export function JournalDetailPage() {
   usePageTitle('분개 상세', query.data?.journalNo)
 
   const [topError, setTopError] = useState('')
+  const [collabEditMode, setCollabEditMode] = useState(false)
 
   const postMutation = useMutation({
     mutationFn: () => postJournal(journalId),
@@ -123,6 +125,18 @@ export function JournalDetailPage() {
   // `/accounting/journals/:id/edit` 는 DRAFT 를 hydrate 하지만 저장은 현재도 POST /accounting/journals(CREATE) 를 호출한다.
   const canOpenDraftCreateShell = canAccess('accounting.journals', 'create')
   const canUpdateJournal = canAccess('accounting.journals', 'update')
+  const canCollabEdit = canUpdateJournal && journal.status !== 'REVERSED'
+  const collabCurrentValues = {
+    description: journal.description,
+    lines: journal.lines.map((line) => ({
+      lineNo: line.lineNo,
+      accountCode: line.accountCode,
+      accountName: line.accountName,
+      debit: line.debit,
+      credit: line.credit,
+      memo: line.memo ?? line.note,
+    })),
+  }
 
   const columns: DataTableColumn<JournalLine>[] = [
     {
@@ -168,7 +182,7 @@ export function JournalDetailPage() {
     {
       key: 'note',
       header: '메모',
-      render: (l) => l.note ?? '—',
+      render: (l) => l.memo ?? l.note ?? '—',
     },
   ]
 
@@ -221,6 +235,15 @@ export function JournalDetailPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
+            {canCollabEdit ? (
+              <Button
+                variant="primary"
+                data-testid="journal-collab-edit-open"
+                onClick={() => setCollabEditMode(true)}
+              >
+                수정
+              </Button>
+            ) : null}
             {isDraft && canOpenDraftCreateShell ? (
               <Button
                 variant="ghost"
@@ -284,6 +307,19 @@ export function JournalDetailPage() {
           <div />
         </div>
       </Card>
+
+      <JournalCollaborationPanel
+        journalId={journalId}
+        currentValues={collabCurrentValues}
+        editMode={collabEditMode}
+        onEditModeChange={setCollabEditMode}
+        onCommitted={() => {
+          void queryClient.invalidateQueries({
+            queryKey: ['accounting', 'journal', journalId],
+          })
+          void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
+        }}
+      />
 
       {topError ? (
         <div
