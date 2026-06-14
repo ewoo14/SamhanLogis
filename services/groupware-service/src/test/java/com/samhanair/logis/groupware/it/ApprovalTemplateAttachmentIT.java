@@ -89,6 +89,7 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
             ids.forEach(id -> result.put(id, true));
             return result;
         });
+        lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(java.util.Map.of());
     }
 
     /** 템플릿 CRUD 는 fields replace-set 과 active 목록 조회를 지원한다. */

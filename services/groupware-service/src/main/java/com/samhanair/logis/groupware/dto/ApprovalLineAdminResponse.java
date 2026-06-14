@@ -74,9 +74,10 @@ public record ApprovalLineAdminResponse(
     public static ApprovalLineAdminResponse from(ApprovalLine line, String templateName,
                                                  Map<String, String> fieldValues,
                                                  Map<UUID, String> nameMap) {
-        List<StepView> steps = line.getStepsView().stream().map(step -> StepView.from(step, nameMap)).toList();
+        Map<UUID, String> safeNameMap = nameMap == null ? Map.of() : nameMap;
+        List<StepView> steps = line.getStepsView().stream().map(step -> StepView.from(step, safeNameMap)).toList();
         return new ApprovalLineAdminResponse(line.getId(), line.getApprovalNo(), line.getRequesterId(),
-                displayName(nameMap, line.getRequesterId()), line.getTitle(), line.getContent(),
+                displayName(safeNameMap, line.getRequesterId()), line.getTitle(), line.getContent(),
                 line.getTemplateId(), templateName,
                 fieldValues == null ? Map.of() : fieldValues, line.getStatus(), steps);
     }

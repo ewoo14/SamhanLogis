@@ -7,6 +7,7 @@ import {
   type ApprovalReferenceDocType,
   type DocumentReferenceOption,
 } from '../../api/documentReferenceSearch'
+import styles from './DocumentReferencePicker.module.css'
 
 export interface DocumentReferenceValue {
   refDocType: ApprovalReferenceDocType
@@ -156,26 +157,6 @@ export function DocumentReferencePicker({
 
   const handleQueryChange = (next: string) => {
     setQuery(next)
-    if (selectedType === 'PARTNER_LEDGER') {
-      onChange({
-        ...value,
-        refDocType: selectedType,
-        refDocNo: null,
-        refDocLabel: null,
-        refPartnerCode: '',
-        refPartnerName: next,
-      })
-      return
-    }
-    onChange({
-      ...value,
-      refDocType: selectedType,
-      refDocNo: next,
-      refDocLabel: value.refDocLabel,
-      refPartnerCode: null,
-      refPartnerName: null,
-      refPeriod: null,
-    })
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -264,31 +245,17 @@ export function DocumentReferencePicker({
         </div>
       ) : null}
       {open ? (
-        <div
+        <ul
           id={listboxId}
           role="listbox"
-          style={{
-            position: 'absolute',
-            zIndex: 20,
-            top: '100%',
-            left: 0,
-            right: 0,
-            marginTop: 4,
-            maxHeight: 240,
-            overflowY: 'auto',
-            border: '1px solid var(--color-neutral-300)',
-            borderRadius: 4,
-            background: 'var(--color-neutral-0, #fff)',
-            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.12)',
-          }}
+          className={styles['dropdown']}
         >
           {options.map((option, index) => {
             const selected = index === activeIndex
             return (
-              <button
+              <li
                 key={optionKey(option, index)}
                 id={`${listboxId}-${index}`}
-                type="button"
                 role="option"
                 aria-selected={selected}
                 data-testid="doc-ref-search-option"
@@ -297,50 +264,39 @@ export function DocumentReferencePicker({
                   event.preventDefault()
                   selectOption(option)
                 }}
-                style={{
-                  width: '100%',
-                  display: 'grid',
-                  gridTemplateColumns: option.type === 'PARTNER_LEDGER'
-                    ? 'minmax(140px, 1fr) minmax(100px, 0.6fr) 100px'
-                    : 'minmax(130px, 1fr) minmax(140px, 1.2fr) 90px 90px',
-                  gap: 8,
-                  alignItems: 'center',
-                  padding: '8px 10px',
-                  border: 0,
-                  background: selected ? 'var(--color-brand-50)' : 'transparent',
-                  color: 'var(--color-neutral-900)',
-                  cursor: 'pointer',
-                  font: 'inherit',
-                  textAlign: 'left',
-                }}
+                className={[
+                  styles['option'],
+                  option.type === 'PARTNER_LEDGER' ? styles['optionPartner'] : styles['optionDocument'],
+                  selected ? styles['optionActive'] : null,
+                ].filter(Boolean).join(' ')}
                 aria-label={optionAriaLabel(option)}
               >
                 {option.type === 'PARTNER_LEDGER' ? (
                   <>
-                    <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span className={styles['strongEllipsis']}>
                       {option.partnerName ?? '-'}
                     </span>
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{option.partnerCode ?? '-'}</span>
+                    <span className={styles['numeric']}>{option.partnerCode ?? '-'}</span>
                     <span>{APPROVAL_REFERENCE_DOC_TYPE_LABEL[option.type]}</span>
                   </>
                 ) : (
                   <>
-                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                    <span className={styles['strongNumeric']}>
                       {option.refDocNo ?? '-'}
                     </span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span className={styles['ellipsis']}>
                       {option.summary ?? '-'}
                     </span>
-                    <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    <span className={styles['amount']}>
                       {formatAmount(option.amount)}
                     </span>
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{option.date ?? '-'}</span>
+                    <span className={styles['numeric']}>{option.date ?? '-'}</span>
                   </>
                 )}
-              </button>
+              </li>
             )
           })}
-        </div>
+        </ul>
       ) : null}
     </div>
   )

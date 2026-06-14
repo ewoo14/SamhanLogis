@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.user.repository.EmployeeRepository;
+import com.samhanair.logis.user.web.dto.BulkDisplayNameRequest;
 import com.samhanair.logis.user.web.dto.BulkVerifyRequest;
 import com.samhanair.logis.user.web.dto.BulkVerifyResponse;
 import com.samhanair.logis.user.web.dto.InternalEmployeeLookupResponse;
@@ -12,6 +13,8 @@ import com.samhanair.logis.user.web.dto.InternalUserResponse;
 import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -154,5 +157,31 @@ public class InternalUserController {
             exists.put(id, existing.contains(id));
         }
         return ApiResponse.ok(new BulkVerifyResponse(exists));
+    }
+
+    /**
+     * 사용자 표시명 다건 조회. groupware-service 결재 목록/상세가 요청자와 결재자 표시명을
+     * 한 번의 RPC 로 해석할 때 사용한다.
+     *
+     * @param req 조회 대상 user UUID 목록
+     * @return 존재하는 활성 직원의 {@code userId -> fullName} 매핑
+     */
+    @PostMapping("/display-names")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<Map<UUID, String>> displayNames(@Valid @RequestBody BulkDisplayNameRequest req) {
+        List<UUID> ids = req.userIds() == null ? List.of() : req.userIds();
+        if (ids.isEmpty()) {
+            return ApiResponse.ok(Map.of());
+        }
+        Set<UUID> distinct = ids.stream()
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (distinct.isEmpty()) {
+            return ApiResponse.ok(Map.of());
+        }
+        Map<UUID, String> displayNames = new LinkedHashMap<>();
+        employeeRepository.findAllByIdIn(distinct)
+                .forEach(employee -> displayNames.put(employee.getId(), employee.getFullName()));
+        return ApiResponse.ok(displayNames);
     }
 }

@@ -3,6 +3,7 @@ package com.samhanair.logis.groupware.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -99,6 +100,7 @@ class ApprovalCollabIT extends AbstractPostgresIT {
             ids.forEach(id -> result.put(id, true));
             return result;
         });
+        lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(java.util.Map.of());
     }
 
     /** PENDING 결재의 title/content 수정완료가 실 적용되고 ACCEPTED diff 이력이 남는지 검증한다. */

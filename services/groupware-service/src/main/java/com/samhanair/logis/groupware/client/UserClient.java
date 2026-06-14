@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -148,15 +149,50 @@ public class UserClient implements UserVerifier {
 
     /** UUID 목록의 표시명을 fail-soft 로 해석한다. 누락/실패 항목은 결과 map 에 포함하지 않는다. */
     public Map<UUID, String> resolveDisplayNames(List<UUID> ids) {
-        if (ids == null || ids.isEmpty()) {
+        if (ids == null || ids.isEmpty() || internalToken == null || internalToken.isBlank()) {
             return Map.of();
         }
-        Map<UUID, String> result = new LinkedHashMap<>();
-        ids.stream()
+        List<UUID> distinct = ids.stream()
                 .filter(java.util.Objects::nonNull)
                 .distinct()
-                .forEach(id -> resolveDisplayName(id).ifPresent(name -> result.put(id, name)));
-        return Map.copyOf(result);
+                .toList();
+        if (distinct.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            String body = restClient.post()
+                    .uri("/internal/users/display-names")
+                    .header("X-Internal-Token", internalToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("userIds", distinct))
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return Map.of();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            if (data == null || !data.isObject()) {
+                return Map.of();
+            }
+            Map<UUID, String> result = new LinkedHashMap<>();
+            data.fieldNames().forEachRemaining(idText -> {
+                try {
+                    UUID id = UUID.fromString(idText);
+                    String name = readText(data.get(idText));
+                    if (name != null) {
+                        result.put(id, name);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // malformed response key: skip
+                }
+            });
+            return Map.copyOf(result);
+        } catch (RestClientResponseException ex) {
+            return Map.of();
+        } catch (Exception ex) {
+            return Map.of();
+        }
     }
 
     private UUID readUuid(JsonNode node) {

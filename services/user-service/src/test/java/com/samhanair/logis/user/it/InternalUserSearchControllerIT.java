@@ -2,6 +2,7 @@ package com.samhanair.logis.user.it;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** 그룹웨어 결재자 picker 용 internal 직원 검색 endpoint IT. */
@@ -90,6 +92,24 @@ class InternalUserSearchControllerIT extends AbstractPostgresIT {
                         .param("q", marker))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(0)));
+    }
+
+    @Test
+    void displayNames_다건조회는_id별_fullName_map을_반환한다() throws Exception {
+        UUID user1 = employee("display-" + shortToken() + "-a", "표시명A", Role.MANAGER);
+        UUID user2 = employee("display-" + shortToken() + "-b", "표시명B", Role.SALES);
+        UUID missing = UUID.randomUUID();
+
+        mockMvc.perform(post("/internal/users/display-names")
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userIds":["%s","%s","%s","%s"]}
+                                """.formatted(user1, user2, user1, missing)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data['%s']".formatted(user1)).value("표시명A"))
+                .andExpect(jsonPath("$.data['%s']".formatted(user2)).value("표시명B"))
+                .andExpect(jsonPath("$.data['%s']".formatted(missing)).doesNotExist());
     }
 
     @Test

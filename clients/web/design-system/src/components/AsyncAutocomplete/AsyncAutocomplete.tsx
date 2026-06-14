@@ -41,6 +41,8 @@ export interface AsyncAutocompleteProps<T> {
   label?: string
   /** compact 모드 input 의 `aria-label` 속성. */
   ariaLabel?: string
+  /** 내부 input 의 data-testid. */
+  inputTestId?: string
   /** placeholder. */
   placeholder?: string
   /** 필수 표시. */
@@ -70,6 +72,7 @@ function AsyncAutocompleteInner<T>(
     matchExact,
     label,
     ariaLabel,
+    inputTestId,
     placeholder,
     required = false,
     error,
@@ -320,6 +323,7 @@ function AsyncAutocompleteInner<T>(
               : undefined
           }
           role="combobox"
+          data-testid={inputTestId}
         />
         {status === 'loading' ? (
           <span className={styles['loadingSpinner']} aria-hidden="true">

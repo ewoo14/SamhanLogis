@@ -13,7 +13,6 @@ import {
   Card,
   DataTable,
   Spinner,
-  TagChip,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -99,6 +98,11 @@ function emptyReferenceDraft(type: ApprovalReferenceDocType = 'OUTBOUND_SLIP'): 
 
 function buildReferenceInput(draft: DocumentReferenceValue, displayOrder: number): ApprovalAttachmentReferenceInput {
   const label = APPROVAL_REFERENCE_DOC_TYPE_LABEL[draft.refDocType]
+  const refSlipType = draft.refDocType === 'OUTBOUND_SLIP'
+    ? 'SLIP_OUTBOUND'
+    : draft.refDocType === 'INBOUND_SLIP'
+      ? 'SLIP_INBOUND'
+      : null
   if (draft.refDocType === 'PARTNER_LEDGER') {
     return {
       attachmentType: 'PARTNER_LEDGER_REF',
@@ -119,8 +123,8 @@ function buildReferenceInput(draft: DocumentReferenceValue, displayOrder: number
     refDocType: draft.refDocType,
     refDocNo: draft.refDocNo,
     refDocLabel: draft.refDocLabel,
-    refSlipNo: draft.refDocNo,
-    refSlipType: draft.refDocType === 'INBOUND_SLIP' ? 'SLIP_INBOUND' : 'SLIP_OUTBOUND',
+    refSlipNo: refSlipType ? draft.refDocNo : null,
+    refSlipType,
   }
 }
 
@@ -204,10 +208,9 @@ export function GroupwareApprovalDetailPage() {
       key: 'approver',
       header: '결재자',
       render: (step) => (
-        <TagChip
-          label={String(step.sequence + 1)}
-          value={displayNameOrFallback(step.approverName, `결재자 ${step.sequence + 1}`)}
-        />
+        <span style={{ fontWeight: 600 }}>
+          {displayNameOrFallback(step.approverName, `결재자 ${step.sequence + 1}`)}
+        </span>
       ),
     },
     {

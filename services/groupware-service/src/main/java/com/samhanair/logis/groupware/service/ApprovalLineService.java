@@ -112,7 +112,8 @@ public class ApprovalLineService {
         List<UUID> ids = new ArrayList<>();
         ids.add(line.getRequesterId());
         line.getStepsView().forEach(step -> ids.add(step.getApproverId()));
-        Map<UUID, String> nameMap = userClient.resolveDisplayNames(ids);
+        Map<UUID, String> resolvedNames = userClient.resolveDisplayNames(ids);
+        Map<UUID, String> nameMap = resolvedNames == null ? Map.of() : resolvedNames;
         return ApprovalLineAdminResponse.from(line, templateName, fieldValues, nameMap);
     }
 

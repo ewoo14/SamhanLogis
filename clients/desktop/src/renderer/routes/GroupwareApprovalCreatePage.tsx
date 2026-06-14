@@ -4,7 +4,7 @@
  * 생성 본문은 ApprovalLineCreateRequest 계약(templateId/fieldValues/title/content/approverIds)과
  * 일치한다. 첨부는 결재 생성 후 전용 endpoint 로 순차 등록한다.
  */
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -49,6 +49,11 @@ function serverErrorMessage(error: unknown): string {
 
 function buildReferenceInput(draft: ReferenceDraft, displayOrder: number): ApprovalAttachmentReferenceInput {
   const label = APPROVAL_REFERENCE_DOC_TYPE_LABEL[draft.refDocType]
+  const refSlipType = draft.refDocType === 'OUTBOUND_SLIP'
+    ? 'SLIP_OUTBOUND'
+    : draft.refDocType === 'INBOUND_SLIP'
+      ? 'SLIP_INBOUND'
+      : null
   if (draft.refDocType === 'PARTNER_LEDGER') {
     return {
       attachmentType: 'PARTNER_LEDGER_REF',
@@ -69,8 +74,8 @@ function buildReferenceInput(draft: ReferenceDraft, displayOrder: number): Appro
     refDocType: draft.refDocType,
     refDocNo: draft.refDocNo,
     refDocLabel: draft.refDocLabel,
-    refSlipNo: draft.refDocNo,
-    refSlipType: draft.refDocType === 'INBOUND_SLIP' ? 'SLIP_INBOUND' : 'SLIP_OUTBOUND',
+    refSlipNo: refSlipType ? draft.refDocNo : null,
+    refSlipType,
   }
 }
 
@@ -200,10 +205,6 @@ export function GroupwareApprovalCreatePage() {
     setApprovers((current) => current.filter((_, itemIndex) => itemIndex !== index))
   }
 
-  const bindApproverSearchInput = useCallback((node: HTMLInputElement | null) => {
-    node?.setAttribute('data-testid', 'approver-search-input')
-  }, [])
-
   if (templatesQuery.isLoading) {
     return (
       <div style={{ display: 'grid', placeItems: 'center', minHeight: 220 }}>
@@ -280,7 +281,6 @@ export function GroupwareApprovalCreatePage() {
 
             <div data-testid="groupware-approval-create-approvers" style={{ display: 'grid', gap: 8 }}>
               <AsyncAutocomplete<ApproverOption>
-                ref={bindApproverSearchInput}
                 value={null}
                 onChange={addApprover}
                 search={searchApprovers}
@@ -299,20 +299,22 @@ export function GroupwareApprovalCreatePage() {
                 listboxLabel="결재자 검색 결과"
                 label="결재선"
                 ariaLabel="결재자 이름 검색"
+                inputTestId="approver-search-input"
                 placeholder="결재자 이름 검색"
-                minChars={1}
+                minChars={2}
                 required
               />
               <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
                 사원 이름을 검색해 결재 순서대로 추가합니다.
               </p>
               {approvers.length > 0 ? (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                   {approvers.map((approver, index) => (
                     <TagChip
                       key={`${approver.userId}-${index}`}
                       label={String(index + 1)}
                       value={approverLabel(approver)}
+                      removeLabel={approverLabel(approver)}
                       onRemove={() => removeApprover(index)}
                       data-testid="approver-chip"
                     />
@@ -352,33 +354,32 @@ export function GroupwareApprovalCreatePage() {
           </div>
 
           <div style={{ display: 'grid', gap: 8 }}>
-            {references.map((ref, index) => (
-              <div
-                key={`${ref.refDocType}-${index}`}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(420px, 1fr) 72px',
-                  gap: 8,
-                  alignItems: 'end',
-                  padding: 8,
-                  border: '1px solid var(--color-neutral-200)',
-                  borderRadius: 6,
-                }}
-              >
-                <DocumentReferencePicker
-                  value={ref}
-                  onChange={(next) => updateReference(index, next)}
-                  inputSize="sm"
-                />
-                <Button type="button" variant="ghost" size="sm" onClick={() => removeReference(index)}>
-                  삭제
-                </Button>
-              </div>
-            ))}
+            {references.map((ref, index) =>
+              hasReferenceChipValue(ref) ? null : (
+                <div
+                  key={`${ref.refDocType}-${index}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(420px, 1fr)',
+                    gap: 8,
+                    alignItems: 'end',
+                    padding: 8,
+                    border: '1px solid var(--color-neutral-200)',
+                    borderRadius: 6,
+                  }}
+                >
+                  <DocumentReferencePicker
+                    value={ref}
+                    onChange={(next) => updateReference(index, next)}
+                    inputSize="sm"
+                  />
+                </div>
+              ),
+            )}
           </div>
 
           {references.some(hasReferenceChipValue) || files.length > 0 ? (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', margin: '10px 0' }}>
               {references.map((ref, index) =>
                 hasReferenceChipValue(ref) ? (
                   <TagChip

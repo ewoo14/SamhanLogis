@@ -1,0 +1,63 @@
+.dropdown {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: var(--space-1, 4px) 0 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--color-border-strong, var(--color-neutral-300));
+  border-radius: var(--radius-md);
+  background: var(--color-surface, var(--color-neutral-0, #fff));
+  box-shadow: var(--shadow-lg);
+}
+
+.option {
+  width: 100%;
+  display: grid;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-neutral-900);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.option:hover,
+.optionActive {
+  background: var(--color-brand-50);
+}
+
+.optionDocument {
+  grid-template-columns: minmax(130px, 1fr) minmax(140px, 1.2fr) 90px 90px;
+}
+
+.optionPartner {
+  grid-template-columns: minmax(140px, 1fr) minmax(100px, 0.6fr) 100px;
+}
+
+.ellipsis,
+.strongEllipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strongEllipsis,
+.strongNumeric {
+  font-weight: 700;
+}
+
+.numeric,
+.strongNumeric,
+.amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.amount {
+  text-align: right;
+}

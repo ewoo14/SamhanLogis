@@ -6,6 +6,8 @@ export interface TagChipProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'onC
   label: string
   /** 값. 예: "220V" */
   value: string
+  /** 제거 버튼 접근성 라벨. 없으면 label 을 사용한다. */
+  removeLabel?: string
   /** 제거 콜백. 있으면 우측 X 버튼이 표시됨. */
   onRemove?: () => void
 }
@@ -16,7 +18,7 @@ export interface TagChipProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'onC
  * `onRemove` 가 있으면 우측 X 버튼이 표시되며, 없으면 read-only chip.
  */
 export const TagChip = forwardRef<HTMLSpanElement, TagChipProps>(function TagChip(
-  { label, value, onRemove, className, ...rest },
+  { label, value, removeLabel, onRemove, className, ...rest },
   ref,
 ) {
   const classes = [styles['chip'], className].filter(Boolean).join(' ')
@@ -35,7 +37,7 @@ export const TagChip = forwardRef<HTMLSpanElement, TagChipProps>(function TagChi
           type="button"
           onClick={onRemove}
           className={styles['remove']}
-          aria-label={`${label} 제거`}
+          aria-label={`${removeLabel ?? label} 제거`}
         >
           <svg
             viewBox="0 0 12 12"
