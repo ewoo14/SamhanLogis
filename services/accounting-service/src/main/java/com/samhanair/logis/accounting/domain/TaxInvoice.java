@@ -77,7 +77,7 @@ public class TaxInvoice extends BaseEntity {
     private UUID id;
 
     /**
-     * 세금계산서 발행번호 — {@code yyyy/MM/dd-NNNN}. ISSUED 진입 시 채번. DRAFT 단계 NULL.
+     * 세금계산서 발행번호 — {@code yyyy/MM/dd-N}. ISSUED 진입 시 채번. DRAFT 단계 NULL.
      * partial UNIQUE INDEX (NULL 허용) — DB 레벨 보장.
      */
     @Column(name = "tax_invoice_no", length = 20)
@@ -392,7 +392,7 @@ public class TaxInvoice extends BaseEntity {
      * 발행 (DRAFT → ISSUED). tax_invoice_no 채번된 값을 인자로 받아 set.
      * 자동 분개 ID 는 service 가 신규 Journal 저장 후 {@link #linkJournal(UUID)} 로 연결.
      *
-     * @param taxInvoiceNo 채번된 발행번호 ({@code yyyy/MM/dd-NNNN})
+     * @param taxInvoiceNo 채번된 발행번호 ({@code yyyy/MM/dd-N})
      * @param actorUserId 발행자 user-id (필수)
      * @throws BusinessException(CONFLICT) DRAFT 아니거나, 라인 0건이거나, 합계 0
      */

@@ -48,7 +48,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     void POST_admin_sales_slips_DRAFT_정상생성() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0001");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-1");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-2026-05-0042", sourceLineId, "RX다배관 30A",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
@@ -78,7 +78,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     void POST_admin_sales_slips_taxType_ZERO_RATED_VAT_0() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0002");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-2");
         stubConfirmedSourceLine(sourceSlipId, sourceLineId, new BigDecimal("1500000"));
 
         mvc.perform(post("/admin/sales-slips")
@@ -99,7 +99,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     void POST_admin_sales_slips_taxType_EXEMPT_VAT_0() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0003");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-3");
         stubConfirmedSourceLine(sourceSlipId, sourceLineId, new BigDecimal("1500000"));
 
         mvc.perform(post("/admin/sales-slips")
@@ -120,7 +120,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     void POST_admin_sales_slips_overAllocation_정확boundary() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0004", "2026/05/19-0005");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-4", "2026/05/19-5");
         stubConfirmedSourceLine(sourceSlipId, sourceLineId, new BigDecimal("1500000"));
 
         mvc.perform(post("/admin/sales-slips")
@@ -147,7 +147,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
     @Test
     void POST_admin_sales_slips_empty_allocations_거부() throws Exception {
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0006");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-6");
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
                 LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-2026-0001", "(주)한국공조",
                 SalesTaxType.TAXABLE, "empty allocations",
@@ -168,7 +168,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     void POST_admin_sales_slips_INBOUND_source_거부() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-0007");
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-7");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-2026-05-0042", sourceLineId, "RX다배관 30A",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));

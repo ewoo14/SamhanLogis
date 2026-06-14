@@ -50,7 +50,7 @@ class AccountingDocumentSearchServiceTest {
     @Test
     void searchTaxInvoices_usesNumberOrPartnerNameKeyword() {
         AccountingTaxInvoiceSearchResponse row = new AccountingTaxInvoiceSearchResponse(
-                "2026/06/14-0001", LocalDate.of(2026, 6, 14), "삼한상사", new BigDecimal("220000.00"));
+                "2026/06/14-1", LocalDate.of(2026, 6, 14), "삼한상사", new BigDecimal("220000.00"));
         when(taxInvoiceRepository.searchTaxInvoiceReferences(eq("삼한"), any(Pageable.class)))
                 .thenReturn(List.of(row));
 
@@ -60,7 +60,7 @@ class AccountingDocumentSearchServiceTest {
     @Test
     void searchStatements_usesTaxInvoiceBackedStatementRows() {
         AccountingStatementSearchResponse row = new AccountingStatementSearchResponse(
-                "2026/06/14-0001", LocalDate.of(2026, 6, 14), "삼한상사", new BigDecimal("220000.00"));
+                "2026/06/14-1", LocalDate.of(2026, 6, 14), "삼한상사", new BigDecimal("220000.00"));
         when(taxInvoiceRepository.searchStatementReferences(eq("2026/06/14"), any(Pageable.class)))
                 .thenReturn(List.of(row));
 

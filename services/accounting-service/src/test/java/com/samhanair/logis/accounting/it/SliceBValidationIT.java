@@ -41,7 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>검증 목적:
  * <ul>
- *   <li>V8 Flyway seed (2026/04/05-0001~S003, 2026/04/10-0001~P002) 5건 TaxInvoice 적재 확인</li>
+ *   <li>V8 Flyway seed (2026/04/05-1~S003, 2026/04/10-1~P002) 5건 TaxInvoice 적재 확인</li>
  *   <li>VAT report endpoint GET /accounting/reports/vat?period=202604 — 2Q 집계 검증</li>
  *   <li>법인세 report endpoint GET /accounting/reports/corporate-tax?year=2026 — 법인세 집계 검증</li>
  *   <li>V9 partner_aging seed 5건 — 110(외상매출금) 차변 / 201(외상매입금) 대변 잔액 검증</li>

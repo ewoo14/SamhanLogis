@@ -46,10 +46,10 @@ class TaxInvoiceDomainTest {
         ti.addLine(TaxInvoiceLine.create(ti, 1, "운임 기본료", "kg",
                 new BigDecimal("100"), new BigDecimal("1000"), null));
 
-        ti.issue("2026/05/04-0001", "user-A");
+        ti.issue("2026/05/04-1", "user-A");
 
         assertThat(ti.getStatus()).isEqualTo(TaxInvoiceStatus.ISSUED);
-        assertThat(ti.getTaxInvoiceNo()).isEqualTo("2026/05/04-0001");
+        assertThat(ti.getTaxInvoiceNo()).isEqualTo("2026/05/04-1");
         assertThat(ti.getIssuedBy()).isEqualTo("user-A");
         assertThat(ti.getSupplyAmount()).isEqualByComparingTo("100000.00");
         assertThat(ti.getVatAmount()).isEqualByComparingTo("10000.00");
@@ -60,7 +60,7 @@ class TaxInvoiceDomainTest {
     @DisplayName("issue 실패 — 라인 0건 시 CONFLICT")
     void issueRequiresLines() {
         TaxInvoice ti = newDraft();
-        assertThatThrownBy(() -> ti.issue("2026/05/04-0001", "user-A"))
+        assertThatThrownBy(() -> ti.issue("2026/05/04-1", "user-A"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("라인이 1개 이상");
     }
@@ -98,7 +98,7 @@ class TaxInvoiceDomainTest {
         TaxInvoice ti = newDraft();
         ti.addLine(TaxInvoiceLine.create(ti, 1, "x", null,
                 new BigDecimal("1"), new BigDecimal("1000"), null));
-        ti.issue("2026/05/04-0001", "user-A");
+        ti.issue("2026/05/04-1", "user-A");
 
         TaxInvoiceLine extra = TaxInvoiceLine.create(ti, 2, "y", null,
                 new BigDecimal("1"), new BigDecimal("100"), null);
@@ -115,7 +115,7 @@ class TaxInvoiceDomainTest {
         TaxInvoice ti = newDraft();
         ti.addLine(TaxInvoiceLine.create(ti, 1, "운임", null,
                 new BigDecimal("1"), new BigDecimal("50000"), null));
-        ti.issue("2026/05/04-0001", "user-A");
+        ti.issue("2026/05/04-1", "user-A");
 
         ti.cancel("user-B");
         UUID reverseId = UUID.randomUUID();

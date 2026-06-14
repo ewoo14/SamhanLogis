@@ -460,7 +460,7 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
     private TaxInvoice createStubTaxInvoice(boolean useMock) {
         if (useMock) {
             TaxInvoice mock = Mockito.mock(TaxInvoice.class);
-            Mockito.when(mock.getTaxInvoiceNo()).thenReturn("2026/05/18-0001");
+            Mockito.when(mock.getTaxInvoiceNo()).thenReturn("2026/05/18-1");
             return mock;
         }
         // placeholder 차단 경로: invoice 접근 전에 예외를 던지므로 null 안전.
