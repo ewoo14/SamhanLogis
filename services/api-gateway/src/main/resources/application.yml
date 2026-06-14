@@ -14,6 +14,9 @@ server:
 spring:
   application:
     name: api-gateway
+  codec:
+    # 파일 업로드(예: 그룹웨어 결재 첨부 ≤10MB) WebFlux 메모리 버퍼 상향 — 기본 256KB 초과 시 413/DataBufferLimit.
+    max-in-memory-size: 12MB
   cloud:
     gateway:
       discovery:

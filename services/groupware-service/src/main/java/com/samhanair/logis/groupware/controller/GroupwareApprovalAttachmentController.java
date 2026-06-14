@@ -94,7 +94,8 @@ public class GroupwareApprovalAttachmentController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename(view.attachment().getFileName())
+                        // 한글/공백 파일명 RFC 5987 인코딩 — UTF-8 미지정 시 헤더 깨짐.
+                        .filename(view.attachment().getFileName(), java.nio.charset.StandardCharsets.UTF_8)
                         .build()
                         .toString())
                 .body(resource);

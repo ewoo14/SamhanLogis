@@ -160,6 +160,7 @@ export function GroupwareApprovalDetailPage() {
     mutationFn: () => addApprovalAttachmentReference(approvalId, {
       attachmentType: 'SLIP_REF',
       label: '전표 참조',
+      displayOrder: (attachmentsQuery.data?.length ?? 0) + 1,
       refSlipNo: slipNoDraft,
       refSlipType: slipTypeDraft,
     }),
@@ -175,6 +176,7 @@ export function GroupwareApprovalDetailPage() {
     mutationFn: () => addApprovalAttachmentReference(approvalId, {
       attachmentType: 'PARTNER_LEDGER_REF',
       label: '거래처원장 참조',
+      displayOrder: (attachmentsQuery.data?.length ?? 0) + 1,
       refPartnerCode: partnerCodeDraft,
       refPartnerName: partnerNameDraft,
       refPeriod: periodDraft,

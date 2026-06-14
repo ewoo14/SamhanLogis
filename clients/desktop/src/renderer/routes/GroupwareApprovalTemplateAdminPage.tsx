@@ -373,10 +373,11 @@ export function GroupwareApprovalTemplateAdminPage() {
           <div style={{ display: 'grid', gap: 8 }}>
             {draft.fields.map((field, index) => (
               <div
-                key={`${field.fieldKey}-${index}`}
+                key={`field-row-${index}`}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '1.1fr 1.2fr 120px 72px 72px 1fr 64px',
+                  // 키/라벨에 충분한 최소폭 부여(잘림 방지) + 좁은 화면 자동 줄바꿈.
+                  gridTemplateColumns: 'minmax(140px, 1.4fr) minmax(150px, 1.6fr) 120px 64px 72px minmax(140px, 1.2fr) 56px',
                   gap: 8,
                   alignItems: 'end',
                   padding: 8,

@@ -5422,8 +5422,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
-  if (method === 'GET' && url.match(/\/internal\/groupware\/approval-templates\/active(?:\?.*)?$/)) {
-    const denied = mockRequirePermission('groupware.approval-templates', 'view')
+  if (method === 'GET' && url.match(/\/admin\/groupware\/approval-templates\/active(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('groupware.approvals', 'view')
     if (denied) return denied
     return envelope(
       getMockGroupwareApprovalTemplatesStore()
