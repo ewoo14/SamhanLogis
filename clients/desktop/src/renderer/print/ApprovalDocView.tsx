@@ -26,7 +26,7 @@ import {
 } from '../api/groupwareApprovalTemplate'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
-import { PrintLayout, type PrintApprovalStep, type PrintDocHeader } from './PrintLayout'
+import { PrintLayout, krw, type PrintApprovalStep, type PrintDocHeader } from './PrintLayout'
 
 const CLOSING_NOTE = '위와 같이 품의하오니 검토 후 재가하여 주시기 바랍니다.'
 
@@ -41,25 +41,24 @@ function buildApprovalSteps(approval: ApprovalLineAdminResponse): PrintApprovalS
   return [
     buildApprovalStep('작성', approval.requesterName ?? '-'),
     ...sortedSteps.map((step, index) => {
-      const label = step.sequence === approval.steps.length || index === sortedSteps.length - 1
-        ? '결재'
-        : '합의'
+      const label = index === sortedSteps.length - 1 ? '결재' : '합의'
       const decidedAt = step.status === 'APPROVED' ? step.decidedAt ?? undefined : undefined
       return buildApprovalStep(label, step.approverName ?? '-', decidedAt)
     }),
   ]
 }
 
-function firstDecidedAt(steps: ApprovalStepView[]): string | undefined {
-  return steps
+function finalDecidedAt(steps: ApprovalStepView[]): string | undefined {
+  const decided = steps
     .slice()
     .sort((a, b) => a.sequence - b.sequence)
-    .find((step) => Boolean(step.decidedAt))
-    ?.decidedAt ?? undefined
+    .filter((step) => Boolean(step.decidedAt))
+  const last = decided.length > 0 ? decided[decided.length - 1] : undefined
+  return last?.decidedAt ?? undefined
 }
 
 function buildDocHeader(approval: ApprovalLineAdminResponse): PrintDocHeader {
-  const issueDate = firstDecidedAt(approval.steps)
+  const issueDate = finalDecidedAt(approval.steps)
   return {
     title: approval.title,
     docNo: approval.approvalNo,
@@ -74,22 +73,26 @@ function contentParagraphs(content: string | null): string[] {
     .filter((paragraph) => paragraph.length > 0)
 }
 
-function fieldLabelMap(fields: ApprovalTemplateField[]): Map<string, string> {
-  return new Map(fields.map((field) => [field.fieldKey, field.label]))
+function fieldMap(fields: ApprovalTemplateField[]): Map<string, ApprovalTemplateField> {
+  return new Map(fields.map((field) => [field.fieldKey, field]))
 }
 
 function fieldRows(
   fieldValues: Record<string, string>,
   fields: ApprovalTemplateField[],
-): Array<{ key: string; label: string; value: string }> {
-  const labels = fieldLabelMap(fields)
+): Array<{ key: string; label: string; value: string; fieldType: ApprovalTemplateField['fieldType'] }> {
+  const fieldsByKey = fieldMap(fields)
   return Object.entries(fieldValues)
     .filter(([, value]) => value.trim().length > 0)
-    .map(([key, value]) => ({
-      key,
-      label: labels.get(key) ?? key,
-      value,
-    }))
+    .map(([key, value]) => {
+      const field = fieldsByKey.get(key)
+      return {
+        key,
+        label: field?.label ?? key,
+        value,
+        fieldType: field?.fieldType ?? 'TEXT',
+      }
+    })
 }
 
 function attachmentTitle(attachment: ApprovalAttachment): string {
@@ -208,7 +211,7 @@ export function ApprovalDocView() {
                         overflowWrap: 'anywhere',
                       }}
                     >
-                      {field.value}
+                      {field.fieldType === 'NUMBER' ? krw(field.value) || field.value : field.value}
                     </td>
                   </tr>
                 ))}

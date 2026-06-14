@@ -34,7 +34,9 @@ interface ApiEnvelope<T> {
 }
 
 interface ApprovalStepView {
+  sequence: number
   approverName: string | null
+  decidedAt: string | null
 }
 
 interface ApprovalLineAdminResponse {
@@ -56,6 +58,22 @@ async function capture(page: Page, name: string): Promise<string> {
 
 function hashUrl(p: string): string {
   return `${BASE_URL}/#${p}`
+}
+
+function krDateForQa(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!m) return iso
+  return `${m[1]}년 ${m[2]}월 ${m[3]}일`
+}
+
+function finalDecidedAtForQa(steps: ApprovalStepView[]): string | undefined {
+  const decided = steps
+    .slice()
+    .sort((a, b) => a.sequence - b.sequence)
+    .filter((step) => Boolean(step.decidedAt))
+  const last = decided.length > 0 ? decided[decided.length - 1] : undefined
+  return last?.decidedAt ?? undefined
 }
 
 async function fetchRealToken(): Promise<string> {
@@ -104,6 +122,63 @@ async function fetchFirstApproval(token: string): Promise<ApprovalLineAdminRespo
             resolve(first)
           } catch {
             reject(new Error('approval list parse: ' + d))
+          }
+        })
+      },
+    )
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+async function fetchMultiStepApprovedApproval(token: string): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: '127.0.0.1', port: 8080,
+        path: '/admin/groupware/approvals',
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      (res) => {
+        let d = ''
+        res.on('data', (c) => { d += c })
+        res.on('end', () => {
+          try {
+            const body = JSON.parse(d) as ApiEnvelope<ApprovalLineAdminResponse[]>
+            const approval = body.data.find((item) =>
+              item.steps.length >= 2 && item.steps.some((step) => Boolean(step.decidedAt)),
+            )
+            resolve(approval?.approvalId ?? null)
+          } catch {
+            reject(new Error('multi-step approval list parse: ' + d))
+          }
+        })
+      },
+    )
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+async function fetchApprovalById(token: string, approvalId: string): Promise<ApprovalLineAdminResponse> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: '127.0.0.1', port: 8080,
+        path: `/admin/groupware/approvals/${encodeURIComponent(approvalId)}`,
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      (res) => {
+        let d = ''
+        res.on('data', (c) => { d += c })
+        res.on('end', () => {
+          try {
+            const body = JSON.parse(d) as ApiEnvelope<ApprovalLineAdminResponse>
+            resolve(body.data)
+          } catch {
+            reject(new Error('approval detail parse: ' + d))
           }
         })
       },
@@ -214,5 +289,42 @@ test.describe('미리보기 표준화 슬라이스2 — 그룹웨어 결재문�
     await expect(approvalNameCell.first()).toBeVisible()
     // 인삿말(closingNote) 은 화면 visible.
     await expect(approvalDoc.locator('.print-approval-closing')).toContainText('재가')
+  })
+
+  test('A3: 다단계 승인 결재 인쇄뷰 — 합의/결재 라벨 + 발행일(최종 승인일) 렌더', async ({ page }) => {
+    const multiStepApprovalId = await fetchMultiStepApprovedApproval(token)
+    if (!multiStepApprovalId) {
+      test.skip(true, '다단계 승인 결재 실 시드가 없습니다.')
+      return
+    }
+    const multiStepApproval = await fetchApprovalById(token, multiStepApprovalId)
+    const finalDecidedAt = finalDecidedAtForQa(multiStepApproval.steps)
+    if (!finalDecidedAt) {
+      test.skip(true, '승인일이 있는 다단계 결재 실 시드가 없습니다.')
+      return
+    }
+
+    const url = hashUrl(`/groupware/approvals/${multiStepApprovalId}/print`)
+    console.log('[NAVIGATE]', url)
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 })
+    await page.waitForTimeout(2500)
+
+    await capture(page, 'a3-approval-doc-multi-step-approved')
+
+    const bodyText = await page.locator('body').textContent() ?? ''
+    expect(bodyText).not.toContain('불러오지 못')
+    const approvalDoc = page.locator('.print-approval-doc')
+    await expect(approvalDoc).toBeVisible()
+
+    await expect(approvalDoc.locator('.print-approval-label', { hasText: '작성' }).first()).toBeVisible()
+    await expect(approvalDoc.locator('.print-approval-label', { hasText: '합의' }).first()).toBeVisible()
+    await expect(approvalDoc.locator('.print-approval-label', { hasText: '결재' }).first()).toBeVisible()
+
+    const docMeta = approvalDoc.locator('.print-approval-doc-meta')
+    await expect(docMeta).toContainText('발행일')
+    await expect(docMeta).toContainText(krDateForQa(finalDecidedAt))
+
+    const finalDecisionDateText = finalDecidedAt.slice(0, 10).replace(/-/g, '/')
+    await expect(approvalDoc.locator('.print-approval-name time', { hasText: finalDecisionDateText }).first()).toBeVisible()
   })
 })

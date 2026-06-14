@@ -1837,6 +1837,8 @@ button {
   flex-direction: row;
   align-items: flex-start;
   gap: 8mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 /* 좌측 = 문서제목 + 문서메타 세로 적층(회사명 블록 제거됨). */
@@ -1977,11 +1979,24 @@ button {
   overflow: hidden;
 }
 
-.print-approval-name div {
+.print-approval-doc .print-approval-cell {
+  grid-template-rows:
+    var(--print-approval-corner-label-h, 5mm)
+    var(--print-approval-corner-sig-h, 13mm)
+    minmax(var(--print-approval-corner-name-h, 7mm), auto);
+}
+
+.print-approval-doc .print-approval-name {
+  overflow: visible;
+}
+
+.print-approval-doc .print-approval-name div {
   max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .print-approval-name time {
