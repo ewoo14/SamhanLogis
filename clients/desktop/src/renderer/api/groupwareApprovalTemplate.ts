@@ -171,8 +171,9 @@ export async function listApprovalTemplates(): Promise<ApprovalTemplate[]> {
 }
 
 export async function listActiveApprovalTemplates(): Promise<ApprovalTemplate[]> {
+  // 게이트웨이 노출 경로(/admin). /internal/** 은 게이트웨이 비노출(404)이라 사용 금지.
   const res = await apiClient.get<ApiEnvelope<ApprovalTemplateDto[]>>(
-    '/internal/groupware/approval-templates/active',
+    '/admin/groupware/approval-templates/active',
   )
   return (res.data.data ?? []).map(normalizeApprovalTemplate)
 }

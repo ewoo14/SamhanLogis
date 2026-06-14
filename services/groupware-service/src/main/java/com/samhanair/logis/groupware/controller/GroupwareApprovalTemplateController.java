@@ -81,10 +81,16 @@ public class GroupwareApprovalTemplateController {
         return ApiResponse.ok(null);
     }
 
-    /** 사용자 작성 화면용 활성 템플릿 목록 조회. */
+    /**
+     * 사용자 작성 화면용 활성 템플릿 목록 조회.
+     *
+     * <p>결재 작성자(권한 {@code groupware.approvals})가 유형을 고르기 위한 목록이므로
+     * 게이트웨이 노출 경로(/admin) + 결재 VIEW 권한으로 둔다. 템플릿 관리 권한
+     * (groupware.approval-templates)과 분리한다. ({@code /internal/**} 은 게이트웨이 비노출 — 404)
+     */
     @Operation(summary = "활성 결재유형 템플릿 목록 조회")
-    @GetMapping("/internal/groupware/approval-templates/active")
-    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
+    @GetMapping("/admin/groupware/approval-templates/active")
+    @RequirePermission(page = "groupware.approvals", action = PermissionAction.VIEW)
     public ApiResponse<List<ApprovalTemplateResponse>> active() {
         return ApiResponse.ok(approvalTemplateService.findActive());
     }

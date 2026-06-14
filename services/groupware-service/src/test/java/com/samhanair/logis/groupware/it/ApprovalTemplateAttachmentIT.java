@@ -125,7 +125,7 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.fields.length()").value(1))
                 .andExpect(jsonPath("$.data.fields[0].fieldKey").value("memo"));
 
-        mvc.perform(get("/internal/groupware/approval-templates/active")
+        mvc.perform(get("/admin/groupware/approval-templates/active")
                         .header("X-User-Id", ACTOR_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].code").value("EXPENSE_CUSTOM"));

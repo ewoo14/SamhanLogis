@@ -150,38 +150,8 @@ export function GroupwareApprovalDetailPage() {
     },
   ], [])
 
-  if (query.isLoading) {
-    return (
-      <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
-        <Spinner size="lg" label="결재 문서 불러오는 중" />
-      </div>
-    )
-  }
-
-  if (query.isError || !query.data) {
-    return (
-      <div className="error-banner" role="alert">
-        결재 상세를 불러오지 못했습니다.
-      </div>
-    )
-  }
-
-  const approval: ApprovalLineAdminResponse = query.data
-  const canWrite = canAccess('groupware.approvals', 'update')
-  const locked = !isEditableStatus(approval.status)
-  const templateFields: ApprovalTemplateField[] = templateQuery.data?.fields ?? []
-  const fieldRows = templateFields.length > 0
-    ? templateFields.map((field) => ({
-      key: field.fieldKey,
-      label: field.label,
-      value: approval.fieldValues[field.fieldKey] ?? '',
-    }))
-    : Object.entries(approval.fieldValues ?? {}).map(([key, value]) => ({
-      key,
-      label: key,
-      value,
-    }))
-
+  // 첨부 mutation 은 hook 이므로 조기 return(로딩/에러) 보다 위에 선언해야 한다
+  // (early return 뒤 hook 선언 시 "Rendered more hooks than during the previous render" 크래시).
   const invalidateAttachments = () => {
     void queryClient.invalidateQueries({ queryKey: ['groupwareApprovalAttachments', approvalId] })
   }
@@ -248,6 +218,38 @@ export function GroupwareApprovalDetailPage() {
     },
     onError: (error) => setAttachmentError(serverErrorMessage(error)),
   })
+
+  if (query.isLoading) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
+        <Spinner size="lg" label="결재 문서 불러오는 중" />
+      </div>
+    )
+  }
+
+  if (query.isError || !query.data) {
+    return (
+      <div className="error-banner" role="alert">
+        결재 상세를 불러오지 못했습니다.
+      </div>
+    )
+  }
+
+  const approval: ApprovalLineAdminResponse = query.data
+  const canWrite = canAccess('groupware.approvals', 'update')
+  const locked = !isEditableStatus(approval.status)
+  const templateFields: ApprovalTemplateField[] = templateQuery.data?.fields ?? []
+  const fieldRows = templateFields.length > 0
+    ? templateFields.map((field) => ({
+      key: field.fieldKey,
+      label: field.label,
+      value: approval.fieldValues[field.fieldKey] ?? '',
+    }))
+    : Object.entries(approval.fieldValues ?? {}).map(([key, value]) => ({
+      key,
+      label: key,
+      value,
+    }))
 
   const handleCommitted = () => {
     void queryClient.invalidateQueries({ queryKey: ['groupwareApproval', approvalId] })
