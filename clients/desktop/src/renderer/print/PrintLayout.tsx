@@ -116,49 +116,51 @@ export function PrintLayout({
       <div className={`paper paper-${paper}`}>
         {approvalDoc ? (
           <div className="print-approval-doc">
+            {/* 헤더 = 좌(회사/문서정보) + 우(결재란 박스).
+                한국 ERP/공문서/세금계산서 표준에 맞춰 결재란을 문서 우측 상단 코너로 배치한다.
+                (기존엔 본문 하단 가로 grid 였음 — 2026-06-14 개발책임자 재배치 지시) */}
             <header className="print-approval-doc-header">
-              <div className="print-approval-company">
-                <div className="print-approval-company-name">{company.legalName}</div>
-                <div className="print-approval-company-meta">
-                  사업자번호 {company.businessRegNo}
+              <div className="print-approval-doc-headline">
+                <div className="print-approval-company">
+                  <div className="print-approval-company-name">{company.legalName}</div>
+                  <div className="print-approval-company-meta">
+                    사업자번호 {company.businessRegNo}
+                  </div>
+                </div>
+                <div className="print-approval-doc-meta">
+                  <h1>{docHeader?.title ?? ''}</h1>
+                  {docHeader?.docNo ? (
+                    <div>
+                      <span>문서번호</span>
+                      <strong>{docHeader.docNo}</strong>
+                    </div>
+                  ) : null}
+                  {docHeader?.issueDate ? (
+                    <div>
+                      <span>발행일</span>
+                      <strong>{krDate(docHeader.issueDate)}</strong>
+                    </div>
+                  ) : null}
+                  {docHeader?.periodFrom || docHeader?.periodTo ? (
+                    <div>
+                      <span>기간</span>
+                      <strong>
+                        {krDate(docHeader.periodFrom)} ~ {krDate(docHeader.periodTo)}
+                      </strong>
+                    </div>
+                  ) : null}
                 </div>
               </div>
-              <div className="print-approval-doc-meta">
-                <h1>{docHeader?.title ?? ''}</h1>
-                {docHeader?.docNo ? (
-                  <div>
-                    <span>문서번호</span>
-                    <strong>{docHeader.docNo}</strong>
-                  </div>
-                ) : null}
-                {docHeader?.issueDate ? (
-                  <div>
-                    <span>발행일</span>
-                    <strong>{krDate(docHeader.issueDate)}</strong>
-                  </div>
-                ) : null}
-                {docHeader?.periodFrom || docHeader?.periodTo ? (
-                  <div>
-                    <span>기간</span>
-                    <strong>
-                      {krDate(docHeader.periodFrom)} ~ {krDate(docHeader.periodTo)}
-                    </strong>
-                  </div>
-                ) : null}
-              </div>
-            </header>
-            <div className="print-approval-divider" aria-hidden="true" />
-            <main className="print-approval-body">{children}</main>
-            {/* 결재 단계가 하나도 없으면 빈 grid 박스가 그려지므로 결재란 section 자체를 렌더하지 않는다.
-                현재 호출처는 모두 3칸을 전달해 무해하나, 후속 호출처가 빈 배열을 넘길 때의 회귀 방어. */}
-            {normalizedApprovalSteps.length > 0 ? (
-              <>
-                <div className="print-approval-divider" aria-hidden="true" />
+              {/* 결재 단계가 하나도 없으면 빈 grid 박스가 그려지므로 결재란 박스 자체를 렌더하지 않는다.
+                  현재 호출처는 모두 3칸을 전달해 무해하나, 후속 호출처가 빈 배열을 넘길 때의 회귀 방어. */}
+              {normalizedApprovalSteps.length > 0 ? (
                 <section className="print-approval-section" aria-label="전자서명 결재란">
+                  {/* 우측 상단 코너용 — 칸당 고정폭(코너 토큰) × N칸. 전체폭(1fr) 아님.
+                      flex:0 0 auto 인 박스가 칸 폭만큼만 차지하도록 고정폭으로 그린다. */}
                   <div
                     className="print-approval-grid"
                     style={{
-                      gridTemplateColumns: `repeat(${Math.max(2, normalizedApprovalSteps.length)}, minmax(0, 1fr))`,
+                      gridTemplateColumns: `repeat(${Math.max(2, normalizedApprovalSteps.length)}, var(--print-approval-corner-col, 19mm))`,
                     }}
                   >
                     {normalizedApprovalSteps.map((step) => {
@@ -185,8 +187,17 @@ export function PrintLayout({
                       )
                     })}
                   </div>
-                  <p className="print-approval-notice">※ 전자서명으로 결재된 문서입니다.</p>
                 </section>
+              ) : null}
+            </header>
+            <div className="print-approval-divider" aria-hidden="true" />
+            <main className="print-approval-body">{children}</main>
+            {/* 안내 문구만 문서 하단(본문 아래)에 유지. 결재란 grid 는 우측 상단으로 이동했다.
+                결재란이 렌더될 때만(빈 배열 방어) 안내 문구도 노출한다. */}
+            {normalizedApprovalSteps.length > 0 ? (
+              <>
+                <div className="print-approval-divider" aria-hidden="true" />
+                <p className="print-approval-notice">※ 전자서명으로 결재된 문서입니다.</p>
               </>
             ) : null}
           </div>

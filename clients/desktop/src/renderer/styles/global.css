@@ -1803,13 +1803,15 @@ button {
 }
 
 /*
- * 화면(브라우저) 미리보기 전용 — 결재란을 본문 직하에 배치.
+ * 화면(브라우저) 미리보기 전용 — 안내 문구를 본문 직하에 배치.
  *
- * 인쇄(@media print)에서는 위 base 규칙(min-height 273mm + body flex:1 1 auto)이
- * 그대로 적용되어 결재란이 페이지 하단에 위치한다(현행 유지, 절대 변경 금지).
- * 화면에서는 본문이 짧을 때 결재란이 A4 박스 최하단까지 밀려 부자연스러우므로,
+ * 결재란은 헤더 우측 상단 코너로 이동했고(2026-06-14 재배치), 본문 divider 아래에는
+ * "전자서명으로 결재된 문서" 안내 문구만 남는다.
+ * 인쇄(@media print)에서는 base 규칙(min-height 273mm + body flex:1 1 auto)이 그대로
+ * 적용되어 안내 문구가 페이지 하단에 위치한다(현행 유지, 절대 변경 금지).
+ * 화면에서는 본문이 짧을 때 안내 문구가 A4 박스 최하단까지 밀려 부자연스러우므로,
  * @media screen 한정으로 min-height 해제 + 본문 비신축(flex:0 0 auto) 하여
- * 결재란이 본문 바로 아래에 오도록 한다. (PR #481 리뷰 라운드 A 디자인 fix)
+ * 안내 문구가 본문 바로 아래에 오도록 한다. (PR #481 리뷰 라운드 A 디자인 fix)
  *
  * @media screen 한정이라 인쇄 cascade 는 한 글자도 바뀌지 않는다.
  * (88mm 영수증 분기는 이미 min-height:auto 라 본 규칙과 무관.)
@@ -1823,19 +1825,33 @@ button {
   }
 }
 
+/*
+ * 결재문서 헤더 = 좌(회사/문서정보) + 우(결재란 박스) 2단 가로 배치.
+ * 한국 ERP/공문서/세금계산서 표준 결재란 위치(문서 우측 상단 코너)에 맞춤
+ * (2026-06-14 개발책임자 재배치 — 기존 본문 하단 가로 grid 에서 이동).
+ * 좌측은 가변(flex:1), 우측 결재란 박스는 고정폭으로 컴팩트하게.
+ */
 .print-approval-doc-header {
   min-height: 28mm;
-  display: grid;
-  grid-template-columns: 1fr 1.1fr;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
   gap: 8mm;
-  align-items: start;
+}
+
+/* 좌측 = 회사명/사업자번호 + 문서제목 + 문서메타 세로 적층. */
+.print-approval-doc-headline {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
 }
 
 .print-approval-company {
   display: flex;
   flex-direction: column;
   gap: 1.5mm;
-  padding-top: 2mm;
 }
 
 .print-approval-company-name {
@@ -1849,11 +1865,13 @@ button {
   color: var(--ink-secondary, #5C6773);
 }
 
+/* 문서제목(h1) + 메타(문서번호/발행일/기간). 결재란이 우측으로 빠졌으므로 좌측 정렬. */
 .print-approval-doc-meta {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 1mm;
+  margin-top: 2mm;
   font-size: 10pt;
   color: #000;
 }
@@ -1862,14 +1880,14 @@ button {
   margin: 0 0 2mm 0;
   font-size: 18pt;
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: 2pt;
   color: var(--ink-primary, #1A1F2E);
-  text-align: right;
+  text-align: left;
 }
 
 .print-approval-doc-meta div {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 2mm;
   line-height: 1.35;
 }
@@ -1891,26 +1909,32 @@ button {
   flex: 1 1 auto;
 }
 
+/*
+ * 결재란 박스 = 헤더 우측 상단 코너 고정폭(컴팩트). 전체폭 grid 아님.
+ * 칸 폭은 --print-approval-corner-col(고정폭) × N칸. 인쇄/화면 동일.
+ */
 .print-approval-section {
-  min-height: var(--print-approval-h-std, 32mm);
+  flex: 0 0 auto;
+  align-self: flex-start;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 
 .print-approval-grid {
   display: grid;
-  width: 100%;
-  min-height: var(--print-approval-h-std, 32mm);
+  /* 칸 폭(grid-template-columns)은 PrintLayout 인라인 style 이 코너 토큰 고정폭 × N칸으로 지정.
+     전체폭(1fr) 아니라 칸당 고정폭이라 박스가 우측 상단 코너에 컴팩트하게 자리한다. */
   border-top: var(--print-approval-border, 1px solid #000);
   border-left: var(--print-approval-border, 1px solid #000);
 }
 
 .print-approval-cell {
   display: grid;
+  /* 우측 상단 코너 컴팩트 높이 — 라벨 + 서명칸 + 이름/날짜. */
   grid-template-rows:
-    var(--print-approval-label-h, 5mm)
-    var(--print-approval-sig-h, 18mm)
-    var(--print-approval-name-h, 8mm);
+    var(--print-approval-corner-label-h, 5mm)
+    var(--print-approval-corner-sig-h, 13mm)
+    var(--print-approval-corner-name-h, 7mm);
   min-width: 0;
   border-right: var(--print-approval-border, 1px solid #000);
   border-bottom: var(--print-approval-border, 1px solid #000);
@@ -1922,13 +1946,13 @@ button {
   justify-content: center;
   border-bottom: var(--print-approval-border, 1px solid #000);
   background: var(--print-approval-label-bg, #F0F0F0);
-  font-size: 10pt;
+  font-size: 9pt;
   font-weight: 600;
 }
 
 .print-approval-signature {
   min-width: 0;
-  padding: 1mm 2mm;
+  padding: 0.8mm 1mm;
   border-bottom: var(--print-approval-border, 1px solid #000);
 }
 
@@ -1940,14 +1964,14 @@ button {
 .print-approval-signature-viewer > div:first-child {
   width: 100%;
   height: 100%;
-  max-height: var(--print-approval-sig-h, 18mm);
-  padding: 1mm;
+  max-height: var(--print-approval-corner-sig-h, 13mm);
+  padding: 0.8mm;
   border: 1px dashed #CCC;
   border-radius: 0;
 }
 
 .print-approval-signature-viewer img {
-  max-height: var(--print-signature-img-max-h-approval, 16mm);
+  max-height: var(--print-approval-corner-sig-img-h, 11mm);
 }
 
 .print-approval-signature-viewer > div:first-child > div {
@@ -1963,20 +1987,29 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.5mm;
-  padding: 0.5mm 1mm;
-  font-size: 9pt;
+  gap: 0.3mm;
+  padding: 0.5mm 0.5mm;
+  font-size: 8pt;
   line-height: 1.1;
   text-align: center;
+  overflow: hidden;
+}
+
+.print-approval-name div {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .print-approval-name time {
-  min-height: 8pt;
-  font-size: 8pt;
+  min-height: 7pt;
+  font-size: 6.5pt;
   color: var(--ink-secondary, #5C6773);
   font-variant-numeric: tabular-nums;
 }
 
+/* 안내 문구 — 결재란이 우측 상단으로 이동했으므로 문서 하단(본문 divider 아래)에 단독 유지. */
 .print-approval-notice {
   margin: 2mm 0 0 0;
   font-size: 8pt;
@@ -1987,9 +2020,14 @@ button {
   min-height: auto;
 }
 
+/*
+ * 88mm 영수증 분기는 폭이 좁아 우측 상단 코너 배치가 불가능하다.
+ * 헤더를 세로 적층(문서정보 위 → 결재란 박스 아래)하고, 결재란도 칸을 세로로 쌓아
+ * 박스가 깨지지 않게 보수적으로 처리한다.
+ */
 .paper-receipt-88mm .print-approval-doc-header {
   min-height: auto;
-  grid-template-columns: 1fr;
+  flex-direction: column;
   gap: 2mm;
 }
 
@@ -2002,6 +2040,12 @@ button {
   font-size: 16pt;
 }
 
+.paper-receipt-88mm .print-approval-section {
+  align-self: stretch;
+  width: 100%;
+}
+
+/* 88mm 는 폭이 좁아 칸을 세로로 1열 적층 (인라인 고정폭 × N칸을 !important 로 덮음). */
 .paper-receipt-88mm .print-approval-grid {
   grid-template-columns: 1fr !important;
 }
