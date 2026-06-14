@@ -15,7 +15,7 @@
  *   <li>QUOTE_DRAFT — 편집 / 발송</li>
  *   <li>QUOTE_SENT  — 편집 / 수락 / 거절</li>
  *   <li>QUOTE_ACCEPTED — 전표 변환 (Slip OUTBOUND DRAFT 자동 발행)</li>
- *   <li>모든 상태 — 인쇄 (`/sales/estimates/:estimateNumber/print` 새 창)</li>
+ *   <li>모든 상태 — 인쇄 (`/sales/estimates/:id/print` 새 창, 상세와 동일 UUID id)</li>
  * </ul>
  *
  * <p>UUID 비공개 가드 — id 표시 X. estimateNo / partnerName / modelName 만 노출.

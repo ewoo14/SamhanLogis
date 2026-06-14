@@ -1802,6 +1802,27 @@ button {
   gap: 3mm;
 }
 
+/*
+ * 화면(브라우저) 미리보기 전용 — 결재란을 본문 직하에 배치.
+ *
+ * 인쇄(@media print)에서는 위 base 규칙(min-height 273mm + body flex:1 1 auto)이
+ * 그대로 적용되어 결재란이 페이지 하단에 위치한다(현행 유지, 절대 변경 금지).
+ * 화면에서는 본문이 짧을 때 결재란이 A4 박스 최하단까지 밀려 부자연스러우므로,
+ * @media screen 한정으로 min-height 해제 + 본문 비신축(flex:0 0 auto) 하여
+ * 결재란이 본문 바로 아래에 오도록 한다. (PR #481 리뷰 라운드 A 디자인 fix)
+ *
+ * @media screen 한정이라 인쇄 cascade 는 한 글자도 바뀌지 않는다.
+ * (88mm 영수증 분기는 이미 min-height:auto 라 본 규칙과 무관.)
+ */
+@media screen {
+  .paper-a4-portrait .print-approval-doc {
+    min-height: 0;
+  }
+  .paper-a4-portrait .print-approval-body {
+    flex: 0 0 auto;
+  }
+}
+
 .print-approval-doc-header {
   min-height: 28mm;
   display: grid;

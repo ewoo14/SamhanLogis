@@ -149,39 +149,46 @@ export function PrintLayout({
             </header>
             <div className="print-approval-divider" aria-hidden="true" />
             <main className="print-approval-body">{children}</main>
-            <div className="print-approval-divider" aria-hidden="true" />
-            <section className="print-approval-section" aria-label="전자서명 결재란">
-              <div
-                className="print-approval-grid"
-                style={{
-                  gridTemplateColumns: `repeat(${Math.max(2, normalizedApprovalSteps.length)}, minmax(0, 1fr))`,
-                }}
-              >
-                {normalizedApprovalSteps.map((step) => {
-                  const signerName = step.name ?? ''
-                  const decidedAt = step.decidedAt ?? ''
-                  return (
-                    <div className="print-approval-cell" key={step.label}>
-                      <div className="print-approval-label">{step.label}</div>
-                      <div className="print-approval-signature">
-                        <SignatureViewer
-                          signaturePngBase64=""
-                          signerName={signerName}
-                          signedAt={decidedAt}
-                          size="fluid"
-                          className="print-approval-signature-viewer"
-                        />
-                      </div>
-                      <div className="print-approval-name">
-                        <div>{signerName}</div>
-                        <time>{formatApprovalDecidedAt(decidedAt)}</time>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="print-approval-notice">※ 전자서명으로 결재된 문서입니다.</p>
-            </section>
+            {/* 결재 단계가 하나도 없으면 빈 grid 박스가 그려지므로 결재란 section 자체를 렌더하지 않는다.
+                현재 호출처는 모두 3칸을 전달해 무해하나, 후속 호출처가 빈 배열을 넘길 때의 회귀 방어. */}
+            {normalizedApprovalSteps.length > 0 ? (
+              <>
+                <div className="print-approval-divider" aria-hidden="true" />
+                <section className="print-approval-section" aria-label="전자서명 결재란">
+                  <div
+                    className="print-approval-grid"
+                    style={{
+                      gridTemplateColumns: `repeat(${Math.max(2, normalizedApprovalSteps.length)}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {normalizedApprovalSteps.map((step) => {
+                      const signerName = step.name ?? ''
+                      const decidedAt = step.decidedAt ?? ''
+                      return (
+                        <div className="print-approval-cell" key={step.label}>
+                          <div className="print-approval-label">{step.label}</div>
+                          <div className="print-approval-signature">
+                            {/* 슬라이스1 placeholder — 전자서명 이미지 실연동은 그룹웨어 결재 연동 후속. */}
+                            <SignatureViewer
+                              signaturePngBase64=""
+                              signerName={signerName}
+                              signedAt={decidedAt}
+                              size="fluid"
+                              className="print-approval-signature-viewer"
+                            />
+                          </div>
+                          <div className="print-approval-name">
+                            <div>{signerName}</div>
+                            <time>{formatApprovalDecidedAt(decidedAt)}</time>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="print-approval-notice">※ 전자서명으로 결재된 문서입니다.</p>
+                </section>
+              </>
+            ) : null}
           </div>
         ) : (
           children

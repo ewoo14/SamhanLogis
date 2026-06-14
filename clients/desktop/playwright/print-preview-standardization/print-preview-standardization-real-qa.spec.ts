@@ -197,6 +197,13 @@ test('C1: 입고전표 미리보기 — 헤더(회사명+사업자번호) + 결�
   expect(hasApprovalSection).toBeTruthy()
   expect(hasApprovalNotice).toBeTruthy()
   expect(hasCompanyName).toBeTruthy()
+  // 전표번호 표시 — 결재란 형식만 그려지고 헤더 데이터가 비면 false-green 통과하던 갭 차단.
+  expect(hasSlipNo).toBeTruthy()
+  // 라인 실 데이터 단언 — 견적 queryKey 충돌(금액 빈값) 회귀 교훈([estimate-print] 키 분리).
+  // 전표 본문이 부분 로드(라인/금액 누락)된 채로 회귀검증을 통과하는 false-green 을 감지한다.
+  const hasLineData = bodyText.includes('TEST-MODEL') || /\d,\d{3}/.test(bodyText)
+  console.log('[CHECK] 라인 실 데이터:', hasLineData)
+  expect(hasLineData).toBeTruthy()
 })
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -328,6 +335,11 @@ test('C3: 회귀 — 출고전표 OutboundView 기존 양식 보존 (결재란 �
   const printBtn = page.getByRole('button', { name: /인쇄/ })
   const hasPrintBtn = await printBtn.count() > 0
   console.log('[CHECK] 인쇄 버튼 존재:', hasPrintBtn)
+
+  // 선행 단언: 출고전표 실 데이터가 로드되어야 함 — 에러/빈화면이 결재란 미적용 회귀검증을
+  // false-green 으로 통과하는 것을 방지(데이터가 안 떠도 결재란이 없으니 PASS 되던 갭 차단).
+  expect(bodyText).not.toContain('불러오지 못')
+  expect(hasSlipContent).toBeTruthy()
 
   // 핵심 단언: 출고전표에 결재문서 형식이 적용되지 않아야 함
   expect(hasNoApprovalSection && hasNoApprovalDocClass).toBeTruthy()

@@ -369,6 +369,9 @@
   --print-approval-sig-h:         18mm;
   --print-approval-name-h:        8mm;
   --print-signature-img-max-h-approval: 16mm;
+  /* 결재란 셀 테두리 — global.css 가 fallback(1px solid #000) 으로만 쓰던 지점 정식 등재.
+   * 테마 일괄 변경 시 결재란 테두리 누락 방지 (PR #481 리뷰 라운드 A 디자인 fix). */
+  --print-approval-border:        1px solid #000;
 
   /* 용달기사/인수자 서명 — 피드백 #8 */
   --print-signature-w:        80mm;

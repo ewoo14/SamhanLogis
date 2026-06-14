@@ -296,6 +296,10 @@ export interface EstimateDetail {
   paymentDueDate: string | null
   memo: string | null
   lines: EstimateLine[]
+  /** 공급가액 합계 — BE 헤더 분해 값 (FE 재계산 금지). */
+  totalSupply: number
+  /** 부가세 합계 — BE 헤더 분해 값. */
+  totalVat: number
   totalAmount: number
 }
 
@@ -325,6 +329,7 @@ export async function getEstimate(estimateNumber: string): Promise<EstimateDetai
     category: 'OTHER',
     status: 'DRAFT',
     createdAt: e.estimateDate,
+    // BE estimate DTO 미제공 — 결재자 실명은 후속 BE 슬라이스(requesterId → user fullName resolve).
     authorName: '',
     deliveryAddress: e.partnerAddress,
     siteAddress: e.partnerAddress,
@@ -332,6 +337,8 @@ export async function getEstimate(estimateNumber: string): Promise<EstimateDetai
     dueDate: e.validUntil,
     paymentDueDate: null,
     memo: e.memo,
+    totalSupply: Number(e.totalSupply ?? 0),
+    totalVat: Number(e.totalVat ?? 0),
     totalAmount: Number(e.totalAmount ?? 0),
     lines: e.lines.map((l) => {
       const unitPrice = Number(l.unitPrice ?? 0)
@@ -370,6 +377,8 @@ interface LiveEstimateDetailResponse {
   partnerBusinessNo: string | null
   partnerAddress: string | null
   validUntil: string | null
+  totalSupply: string | null
+  totalVat: string | null
   totalAmount: string | null
   memo: string | null
   lines: LiveEstimateLineResponse[]

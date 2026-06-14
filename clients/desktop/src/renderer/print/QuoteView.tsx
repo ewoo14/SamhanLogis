@@ -1,5 +1,5 @@
 /**
- * 견적서 인쇄 미리보기 — `/sales/estimates/:estimateNumber/print`.
+ * 견적서 인쇄 미리보기 — `/sales/estimates/:id/print` (상세/편집과 동일 UUID id).
  *
  * P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규.
  *
@@ -22,7 +22,7 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getEstimate, type EstimateDetail } from '../api/sales'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
+import { PrintLayout, krw, krDate, toKoreanAmount } from './PrintLayout'
 
 /**
  * 견적 유효기간 — `createdAt + 30 일` 기본 (실제 운영은 EstimateDetail 에 expirationDate 추가
@@ -37,20 +37,23 @@ function calcValidUntil(createdAt: string): string {
 }
 
 export function QuoteView() {
-  const params = useParams<{ estimateNumber: string }>()
-  const estimateNumber = params.estimateNumber ?? ''
+  // 인쇄 라우트(`/sales/estimates/:id/print`)는 상세/편집과 동일한 UUID id 를 path param 으로 받는다.
+  // getEstimate() 가 이 id 를 BE `/slips/estimates/{id}` 로 그대로 전달한다 (estimateNo 아님).
+  const params = useParams<{ id: string }>()
+  const estimateId = params.id ?? ''
   const detailQuery = useQuery({
     // 인쇄뷰는 sales.getEstimate(DTO 구조가 estimateApi.getEstimate와 다름)를 사용하므로,
     // 같은 QueryClient에서 EstimateDetailPage의 ['estimate', id] 캐시와 충돌하지 않도록 키를 분리한다.
     // 같은 키 공유 시 금액/문서번호가 빈값으로 깨진다.
-    queryKey: ['estimate-print', estimateNumber],
-    queryFn: () => getEstimate(estimateNumber),
-    enabled: !!estimateNumber,
+    queryKey: ['estimate-print', estimateId],
+    queryFn: () => getEstimate(estimateId),
+    enabled: !!estimateId,
   })
 
+  // usePageTitle 의 2번째 인자는 데이터 필드(비즈니스 견적번호) — 라우트 param(UUID id)과 별개이므로 유지.
   usePageTitle('견적서', detailQuery.data?.estimateNumber)
 
-  if (!estimateNumber) return null
+  if (!estimateId) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
   if (detailQuery.isError || !detailQuery.data) {
     return (
@@ -61,14 +64,17 @@ export function QuoteView() {
   }
 
   const est: EstimateDetail = detailQuery.data
-  const totalSupply = est.lines.reduce((sum, l) => sum + l.subtotal, 0)
-  const { supply, vat, total } = calcAmounts(totalSupply)
+  // 합계는 BE 가 분해해 내려준 헤더 값(공급가/부가세/합계)을 그대로 신뢰한다.
+  // FE 에서 라인 소계로 재계산하면 라운딩/할인 처리 차이로 BE 와 금액이 어긋날 수 있다.
+  const supply = est.totalSupply
+  const vat = est.totalVat
+  const total = est.totalAmount
   const validUntil = est.dueDate ?? calcValidUntil(est.createdAt)
 
   return (
     <PrintLayout
       paper="a4-portrait"
-      backTo={`/sales/estimates/${estimateNumber}`}
+      backTo={`/sales/estimates/${estimateId}`}
       approvalDoc
       docHeader={{
         title: '견 적 서',
@@ -78,6 +84,8 @@ export function QuoteView() {
         periodTo: validUntil,
       }}
       approvalSteps={[
+        // "작성" 칸의 name 은 현재 항상 공백 — BE estimate DTO 가 작성자 이름을 미제공한다.
+        // 결재자 실명/서명 연동은 후속 BE 슬라이스(requesterId → user fullName resolve)에서 채운다.
         { label: '작성', name: est.authorName || undefined, decidedAt: est.createdAt },
         { label: '검토' },
         { label: '승인' },

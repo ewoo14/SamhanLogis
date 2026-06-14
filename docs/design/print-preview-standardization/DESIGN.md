@@ -132,7 +132,7 @@
 |---|---|---|
 | `--print-approval-w-std` | `40mm` | 결재란 칸 너비 (186mm / 최대 4칸 기준, 문서별 조정) |
 | `--print-approval-h-std` | `32mm` | 결재란 전체 높이 |
-| `--print-approval-label-h` | `6mm` (기존) | 직책/역할 라벨 영역 |
+| `--print-approval-label-h` | `5mm` (기존, tokens.css 등재값) | 직책/역할 라벨 영역 |
 | `--print-approval-sig-h` | `18mm` | 서명 이미지 영역 |
 | `--print-approval-name-h` | `8mm` | 이름/서명일시 영역 |
 | `--print-approval-label-bg` | `#F0F0F0` (기존) | 라벨 배경 |
@@ -147,13 +147,19 @@
 **서명자 정보 표시 (결재란 하단 셀)**
 - 이름: Regular 9pt
 - 서명일시: Regular 8pt (`2026/06/14 14:32` — `formatSignedAt()` 활용)
-- 검증코드: Mono 7pt, `--ink-tertiary` (signatureHash 앞 8자)
+- 검증코드: Mono 7pt, `--ink-tertiary` (signatureHash 앞 8자) — **슬라이스1 범위 제외**
 
-**하단 문구**
+> **슬라이스1 범위 제외 — 전자서명 실연동(서명이미지 + 검증코드)은 후속 슬라이스.**
+> 슬라이스1 은 결재란 레이아웃(라벨/서명영역/이름·일시) + 미서명 placeholder 까지만 구현.
+> `signatureHash` 필드 및 검증코드(`hash[:8]`) 표시, 실 서명 PNG 주입은 그룹웨어 결재 연동 후속 슬라이스에서 적용.
+
+**하단 문구 (현행 구현 = 고정 문구)**
 ```
-※ 전자서명으로 결재된 문서입니다.  검증코드: {hash[:8]}
+※ 전자서명으로 결재된 문서입니다.
 ```
-Regular 8pt, `--ink-tertiary`, 결재란 아래 4mm 간격
+Regular 8pt, `--ink-tertiary`, 결재란 아래 2mm 간격.
+
+> **후속**: 검증코드 병기 형태(`※ 전자서명으로 결재된 문서입니다.  검증코드: {hash[:8]}`)는 전자서명 실연동 슬라이스에서 확장. 현행 PrintLayout 은 검증코드 없는 고정 문구만 렌더(`.print-approval-notice`).
 
 ---
 
@@ -209,9 +215,11 @@ interface ApprovalStep
   label: string             // "작성" | "검토" | "승인" | "결재" 등
   signerName?: string       // 서명자 이름 (미서명 시 undefined)
   signedAt?: string         // ISO 8601 (미서명 시 undefined)
-  signaturePngBase64?: string  // SignatureViewer 에 전달
-  signatureHash?: string    // 검증코드 (앞 8자 표시)
+  signaturePngBase64?: string  // SignatureViewer 에 전달 — 슬라이스1 미주입(후속)
+  signatureHash?: string    // 검증코드 (앞 8자 표시) — 슬라이스1 범위 제외(후속)
 ```
+
+> **슬라이스1 범위 제외**: `signaturePngBase64`(실 서명 이미지 주입)·`signatureHash`(검증코드) 는 인터페이스에만 정의하고, 슬라이스1 에서는 미연동. 입고전표/견적서는 이름·일시 텍스트 + 미서명 placeholder 만 렌더. 전자서명 실연동은 그룹웨어 결재 연동 후속 슬라이스.
 
 **opt-out 설계**: `approvalDoc` prop 기본값 = `false`
 - 제외 대상 View (DispatchView, OutboundView, InvoiceView, StatementBatchView, TaxInvoiceView, SalesInvoicePrintPage, PurchaseSlipPrintPage) 는 `approvalDoc` prop 미전달로 기존 동작 유지.
@@ -249,17 +257,23 @@ interface ApprovalStep
 
 ### 4-A. 인쇄 공통 토큰 (기존 + 신규)
 
-기존 `--print-*` 토큰 (`tokens.css` L355-L392) 을 그대로 사용. 신규 추가 필요 토큰:
+기존 `--print-*` 토큰 (`tokens.css`) 을 그대로 사용. 슬라이스1 토큰 등재 현황 (구현 = 진실원):
 
-| 토큰명 (신규) | 값 | 용도 |
-|---|---|---|
-| `--print-approval-w-std` | `40mm` | 결재란 칸 너비 (표준) |
-| `--print-approval-h-std` | `32mm` | 결재란 총 높이 |
-| `--print-approval-sig-h` | `18mm` | 서명 이미지 영역 높이 |
-| `--print-approval-name-h` | `8mm` | 이름/일시 영역 높이 |
-| `--print-signature-img-max-h-approval` | `16mm` | 인쇄 시 SignatureViewer img 최대 높이 |
-| `--print-doc-header-h` | `28mm` | 공통 헤더 높이 |
-| `--print-doc-border` | `1px solid #000` | 헤더/결재란 구분선 |
+| 토큰명 | 값 | 용도 | tokens.css 등재 |
+|---|---|---|---|
+| `--print-approval-w-std` | `40mm` | 결재란 칸 너비 (표준) | ✅ 등재 |
+| `--print-approval-h-std` | `32mm` | 결재란 총 높이 | ✅ 등재 |
+| `--print-approval-sig-h` | `18mm` | 서명 이미지 영역 높이 | ✅ 등재 |
+| `--print-approval-name-h` | `8mm` | 이름/일시 영역 높이 | ✅ 등재 |
+| `--print-approval-label-h` | `5mm` | 직책/역할 라벨 영역 높이 | ✅ 등재 |
+| `--print-signature-img-max-h-approval` | `16mm` | 인쇄 시 SignatureViewer img 최대 높이 | ✅ 등재 |
+| `--print-approval-border` | `1px solid #000` | 결재란 셀 테두리 | ✅ 등재 (PR #481 리뷰 라운드 A 보강) |
+| `--print-approval-label-bg` | `#F0F0F0` | 결재란 라벨 배경 | ✅ 등재 |
+| `--print-line-color` | `#000` | 헤더/결재란 구분선 색 | ✅ 등재 |
+| `--print-doc-header-h` | `28mm` | 공통 헤더 높이 | ❌ 미등재 — global.css `.print-approval-doc-header { min-height: 28mm }` 로 하드코딩 동작 |
+| `--print-doc-border` | `1px solid #000` | 헤더/결재란 구분선 | ❌ 미등재 — global.css `.print-approval-divider` 가 `border-top: 1px solid var(--print-line-color, #000)` 로 동작 |
+
+> **표기 원칙**: 위 표의 ❌ 항목(`--print-doc-header-h`, `--print-doc-border`)은 슬라이스1 에서 별도 토큰으로 등재하지 않았고, global.css 하드코딩 값 / 기존 `--print-line-color` 토큰으로 동일 효과를 낸다. 후속 슬라이스에서 헤더/구분선 테마 일괄 변경 필요 시 정식 토큰화 검토.
 
 ### 4-B. 타이포그래피
 
@@ -352,7 +366,7 @@ interface ApprovalStep
 **범위**
 - `PrintLayout.tsx` prop 확장 (`approvalDoc`, `docHeader`, `approvalSteps`)
 - 공통 헤더/결재란 렌더 컴포넌트 신규 (`ApprovalDocHeader`, `ApprovalSignBlock`)
-- `tokens.css` 신규 `--print-approval-*` 토큰 5종 추가
+- `tokens.css` `--print-approval-*` 토큰 추가 (w-std/h-std/sig-h/name-h/label-h/img-max-h-approval/border = 7종 등재, label-bg·line-color 는 기존 재사용)
 - `InboundView.tsx`: `approvalDoc=true` 전환, 3칸 `[인]` → `SignatureViewer`
 - `QuoteView.tsx`: `approvalDoc=true` 전환, `[직인]` 제거, 3칸 결재란
 
@@ -361,7 +375,7 @@ interface ApprovalStep
 **결과물**
 - `docs/design/print-preview-standardization/DESIGN.md` (본 파일)
 - `clients/desktop/src/renderer/print/PrintLayout.tsx` 확장
-- `clients/web/design-system/src/tokens/tokens.css` 신규 토큰 5종
+- `clients/web/design-system/src/tokens/tokens.css` `--print-approval-*` 토큰 7종 등재 (label-bg·line-color 기존 재사용)
 - `InboundView.tsx` 결재란 교체
 - `QuoteView.tsx` 결재란 교체
 

@@ -66,4 +66,24 @@ test.describe('print preview standardization slice 1 source contract', () => {
       expect(read(file), file).not.toContain('approvalDoc')
     }
   })
+
+  test('accounting print layouts reuse PrintLayout without the approval document form', () => {
+    // 회계 인쇄 레이아웃 9종은 모두 PrintLayout(paper="a4-portrait")을 재사용하되
+    // 결재문서 형식(approvalDoc)을 opt-in 하지 않아야 한다 — 결재란 회귀 유입 방지.
+    for (const file of [
+      'clients/desktop/src/renderer/routes/accounting/print/BalanceSheetPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/CashFlowStatementPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/CorporateTaxReportPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/DailySummaryPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/EquityChangesPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/IncomeStatementPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/MonthlySummaryPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/PartnerAgingPrintLayout.tsx',
+      'clients/desktop/src/renderer/routes/accounting/print/VatReportPrintLayout.tsx',
+    ]) {
+      const source = read(file)
+      expect(source, file).toContain('PrintLayout')
+      expect(source, file).not.toContain('approvalDoc')
+    }
+  })
 })

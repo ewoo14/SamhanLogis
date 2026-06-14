@@ -472,9 +472,10 @@ const router = createHashRouter([
         ),
       },
 
-      // P0-4 견적서 인쇄 (estimateNumber path param) — Designer commit 5dcbbef QuoteView 재사용.
+      // P0-4 견적서 인쇄 (UUID id path param) — Designer commit 5dcbbef QuoteView 재사용.
+      // 상세/편집과 동일한 UUID id 를 사용해 인쇄 라우트 param 을 통일한다 (이전 estimateNumber 자리에 id 전달).
       // P2-1 견적서 상세/편집 (id UUID path param) — `/sales/:id` 보다 먼저 매칭되어야 함.
-      { path: '/sales/estimates/:estimateNumber/print', element: <QuoteView /> },
+      { path: '/sales/estimates/:id/print', element: <QuoteView /> },
       { path: '/sales/estimates/:id/edit', element: <EstimateFormPage /> },
       { path: '/sales/estimates/:id', element: <EstimateDetailPage /> },
 
