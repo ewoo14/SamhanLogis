@@ -6,6 +6,17 @@
 
 ## ▶ 현재 에픽 — §7 전역 협업 플랫폼 (슬라이스 0 머지 완료, 문서별 롤아웃 진행)
 
+### 🔴 진행 중 (2026-06-14) — §7 슬라이스6 그룹웨어 결재 (PR #480, 미머지)
+브랜치 `feat/sec7-groupware-approval-collab`. **구현·검증 완료, Codex 5-agent 라운드 → 머지 잔여.**
+1. **기반 결재 collab**(수정완료 title/content + 코멘트 + diff + 알림, COLLAB_LOCKED={APPROVED,REJECTED,WITHDRAWN}, approvalNo 슬래시 KST 채번, page-code groupware.approvals). Opus 라운드 완료. **P1 2건 fix**: PageCode enum 누락(MASTER 리다이렉트)→enum+V56(account_page_permissions 그룹모델 materialize, V40 직접패턴 폐기=accounts.role 없음), 비-MASTER 403.
+2. **확장(개발책임자 통합 결정)**: **결재유형 템플릿 빌더(풀)**(ApprovalTemplate/Field 동적필드 TEXT/NUMBER/DATE/SELECT/TEXTAREA, 견본 지출결의서/휴가신청서 2종, V5 마이그) + **첨부**(ApprovalAttachment SLIP_REF/PARTNER_LEDGER_REF/FILE, MinIO Noop fallback, collab field overlay) + **전표번호 검색 자동완성**(slip-service GET /admin/slips/search 부분일치, FE SlipReferencePicker). page-code groupware.approval-templates + V57. Opus 라운드 완료(multipart/codec/mock/displayOrder/Content-Disposition/빌더그리드 fix).
+- **검증**: IT 15/15(ApprovalCollabIT 11 + ApprovalTemplateAttachmentIT 4) + SlipServiceListSpecTest 8/8, FE typecheck 0, V5/V57 fresh-postgres probe. **실QA**: collab 8컷(`docs/qa/groupware-approval-collab/`) + 템플릿/첨부/자동완성 6컷(`docs/qa/groupware-approval-templates/`).
+- **함정**: slip-service host 8086 ↔ influxd 충돌 → `docker-compose.slip-port-override.yml`(host 18086) 필수. active 엔드포인트는 /internal 아닌 **/admin**(게이트웨이 노출). DetailPage hook 은 early-return 위. 라이브 QA 가 게이트웨이 404/hooks 크래시/account 403 단독 적발.
+- **🟡 개발책임자 후속 결정 1건**: 결재 작성 시 **결재자 선택 UX**(현재 UUID 직접입력 MVP → 사원 검색 picker + 결재선 실명 표시 = 신규 후속 슬라이스). PR #480 은 현 범위로 머지 가능.
+- **잔여 단계**: Codex 5-agent 라운드(확장 cross-check) → 수렴 → 머지. spec=`docs/superpowers/specs/2026-06-14-groupware-approval-{collab,templates-attachments}.md`.
+
+---
+
 **에픽(개발책임자 확정)**: 대부분 메뉴 화면(전표·견적·회계전표·주문·배차·미배차/가배차·**그룹웨어 결재** 등)에 협업 = **수정완료(1-인) + 코멘트 + diff + 알림**. 슬라이스 0 = 입출고전표 레퍼런스 확정 → 문서별 슬라이스 롤아웃.
 
 **모델(레퍼런스 확정)**: 제안/수락(2-인) 아님 = **문서 수정(1-인)**. 확정/완료 문서 권한자 "수정"→편집→"수정완료"(즉시 커밋·잠금우회[물리종결만 409]·다필드 1버전·diff). 기존 edit-request **완전 대체**. **알림**=기여자(작성·수정·코멘트)+다음결재자(없으면 skip), username→UUID resolve(auth by-login), 트랜잭션 내 동기 best-effort.
