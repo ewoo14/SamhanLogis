@@ -47,6 +47,9 @@ dependencies {
     // springdoc-openapi — /v3/api-docs (JSON) + /swagger-ui.html (대화형 UI) 자동 노출
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 
+    // §7 그룹웨어 결재 첨부 — MinIO (S3 호환) 백엔드. samhan.minio.enabled=true 일 때 활성.
+    implementation 'io.minio:minio:8.5.12'
+
     implementation project(':shared:common')
     implementation project(':shared:security')
     implementation project(':shared:notification-publisher')

@@ -47,6 +47,13 @@ samhan:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
   user-service:
     url: ${SAMHAN_USER_SERVICE_URL:http://localhost:8083}
+  minio:
+    # §7 결재 첨부 파일 storage. false/default 에서는 NoopApprovalAttachmentStorage fallback.
+    enabled: ${SAMHAN_MINIO_ENABLED:false}
+    endpoint: ${SAMHAN_MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${SAMHAN_MINIO_ACCESS_KEY:samhan}
+    secret-key: ${SAMHAN_MINIO_SECRET_KEY:samhan_dev_pw}
+    groupware-approval-bucket: ${SAMHAN_GROUPWARE_APPROVAL_MINIO_BUCKET:groupware-approval-attachments}
 
 app:
   security:

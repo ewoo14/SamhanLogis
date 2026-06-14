@@ -23,8 +23,10 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 결재선 (전자결재 요청 1건). 요청자가 발의하고 chain 의 결재자가 순서대로 승인/반려.
@@ -77,6 +79,15 @@ public class ApprovalLine extends BaseEntity {
     /** 결재선 본문 / 요청 사유. */
     @Column(name = "content", length = 2000)
     private String content;
+
+    /** 결재유형 템플릿 UUID. null 이면 레거시 자유형 결재. */
+    @Column(name = "template_id")
+    private UUID templateId;
+
+    /** 템플릿 fieldKey -> value JSON object 문자열. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "field_values", columnDefinition = "jsonb")
+    private String fieldValuesJson;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -230,6 +241,20 @@ public class ApprovalLine extends BaseEntity {
         guardCollabModifiable();
         validateOverlayLength(content, "결재 본문", CONTENT_MAX_LENGTH);
         this.content = content;
+        return this;
+    }
+
+    /** 결재유형 템플릿과 동적 필드 값을 적용한다. */
+    public ApprovalLine applyTemplateValues(UUID templateId, String fieldValuesJson) {
+        this.templateId = templateId;
+        this.fieldValuesJson = fieldValuesJson;
+        return this;
+    }
+
+    /** 협업 수정완료로 동적 필드 값 JSON 을 갱신한다. */
+    public ApprovalLine overlayFieldValues(String fieldValuesJson) {
+        guardCollabModifiable();
+        this.fieldValuesJson = fieldValuesJson;
         return this;
     }
 

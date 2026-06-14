@@ -80,34 +80,34 @@ public class GroupwareAdminController {
     })
     @PostMapping("/approvals")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
-    @RequirePermission(page = "messenger.admin", action = PermissionAction.CREATE)
+    @RequirePermission(page = "groupware.approvals", action = PermissionAction.UPDATE)
     public ResponseEntity<ApiResponse<ApprovalLineAdminResponse>> createApproval(
             @Valid @RequestBody ApprovalLineCreateRequest req) {
         var line = approvalLineService.create(req);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(ApprovalLineAdminResponse.from(line)));
+                .body(ApiResponse.ok(approvalLineService.toResponse(line)));
     }
 
     /** 결재 승인. */
     @Operation(summary = "결재 승인")
     @PutMapping("/approvals/{approvalId}/approve")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
-    @RequirePermission(page = "messenger.admin", action = PermissionAction.UPDATE)
+    @RequirePermission(page = "groupware.approvals", action = PermissionAction.UPDATE)
     public ApiResponse<ApprovalLineAdminResponse> approve(@PathVariable UUID approvalId,
                                                           @Valid @RequestBody ApprovalDecisionRequest req) {
         var line = approvalLineService.approve(approvalId, req.approverId());
-        return ApiResponse.ok(ApprovalLineAdminResponse.from(line));
+        return ApiResponse.ok(approvalLineService.toResponse(line));
     }
 
     /** 결재 반려. */
     @Operation(summary = "결재 반려")
     @PutMapping("/approvals/{approvalId}/reject")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
-    @RequirePermission(page = "messenger.admin", action = PermissionAction.UPDATE)
+    @RequirePermission(page = "groupware.approvals", action = PermissionAction.UPDATE)
     public ApiResponse<ApprovalLineAdminResponse> reject(@PathVariable UUID approvalId,
                                                          @Valid @RequestBody ApprovalDecisionRequest req) {
         var line = approvalLineService.reject(approvalId, req.approverId(), req.reason());
-        return ApiResponse.ok(ApprovalLineAdminResponse.from(line));
+        return ApiResponse.ok(approvalLineService.toResponse(line));
     }
 
     // ================================ 메신저 ================================

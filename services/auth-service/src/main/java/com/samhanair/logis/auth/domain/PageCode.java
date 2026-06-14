@@ -140,6 +140,9 @@ public enum PageCode {
     /** 그룹웨어 결재 문서 목록/상세 + 협업(수정완료/코멘트) — §7 슬라이스6. */
     GROUPWARE_APPROVALS("groupware.approvals", "그룹웨어 결재"),
 
+    /** 그룹웨어 결재유형 템플릿 빌더 — §7 결재 양식 관리. */
+    GROUPWARE_APPROVAL_TEMPLATES("groupware.approval-templates", "결재 양식 관리"),
+
     // ---- 매입 (purchases) ----
 
     /** Naver Clova OCR 영수증 발급 화면 (SP-09-3). */

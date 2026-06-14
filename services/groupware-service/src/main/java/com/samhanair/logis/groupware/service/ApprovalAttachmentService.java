@@ -1,0 +1,173 @@
+package com.samhanair.logis.groupware.service;
+
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.groupware.domain.ApprovalAttachment;
+import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
+import com.samhanair.logis.groupware.domain.ApprovalLine;
+import com.samhanair.logis.groupware.dto.ApprovalAttachmentRequest;
+import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
+import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
+import com.samhanair.logis.groupware.storage.ApprovalAttachmentStorage;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+/**
+ * 결재 첨부 라이프사이클 서비스.
+ *
+ * <p>참조 첨부는 DB 메타데이터만 저장하고, 파일 첨부는 storage 업로드 후 DB metadata 를 저장한다.
+ * APPROVED/REJECTED/WITHDRAWN 결재는 {@link ApprovalLine#guardCollabModifiable()} 로 변경을 막는다.
+ */
+@Service
+@RequiredArgsConstructor
+public class ApprovalAttachmentService {
+
+    /** 단일 파일 최대 크기. */
+    public static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
+
+    /** 허용 MIME. */
+    public static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "application/pdf"
+    );
+
+    private static final String STORAGE_KEY_PREFIX = "groupware-approval-attachments";
+
+    private final ApprovalLineRepository approvalLineRepository;
+    private final ApprovalAttachmentRepository attachmentRepository;
+    private final ApprovalAttachmentStorage storage;
+
+    /** 결재 참조 첨부를 추가한다. */
+    @Transactional
+    public ApprovalAttachment addReference(UUID approvalId, ApprovalAttachmentRequest request) {
+        ApprovalLine approval = loadApproval(approvalId);
+        approval.guardCollabModifiable();
+        ApprovalAttachment attachment;
+        if (request.attachmentType() == ApprovalAttachmentType.SLIP_REF) {
+            attachment = ApprovalAttachment.slipRef(approval, labelOrDefault(request.label(), "전표 참조"),
+                    request.displayOrder(), request.refSlipNo(), request.refSlipType());
+        } else if (request.attachmentType() == ApprovalAttachmentType.PARTNER_LEDGER_REF) {
+            attachment = ApprovalAttachment.partnerLedgerRef(approval, labelOrDefault(request.label(), "거래처 원장"),
+                    request.displayOrder(), request.refPartnerCode(), request.refPartnerName(), request.refPeriod());
+        } else {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 첨부 endpoint 에서는 FILE 을 사용할 수 없습니다");
+        }
+        return attachmentRepository.save(attachment);
+    }
+
+    /** 결재 파일 첨부를 업로드한다. */
+    @Transactional
+    public ApprovalAttachment uploadFile(UUID approvalId, MultipartFile file, String label, int displayOrder) {
+        validateFile(file);
+        ApprovalLine approval = loadApproval(approvalId);
+        approval.guardCollabModifiable();
+        String fileName = sanitizeFileName(file.getOriginalFilename());
+        String storageKey = buildStorageKey(approvalId, fileName);
+        try (InputStream in = file.getInputStream()) {
+            storage.put(storageKey, file.getContentType(), file.getSize(), in);
+        } catch (IOException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "결재 첨부 업로드 실패: " + ex.getMessage());
+        }
+        ApprovalAttachment attachment = ApprovalAttachment.file(approval, labelOrDefault(label, fileName),
+                displayOrder, storageKey, fileName, file.getContentType(), file.getSize());
+        return attachmentRepository.save(attachment);
+    }
+
+    /** 결재별 첨부 목록 조회. */
+    @Transactional(readOnly = true)
+    public List<ApprovalAttachment> list(UUID approvalId) {
+        if (!approvalLineRepository.existsById(approvalId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "결재 문서를 찾을 수 없습니다: " + approvalId);
+        }
+        return attachmentRepository.findAllByApprovalIdOrderByDisplayOrderAscCreatedAtAsc(approvalId);
+    }
+
+    /** 첨부 파일 다운로드 객체 조회. */
+    @Transactional(readOnly = true)
+    public DownloadView download(UUID approvalId, UUID attachmentId) {
+        ApprovalAttachment attachment = loadAttachmentForApproval(approvalId, attachmentId);
+        if (attachment.getAttachmentType() != ApprovalAttachmentType.FILE) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "파일 첨부만 다운로드할 수 있습니다");
+        }
+        return new DownloadView(attachment, storage.get(attachment.getStorageKey()));
+    }
+
+    /** 첨부 soft-delete. FILE 은 storage 객체도 best-effort 삭제한다. */
+    @Transactional
+    public void delete(UUID approvalId, UUID attachmentId, String actor) {
+        ApprovalLine approval = loadApproval(approvalId);
+        approval.guardCollabModifiable();
+        ApprovalAttachment attachment = loadAttachmentForApproval(approvalId, attachmentId);
+        attachment.softDelete(actor);
+        if (attachment.getAttachmentType() == ApprovalAttachmentType.FILE) {
+            storage.delete(attachment.getStorageKey());
+        }
+    }
+
+    /** 다운로드 view. */
+    public record DownloadView(ApprovalAttachment attachment, ApprovalAttachmentStorage.StoredObject storedObject) {
+    }
+
+    private ApprovalLine loadApproval(UUID approvalId) {
+        return approvalLineRepository.findFlatById(approvalId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "결재 문서를 찾을 수 없습니다: " + approvalId));
+    }
+
+    private ApprovalAttachment loadAttachmentForApproval(UUID approvalId, UUID attachmentId) {
+        ApprovalAttachment attachment = attachmentRepository.findById(attachmentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "결재 첨부를 찾을 수 없습니다: " + attachmentId));
+        if (!approvalId.equals(attachment.getApproval().getId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "결재 첨부를 찾을 수 없습니다: " + attachmentId);
+        }
+        return attachment;
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "파일이 비어 있습니다");
+        }
+        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "파일 크기는 최대 10MB 까지 허용됩니다");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "허용되지 않은 파일 형식입니다. 허용: " + ALLOWED_CONTENT_TYPES);
+        }
+    }
+
+    private String labelOrDefault(String label, String fallback) {
+        return label == null || label.isBlank() ? fallback : label;
+    }
+
+    private String sanitizeFileName(String original) {
+        if (original == null || original.isBlank()) {
+            return "untitled";
+        }
+        return original.replace("/", "_").replace("\\", "_");
+    }
+
+    private String buildStorageKey(UUID approvalId, String fileName) {
+        return STORAGE_KEY_PREFIX + "/" + approvalId + "/" + UUID.randomUUID() + extractExtension(fileName);
+    }
+
+    private String extractExtension(String fileName) {
+        int idx = fileName.lastIndexOf('.');
+        if (idx < 0 || idx == fileName.length() - 1) {
+            return "";
+        }
+        return fileName.substring(idx).toLowerCase();
+    }
+}

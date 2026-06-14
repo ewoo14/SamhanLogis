@@ -6,6 +6,7 @@ import com.samhanair.logis.groupware.domain.ApprovalStep;
 import com.samhanair.logis.groupware.domain.ApprovalStepStatus;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -19,6 +20,9 @@ import java.util.UUID;
  * @param requesterId 요청자
  * @param title 제목
  * @param content 본문
+ * @param templateId 결재유형 템플릿 UUID
+ * @param templateName 결재유형 이름
+ * @param fieldValues 템플릿 동적 필드 값
  * @param status 종합 상태
  * @param steps chain 단계
  */
@@ -28,6 +32,9 @@ public record ApprovalLineAdminResponse(
         UUID requesterId,
         String title,
         String content,
+        UUID templateId,
+        String templateName,
+        Map<String, String> fieldValues,
         ApprovalStatus status,
         List<StepView> steps
 ) {
@@ -47,8 +54,15 @@ public record ApprovalLineAdminResponse(
     }
 
     public static ApprovalLineAdminResponse from(ApprovalLine line) {
+        return from(line, null, Map.of());
+    }
+
+    /** 결재선 + 템플릿 표시 정보로 응답 DTO 를 만든다. */
+    public static ApprovalLineAdminResponse from(ApprovalLine line, String templateName,
+                                                 Map<String, String> fieldValues) {
         List<StepView> steps = line.getStepsView().stream().map(StepView::from).toList();
         return new ApprovalLineAdminResponse(line.getId(), line.getApprovalNo(), line.getRequesterId(), line.getTitle(),
-                line.getContent(), line.getStatus(), steps);
+                line.getContent(), line.getTemplateId(), templateName,
+                fieldValues == null ? Map.of() : fieldValues, line.getStatus(), steps);
     }
 }

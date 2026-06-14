@@ -10,6 +10,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
+import com.samhanair.logis.groupware.service.ApprovalTemplateService;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -23,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 그룹웨어 결재 협업 포트.
  *
  * <p>collab-core 는 changeSet 구조만 전달하고 실제 mutation 은 본 포트가 ApprovalLine 도메인
- * 경로로 연결한다. 편집 범위는 {@code title}, {@code content} 만 허용한다. approvalNo/status/
+ * 경로로 연결한다. 편집 범위는 {@code title}, {@code content}, {@code field.{fieldKey}} 만 허용한다. approvalNo/status/
  * requesterId/steps 같은 핵심 필드는 400 으로 거부한다.
  */
 @Component
@@ -35,13 +36,16 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
     private final ApprovalLineRepository approvalLineRepository;
     private final ObjectMapper objectMapper;
     private final ApprovalCollabCommentRepository commentRepository;
+    private final ApprovalTemplateService approvalTemplateService;
 
     public GroupwareApprovalDocumentCollaborationPort(ApprovalLineRepository approvalLineRepository,
                                                       ObjectMapper objectMapper,
-                                                      ApprovalCollabCommentRepository commentRepository) {
+                                                      ApprovalCollabCommentRepository commentRepository,
+                                                      ApprovalTemplateService approvalTemplateService) {
         this.approvalLineRepository = approvalLineRepository;
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
         this.commentRepository = commentRepository;
+        this.approvalTemplateService = approvalTemplateService;
     }
 
     @Override
@@ -57,6 +61,7 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("title", approval.getTitle());
         snapshot.put("content", approval.getContent());
+        snapshot.put("fieldValues", approvalTemplateService.readFieldValues(approval.getFieldValuesJson()));
         try {
             return objectMapper.writeValueAsString(snapshot);
         } catch (JsonProcessingException ex) {
@@ -91,7 +96,9 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
             applyOverlayField(approval, patch.getKey(), patch.getValue());
         }
         approvalLineRepository.save(approval);
-        return ApprovalLineAdminResponse.from(approval);
+        return ApprovalLineAdminResponse.from(approval,
+                approvalTemplateService.findTemplateNameOrNull(approval.getTemplateId()),
+                approvalTemplateService.readFieldValues(approval.getFieldValuesJson()));
     }
 
     /** changeSet 구조와 title/content whitelist 를 수정완료 저장 전 조기 검증한다. */
@@ -135,7 +142,7 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
         }
     }
 
-    /** snapshot JSON 으로 title/content 만 복원한다. */
+    /** snapshot JSON 으로 title/content/fieldValues 를 복원한다. */
     @Override
     @Transactional
     public void restoreSnapshot(UUID documentId, String snapshotJson) {
@@ -146,6 +153,13 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
         }
         if (root.has("content")) {
             patches.put("content", toNullableText(root.get("content")));
+        }
+        if (root.has("fieldValues") && root.get("fieldValues").isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = root.get("fieldValues").fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> field = fields.next();
+                patches.put("field." + field.getKey(), toNullableText(field.getValue()));
+            }
         }
         if (patches.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
@@ -188,7 +202,9 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
             applyOverlayField(approval, patch.getKey(), patch.getValue());
         }
         approvalLineRepository.save(approval);
-        return ApprovalLineAdminResponse.from(approval);
+        return ApprovalLineAdminResponse.from(approval,
+                approvalTemplateService.findTemplateNameOrNull(approval.getTemplateId()),
+                approvalTemplateService.readFieldValues(approval.getFieldValuesJson()));
     }
 
     private void applyOverlayField(ApprovalLine approval, String fieldName, Object value) {
@@ -200,8 +216,13 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
             approval.overlayContent(value == null ? null : String.valueOf(value));
             return;
         }
+        if (fieldName.startsWith("field.")) {
+            applyTemplateField(approval, fieldName.substring("field.".length()),
+                    value == null ? null : String.valueOf(value));
+            return;
+        }
         throw new BusinessException(ErrorCode.INVALID_INPUT,
-                "결재 협업은 title, content 만 수정할 수 있습니다: " + fieldName);
+                "결재 협업은 title, content, field.{fieldKey} 만 수정할 수 있습니다: " + fieldName);
     }
 
     private String readOverlayField(ApprovalLine approval, String fieldName) {
@@ -210,6 +231,11 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
         }
         if ("content".equals(fieldName)) {
             return approval.getContent();
+        }
+        if (fieldName.startsWith("field.")) {
+            String fieldKey = fieldName.substring("field.".length());
+            ensureTemplateFieldPath(approval, fieldKey);
+            return approvalTemplateService.readFieldValues(approval.getFieldValuesJson()).get(fieldKey);
         }
         throw new BusinessException(ErrorCode.INVALID_INPUT,
                 "지원하지 않는 결재 overlay 필드입니다: " + fieldName);
@@ -247,8 +273,34 @@ public class GroupwareApprovalDocumentCollaborationPort implements DocumentColla
         if (OVERLAY_FIELDS.contains(normalized)) {
             return normalized;
         }
+        if (normalized.startsWith("field.") && normalized.length() > "field.".length()) {
+            return normalized;
+        }
         throw new BusinessException(ErrorCode.INVALID_INPUT,
-                "결재 협업은 title, content 만 수정할 수 있습니다: " + rawPath);
+                "결재 협업은 title, content, field.{fieldKey} 만 수정할 수 있습니다: " + rawPath);
+    }
+
+    private void applyTemplateField(ApprovalLine approval, String fieldKey, String value) {
+        ensureTemplateFieldPath(approval, fieldKey);
+        approvalTemplateService.validateSingleFieldValue(approval.getTemplateId(), fieldKey, value);
+        Map<String, String> values = approvalTemplateService.readFieldValues(approval.getFieldValuesJson());
+        if (value == null || value.isBlank()) {
+            values.remove(fieldKey);
+        } else {
+            values.put(fieldKey, value.trim());
+        }
+        approval.overlayFieldValues(approvalTemplateService.writeFieldValues(values));
+    }
+
+    private void ensureTemplateFieldPath(ApprovalLine approval, String fieldKey) {
+        if (fieldKey == null || fieldKey.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "fieldKey 는 필수입니다");
+        }
+        if (approval.getTemplateId() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "템플릿 없는 결재는 field overlay 를 사용할 수 없습니다");
+        }
+        approvalTemplateService.validateFieldKey(approval.getTemplateId(), fieldKey);
     }
 
     private ApprovalLine loadApprovalFlat(UUID documentId) {

@@ -34,6 +34,7 @@ public class ApprovalLineService {
     private final ApprovalLineRepository repository;
     private final UserClient userClient;
     private final ApprovalNumberService approvalNumberService;
+    private final ApprovalTemplateService approvalTemplateService;
 
     /**
      * 신규 결재선 생성 + chain 등록. 요청자 본인 차단 / 결재자 0명 차단 / 사용자 미존재 차단 가드.
@@ -62,6 +63,11 @@ public class ApprovalLineService {
         }
         ApprovalLine line = ApprovalLine.open(
                 approvalNumberService.next(), req.requesterId(), req.title(), req.content());
+        if (req.templateId() != null) {
+            Map<String, String> normalized =
+                    approvalTemplateService.validateFieldValues(req.templateId(), req.fieldValues());
+            line.applyTemplateValues(req.templateId(), approvalTemplateService.writeFieldValues(normalized));
+        }
         for (UUID approverId : req.approverIds()) {
             line.appendStep(approverId);
         }
@@ -89,13 +95,21 @@ public class ApprovalLineService {
         } else {
             lines = repository.findAllByOrderByCreatedAtDesc();
         }
-        return lines.stream().map(ApprovalLineAdminResponse::from).toList();
+        return lines.stream().map(this::toResponse).toList();
     }
 
     /** 관리자 결재 문서 상세 조회. */
     @Transactional(readOnly = true)
     public ApprovalLineAdminResponse findResponseById(UUID approvalId) {
-        return ApprovalLineAdminResponse.from(findById(approvalId));
+        return toResponse(findById(approvalId));
+    }
+
+    /** 결재선 entity 를 관리자 응답 DTO 로 변환한다. */
+    @Transactional(readOnly = true)
+    public ApprovalLineAdminResponse toResponse(ApprovalLine line) {
+        String templateName = approvalTemplateService.findTemplateNameOrNull(line.getTemplateId());
+        Map<String, String> fieldValues = approvalTemplateService.readFieldValues(line.getFieldValuesJson());
+        return ApprovalLineAdminResponse.from(line, templateName, fieldValues);
     }
 
     /** 결재자 승인 처리 — chain 의 현재 step 결재자만 호출 허용. */

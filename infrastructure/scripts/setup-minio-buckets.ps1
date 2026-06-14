@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    SamhanLogis MinIO 버킷 초기화 스크립트 (P0-3 거래처 첨부 + P1-8 슬립 사진 + P1-photo 범용 첨부).
+    SamhanLogis MinIO 버킷 초기화 스크립트 (P0-3 거래처 첨부 + P1-8 슬립 사진 + P1-photo 범용 첨부 + 그룹웨어 결재 첨부).
 
 .DESCRIPTION
     samhan-minio 컨테이너에 다음 버킷을 멱등 (idempotent) 으로 생성한다.
@@ -11,6 +11,7 @@
       - samhan-attachments   : P1 범용 첨부 (P1-photo, 공통 AttachmentService)
                                 입고 검수 / 배송 완료 / 영업 방문 사진 — 단일 bucket 통합
                                 Phase 11 AWS 전환 시 동일 이름의 S3 bucket 으로 cutover
+      - groupware-approval-attachments : 그룹웨어 결재 파일 첨부 (§7)
 
     각 버킷 정책:
       - bucket policy = private (인증 필요, 공개 anonymous read 금지)
@@ -61,7 +62,7 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host ''
 Write-Host '==============================================================' -ForegroundColor Cyan
-Write-Host ' SamhanLogis MinIO 버킷 초기화 (P0-3 + P1-8)' -ForegroundColor Cyan
+Write-Host ' SamhanLogis MinIO 버킷 초기화 (P0-3 + P1-8 + §7 결재)' -ForegroundColor Cyan
 Write-Host '==============================================================' -ForegroundColor Cyan
 
 # -----------------------------------------------------------------------------
@@ -111,6 +112,12 @@ $buckets = @(
         #   SAMHAN_S3_ENDPOINT 를 빈 값으로 설정 → AWS SDK default S3 endpoint 자동 사용.
         #   bucket 이름 samhan-attachments 동일 유지 (SAMHAN_S3_BUCKET=samhan-attachments).
         #   IAM role AmazonS3FullAccess → 최소권한 s3:GetObject/PutObject/DeleteObject/GetPresignedUrl 로 교체.
+    },
+    @{
+        Name        = 'groupware-approval-attachments'
+        Purpose     = '그룹웨어 결재 파일 첨부 (§7 결재유형 템플릿 + 첨부)'
+        ManualRef   = 'docs/superpowers/specs/2026-06-14-groupware-approval-templates-attachments.md'
+        PresignTtl  = 3600
     }
 )
 
@@ -236,6 +243,8 @@ Write-Host '   - slip-service      : SAMHAN_SLIP_MINIO_ENABLED=true 설정 후 b
 Write-Host '   - inventory-service : SAMHAN_INVENTORY_MINIO_ENABLED=true 설정 후 bootRun (P1 검수 사진)'
 Write-Host '       SAMHAN_INVENTORY_MINIO_BUCKET=samhan-attachments  (단일 bucket 통합)'
 Write-Host '       SAMHAN_S3_PRESIGNED_EXPIRY=300'
+Write-Host '   - groupware-service : SAMHAN_MINIO_ENABLED=true 설정 후 bootRun (§7 결재 파일 첨부)'
+Write-Host '       SAMHAN_GROUPWARE_APPROVAL_MINIO_BUCKET=groupware-approval-attachments'
 Write-Host '   - 공통 AttachmentService (P1-photo):'
 Write-Host '       SAMHAN_S3_ENDPOINT=http://localhost:9000'
 Write-Host '       SAMHAN_S3_ACCESS_KEY=samhan'
