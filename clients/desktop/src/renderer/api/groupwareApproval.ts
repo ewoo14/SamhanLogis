@@ -43,6 +43,9 @@ export interface ApprovalLineAdminResponse {
   requesterId: string
   title: string
   content: string | null
+  templateId: string | null
+  templateName: string | null
+  fieldValues: Record<string, string>
   status: ApprovalStatus
   steps: ApprovalStepView[]
 }
@@ -57,6 +60,8 @@ export interface CreateGroupwareApprovalInput {
   title: string
   content?: string | null
   approverIds: string[]
+  templateId?: string | null
+  fieldValues?: Record<string, string>
 }
 
 export interface GroupwareApprovalDecisionInput {

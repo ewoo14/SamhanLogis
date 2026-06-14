@@ -107,6 +107,7 @@ export type PageCode =
   | 'notifications.center'
   | 'aligo.address-book'
   | 'groupware.approvals'
+  | 'groupware.approval-templates'
   | 'messenger.admin'
   | 'messenger.send'
   | 'purchases.receipt-ocr'

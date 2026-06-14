@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Badge,
+  Button,
   Card,
   DataTable,
   type DataTableColumn,
@@ -19,6 +20,7 @@ import {
   type ApprovalStatus,
 } from '../api/groupwareApproval'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
 const STATUS_OPTIONS: Array<{ value: ApprovalStatus | ''; label: string }> = [
   { value: '', label: '전체' },
@@ -44,6 +46,7 @@ function requestDateFromApprovalNo(approvalNo: string): string {
 
 export function GroupwareApprovalListPage() {
   const navigate = useNavigate()
+  const { canAccess } = usePermissions()
   const [statusFilter, setStatusFilter] = useState<ApprovalStatus | ''>('')
 
   usePageTitle('그룹웨어 결재')
@@ -55,6 +58,7 @@ export function GroupwareApprovalListPage() {
   })
 
   const rows = Array.isArray(query.data) ? query.data : []
+  const canCreate = canAccess('groupware.approvals', 'update')
 
   const columns: DataTableColumn<ApprovalLineAdminResponse>[] = useMemo(() => [
     {
@@ -114,29 +118,41 @@ export function GroupwareApprovalListPage() {
             전체 {rows.length}건
           </span>
         </h3>
-        <label style={{ fontSize: 13, color: 'var(--ink-primary)' }}>
-          상태
-          <br />
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as ApprovalStatus | '')}
-            style={{
-              height: 36,
-              padding: '0 8px',
-              borderRadius: 6,
-              border: '1px solid var(--color-neutral-300)',
-              fontSize: 13,
-              minWidth: 130,
-            }}
-            data-testid="groupware-approval-list-status-filter"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 13, color: 'var(--ink-primary)' }}>
+            상태
+            <br />
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as ApprovalStatus | '')}
+              style={{
+                height: 36,
+                padding: '0 8px',
+                borderRadius: 6,
+                border: '1px solid var(--color-neutral-300)',
+                fontSize: 13,
+                minWidth: 130,
+              }}
+              data-testid="groupware-approval-list-status-filter"
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {canCreate ? (
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => navigate('/groupware/approvals/new')}
+              data-testid="groupware-approval-create-link"
+            >
+              결재 작성
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div data-testid="groupware-approval-list-table">

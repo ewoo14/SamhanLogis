@@ -458,6 +458,7 @@ export function AppLayout() {
   const showReceiptOcr = dynamicCanAccess('purchases.receipt-ocr', 'view')
   const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
   const showGroupwareApprovals = dynamicCanAccess('groupware.approvals', 'view')
+  const showGroupwareApprovalTemplates = dynamicCanAccess('groupware.approval-templates', 'view')
 
   // [Slice 2] admin GAS 이식 — 일반 카테고리 병행 노출
   const showRegionMgmt = showArologisRegionPage
@@ -478,7 +479,8 @@ export function AppLayout() {
     showPurchaseSlipList || showReceiptOcr || showInventoryStockTransfer
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
   const showGroupware =
-    showDeliveryBatch || showAligoAddressBook || showChatRoomAdmin || showGroupwareApprovals
+    showDeliveryBatch || showAligoAddressBook || showChatRoomAdmin
+    || showGroupwareApprovals || showGroupwareApprovalTemplates
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
   const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
@@ -1045,6 +1047,7 @@ export function AppLayout() {
             testId="sidebar-category-toggle-그룹웨어"
             activeTargets={[
               '/groupware/approvals',
+              '/groupware/approval-templates',
               '/sales/link-dispatch',
               '/admin/aligo-address-book',
               '/admin/chat-rooms',
@@ -1057,6 +1060,14 @@ export function AppLayout() {
               data-testid="sidebar-groupware-approvals"
             >
               결재
+            </SidebarLink>
+            <SidebarLink
+              to="/groupware/approval-templates"
+              show={showGroupwareApprovalTemplates}
+              requiredRole="MASTER / MANAGER"
+              data-testid="sidebar-groupware-approval-templates"
+            >
+              결재 양식
             </SidebarLink>
             <SidebarLink
               to="/sales/link-dispatch"

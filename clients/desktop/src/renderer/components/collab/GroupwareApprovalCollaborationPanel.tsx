@@ -19,12 +19,15 @@ import {
   type GroupwareApprovalCollabEdit,
 } from '../../api/groupwareApprovalCollab'
 import type { ApprovalStatus } from '../../api/groupwareApproval'
+import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
+import { DynamicApprovalFieldInput } from '../groupware/DynamicApprovalFieldInput'
 import { GroupwareApprovalCollabRealtimeClient } from '../../realtime/GroupwareApprovalCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
 
 export interface GroupwareApprovalCollabCurrentValues {
   title: string
   content?: string | null
+  fieldValues?: Record<string, string>
 }
 
 export interface GroupwareApprovalCollaborationPanelProps {
@@ -32,6 +35,7 @@ export interface GroupwareApprovalCollaborationPanelProps {
   approvalNo: string
   status: ApprovalStatus
   currentValues: GroupwareApprovalCollabCurrentValues
+  templateFields?: ApprovalTemplateField[]
   onCommitted?: () => void
 }
 
@@ -48,14 +52,18 @@ function normalizePath(path: string): string {
   return path.replace(/^\/+/, '').replace(/\//g, '.')
 }
 
-function labelForPath(path: string): string {
+function labelForPath(path: string, fieldLabelMap: Record<string, string>): string {
   const normalized = normalizePath(path)
   if (normalized === 'title') return '제목'
   if (normalized === 'content') return '내용'
+  if (normalized.startsWith('field.')) {
+    const fieldKey = normalized.slice('field.'.length)
+    return fieldLabelMap[fieldKey] ?? fieldKey
+  }
   return normalized
 }
 
-function parseChangeSetDiffs(changeSet: string): Array<{
+function parseChangeSetDiffs(changeSet: string, fieldLabelMap: Record<string, string>): Array<{
   fieldName: string
   label: string
   before: string | null
@@ -65,7 +73,7 @@ function parseChangeSetDiffs(changeSet: string): Array<{
     const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
     return Object.entries(parsed).map(([path, change]) => ({
       fieldName: normalizePath(path),
-      label: labelForPath(path),
+      label: labelForPath(path, fieldLabelMap),
       before: change.before == null ? null : String(change.before),
       after: change.after == null ? null : String(change.after),
     }))
@@ -74,8 +82,8 @@ function parseChangeSetDiffs(changeSet: string): Array<{
   }
 }
 
-function summarizeChangeSet(changeSet: string): string {
-  const diffs = parseChangeSetDiffs(changeSet)
+function summarizeChangeSet(changeSet: string, fieldLabelMap: Record<string, string>): string {
+  const diffs = parseChangeSetDiffs(changeSet, fieldLabelMap)
   if (diffs.length === 0) return '변경 내용 형식을 해석하지 못했습니다.'
   return diffs
     .map((diff) => `${diff.label}: ${diff.after ?? '비움'}`)
@@ -111,6 +119,7 @@ export function GroupwareApprovalCollaborationPanel({
   approvalNo,
   status,
   currentValues,
+  templateFields = [],
   onCommitted,
 }: GroupwareApprovalCollaborationPanelProps) {
   const queryClient = useQueryClient()
@@ -119,6 +128,7 @@ export function GroupwareApprovalCollaborationPanel({
   const [editMode, setEditMode] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
+  const [fieldDrafts, setFieldDrafts] = useState<Record<string, string>>({})
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
@@ -127,6 +137,10 @@ export function GroupwareApprovalCollaborationPanel({
   const editQueryKey = useMemo(() => ['groupwareApprovalCollabEdits', approvalId] as const, [approvalId])
   const approvalQueryKey = useMemo(() => ['groupwareApproval', approvalId] as const, [approvalId])
   const approvalListQueryKey = useMemo(() => ['groupwareApprovals'] as const, [])
+  const fieldLabelMap = useMemo(
+    () => Object.fromEntries(templateFields.map((field) => [field.fieldKey, field.label])),
+    [templateFields],
+  )
 
   const canWrite = canAccess('groupware.approvals', 'update')
   const canStartEdit = isEditableStatus(status) && canWrite
@@ -148,10 +162,11 @@ export function GroupwareApprovalCollaborationPanel({
     if (!editMode) return
     setTitleDraft(valueForEdit(currentValues.title))
     setContentDraft(valueForEdit(currentValues.content))
+    setFieldDrafts({ ...(currentValues.fieldValues ?? {}) })
     setEditReason('')
     setEditNotice(null)
     setCommitError(null)
-  }, [currentValues.content, currentValues.title, editMode])
+  }, [currentValues.content, currentValues.fieldValues, currentValues.title, editMode])
 
   useEffect(() => {
     if (!approvalId) return
@@ -199,6 +214,13 @@ export function GroupwareApprovalCollaborationPanel({
       const beforeContent = valueForEdit(currentValues.content)
       if (beforeContent !== contentDraft) {
         changeSet.content = { after: valueForChange(contentDraft) }
+      }
+      for (const field of templateFields) {
+        const before = valueForEdit(currentValues.fieldValues?.[field.fieldKey])
+        const after = valueForEdit(fieldDrafts[field.fieldKey])
+        if (before !== after) {
+          changeSet[`field.${field.fieldKey}`] = { after: valueForChange(after) }
+        }
       }
       if (Object.keys(changeSet).length === 0) {
         throw new Error('변경된 필드가 없습니다.')
@@ -408,6 +430,19 @@ export function GroupwareApprovalCollaborationPanel({
                     }}
                   />
                 </label>
+                {templateFields.length > 0 ? (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <h6 style={{ margin: '4px 0 0', fontSize: 12 }}>세부 필드</h6>
+                    {templateFields.map((field) => (
+                      <DynamicApprovalFieldInput
+                        key={field.fieldKey}
+                        field={field}
+                        value={fieldDrafts[field.fieldKey] ?? ''}
+                        onChange={(value) => setFieldDrafts((current) => ({ ...current, [field.fieldKey]: value }))}
+                      />
+                    ))}
+                  </div>
+                ) : null}
                 <Input
                   value={editReason}
                   onChange={(event) => setEditReason(event.target.value)}
@@ -465,7 +500,7 @@ export function GroupwareApprovalCollaborationPanel({
               ) : edits.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
               ) : edits.map((edit) => {
-                const diffs = parseChangeSetDiffs(edit.changeSet)
+                const diffs = parseChangeSetDiffs(edit.changeSet, fieldLabelMap)
                 return (
                   <article
                     key={edit.id}
@@ -493,7 +528,7 @@ export function GroupwareApprovalCollaborationPanel({
                         </div>
                       ))}
                       {diffs.length === 0 ? (
-                        <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet)}</p>
+                        <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet, fieldLabelMap)}</p>
                       ) : null}
                     </div>
                     {edit.reason ? (

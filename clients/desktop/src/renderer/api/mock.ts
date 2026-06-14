@@ -38,6 +38,8 @@ import type {
   ApprovalLineAdminResponse,
   ApprovalStatus,
 } from './groupwareApproval'
+import type { ApprovalAttachment } from './groupwareApprovalAttachment'
+import type { ApprovalTemplate } from './groupwareApprovalTemplate'
 import type {
   GroupwareApprovalCollabComment,
   GroupwareApprovalCollabEdit,
@@ -5319,6 +5321,240 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
+  if (url.match(/\/admin\/groupware\/approval-templates(?:\?.*)?$/)) {
+    const templates = getMockGroupwareApprovalTemplatesStore()
+    if (method === 'GET') {
+      const denied = mockRequirePermission('groupware.approval-templates', 'view')
+      if (denied) return denied
+      return envelope(templates.map(mockTemplateDto))
+    }
+    if (method === 'POST') {
+      const denied = mockRequirePermission('groupware.approval-templates', 'update')
+      if (denied) return denied
+      const body = parseMockBody(config) as {
+        code?: string
+        name?: string
+        description?: string | null
+        active?: boolean
+        displayOrder?: number
+        fields?: Array<Record<string, unknown>>
+      }
+      const code = String(body.code ?? '').trim()
+      const name = String(body.name ?? '').trim()
+      const fields = Array.isArray(body.fields) ? body.fields : []
+      if (!code || !name || fields.length === 0) {
+        return mockError(400, 'INVALID_INPUT', '템플릿 코드, 이름, 필드는 필수입니다.')
+      }
+      if (templates.some((template) => template.code === code)) {
+        return mockError(400, 'INVALID_INPUT', '이미 존재하는 결재유형 코드입니다.')
+      }
+      const nextSequence = mockGroupwareApprovalTemplateSequence++
+      const created: ApprovalTemplate = {
+        id: `77777777-dddd-4ddd-8ddd-${String(nextSequence).padStart(12, '0')}`,
+        code,
+        name,
+        description: typeof body.description === 'string' && body.description.trim() ? body.description.trim() : null,
+        active: body.active !== false,
+        displayOrder: Number(body.displayOrder ?? templates.length + 1),
+        fields: fields.map((field, index) => ({
+          fieldKey: String(field.fieldKey ?? '').trim(),
+          label: String(field.label ?? '').trim(),
+          fieldType: String(field.fieldType ?? 'TEXT') as ApprovalTemplate['fields'][number]['fieldType'],
+          required: Boolean(field.required),
+          displayOrder: Number(field.displayOrder ?? index + 1),
+          options: mockParseOptionsJson(field.optionsJson),
+          placeholder: typeof field.placeholder === 'string' && field.placeholder.trim() ? field.placeholder.trim() : null,
+        })),
+      }
+      templates.push(created)
+      return { __mockStatus: 201, body: envelope(mockTemplateDto(created)) }
+    }
+  }
+
+  const groupwareApprovalTemplateDetailMatch = url.match(
+    /\/admin\/groupware\/approval-templates\/([^/?]+)(?:\?.*)?$/,
+  )
+  if (groupwareApprovalTemplateDetailMatch) {
+    const templateId = decodeURIComponent(groupwareApprovalTemplateDetailMatch[1]!)
+    const templates = getMockGroupwareApprovalTemplatesStore()
+    const template = templates.find((item) => item.id === templateId)
+    if (!template) {
+      return mockError(404, 'NOT_FOUND', '결재유형 템플릿을 찾을 수 없습니다.')
+    }
+    if (method === 'GET') {
+      const denied = mockRequirePermission('groupware.approval-templates', 'view')
+      if (denied) return denied
+      return envelope(mockTemplateDto(template))
+    }
+    if (method === 'PUT') {
+      const denied = mockRequirePermission('groupware.approval-templates', 'update')
+      if (denied) return denied
+      const body = parseMockBody(config) as {
+        code?: string
+        name?: string
+        description?: string | null
+        active?: boolean
+        displayOrder?: number
+        fields?: Array<Record<string, unknown>>
+      }
+      const fields = Array.isArray(body.fields) ? body.fields : []
+      template.code = String(body.code ?? template.code).trim()
+      template.name = String(body.name ?? template.name).trim()
+      template.description = typeof body.description === 'string' && body.description.trim() ? body.description.trim() : null
+      template.active = body.active !== false
+      template.displayOrder = Number(body.displayOrder ?? template.displayOrder)
+      template.fields = fields.map((field, index) => ({
+        fieldKey: String(field.fieldKey ?? '').trim(),
+        label: String(field.label ?? '').trim(),
+        fieldType: String(field.fieldType ?? 'TEXT') as ApprovalTemplate['fields'][number]['fieldType'],
+        required: Boolean(field.required),
+        displayOrder: Number(field.displayOrder ?? index + 1),
+        options: mockParseOptionsJson(field.optionsJson),
+        placeholder: typeof field.placeholder === 'string' && field.placeholder.trim() ? field.placeholder.trim() : null,
+      }))
+      return envelope(mockTemplateDto(template))
+    }
+    if (method === 'DELETE') {
+      const denied = mockRequirePermission('groupware.approval-templates', 'update')
+      if (denied) return denied
+      template.active = false
+      return envelope(null)
+    }
+  }
+
+  if (method === 'GET' && url.match(/\/internal\/groupware\/approval-templates\/active(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('groupware.approval-templates', 'view')
+    if (denied) return denied
+    return envelope(
+      getMockGroupwareApprovalTemplatesStore()
+        .filter((template) => template.active)
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .map(mockTemplateDto),
+    )
+  }
+
+  const groupwareApprovalAttachmentDownloadMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/attachments\/([^/?]+)\/download(?:\?.*)?$/,
+  )
+  if (method === 'GET' && groupwareApprovalAttachmentDownloadMatch) {
+    const denied = mockRequirePermission('groupware.approvals', 'view')
+    if (denied) return denied
+    const approvalId = decodeURIComponent(groupwareApprovalAttachmentDownloadMatch[1]!)
+    const attachmentId = decodeURIComponent(groupwareApprovalAttachmentDownloadMatch[2]!)
+    const attachment = (getMockGroupwareApprovalAttachmentsStore()[approvalId] ?? [])
+      .find((item) => item.id === attachmentId)
+    if (!attachment || attachment.attachmentType !== 'FILE') {
+      return mockError(404, 'NOT_FOUND', '다운로드할 파일 첨부를 찾을 수 없습니다.')
+    }
+    return {
+      __mockStatus: 200,
+      body: new Blob([`mock file: ${attachment.fileName ?? 'approval-attachment'}`], {
+        type: attachment.contentType ?? 'application/octet-stream',
+      }),
+    }
+  }
+
+  const groupwareApprovalAttachmentItemMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/attachments\/([^/?]+)(?:\?.*)?$/,
+  )
+  if (method === 'DELETE' && groupwareApprovalAttachmentItemMatch) {
+    const denied = mockRequirePermission('groupware.approvals', 'update')
+    if (denied) return denied
+    const approvalId = decodeURIComponent(groupwareApprovalAttachmentItemMatch[1]!)
+    const attachmentId = decodeURIComponent(groupwareApprovalAttachmentItemMatch[2]!)
+    const approval = getMockGroupwareApprovalsStore().find((item) => item.approvalId === approvalId)
+    if (!approval) return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+    if (approval.status === 'APPROVED' || approval.status === 'REJECTED' || approval.status === 'WITHDRAWN') {
+      return mockError(409, 'CONFLICT', '잠긴 결재 문서의 첨부는 삭제할 수 없습니다.')
+    }
+    const store = getMockGroupwareApprovalAttachmentsStore()
+    store[approvalId] = (store[approvalId] ?? []).filter((item) => item.id !== attachmentId)
+    return envelope(null)
+  }
+
+  const groupwareApprovalAttachmentFileMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/attachments\/file(?:\?.*)?$/,
+  )
+  if (method === 'POST' && groupwareApprovalAttachmentFileMatch) {
+    const denied = mockRequirePermission('groupware.approvals', 'update')
+    if (denied) return denied
+    const approvalId = decodeURIComponent(groupwareApprovalAttachmentFileMatch[1]!)
+    const approval = getMockGroupwareApprovalsStore().find((item) => item.approvalId === approvalId)
+    if (!approval) return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+    if (approval.status === 'APPROVED' || approval.status === 'REJECTED' || approval.status === 'WITHDRAWN') {
+      return mockError(409, 'CONFLICT', '잠긴 결재 문서에는 첨부를 추가할 수 없습니다.')
+    }
+    const formData = config.data instanceof FormData ? config.data : null
+    const file = formData?.get('file')
+    if (!(file instanceof File)) {
+      return mockError(400, 'INVALID_INPUT', '파일은 필수입니다.')
+    }
+    const nextSequence = mockGroupwareApprovalAttachmentSequence++
+    const created: ApprovalAttachment = {
+      id: `77777777-eeee-4eee-8eee-${String(nextSequence).padStart(12, '0')}`,
+      attachmentType: 'FILE',
+      label: String(formData?.get('label') ?? file.name).trim() || file.name,
+      displayOrder: Number(formData?.get('displayOrder') ?? 0),
+      refSlipNo: null,
+      refSlipType: null,
+      refPartnerCode: null,
+      refPartnerName: null,
+      refPeriod: null,
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      fileSize: file.size,
+      downloadUrl: null,
+    }
+    const store = getMockGroupwareApprovalAttachmentsStore()
+    store[approvalId] = [...(store[approvalId] ?? []), created]
+    return { __mockStatus: 201, body: envelope(created) }
+  }
+
+  const groupwareApprovalAttachmentCollectionMatch = url.match(
+    /\/admin\/groupware\/approvals\/([^/?]+)\/attachments(?:\?.*)?$/,
+  )
+  if (groupwareApprovalAttachmentCollectionMatch) {
+    const approvalId = decodeURIComponent(groupwareApprovalAttachmentCollectionMatch[1]!)
+    const approval = getMockGroupwareApprovalsStore().find((item) => item.approvalId === approvalId)
+    if (!approval) return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+    const store = getMockGroupwareApprovalAttachmentsStore()
+    if (method === 'GET') {
+      const denied = mockRequirePermission('groupware.approvals', 'view')
+      if (denied) return denied
+      return envelope([...(store[approvalId] ?? [])].sort((a, b) => a.displayOrder - b.displayOrder))
+    }
+    if (method === 'POST') {
+      const denied = mockRequirePermission('groupware.approvals', 'update')
+      if (denied) return denied
+      if (approval.status === 'APPROVED' || approval.status === 'REJECTED' || approval.status === 'WITHDRAWN') {
+        return mockError(409, 'CONFLICT', '잠긴 결재 문서에는 첨부를 추가할 수 없습니다.')
+      }
+      const body = parseMockBody(config) as Partial<ApprovalAttachment>
+      const type = body.attachmentType
+      if (type !== 'SLIP_REF' && type !== 'PARTNER_LEDGER_REF') {
+        return mockError(400, 'INVALID_INPUT', '참조 첨부 유형이 올바르지 않습니다.')
+      }
+      const nextSequence = mockGroupwareApprovalAttachmentSequence++
+      const created: ApprovalAttachment = {
+        id: `77777777-eeee-4eee-8eee-${String(nextSequence).padStart(12, '0')}`,
+        attachmentType: type,
+        label: body.label ?? null,
+        displayOrder: Number(body.displayOrder ?? 0),
+        refSlipNo: body.refSlipNo ?? null,
+        refSlipType: body.refSlipType ?? null,
+        refPartnerCode: body.refPartnerCode ?? null,
+        refPartnerName: body.refPartnerName ?? null,
+        refPeriod: body.refPeriod ?? null,
+        fileName: null,
+        contentType: null,
+        fileSize: null,
+        downloadUrl: null,
+      }
+      store[approvalId] = [...(store[approvalId] ?? []), created]
+      return { __mockStatus: 201, body: envelope(created) }
+    }
+  }
+
   const groupwareApprovalCommentResolveMatch = url.match(
     /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/comments\/([^/?]+)\/resolve(?:\?.*)?$/,
   )
@@ -5425,9 +5661,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       }
       if (entries.some(([path, change]) => {
         const normalized = path.replace(/^\/+/, '').replace(/\//g, '.')
-        return (normalized !== 'title' && normalized !== 'content') || !change || !('after' in change)
+        const fieldKey = normalized.startsWith('field.') ? normalized.slice('field.'.length) : ''
+        const template = approval.templateId
+          ? getMockGroupwareApprovalTemplatesStore().find((item) => item.id === approval.templateId)
+          : undefined
+        const templateHasField = Boolean(fieldKey && template?.fields.some((field) => field.fieldKey === fieldKey))
+        return (normalized !== 'title' && normalized !== 'content' && !templateHasField) || !change || !('after' in change)
       })) {
-        return mockError(400, 'INVALID_INPUT', '결재 협업은 title/content 만 수정할 수 있습니다')
+        return mockError(400, 'INVALID_INPUT', '결재 협업은 title/content/템플릿 필드만 수정할 수 있습니다')
       }
       const normalizedChangeSet: Record<string, { before: string | null; after: string | null }> = {}
       for (const [path, change] of entries) {
@@ -5450,6 +5691,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           normalizedChangeSet.content = { before: approval.content ?? null, after }
           approval.content = after
         }
+        if (normalized.startsWith('field.')) {
+          const fieldKey = normalized.slice('field.'.length)
+          const before = approval.fieldValues[fieldKey] ?? null
+          approval.fieldValues = {
+            ...approval.fieldValues,
+            [fieldKey]: after ?? '',
+          }
+          normalizedChangeSet[normalized] = { before, after }
+        }
       }
       const nextSequence = mockGroupwareApprovalEditSequence++
       const created: GroupwareApprovalCollabEdit = {
@@ -5471,7 +5721,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     /\/admin\/groupware\/approvals\/([^/?]+)\/(approve|reject)(?:\?.*)?$/,
   )
   if ((method === 'PUT' || method === 'POST') && groupwareApprovalDecisionMatch) {
-    const denied = mockRequirePermission('messenger.admin', 'update')
+    const denied = mockRequirePermission('groupware.approvals', 'update')
     if (denied) return denied
     const approvalId = decodeURIComponent(groupwareApprovalDecisionMatch[1]!)
     const action = groupwareApprovalDecisionMatch[2]!
@@ -5525,18 +5775,38 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       }))
     }
     if (method === 'POST') {
-      const denied = mockRequirePermission('messenger.admin', 'create')
+      const denied = mockRequirePermission('groupware.approvals', 'update')
       if (denied) return denied
       const body = parseMockBody(config) as {
         requesterId?: string
         title?: string
         content?: string
         approverIds?: string[]
+        templateId?: string | null
+        fieldValues?: Record<string, string>
       }
       const title = String(body.title ?? '').trim()
       const approverIds = Array.isArray(body.approverIds) ? body.approverIds : []
       if (!body.requesterId || !title || approverIds.length === 0) {
         return mockError(400, 'INVALID_INPUT', '요청자, 제목, 결재자는 필수입니다.')
+      }
+      const template = body.templateId
+        ? getMockGroupwareApprovalTemplatesStore().find((item) => item.id === body.templateId)
+        : undefined
+      const fieldValues = body.fieldValues ?? {}
+      if (body.templateId && !template) {
+        return mockError(404, 'NOT_FOUND', '결재유형 템플릿을 찾을 수 없습니다.')
+      }
+      if (template) {
+        for (const field of template.fields) {
+          const value = fieldValues[field.fieldKey] ?? ''
+          if (field.required && !String(value).trim()) {
+            return mockError(400, 'INVALID_INPUT', `${field.label} 값은 필수입니다.`)
+          }
+          if (field.fieldType === 'SELECT' && value && !field.options.includes(value)) {
+            return mockError(400, 'INVALID_INPUT', `${field.label} 값이 선택지에 없습니다.`)
+          }
+        }
       }
       const next = approvals.length + 1
       const created: ApprovalLineAdminResponse = {
@@ -5545,6 +5815,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         requesterId: body.requesterId,
         title,
         content: typeof body.content === 'string' && body.content.trim() ? body.content : null,
+        templateId: template?.id ?? null,
+        templateName: template?.name ?? null,
+        fieldValues: { ...fieldValues },
         status: 'PENDING',
         steps: approverIds.map((approverId, sequence) => ({
           sequence,
@@ -8745,6 +9018,38 @@ const MOCK_DISPATCH_HISTORY_PREVIOUS_CODE = mockTaskCode(MOCK_DISPATCH_HISTORY_P
 const MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX = MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')
 const MOCK_DISPATCH_HISTORY_PREVIOUS_SLIP_PREFIX = MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')
 
+const MOCK_GROUPWARE_APPROVAL_TEMPLATES: ApprovalTemplate[] = [
+  {
+    id: '77777777-dddd-4ddd-8ddd-000000000001',
+    code: 'EXPENSE_REPORT',
+    name: '지출결의서',
+    description: '지출 내역 승인 요청',
+    active: true,
+    displayOrder: 1,
+    fields: [
+      { fieldKey: 'expenseItem', label: '지출항목', fieldType: 'TEXT', required: true, displayOrder: 1, options: [], placeholder: '예: 배송비 정산' },
+      { fieldKey: 'amount', label: '금액', fieldType: 'NUMBER', required: true, displayOrder: 2, options: [], placeholder: '0' },
+      { fieldKey: 'accountCode', label: '계정과목', fieldType: 'SELECT', required: true, displayOrder: 3, options: ['복리후생비', '여비교통비', '소모품비', '접대비', '기타'], placeholder: null },
+      { fieldKey: 'expenseDate', label: '지출일', fieldType: 'DATE', required: true, displayOrder: 4, options: [], placeholder: null },
+      { fieldKey: 'summary', label: '적요', fieldType: 'TEXTAREA', required: false, displayOrder: 5, options: [], placeholder: '지출 사유' },
+    ],
+  },
+  {
+    id: '77777777-dddd-4ddd-8ddd-000000000002',
+    code: 'LEAVE_REQUEST',
+    name: '휴가신청서',
+    description: '휴가 사용 승인 요청',
+    active: true,
+    displayOrder: 2,
+    fields: [
+      { fieldKey: 'leaveType', label: '휴가종류', fieldType: 'SELECT', required: true, displayOrder: 1, options: ['연차', '반차(오전)', '반차(오후)', '병가', '경조사'], placeholder: null },
+      { fieldKey: 'startDate', label: '시작일', fieldType: 'DATE', required: true, displayOrder: 2, options: [], placeholder: null },
+      { fieldKey: 'endDate', label: '종료일', fieldType: 'DATE', required: true, displayOrder: 3, options: [], placeholder: null },
+      { fieldKey: 'reason', label: '사유', fieldType: 'TEXTAREA', required: true, displayOrder: 4, options: [], placeholder: '휴가 사유' },
+    ],
+  },
+]
+
 const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
   {
     approvalId: '77777777-aaaa-4aaa-8aaa-000000000001',
@@ -8752,6 +9057,15 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     requesterId: MOCK_AUTH.userId,
     title: '6월 2주차 배송비 정산 승인',
     content: '아로로지스 외주 배차 정산 내역 승인 요청입니다.',
+    templateId: '77777777-dddd-4ddd-8ddd-000000000001',
+    templateName: '지출결의서',
+    fieldValues: {
+      expenseItem: '아로로지스 외주 배차',
+      amount: '1840000',
+      accountCode: '여비교통비',
+      expenseDate: MOCK_DISPATCH_HISTORY_TODAY,
+      summary: '6월 2주차 배송비 정산',
+    },
     status: 'PENDING',
     steps: [
       {
@@ -8776,6 +9090,15 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     requesterId: MOCK_AUTH.userId,
     title: '창고 소모품 구매 품의',
     content: '분류 라벨과 포장재 구매 건입니다.',
+    templateId: '77777777-dddd-4ddd-8ddd-000000000001',
+    templateName: '지출결의서',
+    fieldValues: {
+      expenseItem: '창고 소모품',
+      amount: '320000',
+      accountCode: '소모품비',
+      expenseDate: MOCK_DISPATCH_HISTORY_PREVIOUS,
+      summary: '분류 라벨과 포장재 구매',
+    },
     status: 'IN_PROGRESS',
     steps: [
       {
@@ -8800,6 +9123,9 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     requesterId: MOCK_AUTH.userId,
     title: '반품 운송비 예외 처리',
     content: '거래처 요청에 따른 운송비 예외 승인 건입니다.',
+    templateId: null,
+    templateName: null,
+    fieldValues: {},
     status: 'APPROVED',
     steps: [
       {
@@ -8847,12 +9173,53 @@ const MOCK_GROUPWARE_APPROVAL_EDITS: Record<string, GroupwareApprovalCollabEdit[
   ],
 }
 
+const MOCK_GROUPWARE_APPROVAL_ATTACHMENTS: Record<string, ApprovalAttachment[]> = {
+  '77777777-aaaa-4aaa-8aaa-000000000001': [
+    {
+      id: '77777777-eeee-4eee-8eee-000000000001',
+      attachmentType: 'SLIP_REF',
+      label: '정산 대상 전표',
+      displayOrder: 1,
+      refSlipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-1`,
+      refSlipType: 'SLIP_OUTBOUND',
+      refPartnerCode: null,
+      refPartnerName: null,
+      refPeriod: null,
+      fileName: null,
+      contentType: null,
+      fileSize: null,
+      downloadUrl: null,
+    },
+    {
+      id: '77777777-eeee-4eee-8eee-000000000002',
+      attachmentType: 'FILE',
+      label: '정산서 PDF',
+      displayOrder: 2,
+      refSlipNo: null,
+      refSlipType: null,
+      refPartnerCode: null,
+      refPartnerName: null,
+      refPeriod: null,
+      fileName: 'dispatch-settlement.pdf',
+      contentType: 'application/pdf',
+      fileSize: 123456,
+      downloadUrl: null,
+    },
+  ],
+}
+
 let mockGroupwareApprovalCommentSequence = 2
 let mockGroupwareApprovalEditSequence = 2
+let mockGroupwareApprovalTemplateSequence = 3
+let mockGroupwareApprovalAttachmentSequence = 3
 
 type GroupwareApprovalMockStores = {
   __SAMHAN_MOCK_GROUPWARE_APPROVALS?: ApprovalLineAdminResponse[]
   __SAMHAN_MOCK_GROUPWARE_APPROVALS_SEED?: ApprovalLineAdminResponse[]
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_TEMPLATES?: ApprovalTemplate[]
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_TEMPLATES_SEED?: ApprovalTemplate[]
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS?: Record<string, ApprovalAttachment[]>
+  __SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS_SEED?: Record<string, ApprovalAttachment[]>
   __SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS?: Record<string, GroupwareApprovalCollabComment[]>
   __SAMHAN_MOCK_GROUPWARE_APPROVAL_COMMENTS_SEED?: Record<string, GroupwareApprovalCollabComment[]>
   __SAMHAN_MOCK_GROUPWARE_APPROVAL_EDITS?: Record<string, GroupwareApprovalCollabEdit[]>
@@ -8862,8 +9229,88 @@ type GroupwareApprovalMockStores = {
 function cloneGroupwareApprovals(source: ApprovalLineAdminResponse[]): ApprovalLineAdminResponse[] {
   return source.map((approval) => ({
     ...approval,
+    fieldValues: { ...approval.fieldValues },
     steps: approval.steps.map((step) => ({ ...step })),
   }))
+}
+
+function cloneGroupwareApprovalTemplates(source: ApprovalTemplate[]): ApprovalTemplate[] {
+  return source.map((template) => ({
+    ...template,
+    fields: template.fields.map((field) => ({
+      ...field,
+      options: [...field.options],
+    })),
+  }))
+}
+
+function cloneGroupwareApprovalAttachments(
+  source: Record<string, ApprovalAttachment[]>,
+): Record<string, ApprovalAttachment[]> {
+  return Object.fromEntries(
+    Object.entries(source).map(([approvalId, attachments]) => [
+      approvalId,
+      attachments.map((attachment) => ({ ...attachment })),
+    ]),
+  )
+}
+
+function getMockGroupwareApprovalTemplatesStore(): ApprovalTemplate[] {
+  const g = globalThis as unknown as GroupwareApprovalMockStores
+  if (!g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_TEMPLATES) {
+    g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_TEMPLATES = cloneGroupwareApprovalTemplates([
+      ...MOCK_GROUPWARE_APPROVAL_TEMPLATES,
+      ...(g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_TEMPLATES_SEED ?? []),
+    ])
+  }
+  return g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_TEMPLATES
+}
+
+function getMockGroupwareApprovalAttachmentsStore(): Record<string, ApprovalAttachment[]> {
+  const g = globalThis as unknown as GroupwareApprovalMockStores
+  if (!g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS) {
+    g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS =
+      cloneGroupwareApprovalAttachments(MOCK_GROUPWARE_APPROVAL_ATTACHMENTS)
+    if (g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS_SEED) {
+      g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS = {
+        ...g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS,
+        ...cloneGroupwareApprovalAttachments(g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS_SEED),
+      }
+    }
+  }
+  return g.__SAMHAN_MOCK_GROUPWARE_APPROVAL_ATTACHMENTS
+}
+
+function mockTemplateDto(template: ApprovalTemplate) {
+  return {
+    id: template.id,
+    code: template.code,
+    name: template.name,
+    description: template.description,
+    active: template.active,
+    displayOrder: template.displayOrder,
+    fields: template.fields.map((field, index) => ({
+      id: field.id ?? `${template.id}-field-${index + 1}`,
+      fieldKey: field.fieldKey,
+      label: field.label,
+      fieldType: field.fieldType,
+      required: field.required,
+      displayOrder: field.displayOrder,
+      optionsJson: field.fieldType === 'SELECT' ? JSON.stringify(field.options) : null,
+      placeholder: field.placeholder,
+    })),
+  }
+}
+
+function mockParseOptionsJson(value: unknown): string[] {
+  if (typeof value !== 'string' || !value.trim()) return []
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item) => String(item).trim()).filter((item) => item.length > 0)
+  } catch {
+    return []
+  }
 }
 
 function cloneGroupwareApprovalComments(
@@ -10012,6 +10459,7 @@ const SP_D1_PAGES = [
   'dispatch.batch',
   'aligo.address-book',
   'groupware.approvals',
+  'groupware.approval-templates',
   'messenger.admin',
   'slip.edit-requests',
   'slip.edit-requests.decide',
@@ -10127,7 +10575,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
-    'aligo.address-book', 'groupware.approvals', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
+    'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     'slip.photo-audit',
     // C2c 동적 권한 전환 — MANAGER: view 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',
@@ -10302,7 +10750,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'slip.cleanup',
     'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
-    'aligo.address-book', 'groupware.approvals', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
+    'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     // slip.photo-audit: MANAGER can_edit=FALSE per V36
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
     'purchases.slip.edit', 'purchases.slip.delete',

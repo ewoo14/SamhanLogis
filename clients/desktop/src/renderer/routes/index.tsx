@@ -299,6 +299,8 @@ import { PermissionGuard } from '../components/PermissionGuard'
 // §7 그룹웨어 결재 — 목록/상세 + 협업 패널.
 import { GroupwareApprovalListPage } from './GroupwareApprovalListPage'
 import { GroupwareApprovalDetailPage } from './GroupwareApprovalDetailPage'
+import { GroupwareApprovalCreatePage } from './GroupwareApprovalCreatePage'
+import { GroupwareApprovalTemplateAdminPage } from './GroupwareApprovalTemplateAdminPage'
 // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
 import { ProductCatalogPage } from './ProductCatalogPage'
 
@@ -339,10 +341,26 @@ const router = createHashRouter([
         ),
       },
       {
+        path: '/groupware/approvals/new',
+        element: (
+          <PermissionGuard pageCode="groupware.approvals" action="update">
+            <GroupwareApprovalCreatePage />
+          </PermissionGuard>
+        ),
+      },
+      {
         path: '/groupware/approvals/:id',
         element: (
           <PermissionGuard pageCode="groupware.approvals" action="view">
             <GroupwareApprovalDetailPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/groupware/approval-templates',
+        element: (
+          <PermissionGuard pageCode="groupware.approval-templates" action="view">
+            <GroupwareApprovalTemplateAdminPage />
           </PermissionGuard>
         ),
       },
