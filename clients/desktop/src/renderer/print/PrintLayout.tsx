@@ -41,6 +41,7 @@ export interface PrintApprovalStep {
   label: string
   name?: string
   decidedAt?: string
+  signaturePngBase64?: string
 }
 
 interface PrintLayoutProps {
@@ -164,16 +165,16 @@ export function PrintLayout({
                       gridTemplateColumns: `repeat(${Math.max(2, normalizedApprovalSteps.length)}, var(--print-approval-corner-col, 19mm))`,
                     }}
                   >
-                    {normalizedApprovalSteps.map((step) => {
+                    {normalizedApprovalSteps.map((step, index) => {
                       const signerName = step.name ?? ''
                       const decidedAt = step.decidedAt ?? ''
                       return (
-                        <div className="print-approval-cell" key={step.label}>
+                        <div className="print-approval-cell" key={`${step.label}-${index}`}>
                           <div className="print-approval-label">{step.label}</div>
                           <div className="print-approval-signature">
                             {/* 슬라이스1 placeholder — 전자서명 이미지 실연동은 그룹웨어 결재 연동 후속. */}
                             <SignatureViewer
-                              signaturePngBase64=""
+                              signaturePngBase64={step.signaturePngBase64 ?? ''}
                               signerName={signerName}
                               signedAt={decidedAt}
                               size="fluid"

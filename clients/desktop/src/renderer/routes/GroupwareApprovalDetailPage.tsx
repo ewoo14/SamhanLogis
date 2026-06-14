@@ -367,13 +367,22 @@ export function GroupwareApprovalDetailPage() {
               {approval.title}
             </p>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => navigate('/groupware/approvals')}
-          >
-            목록
-          </Button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => navigate(`/groupware/approvals/${approvalId}/print`)}
+            >
+              인쇄 미리보기
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => navigate('/groupware/approvals')}
+            >
+              목록
+            </Button>
+          </div>
         </div>
 
         <section style={{ display: 'grid', gap: 16 }}>

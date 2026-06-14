@@ -301,6 +301,7 @@ import { GroupwareApprovalListPage } from './GroupwareApprovalListPage'
 import { GroupwareApprovalDetailPage } from './GroupwareApprovalDetailPage'
 import { GroupwareApprovalCreatePage } from './GroupwareApprovalCreatePage'
 import { GroupwareApprovalTemplateAdminPage } from './GroupwareApprovalTemplateAdminPage'
+import { ApprovalDocView } from '../print/ApprovalDocView'
 // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
 import { ProductCatalogPage } from './ProductCatalogPage'
 
@@ -353,6 +354,14 @@ const router = createHashRouter([
         element: (
           <PermissionGuard pageCode="groupware.approvals" action="view">
             <GroupwareApprovalDetailPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/groupware/approvals/:id/print',
+        element: (
+          <PermissionGuard pageCode="groupware.approvals" action="view">
+            <ApprovalDocView />
           </PermissionGuard>
         ),
       },
