@@ -5935,6 +5935,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       if (!body.requesterId || !title || approverIds.length === 0) {
         return mockError(400, 'INVALID_INPUT', '요청자, 제목, 결재자는 필수입니다.')
       }
+      const approverSet = new Set<string>()
+      for (const approverId of approverIds) {
+        if (typeof approverId !== 'string' || !approverId.trim()) {
+          return mockError(400, 'INVALID_INPUT', '결재자는 필수입니다.')
+        }
+        if (approverId === body.requesterId) {
+          return mockError(400, 'INVALID_INPUT', '요청자 본인은 결재자가 될 수 없습니다.')
+        }
+        if (approverSet.has(approverId)) {
+          return mockError(400, 'INVALID_INPUT', '동일 결재자를 결재선에 중복 추가할 수 없습니다.')
+        }
+        approverSet.add(approverId)
+      }
       const template = body.templateId
         ? getMockGroupwareApprovalTemplatesStore().find((item) => item.id === body.templateId)
         : undefined

@@ -1,13 +1,18 @@
 package com.samhanair.logis.groupware.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
 import com.samhanair.logis.groupware.client.UserClient;
+import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.dto.MessageSendRequest;
@@ -20,9 +25,11 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -136,6 +143,51 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].userId").value(userId.toString()))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].name").value("김결재"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].department").value("대표실"));
+    }
+
+    @Test
+    void create_approval_rejects_duplicate_approver_ids() throws Exception {
+        UUID requester = UUID.randomUUID();
+        UUID approver = UUID.randomUUID();
+        ApprovalLineCreateRequest req = new ApprovalLineCreateRequest(
+                requester, "중복 결재자 case", null, List.of(approver, approver));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest());
+    }
+
+    @Test
+    void list_approvals_resolves_display_names_with_single_bulk_call() throws Exception {
+        UUID requester1 = UUID.randomUUID();
+        UUID approver1 = UUID.randomUUID();
+        UUID requester2 = UUID.randomUUID();
+        UUID approver2 = UUID.randomUUID();
+        ApprovalLine first = ApprovalLine.open("2099/01/01-1", requester1, "목록 결재 1", null);
+        first.appendStep(approver1);
+        ApprovalLine second = ApprovalLine.open("2099/01/01-2", requester2, "목록 결재 2", null);
+        second.appendStep(approver2);
+        approvalLineRepository.saveAll(List.of(first, second));
+        lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(Map.of(
+                requester1, "요청자1",
+                approver1, "결재자1",
+                requester2, "요청자2",
+                approver2, "결재자2"));
+        clearInvocations(userClient);
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/approvals")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(2));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UUID>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(userClient, times(1)).resolveDisplayNames(idsCaptor.capture());
+        assertThat(idsCaptor.getValue()).contains(requester1, approver1, requester2, approver2);
     }
 
     @Test

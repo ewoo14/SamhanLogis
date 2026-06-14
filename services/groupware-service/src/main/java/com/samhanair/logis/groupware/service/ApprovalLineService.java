@@ -9,8 +9,10 @@ import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -49,6 +51,7 @@ public class ApprovalLineService {
         }
         // Phase 9 W3 — BE backlog #4 채택. 요청자 + 결재자 N 명을 1회 bulk RPC 로 검증
         // (이전: 직렬 N+1 RPC, 현재: 1 RPC + cache hit 기대).
+        validateApproverChain(req.requesterId(), req.approverIds());
         List<UUID> idsToVerify = new ArrayList<>();
         idsToVerify.add(req.requesterId());
         idsToVerify.addAll(req.approverIds());
@@ -95,7 +98,8 @@ public class ApprovalLineService {
         } else {
             lines = repository.findAllByOrderByCreatedAtDesc();
         }
-        return lines.stream().map(this::toResponse).toList();
+        Map<UUID, String> nameMap = resolveDisplayNames(lines);
+        return lines.stream().map(line -> toResponse(line, nameMap)).toList();
     }
 
     /** 관리자 결재 문서 상세 조회. */
@@ -107,14 +111,42 @@ public class ApprovalLineService {
     /** 결재선 entity 를 관리자 응답 DTO 로 변환한다. */
     @Transactional(readOnly = true)
     public ApprovalLineAdminResponse toResponse(ApprovalLine line) {
+        Map<UUID, String> nameMap = resolveDisplayNames(List.of(line));
+        return toResponse(line, nameMap);
+    }
+
+    private ApprovalLineAdminResponse toResponse(ApprovalLine line, Map<UUID, String> nameMap) {
         String templateName = approvalTemplateService.findTemplateNameOrNull(line.getTemplateId());
         Map<String, String> fieldValues = approvalTemplateService.readFieldValues(line.getFieldValuesJson());
-        List<UUID> ids = new ArrayList<>();
-        ids.add(line.getRequesterId());
-        line.getStepsView().forEach(step -> ids.add(step.getApproverId()));
-        Map<UUID, String> resolvedNames = userClient.resolveDisplayNames(ids);
-        Map<UUID, String> nameMap = resolvedNames == null ? Map.of() : resolvedNames;
         return ApprovalLineAdminResponse.from(line, templateName, fieldValues, nameMap);
+    }
+
+    private Map<UUID, String> resolveDisplayNames(List<ApprovalLine> lines) {
+        Set<UUID> ids = new LinkedHashSet<>();
+        for (ApprovalLine line : lines) {
+            ids.add(line.getRequesterId());
+            line.getStepsView().forEach(step -> ids.add(step.getApproverId()));
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> resolvedNames = userClient.resolveDisplayNames(List.copyOf(ids));
+        return resolvedNames == null ? Map.of() : resolvedNames;
+    }
+
+    private void validateApproverChain(UUID requesterId, List<UUID> approverIds) {
+        Set<UUID> seen = new LinkedHashSet<>();
+        for (UUID approverId : approverIds) {
+            if (approverId == null) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "결재자는 필수입니다");
+            }
+            if (approverId.equals(requesterId)) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "요청자 본인은 결재자가 될 수 없습니다");
+            }
+            if (!seen.add(approverId)) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "동일 결재자를 결재선에 중복 추가할 수 없습니다");
+            }
+        }
     }
 
     /** 결재자 승인 처리 — chain 의 현재 step 결재자만 호출 허용. */
