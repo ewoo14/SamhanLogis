@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const repoRoot = path.resolve(__dirname, '../../../..')
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')
