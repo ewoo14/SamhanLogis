@@ -170,17 +170,20 @@ public class SlipController {
      * 응답은 UUID 를 포함하지 않고 전표번호, 유형, 거래처명, 합계금액, 전표일자만 반환한다.
      *
      * <p>권한은 전표 목록 조회 권한을 재사용한다. 매출 목록 권한자는 출고전표만, 매입 목록
-     * 권한자는 입고전표만 검색할 수 있으며, 둘 다 가진 역할은 양쪽을 검색한다.
+     * 권한자는 입고전표만 검색할 수 있으며, 둘 다 가진 역할은 양쪽을 검색한다. {@code slipType}
+     * 을 지정하면 해당 유형으로 한 번 더 필터한다.
      *
-     * @param q 부분 전표번호
+     * @param q 전표번호 또는 거래처명 키워드
+     * @param slipType 전표유형 필터 (OUTBOUND/INBOUND)
      * @param limit 결과 개수 (기본 10, 최대 20)
      * @return 200, UUID 없는 전표 검색 결과 목록
      */
     @Operation(summary = "전표번호 자동완성 검색",
-            description = "slipNo 부분일치 검색. UUID 없이 slipNo/slipType/partnerName/totalAmount/slipDate 만 반환.")
+            description = "slipNo 또는 partnerName 부분일치 검색. UUID 없이 slipNo/slipType/partnerName/totalAmount/slipDate 만 반환.")
     @GetMapping("/search")
     public ApiResponse<List<SlipSearchResult>> search(
             @RequestParam(name = "q", required = false) String q,
+            @RequestParam(required = false) SlipType slipType,
             @RequestParam(defaultValue = "10") int limit,
             @RequestHeader(value = "X-User-Role", required = false) String role,
             @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
@@ -190,7 +193,8 @@ public class SlipController {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "동적 권한 설정에 의해 전표 목록 조회 권한이 차단되었습니다.");
         }
-        return ApiResponse.ok(slipService.searchBySlipNo(q, limit, visibleTypes));
+        List<SlipType> searchTypes = resolveRequestedSearchTypes(visibleTypes, slipType);
+        return ApiResponse.ok(slipService.searchBySlipNo(q, limit, searchTypes));
     }
 
     /**
@@ -689,6 +693,17 @@ public class SlipController {
             visibleTypes.add(SlipType.INBOUND);
         }
         return visibleTypes;
+    }
+
+    private List<SlipType> resolveRequestedSearchTypes(EnumSet<SlipType> visibleTypes, SlipType requestedType) {
+        if (requestedType == null) {
+            return List.copyOf(visibleTypes);
+        }
+        if (!visibleTypes.contains(requestedType)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "동적 권한 설정에 의해 해당 전표 유형 조회 권한이 차단되었습니다.");
+        }
+        return List.of(requestedType);
     }
 
     private boolean canViewPermission(String actorRole, String pageCode) {

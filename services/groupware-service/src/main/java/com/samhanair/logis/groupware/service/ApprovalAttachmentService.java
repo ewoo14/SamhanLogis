@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.domain.ApprovalAttachment;
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
+import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
 import com.samhanair.logis.groupware.dto.ApprovalAttachmentRequest;
 import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
@@ -52,7 +53,9 @@ public class ApprovalAttachmentService {
         ApprovalLine approval = loadApproval(approvalId);
         approval.guardCollabModifiable();
         ApprovalAttachment attachment;
-        if (request.attachmentType() == ApprovalAttachmentType.SLIP_REF) {
+        if (request.refDocType() != null) {
+            attachment = addUnifiedDocumentReference(approval, request);
+        } else if (request.attachmentType() == ApprovalAttachmentType.SLIP_REF) {
             attachment = ApprovalAttachment.slipRef(approval, labelOrDefault(request.label(), "전표 참조"),
                     request.displayOrder(), request.refSlipNo(), request.refSlipType());
         } else if (request.attachmentType() == ApprovalAttachmentType.PARTNER_LEDGER_REF) {
@@ -62,6 +65,27 @@ public class ApprovalAttachmentService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 첨부 endpoint 에서는 FILE 을 사용할 수 없습니다");
         }
         return attachmentRepository.save(attachment);
+    }
+
+    private ApprovalAttachment addUnifiedDocumentReference(ApprovalLine approval, ApprovalAttachmentRequest request) {
+        ApprovalReferenceDocType docType = request.refDocType();
+        if (docType == ApprovalReferenceDocType.PARTNER_LEDGER) {
+            return ApprovalAttachment.partnerLedgerRef(approval, labelOrDefault(request.label(), "거래처 원장"),
+                    request.displayOrder(), request.refPartnerCode(), request.refPartnerName(), request.refPeriod());
+        }
+        String defaultLabel = switch (docType) {
+            case OUTBOUND_SLIP -> "출고전표";
+            case INBOUND_SLIP -> "입고전표";
+            case JOURNAL -> "분개장";
+            case TAX_INVOICE -> "세금계산서";
+            case STATEMENT -> "거래명세서";
+            case PARTNER_LEDGER -> "거래처 원장";
+        };
+        String refDocNo = request.refDocNo() == null || request.refDocNo().isBlank()
+                ? request.refSlipNo()
+                : request.refDocNo();
+        return ApprovalAttachment.documentRef(approval, labelOrDefault(request.label(), defaultLabel),
+                request.displayOrder(), docType, refDocNo, request.refDocLabel());
     }
 
     /** 결재 파일 첨부를 업로드한다. */

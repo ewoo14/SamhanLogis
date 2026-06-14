@@ -1,6 +1,7 @@
 package com.samhanair.logis.groupware.dto;
 
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
+import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -15,6 +16,9 @@ import jakarta.validation.constraints.Size;
  * @param refPartnerCode 거래처 코드
  * @param refPartnerName 거래처명
  * @param refPeriod 원장 기간 YYYY-MM
+ * @param refDocType 참조 문서 세부 유형
+ * @param refDocNo 참조 문서 번호
+ * @param refDocLabel 참조 문서 표시 요약
  */
 public record ApprovalAttachmentRequest(
         @NotNull ApprovalAttachmentType attachmentType,
@@ -24,6 +28,9 @@ public record ApprovalAttachmentRequest(
         @Size(max = 40) String refSlipType,
         @Size(max = 40) String refPartnerCode,
         @Size(max = 100) String refPartnerName,
-        @Size(max = 7) String refPeriod
+        @Size(max = 7) String refPeriod,
+        ApprovalReferenceDocType refDocType,
+        @Size(max = 40) String refDocNo,
+        @Size(max = 200) String refDocLabel
 ) {
 }

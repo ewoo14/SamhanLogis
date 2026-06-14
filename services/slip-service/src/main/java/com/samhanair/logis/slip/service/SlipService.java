@@ -1183,13 +1183,13 @@ public class SlipService {
     }
 
     /**
-     * 전표번호 부분검색 자동완성.
+     * 전표번호 또는 거래처명 키워드 자동완성.
      *
-     * <p>그룹웨어 결재 첨부에서 전표번호를 자유입력하지 않고 실제 전표를 선택하도록 돕는다.
-     * 검색어는 trim 후 대소문자 무시 부분일치로 조회하며, 빈 검색어는 DB 조회 없이 빈 목록을 반환한다.
+     * <p>그룹웨어 결재 첨부에서 실제 전표를 선택하도록 돕는다. 검색어는 trim 후 전표번호 또는
+     * 거래처명 대소문자 무시 부분일치로 조회하며, 빈 검색어는 DB 조회 없이 빈 목록을 반환한다.
      * limit 은 기본 10, 최대 20 으로 제한한다.
      *
-     * @param q 부분 전표번호
+     * @param q 전표번호 또는 거래처명 키워드
      * @param limit 요청 limit (null/0 이하이면 10, 최대 20)
      * @return UUID 없는 전표 검색 결과
      */
@@ -1200,16 +1200,17 @@ public class SlipService {
             return List.of();
         }
         int effectiveLimit = Math.min(Math.max(limit, 1), 20);
-        return slipRepository.searchBySlipNoLikeIgnoreCase(normalized, PageRequest.of(0, effectiveLimit))
+        return slipRepository.searchByKeywordAndSlipTypeIn(
+                        normalized, List.of(SlipType.values()), PageRequest.of(0, effectiveLimit))
                 .stream()
                 .map(SlipSearchResult::from)
                 .toList();
     }
 
     /**
-     * 전표번호 부분검색 자동완성 — 호출자 권한의 전표유형 범위 안에서만 조회한다.
+     * 전표번호 또는 거래처명 키워드 자동완성 — 호출자 권한의 전표유형 범위 안에서만 조회한다.
      *
-     * @param q 부분 전표번호
+     * @param q 전표번호 또는 거래처명 키워드
      * @param limit 요청 limit (null/0 이하이면 10, 최대 20)
      * @param slipTypes 조회 허용 전표유형 목록
      * @return UUID 없는 전표 검색 결과
@@ -1221,7 +1222,7 @@ public class SlipService {
             return List.of();
         }
         int effectiveLimit = Math.min(Math.max(limit, 1), 20);
-        return slipRepository.searchBySlipNoAndSlipTypeInLikeIgnoreCase(
+        return slipRepository.searchByKeywordAndSlipTypeIn(
                         normalized, List.copyOf(slipTypes), PageRequest.of(0, effectiveLimit))
                 .stream()
                 .map(SlipSearchResult::from)

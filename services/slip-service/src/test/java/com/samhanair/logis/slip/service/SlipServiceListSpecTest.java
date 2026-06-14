@@ -135,15 +135,15 @@ class SlipServiceListSpecTest {
     }
 
     @Test
-    void searchBySlipNo_returnsAutocompleteShapeWithoutUuid() {
+    void searchBySlipKeyword_filtersBySlipTypeAndReturnsAutocompleteShapeWithoutUuid() {
         Slip newer = Slip.createOutbound("2026/05/04-012", LocalDate.of(2026, 5, 4), 12,
                 UUID.randomUUID(), null, UUID.randomUUID(), "삼한공조", null, null, "tester");
         newer.addLine(SlipLine.create(newer, UUID.randomUUID(), "실외기", "ODU-1", null,
                 2, new BigDecimal("150000.00"), null));
-        when(slipRepository.searchBySlipNoLikeIgnoreCase("05/04", PageRequest.of(0, 10)))
+        when(slipRepository.searchByKeywordAndSlipTypeIn("05/04", List.of(SlipType.OUTBOUND), PageRequest.of(0, 10)))
                 .thenReturn(List.of(newer));
 
-        List<SlipSearchResult> results = service.searchBySlipNo(" 05/04 ", 10);
+        List<SlipSearchResult> results = service.searchBySlipNo(" 05/04 ", 10, List.of(SlipType.OUTBOUND));
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0).slipNo()).isEqualTo("2026/05/04-012");
@@ -151,5 +151,21 @@ class SlipServiceListSpecTest {
         assertThat(results.get(0).partnerName()).isEqualTo("삼한공조");
         assertThat(results.get(0).totalAmount()).isEqualByComparingTo(new BigDecimal("300000.00"));
         assertThat(results.get(0).slipDate()).isEqualTo(LocalDate.of(2026, 5, 4));
+    }
+
+    @Test
+    void searchBySlipKeyword_partnerNameKeywordKeepsRequestedSlipTypeFilter() {
+        Slip inbound = Slip.createInbound("2026/06/08-003", LocalDate.of(2026, 6, 8), 3,
+                UUID.randomUUID(), UUID.randomUUID(), "대구냉열", null, null, "tester");
+        inbound.addLine(SlipLine.create(inbound, UUID.randomUUID(), "필터", "FLT-1", null,
+                1, new BigDecimal("80000.00"), null));
+        when(slipRepository.searchByKeywordAndSlipTypeIn("대구", List.of(SlipType.INBOUND), PageRequest.of(0, 10)))
+                .thenReturn(List.of(inbound));
+
+        List<SlipSearchResult> results = service.searchBySlipNo("대구", 10, List.of(SlipType.INBOUND));
+
+        assertThat(results).extracting(SlipSearchResult::slipType).containsExactly(SlipType.INBOUND);
+        assertThat(results).extracting(SlipSearchResult::partnerName).containsExactly("대구냉열");
+        verify(slipRepository).searchByKeywordAndSlipTypeIn("대구", List.of(SlipType.INBOUND), PageRequest.of(0, 10));
     }
 }

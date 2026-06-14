@@ -30,6 +30,9 @@
   - `/admin/accounting/ledgers/partners/search?q=&limit=` — 거래처명/코드 LIKE(거래처원장은 거래처+기간 참조). {partnerCode, partnerName}.
   - 권한: 각 문서 조회 page-code VIEW 재사용(accounting.journals/tax-invoice.list/partner-ledger 등). 게이트웨이 /admin/accounting/** 라우트 확인/추가. UUID 비공개.
 
+## 다중 첨부 (개발책임자 2026-06-14)
+- **문서 참조 N개 + 파일 N개를 동적으로 추가/삭제**. "문서 참조 추가" 클릭 → 행(유형 select + 검색 picker) 누적, 각 행 삭제 가능. 파일도 다중 선택 + 행별 삭제. (CreatePage references[]/files[] 이미 배열 — 통합 picker 도 다중 행 유지. DetailPage 는 행 추가 시마다 첨부 누적.)
+
 ## FE (desktop) — 통합 picker
 - `components/groupware/DocumentReferencePicker.tsx`(신규, SlipReferencePicker 대체/흡수): **유형 Select(한국어 6종)** → 유형별 검색 입력(번호/키워드 debounce) → 드롭다운(번호·거래처/요약·금액·날짜) → 선택 시 refDocType/refDocNo/refDocLabel/(partner/period) 세팅. 거래처원장은 거래처 선택 + 기간(월) 입력.
 - CreatePage/DetailPage: 기존 "전표 참조" + "거래처원장 참조" 2버튼 → **단일 "문서 참조 추가"** + DocumentReferencePicker. 파일 업로드는 별도 유지.

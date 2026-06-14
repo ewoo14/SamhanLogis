@@ -72,6 +72,16 @@ public class ApprovalAttachment extends BaseEntity {
     @Column(name = "ref_period", length = 7)
     private String refPeriod;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ref_doc_type", length = 30)
+    private ApprovalReferenceDocType refDocType;
+
+    @Column(name = "ref_doc_no", length = 40)
+    private String refDocNo;
+
+    @Column(name = "ref_doc_label", length = 200)
+    private String refDocLabel;
+
     @Column(name = "storage_key", length = 500)
     private String storageKey;
 
@@ -114,6 +124,42 @@ public class ApprovalAttachment extends BaseEntity {
         }
         attachment.refSlipNo = refSlipNo.trim();
         attachment.refSlipType = refSlipType.trim();
+        attachment.refDocType = slipDocType(refSlipType);
+        attachment.refDocNo = attachment.refSlipNo;
+        attachment.refDocLabel = attachment.label;
+        return attachment;
+    }
+
+    /**
+     * 통합 문서 참조 첨부 생성.
+     *
+     * <p>{@link ApprovalAttachmentType} 은 기존 클라이언트 호환을 위해 유지하고, 실제 문서 종류는
+     * {@code refDocType} 으로 세분한다.
+     */
+    public static ApprovalAttachment documentRef(ApprovalLine approval, String label, int displayOrder,
+                                                 ApprovalReferenceDocType refDocType,
+                                                 String refDocNo, String refDocLabel) {
+        if (refDocType == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 문서 유형은 필수입니다");
+        }
+        if (refDocType == ApprovalReferenceDocType.PARTNER_LEDGER) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "거래처원장은 partnerLedgerRef 를 사용해야 합니다");
+        }
+        ApprovalAttachment attachment = new ApprovalAttachment(
+                approval, ApprovalAttachmentType.SLIP_REF, label, displayOrder);
+        if (refDocNo == null || refDocNo.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "참조 문서 번호는 필수입니다");
+        }
+        attachment.refDocType = refDocType;
+        attachment.refDocNo = refDocNo.trim();
+        attachment.refDocLabel = normalizeNullable(refDocLabel);
+        if (refDocType == ApprovalReferenceDocType.OUTBOUND_SLIP
+                || refDocType == ApprovalReferenceDocType.INBOUND_SLIP) {
+            attachment.refSlipNo = attachment.refDocNo;
+            attachment.refSlipType = refDocType == ApprovalReferenceDocType.OUTBOUND_SLIP
+                    ? "SLIP_OUTBOUND"
+                    : "SLIP_INBOUND";
+        }
         return attachment;
     }
 
@@ -135,6 +181,8 @@ public class ApprovalAttachment extends BaseEntity {
         attachment.refPartnerCode = refPartnerCode.trim();
         attachment.refPartnerName = refPartnerName.trim();
         attachment.refPeriod = refPeriod;
+        attachment.refDocType = ApprovalReferenceDocType.PARTNER_LEDGER;
+        attachment.refDocLabel = attachment.refPartnerName;
         return attachment;
     }
 
@@ -167,5 +215,16 @@ public class ApprovalAttachment extends BaseEntity {
     public ApprovalAttachment softDelete(String actor) {
         markDeleted(actor == null || actor.isBlank() ? "system" : actor);
         return this;
+    }
+
+    private static ApprovalReferenceDocType slipDocType(String refSlipType) {
+        String normalized = refSlipType == null ? "" : refSlipType.trim().toUpperCase();
+        return normalized.contains("INBOUND")
+                ? ApprovalReferenceDocType.INBOUND_SLIP
+                : ApprovalReferenceDocType.OUTBOUND_SLIP;
+    }
+
+    private static String normalizeNullable(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

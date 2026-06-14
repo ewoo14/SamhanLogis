@@ -16,10 +16,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
+import com.samhanair.logis.groupware.domain.ApprovalFieldType;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
+import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
 import com.samhanair.logis.groupware.domain.ApprovalTemplate;
 import com.samhanair.logis.groupware.domain.ApprovalTemplateField;
-import com.samhanair.logis.groupware.domain.ApprovalFieldType;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.dto.ApprovalTemplateRequest;
 import com.samhanair.logis.groupware.repository.ApprovalAttachmentRepository;
@@ -193,7 +194,25 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
                                 "refSlipNo", "2026/06/14-1",
                                 "refSlipType", "SLIP_OUTBOUND"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.attachmentType").value("SLIP_REF"));
+                .andExpect(jsonPath("$.data.attachmentType").value("SLIP_REF"))
+                .andExpect(jsonPath("$.data.refDocType").value("OUTBOUND_SLIP"))
+                .andExpect(jsonPath("$.data.refDocNo").value("2026/06/14-1"));
+
+        mvc.perform(post("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
+                        .header("X-User-Id", ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "attachmentType", ApprovalAttachmentType.SLIP_REF.name(),
+                                "refDocType", ApprovalReferenceDocType.JOURNAL.name(),
+                                "label", "분개장",
+                                "displayOrder", 2,
+                                "refDocNo", "2026/06/14-2",
+                                "refDocLabel", "운송료 매출"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.attachmentType").value("SLIP_REF"))
+                .andExpect(jsonPath("$.data.refDocType").value("JOURNAL"))
+                .andExpect(jsonPath("$.data.refDocNo").value("2026/06/14-2"))
+                .andExpect(jsonPath("$.data.refDocLabel").value("운송료 매출"));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "receipt.pdf", "application/pdf", "PDF".getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -209,7 +228,7 @@ class ApprovalTemplateAttachmentIT extends AbstractPostgresIT {
         String listBody = mvc.perform(get("/admin/groupware/approvals/{approvalId}/attachments", approval.getId())
                         .header("X-User-Id", ACTOR_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data.length()").value(3))
                 .andReturn().getResponse().getContentAsString();
         UUID attachmentId = UUID.fromString(objectMapper.readTree(listBody).path("data").get(0).path("id").asText());
 

@@ -3,6 +3,9 @@ package com.samhanair.logis.accounting.repository;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoiceType;
+import com.samhanair.logis.accounting.web.dto.AccountingLedgerPartnerSearchResponse;
+import com.samhanair.logis.accounting.web.dto.AccountingStatementSearchResponse;
+import com.samhanair.logis.accounting.web.dto.AccountingTaxInvoiceSearchResponse;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -108,6 +111,72 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
     List<TaxInvoice> findIssuedInRange(@Param("status") TaxInvoiceStatus status,
                                        @Param("from") LocalDate from,
                                        @Param("to") LocalDate to);
+
+    /**
+     * 그룹웨어 결재 첨부용 세금계산서 검색.
+     *
+     * <p>UUID 비공개 원칙에 따라 taxInvoiceNo / supplyDate / partnerName / totalAmount 만 반환한다.
+     */
+    @Query("""
+            SELECT new com.samhanair.logis.accounting.web.dto.AccountingTaxInvoiceSearchResponse(
+                t.taxInvoiceNo,
+                t.supplyDate,
+                t.partnerName,
+                t.totalAmount
+            )
+            FROM TaxInvoice t
+            WHERE t.taxInvoiceNo IS NOT NULL
+              AND (
+                    LOWER(t.taxInvoiceNo) LIKE LOWER(CONCAT('%', :q, '%'))
+                 OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+              )
+            ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
+            """)
+    List<AccountingTaxInvoiceSearchResponse> searchTaxInvoiceReferences(@Param("q") String q, Pageable pageable);
+
+    /**
+     * 그룹웨어 결재 첨부용 거래명세서 검색.
+     *
+     * <p>거래명세서 독립 엔티티가 없어 ISSUED 세금계산서 스냅샷을 근거 문서로 반환한다.
+     */
+    @Query("""
+            SELECT new com.samhanair.logis.accounting.web.dto.AccountingStatementSearchResponse(
+                t.taxInvoiceNo,
+                t.supplyDate,
+                t.partnerName,
+                t.totalAmount
+            )
+            FROM TaxInvoice t
+            WHERE t.status = com.samhanair.logis.accounting.domain.TaxInvoiceStatus.ISSUED
+              AND t.taxInvoiceNo IS NOT NULL
+              AND (
+                    LOWER(t.taxInvoiceNo) LIKE LOWER(CONCAT('%', :q, '%'))
+                 OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+              )
+            ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
+            """)
+    List<AccountingStatementSearchResponse> searchStatementReferences(@Param("q") String q, Pageable pageable);
+
+    /**
+     * 거래처원장 참조용 거래처 검색.
+     *
+     * <p>accounting-service 내부 거래처 마스터가 없으므로 세금계산서의 거래처 스냅샷을 사용한다.
+     */
+    @Query("""
+            SELECT DISTINCT new com.samhanair.logis.accounting.web.dto.AccountingLedgerPartnerSearchResponse(
+                t.partnerCode,
+                t.partnerName
+            )
+            FROM TaxInvoice t
+            WHERE t.partnerCode IS NOT NULL
+              AND t.partnerCode <> ''
+              AND (
+                    LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', :q, '%'))
+                 OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+              )
+            ORDER BY t.partnerName ASC, t.partnerCode ASC
+            """)
+    List<AccountingLedgerPartnerSearchResponse> searchLedgerPartnerReferences(@Param("q") String q, Pageable pageable);
 
     /**
      * 부가세신고서 집계 — ISSUED 상태 + invoiceType + 공급일자 범위 기준 합계.

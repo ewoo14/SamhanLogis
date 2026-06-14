@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.dto;
 
 import com.samhanair.logis.groupware.domain.ApprovalAttachment;
 import com.samhanair.logis.groupware.domain.ApprovalAttachmentType;
+import com.samhanair.logis.groupware.domain.ApprovalReferenceDocType;
 import java.util.UUID;
 
 /**
@@ -16,6 +17,9 @@ import java.util.UUID;
  * @param refPartnerCode 거래처 코드
  * @param refPartnerName 거래처명
  * @param refPeriod 원장 기간
+ * @param refDocType 참조 문서 세부 유형
+ * @param refDocNo 참조 문서 번호
+ * @param refDocLabel 참조 문서 표시 요약
  * @param fileName 파일명
  * @param contentType MIME
  * @param fileSize 파일 크기
@@ -31,6 +35,9 @@ public record ApprovalAttachmentResponse(
         String refPartnerCode,
         String refPartnerName,
         String refPeriod,
+        ApprovalReferenceDocType refDocType,
+        String refDocNo,
+        String refDocLabel,
         String fileName,
         String contentType,
         Long fileSize,
@@ -47,7 +54,8 @@ public record ApprovalAttachmentResponse(
         return new ApprovalAttachmentResponse(attachment.getId(), attachment.getAttachmentType(),
                 attachment.getLabel(), attachment.getDisplayOrder(), attachment.getRefSlipNo(),
                 attachment.getRefSlipType(), attachment.getRefPartnerCode(), attachment.getRefPartnerName(),
-                attachment.getRefPeriod(), attachment.getFileName(), attachment.getContentType(),
+                attachment.getRefPeriod(), attachment.getRefDocType(), attachment.getRefDocNo(),
+                attachment.getRefDocLabel(), attachment.getFileName(), attachment.getContentType(),
                 attachment.getFileSize(), downloadUrl);
     }
 }
