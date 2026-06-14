@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { stripSlipNoZeros } from '../../src/renderer/utils/orderNo'
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')
 
 function read(relativePath: string): string {
@@ -10,6 +12,19 @@ function read(relativePath: string): string {
 }
 
 test.describe('print preview standardization slice 1 source contract', () => {
+  test('stripSlipNoZeros keeps date zeros and strips only the final slip number zeros', () => {
+    // Playwright mock hard gate에서 전표번호 인쇄 표시 계약을 직접 검증한다.
+    expect(stripSlipNoZeros('2026/04/08-001')).toBe('2026/04/08-1')
+    expect(stripSlipNoZeros('2026/02/18-010')).toBe('2026/02/18-10')
+    expect(stripSlipNoZeros('-000')).toBe('-0')
+
+    expect(stripSlipNoZeros(null)).toBe('')
+    expect(stripSlipNoZeros(undefined)).toBe('')
+    expect(stripSlipNoZeros('')).toBe('')
+    expect(stripSlipNoZeros('2026/04/08')).toBe('2026/04/08')
+    expect(stripSlipNoZeros('2026/04/08-ABC')).toBe('2026/04/08-ABC')
+  })
+
   test('PrintLayout exposes opt-in approval document slots only', () => {
     const source = read('clients/desktop/src/renderer/print/PrintLayout.tsx')
 
