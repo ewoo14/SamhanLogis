@@ -8,6 +8,7 @@ import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
 import type { ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import {
   attachmentDetails,
+  attachmentTitle,
   buildApprovalSteps,
   buildDocHeader,
   contentParagraphs,
@@ -119,6 +120,21 @@ describe('buildApprovalSteps', () => {
     expect(steps[1]?.decidedAt).toBe('2026-06-01T09:00:00')
     expect(steps[2]?.decidedAt).toBeUndefined()
     expect(steps[3]?.decidedAt).toBeUndefined()
+  })
+
+  it('approverName 이 null 이면 결재칸 이름을 - 로 표시한다', () => {
+    const steps = buildApprovalSteps(approval({
+      steps: [step({ sequence: 1, approverName: null, status: 'PENDING' })],
+    }))
+
+    expect(steps[1]?.name).toBe('-')
+  })
+
+  it('빈 steps 는 작성칸만 반환하고 결재칸을 만들지 않는다', () => {
+    const steps = buildApprovalSteps(approval({ steps: [] }))
+
+    expect(steps).toHaveLength(1)
+    expect(steps[0]?.label).toBe('작성')
   })
 
   it('sequence 순으로 정렬한다', () => {
@@ -237,6 +253,40 @@ describe('fieldRows', () => {
     )
 
     expect(rows[0]?.label).toBe('청구 금액')
+  })
+})
+
+describe('attachmentTitle', () => {
+  it('label 을 우선 사용한다', () => {
+    expect(attachmentTitle(attachment({
+      label: '사용자 라벨',
+      refDocLabel: '참조 라벨',
+      fileName: 'approval.pdf',
+    }))).toBe('사용자 라벨')
+  })
+
+  it('label 이 null 이면 refDocLabel 을 사용한다', () => {
+    expect(attachmentTitle(attachment({
+      label: null,
+      refDocLabel: '참조 라벨',
+      fileName: 'approval.pdf',
+    }))).toBe('참조 라벨')
+  })
+
+  it('label 과 refDocLabel 이 null 이면 fileName 을 사용한다', () => {
+    expect(attachmentTitle(attachment({
+      label: null,
+      refDocLabel: null,
+      fileName: 'approval.pdf',
+    }))).toBe('approval.pdf')
+  })
+
+  it('label, refDocLabel, fileName 이 모두 null 이면 - 로 표시한다', () => {
+    expect(attachmentTitle(attachment({
+      label: null,
+      refDocLabel: null,
+      fileName: null,
+    }))).toBe('-')
   })
 })
 
