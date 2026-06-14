@@ -97,7 +97,8 @@ test.describe('§7 그룹웨어 결재 확장 실 QA — 템플릿 빌더 + 동�
     await page.waitForTimeout(600)
     await page.getByTestId('groupware-approval-create-title').fill('실서버 QA — 6월 택배비 지출결의')
     await page.getByTestId('approver-search-input').fill(APPROVER_SEARCH_QUERY)
-    await page.getByRole('option').first().click({ timeout: 10_000 })
+    await page.waitForTimeout(1_200) // debounce + approver-search 응답 대기
+    await page.getByRole('listbox', { name: '결재자 검색 결과' }).getByRole('option').first().click({ timeout: 10_000 })
     await expect(page.getByTestId('approver-chip')).toHaveCount(1)
     // 동적 필드 (지출결의서: expenseItem/amount/account/spentAt/memo)
     await page.getByTestId('dynamic-approval-field-expenseItem').fill('택배비(6월)')
