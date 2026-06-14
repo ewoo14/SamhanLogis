@@ -18,25 +18,25 @@
 -- 범위 외다.
 
 UPDATE sales_accounting_slips
-SET slip_no = regexp_replace(slip_no, '-0+([0-9])', '-\1')
-WHERE slip_no ~ '-0[0-9]';
+SET slip_no = regexp_replace(slip_no, '^([0-9]{4}/[0-9]{2}/[0-9]{2})-0+([1-9][0-9]*)$', '\1-\2')
+WHERE slip_no ~ '^[0-9]{4}/[0-9]{2}/[0-9]{2}-0+[1-9][0-9]*$';
 
 UPDATE purchase_accounting_slips
-SET slip_no = regexp_replace(slip_no, '-0+([0-9])', '-\1')
-WHERE slip_no ~ '-0[0-9]';
+SET slip_no = regexp_replace(slip_no, '^([0-9]{4}/[0-9]{2}/[0-9]{2})-0+([1-9][0-9]*)$', '\1-\2')
+WHERE slip_no ~ '^[0-9]{4}/[0-9]{2}/[0-9]{2}-0+[1-9][0-9]*$';
 
 UPDATE sales_accounting_slip_allocations
-SET source_slip_no = regexp_replace(source_slip_no, '-0+([0-9])', '-\1')
-WHERE source_slip_no ~ '-0[0-9]';
+SET source_slip_no = regexp_replace(source_slip_no, '^([0-9]{4}/[0-9]{2}/[0-9]{2})-0+([1-9][0-9]*)$', '\1-\2')
+WHERE source_slip_no ~ '^[0-9]{4}/[0-9]{2}/[0-9]{2}-0+[1-9][0-9]*$';
 
 UPDATE purchase_accounting_slip_allocations
-SET source_slip_no = regexp_replace(source_slip_no, '-0+([0-9])', '-\1')
-WHERE source_slip_no ~ '-0[0-9]';
+SET source_slip_no = regexp_replace(source_slip_no, '^([0-9]{4}/[0-9]{2}/[0-9]{2})-0+([1-9][0-9]*)$', '\1-\2')
+WHERE source_slip_no ~ '^[0-9]{4}/[0-9]{2}/[0-9]{2}-0+[1-9][0-9]*$';
 
 UPDATE tax_invoices
-SET tax_invoice_no = regexp_replace(tax_invoice_no, '-0+([0-9])', '-\1')
-WHERE tax_invoice_no ~ '-0[0-9]';
+SET tax_invoice_no = regexp_replace(tax_invoice_no, '^([0-9]{4}/[0-9]{2}/[0-9]{2})-0+([1-9][0-9]*)$', '\1-\2')
+WHERE tax_invoice_no ~ '^[0-9]{4}/[0-9]{2}/[0-9]{2}-0+[1-9][0-9]*$';
 
 UPDATE tax_invoice_batches
-SET excluded_slip_nos = regexp_replace(excluded_slip_nos, '-0+([0-9])', '-\1', 'g')
-WHERE excluded_slip_nos ~ '-0[0-9]';
+SET excluded_slip_nos = regexp_replace(excluded_slip_nos, '([0-9]{4}/[0-9]{2}/[0-9]{2})-0+([1-9][0-9]*)', '\1-\2', 'g')
+WHERE excluded_slip_nos ~ '[0-9]{4}/[0-9]{2}/[0-9]{2}-0+[1-9][0-9]*';

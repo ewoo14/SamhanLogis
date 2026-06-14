@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class SalesAccountingSlipNumberGenerator {
     /** PoC = timestamp 기반. 운영 cycle 2 에서 DB sequence generator 로 교체. */
     public String next(LocalDate date) {
-        return format(date, (int) (System.currentTimeMillis() % 10000));
+        return format(date, (int) (Math.floorMod(System.currentTimeMillis(), 10_000) + 1));
     }
 
     static String format(LocalDate date, int sequence) {
