@@ -36,6 +36,7 @@ interface ApiEnvelope<T> {
 interface ApprovalStepView {
   sequence: number
   approverName: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
   decidedAt: string | null
 }
 
@@ -71,7 +72,7 @@ function finalDecidedAtForQa(steps: ApprovalStepView[]): string | undefined {
   const decided = steps
     .slice()
     .sort((a, b) => a.sequence - b.sequence)
-    .filter((step) => Boolean(step.decidedAt))
+    .filter((step) => step.status === 'APPROVED' && Boolean(step.decidedAt))
   const last = decided.length > 0 ? decided[decided.length - 1] : undefined
   return last?.decidedAt ?? undefined
 }
@@ -147,7 +148,8 @@ async function fetchMultiStepApprovedApproval(token: string): Promise<string | n
           try {
             const body = JSON.parse(d) as ApiEnvelope<ApprovalLineAdminResponse[]>
             const approval = body.data.find((item) =>
-              item.steps.length >= 2 && item.steps.some((step) => Boolean(step.decidedAt)),
+              item.steps.length >= 2
+              && item.steps.some((step) => step.status === 'APPROVED' && Boolean(step.decidedAt)),
             )
             resolve(approval?.approvalId ?? null)
           } catch {

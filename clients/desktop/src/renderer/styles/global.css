@@ -1820,7 +1820,7 @@ button {
   .paper-a4-portrait .print-approval-doc {
     min-height: 0;
   }
-  .paper-a4-portrait .print-approval-body {
+  .paper-a4-portrait .print-approval-doc .print-approval-body {
     flex: 0 0 auto;
   }
 }
@@ -1831,7 +1831,7 @@ button {
  * 좌측 최상단이 문서제목 h1, 그 아래 문서메타, 우측 상단 코너가 결재란 박스.
  * 좌측은 가변(flex:1), 우측 결재란 박스는 고정폭으로 컴팩트하게.
  */
-.print-approval-doc-header {
+.print-approval-doc .print-approval-doc-header {
   min-height: 28mm;
   display: flex;
   flex-direction: row;
@@ -1842,7 +1842,7 @@ button {
 }
 
 /* 좌측 = 문서제목 + 문서메타 세로 적층(회사명 블록 제거됨). */
-.print-approval-doc-headline {
+.print-approval-doc .print-approval-doc-headline {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
@@ -1851,7 +1851,7 @@ button {
 }
 
 /* 문서제목(h1) + 메타(문서번호/발행일/기간). 좌측 최상단 정렬. */
-.print-approval-doc-meta {
+.print-approval-doc .print-approval-doc-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1860,7 +1860,7 @@ button {
   color: #000;
 }
 
-.print-approval-doc-meta h1 {
+.print-approval-doc .print-approval-doc-meta h1 {
   margin: 0 0 2mm 0;
   font-size: 18pt;
   font-weight: 700;
@@ -1869,27 +1869,27 @@ button {
   text-align: left;
 }
 
-.print-approval-doc-meta div {
+.print-approval-doc .print-approval-doc-meta div {
   display: flex;
   justify-content: flex-start;
   gap: 2mm;
   line-height: 1.35;
 }
 
-.print-approval-doc-meta span {
+.print-approval-doc .print-approval-doc-meta span {
   color: var(--ink-secondary, #5C6773);
 }
 
-.print-approval-doc-meta strong {
+.print-approval-doc .print-approval-doc-meta strong {
   font-weight: 600;
   color: #000;
 }
 
-.print-approval-divider {
+.print-approval-doc .print-approval-divider {
   border-top: 1px solid var(--print-line-color, #000);
 }
 
-.print-approval-body {
+.print-approval-doc .print-approval-body {
   flex: 1 1 auto;
 }
 
@@ -1897,14 +1897,14 @@ button {
  * 결재란 박스 = 헤더 우측 상단 코너 고정폭(컴팩트). 전체폭 grid 아님.
  * 칸 폭은 --print-approval-corner-col(고정폭) × N칸. 인쇄/화면 동일.
  */
-.print-approval-section {
+.print-approval-doc .print-approval-section {
   flex: 0 0 auto;
   align-self: flex-start;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 
-.print-approval-grid {
+.print-approval-doc .print-approval-grid {
   display: grid;
   /* 칸 폭(grid-template-columns)은 PrintLayout 인라인 style 이 코너 토큰 고정폭 × N칸으로 지정.
      전체폭(1fr) 아니라 칸당 고정폭이라 박스가 우측 상단 코너에 컴팩트하게 자리한다. */
@@ -1912,7 +1912,7 @@ button {
   border-left: var(--print-approval-border, 1px solid #000);
 }
 
-.print-approval-cell {
+.print-approval-doc .print-approval-cell {
   display: grid;
   /* 우측 상단 코너 컴팩트 높이 — 라벨 + 서명칸 + 이름/날짜. */
   grid-template-rows:
@@ -1924,7 +1924,7 @@ button {
   border-bottom: var(--print-approval-border, 1px solid #000);
 }
 
-.print-approval-label {
+.print-approval-doc .print-approval-label {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1934,18 +1934,18 @@ button {
   font-weight: 600;
 }
 
-.print-approval-signature {
+.print-approval-doc .print-approval-signature {
   min-width: 0;
   padding: 0.8mm 1mm;
   border-bottom: var(--print-approval-border, 1px solid #000);
 }
 
-.print-approval-signature-viewer {
+.print-approval-doc .print-approval-signature-viewer {
   height: 100%;
   gap: 0;
 }
 
-.print-approval-signature-viewer > div:first-child {
+.print-approval-doc .print-approval-signature-viewer > div:first-child {
   width: 100%;
   height: 100%;
   max-height: var(--print-approval-corner-sig-h, 13mm);
@@ -1954,19 +1954,19 @@ button {
   border-radius: 0;
 }
 
-.print-approval-signature-viewer img {
+.print-approval-doc .print-approval-signature-viewer img {
   max-height: var(--print-approval-corner-sig-img-h, 11mm);
 }
 
-.print-approval-signature-viewer > div:first-child > div {
+.print-approval-doc .print-approval-signature-viewer > div:first-child > div {
   color: transparent;
 }
 
-.print-approval-signature-viewer dl {
+.print-approval-doc .print-approval-signature-viewer dl {
   display: none;
 }
 
-.print-approval-name {
+.print-approval-doc .print-approval-name {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1999,7 +1999,7 @@ button {
   overflow-wrap: anywhere;
 }
 
-.print-approval-name time {
+.print-approval-doc .print-approval-name time {
   min-height: 7pt;
   font-size: 6.5pt;
   color: var(--ink-secondary, #5C6773);
@@ -2010,7 +2010,7 @@ button {
  * 정중한 품의/제출 멘트 — 본문 divider 아래, 결재 서류용 closing note.
  * (2026-06-14 개발책임자 디자인 iteration 2 신규.) 가운데 정렬 + 약간 큰 글씨.
  */
-.print-approval-closing {
+.print-approval-doc .print-approval-closing {
   margin: 3mm 0 1mm 0;
   font-size: 10.5pt;
   font-weight: 500;
@@ -2019,7 +2019,7 @@ button {
 }
 
 /* 전자서명 안내 문구 — closing note 아래, 더 작고 흐린 글씨(테스트 계약 단언 대상). */
-.print-approval-notice {
+.print-approval-doc .print-approval-notice {
   margin: 1mm 0 0 0;
   font-size: 8pt;
   text-align: center;
@@ -2035,28 +2035,28 @@ button {
  * 헤더를 세로 적층(문서정보 위 → 결재란 박스 아래)하고, 결재란도 칸을 세로로 쌓아
  * 박스가 깨지지 않게 보수적으로 처리한다.
  */
-.paper-receipt-88mm .print-approval-doc-header {
+.paper-receipt-88mm .print-approval-doc .print-approval-doc-header {
   min-height: auto;
   flex-direction: column;
   gap: 2mm;
 }
 
-.paper-receipt-88mm .print-approval-doc-meta {
+.paper-receipt-88mm .print-approval-doc .print-approval-doc-meta {
   align-items: flex-start;
 }
 
-.paper-receipt-88mm .print-approval-doc-meta h1 {
+.paper-receipt-88mm .print-approval-doc .print-approval-doc-meta h1 {
   text-align: left;
   font-size: 16pt;
 }
 
-.paper-receipt-88mm .print-approval-section {
+.paper-receipt-88mm .print-approval-doc .print-approval-section {
   align-self: stretch;
   width: 100%;
 }
 
 /* 88mm 는 폭이 좁아 칸을 세로로 1열 적층 (인라인 고정폭 × N칸을 !important 로 덮음). */
-.paper-receipt-88mm .print-approval-grid {
+.paper-receipt-88mm .print-approval-doc .print-approval-grid {
   grid-template-columns: 1fr !important;
 }
 

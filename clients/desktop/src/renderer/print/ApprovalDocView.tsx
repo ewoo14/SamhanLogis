@@ -36,14 +36,19 @@ function buildApprovalStep(label: string, name: string, decidedAt?: string): Pri
   return step
 }
 
+function displayNameOrFallback(value: string | null | undefined): string {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : '-'
+}
+
 function buildApprovalSteps(approval: ApprovalLineAdminResponse): PrintApprovalStep[] {
   const sortedSteps = [...approval.steps].sort((a, b) => a.sequence - b.sequence)
   return [
-    buildApprovalStep('작성', approval.requesterName ?? '-'),
+    buildApprovalStep('작성', displayNameOrFallback(approval.requesterName)),
     ...sortedSteps.map((step, index) => {
       const label = index === sortedSteps.length - 1 ? '결재' : '합의'
       const decidedAt = step.status === 'APPROVED' ? step.decidedAt ?? undefined : undefined
-      return buildApprovalStep(label, step.approverName ?? '-', decidedAt)
+      return buildApprovalStep(label, displayNameOrFallback(step.approverName), decidedAt)
     }),
   ]
 }
@@ -52,7 +57,7 @@ function finalDecidedAt(steps: ApprovalStepView[]): string | undefined {
   const decided = steps
     .slice()
     .sort((a, b) => a.sequence - b.sequence)
-    .filter((step) => Boolean(step.decidedAt))
+    .filter((step) => step.status === 'APPROVED' && Boolean(step.decidedAt))
   const last = decided.length > 0 ? decided[decided.length - 1] : undefined
   return last?.decidedAt ?? undefined
 }
@@ -82,17 +87,37 @@ function fieldRows(
   fields: ApprovalTemplateField[],
 ): Array<{ key: string; label: string; value: string; fieldType: ApprovalTemplateField['fieldType'] }> {
   const fieldsByKey = fieldMap(fields)
-  return Object.entries(fieldValues)
-    .filter(([, value]) => value.trim().length > 0)
-    .map(([key, value]) => {
+  const entries = Object.entries(fieldValues)
+    .map(([key, value]) => [key, value.trim()] as const)
+    .filter(([, value]) => value.length > 0)
+  const rowByKey = new Map(entries)
+  const templateRows = fields
+    .map((field) => {
+      const value = rowByKey.get(field.fieldKey)
+      if (!value) return null
+      return {
+        key: field.fieldKey,
+        label: field.label,
+        value,
+        fieldType: field.fieldType,
+      }
+    })
+    .filter((row): row is { key: string; label: string; value: string; fieldType: ApprovalTemplateField['fieldType'] } =>
+      row !== null,
+    )
+  const knownKeys = new Set(fields.map((field) => field.fieldKey))
+  const extraRows = entries
+    .filter(([key]) => !knownKeys.has(key))
+    .map(([key, value], index) => {
       const field = fieldsByKey.get(key)
       return {
         key,
-        label: field?.label ?? key,
+        label: field?.label ?? `추가 필드 ${index + 1}`,
         value,
         fieldType: field?.fieldType ?? 'TEXT',
       }
     })
+  return [...templateRows, ...extraRows]
 }
 
 function attachmentTitle(attachment: ApprovalAttachment): string {
@@ -104,7 +129,7 @@ function attachmentTitle(attachment: ApprovalAttachment): string {
 
 function attachmentDetails(attachment: ApprovalAttachment): string[] {
   return [
-    attachment.refSlipNo ? stripSlipNoZeros(attachment.refSlipNo) : '',
+    attachment.refSlipNo ? stripSlipNoZeros(attachment.refSlipNo) : attachment.refDocNo ?? '',
     attachment.refPartnerName ?? '',
     attachment.refPeriod ?? '',
   ].filter((value) => value.length > 0)
@@ -143,7 +168,11 @@ export function ApprovalDocView() {
   if (approvalQuery.isLoading || attachmentsQuery.isLoading || isTemplateLoading) {
     return <p>불러오는 중...</p>
   }
-  if (approvalQuery.isError || attachmentsQuery.isError || !approvalQuery.data) {
+  if (
+    approvalQuery.isError
+    || attachmentsQuery.isError
+    || !approvalQuery.data
+  ) {
     return (
       <div className="error-banner" role="alert">
         결재문서를 불러오지 못했습니다.
