@@ -26,6 +26,10 @@ export function toApprovalSlipReferenceType(slipType: SlipSearchType): ApprovalS
   return slipType === 'INBOUND' ? 'SLIP_INBOUND' : 'SLIP_OUTBOUND'
 }
 
+export function toSlipSearchType(value: string | null | undefined): SlipSearchType {
+  return value === 'SLIP_INBOUND' || value === 'INBOUND' ? 'INBOUND' : 'OUTBOUND'
+}
+
 export function approvalSlipTypeLabel(value: string | null | undefined): string {
   if (value === 'SLIP_OUTBOUND' || value === 'SLIP_INBOUND' || value === 'ACCOUNTING_VOUCHER') {
     return APPROVAL_SLIP_TYPE_LABEL[value]
@@ -35,11 +39,11 @@ export function approvalSlipTypeLabel(value: string | null | undefined): string 
   return ''
 }
 
-export async function searchSlips(q: string, limit = 10): Promise<SlipSearchResult[]> {
+export async function searchSlips(q: string, limit = 10, slipType?: SlipSearchType): Promise<SlipSearchResult[]> {
   const keyword = q.trim()
   if (!keyword) return []
   const res = await apiClient.get<ApiEnvelope<SlipSearchResult[]>>('/admin/slips/search', {
-    params: { q: keyword, limit },
+    params: { q: keyword, limit, ...(slipType ? { slipType } : {}) },
   })
   return res.data.data ?? []
 }

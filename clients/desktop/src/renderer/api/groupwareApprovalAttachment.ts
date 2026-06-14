@@ -4,6 +4,7 @@
  * UUID 는 path/key 전용이다. 화면에는 전표번호, 거래처명, 기간, 파일명만 노출한다.
  */
 import { apiClient, type ApiEnvelope } from './client'
+import type { ApprovalReferenceDocType } from './documentReferenceSearch'
 
 export type ApprovalAttachmentType = 'SLIP_REF' | 'PARTNER_LEDGER_REF' | 'FILE'
 
@@ -23,6 +24,9 @@ export interface ApprovalAttachment {
   refPartnerCode: string | null
   refPartnerName: string | null
   refPeriod: string | null
+  refDocType: ApprovalReferenceDocType | null
+  refDocNo: string | null
+  refDocLabel: string | null
   fileName: string | null
   contentType: string | null
   fileSize: number | null
@@ -38,6 +42,9 @@ export interface ApprovalAttachmentReferenceInput {
   refPartnerCode?: string | null
   refPartnerName?: string | null
   refPeriod?: string | null
+  refDocType?: ApprovalReferenceDocType | null
+  refDocNo?: string | null
+  refDocLabel?: string | null
 }
 
 export function approvalAttachmentDownloadUrl(approvalId: string, attachmentId: string): string {
@@ -66,6 +73,9 @@ export async function addApprovalAttachmentReference(
       refPartnerCode: input.refPartnerCode?.trim() || null,
       refPartnerName: input.refPartnerName?.trim() || null,
       refPeriod: input.refPeriod?.trim() || null,
+      refDocType: input.refDocType ?? null,
+      refDocNo: input.refDocNo?.trim() || null,
+      refDocLabel: input.refDocLabel?.trim() || null,
     },
   )
   return res.data.data

@@ -2079,12 +2079,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && /\/(?:admin\/)?slips\/search(?:\?|$)/.test(url)) {
     const params = new URLSearchParams(url.split('?')[1] ?? '')
     const q = (params.get('q') ?? '').trim().toLowerCase()
+    const slipType = params.get('slipType')
     const rawLimit = Number(params.get('limit') ?? '10')
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 20)
     const rows = !q
       ? []
       : [...MOCK_SLIPS]
-        .filter((slip) => String(slip.slipNo).toLowerCase().includes(q))
+        .filter((slip) => {
+          const typeMatched = slipType === 'OUTBOUND' || slipType === 'INBOUND'
+            ? slip.slipType === slipType
+            : true
+          const keywordMatched = String(slip.slipNo).toLowerCase().includes(q)
+            || String(slip.partnerName ?? '').toLowerCase().includes(q)
+          return typeMatched && keywordMatched
+        })
         .sort((a, b) => {
           const dateCompare = String(b.slipDate).localeCompare(String(a.slipDate))
           if (dateCompare !== 0) return dateCompare
@@ -2102,6 +2110,80 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           }
         })
     return envelope(rows)
+  }
+
+  // GET /admin/accounting/*/search — 그룹웨어 결재 통합 문서 참조 자동완성.
+  if (method === 'GET' && /\/admin\/accounting\/(?:journals|tax-invoices|statements|ledgers\/partners)\/search(?:\?|$)/.test(url)) {
+    const params = new URLSearchParams(url.split('?')[1] ?? '')
+    const q = (params.get('q') ?? '').trim().toLowerCase()
+    const rawLimit = Number(params.get('limit') ?? '10')
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 20)
+    const contains = (value: unknown) => String(value ?? '').toLowerCase().includes(q)
+    if (!q) return envelope([])
+
+    if (url.includes('/admin/accounting/journals/search')) {
+      return envelope(
+        MOCK_JOURNALS
+          .filter((journal) => contains(journal.journalNo) || contains(journal.description))
+          .sort((a, b) => String(b.journalDate).localeCompare(String(a.journalDate)))
+          .slice(0, limit)
+          .map((journal) => ({
+            journalNo: journal.journalNo,
+            journalDate: journal.journalDate,
+            description: journal.description,
+            totalAmount: journal.totalDebit,
+          })),
+      )
+    }
+
+    if (url.includes('/admin/accounting/tax-invoices/search')) {
+      return envelope(
+        MOCK_TAX_INVOICES
+          .filter((invoice) => contains(invoice.taxInvoiceNo) || contains(invoice.partnerName))
+          .sort((a, b) => String(b.supplyDate).localeCompare(String(a.supplyDate)))
+          .slice(0, limit)
+          .map((invoice) => ({
+            taxInvoiceNo: invoice.taxInvoiceNo ?? invoice.description,
+            date: invoice.supplyDate,
+            partnerName: invoice.partnerName,
+            amount: invoice.totalAmount,
+          })),
+      )
+    }
+
+    if (url.includes('/admin/accounting/statements/search')) {
+      return envelope(
+        MOCK_TAX_INVOICES
+          .filter((invoice) => contains(invoice.taxInvoiceNo) || contains(invoice.partnerName))
+          .sort((a, b) => String(b.supplyDate).localeCompare(String(a.supplyDate)))
+          .slice(0, limit)
+          .map((invoice) => ({
+            statementNo: invoice.taxInvoiceNo ?? invoice.description,
+            date: invoice.supplyDate,
+            partnerName: invoice.partnerName,
+            amount: invoice.totalAmount,
+          })),
+      )
+    }
+
+    const ledgerPartners = [
+      ...MOCK_TAX_INVOICES.map((invoice) => ({
+        partnerCode: invoice.partnerCode,
+        partnerName: invoice.partnerName,
+      })),
+      { partnerCode: 'P-WILLY-001', partnerName: '주식회사 윌리' },
+      { partnerCode: 'P-HANIL-002', partnerName: '한일빌딩' },
+      { partnerCode: 'P-NAVER-003', partnerName: '네이버' },
+    ]
+    const unique = new Map<string, { partnerCode: string; partnerName: string }>()
+    for (const partner of ledgerPartners) {
+      if (!unique.has(partner.partnerCode)) unique.set(partner.partnerCode, partner)
+    }
+    return envelope(
+      [...unique.values()]
+        .filter((partner) => contains(partner.partnerCode) || contains(partner.partnerName))
+        .slice(0, limit),
+    )
   }
 
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
@@ -5529,6 +5611,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       refPartnerCode: null,
       refPartnerName: null,
       refPeriod: null,
+      refDocType: null,
+      refDocNo: null,
+      refDocLabel: null,
       fileName: file.name,
       contentType: file.type || 'application/octet-stream',
       fileSize: file.size,
@@ -5574,6 +5659,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         refPartnerCode: body.refPartnerCode ?? null,
         refPartnerName: body.refPartnerName ?? null,
         refPeriod: body.refPeriod ?? null,
+        refDocType: body.refDocType ?? (
+          type === 'PARTNER_LEDGER_REF'
+            ? 'PARTNER_LEDGER'
+            : body.refSlipType === 'SLIP_INBOUND' || body.refSlipType === 'INBOUND'
+              ? 'INBOUND_SLIP'
+              : 'OUTBOUND_SLIP'
+        ),
+        refDocNo: body.refDocNo ?? body.refSlipNo ?? null,
+        refDocLabel: body.refDocLabel ?? body.refPartnerName ?? body.label ?? null,
         fileName: null,
         contentType: null,
         fileSize: null,
@@ -9214,6 +9308,9 @@ const MOCK_GROUPWARE_APPROVAL_ATTACHMENTS: Record<string, ApprovalAttachment[]> 
       refPartnerCode: null,
       refPartnerName: null,
       refPeriod: null,
+      refDocType: 'OUTBOUND_SLIP',
+      refDocNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-1`,
+      refDocLabel: '정산 대상 전표',
       fileName: null,
       contentType: null,
       fileSize: null,
@@ -9229,6 +9326,9 @@ const MOCK_GROUPWARE_APPROVAL_ATTACHMENTS: Record<string, ApprovalAttachment[]> 
       refPartnerCode: null,
       refPartnerName: null,
       refPeriod: null,
+      refDocType: null,
+      refDocNo: null,
+      refDocLabel: null,
       fileName: 'dispatch-settlement.pdf',
       contentType: 'application/pdf',
       fileSize: 123456,

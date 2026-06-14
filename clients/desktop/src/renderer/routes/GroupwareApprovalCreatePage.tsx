@@ -16,23 +16,19 @@ import {
   type ApprovalAttachmentReferenceInput,
 } from '../api/groupwareApprovalAttachment'
 import {
+  APPROVAL_REFERENCE_DOC_TYPE_LABEL,
+  type ApprovalReferenceDocType,
+} from '../api/documentReferenceSearch'
+import {
   listActiveApprovalTemplates,
   type ApprovalTemplate,
 } from '../api/groupwareApprovalTemplate'
 import { DynamicApprovalFieldInput } from '../components/groupware/DynamicApprovalFieldInput'
-import { SlipReferencePicker } from '../components/groupware/SlipReferencePicker'
+import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
-interface ReferenceDraft {
-  type: 'SLIP_REF' | 'PARTNER_LEDGER_REF'
-  label: string
-  refSlipNo: string
-  refSlipType: string
-  refPartnerCode: string
-  refPartnerName: string
-  refPeriod: string
-}
+type ReferenceDraft = DocumentReferenceValue
 
 interface FileDraft {
   file: File
@@ -55,33 +51,39 @@ function parseApproverIds(value: string): string[] {
 }
 
 function buildReferenceInput(draft: ReferenceDraft, displayOrder: number): ApprovalAttachmentReferenceInput {
-  if (draft.type === 'SLIP_REF') {
+  const label = APPROVAL_REFERENCE_DOC_TYPE_LABEL[draft.refDocType]
+  if (draft.refDocType === 'PARTNER_LEDGER') {
     return {
-      attachmentType: 'SLIP_REF',
-      label: draft.label || '전표 참조',
+      attachmentType: 'PARTNER_LEDGER_REF',
+      label,
       displayOrder,
-      refSlipNo: draft.refSlipNo,
-      refSlipType: draft.refSlipType,
+      refDocType: draft.refDocType,
+      refDocNo: null,
+      refDocLabel: draft.refDocLabel,
+      refPartnerCode: draft.refPartnerCode,
+      refPartnerName: draft.refPartnerName,
+      refPeriod: draft.refPeriod,
     }
   }
   return {
-    attachmentType: 'PARTNER_LEDGER_REF',
-    label: draft.label || '거래처원장 참조',
+    attachmentType: 'SLIP_REF',
+    label,
     displayOrder,
-    refPartnerCode: draft.refPartnerCode,
-    refPartnerName: draft.refPartnerName,
-    refPeriod: draft.refPeriod,
+    refDocType: draft.refDocType,
+    refDocNo: draft.refDocNo,
+    refDocLabel: draft.refDocLabel,
+    refSlipNo: draft.refDocNo,
+    refSlipType: draft.refDocType === 'INBOUND_SLIP' ? 'SLIP_INBOUND' : 'SLIP_OUTBOUND',
   }
 }
 
-function emptyReferenceDraft(type: ReferenceDraft['type']): ReferenceDraft {
+function emptyReferenceDraft(type: ApprovalReferenceDocType = 'OUTBOUND_SLIP'): ReferenceDraft {
   return {
-    type,
-    label: '',
-    refSlipNo: '',
-    refSlipType: '',
-    refPartnerCode: '',
-    refPartnerName: '',
+    refDocType: type,
+    refDocNo: null,
+    refDocLabel: null,
+    refPartnerCode: null,
+    refPartnerName: null,
     refPeriod: new Date().toISOString().slice(0, 7),
   }
 }
@@ -120,7 +122,9 @@ export function GroupwareApprovalCreatePage() {
     field.required && !(fieldValues[field.fieldKey] ?? '').trim(),
   )
   const invalidReferences = references.some((ref) =>
-    ref.type === 'SLIP_REF' && (!ref.refSlipNo.trim() || !ref.refSlipType.trim()),
+    ref.refDocType === 'PARTNER_LEDGER'
+      ? !ref.refPartnerCode?.trim() || !ref.refPartnerName?.trim() || !ref.refPeriod?.trim()
+      : !ref.refDocNo?.trim(),
   )
   const invalid = !canWrite || !templateId || !title.trim() || approverIds.length === 0 || missingRequired || invalidReferences
 
@@ -156,8 +160,8 @@ export function GroupwareApprovalCreatePage() {
     onError: (error) => setErrorMessage(serverErrorMessage(error)),
   })
 
-  const addReference = (type: ReferenceDraft['type']) => {
-    setReferences((current) => [...current, emptyReferenceDraft(type)])
+  const addReference = () => {
+    setReferences((current) => [...current, emptyReferenceDraft()])
   }
 
   const updateReference = (index: number, patch: Partial<ReferenceDraft>) => {
@@ -168,6 +172,10 @@ export function GroupwareApprovalCreatePage() {
 
   const removeReference = (index: number) => {
     setReferences((current) => current.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  const removeFile = (index: number) => {
+    setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
   }
 
   if (templatesQuery.isLoading) {
@@ -292,11 +300,8 @@ export function GroupwareApprovalCreatePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             <h4 style={{ margin: 0, fontSize: 14 }}>첨부</h4>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button type="button" variant="secondary" size="sm" onClick={() => addReference('SLIP_REF')}>
-                전표 참조
-              </Button>
-              <Button type="button" variant="secondary" size="sm" onClick={() => addReference('PARTNER_LEDGER_REF')}>
-                거래처원장 참조
+              <Button type="button" variant="secondary" size="sm" onClick={addReference}>
+                문서 참조 추가
               </Button>
             </div>
           </div>
@@ -304,12 +309,10 @@ export function GroupwareApprovalCreatePage() {
           <div style={{ display: 'grid', gap: 8 }}>
             {references.map((ref, index) => (
               <div
-                key={`${ref.type}-${index}`}
+                key={`${ref.refDocType}-${index}`}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: ref.type === 'SLIP_REF'
-                    ? '1fr 1fr 1fr 72px'
-                    : '1fr 1fr 1fr 1fr 72px',
+                  gridTemplateColumns: 'minmax(420px, 1fr) 72px',
                   gap: 8,
                   alignItems: 'end',
                   padding: 8,
@@ -317,43 +320,11 @@ export function GroupwareApprovalCreatePage() {
                   borderRadius: 6,
                 }}
               >
-                <Input
-                  label="라벨"
-                  value={ref.label}
-                  onChange={(event) => updateReference(index, { label: event.target.value })}
+                <DocumentReferencePicker
+                  value={ref}
+                  onChange={(next) => updateReference(index, next)}
                   inputSize="sm"
                 />
-                {ref.type === 'SLIP_REF' ? (
-                  <SlipReferencePicker
-                    slipNo={ref.refSlipNo}
-                    refSlipType={ref.refSlipType}
-                    onChange={(next) => updateReference(index, next)}
-                    inputSize="sm"
-                    style={{ gridColumn: 'span 2' }}
-                  />
-                ) : (
-                  <>
-                    <Input
-                      label="거래처코드"
-                      value={ref.refPartnerCode}
-                      onChange={(event) => updateReference(index, { refPartnerCode: event.target.value })}
-                      inputSize="sm"
-                    />
-                    <Input
-                      label="거래처명"
-                      value={ref.refPartnerName}
-                      onChange={(event) => updateReference(index, { refPartnerName: event.target.value })}
-                      inputSize="sm"
-                    />
-                    <Input
-                      label="기간"
-                      type="month"
-                      value={ref.refPeriod}
-                      onChange={(event) => updateReference(index, { refPeriod: event.target.value })}
-                      inputSize="sm"
-                    />
-                  </>
-                )}
                 <Button type="button" variant="ghost" size="sm" onClick={() => removeReference(index)}>
                   삭제
                 </Button>
@@ -372,11 +343,35 @@ export function GroupwareApprovalCreatePage() {
                 aria-describedby={ariaDescribedBy}
                 onChange={(event) => {
                   const selected = Array.from(event.target.files ?? []).map((file) => ({ file, label: file.name }))
-                  setFiles(selected)
+                  setFiles((current) => [...current, ...selected])
+                  event.currentTarget.value = ''
                 }}
               />
             )}
           />
+          {files.length > 0 ? (
+            <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+              {files.map((fileDraft, index) => (
+                <div
+                  key={`${fileDraft.file.name}-${fileDraft.file.lastModified}-${index}`}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 8px',
+                    border: '1px solid var(--color-neutral-200)',
+                    borderRadius: 4,
+                  }}
+                >
+                  <span style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{fileDraft.file.name}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeFile(index)}>
+                    삭제
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
       </fieldset>
 

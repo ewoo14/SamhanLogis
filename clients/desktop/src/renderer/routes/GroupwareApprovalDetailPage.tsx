@@ -12,19 +12,22 @@ import {
   Button,
   Card,
   DataTable,
-  Input,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
-  APPROVAL_ATTACHMENT_TYPE_LABEL,
   addApprovalAttachmentReference,
   deleteApprovalAttachment,
   downloadApprovalAttachment,
   listApprovalAttachments,
   uploadApprovalAttachmentFile,
   type ApprovalAttachment,
+  type ApprovalAttachmentReferenceInput,
 } from '../api/groupwareApprovalAttachment'
+import {
+  APPROVAL_REFERENCE_DOC_TYPE_LABEL,
+  type ApprovalReferenceDocType,
+} from '../api/documentReferenceSearch'
 import {
   APPROVAL_STATUS_LABEL,
   APPROVAL_STEP_STATUS_LABEL,
@@ -35,7 +38,7 @@ import {
 } from '../api/groupwareApproval'
 import { getApprovalTemplate, type ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import { GroupwareApprovalCollaborationPanel } from '../components/collab/GroupwareApprovalCollaborationPanel'
-import { SlipReferencePicker } from '../components/groupware/SlipReferencePicker'
+import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -77,6 +80,81 @@ function formatFileSize(value: number | null): string {
   return `${(value / 1024 / 1024).toFixed(1)}MB`
 }
 
+function emptyReferenceDraft(type: ApprovalReferenceDocType = 'OUTBOUND_SLIP'): DocumentReferenceValue {
+  return {
+    refDocType: type,
+    refDocNo: null,
+    refDocLabel: null,
+    refPartnerCode: null,
+    refPartnerName: null,
+    refPeriod: type === 'PARTNER_LEDGER' ? new Date().toISOString().slice(0, 7) : null,
+  }
+}
+
+function buildReferenceInput(draft: DocumentReferenceValue, displayOrder: number): ApprovalAttachmentReferenceInput {
+  const label = APPROVAL_REFERENCE_DOC_TYPE_LABEL[draft.refDocType]
+  if (draft.refDocType === 'PARTNER_LEDGER') {
+    return {
+      attachmentType: 'PARTNER_LEDGER_REF',
+      label,
+      displayOrder,
+      refDocType: draft.refDocType,
+      refDocNo: null,
+      refDocLabel: draft.refDocLabel,
+      refPartnerCode: draft.refPartnerCode,
+      refPartnerName: draft.refPartnerName,
+      refPeriod: draft.refPeriod,
+    }
+  }
+  return {
+    attachmentType: 'SLIP_REF',
+    label,
+    displayOrder,
+    refDocType: draft.refDocType,
+    refDocNo: draft.refDocNo,
+    refDocLabel: draft.refDocLabel,
+    refSlipNo: draft.refDocNo,
+    refSlipType: draft.refDocType === 'INBOUND_SLIP' ? 'SLIP_INBOUND' : 'SLIP_OUTBOUND',
+  }
+}
+
+function attachmentDocType(attachment: ApprovalAttachment): ApprovalReferenceDocType | null {
+  if (attachment.refDocType) return attachment.refDocType
+  if (attachment.attachmentType === 'PARTNER_LEDGER_REF') return 'PARTNER_LEDGER'
+  if (attachment.refSlipType === 'SLIP_INBOUND' || attachment.refSlipType === 'INBOUND') return 'INBOUND_SLIP'
+  if (attachment.attachmentType === 'SLIP_REF') return 'OUTBOUND_SLIP'
+  return null
+}
+
+function attachmentDisplayNo(attachment: ApprovalAttachment): string {
+  const docType = attachmentDocType(attachment)
+  if (docType === 'PARTNER_LEDGER') {
+    return `${attachment.refPartnerName ?? attachment.refPartnerCode ?? '-'} · ${attachment.refPeriod ?? '-'}`
+  }
+  return attachment.refDocNo ?? attachment.refSlipNo ?? '-'
+}
+
+function attachmentHref(attachment: ApprovalAttachment): string {
+  const docType = attachmentDocType(attachment)
+  const docNo = attachment.refDocNo ?? attachment.refSlipNo ?? ''
+  if (docType === 'INBOUND_SLIP') return `#/purchases?slipNo=${encodeURIComponent(docNo)}`
+  if (docType === 'OUTBOUND_SLIP') return `#/sales?slipNo=${encodeURIComponent(docNo)}`
+  if (docType === 'JOURNAL') return `#/accounting/journals?journalNo=${encodeURIComponent(docNo)}`
+  if (docType === 'TAX_INVOICE') return `#/accounting/tax-invoices?taxInvoiceNo=${encodeURIComponent(docNo)}`
+  if (docType === 'STATEMENT') return `#/accounting/statement-batch?statementNo=${encodeURIComponent(docNo)}`
+  if (docType === 'PARTNER_LEDGER') {
+    return `#/accounting/ledgers?partnerCode=${encodeURIComponent(attachment.refPartnerCode ?? '')}&period=${encodeURIComponent(attachment.refPeriod ?? '')}`
+  }
+  return '#'
+}
+
+function canSubmitReference(draft: DocumentReferenceValue): boolean {
+  if (draft.refDocType === 'PARTNER_LEDGER') {
+    return Boolean(draft.refPartnerCode?.trim() && draft.refPartnerName?.trim() && draft.refPeriod?.trim())
+  }
+  return Boolean(draft.refDocNo?.trim())
+}
+
 export function GroupwareApprovalDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -84,11 +162,8 @@ export function GroupwareApprovalDetailPage() {
   const params = useParams<{ id: string }>()
   const approvalId = params['id']!
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
-  const [slipNoDraft, setSlipNoDraft] = useState('')
-  const [slipTypeDraft, setSlipTypeDraft] = useState('')
-  const [partnerCodeDraft, setPartnerCodeDraft] = useState('')
-  const [partnerNameDraft, setPartnerNameDraft] = useState('')
-  const [periodDraft, setPeriodDraft] = useState(new Date().toISOString().slice(0, 7))
+  const [referenceFormOpen, setReferenceFormOpen] = useState(false)
+  const [referenceDraft, setReferenceDraft] = useState<DocumentReferenceValue>(() => emptyReferenceDraft())
 
   const query = useQuery({
     queryKey: ['groupwareApproval', approvalId],
@@ -157,43 +232,28 @@ export function GroupwareApprovalDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['groupwareApprovalAttachments', approvalId] })
   }
 
-  const addSlipMutation = useMutation({
-    mutationFn: () => addApprovalAttachmentReference(approvalId, {
-      attachmentType: 'SLIP_REF',
-      label: '전표 참조',
-      displayOrder: (attachmentsQuery.data?.length ?? 0) + 1,
-      refSlipNo: slipNoDraft,
-      refSlipType: slipTypeDraft,
-    }),
+  const addReferenceMutation = useMutation({
+    mutationFn: () => addApprovalAttachmentReference(
+      approvalId,
+      buildReferenceInput(referenceDraft, (attachmentsQuery.data?.length ?? 0) + 1),
+    ),
     onSuccess: () => {
       setAttachmentError(null)
-      setSlipNoDraft('')
-      setSlipTypeDraft('')
-      invalidateAttachments()
-    },
-    onError: (error) => setAttachmentError(serverErrorMessage(error)),
-  })
-
-  const addLedgerMutation = useMutation({
-    mutationFn: () => addApprovalAttachmentReference(approvalId, {
-      attachmentType: 'PARTNER_LEDGER_REF',
-      label: '거래처원장 참조',
-      displayOrder: (attachmentsQuery.data?.length ?? 0) + 1,
-      refPartnerCode: partnerCodeDraft,
-      refPartnerName: partnerNameDraft,
-      refPeriod: periodDraft,
-    }),
-    onSuccess: () => {
-      setAttachmentError(null)
-      setPartnerCodeDraft('')
-      setPartnerNameDraft('')
+      setReferenceDraft(emptyReferenceDraft())
+      setReferenceFormOpen(false)
       invalidateAttachments()
     },
     onError: (error) => setAttachmentError(serverErrorMessage(error)),
   })
 
   const uploadFileMutation = useMutation({
-    mutationFn: (file: File) => uploadApprovalAttachmentFile(approvalId, file, file.name),
+    mutationFn: async (files: File[]) => {
+      let displayOrder = (attachmentsQuery.data?.length ?? 0) + 1
+      for (const file of files) {
+        await uploadApprovalAttachmentFile(approvalId, file, file.name, displayOrder)
+        displayOrder += 1
+      }
+    },
     onSuccess: () => {
       setAttachmentError(null)
       invalidateAttachments()
@@ -386,17 +446,13 @@ export function GroupwareApprovalDetailPage() {
                     }}
                   >
                     <div style={{ minWidth: 0 }}>
-                      <Badge variant="neutral">{APPROVAL_ATTACHMENT_TYPE_LABEL[attachment.attachmentType]}</Badge>
+                      <Badge variant="neutral">
+                        {attachment.attachmentType === 'FILE'
+                          ? '파일'
+                          : APPROVAL_REFERENCE_DOC_TYPE_LABEL[attachmentDocType(attachment) ?? 'OUTBOUND_SLIP']}
+                      </Badge>
                       <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, overflowWrap: 'anywhere' }}>
-                        {attachment.attachmentType === 'SLIP_REF' ? (
-                          <a href={`#/sales?slipNo=${encodeURIComponent(attachment.refSlipNo ?? '')}`}>
-                            {attachment.refSlipNo ?? '-'}
-                          </a>
-                        ) : attachment.attachmentType === 'PARTNER_LEDGER_REF' ? (
-                          <a href={`#/accounting/ledgers?partnerCode=${encodeURIComponent(attachment.refPartnerCode ?? '')}&period=${encodeURIComponent(attachment.refPeriod ?? '')}`}>
-                            {attachment.refPartnerName ?? attachment.refPartnerCode ?? '-'} · {attachment.refPeriod ?? '-'}
-                          </a>
-                        ) : (
+                        {attachment.attachmentType === 'FILE' ? (
                           <button
                             type="button"
                             onClick={() => downloadMutation.mutate(attachment)}
@@ -412,6 +468,10 @@ export function GroupwareApprovalDetailPage() {
                           >
                             {attachment.fileName ?? '파일'} ({formatFileSize(attachment.fileSize)})
                           </button>
+                        ) : (
+                          <a href={attachmentHref(attachment)}>
+                            {attachmentDisplayNo(attachment)}
+                          </a>
                         )}
                       </div>
                       {attachment.label ? (
@@ -438,47 +498,42 @@ export function GroupwareApprovalDetailPage() {
 
             {canWrite && !locked ? (
               <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px auto', gap: 8, alignItems: 'end' }}>
-                  <SlipReferencePicker
-                    slipNo={slipNoDraft}
-                    refSlipType={slipTypeDraft}
-                    onChange={(next) => {
-                      setSlipNoDraft(next.refSlipNo)
-                      setSlipTypeDraft(next.refSlipType)
-                    }}
-                    inputSize="sm"
-                    style={{ gridColumn: 'span 2' }}
-                  />
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
-                    onClick={() => addSlipMutation.mutate()}
-                    disabled={!slipNoDraft.trim() || !slipTypeDraft.trim() || addSlipMutation.isPending}
+                    onClick={() => setReferenceFormOpen((current) => !current)}
+                    disabled={addReferenceMutation.isPending}
                   >
-                    전표 추가
+                    문서 참조 추가
                   </Button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 130px auto', gap: 8, alignItems: 'end' }}>
-                  <Input label="거래처코드" value={partnerCodeDraft} onChange={(event) => setPartnerCodeDraft(event.target.value)} inputSize="sm" />
-                  <Input label="거래처명" value={partnerNameDraft} onChange={(event) => setPartnerNameDraft(event.target.value)} inputSize="sm" />
-                  <Input label="기간" type="month" value={periodDraft} onChange={(event) => setPeriodDraft(event.target.value)} inputSize="sm" />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => addLedgerMutation.mutate()}
-                    disabled={!partnerCodeDraft.trim() || addLedgerMutation.isPending}
-                  >
-                    원장 추가
-                  </Button>
-                </div>
+                {referenceFormOpen ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) auto', gap: 8, alignItems: 'end' }}>
+                    <DocumentReferencePicker
+                      value={referenceDraft}
+                      onChange={setReferenceDraft}
+                      inputSize="sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => addReferenceMutation.mutate()}
+                      disabled={!canSubmitReference(referenceDraft) || addReferenceMutation.isPending}
+                    >
+                      추가
+                    </Button>
+                  </div>
+                ) : null}
                 <input
                   type="file"
                   aria-label="결재 첨부 파일"
+                  multiple
                   onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    if (file) uploadFileMutation.mutate(file)
+                    const files = Array.from(event.target.files ?? [])
+                    if (files.length > 0) uploadFileMutation.mutate(files)
                     event.currentTarget.value = ''
                   }}
                 />
