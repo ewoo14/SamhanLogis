@@ -46,7 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>외부 의존</b>:
  * <ul>
  *   <li>Stage 1 partner UUID — {@code samhan-seed:partner:P-2026-NNNN} 결정 도출 (50건)</li>
- *   <li>Stage 2 slip UUID — {@code samhan-seed:slip:S-2026-MM-NNN} 결정 도출 (SLIP_ISSUE 30건만)</li>
+ *   <li>Stage 2 slip UUID — {@code samhan-seed:slip:yyyy/MM/dd-N} 결정 도출 (SLIP_ISSUE 30건만)</li>
  *   <li>16 employee — kimaccountant / leeseongmi 등 한글 이름 → samhan-seed:employee:&lt;loginId&gt;</li>
  * </ul>
  *
@@ -77,7 +77,7 @@ public class JournalSeeder implements CommandLineRunner {
     private static final String[] ACCOUNTANT_LOGINS =
             {"leeseongmi", "heoyujin", "rahaeram", "kimeunji", "parkjisu"};
 
-    /** Stage 2 slip 100건 표준 번호 형식 — yyyy/MM/dd-NNN. seq → 결정적 1건 매핑. */
+    /** Stage 2 slip 100건 표준 번호 형식 — yyyy/MM/dd-N. seq → 결정적 1건 매핑. */
     private static final LocalDate SLIP_BASE_DATE = LocalDate.of(2026, 4, 1);
 
     /** Stage 1 partner code 형식 — Stage 1 PartnerSeeder 의 P-2026-NNNN. */
@@ -297,10 +297,10 @@ public class JournalSeeder implements CommandLineRunner {
 
     /** 30 SLIP_ISSUE 에 매핑할 slip 번호 — Stage 2 의 100 slip 중 결정적 30건. */
     private String pickSlipNo(int seq) {
-        // 매월 4월 1일부터 결정적 분포 — yyyy/MM/dd-NNN
+        // 4월 1일부터 결정적 분포 — yyyy/MM/dd-N, SlipSeeder.formatSlipNo 와 동일.
         LocalDate date = SLIP_BASE_DATE.plusDays((seq - 1) * 2L);
         int seqInDay = ((seq - 1) % 9) + 1;
-        return String.format("%d/%02d/%02d-%03d",
+        return String.format("%d/%02d/%02d-%d",
                 date.getYear(), date.getMonthValue(), date.getDayOfMonth(), seqInDay);
     }
 

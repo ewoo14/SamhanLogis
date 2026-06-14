@@ -35,7 +35,7 @@ public record ArologisDispatchRequest(
      *
      * @param sequence 그룹 내 정차 순서 (1, 2, 3...)
      * @param slipId Samhan Public 의 slip UUID (arologis 가 회신 시 미사용, 추적용)
-     * @param slipNumber 사용자 노출 식별자 ({@code 2026/05/14-001})
+     * @param slipNumber 사용자 노출 식별자 ({@code 2026/05/14-1})
      * @param partnerCode 거래처 코드 (예: P-2026-0001)
      * @param partnerName 거래처명
      * @param address 인수지 주소

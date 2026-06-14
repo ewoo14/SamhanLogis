@@ -8,7 +8,7 @@ import java.util.UUID;
  * 배차 메뉴 미배차 출고전표 목록 응답 — UUID 비공개 가드 (slipNo 노출).
  *
  * @param id 내부 식별자 (drag-and-drop 시 client side key 용)
- * @param slipNo 사용자 노출 전표번호 (예: 2026/05/14-001)
+ * @param slipNo 사용자 노출 전표번호 (예: 2026/05/14-1)
  * @param slipDate 영업일
  * @param partnerCode 거래처 코드
  * @param partnerName 거래처명
