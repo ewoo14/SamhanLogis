@@ -186,9 +186,10 @@ test.describe('미리보기 표준화 슬라이스2 — 그룹웨어 결재문�
     console.log('[BODY SAMPLE]', bodyText.slice(0, 400).replace(/\s+/g, ' '))
 
     expect(bodyText).not.toContain('불러오지 못')
-    await expect(page.locator('.print-approval-doc')).toBeVisible()
-    await expect(page.getByText(approval.title, { exact: false })).toBeVisible()
-    await expect(page.getByLabel('전자서명 결재란')).toBeVisible()
+    const approvalDoc = page.locator('.print-approval-doc')
+    await expect(approvalDoc).toBeVisible()
+    await expect(approvalDoc.getByRole('heading', { name: approval.title })).toBeVisible()
+    await expect(approvalDoc.getByLabel('전자서명 결재란')).toBeVisible()
   })
 
   test('A2: 실 그룹웨어 결재 1건 인쇄뷰 — 작성/결재자 이름과 품의 인삿말 렌더', async ({ page }) => {
@@ -200,12 +201,18 @@ test.describe('미리보기 표준화 슬라이스2 — 그룹웨어 결재문�
     await capture(page, 'a2-approval-doc-print-approval-line')
 
     const bodyText = await page.locator('body').textContent() ?? ''
-    const approvalName = [approval.requesterName, ...approval.steps.map((step) => step.approverName)]
+    const approvalName = [...approval.steps.map((step) => step.approverName), approval.requesterName]
       .find((name): name is string => Boolean(name?.trim()))
 
     expect(bodyText).not.toContain('불러오지 못')
     if (!approvalName) throw new Error('작성자/결재자 이름이 있는 실 결재 문서가 필요합니다.')
-    await expect(page.getByLabel('전자서명 결재란')).toContainText(approvalName)
-    await expect(page.locator('body')).toContainText('재가')
+    const approvalDoc = page.locator('.print-approval-doc')
+    // 결재란 이름 칸(.print-approval-name, 화면 visible) 중 해당 이름을 가진 칸으로 한정 — strict-mode 회피.
+    const approvalNameCell = approvalDoc
+      .locator('.print-approval-section .print-approval-name')
+      .filter({ hasText: approvalName })
+    await expect(approvalNameCell.first()).toBeVisible()
+    // 인삿말(closingNote) 은 화면 visible.
+    await expect(approvalDoc.locator('.print-approval-closing')).toContainText('재가')
   })
 })
