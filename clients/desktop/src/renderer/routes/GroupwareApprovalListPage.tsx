@@ -44,6 +44,11 @@ function requestDateFromApprovalNo(approvalNo: string): string {
   return match?.[1] ?? '-'
 }
 
+function displayNameOrFallback(value: string | null | undefined): string {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : '-'
+}
+
 export function GroupwareApprovalListPage() {
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
@@ -87,6 +92,12 @@ export function GroupwareApprovalListPage() {
           {APPROVAL_STATUS_LABEL[row.status]}
         </Badge>
       ),
+    },
+    {
+      key: 'requester',
+      header: '요청자',
+      width: '120px',
+      render: (row) => displayNameOrFallback(row.requesterName),
     },
     {
       key: 'requestDate',

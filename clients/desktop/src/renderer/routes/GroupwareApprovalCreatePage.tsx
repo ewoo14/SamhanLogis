@@ -4,12 +4,16 @@
  * 생성 본문은 ApprovalLineCreateRequest 계약(templateId/fieldValues/title/content/approverIds)과
  * 일치한다. 첨부는 결재 생성 후 전용 endpoint 로 순차 등록한다.
  */
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, FormField, Input, Select, Spinner } from '@samhan/design-system'
+import { AsyncAutocomplete, Button, Card, FormField, Input, Select, Spinner, TagChip } from '@samhan/design-system'
 import { createGroupwareApproval } from '../api/groupwareApproval'
+import {
+  searchApprovers,
+  type ApproverOption,
+} from '../api/groupwareApprovalApprover'
 import {
   addApprovalAttachmentReference,
   uploadApprovalAttachmentFile,
@@ -41,13 +45,6 @@ function serverErrorMessage(error: unknown): string {
   return typeof data?.message === 'string' && data.message.trim()
     ? data.message.trim()
     : '결재 생성에 실패했습니다.'
-}
-
-function parseApproverIds(value: string): string[] {
-  return value
-    .split(/[\n,]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
 }
 
 function buildReferenceInput(draft: ReferenceDraft, displayOrder: number): ApprovalAttachmentReferenceInput {
@@ -88,6 +85,18 @@ function emptyReferenceDraft(type: ApprovalReferenceDocType = 'OUTBOUND_SLIP'): 
   }
 }
 
+function approverLabel(approver: ApproverOption): string {
+  return approver.department ? `${approver.name} (${approver.department})` : approver.name
+}
+
+function referenceChipValue(ref: ReferenceDraft): string {
+  return ref.refDocNo ?? ref.refPartnerName ?? ref.refDocLabel ?? '(미입력)'
+}
+
+function hasReferenceChipValue(ref: ReferenceDraft): boolean {
+  return Boolean(ref.refDocNo ?? ref.refPartnerName ?? ref.refDocLabel)
+}
+
 export function GroupwareApprovalCreatePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -95,7 +104,7 @@ export function GroupwareApprovalCreatePage() {
   const [templateId, setTemplateId] = useState('')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [approverInput, setApproverInput] = useState('')
+  const [approvers, setApprovers] = useState<ApproverOption[]>([])
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [references, setReferences] = useState<ReferenceDraft[]>([])
   const [files, setFiles] = useState<FileDraft[]>([])
@@ -117,7 +126,7 @@ export function GroupwareApprovalCreatePage() {
     [selectedTemplate],
   )
 
-  const approverIds = parseApproverIds(approverInput)
+  const approverIds = approvers.map((approver) => approver.userId)
   const missingRequired = sortedFields.some((field) =>
     field.required && !(fieldValues[field.fieldKey] ?? '').trim(),
   )
@@ -177,6 +186,23 @@ export function GroupwareApprovalCreatePage() {
   const removeFile = (index: number) => {
     setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
   }
+
+  const addApprover = (item: ApproverOption | null) => {
+    if (!item) return
+    setApprovers((current) =>
+      current.some((approver) => approver.userId === item.userId)
+        ? current
+        : [...current, item],
+    )
+  }
+
+  const removeApprover = (index: number) => {
+    setApprovers((current) => current.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  const bindApproverSearchInput = useCallback((node: HTMLInputElement | null) => {
+    node?.setAttribute('data-testid', 'approver-search-input')
+  }, [])
 
   if (templatesQuery.isLoading) {
     return (
@@ -252,29 +278,48 @@ export function GroupwareApprovalCreatePage() {
               )}
             />
 
-            <FormField
-              label="결재선"
-              required
-              hint="결재자 식별자를 줄바꿈 또는 쉼표로 구분해 입력합니다."
-              render={({ id, ariaDescribedBy }) => (
-                <textarea
-                  id={id}
-                  value={approverInput}
-                  onChange={(event) => setApproverInput(event.target.value)}
-                  rows={3}
-                  aria-describedby={ariaDescribedBy}
-                  data-testid="groupware-approval-create-approvers"
-                  style={{
-                    width: '100%',
-                    resize: 'vertical',
-                    padding: '8px 10px',
-                    border: '1px solid var(--color-neutral-300)',
-                    borderRadius: 4,
-                    font: 'inherit',
-                  }}
-                />
-              )}
-            />
+            <div data-testid="groupware-approval-create-approvers" style={{ display: 'grid', gap: 8 }}>
+              <AsyncAutocomplete<ApproverOption>
+                ref={bindApproverSearchInput}
+                value={null}
+                onChange={addApprover}
+                search={searchApprovers}
+                getKey={(option) => option.userId}
+                getInputLabel={(option) => option.name}
+                renderOption={(option) => (
+                  <span>
+                    {option.name}
+                    {option.department ? (
+                      <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>
+                        {option.department}
+                      </span>
+                    ) : null}
+                  </span>
+                )}
+                listboxLabel="결재자 검색 결과"
+                label="결재선"
+                ariaLabel="결재자 이름 검색"
+                placeholder="결재자 이름 검색"
+                minChars={1}
+                required
+              />
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+                사원 이름을 검색해 결재 순서대로 추가합니다.
+              </p>
+              {approvers.length > 0 ? (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {approvers.map((approver, index) => (
+                    <TagChip
+                      key={`${approver.userId}-${index}`}
+                      label={String(index + 1)}
+                      value={approverLabel(approver)}
+                      onRemove={() => removeApprover(index)}
+                      data-testid="approver-chip"
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </section>
 
           <section style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
@@ -332,6 +377,31 @@ export function GroupwareApprovalCreatePage() {
             ))}
           </div>
 
+          {references.some(hasReferenceChipValue) || files.length > 0 ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
+              {references.map((ref, index) =>
+                hasReferenceChipValue(ref) ? (
+                  <TagChip
+                    key={`${ref.refDocType}-${index}-chip`}
+                    label={APPROVAL_REFERENCE_DOC_TYPE_LABEL[ref.refDocType]}
+                    value={referenceChipValue(ref)}
+                    onRemove={() => removeReference(index)}
+                    data-testid="attachment-chip"
+                  />
+                ) : null,
+              )}
+              {files.map((fileDraft, index) => (
+                <TagChip
+                  key={`${fileDraft.file.name}-${fileDraft.file.lastModified}-${index}`}
+                  label="파일"
+                  value={fileDraft.file.name}
+                  onRemove={() => removeFile(index)}
+                  data-testid="attachment-chip"
+                />
+              ))}
+            </div>
+          ) : null}
+
           <FormField
             label="파일"
             hint={files.length > 0 ? `${files.length}개 선택됨` : '사진/PDF 등 파일을 선택합니다.'}
@@ -349,29 +419,6 @@ export function GroupwareApprovalCreatePage() {
               />
             )}
           />
-          {files.length > 0 ? (
-            <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
-              {files.map((fileDraft, index) => (
-                <div
-                  key={`${fileDraft.file.name}-${fileDraft.file.lastModified}-${index}`}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 8px',
-                    border: '1px solid var(--color-neutral-200)',
-                    borderRadius: 4,
-                  }}
-                >
-                  <span style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{fileDraft.file.name}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeFile(index)}>
-                    삭제
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : null}
         </section>
       </fieldset>
 

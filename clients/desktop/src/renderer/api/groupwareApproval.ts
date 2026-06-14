@@ -32,6 +32,7 @@ export const APPROVAL_STEP_STATUS_LABEL: Record<ApprovalStepStatus, string> = {
 export interface ApprovalStepView {
   sequence: number
   approverId: string
+  approverName: string | null
   status: ApprovalStepStatus
   decidedAt: string | null
   reason: string | null
@@ -41,6 +42,7 @@ export interface ApprovalLineAdminResponse {
   approvalId: string
   approvalNo: string
   requesterId: string
+  requesterName: string | null
   title: string
   content: string | null
   templateId: string | null

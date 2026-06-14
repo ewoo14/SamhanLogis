@@ -38,6 +38,7 @@ import type {
   ApprovalLineAdminResponse,
   ApprovalStatus,
 } from './groupwareApproval'
+import type { ApproverOption } from './groupwareApprovalApprover'
 import type { ApprovalAttachment } from './groupwareApprovalAttachment'
 import type { ApprovalTemplate } from './groupwareApprovalTemplate'
 import type {
@@ -5870,6 +5871,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(approval)
   }
 
+  if (method === 'GET' && url.match(/\/admin\/groupware\/approvals\/approver-search(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('groupware.approvals', 'view')
+    if (denied) return denied
+    const params = new URLSearchParams(url.split('?')[1] ?? '')
+    const configParams = config.params as Record<string, unknown> | undefined
+    const q = String(configParams?.q ?? params.get('q') ?? '').trim()
+    const rawLimit = Number(configParams?.limit ?? params.get('limit') ?? 20)
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 20
+    if (!q) return envelope<ApproverOption[]>([])
+    const normalized = q.toLowerCase()
+    return envelope(
+      MOCK_GROUPWARE_APPROVER_OPTIONS
+        .filter((option) =>
+          option.name.toLowerCase().includes(normalized)
+          || option.userId.toLowerCase().includes(normalized)
+          || (option.department ?? '').toLowerCase().includes(normalized),
+        )
+        .slice(0, limit),
+    )
+  }
+
   const groupwareApprovalDetailMatch = url.match(/\/admin\/groupware\/approvals\/([^/?]+)(?:\?.*)?$/)
   if (method === 'GET' && groupwareApprovalDetailMatch) {
     const denied = mockRequirePermission('groupware.approvals', 'view')
@@ -5936,6 +5958,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         approvalId: `77777777-aaaa-4aaa-8aaa-${String(next + 10).padStart(12, '0')}`,
         approvalNo: `${MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')}-${next}`,
         requesterId: body.requesterId,
+        requesterName: mockApprovalUserName(body.requesterId) ?? '요청자',
         title,
         content: typeof body.content === 'string' && body.content.trim() ? body.content : null,
         templateId: template?.id ?? null,
@@ -5945,6 +5968,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         steps: approverIds.map((approverId, sequence) => ({
           sequence,
           approverId,
+          approverName: mockApprovalUserName(approverId) ?? `결재자 ${sequence + 1}`,
           status: 'PENDING',
           decidedAt: null,
           reason: null,
@@ -9173,11 +9197,36 @@ const MOCK_GROUPWARE_APPROVAL_TEMPLATES: ApprovalTemplate[] = [
   },
 ]
 
+const MOCK_GROUPWARE_APPROVER_OPTIONS: ApproverOption[] = [
+  {
+    userId: '00000000-0000-0000-0000-000000010002',
+    name: '김기철',
+    department: '영업2팀',
+  },
+  {
+    userId: '00000000-0000-0000-0000-000000010003',
+    name: '김은지',
+    department: '회계팀',
+  },
+  {
+    userId: '00000000-0000-0000-0000-000000010004',
+    name: '박배차',
+    department: '물류팀',
+  },
+]
+
+function mockApprovalUserName(userId: string | null | undefined): string | null {
+  if (!userId) return null
+  if (userId === MOCK_AUTH.userId) return MOCK_AUTH.fullName
+  return MOCK_GROUPWARE_APPROVER_OPTIONS.find((option) => option.userId === userId)?.name ?? null
+}
+
 const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
   {
     approvalId: '77777777-aaaa-4aaa-8aaa-000000000001',
     approvalNo: `${MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')}-1`,
     requesterId: MOCK_AUTH.userId,
+    requesterName: MOCK_AUTH.fullName,
     title: '6월 2주차 배송비 정산 승인',
     content: '아로로지스 외주 배차 정산 내역 승인 요청입니다.',
     templateId: '77777777-dddd-4ddd-8ddd-000000000001',
@@ -9194,6 +9243,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
       {
         sequence: 0,
         approverId: '00000000-0000-0000-0000-000000010002',
+        approverName: '김기철',
         status: 'PENDING',
         decidedAt: null,
         reason: null,
@@ -9201,6 +9251,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
       {
         sequence: 1,
         approverId: '00000000-0000-0000-0000-000000010003',
+        approverName: '김은지',
         status: 'PENDING',
         decidedAt: null,
         reason: null,
@@ -9211,6 +9262,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     approvalId: '77777777-aaaa-4aaa-8aaa-000000000002',
     approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-2`,
     requesterId: MOCK_AUTH.userId,
+    requesterName: MOCK_AUTH.fullName,
     title: '창고 소모품 구매 품의',
     content: '분류 라벨과 포장재 구매 건입니다.',
     templateId: '77777777-dddd-4ddd-8ddd-000000000001',
@@ -9227,6 +9279,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
       {
         sequence: 0,
         approverId: '00000000-0000-0000-0000-000000010002',
+        approverName: '김기철',
         status: 'APPROVED',
         decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T11:20:00`,
         reason: null,
@@ -9234,6 +9287,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
       {
         sequence: 1,
         approverId: '00000000-0000-0000-0000-000000010003',
+        approverName: '김은지',
         status: 'PENDING',
         decidedAt: null,
         reason: null,
@@ -9244,6 +9298,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     approvalId: '77777777-aaaa-4aaa-8aaa-000000000003',
     approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-3`,
     requesterId: MOCK_AUTH.userId,
+    requesterName: MOCK_AUTH.fullName,
     title: '반품 운송비 예외 처리',
     content: '거래처 요청에 따른 운송비 예외 승인 건입니다.',
     templateId: null,
@@ -9254,6 +9309,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
       {
         sequence: 0,
         approverId: '00000000-0000-0000-0000-000000010002',
+        approverName: '김기철',
         status: 'APPROVED',
         decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T14:00:00`,
         reason: null,

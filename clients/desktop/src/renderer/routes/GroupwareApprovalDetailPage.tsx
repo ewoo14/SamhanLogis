@@ -13,6 +13,7 @@ import {
   Card,
   DataTable,
   Spinner,
+  TagChip,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -59,6 +60,11 @@ const STEP_STATUS_VARIANT: Record<ApprovalStepView['status'], 'neutral' | 'brand
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '-'
   return value.slice(0, 16).replace('T', ' ')
+}
+
+function displayNameOrFallback(value: string | null | undefined, fallback: string): string {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : fallback
 }
 
 function serverErrorMessage(error: unknown): string {
@@ -197,7 +203,12 @@ export function GroupwareApprovalDetailPage() {
     {
       key: 'approver',
       header: '결재자',
-      render: (step) => `결재자 ${step.sequence + 1}`,
+      render: (step) => (
+        <TagChip
+          label={String(step.sequence + 1)}
+          value={displayNameOrFallback(step.approverName, `결재자 ${step.sequence + 1}`)}
+        />
+      ),
     },
     {
       key: 'status',
@@ -346,6 +357,9 @@ export function GroupwareApprovalDetailPage() {
               </Badge>
               {approval.templateName ? <Badge variant="brand">{approval.templateName}</Badge> : null}
             </div>
+            <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--color-neutral-600)' }}>
+              요청자: {displayNameOrFallback(approval.requesterName, '요청자')}
+            </p>
             <p style={{ margin: '10px 0 0', fontSize: 18, fontWeight: 700, overflowWrap: 'anywhere' }}>
               {approval.title}
             </p>
