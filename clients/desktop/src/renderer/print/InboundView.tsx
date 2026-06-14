@@ -91,14 +91,12 @@ export function InboundView() {
             <span className="label">공급처</span>
             <span className="value">{slip.partnerName ?? '-'}</span>
           </div>
-          <div className="row">
-            <span className="label">연락처</span>
-            <span className="value">{slip.contactPhone ?? '-'}</span>
-          </div>
-          <div className="row">
-            <span className="label">입고창고</span>
-            <span className="value emphasis">{destWarehouseName}</span>
-          </div>
+          {slip.contactPhone ? (
+            <div className="row">
+              <span className="label">연락처</span>
+              <span className="value">{slip.contactPhone}</span>
+            </div>
+          ) : null}
         </section>
 
         <div className="inbound-divider">- - - - - - - - - - - - - - - - - - - -</div>

@@ -1,8 +1,23 @@
-# 전자서명 결재문서 형식 — 공통 인쇄 양식 설계 가이드
+# 미리보기 표준화 — 공통 인쇄 양식 설계 가이드
 
 작성일: 2026-06-14
 작성자: Designer (Samhan Public)
 결정 근거: 개발책임자 2026-06-14 구두 결정 (미리보기 표준화 에픽)
+최종 갱신: 2026-06-14 (PR #481 — 슬라이스1 방향 전환 반영)
+
+> ## 🔀 슬라이스1 방향 전환 (2026-06-14, PR #481) — 본 문서 정정 사유
+>
+> 본 가이드의 **초안 방향**은 "슬라이스1 = PrintLayout 결재란 확장 + 입고전표·견적서를 전자서명 결재문서 형식으로 전환" 이었다.
+> 그러나 슬라이스1 진행 중 개발책임자 결정으로 방향이 다음과 같이 **전환**되었고, 실제 머지 코드는 이 전환된 방향을 따른다.
+>
+> | 항목 | 초안 방향 (폐기) | **최종 방향 (슬라이스1 실제 구현)** |
+> |---|---|---|
+> | **입고전표** (`InboundView.tsx`) | 결재란 3칸 결재문서 형식으로 전환 | **출고전표(`OutboundView.tsx`) 양식과 통일.** 결재란 미적용. A4 세로 기본 + 88mm 영수증 토글. 헤더에 입고창고 1회 표시(중복 제거). 전표번호 0제거 적용 |
+> | **견적서** (`QuoteView.tsx`) | 결재란 3칸 결재문서 형식으로 전환, `[직인]` 제거 | **종합견적서 에픽으로 이관.** 슬라이스1 미변경. 진입 버그(슬래시 견적번호 → 게이트웨이 `%2F` 차단 → 400)는 origin 선재 상태로 잔존, 종합견적서 에픽에서 해결 |
+> | **PrintLayout 결재 골격** (`approvalDoc`/`docHeader`/`approvalSteps`/`.print-approval-*`) | 슬라이스1에서 입고/견적에 적용·렌더 | **후속 "결재문서 에픽"(그룹웨어 결재 등)용 미사용 스캐폴드로만 존속.** 슬라이스1에서 어떤 view 도 `approvalDoc=true` 를 전달하지 않아 **미렌더**. opt-in 기본값 `false` 유지 |
+> | **전표번호 표시** | (해당 없음) | `stripSlipNoZeros` 추가 — 전표번호 표준 `YYYY/MM/DD-NNN` 의 날짜 0은 보존하고 마지막 `-` 뒤 번호부 선행 0만 제거(`-001` → `-1`). 입고·출고전표 공통 적용 |
+>
+> 아래 §2~§9 의 결재문서 형식 상세 설계는 **후속 "결재문서 에픽" 용 설계 자료**로 보존한다 (슬라이스1 미적용분 포함). 슬라이스1 실제 구현 범위는 §6 "슬라이스 분할 로드맵 — 슬라이스 1" 의 갱신된 내용을 진실원으로 한다.
 
 ---
 
@@ -15,19 +30,25 @@
 | 양식 | View 파일 | 이유 |
 |---|---|---|
 | 출고전표 (작업지시서) | `DispatchView.tsx` | 개발책임자 확정 legacy 양식 (SAMSUNG 로고 스트립, 결재란 5칸) |
-| 출고전표 (영수증) | `OutboundView.tsx` | 거래처 동봉용, 88mm/A4 분기 유지 |
+| 출고전표 (영수증) | `OutboundView.tsx` | 거래처 동봉용, 88mm/A4 분기 유지. **슬라이스1 에서 입고전표가 이 양식으로 통일됨(기준 양식)** |
 | 거래명세서 | `InvoiceView.tsx`, `StatementBatchView.tsx` | 법정 양식 아니나 거래처 수발 양식 |
 | 세금계산서 | `TaxInvoiceView.tsx`, `SalesInvoicePrintPage.tsx` | 국세청 e-Tax 표준 양식 |
 | 매입전표 (PurchaseSlipPrintPage) | `PurchaseSlipPrintPage.tsx` | legacy GAS 100% 매칭 의무 (SP-08) |
 
-### 1-B. 일관화 대상 ("결재문서 형식" 신규 적용)
+### 1-B. 슬라이스1 실제 적용 범위 (방향 전환 후)
 
-로고/인감 없이 전자서명 결재란만 포함하는 회사 공식 결재문서.
+| 문서 | 현행 View | **슬라이스1 처리** |
+|---|---|---|
+| 입고전표 | `InboundView.tsx` | **출고전표(`OutboundView.tsx`) 양식으로 통일.** 결재란/결재문서 형식 미적용. 헤더 meta-row 에 입고창고 1회 표시(공급처 박스 내 중복 row 제거), 공급처 연락처는 값 있을 때만 조건부 렌더, 전표번호 0제거(`stripSlipNoZeros`) 적용 |
+| 견적서 | `QuoteView.tsx` | **종합견적서 에픽으로 이관 — 슬라이스1 미변경.** 진입 버그 잔존(아래 §1-D) |
+
+### 1-C. 후속 "결재문서 에픽" 대상 (전자서명 결재문서 형식 — 슬라이스1 미적용)
+
+로고/인감 없이 전자서명 결재란만 포함하는 회사 공식 결재문서. **§2~§9 의 결재문서 형식 설계는 본 분류를 위한 후속 에픽 자료이며, 슬라이스1 에서는 적용하지 않는다.** PrintLayout 의 `approvalDoc` 골격은 그룹웨어 결재 등 후속 에픽이 사용할 미렌더 스캐폴드로만 존속한다.
 
 | 문서 | 현행 View | 현행 결재란 현황 |
 |---|---|---|
-| 입고전표 | `InboundView.tsx` | `[인]` 텍스트 사인란 3칸 (담당자/검수자/공급처확인) — 전자서명 미적용 |
-| 견적서 | `QuoteView.tsx` | `[직인]` 텍스트 사인란 1칸 — 전자서명 미적용 |
+| 그룹웨어 결재 첨부 미리보기 | `GroupwareApprovalDetailPage.tsx` 파생 신규 | 미리보기 인쇄 미구현 — 후속 에픽 1순위 (approvalDoc 골격 첫 실사용 예정) |
 | 배차 작업지시서 (그룹웨어 연동용) | `DispatchView.tsx` 파생 신규 | 현행 DispatchView 는 제외 대상. 그룹웨어 결재 첨부 미리보기는 신규 설계 필요 |
 | 거래처원장 | `PartnerLedgerView.tsx` | 발행자 footer 만 있음 — 결재란 없음 |
 | 분개장 | 미구현 (print-spec.md 설계만) | - |
@@ -43,6 +64,16 @@
 | 일계표 | 미구현 | - |
 | 월계표 | 미구현 | - |
 | 미수/미지급 현황 | 미구현 | - |
+
+### 1-D. 견적 인쇄 진입 버그 (origin 선재 — 종합견적서 에픽 이관)
+
+견적 인쇄는 본 에픽 이전부터 진입 단계에서 실패하는 상태이며, **미리보기 표준화 슬라이스1 범위 외**이다.
+
+- `EstimateDetailPage.handlePrint` 이 슬래시 표준 견적번호(`estimateNo`, 예: `2026/06/08-2`)를 `encodeURIComponent` 로 인코딩해 path 세그먼트로 전달한다 (`/#/sales/estimates/2026%2F06%2F08-2/print`).
+- 라우트 `/sales/estimates/:estimateNumber/print` → `QuoteView` 가 `getEstimate(estimateNumber)` 호출.
+- 게이트웨이/Spring `StrictHttpFirewall` 이 인코딩된 슬래시(`%2F`)를 차단 → 400.
+- 전표/주문번호 슬래시 표준 정책상 URL 경로 세그먼트는 `toOrderPathId` 로 하이픈 치환해야 하나, 견적 인쇄 경로는 미적용 상태.
+- 해결은 **종합견적서 에픽** 에서 진입 경로 정정 + 양식과 함께 진행한다. (메뉴얼 `docs/manual/01-영업/06-견적서.md` §4-5 동기화 완료.)
 
 ---
 
@@ -165,6 +196,8 @@ Regular 8pt, `--ink-tertiary`, 결재란 아래 2mm 간격.
 
 ## 3. PrintLayout 확장 방안
 
+> 📍 **구현 현황 (PR #481 기준):** 아래 §3-B 의 `approvalDoc`/`docHeader`/`approvalSteps`/`closingNote` 슬롯은 `PrintLayout.tsx` 에 **이미 구현되어 있다**(인터페이스 `PrintDocHeader`/`PrintApprovalStep` + `.print-approval-doc` 렌더 분기 + 결재란 우상단 코너 배치 + 전자서명 안내 문구). 다만 **슬라이스1 에서 이 골격을 사용하는 view 는 없다**(`approvalDoc` 기본값 `false`, 어떤 호출처도 `true` 미전달 → 미렌더). 후속 결재문서 에픽(그룹웨어 결재 등)이 첫 실사용 예정이다. 아래 설계 문구의 "구현은 FE agent 담당" 등 미래형 표현은 초안 시점 기준이다.
+
 ### 3-A. 현행 PrintLayout 구조 분석
 
 `clients/desktop/src/renderer/print/PrintLayout.tsx` (L60-L88):
@@ -257,7 +290,9 @@ interface ApprovalStep
 
 ### 4-A. 인쇄 공통 토큰 (기존 + 신규)
 
-기존 `--print-*` 토큰 (`tokens.css`) 을 그대로 사용. 슬라이스1 토큰 등재 현황 (구현 = 진실원):
+> ⚠️ **슬라이스1 방향 전환 반영:** 아래 `--print-approval-*` 결재 토큰은 **후속 결재문서 에픽용**이며 슬라이스1 의 입고/출고전표 양식에는 사용되지 않는다. 실제 등재값의 진실원은 `clients/web/design-system/src/tokens/tokens.css` 이며(코드에는 본 표 외 `--print-approval-corner-*` 등 우상단 코너 배치용 토큰도 등재되어 있음), 후속 에픽 착수 시 코드 기준으로 표를 재정리한다.
+
+기존 `--print-*` 토큰 (`tokens.css`) 을 그대로 사용. 결재 토큰 등재 현황 (구현 = 진실원, **후속 에픽용 — 슬라이스1 미사용**):
 
 | 토큰명 | 값 | 용도 | tokens.css 등재 |
 |---|---|---|---|
@@ -309,15 +344,17 @@ interface ApprovalStep
 
 ## 5. 문서별 결재선 정의 매핑
 
-### 5-A. 전표류
+> ⚠️ **본 §5 매핑은 후속 "결재문서 에픽" 설계 자료다.** 슬라이스1 방향 전환(문서 상단 🔀 배너)으로 **입고전표·견적서는 결재문서 형식 적용 대상에서 제외**되었다. 아래 5-A 의 입고/견적 결재선은 후속 에픽에서 재검토하며, 슬라이스1 에서는 적용하지 않는다.
+
+### 5-A. 전표류 (후속 에픽 — 슬라이스1 미적용)
 
 | 문서 | 결재 칸 | 서명 데이터 소스 |
 |---|---|---|
-| 입고전표 | 작성 / 검토 / 승인 (3칸) | 담당자(`ownerFullName`) / 검수자(`inspector.fullName`) / 승인자(미구현) |
-| 견적서 | 작성 / 검토 / 승인 (3칸) | 작성자(`authorName`) / 검토자(미구현) / 승인자(미구현) |
+| ~~입고전표~~ (슬라이스1 에서 출고전표 양식 통일로 전환 — 결재란 미적용) | (후속 에픽 재검토) | - |
+| ~~견적서~~ (종합견적서 에픽 이관) | (종합견적서 에픽 재검토) | - |
 
-현행 `InboundView.tsx` (L184-L210): 3칸 `[인]` 텍스트 사인란 → 전자서명으로 교체.
-현행 `QuoteView.tsx` (L241-L248): `[직인]` 텍스트 → 제거, 전자서명 결재란으로 교체.
+> 슬라이스1 실제 처리: 입고전표는 `OutboundView` 양식으로 통일(결재란 미적용), 견적서는 종합견적서 에픽 이관. §1-B / §6 슬라이스1 참조.
+> 후속 결재문서 에픽이 전표류에 결재란을 적용할 경우의 데이터 소스 후보(설계 자료): 입고전표 담당자(`ownerFullName`)/검수자(`inspector.fullName`), 견적서 작성자(`authorName`) 등 — 실연동은 그룹웨어 결재 연동 후 재정의.
 
 ### 5-B. 그룹웨어 결재 연동 문서 (배차 작업지시서 파생)
 
@@ -361,23 +398,29 @@ interface ApprovalStep
 
 ## 6. 슬라이스 분할 로드맵
 
-### 슬라이스 1 — PrintLayout 결재란 확장 + 전표류 (입고/견적)
+### 슬라이스 1 — 입고전표 출고통일 + 견적 분리 (최종 방향, PR #481)
 
-**범위**
-- `PrintLayout.tsx` prop 확장 (`approvalDoc`, `docHeader`, `approvalSteps`)
-- 공통 헤더/결재란 렌더 컴포넌트 신규 (`ApprovalDocHeader`, `ApprovalSignBlock`)
-- `tokens.css` `--print-approval-*` 토큰 추가 (w-std/h-std/sig-h/name-h/label-h/img-max-h-approval/border = 7종 등재, label-bg·line-color 는 기존 재사용)
-- `InboundView.tsx`: `approvalDoc=true` 전환, 3칸 `[인]` → `SignatureViewer`
-- `QuoteView.tsx`: `approvalDoc=true` 전환, `[직인]` 제거, 3칸 결재란
+> **방향 전환 반영.** 초안의 "입고/견적 결재문서 전환" 은 폐기되고 아래로 대체되었다. PrintLayout 결재 골격은 후속 결재문서 에픽용 미사용 스캐폴드로만 존속한다(문서 상단 🔀 배너 참조).
 
-**의존**: 현재 `SignatureViewer` 기존 그대로 재사용. 신규 서명 수집 API 불필요 (기존 `slip.inspector.fullName` 등 이름만 표시, signaturePng 미연결은 placeholder).
+**범위 (실제 머지)**
+- `InboundView.tsx`: **출고전표(`OutboundView.tsx`) 양식과 통일.**
+  - 결재란/결재문서 형식 미적용 (`approvalDoc` 미전달 → 기존 children 양식 렌더).
+  - 입고창고는 **헤더 meta-row 에 1회만** 표시 — 공급처 박스 내 중복 입고창고 row 및 미정의 `emphasis` no-op 클래스 제거 (OutboundView 의 출하창고=헤더 1회 패턴과 대칭).
+  - 공급처 **연락처(contactPhone)는 값이 있을 때만 조건부 렌더** (매입 전표 연락처 상시 공란 시 빈 라벨 방지 — OutboundView 의 `driverName` 조건부 렌더 패턴과 동일).
+  - A4 세로 기본 + 88mm 영수증 토글 유지.
+- 전표번호 표시 0제거: `clients/desktop/src/renderer/utils/orderNo.ts` `stripSlipNoZeros` — 날짜 0 보존, 마지막 `-` 뒤 번호부 선행 0만 제거(`-001` → `-1`). 입고(`InboundView`)·출고(`OutboundView`) `displaySlipNo` + `usePageTitle` 공통 적용. 하이픈 없음/비숫자 tail/null·undefined·빈문자열은 폴백.
+- `QuoteView.tsx`: **슬라이스1 미변경 — 종합견적서 에픽 이관** (진입 버그 §1-D 잔존).
+- `PrintLayout.tsx`: `approvalDoc`/`docHeader`/`approvalSteps`/`closingNote` 골격은 코드상 존재하나 **슬라이스1 에서 어떤 view 도 사용하지 않음(미렌더 스캐폴드)**. 후속 결재문서 에픽(그룹웨어 결재 등)이 첫 실사용 예정.
+
+**의존**: 신규 서명 수집 API 불필요. 결재 골격 미사용으로 `SignatureViewer` 연동도 슬라이스1 범위 외.
 
 **결과물**
-- `docs/design/print-preview-standardization/DESIGN.md` (본 파일)
-- `clients/desktop/src/renderer/print/PrintLayout.tsx` 확장
-- `clients/web/design-system/src/tokens/tokens.css` `--print-approval-*` 토큰 7종 등재 (label-bg·line-color 기존 재사용)
-- `InboundView.tsx` 결재란 교체
-- `QuoteView.tsx` 결재란 교체
+- `docs/design/print-preview-standardization/DESIGN.md` (본 파일 — 방향 전환 반영)
+- `clients/desktop/src/renderer/print/InboundView.tsx` — 출고전표 양식 통일(입고창고 중복 제거 + 연락처 조건부)
+- `clients/desktop/src/renderer/print/OutboundView.tsx` — 기존 양식 보존(회귀 기준)
+- `clients/desktop/src/renderer/utils/orderNo.ts` `stripSlipNoZeros` + `clients/desktop/src/renderer/utils/orderNo.test.ts` (단위 테스트)
+- `clients/desktop/playwright/print-preview-standardization/print-preview-standardization-real-qa.spec.ts` — C1(입고 통일 + 0제거) / C3(출고 보존 + 0제거) 라이브 QA
+- `clients/web/design-system/src/tokens/tokens.css` `--print-approval-*` 토큰 — **후속 결재문서 에픽 대비 등재분(슬라이스1 미사용)**
 
 **Iteration 가드 적용**: 1차 mock → Edge 캡처 → 3-5회 CSS 미세 조정. 단번 완성 금지.
 
