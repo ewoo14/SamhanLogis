@@ -35,6 +35,7 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
 import styles from './PartnerLedgerView.module.css'
@@ -287,7 +288,7 @@ export function PartnerLedgerView() {
               {data.lines.map((line, idx) => (
                 <tr key={`${line.date}-${line.slipNo}-${idx}`}>
                   <td className={styles.dateCell}>{line.date}</td>
-                  <td className={styles.slipNoCell}>{line.slipNo}</td>
+                  <td className={styles.slipNoCell}>{stripSlipNoZeros(line.slipNo)}</td>
                   <td className={styles.descCell}>{line.description}</td>
                   <td className={`${styles.num} ${styles.debitCell}`}>
                     {line.debit > 0 ? krw(line.debit) : ''}

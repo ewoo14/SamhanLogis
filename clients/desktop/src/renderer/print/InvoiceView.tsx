@@ -20,6 +20,7 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail } from '../api/slip'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
 
@@ -32,7 +33,8 @@ export function InvoiceView() {
     enabled: !!id,
   })
 
-  usePageTitle('거래명세서', detailQuery.data?.slipNo)
+  const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
+  usePageTitle('거래명세서', displaySlipNo)
 
   // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
   const { company } = useCompanyProfile()
@@ -91,7 +93,7 @@ export function InvoiceView() {
             </div>
             <div className="invoice-v2-slip-no">
               <span className="label">전표번호</span>
-              <span className="value">{slip.slipNo}</span>
+              <span className="value">{displaySlipNo}</span>
             </div>
             <div className="invoice-v2-partner">
               <div className="invoice-v2-partner-name">{slip.partnerName ?? '-'}님 귀하</div>

@@ -13,3 +13,26 @@
  */
 export const toOrderPathId = (orderNumber: string): string =>
   orderNumber.replace(/\//g, '-')
+
+/**
+ * 인쇄 미리보기 표시용 전표번호에서 마지막 번호부의 앞자리 0만 제거한다.
+ *
+ * <p>전표번호 표준(`YYYY/MM/DD-NNN`)의 날짜 영역 0은 유지하고, 마지막 `-` 뒤 숫자만
+ * `001` → `1`, `010` → `10` 처럼 표시한다. 저장값과 경로 식별자는 변경하지 않는다.
+ *
+ * @param slipNo 저장된 원본 전표번호
+ * @returns 인쇄 표시용 전표번호. null/undefined 는 빈 문자열, 형식이 맞지 않으면 원본 문자열.
+ */
+export const stripSlipNoZeros = (slipNo: string | null | undefined): string => {
+  if (!slipNo) return slipNo ?? ''
+
+  const dashIndex = slipNo.lastIndexOf('-')
+  if (dashIndex < 0) return slipNo
+
+  const head = slipNo.slice(0, dashIndex)
+  const tail = slipNo.slice(dashIndex + 1)
+  if (!/^\d+$/.test(tail)) return slipNo
+
+  const strippedTail = tail.replace(/^0+/, '') || '0'
+  return `${head}-${strippedTail}`
+}

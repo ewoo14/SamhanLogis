@@ -25,6 +25,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
 
@@ -43,7 +44,8 @@ export function OutboundView() {
     queryFn: listWarehouses,
   })
 
-  usePageTitle('출고전표', detailQuery.data?.slipNo)
+  const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
+  usePageTitle('출고전표', displaySlipNo)
 
   // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
   const { company } = useCompanyProfile()
@@ -79,7 +81,7 @@ export function OutboundView() {
           <div className="outbound-company">{company.legalName}</div>
           <h1 className="outbound-title">출 고 전 표</h1>
           <div className="outbound-meta-row">
-            <span>전표번호: <strong>{slip.slipNo}</strong></span>
+            <span>전표번호: <strong>{displaySlipNo}</strong></span>
             <span>발행일: {krDate(slip.slipDate)}</span>
           </div>
           <div className="outbound-meta-row">

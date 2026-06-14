@@ -30,6 +30,7 @@ import { Button } from '@samhan/design-system'
 import { getSlip, type SlipDetail, type SlipLineDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import { useFitOneA4 } from './useFitOneA4'
 
 /**
@@ -100,7 +101,8 @@ export function DispatchView() {
     detailQuery.data?.lines?.length ?? 0,
   ])
 
-  usePageTitle('출고전표 작업지시서', detailQuery.data?.slipNo)
+  const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
+  usePageTitle('출고전표 작업지시서', displaySlipNo)
 
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
@@ -116,6 +118,9 @@ export function DispatchView() {
   const totalQty = slip.lines.reduce((sum, l) => sum + l.quantity, 0)
   const sourceWarehouseName =
     warehousesQuery.data?.find((w) => w.id === slip.sourceWarehouseId)?.name ?? '-'
+  const displaySlipNoFallback = stripSlipNoZeros(
+    slip.slipNo ?? `${(slip.slipDate ?? '').split('-').join('/')}-${slip.seqNo}`,
+  )
   const monthDay = toMonthDay(slip.slipDate)
   /** 결재칸 발행일 MMDD (샘플 '0610' = 발행 당일). */
   // 결제예정일 (개발책임자 정정 2026-06-10: '결제' → '결제예정일', 값 = slip.paymentDueDate MM/DD)
@@ -152,9 +157,9 @@ export function DispatchView() {
         </header>
 
         <div className="dispatch-meta-row">
-          {/* 전표번호 표준 = 슬래시 YYYY/MM/DD-{번호} (feedback_slip_order_number_format) — slipNo 그대로 */}
+          {/* 전표번호 표준 저장값은 유지하고, 인쇄 표시에서만 뒤 번호부 0을 제거한다. */}
           <div className="dispatch-slip-no-box">
-            {slip.slipNo ?? `${(slip.slipDate ?? '').split('-').join('/')} -${slip.seqNo}`}
+            {displaySlipNoFallback}
           </div>
           <div className="dispatch-warehouse-emphasis">
             {sourceWarehouseName}

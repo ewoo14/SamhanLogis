@@ -37,6 +37,7 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
 import styles from './StatementBatchView.module.css'
@@ -415,7 +416,9 @@ export function StatementBatchView() {
                           <tr key={`${line.slipNo}-${idx}`}>
                             <td className={styles.colNo}>{idx + 1}</td>
                             <td className={styles.dateCell}>{line.slipDate}</td>
-                            <td className={styles.slipNoCell}>{line.slipNo}</td>
+                            <td className={styles.slipNoCell}>
+                              {stripSlipNoZeros(line.slipNo)}
+                            </td>
                             <td className={styles.itemCell}>
                               {line.productName}
                             </td>

@@ -24,6 +24,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import {
   PrintLayout,
   krw,
@@ -48,7 +49,8 @@ export function PurchaseSlipPrintPage() {
     queryFn: listWarehouses,
   })
 
-  usePageTitle('매입 전표', detailQuery.data?.slipNo)
+  const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
+  usePageTitle('매입 전표', displaySlipNo)
 
   // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
   const { company } = useCompanyProfile()
@@ -98,7 +100,7 @@ export function PurchaseSlipPrintPage() {
           <div className="purchase-print-header-right">
             <div className="purchase-print-header-meta-row">
               <span className="purchase-print-meta-label">전표번호</span>
-              <span className="purchase-print-meta-value strong">{slip.slipNo}</span>
+              <span className="purchase-print-meta-value strong">{displaySlipNo}</span>
             </div>
             <div className="purchase-print-header-meta-row">
               <span className="purchase-print-meta-label">전표일자</span>

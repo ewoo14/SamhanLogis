@@ -23,6 +23,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import {
   PrintLayout,
   krw,
@@ -49,7 +50,8 @@ export function SalesInvoicePrintPage() {
 
   const { company } = useCompanyProfile()
 
-  usePageTitle('세금계산서', detailQuery.data?.slipNo)
+  const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
+  usePageTitle('세금계산서', displaySlipNo)
 
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
@@ -96,7 +98,7 @@ export function SalesInvoicePrintPage() {
           <div className="sales-print-header-right">
             <div className="sales-print-header-meta-row">
               <span className="sales-print-meta-label">전표번호</span>
-              <span className="sales-print-meta-value strong">{slip.slipNo}</span>
+              <span className="sales-print-meta-value strong">{displaySlipNo}</span>
             </div>
             <div className="sales-print-header-meta-row">
               <span className="sales-print-meta-label">작성일자</span>

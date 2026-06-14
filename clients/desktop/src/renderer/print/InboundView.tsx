@@ -3,7 +3,7 @@
  *
  * P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규.
  *
- * 구성 (88mm 기본 / A4 분기):
+ * 구성 (A4 기본 / 88mm 전환):
  * - 헤더: 회사명 + 입고전표 타이틀 + 전표번호
  * - 공급처: 공급처명 + 연락처 + 입고창고
  * - 라인 표: 품목 / 규격 / 수량 / 단가 / 금액
@@ -20,13 +20,14 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
 
 export function InboundView() {
   const params = useParams<{ id: string }>()
   const id = params.id ?? ''
-  const [paper, setPaper] = useState<PaperSize>('receipt-88mm')
+  const [paper, setPaper] = useState<PaperSize>('a4-portrait')
 
   const detailQuery = useQuery({
     queryKey: ['slip', id],
@@ -38,7 +39,8 @@ export function InboundView() {
     queryFn: listWarehouses,
   })
 
-  usePageTitle('입고전표', detailQuery.data?.slipNo)
+  const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
+  usePageTitle('입고전표', displaySlipNo)
 
   // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
   const { company } = useCompanyProfile()
@@ -74,7 +76,7 @@ export function InboundView() {
           <div className="inbound-company">{company.legalName}</div>
           <h1 className="inbound-title">입 고 전 표</h1>
           <div className="inbound-meta-row">
-            <span>전표번호: <strong>{slip.slipNo}</strong></span>
+            <span>전표번호: <strong>{displaySlipNo}</strong></span>
             <span>발행일: {krDate(slip.slipDate)}</span>
           </div>
           <div className="inbound-meta-row">

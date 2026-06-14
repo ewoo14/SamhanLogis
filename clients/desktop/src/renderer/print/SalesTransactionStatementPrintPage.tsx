@@ -30,6 +30,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getSlip, type SlipDetail, type SlipLineDetail } from '../api/slip'
 import { getPartnerFull } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw } from './PrintLayout'
 import { krwHangul } from './printUtils'
 import { useFitOneA4 } from './useFitOneA4'
@@ -93,7 +94,8 @@ export function SalesTransactionStatementPrintPage() {
     company.bankNotice,
   ])
 
-  usePageTitle('거래명세서', detailQuery.data?.slipNo)
+  const displaySlipNo = stripSlipNoZeros(detailQuery.data?.slipNo)
+  usePageTitle('거래명세서', displaySlipNo)
 
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
@@ -151,7 +153,7 @@ export function SalesTransactionStatementPrintPage() {
                     공<br />급<br />자
                   </th>
                   <th className="stm-k">일련번호</th>
-                  <td className="stm-v stm-num">{slip.slipNo}</td>
+                  <td className="stm-v stm-num">{displaySlipNo}</td>
                   <th className="stm-k stm-k-narrow">TEL</th>
                   <td className="stm-v stm-nowrap">{company.tel}</td>
                 </tr>
