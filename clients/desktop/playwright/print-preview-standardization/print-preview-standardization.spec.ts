@@ -56,9 +56,11 @@ test.describe('print preview standardization slice 1 source contract', () => {
   })
 
   test('excluded print views do not opt into the approval document layout', () => {
+    // 라우트 테이블의 실연결 인쇄 컴포넌트만 검사한다.
     for (const file of [
       'clients/desktop/src/renderer/print/OutboundView.tsx',
-      'clients/desktop/src/renderer/print/InvoiceView.tsx',
+      'clients/desktop/src/renderer/print/SalesTransactionStatementPrintPage.tsx',
+      'clients/desktop/src/renderer/print/SalesInvoicePrintPage.tsx',
       'clients/desktop/src/renderer/print/TaxInvoiceView.tsx',
       'clients/desktop/src/renderer/print/DispatchView.tsx',
       'clients/desktop/src/renderer/print/PurchaseSlipPrintPage.tsx',

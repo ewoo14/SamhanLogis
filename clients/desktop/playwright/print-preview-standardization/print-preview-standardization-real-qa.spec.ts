@@ -31,7 +31,7 @@ const GW_URL = 'http://127.0.0.1:8080'
 // 실 시드 UUID
 const INBOUND_SLIP_ID = '1c72f28a-4aae-4f1c-8522-b7e9a921aa0d'   // INBOUND CONFIRMED 2026/04/08-001
 const OUTBOUND_SLIP_ID = '6ceba0b4-4b3c-437a-9e03-866c9a6b596c'  // OUTBOUND CONFIRMED 2026/02/18-001
-// QuoteView 라우트: /sales/estimates/:estimateNumber/print
+// QuoteView 라우트: /sales/estimates/:id/print
 // EstimateDetailPage 는 encodeURIComponent(estimateNo) 로 URL 구성하나 React Router가
 // %2F 를 / 로 decode 하여 경로 분리 → UUID 직접 전달이 안전.
 // getEstimate() 함수는 UUID 를 그대로 BE /slips/estimates/{uuid} 로 전달.
@@ -286,10 +286,17 @@ test('C2: 견적서 미리보기 — 결재문서 형식 (직인 없음, 결재�
     }
   }
 
+  // estimate-print queryKey 회귀(금액·번호 빈값) 재발 차단.
   expect(bodyText).not.toContain('견적을 불러오지 못했')
+  expect(hasDocTitle).toBeTruthy()
+  expect(bodyText).toContain('2026/06/08-2')
   expect(hasPartner).toBeTruthy()
   expect(hasApprovalSection).toBeTruthy()
   expect(hasApprovalNotice).toBeTruthy()
+  const hasLineData = bodyText.includes('삼성 윈드프리') || /\d,\d{3}/.test(bodyText)
+  console.log('[CHECK] 라인 실 데이터:', hasLineData)
+  expect(hasLineData).toBeTruthy()
+  expect(bodyText).toContain('792,000')
 })
 
 // ────────────────────────────────────────────────────────────────────────────
