@@ -84,6 +84,7 @@ class GroupwarePermissionControllerIT {
     private static final String ROLE_HEADER = "X-User-Role";
     private static final String DEPARTMENT_HEADER = "X-User-Department";
     private static final String ADMIN_PAGE = "messenger.admin";
+    private static final String APPROVAL_PAGE = "groupware.approvals";
     private static final String SEND_PAGE = "messenger.send";
 
     @Autowired private MockMvc mockMvc;
@@ -191,19 +192,19 @@ class GroupwarePermissionControllerIT {
     static Stream<EndpointCase> endpoints() {
         UUID id = UUID.fromString("00000000-0000-0000-0000-000000000001");
         return Stream.of(
-                new EndpointCase("create approval", ADMIN_PAGE, PermissionAction.CREATE, "MANAGER",
+                new EndpointCase("create approval", APPROVAL_PAGE, PermissionAction.UPDATE, "MANAGER",
                         () -> post("/admin/groupware/approvals")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {"requesterId":"00000000-0000-0000-0000-000000000011","title":"결재","content":"본문","approverIds":["00000000-0000-0000-0000-000000000012"]}
                                         """)),
-                new EndpointCase("approve approval", ADMIN_PAGE, PermissionAction.UPDATE, "MANAGER",
+                new EndpointCase("approve approval", APPROVAL_PAGE, PermissionAction.UPDATE, "MANAGER",
                         () -> put("/admin/groupware/approvals/{id}/approve", id)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                         {"approverId":"00000000-0000-0000-0000-000000000012","reason":null}
                                         """)),
-                new EndpointCase("reject approval", ADMIN_PAGE, PermissionAction.UPDATE, "MANAGER",
+                new EndpointCase("reject approval", APPROVAL_PAGE, PermissionAction.UPDATE, "MANAGER",
                         () -> put("/admin/groupware/approvals/{id}/reject", id)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
@@ -237,7 +238,7 @@ class GroupwarePermissionControllerIT {
     }
 
     static Stream<EndpointCase> approvalEndpoints() {
-        return endpoints().filter(endpoint -> ADMIN_PAGE.equals(endpoint.page())
+        return endpoints().filter(endpoint -> APPROVAL_PAGE.equals(endpoint.page())
                 && (endpoint.action() == PermissionAction.CREATE || endpoint.action() == PermissionAction.UPDATE)
                 && endpoint.name().contains("approval"));
     }
