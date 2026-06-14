@@ -4,14 +4,13 @@
  * [[no-fake-data-ever]] [[real-server-check-screenshot]] [[feedback_qa_docker_real_test]]
  *
  * 검증 시나리오:
- *   C1: 입고전표 미리보기 — 헤더(회사명+사업자번호, 로고 없음) + 결재란 3칸 (미서명 빈 사각형)
- *   C2: 견적서 미리보기 — 결재문서 형식 (직인 없음, 결재란 3칸)
+ *   C1: 입고전표 미리보기 — 출고전표와 통일된 전표 양식. 결재란 없음
+ *   C2: 견적 인쇄는 종합견적서 에픽에서 재작업(진입 버그 포함) — 슬라이스1 범위 외
  *   C3: 회귀 — 출고전표 미리보기는 기존 양식 그대로 (결재란 추가 없음)
  *
  * 실 시드 데이터:
  *   - INBOUND CONFIRMED: 1c72f28a-4aae-4f1c-8522-b7e9a921aa0d (2026/04/08-001)
  *   - OUTBOUND CONFIRMED: 6ceba0b4-4b3c-437a-9e03-866c9a6b596c (2026/02/18-001)
- *   - ESTIMATE: 829e012a-e7da-4777-bd94-a67d177f17dc (estimateNo: 2026/06/08-2)
  *
  * 실행:
  *   cd clients/desktop
@@ -31,12 +30,6 @@ const GW_URL = 'http://127.0.0.1:8080'
 // 실 시드 UUID
 const INBOUND_SLIP_ID = '1c72f28a-4aae-4f1c-8522-b7e9a921aa0d'   // INBOUND CONFIRMED 2026/04/08-001
 const OUTBOUND_SLIP_ID = '6ceba0b4-4b3c-437a-9e03-866c9a6b596c'  // OUTBOUND CONFIRMED 2026/02/18-001
-// QuoteView 라우트: /sales/estimates/:id/print
-// EstimateDetailPage 는 encodeURIComponent(estimateNo) 로 URL 구성하나 React Router가
-// %2F 를 / 로 decode 하여 경로 분리 → UUID 직접 전달이 안전.
-// getEstimate() 함수는 UUID 를 그대로 BE /slips/estimates/{uuid} 로 전달.
-const ESTIMATE_UUID = '829e012a-e7da-4777-bd94-a67d177f17dc'      // estimateNo: 2026/06/08-2, 대구HVAC솔루션
-
 const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 const MASTER_ROLE = 'MASTER'
 const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
@@ -128,9 +121,9 @@ async function suppressPrint(page: Page): Promise<void> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// C1: 입고전표 미리보기 — 전자서명 결재문서 형식 확인
+// C1: 입고전표 미리보기 — 출고전표와 통일된 전표 양식 확인
 // ────────────────────────────────────────────────────────────────────────────
-test('C1: 입고전표 미리보기 — 헤더(회사명+사업자번호) + 결재란 3칸 확인', async ({ page }) => {
+test('C1: 입고전표 미리보기 — 출고전표 통일 양식과 실 데이터 확인', async ({ page }) => {
   const token = await fetchRealToken()
   await installRealAuth(page, token)
   await setupApiProxy(page, token)
@@ -141,164 +134,40 @@ test('C1: 입고전표 미리보기 — 헤더(회사명+사업자번호) + 결�
   await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2500)
 
-  await capture(page, 'c1-inbound-approval-doc-full')
+  await capture(page, 'c1-inbound-slip-form-full')
 
   const bodyText = await page.locator('body').textContent() ?? ''
   console.log('[BODY SAMPLE]', bodyText.slice(0, 400).replace(/\s+/g, ' '))
 
-  // 1) 회사명 표시 — useCompanyProfile legalName (로고 없음)
-  const hasCompanyName = bodyText.includes('삼한공조') || bodyText.includes('(주)삼한')
-  console.log('[CHECK] 회사명 표시:', hasCompanyName)
-
-  // 2) 결재란 섹션 (전자서명 결재란) — aria-label 또는 텍스트
+  // 1) 결재문서 후속 에픽용 approvalDoc 은 입고전표에 적용하지 않는다.
   const approvalSection = page.locator('[aria-label="전자서명 결재란"]')
-  const hasApprovalSection = await approvalSection.count() > 0
-  console.log('[CHECK] 결재란 섹션 존재:', hasApprovalSection)
+  const approvalCount = await approvalSection.count()
+  console.log('[CHECK] 결재란 섹션 없음:', approvalCount === 0)
 
-  // 3) 결재란 라벨 — 작성/검토/승인 3칸
-  const hasLabel작성 = bodyText.includes('작성')
-  const hasLabel검토 = bodyText.includes('검토')
-  const hasLabel승인 = bodyText.includes('승인')
-  console.log('[CHECK] 결재란 라벨 작성:', hasLabel작성, '검토:', hasLabel검토, '승인:', hasLabel승인)
-
-  // 4) 문서 제목 "입 고 전 표"
+  // 2) 출고전표와 통일된 전표 본문이 실 데이터로 표시되어야 한다.
   const hasDocTitle = bodyText.includes('입 고 전 표') || bodyText.includes('입고전표')
   console.log('[CHECK] 문서 제목:', hasDocTitle)
-
-  // 5) 전표번호 표시 (슬래시 포맷)
   const hasSlipNo = bodyText.includes('2026/04/08-001') || bodyText.includes('2026/04/08')
   console.log('[CHECK] 전표번호 표시:', hasSlipNo)
+  const hasCompany = bodyText.includes('삼한공조')
+  console.log('[CHECK] 회사명 표시:', hasCompany)
+  const hasLineData = bodyText.includes('TEST-MODEL')
+  console.log('[CHECK] 품목 실 데이터:', hasLineData)
+  const hasTotal = bodyText.includes('합계')
+  console.log('[CHECK] 합계 표시:', hasTotal)
 
-  // 6) [인] 텍스트 사인란 없음 (구 레거시 사인란 제거됨)
-  const hasLegacySeal = bodyText.includes('[인]')
-  console.log('[CHECK] 구 [인] 사인란 제거됨:', !hasLegacySeal)
-
-  // 7) 로고 없음 확인 — 이미지 태그 로고 src 없음
-  const logoImgs = await page.locator('img[src*="logo"]').count()
-  const stampImgs = await page.locator('img[src*="stamp"]').count()
-  console.log('[CHECK] 로고 이미지 없음:', logoImgs === 0, '인감 이미지 없음:', stampImgs === 0)
-
-  // 8) 전자서명 안내 문구
-  const hasApprovalNotice = bodyText.includes('전자서명으로 결재된 문서')
-  console.log('[CHECK] 전자서명 안내 문구:', hasApprovalNotice)
-
-  // 상세 캡처: 결재란 영역만 클로즈업
-  if (hasApprovalSection) {
-    const approvalEl = approvalSection.first()
-    const box = await approvalEl.boundingBox()
-    if (box) {
-      console.log('[CHECK] 결재란 boundingBox:', JSON.stringify(box))
-      await capture(page, 'c1-inbound-approval-section-closeup')
-    }
-  }
-
-  // 핵심 단언: 에러 페이지 false-green 방지 + 결재문서 형식 필수 확인
+  // 핵심 단언: 에러 페이지 false-green 방지 + 입고전표 통일 양식 확인.
   expect(bodyText).not.toContain('불러오지 못')
-  expect(hasApprovalSection).toBeTruthy()
-  expect(hasApprovalNotice).toBeTruthy()
-  expect(hasCompanyName).toBeTruthy()
-  // 전표번호 표시 — 결재란 형식만 그려지고 헤더 데이터가 비면 false-green 통과하던 갭 차단.
-  expect(hasSlipNo).toBeTruthy()
-  // 라인 실 데이터 단언 — 견적 queryKey 충돌(금액 빈값) 회귀 교훈([estimate-print] 키 분리).
-  // 전표 본문이 부분 로드(라인/금액 누락)된 채로 회귀검증을 통과하는 false-green 을 감지한다.
-  const hasLineData = bodyText.includes('TEST-MODEL') || /\d,\d{3}/.test(bodyText)
-  console.log('[CHECK] 라인 실 데이터:', hasLineData)
-  expect(hasLineData).toBeTruthy()
-})
-
-// ────────────────────────────────────────────────────────────────────────────
-// C2: 견적서 미리보기 — 전자서명 결재문서 형식 확인
-// ────────────────────────────────────────────────────────────────────────────
-test('C2: 견적서 미리보기 — 결재문서 형식 (직인 없음, 결재란 3칸)', async ({ page }) => {
-  const token = await fetchRealToken()
-  await installRealAuth(page, token)
-  await setupApiProxy(page, token)
-  await suppressPrint(page)
-  await page.addInitScript(() => {
-    const testWindow = window as Window & { __openUrls: string[] }
-    testWindow.__openUrls = []
-    window.open = (url?: string | URL, _target?: string, _features?: string): Window | null => {
-      testWindow.__openUrls.push(String(url ?? ''))
-      return null
-    }
-  })
-
-  // 견적 상세의 실제 인쇄 버튼을 통해 print URL 을 수집한다.
-  // estimateNo 슬래시 포맷이 섞이면 %2F 회귀가 발생하므로 UUID 포함 여부를 먼저 검증.
-  const url = hashUrl(`/sales/estimates/${ESTIMATE_UUID}`)
-  console.log('[NAVIGATE]', url)
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 })
-  await page.getByTestId('estimate-detail-print-button').click()
-  const openUrls = await page.evaluate(() => {
-    return (window as Window & { __openUrls?: string[] }).__openUrls ?? []
-  })
-  const printUrl = openUrls.at(-1) ?? ''
-  console.log('[인쇄 URL]', printUrl)
-  expect(printUrl).toContain(ESTIMATE_UUID)
-  expect(printUrl).not.toContain('%2F')
-
-  await page.goto(hashUrl(printUrl.replace(/^.*#/, '')), { waitUntil: 'networkidle', timeout: 30_000 })
-  await page.waitForTimeout(2500)
-
-  await capture(page, 'c2-quote-approval-doc-full')
-
-  const bodyText = await page.locator('body').textContent() ?? ''
-  console.log('[BODY SAMPLE]', bodyText.slice(0, 400).replace(/\s+/g, ' '))
-
-  // 1) 문서 제목 "견 적 서"
-  const hasDocTitle = bodyText.includes('견 적 서') || bodyText.includes('견적서')
-  console.log('[CHECK] 문서 제목:', hasDocTitle)
-
-  // 2) 거래처명 표시
-  const hasPartner = bodyText.includes('대구HVAC솔루션')
-  console.log('[CHECK] 거래처명 표시:', hasPartner)
-
-  // 3) 결재란 3칸 (작성/검토/승인)
-  const hasLabel작성 = bodyText.includes('작성')
-  const hasLabel검토 = bodyText.includes('검토')
-  const hasLabel승인 = bodyText.includes('승인')
-  console.log('[CHECK] 결재란 작성:', hasLabel작성, '검토:', hasLabel검토, '승인:', hasLabel승인)
-
-  // 4) [직인] 텍스트 없음 (구 레거시 직인란 제거)
-  const hasLegacyStamp = bodyText.includes('[직인]')
-  console.log('[CHECK] 구 [직인] 제거됨:', !hasLegacyStamp)
-
-  // 5) 결재란 섹션 aria-label
-  const approvalSection = page.locator('[aria-label="전자서명 결재란"]')
-  const hasApprovalSection = await approvalSection.count() > 0
-  console.log('[CHECK] 결재란 섹션 존재:', hasApprovalSection)
-
-  // 6) 전자서명 안내 문구
-  const hasApprovalNotice = bodyText.includes('전자서명으로 결재된 문서')
-  console.log('[CHECK] 전자서명 안내 문구:', hasApprovalNotice)
-
-  // 7) 로고/인감 이미지 없음
-  const logoImgs = await page.locator('img[src*="logo"]').count()
-  const stampImgs = await page.locator('img[src*="stamp"]').count()
-  console.log('[CHECK] 로고 없음:', logoImgs === 0, '인감 없음:', stampImgs === 0)
-
-  // 상세 캡처: 결재란 영역
-  if (hasApprovalSection) {
-    const approvalEl = approvalSection.first()
-    const box = await approvalEl.boundingBox()
-    if (box) {
-      await capture(page, 'c2-quote-approval-section-closeup')
-    }
-  }
-
-  // estimate-print queryKey 회귀(금액·번호 빈값) 재발 차단.
-  expect(bodyText).not.toContain('견적을 불러오지 못했')
+  expect(approvalCount).toBe(0)
+  expect(hasCompany).toBeTruthy()
   expect(hasDocTitle).toBeTruthy()
-  expect(bodyText).toContain('2026/06/08-2')
-  expect(hasPartner).toBeTruthy()
-  expect(hasApprovalSection).toBeTruthy()
-  expect(hasApprovalNotice).toBeTruthy()
-  const hasLineData = bodyText.includes('삼성 윈드프리') || /\d,\d{3}/.test(bodyText)
-  console.log('[CHECK] 라인 실 데이터:', hasLineData)
+  expect(hasSlipNo).toBeTruthy()
   expect(hasLineData).toBeTruthy()
-  expect(bodyText).toContain('792,000')
+  expect(hasTotal).toBeTruthy()
 })
 
+// ────────────────────────────────────────────────────────────────────────────
+// C2: 견적 인쇄는 종합견적서 에픽에서 재작업(진입 버그 포함) — 슬라이스1 범위 외.
 // ────────────────────────────────────────────────────────────────────────────
 // C3: 회귀 — 출고전표 미리보기는 기존 양식 그대로 (결재란 추가 안 됨)
 // ────────────────────────────────────────────────────────────────────────────

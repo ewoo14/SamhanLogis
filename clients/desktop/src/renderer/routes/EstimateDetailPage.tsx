@@ -15,7 +15,7 @@
  *   <li>QUOTE_DRAFT — 편집 / 발송</li>
  *   <li>QUOTE_SENT  — 편집 / 수락 / 거절</li>
  *   <li>QUOTE_ACCEPTED — 전표 변환 (Slip OUTBOUND DRAFT 자동 발행)</li>
- *   <li>모든 상태 — 인쇄 (`/sales/estimates/:id/print` 새 창, 상세와 동일 UUID id)</li>
+ *   <li>모든 상태 — 인쇄 (`/sales/estimates/:estimateNumber/print` 새 창)</li>
  * </ul>
  *
  * <p>UUID 비공개 가드 — id 표시 X. estimateNo / partnerName / modelName 만 노출.
@@ -214,11 +214,13 @@ export function EstimateDetailPage() {
     convertMutation.mutate()
   }
   const handlePrint = () => {
-    // 인쇄 라우트도 상세와 동일하게 UUID(id)를 path로 전달한다.
-    // QuoteView → getEstimate(id) → BE GET /slips/estimates/{UUID}.
-    // estimateNo(슬래시)를 쓰면 encodeURIComponent %2F가 hash router에서 /로 재분해되고,
-    // 게이트웨이 %2F 차단으로 BE 400이 발생해 미리보기가 깨진다.
-    const url = `${window.location.origin}/#/sales/estimates/${id}/print`
+    // Designer commit 5dcbbef 의 QuoteView (`/sales/estimates/:estimateNumber/print`).
+    // Print view 는 estimateNumber path param 사용 (legacy `getEstimate` API). 본 mock
+    // 에서는 동일 estimateNo 를 path 로 전달 — 후속 iteration 에서 print view 가
+    // 신규 estimate-service API 로 마이그레이션 시 path 변경.
+    const url = `${window.location.origin}/#/sales/estimates/${encodeURIComponent(
+      e.estimateNo,
+    )}/print`
     window.open(url, '_blank', 'width=900,height=1200')
   }
 

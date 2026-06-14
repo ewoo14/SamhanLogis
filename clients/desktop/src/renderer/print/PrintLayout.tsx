@@ -16,11 +16,10 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, SignatureViewer } from '@samhan/design-system'
-import { useCompanyProfile } from './useCompanyProfile'
 
-// COMPANY 정적 상수는 useCompanyProfile 훅으로 대체됨 (spec §2c, 2026-06-10).
-// 외부에서 COMPANY 를 직접 import 하지 말 것 — useCompanyProfile() 훅 사용.
-// 아래 DEFAULT_COMPANY 는 useCompanyProfile.ts 내부에서 fallback 으로만 사용.
+// 결재문서(approvalDoc) 헤더에서 회사명/사업자번호 블록 제거(2026-06-14 개발책임자
+// 디자인 iteration 2) → useCompanyProfile 훅은 본 layout 에서 더 이상 쓰지 않는다.
+// 회사 정보는 거래명세서/세금계산서 등 각 view 가 필요 시 자체적으로 useCompanyProfile() 사용.
 
 /**
  * Paper size 종류 — `<PrintLayout>` 의 `paper` prop.
@@ -70,6 +69,13 @@ interface PrintLayoutProps {
   docHeader?: PrintDocHeader
   /** 결재란 정의. 2~5칸을 배열 길이로 동적 렌더한다. */
   approvalSteps?: PrintApprovalStep[]
+  /**
+   * 결재 서류용 정중한 품의/제출 멘트. `approvalDoc=true` 일 때 본문 divider 아래에 렌더한다.
+   *
+   * 예) "위와 같이 품의하오니 재가하여 주시기 바랍니다." / "아래와 같이 견적서를 제출하오니 …".
+   * 그 아래의 "※ 전자서명으로 결재된 문서입니다." 안내 문구는 본 멘트와 별개로 항상 유지된다.
+   */
+  closingNote?: string
 }
 
 /**
@@ -91,9 +97,9 @@ export function PrintLayout({
   approvalDoc = false,
   docHeader,
   approvalSteps = [],
+  closingNote,
 }: PrintLayoutProps) {
   const navigate = useNavigate()
-  const { company } = useCompanyProfile()
   const normalizedApprovalSteps = approvalSteps.slice(0, 5)
   return (
     <div>
@@ -116,17 +122,12 @@ export function PrintLayout({
       <div className={`paper paper-${paper}`}>
         {approvalDoc ? (
           <div className="print-approval-doc">
-            {/* 헤더 = 좌(회사/문서정보) + 우(결재란 박스).
-                한국 ERP/공문서/세금계산서 표준에 맞춰 결재란을 문서 우측 상단 코너로 배치한다.
-                (기존엔 본문 하단 가로 grid 였음 — 2026-06-14 개발책임자 재배치 지시) */}
+            {/* 헤더 = 좌(문서제목 + 문서메타) + 우(결재란 박스).
+                회사명/사업자번호 블록은 제거(2026-06-14 개발책임자 디자인 iteration 2) →
+                좌측 최상단이 문서 제목 h1, 그 아래 문서메타(번호/발행일/기간), 우상단이 결재란.
+                한국 ERP/공문서/세금계산서 표준에 맞춰 결재란을 문서 우측 상단 코너로 배치한다. */}
             <header className="print-approval-doc-header">
               <div className="print-approval-doc-headline">
-                <div className="print-approval-company">
-                  <div className="print-approval-company-name">{company.legalName}</div>
-                  <div className="print-approval-company-meta">
-                    사업자번호 {company.businessRegNo}
-                  </div>
-                </div>
                 <div className="print-approval-doc-meta">
                   <h1>{docHeader?.title ?? ''}</h1>
                   {docHeader?.docNo ? (
@@ -192,12 +193,18 @@ export function PrintLayout({
             </header>
             <div className="print-approval-divider" aria-hidden="true" />
             <main className="print-approval-body">{children}</main>
-            {/* 안내 문구만 문서 하단(본문 아래)에 유지. 결재란 grid 는 우측 상단으로 이동했다.
-                결재란이 렌더될 때만(빈 배열 방어) 안내 문구도 노출한다. */}
-            {normalizedApprovalSteps.length > 0 ? (
+            {/* 문서 하단(본문 아래) = 정중한 품의/제출 멘트(closingNote) + 전자서명 안내 문구.
+                결재란 grid 는 우측 상단으로 이동했다(2026-06-14). closingNote 또는 결재란이
+                하나라도 있으면 divider 를 그린다. 안내 문구는 결재란이 렌더될 때만(빈 배열 방어). */}
+            {closingNote || normalizedApprovalSteps.length > 0 ? (
               <>
                 <div className="print-approval-divider" aria-hidden="true" />
-                <p className="print-approval-notice">※ 전자서명으로 결재된 문서입니다.</p>
+                {closingNote ? (
+                  <p className="print-approval-closing">{closingNote}</p>
+                ) : null}
+                {normalizedApprovalSteps.length > 0 ? (
+                  <p className="print-approval-notice">※ 전자서명으로 결재된 문서입니다.</p>
+                ) : null}
               </>
             ) : null}
           </div>

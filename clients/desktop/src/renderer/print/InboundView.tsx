@@ -3,13 +3,11 @@
  *
  * P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규.
  *
- * 구성 (A4 세로 기본 / 88mm 분기 toggle):
- * - 헤더: PrintLayout 결재문서 공통 헤더 (로고 없음)
- * - 공급처: 공급처명 + 사업자번호(있으면) + 연락처
- * - 입고창고 (destinationWarehouse 명) — 강조 표시
+ * 구성 (88mm 기본 / A4 분기):
+ * - 헤더: 회사명 + 입고전표 타이틀 + 전표번호
+ * - 공급처: 공급처명 + 연락처 + 입고창고
  * - 라인 표: 품목 / 규격 / 수량 / 단가 / 금액
  * - 합계: 공급가 + 부가세 + 합계
- * - 결재란: PrintLayout 전자서명 결재란 3칸 (작성 / 검토 / 승인)
  *
  * 출처: `docs/manual/06-트러블슈팅/03-인쇄-안됨.md` §1 표 (P0-4).
  *
@@ -23,11 +21,12 @@ import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PrintLayout, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 
 export function InboundView() {
   const params = useParams<{ id: string }>()
   const id = params.id ?? ''
-  const [paper, setPaper] = useState<PaperSize>('a4-portrait')
+  const [paper, setPaper] = useState<PaperSize>('receipt-88mm')
 
   const detailQuery = useQuery({
     queryKey: ['slip', id],
@@ -40,6 +39,9 @@ export function InboundView() {
   })
 
   usePageTitle('입고전표', detailQuery.data?.slipNo)
+
+  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
+  const { company } = useCompanyProfile()
 
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
@@ -66,23 +68,26 @@ export function InboundView() {
       backTo={`/purchases/${id}`}
       showFormatToggle
       onToggleFormat={() => setPaper((p) => (p === 'receipt-88mm' ? 'a4-portrait' : 'receipt-88mm'))}
-      approvalDoc
-      docHeader={{
-        title: '입 고 전 표',
-        docNo: slip.slipNo,
-        issueDate: slip.slipDate,
-      }}
-      approvalSteps={[
-        { label: '작성', name: slip.ownerFullName ?? undefined },
-        { label: '검토', name: slip.inspector?.fullName ?? undefined, decidedAt: slip.inspector?.signedAt },
-        { label: '승인' },
-      ]}
     >
       <div className={`inbound-page inbound-${variant}`} data-testid="inbound-print-area">
+        <header className="inbound-header">
+          <div className="inbound-company">{company.legalName}</div>
+          <h1 className="inbound-title">입 고 전 표</h1>
+          <div className="inbound-meta-row">
+            <span>전표번호: <strong>{slip.slipNo}</strong></span>
+            <span>발행일: {krDate(slip.slipDate)}</span>
+          </div>
+          <div className="inbound-meta-row">
+            <span>입고창고: <strong>{destWarehouseName}</strong></span>
+          </div>
+        </header>
+
+        <div className="inbound-divider">- - - - - - - - - - - - - - - - - - - -</div>
+
         <section className="inbound-supplier">
           <div className="row">
             <span className="label">공급처</span>
-            <span className="value strong">{slip.partnerName ?? '-'}</span>
+            <span className="value">{slip.partnerName ?? '-'}</span>
           </div>
           <div className="row">
             <span className="label">연락처</span>
@@ -94,10 +99,11 @@ export function InboundView() {
           </div>
         </section>
 
+        <div className="inbound-divider">- - - - - - - - - - - - - - - - - - - -</div>
+
         <table className="inbound-table">
           <thead>
             <tr>
-              <th className="col-no">No.</th>
               <th className="col-product">품목</th>
               {variant === 'a4' ? <th className="col-spec">규격</th> : null}
               <th className="col-qty">수량</th>
@@ -106,14 +112,13 @@ export function InboundView() {
             </tr>
           </thead>
           <tbody>
-            {slip.lines.map((l, idx) => {
+            {slip.lines.map((l) => {
               const lineSupply = Number(l.lineTotal)
               const productLabel = l.modelName
-                ? `${l.modelName}${l.productName ? ` (${l.productName})` : ''}`
+                ? `${l.modelName}${l.productName ? ` / ${l.productName}` : ''}`
                 : (l.productName ?? '-')
               return (
                 <tr key={l.id}>
-                  <td className="col-no">{idx + 1}</td>
                   <td className="col-product">{productLabel}</td>
                   {variant === 'a4' ? <td className="col-spec">{l.specification ?? '-'}</td> : null}
                   <td className="col-qty num">{l.quantity.toLocaleString()}</td>
@@ -122,29 +127,16 @@ export function InboundView() {
                 </tr>
               )
             })}
-            {variant === 'a4'
-              ? Array.from({ length: Math.max(0, 5 - slip.lines.length) }).map((_, i) => (
-                  <tr key={`pad-${i}`} className="pad-row">
-                    <td className="col-no">&nbsp;</td>
-                    <td className="col-product">&nbsp;</td>
-                    <td className="col-spec">&nbsp;</td>
-                    <td className="col-qty">&nbsp;</td>
-                    <td className="col-price">&nbsp;</td>
-                    <td className="col-amount">&nbsp;</td>
-                  </tr>
-                ))
-              : null}
           </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={variant === 'a4' ? 3 : 2} className="totals-label">합계</td>
-              <td className="col-qty num">{totalQty.toLocaleString()}</td>
-              <td colSpan={2} className="num strong">{krw(total)}</td>
-            </tr>
-          </tfoot>
         </table>
 
+        <div className="inbound-divider">- - - - - - - - - - - - - - - - - - - -</div>
+
         <section className="inbound-totals">
+          <div className="row">
+            <span>총 수량</span>
+            <span className="num">{totalQty.toLocaleString()}</span>
+          </div>
           <div className="row">
             <span>공급가액</span>
             <span className="num">{krw(supply)}</span>
@@ -165,10 +157,6 @@ export function InboundView() {
             <span className="value">{slip.memo}</span>
           </section>
         ) : null}
-
-        <p className="inbound-notice">
-          ※ 입고 수량 / 품목 / 상태 이상 유무 확인 후 전자결재로 승인합니다.
-        </p>
       </div>
     </PrintLayout>
   )

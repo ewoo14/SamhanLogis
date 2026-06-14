@@ -16,12 +16,17 @@ test.describe('print preview standardization slice 1 source contract', () => {
     expect(source).toContain('approvalDoc?: boolean')
     expect(source).toContain('docHeader?:')
     expect(source).toContain('approvalSteps?:')
-    expect(source).toContain('useCompanyProfile')
+    expect(source).toContain('closingNote?: string')
     expect(source).toContain('SignatureViewer')
     expect(source).toContain('approvalDoc = false')
     expect(source).toContain('print-approval-doc-header')
     expect(source).toContain('print-approval-grid')
+    expect(source).toContain('print-approval-closing')
     expect(source).not.toContain('company.logoPath')
+    // 2026-06-14 iteration 2 — 결재문서 헤더에서 회사명/사업자번호 블록 제거.
+    // useCompanyProfile 훅과 회사명 DOM(print-approval-company)을 더 이상 렌더하지 않는다.
+    expect(source).not.toContain('print-approval-company')
+    expect(source).not.toContain('company.legalName')
   })
 
   test('design-system exposes the approval print tokens required by DESIGN.md', () => {
@@ -38,26 +43,38 @@ test.describe('print preview standardization slice 1 source contract', () => {
     }
   })
 
-  test('InboundView and QuoteView opt into approvalDoc and remove legacy seal marks', () => {
+  test('InboundView and QuoteView keep non-approval print forms', () => {
     const inbound = read('clients/desktop/src/renderer/print/InboundView.tsx')
     const quote = read('clients/desktop/src/renderer/print/QuoteView.tsx')
 
-    expect(inbound).toContain('approvalDoc')
-    expect(inbound).toContain('approvalSteps')
-    expect(inbound).toContain('title: \'입 고 전 표\'')
+    // 입고전표는 출고전표와 통일된 전표 양식이며 결재문서 골격을 사용하지 않는다.
+    expect(inbound).not.toContain('approvalDoc')
+    expect(inbound).not.toContain('approvalSteps')
+    expect(inbound).not.toContain('closingNote')
+    expect(inbound).toContain('입 고 전 표')
+    expect(inbound).toContain('inbound-page')
+    expect(inbound).toContain('inbound-table')
     expect(inbound).not.toContain('[인]')
     expect(inbound).not.toContain('inbound-logo')
 
-    expect(quote).toContain('approvalDoc')
-    expect(quote).toContain('approvalSteps')
-    expect(quote).toContain('title: \'견 적 서\'')
-    expect(quote).not.toContain('[직인]')
-    expect(quote).not.toContain('quote-logo')
+    // 견적 인쇄는 origin 견적서 양식으로 보존하고 종합견적서 에픽에서 재작업한다.
+    expect(quote).not.toContain('approvalDoc')
+    expect(quote).not.toContain('approvalSteps')
+    expect(quote).not.toContain('closingNote')
+    expect(quote).toContain('견 적 서')
+    expect(quote).toContain('quote-supplier-table')
+    expect(quote).toContain('quote-meta-table')
+    expect(quote).toContain('[직인]')
+    for (const header of ['품목 / 모델', '출고가', '납품가', '수량', '소계', '비고']) {
+      expect(quote).toContain(header)
+    }
   })
 
   test('excluded print views do not opt into the approval document layout', () => {
     // 라우트 테이블의 실연결 인쇄 컴포넌트만 검사한다.
     for (const file of [
+      'clients/desktop/src/renderer/print/InboundView.tsx',
+      'clients/desktop/src/renderer/print/QuoteView.tsx',
       'clients/desktop/src/renderer/print/OutboundView.tsx',
       'clients/desktop/src/renderer/print/SalesTransactionStatementPrintPage.tsx',
       'clients/desktop/src/renderer/print/SalesInvoicePrintPage.tsx',

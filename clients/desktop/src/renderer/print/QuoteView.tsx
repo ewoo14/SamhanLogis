@@ -1,17 +1,17 @@
 /**
- * 견적서 인쇄 미리보기 — `/sales/estimates/:id/print` (상세/편집과 동일 UUID id).
+ * 견적서 인쇄 미리보기 — `/sales/estimates/:estimateNumber/print`.
  *
  * P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규.
  *
  * 구성 (A4 세로):
- * - 헤더: PrintLayout 결재문서 공통 헤더 (로고 없음)
+ * - 헤더: 회사 로고 + 회사 정보 (좌) | 견적번호 + 작성일 + 유효기간 (우)
  * - 거래처: 거래처명 + 현장주소 + 연락처 + 담당자
  * - 타이틀: "견적서" (큰 활자, 가운데)
  * - 견적 요약 박스: 합계금액 (한글) + (₩숫자) + 부가세 별도/포함 명시
  * - 라인 표 7-col: No / 품목 / 출고가 / 납품가 / 수량 / 소계 / 비고
  * - 합계: 공급가 + 부가세(별도) + 합계
  * - 결제 / 납기 안내
- * - 결재란: PrintLayout 전자서명 결재란 3칸 (작성 / 검토 / 승인)
+ * - 회사 직인 + 발행자 사인란
  *
  * 출처: `docs/manual/06-트러블슈팅/03-인쇄-안됨.md` §1 표 6번 (P0-4 견적서 인쇄).
  *
@@ -22,7 +22,8 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getEstimate, type EstimateDetail } from '../api/sales'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PrintLayout, krw, krDate, toKoreanAmount } from './PrintLayout'
+import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
+import { useCompanyProfile } from './useCompanyProfile'
 
 /**
  * 견적 유효기간 — `createdAt + 30 일` 기본 (실제 운영은 EstimateDetail 에 expirationDate 추가
@@ -37,23 +38,20 @@ function calcValidUntil(createdAt: string): string {
 }
 
 export function QuoteView() {
-  // 인쇄 라우트(`/sales/estimates/:id/print`)는 상세/편집과 동일한 UUID id 를 path param 으로 받는다.
-  // getEstimate() 가 이 id 를 BE `/slips/estimates/{id}` 로 그대로 전달한다 (estimateNo 아님).
-  const params = useParams<{ id: string }>()
-  const estimateId = params.id ?? ''
+  const params = useParams<{ estimateNumber: string }>()
+  const estimateNumber = params.estimateNumber ?? ''
   const detailQuery = useQuery({
-    // 인쇄뷰는 sales.getEstimate(DTO 구조가 estimateApi.getEstimate와 다름)를 사용하므로,
-    // 같은 QueryClient에서 EstimateDetailPage의 ['estimate', id] 캐시와 충돌하지 않도록 키를 분리한다.
-    // 같은 키 공유 시 금액/문서번호가 빈값으로 깨진다.
-    queryKey: ['estimate-print', estimateId],
-    queryFn: () => getEstimate(estimateId),
-    enabled: !!estimateId,
+    queryKey: ['estimate', estimateNumber],
+    queryFn: () => getEstimate(estimateNumber),
+    enabled: !!estimateNumber,
   })
 
-  // usePageTitle 의 2번째 인자는 데이터 필드(비즈니스 견적번호) — 라우트 param(UUID id)과 별개이므로 유지.
   usePageTitle('견적서', detailQuery.data?.estimateNumber)
 
-  if (!estimateId) return null
+  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
+  const { company } = useCompanyProfile()
+
+  if (!estimateNumber) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
   if (detailQuery.isError || !detailQuery.data) {
     return (
@@ -64,34 +62,68 @@ export function QuoteView() {
   }
 
   const est: EstimateDetail = detailQuery.data
-  // 합계는 BE 가 분해해 내려준 헤더 값(공급가/부가세/합계)을 그대로 신뢰한다.
-  // FE 에서 라인 소계로 재계산하면 라운딩/할인 처리 차이로 BE 와 금액이 어긋날 수 있다.
-  const supply = est.totalSupply
-  const vat = est.totalVat
-  const total = est.totalAmount
+  const totalSupply = est.lines.reduce((sum, l) => sum + l.subtotal, 0)
+  const { supply, vat, total } = calcAmounts(totalSupply)
   const validUntil = est.dueDate ?? calcValidUntil(est.createdAt)
 
   return (
-    <PrintLayout
-      paper="a4-portrait"
-      backTo={`/sales/estimates/${estimateId}`}
-      approvalDoc
-      docHeader={{
-        title: '견 적 서',
-        docNo: est.estimateNumber,
-        issueDate: est.createdAt,
-        periodFrom: est.createdAt,
-        periodTo: validUntil,
-      }}
-      approvalSteps={[
-        // "작성" 칸의 name 은 현재 항상 공백 — BE estimate DTO 가 작성자 이름을 미제공한다.
-        // 결재자 실명/서명 연동은 후속 BE 슬라이스(requesterId → user fullName resolve)에서 채운다.
-        { label: '작성', name: est.authorName || undefined, decidedAt: est.createdAt },
-        { label: '검토' },
-        { label: '승인' },
-      ]}
-    >
+    <PrintLayout paper="a4-portrait" backTo={`/sales/estimates/${estimateNumber}`}>
       <div className="quote-page" data-testid="quote-print-area">
+        <header className="quote-header">
+          <div className="quote-supplier">
+            <img className="quote-logo" src={company.logoPath} alt={company.legalName} />
+            <table className="quote-supplier-table">
+              <tbody>
+                <tr>
+                  <th>상호</th>
+                  <td>{company.legalName}</td>
+                </tr>
+                <tr>
+                  <th>대표자</th>
+                  <td>{company.ceo}</td>
+                </tr>
+                <tr>
+                  <th>사업자번호</th>
+                  <td className="num">{company.businessRegNo}</td>
+                </tr>
+                <tr>
+                  <th>주소</th>
+                  <td>{company.address}</td>
+                </tr>
+                <tr>
+                  <th>TEL / FAX</th>
+                  <td className="num">{company.tel} / {company.fax}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="quote-meta">
+            <table className="quote-meta-table">
+              <tbody>
+                <tr>
+                  <th>견적번호</th>
+                  <td className="strong">{est.estimateNumber}</td>
+                </tr>
+                <tr>
+                  <th>작성일</th>
+                  <td>{krDate(est.createdAt)}</td>
+                </tr>
+                <tr>
+                  <th>유효기간</th>
+                  <td className="emphasis">{krDate(validUntil)} 까지</td>
+                </tr>
+                <tr>
+                  <th>작성자</th>
+                  <td>{est.authorName}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </header>
+
+        <h1 className="quote-title">견 적 서</h1>
+
         {/* 거래처 박스 */}
         <section className="quote-partner-box">
           <div className="row">
@@ -206,6 +238,15 @@ export function QuoteView() {
           ) : null}
         </section>
 
+        {/* 회사 직인 영역 */}
+        <footer className="quote-footer">
+          <div className="quote-issuer-block">
+            <div className="issuer-name">{company.legalName}</div>
+            <div className="issuer-meta">사업자번호 {company.businessRegNo}</div>
+            <div className="issuer-meta">대표 {company.ceo}</div>
+            <div className="issuer-seal">[직인]</div>
+          </div>
+        </footer>
       </div>
     </PrintLayout>
   )

@@ -1826,9 +1826,9 @@ button {
 }
 
 /*
- * 결재문서 헤더 = 좌(회사/문서정보) + 우(결재란 박스) 2단 가로 배치.
- * 한국 ERP/공문서/세금계산서 표준 결재란 위치(문서 우측 상단 코너)에 맞춤
- * (2026-06-14 개발책임자 재배치 — 기존 본문 하단 가로 grid 에서 이동).
+ * 결재문서 헤더 = 좌(문서제목 + 문서메타) + 우(결재란 박스) 2단 가로 배치.
+ * 회사명/사업자번호 블록 제거(2026-06-14 개발책임자 디자인 iteration 2) →
+ * 좌측 최상단이 문서제목 h1, 그 아래 문서메타, 우측 상단 코너가 결재란 박스.
  * 좌측은 가변(flex:1), 우측 결재란 박스는 고정폭으로 컴팩트하게.
  */
 .print-approval-doc-header {
@@ -1839,7 +1839,7 @@ button {
   gap: 8mm;
 }
 
-/* 좌측 = 회사명/사업자번호 + 문서제목 + 문서메타 세로 적층. */
+/* 좌측 = 문서제목 + 문서메타 세로 적층(회사명 블록 제거됨). */
 .print-approval-doc-headline {
   flex: 1 1 auto;
   min-width: 0;
@@ -1848,30 +1848,12 @@ button {
   gap: 2mm;
 }
 
-.print-approval-company {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5mm;
-}
-
-.print-approval-company-name {
-  font-size: 14pt;
-  font-weight: 600;
-  color: var(--ink-primary, #1A1F2E);
-}
-
-.print-approval-company-meta {
-  font-size: 10pt;
-  color: var(--ink-secondary, #5C6773);
-}
-
-/* 문서제목(h1) + 메타(문서번호/발행일/기간). 결재란이 우측으로 빠졌으므로 좌측 정렬. */
+/* 문서제목(h1) + 메타(문서번호/발행일/기간). 좌측 최상단 정렬. */
 .print-approval-doc-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 1mm;
-  margin-top: 2mm;
   font-size: 10pt;
   color: #000;
 }
@@ -2009,10 +1991,23 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* 안내 문구 — 결재란이 우측 상단으로 이동했으므로 문서 하단(본문 divider 아래)에 단독 유지. */
+/*
+ * 정중한 품의/제출 멘트 — 본문 divider 아래, 결재 서류용 closing note.
+ * (2026-06-14 개발책임자 디자인 iteration 2 신규.) 가운데 정렬 + 약간 큰 글씨.
+ */
+.print-approval-closing {
+  margin: 3mm 0 1mm 0;
+  font-size: 10.5pt;
+  font-weight: 500;
+  text-align: center;
+  color: var(--ink-primary, #1A1F2E);
+}
+
+/* 전자서명 안내 문구 — closing note 아래, 더 작고 흐린 글씨(테스트 계약 단언 대상). */
 .print-approval-notice {
-  margin: 2mm 0 0 0;
+  margin: 1mm 0 0 0;
   font-size: 8pt;
+  text-align: center;
   color: var(--ink-tertiary, #8A95A4);
 }
 
@@ -2322,70 +2317,87 @@ button {
   transform: rotate(-8deg);
 }
 
-/* --- OutboundView (출고전표) — 88mm / A4 분기 --- */
-.outbound-page {
+/* --- OutboundView / InboundView (출고·입고전표 공통) — 88mm / A4 분기 --- */
+.outbound-page,
+.inbound-page {
   display: flex;
   flex-direction: column;
   gap: 2mm;
 }
 
-.outbound-receipt {
+.outbound-receipt,
+.inbound-receipt {
   font-family: 'D2Coding', 'Consolas', 'Malgun Gothic', monospace;
   font-size: 9pt;
 }
 
-.outbound-a4 {
+.outbound-a4,
+.inbound-a4 {
   font-size: 11pt;
   padding: 0;
 }
 
-.outbound-header {
+.outbound-header,
+.inbound-header {
   text-align: center;
   margin-bottom: 1mm;
 }
 
-.outbound-company {
+.outbound-company,
+.inbound-company {
   font-size: 10pt;
   font-weight: 600;
 }
 
-.outbound-title {
+.outbound-title,
+.inbound-title {
   font-size: 16pt;
   font-weight: 700;
   letter-spacing: 0.3em;
   margin: 1mm 0 1mm 0;
 }
 
-.outbound-a4 .outbound-title { font-size: 22pt; margin: 2mm 0 3mm 0; }
+.outbound-a4 .outbound-title,
+.inbound-a4 .inbound-title { font-size: 22pt; margin: 2mm 0 3mm 0; }
 
-.outbound-meta-row {
+.outbound-meta-row,
+.inbound-meta-row {
   display: flex;
   justify-content: space-between;
   font-size: 9pt;
   margin-bottom: 0.5mm;
 }
 
-.outbound-a4 .outbound-meta-row { font-size: 11pt; }
+.outbound-a4 .outbound-meta-row,
+.inbound-a4 .inbound-meta-row { font-size: 11pt; }
 
-.outbound-divider {
+.outbound-divider,
+.inbound-divider {
   text-align: center;
   font-size: 8pt;
   color: #666;
   margin: 1mm 0;
 }
 
-.outbound-a4 .outbound-divider { display: none; }
+.outbound-a4 .outbound-divider,
+.inbound-a4 .inbound-divider { display: none; }
 
 .outbound-a4 .outbound-partner,
 .outbound-a4 .outbound-totals,
-.outbound-a4 .outbound-memo {
+.outbound-a4 .outbound-memo,
+.inbound-a4 .inbound-supplier,
+.inbound-a4 .inbound-totals,
+.inbound-a4 .inbound-memo {
   border: 1px solid #000;
   padding: 3mm;
 }
 
 .outbound-partner .row,
 .outbound-totals .row,
-.outbound-memo {
+.outbound-memo,
+.inbound-supplier .row,
+.inbound-totals .row,
+.inbound-memo {
   display: flex;
   gap: 2mm;
   font-size: 9pt;
@@ -2393,16 +2405,22 @@ button {
 }
 
 .outbound-a4 .outbound-partner .row,
-.outbound-a4 .outbound-totals .row { font-size: 11pt; margin-bottom: 1.5mm; }
+.outbound-a4 .outbound-totals .row,
+.inbound-a4 .inbound-supplier .row,
+.inbound-a4 .inbound-totals .row { font-size: 11pt; margin-bottom: 1.5mm; }
 
 .outbound-partner .label,
 .outbound-totals .row span:first-child,
-.outbound-memo .label {
+.outbound-memo .label,
+.inbound-supplier .label,
+.inbound-totals .row span:first-child,
+.inbound-memo .label {
   font-weight: 700;
   min-width: 16mm;
 }
 
-.outbound-totals .row.strong {
+.outbound-totals .row.strong,
+.inbound-totals .row.strong {
   font-weight: 700;
   font-size: 11pt;
   border-top: 1px dashed #000;
@@ -2410,32 +2428,38 @@ button {
   padding-top: 1mm;
 }
 
-.outbound-a4 .outbound-totals .row.strong {
+.outbound-a4 .outbound-totals .row.strong,
+.inbound-a4 .inbound-totals .row.strong {
   font-size: 13pt;
   border-top: 1.5pt solid #000;
   padding-top: 2mm;
   margin-top: 2mm;
 }
 
-.outbound-totals .row .num {
+.outbound-totals .row .num,
+.inbound-totals .row .num {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
 
-.outbound-table {
+.outbound-table,
+.inbound-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 9pt;
 }
 
 .outbound-receipt .outbound-table th,
-.outbound-receipt .outbound-table td {
+.outbound-receipt .outbound-table td,
+.inbound-receipt .inbound-table th,
+.inbound-receipt .inbound-table td {
   padding: 0.5mm 1mm;
   border-bottom: 1px dashed #999;
   vertical-align: top;
 }
 
-.outbound-receipt .outbound-table thead th {
+.outbound-receipt .outbound-table thead th,
+.inbound-receipt .inbound-table thead th {
   border-top: 1px solid #000;
   border-bottom: 1px solid #000;
   font-weight: 700;
@@ -2443,23 +2467,31 @@ button {
 }
 
 .outbound-a4 .outbound-table th,
-.outbound-a4 .outbound-table td {
+.outbound-a4 .outbound-table td,
+.inbound-a4 .inbound-table th,
+.inbound-a4 .inbound-table td {
   border: 1px solid #000;
   padding: 1.5mm 2mm;
   font-size: 11pt;
 }
 
-.outbound-a4 .outbound-table thead th {
+.outbound-a4 .outbound-table thead th,
+.inbound-a4 .inbound-table thead th {
   background: #F0F0F0;
   font-weight: 700;
   text-align: center;
 }
 
-.outbound-table .col-product { text-align: left; }
-.outbound-table .col-spec    { text-align: center; }
+.outbound-table .col-product,
+.inbound-table .col-product { text-align: left; }
+.outbound-table .col-spec,
+.inbound-table .col-spec    { text-align: center; }
 .outbound-table .col-qty,
 .outbound-table .col-price,
-.outbound-table .col-amount  { text-align: right; font-variant-numeric: tabular-nums; }
+.outbound-table .col-amount,
+.inbound-table .col-qty,
+.inbound-table .col-price,
+.inbound-table .col-amount  { text-align: right; font-variant-numeric: tabular-nums; }
 
 .outbound-footer {
   margin-top: 2mm;
@@ -2541,279 +2573,6 @@ button {
 .outbound-a4 .outbound-issuer-note {
   font-size: 10pt;
   margin-top: 4mm;
-}
-
-/* --- InboundView (입고전표) — A4 세로 / 88mm 분기 --- */
-.inbound-page {
-  display: flex;
-  flex-direction: column;
-  gap: 3mm;
-}
-
-.inbound-receipt {
-  font-family: 'D2Coding', 'Consolas', 'Malgun Gothic', monospace;
-  font-size: 9pt;
-}
-
-.inbound-header {
-  border-bottom: 2px solid #000;
-  padding-bottom: 2mm;
-}
-
-.inbound-company-row {
-  display: flex;
-  align-items: center;
-  gap: 4mm;
-  margin-bottom: 2mm;
-}
-
-.inbound-receipt .inbound-company-row { display: none; }
-
-.inbound-logo {
-  height: 14mm;
-  width: auto;
-  max-width: 55mm;
-  object-fit: contain;
-}
-
-.inbound-issuer .name {
-  font-weight: 700;
-  font-size: 13pt;
-}
-
-.inbound-issuer .meta {
-  font-size: 9pt;
-  color: #333;
-}
-
-.inbound-title {
-  text-align: center;
-  font-size: 22pt;
-  font-weight: 700;
-  letter-spacing: 0.4em;
-  margin: 1mm 0 2mm 0;
-}
-
-.inbound-receipt .inbound-title {
-  font-size: 14pt;
-  margin: 1mm 0;
-}
-
-.inbound-meta-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 4mm;
-  font-size: 11pt;
-}
-
-.inbound-meta-row .label {
-  font-weight: 700;
-  margin-right: 2mm;
-  background: #F0F0F0;
-  padding: 0.5mm 2mm;
-}
-
-.inbound-meta-row .value.strong { font-weight: 700; }
-
-.inbound-supplier {
-  border: 1px solid #000;
-  padding: 3mm;
-  display: flex;
-  flex-direction: column;
-  gap: 1mm;
-}
-
-.inbound-receipt .inbound-supplier {
-  border: none;
-  padding: 1mm 0;
-  border-top: 1px dashed #999;
-  border-bottom: 1px dashed #999;
-}
-
-.inbound-supplier .row {
-  display: flex;
-  gap: 2mm;
-  font-size: 11pt;
-}
-
-.inbound-receipt .inbound-supplier .row { font-size: 9pt; }
-
-.inbound-supplier .label {
-  font-weight: 700;
-  min-width: 18mm;
-  background: #F5F5F5;
-  padding: 0 1.5mm;
-}
-
-.inbound-receipt .inbound-supplier .label { background: none; min-width: 14mm; }
-
-.inbound-supplier .value.emphasis {
-  color: #D32F2F;
-  font-weight: 700;
-}
-
-.inbound-table {
-  width: 100%;
-  border-collapse: collapse;
-  border: 1px solid #000;
-  font-size: 11pt;
-}
-
-.inbound-table th,
-.inbound-table td {
-  border: 1px solid #000;
-  padding: 1.5mm 2mm;
-  vertical-align: middle;
-}
-
-.inbound-receipt .inbound-table {
-  border: none;
-  font-size: 9pt;
-}
-
-.inbound-receipt .inbound-table th,
-.inbound-receipt .inbound-table td {
-  border: none;
-  border-bottom: 1px dashed #999;
-  padding: 0.5mm 1mm;
-}
-
-.inbound-receipt .inbound-table thead th {
-  border-top: 1px solid #000;
-  border-bottom: 1px solid #000;
-}
-
-.inbound-table thead th {
-  background: #F0F0F0;
-  font-weight: 700;
-  text-align: center;
-}
-
-.inbound-table .col-no      { width: 10mm; text-align: center; }
-.inbound-table .col-product { text-align: left; }
-.inbound-table .col-spec    { width: 20mm; text-align: center; }
-.inbound-table .col-qty,
-.inbound-table .col-price,
-.inbound-table .col-amount  { text-align: right; font-variant-numeric: tabular-nums; }
-.inbound-table .col-qty     { width: 16mm; }
-.inbound-table .col-price   { width: 24mm; }
-.inbound-table .col-amount  { width: 28mm; }
-
-.inbound-table tbody tr.pad-row td { color: transparent; }
-
-.inbound-table tfoot td {
-  background: #FAFAFA;
-  font-weight: 700;
-}
-
-.inbound-table .totals-label {
-  text-align: right;
-  padding-right: 3mm;
-}
-
-.inbound-totals {
-  display: flex;
-  flex-direction: column;
-  gap: 1mm;
-  padding: 2mm 4mm;
-  background: #F5F5F5;
-  border: 1px solid #000;
-}
-
-.inbound-receipt .inbound-totals { background: none; border: none; padding: 1mm 0; }
-
-.inbound-totals .row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11pt;
-}
-
-.inbound-receipt .inbound-totals .row { font-size: 9pt; }
-
-.inbound-totals .row.strong {
-  font-weight: 700;
-  font-size: 13pt;
-  border-top: 1.5pt solid #000;
-  padding-top: 1mm;
-  margin-top: 1mm;
-}
-
-.inbound-receipt .inbound-totals .row.strong { font-size: 11pt; }
-
-.inbound-totals .num { font-variant-numeric: tabular-nums; }
-
-.inbound-memo {
-  border: 1px solid #000;
-  padding: 3mm;
-  font-size: 10pt;
-}
-
-.inbound-memo .label {
-  font-weight: 700;
-  margin-right: 2mm;
-}
-
-.inbound-footer {
-  margin-top: 4mm;
-}
-
-.inbound-sign-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4mm;
-}
-
-.inbound-receipt .inbound-sign-row {
-  grid-template-columns: 1fr 1fr;
-  gap: 2mm;
-}
-
-.inbound-sign-row .sign-cell {
-  border: 1px solid #000;
-  min-height: 22mm;
-  padding: 3mm;
-}
-
-.inbound-receipt .inbound-sign-row .sign-cell { min-height: 14mm; padding: 2mm; }
-
-.inbound-sign-row .sign-label {
-  background: #F0F0F0;
-  text-align: center;
-  font-weight: 700;
-  font-size: 10pt;
-  margin: -3mm -3mm 2mm -3mm;
-  padding: 0.5mm 0;
-  border-bottom: 1px solid #000;
-}
-
-.inbound-receipt .inbound-sign-row .sign-label {
-  margin: -2mm -2mm 1mm -2mm;
-  font-size: 8pt;
-}
-
-.inbound-sign-row .sign-value {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11pt;
-  font-weight: 600;
-}
-
-.inbound-sign-row .sign-mark {
-  border: 1.2pt solid #C00;
-  border-radius: 50%;
-  padding: 0.5mm 2mm;
-  color: #C00;
-  font-size: 9pt;
-  font-weight: 700;
-  transform: rotate(-6deg);
-}
-
-.inbound-notice {
-  text-align: center;
-  margin: 3mm 0 0 0;
-  font-size: 10pt;
-  font-weight: 600;
 }
 
 /* ==========================================================================
@@ -3653,263 +3412,272 @@ button {
   }
 }
 
-/* --- QuoteView (견적서) — A4 세로 --- */
+/* --- QuoteView (견적서) — origin 견적서 양식 --- */
 .quote-page {
   display: flex;
   flex-direction: column;
-  gap: 4mm;
+  gap: 5mm;
+  color: #111827;
+  font-size: 9.5pt;
 }
 
 .quote-header {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 5mm;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) 62mm;
+  gap: 8mm;
+  align-items: start;
 }
 
 .quote-supplier {
-  display: flex;
-  flex-direction: column;
-  gap: 2mm;
+  display: grid;
+  grid-template-columns: 28mm minmax(0, 1fr);
+  gap: 4mm;
+  align-items: start;
 }
 
 .quote-logo {
-  height: 14mm;
-  width: auto;
-  max-width: 55mm;
+  display: block;
+  width: 28mm;
+  max-height: 18mm;
   object-fit: contain;
-  align-self: flex-start;
 }
 
 .quote-supplier-table,
 .quote-meta-table {
-  border-collapse: collapse;
-  font-size: 9.5pt;
   width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 8.5pt;
 }
 
 .quote-supplier-table th,
 .quote-supplier-table td,
 .quote-meta-table th,
 .quote-meta-table td {
-  border: 1px solid #000;
-  padding: 1.2mm 2.5mm;
-  text-align: left;
+  border: 1px solid #CBD5E1;
+  padding: 1.8mm 2mm;
+  line-height: 1.25;
   vertical-align: middle;
 }
 
 .quote-supplier-table th,
 .quote-meta-table th {
-  background: #F0F0F0;
-  font-weight: 700;
   width: 22mm;
-  white-space: nowrap;
+  background: #F1F5F9;
+  color: #334155;
+  font-weight: 700;
+  text-align: center;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.quote-meta-table .strong { font-weight: 700; font-size: 11pt; }
+.quote-supplier-table .num,
+.quote-meta-table .num,
+.quote-table .num {
+  font-variant-numeric: tabular-nums;
+}
 
-.quote-meta-table .emphasis {
-  color: #D32F2F;
+.quote-meta-table .strong,
+.quote-table .strong,
+.quote-partner-box .strong {
+  font-weight: 700;
+}
+
+.quote-meta-table .emphasis,
+.quote-partner-box .emphasis {
+  color: #0F766E;
   font-weight: 700;
 }
 
 .quote-title {
+  margin: 1mm 0 0;
+  color: #0F172A;
+  font-size: 24pt;
+  font-weight: 800;
+  letter-spacing: 0;
   text-align: center;
-  font-size: 26pt;
-  font-weight: 700;
-  letter-spacing: 0.4em;
-  margin: 4mm 0 3mm 0;
-  padding: 2mm 0;
-  border-top: 2px solid #000;
-  border-bottom: 2px solid #000;
+}
+
+.quote-partner-box,
+.quote-amount-summary,
+.quote-terms {
+  border: 1px solid #94A3B8;
+  background: #FFFFFF;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .quote-partner-box {
-  border: 1px solid #000;
   padding: 3mm 4mm;
 }
 
-.quote-partner-box .row {
-  display: flex;
+.quote-partner-box .row,
+.quote-amount-summary .row,
+.quote-terms .row {
+  display: grid;
+  grid-template-columns: 24mm minmax(0, 1fr);
   gap: 3mm;
-  font-size: 11pt;
-  margin-bottom: 1mm;
+  align-items: baseline;
 }
 
-.quote-partner-box .label {
+.quote-partner-box .row + .row,
+.quote-amount-summary .row + .row,
+.quote-terms .row + .row {
+  margin-top: 1.6mm;
+}
+
+.quote-partner-box .label,
+.quote-amount-summary .label,
+.quote-terms .label {
+  color: #475569;
   font-weight: 700;
-  min-width: 14mm;
-  background: #F5F5F5;
-  padding: 0 1.5mm;
 }
 
-.quote-partner-box .value.strong { font-weight: 700; font-size: 13pt; }
+.quote-partner-box .value,
+.quote-terms .value {
+  color: #111827;
+}
 
 .quote-greeting {
-  margin: 2mm 0 0 0;
-  font-size: 10pt;
-  color: #333;
-  text-align: center;
+  margin: 3mm 0 0;
+  color: #334155;
 }
 
 .quote-amount-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 1mm;
-  padding: 2.5mm 4mm;
-  background: #FFF59D;
-  border: 1px solid #000;
+  padding: 3mm 4mm;
+  background: #F8FAFC;
 }
 
-.quote-amount-summary .row {
-  display: flex;
-  align-items: baseline;
-  gap: 3mm;
-  font-size: 11pt;
-}
-
-.quote-amount-summary .label {
-  font-weight: 700;
-  background: #FFF;
-  padding: 0.5mm 2mm;
-  border: 1px solid #999;
-  min-width: 24mm;
-  text-align: center;
-}
-
-.quote-amount-summary .korean { font-weight: 600; }
-
+.quote-amount-summary .korean,
 .quote-amount-summary .number {
-  margin-left: auto;
-  font-weight: 700;
-  font-size: 14pt;
-  font-variant-numeric: tabular-nums;
+  color: #111827;
+  font-size: 12pt;
+  font-weight: 800;
 }
 
-.quote-amount-summary .row.meta {
-  font-size: 9pt;
-  color: #666;
-  font-style: italic;
-  margin-top: 1mm;
+.quote-amount-summary .meta {
+  display: block;
+  color: #64748B;
+  font-size: 8.5pt;
 }
 
 .quote-table {
   width: 100%;
   border-collapse: collapse;
-  border: 1px solid #000;
-  font-size: 10pt;
+  border: 1px solid #111827;
+  font-size: 8.5pt;
+  table-layout: fixed;
 }
 
 .quote-table th,
 .quote-table td {
-  border: 1px solid #000;
-  padding: 1.5mm 2mm;
+  border: 1px solid #CBD5E1;
+  padding: 2mm;
+  line-height: 1.25;
   vertical-align: middle;
 }
 
 .quote-table thead th {
-  background: #F0F0F0;
+  background: #E2E8F0;
+  color: #0F172A;
   font-weight: 700;
   text-align: center;
+  white-space: nowrap;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.quote-table .col-no       { width: 10mm; text-align: center; }
-.quote-table .col-product  { text-align: left; }
-.quote-table .col-product .model-code { font-weight: 700; font-size: 10pt; }
-.quote-table .col-product .model-name { font-size: 9pt; color: #555; }
-.quote-table .col-release,
-.quote-table .col-delivery,
-.quote-table .col-subtotal { width: 22mm; text-align: right; font-variant-numeric: tabular-nums; }
-.quote-table .col-qty      { width: 14mm; text-align: right; font-variant-numeric: tabular-nums; }
-.quote-table .col-note     { width: 24mm; text-align: left; }
+.quote-table .col-no { width: 9mm; text-align: center; }
+.quote-table .col-product { width: auto; }
+.quote-table .col-release { width: 20mm; }
+.quote-table .col-delivery { width: 20mm; }
+.quote-table .col-qty { width: 13mm; }
+.quote-table .col-subtotal { width: 22mm; }
+.quote-table .col-note { width: 19mm; text-align: center; }
 
-.quote-table .col-note .badge {
-  display: inline-block;
-  background: #FEF3C7;
-  border: 1px solid #B45309;
-  color: #92400E;
-  padding: 0 1mm;
+.quote-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.quote-table .model-code {
+  font-weight: 700;
+}
+
+.quote-table .model-name {
+  margin-top: 0.8mm;
+  color: #64748B;
   font-size: 8pt;
-  border-radius: 1mm;
-  margin-right: 1mm;
 }
 
 .quote-table tbody tr.pad-row td { color: transparent; }
 
 .quote-table tfoot td {
-  background: #FAFAFA;
   font-weight: 700;
+  background: #F8FAFC;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .quote-table .totals-label {
   text-align: right;
-  padding-right: 3mm;
+  padding-right: 8px;
 }
-
-.quote-table .totals-label.strong { font-size: 11pt; }
 
 .quote-table .total-grand {
-  font-size: 13pt;
-  background: #FFF59D;
-}
-
-.quote-table .strong { font-weight: 700; }
-
-.quote-terms {
-  border: 1px solid #000;
-  padding: 3mm;
-  display: flex;
-  flex-direction: column;
-  gap: 1mm;
+  color: #B91C1C;
   font-size: 10pt;
 }
 
-.quote-terms .row {
-  display: flex;
-  gap: 3mm;
+.quote-table .badge {
+  display: inline-block;
+  margin: 0 0.6mm 0.6mm 0;
+  padding: 0.4mm 1.2mm;
+  border: 1px solid #CBD5E1;
+  border-radius: 2mm;
+  background: #F8FAFC;
+  color: #475569;
+  font-size: 7.5pt;
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.quote-terms .label {
-  font-weight: 700;
-  min-width: 18mm;
-  background: #F5F5F5;
-  padding: 0 1.5mm;
+.quote-terms {
+  padding: 2.8mm 4mm;
 }
 
 .quote-footer {
-  margin-top: 6mm;
   display: flex;
   justify-content: flex-end;
+  margin-top: auto;
 }
 
 .quote-issuer-block {
-  border: 1.5pt solid #000;
-  padding: 4mm 8mm;
+  min-width: 58mm;
+  border: 1px solid #94A3B8;
+  padding: 4mm;
   text-align: center;
-  min-width: 70mm;
 }
 
 .quote-issuer-block .issuer-name {
-  font-weight: 700;
-  font-size: 14pt;
-  margin-bottom: 1mm;
+  font-size: 12pt;
+  font-weight: 800;
 }
 
 .quote-issuer-block .issuer-meta {
-  font-size: 9pt;
-  color: #333;
+  margin-top: 1.2mm;
+  color: #475569;
+  font-size: 8.5pt;
 }
 
 .quote-issuer-block .issuer-seal {
-  display: inline-block;
-  margin-top: 3mm;
-  border: 2pt solid #C00;
-  border-radius: 50%;
-  padding: 2mm 6mm;
-  color: #C00;
-  font-weight: 700;
-  font-size: 12pt;
-  transform: rotate(-8deg);
+  margin-top: 4mm;
+  color: #B91C1C;
+  font-size: 16pt;
+  font-weight: 800;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 /* --- TaxInvoiceView (세금계산서) — 한국 e-Tax 표준 --- */
