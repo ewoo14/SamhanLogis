@@ -22,12 +22,15 @@ import com.samhanair.logis.slip.web.dto.RejectRequest;
 import com.samhanair.logis.slip.web.dto.SlipCleanupResponse;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.SlipSearchResult;
 import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -158,6 +161,36 @@ public class SlipController {
                 Sort.by(Sort.Order.desc("slipDate"), Sort.Order.desc("seqNo")));
         return ApiResponse.ok(slipService.list(effectiveSlipType, status, from, to,
                 partnerCode, driverPhone, regionGroup, deliveryTags, pageable));
+    }
+
+    /**
+     * 전표번호 자동완성 검색.
+     *
+     * <p>그룹웨어 결재 전표 첨부에서 자유입력 대신 실제 전표를 선택하도록 제공하는 경량 검색이다.
+     * 응답은 UUID 를 포함하지 않고 전표번호, 유형, 거래처명, 합계금액, 전표일자만 반환한다.
+     *
+     * <p>권한은 전표 목록 조회 권한을 재사용한다. 매출 목록 권한자는 출고전표만, 매입 목록
+     * 권한자는 입고전표만 검색할 수 있으며, 둘 다 가진 역할은 양쪽을 검색한다.
+     *
+     * @param q 부분 전표번호
+     * @param limit 결과 개수 (기본 10, 최대 20)
+     * @return 200, UUID 없는 전표 검색 결과 목록
+     */
+    @Operation(summary = "전표번호 자동완성 검색",
+            description = "slipNo 부분일치 검색. UUID 없이 slipNo/slipType/partnerName/totalAmount/slipDate 만 반환.")
+    @GetMapping("/search")
+    public ApiResponse<List<SlipSearchResult>> search(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestHeader(value = "X-User-Role", required = false) String role,
+            @RequestHeader(value = "X-User-Groups", required = false) String userGroups,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String isSystemMaster) {
+        EnumSet<SlipType> visibleTypes = resolveSearchVisibleTypes(role, userGroups, isSystemMaster);
+        if (visibleTypes.isEmpty()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "동적 권한 설정에 의해 전표 목록 조회 권한이 차단되었습니다.");
+        }
+        return ApiResponse.ok(slipService.searchBySlipNo(q, limit, visibleTypes));
     }
 
     /**
@@ -633,6 +666,36 @@ public class SlipController {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "동적 권한 설정에 의해 전표 목록 조회 권한이 차단되었습니다.");
         }
+    }
+
+    /**
+     * 전표 검색에서 조회 가능한 전표유형을 계산한다.
+     *
+     * <p>{@link RequirePermission} 은 단일 page-code 만 표현할 수 있어 sales/purchases OR 권한은
+     * 컨트롤러에서 명시적으로 계산한다.
+     */
+    private EnumSet<SlipType> resolveSearchVisibleTypes(String role, String userGroups, String isSystemMaster) {
+        if ("true".equalsIgnoreCase(isSystemMaster)
+                || ((role == null || role.isBlank()) && (userGroups == null || userGroups.isBlank()))) {
+            return EnumSet.allOf(SlipType.class);
+        }
+        EnumSet<SlipType> visibleTypes = EnumSet.noneOf(SlipType.class);
+        if (SlipSalesAccessGuard.canReadOutboundSales(role, userGroups, isSystemMaster)
+                && canViewPermission(role, SALES_SLIP_LIST_PAGE_CODE)) {
+            visibleTypes.add(SlipType.OUTBOUND);
+        }
+        if (SlipPurchaseAccessGuard.canReadInboundPurchase(role, userGroups, isSystemMaster)
+                && canViewPermission(role, PURCHASES_SLIP_LIST_PAGE_CODE)) {
+            visibleTypes.add(SlipType.INBOUND);
+        }
+        return visibleTypes;
+    }
+
+    private boolean canViewPermission(String actorRole, String pageCode) {
+        if (actorRole == null || actorRole.isBlank()) {
+            return true;
+        }
+        return dynamicPermissionClient.canView(actorRole, pageCode);
     }
 
     /**

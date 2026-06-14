@@ -20,6 +20,7 @@ import {
   type ApprovalTemplate,
 } from '../api/groupwareApprovalTemplate'
 import { DynamicApprovalFieldInput } from '../components/groupware/DynamicApprovalFieldInput'
+import { SlipReferencePicker } from '../components/groupware/SlipReferencePicker'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -78,7 +79,7 @@ function emptyReferenceDraft(type: ReferenceDraft['type']): ReferenceDraft {
     type,
     label: '',
     refSlipNo: '',
-    refSlipType: type === 'SLIP_REF' ? 'SLIP_OUTBOUND' : '',
+    refSlipType: '',
     refPartnerCode: '',
     refPartnerName: '',
     refPeriod: new Date().toISOString().slice(0, 7),
@@ -118,7 +119,10 @@ export function GroupwareApprovalCreatePage() {
   const missingRequired = sortedFields.some((field) =>
     field.required && !(fieldValues[field.fieldKey] ?? '').trim(),
   )
-  const invalid = !canWrite || !templateId || !title.trim() || approverIds.length === 0 || missingRequired
+  const invalidReferences = references.some((ref) =>
+    ref.type === 'SLIP_REF' && (!ref.refSlipNo.trim() || !ref.refSlipType.trim()),
+  )
+  const invalid = !canWrite || !templateId || !title.trim() || approverIds.length === 0 || missingRequired || invalidReferences
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -320,20 +324,13 @@ export function GroupwareApprovalCreatePage() {
                   inputSize="sm"
                 />
                 {ref.type === 'SLIP_REF' ? (
-                  <>
-                    <Input
-                      label="전표번호"
-                      value={ref.refSlipNo}
-                      onChange={(event) => updateReference(index, { refSlipNo: event.target.value })}
-                      inputSize="sm"
-                    />
-                    <Input
-                      label="전표유형"
-                      value={ref.refSlipType}
-                      onChange={(event) => updateReference(index, { refSlipType: event.target.value })}
-                      inputSize="sm"
-                    />
-                  </>
+                  <SlipReferencePicker
+                    slipNo={ref.refSlipNo}
+                    refSlipType={ref.refSlipType}
+                    onChange={(next) => updateReference(index, next)}
+                    inputSize="sm"
+                    style={{ gridColumn: 'span 2' }}
+                  />
                 ) : (
                   <>
                     <Input

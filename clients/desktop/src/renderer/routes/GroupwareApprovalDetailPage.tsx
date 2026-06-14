@@ -35,6 +35,7 @@ import {
 } from '../api/groupwareApproval'
 import { getApprovalTemplate, type ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import { GroupwareApprovalCollaborationPanel } from '../components/collab/GroupwareApprovalCollaborationPanel'
+import { SlipReferencePicker } from '../components/groupware/SlipReferencePicker'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -84,7 +85,7 @@ export function GroupwareApprovalDetailPage() {
   const approvalId = params['id']!
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [slipNoDraft, setSlipNoDraft] = useState('')
-  const [slipTypeDraft, setSlipTypeDraft] = useState('SLIP_OUTBOUND')
+  const [slipTypeDraft, setSlipTypeDraft] = useState('')
   const [partnerCodeDraft, setPartnerCodeDraft] = useState('')
   const [partnerNameDraft, setPartnerNameDraft] = useState('')
   const [periodDraft, setPeriodDraft] = useState(new Date().toISOString().slice(0, 7))
@@ -167,6 +168,7 @@ export function GroupwareApprovalDetailPage() {
     onSuccess: () => {
       setAttachmentError(null)
       setSlipNoDraft('')
+      setSlipTypeDraft('')
       invalidateAttachments()
     },
     onError: (error) => setAttachmentError(serverErrorMessage(error)),
@@ -437,14 +439,22 @@ export function GroupwareApprovalDetailPage() {
             {canWrite && !locked ? (
               <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px auto', gap: 8, alignItems: 'end' }}>
-                  <Input label="전표번호" value={slipNoDraft} onChange={(event) => setSlipNoDraft(event.target.value)} inputSize="sm" />
-                  <Input label="전표유형" value={slipTypeDraft} onChange={(event) => setSlipTypeDraft(event.target.value)} inputSize="sm" />
+                  <SlipReferencePicker
+                    slipNo={slipNoDraft}
+                    refSlipType={slipTypeDraft}
+                    onChange={(next) => {
+                      setSlipNoDraft(next.refSlipNo)
+                      setSlipTypeDraft(next.refSlipType)
+                    }}
+                    inputSize="sm"
+                    style={{ gridColumn: 'span 2' }}
+                  />
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
                     onClick={() => addSlipMutation.mutate()}
-                    disabled={!slipNoDraft.trim() || addSlipMutation.isPending}
+                    disabled={!slipNoDraft.trim() || !slipTypeDraft.trim() || addSlipMutation.isPending}
                   >
                     전표 추가
                   </Button>

@@ -55,6 +55,49 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     /** 활성 전체 페이지. soft-delete 제외. */
     Page<Slip> findAllByIsDeletedFalse(Pageable pageable);
 
+    /**
+     * 전표번호 부분검색 자동완성.
+     *
+     * <p>그룹웨어 결재 첨부에서 사용한다. {@code slip_no ILIKE %q%} 의미의 대소문자 무시
+     * 부분일치이며, 최근 전표가 먼저 오도록 {@code slipDate DESC, seqNo DESC} 로 정렬한다.
+     * 반환 DTO 에서 UUID 를 노출하지 않도록 service 계층에서 별도 검색 응답으로 변환한다.
+     *
+     * @param q 부분 전표번호
+     * @param pageable limit 전용 페이지 요청
+     * @return 매칭 활성 전표 목록
+     */
+    @EntityGraph(attributePaths = "lines")
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND lower(s.slipNo) LIKE lower(concat('%', :q, '%'))
+            ORDER BY s.slipDate DESC, s.seqNo DESC
+            """)
+    List<Slip> searchBySlipNoLikeIgnoreCase(
+            @org.springframework.data.repository.query.Param("q") String q,
+            Pageable pageable);
+
+    /**
+     * 접근 가능한 전표유형 범위 안에서 전표번호를 부분검색한다.
+     *
+     * @param q 부분 전표번호
+     * @param slipTypes 조회 허용 전표유형 목록
+     * @param pageable limit 전용 페이지 요청
+     * @return 매칭 활성 전표 목록
+     */
+    @EntityGraph(attributePaths = "lines")
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND s.slipType IN :slipTypes
+              AND lower(s.slipNo) LIKE lower(concat('%', :q, '%'))
+            ORDER BY s.slipDate DESC, s.seqNo DESC
+            """)
+    List<Slip> searchBySlipNoAndSlipTypeInLikeIgnoreCase(
+            @org.springframework.data.repository.query.Param("q") String q,
+            @org.springframework.data.repository.query.Param("slipTypes") java.util.Collection<SlipType> slipTypes,
+            Pageable pageable);
+
     // ---- Slice B (notification-slice-B) ----
 
     /**

@@ -2075,6 +2075,35 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ newRevisionNo: nextRevision, message: '복원되었습니다' })
   }
 
+  // GET /admin/slips/search?q=... — 그룹웨어 결재 전표 참조 자동완성.
+  if (method === 'GET' && /\/(?:admin\/)?slips\/search(?:\?|$)/.test(url)) {
+    const params = new URLSearchParams(url.split('?')[1] ?? '')
+    const q = (params.get('q') ?? '').trim().toLowerCase()
+    const rawLimit = Number(params.get('limit') ?? '10')
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 20)
+    const rows = !q
+      ? []
+      : [...MOCK_SLIPS]
+        .filter((slip) => String(slip.slipNo).toLowerCase().includes(q))
+        .sort((a, b) => {
+          const dateCompare = String(b.slipDate).localeCompare(String(a.slipDate))
+          if (dateCompare !== 0) return dateCompare
+          return Number(b.seqNo ?? 0) - Number(a.seqNo ?? 0)
+        })
+        .slice(0, limit)
+        .map((slip) => {
+          const row = slip as Record<string, unknown>
+          return {
+            slipNo: slip.slipNo,
+            slipType: slip.slipType,
+            partnerName: slip.partnerName ?? null,
+            totalAmount: row['totalAmount'] ?? Number(slip.seqNo ?? 1) * 100000,
+            slipDate: slip.slipDate,
+          }
+        })
+    return envelope(rows)
+  }
+
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
   const slipDetailMatch = url.match(/\/slips\/([^/?]+)$/)
   if (method === 'GET' && slipDetailMatch && !url.includes('lookup-product') && !url.includes('/slips/edit-requests') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {

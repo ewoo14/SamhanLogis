@@ -28,6 +28,7 @@ import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipResponse;
+import com.samhanair.logis.slip.web.dto.SlipSearchResult;
 import com.samhanair.logis.slip.web.dto.UpdateSlipDriverRequest;
 import com.samhanair.logis.slip.web.dto.UpdateSlipRequest;
 import jakarta.persistence.OptimisticLockException;
@@ -36,6 +37,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -47,6 +49,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -1177,6 +1180,52 @@ public class SlipService {
     @Transactional(readOnly = true)
     public Page<SlipResponse> list(SlipType slipType, SlipStatus status, Pageable pageable) {
         return list(slipType, status, null, null, null, null, null, null, pageable);
+    }
+
+    /**
+     * 전표번호 부분검색 자동완성.
+     *
+     * <p>그룹웨어 결재 첨부에서 전표번호를 자유입력하지 않고 실제 전표를 선택하도록 돕는다.
+     * 검색어는 trim 후 대소문자 무시 부분일치로 조회하며, 빈 검색어는 DB 조회 없이 빈 목록을 반환한다.
+     * limit 은 기본 10, 최대 20 으로 제한한다.
+     *
+     * @param q 부분 전표번호
+     * @param limit 요청 limit (null/0 이하이면 10, 최대 20)
+     * @return UUID 없는 전표 검색 결과
+     */
+    @Transactional(readOnly = true)
+    public List<SlipSearchResult> searchBySlipNo(String q, int limit) {
+        String normalized = q == null ? "" : q.trim();
+        if (normalized.isEmpty()) {
+            return List.of();
+        }
+        int effectiveLimit = Math.min(Math.max(limit, 1), 20);
+        return slipRepository.searchBySlipNoLikeIgnoreCase(normalized, PageRequest.of(0, effectiveLimit))
+                .stream()
+                .map(SlipSearchResult::from)
+                .toList();
+    }
+
+    /**
+     * 전표번호 부분검색 자동완성 — 호출자 권한의 전표유형 범위 안에서만 조회한다.
+     *
+     * @param q 부분 전표번호
+     * @param limit 요청 limit (null/0 이하이면 10, 최대 20)
+     * @param slipTypes 조회 허용 전표유형 목록
+     * @return UUID 없는 전표 검색 결과
+     */
+    @Transactional(readOnly = true)
+    public List<SlipSearchResult> searchBySlipNo(String q, int limit, Collection<SlipType> slipTypes) {
+        String normalized = q == null ? "" : q.trim();
+        if (normalized.isEmpty() || slipTypes == null || slipTypes.isEmpty()) {
+            return List.of();
+        }
+        int effectiveLimit = Math.min(Math.max(limit, 1), 20);
+        return slipRepository.searchBySlipNoAndSlipTypeInLikeIgnoreCase(
+                        normalized, List.copyOf(slipTypes), PageRequest.of(0, effectiveLimit))
+                .stream()
+                .map(SlipSearchResult::from)
+                .toList();
     }
 
     /**

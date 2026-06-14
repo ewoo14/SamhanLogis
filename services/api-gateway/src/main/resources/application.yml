@@ -466,6 +466,14 @@ spring:
           filters:
             - JwtAuthentication
 
+        - id: slip-service-admin
+          uri: lb://slip-service
+          predicates:
+            - Path=/admin/slips/**
+          filters:
+            - StripPrefix=1
+            - JwtAuthentication
+
         - id: inventory-service-noprefix
           uri: lb://inventory-service
           predicates:
