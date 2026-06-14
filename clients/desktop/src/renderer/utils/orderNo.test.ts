@@ -6,9 +6,8 @@ import { stripSlipNoZeros, toOrderPathId } from './orderNo'
  * `orderNo` 유틸 단위 테스트 — 인쇄 미리보기 표준화 슬라이스1.
  *
  * 본 테스트는 desktop 인쇄 양식(입고/출고전표)이 의존하는 전표번호 표시 계약을 박제한다.
- * desktop 은 단위 러너(vitest)를 상시 포함하지 않으므로, 실행 검증은 order-app 의
- * vitest 바이너리로 격리 수행한다(PR 보고에 명시). 본 파일은 production typecheck/build
- * 대상에서 제외(`*.test.ts` exclude)되어 `npm run typecheck` 0 을 유지한다.
+ * desktop 자체 vitest 설정으로 CI 단위 테스트 게이트에 포함된다. 본 파일은 production
+ * typecheck/build 대상에서 제외(`*.test.ts` exclude)되어 `npm run typecheck` 0 을 유지한다.
  *
  * 검증 대상 계약(실 구현 동작 기준 — `stripSlipNoZeros` 는 마지막 `-` 뒤 숫자부만 0제거):
  *  - 전표번호 표준 `YYYY/MM/DD-NNN` 의 날짜 0은 보존, 번호부 앞자리 0만 제거

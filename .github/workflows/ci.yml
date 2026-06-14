@@ -259,6 +259,9 @@ jobs:
       - name: build (electron-vite)
         run: npm run build
 
+      - name: 단위 테스트(vitest)
+        run: npm test
+
   frontend-mobile-staff:
     name: Frontend Mobile-Staff (typecheck + expo doctor + prebuild dry-run)
     runs-on: ubuntu-latest

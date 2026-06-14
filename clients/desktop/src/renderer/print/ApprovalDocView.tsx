@@ -10,130 +10,23 @@
  */
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  getGroupwareApproval,
-  type ApprovalLineAdminResponse,
-  type ApprovalStepView,
-} from '../api/groupwareApproval'
+import { getGroupwareApproval } from '../api/groupwareApproval'
 import {
   APPROVAL_ATTACHMENT_TYPE_LABEL,
   listApprovalAttachments,
-  type ApprovalAttachment,
 } from '../api/groupwareApprovalAttachment'
-import {
-  getApprovalTemplate,
-  type ApprovalTemplateField,
-} from '../api/groupwareApprovalTemplate'
+import { getApprovalTemplate } from '../api/groupwareApprovalTemplate'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { stripSlipNoZeros } from '../utils/orderNo'
-import { PrintLayout, krw, type PrintApprovalStep, type PrintDocHeader } from './PrintLayout'
-
-const CLOSING_NOTE = '위와 같이 품의하오니 검토 후 재가하여 주시기 바랍니다.'
-
-function buildApprovalStep(label: string, name: string, decidedAt?: string): PrintApprovalStep {
-  const step: PrintApprovalStep = { label, name }
-  if (decidedAt) step.decidedAt = decidedAt
-  return step
-}
-
-function displayNameOrFallback(value: string | null | undefined): string {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : '-'
-}
-
-function buildApprovalSteps(approval: ApprovalLineAdminResponse): PrintApprovalStep[] {
-  const sortedSteps = [...approval.steps].sort((a, b) => a.sequence - b.sequence)
-  return [
-    buildApprovalStep('작성', displayNameOrFallback(approval.requesterName)),
-    ...sortedSteps.map((step, index) => {
-      const label = index === sortedSteps.length - 1 ? '결재' : '합의'
-      const decidedAt = step.status === 'APPROVED' ? step.decidedAt ?? undefined : undefined
-      return buildApprovalStep(label, displayNameOrFallback(step.approverName), decidedAt)
-    }),
-  ]
-}
-
-function finalDecidedAt(steps: ApprovalStepView[]): string | undefined {
-  const decided = steps
-    .slice()
-    .sort((a, b) => a.sequence - b.sequence)
-    .filter((step) => step.status === 'APPROVED' && Boolean(step.decidedAt))
-  const last = decided.length > 0 ? decided[decided.length - 1] : undefined
-  return last?.decidedAt ?? undefined
-}
-
-function buildDocHeader(approval: ApprovalLineAdminResponse): PrintDocHeader {
-  const issueDate = finalDecidedAt(approval.steps)
-  return {
-    title: approval.title,
-    docNo: approval.approvalNo,
-    ...(issueDate ? { issueDate } : {}),
-  }
-}
-
-function contentParagraphs(content: string | null): string[] {
-  return (content ?? '')
-    .split(/\r?\n+/)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph.length > 0)
-}
-
-function fieldMap(fields: ApprovalTemplateField[]): Map<string, ApprovalTemplateField> {
-  return new Map(fields.map((field) => [field.fieldKey, field]))
-}
-
-function fieldRows(
-  fieldValues: Record<string, string>,
-  fields: ApprovalTemplateField[],
-): Array<{ key: string; label: string; value: string; fieldType: ApprovalTemplateField['fieldType'] }> {
-  const fieldsByKey = fieldMap(fields)
-  const entries = Object.entries(fieldValues)
-    .map(([key, value]) => [key, value.trim()] as const)
-    .filter(([, value]) => value.length > 0)
-  const rowByKey = new Map(entries)
-  const templateRows = fields
-    .map((field) => {
-      const value = rowByKey.get(field.fieldKey)
-      if (!value) return null
-      return {
-        key: field.fieldKey,
-        label: field.label,
-        value,
-        fieldType: field.fieldType,
-      }
-    })
-    .filter((row): row is { key: string; label: string; value: string; fieldType: ApprovalTemplateField['fieldType'] } =>
-      row !== null,
-    )
-  const knownKeys = new Set(fields.map((field) => field.fieldKey))
-  const extraRows = entries
-    .filter(([key]) => !knownKeys.has(key))
-    .map(([key, value], index) => {
-      const field = fieldsByKey.get(key)
-      return {
-        key,
-        label: field?.label ?? `추가 필드 ${index + 1}`,
-        value,
-        fieldType: field?.fieldType ?? 'TEXT',
-      }
-    })
-  return [...templateRows, ...extraRows]
-}
-
-function attachmentTitle(attachment: ApprovalAttachment): string {
-  return attachment.label
-    ?? attachment.refDocLabel
-    ?? attachment.fileName
-    ?? '-'
-}
-
-function attachmentDetails(attachment: ApprovalAttachment): string[] {
-  return [
-    attachment.refSlipNo ? stripSlipNoZeros(attachment.refSlipNo) : attachment.refDocNo ?? '',
-    attachment.refPartnerName ?? '',
-    attachment.refPeriod ?? '',
-  ].filter((value) => value.length > 0)
-}
+import { PrintLayout, krw } from './PrintLayout'
+import {
+  attachmentDetails,
+  attachmentTitle,
+  buildApprovalSteps,
+  buildDocHeader,
+  CLOSING_NOTE,
+  contentParagraphs,
+  fieldRows,
+} from './approvalDoc'
 
 /**
  * 그룹웨어 결재문서 인쇄 미리보기 컴포넌트.
