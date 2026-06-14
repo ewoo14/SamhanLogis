@@ -65,3 +65,35 @@
 - BE: groupware 모듈 테스트 + `ApprovalCollabIT`(실 Testcontainers — 수정완료·409·400·deny·알림·CHECK·fresh-session).
 - FE: desktop typecheck(`npm run typecheck`) 0 + collab playwright + 실서버 라이브 QA 8컷.
 - 마이그: `V4`(groupware collab/번호) + `V55`(auth page-code 시드) — 라이브 Flyway 적용 검증(auth 재기동 healthy, MASTER 매트릭스 182→183).
+
+---
+
+## 7. 결재유형 템플릿 빌더 + 첨부 (확장)
+
+- **템플릿 빌더**: `ApprovalTemplate`/`ApprovalTemplateField` 동적 필드(TEXT/NUMBER/DATE/SELECT/TEXTAREA), 견본 지출결의서/휴가신청서 시드(`V5`), page-code `groupware.approval-templates`(`V57`). FE `GroupwareApprovalTemplateAdminPage`(필드 빌더) + `DynamicApprovalFieldInput`(스키마 동적 폼).
+- **첨부**: `ApprovalAttachment`(SLIP_REF / PARTNER_LEDGER_REF / FILE, MinIO 8.5.12 + Noop fallback). 동적 `fieldValues` `@JdbcTypeCode`(JSON). 첨부 잠금 409 + collab field overlay 화이트리스트.
+
+## 8. 통합 문서 참조 + 전표 검색 자동완성
+
+- **전표번호 검색**: slip-service `GET /admin/slips/search`(slipNo 부분일치 + sales/purchase VIEW 권한) + FE `SlipReferencePicker`(debounce 자동완성).
+- **통합 문서 참조 6종**(출고/입고전표·분개장·세금계산서·거래명세서·거래처원장): accounting-service `AccountingDocumentSearchController` 4검색(분개 journalNo/적요·세금계산서·거래명세서·거래처) + groupware `ApprovalReferenceDocType` + `refDocType/refDocNo/refDocLabel`(`V6` additive·백필·CHECK). FE `DocumentReferencePicker`(유형 select → 유형별 번호/키워드 자동완성, 다중 동적). UUID 비공개.
+
+## 9. 결재자 사원검색 칩 + 결재선 실명 + 첨부 칩 (개발책임자 요청)
+
+> 개발책임자 지시: 결재자 UUID 직접입력(MVP) → **사원 이름 검색 + 칩(캡슐) 다중**. **다중(중복) 추가 입력은 캡슐(칩) 통일**(품목 라인=수량/단가/금액 표는 제외).
+
+- **BE**: user-service `GET /internal/users/search`(fullName/loginId 부분일치, LEFT JOIN department, UUID 비공개) + `POST /internal/users/display-names`(bulk 이름 resolve, N+1 해소) + groupware `UserClient.search/resolveDisplayNames` + `GET /admin/groupware/approvals/approver-search`(EXECUTIVE_OFFICE + groupware.approvals VIEW 프록시) + `ApprovalLineAdminResponse.requesterName/steps[].approverName`(실명). 중복/본인/null 결재자 검증.
+- **FE**: 결재선 `AsyncAutocomplete`(사원검색) + `TagChip` 다중(순번:실명, removeLabel 실명 aria), 첨부 문서참조·파일 `TagChip`(확정 후 칩만), 상세/목록 실명(UUID 노출 0), 상세 첨부 `<a href>` 문서 링크. design-system 재사용(신규 컴포넌트 0).
+
+## 10. CI 안정화 fix
+
+- groupware IT: 결재 엔드포인트 page-code `messenger.admin`→`groupware.approvals`(+create action CREATE→UPDATE) 동기화(deny→403 6건).
+- Desktop Playwright `testIgnore`에 `'**/*-real-qa/**'`(디렉토리명 *-real-qa·파일명 다른 라이브 QA spec 누수 → ECONNREFUSED:8080 3건).
+
+## 11. 리뷰 라운드 (Opus 5-agent + Codex cross-check)
+
+- **Opus 5-agent**(BE/FE/Designer/DevOps + QA Docker 라이브): **P1 3**(결재자 칩 제거 aria-label 실명·첨부 입력행+칩 혼재·DocumentReferencePicker role=option) + **P2 다수**(EmployeeRepository LEFT JOIN+isDeleted·refSlipType 비전표 null·resolveDisplayNames N+1 bulk·AsyncAutocomplete inputTestId·minChars 2·IT stub) → Codex fix.
+- **🚨 라이브 QA 단독 적발 P1**: groupware-service Docker `SAMHAN_USER_SERVICE_URL` 미설정 → user-service 도달 불가(결재자 검색/실명 전체 작동 불가). IT/mock false-green, **실 Docker 라이브가 단독 적발**(`docker-compose.local-all.yml` fix).
+- **Codex cross-check**: **P2 2**(결재 목록 display-name 목록 단위 1회 일괄·중복 결재자 BE/mock 검증) → fix.
+- **후속(P3)**: `allow-missing-token: false`(user-service 전역 /internal 보안 변경 — 별도 슬라이스, @PreAuthorize MASTER 2차 방어로 운영 안전) · mock 결재자 검색 범위(userId/dept→fullName/loginId) · 첨부 링크 인쇄 화면 직행.
+- **검증**: user-service + groupware-service 전체 test BUILD SUCCESSFUL(Testcontainers, bulk endpoint/중복 IT 포함) · FE typecheck 0 · CI green(GitGuardian = dev 시드 자격 false-positive) · 라이브 실QA(결재자 칩/실명/첨부 칩, `docs/qa/groupware-approval-templates/`).
