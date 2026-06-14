@@ -214,13 +214,11 @@ export function EstimateDetailPage() {
     convertMutation.mutate()
   }
   const handlePrint = () => {
-    // Designer commit 5dcbbef 의 QuoteView (`/sales/estimates/:estimateNumber/print`).
-    // Print view 는 estimateNumber path param 사용 (legacy `getEstimate` API). 본 mock
-    // 에서는 동일 estimateNo 를 path 로 전달 — 후속 iteration 에서 print view 가
-    // 신규 estimate-service API 로 마이그레이션 시 path 변경.
-    const url = `${window.location.origin}/#/sales/estimates/${encodeURIComponent(
-      e.estimateNo,
-    )}/print`
+    // 인쇄 라우트도 상세와 동일하게 UUID(id)를 path로 전달한다.
+    // QuoteView → getEstimate(id) → BE GET /slips/estimates/{UUID}.
+    // estimateNo(슬래시)를 쓰면 encodeURIComponent %2F가 hash router에서 /로 재분해되고,
+    // 게이트웨이 %2F 차단으로 BE 400이 발생해 미리보기가 깨진다.
+    const url = `${window.location.origin}/#/sales/estimates/${id}/print`
     window.open(url, '_blank', 'width=900,height=1200')
   }
 

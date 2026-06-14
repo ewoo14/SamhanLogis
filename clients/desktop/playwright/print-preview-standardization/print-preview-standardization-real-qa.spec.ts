@@ -31,7 +31,11 @@ const GW_URL = 'http://127.0.0.1:8080'
 // 실 시드 UUID
 const INBOUND_SLIP_ID = '1c72f28a-4aae-4f1c-8522-b7e9a921aa0d'   // INBOUND CONFIRMED 2026/04/08-001
 const OUTBOUND_SLIP_ID = '6ceba0b4-4b3c-437a-9e03-866c9a6b596c'  // OUTBOUND CONFIRMED 2026/02/18-001
-const ESTIMATE_NO = '2026%2F06%2F08-2'                            // estimateNo URL-encoded (슬래시 → %2F)
+// QuoteView 라우트: /sales/estimates/:estimateNumber/print
+// EstimateDetailPage 는 encodeURIComponent(estimateNo) 로 URL 구성하나 React Router가
+// %2F 를 / 로 decode 하여 경로 분리 → UUID 직접 전달이 안전.
+// getEstimate() 함수는 UUID 를 그대로 BE /slips/estimates/{uuid} 로 전달.
+const ESTIMATE_UUID = '829e012a-e7da-4777-bd94-a67d177f17dc'      // estimateNo: 2026/06/08-2, 대구HVAC솔루션
 
 const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 const MASTER_ROLE = 'MASTER'
@@ -188,8 +192,11 @@ test('C1: 입고전표 미리보기 — 헤더(회사명+사업자번호) + 결�
     }
   }
 
-  // 핵심 단언: 결재란 or 전자서명 안내문 중 하나는 반드시 존재
-  expect(hasApprovalSection || hasApprovalNotice || (hasLabel작성 && hasLabel검토 && hasLabel승인)).toBeTruthy()
+  // 핵심 단언: 에러 페이지 false-green 방지 + 결재문서 형식 필수 확인
+  expect(bodyText).not.toContain('불러오지 못')
+  expect(hasApprovalSection).toBeTruthy()
+  expect(hasApprovalNotice).toBeTruthy()
+  expect(hasCompanyName).toBeTruthy()
 })
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -200,12 +207,30 @@ test('C2: 견적서 미리보기 — 결재문서 형식 (직인 없음, 결재�
   await installRealAuth(page, token)
   await setupApiProxy(page, token)
   await suppressPrint(page)
+  await page.addInitScript(() => {
+    const testWindow = window as Window & { __openUrls: string[] }
+    testWindow.__openUrls = []
+    window.open = (url?: string | URL, _target?: string, _features?: string): Window | null => {
+      testWindow.__openUrls.push(String(url ?? ''))
+      return null
+    }
+  })
 
-  // estimateNo 에 슬래시가 포함 → URL path 세그먼트에 사용 불가 → %2F 인코딩
-  // QuoteView router: /sales/estimates/:estimateNumber → estimateNumber = "2026%2F06%2F08-2"
-  const url = hashUrl(`/sales/estimates/${ESTIMATE_NO}/print`)
+  // 견적 상세의 실제 인쇄 버튼을 통해 print URL 을 수집한다.
+  // estimateNo 슬래시 포맷이 섞이면 %2F 회귀가 발생하므로 UUID 포함 여부를 먼저 검증.
+  const url = hashUrl(`/sales/estimates/${ESTIMATE_UUID}`)
   console.log('[NAVIGATE]', url)
   await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 })
+  await page.getByTestId('estimate-detail-print-button').click()
+  const openUrls = await page.evaluate(() => {
+    return (window as Window & { __openUrls?: string[] }).__openUrls ?? []
+  })
+  const printUrl = openUrls.at(-1) ?? ''
+  console.log('[인쇄 URL]', printUrl)
+  expect(printUrl).toContain(ESTIMATE_UUID)
+  expect(printUrl).not.toContain('%2F')
+
+  await page.goto(hashUrl(printUrl.replace(/^.*#/, '')), { waitUntil: 'networkidle', timeout: 30_000 })
   await page.waitForTimeout(2500)
 
   await capture(page, 'c2-quote-approval-doc-full')
@@ -218,7 +243,7 @@ test('C2: 견적서 미리보기 — 결재문서 형식 (직인 없음, 결재�
   console.log('[CHECK] 문서 제목:', hasDocTitle)
 
   // 2) 거래처명 표시
-  const hasPartner = bodyText.includes('대구HVAC솔루션') || bodyText.includes('HVAC')
+  const hasPartner = bodyText.includes('대구HVAC솔루션')
   console.log('[CHECK] 거래처명 표시:', hasPartner)
 
   // 3) 결재란 3칸 (작성/검토/승인)
@@ -254,7 +279,10 @@ test('C2: 견적서 미리보기 — 결재문서 형식 (직인 없음, 결재�
     }
   }
 
-  expect(hasApprovalSection || hasApprovalNotice || (hasLabel작성 && hasLabel검토)).toBeTruthy()
+  expect(bodyText).not.toContain('견적을 불러오지 못했')
+  expect(hasPartner).toBeTruthy()
+  expect(hasApprovalSection).toBeTruthy()
+  expect(hasApprovalNotice).toBeTruthy()
 })
 
 // ────────────────────────────────────────────────────────────────────────────

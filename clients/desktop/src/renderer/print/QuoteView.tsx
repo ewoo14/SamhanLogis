@@ -40,7 +40,10 @@ export function QuoteView() {
   const params = useParams<{ estimateNumber: string }>()
   const estimateNumber = params.estimateNumber ?? ''
   const detailQuery = useQuery({
-    queryKey: ['estimate', estimateNumber],
+    // 인쇄뷰는 sales.getEstimate(DTO 구조가 estimateApi.getEstimate와 다름)를 사용하므로,
+    // 같은 QueryClient에서 EstimateDetailPage의 ['estimate', id] 캐시와 충돌하지 않도록 키를 분리한다.
+    // 같은 키 공유 시 금액/문서번호가 빈값으로 깨진다.
+    queryKey: ['estimate-print', estimateNumber],
     queryFn: () => getEstimate(estimateNumber),
     enabled: !!estimateNumber,
   })
