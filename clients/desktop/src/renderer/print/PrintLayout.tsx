@@ -15,7 +15,8 @@
  */
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button } from '@samhan/design-system'
+import { Button, SignatureViewer } from '@samhan/design-system'
+import { useCompanyProfile } from './useCompanyProfile'
 
 // COMPANY 정적 상수는 useCompanyProfile 훅으로 대체됨 (spec §2c, 2026-06-10).
 // 외부에서 COMPANY 를 직접 import 하지 말 것 — useCompanyProfile() 훅 사용.
@@ -28,6 +29,20 @@ import { Button } from '@samhan/design-system'
  * - `receipt-88mm` — 88mm 영수증 프린터 (88mm × auto) — 출고/입고 분기 옵션
  */
 export type PaperSize = 'a4-portrait' | 'a4-landscape' | 'receipt-88mm'
+
+export interface PrintDocHeader {
+  title: string
+  docNo?: string
+  issueDate?: string
+  periodFrom?: string
+  periodTo?: string
+}
+
+export interface PrintApprovalStep {
+  label: string
+  name?: string
+  decidedAt?: string
+}
 
 interface PrintLayoutProps {
   /** 양식 종류 — `<body>` 단의 .paper-* 클래스 부여 (CSS @page size 분기). */
@@ -45,6 +60,16 @@ interface PrintLayoutProps {
   showFormatToggle?: boolean
   /** 88mm ↔ A4 toggle 콜백 — `showFormatToggle=true` 시. 본 1차 mock placeholder. */
   onToggleFormat?: () => void
+  /**
+   * 전자서명 결재문서 형식 opt-in.
+   *
+   * 기본값 false. 미전달 시 기존 출력 양식 DOM 을 그대로 children 만 렌더한다.
+   */
+  approvalDoc?: boolean
+  /** 결재문서 공통 헤더 정보. `approvalDoc=true` 일 때만 렌더한다. */
+  docHeader?: PrintDocHeader
+  /** 결재란 정의. 2~5칸을 배열 길이로 동적 렌더한다. */
+  approvalSteps?: PrintApprovalStep[]
 }
 
 /**
@@ -63,8 +88,13 @@ export function PrintLayout({
   children,
   showFormatToggle = false,
   onToggleFormat,
+  approvalDoc = false,
+  docHeader,
+  approvalSteps = [],
 }: PrintLayoutProps) {
   const navigate = useNavigate()
+  const { company } = useCompanyProfile()
+  const normalizedApprovalSteps = approvalSteps.slice(0, 5)
   return (
     <div>
       <div className="no-print" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
@@ -83,7 +113,80 @@ export function PrintLayout({
         ) : null}
       </div>
 
-      <div className={`paper paper-${paper}`}>{children}</div>
+      <div className={`paper paper-${paper}`}>
+        {approvalDoc ? (
+          <div className="print-approval-doc">
+            <header className="print-approval-doc-header">
+              <div className="print-approval-company">
+                <div className="print-approval-company-name">{company.legalName}</div>
+                <div className="print-approval-company-meta">
+                  사업자번호 {company.businessRegNo}
+                </div>
+              </div>
+              <div className="print-approval-doc-meta">
+                <h1>{docHeader?.title ?? ''}</h1>
+                {docHeader?.docNo ? (
+                  <div>
+                    <span>문서번호</span>
+                    <strong>{docHeader.docNo}</strong>
+                  </div>
+                ) : null}
+                {docHeader?.issueDate ? (
+                  <div>
+                    <span>발행일</span>
+                    <strong>{krDate(docHeader.issueDate)}</strong>
+                  </div>
+                ) : null}
+                {docHeader?.periodFrom || docHeader?.periodTo ? (
+                  <div>
+                    <span>기간</span>
+                    <strong>
+                      {krDate(docHeader.periodFrom)} ~ {krDate(docHeader.periodTo)}
+                    </strong>
+                  </div>
+                ) : null}
+              </div>
+            </header>
+            <div className="print-approval-divider" aria-hidden="true" />
+            <main className="print-approval-body">{children}</main>
+            <div className="print-approval-divider" aria-hidden="true" />
+            <section className="print-approval-section" aria-label="전자서명 결재란">
+              <div
+                className="print-approval-grid"
+                style={{
+                  gridTemplateColumns: `repeat(${Math.max(2, normalizedApprovalSteps.length)}, minmax(0, 1fr))`,
+                }}
+              >
+                {normalizedApprovalSteps.map((step) => {
+                  const signerName = step.name ?? ''
+                  const decidedAt = step.decidedAt ?? ''
+                  return (
+                    <div className="print-approval-cell" key={step.label}>
+                      <div className="print-approval-label">{step.label}</div>
+                      <div className="print-approval-signature">
+                        <SignatureViewer
+                          signaturePngBase64=""
+                          signerName={signerName}
+                          signedAt={decidedAt}
+                          size="fluid"
+                          className="print-approval-signature-viewer"
+                        />
+                      </div>
+                      <div className="print-approval-name">
+                        <div>{signerName}</div>
+                        <time>{formatApprovalDecidedAt(decidedAt)}</time>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="print-approval-notice">※ 전자서명으로 결재된 문서입니다.</p>
+            </section>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
     </div>
   )
 }
@@ -115,6 +218,13 @@ export function krDate(iso: string | null | undefined): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
   if (!m) return iso
   return `${m[1]}년 ${m[2]}월 ${m[3]}일`
+}
+
+function formatApprovalDecidedAt(iso: string | null | undefined): string {
+  if (!iso || iso.length < 10) return ''
+  const datePart = iso.slice(0, 10).replace(/-/g, '/')
+  if (iso.length < 16) return datePart
+  return `${datePart} ${iso.slice(11, 16)}`
 }
 
 /**

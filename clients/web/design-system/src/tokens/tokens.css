@@ -364,6 +364,11 @@
   --print-approval-h:         22mm;
   --print-approval-label-h:   5mm;
   --print-approval-value-h:   17mm;
+  --print-approval-w-std:         40mm;
+  --print-approval-h-std:         32mm;
+  --print-approval-sig-h:         18mm;
+  --print-approval-name-h:        8mm;
+  --print-signature-img-max-h-approval: 16mm;
 
   /* 용달기사/인수자 서명 — 피드백 #8 */
   --print-signature-w:        80mm;

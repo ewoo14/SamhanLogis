@@ -4,14 +4,14 @@
  * P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규.
  *
  * 구성 (A4 세로):
- * - 헤더: 회사 로고 + 회사 정보 (좌) | 견적번호 + 작성일 + 유효기간 (우)
+ * - 헤더: PrintLayout 결재문서 공통 헤더 (로고 없음)
  * - 거래처: 거래처명 + 현장주소 + 연락처 + 담당자
  * - 타이틀: "견적서" (큰 활자, 가운데)
  * - 견적 요약 박스: 합계금액 (한글) + (₩숫자) + 부가세 별도/포함 명시
  * - 라인 표 7-col: No / 품목 / 출고가 / 납품가 / 수량 / 소계 / 비고
  * - 합계: 공급가 + 부가세(별도) + 합계
  * - 결제 / 납기 안내
- * - 회사 직인 + 발행자 사인란
+ * - 결재란: PrintLayout 전자서명 결재란 3칸 (작성 / 검토 / 승인)
  *
  * 출처: `docs/manual/06-트러블슈팅/03-인쇄-안됨.md` §1 표 6번 (P0-4 견적서 인쇄).
  *
@@ -23,7 +23,6 @@ import { useQuery } from '@tanstack/react-query'
 import { getEstimate, type EstimateDetail } from '../api/sales'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
-import { useCompanyProfile } from './useCompanyProfile'
 
 /**
  * 견적 유효기간 — `createdAt + 30 일` 기본 (실제 운영은 EstimateDetail 에 expirationDate 추가
@@ -48,9 +47,6 @@ export function QuoteView() {
 
   usePageTitle('견적서', detailQuery.data?.estimateNumber)
 
-  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
-  const { company } = useCompanyProfile()
-
   if (!estimateNumber) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
   if (detailQuery.isError || !detailQuery.data) {
@@ -67,63 +63,24 @@ export function QuoteView() {
   const validUntil = est.dueDate ?? calcValidUntil(est.createdAt)
 
   return (
-    <PrintLayout paper="a4-portrait" backTo={`/sales/estimates/${estimateNumber}`}>
+    <PrintLayout
+      paper="a4-portrait"
+      backTo={`/sales/estimates/${estimateNumber}`}
+      approvalDoc
+      docHeader={{
+        title: '견 적 서',
+        docNo: est.estimateNumber,
+        issueDate: est.createdAt,
+        periodFrom: est.createdAt,
+        periodTo: validUntil,
+      }}
+      approvalSteps={[
+        { label: '작성', name: est.authorName || undefined, decidedAt: est.createdAt },
+        { label: '검토' },
+        { label: '승인' },
+      ]}
+    >
       <div className="quote-page" data-testid="quote-print-area">
-        <header className="quote-header">
-          <div className="quote-supplier">
-            <img className="quote-logo" src={company.logoPath} alt={company.legalName} />
-            <table className="quote-supplier-table">
-              <tbody>
-                <tr>
-                  <th>상호</th>
-                  <td>{company.legalName}</td>
-                </tr>
-                <tr>
-                  <th>대표자</th>
-                  <td>{company.ceo}</td>
-                </tr>
-                <tr>
-                  <th>사업자번호</th>
-                  <td className="num">{company.businessRegNo}</td>
-                </tr>
-                <tr>
-                  <th>주소</th>
-                  <td>{company.address}</td>
-                </tr>
-                <tr>
-                  <th>TEL / FAX</th>
-                  <td className="num">{company.tel} / {company.fax}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="quote-meta">
-            <table className="quote-meta-table">
-              <tbody>
-                <tr>
-                  <th>견적번호</th>
-                  <td className="strong">{est.estimateNumber}</td>
-                </tr>
-                <tr>
-                  <th>작성일</th>
-                  <td>{krDate(est.createdAt)}</td>
-                </tr>
-                <tr>
-                  <th>유효기간</th>
-                  <td className="emphasis">{krDate(validUntil)} 까지</td>
-                </tr>
-                <tr>
-                  <th>작성자</th>
-                  <td>{est.authorName}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </header>
-
-        <h1 className="quote-title">견 적 서</h1>
-
         {/* 거래처 박스 */}
         <section className="quote-partner-box">
           <div className="row">
@@ -238,15 +195,6 @@ export function QuoteView() {
           ) : null}
         </section>
 
-        {/* 회사 직인 영역 */}
-        <footer className="quote-footer">
-          <div className="quote-issuer-block">
-            <div className="issuer-name">{company.legalName}</div>
-            <div className="issuer-meta">사업자번호 {company.businessRegNo}</div>
-            <div className="issuer-meta">대표 {company.ceo}</div>
-            <div className="issuer-seal">[직인]</div>
-          </div>
-        </footer>
       </div>
     </PrintLayout>
   )

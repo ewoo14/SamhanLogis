@@ -4,12 +4,12 @@
  * P0-4 인쇄 양식 5건 1차 mock — Designer 단계 신규.
  *
  * 구성 (A4 세로 기본 / 88mm 분기 toggle):
- * - 헤더: 회사명 + 입고전표 타이틀 + 전표번호 + 입고일
+ * - 헤더: PrintLayout 결재문서 공통 헤더 (로고 없음)
  * - 공급처: 공급처명 + 사업자번호(있으면) + 연락처
  * - 입고창고 (destinationWarehouse 명) — 강조 표시
  * - 라인 표: 품목 / 규격 / 수량 / 단가 / 금액
  * - 합계: 공급가 + 부가세 + 합계
- * - 검수자 사인란: 검수자 이름 + [인]
+ * - 결재란: PrintLayout 전자서명 결재란 3칸 (작성 / 검토 / 승인)
  *
  * 출처: `docs/manual/06-트러블슈팅/03-인쇄-안됨.md` §1 표 (P0-4).
  *
@@ -23,7 +23,6 @@ import { getSlip, type SlipDetail } from '../api/slip'
 import { listWarehouses, type Warehouse } from '../api/inventory'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PrintLayout, krw, krDate, calcAmounts, type PaperSize } from './PrintLayout'
-import { useCompanyProfile } from './useCompanyProfile'
 
 export function InboundView() {
   const params = useParams<{ id: string }>()
@@ -41,9 +40,6 @@ export function InboundView() {
   })
 
   usePageTitle('입고전표', detailQuery.data?.slipNo)
-
-  // 훅 규칙(rules-of-hooks): early-return 보다 앞에 위치
-  const { company } = useCompanyProfile()
 
   if (!id) return null
   if (detailQuery.isLoading) return <p>불러오는 중...</p>
@@ -70,29 +66,19 @@ export function InboundView() {
       backTo={`/purchases/${id}`}
       showFormatToggle
       onToggleFormat={() => setPaper((p) => (p === 'receipt-88mm' ? 'a4-portrait' : 'receipt-88mm'))}
+      approvalDoc
+      docHeader={{
+        title: '입 고 전 표',
+        docNo: slip.slipNo,
+        issueDate: slip.slipDate,
+      }}
+      approvalSteps={[
+        { label: '작성', name: slip.ownerFullName ?? undefined },
+        { label: '검토', name: slip.inspector?.fullName ?? undefined, decidedAt: slip.inspector?.signedAt },
+        { label: '승인' },
+      ]}
     >
       <div className={`inbound-page inbound-${variant}`} data-testid="inbound-print-area">
-        <header className="inbound-header">
-          <div className="inbound-company-row">
-            <img className="inbound-logo" src={company.logoPath} alt={company.legalName} />
-            <div className="inbound-issuer">
-              <div className="name">{company.legalName}</div>
-              <div className="meta">사업자번호 {company.businessRegNo} / TEL {company.tel}</div>
-            </div>
-          </div>
-          <h1 className="inbound-title">입 고 전 표</h1>
-          <div className="inbound-meta-row">
-            <div>
-              <span className="label">전표번호</span>
-              <span className="value strong">{slip.slipNo}</span>
-            </div>
-            <div>
-              <span className="label">입고일</span>
-              <span className="value">{krDate(slip.slipDate)}</span>
-            </div>
-          </div>
-        </header>
-
         <section className="inbound-supplier">
           <div className="row">
             <span className="label">공급처</span>
@@ -180,34 +166,9 @@ export function InboundView() {
           </section>
         ) : null}
 
-        <footer className="inbound-footer">
-          <div className="inbound-sign-row">
-            <div className="sign-cell">
-              <div className="sign-label">담당자</div>
-              <div className="sign-value">
-                <span>{slip.ownerFullName ?? '-'}</span>
-                <span className="sign-mark">[인]</span>
-              </div>
-            </div>
-            <div className="sign-cell">
-              <div className="sign-label">검수자</div>
-              <div className="sign-value">
-                <span>{slip.inspector?.fullName ?? ''}</span>
-                <span className="sign-mark">[인]</span>
-              </div>
-            </div>
-            <div className="sign-cell">
-              <div className="sign-label">공급처 확인</div>
-              <div className="sign-value">
-                <span>&nbsp;</span>
-                <span className="sign-mark">[인]</span>
-              </div>
-            </div>
-          </div>
-          <p className="inbound-notice">
-            ※ 입고 수량 / 품목 / 상태 이상 유무 확인 후 검수자 서명 필수.
-          </p>
-        </footer>
+        <p className="inbound-notice">
+          ※ 입고 수량 / 품목 / 상태 이상 유무 확인 후 전자결재로 승인합니다.
+        </p>
       </div>
     </PrintLayout>
   )

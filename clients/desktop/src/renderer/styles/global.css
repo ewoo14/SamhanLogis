@@ -1794,6 +1794,197 @@ button {
   line-height: 1.35;
 }
 
+/* --- 전자서명 결재문서 공통 구조 (PrintLayout approvalDoc opt-in) --- */
+.print-approval-doc {
+  min-height: calc(var(--print-content-h, 273mm));
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+}
+
+.print-approval-doc-header {
+  min-height: 28mm;
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 8mm;
+  align-items: start;
+}
+
+.print-approval-company {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5mm;
+  padding-top: 2mm;
+}
+
+.print-approval-company-name {
+  font-size: 14pt;
+  font-weight: 600;
+  color: var(--ink-primary, #1A1F2E);
+}
+
+.print-approval-company-meta {
+  font-size: 10pt;
+  color: var(--ink-secondary, #5C6773);
+}
+
+.print-approval-doc-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1mm;
+  font-size: 10pt;
+  color: #000;
+}
+
+.print-approval-doc-meta h1 {
+  margin: 0 0 2mm 0;
+  font-size: 18pt;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink-primary, #1A1F2E);
+  text-align: right;
+}
+
+.print-approval-doc-meta div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2mm;
+  line-height: 1.35;
+}
+
+.print-approval-doc-meta span {
+  color: var(--ink-secondary, #5C6773);
+}
+
+.print-approval-doc-meta strong {
+  font-weight: 600;
+  color: #000;
+}
+
+.print-approval-divider {
+  border-top: 1px solid var(--print-line-color, #000);
+}
+
+.print-approval-body {
+  flex: 1 1 auto;
+}
+
+.print-approval-section {
+  min-height: var(--print-approval-h-std, 32mm);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.print-approval-grid {
+  display: grid;
+  width: 100%;
+  min-height: var(--print-approval-h-std, 32mm);
+  border-top: var(--print-approval-border, 1px solid #000);
+  border-left: var(--print-approval-border, 1px solid #000);
+}
+
+.print-approval-cell {
+  display: grid;
+  grid-template-rows:
+    var(--print-approval-label-h, 5mm)
+    var(--print-approval-sig-h, 18mm)
+    var(--print-approval-name-h, 8mm);
+  min-width: 0;
+  border-right: var(--print-approval-border, 1px solid #000);
+  border-bottom: var(--print-approval-border, 1px solid #000);
+}
+
+.print-approval-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: var(--print-approval-border, 1px solid #000);
+  background: var(--print-approval-label-bg, #F0F0F0);
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+.print-approval-signature {
+  min-width: 0;
+  padding: 1mm 2mm;
+  border-bottom: var(--print-approval-border, 1px solid #000);
+}
+
+.print-approval-signature-viewer {
+  height: 100%;
+  gap: 0;
+}
+
+.print-approval-signature-viewer > div:first-child {
+  width: 100%;
+  height: 100%;
+  max-height: var(--print-approval-sig-h, 18mm);
+  padding: 1mm;
+  border: 1px dashed #CCC;
+  border-radius: 0;
+}
+
+.print-approval-signature-viewer img {
+  max-height: var(--print-signature-img-max-h-approval, 16mm);
+}
+
+.print-approval-signature-viewer > div:first-child > div {
+  color: transparent;
+}
+
+.print-approval-signature-viewer dl {
+  display: none;
+}
+
+.print-approval-name {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5mm;
+  padding: 0.5mm 1mm;
+  font-size: 9pt;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.print-approval-name time {
+  min-height: 8pt;
+  font-size: 8pt;
+  color: var(--ink-secondary, #5C6773);
+  font-variant-numeric: tabular-nums;
+}
+
+.print-approval-notice {
+  margin: 2mm 0 0 0;
+  font-size: 8pt;
+  color: var(--ink-tertiary, #8A95A4);
+}
+
+.paper-receipt-88mm .print-approval-doc {
+  min-height: auto;
+}
+
+.paper-receipt-88mm .print-approval-doc-header {
+  min-height: auto;
+  grid-template-columns: 1fr;
+  gap: 2mm;
+}
+
+.paper-receipt-88mm .print-approval-doc-meta {
+  align-items: flex-start;
+}
+
+.paper-receipt-88mm .print-approval-doc-meta h1 {
+  text-align: left;
+  font-size: 16pt;
+}
+
+.paper-receipt-88mm .print-approval-grid {
+  grid-template-columns: 1fr !important;
+}
+
 /* --- 거래명세서 v2 (InvoiceView rewrite) — A4 세로 --- */
 .invoice-v2 {
   display: flex;
