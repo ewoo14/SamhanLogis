@@ -6,6 +6,7 @@ import com.samhanair.logis.discovery.ServiceDiscoveryClient;
 import com.samhanair.logis.userclient.DefaultUserVerifier;
 import com.samhanair.logis.userclient.UserVerifier;
 import com.samhanair.logis.userclient.UserVerifierProperties;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +37,9 @@ public class UserClient implements UserVerifier {
     private final RestClient restClient;
     private final String internalToken;
     private final ObjectMapper objectMapper;
+
+    public record ApproverSummary(UUID userId, String name, String department) {
+    }
 
     public UserClient(RestClient.Builder builder,
                       ServiceDiscoveryClient discoveryClient,
@@ -99,6 +103,80 @@ public class UserClient implements UserVerifier {
         } catch (Exception ex) {
             return Optional.empty();
         }
+    }
+
+    /** 결재자 검색. user-service 장애/토큰 미설정 시 빈 배열로 fail-soft 처리한다. */
+    public List<ApproverSummary> search(String q, int limit) {
+        String normalized = q == null ? "" : q.trim();
+        if (normalized.isBlank() || internalToken == null || internalToken.isBlank()) {
+            return List.of();
+        }
+        int normalizedLimit = Math.min(Math.max(limit, 1), 50);
+        try {
+            String body = restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/internal/users/search")
+                            .queryParam("q", normalized)
+                            .queryParam("limit", normalizedLimit)
+                            .build())
+                    .header("X-Internal-Token", internalToken)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return List.of();
+            }
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            if (data == null || !data.isArray()) {
+                return List.of();
+            }
+            java.util.ArrayList<ApproverSummary> result = new java.util.ArrayList<>();
+            for (JsonNode item : data) {
+                UUID userId = readUuid(item.get("userId"));
+                String fullName = readText(item.get("fullName"));
+                if (userId == null || fullName == null) {
+                    continue;
+                }
+                result.add(new ApproverSummary(userId, fullName, readText(item.get("departmentName"))));
+            }
+            return List.copyOf(result);
+        } catch (RestClientResponseException ex) {
+            return List.of();
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    /** UUID 목록의 표시명을 fail-soft 로 해석한다. 누락/실패 항목은 결과 map 에 포함하지 않는다. */
+    public Map<UUID, String> resolveDisplayNames(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> result = new LinkedHashMap<>();
+        ids.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .forEach(id -> resolveDisplayName(id).ifPresent(name -> result.put(id, name)));
+        return Map.copyOf(result);
+    }
+
+    private UUID readUuid(JsonNode node) {
+        String value = readText(node);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String readText(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        String text = node.asText();
+        return text == null || text.isBlank() ? null : text.trim();
     }
 
     @Override

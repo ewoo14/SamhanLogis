@@ -18,6 +18,7 @@ import java.util.UUID;
  * @param approvalId 결재선 식별자 (form hidden / 후속 호출 path)
  * @param approvalNo 결재문서번호 ({@code yyyy/MM/dd-N})
  * @param requesterId 요청자
+ * @param requesterName 요청자 표시명
  * @param title 제목
  * @param content 본문
  * @param templateId 결재유형 템플릿 UUID
@@ -30,6 +31,7 @@ public record ApprovalLineAdminResponse(
         UUID approvalId,
         String approvalNo,
         UUID requesterId,
+        String requesterName,
         String title,
         String content,
         UUID templateId,
@@ -42,13 +44,18 @@ public record ApprovalLineAdminResponse(
     public record StepView(
             int sequence,
             UUID approverId,
+            String approverName,
             ApprovalStepStatus status,
             LocalDateTime decidedAt,
             String reason
     ) {
 
         static StepView from(ApprovalStep s) {
-            return new StepView(s.getSequence(), s.getApproverId(), s.getStatus(),
+            return from(s, null);
+        }
+
+        static StepView from(ApprovalStep s, Map<UUID, String> nameMap) {
+            return new StepView(s.getSequence(), s.getApproverId(), displayName(nameMap, s.getApproverId()), s.getStatus(),
                     s.getDecidedAt(), s.getReason());
         }
     }
@@ -60,9 +67,24 @@ public record ApprovalLineAdminResponse(
     /** 결재선 + 템플릿 표시 정보로 응답 DTO 를 만든다. */
     public static ApprovalLineAdminResponse from(ApprovalLine line, String templateName,
                                                  Map<String, String> fieldValues) {
-        List<StepView> steps = line.getStepsView().stream().map(StepView::from).toList();
-        return new ApprovalLineAdminResponse(line.getId(), line.getApprovalNo(), line.getRequesterId(), line.getTitle(),
-                line.getContent(), line.getTemplateId(), templateName,
+        return from(line, templateName, fieldValues, null);
+    }
+
+    /** 결재선 + 템플릿 표시 정보 + 사용자 표시명으로 응답 DTO 를 만든다. */
+    public static ApprovalLineAdminResponse from(ApprovalLine line, String templateName,
+                                                 Map<String, String> fieldValues,
+                                                 Map<UUID, String> nameMap) {
+        List<StepView> steps = line.getStepsView().stream().map(step -> StepView.from(step, nameMap)).toList();
+        return new ApprovalLineAdminResponse(line.getId(), line.getApprovalNo(), line.getRequesterId(),
+                displayName(nameMap, line.getRequesterId()), line.getTitle(), line.getContent(),
+                line.getTemplateId(), templateName,
                 fieldValues == null ? Map.of() : fieldValues, line.getStatus(), steps);
+    }
+
+    private static String displayName(Map<UUID, String> nameMap, UUID userId) {
+        if (nameMap == null || userId == null) {
+            return null;
+        }
+        return nameMap.get(userId);
     }
 }

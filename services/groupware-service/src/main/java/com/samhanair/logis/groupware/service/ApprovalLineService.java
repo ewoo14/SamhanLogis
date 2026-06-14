@@ -109,7 +109,11 @@ public class ApprovalLineService {
     public ApprovalLineAdminResponse toResponse(ApprovalLine line) {
         String templateName = approvalTemplateService.findTemplateNameOrNull(line.getTemplateId());
         Map<String, String> fieldValues = approvalTemplateService.readFieldValues(line.getFieldValuesJson());
-        return ApprovalLineAdminResponse.from(line, templateName, fieldValues);
+        List<UUID> ids = new ArrayList<>();
+        ids.add(line.getRequesterId());
+        line.getStepsView().forEach(step -> ids.add(step.getApproverId()));
+        Map<UUID, String> nameMap = userClient.resolveDisplayNames(ids);
+        return ApprovalLineAdminResponse.from(line, templateName, fieldValues, nameMap);
     }
 
     /** 결재자 승인 처리 — chain 의 현재 step 결재자만 호출 허용. */

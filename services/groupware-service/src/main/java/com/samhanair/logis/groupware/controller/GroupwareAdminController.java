@@ -1,10 +1,12 @@
 package com.samhanair.logis.groupware.controller;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalStatus;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
 import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
+import com.samhanair.logis.groupware.dto.ApproverSearchResponse;
 import com.samhanair.logis.groupware.dto.MessageResponse;
 import com.samhanair.logis.groupware.dto.MessageSendRequest;
 import com.samhanair.logis.groupware.dto.ScheduleRequest;
@@ -49,6 +51,7 @@ public class GroupwareAdminController {
     private final ApprovalLineService approvalLineService;
     private final MessageService messageService;
     private final ScheduleService scheduleService;
+    private final UserClient userClient;
 
     // ================================ 결재선 ================================
 
@@ -68,6 +71,19 @@ public class GroupwareAdminController {
     @RequirePermission(page = "groupware.approvals", action = PermissionAction.VIEW)
     public ApiResponse<ApprovalLineAdminResponse> getApproval(@PathVariable UUID approvalId) {
         return ApiResponse.ok(approvalLineService.findResponseById(approvalId));
+    }
+
+    /** 결재 작성 화면의 결재자 검색 proxy. */
+    @Operation(summary = "결재자 검색")
+    @GetMapping("/approvals/approver-search")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
+    @RequirePermission(page = "groupware.approvals", action = PermissionAction.VIEW)
+    public ApiResponse<List<ApproverSearchResponse>> searchApprovers(
+            @RequestParam("q") String q,
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        return ApiResponse.ok(userClient.search(q, limit).stream()
+                .map(item -> new ApproverSearchResponse(item.userId(), item.name(), item.department()))
+                .toList());
     }
 
     /** 결재선 생성 + chain 등록. */

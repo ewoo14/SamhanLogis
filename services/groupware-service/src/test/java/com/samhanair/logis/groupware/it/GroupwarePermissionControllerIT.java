@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -14,6 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.groupware.controller.GroupwareAdminController;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
@@ -94,6 +96,7 @@ class GroupwarePermissionControllerIT {
     @MockBean private ApprovalLineService approvalLineService;
     @MockBean private MessageService messageService;
     @MockBean private ScheduleService scheduleService;
+    @MockBean private UserClient userClient;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @BeforeEach
@@ -123,6 +126,7 @@ class GroupwarePermissionControllerIT {
         lenient().when(scheduleService.create(any())).thenReturn(schedule);
         lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
         lenient().when(scheduleService.update(any(), any())).thenReturn(schedule);
+        lenient().when(userClient.search(anyString(), anyInt())).thenReturn(List.of());
     }
 
     @ParameterizedTest(name = "{0} grant -> 2xx")
@@ -185,6 +189,7 @@ class GroupwarePermissionControllerIT {
     @Test
     void approvalEndpointsUseRequireDepartmentAndNoPreAuthorize() throws Exception {
         assertDepartmentGate("createApproval", ApprovalLineCreateRequest.class);
+        assertDepartmentGate("searchApprovers", String.class, int.class);
         assertDepartmentGate("approve", UUID.class, ApprovalDecisionRequest.class);
         assertDepartmentGate("reject", UUID.class, ApprovalDecisionRequest.class);
     }
@@ -210,6 +215,10 @@ class GroupwarePermissionControllerIT {
                                 .content("""
                                         {"approverId":"00000000-0000-0000-0000-000000000012","reason":"반려"}
                                         """)),
+                new EndpointCase("approver search", APPROVAL_PAGE, PermissionAction.VIEW, "MANAGER",
+                        () -> get("/admin/groupware/approvals/approver-search")
+                                .param("q", "김")
+                                .param("limit", "20")),
                 new EndpointCase("send message", SEND_PAGE, PermissionAction.CREATE, "SALES",
                         () -> post("/admin/groupware/messages")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -239,8 +248,7 @@ class GroupwarePermissionControllerIT {
 
     static Stream<EndpointCase> approvalEndpoints() {
         return endpoints().filter(endpoint -> APPROVAL_PAGE.equals(endpoint.page())
-                && (endpoint.action() == PermissionAction.CREATE || endpoint.action() == PermissionAction.UPDATE)
-                && endpoint.name().contains("approval"));
+                && (endpoint.name().contains("approval") || endpoint.name().contains("approver")));
     }
 
     private static String scheduleBody() {

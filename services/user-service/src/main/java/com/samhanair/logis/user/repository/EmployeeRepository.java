@@ -52,6 +52,12 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     @EntityGraph(attributePaths = "department")
     List<Employee> findTop20ByFullName(String fullName);
 
+    /** groupware 결재자 picker 용 internal 검색 — fullName/loginId 부분일치. */
+    @Query("SELECT e FROM Employee e JOIN FETCH e.department "
+            + "WHERE LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
+            + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%'))")
+    List<Employee> searchInternalApprovers(@Param("q") String q, Pageable pageable);
+
     /** #31 — estimate-app 접속 게이트 (legacy Notion AUTH DB 의 email 승인 조회 치환). */
     Optional<Employee> findByEmail(String email);
 

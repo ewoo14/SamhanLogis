@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.it;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -87,6 +88,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
             }
             return result;
         });
+        lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(java.util.Map.of());
         approvalLineRepository.deleteAll();
         messageRepository.deleteAll();
         scheduleRepository.deleteAll();
@@ -94,9 +96,16 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
     @Test
     void create_approval_returns_201() throws Exception {
+        UUID requester = UUID.randomUUID();
+        UUID approver1 = UUID.randomUUID();
+        UUID approver2 = UUID.randomUUID();
+        lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(java.util.Map.of(
+                requester, "요청자",
+                approver1, "1차결재자",
+                approver2, "2차결재자"));
         ApprovalLineCreateRequest req = new ApprovalLineCreateRequest(
-                UUID.randomUUID(), "휴가 신청", "연차 1일",
-                List.of(UUID.randomUUID(), UUID.randomUUID()));
+                requester, "휴가 신청", "연차 1일",
+                List.of(approver1, approver2));
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
                         .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
@@ -104,7 +113,29 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isCreated())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("PENDING"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.steps.length()").value(2));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.requesterName").value("요청자"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.steps.length()").value(2))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.steps[0].approverName").value("1차결재자"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.steps[1].approverName").value("2차결재자"));
+    }
+
+    @Test
+    void approver_search_proxy_returns_user_client_results() throws Exception {
+        UUID userId = UUID.randomUUID();
+        lenient().when(userClient.search(eq("김"), eq(10)))
+                .thenReturn(List.of(new UserClient.ApproverSummary(userId, "김결재", "대표실")));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/approvals/approver-search")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
+                        .header("X-User-Department", "대표실")
+                        .param("q", "김")
+                        .param("limit", "10"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].userId").value(userId.toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].name").value("김결재"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].department").value("대표실"));
     }
 
     @Test

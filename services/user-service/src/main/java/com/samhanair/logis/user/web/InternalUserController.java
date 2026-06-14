@@ -7,6 +7,7 @@ import com.samhanair.logis.user.repository.EmployeeRepository;
 import com.samhanair.logis.user.web.dto.BulkVerifyRequest;
 import com.samhanair.logis.user.web.dto.BulkVerifyResponse;
 import com.samhanair.logis.user.web.dto.InternalEmployeeLookupResponse;
+import com.samhanair.logis.user.web.dto.InternalEmployeeSearchResponse;
 import com.samhanair.logis.user.web.dto.InternalUserResponse;
 import jakarta.validation.Valid;
 import java.util.HashMap;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -77,6 +79,32 @@ public class InternalUserController {
         }
         List<InternalEmployeeLookupResponse> employees = employeeRepository.findTop20ByFullName(normalized).stream()
                 .map(emp -> new InternalEmployeeLookupResponse(emp.getId(), emp.getFullName()))
+                .toList();
+        return ApiResponse.ok(employees);
+    }
+
+    /**
+     * 직원명/loginId 부분일치 검색. groupware-service 결재자 picker 가 호출한다.
+     *
+     * <p>빈 q 는 빈 배열, limit 은 기본 20 / 상한 50 으로 제한한다.
+     */
+    @GetMapping("/search")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<InternalEmployeeSearchResponse>> search(
+            @RequestParam("q") String q,
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        String normalized = q == null ? "" : q.trim();
+        if (normalized.isBlank()) {
+            return ApiResponse.ok(List.of());
+        }
+        int normalizedLimit = Math.min(Math.max(limit, 1), 50);
+        List<InternalEmployeeSearchResponse> employees = employeeRepository
+                .searchInternalApprovers(normalized, PageRequest.of(0, normalizedLimit)).stream()
+                .map(emp -> new InternalEmployeeSearchResponse(
+                        emp.getId(),
+                        emp.getFullName(),
+                        emp.getDepartment() == null ? null : emp.getDepartment().getName(),
+                        emp.getRoleSnapshot().name()))
                 .toList();
         return ApiResponse.ok(employees);
     }
