@@ -14,7 +14,10 @@ class JournalSeederTest {
         Method pickSlipNo = JournalSeeder.class.getDeclaredMethod("pickSlipNo", int.class);
         pickSlipNo.setAccessible(true);
 
-        // fresh 시드에서 deterministicId("slip", slipNo) 입력값이 SlipSeeder.formatSlipNo 와 같아야 한다.
+        // 적요/참조 텍스트의 전표번호 표기를 slip-service SlipSeeder.formatSlipNo 와 동일한 포맷
+        // (yyyy/MM/dd-N, 일련번호 0제거)으로 산출하는지 검증한다.
+        // (slips.id 는 random PK, journal source_ref_id 는 번호 hash 라 cross-DB row 매칭은 불가 —
+        //  여기서 검증하는 것은 전표번호 텍스트 포맷 일관성뿐이다.)
         assertThat((String) pickSlipNo.invoke(new JournalSeeder(null), 1))
                 .isEqualTo("2026/04/01-1");
     }
