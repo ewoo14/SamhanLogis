@@ -1,0 +1,57 @@
+MODE=openSpecModalByItem(item,'single')
+model=AC060CS6PBH1SY
+name=360 CST UV
+partCount=4
+hasCompSection=true
+
+--- 구성품 (kind/model/specsCount[DB]) ---
+[INDOOR] AC060CN6PBH1 360 CST UV 실내기 | DB specs=0
+[OUTDOOR] AC060CXAPBH1 360 CST UV 실외기 | DB specs=0
+[PANEL] PC6NUNK1NW 판넬 (360CST 원형 WIFI) | DB specs=3
+[REMOTE] AR-EH05 무선리모컨(냉난방전용) | DB specs=1
+
+--- 모달 #specBody innerText ---
+구성	[실내기] AC060CN6PBH1
+[실외기] AC060CXAPBH1
+[판넬] PC6NUNK1NW
+[리모컨] AR-EH05
+배관경(액관/가스관)	6/12
+냉방성능(kcal/h) (최소/정격/최대)	1462 / 5159 / 6879
+난방성능(kcal/h) (최소/정격/최대)	1720 / 6191/ 8169
+냉방성능(kW) (최소/정격/최대)	1.80 / 5.20 / 7.20
+난방성능(kW) (최소/정격/최대)	2.04 / 6.00 / 8.40
+냉방소비전력(kW) (최소/정격/최대)	0.35 / 1.41 / 2.64
+난방소비전력(kW) (최소/정격/최대)	0.37 / 1.61 / 3.10
+냉매가스	R410A
+에너지소비효율등급	2/3등급
+전원선(mm²)	2.5
+차단기(A)	20
+제품크기(mm)
+(WxHxD)	[실내기] 947x365x947
+[실외기] 880x638x310
+제품중량(kg)	[실내기] 23kg
+[실외기] 41kg
+포장치수(mm)
+(WxHxD)	[실내기] 990x414x990
+[실외기] 1038x725x411
+포장중량(kg)	[실내기] 28kg
+[실외기] 43kg
+배관길이(m)	50
+고낙차(m)	30
+구성품별 사양
+[실내기] AC060CN6PBH1 · 360 CST UV 실내기
+제품크기(mm) (WxHxD)	947x365x947
+제품중량(kg)	23kg
+포장치수(mm) (WxHxD)	990x414x990
+포장중량(kg)	28kg
+[실외기] AC060CXAPBH1 · 360 CST UV 실외기
+제품크기(mm) (WxHxD)	880x638x310
+제품중량(kg)	41kg
+포장치수(mm) (WxHxD)	1038x725x411
+포장중량(kg)	43kg
+[판넬] PC6NUNK1NW · 판넬 (360CST 원형 WIFI)
+냉방성능(정격)	Ø1020
+소비전력(정격)	W645xD645
+제품크기	1050x94x1050
+[리모컨] AR-EH05 · 무선리모컨(냉난방전용)
+냉방성능(정격)	냉난방 전용

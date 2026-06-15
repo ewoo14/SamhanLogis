@@ -1,0 +1,62 @@
+MODE=openSpecModalByItem(item,'comm')
+model=AM360NXGGBH1S
+name=GHP 가스히트펌프 36HP (16HP+20HP)
+catL=실외기
+unit=EA
+partCount=2
+hasCompSection=true
+
+--- 구성품 (kind/model/specsCount[DB]) ---
+[] AM160NXGGBH1 GHP 가스히트펌프 16HP | DB specs=12
+[] AM200NXGGBH1 GHP 가스히트펌프 20HP | DB specs=12
+
+--- 모달 #specBody innerText ---
+배관경(액관/가스관)	19/41
+냉방성능(정격, kcal/h)	86900kcal/h
+난방성능(정격, kcal/h)	97200kcal/h
+냉방성능(정격, kW)	101.0kw
+난방성능(정격, kW)	113.0kw
+냉방소비전력(정격, kW)	1.56kw
+난방소비전력(정격, kW)	1.14kw
+냉매가스	R410A
+소비효율등급	-
+전원선(m²)	4sq
+차단기(A)	20A
+제품크기(mm)
+(WxHxD)	-
+제품중량(kg)	770+770kg
+포장치수(mm)
+(WxHxD)	(1800x2370x1070)x2
+포장중량(kg)	790+790kg
+배관길이(m)	170m
+최대 실내기 연결 허용 대수	59대
+고낙차(m)	실외기가 높은 경우	70m
+실내기가 높은 경우	50m
+실내기-실내기	50m
+구성품별 사양
+AM160NXGGBH1 · GHP 가스히트펌프 16HP
+용량	45
+배관경	15/28
+냉매가스	R410A
+냉방성능(정격)	38700kcal/h
+소비전력(정격)	0.65kw
+난방성능(정격)	43000kcal/h
+차단기	20A
+전원선	4sq
+제품크기	1660x2245x880
+최대장배관	170m
+최대고저차	70m/50m/50m
+최대연결실내기대수	23
+AM200NXGGBH1 · GHP 가스히트펌프 20HP
+용량	56
+배관경	15/28
+냉매가스	R410A
+냉방성능(정격)	48200kcal/h
+소비전력(정격)	0.91kw
+난방성능(정격)	54200kcal/h
+차단기	20A
+전원선	4sq
+제품크기	1660x2245x880
+최대장배관	170m
+최대고저차	70m/50m/50m
+최대연결실내기대수	28

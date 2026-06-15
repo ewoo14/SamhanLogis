@@ -3503,7 +3503,9 @@ function renderCommSpec_(catL, item, s){
   }
 
   const isSetOutdoor = (catL==='실외기' && String(item?.unit||'').toUpperCase()==='SET');
-  const compParts = isSetOutdoor ? (explodeCommSets_(item, 1) || []) : [];
+  // 상업멀티 구성품 사양: 상업 카탈로그 단위는 전부 EA(SET 없음)이므로 단위 무관, 세트 실외기가
+  // 구성품(COMM_PARTS refModel 매칭)을 보유하면 표시. 기존 compLine 은 isSetOutdoor 로직 무변경 유지.
+  const compParts = (catL==='실외기') ? (explodeCommSets_(item, 1) || []) : [];
   const compSpecsHtml = renderComponentSpecs_(compParts, s, 'comm');
 
   let compLine = '';
@@ -3740,6 +3742,14 @@ function renderComponentSpecs_(parts, setSpec, scope){
     const name = String(p?.name || '');
     return kind.includes('실외기') || kind.toUpperCase().includes('OUTDOOR') || /실외기/.test(name);
   };
+  // 구성품 구분(kind) 한글 라벨 — DB 모드는 BE enum(영문), legacy 시트 모드는 한글. 영문은 한글 매핑,
+  // 미매칭(legacy 한글 포함)은 원본 유지하여 모달 내 "구성" 행 한글 라벨과 표기 일관.
+  const KIND_KO = { INDOOR:'실내기', OUTDOOR:'실외기', PANEL:'판넬', REMOTE:'리모컨',
+    MATERIAL:'자재', ACCESSORY:'부속', FOOT:'받침대', WALL:'벽걸이' };
+  const kindLabel_ = k => {
+    const t = clean_(k);
+    return t ? (KIND_KO[t.toUpperCase()] || t) : '';
+  };
 
   const blocks = [];
   parts.forEach(p => {
@@ -3771,7 +3781,7 @@ function renderComponentSpecs_(parts, setSpec, scope){
     const validRows = rows.filter(r => r && clean_(r[0]) && clean_(r[1]));
     if(!validRows.length) return;
 
-    const kind = clean_(p?.kind);
+    const kind = kindLabel_(p?.kind);
     const model = clean_(p?.model);
     const name = clean_(p?.name);
     const head = (kind ? '[' + kind + '] ' : '') + (model || name) + (model && name ? ' · ' + name : '');
