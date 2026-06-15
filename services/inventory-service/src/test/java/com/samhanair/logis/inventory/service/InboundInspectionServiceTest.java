@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.inventory.client.ProductClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.client.SlipClient;
 import com.samhanair.logis.inventory.client.SlipDetail;
 import com.samhanair.logis.inventory.client.SlipLineDetail;
@@ -62,6 +64,7 @@ class InboundInspectionServiceTest {
     @Mock StockBalanceRepository stockBalanceRepository;
     @Mock StockMovementRepository stockMovementRepository;
     @Mock WarehouseRepository warehouseRepository;
+    @Mock ProductClient productClient;
     @Mock SlipClient slipClient;
 
     @InjectMocks
@@ -242,6 +245,7 @@ class InboundInspectionServiceTest {
 
             Warehouse warehouse = makeWarehouse(warehouseId);
             when(warehouseRepository.findById(warehouseId)).thenReturn(Optional.of(warehouse));
+            when(productClient.requireExists(productId)).thenReturn(goodsProduct(productId));
 
             StockBalance balance = StockBalance.create(productId, warehouse);
             when(stockBalanceRepository
@@ -256,6 +260,29 @@ class InboundInspectionServiceTest {
             assertThat(result.stockApplied()).isTrue();
             verify(stockLotRepository).save(any());
             verify(stockMovementRepository).save(any());
+        }
+
+        @Test
+        @DisplayName("비상품 라인은 재고를 만들지 않고 검수 완료만 처리")
+        void nonGoodsProduct_skipsStockCreationButCompletes() {
+            InboundInspection inspection = makeInspection(slipId, "2025/01/10-001");
+            InboundInspectionLine line = makeLine(inspection, lineId, productId, 10);
+            line.recordResult(10, 0, null);
+            inspection.addLine(line);
+
+            when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId))
+                    .thenReturn(Optional.of(inspection));
+            when(slipClient.getSlip(slipId)).thenReturn(makeSlipDetail(slipId, "INBOUND", "SAVED"));
+            when(warehouseRepository.findById(warehouseId)).thenReturn(Optional.of(makeWarehouse(warehouseId)));
+            when(productClient.requireExists(productId)).thenReturn(nonGoodsProduct(productId));
+
+            var result = service.completeInspection(slipId, actorId);
+
+            assertThat(result.status()).isEqualTo(InspectionStatus.COMPLETED);
+            assertThat(result.stockApplied()).isTrue();
+            verify(stockLotRepository, never()).save(any());
+            verify(stockBalanceRepository, never()).save(any());
+            verify(stockMovementRepository, never()).save(any());
         }
 
         @Test
@@ -364,5 +391,15 @@ class InboundInspectionServiceTest {
                 "서울시", 1, null);
         ReflectionTestUtils.setField(w, "id", id);
         return w;
+    }
+
+    private ProductSummary goodsProduct(UUID id) {
+        return new ProductSummary(id, "테스트 제품", "MODEL-001", "MODEL-001",
+                UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE", false, true);
+    }
+
+    private ProductSummary nonGoodsProduct(UUID id) {
+        return new ProductSummary(id, "설치비", "FEE-INSTALL-001", "FEE-INSTALL-001",
+                UUID.randomUUID(), new BigDecimal("50000"), "ACTIVE", false, false);
     }
 }

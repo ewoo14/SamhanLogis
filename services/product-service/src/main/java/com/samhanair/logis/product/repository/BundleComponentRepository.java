@@ -40,7 +40,13 @@ public interface BundleComponentRepository extends JpaRepository<BundleComponent
             """)
     List<BundleComponent> findByBundleProductId(UUID bundleProductId);
 
-    List<BundleComponent> findByComponentProductCode(String componentProductCode);
+    @Query("""
+            SELECT bc FROM BundleComponent bc
+            WHERE bc.componentProductCode = :componentProductCode
+              AND bc.isDeleted = false
+            ORDER BY bc.createdAt ASC, bc.id ASC
+            """)
+    List<BundleComponent> findByComponentProductCode(@Param("componentProductCode") String componentProductCode);
 
     /**
      * #30 — estimate 카탈로그 벌크: 부모(세트) 묶음 일괄 조회 + 결정적 ORDER BY (#12).

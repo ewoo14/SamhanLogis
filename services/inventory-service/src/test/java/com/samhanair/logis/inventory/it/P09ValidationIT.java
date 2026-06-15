@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.client.AccountingClient;
 import com.samhanair.logis.inventory.client.ProductClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.client.SlipClient;
 import com.samhanair.logis.inventory.client.SlipDetail;
 import com.samhanair.logis.inventory.client.SlipLineDetail;
@@ -142,6 +143,11 @@ class P09ValidationIT extends AbstractPostgresIT {
         Mockito.lenient().doNothing().when(accountingClient)
                 .createAuditAdjustmentJournal(
                         Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+
+        Mockito.lenient().when(productClient.requireExists(Mockito.any()))
+                .thenAnswer(inv -> new ProductSummary(
+                        inv.getArgument(0), "테스트 제품", "P09-PRODUCT",
+                        UUID.randomUUID(), new BigDecimal("10000"), "ACTIVE"));
     }
 
     // ─────────────────── 시나리오 1: GET → 검수 신규 생성 ───────────────────

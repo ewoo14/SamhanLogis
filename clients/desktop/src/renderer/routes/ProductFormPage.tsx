@@ -37,6 +37,7 @@ import { usePageTitleStore } from '../stores/pageTitle'
 import {
   buildCreateProductRequest,
   buildUpdateProductRequest,
+  editSeedToProductFormValues,
   initialProductFormValues,
   validateProductForm,
   type ProductFormErrors,
@@ -101,14 +102,6 @@ function flattenCategories(nodes: ProductCategoryNode[], depth = 0): Array<{ id:
   ])
 }
 
-function asInputValue(value: string | number | null | undefined): string {
-  return value == null ? '' : String(value)
-}
-
-function itemKindFromProductType(productType: string | null | undefined): ProductItemKind {
-  return productType === 'BUNDLE' ? 'SET' : 'GENERAL'
-}
-
 function defaultCategoryForItemKind(itemKind: ProductItemKind): ProductCategory {
   if (itemKind === 'SET') return 'SINGLE_SET'
   if (itemKind === 'SET_COMPONENT') return 'SINGLE_PART'
@@ -163,26 +156,7 @@ export function ProductFormPage() {
   useEffect(() => {
     const seed = editSeedQuery.data
     if (!seed) return
-    const itemKind = itemKindFromProductType(seed.summary.productType)
-    setValues({
-      ...initialProductFormValues(),
-      name: seed.detail.name ?? seed.summary.name ?? '',
-      modelName: seed.detail.modelName ?? seed.summary.modelName ?? '',
-      categoryId: seed.detail.categoryId ?? seed.summary.categoryId ?? '',
-      sellingPrice: asInputValue(seed.detail.sellingPrice ?? seed.summary.sellingPrice),
-      purchasePrice: asInputValue(seed.detail.purchasePrice),
-      currency: seed.detail.currency ?? 'KRW',
-      description: seed.detail.description ?? '',
-      itemKind,
-      productCategory: defaultCategoryForItemKind(itemKind),
-      bundleMode: itemKind === 'SET' ? 'EXPAND' : 'EXPAND',
-      parentSetModelCode: '',
-      componentKind: 'ACCESSORY',
-      unit: 'EA',
-      releasePrice: asInputValue(seed.catalog?.releasePrice),
-      deliveryPrice: asInputValue(seed.catalog?.deliveryPrice),
-      goodsType: seed.summary.goods === false ? 'NON_GOODS' : 'GOODS',
-    })
+    setValues(editSeedToProductFormValues(seed))
   }, [editSeedQuery.data])
 
   const categoryOptions = useMemo(

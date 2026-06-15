@@ -107,6 +107,15 @@ export interface ProductDetailResponse {
   currency: string | null
   tags: Record<string, string> | null
   description: string | null
+  productCategory: ProductCategory | null
+  itemKind: ProductItemKind | null
+  bundleMode: BundleMode | null
+  parentSetModelCode: string | null
+  componentKind: ComponentKind | null
+  unit: string | null
+  releasePrice: string | number | null
+  deliveryPrice: string | number | null
+  goodsType: ProductGoodsType | null
 }
 
 /** 검색 요약 — edit route 에서 modelCode 기반 UUID 내부 해소용 */

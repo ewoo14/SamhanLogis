@@ -9,6 +9,16 @@
 > 🔴 **방향 정정 (2026-06-15 회사 PC)**: 야간 "종합견적서 에픽 스코핑(처음부터 구축)" 은 **전제 오류**. 종합견적서 실체 = `clients/web/estimate-app/`(GAS 1:1 이식)로 **이미 ~95% 구현됨**([[quotation-estimate-app-state]] — BundleExpander·PriceCalculationService·dc-config·QuoteSnapshot). 데스크톱 EstimateFormPage/QuoteView 는 별개 사내 간이견적서(개발책임자: **둘 다 유지·용도분리**). 개발책임자 6결정(완전동결/VAT표기만/조합비경고/6:4배분/시드1회DB) 전부 기존 코드 충족. 잔여 갭=G1(카탈로그)·G2(거래처) DB전환 등 소규모.
 > **실제 착수 = 품목 등록/관리 고도화**([[product-master-registration]], 스펙 `docs/superpowers/specs/2026-06-15-product-master-registration.md`): ①종류 3구분(일반/세트/세트구성품) ②세트구성품 부모세트 자동완성 검색 필수 ③상품/비상품(비상품=재고 미생성, 게이트 3지점) ④자동완성 방향키 전역(design-system `AsyncAutocomplete` 이미 보유→ad-hoc 일원화). 개발책임자 결정: **이거 먼저, G1+G2 다음**. 세트구성품 표시정책=견적기본(세트명)/견적상세+출고전표(구성품 폭발, 기존 구현).
 
+### 🔄 PR #485 진행 상태 (라운드1 fix 진행 중 — 세션 끊김 대비 체크포인트)
+**브랜치 `feat/product-master-registration`** (스펙 `docs/superpowers/specs/2026-06-15-product-master-registration.md`). 커밋: 스펙/메모리 → BE `622283b1` → FE `ca263824` → P1 fix `7d10fdde` → real-qa spec `37253e66`.
+- ✅ **구현(Codex)**: BE Part A(종류3구분 `ProductItemKind`/`ProductService.create·update`/`BundleComponentService` 부모필수400) + B(`ProductGoodsType`+V16 CHECK+SERVICE 카테고리+inventory 게이트). FE Part C(`ProductFormPage` /products/new·:modelCode/edit + productFormModel+vitest + api + mock) + D(자동완성 일원화: EstimateFormPage·TaxInvoiceFormPage→PartnerAutocomplete, AsyncAutocomplete 방향키 기보유).
+- ✅ **게시**: 개발사항 + Opus 5-agent 리뷰 + QA 라운드1(405 확정) + QA 라운드2(201 성공). (개발책임자 3정정 반영: step2.5 개발사항·QA agent·인라인.)
+- ✅ **P1 fix(Opus 직접)**: P1-1 FE 경로 `/api/v1/products`→`/api/products`(게이트웨이 405, mock 위장→실서버 QA 단독적발) + P1-2 inventory 비상품 게이트 reject→**no-op skip**(개발책임자 결정, 전표전환 깨짐 해소)+테스트3.
+- ✅ **실서버 검증**: product-service 재빌드(+V16 적용)→`POST /api/products` GENERAL/NON_GOODS **201 생성**(category=서비스/요금 SERVICE 라이브). FE typecheck+vitest49 통과.
+- 🔴 **개발책임자 결정 박제**: ①P1-2 inventory=no-op skip(최소·inventory-only) ②modelCode=불변 ③견적서 둘다유지(데스크톱 사내간이/웹 estimate-app 종합, 용도분리) ④세트구성품 표시=견적기본 세트명/세트상세+출고전표 구성품폭발(기존 구현).
+- ⏳ **남은 작업(머지 전)**: ①**P2-4 수정모드 라운드트립**(BE `ProductResponse`에 itemKind/unit/productCategory 부재 → edit 저장 시 무음 덮어쓰기+SET_COMPONENT→GENERAL 강등 = **실 데이터 버그**, 머지 전 fix 권장) ②P2-1 SET→non-SET 자식 bundle_component 고아 정리(`ProductService.applyUpdateFields`) ③P2-2 modelCode 불변 Javadoc ④P2-5 문서(dev-report/overview/ROADMAP/DECISIONS/README) ⑤InboundInspectionService 비상품 게이트(edge, ProductClient 주입) ⑥**Codex 5-agent 라운드** ⑦데스크톱 UI 스크린샷(electron-vite dev가 본 환경 미서빙 → 대화형/`playwright product-registration-real-qa`) ⑧머지.
+- 🪤 **QA 환경 함정**: `electron-vite dev`(:5175)가 비대화형 백그라운드에서 Electron GUI 미기동 → 데스크톱 시각캡처 불가(실서버 API는 정상 201). 테스트 품목 2건(QA-REG-GENERAL-01/QA-REG-FEE-01) dev DB 잔존(정리 가능).
+
 ### 🌅 (이전·이력) morning 개발책임자 결정 큐 — 종합견적서/회계갭 (위 정정으로 대체됨)
 > 야간(2026-06-15) PM 진행: 슬라이스2(#483)·vitest(#484)·**Phase2 전표번호 0제거(#482) 전부 머지 완료**. 아래 2건은 개발책임자 결정 후 착수.
 > 1. ✅ **Phase 2 머지 완료(#482, `6407485e3`)** — 개발책임자 확정 "회계전표 포함 + 세금계산서도 0제거". slip(V47/V48)+회계전표 매출/매입 자체번호+세금계산서 발행번호(tax_invoice_no 운영9건)+allocation/groupware 사본(ref_slip_no+ref_doc_no)+적요(V38) 전역 0제거. 제너레이터 %d(향후차단). taxInvoice 발행번호 포함(개발책임자 확정), batch_no(TIB)·eCount키·거래처/품목코드 제외. 라이브 QA(slip/세금계산서 -1 캡처). **구번호(-001) 검색 비호환**은 0제거로 통일됨(구형식 데이터 잔존 0).

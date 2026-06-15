@@ -439,6 +439,29 @@ public class BundleComponentService {
         }
     }
 
+    /**
+     * 세트가 일반품목/세트구성품으로 전환될 때 부모 세트로서 보유하던 자식 구성품을 모두 soft-delete 한다.
+     *
+     * @param bundleProductId 부모 세트였던 Product.id
+     * @param actor           soft-delete 수행 주체(null/blank 이면 system)
+     */
+    @Transactional
+    public void removeBundleChildren(java.util.UUID bundleProductId, String actor) {
+        if (bundleProductId == null) {
+            return;
+        }
+        String deleteActor = actor == null || actor.isBlank() ? "system" : actor;
+        List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(bundleProductId);
+        for (BundleComponent child : existing) {
+            child.markDeleted(deleteActor);
+            bundleComponentRepository.save(child);
+        }
+        if (!existing.isEmpty()) {
+            entityManager.flush();
+            catalogChangePublisher.publishCatalogChanged();
+        }
+    }
+
     private Product validateRegisteredComponent(String parentSetModelCode, String componentProductCode) {
         if (parentSetModelCode == null || parentSetModelCode.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "세트구성품은 부모 세트 모델코드가 필수입니다");

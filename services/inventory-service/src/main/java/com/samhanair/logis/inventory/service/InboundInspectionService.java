@@ -2,6 +2,8 @@ package com.samhanair.logis.inventory.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.inventory.client.ProductClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.client.SlipClient;
 import com.samhanair.logis.inventory.client.SlipDetail;
 import com.samhanair.logis.inventory.client.SlipLineDetail;
@@ -77,6 +79,7 @@ public class InboundInspectionService {
     private final StockBalanceRepository stockBalanceRepository;
     private final StockMovementRepository stockMovementRepository;
     private final WarehouseRepository warehouseRepository;
+    private final ProductClient productClient;
     private final SlipClient slipClient;
 
     // ─────────────────── 조회 ───────────────────
@@ -232,6 +235,10 @@ public class InboundInspectionService {
             }
 
             UUID productId = slipLine.productId();
+            ProductSummary product = productClient.requireExists(productId);
+            if (!product.goods()) {
+                continue; // 비상품 — StockService.inbound 와 동일하게 재고 생성 no-op skip
+            }
 
             // StockLot 생성
             StockLot lot = stockLotRepository.save(StockLot.create(

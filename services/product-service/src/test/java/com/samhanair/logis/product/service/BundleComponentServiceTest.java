@@ -508,6 +508,36 @@ class BundleComponentServiceTest {
         }
     }
 
+    @Test
+    void removeBundleChildren_부모_하위_구성품_soft_delete() {
+        BundleComponent child = BundleComponent.seed(bundleId, "IDU-001",
+                BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, null, true, null);
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of(child));
+        lenient().when(bundleComponentRepository.save(any(BundleComponent.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        long before = broker.publishCount();
+
+        service.removeBundleChildren(bundleId, "actor-1");
+
+        assertThat(child.getIsDeleted()).isTrue();
+        assertThat(child.getDeletedBy()).isEqualTo("actor-1");
+        verify(entityManager).flush();
+        assertThat(broker.publishCount()).isEqualTo(before + 1);
+    }
+
+    @Test
+    void removeBundleChildren_대상_없으면_noop() {
+        when(bundleComponentRepository.findByBundleProductId(bundleId))
+                .thenReturn(List.of());
+
+        service.removeBundleChildren(bundleId, "actor-1");
+
+        verify(entityManager, org.mockito.Mockito.never()).flush();
+    }
+
     // ============================================================
     // updateDisplayOrders
     // ============================================================

@@ -7,12 +7,17 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductStatus;
+import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
+import com.samhanair.logis.product.web.dto.ProductItemKind;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
@@ -153,6 +158,96 @@ class ProductServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    @Test
+    void update_modelNameChange_keepsModelCodeImmutable() {
+        product.changeModelCode("SHA-W15K");
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.existsByModelNameAndIsDeletedFalse("SHA-NEW")).thenReturn(false);
+
+        ProductResponse response = service.update(productId,
+                new UpdateProductRequest(null, "SHA-NEW", null, null));
+
+        assertThat(response.modelName()).isEqualTo("SHA-NEW");
+        assertThat(response.modelCode()).isEqualTo("SHA-W15K");
+    }
+
+    @Test
+    void update_setToGeneral_removesOwnChildBundleComponents() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.GENERAL, null, null, null, null,
+                null, null, null, null));
+
+        org.mockito.Mockito.verify(bundleComponentService)
+                .removeBundleChildren(productId, "system");
+    }
+
+    @Test
+    void update_setToSetComponent_removesOwnChildrenThenReplacesParentLink() {
+        product.changeModelCode("SET-001");
+        product.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+
+        service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                ProductItemKind.SET_COMPONENT, null, null, "PARENT-SET",
+                BundleComponent.ComponentKind.OUTDOOR,
+                null, null, null, null));
+
+        org.mockito.Mockito.verify(bundleComponentService)
+                .removeBundleChildren(productId, "system");
+        org.mockito.Mockito.verify(bundleComponentService)
+                .replaceRegisteredComponentLink(
+                        "PARENT-SET",
+                        "SET-001",
+                        BundleComponent.ComponentKind.OUTDOOR,
+                        "system");
+    }
+
+    @Test
+    void update_componentKindOnly_keepsExistingParentAndReplacesLink() {
+        product.changeModelCode("IDU-001");
+        Product parent = Product.seedFromSheet("세트 부모", "SET-001", category,
+                BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(800_000),
+                ProductType.BUNDLE, ProductCategory.SINGLE_SET,
+                com.samhanair.logis.product.domain.UsageScope.BOTH, null);
+        UUID parentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(parent, "id", parentId);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+        BundleComponent link = BundleComponent.seed(
+                parentId,
+                "IDU-001",
+                BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR,
+                null,
+                false,
+                null);
+
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByComponentProductCode("IDU-001"))
+                .thenReturn(List.of(link));
+        when(productRepository.findAllByIdIn(List.of(parentId)))
+                .thenReturn(List.of(parent));
+
+        service.update(productId, new UpdateProductRequest(
+                null, null, null, null,
+                null, null, null, null,
+                BundleComponent.ComponentKind.REMOTE,
+                null, null, null, null));
+
+        org.mockito.Mockito.verify(bundleComponentService)
+                .replaceRegisteredComponentLink(
+                        "SET-001",
+                        "IDU-001",
+                        BundleComponent.ComponentKind.REMOTE,
+                        "system");
     }
 
     @Test
@@ -324,6 +419,46 @@ class ProductServiceTest {
         assertThat(response.modelName()).isEqualTo("SHA-W15K");
         assertThat(response.tags()).containsEntry("hp", "1.5");
         assertThat(response.purchasePrice()).isEqualByComparingTo(new BigDecimal("1100000.00"));
+    }
+
+    @Test
+    void getByModelName_setComponent_returnsEditRoundTripFields() {
+        product.changeModelCode("IDU-001");
+        product.changeProductCategory(ProductCategory.SINGLE_PART);
+        product.changeUnit("SET");
+
+        Product parent = Product.seedFromSheet("세트 부모", "SET-001", category,
+                BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(800_000),
+                ProductType.BUNDLE, ProductCategory.SINGLE_SET,
+                com.samhanair.logis.product.domain.UsageScope.BOTH, null);
+        UUID parentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(parent, "id", parentId);
+        parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
+
+        BundleComponent link = BundleComponent.seed(
+                parentId,
+                "IDU-001",
+                BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR,
+                null,
+                false,
+                null);
+
+        when(productRepository.findByModelNameAndIsDeletedFalse("SHA-W15K"))
+                .thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByComponentProductCode("IDU-001"))
+                .thenReturn(List.of(link));
+        when(productRepository.findAllByIdIn(List.of(parentId)))
+                .thenReturn(List.of(parent));
+
+        ProductResponse response = service.getByModelName("SHA-W15K");
+
+        assertThat(response.itemKind()).isEqualTo(ProductItemKind.SET_COMPONENT);
+        assertThat(response.unit()).isEqualTo("SET");
+        assertThat(response.productCategory()).isEqualTo(ProductCategory.SINGLE_PART);
+        assertThat(response.componentKind()).isEqualTo(BundleComponent.ComponentKind.INDOOR);
+        assertThat(response.parentSetModelCode()).isEqualTo("SET-001");
     }
 
     @Test

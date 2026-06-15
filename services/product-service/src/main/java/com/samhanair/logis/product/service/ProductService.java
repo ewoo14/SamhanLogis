@@ -113,7 +113,7 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public ProductResponse getOne(UUID id) {
-        return ProductResponse.from(loadOrThrow(id));
+        return toResponse(loadOrThrow(id));
     }
 
     /**
@@ -204,7 +204,7 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public ProductResponse getByModelName(String modelName) {
-        return ProductResponse.from(findByModelNameOrThrow(modelName));
+        return toResponse(findByModelNameOrThrow(modelName));
     }
 
     @Transactional(readOnly = true)
@@ -327,12 +327,19 @@ public class ProductService {
                         saved.getModelCode(),
                         req.componentKind());
             }
-            return ProductResponse.from(saved);
+            return toResponse(saved);
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
         }
     }
 
+    /**
+     * 제품 부분 수정.
+     *
+     * <p>개발책임자 결정: {@code modelCode} 는 생성 시 {@code modelName.trim()} 으로 한 번 설정한 뒤
+     * 이후 수정에서 불변이다. {@code modelName} 을 바꿔도 BundleComponent 링크와 사용자 노출 식별자인
+     * {@code modelCode} 는 변경하지 않는다.
+     */
     public ProductResponse update(UUID id, UpdateProductRequest req) {
         Product product = loadOrThrow(id);
 
@@ -355,7 +362,7 @@ public class ProductService {
             product.editDescription(req.description());
         }
         applyUpdateFields(product, req);
-        return ProductResponse.from(product);
+        return toResponse(product);
     }
 
     public ProductResponse updatePrice(UUID id, UpdatePriceRequest req) {
@@ -373,13 +380,13 @@ public class ProductService {
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
         }
-        return ProductResponse.from(product);
+        return toResponse(product);
     }
 
     public ProductResponse replaceTags(UUID id, Map<String, String> tags) {
         Product product = loadOrThrow(id);
         product.replaceTags(tags);
-        return ProductResponse.from(product);
+        return toResponse(product);
     }
 
     public void discontinue(UUID id) {
@@ -409,7 +416,7 @@ public class ProductService {
     public ProductResponse updateUsage(String modelCode, UpdateProductUsageRequest req) {
         Product product = loadByModelCodeOrThrow(modelCode);
         product.markUsageManual(req.usageScope(), req.estimateCategory());
-        return ProductResponse.from(product);
+        return toResponse(product);
     }
 
     /**
@@ -490,6 +497,48 @@ public class ProductService {
                         "모델코드에 해당하는 품목을 찾을 수 없습니다: " + modelCode));
     }
 
+    private ProductResponse toResponse(Product product) {
+        if (product.getProductType() == ProductType.BUNDLE) {
+            return ProductResponse.from(product, ProductItemKind.SET, null, null);
+        }
+        ParentComponentLink parentLink = findParentComponentLink(product);
+        if (parentLink != null) {
+            return ProductResponse.from(
+                    product,
+                    ProductItemKind.SET_COMPONENT,
+                    parentLink.parentModelCode(),
+                    parentLink.componentKind());
+        }
+        return ProductResponse.from(product, ProductItemKind.GENERAL, null, null);
+    }
+
+    private ParentComponentLink findParentComponentLink(Product product) {
+        String componentCode = product.getModelCode();
+        if (componentCode == null || componentCode.isBlank()) {
+            return null;
+        }
+        List<BundleComponent> links = bundleComponentRepository.findByComponentProductCode(componentCode);
+        if (links == null || links.isEmpty()) {
+            return null;
+        }
+
+        List<UUID> parentIds = links.stream()
+                .map(BundleComponent::getBundleProductId)
+                .distinct()
+                .toList();
+        Map<UUID, Product> parentsById = productRepository.findAllByIdIn(parentIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Product::getId, p -> p, (left, right) -> left));
+        for (BundleComponent link : links) {
+            Product parent = parentsById.get(link.getBundleProductId());
+            if (parent != null && parent.getProductType() == ProductType.BUNDLE) {
+                return new ParentComponentLink(
+                        parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName(),
+                        link.getComponentKind());
+            }
+        }
+        return null;
+    }
+
     /** {@code tagKey=hp&tagValue=1.5} → {@code {"hp":"1.5"}} 의 jsonb literal 문자열로 변환. */
     private String buildTagFilter(String tagKey, String tagValue) {
         if (tagKey == null || tagKey.isBlank()) {
@@ -539,11 +588,15 @@ public class ProductService {
 
     private void applyUpdateFields(Product product, UpdateProductRequest req) {
         if (req.itemKind() != null) {
+            boolean wasBundle = product.getProductType() == ProductType.BUNDLE;
             if (req.itemKind() == ProductItemKind.SET) {
                 product.changeBundle(ProductType.BUNDLE,
                         req.bundleMode() == null ? BundleMode.EXPAND : req.bundleMode());
                 bundleComponentService.removeRegisteredComponentLinks(product.getModelCode(), "system");
             } else {
+                if (wasBundle) {
+                    bundleComponentService.removeBundleChildren(product.getId(), "system");
+                }
                 product.changeBundle(ProductType.SINGLE, null);
             }
             if (req.itemKind() == ProductItemKind.SET_COMPONENT) {
@@ -558,6 +611,21 @@ public class ProductService {
             }
         } else if (req.bundleMode() != null && product.getProductType() == ProductType.BUNDLE) {
             product.changeBundle(ProductType.BUNDLE, req.bundleMode());
+        } else if (product.getProductType() != ProductType.BUNDLE
+                && (req.parentSetModelCode() != null || req.componentKind() != null)) {
+            ParentComponentLink currentLink = findParentComponentLink(product);
+            String parentSetModelCode = req.parentSetModelCode() != null
+                    ? req.parentSetModelCode()
+                    : currentLink == null ? null : currentLink.parentModelCode();
+            if (parentSetModelCode != null && !parentSetModelCode.isBlank()) {
+                product.changeUsage(UsageScope.NONE, null);
+                bundleComponentService.replaceRegisteredComponentLink(
+                        parentSetModelCode,
+                        product.getModelCode(),
+                        req.componentKind() != null ? req.componentKind()
+                                : currentLink == null ? null : currentLink.componentKind(),
+                        "system");
+            }
         }
         if (req.productCategory() != null) {
             product.changeProductCategory(req.productCategory());
@@ -575,5 +643,9 @@ public class ProductService {
 
     private ProductGoodsType goodsType(ProductGoodsType goodsType) {
         return goodsType == null ? ProductGoodsType.GOODS : goodsType;
+    }
+
+    private record ParentComponentLink(String parentModelCode,
+                                       BundleComponent.ComponentKind componentKind) {
     }
 }

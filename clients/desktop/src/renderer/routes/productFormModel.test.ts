@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildCreateProductRequest,
   buildUpdateProductRequest,
+  editSeedToProductFormValues,
   initialProductFormValues,
   validateProductForm,
   type ProductFormValues,
@@ -98,5 +99,63 @@ describe('productFormModel', () => {
       deliveryPrice: '30000',
       goodsType: 'GOODS',
     })
+  })
+
+  it('edit seed 는 SET_COMPONENT 상세 응답의 부모 링크와 실제 분류/단위를 보존한다', () => {
+    const values = editSeedToProductFormValues({
+      summary: {
+        id: 'product-id',
+        name: '실내기',
+        modelName: 'IDU-001',
+        productCode: null,
+        categoryId: baseForm.categoryId,
+        sellingPrice: '1200000',
+        status: 'ACTIVE',
+        goods: true,
+        modelCode: 'IDU-001',
+        productType: 'SINGLE',
+      },
+      detail: {
+        id: 'product-id',
+        name: '실내기',
+        modelName: 'IDU-001',
+        modelCode: 'IDU-001',
+        categoryId: baseForm.categoryId,
+        categoryName: '벽걸이형',
+        sellingPrice: '1200000',
+        purchasePrice: '900000',
+        currency: 'KRW',
+        tags: null,
+        description: null,
+        itemKind: 'SET_COMPONENT',
+        productCategory: 'COMMERCIAL_PART',
+        bundleMode: null,
+        parentSetModelCode: 'SET-001',
+        componentKind: 'INDOOR',
+        unit: 'SET',
+        releasePrice: '1000000',
+        deliveryPrice: '30000',
+        goodsType: 'NON_GOODS',
+      },
+      catalog: {
+        modelCode: 'IDU-001',
+        name: '실내기',
+        usageScope: 'NONE',
+        estimateCategory: null,
+        usageScopeManual: false,
+        displayOrder: null,
+        releasePrice: 1,
+        deliveryPrice: 2,
+        productType: 'SINGLE',
+        componentCount: 0,
+      },
+    })
+
+    expect(values.itemKind).toBe('SET_COMPONENT')
+    expect(values.productCategory).toBe('COMMERCIAL_PART')
+    expect(values.parentSetModelCode).toBe('SET-001')
+    expect(values.componentKind).toBe('INDOOR')
+    expect(values.unit).toBe('SET')
+    expect(values.goodsType).toBe('NON_GOODS')
   })
 })
