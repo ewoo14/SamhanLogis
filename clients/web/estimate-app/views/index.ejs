@@ -202,6 +202,7 @@ body.branch-active #btnOpenBranch{ display:inline-flex !important } body.branch-
 #cardOrderInfo input:focus, #cardOrderInfo select:focus, #cardOrderInfo textarea:focus { outline:none !important; border-color:#3b82f6 !important; box-shadow:0 0 0 2px rgba(59,130,246,0.2) !important; }
 #cardOrderInfo input[type="checkbox"]:focus, #cardOrderInfo input[type="radio"]:focus { box-shadow:none !important; }
 .spec-table{width:100%;border-collapse:collapse;table-layout:fixed} .spec-table th,.spec-table td{ border:1px solid var(--c-line); padding:6px 8px; font-size:14px; text-align:center; white-space:pre-line; } .spec-h{background:#f3f4f6;font-weight:800} .cool{color:#2563eb;font-weight:700} .heat{color:#dc2626;font-weight:700} .spec-h.sub{font-weight:600;background:#f7f7f7} .spec-click{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.comp-spec-section{margin-top:14px;border-top:2px solid #e5e7eb;padding-top:10px}.comp-spec-title{font-weight:700;font-size:14px;margin-bottom:8px;color:#374151}.comp-spec-block{margin-bottom:12px}.comp-spec-head{font-weight:600;font-size:13px;margin-bottom:4px;color:#1f2937}
 #gateImageModal { z-index: 200001; background: rgba(0, 0, 0, 0.95); flex-direction: column; } .img-modal-box { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; overflow: hidden; } .img-slider-viewport { flex: 1; width: 100%; display: flex; align-items: center; overflow: hidden; position: relative; } .img-track { display: flex; height: 100%; width: 100%; transition: transform 0.4s ease-in-out; } .img-slide { min-width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px; } .img-slide img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
 .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255, 255, 255, 0.2); color: #fff; border: none; font-size: 40px; width: 60px; height: 60px; border-radius: 50%; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; } .nav-btn:hover { background: rgba(255, 255, 255, 0.4); } .nav-btn.prev { left: 20px; } .nav-btn.next { right: 20px; }
 .btn-close-large { width: 100%; height: 80px; background: #1f2937; color: #fff; font-size: 24px; font-weight: bold; border: none; border-top: 1px solid #374151; cursor: pointer; flex-shrink: 0; } #btnShowGateImages { margin-top: 12px; background: #4b5563; color: #fff; border-radius: 12px; font-size: 24px; height: 60px; width: 100%; display: none; } .emoji-octagon { color: #ef4444; }
@@ -3398,6 +3399,7 @@ function renderHomeSpec_(catL, item, s){
 // 싱글 세트 스펙
 function renderSingleSpec_(catL, item, s){
   const parts = explodeSetParts(item, 1, null) || [];
+  const compSpecsHtml = renderComponentSpecs_(parts, s, 'single');
   const groups = { indoor:[], outdoor:[], panel:[], remote:[], material:[], wall:[] };
 
   // 분류
@@ -3463,7 +3465,7 @@ function renderSingleSpec_(catL, item, s){
       ['포장치수(mm)\n(WxHxD)', packSizeText || ''],
       ['포장중량(kg)', packWeightText || '']
     ];
-    return specTable_(rowsPanel, { coolIdx:[1], heatIdx:[] });
+    return specTable_(rowsPanel, { coolIdx:[1], heatIdx:[] }) + compSpecsHtml;
   }
 
   const rows = [
@@ -3487,7 +3489,7 @@ function renderSingleSpec_(catL, item, s){
     ['고낙차(m)', s.drop || '']
   ];
 
-  return specTable_(rows, { coolIdx:[2,4,6], heatIdx:[3,5,7] });
+  return specTable_(rows, { coolIdx:[2,4,6], heatIdx:[3,5,7] }) + compSpecsHtml;
 }
 
 // 상업멀티 스펙
@@ -3501,11 +3503,12 @@ function renderCommSpec_(catL, item, s){
   }
 
   const isSetOutdoor = (catL==='실외기' && String(item?.unit||'').toUpperCase()==='SET');
+  const compParts = isSetOutdoor ? (explodeCommSets_(item, 1) || []) : [];
+  const compSpecsHtml = renderComponentSpecs_(compParts, s, 'comm');
 
   let compLine = '';
   if(isSetOutdoor){
-    const parts = explodeCommSets_(item, 1) || [];
-    const models = parts.map(p=>String(p?.model||'').trim()).filter(Boolean);
+    const models = compParts.map(p=>String(p?.model||'').trim()).filter(Boolean);
     if(models.length) compLine = models.join('<br>');
   }
 
@@ -3525,7 +3528,7 @@ function renderCommSpec_(catL, item, s){
       ['포장치수(mm)\n(WxHxD)', pS],
       ['포장중량(kg)', pW ? pW + 'kg' : '']
     ];
-    return specTable_(rowsPanel, {noTone:true});
+    return specTable_(rowsPanel, {noTone:true}) + compSpecsHtml;
   }
 
   const rows = [
@@ -3589,10 +3592,10 @@ function renderCommSpec_(catL, item, s){
   };
 
   if(pipeTriple || dropTriple){
-    return specTableWithTriple_(rows, pipeTriple, dropTriple, toneOpt);
+    return specTableWithTriple_(rows, pipeTriple, dropTriple, toneOpt) + compSpecsHtml;
   }
 
-  return specTable_(rows, toneOpt);
+  return specTable_(rows, toneOpt) + compSpecsHtml;
 }
 
 function renderErvSpec_(s){
@@ -3713,6 +3716,76 @@ function specTableWithTriple_(rows, pipeTriple, dropTriple, opt){
 
   html += `</tbody></table>`;
   return html;
+}
+
+function renderComponentSpecs_(parts, setSpec, scope){
+  if(!Array.isArray(parts) || !parts.length) return '';
+  const s = (setSpec && typeof setSpec === 'object') ? setSpec : {};
+
+  const clean_ = v => {
+    const t = String(v ?? '').trim();
+    return t && t !== '-' ? t : '';
+  };
+  const withKg_ = v => {
+    const t = clean_(v);
+    return t ? t + 'kg' : '';
+  };
+  const isIndoor_ = p => {
+    const kind = String(p?.kind || '');
+    const name = String(p?.name || '');
+    return kind.includes('실내기') || kind.toUpperCase().includes('INDOOR') || /실내기/.test(name);
+  };
+  const isOutdoor_ = p => {
+    const kind = String(p?.kind || '');
+    const name = String(p?.name || '');
+    return kind.includes('실외기') || kind.toUpperCase().includes('OUTDOOR') || /실외기/.test(name);
+  };
+
+  const blocks = [];
+  parts.forEach(p => {
+    const rows = [];
+    if(Array.isArray(p?.specs) && p.specs.length){
+      p.specs.forEach(spec => {
+        const key = clean_(spec?.specKey);
+        const value = clean_(spec?.specValue);
+        if(!key || !value) return;
+        const unit = clean_(spec?.unit);
+        rows.push([key, value + (unit ? ' ' + unit : '')]);
+      });
+    }else if(scope === 'single' && isIndoor_(p)){
+      rows.push(
+        ['제품크기(mm) (WxHxD)', clean_(s.inSize)],
+        ['제품중량(kg)', withKg_(s.inWeight)],
+        ['포장치수(mm) (WxHxD)', clean_(s.inPackSize)],
+        ['포장중량(kg)', withKg_(s.inPackWeight)]
+      );
+    }else if(scope === 'single' && isOutdoor_(p)){
+      rows.push(
+        ['제품크기(mm) (WxHxD)', clean_(s.outSize)],
+        ['제품중량(kg)', withKg_(s.outWeight)],
+        ['포장치수(mm) (WxHxD)', clean_(s.outPackSize)],
+        ['포장중량(kg)', withKg_(s.outPackWeight)]
+      );
+    }
+
+    const validRows = rows.filter(r => r && clean_(r[0]) && clean_(r[1]));
+    if(!validRows.length) return;
+
+    const kind = clean_(p?.kind);
+    const model = clean_(p?.model);
+    const name = clean_(p?.name);
+    const head = (kind ? '[' + kind + '] ' : '') + (model || name) + (model && name ? ' · ' + name : '');
+    blocks.push('<div class="comp-spec-block"><div class="comp-spec-head">'
+      + head
+      + '</div>'
+      + specTable_(validRows, {noTone:true})
+      + '</div>');
+  });
+
+  if(!blocks.length) return '';
+  return '<div class="comp-spec-section"><div class="comp-spec-title">구성품별 사양</div>'
+    + blocks.join('')
+    + '</div>';
 }
 
 // 표 렌더러
@@ -4947,7 +5020,8 @@ function explodeSetParts(s, qty, setUnitOverride){
     qty: qty,
     price: partUnitPrice(p),
     kind: p.kind || '',
-    spec: p.spec || ''
+    spec: p.spec || '',
+    specs: Array.isArray(p.specs) ? p.specs : []
   }));
 
   // 실내외그룹
@@ -5025,7 +5099,8 @@ function explodeSetParts(s, qty, setUnitOverride){
     qty: p.qty,
     price: Math.max(0, Math.round(Number(p.price)||0)),
     kind: p.kind,
-    spec: p.spec || ''
+    spec: p.spec || '',
+    specs: Array.isArray(p.specs) ? p.specs : []
   }));
 }
 
@@ -6918,7 +6993,8 @@ function explodeCommSets_(setRow, setQty){
       model: setRow.model,
       qty: qtySet,
       price: getRealCommPrice(setRow.model) || 0,
-      spec: setRow.spec || '' 
+      spec: setRow.spec || '',
+      specs: []
     }];
   }
 
@@ -6944,7 +7020,8 @@ function explodeCommSets_(setRow, setQty){
       model: p.model, 
       qty: finalQty, 
       price: getRealCommPrice(p.model) || 0,
-      spec: mySpec 
+      spec: mySpec,
+      specs: Array.isArray(p.specs) ? p.specs : []
     };
   });
 }

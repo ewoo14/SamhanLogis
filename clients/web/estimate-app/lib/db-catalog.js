@@ -132,6 +132,7 @@ async function components(category, sanitizeDisp) {
     feat: r.variant || '',
     isDefault: r.isDefault === true,
     spec: r.specText || '',
+    specs: Array.isArray(r.specs) ? r.specs : [],
     qty: r.defaultQty == null ? '1' : String(r.defaultQty),
   }));
 }

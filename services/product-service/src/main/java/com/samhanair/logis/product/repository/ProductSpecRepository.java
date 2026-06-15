@@ -18,4 +18,7 @@ public interface ProductSpecRepository extends JpaRepository<ProductSpec, UUID> 
     /** #30 — estimate 카탈로그 벌크: 용량/최대연결실내기대수 일괄 조회. */
     List<ProductSpec> findByProductIdInAndSpecKeyIn(java.util.Collection<UUID> productIds,
             java.util.Collection<String> specKeys);
+
+    /** #3 — estimate 세트 구성품 사양 벌크: 구성품 productId 집합의 전체 사양 displayOrder 정렬 일괄 조회. */
+    List<ProductSpec> findByProductIdInOrderByDisplayOrderAsc(java.util.Collection<UUID> productIds);
 }

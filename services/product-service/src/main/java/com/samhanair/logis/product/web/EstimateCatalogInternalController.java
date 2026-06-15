@@ -18,6 +18,7 @@ import com.samhanair.logis.product.repository.OduRecommendationLookupRepository;
 import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
+import com.samhanair.logis.product.web.dto.ProductSpecResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -99,7 +100,8 @@ public class EstimateCatalogInternalController {
             String variant,
             Boolean isDefault,
             BigDecimal defaultQty,
-            String specText) {
+            String specText,
+            List<ProductSpecResponse> specs) {
     }
 
     /** 인상 전 단가 baseline 행 — legacy getPriceIncData_ 동등. */
@@ -194,6 +196,21 @@ public class EstimateCatalogInternalController {
                 : productRepository.findByModelCodeInAndIsDeletedFalse(componentCodes).stream()
                         .collect(Collectors.toMap(Product::getModelCode, p -> p, (a, b) -> a));
 
+        // #3 — 구성품별 전체 사양 일괄 로드 (componentProductCode → specs)
+        Map<UUID, String> productIdToComponentCode = componentProducts.values().stream()
+                .collect(Collectors.toMap(Product::getId, Product::getModelCode, (a, b) -> a));
+        Map<String, List<ProductSpecResponse>> specsByComponentCode = new HashMap<>();
+        if (!productIdToComponentCode.isEmpty()) {
+            for (ProductSpec spec : productSpecRepository
+                    .findByProductIdInOrderByDisplayOrderAsc(productIdToComponentCode.keySet())) {
+                String code = productIdToComponentCode.get(spec.getProductId());
+                if (code != null) {
+                    specsByComponentCode.computeIfAbsent(code, k -> new java.util.ArrayList<>())
+                            .add(ProductSpecResponse.from(spec));
+                }
+            }
+        }
+
         List<ComponentRow> rows = components.stream()
                 .map(c -> {
                     Product cp = componentProducts.get(c.getComponentProductCode());
@@ -208,7 +225,8 @@ public class EstimateCatalogInternalController {
                             c.getComponentVariant(),
                             c.getIsDefault(),
                             c.getDefaultQty(),
-                            c.getSpecText());
+                            c.getSpecText(),
+                            specsByComponentCode.getOrDefault(c.getComponentProductCode(), List.of()));
                 })
                 .toList();
         return ApiResponse.ok(rows);
