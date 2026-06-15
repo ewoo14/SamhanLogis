@@ -72,3 +72,9 @@
 
 ## 9. 워크플로우
 Opus 계획(본 문서) → Codex 개발 → Opus 5-agent + Codex 5-agent 교차(각 PR 게시 + Docker 실QA 스크린샷) → CI green + Docker 실QA → PM 종합 → 머지. 모델 = Opus 4.8 ↔ Codex 교대(에러 0까지).
+
+## 10. 구현 노트 (PR #486, 2026-06-15)
+- **구현 결과**: §5 BE + §6 estimate-app 전부 구현. 소스 우선순위 ①→②→③ 모두 반영(§4). 상세 dev-report = `docs/dev-reports/2026-06-15-set-component-spec-display.md`.
+- **🚨 라이브 QA 단독 적발(P1)**: 상업 카탈로그 단위가 전부 EA(SET 없음)라 최초 구현의 `isSetOutdoor(unit==='SET')` 트리거가 항상 false → 상업 구성품 섹션 미렌더. 트리거를 `catL==='실외기'`(단위 무관)로 수정 + `isSetFallback` 가드로 구성품 없는 실외기 over-trigger 차단.
+- **kind 한글 라벨**: BE enum(영문 INDOOR/...) → 한글(`kindLabel_`, KIND_KO 매핑). 모달 내 기존 "구성" 행과 일관.
+- **후속(비차단) 데이터 품질**: ① 싱글 판넬/리모컨 일부 DB spec_key 오라벨(#445/#485 자동채움). ② 상업 combo 모듈 kind=ACCESSORY(소스 시트 구분 폴백). 둘 다 데이터 정리 슬라이스(코드 아님).
