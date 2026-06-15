@@ -2,10 +2,12 @@ package com.samhanair.logis.product.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductGoodsType;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
@@ -16,6 +18,7 @@ import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
+import com.samhanair.logis.product.web.dto.ProductItemKind;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
@@ -46,6 +49,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final BundleComponentRepository bundleComponentRepository;
+    private final BundleComponentService bundleComponentService;
 
     /**
      * rowHash 캐시 evict 를 위해 직접 주입.
@@ -297,11 +301,15 @@ public class ProductService {
         if (productRepository.existsByModelNameAndIsDeletedFalse(req.modelName())) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 모델명입니다: " + req.modelName());
         }
+        String modelCode = req.modelName().trim();
+        if (productRepository.existsByModelCodeAndIsDeletedFalse(modelCode)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 모델코드입니다: " + modelCode);
+        }
         Category category = categoryRepository.findById(req.categoryId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "카테고리를 찾을 수 없습니다"));
 
         try {
-            Product saved = productRepository.save(Product.create(
+            Product product = Product.create(
                     req.name(),
                     req.modelName(),
                     category,
@@ -309,7 +317,16 @@ public class ProductService {
                     req.purchasePrice(),
                     req.currency(),
                     req.tags(),
-                    req.description()));
+                    req.description());
+            product.changeModelCode(modelCode);
+            applyCreateFields(product, req);
+            Product saved = productRepository.save(product);
+            if (itemKind(req.itemKind()) == ProductItemKind.SET_COMPONENT) {
+                bundleComponentService.addRegisteredComponent(
+                        req.parentSetModelCode(),
+                        saved.getModelCode(),
+                        req.componentKind());
+            }
             return ProductResponse.from(saved);
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
@@ -337,6 +354,7 @@ public class ProductService {
         if (req.description() != null) {
             product.editDescription(req.description());
         }
+        applyUpdateFields(product, req);
         return ProductResponse.from(product);
     }
 
@@ -500,5 +518,62 @@ public class ProductService {
         return q.replace("\\", "\\\\")
                 .replace("%", "\\%")
                 .replace("_", "\\_");
+    }
+
+    private void applyCreateFields(Product product, CreateProductRequest req) {
+        ProductItemKind itemKind = itemKind(req.itemKind());
+        if (itemKind == ProductItemKind.SET) {
+            product.changeBundle(ProductType.BUNDLE,
+                    req.bundleMode() == null ? BundleMode.EXPAND : req.bundleMode());
+        } else {
+            product.changeBundle(ProductType.SINGLE, null);
+        }
+        if (itemKind == ProductItemKind.SET_COMPONENT) {
+            product.changeUsage(UsageScope.NONE, null);
+        }
+        product.changeProductCategory(req.productCategory());
+        product.changeGoodsType(goodsType(req.goodsType()));
+        product.changeUnit(req.unit());
+        product.changePrices(req.releasePrice(), req.deliveryPrice());
+    }
+
+    private void applyUpdateFields(Product product, UpdateProductRequest req) {
+        if (req.itemKind() != null) {
+            if (req.itemKind() == ProductItemKind.SET) {
+                product.changeBundle(ProductType.BUNDLE,
+                        req.bundleMode() == null ? BundleMode.EXPAND : req.bundleMode());
+                bundleComponentService.removeRegisteredComponentLinks(product.getModelCode(), "system");
+            } else {
+                product.changeBundle(ProductType.SINGLE, null);
+            }
+            if (req.itemKind() == ProductItemKind.SET_COMPONENT) {
+                product.changeUsage(UsageScope.NONE, null);
+                bundleComponentService.replaceRegisteredComponentLink(
+                        req.parentSetModelCode(),
+                        product.getModelCode(),
+                        req.componentKind(),
+                        "system");
+            } else if (req.itemKind() == ProductItemKind.GENERAL) {
+                bundleComponentService.removeRegisteredComponentLinks(product.getModelCode(), "system");
+            }
+        } else if (req.bundleMode() != null && product.getProductType() == ProductType.BUNDLE) {
+            product.changeBundle(ProductType.BUNDLE, req.bundleMode());
+        }
+        if (req.productCategory() != null) {
+            product.changeProductCategory(req.productCategory());
+        }
+        if (req.goodsType() != null) {
+            product.changeGoodsType(req.goodsType());
+        }
+        product.changeUnit(req.unit());
+        product.changePrices(req.releasePrice(), req.deliveryPrice());
+    }
+
+    private ProductItemKind itemKind(ProductItemKind itemKind) {
+        return itemKind == null ? ProductItemKind.GENERAL : itemKind;
+    }
+
+    private ProductGoodsType goodsType(ProductGoodsType goodsType) {
+        return goodsType == null ? ProductGoodsType.GOODS : goodsType;
     }
 }

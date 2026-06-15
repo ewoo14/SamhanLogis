@@ -1,5 +1,6 @@
 package com.samhanair.logis.product.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,6 +14,8 @@ import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.product.domain.Category;
+import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -56,6 +59,9 @@ class ProductControllerIT extends AbstractPostgresIT {
 
     @Autowired
     private CategoryRepository categoryRepository;
+
+    @Autowired
+    private BundleComponentRepository bundleComponentRepository;
 
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
@@ -144,6 +150,78 @@ class ProductControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.modelName").value("MANAGER-CREATE-001"))
                 .andExpect(jsonPath("$.data.sellingPrice").value(1500000));
+    }
+
+    @Test
+    void setComponentCreate_withoutParentSetModelCode_returns400() throws Exception {
+        var body = Map.of(
+                "name", "구성품 부모 누락",
+                "modelName", "COMP-NO-PARENT-001",
+                "categoryId", categoryId.toString(),
+                "sellingPrice", "100000",
+                "purchasePrice", "80000",
+                "currency", "KRW",
+                "itemKind", "SET_COMPONENT",
+                "componentKind", "INDOOR",
+                "goodsType", "GOODS");
+
+        mockMvc.perform(post("/products")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void setComponentCreate_withValidBundleParent_createsBundleComponentLink() throws Exception {
+        String parentModelCode = "SET-PARENT-001";
+        var parentBody = Map.of(
+                "name", "테스트 세트",
+                "modelName", parentModelCode,
+                "categoryId", categoryId.toString(),
+                "sellingPrice", "1000000",
+                "purchasePrice", "800000",
+                "currency", "KRW",
+                "itemKind", "SET",
+                "bundleMode", "EXPAND",
+                "goodsType", "GOODS");
+
+        MvcResult parentCreated = mockMvc.perform(post("/products")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(parentBody)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID parentId = UUID.fromString(objectMapper.readTree(parentCreated.getResponse().getContentAsString())
+                .get("data").get("id").asText());
+
+        String componentModelCode = "SET-COMP-001";
+        var componentBody = Map.of(
+                "name", "테스트 세트 구성품",
+                "modelName", componentModelCode,
+                "categoryId", categoryId.toString(),
+                "sellingPrice", "300000",
+                "purchasePrice", "250000",
+                "currency", "KRW",
+                "itemKind", "SET_COMPONENT",
+                "parentSetModelCode", parentModelCode,
+                "componentKind", "INDOOR",
+                "goodsType", "GOODS");
+
+        mockMvc.perform(post("/products")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(componentBody)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.modelCode").value(componentModelCode))
+                .andExpect(jsonPath("$.data.usageScope").value("NONE"));
+
+        assertThat(bundleComponentRepository.findByBundleProductId(parentId))
+                .extracting(BundleComponent::getComponentProductCode)
+                .contains(componentModelCode);
     }
 
     @Test

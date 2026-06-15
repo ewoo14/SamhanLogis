@@ -45,6 +45,9 @@ class ProductServiceTest {
     private com.samhanair.logis.product.repository.BundleComponentRepository bundleComponentRepository;
 
     @Mock
+    private BundleComponentService bundleComponentService;
+
+    @Mock
     private ProductSheetSyncService productSheetSyncService;
 
     @InjectMocks

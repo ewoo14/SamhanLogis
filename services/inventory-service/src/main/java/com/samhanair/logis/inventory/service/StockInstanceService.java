@@ -70,6 +70,7 @@ public class StockInstanceService {
                                 String inboundType, BigDecimal unitCost, String inboundSlipNo,
                                 LocalDateTime receivedAt) {
         ProductSummary product = productClient.requireExists(productId);
+        rejectNonGoods(product, productId);
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productId=" + productId);
@@ -102,6 +103,7 @@ public class StockInstanceService {
                                             int quantity, String inboundType, String inboundSlipNo,
                                             BigDecimal unitCost, LocalDateTime receivedAt) {
         ProductSummary product = productClient.requireExists(productId);
+        rejectNonGoods(product, productId);
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productId=" + productId);
@@ -330,6 +332,13 @@ public class StockInstanceService {
 
     private void lockRecallBatchKey(String recallSlipNo, String productCode) {
         lockBatchKey(recallSlipNo + "|" + productCode);
+    }
+
+    private void rejectNonGoods(ProductSummary product, UUID productId) {
+        if (!product.goods()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "비상품 품목은 재고를 생성할 수 없습니다. productId=" + productId);
+        }
     }
 
     private void lockBatchKey(String lockKey) {

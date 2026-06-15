@@ -15,6 +15,7 @@ import com.samhanair.logis.product.web.dto.BundleComponentResponse;
 import com.samhanair.logis.product.web.dto.DisplayOrderRequest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -325,6 +326,150 @@ public class BundleComponentService {
         catalogChangePublisher.publishCatalogChanged(modelCode);
 
         return result;
+    }
+
+    /**
+     * 세트구성품 수기 등록 직후 부모 BUNDLE 에 구성품 1건을 추가한다.
+     *
+     * <p>검증 기준은 {@link #replaceComponents(String, List, String)} 와 맞춘다.
+     * 부모는 카탈로그 노출 식별자(modelCode, 없으면 modelName fallback)로 해소하고,
+     * 구성품은 전개 경로와 동일하게 {@code products.model_code} 정확 매칭으로 검증한다.
+     *
+     * @param parentSetModelCode 부모 세트의 노출 모델코드
+     * @param componentProductCode 신규 구성품의 modelCode
+     * @param componentKind 구성품 구분(null 이면 ACCESSORY)
+     * @return 저장된 BundleComponent
+     * @throws BusinessException(INVALID_INPUT) 부모 누락/비세트/자기참조/세트-안-세트/중복/미해소 구성품
+     */
+    @Transactional
+    public BundleComponent addRegisteredComponent(String parentSetModelCode,
+                                                  String componentProductCode,
+                                                  BundleComponent.ComponentKind componentKind) {
+        Product parent = validateRegisteredComponent(parentSetModelCode, componentProductCode);
+        String parentModelCode = parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName();
+
+        boolean duplicate = bundleComponentRepository.findByBundleProductId(parent.getId()).stream()
+                .anyMatch(existing -> componentProductCode.equals(existing.getComponentProductCode()));
+        if (duplicate) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "구성품에 중복 모델코드가 있습니다: " + componentProductCode);
+        }
+
+        BundleComponent saved = bundleComponentRepository.save(BundleComponent.seed(
+                parent.getId(),
+                componentProductCode,
+                BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET,
+                componentKind == null ? BundleComponent.ComponentKind.ACCESSORY : componentKind,
+                null,
+                false,
+                null));
+        catalogChangePublisher.publishCatalogChanged(parentModelCode);
+        return saved;
+    }
+
+    /**
+     * PATCH 경로에서 세트구성품 부모 링크를 지정 부모 1건으로 맞춘다.
+     *
+     * <p>같은 부모 링크가 이미 있으면 속성만 정규화하고, 다른 부모 링크는 soft-delete 한다.
+     * 생성 경로의 중복 거부와 달리 PATCH 는 "최종 상태"를 맞추는 동작이다.
+     */
+    @Transactional
+    public BundleComponent replaceRegisteredComponentLink(String parentSetModelCode,
+                                                          String componentProductCode,
+                                                          BundleComponent.ComponentKind componentKind,
+                                                          String actor) {
+        Product parent = validateRegisteredComponent(parentSetModelCode, componentProductCode);
+        String deleteActor = actor == null || actor.isBlank() ? "system" : actor;
+        List<BundleComponent> existingLinks = bundleComponentRepository.findByComponentProductCode(componentProductCode);
+        BundleComponent sameParent = null;
+        for (BundleComponent existing : existingLinks) {
+            if (existing.getBundleProductId().equals(parent.getId())) {
+                sameParent = existing;
+            } else {
+                existing.markDeleted(deleteActor);
+                bundleComponentRepository.save(existing);
+            }
+        }
+        entityManager.flush();
+
+        if (sameParent != null) {
+            sameParent.changeAttributes(
+                    BigDecimal.ONE,
+                    BundleComponent.QtyMode.FOLLOW_SET,
+                    componentKind == null ? BundleComponent.ComponentKind.ACCESSORY : componentKind,
+                    null,
+                    false,
+                    null);
+            catalogChangePublisher.publishCatalogChanged(
+                    parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName());
+            return sameParent;
+        }
+        BundleComponent saved = bundleComponentRepository.save(BundleComponent.seed(
+                parent.getId(),
+                componentProductCode,
+                BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET,
+                componentKind == null ? BundleComponent.ComponentKind.ACCESSORY : componentKind,
+                null,
+                false,
+                null));
+        catalogChangePublisher.publishCatalogChanged(
+                parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName());
+        return saved;
+    }
+
+    /**
+     * 구성품에서 일반/세트로 전환될 때 기존 부모 링크를 모두 soft-delete 한다.
+     */
+    @Transactional
+    public void removeRegisteredComponentLinks(String componentProductCode, String actor) {
+        if (componentProductCode == null || componentProductCode.isBlank()) {
+            return;
+        }
+        String deleteActor = actor == null || actor.isBlank() ? "system" : actor;
+        List<BundleComponent> existingLinks = bundleComponentRepository.findByComponentProductCode(componentProductCode);
+        for (BundleComponent existing : existingLinks) {
+            existing.markDeleted(deleteActor);
+            bundleComponentRepository.save(existing);
+        }
+        if (!existingLinks.isEmpty()) {
+            entityManager.flush();
+            catalogChangePublisher.publishCatalogChanged();
+        }
+    }
+
+    private Product validateRegisteredComponent(String parentSetModelCode, String componentProductCode) {
+        if (parentSetModelCode == null || parentSetModelCode.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "세트구성품은 부모 세트 모델코드가 필수입니다");
+        }
+        if (componentProductCode == null || componentProductCode.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "구성품 모델코드가 비어 있습니다");
+        }
+
+        Product parent = productRepository
+                .findByCatalogExposedModelCodeAndIsDeletedFalse(parentSetModelCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
+                        "부모 세트 모델코드를 찾을 수 없습니다: " + parentSetModelCode));
+        if (parent.getProductType() != ProductType.BUNDLE) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "부모 품목은 BUNDLE 이어야 합니다: " + parentSetModelCode);
+        }
+
+        String parentModelCode = parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName();
+        if (componentProductCode.equals(parentModelCode)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "구성품에 자기 자신('" + parentModelCode + "')을 포함할 수 없습니다.");
+        }
+
+        Product component = productRepository.findByModelCodeAndIsDeletedFalse(componentProductCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
+                        "구성 모델코드가 활성 품목으로 해소되지 않습니다: " + componentProductCode));
+        if (component.getProductType() == ProductType.BUNDLE) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "세트 품목은 구성품으로 등록할 수 없습니다: " + componentProductCode);
+        }
+        return parent;
     }
 
     // ============================================================

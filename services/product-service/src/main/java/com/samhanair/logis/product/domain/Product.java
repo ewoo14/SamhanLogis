@@ -146,6 +146,11 @@ public class Product extends BaseEntity {
     @Column(name = "product_category", length = 20)
     private ProductCategory productCategory;
 
+    /** 재고 생성 대상 여부 — 비상품은 견적/전표에는 쓰되 inventory-service 에서 재고를 만들지 않는다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "goods_type", nullable = false, length = 16)
+    private ProductGoodsType goodsType = ProductGoodsType.GOODS;
+
     /** DOMAIN-EXTENSIONS §3 — default NONE (분류되지 않은 품목 미노출). */
     @Enumerated(EnumType.STRING)
     @Column(name = "usage_scope", nullable = false, length = 16)
@@ -361,6 +366,10 @@ public class Product extends BaseEntity {
         this.modelName = modelName;
     }
 
+    public void changeModelCode(String modelCode) {
+        this.modelCode = modelCode;
+    }
+
     public void changeCategory(Category category) {
         this.category = category;
     }
@@ -476,6 +485,23 @@ public class Product extends BaseEntity {
     public void changeBundle(ProductType productType, BundleMode bundleMode) {
         this.productType = productType == null ? ProductType.SINGLE : productType;
         this.bundleMode = (this.productType == ProductType.BUNDLE) ? bundleMode : null;
+    }
+
+    /** 수기 품목 등록/수정에서 내부 카테고리를 지정한다. */
+    public void changeProductCategory(ProductCategory productCategory) {
+        this.productCategory = productCategory;
+    }
+
+    /** 상품/비상품 구분 변경. null 은 기존 호환을 위해 상품으로 정규화한다. */
+    public void changeGoodsType(ProductGoodsType goodsType) {
+        this.goodsType = goodsType == null ? ProductGoodsType.GOODS : goodsType;
+    }
+
+    /** 단위 변경. null/blank 는 기존 값을 보존한다. */
+    public void changeUnit(String unit) {
+        if (unit != null && !unit.isBlank()) {
+            this.unit = unit;
+        }
     }
 
     /** discountFlags bitset 갱신 (modelCode prefix 7-룰 매칭). */

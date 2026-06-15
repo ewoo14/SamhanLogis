@@ -1,5 +1,9 @@
 package com.samhanair.logis.product.web.dto;
 
+import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.BundleMode;
+import com.samhanair.logis.product.domain.ProductCategory;
+import com.samhanair.logis.product.domain.ProductGoodsType;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,5 +21,21 @@ public record CreateProductRequest(
         @NotNull @DecimalMin("0.00") BigDecimal purchasePrice,
         @Size(min = 3, max = 3) String currency,
         Map<String, String> tags,
-        @Size(max = 1000) String description) {
+        @Size(max = 1000) String description,
+        ProductItemKind itemKind,
+        ProductCategory productCategory,
+        BundleMode bundleMode,
+        @Size(max = 100) String parentSetModelCode,
+        BundleComponent.ComponentKind componentKind,
+        @Size(max = 20) String unit,
+        @DecimalMin("0.00") BigDecimal releasePrice,
+        @DecimalMin("0.00") BigDecimal deliveryPrice,
+        ProductGoodsType goodsType) {
+
+    public CreateProductRequest(String name, String modelName, UUID categoryId,
+                                BigDecimal sellingPrice, BigDecimal purchasePrice,
+                                String currency, Map<String, String> tags, String description) {
+        this(name, modelName, categoryId, sellingPrice, purchasePrice, currency,
+                tags, description, null, null, null, null, null, null, null, null, null);
+    }
 }

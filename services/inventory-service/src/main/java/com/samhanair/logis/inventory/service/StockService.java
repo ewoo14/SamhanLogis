@@ -3,6 +3,7 @@ package com.samhanair.logis.inventory.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.inventory.client.ProductClient;
+import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.MovementType;
 import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.StockLot;
@@ -64,7 +65,8 @@ public class StockService {
      * @throws BusinessException(INTERNAL_ERROR) product-service 호출 자체가 실패할 때
      */
     public StockLotResponse inbound(InboundRequest req, String actorUserId) {
-        productClient.requireExists(req.productId());
+        ProductSummary product = productClient.requireExists(req.productId());
+        rejectNonGoods(product, req.productId());
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
 
         StockLot lot = stockLotRepository.save(StockLot.create(
@@ -337,6 +339,13 @@ public class StockService {
     private Warehouse loadWarehouseOrThrow(UUID id) {
         return warehouseRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "창고를 찾을 수 없습니다"));
+    }
+
+    private void rejectNonGoods(ProductSummary product, UUID productId) {
+        if (!product.goods()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "비상품 품목은 재고를 생성할 수 없습니다. productId=" + productId);
+        }
     }
 
     /**

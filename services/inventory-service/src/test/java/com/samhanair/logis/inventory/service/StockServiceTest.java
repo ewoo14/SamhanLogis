@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -99,6 +100,24 @@ class StockServiceTest {
         assertThat(response.quantity()).isEqualTo(50);
         assertThat(response.warehouseCode()).isEqualTo("HQ-001");
         verify(stockMovementRepository).save(any(StockMovement.class));
+    }
+
+    @Test
+    void inbound_nonGoodsProduct_throwsConflictAndCreatesNoInventory() {
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "설치비", "FEE-INSTALL-001", "FEE-INSTALL-001",
+                        UUID.randomUUID(), new BigDecimal("50000.00"), "ACTIVE", false, false));
+
+        assertThatThrownBy(() -> service.inbound(new InboundRequest(
+                productId, warehouseId, "FEE-LOT", 1, LocalDateTime.now(),
+                new BigDecimal("50000.00"), "비상품 입고 시도"), "user-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+
+        verify(stockLotRepository, never()).save(any());
+        verify(stockBalanceRepository, never()).save(any());
+        verify(stockMovementRepository, never()).save(any());
     }
 
     @Test

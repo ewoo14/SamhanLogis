@@ -2,6 +2,7 @@ package com.samhanair.logis.product.web.dto;
 
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductGoodsType;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
 import java.math.BigDecimal;
@@ -30,6 +31,7 @@ public record ProductSummaryResponse(
         BigDecimal sellingPrice,
         ProductStatus status,
         boolean serialManaged,
+        boolean goods,
         String modelCode,
         String productType,
         UsageScope usageScope,
@@ -42,7 +44,7 @@ public record ProductSummaryResponse(
      */
     public ProductSummaryResponse(UUID id, String name, String modelName, UUID categoryId,
                                   BigDecimal sellingPrice, ProductStatus status) {
-        this(id, name, modelName, null, categoryId, sellingPrice, status, false, null, null,
+        this(id, name, modelName, null, categoryId, sellingPrice, status, false, true, null, null,
                 null, null, false, null);
     }
 
@@ -51,7 +53,7 @@ public record ProductSummaryResponse(
      */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, null, null,
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, true, null, null,
                 null, null, false, null);
     }
 
@@ -61,8 +63,18 @@ public record ProductSummaryResponse(
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, null, null,
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true, null, null,
                 null, null, false, null);
+    }
+
+    /**
+     * Backward-compatible 생성자 — goods 미지원 기존 호출자 호환.
+     */
+    public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
+                                  UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
+                                  boolean serialManaged, String modelCode, String productType) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true,
+                modelCode, productType, null, null, false, null);
     }
 
     /**
@@ -70,8 +82,8 @@ public record ProductSummaryResponse(
      */
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
-                                  boolean serialManaged, String modelCode, String productType) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged,
+                                  boolean serialManaged, boolean goods, String modelCode, String productType) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, null, null, false, null);
     }
 
@@ -92,6 +104,7 @@ public record ProductSummaryResponse(
                 p.getSellingPrice(),
                 p.getStatus(),
                 p.getCategory().isSerialManaged(),
+                p.getGoodsType() == ProductGoodsType.GOODS,
                 p.getModelCode(),
                 p.getProductType() == null ? null : p.getProductType().name(),
                 p.getUsageScope(),
