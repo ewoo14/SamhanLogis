@@ -1,0 +1,84 @@
+/**
+ * 품목 등록/관리 고도화 (PR #485) Docker 실서버 QA Playwright spec.
+ *
+ * 대상: 신규 품목 등록 폼 — 종류 3구분(일반/세트/세트구성품) + 세트구성품 부모세트 자동완성 + 상품/비상품.
+ * 실서버: http://localhost:8080 (api-gateway), http://localhost:5175 (FE dev)
+ * 인증: dev_master / dev_p05_pass! (MASTER role, products.admin CREATE)
+ *
+ * 실행:
+ *   cd C:\dev\Samhan-Public\clients\desktop
+ *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts playwright/product-registration-real-qa --reporter=line --timeout=60000
+ */
+import { test, type Page } from '@playwright/test'
+import * as path from 'path'
+import * as fs from 'fs'
+import { fileURLToPath } from 'url'
+
+const _dirname = typeof __dirname !== 'undefined'
+  ? __dirname
+  : path.dirname(fileURLToPath(import.meta.url))
+
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5175'
+const API_BASE = 'http://localhost:8080'
+
+const SCREENSHOTS_DIR = path.resolve(
+  _dirname,
+  '../../../../docs/qa/product-master-registration/screenshots',
+)
+fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
+
+async function screenshot(page: Page, name: string): Promise<void> {
+  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, `${name}.png`), fullPage: true })
+}
+
+async function loginAndInstallStub(page: Page, loginId: string, password: string): Promise<void> {
+  const res = await page.request.post(`${API_BASE}/auth/login`, { data: { loginId, password } })
+  const body = await res.json()
+  const token: string = body.data?.token ?? ''
+  const role: string = body.data?.role ?? 'MASTER'
+  const userId: string = body.data?.userId ?? ''
+  const displayName: string = body.data?.displayName ?? loginId
+  await page.addInitScript(({ tok, r, uid, name }: { tok: string; r: string; uid: string; name: string }) => {
+    Object.defineProperty(window, 'samhanAuth', {
+      configurable: true,
+      value: {
+        getToken: async () => ({ token: tok, userId: uid, role: r, fullName: name, partnerCode: null }),
+        setToken: async () => undefined,
+        clearToken: async () => undefined,
+      },
+    })
+  }, { tok: token, r: role, uid: userId, name: displayName })
+}
+
+test('품목 등록 폼 — 종류 3구분·세트구성품 부모세트 자동완성·상품/비상품', async ({ page }) => {
+  await loginAndInstallStub(page, 'dev_master', 'dev_p05_pass!')
+
+  await page.goto(`${BASE_URL}/#/products/new`)
+  await page.waitForSelector('[data-testid="product-form-model-name"]', { timeout: 30000 })
+  // 1) 기본(일반품목) — 종류 라디오 + 상품/비상품 토글 + 필드
+  await screenshot(page, '01-form-general')
+
+  // 2) 비상품 선택 (상품/비상품 토글)
+  await page.selectOption('[data-testid="product-form-goods-type"]', 'NON_GOODS')
+  await screenshot(page, '02-non-goods')
+
+  // 3) 종류 = 세트구성품 → 부모 세트 자동완성 섹션 등장
+  await page.selectOption('[data-testid="product-form-goods-type"]', 'GOODS')
+  await page.locator('input[name="itemKind"][value="SET_COMPONENT"]').click()
+  await page.waitForSelector('text=부모 세트', { timeout: 5000 })
+  await screenshot(page, '03-set-component-parent-required')
+
+  // 4) 부모 세트 자동완성 검색 (방향키 선택 가능 — AsyncAutocomplete)
+  const parentInput = page.getByPlaceholder('세트 모델명 또는 품목명 검색')
+  await parentInput.click()
+  await parentInput.fill('세트')
+  await page.waitForTimeout(1200)
+  await screenshot(page, '04-parent-autocomplete-search')
+
+  // 5) 종류 = 세트(SET) → 세트 처리(bundleMode)
+  await page.locator('input[name="itemKind"][value="SET"]').click()
+  await page.waitForSelector('[data-testid="product-form-bundle-mode"]', { timeout: 5000 })
+  await screenshot(page, '05-set-bundle-mode')
+
+  console.log('[product-registration-real-qa] screenshots captured to', SCREENSHOTS_DIR)
+})
