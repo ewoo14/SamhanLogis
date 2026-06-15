@@ -66,7 +66,10 @@ public class StockService {
      */
     public StockLotResponse inbound(InboundRequest req, String actorUserId) {
         ProductSummary product = productClient.requireExists(req.productId());
-        rejectNonGoods(product, req.productId());
+        if (isNonGoods(product)) {
+            // 비상품 — 재고(lot/balance/movement) 미생성 no-op. 전표 전환 루프가 비상품 라인을 보내도 깨지지 않게 graceful skip.
+            return null;
+        }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
 
         StockLot lot = stockLotRepository.save(StockLot.create(
@@ -241,6 +244,10 @@ public class StockService {
      * @throws BusinessException(CONFLICT) 음수 조정으로 가용 재고가 음수가 되거나 낙관적 락 재시도 실패 시
      */
     public DeductionResponse adjust(AdjustRequest req, String actorUserId) {
+        if (isNonGoods(productClient.requireExists(req.productId()))) {
+            // 비상품 — balance 신규 생성/조정 no-op skip.
+            return new DeductionResponse(req.productId(), req.warehouseId(), 0, 0, 0, 0, 0, List.of());
+        }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
         StockBalance balance = loadOrCreateBalance(req.productId(), warehouse);
 
@@ -341,11 +348,15 @@ public class StockService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "창고를 찾을 수 없습니다"));
     }
 
-    private void rejectNonGoods(ProductSummary product, UUID productId) {
-        if (!product.goods()) {
-            throw new BusinessException(ErrorCode.CONFLICT,
-                    "비상품 품목은 재고를 생성할 수 없습니다. productId=" + productId);
-        }
+    /**
+     * 비상품(운임/수수료/설치비 등) 여부 — true 면 재고를 생성하지 않고 no-op skip 한다.
+     *
+     * <p>개발책임자 2026-06-15 결정: inventory 게이트 no-op skip. 비상품을 reject(throw) 하면
+     * 전표/주문 전환 루프가 비상품 라인을 inventory 로 보낼 때 전표 전체가 깨지므로(고아 재고),
+     * 재고를 만들지 않고 graceful 하게 건너뛴다. 수동 입고도 조용히 no-op.
+     */
+    private boolean isNonGoods(ProductSummary product) {
+        return !product.goods();
     }
 
     /**

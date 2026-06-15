@@ -308,19 +308,19 @@ export async function getProductByModelName(modelName: string): Promise<ProductD
   return res.data.data
 }
 
-/** 품목 신규 등록 — `POST /api/v1/products`. */
+/** 품목 신규 등록 — `POST /api/products` (게이트웨이 StripPrefix=1 → ProductController.create). */
 export async function createProduct(req: CreateProductRequest): Promise<ProductDetailResponse> {
-  const res = await apiClient.post<ApiEnvelope<ProductDetailResponse>>('/api/v1/products', req)
+  const res = await apiClient.post<ApiEnvelope<ProductDetailResponse>>('/api/products', req)
   return res.data.data
 }
 
-/** 품목 부분 수정 — `PATCH /api/v1/products/{id}`. */
+/** 품목 부분 수정 — `PATCH /api/products/{id}` (게이트웨이 StripPrefix=1 → ProductController.update). */
 export async function updateProduct(
   id: string,
   req: UpdateProductRequest,
 ): Promise<ProductDetailResponse> {
   const res = await apiClient.patch<ApiEnvelope<ProductDetailResponse>>(
-    `/api/v1/products/${encodeURIComponent(id)}`,
+    `/api/products/${encodeURIComponent(id)}`,
     req,
   )
   return res.data.data

@@ -61,36 +61,32 @@ class StockInstanceServiceBatchTest {
     }
 
     @Test
-    @DisplayName("goods=false 비상품은 배치 인스턴스 입고를 409로 거부하고 행을 생성하지 않는다")
-    void inboundBatch_nonGoodsProduct_throwsConflictAndCreatesNoInstances() {
+    @DisplayName("goods=false 비상품은 배치 인스턴스 입고를 no-op skip 하고 행을 생성하지 않는다")
+    void inboundBatch_nonGoodsProduct_skipsAndCreatesNoInstances() {
         UUID productId = UUID.randomUUID();
         when(productClient.requireExists(productId)).thenReturn(nonGoodsProduct(productId));
 
-        assertThatThrownBy(() -> service.inboundBatch(
-                        productId, "FEE-001", UUID.randomUUID(), 3,
-                        "구매", "INB-FEE-001", new BigDecimal("10000"),
-                        LocalDateTime.of(2026, 6, 1, 9, 0)))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.CONFLICT);
+        var result = service.inboundBatch(
+                productId, "FEE-001", UUID.randomUUID(), 3,
+                "구매", "INB-FEE-001", new BigDecimal("10000"),
+                LocalDateTime.of(2026, 6, 1, 9, 0));
 
+        assertThat(result).isEmpty();
         verify(repo, never()).saveAll(any());
     }
 
     @Test
-    @DisplayName("goods=false 비상품은 수동 인스턴스 생성을 409로 거부하고 행을 생성하지 않는다")
-    void create_nonGoodsProduct_throwsConflictAndCreatesNoInstance() {
+    @DisplayName("goods=false 비상품은 수동 인스턴스 생성을 no-op skip 하고 행을 생성하지 않는다")
+    void create_nonGoodsProduct_skipsAndCreatesNoInstance() {
         UUID productId = UUID.randomUUID();
         when(productClient.requireExists(productId)).thenReturn(nonGoodsProduct(productId));
 
-        assertThatThrownBy(() -> service.create(
-                        productId, "FEE-001", UUID.randomUUID(),
-                        "구매", new BigDecimal("10000"), "INB-FEE-002",
-                        LocalDateTime.of(2026, 6, 1, 9, 0)))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.CONFLICT);
+        var result = service.create(
+                productId, "FEE-001", UUID.randomUUID(),
+                "구매", new BigDecimal("10000"), "INB-FEE-002",
+                LocalDateTime.of(2026, 6, 1, 9, 0));
 
+        assertThat(result).isNull();
         verify(repo, never()).save(any());
     }
 

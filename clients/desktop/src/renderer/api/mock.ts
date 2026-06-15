@@ -1511,8 +1511,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
-  // POST /api/v1/products — 품목 신규 등록 (CreateProductRequest mock)
-  if (method === 'POST' && url.match(/\/api\/v1\/products(?:\?.*)?$/)) {
+  // POST /api/products — 품목 신규 등록 (CreateProductRequest mock, gateway StripPrefix=1 → ProductController.create)
+  if (method === 'POST' && url.match(/\/api\/products(?:\?.*)?$/)) {
     const denied = mockRequirePermission('products.admin', 'create')
     if (denied) return denied
     ensureMockProductCatalogRowsSeeded()
@@ -1610,8 +1610,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // PATCH /api/v1/products/{id} — 품목 부분 수정 (UpdateProductRequest mock)
-  const productUpdateMatch = url.match(/\/api\/v1\/products\/([^/?]+)(?:\?.*)?$/)
+  // PATCH /api/products/{id} — 품목 부분 수정 (UpdateProductRequest mock, gateway StripPrefix=1 → ProductController.update)
+  const productUpdateMatch = url.match(/\/api\/products\/([^/?]+)(?:\?.*)?$/)
   if (method === 'PATCH' && productUpdateMatch) {
     const denied = mockRequirePermission('products.admin', 'update')
     if (denied) return denied

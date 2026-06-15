@@ -103,18 +103,17 @@ class StockServiceTest {
     }
 
     @Test
-    void inbound_nonGoodsProduct_throwsConflictAndCreatesNoInventory() {
+    void inbound_nonGoodsProduct_skipsAndCreatesNoInventory() {
         when(productClient.requireExists(productId)).thenReturn(
                 new ProductSummary(productId, "설치비", "FEE-INSTALL-001", "FEE-INSTALL-001",
                         UUID.randomUUID(), new BigDecimal("50000.00"), "ACTIVE", false, false));
 
-        assertThatThrownBy(() -> service.inbound(new InboundRequest(
+        // 비상품 — no-op skip: 재고 미생성 + null 반환 (개발책임자 2026-06-15)
+        var response = service.inbound(new InboundRequest(
                 productId, warehouseId, "FEE-LOT", 1, LocalDateTime.now(),
-                new BigDecimal("50000.00"), "비상품 입고 시도"), "user-1"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.CONFLICT));
+                new BigDecimal("50000.00"), "비상품 입고 시도"), "user-1");
 
+        assertThat(response).isNull();
         verify(stockLotRepository, never()).save(any());
         verify(stockBalanceRepository, never()).save(any());
         verify(stockMovementRepository, never()).save(any());
