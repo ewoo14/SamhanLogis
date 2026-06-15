@@ -116,6 +116,20 @@ export interface ProductDetailResponse {
   releasePrice: string | number | null
   deliveryPrice: string | number | null
   goodsType: ProductGoodsType | null
+  specs?: ProductSpecResponse[] | null
+}
+
+/** 제품 동적 사양 — ProductSpec specKey/specValue 필드명과 동일 */
+export interface ProductSpecInput {
+  specKey: string
+  specValue: string
+}
+
+/** 제품 동적 사양 응답 — id 는 내부 편집 보조용, 화면 표시 금지 */
+export interface ProductSpecResponse extends ProductSpecInput {
+  id?: string | null
+  unit?: string | null
+  displayOrder?: number | null
 }
 
 /** 검색 요약 — edit route 에서 modelCode 기반 UUID 내부 해소용 */
@@ -224,6 +238,7 @@ export interface CreateProductRequest {
   releasePrice: string | null
   deliveryPrice: string | null
   goodsType: ProductGoodsType
+  specs: ProductSpecInput[]
 }
 
 /** `PATCH /api/v1/products/{id}` 요청 body — BE UpdateProductRequest record 와 필드명 동일 */
@@ -241,6 +256,7 @@ export interface UpdateProductRequest {
   releasePrice: string | null
   deliveryPrice: string | null
   goodsType: ProductGoodsType | null
+  specs: ProductSpecInput[]
 }
 
 // ---------------------------------------------------------------------------

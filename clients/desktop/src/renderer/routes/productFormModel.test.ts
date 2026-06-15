@@ -21,6 +21,12 @@ const baseForm: ProductFormValues = {
   unit: 'EA',
   releasePrice: '1000000',
   deliveryPrice: '30000',
+  specs: [
+    { specKey: '냉방성능', specValue: '6.0kW' },
+    { specKey: '전원', specValue: '220V' },
+    { specKey: ' ', specValue: 'ignored' },
+    { specKey: '크기', specValue: ' ' },
+  ],
 }
 
 describe('productFormModel', () => {
@@ -43,6 +49,10 @@ describe('productFormModel', () => {
       releasePrice: '1000000',
       deliveryPrice: '30000',
       goodsType: 'GOODS',
+      specs: [
+        { specKey: '냉방성능', specValue: '6.0kW' },
+        { specKey: '전원', specValue: '220V' },
+      ],
     })
   })
 
@@ -98,6 +108,10 @@ describe('productFormModel', () => {
       releasePrice: '1000000',
       deliveryPrice: '30000',
       goodsType: 'GOODS',
+      specs: [
+        { specKey: '냉방성능', specValue: '6.0kW' },
+        { specKey: '전원', specValue: '220V' },
+      ],
     })
   })
 
@@ -136,6 +150,10 @@ describe('productFormModel', () => {
         releasePrice: '1000000',
         deliveryPrice: '30000',
         goodsType: 'NON_GOODS',
+        specs: [
+          { id: 'spec-1', specKey: '냉방성능', specValue: '5.2kW', unit: null, displayOrder: 1 },
+          { id: 'spec-2', specKey: '전원', specValue: '220V', unit: null, displayOrder: 2 },
+        ],
       },
       catalog: {
         modelCode: 'IDU-001',
@@ -157,5 +175,9 @@ describe('productFormModel', () => {
     expect(values.componentKind).toBe('INDOOR')
     expect(values.unit).toBe('SET')
     expect(values.goodsType).toBe('NON_GOODS')
+    expect(values.specs).toEqual([
+      { specKey: '냉방성능', specValue: '5.2kW' },
+      { specKey: '전원', specValue: '220V' },
+    ])
   })
 })

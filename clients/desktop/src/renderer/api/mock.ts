@@ -990,6 +990,22 @@ let mockProductSpecsByModel: Record<string, Array<{
   ],
 }
 
+function mockProductSpecsFromBody(modelCode: string, rawSpecs: unknown) {
+  if (!Array.isArray(rawSpecs)) return []
+  return rawSpecs
+    .map((raw, index) => {
+      const row = raw as Record<string, unknown>
+      return {
+        id: `spec-${modelCode}-${index + 1}`,
+        specKey: String(row['specKey'] ?? '').trim(),
+        specValue: String(row['specValue'] ?? '').trim(),
+        unit: null,
+        displayOrder: index + 1,
+      }
+    })
+    .filter((spec) => spec.specKey.length > 0 && spec.specValue.length > 0)
+}
+
 const MOCK_SPEC_KEY_TEMPLATES = [
   {
     id: 'template-home-cooling',
@@ -1552,6 +1568,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       productType,
       modelCode,
     }
+    const specs = mockProductSpecsFromBody(modelCode, body['specs'])
+    mockProductSpecsByModel = {
+      ...mockProductSpecsByModel,
+      [modelCode]: specs,
+    }
     MOCK_PRODUCT_CATALOG_ROWS = [
       {
         modelCode,
@@ -1607,6 +1628,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       currency: String(body['currency'] ?? 'KRW'),
       tags: {},
       description: (body['description'] as string | null | undefined) ?? null,
+      specs,
     })
   }
 
@@ -1638,6 +1660,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       productType,
       modelCode: nextModelName,
     }
+    if ('specs' in body) {
+      mockProductSpecsByModel = {
+        ...mockProductSpecsByModel,
+        [nextModelName]: mockProductSpecsFromBody(nextModelName, body['specs']),
+      }
+    }
     MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) =>
       row.modelCode === (existing.modelCode ?? existing.modelName)
         ? {
@@ -1662,6 +1690,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       currency: 'KRW',
       tags: {},
       description: (body['description'] as string | null | undefined) ?? existing.description ?? null,
+      specs: mockProductSpecsByModel[nextModelName] ?? [],
     })
   }
 
@@ -1834,11 +1863,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!found) {
       return mockError(404, 'NOT_FOUND', '모델명에 해당하는 제품이 없습니다')
     }
+    const visibleModelCode = found.modelCode ?? found.modelName
     return envelope({
       id: found.productId,
       name: found.productName,
       modelName: found.modelName,
-      modelCode: found.modelCode ?? found.modelName,
+      modelCode: visibleModelCode,
       categoryId: found.categoryId ?? 'cat-home',
       categoryName: '홈멀티',
       sellingPrice: found.sellingPrice,
@@ -1846,6 +1876,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       currency: 'KRW',
       tags: {},
       description: found.description ?? null,
+      specs: mockProductSpecsByModel[visibleModelCode] ?? mockProductSpecsByModel[found.modelName] ?? [],
     })
   }
 

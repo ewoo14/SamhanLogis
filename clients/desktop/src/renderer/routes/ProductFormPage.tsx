@@ -230,6 +230,27 @@ export function ProductFormPage() {
     })
   }
 
+  const addSpecRow = () => {
+    patchValues({ specs: [...values.specs, { specKey: '', specValue: '' }] })
+  }
+
+  const updateSpecRow = (
+    index: number,
+    patch: Partial<ProductFormValues['specs'][number]>,
+  ) => {
+    patchValues({
+      specs: values.specs.map((spec, currentIndex) =>
+        currentIndex === index ? { ...spec, ...patch } : spec,
+      ),
+    })
+  }
+
+  const removeSpecRow = (index: number) => {
+    patchValues({
+      specs: values.specs.filter((_, currentIndex) => currentIndex !== index),
+    })
+  }
+
   const isLoading = categoriesQuery.isLoading || editSeedQuery.isLoading
   const isSaving = saveMutation.isPending
 
@@ -412,6 +433,54 @@ export function ProductFormPage() {
       ) : null}
 
       <section style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <h4 style={sectionTitleStyle}>사양</h4>
+          <Button
+            variant="secondary"
+            onClick={addSpecRow}
+            disabled={isSaving}
+            data-testid="product-form-add-spec"
+          >
+            사양 추가
+          </Button>
+        </div>
+        {values.specs.length > 0 ? (
+          <div style={specRowsStyle}>
+            {values.specs.map((spec, index) => (
+              <div key={index} style={specRowStyle}>
+                <Input
+                  label="사양명"
+                  value={spec.specKey}
+                  onChange={(event) => updateSpecRow(index, { specKey: event.target.value })}
+                  placeholder="예: 냉방성능"
+                  data-testid={`product-form-spec-${index}-key`}
+                />
+                <Input
+                  label="값"
+                  value={spec.specValue}
+                  onChange={(event) => updateSpecRow(index, { specValue: event.target.value })}
+                  placeholder="예: 6.0kW"
+                  data-testid={`product-form-spec-${index}-value`}
+                />
+                <div style={specRemoveCellStyle}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => removeSpecRow(index)}
+                    disabled={isSaving}
+                    data-testid={`product-form-spec-${index}-remove`}
+                  >
+                    삭제
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={hintStyle}>등록된 사양이 없습니다.</p>
+        )}
+      </section>
+
+      <section style={sectionStyle}>
         <h4 style={sectionTitleStyle}>가격</h4>
         <div style={gridStyle}>
           <Input
@@ -513,6 +582,14 @@ const sectionTitleStyle: CSSProperties = {
   color: 'var(--color-neutral-800, #1F2937)',
 }
 
+const sectionHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  flexWrap: 'wrap',
+}
+
 const gridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -522,6 +599,24 @@ const gridStyle: CSSProperties = {
 const fieldBlockStyle: CSSProperties = {
   display: 'grid',
   gap: 6,
+}
+
+const specRowsStyle: CSSProperties = {
+  display: 'grid',
+  gap: 10,
+}
+
+const specRowStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 10,
+  alignItems: 'end',
+}
+
+const specRemoveCellStyle: CSSProperties = {
+  minWidth: 68,
+  display: 'flex',
+  justifyContent: 'flex-end',
 }
 
 const labelStyle: CSSProperties = {

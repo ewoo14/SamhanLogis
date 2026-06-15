@@ -28,9 +28,15 @@ export interface ProductFormValues {
   releasePrice: string
   deliveryPrice: string
   goodsType: ProductGoodsType
+  specs: ProductSpecFormRow[]
 }
 
 export type ProductFormErrors = Partial<Record<keyof ProductFormValues, string>>
+
+export interface ProductSpecFormRow {
+  specKey: string
+  specValue: string
+}
 
 export function initialProductFormValues(): ProductFormValues {
   return {
@@ -50,6 +56,7 @@ export function initialProductFormValues(): ProductFormValues {
     releasePrice: '',
     deliveryPrice: '',
     goodsType: 'GOODS',
+    specs: [],
   }
 }
 
@@ -94,6 +101,10 @@ export function editSeedToProductFormValues(seed: ProductEditSeed): ProductFormV
     releasePrice: inputValue(seed.detail.releasePrice ?? seed.catalog?.releasePrice),
     deliveryPrice: inputValue(seed.detail.deliveryPrice ?? seed.catalog?.deliveryPrice),
     goodsType: seed.detail.goodsType ?? (seed.summary.goods === false ? 'NON_GOODS' : 'GOODS'),
+    specs: (seed.detail.specs ?? []).map((spec) => ({
+      specKey: spec.specKey ?? '',
+      specValue: spec.specValue ?? '',
+    })),
   }
 }
 
@@ -114,6 +125,15 @@ function decimalOrZero(value: string): string {
 function nullableDecimal(value: string): string | null {
   const next = trimmed(value)
   return next.length > 0 ? next : null
+}
+
+function buildSpecs(values: ProductFormValues) {
+  return values.specs
+    .map((spec) => ({
+      specKey: trimmed(spec.specKey),
+      specValue: trimmed(spec.specValue),
+    }))
+    .filter((spec) => spec.specKey.length > 0 && spec.specValue.length > 0)
 }
 
 function hasInvalidDecimal(value: string): boolean {
@@ -163,6 +183,7 @@ export function buildCreateProductRequest(values: ProductFormValues): CreateProd
     releasePrice: nullableDecimal(values.releasePrice),
     deliveryPrice: nullableDecimal(values.deliveryPrice),
     goodsType: values.goodsType,
+    specs: buildSpecs(values),
   }
 }
 
@@ -181,5 +202,6 @@ export function buildUpdateProductRequest(values: ProductFormValues): UpdateProd
     releasePrice: nullableDecimal(values.releasePrice),
     deliveryPrice: nullableDecimal(values.deliveryPrice),
     goodsType: values.goodsType,
+    specs: buildSpecs(values),
   }
 }

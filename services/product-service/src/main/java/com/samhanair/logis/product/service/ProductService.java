@@ -8,26 +8,32 @@ import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductGoodsType;
+import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
+import com.samhanair.logis.product.repository.ProductSpecRepository;
 import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import com.samhanair.logis.product.web.dto.ProductItemKind;
+import com.samhanair.logis.product.web.dto.ProductSpecRequest;
+import com.samhanair.logis.product.web.dto.ProductSpecResponse;
 import com.samhanair.logis.product.web.dto.UpdatePriceRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -47,6 +53,7 @@ public class ProductService {
     private static final int LOOKUP_MAX = 100;
 
     private final ProductRepository productRepository;
+    private final ProductSpecRepository productSpecRepository;
     private final CategoryRepository categoryRepository;
     private final BundleComponentRepository bundleComponentRepository;
     private final BundleComponentService bundleComponentService;
@@ -321,6 +328,7 @@ public class ProductService {
             product.changeModelCode(modelCode);
             applyCreateFields(product, req);
             Product saved = productRepository.save(product);
+            saveSpecs(saved, req.specs());
             if (itemKind(req.itemKind()) == ProductItemKind.SET_COMPONENT) {
                 bundleComponentService.addRegisteredComponent(
                         req.parentSetModelCode(),
@@ -362,6 +370,9 @@ public class ProductService {
             product.editDescription(req.description());
         }
         applyUpdateFields(product, req);
+        if (req.specs() != null) {
+            replaceSpecs(product, req.specs());
+        }
         return toResponse(product);
     }
 
@@ -498,8 +509,9 @@ public class ProductService {
     }
 
     private ProductResponse toResponse(Product product) {
+        List<ProductSpecResponse> specs = specResponses(product);
         if (product.getProductType() == ProductType.BUNDLE) {
-            return ProductResponse.from(product, ProductItemKind.SET, null, null);
+            return ProductResponse.from(product, ProductItemKind.SET, null, null, specs);
         }
         ParentComponentLink parentLink = findParentComponentLink(product);
         if (parentLink != null) {
@@ -507,9 +519,71 @@ public class ProductService {
                     product,
                     ProductItemKind.SET_COMPONENT,
                     parentLink.parentModelCode(),
-                    parentLink.componentKind());
+                    parentLink.componentKind(),
+                    specs);
         }
-        return ProductResponse.from(product, ProductItemKind.GENERAL, null, null);
+        return ProductResponse.from(product, ProductItemKind.GENERAL, null, null, specs);
+    }
+
+    /** 제품 등록/수정 화면의 동적 사양을 ProductSpec 1:N row 로 저장한다. */
+    private void saveSpecs(Product product, List<ProductSpecRequest> specs) {
+        if (specs == null || specs.isEmpty()) {
+            return;
+        }
+        validateDuplicateSpecKeys(specs);
+        for (int i = 0; i < specs.size(); i++) {
+            ProductSpecRequest spec = specs.get(i);
+            try {
+                productSpecRepository.save(ProductSpec.create(
+                        product.getId(),
+                        spec.specKey(),
+                        spec.specValue(),
+                        null,
+                        i + 1));
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 수정 요청에 specs 필드가 명시되면 기존 활성 사양을 soft-delete 하고 요청 배열로 전량 교체한다.
+     * specs=null 은 기존 사양 유지, specs=[] 은 전체 삭제 의미다.
+     */
+    private void replaceSpecs(Product product, List<ProductSpecRequest> specs) {
+        List<ProductSpec> currentSpecs = productSpecRepository.findByProductIdOrderByDisplayOrderAsc(product.getId());
+        if (currentSpecs != null) {
+            for (ProductSpec spec : currentSpecs) {
+                spec.markDeleted("system");
+            }
+        }
+        saveSpecs(product, specs);
+    }
+
+    private List<ProductSpecResponse> specResponses(Product product) {
+        if (product.getId() == null) {
+            return List.of();
+        }
+        List<ProductSpec> specs = productSpecRepository.findByProductIdOrderByDisplayOrderAsc(product.getId());
+        if (specs == null || specs.isEmpty()) {
+            return List.of();
+        }
+        return specs.stream()
+                .map(ProductSpecResponse::from)
+                .toList();
+    }
+
+    private void validateDuplicateSpecKeys(List<ProductSpecRequest> specs) {
+        Set<String> keys = new HashSet<>();
+        for (ProductSpecRequest spec : specs) {
+            String key = spec.specKey() == null ? null : spec.specKey().trim();
+            if (key == null || key.isBlank()) {
+                continue;
+            }
+            if (!keys.add(key)) {
+                throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 specKey: " + key);
+            }
+        }
     }
 
     private ParentComponentLink findParentComponentLink(Product product) {

@@ -10,6 +10,7 @@ import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.UsageScope;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -54,7 +55,8 @@ public record ProductResponse(
         LocalDateTime createdAt,
         String createdBy,
         LocalDateTime modifiedAt,
-        String modifiedBy) {
+        String modifiedBy,
+        List<ProductSpecResponse> specs) {
 
     public static ProductResponse from(Product p) {
         ProductItemKind itemKind = p.getProductType() == com.samhanair.logis.product.domain.ProductType.BUNDLE
@@ -67,6 +69,14 @@ public record ProductResponse(
                                        ProductItemKind itemKind,
                                        String parentSetModelCode,
                                        BundleComponent.ComponentKind componentKind) {
+        return from(p, itemKind, parentSetModelCode, componentKind, List.of());
+    }
+
+    public static ProductResponse from(Product p,
+                                       ProductItemKind itemKind,
+                                       String parentSetModelCode,
+                                       BundleComponent.ComponentKind componentKind,
+                                       List<ProductSpecResponse> specs) {
         return new ProductResponse(
                 p.getId(),
                 p.getName(),
@@ -96,6 +106,7 @@ public record ProductResponse(
                 p.getCreatedAt(),
                 p.getCreatedBy(),
                 p.getModifiedAt(),
-                p.getModifiedBy());
+                p.getModifiedBy(),
+                specs == null ? List.of() : specs);
     }
 }
