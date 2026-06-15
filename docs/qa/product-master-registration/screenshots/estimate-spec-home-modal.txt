@@ -1,0 +1,23 @@
+MODE=openSpecModalByItem(item,'home')
+model=AJ060MXHNBC1
+name=실외기_6HP 단배관
+L=실외기
+title=실외기_6HP 단배관 (AJ060MXHNBC1)
+
+--- 모달 #specBody innerText ---
+배관경(액관/가스관)	9/19
+냉방성능(정격, kcal/h)	14600kcal/h
+냉방성능(정격, kW)	17.0kw
+냉방소비전력(정격, kW)	1.283kw
+냉매가스	R410A
+에너지소비효율등급	1등급
+전원선(m²)	6sq
+차단기(A)	40A
+제품크기(mm)
+(WxHxD)	940x1210x330
+제품중량(kg)	86kg
+포장치수(WxHxD)	1009x1296x419
+포장중량(kg)	89kg
+배관길이(m)	45m
+고낙차(m)	15m
+최대 실내기 연결 허용 대수	9대
