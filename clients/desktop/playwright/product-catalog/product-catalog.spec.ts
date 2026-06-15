@@ -202,10 +202,14 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
     const countBefore = await rowsBefore.count()
     expect(countBefore).toBeGreaterThan(0)
 
-    // 품목 검색 — AJ052RXH5BC1 (mock 에 존재하는 단품)
-    const searchInput = page.getByTestId('components-modal-search-input')
+    // 품목 검색 — AJ052RXH5BC1 (mock 에 존재하는 단품). ProductAutocomplete combobox 로 검색→후보 선택→추가.
+    const searchInput = modal.getByPlaceholder('모델명 또는 품목명 입력')
+    await searchInput.click()
     await searchInput.fill('AJ052')
-    // 검색 결과 대기
+    const option = page.locator('li[role="option"]').filter({ hasText: 'AJ052' }).first()
+    await expect(option).toBeVisible({ timeout: 5_000 })
+    await option.click()
+    // 선택 후 추가 버튼(modelCode 별 testid) 활성 → 클릭
     const addBtn = page.getByTestId('components-modal-add-AJ052RXH5BC1')
     await expect(addBtn).toBeVisible({ timeout: 5_000 })
     await addBtn.click()

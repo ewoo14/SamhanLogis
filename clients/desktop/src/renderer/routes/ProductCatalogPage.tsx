@@ -62,7 +62,7 @@
  *   <li>{@code components-modal-delete-{index}} — 구성품 삭제 버튼</li>
  *   <li>{@code components-modal-up-{index}} — 위로 버튼</li>
  *   <li>{@code components-modal-down-{index}} — 아래로 버튼</li>
- *   <li>{@code components-modal-search-input} — 품목 검색 인풋</li>
+ *   <li>품목 검색 = {@code ProductAutocomplete} combobox(label "품목 검색", 방향키 선택) — 구 search-input 대체</li>
  *   <li>{@code components-modal-add-{modelCode}} — 품목 추가 버튼</li>
  *   <li>{@code components-modal-save-button} — 저장 버튼</li>
  * </ul>
