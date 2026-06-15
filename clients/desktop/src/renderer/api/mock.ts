@@ -769,6 +769,10 @@ const MOCK_PRODUCTS_BY_MODEL: Record<
     modelName: string
     productName: string
     sellingPrice: string
+    purchasePrice?: string
+    categoryId?: string
+    description?: string | null
+    goods?: boolean
     productType?: string
     modelCode?: string
   }
@@ -778,6 +782,9 @@ const MOCK_PRODUCTS_BY_MODEL: Record<
     modelName: 'AJ040RXH4BC1',
     productName: '시스템에어컨 4Way 4HP',
     sellingPrice: '1850000',
+    purchasePrice: '1500000',
+    categoryId: 'cat-home',
+    goods: true,
     productType: 'SINGLE',
   },
   'SET-HM2WAY': {
@@ -785,6 +792,9 @@ const MOCK_PRODUCTS_BY_MODEL: Record<
     modelName: 'SET-HM2WAY',
     productName: '가정용 멀티 2in1 세트 (실내2 + 실외1 + 판넬 + 자재)',
     sellingPrice: '5400000',
+    purchasePrice: '4300000',
+    categoryId: 'cat-home',
+    goods: true,
     productType: 'BUNDLE',
     modelCode: 'SET-HM2WAY',
   },
@@ -793,24 +803,36 @@ const MOCK_PRODUCTS_BY_MODEL: Record<
     modelName: 'AJ052RXH5BC1',
     productName: '시스템에어컨 4Way 5HP',
     sellingPrice: '2120000',
+    purchasePrice: '1750000',
+    categoryId: 'cat-home',
+    goods: true,
   },
   AJ036NCH3CH: {
     productId: 'p-aj036',
     modelName: 'AJ036NCH3CH',
     productName: '천장형 1Way 3HP',
     sellingPrice: '1450000',
+    purchasePrice: '1180000',
+    categoryId: 'cat-home',
+    goods: true,
   },
   AJ100NCDKH: {
     productId: 'p-aj100',
     modelName: 'AJ100NCDKH',
     productName: '실외기 10HP',
     sellingPrice: '4200000',
+    purchasePrice: '3500000',
+    categoryId: 'cat-home',
+    goods: true,
   },
   'MWR-WE10N': {
     productId: 'p-mwr10',
     modelName: 'MWR-WE10N',
     productName: '유선 리모컨 (WE10N)',
     sellingPrice: '85000',
+    purchasePrice: '50000',
+    categoryId: 'cat-home',
+    goods: true,
   },
 }
 
@@ -1489,6 +1511,160 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
+  // POST /api/v1/products — 품목 신규 등록 (CreateProductRequest mock)
+  if (method === 'POST' && url.match(/\/api\/v1\/products(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('products.admin', 'create')
+    if (denied) return denied
+    ensureMockProductCatalogRowsSeeded()
+    const body = parseMockBody(config)
+    const modelName = String(body['modelName'] ?? '').trim()
+    const name = String(body['name'] ?? '').trim()
+    if (!modelName || !name) {
+      return mockError(400, 'INVALID_INPUT', '모델명과 품목명은 필수입니다.')
+    }
+    const modelCode = modelName
+    if (MOCK_PRODUCT_CATALOG_ROWS.some((row) => row.modelCode === modelCode)) {
+      return mockError(409, 'CONFLICT', '이미 등록된 모델명입니다.')
+    }
+    const itemKind = String(body['itemKind'] ?? 'GENERAL')
+    const productType = itemKind === 'SET' ? 'BUNDLE' : 'SINGLE'
+    const parentSetModelCode = String(body['parentSetModelCode'] ?? '').trim()
+    if (itemKind === 'SET_COMPONENT' && !parentSetModelCode) {
+      return mockError(400, 'INVALID_INPUT', '세트구성품은 부모 세트가 필요합니다.')
+    }
+    if (itemKind === 'SET_COMPONENT') {
+      const parent = MOCK_PRODUCT_CATALOG_ROWS.find((row) => row.modelCode === parentSetModelCode)
+      if (!parent || parent.productType !== 'BUNDLE') {
+        return mockError(400, 'INVALID_INPUT', '부모 세트를 찾을 수 없습니다.')
+      }
+    }
+
+    const productId = `p-${modelCode.toLowerCase().replace(/[^a-z0-9]+/g, '-') || Date.now()}`
+    MOCK_PRODUCTS_BY_MODEL[modelName] = {
+      productId,
+      modelName,
+      productName: name,
+      sellingPrice: String(body['sellingPrice'] ?? '0'),
+      purchasePrice: String(body['purchasePrice'] ?? '0'),
+      categoryId: String(body['categoryId'] ?? 'cat-home'),
+      description: (body['description'] as string | null | undefined) ?? null,
+      goods: String(body['goodsType'] ?? 'GOODS') !== 'NON_GOODS',
+      productType,
+      modelCode,
+    }
+    MOCK_PRODUCT_CATALOG_ROWS = [
+      {
+        modelCode,
+        name,
+        usageScope: itemKind === 'SET_COMPONENT' ? 'NONE' : 'BOTH',
+        estimateCategory: itemKind === 'SET_COMPONENT' ? null : 'OTHER',
+        usageScopeManual: false,
+        displayOrder: MOCK_PRODUCT_CATALOG_ROWS.length + 1,
+        releasePrice: Number(body['releasePrice'] ?? body['sellingPrice'] ?? 0),
+        deliveryPrice: Number(body['deliveryPrice'] ?? 0),
+        hasVariableDiscount: false,
+        legacyDiscountFlag: false,
+        discountFlags: null,
+        productType,
+        componentCount: 0,
+      },
+      ...MOCK_PRODUCT_CATALOG_ROWS,
+    ]
+    if (itemKind === 'SET_COMPONENT') {
+      const current = MOCK_BUNDLE_COMPONENTS[parentSetModelCode] ?? []
+      MOCK_BUNDLE_COMPONENTS = {
+        ...MOCK_BUNDLE_COMPONENTS,
+        [parentSetModelCode]: [
+          ...current,
+          {
+            componentProductCode: modelCode,
+            componentName: name,
+            defaultQty: 1,
+            qtyMode: 'FOLLOW_SET',
+            componentKind: (body['componentKind'] as 'INDOOR' | 'OUTDOOR' | 'PANEL' | 'REMOTE' | 'MATERIAL' | 'ACCESSORY' | 'FOOT' | undefined) ?? 'ACCESSORY',
+            componentVariant: null,
+            isDefault: false,
+            specText: null,
+            displayOrder: current.length + 1,
+          },
+        ],
+      }
+      MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) =>
+        row.modelCode === parentSetModelCode
+          ? { ...row, componentCount: (MOCK_BUNDLE_COMPONENTS[parentSetModelCode] ?? []).length }
+          : row,
+      )
+    }
+    return envelope({
+      id: productId,
+      name,
+      modelName,
+      modelCode,
+      categoryId: String(body['categoryId'] ?? 'cat-home'),
+      categoryName: '홈멀티',
+      sellingPrice: String(body['sellingPrice'] ?? '0'),
+      purchasePrice: String(body['purchasePrice'] ?? '0'),
+      currency: String(body['currency'] ?? 'KRW'),
+      tags: {},
+      description: (body['description'] as string | null | undefined) ?? null,
+    })
+  }
+
+  // PATCH /api/v1/products/{id} — 품목 부분 수정 (UpdateProductRequest mock)
+  const productUpdateMatch = url.match(/\/api\/v1\/products\/([^/?]+)(?:\?.*)?$/)
+  if (method === 'PATCH' && productUpdateMatch) {
+    const denied = mockRequirePermission('products.admin', 'update')
+    if (denied) return denied
+    ensureMockProductCatalogRowsSeeded()
+    const productId = decodeURIComponent(productUpdateMatch[1]!)
+    const entry = Object.entries(MOCK_PRODUCTS_BY_MODEL).find(([, value]) => value.productId === productId)
+    if (!entry) {
+      return mockError(404, 'NOT_FOUND', '제품을 찾을 수 없습니다')
+    }
+    const [oldKey, existing] = entry
+    const body = parseMockBody(config)
+    const nextModelName = String(body['modelName'] ?? existing.modelName).trim()
+    const nextName = String(body['name'] ?? existing.productName).trim()
+    const itemKind = String(body['itemKind'] ?? (existing.productType === 'BUNDLE' ? 'SET' : 'GENERAL'))
+    const productType = itemKind === 'SET' ? 'BUNDLE' : 'SINGLE'
+    delete MOCK_PRODUCTS_BY_MODEL[oldKey]
+    MOCK_PRODUCTS_BY_MODEL[nextModelName] = {
+      ...existing,
+      modelName: nextModelName,
+      productName: nextName,
+      categoryId: String(body['categoryId'] ?? existing.categoryId ?? 'cat-home'),
+      description: (body['description'] as string | null | undefined) ?? existing.description ?? null,
+      goods: body['goodsType'] == null ? existing.goods : String(body['goodsType']) !== 'NON_GOODS',
+      productType,
+      modelCode: nextModelName,
+    }
+    MOCK_PRODUCT_CATALOG_ROWS = MOCK_PRODUCT_CATALOG_ROWS.map((row) =>
+      row.modelCode === (existing.modelCode ?? existing.modelName)
+        ? {
+            ...row,
+            modelCode: nextModelName,
+            name: nextName,
+            productType,
+            releasePrice: body['releasePrice'] == null ? row.releasePrice : Number(body['releasePrice']),
+            deliveryPrice: body['deliveryPrice'] == null ? row.deliveryPrice : Number(body['deliveryPrice']),
+          }
+        : row,
+    )
+    return envelope({
+      id: productId,
+      name: nextName,
+      modelName: nextModelName,
+      modelCode: nextModelName,
+      categoryId: String(body['categoryId'] ?? existing.categoryId ?? 'cat-home'),
+      categoryName: '홈멀티',
+      sellingPrice: existing.sellingPrice,
+      purchasePrice: existing.purchasePrice ?? '0',
+      currency: 'KRW',
+      tags: {},
+      description: (body['description'] as string | null | undefined) ?? existing.description ?? null,
+    })
+  }
+
   const productSpecReorderMatch = url.match(/\/api\/v1\/products\/([^/?]+)\/specs\/reorder(?:\?.*)?$/)
   if (method === 'PATCH' && productSpecReorderMatch) {
     const denied = mockRequirePermission('products.admin', 'update')
@@ -1647,6 +1823,32 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
+  // GET /api/products/by-model/{modelName} — ProductFormPage edit 초기값 조회
+  const productByModelMatch = url.match(/\/api\/products\/by-model\/([^/?]+)(?:\?.*)?$/)
+  if (method === 'GET' && productByModelMatch) {
+    const denied = mockRequirePermission('products.list', 'view')
+    if (denied) return denied
+    const modelName = decodeURIComponent(productByModelMatch[1] ?? '')
+    const found = MOCK_PRODUCTS_BY_MODEL[modelName]
+      ?? Object.values(MOCK_PRODUCTS_BY_MODEL).find((p) => (p.modelCode ?? p.modelName) === modelName)
+    if (!found) {
+      return mockError(404, 'NOT_FOUND', '모델명에 해당하는 제품이 없습니다')
+    }
+    return envelope({
+      id: found.productId,
+      name: found.productName,
+      modelName: found.modelName,
+      modelCode: found.modelCode ?? found.modelName,
+      categoryId: found.categoryId ?? 'cat-home',
+      categoryName: '홈멀티',
+      sellingPrice: found.sellingPrice,
+      purchasePrice: found.purchasePrice ?? '0',
+      currency: 'KRW',
+      tags: {},
+      description: found.description ?? null,
+    })
+  }
+
   // GET /api/products?q=... — AC-2 품목 자동완성 검색 (product-service `/products?q=` 프록시)
   if (method === 'GET' && (url.endsWith('/api/products') || url.includes('/api/products?'))) {
     const q = String(config.params?.['q'] ?? '').toLowerCase()
@@ -1665,9 +1867,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         name: p.productName,
         modelName: p.modelName,
         productCode: null,
-        categoryId: null,
+        categoryId: p.categoryId ?? 'cat-home',
         sellingPrice: p.sellingPrice,
         status: 'ACTIVE',
+        goods: p.goods ?? true,
         modelCode: p.modelCode ?? p.modelName,
         productType: p.productType ?? 'SINGLE',
       })),

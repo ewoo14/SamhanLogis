@@ -12,7 +12,7 @@
  * UUID 비공개 가드: `id` 는 내부 전용 — 화면 표시 금지.
  * 표시 식별자는 modelCode (modelName 동일값) 만.
  */
-import { apiClient, type PageResponse } from './client'
+import { apiClient, type ApiEnvelope, type PageResponse } from './client'
 
 // ---------------------------------------------------------------------------
 // 공통 enum 타입 (BE 계약 1:1)
@@ -28,6 +28,25 @@ export type EstimateCategory =
   | 'COMMERCIAL_MULTI'
   | 'LEGACY'
   | 'OTHER'
+
+/** 품목 등록 화면 요청 전용 3구분 — BE ProductItemKind enum 과 정확히 일치 */
+export type ProductItemKind = 'GENERAL' | 'SET' | 'SET_COMPONENT'
+
+/** 내부 품목 카테고리 — BE ProductCategory enum 과 정확히 일치 */
+export type ProductCategory =
+  | 'HOME_MULTI'
+  | 'SINGLE_SET'
+  | 'SINGLE_PART'
+  | 'COMMERCIAL_MULTI'
+  | 'COMMERCIAL_PART'
+  | 'OLD'
+  | 'MATERIAL'
+
+/** BUNDLE 처리 모드 — BE BundleMode enum 과 정확히 일치 */
+export type BundleMode = 'EXPAND' | 'KEEP'
+
+/** 상품/비상품 — BE ProductGoodsType enum 과 정확히 일치 */
+export type ProductGoodsType = 'GOODS' | 'NON_GOODS'
 
 // ---------------------------------------------------------------------------
 // 응답 DTO
@@ -63,6 +82,45 @@ export interface ProductCatalogRow {
   productType?: ProductType
   /** 활성 구성품 수 — BUNDLE 외 0. BE 응답 없을 시 undefined */
   componentCount?: number
+}
+
+/** 카테고리 트리 노드 — BE CategoryResponse record 와 1:1 대응 */
+export interface ProductCategoryNode {
+  id: string
+  code: string
+  name: string
+  parentId: string | null
+  displayOrder: number
+  children: ProductCategoryNode[]
+}
+
+/** 제품 단건 상세 — UUID 는 내부 편집 호출 전용, 화면 미노출 */
+export interface ProductDetailResponse {
+  id: string
+  name: string
+  modelName: string
+  modelCode: string | null
+  categoryId: string
+  categoryName: string
+  sellingPrice: string | number | null
+  purchasePrice: string | number | null
+  currency: string | null
+  tags: Record<string, string> | null
+  description: string | null
+}
+
+/** 검색 요약 — edit route 에서 modelCode 기반 UUID 내부 해소용 */
+export interface ProductSummaryResponse {
+  id: string
+  name: string
+  modelName: string
+  productCode: string | null
+  categoryId: string | null
+  sellingPrice: string | number | null
+  status: string
+  goods?: boolean
+  modelCode?: string | null
+  productType?: ProductType | null
 }
 
 /**
@@ -138,6 +196,44 @@ export interface DisplayOrderInput {
   displayOrder: number
 }
 
+/** `POST /api/v1/products` 요청 body — BE CreateProductRequest record 와 필드명 동일 */
+export interface CreateProductRequest {
+  name: string
+  modelName: string
+  categoryId: string
+  sellingPrice: string
+  purchasePrice: string
+  currency: string
+  tags: Record<string, string>
+  description: string | null
+  itemKind: ProductItemKind
+  productCategory: ProductCategory
+  bundleMode: BundleMode | null
+  parentSetModelCode: string | null
+  componentKind: ComponentKind | null
+  unit: string | null
+  releasePrice: string | null
+  deliveryPrice: string | null
+  goodsType: ProductGoodsType
+}
+
+/** `PATCH /api/v1/products/{id}` 요청 body — BE UpdateProductRequest record 와 필드명 동일 */
+export interface UpdateProductRequest {
+  name: string | null
+  modelName: string | null
+  categoryId: string | null
+  description: string | null
+  itemKind: ProductItemKind | null
+  productCategory: ProductCategory | null
+  bundleMode: BundleMode | null
+  parentSetModelCode: string | null
+  componentKind: ComponentKind | null
+  unit: string | null
+  releasePrice: string | null
+  deliveryPrice: string | null
+  goodsType: ProductGoodsType | null
+}
+
 // ---------------------------------------------------------------------------
 // 요청 타입
 // ---------------------------------------------------------------------------
@@ -184,6 +280,50 @@ export async function listProducts(
     },
   )
   return res.data
+}
+
+/** 카테고리 트리 조회 — `GET /api/products/categories`. */
+export async function listProductCategories(): Promise<ProductCategoryNode[]> {
+  const res = await apiClient.get<ApiEnvelope<ProductCategoryNode[]>>('/api/products/categories')
+  return res.data.data
+}
+
+/** 제품 요약 검색 — edit route 의 내부 UUID 해소용. UUID 는 화면에 표시하지 않는다. */
+export async function searchProductSummaries(
+  q: string,
+  size = 20,
+): Promise<ProductSummaryResponse[]> {
+  const res = await apiClient.get<ApiEnvelope<PageResponse<ProductSummaryResponse>>>(
+    '/api/products',
+    { params: { q, size } },
+  )
+  return res.data.data?.content ?? []
+}
+
+/** 모델명 정확 조회 — edit form 초기값 구성용. UUID 는 화면에 표시하지 않는다. */
+export async function getProductByModelName(modelName: string): Promise<ProductDetailResponse> {
+  const res = await apiClient.get<ApiEnvelope<ProductDetailResponse>>(
+    `/api/products/by-model/${encodeURIComponent(modelName)}`,
+  )
+  return res.data.data
+}
+
+/** 품목 신규 등록 — `POST /api/v1/products`. */
+export async function createProduct(req: CreateProductRequest): Promise<ProductDetailResponse> {
+  const res = await apiClient.post<ApiEnvelope<ProductDetailResponse>>('/api/v1/products', req)
+  return res.data.data
+}
+
+/** 품목 부분 수정 — `PATCH /api/v1/products/{id}`. */
+export async function updateProduct(
+  id: string,
+  req: UpdateProductRequest,
+): Promise<ProductDetailResponse> {
+  const res = await apiClient.patch<ApiEnvelope<ProductDetailResponse>>(
+    `/api/v1/products/${encodeURIComponent(id)}`,
+    req,
+  )
+  return res.data.data
 }
 
 /**

@@ -304,6 +304,7 @@ import { GroupwareApprovalTemplateAdminPage } from './GroupwareApprovalTemplateA
 import { ApprovalDocView } from '../print/ApprovalDocView'
 // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
 import { ProductCatalogPage } from './ProductCatalogPage'
+import { ProductFormPage } from './ProductFormPage'
 
 /**
  * Print route wrapper — `?perRoom=1` query 시 Designer NextDaySlipView 의
@@ -1263,6 +1264,22 @@ const router = createHashRouter([
         element: (
           <PermissionGuard pageCode="products.list" action="view">
             <ProductCatalogPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/products/new',
+        element: (
+          <PermissionGuard pageCode="products.admin" action="create">
+            <ProductFormPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/products/:modelCode/edit',
+        element: (
+          <PermissionGuard pageCode="products.admin" action="update">
+            <ProductFormPage />
           </PermissionGuard>
         ),
       },

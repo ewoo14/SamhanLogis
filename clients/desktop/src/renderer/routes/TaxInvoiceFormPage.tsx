@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Input, Spinner } from '@samhan/design-system'
+import { Button, Card, Input, PartnerAutocomplete, Spinner, type PartnerOption } from '@samhan/design-system'
 import {
   createTaxInvoice,
   getTaxInvoice,
@@ -133,15 +133,6 @@ export function TaxInvoiceFormPage() {
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()])
   const [topError, setTopError] = useState<string>('')
 
-  // 거래처 자동완성
-  const [partnerKeyword, setPartnerKeyword] = useState<string>('')
-  const [showPartnerSuggest, setShowPartnerSuggest] = useState<boolean>(false)
-  const partnerSearchQuery = useQuery({
-    queryKey: ['partners', 'search', partnerKeyword],
-    queryFn: () => searchPartners(partnerKeyword, 8),
-    enabled: partnerKeyword.trim().length >= 1 && showPartnerSuggest,
-  })
-
   // edit 모드 hydrate
   useEffect(() => {
     if (!isEdit) return
@@ -183,10 +174,34 @@ export function TaxInvoiceFormPage() {
     setPartnerName(p.companyName)
     setPartnerBusinessNo(p.businessRegistrationNumber)
     setPartnerAddress(p.address ?? '')
-    setPartnerKeyword(p.companyName)
-    setShowPartnerSuggest(false)
     // edit 모드 partnerIdSnapshot 도 맞춰줌 (단, search PartnerSummary 에 partnerId 가 없으면 빈 채로
     // BE 검증 단계에서 reject — 실제 운영은 search 가 partnerId 도 함께 반환해야 함).
+  }
+
+  const searchPartnerOptions = async (q: string): Promise<PartnerOption[]> => {
+    const rows = await searchPartners(q, 8)
+    return rows.map((row) => ({
+      partnerCode: row.businessRegistrationNumber,
+      name: row.companyName,
+      bizNo: row.businessRegistrationNumber,
+      phone: row.contactPhone ?? undefined,
+    }))
+  }
+
+  const handlePartnerOptionChange = (option: PartnerOption | null) => {
+    if (!option) {
+      setPartner(null)
+      return
+    }
+    handleSelectPartner({
+      businessRegistrationNumber: option.bizNo ?? option.partnerCode,
+      companyName: option.name,
+      representativeName: null,
+      contactPhone: option.phone ?? null,
+      address: null,
+      groupName: null,
+      note: null,
+    })
   }
 
   const updateLine = (index: number, patch: Partial<DraftLine>) => {
@@ -384,69 +399,22 @@ export function TaxInvoiceFormPage() {
 
       <Card>
         {/* 거래처 선택 */}
-        <div style={{ position: 'relative', marginBottom: 16 }}>
-          <Input
+        <div style={{ marginBottom: 16 }}>
+          <PartnerAutocomplete
             label="거래처 검색"
             placeholder="거래처명 또는 사업자번호"
-            value={partnerKeyword}
-            onChange={(e) => {
-              setPartnerKeyword(e.target.value)
-              setShowPartnerSuggest(true)
-            }}
-            onFocus={() => setShowPartnerSuggest(true)}
+            value={partner
+              ? {
+                  partnerCode: partner.businessRegistrationNumber,
+                  name: partner.companyName,
+                  bizNo: partner.businessRegistrationNumber,
+                  phone: partner.contactPhone ?? undefined,
+                }
+              : null}
+            onChange={handlePartnerOptionChange}
+            searchPartners={searchPartnerOptions}
             disabled={Boolean(isReadOnly)}
-            data-testid="tax-invoice-form-partner-select"
           />
-          {showPartnerSuggest &&
-          partnerKeyword.trim().length >= 1 &&
-          (partnerSearchQuery.data?.length ?? 0) > 0 ? (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                marginTop: 4,
-                background: '#fff',
-                border: '1px solid #D1D5DB',
-                borderRadius: 6,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                zIndex: 10,
-                maxHeight: 240,
-                overflowY: 'auto',
-              }}
-              role="listbox"
-            >
-              {(Array.isArray(partnerSearchQuery.data) ? partnerSearchQuery.data : []).map((p) => (
-                <div
-                  key={p.businessRegistrationNumber}
-                  role="option"
-                  aria-selected={
-                    partner?.businessRegistrationNumber ===
-                    p.businessRegistrationNumber
-                  }
-                  onClick={() => handleSelectPartner(p)}
-                  style={{
-                    padding: '8px 12px',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    borderBottom: '1px solid #F3F4F6',
-                  }}
-                >
-                  <div style={{ fontWeight: 500 }}>{p.companyName}</div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: '#6B7280',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {p.businessRegistrationNumber} · {p.address ?? '주소 없음'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
         </div>
 
         {/* 거래처 snapshot 표시 */}

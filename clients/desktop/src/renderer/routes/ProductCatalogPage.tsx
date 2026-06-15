@@ -74,6 +74,7 @@ import {
   useRef,
   type CSSProperties,
 } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   useMutation,
   useQuery,
@@ -105,8 +106,10 @@ import {
   DragHandle,
   Input,
   Modal,
+  ProductAutocomplete,
   Select,
   type DataTableColumn,
+  type ProductOption,
 } from '@samhan/design-system'
 import {
   listProducts,
@@ -120,6 +123,7 @@ import {
   type BundleComponentInput,
   type ComponentKind,
 } from '../api/productCatalogApi'
+import { searchProducts as searchProductsApi } from '../api/productApi'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -319,8 +323,7 @@ function ComponentsModal({
 }: ComponentsModalProps) {
   const queryClient = useQueryClient()
   const [drafts, setDrafts] = useState<ComponentDraft[]>([])
-  const [searchInput, setSearchInput] = useState('')
-  const [searchResults, setSearchResults] = useState<ProductCatalogRow[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
 
   // 구성품 목록 로드
@@ -329,14 +332,6 @@ function ComponentsModal({
     queryFn: () => listBundleComponents(modelCode),
     enabled: open && modelCode.length > 0,
     staleTime: 0,
-  })
-
-  // 품목 검색 (기존 listProducts 재사용 — 자기 자신·BUNDLE 제외)
-  const searchQuery = useQuery({
-    queryKey: ['product-catalog-search', searchInput],
-    queryFn: () => listProducts({ q: searchInput, size: 20 }),
-    enabled: searchInput.trim().length >= 1,
-    staleTime: 10_000,
   })
 
   // 구성품 저장 (PUT replace-all)
@@ -374,18 +369,6 @@ function ComponentsModal({
       )
     }
   }, [open, componentsQuery.data])
-
-  // 검색 결과 업데이트 (자기 자신·BUNDLE 제외)
-  useEffect(() => {
-    if (searchQuery.data) {
-      const results = searchQuery.data.content.filter(
-        (p) => p.modelCode !== modelCode && p.productType !== 'BUNDLE',
-      )
-      setSearchResults(results)
-    } else {
-      setSearchResults([])
-    }
-  }, [searchQuery.data, modelCode])
 
   const handleQuantityChange = (localId: string, value: string) => {
     const parsed = parseInt(value, 10)
@@ -434,12 +417,22 @@ function ComponentsModal({
     })
   }
 
-  const handleAdd = (product: ProductCatalogRow) => {
+  const searchComponentProducts = async (q: string): Promise<ProductOption[]> => {
+    const products = await searchProductsApi(q)
+    return products.filter((product) => {
+      const visibleCode = product.modelCode ?? product.modelName
+      return visibleCode !== modelCode && product.productType !== 'BUNDLE'
+    })
+  }
+
+  const handleAdd = (product: ProductOption | null) => {
+    if (!product) return
+    const visibleCode = product.modelCode ?? product.modelName
     // 중복 추가 방지
-    if (drafts.some((d) => d.componentProductCode === product.modelCode)) return
+    if (drafts.some((d) => d.componentProductCode === visibleCode)) return
     const newDraft: ComponentDraft = {
-      componentProductCode: product.modelCode,
-      componentName: product.name,
+      componentProductCode: visibleCode,
+      componentName: product.productName,
       defaultQty: 1,
       qtyMode: 'FOLLOW_SET',
       componentKind: null, // 신규: 사용자가 선택하거나 BE 기본(ACCESSORY) 적용
@@ -447,12 +440,11 @@ function ComponentsModal({
       isDefault: false,
       specText: null,
       displayOrder: drafts.length + 1,
-      _localId: `new-${product.modelCode}-${Date.now()}`,
+      _localId: `new-${visibleCode}-${Date.now()}`,
       _isNew: true,
     }
     setDrafts((prev) => [...prev, newDraft])
-    setSearchInput('')
-    setSearchResults([])
+    setSelectedProduct(null)
   }
 
   const handleSave = () => {
@@ -474,14 +466,19 @@ function ComponentsModal({
   }
 
   const handleClose = () => {
-    setSearchInput('')
-    setSearchResults([])
+    setSelectedProduct(null)
     setModalError(null)
     onClose()
   }
 
   const isLoading = componentsQuery.isLoading
   const isSaving = saveMutation.isPending
+  const selectedProductCode = selectedProduct
+    ? selectedProduct.modelCode ?? selectedProduct.modelName
+    : ''
+  const selectedAlreadyAdded = selectedProductCode
+    ? drafts.some((d) => d.componentProductCode === selectedProductCode)
+    : false
 
   return (
     <Modal
@@ -629,45 +626,28 @@ function ComponentsModal({
               품목 추가 (단품만)
             </h4>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <Input
+              <ProductAutocomplete
+                value={selectedProduct}
+                onChange={setSelectedProduct}
+                searchProducts={searchComponentProducts}
                 label="품목 검색"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="모델명 또는 품목명 입력"
-                inputSize="sm"
-                fullWidth={false}
-                style={{ minWidth: 200 }}
-                data-testid="components-modal-search-input"
+                minChars={1}
               />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleAdd(selectedProduct)}
+                disabled={!selectedProduct || isSaving || selectedAlreadyAdded}
+                data-testid={
+                  selectedProduct
+                    ? `components-modal-add-${selectedProductCode}`
+                    : 'components-modal-add-button'
+                }
+              >
+                {selectedAlreadyAdded ? '추가됨' : '추가'}
+              </Button>
             </div>
-            {searchResults.length > 0 ? (
-              <div style={searchResultsStyle}>
-                {searchResults.map((p) => {
-                  const alreadyAdded = drafts.some((d) => d.componentProductCode === p.modelCode)
-                  return (
-                    <div key={p.modelCode} style={searchResultRowStyle}>
-                      <span style={{ flex: 1, fontSize: 12 }}>
-                        <span style={{ fontFamily: 'monospace' }}>{p.modelCode}</span>
-                        <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>{p.name}</span>
-                      </span>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleAdd(p)}
-                        disabled={alreadyAdded || isSaving}
-                        data-testid={`components-modal-add-${p.modelCode}`}
-                      >
-                        {alreadyAdded ? '추가됨' : '추가'}
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : searchInput.trim().length >= 1 && !searchQuery.isFetching ? (
-              <p style={{ fontSize: 11, color: 'var(--color-neutral-400)', marginTop: 4 }}>
-                검색 결과가 없습니다.
-              </p>
-            ) : null}
           </section>
         ) : null}
       </div>
@@ -740,8 +720,10 @@ function SortableRow({ row, columns }: SortableRowProps) {
 export function ProductCatalogPage() {
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { canAccess } = usePermissions()
   const canEdit = canAccess('products.admin', 'update')
+  const canCreate = canAccess('products.admin', 'create')
 
   const [searchInput, setSearchInput] = useState('')
   const [committedSearch, setCommittedSearch] = useState('')
@@ -1057,6 +1039,22 @@ export function ProductCatalogPage() {
         ) : null,
     },
     {
+      key: '_actions' as const,
+      header: '관리',
+      width: '80px',
+      render: (row) =>
+        canEdit ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate(`/products/${encodeURIComponent(row.modelCode)}/edit`)}
+            data-testid={`product-catalog-edit-button-${row.modelCode}`}
+          >
+            수정
+          </Button>
+        ) : null,
+    },
+    {
       key: 'displayOrder',
       header: '표시순서',
       width: '80px',
@@ -1074,10 +1072,21 @@ export function ProductCatalogPage() {
     <div style={pageStyle}>
       {/* ── 헤더 ─────────────────────────────────────── */}
       <div style={headerRowStyle}>
-        <h3 style={{ margin: 0 }}>품목 관리</h3>
-        <span style={subtitleStyle}>
-          품목별 견적/주문 노출 범위 수동 설정 + 세트 구성품 편집
-        </span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <h3 style={{ margin: 0 }}>품목 관리</h3>
+          <span style={subtitleStyle}>
+            품목별 견적/주문 노출 범위 수동 설정 + 세트 구성품 편집
+          </span>
+        </div>
+        {canCreate ? (
+          <Button
+            variant="primary"
+            onClick={() => navigate('/products/new')}
+            data-testid="product-catalog-create-button"
+          >
+            품목 등록
+          </Button>
+        ) : null}
       </div>
 
       {canEdit ? null : (
@@ -1340,7 +1349,8 @@ const pageStyle: CSSProperties = {
 
 const headerRowStyle: CSSProperties = {
   display: 'flex',
-  alignItems: 'baseline',
+  alignItems: 'center',
+  justifyContent: 'space-between',
   gap: 12,
   flexWrap: 'wrap',
 }
@@ -1465,22 +1475,6 @@ const orderButtonStyle: CSSProperties = {
   padding: '2px 5px',
   fontSize: 10,
   lineHeight: 1,
-}
-
-const searchResultsStyle: CSSProperties = {
-  marginTop: 8,
-  border: '1px solid var(--color-border, #E5E7EB)',
-  borderRadius: 4,
-  maxHeight: 180,
-  overflowY: 'auto',
-}
-
-const searchResultRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '6px 10px',
-  borderBottom: '1px solid var(--color-border, #E5E7EB)',
 }
 
 // Sortable 테이블 (드래그 활성 시 DataTable 대체 — renderRow 미지원 우회)
