@@ -7,8 +7,8 @@ partCount=2
 hasCompSection=true
 
 --- 구성품 (kind/model/specsCount[DB]) ---
-[] AM160NXGGBH1 GHP 가스히트펌프 16HP | DB specs=12
-[] AM200NXGGBH1 GHP 가스히트펌프 20HP | DB specs=12
+[ACCESSORY] AM160NXGGBH1 GHP 가스히트펌프 16HP | DB specs=12
+[ACCESSORY] AM200NXGGBH1 GHP 가스히트펌프 20HP | DB specs=12
 
 --- 모달 #specBody innerText ---
 배관경(액관/가스관)	19/41
@@ -34,7 +34,7 @@ hasCompSection=true
 실내기가 높은 경우	50m
 실내기-실내기	50m
 구성품별 사양
-AM160NXGGBH1 · GHP 가스히트펌프 16HP
+[부속] AM160NXGGBH1 · GHP 가스히트펌프 16HP
 용량	45
 배관경	15/28
 냉매가스	R410A
@@ -47,7 +47,7 @@ AM160NXGGBH1 · GHP 가스히트펌프 16HP
 최대장배관	170m
 최대고저차	70m/50m/50m
 최대연결실내기대수	23
-AM200NXGGBH1 · GHP 가스히트펌프 20HP
+[부속] AM200NXGGBH1 · GHP 가스히트펌프 20HP
 용량	56
 배관경	15/28
 냉매가스	R410A

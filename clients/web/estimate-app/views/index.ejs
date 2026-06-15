@@ -3728,6 +3728,12 @@ function renderComponentSpecs_(parts, setSpec, scope){
     const t = String(v ?? '').trim();
     return t && t !== '-' ? t : '';
   };
+  const html_ = v => clean_(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
   const withKg_ = v => {
     const t = clean_(v);
     return t ? t + 'kg' : '';
@@ -3750,9 +3756,33 @@ function renderComponentSpecs_(parts, setSpec, scope){
     const t = clean_(k);
     return t ? (KIND_KO[t.toUpperCase()] || t) : '';
   };
+  const detailRows_ = detail => {
+    if(!detail || typeof detail !== 'object') return [];
+    const rows = [
+      ['배관경(액관/가스관)', detail.pipeDia],
+      ['냉방성능(kcal/h)', detail.cool_cap_kcal || detail.cool_kcal],
+      ['난방성능(kcal/h)', detail.heat_cap_kcal || detail.heat_kcal],
+      ['냉방성능(kW)', detail.cool_cap_kw || detail.cool_kw],
+      ['난방성능(kW)', detail.heat_cap_kw || detail.heat_kw],
+      ['냉방소비전력(kW)', detail.cool_pow_kw || detail.cool_power],
+      ['난방소비전력(kW)', detail.heat_pow_kw || detail.heat_power],
+      ['냉매가스', detail.gas],
+      ['전원선(mm²)', detail.powerLine],
+      ['차단기(A)', detail.breaker],
+      ['제품크기(mm) (WxHxD)', detail.size],
+      ['제품중량(kg)', withKg_(detail.weight)],
+      ['포장치수(mm) (WxHxD)', detail.packSize],
+      ['포장중량(kg)', withKg_(detail.packWeight)],
+      ['최대장배관(m)', detail.maxPipe],
+      ['최대고저차(m)', detail.maxDrop]
+    ];
+    return rows.filter(r => clean_(r[1]));
+  };
 
   const blocks = [];
   parts.forEach(p => {
+    if(scope === 'comm' && p?.isSetFallback) return;
+
     const rows = [];
     if(Array.isArray(p?.specs) && p.specs.length){
       p.specs.forEach(spec => {
@@ -3762,14 +3792,19 @@ function renderComponentSpecs_(parts, setSpec, scope){
         const unit = clean_(spec?.unit);
         rows.push([key, value + (unit ? ' ' + unit : '')]);
       });
-    }else if(scope === 'single' && isIndoor_(p)){
+    }
+    if(!rows.length){
+      const modelSpec = SPEC_DETAIL_MAP?.[clean_(p?.model)]?.[scope];
+      rows.push(...detailRows_(modelSpec));
+    }
+    if(!rows.length && scope === 'single' && isIndoor_(p)){
       rows.push(
         ['제품크기(mm) (WxHxD)', clean_(s.inSize)],
         ['제품중량(kg)', withKg_(s.inWeight)],
         ['포장치수(mm) (WxHxD)', clean_(s.inPackSize)],
         ['포장중량(kg)', withKg_(s.inPackWeight)]
       );
-    }else if(scope === 'single' && isOutdoor_(p)){
+    }else if(!rows.length && scope === 'single' && isOutdoor_(p)){
       rows.push(
         ['제품크기(mm) (WxHxD)', clean_(s.outSize)],
         ['제품중량(kg)', withKg_(s.outWeight)],
@@ -3786,9 +3821,9 @@ function renderComponentSpecs_(parts, setSpec, scope){
     const name = clean_(p?.name);
     const head = (kind ? '[' + kind + '] ' : '') + (model || name) + (model && name ? ' · ' + name : '');
     blocks.push('<div class="comp-spec-block"><div class="comp-spec-head">'
-      + head
+      + html_(head)
       + '</div>'
-      + specTable_(validRows, {noTone:true})
+      + specTable_(validRows.map(r => [html_(r[0]), html_(r[1])]), {noTone:true})
       + '</div>');
   });
 
@@ -7004,7 +7039,8 @@ function explodeCommSets_(setRow, setQty){
       qty: qtySet,
       price: getRealCommPrice(setRow.model) || 0,
       spec: setRow.spec || '',
-      specs: []
+      specs: [],
+      isSetFallback: true
     }];
   }
 
@@ -7030,6 +7066,7 @@ function explodeCommSets_(setRow, setQty){
       model: p.model, 
       qty: finalQty, 
       price: getRealCommPrice(p.model) || 0,
+      kind: p.kind || '',
       spec: mySpec,
       specs: Array.isArray(p.specs) ? p.specs : []
     };
