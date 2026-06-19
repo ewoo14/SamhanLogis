@@ -4,7 +4,35 @@
 
 ---
 
-## 🟢 현재 상태 (2026-06-19 최신) — ✅ 수식빌더+기초품목↔견적품목+카탈로그DB+품목고도화/재고세트제외+슬4(변동DC=moot) 완료 → 다음 우선순위 대기
+## 🚨 핸드오프 (2026-06-19 저녁 — 주말 62h 무중단 세션용, 본 섹션 먼저 읽기)
+
+> 개발책임자: 금요일 저녁 정리 후 **새 세션을 다음주 월요일 오전 8시(KST)까지 무중단**으로 돌릴 것. **원격 전용 접속** → 세션·Codex MCP 단절 주의.
+
+### 🔴 무중단 세션 운영 원칙 (반드시 따를 것)
+1. **슬라이스마다 즉시 commit + push** — 단절 시 손실 0. 큰 작업을 한 번에 쌓지 말 것.
+2. **Codex MCP 는 주말 내 반드시 끊긴다** ([[codex-mcp-session-limit]]). 끊기면 **`codex exec` Bash 폴백**(반드시 `</dev/null` 리다이렉트 [[codex-exec-stdin-hang]]) 또는 **Agent/Claude 직접 구현 대체**([[temp-multimodel-workflow]] 환경 예외). MCP 복구 시 재사용. Codex CLI 0.131.0 PATH 확인됨.
+3. **자율 진행**: `/loop`(자가 페이싱) 또는 클라우드 routine(`/schedule`, 로컬 단절 무관 — 원격 전용에 더 안전). 슬라이스 단위로 dual review→CI green→Docker 실QA→머지, 개발책임자 개입 없이 연속([[pm-auto-continuous]], [[review-posting-and-zero-skip]]). 멈춤=신규 정책/critical만.
+4. **Docker 스택 가동 중**(gateway:8080, slip:8086, partner-auth:8091, postgres, auth, eureka — 전부 healthy) → 라이브 실QA 가능([[overnight-live-capture]]: 재빌드해서라도 실 캡처, deferral 금지).
+5. 작업트리에 **docs/qa/*.png ~74개가 dirty**(full Playwright 게이트 실행 부수물, presence 무관) — **커밋 금지, 특정 파일만 명시 staging**. `git add -A` 금지.
+
+### 작업 1 — presence MVP PR #515 (마무리만 남음) `feat/presence-mvp-fixed`
+- **상태**: PR #513 머지→#514 revert(Playwright 8 fail)→본 브랜치 재적용+회귀 2건 fix + dual review(Opus 13 confirmed/Codex 6)+ round-2 BE/FE 하드닝 fold-in **완료**. **CI 30/30 PASS**. slip-collab Playwright 3/3 local PASS. vitest 9/97. 커밋 3개(2c81b28b mock핸들러·785eb3d6 BE하드닝·80abb632 FE하드닝).
+- **잔여(머지 전 의무)**: **Docker 2-세션 presence 실QA 캡처**(VITE_MOCK_MODE off + VITE_API_BASE_URL=:8080, 두 브라우저 컨텍스트 서로 다른 실 로그인 → 같은 슬립 상세 진입 → 상호 아바타 표시 + 1세션 이탈 시 제거, [[real-qa-run]]·[[no-fake-data]]). PR 코멘트 인라인 게시 → 머지.
+- 후속(별도): usePresence hook 단위테스트(jsdom+@testing-library 인프라 필요, O1 P2) — 통합테스트로 커버되어 follow-up.
+
+### 작업 2 — 이카운트 이관 자료 네이티브 편입 에픽 (정찰·spec 완료 → 슬라이스 구현)
+- **방침**([[project-ecount-native-fold]]): 이관 자료=시드로 네이티브 편입, "회계 관리자(MIG-14)" silo 메뉴 폐기. **현금은 이미 분개장 편입됨**(중복 화면만 폐기), 주문만 미편입.
+- **정찰**: `docs/research/2026-06-19-ecount-native-fold-recon.md`. **spec**: `docs/superpowers/specs/2026-06-19-ecount-native-fold.md`.
+- **개발책임자 결정**: D1=주문→**slip-service partner_orders 이식**, D2=과거 이관자료 **그대로 통합 표시**(슬3 폐기).
+- **슬라이스 순서**: 슬1(잔액스냅샷 silo 폐기→partner-aging) → 슬2(현금 silo 폐기→분개장/입금매칭, cash_* lineage 유지) → 슬4(원장대조·운영대시보드 운영admin 격리, cutover 전 폐기금지) → 슬5(회계수정요청 재배치+"회계 관리자" 토글 해체) → **슬6(주문 partner_orders cross-service 이식, 대형)**.
+- 가드: page-code 제거=permissions/matrix/mock seed 동기화+전체 mock suite([[fe-guard-removal-contract-tests]]·[[defect-family-sweep-fix]]), BE/마이그=fresh Postgres probe+Linux CI IT.
+
+### 병렬 진행 지시 (개발책임자)
+작업1·2 **병렬**. 권장: 작업1(presence 실QA+머지)을 먼저 빠르게 닫고, 작업2 슬1부터 연속 슬라이스.
+
+---
+
+## 🟢 이전 상태 (2026-06-19 주간) — ✅ 수식빌더+기초품목↔견적품목+카탈로그DB+품목고도화/재고세트제외+슬4(변동DC=moot) 완료 → 다음 우선순위 대기
 
 > **✅ 수식 빌더 에픽 완료**(2026-06-19 개발책임자 선언): G1(#502)·Phase1(#503)·F1.5(#504)·F3(#505)·F4(#506) 5슬라이스로 '하드코딩 수식→설정 기반 계산' 핵심 달성. **F5 미구현** — 정찰이 F5 주 목표(estimate-app 계산 전환)가 Phase1/F3 기달성을 확인(잔여 classifyRemoteType variant·반올림=저가치).
 >

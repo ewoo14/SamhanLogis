@@ -10,6 +10,7 @@
 - [Build Conventions](project_build_conventions.md) — Gradle multi-project, Java 17, BaseEntity 7 audit fields mandatory, Soft Delete only
 - [Domain Strategy](project_domain_strategy.md) — samhan-air.com subdomains: app/api/order/sign/chat/files/monitor
 - [Korean Audit Standard](project_korean_accounting.md) — 한국 일반기업회계기준 표준 계정과목 코드 (100/200/300/400/500/800/900) seed data required
+- [이카운트 이관 자료 네이티브 편입](project_ecount_native_fold.md) — 이관 자료 별도 메뉴/저장(silo) 금지, 시드로 네이티브 편입+"회계 관리자" 폐기 에픽. 현금=이미 분개장 편입(중복 silo만 폐기), 주문=미편입 G1. 정찰 완료→spec→슬라이스, D1~D4 결정 대기 (2026-06-19)
 - [Dev Environment](project_dev_environment.md) — JDK 17 / Gradle 8.10.2 / Docker; locations, env vars, common commands
 - [Korean Path JDK Trap](feedback_korean_path_jdk.md) — `gradle test` fails when project sits under 한글 path on JDK 17; use `assemble` locally, or move/upgrade
 - [한국어 의무 — 커밋/PR/Issue](feedback_korean_commits.md) — 모든 git commit, GitHub PR, Issue는 한국어 작성 필수 (prefix와 trailer만 예외)
