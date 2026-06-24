@@ -7,14 +7,18 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
-import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
+import com.samhanair.logis.slip.dto.dispatch.SlipBoardResponse;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -32,24 +36,23 @@ import org.springframework.data.domain.Pageable;
 class DispatchTaskBoardQueryServiceTest {
 
     @Mock SlipRepository slipRepo;
+    @Mock UserInternalClient userInternalClient;
     @InjectMocks DispatchTaskBoardQueryService svc;
 
     @Test
     void default_uses_seoul_today_pm1_and_UNDISPATCHED() {
-        when(slipRepo.findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
-                any(SlipType.class), any(LocalDate.class), any(LocalDate.class),
-                any(), any(Pageable.class)))
+        when(slipRepo.findDispatchReadyOutboundSlips(
+                any(LocalDate.class), any(LocalDate.class), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        Page<Slip> page = svc.findUnDispatchedSlips(null, null, null, 0, 50);
+        Page<SlipBoardResponse> page = svc.findUnDispatchedSlips(null, null, null, 0, 50);
         assertThat(page).isNotNull();
 
         ArgumentCaptor<LocalDate> fromC = ArgumentCaptor.forClass(LocalDate.class);
         ArgumentCaptor<LocalDate> toC = ArgumentCaptor.forClass(LocalDate.class);
         ArgumentCaptor<Set<SlipDispatchStatus>> statusC = ArgumentCaptor.captor();
-        verify(slipRepo).findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
-                eq(SlipType.OUTBOUND), fromC.capture(), toC.capture(),
-                statusC.capture(), any(Pageable.class));
+        verify(slipRepo).findDispatchReadyOutboundSlips(
+                fromC.capture(), toC.capture(), statusC.capture(), any(Pageable.class));
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
         assertThat(fromC.getValue()).isEqualTo(today.minusDays(1));
@@ -59,9 +62,8 @@ class DispatchTaskBoardQueryServiceTest {
 
     @Test
     void custom_range_and_statuses() {
-        when(slipRepo.findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
-                any(SlipType.class), any(LocalDate.class), any(LocalDate.class),
-                any(), any(Pageable.class)))
+        when(slipRepo.findDispatchReadyOutboundSlips(
+                any(LocalDate.class), any(LocalDate.class), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         svc.findUnDispatchedSlips(
@@ -70,8 +72,7 @@ class DispatchTaskBoardQueryServiceTest {
                 1, 30);
 
         ArgumentCaptor<Pageable> pageableC = ArgumentCaptor.forClass(Pageable.class);
-        verify(slipRepo).findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
-                eq(SlipType.OUTBOUND),
+        verify(slipRepo).findDispatchReadyOutboundSlips(
                 eq(LocalDate.of(2026, 5, 10)), eq(LocalDate.of(2026, 5, 20)),
                 any(), pageableC.capture());
 
@@ -90,17 +91,47 @@ class DispatchTaskBoardQueryServiceTest {
 
     @Test
     void invalid_size_defaults_to_50() {
-        when(slipRepo.findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
-                any(SlipType.class), any(LocalDate.class), any(LocalDate.class),
-                any(), any(Pageable.class)))
+        when(slipRepo.findDispatchReadyOutboundSlips(
+                any(LocalDate.class), any(LocalDate.class), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         svc.findUnDispatchedSlips(null, null, null, 0, -1);
 
         ArgumentCaptor<Pageable> pageableC = ArgumentCaptor.forClass(Pageable.class);
-        verify(slipRepo).findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
-                any(SlipType.class), any(LocalDate.class), any(LocalDate.class),
-                any(), pageableC.capture());
+        verify(slipRepo).findDispatchReadyOutboundSlips(
+                any(LocalDate.class), any(LocalDate.class), any(), pageableC.capture());
         assertThat(pageableC.getValue().getPageSize()).isEqualTo(50);
+    }
+
+    @Test
+    void maps_inspector_name_and_signed_at_without_exposing_inspector_user_id() {
+        UUID inspectorId = UUID.randomUUID();
+        LocalDateTime signedAt = LocalDateTime.of(2026, 6, 24, 9, 30);
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slip.getId()).thenReturn(UUID.randomUUID());
+        when(slip.getSlipNo()).thenReturn("2026/06/24-1");
+        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 6, 24));
+        when(slip.getPartnerCode()).thenReturn("P-INSPECT-001");
+        when(slip.getPartnerName()).thenReturn("검수완료 거래처");
+        when(slip.getDeliveryAddress()).thenReturn("서울시 강남구 테스트로 1");
+        when(slip.getRecipientPhone()).thenReturn("010-1111-2222");
+        when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
+        when(slip.getInspectorUserId()).thenReturn(inspectorId.toString());
+        when(slip.getInspectorSignedAt()).thenReturn(signedAt);
+        when(slipRepo.findDispatchReadyOutboundSlips(
+                any(LocalDate.class), any(LocalDate.class), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(slip)));
+        when(userInternalClient.resolveFullName(inspectorId)).thenReturn(Optional.of("검수담당자"));
+
+        Page<SlipBoardResponse> page = svc.findUnDispatchedSlips(
+                LocalDate.of(2026, 6, 24),
+                LocalDate.of(2026, 6, 24),
+                Set.of(SlipDispatchStatus.UNDISPATCHED),
+                0,
+                50);
+
+        SlipBoardResponse row = page.getContent().get(0);
+        assertThat(row.inspectorName()).isEqualTo("검수담당자");
+        assertThat(row.inspectorSignedAt()).isEqualTo(signedAt);
     }
 }

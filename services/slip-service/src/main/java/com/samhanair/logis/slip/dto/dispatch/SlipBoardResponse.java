@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.dto.dispatch;
 
 import com.samhanair.logis.slip.domain.Slip;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -14,6 +15,8 @@ import java.util.UUID;
  * @param partnerName 거래처명
  * @param deliveryAddress 인수지
  * @param recipientPhone 인수자 전화번호
+ * @param inspectorName 검수자명. user-service resolve 실패 시 null.
+ * @param inspectorSignedAt 검수 완료 시각
  * @param dispatchStatus 배차 상태 enum name
  */
 public record SlipBoardResponse(
@@ -24,10 +27,16 @@ public record SlipBoardResponse(
         String partnerName,
         String deliveryAddress,
         String recipientPhone,
+        String inspectorName,
+        LocalDateTime inspectorSignedAt,
         String dispatchStatus
 ) {
 
     public static SlipBoardResponse from(Slip slip) {
+        return from(slip, null);
+    }
+
+    public static SlipBoardResponse from(Slip slip, String inspectorName) {
         return new SlipBoardResponse(
                 slip.getId(),
                 slip.getSlipNo(),
@@ -36,6 +45,8 @@ public record SlipBoardResponse(
                 slip.getPartnerName(),
                 slip.getDeliveryAddress(),
                 slip.getRecipientPhone(),
+                inspectorName,
+                slip.getInspectorSignedAt(),
                 slip.getDispatchStatus() != null ? slip.getDispatchStatus().name() : null
         );
     }

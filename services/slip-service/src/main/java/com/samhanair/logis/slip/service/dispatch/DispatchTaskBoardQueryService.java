@@ -1,13 +1,15 @@
 package com.samhanair.logis.slip.service.dispatch;
 
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
-import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
+import com.samhanair.logis.slip.dto.dispatch.SlipBoardResponse;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +32,7 @@ public class DispatchTaskBoardQueryService {
     static final int DEFAULT_PAGE_SIZE = 50;
 
     private final SlipRepository slipRepo;
+    private final UserInternalClient userInternalClient;
 
     /**
      * 미배차 출고전표 페이지 조회 — 배차 메뉴 좌측 패널 source.
@@ -40,7 +43,7 @@ public class DispatchTaskBoardQueryService {
      * @param page 0-based
      * @param size 1 ~ 200 (가드)
      */
-    public Page<Slip> findUnDispatchedSlips(
+    public Page<SlipBoardResponse> findUnDispatchedSlips(
             LocalDate from, LocalDate to, Set<SlipDispatchStatus> statuses, int page, int size) {
 
         LocalDate today = LocalDate.now(KST);
@@ -59,7 +62,19 @@ public class DispatchTaskBoardQueryService {
         Pageable pageable = PageRequest.of(safePage, safeSize,
                 Sort.by(Sort.Direction.DESC, "slipDate").and(Sort.by(Sort.Direction.DESC, "seqNo")));
 
-        return slipRepo.findAllBySlipTypeAndSlipDateBetweenAndDispatchStatusInAndIsDeletedFalse(
-                SlipType.OUTBOUND, effectiveFrom, effectiveTo, effectiveStatuses, pageable);
+        Page<Slip> slips = slipRepo.findDispatchReadyOutboundSlips(
+                effectiveFrom, effectiveTo, effectiveStatuses, pageable);
+        return slips.map(slip -> SlipBoardResponse.from(slip, resolveUserFullName(slip.getInspectorUserId())));
+    }
+
+    private String resolveUserFullName(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        try {
+            return userInternalClient.resolveFullName(UUID.fromString(userId)).orElse(null);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 }

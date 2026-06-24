@@ -7263,6 +7263,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           partnerName: '동탄공조',
           deliveryAddress: '경기도 화성시 동탄대로 10',
           recipientPhone: '010-1111-2222',
+          inspectorName: '김검수',
+          inspectorSignedAt: '2026-06-11T09:20:00',
           dispatchStatus: 'UNDISPATCHED',
         },
         {
@@ -7273,6 +7275,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           partnerName: '성남냉열',
           deliveryAddress: '경기도 성남시 분당구 판교로 20',
           recipientPhone: '010-3333-4444',
+          inspectorName: '박검수',
+          inspectorSignedAt: '2026-06-11T10:05:00',
           dispatchStatus: 'UNDISPATCHED',
         },
       ],

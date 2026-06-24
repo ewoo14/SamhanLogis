@@ -198,6 +198,38 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             java.util.Collection<com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus> statuses,
             Pageable pageable);
 
+    /**
+     * 배차 발송 대기 출고전표 페이지네이션 — 검수 완료 게이트 적용.
+     *
+     * <p>필터:
+     * <ul>
+     *   <li>slipType = OUTBOUND</li>
+     *   <li>status = COMPLETED</li>
+     *   <li>inspectorUserId / inspectorSignedAt both not null</li>
+     *   <li>dispatchStatus ∈ statuses</li>
+     *   <li>slipDate ∈ [from, to]</li>
+     *   <li>is_deleted = false</li>
+     * </ul>
+     *
+     * <p>정렬은 호출자 {@link Pageable} 에서 지정 (slipDate desc + seqNo desc 권장).
+     */
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND
+              AND s.status = com.samhanair.logis.slip.domain.SlipStatus.COMPLETED
+              AND s.inspectorUserId IS NOT NULL
+              AND s.inspectorSignedAt IS NOT NULL
+              AND s.dispatchStatus IN :statuses
+              AND s.slipDate BETWEEN :from AND :to
+            """)
+    Page<Slip> findDispatchReadyOutboundSlips(
+            @org.springframework.data.repository.query.Param("from") java.time.LocalDate from,
+            @org.springframework.data.repository.query.Param("to") java.time.LocalDate to,
+            @org.springframework.data.repository.query.Param("statuses")
+            java.util.Collection<com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus> statuses,
+            Pageable pageable);
+
     // ---- audit Slice 2 P0 — accounting-service 세금계산서 일괄발행 내부 판매조회 ----
 
     /**

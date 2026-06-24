@@ -63,6 +63,8 @@ export const SLIP_DISPATCH_STATUS_OPTIONS: SlipDispatchStatus[] = [
  * @property partnerName 거래처명 (사용자 노출, 예: "대구공조").
  * @property deliveryAddress 인수자 주소 (모달 상세 + arologis 발송 payload).
  * @property recipientPhone 인수자 휴대폰 (010-XXXX-XXXX, 모달 상세).
+ * @property inspectorName 검수자명. resolve 실패 시 null.
+ * @property inspectorSignedAt 검수 완료 시각 (ISO datetime). 미검수/resolve 불가 시 null.
  * @property dispatchStatus 현재 dispatchStatus (필터 + 상태 배지 노출).
  */
 export interface SlipBoardResponse {
@@ -73,6 +75,8 @@ export interface SlipBoardResponse {
   partnerName: string
   deliveryAddress: string | null
   recipientPhone: string | null
+  inspectorName: string | null
+  inspectorSignedAt: string | null
   dispatchStatus: SlipDispatchStatus | null
 }
 

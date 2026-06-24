@@ -66,8 +66,7 @@ public class DispatchBoardAdminController {
     ) {
         // SP-D3 동적 권한 VIEW 가드 — dispatch.board
         checkViewPermission(roleHeader);
-        return ApiResponse.ok(queryService.findUnDispatchedSlips(from, to, statuses, page, size)
-                .map(SlipBoardResponse::from));
+        return ApiResponse.ok(queryService.findUnDispatchedSlips(from, to, statuses, page, size));
     }
 
     // =========================================================================

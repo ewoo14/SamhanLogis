@@ -19,8 +19,11 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
+import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,8 +54,10 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     private static final String DISPATCH_BOARD_PAGE_CODE = "dispatch.board";
 
     @Autowired MockMvc mvc;
+    @Autowired SlipRepository slipRepository;
 
     // 외부 client @MockBean — [feedback_it_mockbean_external_clients]
+    @MockBean DynamicPermissionClient dynamicPermissionClient;
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
     @MockBean NotificationChatRoomClient notificationChatRoomClient;
@@ -127,5 +132,69 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.size").value(20));
+    }
+
+    @Test
+    void GET_undispatched_slips_excludes_uninspected_outbound_slips() throws Exception {
+        Slip inspected = saveOutboundSlip("2026/05/17-DQ-S1-1", 701, true);
+        Slip uninspected = saveOutboundSlip("2026/05/17-DQ-S1-2", 702, false);
+
+        mvc.perform(get("/admin/dispatch-board/undispatched-slips")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .param("from", "2026-05-17")
+                        .param("to", "2026-05-17")
+                        .param("statuses", "UNDISPATCHED")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].slipNo").value(inspected.getSlipNo()))
+                .andExpect(jsonPath("$.data.content[0].slipNo").value(org.hamcrest.Matchers.not(uninspected.getSlipNo())));
+    }
+
+    @Test
+    void GET_undispatched_slips_exposes_inspector_name_and_signed_at_without_inspector_user_id() throws Exception {
+        Slip inspected = saveOutboundSlip("2026/05/17-DQ-S1-3", 703, true);
+
+        mvc.perform(get("/admin/dispatch-board/undispatched-slips")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .param("from", "2026-05-17")
+                        .param("to", "2026-05-17")
+                        .param("statuses", "UNDISPATCHED")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].slipNo").value(inspected.getSlipNo()))
+                .andExpect(jsonPath("$.data.content[0].inspectorName").value("담당자"))
+                .andExpect(jsonPath("$.data.content[0].inspectorSignedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.content[0].inspectorUserId").doesNotExist());
+    }
+
+    private Slip saveOutboundSlip(String slipNo, int seqNo, boolean inspected) {
+        Slip slip = Slip.createOutbound(
+                slipNo,
+                LocalDate.of(2026, 5, 17),
+                seqNo,
+                UUID.randomUUID(),
+                null,
+                UUID.randomUUID(),
+                "배차대기 거래처 " + seqNo,
+                null,
+                "dispatch board IT",
+                MASTER_ACCOUNT_ID);
+        slip.setPartnerCode("DQ-S1-" + seqNo);
+        slip.withProjectInfo(null, "서울시 강남구 테스트로 " + seqNo, null, null,
+                "010-1000-" + seqNo, null);
+        slip.save();
+        slip.send();
+        slip.accept(DISPATCH_ACCOUNT_ID);
+        slip.process();
+        if (inspected) {
+            slip.complete();
+            slip.inspect(MASTER_ACCOUNT_ID);
+        }
+        return slipRepository.saveAndFlush(slip);
     }
 }
