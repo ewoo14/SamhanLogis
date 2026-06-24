@@ -6382,6 +6382,80 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
+  // ---------------------------------------------------------------------------
+  // 출고전표 마감시간 설정 (hr.slip-cutoff) — /admin/slip-cutoffs
+  // 핸들러 3원칙: parseMockBody / non-null envelope / blob 없음
+  // ---------------------------------------------------------------------------
+
+  // GET /admin/slip-cutoffs/delivery-tags — OUTBOUND 배송태그 전체 옵션
+  if (method === 'GET' && url.match(/\/admin\/slip-cutoffs\/delivery-tags(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('hr.slip-cutoff', 'view')
+    if (denied) return denied
+    return envelope(MOCK_DELIVERY_TAGS)
+  }
+
+  // GET /admin/slip-cutoffs — 목록 조회
+  if (method === 'GET' && url.match(/\/admin\/slip-cutoffs(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('hr.slip-cutoff', 'view')
+    if (denied) return denied
+    const rows = MOCK_SLIP_CUTOFFS.filter((r) => !r.deleted)
+    return envelope(rows)
+  }
+
+  // POST /admin/slip-cutoffs — 등록 (중복 태그 409)
+  if (method === 'POST' && url.match(/\/admin\/slip-cutoffs(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('hr.slip-cutoff', 'create')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const deliveryTag = String(body['deliveryTag'] ?? '').trim()
+    const cutoffTime = String(body['cutoffTime'] ?? '').trim()
+    const active = body['active'] !== false
+    if (!deliveryTag) return mockError(400, 'INVALID_INPUT', '배송태그는 필수입니다.')
+    if (!cutoffTime) return mockError(400, 'INVALID_INPUT', '마감시각은 필수입니다.')
+    if (MOCK_SLIP_CUTOFFS.some((r) => !r.deleted && r.deliveryTag === deliveryTag)) {
+      const label = OUTBOUND_TAG_LABELS[deliveryTag] ?? deliveryTag
+      return mockError(409, 'CONFLICT', `${label} 태그의 마감시간이 이미 설정되어 있습니다.`)
+    }
+    const created: MockSlipCutoff = {
+      id: `cutoff-${deliveryTag.toLowerCase().replace(/_/g, '-')}-${Date.now()}`,
+      deliveryTag,
+      deliveryTagLabel: OUTBOUND_TAG_LABELS[deliveryTag] ?? deliveryTag,
+      cutoffTime,
+      active,
+      createdAt: new Date().toISOString(),
+      modifiedAt: null,
+    }
+    MOCK_SLIP_CUTOFFS.push(created)
+    return envelope(created)
+  }
+
+  // PATCH /admin/slip-cutoffs/{id} — 수정 (시각/활성)
+  const slipCutoffDetailMatch = url.match(/\/admin\/slip-cutoffs\/([^/?]+)(?:\?.*)?$/)
+  if (method === 'PATCH' && slipCutoffDetailMatch) {
+    const denied = mockRequirePermission('hr.slip-cutoff', 'update')
+    if (denied) return denied
+    const id = decodeURIComponent(slipCutoffDetailMatch[1]!)
+    const row = MOCK_SLIP_CUTOFFS.find((r) => r.id === id && !r.deleted)
+    if (!row) return mockError(404, 'NOT_FOUND', '마감시간 설정을 찾을 수 없습니다.')
+    const body = parseMockBody(config)
+    if (body['cutoffTime'] != null) row.cutoffTime = String(body['cutoffTime'])
+    if (body['active'] != null) row.active = Boolean(body['active'])
+    row.modifiedAt = new Date().toISOString()
+    return envelope({ ...row })
+  }
+
+  // DELETE /admin/slip-cutoffs/{id} — Soft Delete
+  if (method === 'DELETE' && slipCutoffDetailMatch) {
+    const denied = mockRequirePermission('hr.slip-cutoff', 'delete')
+    if (denied) return denied
+    const id = decodeURIComponent(slipCutoffDetailMatch[1]!)
+    const row = MOCK_SLIP_CUTOFFS.find((r) => r.id === id && !r.deleted)
+    if (!row) return mockError(404, 'NOT_FOUND', '마감시간 설정을 찾을 수 없습니다.')
+    row.deleted = true
+    row.modifiedAt = new Date().toISOString()
+    return envelope(null)
+  }
+
   // GET /admin/chat-rooms — ChatRoomsPage list
   if (method === 'GET' && url.includes('/admin/chat-rooms')) {
     return envelope(MOCK_CHAT_ROOMS)
@@ -11811,6 +11885,78 @@ const MOCK_REGIONS = [
   { id: 'reg-006', groupName: '대구권', keywords: '수성구,중구,달서구', sortOrder: 6 },
 ]
 
+// ---------------------------------------------------------------------------
+// 출고전표 마감시간 설정 mock 시드 (V51 4행 기본값과 동일)
+// ---------------------------------------------------------------------------
+
+type MockSlipCutoff = {
+  id: string
+  deliveryTag: string
+  deliveryTagLabel: string
+  cutoffTime: string
+  active: boolean
+  createdAt: string
+  modifiedAt: string | null
+  deleted?: boolean
+}
+
+/** OUTBOUND DeliveryTag 한국어 라벨 맵. */
+const OUTBOUND_TAG_LABELS: Record<string, string> = {
+  DAY: '당일',
+  STACK: '야적',
+  REGION: '지방',
+  LOGEN: '로젠택배',
+  GYEONGDONG_PARCEL: '경동택배',
+  GYEONGDONG_FREIGHT: '경동화물',
+  RENTAL: '대여',
+  RETURN_RENTAL: '반납',
+}
+
+/** OUTBOUND 배송태그 전체 8종 (delivery-tags 엔드포인트 응답). */
+const MOCK_DELIVERY_TAGS = Object.entries(OUTBOUND_TAG_LABELS).map(([tag, label]) => ({
+  tag,
+  label,
+}))
+
+const MOCK_SLIP_CUTOFFS: MockSlipCutoff[] = [
+  {
+    id: 'cutoff-region',
+    deliveryTag: 'REGION',
+    deliveryTagLabel: '지방',
+    cutoffTime: '12:00',
+    active: true,
+    createdAt: '2026-06-24T00:00:00',
+    modifiedAt: null,
+  },
+  {
+    id: 'cutoff-stack',
+    deliveryTag: 'STACK',
+    deliveryTagLabel: '야적',
+    cutoffTime: '14:00',
+    active: true,
+    createdAt: '2026-06-24T00:00:00',
+    modifiedAt: null,
+  },
+  {
+    id: 'cutoff-gyeongdong-parcel',
+    deliveryTag: 'GYEONGDONG_PARCEL',
+    deliveryTagLabel: '경동택배',
+    cutoffTime: '15:00',
+    active: true,
+    createdAt: '2026-06-24T00:00:00',
+    modifiedAt: null,
+  },
+  {
+    id: 'cutoff-gyeongdong-freight',
+    deliveryTag: 'GYEONGDONG_FREIGHT',
+    deliveryTagLabel: '경동화물',
+    cutoffTime: '15:00',
+    active: true,
+    createdAt: '2026-06-24T00:00:00',
+    modifiedAt: null,
+  },
+]
+
 const MOCK_EXTERNAL_CARRIERS: Array<{
   id: string
   name: string
@@ -13929,6 +14075,7 @@ const SP_D1_PAGES = [
   'admin.permissions',
   'admin.permission-groups',
   'hr.role-management',
+  'hr.slip-cutoff',
   // SP-D2 회계 7개 신규
   'accounting.accounts',
   'accounting.journals',
@@ -14127,6 +14274,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'products.sync',
     // §7 협업 — V36: MANAGER view+edit (slip.comments / slip.audit-overlay / slip.audit-revert)
     'slip.comments', 'slip.audit-overlay', 'slip.audit-revert',
+    // V70: hr.slip-cutoff — MANAGER view 허용
+    'hr.slip-cutoff',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board', 'dispatch.external-carriers',
@@ -14303,6 +14452,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'products.sync',
     // §7 협업 — V36: MANAGER can_edit=TRUE (slip.audit-revert 포함)
     'slip.comments', 'slip.audit-overlay', 'slip.audit-revert',
+    // V70: hr.slip-cutoff — MANAGER edit 허용 (create/update/delete)
+    'hr.slip-cutoff',
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board',

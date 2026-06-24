@@ -144,6 +144,8 @@ import { SheetSyncPage as AdminSheetSyncPage } from './admin/SheetSyncPage'
 // [PR-D Phase B FE-B] arologis 지역 관리 admin UI — DISPATCH 조회 + MANAGER/MASTER 관리.
 import { RegionsPage as AdminRegionsPage } from './admin/RegionsPage'
 import { ExternalCarriersPage as AdminExternalCarriersPage } from './admin/ExternalCarriersPage'
+// [출고전표 마감시간 설정] 인사 메뉴 — MASTER/MANAGER (hr.slip-cutoff view)
+import { SlipCutoffConfigPage as AdminSlipCutoffConfigPage } from './admin/SlipCutoffConfigPage'
 // [PR-D Phase B FE-E] 발송금지 거래처 admin (MASTER 전용 — partner-service /api/v1/partners/admin/blocks)
 import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/BlockedPartnersPage'
 // [PR-F1 Designer mock] 알리고 주소록 자동 동기화 — MASTER 전용 (AdminLayout 가드).
@@ -1502,6 +1504,17 @@ const router = createHashRouter([
         element: (
           <PermissionGuard pageCode="dispatch.external-carriers" action="view">
             <AdminExternalCarriersPage />
+          </PermissionGuard>
+        ),
+      },
+
+      // [출고전표 마감시간 설정] 인사 메뉴 — MASTER/MANAGER (hr.slip-cutoff view).
+      // BE: slip-service GET/POST/PATCH/DELETE /admin/slip-cutoffs (no-strip).
+      {
+        path: '/admin/slip-cutoff',
+        element: (
+          <PermissionGuard pageCode="hr.slip-cutoff" action="view">
+            <AdminSlipCutoffConfigPage />
           </PermissionGuard>
         ),
       },

@@ -152,6 +152,7 @@ export type PageCode =
   | 'admin.permission-groups'
   | 'admin.approval-line-config'
   | 'hr.role-management'
+  | 'hr.slip-cutoff'
   | 'system.permission-admin'
   | 'system.password-admin'
   | 'system.account-admin'

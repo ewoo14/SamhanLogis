@@ -3,6 +3,18 @@ import type { ApprovalLineStructure } from '../api/approvalLineConfigApi'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { ApprovalRoleCells, RoleCell, fallbackRoles } from './approvalRoleCells'
 
+/** OUTBOUND DeliveryTag 한국어 라벨 맵 — 인쇄 양식 배송주소 앞 표시용. */
+const DISPATCH_TAG_LABELS: Record<string, string> = {
+  DAY: '당일',
+  STACK: '야적',
+  REGION: '지방',
+  LOGEN: '로젠택배',
+  GYEONGDONG_PARCEL: '경동택배',
+  GYEONGDONG_FREIGHT: '경동화물',
+  RENTAL: '대여',
+  RETURN_RENTAL: '반납',
+}
+
 export interface DispatchDocumentSignatures {
   driverSignaturePng?: string | null
   recipientSignaturePng?: string | null
@@ -116,6 +128,11 @@ export function DispatchDocument({
       </table>
 
       <div className="dispatch-bottom-group">
+        {slip.deliveryTag ? (
+          <div className="dispatch-delivery-tag-label">
+            [{DISPATCH_TAG_LABELS[slip.deliveryTag] ?? slip.deliveryTag}]
+          </div>
+        ) : null}
         <div className="dispatch-address-box">
           {slip.shippingAddress ?? '-'}
         </div>
