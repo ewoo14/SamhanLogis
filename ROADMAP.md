@@ -29,6 +29,10 @@
 
 ---
 
+### 최신 진행 메모 (2026-06-24)
+
+- 검수완료 → 배차발송 에픽 슬1/슬2 진행: 슬1은 검수완료 출고전표를 배차 발송 대기 진입점과 아로로지스 기존 발송 경로에 연결했다. 슬2는 `slip-service`에 `external_carrier` 외부기사/배송사 마스터 CRUD를 추가하고, `auth-service` 단일 page-code `dispatch.external-carriers` + 7-action(account-mode) 시드, gateway no-prefix route, desktop 배차 메뉴/관리 화면/mock/test를 동기화한다. 외부 발송 기록(`external_dispatch`, `external_dispatch_slip`)과 SMS/인쇄 실행은 슬3/슬4 범위로 유지한다.
+
 ### 최신 진행 메모 (2026-06-11)
 
 - §7 전역 협업 — presence(동시 접속자) 4문서 롤아웃 (PR #545): 슬립 presence MVP(PR #515) 후속으로 **회계전표·주문·견적·그룹웨어 결재 4문서**(FE collab 패널 보유)에 동시 접속자 presence 를 순수 additive 배선. 각 `{Doc}CollabController` 에 슬립 `SlipCollabController` 1:1 복제로 `POST /collab/presence/join`·`/leave`·`GET /collab/presence`(200) + presence DTO·helper·`@ExceptionHandler` 추가(`shared:realtime-abstraction` `PresenceService` 자동 빈 — 추가 설정 0), FE 4 패널에 문서별 `{Doc}PresenceClient` + `usePresence` + `<PresenceIndicator/>` 배선(client override 로 슬립 경로 교차오염 방지). **신규 권한 page-code·시드·Flyway = 0**(각 문서 기존 댓글 VIEW page-code 재사용). presence wire payload = `{sessionId, displayName, color}` 만(UUID 비공개, IT 박제). 각 서비스 presence IT(실 Postgres) + 라이브 Docker 실 QA 4/4(API + 2세션 UI `docs/qa/collab-presence-rollout/` "현재 보는 중" 상호 표시). 배차(FE 패널 미존재·comment-only)는 **PR2 별도 슬라이스**. dev-report `docs/dev-reports/2026-06-20-collab-presence-rollout.md`.

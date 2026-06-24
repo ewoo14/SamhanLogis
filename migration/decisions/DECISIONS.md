@@ -2880,6 +2880,15 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-AF3-05 | **회계(cashbook) 메뉴가 ACCOUNTANT/DEVELOPER에 노출되는 변화 = BE seed(V51/V53) 이미 grant 중인 정책에 FE 정합하는 결함 수정**(회계사원이 권한 있는 회계 메뉴를 못 보던 버그). [[pgc-c2-widening-option-a]] seed=진실원 선례. ⚠️ 사용자 가시 widening → 개발책임자 확인([[pm-permission-autonomy]] "widening 수용" 멈춤점). 라이브 QA로 의도대로 동작 실증. |
 | D-AF3-06 | 보안: `/my` 롤을 raw `X-User-Role` 헤더 아닌 **SecurityContext `ROLE_AROLOGIS_*` authority**(서명 JWT claim)에서 도출 → inbound 헤더 위조 권한상승 차단([[identity-header-authz-antipattern]]). 라이브 실증(JWT 없이 X-User-Role:MASTER→data:{}). 로그인/로그아웃 권한캐시 제거(세션 누출 차단). |
 
+### D-EDX (검수완료→배차발송 외부기사/배송사 마스터 슬2, 2026-06-24)
+
+| 결정 | 내용 |
+|---|---|
+| D-EDX-01 | 외부기사/배송사 마스터는 `slip-service.external_carrier` 단일 테이블로 둔다. 필드=name/phone/email/default_vehicle_type/memo/active + BaseEntity 7 audit + soft-delete. `active` 는 운영 비활성 토글이며 soft-delete 와 별개다. |
+| D-EDX-02 | 권한은 단일 page-code `dispatch.external-carriers` + 7-action(account-mode)으로 고정한다. dual `.manage` page-code 는 사용하지 않는다. MASTER/MANAGER/DISPATCH 에 view/create/update/delete/restore=TRUE, download/print=FALSE 를 시드한다. |
+| D-EDX-03 | 사용자 화면 식별자는 name/phone 으로 제한한다. UUID id 는 API path key/DataTable rowKey 등 내부 라우팅 용도로만 사용하고 data-testid suffix 도 name 기반으로 둔다. |
+| D-EDX-04 | 슬2는 마스터 CRUD까지만 구현한다. `external_dispatch` / `external_dispatch_slip` 발송 기록과 SMS/인쇄 실행은 슬3/슬4 범위로 분리한다. |
+
 ### D-DMR (배차 #3 수정제안 재배차/수동기입, 2026-06-12)
 
 | 결정 | 내용 |
