@@ -4,7 +4,34 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-25 야간자율 — **✅ M상N하 배송일정 머지(#595). 다음=모바일 점검 에픽(개발책임자 큐)**)
+## 🔄 세션 재개 지점 (2026-06-25 — **모바일 에픽 ② 슬1 foundation 구현+Opus리뷰+fix 완료. 🚨다음=라이브QA→0수렴재리뷰→Codex라운드→머지**)
+
+> **🏢 회사 PC 재개 절차**: `git fetch origin && git checkout feat/mobile-s1-foundation-auth-web` (브랜치에 전 작업+본 핸드오프 포함). PR **#596**(draft). ⚠️ 집PC local main 이 origin/main 보다 3 docs 커밋 ahead 이나 **전부 브랜치에 포함됨(유실 없음)**. 회사PC는 브랜치 checkout 으로 충분.
+
+### 진행 상황 — canonical 8단계 (현재 ④까지 완료, 브랜치 head `5f910b83`)
+- ✅ ① Opus 기획: spec `docs/superpowers/specs/2026-06-25-mobile-s1-foundation-auth-web-deploy-design.md` + plan `docs/superpowers/plans/2026-06-25-mobile-s1-foundation-auth-web-deploy.md`.
+- ✅ ② 조기 PR #596(draft).
+- ✅ ③ Codex 개발(Task 1~6, danger-full-access): authProvider(Electron/Web **Dual-mode**)+~15곳 배선+collabHeaders 통합+vite.web.config/`build:web`+게이트웨이 `/auth/me`·`/api/v1/auth/me` JwtAuthentication 라우트+access_token 쿠키 fallback(Bearer 우선)+auth-service login Set-Cookie(dual-issue)/`POST /auth/logout`/MeResponse 확장(partnerCode+groups). **Flyway 0**.
+- ✅ ④ Opus 5-agent 리뷰(FE/BE/Design/DevOps/QA) → 2 BLOCKING+6 MAJOR → **Codex fix(5f910b83)**. 검증: vitest 283·typecheck 0·`build:web` 성공·AuthControllerCookieIT 5/5·CookieAuthGatewayIT 4/4. (리뷰 라운드 PR #596 코멘트 게시 완료.)
+  - BLOCKING fix: ①게이트웨이 /auth/me JwtAuthentication 라우트(catch-all 앞)→웹 새로고침 세션복원 정상화 ②웹 401 `isElectronPlatform ? hash : location.replace('/login')`.
+
+### 🚨 다음 단계 (회사 PC 재개 즉시 — 순서 엄수)
+1. **🔴 라이브 Docker QA + 실 스크린샷 (최우선 — 이 세션 QA 미실행 위반 지적받음)**: fix 상태(`5f910b83`) 검증. **auth-service+api-gateway 를 5f910b83 로 재빌드**(stale 주의 [[project_local_stack_qa_gotchas]]) → ① Electron 무회귀(요청 `Authorization: Bearer` 유지, 쿠키 미사용) ② 웹(`npm run build:web`→`dist/web` 정적서빙, **BrowserRouter 실경로**) 모바일 viewport 로그인→응답 `Set-Cookie: access_token`(HttpOnly/Lax)→홈(가로overflow 없음)→**새로고침 GET /auth/me 200 세션복원**→logout `max-age=0`→401 `/login` 리다이렉트. httpOnly 쿠키는 Playwright JS read 불가 → 응답 set-cookie/요청 cookie 헤더로 증명([[feedback_realqa_run_and_false_red]]). 캡처 `docs/qa/mobile-s1-foundation/`. **가짜 캡처 금지**([[feedback_no_fake_data_ever]]). 계정 dev_master/시드비번.
+2. **0수렴 재리뷰**: fix 포함 상태를 Opus·Codex **순차 재리뷰 → 양쪽 새 fix 0 확인**([[feedback_rereview_converge_after_fix]] — CI green만으로 머지 금지).
+3. **⑤ Codex 5-agent 라운드**: Codex 리뷰+fix(danger-full-access)+라이브QA+TM게시. 0수렴까지 ④↔⑤ 반복.
+4. **⑥ PM 종합 리뷰 게시 → ⑦ CI green → ⑧ 머지(개발책임자 확인, draft 해제)**.
+
+### 📌 개발책임자 결정 (이 세션 — [[feedback_post_devlead_decisions_to_pr]] PR #596 박제)
+- **모바일 = iOS+Android 하이브리드 WebView 앱**(데스크탑 .exe 유지). 반응형 웹(슬1)을 Expo/RN WebView 쉘로 감싸 스토어 출시(기존 mobile-staff 패턴 확장). iOS/Android 패키징=후속 슬라이스. **모바일 최적화 필요**(슬2 반응형+WebView 성능). → 에픽 spec 박제.
+- 웹 인증 = **httpOnly 쿠키 SameSite=Lax**, **Dual-mode**(Electron Bearer 유지).
+- **버전 에픽 ③**(`docs/superpowers/specs/2026-06-25-version-auto-update-inspection.md`): Option B(자체 버전API+팝업)·(a)2단계 강제·admin 릴리스노트 — **슬1(웹 배포 골격) 완료 후 착수**.
+
+### ⚙️ 환경/워크플로우 규칙 (이 세션 확립)
+- **구현/fix = Codex danger-full-access 전담**. ⚠️ Codex `sandbox:workspace-write`는 하네스가 read-only 강제(차단). **`sandbox:"danger-full-access"` + `approval-policy:"never"` + model `gpt-5.5` + `config:{model_reasoning_effort:"high"}` = 작동**. Codex는 **파일만 수정·git 금지**, 커밋은 PM(Claude) 대행([[feedback_codex_sandbox_git]]). **🚫 Opus 임의 구현 금지**(이 세션 1회 위반→Opus BE 폐기·Codex 재구현).
+- **매 워크플로우 단계 ScheduleWakeup 재자각**([[feedback_autonomous_loop_schedulewakeup]]) + **리뷰=라이브QA 동반**(이 세션 QA 미실행 위반 지적).
+- Codex MCP 스레드는 세션한정 → 회사PC 새 세션=새 스레드(plan/spec 재정독으로 컨텍스트 복원).
+
+
 
 **main `9788fd3a8`**(#595 squash 머지). 🌙야간 자율 진행(개발책임자 7시 취침 위임, canonical 엄수). Docker 풀스택 가동(slip V52 재빌드·라이브). 렌더러 :5175.
 
