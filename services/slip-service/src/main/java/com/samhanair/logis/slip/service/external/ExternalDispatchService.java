@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 타배송사 발송 서비스. 슬3는 SMS 단방향 발송만 수행한다. */
+/** 타배송사 발송 서비스. SMS, 인쇄, SMS+인쇄 채널의 발송 이력과 전표 배차 상태를 관리한다. */
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -185,7 +185,7 @@ public class ExternalDispatchService {
                 || slip.getInspectorSignedAt() == null
                 || slip.getDispatchStatus() != SlipDispatchStatus.UNDISPATCHED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "검수 완료 및 미배차 상태의 출고전표만 타배송사 SMS 발송할 수 있습니다: "
+                    "검수 완료 및 미배차 상태의 출고전표만 타배송사 발송할 수 있습니다: "
                             + slip.getSlipNo());
         }
     }

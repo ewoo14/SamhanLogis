@@ -16,12 +16,15 @@
  * 데이터(실 DB, 본 QA 직전 slip_db 직접 준비):
  * - 발송대기 전표 = 2026/06/24-901 (OUTBOUND/COMPLETED/inspector/UNDISPATCHED 로 재세팅 + 품목라인 1건 추가).
  * - 활성 external_carrier = 새벽퀵배송(010-7777-8888) (슬2/3에서 등록·활성, 재사용).
+ * - 본 spec 은 PRINT/BOTH 를 같은 QA 전표로 순차 검증하므로 각 테스트 시작 전 Docker
+ *   dev slip_db 에서 해당 전표를 UNDISPATCHED 로 되돌린다. 화면/게이트웨이는 계속 실서버를 사용한다.
  *
  * 실행: 별도 터미널 vite :5175(mock off);
  *   node_modules/.bin/playwright test --config playwright/external-dispatch-print-s4/playwright.config.ts --reporter=line
  */
 import * as path from 'path'
 import * as fs from 'fs'
+import { execFile } from 'child_process'
 import { fileURLToPath } from 'url'
 import { test, expect, type Page } from '@playwright/test'
 
@@ -135,6 +138,39 @@ async function gotoAndSettle(page: Page, url: string): Promise<void> {
   await page.waitForTimeout(2_500)
 }
 
+function runSlipDbSql(sql: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'docker',
+      ['exec', 'samhan-postgres', 'psql', '-U', 'samhan', '-d', 'slip_db', '-v', 'ON_ERROR_STOP=1', '-c', sql],
+      { timeout: 15_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`slip_db QA 준비 실패: ${stderr || stdout || error.message}`))
+          return
+        }
+        resolve()
+      },
+    )
+  })
+}
+
+/** PRINT/BOTH 순차 실QA가 같은 전표를 소모하므로 테스트 시작 전 발송대기 상태를 복원한다. */
+async function ensureQaSlipDispatchReady(): Promise<void> {
+  await runSlipDbSql(`
+    UPDATE slips
+       SET dispatch_status = 'UNDISPATCHED',
+           status = 'COMPLETED',
+           inspector_user_id = '${MASTER_USER_ID}'::uuid,
+           inspector_signed_at = COALESCE(inspector_signed_at, NOW()),
+           is_deleted = false,
+           modified_at = NOW(),
+           modified_by = 'external-dispatch-print-s4-qa'
+     WHERE slip_no = '${SLIP_A}'
+       AND slip_type = 'OUTBOUND';
+  `)
+}
+
 /**
  * 발송대기 전표 다중선택 → 타배송사 발송 모달 → 채널 선택 + 기사 선택 → 발송 실행 공통 흐름.
  * 발송 응답으로 부여된 인쇄 라우트(/dispatch/external-dispatch/{id}/print)의 id 를 반환한다.
@@ -231,6 +267,7 @@ test.describe('PR #591 슬4 타배송사 인쇄 배차의뢰서(PRINT/BOTH) — 
     page,
   }) => {
     const token = await fetchRealToken('dev_master')
+    await ensureQaSlipDispatchReady()
     await installRealAuth(page, token)
     await setupApiProxy(page, token)
 
@@ -271,6 +308,7 @@ test.describe('PR #591 슬4 타배송사 인쇄 배차의뢰서(PRINT/BOTH) — 
     page,
   }) => {
     const token = await fetchRealToken('dev_master')
+    await ensureQaSlipDispatchReady()
     await installRealAuth(page, token)
     await setupApiProxy(page, token)
 

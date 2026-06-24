@@ -40,6 +40,17 @@ describe('ExternalDispatchRequestDocument', () => {
 
     expect(html).toContain('인쇄할 전표가 없습니다.')
   })
+
+  test('A4 고정 레이아웃에서 업무 중요도별 표 열 폭을 명시한다', () => {
+    const html = renderToStaticMarkup(createElement(ExternalDispatchRequestDocument, {
+      data: samplePrintData,
+    }))
+
+    expect(html).toContain('<colgroup>')
+    expect(html).toContain('width:8mm')
+    expect(html).toContain('width:54mm')
+    expect(html).toContain('width:46mm')
+  })
 })
 
 const samplePrintData: ExternalDispatchPrintDataResponse = {

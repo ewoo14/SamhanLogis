@@ -94,6 +94,11 @@ export function ExternalDispatchRequestDocument({ data }: ExternalDispatchReques
       </section>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <colgroup>
+          {tableColumns.map((column) => (
+            <col key={column.key} style={{ width: column.width }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th style={thStyle}>순번</th>
@@ -159,3 +164,12 @@ const tdStyle: CSSProperties = {
   wordBreak: 'keep-all',
   overflowWrap: 'anywhere',
 }
+
+const tableColumns = [
+  { key: 'sequence', width: '8mm' },
+  { key: 'slipNo', width: '28mm' },
+  { key: 'deliveryAddress', width: '54mm' },
+  { key: 'recipientName', width: '22mm' },
+  { key: 'recipientPhone', width: '28mm' },
+  { key: 'itemSummary', width: '46mm' },
+] as const

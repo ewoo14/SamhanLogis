@@ -11,7 +11,7 @@ import java.util.UUID;
  *
  * @param carrierId 외부기사/배송사 내부 UUID. 화면 식별자로 노출하지 않는다.
  * @param slipIds 발송 대상 전표 내부 UUID 목록. 화면에는 slipNo 만 노출한다.
- * @param channel 발송 채널. 슬3 경로는 SMS 만 허용한다.
+ * @param channel 발송 채널. 미지정 시 기존 SMS 발송으로 처리한다.
  */
 public record CreateExternalDispatchRequest(
         @NotNull UUID carrierId,
