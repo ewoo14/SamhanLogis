@@ -56,26 +56,20 @@ interface UnDispatchedSlipListProps {
  * 50/page default 페이지 크기. 사용자 명세 (2026-05-14).
  */
 const PAGE_SIZE = 50
-const DASH = '—'
+const DASH = '-'
 
 /**
- * 검수 완료 시각을 한국 운영자 화면 기준(KST) 분 단위로 표시한다.
+ * 검수 완료 시각을 운영자 화면에 분 단위로 표시한다.
+ *
+ * BE inspectorSignedAt = LocalDateTime(KST 벽시계, 타임존 없음)이므로,
+ * Date 파싱 시 런타임 로컬 존으로 재해석되는 더블 변환을 피하고 ISO 구성요소를 그대로 포맷한다.
  */
 export function formatInspectorSignedAtKst(value: string | null | undefined): string {
   if (!value) return DASH
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return DASH
-  const parts = new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(date)
-  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-  return `${byType.year}. ${byType.month}. ${byType.day}. ${byType.hour}:${byType.minute}`
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(value)
+  if (!m) return DASH
+  const [, year, month, day, hour, minute] = m
+  return `${year}. ${month}. ${day}. ${hour}:${minute}`
 }
 
 function nullableText(value: string | null | undefined): string {
@@ -99,10 +93,10 @@ export function DispatchSlipSummaryCells({ slip }: { slip: SlipBoardResponse }) 
         display: 'grid',
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         gap: '4px 10px',
-        marginTop: 6,
+        marginTop: 'var(--space-1)',
         color: 'var(--color-neutral-600)',
-        fontSize: 11,
-        lineHeight: 1.35,
+        fontSize: 12,
+        lineHeight: 1.45,
       }}
     >
       {cells.map(([label, value]) => (

@@ -42,12 +42,13 @@ describe('UnDispatchedSlipList summary cells', () => {
       }),
     )
 
-    expect(html.match(/—/g)).toHaveLength(4)
+    // 값 셀(>-<) 4개: 검수자/검수일시/배송지/수령자 (CSS 속성 하이픈은 style 속성 안이라 매칭 안 됨)
+    expect(html.match(/>-</g)).toHaveLength(4)
   })
 
-  test('검수일시는 KST 기준 분 단위로 포맷한다', () => {
-    expect(formatInspectorSignedAtKst('2026-06-24T00:30:00Z')).toBe('2026. 06. 24. 09:30')
-    expect(formatInspectorSignedAtKst(null)).toBe('—')
+  test('검수일시(LocalDateTime, KST 벽시계)를 타임존 재변환 없이 분 단위로 표시한다', () => {
+    expect(formatInspectorSignedAtKst('2026-06-11T09:20:00')).toBe('2026. 06. 11. 09:20')
+    expect(formatInspectorSignedAtKst(null)).toBe('-')
   })
 })
 

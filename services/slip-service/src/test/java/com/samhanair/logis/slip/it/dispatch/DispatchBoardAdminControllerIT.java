@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.NotificationClient;
@@ -57,7 +56,7 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     @Autowired SlipRepository slipRepository;
 
     // 외부 client @MockBean — [feedback_it_mockbean_external_clients]
-    @MockBean DynamicPermissionClient dynamicPermissionClient;
+    // DynamicPermissionClient 는 AbstractPostgresIT 가 @MockBean + check()/canView() lenient allow stub 제공(서브클래스 중복 선언 제거).
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
     @MockBean NotificationChatRoomClient notificationChatRoomClient;
@@ -74,14 +73,9 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setupLenientStubs() {
+        // canView/canEdit/check 는 AbstractPostgresIT base 가 lenient allow stub 제공(중복 stub 제거).
         Mockito.lenient().when(userInternalClient.resolveFullName(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.Optional.of("담당자"));
-        Mockito.lenient()
-                .when(dynamicPermissionClient.canView(anyString(), anyString()))
-                .thenReturn(true);
-        Mockito.lenient()
-                .when(dynamicPermissionClient.canEdit(anyString(), anyString()))
-                .thenReturn(true);
     }
 
     @Test
@@ -169,6 +163,8 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content[0].slipNo").value(inspected.getSlipNo()))
                 .andExpect(jsonPath("$.data.content[0].inspectorName").value("담당자"))
                 .andExpect(jsonPath("$.data.content[0].inspectorSignedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.content[0].inspectorSignedAt")
+                        .value(org.hamcrest.Matchers.matchesPattern("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*")))
                 .andExpect(jsonPath("$.data.content[0].inspectorUserId").doesNotExist());
     }
 

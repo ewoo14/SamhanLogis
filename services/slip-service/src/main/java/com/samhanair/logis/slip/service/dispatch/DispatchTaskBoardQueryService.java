@@ -8,6 +8,8 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -64,7 +66,20 @@ public class DispatchTaskBoardQueryService {
 
         Page<Slip> slips = slipRepo.findDispatchReadyOutboundSlips(
                 effectiveFrom, effectiveTo, effectiveStatuses, pageable);
-        return slips.map(slip -> SlipBoardResponse.from(slip, resolveUserFullName(slip.getInspectorUserId())));
+
+        // 검수자명 resolve — 페이지 내 distinct inspectorUserId 만 1회씩 호출하여 N+1 회피.
+        Map<String, String> nameByUserId = new HashMap<>();
+        slips.getContent().stream()
+                .map(Slip::getInspectorUserId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .forEach(id -> {
+                    String name = resolveUserFullName(id);
+                    if (name != null) {
+                        nameByUserId.put(id, name);
+                    }
+                });
+        return slips.map(slip -> SlipBoardResponse.from(slip, nameByUserId.get(slip.getInspectorUserId())));
     }
 
     private String resolveUserFullName(String userId) {
