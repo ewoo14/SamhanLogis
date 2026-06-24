@@ -129,11 +129,7 @@ public class AuthService {
                 jwtIssueProperties.getTtlSeconds(), jwtIssueProperties.getSecretBytes());
 
         // Phase C5-3: 활성 그룹 요약 목록 조회 (id, name, builtin) — FE AuthSnapshot.groups 수신
-        List<LoginResponse.GroupSummary> groupSummaries = permissionGroupRepository
-                .findActiveGroupsByAccountId(account.getId())
-                .stream()
-                .map(pg -> new LoginResponse.GroupSummary(pg.getId().toString(), pg.getName(), pg.isBuiltin()))
-                .toList();
+        List<LoginResponse.GroupSummary> groupSummaries = loadGroupSummaries(account.getId());
 
         return new LoginResponse(token, userId, role, account.getDisplayName(), groupSummaries);
     }
@@ -257,7 +253,23 @@ public class AuthService {
                 account.getId().toString(),
                 account.getLoginId(),
                 role,
-                account.getDisplayName());
+                account.getDisplayName(),
+                null,
+                loadGroupSummaries(account.getId()));
+    }
+
+    /**
+     * 로그인 응답과 /me 응답이 동일한 그룹 요약 schema 를 반환하도록 공용화한다.
+     *
+     * @param accountId 계정 UUID
+     * @return 활성 권한그룹 요약 목록
+     */
+    private List<LoginResponse.GroupSummary> loadGroupSummaries(UUID accountId) {
+        return permissionGroupRepository
+                .findActiveGroupsByAccountId(accountId)
+                .stream()
+                .map(pg -> new LoginResponse.GroupSummary(pg.getId().toString(), pg.getName(), pg.isBuiltin()))
+                .toList();
     }
 
     /**

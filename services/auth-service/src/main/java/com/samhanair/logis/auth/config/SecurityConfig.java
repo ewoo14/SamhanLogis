@@ -33,6 +33,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/auth/logout").permitAll()
                         // Phase 10 P0-2 — 비밀번호 reset 흐름 (정책 조회 + 토큰 발급/confirm) 인증 불필요
                         .requestMatchers("/auth/password/policy").permitAll()
                         .requestMatchers("/auth/password/reset/request").permitAll()

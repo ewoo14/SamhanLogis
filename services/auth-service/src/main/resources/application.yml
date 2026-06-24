@@ -50,6 +50,8 @@ app:
       # Phase 8 2차 — SAMHAN_JWT_SECRET 우선, JWT_SECRET legacy fallback (Phase 10 cutover 시점 단일화)
       secret: ${SAMHAN_JWT_SECRET:${JWT_SECRET:dev-secret-change-me-in-production-32bytes-min!}}
       ttl-seconds: 3600
+    cookie:
+      secure: ${COOKIE_SECURE:false}
     internal:
       # Phase 8 2차 — SAMHAN_INTERNAL_TOKEN 우선, INTERNAL_AUTH_TOKEN legacy fallback (Phase 10 cutover 시점 단일화)
       token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}

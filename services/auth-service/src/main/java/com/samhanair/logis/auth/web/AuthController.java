@@ -11,9 +11,13 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,11 +39,37 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
+    private static final String ACCESS_TOKEN_COOKIE = "access_token";
+
     private final AuthService authService;
 
+    @Value("${app.security.cookie.secure:false}")
+    private boolean cookieSecure;
+
+    @Value("${app.security.jwt.ttl-seconds}")
+    private long jwtTtlSeconds;
+
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.login(request.loginId(), request.password()));
+    public ApiResponse<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletResponse response) {
+        LoginResponse login = authService.login(request.loginId(), request.password());
+        response.addHeader(HttpHeaders.SET_COOKIE, buildAccessCookie(login.token(), jwtTtlSeconds).toString());
+        return ApiResponse.ok(login);
+    }
+
+    /**
+     * 웹 쿠키 세션을 만료한다.
+     *
+     * <p>Electron 은 기존 IPC 저장소를 지우고, 웹은 본 endpoint 로 httpOnly 쿠키를 만료한다.
+     *
+     * @param response servlet 응답
+     * @return 표준 성공 envelope
+     */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(HttpServletResponse response) {
+        response.addHeader(HttpHeaders.SET_COOKIE, expireAccessCookie().toString());
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/register")
@@ -70,5 +100,27 @@ public class AuthController {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "유효하지 않은 사용자 식별자입니다");
         }
         return ApiResponse.ok(authService.getMeResponse(userId));
+    }
+
+    /** access_token 쿠키 생성 — SameSite=Lax + httpOnly + TTL 은 JWT TTL 과 동일. */
+    private ResponseCookie buildAccessCookie(String token, long ttlSeconds) {
+        return ResponseCookie.from(ACCESS_TOKEN_COOKIE, token)
+                .httpOnly(true)
+                .sameSite("Lax")
+                .path("/")
+                .secure(cookieSecure)
+                .maxAge(ttlSeconds)
+                .build();
+    }
+
+    /** access_token 쿠키 만료 Set-Cookie 값. */
+    private ResponseCookie expireAccessCookie() {
+        return ResponseCookie.from(ACCESS_TOKEN_COOKIE, "")
+                .httpOnly(true)
+                .sameSite("Lax")
+                .path("/")
+                .secure(cookieSecure)
+                .maxAge(0)
+                .build();
     }
 }

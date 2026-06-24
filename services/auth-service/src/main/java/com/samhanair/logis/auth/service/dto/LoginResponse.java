@@ -16,6 +16,7 @@ import java.util.List;
  * @param userId      계정 UUID 문자열 (FE internal 용, 화면 미표시)
  * @param role        빌트인 그룹 역매핑 파생 역할 라벨 (FE 사이드바 배열 호환 유지)
  * @param displayName 화면 표시용 이름
+ * @param partnerCode 거래처 계정 자기범위 코드. 직원 auth-service 로그인은 현재 null.
  * @param groups      계정 활성 그룹 요약 목록 (null 미반환, 빈 리스트 가능)
  */
 public record LoginResponse(
@@ -23,7 +24,21 @@ public record LoginResponse(
         String userId,
         String role,
         String displayName,
+        String partnerCode,
         List<GroupSummary> groups) {
+
+    /**
+     * Phase C5-3 호출처와의 하위 호환 생성자 — partnerCode 는 직원 로그인에서 null.
+     *
+     * @param token       JWT Bearer 토큰
+     * @param userId      계정 UUID 문자열
+     * @param role        역할 라벨
+     * @param displayName 화면 표시용 이름
+     * @param groups      계정 활성 그룹 요약 목록
+     */
+    public LoginResponse(String token, String userId, String role, String displayName, List<GroupSummary> groups) {
+        this(token, userId, role, displayName, null, groups);
+    }
 
     /**
      * Phase C5-3 이전 호출처와의 하위 호환 생성자 — groups 를 빈 리스트로 초기화.
@@ -34,7 +49,7 @@ public record LoginResponse(
      * @param displayName 화면 표시용 이름
      */
     public LoginResponse(String token, String userId, String role, String displayName) {
-        this(token, userId, role, displayName, List.of());
+        this(token, userId, role, displayName, null, List.of());
     }
 
     /**
@@ -50,4 +65,3 @@ public record LoginResponse(
     public record GroupSummary(String id, String name, boolean builtin) {
     }
 }
-

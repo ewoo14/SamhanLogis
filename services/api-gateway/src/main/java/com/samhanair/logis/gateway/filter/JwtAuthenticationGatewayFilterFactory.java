@@ -46,7 +46,8 @@ import reactor.core.publisher.Mono;
  *
  * <h2>Behavior</h2>
  * <ul>
- *   <li>Missing {@code Authorization: Bearer ...} → {@code 401 UNAUTHORIZED}.</li>
+ *   <li>{@code Authorization: Bearer ...} 우선 검증. 부재 시 웹 {@code access_token} 쿠키 fallback.</li>
+ *   <li>둘 다 없으면 {@code 401 UNAUTHORIZED}.</li>
  *   <li>Signature/expiry/parse failure → {@code 401 INVALID_TOKEN}.</li>
  *   <li>Authenticated but allowedGroups 가 비어있지 않고 X-User-Groups 와 교집합이 없으면
  *       → {@code 403 FORBIDDEN}.</li>
@@ -89,6 +90,8 @@ public class JwtAuthenticationGatewayFilterFactory
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationGatewayFilterFactory.class);
 
     private static final String BEARER_PREFIX = "Bearer ";
+    /** 웹 httpOnly 인증 쿠키 이름. Bearer 가 없을 때만 fallback 으로 사용한다. */
+    private static final String ACCESS_TOKEN_COOKIE = "access_token";
     // C5-1 P2: identity 헤더 이름은 shared HttpHeaderConstants 단일 출처로 통일
     // (게이트웨이 로컬 중복 상수 제거 — downstream 필터/Aspect 와 문자열 불일치 위험 차단).
     /** 호출자 UUID 헤더. */
@@ -137,9 +140,9 @@ public class JwtAuthenticationGatewayFilterFactory
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
             ServerHttpRequest request = exchange.getRequest();
-            String header = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            String token = extractToken(request);
 
-            if (header == null || !header.startsWith(BEARER_PREFIX)) {
+            if (token == null || token.isBlank()) {
                 if (config.isRequired()) {
                     return writeError(exchange, HttpStatus.UNAUTHORIZED,
                             "UNAUTHORIZED", "인증 토큰이 없습니다");
@@ -148,7 +151,6 @@ public class JwtAuthenticationGatewayFilterFactory
                 return chain.filter(stripInboundIdentityHeaders(exchange));
             }
 
-            String token = header.substring(BEARER_PREFIX.length()).trim();
             Jws<Claims> jws;
             try {
                 jws = JwtTokenProvider.parse(token, props.getSecretBytes());
@@ -264,6 +266,22 @@ public class JwtAuthenticationGatewayFilterFactory
 
             return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
         };
+    }
+
+    /**
+     * 요청에서 JWT 를 추출한다.
+     *
+     * <p>Electron 무회귀를 위해 Authorization Bearer 를 최우선으로 사용하고, Bearer 가 없을 때만
+     * 웹 httpOnly {@code access_token} 쿠키를 fallback 으로 사용한다.
+     */
+    private static String extractToken(ServerHttpRequest request) {
+        String header = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        if (header != null && header.startsWith(BEARER_PREFIX)) {
+            return header.substring(BEARER_PREFIX.length()).trim();
+        }
+        org.springframework.http.HttpCookie cookie =
+                request.getCookies().getFirst(ACCESS_TOKEN_COOKIE);
+        return cookie == null ? null : cookie.getValue();
     }
 
     private static Mono<Void> writeError(ServerWebExchange exchange,

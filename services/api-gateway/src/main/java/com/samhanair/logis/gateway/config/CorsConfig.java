@@ -50,7 +50,8 @@ public class CorsConfig {
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:3002",
-                "http://localhost:5173"
+                "http://localhost:5173",
+                "http://localhost:5175"
         ));
         // Electron / 패턴 origin (file://, app://, dev 동적 포트)
         config.setAllowedOriginPatterns(List.of(
