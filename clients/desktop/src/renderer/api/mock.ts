@@ -14031,7 +14031,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D4 — DISPATCH: inventory.stock (view 전용) + arologis.*
     'inventory.stock', 'arologis.admin', 'arologis.region',
     // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
-    'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    'arologis.dispatch.ops', 'dispatch.batch',
     // P1-C: arologis.region.manage — V34 seed MASTER/MANAGER 만 허용, DISPATCH 없음 → 제거
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
