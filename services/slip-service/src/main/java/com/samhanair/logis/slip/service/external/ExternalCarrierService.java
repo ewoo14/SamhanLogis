@@ -53,7 +53,9 @@ public class ExternalCarrierService {
             carrier.deactivate();
         }
         try {
-            return ExternalCarrierResponse.from(repository.save(carrier));
+            ExternalCarrier saved = repository.save(carrier);
+            repository.flush();
+            return ExternalCarrierResponse.from(saved);
         } catch (DataIntegrityViolationException ex) {
             throw duplicatePhone(phone);
         }

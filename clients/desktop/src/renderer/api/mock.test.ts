@@ -392,3 +392,22 @@ describe('mock bank transaction matching contract', () => {
     expect(forced.body.code).toBe('CONFLICT')
   })
 })
+
+describe('mock permission matrix contract', () => {
+  it('외부기사/배송사 권한 매트릭스는 V69 action seed 와 같은 액션만 반환한다', () => {
+    const matrix = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-dispatch',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+
+    expect(matrix.data['dispatch.external-carriers']).toEqual({
+      view: true,
+      create: true,
+      update: true,
+      delete: true,
+      restore: true,
+      download: false,
+      print: false,
+    })
+  })
+})

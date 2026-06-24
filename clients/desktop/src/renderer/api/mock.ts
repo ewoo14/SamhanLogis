@@ -10907,6 +10907,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       }> = {}
       for (const page of SP_D1_PAGES) {
         const legacyCell = _mockPermissionCells.find((cell) => cell.roleCode === role && cell.pageCode === page)
+        const actionOnly = MOCK_ACTION_ONLY_PAGES[page]
+        if (actionOnly) {
+          const editable = legacyCell?.edit ?? false
+          accountMatrix[page] = {
+            view: legacyCell?.view ?? false,
+            create: editable && actionOnly.includes('CREATE'),
+            update: editable && actionOnly.includes('UPDATE'),
+            delete: editable && actionOnly.includes('DELETE'),
+            restore: editable && actionOnly.includes('RESTORE'),
+            download: editable && actionOnly.includes('DOWNLOAD'),
+            print: editable && actionOnly.includes('PRINT'),
+          }
+          continue
+        }
         accountMatrix[page] = {
           view: legacyCell?.view ?? false,
           create: legacyCell?.edit ?? false,
@@ -14169,7 +14183,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page edit 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'sales.estimate-config', 'slip.cleanup',
-    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
     'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     // slip.photo-audit: MANAGER can_edit=FALSE per V36
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
@@ -14193,7 +14207,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D4 — DISPATCH: arologis.* edit
     'arologis.admin', 'arologis.region',
     // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch edit (V33/V34)
-    'arologis.dispatch.ops', 'dispatch.batch',
+    'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
   ],
   SALES: [
     'sales.slip.list',
