@@ -94,6 +94,16 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     /** 배차 상세/내역 조립용 slip 헤더 일괄 조회. */
     List<Slip> findAllByIdInAndIsDeletedFalse(java.util.Collection<UUID> ids);
 
+    /** 타배송사 인쇄 데이터 조립용 slip + line 일괄 조회. */
+    @EntityGraph(attributePaths = "lines")
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND s.id IN :ids
+            """)
+    List<Slip> findAllWithLinesByIdInAndIsDeletedFalse(
+            @org.springframework.data.repository.query.Param("ids") java.util.Collection<UUID> ids);
+
     /**
      * 타배송사 SMS 발송 대상 전표를 쓰기 잠금으로 조회한다.
      *

@@ -1,7 +1,10 @@
 package com.samhanair.logis.slip.it.external;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -106,6 +109,126 @@ class ExternalDispatchControllerIT extends AbstractPostgresIT {
                 Integer.class, carrier.getId());
         org.assertj.core.api.Assertions.assertThat(dispatchCount).isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(slipCount).isEqualTo(2);
+    }
+
+    @Test
+    void POST_externalDispatches_print_marksSlipsDispatchedWithoutSms() throws Exception {
+        ExternalCarrier carrier = externalCarrierRepository.saveAndFlush(
+                ExternalCarrier.create("인쇄전용퀵", "010-7000-0101", null, null, null));
+        Slip slip = saveDispatchReadySlip("2026/06/24-EDP-PRINT-001", 811);
+
+        mvc.perform(post("/admin/external-dispatches")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "carrierId", carrier.getId(),
+                                "slipIds", List.of(slip.getId()),
+                                "channel", "PRINT"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.carrierName").value("인쇄전용퀵"))
+                .andExpect(jsonPath("$.data.channel").value("PRINT"))
+                .andExpect(jsonPath("$.data.status").value("SENT"))
+                .andExpect(jsonPath("$.data.slipNos[0]").value(slip.getSlipNo()));
+
+        verify(notificationClient, never()).sendExternalSmsWithResult(anyString(), anyString(), anyString());
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slip.getId()).orElseThrow().getDispatchStatus())
+                .isEqualTo(SlipDispatchStatus.DISPATCHED);
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT channel, status FROM external_dispatch WHERE carrier_id = ?",
+                carrier.getId());
+        org.assertj.core.api.Assertions.assertThat(row.get("channel")).isEqualTo("PRINT");
+        org.assertj.core.api.Assertions.assertThat(row.get("status")).isEqualTo("SENT");
+    }
+
+    @Test
+    void POST_externalDispatches_both_success_callsSmsAndMarksSlipsDispatched() throws Exception {
+        ExternalCarrier carrier = externalCarrierRepository.saveAndFlush(
+                ExternalCarrier.create("양방향퀵", "010-7000-0102", null, null, null));
+        Slip slip = saveDispatchReadySlip("2026/06/24-EDP-BOTH-001", 812);
+        when(notificationClient.sendExternalSmsWithResult(anyString(), anyString(), anyString()))
+                .thenReturn(true);
+
+        mvc.perform(post("/admin/external-dispatches")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "carrierId", carrier.getId(),
+                                "slipIds", List.of(slip.getId()),
+                                "channel", "BOTH"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.channel").value("BOTH"))
+                .andExpect(jsonPath("$.data.status").value("SENT"));
+
+        verify(notificationClient).sendExternalSmsWithResult(anyString(), anyString(), anyString());
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slip.getId()).orElseThrow().getDispatchStatus())
+                .isEqualTo(SlipDispatchStatus.DISPATCHED);
+    }
+
+    @Test
+    void POST_externalDispatches_both_smsFailed_keepsSlipUndispatchedAndSavesFailedHistory() throws Exception {
+        ExternalCarrier carrier = externalCarrierRepository.saveAndFlush(
+                ExternalCarrier.create("양방향실패퀵", "010-7000-0103", null, null, null));
+        Slip slip = saveDispatchReadySlip("2026/06/24-EDP-BOTH-FAIL-001", 813);
+        when(notificationClient.sendExternalSmsWithResult(anyString(), anyString(), anyString()))
+                .thenReturn(false);
+
+        mvc.perform(post("/admin/external-dispatches")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "carrierId", carrier.getId(),
+                                "slipIds", List.of(slip.getId()),
+                                "channel", "BOTH"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.channel").value("BOTH"))
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+
+        verify(notificationClient).sendExternalSmsWithResult(anyString(), anyString(), anyString());
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slip.getId()).orElseThrow().getDispatchStatus())
+                .isEqualTo(SlipDispatchStatus.UNDISPATCHED);
+        String status = jdbcTemplate.queryForObject(
+                "SELECT status FROM external_dispatch WHERE carrier_id = ?",
+                String.class, carrier.getId());
+        org.assertj.core.api.Assertions.assertThat(status).isEqualTo("FAILED");
+    }
+
+    @Test
+    void GET_externalDispatchPrintData_returnsCarrierAndSlipLinesWithoutUuid() throws Exception {
+        ExternalCarrier carrier = externalCarrierRepository.saveAndFlush(
+                ExternalCarrier.create("인쇄조회퀵", "010-7000-0104", null, null, null));
+        Slip first = saveDispatchReadySlip("2026/06/24-EDP-PRINTDATA-001", 814);
+        Slip second = saveDispatchReadySlip("2026/06/24-EDP-PRINTDATA-002", 815);
+
+        String postJson = mvc.perform(post("/admin/external-dispatches")
+                        .header("X-User-Id", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "carrierId", carrier.getId(),
+                                "slipIds", List.of(first.getId(), second.getId()),
+                                "channel", "PRINT"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String dispatchId = objectMapper.readTree(postJson).path("data").path("id").asText();
+
+        String printJson = mvc.perform(get("/admin/external-dispatches/{id}/print-data", dispatchId)
+                        .header("X-User-Id", USER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.carrierName").value("인쇄조회퀵"))
+                .andExpect(jsonPath("$.data.carrierPhone").value("010-7000-0104"))
+                .andExpect(jsonPath("$.data.channel").value("PRINT"))
+                .andExpect(jsonPath("$.data.items[0].slipNo").value(first.getSlipNo()))
+                .andExpect(jsonPath("$.data.items[0].deliveryAddress").value("서울시 강남구 테스트로 814"))
+                .andExpect(jsonPath("$.data.items[0].recipientPhone").value("010-1000-814"))
+                .andExpect(jsonPath("$.data.items[0].itemSummary").value("AJ040 2대"))
+                .andExpect(jsonPath("$.data.items[1].slipNo").value(second.getSlipNo()))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(printJson).doesNotContain(first.getId().toString());
+        org.assertj.core.api.Assertions.assertThat(printJson).doesNotContain(second.getId().toString());
     }
 
     @Test

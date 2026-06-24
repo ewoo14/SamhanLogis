@@ -38,6 +38,15 @@ public class ExternalDispatchSmsComposer {
         return body.toString();
     }
 
+    /**
+     * 전표 품목을 대표 모델명과 총수량으로 요약한다.
+     *
+     * <p>SMS 본문과 인쇄 배차의뢰서가 같은 품목 표현을 쓰도록 공개 헬퍼로 제공한다.
+     */
+    public String summarizeItems(Slip slip) {
+        return summarizeItems(slip == null ? null : slip.getLines());
+    }
+
     private static String composeSlipLine(Slip slip) {
         int lineCount = slip.getLines() == null ? 0 : slip.getLines().size();
         String suffix = lineCount > 1 ? " 외 " + (lineCount - 1) + "건" : "";

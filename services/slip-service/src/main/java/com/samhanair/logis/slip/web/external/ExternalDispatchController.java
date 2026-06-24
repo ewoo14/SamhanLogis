@@ -6,11 +6,14 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.dto.external.CreateExternalDispatchRequest;
+import com.samhanair.logis.slip.dto.external.ExternalDispatchPrintDataResponse;
 import com.samhanair.logis.slip.dto.external.ExternalDispatchResponse;
 import com.samhanair.logis.slip.service.external.ExternalDispatchService;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -27,14 +30,21 @@ public class ExternalDispatchController {
 
     private final ExternalDispatchService service;
 
-    /** 선택 전표를 외부기사/배송사에게 SMS 발송한다. 화면 식별자는 배송사명/전화번호/전표번호다. */
+    /** 선택 전표를 외부기사/배송사에게 SMS/인쇄 채널로 발송한다. 화면 식별자는 배송사명/전화번호/전표번호다. */
     @PostMapping
     @RequirePermission(page = "dispatch.board", action = PermissionAction.CREATE)
-    public ApiResponse<ExternalDispatchResponse> dispatchBySms(
+    public ApiResponse<ExternalDispatchResponse> dispatch(
             @Valid @RequestBody CreateExternalDispatchRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerId
     ) {
-        return ApiResponse.ok(service.dispatchBySms(request, parseCaller(callerId)));
+        return ApiResponse.ok(service.dispatch(request, parseCaller(callerId)));
+    }
+
+    /** 배차의뢰서 인쇄 화면 데이터를 조회한다. UUID 는 라우팅 내부용이고 응답 본문에는 노출하지 않는다. */
+    @GetMapping("/{id}/print-data")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
+    public ApiResponse<ExternalDispatchPrintDataResponse> getPrintData(@PathVariable UUID id) {
+        return ApiResponse.ok(service.getPrintData(id));
     }
 
     private static UUID parseCaller(String callerId) {
