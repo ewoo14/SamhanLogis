@@ -88,7 +88,7 @@ public class DispatchTaskBoardQueryService {
         }
         try {
             return userInternalClient.resolveFullName(UUID.fromString(userId)).orElse(null);
-        } catch (IllegalArgumentException ex) {
+        } catch (Exception ex) {
             return null;
         }
     }

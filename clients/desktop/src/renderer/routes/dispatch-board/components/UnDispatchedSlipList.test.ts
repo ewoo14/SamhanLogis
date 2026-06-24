@@ -48,6 +48,8 @@ describe('UnDispatchedSlipList summary cells', () => {
 
   test('검수일시(LocalDateTime, KST 벽시계)를 타임존 재변환 없이 분 단위로 표시한다', () => {
     expect(formatInspectorSignedAtKst('2026-06-11T09:20:00')).toBe('2026. 06. 11. 09:20')
+    expect(formatInspectorSignedAtKst('2026-06-11 09:20:00')).toBe('2026. 06. 11. 09:20')
+    expect(formatInspectorSignedAtKst('not-a-date')).toBe('-')
     expect(formatInspectorSignedAtKst(null)).toBe('-')
   })
 })

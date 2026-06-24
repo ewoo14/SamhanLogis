@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,17 +109,7 @@ class DispatchTaskBoardQueryServiceTest {
     void maps_inspector_name_and_signed_at_without_exposing_inspector_user_id() {
         UUID inspectorId = UUID.randomUUID();
         LocalDateTime signedAt = LocalDateTime.of(2026, 6, 24, 9, 30);
-        Slip slip = org.mockito.Mockito.mock(Slip.class);
-        when(slip.getId()).thenReturn(UUID.randomUUID());
-        when(slip.getSlipNo()).thenReturn("2026/06/24-1");
-        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 6, 24));
-        when(slip.getPartnerCode()).thenReturn("P-INSPECT-001");
-        when(slip.getPartnerName()).thenReturn("검수완료 거래처");
-        when(slip.getDeliveryAddress()).thenReturn("서울시 강남구 테스트로 1");
-        when(slip.getRecipientPhone()).thenReturn("010-1111-2222");
-        when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
-        when(slip.getInspectorUserId()).thenReturn(inspectorId.toString());
-        when(slip.getInspectorSignedAt()).thenReturn(signedAt);
+        Slip slip = mockSlip(inspectorId.toString(), signedAt);
         when(slipRepo.findDispatchReadyOutboundSlips(
                 any(LocalDate.class), any(LocalDate.class), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(slip)));
@@ -133,5 +125,50 @@ class DispatchTaskBoardQueryServiceTest {
         SlipBoardResponse row = page.getContent().get(0);
         assertThat(row.inspectorName()).isEqualTo("검수담당자");
         assertThat(row.inspectorSignedAt()).isEqualTo(signedAt);
+    }
+
+    @Test
+    void resolves_each_distinct_inspector_once_and_gracefully_ignores_bad_ids_or_client_failures() {
+        UUID sharedInspectorId = UUID.randomUUID();
+        UUID failingInspectorId = UUID.randomUUID();
+        Slip first = mockSlip(sharedInspectorId.toString(), LocalDateTime.of(2026, 6, 24, 9, 30));
+        Slip second = mockSlip(sharedInspectorId.toString(), LocalDateTime.of(2026, 6, 24, 9, 45));
+        Slip badId = mockSlip("system", LocalDateTime.of(2026, 6, 24, 10, 0));
+        Slip blankId = mockSlip(" ", LocalDateTime.of(2026, 6, 24, 10, 15));
+        Slip failing = mockSlip(failingInspectorId.toString(), LocalDateTime.of(2026, 6, 24, 10, 30));
+        when(slipRepo.findDispatchReadyOutboundSlips(
+                any(LocalDate.class), any(LocalDate.class), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(first, second, badId, blankId, failing)));
+        when(userInternalClient.resolveFullName(sharedInspectorId)).thenReturn(Optional.of("공유검수자"));
+        when(userInternalClient.resolveFullName(failingInspectorId)).thenThrow(new RuntimeException("user-service down"));
+
+        Page<SlipBoardResponse> page = svc.findUnDispatchedSlips(
+                LocalDate.of(2026, 6, 24),
+                LocalDate.of(2026, 6, 24),
+                Set.of(SlipDispatchStatus.UNDISPATCHED),
+                0,
+                50);
+
+        assertThat(page.getContent())
+                .extracting(SlipBoardResponse::inspectorName)
+                .containsExactly("공유검수자", "공유검수자", null, null, null);
+        verify(userInternalClient, times(1)).resolveFullName(sharedInspectorId);
+        verify(userInternalClient, times(1)).resolveFullName(failingInspectorId);
+        verify(userInternalClient, never()).resolveFullName(null);
+    }
+
+    private Slip mockSlip(String inspectorUserId, LocalDateTime signedAt) {
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+        when(slip.getId()).thenReturn(UUID.randomUUID());
+        when(slip.getSlipNo()).thenReturn("2026/06/24-1");
+        when(slip.getSlipDate()).thenReturn(LocalDate.of(2026, 6, 24));
+        when(slip.getPartnerCode()).thenReturn("P-INSPECT-001");
+        when(slip.getPartnerName()).thenReturn("검수완료 거래처");
+        when(slip.getDeliveryAddress()).thenReturn("서울시 강남구 테스트로 1");
+        when(slip.getRecipientPhone()).thenReturn("010-1111-2222");
+        when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
+        when(slip.getInspectorUserId()).thenReturn(inspectorUserId);
+        when(slip.getInspectorSignedAt()).thenReturn(signedAt);
+        return slip;
     }
 }
