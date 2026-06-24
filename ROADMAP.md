@@ -31,7 +31,7 @@
 
 ### 최신 진행 메모 (2026-06-24)
 
-- 검수완료 → 배차발송 에픽 슬3 진행: 슬1은 검수완료 출고전표를 배차 발송 대기 진입점과 아로로지스 기존 발송 경로에 연결했고, 슬2는 `external_carrier` 외부기사/배송사 마스터 CRUD를 추가했다. 슬3는 `external_dispatch`/`external_dispatch_slip` V50 이력과 `POST /admin/external-dispatches`를 추가해 타배송사 기사별 SMS 1건 발송을 지원한다. notification-service 내부 SMS 계약을 재사용하며, 성공 시 선택 전표를 `DISPATCHED`로 종료하고 실패 시 `FAILED` 이력만 보존해 재시도 가능하게 둔다. desktop 배차 보드에는 전표 다중 선택 + 외부기사/배송사 선택 SMS 모달과 mock/test를 추가한다. PRINT/BOTH 실행은 슬4 범위로 유지한다.
+- 검수완료 → 배차발송 에픽 완결: 슬1은 검수완료 출고전표를 배차 발송 대기 진입점과 아로로지스 기존 발송 경로에 연결했고, 슬2는 `external_carrier` 외부기사/배송사 마스터 CRUD를 추가했다. 슬3는 `external_dispatch`/`external_dispatch_slip` V50 이력과 `POST /admin/external-dispatches` SMS 발송을 추가했다. 슬4는 `PRINT`/`BOTH` 채널과 `GET /admin/external-dispatches/{id}/print-data` 인쇄 데이터 조회, desktop A4 배차의뢰서(`/dispatch/external-dispatch/{id}/print`)를 완성했다. PRINT 는 SMS 호출 없이 SENT + `DISPATCHED`, BOTH 는 SMS 결과로 SENT/FAILED 를 기록하며 인쇄 데이터는 같은 발송 이력에서 제공한다. Flyway 신규와 권한 신규 시드 없이 `dispatch.board` 를 재사용하고, 화면에는 배송사명/연락처/전표번호/배송지/수령자/품목요약만 노출한다.
 
 ### 최신 진행 메모 (2026-06-11)
 

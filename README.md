@@ -29,7 +29,7 @@
 
 ### 최신 진행 메모 (2026-06-24)
 
-- **검수완료 → 배차발송 에픽 진행**: 슬1에서 검수완료 출고전표를 배차 발송 대기 진입점으로 연결하고 아로로지스 기존 배차 경로를 보존했다. 슬2는 `slip-service`에 **외부기사/배송사 마스터(`external_carrier`)** 를 추가했다. 슬3는 **타배송사 SMS 발송(`external_dispatch`)** 을 구현한다. `external_dispatch`/`external_dispatch_slip` V50 이력, `POST /admin/external-dispatches`, notification-service `/internal/notifications/send` 재사용, 성공 시 `slip.dispatchStatus=DISPATCHED`, 실패 시 `FAILED` 이력 보존 + 재시도 가능 상태를 적용한다. desktop 배차 보드 발송대기 목록에는 전표 다중 선택 + 외부기사/배송사 선택 SMS 모달을 추가하며, 화면 식별자는 이름/전화/전표번호만 사용한다.
+- **검수완료 → 배차발송 에픽 완결**: 슬1에서 검수완료 출고전표를 배차 발송 대기 진입점으로 연결하고 아로로지스 기존 배차 경로를 보존했다. 슬2는 `slip-service`에 **외부기사/배송사 마스터(`external_carrier`)** 를 추가했고, 슬3는 **타배송사 SMS 발송(`external_dispatch`)** 을 구현했다. 슬4는 **타배송사 인쇄 배차의뢰서(PRINT/BOTH)** 를 완성했다. `POST /admin/external-dispatches` 는 `SMS`/`PRINT`/`BOTH` 채널을 지원하고, `GET /admin/external-dispatches/{id}/print-data` 로 A4 배차의뢰서 데이터를 제공한다. PRINT 는 SMS 호출 없이 즉시 SENT + `slip.dispatchStatus=DISPATCHED`, BOTH 는 SMS 결과에 따라 SENT/FAILED 를 기록한다. desktop 배차 보드 모달은 SMS/인쇄/SMS+인쇄 채널 선택과 `/dispatch/external-dispatch/{id}/print` 인쇄 진입을 제공한다. Flyway/권한 신규 시드 없이 `dispatch.board` 를 재사용하며, 화면 식별자는 배송사명/연락처/전표번호/배송지/수령자/품목요약만 사용한다.
 
 ### 최신 진행 메모 (2026-06-20)
 
