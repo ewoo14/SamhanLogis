@@ -1,19 +1,14 @@
 import type { SlipDetail, SlipLineDetail } from '../api/slip'
 import type { ApprovalLineStructure } from '../api/approvalLineConfigApi'
+import { OUTBOUND_DELIVERY_TAG_LABELS } from '../api/slipCutoff'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { ApprovalRoleCells, RoleCell, fallbackRoles } from './approvalRoleCells'
 
-/** OUTBOUND DeliveryTag 한국어 라벨 맵 — 인쇄 양식 배송주소 앞 표시용. */
-const DISPATCH_TAG_LABELS: Record<string, string> = {
-  DAY: '당일',
-  STACK: '야적',
-  REGION: '지방',
-  LOGEN: '로젠택배',
-  GYEONGDONG_PARCEL: '경동택배',
-  GYEONGDONG_FREIGHT: '경동화물',
-  RENTAL: '대여',
-  RETURN_RENTAL: '반납',
-}
+/**
+ * 배송태그 한국어 라벨 맵 — 설정 화면(slipCutoff.ts)과 단일 소스를 공유한다(중복 정의 금지).
+ * 인쇄 양식 배송주소 앞 표시용. slip.deliveryTag(11종) 인덱싱 위해 string 키로 확장.
+ */
+const DISPATCH_TAG_LABELS = OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>
 
 export interface DispatchDocumentSignatures {
   driverSignaturePng?: string | null

@@ -70,8 +70,8 @@ jobs:
             test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.delivery.it.*" --tests "com.samhanair.logis.slip.publish.*"'
           - name: slip-it-core
             timeout: 30
-            # slip.it.* 가 slip.it.collab.* 를 이미 커버하나, 명시 추가로 false-green 의혹 영구 제거 (§7 Round C P2)
-            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.it.collab.*" --tests "com.samhanair.logis.slip.repository.dispatch.*" --tests "com.samhanair.logis.slip.dispatch.*"'
+            # slip.it.* 가 slip.it.collab.*/slip.it.cutoff.* 를 자동 커버하지 않으므로(Gradle --tests 서브패키지 미포함) 명시 추가로 false-green 영구 제거 (§7 Round C P2 / 컷오프 슬라이스)
+            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.it.collab.*" --tests "com.samhanair.logis.slip.it.cutoff.*" --tests "com.samhanair.logis.slip.repository.dispatch.*" --tests "com.samhanair.logis.slip.dispatch.*"'
           - name: accounting+partner
             timeout: 30
             test-tasks: ':services:accounting-service:test :services:partner-service:test :services:partner-auth-service:test :services:partner-order-service:test :services:dc-config-service:test'

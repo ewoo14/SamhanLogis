@@ -54,6 +54,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>DRAFT 생성 후 마감 후 editHeader REGION 태그 설정 → 409</li>
  *   <li>마감 후 editHeader 태그 미변경(memo만) → 통과</li>
  *   <li>마감 전 editHeader REGION 태그 설정 → 200</li>
+ *   <li>게이트⑧ 배치수정(v20) 마감 후 REGION 태그 설정 → 409</li>
+ *   <li>게이트⑧ 배치수정(v20) 마감 후 태그 미변경 → 통과</li>
  * </ol>
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
@@ -179,6 +181,23 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                 .andExpect(status().isOk());
     }
 
+    /**
+     * [시나리오 5] 발행/견적변환/모바일 경로 시뮬레이션 — 태그 null DRAFT 를 마감 후(13:00) 생성 → 통과.
+     * 생성 시 태그 null 이라 마감 게이트를 통과하고, 태그 확정(editHeader/v20) 시점에 게이트가 적용된다(D8 R2).
+     */
+    @Test
+    void create_nullTag_afterCutoff_returnsOk() throws Exception {
+        setClockKst(13, 0); // 마감 후이지만 태그 null → 통과
+        String today = LocalDate.now(KST).toString();
+
+        mvc.perform(post("/slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(buildCreateRequest(null, today))
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE))
+                .andExpect(status().isOk());
+    }
+
     // ── 태그확정(editHeader) 경로 ────────────────────────────────────────
 
     /**
@@ -280,6 +299,68 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .header("X-User-Role", USER_ROLE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deliveryTag").value("REGION"));
+    }
+
+    // ── 태그확정(배치수정 v20 = 게이트⑧) 경로 ─────────────────────────────
+
+    /**
+     * [시나리오 9] 게이트⑧ — 배치 헤더수정(PATCH /slips/{id}/v20) 으로 마감 후 REGION 태그 설정 → 409.
+     */
+    @Test
+    void updateV20_addRegionTagAfterCutoff_returns409() throws Exception {
+        // 1. 마감 전 태그 null DRAFT 생성
+        setClockKst(11, 0);
+        String today = LocalDate.now(KST).toString();
+        String createResp = mvc.perform(post("/slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(buildCreateRequest(null, today))
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String slipId = extractId(createResp);
+
+        // 2. 마감 후 v20 으로 REGION 태그 설정 → 409
+        setClockKst(13, 0);
+        mvc.perform(patch("/slips/{id}/v20", slipId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"deliveryTag": "REGION"}
+                                """)
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.message")
+                        .value(org.hamcrest.Matchers.containsString("당일 마감")));
+    }
+
+    /**
+     * [시나리오 10] 게이트⑧ — 배치 헤더수정 마감 후 태그 미변경(현장명만 수정) → 통과.
+     */
+    @Test
+    void updateV20_noTagChange_afterCutoff_returnsOk() throws Exception {
+        // 1. 마감 전 REGION 전표 생성
+        setClockKst(11, 0);
+        String today = LocalDate.now(KST).toString();
+        String createResp = mvc.perform(post("/slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(buildCreateRequest("REGION", today))
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String slipId = extractId(createResp);
+
+        // 2. 마감 후 v20 으로 태그 외 필드(현장명)만 수정 → 통과(태그 미변경)
+        setClockKst(13, 0);
+        mvc.perform(patch("/slips/{id}/v20", slipId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectName": "변경된 현장명"}
+                                """)
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE))
+                .andExpect(status().isOk());
     }
 
     // ── 헬퍼 ────────────────────────────────────────────────────────────

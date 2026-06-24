@@ -173,6 +173,8 @@ export function SlipCutoffConfigPage() {
   const deleteMutation = useMutation({
     mutationFn: removeSlipCutoff,
     onSuccess: () => void invalidate(),
+    // 삭제 실패(403/404 등)는 폼 밖 액션이므로 alert 로 사용자 통지(무음 실패 방지)
+    onError: (err: unknown) => window.alert(extractErrorMessage(err)),
   })
 
   const handleSubmit = (e: FormEvent) => {
@@ -228,7 +230,7 @@ export function SlipCutoffConfigPage() {
       },
       {
         key: 'active',
-        header: '활성여부',
+        header: '활성',
         width: '100px',
         render: (row) => (
           <Badge variant={row.active ? 'success' : 'neutral'}>
@@ -422,9 +424,9 @@ export function SlipCutoffConfigPage() {
                 />
               )}
 
-              {/* 마감시각 */}
+              {/* 마감시각 — 24시간제 명시(브라우저 로케일 12h/24h 혼동 방지) */}
               <FormField
-                label="마감시각"
+                label="마감시각 (24시간제, 예: 14:00)"
                 required
                 render={({ id, ariaDescribedBy }) => (
                   <input

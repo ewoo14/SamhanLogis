@@ -1260,6 +1260,15 @@ button {
   margin-top: 4mm;
 }
 
+/* 배송태그 라벨 — 배송주소 박스 바로 위, 좌측 강조 표시([지방] 형태). 인쇄 양식 iteration 대상. */
+.dispatch-delivery-tag-label {
+  display: inline-block;
+  font-size: 13pt;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: 2mm;
+}
+
 .dispatch-address-box {
   border: 1px solid #000;
   padding: 4mm;

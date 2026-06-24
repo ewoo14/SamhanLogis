@@ -50,6 +50,9 @@ public class OutboundCutoffGuard {
      *   <li>해당 태그의 활성 마감시각이 존재하지 않는 경우 — opt-in 구조</li>
      * </ol>
      *
+     * <p>경계 조건: 현재 시각이 마감 시각과 <b>정확히 동일</b>한 경우는 통과한다
+     * ({@code isAfter} 엄격 비교 — "초과"만 차단, 마감 정각 등록 허용).
+     *
      * @param tag      배송 태그 (null 이면 즉시 통과)
      * @param slipDate 전표 날짜 (null 이면 즉시 통과)
      * @throws BusinessException(CONFLICT) 당일 출고전표이고 현재 시각이 마감 시각을 초과했을 때

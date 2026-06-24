@@ -3,6 +3,9 @@
 -- OUTBOUND DeliveryTag 별로 당일 출고전표 생성을 차단할 마감 시각을 저장한다.
 -- 기본 시드(REGION/STACK/GYEONGDONG_PARCEL/GYEONGDONG_FREIGHT) 4행 포함.
 
+-- gen_random_uuid() 자급성 보장(fresh Postgres probe 시 pgcrypto 미활성 환경 방어). PG13+ 내장이나 명시.
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE TABLE IF NOT EXISTS slip_outbound_cutoff (
     id           UUID         PRIMARY KEY,
     delivery_tag VARCHAR(40)  NOT NULL,
