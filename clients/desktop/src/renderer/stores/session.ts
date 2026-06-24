@@ -1,8 +1,8 @@
 /**
- * 세션 상태 — 메인 프로세스 토큰 저장소를 미러링하는 렌더러 캐시.
+ * 세션 상태 — 플랫폼별 authProvider 세션 식별정보를 미러링하는 렌더러 캐시.
  *
- * zustand 단일 store 로 관리하며, 앱 부팅 시 `bootstrap()` 가 IPC 로
- * 메인 프로세스에서 토큰을 가져와 초기 상태를 구성한다.
+ * zustand 단일 store 로 관리하며, 앱 부팅 시 `bootstrap()` 이 Electron IPC 또는
+ * 웹 `/auth/me` 를 통해 초기 상태를 구성한다.
  *
  * C5-2b: canCreateSlip / canInspectInbound / canCreateTransfer 헬퍼는
  * usePermissions().canAccess() 로 이관 완료. session.ts 에서 제거됨.
@@ -21,6 +21,8 @@
 import { create } from 'zustand'
 import type { AuthSnapshot, AuthGroupItem } from '../types/electron'
 import { MOCK_AUTH, isMockMode } from '../api/mock'
+import type { LoginResponse } from '../api/auth'
+import { getAuthProvider, isElectronPlatform, type SessionInfo } from '../auth/authProvider'
 
 interface SessionState {
   /** 세션 부팅 완료 여부 — false 이면 splash/스피너 표시. */
@@ -29,10 +31,35 @@ interface SessionState {
   auth: AuthSnapshot | null
   /** 메인 프로세스에서 토큰을 다시 읽어와 상태에 반영. */
   bootstrap: () => Promise<void>
-  /** 로그인 성공 시 호출 — 메인 프로세스 저장 + 렌더러 캐시 갱신. */
-  setAuth: (auth: AuthSnapshot) => Promise<void>
-  /** 로그아웃 — 메인 프로세스 클리어 + 렌더러 캐시 비움. */
+  /** 로그인 성공 시 호출 — provider 저장/캐시 + 렌더러 세션 갱신. */
+  setAuth: (login: LoginResponse) => Promise<void>
+  /** 로그아웃 — provider 세션 정리 + 렌더러 캐시 비움. */
   logout: () => Promise<void>
+}
+
+/** provider 세션 식별정보를 기존 AuthSnapshot shape 로 맞춘다. 웹 토큰은 JS 에 노출하지 않는다. */
+function sessionInfoToSnapshot(session: SessionInfo | null, token = ''): AuthSnapshot | null {
+  if (!session) return null
+  return {
+    token,
+    userId: session.userId,
+    role: session.role,
+    fullName: session.fullName,
+    partnerCode: session.partnerCode,
+    groups: session.groups,
+  }
+}
+
+/** LoginResponse 를 렌더러 캐시용 snapshot 으로 변환한다. */
+function loginToSnapshot(login: LoginResponse): AuthSnapshot {
+  return {
+    token: isElectronPlatform ? login.token : '',
+    userId: login.userId,
+    role: login.role,
+    fullName: login.displayName,
+    partnerCode: login.partnerCode,
+    groups: login.groups,
+  }
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -45,19 +72,19 @@ export const useSessionStore = create<SessionState>((set) => ({
       return
     }
     try {
-      const auth = await window.samhanAuth.getToken()
-      set({ auth, bootstrapped: true })
+      const session = await getAuthProvider().bootstrap()
+      set({ auth: sessionInfoToSnapshot(session), bootstrapped: true })
     } catch (err) {
-      console.error('[session] 초기 토큰 조회 실패', err)
+      console.error('[session] 초기 세션 복원 실패', err)
       set({ auth: null, bootstrapped: true })
     }
   },
-  setAuth: async (auth) => {
-    await window.samhanAuth.setToken(auth)
-    set({ auth })
+  setAuth: async (login) => {
+    await getAuthProvider().establishSession(login)
+    set({ auth: loginToSnapshot(login) })
   },
   logout: async () => {
-    await window.samhanAuth.clearToken()
+    await getAuthProvider().clearSession()
     set({ auth: null })
   },
 }))

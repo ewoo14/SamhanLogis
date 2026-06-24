@@ -3,8 +3,8 @@
  *
  * <p>BE {@code GET /api/v1/slips/{slipId}/realtime} (Server-Sent Events stream)
  * 를 fetch + ReadableStream 으로 직접 파싱한다. 브라우저 native EventSource 는
- * Authorization 헤더 주입이 불가능하므로 사용하지 않는다 (Electron 렌더러 +
- * JWT Bearer 인증 환경 필수 요구 사항).
+ * Electron 은 authProvider 가 Authorization 헤더를 제공하고, 웹은 httpOnly 쿠키를
+ * credentials:'include' 로 전송한다.
  *
  * <h2>주요 동작</h2>
  * <ul>
@@ -20,6 +20,7 @@
  * 호출자(SlipDetailPage)가 화면 노출하지 않고 cache invalidate 키로만 사용한다.
  */
 import { apiClient } from '../api/client'
+import { getAuthProvider } from '../auth/authProvider'
 
 /**
  * SSE 1 이벤트의 파싱된 형태. {@code event:} 라인이 없으면 SSE 표준에 따라
@@ -108,20 +109,19 @@ export function subscribe(
     const onOuterAbort = () => innerAbort.abort()
     controller.signal.addEventListener('abort', onOuterAbort)
 
-    let authHeader: string | null = null
+    let authHeaders: Record<string, string> = {}
     try {
-      const auth = await window.samhanAuth.getToken()
-      if (auth?.token) authHeader = `Bearer ${auth.token}`
+      authHeaders = await getAuthProvider().getAuthHeaders()
     } catch (err) {
-      // 토큰 조회 실패 — 401 가능성 → backoff 재시도
-      console.error('[SlipRealtimeClient] 토큰 조회 실패', err)
+      // 인증 헤더 조회 실패 — 401 가능성 → backoff 재시도
+      console.error('[SlipRealtimeClient] 인증 헤더 조회 실패', err)
     }
 
     const headers: Record<string, string> = {
       Accept: 'text/event-stream',
       'Cache-Control': 'no-cache',
+      ...authHeaders,
     }
-    if (authHeader) headers['Authorization'] = authHeader
 
     try {
       const url = `${baseUrl}/api/v1/slips/${encodeURIComponent(slipId)}/realtime`
@@ -129,7 +129,7 @@ export function subscribe(
         method: 'GET',
         headers,
         signal: innerAbort.signal,
-        credentials: 'omit',
+        credentials: 'include',
       })
 
       if (!res.ok || !res.body) {

@@ -10,6 +10,7 @@
     "local-dev": "node ../../scripts/run-client-local-dev.cjs desktop",
     "build": "npm run build:legacy && electron-vite build",
     "build:legacy": "node scripts/build-legacy-estimate.cjs",
+    "build:web": "vite build --config vite.web.config.ts",
     "build:print-renderer": "vite build --config vite.print-renderer.config.ts",
     "preview": "electron-vite preview",
     "build:win": "npm run build:legacy && electron-vite build && electron-builder --win",

@@ -15,6 +15,7 @@
  * })
  */
 import { apiClient } from '../api/client'
+import { getAuthProvider } from '../auth/authProvider'
 
 /** SSE 1 이벤트의 파싱된 형태. */
 export interface RealtimeEvent {
@@ -100,19 +101,18 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
       const onOuterAbort = () => innerAbort.abort()
       controller.signal.addEventListener('abort', onOuterAbort)
 
-      let authHeader: string | null = null
+      let authHeaders: Record<string, string> = {}
       try {
-        const auth = await window.samhanAuth.getToken()
-        if (auth?.token) authHeader = `Bearer ${auth.token}`
+        authHeaders = await getAuthProvider().getAuthHeaders()
       } catch (err) {
-        console.error(`${logPrefix} 토큰 조회 실패`, err)
+        console.error(`${logPrefix} 인증 헤더 조회 실패`, err)
       }
 
       const headers: Record<string, string> = {
         Accept: 'text/event-stream',
         'Cache-Control': 'no-cache',
+        ...authHeaders,
       }
-      if (authHeader) headers['Authorization'] = authHeader
 
       try {
         const url = `${baseUrl}${config.endpointPath(entityId)}`
@@ -120,7 +120,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
           method: 'GET',
           headers,
           signal: innerAbort.signal,
-          credentials: 'omit',
+          credentials: 'include',
         })
 
         if (!res.ok || !res.body) {

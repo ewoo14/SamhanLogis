@@ -1,8 +1,9 @@
 /**
- * 라우트 정의 — `HashRouter` 기반.
+ * 라우트 정의 — 플랫폼별 라우터 기반.
  *
  * Electron 의 `file://` 프로토콜에서는 `BrowserRouter` 의 history mode 가
- * 새로고침 시 404 를 일으키므로 `createHashRouter` 를 사용한다.
+ * 새로고침 시 404 를 일으키므로 `createHashRouter` 를 사용한다. 웹 배포에서는
+ * 서버 SPA fallback 을 전제로 `createBrowserRouter` 를 사용한다.
  *
  * IA 재편 (slip-output-format 슬라이스 — Q1=A 새 슬라이스):
  * - `/login` → LoginPage (보호 X)
@@ -61,10 +62,12 @@
  * 기존 PR #18 의 `/slips`, `/slips/new` 라우트는 폐기.
  */
 import {
+  createBrowserRouter,
   createHashRouter,
   RouterProvider,
   useSearchParams,
 } from 'react-router-dom'
+import { isElectronPlatform } from '../auth/authProvider'
 import { AuthGuard } from '../components/AuthGuard'
 import { AppLayout } from '../components/AppLayout'
 import { LoginPage } from './LoginPage'
@@ -329,7 +332,7 @@ function NextDaySlipPrintRoute() {
   return <NextDaySlipView pageBreakPerRoom={perRoom} />
 }
 
-const router = createHashRouter([
+const routes = [
   { path: '/login', element: <LoginPage /> },
   // P0-2 셀프 재설정 — 비인증 최상위 (AuthGuard / AppLayout 미적용)
   // `/auth/password-reset/confirm` 을 `/auth/password-reset` 보다 먼저 등록 (정적 path 우선 매칭).
@@ -1655,7 +1658,10 @@ const router = createHashRouter([
       { path: '*', element: <NotFoundPage /> },
     ],
   },
-])
+]
+
+const createPlatformRouter = isElectronPlatform ? createHashRouter : createBrowserRouter
+const router = createPlatformRouter(routes)
 
 /**
  * 앱 루트가 import 하는 RouterProvider wrapper.

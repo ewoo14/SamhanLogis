@@ -6,6 +6,7 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 import type { ApprovalLineAdminResponse } from './groupwareApproval'
+import { collabHeaders } from '../auth/collabHeaders'
 
 export interface GroupwareApprovalCollabComment {
   id: string
@@ -44,18 +45,6 @@ export interface CommitGroupwareApprovalCollabEditInput {
 export interface CommitGroupwareApprovalCollabEditResponse {
   edit: GroupwareApprovalCollabEdit
   approval: ApprovalLineAdminResponse
-}
-
-async function collabHeaders(): Promise<Record<string, string>> {
-  try {
-    const auth = await window.samhanAuth.getToken()
-    const headers: Record<string, string> = {}
-    if (auth?.userId) headers['X-User-Id'] = auth.userId
-    if (auth?.fullName) headers['X-User-Name'] = auth.fullName
-    return headers
-  } catch {
-    return {}
-  }
 }
 
 function collabPath(approvalId: string, suffix: string): string {

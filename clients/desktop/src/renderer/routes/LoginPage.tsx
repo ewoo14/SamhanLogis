@@ -4,7 +4,7 @@
  * 흐름:
  * 1) 사용자가 loginId/password 입력
  * 2) `useMutation` 으로 `POST /auth/login` 호출
- * 3) 성공 시 메인 프로세스에 토큰 저장 (`window.samhanAuth.setToken`) +
+ * 3) 성공 시 플랫폼별 authProvider 에 세션 반영 +
  *    렌더러 세션 store 갱신 → `/` 로 navigate
  * 4) 실패 시 카드 안에 빨간 에러 배너 표시
  *
@@ -67,14 +67,7 @@ export function LoginPage() {
   const mutation = useMutation<LoginResponse, unknown, void>({
     mutationFn: () => login({ loginId, password }),
     onSuccess: async (res) => {
-      await setAuth({
-        token: res.token,
-        userId: res.userId,
-        role: res.role,
-        fullName: res.displayName,
-        partnerCode: res.partnerCode,
-        groups: res.groups,
-      })
+      await setAuth(res)
       navigate('/', { replace: true })
     },
   })

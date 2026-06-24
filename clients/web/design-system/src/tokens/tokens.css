@@ -184,6 +184,10 @@
   --bp-lg:  1024px;
   --bp-xl:  1280px;
   --bp-2xl: 1536px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
 }
 
 /* ==========================================================================

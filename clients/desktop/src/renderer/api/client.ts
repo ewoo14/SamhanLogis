@@ -2,8 +2,8 @@
  * 모든 BE 호출에 사용되는 axios 인스턴스 + 공통 인터셉터.
  *
  * 인터셉터 동작:
- * 1) 요청 — `window.samhanAuth.getToken()` 으로 메인 프로세스에서 JWT 를
- *    가져와 `Authorization: Bearer ...` 헤더에 주입한다.
+ * 1) 요청 — 플랫폼별 authProvider 에서 인증 헤더를 가져와 병합한다.
+ *    Electron 은 기존 Bearer, 웹은 httpOnly 쿠키 전송을 위해 withCredentials 를 사용한다.
  *    파트너 자기범위 키인 `X-Partner-Code` 는 게이트웨이가 JWT claim 에서 권위 주입한다.
  * 2) 응답 — 401 발생 시 토큰을 즉시 클리어하고 hash 라우팅으로
  *    `#/login` 에 강제 리다이렉트한다.
@@ -15,6 +15,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { getMockResponse, isMockMode } from './mock'
+import { getAuthProvider } from '../auth/authProvider'
 
 interface MockHttpResponse {
   __mockStatus: number
@@ -66,13 +67,14 @@ apiClient.interceptors.request.use(
       }
     }
     try {
-      const auth = await window.samhanAuth.getToken()
-      if (auth?.token) {
-        config.headers.set('Authorization', `Bearer ${auth.token}`)
+      config.withCredentials = true
+      const headers = await getAuthProvider().getAuthHeaders()
+      for (const [key, value] of Object.entries(headers)) {
+        config.headers.set(key, value)
       }
     } catch (err) {
-      // IPC 실패는 치명적 — 다음 단계 axios 가 401/네트워크 오류로 핸들.
-      console.error('[apiClient] 토큰 조회 IPC 실패', err)
+      // 인증 provider 실패는 다음 단계 axios 가 401/네트워크 오류로 핸들한다.
+      console.error('[apiClient] 인증 헤더 조회 실패', err)
     }
     return config
   },
@@ -83,11 +85,11 @@ apiClient.interceptors.response.use(
   async (err: unknown) => {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
       try {
-        await window.samhanAuth.clearToken()
+        await getAuthProvider().clearSession()
       } catch (clearErr) {
-        console.error('[apiClient] 401 후 토큰 클리어 실패', clearErr)
+        console.error('[apiClient] 401 후 세션 클리어 실패', clearErr)
       }
-      // HashRouter 사용 — file:// 환경 호환.
+      // Electron HashRouter 기준. 웹 BrowserRouter 에서는 /login 으로 대체해도 되지만 기존 무회귀 우선.
       if (typeof window !== 'undefined') {
         window.location.hash = '#/login'
       }

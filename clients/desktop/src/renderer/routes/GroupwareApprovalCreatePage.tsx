@@ -35,6 +35,7 @@ import { DynamicApprovalFieldInput } from '../components/groupware/DynamicApprov
 import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { getAuthProvider } from '../auth/authProvider'
 
 type ReferenceDraft = DocumentReferenceValue
 
@@ -210,7 +211,7 @@ export function GroupwareApprovalCreatePage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTemplate) throw new Error('결재 유형을 선택하세요.')
-      const auth = await window.samhanAuth.getToken()
+      const auth = await getAuthProvider().getSession()
       if (!auth?.userId) throw new Error('현재 사용자 정보를 확인할 수 없습니다.')
       const created = await createGroupwareApproval({
         requesterId: auth.userId,

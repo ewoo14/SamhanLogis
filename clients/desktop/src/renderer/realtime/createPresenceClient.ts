@@ -1,4 +1,5 @@
 import { apiClient, type ApiEnvelope } from '../api/client'
+import { collabHeaders } from '../auth/collabHeaders'
 import { createRealtimeClient, type RealtimeEvent } from './createRealtimeClient'
 
 export type PresenceColor =
@@ -34,18 +35,6 @@ export interface PresenceClient {
   join: (entityId: string, user: PresenceUser, signal?: AbortSignal) => Promise<PresenceEntry | null>
   leave: (entityId: string, user: PresenceUser, signal?: AbortSignal) => Promise<void>
   subscribe: (entityId: string, onEvent: (event: RealtimeEvent) => void) => AbortController
-}
-
-async function collabHeaders(): Promise<Record<string, string>> {
-  try {
-    const auth = await window.samhanAuth.getToken()
-    const headers: Record<string, string> = {}
-    if (auth?.userId) headers['X-User-Id'] = auth.userId
-    if (auth?.fullName) headers['X-User-Name'] = auth.fullName
-    return headers
-  } catch {
-    return {}
-  }
 }
 
 export function createPresenceClient(config: PresenceClientConfig): PresenceClient {

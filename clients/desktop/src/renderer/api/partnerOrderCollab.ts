@@ -6,6 +6,7 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 import { normalizePartnerOrderDetail, type PartnerOrderDetail } from './sales'
+import { collabHeaders } from '../auth/collabHeaders'
 
 export interface PartnerOrderCollabComment {
   id: string
@@ -48,18 +49,6 @@ export interface CommitPartnerOrderCollabEditResponse {
 
 export type PartnerOrderCollabCommitInput = CommitPartnerOrderCollabEditInput
 export type PartnerOrderCollabCommitResponse = CommitPartnerOrderCollabEditResponse
-
-async function collabHeaders(): Promise<Record<string, string>> {
-  try {
-    const auth = await window.samhanAuth.getToken()
-    const headers: Record<string, string> = {}
-    if (auth?.userId) headers['X-User-Id'] = auth.userId
-    if (auth?.fullName) headers['X-User-Name'] = auth.fullName
-    return headers
-  } catch {
-    return {}
-  }
-}
 
 function collabPath(orderId: string, suffix: string): string {
   return `/api/v1/partner-orders/${encodeURIComponent(orderId)}/collab/${suffix}`

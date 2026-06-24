@@ -5,6 +5,7 @@ import {
   type PresenceEntry,
   type PresenceUser,
 } from '../realtime/createPresenceClient'
+import { getAuthProvider } from '../auth/authProvider'
 
 const HEARTBEAT_MS = 30_000
 
@@ -33,7 +34,7 @@ function createSessionId(): string {
 
 async function resolveCurrentUser(sessionId: string): Promise<PresenceUser | null> {
   try {
-    const auth = await window.samhanAuth.getToken()
+    const auth = await getAuthProvider().getSession()
     if (!auth?.userId) return null
     return {
       sessionId,
