@@ -267,6 +267,9 @@ public enum PageCode {
     /** 배차 보드 화면. */
     DISPATCH_BOARD("dispatch.board", "배차 보드"),
 
+    /** 외부기사/배송사 마스터 관리 화면. */
+    DISPATCH_EXTERNAL_CARRIERS("dispatch.external-carriers", "외부기사/배송사 관리"),
+
     /** 배차문자 저장내역 화면/API — SP-D6-3. */
     DISPATCH_SMS_SAVE_HISTORY("dispatch.sms-save-history", "배차문자 저장내역"),
 
