@@ -29,6 +29,8 @@ metadata:
 - 🚫 **단축 금지** — 트리비얼/기계적/sweep/1줄 PR 도 동일 워크플로우. 단일모델 머지 금지.
 - 🚫 **fix 후 0수렴 재리뷰** — 어떤 fix든 그 fix 포함 최종상태를 순차 듀얼리뷰 재실행 → 양쪽 새 fix 없이 0수렴 확인 후에만 머지. CI-green 만으로 머지 금지. → [[feedback_rereview_converge_after_fix]]
 - ✅ **무중단 자율** — 슬라이스 끝마다 묻지 말고 PM 연속 진행. 한국어 커밋/PR(prefix·trailer 예외), `[FEAT]`/`[FIX]` 대괄호 prefix, Role 풀네임, 개발책임자 결정은 진행 중 PR 에 누적 기록.
+- 🔁 **미준수 PR 소급 보완** — 세션 종료 이전(또는 과거) 본 워크플로우를 준수하지 않은 채 진행/머지된 PR 은 발견 시 소급으로 누락 단계(듀얼리뷰·라이브QA·단계별 스샷·0수렴 재리뷰)를 보완한다. (개발책임자 2026-06-24 명시 ④)
+- 🧭 **매 단계 ScheduleWakeup 재자각** — 각 워크플로우 단계(또는 1~2단계 묶음) 완료 후 다음 단계를 ScheduleWakeup 으로 예약·재자각하고 턴 종료(연속 mega-턴 금지, 사용자 활성 중에도 적용). → [[feedback_autonomous_loop_schedulewakeup]]
 
 ## fix 주체 (라운드별)
 - **Opus 라운드 fix = Opus 가 직접 Edit**(Codex 디스패치 금지). **Codex 라운드 fix = Codex.** "Claude 직접 코드 작성 금지"(2단계 초기 구현 한정)는 **리뷰 라운드 fix 에는 적용 안 됨.**
