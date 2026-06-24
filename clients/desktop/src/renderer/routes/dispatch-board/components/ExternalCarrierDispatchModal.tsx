@@ -1,10 +1,16 @@
 import { useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { Modal } from '@samhan/design-system'
-import { dispatchExternalSms, type ExternalDispatchResponse } from '../../../api/externalDispatch'
+import {
+  dispatchExternal,
+  type ExternalDispatchChannel,
+  type ExternalDispatchResponse,
+} from '../../../api/externalDispatch'
 import { listExternalCarriers, type ExternalCarrier } from '../../../api/externalCarrier'
 import type { SlipBoardResponse } from '../../../api/dispatchBoard'
+import { usePermissions } from '../../../hooks/usePermissions'
 import { DISPATCH_BOARD_QUERY_KEY } from '../hooks/useUnDispatchedSlipsQuery'
 
 interface ExternalCarrierDispatchModalProps {
@@ -29,6 +35,22 @@ export function canCreateExternalDispatch(
   return canAccess('dispatch.board', 'create')
 }
 
+/** dispatch.board VIEW 권한이 있을 때만 배차의뢰서 인쇄 진입을 노출한다. */
+export function canViewExternalDispatchPrint(
+  canAccess: (pageCode: 'dispatch.board', action: 'view') => boolean,
+): boolean {
+  return canAccess('dispatch.board', 'view')
+}
+
+/** PRINT/BOTH 성공 응답에서 배차의뢰서 인쇄 라우트를 계산한다. */
+export function externalDispatchPrintPath(
+  res: Pick<ExternalDispatchResponse, 'id' | 'status' | 'channel'>,
+): string | null {
+  if (res.status !== 'SENT') return null
+  if (res.channel !== 'PRINT' && res.channel !== 'BOTH') return null
+  return `/dispatch/external-dispatch/${res.id}/print`
+}
+
 /**
  * 발송 응답(status)에 따른 화면 피드백을 결정한다.
  *
@@ -37,9 +59,21 @@ export function canCreateExternalDispatch(
  * SENT 만 성공 메시지, FAILED 는 실패 메시지를 반환한다.
  */
 export function resolveDispatchFeedback(
-  res: Pick<ExternalDispatchResponse, 'status' | 'carrierName' | 'slipCount'>,
+  res: Pick<ExternalDispatchResponse, 'status' | 'carrierName' | 'slipCount' | 'channel'>,
 ): { successMessage: string | null; errorMessage: string | null } {
   if (res.status === 'SENT') {
+    if (res.channel === 'PRINT') {
+      return {
+        successMessage: `${res.carrierName} 인쇄 배차의뢰서 생성 완료 (${res.slipCount}건)`,
+        errorMessage: null,
+      }
+    }
+    if (res.channel === 'BOTH') {
+      return {
+        successMessage: `${res.carrierName} SMS 발송 및 인쇄 배차의뢰서 생성 완료 (${res.slipCount}건)`,
+        errorMessage: null,
+      }
+    }
     return {
       successMessage: `${res.carrierName} SMS 발송 완료 (${res.slipCount}건)`,
       errorMessage: null,
@@ -67,9 +101,13 @@ export function ExternalCarrierDispatchModal({
   onClose,
 }: ExternalCarrierDispatchModalProps) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const { canAccess } = usePermissions()
   const [carrierId, setCarrierId] = useState<string>('')
+  const [channel, setChannel] = useState<ExternalDispatchChannel>('SMS')
   const [clientError, setClientError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [lastResponse, setLastResponse] = useState<ExternalDispatchResponse | null>(null)
 
   const carriersQuery = useQuery({
     queryKey: ['admin', 'external-carriers', 'dispatch-modal'],
@@ -82,7 +120,7 @@ export function ExternalCarrierDispatchModal({
   )
 
   const mutation = useMutation({
-    mutationFn: dispatchExternalSms,
+    mutationFn: dispatchExternal,
     onSuccess: (res) => {
       // 발송 후 목록 갱신(성공 전표는 DISPATCHED 로 이탈).
       void queryClient.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
@@ -90,6 +128,7 @@ export function ExternalCarrierDispatchModal({
       const feedback = resolveDispatchFeedback(res)
       setSuccessMessage(feedback.successMessage)
       setClientError(feedback.errorMessage)
+      setLastResponse(res)
     },
   })
 
@@ -101,10 +140,11 @@ export function ExternalCarrierDispatchModal({
     }
     setClientError(null)
     setSuccessMessage(null)
+    setLastResponse(null)
     mutation.mutate({
       carrierId,
       slipIds: selectedSlips.map((slip) => slip.id),
-      channel: 'SMS',
+      channel,
     })
   }
 
@@ -112,6 +152,8 @@ export function ExternalCarrierDispatchModal({
   // 발송 성공(SENT) 후에는 동일 전표 재발송을 구조적으로 차단(화면 상태필터 무관 — 재클릭 시 BE 409 방지).
   const dispatchSucceeded = successMessage != null
   const isSubmitDisabled = isPending || selectedSlips.length === 0 || dispatchSucceeded
+  const printPath = lastResponse ? externalDispatchPrintPath(lastResponse) : null
+  const canOpenPrint = canViewExternalDispatchPrint(canAccess)
   const errorMessage = clientError ?? (mutation.isError
     ? extractServerMessage(mutation.error) ?? '타배송사 SMS 발송에 실패했습니다.'
     : null)
@@ -121,7 +163,7 @@ export function ExternalCarrierDispatchModal({
       open
       onClose={onClose}
       title="타배송사 발송"
-      description="선택 전표를 외부기사/배송사에게 SMS로 발송합니다."
+      description="선택 전표를 외부기사/배송사에게 SMS 또는 인쇄 배차의뢰서로 발송합니다."
       size="md"
       closeOnBackdropClick={!isPending}
       closeOnEsc={!isPending}
@@ -157,7 +199,7 @@ export function ExternalCarrierDispatchModal({
               cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
             }}
           >
-            {isPending ? '발송 중…' : 'SMS 발송'}
+            {isPending ? '발송 중…' : channel === 'SMS' ? 'SMS 발송' : channel === 'PRINT' ? '인쇄 의뢰서 생성' : 'SMS 발송 + 인쇄'}
           </button>
         </div>
       }
@@ -236,7 +278,26 @@ export function ExternalCarrierDispatchModal({
 
         <div style={{ display: 'grid', gap: 4 }}>
           <span style={{ fontWeight: 600 }}>채널</span>
-          <span data-testid="external-carrier-dispatch-channel">SMS</span>
+          <div
+            role="radiogroup"
+            aria-label="타배송사 발송 채널"
+            data-testid="external-carrier-dispatch-channel"
+            style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}
+          >
+            {channelOptions.map((option) => (
+              <label key={option.value} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <input
+                  type="radio"
+                  name="external-dispatch-channel"
+                  value={option.value}
+                  checked={channel === option.value}
+                  onChange={() => setChannel(option.value)}
+                  disabled={isPending || dispatchSucceeded}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
         </div>
 
         {errorMessage ? (
@@ -267,9 +328,35 @@ export function ExternalCarrierDispatchModal({
             }}
           >
             {successMessage}
+            {printPath && canOpenPrint ? (
+              <button
+                type="button"
+                onClick={() => navigate(printPath)}
+                data-testid="external-carrier-dispatch-print"
+                style={{
+                  display: 'block',
+                  marginTop: 8,
+                  padding: '7px 12px',
+                  border: '1px solid var(--color-success-300, #86EFAC)',
+                  borderRadius: 4,
+                  background: 'var(--color-neutral-0)',
+                  color: 'var(--color-success-800, #166534)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                배차의뢰서 인쇄
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
     </Modal>
   )
 }
+
+const channelOptions: Array<{ value: ExternalDispatchChannel; label: string }> = [
+  { value: 'SMS', label: 'SMS' },
+  { value: 'PRINT', label: '인쇄' },
+  { value: 'BOTH', label: 'SMS + 인쇄' },
+]

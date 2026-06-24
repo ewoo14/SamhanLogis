@@ -7377,7 +7377,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const carrierId = String(body['carrierId'] ?? '')
     const slipIds = Array.isArray(body['slipIds']) ? body['slipIds'].map(String) : []
     const channel = String(body['channel'] ?? 'SMS')
-    if (channel !== 'SMS') return mockError(400, 'INVALID_INPUT', 'SMS 채널만 지원합니다.')
+    if (!['SMS', 'PRINT', 'BOTH'].includes(channel)) {
+      return mockError(400, 'INVALID_INPUT', '타배송사 발송 채널은 SMS, PRINT, BOTH 만 지원합니다.')
+    }
+    const externalChannel = channel as 'SMS' | 'PRINT' | 'BOTH'
     if (!carrierId) return mockError(400, 'INVALID_INPUT', '외부기사/배송사를 선택하세요.')
     if (slipIds.length === 0) return mockError(400, 'INVALID_INPUT', '발송할 전표를 선택하세요.')
     const carrier = MOCK_EXTERNAL_CARRIERS.find((row) => row.id === carrierId && !row.deleted && row.active)
@@ -7392,22 +7395,48 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     // BE 와 동일하게 SMS 실패도 HTTP 200 + status='FAILED' 로 응답한다(graceful, 재시도 가능).
     // 이름에 '[발송실패]' 를 포함한 carrier 로 FAILED 분기를 시뮬레이션해 FE 거짓양성 회귀를 검증한다.
-    const sent = !carrier.name.includes('[발송실패]')
+    const sent = externalChannel === 'PRINT' || !carrier.name.includes('[발송실패]')
     if (sent) {
       selected.forEach((slip) => {
         slip.dispatchStatus = 'DISPATCHED'
       })
     }
-    return envelope({
-      id: `external-dispatch-${Date.now()}`,
+    const id = `external-dispatch-${Date.now()}`
+    const response = {
+      id,
       carrierName: carrier.name,
-      channel: 'SMS',
+      channel: externalChannel,
       dispatchDate: mockTodayIsoSeoul(),
       sentAt: sent ? new Date().toISOString() : null,
       status: sent ? 'SENT' : 'FAILED',
       slipCount: selected.length,
       slipNos: selected.map((slip) => slip.slipNo),
+    }
+    MOCK_EXTERNAL_DISPATCH_PRINT_DATA.set(id, {
+      carrierName: carrier.name,
+      carrierPhone: carrier.phone,
+      dispatchDate: response.dispatchDate,
+      channel: externalChannel,
+      items: selected.map((slip, index) => ({
+        slipNo: slip.slipNo,
+        deliveryAddress: slip.deliveryAddress,
+        recipientName: slip.partnerName,
+        recipientPhone: slip.recipientPhone,
+        itemSummary: index === 0 ? 'AJ040 2대' : 'AJ060 1대',
+        sequence: index + 1,
+      })),
     })
+    return envelope(response)
+  }
+
+  const externalDispatchPrintMatch = url.match(/\/admin\/external-dispatches\/([^/]+)\/print-data(?:\?.*)?$/)
+  if (method === 'GET' && externalDispatchPrintMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'view')
+    if (denied) return denied
+    const id = decodeURIComponent(externalDispatchPrintMatch[1]!)
+    const data = MOCK_EXTERNAL_DISPATCH_PRINT_DATA.get(id)
+    if (!data) return mockError(404, 'NOT_FOUND', '타배송사 발송 이력을 찾을 수 없습니다.')
+    return envelope(data)
   }
 
   if (method === 'POST' && url.match(/\/admin\/dispatch-tasks(?:\?.*)?$/)) {
@@ -11868,6 +11897,23 @@ const MOCK_DISPATCH_READY_SLIPS: MockDispatchReadySlip[] = [
     dispatchStatus: 'UNDISPATCHED',
   },
 ]
+
+type MockExternalDispatchPrintData = {
+  carrierName: string
+  carrierPhone: string
+  dispatchDate: string
+  channel: 'SMS' | 'PRINT' | 'BOTH'
+  items: Array<{
+    slipNo: string
+    deliveryAddress: string
+    recipientName: string
+    recipientPhone: string
+    itemSummary: string
+    sequence: number
+  }>
+}
+
+const MOCK_EXTERNAL_DISPATCH_PRINT_DATA = new Map<string, MockExternalDispatchPrintData>()
 
 /**
  * 단톡방 매핑 (admin/ChatRoomsPage) — 4건.

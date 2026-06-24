@@ -11,7 +11,7 @@ export type ExternalDispatchStatus = 'SENT' | 'FAILED'
 export interface ExternalDispatchRequest {
   carrierId: string
   slipIds: string[]
-  channel: 'SMS'
+  channel: ExternalDispatchChannel
 }
 
 export interface ExternalDispatchResponse {
@@ -25,13 +25,43 @@ export interface ExternalDispatchResponse {
   slipNos: string[]
 }
 
-/** 선택 전표를 외부기사/배송사에게 SMS 발송한다. */
-export async function dispatchExternalSms(
+export interface ExternalDispatchPrintSlipLine {
+  slipNo: string
+  deliveryAddress: string
+  recipientName: string
+  recipientPhone: string
+  itemSummary: string
+  sequence: number
+}
+
+export interface ExternalDispatchPrintDataResponse {
+  carrierName: string
+  carrierPhone: string
+  dispatchDate: string
+  channel: ExternalDispatchChannel
+  items: ExternalDispatchPrintSlipLine[]
+}
+
+/** 선택 전표를 외부기사/배송사에게 지정 채널로 발송한다. */
+export async function dispatchExternal(
   req: ExternalDispatchRequest,
 ): Promise<ExternalDispatchResponse> {
   const res = await apiClient.post<ApiEnvelope<ExternalDispatchResponse>>(
     '/admin/external-dispatches',
     req,
+  )
+  return res.data.data
+}
+
+/** 선택 전표를 외부기사/배송사에게 SMS 발송한다. 슬3 호환 alias. */
+export const dispatchExternalSms = dispatchExternal
+
+/** 타배송사 배차의뢰서 인쇄 데이터를 조회한다. */
+export async function fetchExternalDispatchPrintData(
+  id: string,
+): Promise<ExternalDispatchPrintDataResponse> {
+  const res = await apiClient.get<ApiEnvelope<ExternalDispatchPrintDataResponse>>(
+    `/admin/external-dispatches/${id}/print-data`,
   )
   return res.data.data
 }
