@@ -1,0 +1,22 @@
+=== 슬3 타배송사 SMS 발송 — slip_db 검증 (단계 7) ===
+
+[external_dispatch] (status=SENT 발송 이력)
+ status | channel | dispatch_date |          sent_at           |               sent_by                | carrier_name |     phone     
+--------+---------+---------------+----------------------------+--------------------------------------+--------------+---------------
+ SENT   | SMS     | 2026-06-24    | 2026-06-24 17:24:25.844426 | a0000000-0000-0000-0000-000000000001 | 새벽퀵배송   | 010-7777-8888
+(1 row)
+
+
+[external_dispatch_slip] (발송 이력 ↔ 전표 매핑)
+ sequence |    slip_no     | status 
+----------+----------------+--------
+        1 | 2026/06/24-901 | SENT
+(1 row)
+
+
+[slips] (901 = UNDISPATCHED → DISPATCHED 이탈)
+    slip_no     | slip_type |  status   | dispatch_status 
+----------------+-----------+-----------+-----------------
+ 2026/06/24-901 | OUTBOUND  | COMPLETED | DISPATCHED
+(1 row)
+
