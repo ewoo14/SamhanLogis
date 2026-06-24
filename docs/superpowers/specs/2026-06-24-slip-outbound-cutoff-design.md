@@ -19,6 +19,7 @@
 | D5 | 설정 범위 | **OUTBOUND DeliveryTag 전체 동적 CRUD**(태그 선택 + 시각 + 활성). 기본 3종(4행) 시드 + 다른 OUTBOUND 태그 추가/수정/삭제. |
 | D6 | 게이트 범위 | **모든 출고전표 생성 경로** — 수동 작성 + 견적→출고 발행 + 주문→출고 발행. |
 | D7 | 권한/메뉴 | 인사 카테고리 신규 page-code **`hr.slip-cutoff`**("출고 마감시간 설정"), 권한 **MASTER/MANAGER**(account-mode), 권한 관리 매트릭스 노출. |
+| **D8** | **게이트 발동시점**(2026-06-24 추가결정 — Option B) | **생성 + 배송태그 확정(SlipForm/editHeader) 양쪽**. 정찰 결과 6개 출고 생성경로 중 5개(견적변환·모바일·견적발행·주문발행·주문병합)는 DRAFT를 **태그 null**로 생성하고 이후 **SlipForm(editHeader)에서 영업/현장이 배송태그+창고 확정**(코드 주석 확인). 수동작성만 생성 즉시 태그 보유. ⇒ 게이트=**생성 6경로(`createOutbound` 직후) + editHeader 2경로(태그 신규/변경 시)** = 8지점. "출고전표에 배송태그가 붙는 순간 마감 적용"(개발책임자). editHeader 태그 미변경(memo/driver만 수정)은 비차단. |
 
 ## 2. 아키텍처
 slip-service에 **컷오프 마스터**(태그별 시각 CRUD) + **출고 생성 게이트**. external_carrier 마스터(슬2)·V66 4-table 권한 시드·account-mode 패턴 재사용.
@@ -43,7 +44,10 @@ slip-service에 **컷오프 마스터**(태그별 시각 CRUD) + **출고 생성
   - slipDate가 오늘(LocalDate.now(Asia/Seoul))이 아니면 통과(미래 출고 미리 생성 허용).
   - deliveryTag에 활성 컷오프 없으면 통과(opt-in).
   - `LocalTime.now(Asia/Seoul) > cutoff_time` 이면 `BusinessException(ErrorCode.CONFLICT, "...")`.
-- 적용 지점(D6 — 모든 생성 경로): 출고전표 생성 진입점 공통 지점에 1회(중복 방지). 정확 위치는 plan 정찰(SlipService.createOutbound + publish-from-estimate + publish-from-partner-order 공통 생성 메서드).
+- 적용 지점(D6+D8 — 8지점, plan 정찰 grep 확정):
+  - **생성 6경로**(`Slip.createOutbound` 직후, `assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate())`): SlipService:218(수동)·EstimateToSlipConverter:56(견적변환)·MobilePartnerOrderService:107(모바일)·SlipPublishService:137(견적발행)/:206(주문발행)/:294(주문병합). 수동만 생성 시 태그 보유→실차단, 나머지는 태그 null→통과(태그 확정 시 아래 editHeader가 잡음).
+  - **태그확정 2경로**(D8 — `editHeader` 태그 신규/변경 시): SlipService:314(editHeader 엔드포인트=SlipForm 저장)·:~385(배치 헤더수정). editHeader 적용 전 `incoming != null && incoming != slip.getDeliveryTag()` 면 `assertWithinCutoff(incoming, slip.getSlipDate())`. 태그 미변경(memo/driver)·null 보존은 비차단(당일 전표 일반 수정 차단 방지).
+  - **SlipSeeder 제외**(과거일자 시드).
 - KST 표준([[project_kst_timezone_standard]]) — Clock 주입(테스트 고정시각 가능).
 
 ## 5. 권한 / 메뉴 (D7)
