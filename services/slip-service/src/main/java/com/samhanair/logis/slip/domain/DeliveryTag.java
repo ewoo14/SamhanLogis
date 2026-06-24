@@ -4,9 +4,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 배송 태그 (Plan §3.3 11종). 각 태그는 적용 가능한 전표 종류({@link #direction})를 제한하며,
- * {@link #autoMemo} 가 true 인 태그(야적/지방)는 {@code Slip.applyDeliveryTagAutoMemo()} 가
- * 자동 메모를 prepend 한다.
+ * 배송 태그 (Plan §3.3 11종). 각 태그는 적용 가능한 전표 종류({@link #direction})를 제한한다.
+ * 지방(REGION)/야적(STACK) 태그({@link #autoMemo}=true) 는 V52 배송일정 구조화 대상 —
+ * {@code Slip.applyDeliverySchedule()} 로 하차일(N) 자동 계산.
  *
  * <p>{@link #getKoreanLabel()} 은 FE 표시용 한국어 라벨을 반환하며, {@link #displayName} 과 동일.
  * {@link #direction} 은 slipType 정합 가드 ({@code SlipService.list()}) 에서 사용된다.

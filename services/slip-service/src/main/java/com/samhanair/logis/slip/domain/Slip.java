@@ -1589,33 +1589,14 @@ public class Slip extends BaseEntity {
      * @param override 사용자 직접 지정 하차일 N (null 이면 규칙 자동 계산)
      */
     public void applyDeliverySchedule(DeliveryTag tag, LocalDate override) {
-        if (override != null) {
-            this.unloadDate = override;
-        } else {
-            this.unloadDate = DeliverySchedule.computeUnloadDate(this.slipDate, tag);
-        }
-    }
-
-    /**
-     * 배송 태그가 야적/지방 등 {@code autoMemo=true} 인 경우, {@code "{slipDate}상차 {slipDate+1}하차"}
-     * 형식의 자동 메모를 기존 메모 앞에 prepend 한다. 태그가 null 이거나 autoMemo=false 면 no-op.
-     *
-     * @deprecated 배송일정 구조화 전환(V52)으로 폐기 예정. 신규 코드는 {@link #applyDeliverySchedule} 사용.
-     *             기존 전표 memo 마이그레이션 미수행(YAGNI) — 기존 호출처 유지(회귀 방지) 후 후속 슬라이스에서 제거.
-     */
-    @Deprecated(since = "V52", forRemoval = true)
-    public void applyDeliveryTagAutoMemo() {
-        if (this.deliveryTag == null || !this.deliveryTag.isAutoMemo()) {
+        // 비적용 태그(지방/야적 외) 또는 tag null 이면 unloadDate null — 데이터 오염 방지.
+        if (!DeliverySchedule.isScheduled(tag)) {
+            this.unloadDate = null;
             return;
         }
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM/dd");
-        String autoLine = String.format("[%s] %s 상차 %s 하차",
-                this.deliveryTag.getDisplayName(),
-                this.slipDate.format(fmt),
-                this.slipDate.plusDays(1).format(fmt));
-        this.memo = (this.memo == null || this.memo.isBlank())
-                ? autoLine
-                : autoLine + " | " + this.memo;
+        this.unloadDate = (override != null)
+                ? override
+                : DeliverySchedule.computeUnloadDate(this.slipDate, tag);
     }
 
     /**

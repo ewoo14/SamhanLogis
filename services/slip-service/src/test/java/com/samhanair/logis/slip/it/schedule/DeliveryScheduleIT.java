@@ -14,9 +14,9 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.domain.schedule.DeliverySchedule;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import java.math.BigDecimal;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -40,24 +40,38 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 출고전표 배송일정(M상N하) 통합 테스트 — V52 unload_date 구조화 필드 + 파생 라벨.
  *
+ * <p>날짜 고정: CI flaky 방지를 위해 {@code LocalDate.now()} 동적 날짜 대신 고정 미래 날짜 사용.
+ * <ul>
+ *   <li>수요일 고정: {@code 2027-03-10} (수요일)</li>
+ *   <li>토요일 고정: {@code 2027-03-13} (토요일)</li>
+ * </ul>
+ *
  * <p>검증 시나리오:
  * <ol>
- *   <li>지방 평일 생성 → unloadDate = 익일, label = "N1상N2하"</li>
+ *   <li>지방 평일(수요일) 생성 → unloadDate = 목요일(익일), label = "10상11하"</li>
  *   <li>지방 토요일 생성 → unloadDate = 월요일 (일요일 skip)</li>
  *   <li>야적 토요일 생성 → unloadDate = 일요일 (야적&amp;&amp;토 예외 — 일요일 유지)</li>
  *   <li>editHeader 배송태그 지방 확정 → unloadDate 재계산</li>
  *   <li>unloadDate override 당착(slipDate) 전달 → label = "당착"</li>
  *   <li>비적용 태그(DAY) → unloadDate null, label null</li>
+ *   <li>editHeader 태그 미변경 + 당착 N 편집 → unloadDate == slipDate, label = "당착"</li>
  * </ol>
  *
  * <p>외부 client 격리: {@link ProductClient} / {@link InventoryClient} /
  * {@link UserInternalClient} / {@link WarehouseInternalClient} /
  * {@link PartnerInternalClient} 전부 {@code @MockBean} + lenient stub.
+ * {@code ApprovalLineAuthorizeClient} / {@code DynamicPermissionClient} 는
+ * {@link AbstractPostgresIT} 에서 공통 등록.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @Transactional
 class DeliveryScheduleIT extends AbstractPostgresIT {
+
+    /** 수요일 고정 — 요일/컷오프 flaky 방지. 2027-03-10 = 수요일. */
+    private static final LocalDate FIXED_WEDNESDAY = LocalDate.of(2027, 3, 10);
+    /** 토요일 고정 — 2027-03-13 = 토요일. */
+    private static final LocalDate FIXED_SATURDAY = LocalDate.of(2027, 3, 13);
 
     @Autowired
     private MockMvc mockMvc;
@@ -103,14 +117,14 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
-    // 시나리오 1: 지방 평일 → unloadDate = 익일, label = "N1상N2하"
+    // 시나리오 1: 지방 수요일 → unloadDate = 목요일(익일), label = "10상11하"
     // -------------------------------------------------------------------------
     @Test
     void 지방_평일_생성_하차일_익일_라벨() throws Exception {
-        // 수요일 고정 (주말 영향 없음)
-        LocalDate slipDate = nextWeekday(DayOfWeek.WEDNESDAY);
-        LocalDate expectedUnload = slipDate.plusDays(1);
-        String expectedLabel = slipDate.getDayOfMonth() + "상" + expectedUnload.getDayOfMonth() + "하";
+        // 수요일(2027-03-10) → 목요일(2027-03-11)
+        LocalDate slipDate = FIXED_WEDNESDAY;
+        LocalDate expectedUnload = slipDate.plusDays(1); // 2027-03-11(목요일)
+        String expectedLabel = slipDate.getDayOfMonth() + "상" + expectedUnload.getDayOfMonth() + "하"; // "10상11하"
 
         MvcResult result = 전표_생성("REGION", slipDate, null);
 
@@ -126,9 +140,9 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
     @Test
     void 지방_토요일_생성_하차일_월요일() throws Exception {
-        LocalDate slipDate = nextWeekday(DayOfWeek.SATURDAY);
-        // N = 일요일 → skip → 월요일
-        LocalDate expectedUnload = slipDate.plusDays(2);
+        // 토요일(2027-03-13) → N = 일요일(03-14) → skip → 월요일(03-15)
+        LocalDate slipDate = FIXED_SATURDAY;
+        LocalDate expectedUnload = slipDate.plusDays(2); // 2027-03-15(월요일)
         String expectedLabel = slipDate.getDayOfMonth() + "상" + expectedUnload.getDayOfMonth() + "하";
 
         MvcResult result = 전표_생성("REGION", slipDate, null);
@@ -145,8 +159,9 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
     @Test
     void 야적_토요일_생성_하차일_일요일유지() throws Exception {
-        LocalDate slipDate = nextWeekday(DayOfWeek.SATURDAY);
-        LocalDate expectedUnload = slipDate.plusDays(1); // 일요일 그대로
+        // 야적 토요일(2027-03-13) → N = 일요일(03-14) — 야적&&토 예외이므로 일요일 그대로
+        LocalDate slipDate = FIXED_SATURDAY;
+        LocalDate expectedUnload = slipDate.plusDays(1); // 2027-03-14(일요일 유지)
         String expectedLabel = slipDate.getDayOfMonth() + "상" + expectedUnload.getDayOfMonth() + "하";
 
         MvcResult result = 전표_생성("STACK", slipDate, null);
@@ -163,7 +178,7 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
     @Test
     void 비적용태그_하차일_null() throws Exception {
-        LocalDate slipDate = nextWeekday(DayOfWeek.WEDNESDAY);
+        LocalDate slipDate = FIXED_WEDNESDAY;
 
         MvcResult result = 전표_생성("DAY", slipDate, null);
 
@@ -177,7 +192,7 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     // -------------------------------------------------------------------------
     @Test
     void 지방_당착_override_라벨() throws Exception {
-        LocalDate slipDate = nextWeekday(DayOfWeek.WEDNESDAY);
+        LocalDate slipDate = FIXED_WEDNESDAY;
 
         // override = slipDate (당착: N == M)
         MvcResult result = 전표_생성("REGION", slipDate, slipDate);
@@ -195,15 +210,15 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     @Test
     void editHeader_지방태그_설정_하차일_재계산() throws Exception {
         // 1) 태그 없이 생성 (unloadDate null)
-        LocalDate slipDate = nextWeekday(DayOfWeek.WEDNESDAY);
+        LocalDate slipDate = FIXED_WEDNESDAY;
         MvcResult created = 전표_생성(null, slipDate, null);
         JsonNode initialData = responseData(created);
         String slipId = initialData.get("id").asText();
         // 태그 미지정 → unloadDate null
         Assertions.assertThat(initialData.get("unloadDate").isNull()).isTrue();
 
-        // 2) editHeader 지방 태그 설정
-        LocalDate expectedUnload = slipDate.plusDays(1);
+        // 2) editHeader 지방 태그 설정 → unloadDate = 익일(목요일)
+        LocalDate expectedUnload = slipDate.plusDays(1); // 2027-03-11(목요일)
         String expectedLabel = slipDate.getDayOfMonth() + "상" + expectedUnload.getDayOfMonth() + "하";
 
         Map<String, Object> headerBody = new HashMap<>();
@@ -223,6 +238,42 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
                 .isEqualTo(expectedUnload.toString());
         Assertions.assertThat(editData.get("deliveryScheduleLabel").asText())
                 .isEqualTo(expectedLabel);
+    }
+
+    // -------------------------------------------------------------------------
+    // 시나리오 7: editHeader 태그 미변경 + N 편집(당착: unloadDate=slipDate)
+    // -------------------------------------------------------------------------
+    @Test
+    void editHeader_태그미변경_당착편집_label_당착() throws Exception {
+        // 1) 지방(REGION) 태그로 전표 생성 → unloadDate = 익일(목요일)
+        LocalDate slipDate = FIXED_WEDNESDAY;
+        MvcResult created = 전표_생성("REGION", slipDate, null);
+        JsonNode initialData = responseData(created);
+        String slipId = initialData.get("id").asText();
+        // 초기 unloadDate = 익일
+        Assertions.assertThat(initialData.get("unloadDate").asText())
+                .isEqualTo(slipDate.plusDays(1).toString());
+
+        // 2) editHeader: deliveryTag 미전달(null=유지), unloadDate = slipDate(당착 지정)
+        Map<String, Object> headerBody = new HashMap<>();
+        headerBody.put("unloadDate", slipDate.toString()); // 당착: N = M
+
+        MvcResult editResult = mockMvc.perform(
+                        patch("/slips/" + slipId + "/header")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-User-Role", "SALES")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(headerBody)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode editData = responseData(editResult);
+        // unloadDate == slipDate (당착)
+        Assertions.assertThat(editData.get("unloadDate").asText())
+                .isEqualTo(slipDate.toString());
+        // label = "당착"
+        Assertions.assertThat(editData.get("deliveryScheduleLabel").asText())
+                .isEqualTo("당착");
     }
 
     // -------------------------------------------------------------------------
@@ -274,15 +325,5 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     private JsonNode responseData(MvcResult result) throws Exception {
         String body = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         return objectMapper.readTree(body).get("data");
-    }
-
-    /**
-     * 주어진 요일에 해당하는 가장 가까운 미래 날짜 반환.
-     * 테스트 날짜 고정을 위해 올해 기준 계산.
-     */
-    private LocalDate nextWeekday(DayOfWeek dayOfWeek) {
-        LocalDate today = LocalDate.now();
-        int daysUntil = (dayOfWeek.getValue() - today.getDayOfWeek().getValue() + 7) % 7;
-        return today.plusDays(daysUntil == 0 ? 7 : daysUntil);
     }
 }

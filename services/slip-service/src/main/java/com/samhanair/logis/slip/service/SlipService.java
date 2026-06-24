@@ -60,7 +60,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 전표 워크플로우 (Plan §3.1 — 첫 슬라이스 출고/입고만).
+ * 전표 워크플로우 (Plan §3.1 — 출고/입고 + 배송일정 M상N하 V52).
  *
  * <p>Inventory 연계 (Q2 결정):
  * <ul>
@@ -68,6 +68,13 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>OUTBOUND complete → {@code /inventory/deduct} fromReservation=true 라인별 호출</li>
  *   <li>INBOUND complete → {@code /inventory/lots/inbound} 라인별 호출</li>
  *   <li>OUTBOUND reject/cancel after ACCEPTED → {@code /inventory/release} 라인별 호출</li>
+ * </ul>
+ *
+ * <p>배송일정(M상N하):
+ * <ul>
+ *   <li>지방(REGION)/야적(STACK) 태그 시 {@link Slip#applyDeliverySchedule} 로 하차일(N) 자동 계산</li>
+ *   <li>unloadDate override 전달 시 사용자 직접 지정 (당착 = slipDate)</li>
+ *   <li>비적용 태그(DAY/LOGEN 등) 또는 태그 null 이면 unloadDate = null</li>
  * </ul>
  *
  * <p>낙관적 락(@Version) 충돌은 OptimisticLockException → CONFLICT 매핑.
@@ -190,8 +197,8 @@ public class SlipService {
 
     /**
      * 새 전표를 DRAFT 상태로 생성한다 — slipType 분기로 createOutbound/createInbound 호출,
-     * ProductClient 로 라인 productId 일괄 검증, 라인 추가, applyDeliveryTagAutoMemo 자동 호출 후
-     * SlipNumberService 로 채번.
+     * ProductClient 로 라인 productId 일괄 검증, 라인 추가,
+     * {@link Slip#applyDeliverySchedule} 으로 하차일(N) 계산 후 SlipNumberService 로 채번.
      *
      * @param req 생성 요청 (slipType / slipDate / 창고 / 거래처 / 라인 등)
      * @param requesterId 요청자 user-id (gateway X-User-Id 또는 "system", 감사용 actorId)

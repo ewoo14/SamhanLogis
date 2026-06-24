@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/** Slip 도메인 — 상태 전이 가드 + applyDeliveryTagAutoMemo + 헤더 수정 가드 검증. */
+/** Slip 도메인 — 상태 전이 가드 + 헤더 수정 가드 + 배송일정(applyDeliverySchedule) 검증. */
 class SlipDomainTest {
 
     private static final UUID SOURCE_WH = UUID.randomUUID();
@@ -188,26 +188,6 @@ class SlipDomainTest {
         Slip slip = newOutbound();
         assertThatThrownBy(() -> slip.reject("x"))
                 .isInstanceOf(BusinessException.class);
-    }
-
-    @Test
-    void applyDeliveryTagAutoMemo_stack_prependsAutoLine() {
-        Slip slip = Slip.createOutbound("X", LocalDate.of(2026, 5, 4), 1,
-                SOURCE_WH, DEST_WH, PARTNER, "삼한",
-                DeliveryTag.STACK, "원본", "u");
-        slip.applyDeliveryTagAutoMemo();
-
-        assertThat(slip.getMemo()).contains("야적").contains("상차").contains("하차").contains("원본");
-    }
-
-    @Test
-    void applyDeliveryTagAutoMemo_dayTag_noOp() {
-        Slip slip = Slip.createOutbound("X", LocalDate.of(2026, 5, 4), 1,
-                SOURCE_WH, DEST_WH, PARTNER, "삼한",
-                DeliveryTag.DAY, "원본", "u");
-        slip.applyDeliveryTagAutoMemo();
-
-        assertThat(slip.getMemo()).isEqualTo("원본");
     }
 
     @Test

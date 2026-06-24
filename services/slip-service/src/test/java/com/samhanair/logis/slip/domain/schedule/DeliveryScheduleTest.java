@@ -34,13 +34,18 @@ class DeliveryScheduleTest {
 
     @Test
     void computeUnloadDate_지방_토요일_월요일() {
-        // 지방 토요일(2026-06-27) → N=일요일 → 일요일 skip → 월요일(2026-06-29)
-        LocalDate m = LocalDate.of(2026, 6, 28); // 토요일
-        // 실제 2026-06-28 = 일요일... 정확한 날짜 계산 필요
-        // 2026년 6월: 1=월, 7=일, 14=일, 21=일, 28=일. 27=토.
+        // 지방 토요일(2026-06-27) → N=일요일(2026-06-28) → 일요일 skip → 월요일(2026-06-29)
         LocalDate sat = LocalDate.of(2026, 6, 27); // 토요일
         LocalDate result = DeliverySchedule.computeUnloadDate(sat, DeliveryTag.REGION);
-        // N = 28(일) → skip → 29(월)
+        assertThat(result).isEqualTo(LocalDate.of(2026, 6, 29));
+    }
+
+    @Test
+    void computeUnloadDate_지방_일요일_월요일() {
+        // 지방 일요일(2026-06-28) → N=월요일(2026-06-29) — N이 일요일이 아니므로 그대로.
+        LocalDate sun = LocalDate.of(2026, 6, 28); // 일요일
+        LocalDate result = DeliverySchedule.computeUnloadDate(sun, DeliveryTag.REGION);
+        // N = sun+1 = 월요일 → 일요일 아님 → 그대로
         assertThat(result).isEqualTo(LocalDate.of(2026, 6, 29));
     }
 

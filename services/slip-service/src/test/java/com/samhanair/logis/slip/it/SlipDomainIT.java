@@ -21,7 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
- * Slip 도메인 state machine 가드 + applyDeliveryTagAutoMemo 검증.
+ * Slip 도메인 state machine 가드 검증.
  *
  * <p>BE 도메인 시그니처 (PM 명시):
  * <ul>
@@ -31,7 +31,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
  *       partnerId, partnerName, deliveryTag, memo, requesterId)} — sourceWarehouseId=null</li>
  *   <li>{@code Slip.save() / send() / accept(acceptorUserId) / process() / complete()
  *       / ship() / deliver() / confirm() / reject(reason) / cancel()} — 전이 위반 시 BusinessException(CONFLICT)</li>
- *   <li>{@code Slip.applyDeliveryTagAutoMemo()} — 야적/지방 태그면 memo 에 `{slipDate}상차 {slipDate+1}하차` prepend</li>
+ *   <li>{@code Slip.applyDeliverySchedule(tag, override)} — 지방/야적 태그면 하차일(N) 구조화 필드 계산 (V52)</li>
  * </ul>
  *
  * <p>SlipStatus (Slice A 갱신): DRAFT → SAVED → SENT → ACCEPTED → PROCESSING → INSPECTING →
@@ -174,38 +174,39 @@ class SlipDomainIT extends AbstractPostgresIT {
     }
 
     @Test
-    void applyDeliveryTagAutoMemo_stackTag_prependsLoadingDates() {
-        // 야적(STACK): memo 에 `{slipDate}상차 {slipDate+1}하차` 자동 prepend.
-        LocalDate date = LocalDate.of(2026, 5, 4);
+    void applyDeliverySchedule_야적_평일_하차일_익일() {
+        // 야적(STACK) 평일: 하차일 N = M + 1일 (구조화 필드, V52).
+        LocalDate date = LocalDate.of(2027, 3, 10); // 수요일
         Slip slip = Slip.createOutbound(
-                "2026/05/04-3", date, 3,
+                "2027/03/10-1", date, 1,
                 UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), "거래처",
                 DeliveryTag.STACK, "원본 메모",
                 "user-sales-001"
         );
 
-        slip.applyDeliveryTagAutoMemo();
+        slip.applyDeliverySchedule(DeliveryTag.STACK, null);
 
-        // 자동 prepend 결과 형식: "[야적] MM/dd 상차 MM/dd 하차 | 원본 메모" (yyyy 미포함, BE 의 MM/dd 포맷)
-        // PR #17 1차 fail 회고 — IT 가 yyyy("2026") 가정했으나 BE 는 MM/dd 만 사용
-        assertThat(slip.getMemo())
-                .contains("[야적]")
-                .contains("05/04")
-                .contains("05/05")
-                .contains("상차")
-                .contains("하차")
-                .contains("원본 메모");
+        // N = 익일(목요일 = 2027-03-11)
+        assertThat(slip.getUnloadDate()).isEqualTo(date.plusDays(1));
+        // memo 는 변경 없음 (applyDeliverySchedule 은 memo 와 무관)
+        assertThat(slip.getMemo()).isEqualTo("원본 메모");
     }
 
     @Test
-    void applyDeliveryTagAutoMemo_dayTag_doesNotChangeMemo() {
-        // 당일(DAY) 등 autoMemo=false 태그는 memo 변경 없음.
-        Slip slip = newDraftOutbound();
-        String original = slip.getMemo();
+    void applyDeliverySchedule_비적용태그_unloadDate_null() {
+        // DAY 등 비적용 태그: unloadDate = null (데이터 오염 방지, Fix 1).
+        LocalDate date = LocalDate.of(2027, 3, 10);
+        Slip slip = Slip.createOutbound(
+                "2027/03/10-2", date, 2,
+                UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), "거래처",
+                DeliveryTag.DAY, null,
+                "user-sales-001"
+        );
 
-        slip.applyDeliveryTagAutoMemo();
-
-        assertThat(slip.getMemo()).isEqualTo(original);
+        slip.applyDeliverySchedule(DeliveryTag.DAY, LocalDate.of(2027, 3, 11));
+        // override != null 이어도 비적용 태그면 null 처리
+        assertThat(slip.getUnloadDate()).isNull();
     }
 }
