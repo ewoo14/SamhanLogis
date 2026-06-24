@@ -1,0 +1,32 @@
+=== PR #591 슬4 타배송사 인쇄 배차의뢰서 — external_dispatch DB 확인 (실 slip_db) ===
+캡처 시각: Wed, Jun 24, 2026  6:49:30 PM
+
+[1] external_dispatch (channel / status / dispatch_date / sent_at有무 / created_by)
+ channel | status | dispatch_date | has_sent_at |              created_by              
+---------+--------+---------------+-------------+--------------------------------------
+ PRINT   | SENT   | 2026-06-24    | t           | a0000000-0000-0000-0000-000000000001
+ BOTH    | SENT   | 2026-06-24    | t           | a0000000-0000-0000-0000-000000000001
+(2 rows)
+
+
+[2] external_dispatch_slip 매핑 (slip_no / sequence / channel / status)
+    slip_no     | sequence | channel | status 
+----------------+----------+---------+--------
+ 2026/06/24-901 |        1 | PRINT   | SENT
+ 2026/06/24-901 |        1 | BOTH    | SENT
+(2 rows)
+
+
+[3] slip 901 — dispatchStatus = DISPATCHED (발송대기 이탈 확인)
+    slip_no     | slip_type |  status   | dispatch_status | has_inspector | has_signed 
+----------------+-----------+-----------+-----------------+---------------+------------
+ 2026/06/24-901 | OUTBOUND  | COMPLETED | DISPATCHED      | t             | t
+(1 row)
+
+
+[4] 활성 external_carrier (발송 대상 배송사)
+    name    |     phone     | active 
+------------+---------------+--------
+ 새벽퀵배송 | 010-7777-8888 | t
+(1 row)
+
