@@ -77,7 +77,8 @@ jobs:
           - name: slip-it-public
             test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.public_.*" --tests "com.samhanair.logis.slip.web.openapi.*"'
           - name: slip-it-core
-            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.core.*" --tests "com.samhanair.logis.slip.web.internal.*"'
+            # web.core/web.internal 외 it.* 패키지(서브패키지 미커버)도 nightly deep-regression 등재 — schedule 슬라이스 신규 IT 포함
+            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.core.*" --tests "com.samhanair.logis.slip.web.internal.*" --tests "com.samhanair.logis.slip.it.schedule.*"'
 
     steps:
       - name: 저장소 체크아웃 (${{ matrix.branch }})
