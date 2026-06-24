@@ -4,7 +4,7 @@
 
 **Goal:** 출고전표 배송태그별 컷오프(마감) 시각을 인사 메뉴에서 동적 설정 + **당일 출고전표 생성 시 마감 초과면 409 차단**("익일 출고로 생성하세요").
 
-**Architecture:** slip-service `slip_outbound_cutoff` 마스터(태그→시각 CRUD) + `OutboundCutoffGuard`(slipDate=today AND 활성 cutoff AND now(KST)>cutoff → 409) — **출고 생성 3경로 save 직전 1회씩 호출**. auth V70(V66 4-table seed, page-code `hr.slip-cutoff` MASTER/MANAGER) + PageCode enum. FE 인사 메뉴 설정화면(external_carrier 페이지 패턴). **external_carrier 마스터(슬2)·account-mode·V66 seed 재사용.**
+**Architecture:** slip-service `slip_outbound_cutoff` 마스터(태그→시각 CRUD) + `OutboundCutoffGuard`(slipDate=today AND 활성 cutoff AND now(KST)>cutoff → 409) — **모든 출고 생성 경로(production `Slip.createOutbound` 호출처 6곳) save 직전 1회씩 호출**(SlipSeeder 제외). auth V70(V66 4-table seed, page-code `hr.slip-cutoff` MASTER/MANAGER) + PageCode enum. FE 인사 메뉴 설정화면(external_carrier 페이지 패턴). **external_carrier 마스터(슬2)·account-mode·V66 seed 재사용.**
 
 **Tech Stack:** Spring Boot 3 / Java 17 / JPA(slip-service, auth); React + TS + design-system(desktop). Testcontainers IT(Clock 고정), vitest.
 
@@ -14,11 +14,11 @@
 - **기본 시드(V51)**: REGION 12:00:00 · STACK 14:00:00 · GYEONGDONG_PARCEL 15:00:00 · GYEONGDONG_FREIGHT 15:00:00 (active=true).
 - **KST**: TimeConfig `Clock`(Asia/Seoul) 주입 — `LocalDate.now(clock.getZone())`/`LocalTime.now(clock)`. 테스트 고정 Clock.
 - **권한**: page-code `hr.slip-cutoff`, MASTER/MANAGER(account-mode, group 100/101), @RequireDepartment 미사용. FE canAccess=BE @RequirePermission 정확 일치([[feedback_fe_canaccess_pagecode_be_match]]).
-- **게이트 3경로**(D6): SlipService.create / SlipPublishService.publishFromEstimate / publishFromPartnerOrder — save 직전 `OutboundCutoffGuard.assertWithinCutoff` 1회씩. IT로 3경로 각각 검증(누락 방지).
+- 🚨 **게이트 = 전 6경로**(D6 "모든 출고 생성 경로", 정찰 grep 확정 — 회사PC 초안 "3경로" 오류 정정): production `Slip.createOutbound` 호출처 **6곳** save 직전 `OutboundCutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate())` 1회씩 — ①`SlipService.java:218`(수동) ②`EstimateToSlipConverter.java:56`(견적변환) ③`MobilePartnerOrderService.java:107`(모바일 주문) ④`SlipPublishService.java:137`(견적발행) ⑤`SlipPublishService.java:206`(주문발행) ⑥`SlipPublishService.java:294`(주문병합). **`SlipSeeder` 제외**(과거일자 dev 시드 — 어차피 slipDate≠today 통과). **누락=silent regression이므로 IT로 ①+발행경로 최소 2 + 모바일경로 커버**.
 - UUID 비노출(태그 라벨 노출) · Role 풀네임 · 한국어 · 단계별 스샷 QA · docs 동기화.
 
 ## File Structure
-**slip-service (BE)** — 신규: `domain/cutoff/SlipOutboundCutoff.java`, `repository/cutoff/SlipOutboundCutoffRepository.java`, `service/cutoff/{SlipOutboundCutoffService, OutboundCutoffGuard}.java`, `web/cutoff/SlipOutboundCutoffController.java`, `dto/cutoff/{CutoffUpsertRequest, CutoffResponse}.java`, `resources/db/migration/V51__slip_outbound_cutoff.sql`. 수정: `service/SlipService.java`(create 게이트), `publish/SlipPublishService.java`(2 게이트). 테스트: `it/cutoff/SlipOutboundCutoffControllerIT.java`, `it/cutoff/OutboundCutoffGuardIT.java`(Clock 고정 3경로).
+**slip-service (BE)** — 신규: `domain/cutoff/SlipOutboundCutoff.java`, `repository/cutoff/SlipOutboundCutoffRepository.java`, `service/cutoff/{SlipOutboundCutoffService, OutboundCutoffGuard}.java`, `web/cutoff/SlipOutboundCutoffController.java`, `dto/cutoff/{CutoffUpsertRequest, CutoffResponse}.java`, `resources/db/migration/V51__slip_outbound_cutoff.sql`. 수정(게이트 6곳): `service/SlipService.java`, `estimate/service/EstimateToSlipConverter.java`, `mobile/service/MobilePartnerOrderService.java`, `publish/SlipPublishService.java`(3곳). 테스트: `it/cutoff/SlipOutboundCutoffControllerIT.java`, `it/cutoff/OutboundCutoffGuardIT.java`(Clock 고정·전 경로 커버).
 **auth-service** — 수정 `domain/PageCode.java`(hr.slip-cutoff), 신규 `V70__seed_hr_slip_cutoff_page_codes.sql`(V66 4-table).
 **api-gateway** — 수정 `application.yml`(/admin/slip-cutoffs no-strip).
 **clients/desktop (FE)** — 신규 `routes/admin/SlipCutoffConfigPage.tsx`, `api/slipCutoff.ts`; 수정 `components/AppLayout.tsx`(인사 SidebarLink), `routes/index.tsx`, `api/mock.ts`, `api/permissionsApi.ts`, `routes/PermissionMatrixPage.tsx`. 테스트 `routes/admin/SlipCutoffConfigPage.test.ts`.
@@ -31,12 +31,12 @@
 - [ ] **Step 2: 엔티티** — SlipOutboundCutoff(@Entity @Table @SQLRestriction("is_deleted=false") @UuidGenerator, BaseEntity): deliveryTag(@Enumerated(STRING) DeliveryTag), cutoffTime(LocalTime), active. 정적 팩토리 create(deliveryTag, cutoffTime) + update(cutoffTime, active)/activate/deactivate. OUTBOUND 태그만 허용 검증(create 시 deliveryTag.getDirection()==OUTBOUND, 아니면 IllegalArgument→서비스서 400).
 - [ ] **Step 3: Repository** — findAllByIsDeletedFalseOrderByDeliveryTag, **findByDeliveryTagAndIsDeletedFalse(DeliveryTag)**(게이트·중복검증), findDeletedById(native restore 선택). 커밋.
 
-## Task 2 — BE: OutboundCutoffGuard + 게이트 3경로 + 게이트 IT
-**Files:** `service/cutoff/OutboundCutoffGuard.java`(C) · `SlipService.java`(M) · `SlipPublishService.java`(M) · `it/cutoff/OutboundCutoffGuardIT.java`(Test)
+## Task 2 — BE: OutboundCutoffGuard + 게이트 전 6경로 + 게이트 IT
+**Files:** `service/cutoff/OutboundCutoffGuard.java`(C) · `SlipService.java`(M) · `EstimateToSlipConverter.java`(M) · `MobilePartnerOrderService.java`(M) · `SlipPublishService.java`(M, 3곳) · `it/cutoff/OutboundCutoffGuardIT.java`(Test)
 **Interfaces (Produces):** `OutboundCutoffGuard.assertWithinCutoff(DeliveryTag tag, LocalDate slipDate)`.
-- [ ] **Step 1: OutboundCutoffGuard** — @Component, Clock + SlipOutboundCutoffRepository 주입. `assertWithinCutoff(tag, slipDate)`: tag null이면 return; `if (!slipDate.equals(LocalDate.now(clock.getZone()))) return;`(미래/과거 통과); repo.findByDeliveryTagAndIsDeletedFalse(tag) 없거나 비활성이면 return(opt-in); `if (LocalTime.now(clock).isAfter(cutoff.getCutoffTime())) throw new BusinessException(ErrorCode.CONFLICT, tag.getKoreanLabel()+" 당일 마감("+HH:mm+") 초과 — 익일 출고로 생성하세요");`. 한국어 Javadoc.
-- [ ] **Step 2: 게이트 3경로** — `SlipService.create`(line~291 save 직전), `SlipPublishService.publishFromEstimate`(line~160 saveAndFlush 직전), `publishFromPartnerOrder`(line~229 직전): `cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());`(출고전표만 — slipType OUTBOUND 가드). 정찰 file:line 기준 정확 삽입.
-- [ ] **Step 3: OutboundCutoffGuardIT**(AbstractPostgresIT, **고정 Clock @TestConfiguration 또는 @MockBean Clock**): 시드 REGION 12:00 기준 — ①마감 전(11:00) slipDate=today REGION 생성 200 ②마감 후(13:00) 409 ③미설정 태그(DAY) 통과 ④slipDate=내일 통과 ⑤**3경로 각각**(수동 create / from-estimate / from-partner-order) 마감 후 409. 커밋.
+- [ ] **Step 1: OutboundCutoffGuard** — @Component, Clock + SlipOutboundCutoffRepository 주입. `assertWithinCutoff(tag, slipDate)`: **tag null 또는 slipDate null이면 return**(R2 opt-in — 견적변환/발행 경로는 현재 deliveryTag=null로 createOutbound 호출 → 자동 통과·배선만, 미래 태그 부여 시 자동 적용); `if (!slipDate.equals(LocalDate.now(clock.getZone()))) return;`(미래/과거 통과); repo.findByDeliveryTagAndIsDeletedFalse(tag) 없거나 `!active`이면 return(opt-in); `if (LocalTime.now(clock).isAfter(cutoff.getCutoffTime())) throw new BusinessException(ErrorCode.CONFLICT, tag.getKoreanLabel()+" 당일 마감("+HH:mm+") 초과 — 익일 출고로 생성하세요");`. 한국어 Javadoc.
+- [ ] **Step 2: 게이트 전 6경로** — 각 `Slip.createOutbound(...)` 직후·save 직전에 `cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());` 삽입(slip 객체에서 읽어 경로별 분기 불요·미래 안전). 6곳: ①`SlipService.java:218` ②`EstimateToSlipConverter.java:56`(생성자에 guard 주입) ③`MobilePartnerOrderService.java:107` ④`SlipPublishService.java:137` ⑤`:206` ⑥`:294`. **`SlipSeeder` 제외**(시드). 각 서비스 생성자/필드에 `OutboundCutoffGuard` 주입 추가. 정찰 file:line 재확인 후 정확 삽입(라인 드리프트 주의).
+- [ ] **Step 3: OutboundCutoffGuardIT**(AbstractPostgresIT, **고정 Clock @TestConfiguration 또는 @MockBean Clock**): 시드 REGION 12:00 기준 — ①마감 전(11:00) slipDate=today REGION 수동 생성 200 ②마감 후(13:00) 409 ③미설정 태그(DAY) 통과 ④slipDate=내일 통과 ⑤**경로 커버: 수동 create + 발행 경로 최소 2(from-estimate/from-partner-order) + 모바일 경로** 각각 게이트 호출 실증(발행/모바일 경로는 현재 deliveryTag=null이라 통과가 정상 — 호출 도달=배선 증명, R2). 커밋.
 
 ## Task 3 — BE: Service + Controller + DTO + CRUD IT + PageCode + auth V70
 **Files:** `service/cutoff/SlipOutboundCutoffService.java`(C) · `web/cutoff/SlipOutboundCutoffController.java`(C) · `dto/cutoff/*.java`(C) · `it/cutoff/SlipOutboundCutoffControllerIT.java`(Test) · auth `PageCode.java`(M) · auth `V70`(C)
