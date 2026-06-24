@@ -136,3 +136,61 @@ describe('당착 토글 통합 시나리오', () => {
     expect(scheduleLabel('2026-06-25', '2026-06-26', null)).toBeNull()
   })
 })
+
+// ── 연도 경계 케이스 ──────────────────────────────────────────────────────
+
+describe('연도 경계 케이스', () => {
+  // 2026-12-31 (목요일) → 2027-01-01 (금요일) — 지방
+  test('지방 12-31(목) → 2027-01-01(금) [연도 경계]', () => {
+    expect(computeUnloadDate('2026-12-31', 'REGION')).toBe('2027-01-01')
+  })
+
+  // scheduleLabel 연도 경계: slipDate=12-31, unloadDate=01-01 → "31상1하"
+  test('scheduleLabel 연도 경계 → "31상1하"', () => {
+    expect(scheduleLabel('2026-12-31', '2027-01-01', 'REGION')).toBe('31상1하')
+  })
+
+  // 2026-12-26 (토요일) 지방 → 12-27(일) skip → 12-28(월) [토요일 지방 일요일 skip]
+  test('지방 12-26(토) → 12-27 일요일skip → 12-28(월)', () => {
+    // 2026-12-26 = 토요일, REGION, N=12-27 일요일 → skip → 12-28 월요일
+    expect(computeUnloadDate('2026-12-26', 'REGION')).toBe('2026-12-28')
+  })
+
+  // scheduleLabel 12-26 지방 → 12-28 → "26상28하"
+  test('scheduleLabel 지방 토요일 일요일skip → "26상28하"', () => {
+    expect(scheduleLabel('2026-12-26', '2026-12-28', 'REGION')).toBe('26상28하')
+  })
+})
+
+// ── STACK 토요일 scheduleLabel 통합 ──────────────────────────────────────
+
+describe('STACK 토요일 scheduleLabel 통합', () => {
+  // 야적 토요일(06-27) → 일요일(06-28) 그대로 → scheduleLabel="27상28하"
+  test('야적 토요일 → 일요일 유지 → "27상28하"', () => {
+    const slipDate = '2026-06-27'
+    const unloadDate = computeUnloadDate(slipDate, 'STACK')
+    // 야적+M=토 예외: N = 일요일 그대로
+    expect(unloadDate).toBe('2026-06-28')
+    expect(scheduleLabel(slipDate, unloadDate, 'STACK')).toBe('27상28하')
+  })
+})
+
+// ── 빈 문자열 slipDate 케이스 ────────────────────────────────────────────
+
+describe('빈 문자열 slipDate 케이스', () => {
+  test('빈 문자열 slipDate → computeUnloadDate null (REGION)', () => {
+    expect(computeUnloadDate('', 'REGION')).toBeNull()
+  })
+
+  test('빈 문자열 slipDate → computeUnloadDate null (STACK)', () => {
+    expect(computeUnloadDate('', 'STACK')).toBeNull()
+  })
+
+  test('빈 문자열 slipDate → scheduleLabel null', () => {
+    expect(scheduleLabel('', '2026-06-26', 'REGION')).toBeNull()
+  })
+
+  test('빈 문자열 unloadDate → scheduleLabel null', () => {
+    expect(scheduleLabel('2026-06-25', '', 'REGION')).toBeNull()
+  })
+})

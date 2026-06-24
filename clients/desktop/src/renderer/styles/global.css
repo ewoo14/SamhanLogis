@@ -1281,6 +1281,28 @@ button {
   margin-bottom: 2mm;
 }
 
+/* 배송일정 라벨 박스 — 특이사항 위에 별도 행으로 표시. 굵기+박스로 강조(색상 아님). */
+.dispatch-delivery-schedule-box {
+  border: 1.5px solid #000;
+  border-radius: 1mm;
+  padding: 2mm 4mm;
+  margin-bottom: 2mm;
+  display: flex;
+  align-items: center;
+  gap: 6mm;
+}
+
+.dispatch-delivery-schedule-box .label {
+  font-size: 10pt;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dispatch-delivery-schedule-box strong.content {
+  font-size: 14pt;
+  font-weight: 800;
+}
+
 /* 라벨 좌측 absolute, 데이터는 박스 전체 너비 기준 가운데 정렬 (사용자 명시 hotfix) */
 .dispatch-info-box {
   border: 1px solid #000;

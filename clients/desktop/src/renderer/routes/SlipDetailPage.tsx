@@ -82,6 +82,26 @@ import { SlipCollaborationPanel } from '../components/collab/SlipCollaborationPa
 import { SlipRealtimeClient } from '../realtime/SlipRealtimeClient'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { OUTBOUND_DELIVERY_TAG_LABELS } from '../api/slipCutoff'
+
+/**
+ * 특이사항 메모에서 배송태그 자동 접두("[지방] …" 등 레거시 autoMemo)를 제거한다.
+ * DispatchDocument 와 동일 로직 — 신규 전표는 no-op, 레거시 호환용.
+ */
+function memoWithoutTagPrefix(
+  memo: string | null | undefined,
+  tagLabel: string | null,
+): string | null {
+  if (!memo) return null
+  if (tagLabel) {
+    const prefix = `[${tagLabel}]`
+    if (memo.startsWith(prefix)) {
+      const trimmed = memo.slice(prefix.length).trim()
+      return trimmed || null
+    }
+  }
+  return memo
+}
 
 export interface SlipDetailPageProps {
   /** OUTBOUND 또는 INBOUND — 라우트별 listPath 결정 + ship/deliver 노출 여부. */
@@ -1323,26 +1343,41 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </div>
           <div>
             <span className="detail-label">배송 태그</span>
-            <span className="detail-value">{slip.deliveryTag ?? '-'}</span>
+            <span className="detail-value">
+              {slip.deliveryTag
+                ? ((OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>)[slip.deliveryTag] ?? slip.deliveryTag)
+                : '-'}
+            </span>
           </div>
+          {/*
+            배송일정 라벨(deliveryScheduleLabel)은 메모와 혼재하지 않고 별도 행으로 표시한다.
+            지방/야적 전표에서 "25상26하" 또는 "당착" 형태로 표시된다.
+          */}
+          {slip.deliveryScheduleLabel ? (
+            <div data-testid="slip-detail-delivery-schedule-label">
+              <span className="detail-label">배송일정</span>
+              <span className="detail-value">
+                <strong style={{ color: 'var(--color-primary-700, #1D4ED8)' }}>
+                  {slip.deliveryScheduleLabel}
+                </strong>
+              </span>
+            </div>
+          ) : null}
           <div data-testid="slip-detail-audit-overlay-memo">
             <span className="detail-label">메모</span>
             <span className="detail-value">
               {/*
-                배송일정 라벨(deliveryScheduleLabel)이 있으면 메모 앞에 표시한다.
-                구조화 태그 방식이므로 메모 자체에 라벨이 없어 중복 없음.
+                레거시 전표의 "[지방] …" 접두는 제거한다 (memoWithoutTagPrefix).
+                deliveryScheduleLabel 은 위 별도 행으로 분리하여 이중 표시를 방지한다.
               */}
-              {slip.deliveryScheduleLabel ? (
-                <strong
-                  style={{ marginRight: 4, color: 'var(--color-primary-700, #1D4ED8)' }}
-                  data-testid="slip-detail-delivery-schedule-label"
-                >
-                  {slip.deliveryScheduleLabel}
-                </strong>
-              ) : null}
               <AuditOverlay
                 field="memo"
-                currentValue={slip.memo}
+                currentValue={memoWithoutTagPrefix(
+                  slip.memo,
+                  slip.deliveryTag
+                    ? ((OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>)[slip.deliveryTag] ?? slip.deliveryTag)
+                    : null,
+                )}
                 history={auditByField['memo'] ?? []}
               />
             </span>

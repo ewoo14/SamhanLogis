@@ -153,17 +153,27 @@ export function DispatchDocument({
           <span className="label">연락처:</span>
           <span className="content">{slip.contactPhone ?? '-'}</span>
         </div>
+        {/*
+          배송일정 라벨(deliveryScheduleLabel)은 특이사항과 별도 행으로 표시한다.
+          인쇄 양식에서 강조: 굵기(bold) + 박스 테두리, 색상 아닌 굵기로 구분.
+          자유 메모(특이사항)와 시각적으로 분리하여 배송일정 정보를 명확히 전달한다.
+        */}
+        {slip.deliveryScheduleLabel ? (
+          <div
+            className="dispatch-delivery-schedule-box"
+            data-testid="dispatch-delivery-schedule-label"
+          >
+            <span className="label">배송일정:</span>
+            <strong className="content">{slip.deliveryScheduleLabel}</strong>
+          </div>
+        ) : null}
         <div className="dispatch-info-box">
           <span className="label">특이사항:</span>
           <span className="content">
             {/*
-              배송일정 라벨(deliveryScheduleLabel)이 있으면 특이사항 앞에 강조 표시.
-              신규 전표는 memo가 깨끗하므로 memoWithoutTagPrefix는 no-op.
-              레거시 전표의 "[지방] …" 등 태그 접두는 기존 함수가 제거한다.
+              레거시 전표의 "[지방] …" 등 태그 접두는 memoWithoutTagPrefix 로 제거.
+              deliveryScheduleLabel 은 위 별도 행으로 분리되어 이중 표시 없음.
             */}
-            {slip.deliveryScheduleLabel ? (
-              <strong style={{ marginRight: 4 }}>{slip.deliveryScheduleLabel}</strong>
-            ) : null}
             {memoWithoutTagPrefix(
               slip.memo,
               slip.deliveryTag
