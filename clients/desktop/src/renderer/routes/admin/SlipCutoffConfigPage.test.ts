@@ -1,13 +1,16 @@
 /**
  * SlipCutoffConfigPage 순수 모델 함수 단위 테스트.
  *
- * 렌더링 없이 validateSlipCutoffForm / canManageSlipCutoff / availableTagsForForm
- * 세 export 함수의 비즈니스 로직만 검증한다.
+ * 렌더링 없이 validateSlipCutoffForm / canManageSlipCutoff /
+ * canUpdateSlipCutoff / canDeleteSlipCutoff / availableTagsForForm
+ * export 함수의 비즈니스 로직만 검증한다.
  */
 import { describe, expect, it } from 'vitest'
 import {
   availableTagsForForm,
   canManageSlipCutoff,
+  canUpdateSlipCutoff,
+  canDeleteSlipCutoff,
   EMPTY_SLIP_CUTOFF_FORM,
   validateSlipCutoffForm,
   type SlipCutoffFormState,
@@ -128,6 +131,54 @@ describe('canManageSlipCutoff', () => {
   it('권한 없으면 false', () => {
     const canAccess = (_pageCode: 'hr.slip-cutoff', _action: 'create') => false
     expect(canManageSlipCutoff(canAccess)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// canUpdateSlipCutoff
+// ---------------------------------------------------------------------------
+
+describe('canUpdateSlipCutoff', () => {
+  it('hr.slip-cutoff update 권한 있으면 true', () => {
+    const canAccess = (pageCode: 'hr.slip-cutoff', action: 'update') =>
+      pageCode === 'hr.slip-cutoff' && action === 'update'
+    expect(canUpdateSlipCutoff(canAccess)).toBe(true)
+  })
+
+  it('update 권한 없으면 false', () => {
+    const canAccess = (_pageCode: 'hr.slip-cutoff', _action: 'update') => false
+    expect(canUpdateSlipCutoff(canAccess)).toBe(false)
+  })
+
+  it('create 권한만 있고 update 없으면 false (권한 분리 검증)', () => {
+    // create 권한은 있지만 update 는 없는 커스텀 계정 시나리오
+    const canAccess = (_pageCode: 'hr.slip-cutoff', action: 'update') =>
+      action !== 'update'
+    expect(canUpdateSlipCutoff(canAccess)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// canDeleteSlipCutoff
+// ---------------------------------------------------------------------------
+
+describe('canDeleteSlipCutoff', () => {
+  it('hr.slip-cutoff delete 권한 있으면 true', () => {
+    const canAccess = (pageCode: 'hr.slip-cutoff', action: 'delete') =>
+      pageCode === 'hr.slip-cutoff' && action === 'delete'
+    expect(canDeleteSlipCutoff(canAccess)).toBe(true)
+  })
+
+  it('delete 권한 없으면 false', () => {
+    const canAccess = (_pageCode: 'hr.slip-cutoff', _action: 'delete') => false
+    expect(canDeleteSlipCutoff(canAccess)).toBe(false)
+  })
+
+  it('create 권한만 있고 delete 없으면 false (권한 분리 검증)', () => {
+    // create 권한은 있지만 delete 는 없는 커스텀 계정 시나리오
+    const canAccess = (_pageCode: 'hr.slip-cutoff', action: 'delete') =>
+      action !== 'delete'
+    expect(canDeleteSlipCutoff(canAccess)).toBe(false)
   })
 })
 

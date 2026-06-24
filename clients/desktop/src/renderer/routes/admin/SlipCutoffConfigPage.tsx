@@ -77,7 +77,7 @@ export function validateSlipCutoffForm(form: SlipCutoffFormState): string | null
 }
 
 /**
- * 관리 액션(등록/수정/삭제) 노출 여부 — hr.slip-cutoff CREATE 권한 보유 시.
+ * 등록 버튼 노출 여부 — hr.slip-cutoff CREATE 권한 보유 시.
  *
  * <p>FE canAccess page-code = BE @RequirePermission 정확 일치
  * (feedback_fe_canaccess_pagecode_be_match).
@@ -86,6 +86,28 @@ export function canManageSlipCutoff(
   canAccess: (pageCode: 'hr.slip-cutoff', action: 'create') => boolean,
 ): boolean {
   return canAccess('hr.slip-cutoff', 'create')
+}
+
+/**
+ * 수정 버튼 노출 여부 — hr.slip-cutoff UPDATE 권한 보유 시.
+ *
+ * <p>BE @RequirePermission(action = "update") 와 정확 일치.
+ */
+export function canUpdateSlipCutoff(
+  canAccess: (pageCode: 'hr.slip-cutoff', action: 'update') => boolean,
+): boolean {
+  return canAccess('hr.slip-cutoff', 'update')
+}
+
+/**
+ * 삭제 버튼 노출 여부 — hr.slip-cutoff DELETE 권한 보유 시.
+ *
+ * <p>BE @RequirePermission(action = "delete") 와 정확 일치.
+ */
+export function canDeleteSlipCutoff(
+  canAccess: (pageCode: 'hr.slip-cutoff', action: 'delete') => boolean,
+): boolean {
+  return canAccess('hr.slip-cutoff', 'delete')
 }
 
 /**
@@ -130,6 +152,8 @@ export function SlipCutoffConfigPage() {
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canManage = canManageSlipCutoff(canAccess)
+  const canUpdate = canUpdateSlipCutoff(canAccess)
+  const canDelete = canDeleteSlipCutoff(canAccess)
 
   const [form, setForm] = useState<SlipCutoffFormState | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -186,6 +210,8 @@ export function SlipCutoffConfigPage() {
       return
     }
     if (form.editing) {
+      // 방어 가드: UI 권한 노출과 일관성 유지 (BE 가 최종 권위)
+      if (!canUpdate) return
       updateMutation.mutate({
         id: form.editing.id,
         req: {
@@ -195,6 +221,8 @@ export function SlipCutoffConfigPage() {
       })
       return
     }
+    // 방어 가드: UI 권한 노출과 일관성 유지 (BE 가 최종 권위)
+    if (!canManage) return
     createMutation.mutate({
       deliveryTag: form.deliveryTag as OutboundDeliveryTag,
       cutoffTime: form.cutoffTime,
@@ -242,54 +270,63 @@ export function SlipCutoffConfigPage() {
         key: 'id',
         header: '관리',
         width: '150px',
-        render: (row) =>
-          canManage ? (
+        render: (row) => {
+          const hasAnyAction = canUpdate || canDelete
+          if (!hasAnyAction) {
+            return <span style={{ color: 'var(--color-neutral-500)' }}>조회 전용</span>
+          }
+          return (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`admin-slip-cutoff-edit-${row.deliveryTag}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSubmitError(null)
-                  setForm({
-                    editing: row,
-                    deliveryTag: row.deliveryTag,
-                    cutoffTime: row.cutoffTime,
-                    active: row.active,
-                  })
-                }}
-              >
-                수정
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`admin-slip-cutoff-delete-${row.deliveryTag}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const label =
-                    row.deliveryTagLabel ||
-                    OUTBOUND_DELIVERY_TAG_LABELS[row.deliveryTag] ||
-                    row.deliveryTag
-                  if (
-                    window.confirm(
-                      `"${label}" 마감시간 설정을 삭제하시겠습니까?`,
-                    )
-                  ) {
-                    deleteMutation.mutate(row.id)
-                  }
-                }}
-              >
-                삭제
-              </Button>
+              {canUpdate ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid={`admin-slip-cutoff-edit-${row.deliveryTag}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!canUpdate) return
+                    setSubmitError(null)
+                    setForm({
+                      editing: row,
+                      deliveryTag: row.deliveryTag,
+                      cutoffTime: row.cutoffTime,
+                      active: row.active,
+                    })
+                  }}
+                >
+                  수정
+                </Button>
+              ) : null}
+              {canDelete ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid={`admin-slip-cutoff-delete-${row.deliveryTag}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!canDelete) return
+                    const label =
+                      row.deliveryTagLabel ||
+                      OUTBOUND_DELIVERY_TAG_LABELS[row.deliveryTag] ||
+                      row.deliveryTag
+                    if (
+                      window.confirm(
+                        `"${label}" 마감시간 설정을 삭제하시겠습니까?`,
+                      )
+                    ) {
+                      deleteMutation.mutate(row.id)
+                    }
+                  }}
+                >
+                  삭제
+                </Button>
+              ) : null}
             </div>
-          ) : (
-            <span style={{ color: 'var(--color-neutral-500)' }}>조회 전용</span>
-          ),
+          )
+        },
       },
     ],
-    [canManage, deleteMutation.mutate],
+    [canUpdate, canDelete, deleteMutation.mutate],
   )
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending

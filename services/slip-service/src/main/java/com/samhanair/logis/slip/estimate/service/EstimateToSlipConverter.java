@@ -8,6 +8,7 @@ import com.samhanair.logis.slip.estimate.domain.EstimateLine;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
+import java.time.Clock;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,8 @@ public class EstimateToSlipConverter {
     private final SlipNumberService slipNumberService;
     /** 출고전표 마감 게이트 — 견적 변환 생성 경로(게이트②). */
     private final OutboundCutoffGuard cutoffGuard;
+    /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
+    private final Clock clock;
 
     /**
      * 견적 → Slip(OUTBOUND DRAFT) 변환.
@@ -46,7 +49,7 @@ public class EstimateToSlipConverter {
      * @return 영속화된 Slip(OUTBOUND DRAFT)
      */
     public Slip convert(Estimate estimate) {
-        LocalDate slipDate = LocalDate.now();
+        LocalDate slipDate = LocalDate.now(clock);
         String slipNo = slipNumberService.next(slipDate, com.samhanair.logis.slip.domain.SlipType.OUTBOUND);
         int seqNo = slipNumberService.extractSeqNo(slipNo);
 

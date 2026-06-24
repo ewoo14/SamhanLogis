@@ -23,6 +23,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
@@ -100,6 +101,8 @@ public class SlipPublishService {
     private final EntityManager entityManager;
     /** 출고전표 마감 게이트 — 발행 3경로(게이트④⑤⑥). */
     private final OutboundCutoffGuard cutoffGuard;
+    /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
+    private final Clock clock;
 
     /**
      * estimate-app v2 → 출고전표 발행. {@link
@@ -521,7 +524,7 @@ public class SlipPublishService {
 
     private LocalDate parseIoDate(String ioDate) {
         if (ioDate == null || ioDate.isBlank()) {
-            return LocalDate.now();
+            return LocalDate.now(clock);
         }
         try {
             return LocalDate.parse(ioDate.trim(), IO_DATE_FMT);

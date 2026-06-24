@@ -38,6 +38,7 @@ import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -124,6 +125,8 @@ public class SlipService {
     private final CompensationAuditWriter compensationAuditWriter;
     /** 출고전표 배송태그별 마감 시각 게이트 — 생성 6경로 + editHeader 2경로. */
     private final OutboundCutoffGuard cutoffGuard;
+    /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
+    private final Clock clock;
 
     /**
      * 전표 라인 추가 — BUNDLE(세트)면 product-service expand 로 구성품 라인 N개 전개(첫 setHead+parentSetModel),
@@ -211,7 +214,7 @@ public class SlipService {
         }
 
         // 2. 채번 (slipDate null 이면 today)
-        LocalDate slipDate = req.slipDate() == null ? LocalDate.now() : req.slipDate();
+        LocalDate slipDate = req.slipDate() == null ? LocalDate.now(clock) : req.slipDate();
         String slipNo = slipNumberService.next(slipDate, req.slipType());
         int seqNo = slipNumberService.extractSeqNo(slipNo);
 
