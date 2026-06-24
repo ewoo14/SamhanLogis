@@ -23,7 +23,7 @@ describe('collabHeaders', () => {
 
     await expect(collabHeaders()).resolves.toEqual({
       'X-User-Id': 'u-1',
-      'X-User-Name': '홍길동',
+      'X-User-Name': encodeURIComponent('홍길동'),
     })
   })
 

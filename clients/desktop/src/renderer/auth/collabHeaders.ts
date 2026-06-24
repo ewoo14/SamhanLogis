@@ -13,9 +13,10 @@ export async function collabHeaders(): Promise<Record<string, string>> {
     const session = await getAuthProvider().getSession()
     const headers: Record<string, string> = {}
     if (session?.userId) headers['X-User-Id'] = session.userId
-    if (session?.fullName) headers['X-User-Name'] = session.fullName
+    if (session?.fullName) headers['X-User-Name'] = encodeURIComponent(session.fullName)
     return headers
-  } catch {
+  } catch (err) {
+    console.warn('[collabHeaders] 세션 식별 헤더 생성 실패', err)
     return {}
   }
 }

@@ -137,6 +137,7 @@ services:
       SERVER_PORT: "8081"
       DB_NAME: auth_db
       SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "127.0.0.1:8081:8081"
     depends_on: *service-depends

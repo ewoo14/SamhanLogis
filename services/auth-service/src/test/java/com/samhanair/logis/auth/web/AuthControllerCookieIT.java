@@ -8,6 +8,8 @@ import com.samhanair.logis.auth.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.auth.service.AuthService;
 import com.samhanair.logis.auth.service.dto.LoginResponse;
 import com.samhanair.logis.auth.web.dto.MeResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -112,5 +115,42 @@ class AuthControllerCookieIT {
         assertThat(body).contains("\"partnerCode\":null");
         assertThat(body).contains("\"groups\":[");
         assertThat(body).contains("개발책임자");
+    }
+
+    @Test
+    @DisplayName("GET /auth/me 는 X-User-Id 가 없으면 UNAUTHORIZED")
+    void me_withoutUserHeader_throwsUnauthorized() {
+        BusinessException cause = performAndExpectBusinessException(
+                MockMvcRequestBuilders.get("/auth/me"));
+
+        assertThat(cause.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("GET /auth/me 는 X-User-Id 가 UUID 가 아니면 UNAUTHORIZED")
+    void me_withInvalidUserHeader_throwsUnauthorized() {
+        BusinessException cause = performAndExpectBusinessException(
+                MockMvcRequestBuilders.get("/auth/me")
+                        .header("X-User-Id", "not-a-uuid"));
+
+        assertThat(cause.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    /**
+     * standalone MockMvc 는 전역 예외 핸들러 없이 controller 예외를 ServletException 으로 감싼다.
+     * 원인 체인에서 BusinessException 을 찾아 controller 계약을 검증한다.
+     */
+    private BusinessException performAndExpectBusinessException(RequestBuilder requestBuilder) {
+        try {
+            mockMvc.perform(requestBuilder).andReturn();
+            throw new AssertionError("expected BusinessException to be thrown");
+        } catch (Exception ex) {
+            Throwable cursor = ex;
+            while (cursor != null && !(cursor instanceof BusinessException)) {
+                cursor = cursor.getCause();
+            }
+            assertThat(cursor).as("expected BusinessException in cause chain").isInstanceOf(BusinessException.class);
+            return (BusinessException) cursor;
+        }
     }
 }

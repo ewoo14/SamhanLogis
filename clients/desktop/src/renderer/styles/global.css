@@ -105,6 +105,22 @@ button {
   overflow: auto;
 }
 
+/* 슬1 최소 반응형: 실 모바일 네비(drawer/하단탭)는 슬2에서 구현한다. */
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    display: none;
+  }
+
+  .app-main {
+    padding: var(--space-4);
+    overflow-x: hidden;
+  }
+}
+
 /*
  * AppHeader — Slice A (sales-polish-2-slice) 갱신
  * Designer wireframes.md § 1.4 + tokens.md § 1.2 인용:
@@ -161,7 +177,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  width: 360px;
+  width: min(360px, 100%);
 }
 
 .dashboard-grid {

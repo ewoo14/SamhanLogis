@@ -23,13 +23,13 @@ interface MeResponse {
   groups?: { id: string; name: string; builtin: boolean }[]
 }
 
-/** 모듈 스코프 식별 캐시 — provider 인스턴스 간 공유(세션 단일 진실원). */
-let cachedSession: SessionInfo | null = null
-
 /**
  * Web 용 {@link AuthProvider} 를 생성한다(웹 브라우저 환경에서 선택).
  */
 export function createWebAuthProvider(): AuthProvider {
+  /** provider 인스턴스별 식별 캐시. 실제 런타임은 getAuthProvider 싱글톤이 보장한다. */
+  let cachedSession: SessionInfo | null = null
+
   return {
     async getSession(): Promise<SessionInfo | null> {
       return cachedSession

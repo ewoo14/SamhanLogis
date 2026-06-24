@@ -69,7 +69,7 @@ interface AuthProvider {
 - **webview JSX 타입 가드**(`types/electron.d.ts:34`): 웹 TS 빌드 통과하도록 처리. legacy estimate webview 페이지(Electron 전용)는 웹에서 조건부 렌더/숨김(빌드 비파손).
 
 ### 3.4 FE — 반응형 토큰(최소)
-- design-system `tokens.css`에 breakpoint CSS 변수 추가(`--breakpoint-sm/md/lg/xl`). 실제 @media 개조는 슬2. 슬1은 토큰 정의만(zero-risk 선행).
+- design-system `tokens.css`는 기존 breakpoint CSS 변수(`--bp-sm/md/lg/xl/2xl`)를 표준으로 사용한다. 실제 @media 개조는 슬2. 슬1 CSS 는 홈 대시보드 가로 overflow 제거 수준의 최소 반응형만 적용한다.
 
 ### 3.5 BE — auth-service
 - `AuthController.login`: 기존 body 토큰 **유지** + **Set-Cookie 추가**(dual-issue). `ResponseEntity<ApiResponse<LoginResponse>>`로 변경, 헤더 `Set-Cookie: access_token=<JWT>; HttpOnly; SameSite=Lax; Path=/; [Secure]`. Electron=body 토큰 사용(쿠키 무시), 웹=쿠키 사용(body 토큰 무시) → **무회귀**.
@@ -79,6 +79,7 @@ interface AuthProvider {
 
 ### 3.6 BE — 게이트웨이
 - `JwtAuthenticationGatewayFilterFactory`: **쿠키 fallback** 추가 — Authorization Bearer 헤더 우선, 부재 시 `access_token` 쿠키 추출(WebFlux `ServerHttpRequest.getCookies()`)→동일 JWT 검증 경로. 식별헤더 remove-then-set 주입은 **소스 무관 동일**(쿠키 위조 방지 동등). [[feedback_identity_header_authz_antipattern]] 단일 신뢰원 유지.
+- `GET /auth/me` 및 `GET /api/v1/auth/me`는 웹 bootstrap 세션 복원 경로이므로 **JwtAuthentication 적용 라우트 필수**. `/auth/**` legacy catch-all 또는 `/api/v1/auth/**` public catch-all 에 매칭되면 식별헤더가 주입되지 않아 auth-service 가 401 을 반환한다. 구체 경로 라우트를 catch-all 앞에 선언한다.
 - CORS: `allowCredentials=true` 기존. allowedOrigins에 **:5175(웹 렌더러 dev)** 및 웹 prod origin 포함 여부 확인·보강(prod 도메인은 Phase 11).
 - 우선순위 race 방지: Bearer 헤더 존재 시 쿠키 무시(중복 시 Bearer 우선) 명문화.
 

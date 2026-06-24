@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.gateway.config.JwtProperties;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -114,6 +117,31 @@ class CookieAuthGatewayIT {
 
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(readBody(exchange)).contains("INVALID_TOKEN");
+    }
+
+    @Test
+    @DisplayName("/auth/me bootstrap 라우트는 legacy/public catch-all 보다 먼저 JwtAuthentication 을 적용한다")
+    void authMeRoutes_areAuthenticatedBeforeCatchAll() throws Exception {
+        String yml = Files.readString(
+                Path.of(CookieAuthGatewayIT.class.getClassLoader()
+                        .getResource("application.yml")
+                        .toURI()),
+                StandardCharsets.UTF_8);
+
+        int legacyMe = yml.indexOf("id: auth-service-me-authenticated");
+        int legacyCatchAll = yml.indexOf("id: auth-service-legacy");
+        int v1Me = yml.indexOf("id: auth-service-me-v1-authenticated");
+        int v1CatchAll = yml.indexOf("id: auth-service-v1");
+
+        assertThat(legacyMe).isGreaterThanOrEqualTo(0);
+        assertThat(v1Me).isGreaterThanOrEqualTo(0);
+        assertThat(legacyMe).isLessThan(legacyCatchAll);
+        assertThat(v1Me).isLessThan(v1CatchAll);
+        assertThat(yml).contains(
+                "- Path=/auth/me",
+                "- Path=/api/v1/auth/me",
+                "- StripPrefix=2",
+                "- JwtAuthentication");
     }
 
     private static String readBody(ServerWebExchange exchange) {

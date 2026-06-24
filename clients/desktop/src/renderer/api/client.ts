@@ -15,7 +15,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { getMockResponse, isMockMode } from './mock'
-import { getAuthProvider } from '../auth/authProvider'
+import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
 
 interface MockHttpResponse {
   __mockStatus: number
@@ -89,9 +89,13 @@ apiClient.interceptors.response.use(
       } catch (clearErr) {
         console.error('[apiClient] 401 후 세션 클리어 실패', clearErr)
       }
-      // Electron HashRouter 기준. 웹 BrowserRouter 에서는 /login 으로 대체해도 되지만 기존 무회귀 우선.
+      // Electron 은 HashRouter, 웹은 BrowserRouter 기준으로 로그인 경로를 분기한다.
       if (typeof window !== 'undefined') {
-        window.location.hash = '#/login'
+        if (isElectronPlatform) {
+          window.location.hash = '#/login'
+        } else {
+          window.location.replace('/login')
+        }
       }
     }
     return Promise.reject(err)

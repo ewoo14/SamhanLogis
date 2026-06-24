@@ -107,6 +107,7 @@
 ```
 [ ] SAMHAN_DB_URL → jdbc:postgresql://<RDS_ENDPOINT>:5432/auth_db
 [ ] SAMHAN_JWT_SECRET → Secrets Manager 주입 (samhan/production/jwt-secret)
+[ ] COOKIE_SECURE=true 설정 (HTTPS 운영 필수, httpOnly access_token 쿠키 Secure 플래그)
 [ ] SERVER_PORT=8081 확인
 [ ] /actuator/health → {"status":"UP"}
 ```

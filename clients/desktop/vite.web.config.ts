@@ -22,7 +22,7 @@ export default defineConfig({
     'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
       process.env['VITE_API_BASE_URL'] ?? 'http://localhost:8080',
     ),
-    'process.env': '{}',
+    'process.env.NODE_ENV': JSON.stringify(process.env['NODE_ENV'] ?? 'production'),
   },
   build: {
     outDir: resolve(__dirname, 'dist/web'),

@@ -262,6 +262,9 @@ jobs:
       - name: build (electron-vite)
         run: npm run build
 
+      - name: build:web (renderer web)
+        run: npm run build:web
+
       - name: 단위 테스트(vitest)
         run: npm test
 

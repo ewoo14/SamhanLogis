@@ -4,8 +4,8 @@
  * 현재 노출 endpoint:
  * - `POST /auth/login` — loginId/password → JWT + 사용자 메타데이터
  *
- * 호출자는 응답 토큰을 `window.samhanAuth.setToken()` 으로 메인 프로세스에
- * 영속 저장해야 한다 (LoginPage 에서 처리).
+ * 호출자는 LoginPage → session.setAuth/establishSession 흐름으로 플랫폼별
+ * authProvider 에 세션을 위임한다(Electron=IPC 저장, Web=httpOnly 쿠키 식별 캐시).
  */
 import { apiClient, type ApiEnvelope } from './client'
 

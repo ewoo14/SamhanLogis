@@ -113,7 +113,7 @@ config.withCredentials = true
 const headers = await getAuthProvider().getAuthHeaders()
 for (const [k, v] of Object.entries(headers)) config.headers.set(k, v)
 ```
-  응답 인터셉터 401(현 84-93): `await getAuthProvider().clearSession()` + `window.location.hash = '#/login'`. (mock 모드 분기는 보존.)
+  응답 인터셉터 401(현 84-93): `await getAuthProvider().clearSession()` + Electron 은 `window.location.hash = '#/login'`, Web 은 `window.location.replace('/login')`. (mock 모드 분기는 보존.)
 - [ ] **Step 4: session.ts 수정** — bootstrap=`getAuthProvider().bootstrap()`→`set({auth: sessionInfoToSnapshot(s), bootstrapped:true})`; setAuth=`getAuthProvider().establishSession(login)` 형태로 시그니처 정리(또는 establishSession 호출 후 set); logout=`getAuthProvider().clearSession()`. mock 분기 보존. (AuthSnapshot.token: 웹은 `''`.)
 - [ ] **Step 5: LoginPage 수정(67-80)** — onSuccess: `await getAuthProvider().establishSession(res); set session; navigate('/')`. (setAuth 헬퍼가 establishSession 위임하면 LoginPage는 그대로 두고 session.ts만 변경 — 택1, DRY.)
 - [ ] **Step 6: 테스트 + typecheck** — vitest PASS + `npm run typecheck` 0 에러.
@@ -157,7 +157,7 @@ for (const [k, v] of Object.entries(headers)) config.headers.set(k, v)
 - [ ] **Step 2: routes/index.tsx 라우터 분기** — `import { createHashRouter, createBrowserRouter, ... }`; `const create = isElectronPlatform ? createHashRouter : createBrowserRouter; const router = create(routesArray)`. (routes 배열은 동일.)
 - [ ] **Step 3: webview 타입 가드** — `types/electron.d.ts`의 webview JSX.IntrinsicElements 선언이 웹 빌드(tsconfig.web) 컴파일 깨지 않도록 유지(웹에서도 타입만 존재, 런타임 미사용). legacy estimate webview 페이지는 `isElectronPlatform` 가드로 웹에서 미렌더(빌드 비파손 확인).
 - [ ] **Step 4: package.json scripts** — `"build:web": "vite build --config vite.web.config.ts"`, 필요 시 `"dev:web"`(기존 :5175 dev config 재사용 가능). typecheck 불변.
-- [ ] **Step 5: breakpoint 토큰** — `tokens.css` `:root`에 `--breakpoint-sm: 640px; --breakpoint-md: 768px; --breakpoint-lg: 1024px; --breakpoint-xl: 1280px;` 추가(실 @media 개조는 슬2). design-system dist 갱신 필요 시 `npm run build`(design-system).
+- [ ] **Step 5: breakpoint 토큰** — 기존 `tokens.css` `:root`의 `--bp-sm/md/lg/xl/2xl`을 표준으로 사용한다(실 @media 개조는 슬2). 신규 `--breakpoint-*` 중복 토큰은 추가하지 않는다. design-system dist 갱신 필요 시 `npm run build`(design-system).
 - [ ] **Step 6: 빌드 검증** — `cd clients/desktop && npm run typecheck` 0 + `npm run build:web` 성공(dist/web 생성) + 기존 `npm run build`(Electron) 무회귀 성공.
 - [ ] **Step 7: 커밋** — `[FEAT] 모바일 슬1 — vite 웹 빌드 골격 + 라우터 플랫폼 분기 + breakpoint 토큰`
 

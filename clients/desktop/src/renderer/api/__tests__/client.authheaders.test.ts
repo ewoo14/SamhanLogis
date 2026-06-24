@@ -8,6 +8,7 @@ const authProvider = {
 
 vi.mock('../../auth/authProvider', () => ({
   getAuthProvider: () => authProvider,
+  isElectronPlatform: false,
 }))
 
 describe('apiClient authProvider 배선', () => {
@@ -16,7 +17,7 @@ describe('apiClient authProvider 배선', () => {
     vi.clearAllMocks()
     authProvider.getAuthHeaders.mockResolvedValue({ Authorization: 'Bearer T' })
     authProvider.clearSession.mockResolvedValue()
-    vi.stubGlobal('window', { location: { hash: '' } })
+    vi.stubGlobal('window', { location: { hash: '', replace: vi.fn() } })
   })
 
   it('요청마다 withCredentials=true 와 authProvider 헤더를 병합한다', async () => {
@@ -40,7 +41,7 @@ describe('apiClient authProvider 배선', () => {
     expect(authProvider.getAuthHeaders).toHaveBeenCalledTimes(1)
   })
 
-  it('401 응답은 authProvider 세션을 비우고 로그인 hash 로 이동한다', async () => {
+  it('웹 401 응답은 authProvider 세션을 비우고 /login 으로 이동한다', async () => {
     const { apiClient } = await import('../client')
 
     await expect(apiClient.get('/unauthorized', {
@@ -58,6 +59,7 @@ describe('apiClient authProvider 배선', () => {
     })).rejects.toBeInstanceOf(axios.AxiosError)
 
     expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
-    expect(window.location.hash).toBe('#/login')
+    expect(window.location.replace).toHaveBeenCalledWith('/login')
+    expect(window.location.hash).toBe('')
   })
 })
