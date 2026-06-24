@@ -124,3 +124,11 @@ SlipSeeder는 게이트 배선 제외 (시드 대량 생성 성능 보호).
 | `test/...SlipServiceTest.java` | EditHeaderRequest 7arg 수정 |
 | `test/...SlipServiceAuditDiffTest.java` | EditHeaderRequest 7arg 수정 |
 | `.github/workflows/ci.yml` | slip.it.schedule.* CI 필터 추가 |
+
+## 워크플로우 회고 ([[feedback_canonical_workflow]] 8단계 완주, PR #595)
+- ① 기획(brainstorming: 개발책임자 D1~D7 — 구조화 태그·estimate-app 레퍼런스 1:1·당착=지방 한정·범위 slip 단일진실원) → ② 개발(환경한계로 Codex 쓰기 차단 → Opus 엔지니어 에이전트, 듀얼모델은 리뷰서 보존) → ③ Opus 5-agent → ④ Codex read-only → ⑤ 0수렴 → ⑥ PM 종합 → ⑦ CI → ⑧ 머지.
+- **Opus 라운드 fix(2 BLOCKING+다수 MAJOR)**: applyDeliverySchedule 비적용 태그 가드(데이터 오염) / FE `today` UTC→KST 날짜밀림 / SlipServiceAuditDiffTest @Mock 보강(false-green) / DeliveryScheduleIT date-bomb 고정날짜 / autoMemo 완전제거 / 조회·인쇄 라벨 정합·design-system / 테스트 보강.
+- **🔑 Codex 라운드 단독 적발(MAJOR)**: editHeader/v20 재계산 조건이 `effectiveTag != null`이라 **기존 전표 메모만 수정 시 사용자 override 하차일 유실** → 조건 `tagChanged || override`로 fix + 보존 IT 3종. (Opus 라운드가 놓침 — 듀얼리뷰 가치.)
+- **0수렴**: Opus·Codex 양쪽 새 fix 0(최종 19147b37a). Opus가 CI 필터 BLOCKING 후보를 실제 gradle 실행으로 반증(Gradle `--tests "...domain.*"`는 `.` 경계 가로질러 하위패키지 커버).
+- **🐳 라이브 QA**: UI(지방 배송일정 카드·당착 토글·야적 익일·하차일 편집) + 생성/조회 + 실API 주말규칙(지방토→월·야적토→일) + override 보존(메모만 수정 시 유지) PASS 9/9. 증적 `docs/qa/slip-delivery-schedule-s3/`.
+- **교훈**: ①신규 IT는 ci.yml 필터 등재+로컬 실제 실행([[feedback_changed_module_full_test_before_push]]). ②부분 갱신(PATCH) 의미론은 "변경 의도가 있는 필드만 재계산"(override 보존). ③JS Date `toISOString()` UTC 밀림은 KST 로컬 날짜 유틸로. ④한글 memo curl Git Bash UTF-8 깨짐 false-RED([[feedback_realqa_run_and_false_red]]).

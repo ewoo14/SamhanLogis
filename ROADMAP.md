@@ -31,6 +31,7 @@
 
 ### 최신 진행 메모 (2026-06-24)
 
+- 출고전표 배송일정(M상N하) 자동 — 구조화 태그 (PR #595): 배송태그(지방/야적)별 상차(M=출고일 잠금)/하차(N) 일정을 `DeliverySchedule` 규칙(N=M+1·일요일→월요일·야적토=일요일·지방당착)으로 자동 계산해 `Slip.unload_date`(V52) 구조화 필드 보유, 특이사항 앞 파생 라벨 `25상26하`/`당착`(메모 미저장). N 편집·당착·M 잠금. 컷오프 8지점에 applyDeliverySchedule 배선(태그변경/override 시만 재계산, override 보존). applyDeliveryTagAutoMemo 폐기. ci.yml `slip.it.schedule.*` 등재. 라이브 QA 9/9.
 - 출고전표 컷오프(마감) 시간 설정 — 인사 메뉴 (PR #594): 배송태그별 마감 시각을 `slip_outbound_cutoff`(V51) 마스터로 동적 CRUD(지방 12:00·야적 14:00·경동 15:00 시드)하고, `OutboundCutoffGuard`(KST Clock)를 출고전표 생성 6경로 + 배송태그 확정(editHeader/v20) 2경로 = 8지점에 배선해 당일·마감 초과 시 409 차단한다. page-code `hr.slip-cutoff`(MASTER/MANAGER, auth V70 4-table), gateway `/admin/slip-cutoffs`. desktop 인사 설정 페이지 + 출력문서 배송태그 표시. ci.yml `slip.it.cutoff.*` 필터 등재로 신규 IT 실행 보장.
 - 검수완료 → 배차발송 에픽 완결: 슬1은 검수완료 출고전표를 배차 발송 대기 진입점과 아로로지스 기존 발송 경로에 연결했고, 슬2는 `external_carrier` 외부기사/배송사 마스터 CRUD를 추가했다. 슬3는 `external_dispatch`/`external_dispatch_slip` V50 이력과 `POST /admin/external-dispatches` SMS 발송을 추가했다. 슬4는 `PRINT`/`BOTH` 채널과 `GET /admin/external-dispatches/{id}/print-data` 인쇄 데이터 조회, desktop A4 배차의뢰서(`/dispatch/external-dispatch/{id}/print`)를 완성했다. PRINT 는 SMS 호출 없이 SENT + `DISPATCHED`, BOTH 는 SMS 결과로 SENT/FAILED 를 기록하며 인쇄 데이터는 같은 발송 이력에서 제공한다. Flyway 신규와 권한 신규 시드 없이 `dispatch.board` 를 재사용하고, 화면에는 배송사명/연락처/전표번호/배송지/수령자/품목요약만 노출한다.
 
