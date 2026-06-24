@@ -18,6 +18,7 @@ import com.samhanair.logis.slip.repository.SlipPublishAuditRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import com.samhanair.logis.slip.service.SlipNumberService;
+import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.security.MessageDigest;
@@ -97,6 +98,8 @@ public class SlipPublishService {
     private final SlipPublishProperties publishProperties;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
+    /** 출고전표 마감 게이트 — 발행 3경로(게이트④⑤⑥). */
+    private final OutboundCutoffGuard cutoffGuard;
 
     /**
      * estimate-app v2 → 출고전표 발행. {@link
@@ -138,6 +141,9 @@ public class SlipPublishService {
                 warehouseId, null,
                 null, req.partnerName(),
                 null, memo, requester);
+        // [게이트④] 견적 발행 출고전표 마감 게이트 — createOutbound 직후.
+        // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }
@@ -207,6 +213,9 @@ public class SlipPublishService {
                 warehouseId, null,
                 null, req.partnerName(),
                 null, memo, requester);
+        // [게이트⑤] 주문 발행 출고전표 마감 게이트 — createOutbound 직후.
+        // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }
@@ -293,6 +302,9 @@ public class SlipPublishService {
         int seqNo = slipNumberService.extractSeqNo(slipNo);
         Slip slip = Slip.createOutbound(slipNo, slipDate, seqNo,
                 warehouseId, null, null, req.partnerName(), null, memo, requester);
+        // [게이트⑥] 주문 병합 발행 출고전표 마감 게이트 — createOutbound 직후.
+        // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
+        cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
         for (SlipLine line : resolved.toEntityLines(slip)) {
             slip.addLine(line);
         }

@@ -16,6 +16,7 @@ import com.samhanair.logis.slip.domain.CompensationOperation;
 import com.samhanair.logis.slip.domain.CompensationPhase;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -121,6 +122,8 @@ public class SlipService {
      */
     private final SlipRealtimeBroker broker;
     private final CompensationAuditWriter compensationAuditWriter;
+    /** 출고전표 배송태그별 마감 시각 게이트 — 생성 6경로 + editHeader 2경로. */
+    private final OutboundCutoffGuard cutoffGuard;
 
     /**
      * 전표 라인 추가 — BUNDLE(세트)면 product-service expand 로 구성품 라인 N개 전개(첫 setHead+parentSetModel),
@@ -219,6 +222,9 @@ public class SlipService {
                     req.sourceWarehouseId(), req.destinationWarehouseId(),
                     req.partnerId(), req.partnerName(),
                     req.deliveryTag(), req.memo(), requesterId);
+            // [게이트①] 출고전표 수동 생성 마감 게이트 — createOutbound 직후, save 직전.
+            // 태그 null(미지정) 이면 assertWithinCutoff 내부에서 즉시 통과(opt-in).
+            cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
         } else {
             slip = Slip.createInbound(slipNo, slipDate, seqNo,
                     req.destinationWarehouseId(),
@@ -314,6 +320,12 @@ public class SlipService {
     public SlipDetailResponse editHeader(UUID id, EditHeaderRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        // [게이트⑦] 배송태그 확정(신규/변경) 마감 게이트 — applyMutation 직전.
+        // 태그 미변경(memo/driver만 수정) 또는 null 보존 경우는 게이트 미적용.
+        DeliveryTag incomingTag = req.deliveryTag();
+        if (incomingTag != null && incomingTag != slip.getDeliveryTag()) {
+            cutoffGuard.assertWithinCutoff(incomingTag, slip.getSlipDate());
+        }
         // PR-H2 — memo 변경분 audit 사전 snapshot (도메인 mutation 직전 oldValue 보존)
         String oldMemo = slip.getMemo();
         applyMutation(() -> slip.editHeader(req.partnerId(), req.partnerName(),
@@ -382,6 +394,12 @@ public class SlipService {
     public SlipDetailResponse updateSlip(UUID id, UpdateSlipRequest req, String callerId,
                                          String callerName) {
         Slip slip = loadOrThrow(id);
+        // [게이트⑧] 배치 헤더 수정 — 배송태그 신규/변경 시 마감 게이트 적용.
+        // 태그 미변경(memo/driver/partnerName 등만 수정) 또는 null 보존 경우는 게이트 미적용.
+        DeliveryTag incomingTagBatch = req.deliveryTag();
+        if (incomingTagBatch != null && incomingTagBatch != slip.getDeliveryTag()) {
+            cutoffGuard.assertWithinCutoff(incomingTagBatch, slip.getSlipDate());
+        }
         // editHeader 가 partnerId 를 덮어쓰기 전에 캡처 — partnerCode 진짜 변경 판정용 (사이클2 BE)
         UUID previousPartnerId = slip.getPartnerId();
         // 기존 헤더 필드 수정 (도메인 메서드 chain — Slip.editHeader)
