@@ -115,7 +115,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
     // ── 생성 경로 ──────────────────────────────────────────────────────────
 
     /**
-     * [시나리오 1] 마감 전(11:00) 당일 REGION 출고전표 수동 생성 → 200.
+     * [시나리오 1] 마감 전(11:00) 당일 REGION 출고전표 수동 생성 → 201.
      */
     @Test
     void create_regionTag_beforeCutoff_returns200() throws Exception {
@@ -127,7 +127,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest("REGION", today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.deliveryTag").value("REGION"));
     }
 
@@ -145,7 +145,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.message")
+                .andExpect(jsonPath("$.message")
                         .value(org.hamcrest.Matchers.containsString("당일 마감")));
     }
 
@@ -162,7 +162,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest("DAY", today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     /**
@@ -178,7 +178,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest("REGION", tomorrow))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     /**
@@ -195,7 +195,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest(null, today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
     }
 
     // ── 태그확정(editHeader) 경로 ────────────────────────────────────────
@@ -214,7 +214,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest(null, today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8);
@@ -231,7 +231,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.message")
+                .andExpect(jsonPath("$.message")
                         .value(org.hamcrest.Matchers.containsString("당일 마감")));
     }
 
@@ -249,7 +249,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest("REGION", today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8);
@@ -281,7 +281,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest(null, today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8);
@@ -316,7 +316,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest(null, today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String slipId = extractId(createResp);
 
@@ -330,7 +330,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.message")
+                .andExpect(jsonPath("$.message")
                         .value(org.hamcrest.Matchers.containsString("당일 마감")));
     }
 
@@ -347,7 +347,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                         .content(buildCreateRequest("REGION", today))
                         .header("X-User-Id", USER_ID)
                         .header("X-User-Role", USER_ROLE))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String slipId = extractId(createResp);
 

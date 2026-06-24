@@ -32,7 +32,10 @@ import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -65,6 +68,24 @@ class SlipServiceTest {
     @Mock private WarehouseInternalClient warehouseInternalClient;
     /** 권한 재편 Phase 2.1 Task 2 — mutation 스냅샷 캡처. 본 테스트에서는 mock 격리. */
     @Mock private com.samhanair.logis.slip.revision.service.SlipRevisionService slipRevisionService;
+    /**
+     * 출고 마감 게이트 — SlipService 가 slipDate 기본값 계산 시 LocalDate.now(clock) 사용.
+     * Clock @Mock 미등록 시 @InjectMocks 가 null 주입 → NPE.
+     */
+    @Mock private Clock clock;
+    /**
+     * 출고전표 마감 게이트 — create() 의 cutoffGuard.assertWithinCutoff() 호출 경로.
+     * 단위 테스트에서는 mock 격리(lenient, 기본 통과).
+     */
+    @Mock private com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard cutoffGuard;
+    /** 결재선 결재자 게이트 — 단위 테스트 격리. */
+    @Mock private com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
+    /** user-service 내부 클라이언트 — 단위 테스트 격리 (ownerFullName resolve). */
+    @Mock private com.samhanair.logis.slip.client.UserInternalClient userInternalClient;
+    /** SSE 브로커 — 단위 테스트 격리 (restore broadcast). */
+    @Mock private com.samhanair.logis.slip.realtime.SlipRealtimeBroker broker;
+    /** 보상 감사 로그 — 단위 테스트 격리. */
+    @Mock private com.samhanair.logis.slip.service.CompensationAuditWriter compensationAuditWriter;
 
     @InjectMocks private SlipService service;
 
@@ -81,6 +102,11 @@ class SlipServiceTest {
         destWh = UUID.randomUUID();
         partnerId = UUID.randomUUID();
         slipId = UUID.randomUUID();
+
+        // Clock stub — slipDate=null 경로에서 LocalDate.now(clock) 호출 시 NPE 방지.
+        // 채번(slipNumberService)은 mock 이라 날짜 값 자체는 무관.
+        lenient().when(clock.instant()).thenReturn(Instant.parse("2026-05-04T00:00:00Z"));
+        lenient().when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
 
         lenient().when(productClient.lookup(any())).thenReturn(List.of(
                 new ProductSummary(productId, "에어컨", "M-1", "AC-001", UUID.randomUUID(),
