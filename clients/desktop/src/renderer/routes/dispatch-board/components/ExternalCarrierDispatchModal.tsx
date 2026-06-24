@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Modal } from '@samhan/design-system'
-import { dispatchExternalSms } from '../../../api/externalDispatch'
+import { dispatchExternalSms, type ExternalDispatchResponse } from '../../../api/externalDispatch'
 import { listExternalCarriers, type ExternalCarrier } from '../../../api/externalCarrier'
 import type { SlipBoardResponse } from '../../../api/dispatchBoard'
 import { DISPATCH_BOARD_QUERY_KEY } from '../hooks/useUnDispatchedSlipsQuery'
@@ -27,6 +27,28 @@ export function canCreateExternalDispatch(
   canAccess: (pageCode: 'dispatch.board', action: 'create') => boolean,
 ): boolean {
   return canAccess('dispatch.board', 'create')
+}
+
+/**
+ * 발송 응답(status)에 따른 화면 피드백을 결정한다.
+ *
+ * <p>BE 는 SMS 실패 시에도 HTTP 200 + status='FAILED' 로 응답한다(graceful, 재시도 가능).
+ * 따라서 status 를 검사하지 않으면 미발송인데 '발송 완료'로 오인하는 거짓 양성이 된다(P1).
+ * SENT 만 성공 메시지, FAILED 는 실패 메시지를 반환한다.
+ */
+export function resolveDispatchFeedback(
+  res: Pick<ExternalDispatchResponse, 'status' | 'carrierName' | 'slipCount'>,
+): { successMessage: string | null; errorMessage: string | null } {
+  if (res.status === 'SENT') {
+    return {
+      successMessage: `${res.carrierName} SMS 발송 완료 (${res.slipCount}건)`,
+      errorMessage: null,
+    }
+  }
+  return {
+    successMessage: null,
+    errorMessage: 'SMS 발송에 실패했습니다. 전표는 미발송 상태로 남아 다시 시도할 수 있습니다.',
+  }
 }
 
 function extractServerMessage(error: unknown): string | null {
@@ -62,9 +84,12 @@ export function ExternalCarrierDispatchModal({
   const mutation = useMutation({
     mutationFn: dispatchExternalSms,
     onSuccess: (res) => {
-      setSuccessMessage(`${res.carrierName} SMS 발송 완료 (${res.slipCount}건)`)
-      setClientError(null)
+      // 발송 후 목록 갱신(성공 전표는 DISPATCHED 로 이탈).
       void queryClient.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+      // SENT 만 성공, FAILED(HTTP 200)는 실패 피드백 — 거짓 양성 방지(P1).
+      const feedback = resolveDispatchFeedback(res)
+      setSuccessMessage(feedback.successMessage)
+      setClientError(feedback.errorMessage)
     },
   })
 
@@ -84,6 +109,9 @@ export function ExternalCarrierDispatchModal({
   }
 
   const isPending = mutation.isPending
+  // 발송 성공(SENT) 후에는 동일 전표 재발송을 구조적으로 차단(화면 상태필터 무관 — 재클릭 시 BE 409 방지).
+  const dispatchSucceeded = successMessage != null
+  const isSubmitDisabled = isPending || selectedSlips.length === 0 || dispatchSucceeded
   const errorMessage = clientError ?? (mutation.isError
     ? extractServerMessage(mutation.error) ?? '타배송사 SMS 발송에 실패했습니다.'
     : null)
@@ -117,7 +145,7 @@ export function ExternalCarrierDispatchModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || selectedSlips.length === 0}
+            disabled={isSubmitDisabled}
             data-testid="external-carrier-dispatch-submit"
             style={{
               padding: '8px 14px',
@@ -126,7 +154,7 @@ export function ExternalCarrierDispatchModal({
               background: 'var(--color-primary-600, #2563EB)',
               color: 'var(--color-neutral-0)',
               fontWeight: 600,
-              cursor: isPending || selectedSlips.length === 0 ? 'not-allowed' : 'pointer',
+              cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
             }}
           >
             {isPending ? '발송 중…' : 'SMS 발송'}
@@ -182,6 +210,29 @@ export function ExternalCarrierDispatchModal({
             ))}
           </select>
         </label>
+
+        {carriersQuery.isError ? (
+          <div
+            role="alert"
+            data-testid="external-carrier-dispatch-carriers-error"
+            style={{
+              padding: 8,
+              border: '1px solid var(--color-danger-200, #FECACA)',
+              borderRadius: 4,
+              background: 'var(--color-danger-50, #FEF2F2)',
+              color: 'var(--color-danger-700, #B91C1C)',
+            }}
+          >
+            외부기사/배송사 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+          </div>
+        ) : !carriersQuery.isLoading && carriers.length === 0 ? (
+          <span
+            data-testid="external-carrier-dispatch-carriers-empty"
+            style={{ color: 'var(--color-neutral-500)' }}
+          >
+            등록된 활성 외부기사/배송사가 없습니다. 외부기사/배송사 관리에서 먼저 등록하세요.
+          </span>
+        ) : null}
 
         <div style={{ display: 'grid', gap: 4 }}>
           <span style={{ fontWeight: 600 }}>채널</span>

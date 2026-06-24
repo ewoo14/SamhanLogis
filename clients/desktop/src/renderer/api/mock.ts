@@ -7390,16 +7390,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (notReady) {
       return mockError(409, 'CONFLICT', `미배차 상태의 출고전표만 발송할 수 있습니다: ${notReady.slipNo}`)
     }
-    selected.forEach((slip) => {
-      slip.dispatchStatus = 'DISPATCHED'
-    })
+    // BE 와 동일하게 SMS 실패도 HTTP 200 + status='FAILED' 로 응답한다(graceful, 재시도 가능).
+    // 이름에 '[발송실패]' 를 포함한 carrier 로 FAILED 분기를 시뮬레이션해 FE 거짓양성 회귀를 검증한다.
+    const sent = !carrier.name.includes('[발송실패]')
+    if (sent) {
+      selected.forEach((slip) => {
+        slip.dispatchStatus = 'DISPATCHED'
+      })
+    }
     return envelope({
       id: `external-dispatch-${Date.now()}`,
       carrierName: carrier.name,
       channel: 'SMS',
       dispatchDate: mockTodayIsoSeoul(),
-      sentAt: new Date().toISOString(),
-      status: 'SENT',
+      sentAt: sent ? new Date().toISOString() : null,
+      status: sent ? 'SENT' : 'FAILED',
       slipCount: selected.length,
       slipNos: selected.map((slip) => slip.slipNo),
     })

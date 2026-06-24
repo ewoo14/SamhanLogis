@@ -298,6 +298,7 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
               <DraggableSlipRow
                 key={slip.id}
                 slip={slip}
+                canSelect={canCreateExternal}
                 selected={selectedSlipIds.has(slip.id)}
                 onSelect={(checked) => handleSlipSelection(slip.id, checked)}
                 onClick={() => onOpenSlipDetail(slip.id)}
@@ -370,11 +371,13 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
  */
 function DraggableSlipRow({
   slip,
+  canSelect,
   selected,
   onSelect,
   onClick,
 }: {
   slip: SlipBoardResponse
+  canSelect: boolean
   selected: boolean
   onSelect: (checked: boolean) => void
   onClick: () => void
@@ -410,14 +413,16 @@ function DraggableSlipRow({
       }}
       data-testid={`dispatch-board-slip-row-${slip.slipNo}`}
     >
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={(e) => onSelect(e.target.checked)}
-        aria-label={`전표 ${slip.slipNo} 선택`}
-        data-testid={`dispatch-board-slip-select-${slip.slipNo}`}
-        style={{ width: 16, height: 16, flex: '0 0 auto' }}
-      />
+      {canSelect ? (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => onSelect(e.target.checked)}
+          aria-label={`전표 ${slip.slipNo} 선택`}
+          data-testid={`dispatch-board-slip-select-${slip.slipNo}`}
+          style={{ width: 16, height: 16, flex: '0 0 auto' }}
+        />
+      ) : null}
       <button
         type="button"
         {...listeners}
