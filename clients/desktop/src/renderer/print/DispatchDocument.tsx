@@ -156,6 +156,14 @@ export function DispatchDocument({
         <div className="dispatch-info-box">
           <span className="label">특이사항:</span>
           <span className="content">
+            {/*
+              배송일정 라벨(deliveryScheduleLabel)이 있으면 특이사항 앞에 강조 표시.
+              신규 전표는 memo가 깨끗하므로 memoWithoutTagPrefix는 no-op.
+              레거시 전표의 "[지방] …" 등 태그 접두는 기존 함수가 제거한다.
+            */}
+            {slip.deliveryScheduleLabel ? (
+              <strong style={{ marginRight: 4 }}>{slip.deliveryScheduleLabel}</strong>
+            ) : null}
             {memoWithoutTagPrefix(
               slip.memo,
               slip.deliveryTag

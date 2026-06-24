@@ -1328,6 +1328,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <div data-testid="slip-detail-audit-overlay-memo">
             <span className="detail-label">메모</span>
             <span className="detail-value">
+              {/*
+                배송일정 라벨(deliveryScheduleLabel)이 있으면 메모 앞에 표시한다.
+                구조화 태그 방식이므로 메모 자체에 라벨이 없어 중복 없음.
+              */}
+              {slip.deliveryScheduleLabel ? (
+                <strong
+                  style={{ marginRight: 4, color: 'var(--color-primary-700, #1D4ED8)' }}
+                  data-testid="slip-detail-delivery-schedule-label"
+                >
+                  {slip.deliveryScheduleLabel}
+                </strong>
+              ) : null}
               <AuditOverlay
                 field="memo"
                 currentValue={slip.memo}

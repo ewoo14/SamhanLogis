@@ -209,6 +209,17 @@ export interface SlipDetail extends SlipSummary {
   businessNumber?: string | null
   /** 인쇄 여부 — 서버에서 관리, readonly 표시 전용. */
   printed?: boolean | null
+  /**
+   * 하차일(N) — 출고전표 배송일정 에픽(M상N하). 지방/야적 전표만 값 보유. "YYYY-MM-DD" 형식.
+   * null = 배송일정 미적용(비지방/비야적 태그, 또는 신규 전표 저장 전).
+   */
+  unloadDate?: string | null
+  /**
+   * 배송일정 파생 라벨 — BE 에서 (slipDate, unloadDate, deliveryTag)로 파생.
+   * 예: "25상26하" / "당착" / null(비적용).
+   * 특이사항 앞에 표시용. 메모에 저장하지 않는 구조화 태그.
+   */
+  deliveryScheduleLabel?: string | null
 }
 
 /**
@@ -356,6 +367,12 @@ export interface CreateSlipRequest {
   recipientPhone?: string
   /** 입금예정일 (YYYY-MM-DD). */
   paymentDueDate?: string
+  /**
+   * 하차일 override (YYYY-MM-DD) — 배송일정 에픽(M상N하).
+   * null/미지정 시 BE 가 규칙(N=출고일+1, 일요일 skip) 으로 자동 계산.
+   * 당착(지방 당일하차) 시 slipDate 와 동일 값을 전송.
+   */
+  unloadDate?: string
   lines: SlipLineInput[]
 }
 
