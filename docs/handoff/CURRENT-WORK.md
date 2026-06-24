@@ -4,6 +4,21 @@
 
 ---
 
+## 🔄 세션 재개 지점 (2026-06-24 — 슬2 진행 중, **Codex 개발 직전**에서 세션 종료)
+
+> 종료 사유: PM이 ScheduleWakeup 단독 호출을 산문 텍스트로 적어 미실행 반복([[feedback_emit_real_tool_calls]] 박제). 개발책임자 지시로 새 세션 재개. **🚨 도구 호출은 반드시 실제 invocation으로** — ScheduleWakeup 발행 후 "Next wakeup scheduled" 확인 필수.
+
+**현재 브랜치 = `feat/external-carrier-master-s2`** (PR #591 개설됨, plan 커밋됨). 슬1은 머지 완료(main `6c5345b3`, PR #590). Docker 풀스택 가동 중(slip-service는 슬1 QA로 fresh).
+
+### 재개 절차
+1. `git fetch && git status`(브랜치 `feat/external-carrier-master-s2` 유지 확인) + `.\scripts\sync-claude-memory.ps1`.
+2. **다음 단계 = 슬2 Codex 개발 디스패치**(canonical workflow 2단계). plan=`docs/superpowers/plans/2026-06-24-external-carrier-master-s2.md` 그대로.
+   - Codex(`mcp__codex__codex`, approval-policy:never, sandbox danger-full-access, model gpt-5.5, effort high, cwd C:\dev\Samhan-Public)에게: ① `ExternalCarrier` 엔티티(Warehouse[inventory-service] 패턴·BaseEntity·`@SQLRestriction` soft delete·패키지 `slip.domain.external`) + **Flyway V49**(external_carrier 단일 테이블 — external_dispatch/external_dispatch_slip는 **슬3 선구현 금지**) + Repository ② Service+Controller(`@RequirePermission` `dispatch.external-carriers`[view]/`.manage`[CRUD], **@RequireDepartment 미사용**)+DTO(UUID 비노출)+DispatchPageCodes 상수+IT ③ **auth V69** page-code cross-join seed(MASTER/MANAGER/DISPATCH) ④ FE `ExternalCarriersPage`(RegionsPage 패턴)+api+AppLayout 배차 SidebarLink+routes PermissionGuard+mock+vitest(canAccess=BE page-code 정확 일치) ⑤ docs 동기화(README/ROADMAP/overview). **Codex 파일만 수정·Claude commit 대행.** fresh Postgres probe로 V49/V69 검증.
+3. 이후 canonical: (Opus 5-agent+Opus fix+라이브QA 단계별스샷+TM게시 ↔ Codex 5-agent+Codex fix+라이브QA스샷+TM게시) 0수렴 → PM 종합 게시 → CI green → PM 머지. 매 단계 ScheduleWakeup 재자각([[feedback_autonomous_loop_schedulewakeup]]).
+- 정찰 결과(이미 확정): slip Flyway 최신 V48→V49, auth 최신 V68→V69, 모범=Warehouse, FE 모범=RegionsPage.
+
+---
+
 ## ✅ 핸드오프 (2026-06-24 오후 — **검수완료→배차발송 에픽 슬1 머지(#590) + 워크플로우 영구박제. 슬2~4 잔여**)
 
 ### 🆕 신규 에픽: 검수 완료 → 배차 발송 (아로로지스/타배송사) — [[project_dispatch_on_inspect_epic]]
