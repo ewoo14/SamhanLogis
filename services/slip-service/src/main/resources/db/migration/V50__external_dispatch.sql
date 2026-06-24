@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS external_dispatch (
     id              UUID        PRIMARY KEY,
-    carrier_id      UUID        NOT NULL,
+    carrier_id      UUID        NOT NULL REFERENCES external_carrier (id),
     channel         VARCHAR(10) NOT NULL CHECK (channel IN ('SMS', 'PRINT', 'BOTH')),
     dispatch_date   DATE        NOT NULL,
     sent_at         TIMESTAMP,
@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS ix_external_dispatch_carrier_id
 CREATE TABLE IF NOT EXISTS external_dispatch_slip (
     id                   UUID        PRIMARY KEY,
     external_dispatch_id UUID        NOT NULL REFERENCES external_dispatch (id),
-    slip_id              UUID        NOT NULL,
+    slip_id              UUID        NOT NULL REFERENCES slips (id),
     sequence             INT         NOT NULL,
 
     -- BaseEntity 7 audit

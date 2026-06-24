@@ -74,7 +74,9 @@ public class ExternalDispatchService {
             dispatch.markFailed();
         }
 
-        ExternalDispatch saved = externalDispatchRepository.save(dispatch);
+        // SMS 는 외부 side effect 라 완전 원자화할 수 없으므로, 성공/실패 판정 이후 DB 상태 전이를
+        // 즉시 flush 해 FK/상태 SQL 예외가 HTTP 응답 이후에 늦게 드러나는 창을 줄인다.
+        ExternalDispatch saved = externalDispatchRepository.saveAndFlush(dispatch);
         List<String> slipNos = slips.stream().map(Slip::getSlipNo).toList();
         return ExternalDispatchResponse.from(saved, carrier.getName(), slipNos);
     }
@@ -96,7 +98,7 @@ public class ExternalDispatchService {
 
     private List<Slip> loadAndValidateSlips(List<UUID> slipIds) {
         List<UUID> distinctIds = slipIds.stream().distinct().toList();
-        List<Slip> loaded = slipRepository.findAllByIdInAndIsDeletedFalse(distinctIds);
+        List<Slip> loaded = slipRepository.findAllByIdInAndIsDeletedFalseForExternalDispatchUpdate(distinctIds);
         if (loaded.size() != distinctIds.size()) {
             throw new BusinessException(ErrorCode.NOT_FOUND,
                     "발송 대상 전표 중 찾을 수 없는 전표가 있습니다.");

@@ -95,6 +95,21 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     List<Slip> findAllByIdInAndIsDeletedFalse(java.util.Collection<UUID> ids);
 
     /**
+     * 타배송사 SMS 발송 대상 전표를 쓰기 잠금으로 조회한다.
+     *
+     * <p>동일 UNDISPATCHED 전표에 대한 동시 발송 요청이 각각 검증을 통과해 SMS 를 중복 발송하지
+     * 않도록, 검증부터 {@code DISPATCHED} 전이 flush 까지 같은 transaction 에서 row lock 을 유지한다.
+     */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND s.id IN :ids
+            """)
+    List<Slip> findAllByIdInAndIsDeletedFalseForExternalDispatchUpdate(
+            @org.springframework.data.repository.query.Param("ids") java.util.Collection<UUID> ids);
+
+    /**
      * 특정 배송일에 driverPhone 이 채워진 모든 슬립 — 자동 그룹화 candidate set.
      * 같은 phone 끼리 묶어 batch 1건씩 생성. 호출자에서 phone 별 group by 후 처리.
      */
