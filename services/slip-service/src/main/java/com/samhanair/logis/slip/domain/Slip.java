@@ -1771,6 +1771,20 @@ public class Slip extends BaseEntity {
     }
 
     /**
+     * 타배송사 직접 발송 — async 회신 없이 UNDISPATCHED → DISPATCHED 로 종료한다.
+     *
+     * <p>SMS 발송 성공 이후에만 호출해야 하며, 이미 배차 중/완료 상태인 전표는 중복 발송을 막기 위해
+     * 409 충돌로 거부한다.
+     */
+    public void markDispatchedExternally() {
+        if (this.dispatchStatus != com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "UNDISPATCHED 상태의 slip 만 타배송사 발송 완료로 전이할 수 있습니다.");
+        }
+        this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHED;
+    }
+
+    /**
      * DISPATCHED → UNDISPATCHED. Samhan Public 배차 취소 흐름 Phase C 의 CANCEL_ACCEPTED 시점에 호출
      * (D-DC-05). DispatchTask 의 매핑된 모든 slip 을 미배차 풀로 복귀시킨다.
      *

@@ -58,6 +58,12 @@ public class NotificationClient {
         this.internalAuthProperties = internalAuthProperties;
     }
 
+    /** 테스트 전용 생성자 — MockRestServiceServer 와 바인딩된 RestClient 를 직접 주입한다. */
+    public NotificationClient(RestClient restClient, InternalAuthProperties internalAuthProperties) {
+        this.restClient = restClient;
+        this.internalAuthProperties = internalAuthProperties;
+    }
+
     /**
      * 사용자 (USER recipientType) 에게 SMS 알림 발송. PR-H3 — 작성자 (수락/거절 결과) 통지용.
      *
@@ -96,6 +102,30 @@ public class NotificationClient {
     }
 
     /**
+     * 외부 전화번호 SMS 발송 결과를 boolean 으로 반환한다.
+     *
+     * <p>슬3 타배송사 발송 이력의 SENT/FAILED 판정용이다. 기존 graceful void 메서드는 유지하고,
+     * 본 메서드는 HTTP 2xx 일 때만 {@code true}, 토큰/전화번호 누락 또는 예외는 {@code false} 를 반환한다.
+     *
+     * @param phone 수신 전화번호
+     * @param subject 제목
+     * @param body 본문
+     * @return notification-service 가 2xx 로 수락했는지 여부
+     */
+    public boolean sendExternalSmsWithResult(String phone, String subject, String body) {
+        if (phone == null || phone.isBlank()) {
+            log.debug("[NotificationClient] phone 누락 — SMS 발송 실패 처리");
+            return false;
+        }
+        return sendInternalWithResult(Map.of(
+                "recipientType", "EXTERNAL_PHONE",
+                "recipientAddress", phone,
+                "channel", "SMS",
+                "subject", safeTruncate(subject, 200),
+                "body", safeTruncate(body, 2000)));
+    }
+
+    /**
      * 푸시 알림 (PUSH channel). PR-H3 — mobile-staff 앱 알림용. recipientId = user UUID 필수.
      *
      * @param recipientUserId 수신자 user UUID
@@ -112,10 +142,14 @@ public class NotificationClient {
     }
 
     private void sendInternal(Map<String, Object> requestBody) {
+        sendInternalWithResult(requestBody);
+    }
+
+    private boolean sendInternalWithResult(Map<String, Object> requestBody) {
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
             log.warn("[NotificationClient] app.security.internal.token 미설정 — SMS/push 발송 skip");
-            return;
+            return false;
         }
         try {
             restClient.post()
@@ -127,6 +161,7 @@ public class NotificationClient {
                     .toBodilessEntity();
             log.info("[NotificationClient] 발송 완료 — recipientType={} channel={}",
                     requestBody.get("recipientType"), requestBody.get("channel"));
+            return true;
         } catch (RestClientResponseException ex) {
             log.warn("[NotificationClient] notification-service 호출 실패 (graceful fallback) — status={} body={}",
                     ex.getStatusCode(), ex.getResponseBodyAsString());
@@ -134,6 +169,7 @@ public class NotificationClient {
             log.warn("[NotificationClient] notification-service 호출 실패 (graceful fallback) — msg={}",
                     ex.getMessage());
         }
+        return false;
     }
 
     private static String safeTruncate(String value, int max) {
