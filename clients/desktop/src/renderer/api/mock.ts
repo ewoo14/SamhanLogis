@@ -7358,39 +7358,50 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && url.match(/\/admin\/dispatch-board\/undispatched-slips(?:\?.*)?$/)) {
     const denied = mockRequirePermission('dispatch.board', 'view')
     if (denied) return denied
+    const content = MOCK_DISPATCH_READY_SLIPS.filter((slip) => slip.dispatchStatus === 'UNDISPATCHED')
     return envelope({
-      content: [
-        {
-          id: '77777777-d333-4d33-8d33-000000000001',
-          slipNo: '2026/06/11-SPD3-001',
-          slipDate: '2026-06-11',
-          partnerCode: 'P-SPD3-001',
-          partnerName: '동탄공조',
-          deliveryAddress: '경기도 화성시 동탄대로 10',
-          recipientPhone: '010-1111-2222',
-          inspectorName: '김검수',
-          inspectorSignedAt: '2026-06-11T09:20:00',
-          dispatchStatus: 'UNDISPATCHED',
-        },
-        {
-          id: '77777777-d333-4d33-8d33-000000000002',
-          slipNo: '2026/06/11-SPD3-002',
-          slipDate: '2026-06-11',
-          partnerCode: 'P-SPD3-002',
-          partnerName: '성남냉열',
-          deliveryAddress: '경기도 성남시 분당구 판교로 20',
-          recipientPhone: '010-3333-4444',
-          inspectorName: '박검수',
-          inspectorSignedAt: '2026-06-11T10:05:00',
-          dispatchStatus: 'UNDISPATCHED',
-        },
-      ],
-      totalElements: 2,
+      content,
+      totalElements: content.length,
       totalPages: 1,
       number: 0,
       size: 50,
       first: true,
       last: true,
+    })
+  }
+
+  if (method === 'POST' && url.match(/\/admin\/external-dispatches(?:\?.*)?$/)) {
+    const denied = mockRequirePermission('dispatch.board', 'create')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const carrierId = String(body['carrierId'] ?? '')
+    const slipIds = Array.isArray(body['slipIds']) ? body['slipIds'].map(String) : []
+    const channel = String(body['channel'] ?? 'SMS')
+    if (channel !== 'SMS') return mockError(400, 'INVALID_INPUT', 'SMS 채널만 지원합니다.')
+    if (!carrierId) return mockError(400, 'INVALID_INPUT', '외부기사/배송사를 선택하세요.')
+    if (slipIds.length === 0) return mockError(400, 'INVALID_INPUT', '발송할 전표를 선택하세요.')
+    const carrier = MOCK_EXTERNAL_CARRIERS.find((row) => row.id === carrierId && !row.deleted && row.active)
+    if (!carrier) return mockError(404, 'NOT_FOUND', '외부기사/배송사를 찾을 수 없습니다.')
+    const selected = MOCK_DISPATCH_READY_SLIPS.filter((slip) => slipIds.includes(slip.id))
+    if (selected.length !== slipIds.length) {
+      return mockError(404, 'NOT_FOUND', '발송 대상 전표 중 찾을 수 없는 전표가 있습니다.')
+    }
+    const notReady = selected.find((slip) => slip.dispatchStatus !== 'UNDISPATCHED')
+    if (notReady) {
+      return mockError(409, 'CONFLICT', `미배차 상태의 출고전표만 발송할 수 있습니다: ${notReady.slipNo}`)
+    }
+    selected.forEach((slip) => {
+      slip.dispatchStatus = 'DISPATCHED'
+    })
+    return envelope({
+      id: `external-dispatch-${Date.now()}`,
+      carrierName: carrier.name,
+      channel: 'SMS',
+      dispatchDate: mockTodayIsoSeoul(),
+      sentAt: new Date().toISOString(),
+      status: 'SENT',
+      slipCount: selected.length,
+      slipNos: selected.map((slip) => slip.slipNo),
     })
   }
 
@@ -11810,6 +11821,46 @@ const MOCK_EXTERNAL_CARRIERS: Array<{
     active: false,
     createdAt: '2026-06-24T09:20:00',
     modifiedAt: null,
+  },
+]
+
+type MockDispatchReadySlip = {
+  id: string
+  slipNo: string
+  slipDate: string
+  partnerCode: string
+  partnerName: string
+  deliveryAddress: string
+  recipientPhone: string
+  inspectorName: string
+  inspectorSignedAt: string
+  dispatchStatus: 'UNDISPATCHED' | 'DISPATCHING' | 'DISPATCHED'
+}
+
+const MOCK_DISPATCH_READY_SLIPS: MockDispatchReadySlip[] = [
+  {
+    id: '77777777-d333-4d33-8d33-000000000001',
+    slipNo: '2026/06/11-SPD3-001',
+    slipDate: '2026-06-11',
+    partnerCode: 'P-SPD3-001',
+    partnerName: '동탄공조',
+    deliveryAddress: '경기도 화성시 동탄대로 10',
+    recipientPhone: '010-1111-2222',
+    inspectorName: '김검수',
+    inspectorSignedAt: '2026-06-11T09:20:00',
+    dispatchStatus: 'UNDISPATCHED',
+  },
+  {
+    id: '77777777-d333-4d33-8d33-000000000002',
+    slipNo: '2026/06/11-SPD3-002',
+    slipDate: '2026-06-11',
+    partnerCode: 'P-SPD3-002',
+    partnerName: '성남냉열',
+    deliveryAddress: '경기도 성남시 분당구 판교로 20',
+    recipientPhone: '010-3333-4444',
+    inspectorName: '박검수',
+    inspectorSignedAt: '2026-06-11T10:05:00',
+    dispatchStatus: 'UNDISPATCHED',
   },
 ]
 

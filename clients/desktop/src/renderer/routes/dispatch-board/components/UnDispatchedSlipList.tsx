@@ -18,7 +18,7 @@
  * - row 노출 = `slipNo` + `partnerCode` + `partnerName` 만.
  * - slip UUID 는 `useDraggable` id 로만 사용 (DOM data-* 속성은 testid 외 X).
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import {
@@ -29,7 +29,12 @@ import {
   type SlipBoardResponse,
   type SlipDispatchStatus,
 } from '../../../api/dispatchBoard'
+import { usePermissions } from '../../../hooks/usePermissions'
 import { useUnDispatchedSlipsQuery } from '../hooks/useUnDispatchedSlipsQuery'
+import {
+  ExternalCarrierDispatchModal,
+  canCreateExternalDispatch,
+} from './ExternalCarrierDispatchModal'
 
 /**
  * draggable slip row 가 DndContext.onDragEnd 에 전달하는 payload type.
@@ -118,10 +123,18 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
   const [to, setTo] = useState<string>(offsetIsoSeoul(today, 1))
   const [statuses, setStatuses] = useState<SlipDispatchStatus[]>(['UNDISPATCHED'])
   const [page, setPage] = useState(0)
+  const [selectedSlipIds, setSelectedSlipIds] = useState<Set<string>>(() => new Set())
+  const [externalDispatchOpen, setExternalDispatchOpen] = useState(false)
+  const { canAccess } = usePermissions()
+  const canCreateExternal = canCreateExternalDispatch(canAccess)
 
   const query = useUnDispatchedSlipsQuery({ from, to, statuses, page, size: PAGE_SIZE })
   const data = query.data
   const slips = data?.content ?? []
+  const selectedSlips = useMemo(
+    () => slips.filter((slip) => selectedSlipIds.has(slip.id)),
+    [selectedSlipIds, slips],
+  )
   const totalPages = data?.totalPages ?? 0
   const totalElements = data?.totalElements ?? 0
 
@@ -131,6 +144,23 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
       if (checked) return Array.from(new Set([...prev, s]))
       return prev.filter((v) => v !== s)
     })
+  }
+
+  const handleSlipSelection = (slipId: string, checked: boolean) => {
+    setSelectedSlipIds((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(slipId)
+      } else {
+        next.delete(slipId)
+      }
+      return next
+    })
+  }
+
+  const handleCloseExternalDispatch = () => {
+    setExternalDispatchOpen(false)
+    setSelectedSlipIds(new Set())
   }
 
   return (
@@ -208,6 +238,35 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
             </label>
           ))}
         </div>
+        {canCreateExternal ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+              선택 {selectedSlipIds.size}건
+            </span>
+            <button
+              type="button"
+              onClick={() => setExternalDispatchOpen(true)}
+              disabled={selectedSlipIds.size === 0}
+              data-testid="dispatch-board-external-dispatch-open"
+              style={{
+                padding: '6px 10px',
+                border: '1px solid var(--color-primary-300, #93C5FD)',
+                borderRadius: 4,
+                background: selectedSlipIds.size === 0
+                  ? 'var(--color-neutral-100)'
+                  : 'var(--color-primary-600, #2563EB)',
+                color: selectedSlipIds.size === 0
+                  ? 'var(--color-neutral-500)'
+                  : 'var(--color-neutral-0)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: selectedSlipIds.size === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              타배송사 발송
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <div
@@ -239,6 +298,8 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
               <DraggableSlipRow
                 key={slip.id}
                 slip={slip}
+                selected={selectedSlipIds.has(slip.id)}
+                onSelect={(checked) => handleSlipSelection(slip.id, checked)}
                 onClick={() => onOpenSlipDetail(slip.id)}
               />
             ))}
@@ -291,6 +352,12 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
           다음 ▶
         </button>
       </footer>
+      {externalDispatchOpen ? (
+        <ExternalCarrierDispatchModal
+          selectedSlips={selectedSlips}
+          onClose={handleCloseExternalDispatch}
+        />
+      ) : null}
     </section>
   )
 }
@@ -303,9 +370,13 @@ export function UnDispatchedSlipList({ onOpenSlipDetail }: UnDispatchedSlipListP
  */
 function DraggableSlipRow({
   slip,
+  selected,
+  onSelect,
   onClick,
 }: {
   slip: SlipBoardResponse
+  selected: boolean
+  onSelect: (checked: boolean) => void
   onClick: () => void
 }) {
   const dragData: DispatchSlipDragData = {
@@ -339,6 +410,14 @@ function DraggableSlipRow({
       }}
       data-testid={`dispatch-board-slip-row-${slip.slipNo}`}
     >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={(e) => onSelect(e.target.checked)}
+        aria-label={`전표 ${slip.slipNo} 선택`}
+        data-testid={`dispatch-board-slip-select-${slip.slipNo}`}
+        style={{ width: 16, height: 16, flex: '0 0 auto' }}
+      />
       <button
         type="button"
         {...listeners}
