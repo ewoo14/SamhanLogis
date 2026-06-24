@@ -66,10 +66,18 @@
 ## Task 5 — docs 동기화
 - [ ] README/ROADMAP/overview에 출고 컷오프 설정 반영 + dev-report `docs/dev-reports/2026-06-24-slip-outbound-cutoff.md`(3-layer).
 
-## QA (각 리뷰 라운드 Docker 라이브 + 단계별 스샷)
-①인사 메뉴 "출고 마감시간 설정" 진입 ②기본 시드(지방12/야적14/경동15) 표시 ③태그 추가/시각 수정 ④마감 전 시각 출고전표(해당 태그·당일) 생성 200 ⑤마감 후 생성 409("익일 출고") ⑥권한 없는 role 메뉴 미노출. 실 게이트웨이:8080·mock OFF·각 단계 스샷. (시각 의존 QA는 시드 시각 조정 or 시스템시각 활용 — 정직 기록.)
+## QA (각 리뷰 라운드 Docker 라이브 + 단계별 스샷) — 🚨개발책임자 2026-06-24 QA범위 확장
+**A. 설정 화면**: ①인사 메뉴 "출고 마감시간 설정" 진입 ②기본 시드(지방12/야적14/경동15) 표시 ③태그 추가/시각 수정/비활성/삭제 ⑥권한 없는 role 메뉴 미노출.
+**B. 배송태그 설정 옵션 조사**(개발책임자 — "어디서 태그를 설정하나"): ⑦**출고전표 입력화면(SlipFormPage)** 배송태그 셀렉터 존재 확인(✅정찰: DeliveryTagSelector 8종 OUTBOUND 있음) ⑧**종합견적서(estimate-app)** 배송태그 설정 옵션 존재/부재 조사(정찰: 옵션 없음 추정 — estimate→slip 태그 null과 정합. 라이브 재확인).
+**C. 3대 생성 플로우 end-to-end + 마감 게이트**(개발책임자 지정):
+  - ⑨**종합견적서 → 출고전표**(estimate-app /internal/slips/from-estimate): DRAFT 생성(태그 null·통과) → **SlipForm에서 배송태그 확정** → 마감 전 200 / **마감 후 409**(D8 editHeader 게이트).
+  - ⑩**웹주문서 → 주문서 → 출고전표**(partner-order publish): 동일 — 발행 시 태그 null·통과 → SlipForm 태그 확정 시 마감 후 409.
+  - ⑪**직접 내부 출고전표 생성**(수동 SlipForm): 생성 시 태그 보유 → 마감 전 200 / **마감 후 409**(생성 게이트).
+**D. 출고전표 문서 배송태그 표시 확인**(개발책임자 — "배송주소 앞에 태그"): ⑫**조회/상세**(SlipDetailPage): 태그 표시 확인(✅정찰: line1326 deliveryTag, 배송지 line1341 앞 — 표시됨) ⑬**출력/미리보기 문서**: 출고전표 인쇄/미리보기 양식에 배송태그가 **배송주소 앞에 표시**되는지 확인. ⚠️정찰: `NextDaySlipView`(익일 출고전표 인쇄)는 배송지만 있고 **배송태그 미표시** → **갭이면 Codex가 인쇄/미리보기 문서에 배송태그(배송주소 앞) 추가**(개발책임자 의도). 주 출고전표 출력양식([[project_slip_shipout_print_form]] 전자서명 양식) 위치 확인 후 동일 적용.
+실 게이트웨이:8080·mock OFF·각 단계 다수 스샷. 시각 의존 QA는 시드 시각 조정 or Clock/시스템시각 활용 — 정직 기록([[feedback_no_fake_data_ever]]).
 
-## Self-Review (spec D1~D7 대조)
-- OUTBOUND DeliveryTag별 cutoff CRUD(D2·D5) = Task1·3. 기본 시드(D3) = V51. 409 차단(D4) = Task2 Guard. 모든 생성경로(D6) = 게이트 3곳+IT. page-code hr.slip-cutoff MASTER/MANAGER(D7) = Task3·auth V70. ✓
-- 견적/주문 무관(D1) — 게이트는 출고 Slip 생성만(slipType OUTBOUND), 견적/주문 자체 생성엔 미적용. ✓
+## Self-Review (spec D1~D8 대조)
+- OUTBOUND DeliveryTag별 cutoff CRUD(D2·D5) = Task1·3. 기본 시드(D3) = V51. 409 차단(D4) = Task2 Guard. **모든 생성+태그확정 경로(D6+D8) = 게이트 8지점(생성6+editHeader2)+IT**. page-code hr.slip-cutoff MASTER/MANAGER(D7) = Task3·auth V70. ✓
+- 견적/주문 자체(전표 아님)는 무관(D1) — 게이트는 출고 Slip 경로만. 견적→출고/주문→출고 발행은 D6+D8로 게이트 배선. ✓
+- 배송태그 표시(개발책임자): 상세는 표시됨, **출력/미리보기 문서 표시는 라이브 QA D⑬에서 확인·갭이면 추가**. ✓
 - KST Clock·Flyway V51/V70 fresh probe·account-mode·UUID 비노출. ✓
