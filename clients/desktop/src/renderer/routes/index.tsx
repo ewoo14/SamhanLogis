@@ -16,6 +16,7 @@
  * - `/sales/:id/print/statement` 거래명세서 인쇄 미리보기 (SP-08-6-4)
  * - `/sales/:id/print/invoice`   세금계산서 인쇄 미리보기 (SP-08-6-4)
  * - `/sales/:id/print/dispatch`  출고전표 작업지시서 인쇄
+ * - `/dispatch/external-dispatch/:id/print`  타배송사 배차의뢰서 인쇄 (PRINT/BOTH, dispatch.board view)
  * - `/purchases`        구매관리 (PurchaseQueryPage — 풍성한 컬럼 + 다중 선택) [2a 통합]
  * - `/purchases/slips`  legacy 입고전표 list (SlipListPage) — 2c 작성 plumbing 합류 시 진입점
  * - `/purchases/new`    입고전표 작성

@@ -86,15 +86,6 @@ public class ExternalDispatchService {
     }
 
     /**
-     * 선택 전표를 외부기사/배송사에게 SMS 로 발송한다.
-     *
-     * <p>슬3 호출부 호환용 위임 메서드다. 신규 호출부는 {@link #dispatch(CreateExternalDispatchRequest, UUID)} 를 사용한다.
-     */
-    public ExternalDispatchResponse dispatchBySms(CreateExternalDispatchRequest req, UUID sentBy) {
-        return dispatch(req, sentBy);
-    }
-
-    /**
      * 배차의뢰서 인쇄 화면에 필요한 발송 이력 상세를 조회한다.
      *
      * <p>응답에는 UUID 를 포함하지 않고, 전표 상세는 한 번의 line fetch 로 읽어 N+1 을 피한다.

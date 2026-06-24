@@ -222,6 +222,7 @@ class ExternalDispatchControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.items[0].deliveryAddress").value("서울시 강남구 테스트로 814"))
                 .andExpect(jsonPath("$.data.items[0].recipientPhone").value("010-1000-814"))
                 .andExpect(jsonPath("$.data.items[0].itemSummary").value("AJ040 2대"))
+                .andExpect(jsonPath("$.data.items[0].recipientName").value("타배송사 거래처 814"))
                 .andExpect(jsonPath("$.data.items[1].slipNo").value(second.getSlipNo()))
                 .andReturn()
                 .getResponse()

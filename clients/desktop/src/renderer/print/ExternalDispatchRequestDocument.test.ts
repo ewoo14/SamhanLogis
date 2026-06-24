@@ -28,6 +28,9 @@ describe('ExternalDispatchRequestDocument', () => {
 
     expect(html).not.toContain('11111111-1111-1111-1111-111111111111')
     expect(html).not.toContain('22222222-2222-2222-2222-222222222222')
+    // DTO 에 UUID 필드가 없어 sentinel 부재는 자명 → UUID 패턴 자체가 렌더 마크업에 없음을
+    // 단언해 향후 DTO 에 slipId 등이 추가되어 노출되는 회귀를 탐지한다(공허 가드 방지).
+    expect(html).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
   })
 
   test('전표가 비어 있어도 빈 양식 안내를 렌더한다', () => {
