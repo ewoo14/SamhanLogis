@@ -75,7 +75,12 @@ export async function removeExternalCarrier(id: string): Promise<void> {
   )
 }
 
-/** Soft-deleted row 복구. */
+/**
+ * Soft-deleted row 복구.
+ *
+ * BE/권한/IT/mock 모두 복구를 지원한다. 데스크톱 목록 UI(활성/비활성 view 토글 + 복원 버튼)
+ * 연결은 후속 슬라이스로 분리한다(슬2 스코프 = 활성 마스터 CRUD). WarehousesPage 패턴 참고.
+ */
 export async function restoreExternalCarrier(id: string): Promise<ExternalCarrier> {
   const res = await apiClient.post<ApiEnvelope<ExternalCarrier>>(
     `/admin/external-carriers/${encodeURIComponent(id)}/restore`,

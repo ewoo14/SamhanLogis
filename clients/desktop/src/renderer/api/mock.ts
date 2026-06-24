@@ -6358,11 +6358,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (nextPhone !== row.phone && MOCK_EXTERNAL_CARRIERS.some((item) => item.id !== id && !item.deleted && item.phone === nextPhone)) {
       return mockError(409, 'CONFLICT', '이미 사용 중인 외부기사/배송사 전화번호입니다.')
     }
-    row.name = body['name'] == null ? row.name : String(body['name']).trim()
+    // PATCH 시맨틱: null=미변경, ""=클리어(null), 값=trim 설정. 필수 name 은 blank 면 기존 유지.
+    row.name = body['name'] == null ? row.name : (String(body['name']).trim() || row.name)
     row.phone = nextPhone
-    row.email = body['email'] == null ? row.email : String(body['email'])
-    row.defaultVehicleType = body['defaultVehicleType'] == null ? row.defaultVehicleType : String(body['defaultVehicleType'])
-    row.memo = body['memo'] == null ? row.memo : String(body['memo'])
+    row.email = body['email'] == null ? row.email : (String(body['email']).trim() || null)
+    row.defaultVehicleType =
+      body['defaultVehicleType'] == null
+        ? row.defaultVehicleType
+        : (String(body['defaultVehicleType']).trim() || null)
+    row.memo = body['memo'] == null ? row.memo : (String(body['memo']).trim() || null)
     row.active = body['active'] == null ? row.active : Boolean(body['active'])
     row.modifiedAt = new Date().toISOString()
     return envelope(row)

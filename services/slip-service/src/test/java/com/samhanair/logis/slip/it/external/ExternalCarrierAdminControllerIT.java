@@ -131,6 +131,38 @@ class ExternalCarrierAdminControllerIT extends com.samhanair.logis.slip.it.Abstr
     }
 
     @Test
+    void update_blankOptionalFields_clearsToNull() throws Exception {
+        // 선택 필드 값이 있는 carrier 생성
+        String body = mvc.perform(post("/admin/external-carriers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"클리어대상","phone":"010-7000-0010","email":"keep@x.example","defaultVehicleType":"1톤","memo":"메모"}
+                                """)
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("keep@x.example"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String id = JsonField.extract(body, "id");
+
+        // 빈 문자열 전송 → 클리어(null). name 미전송 → 유지(부분수정 시맨틱). (P1 회귀 가드)
+        mvc.perform(patch("/admin/external-carriers/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"", "defaultVehicleType":"", "memo":""}
+                                """)
+                        .header("X-User-Id", USER_ID)
+                        .header("X-User-Role", USER_ROLE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("클리어대상"))
+                .andExpect(jsonPath("$.data.email").isEmpty())
+                .andExpect(jsonPath("$.data.defaultVehicleType").isEmpty())
+                .andExpect(jsonPath("$.data.memo").isEmpty());
+    }
+
+    @Test
     void create_duplicateActivePhone_returns409() throws Exception {
         mvc.perform(post("/admin/external-carriers")
                         .contentType(MediaType.APPLICATION_JSON)

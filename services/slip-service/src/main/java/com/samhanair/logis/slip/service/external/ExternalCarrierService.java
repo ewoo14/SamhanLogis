@@ -7,7 +7,6 @@ import com.samhanair.logis.slip.dto.external.CreateExternalCarrierRequest;
 import com.samhanair.logis.slip.dto.external.ExternalCarrierResponse;
 import com.samhanair.logis.slip.dto.external.UpdateExternalCarrierRequest;
 import com.samhanair.logis.slip.repository.external.ExternalCarrierRepository;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class ExternalCarrierService {
 
     private final ExternalCarrierRepository repository;
-
-    /** 전체 활성 row 를 이름 오름차순으로 조회한다. */
-    @Transactional(readOnly = true)
-    public List<ExternalCarrierResponse> listAll() {
-        return repository.findAllByIsDeletedFalseOrderByNameAsc().stream()
-                .map(ExternalCarrierResponse::from)
-                .toList();
-    }
 
     /** 관리자 검색 목록. q 는 name/phone LIKE 로 적용한다. */
     @Transactional(readOnly = true)
@@ -77,13 +68,16 @@ public class ExternalCarrierService {
                 && repository.existsByPhoneAndIsDeletedFalse(nextPhone)) {
             throw duplicatePhone(nextPhone);
         }
+        // 선택 필드(email/defaultVehicleType/memo)는 raw 로 전달해 엔티티가 PATCH 시맨틱
+        // (null=미변경, ""=클리어)을 적용하게 한다. name/phone 은 필수라 blank 면 미변경.
         carrier.update(
                 normalizeNullable(req.name()),
                 nextPhone,
-                normalizeNullable(req.email()),
-                normalizeNullable(req.defaultVehicleType()),
-                normalizeNullable(req.memo()),
+                req.email(),
+                req.defaultVehicleType(),
+                req.memo(),
                 req.active());
+        flushOr409(nextPhone == null ? carrier.getPhone() : nextPhone);
         return ExternalCarrierResponse.from(carrier);
     }
 
@@ -102,7 +96,22 @@ public class ExternalCarrierService {
             throw duplicatePhone(carrier.getPhone());
         }
         carrier.markRestored();
+        flushOr409(carrier.getPhone());
         return ExternalCarrierResponse.from(carrier);
+    }
+
+    /**
+     * 영속 컨텍스트를 flush 해 phone 부분 unique index 위반(동시성 race)을 즉시 감지하고
+     * create 와 동일하게 409 로 변환한다. 검증-flush 사이 race 의 최종 방어선.
+     *
+     * @param phone 충돌 메시지에 노출할 전화번호
+     */
+    private void flushOr409(String phone) {
+        try {
+            repository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw duplicatePhone(phone);
+        }
     }
 
     private ExternalCarrier loadOrThrow(UUID id) {

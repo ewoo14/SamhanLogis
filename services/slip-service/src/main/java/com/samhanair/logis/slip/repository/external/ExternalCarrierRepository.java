@@ -1,7 +1,6 @@
 package com.samhanair.logis.slip.repository.external;
 
 import com.samhanair.logis.slip.domain.external.ExternalCarrier;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -12,8 +11,6 @@ import org.springframework.data.repository.query.Param;
 
 /** 외부기사/배송사 마스터 repository. soft-delete 는 entity SQLRestriction 으로 기본 제외한다. */
 public interface ExternalCarrierRepository extends JpaRepository<ExternalCarrier, UUID> {
-
-    List<ExternalCarrier> findAllByIsDeletedFalseOrderByNameAsc();
 
     boolean existsByPhoneAndIsDeletedFalse(String phone);
 

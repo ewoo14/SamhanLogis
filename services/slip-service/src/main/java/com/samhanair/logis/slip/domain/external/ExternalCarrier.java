@@ -81,14 +81,18 @@ public class ExternalCarrier extends BaseEntity {
     }
 
     /**
-     * null 이 아닌 필드만 부분 수정한다.
+     * 부분 수정한다. 필수 필드(name/phone)는 {@code null} 이면 미변경한다.
      *
-     * @param name 이름 또는 배송사명
-     * @param phone SMS 수신 전화번호
-     * @param email 이메일
-     * @param defaultVehicleType 기본 차종
-     * @param memo 운영 메모
-     * @param active 활성 여부
+     * <p>선택 필드(email/defaultVehicleType/memo)는 PATCH 부분수정 시맨틱을 정확히 구현한다:
+     * {@code null}(요청 미전송) → 미변경, 빈 문자열("") → {@code null} 로 클리어, 값 → trim 후 설정.
+     * 이로써 화면에서 기존 이메일/기본차종/메모를 지우고 저장하면 실제로 비워진다.
+     *
+     * @param name 이름 또는 배송사명 (null 이면 미변경)
+     * @param phone SMS 수신 전화번호 (null 이면 미변경)
+     * @param email 이메일 (null=미변경, ""=클리어, 값=설정)
+     * @param defaultVehicleType 기본 차종 (null=미변경, ""=클리어, 값=설정)
+     * @param memo 운영 메모 (null=미변경, ""=클리어, 값=설정)
+     * @param active 활성 여부 (null 이면 미변경)
      */
     public void update(
             String name,
@@ -105,17 +109,23 @@ public class ExternalCarrier extends BaseEntity {
             this.phone = phone;
         }
         if (email != null) {
-            this.email = email;
+            this.email = blankToNull(email);
         }
         if (defaultVehicleType != null) {
-            this.defaultVehicleType = defaultVehicleType;
+            this.defaultVehicleType = blankToNull(defaultVehicleType);
         }
         if (memo != null) {
-            this.memo = memo;
+            this.memo = blankToNull(memo);
         }
         if (active != null) {
             this.active = active;
         }
+    }
+
+    /** 빈 문자열을 {@code null} 로 정규화한다(클리어 시맨틱). 값이면 trim 후 반환. */
+    private static String blankToNull(String value) {
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** 운영상 사용 가능 상태로 전환한다. */

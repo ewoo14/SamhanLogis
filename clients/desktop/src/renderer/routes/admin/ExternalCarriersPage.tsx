@@ -7,6 +7,7 @@
 import { useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Badge,
   Button,
   DataTable,
   FormField,
@@ -64,7 +65,8 @@ export function canManageExternalCarrier(
   return canAccess('dispatch.external-carriers', 'create')
 }
 
-function formToCreateRequest(form: ExternalCarrierFormState): ExternalCarrierCreateRequest {
+/** 신규 등록 요청 — 빈 선택필드(email/기본차종/메모)는 null 로 전송한다. */
+export function formToCreateRequest(form: ExternalCarrierFormState): ExternalCarrierCreateRequest {
   return {
     name: form.name.trim(),
     phone: form.phone.trim(),
@@ -75,8 +77,22 @@ function formToCreateRequest(form: ExternalCarrierFormState): ExternalCarrierCre
   }
 }
 
-function formToUpdateRequest(form: ExternalCarrierFormState): ExternalCarrierUpdateRequest {
-  return formToCreateRequest(form)
+/**
+ * 수정 요청 — 빈 선택필드는 빈 문자열("")로 전송한다.
+ *
+ * <p>BE PATCH 시맨틱이 "null=미변경 / ""=클리어" 이므로, 기존 이메일/기본차종/메모를
+ * 지우고 저장하면 실제로 비워진다. null 로 보내면 BE 가 미변경으로 처리해 클리어가
+ * silent 하게 무시되던 회귀(P1)를 방지한다.
+ */
+export function formToUpdateRequest(form: ExternalCarrierFormState): ExternalCarrierUpdateRequest {
+  return {
+    name: form.name.trim(),
+    phone: form.phone.trim(),
+    email: form.email.trim(),
+    defaultVehicleType: form.defaultVehicleType.trim(),
+    memo: form.memo.trim(),
+    active: form.active,
+  }
 }
 
 export function ExternalCarriersPage() {
@@ -174,9 +190,9 @@ export function ExternalCarriersPage() {
         header: '활성여부',
         width: '100px',
         render: (row) => (
-          <span style={row.active ? activeBadgeStyle : inactiveBadgeStyle}>
+          <Badge variant={row.active ? 'success' : 'neutral'}>
             {row.active ? '활성' : '비활성'}
-          </span>
+          </Badge>
         ),
       },
       {
@@ -225,7 +241,7 @@ export function ExternalCarriersPage() {
           ),
       },
     ],
-    [canManage, deleteMutation],
+    [canManage, deleteMutation.mutate],
   )
 
   const rows = query.data?.content ?? []
@@ -252,6 +268,16 @@ export function ExternalCarriersPage() {
           >
             등록
           </Button>
+        </div>
+      ) : null}
+
+      {query.isError ? (
+        <div
+          role="alert"
+          style={errorStyle}
+          data-testid="admin-external-carriers-load-error"
+        >
+          목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
         </div>
       ) : null}
 
@@ -375,7 +401,7 @@ export function ExternalCarriersPage() {
                   disabled={isSubmitting}
                   data-testid="admin-external-carriers-form-active"
                 />
-                활성
+                활성 (해제 시 발송 대상에서 제외)
               </label>
               <FormField
                 label="메모"
@@ -449,22 +475,6 @@ const checkboxRowStyle: CSSProperties = {
   alignItems: 'center',
   gap: 8,
   fontSize: 13,
-}
-
-const activeBadgeStyle: CSSProperties = {
-  color: '#166534',
-  background: '#DCFCE7',
-  borderRadius: 4,
-  padding: '2px 6px',
-  fontSize: 12,
-}
-
-const inactiveBadgeStyle: CSSProperties = {
-  color: '#6B7280',
-  background: '#F3F4F6',
-  borderRadius: 4,
-  padding: '2px 6px',
-  fontSize: 12,
 }
 
 const errorStyle: CSSProperties = {
