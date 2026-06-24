@@ -67,7 +67,7 @@ class SlipServiceAuditDiffTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         EditHeaderRequest req = new EditHeaderRequest(null, null, null,
-                "수정된 메모", null, null);
+                "수정된 메모", null, null, null);
         service.editHeader(slipId, req, "user-1", "홍길동");
 
         verify(auditLogService, times(1)).recordOverlayPatch(
@@ -80,7 +80,7 @@ class SlipServiceAuditDiffTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         EditHeaderRequest req = new EditHeaderRequest(null, null, null,
-                null, null, null);
+                null, null, null, null);
         service.editHeader(slipId, req, "user-1", "홍길동");
 
         verify(auditLogService, never()).recordOverlayPatch(
@@ -92,7 +92,7 @@ class SlipServiceAuditDiffTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         EditHeaderRequest req = new EditHeaderRequest(null, null, null,
-                "원본 메모", null, null);
+                "원본 메모", null, null, null);
         service.editHeader(slipId, req, "user-1", "홍길동");
 
         verify(auditLogService, never()).recordOverlayPatch(

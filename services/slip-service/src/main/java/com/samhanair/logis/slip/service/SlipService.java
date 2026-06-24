@@ -244,8 +244,9 @@ public class SlipService {
                     Boolean.TRUE.equals(lineReq.priceVatInclusive()));
         }
 
-        // 5. 자동 메모 (야적/지방 등)
-        slip.applyDeliveryTagAutoMemo();
+        // 5. 배송일정 계산 (지방/야적 태그 시 하차일 N 자동 산출 또는 override 적용)
+        // [게이트①-배송일정] 마감 게이트 통과 직후. override 없으면 규칙 자동 계산.
+        slip.applyDeliverySchedule(slip.getDeliveryTag(), req.unloadDate());
 
         // 6. Slice B — driverName/driverPhone 생성 시점 적용 (모두 nullable, OUTBOUND 한정 의미)
         if (req.driverName() != null || req.driverPhone() != null) {
@@ -333,6 +334,13 @@ public class SlipService {
         String oldMemo = slip.getMemo();
         applyMutation(() -> slip.editHeader(req.partnerId(), req.partnerName(),
                 req.deliveryTag(), req.memo(), req.driverName(), req.driverPhone()));
+        // [게이트⑦-배송일정] 태그 확정 or unloadDate override 시 배송일정 재계산.
+        // 태그가 존재하거나 unloadDate override 가 온 경우 applyDeliverySchedule 호출.
+        // 태그 미변경+unloadDate 없으면 기존 unloadDate 유지 (부분 갱신 의미론).
+        DeliveryTag effectiveTag = slip.getDeliveryTag();
+        if (effectiveTag != null || req.unloadDate() != null) {
+            slip.applyDeliverySchedule(effectiveTag, req.unloadDate());
+        }
         // PR-H2 — memo 실제 변경 (newValue != oldValue) 감지 시 audit overlay 1행 + SSE broadcast
         String newMemo = slip.getMemo();
         if (req.memo() != null && !java.util.Objects.equals(oldMemo, newMemo)) {
@@ -439,6 +447,13 @@ public class SlipService {
                 req.projectName(),
                 req.recipientPhone(),
                 req.paymentDueDate());
+
+        // [게이트⑧-배송일정] 태그 확정 or unloadDate override 시 배송일정 재계산.
+        // 태그 존재 또는 unloadDate override 가 들어온 경우에만 재계산 (부분 갱신 의미론 유지).
+        DeliveryTag effectiveTagBatch = slip.getDeliveryTag();
+        if (effectiveTagBatch != null || req.unloadDate() != null) {
+            slip.applyDeliverySchedule(effectiveTagBatch, req.unloadDate());
+        }
 
         // 권한 재편 Phase 2.1 Task 2 — 수정 성공 직후 EDIT 스냅샷 캡처
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null

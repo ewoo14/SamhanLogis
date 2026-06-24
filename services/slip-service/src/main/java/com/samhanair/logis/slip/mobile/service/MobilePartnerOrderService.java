@@ -159,6 +159,10 @@ public class MobilePartnerOrderService {
                     lineReq.quantity(), lineReq.unitPrice(), lineReq.note()));
         }
 
+        // [게이트③-배송일정] 모바일 주문 출고전표 생성 시 deliveryTag null → unloadDate null.
+        // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦ 에서 applyDeliverySchedule 가 수행.
+        slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
+
         Slip saved = slipRepository.save(slip);
         return SlipDetailResponse.from(saved);
     }

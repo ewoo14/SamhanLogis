@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.InspectionReadyStatus;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.domain.schedule.DeliverySchedule;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -134,6 +135,17 @@ public record SlipDetailResponse(
          * null 허용 — lookup 실패 또는 legacy row.
          */
         String destinationWarehouseName,
+        /**
+         * 하차일 N — V52 신규. 배송일정 적용 전표(지방/야적)만 값 보유. 비적용 또는 legacy 전표는 null.
+         * 당착(지방 당일 하차) = slipDate 와 동일 값.
+         */
+        LocalDate unloadDate,
+        /**
+         * 특이사항 파생 배송일정 라벨 — V52 신규.
+         * {@link DeliverySchedule#scheduleLabel} 에서 파생 ({@code "25상26하"} / {@code "당착"} / null).
+         * memo 에 저장하지 않고 (slipDate, unloadDate, deliveryTag) 에서 매번 재계산.
+         */
+        String deliveryScheduleLabel,
         List<SlipLineResponse> lines) {
 
     /**
@@ -226,6 +238,9 @@ public record SlipDetailResponse(
                 acceptedByFullName,
                 // SP-08-FU2 P2-2 — 도착지 창고명 snapshot
                 slip.getDestinationWarehouseName(),
+                // V52 — 하차일 + 배송일정 파생 라벨
+                slip.getUnloadDate(),
+                DeliverySchedule.scheduleLabel(slip.getSlipDate(), slip.getUnloadDate(), slip.getDeliveryTag()),
                 slip.getLines().stream().map(SlipLineResponse::from).toList());
     }
 

@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
+import com.samhanair.logis.slip.domain.schedule.DeliverySchedule;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -89,7 +90,16 @@ public record SlipResponse(
          * 전표 수정 이력 건수 — {@code revisionCount} 기반 임시값.
          * 후속 슬라이스에서 SlipEditRequest count 로 교체 예정.
          */
-        int editHistoryCount) {
+        int editHistoryCount,
+        /**
+         * 하차일 N — V52 신규. 배송일정 적용 전표(지방/야적)만 값 보유. 비적용 또는 legacy 전표는 null.
+         */
+        LocalDate unloadDate,
+        /**
+         * 특이사항 파생 배송일정 라벨 — V52 신규.
+         * {@link DeliverySchedule#scheduleLabel} 에서 파생 ({@code "25상26하"} / {@code "당착"} / null).
+         */
+        String deliveryScheduleLabel) {
 
     /**
      * Slip 엔티티로부터 응답 record 를 빌드한다.
@@ -149,7 +159,10 @@ public record SlipResponse(
                 // 담당자명: requesterId 임시 (후속 user-service resolve 예정)
                 slip.getRequesterId(),
                 // 수정 이력 건수: revisionCount 기반 임시 (후속 SlipEditRequest count 예정)
-                slip.getRevisionCount() != null ? slip.getRevisionCount() : 0);
+                slip.getRevisionCount() != null ? slip.getRevisionCount() : 0,
+                // V52 — 하차일 + 배송일정 파생 라벨
+                slip.getUnloadDate(),
+                DeliverySchedule.scheduleLabel(slip.getSlipDate(), slip.getUnloadDate(), slip.getDeliveryTag()));
     }
 
     private static LocalDateTime updatedAtOf(Slip slip) {

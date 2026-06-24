@@ -163,6 +163,10 @@ public class SlipPublishService {
             slip.setPartnerCode(req.partnerCode().trim());
         }
 
+        // [게이트④-배송일정] 견적 발행 시 deliveryTag null → unloadDate null.
+        // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦ 에서 applyDeliverySchedule 가 수행.
+        slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
+
         // 5. persist — partial UNIQUE INDEX 충돌 시 동시 race condition (정확한 원인 별도 추적)
         Slip saved;
         try {
@@ -235,6 +239,10 @@ public class SlipPublishService {
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
+
+        // [게이트⑤-배송일정] 주문 발행 시 deliveryTag null → unloadDate null.
+        // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦ 에서 applyDeliverySchedule 가 수행.
+        slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
 
         Slip saved;
         try {
@@ -324,6 +332,10 @@ public class SlipPublishService {
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
+
+        // [게이트⑥-배송일정] 병합 발행 시 deliveryTag null → unloadDate null.
+        // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦ 에서 applyDeliverySchedule 가 수행.
+        slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
 
         Slip saved;
         try {

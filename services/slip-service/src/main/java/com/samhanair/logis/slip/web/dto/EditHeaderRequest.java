@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.web.dto;
 
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -16,5 +17,10 @@ public record EditHeaderRequest(
         DeliveryTag deliveryTag,
         @Size(max = 1000) String memo,
         @Size(max = 50) String driverName,
-        @Size(max = 20) String driverPhone) {
+        @Size(max = 20) String driverPhone,
+        /**
+         * 하차일 N override (nullable) — null 이면 서비스 레이어에서 DeliverySchedule 규칙 자동 계산.
+         * 당착(지방 당일 하차) = slipDate 와 동일 값 전달. 지방/야적 태그에만 유효.
+         */
+        LocalDate unloadDate) {
 }

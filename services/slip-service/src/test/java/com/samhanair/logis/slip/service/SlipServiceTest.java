@@ -138,6 +138,8 @@ class SlipServiceTest {
                 null, null, null, null, null, null, null, null, null, null, null, null,
                 // V20 신규 5 필드 (모두 null)
                 null, null, null, null, null,
+                // V52 하차일 override (null = 규칙 자동 계산)
+                null,
                 List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
                         2, new BigDecimal("100.00"), null)));
 
@@ -164,6 +166,8 @@ class SlipServiceTest {
                 null, null, null, null, null, null, null, null, null, null, null, null,
                 // V20 신규 5 필드 (모두 null)
                 null, null, null, null, null,
+                // V52 하차일 override (null = 규칙 자동 계산)
+                null,
                 List.of(new CreateSlipRequest.SlipLineRequest(productId, "p", null, null,
                         1, new BigDecimal("10.00"), null)));
 
@@ -665,7 +669,7 @@ class SlipServiceTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         service.editHeader(slipId,
-                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "u", "홍길동");
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null, null), "u", "홍길동");
 
         assertThat(slip.getPartnerName()).isEqualTo("새거래처");
         assertThat(slip.getMemo()).isEqualTo("새메모");
@@ -677,7 +681,7 @@ class SlipServiceTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         assertThatThrownBy(() -> service.editHeader(slipId,
-                new EditHeaderRequest(null, "x", null, null, null, null), "u", "홍길동"))
+                new EditHeaderRequest(null, "x", null, null, null, null, null), "u", "홍길동"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
@@ -692,7 +696,7 @@ class SlipServiceTest {
         // [UUID 비공개 가드] X-User-Name(="홍길동") 이 actorName 으로 캡처되고, callerId(="user-1")
         // 는 actorId 로만 쓰여 버전이력 actorName 에는 노출되지 않는다.
         service.editHeader(slipId,
-                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null), "user-1", "홍길동");
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null, null), "user-1", "홍길동");
 
         verify(slipRevisionService, times(1)).capture(
                 eq(slip),
@@ -709,7 +713,7 @@ class SlipServiceTest {
         String uuidName = UUID.randomUUID().toString();
 
         service.editHeader(slipId,
-                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null),
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null, null),
                 UUID.randomUUID().toString(), uuidName);
 
         verify(slipRevisionService, times(1)).capture(
@@ -725,7 +729,7 @@ class SlipServiceTest {
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
 
         service.editHeader(slipId,
-                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null),
+                new EditHeaderRequest(null, "새거래처", null, "새메모", null, null, null),
                 UUID.randomUUID().toString(), null);
 
         verify(slipRevisionService, times(1)).capture(

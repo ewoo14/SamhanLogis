@@ -94,6 +94,10 @@ public class EstimateToSlipConverter {
         // 발행 출처 — Phase 6 M5 패턴 일관 (sourceType=ESTIMATE, sourceId=견적번호)
         slip.assignPublishSource(SlipSourceType.ESTIMATE, estimate.getEstimateNo(), null);
 
+        // [게이트②-배송일정] 견적→출고전표 변환 시 deliveryTag null → unloadDate null(계산 불가).
+        // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦ 에서 applyDeliverySchedule 가 수행.
+        slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
+
         return slipRepository.save(slip);
     }
 

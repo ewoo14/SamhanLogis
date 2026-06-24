@@ -53,5 +53,10 @@ public record UpdateSlipRequest(
         /** 인수자 번호 — 현장 담당자 직접 연락처 (숫자 및 하이픈만 허용). */
         @Size(max = 20) @Pattern(regexp = "^[0-9-]*$", message = "인수자 번호는 숫자와 하이픈만 허용합니다") String recipientPhone,
         /** 입금예정일 — 정형 DATE. 회계 기간 매칭 / 미수금 관리에 활용. */
-        LocalDate paymentDueDate) {
+        LocalDate paymentDueDate,
+        /**
+         * 하차일 N override (nullable) — null 이면 서비스 레이어에서 DeliverySchedule 규칙 자동 계산.
+         * 당착(지방 당일 하차) = slipDate 와 동일 값 전달. 지방/야적 태그에만 유효.
+         */
+        LocalDate unloadDate) {
 }
