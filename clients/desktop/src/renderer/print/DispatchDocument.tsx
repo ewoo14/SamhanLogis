@@ -10,6 +10,24 @@ import { ApprovalRoleCells, RoleCell, fallbackRoles } from './approvalRoleCells'
  */
 const DISPATCH_TAG_LABELS = OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>
 
+/**
+ * 특이사항(메모)에서 배송태그 자동 접두("[지방] …")를 제거한다.
+ * 배송태그는 배송주소 앞에 별도 강조 표시하므로 특이사항 중복을 제거한다(개발책임자 2026-06-25).
+ */
+function memoWithoutTagPrefix(
+  memo: string | null | undefined,
+  tagLabel: string | null,
+): string {
+  if (!memo) return '-'
+  if (tagLabel) {
+    const prefix = `[${tagLabel}]`
+    if (memo.startsWith(prefix)) {
+      return memo.slice(prefix.length).trim() || '-'
+    }
+  }
+  return memo
+}
+
 export interface DispatchDocumentSignatures {
   driverSignaturePng?: string | null
   recipientSignaturePng?: string | null
@@ -137,7 +155,14 @@ export function DispatchDocument({
         </div>
         <div className="dispatch-info-box">
           <span className="label">특이사항:</span>
-          <span className="content">{slip.memo ?? '-'}</span>
+          <span className="content">
+            {memoWithoutTagPrefix(
+              slip.memo,
+              slip.deliveryTag
+                ? (DISPATCH_TAG_LABELS[slip.deliveryTag] ?? slip.deliveryTag)
+                : null,
+            )}
+          </span>
         </div>
 
         <p className="dispatch-driver-call-notice">
