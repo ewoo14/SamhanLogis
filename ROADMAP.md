@@ -31,7 +31,7 @@
 
 ### 최신 진행 메모 (2026-06-24)
 
-- 검수완료 → 배차발송 에픽 슬1/슬2 진행: 슬1은 검수완료 출고전표를 배차 발송 대기 진입점과 아로로지스 기존 발송 경로에 연결했다. 슬2는 `slip-service`에 `external_carrier` 외부기사/배송사 마스터 CRUD를 추가하고, `auth-service` 단일 page-code `dispatch.external-carriers` + 7-action(account-mode) 시드, gateway no-prefix route, desktop 배차 메뉴/관리 화면/mock/test를 동기화한다. 외부 발송 기록(`external_dispatch`, `external_dispatch_slip`)과 SMS/인쇄 실행은 슬3/슬4 범위로 유지한다.
+- 검수완료 → 배차발송 에픽 슬3 진행: 슬1은 검수완료 출고전표를 배차 발송 대기 진입점과 아로로지스 기존 발송 경로에 연결했고, 슬2는 `external_carrier` 외부기사/배송사 마스터 CRUD를 추가했다. 슬3는 `external_dispatch`/`external_dispatch_slip` V50 이력과 `POST /admin/external-dispatches`를 추가해 타배송사 기사별 SMS 1건 발송을 지원한다. notification-service 내부 SMS 계약을 재사용하며, 성공 시 선택 전표를 `DISPATCHED`로 종료하고 실패 시 `FAILED` 이력만 보존해 재시도 가능하게 둔다. desktop 배차 보드에는 전표 다중 선택 + 외부기사/배송사 선택 SMS 모달과 mock/test를 추가한다. PRINT/BOTH 실행은 슬4 범위로 유지한다.
 
 ### 최신 진행 메모 (2026-06-11)
 

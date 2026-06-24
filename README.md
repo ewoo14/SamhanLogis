@@ -29,7 +29,7 @@
 
 ### 최신 진행 메모 (2026-06-24)
 
-- **검수완료 → 배차발송 에픽 진행**: 슬1에서 검수완료 출고전표를 배차 발송 대기 진입점으로 연결하고 아로로지스 기존 배차 경로를 보존했다. 슬2는 `slip-service`에 **외부기사/배송사 마스터(`external_carrier`)** 를 추가해 타배송사 SMS/인쇄 발송의 대상 기반을 마련한다. 신규 마스터는 name/phone/email/defaultVehicleType/memo/active + BaseEntity 7 audit + soft-delete 구조이며, 사용자 화면 식별자는 이름/전화만 사용한다. 권한은 단일 page-code `dispatch.external-carriers` + 7-action(account-mode)으로 MASTER/MANAGER/DISPATCH에 시드하고, desktop 배차 메뉴에 `외부기사/배송사` 관리 화면을 추가한다. 슬3 external_dispatch / external_dispatch_slip 발송 기록과 SMS 발송은 후속 범위로 분리한다.
+- **검수완료 → 배차발송 에픽 진행**: 슬1에서 검수완료 출고전표를 배차 발송 대기 진입점으로 연결하고 아로로지스 기존 배차 경로를 보존했다. 슬2는 `slip-service`에 **외부기사/배송사 마스터(`external_carrier`)** 를 추가했다. 슬3는 **타배송사 SMS 발송(`external_dispatch`)** 을 구현한다. `external_dispatch`/`external_dispatch_slip` V50 이력, `POST /admin/external-dispatches`, notification-service `/internal/notifications/send` 재사용, 성공 시 `slip.dispatchStatus=DISPATCHED`, 실패 시 `FAILED` 이력 보존 + 재시도 가능 상태를 적용한다. desktop 배차 보드 발송대기 목록에는 전표 다중 선택 + 외부기사/배송사 선택 SMS 모달을 추가하며, 화면 식별자는 이름/전화/전표번호만 사용한다.
 
 ### 최신 진행 메모 (2026-06-20)
 
