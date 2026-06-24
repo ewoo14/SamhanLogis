@@ -427,7 +427,8 @@ body {
     <a class="nav-link" href="#phases">진행 현황</a>
   </div>
   <div class="nav-right">
-    <span class="nav-badge">2026-06-24 · 검수완료→배차발송 에픽 완결 — external_dispatch SMS/PRINT/BOTH + A4 배차의뢰서 print-data. desktop 배차 보드 채널 선택·인쇄 진입 추가, UUID 비노출·dispatch.board 재사용</span>
+    <span class="nav-badge">2026-06-24 · 출고전표 컷오프(마감) 시간 설정 (PR #594) — 배송태그별 마감 시각 인사 메뉴 CRUD(slip_outbound_cutoff V51), OutboundCutoffGuard 8지점(생성6+태그확정2) 당일 마감초과 409 차단, hr.slip-cutoff 권한(auth V70), 출력문서 배송주소 앞 배송태그. 라이브 QA 201/409/201 인과 실증</span>
+    <span class="nav-badge" hidden>2026-06-24 · 검수완료→배차발송 에픽 완결 — external_dispatch SMS/PRINT/BOTH + A4 배차의뢰서 print-data. desktop 배차 보드 채널 선택·인쇄 진입 추가, UUID 비노출·dispatch.board 재사용</span>
     <span class="nav-badge" hidden>PR #545 · §7 전역 협업 presence(동시 접속자) 4문서 롤아웃 — 슬립 presence MVP(#515) 후속으로 회계전표·주문·견적·그룹웨어 결재 4문서(FE 패널 보유)에 동시 접속자 presence 순수 additive 배선. 각 {Doc}CollabController 에 슬립 SlipCollabController 1:1 복제로 presence join/leave/list(200) + DTO·helper·@ExceptionHandler / shared:realtime-abstraction PresenceService 자동 빈(추가 설정 0) / FE 4 패널에 문서별 {Doc}PresenceClient + usePresence + PresenceIndicator(client override 교차오염 방지) / 신규 권한 page-code·시드·Flyway = 0(기존 댓글 VIEW page-code 재사용) / wire payload = {sessionId,displayName,color} 만(UUID 비공개 IT 박제) / 각 서비스 presence IT(실 Postgres) + 라이브 Docker 실QA 4/4(API + 2세션 UI "현재 보는 중" 상호 표시). 배차(FE 패널 미존재·comment-only)=PR2 별도 슬라이스</span>
     <span class="nav-badge" hidden>PR #496 · 기초품목↔견적품목 분리 슬1 — 견적품목 관리 메뉴 신설 — 판매 카탈로그(카테고리별 SKU/단가/번들)를 물리 품목 마스터와 분리(D-IES-01~04). 기초품목 관리(구 품목 관리, 등록 전용) + 견적품목 관리(신규 /products/estimate-items): 노출 M:N·표시순서 이관 + 기초품목 선택 추가(AsyncAutocomplete, 등록분만·MATERIAL/이미노출 필터) / 세트 구성도 견적품목 소관(슬2 이관) / BE 무변경 / #494·#495 견적품목 귀속 / Opus 3-agent→Codex fix→수렴 재리뷰→교차→fix2(contract sweep·reorder 복원) + 실서버 메뉴분화·add-from-master QA</span>
     <span class="nav-badge" hidden>PR #495 · 세트 구성품 정렬(드래그) + display-orders 부분요청 가드 재도입 — 세트 구성품을 종류순(실내기→실외기→판넬→리모컨→자재)+종류 내 기본먼저 구조 고정 + 같은 종류 비-기본끼리만 dnd-kit 드래그(per-SET) / BE replaceComponents 정규화(kindRank→isDefault→index) 서버 단일 진실원 + FE 이중 방어 / display-orders 가드 모수 usageScope≠NONE 정렬(FE 전송 모수와 집합 동일, 부분요청 400, D-PCE-08/09) / Opus 4-agent→Codex 교차→Opus 수렴 재리뷰 + Docker 실서버 드래그·영속·기본고정·가드 실QA. estimate-app/슬1 무변경</span>
@@ -700,7 +701,7 @@ body {
         </div>
       </div>
       <div class="svc-card-db">slip_db</div>
-      <div class="svc-card-desc">전표 핵심 서비스. Single Table Inheritance(출고/입고). 10단계 라이프사이클 상태머신 도메인 메서드 가드. 전자서명 + 배송 사진(MinIO). 견적 생성. 전표번호 YYYY/MM/DD-{순번}. Excel 내보내기. Redis SSE 실시간 이벤트. 검수완료→배차발송 에픽에서 외부기사/배송사 마스터(external_carrier), 타배송사 발송 이력(external_dispatch), SMS/PRINT/BOTH 채널, 배차의뢰서 print-data를 보유한다.</div>
+      <div class="svc-card-desc">전표 핵심 서비스. Single Table Inheritance(출고/입고). 10단계 라이프사이클 상태머신 도메인 메서드 가드. 전자서명 + 배송 사진(MinIO). 견적 생성. 전표번호 YYYY/MM/DD-{순번}. Excel 내보내기. Redis SSE 실시간 이벤트. 검수완료→배차발송 에픽에서 외부기사/배송사 마스터(external_carrier), 타배송사 발송 이력(external_dispatch), SMS/PRINT/BOTH 채널, 배차의뢰서 print-data를 보유한다. 출고 컷오프 마스터(slip_outbound_cutoff)와 OutboundCutoffGuard로 배송태그별 당일 마감 초과 시 출고전표 생성/태그확정을 8지점에서 409 차단한다.</div>
       <div class="svc-tags">
         <span class="stag purple">STI 상태머신</span>
         <span class="stag blue">@Version 낙관적 락</span>

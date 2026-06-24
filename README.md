@@ -29,6 +29,7 @@
 
 ### 최신 진행 메모 (2026-06-24)
 
+- **출고전표 컷오프(마감) 시간 설정 — 인사 메뉴** (PR #594): 배송태그별 마감 시각을 인사 메뉴에서 동적 CRUD(`slip-service` `slip_outbound_cutoff` V51 — 지방 12:00·야적 14:00·경동택배/화물 15:00 시드, 태그당 활성 1행)하고, **출고전표에 배송태그가 확정되는 8지점(생성 6 + 태그확정 editHeader/v20 2)** 에서 당일·마감 초과 시 **409 차단**(`OutboundCutoffGuard`, KST `Clock`). 5/6 생성 경로는 DRAFT를 태그 null로 만들고 SlipForm에서 태그를 확정하므로 "배송태그가 붙는 순간" 마감이 적용된다. page-code `hr.slip-cutoff`(MASTER/MANAGER, auth V70 account-mode 4-table), gateway `/admin/slip-cutoffs`(no-strip). desktop 인사 메뉴 설정 페이지 + 출력문서(`DispatchDocument`)에 배송주소 앞 배송태그(`[지방]`) 표시. 라이브 QA에서 마감 전 201 / 후 409 / 내일 201 인과 실증.
 - **검수완료 → 배차발송 에픽 완결**: 슬1에서 검수완료 출고전표를 배차 발송 대기 진입점으로 연결하고 아로로지스 기존 배차 경로를 보존했다. 슬2는 `slip-service`에 **외부기사/배송사 마스터(`external_carrier`)** 를 추가했고, 슬3는 **타배송사 SMS 발송(`external_dispatch`)** 을 구현했다. 슬4는 **타배송사 인쇄 배차의뢰서(PRINT/BOTH)** 를 완성했다. `POST /admin/external-dispatches` 는 `SMS`/`PRINT`/`BOTH` 채널을 지원하고, `GET /admin/external-dispatches/{id}/print-data` 로 A4 배차의뢰서 데이터를 제공한다. PRINT 는 SMS 호출 없이 즉시 SENT + `slip.dispatchStatus=DISPATCHED`, BOTH 는 SMS 결과에 따라 SENT/FAILED 를 기록한다. desktop 배차 보드 모달은 SMS/인쇄/SMS+인쇄 채널 선택과 `/dispatch/external-dispatch/{id}/print` 인쇄 진입을 제공한다. Flyway/권한 신규 시드 없이 `dispatch.board` 를 재사용하며, 화면 식별자는 배송사명/연락처/전표번호/배송지/수령자/품목요약만 사용한다.
 
 ### 최신 진행 메모 (2026-06-20)
