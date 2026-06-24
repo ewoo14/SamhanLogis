@@ -221,6 +221,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     label: '배차',
     pages: [
       'dispatch.board',
+      'dispatch.external-carriers',
       'dispatch.sms-save-history',
       'dispatch.batch',
     ],
@@ -445,6 +446,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'slip.publish.from-partner-order': '주문 전표발행',
   'inbound.inspection': '입고 검수',
   'dispatch.board': '배차 보드',
+  'dispatch.external-carriers': '외부기사/배송사',
   'dispatch.sms-save-history': '배차문자 저장',
   'dispatch.batch': '배차 SMS batch',
   'admin.permissions': '권한 관리',

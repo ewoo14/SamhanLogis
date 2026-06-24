@@ -141,6 +141,7 @@ import { PartnerCreatePage as AdminPartnerCreatePage } from './admin/PartnerCrea
 import { SheetSyncPage as AdminSheetSyncPage } from './admin/SheetSyncPage'
 // [PR-D Phase B FE-B] arologis 지역 관리 admin UI — DISPATCH 조회 + MANAGER/MASTER 관리.
 import { RegionsPage as AdminRegionsPage } from './admin/RegionsPage'
+import { ExternalCarriersPage as AdminExternalCarriersPage } from './admin/ExternalCarriersPage'
 // [PR-D Phase B FE-E] 발송금지 거래처 admin (MASTER 전용 — partner-service /api/v1/partners/admin/blocks)
 import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/BlockedPartnersPage'
 // [PR-F1 Designer mock] 알리고 주소록 자동 동기화 — MASTER 전용 (AdminLayout 가드).
@@ -1481,6 +1482,16 @@ const router = createHashRouter([
         element: (
           <PermissionGuard pageCode="arologis.region" action="view">
             <AdminRegionsPage />
+          </PermissionGuard>
+        ),
+      },
+
+      // [외부기사/배송사 마스터 슬2] 타배송사 SMS/인쇄 발송 대상 관리.
+      {
+        path: '/admin/external-carriers',
+        element: (
+          <PermissionGuard pageCode="dispatch.external-carriers" action="view">
+            <AdminExternalCarriersPage />
           </PermissionGuard>
         ),
       },

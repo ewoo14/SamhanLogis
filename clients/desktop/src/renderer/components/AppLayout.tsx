@@ -424,12 +424,14 @@ export function AppLayout() {
   const showArologisOps = dynamicCanAccess('arologis.dispatch.ops', 'view')
   const showDispatchSmsPage = dynamicCanAccess('dispatch.batch', 'view')
   const showDispatchSmsSendAudit = dynamicCanAccess('notification.dispatch-sms.send-audit', 'view')
+  const showExternalCarriers = dynamicCanAccess('dispatch.external-carriers', 'view')
   // arologis 그룹 가시성 — arologis.dispatch.admin route 권한 / ops 3종 / 배차안내 SMS / 발송 이력 / P1-5 admin 중 하나라도 보이면 그룹 노출
   const showArologis
     = showArologisManual
     || showArologisOps
     || showDispatchSmsPage
     || showDispatchSmsSendAudit
+    || showExternalCarriers
     || showArologisAdminPage
 
   const showAudit = showInventoryAuditPage
@@ -1243,6 +1245,7 @@ export function AppLayout() {
               '/arologis/dispatch-sms/send-audit',
               '/arologis/dispatch-reconcile',
               '/admin/regions',
+              '/admin/external-carriers',
               '/arologis/admin/auto-dispatch',
               '/arologis/admin/manual-dispatch',
               '/arologis/admin/driver-assignment',
@@ -1309,6 +1312,14 @@ export function AppLayout() {
                 data-testid="sidebar-arologis-region-mgmt"
               >
                 배차지역 관리
+              </SidebarLink>
+              <SidebarLink
+                to="/admin/external-carriers"
+                show={showExternalCarriers}
+                requiredRole="DISPATCH / MANAGER / MASTER"
+                data-testid="sidebar-dispatch-external-carriers"
+              >
+                외부기사/배송사
               </SidebarLink>
               {/* [P1-5] arologis 배차 admin 3개 신규 메뉴 — MANAGER / MASTER. */}
               <SidebarLink
