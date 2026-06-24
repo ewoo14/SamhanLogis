@@ -334,19 +334,18 @@ public class SlipService {
         // [게이트⑦] 배송태그 확정(신규/변경) 마감 게이트 — applyMutation 직전.
         // 태그 미변경(memo/driver만 수정) 또는 null 보존 경우는 게이트 미적용.
         DeliveryTag incomingTag = req.deliveryTag();
-        if (incomingTag != null && incomingTag != slip.getDeliveryTag()) {
+        boolean tagChanged = incomingTag != null && incomingTag != slip.getDeliveryTag();
+        if (tagChanged) {
             cutoffGuard.assertWithinCutoff(incomingTag, slip.getSlipDate());
         }
         // PR-H2 — memo 변경분 audit 사전 snapshot (도메인 mutation 직전 oldValue 보존)
         String oldMemo = slip.getMemo();
         applyMutation(() -> slip.editHeader(req.partnerId(), req.partnerName(),
                 req.deliveryTag(), req.memo(), req.driverName(), req.driverPhone()));
-        // [게이트⑦-배송일정] 태그 확정 or unloadDate override 시 배송일정 재계산.
-        // 태그가 존재하거나 unloadDate override 가 온 경우 applyDeliverySchedule 호출.
-        // 태그 미변경+unloadDate 없으면 기존 unloadDate 유지 (부분 갱신 의미론).
-        DeliveryTag effectiveTag = slip.getDeliveryTag();
-        if (effectiveTag != null || req.unloadDate() != null) {
-            slip.applyDeliverySchedule(effectiveTag, req.unloadDate());
+        // [게이트⑦-배송일정] 태그 신규/변경 OR unloadDate override 시에만 재계산.
+        // 태그 미변경+unloadDate 미전달이면 기존 unloadDate 유지(사용자 override 보존 — Codex 라운드 회귀 fix).
+        if (tagChanged || req.unloadDate() != null) {
+            slip.applyDeliverySchedule(slip.getDeliveryTag(), req.unloadDate());
         }
         // PR-H2 — memo 실제 변경 (newValue != oldValue) 감지 시 audit overlay 1행 + SSE broadcast
         String newMemo = slip.getMemo();
@@ -415,7 +414,8 @@ public class SlipService {
         // [게이트⑧] 배치 헤더 수정 — 배송태그 신규/변경 시 마감 게이트 적용.
         // 태그 미변경(memo/driver/partnerName 등만 수정) 또는 null 보존 경우는 게이트 미적용.
         DeliveryTag incomingTagBatch = req.deliveryTag();
-        if (incomingTagBatch != null && incomingTagBatch != slip.getDeliveryTag()) {
+        boolean tagChangedBatch = incomingTagBatch != null && incomingTagBatch != slip.getDeliveryTag();
+        if (tagChangedBatch) {
             cutoffGuard.assertWithinCutoff(incomingTagBatch, slip.getSlipDate());
         }
         // editHeader 가 partnerId 를 덮어쓰기 전에 캡처 — partnerCode 진짜 변경 판정용 (사이클2 BE)
@@ -455,11 +455,10 @@ public class SlipService {
                 req.recipientPhone(),
                 req.paymentDueDate());
 
-        // [게이트⑧-배송일정] 태그 확정 or unloadDate override 시 배송일정 재계산.
-        // 태그 존재 또는 unloadDate override 가 들어온 경우에만 재계산 (부분 갱신 의미론 유지).
-        DeliveryTag effectiveTagBatch = slip.getDeliveryTag();
-        if (effectiveTagBatch != null || req.unloadDate() != null) {
-            slip.applyDeliverySchedule(effectiveTagBatch, req.unloadDate());
+        // [게이트⑧-배송일정] 태그 신규/변경 OR unloadDate override 시에만 재계산.
+        // 태그 미변경+unloadDate 미전달이면 기존 unloadDate 유지(사용자 override 보존 — Codex 라운드 회귀 fix).
+        if (tagChangedBatch || req.unloadDate() != null) {
+            slip.applyDeliverySchedule(slip.getDeliveryTag(), req.unloadDate());
         }
 
         // 권한 재편 Phase 2.1 Task 2 — 수정 성공 직후 EDIT 스냅샷 캡처

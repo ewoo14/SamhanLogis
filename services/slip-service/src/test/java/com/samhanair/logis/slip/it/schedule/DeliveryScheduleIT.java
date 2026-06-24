@@ -55,6 +55,9 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>unloadDate override 당착(slipDate) 전달 → label = "당착"</li>
  *   <li>비적용 태그(DAY) → unloadDate null, label null</li>
  *   <li>editHeader 태그 미변경 + 당착 N 편집 → unloadDate == slipDate, label = "당착"</li>
+ *   <li>[시나리오 A] 지방 전표 override 설정 후 메모만 수정(editHeader) → override 유지</li>
+ *   <li>[시나리오 B] 지방 전표 override 설정 후 v20 projectName 수정 → override 유지</li>
+ *   <li>[시나리오 C] 지방 전표 태그를 야적으로 변경 → 야적 규칙으로 재계산</li>
  * </ol>
  *
  * <p>외부 client 격리: {@link ProductClient} / {@link InventoryClient} /
@@ -277,6 +280,169 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
     }
 
     // -------------------------------------------------------------------------
+    // 시나리오 A: override 보존 — editHeader 메모만 수정 시 override unloadDate 유지
+    // -------------------------------------------------------------------------
+
+    /**
+     * 시나리오 A: 지방 전표 생성 → 사용자 override(slipDate+5일) unloadDate 설정
+     * → 이후 editHeader 로 메모만 수정(tag=null, unloadDate=null) →
+     * override unloadDate 가 기본값 재계산 없이 유지됨을 검증한다.
+     *
+     * <p>Codex 라운드 fix 핵심 회귀 케이스:
+     * {@code tagChanged || req.unloadDate() != null} 조건이 없었다면
+     * 메모 수정 시 {@code applyDeliverySchedule(REGION, null)} 이 호출되어
+     * override 가 slipDate+1일(규칙 기본값)로 덮어씌워진다.
+     */
+    @Test
+    void 시나리오A_메모만수정_override_unloadDate_유지() throws Exception {
+        // (1) 지방(REGION) 전표 생성 — unloadDate 미지정(규칙 자동: slipDate+1)
+        LocalDate slipDate = FIXED_WEDNESDAY; // 2027-03-10 (수요일)
+        MvcResult created = 전표_생성("REGION", slipDate, null);
+        JsonNode initialData = responseData(created);
+        String slipId = initialData.get("id").asText();
+        // 초기 unloadDate = 익일(목요일)
+        Assertions.assertThat(initialData.get("unloadDate").asText())
+                .isEqualTo(slipDate.plusDays(1).toString());
+
+        // (2) 사용자 override — slipDate+5일로 unloadDate 지정 (규칙 기본값 slipDate+1 과 다름)
+        LocalDate overrideUnloadDate = slipDate.plusDays(5); // 2027-03-15 (월요일)
+        Map<String, Object> overrideBody = new HashMap<>();
+        overrideBody.put("unloadDate", overrideUnloadDate.toString());
+
+        MvcResult overrideResult = mockMvc.perform(
+                        patch("/slips/" + slipId + "/header")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-User-Role", "SALES")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(overrideBody)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Assertions.assertThat(responseData(overrideResult).get("unloadDate").asText())
+                .isEqualTo(overrideUnloadDate.toString());
+
+        // (3) 메모만 수정 — deliveryTag=null, unloadDate=null (보존 의도)
+        Map<String, Object> memoBody = new HashMap<>();
+        memoBody.put("memo", "메모 수정 테스트");
+
+        MvcResult memoResult = mockMvc.perform(
+                        patch("/slips/" + slipId + "/header")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-User-Role", "SALES")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(memoBody)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode memoData = responseData(memoResult);
+        // override unloadDate 가 재계산 없이 그대로 유지돼야 함
+        Assertions.assertThat(memoData.get("unloadDate").asText())
+                .as("메모만 수정 시 override unloadDate 유지")
+                .isEqualTo(overrideUnloadDate.toString());
+        // label 도 override 날짜 기준으로 유지
+        String expectedLabel = slipDate.getDayOfMonth() + "상" + overrideUnloadDate.getDayOfMonth() + "하";
+        Assertions.assertThat(memoData.get("deliveryScheduleLabel").asText())
+                .as("메모만 수정 시 label 도 override 기준 유지")
+                .isEqualTo(expectedLabel);
+    }
+
+    // -------------------------------------------------------------------------
+    // 시나리오 B: override 보존 — v20(/slips/{id}/v20) projectName만 수정 시 유지
+    // -------------------------------------------------------------------------
+
+    /**
+     * 시나리오 B: 지방 전표 생성 → 사용자 override unloadDate 설정
+     * → v20 endpoint(PATCH /slips/{id}/v20) 로 projectName 만 수정(deliveryTag=null, unloadDate=null) →
+     * override unloadDate 가 유지됨을 검증한다.
+     *
+     * <p>updateSlip 의 {@code tagChangedBatch || req.unloadDate() != null} 조건 검증 대상.
+     */
+    @Test
+    void 시나리오B_v20_projectName만수정_override_unloadDate_유지() throws Exception {
+        // (1) 지방(REGION) 전표 생성
+        LocalDate slipDate = FIXED_WEDNESDAY; // 2027-03-10 (수요일)
+        MvcResult created = 전표_생성("REGION", slipDate, null);
+        JsonNode initialData = responseData(created);
+        String slipId = initialData.get("id").asText();
+
+        // (2) 사용자 override — slipDate+5일로 unloadDate 지정
+        LocalDate overrideUnloadDate = slipDate.plusDays(5); // 2027-03-15 (월요일)
+        Map<String, Object> overrideBody = new HashMap<>();
+        overrideBody.put("unloadDate", overrideUnloadDate.toString());
+
+        mockMvc.perform(
+                        patch("/slips/" + slipId + "/header")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-User-Role", "SALES")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(overrideBody)))
+                .andExpect(status().isOk());
+
+        // (3) v20 — projectName 만 수정 (deliveryTag=null, unloadDate=null)
+        Map<String, Object> v20Body = new HashMap<>();
+        v20Body.put("projectName", "테스트 프로젝트");
+
+        MvcResult v20Result = 전표_v20_수정(slipId, v20Body);
+
+        JsonNode v20Data = responseData(v20Result);
+        // override unloadDate 가 재계산 없이 그대로 유지돼야 함
+        Assertions.assertThat(v20Data.get("unloadDate").asText())
+                .as("v20 projectName만 수정 시 override unloadDate 유지")
+                .isEqualTo(overrideUnloadDate.toString());
+        String expectedLabel = slipDate.getDayOfMonth() + "상" + overrideUnloadDate.getDayOfMonth() + "하";
+        Assertions.assertThat(v20Data.get("deliveryScheduleLabel").asText())
+                .as("v20 projectName만 수정 시 label 도 override 기준 유지")
+                .isEqualTo(expectedLabel);
+    }
+
+    // -------------------------------------------------------------------------
+    // 시나리오 C: 태그 변경(지방→야적) 시 재계산 — override 아닌 경우
+    // -------------------------------------------------------------------------
+
+    /**
+     * 시나리오 C: 지방 전표 생성 → editHeader 로 태그를 야적(STACK)으로 변경 →
+     * 야적 규칙으로 unloadDate 가 재계산됨을 검증한다.
+     *
+     * <p>fix 는 "태그 미변경 + unloadDate 미전달" 케이스만 재계산을 억제한다.
+     * 태그가 실제로 바뀔 때(tagChanged = true)는 반드시 재계산이 일어나야 한다.
+     * 토요일 기준: 지방 규칙 → 월요일(일요일 skip), 야적 규칙 → 일요일 유지.
+     */
+    @Test
+    void 시나리오C_지방전표_야적으로_태그변경_재계산() throws Exception {
+        // (1) 지방(REGION), 토요일 생성 → unloadDate = 월요일(2027-03-15, 일요일 skip)
+        LocalDate slipDate = FIXED_SATURDAY; // 2027-03-13 (토요일)
+        MvcResult created = 전표_생성("REGION", slipDate, null);
+        JsonNode initialData = responseData(created);
+        String slipId = initialData.get("id").asText();
+        LocalDate regionUnloadDate = slipDate.plusDays(2); // 2027-03-15 (월요일)
+        Assertions.assertThat(initialData.get("unloadDate").asText())
+                .isEqualTo(regionUnloadDate.toString());
+
+        // (2) editHeader — 태그를 STACK(야적) 으로 변경, unloadDate 미전달
+        Map<String, Object> tagChangeBody = new HashMap<>();
+        tagChangeBody.put("deliveryTag", "STACK");
+
+        MvcResult tagResult = mockMvc.perform(
+                        patch("/slips/" + slipId + "/header")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-User-Role", "SALES")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(tagChangeBody)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode tagData = responseData(tagResult);
+        // 야적 토요일 규칙: N = 일요일(2027-03-14) — 야적&&토 예외이므로 일요일 유지
+        LocalDate stackUnloadDate = slipDate.plusDays(1); // 2027-03-14 (일요일)
+        Assertions.assertThat(tagData.get("unloadDate").asText())
+                .as("태그 지방→야적 변경 시 야적 규칙으로 재계산")
+                .isEqualTo(stackUnloadDate.toString());
+        String expectedLabel = slipDate.getDayOfMonth() + "상" + stackUnloadDate.getDayOfMonth() + "하";
+        Assertions.assertThat(tagData.get("deliveryScheduleLabel").asText())
+                .as("재계산 후 야적 규칙 label")
+                .isEqualTo(expectedLabel);
+    }
+
+    // -------------------------------------------------------------------------
     // 헬퍼 메서드
     // -------------------------------------------------------------------------
 
@@ -316,6 +482,23 @@ class DeliveryScheduleIT extends AbstractPostgresIT {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
+                .andReturn();
+    }
+
+    /**
+     * PATCH /slips/{id}/v20 요청 헬퍼.
+     *
+     * @param slipId 전표 UUID 문자열
+     * @param body   요청 바디 맵 (null 필드는 전송하지 않음)
+     */
+    private MvcResult 전표_v20_수정(String slipId, Map<String, Object> body) throws Exception {
+        return mockMvc.perform(
+                        patch("/slips/" + slipId + "/v20")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-User-Role", "SALES")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
                 .andReturn();
     }
 
