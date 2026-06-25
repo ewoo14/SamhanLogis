@@ -20,6 +20,11 @@ const inputStyle: CSSProperties = {
   background: 'var(--surface-card)',
 }
 
+const SLIP_STATUS_LABEL: Record<SalesAccountingSlipStatus, string> = {
+  DRAFT: '임시저장',
+  POSTED: '전기완료',
+}
+
 export function SalesAccountingSlipPage() {
   usePageTitle('매출전표')
   const navigate = useNavigate()
@@ -58,7 +63,9 @@ export function SalesAccountingSlipPage() {
         width: '90px',
         mobilePriority: 'secondary',
         render: (row) => (
-          <Badge variant={row.status === 'POSTED' ? 'success' : 'danger'}>{row.status}</Badge>
+          <Badge variant={row.status === 'POSTED' ? 'success' : 'danger'}>
+            {SLIP_STATUS_LABEL[row.status] ?? row.status}
+          </Badge>
         ),
       },
       {

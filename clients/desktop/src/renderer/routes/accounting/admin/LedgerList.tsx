@@ -88,7 +88,7 @@ export function LedgerList({
         mobilePriority: 'primary',
         render: (row) => <PlainText value={row.transactionDate} />,
       },
-      { key: 'transactionRef', header: '거래참조', width: '160px', mobilePriority: 'hidden' },
+      { key: 'transactionRef', header: '거래참조', width: '160px', mobilePriority: 'secondary' },
       {
         key: 'transactionType',
         header: '거래유형',

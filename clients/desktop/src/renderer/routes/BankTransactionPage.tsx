@@ -234,8 +234,8 @@ export function BankTransactionPage() {
       key: 'counterpartyName',
       header: '상대',
       width: '160px',
-      mobilePriority: 'hidden',
-      render: (row) => row.counterpartyName || '-',
+      mobilePriority: 'secondary',
+      render: (row) => row.counterpartyName || '—',
     },
     {
       key: 'matchedPartnerCode',
@@ -317,7 +317,7 @@ export function BankTransactionPage() {
       key: 'matchStatus',
       header: '매칭상태',
       width: '100px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) => (
         <span style={statusStyle(row.matchStatus)}>
           {BANK_MATCH_STATUS_LABEL[row.matchStatus]}

@@ -220,7 +220,7 @@ export function CollectionPlanPage() {
       key: 'status',
       header: '상태',
       width: '100px',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (row) => <span style={statusStyle(row.status)}>{PLAN_STATUS_LABEL[row.status]}</span>,
     },
     {
