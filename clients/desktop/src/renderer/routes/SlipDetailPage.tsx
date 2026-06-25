@@ -23,7 +23,7 @@
  * UUID 비공개 가드: id 는 path param 으로만 사용. 화면 표시 영역에는 노출 X.
  * dispatcher.userId / inspector.userId 도 화면 미노출 (이름만 표시).
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   useMutation,
@@ -101,6 +101,86 @@ function memoWithoutTagPrefix(
     }
   }
   return memo
+}
+
+function isEmptyDetailValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true
+  if (typeof value !== 'string') return false
+  const trimmed = value.trim()
+  return trimmed === '' || trimmed === '-' || trimmed === '—'
+}
+
+function DetailGridItem({
+  value,
+  testId,
+  children,
+}: {
+  value: unknown
+  testId?: string
+  children: ReactNode
+}) {
+  return (
+    <div
+      className={isEmptyDetailValue(value) ? 'detail-grid-item-empty' : undefined}
+      data-testid={testId}
+    >
+      {children}
+    </div>
+  )
+}
+
+function MobileCollapsible({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= 768 : false,
+  )
+  const [open, setOpen] = useState(defaultOpen)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  if (!isMobile) return <>{children}</>
+
+  return (
+    <div className="mobile-section-accordion">
+      <button
+        type="button"
+        className="mobile-section-summary"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {title}
+      </button>
+      {open ? <div className="mobile-section-body">{children}</div> : null}
+    </div>
+  )
+}
+
+type SlipLine = SlipDetail['lines'][number]
+
+function slipLineAmounts(line: SlipLine) {
+  const supply = line.supplyAmount != null ? Number(line.supplyAmount) : Number(line.lineTotal)
+  const vat = line.vatAmount != null ? Number(line.vatAmount) : Math.round(supply * 0.1)
+  const unitWithVat = line.unitPriceWithVat != null
+    ? Number(line.unitPriceWithVat)
+    : Number(line.unitPrice)
+  return {
+    supply,
+    vat,
+    totalIncl: supply + vat,
+    unitWithVat,
+  }
 }
 
 export interface SlipDetailPageProps {
@@ -1036,7 +1116,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             수정 {revisionCount}회
           </span>
         </div>
-        <div className="detail-action-bar" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="detail-action-bar">
           {/* PR-H2: 복원 dropdown — revertCandidates 가 있을 때만 표시 */}
           {revertCandidates.length > 0 ? (
             <select
@@ -1070,7 +1150,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             </select>
           ) : null}
           {isOutbound ? (
-            <>
+            <div className="detail-print-actions">
               {/* SP-08-6-4: 거래명세서 출력 — /sales/:id/print/statement */}
               <Button
                 variant="secondary"
@@ -1096,9 +1176,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               >
                 판매전표 출력
               </Button>
-            </>
+            </div>
           ) : (
             // SP-08-5-5: 매입 전표 인쇄 버튼 (INBOUND — 모든 조회 가능 권한)
+            <div className="detail-print-actions">
             <Button
               variant="secondary"
               size="sm"
@@ -1107,6 +1188,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             >
               매입 전표 인쇄
             </Button>
+            </div>
           )}
           {canDirectEditSales ? (
             <Button
@@ -1398,16 +1480,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </div>
       </Card>
 
-      <SlipCollaborationPanel
-        slipId={id}
-        currentValues={collabEditValues}
-        editMode={collabEditMode}
-        onEditModeChange={setCollabEditMode}
-        onCommitted={() => {
-          void queryClient.invalidateQueries({ queryKey: ['slip', id] })
-          void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
-        }}
-      />
+      <MobileCollapsible title="작업 · 버전 이력">
+        <SlipCollaborationPanel
+          slipId={id}
+          currentValues={collabEditValues}
+          editMode={collabEditMode}
+          onEditModeChange={setCollabEditMode}
+          onCommitted={() => {
+            void queryClient.invalidateQueries({ queryKey: ['slip', id] })
+            void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
+          }}
+        />
+      </MobileCollapsible>
 
       {/*
         V20 신규 필드 표시 카드 — 배송주소 / 감리주소 / 프로젝트명 / 인수자 번호 / 입금예정일
@@ -1416,37 +1500,39 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       */}
       <Card padding={4} shadow="sm" style={{ marginTop: 16 }}>
         <h4 style={{ marginTop: 0 }}>배송 · 정산 정보 (V20)</h4>
+        <MobileCollapsible title="배송 · 정산 정보">
+        <div className="detail-section-title mobile-only">배송 · 정산 정보</div>
         <div className="detail-grid">
-          <div data-testid="slip-detail-delivery-address">
+          <DetailGridItem value={slip.deliveryAddress} testId="slip-detail-delivery-address">
             <span className="detail-label">배송주소</span>
             <span className="detail-value">{slip.deliveryAddress ?? '—'}</span>
-          </div>
-          <div data-testid="slip-detail-supervision-address">
+          </DetailGridItem>
+          <DetailGridItem value={slip.supervisionAddress} testId="slip-detail-supervision-address">
             <span className="detail-label">감리주소</span>
             <span className="detail-value">{slip.supervisionAddress ?? '—'}</span>
-          </div>
-          <div data-testid="slip-detail-project-name">
+          </DetailGridItem>
+          <DetailGridItem value={slip.projectName} testId="slip-detail-project-name">
             <span className="detail-label">프로젝트명</span>
             <span className="detail-value">{slip.projectName ?? '—'}</span>
-          </div>
-          <div data-testid="slip-detail-recipient-phone">
+          </DetailGridItem>
+          <DetailGridItem value={slip.recipientPhone} testId="slip-detail-recipient-phone">
             <span className="detail-label">인수자 번호</span>
             <span className="detail-value">{slip.recipientPhone ?? '—'}</span>
-          </div>
-          <div data-testid="slip-detail-payment-due-date">
+          </DetailGridItem>
+          <DetailGridItem value={slip.paymentDueDate} testId="slip-detail-payment-due-date">
             <span className="detail-label">입금예정일</span>
             <span className="detail-value">{slip.paymentDueDate ?? '—'}</span>
-          </div>
-          <div data-testid="slip-detail-business-number">
+          </DetailGridItem>
+          <DetailGridItem value={slip.businessNumber} testId="slip-detail-business-number">
             <span className="detail-label">사업자번호</span>
             <span className="detail-value">{slip.businessNumber ?? '—'}</span>
-          </div>
-          <div data-testid="slip-detail-printed">
+          </DetailGridItem>
+          <DetailGridItem value={slip.printed == null ? null : slip.printed} testId="slip-detail-printed">
             <span className="detail-label">인쇄 여부</span>
             <span className="detail-value">
               {slip.printed == null ? '—' : slip.printed ? '인쇄됨' : '미인쇄'}
             </span>
-          </div>
+          </DetailGridItem>
           {mode === 'INBOUND' ? (
             <div data-testid="slip-detail-inspection-status">
               <span className="detail-label">검수 상태</span>
@@ -1458,6 +1544,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             </div>
           ) : null}
         </div>
+        </MobileCollapsible>
       </Card>
 
       {/*
@@ -1467,6 +1554,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       */}
       {isOutbound ? (
         <Card padding={4} shadow="sm" style={{ marginTop: 16 }}>
+          <MobileCollapsible title="기사 정보">
           <div
             style={{
               display: 'flex',
@@ -1538,14 +1626,14 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             </div>
           ) : (
             <div className="detail-grid">
-              <div>
+              <DetailGridItem value={slip.driverName}>
                 <span className="detail-label">기사명</span>
                 <span className="detail-value">{slip.driverName ?? '-'}</span>
-              </div>
-              <div>
+              </DetailGridItem>
+              <DetailGridItem value={slip.driverPhone}>
                 <span className="detail-label">기사 연락처</span>
                 <span className="detail-value">{slip.driverPhone ?? '-'}</span>
-              </div>
+              </DetailGridItem>
             </div>
           )}
           {driverMutation.isError ? (
@@ -1553,10 +1641,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               기사 정보 저장에 실패했습니다.
             </div>
           ) : null}
+          </MobileCollapsible>
         </Card>
       ) : null}
 
-      <h4 style={{ marginTop: 24 }}>전표 라인</h4>
+      <h4 className="detail-section-title" style={{ marginTop: 24 }}>전표 라인</h4>
 
       {/*
         Phase 2.6d: 재고조회 툴바 — 체크박스 다중선택 + "선택 품목 재고조회" 버튼.
@@ -1644,7 +1733,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </p>
       )}
 
-      <div className="slip-line-table-scroll">
+      <div className="slip-line-table-scroll desktop-only">
       <table className="slip-line-table">
         <thead>
           <tr>
@@ -1729,6 +1818,79 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           )}
         </tbody>
       </table>
+      </div>
+
+      <div className="mobile-only slip-line-cards">
+        {slip.lines.length === 0 ? (
+          <div className="slip-line-card">
+            <div className="slip-line-card-body">
+              <div className="slip-line-card-row">
+                <span>라인</span>
+                <span>라인이 없습니다.</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          slip.lines.map((l, idx) => {
+            const selected = selectedLineId === l.id
+            const checked = checkedLineIds.has(l.id)
+            const { supply, vat, totalIncl, unitWithVat } = slipLineAmounts(l)
+            return (
+              <div key={l.id} className={`slip-line-card${selected ? ' is-selected' : ''}`}>
+                <div className="slip-line-card-header">
+                  <button
+                    type="button"
+                    className="slip-line-card-no"
+                    aria-pressed={selected}
+                    aria-label={`라인 ${idx + 1} 선택`}
+                    onClick={() => setSelectedLineId(selected ? null : l.id)}
+                  >
+                    #{idx + 1}
+                  </button>
+                  <span className="slip-line-card-title">
+                    {l.modelName ?? l.productName ?? '-'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    aria-label={`${l.modelName ?? `라인 ${idx + 1}`} 재고조회 선택`}
+                    checked={checked}
+                    onChange={() => handleLineCheckToggle(l.id)}
+                  />
+                </div>
+                <div className="slip-line-card-body">
+                  <div className="slip-line-card-row">
+                    <span>품목명</span>
+                    <span>{l.productName ?? '-'}</span>
+                  </div>
+                  <div className="slip-line-card-row">
+                    <span>규격</span>
+                    <span>{l.specification ?? '-'}</span>
+                  </div>
+                  <div className="slip-line-card-row">
+                    <span>수량</span>
+                    <span>{l.quantity.toLocaleString()}</span>
+                  </div>
+                  <div className="slip-line-card-row">
+                    <span>단가(VAT포함)</span>
+                    <span>{unitWithVat.toLocaleString()}</span>
+                  </div>
+                  <div className="slip-line-card-row">
+                    <span>공급가액</span>
+                    <span>{supply.toLocaleString()}</span>
+                  </div>
+                  <div className="slip-line-card-row">
+                    <span>부가세</span>
+                    <span>{vat.toLocaleString()}</span>
+                  </div>
+                  <div className="slip-line-card-row slip-line-card-row--total">
+                    <span>합계(VAT포함)</span>
+                    <span>{totalIncl.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
 
       {/* Phase 2.6d: 재고조회 모달 */}
@@ -1920,6 +2082,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       */}
       {possibleActions.includes('reject') ? (
         <Card padding={4} shadow="sm" style={{ marginTop: 24 }}>
+          <MobileCollapsible title="반려 사유">
           <h4 style={{ marginTop: 0 }}>반려 사유</h4>
           <input
             type="text"
@@ -1946,6 +2109,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               {!canAccess('slip.reject', 'update') ? ' (권한 부족)' : ''}
             </Button>
           </div>
+          </MobileCollapsible>
         </Card>
       ) : null}
 
