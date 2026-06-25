@@ -340,7 +340,7 @@ function buildListColumns(
       header: '상세',
       width: '70px',
       align: 'center',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) => (
         <Button
           variant="ghost"
@@ -518,6 +518,7 @@ export function DispatchSmsSendAuditPage() {
           loading={listQuery.isFetching}
           emptyMessage="발송 이력이 없습니다. 날짜 범위를 확인하세요."
           data-testid="sms-audit-table"
+          onRowClick={(row) => handleDetailClick(row.id)}
         />
       </Card>
 

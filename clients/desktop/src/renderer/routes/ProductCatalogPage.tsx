@@ -152,19 +152,19 @@ export function ProductCatalogPage() {
 
   const columns: DataTableColumn<ProductCatalogRow>[] = [
     {
-      key: 'name',
-      header: '품목명',
-      width: '220px',
-      mobilePriority: 'primary',
-    },
-    {
       key: 'modelCode',
       header: '모델명',
       width: '160px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'primary',
       render: (row) => (
         <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{row.modelCode}</span>
       ),
+    },
+    {
+      key: 'name',
+      header: '품목명',
+      width: '220px',
+      mobilePriority: 'secondary',
     },
     {
       key: 'estimateCategory',
@@ -200,7 +200,7 @@ export function ProductCatalogPage() {
       key: '_actions' as const,
       header: '관리',
       width: '80px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) =>
         canEdit ? (
           <Button

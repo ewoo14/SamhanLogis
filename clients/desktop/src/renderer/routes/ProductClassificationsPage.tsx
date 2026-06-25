@@ -284,7 +284,7 @@ export function ProductClassificationsPage() {
       key: '_actions' as const,
       header: '관리',
       width: '110px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) => {
         if (!canEdit) return null
         const index = selectedChildren.findIndex((item) => item.id === row.id)

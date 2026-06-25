@@ -125,7 +125,7 @@ export function LinkDispatchListPage() {
         key: 'smsSentAt',
         header: 'SMS 발송완료',
         width: '160px',
-        mobilePriority: 'secondary',
+        mobilePriority: 'hidden',
         render: (row) => (
           <BatchStatusCell
             smsSentAt={row.smsSentAt}

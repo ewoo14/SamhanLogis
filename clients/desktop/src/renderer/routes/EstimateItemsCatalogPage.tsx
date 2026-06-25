@@ -70,6 +70,7 @@ import {
   type Classification,
 } from '../api/classificationApi'
 import { searchProducts as searchProductsApi } from '../api/productApi'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { usePermissions } from '../hooks/usePermissions'
 import { usePageTitleStore } from '../stores/pageTitle'
 import {
@@ -1124,6 +1125,7 @@ function SortableRow({ row, columns }: SortableRowProps) {
 
 export function EstimateItemsCatalogPage() {
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
+  const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canEdit = canAccess('products.admin', 'update')
@@ -1150,7 +1152,7 @@ export function EstimateItemsCatalogPage() {
   const [classificationModalTarget, setClassificationModalTarget] = useState<ProductCatalogRow | null>(null)
 
   const hasCommittedSearch = committedSearch.trim().length > 0
-  const isDragEnabled = canEdit && !hasCommittedSearch
+  const isDragEnabled = canEdit && !hasCommittedSearch && !isMobile
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1549,7 +1551,7 @@ export function EstimateItemsCatalogPage() {
       key: 'usageScope',
       header: '노출 설정',
       width: '190px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) => (
         <ToggleCell
           row={row}
