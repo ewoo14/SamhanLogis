@@ -157,6 +157,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       key: 'slipNo',
       header: '전표번호',
       width: '180px',
+      mobilePriority: 'primary',
       render: (row) => (
         <SlipNumberDisplay
           slipDate={row.slipDate}
@@ -169,6 +170,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       key: 'slipType',
       header: '구분',
       width: '90px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <Badge variant={row.slipType === 'OUTBOUND' ? 'brand' : 'success'}>
           {row.slipType === 'OUTBOUND' ? '출고' : '입고'}
@@ -179,13 +181,15 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       key: 'status',
       header: '상태',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) => <SlipStatusBadge status={row.status} />,
     },
-    { key: 'partnerName', header: '거래처' },
+    { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
     {
       key: 'deliveryTag',
       header: '배송태그',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (row) => {
         if (!row.deliveryTag) return null
         const label = DELIVERY_TAG_LABEL_MAP[row.deliveryTag] ?? row.deliveryTag
@@ -199,6 +203,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
             key: 'id',
             header: '',
             width: '80px',
+            mobilePriority: 'secondary',
             render: (row) =>
               INSPECTABLE_STATUSES.includes(row.status) ? (
                 <Button

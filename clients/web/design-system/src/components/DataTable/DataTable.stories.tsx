@@ -62,6 +62,30 @@ const productColumns: DataTableColumn<ProductRow>[] = [
   },
 ]
 
+const mobilePriorityColumns: DataTableColumn<ProductRow>[] = [
+  { key: 'id', header: 'ID', width: '90px', mobilePriority: 'hidden' },
+  { key: 'name', header: '제품명', mobilePriority: 'primary' },
+  { key: 'modelName', header: '모델명', width: '160px', mobilePriority: 'secondary' },
+  {
+    key: 'sellingPrice',
+    header: '판매가',
+    align: 'right',
+    width: '140px',
+    mobilePriority: 'secondary',
+    render: (row) => `₩${row.sellingPrice.toLocaleString('ko-KR')}`,
+  },
+  {
+    key: 'status',
+    header: '상태',
+    align: 'center',
+    width: '120px',
+    mobilePriority: 'secondary',
+    render: (row) => (
+      <Badge variant={statusVariant[row.status]}>{row.status}</Badge>
+    ),
+  },
+]
+
 const meta: Meta<typeof DataTable<ProductRow>> = {
   title: 'Components/DataTable',
   component: DataTable<ProductRow>,
@@ -86,6 +110,18 @@ export const WithProducts: Story = {
   render: () => (
     <DataTable<ProductRow>
       columns={productColumns}
+      rows={productRows}
+      rowKey={(r) => r.id}
+      onRowClick={(r) => alert(`clicked: ${r.id}`)}
+    />
+  ),
+}
+
+export const MobilePriorityCards: Story = {
+  name: '모바일 카드 우선순위',
+  render: () => (
+    <DataTable<ProductRow>
+      columns={mobilePriorityColumns}
       rows={productRows}
       rowKey={(r) => r.id}
       onRowClick={(r) => alert(`clicked: ${r.id}`)}

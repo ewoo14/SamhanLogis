@@ -123,27 +123,30 @@ export function PartnersPage() {
   }
 
   const columns: DataTableColumn<PartnerSummary>[] = [
-    { key: 'partnerCode', header: '거래처 코드', width: '140px' },
+    { key: 'partnerCode', header: '거래처 코드', width: '140px', mobilePriority: 'secondary' },
     {
       key: 'name',
       header: '상호',
+      mobilePriority: 'primary',
       render: (p) => (
         <span data-testid={`admin-partners-row-${p.partnerCode}`}>
           {p.name}
         </span>
       ),
     },
-    { key: 'bizNo', header: '사업자번호', width: '140px' },
+    { key: 'bizNo', header: '사업자번호', width: '140px', mobilePriority: 'hidden' },
     {
       key: 'phone',
       header: '전화',
       width: '140px',
+      mobilePriority: 'hidden',
       render: (p) => p.phone ?? '—',
     },
     {
       key: 'status',
       header: '상태',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (p) => (
         <Badge variant={STATUS_VARIANT[p.status]}>
           {PARTNER_STATUS_LABEL[p.status]}
@@ -155,6 +158,7 @@ export function PartnersPage() {
       header: '신용한도',
       width: '140px',
       align: 'right',
+      mobilePriority: 'hidden',
       render: (p) => formatKrw(p.creditLimit),
     },
     {
@@ -162,6 +166,7 @@ export function PartnersPage() {
       header: '미수금',
       width: '140px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (p) => formatKrw(p.outstandingBalance),
     },
   ]

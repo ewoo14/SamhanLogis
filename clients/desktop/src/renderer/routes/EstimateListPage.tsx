@@ -92,6 +92,7 @@ export function EstimateListPage() {
       key: 'estimateNo',
       header: '견적번호',
       width: '180px',
+      mobilePriority: 'primary',
       render: (row) => (
         <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
           {row.estimateNo}
@@ -102,6 +103,7 @@ export function EstimateListPage() {
       key: 'partnerBusinessNo',
       header: '거래처 코드',
       width: '140px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {row.partnerBusinessNo ? row.partnerBusinessNo.replace(/\D/g, '') : '—'}
@@ -111,17 +113,20 @@ export function EstimateListPage() {
     {
       key: 'partnerName',
       header: '거래처',
+      mobilePriority: 'secondary',
       render: (row) => row.partnerName,
     },
     {
       key: 'estimateDate',
       header: '작성일',
       width: '110px',
+      mobilePriority: 'hidden',
     },
     {
       key: 'validUntil',
       header: '유효기간',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) =>
         row.validUntil ? (
           <span>{row.validUntil}</span>
@@ -134,6 +139,7 @@ export function EstimateListPage() {
       header: '합계',
       width: '160px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (row) => (
         <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
           {fmtKrw(row.totalAmount)}
@@ -144,6 +150,7 @@ export function EstimateListPage() {
       key: 'status',
       header: '상태',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <Badge variant={STATUS_VARIANT[row.status]}>
           {ESTIMATE_STATUS_LABEL[row.status]}

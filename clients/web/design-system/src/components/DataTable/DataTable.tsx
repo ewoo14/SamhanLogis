@@ -14,6 +14,7 @@ export interface DataTableColumn<T> {
   align?: 'left' | 'right' | 'center'
   /** 헤더(th) 정렬 — 미지정 시 {@link align} 따름. 본문은 우측/가운데인데 헤더만 가운데일 때 사용. */
   headerAlign?: 'left' | 'right' | 'center'
+  mobilePriority?: 'primary' | 'secondary' | 'hidden'
 }
 
 export interface DataTableProps<T> {
@@ -169,6 +170,7 @@ export function DataTable<T>({
                           key={String(col.key)}
                           className={tdClasses}
                           data-label={col.header}
+                          data-mobile-priority={col.mobilePriority ?? undefined}
                         >
                           {col.render ? col.render(row) : defaultCell(row, col.key)}
                         </td>

@@ -202,6 +202,85 @@
     text-align: right;
   }
 
+  .tr:has(td[data-mobile-priority]) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding: 14px 16px;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="primary"] {
+    grid-column: 1 / -1;
+    order: -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    padding: 0 0 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--color-neutral-100, #f3f4f6);
+    color: var(--color-neutral-800, #1f2937);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: left;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="primary"]::before {
+    content: none;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="primary"] > * {
+    color: var(--color-neutral-800, #1f2937);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 6px 4px;
+    border: none;
+    overflow: hidden;
+    color: var(--color-neutral-700, #374151);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    color: var(--color-neutral-400, #9ca3af);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-align: left;
+    text-transform: none;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"] > * {
+    min-width: 0;
+    color: var(--color-neutral-700, #374151);
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="hidden"] {
+    display: none;
+  }
+
+  .tr:has(td[data-mobile-priority]).clickable:active {
+    background-color: var(--color-brand-50, #eff6ff);
+  }
+
   .emptyRow,
   .emptyCell {
     display: block;
