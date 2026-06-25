@@ -91,7 +91,7 @@ export function InboundInspectionListPage() {
     {
       key: 'partnerName',
       header: '거래처',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (row) => row.partnerName ?? '—',
     },
     {
@@ -123,7 +123,7 @@ export function InboundInspectionListPage() {
       key: 'slipId',
       header: '',
       width: '80px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) =>
         row.status !== 'COMPLETED' ? (
           <Button

@@ -9,6 +9,8 @@ const PAGES = [
   { label: 'journal-list', path: '/accounting/journals' },
   { label: 'inventory-audit-list', path: '/warehouse/audit' },
   { label: 'groupware-approval-list', path: '/groupware/approvals' },
+  { label: 'inbound-inspection-list', path: '/warehouse/inbound-inspections' },
+  { label: 'order-list', path: '/accounting/admin/orders' },
 ]
 async function launch() { try { return await chromium.launch({ headless: true }) } catch { return await chromium.launch({ headless: true, channel: 'chromium-headless-shell' }) } }
 ;(async () => {
