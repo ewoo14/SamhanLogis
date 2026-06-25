@@ -186,6 +186,7 @@ button {
     overflow-y: auto;
     box-shadow: var(--shadow-lg, 0 0 24px rgba(0, 0, 0, 0.2));
     padding-top: max(var(--space-4), env(safe-area-inset-top));
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
   }
 
   .app-sidebar.is-open {

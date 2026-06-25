@@ -347,19 +347,45 @@ export function AppLayout() {
     if (!drawerOpen) return
 
     const previousOverflow = document.body.style.overflow
+    const focusableSelector = 'a[href], button:not([disabled]), input, [tabindex]:not([tabindex="-1"])'
+    const getDrawerFocusableElements = () =>
+      Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setDrawerOpen(false)
+        return
+      }
+
+      if (e.key !== 'Tab' || window.innerWidth > 768) {
+        return
+      }
+
+      const focusableElements = getDrawerFocusableElements()
+      if (focusableElements.length === 0) {
+        return
+      }
+
+      const firstFocusable = focusableElements[0]!
+      const lastFocusable = focusableElements[focusableElements.length - 1]!
+      const activeElement = document.activeElement
+
+      if (e.shiftKey && activeElement === firstFocusable) {
+        e.preventDefault()
+        lastFocusable.focus()
+        return
+      }
+
+      if (!e.shiftKey && activeElement === lastFocusable) {
+        e.preventDefault()
+        firstFocusable.focus()
       }
     }
 
     document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', handler)
 
-    const focusable = drawerRef.current?.querySelector<HTMLElement>(
-      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )
-    focusable?.focus()
+    getDrawerFocusableElements()[0]?.focus()
 
     return () => {
       document.body.style.overflow = previousOverflow
@@ -548,8 +574,9 @@ export function AppLayout() {
         className={`app-sidebar no-print${drawerOpen ? ' is-open' : ''}`}
         role={drawerOpen ? 'dialog' : undefined}
         aria-modal={drawerOpen ? 'true' : undefined}
+        aria-labelledby={drawerOpen ? 'app-drawer-title' : undefined}
       >
-        <h1>Samhan Public</h1>
+        <h1 id="app-drawer-title">Samhan Public</h1>
         <nav
           onClick={(e) => {
             if ((e.target as HTMLElement).closest('a')) {

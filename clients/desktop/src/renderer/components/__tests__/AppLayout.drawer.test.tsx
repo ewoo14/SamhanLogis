@@ -82,6 +82,18 @@ describe('AppLayout mobile drawer', () => {
     expect(document.body.style.overflow).toBe('hidden')
   })
 
+  test('Drawer dialog has an accessible name while open', () => {
+    renderApp()
+
+    fireEvent.click(screen.getByTestId('app-drawer-toggle'))
+
+    const drawer = getDrawer()
+    const title = document.getElementById('app-drawer-title')
+
+    expect(drawer.getAttribute('aria-labelledby')).toBe('app-drawer-title')
+    expect(title?.textContent).toBe('Samhan Public')
+  })
+
   test('라우트 변경 시 Drawer 가 자동으로 닫힌다', async () => {
     renderApp()
 
