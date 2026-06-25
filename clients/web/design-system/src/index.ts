@@ -68,6 +68,8 @@ export * from './components/UrgencyBadge'
 export * from './components/ExcelDownloadButton'
 // supplier-profile + datagrid 슬라이스 신규 — Excel-like DataGrid (열헤더 필터 + 다중 셀 선택 + 복사/붙여넣기)
 export * from './components/DataGrid'
+// mobile-s4b 슬라이스 신규 — 반응형 폼 그리드(데스크탑 N열/≤768px 1열)
+export * from './components/FormGrid'
 // AC-1 슬라이스 신규 — 창고 자동완성 typeahead (AccountCodeSelect 패턴 이식)
 export * from './components/WarehouseAutocomplete'
 // AC-2 슬라이스 신규 — 품목 서버검색 자동완성 (async debounced, stale 방지)

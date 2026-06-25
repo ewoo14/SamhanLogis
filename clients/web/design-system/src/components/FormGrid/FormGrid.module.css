@@ -1,0 +1,16 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(var(--fg-cols, 2), minmax(0, 1fr));
+  gap: var(--space-4) var(--space-3);
+  width: 100%;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
