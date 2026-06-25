@@ -295,6 +295,8 @@ export function JournalDetailPage() {
             gap: 8,
             fontSize: 14,
             fontVariantNumeric: 'tabular-nums',
+            maxWidth: '100%',
+            overflowX: 'auto',
           }}
         >
           <div />

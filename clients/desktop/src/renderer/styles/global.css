@@ -736,6 +736,17 @@ button {
   border: 1px solid var(--color-neutral-200);
   border-radius: var(--radius-md);
 }
+
+@media (max-width: 768px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .batch-detail-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
 .batch-detail-url-row {
   display: flex;
   align-items: center;

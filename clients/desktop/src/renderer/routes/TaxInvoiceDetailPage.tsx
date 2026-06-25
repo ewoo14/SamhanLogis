@@ -608,6 +608,8 @@ export function TaxInvoiceDetailPage() {
             gap: 16,
             fontSize: 14,
             fontVariantNumeric: 'tabular-nums',
+            maxWidth: '100%',
+            overflowX: 'auto',
           }}
           data-testid="tax-invoice-detail-totals"
         >

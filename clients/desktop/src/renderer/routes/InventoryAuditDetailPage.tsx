@@ -40,6 +40,7 @@ import {
   Card,
   DataTable,
   FormField,
+  FormGrid,
   type AuditLogEntry,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -317,15 +318,8 @@ interface DetailGridProps {
 
 function DetailGrid({ audit, auditByField }: DetailGridProps) {
   return (
-    <dl
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '120px 1fr 120px 1fr',
-        gap: 8,
-        margin: 0,
-        fontSize: 13,
-      }}
-    >
+    <dl style={{ margin: 0, fontSize: 13 }}>
+      <FormGrid columns={4} gap="8px">
       <dt style={dtStyle}>창고</dt>
       <dd style={ddStyle}>
         {audit.warehouseCode} · {audit.warehouseName}
@@ -356,6 +350,7 @@ function DetailGrid({ audit, auditByField }: DetailGridProps) {
           ? audit.cancelledAt.replace('T', ' ').slice(0, 19)
           : '—'}
       </dd>
+      </FormGrid>
     </dl>
   )
 }
@@ -425,6 +420,8 @@ function BarcodeInput({ audit, onRecorded }: BarcodeInputProps) {
           gridTemplateColumns: '1fr 160px auto auto',
           gap: 8,
           alignItems: 'end',
+          maxWidth: '100%',
+          overflowX: 'auto',
         }}
       >
         <FormField

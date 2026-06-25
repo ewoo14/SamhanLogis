@@ -522,6 +522,8 @@ export function EstimateDetailPage() {
             gap: 16,
             fontSize: 14,
             fontVariantNumeric: 'tabular-nums',
+            maxWidth: '100%',
+            overflowX: 'auto',
           }}
           data-testid="estimate-detail-totals"
         >
