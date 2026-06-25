@@ -292,10 +292,15 @@ export function AppLayout() {
   const logout = useSessionStore((s) => s.logout)
   const title = usePageTitleStore((s) => s.title)
   const meta = usePageTitleStore((s) => s.meta)
+  const location = useLocation()
   const navigate = useNavigate()
 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement | null>(null)
+  const drawerRef = useRef<HTMLElement | null>(null)
+  const drawerToggleRef = useRef<HTMLButtonElement | null>(null)
+  const wasDrawerOpenRef = useRef(false)
 
   // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 5분 캐시. 사이드바 메뉴 hidden 연동.
   const { canAccess: dynamicCanAccess } = usePermissions()
@@ -322,6 +327,52 @@ export function AppLayout() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [userMenuOpen])
+
+  useEffect(() => {
+    setDrawerOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    const handler = () => {
+      if (window.innerWidth > 768) {
+        setDrawerOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!drawerOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDrawerOpen(false)
+      }
+    }
+
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', handler)
+
+    const focusable = drawerRef.current?.querySelector<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    focusable?.focus()
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handler)
+    }
+  }, [drawerOpen])
+
+  useEffect(() => {
+    if (wasDrawerOpenRef.current && !drawerOpen) {
+      drawerToggleRef.current?.focus()
+    }
+    wasDrawerOpenRef.current = drawerOpen
+  }, [drawerOpen])
 
   const handleLogout = async () => {
     setUserMenuOpen(false)
@@ -491,7 +542,13 @@ export function AppLayout() {
 
   return (
     <div className="app-shell">
-      <aside className="app-sidebar no-print">
+      <aside
+        id="app-drawer"
+        ref={drawerRef}
+        className={`app-sidebar no-print${drawerOpen ? ' is-open' : ''}`}
+        role={drawerOpen ? 'dialog' : undefined}
+        aria-modal={drawerOpen ? 'true' : undefined}
+      >
         <h1>Samhan Public</h1>
         <nav>
           <NavLink to="/" end>
@@ -1429,12 +1486,32 @@ export function AppLayout() {
           v0.1.0 · 사내 전용
         </div>
       </aside>
+      <div
+        data-testid="app-drawer-backdrop"
+        className={`app-drawer-backdrop no-print${drawerOpen ? ' is-open' : ''}`}
+        onClick={() => setDrawerOpen(false)}
+        aria-hidden="true"
+      />
       <main className="app-main">
         <header className="app-header no-print">
-          <h2 data-testid="header-page-title">
-            {displayTitle}
-            {meta ? <span className="app-header-meta">[{meta}]</span> : null}
-          </h2>
+          <div className="app-header-title-row">
+            <button
+              type="button"
+              ref={drawerToggleRef}
+              data-testid="app-drawer-toggle"
+              className="app-drawer-toggle no-print"
+              aria-label="메뉴 열기"
+              aria-expanded={drawerOpen}
+              aria-controls="app-drawer"
+              onClick={() => setDrawerOpen(true)}
+            >
+              <span aria-hidden="true">≡</span>
+            </button>
+            <h2 data-testid="header-page-title">
+              {displayTitle}
+              {meta ? <span className="app-header-meta">[{meta}]</span> : null}
+            </h2>
+          </div>
           <div className="app-header-actions">
             <NotificationBellDropdown />
             <div
