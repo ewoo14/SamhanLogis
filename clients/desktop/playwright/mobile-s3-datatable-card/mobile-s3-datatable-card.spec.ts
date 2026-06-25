@@ -11,25 +11,31 @@ async function gotoUsers(page: Page): Promise<void> {
   })
 }
 
-test.describe('모바일 슬3 DataTable 카드 렌더링', () => {
-  test('390px 모바일에서는 행이 라벨-값 카드로 렌더되고 가로 overflow 가 없다', async ({ page }) => {
+test.describe('모바일 슬3 DataTable mobilePriority 카드 렌더링', () => {
+  test('390px 모바일에서는 행이 mobilePriority 카드로 렌더되고 가로 overflow 가 없다', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await gotoUsers(page)
 
     const table = page.getByTestId('admin-users-table').locator('table')
     const firstRow = table.locator('tbody tr').first()
     const firstCell = firstRow.locator('td').first()
+    const secondCell = firstRow.locator('td').nth(1)
 
     await expect(firstCell).toHaveAttribute('data-label', '로그인ID')
+    await expect(secondCell).toHaveAttribute('data-label', '이름')
 
     const rowDisplay = await firstRow.evaluate((el) => getComputedStyle(el).display)
     const cellDisplay = await firstCell.evaluate((el) => getComputedStyle(el).display)
-    const labelContent = await firstCell.evaluate((el) => getComputedStyle(el, '::before').content)
+    const primaryLabelContent = await firstCell.evaluate((el) => getComputedStyle(el, '::before').content)
+    const secondaryLabelContent = await secondCell.evaluate((el) => getComputedStyle(el, '::before').content)
+    const primaryText = (await firstCell.textContent())?.trim() ?? ''
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
 
-    expect(rowDisplay).toBe('block')
+    expect(rowDisplay).toBe('grid')
     expect(cellDisplay).toBe('flex')
-    expect(labelContent).toContain('로그인ID')
+    expect(primaryLabelContent).toBe('none')
+    expect(primaryText.length).toBeGreaterThan(0)
+    expect(secondaryLabelContent).toContain('이름')
     expect(overflow).toBeLessThanOrEqual(1)
   })
 
