@@ -211,7 +211,6 @@
 
   .tr:has(td[data-mobile-priority]) td[data-mobile-priority="primary"] {
     grid-column: 1 / -1;
-    order: -1;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -273,9 +272,6 @@
 
   .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"] > * {
     min-width: 0;
-    color: var(--color-neutral-700, #374151);
-    font-size: 13px;
-    font-weight: 500;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
     word-break: break-word;
