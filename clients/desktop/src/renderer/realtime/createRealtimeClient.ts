@@ -15,7 +15,7 @@
  * })
  */
 import { apiClient } from '../api/client'
-import { getAuthProvider } from '../auth/authProvider'
+import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
 
 /** SSE 1 이벤트의 파싱된 형태. */
 export interface RealtimeEvent {
@@ -120,7 +120,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
           method: 'GET',
           headers,
           signal: innerAbort.signal,
-          credentials: 'include',
+          credentials: isElectronPlatform ? 'omit' : 'include',
         })
 
         if (!res.ok || !res.body) {

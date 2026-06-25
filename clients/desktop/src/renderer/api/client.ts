@@ -16,6 +16,7 @@ import axios, {
 } from 'axios'
 import { getMockResponse, isMockMode } from './mock'
 import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
+import { useSessionStore } from '../stores/session'
 
 interface MockHttpResponse {
   __mockStatus: number
@@ -33,6 +34,11 @@ const BASE_URL =
   import.meta.env['VITE_API_BASE_URL'] ?? 'http://localhost:8080'
 
 const AUTH_ENDPOINT_401_HANDLED_BY_CALLER = /\/auth\/(me|login|logout)\/?$/
+
+function isAuthEndpoint401HandledByCaller(requestUrl: string): boolean {
+  return AUTH_ENDPOINT_401_HANDLED_BY_CALLER.test(requestUrl)
+    || requestUrl.includes('/auth/password-reset/')
+}
 
 /**
  * 앱 전역 단일 axios 인스턴스. 도메인별 API 모듈(auth/inventory/slip) 이
@@ -69,7 +75,7 @@ apiClient.interceptors.request.use(
       }
     }
     try {
-      config.withCredentials = true
+      config.withCredentials = !isElectronPlatform
       const headers = await getAuthProvider().getAuthHeaders()
       for (const [key, value] of Object.entries(headers)) {
         config.headers.set(key, value)
@@ -88,7 +94,7 @@ apiClient.interceptors.response.use(
     if (axios.isAxiosError(err) && err.response?.status === 401) {
       const requestUrl = err.config?.url ?? ''
       // 인증 프로브/인증 엔드포인트 401 은 호출자가 처리한다(부팅 리로드 루프 방지).
-      if (AUTH_ENDPOINT_401_HANDLED_BY_CALLER.test(requestUrl)) {
+      if (isAuthEndpoint401HandledByCaller(requestUrl)) {
         return Promise.reject(err)
       }
 
@@ -96,6 +102,8 @@ apiClient.interceptors.response.use(
         await getAuthProvider().clearSession()
       } catch (clearErr) {
         console.error('[apiClient] 401 후 세션 클리어 실패', clearErr)
+      } finally {
+        useSessionStore.getState().clearAuthState()
       }
       // Electron 은 HashRouter, 웹은 BrowserRouter 기준으로 로그인 경로를 분기한다.
       if (typeof window !== 'undefined') {

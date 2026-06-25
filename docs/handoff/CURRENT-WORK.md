@@ -6,7 +6,9 @@
 
 ## 🔄 세션 재개 지점 (2026-06-25 회사PC — **슬1 웹 리로드루프 Codex fix 완료+재QA PASS(B1~B4). 🚨다음=0수렴 재리뷰→⑤Codex 5-agent 라운드→⑥PM종합→⑦CI→⑧머지**)
 
-> **fix 완료**: Codex(danger-full-access)가 `api/client.ts` 401 인터셉터에 인증프로브 가드(`/auth/(me|login|logout)` 401 skip) 적용 + 회귀 테스트. typecheck 0·vitest 14/14·build:web 0. **라이브 재QA PASS**: 로그인→홈(쿠키인증·신원복원)→새로고침 세션복원(/auth/me 200·슬립위젯)→무쿠키 /login 리다이렉트(루프 해소). 커밋+푸시+PR #596 게시 완료. (대시보드 일부 위젯 500/"준비중"=슬1 범위 외 기존 로컬스택 거동, slip 위젯 정상=쿠키 식별주입 작동.)
+> **리로드루프 fix 완료**: Codex가 `api/client.ts` 401 인터셉터 인증프로브 가드 적용+회귀테스트. 라이브 재QA PASS(로그인→홈→새로고침 세션복원→무쿠키 차단). 커밋 `877717d8` 푸시·PR게시.
+>
+> **④ Opus 5차원 재리뷰=확증 0(CLEAN)**. **⑤ Codex 독립라운드=NEEDS-FIX** → PM triage(실코드 검증·맹신X): 슬1 fix 3건 채택 [①BLOCKING Electron 쿠키 logout 우회(withCredentials/realtime credentials 상시 → Electron 쿠키전송+logout 미삭제→재인증; fix=Electron 쿠키 미전송) ②MAJOR 401가드 password-reset 누락(공개페이지 401→오리다이렉트) ③MAJOR 보호401 시 store auth 미삭제(Electron stale)]. 범위외/deferred: print해시링크(슬2)·쿠키Secure(Phase11 cutover)·bootstrap race(저확률)·realtime401(SSE 기존)·CSRF(설계 SameSite=Lax)·모바일사이드바(슬2)·nginx(Phase11). PR #596 코멘트 박제. **다음=Codex 후속 fix 3건→라이브 재QA→0수렴.**
 
 회사PC 재개: 브랜치 `feat/mobile-s1-foundation-auth-web` checkout(origin/main 동기화 완료·stale 컷오프 작업트리는 `git stash`로 보존). Docker 풀스택 가동, **auth-service+api-gateway 를 브랜치로 재빌드 완료**(08:55 healthy). 웹빌드 `dist/web` 를 vite preview :5175 서빙(게이트웨이 CORS 허용 origin).
 

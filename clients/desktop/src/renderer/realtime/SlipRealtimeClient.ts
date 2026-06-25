@@ -3,8 +3,8 @@
  *
  * <p>BE {@code GET /api/v1/slips/{slipId}/realtime} (Server-Sent Events stream)
  * 를 fetch + ReadableStream 으로 직접 파싱한다. 브라우저 native EventSource 는
- * Electron 은 authProvider 가 Authorization 헤더를 제공하고, 웹은 httpOnly 쿠키를
- * credentials:'include' 로 전송한다.
+ * Electron 은 authProvider 가 Authorization 헤더만 제공하고 쿠키는 생략하며,
+ * 웹은 httpOnly 쿠키를 credentials:'include' 로 전송한다.
  *
  * <h2>주요 동작</h2>
  * <ul>
@@ -20,7 +20,7 @@
  * 호출자(SlipDetailPage)가 화면 노출하지 않고 cache invalidate 키로만 사용한다.
  */
 import { apiClient } from '../api/client'
-import { getAuthProvider } from '../auth/authProvider'
+import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
 
 /**
  * SSE 1 이벤트의 파싱된 형태. {@code event:} 라인이 없으면 SSE 표준에 따라
@@ -129,7 +129,7 @@ export function subscribe(
         method: 'GET',
         headers,
         signal: innerAbort.signal,
-        credentials: 'include',
+        credentials: isElectronPlatform ? 'omit' : 'include',
       })
 
       if (!res.ok || !res.body) {

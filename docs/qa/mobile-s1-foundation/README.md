@@ -56,6 +56,10 @@ Codex 가 `api/client.ts` 401 인터셉터에 인증프로브 가드(`/\/auth\/(
 
 ⚠️ 일부 대시보드 위젯(저재고/미확인메시지/결재대기)은 "준비중" fallback + 일부 500 — **슬1(인증 추상화) 범위 외 기존 로컬스택 위젯 거동**. "처리중 판매전표" 위젯이 정상 동작 = 쿠키→게이트웨이 식별헤더 주입→downstream 정상 증명(게이트웨이는 쿠키/Bearer 소스 무관 동일 주입). Electron/Bearer 에서도 동일 → 슬1 회귀 아님.
 
+## D. 듀얼리뷰 fix 재QA (Codex 라운드 3건)
+
+⑤ Codex 독립 라운드가 BLOCKING(Electron 쿠키 logout 우회) 포함 적발 → PM 실코드 검증 → 슬1 fix 3건(Electron 쿠키 미전송·401가드 password-reset·보호401 store auth 클리어). 검증: typecheck 0·vitest 19/19·build:web 0. **웹 라이브 재QA(B1~B4) 무회귀 PASS**(웹 withCredentials 유지→쿠키 인증 정상: 로그인 200+Set-Cookie·/auth/me 200 세션복원·무쿠키 /login 차단). Electron 쿠키 미전송은 코드(`withCredentials=!isElectronPlatform`·realtime `credentials` 웹전용)+단위테스트로 검증(헤드리스 Electron 캡처 제약).
+
 ## C. Electron 무회귀 UI 실 캡처 (BE Bearer 계약 PASS, UI 캡처는 fix 후 웹과 함께)
 
 curl 로 Bearer 경로 `/auth/me` 200(§A #3) = Electron 인증 경로 무회귀 확인. electronAuthProvider 는 기존 `window.samhanAuth` IPC 1:1 래핑(소스 무변경)이라 회귀 위험 낮음. 헤드리스 Electron UI 캡처는 하네스 제약 → 웹 fix 후 라운드에서 보강.
