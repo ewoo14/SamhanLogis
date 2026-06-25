@@ -64,6 +64,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 
 const STATUS_VARIANT: Record<TaxInvoiceStatus, 'neutral' | 'success' | 'danger'> = {
@@ -434,11 +435,7 @@ export function TaxInvoiceDetailPage() {
             >
               ···
             </button>
-            {mobileMoreOpen ? (
-              <>
-                <div className="mobile-more-overlay" role="presentation" onClick={() => setMobileMoreOpen(false)} />
-                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                  <div className="mobile-more-sheet-handle" />
+            <MobileActionSheet open={mobileMoreOpen} onClose={() => setMobileMoreOpen(false)}>
                   {isDraft && canUpdateTaxInvoice ? (
                     <button
                       type="button"
@@ -476,9 +473,7 @@ export function TaxInvoiceDetailPage() {
                       인쇄
                     </button>
                   ) : null}
-                </div>
-              </>
-            ) : null}
+            </MobileActionSheet>
           </div>
 
           <MobileCollapsible title="계산서 상세 정보" className="mobile-section-card">

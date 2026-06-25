@@ -79,6 +79,7 @@ import {
   type SlipEditRequestType,
 } from '../api/slipEditRequest'
 import { SlipCollaborationPanel } from '../components/collab/SlipCollaborationPanel'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import { SlipRealtimeClient } from '../realtime/SlipRealtimeClient'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -1329,15 +1330,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             >
               ···
             </button>
-            {mobileMoreOpen ? (
-              <>
-                <div
-                  className="mobile-more-overlay"
-                  role="presentation"
-                  onClick={() => setMobileMoreOpen(false)}
-                />
-                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                  <div className="mobile-more-sheet-handle" />
+            <MobileActionSheet open={mobileMoreOpen} onClose={() => setMobileMoreOpen(false)}>
                   {isOutbound ? (
                     <>
                       <button
@@ -1450,9 +1443,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   >
                     목록으로
                   </button>
-                </div>
-              </>
-            ) : null}
+            </MobileActionSheet>
           </div>
         </>
       ) : null}
@@ -1671,7 +1662,20 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </div>
       </Card>
 
-      <MobileCollapsible title="협업 · 코멘트" defaultOpen>
+      {isMobile ? (
+        <MobileCollapsible title="협업 · 코멘트" defaultOpen>
+          <SlipCollaborationPanel
+            slipId={id}
+            currentValues={collabEditValues}
+            editMode={collabEditMode}
+            onEditModeChange={setCollabEditMode}
+            onCommitted={() => {
+              void queryClient.invalidateQueries({ queryKey: ['slip', id] })
+              void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
+            }}
+          />
+        </MobileCollapsible>
+      ) : (
         <SlipCollaborationPanel
           slipId={id}
           currentValues={collabEditValues}
@@ -1682,7 +1686,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
           }}
         />
-      </MobileCollapsible>
+      )}
 
       {isMobile ? (
         <>
@@ -1890,7 +1894,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </Card>
       ) : null}
 
-      <h4 className="detail-section-title" style={{ marginTop: 24 }}>전표 라인</h4>
+      <h4 className="detail-section-title detail-mobile-hide" style={{ marginTop: 24 }}>전표 라인</h4>
 
       {/*
         Phase 2.6d: 재고조회 툴바 — 체크박스 다중선택 + "선택 품목 재고조회" 버튼.

@@ -7,7 +7,6 @@ export function useIsMobile(breakpoint = 768): boolean {
 
   useEffect(() => {
     const handle = () => setIsMobile(window.innerWidth <= breakpoint)
-    handle()
     window.addEventListener('resize', handle)
     return () => window.removeEventListener('resize', handle)
   }, [breakpoint])

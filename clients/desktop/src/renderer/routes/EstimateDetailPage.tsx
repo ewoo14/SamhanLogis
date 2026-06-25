@@ -47,6 +47,7 @@ import { estimateAuditApi } from '../api/createAuditApi'
 import { EstimateRealtimeClient } from '../realtime/EstimateRealtimeClient'
 import { EstimateVersionHistoryPanel } from '../components/audit/EstimateVersionHistoryPanel'
 import { EstimateCollaborationPanel } from '../components/collab/EstimateCollaborationPanel'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import {
   AuditLockedBanner,
@@ -404,15 +405,7 @@ export function EstimateDetailPage() {
             >
               ···
             </button>
-            {mobileMoreOpen ? (
-              <>
-                <div
-                  className="mobile-more-overlay"
-                  role="presentation"
-                  onClick={() => setMobileMoreOpen(false)}
-                />
-                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                  <div className="mobile-more-sheet-handle" />
+            <MobileActionSheet open={mobileMoreOpen} onClose={() => setMobileMoreOpen(false)}>
                   {(isDraft || isSent) && canMutate ? (
                     <button
                       type="button"
@@ -486,9 +479,7 @@ export function EstimateDetailPage() {
                   >
                     인쇄
                   </button>
-                </div>
-              </>
-            ) : null}
+            </MobileActionSheet>
           </div>
 
           <MobileCollapsible title="견적 상세 정보" className="mobile-section-card">

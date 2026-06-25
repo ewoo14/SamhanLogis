@@ -39,6 +39,7 @@ import {
 import { getApprovalTemplate, type ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import { GroupwareApprovalCollaborationPanel } from '../components/collab/GroupwareApprovalCollaborationPanel'
 import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -371,7 +372,6 @@ export function GroupwareApprovalDetailPage() {
             <div className="mobile-summary-divider" />
             <div className="mobile-summary-total-row">
               <span className="mobile-summary-total-amount">{approval.approvalNo}</span>
-              <span className="mobile-summary-date">기안일 -</span>
             </div>
           </div>
 
@@ -391,11 +391,7 @@ export function GroupwareApprovalDetailPage() {
             >
               ···
             </button>
-            {mobileMoreOpen ? (
-              <>
-                <div className="mobile-more-overlay" role="presentation" onClick={() => setMobileMoreOpen(false)} />
-                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                  <div className="mobile-more-sheet-handle" />
+            <MobileActionSheet open={mobileMoreOpen} onClose={() => setMobileMoreOpen(false)}>
                   <button
                     type="button"
                     className="mobile-more-sheet-item"
@@ -406,9 +402,7 @@ export function GroupwareApprovalDetailPage() {
                   >
                     목록
                   </button>
-                </div>
-              </>
-            ) : null}
+            </MobileActionSheet>
           </div>
         </>
       ) : null}

@@ -35,6 +35,7 @@ import {
   type JournalLine,
 } from '../api/accounting'
 import { JournalCollaborationPanel } from '../components/collab/JournalCollaborationPanel'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -261,11 +262,7 @@ export function JournalDetailPage() {
             >
               ···
             </button>
-            {mobileMoreOpen ? (
-              <>
-                <div className="mobile-more-overlay" role="presentation" onClick={() => setMobileMoreOpen(false)} />
-                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                  <div className="mobile-more-sheet-handle" />
+            <MobileActionSheet open={mobileMoreOpen} onClose={() => setMobileMoreOpen(false)}>
                   {canCollabEdit && !collabEditMode ? (
                     <button
                       type="button"
@@ -290,9 +287,7 @@ export function JournalDetailPage() {
                       편집
                     </button>
                   ) : null}
-                </div>
-              </>
-            ) : null}
+            </MobileActionSheet>
           </div>
 
           <MobileCollapsible title="분개 상세 정보" className="mobile-section-card">

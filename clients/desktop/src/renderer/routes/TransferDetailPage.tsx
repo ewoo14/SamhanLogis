@@ -38,6 +38,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 
 function actionsForStatus(status: TransferStatus): TransferTransitionAction[] {
@@ -267,11 +268,7 @@ export function TransferDetailPage() {
             >
               ···
             </button>
-            {mobileMoreOpen ? (
-              <>
-                <div className="mobile-more-overlay" role="presentation" onClick={() => setMobileMoreOpen(false)} />
-                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                  <div className="mobile-more-sheet-handle" />
+            <MobileActionSheet open={mobileMoreOpen} onClose={() => setMobileMoreOpen(false)}>
                   {possibleActions
                     .filter((action) => action !== nextPrimaryAction)
                     .map((action) => (
@@ -298,9 +295,7 @@ export function TransferDetailPage() {
                   >
                     목록으로
                   </button>
-                </div>
-              </>
-            ) : null}
+            </MobileActionSheet>
           </div>
 
           <MobileCollapsible title="이동 상세 정보" className="mobile-section-card">
@@ -387,7 +382,7 @@ export function TransferDetailPage() {
       </Card>
       ) : null}
 
-      <h4 style={{ marginTop: 24 }}>이동 라인</h4>
+      <h4 className="detail-mobile-hide" style={{ marginTop: 24 }}>이동 라인</h4>
       <div className="detail-mobile-hide">
         <DataTable
           columns={lineColumns}

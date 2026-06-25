@@ -64,6 +64,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 
 const STATUS_VARIANT: Record<
@@ -249,11 +250,7 @@ export function InventoryAuditDetailPage() {
             >
               ···
             </button>
-            {mobileMoreOpen ? (
-              <>
-                <div className="mobile-more-overlay" role="presentation" onClick={() => setMobileMoreOpen(false)} />
-                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                  <div className="mobile-more-sheet-handle" />
+            <MobileActionSheet open={mobileMoreOpen} onClose={() => setMobileMoreOpen(false)}>
                   {(audit.status === 'PLANNED' || audit.status === 'IN_PROGRESS') && canTransitionAudit ? (
                     <button
                       type="button"
@@ -270,13 +267,18 @@ export function InventoryAuditDetailPage() {
                     </button>
                   ) : null}
                   {audit.status === 'COMPLETED' ? (
-                    <a className="mobile-more-sheet-item" href="#/accounting/journals">
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        navigate('/accounting/journals')
+                      }}
+                    >
                       차이 자동 분개 보기
-                    </a>
+                    </button>
                   ) : null}
-                </div>
-              </>
-            ) : null}
+            </MobileActionSheet>
           </div>
 
           <MobileCollapsible title="실사 상세 정보" className="mobile-section-card">
@@ -418,7 +420,7 @@ export function InventoryAuditDetailPage() {
       ) : null}
 
       <Card>
-        <h4 style={{ margin: '0 0 12px' }}>실사 라인</h4>
+        <h4 className="detail-mobile-hide" style={{ margin: '0 0 12px' }}>실사 라인</h4>
         <LinesTable audit={audit} />
       </Card>
     </div>

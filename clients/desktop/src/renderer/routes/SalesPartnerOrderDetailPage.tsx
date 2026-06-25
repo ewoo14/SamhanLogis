@@ -28,6 +28,7 @@ import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { PartnerOrderCollaborationPanel } from '../components/collab/PartnerOrderCollaborationPanel'
+import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -724,15 +725,7 @@ export function SalesPartnerOrderDetailPage() {
               >
                 ···
               </button>
-              {moreOpen ? (
-                <>
-                  <div
-                    className="mobile-more-overlay"
-                    role="presentation"
-                    onClick={() => setMoreOpen(false)}
-                  />
-                  <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
-                    <div className="mobile-more-sheet-handle" />
+              <MobileActionSheet open={moreOpen} onClose={() => setMoreOpen(false)}>
                     {canCollabEdit && !collabEditMode && mobilePrimaryAction?.label !== '수정' ? (
                       <button
                         type="button"
@@ -818,9 +811,7 @@ export function SalesPartnerOrderDetailPage() {
                     >
                       목록으로
                     </button>
-                  </div>
-                </>
-              ) : null}
+              </MobileActionSheet>
             </div>
           </>
         ) : null}
@@ -912,7 +903,7 @@ export function SalesPartnerOrderDetailPage() {
             ) : null}
 
             <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
-              <div className={styles['cardHead']}>
+              <div className={`${styles['cardHead']} detail-mobile-hide`}>
                 <div className={styles['cardTitle']}>
                   라인 ({query.data.lines?.length ?? 0}건)
                 </div>
@@ -1054,6 +1045,36 @@ export function SalesPartnerOrderDetailPage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+              <div className="mobile-action-bar" role="toolbar" aria-label="주문 라인 액션">
+                <button
+                  type="button"
+                  className="mobile-action-primary"
+                  disabled={checkedLineIds.size === 0}
+                  onClick={() => setInventoryLookupOpen(true)}
+                >
+                  재고조회{checkedLineIds.size > 0 ? ` (${checkedLineIds.size})` : ''}
+                </button>
+                {checkedLineIds.size > 0 ? (
+                  <button
+                    type="button"
+                    className="mobile-action-icon"
+                    aria-label="선택 해제"
+                    onClick={() => setCheckedLineIds(new Set())}
+                  >
+                    해제
+                  </button>
+                ) : null}
+                {canViewProductLookups ? (
+                  <button
+                    type="button"
+                    className="mobile-action-icon"
+                    aria-label="참조 조회"
+                    onClick={() => setLineLookupOpen(true)}
+                  >
+                    참조
+                  </button>
+                ) : null}
               </div>
               <div className="mobile-item-list" data-testid="partner-order-mobile-lines">
                 {(query.data.lines ?? []).map((line, index) => {
