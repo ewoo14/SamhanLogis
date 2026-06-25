@@ -4,26 +4,29 @@
 
 ---
 
-## ⏳ 진행 중 — 슬4b 입력 폼 1열 (2026-06-25 brainstorming 설계 확정, **구현 대기** / 세션 길어져 새 세션 인계)
+## ✅ 완결 — 모바일 슬4b 입력 폼 1열 (공용 FormGrid) 머지 (2026-06-25, PR #600, main `0dc38d920`)
 
-**개발책임자 지정: 슬4b = 공용 반응형 FormGrid 신규 + 핵심 폼 이관(focused).** 슬4a 머지 직후 착수, brainstorming 설계 확정 단계에서 세션 종료(새 세션 재개).
+**모바일 에픽② 슬4b canonical 8단계 완주 → PM 자율 머지(개발책임자 위임).** design-system 공용 반응형 `<FormGrid>` 신설 + 핵심 입력 폼4 이관. 데스크탑 N열 → ≤768px 1열 자동 전환. **FE/design-system only, Flyway 0, BE 무변경.** (집PC 세션, ScheduleWakeup 자율 루프로 canonical 완주.)
 
-### 정찰 결론 (중요 — 슬3/4a와 다름)
-- 공용 `FormField`(21사용)는 **단일 필드 래퍼**(label+input 세로)일 뿐. 다열 폼 레이아웃 = **화면별 인라인 `gridTemplateColumns`(전수 ~96곳)**, 공용 폼-그리드 컴포넌트 **없음**.
-- ⚠️ **인라인 스타일은 @media로 못 덮음** → 슬3(DataTable)·슬4a(Modal)식 "1변경→전화면" 레버리지 **불가**. 공용 FormGrid 신규 + 인라인 이관 구조.
+### 완결 요약
+- **구현(Codex)**: `FormGrid`(🔑 열 수=CSS변수 `--fg-cols` 주입 + module.css `repeat(var(--fg-cols,2), minmax(0,1fr))` + `@media(max-width:768px){grid-template-columns:1fr}`; `FormGrid.Full`=grid-column 1/-1 전폭) + 거래처 등록(`/admin/partners/new`)·거래처 상세 편집·창고편집·공급자설정 이관(폼-필드 grid만, 데이터표/품목라인/버튼행 제외). 나머지 ~88곳 = 슬4b-2+ 점진.
+- **듀얼리뷰 0수렴**: ④ Opus 5차원(FE MAJOR2: `as`캐스트→Object.assign·`--fg-cols`→CSSProperties 관용구 fix `0e771ac11`) ↔ ⑤ Codex 5차원(**QA 완전성 MAJOR 적발**) → partner-detail 편집 캡처 추가·warehouse 부서게이트 정직화 → **Codex MERGE-OK + Opus 최종 CONVERGED**(코드 양쪽 clean).
+- **라이브 QA**(6/8, `docs/qa/mobile-s4b-form-grid/`): 거래처 등록(페이지)·거래처 상세 편집(모달)·공급자 설정(모달) **mobile 1열/desktop 2열** ground-truth(computed grid 트랙수)+실스샷. warehouse-edit=`/admin/warehouses` 인사 부서게이트(@RequireDepartment 대표실+MASTER, dev_master 403)로 미캡처=슬4b 무관 정직 문서화. CI 전기능 green(mock 회귀 hard gate 8m18s)+GitGuardian dev시드 `dev_p05_pass!` FP.
 
-### 확정 설계 (새 세션은 여기서 spec→plan→조기PR→canonical 진행)
-- ① **공용 `<FormGrid>`(design-system 신규)**: `display:grid; grid-template-columns: repeat(2,1fr); gap; @media(max-width:768px){ grid-template-columns:1fr }` → 데스크탑 2열·≤768px 1열. `columns` prop(기본2), 전폭 필드(주소/설명 `gridColumn:1/-1`)=`<FormGrid.Full>` 또는 fullWidth 지원. 자식=기존 FormField.
-- ② **핵심 입력 폼 이관(3~5개)**: 거래처 등록(`PartnerCreatePage:772`)·거래처 상세 편집(`PartnerDetailDialog:818`)·창고 편집(`EditWarehouseModal:276`)·공급자 설정(`SupplierProfilePage:635`)/견적 등 인라인 `'1fr 1fr'`/`repeat(2,1fr)` → `<FormGrid>` 교체.
-- ③ 검증: 라이브 QA(핵심 폼 모바일 1열·데스크탑 2열 무회귀)+mock gate+스샷 보정. ④ 후속: 나머지 ~90곳 점진 이관(슬4b-2+).
+### 🔑 교훈 (박제)
+- **반응형 공용 FormGrid = 열 수는 CSS변수 `--fg-cols`로 주입(인라인 `grid-template-columns` 금지 — @media 무력화 함정)**. `@media`가 grid-template-columns를 리터럴로 직접 덮어 1열 강제. 인라인 그리드(~88곳) 이관 시 재사용. minmax(0,1fr)=긴값 overflow 방지.
+- **stale Docker 이미지 함정 재발**: 집PC auth-service/gateway가 06-24 빌드(slice-1 쿠키 dual-issue 미포함)→웹 라이브 QA 로그인 실패(login 200 but Set-Cookie 없음·/auth/me 403). 재빌드(`gradlew :services:{auth-service,api-gateway}:bootJar` + `docker compose -f docker-compose.yml -f docker-compose.local-all.yml up -d --build`) 후 curl Set-Cookie/200 증명. [[project_local_stack_qa_gotchas]] 재확인.
+- **듀얼모델 가치**: Codex가 Opus QA 과대주장(4/8 "핵심 전부 입증") 적발→정직화(6/8). QA 캡처는 측정+실스샷 양면 검증(트랙수 ground-truth가 false-RED 회피).
 
-### ⚠️ 새 세션 워크플로우 필수 준수 (개발책임자 반복 지적)
-- **canonical 8단계**([[feedback_canonical_workflow]]): Opus 기획+조기PR → Codex 구현 → ④Opus 5차원↔⑤Codex 0수렴 → ⑥PM종합 → ⑦CI green(mock gate) → ⑧PM 자율머지([[feedback_pm_auto_merge_authority]]).
-- 🚨 **라이브QA = 매 리뷰 라운드 귀속**(구현단계 독립 Task 금지). 각 라운드 리뷰→fix→**그 fix 라이브 재캡처 게시**가 게이트. 캡처 없는 라운드=무효=머지금지. [[qa-docker-real-test]].
-- 🚨 **매 단계 ScheduleWakeup loop + gh pr checks 재조회**([[feedback_autonomous_loop_schedulewakeup]]). 긴 mega-턴 금지.
-- PR은 **OPEN 유지**(draft 금지, 개발책임자 명시). main 직접 push(박제)는 개발책임자 승인 필요.
-- 🚫 Opus 임의구현 금지(Codex 전담). 가짜 데이터 금지·실서버 라이브 캡처만([[feedback_no_fake_data_ever]]).
-- 로컬 스택: Docker up(게이트웨이 :8080)·웹빌드 `npm run build:web`→`:5175`(vite preview). 캡처=scripts/mobile-s*-*.cjs 패턴(dev_master 로그인).
+### 🔜 다음 (개발책임자 지정 대기)
+- **슬4b-2+**: 나머지 ~88곳 인라인 grid → FormGrid 점진 이관(전표/회계/그룹웨어/배차 폼).
+- **상세 페이지 반응형**(10)·**와이드 회계보고서**(~7, 슬3 MAJOR 이월)·**원시 table**(권한매트릭스).
+- **③ 버전관리+자동업데이트 에픽**(웹배포 골격 위 `/app/version` 팝업, Option B) — 모바일 에픽 연관.
+- **PWA/네이티브 패키징**(iOS/Android 하이브리드 WebView). Phase 11 AWS prod cutover(유일 OPEN 인프라).
+
+### ⚠️ 워크플로우 규칙 (canonical 엄수 — 다음 슬라이스도 동일)
+- canonical 8단계([[feedback_canonical_workflow]]): Opus 기획+조기PR(OPEN, draft금지) → Codex 구현(danger-full-access·파일만·git은 PM대행) → ④Opus 5차원↔⑤Codex 0수렴 → ⑥PM종합 → ⑦CI green(mock gate) → ⑧PM 자율머지([[feedback_pm_auto_merge_authority]]).
+- 🚨 라이브QA=매 리뷰 라운드 귀속·매 단계 ScheduleWakeup 자각·gh pr checks 재조회·긴 mega-턴 금지. 🚫 Opus 임의구현 금지·가짜 데이터 금지. 로컬: Docker :8080·`npm run build:web`→`:5175` preview·캡처 `clients/desktop/scripts/mobile-s4b-form-grid-qa.cjs`(dev_master/dev_p05_pass!). ⚠️ auth/gateway stale 시 재빌드 필수.
 
 ---
 
