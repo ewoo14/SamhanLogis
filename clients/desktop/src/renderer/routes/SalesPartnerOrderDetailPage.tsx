@@ -28,13 +28,34 @@ import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { PartnerOrderCollaborationPanel } from '../components/collab/PartnerOrderCollaborationPanel'
+import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { PartnerOrderVersionHistoryPanel } from '../components/audit/PartnerOrderVersionHistoryPanel'
 import styles from '../components/sales/sales.module.css'
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
+const statusBadgeStyle = (status: string) => {
+  switch (status) {
+    case 'ON_HOLD':
+      return { background: '#FEF3C7', color: '#92400E' }
+    case 'CONVERTED':
+      return { background: '#EDE9FE', color: '#5B21B6' }
+    case 'CONFIRMED':
+      return { background: '#D1FAE5', color: '#065F46' }
+    case 'CANCELED':
+      return { background: '#FEE2E2', color: '#991B1B' }
+    case 'DRAFT':
+    default:
+      return { background: '#F3F4F6', color: '#4B5563' }
+  }
+}
+
+const emptyLabel = (value: string | number | null | undefined) =>
+  value === null || value === undefined || value === '' ? '-' : String(value)
+
 const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
   if (mode === 'EXPAND') return '구성품 펼침'
   if (mode === 'KEEP') return '묶음 유지'
@@ -77,6 +98,7 @@ export function SalesPartnerOrderDetailPage() {
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
 
   const isValidId = !!id && id !== 'undefined' && id !== 'null'
   const orderId = id!
@@ -96,6 +118,7 @@ export function SalesPartnerOrderDetailPage() {
   /** Phase 2.6d: 재고조회 모달 open 상태. */
   const [inventoryLookupOpen, setInventoryLookupOpen] = useState(false)
   const [lineLookupOpen, setLineLookupOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null)
   const [printErrorMessage, setPrintErrorMessage] = useState<string | null>(null)
   const [conflictMessage, setConflictMessage] = useState<string | null>(null)
@@ -373,6 +396,42 @@ export function SalesPartnerOrderDetailPage() {
     }
   }, [orderId])
 
+  const openEditDialog = useCallback(() => {
+    if (!query.data) return
+    syncFormFromData(query.data)
+    setEditOpen(true)
+  }, [query.data, syncFormFromData])
+
+  const openConvertDialog = useCallback(() => {
+    if (!query.data) return
+    setConvertErrorMessage(null)
+    const initQty: Record<string, number> = {}
+    for (const line of query.data.lines) {
+      const remaining = line.quantity - (line.convertedQuantity ?? 0)
+      if (remaining > 0) {
+        initQty[line.lineId] = remaining
+      }
+    }
+    setConvertQtyMap(initQty)
+    setConvertWarehouse(null)
+    setConvertOpen(true)
+  }, [query.data])
+
+  const openDeleteDialog = useCallback(() => {
+    setDeleteErrorMessage(null)
+    setDeleteOpen(true)
+  }, [])
+
+  const holdOrder = useCallback(() => {
+    setHoldErrorMessage(null)
+    holdMutation.mutate()
+  }, [holdMutation])
+
+  const releaseOrder = useCallback(() => {
+    setHoldErrorMessage(null)
+    releaseMutation.mutate()
+  }, [releaseMutation])
+
   useEffect(() => {
     setPageTitle({ title: `주문서 ${query.data?.orderNumber ?? '조회 중'}`, meta: '영업' })
     return () => setPageTitle({ title: '' })
@@ -438,6 +497,25 @@ export function SalesPartnerOrderDetailPage() {
     canAccess('sales.partner-order.edit', 'update') &&
     !COLLAB_LOCKED_STATUS.has(query.data.status)
 
+  const canOpenConvert =
+    !!query.data &&
+    canConvert &&
+    query.data.linkedSlipNo == null &&
+    CONVERTIBLE_STATUS.has(query.data.status)
+
+  const canHoldOrder = !!query.data && canEdit && query.data.status === 'DRAFT'
+  const canReleaseOrder = !!query.data && canEdit && query.data.status === 'ON_HOLD'
+
+  const mobilePrimaryAction = query.data
+    ? canReleaseOrder
+      ? { label: '보류 해제', onClick: releaseOrder, disabled: releaseMutation.isPending }
+      : canCollabEdit && !collabEditMode
+        ? { label: '수정', onClick: () => setCollabEditMode(true), disabled: false }
+        : canOpenConvert
+          ? { label: '판매전표 전환', onClick: openConvertDialog, disabled: convertMutation.isPending }
+          : null
+    : null
+
   const collabCurrentValues = query.data
     ? {
         memo: query.data.memo,
@@ -482,6 +560,7 @@ export function SalesPartnerOrderDetailPage() {
             주문서 상세
             <span className={styles['badge']}>{query.data?.orderNumber ?? '조회 중'}</span>
           </div>
+          {!isMobile ? (
           <div className={`${styles['topActions']} detail-action-bar`}>
             {query.data && canPrint ? (
               <Button
@@ -508,10 +587,7 @@ export function SalesPartnerOrderDetailPage() {
                 type="button"
                 variant="secondary"
                 data-testid="partner-order-edit-open"
-                onClick={() => {
-                  syncFormFromData(query.data!)
-                  setEditOpen(true)
-                }}
+                onClick={openEditDialog}
               >
                 정식 편집
               </Button>
@@ -522,10 +598,7 @@ export function SalesPartnerOrderDetailPage() {
                 variant="warning"
                 data-testid="partner-order-hold"
                 disabled={holdMutation.isPending}
-                onClick={() => {
-                  setHoldErrorMessage(null)
-                  holdMutation.mutate()
-                }}
+                onClick={holdOrder}
               >
                 보류
               </Button>
@@ -536,10 +609,7 @@ export function SalesPartnerOrderDetailPage() {
                 variant="secondary"
                 data-testid="partner-order-release"
                 disabled={releaseMutation.isPending}
-                onClick={() => {
-                  setHoldErrorMessage(null)
-                  releaseMutation.mutate()
-                }}
+                onClick={releaseOrder}
               >
                 보류 해제
               </Button>
@@ -553,20 +623,7 @@ export function SalesPartnerOrderDetailPage() {
                 variant="primary"
                 data-testid="partner-order-convert-open"
                 disabled={convertMutation.isPending}
-                onClick={() => {
-                  setConvertErrorMessage(null)
-                  // 모달 열 때 전환 수량 초기값 = 잔여 전량 (convertedQuantity null 방어 — BE int 기본 0)
-                  const initQty: Record<string, number> = {}
-                  for (const line of query.data!.lines) {
-                    const remaining = line.quantity - (line.convertedQuantity ?? 0)
-                    if (remaining > 0) {
-                      initQty[line.lineId] = remaining
-                    }
-                  }
-                  setConvertQtyMap(initQty)
-                  setConvertWarehouse(null)
-                  setConvertOpen(true)
-                }}
+                onClick={openConvertDialog}
               >
                 판매전표 전환
               </Button>
@@ -576,10 +633,7 @@ export function SalesPartnerOrderDetailPage() {
                 type="button"
                 variant="danger"
                 data-testid="partner-order-delete-open"
-                onClick={() => {
-                  setDeleteErrorMessage(null)
-                  setDeleteOpen(true)
-                }}
+                onClick={openDeleteDialog}
               >
                 삭제
               </Button>
@@ -588,6 +642,7 @@ export function SalesPartnerOrderDetailPage() {
               ← 목록
             </Link>
           </div>
+          ) : null}
         </div>
         {printErrorMessage ? (
           <div className={styles['errorBanner']} role="alert" data-testid="partner-order-print-error">
@@ -614,6 +669,162 @@ export function SalesPartnerOrderDetailPage() {
           </div>
         ) : null}
 
+        {isMobile && query.data ? (
+          <>
+            <div className="mobile-summary-card" data-testid="partner-order-mobile-summary">
+              <div className="mobile-summary-card-header">
+                <span className="mobile-summary-doc-no">{query.data.orderNumber}</span>
+                <span
+                  className="mobile-status-badge"
+                  style={statusBadgeStyle(query.data.status)}
+                >
+                  {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
+                </span>
+              </div>
+              <div className="mobile-summary-partner">
+                {query.data.partnerName ?? query.data.partnerCode}
+              </div>
+              <div className="mobile-summary-divider" />
+              <div className="mobile-summary-total-row">
+                <span className="mobile-summary-total-amount">
+                  {krw(query.data.totalAmount)}원
+                </span>
+                <span className="mobile-summary-date">
+                  납기 {query.data.dueDate ?? '-'}
+                </span>
+              </div>
+            </div>
+
+            <div className="mobile-action-bar" role="toolbar" aria-label="주문서 액션">
+              {mobilePrimaryAction ? (
+                <button
+                  type="button"
+                  className="mobile-action-primary"
+                  disabled={mobilePrimaryAction.disabled}
+                  onClick={mobilePrimaryAction.onClick}
+                >
+                  {mobilePrimaryAction.label}
+                </button>
+              ) : null}
+              {canPrint ? (
+                <button
+                  type="button"
+                  className="mobile-action-icon"
+                  aria-label="인쇄"
+                  onClick={handlePrint}
+                >
+                  인쇄
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="mobile-action-icon"
+                aria-label="더보기"
+                onClick={() => setMoreOpen(true)}
+              >
+                ···
+              </button>
+              {moreOpen ? (
+                <>
+                  <div
+                    className="mobile-more-overlay"
+                    role="presentation"
+                    onClick={() => setMoreOpen(false)}
+                  />
+                  <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
+                    <div className="mobile-more-sheet-handle" />
+                    {canCollabEdit && !collabEditMode && mobilePrimaryAction?.label !== '수정' ? (
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          setCollabEditMode(true)
+                        }}
+                      >
+                        수정
+                      </button>
+                    ) : null}
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          openEditDialog()
+                        }}
+                      >
+                        정식 편집
+                      </button>
+                    ) : null}
+                    {canHoldOrder ? (
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item"
+                        disabled={holdMutation.isPending}
+                        onClick={() => {
+                          setMoreOpen(false)
+                          holdOrder()
+                        }}
+                      >
+                        보류
+                      </button>
+                    ) : null}
+                    {canReleaseOrder && mobilePrimaryAction?.label !== '보류 해제' ? (
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item"
+                        disabled={releaseMutation.isPending}
+                        onClick={() => {
+                          setMoreOpen(false)
+                          releaseOrder()
+                        }}
+                      >
+                        보류 해제
+                      </button>
+                    ) : null}
+                    {canOpenConvert && mobilePrimaryAction?.label !== '판매전표 전환' ? (
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item"
+                        disabled={convertMutation.isPending}
+                        onClick={() => {
+                          setMoreOpen(false)
+                          openConvertDialog()
+                        }}
+                      >
+                        판매전표 전환
+                      </button>
+                    ) : null}
+                    {canDelete ? (
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item danger"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          openDeleteDialog()
+                        }}
+                      >
+                        삭제
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMoreOpen(false)
+                        navigate('/sales/partner-orders')
+                      }}
+                    >
+                      목록으로
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+
         {query.isLoading ? (
           <div className={styles['emptyState']}>주문 상세를 불러오는 중…</div>
         ) : query.isError ? (
@@ -623,6 +834,36 @@ export function SalesPartnerOrderDetailPage() {
           </div>
         ) : query.data ? (
           <>
+            {isMobile ? (
+              <MobileCollapsible
+                title="주문 상세 정보"
+                className="mobile-section-card"
+              >
+                {[
+                  { label: '거래처 코드', value: query.data.partnerCode },
+                  { label: '연결 전표', value: query.data.linkedSlipNo },
+                  { label: '배송지', value: query.data.deliveryAddress },
+                  { label: '현장', value: query.data.siteAddress },
+                  { label: '연락처', value: query.data.contactPhone },
+                  { label: '납기', value: query.data.dueDate },
+                  { label: '요청사항', value: query.data.memo },
+                ].map(({ label, value }) => {
+                  const displayValue = emptyLabel(value)
+                  return (
+                    <div key={label} className="mobile-field-row">
+                      <span className="mobile-field-label">{label}</span>
+                      <span
+                        className={`mobile-field-value${displayValue === '-' ? ' mobile-field-value-empty' : ''}`}
+                      >
+                        {displayValue}
+                      </span>
+                    </div>
+                  )
+                })}
+              </MobileCollapsible>
+            ) : null}
+
+            {!isMobile ? (
             <div className={styles['card']}>
               <div className={styles['cardHead']}>
                 <div className={styles['cardTitle']}>
@@ -668,6 +909,7 @@ export function SalesPartnerOrderDetailPage() {
                 ) : null}
               </div>
             </div>
+            ) : null}
 
             <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
               <div className={styles['cardHead']}>
@@ -712,7 +954,7 @@ export function SalesPartnerOrderDetailPage() {
                   )}
                 </div>
               </div>
-              <div className={styles['tableWrap']}>
+              <div className={`${styles['tableWrap']} detail-mobile-hide`}>
                 <table className={styles['estTable']}>
                   <thead>
                     {/* v2 §정정 4/5 — '품명'→'품목명', '모델 코드'→'모델명' */}
@@ -813,52 +1055,199 @@ export function SalesPartnerOrderDetailPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
-
-            <PartnerOrderVersionHistoryPanel
-              orderId={orderId}
-              status={query.data.status}
-            />
-
-            {collabCurrentValues ? (
-              <PartnerOrderCollaborationPanel
-                orderId={orderId}
-                currentValues={collabCurrentValues}
-                editMode={collabEditMode}
-                onEditModeChange={setCollabEditMode}
-                onCommitted={() => {
-                  void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
-                  void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
-                  void queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
-                }}
-              />
-            ) : null}
-
-            <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
-              <div className={styles['cardHead']}>
-                <div className={styles['cardTitle']}>수정 이력</div>
-              </div>
-              {auditQuery.isLoading ? (
-                <div className={styles['emptyState']}>수정 이력을 불러오는 중…</div>
-              ) : (auditQuery.data?.length ?? 0) === 0 ? (
-                <div className={styles['emptyState']} data-testid="partner-order-edit-audit-empty">
-                  아직 수정 이력이 없습니다
-                </div>
-              ) : (
-                <div data-testid="partner-order-edit-audit-timeline">
-                  {auditQuery.data!.map((entry, index) => (
+              <div className="mobile-item-list" data-testid="partner-order-mobile-lines">
+                {(query.data.lines ?? []).map((line, index) => {
+                  const converted = line.convertedQuantity ?? 0
+                  const remaining = line.quantity - converted
+                  const checked = checkedLineIds.has(line.lineId)
+                  const componentCount = line.expandedComponents.length
+                  return (
                     <div
-                      key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
-                      className={styles['historyRow']}
+                      key={`mobile-${line.lineId}-${index}`}
+                      className="mobile-item-card"
                     >
-                      <strong>{entry.actorName}</strong>
-                      <span>{new Date(entry.changedAt).toLocaleString('ko-KR')}</span>
-                      <span>{entry.field}</span>
+                      <div className="mobile-item-check-wrap">
+                        <input
+                          type="checkbox"
+                          className="mobile-item-check"
+                          aria-label={`${line.productName} 재고조회 선택`}
+                          checked={checked}
+                          onChange={() => {
+                            setCheckedLineIds((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(line.lineId)) {
+                                next.delete(line.lineId)
+                              } else {
+                                next.add(line.lineId)
+                              }
+                              return next
+                            })
+                          }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="mobile-item-card-header">
+                            <div className="mobile-item-name">{line.productName}</div>
+                            {bundleModeLabel(line.bundleMode) ? (
+                              <span className="mobile-item-chip">
+                                {bundleModeLabel(line.bundleMode)}
+                              </span>
+                            ) : null}
+                          </div>
+                          {line.modelCode ? (
+                            <div className="mobile-item-model">{line.modelCode}</div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="mobile-item-divider" />
+
+                      <div className="mobile-item-metrics">
+                        <div className="mobile-item-metric">
+                          <span className="mobile-item-metric-label">수량</span>
+                          <span className="mobile-item-metric-value">
+                            {line.quantity.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="mobile-item-metric">
+                          <span className="mobile-item-metric-label">납품가</span>
+                          <span className="mobile-item-metric-value">
+                            {krw(line.deliveryPrice)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mobile-item-total-row">
+                        <span className="mobile-item-total-label">소계</span>
+                        <span className="mobile-item-total-value">
+                          {krw(line.subtotal)}원
+                        </span>
+                      </div>
+
+                      {(converted > 0 || componentCount > 0) ? (
+                        <div className="mobile-item-chips">
+                          {converted > 0 ? (
+                            <span className="mobile-item-chip mobile-item-chip-converted">
+                              전환됨 {converted}개
+                            </span>
+                          ) : null}
+                          {converted > 0 && remaining > 0 ? (
+                            <span className="mobile-item-chip mobile-item-chip-remaining">
+                              잔여 {remaining}개
+                            </span>
+                          ) : null}
+                          {componentCount > 0 ? (
+                            <span className="mobile-item-chip">
+                              구성품 {componentCount}개
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
-                  ))}
-                </div>
-              )}
+                  )
+                })}
+              </div>
             </div>
+
+            {isMobile ? (
+              <>
+                <MobileCollapsible title="버전 이력" className="mobile-section-card">
+                  <PartnerOrderVersionHistoryPanel
+                    orderId={orderId}
+                    status={query.data.status}
+                  />
+                </MobileCollapsible>
+
+                {collabCurrentValues ? (
+                  <MobileCollapsible
+                    title="협업 · 코멘트"
+                    defaultOpen
+                    className="mobile-section-card"
+                  >
+                    <PartnerOrderCollaborationPanel
+                      orderId={orderId}
+                      currentValues={collabCurrentValues}
+                      editMode={collabEditMode}
+                      onEditModeChange={setCollabEditMode}
+                      onCommitted={() => {
+                        void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
+                        void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+                        void queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
+                      }}
+                    />
+                  </MobileCollapsible>
+                ) : null}
+
+                <MobileCollapsible title="수정 이력" className="mobile-section-card">
+                  {auditQuery.isLoading ? (
+                    <div className={styles['emptyState']}>수정 이력을 불러오는 중…</div>
+                  ) : (auditQuery.data?.length ?? 0) === 0 ? (
+                    <div className={styles['emptyState']} data-testid="partner-order-edit-audit-empty">
+                      아직 수정 이력이 없습니다
+                    </div>
+                  ) : (
+                    <div data-testid="partner-order-edit-audit-timeline">
+                      {auditQuery.data!.map((entry, index) => (
+                        <div
+                          key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
+                          className={styles['historyRow']}
+                        >
+                          <strong>{entry.actorName}</strong>
+                          <span>{new Date(entry.changedAt).toLocaleString('ko-KR')}</span>
+                          <span>{entry.field}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </MobileCollapsible>
+              </>
+            ) : (
+              <>
+                <PartnerOrderVersionHistoryPanel
+                  orderId={orderId}
+                  status={query.data.status}
+                />
+
+                {collabCurrentValues ? (
+                  <PartnerOrderCollaborationPanel
+                    orderId={orderId}
+                    currentValues={collabCurrentValues}
+                    editMode={collabEditMode}
+                    onEditModeChange={setCollabEditMode}
+                    onCommitted={() => {
+                      void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
+                      void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+                      void queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
+                    }}
+                  />
+                ) : null}
+
+                <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
+                  <div className={styles['cardHead']}>
+                    <div className={styles['cardTitle']}>수정 이력</div>
+                  </div>
+                  {auditQuery.isLoading ? (
+                    <div className={styles['emptyState']}>수정 이력을 불러오는 중…</div>
+                  ) : (auditQuery.data?.length ?? 0) === 0 ? (
+                    <div className={styles['emptyState']} data-testid="partner-order-edit-audit-empty">
+                      아직 수정 이력이 없습니다
+                    </div>
+                  ) : (
+                    <div data-testid="partner-order-edit-audit-timeline">
+                      {auditQuery.data!.map((entry, index) => (
+                        <div
+                          key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
+                          className={styles['historyRow']}
+                        >
+                          <strong>{entry.actorName}</strong>
+                          <span>{new Date(entry.changedAt).toLocaleString('ko-KR')}</span>
+                          <span>{entry.field}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </>
         ) : null}
       </div>

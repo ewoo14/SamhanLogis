@@ -47,6 +47,7 @@ import { estimateAuditApi } from '../api/createAuditApi'
 import { EstimateRealtimeClient } from '../realtime/EstimateRealtimeClient'
 import { EstimateVersionHistoryPanel } from '../components/audit/EstimateVersionHistoryPanel'
 import { EstimateCollaborationPanel } from '../components/collab/EstimateCollaborationPanel'
+import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import {
   AuditLockedBanner,
   AuditRevisionBadge,
@@ -54,6 +55,7 @@ import {
 } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const STATUS_VARIANT: Record<EstimateStatus, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
   QUOTE_DRAFT: 'neutral',
@@ -69,12 +71,29 @@ const fmt = (raw: string | number): string => {
   return Math.trunc(n).toLocaleString('ko-KR')
 }
 
+function estimateStatusBadgeStyle(status: EstimateStatus) {
+  switch (status) {
+    case 'QUOTE_ACCEPTED':
+      return { background: '#D1FAE5', color: '#065F46' }
+    case 'QUOTE_REJECTED':
+      return { background: '#FEE2E2', color: '#991B1B' }
+    case 'QUOTE_CONVERTED':
+      return { background: '#EDE9FE', color: '#5B21B6' }
+    case 'QUOTE_SENT':
+      return { background: '#DBEAFE', color: '#1D4ED8' }
+    case 'QUOTE_DRAFT':
+    default:
+      return { background: '#F3F4F6', color: '#4B5563' }
+  }
+}
+
 export function EstimateDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const id = params['id']!
   const { canAccess } = usePermissions()
+  const isMobile = useIsMobile()
 
   const query = useQuery({
     queryKey: ['estimate', id],
@@ -115,6 +134,7 @@ export function EstimateDetailPage() {
 
   const [topError, setTopError] = useState<string>('')
   const [collabEditMode, setCollabEditMode] = useState(false)
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
 
   const sendMutation = useMutation({
     mutationFn: () => sendEstimate(id),
@@ -231,6 +251,20 @@ export function EstimateDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['estimate', id, 'audit-logs'] })
   }
 
+  const mobilePrimaryAction = isDraft && canMutate
+    ? {
+        label: sendMutation.isPending ? '발송 중...' : '발송',
+        onClick: handleSend,
+        disabled: sendMutation.isPending,
+      }
+    : (isSent || e.status === 'QUOTE_ACCEPTED') && !isLocked && canMutate
+      ? {
+          label: convertMutation.isPending ? '변환 중...' : '전표 변환',
+          onClick: handleConvert,
+          disabled: convertMutation.isPending,
+        }
+      : null
+
   const lineColumns: DataTableColumn<EstimateLine>[] = [
     {
       key: 'lineNo',
@@ -319,7 +353,170 @@ export function EstimateDetailPage() {
         </div>
       ) : null}
 
+      {isMobile ? (
+        <>
+          <div className="mobile-summary-card" data-testid="estimate-detail-mobile-summary">
+            <div className="mobile-summary-card-header">
+              <span className="mobile-summary-doc-no">{e.estimateNo}</span>
+              <span
+                className="mobile-status-badge"
+                style={estimateStatusBadgeStyle(e.status)}
+              >
+                {ESTIMATE_STATUS_LABEL[e.status]}
+              </span>
+            </div>
+            <div className="mobile-summary-partner">{e.partnerName}</div>
+            <div className="mobile-summary-divider" />
+            <div className="mobile-summary-total-row">
+              <span className="mobile-summary-total-amount">
+                {fmt(e.totalAmount)}원
+              </span>
+              <span className="mobile-summary-date">
+                작성일 {e.estimateDate}
+              </span>
+            </div>
+          </div>
+
+          <div className="mobile-action-bar" role="toolbar" aria-label="견적서 액션">
+            {mobilePrimaryAction ? (
+              <button
+                type="button"
+                className="mobile-action-primary"
+                disabled={mobilePrimaryAction.disabled}
+                onClick={mobilePrimaryAction.onClick}
+              >
+                {mobilePrimaryAction.label}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="mobile-action-icon"
+              aria-label="인쇄"
+              onClick={handlePrint}
+            >
+              인쇄
+            </button>
+            <button
+              type="button"
+              className="mobile-action-icon"
+              aria-label="더보기"
+              onClick={() => setMobileMoreOpen(true)}
+            >
+              ···
+            </button>
+            {mobileMoreOpen ? (
+              <>
+                <div
+                  className="mobile-more-overlay"
+                  role="presentation"
+                  onClick={() => setMobileMoreOpen(false)}
+                />
+                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
+                  <div className="mobile-more-sheet-handle" />
+                  {(isDraft || isSent) && canMutate ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        navigate(`/sales/estimates/${e.id}/edit`)
+                      }}
+                    >
+                      편집
+                    </button>
+                  ) : null}
+                  {e.status === 'QUOTE_ACCEPTED' && canMutate && !isLocked ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        setCollabEditMode(true)
+                      }}
+                    >
+                      수정
+                    </button>
+                  ) : null}
+                  {isSent && canMutate ? (
+                    <>
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item"
+                        disabled={acceptMutation.isPending}
+                        onClick={() => {
+                          setMobileMoreOpen(false)
+                          handleAccept()
+                        }}
+                      >
+                        수락
+                      </button>
+                      <button
+                        type="button"
+                        className="mobile-more-sheet-item danger"
+                        disabled={rejectMutation.isPending}
+                        onClick={() => {
+                          setMobileMoreOpen(false)
+                          handleReject()
+                        }}
+                      >
+                        거절
+                      </button>
+                    </>
+                  ) : null}
+                  {!isLocked && canMutate && mobilePrimaryAction?.label !== '전표 변환' ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      disabled={convertMutation.isPending}
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        handleConvert()
+                      }}
+                    >
+                      전표 변환
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="mobile-more-sheet-item"
+                    onClick={() => {
+                      setMobileMoreOpen(false)
+                      handlePrint()
+                    }}
+                  >
+                    인쇄
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <MobileCollapsible title="견적 상세 정보" className="mobile-section-card">
+            {[
+              { label: '작성일', value: e.estimateDate },
+              { label: '유효기간', value: e.validUntil },
+              { label: '사업자번호', value: e.partnerBusinessNo },
+              { label: '주소', value: e.partnerAddress },
+              { label: '비고', value: e.memo },
+            ].map(({ label, value }) => {
+              const displayValue = value == null || value === '' ? '-' : String(value)
+              return (
+                <div key={label} className="mobile-field-row">
+                  <span className="mobile-field-label">{label}</span>
+                  <span
+                    className={`mobile-field-value${displayValue === '-' ? ' mobile-field-value-empty' : ''}`}
+                  >
+                    {displayValue}
+                  </span>
+                </div>
+              )
+            })}
+          </MobileCollapsible>
+        </>
+      ) : null}
+
       <Card>
+        {!isMobile ? (
         <div
           style={{
             display: 'flex',
@@ -473,6 +670,7 @@ export function EstimateDetailPage() {
             </Button>
           </div>
         </div>
+        ) : null}
 
         {/* 변환 전표 link */}
         {e.convertedSlipId ? (
@@ -502,13 +700,68 @@ export function EstimateDetailPage() {
           </div>
         ) : null}
 
-        <DataTable
-          // 헤더는 모두 가운데 정렬(개발책임자 정렬 지시) — 본문은 컬럼별 align(수량 가운데/금액 우측).
-          columns={lineColumns.map((c) => ({ ...c, headerAlign: 'center' as const }))}
-          rows={e.lines}
-          rowKey={(l) => l.id}
-          emptyMessage="라인이 없습니다."
-        />
+        <div className="detail-mobile-hide">
+          <DataTable
+            // 헤더는 모두 가운데 정렬(개발책임자 정렬 지시) — 본문은 컬럼별 align(수량 가운데/금액 우측).
+            columns={lineColumns.map((c) => ({ ...c, headerAlign: 'center' as const }))}
+            rows={e.lines}
+            rowKey={(l) => l.id}
+            emptyMessage="라인이 없습니다."
+          />
+        </div>
+
+        <div className="mobile-item-list" data-testid="estimate-detail-mobile-lines">
+          {e.lines.length === 0 ? (
+            <div className="mobile-item-card">
+              <div className="mobile-item-total-row">
+                <span className="mobile-item-total-label">라인</span>
+                <span className="mobile-item-total-value">라인이 없습니다.</span>
+              </div>
+            </div>
+          ) : (
+            e.lines.map((line) => {
+              const unitWithVat = line.unitPriceWithVat ?? line.unitPrice
+              return (
+                <div key={line.id} className="mobile-item-card">
+                  <div className="mobile-item-card-header">
+                    <div className="mobile-item-name">{line.productName ?? '—'}</div>
+                  </div>
+                  {line.modelName ? (
+                    <div className="mobile-item-model">{line.modelName}</div>
+                  ) : null}
+                  <div className="mobile-item-divider" />
+                  <div className="mobile-item-metrics">
+                    <div className="mobile-item-metric">
+                      <span className="mobile-item-metric-label">수량</span>
+                      <span className="mobile-item-metric-value">{fmt(line.quantity)}</span>
+                    </div>
+                    <div className="mobile-item-metric">
+                      <span className="mobile-item-metric-label">단가(VAT포함)</span>
+                      <span className="mobile-item-metric-value">{fmt(unitWithVat)}</span>
+                    </div>
+                  </div>
+                  <div className="mobile-item-chips">
+                    {line.specification ? (
+                      <span className="mobile-item-chip">규격 {line.specification}</span>
+                    ) : null}
+                    <span className="mobile-item-chip">
+                      공급 {fmt(line.supplyAmount)}
+                    </span>
+                    <span className="mobile-item-chip">
+                      부가세 {fmt(line.vatAmount)}
+                    </span>
+                  </div>
+                  <div className="mobile-item-total-row">
+                    <span className="mobile-item-total-label">합계(VAT포함)</span>
+                    <span className="mobile-item-total-value">
+                      {fmt(line.lineTotal)}원
+                    </span>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
 
         {/* 합계 */}
         <div
@@ -538,27 +791,62 @@ export function EstimateDetailPage() {
         </div>
       </Card>
 
-      {/* Phase 2.2 Task 6: 버전이력 패널 + 복원 (편집 불가 상태면 복원 버튼 비활성) */}
-      <EstimateVersionHistoryPanel estimateId={id} status={e.status} />
+      {isMobile ? (
+        <>
+          <MobileCollapsible title="버전 이력" className="mobile-section-card">
+            <EstimateVersionHistoryPanel estimateId={id} status={e.status} />
+          </MobileCollapsible>
 
-      <EstimateCollaborationPanel
-        estimateId={id}
-        currentValues={{
-          memo: e.memo,
-          validUntil: e.validUntil,
-          lines: e.lines.map((line, index) => ({
-            lineKey: index + 1,
-            productName: line.productName,
-            modelName: line.modelName,
-            quantity: line.quantity,
-            unitPrice: line.unitPriceWithVat ?? line.unitPrice,
-            note: line.note,
-          })),
-        }}
-        editMode={e.status === 'QUOTE_ACCEPTED' && !isLocked && collabEditMode}
-        onEditModeChange={setCollabEditMode}
-        onCommitted={handleCollabCommitted}
-      />
+          <MobileCollapsible
+            title="협업 · 코멘트"
+            defaultOpen
+            className="mobile-section-card"
+          >
+            <EstimateCollaborationPanel
+              estimateId={id}
+              currentValues={{
+                memo: e.memo,
+                validUntil: e.validUntil,
+                lines: e.lines.map((line, index) => ({
+                  lineKey: index + 1,
+                  productName: line.productName,
+                  modelName: line.modelName,
+                  quantity: line.quantity,
+                  unitPrice: line.unitPriceWithVat ?? line.unitPrice,
+                  note: line.note,
+                })),
+              }}
+              editMode={e.status === 'QUOTE_ACCEPTED' && !isLocked && collabEditMode}
+              onEditModeChange={setCollabEditMode}
+              onCommitted={handleCollabCommitted}
+            />
+          </MobileCollapsible>
+        </>
+      ) : (
+        <>
+          {/* Phase 2.2 Task 6: 버전이력 패널 + 복원 (편집 불가 상태면 복원 버튼 비활성) */}
+          <EstimateVersionHistoryPanel estimateId={id} status={e.status} />
+
+          <EstimateCollaborationPanel
+            estimateId={id}
+            currentValues={{
+              memo: e.memo,
+              validUntil: e.validUntil,
+              lines: e.lines.map((line, index) => ({
+                lineKey: index + 1,
+                productName: line.productName,
+                modelName: line.modelName,
+                quantity: line.quantity,
+                unitPrice: line.unitPriceWithVat ?? line.unitPrice,
+                note: line.note,
+              })),
+            }}
+            editMode={e.status === 'QUOTE_ACCEPTED' && !isLocked && collabEditMode}
+            onEditModeChange={setCollabEditMode}
+            onCommitted={handleCollabCommitted}
+          />
+        </>
+      )}
 
     </>
   )
