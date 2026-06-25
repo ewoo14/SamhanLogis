@@ -1,9 +1,9 @@
 /**
  * 라우트 정의 — 플랫폼별 라우터 기반.
  *
- * Electron 의 `file://` 프로토콜에서는 `BrowserRouter` 의 history mode 가
- * 새로고침 시 404 를 일으키므로 `createHashRouter` 를 사용한다. 웹 배포에서는
- * 서버 SPA fallback 을 전제로 `createBrowserRouter` 를 사용한다.
+ * 웹 배포(`vite.web.config.ts` 의 `VITE_PLATFORM='web'`)만 서버 SPA fallback 을
+ * 전제로 `createBrowserRouter` 를 사용한다. Electron 및 mock/dev 렌더러는
+ * 새로고침 404 와 해시 URL mock gate 회귀를 피하기 위해 `createHashRouter` 를 사용한다.
  *
  * IA 재편 (slip-output-format 슬라이스 — Q1=A 새 슬라이스):
  * - `/login` → LoginPage (보호 X)
@@ -67,7 +67,6 @@ import {
   RouterProvider,
   useSearchParams,
 } from 'react-router-dom'
-import { isElectronPlatform } from '../auth/authProvider'
 import { AuthGuard } from '../components/AuthGuard'
 import { AppLayout } from '../components/AppLayout'
 import { LoginPage } from './LoginPage'
@@ -1660,7 +1659,10 @@ const routes = [
   },
 ]
 
-const createPlatformRouter = isElectronPlatform ? createHashRouter : createBrowserRouter
+// 웹 배포(vite.web.config: VITE_PLATFORM='web')만 BrowserRouter(서버 SPA fallback 전제).
+// Electron(file://) 및 mock/dev 렌더러는 새로고침 404 회피 위해 HashRouter.
+const isWebDeploy = import.meta.env['VITE_PLATFORM'] === 'web'
+const createPlatformRouter = isWebDeploy ? createBrowserRouter : createHashRouter
 const router = createPlatformRouter(routes)
 
 /**
