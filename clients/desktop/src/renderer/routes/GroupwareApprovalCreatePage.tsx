@@ -428,7 +428,7 @@ export function GroupwareApprovalCreatePage() {
                   className="mobile-form-grid"
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'minmax(420px, 1fr)',
+                    gridTemplateColumns: 'minmax(min(420px, 100%), 1fr)',
                     gap: 8,
                     alignItems: 'end',
                     padding: 8,

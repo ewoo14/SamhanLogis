@@ -151,9 +151,6 @@ function SlipMobileLineCard(props: {
     props.line.quantity,
     props.line.unitPrice,
   )
-  const priceDisplay = props.line.unitPrice
-    ? Number(props.line.unitPrice).toLocaleString()
-    : '0'
 
   return (
     <div className="mobile-line-card" data-line-index={props.lineNumber}>
@@ -224,7 +221,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={priceDisplay}
+          value={props.line.unitPrice}
           onChange={(e) => {
             const numeric = e.target.value.replace(/[^0-9]/g, '')
             props.onUnitPriceChange(numeric)

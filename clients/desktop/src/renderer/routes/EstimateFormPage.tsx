@@ -689,6 +689,19 @@ export function EstimateFormPage() {
           </div>
         ) : null}
 
+        {isMobile && !isReadOnly && canViewProductLookups ? (
+          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLineLookupOpen(true)}
+              data-testid="estimate-line-lookup-btn"
+            >
+              참조 조회
+            </Button>
+          </div>
+        ) : null}
+
         <div className={isMobile ? 'mobile-line-card-list' : undefined}>
         {lines.map((line, i) => {
           // 단가 부가세포함: 합계(VAT포함)=round(수량×단가), 공급가액=round(합계/1.1), 부가세=차액.
@@ -890,7 +903,7 @@ export function EstimateFormPage() {
             >
               + 라인 추가
             </Button>
-            {canViewProductLookups ? (
+            {!isMobile && canViewProductLookups ? (
               <Button
                 variant="ghost"
                 size="sm"

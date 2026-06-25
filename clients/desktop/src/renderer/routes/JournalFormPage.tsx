@@ -390,39 +390,78 @@ export function JournalFormPage() {
         </div>
 
         {/* 합계 표시 */}
-        <div
-          style={{
-            marginTop: 16,
-            padding: '12px 16px',
-            background: '#F9FAFB',
-            borderRadius: 6,
-            display: 'grid',
-            gridTemplateColumns: '36px 220px 140px 140px 1fr',
-            gap: 8,
-            fontSize: 14,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          <div />
-          <div style={{ fontWeight: 600 }}>합계</div>
-          <div style={{ textAlign: 'right', fontWeight: 600 }}>
-            {fmt(totals.debit)}
-          </div>
-          <div style={{ textAlign: 'right', fontWeight: 600 }}>
-            {fmt(totals.credit)}
-          </div>
+        {isMobile ? (
           <div
             style={{
-              fontSize: 13,
-              color: isBalanced ? '#059669' : '#DC2626',
-              fontWeight: 600,
+              marginTop: 16,
+              padding: '12px 16px',
+              background: '#F9FAFB',
+              borderRadius: 6,
+              display: 'grid',
+              gap: 8,
+              fontSize: 14,
+              fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {isBalanced
-              ? '차/대변 일치 ✓'
-              : `차이: ${fmt(totals.diff)} 원`}
+            <div style={{ fontWeight: 700 }}>합계</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: '#6B7280' }}>차변합</span>
+              <strong>{fmt(totals.debit)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: '#6B7280' }}>대변합</span>
+              <strong>{fmt(totals.credit)}</strong>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 12,
+                color: isBalanced ? '#059669' : '#DC2626',
+                fontWeight: 700,
+              }}
+            >
+              <span>차이</span>
+              <span>
+                {isBalanced ? '차/대변 일치 ✓' : `${fmt(totals.diff)} 원`}
+              </span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            style={{
+              marginTop: 16,
+              padding: '12px 16px',
+              background: '#F9FAFB',
+              borderRadius: 6,
+              display: 'grid',
+              gridTemplateColumns: '36px 220px 140px 140px 1fr',
+              gap: 8,
+              fontSize: 14,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            <div />
+            <div style={{ fontWeight: 600 }}>합계</div>
+            <div style={{ textAlign: 'right', fontWeight: 600 }}>
+              {fmt(totals.debit)}
+            </div>
+            <div style={{ textAlign: 'right', fontWeight: 600 }}>
+              {fmt(totals.credit)}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: isBalanced ? '#059669' : '#DC2626',
+                fontWeight: 600,
+              }}
+            >
+              {isBalanced
+                ? '차/대변 일치 ✓'
+                : `차이: ${fmt(totals.diff)} 원`}
+            </div>
+          </div>
+        )}
       </Card>
 
       {topError ? (
