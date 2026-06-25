@@ -1036,7 +1036,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             수정 {revisionCount}회
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="detail-action-bar" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {/* PR-H2: 복원 dropdown — revertCandidates 가 있을 때만 표시 */}
           {revertCandidates.length > 0 ? (
             <select
@@ -1644,6 +1644,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </p>
       )}
 
+      <div className="slip-line-table-scroll">
       <table className="slip-line-table">
         <thead>
           <tr>
@@ -1728,6 +1729,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           )}
         </tbody>
       </table>
+      </div>
 
       {/* Phase 2.6d: 재고조회 모달 */}
       <InventoryLookupModal
@@ -2197,6 +2199,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </label>
 
         <div className="purchase-edit-lines" data-testid="purchase-slip-edit-lines">
+          <div className="slip-line-table-scroll">
           <table className="slip-line-table">
             <thead>
               <tr>
@@ -2274,6 +2277,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </Modal>
 
@@ -2451,6 +2455,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </label>
 
         <div className="sales-edit-lines" data-testid="sales-slip-edit-lines">
+          <div className="slip-line-table-scroll">
           <table className="slip-line-table">
             <thead>
               <tr>
@@ -2528,6 +2533,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </Modal>
 

@@ -235,7 +235,7 @@ export function JournalDetailPage() {
             ) : null}
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="detail-action-bar" style={{ display: 'flex', gap: 8 }}>
             {canCollabEdit && !collabEditMode ? (
               <Button
                 variant="primary"

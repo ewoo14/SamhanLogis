@@ -208,6 +208,7 @@ export function InventoryAuditDetailPage() {
         </div>
 
         <div
+          className="detail-action-bar"
           style={{
             display: 'flex',
             gap: 8,

@@ -482,7 +482,7 @@ export function SalesPartnerOrderDetailPage() {
             주문서 상세
             <span className={styles['badge']}>{query.data?.orderNumber ?? '조회 중'}</span>
           </div>
-          <div className={styles['topActions']}>
+          <div className={`${styles['topActions']} detail-action-bar`}>
             {query.data && canPrint ? (
               <Button
                 type="button"

@@ -367,7 +367,7 @@ export function GroupwareApprovalDetailPage() {
               {approval.title}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div className="detail-action-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Button
               type="button"
               variant="secondary"

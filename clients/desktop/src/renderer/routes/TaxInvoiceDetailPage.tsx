@@ -452,7 +452,7 @@ export function TaxInvoiceDetailPage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="detail-action-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {isDraft && canUpdateTaxInvoice ? (
               <Button
                 variant="ghost"

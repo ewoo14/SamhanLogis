@@ -356,6 +356,14 @@ button {
   gap: var(--space-3);
 }
 
+.detail-action-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .audit-detail-meta {
   display: grid;
   grid-template-columns: 120px 1fr 120px 1fr;
@@ -396,6 +404,13 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .detail-action-bar,
+  .slip-detail-footer-actions,
+  .driver-edit-actions,
+  .slip-signature-card-actions {
+    flex-wrap: wrap;
+  }
+
   .tax-invoice-totals,
   .estimate-totals,
   .journal-totals {
@@ -426,6 +441,22 @@ button {
   margin-top: var(--space-2);
   font-size: var(--font-size-sm);
 }
+
+.slip-line-table-scroll {
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .slip-line-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .slip-line-table-scroll > .slip-line-table {
+    min-width: 702px;
+  }
+}
+
 .slip-line-table th,
 .slip-line-table td {
   border: 1px solid var(--color-neutral-300);

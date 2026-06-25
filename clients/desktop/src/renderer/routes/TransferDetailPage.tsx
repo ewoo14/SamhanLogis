@@ -274,7 +274,7 @@ export function TransferDetailPage() {
                 />
               </div>
             ) : null}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div className="detail-action-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {possibleActions.map((action) => {
                 const allowed = canAccess(transferActionPageCode(action), 'update')
                 const variant

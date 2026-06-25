@@ -33,6 +33,22 @@
   overflow-x: auto;
 }
 
+@media (max-width: 768px) {
+  .track {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .track > .stepWrapper {
+    flex: 0 0 auto;
+  }
+
+  .track .line {
+    flex: 0 0 16px;
+  }
+}
+
 .stepWrapper {
   display: flex;
   align-items: flex-start;
