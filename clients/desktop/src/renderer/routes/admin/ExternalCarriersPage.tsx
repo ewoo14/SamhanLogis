@@ -162,6 +162,7 @@ export function ExternalCarriersPage() {
         key: 'name',
         header: '이름/배송사명',
         width: '180px',
+        mobilePriority: 'primary',
         render: (row) => (
           <span data-testid={`admin-external-carriers-row-${externalCarrierTestIdName(row.name)}`}>
             {row.name}
@@ -172,23 +173,27 @@ export function ExternalCarriersPage() {
         key: 'phone',
         header: '전화',
         width: '150px',
+        mobilePriority: 'secondary',
         render: (row) => row.phone,
       },
       {
         key: 'email',
         header: '이메일',
+        mobilePriority: 'hidden',
         render: (row) => row.email || '-',
       },
       {
         key: 'defaultVehicleType',
         header: '기본차종',
         width: '120px',
+        mobilePriority: 'secondary',
         render: (row) => row.defaultVehicleType || '-',
       },
       {
         key: 'active',
         header: '활성여부',
         width: '100px',
+        mobilePriority: 'secondary',
         render: (row) => (
           <Badge variant={row.active ? 'success' : 'neutral'}>
             {row.active ? '활성' : '비활성'}
@@ -199,6 +204,7 @@ export function ExternalCarriersPage() {
         key: 'id',
         header: '관리',
         width: '170px',
+        mobilePriority: 'hidden',
         render: (row) =>
           canManage ? (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

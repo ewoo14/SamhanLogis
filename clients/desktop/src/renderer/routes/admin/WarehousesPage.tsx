@@ -151,15 +151,17 @@ export function WarehousesPage() {
       key: 'code',
       header: '코드',
       width: '120px',
+      mobilePriority: 'primary',
       render: (w) => (
         <span data-testid={`admin-warehouses-row-${w.code}`}>{w.code}</span>
       ),
     },
-    { key: 'name', header: '창고명' },
+    { key: 'name', header: '창고명', mobilePriority: 'secondary' },
     {
       key: 'type',
       header: '분류',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (w) => (
         <Badge variant={TYPE_VARIANT[w.type]}>{TYPE_LABEL[w.type]}</Badge>
       ),
@@ -169,16 +171,19 @@ export function WarehousesPage() {
       header: '표시 순서',
       width: '110px',
       align: 'right',
+      mobilePriority: 'hidden',
     },
     {
       key: 'address',
       header: '주소',
-      render: (w) => w.address ?? '—',
+      mobilePriority: 'hidden',
+      render: (w) => w.address ?? '-',
     },
     {
       key: 'id',
       header: '액션',
       width: '160px',
+      mobilePriority: 'hidden',
       render: (w) =>
         isActiveView ? (
           <div style={{ display: 'flex', gap: 6 }}>

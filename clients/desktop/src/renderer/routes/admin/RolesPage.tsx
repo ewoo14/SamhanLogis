@@ -73,6 +73,7 @@ export function RolesPage() {
       key: 'role',
       header: '권한 코드',
       width: '160px',
+      mobilePriority: 'primary',
       render: (r) => (
         <span data-testid={`admin-roles-row-${r.role}`}>
           <Badge variant="brand">{r.role}</Badge>
@@ -83,6 +84,7 @@ export function RolesPage() {
       key: 'label',
       header: '한국어',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (r) => r.label,
     },
     {
@@ -90,11 +92,13 @@ export function RolesPage() {
       header: '사용자 수',
       width: '120px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (r) => (r.loading ? '…' : (r.count ?? 0).toLocaleString()),
     },
     {
       key: 'role',
       header: '설명',
+      mobilePriority: 'hidden',
       render: (r) => ROLE_DESCRIPTION[r.role],
     },
   ]

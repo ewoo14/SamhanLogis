@@ -254,18 +254,20 @@ export function UsersPage() {
 
   const columns: DataTableColumn<AdminUser>[] = useMemo(
     () => [
-      { key: 'loginId', header: '로그인ID', width: '140px' },
-      { key: 'fullName', header: '이름', width: '120px' },
+      { key: 'loginId', header: '로그인ID', width: '140px', mobilePriority: 'primary' },
+      { key: 'fullName', header: '이름', width: '120px', mobilePriority: 'secondary' },
       {
         key: 'departmentName',
         header: '부서',
         width: '140px',
+        mobilePriority: 'hidden',
         render: (u) => u.departmentName,
       },
       {
         key: 'role',
         header: '권한',
         width: '110px',
+        mobilePriority: 'secondary',
         // P-6: Role Badge 시각화
         render: (u) => (
           <Badge variant={ROLE_BADGE_VARIANT[u.role]}>
@@ -277,6 +279,7 @@ export function UsersPage() {
         key: 'terminationDate',
         header: '상태',
         width: '90px',
+        mobilePriority: 'secondary',
         // D-2 fix: LOCKED variant 'danger' → 'warning'
         // D-3 fix: DISABLED 상태 구분 (terminationDate 기반)
         render: (u) =>
@@ -289,6 +292,7 @@ export function UsersPage() {
       {
         key: 'id',
         header: '관리',
+        mobilePriority: 'hidden',
         render: (u) => (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {/* 잠금 해제 버튼 — terminationDate 가 set 된 경우만 표시.

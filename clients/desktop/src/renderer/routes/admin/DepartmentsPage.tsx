@@ -70,22 +70,25 @@ export function DepartmentsPage() {
       key: 'code',
       header: '코드',
       width: '140px',
+      mobilePriority: 'primary',
       render: (d) => (
         <span data-testid={`admin-departments-row-${d.code}`}>{d.code}</span>
       ),
     },
-    { key: 'name', header: '부서명' },
+    { key: 'name', header: '부서명', mobilePriority: 'secondary' },
     {
       key: 'displayOrder',
       header: '표시 순서',
       width: '110px',
       align: 'right',
+      mobilePriority: 'hidden',
     },
     {
       key: 'userCount',
       header: '사용자 수',
       width: '120px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (d) => (d.loading ? '…' : (d.userCount ?? 0).toLocaleString()),
     },
   ]

@@ -244,6 +244,7 @@ export function SlipCutoffConfigPage() {
         key: 'deliveryTagLabel',
         header: '배송태그',
         width: '130px',
+        mobilePriority: 'primary',
         render: (row) => (
           <span data-testid={`admin-slip-cutoff-row-${row.deliveryTag}`}>
             {row.deliveryTagLabel}
@@ -254,12 +255,14 @@ export function SlipCutoffConfigPage() {
         key: 'cutoffTime',
         header: '마감시각',
         width: '100px',
+        mobilePriority: 'secondary',
         render: (row) => row.cutoffTime,
       },
       {
         key: 'active',
         header: '활성',
         width: '100px',
+        mobilePriority: 'secondary',
         render: (row) => (
           <Badge variant={row.active ? 'success' : 'neutral'}>
             {row.active ? '활성' : '비활성'}
@@ -270,6 +273,7 @@ export function SlipCutoffConfigPage() {
         key: 'id',
         header: '관리',
         width: '150px',
+        mobilePriority: 'hidden',
         render: (row) => {
           const hasAnyAction = canUpdate || canDelete
           if (!hasAnyAction) {

@@ -180,6 +180,7 @@ export function RegionsPage() {
         key: 'groupName',
         header: '분류 그룹',
         width: '180px',
+        mobilePriority: 'primary',
         render: (r) => (
           <span data-testid={`admin-regions-row-${r.groupName}`}>
             {r.groupName}
@@ -189,6 +190,7 @@ export function RegionsPage() {
       {
         key: 'keywords',
         header: '검색어 (시군구)',
+        mobilePriority: 'secondary',
         render: (r) => (
           <span title={r.keywords}>{truncate(r.keywords, KEYWORDS_TRUNCATE)}</span>
         ),
@@ -198,12 +200,14 @@ export function RegionsPage() {
         header: '정렬 순서',
         width: '100px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => (r.sortOrder ?? 0).toLocaleString(),
       },
       {
         key: 'id',
         header: '관리',
         width: '180px',
+        mobilePriority: 'hidden',
         render: (r) => (
           canManageRegions ? (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

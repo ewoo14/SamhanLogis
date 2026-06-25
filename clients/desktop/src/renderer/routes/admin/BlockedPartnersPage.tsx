@@ -140,6 +140,7 @@ export function BlockedPartnersPage() {
         key: 'partnerCode',
         header: '거래처 코드',
         width: '140px',
+        mobilePriority: 'primary',
         render: (b) => (
           <span data-testid="admin-blocked-row" data-partner-code={b.partnerCode}>
             {b.partnerCode}
@@ -149,22 +150,26 @@ export function BlockedPartnersPage() {
       {
         key: 'businessNameSnapshot',
         header: '상호',
+        mobilePriority: 'secondary',
       },
       {
         key: 'blockReason',
         header: '차단 사유',
-        render: (b) => b.blockReason ?? '—',
+        mobilePriority: 'hidden',
+        render: (b) => b.blockReason ?? '-',
       },
       {
         key: 'blockedAt',
         header: '차단 시점',
         width: '160px',
+        mobilePriority: 'secondary',
         render: (b) => formatDateTime(b.blockedAt),
       },
       {
         key: 'source',
         header: '출처',
         width: '120px',
+        mobilePriority: 'secondary',
         render: (b) => (
           <Badge variant={SOURCE_VARIANT[b.source]}>
             {BLOCK_SOURCE_LABEL[b.source]}
@@ -175,6 +180,7 @@ export function BlockedPartnersPage() {
         key: 'action',
         header: '액션',
         width: '110px',
+        mobilePriority: 'hidden',
         render: (b) =>
           canBulkManage ? (
             <button
