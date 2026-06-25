@@ -4,7 +4,29 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-25 — **모바일 에픽 ② 슬1 foundation 구현+Opus리뷰+fix 완료. 🚨다음=라이브QA→0수렴재리뷰→Codex라운드→머지**)
+## 🔄 세션 재개 지점 (2026-06-25 회사PC — **슬1 웹 리로드루프 Codex fix 완료+재QA PASS(B1~B4). 🚨다음=0수렴 재리뷰→⑤Codex 5-agent 라운드→⑥PM종합→⑦CI→⑧머지**)
+
+> **fix 완료**: Codex(danger-full-access)가 `api/client.ts` 401 인터셉터에 인증프로브 가드(`/auth/(me|login|logout)` 401 skip) 적용 + 회귀 테스트. typecheck 0·vitest 14/14·build:web 0. **라이브 재QA PASS**: 로그인→홈(쿠키인증·신원복원)→새로고침 세션복원(/auth/me 200·슬립위젯)→무쿠키 /login 리다이렉트(루프 해소). 커밋+푸시+PR #596 게시 완료. (대시보드 일부 위젯 500/"준비중"=슬1 범위 외 기존 로컬스택 거동, slip 위젯 정상=쿠키 식별주입 작동.)
+
+회사PC 재개: 브랜치 `feat/mobile-s1-foundation-auth-web` checkout(origin/main 동기화 완료·stale 컷오프 작업트리는 `git stash`로 보존). Docker 풀스택 가동, **auth-service+api-gateway 를 브랜치로 재빌드 완료**(08:55 healthy). 웹빌드 `dist/web` 를 vite preview :5175 서빙(게이트웨이 CORS 허용 origin).
+
+### ✅ 라이브 QA 수행 (직전 세션 미실행 위반 → 개발책임자 "리뷰마다 라이브QA" 재지시 이행)
+- **BE 계약 curl 6/6 PASS**: 로그인 dual-issue(Set-Cookie+body 양립)·/auth/me 쿠키fallback 200·Bearer 무회귀 200·Bearer우선·logout max-age=0·무인증 401. CORS preflight(:5175 origin) 200·Allow-Credentials.
+- **웹 UI Playwright(모바일 390x844)**: 로그인 페이지 정상 렌더(B1) / 🔴 **로그인 제출→빈 폼 리로드(B2)**. 캡처 `docs/qa/mobile-s1-foundation/`.
+
+### 🔴 BLOCKING — 웹 전용 무한 리로드 루프 (라이브 단독 적발, PR #596 코멘트 박제)
+- 부팅 `webAuthProvider.bootstrap()`→`GET /auth/me`(쿠키없음)→401 → **응답 인터셉터(`api/client.ts:86-99`)가 모든 401에서 웹분기 `window.location.replace('/login')` 풀리로드** → 재부팅 /auth/me 401 → **무한루프**. 로그인 POST `net::ERR_ABORTED`. Electron 은 `location.hash='#/login'`(리로드X) 면역 → **웹 전용 회귀**. `bootstrap` 의 401→null 처리가 인터셉터 선행 리로드로 무력화.
+- **fix (Codex danger-full-access 전담 — Opus 임의구현 금지)**: 401 인터셉터가 인증 프로브 `/auth/me`·`/auth/login`·`/auth/logout` 401 에는 redirect+clearSession **skip**(호출자 처리: bootstrap→null, login→에러배너). 보호 리소스 401만 로그인 유도. 적용 후 라이브 QA(로그인→홈→새로고침 /auth/me 세션복원→무쿠키 차단 B1~B4) 재실행.
+- 🔑 교훈: unit/IT(authProvider mock)가 인터셉터↔부팅 통합 루프 미검(false-green) → 라이브가 단독 적발. 집PC 라이브 QA 건너뛰어 미적발 → 개발책임자 "리뷰마다 라이브QA" 정당성 입증([[feedback_qa_docker_real_test]] 2026-06-25 박제).
+
+### 🔧 QA 환경 메모(회사PC)
+- gstack 헤드리스가 이 Windows 박스에서 불안정(매 호출 서버 재시작·page crashed·chain timeout) → **Playwright 직접 스크립트**(`clients/desktop/scripts/mobile-s1-web-qa.cjs`)로 전환(안정·네트워크 인터셉트로 쿠키 증명). chromium headless_shell 설치됨.
+- 웹 서버: `cd clients/desktop && npx vite preview --config vite.web.config.ts --port 5175 --strictPort`(dist/web, SPA fallback). 재빌드: `npm run build:web`.
+- 스택 재빌드: `./gradlew :services:auth-service:bootJar :services:api-gateway:bootJar` → `docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml build auth-service api-gateway && ... up -d`.
+
+---
+
+## 🔄 (이전) 세션 재개 지점 (2026-06-25 — **모바일 에픽 ② 슬1 foundation 구현+Opus리뷰+fix 완료. 🚨다음=라이브QA→0수렴재리뷰→Codex라운드→머지**)
 
 > **🏢 회사 PC 재개 절차**: `git fetch origin && git checkout feat/mobile-s1-foundation-auth-web` (브랜치에 전 작업+본 핸드오프 포함). PR **#596**(draft). ⚠️ 집PC local main 이 origin/main 보다 3 docs 커밋 ahead 이나 **전부 브랜치에 포함됨(유실 없음)**. 회사PC는 브랜치 checkout 으로 충분.
 

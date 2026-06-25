@@ -5,8 +5,8 @@
  * 1) 요청 — 플랫폼별 authProvider 에서 인증 헤더를 가져와 병합한다.
  *    Electron 은 기존 Bearer, 웹은 httpOnly 쿠키 전송을 위해 withCredentials 를 사용한다.
  *    파트너 자기범위 키인 `X-Partner-Code` 는 게이트웨이가 JWT claim 에서 권위 주입한다.
- * 2) 응답 — 401 발생 시 토큰을 즉시 클리어하고 hash 라우팅으로
- *    `#/login` 에 강제 리다이렉트한다.
+ * 2) 응답 — 보호 리소스 401 발생 시 토큰을 즉시 클리어하고 로그인으로 유도한다.
+ *    단, 인증 프로브/인증 엔드포인트 401 은 호출자가 직접 처리한다.
  *
  * baseURL 은 `VITE_API_BASE_URL` (없으면 api-gateway 기본 8080) 을 사용한다.
  */
@@ -31,6 +31,8 @@ function isMockHttpResponse(value: unknown): value is MockHttpResponse {
 
 const BASE_URL =
   import.meta.env['VITE_API_BASE_URL'] ?? 'http://localhost:8080'
+
+const AUTH_ENDPOINT_401_HANDLED_BY_CALLER = /\/auth\/(me|login|logout)\/?$/
 
 /**
  * 앱 전역 단일 axios 인스턴스. 도메인별 API 모듈(auth/inventory/slip) 이
@@ -84,6 +86,12 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (err: unknown) => {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
+      const requestUrl = err.config?.url ?? ''
+      // 인증 프로브/인증 엔드포인트 401 은 호출자가 처리한다(부팅 리로드 루프 방지).
+      if (AUTH_ENDPOINT_401_HANDLED_BY_CALLER.test(requestUrl)) {
+        return Promise.reject(err)
+      }
+
       try {
         await getAuthProvider().clearSession()
       } catch (clearErr) {

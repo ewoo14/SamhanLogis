@@ -41,10 +41,10 @@ describe('apiClient authProvider 배선', () => {
     expect(authProvider.getAuthHeaders).toHaveBeenCalledTimes(1)
   })
 
-  it('웹 401 응답은 authProvider 세션을 비우고 /login 으로 이동한다', async () => {
+  it('웹 보호 리소스 401 응답은 authProvider 세션을 비우고 /login 으로 이동한다', async () => {
     const { apiClient } = await import('../client')
 
-    await expect(apiClient.get('/unauthorized', {
+    await expect(apiClient.get('/api/v1/slips', {
       adapter: async (config) => {
         const response = {
           data: { success: false },
@@ -60,6 +60,28 @@ describe('apiClient authProvider 배선', () => {
 
     expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
     expect(window.location.replace).toHaveBeenCalledWith('/login')
+    expect(window.location.hash).toBe('')
+  })
+
+  it('/auth/me 401 응답은 호출자가 처리하도록 세션 클리어와 리다이렉트를 건너뛴다', async () => {
+    const { apiClient } = await import('../client')
+
+    await expect(apiClient.get('/auth/me', {
+      adapter: async (config) => {
+        const response = {
+          data: { success: false },
+          status: 401,
+          statusText: 'Unauthorized',
+          headers: {},
+          config,
+          request: {},
+        }
+        throw new axios.AxiosError('Unauthorized', undefined, config, {}, response)
+      },
+    })).rejects.toBeInstanceOf(axios.AxiosError)
+
+    expect(authProvider.clearSession).not.toHaveBeenCalled()
+    expect(window.location.replace).not.toHaveBeenCalled()
     expect(window.location.hash).toBe('')
   })
 })
