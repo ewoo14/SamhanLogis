@@ -315,7 +315,7 @@ export function CollectionPlanPage() {
             {toast.message}
           </div>
         ) : null}
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(3, minmax(130px, 1fr)) auto auto', gap: 10, alignItems: 'end' }}>
+        <form className="mobile-filter-grid" onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(3, minmax(130px, 1fr)) auto auto', gap: 10, alignItems: 'end' }}>
           <AsyncAutocomplete<JournalStatusPartnerOption>
             value={formPartner}
             onChange={(partner) => {
@@ -427,7 +427,7 @@ export function CollectionPlanPage() {
       </Card>
 
       <Card style={{ padding: 16 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
+        <div className="mobile-filter-stack" style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
           <div style={{ minWidth: 220 }}>
             <AsyncAutocomplete<JournalStatusPartnerOption>
               value={filterPartner}

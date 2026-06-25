@@ -274,7 +274,7 @@ export function NotesReceivablePage() {
             {toast.message}
           </div>
         ) : null}
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(5, minmax(120px, 1fr)) auto', gap: 10, alignItems: 'end' }}>
+        <form className="mobile-filter-grid" onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(5, minmax(120px, 1fr)) auto', gap: 10, alignItems: 'end' }}>
           <AsyncAutocomplete<JournalStatusPartnerOption>
             value={formPartner}
             onChange={setFormPartner}
@@ -336,7 +336,7 @@ export function NotesReceivablePage() {
       </Card>
 
       <Card style={{ padding: 16 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
+        <div className="mobile-filter-stack" style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
           <div style={{ minWidth: 220 }}>
             <AsyncAutocomplete<JournalStatusPartnerOption>
               value={filterPartner}

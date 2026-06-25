@@ -5058,3 +5058,19 @@ button {
 @media print {
   .stm-page { width: auto; margin: 0; }
 }
+
+@media (max-width: 768px) {
+  .mobile-filter-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .mobile-filter-stack {
+    flex-wrap: wrap !important;
+  }
+
+  .mobile-filter-stack > * {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+}

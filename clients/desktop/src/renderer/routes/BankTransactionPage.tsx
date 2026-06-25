@@ -365,7 +365,7 @@ export function BankTransactionPage() {
           </div>
         ) : null}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(4, minmax(118px, 1fr)) auto', gap: 10, alignItems: 'end' }}>
+        <div className="mobile-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(4, minmax(118px, 1fr)) auto', gap: 10, alignItems: 'end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
             CSV 파일
             <Input
@@ -453,7 +453,7 @@ export function BankTransactionPage() {
       </Card>
 
       <Card style={{ padding: 16 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', marginBottom: 14 }}>
+        <div className="mobile-filter-stack" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', marginBottom: 14 }}>
           <div style={{ display: 'inline-flex', gap: 4, border: '1px solid var(--color-neutral-200)', borderRadius: 6, padding: 3 }}>
             {STATUS_TABS.map((tab) => (
               <Button
