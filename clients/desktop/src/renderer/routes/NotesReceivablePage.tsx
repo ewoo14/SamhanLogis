@@ -185,7 +185,7 @@ export function NotesReceivablePage() {
       key: 'status',
       header: '상태',
       width: '100px',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (row) => <span style={statusStyle(row.status)}>{NOTE_STATUS_LABEL[row.status]}</span>,
     },
     {
