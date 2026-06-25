@@ -1424,7 +1424,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setPurchaseDeleteOpen(true)
                       }}
                     >
-                      삭제
+                      매입 전표 삭제
                     </button>
                   ) : null}
                   {canDirectDeleteSales ? (
@@ -1438,7 +1438,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setSalesDeleteOpen(true)
                       }}
                     >
-                      삭제
+                      매출 전표 삭제
                     </button>
                   ) : null}
                   {possibleActions.includes('reject') ? (
@@ -1464,7 +1464,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         handleDeleteSlip()
                       }}
                     >
-                      삭제
+                      전표 취소
                     </button>
                   ) : null}
                   <button
