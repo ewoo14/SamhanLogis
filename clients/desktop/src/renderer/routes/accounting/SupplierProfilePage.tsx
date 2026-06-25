@@ -39,6 +39,7 @@ import {
   Input,
   Card,
   Badge,
+  FormGrid,
 } from '@samhan/design-system'
 import {
   listSupplierProfiles,
@@ -629,14 +630,8 @@ export function SupplierProfilePage() {
         title={modalMode === 'create' ? '사업자 정보 신규 등록' : '사업자 정보 수정'}
         size="lg"
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '12px 20px',
-            padding: '4px 0',
-          }}
-        >
+        <div style={{ padding: '4px 0' }}>
+          <FormGrid columns={2} gap="12px 20px">
           <Input
             label="사업자등록번호"
             required
@@ -686,7 +681,7 @@ export function SupplierProfilePage() {
           />
 
           {/* 사업장 주소 — 2컬럼 전체 */}
-          <div style={{ gridColumn: '1 / -1' }}>
+          <FormGrid.Full>
             <Input
               label="사업장 주소"
               required
@@ -696,7 +691,7 @@ export function SupplierProfilePage() {
               placeholder="서울특별시 서초구 마방로2길 9 삼한빌딩 4층"
               data-testid="supplier-field-businessAddress"
             />
-          </div>
+          </FormGrid.Full>
 
           <Input
             label="업태"
@@ -741,7 +736,7 @@ export function SupplierProfilePage() {
           />
 
           {/* 이메일 — 2컬럼 전체 */}
-          <div style={{ gridColumn: '1 / -1' }}>
+          <FormGrid.Full>
             <Input
               label="이메일"
               type="email"
@@ -752,7 +747,8 @@ export function SupplierProfilePage() {
               placeholder="accounting@example.com"
               data-testid="supplier-field-email"
             />
-          </div>
+          </FormGrid.Full>
+          </FormGrid>
         </div>
 
         {/* 입금계좌 리스트 편집기 */}

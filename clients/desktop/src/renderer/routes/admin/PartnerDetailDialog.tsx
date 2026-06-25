@@ -31,6 +31,7 @@ import {
   Input,
   Card,
   Badge,
+  FormGrid,
 } from '@samhan/design-system'
 import {
   getPartnerFull,
@@ -373,7 +374,7 @@ function DetailBasicTab({
   // representative/businessType/industry 등 부가 필드 수정은 별도 admin endpoint 사용.
   return (
     <Card variant="outlined" shadow="none" padding={3}>
-      <div style={gridStyle}>
+      <FormGrid columns={2} gap="16px">
         <Input
           label="거래처명"
           required
@@ -386,7 +387,7 @@ function DetailBasicTab({
           disabled
           hint="등록 후 변경 불가"
         />
-        <div style={{ gridColumn: '1 / -1' }}>
+        <FormGrid.Full>
           <p
             style={{
               fontSize: 12,
@@ -396,8 +397,8 @@ function DetailBasicTab({
           >
             대표자/업태/종목/주소 등 부가 정보는 거래처 관리 메뉴에서 수정합니다.
           </p>
-        </div>
-      </div>
+        </FormGrid.Full>
+      </FormGrid>
     </Card>
   )
 }
@@ -451,7 +452,7 @@ function DetailPriceTab({
 
   return (
     <Card variant="outlined" shadow="none" padding={3}>
-      <div style={gridStyle}>
+      <FormGrid columns={2} gap="16px">
         <Input
           label="기본 할인율 (%)"
           type="number"
@@ -479,13 +480,14 @@ function DetailPriceTab({
             })
           }
         />
-        <Input
-          label="비고"
-          value={f.discountMemo ?? ''}
-          onChange={(e) => onChange({ discountMemo: e.target.value })}
-          style={{ gridColumn: '1 / -1' }}
-        />
-      </div>
+        <FormGrid.Full>
+          <Input
+            label="비고"
+            value={f.discountMemo ?? ''}
+            onChange={(e) => onChange({ discountMemo: e.target.value })}
+          />
+        </FormGrid.Full>
+      </FormGrid>
     </Card>
   )
 }
@@ -590,7 +592,7 @@ function DetailShippingTab({
                   </Button>
                 </div>
               </div>
-              <div style={gridStyle}>
+              <FormGrid columns={2} gap="16px">
                 <Input
                   label="별칭"
                   required
@@ -614,14 +616,15 @@ function DetailShippingTab({
                     setRow(idx, { receiverName: e.target.value })
                   }
                 />
-                <Input
-                  label="주소"
-                  required
-                  value={row.address}
-                  onChange={(e) => setRow(idx, { address: e.target.value })}
-                  style={{ gridColumn: '1 / -1' }}
-                />
-              </div>
+                <FormGrid.Full>
+                  <Input
+                    label="주소"
+                    required
+                    value={row.address}
+                    onChange={(e) => setRow(idx, { address: e.target.value })}
+                  />
+                </FormGrid.Full>
+              </FormGrid>
             </Card>
           ))}
         </div>
@@ -733,7 +736,7 @@ function DetailContactTab({
                   </Button>
                 </div>
               </div>
-              <div style={gridStyle}>
+              <FormGrid columns={2} gap="16px">
                 <Input
                   label="이름"
                   required
@@ -757,7 +760,7 @@ function DetailContactTab({
                   value={row.email ?? ''}
                   onChange={(e) => setRow(idx, { email: e.target.value })}
                 />
-              </div>
+              </FormGrid>
             </Card>
           ))}
         </div>
@@ -811,12 +814,6 @@ const dlStyle: React.CSSProperties = {
   gridTemplateColumns: 'max-content 1fr',
   gap: '8px 20px',
   margin: 0,
-}
-
-const gridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, 1fr)',
-  gap: 16,
 }
 
 const emptyStyle: React.CSSProperties = {

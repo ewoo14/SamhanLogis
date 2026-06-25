@@ -6,6 +6,7 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { FormGrid } from '@samhan/design-system'
 import {
   listWarehouseAuditLogs,
   revertAdminWarehouseRevision,
@@ -126,7 +127,7 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
         <h3 style={{ marginTop: 0 }}>
           창고 편집 <span style={{ color: '#6b7280', fontSize: 14 }}>· {warehouse.code}</span>
         </h3>
-        <div style={formGridStyle}>
+        <FormGrid columns={2} gap="12px">
           <label style={fieldStyle}>
             <span>창고명 *</span>
             <input
@@ -161,26 +162,30 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
               style={inputStyle}
             />
           </label>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-            <span>주소</span>
-            <input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              maxLength={255}
-              style={inputStyle}
-            />
-          </label>
-          <label style={{ ...fieldStyle, gridColumn: '1 / -1' }}>
-            <span>설명</span>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
-              rows={3}
-              style={{ ...inputStyle, resize: 'vertical' }}
-            />
-          </label>
-        </div>
+          <FormGrid.Full>
+            <label style={fieldStyle}>
+              <span>주소</span>
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                maxLength={255}
+                style={inputStyle}
+              />
+            </label>
+          </FormGrid.Full>
+          <FormGrid.Full>
+            <label style={fieldStyle}>
+              <span>설명</span>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={500}
+                rows={3}
+                style={{ ...inputStyle, resize: 'vertical' }}
+              />
+            </label>
+          </FormGrid.Full>
+        </FormGrid>
         {error ? (
           <div style={{ color: '#dc2626', fontSize: 13, marginTop: 12 }}>{error}</div>
         ) : null}
@@ -269,12 +274,6 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
       </div>
     </div>
   )
-}
-
-const formGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 12,
 }
 
 const fieldStyle: CSSProperties = {

@@ -23,7 +23,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Tabs, Button, Input, Card, type TabItem } from '@samhan/design-system'
+import { Tabs, Button, Input, Card, FormGrid, type TabItem } from '@samhan/design-system'
 import {
   createPartnerFull,
   PARTNER_TYPE_LABEL,
@@ -355,7 +355,7 @@ function BasicTab({
 
   return (
     <Card variant="outlined" shadow="none" padding={4}>
-      <div style={gridStyle}>
+      <FormGrid columns={2} gap="16px">
         <Input
           label="거래처명"
           required
@@ -407,22 +407,24 @@ function BasicTab({
           value={value.businessItem}
           onChange={(e) => set('businessItem', e.target.value)}
         />
-        <Input
-          label="사업장 주소"
-          placeholder="서울특별시 강남구 테헤란로 123"
-          value={value.address}
-          onChange={(e) => set('address', e.target.value)}
-          style={{ gridColumn: '1 / -1' }}
-        />
-        <Input
-          label="세금계산서 이메일"
-          type="email"
-          placeholder="tax@example.com"
-          value={value.taxEmail}
-          onChange={(e) => set('taxEmail', e.target.value)}
-          style={{ gridColumn: '1 / -1' }}
-        />
-        <div style={{ gridColumn: '1 / -1' }}>
+        <FormGrid.Full>
+          <Input
+            label="사업장 주소"
+            placeholder="서울특별시 강남구 테헤란로 123"
+            value={value.address}
+            onChange={(e) => set('address', e.target.value)}
+          />
+        </FormGrid.Full>
+        <FormGrid.Full>
+          <Input
+            label="세금계산서 이메일"
+            type="email"
+            placeholder="tax@example.com"
+            value={value.taxEmail}
+            onChange={(e) => set('taxEmail', e.target.value)}
+          />
+        </FormGrid.Full>
+        <FormGrid.Full>
           <label style={labelStyle}>메모</label>
           <textarea
             placeholder="거래처 관련 특이사항 등 자유 입력"
@@ -431,8 +433,8 @@ function BasicTab({
             rows={3}
             style={textareaStyle}
           />
-        </div>
-      </div>
+        </FormGrid.Full>
+      </FormGrid>
     </Card>
   )
 }
@@ -457,7 +459,7 @@ function PriceDiscountTab({
 
   return (
     <Card variant="outlined" shadow="none" padding={4}>
-      <div style={gridStyle}>
+      <FormGrid columns={2} gap="16px">
         <Input
           label="기본 할인율 (%)"
           type="number"
@@ -489,7 +491,7 @@ function PriceDiscountTab({
           onChange={(e) => set('creditLimit', e.target.value)}
           hint="공란 = 한도 미설정"
         />
-      </div>
+      </FormGrid>
     </Card>
   )
 }
@@ -589,7 +591,7 @@ function ShippingAddressTab({
                   </Button>
                 </div>
               </div>
-              <div style={gridStyle}>
+              <FormGrid columns={2} gap="16px">
                 <Input
                   label="별칭"
                   required
@@ -617,15 +619,16 @@ function ShippingAddressTab({
                     setRow(idx, { receiverName: e.target.value })
                   }
                 />
-                <Input
-                  label="주소"
-                  required
-                  placeholder="서울특별시 강남구 테헤란로 123"
-                  value={row.address}
-                  onChange={(e) => setRow(idx, { address: e.target.value })}
-                  style={{ gridColumn: '1 / -1' }}
-                />
-              </div>
+                <FormGrid.Full>
+                  <Input
+                    label="주소"
+                    required
+                    placeholder="서울특별시 강남구 테헤란로 123"
+                    value={row.address}
+                    onChange={(e) => setRow(idx, { address: e.target.value })}
+                  />
+                </FormGrid.Full>
+              </FormGrid>
             </Card>
           ))}
         </div>
@@ -726,7 +729,7 @@ function ContactTab({
                   </Button>
                 </div>
               </div>
-              <div style={gridStyle}>
+              <FormGrid columns={2} gap="16px">
                 <Input
                   label="이름"
                   required
@@ -754,7 +757,7 @@ function ContactTab({
                   value={row.email ?? ''}
                   onChange={(e) => setRow(idx, { email: e.target.value })}
                 />
-              </div>
+              </FormGrid>
             </Card>
           ))}
         </div>
@@ -766,12 +769,6 @@ function ContactTab({
 // ---------------------------------------------------------------------------
 // 공통 스타일
 // ---------------------------------------------------------------------------
-
-const gridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, 1fr)',
-  gap: 16,
-}
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
