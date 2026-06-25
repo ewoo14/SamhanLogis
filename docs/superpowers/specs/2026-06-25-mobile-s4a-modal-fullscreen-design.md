@@ -34,7 +34,8 @@
 - 공용 Modal module.css 1블록 → **공용 Modal 사용 32화면 자동 풀스크린**(폼 모달·조회·상세·버전이력) + **CsvUploadDialog.module.css 동일 @media**(별도 컴포넌트, ④ 보완) → CSV 업로드도 풀스크린. 닫기·액션 고정으로 풀스크린에서도 조작 가능. 콘텐츠는 body 스크롤.
 
 ### 3.3 무회귀
-- 변경 = `Modal.module.css`(+@media 블록) **1파일**. 데스크탑(>768px) `.backdrop/.dialog/.size-*/.header/.body/.footer` 규칙 불변(신규는 @media max-width:768px 한정). prefers-reduced-motion·애니 무수정. Modal.tsx·Storybook 데스크탑 무변동.
+- 변경 = `Modal.module.css` + `CsvUploadDialog.module.css`(각 +@media 블록) **2파일**(④ 보완). 데스크탑(>768px) `.backdrop/.dialog/.size-*/.header/.body/.footer` 규칙 불변(신규는 @media max-width:768px 한정). prefers-reduced-motion·애니 무수정. Modal.tsx/CsvUploadDialog.tsx·Storybook 데스크탑 무변동.
+- ⚠️ **후속(슬4a 범위 외, ⑤ Codex 적발):** 앱-레벨 자체 inline dialog 2건(`EditWarehouseModal.tsx`·`DepositMatchPage.tsx` DepositDetailModal)은 공용 Modal 미사용 + inline style(`width:min(560px,90vw)` 등, @media 불가)이라 모바일 풀스크린 미적용 → **공용 Modal 이관 또는 CSS모듈화 별도 슬라이스(슬4a-2/4b)**. 슬4a=design-system 모달(공용 Modal+CsvUploadDialog) 한정.
 
 ## 4. 검증 (라이브 QA, [[feedback_no_fake_data_ever]])
 - **mock gate(Desktop Playwright)**: Modal 변경이 기존 32모달 mock spec(데스크탑 viewport) 무회귀 — 로컬 mock Playwright 필수([[feedback_platform_branch_build_time_flag]]). 신규 풀스크린 spec 1개(≤768px viewport 에서 모달 열기→dialog 풀스크린[viewport 채움]·헤더/푸터 보임).

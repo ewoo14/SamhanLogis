@@ -10,7 +10,7 @@
 
 ## Global Constraints
 - **데스크탑(>768px) 무변동** — 신규 CSS 전부 `@media(max-width:768px)` 안. >768px `.backdrop/.dialog/.size-*/.header/.body/.footer` 불변. prefers-reduced-motion·애니 무수정.
-- **FE-only·Flyway 0·BE 무변경·Modal.tsx 무변경**. 변경 1파일: Modal.module.css.
+- **FE-only·Flyway 0·BE 무변경·Modal.tsx/CsvUploadDialog.tsx 무변경**. 변경 2파일: Modal.module.css + CsvUploadDialog.module.css(④ 보완 — 별도 design-system 컴포넌트).
 - design-system 기존 변수(--space-*/--color-*/--radius-*) 사용. 신규 토큰 금지.
 - 모달 모양/간격 = 라이브 QA 캡처 후 반복 보정([[feedback_print_design_iteration]]).
 - 신규 mock spec = 로컬 mock Playwright 실행 + ci 무회귀([[feedback_platform_branch_build_time_flag]]).
@@ -19,6 +19,8 @@
 
 ## File Structure
 - Modify `clients/web/design-system/src/components/Modal/Modal.module.css` — @media 풀스크린 블록.
+- Modify `clients/web/design-system/src/components/CsvUploadDialog/CsvUploadDialog.module.css` — @media 풀스크린 블록(④ 보완, 별도 컴포넌트).
+- ※ 후속(슬4a 범위 외): 앱-레벨 자체 inline dialog 2건(`clients/desktop/src/renderer/components/EditWarehouseModal.tsx`·`routes/DepositMatchPage.tsx` DepositDetailModal)은 공용 Modal 미사용 + inline style(@media 불가)이라 공용 Modal 이관 또는 CSS모듈화 별도 슬라이스 필요. ⑤ Codex 적발.
 - Create `clients/desktop/playwright/mobile-s4a-modal-fullscreen/mobile-s4a-modal-fullscreen.spec.ts` — 풀스크린 mock spec.
 - Create `clients/desktop/scripts/mobile-s4a-modal-qa.cjs` — real-qa(390px) 캡처.
 
@@ -78,4 +80,4 @@
 ## Self-Review
 - **Spec 커버리지:** §3.1(방식)→T1, §3.2(효과)→T1+T3, §3.3(무회귀)→T1/T2, §4(검증)→T2/T3. ✅
 - **Placeholder:** 없음.
-- **무회귀 가드:** @media 한정·데스크탑 단언(T2/T3). 1파일·Flyway 0·Modal.tsx 무변경.
+- **무회귀 가드:** @media 한정·데스크탑 단언(T2/T3). 2파일(Modal+CsvUploadDialog module.css)·Flyway 0·TSX 무변경.
