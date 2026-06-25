@@ -83,30 +83,35 @@ export function LinkDispatchListPage() {
   const columns = useMemo<DataTableColumn<DeliveryBatchSummary>[]>(
     () => [
       {
-        key: 'deliveryDate',
-        header: '배송일',
-        width: '120px',
-      },
-      {
         key: 'driverName',
         header: '기사명',
         width: '120px',
+        mobilePriority: 'primary',
+      },
+      {
+        key: 'deliveryDate',
+        header: '배송일',
+        width: '120px',
+        mobilePriority: 'secondary',
       },
       {
         key: 'driverPhone',
         header: '연락처',
         width: '140px',
+        mobilePriority: 'hidden',
       },
       {
         key: 'slipCount',
         header: '전표수',
         width: '80px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (row) => `${row.slipCount}건`,
       },
       {
         key: 'signUrl',
         header: '링크',
+        mobilePriority: 'hidden',
         render: (row) => (
           <span className="link-cell" onClick={(e) => e.stopPropagation()}>
             <span className="link-cell-url" title={row.signUrl}>
@@ -120,6 +125,7 @@ export function LinkDispatchListPage() {
         key: 'smsSentAt',
         header: 'SMS 발송완료',
         width: '160px',
+        mobilePriority: 'secondary',
         render: (row) => (
           <BatchStatusCell
             smsSentAt={row.smsSentAt}

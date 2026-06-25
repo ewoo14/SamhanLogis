@@ -58,10 +58,12 @@ export function TaxInvoiceBatchIssuePage() {
   const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.salesSlipId)), [rows, selected])
 
   const columns: DataTableColumn<CandidateRow>[] = [
+    { key: 'slipNo', header: '매출전표', width: '160px', mobilePriority: 'primary' },
     {
       key: 'select',
       header: '',
       width: '44px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <input
           type="checkbox"
@@ -78,15 +80,15 @@ export function TaxInvoiceBatchIssuePage() {
         />
       ),
     },
-    { key: 'slipNo', header: '매출전표', width: '160px' },
-    { key: 'slipDate', header: '일자', width: '110px' },
-    { key: 'month', header: '발행월', width: '100px' },
-    { key: 'partnerName', header: '거래처' },
+    { key: 'slipDate', header: '일자', width: '110px', mobilePriority: 'hidden' },
+    { key: 'month', header: '발행월', width: '100px', mobilePriority: 'hidden' },
+    { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
     {
       key: 'totalAmount',
       header: '합계',
       align: 'right',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) => fmtKrw(row.totalAmount),
     },
   ]

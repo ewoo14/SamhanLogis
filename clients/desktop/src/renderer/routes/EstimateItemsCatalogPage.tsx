@@ -1493,18 +1493,20 @@ export function EstimateItemsCatalogPage() {
   const columns: DataTableColumn<ProductCatalogRow>[] = [
     ...(isDragEnabled
       ? [
-          {
-            key: '_drag' as const,
-            header: '',
-            width: '32px',
-            render: () => null,
-          } as DataTableColumn<ProductCatalogRow>,
+            {
+              key: '_drag' as const,
+              header: '',
+              width: '32px',
+              mobilePriority: 'hidden',
+              render: () => null,
+            } as DataTableColumn<ProductCatalogRow>,
         ]
       : []),
     {
       key: 'modelCode',
       header: '모델명',
       width: '160px',
+      mobilePriority: 'primary',
       render: (row) => (
         <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{row.modelCode}</span>
       ),
@@ -1513,11 +1515,13 @@ export function EstimateItemsCatalogPage() {
       key: 'name',
       header: '품목명',
       width: '220px',
+      mobilePriority: 'secondary',
     },
     {
       key: 'catL',
       header: '분류',
       width: '240px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <ClassificationSummaryCell
           row={row}
@@ -1531,6 +1535,7 @@ export function EstimateItemsCatalogPage() {
       key: 'estimateCategory',
       header: '카테고리',
       width: '280px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <CategoryCell
           row={row}
@@ -1544,6 +1549,7 @@ export function EstimateItemsCatalogPage() {
       key: 'usageScope',
       header: '노출 설정',
       width: '190px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <ToggleCell
           row={row}
@@ -1557,6 +1563,7 @@ export function EstimateItemsCatalogPage() {
       key: 'hasVariableDiscount',
       header: '변동DC',
       width: '100px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <VariableDiscountCell
           row={row}
@@ -1570,6 +1577,7 @@ export function EstimateItemsCatalogPage() {
       key: 'fixedDiscountRate',
       header: '고정DC%',
       width: '110px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <FixedDiscountCell
           row={row}
@@ -1583,6 +1591,7 @@ export function EstimateItemsCatalogPage() {
       key: 'displayOrder',
       header: '표시순서',
       width: '80px',
+      mobilePriority: 'hidden',
       render: (row) => {
         if (normalizeEstimateCategoryExposures(row).length === 0) {
           return <span style={{ color: 'var(--color-neutral-400)' }}>—</span>
@@ -1595,6 +1604,7 @@ export function EstimateItemsCatalogPage() {
       key: 'productType',
       header: '세트',
       width: '100px',
+      mobilePriority: 'hidden',
       render: (row) =>
         row.productType === 'BUNDLE' ? (
           <Badge
@@ -1611,6 +1621,7 @@ export function EstimateItemsCatalogPage() {
       key: '_components' as const,
       header: '구성품',
       width: '90px',
+      mobilePriority: 'hidden',
       render: (row) =>
         row.productType === 'BUNDLE' ? (
           <Button

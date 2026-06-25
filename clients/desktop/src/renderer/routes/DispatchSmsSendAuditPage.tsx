@@ -270,18 +270,21 @@ function buildListColumns(
       key: '__date',
       header: '배차일',
       width: '110px',
+      mobilePriority: 'primary',
       render: (row) => <span data-testid={`sms-audit-date-${row.__date}`}>{row.__date}</span>,
     },
     {
       key: 'createdAt',
       header: '발송시각',
       width: '150px',
+      mobilePriority: 'secondary',
       render: (row) => formatDateTime(row.createdAt),
     },
     {
       key: 'createdBy',
       header: '실행자',
       width: '100px',
+      mobilePriority: 'hidden',
       render: (row) => maskCreatedBy(row.createdBy),
     },
     {
@@ -289,6 +292,7 @@ function buildListColumns(
       header: '성공',
       width: '70px',
       align: 'right',
+      mobilePriority: 'hidden',
       render: (row) => (
         <Badge variant="success">{row.__sent}</Badge>
       ),
@@ -298,6 +302,7 @@ function buildListColumns(
       header: '실패',
       width: '70px',
       align: 'right',
+      mobilePriority: 'hidden',
       render: (row) =>
         row.__failed > 0 ? (
           <Badge variant="danger">{row.__failed}</Badge>
@@ -310,6 +315,7 @@ function buildListColumns(
       header: '발송금지',
       width: '80px',
       align: 'right',
+      mobilePriority: 'hidden',
       render: (row) =>
         row.__blocked > 0 ? (
           <Badge variant="warning">{row.__blocked}</Badge>
@@ -322,6 +328,7 @@ function buildListColumns(
       header: '결과',
       width: '100px',
       align: 'center',
+      mobilePriority: 'secondary',
       render: (row) => {
         const v = resultVariant(row.__sent, row.__failed)
         const label = v === 'success' ? '성공' : v === 'warning' ? '부분실패' : '실패'
@@ -333,6 +340,7 @@ function buildListColumns(
       header: '상세',
       width: '70px',
       align: 'center',
+      mobilePriority: 'secondary',
       render: (row) => (
         <Button
           variant="ghost"

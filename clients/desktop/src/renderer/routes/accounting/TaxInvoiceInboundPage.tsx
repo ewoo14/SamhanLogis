@@ -66,10 +66,12 @@ export function TaxInvoiceInboundPage() {
   })
 
   const columns: DataTableColumn<PurchaseAccountingSlipResponse>[] = [
+    { key: 'slipNo', header: '매입전표', width: '160px', mobilePriority: 'primary' },
     {
       key: 'select',
       header: '',
       width: '44px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <input
           type="checkbox"
@@ -88,14 +90,14 @@ export function TaxInvoiceInboundPage() {
         />
       ),
     },
-    { key: 'slipNo', header: '매입전표', width: '160px' },
-    { key: 'slipDate', header: '일자', width: '110px' },
-    { key: 'partnerName', header: '거래처' },
+    { key: 'slipDate', header: '일자', width: '110px', mobilePriority: 'hidden' },
+    { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
     {
       key: 'totalAmount',
       header: '합계',
       align: 'right',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) => fmtKrw(row.totalAmount),
     },
   ]
@@ -108,17 +110,18 @@ export function TaxInvoiceInboundPage() {
   }
 
   const inboundColumns: DataTableColumn<InboundTaxInvoiceSummary>[] = [
-    { key: 'taxInvoiceNo', header: '세금계산서', width: '160px' },
-    { key: 'issueDate', header: '수신일', width: '110px' },
-    { key: 'partnerName', header: '거래처' },
+    { key: 'taxInvoiceNo', header: '세금계산서', width: '160px', mobilePriority: 'primary' },
+    { key: 'issueDate', header: '수신일', width: '110px', mobilePriority: 'secondary' },
+    { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
     {
       key: 'totalAmount',
       header: '합계',
       align: 'right',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) => fmtKrw(row.totalAmount),
     },
-    { key: 'status', header: '상태', width: '90px' },
+    { key: 'status', header: '상태', width: '90px', mobilePriority: 'hidden' },
   ]
 
   const handleUpload = () => {

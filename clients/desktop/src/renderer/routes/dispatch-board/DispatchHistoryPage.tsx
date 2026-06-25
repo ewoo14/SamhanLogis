@@ -58,6 +58,7 @@ export function DispatchHistoryPage() {
         key: 'taskCode',
         header: '배차 작업번호',
         width: '160px',
+        mobilePriority: 'primary',
         render: (row) => (
           <span data-testid={`dispatch-history-row-${row.taskCode}`}>
             {row.taskCode}
@@ -68,11 +69,13 @@ export function DispatchHistoryPage() {
         key: 'dispatchDate',
         header: '배차일',
         width: '120px',
+        mobilePriority: 'secondary',
       },
       {
         key: 'status',
         header: '상태',
         width: '150px',
+        mobilePriority: 'secondary',
         render: (row) => (
           <Badge variant={statusBadgeVariant(row.status)}>
             {DISPATCH_TASK_STATUS_LABEL[row.status]}
@@ -83,23 +86,27 @@ export function DispatchHistoryPage() {
         key: 'vehicleGroupCount',
         header: '차량',
         width: '80px',
+        mobilePriority: 'hidden',
         render: (row) => `${row.vehicleGroupCount}대`,
       },
       {
         key: 'slipCount',
         header: '전표',
         width: '80px',
+        mobilePriority: 'hidden',
         render: (row) => `${row.slipCount}건`,
       },
       {
         key: 'partnerNames',
         header: '거래처',
+        mobilePriority: 'secondary',
         render: (row) => row.partnerNames || '-',
       },
       {
         key: 'driverCount',
         header: '기사',
         width: '80px',
+        mobilePriority: 'hidden',
         render: (row) => `${row.driverCount}명`,
       },
     ],

@@ -245,15 +245,10 @@ export function ProductClassificationsPage() {
 
   const columns: DataTableColumn<Classification>[] = [
     {
-      key: 'catLevel',
-      header: '단계',
-      width: '80px',
-      render: (row) => LEVEL_LABEL[row.catLevel],
-    },
-    {
       key: 'name',
       header: '분류명',
       width: '180px',
+      mobilePriority: 'primary',
       render: (row) => (
         <span style={row.active ? undefined : inactiveTextStyle}>
           {row.name}
@@ -261,15 +256,24 @@ export function ProductClassificationsPage() {
       ),
     },
     {
+      key: 'catLevel',
+      header: '단계',
+      width: '80px',
+      mobilePriority: 'secondary',
+      render: (row) => LEVEL_LABEL[row.catLevel],
+    },
+    {
       key: 'displayOrder',
       header: '순서',
       width: '70px',
+      mobilePriority: 'hidden',
       render: (row) => String(row.displayOrder),
     },
     {
       key: 'active',
       header: '상태',
       width: '70px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <Badge variant={row.active ? 'success' : 'neutral'} data-testid={`classification-active-badge-${row.id}`}>
           {row.active ? '사용' : '중지'}
@@ -280,6 +284,7 @@ export function ProductClassificationsPage() {
       key: '_actions' as const,
       header: '관리',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (row) => {
         if (!canEdit) return null
         const index = selectedChildren.findIndex((item) => item.id === row.id)
