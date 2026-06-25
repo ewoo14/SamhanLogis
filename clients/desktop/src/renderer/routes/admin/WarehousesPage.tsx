@@ -177,7 +177,7 @@ export function WarehousesPage() {
       key: 'address',
       header: '주소',
       mobilePriority: 'hidden',
-      render: (w) => w.address ?? '-',
+      render: (w) => w.address ?? '—',
     },
     {
       key: 'id',

@@ -155,8 +155,8 @@ export function BlockedPartnersPage() {
       {
         key: 'blockReason',
         header: '차단 사유',
-        mobilePriority: 'hidden',
-        render: (b) => b.blockReason ?? '-',
+        mobilePriority: 'secondary',
+        render: (b) => b.blockReason ?? '—',
       },
       {
         key: 'blockedAt',
@@ -169,7 +169,7 @@ export function BlockedPartnersPage() {
         key: 'source',
         header: '출처',
         width: '120px',
-        mobilePriority: 'secondary',
+        mobilePriority: 'hidden',
         render: (b) => (
           <Badge variant={SOURCE_VARIANT[b.source]}>
             {BLOCK_SOURCE_LABEL[b.source]}

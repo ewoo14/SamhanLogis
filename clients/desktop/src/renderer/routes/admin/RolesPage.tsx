@@ -96,7 +96,7 @@ export function RolesPage() {
       render: (r) => (r.loading ? '…' : (r.count ?? 0).toLocaleString()),
     },
     {
-      key: 'role',
+      key: 'description',
       header: '설명',
       mobilePriority: 'hidden',
       render: (r) => ROLE_DESCRIPTION[r.role],
