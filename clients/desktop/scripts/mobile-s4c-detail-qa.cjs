@@ -15,9 +15,10 @@ const CANDIDATES = [
   { label: 'tax-invoice', list: '/accounting/tax-invoices' },
   { label: 'slip', list: '/sales/slips' },
   { label: 'transfer', list: '/transfers' },
-  { label: 'estimate', list: '/estimates' },
+  { label: 'estimate', list: '/sales/estimates' },
   { label: 'partner-order', list: '/sales/partner-orders' },
-  { label: 'journal', list: '/accounting/journal' },
+  { label: 'journal', list: '/accounting/journals' },
+  { label: 'inventory-audit', list: '/warehouse/audit' },
 ]
 
 async function launch() {
