@@ -60,36 +60,40 @@ export function TransferListPage() {
   })
 
   const columns: DataTableColumn<TransferSummary>[] = [
-    { key: 'transferNo', header: '이동번호', width: '180px' },
+    { key: 'transferNo', header: '이동번호', width: '180px', mobilePriority: 'primary' },
     {
       key: 'sourceWarehouseCode',
       header: '출발 창고',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (r) => r.sourceWarehouseCode,
     },
     {
       key: 'destinationWarehouseCode',
       header: '도착 창고',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (r) => r.destinationWarehouseCode,
     },
     {
       key: 'reason',
       header: '사유',
       width: '120px',
+      mobilePriority: 'hidden',
       render: (r) => TRANSFER_REASON_LABEL[r.reason],
     },
     {
       key: 'status',
       header: '상태',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (r) => (
         <Badge variant={STATUS_VARIANT[r.status]}>
           {TRANSFER_STATUS_LABEL[r.status]}
         </Badge>
       ),
     },
-    { key: 'reasonDetail', header: '상세', render: (r) => r.reasonDetail ?? '-' },
+    { key: 'reasonDetail', header: '상세', mobilePriority: 'hidden', render: (r) => r.reasonDetail ?? '-' },
   ]
 
   return (

@@ -149,49 +149,56 @@ export function NotesReceivablePage() {
   })
 
   const columns = useMemo<DataTableColumn<NotesReceivableRow>[]>(() => [
-    { key: 'noteNo', header: '어음번호', width: '120px', render: (row) => <strong>{row.noteNo}</strong> },
+    { key: 'noteNo', header: '어음번호', width: '120px', mobilePriority: 'primary', render: (row) => <strong>{row.noteNo}</strong> },
     {
       key: 'bizNo',
       header: '거래처코드',
       width: '128px',
-      render: (row) => row.bizNo || '—',
+      mobilePriority: 'hidden',
+      render: (row) => row.bizNo || '-',
     },
     {
       key: 'partnerName',
       header: '거래처명',
       width: '180px',
+      mobilePriority: 'secondary',
       render: (row) => row.partnerName,
     },
-    { key: 'issueDate', header: '발행일', width: '110px' },
-    { key: 'maturityDate', header: '만기일', width: '110px' },
+    { key: 'issueDate', header: '발행일', width: '110px', mobilePriority: 'hidden' },
+    { key: 'maturityDate', header: '만기일', width: '110px', mobilePriority: 'secondary' },
     {
       key: 'amount',
       header: '금액',
       width: '130px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (row) => <span style={amountStyle(row.amount)}>{formatKrw(row.amount)}</span>,
     },
     {
       key: 'noteType',
       header: '종류',
       width: '100px',
+      mobilePriority: 'hidden',
       render: (row) => NOTE_TYPE_LABEL[row.noteType],
     },
     {
       key: 'status',
       header: '상태',
       width: '100px',
+      mobilePriority: 'hidden',
       render: (row) => <span style={statusStyle(row.status)}>{NOTE_STATUS_LABEL[row.status]}</span>,
     },
     {
       key: 'memo',
       header: '비고',
-      render: (row) => row.memo || '—',
+      mobilePriority: 'hidden',
+      render: (row) => row.memo || '-',
     },
     {
       key: 'actions',
       header: '상태전이',
       width: '230px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           {TRANSITION_OPTIONS.map((status) => (
