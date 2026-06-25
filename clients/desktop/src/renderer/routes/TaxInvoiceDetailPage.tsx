@@ -63,6 +63,8 @@ import {
 } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { MobileCollapsible } from '../components/common/MobileCollapsible'
 
 const STATUS_VARIANT: Record<TaxInvoiceStatus, 'neutral' | 'success' | 'danger'> = {
   DRAFT: 'neutral',
@@ -77,12 +79,29 @@ const fmt = (raw: string): string => {
   return Math.trunc(n).toLocaleString('ko-KR')
 }
 
+function statusBadgeStyle(status: TaxInvoiceStatus) {
+  switch (status) {
+    case 'ISSUED':
+      return { background: '#D1FAE5', color: '#065F46' }
+    case 'CANCELLED':
+      return { background: '#FEE2E2', color: '#991B1B' }
+    case 'DRAFT':
+    default:
+      return { background: '#F3F4F6', color: '#4B5563' }
+  }
+}
+
+function lineTotal(line: TaxInvoiceLine): number {
+  return Number(line.supplyAmount) + Number(line.vatAmount)
+}
+
 export function TaxInvoiceDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const id = params['id']!
   const { canAccess } = usePermissions()
+  const isMobile = useIsMobile()
 
   const query = useQuery({
     queryKey: ['accounting', 'tax-invoice', id],
@@ -132,6 +151,7 @@ export function TaxInvoiceDetailPage() {
   const cancelReasonRef = useRef<HTMLTextAreaElement>(null)
   /** NTS 발행 confirm modal 표시 여부 (SP-09-1). */
   const [showEmitNtsModal, setShowEmitNtsModal] = useState<boolean>(false)
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
 
   const issueMutation = useMutation({
     mutationFn: () => issueTaxInvoice(id),
@@ -343,6 +363,20 @@ export function TaxInvoiceDetailPage() {
     },
   ]
 
+  const mobilePrimaryAction = isDraft && canUpdateTaxInvoice
+    ? {
+        label: issueMutation.isPending ? '발행 중...' : '발행',
+        onClick: handleIssue,
+        disabled: issueMutation.isPending,
+      }
+    : canEmitNts
+      ? {
+          label: emitNtsMutation.isPending ? 'NTS 발행 중...' : 'NTS 발행',
+          onClick: () => setShowEmitNtsModal(true),
+          disabled: emitNtsMutation.isPending,
+        }
+      : null
+
   return (
     <>
       {/* PR-H4c: 잠금 단계 안내 banner — ISSUED/CANCELLED */}
@@ -354,7 +388,123 @@ export function TaxInvoiceDetailPage() {
         />
       ) : null}
 
+      {isMobile ? (
+        <>
+          <div className="mobile-summary-card" data-testid="tax-invoice-mobile-summary">
+            <div className="mobile-summary-card-header">
+              <span className="mobile-summary-doc-no">{t.taxInvoiceNo ?? '(미발행)'}</span>
+              <span className="mobile-status-badge" style={statusBadgeStyle(t.status)}>
+                {TAX_INVOICE_STATUS_LABEL[t.status]}
+              </span>
+            </div>
+            <div className="mobile-summary-partner">{t.partnerName}</div>
+            <div className="mobile-summary-divider" />
+            <div className="mobile-summary-total-row">
+              <span className="mobile-summary-total-amount">{fmt(t.totalAmount)}원</span>
+              <span className="mobile-summary-date">공급일자 {t.supplyDate}</span>
+            </div>
+          </div>
+
+          <div className="mobile-action-bar" role="toolbar" aria-label="세금계산서 액션">
+            {mobilePrimaryAction ? (
+              <button
+                type="button"
+                className="mobile-action-primary"
+                disabled={mobilePrimaryAction.disabled}
+                onClick={mobilePrimaryAction.onClick}
+              >
+                {mobilePrimaryAction.label}
+              </button>
+            ) : null}
+            {(isIssued || t.status === 'CANCELLED') ? (
+              <button
+                type="button"
+                className="mobile-action-icon"
+                aria-label="인쇄"
+                onClick={handlePrint}
+              >
+                인쇄
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="mobile-action-icon"
+              aria-label="더보기"
+              onClick={() => setMobileMoreOpen(true)}
+            >
+              ···
+            </button>
+            {mobileMoreOpen ? (
+              <>
+                <div className="mobile-more-overlay" role="presentation" onClick={() => setMobileMoreOpen(false)} />
+                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
+                  <div className="mobile-more-sheet-handle" />
+                  {isDraft && canUpdateTaxInvoice ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        navigate(`/accounting/tax-invoices/${t.id}/edit`)
+                      }}
+                    >
+                      편집
+                    </button>
+                  ) : null}
+                  {isIssued && canCancelTaxInvoice ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item danger"
+                      disabled={cancelMutation.isPending}
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        handleCancelOpen()
+                      }}
+                    >
+                      취소
+                    </button>
+                  ) : null}
+                  {(isIssued || t.status === 'CANCELLED') ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        handlePrint()
+                      }}
+                    >
+                      인쇄
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <MobileCollapsible title="계산서 상세 정보" className="mobile-section-card">
+            {[
+              { label: '거래처', value: t.partnerName },
+              { label: '사업자번호', value: t.partnerBusinessNo },
+              { label: '주소', value: t.partnerAddress },
+              { label: '비고', value: t.description },
+              { label: 'NTS 수신 ID', value: t.eTaxExternalId },
+            ].map(({ label, value }) => {
+              const displayValue = value == null || value === '' ? '-' : String(value)
+              return (
+                <div key={label} className="mobile-field-row">
+                  <span className="mobile-field-label">{label}</span>
+                  <span className={`mobile-field-value${displayValue === '-' ? ' mobile-field-value-empty' : ''}`}>
+                    {displayValue}
+                  </span>
+                </div>
+              )
+            })}
+          </MobileCollapsible>
+        </>
+      ) : null}
+
       <Card>
+        {!isMobile ? (
         <div
           style={{
             display: 'flex',
@@ -508,6 +658,7 @@ export function TaxInvoiceDetailPage() {
             ) : null}
           </div>
         </div>
+        ) : null}
 
         {/* SP-09-1: NTS 발행 결과 — eTaxExternalId 등록 후 표시.
             D1: hardcoded #15803D/#166534 → NTS 토큰 참조.
@@ -589,12 +740,56 @@ export function TaxInvoiceDetailPage() {
           </div>
         ) : null}
 
-        <DataTable
-          columns={lineColumns}
-          rows={t.lines}
-          rowKey={(l) => l.lineId}
-          emptyMessage="라인이 없습니다."
-        />
+        <div className="detail-mobile-hide">
+          <DataTable
+            columns={lineColumns}
+            rows={t.lines}
+            rowKey={(l) => l.lineId}
+            emptyMessage="라인이 없습니다."
+          />
+        </div>
+
+        <div className="mobile-item-list" data-testid="tax-invoice-mobile-lines">
+          {t.lines.length === 0 ? (
+            <div className="mobile-item-card">
+              <div className="mobile-item-total-row">
+                <span className="mobile-item-total-label">라인</span>
+                <span className="mobile-item-total-value">라인이 없습니다.</span>
+              </div>
+            </div>
+          ) : (
+            t.lines.map((line) => (
+              <div key={line.lineId} className="mobile-item-card">
+                <div className="mobile-item-card-header">
+                  <div className="mobile-item-name">{line.itemName}</div>
+                </div>
+                <div className="mobile-item-chips">
+                  {line.specification ? <span className="mobile-item-chip">규격 {line.specification}</span> : null}
+                  {line.unit ? <span className="mobile-item-chip">단위 {line.unit}</span> : null}
+                </div>
+                <div className="mobile-item-divider" />
+                <div className="mobile-item-metrics">
+                  <div className="mobile-item-metric">
+                    <span className="mobile-item-metric-label">수량</span>
+                    <span className="mobile-item-metric-value">{fmt(line.quantity)}</span>
+                  </div>
+                  <div className="mobile-item-metric">
+                    <span className="mobile-item-metric-label">단가</span>
+                    <span className="mobile-item-metric-value">{fmt(line.unitPrice)}</span>
+                  </div>
+                </div>
+                <div className="mobile-item-chips">
+                  <span className="mobile-item-chip">공급 {fmt(line.supplyAmount)}</span>
+                  <span className="mobile-item-chip">부가세 {fmt(line.vatAmount)}</span>
+                </div>
+                <div className="mobile-item-total-row">
+                  <span className="mobile-item-total-label">합계</span>
+                  <span className="mobile-item-total-value">{lineTotal(line).toLocaleString('ko-KR')}원</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
 
         {/* 합계 */}
         <div

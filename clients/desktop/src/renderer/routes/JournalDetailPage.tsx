@@ -35,8 +35,10 @@ import {
   type JournalLine,
 } from '../api/accounting'
 import { JournalCollaborationPanel } from '../components/collab/JournalCollaborationPanel'
+import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const fmtKrw = (raw: string): string => {
   const n = Number.parseInt(raw, 10)
@@ -45,12 +47,31 @@ const fmtKrw = (raw: string): string => {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
+const JOURNAL_STATUS_LABEL: Record<string, string> = {
+  DRAFT: '작성중',
+  POSTED: '확정',
+  REVERSED: '역분개',
+}
+
+function journalStatusBadgeStyle(status: string) {
+  switch (status) {
+    case 'POSTED':
+      return { background: '#D1FAE5', color: '#065F46' }
+    case 'REVERSED':
+      return { background: '#FEE2E2', color: '#991B1B' }
+    case 'DRAFT':
+    default:
+      return { background: '#F3F4F6', color: '#4B5563' }
+  }
+}
+
 export function JournalDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const params = useParams<{ id: string }>()
   const journalId = params['id']!
   const { canAccess } = usePermissions()
+  const isMobile = useIsMobile()
 
   const query = useQuery({
     queryKey: ['accounting', 'journal', journalId],
@@ -62,6 +83,7 @@ export function JournalDetailPage() {
 
   const [topError, setTopError] = useState('')
   const [collabEditMode, setCollabEditMode] = useState(false)
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
 
   const postMutation = useMutation({
     mutationFn: () => postJournal(journalId),
@@ -187,9 +209,115 @@ export function JournalDetailPage() {
     },
   ]
 
+  const mobilePrimaryAction = isDraft && canUpdateJournal
+    ? {
+        label: postMutation.isPending ? '확정 중...' : '확정',
+        onClick: handlePost,
+        disabled: postMutation.isPending,
+      }
+    : isPosted && canUpdateJournal
+      ? {
+          label: reverseMutation.isPending ? '역분개 중...' : '역분개',
+          onClick: handleReverse,
+          disabled: reverseMutation.isPending,
+        }
+      : null
+
   return (
     <>
+      {isMobile ? (
+        <>
+          <div className="mobile-summary-card" data-testid="journal-mobile-summary">
+            <div className="mobile-summary-card-header">
+              <span className="mobile-summary-doc-no">{journal.journalNo}</span>
+              <span className="mobile-status-badge" style={journalStatusBadgeStyle(journal.status)}>
+                {JOURNAL_STATUS_LABEL[journal.status] ?? journal.status}
+              </span>
+            </div>
+            <div className="mobile-summary-partner">{journal.description ?? '분개'}</div>
+            <div className="mobile-summary-divider" />
+            <div className="mobile-summary-total-row">
+              <span className="mobile-summary-total-amount">{fmtKrw(journal.totalDebit)}원</span>
+              <span className="mobile-summary-date">일자 {journal.journalDate}</span>
+            </div>
+          </div>
+
+          <div className="mobile-action-bar" role="toolbar" aria-label="분개 액션">
+            {mobilePrimaryAction ? (
+              <button
+                type="button"
+                className="mobile-action-primary"
+                disabled={mobilePrimaryAction.disabled}
+                onClick={mobilePrimaryAction.onClick}
+              >
+                {mobilePrimaryAction.label}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="mobile-action-icon"
+              aria-label="더보기"
+              onClick={() => setMobileMoreOpen(true)}
+            >
+              ···
+            </button>
+            {mobileMoreOpen ? (
+              <>
+                <div className="mobile-more-overlay" role="presentation" onClick={() => setMobileMoreOpen(false)} />
+                <div className="mobile-more-sheet" role="dialog" aria-label="추가 액션">
+                  <div className="mobile-more-sheet-handle" />
+                  {canCollabEdit && !collabEditMode ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        setCollabEditMode(true)
+                      }}
+                    >
+                      수정
+                    </button>
+                  ) : null}
+                  {isDraft && canOpenDraftCreateShell ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        navigate(`/accounting/journals/${journal.id}/edit`)
+                      }}
+                    >
+                      편집
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <MobileCollapsible title="분개 상세 정보" className="mobile-section-card">
+            {[
+              { label: '일자', value: journal.journalDate },
+              { label: '작성자', value: journal.createdByName },
+              { label: '적요', value: journal.description },
+              { label: '역분개 사유', value: journal.reverseReason },
+            ].map(({ label, value }) => {
+              const displayValue = value == null || value === '' ? '-' : String(value)
+              return (
+                <div key={label} className="mobile-field-row">
+                  <span className="mobile-field-label">{label}</span>
+                  <span className={`mobile-field-value${displayValue === '-' ? ' mobile-field-value-empty' : ''}`}>
+                    {displayValue}
+                  </span>
+                </div>
+              )
+            })}
+          </MobileCollapsible>
+        </>
+      ) : null}
+
       <Card>
+        {!isMobile ? (
         <div
           style={{
             display: 'flex',
@@ -275,13 +403,53 @@ export function JournalDetailPage() {
             ) : null}
           </div>
         </div>
+        ) : null}
 
-        <DataTable
-          columns={columns}
-          rows={journal.lines}
-          rowKey={(l) => l.id}
-          emptyMessage="라인이 없습니다."
-        />
+        <div className="detail-mobile-hide">
+          <DataTable
+            columns={columns}
+            rows={journal.lines}
+            rowKey={(l) => l.id}
+            emptyMessage="라인이 없습니다."
+          />
+        </div>
+
+        <div className="mobile-item-list" data-testid="journal-mobile-lines">
+          {journal.lines.length === 0 ? (
+            <div className="mobile-item-card">
+              <div className="mobile-item-total-row">
+                <span className="mobile-item-total-label">라인</span>
+                <span className="mobile-item-total-value">라인이 없습니다.</span>
+              </div>
+            </div>
+          ) : (
+            journal.lines.map((line) => (
+              <div key={line.id} className="mobile-item-card">
+                <div className="mobile-item-card-header">
+                  <div className="mobile-item-name">
+                    {line.accountName ?? '계정과목'}
+                  </div>
+                </div>
+                <div className="mobile-item-model">{line.accountCode}</div>
+                <div className="mobile-item-divider" />
+                <div className="mobile-item-metrics">
+                  <div className="mobile-item-metric">
+                    <span className="mobile-item-metric-label">차변</span>
+                    <span className="mobile-item-metric-value">{fmtKrw(line.debit)}</span>
+                  </div>
+                  <div className="mobile-item-metric">
+                    <span className="mobile-item-metric-label">대변</span>
+                    <span className="mobile-item-metric-value">{fmtKrw(line.credit)}</span>
+                  </div>
+                </div>
+                <div className="mobile-item-chips">
+                  {line.partnerName ? <span className="mobile-item-chip">{line.partnerName}</span> : null}
+                  {line.memo ?? line.note ? <span className="mobile-item-chip">{line.memo ?? line.note}</span> : null}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
 
         {/* 합계 */}
         <div
@@ -306,18 +474,35 @@ export function JournalDetailPage() {
         </div>
       </Card>
 
-      <JournalCollaborationPanel
-        journalId={journalId}
-        currentValues={collabCurrentValues}
-        editMode={collabEditMode}
-        onEditModeChange={setCollabEditMode}
-        onCommitted={() => {
-          void queryClient.invalidateQueries({
-            queryKey: ['accounting', 'journal', journalId],
-          })
-          void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
-        }}
-      />
+      {isMobile ? (
+        <MobileCollapsible title="협업 · 코멘트" defaultOpen className="mobile-section-card">
+          <JournalCollaborationPanel
+            journalId={journalId}
+            currentValues={collabCurrentValues}
+            editMode={collabEditMode}
+            onEditModeChange={setCollabEditMode}
+            onCommitted={() => {
+              void queryClient.invalidateQueries({
+                queryKey: ['accounting', 'journal', journalId],
+              })
+              void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
+            }}
+          />
+        </MobileCollapsible>
+      ) : (
+        <JournalCollaborationPanel
+          journalId={journalId}
+          currentValues={collabCurrentValues}
+          editMode={collabEditMode}
+          onEditModeChange={setCollabEditMode}
+          onCommitted={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ['accounting', 'journal', journalId],
+            })
+            void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
+          }}
+        />
+      )}
 
       {topError ? (
         <div
