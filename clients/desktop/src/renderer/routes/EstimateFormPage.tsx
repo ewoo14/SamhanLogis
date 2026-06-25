@@ -13,7 +13,7 @@
  * <p>매뉴얼 출처: {@code docs/manual/01-영업/06-견적서.md}.
  * UUID 비공개 가드 — productId / partnerId 는 state 에만, 화면 표시는 modelName / partnerName.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Input, PartnerAutocomplete, Spinner, type PartnerOption } from '@samhan/design-system'
@@ -36,6 +36,7 @@ import {
   emptyBundleSetOptions,
   toApiBundleSetOptions,
 } from '../api/slip'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
@@ -99,6 +100,114 @@ const calcLineSupply = (qty: string, unitPrice: string): number => {
   return Math.trunc(q * p)
 }
 
+function EstimateMobileLineCard(props: {
+  line: DraftLine
+  index: number
+  isReadOnly: boolean
+  lineIncl: number
+  lineSupply: number
+  lineVat: number
+  onUpdate: (patch: Partial<DraftLine>) => void
+  onLookup: () => void
+  onRemove: () => void
+  children?: ReactNode
+}) {
+  const lineNumber = props.index + 1
+  return (
+    <div className="mobile-line-card" data-testid={`estimate-form-line-${props.index}`}>
+      <div className="mobile-line-card-header">
+        <span className="mobile-line-card-index">{lineNumber}</span>
+        <button
+          type="button"
+          className="mobile-line-remove-button"
+          onClick={props.onRemove}
+          disabled={props.isReadOnly}
+          aria-label={`라인 ${lineNumber} 삭제`}
+        >
+          삭제
+        </button>
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">모델명</label>
+        <input
+          type="text"
+          className="mobile-line-text-input"
+          value={props.line.modelName}
+          onChange={(e) => props.onUpdate({ modelName: e.target.value })}
+          onBlur={props.onLookup}
+          placeholder="예: AJ040RXH4BC1"
+          disabled={props.isReadOnly}
+          data-testid={`estimate-form-line-${props.index}-model`}
+        />
+        {props.line.lookupError ? (
+          <div className="mobile-line-error">{props.line.lookupError}</div>
+        ) : null}
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">품목명</label>
+        <input
+          type="text"
+          className="mobile-line-text-input"
+          value={props.line.productName}
+          onChange={(e) => props.onUpdate({ productName: e.target.value })}
+          placeholder={props.line.lookupLoading ? '조회 중...' : '품목명'}
+          disabled={props.isReadOnly}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">규격</label>
+        <input
+          type="text"
+          className="mobile-line-text-input"
+          value={props.line.specification}
+          onChange={(e) => props.onUpdate({ specification: e.target.value })}
+          placeholder="규격"
+          disabled={props.isReadOnly}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">수량</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={props.line.quantity}
+          onChange={(e) => props.onUpdate({ quantity: e.target.value })}
+          disabled={props.isReadOnly}
+          data-testid={`estimate-form-line-${props.index}-qty`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">단가(VAT포함)</label>
+        <input
+          type="text"
+          inputMode="decimal"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={props.line.unitPrice}
+          onChange={(e) => props.onUpdate({ unitPrice: e.target.value })}
+          disabled={props.isReadOnly}
+          data-testid={`estimate-form-line-${props.index}-unit-price`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">합계(VAT포함)</label>
+        <div className="mobile-line-readonly mobile-line-readonly--strong">
+          {fmt(props.lineIncl)}
+          <span>공급 {fmt(props.lineSupply)} · VAT {fmt(props.lineVat)}</span>
+        </div>
+      </div>
+
+      {props.children}
+    </div>
+  )
+}
+
 export function EstimateFormPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -107,6 +216,7 @@ export function EstimateFormPage() {
   const isEdit = Boolean(editId)
   const { canAccess } = usePermissions()
   const canViewProductLookups = canAccess('products.list', 'view')
+  const isMobile = useIsMobile()
 
   usePageTitle(isEdit ? '견적서 편집' : '견적서 작성')
 
@@ -496,6 +606,7 @@ export function EstimateFormPage() {
         </div>
 
         <div
+          className="mobile-form-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: '2fr 1fr 1fr 1fr',
@@ -552,36 +663,64 @@ export function EstimateFormPage() {
           />
         </div>
 
-        {/* 라인 헤더 */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns:
-              '32px 160px 1fr 100px 80px 130px 130px 36px',
-            gap: 8,
-            padding: '8px 0',
-            borderBottom: '2px solid var(--line-default)',
-            fontSize: 12,
-            color: '#6B7280',
-            fontWeight: 600,
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>#</div>
-          <div>모델명</div>
-          <div>품목명</div>
-          <div>규격</div>
-          <div style={{ textAlign: 'right' }}>수량</div>
-          <div style={{ textAlign: 'right' }}>단가(VAT포함)</div>
-          <div style={{ textAlign: 'right' }}>합계(VAT포함)</div>
-          <div />
-        </div>
+        {!isMobile ? (
+          /* 라인 헤더 */
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                '32px 160px 1fr 100px 80px 130px 130px 36px',
+              gap: 8,
+              padding: '8px 0',
+              borderBottom: '2px solid var(--line-default)',
+              fontSize: 12,
+              color: '#6B7280',
+              fontWeight: 600,
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>#</div>
+            <div>모델명</div>
+            <div>품목명</div>
+            <div>규격</div>
+            <div style={{ textAlign: 'right' }}>수량</div>
+            <div style={{ textAlign: 'right' }}>단가(VAT포함)</div>
+            <div style={{ textAlign: 'right' }}>합계(VAT포함)</div>
+            <div />
+          </div>
+        ) : null}
 
+        <div className={isMobile ? 'mobile-line-card-list' : undefined}>
         {lines.map((line, i) => {
           // 단가 부가세포함: 합계(VAT포함)=round(수량×단가), 공급가액=round(합계/1.1), 부가세=차액.
           const lineIncl = Math.round(calcLineSupply(line.quantity, line.unitPrice))
           const lineSupply = Math.round(lineIncl / 1.1)
           const lineVat = lineIncl - lineSupply
           const isBundle = line.productType === 'BUNDLE'
+          if (isMobile) {
+            return (
+              <EstimateMobileLineCard
+                key={line.uid}
+                line={line}
+                index={i}
+                isReadOnly={Boolean(isReadOnly)}
+                lineIncl={lineIncl}
+                lineSupply={lineSupply}
+                lineVat={lineVat}
+                onUpdate={(patch) => updateLine(i, patch)}
+                onLookup={() => handleModelLookup(i)}
+                onRemove={() => removeLine(i)}
+              >
+                {isBundle ? (
+                  <BundleOptionRow
+                    line={line}
+                    index={i}
+                    disabled={Boolean(isReadOnly)}
+                    onChange={(patch) => updateSetOption(i, patch)}
+                  />
+                ) : null}
+              </EstimateMobileLineCard>
+            )
+          }
           return (
            <div key={line.uid}>
             <div
@@ -739,6 +878,7 @@ export function EstimateFormPage() {
            </div>
           )
         })}
+        </div>
 
         {!isReadOnly ? (
           <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -765,6 +905,7 @@ export function EstimateFormPage() {
 
         {/* 합계 */}
         <div
+          className="mobile-form-grid"
           style={{
             marginTop: 16,
             padding: '12px 16px',

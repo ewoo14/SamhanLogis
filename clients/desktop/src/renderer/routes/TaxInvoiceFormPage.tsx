@@ -29,6 +29,7 @@ import { taxInvoiceAuditApi } from '../api/createAuditApi'
 import { TaxInvoiceRealtimeClient } from '../realtime/AccountingRealtimeClient'
 import { AuditRevisionBadge } from '../components/audit/AuditOverlaySection'
 import { searchPartners, type PartnerSummary } from '../api/sales'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 /** 클라이언트 라인 임시 ID — React key 안정성. */
@@ -71,12 +72,104 @@ const calcLineSupply = (qty: string, unitPrice: string): number => {
   return Math.trunc(q * p)
 }
 
+function TaxInvoiceMobileLineCard(props: {
+  line: DraftLine
+  index: number
+  isReadOnly: boolean
+  supply: number
+  vat: number
+  onUpdate: (patch: Partial<DraftLine>) => void
+  onRemove: () => void
+}) {
+  const lineNumber = props.index + 1
+  return (
+    <div className="mobile-line-card" data-testid={`tax-invoice-form-line-${props.index}`}>
+      <div className="mobile-line-card-header">
+        <span className="mobile-line-card-index">{lineNumber}</span>
+        <button
+          type="button"
+          className="mobile-line-remove-button"
+          onClick={props.onRemove}
+          disabled={props.isReadOnly}
+          aria-label={`라인 ${lineNumber} 삭제`}
+        >
+          삭제
+        </button>
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">품명</label>
+        <input
+          type="text"
+          className="mobile-line-text-input"
+          value={props.line.itemName}
+          onChange={(e) => props.onUpdate({ itemName: e.target.value })}
+          placeholder="품명"
+          disabled={props.isReadOnly}
+          data-testid={`tax-invoice-form-line-${props.index}-item-name`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">규격</label>
+        <input
+          type="text"
+          className="mobile-line-text-input"
+          value={props.line.spec}
+          onChange={(e) => props.onUpdate({ spec: e.target.value })}
+          placeholder="규격"
+          disabled={props.isReadOnly}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">수량</label>
+        <input
+          type="text"
+          inputMode="decimal"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={props.line.quantity}
+          onChange={(e) => props.onUpdate({ quantity: e.target.value })}
+          disabled={props.isReadOnly}
+          data-testid={`tax-invoice-form-line-${props.index}-qty`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">단가</label>
+        <input
+          type="text"
+          inputMode="decimal"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={props.line.unitPrice}
+          onChange={(e) => props.onUpdate({ unitPrice: e.target.value })}
+          disabled={props.isReadOnly}
+          data-testid={`tax-invoice-form-line-${props.index}-unit-price`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">공급가액</label>
+        <div className="mobile-line-readonly mobile-line-readonly--strong">
+          {fmt(props.supply)}
+        </div>
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">부가세</label>
+        <div className="mobile-line-readonly">{fmt(props.vat)}</div>
+      </div>
+    </div>
+  )
+}
+
 export function TaxInvoiceFormPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const params = useParams<{ id?: string }>()
   const editId = params['id']
   const isEdit = Boolean(editId)
+  const isMobile = useIsMobile()
 
   usePageTitle(isEdit ? '세금계산서 편집' : '세금계산서 작성')
 
@@ -419,6 +512,7 @@ export function TaxInvoiceFormPage() {
 
         {/* 거래처 snapshot 표시 */}
         <div
+          className="mobile-form-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr 1fr',
@@ -470,32 +564,49 @@ export function TaxInvoiceFormPage() {
           />
         </div>
 
-        {/* 라인 헤더 */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '36px 2fr 1fr 100px 140px 140px 140px 36px',
-            gap: 8,
-            padding: '8px 0',
-            borderBottom: '2px solid #E5E7EB',
-            fontSize: 12,
-            color: '#6B7280',
-            fontWeight: 600,
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>#</div>
-          <div>품명</div>
-          <div>규격</div>
-          <div style={{ textAlign: 'right' }}>수량</div>
-          <div style={{ textAlign: 'right' }}>단가</div>
-          <div style={{ textAlign: 'right' }}>공급가액</div>
-          <div style={{ textAlign: 'right' }}>부가세</div>
-          <div />
-        </div>
+        {!isMobile ? (
+          /* 라인 헤더 */
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '36px 2fr 1fr 100px 140px 140px 140px 36px',
+              gap: 8,
+              padding: '8px 0',
+              borderBottom: '2px solid #E5E7EB',
+              fontSize: 12,
+              color: '#6B7280',
+              fontWeight: 600,
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>#</div>
+            <div>품명</div>
+            <div>규격</div>
+            <div style={{ textAlign: 'right' }}>수량</div>
+            <div style={{ textAlign: 'right' }}>단가</div>
+            <div style={{ textAlign: 'right' }}>공급가액</div>
+            <div style={{ textAlign: 'right' }}>부가세</div>
+            <div />
+          </div>
+        ) : null}
 
+        <div className={isMobile ? 'mobile-line-card-list' : undefined}>
         {lines.map((line, i) => {
           const supply = calcLineSupply(line.quantity, line.unitPrice)
           const vat = Math.trunc(supply * 0.1)
+          if (isMobile) {
+            return (
+              <TaxInvoiceMobileLineCard
+                key={line.uid}
+                line={line}
+                index={i}
+                isReadOnly={Boolean(isReadOnly)}
+                supply={supply}
+                vat={vat}
+                onUpdate={(patch) => updateLine(i, patch)}
+                onRemove={() => removeLine(i)}
+              />
+            )
+          }
           return (
             <div
               key={line.uid}
@@ -622,6 +733,7 @@ export function TaxInvoiceFormPage() {
             </div>
           )
         })}
+        </div>
 
         {!isReadOnly ? (
           <div style={{ marginTop: 12 }}>
@@ -638,6 +750,7 @@ export function TaxInvoiceFormPage() {
 
         {/* 합계 */}
         <div
+          className="mobile-form-grid"
           style={{
             marginTop: 16,
             padding: '12px 16px',

@@ -82,6 +82,7 @@ import {
 import { toLocalDateISO } from '../utils/dateUtils'
 import { searchProducts as searchProductsApi } from '../api/productApi'
 import { searchPartners as searchPartnersApi } from '../api/partnerApi'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { BundleOptionRow } from './components/BundleOptionRow'
@@ -118,6 +119,132 @@ const emptyLine = (): LineDraft => ({
   modelCode: null,
   setOptions: emptyBundleSetOptions(),
 })
+
+const calcVatInclusiveLine = (
+  quantity: string,
+  unitPrice: string,
+): { incl: number; supply: number; vat: number } => {
+  const q = Number(quantity)
+  const p = Number(unitPrice)
+  if (!Number.isFinite(q) || !Number.isFinite(p)) {
+    return { incl: 0, supply: 0, vat: 0 }
+  }
+  const incl = Math.round(q * p)
+  const supply = Math.round(incl / 1.1)
+  return { incl, supply, vat: incl - supply }
+}
+
+function SlipMobileLineCard(props: {
+  line: LineDraft
+  lineNumber: number
+  selected: boolean
+  canDelete: boolean
+  onSelect: (selected: boolean) => void
+  onSpecificationChange: (value: string) => void
+  onQuantityChange: (value: string) => void
+  onUnitPriceChange: (value: string) => void
+  onDelete: () => void
+  modelCell: ReactNode
+  footer?: ReactNode
+}) {
+  const vatBreakdown = calcVatInclusiveLine(
+    props.line.quantity,
+    props.line.unitPrice,
+  )
+  const priceDisplay = props.line.unitPrice
+    ? Number(props.line.unitPrice).toLocaleString()
+    : '0'
+
+  return (
+    <div className="mobile-line-card" data-line-index={props.lineNumber}>
+      <div className="mobile-line-card-header">
+        <label className="mobile-line-check">
+          <input
+            type="checkbox"
+            checked={props.selected}
+            onChange={(e) => props.onSelect(e.target.checked)}
+            aria-label={`라인 ${props.lineNumber} 선택`}
+          />
+          <span className="mobile-line-card-index">{props.lineNumber}</span>
+        </label>
+        <button
+          type="button"
+          className="mobile-line-remove-button"
+          onClick={props.onDelete}
+          disabled={!props.canDelete}
+          aria-label={`라인 ${props.lineNumber} 삭제`}
+        >
+          삭제
+        </button>
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">품목</label>
+        {props.modelCell}
+        {props.line.lookupError ? (
+          <div className="mobile-line-error">{props.line.lookupError}</div>
+        ) : null}
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">품목명</label>
+        <div className="mobile-line-readonly">
+          {props.line.productName || (props.line.lookupLoading ? '조회중...' : '모델명 조회 후 자동입력')}
+        </div>
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">규격</label>
+        <input
+          type="text"
+          className="mobile-line-text-input"
+          value={props.line.specification}
+          onChange={(e) => props.onSpecificationChange(e.target.value)}
+          placeholder="예: 220V"
+          maxLength={50}
+          aria-label={`라인 ${props.lineNumber} 규격`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">수량</label>
+        <input
+          type="number"
+          min={1}
+          className="mobile-line-text-input mobile-line-number-input"
+          value={props.line.quantity}
+          onChange={(e) => props.onQuantityChange(e.target.value)}
+          aria-label={`라인 ${props.lineNumber} 수량`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">단가(VAT포함)</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={priceDisplay}
+          onChange={(e) => {
+            const numeric = e.target.value.replace(/[^0-9]/g, '')
+            props.onUnitPriceChange(numeric)
+          }}
+          aria-label={`라인 ${props.lineNumber} 단가`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">금액(VAT포함)</label>
+        <div className="mobile-line-readonly mobile-line-readonly--strong">
+          {vatBreakdown.incl.toLocaleString()}
+          <span>공급 {vatBreakdown.supply.toLocaleString()} · VAT {vatBreakdown.vat.toLocaleString()}</span>
+        </div>
+      </div>
+
+      {props.footer}
+    </div>
+  )
+}
 
 export interface SlipFormPageProps {
   /** OUTBOUND (판매/출고) 또는 INBOUND (구매/입고). */
@@ -206,6 +333,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const isOutbound = mode === 'OUTBOUND'
   const listPath = isOutbound ? '/sales' : '/purchases'
   const titleLabel = isOutbound ? '새 판매전표' : '새 입고전표'
+  const isMobile = useIsMobile()
 
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)
   usePageTitle(titleLabel)
@@ -541,7 +669,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       {/* 헤더 정보 카드 */}
       <Card padding={6} shadow="sm" className="sfp-card">
         <div className="sfp-section-title">헤더 정보</div>
-        <div className="sfp-form-grid sfp-form-grid--2">
+        <div className="sfp-form-grid sfp-form-grid--2 mobile-form-grid">
           {/*
             출고전표는 '출고 창고' 1개, 입고전표는 '입고 창고' 1개만 입력(도착 창고 제거).
             OUTBOUND: 출고지=sourceWh / INBOUND: 입고지=destWh (requiredWh 와 일치).
@@ -619,7 +747,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           ) : null}
         </div>
 
-        <div className="sfp-form-grid sfp-form-grid--1" style={{ marginTop: 16 }}>
+        <div className="sfp-form-grid sfp-form-grid--1 mobile-form-grid" style={{ marginTop: 16 }}>
           <FormField
             label="메모"
             render={({ id }) => (
@@ -639,7 +767,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           LinkDispatchListPage 자동 그룹의 키 (기사명 + 배송일자) 가 된다.
         */}
         {isOutbound ? (
-          <div className="sfp-form-grid sfp-form-grid--driver" style={{ marginTop: 16 }}>
+          <div className="sfp-form-grid sfp-form-grid--driver mobile-form-grid" style={{ marginTop: 16 }}>
             <FormField
               label="기사명"
               hint="배송 기사 이름 (자동 그룹 키)"
@@ -677,7 +805,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         <div className="sfp-section-title">배송 정보</div>
 
         {/* 배송주소 + 거래처 주소 복사 버튼 */}
-        <div className="sfp-form-grid sfp-form-grid--2" style={{ marginTop: 8 }}>
+        <div className="sfp-form-grid sfp-form-grid--2 mobile-form-grid" style={{ marginTop: 8 }}>
           <FormField
             label="배송주소"
             hint="배송 현장 주소 (최대 500자)"
@@ -888,94 +1016,166 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           </div>
         </div>
 
-        <div className="sfp-line-table">
-          <LineTableHeader
-            allSelected={allSelected}
-            someSelected={someSelected}
-            onToggleAll={toggleAll}
-          />
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={lines.map((l) => l.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {lines.map((line, idx) => {
-                /**
-                 * AC-2: 현재 라인의 ProductOption 재구성.
-                 * productId / modelName / productName 이 모두 있으면 value 전달, 없으면 null.
-                 * UUID 비공개 가드: id 는 내부 state 전용, 화면 노출 X.
-                 */
-                const lineProductValue: ProductOption | null =
-                  line.productId && line.modelName
-                    ? {
-                        id: line.productId,
-                        modelName: line.modelName,
-                        productName: line.productName,
+        {isMobile ? (
+          <div className="mobile-line-card-list">
+            {lines.map((line, idx) => {
+              /**
+               * AC-2: 현재 라인의 ProductOption 재구성.
+               * productId / modelName / productName 이 모두 있으면 value 전달, 없으면 null.
+               * UUID 비공개 가드: id 는 내부 state 전용, 화면 노출 X.
+               */
+              const lineProductValue: ProductOption | null =
+                line.productId && line.modelName
+                  ? {
+                      id: line.productId,
+                      modelName: line.modelName,
+                      productName: line.productName,
+                    }
+                  : null
+              const isBundle = line.productType === 'BUNDLE'
+              return (
+                <SlipMobileLineCard
+                  key={line.id}
+                  line={line}
+                  lineNumber={idx + 1}
+                  selected={selectedIds.has(line.id)}
+                  canDelete={lines.length > 1}
+                  onSelect={(s) => toggleSelect(line.id, s)}
+                  onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
+                  onQuantityChange={(v) => updateLine(line.id, { quantity: v })}
+                  onUnitPriceChange={(v) => updateLine(line.id, { unitPrice: v })}
+                  onDelete={() => removeLine(line.id)}
+                  modelCell={
+                    <ProductAutocomplete
+                      value={lineProductValue}
+                      onChange={(p) =>
+                        updateLine(line.id, {
+                          productId: p?.id ?? null,
+                          modelName: p?.modelName ?? '',
+                          productName: p?.productName ?? '',
+                          unitPrice:
+                            p?.sellingPrice != null
+                              ? String(p.sellingPrice)
+                              : line.unitPrice,
+                          productType: p?.productType ?? null,
+                          modelCode: p?.modelCode ?? null,
+                          lookupError: null,
+                          lookupLoading: false,
+                        })
                       }
-                    : null
-
-                const isBundle = line.productType === 'BUNDLE'
-                return (
-                  <SortableLineRow
-                    key={line.id}
-                    line={line}
-                    lineNumber={idx + 1}
-                    selected={selectedIds.has(line.id)}
-                    canDelete={lines.length > 1}
-                    onSelect={(s) => toggleSelect(line.id, s)}
-                    onModelNameChange={(v) => updateLine(line.id, { modelName: v })}
-                    onModelNameBlur={(v) => void handleModelNameBlur(line.id, v)}
-                    onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
-                    onQuantityChange={(v) => updateLine(line.id, { quantity: v })}
-                    onUnitPriceChange={(v) => updateLine(line.id, { unitPrice: v })}
-                    onDelete={() => removeLine(line.id)}
-                    modelCell={
-                      <ProductAutocomplete
-                        value={lineProductValue}
-                        onChange={(p) =>
-                          updateLine(line.id, {
-                            productId: p?.id ?? null,
-                            modelName: p?.modelName ?? '',
-                            productName: p?.productName ?? '',
-                            unitPrice:
-                              p?.sellingPrice != null
-                                ? String(p.sellingPrice)
-                                : line.unitPrice,
-                            productType: p?.productType ?? null,
-                            modelCode: p?.modelCode ?? null,
-                            lookupError: null,
-                            lookupLoading: false,
-                          })
-                        }
-                        searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
-                        label=""
-                        ariaLabel={`라인 ${idx + 1} 품목`}
-                        placeholder="모델명 또는 품목명"
-                        debounceMs={250}
+                      searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
+                      label=""
+                      ariaLabel={`라인 ${idx + 1} 품목`}
+                      placeholder="모델명 또는 품목명"
+                      debounceMs={250}
+                    />
+                  }
+                  footer={
+                    isBundle ? (
+                      <BundleOptionRow
+                        line={{
+                          modelName: line.modelName,
+                          setOptions: line.setOptions ?? emptyBundleSetOptions(),
+                        }}
+                        index={idx}
+                        onChange={(patch) => updateSetOption(line.id, patch)}
                       />
-                    }
-                    footer={
-                      isBundle ? (
-                        <BundleOptionRow
-                          line={{
-                            modelName: line.modelName,
-                            setOptions: line.setOptions ?? emptyBundleSetOptions(),
-                          }}
-                          index={idx}
-                          onChange={(patch) => updateSetOption(line.id, patch)}
+                    ) : null
+                  }
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <div className="sfp-line-table">
+            <LineTableHeader
+              allSelected={allSelected}
+              someSelected={someSelected}
+              onToggleAll={toggleAll}
+            />
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={lines.map((l) => l.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {lines.map((line, idx) => {
+                  /**
+                   * AC-2: 현재 라인의 ProductOption 재구성.
+                   * productId / modelName / productName 이 모두 있으면 value 전달, 없으면 null.
+                   * UUID 비공개 가드: id 는 내부 state 전용, 화면 노출 X.
+                   */
+                  const lineProductValue: ProductOption | null =
+                    line.productId && line.modelName
+                      ? {
+                          id: line.productId,
+                          modelName: line.modelName,
+                          productName: line.productName,
+                        }
+                      : null
+
+                  const isBundle = line.productType === 'BUNDLE'
+                  return (
+                    <SortableLineRow
+                      key={line.id}
+                      line={line}
+                      lineNumber={idx + 1}
+                      selected={selectedIds.has(line.id)}
+                      canDelete={lines.length > 1}
+                      onSelect={(s) => toggleSelect(line.id, s)}
+                      onModelNameChange={(v) => updateLine(line.id, { modelName: v })}
+                      onModelNameBlur={(v) => void handleModelNameBlur(line.id, v)}
+                      onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
+                      onQuantityChange={(v) => updateLine(line.id, { quantity: v })}
+                      onUnitPriceChange={(v) => updateLine(line.id, { unitPrice: v })}
+                      onDelete={() => removeLine(line.id)}
+                      modelCell={
+                        <ProductAutocomplete
+                          value={lineProductValue}
+                          onChange={(p) =>
+                            updateLine(line.id, {
+                              productId: p?.id ?? null,
+                              modelName: p?.modelName ?? '',
+                              productName: p?.productName ?? '',
+                              unitPrice:
+                                p?.sellingPrice != null
+                                  ? String(p.sellingPrice)
+                                  : line.unitPrice,
+                              productType: p?.productType ?? null,
+                              modelCode: p?.modelCode ?? null,
+                              lookupError: null,
+                              lookupLoading: false,
+                            })
+                          }
+                          searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
+                          label=""
+                          ariaLabel={`라인 ${idx + 1} 품목`}
+                          placeholder="모델명 또는 품목명"
+                          debounceMs={250}
                         />
-                      ) : null
-                    }
-                  />
-                )
-              })}
-            </SortableContext>
-          </DndContext>
-        </div>
+                      }
+                      footer={
+                        isBundle ? (
+                          <BundleOptionRow
+                            line={{
+                              modelName: line.modelName,
+                              setOptions: line.setOptions ?? emptyBundleSetOptions(),
+                            }}
+                            index={idx}
+                            onChange={(patch) => updateSetOption(line.id, patch)}
+                          />
+                        ) : null
+                      }
+                    />
+                  )
+                })}
+              </SortableContext>
+            </DndContext>
+          </div>
+        )}
 
         {/* 합계 영역 (Designer wireframes.md § 1.1 인용) */}
         <div className="sfp-totals">
