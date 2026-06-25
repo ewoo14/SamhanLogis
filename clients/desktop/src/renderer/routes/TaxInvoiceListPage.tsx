@@ -90,6 +90,7 @@ export function TaxInvoiceListPage() {
       key: 'taxInvoiceNo',
       header: '세금계산서번호',
       width: '180px',
+      mobilePriority: 'primary',
       render: (row) =>
         row.taxInvoiceNo ? (
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -103,6 +104,7 @@ export function TaxInvoiceListPage() {
       key: 'partnerBusinessNo',
       header: '거래처 코드',
       width: '140px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {row.partnerBusinessNo ? row.partnerBusinessNo.replace(/\D/g, '') : '—'}
@@ -112,12 +114,14 @@ export function TaxInvoiceListPage() {
     {
       key: 'partnerName',
       header: '거래처',
+      mobilePriority: 'secondary',
       render: (row) => row.partnerName,
     },
     {
       key: 'supplyDate',
       header: '작성일',
       width: '120px',
+      mobilePriority: 'hidden',
       render: (row) => row.supplyDate,
     },
     {
@@ -125,6 +129,7 @@ export function TaxInvoiceListPage() {
       header: '공급가액',
       width: '140px',
       align: 'right',
+      mobilePriority: 'hidden',
       render: (row) => fmtKrw(row.supplyAmount),
     },
     {
@@ -132,6 +137,7 @@ export function TaxInvoiceListPage() {
       header: '세액',
       width: '120px',
       align: 'right',
+      mobilePriority: 'hidden',
       render: (row) => fmtKrw(row.vatAmount),
     },
     {
@@ -139,6 +145,7 @@ export function TaxInvoiceListPage() {
       header: '합계',
       width: '140px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (row) => (
         <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
           {fmtKrw(row.totalAmount)}
@@ -149,6 +156,7 @@ export function TaxInvoiceListPage() {
       key: 'status',
       header: '상태',
       width: '100px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <Badge variant={STATUS_VARIANT[row.status]}>
           {TAX_INVOICE_STATUS_LABEL[row.status]}

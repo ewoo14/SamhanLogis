@@ -97,22 +97,25 @@ export function InventoryAuditListPage() {
   }, [currentYear])
 
   const columns: DataTableColumn<AuditSummary>[] = [
-    { key: 'auditNo', header: '실사번호', width: '180px' },
+    { key: 'auditNo', header: '실사번호', width: '180px', mobilePriority: 'primary' },
     {
       key: 'warehouseCode',
       header: '창고',
       width: '140px',
+      mobilePriority: 'secondary',
       render: (a) => `${a.warehouseCode} · ${a.warehouseName}`,
     },
     {
       key: 'auditDate',
       header: '실사일자',
       width: '120px',
+      mobilePriority: 'hidden',
     },
     {
       key: 'status',
       header: '상태',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (a) => (
         <Badge variant={STATUS_VARIANT[a.status]}>
           {AUDIT_STATUS_LABEL[a.status]}
@@ -124,6 +127,7 @@ export function InventoryAuditListPage() {
       header: '차이금액',
       width: '160px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (a) => formatDiff(a.totalDiffAmount),
     },
   ]

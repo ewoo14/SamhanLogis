@@ -51,24 +51,27 @@ export function OrderListPage() {
 
   const columns: DataTableColumn<OrderSummaryRow>[] = useMemo(
     () => [
-      { key: 'orderNo', header: '주문번호', width: '160px' },
+      { key: 'orderNo', header: '주문번호', width: '160px', mobilePriority: 'primary' },
       {
         key: 'validUntil',
         header: '유효기한',
         width: '110px',
+        mobilePriority: 'hidden',
         render: (row) => <PlainText value={row.validUntil} />,
       },
-      { key: 'partnerName', header: '거래처' },
+      { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
       {
         key: 'managerName',
         header: '담당자',
         width: '110px',
+        mobilePriority: 'hidden',
         render: (row) => <PlainText value={row.managerName} />,
       },
       {
         key: 'progressStatus',
         header: '진행상태',
         width: '110px',
+        mobilePriority: 'secondary',
         render: (row) => (
           <StatusBadge
             label={ORDER_STATUS_LABEL[row.progressStatus] ?? row.progressStatus}
@@ -80,6 +83,7 @@ export function OrderListPage() {
         key: 'linkedSlipNo',
         header: '연결 전표',
         width: '150px',
+        mobilePriority: 'hidden',
         render: (row) => <PlainText value={row.linkedSlipNo} />,
       },
       {
@@ -87,6 +91,7 @@ export function OrderListPage() {
         header: '합계',
         width: '130px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (row) => <MoneyText value={row.totalAmount} strong />,
       },
       {
@@ -94,6 +99,7 @@ export function OrderListPage() {
         header: '공급가',
         width: '130px',
         align: 'right',
+        mobilePriority: 'hidden',
         render: (row) => <MoneyText value={row.totalSupplyAmount} />,
       },
     ],

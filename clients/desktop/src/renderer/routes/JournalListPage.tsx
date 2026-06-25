@@ -79,21 +79,25 @@ export function JournalListPage() {
       key: 'journalNo',
       header: '분개번호',
       width: '160px',
+      mobilePriority: 'primary',
     },
     {
       key: 'journalDate',
       header: '일자',
       width: '110px',
+      mobilePriority: 'secondary',
     },
     {
       key: 'status',
       header: '상태',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (row) => <JournalStatusBadge status={row.status} />,
     },
     {
       key: 'description',
       header: '적요',
+      mobilePriority: 'hidden',
       render: (row) => row.description ?? '—',
     },
     {
@@ -101,6 +105,7 @@ export function JournalListPage() {
       header: '차변 합계',
       width: '140px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (row) => formatKrw(row.totalDebit),
     },
     {
@@ -108,12 +113,14 @@ export function JournalListPage() {
       header: '대변 합계',
       width: '140px',
       align: 'right',
+      mobilePriority: 'hidden',
       render: (row) => formatKrw(row.totalCredit),
     },
     {
       key: 'createdByName',
       header: '작성자',
       width: '100px',
+      mobilePriority: 'hidden',
       render: (row) => row.createdByName ?? '—',
     },
   ]

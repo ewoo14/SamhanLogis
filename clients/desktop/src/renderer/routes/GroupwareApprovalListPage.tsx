@@ -67,9 +67,18 @@ export function GroupwareApprovalListPage() {
 
   const columns: DataTableColumn<ApprovalLineAdminResponse>[] = useMemo(() => [
     {
+      key: 'title',
+      header: '제목',
+      mobilePriority: 'primary',
+      render: (row) => (
+        <span style={{ overflowWrap: 'anywhere' }}>{row.title}</span>
+      ),
+    },
+    {
       key: 'approvalNo',
       header: '결재문서번호',
       width: '170px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
           {row.approvalNo}
@@ -77,16 +86,10 @@ export function GroupwareApprovalListPage() {
       ),
     },
     {
-      key: 'title',
-      header: '제목',
-      render: (row) => (
-        <span style={{ overflowWrap: 'anywhere' }}>{row.title}</span>
-      ),
-    },
-    {
       key: 'status',
       header: '상태',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <Badge variant={STATUS_VARIANT[row.status]}>
           {APPROVAL_STATUS_LABEL[row.status]}
@@ -97,12 +100,14 @@ export function GroupwareApprovalListPage() {
       key: 'requester',
       header: '요청자',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) => displayNameOrFallback(row.requesterName),
     },
     {
       key: 'requestDate',
       header: '요청일',
       width: '120px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {requestDateFromApprovalNo(row.approvalNo)}

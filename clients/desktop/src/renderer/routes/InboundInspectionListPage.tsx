@@ -70,6 +70,7 @@ export function InboundInspectionListPage() {
       key: 'slipNo',
       header: '전표번호',
       width: '180px',
+      mobilePriority: 'primary',
       render: (row) => (
         <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
           {row.slipNo}
@@ -80,6 +81,7 @@ export function InboundInspectionListPage() {
       key: 'partnerBusinessNo',
       header: '거래처 코드',
       width: '140px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {row.partnerBusinessNo ? row.partnerBusinessNo.replace(/\D/g, '') : '—'}
@@ -89,18 +91,21 @@ export function InboundInspectionListPage() {
     {
       key: 'partnerName',
       header: '거래처',
+      mobilePriority: 'secondary',
       render: (row) => row.partnerName ?? '—',
     },
     {
       key: 'slipDate',
       header: '입고일',
       width: '120px',
+      mobilePriority: 'hidden',
       render: (row) => row.slipDate ?? '—',
     },
     {
       key: 'status',
       header: '상태',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <Badge variant={STATUS_VARIANT[row.status]}>
           {INSPECTION_STATUS_LABEL[row.status]}
@@ -111,12 +116,14 @@ export function InboundInspectionListPage() {
       key: 'inspectorName',
       header: '검수자',
       width: '120px',
+      mobilePriority: 'hidden',
       render: (row) => row.inspectorName ?? '—',
     },
     {
       key: 'slipId',
       header: '',
       width: '80px',
+      mobilePriority: 'secondary',
       render: (row) =>
         row.status !== 'COMPLETED' ? (
           <Button
