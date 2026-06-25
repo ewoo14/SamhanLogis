@@ -1,0 +1,42 @@
+.lightboxOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.lightboxDialog {
+  background: var(--color-bg);
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 800px;
+  width: 100%;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+}
+
+.confirmDialog {
+  max-width: min(400px, calc(100vw - 32px));
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .lightboxOverlay {
+    padding: 0;
+  }
+
+  .lightboxDialog {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    min-width: 0;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+}

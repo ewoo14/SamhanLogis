@@ -48,6 +48,7 @@ import {
   listInspectionAttachments,
   type AttachmentResponse,
 } from '../../api/attachmentApi'
+import styles from './InboundInspectionDialog.module.css'
 
 interface LineState {
   lineId: string
@@ -529,12 +530,11 @@ export function InboundInspectionDialog({
           }}
         >
           <div
+            className={styles.confirmDialog}
             style={{
               background: 'var(--color-bg)',
               borderRadius: 8,
               padding: '28px 32px',
-              maxWidth: 400,
-              width: '100%',
               boxShadow: 'var(--shadow-modal)',
             }}
           >
@@ -697,28 +697,11 @@ function InspectionPhotoViewer({
           aria-modal="true"
           aria-label="사진 확대"
           data-testid="inbound-inspection-photo-lightbox"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1200,
-            background: 'rgba(0, 0, 0, 0.82)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-          }}
+          className={styles.lightboxOverlay}
           onClick={onCloseLightbox}
         >
           <div
-            style={{
-              background: 'var(--color-bg)',
-              borderRadius: 10,
-              overflow: 'hidden',
-              maxWidth: 800,
-              width: '100%',
-              boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
-            }}
+            className={styles.lightboxDialog}
             onClick={(e) => e.stopPropagation()}
           >
             {/* 사진 영역 */}
