@@ -175,6 +175,9 @@
     padding: var(--space-1, 4px) 0;
     border: none;
     text-align: right;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .td::before {
