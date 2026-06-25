@@ -85,18 +85,21 @@ export function LedgerList({
         key: 'transactionDate',
         header: '거래일',
         width: '110px',
+        mobilePriority: 'primary',
         render: (row) => <PlainText value={row.transactionDate} />,
       },
-      { key: 'transactionRef', header: '거래참조', width: '160px' },
+      { key: 'transactionRef', header: '거래참조', width: '160px', mobilePriority: 'hidden' },
       {
         key: 'transactionType',
         header: '거래유형',
         width: '110px',
+        mobilePriority: 'hidden',
         render: (row) => <PlainText value={row.transactionType} />,
       },
       {
         key: 'partnerName',
         header: '거래처',
+        mobilePriority: 'secondary',
         render: (row) => (
           <div>
             <div>{row.partnerName}</div>
@@ -111,6 +114,7 @@ export function LedgerList({
         header: '공급가',
         width: '130px',
         align: 'right',
+        mobilePriority: 'hidden',
         render: (row) => <MoneyText value={row.supplyAmount} />,
       },
       {
@@ -118,6 +122,7 @@ export function LedgerList({
         header: '부가세',
         width: '130px',
         align: 'right',
+        mobilePriority: 'hidden',
         render: (row) => <MoneyText value={row.vatAmount} />,
       },
       {
@@ -125,6 +130,7 @@ export function LedgerList({
         header: '합계',
         width: '130px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (row) => <MoneyText value={row.totalAmount} strong />,
       },
       {
@@ -132,12 +138,14 @@ export function LedgerList({
         header: '일마감 차이',
         width: '130px',
         align: 'right',
+        mobilePriority: 'hidden',
         render: (row) => <MoneyText value={row.dailyDiff} strong />,
       },
       {
         key: 'transformStatus',
         header: '대조',
         width: '90px',
+        mobilePriority: 'secondary',
         render: (row) => {
           const tone = diffTone(row.dailyDiff)
           const status = row.transformStatus ?? 'PENDING'

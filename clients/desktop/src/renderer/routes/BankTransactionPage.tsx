@@ -205,12 +205,14 @@ export function BankTransactionPage() {
       key: 'transactedAt',
       header: '거래일시',
       width: '150px',
+      mobilePriority: 'primary',
       render: (row) => formatDateTime(row.transactedAt),
     },
     {
       key: 'txnType',
       header: '입출',
       width: '72px',
+      mobilePriority: 'hidden',
       render: (row) => BANK_TXN_TYPE_LABEL[row.txnType],
     },
     {
@@ -218,24 +220,28 @@ export function BankTransactionPage() {
       header: '금액',
       align: 'right',
       width: '130px',
+      mobilePriority: 'secondary',
       render: (row) => <span style={amountStyle(row)}>{formatKrw(row.amount)}</span>,
     },
     {
       key: 'description',
       header: '적요',
       width: '240px',
+      mobilePriority: 'secondary',
       render: (row) => <strong>{row.description}</strong>,
     },
     {
       key: 'counterpartyName',
       header: '상대',
       width: '160px',
-      render: (row) => row.counterpartyName || '—',
+      mobilePriority: 'hidden',
+      render: (row) => row.counterpartyName || '-',
     },
     {
       key: 'matchedPartnerCode',
       header: '거래처 매칭',
       width: '320px',
+      mobilePriority: 'hidden',
       render: (row) => {
         if (row.matchStatus !== 'UNREFLECTED') {
           return <span>{partnerDisplay(row)}</span>
@@ -290,24 +296,28 @@ export function BankTransactionPage() {
       key: 'bankAccountLabel',
       header: '은행계좌',
       width: '180px',
+      mobilePriority: 'hidden',
     },
     {
       key: 'balanceAfter',
       header: '거래후잔액',
       align: 'right',
       width: '130px',
+      mobilePriority: 'hidden',
       render: (row) => formatKrw(row.balanceAfter),
     },
     {
       key: 'source',
       header: '소스',
       width: '80px',
+      mobilePriority: 'hidden',
       render: (row) => BANK_TXN_SOURCE_LABEL[row.source],
     },
     {
       key: 'matchStatus',
       header: '매칭상태',
       width: '100px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <span style={statusStyle(row.matchStatus)}>
           {BANK_MATCH_STATUS_LABEL[row.matchStatus]}

@@ -49,13 +49,14 @@ export function PurchaseAccountingSlipPage() {
 
   const columns: DataTableColumn<PurchaseAccountingSlipResponse>[] = useMemo(
     () => [
-      { key: 'slipNo', header: '전표번호', width: '160px' },
-      { key: 'slipDate', header: '일자', width: '110px' },
-      { key: 'partnerName', header: '거래처' },
+      { key: 'slipNo', header: '전표번호', width: '160px', mobilePriority: 'primary' },
+      { key: 'slipDate', header: '일자', width: '110px', mobilePriority: 'hidden' },
+      { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
       {
         key: 'status',
         header: '상태',
         width: '90px',
+        mobilePriority: 'secondary',
         render: (row) => (
           <Badge variant={row.status === 'POSTED' ? 'success' : 'danger'}>{row.status}</Badge>
         ),
@@ -65,6 +66,7 @@ export function PurchaseAccountingSlipPage() {
         header: '공급가',
         width: '120px',
         align: 'right',
+        mobilePriority: 'hidden',
         render: (row) => fmtKrw(row.totalSupplyAmount),
       },
       {
@@ -72,12 +74,14 @@ export function PurchaseAccountingSlipPage() {
         header: '합계',
         width: '120px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (row) => fmtKrw(row.totalAmount),
       },
       {
         key: 'action',
         header: '',
         width: '96px',
+        mobilePriority: 'hidden',
         render: (row) =>
           row.status === 'DRAFT' ? (
             <Button

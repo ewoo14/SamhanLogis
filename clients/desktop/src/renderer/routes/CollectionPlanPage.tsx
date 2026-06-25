@@ -185,48 +185,55 @@ export function CollectionPlanPage() {
   }
 
   const columns = useMemo<DataTableColumn<CollectionPlanRow>[]>(() => [
-    { key: 'planNo', header: '계획번호', width: '150px', render: (row) => <strong>{row.planNo}</strong> },
+    { key: 'planNo', header: '계획번호', width: '150px', mobilePriority: 'primary', render: (row) => <strong>{row.planNo}</strong> },
     {
       key: 'bizNo',
       header: '거래처코드',
       width: '128px',
-      render: (row) => row.bizNo || '—',
+      mobilePriority: 'hidden',
+      render: (row) => row.bizNo || '-',
     },
     {
       key: 'partnerName',
       header: '거래처명',
       width: '180px',
+      mobilePriority: 'secondary',
       render: (row) => row.partnerName,
     },
-    { key: 'plannedDate', header: '예정일', width: '110px' },
+    { key: 'plannedDate', header: '예정일', width: '110px', mobilePriority: 'secondary' },
     {
       key: 'plannedAmount',
       header: '예정금액',
       width: '130px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (row) => <span style={amountStyle(row.plannedAmount)}>{formatKrw(row.plannedAmount)}</span>,
     },
     {
       key: 'basis',
       header: '근거',
       width: '126px',
+      mobilePriority: 'hidden',
       render: (row) => PLAN_BASIS_LABEL[row.basis],
     },
     {
       key: 'status',
       header: '상태',
       width: '100px',
+      mobilePriority: 'hidden',
       render: (row) => <span style={statusStyle(row.status)}>{PLAN_STATUS_LABEL[row.status]}</span>,
     },
     {
       key: 'memo',
       header: '비고',
-      render: (row) => row.memo || '—',
+      mobilePriority: 'hidden',
+      render: (row) => row.memo || '-',
     },
     {
       key: 'actions',
       header: '상태전이',
       width: '170px',
+      mobilePriority: 'hidden',
       render: (row) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           {TRANSITION_OPTIONS.map((status) => (
