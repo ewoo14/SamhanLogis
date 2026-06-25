@@ -4,6 +4,28 @@
 
 ---
 
+## ✅ 완결 — 모바일 전면 재설계+리스트 폴리시 (2026-06-26 야간 자율, 슬4c~9 머지)
+
+**개발책임자 "전체 모바일 재설계 / 모든 모바일 슬라이스 전체 PM 자동 진행" 지시 → ScheduleWakeup 자율 루프로 6 슬라이스 canonical 완주·전부 머지.** 데스크탑 무회귀(isMobile 분기 + @media≤768px), 듀얼리뷰 0수렴(Opus↔Codex 순차), 라이브 캡처(`docs/qa/mobile-s4c-detail-responsive/`·`docs/qa/mobile-other/`).
+
+### 머지 완료 (main)
+- **슬4c 상세 9종 모바일-퍼스트 클린 재설계** (#602): 주문서·전표·견적·세금계산서·분개·이동전표·재고실사·그룹웨어결재(+공통 SlipDetail). 개발책임자 "보기 힘들다→정보 과부하/품목행 안보임→전체 재설계" 3회 피드백 → **점진 반응형 폐기, 진짜 모바일-퍼스트**. 패턴: 요약 카드(번호·상태배지·핵심금액 크게) + **품목 카드(표 폐기→카드, 열 뭉개짐 근본 해소)** + MobileActionSheet 액션바(Primary+더보기 바텀시트, aria-modal/ESC/focus) + MobileCollapsible 아코디언. 신규 공용: `hooks/useIsMobile.ts`·`components/common/{MobileCollapsible,MobileActionSheet}.tsx`·global.css `.mobile-*`.
+- **리스트 카드 폴리시 ~35종** (슬5 #603·슬6 #604·슬7 #605·슬8 #606·슬9 #607): design-system `DataTable`에 **`mobilePriority?:'primary'|'secondary'|'hidden'` 하위호환 선택필드** + `data-mobile-priority` + CSS `:has()` opt-in 카드(@media≤768: primary 제목 full-width·secondary 2열·hidden 숨김). **미지정=현행 나열 100% 하위호환**. 적용: 거래처·전표·견적(슬5)/세금계산서·분개·입고검수·그룹웨어·재고실사·주문(슬6)/품목3·배차3·세무2(슬7)/admin마스터8(슬8)/회계5(슬9). spec `docs/superpowers/specs/2026-06-26-mobile-list-card-polish.md`.
+- **폼(슬4b 1열)·대시보드(home)·고traffic 리스트 필터: 라이브 클린 확인**(오버플로 0).
+
+### 🔑 교훈 (박제)
+- **mobilePriority**: primary=**DOM 첫 컬럼**(a11y 시각=DOM, WCAG 1.3.2) — 데스크탑 컬럼 순서 변경 금지. 액션/버튼/체크박스/UUID(id)성 컬럼=**hidden**(행탭 onRowClick 대체) — 단 **'선택이 핵심기능'(세무 묶음발행 select·은행거래 매칭 autocomplete)은 secondary 유지**(hidden 시 기능 회귀). 와이드 리포트(총계정원장·자금현황·일마감·거래명세서)=**SKIP**(가로스크롤 적절).
+- **커스텀/드래그 테이블 사전 grep**: 견적품목(SortableRow `<table>`)=mobilePriority no-op → 모바일 isMobile 분기 DataTable 카드(드래그 데스크탑 전용).
+- **🚨 PM 파일 직접 교차검증 의무**: Opus 재확인이 실 컬럼값 **2회 오판**(입고검수 거래처 hidden 회귀·은행 matchedPartnerCode hidden) → Codex+PM 파일 read가 적발. 듀얼리뷰 후 실파일 값 확인.
+- mobilePriority 도입이 기존 slice-3 카드 spec 깰 수 있음(UsersPage row=block→grid → spec 계약 갱신).
+
+### 🔜 다음 (개발책임자 지정 대기)
+- **리스트 필터바 모바일 가로 오버플로**(은행거래·수금계획 등 저traffic 회계): inline grid(고정 minmax) → @media 무력(FormGrid 함정 동형), 페이지별 class+@media 전환 필요. 고traffic(거래처/전표/주문) 필터는 경미.
+- **잔여 리스트 ~19종**(54중 35 적용, 미적용=저traffic/리포트)·슬4b-2 폼 ~88곳·와이드 회계보고서·원시 table(권한매트릭스)·상단 sub-nav 밀도·PWA/네이티브·Phase11 prod cutover.
+- 라이브 캡처 한계(정직): admin dev_master 403(`mockDepartment=대표실` 우회)·원장/일부 회계 무시드 → 코드+패턴 검증 대체.
+
+---
+
 ## ✅ 완결 — 모바일 슬4b 입력 폼 1열 (공용 FormGrid) 머지 (2026-06-25, PR #600, main `0dc38d920`)
 
 **모바일 에픽② 슬4b canonical 8단계 완주 → PM 자율 머지(개발책임자 위임).** design-system 공용 반응형 `<FormGrid>` 신설 + 핵심 입력 폼4 이관. 데스크탑 N열 → ≤768px 1열 자동 전환. **FE/design-system only, Flyway 0, BE 무변경.** (집PC 세션, ScheduleWakeup 자율 루프로 canonical 완주.)
