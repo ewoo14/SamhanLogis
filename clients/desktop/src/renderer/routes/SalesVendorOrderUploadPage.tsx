@@ -87,12 +87,12 @@ interface VendorOption {
 const VENDOR_OPTIONS: ReadonlyArray<VendorOption> = [
   {
     name: '에어디자이너',
-    hint: 'legacy GAS #10 — PDF/이미지 발주서 OCR',
+    hint: 'PDF·이미지 발주서 OCR 인식',
     testId: 'vendor-radio-airdesigner',
   },
   {
     name: '제이시스템',
-    hint: 'legacy GAS #14 — PDF/이미지 발주서 OCR',
+    hint: 'PDF·이미지 발주서 OCR 인식',
     testId: 'vendor-radio-jsystem',
   },
 ]
@@ -478,8 +478,7 @@ export function SalesVendorOrderUploadPage() {
       <header>
         <h3 style={{ margin: '0 0 4px' }}>vendor 발주서 OCR 업로드</h3>
         <div style={{ fontSize: 12, color: 'var(--color-neutral-600, #4B5563)' }}>
-          legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR
-          native 이식. PDF / 이미지 → 자동 line item 파싱 → 매칭 후 발주 생성.
+          PDF·이미지 발주서를 OCR로 인식해 품목을 자동으로 읽고, 매칭 확인 후 발주서를 생성합니다.
         </div>
       </header>
 

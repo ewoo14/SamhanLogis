@@ -118,7 +118,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const { canAccess } = usePermissions()
   const isOutbound = mode === 'OUTBOUND'
   const basePath = isOutbound ? '/sales' : '/purchases'
-  const titleLabel = isOutbound ? '판매전표 목록 (legacy)' : '입고전표 목록 (legacy)'
+  const titleLabel = isOutbound ? '판매전표 목록' : '입고전표 목록'
   const newButtonLabel = isOutbound ? '새 판매전표' : '새 입고전표'
   const canExport = canAccess('slip.print.export', 'download')
   // [C5-2b] canCreateSlip(role) → canAccess('sales.slip.create', 'create')
