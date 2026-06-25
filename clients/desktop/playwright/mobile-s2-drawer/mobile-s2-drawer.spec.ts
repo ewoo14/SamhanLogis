@@ -15,11 +15,13 @@ test.describe('모바일 슬2 Drawer 셸', () => {
     await expect(toggle).toBeVisible()
     await expect(drawer).not.toHaveClass(/is-open/)
 
+    const salesCategory = page.getByTestId('sidebar-category-toggle-판매')
+    await expect(salesCategory).not.toBeVisible()
+
     await toggle.click()
     await expect(drawer).toHaveClass(/is-open/)
-    await expect(page.getByTestId('sidebar-category-toggle-판매')).toBeVisible()
+    await expect(salesCategory).toBeVisible()
 
-    const salesCategory = page.getByTestId('sidebar-category-toggle-판매')
     if ((await salesCategory.getAttribute('aria-expanded')) !== 'true') {
       await salesCategory.click()
     }
