@@ -7,7 +7,7 @@ fs.mkdirSync(QA, { recursive: true })
 const PAGES = [
   { label: 'bank-transactions', path: '/accounting/bank-transactions' },
   { label: 'collection-plans', path: '/accounting/reports/collection-plans' },
-  { label: 'notes-receivable', path: '/accounting/notes-receivable' },
+  { label: 'notes-receivable', path: '/accounting/reports/notes-receivable' },
 ]
 async function launch() { try { return await chromium.launch({ headless: true }) } catch { return await chromium.launch({ headless: true, channel: 'chromium-headless-shell' }) } }
 ;(async () => {

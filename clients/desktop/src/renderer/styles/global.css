@@ -5069,7 +5069,8 @@ button {
     flex-wrap: wrap !important;
   }
 
-  .mobile-filter-stack > * {
+  .mobile-filter-stack > label,
+  .mobile-filter-stack > .mobile-filter-field {
     flex: 1 1 140px;
     min-width: 0;
   }

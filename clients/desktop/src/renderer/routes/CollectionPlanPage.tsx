@@ -428,7 +428,7 @@ export function CollectionPlanPage() {
 
       <Card style={{ padding: 16 }}>
         <div className="mobile-filter-stack" style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
-          <div style={{ minWidth: 220 }}>
+          <div className="mobile-filter-field" style={{ minWidth: 220 }}>
             <AsyncAutocomplete<JournalStatusPartnerOption>
               value={filterPartner}
               onChange={setFilterPartner}
