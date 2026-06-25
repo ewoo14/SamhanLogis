@@ -4,13 +4,14 @@
 
 ---
 
-## ✅ 완결 — 모바일 전면 재설계+리스트 폴리시 (2026-06-26 야간 자율, 슬4c~9 머지)
+## ✅ 완결 — 모바일 전면 재설계+리스트 폴리시 (2026-06-26 야간 자율, 슬4c~11 머지)
 
-**개발책임자 "전체 모바일 재설계 / 모든 모바일 슬라이스 전체 PM 자동 진행" 지시 → ScheduleWakeup 자율 루프로 6 슬라이스 canonical 완주·전부 머지.** 데스크탑 무회귀(isMobile 분기 + @media≤768px), 듀얼리뷰 0수렴(Opus↔Codex 순차), 라이브 캡처(`docs/qa/mobile-s4c-detail-responsive/`·`docs/qa/mobile-other/`).
+**개발책임자 "전체 모바일 재설계 / 모든 모바일 슬라이스 전체 PM 자동 진행" 지시 → ScheduleWakeup 자율 루프로 8 슬라이스 canonical 완주·전부 머지.** 데스크탑 무회귀(isMobile 분기 + @media≤768px), 듀얼리뷰 0수렴(Opus↔Codex 순차), 라이브 캡처(`docs/qa/mobile-s4c-detail-responsive/`·`docs/qa/mobile-other/`).
 
 ### 머지 완료 (main)
 - **슬4c 상세 9종 모바일-퍼스트 클린 재설계** (#602): 주문서·전표·견적·세금계산서·분개·이동전표·재고실사·그룹웨어결재(+공통 SlipDetail). 개발책임자 "보기 힘들다→정보 과부하/품목행 안보임→전체 재설계" 3회 피드백 → **점진 반응형 폐기, 진짜 모바일-퍼스트**. 패턴: 요약 카드(번호·상태배지·핵심금액 크게) + **품목 카드(표 폐기→카드, 열 뭉개짐 근본 해소)** + MobileActionSheet 액션바(Primary+더보기 바텀시트, aria-modal/ESC/focus) + MobileCollapsible 아코디언. 신규 공용: `hooks/useIsMobile.ts`·`components/common/{MobileCollapsible,MobileActionSheet}.tsx`·global.css `.mobile-*`.
-- **리스트 카드 폴리시 ~35종** (슬5 #603·슬6 #604·슬7 #605·슬8 #606·슬9 #607): design-system `DataTable`에 **`mobilePriority?:'primary'|'secondary'|'hidden'` 하위호환 선택필드** + `data-mobile-priority` + CSS `:has()` opt-in 카드(@media≤768: primary 제목 full-width·secondary 2열·hidden 숨김). **미지정=현행 나열 100% 하위호환**. 적용: 거래처·전표·견적(슬5)/세금계산서·분개·입고검수·그룹웨어·재고실사·주문(슬6)/품목3·배차3·세무2(슬7)/admin마스터8(슬8)/회계5(슬9). spec `docs/superpowers/specs/2026-06-26-mobile-list-card-polish.md`.
+- **리스트 카드 폴리시 ~37종 운영 리스트 전수** (슬5 #603·슬6 #604·슬7 #605·슬8 #606·슬9 #607·슬11 #610): design-system `DataTable`에 **`mobilePriority?:'primary'|'secondary'|'hidden'` 하위호환 선택필드** + `data-mobile-priority` + CSS `:has()` opt-in 카드(@media≤768: primary 제목 full-width·secondary 2열·hidden 숨김). **미지정=현행 나열 100% 하위호환**. 적용: 거래처·전표·견적(슬5)/세금계산서·분개·입고검수·그룹웨어·재고실사·주문(슬6)/품목3·배차3·세무2(슬7)/admin마스터8(슬8)/회계5(슬9)/이동전표·받을어음(슬11). **잔여 DataTable=상세[슬4c 완료]·와이드 리포트[SKIP=가로스크롤]뿐.** spec `docs/superpowers/specs/2026-06-26-mobile-list-card-polish.md`.
+- **슬10 리스트 필터바 모바일 반응형** (#609): 필터/조회 영역 inline grid/flex가 모바일 가로 오버플로 → 전역 `.mobile-filter-grid`(@media≤768 1열)·`.mobile-filter-stack`(@media flex-wrap, 입력 label/`.mobile-filter-field`만 flex) + **@media `!important`로 비-important 인라인 오버라이드**(데스크탑 무회귀). BankTransaction·CollectionPlan·NotesReceivable.
 - **폼(슬4b 1열)·대시보드(home)·고traffic 리스트 필터: 라이브 클린 확인**(오버플로 0).
 
 ### 🔑 교훈 (박제)
@@ -18,6 +19,8 @@
 - **커스텀/드래그 테이블 사전 grep**: 견적품목(SortableRow `<table>`)=mobilePriority no-op → 모바일 isMobile 분기 DataTable 카드(드래그 데스크탑 전용).
 - **🚨 PM 파일 직접 교차검증 의무**: Opus 재확인이 실 컬럼값 **2회 오판**(입고검수 거래처 hidden 회귀·은행 matchedPartnerCode hidden) → Codex+PM 파일 read가 적발. 듀얼리뷰 후 실파일 값 확인.
 - mobilePriority 도입이 기존 slice-3 카드 spec 깰 수 있음(UsersPage row=block→grid → spec 계약 갱신).
+- **🚨 "clipping" 오버플로 메트릭 함정**: DataTable thead-hide는 `display:none` 아닌 **sr-only**(position:absolute·width:1px·clip) → `getBoundingClientRect`가 thead TR/TH의 실제 layout 폭(626px)을 반환해 **오버플로 false-positive 과대계상**. 필터바 오버플로 진단 시 `diag-overflow.cjs`로 `closest('thead')` 제외 후 측정해야 실값(거의 0). 야간 내내 "clipping N"은 대부분 이 아티팩트였고 실 렌더는 클린(카드 캡처가 입증).
+- **인라인 스타일 @media 무력 → 전역 클래스 + @media !important 오버라이드**가 데스크탑 무회귀 최소변경 해법(FormGrid CSS변수 방식 외 대안). 비-important 인라인 style을 stylesheet `!important`가 이김.
 
 ### 🔜 다음 (개발책임자 지정 대기)
 - **리스트 필터바 모바일 가로 오버플로**(은행거래·수금계획 등 저traffic 회계): inline grid(고정 minmax) → @media 무력(FormGrid 함정 동형), 페이지별 class+@media 전환 필요. 고traffic(거래처/전표/주문) 필터는 경미.
