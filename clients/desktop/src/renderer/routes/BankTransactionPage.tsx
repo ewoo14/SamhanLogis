@@ -227,7 +227,7 @@ export function BankTransactionPage() {
       key: 'description',
       header: '적요',
       width: '240px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) => <strong>{row.description}</strong>,
     },
     {
@@ -241,7 +241,7 @@ export function BankTransactionPage() {
       key: 'matchedPartnerCode',
       header: '거래처 매칭',
       width: '320px',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (row) => {
         if (row.matchStatus !== 'UNREFLECTED') {
           return <span>{partnerDisplay(row)}</span>
