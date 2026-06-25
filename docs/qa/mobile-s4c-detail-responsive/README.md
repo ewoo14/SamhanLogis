@@ -23,8 +23,13 @@
 - 데스크탑(>768px) 모든 클래스 무회귀(auto-fit/grid 다열) 확인.
 - ⚠️ 이동전표 상세 = `.detail-grid` 미사용(범위 외, 대상 클래스 없음). (⑤ Codex 지적으로 견적/분개/재고실사 라우트 정정 후 실진입 — 초기 라우트 오류로 "데이터없음" 오보고했던 것 교정.)
 
-## 🔴 후속 fix 진행 중 — 페이지 가로 overflow (개발책임자 라이브 QA 적발)
-`.detail-grid`/합계는 1열/wrap 정상이나, **slip 상세 페이지 전체에 우측 클리핑 잔존**(app-main overflow-x:hidden): ①전표 진행 단계 스텝퍼(w=720) ②상단 액션 버튼 행(w=529, "메뉴 넘어감") ③커스텀 `table.slip-line-table`(w=702, 공용 DataTable 아님). → 버튼 flex-wrap·스텝퍼/와이드테이블 가로 스크롤(CSS클래스+@media)로 후속 fix + 페이지 레벨 overflow 재QA 예정. (진단: `scripts/s4c-overflow-diag.cjs`)
+## ✅ 페이지 가로 overflow fix 완료·검증 (개발책임자 라이브 QA 적발 → 해소)
+`.detail-grid`/합계 외 와이드 요소가 slip 상세에서 우측 클리핑(app-main overflow-x:hidden)이던 것 수정:
+- **액션 버튼 행** → `.detail-action-bar` + @media `flex-wrap`(8 상세 페이지) → 줄바꿈(잘림 해소). slip 스샷: 거래명세서출력/계산서출력/판매전표출력/수정/삭제/목록으로 **wrap 확인**.
+- **스텝퍼**(전표 진행 단계) → design-system `ProgressBar.module.css` @media `.track` 가로 스크롤(공용 컴포넌트, dist 재빌드).
+- **커스텀 와이드 테이블**(`.slip-line-table`) → `.slip-line-table-scroll` @media `overflow-x:auto`(스크롤). 공용 DataTable 사용분(견적/세금계산서 품목)은 슬3 카드화로 모바일 카드 전환(견적 스샷 확인).
+
+재검증(`scripts/s4c-overflow-diag.cjs`, scroll컨테이너 안=OK vs app-main 클리핑=BAD 분류): slip 상세 **상세콘텐츠 클리핑 0**(스크롤가능 23). 잔여 diag 보고는 ①sr-only DataTable thead(**false positive** — 카드 모드 숨김헤더, 견적 스샷이 실 카드 확인) ②헤더 계정 드롭다운 `▼`(슬2 셸 공통·상세 콘텐츠 아님·minor 후속). **개발책임자 finding(액션 버튼 우측 넘침) 해소.**
 
 ## 캡처
 - `mobile-slip.png` / `desktop-slip.png` — 전표 상세(.detail-grid 1열/4열)
