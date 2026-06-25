@@ -71,7 +71,7 @@ export function TaxInvoiceInboundPage() {
       key: 'select',
       header: '',
       width: '44px',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (row) => (
         <input
           type="checkbox"
