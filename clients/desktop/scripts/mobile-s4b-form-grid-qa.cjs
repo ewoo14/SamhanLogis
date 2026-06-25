@@ -65,13 +65,14 @@ async function capForm(ctxLabel, page, name, navPath, opener, waitSel) {
     results.push(await capForm(ctxLabel, page, 'warehouse-edit', '/admin/warehouses',
       async (p) => { await p.locator('[data-testid^=admin-warehouses-edit-]').first().click(); await p.locator('[role=dialog]').first().waitFor({ state: 'visible', timeout: 8000 }) },
       '[data-testid^=admin-warehouses-edit-]'))
-    // 3. 거래처 상세 편집 다이얼로그 (행클릭 → 편집모드)
+    // 3. 거래처 상세 편집 다이얼로그 (행클릭 → 읽기전용 다이얼로그 → "편집" 클릭 → edit FormGrid 대기)
     results.push(await capForm(ctxLabel, page, 'partner-detail', '/admin/partners',
       async (p) => {
         await p.locator('table tbody tr').first().click()
         await p.locator('[role=dialog]').first().waitFor({ state: 'visible', timeout: 8000 })
-        const edit = p.getByRole('button', { name: /편집|수정/ }).first()
-        if (await edit.isVisible().catch(() => false)) { await edit.click().catch(() => {}); await p.waitForTimeout(600) }
+        await p.getByRole('button', { name: '편집' }).first().click()
+        // 편집 모드 진입 = FormGrid(--fg-cols) 렌더까지 대기(read-only 다이얼로그엔 없음)
+        await p.locator('[role=dialog] div[style*="--fg-cols"]').first().waitFor({ state: 'visible', timeout: 8000 })
       },
       'table tbody tr'))
     // 4. 공급자 설정 (직접 라우트 → 등록/편집 모달 시도)
