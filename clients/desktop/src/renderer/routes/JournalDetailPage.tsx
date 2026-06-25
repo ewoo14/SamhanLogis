@@ -285,18 +285,13 @@ export function JournalDetailPage() {
 
         {/* 합계 */}
         <div
+          className="journal-totals"
           style={{
             marginTop: 16,
             padding: '12px 16px',
             background: '#F9FAFB',
             borderRadius: 6,
-            display: 'grid',
-            gridTemplateColumns: '40px 220px 140px 140px 1fr',
-            gap: 8,
             fontSize: 14,
-            fontVariantNumeric: 'tabular-nums',
-            maxWidth: '100%',
-            overflowX: 'auto',
           }}
         >
           <div />

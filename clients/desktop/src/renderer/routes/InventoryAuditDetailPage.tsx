@@ -40,7 +40,6 @@ import {
   Card,
   DataTable,
   FormField,
-  FormGrid,
   type AuditLogEntry,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -318,8 +317,7 @@ interface DetailGridProps {
 
 function DetailGrid({ audit, auditByField }: DetailGridProps) {
   return (
-    <dl style={{ margin: 0, fontSize: 13 }}>
-      <FormGrid columns={4} gap="8px">
+    <dl className="audit-detail-meta">
       <dt style={dtStyle}>창고</dt>
       <dd style={ddStyle}>
         {audit.warehouseCode} · {audit.warehouseName}
@@ -350,7 +348,6 @@ function DetailGrid({ audit, auditByField }: DetailGridProps) {
           ? audit.cancelledAt.replace('T', ' ').slice(0, 19)
           : '—'}
       </dd>
-      </FormGrid>
     </dl>
   )
 }
@@ -415,14 +412,7 @@ function BarcodeInput({ audit, onRecorded }: BarcodeInputProps) {
       <h4 style={{ margin: '0 0 12px' }}>바코드 / 수동 입력</h4>
       <form
         onSubmit={handleSubmit}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 160px auto auto',
-          gap: 8,
-          alignItems: 'end',
-          maxWidth: '100%',
-          overflowX: 'auto',
-        }}
+        className="audit-barcode-form"
       >
         <FormField
           label="품목코드 / 바코드"

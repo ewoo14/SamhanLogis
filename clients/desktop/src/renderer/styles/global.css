@@ -356,6 +356,56 @@ button {
   gap: var(--space-3);
 }
 
+.audit-detail-meta {
+  display: grid;
+  grid-template-columns: 120px 1fr 120px 1fr;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.audit-barcode-form {
+  display: grid;
+  grid-template-columns: 1fr 160px auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.tax-invoice-totals,
+.estimate-totals,
+.journal-totals {
+  display: grid;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tax-invoice-totals,
+.estimate-totals {
+  grid-template-columns: 1fr 160px 160px 200px;
+}
+
+.journal-totals {
+  grid-template-columns: 40px 220px 140px 140px 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .detail-grid,
+  .audit-detail-meta,
+  .audit-barcode-form {
+    grid-template-columns: 1fr;
+  }
+
+  .tax-invoice-totals,
+  .estimate-totals,
+  .journal-totals {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px 16px;
+  }
+}
+
 .detail-label {
   display: block;
   font-size: var(--font-size-sm);
@@ -738,10 +788,6 @@ button {
 }
 
 @media (max-width: 768px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-
   .batch-detail-meta {
     grid-template-columns: 1fr;
   }

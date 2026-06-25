@@ -12,7 +12,6 @@ import {
   Button,
   Card,
   DataTable,
-  FormGrid,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -409,27 +408,32 @@ export function GroupwareApprovalDetailPage() {
           {fieldRows.length > 0 ? (
             <div>
               <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>세부 필드</h4>
-              <div data-testid="groupware-approval-detail-fields">
-                <FormGrid columns={2} gap="8px">
-                  {fieldRows.map((field) => (
-                    <div
-                      key={field.key}
-                      style={{
-                        padding: 10,
-                        border: '1px solid var(--color-neutral-200)',
-                        borderRadius: 6,
-                        background: 'var(--color-neutral-50)',
-                      }}
-                    >
-                      <div style={{ fontSize: 12, color: 'var(--color-neutral-500)', marginBottom: 4 }}>
-                        {field.label}
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
-                        {field.value || '-'}
-                      </div>
+              <div
+                data-testid="groupware-approval-detail-fields"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: 8,
+                }}
+              >
+                {fieldRows.map((field) => (
+                  <div
+                    key={field.key}
+                    style={{
+                      padding: 10,
+                      border: '1px solid var(--color-neutral-200)',
+                      borderRadius: 6,
+                      background: 'var(--color-neutral-50)',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, color: 'var(--color-neutral-500)', marginBottom: 4 }}>
+                      {field.label}
                     </div>
-                  ))}
-                </FormGrid>
+                    <div style={{ fontSize: 13, fontWeight: 700, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                      {field.value || '-'}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : null}
@@ -532,7 +536,7 @@ export function GroupwareApprovalDetailPage() {
                   </Button>
                 </div>
                 {referenceFormOpen ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) auto', gap: 8, alignItems: 'end', maxWidth: '100%', overflowX: 'auto' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) auto', gap: 8, alignItems: 'end' }}>
                     <DocumentReferencePicker
                       value={referenceDraft}
                       onChange={setReferenceDraft}

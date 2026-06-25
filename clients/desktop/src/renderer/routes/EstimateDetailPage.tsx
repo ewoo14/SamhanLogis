@@ -512,18 +512,13 @@ export function EstimateDetailPage() {
 
         {/* 합계 */}
         <div
+          className="estimate-totals"
           style={{
             marginTop: 16,
             padding: '12px 16px',
             background: '#F9FAFB',
             borderRadius: 6,
-            display: 'grid',
-            gridTemplateColumns: '1fr 160px 160px 200px',
-            gap: 16,
             fontSize: 14,
-            fontVariantNumeric: 'tabular-nums',
-            maxWidth: '100%',
-            overflowX: 'auto',
           }}
           data-testid="estimate-detail-totals"
         >
