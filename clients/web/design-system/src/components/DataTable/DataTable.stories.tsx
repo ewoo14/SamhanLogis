@@ -119,6 +119,11 @@ export const WithProducts: Story = {
 
 export const MobilePriorityCards: Story = {
   name: '모바일 카드 우선순위',
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile1',
+    },
+  },
   render: () => (
     <DataTable<ProductRow>
       columns={mobilePriorityColumns}

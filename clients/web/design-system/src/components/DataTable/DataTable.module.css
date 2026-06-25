@@ -263,6 +263,14 @@
     text-transform: none;
   }
 
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"][data-label=""] {
+    padding-top: 0;
+  }
+
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"][data-label=""]::before {
+    content: none;
+  }
+
   .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"] > * {
     min-width: 0;
     color: var(--color-neutral-700, #374151);
@@ -273,8 +281,27 @@
     word-break: break-word;
   }
 
+  .tr:has(td[data-mobile-priority]) td[data-mobile-priority="secondary"]:nth-child(odd of td[data-mobile-priority="secondary"]):nth-last-child(1 of td[data-mobile-priority="secondary"]) {
+    grid-column: 1 / -1;
+  }
+
   .tr:has(td[data-mobile-priority]) td[data-mobile-priority="hidden"] {
     display: none;
+  }
+
+  .tr:has(td[data-mobile-priority]) td:not([data-mobile-priority]) {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3, 12px);
+    padding: var(--space-1, 4px) 0;
+    border: none;
+    text-align: right;
+  }
+
+  .tr:has(td[data-mobile-priority]) td:not([data-mobile-priority])::before {
+    content: attr(data-label);
   }
 
   .tr:has(td[data-mobile-priority]).clickable:active {

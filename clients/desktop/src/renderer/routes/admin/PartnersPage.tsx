@@ -123,7 +123,6 @@ export function PartnersPage() {
   }
 
   const columns: DataTableColumn<PartnerSummary>[] = [
-    { key: 'partnerCode', header: '거래처 코드', width: '140px', mobilePriority: 'secondary' },
     {
       key: 'name',
       header: '상호',
@@ -134,6 +133,7 @@ export function PartnersPage() {
         </span>
       ),
     },
+    { key: 'partnerCode', header: '거래처 코드', width: '140px', mobilePriority: 'secondary' },
     { key: 'bizNo', header: '사업자번호', width: '140px', mobilePriority: 'hidden' },
     {
       key: 'phone',
