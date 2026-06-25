@@ -550,7 +550,13 @@ export function AppLayout() {
         aria-modal={drawerOpen ? 'true' : undefined}
       >
         <h1>Samhan Public</h1>
-        <nav>
+        <nav
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest('a')) {
+              setDrawerOpen(false)
+            }
+          }}
+        >
           <NavLink to="/" end>
             홈
           </NavLink>

@@ -95,6 +95,17 @@ describe('AppLayout mobile drawer', () => {
     })
   })
 
+  test('현재 페이지 링크를 클릭해도 Drawer 가 닫힌다', () => {
+    renderApp('/')
+
+    fireEvent.click(screen.getByTestId('app-drawer-toggle'))
+    expect(getDrawer().classList.contains('is-open')).toBe(true)
+
+    fireEvent.click(screen.getByRole('link', { name: '홈' }))
+
+    expect(getDrawer().classList.contains('is-open')).toBe(false)
+  })
+
   test('Escape 와 백드롭 클릭으로 Drawer 가 닫힌다', () => {
     renderApp()
 
