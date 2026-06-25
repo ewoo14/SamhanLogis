@@ -47,6 +47,7 @@ import {
   type DepositMatchResult,
   type DepositJournalLine,
 } from '../api/depositMatchApi'
+import styles from './DepositMatchPage.module.css'
 
 // ---------------------------------------------------------------------------
 // 유틸 함수
@@ -347,27 +348,6 @@ function DepositDetailModal({ result, onClose }: DetailModalProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const overlayStyle: React.CSSProperties = {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0,0,0,0.4)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-  }
-  const panelStyle: React.CSSProperties = {
-    background: '#fff',
-    borderRadius: 10,
-    padding: 20,
-    width: 'min(520px, 92vw)',
-    maxHeight: '88vh',
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-    boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-  }
   const metaRowStyle: React.CSSProperties = {
     display: 'flex',
     justifyContent: 'space-between',
@@ -417,7 +397,7 @@ function DepositDetailModal({ result, onClose }: DetailModalProps) {
 
   return (
     <div
-      style={overlayStyle}
+      className={styles.overlay}
       onClick={onClose}
       role="presentation"
     >
@@ -426,7 +406,7 @@ function DepositDetailModal({ result, onClose }: DetailModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label="입금 매칭 상세 · 자동 분개 미리보기"
-        style={panelStyle}
+        className={styles.dialog}
         onClick={(e) => e.stopPropagation()}
       >
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

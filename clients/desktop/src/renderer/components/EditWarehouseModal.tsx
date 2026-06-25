@@ -15,6 +15,7 @@ import {
   type WarehouseAuditLog,
 } from '../api/adminApi'
 import { WarehouseRealtimeClient } from '../realtime/WarehouseRealtimeClient'
+import styles from './EditWarehouseModal.module.css'
 
 interface Props {
   warehouse: AdminWarehouse | null
@@ -120,8 +121,8 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
   }
 
   return (
-    <div style={overlayStyle} onClick={onClose} role="dialog" aria-modal="true">
-      <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
+    <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
+      <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0 }}>
           창고 편집 <span style={{ color: '#6b7280', fontSize: 14 }}>· {warehouse.code}</span>
         </h3>
@@ -268,26 +269,6 @@ export function EditWarehouseModal({ warehouse, onClose, onSaved }: Props) {
       </div>
     </div>
   )
-}
-
-const overlayStyle: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.5)',
-  zIndex: 1000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}
-
-const dialogStyle: CSSProperties = {
-  background: '#fff',
-  borderRadius: 8,
-  padding: 24,
-  width: 'min(560px, 90vw)',
-  maxHeight: '90vh',
-  overflow: 'auto',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
 }
 
 const formGridStyle: CSSProperties = {
