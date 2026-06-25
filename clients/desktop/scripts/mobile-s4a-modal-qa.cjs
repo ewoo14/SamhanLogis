@@ -13,9 +13,9 @@ async function login(page) {
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 }); await page.waitForTimeout(1000)
 }
-async function openAndShoot(page, label, file, trigger) {
-  await page.goto(`${BASE}/admin/partners`, { waitUntil: 'domcontentloaded' })
-  await page.waitForSelector('table tbody tr', { timeout: 15000 }); await page.waitForTimeout(1500)
+async function openAndShoot(page, label, file, trigger, navPath = '/admin/partners', waitSel = 'table tbody tr') {
+  await page.goto(`${BASE}${navPath}`, { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector(waitSel, { timeout: 15000 }); await page.waitForTimeout(1500)
   await trigger(page)
   const dlg = page.locator('[role=dialog]').first()
   await dlg.waitFor({ state: 'visible', timeout: 10000 })
@@ -35,6 +35,9 @@ async function openAndShoot(page, label, file, trigger) {
   await login(m)
   await openAndShoot(m, '1.모바일 거래처상세(풀스크린)', 'M1-mobile-partner-detail-fullscreen.png',
     async (p) => { await p.locator('table tbody tr').first().click() })
+  await openAndShoot(m, '4.모바일 CSV업로드(풀스크린·④보완)', 'M4-mobile-csv-upload-fullscreen.png',
+    async (p) => { await p.click('[data-testid=admin-regions-import-button]') },
+    '/admin/regions', '[data-testid=admin-regions-import-button]')
   await m.context().close()
   // 데스크탑 1280 — 중앙 카드
   const d = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage()

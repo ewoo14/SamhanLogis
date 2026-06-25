@@ -469,3 +469,38 @@
 @media (prefers-reduced-motion: reduce) {
   .backdrop, .dialog, .progressFill { animation: none; transition: none; }
 }
+
+@media (max-width: 768px) {
+  .backdrop {
+    padding: 0;
+  }
+
+  .dialog {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    min-width: 0;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .header {
+    position: sticky;
+    top: 0;
+    background: var(--color-bg);
+    z-index: 1;
+  }
+
+  .body {
+    flex: 1 1 auto;
+  }
+
+  .footer {
+    position: sticky;
+    bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  }
+}

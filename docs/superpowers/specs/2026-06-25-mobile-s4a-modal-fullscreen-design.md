@@ -16,7 +16,8 @@
 ## 2. 정찰 근거 (file:line)
 - 공용: `clients/web/design-system/src/components/Modal/Modal.module.css` — `.backdrop`(fixed inset:0·flex center·padding var(--space-4)·z-index 1000) + `.dialog`(width:100%·max-height calc(100vh - space-8)·border-radius lg·flex column) + size variants `.size-sm`360 / `.size-md`520 / `.size-lg`720 / `.size-xl`1080·**min-width:980px** + `.header`(닫기 sticky 아님) / `.body`(overflow-y auto) / `.footer`(flex-end 액션·bg-subtle). **반응형 @media 없음**(있는 @media는 prefers-reduced-motion뿐).
 - `Modal.tsx`: backdrop>dialog>header(title+closeBtn)/description/body/footer 렌더. focus trap·ESC·aria-modal 기존 보유(확인). **본 슬라이스 TSX 무변경**.
-- 사용처: 32화면(버전이력 패널 4·각종 SaveDialog·조회/상세 다이얼로그·CSV업로드 등). 슬3 셸 ≤768px Drawer 적용됨.
+- 사용처: 공용 Modal 32화면(버전이력 패널 4·각종 SaveDialog·조회/상세 다이얼로그 등). 슬3 셸 ≤768px Drawer 적용됨.
+- ⚠️ **CsvUploadDialog 는 공용 Modal 미사용 별도 컴포넌트**(자체 CsvUploadDialog.module.css·.backdrop/.dialog/.header/.body/.footer) — ④ 리뷰 적발. CSS Modules 해시 스코핑상 Modal.module.css 변경 미전파 → 본 슬라이스에서 **CsvUploadDialog.module.css 에도 동일 @media 풀스크린 블록 별도 추가**(커버리지 완성).
 - 문제: 390px 화면에서 `.size-md`(520)·`.size-lg`(720)·`.size-xl`(min-width 980)은 backdrop 패딩으로 width 제약돼도 min-width/콘텐츠로 넘쳐 가로 클립·작게 뜸.
 
 ## 3. 설계
@@ -30,7 +31,7 @@
 - (정확한 변수/클래스명은 현 module.css 대조 후 정합. 데스크탑 규칙은 @media 밖 불변.)
 
 ### 3.2 효과
-- 공용 Modal module.css 1블록 → **32개 모달 자동 풀스크린**(폼 모달·조회·상세·CSV·버전이력). 닫기·액션 고정으로 풀스크린에서도 조작 가능. 콘텐츠는 body 스크롤.
+- 공용 Modal module.css 1블록 → **공용 Modal 사용 32화면 자동 풀스크린**(폼 모달·조회·상세·버전이력) + **CsvUploadDialog.module.css 동일 @media**(별도 컴포넌트, ④ 보완) → CSV 업로드도 풀스크린. 닫기·액션 고정으로 풀스크린에서도 조작 가능. 콘텐츠는 body 스크롤.
 
 ### 3.3 무회귀
 - 변경 = `Modal.module.css`(+@media 블록) **1파일**. 데스크탑(>768px) `.backdrop/.dialog/.size-*/.header/.body/.footer` 규칙 불변(신규는 @media max-width:768px 한정). prefers-reduced-motion·애니 무수정. Modal.tsx·Storybook 데스크탑 무변동.
