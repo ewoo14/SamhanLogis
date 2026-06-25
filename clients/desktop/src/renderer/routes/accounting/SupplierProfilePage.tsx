@@ -632,122 +632,122 @@ export function SupplierProfilePage() {
       >
         <div style={{ padding: '4px 0' }}>
           <FormGrid columns={2} gap="12px 20px">
-          <Input
-            label="사업자등록번호"
-            required
-            error={fieldErrors.businessNumber}
-            hint="숫자 10자리 (하이픈 없이 입력)"
-            value={form.businessNumber}
-            onChange={(e) => setField('businessNumber', e.target.value.replace(/\D/g, ''))}
-            placeholder="2148720659"
-            maxLength={10}
-            data-testid="supplier-field-businessNumber"
-          />
-
-          <Input
-            label="종사업장번호"
-            error={fieldErrors.subBusinessNumber}
-            hint="4자리 숫자 (해당 없으면 공백)"
-            value={form.subBusinessNumber ?? ''}
-            onChange={(e) =>
-              setField(
-                'subBusinessNumber',
-                e.target.value.replace(/\D/g, '') || null,
-              )
-            }
-            placeholder="0000"
-            maxLength={4}
-            data-testid="supplier-field-subBusinessNumber"
-          />
-
-          <Input
-            label="상호"
-            required
-            error={fieldErrors.companyName}
-            value={form.companyName}
-            onChange={(e) => setField('companyName', e.target.value)}
-            placeholder="(주)삼한공조시스템"
-            data-testid="supplier-field-companyName"
-          />
-
-          <Input
-            label="대표 성명"
-            required
-            error={fieldErrors.representativeName}
-            value={form.representativeName}
-            onChange={(e) => setField('representativeName', e.target.value)}
-            placeholder="홍길동"
-            data-testid="supplier-field-representativeName"
-          />
-
-          {/* 사업장 주소 — 2컬럼 전체 */}
-          <FormGrid.Full>
             <Input
-              label="사업장 주소"
+              label="사업자등록번호"
               required
-              error={fieldErrors.businessAddress}
-              value={form.businessAddress}
-              onChange={(e) => setField('businessAddress', e.target.value)}
-              placeholder="서울특별시 서초구 마방로2길 9 삼한빌딩 4층"
-              data-testid="supplier-field-businessAddress"
+              error={fieldErrors.businessNumber}
+              hint="숫자 10자리 (하이픈 없이 입력)"
+              value={form.businessNumber}
+              onChange={(e) => setField('businessNumber', e.target.value.replace(/\D/g, ''))}
+              placeholder="2148720659"
+              maxLength={10}
+              data-testid="supplier-field-businessNumber"
             />
-          </FormGrid.Full>
 
-          <Input
-            label="업태"
-            required
-            error={fieldErrors.businessType}
-            value={form.businessType}
-            onChange={(e) => setField('businessType', e.target.value)}
-            placeholder="도매 및 소매업"
-            data-testid="supplier-field-businessType"
-          />
-
-          <Input
-            label="종목"
-            required
-            error={fieldErrors.businessItem}
-            value={form.businessItem}
-            onChange={(e) => setField('businessItem', e.target.value)}
-            placeholder="공조설비, 냉난방기"
-            data-testid="supplier-field-businessItem"
-          />
-
-          <Input
-            label="대표 전화"
-            error={fieldErrors.tel}
-            hint="선택 입력 (예: 02-3461-0000)"
-            value={form.tel ?? ''}
-            onChange={(e) => setField('tel', e.target.value || null)}
-            placeholder="02-3461-0000"
-            maxLength={30}
-            data-testid="supplier-field-tel"
-          />
-
-          <Input
-            label="팩스"
-            error={fieldErrors.fax}
-            hint="선택 입력 (예: 02-3461-0001)"
-            value={form.fax ?? ''}
-            onChange={(e) => setField('fax', e.target.value || null)}
-            placeholder="02-3461-0001"
-            maxLength={30}
-            data-testid="supplier-field-fax"
-          />
-
-          {/* 이메일 — 2컬럼 전체 */}
-          <FormGrid.Full>
             <Input
-              label="이메일"
-              type="email"
-              error={fieldErrors.email}
-              hint="세금계산서 수신 이메일 (선택)"
-              value={form.email}
-              onChange={(e) => setField('email', e.target.value)}
-              placeholder="accounting@example.com"
-              data-testid="supplier-field-email"
+              label="종사업장번호"
+              error={fieldErrors.subBusinessNumber}
+              hint="4자리 숫자 (해당 없으면 공백)"
+              value={form.subBusinessNumber ?? ''}
+              onChange={(e) =>
+                setField(
+                  'subBusinessNumber',
+                  e.target.value.replace(/\D/g, '') || null,
+                )
+              }
+              placeholder="0000"
+              maxLength={4}
+              data-testid="supplier-field-subBusinessNumber"
             />
-          </FormGrid.Full>
+
+            <Input
+              label="상호"
+              required
+              error={fieldErrors.companyName}
+              value={form.companyName}
+              onChange={(e) => setField('companyName', e.target.value)}
+              placeholder="(주)삼한공조시스템"
+              data-testid="supplier-field-companyName"
+            />
+
+            <Input
+              label="대표 성명"
+              required
+              error={fieldErrors.representativeName}
+              value={form.representativeName}
+              onChange={(e) => setField('representativeName', e.target.value)}
+              placeholder="홍길동"
+              data-testid="supplier-field-representativeName"
+            />
+
+            {/* 사업장 주소 — 2컬럼 전체 */}
+            <FormGrid.Full>
+              <Input
+                label="사업장 주소"
+                required
+                error={fieldErrors.businessAddress}
+                value={form.businessAddress}
+                onChange={(e) => setField('businessAddress', e.target.value)}
+                placeholder="서울특별시 서초구 마방로2길 9 삼한빌딩 4층"
+                data-testid="supplier-field-businessAddress"
+              />
+            </FormGrid.Full>
+
+            <Input
+              label="업태"
+              required
+              error={fieldErrors.businessType}
+              value={form.businessType}
+              onChange={(e) => setField('businessType', e.target.value)}
+              placeholder="도매 및 소매업"
+              data-testid="supplier-field-businessType"
+            />
+
+            <Input
+              label="종목"
+              required
+              error={fieldErrors.businessItem}
+              value={form.businessItem}
+              onChange={(e) => setField('businessItem', e.target.value)}
+              placeholder="공조설비, 냉난방기"
+              data-testid="supplier-field-businessItem"
+            />
+
+            <Input
+              label="대표 전화"
+              error={fieldErrors.tel}
+              hint="선택 입력 (예: 02-3461-0000)"
+              value={form.tel ?? ''}
+              onChange={(e) => setField('tel', e.target.value || null)}
+              placeholder="02-3461-0000"
+              maxLength={30}
+              data-testid="supplier-field-tel"
+            />
+
+            <Input
+              label="팩스"
+              error={fieldErrors.fax}
+              hint="선택 입력 (예: 02-3461-0001)"
+              value={form.fax ?? ''}
+              onChange={(e) => setField('fax', e.target.value || null)}
+              placeholder="02-3461-0001"
+              maxLength={30}
+              data-testid="supplier-field-fax"
+            />
+
+            {/* 이메일 — 2컬럼 전체 */}
+            <FormGrid.Full>
+              <Input
+                label="이메일"
+                type="email"
+                error={fieldErrors.email}
+                hint="세금계산서 수신 이메일 (선택)"
+                value={form.email}
+                onChange={(e) => setField('email', e.target.value)}
+                placeholder="accounting@example.com"
+                data-testid="supplier-field-email"
+              />
+            </FormGrid.Full>
           </FormGrid>
         </div>
 

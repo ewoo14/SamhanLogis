@@ -1,4 +1,5 @@
-import { type CSSProperties, type ReactNode } from 'react'
+import type React from 'react'
+import { type ReactNode } from 'react'
 import styles from './FormGrid.module.css'
 
 export interface FormGridProps {
@@ -10,44 +11,32 @@ export interface FormGridProps {
   className?: string
 }
 
-interface FormGridFullProps {
+export interface FormGridFullProps {
   children: ReactNode
   className?: string
 }
 
-type FormGridComponent = ((props: FormGridProps) => JSX.Element) & {
-  Full: (props: FormGridFullProps) => JSX.Element
-}
-
 function Full({ children, className }: FormGridFullProps) {
-  const cls = [styles['full'], className].filter(Boolean).join(' ')
+  const cls = [styles.full, className].filter(Boolean).join(' ')
   return <div className={cls}>{children}</div>
 }
 
-export const FormGrid = function FormGrid({
-  columns,
-  gap,
-  children,
-  className,
-}: FormGridProps) {
-  const style: CSSProperties = {}
+export const FormGrid = Object.assign(
+  function FormGrid({ columns, gap, children, className }: FormGridProps) {
+    const style: React.CSSProperties = {
+      ...(columns != null ? ({ '--fg-cols': String(columns) } as React.CSSProperties) : {}),
+      ...(gap != null ? { gap } : {}),
+    }
 
-  if (columns != null) {
-    ;(style as CSSProperties & Record<'--fg-cols', string>)['--fg-cols'] = String(columns)
-  }
-  if (gap) {
-    style.gap = gap
-  }
+    const cls = [styles.grid, className].filter(Boolean).join(' ')
 
-  const cls = [styles['grid'], className].filter(Boolean).join(' ')
-
-  return (
-    <div className={cls} style={style}>
-      {children}
-    </div>
-  )
-} as FormGridComponent
-
-FormGrid.Full = Full
+    return (
+      <div className={cls} style={style}>
+        {children}
+      </div>
+    )
+  },
+  { Full },
+)
 
 export default FormGrid
