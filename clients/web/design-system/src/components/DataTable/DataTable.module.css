@@ -192,6 +192,10 @@
     content: none;
   }
 
+  .td[data-label=""] {
+    justify-content: flex-end;
+  }
+
   .alignRight,
   .alignCenter,
   .alignLeft {
