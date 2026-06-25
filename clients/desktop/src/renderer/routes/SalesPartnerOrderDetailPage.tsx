@@ -38,6 +38,9 @@ import { PartnerOrderVersionHistoryPanel } from '../components/audit/PartnerOrde
 import styles from '../components/sales/sales.module.css'
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
+const PARTNER_ORDER_INVENTORY_LOOKUP_TEST_ID = 'partner-order-inventory-lookup-btn'
+const PARTNER_ORDER_EDIT_AUDIT_EMPTY_TEST_ID = 'partner-order-edit-audit-empty'
+const PARTNER_ORDER_EDIT_AUDIT_TIMELINE_TEST_ID = 'partner-order-edit-audit-timeline'
 const statusBadgeStyle = (status: string) => {
   switch (status) {
     case 'ON_HOLD':
@@ -913,7 +916,7 @@ export function SalesPartnerOrderDetailPage() {
                     size="sm"
                     variant="secondary"
                     disabled={checkedLineIds.size === 0}
-                    data-testid="partner-order-inventory-lookup-btn"
+                    data-testid={!isMobile ? PARTNER_ORDER_INVENTORY_LOOKUP_TEST_ID : undefined}
                     onClick={() => setInventoryLookupOpen(true)}
                     title={
                       checkedLineIds.size === 0
@@ -1051,7 +1054,7 @@ export function SalesPartnerOrderDetailPage() {
                   type="button"
                   className="mobile-action-primary"
                   disabled={checkedLineIds.size === 0}
-                  data-testid="partner-order-inventory-lookup-btn"
+                  data-testid={isMobile ? PARTNER_ORDER_INVENTORY_LOOKUP_TEST_ID : undefined}
                   onClick={() => setInventoryLookupOpen(true)}
                 >
                   재고조회{checkedLineIds.size > 0 ? ` (${checkedLineIds.size})` : ''}
@@ -1203,11 +1206,11 @@ export function SalesPartnerOrderDetailPage() {
                   {auditQuery.isLoading ? (
                     <div className={styles['emptyState']}>수정 이력을 불러오는 중…</div>
                   ) : (auditQuery.data?.length ?? 0) === 0 ? (
-                    <div className={styles['emptyState']} data-testid="partner-order-edit-audit-empty">
+                    <div className={styles['emptyState']} data-testid={PARTNER_ORDER_EDIT_AUDIT_EMPTY_TEST_ID}>
                       아직 수정 이력이 없습니다
                     </div>
                   ) : (
-                    <div data-testid="partner-order-edit-audit-timeline">
+                    <div data-testid={PARTNER_ORDER_EDIT_AUDIT_TIMELINE_TEST_ID}>
                       {auditQuery.data!.map((entry, index) => (
                         <div
                           key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
@@ -1250,11 +1253,11 @@ export function SalesPartnerOrderDetailPage() {
                   {auditQuery.isLoading ? (
                     <div className={styles['emptyState']}>수정 이력을 불러오는 중…</div>
                   ) : (auditQuery.data?.length ?? 0) === 0 ? (
-                    <div className={styles['emptyState']} data-testid="partner-order-edit-audit-empty">
+                    <div className={styles['emptyState']} data-testid={PARTNER_ORDER_EDIT_AUDIT_EMPTY_TEST_ID}>
                       아직 수정 이력이 없습니다
                     </div>
                   ) : (
-                    <div data-testid="partner-order-edit-audit-timeline">
+                    <div data-testid={PARTNER_ORDER_EDIT_AUDIT_TIMELINE_TEST_ID}>
                       {auditQuery.data!.map((entry, index) => (
                         <div
                           key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}

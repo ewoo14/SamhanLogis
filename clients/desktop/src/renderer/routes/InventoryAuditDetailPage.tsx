@@ -76,6 +76,7 @@ const STATUS_VARIANT: Record<
   COMPLETED: 'success',
   CANCELLED: 'danger',
 }
+const AUDIT_CANCEL_BUTTON_TEST_ID = 'audit-cancel-button'
 
 /** KRW 정수 (string) → "₩1,234,567" 표시 (음수 ▼). */
 function formatKrw(raw: string | number | null | undefined): string {
@@ -344,7 +345,7 @@ export function InventoryAuditDetailPage() {
               </Button>
               <Button
                 variant="ghost"
-                data-testid="audit-cancel-button"
+                data-testid={!isMobile ? AUDIT_CANCEL_BUTTON_TEST_ID : undefined}
                 loading={cancelMutation.isPending}
                 onClick={() => {
                   if (window.confirm('실사를 취소합니다.')) {
@@ -376,7 +377,7 @@ export function InventoryAuditDetailPage() {
               </Button>
               <Button
                 variant="ghost"
-                data-testid="audit-cancel-button"
+                data-testid={!isMobile ? AUDIT_CANCEL_BUTTON_TEST_ID : undefined}
                 loading={cancelMutation.isPending}
                 onClick={() => {
                   if (window.confirm('진행 중인 실사를 취소합니다.')) {
