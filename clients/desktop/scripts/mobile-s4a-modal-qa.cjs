@@ -38,6 +38,9 @@ async function openAndShoot(page, label, file, trigger, navPath = '/admin/partne
   await openAndShoot(m, '4.모바일 CSV업로드(풀스크린·④보완)', 'M4-mobile-csv-upload-fullscreen.png',
     async (p) => { await p.click('[data-testid=admin-regions-import-button]') },
     '/admin/regions', '[data-testid=admin-regions-import-button]')
+  await openAndShoot(m, '5.모바일 창고편집 자체dialog(풀스크린·⑤보완)', 'M5-mobile-warehouse-edit-fullscreen.png',
+    async (p) => { await p.locator('[data-testid^=admin-warehouses-edit-]').first().click() },
+    '/admin/warehouses', '[data-testid^=admin-warehouses-edit-]')
   await m.context().close()
   // 데스크탑 1280 — 중앙 카드
   const d = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage()
