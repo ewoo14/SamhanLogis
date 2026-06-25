@@ -1051,6 +1051,7 @@ export function SalesPartnerOrderDetailPage() {
                   type="button"
                   className="mobile-action-primary"
                   disabled={checkedLineIds.size === 0}
+                  data-testid="partner-order-inventory-lookup-btn"
                   onClick={() => setInventoryLookupOpen(true)}
                 >
                   재고조회{checkedLineIds.size > 0 ? ` (${checkedLineIds.size})` : ''}
