@@ -165,7 +165,11 @@ export function DataTable<T>({
                         .filter(Boolean)
                         .join(' ')
                       return (
-                        <td key={String(col.key)} className={tdClasses}>
+                        <td
+                          key={String(col.key)}
+                          className={tdClasses}
+                          data-label={col.header}
+                        >
                           {col.render ? col.render(row) : defaultCell(row, col.key)}
                         </td>
                       )
