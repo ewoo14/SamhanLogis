@@ -91,7 +91,7 @@ export function InboundInspectionListPage() {
     {
       key: 'partnerName',
       header: '거래처',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) => row.partnerName ?? '—',
     },
     {

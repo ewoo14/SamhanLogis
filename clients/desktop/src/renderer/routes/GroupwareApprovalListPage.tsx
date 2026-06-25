@@ -97,7 +97,7 @@ export function GroupwareApprovalListPage() {
       ),
     },
     {
-      key: 'requester',
+      key: 'requesterName',
       header: '요청자',
       width: '120px',
       mobilePriority: 'secondary',
