@@ -1,8 +1,8 @@
 # 모바일 상세 화면 클린 재설계 Spec
 
-작성일: 2026-06-25  
-담당: Design Agent (SamhanLogis UI/UX)  
-대상: `SalesPartnerOrderDetailPage`, `SlipDetailPage`, `EstimateDetailPage`  
+작성일: 2026-06-25
+담당: Design Agent (SamhanLogis UI/UX)
+대상: `SalesPartnerOrderDetailPage`, `SlipDetailPage`, `EstimateDetailPage`
 데스크탑 무회귀 원칙: 모든 변경은 `@media (max-width: 768px)` 스코프 또는 조건부 클래스 — 769px 이상은 현행 유지
 
 ---
@@ -202,8 +202,8 @@
 └────────────────────────────────────────────┘
 ```
 
-버튼 높이 = `min-height: 44px`  
-Primary 버튼 = `flex: 1` (공간 차지)  
+버튼 높이 = `min-height: 44px`
+Primary 버튼 = `flex: 1` (공간 차지)
 Secondary/더보기 = `flex: 0 0 auto`, `width: 44px`
 
 ### 주문서 상태별 Primary 버튼 매핑

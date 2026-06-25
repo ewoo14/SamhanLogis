@@ -830,6 +830,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   const slip = detailQuery.data
   const possibleActions = actionsForStatus(slip.status, mode)
+  const canRejectSlip = possibleActions.includes('reject')
+    && canAccess('slip.reject', 'update')
+  const canCancelSlip = possibleActions.includes('cancel')
+    && canAccess(slipActionPageCode('cancel').pageCode, 'update')
   const canDirectEditPurchase = mode === 'INBOUND'
     && canAccess('purchases.slip.edit', 'update')
     && (slip.status === 'SAVED' || slip.status === 'DRAFT')
@@ -927,6 +931,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   })()
 
   const handleTransition = (action: SlipTransitionAction) => {
+    if (transitionMutation.isPending) return
+    if (!canAccess(slipActionPageCode(action).pageCode, 'update')) {
+      alert('해당 전표 상태를 변경할 권한이 없습니다.')
+      return
+    }
     if (action === 'reject') {
       const reason = rejectReason.trim()
       if (!reason) {
@@ -1009,6 +1018,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       alert(`현재 단계(${slipStatusLabel(slip.status)})에서는 삭제(취소)할 수 없습니다.`)
       return
     }
+    if (!canCancelSlip) {
+      alert('전표를 삭제(취소)할 권한이 없습니다.')
+      return
+    }
+    if (transitionMutation.isPending) return
     if (!window.confirm('정말로 이 전표를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 전표가 취소 상태로 변경됩니다.')) {
       return
     }
@@ -1399,10 +1413,39 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                       수정
                     </button>
                   ) : null}
+                  {canDirectDeletePurchase ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item danger"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        setPurchaseDeleteConflict(false)
+                        setPurchaseDeleteInspectionAlert(null)
+                        setPurchaseDeleteOpen(true)
+                      }}
+                    >
+                      삭제
+                    </button>
+                  ) : null}
+                  {canDirectDeleteSales ? (
+                    <button
+                      type="button"
+                      className="mobile-more-sheet-item danger"
+                      onClick={() => {
+                        setMobileMoreOpen(false)
+                        setSalesDeleteConflict(false)
+                        setSalesDeleteShippedAlert(null)
+                        setSalesDeleteOpen(true)
+                      }}
+                    >
+                      삭제
+                    </button>
+                  ) : null}
                   {possibleActions.includes('reject') ? (
                     <button
                       type="button"
                       className="mobile-more-sheet-item danger"
+                      disabled={!canRejectSlip || transitionMutation.isPending}
                       onClick={() => {
                         setMobileMoreOpen(false)
                         handleTransition('reject')
@@ -1415,6 +1458,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     <button
                       type="button"
                       className="mobile-more-sheet-item danger"
+                      disabled={!canCancelSlip || transitionMutation.isPending}
                       onClick={() => {
                         setMobileMoreOpen(false)
                         handleDeleteSlip()
