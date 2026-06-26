@@ -4,7 +4,7 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a(#613)+슬12입력폼(#612)+슬12b(#616)+슬13 입력폼1열(#618) 완결·머지(main `b1e2a732`). PM 자동 진행 중(개발책임자 "대기 없이 자동 진행") → 다음=슬14(overflow/scroll 보강)**)
+## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a~14 완결·머지(#613/#612/#616/#618/#620, main `e672aec2`). PM 자동 진행 중(개발책임자 "대기 없이 자동 진행") → 다음=슬15(마지막: mobilePriority 폴리시 잔여 ~7)**)
 
 **모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a + 슬12 입력폼 라인카드 canonical 완주·머지.
 
@@ -33,8 +33,13 @@
 - **라이브 QA**: 전 폼 모바일 1열(multiTrack=0)·2-pane 오버플로 해소(409→390)·데스크탑 N열 보존 실증. CI 26 pass(mock 회귀 hard gate PASS).
 - 🔑 교훈: 전역 폼클래스 @media 1열 !important = 슬10 레버리지(19줄로 ~22폼). **2-pane 부모는 자식 폼 1열만으론 부족**(부모 minmax 다열이 모바일 오버플로/클립 → 부모에도 mobile-form-grid). **복합입력(W×H×D·값+단위)은 1열 분해 금지**(구분자/단위 orphan, 외곽 row 1열로 충분). 라이브 QA가 2-pane 클립 단독 적발(정적 리뷰 미검).
 
+### ✅ 슬14 overflow/scroll 보강 완결 (PR #620 MERGED, squash `e672aec2`)
+와이드 매트릭스/테이블·sub-nav 탭·필터바 모바일 overflow 보강(소형 CSS, 6파일). 데스크탑 무회귀. PermissionMatrixBulk·StatementBatch(8컬럼)=와이드 table을 `overflow-x:auto` 래퍼+table minWidth(640/900, 자연폭 이하→데스크탑 가로스크롤0·모바일만) / sub-nav(ProductClassifications·EstimateItemsCatalog) 카테고리 탭 `overflow-x:auto`+`flex-shrink:0` / 필터바(PhotoAudit 5열·DocumentReferencePicker) 전역 `.mobile-filter-grid`(@media≤768 1열). 기존 PermissionMatrix/GroupMatrix=이미 overflow:auto+sticky 무변경. Flyway 0, FE only.
+- **듀얼리뷰 0수렴**: ④ Opus(통합 FE/Design/DevOps 리뷰+PM 라이브 QA) BLOCKING0/MAJOR0/MINOR2(수용: 래퍼 후 들여쓰기·overflow-y ~1px 클립) 무수정 + ⑤ Codex CONVERGED 0 blocking·무수정.
+- **라이브 QA**: PhotoAudit 필터 모바일1열/데스크탑5열 실증·페이지 오버플로0·데스크탑 무회귀. 와이드 table(Bulk/거래명세서)=무시드 table 미렌더→가로스크롤 래퍼 코드+리뷰 담보(정직). CI 26 pass.
+- 🔑 교훈: 와이드 table은 `overflowX:auto` 래퍼+table minWidth(자연폭 이하면 데스크탑 무영향·모바일만 스크롤). `.mobile-filter-grid`(슬10)는 display:grid 컨테이너에만 발동. rows>0 가드 table은 무시드 시 미렌더→래퍼 효과 라이브 미실증(코드 담보 정직).
+
 ### 슬12 이후 큐 (canonical 동일·순차)
-- **슬14**: 권한매트릭스3·거래명세서(StatementBatch)·sub-nav2(ProductClassifications/EstimateItemsCatalog 카테고리탭)·필터바2(PhotoAudit/DocumentReferencePicker) overflow 보강.
 - **슬15**: mobilePriority 잔여 ~7 admin 리스트(GroupwareApprovalTemplateAdmin·PermissionGroupManage·AccountTree·SalesClosing·MonthEndClosing·PeriodCloseList·Warehouses) 폴리시.
 - 와이드 재무리포트 7종=의도적 SKIP 유지(가로스크롤). 보류 에픽=PWA/네이티브/버전③/Phase11.
 
