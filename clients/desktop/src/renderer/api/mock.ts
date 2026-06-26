@@ -4924,6 +4924,170 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(row)
   }
 
+  if (method === 'POST' && url.includes('/accounting/codef/import')) {
+    const body = parseMockBody(config) as {
+      type?: string
+      from?: string
+      to?: string
+      accountRef?: string
+      cardRef?: string
+      loanRef?: string
+    }
+    const type = String(body.type ?? 'ALL')
+    const from = String(body.from ?? new Date().toISOString().slice(0, 10))
+    const to = String(body.to ?? from)
+    if (from && to && from > to) {
+      return mockError(422, 'CODEF_DATE_RANGE_INVALID', '시작일은 종료일보다 이전이어야 합니다.')
+    }
+    const accountRef = String(body.accountRef ?? '국민 123456-78-901234')
+    const cardRef = String(body.cardRef ?? '삼한 물류카드')
+    const loanRef = String(body.loanRef ?? '운전자금 대출')
+
+    const shouldInclude = (target: 'BANK' | 'CARD' | 'LOAN') => type === 'ALL' || type === target
+    const importedRows = [
+      ...(shouldInclude('BANK') ? [
+        {
+          transactedAt: `${to}T09:15:00`,
+          txnType: 'DEPOSIT' as const,
+          amount: '2750000',
+          balanceAfter: '15275000',
+          description: 'CODEF 운임 입금',
+          counterpartyName: '삼한테스트상사',
+          counterpartyAccount: null,
+          bankAccountLabel: accountRef,
+          source: 'CODEF_BANK' as const,
+          externalRef: `CODEF-BANK-${to}-001`,
+          cardName: null,
+          approvalId: null,
+          loanName: null,
+          matchStatus: 'UNREFLECTED' as const,
+          matchedPartnerCode: null,
+          matchedBizNo: null,
+          matchedPartnerName: null,
+        },
+        {
+          transactedAt: `${to}T10:20:00`,
+          txnType: 'WITHDRAWAL' as const,
+          amount: '420000',
+          balanceAfter: '14855000',
+          description: 'CODEF 운임 정산',
+          counterpartyName: '아로물류 B',
+          counterpartyAccount: null,
+          bankAccountLabel: accountRef,
+          source: 'CODEF_BANK' as const,
+          externalRef: `CODEF-BANK-${to}-002`,
+          cardName: null,
+          approvalId: null,
+          loanName: null,
+          matchStatus: 'UNREFLECTED' as const,
+          matchedPartnerCode: null,
+          matchedBizNo: null,
+          matchedPartnerName: null,
+        },
+      ] : []),
+      ...(shouldInclude('CARD') ? [
+        {
+          transactedAt: `${to}T12:05:00`,
+          txnType: 'WITHDRAWAL' as const,
+          amount: '187000',
+          balanceAfter: '0',
+          description: '주유소 법인카드 승인',
+          counterpartyName: '삼한주유소',
+          counterpartyAccount: null,
+          bankAccountLabel: cardRef,
+          source: 'CODEF_CARD' as const,
+          externalRef: `CODEF-CARD-${to}-001`,
+          cardName: '삼한 물류카드',
+          approvalId: `CARD-${to.replace(/-/g, '')}-001`,
+          loanName: null,
+          matchStatus: 'UNREFLECTED' as const,
+          matchedPartnerCode: null,
+          matchedBizNo: null,
+          matchedPartnerName: null,
+        },
+        {
+          transactedAt: `${to}T14:35:00`,
+          txnType: 'WITHDRAWAL' as const,
+          amount: '66000',
+          balanceAfter: '0',
+          description: '통행료 법인카드 승인',
+          counterpartyName: '고속도로공사',
+          counterpartyAccount: null,
+          bankAccountLabel: cardRef,
+          source: 'CODEF_CARD' as const,
+          externalRef: `CODEF-CARD-${to}-002`,
+          cardName: '삼한 물류카드',
+          approvalId: `CARD-${to.replace(/-/g, '')}-002`,
+          loanName: null,
+          matchStatus: 'UNREFLECTED' as const,
+          matchedPartnerCode: null,
+          matchedBizNo: null,
+          matchedPartnerName: null,
+        },
+      ] : []),
+      ...(shouldInclude('LOAN') ? [
+        {
+          transactedAt: `${to}T16:10:00`,
+          txnType: 'WITHDRAWAL' as const,
+          amount: '1200000',
+          balanceAfter: '0',
+          description: '대출 이자 출금',
+          counterpartyName: '국민은행',
+          counterpartyAccount: null,
+          bankAccountLabel: loanRef,
+          source: 'CODEF_LOAN' as const,
+          externalRef: `CODEF-LOAN-${to}-001`,
+          cardName: null,
+          approvalId: null,
+          loanName: '운전자금 대출',
+          matchStatus: 'UNREFLECTED' as const,
+          matchedPartnerCode: null,
+          matchedBizNo: null,
+          matchedPartnerName: null,
+        },
+        {
+          transactedAt: `${to}T16:11:00`,
+          txnType: 'DEPOSIT' as const,
+          amount: '50000000',
+          balanceAfter: '50000000',
+          description: '대출 실행 입금',
+          counterpartyName: '국민은행',
+          counterpartyAccount: null,
+          bankAccountLabel: loanRef,
+          source: 'CODEF_LOAN' as const,
+          externalRef: `CODEF-LOAN-${to}-002`,
+          cardName: null,
+          approvalId: null,
+          loanName: '운전자금 대출',
+          matchStatus: 'UNREFLECTED' as const,
+          matchedPartnerCode: null,
+          matchedBizNo: null,
+          matchedPartnerName: null,
+        },
+      ] : []),
+    ]
+
+    let importedCount = 0
+    let duplicateSkippedCount = 0
+    for (const row of importedRows) {
+      const exists = MOCK_BANK_TRANSACTIONS.some((existing) =>
+        existing.source === row.source && existing.externalRef === row.externalRef)
+      if (exists) {
+        duplicateSkippedCount += 1
+      } else {
+        MOCK_BANK_TRANSACTIONS = [row, ...MOCK_BANK_TRANSACTIONS]
+        importedCount += 1
+      }
+    }
+
+    return envelope({
+      fetchedCount: importedRows.length,
+      importedCount,
+      duplicateSkippedCount,
+      matchedCount: 0,
+    })
+  }
+
   if (method === 'GET' && url.includes('/accounting/bank-transactions')) {
     const statusFilter = String(config.params?.['matchStatus'] ?? '')
     const from = String(config.params?.['from'] ?? '')
@@ -13858,8 +14022,11 @@ let MOCK_BANK_TRANSACTIONS: Array<{
   counterpartyName: string | null
   counterpartyAccount: string | null
   bankAccountLabel: string
-  source: 'CSV_IMPORT' | 'KFTC'
+  source: 'CSV_IMPORT' | 'KFTC' | 'CODEF_BANK' | 'CODEF_CARD' | 'CODEF_LOAN'
   externalRef: string
+  cardName?: string | null
+  approvalId?: string | null
+  loanName?: string | null
   matchStatus: 'UNREFLECTED' | 'REFLECTED' | 'FORCED'
   matchedPartnerCode: string | null
   matchedBizNo: string | null

@@ -1953,7 +1953,7 @@ export async function getCollectionPlanForecast(
 // --------------------------------------------------------------------------
 
 export type BankTxnType = 'DEPOSIT' | 'WITHDRAWAL'
-export type BankTxnSource = 'CSV_IMPORT' | 'KFTC'
+export type BankTxnSource = 'CSV_IMPORT' | 'KFTC' | 'CODEF_BANK' | 'CODEF_CARD' | 'CODEF_LOAN'
 export type BankMatchStatus = 'UNREFLECTED' | 'REFLECTED' | 'FORCED'
 
 export const BANK_TXN_TYPE_LABEL: Record<BankTxnType, string> = {
@@ -1964,6 +1964,9 @@ export const BANK_TXN_TYPE_LABEL: Record<BankTxnType, string> = {
 export const BANK_TXN_SOURCE_LABEL: Record<BankTxnSource, string> = {
   CSV_IMPORT: 'CSV',
   KFTC: 'KFTC',
+  CODEF_BANK: 'CODEF 계좌',
+  CODEF_CARD: 'CODEF 카드',
+  CODEF_LOAN: 'CODEF 대출',
 }
 
 export const BANK_MATCH_STATUS_LABEL: Record<BankMatchStatus, string> = {
@@ -1984,6 +1987,9 @@ export interface BankTransactionRow {
   bankAccountLabel: string
   source: BankTxnSource
   externalRef: string
+  cardName?: string | null
+  approvalId?: string | null
+  loanName?: string | null
   matchStatus: BankMatchStatus
   matchedPartnerCode?: string | null
   matchedBizNo?: string | null

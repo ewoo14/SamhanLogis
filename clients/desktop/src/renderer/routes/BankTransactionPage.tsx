@@ -9,8 +9,10 @@ import {
   PartnerAutocomplete,
   Select,
   Spinner,
+  Tabs,
   type DataTableColumn,
   type PartnerOption,
+  type TabItem,
 } from '@samhan/design-system'
 import {
   BANK_MATCH_STATUS_LABEL,
@@ -25,11 +27,17 @@ import {
   type BankTransactionRow,
   type ImportBankTransactionsMapping,
 } from '../api/accounting'
+import {
+  importCodefTransactions,
+  type CodefImportResponse,
+  type CodefImportType,
+} from '../api/codef'
 import { searchPartners } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
 type StatusTab = 'ALL' | BankMatchStatus
+type SourceTab = 'ALL' | BankTransactionRow['source']
 
 const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
   { key: 'ALL', label: '전체' },
@@ -37,6 +45,27 @@ const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
   { key: 'REFLECTED', label: '회계반영' },
   { key: 'FORCED', label: '강제' },
 ]
+
+const SOURCE_TABS: Array<{ key: SourceTab; label: string; testId: string }> = [
+  { key: 'ALL', label: '전체', testId: 'codef-tab-ALL' },
+  { key: 'CSV_IMPORT', label: 'CSV', testId: 'codef-tab-CSV_IMPORT' },
+  { key: 'KFTC', label: 'KFTC', testId: 'codef-tab-KFTC' },
+  { key: 'CODEF_BANK', label: 'CODEF 계좌', testId: 'codef-tab-CODEF_BANK' },
+  { key: 'CODEF_CARD', label: 'CODEF 카드', testId: 'codef-tab-CODEF_CARD' },
+  { key: 'CODEF_LOAN', label: 'CODEF 대출', testId: 'codef-tab-CODEF_LOAN' },
+]
+
+const SOURCE_TAB_ITEMS: TabItem[] = SOURCE_TABS.map((tab) => ({
+  label: tab.label,
+  testId: tab.testId,
+}))
+
+const CODEF_IMPORT_TYPE_LABEL: Record<CodefImportType, string> = {
+  BANK: '계좌',
+  CARD: '카드',
+  LOAN: '대출',
+  ALL: '전체',
+}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -122,14 +151,35 @@ function initialMapping(): ImportBankTransactionsMapping {
   }
 }
 
+function initialCodefImportForm() {
+  return {
+    from: monthStartIso(),
+    to: todayIso(),
+    type: 'ALL' as CodefImportType,
+    accountRef: '국민 123456-78-901234',
+    cardRef: '삼한 물류카드',
+    loanRef: '운전자금 대출',
+  }
+}
+
+function codefSummary(result: CodefImportResponse): string {
+  return [
+    `조회 ${result.fetchedCount.toLocaleString('ko-KR')}건`,
+    `적재 ${result.importedCount.toLocaleString('ko-KR')}건`,
+    `중복 skip ${result.duplicateSkippedCount.toLocaleString('ko-KR')}건`,
+    `자동매칭 ${result.matchedCount.toLocaleString('ko-KR')}건`,
+  ].join(' · ')
+}
+
 export function BankTransactionPage() {
-  usePageTitle('입출금 매칭', 'CSV import')
+  usePageTitle('입출금 매칭', 'CSV/CODEF import')
 
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canCreate = canAccess('accounting.bank-matching', 'create')
   const canUpdate = canAccess('accounting.bank-matching', 'update')
   const [activeTab, setActiveTab] = useState<StatusTab>('ALL')
+  const [activeSourceTab, setActiveSourceTab] = useState<SourceTab>('ALL')
   const [filters, setFilters] = useState({
     from: monthStartIso(),
     to: todayIso(),
@@ -137,9 +187,11 @@ export function BankTransactionPage() {
   })
   const [queryFilters, setQueryFilters] = useState(filters)
   const [mapping, setMapping] = useState<ImportBankTransactionsMapping>(() => initialMapping())
+  const [codefForm, setCodefForm] = useState(() => initialCodefImportForm())
   const [file, setFile] = useState<File | null>(null)
   const [result, setResult] = useState<BankTransactionImportResult | null>(null)
-  const [toast, setToast] = useState<{ type: 'error'; message: string } | null>(null)
+  const [codefResult, setCodefResult] = useState<CodefImportResponse | null>(null)
+  const [toast, setToast] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
 
   useEffect(() => {
     if (!toast) return
@@ -176,6 +228,30 @@ export function BankTransactionPage() {
     onError: () => setToast({ type: 'error', message: '통장 CSV import 중 오류가 발생했습니다.' }),
   })
 
+  const codefImportMutation = useMutation({
+    mutationFn: () => importCodefTransactions({
+      type: codefForm.type,
+      from: codefForm.from,
+      to: codefForm.to,
+      accountRef: codefForm.type === 'CARD' || codefForm.type === 'LOAN'
+        ? undefined
+        : codefForm.accountRef.trim(),
+      cardRef: codefForm.type === 'BANK' || codefForm.type === 'LOAN'
+        ? undefined
+        : codefForm.cardRef.trim(),
+      loanRef: codefForm.type === 'BANK' || codefForm.type === 'CARD'
+        ? undefined
+        : codefForm.loanRef.trim(),
+      submitMethod: 'DRY_RUN',
+    }),
+    onSuccess: async (data) => {
+      setCodefResult(data)
+      setToast({ type: 'success', message: `CODEF ${CODEF_IMPORT_TYPE_LABEL[codefForm.type]} import 완료 · ${codefSummary(data)}` })
+      await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })
+    },
+    onError: () => setToast({ type: 'error', message: 'CODEF 거래내역 import 중 오류가 발생했습니다.' }),
+  })
+
   const matchPartnerMutation = useMutation({
     mutationFn: matchBankTransactionPartner,
     onSuccess: async () => {
@@ -192,7 +268,8 @@ export function BankTransactionPage() {
     onError: () => setToast({ type: 'error', message: '거래처 매칭 해제 중 오류가 발생했습니다.' }),
   })
 
-  const rows = transactionsQuery.data ?? []
+  const rawRows = transactionsQuery.data ?? []
+  const rows = rawRows.filter((row) => activeSourceTab === 'ALL' || row.source === activeSourceTab)
   const totalDeposit = rows
     .filter((row) => row.txnType === 'DEPOSIT')
     .reduce((sum, row) => sum + Number(row.amount || 0), 0)
@@ -227,7 +304,7 @@ export function BankTransactionPage() {
       key: 'description',
       header: '적요',
       width: '240px',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (row) => <strong>{row.description}</strong>,
     },
     {
@@ -243,6 +320,13 @@ export function BankTransactionPage() {
       width: '320px',
       mobilePriority: 'secondary',
       render: (row) => {
+        if (row.source === 'CODEF_LOAN') {
+          return (
+            <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, fontWeight: 600 }}>
+              대출 거래는 거래처 매칭 대상이 아닙니다
+            </span>
+          )
+        }
         if (row.matchStatus !== 'UNREFLECTED') {
           return <span>{partnerDisplay(row)}</span>
         }
@@ -294,9 +378,30 @@ export function BankTransactionPage() {
     },
     {
       key: 'bankAccountLabel',
-      header: '은행계좌',
+      header: '계좌/카드/대출',
       width: '180px',
       mobilePriority: 'hidden',
+    },
+    {
+      key: 'cardName',
+      header: '법인카드',
+      width: '150px',
+      mobilePriority: 'secondary',
+      render: (row) => row.cardName || '—',
+    },
+    {
+      key: 'approvalId',
+      header: '승인번호',
+      width: '150px',
+      mobilePriority: 'hidden',
+      render: (row) => row.approvalId || '—',
+    },
+    {
+      key: 'loanName',
+      header: '대출명',
+      width: '150px',
+      mobilePriority: 'secondary',
+      render: (row) => row.loanName || '—',
     },
     {
       key: 'balanceAfter',
@@ -334,6 +439,12 @@ export function BankTransactionPage() {
     && (Boolean(mapping.depositColumn?.trim()) || Boolean(mapping.withdrawalColumn?.trim()))
     && !importMutation.isPending
 
+  const canImportCodef = canCreate
+    && Boolean(codefForm.from)
+    && Boolean(codefForm.to)
+    && codefForm.from <= codefForm.to
+    && !codefImportMutation.isPending
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
@@ -349,14 +460,14 @@ export function BankTransactionPage() {
       <Card style={{ padding: 16 }}>
         {toast ? (
           <div
-            role="alert"
+            role={toast.type === 'error' ? 'alert' : 'status'}
             style={{
               marginBottom: 12,
               padding: '10px 12px',
-              border: '1px solid var(--state-danger)',
+              border: `1px solid ${toast.type === 'error' ? 'var(--state-danger)' : 'var(--state-success)'}`,
               borderRadius: 6,
-              background: 'var(--state-danger-bg)',
-              color: 'var(--state-danger)',
+              background: toast.type === 'error' ? 'var(--state-danger-bg)' : 'var(--state-success-bg)',
+              color: toast.type === 'error' ? 'var(--state-danger)' : 'var(--state-success)',
               fontSize: 13,
               fontWeight: 600,
             }}
@@ -364,6 +475,96 @@ export function BankTransactionPage() {
             {toast.message}
           </div>
         ) : null}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
+          <div>
+            <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>CODEF 거래내역 가져오기</h4>
+            <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+              계좌·카드·대출 거래를 DRY_RUN으로 조회해 입출금 매칭 목록에 적재합니다.
+            </div>
+          </div>
+          <div className="mobile-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(130px, 1fr)) repeat(3, minmax(150px, 1.2fr)) auto', gap: 10, alignItems: 'end' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+              시작일
+              <Input
+                type="date"
+                value={codefForm.from}
+                onChange={(event) => setCodefForm((prev) => ({ ...prev, from: event.target.value }))}
+                data-testid="codef-import-from"
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+              종료일
+              <Input
+                type="date"
+                value={codefForm.to}
+                onChange={(event) => setCodefForm((prev) => ({ ...prev, to: event.target.value }))}
+                data-testid="codef-import-to"
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+              유형
+              <Select
+                value={codefForm.type}
+                onChange={(event) => setCodefForm((prev) => ({ ...prev, type: event.target.value as CodefImportType }))}
+                data-testid="codef-import-type"
+              >
+                <option value="BANK">계좌</option>
+                <option value="CARD">카드</option>
+                <option value="LOAN">대출</option>
+                <option value="ALL">전체</option>
+              </Select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+              계좌 ref
+              <Input
+                value={codefForm.accountRef}
+                onChange={(event) => setCodefForm((prev) => ({ ...prev, accountRef: event.target.value }))}
+                disabled={codefForm.type === 'CARD' || codefForm.type === 'LOAN'}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+              카드 ref
+              <Input
+                value={codefForm.cardRef}
+                onChange={(event) => setCodefForm((prev) => ({ ...prev, cardRef: event.target.value }))}
+                disabled={codefForm.type === 'BANK' || codefForm.type === 'LOAN'}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+              대출 ref
+              <Input
+                value={codefForm.loanRef}
+                onChange={(event) => setCodefForm((prev) => ({ ...prev, loanRef: event.target.value }))}
+                disabled={codefForm.type === 'BANK' || codefForm.type === 'CARD'}
+              />
+            </label>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!canImportCodef}
+              onClick={() => codefImportMutation.mutate()}
+              data-testid="codef-import-button"
+            >
+              {codefImportMutation.isPending ? '가져오는 중' : 'CODEF 가져오기'}
+            </Button>
+          </div>
+          {codefResult ? (
+            <div
+              data-testid="codef-import-result"
+              role="status"
+              style={{
+                padding: '10px 12px',
+                border: '1px solid var(--color-neutral-200)',
+                borderRadius: 6,
+                background: 'var(--color-neutral-50)',
+                fontSize: 13,
+              }}
+            >
+              {codefSummary(codefResult)}
+            </div>
+          ) : null}
+        </div>
 
         <div className="mobile-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(4, minmax(118px, 1fr)) auto', gap: 10, alignItems: 'end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
@@ -500,12 +701,41 @@ export function BankTransactionPage() {
           </Button>
         </div>
 
-        <DataTable<BankTransactionRow>
-          columns={columns}
-          rows={rows}
-          rowKey={(row) => `${row.bankAccountLabel}|${row.transactedAt}|${row.amount}|${row.externalRef}`}
-          emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
-        />
+        <Tabs
+          tabs={SOURCE_TAB_ITEMS}
+          activeIndex={SOURCE_TABS.findIndex((tab) => tab.key === activeSourceTab)}
+          onTabChange={(index) => setActiveSourceTab(SOURCE_TABS[index]?.key ?? 'ALL')}
+          ariaLabel="거래 원천"
+        >
+          {SOURCE_TABS.map((tab) => (
+            <div key={tab.key} style={{ paddingTop: 12 }}>
+              {tab.key === activeSourceTab && tab.key === 'CODEF_LOAN' ? (
+                <div
+                  role="note"
+                  style={{
+                    marginBottom: 10,
+                    padding: '10px 12px',
+                    border: '1px solid var(--color-neutral-200)',
+                    borderRadius: 6,
+                    background: 'var(--color-neutral-50)',
+                    color: 'var(--color-neutral-600)',
+                    fontSize: 13,
+                  }}
+                >
+                  대출 거래는 거래처 매칭 대상이 아닙니다. 채권자 은행명과 대출명만 확인하세요.
+                </div>
+              ) : null}
+              {tab.key === activeSourceTab ? (
+                <DataTable<BankTransactionRow>
+                  columns={columns}
+                  rows={rows}
+                  rowKey={(row) => `${row.source}|${row.bankAccountLabel}|${row.transactedAt}|${row.amount}|${row.externalRef}`}
+                  emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
+                />
+              ) : null}
+            </div>
+          ))}
+        </Tabs>
       </Card>
     </div>
   )
