@@ -68,6 +68,19 @@ describe('capacitorAuthProvider - Bearer + Preferences 저장', () => {
     expect(await provider.getAuthHeaders()).toEqual({})
   })
 
+  it('shape 불완전 JSON 저장값은 세션/인증 헤더 없이 무시한다', async () => {
+    const provider = createCapacitorAuthProvider()
+    store.set('samhan.auth.snapshot', JSON.stringify({
+      userId: 'u-cap',
+      role: 'MANAGER',
+      token: 'CAPJWT',
+    }))
+
+    await expect(provider.bootstrap()).resolves.toBeNull()
+    expect(await provider.getSession()).toBeNull()
+    expect(await provider.getAuthHeaders()).toEqual({})
+  })
+
   it('bootstrap 은 저장 세션을 복원한다', async () => {
     const provider = createCapacitorAuthProvider()
 

@@ -16,12 +16,27 @@ interface CapacitorAuthSnapshot extends SessionInfo {
   token: string
 }
 
+function isRequiredString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
+/** Preferences JSON 이 현재 세션 계약을 만족하는지 검증한다. */
+function isCapacitorAuthSnapshot(value: unknown): value is CapacitorAuthSnapshot {
+  if (!value || typeof value !== 'object') return false
+  const snapshot = value as Partial<CapacitorAuthSnapshot>
+  return isRequiredString(snapshot.userId)
+    && isRequiredString(snapshot.role)
+    && isRequiredString(snapshot.fullName)
+    && isRequiredString(snapshot.token)
+}
+
 /** Preferences 에 저장된 Capacitor 인증 스냅샷을 읽는다. */
 async function readSnapshot(): Promise<CapacitorAuthSnapshot | null> {
   const { value } = await Preferences.get({ key: STORAGE_KEY })
   if (!value) return null
   try {
-    return JSON.parse(value) as CapacitorAuthSnapshot
+    const parsed: unknown = JSON.parse(value)
+    return isCapacitorAuthSnapshot(parsed) ? parsed : null
   } catch {
     return null
   }

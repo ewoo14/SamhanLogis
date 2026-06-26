@@ -6,12 +6,18 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { isCapacitorPlatform } from './auth/authProvider'
+import { initCapacitor } from './capacitor/capacitorInit'
 import { PwaUpdatePrompt } from './components/common/PwaUpdatePrompt'
 import './styles/global.css'
 
 const container = document.getElementById('root')
 if (!container) {
   throw new Error('루트 컨테이너 (#root) 가 DOM 에 존재하지 않습니다.')
+}
+
+if (isCapacitorPlatform) {
+  void initCapacitor()
 }
 
 createRoot(container).render(
