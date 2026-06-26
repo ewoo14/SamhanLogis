@@ -349,7 +349,7 @@ export function ProductClassificationsPage() {
         </div>
       ) : null}
 
-      <div style={contentGridStyle}>
+      <div className="mobile-form-grid" style={contentGridStyle}>
         <aside style={treePanelStyle} data-testid="classification-tree">
           <div style={panelHeaderStyle}>분류 트리</div>
           {treeQuery.isLoading ? <p style={mutedStyle}>불러오는 중…</p> : null}

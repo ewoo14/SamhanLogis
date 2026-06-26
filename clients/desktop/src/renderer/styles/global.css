@@ -5084,8 +5084,7 @@ button {
   .sfp-form-grid--2,
   .sfp-form-grid--3,
   .sfp-form-grid--driver,
-  .driver-edit-grid,
-  .sales-edit-field-grid {
+  .driver-edit-grid {
     grid-template-columns: 1fr !important;
   }
 

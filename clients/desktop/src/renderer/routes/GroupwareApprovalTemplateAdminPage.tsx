@@ -269,7 +269,7 @@ export function GroupwareApprovalTemplateAdminPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 0.9fr) minmax(520px, 1.1fr)', gap: 16 }}>
+    <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 0.9fr) minmax(520px, 1.1fr)', gap: 16 }}>
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
           <div>
