@@ -66,8 +66,8 @@ export function AccountTreePage() {
   }, [query.data])
 
   const columns: DataTableColumn<Account>[] = [
-    { key: 'code', header: '코드', width: '100px' },
-    { key: 'name', header: '계정명' },
+    { key: 'code', header: '코드', width: '100px', mobilePriority: 'primary' },
+    { key: 'name', header: '계정명', mobilePriority: 'secondary' },
   ]
 
   if (query.isLoading) {

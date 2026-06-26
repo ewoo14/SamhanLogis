@@ -132,6 +132,7 @@ export function PermissionGroupManagePage() {
     {
       key: 'name',
       header: '그룹명',
+      mobilePriority: 'primary',
       render: (group) => (
         <span>
           {group.name}
@@ -146,6 +147,7 @@ export function PermissionGroupManagePage() {
     {
       key: 'description',
       header: '설명',
+      mobilePriority: 'secondary',
       render: (group) => group.description ?? '',
     },
     {
@@ -153,12 +155,14 @@ export function PermissionGroupManagePage() {
       header: '배속 계정',
       width: '110px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (group) => group.assignedAccountCount.toLocaleString(),
     },
     {
       key: 'actions',
       header: '작업',
       width: '190px',
+      mobilePriority: 'hidden',
       render: (group) => (
         <span style={{ display: 'inline-flex', gap: 6 }}>
           <Button

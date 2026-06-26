@@ -189,17 +189,20 @@ export function GroupwareApprovalTemplateAdminPage() {
       key: 'code',
       header: '코드',
       width: '180px',
+      mobilePriority: 'primary',
       render: (row) => <strong>{row.code}</strong>,
     },
     {
       key: 'name',
       header: '양식명',
+      mobilePriority: 'secondary',
       render: (row) => row.name,
     },
     {
       key: 'active',
       header: '상태',
       width: '90px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <Badge variant={row.active ? 'success' : 'neutral'}>
           {row.active ? '활성' : '비활성'}
@@ -211,6 +214,7 @@ export function GroupwareApprovalTemplateAdminPage() {
       header: '필드',
       width: '80px',
       align: 'right',
+      mobilePriority: 'secondary',
       render: (row) => row.fields.length,
     },
   ], [])

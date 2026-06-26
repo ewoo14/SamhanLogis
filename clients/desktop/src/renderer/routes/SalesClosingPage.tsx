@@ -248,12 +248,14 @@ export function SalesClosingPage() {
         key: 'periodType',
         header: '구분',
         width: '70px',
+        mobilePriority: 'hidden',
         render: (r) => PERIOD_TYPE_LABEL[r.periodType],
       },
       {
         key: 'periodDate',
         header: '기간 일자',
         width: '130px',
+        mobilePriority: 'primary',
         render: (r) =>
           r.periodType === 'MONTHLY' ? r.periodDate.slice(0, 7) : r.periodDate,
       },
@@ -261,6 +263,7 @@ export function SalesClosingPage() {
         key: 'status',
         header: '상태',
         width: '70px',
+        mobilePriority: 'secondary',
         render: (r) => (
           <Badge variant={r.status === 'CLOSED' ? 'danger' : 'success'}>
             {PERIOD_STATUS_LABEL[r.status]}
@@ -272,6 +275,7 @@ export function SalesClosingPage() {
         header: '매출 합계',
         width: '150px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalSales),
       },
       {
@@ -279,24 +283,28 @@ export function SalesClosingPage() {
         header: '잠금 전표',
         width: '90px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => r.lockedSlipCount.toLocaleString(),
       },
       {
         key: 'closedAt',
         header: '마감 시각',
         width: '140px',
+        mobilePriority: 'secondary',
         render: (r) => fmtTimestamp(r.closedAt),
       },
       {
         key: 'closedBy',
         header: '실행자',
         width: '110px',
+        mobilePriority: 'secondary',
         render: (r) => r.closedBy ?? '—',
       },
       {
         key: 'reverseAction',
         header: '',
         width: '110px',
+        mobilePriority: 'hidden',
         render: (r) =>
           r.status === 'CLOSED' && canReverse ? (
             <Button
@@ -314,6 +322,7 @@ export function SalesClosingPage() {
         key: 'auditAction',
         header: '이력',
         width: '70px',
+        mobilePriority: 'hidden',
         render: (r) => (
           <Button
             variant="ghost"
@@ -336,13 +345,14 @@ export function SalesClosingPage() {
         header: '순번',
         width: '60px',
         align: 'right',
+        mobilePriority: 'hidden',
         render: (r) => <span data-testid={`sales-closing-daily-detail-row-${r.seq}`}>{r.seq}</span>,
       },
-      { key: 'taxInvoiceNo', header: '세금계산서번호', width: '160px', render: (r) => r.taxInvoiceNo },
-      { key: 'partnerName', header: '거래처명', render: (r) => r.partnerName },
-      { key: 'supplyAmount', header: '공급가액', width: '140px', align: 'right', render: (r) => fmtKrw(r.supplyAmount) },
-      { key: 'vatAmount', header: '세액', width: '120px', align: 'right', render: (r) => fmtKrw(r.vatAmount) },
-      { key: 'totalAmount', header: '합계', width: '140px', align: 'right', render: (r) => fmtKrw(r.totalAmount) },
+      { key: 'taxInvoiceNo', header: '세금계산서번호', width: '160px', mobilePriority: 'primary', render: (r) => r.taxInvoiceNo },
+      { key: 'partnerName', header: '거래처명', mobilePriority: 'secondary', render: (r) => r.partnerName },
+      { key: 'supplyAmount', header: '공급가액', width: '140px', align: 'right', mobilePriority: 'secondary', render: (r) => fmtKrw(r.supplyAmount) },
+      { key: 'vatAmount', header: '세액', width: '120px', align: 'right', mobilePriority: 'secondary', render: (r) => fmtKrw(r.vatAmount) },
+      { key: 'totalAmount', header: '합계', width: '140px', align: 'right', mobilePriority: 'secondary', render: (r) => fmtKrw(r.totalAmount) },
     ],
     [],
   )

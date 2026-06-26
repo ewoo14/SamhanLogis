@@ -246,12 +246,14 @@ export function MonthEndClosingPage() {
         key: 'periodType',
         header: '구분',
         width: '70px',
+        mobilePriority: 'hidden',
         render: (r) => PERIOD_TYPE_LABEL[r.periodType],
       },
       {
         key: 'periodDate',
         header: '기간 일자',
         width: '130px',
+        mobilePriority: 'primary',
         render: (r) =>
           r.periodType === 'MONTHLY' ? r.periodDate.slice(0, 7) : r.periodDate,
       },
@@ -259,6 +261,7 @@ export function MonthEndClosingPage() {
         key: 'status',
         header: '상태',
         width: '70px',
+        mobilePriority: 'secondary',
         render: (r) => (
           <Badge variant={r.status === 'CLOSED' ? 'danger' : 'success'}>
             {PERIOD_STATUS_LABEL[r.status]}
@@ -270,6 +273,7 @@ export function MonthEndClosingPage() {
         header: '매출 합계',
         width: '140px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalSales),
       },
       {
@@ -277,6 +281,7 @@ export function MonthEndClosingPage() {
         header: '매입 합계',
         width: '140px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalPurchase),
       },
       {
@@ -284,6 +289,7 @@ export function MonthEndClosingPage() {
         header: '판관비',
         width: '120px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalExpense),
       },
       {
@@ -291,24 +297,28 @@ export function MonthEndClosingPage() {
         header: '잠금 전표',
         width: '90px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => r.lockedSlipCount.toLocaleString(),
       },
       {
         key: 'closedAt',
         header: '마감 시각',
         width: '140px',
+        mobilePriority: 'secondary',
         render: (r) => fmtTimestamp(r.closedAt),
       },
       {
         key: 'closedBy',
         header: '실행자',
         width: '120px',
+        mobilePriority: 'secondary',
         render: (r) => r.closedBy ?? '—',
       },
       {
         key: 'reverseAction',
         header: '',
         width: '110px',
+        mobilePriority: 'hidden',
         render: (r) =>
           r.status === 'CLOSED' && canReverse ? (
             <Button
@@ -327,6 +337,7 @@ export function MonthEndClosingPage() {
         key: 'auditAction',
         header: '이력',
         width: '70px',
+        mobilePriority: 'hidden',
         render: (r) => (
           <Button
             variant="ghost"
@@ -366,6 +377,7 @@ export function MonthEndClosingPage() {
         header: '순번',
         width: '60px',
         align: 'right',
+        mobilePriority: 'hidden',
         // testid 는 row 의 seq cell 에 부여 — DataTable 이 rowProps 미지원.
         render: (r) => (
           <span data-testid={`closing-daily-detail-row-${r.seq}`}>{r.seq}</span>
@@ -375,11 +387,13 @@ export function MonthEndClosingPage() {
         key: 'taxInvoiceNo',
         header: '세금계산서번호',
         width: '160px',
+        mobilePriority: 'primary',
         render: (r) => r.taxInvoiceNo,
       },
       {
         key: 'partnerName',
         header: '거래처명',
+        mobilePriority: 'secondary',
         render: (r) => r.partnerName,
       },
       {
@@ -387,6 +401,7 @@ export function MonthEndClosingPage() {
         header: '공급가액',
         width: '140px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.supplyAmount),
       },
       {
@@ -394,6 +409,7 @@ export function MonthEndClosingPage() {
         header: '세액',
         width: '120px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.vatAmount),
       },
       {
@@ -401,6 +417,7 @@ export function MonthEndClosingPage() {
         header: '합계',
         width: '140px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalAmount),
       },
     ],

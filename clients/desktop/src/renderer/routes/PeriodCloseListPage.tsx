@@ -189,12 +189,14 @@ export function PeriodCloseListPage() {
         key: 'periodDate',
         header: '기간 (월)',
         width: '130px',
+        mobilePriority: 'primary',
         render: (r) => r.periodDate.slice(0, 7),
       },
       {
         key: 'status',
         header: '상태',
         width: '70px',
+        mobilePriority: 'secondary',
         render: (r) => (
           <Badge variant={r.status === 'CLOSED' ? 'danger' : 'success'}>
             {PERIOD_STATUS_LABEL[r.status]}
@@ -206,6 +208,7 @@ export function PeriodCloseListPage() {
         header: '매출 합계',
         width: '150px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalSales),
       },
       {
@@ -213,6 +216,7 @@ export function PeriodCloseListPage() {
         header: '매입 합계',
         width: '150px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalPurchase),
       },
       {
@@ -220,6 +224,7 @@ export function PeriodCloseListPage() {
         header: '판관비',
         width: '120px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => fmtKrw(r.totalExpense),
       },
       {
@@ -227,24 +232,28 @@ export function PeriodCloseListPage() {
         header: '잠금 전표',
         width: '90px',
         align: 'right',
+        mobilePriority: 'secondary',
         render: (r) => r.lockedSlipCount.toLocaleString(),
       },
       {
         key: 'closedAt',
         header: '마감 시각',
         width: '140px',
+        mobilePriority: 'secondary',
         render: (r) => fmtTimestamp(r.closedAt),
       },
       {
         key: 'closedBy',
         header: '실행자',
         width: '110px',
+        mobilePriority: 'secondary',
         render: (r) => r.closedBy ?? '—',
       },
       {
         key: 'reverseAction',
         header: '',
         width: '110px',
+        mobilePriority: 'hidden',
         render: (r) =>
           r.status === 'CLOSED' && canReverse ? (
             <Button
@@ -262,6 +271,7 @@ export function PeriodCloseListPage() {
         key: 'auditAction',
         header: '이력',
         width: '70px',
+        mobilePriority: 'hidden',
         render: (r) => (
           <Button
             variant="ghost"
