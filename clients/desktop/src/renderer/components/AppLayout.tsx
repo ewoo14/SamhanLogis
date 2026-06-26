@@ -1139,7 +1139,7 @@ export function AppLayout() {
                 show={showAccountingBankMatching}
                 data-testid="sidebar-accounting-bank-transactions"
               >
-                입출금 매칭
+                입출금 내역
               </SidebarLink>
               {/* [SP-08-6-5 P2] 일마감 — accounting.daily-closing 동적 RBAC. */}
               <SidebarLink

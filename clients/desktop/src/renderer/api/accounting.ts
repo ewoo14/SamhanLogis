@@ -1964,9 +1964,9 @@ export const BANK_TXN_TYPE_LABEL: Record<BankTxnType, string> = {
 export const BANK_TXN_SOURCE_LABEL: Record<BankTxnSource, string> = {
   CSV_IMPORT: 'CSV',
   KFTC: 'KFTC',
-  CODEF_BANK: 'CODEF 계좌',
-  CODEF_CARD: 'CODEF 카드',
-  CODEF_LOAN: 'CODEF 대출',
+  CODEF_BANK: '계좌',
+  CODEF_CARD: '카드',
+  CODEF_LOAN: '대출',
 }
 
 export const BANK_MATCH_STATUS_LABEL: Record<BankMatchStatus, string> = {

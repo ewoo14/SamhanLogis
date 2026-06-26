@@ -470,7 +470,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.balances.trial-balance': '시산표 조회',
   'accounting.reports': '재무 보고서',
   'accounting.receivables': '받을어음/수금계획',
-  'accounting.bank-matching': '입출금 매칭',
+  'accounting.bank-matching': '입출금 내역',
   'accounting.period-close': '월말 마감',
   'accounting.period-close.reverse': '월말 마감 취소',
   'accounting.statement-batch': '거래명세서 일괄',

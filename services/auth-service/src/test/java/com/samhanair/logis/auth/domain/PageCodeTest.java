@@ -286,6 +286,8 @@ class PageCodeTest {
                 .isEqualTo("accounting.receivables");
         assertThat(PageCode.ACCOUNTING_BANK_MATCHING.getCode())
                 .isEqualTo("accounting.bank-matching");
+        assertThat(PageCode.ACCOUNTING_BANK_MATCHING.getDisplayName())
+                .isEqualTo("입출금 내역");
         assertThat(PageCode.ACCOUNTING_SUPPLIER_PROFILES.getCode())
                 .isEqualTo("accounting.supplier-profiles");
 

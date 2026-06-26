@@ -66,8 +66,8 @@ public enum PageCode {
     /** 받을어음/수금계획 채권 관리. */
     ACCOUNTING_RECEIVABLES("accounting.receivables", "받을어음/수금계획"),
 
-    /** 통장 CSV import 및 입출금 매칭 관리. */
-    ACCOUNTING_BANK_MATCHING("accounting.bank-matching", "입출금 매칭"),
+    /** 통장 CSV import 및 입출금 내역 관리. */
+    ACCOUNTING_BANK_MATCHING("accounting.bank-matching", "입출금 내역"),
 
     /** 월말 마감 화면 (SP-D2). */
     ACCOUNTING_PERIOD_CLOSE("accounting.period-close", "월말 마감"),
