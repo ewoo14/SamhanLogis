@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.accounting.client.ETaxClientImpl;
+import com.samhanair.logis.accounting.client.CodefClientImpl;
 import com.samhanair.logis.accounting.client.KftcClientImpl;
+import com.samhanair.logis.accounting.config.CodefProperties;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -301,6 +303,93 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // CodefClientImpl (BC1 CODEF 은행·카드) 검증
+    // ═══════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("CodefClientImpl (BC1 CODEF) placeholder 가드")
+    class CodefClientImplPlaceholderGuard {
+
+        private CodefClientImpl client;
+        private CodefProperties properties;
+
+        @BeforeEach
+        void setUp() {
+            properties = new CodefProperties();
+            ReflectionTestUtils.setField(properties, "submitMethod", "CODEF");
+            ReflectionTestUtils.setField(properties, "baseUrl", "https://api.codef.io");
+            ReflectionTestUtils.setField(properties, "apiKey", "real-codef-api-key");
+            ReflectionTestUtils.setField(properties, "clientId", "real-codef-client-id");
+            ReflectionTestUtils.setField(properties, "clientSecret", "real-codef-client-secret");
+            client = new CodefClientImpl(properties);
+        }
+
+        @ParameterizedTest(name = "CODEF apiKey={0} → CODEF_SUBMIT_FAILED (502)")
+        @ValueSource(strings = {
+                "PLACEHOLDER_DEV_ONLY",
+                "placeholder_dev_only",
+                "CHANGE_ME_LOCAL_ONLY",
+                "change_me_local_only",
+                "changeme",
+                "CHANGEME",
+                "dummy",
+                "DUMMY"
+        })
+        @DisplayName("4 표준 placeholder 키워드 모두 CODEF_SUBMIT_FAILED 차단")
+        void codefApiKey_placeholder_shouldThrowCodefSubmitFailed(String placeholder) {
+            ReflectionTestUtils.setField(properties, "apiKey", placeholder);
+
+            assertThatThrownBy(() -> client.fetchBankTransactions(
+                    LocalDate.of(2026, 6, 1),
+                    LocalDate.of(2026, 6, 3),
+                    "국민 123-456",
+                    "CODEF"))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                            .as("placeholder → CODEF_SUBMIT_FAILED(502)")
+                            .isEqualTo(ErrorCode.CODEF_SUBMIT_FAILED));
+        }
+
+        @ParameterizedTest(name = "CODEF clientSecret={0} → CODEF_SUBMIT_FAILED (placeholder 차단)")
+        @ValueSource(strings = {"PLACEHOLDER_DEV_ONLY", "CHANGE_ME_LOCAL_ONLY", "changeme", "dummy"})
+        @DisplayName("CODEF clientSecret placeholder 도 차단")
+        void codefClientSecret_placeholder_shouldThrowCodefSubmitFailed(String placeholder) {
+            ReflectionTestUtils.setField(properties, "clientSecret", placeholder);
+
+            assertThatThrownBy(() -> client.fetchCardTransactions(
+                    LocalDate.of(2026, 6, 1),
+                    LocalDate.of(2026, 6, 3),
+                    "법인카드-001",
+                    "CODEF"))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                            .isEqualTo(ErrorCode.CODEF_SUBMIT_FAILED));
+        }
+
+        @Test
+        @DisplayName("DRY_RUN 모드에서는 키 미설정이어도 은행/카드 mock 5건씩 반환")
+        void dryRun_shouldReturnMockRecords_withoutCredentials() {
+            ReflectionTestUtils.setField(properties, "apiKey", "");
+            ReflectionTestUtils.setField(properties, "clientId", "");
+            ReflectionTestUtils.setField(properties, "clientSecret", "");
+
+            var bank = client.fetchBankTransactions(
+                    LocalDate.of(2026, 6, 1),
+                    LocalDate.of(2026, 6, 3),
+                    "국민 123-456",
+                    "DRY_RUN");
+            var card = client.fetchCardTransactions(
+                    LocalDate.of(2026, 6, 1),
+                    LocalDate.of(2026, 6, 3),
+                    "법인카드-001",
+                    "DRY_RUN");
+
+            assertThat(bank).hasSize(5);
+            assertThat(card).hasSize(5);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // ErrorCode HTTP 상태 매트릭스 회귀 가드
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -337,6 +426,14 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
         void kftcSubmitFailed_is502() {
             assertThat(ErrorCode.KFTC_SUBMIT_FAILED.getHttpStatus().value())
                     .as("KFTC_SUBMIT_FAILED 는 502 이어야 한다")
+                    .isEqualTo(502);
+        }
+
+        @Test
+        @DisplayName("CODEF_SUBMIT_FAILED → 502 BAD_GATEWAY")
+        void codefSubmitFailed_is502() {
+            assertThat(ErrorCode.CODEF_SUBMIT_FAILED.getHttpStatus().value())
+                    .as("CODEF_SUBMIT_FAILED 는 502 이어야 한다")
                     .isEqualTo(502);
         }
 

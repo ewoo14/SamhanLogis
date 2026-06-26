@@ -75,6 +75,10 @@ PATTERN_CLOVA='CLOVA_(OCR_)?(API_KEY|SECRET_KEY|INVOKE_URL)\s*=\s*[^$\s{"\x27][^
 #   KFTC_API_KEY / KFTC_CLIENT_ID / KFTC_CLIENT_SECRET
 PATTERN_KFTC='KFTC_(API_KEY|CLIENT_ID|CLIENT_SECRET)\s*=\s*[^$\s{"\x27][^\s]*'
 
+# (8b) CODEF 은행·카드 거래내역 자격 직접 대입 (BC1)
+#   CODEF_API_KEY / CODEF_CLIENT_ID / CODEF_CLIENT_SECRET
+PATTERN_CODEF='CODEF_(API_KEY|CLIENT_ID|CLIENT_SECRET)\s*=\s*[^$\s{"\x27][^\s]*'
+
 # (9) 인성데이타 퀵프로그램 자격 직접 대입 (SP-10-2)
 #   INSUNG_QUICK_API_KEY / INSUNG_QUICK_API_URL / INSUNG_QUICK_PARTNER_ID / INSUNG_QUICK_WEBHOOK_SECRET
 #   SAMHAN_INSUNG_* prefix 포함 (substring 탐지).
@@ -209,7 +213,7 @@ scan_pattern() {
       #   - ${ENV_VAR:...} / $ENV:VAR              (환경변수 참조)
       #   - dummy- / example- prefix 값            (명백한 예시 값)
       #   - <MASK> 형식 마스킹                     (문서 마스킹 표기)
-      if [ "$label" != "CLOVA_OCR" ] && [ "$label" != "KFTC" ] && [ "$label" != "INSUNG_QUICK" ]; then
+      if [ "$label" != "CLOVA_OCR" ] && [ "$label" != "KFTC" ] && [ "$label" != "CODEF" ] && [ "$label" != "INSUNG_QUICK" ]; then
         if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:|dummy-|example-|<[A-Z_]+>'; then
           continue
         fi
@@ -295,7 +299,11 @@ main() {
   scan_pattern "$PATTERN_KFTC" "KFTC" found \
     "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
 
-  # 5e) 인성데이타 퀵프로그램 자격 직접 대입 (SP-10-2)
+  # 5e) CODEF 은행·카드 거래내역 자격 직접 대입 (BC1)
+  scan_pattern "$PATTERN_CODEF" "CODEF" found \
+    "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
+
+  # 5f) 인성데이타 퀵프로그램 자격 직접 대입 (SP-10-2)
   scan_pattern "$PATTERN_INSUNG" "INSUNG_QUICK" found \
     "${CODE_DIRS[@]}" "${DOC_DIRS[@]}"
 

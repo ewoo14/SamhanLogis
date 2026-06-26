@@ -112,6 +112,11 @@ public enum ErrorCode {
     KFTC_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
             "KFTC 오픈뱅킹 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
     /**
+     * CODEF 은행·카드 거래내역 API 호출 실패 — API 키 미설정, placeholder 사용, 또는 실 API 오류 시 502 반환 (BC1).
+     */
+    CODEF_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
+            "CODEF 거래내역 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
+    /**
      * 입금 조회 기간 오류 — from 일자가 to 일자보다 늦을 때 422 반환 (SP-09-4).
      */
     DEPOSIT_DATE_RANGE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,

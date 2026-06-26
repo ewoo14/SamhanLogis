@@ -70,6 +70,12 @@ public class BankTransaction extends BaseEntity {
     @Column(name = "external_ref", nullable = false, length = 128)
     private String externalRef;
 
+    @Column(name = "card_name", length = 100)
+    private String cardName;
+
+    @Column(name = "approval_id", length = 128)
+    private String approvalId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "match_status", nullable = false, length = 20)
     private MatchStatus matchStatus;
@@ -111,6 +117,17 @@ public class BankTransaction extends BaseEntity {
                                             BankTxnSource source, String externalRef) {
         return new BankTransaction(transactedAt, txnType, amount, balanceAfter, description, counterpartyName,
                 counterpartyAccount, bankAccountLabel, source, externalRef);
+    }
+
+    /**
+     * CODEF 카드 승인 거래의 카드 식별 정보를 부여한다.
+     *
+     * <p>은행 거래에는 호출하지 않는다. 승인번호는 CODEF 카드 거래의 외부 비즈니스 식별자이며 UUID 가 아니다.
+     */
+    public BankTransaction attachCardInfo(String cardName, String approvalId) {
+        this.cardName = blankToNull(cardName);
+        this.approvalId = blankToNull(approvalId);
+        return this;
     }
 
     /**
