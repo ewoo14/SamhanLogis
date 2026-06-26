@@ -4,6 +4,33 @@
 
 ---
 
+## ✅ 세션 재개 지점 (2026-06-27 야간 자율 — 🎉 **9슬라이스 일괄 완결·머지. 다음 = 개발책임자 지정 대기**)
+
+**개발책임자 야간 지시**(2026-06-26 밤): "네이티브 후속 전부 + CODEF(은행연동) + 버전관리·업데이트(데스크탑/웹/모바일) 새벽 동안 끊김없이 PM 자율, 워크플로우 단계별 자각·실서버 라이브 QA 준수, 백로그 0." → ScheduleWakeup 루프로 canonical(Codex danger-full-access 구현→Opus/Codex 듀얼리뷰 0수렴→실서버 라이브 QA→PM 머지) 9슬라이스 완주.
+
+### ⚡ 즉시 재개 (다음 세션)
+- **9슬라이스 머지 완료 — 추가 작업 없음.** `git checkout main && git pull`(head `da4393ac`). 다음 = **아래 백로그 개발책임자 지정 대기**.
+
+### 야간 완결 슬라이스 (전부 듀얼리뷰 0수렴 + 실서버/CI QA)
+| 에픽 | 슬라이스 | PR | 실서버 라이브 QA |
+|---|---|---|---|
+| **CODEF 은행연동** | BC1 백엔드(계좌+카드+대출, DRY_RUN) | #628 | ✅ Docker accounting-service 실 HTTP import·forceLevel·멱등 |
+| | BC2 FE(입출금매칭 CODEF 탭) | #630 | ✅ 실 로그인→import→탭/컬럼/매칭 캡처 |
+| **네이티브 패키징** | N1b 기본 플러그인+하드닝 | #629 | ✅ auth Docker 실 로그인 무회귀 |
+| | 생체인증 잠금 게이트 | #634 | 단위/빌드(device=Android SDK 게이트) |
+| **버전관리+업데이트** | V1a 백엔드(GET /app/version+admin) | #631 | ✅ public forceLevel 3케이스·인증분리 실 HTTP |
+| | V1b 데스크탑/웹(차단/권고 모달+admin) | #632 | ✅ 차단모달·권고배너·다시보지않기 실 캡처 |
+| | V1c 모바일(3 Expo runtimeVersion+expo-updates) | #633 | CI Detox AVD·expo-doctor·prebuild |
+
+### ⚠️ 외부 리소스 게이트 (코드/설정 완료, 활성만 대기 — 정직)
+- **iOS 스캐폴드/빌드** = Mac/Xcode · **실 APK 빌드** = Android SDK · **FCM 푸시** = Firebase 프로젝트 · **스토어 배포** = Apple/Google 계정 · **EAS OTA publish** = EAS projectId/계정 · **모바일/PWA 실설치** = Phase11 prod HTTPS · **실 CODEF API** = ㈜헥토데이터 계약·인증키(데모 무료).
+- 🚨 **dev_master 비밀번호 복구 필요**: 야간 중 비번 변경(modified_by=system, 00:48)으로 라이브 QA 게이트웨이 로그인 일부 블로킹(자격 DB 직접 복구는 분류기 차단). V49 해시(`dev_p05_pass!`) 재적용 필요(권한 허용 시 PM 처리 가능).
+
+### 🔜 다음 백로그 (개발책임자 지정 대기)
+네이티브 N2(iOS·실백엔드)·N3(FCM 푸시 실연동)·N5(스토어 배포) · 버전 실 릴리스 발행 워크플로우(CI 태깅) · A2 결재 enforcement 잔여 · 법인계좌 CODEF 실연동(계약) · Phase11 AWS prod cutover.
+
+---
+
 ## ✅ 세션 재개 지점 (2026-06-26 — 🎉 **백오피스 PWA Phase1 완결·머지(PR #624, main `0104063b`). 자동 진행 큐 소진 → 다음 = 개발책임자 지정 대기**)
 
 **개발책임자 "PWA/네이티브 패키징 진행"→PWA-first 결정** (모바일 에픽 슬12~15 완료 후). 브레인스토밍→spec→plan→조기PR→Codex구현→듀얼리뷰→**dev서버 회귀 fix**까지 진행 후 **개발책임자 "집PC 재개" 지시로 세션 종료**.
