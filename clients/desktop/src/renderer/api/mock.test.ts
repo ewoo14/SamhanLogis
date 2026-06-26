@@ -354,6 +354,27 @@ describe('mock collection plan contract', () => {
 })
 
 describe('mock bank transaction matching contract', () => {
+  it('does not expose vendor/source keywords in imported transaction descriptions', () => {
+    const bankAccountLabel = `국민 적요테스트 ${Date.now()}`
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/bank-transactions/import',
+      data: { bankAccountLabel },
+    })
+
+    const imported = mockRequest({
+      method: 'GET',
+      url: '/accounting/bank-transactions',
+      params: { bankAccountLabel },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+
+    const userVisibleText = imported.data
+      .flatMap((row) => [row.description, row.counterpartyName])
+      .filter((value): value is string => typeof value === 'string')
+
+    expect(userVisibleText.join(' ')).not.toMatch(/\b(?:CSV|KFTC|CODEF)\b/)
+  })
+
   it('matches and clears a partner by 4-key natural key without UUID fields', () => {
     const bankAccountLabel = `국민 매칭테스트 ${Date.now()}`
     mockRequest({
