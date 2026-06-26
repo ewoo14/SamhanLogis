@@ -14,6 +14,10 @@
 | N4 | 생체인증, secure storage 승격, 카메라 바코드/QR 스캔 | 후속 |
 | N5 | 서명, 스토어/MDM 배포, CI 네이티브 빌드 | 후속 |
 
+## N2 BLOCKING 체크리스트
+
+🚨 N2 BLOCKING 체크리스트: ① `cleartext:true` 제거 ② Android Network Security Config HTTPS-only 적용 ③ 예제 테스트(이미 본 PR서 삭제)
+
 ## 구현 요약
 
 - `capacitor.config.ts`: `com.samhanair.backoffice`, `삼한 백오피스`, `webDir='dist/capacitor'`, 개발용 cleartext 허용을 명시했다.

@@ -68,7 +68,7 @@ export const isElectronPlatform: boolean =
  * Electron 은 preload 가 우선하므로 provider 선택 시 Electron 다음 순서로 사용한다.
  */
 export const isCapacitorPlatform: boolean =
-  typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform()
+  typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()
 
 let cachedProvider: AuthProvider | null = null
 

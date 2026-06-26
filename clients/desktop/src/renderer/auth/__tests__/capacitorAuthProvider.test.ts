@@ -42,6 +42,7 @@ describe('capacitorAuthProvider - Bearer + Preferences 저장', () => {
       fullName: '캡 매니저',
       partnerCode: 'P300',
     })
+    expect(session?.groups?.[0]?.name).toBe('캡그룹')
     expect((session as Record<string, unknown>).token).toBeUndefined()
   })
 
@@ -50,6 +51,21 @@ describe('capacitorAuthProvider - Bearer + Preferences 저장', () => {
 
     expect(await provider.getAuthHeaders()).toEqual({})
     expect(await provider.getSession()).toBeNull()
+  })
+
+  it('bootstrap 은 저장 세션이 없으면 null 을 반환한다', async () => {
+    const provider = createCapacitorAuthProvider()
+
+    await expect(provider.bootstrap()).resolves.toBeNull()
+  })
+
+  it('손상 JSON 저장값은 세션 없이 안전하게 무시한다', async () => {
+    const provider = createCapacitorAuthProvider()
+    store.set('samhan.auth.snapshot', 'not-json')
+
+    await expect(provider.bootstrap()).resolves.toBeNull()
+    expect(await provider.getSession()).toBeNull()
+    expect(await provider.getAuthHeaders()).toEqual({})
   })
 
   it('bootstrap 은 저장 세션을 복원한다', async () => {

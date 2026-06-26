@@ -56,6 +56,7 @@ describe('apiClient authProvider 배선', () => {
   it('Capacitor 요청은 쿠키 없이 Bearer 헤더를 보내고 401 시 HashRouter 로그인으로 이동한다', async () => {
     platform.isCapacitor = true
     const { apiClient } = await import('../client')
+    const { useSessionStore } = await import('../../stores/session')
 
     await apiClient.get('/auth-test', {
       adapter: async (config) => {
@@ -69,6 +70,16 @@ describe('apiClient authProvider 배선', () => {
           config,
           request: {},
         }
+      },
+    })
+
+    useSessionStore.setState({
+      auth: {
+        token: 'T',
+        userId: 'user-1',
+        role: 'MASTER',
+        fullName: '개발책임자',
+        groups: [],
       },
     })
 
@@ -88,6 +99,7 @@ describe('apiClient authProvider 배선', () => {
 
     expect(authProvider.getAuthHeaders).toHaveBeenCalledTimes(2)
     expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
+    expect(useSessionStore.getState().auth).toBeNull()
     expect(window.location.hash).toBe('#/login')
     expect(window.location.replace).not.toHaveBeenCalled()
   })
