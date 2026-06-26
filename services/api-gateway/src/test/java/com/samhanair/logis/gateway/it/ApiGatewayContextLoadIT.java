@@ -177,6 +177,7 @@ class ApiGatewayContextLoadIT {
                         "partner-auth-public-v1",
                         "auth-service-v1",
                         "auth-service-legacy",
+                        "dashboard-app-version-public",
                         "partner-order-public-v1",
                         "partner-auth-service-v1"
                 );
@@ -262,6 +263,35 @@ class ApiGatewayContextLoadIT {
                 .as("공개 partner-order route 는 보호 partner-order catch-all 보다 먼저 선언되어야 한다")
                 .isGreaterThanOrEqualTo(0)
                 .isLessThan(indexOfRoute(routes, "partner-order-service-v1"));
+    }
+
+    /** V1a 앱 버전 조회 공개 라우트 — 부팅 전 호출 가능 + identity header strip 전용. */
+    @Test
+    @DisplayName("app version 공개 라우트 — /app/version no-JWT + identity strip + 릴리스 admin 선행")
+    void appVersionPublicRoute_hasNoJwt_stripIdentity_andPrecedesProtectedReleaseRoute() {
+        List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions()
+                .collectList()
+                .block();
+
+        assertThat(routes)
+                .as("RouteDefinitionLocator 가 선언 라우트를 반환해야 한다")
+                .isNotNull()
+                .isNotEmpty();
+
+        assertRoutePath(routes, "dashboard-app-version-public", "/app/version");
+        assertNoStripPrefix(routes, "dashboard-app-version-public");
+        assertHasStripInboundIdentityHeadersFilter(routes, "dashboard-app-version-public");
+        assertThat(filterNames(findRoute(routes, "dashboard-app-version-public")))
+                .as("dashboard-app-version-public 은 JwtAuthentication 없이 공개되어야 한다")
+                .doesNotContain("JwtAuthentication");
+        assertThat(indexOfRoute(routes, "dashboard-app-version-public"))
+                .as("공개 /app/version 은 보호 /app/releases 라우트보다 먼저 선언되어야 한다")
+                .isGreaterThanOrEqualTo(0)
+                .isLessThan(indexOfRoute(routes, "dashboard-app-releases-authenticated"));
+
+        assertRoutePath(routes, "dashboard-app-releases-authenticated", "/app/releases", "/app/releases/**");
+        assertNoStripPrefix(routes, "dashboard-app-releases-authenticated");
+        assertHasJwtAuthenticationFilter(routes, "dashboard-app-releases-authenticated");
     }
 
     /** #465: default-filters 에 identity strip 을 추가하지 않았는지 회귀 가드. */

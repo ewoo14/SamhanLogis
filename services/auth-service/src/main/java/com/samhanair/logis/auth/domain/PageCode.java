@@ -284,6 +284,9 @@ public enum PageCode {
     /** 동적 권한그룹 관리 화면 — Phase A 신규. */
     ADMIN_PERMISSION_GROUPS("admin.permission-groups", "권한그룹 관리"),
 
+    /** 앱 릴리스 등록/수정/삭제 관리 화면/API — 버전관리 + 자동업데이트 V1a. */
+    ADMIN_APP_RELEASE("admin.app-release", "앱 릴리스 관리"),
+
     /** 인사 역할변경/퇴사 관리 — Phase B 관리권위 위임 대상. */
     HR_ROLE_MANAGEMENT("hr.role-management", "인사 역할관리"),
 

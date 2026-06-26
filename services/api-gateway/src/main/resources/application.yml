@@ -436,6 +436,23 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # 버전관리 + 자동업데이트 V1a — 앱 버전 조회는 부팅 전 public 호출.
+        # JwtAuthentication 미적용 + identity header strip 전용([[feedback_identity_header_authz_antipattern]]).
+        - id: dashboard-app-version-public
+          uri: lb://dashboard-service
+          predicates:
+            - Path=/app/version
+          filters:
+            - StripInboundIdentityHeaders
+
+        # 앱 릴리스 admin CRUD — 인증 + dashboard-service @RequirePermission(admin.app-release).
+        - id: dashboard-app-releases-authenticated
+          uri: lb://dashboard-service
+          predicates:
+            - Path=/app/releases,/app/releases/**
+          filters:
+            - JwtAuthentication
+
         # [RC2] arologis admin 컨트롤러는 풀패스 @RequestMapping("/api/v1/arologis/admin") → no-strip 필요.
         # generic arologis-service-v1(strip=2)보다 먼저 선언. 인증 동일(JWT 주입 + Authorization 제거).
         - id: arologis-admin-v1

@@ -132,6 +132,13 @@ class PageCodeTest {
     }
 
     @Test
+    void appReleaseAdmin_pageCode_V71_seed와_동기화() {
+        assertThat(PageCode.ADMIN_APP_RELEASE.getCode()).isEqualTo("admin.app-release");
+        assertThat(PageCode.ADMIN_APP_RELEASE.getDisplayName()).isEqualTo("앱 릴리스 관리");
+        assertThat(PageCode.isValid("admin.app-release")).isTrue();
+    }
+
+    @Test
     void spD62_pageCodes_V30_seed와_동기화() {
         assertThat(PageCode.MESSENGER_ADMIN.getCode()).isEqualTo("messenger.admin");
         assertThat(PageCode.MESSENGER_SEND.getCode()).isEqualTo("messenger.send");
