@@ -30,6 +30,16 @@ vi.mock('../api/mock', () => ({
   },
 }))
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 describe('session store authProvider 배선', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -84,6 +94,31 @@ describe('session store authProvider 배선', () => {
     expect(pushRegistration.unregisterPush).toHaveBeenCalledTimes(1)
     expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
     expect(useSessionStore.getState().auth).toBeNull()
+  })
+
+  it('logout waits for native push unregister before clearing the auth provider session', async () => {
+    const unregister = createDeferred<void>()
+    pushRegistration.unregisterPush.mockReturnValueOnce(unregister.promise)
+    authProvider.clearSession.mockResolvedValue(undefined)
+    const { useSessionStore } = await import('./session')
+
+    const logout = useSessionStore.getState().logout().then(() => 'logged-out')
+    const beforeUnregisterDone = await Promise.race([
+      logout,
+      new Promise((resolve) => setTimeout(() => resolve('pending'), 0)),
+    ])
+
+    expect(beforeUnregisterDone).toBe('pending')
+    expect(pushRegistration.unregisterPush).toHaveBeenCalledTimes(1)
+    expect(authProvider.clearSession).not.toHaveBeenCalled()
+
+    unregister.resolve()
+    await expect(logout).resolves.toBe('logged-out')
+
+    expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
+    expect(authProvider.clearSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+      pushRegistration.unregisterPush.mock.invocationCallOrder[0] ?? 0,
+    )
   })
 
   it('setAuth resolves before native push registration settles', async () => {

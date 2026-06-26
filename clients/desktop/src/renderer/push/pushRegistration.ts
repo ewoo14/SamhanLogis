@@ -7,6 +7,7 @@ import {
 import type { PushNotificationsPlugin } from '@capacitor/push-notifications'
 
 const APP_CLIENT = 'DESKTOP_NATIVE'
+const REGISTRATION_POST_TIMEOUT_MS = 15_000
 
 interface PluginListenerHandle {
   remove: () => Promise<void>
@@ -19,6 +20,8 @@ interface CapacitorBridge {
 let listenerHandles: PluginListenerHandle[] = []
 let lastRegisteredToken: string | null = null
 let registerInFlight: Promise<void> | null = null
+let pendingRegistrationPost: Promise<string | null> | null = null
+let pendingRegistrationToken: string | null = null
 let registrationEpoch = 0
 
 async function loadPushRuntime(): Promise<{
@@ -65,25 +68,18 @@ async function attachListeners(
     if (epoch !== registrationEpoch) return
 
     const tokenValue = token.value
-
-    try {
+    const registrationPost = trackRegistrationPost(tokenValue, async () => {
       await registerPushToken({
         token: tokenValue,
         platform: toPushDevicePlatform(Capacitor.getPlatform()),
         appClient: APP_CLIENT,
       })
-      if (epoch !== registrationEpoch) {
-        try {
-          await deletePushToken(tokenValue)
-        } catch (error) {
-          console.warn('[push] stale token compensation delete failed', error)
-        }
-        return
-      }
-      lastRegisteredToken = tokenValue
-    } catch (error) {
-      console.warn('[push] token registration failed', error)
-    }
+    })
+
+    const registeredToken = await registrationPost
+    if (!registeredToken || epoch !== registrationEpoch) return
+
+    lastRegisteredToken = registeredToken
   })
   if (epoch !== registrationEpoch) {
     await registrationHandle.remove()
@@ -139,6 +135,47 @@ function routeNotificationDeeplink(data: Record<string, unknown> | undefined): v
   }
 }
 
+function trackRegistrationPost(
+  tokenValue: string,
+  post: () => Promise<void>,
+): Promise<string | null> {
+  pendingRegistrationToken = tokenValue
+
+  let operation: Promise<string | null>
+  operation = post()
+    .then(() => tokenValue)
+    .catch((error) => {
+      console.warn('[push] token registration failed', error)
+      return null
+    })
+    .finally(() => {
+      if (pendingRegistrationPost === operation) {
+        pendingRegistrationPost = null
+      }
+      if (pendingRegistrationToken === tokenValue) {
+        pendingRegistrationToken = null
+      }
+    })
+
+  pendingRegistrationPost = operation
+  return operation
+}
+
+async function waitPendingRegistrationPostForLogout(): Promise<string | null> {
+  const pendingPost = pendingRegistrationPost
+  if (!pendingPost) return pendingRegistrationToken
+
+  return Promise.race([
+    pendingPost,
+    new Promise<string | null>((resolve) => {
+      setTimeout(() => {
+        console.warn('[push] token registration timed out before logout')
+        resolve(pendingRegistrationToken)
+      }, REGISTRATION_POST_TIMEOUT_MS)
+    }),
+  ])
+}
+
 /**
  * Capacitor 네이티브 런타임에서 FCM/APNs registration token 을 요청하고 서버에 등록한다.
  *
@@ -184,23 +221,28 @@ export async function registerPush(): Promise<void> {
  *
  * 해제 실패가 로그아웃을 막지 않도록 오류는 로깅 후 삼킨다.
  */
-export async function unregisterPush(token = lastRegisteredToken): Promise<void> {
+export async function unregisterPush(token?: string): Promise<void> {
   if (!isCapacitorPlatform) return
 
   await removePushListeners()
+  const tokenFromPendingRegistration = await waitPendingRegistrationPostForLogout()
   registerInFlight = null
-  if (!token) {
+  const tokenToDelete = token ?? tokenFromPendingRegistration ?? lastRegisteredToken
+  if (!tokenToDelete) {
     lastRegisteredToken = null
     return
   }
 
   try {
-    await deletePushToken(token)
+    await deletePushToken(tokenToDelete)
   } catch (error) {
     console.warn('[push] token unregister failed', error)
   } finally {
-    if (lastRegisteredToken === token) {
+    if (lastRegisteredToken === tokenToDelete) {
       lastRegisteredToken = null
+    }
+    if (pendingRegistrationToken === tokenToDelete) {
+      pendingRegistrationToken = null
     }
   }
 }

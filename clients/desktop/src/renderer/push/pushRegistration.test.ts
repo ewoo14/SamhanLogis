@@ -205,7 +205,7 @@ describe('pushRegistration', () => {
     expect(registerPushToken).not.toHaveBeenCalled()
   })
 
-  it('registration POST 완료 중 로그아웃되면 POST 이후 보상 DELETE를 발행한다', async () => {
+  it('unregisterPush waits for in-flight registration POST before authenticated DELETE', async () => {
     const registrationPost = createDeferred<void>()
     registerPushToken.mockReturnValueOnce(registrationPost.promise)
     const { registerPush, unregisterPush } = await importPushRegistration()
@@ -220,11 +220,18 @@ describe('pushRegistration', () => {
       appClient: 'DESKTOP_NATIVE',
     })
 
-    await unregisterPush()
+    const unregister = unregisterPush().then(() => 'unregistered')
+    const beforePostDone = await Promise.race([
+      unregister,
+      new Promise((resolve) => setTimeout(() => resolve('pending'), 0)),
+    ])
+
+    expect(beforePostDone).toBe('pending')
     expect(deletePushToken).not.toHaveBeenCalled()
 
     registrationPost.resolve()
     await registration
+    await expect(unregister).resolves.toBe('unregistered')
 
     expect(deletePushToken).toHaveBeenCalledTimes(1)
     expect(deletePushToken).toHaveBeenCalledWith('in-flight-token')
