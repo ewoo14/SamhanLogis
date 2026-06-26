@@ -180,7 +180,7 @@ export function SalesOrderApprovalsPage() {
     {
       key: 'assignedManagerName',
       header: '담당자',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (a) => a.assignedManagerName ?? '-',
     },
     {

@@ -30,6 +30,8 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void
   /** React key 추출자. 필수. */
   rowKey: (row: T) => string
+  /** Optional test id extractor applied to each data row <tr>. */
+  rowTestId?: (row: T, index: number) => string
   /**
    * 행 단위 추가 className 산출자 (옵션) — 행 단위 상태 시각화에 사용.
    * 예) link-dispatch-slice 의 LinkDispatchListPage 에서 sent 행 옅은 파랑 배경.
@@ -70,6 +72,7 @@ export function DataTable<T>({
   emptyMessage = '데이터가 없습니다.',
   onRowClick,
   rowKey,
+  rowTestId,
   rowClassName,
   className,
 }: DataTableProps<T>) {
@@ -139,9 +142,10 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
+              rows.map((row, index) => {
                 const k = rowKey(row)
                 const extraClass = rowClassName?.(row)
+                const testId = rowTestId?.(row, index)
                 const trClasses = [
                   styles['tr'],
                   isClickable ? styles['clickable'] : null,
@@ -153,6 +157,7 @@ export function DataTable<T>({
                   <tr
                     key={k}
                     className={trClasses}
+                    data-testid={testId}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {columns.map((col) => {

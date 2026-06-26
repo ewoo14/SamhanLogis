@@ -481,6 +481,10 @@
   background: var(--state-danger-bg, #fee2e2);
   color: var(--state-danger, #991b1b);
 }
+.partnerOrderRowDisabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
 .statusLongPending {
   /* warning 토큰 참조 — statusOnHold 와 동일 계열 (주황/주의). */
   background: var(--state-warning-bg, #fef3c7);

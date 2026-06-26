@@ -173,11 +173,7 @@ export function ManualDispatchAdminPage() {
       key: 'dispatchDate',
       header: '배차 일자',
       mobilePriority: 'primary',
-      render: (d) => (
-        <span data-testid={`arologis-manual-row-${d.dispatchId}`}>
-          {d.dispatchDate}
-        </span>
-      ),
+      render: (d) => d.dispatchDate,
     },
     {
       key: 'dispatchType',
@@ -290,6 +286,7 @@ export function ManualDispatchAdminPage() {
           rows={dispatches}
           loading={listQuery.isLoading}
           rowKey={(d) => d.dispatchId}
+          rowTestId={(d) => `arologis-manual-row-${d.dispatchId}`}
           emptyMessage="해당 일자의 배차 내역이 없습니다."
         />
       </div>
@@ -349,11 +346,7 @@ function DriverSelectModal({
       key: 'driverCode',
       header: '기사 코드',
       mobilePriority: 'primary',
-      render: (driver) => (
-        <span data-testid={`arologis-manual-driver-row-${driver.driverCode}`}>
-          {driver.driverCode}
-        </span>
-      ),
+      render: (driver) => driver.driverCode,
     },
     { key: 'phoneNumber', header: '휴대전화', mobilePriority: 'secondary' },
     {
@@ -477,6 +470,7 @@ function DriverSelectModal({
           rows={drivers}
           loading={driverQuery.isLoading}
           rowKey={(driver) => driver.driverCode}
+          rowTestId={(driver) => `arologis-manual-driver-row-${driver.driverCode}`}
           emptyMessage="가용 기사가 없습니다."
         />
       </div>

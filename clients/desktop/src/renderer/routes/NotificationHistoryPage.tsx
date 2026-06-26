@@ -41,6 +41,7 @@ export function NotificationHistoryPage() {
   const channels = Array.from(new Set((data?.content ?? []).map((n) => n.channel)))
 
   const columns: DataTableColumn<NotificationCenter>[] = [
+    { key: 'title', header: '제목', mobilePriority: 'primary' },
     {
       key: 'createdAt',
       header: '발생 시각',
@@ -59,17 +60,6 @@ export function NotificationHistoryPage() {
       mobilePriority: 'secondary',
       render: (n) => <SeverityBadge severity={n.severity} />,
     },
-    { key: 'title', header: '제목', mobilePriority: 'primary' },
-    {
-      key: 'body',
-      header: '본문',
-      mobilePriority: 'hidden',
-      render: (n) => (
-        <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
-          {n.body ?? ''}
-        </span>
-      ),
-    },
     {
       key: 'readAt',
       header: '확인',
@@ -82,6 +72,16 @@ export function NotificationHistoryPage() {
             미확인
           </span>
         ),
+    },
+    {
+      key: 'body',
+      header: '본문',
+      mobilePriority: 'hidden',
+      render: (n) => (
+        <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+          {n.body ?? ''}
+        </span>
+      ),
     },
   ]
 
