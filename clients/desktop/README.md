@@ -181,3 +181,18 @@ MIG-14는 Order / Ledger 조회 화면을 `clients/desktop/src/renderer/routes/a
 - **표시 순서 드래그**: `@dnd-kit/sortable` 행 드래그 → '순서 저장' 일괄 `PUT /api/v1/products/display-orders`. **견적/주문 노출(usageScope ≠ NONE) 품목에만** 컬럼·드래그 표시(NONE 은 '—' + 정렬 제외). 검색/필터 활성 또는 카테고리 미선택 시 드래그 비활성(부분 목록 순서 모호 → 카테고리 한정에서만).
 - **실시간 동기화**: `realtime/ProductRealtimeClient.ts`(`SlipRealtimeClient` 패턴 복제)가 `GET /api/v1/products/catalog-realtime` SSE 를 구독해 `product:catalog:changed` 수신 시 react-query invalidate — 동시 시청자 화면이 usage/구성품/표시순서 변경에 실시간 반영된다.
 - **세트 재고 가드**: `routes/components/InventoryLookupModal.tsx` 에 `bundleOnlyLines`(전부 세트면 "재고는 구성품 단위" 안내)·`excludedBundleCount`(혼합 선택 시 "세트 N건 제외" 캡션) props 추가. `SlipFormPage.tsx`·`SalesPartnerOrderDetailPage.tsx` 가 BUNDLE 라인을 재고조회에서 제외한다(BE productType enrich 기반). `SlipDetailPage.tsx` 는 신규 전표가 BUNDLE 을 구성품 라인으로 전개 저장하므로 가드 불필요로 명문화(가짜 가드 금지). 주문 상세는 수정 PUT 후 GET 재조회(invalidate)로 enrich 필드를 보정한다.
+
+## 백오피스 PWA Phase1 — 설치형 PWA (2026-06-26, PR #624)
+
+desktop 백오피스를 **설치형 PWA**로도 배포 가능하게 `vite-plugin-pwa` 이중 빌드를 도입했다(기존 Electron 빌드 무회귀).
+
+| config | 용도 | vite-plugin-pwa |
+|---|---|---|
+| `vite.web.config.ts` | 웹/PWA 배포 (`npm run build:web`) | full `generateSW` — 앱셸 precache + 실 service worker |
+| `electron.vite.config.ts` | Electron 빌드 | `disable: true` (no-op) |
+| `vite.config.ts` | dev/mock 서버 (`npx vite src/renderer`, Playwright mock gate) | `virtual:pwa-register` no-op stub (SW 없음) |
+
+- `src/renderer/components/common/PwaUpdatePrompt.tsx` — 새 SW 감지 시 업데이트 프롬프트 토스트(prompt 방식, 강제 reload 아님). runtime caching 은 default-deny catch-all 로 RBAC/collab API 응답이 SW 에 캐시되는 footgun 을 차단한다.
+- `virtual:pwa-register` 는 vite-plugin-pwa build 모드에서만 제공되므로 dev serve 는 전용 stub config 가 필요하다(playwright webServer 에 `--config vite.config.ts` 명시 — `npx vite [root]` 는 root 에서 config 탐색).
+- 직원 실설치(모바일 홈화면 추가)는 **Phase 11 prod HTTPS** 활성 후 가능. 본 PR = PWA 인프라 + 로컬 검증.
+- 상세: `docs/dev-reports/2026-06-26-backoffice-pwa.md`.
