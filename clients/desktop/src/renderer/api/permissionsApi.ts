@@ -150,6 +150,7 @@ export type PageCode =
   | 'dispatch.batch'
   | 'admin.permissions'
   | 'admin.permission-groups'
+  | 'admin.app-release'
   | 'admin.approval-line-config'
   | 'hr.role-management'
   | 'hr.slip-cutoff'

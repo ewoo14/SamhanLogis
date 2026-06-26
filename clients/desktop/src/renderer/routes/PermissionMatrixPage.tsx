@@ -249,6 +249,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'admin.permissions',
       'admin.permission-groups',
+      'admin.app-release',
       'hr.role-management',
       'hr.slip-cutoff',
       'dc-config.import',
@@ -452,6 +453,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'dispatch.batch': '배차 SMS batch',
   'admin.permissions': '권한 관리',
   'admin.permission-groups': '권한그룹',
+  'admin.app-release': '앱 릴리스 관리',
   'admin.approval-line-config': '결재라인 설정',
   'hr.role-management': '인사 역할관리',
   'hr.slip-cutoff': '출고 마감시간 설정',
