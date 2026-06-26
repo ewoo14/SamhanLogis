@@ -19,6 +19,7 @@ interface CapacitorBridge {
 let listenerHandles: PluginListenerHandle[] = []
 let lastRegisteredToken: string | null = null
 let registerInFlight: Promise<void> | null = null
+let registrationEpoch = 0
 
 async function loadPushRuntime(): Promise<{
   PushNotifications: PushNotificationsPlugin
@@ -58,7 +59,10 @@ async function attachListeners(
 ): Promise<void> {
   if (listenerHandles.length > 0) return
 
+  const epoch = registrationEpoch
   const registrationHandle = await PushNotifications.addListener('registration', async (token) => {
+    if (epoch !== registrationEpoch) return
+
     const tokenValue = token.value
 
     lastRegisteredToken = tokenValue
@@ -137,7 +141,13 @@ export async function registerPush(): Promise<void> {
  * 해제 실패가 로그아웃을 막지 않도록 오류는 로깅 후 삼킨다.
  */
 export async function unregisterPush(token = lastRegisteredToken): Promise<void> {
-  if (!isCapacitorPlatform || !token) return
+  if (!isCapacitorPlatform) return
+
+  await removePushListeners()
+  if (!token) {
+    lastRegisteredToken = null
+    return
+  }
 
   try {
     await deletePushToken(token)
@@ -151,6 +161,7 @@ export async function unregisterPush(token = lastRegisteredToken): Promise<void>
 }
 
 export async function removePushListeners(): Promise<void> {
+  registrationEpoch += 1
   const handles = listenerHandles
   listenerHandles = []
   await Promise.allSettled(handles.map((handle) => handle.remove()))

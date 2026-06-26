@@ -124,4 +124,96 @@ describe('pushRegistration', () => {
     expect(PushNotifications.register).not.toHaveBeenCalled()
     expect(deletePushToken).not.toHaveBeenCalled()
   })
+
+  it('ignores external URL deeplinks', async () => {
+    const { registerPush } = await importPushRegistration()
+
+    await registerPush()
+    listeners['pushNotificationActionPerformed']?.[0]?.({
+      notification: {
+        data: {
+          deeplink: 'https://example.com/notifications/center',
+        },
+      },
+    })
+
+    expect(window.location.hash).toBe('#/')
+  })
+
+  it('dispatches a CustomEvent for foreground push notifications', async () => {
+    const { registerPush } = await importPushRegistration()
+    const received = vi.fn()
+    window.addEventListener('samhan:push-notification-received', received)
+
+    await registerPush()
+    listeners['pushNotificationReceived']?.[0]?.({
+      title: 'notice',
+      body: 'body',
+    })
+
+    expect(received).toHaveBeenCalledTimes(1)
+    expect((received.mock.calls[0]?.[0] as CustomEvent).detail).toMatchObject({
+      title: 'notice',
+      body: 'body',
+    })
+    window.removeEventListener('samhan:push-notification-received', received)
+  })
+
+  it('removePushListeners removes registration listeners', async () => {
+    const { registerPush, removePushListeners } = await importPushRegistration()
+
+    await registerPush()
+    expect(listeners['registration']).toHaveLength(1)
+
+    await removePushListeners()
+    await listeners['registration']?.[0]?.({ value: 'removed-token' })
+
+    expect(listeners['registration'] ?? []).toHaveLength(0)
+    expect(registerPushToken).not.toHaveBeenCalled()
+  })
+
+  it('unregisterPush removes listeners so late registration events do not POST', async () => {
+    const { registerPush, unregisterPush } = await importPushRegistration()
+
+    await registerPush()
+    await unregisterPush('logout-token')
+    await listeners['registration']?.[0]?.({ value: 'late-token' })
+
+    expect(deletePushToken).toHaveBeenCalledWith('logout-token')
+    expect(registerPushToken).not.toHaveBeenCalled()
+  })
+
+  it('unregisterPush ignores queued registration callbacks after logout', async () => {
+    const { registerPush, unregisterPush } = await importPushRegistration()
+
+    await registerPush()
+    const registrationCallback = listeners['registration']?.[0]
+    await unregisterPush('logout-token')
+    await registrationCallback?.({ value: 'queued-token' })
+
+    expect(deletePushToken).toHaveBeenCalledWith('logout-token')
+    expect(registerPushToken).not.toHaveBeenCalled()
+  })
+
+  it('does not attach duplicate listeners after repeated registration', async () => {
+    const { registerPush } = await importPushRegistration()
+
+    await registerPush()
+    await registerPush()
+
+    expect(PushNotifications.addListener).toHaveBeenCalledTimes(3)
+    expect(listeners['registration']).toHaveLength(1)
+    expect(listeners['pushNotificationReceived']).toHaveLength(1)
+    expect(listeners['pushNotificationActionPerformed']).toHaveLength(1)
+  })
+
+  it('deduplicates concurrent registerPush calls with one in-flight request', async () => {
+    const { registerPush } = await importPushRegistration()
+
+    await Promise.all([registerPush(), registerPush()])
+
+    expect(PushNotifications.requestPermissions).toHaveBeenCalledTimes(1)
+    expect(PushNotifications.register).toHaveBeenCalledTimes(1)
+    expect(PushNotifications.addListener).toHaveBeenCalledTimes(3)
+  })
 })

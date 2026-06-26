@@ -28,7 +28,6 @@ describe('pushTokens API client', () => {
 
   it('registerPushToken 은 N3a 인증 API에 토큰/플랫폼/클라이언트를 POST 한다', async () => {
     const response = {
-      token: 'fcm-token-1',
       platform: 'IOS',
       appClient: 'DESKTOP_NATIVE',
       lastSeenAt: '2026-06-27T00:00:00Z',
@@ -50,7 +49,7 @@ describe('pushTokens API client', () => {
   })
 
   it('deletePushToken 은 토큰을 URL 인코딩해 인증 DELETE를 호출한다', async () => {
-    apiClient.delete.mockResolvedValueOnce(envelope(null))
+    apiClient.delete.mockResolvedValueOnce(undefined)
     const { deletePushToken } = await import('./pushTokens')
 
     await deletePushToken('token/with space')

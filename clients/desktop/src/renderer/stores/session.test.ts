@@ -33,6 +33,7 @@ vi.mock('../api/mock', () => ({
 describe('session store authProvider 배선', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    vi.resetModules()
     const { useSessionStore } = await import('./session')
     useSessionStore.setState({ auth: null, bootstrapped: false })
   })
@@ -74,13 +75,37 @@ describe('session store authProvider 배선', () => {
 
     await useSessionStore.getState().setAuth(login)
     expect(authProvider.establishSession).toHaveBeenCalledWith(login)
-    expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
     expect(useSessionStore.getState().auth?.token).toBe('')
     expect(useSessionStore.getState().auth?.fullName).toBe('개발책임자')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
 
     await useSessionStore.getState().logout()
     expect(pushRegistration.unregisterPush).toHaveBeenCalledTimes(1)
     expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
     expect(useSessionStore.getState().auth).toBeNull()
+  })
+
+  it('setAuth resolves before native push registration settles', async () => {
+    authProvider.establishSession.mockResolvedValue(undefined)
+    pushRegistration.registerPush.mockReturnValue(new Promise(() => undefined))
+    const login: LoginResponse = {
+      token: 'jwt',
+      userId: 'u-3',
+      role: 'MASTER',
+      displayName: 'Push User',
+      groups: [],
+    }
+    const { useSessionStore } = await import('./session')
+
+    const result = await Promise.race([
+      useSessionStore.getState().setAuth(login).then(() => 'resolved'),
+      new Promise((resolve) => setTimeout(() => resolve('blocked'), 10)),
+    ])
+
+    expect(result).toBe('resolved')
+    expect(useSessionStore.getState().auth?.fullName).toBe('Push User')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
   })
 })

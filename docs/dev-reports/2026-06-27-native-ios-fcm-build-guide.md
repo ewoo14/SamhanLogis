@@ -25,6 +25,7 @@ cd clients/desktop
 npm ci
 npm run build:capacitor
 npx cap add ios
+cd ios/App && pod install && cd ../..
 npx cap sync ios
 npx cap open ios
 ```
@@ -35,7 +36,7 @@ npx cap open ios
 3. 파일을 `clients/desktop/ios/App/App/GoogleService-Info.plist`에 배치한다.
 4. Xcode에서 Runner/App target의 Signing Team을 Apple Developer 계정으로 설정한다.
 5. Xcode Capabilities에서 Push Notifications를 켠다.
-6. Background Modes가 필요한 정책이면 Remote notifications를 켠다.
+6. Xcode Capabilities에서 Background Modes를 켜고 Remote notifications를 반드시 체크한다.
 7. Firebase Cloud Messaging 설정에 APNs 인증서 또는 APNs Auth Key를 등록한다.
 8. 실제 iPhone에서 실행해 권한 프롬프트, registration token 수신, 서버 `push_device_tokens` 적재를 확인한다.
 

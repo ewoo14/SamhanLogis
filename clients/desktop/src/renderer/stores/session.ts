@@ -108,8 +108,10 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
   setAuth: async (login) => {
     await getAuthProvider().establishSession(login)
-    await registerPushIfNative()
     set({ auth: loginToSnapshot(login) })
+    void registerPushIfNative().catch((error) => {
+      console.warn('[session] push registration failed', error)
+    })
   },
   clearAuthState: () => {
     set({ auth: null })

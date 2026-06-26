@@ -10,7 +10,6 @@ export interface PushTokenRegisterPayload {
 }
 
 export interface PushTokenResponse {
-  token: string
   platform: PushDevicePlatform
   appClient: string
   lastSeenAt: string
@@ -33,7 +32,7 @@ export async function registerPushToken(
  * 로그아웃/기기 변경 시 서버에 저장된 FCM registration token 을 soft delete 한다.
  */
 export async function deletePushToken(token: string): Promise<void> {
-  await apiClient.delete<ApiEnvelope<null>>(
+  await apiClient.delete(
     `/api/v1/push-tokens/${encodeURIComponent(token)}`,
   )
 }
