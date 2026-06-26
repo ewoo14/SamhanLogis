@@ -4,6 +4,34 @@
 
 ---
 
+## 🔄 세션 재개 지점 (2026-06-26 — 🚧 **모바일 슬12a 구현+듀얼리뷰 진행 중. 새 세션에서 ⑤Codex 수렴-확인→CI green→머지 이어받기**)
+
+**모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a 진행.
+
+### ⚠️ 이 세션 종료 사유 + 새 세션 필수
+- **Codex MCP 권한 프롬프트가 이 세션 내내 떠서** settings.local.json 에 `mcp__codex__codex`+`mcp__codex__codex-reply` allow 추가했으나, **권한 allow 는 세션 시작 시 로드 → 이 세션엔 미적용** → **새 세션에서 Codex 자동허용** ([[feedback_codex_permission_new_session]]). 그래서 ⑤ 수렴-확인 리뷰를 못 돌리고 정리·인계.
+- 새 세션 재개: `git checkout feat/mobile-s12a-rawtable-cards`(origin 동기화·tree clean, head `4758cb8c`). 웹 :5175 preview 가동 중(슬12a 빌드 반영, 새 asset). Docker 스택 healthy(:8080).
+
+### 슬12a 진행 상태 (PR #613 OPEN)
+- ✅ ① spec `docs/superpowers/specs/2026-06-26-mobile-layout-gap-closure-design.md` + plan `docs/superpowers/plans/2026-06-26-mobile-s12-rawtable-cards.md` (601f39bd).
+- ✅ ② 조기 PR #613. ✅ ③ Codex 구현(ec7d8ac3): 주문서관리·주문승인·알림내역·수동배차 raw `<table>`→공용 DataTable+mobilePriority. typecheck·raw table 0.
+- ✅ ④ Opus 5차원 → fix(e51fdf80): 🔴 DataTable `rowTestId` prop 신설(행 testid `<tr>` 복구 → mock 스펙 `partner-order-list-badge-refresh` 파손 해소·로컬 2/2) · 🟠 NotificationHistory 제목 첫컬럼 primary · MINOR(담당자 secondary·비활성행 dim). 라이브 재QA 무회귀.
+- ✅ ⑤ Codex 독립 리뷰 → 3 MAJOR, PM triage: 채택2 fix(bb6993f5)[주문번호 첫 컬럼 재배치(primary 카드헤더)·rowTestId `string\|undefined` 빈값 생략] + 범위외1(dispatchId testid=main 기존패턴·비노출). fix2 검증(typecheck·mock 2/2·재QA 무회귀).
+- ⏳ **남은 것(새 세션)**: ⑤ Codex 수렴-확인 리뷰(0 잔여 확인) → CI #613 green(현재 GitGuardian pending — mock gate/desktop-playwright 확인) → **PM 자율머지(squash)** → 핸드오프/메모리 갱신.
+
+### 슬12 이후 큐 (canonical 동일·순차)
+- **슬12b**: 비교/커스텀 4종(DPS비교 InventoryDpsCompare·카카오매칭 KakaoAutoDispatch·아로로지스 가배차 ArologisPreClassify·실배차 ArologisDispatchReconcile) → useIsMobile 카드 폴백.
+- **슬13**: 미이관 입력 폼 ~22(전표8·견적품목6·그룹웨어2·배차5·공급자1) → FormGrid 1열.
+- **슬14**: 권한매트릭스3·거래명세서(StatementBatch)·sub-nav2(ProductClassifications/EstimateItemsCatalog 카테고리탭)·필터바2(PhotoAudit/DocumentReferencePicker) overflow 보강.
+- **슬15**: mobilePriority 잔여 ~7 admin 리스트(GroupwareApprovalTemplateAdmin·PermissionGroupManage·AccountTree·SalesClosing·MonthEndClosing·PeriodCloseList·Warehouses) 폴리시.
+- 와이드 재무리포트 7종=의도적 SKIP 유지(가로스크롤). 보류 에픽=PWA/네이티브/버전③/Phase11.
+
+### 워크플로우 규칙 (엄수 [[feedback_canonical_workflow]])
+- canonical 8단계·Codex 구현(Opus 임의구현 금지)·매 라운드 라이브 Docker QA·듀얼리뷰 0수렴·PM 자율머지([[feedback_pm_auto_merge_authority]])·ScheduleWakeup 매단계·가짜데이터 금지.
+- 로컬: `npm run build:web` 전에 **design-system 먼저 `cd clients/web/design-system && npm run build`**(FormGrid/rowTestId 등 dist stale 시 빌드 실패 — 이 세션 초반 함정). →:5175 `npx vite preview --config vite.web.config.ts --port 5175`. 캡처 `scripts/mobile-s12a-qa.cjs`(dev_master/dev_p05_pass!). 무시드 화면(notifications 등)=코드+패턴 검증 정직 보고.
+
+---
+
 ## ✅ 완결 — 모바일 전면 재설계+리스트 폴리시 (2026-06-26 야간 자율, 슬4c~11 머지)
 
 **개발책임자 "전체 모바일 재설계 / 모든 모바일 슬라이스 전체 PM 자동 진행" 지시 → ScheduleWakeup 자율 루프로 8 슬라이스 canonical 완주·전부 머지.** 데스크탑 무회귀(isMobile 분기 + @media≤768px), 듀얼리뷰 0수렴(Opus↔Codex 순차), 라이브 캡처(`docs/qa/mobile-s4c-detail-responsive/`·`docs/qa/mobile-other/`).
