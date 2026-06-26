@@ -58,6 +58,7 @@ samhan:
     fcm:
       project-id: ${SAMHAN_FCM_PROJECT_ID:CHANGE_ME_LOCAL_ONLY}
       credentials-path: ${SAMHAN_FCM_CREDENTIALS_PATH:CHANGE_ME_LOCAL_ONLY}
+      credentials-base64: ${SAMHAN_FCM_CREDENTIALS_BASE64:CHANGE_ME_LOCAL_ONLY}
     # P0-2 슬라이스 1 — 비밀번호 재설정 이메일 발송 (SmtpEmailAdapter 우선, SES adapter 는 Phase 11 cutover 시점).
     # 매뉴얼 출처: docs/manual/06-트러블슈팅/01-로그인-실패.md §1-3 (P0-2 정식 fix).
     # username/password 미설정 (local dev) 시 SmtpEmailAdapter 가 NoOp 동작 — 본문/수신자 로그만 출력.

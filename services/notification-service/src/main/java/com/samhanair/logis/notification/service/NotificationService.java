@@ -5,18 +5,24 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.notification.adapter.NotificationGateway;
 import com.samhanair.logis.notification.adapter.NotificationGatewayMetrics;
 import com.samhanair.logis.notification.adapter.NotificationGatewayResult;
+import com.samhanair.logis.notification.adapter.push.PushAdapter;
 import com.samhanair.logis.notification.client.UserClient;
 import com.samhanair.logis.notification.domain.NotificationChannel;
 import com.samhanair.logis.notification.domain.NotificationLog;
 import com.samhanair.logis.notification.domain.NotificationRequest;
 import com.samhanair.logis.notification.domain.NotificationStatus;
+import com.samhanair.logis.notification.domain.PushDeviceToken;
 import com.samhanair.logis.notification.domain.RecipientType;
 import com.samhanair.logis.notification.dto.NotificationSendRequest;
 import com.samhanair.logis.notification.repository.NotificationLogRepository;
 import com.samhanair.logis.notification.repository.NotificationRequestRepository;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,6 +51,7 @@ public class NotificationService {
     private final NotificationLogRepository logRepository;
     private final Map<NotificationChannel, NotificationGateway> gatewayMap;
     private final UserClient userClient;
+    private final PushDeviceTokenService pushDeviceTokenService;
 
     /**
      * 발송 재시도 최대 횟수 — post-W5 backlog cleanup (Q-W3-1 채택, D-P9-21).
@@ -66,13 +73,24 @@ public class NotificationService {
                                NotificationLogRepository logRepository,
                                Map<NotificationChannel, NotificationGateway> gatewayMap,
                                UserClient userClient,
-                               @Value("${samhan.notification.retry.max-attempts:5}") int maxRetryAttempts,
-                               @org.springframework.beans.factory.annotation.Autowired(required = false)
+                               int maxRetryAttempts,
                                NotificationGatewayMetrics gatewayMetrics) {
+        this(requestRepository, logRepository, gatewayMap, userClient, null, maxRetryAttempts, gatewayMetrics);
+    }
+
+    @Autowired
+    public NotificationService(NotificationRequestRepository requestRepository,
+                               NotificationLogRepository logRepository,
+                               Map<NotificationChannel, NotificationGateway> gatewayMap,
+                               UserClient userClient,
+                               @Autowired(required = false) PushDeviceTokenService pushDeviceTokenService,
+                               @Value("${samhan.notification.retry.max-attempts:5}") int maxRetryAttempts,
+                               @Autowired(required = false) NotificationGatewayMetrics gatewayMetrics) {
         this.requestRepository = requestRepository;
         this.logRepository = logRepository;
         this.gatewayMap = gatewayMap;
         this.userClient = userClient;
+        this.pushDeviceTokenService = pushDeviceTokenService;
         this.maxRetryAttempts = maxRetryAttempts;
         this.gatewayMetrics = gatewayMetrics;
     }
@@ -209,6 +227,12 @@ public class NotificationService {
      * @return 게이트웨이 호출 결과 (어댑터 미등록 시 FAILURE_NO_ADAPTER 결과 반환)
      */
     private NotificationGatewayResult invokeGatewayWithResult(NotificationRequest req) {
+        if (req.getChannel() == NotificationChannel.PUSH
+                && req.getRecipientType() == RecipientType.USER
+                && pushDeviceTokenService != null) {
+            return invokePushUserGatewayWithResult(req);
+        }
+
         NotificationGateway gateway = gatewayMap.get(req.getChannel());
         if (gateway == null) {
             req.markFailed(false);
@@ -248,5 +272,102 @@ public class NotificationService {
                 result.messageId(),
                 result.rawResponse()));
         return result;
+    }
+
+    /**
+     * USER 수신자 PUSH 는 등록된 FCM token 전체에 1회씩 발송한다.
+     *
+     * <p>토큰이 없는 경우 외부 gateway 호출 없이 성공 처리한다. 모바일 미설치 사용자에게 알림을
+     * 보내도 형제 service 트랜잭션이 실패하지 않도록 graceful no-op 으로 남긴다.
+     */
+    private NotificationGatewayResult invokePushUserGatewayWithResult(NotificationRequest req) {
+        List<PushDeviceToken> tokens = pushDeviceTokenService.findActiveTokens(req.getRecipientId());
+        if (tokens.isEmpty()) {
+            NotificationGatewayResult noToken = NotificationGatewayResult.success(
+                    "push-no-token-" + req.getId(),
+                    "{\"note\":\"등록된 push device token 없음\"}");
+            req.markSent();
+            logRepository.save(NotificationLog.record(
+                    req,
+                    req.getAttemptCount(),
+                    noToken.gatewayStatus(),
+                    noToken.messageId(),
+                    noToken.rawResponse()));
+            if (gatewayMetrics != null) {
+                gatewayMetrics.recordSuccess(req.getChannel());
+            }
+            log.info("[NotificationService] PUSH USER token 없음 — graceful no-op requestId={} userId={}",
+                    req.getId(), req.getRecipientId());
+            return noToken;
+        }
+
+        NotificationGateway gateway = gatewayMap.get(req.getChannel());
+        if (gateway == null) {
+            req.markFailed(false);
+            NotificationGatewayResult noAdapter = NotificationGatewayResult.failure(
+                    "FAILURE_NO_ADAPTER",
+                    "{\"error\":\"PUSH 채널 어댑터 미등록\"}");
+            logRepository.save(NotificationLog.record(req, req.getAttemptCount(),
+                    noAdapter.gatewayStatus(), noAdapter.messageId(), noAdapter.rawResponse()));
+            if (gatewayMetrics != null) {
+                gatewayMetrics.recordFailure(req.getChannel());
+            }
+            return noAdapter;
+        }
+
+        List<TokenGatewayResult> results = new ArrayList<>();
+        for (PushDeviceToken token : tokens) {
+            NotificationGatewayResult result = sendPushToken(gateway, req, token.getToken());
+            results.add(new TokenGatewayResult(result));
+        }
+
+        // 실패가 하나라도 있으면 최종 request status 가 FAILED 로 남도록 실패 결과를 마지막에 기록한다.
+        results.stream()
+                .sorted(Comparator.comparing((TokenGatewayResult r) -> !r.result().success()))
+                .forEach(r -> recordGatewayResult(req, r.result()));
+
+        return results.stream()
+                .map(TokenGatewayResult::result)
+                .filter(result -> !result.success())
+                .findFirst()
+                .orElse(results.get(0).result());
+    }
+
+    private NotificationGatewayResult sendPushToken(NotificationGateway gateway,
+                                                    NotificationRequest request,
+                                                    String token) {
+        try {
+            if (gateway instanceof PushAdapter pushAdapter) {
+                return pushAdapter.sendToToken(request, token);
+            }
+            return gateway.send(request);
+        } catch (Exception ex) {
+            log.warn("[NotificationService] PUSH token gateway 예외 requestId={} tokenHash={} msg={}",
+                    request.getId(), Integer.toHexString(token.hashCode()), ex.getMessage());
+            return NotificationGatewayResult.failure("FAILURE_EXCEPTION", ex.getMessage());
+        }
+    }
+
+    private void recordGatewayResult(NotificationRequest req, NotificationGatewayResult result) {
+        if (result.success()) {
+            req.markSent();
+            if (gatewayMetrics != null) {
+                gatewayMetrics.recordSuccess(req.getChannel());
+            }
+        } else {
+            req.markFailed(result.retryable());
+            if (gatewayMetrics != null) {
+                gatewayMetrics.recordFailure(req.getChannel());
+            }
+        }
+        logRepository.save(NotificationLog.record(
+                req,
+                req.getAttemptCount(),
+                result.gatewayStatus(),
+                result.messageId(),
+                result.rawResponse()));
+    }
+
+    private record TokenGatewayResult(NotificationGatewayResult result) {
     }
 }

@@ -30,6 +30,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // N3a: gateway JwtAuthentication 이 X-User-Id 를 주입한다. controller 가 principal
+                        // UUID 를 self-scoped 로 재검증하고 누락 시 401 을 반환한다.
+                        .requestMatchers("/api/v1/push-tokens/**").permitAll()
                         // P0-B: /internal/** 는 X-Internal-Token system-internal principal 만 — X-User-* 위조 우회 차단
                         .requestMatchers("/internal/**").access((authentication, context) ->
                                 new org.springframework.security.authorization.AuthorizationDecision(

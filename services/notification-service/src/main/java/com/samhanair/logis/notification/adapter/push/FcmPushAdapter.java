@@ -1,29 +1,41 @@
 package com.samhanair.logis.notification.adapter.push;
 
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.Message;
 import com.samhanair.logis.notification.adapter.NotificationGatewayResult;
 import com.samhanair.logis.notification.config.FcmProperties;
 import com.samhanair.logis.notification.domain.NotificationRequest;
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Base64;
+import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * FCM (Firebase Cloud Messaging) 어댑터 — Phase 9 W3 placeholder.
+ * FCM (Firebase Cloud Messaging) 어댑터.
  *
- * <p>본 슬라이스 시점에는 실제 FCM SDK 호출은 비활성 (skeleton). credentials 가 dev placeholder
- * 인 경우 즉시 success 반환 (로컬 dev / dev-default 환경 지원). Phase 10 cutover 또는 모바일
- * staff app 활성 시점에 FCM Admin SDK 통합 + retry-after / topic 발송 등 본격 통합.
+ * <p>credentials 가 dev placeholder 인 경우 즉시 success 반환 (로컬 dev / dev-default 환경 지원).
+ * 실제 credentials base64 또는 path 가 주입된 경우 Firebase Admin SDK 를 1회 초기화하고 FCM 으로 발송한다.
  *
- * <p>{@link FcmProperties#getCredentialsPath()} 가 placeholder 인 경우 외부 호출은 skip 하고
- * messageId 는 fcm-stub-{requestId} 로 발급. 운영 시 ConditionalOnProperty 로 토글 가능
- * ({@code samhan.notification.fcm.enabled=true}).
+ * <p>Firebase service-account JSON 은 환경변수/시크릿으로만 주입한다. repo 에 google-services.json,
+ * GoogleService-Info.plist, service-account JSON 을 커밋하지 않는다.
  */
 @Slf4j
 @Component
 @ConditionalOnProperty(prefix = "samhan.notification.fcm", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class FcmPushAdapter implements PushAdapter {
 
+    private static final String APP_NAME = "samhan-notification-fcm";
+
     private final FcmProperties properties;
+    private volatile FirebaseMessaging firebaseMessaging;
 
     public FcmPushAdapter(FcmProperties properties) {
         this.properties = properties;
@@ -31,23 +43,126 @@ public class FcmPushAdapter implements PushAdapter {
 
     @Override
     public NotificationGatewayResult send(NotificationRequest request) {
+        return sendToToken(request, request.getRecipientAddress());
+    }
+
+    @Override
+    public NotificationGatewayResult sendToToken(NotificationRequest request, String token) {
         try {
-            String credPath = properties.getCredentialsPath();
-            if (credPath == null || credPath.isBlank() || "CHANGE_ME_LOCAL_ONLY".equals(credPath)) {
-                // Phase 10 cutover 전 skeleton — 실제 FCM 호출 skip + dev success.
-                String stubId = "fcm-stub-" + request.getId();
+            if (!hasRealCredentials()) {
+                String stubId = stubMessageId(request, token);
                 log.debug("[FcmPushAdapter] FCM credentials placeholder — stub success requestId={} stubId={}",
                         request.getId(), stubId);
-                return NotificationGatewayResult.success(stubId, "{\"note\":\"FCM stub (Phase 10 활성)\"}");
+                return NotificationGatewayResult.success(stubId,
+                        "{\"note\":\"FCM stub\",\"token\":\"" + escape(token) + "\"}");
             }
-            // Phase 10: FirebaseMessaging.getInstance().send(Message.builder()...) 통합
-            String stubId = "fcm-prod-stub-" + request.getId();
-            log.info("[FcmPushAdapter] FCM 통합 placeholder — Phase 10 활성 시점 SDK 호출 자리. requestId={}",
-                    request.getId());
-            return NotificationGatewayResult.success(stubId, "{\"note\":\"FCM SDK placeholder\"}");
+            if (token == null || token.isBlank()) {
+                return NotificationGatewayResult.failure("FAILURE_FCM_TOKEN_MISSING",
+                        "{\"error\":\"FCM token missing\"}");
+            }
+            String messageId = messaging().send(buildMessage(request, token));
+            return NotificationGatewayResult.success(messageId,
+                    "{\"messageId\":\"" + escape(messageId) + "\",\"token\":\"" + escape(token) + "\"}");
         } catch (Exception ex) {
             log.warn("[FcmPushAdapter] 호출 실패 requestId={} msg={}", request.getId(), ex.getMessage());
             return NotificationGatewayResult.failure("FAILURE_FCM", ex.getMessage());
         }
+    }
+
+    private Message buildMessage(NotificationRequest request, String token) {
+        Message.Builder builder = Message.builder()
+                .setToken(token)
+                .putData("requestId", String.valueOf(request.getId()));
+        if (request.getTemplateCode() != null) {
+            builder.putData("templateCode", request.getTemplateCode());
+        }
+        if (request.getPayload() != null) {
+            builder.putData("payload", request.getPayload());
+        }
+        if (request.getSubject() != null || request.getBody() != null) {
+            builder.setNotification(com.google.firebase.messaging.Notification.builder()
+                    .setTitle(request.getSubject())
+                    .setBody(request.getBody())
+                    .build());
+        }
+        return builder.build();
+    }
+
+    private FirebaseMessaging messaging() throws IOException {
+        FirebaseMessaging current = firebaseMessaging;
+        if (current != null) {
+            return current;
+        }
+        synchronized (this) {
+            if (firebaseMessaging == null) {
+                FirebaseApp app = findExistingApp();
+                if (app == null) {
+                    try (InputStream inputStream = credentialsStream()) {
+                        FirebaseOptions.Builder options = FirebaseOptions.builder()
+                                .setCredentials(GoogleCredentials.fromStream(inputStream));
+                        if (!isPlaceholder(properties.getProjectId())) {
+                            options.setProjectId(properties.getProjectId().trim());
+                        }
+                        app = FirebaseApp.initializeApp(options.build(), APP_NAME);
+                    }
+                    log.info("[FcmPushAdapter] Firebase Admin SDK 초기화 완료 app={}", APP_NAME);
+                }
+                firebaseMessaging = FirebaseMessaging.getInstance(app);
+            }
+            return firebaseMessaging;
+        }
+    }
+
+    private FirebaseApp findExistingApp() {
+        for (FirebaseApp app : FirebaseApp.getApps()) {
+            if (APP_NAME.equals(app.getName())) {
+                return app;
+            }
+        }
+        return null;
+    }
+
+    private boolean hasRealCredentials() {
+        return !isPlaceholder(properties.getCredentialsBase64())
+                || !isPlaceholder(properties.getCredentialsPath());
+    }
+
+    private InputStream credentialsStream() throws IOException {
+        if (!isPlaceholder(properties.getCredentialsBase64())) {
+            byte[] decoded = Base64.getDecoder().decode(properties.getCredentialsBase64().trim());
+            return new ByteArrayInputStream(decoded);
+        }
+        return new FileInputStream(properties.getCredentialsPath().trim());
+    }
+
+    private static boolean isPlaceholder(String value) {
+        if (value == null || value.isBlank()) {
+            return true;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("change_me_local_only")
+                || normalized.equals("placeholder_dev_only")
+                || normalized.equals("changeme")
+                || normalized.equals("dummy")
+                || normalized.equals("placeholder")
+                || normalized.contains("change-me")
+                || normalized.contains("local-only");
+    }
+
+    private static String stubMessageId(NotificationRequest request, String token) {
+        if (token == null || token.isBlank()) {
+            return "fcm-stub-" + request.getId();
+        }
+        return "fcm-stub-" + request.getId() + "-" + Integer.toHexString(token.hashCode());
+    }
+
+    private static String escape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 }

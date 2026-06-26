@@ -50,6 +50,9 @@ dependencies {
     // Phase 9 W3 — Caffeine cache (UserClient bulk verify TTL 60s)
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 
+    // N3a — Firebase Admin SDK. 실제 credentials 가 주입된 경우에만 FCM 실발송.
+    implementation 'com.google.firebase:firebase-admin:9.4.3'
+
     // PR-D Part 2-3 — Notion CHAT 단톡방 매핑 import (OpenCSV + Apache Commons IO BOMInputStream)
     implementation 'com.opencsv:opencsv:5.9'
     implementation 'commons-io:commons-io:2.16.1'

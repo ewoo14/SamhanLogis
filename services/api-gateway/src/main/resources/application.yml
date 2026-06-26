@@ -420,6 +420,14 @@ spring:
           filters:
             - JwtAuthentication
 
+        # N3a native push token self API — controller 가 /api/v1/push-tokens 풀패스 보유.
+        - id: notification-push-tokens-v1
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/v1/push-tokens,/api/v1/push-tokens/**
+          filters:
+            - JwtAuthentication
+
         - id: notification-service-v1
           uri: lb://notification-service
           predicates:
