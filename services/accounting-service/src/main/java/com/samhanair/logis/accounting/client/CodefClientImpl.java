@@ -71,10 +71,10 @@ public class CodefClientImpl implements CodefClient {
         log.info("[BC1] CODEF DRY_RUN 은행 거래 조회 — baseDate={} accountRef={}", baseDate, account);
         return List.of(
                 new CodefTxn("(주)삼성상사", BankTxnType.DEPOSIT, new BigDecimal("1100000.00"),
-                        baseDate, "091523", account, "CODEF 운임 입금",
+                        baseDate, "091523", account, "운임 입금",
                         "CODEF-BANK-" + baseDate + "-001", null, null),
                 new CodefTxn("한국물류(주)", BankTxnType.DEPOSIT, new BigDecimal("550000.00"),
-                        baseDate, "101045", account, "CODEF 운임 정산",
+                        baseDate, "101045", account, "운임 정산",
                         "CODEF-BANK-" + baseDate + "-002", null, null),
                 new CodefTxn("국민은행", BankTxnType.WITHDRAWAL, new BigDecimal("3500.00"),
                         baseDate.plusDays(1), "110012", account, "이체 수수료",

@@ -367,7 +367,7 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
         }
 
         @Test
-        @DisplayName("DRY_RUN 모드에서는 키 미설정이어도 은행/카드 mock 5건씩 반환")
+        @DisplayName("DRY_RUN 모드에서는 키 미설정이어도 은행/카드 mock 5건씩 반환하고 적요에 CODEF 를 노출하지 않는다")
         void dryRun_shouldReturnMockRecords_withoutCredentials() {
             ReflectionTestUtils.setField(properties, "apiKey", "");
             ReflectionTestUtils.setField(properties, "clientId", "");
@@ -386,6 +386,10 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
 
             assertThat(bank).hasSize(5);
             assertThat(card).hasSize(5);
+            assertThat(bank)
+                    .extracting(txn -> txn.description())
+                    .allSatisfy(description -> assertThat(description).doesNotContain("CODEF"))
+                    .contains("운임 입금", "운임 정산");
         }
     }
 
