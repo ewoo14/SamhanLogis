@@ -29,10 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>처리 흐름:
  * <ol>
- *   <li>{@link CodefClient} DRY_RUN/CODEF 조회</li>
- *   <li>{@code externalRef} 기준 active row 중복 skip</li>
-     *   <li>{@link BankTransaction} source CODEF_BANK/CODEF_CARD/CODEF_LOAN 로 적재</li>
- *   <li>{@link DepositMatchService} 의 거래처 해석 경로를 재사용해 미반영 거래에 거래처를 자동 지정</li>
+ *     <li>{@link CodefClient} DRY_RUN/CODEF 조회</li>
+ *     <li>V43 unique index 와 동일한 4-key 기준 active row 중복 skip</li>
+ *     <li>{@link BankTransaction} source CODEF_BANK/CODEF_CARD/CODEF_LOAN 로 적재</li>
+ *     <li>{@link DepositMatchService} 의 거래처 해석 경로를 재사용해 미반영 거래에 거래처를 자동 지정</li>
  * </ol>
  */
 @Slf4j
@@ -88,12 +88,12 @@ public class CodefImportService {
         int matched = 0;
         for (SourceTxn sourceTxn : fetched) {
             CodefTxn txn = sourceTxn.txn();
-            if (bankTransactionRepository.existsByExternalRefAndIsDeletedFalse(txn.externalRef())) {
+            BankTransaction transaction = toBankTransaction(txn, sourceTxn.source());
+            if (isDuplicate(transaction)) {
                 duplicateSkipped++;
                 continue;
             }
 
-            BankTransaction transaction = toBankTransaction(txn, sourceTxn.source());
             if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
                 Optional<PartnerSummary> partner = depositMatchService.resolvePartnerForCounterparty(
                         txn.counterpartyName());
@@ -101,6 +101,8 @@ public class CodefImportService {
                     transaction.matchPartner(partner.get().partnerId());
                     matched++;
                 }
+            } else {
+                // CODEF_LOAN counterparty 는 대출 채권자인 은행명이며 거래처 master 매칭 대상이 아니다.
             }
 
             bankTransactionRepository.save(transaction);
@@ -131,6 +133,14 @@ public class CodefImportService {
             transaction.attachLoanInfo(txn.loanName());
         }
         return transaction;
+    }
+
+    private boolean isDuplicate(BankTransaction transaction) {
+        return bankTransactionRepository.existsByBankAccountLabelAndTransactedAtAndAmountAndExternalRefAndIsDeletedFalse(
+                transaction.getBankAccountLabel(),
+                transaction.getTransactedAt(),
+                transaction.getAmount(),
+                transaction.getExternalRef());
     }
 
     private LocalTime parseTime(String transactionTime) {

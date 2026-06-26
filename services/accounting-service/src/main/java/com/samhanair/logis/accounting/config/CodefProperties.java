@@ -30,7 +30,7 @@ public class CodefProperties {
     @Value("${codef.client-secret:}")
     private String clientSecret;
 
-    /** CODEF API Base URL. */
+    /** CODEF API Base URL — Phase 11 실 CODEF API 구현 시 사용(현재 미사용). */
     @Value("${codef.base-url:https://api.codef.io}")
     private String baseUrl;
 }

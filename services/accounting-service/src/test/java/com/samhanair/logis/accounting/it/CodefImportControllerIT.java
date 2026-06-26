@@ -19,6 +19,7 @@ import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,7 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * CODEF 은행·카드 거래내역 import 통합 테스트 (BC1).
  *
  * <p>실 PostgreSQL + Flyway 기반으로 CODEF DRY_RUN client, BankTransaction 적재,
- * externalRef 멱등, 카드 필드, 거래처 자동 매칭을 검증한다.
+ * externalRef 멱등, 4-key 멀티계좌 중복 판정, 카드 필드, 거래처 자동 매칭을 검증한다.
  */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 @AutoConfigureMockMvc
@@ -138,6 +139,45 @@ class CodefImportControllerIT extends AbstractPostgresIT {
         assertThat(loanCount).isEqualTo(5);
     }
 
+    @Test
+    @DisplayName("CODEF DRY_RUN 은행 import 는 같은 externalRef라도 계좌 라벨이 다르면 별도 적재")
+    void importCodefBankDryRun_sameExternalRefDifferentAccountLabel_importsBothAccounts() throws Exception {
+        importCodefBank("국민 123-456")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetchedCount").value(5))
+                .andExpect(jsonPath("$.data.importedCount").value(5))
+                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(0));
+
+        importCodefBank("신한 999-000")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetchedCount").value(5))
+                .andExpect(jsonPath("$.data.importedCount").value(5))
+                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(0));
+
+        Integer bankCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_transaction
+                 WHERE source = 'CODEF_BANK'
+                   AND bank_account_label IN ('국민 123-456', '신한 999-000')
+                """, Integer.class);
+        Integer duplicatedExternalRefCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_transaction
+                 WHERE source = 'CODEF_BANK'
+                   AND external_ref = 'CODEF-BANK-2026-06-01-001'
+                """, Integer.class);
+
+        assertThat(bankCount).isEqualTo(10);
+        assertThat(duplicatedExternalRefCount).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("CODEF import — DynamicPermissionClient CREATE deny 시 403")
+    void importCodefDeniedPermissionReturns403() throws Exception {
+        denyRequirePermission("accounting.bank-matching", PermissionAction.CREATE);
+
+        importCodef()
+                .andExpect(status().isForbidden());
+    }
+
     private org.springframework.test.web.servlet.ResultActions importCodef() throws Exception {
         return mockMvc.perform(post(BASE_URL)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -150,6 +190,22 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                           "submitMethod": "DRY_RUN"
                         }
                         """)
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", "ACCOUNTANT"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions importCodefBank(String accountRef) throws Exception {
+        return mockMvc.perform(post(BASE_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "from": "2026-06-01",
+                          "to": "2026-06-03",
+                          "type": "BANK",
+                          "accountRef": "%s",
+                          "submitMethod": "DRY_RUN"
+                        }
+                        """.formatted(accountRef))
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", "ACCOUNTANT"));
     }
