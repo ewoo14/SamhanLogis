@@ -106,7 +106,7 @@ class PushDeviceTokenControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(firstBody)))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.userId").value(USER_A.toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.userId").doesNotExist())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.platform").value("IOS"));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/push-tokens")
@@ -114,7 +114,7 @@ class PushDeviceTokenControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(secondBody)))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.userId").value(USER_B.toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.userId").doesNotExist())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.platform").value("ANDROID"));
 
         Integer activeCount = jdbcTemplate.queryForObject("""
@@ -151,7 +151,27 @@ class PushDeviceTokenControllerIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/push-tokens")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(MockMvcResultMatchers.status().isUnauthorized());
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    void register_with_invalid_platform_enum_returns_400_invalid_input() throws Exception {
+        Map<String, String> body = Map.of(
+                "token", "native-token-invalid-platform",
+                "platform", "BLACKBERRY",
+                "appClient", "DESKTOP");
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/push-tokens")
+                        .header("X-User-Id", USER_A.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data").doesNotExist());
     }
 
     @Test

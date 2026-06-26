@@ -69,6 +69,9 @@ public class NotificationService {
      */
     private final NotificationGatewayMetrics gatewayMetrics;
 
+    /**
+     * Test-only backward-compatible constructor for unit tests that do not wire native push support.
+     */
     public NotificationService(NotificationRequestRepository requestRepository,
                                NotificationLogRepository logRepository,
                                Map<NotificationChannel, NotificationGateway> gatewayMap,

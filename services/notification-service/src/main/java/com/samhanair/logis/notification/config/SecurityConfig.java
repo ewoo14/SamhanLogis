@@ -22,17 +22,20 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, InternalTokenFilter internalTokenFilter)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   InternalTokenFilter internalTokenFilter,
+                                                   ApiResponseAuthenticationEntryPoint authenticationEntryPoint)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // N3a: gateway JwtAuthentication 이 X-User-Id 를 주입한다. controller 가 principal
                         // UUID 를 self-scoped 로 재검증하고 누락 시 401 을 반환한다.
-                        .requestMatchers("/api/v1/push-tokens/**").permitAll()
+                        .requestMatchers("/api/v1/push-tokens", "/api/v1/push-tokens/**").authenticated()
                         // P0-B: /internal/** 는 X-Internal-Token system-internal principal 만 — X-User-* 위조 우회 차단
                         .requestMatchers("/internal/**").access((authentication, context) ->
                                 new org.springframework.security.authorization.AuthorizationDecision(

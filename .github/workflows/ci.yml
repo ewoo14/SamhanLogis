@@ -86,10 +86,6 @@ jobs:
           - name: phase9-10 (groupware+notification+dashboard)
             timeout: 30
             test-tasks: ':services:groupware-service:test :services:notification-service:test :services:dashboard-service:test'
-          - name: notification-native-push-it
-            # N3a native FCM push token API + Flyway + Testcontainers IT 명시 등재.
-            timeout: 30
-            test-tasks: ':services:notification-service:test --tests "com.samhanair.logis.notification.it.PushDeviceTokenControllerIT"'
 
     steps:
       - name: 저장소 체크아웃
