@@ -28,6 +28,7 @@ export function PwaUpdatePrompt() {
   return (
     <div
       role="status"
+      data-testid="pwa-update-toast"
       className="pwa-toast"
       style={{
         position: 'fixed',
@@ -51,6 +52,7 @@ export function PwaUpdatePrompt() {
       {needRefresh ? (
         <button
           type="button"
+          data-testid="pwa-refresh-button"
           onClick={() => updateSW?.(true)}
           style={{ fontWeight: 700, color: 'var(--color-brand-500,#2D77A8)' }}
         >
@@ -65,7 +67,7 @@ export function PwaUpdatePrompt() {
           setOfflineReady(false)
         }}
       >
-        x
+        ✕
       </button>
     </div>
   )

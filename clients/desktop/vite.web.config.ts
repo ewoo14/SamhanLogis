@@ -42,10 +42,11 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/, /^\/auth/, /^\/collab/],
         runtimeCaching: [
           {
-            urlPattern: ({ url }) =>
-              url.pathname.startsWith('/api/') ||
-              url.pathname.startsWith('/auth/') ||
-              url.pathname.startsWith('/collab/'),
+            // default-deny: 앱셸(precache) 외 동일출처 비-navigation 요청(데이터/API/collab 중첩경로 포함)은
+            // 전부 캐시 금지(NetworkOnly) — 실시간 데이터·RBAC stale 누출 차단 + 후속 오프라인 phase 캐싱 footgun 방지.
+            // precache 라우팅이 우선하므로 빌드 asset은 영향 없음. (cross-origin :8080 게이트웨이는 SW 미인터셉트라 이중 안전.)
+            urlPattern: ({ request, sameOrigin }) =>
+              sameOrigin && request.mode !== 'navigate',
             handler: 'NetworkOnly',
           },
         ],

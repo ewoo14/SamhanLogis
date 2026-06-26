@@ -12,8 +12,8 @@
 - `clients/desktop/vite.web.config.ts`의 `plugins: [react()]`에 `VitePWA({...})` 추가. **electron-vite 빌드(별도 config)는 미변경** → PWA는 `dist/web`(웹) 산출물에만 적용.
 - **Workbox 런타임 전략**:
   - 정적 asset(JS/CSS/폰트/아이콘·해시 파일명) = **precache**(앱 셸, 오프라인 로드).
-  - `index.html` = **NetworkFirst**(최신 셸 우선, 오프라인 시 캐시 폴백).
-  - `/api/**`·`/auth/**`·`/collab/**`·게이트웨이(:8080) 호출 = **NetworkOnly**(캐시 금지 — 실시간 데이터·RBAC·SSE 보호. stale 권한/데이터 위험 원천 차단).
+  - `index.html` = **precache + navigateFallback**(셸/자산 원자적 업데이트는 prompt 경유 — vite-plugin-pwa prompt 표준 패턴, NetworkFirst 대비 우수).
+  - **default-deny NetworkOnly**: 앱셸(precache) 외 **동일출처 비-navigation 요청 전부**(데이터·API·`/api`·`/auth`·collab 중첩경로·RBAC 등) = 캐시 금지(실시간·권한 stale 누출 차단). precache 라우팅 우선이라 빌드 asset 무영향. cross-origin :8080 게이트웨이는 SW 미인터셉트(이중 안전).
   - `globPatterns`로 빌드 asset만 precache, 외부/런타임 응답 제외.
 
 ## 3. 컴포넌트 (유닛)
