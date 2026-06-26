@@ -240,6 +240,18 @@ describe('pushRegistration', () => {
     )
   })
 
+  it('unregisterPush deletes attempted token after registration POST rejects', async () => {
+    registerPushToken.mockRejectedValueOnce(new Error('timeout after server commit'))
+    const { registerPush, unregisterPush } = await importPushRegistration()
+
+    await registerPush()
+    await listeners['registration']?.[0]?.({ value: 'reject-but-committed-token' })
+    await unregisterPush()
+
+    expect(deletePushToken).toHaveBeenCalledTimes(1)
+    expect(deletePushToken).toHaveBeenCalledWith('reject-but-committed-token')
+  })
+
   it('unregisterPush aborts an in-flight registerPush before listeners are attached', async () => {
     const permission = createDeferred<{ receive: 'granted' }>()
     PushNotifications.requestPermissions.mockReturnValueOnce(permission.promise)

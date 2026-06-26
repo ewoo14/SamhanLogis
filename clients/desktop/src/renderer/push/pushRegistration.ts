@@ -21,7 +21,7 @@ let listenerHandles: PluginListenerHandle[] = []
 let lastRegisteredToken: string | null = null
 let registerInFlight: Promise<void> | null = null
 let pendingRegistrationPost: Promise<string | null> | null = null
-let pendingRegistrationToken: string | null = null
+let attemptedToken: string | null = null
 let registrationEpoch = 0
 
 async function loadPushRuntime(): Promise<{
@@ -68,6 +68,7 @@ async function attachListeners(
     if (epoch !== registrationEpoch) return
 
     const tokenValue = token.value
+    attemptedToken = tokenValue
     const registrationPost = trackRegistrationPost(tokenValue, async () => {
       await registerPushToken({
         token: tokenValue,
@@ -139,8 +140,6 @@ function trackRegistrationPost(
   tokenValue: string,
   post: () => Promise<void>,
 ): Promise<string | null> {
-  pendingRegistrationToken = tokenValue
-
   let operation: Promise<string | null>
   operation = post()
     .then(() => tokenValue)
@@ -152,25 +151,22 @@ function trackRegistrationPost(
       if (pendingRegistrationPost === operation) {
         pendingRegistrationPost = null
       }
-      if (pendingRegistrationToken === tokenValue) {
-        pendingRegistrationToken = null
-      }
     })
 
   pendingRegistrationPost = operation
   return operation
 }
 
-async function waitPendingRegistrationPostForLogout(): Promise<string | null> {
+async function waitPendingRegistrationPostForLogout(): Promise<void> {
   const pendingPost = pendingRegistrationPost
-  if (!pendingPost) return pendingRegistrationToken
+  if (!pendingPost) return
 
-  return Promise.race([
+  await Promise.race([
     pendingPost,
-    new Promise<string | null>((resolve) => {
+    new Promise<void>((resolve) => {
       setTimeout(() => {
         console.warn('[push] token registration timed out before logout')
-        resolve(pendingRegistrationToken)
+        resolve()
       }, REGISTRATION_POST_TIMEOUT_MS)
     }),
   ])
@@ -225,11 +221,13 @@ export async function unregisterPush(token?: string): Promise<void> {
   if (!isCapacitorPlatform) return
 
   await removePushListeners()
-  const tokenFromPendingRegistration = await waitPendingRegistrationPostForLogout()
+  await waitPendingRegistrationPostForLogout()
   registerInFlight = null
-  const tokenToDelete = token ?? tokenFromPendingRegistration ?? lastRegisteredToken
+  const tokenToDelete = lastRegisteredToken ?? attemptedToken ?? token
   if (!tokenToDelete) {
     lastRegisteredToken = null
+    attemptedToken = null
+    pendingRegistrationPost = null
     return
   }
 
@@ -241,9 +239,8 @@ export async function unregisterPush(token?: string): Promise<void> {
     if (lastRegisteredToken === tokenToDelete) {
       lastRegisteredToken = null
     }
-    if (pendingRegistrationToken === tokenToDelete) {
-      pendingRegistrationToken = null
-    }
+    attemptedToken = null
+    pendingRegistrationPost = null
   }
 }
 
