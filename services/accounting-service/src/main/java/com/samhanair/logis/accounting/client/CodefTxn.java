@@ -20,6 +20,7 @@ import java.time.LocalDate;
  * @param externalRef         CODEF 외부 참조키
  * @param cardName            카드명. 은행 거래는 null
  * @param approvalId          카드 승인번호. 은행 거래는 null
+ * @param loanName            대출명. 은행/카드 거래는 null
  */
 public record CodefTxn(
         String counterpartyName,
@@ -31,6 +32,13 @@ public record CodefTxn(
         String description,
         String externalRef,
         String cardName,
-        String approvalId
+        String approvalId,
+        String loanName
 ) {
+    public CodefTxn(String counterpartyName, BankTxnType txnType, BigDecimal amount,
+                    LocalDate transactionDate, String transactionTime, String accountOrCardRef,
+                    String description, String externalRef, String cardName, String approvalId) {
+        this(counterpartyName, txnType, amount, transactionDate, transactionTime, accountOrCardRef,
+                description, externalRef, cardName, approvalId, null);
+    }
 }

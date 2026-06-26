@@ -111,6 +111,33 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                 .hasValueSatisfying(txn -> assertThat(txn.getMatchedPartnerId()).isEqualTo(PARTNER_ID));
     }
 
+    @Test
+    @DisplayName("CODEF DRY_RUN 대출 5건 적재, 재호출 externalRef 멱등")
+    void importCodefLoanDryRun_idempotent() throws Exception {
+        importCodefLoan()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetchedCount").value(5))
+                .andExpect(jsonPath("$.data.importedCount").value(5))
+                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(0))
+                .andExpect(jsonPath("$.data.matchedCount").value(0));
+
+        importCodefLoan()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetchedCount").value(5))
+                .andExpect(jsonPath("$.data.importedCount").value(0))
+                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(5))
+                .andExpect(jsonPath("$.data.matchedCount").value(0));
+
+        Integer loanCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_transaction
+                 WHERE source = 'CODEF_LOAN'
+                   AND loan_name = '기업운전자금대출'
+                   AND bank_account_label = '기업운전자금대출-001'
+                """, Integer.class);
+
+        assertThat(loanCount).isEqualTo(5);
+    }
+
     private org.springframework.test.web.servlet.ResultActions importCodef() throws Exception {
         return mockMvc.perform(post(BASE_URL)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -120,6 +147,22 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                           "to": "2026-06-03",
                           "accountRef": "국민 123-456",
                           "cardRef": "법인카드-001",
+                          "submitMethod": "DRY_RUN"
+                        }
+                        """)
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", "ACCOUNTANT"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions importCodefLoan() throws Exception {
+        return mockMvc.perform(post(BASE_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "from": "2026-06-01",
+                          "to": "2026-06-03",
+                          "type": "LOAN",
+                          "loanRef": "기업운전자금대출-001",
                           "submitMethod": "DRY_RUN"
                         }
                         """)

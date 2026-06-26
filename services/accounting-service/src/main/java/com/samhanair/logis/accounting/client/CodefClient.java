@@ -35,4 +35,15 @@ public interface CodefClient {
      * @return 카드 승인 거래 목록
      */
     List<CodefTxn> fetchCardTransactions(LocalDate from, LocalDate to, String cardRef, String submitMethod);
+
+    /**
+     * 지정 대출의 CODEF 대출 거래내역을 조회한다.
+     *
+     * @param from         조회 시작 일자
+     * @param to           조회 종료 일자
+     * @param loanRef      대출 표시 식별자
+     * @param submitMethod 전송 방식. null/blank 이면 서버 property fallback
+     * @return 대출 거래 목록
+     */
+    List<CodefTxn> fetchLoanTransactions(LocalDate from, LocalDate to, String loanRef, String submitMethod);
 }

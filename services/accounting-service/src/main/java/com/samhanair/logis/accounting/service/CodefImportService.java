@@ -7,6 +7,7 @@ import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.BankTxnSource;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.accounting.web.dto.CodefImportResponse;
+import com.samhanair.logis.accounting.web.dto.CodefImportType;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
@@ -30,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <ol>
  *   <li>{@link CodefClient} DRY_RUN/CODEF 조회</li>
  *   <li>{@code externalRef} 기준 active row 중복 skip</li>
- *   <li>{@link BankTransaction} source CODEF_BANK/CODEF_CARD 로 적재</li>
+     *   <li>{@link BankTransaction} source CODEF_BANK/CODEF_CARD/CODEF_LOAN 로 적재</li>
  *   <li>{@link DepositMatchService} 의 거래처 해석 경로를 재사용해 미반영 거래에 거래처를 자동 지정</li>
  * </ol>
  */
@@ -50,26 +51,35 @@ public class CodefImportService {
      *
      * @param from         조회 시작 일자
      * @param to           조회 종료 일자
+     * @param type         조회 대상. null 이면 ALL
      * @param accountRef   계좌 표시 식별자
      * @param cardRef      카드 표시 식별자
+     * @param loanRef      대출 표시 식별자
      * @param submitMethod 전송 방식. null/blank 이면 CODEF client property fallback
      * @return import 결과 집계
      */
     @Transactional
     public CodefImportResponse importTransactions(LocalDate from, LocalDate to,
-                                                  String accountRef, String cardRef,
+                                                  CodefImportType type,
+                                                  String accountRef, String cardRef, String loanRef,
                                                   String submitMethod) {
-        validateRequest(from, to, accountRef, cardRef);
+        CodefImportType effectiveType = type != null ? type : CodefImportType.ALL;
+        validateRequest(from, to, effectiveType, accountRef, cardRef, loanRef);
 
         List<SourceTxn> fetched = new ArrayList<>();
-        if (hasText(accountRef)) {
+        if (shouldImport(effectiveType, CodefImportType.BANK) && hasText(accountRef)) {
             codefClient.fetchBankTransactions(from, to, accountRef.trim(), submitMethod).stream()
                     .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_BANK))
                     .forEach(fetched::add);
         }
-        if (hasText(cardRef)) {
+        if (shouldImport(effectiveType, CodefImportType.CARD) && hasText(cardRef)) {
             codefClient.fetchCardTransactions(from, to, cardRef.trim(), submitMethod).stream()
                     .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_CARD))
+                    .forEach(fetched::add);
+        }
+        if (shouldImport(effectiveType, CodefImportType.LOAN) && hasText(loanRef)) {
+            codefClient.fetchLoanTransactions(from, to, loanRef.trim(), submitMethod).stream()
+                    .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_LOAN))
                     .forEach(fetched::add);
         }
 
@@ -84,11 +94,13 @@ public class CodefImportService {
             }
 
             BankTransaction transaction = toBankTransaction(txn, sourceTxn.source());
-            Optional<PartnerSummary> partner = depositMatchService.resolvePartnerForCounterparty(
-                    txn.counterpartyName());
-            if (partner.isPresent() && partner.get().partnerId() != null) {
-                transaction.matchPartner(partner.get().partnerId());
-                matched++;
+            if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
+                Optional<PartnerSummary> partner = depositMatchService.resolvePartnerForCounterparty(
+                        txn.counterpartyName());
+                if (partner.isPresent() && partner.get().partnerId() != null) {
+                    transaction.matchPartner(partner.get().partnerId());
+                    matched++;
+                }
             }
 
             bankTransactionRepository.save(transaction);
@@ -115,6 +127,9 @@ public class CodefImportService {
         if (source == BankTxnSource.CODEF_CARD) {
             transaction.attachCardInfo(txn.cardName(), txn.approvalId());
         }
+        if (source == BankTxnSource.CODEF_LOAN) {
+            transaction.attachLoanInfo(txn.loanName());
+        }
         return transaction;
     }
 
@@ -130,7 +145,8 @@ public class CodefImportService {
         }
     }
 
-    private void validateRequest(LocalDate from, LocalDate to, String accountRef, String cardRef) {
+    private void validateRequest(LocalDate from, LocalDate to, CodefImportType type,
+                                 String accountRef, String cardRef, String loanRef) {
         if (from == null || to == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 는 필수입니다.");
         }
@@ -138,10 +154,23 @@ public class CodefImportService {
             throw new BusinessException(ErrorCode.DEPOSIT_DATE_RANGE_INVALID,
                     "from(" + from + ")이 to(" + to + ")보다 늦습니다.");
         }
-        if (!hasText(accountRef) && !hasText(cardRef)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "accountRef 또는 cardRef 중 하나는 필수입니다.");
+        if (type == CodefImportType.BANK && !hasText(accountRef)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "BANK import 는 accountRef 가 필수입니다.");
         }
+        if (type == CodefImportType.CARD && !hasText(cardRef)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "CARD import 는 cardRef 가 필수입니다.");
+        }
+        if (type == CodefImportType.LOAN && !hasText(loanRef)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "LOAN import 는 loanRef 가 필수입니다.");
+        }
+        if (type == CodefImportType.ALL && !hasText(accountRef) && !hasText(cardRef) && !hasText(loanRef)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "accountRef, cardRef, loanRef 중 하나는 필수입니다.");
+        }
+    }
+
+    private boolean shouldImport(CodefImportType requestedType, CodefImportType candidateType) {
+        return requestedType == CodefImportType.ALL || requestedType == candidateType;
     }
 
     private static boolean hasText(String value) {

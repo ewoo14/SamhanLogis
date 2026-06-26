@@ -51,6 +51,19 @@ public class CodefClientImpl implements CodefClient {
         return fetchDryRunCard(from, cardRef);
     }
 
+    @Override
+    public List<CodefTxn> fetchLoanTransactions(LocalDate from, LocalDate to, String loanRef, String submitMethod) {
+        String effectiveMethod = effectiveMethod(submitMethod);
+        if ("DRY_RUN".equalsIgnoreCase(effectiveMethod)) {
+            return fetchDryRunLoan(from, loanRef);
+        }
+        if ("CODEF".equalsIgnoreCase(effectiveMethod)) {
+            return fetchCodefLoan(from, to, loanRef);
+        }
+        log.warn("[BC1] 알 수 없는 CODEF submit-method={} — DRY_RUN 으로 fallback", effectiveMethod);
+        return fetchDryRunLoan(from, loanRef);
+    }
+
     /** DRY_RUN 은행 거래 mock 5건. */
     private List<CodefTxn> fetchDryRunBank(LocalDate from, String accountRef) {
         LocalDate baseDate = from != null ? from : LocalDate.now();
@@ -109,6 +122,41 @@ public class CodefClientImpl implements CodefClient {
                 approvalId);
     }
 
+    /** DRY_RUN 대출 거래 mock 5건. 대출 상환/이자 지급은 출금 방향으로 적재한다. */
+    private List<CodefTxn> fetchDryRunLoan(LocalDate from, String loanRef) {
+        LocalDate baseDate = from != null ? from : LocalDate.now();
+        String loan = hasText(loanRef) ? loanRef.trim() : "기업운전자금대출-001";
+        log.info("[BC1] CODEF DRY_RUN 대출 거래 조회 — baseDate={} loanRef={}", baseDate, loan);
+        return List.of(
+                loanTxn("국민은행", "500000.00", baseDate, "100000", loan, "대출 원금 상환",
+                        "001"),
+                loanTxn("국민은행", "87500.00", baseDate, "100001", loan, "대출 이자 납입",
+                        "002"),
+                loanTxn("국민은행", "500000.00", baseDate.plusDays(1), "100000", loan, "대출 원금 상환",
+                        "001"),
+                loanTxn("국민은행", "86300.00", baseDate.plusDays(1), "100001", loan, "대출 이자 납입",
+                        "002"),
+                loanTxn("국민은행", "12000.00", baseDate.plusDays(2), "100000", loan, "중도상환 수수료",
+                        "001")
+        );
+    }
+
+    private CodefTxn loanTxn(String lender, String amount, LocalDate date, String time, String loanRef,
+                             String memo, String suffix) {
+        return new CodefTxn(
+                lender,
+                BankTxnType.WITHDRAWAL,
+                new BigDecimal(amount),
+                date,
+                time,
+                loanRef,
+                memo,
+                "CODEF-LOAN-" + date + "-" + suffix,
+                null,
+                null,
+                "기업운전자금대출");
+    }
+
     /** CODEF 은행 실 API stub — Phase 11 계약·키 발급 후 구현. */
     private List<CodefTxn> fetchCodefBank(LocalDate from, LocalDate to, String accountRef) {
         validateCredentials();
@@ -123,6 +171,14 @@ public class CodefClientImpl implements CodefClient {
         log.warn("[BC1] CODEF 카드 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
                 "CODEF 카드 실 API 호출은 Phase 11/키발급 후 구현 예정입니다.");
+    }
+
+    /** CODEF 대출 실 API stub — Phase 11 계약·키 발급 후 구현. */
+    private List<CodefTxn> fetchCodefLoan(LocalDate from, LocalDate to, String loanRef) {
+        validateCredentials();
+        log.warn("[BC1] CODEF 대출 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
+        throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
+                "CODEF 대출 실 API 호출은 Phase 11/키발급 후 구현 예정입니다.");
     }
 
     private void validateCredentials() {
