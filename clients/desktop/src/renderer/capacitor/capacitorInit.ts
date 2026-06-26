@@ -1,3 +1,4 @@
+// capacitor.config.ts plugins 설정과 동기 유지: 런타임 init 이 우선하지만 한쪽만 수정하지 않는다.
 const STATUS_BAR_BACKGROUND = '#2D77A8'
 
 let started = false
@@ -40,10 +41,10 @@ async function initKeyboard(): Promise<void> {
     ])
 
     await Keyboard.addListener('keyboardDidShow', () => {
-      const active = document.activeElement
-      if (!isScrollableInput(active)) return
-
       window.requestAnimationFrame(() => {
+        const active = document.activeElement
+        if (!isScrollableInput(active)) return
+
         active.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
       })
     })
@@ -62,7 +63,11 @@ async function initAppBackButton(): Promise<void> {
         return
       }
 
-      await App.exitApp()
+      try {
+        await App.exitApp()
+      } catch (error) {
+        console.warn('[capacitor] app 종료 실패', error)
+      }
     })
   } catch (error) {
     console.warn('[capacitor] app back 버튼 초기화 실패', error)
