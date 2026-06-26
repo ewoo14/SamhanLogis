@@ -308,7 +308,7 @@ export function GroupwareApprovalTemplateAdminPage() {
         </div>
 
         <fieldset disabled={!canWrite || saveMutation.isPending || deleteMutation.isPending} style={{ border: 0, padding: 0, margin: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Input
               label="코드"
               required
@@ -373,6 +373,7 @@ export function GroupwareApprovalTemplateAdminPage() {
           <div style={{ display: 'grid', gap: 8 }}>
             {draft.fields.map((field, index) => (
               <div
+                className="mobile-form-grid"
                 key={`field-row-${index}`}
                 style={{
                   display: 'grid',

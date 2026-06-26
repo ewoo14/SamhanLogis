@@ -454,7 +454,7 @@ function ClassificationSettingsModal({
         style={classificationModalBodyStyle}
         data-testid={`estimate-items-classification-modal-${row.modelCode}`}
       >
-        <div style={classificationModalGridStyle}>
+        <div className="mobile-form-grid" style={classificationModalGridStyle}>
           <Select
             label="대분류"
             value={selection.catLId ?? ''}

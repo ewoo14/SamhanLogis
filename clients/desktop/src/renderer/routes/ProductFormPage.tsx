@@ -444,7 +444,7 @@ export function ProductFormPage() {
           </div>
         </div>
 
-        <div style={gridStyle}>
+        <div className="mobile-form-grid" style={gridStyle}>
           <Input
             label="모델명"
             required
@@ -546,6 +546,7 @@ export function ProductFormPage() {
               const specKeyOptionsId = `spec-key-options-${index}`
               return (
                 <div
+                  className="mobile-form-grid"
                   key={index}
                   style={specRowStyle}
                   draggable
@@ -708,7 +709,7 @@ export function ProductFormPage() {
 
       <section style={sectionStyle}>
         <h4 style={sectionTitleStyle}>가격</h4>
-        <div style={gridStyle}>
+        <div className="mobile-form-grid" style={gridStyle}>
           <Input
             label="판매가"
             type="number"

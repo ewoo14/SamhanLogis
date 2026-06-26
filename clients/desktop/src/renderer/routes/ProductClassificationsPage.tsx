@@ -465,7 +465,7 @@ export function ProductClassificationsPage() {
           <section style={formSectionStyle} data-testid="classification-detail-panel">
             <div style={panelHeaderStyle}>상세</div>
             {selected ? (
-              <div style={detailFormStyle}>
+              <div className="mobile-form-grid" style={detailFormStyle}>
                 <Input
                   label="분류명"
                   value={draftName}

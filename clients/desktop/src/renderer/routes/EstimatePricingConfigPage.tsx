@@ -257,7 +257,7 @@ export function EstimatePricingConfigPage() {
           <div className={styles['emptyState']}>설정을 불러오는 중...</div>
         ) : (
           <div style={{ display: 'grid', gap: 22 }}>
-            <div style={sectionStyle}>
+            <div className="mobile-form-grid" style={sectionStyle}>
               {RATE_FIELDS.map((field) => (
                 <label key={field.key} style={{ display: 'grid', gap: 6, fontSize: 13 }}>
                   <span style={{ fontWeight: 700 }}>{field.label}</span>
@@ -293,7 +293,7 @@ export function EstimatePricingConfigPage() {
 
             <div style={{ display: 'grid', gap: 12 }}>
               <h2 style={{ margin: 0, fontSize: 16 }}>옵션 기본값</h2>
-              <div style={sectionStyle}>
+              <div className="mobile-form-grid" style={sectionStyle}>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <h3 style={{ margin: 0, fontSize: 14 }}>홈멀티</h3>
                   {renderCheckbox('homeNoHose', '유연호스 제외')}

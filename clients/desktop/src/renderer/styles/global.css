@@ -5080,6 +5080,15 @@ button {
     gap: 12px !important;
   }
 
+  .form-row,
+  .sfp-form-grid--2,
+  .sfp-form-grid--3,
+  .sfp-form-grid--driver,
+  .driver-edit-grid,
+  .sales-edit-field-grid {
+    grid-template-columns: 1fr !important;
+  }
+
   .mobile-line-card-list {
     display: grid;
     gap: 12px;

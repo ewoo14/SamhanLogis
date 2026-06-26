@@ -801,6 +801,7 @@ export function SupplierProfilePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {bankRows.map((row, idx) => (
                 <div
+                  className="mobile-form-grid"
                   key={idx}
                   style={{
                     display: 'grid',
