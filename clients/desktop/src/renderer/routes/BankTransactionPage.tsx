@@ -171,6 +171,19 @@ function codefSummary(result: CodefImportResponse): string {
   ].join(' · ')
 }
 
+function hasRequiredCodefRef(form: ReturnType<typeof initialCodefImportForm>): boolean {
+  switch (form.type) {
+    case 'BANK':
+      return Boolean(form.accountRef.trim())
+    case 'CARD':
+      return Boolean(form.cardRef.trim())
+    case 'LOAN':
+      return Boolean(form.loanRef.trim())
+    case 'ALL':
+      return true
+  }
+}
+
 export function BankTransactionPage() {
   usePageTitle('입출금 매칭', 'CSV/CODEF import')
 
@@ -277,7 +290,8 @@ export function BankTransactionPage() {
     .filter((row) => row.txnType === 'WITHDRAWAL')
     .reduce((sum, row) => sum + Number(row.amount || 0), 0)
 
-  const columns = useMemo<DataTableColumn<BankTransactionRow>[]>(() => [
+  const columns = useMemo<DataTableColumn<BankTransactionRow>[]>(() => {
+    const baseColumns: DataTableColumn<BankTransactionRow>[] = [
     {
       key: 'transactedAt',
       header: '거래일시',
@@ -304,7 +318,7 @@ export function BankTransactionPage() {
       key: 'description',
       header: '적요',
       width: '240px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'hidden',
       render: (row) => <strong>{row.description}</strong>,
     },
     {
@@ -334,28 +348,30 @@ export function BankTransactionPage() {
         const pending = matchPartnerMutation.isPending || clearPartnerMutation.isPending
         return (
           <div style={{ display: 'grid', gridTemplateColumns: matched ? '1fr auto' : '1fr', gap: 8, alignItems: 'end' }}>
-            <PartnerAutocomplete
-              label=""
-              ariaLabel={`${row.counterpartyName ?? '통장 거래'} 거래처 검색`}
-              placeholder="거래처명/코드"
-              value={matched}
-              onChange={(partner) => {
-                // 해제는 명시 '해제' 버튼으로만 처리(AsyncAutocomplete 는 onChange(null) 을 발화하지 않음).
-                if (partner) {
-                  matchPartnerMutation.mutate({
-                    bankAccountLabel: row.bankAccountLabel,
-                    transactedAt: row.transactedAt,
-                    amount: row.amount,
-                    externalRef: row.externalRef,
-                    partnerCode: partner.partnerCode,
-                  })
-                }
-              }}
-              searchPartners={searchPartners}
-              disabled={!canUpdate || pending}
-              minChars={1}
-              debounceMs={200}
-            />
+            <div data-testid={`bank-transaction-partner-search-${row.source}-${row.externalRef}`}>
+              <PartnerAutocomplete
+                label=""
+                ariaLabel={`${row.counterpartyName ?? '통장 거래'} 거래처 검색`}
+                placeholder="거래처명/코드"
+                value={matched}
+                onChange={(partner) => {
+                  // 해제는 명시 '해제' 버튼으로만 처리(AsyncAutocomplete 는 onChange(null) 을 발화하지 않음).
+                  if (partner) {
+                    matchPartnerMutation.mutate({
+                      bankAccountLabel: row.bankAccountLabel,
+                      transactedAt: row.transactedAt,
+                      amount: row.amount,
+                      externalRef: row.externalRef,
+                      partnerCode: partner.partnerCode,
+                    })
+                  }
+                }}
+                searchPartners={searchPartners}
+                disabled={!canUpdate || pending}
+                minChars={1}
+                debounceMs={200}
+              />
+            </div>
             {matched ? (
               <Button
                 type="button"
@@ -382,27 +398,37 @@ export function BankTransactionPage() {
       width: '180px',
       mobilePriority: 'hidden',
     },
-    {
-      key: 'cardName',
-      header: '법인카드',
-      width: '150px',
-      mobilePriority: 'secondary',
-      render: (row) => row.cardName || '—',
-    },
-    {
-      key: 'approvalId',
-      header: '승인번호',
-      width: '150px',
-      mobilePriority: 'hidden',
-      render: (row) => row.approvalId || '—',
-    },
-    {
-      key: 'loanName',
-      header: '대출명',
-      width: '150px',
-      mobilePriority: 'secondary',
-      render: (row) => row.loanName || '—',
-    },
+    ]
+
+    const sourceSpecificColumns: DataTableColumn<BankTransactionRow>[] = [
+      ...(activeSourceTab === 'CODEF_CARD' ? [
+        {
+          key: 'cardName',
+          header: '법인카드',
+          width: '150px',
+          mobilePriority: 'secondary' as const,
+          render: (row: BankTransactionRow) => row.cardName || '—',
+        },
+        {
+          key: 'approvalId',
+          header: '승인번호',
+          width: '150px',
+          mobilePriority: 'hidden' as const,
+          render: (row: BankTransactionRow) => row.approvalId || '—',
+        },
+      ] : []),
+      ...(activeSourceTab === 'CODEF_LOAN' ? [
+        {
+          key: 'loanName',
+          header: '대출명',
+          width: '150px',
+          mobilePriority: 'secondary' as const,
+          render: (row: BankTransactionRow) => row.loanName || '—',
+        },
+      ] : []),
+    ]
+
+    const trailingColumns: DataTableColumn<BankTransactionRow>[] = [
     {
       key: 'balanceAfter',
       header: '거래후잔액',
@@ -429,7 +455,10 @@ export function BankTransactionPage() {
         </span>
       ),
     },
-  ], [canUpdate, clearPartnerMutation, matchPartnerMutation])
+    ]
+
+    return [...baseColumns, ...sourceSpecificColumns, ...trailingColumns]
+  }, [activeSourceTab, canUpdate, clearPartnerMutation, matchPartnerMutation])
 
   const canImport = canCreate
     && Boolean(file)
@@ -443,6 +472,7 @@ export function BankTransactionPage() {
     && Boolean(codefForm.from)
     && Boolean(codefForm.to)
     && codefForm.from <= codefForm.to
+    && hasRequiredCodefRef(codefForm)
     && !codefImportMutation.isPending
 
   return (
@@ -480,7 +510,7 @@ export function BankTransactionPage() {
           <div>
             <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>CODEF 거래내역 가져오기</h4>
             <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-neutral-500)' }}>
-              계좌·카드·대출 거래를 DRY_RUN으로 조회해 입출금 매칭 목록에 적재합니다.
+              계좌·카드·대출 거래를 모의 조회로 가져와 입출금 매칭 목록에 적재합니다.
             </div>
           </div>
           <div className="mobile-filter-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(130px, 1fr)) repeat(3, minmax(150px, 1.2fr)) auto', gap: 10, alignItems: 'end' }}>

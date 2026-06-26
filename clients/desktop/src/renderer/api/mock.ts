@@ -5071,7 +5071,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     let duplicateSkippedCount = 0
     for (const row of importedRows) {
       const exists = MOCK_BANK_TRANSACTIONS.some((existing) =>
-        existing.source === row.source && existing.externalRef === row.externalRef)
+        existing.bankAccountLabel === row.bankAccountLabel
+        && existing.transactedAt === row.transactedAt
+        && String(existing.amount) === String(row.amount)
+        && existing.externalRef === row.externalRef)
       if (exists) {
         duplicateSkippedCount += 1
       } else {
