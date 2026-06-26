@@ -22,12 +22,13 @@ async function visibleTextHasNoUuid(page: Page): Promise<void> {
 }
 
 test.describe('CODEF FE BC2 거래내역 import + source 탭 + 매칭', () => {
-  test('CODEF import 후 계좌/카드/대출 탭과 매칭 정책을 표시한다', async ({ page }) => {
+  test('거래내역 가져오기 후 계좌/카드/대출 탭과 매칭 정책을 표시한다', async ({ page }) => {
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(error.message))
 
     await page.goto(URL, { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: '입출금 매칭', exact: true }).last()).toBeVisible()
+    await expect(page.getByRole('heading', { name: '입출금 내역', exact: true }).last()).toBeVisible()
+    await expect(page.getByRole('heading', { name: '거래내역 가져오기', exact: true })).toBeVisible()
 
     await expect(page.getByTestId('codef-import-type')).toBeVisible()
     await page.getByTestId('codef-import-type').selectOption('ALL')
@@ -37,9 +38,15 @@ test.describe('CODEF FE BC2 거래내역 import + source 탭 + 매칭', () => {
 
     await expect(page.getByTestId('codef-import-result')).toContainText('조회')
     await expect(page.getByTestId('codef-import-result')).toContainText('적재')
+    await expect(page.getByTestId('codef-tab-CSV_IMPORT')).toHaveCount(0)
+    await expect(page.getByTestId('codef-tab-KFTC')).toHaveCount(0)
     await expect(page.getByTestId('codef-tab-CODEF_BANK')).toBeVisible()
     await expect(page.getByTestId('codef-tab-CODEF_CARD')).toBeVisible()
     await expect(page.getByTestId('codef-tab-CODEF_LOAN')).toBeVisible()
+    await expect(page.getByTestId('codef-tab-CODEF_BANK')).toHaveText('계좌')
+    await expect(page.getByTestId('codef-tab-CODEF_CARD')).toHaveText('카드')
+    await expect(page.getByTestId('codef-tab-CODEF_LOAN')).toHaveText('대출')
+    await expect(page.getByText('CODEF')).toHaveCount(0)
     await expect(page.getByRole('columnheader', { name: '법인카드' })).toHaveCount(0)
     await expect(page.getByRole('columnheader', { name: '승인번호' })).toHaveCount(0)
     await expect(page.getByRole('columnheader', { name: '대출명' })).toHaveCount(0)
