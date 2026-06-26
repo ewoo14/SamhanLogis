@@ -122,7 +122,7 @@ type MockAppClientType = 'DESKTOP' | 'WEB' | 'MOBILE'
 type MockAppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
 
 type MockAppRelease = {
-  id: number
+  id: string
   clientType: MockAppClientType
   version: string
   minSupportedVersion: string
@@ -131,10 +131,14 @@ type MockAppRelease = {
   releasedAt: string
 }
 
+function mockAppReleaseId(seq: number): string {
+  return `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`
+}
+
 let mockAppReleaseSeq = 4
 let MOCK_APP_RELEASES: MockAppRelease[] = [
   {
-    id: 1,
+    id: mockAppReleaseId(1),
     clientType: 'DESKTOP',
     version: '0.1.0',
     minSupportedVersion: '0.1.0',
@@ -143,7 +147,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     releasedAt: '2026-06-27T09:00:00+09:00',
   },
   {
-    id: 2,
+    id: mockAppReleaseId(2),
     clientType: 'WEB',
     version: '0.1.0',
     minSupportedVersion: '0.1.0',
@@ -152,7 +156,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     releasedAt: '2026-06-27T09:00:00+09:00',
   },
   {
-    id: 3,
+    id: mockAppReleaseId(3),
     clientType: 'MOBILE',
     version: '0.1.0',
     minSupportedVersion: '0.1.0',
@@ -186,7 +190,7 @@ function isSemverLessThan(a: string, b: string): boolean {
   return compareSemverDesc(a, b) > 0
 }
 
-function mockAppReleaseFromBody(body: Record<string, unknown>, id: number): MockAppRelease {
+function mockAppReleaseFromBody(body: Record<string, unknown>, id: string): MockAppRelease {
   return {
     id,
     clientType: normalizeMockClientType(body['clientType']),
@@ -1779,15 +1783,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.endsWith('/app/releases')) {
     const denied = mockRequirePermission('admin.app-release', 'create')
     if (denied) return denied
-    const created = mockAppReleaseFromBody(parseMockBody(config), mockAppReleaseSeq)
+    const created = mockAppReleaseFromBody(parseMockBody(config), mockAppReleaseId(mockAppReleaseSeq))
     mockAppReleaseSeq += 1
     MOCK_APP_RELEASES = [...MOCK_APP_RELEASES, created]
     return envelope(created)
   }
 
-  const appReleaseItemMatch = url.match(/\/app\/releases\/(\d+)$/)
+  const appReleaseItemMatch = url.match(/\/app\/releases\/([^/?#]+)$/)
   if (appReleaseItemMatch) {
-    const id = Number(appReleaseItemMatch[1])
+    const encodedId = appReleaseItemMatch[1]
+    if (!encodedId) return null
+    const id = decodeURIComponent(encodedId)
     const index = MOCK_APP_RELEASES.findIndex((release) => release.id === id)
     if (index < 0) return mockError(404, 'NOT_FOUND', '릴리스를 찾을 수 없습니다.')
 

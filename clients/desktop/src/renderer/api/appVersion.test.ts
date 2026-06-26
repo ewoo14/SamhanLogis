@@ -58,6 +58,7 @@ describe('appVersion API client', () => {
   })
 
   it('admin /app/releases CRUD 경로와 body를 그대로 위임한다', async () => {
+    const releaseId = '00000000-0000-4000-8000-000000000101'
     const payload: AppReleasePayload = {
       clientType: 'WEB',
       version: '0.2.0',
@@ -66,7 +67,7 @@ describe('appVersion API client', () => {
       releaseNotes: '필수 업데이트',
       releasedAt: '2026-06-27T09:00:00+09:00',
     }
-    const row = { id: 1, ...payload }
+    const row = { id: releaseId, ...payload }
     vi.mocked(apiClient.get).mockResolvedValueOnce(envelope([row]))
     vi.mocked(apiClient.post).mockResolvedValueOnce(envelope(row))
     vi.mocked(apiClient.put).mockResolvedValueOnce(envelope({ ...row, forceLevel: 'MINOR' }))
@@ -74,12 +75,12 @@ describe('appVersion API client', () => {
 
     await expect(listAppReleases()).resolves.toEqual([row])
     await expect(createAppRelease(payload)).resolves.toEqual(row)
-    await expect(updateAppRelease(1, { ...payload, forceLevel: 'MINOR' })).resolves.toMatchObject({ forceLevel: 'MINOR' })
-    await expect(deleteAppRelease(1)).resolves.toBeUndefined()
+    await expect(updateAppRelease(releaseId, { ...payload, forceLevel: 'MINOR' })).resolves.toMatchObject({ forceLevel: 'MINOR' })
+    await expect(deleteAppRelease(releaseId)).resolves.toBeUndefined()
 
     expect(apiClient.get).toHaveBeenCalledWith('/app/releases')
     expect(apiClient.post).toHaveBeenCalledWith('/app/releases', payload)
-    expect(apiClient.put).toHaveBeenCalledWith('/app/releases/1', { ...payload, forceLevel: 'MINOR' })
-    expect(apiClient.delete).toHaveBeenCalledWith('/app/releases/1')
+    expect(apiClient.put).toHaveBeenCalledWith(`/app/releases/${releaseId}`, { ...payload, forceLevel: 'MINOR' })
+    expect(apiClient.delete).toHaveBeenCalledWith(`/app/releases/${releaseId}`)
   })
 })

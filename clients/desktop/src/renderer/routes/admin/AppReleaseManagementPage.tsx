@@ -264,7 +264,7 @@ export function AppReleaseManagementPage() {
           loading={query.isLoading}
           rowKey={(row) => `${row.clientType}-${row.version}-${row.releasedAt}`}
           emptyMessage="등록된 릴리스가 없습니다."
-          rowTestId={(row) => `app-release-row-${row.clientType}-${row.version}`}
+          rowTestId={(row) => `app-release-row-${row.clientType}-${row.version}-${row.releasedAt}`}
         />
       </div>
 

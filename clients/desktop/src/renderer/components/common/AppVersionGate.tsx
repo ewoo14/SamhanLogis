@@ -10,6 +10,7 @@ import {
 } from '../../version/versionCheck'
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION ?? '0.0.0'
+type SafeVersionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 function releaseNotesText(versionInfo: AppVersionInfo): string {
   const notes = versionInfo.releaseNotes.trim()
@@ -29,16 +30,51 @@ function forceLevelLabel(forceLevel: AppVersionInfo['forceLevel']): string {
   }
 }
 
-function safeLocalStorage(): Storage | null {
-  if (typeof window === 'undefined') return null
+function fallbackVersionStorage(storage: Map<string, string>): SafeVersionStorage {
+  return {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => {
+      storage.set(key, value)
+    },
+    removeItem: (key) => {
+      storage.delete(key)
+    },
+  }
+}
+
+function safeLocalStorage(fallbackStorage: Map<string, string>): SafeVersionStorage {
+  const fallback = fallbackVersionStorage(fallbackStorage)
+  if (typeof window === 'undefined') return fallback
   try {
     const storage = window.localStorage
     const probeKey = '__samhan_version_probe__'
     storage.setItem(probeKey, '1')
     storage.removeItem(probeKey)
-    return storage
+    return {
+      getItem: (key) => {
+        try {
+          return storage.getItem(key)
+        } catch {
+          return fallback.getItem(key)
+        }
+      },
+      setItem: (key, value) => {
+        try {
+          storage.setItem(key, value)
+        } catch {
+          fallback.setItem(key, value)
+        }
+      },
+      removeItem: (key) => {
+        try {
+          storage.removeItem(key)
+        } catch {
+          fallback.removeItem(key)
+        }
+      },
+    }
   } catch {
-    return null
+    return fallback
   }
 }
 
@@ -46,6 +82,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
   const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
   const [detailOpen, setDetailOpen] = useState(false)
   const checkedRef = useRef(false)
+  const fallbackStorageRef = useRef(new Map<string, string>())
   const clientTypeRef = useRef<AppClientType>(
     resolveAppClientType({
       electron: isElectronPlatform,
@@ -57,8 +94,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
     if (!bootstrapped || checkedRef.current) return
     checkedRef.current = true
 
-    const storage = safeLocalStorage()
-    const fallbackStorage = new Map<string, string>()
+    const storage = safeLocalStorage(fallbackStorageRef.current)
 
     getAppVersion({
       clientType: clientTypeRef.current,
@@ -68,7 +104,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
         setPromptState(resolveVersionPromptState({
           versionInfo,
           clientType: clientTypeRef.current,
-          storage: storage ?? fallbackStorage,
+          storage,
         }))
       })
       .catch((err: unknown) => {
@@ -83,7 +119,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
         open
         onClose={() => {}}
         title={forceLevelLabel(versionInfo.forceLevel)}
-        description={`현재 버전 ${CURRENT_VERSION}은(는) 더 이상 사용할 수 없습니다.`}
+        description={`현재 버전 ${CURRENT_VERSION}은 더 이상 사용할 수 없습니다.`}
         size="md"
         closeOnBackdropClick={false}
         closeOnEsc={false}
@@ -133,11 +169,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
   if (promptState.kind === 'minor') {
     const { versionInfo, dismissKey } = promptState
     const dismiss = () => {
-      try {
-        window.localStorage.setItem(dismissKey, 'true')
-      } catch {
-        // storage 불가 환경에서는 현재 세션에서만 숨긴다.
-      }
+      safeLocalStorage(fallbackStorageRef.current).setItem(dismissKey, 'true')
       setPromptState({ kind: 'none' })
       setDetailOpen(false)
     }

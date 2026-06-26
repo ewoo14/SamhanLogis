@@ -254,7 +254,9 @@ describe('mock app version management contract', () => {
         releaseNotes: 'Playwright mock 검증',
         releasedAt: '2026-06-27T10:00:00+09:00',
       },
-    }) as MockEnvelope<{ id: number; forceLevel: string }>
+    }) as MockEnvelope<{ id: string; forceLevel: string }>
+
+    expect(created.data.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/)
 
     const updated = mockRequest({
       method: 'PUT',
@@ -267,7 +269,7 @@ describe('mock app version management contract', () => {
         releaseNotes: '수정된 릴리스',
         releasedAt: '2026-06-27T10:00:00+09:00',
       },
-    }) as MockEnvelope<{ id: number; forceLevel: string; releaseNotes: string }>
+    }) as MockEnvelope<{ id: string; forceLevel: string; releaseNotes: string }>
 
     expect(updated.data.forceLevel).toBe('MAJOR')
     expect(updated.data.releaseNotes).toBe('수정된 릴리스')

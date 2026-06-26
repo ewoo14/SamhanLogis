@@ -79,14 +79,16 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await page.getByTestId('app-release-notes').fill('V1b Playwright 등록 검증')
     await page.getByTestId('app-release-save').click()
 
-    await expect(page.getByTestId(`app-release-row-WEB-${version}`)).toBeVisible()
+    const rowTestId = `app-release-row-WEB-${version}-2026-06-27T10:00:00+09:00`
+
+    await expect(page.getByTestId(rowTestId)).toBeVisible()
 
     await page.getByTestId(`app-release-edit-WEB-${version}`).click()
     await page.getByTestId('app-release-force-level').selectOption('MAJOR')
     await page.getByTestId('app-release-notes').fill('V1b Playwright 수정 검증')
     await page.getByTestId('app-release-save').click()
 
-    const row = page.getByTestId(`app-release-row-WEB-${version}`)
+    const row = page.getByTestId(rowTestId)
     await expect(row).toContainText('필수')
     await expect(row).toContainText('V1b Playwright 수정 검증')
 
@@ -94,6 +96,6 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await expect(page.getByTestId('app-release-delete-dialog')).toContainText(version)
     await page.getByTestId('app-release-delete-confirm').click()
 
-    await expect(page.getByTestId(`app-release-row-WEB-${version}`)).toHaveCount(0)
+    await expect(page.getByTestId(rowTestId)).toHaveCount(0)
   })
 })

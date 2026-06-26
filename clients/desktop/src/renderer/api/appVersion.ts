@@ -26,7 +26,7 @@ export interface AppReleasePayload {
 }
 
 export interface AppRelease extends AppReleasePayload {
-  id: number
+  id: string
 }
 
 export async function getAppVersion(
@@ -59,7 +59,7 @@ export async function createAppRelease(
 }
 
 export async function updateAppRelease(
-  id: number,
+  id: string,
   payload: AppReleasePayload,
 ): Promise<AppRelease> {
   const res = await apiClient.put<ApiEnvelope<AppRelease>>(
@@ -69,7 +69,7 @@ export async function updateAppRelease(
   return res.data.data
 }
 
-export async function deleteAppRelease(id: number): Promise<void> {
+export async function deleteAppRelease(id: string): Promise<void> {
   await apiClient.delete<ApiEnvelope<null>>(
     `/app/releases/${encodeURIComponent(String(id))}`,
   )
