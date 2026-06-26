@@ -48,6 +48,7 @@ import {
   type RegionalResponse,
 } from '../api/arologisDispatchApi'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 type TabKey = 'region' | 'regional'
 
@@ -82,6 +83,7 @@ function downloadCsv(filename: string, rows: string[][]): void {
 
 export function ArologisPreClassifyPage() {
   usePageTitle('가배차 분류')
+  const isMobile = useIsMobile()
 
   const [tab, setTab] = useState<TabKey>('region')
 
@@ -223,6 +225,7 @@ export function ArologisPreClassifyPage() {
           query={regionQuery}
           total={regionTotal}
           onCsv={handleCsvRegion}
+          isMobile={isMobile}
         />
       ) : (
         <RegionalTabPanel
@@ -231,6 +234,7 @@ export function ArologisPreClassifyPage() {
           query={regionalQuery}
           total={regionalTotal}
           onCsv={handleCsvRegional}
+          isMobile={isMobile}
         />
       )}
     </div>
@@ -249,10 +253,11 @@ interface RegionTabPanelProps {
   query: ReturnType<typeof useQuery<PreClassifyResponse>>
   total: number
   onCsv: () => void
+  isMobile: boolean
 }
 
 function RegionTabPanel(props: RegionTabPanelProps) {
-  const { from, to, onFromChange, onToChange, query, total, onCsv } = props
+  const { from, to, onFromChange, onToChange, query, total, onCsv, isMobile } = props
   const data = query.data
 
   return (
@@ -324,11 +329,12 @@ function RegionTabPanel(props: RegionTabPanelProps) {
                 title={groupName}
                 count={entries?.length ?? 0}
                 entries={entries ?? []}
+                isMobile={isMobile}
               />
             ))}
 
             {(data.unclassified?.length ?? 0) > 0 ? (
-              <UnclassifiedSection entries={data.unclassified} />
+              <UnclassifiedSection entries={data.unclassified} isMobile={isMobile} />
             ) : null}
           </>
         ) : null}
@@ -343,51 +349,53 @@ interface RegionGroupSectionProps {
   title: string
   count: number
   entries: PreClassifyEntry[]
+  isMobile: boolean
 }
 
-function RegionGroupSection({ title, count, entries }: RegionGroupSectionProps) {
+function RegionGroupSection({ title, count, entries, isMobile }: RegionGroupSectionProps) {
   return (
     <section data-testid={`arologis-preclassify-group-${title}`}>
       <h3 style={groupHeadStyle}>
         {title} <span style={{ color: '#6B7280', fontWeight: 400 }}>({count}건)</span>
       </h3>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>전표번호</th>
-            <th style={thStyle}>거래처코드</th>
-            <th style={thStyle}>거래처명</th>
-            <th style={thStyle}>주소</th>
-            <th style={thStyle}>배차여부</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
-              <td style={tdStyle}>{e.slipNo}</td>
-              <td style={tdStyle}>{e.partnerCode}</td>
-              <td style={tdStyle}>{e.partnerName}</td>
-              <td style={tdStyle}>{e.address}</td>
-              <td style={tdStyle}>
-                {e.dispatchPlanned ? (
-                  <Badge variant="success">배차됨</Badge>
-                ) : (
-                  <Badge variant="neutral">미배차</Badge>
-                )}
-              </td>
+      {isMobile ? (
+        <PreClassifyCardList entries={entries} />
+      ) : (
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>전표번호</th>
+              <th style={thStyle}>거래처코드</th>
+              <th style={thStyle}>거래처명</th>
+              <th style={thStyle}>주소</th>
+              <th style={thStyle}>배차여부</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
+                <td style={tdStyle}>{e.slipNo}</td>
+                <td style={tdStyle}>{e.partnerCode}</td>
+                <td style={tdStyle}>{e.partnerName}</td>
+                <td style={tdStyle}>{e.address}</td>
+                <td style={tdStyle}>
+                  <DispatchPlannedBadge planned={e.dispatchPlanned} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   )
 }
 
 interface UnclassifiedSectionProps {
   entries: PreClassifyEntry[]
+  isMobile: boolean
 }
 
-function UnclassifiedSection({ entries }: UnclassifiedSectionProps) {
+function UnclassifiedSection({ entries, isMobile }: UnclassifiedSectionProps) {
   return (
     <section
       data-testid="arologis-preclassify-group-unclassified"
@@ -408,34 +416,34 @@ function UnclassifiedSection({ entries }: UnclassifiedSectionProps) {
         </Link>
         .
       </p>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>전표번호</th>
-            <th style={thStyle}>거래처코드</th>
-            <th style={thStyle}>거래처명</th>
-            <th style={thStyle}>주소</th>
-            <th style={thStyle}>배차여부</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
-              <td style={tdStyle}>{e.slipNo}</td>
-              <td style={tdStyle}>{e.partnerCode}</td>
-              <td style={tdStyle}>{e.partnerName}</td>
-              <td style={tdStyle}>{e.address}</td>
-              <td style={tdStyle}>
-                {e.dispatchPlanned ? (
-                  <Badge variant="success">배차됨</Badge>
-                ) : (
-                  <Badge variant="neutral">미배차</Badge>
-                )}
-              </td>
+      {isMobile ? (
+        <PreClassifyCardList entries={entries} />
+      ) : (
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>전표번호</th>
+              <th style={thStyle}>거래처코드</th>
+              <th style={thStyle}>거래처명</th>
+              <th style={thStyle}>주소</th>
+              <th style={thStyle}>배차여부</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
+                <td style={tdStyle}>{e.slipNo}</td>
+                <td style={tdStyle}>{e.partnerCode}</td>
+                <td style={tdStyle}>{e.partnerName}</td>
+                <td style={tdStyle}>{e.address}</td>
+                <td style={tdStyle}>
+                  <DispatchPlannedBadge planned={e.dispatchPlanned} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   )
 }
@@ -450,10 +458,11 @@ interface RegionalTabPanelProps {
   query: ReturnType<typeof useQuery<RegionalResponse>>
   total: number
   onCsv: () => void
+  isMobile: boolean
 }
 
 function RegionalTabPanel(props: RegionalTabPanelProps) {
-  const { date, onDateChange, query, total, onCsv } = props
+  const { date, onDateChange, query, total, onCsv, isMobile } = props
   const data = query.data
 
   return (
@@ -511,11 +520,12 @@ function RegionalTabPanel(props: RegionalTabPanelProps) {
                 title={sido}
                 count={entries?.length ?? 0}
                 entries={entries ?? []}
+                isMobile={isMobile}
               />
             ))}
 
             {(data.unmatched?.length ?? 0) > 0 ? (
-              <RegionalUnmatchedSection entries={data.unmatched} />
+              <RegionalUnmatchedSection entries={data.unmatched} isMobile={isMobile} />
             ) : null}
           </>
         ) : null}
@@ -530,43 +540,49 @@ interface RegionalGroupSectionProps {
   title: string
   count: number
   entries: RegionalEntry[]
+  isMobile: boolean
 }
 
-function RegionalGroupSection({ title, count, entries }: RegionalGroupSectionProps) {
+function RegionalGroupSection({ title, count, entries, isMobile }: RegionalGroupSectionProps) {
   return (
     <section data-testid={`arologis-preclassify-group-${title}`}>
       <h3 style={groupHeadStyle}>
         {title} <span style={{ color: '#6B7280', fontWeight: 400 }}>({count}건)</span>
       </h3>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>전표번호</th>
-            <th style={thStyle}>거래처코드</th>
-            <th style={thStyle}>거래처명</th>
-            <th style={thStyle}>주소</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
-              <td style={tdStyle}>{e.slipNo}</td>
-              <td style={tdStyle}>{e.partnerCode}</td>
-              <td style={tdStyle}>{e.partnerName}</td>
-              <td style={tdStyle}>{e.address}</td>
+      {isMobile ? (
+        <RegionalCardList entries={entries} />
+      ) : (
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>전표번호</th>
+              <th style={thStyle}>거래처코드</th>
+              <th style={thStyle}>거래처명</th>
+              <th style={thStyle}>주소</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
+                <td style={tdStyle}>{e.slipNo}</td>
+                <td style={tdStyle}>{e.partnerCode}</td>
+                <td style={tdStyle}>{e.partnerName}</td>
+                <td style={tdStyle}>{e.address}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   )
 }
 
 interface RegionalUnmatchedSectionProps {
   entries: RegionalEntry[]
+  isMobile: boolean
 }
 
-function RegionalUnmatchedSection({ entries }: RegionalUnmatchedSectionProps) {
+function RegionalUnmatchedSection({ entries, isMobile }: RegionalUnmatchedSectionProps) {
   return (
     <section
       data-testid="arologis-preclassify-group-unmatched"
@@ -584,27 +600,91 @@ function RegionalUnmatchedSection({ entries }: RegionalUnmatchedSectionProps) {
       <p style={{ margin: '0 0 8px 0', fontSize: 13, color: '#991B1B' }}>
         17 시도 광역 prefix 와 매칭되지 않은 출고전표입니다. 거래처 주소를 확인해 주세요.
       </p>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>전표번호</th>
-            <th style={thStyle}>거래처코드</th>
-            <th style={thStyle}>거래처명</th>
-            <th style={thStyle}>주소</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => (
-            <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
-              <td style={tdStyle}>{e.slipNo}</td>
-              <td style={tdStyle}>{e.partnerCode}</td>
-              <td style={tdStyle}>{e.partnerName}</td>
-              <td style={tdStyle}>{e.address}</td>
+      {isMobile ? (
+        <RegionalCardList entries={entries} />
+      ) : (
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>전표번호</th>
+              <th style={thStyle}>거래처코드</th>
+              <th style={thStyle}>거래처명</th>
+              <th style={thStyle}>주소</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.slipNo} data-testid={`arologis-preclassify-row-${e.slipNo}`}>
+                <td style={tdStyle}>{e.slipNo}</td>
+                <td style={tdStyle}>{e.partnerCode}</td>
+                <td style={tdStyle}>{e.partnerName}</td>
+                <td style={tdStyle}>{e.address}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
+  )
+}
+
+function DispatchPlannedBadge({ planned }: { planned: boolean }) {
+  return planned ? (
+    <Badge variant="success">배차됨</Badge>
+  ) : (
+    <Badge variant="neutral">미배차</Badge>
+  )
+}
+
+function PreClassifyCardList({ entries }: { entries: PreClassifyEntry[] }) {
+  return (
+    <div className="mobile-line-card-list">
+      {entries.map((entry) => (
+        <article
+          key={entry.slipNo}
+          className="mobile-line-card"
+          data-testid={`arologis-preclassify-row-${entry.slipNo}`}
+        >
+          <div className="mobile-line-card-header">
+            <strong className="mobile-line-field-value">{entry.slipNo}</strong>
+            <DispatchPlannedBadge planned={entry.dispatchPlanned} />
+          </div>
+          <MobileField label="거래처코드" value={entry.partnerCode} />
+          <MobileField label="거래처명" value={entry.partnerName} />
+          <MobileField label="주소" value={entry.address} />
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function RegionalCardList({ entries }: { entries: RegionalEntry[] }) {
+  return (
+    <div className="mobile-line-card-list">
+      {entries.map((entry) => (
+        <article
+          key={entry.slipNo}
+          className="mobile-line-card"
+          data-testid={`arologis-preclassify-row-${entry.slipNo}`}
+        >
+          <div className="mobile-line-card-header">
+            <strong className="mobile-line-field-value">{entry.slipNo}</strong>
+          </div>
+          <MobileField label="거래처코드" value={entry.partnerCode} />
+          <MobileField label="거래처명" value={entry.partnerName} />
+          <MobileField label="주소" value={entry.address} />
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function MobileField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="mobile-line-field">
+      <span className="mobile-line-field-label">{label}</span>
+      <div className="mobile-line-field-value">{value}</div>
+    </div>
   )
 }
 

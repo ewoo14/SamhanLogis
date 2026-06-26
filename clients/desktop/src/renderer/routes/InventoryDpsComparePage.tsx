@@ -70,6 +70,7 @@ import { DpsRestoredBanner } from '../components/DpsRestoredBanner'
 import { DpsSaveDialog } from '../components/DpsSaveDialog'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 /** 오늘 날짜 (YYYY-MM-DD) — date input 기본값. */
 function todayIso(): string {
@@ -137,6 +138,7 @@ function errorMessage(err: unknown): string {
 
 export function InventoryDpsComparePage() {
   usePageTitle('DPS 입고 비교')
+  const isMobile = useIsMobile()
 
   // ── 폼 상태 ────────────────────────────────────────────────
   const today = useMemo(todayIso, [])
@@ -487,61 +489,60 @@ export function InventoryDpsComparePage() {
             </div>
           ) : (
             <div style={tableWrapStyle} data-testid="dps-compare-result-table">
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>카테고리</th>
-                    <th style={thStyle}>전표번호</th>
-                    <th style={thStyle}>품번</th>
-                    <th style={thStyle}>거래처코드</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>출고수량</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>DPS수량</th>
-                    <th style={thStyle}>사유</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.mismatches.map((m, idx) => {
-                    const colors = DPS_MISMATCH_COLOR[m.rowType]
-                    const testId = `dps-compare-row-${m.slipNo ?? `idx-${idx}`}`
-                    return (
-                      <tr
-                        key={`${m.rowType}-${m.slipNo ?? ''}-${m.productCode ?? ''}-${idx}`}
-                        data-testid={testId}
-                        style={{ background: colors.background }}
-                      >
-                        <td style={tdStyle}>
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              padding: '2px 8px',
-                              borderRadius: 4,
-                              border: `1px solid ${colors.border}`,
-                              color: colors.text,
-                              fontSize: 12,
-                              fontWeight: 600,
-                              background: '#fff',
-                            }}
-                          >
-                            {DPS_MISMATCH_LABEL[m.rowType]}
-                          </span>
-                        </td>
-                        <td style={tdStyle}>{m.slipNo ?? '—'}</td>
-                        <td style={tdStyle}>{m.productCode ?? '—'}</td>
-                        <td style={tdStyle}>{m.partnerCode ?? '—'}</td>
-                        <td style={{ ...tdStyle, textAlign: 'right' }}>
-                          {m.expectedQty.toLocaleString()}
-                        </td>
-                        <td style={{ ...tdStyle, textAlign: 'right' }}>
-                          {m.actualQty.toLocaleString()}
-                        </td>
-                        <td style={{ ...tdStyle, color: colors.text }}>
-                          {m.reason}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              {isMobile ? (
+                <div className="mobile-line-card-list">
+                  {result.mismatches.map((m, idx) => (
+                    <DpsMismatchCard
+                      key={`${m.rowType}-${m.slipNo ?? ''}-${m.productCode ?? ''}-${idx}`}
+                      mismatch={m}
+                      testId={`dps-compare-row-${m.slipNo ?? `idx-${idx}`}`}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>카테고리</th>
+                      <th style={thStyle}>전표번호</th>
+                      <th style={thStyle}>품번</th>
+                      <th style={thStyle}>거래처코드</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>출고수량</th>
+                      <th style={{ ...thStyle, textAlign: 'right' }}>DPS수량</th>
+                      <th style={thStyle}>사유</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.mismatches.map((m, idx) => {
+                      const colors = DPS_MISMATCH_COLOR[m.rowType]
+                      const testId = `dps-compare-row-${m.slipNo ?? `idx-${idx}`}`
+                      return (
+                        <tr
+                          key={`${m.rowType}-${m.slipNo ?? ''}-${m.productCode ?? ''}-${idx}`}
+                          data-testid={testId}
+                          style={{ background: colors.background }}
+                        >
+                          <td style={tdStyle}>
+                            <DpsMismatchBadge mismatch={m} />
+                          </td>
+                          <td style={tdStyle}>{m.slipNo ?? '—'}</td>
+                          <td style={tdStyle}>{m.productCode ?? '—'}</td>
+                          <td style={tdStyle}>{m.partnerCode ?? '—'}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {m.expectedQty.toLocaleString()}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {m.actualQty.toLocaleString()}
+                          </td>
+                          <td style={{ ...tdStyle, color: colors.text }}>
+                            {m.reason}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </section>
@@ -578,6 +579,79 @@ function StatCard({ label, value, tone = 'neutral' }: StatCardProps) {
         {label}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700, color: valueColor }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function DpsMismatchBadge({ mismatch }: { mismatch: DpsRowMismatch }) {
+  const colors = DPS_MISMATCH_COLOR[mismatch.rowType]
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 4,
+        border: `1px solid ${colors.border}`,
+        color: colors.text,
+        fontSize: 12,
+        fontWeight: 600,
+        background: '#fff',
+      }}
+    >
+      {DPS_MISMATCH_LABEL[mismatch.rowType]}
+    </span>
+  )
+}
+
+function DpsMismatchCard({
+  mismatch,
+  testId,
+}: {
+  mismatch: DpsRowMismatch
+  testId: string
+}) {
+  const colors = DPS_MISMATCH_COLOR[mismatch.rowType]
+  return (
+    <article
+      className="mobile-line-card"
+      data-testid={testId}
+      style={{ background: colors.background }}
+    >
+      <div className="mobile-line-card-header">
+        <DpsMismatchBadge mismatch={mismatch} />
+        <span className="mobile-line-card-meta">{mismatch.reason}</span>
+      </div>
+      <MobileField label="전표번호" value={mismatch.slipNo ?? '—'} />
+      <MobileField label="품번" value={mismatch.productCode ?? '—'} />
+      <MobileField label="거래처코드" value={mismatch.partnerCode ?? '—'} />
+      <MobileField label="출고수량" value={mismatch.expectedQty.toLocaleString()} numeric />
+      <MobileField label="DPS수량" value={mismatch.actualQty.toLocaleString()} numeric />
+      <MobileField label="사유" value={mismatch.reason} />
+    </article>
+  )
+}
+
+function MobileField({
+  label,
+  value,
+  numeric = false,
+}: {
+  label: string
+  value: React.ReactNode
+  numeric?: boolean
+}) {
+  return (
+    <div className="mobile-line-field">
+      <span className="mobile-line-field-label">{label}</span>
+      <div
+        className={
+          numeric
+            ? 'mobile-line-field-value mobile-line-field-value--numeric'
+            : 'mobile-line-field-value'
+        }
+      >
         {value}
       </div>
     </div>

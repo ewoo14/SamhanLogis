@@ -61,6 +61,7 @@ import {
   type MismatchedRow,
   type ReconcileStatus,
 } from '../api/dispatchReconcileApi'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 // ---------------------------------------------------------------------------
 // 도메인 표시 매핑 (Designer mock 보존)
@@ -130,6 +131,7 @@ function todayIso(): string {
 
 export function ArologisDispatchReconcilePage() {
   usePageTitle('운송사 실배차 비교')
+  const isMobile = useIsMobile()
 
   const today = todayIso()
   const [from, setFrom] = useState<string>(today)
@@ -608,85 +610,110 @@ export function ArologisDispatchReconcilePage() {
             overflow: 'auto',
           }}
         >
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 13,
-            }}
-          >
-            <thead>
-              <tr
+          {isMobile ? (
+            filteredRows.length === 0 ? (
+              <div
                 style={{
-                  background: 'var(--color-neutral-50, #F9FAFB)',
-                  color: 'var(--color-neutral-700, #374151)',
+                  padding: 24,
+                  textAlign: 'center',
+                  color: 'var(--color-neutral-500, #6B7280)',
                 }}
               >
-                <th style={{ ...thStyle, width: 120 }}>상태</th>
-                <th style={thStyle}>slipNo</th>
-                <th style={{ ...thStyle, width: 110 }}>일자</th>
-                <th style={thStyle}>vendor</th>
-                <th style={{ ...thStyle, width: 90 }}>우리 시간</th>
-                <th style={{ ...thStyle, width: 90 }}>운송사 시간</th>
-                <th style={thStyle}>비고</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    style={{
-                      padding: 24,
-                      textAlign: 'center',
-                      color: 'var(--color-neutral-500, #6B7280)',
-                    }}
-                  >
-                    {statusFilter
-                      ? '해당 상태에 결과가 없습니다.'
-                      : mismatchedRows.length === 0
-                        ? '모든 라인이 일치합니다 — mismatch 없음.'
-                        : '비교 결과가 없습니다.'}
-                  </td>
+                {statusFilter
+                  ? '해당 상태에 결과가 없습니다.'
+                  : mismatchedRows.length === 0
+                    ? '모든 라인이 일치합니다 — mismatch 없음.'
+                    : '비교 결과가 없습니다.'}
+              </div>
+            ) : (
+              <div className="mobile-line-card-list">
+                {filteredRows.map((row) => (
+                  <ReconcileMismatchCard
+                    key={`${row.slipNo}-${row.dispatchDate}-${row.status}`}
+                    row={row}
+                  />
+                ))}
+              </div>
+            )
+          ) : (
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: 13,
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    background: 'var(--color-neutral-50, #F9FAFB)',
+                    color: 'var(--color-neutral-700, #374151)',
+                  }}
+                >
+                  <th style={{ ...thStyle, width: 120 }}>상태</th>
+                  <th style={thStyle}>slipNo</th>
+                  <th style={{ ...thStyle, width: 110 }}>일자</th>
+                  <th style={thStyle}>vendor</th>
+                  <th style={{ ...thStyle, width: 90 }}>우리 시간</th>
+                  <th style={{ ...thStyle, width: 90 }}>운송사 시간</th>
+                  <th style={thStyle}>비고</th>
                 </tr>
-              ) : (
-                filteredRows.map((r) => (
-                  <tr
-                    key={`${r.slipNo}-${r.dispatchDate}-${r.status}`}
-                    data-testid={`reconcile-row-${r.slipNo}`}
-                    style={{
-                      borderTop: '1px solid var(--color-neutral-100, #F3F4F6)',
-                    }}
-                  >
+              </thead>
+              <tbody>
+                {filteredRows.length === 0 ? (
+                  <tr>
                     <td
+                      colSpan={7}
                       style={{
-                        ...tdStyle,
-                        background: STATUS_CELL_BG[r.status],
-                        fontWeight: 600,
+                        padding: 24,
+                        textAlign: 'center',
+                        color: 'var(--color-neutral-500, #6B7280)',
                       }}
                     >
-                      <Badge variant={STATUS_VARIANT[r.status]}>
-                        {RECONCILE_STATUS_LABEL[r.status]}
-                      </Badge>
-                    </td>
-                    <td style={tdStyle}>{r.slipNo}</td>
-                    <td style={tdStyle}>{r.dispatchDate}</td>
-                    <td style={tdStyle}>{r.vendorName ?? '—'}</td>
-                    <td style={tdStyle}>{r.actualTime ?? '—'}</td>
-                    <td style={tdStyle}>{r.expectedTime ?? '—'}</td>
-                    <td
-                      style={{
-                        ...tdStyle,
-                        color: 'var(--color-neutral-600, #4B5563)',
-                      }}
-                    >
-                      {r.reason}
+                      {statusFilter
+                        ? '해당 상태에 결과가 없습니다.'
+                        : mismatchedRows.length === 0
+                          ? '모든 라인이 일치합니다 — mismatch 없음.'
+                          : '비교 결과가 없습니다.'}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredRows.map((r) => (
+                    <tr
+                      key={`${r.slipNo}-${r.dispatchDate}-${r.status}`}
+                      data-testid={`reconcile-row-${r.slipNo}`}
+                      style={{
+                        borderTop: '1px solid var(--color-neutral-100, #F3F4F6)',
+                      }}
+                    >
+                      <td
+                        style={{
+                          ...tdStyle,
+                          background: STATUS_CELL_BG[r.status],
+                          fontWeight: 600,
+                        }}
+                      >
+                        <ReconcileStatusBadge status={r.status} />
+                      </td>
+                      <td style={tdStyle}>{r.slipNo}</td>
+                      <td style={tdStyle}>{r.dispatchDate}</td>
+                      <td style={tdStyle}>{r.vendorName ?? '—'}</td>
+                      <td style={tdStyle}>{r.actualTime ?? '—'}</td>
+                      <td style={tdStyle}>{r.expectedTime ?? '—'}</td>
+                      <td
+                        style={{
+                          ...tdStyle,
+                          color: 'var(--color-neutral-600, #4B5563)',
+                        }}
+                      >
+                        {r.reason}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       ) : null}
     </div>
@@ -728,6 +755,43 @@ function SummaryChip({ label, value, tone }: SummaryChipProps) {
       }}
     >
       {label} {value}
+    </div>
+  )
+}
+
+function ReconcileStatusBadge({ status }: { status: ReconcileStatus }) {
+  return (
+    <Badge variant={STATUS_VARIANT[status]}>
+      {RECONCILE_STATUS_LABEL[status]}
+    </Badge>
+  )
+}
+
+function ReconcileMismatchCard({ row }: { row: MismatchedRow }) {
+  return (
+    <article
+      className="mobile-line-card"
+      data-testid={`reconcile-row-${row.slipNo}`}
+      style={{ background: STATUS_CELL_BG[row.status] }}
+    >
+      <div className="mobile-line-card-header">
+        <ReconcileStatusBadge status={row.status} />
+        <span className="mobile-line-card-meta">{row.dispatchDate}</span>
+      </div>
+      <MobileField label="slipNo" value={row.slipNo} />
+      <MobileField label="vendor" value={row.vendorName ?? '—'} />
+      <MobileField label="우리 시간" value={row.actualTime ?? '—'} />
+      <MobileField label="운송사 시간" value={row.expectedTime ?? '—'} />
+      <MobileField label="비고" value={row.reason} />
+    </article>
+  )
+}
+
+function MobileField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="mobile-line-field">
+      <span className="mobile-line-field-label">{label}</span>
+      <div className="mobile-line-field-value">{value}</div>
     </div>
   )
 }

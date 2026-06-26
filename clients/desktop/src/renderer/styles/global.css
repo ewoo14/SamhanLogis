@@ -5159,6 +5159,27 @@ button {
     line-height: 1.2;
   }
 
+  .mobile-line-field-value {
+    min-width: 0;
+    color: var(--color-neutral-900);
+    font-size: 13px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-line-field-value--numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-line-card-meta {
+    min-width: 0;
+    color: var(--color-neutral-600);
+    font-size: 12px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
   .mobile-line-field input,
   .mobile-line-field select {
     width: 100%;

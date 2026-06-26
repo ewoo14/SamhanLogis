@@ -40,7 +40,7 @@
  */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card } from '@samhan/design-system'
+import { Badge, Button, Card, DataTable, type DataTableColumn } from '@samhan/design-system'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   listDispatches,
@@ -139,6 +139,71 @@ export function KakaoAutoDispatchPage() {
   }
 
   const unassignedCount = unassignedQuery.data?.unassignedCount ?? 0
+
+  const columns: DataTableColumn<DispatchSummary>[] = [
+    {
+      key: 'dispatchDate',
+      header: '배차 일자',
+      mobilePriority: 'primary',
+      render: (dispatch) => dispatch.dispatchDate,
+    },
+    {
+      key: 'dispatchType',
+      header: '유형',
+      mobilePriority: 'secondary',
+      render: (dispatch) => (
+        <Badge variant={dispatch.dispatchType === 'NIGHT' ? 'warning' : 'neutral'}>
+          {DISPATCH_TYPE_LABEL[dispatch.dispatchType]}
+        </Badge>
+      ),
+    },
+    {
+      key: 'dispatchStatus',
+      header: '배차 상태',
+      mobilePriority: 'secondary',
+      render: (dispatch) => <DispatchStatusBadge status={dispatch.dispatchStatus} />,
+    },
+    {
+      key: 'vehicleCount',
+      header: '차량 수',
+      width: '90px',
+      align: 'center',
+      mobilePriority: 'secondary',
+    },
+    {
+      key: 'createdAt',
+      header: '등록 일시',
+      mobilePriority: 'hidden',
+      render: (dispatch) => (
+        <span style={{ color: 'var(--color-neutral-500, #6B7280)' }}>
+          {dispatch.createdAt?.replace('T', ' ').slice(0, 16) ?? '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '액션',
+      width: '200px',
+      align: 'right',
+      mobilePriority: 'secondary',
+      render: (dispatch) => {
+        const running =
+          matchMutation.isPending && matchMutation.variables === dispatch.dispatchId
+        return (
+          <Button
+            variant="primary"
+            size="sm"
+            data-testid="arologis-auto-run-btn"
+            onClick={() => handleRun(dispatch.dispatchId)}
+            loading={running}
+            disabled={running}
+          >
+            자동 매칭 실행
+          </Button>
+        )
+      },
+    },
+  ]
 
   return (
     <>
@@ -242,79 +307,17 @@ export function KakaoAutoDispatchPage() {
       <div
         data-testid="arologis-auto-result-table"
         style={{
-          border: '1px solid var(--color-neutral-200, #E5E7EB)',
-          borderRadius: 6,
-          background: 'var(--surface-card)',
-          overflow: 'auto',
+          fontSize: 13,
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: 'var(--color-neutral-50, #F9FAFB)' }}>
-              <th style={thStyle}>배차 일자</th>
-              <th style={thStyle}>유형</th>
-              <th style={thStyle}>배차 상태</th>
-              <th style={{ ...thStyle, width: 90, textAlign: 'center' }}>차량 수</th>
-              <th style={thStyle}>등록 일시</th>
-              <th style={{ ...thStyle, width: 200, textAlign: 'right' }}>액션</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dispatchListQuery.isLoading ? (
-              <tr>
-                <td colSpan={6} style={emptyCellStyle}>
-                  배차 목록을 불러오는 중…
-                </td>
-              </tr>
-            ) : dispatches.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={emptyCellStyle}>
-                  해당 일자의 배차가 없습니다.
-                </td>
-              </tr>
-            ) : (
-              dispatches.map((dispatch) => {
-                const running =
-                  matchMutation.isPending && matchMutation.variables === dispatch.dispatchId
-                return (
-                  <tr
-                    key={dispatch.dispatchId}
-                    data-testid={`arologis-auto-row-${dispatch.dispatchId}`}
-                    style={{ borderTop: '1px solid var(--color-neutral-100, #F3F4F6)' }}
-                  >
-                    <td style={tdStyle}>{dispatch.dispatchDate}</td>
-                    <td style={tdStyle}>
-                      <Badge variant={dispatch.dispatchType === 'NIGHT' ? 'warning' : 'neutral'}>
-                        {DISPATCH_TYPE_LABEL[dispatch.dispatchType]}
-                      </Badge>
-                    </td>
-                    <td style={tdStyle}>
-                      <DispatchStatusBadge status={dispatch.dispatchStatus} />
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'center' }}>
-                      {dispatch.vehicleCount}
-                    </td>
-                    <td style={{ ...tdStyle, color: 'var(--color-neutral-500, #6B7280)' }}>
-                      {dispatch.createdAt?.replace('T', ' ').slice(0, 16) ?? '—'}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        data-testid={`arologis-auto-run-btn`}
-                        onClick={() => handleRun(dispatch.dispatchId)}
-                        loading={running}
-                        disabled={running}
-                      >
-                        자동 매칭 실행
-                      </Button>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+        <DataTable
+          columns={columns}
+          rows={dispatches}
+          loading={dispatchListQuery.isLoading}
+          rowKey={(dispatch) => dispatch.dispatchId}
+          rowTestId={(dispatch) => `arologis-auto-row-${dispatch.dispatchId}`}
+          emptyMessage="해당 일자의 배차가 없습니다."
+        />
       </div>
     </>
   )
@@ -330,24 +333,4 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid var(--color-neutral-300, #D1D5DB)',
   borderRadius: 6,
   fontSize: 13,
-}
-
-const thStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  textAlign: 'left',
-  fontWeight: 600,
-  fontSize: 12,
-  color: 'var(--color-neutral-700, #374151)',
-  borderBottom: '1px solid var(--color-neutral-200, #E5E7EB)',
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  verticalAlign: 'top',
-}
-
-const emptyCellStyle: React.CSSProperties = {
-  padding: '24px 12px',
-  textAlign: 'center',
-  color: 'var(--color-neutral-500, #6B7280)',
 }
