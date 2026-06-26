@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Input, Select } from '@samhan/design-system'
+import { Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   listPartnerOrders,
@@ -165,6 +165,97 @@ export function SalesPartnerOrderListPage() {
         queryClient.invalidateQueries({ queryKey: ['partner-order', orderNo] }),
       ),
     )
+  }
+
+  const columns: DataTableColumn<PartnerOrderSummary>[] = [
+    ...(canMergeConvert
+      ? ([
+          {
+            key: 'mergeSelect',
+            header: '',
+            width: '32px',
+            align: 'center',
+            mobilePriority: 'secondary',
+            render: (o) => {
+              const isSelectable =
+                !!o.orderNumber &&
+                MERGE_SELECTABLE_STATUS.has(o.status as PartnerOrderStatus)
+              const isSelected = !!o.orderNumber && selectedOrderNumbers.has(o.orderNumber)
+              return (
+                <span data-merge-checkbox="1" onClick={(e) => e.stopPropagation()}>
+                  {isSelectable ? (
+                    <input
+                      type="checkbox"
+                      aria-label={`${o.orderNumber} 선택`}
+                      data-testid={`merge-checkbox-${o.orderNumber}`}
+                      checked={isSelected}
+                      onChange={(e) => {
+                        if (o.orderNumber) {
+                          handleRowCheckboxChange(o.orderNumber, e.target.checked)
+                        }
+                      }}
+                    />
+                  ) : null}
+                </span>
+              )
+            },
+          },
+        ] as DataTableColumn<PartnerOrderSummary>[])
+      : []),
+    {
+      key: 'orderNumber',
+      header: '주문 번호',
+      mobilePriority: 'primary',
+      render: (o) => (
+        <span data-testid={o.orderNumber ? `partner-order-row-${o.orderNumber}` : undefined}>
+          {o.orderNumber}
+        </span>
+      ),
+    },
+    { key: 'partnerCode', header: '거래처 코드', mobilePriority: 'secondary' },
+    {
+      key: 'partnerName',
+      header: '거래처명',
+      mobilePriority: 'secondary',
+      render: (o) => o.partnerName ?? o.partnerCode,
+    },
+    {
+      key: 'submittedAt',
+      header: '발송일',
+      mobilePriority: 'secondary',
+      render: (o) => ymd(o.submittedAt),
+    },
+    {
+      key: 'totalAmount',
+      header: '합계',
+      align: 'right',
+      mobilePriority: 'secondary',
+      render: (o) => `${krw(o.totalAmount)}원`,
+    },
+    {
+      key: 'status',
+      header: '상태',
+      mobilePriority: 'secondary',
+      render: (o) => (
+        <span className={`${styles['statusBadge']} ${STATUS_CLASS[o.status]}`}>
+          {PARTNER_ORDER_STATUS_LABEL[o.status]}
+        </span>
+      ),
+    },
+    {
+      key: 'linkedSlipNo',
+      header: '연결 전표',
+      mobilePriority: 'hidden',
+      render: (o) => o.linkedSlipNo ?? '-',
+    },
+  ]
+
+  const handleRowClick = (o: PartnerOrderSummary) => {
+    if (!o.orderNumber) {
+      console.warn('[SalesPartnerOrderListPage] orderNumber 누락 row 무시', o)
+      return
+    }
+    navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`)
   }
 
   return (
@@ -328,81 +419,13 @@ export function SalesPartnerOrderListPage() {
             <p>거래처가 주문서를 발송하면 본 목록에 표시됩니다.</p>
           </div>
         ) : (
-          <table className={styles['listTable']}>
-            <thead>
-              <tr>
-                {canMergeConvert ? (
-                  <th style={{ width: 32 }}>
-                    <span className="sr-only">선택</span>
-                  </th>
-                ) : null}
-                <th>주문 번호</th>
-                <th>거래처 코드</th>
-                <th>거래처명</th>
-                <th>발송일</th>
-                <th style={{ textAlign: 'right' }}>합계</th>
-                <th>상태</th>
-                <th>연결 전표</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(query.data?.content ?? []).map((o) => {
-                const isSelectable =
-                  canMergeConvert &&
-                  !!o.orderNumber &&
-                  MERGE_SELECTABLE_STATUS.has(o.status as PartnerOrderStatus)
-                const isSelected = !!o.orderNumber && selectedOrderNumbers.has(o.orderNumber)
-                return (
-                <tr
-                  key={o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt}`}
-                  style={!o.orderNumber ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-                  data-testid={o.orderNumber ? `partner-order-row-${o.orderNumber}` : undefined}
-                  onClick={(e) => {
-                    // 체크박스 클릭 시 row navigate 방지
-                    if ((e.target as HTMLElement).closest('[data-merge-checkbox]')) return
-                    if (!o.orderNumber) {
-                      console.warn('[SalesPartnerOrderListPage] orderNumber 누락 row 무시', o)
-                      return
-                    }
-                    navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`)
-                  }}
-                >
-                  {canMergeConvert ? (
-                    <td
-                      data-merge-checkbox="1"
-                      style={{ textAlign: 'center', verticalAlign: 'middle' }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {isSelectable ? (
-                        <input
-                          type="checkbox"
-                          aria-label={`${o.orderNumber} 선택`}
-                          data-testid={`merge-checkbox-${o.orderNumber}`}
-                          checked={isSelected}
-                          onChange={(e) => {
-                            if (o.orderNumber) {
-                              handleRowCheckboxChange(o.orderNumber, e.target.checked)
-                            }
-                          }}
-                        />
-                      ) : null}
-                    </td>
-                  ) : null}
-                  <td>{o.orderNumber}</td>
-                  <td>{o.partnerCode}</td>
-                  <td>{o.partnerName ?? o.partnerCode}</td>
-                  <td>{ymd(o.submittedAt)}</td>
-                  <td className="numeric">{krw(o.totalAmount)}원</td>
-                  <td>
-                    <span className={`${styles['statusBadge']} ${STATUS_CLASS[o.status]}`}>
-                      {PARTNER_ORDER_STATUS_LABEL[o.status]}
-                    </span>
-                  </td>
-                  <td>{o.linkedSlipNo ?? '-'}</td>
-                </tr>
-              )})}
-            </tbody>
-          </table>
+          <DataTable
+            columns={columns}
+            rows={query.data?.content ?? []}
+            rowKey={(o) => o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt}`}
+            onRowClick={handleRowClick}
+            emptyMessage="등록된 주문이 없습니다"
+          />
         )}
       </div>
 

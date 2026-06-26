@@ -18,6 +18,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DataTable, type DataTableColumn } from '@samhan/design-system'
 import {
   PARTNER_APPROVAL_STATUS_LABEL,
   type PartnerApproval,
@@ -117,6 +118,93 @@ export function SalesOrderApprovalsPage() {
     resetPw.mutate(approval.partnerCode)
   }
 
+  const columns: DataTableColumn<PartnerApproval>[] = [
+    { key: 'partnerCode', header: '거래처 코드', mobilePriority: 'primary' },
+    { key: 'partnerName', header: '거래처명', mobilePriority: 'secondary' },
+    {
+      key: 'status',
+      header: '승인 상태',
+      mobilePriority: 'secondary',
+      render: (a) => (
+        <>
+          <span
+            className={`${styles['statusBadge']} ${STATUS_CLASS[a.status] ?? ''}`}
+            style={{ marginRight: 6 }}
+          >
+            {PARTNER_APPROVAL_STATUS_LABEL[a.status]}
+          </span>
+          {/* v2 §정정 11 — 영업자 status 변경 (DropdownSelect on row). */}
+          <select
+            className={styles['statusSelect']}
+            value={a.status}
+            onChange={(e) =>
+              handleStatusChange(
+                a,
+                e.target.value as PartnerApprovalStatus,
+              )
+            }
+            aria-label={`${a.partnerName} 상태 변경`}
+            disabled={updateStatus.isPending || !canUpdateApproval}
+          >
+            {(
+              Object.keys(
+                PARTNER_APPROVAL_STATUS_LABEL,
+              ) as PartnerApprovalStatus[]
+            ).map((s) => (
+              <option key={s} value={s}>
+                {PARTNER_APPROVAL_STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </>
+      ),
+    },
+    {
+      key: 'approvalRequestedAt',
+      header: '승인 요청 일시',
+      mobilePriority: 'secondary',
+      render: (a) => fmtDateTime(a.approvalRequestedAt),
+    },
+    {
+      key: 'pcTutorialDone',
+      header: 'PC 튜토리얼',
+      mobilePriority: 'hidden',
+      render: (a) => (a.pcTutorialDone ? '완료' : '미완'),
+    },
+    {
+      key: 'mobileTutorialDone',
+      header: '모바일 튜토리얼',
+      mobilePriority: 'hidden',
+      render: (a) => (a.mobileTutorialDone ? '완료' : '미완'),
+    },
+    {
+      key: 'assignedManagerName',
+      header: '담당자',
+      mobilePriority: 'hidden',
+      render: (a) => a.assignedManagerName ?? '-',
+    },
+    {
+      key: 'actions',
+      header: '액션',
+      mobilePriority: 'secondary',
+      render: (a) => (
+        <button
+          type="button"
+          className={styles['btnGhost']}
+          onClick={() => handleResetPassword(a)}
+          disabled={
+            resetPw.isPending
+            || a.status === 'PASSWORD_RESET_PENDING'
+            || !canUpdateApproval
+          }
+          aria-label={`${a.partnerName} 비밀번호 초기화`}
+        >
+          비밀번호 초기화
+        </button>
+      ),
+    },
+  ]
+
   return (
     <div className={styles['salesScope']}>
       <SalesSubNav />
@@ -166,79 +254,12 @@ export function SalesOrderApprovalsPage() {
             <h3>해당 조건의 거래처가 없습니다</h3>
           </div>
         ) : (
-          <table className={styles['listTable']}>
-            <thead>
-              {/* v2 §정정 10 — '마지막 견적일' 컬럼 삭제. */}
-              <tr>
-                <th>거래처 코드</th>
-                <th>거래처명</th>
-                <th>승인 상태</th>
-                <th>승인 요청 일시</th>
-                <th>PC 튜토리얼</th>
-                <th>모바일 튜토리얼</th>
-                <th>담당자</th>
-                <th>액션</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(query.data?.content ?? []).map((a) => (
-                <tr key={a.partnerCode}>
-                  <td>{a.partnerCode}</td>
-                  <td>{a.partnerName}</td>
-                  <td>
-                    <span
-                      className={`${styles['statusBadge']} ${STATUS_CLASS[a.status] ?? ''}`}
-                      style={{ marginRight: 6 }}
-                    >
-                      {PARTNER_APPROVAL_STATUS_LABEL[a.status]}
-                    </span>
-                    {/* v2 §정정 11 — 영업자 status 변경 (DropdownSelect on row). */}
-                    <select
-                      className={styles['statusSelect']}
-                      value={a.status}
-                      onChange={(e) =>
-                        handleStatusChange(
-                          a,
-                          e.target.value as PartnerApprovalStatus,
-                        )
-                      }
-                      aria-label={`${a.partnerName} 상태 변경`}
-                      disabled={updateStatus.isPending || !canUpdateApproval}
-                    >
-                      {(
-                        Object.keys(
-                          PARTNER_APPROVAL_STATUS_LABEL,
-                        ) as PartnerApprovalStatus[]
-                      ).map((s) => (
-                        <option key={s} value={s}>
-                          {PARTNER_APPROVAL_STATUS_LABEL[s]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>{fmtDateTime(a.approvalRequestedAt)}</td>
-                  <td>{a.pcTutorialDone ? '완료' : '미완'}</td>
-                  <td>{a.mobileTutorialDone ? '완료' : '미완'}</td>
-                  <td>{a.assignedManagerName ?? '-'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className={styles['btnGhost']}
-                      onClick={() => handleResetPassword(a)}
-                      disabled={
-                        resetPw.isPending
-                        || a.status === 'PASSWORD_RESET_PENDING'
-                        || !canUpdateApproval
-                      }
-                      aria-label={`${a.partnerName} 비밀번호 초기화`}
-                    >
-                      비밀번호 초기화
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            columns={columns}
+            rows={query.data?.content ?? []}
+            rowKey={(a) => a.partnerCode}
+            emptyMessage="해당 조건의 거래처가 없습니다"
+          />
         )}
       </div>
     </div>

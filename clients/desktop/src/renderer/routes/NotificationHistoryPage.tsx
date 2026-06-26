@@ -7,9 +7,11 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { DataTable, type DataTableColumn } from '@samhan/design-system'
 import {
   CHANNEL_LABEL,
   fetchHistory,
+  type NotificationCenter,
   type NotificationSeverity,
 } from '../api/notificationApi'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -37,6 +39,51 @@ export function NotificationHistoryPage() {
   })
 
   const channels = Array.from(new Set((data?.content ?? []).map((n) => n.channel)))
+
+  const columns: DataTableColumn<NotificationCenter>[] = [
+    {
+      key: 'createdAt',
+      header: '발생 시각',
+      mobilePriority: 'secondary',
+      render: (n) => <span style={{ fontSize: 12 }}>{n.createdAt}</span>,
+    },
+    {
+      key: 'channel',
+      header: '채널',
+      mobilePriority: 'secondary',
+      render: (n) => CHANNEL_LABEL[n.channel] ?? n.channel,
+    },
+    {
+      key: 'severity',
+      header: '심각도',
+      mobilePriority: 'secondary',
+      render: (n) => <SeverityBadge severity={n.severity} />,
+    },
+    { key: 'title', header: '제목', mobilePriority: 'primary' },
+    {
+      key: 'body',
+      header: '본문',
+      mobilePriority: 'hidden',
+      render: (n) => (
+        <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+          {n.body ?? ''}
+        </span>
+      ),
+    },
+    {
+      key: 'readAt',
+      header: '확인',
+      mobilePriority: 'secondary',
+      render: (n) =>
+        n.readAt ? (
+          <span style={{ color: 'var(--color-neutral-500)', fontSize: 12 }}>확인됨</span>
+        ) : (
+          <span style={{ color: 'var(--color-danger-500)', fontSize: 12, fontWeight: 600 }}>
+            미확인
+          </span>
+        ),
+    },
+  ]
 
   return (
     <div data-testid="notification-history-page" style={{ padding: 16 }}>
@@ -92,41 +139,14 @@ export function NotificationHistoryPage() {
         <div style={{ color: 'var(--color-danger-500)' }}>알림 내역을 불러오지 못했습니다</div>
       ) : (
         <>
-          <table data-testid="notification-history-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid var(--color-neutral-300)' }}>
-                <th style={{ textAlign: 'left', padding: 8 }}>발생 시각</th>
-                <th style={{ textAlign: 'left', padding: 8 }}>채널</th>
-                <th style={{ textAlign: 'left', padding: 8 }}>심각도</th>
-                <th style={{ textAlign: 'left', padding: 8 }}>제목</th>
-                <th style={{ textAlign: 'left', padding: 8 }}>본문</th>
-                <th style={{ textAlign: 'left', padding: 8 }}>확인</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((n) => (
-                <tr key={n.id} style={{ borderBottom: '1px solid var(--color-neutral-100)' }}>
-                  <td style={{ padding: 8, fontSize: 12 }}>{n.createdAt}</td>
-                  <td style={{ padding: 8 }}>{CHANNEL_LABEL[n.channel] ?? n.channel}</td>
-                  <td style={{ padding: 8 }}>
-                    <SeverityBadge severity={n.severity} />
-                  </td>
-                  <td style={{ padding: 8 }}>{n.title}</td>
-                  <td style={{ padding: 8, fontSize: 12, color: 'var(--color-neutral-500)' }}>{n.body ?? ''}</td>
-                  <td style={{ padding: 8, fontSize: 12 }}>
-                    {n.readAt ? <span style={{ color: 'var(--color-neutral-500)' }}>확인됨</span> : <span style={{ color: 'var(--color-danger-500)', fontWeight: 600 }}>미확인</span>}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--color-neutral-500)' }}>
-                    조건에 맞는 알림이 없습니다
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+          <div data-testid="notification-history-table">
+            <DataTable
+              columns={columns}
+              rows={rows}
+              rowKey={(n) => n.id}
+              emptyMessage="조건에 맞는 알림이 없습니다"
+            />
+          </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'center', alignItems: 'center' }}>
             <button type="button" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
