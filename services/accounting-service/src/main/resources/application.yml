@@ -75,6 +75,17 @@ kftc:
   client-secret: ${KFTC_CLIENT_SECRET:}
   base-url: ${KFTC_BASE_URL:https://testapi.openbanking.or.kr}
 
+# CODEF 은행·카드 거래내역 연동 설정 (BC1)
+# submit-method: DRY_RUN (기본, Phase 11 이전) | CODEF (실 API, 회사 명의 계약·키 발급 후 변경)
+# api-key / client-id / client-secret: 운영 PC .env 또는 AWS SSM 에서 주입 (코드 내 하드코딩 금지)
+# base-url: CODEF API endpoint
+codef:
+  submit-method: ${CODEF_SUBMIT_METHOD:DRY_RUN}
+  api-key: ${CODEF_API_KEY:}
+  client-id: ${CODEF_CLIENT_ID:}
+  client-secret: ${CODEF_CLIENT_SECRET:}
+  base-url: ${CODEF_BASE_URL:https://api.codef.io}
+
 management:
   endpoints:
     web:

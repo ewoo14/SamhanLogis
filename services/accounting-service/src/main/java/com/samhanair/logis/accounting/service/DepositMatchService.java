@@ -164,8 +164,7 @@ public class DepositMatchService {
      */
     private DepositMatchResult matchAndCreateJournal(KftcDepositRecord deposit, UUID actorId) {
         // 거래처 매칭 시도 (입금자명 → partnerCode)
-        Optional<PartnerSummary> partnerOpt =
-                partnerLookupClient.findByPartnerCode(deposit.depositorName());
+        Optional<PartnerSummary> partnerOpt = resolvePartnerForCounterparty(deposit.depositorName());
 
         if (partnerOpt.isEmpty()) {
             log.debug("[SP-09-4] 거래처 미매칭 — depositorName={}", deposit.depositorName());
@@ -229,6 +228,22 @@ public class DepositMatchService {
                     return totalAmount.compareTo(amount) == 0;
                 })
                 .findFirst();
+    }
+
+    /**
+     * 거래처 표시명/코드를 기준으로 PartnerSummary 를 해석한다.
+     *
+     * <p>KFTC 입금 매칭과 CODEF 은행·카드 import 가 같은 거래처 lookup 규칙을 사용하도록 공개한 재사용 지점이다.
+     * 현 BC1 에서는 기존 정책대로 counterparty 값을 partnerCode 로 간주한다.
+     *
+     * @param counterpartyName 입금자명 또는 카드 가맹점명
+     * @return 거래처 요약. 미매칭 또는 blank 입력이면 empty
+     */
+    public Optional<PartnerSummary> resolvePartnerForCounterparty(String counterpartyName) {
+        if (counterpartyName == null || counterpartyName.isBlank()) {
+            return Optional.empty();
+        }
+        return partnerLookupClient.findByPartnerCode(counterpartyName.trim());
     }
 
     /**
