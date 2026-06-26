@@ -4,6 +4,30 @@
 
 ---
 
+## ✅ 세션 재개 지점 (2026-06-27 — 🎉 **iOS+FCM 푸시 실연동 준비(N3) 완결 + 다음 = B 진행 중**)
+
+**개발책임자 지시**(2026-06-27): 야간 9슬라이스 완료 후 "허용 및 커밋"(dev_master 비번 복구·은행 research 커밋) + "네이티브 iOS fcm 실연동 준비". 이어 "A B 순차진행"(A=핸드오프 / B=다음 에픽).
+
+### ⚡ 즉시 재개 (다음 세션)
+- `git checkout main && git pull`(head=N3b 머지). **N3 에픽 완결**, 다음 = **B 진행**(아래 백로그).
+- **dev_master 비번 복구됨**(V49 해시 `dev_p05_pass!` 재적용, 로그인 200 — 라이브 QA 정상). 9 dev 계정 동일.
+
+### N3 — iOS + FCM 푸시 실연동 준비 (완결, infra-now)
+| 슬라이스 | PR | 내용 | QA |
+|---|---|---|---|
+| N3a 백엔드 | #637 | push_device_tokens + 토큰 등록/해제 API(self-scoped, fail-CLOSED) + FcmPushAdapter firebase-admin 실 SDK(credentials-gated) + PUSH→user 토큰 발송 배선 | ✅ 실서버 라이브(실 HTTP·DB·멱등·self-scope·401·enum 400) |
+| N3b FE | #638 | @capacitor/push-notifications + pushRegistration(권한→토큰→POST, deeplink) + 로그인/아웃 배선 + iOS 빌드 가이드 docs + .gitignore 자격 | vitest 342·build 3종. **듀얼리뷰 4라운드로 등록↔로그아웃 레이스 클래스 근본 종결** |
+| 은행 research | #636 | 4행 계좌·카드·대출 API 딥리서치(CODEF 레퍼런스) | — |
+
+### ⚠️ FCM 실 활성화 게이트 (코드/스키마/문서 완료, 외부 자원만)
+- **Firebase 프로젝트** + google-services.json(Android)/Admin credentials(`SAMHAN_FCM_CREDENTIALS_BASE64`, 현 stub) · **iOS** = Mac `cap add ios` + GoogleService-Info.plist + APNs 인증서(가이드 `docs/dev-reports/2026-06-27-native-ios-fcm-build-guide.md`) · 실 단말 = Phase11 prod HTTPS.
+
+### 🔜 B 백로그 (진행/대기)
+- **(진행 중) HttpMessageNotReadableException 핸들러 전수 sweep** — N3a 라이브QA D-N3A-01 발견 tech-debt. ~10서비스(arologis/auth/dc-config/groupware/inventory/partner-auth/partner-order/partner/product/user)가 잘못된 enum/JSON body 시 500 반환 → 400 INVALID_INPUT 핸들러 추가 필요(accounting/dashboard/notification/slip는 이미 보유).
+- CODEF 실계약 연동(헥토데이터) · A2 결재 enforcement 잔여(회계/견적/배차/그룹웨어, 개발책임자 신규설계 지정 대기) · Phase11 AWS prod cutover.
+
+---
+
 ## ✅ 세션 재개 지점 (2026-06-27 야간 자율 — 🎉 **9슬라이스 일괄 완결·머지. 다음 = 개발책임자 지정 대기**)
 
 **개발책임자 야간 지시**(2026-06-26 밤): "네이티브 후속 전부 + CODEF(은행연동) + 버전관리·업데이트(데스크탑/웹/모바일) 새벽 동안 끊김없이 PM 자율, 워크플로우 단계별 자각·실서버 라이브 QA 준수, 백로그 0." → ScheduleWakeup 루프로 canonical(Codex danger-full-access 구현→Opus/Codex 듀얼리뷰 0수렴→실서버 라이브 QA→PM 머지) 9슬라이스 완주.
