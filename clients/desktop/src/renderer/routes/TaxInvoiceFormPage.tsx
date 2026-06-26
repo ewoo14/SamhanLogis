@@ -104,6 +104,7 @@ function TaxInvoiceMobileLineCard(props: {
           className="mobile-line-text-input"
           value={props.line.itemName}
           onChange={(e) => props.onUpdate({ itemName: e.target.value })}
+          aria-label={`라인 ${lineNumber} 품명`}
           placeholder="품명"
           disabled={props.isReadOnly}
           data-testid={`tax-invoice-form-line-${props.index}-item-name`}
@@ -117,6 +118,7 @@ function TaxInvoiceMobileLineCard(props: {
           className="mobile-line-text-input"
           value={props.line.spec}
           onChange={(e) => props.onUpdate({ spec: e.target.value })}
+          aria-label={`라인 ${lineNumber} 규격`}
           placeholder="규격"
           disabled={props.isReadOnly}
         />
@@ -130,6 +132,7 @@ function TaxInvoiceMobileLineCard(props: {
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.quantity}
           onChange={(e) => props.onUpdate({ quantity: e.target.value })}
+          aria-label={`라인 ${lineNumber} 수량`}
           disabled={props.isReadOnly}
           data-testid={`tax-invoice-form-line-${props.index}-qty`}
         />
@@ -143,6 +146,7 @@ function TaxInvoiceMobileLineCard(props: {
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.unitPrice}
           onChange={(e) => props.onUpdate({ unitPrice: e.target.value })}
+          aria-label={`라인 ${lineNumber} 단가`}
           disabled={props.isReadOnly}
           data-testid={`tax-invoice-form-line-${props.index}-unit-price`}
         />

@@ -136,6 +136,7 @@ function EstimateMobileLineCard(props: {
           value={props.line.modelName}
           onChange={(e) => props.onUpdate({ modelName: e.target.value })}
           onBlur={props.onLookup}
+          aria-label={`라인 ${lineNumber} 모델명`}
           placeholder="예: AJ040RXH4BC1"
           disabled={props.isReadOnly}
           data-testid={`estimate-form-line-${props.index}-model`}
@@ -152,6 +153,7 @@ function EstimateMobileLineCard(props: {
           className="mobile-line-text-input"
           value={props.line.productName}
           onChange={(e) => props.onUpdate({ productName: e.target.value })}
+          aria-label={`라인 ${lineNumber} 품목명`}
           placeholder={props.line.lookupLoading ? '조회 중...' : '품목명'}
           disabled={props.isReadOnly}
         />
@@ -164,6 +166,7 @@ function EstimateMobileLineCard(props: {
           className="mobile-line-text-input"
           value={props.line.specification}
           onChange={(e) => props.onUpdate({ specification: e.target.value })}
+          aria-label={`라인 ${lineNumber} 규격`}
           placeholder="규격"
           disabled={props.isReadOnly}
         />
@@ -177,6 +180,7 @@ function EstimateMobileLineCard(props: {
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.quantity}
           onChange={(e) => props.onUpdate({ quantity: e.target.value })}
+          aria-label={`라인 ${lineNumber} 수량`}
           disabled={props.isReadOnly}
           data-testid={`estimate-form-line-${props.index}-qty`}
         />
@@ -190,6 +194,7 @@ function EstimateMobileLineCard(props: {
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.unitPrice}
           onChange={(e) => props.onUpdate({ unitPrice: e.target.value })}
+          aria-label={`라인 ${lineNumber} 단가`}
           disabled={props.isReadOnly}
           data-testid={`estimate-form-line-${props.index}-unit-price`}
         />

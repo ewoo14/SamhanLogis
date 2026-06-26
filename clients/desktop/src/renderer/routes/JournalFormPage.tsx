@@ -143,14 +143,14 @@ function MobileJournalLineCard({
       </div>
 
       <div className="mobile-line-field">
-        <label className="mobile-line-field-label">적요</label>
+        <label className="mobile-line-field-label">메모</label>
         <input
           type="text"
           className="mobile-line-text-input"
           value={line.note}
           onChange={(e) => onChange({ note: e.target.value })}
-          placeholder="적요"
-          aria-label={`라인 ${index} 적요`}
+          placeholder="메모"
+          aria-label={`라인 ${index} 메모`}
         />
       </div>
     </div>
