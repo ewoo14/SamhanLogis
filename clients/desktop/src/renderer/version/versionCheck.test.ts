@@ -1,0 +1,70 @@
+import { describe, expect, it } from 'vitest'
+import {
+  appVersionDismissKey,
+  resolveAppClientType,
+  resolveVersionPromptState,
+} from './versionCheck'
+import type { AppVersionInfo } from '../api/appVersion'
+
+const baseVersionInfo: AppVersionInfo = {
+  latestVersion: '0.2.0',
+  minSupportedVersion: '0.1.0',
+  forceLevel: 'NONE',
+  releaseNotes: '안정화 릴리스',
+  releasedAt: '2026-06-27T09:00:00+09:00',
+}
+
+describe('version-check model', () => {
+  it('Electron은 DESKTOP, Capacitor는 MOBILE, 기본 브라우저는 WEB clientType으로 판정한다', () => {
+    expect(resolveAppClientType({ electron: true, capacitor: false })).toBe('DESKTOP')
+    expect(resolveAppClientType({ electron: false, capacitor: true })).toBe('MOBILE')
+    expect(resolveAppClientType({ electron: false, capacitor: false })).toBe('WEB')
+  })
+
+  it('CRITICAL/MAJOR 응답은 닫을 수 없는 차단 상태로 변환한다', () => {
+    const critical = resolveVersionPromptState({
+      versionInfo: { ...baseVersionInfo, forceLevel: 'CRITICAL' },
+      clientType: 'DESKTOP',
+      storage: new Map<string, string>(),
+    })
+    const major = resolveVersionPromptState({
+      versionInfo: { ...baseVersionInfo, forceLevel: 'MAJOR' },
+      clientType: 'WEB',
+      storage: new Map<string, string>(),
+    })
+
+    expect(critical.kind).toBe('blocking')
+    expect(major.kind).toBe('blocking')
+  })
+
+  it('MINOR 응답은 버전별 dismiss 기록이 없을 때만 권고 상태를 만든다', () => {
+    const storage = new Map<string, string>()
+    const visible = resolveVersionPromptState({
+      versionInfo: { ...baseVersionInfo, forceLevel: 'MINOR' },
+      clientType: 'WEB',
+      storage,
+    })
+
+    expect(visible.kind).toBe('minor')
+
+    storage.set(appVersionDismissKey('WEB', baseVersionInfo.latestVersion), 'true')
+
+    const dismissed = resolveVersionPromptState({
+      versionInfo: { ...baseVersionInfo, forceLevel: 'MINOR' },
+      clientType: 'WEB',
+      storage,
+    })
+
+    expect(dismissed.kind).toBe('none')
+  })
+
+  it('NONE 응답은 표시 상태를 만들지 않는다', () => {
+    const state = resolveVersionPromptState({
+      versionInfo: baseVersionInfo,
+      clientType: 'DESKTOP',
+      storage: new Map<string, string>(),
+    })
+
+    expect(state).toEqual({ kind: 'none' })
+  })
+})

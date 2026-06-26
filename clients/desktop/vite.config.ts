@@ -10,6 +10,10 @@
  * 나머지(JSX 변환·root·VITE_MOCK_MODE)는 vite 기본 동작 유지(최소 변경).
  */
 import { defineConfig, type Plugin } from 'vite'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const packageJson = require('./package.json') as { version: string }
 
 function pwaRegisterDevStub(): Plugin {
   const id = 'virtual:pwa-register'
@@ -30,4 +34,7 @@ function pwaRegisterDevStub(): Plugin {
 
 export default defineConfig({
   plugins: [pwaRegisterDevStub()],
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
+  },
 })

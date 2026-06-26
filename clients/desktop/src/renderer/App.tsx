@@ -10,6 +10,7 @@ import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppRouter } from './routes'
 import { useSessionStore } from './stores/session'
+import { AppVersionGate } from './components/common/AppVersionGate'
 
 /**
  * 단일 QueryClient — 5분 staleTime + 1회 retry.
@@ -27,6 +28,7 @@ const queryClient = new QueryClient({
 
 export function App() {
   const bootstrap = useSessionStore((s) => s.bootstrap)
+  const bootstrapped = useSessionStore((s) => s.bootstrapped)
 
   useEffect(() => {
     void bootstrap()
@@ -35,6 +37,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppRouter />
+      <AppVersionGate bootstrapped={bootstrapped} />
     </QueryClientProvider>
   )
 }

@@ -11,6 +11,7 @@
  * baseURL 은 `VITE_API_BASE_URL` (없으면 api-gateway 기본 8080) 을 사용한다.
  */
 import axios, {
+  type AxiosRequestConfig,
   type AxiosInstance,
   type InternalAxiosRequestConfig,
 } from 'axios'
@@ -21,6 +22,11 @@ import { useSessionStore } from '../stores/session'
 interface MockHttpResponse {
   __mockStatus: number
   body: unknown
+}
+
+export type ApiRequestConfig = AxiosRequestConfig & {
+  /** Public endpoint 요청 — 인증 헤더 조회/첨부를 건너뛴다. */
+  skipAuth?: boolean
 }
 
 function isMockHttpResponse(value: unknown): value is MockHttpResponse {
@@ -75,6 +81,10 @@ apiClient.interceptors.request.use(
         }
         return config
       }
+    }
+    if ((config as InternalAxiosRequestConfig & { skipAuth?: boolean }).skipAuth) {
+      config.withCredentials = false
+      return config
     }
     try {
       config.withCredentials = !isNativePlatform

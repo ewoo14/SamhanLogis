@@ -118,6 +118,94 @@ function parseMockBody(config: AxiosRequestConfig): Record<string, unknown> {
   return {}
 }
 
+type MockAppClientType = 'DESKTOP' | 'WEB' | 'MOBILE'
+type MockAppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
+
+type MockAppRelease = {
+  id: number
+  clientType: MockAppClientType
+  version: string
+  minSupportedVersion: string
+  forceLevel: Exclude<MockAppForceLevel, 'NONE'>
+  releaseNotes: string
+  releasedAt: string
+}
+
+let mockAppReleaseSeq = 4
+let MOCK_APP_RELEASES: MockAppRelease[] = [
+  {
+    id: 1,
+    clientType: 'DESKTOP',
+    version: '0.1.0',
+    minSupportedVersion: '0.1.0',
+    forceLevel: 'MINOR',
+    releaseNotes: '데스크톱 배차 화면 안정화와 버전관리 안내를 추가했습니다.',
+    releasedAt: '2026-06-27T09:00:00+09:00',
+  },
+  {
+    id: 2,
+    clientType: 'WEB',
+    version: '0.1.0',
+    minSupportedVersion: '0.1.0',
+    forceLevel: 'MINOR',
+    releaseNotes: '웹 백오피스 PWA와 별개인 앱 버전 정책을 적용했습니다.',
+    releasedAt: '2026-06-27T09:00:00+09:00',
+  },
+  {
+    id: 3,
+    clientType: 'MOBILE',
+    version: '0.1.0',
+    minSupportedVersion: '0.1.0',
+    forceLevel: 'MINOR',
+    releaseNotes: '모바일 V1c 준비용 시드입니다.',
+    releasedAt: '2026-06-27T09:00:00+09:00',
+  },
+]
+
+function normalizeMockClientType(value: unknown): MockAppClientType {
+  if (value === 'DESKTOP' || value === 'WEB' || value === 'MOBILE') return value
+  return 'WEB'
+}
+
+function normalizeMockForceLevel(value: unknown): Exclude<MockAppForceLevel, 'NONE'> {
+  if (value === 'CRITICAL' || value === 'MAJOR' || value === 'MINOR') return value
+  return 'MINOR'
+}
+
+function compareSemverDesc(a: string, b: string): number {
+  const left = a.split('.').map((part) => Number(part) || 0)
+  const right = b.split('.').map((part) => Number(part) || 0)
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const diff = (right[i] ?? 0) - (left[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+function isSemverLessThan(a: string, b: string): boolean {
+  return compareSemverDesc(a, b) > 0
+}
+
+function mockAppReleaseFromBody(body: Record<string, unknown>, id: number): MockAppRelease {
+  return {
+    id,
+    clientType: normalizeMockClientType(body['clientType']),
+    version: String(body['version'] ?? '').trim() || '0.1.0',
+    minSupportedVersion: String(body['minSupportedVersion'] ?? '').trim() || '0.1.0',
+    forceLevel: normalizeMockForceLevel(body['forceLevel']),
+    releaseNotes: String(body['releaseNotes'] ?? '').trim() || '릴리스 노트가 등록되지 않았습니다.',
+    releasedAt: String(body['releasedAt'] ?? '').trim() || new Date().toISOString(),
+  }
+}
+
+function sortedMockAppReleases(): MockAppRelease[] {
+  return [...MOCK_APP_RELEASES].sort((a, b) => {
+    const clientCompare = a.clientType.localeCompare(b.clientType)
+    if (clientCompare !== 0) return clientCompare
+    return compareSemverDesc(a.version, b.version)
+  })
+}
+
 function readMockFormValue(data: unknown, key: string): string {
   if (typeof FormData !== 'undefined' && data instanceof FormData) {
     const value = data.get(key)
@@ -1636,6 +1724,87 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       partnerCode: MOCK_AUTH.partnerCode,
       groups: MOCK_AUTH.groups,
     })
+  }
+
+  if (method === 'GET' && url.includes('/app/version')) {
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const clientType = normalizeMockClientType(
+      config.params?.['clientType'] ?? urlObj.searchParams.get('clientType'),
+    )
+    const currentVersion = String(
+      config.params?.['currentVersion'] ?? urlObj.searchParams.get('currentVersion') ?? '0.0.0',
+    )
+    const params = mockLocationParams()
+    const forcedLevel = params.get('mockAppForce')
+    const forcedLatest = params.get('mockAppLatestVersion')
+    const latest = [...MOCK_APP_RELEASES]
+      .filter((release) => release.clientType === clientType)
+      .sort((a, b) => compareSemverDesc(a.version, b.version))[0]
+
+    if (!latest) {
+      return envelope({
+        latestVersion: currentVersion,
+        minSupportedVersion: currentVersion,
+        forceLevel: 'NONE' satisfies MockAppForceLevel,
+        releaseNotes: '',
+        releasedAt: new Date().toISOString(),
+      })
+    }
+
+    const latestVersion = forcedLatest || latest.version
+    const forceLevel =
+      forcedLevel === 'CRITICAL' || forcedLevel === 'MAJOR' || forcedLevel === 'MINOR' || forcedLevel === 'NONE'
+        ? forcedLevel
+        : isSemverLessThan(currentVersion, latest.minSupportedVersion)
+          ? 'CRITICAL'
+          : isSemverLessThan(currentVersion, latestVersion)
+            ? latest.forceLevel
+            : 'NONE'
+
+    return envelope({
+      latestVersion,
+      minSupportedVersion: latest.minSupportedVersion,
+      forceLevel,
+      releaseNotes: latest.releaseNotes,
+      releasedAt: latest.releasedAt,
+    })
+  }
+
+  if (method === 'GET' && url.endsWith('/app/releases')) {
+    const denied = mockRequirePermission('admin.app-release', 'view')
+    if (denied) return denied
+    return envelope(sortedMockAppReleases())
+  }
+
+  if (method === 'POST' && url.endsWith('/app/releases')) {
+    const denied = mockRequirePermission('admin.app-release', 'create')
+    if (denied) return denied
+    const created = mockAppReleaseFromBody(parseMockBody(config), mockAppReleaseSeq)
+    mockAppReleaseSeq += 1
+    MOCK_APP_RELEASES = [...MOCK_APP_RELEASES, created]
+    return envelope(created)
+  }
+
+  const appReleaseItemMatch = url.match(/\/app\/releases\/(\d+)$/)
+  if (appReleaseItemMatch) {
+    const id = Number(appReleaseItemMatch[1])
+    const index = MOCK_APP_RELEASES.findIndex((release) => release.id === id)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '릴리스를 찾을 수 없습니다.')
+
+    if (method === 'PUT') {
+      const denied = mockRequirePermission('admin.app-release', 'update')
+      if (denied) return denied
+      const updated = mockAppReleaseFromBody(parseMockBody(config), id)
+      MOCK_APP_RELEASES = MOCK_APP_RELEASES.map((release) => release.id === id ? updated : release)
+      return envelope(updated)
+    }
+
+    if (method === 'DELETE') {
+      const denied = mockRequirePermission('admin.app-release', 'delete')
+      if (denied) return denied
+      MOCK_APP_RELEASES = MOCK_APP_RELEASES.filter((release) => release.id !== id)
+      return envelope(null)
+    }
   }
 
   // GET /users/me/is-executive-office — 대표실 부서 소속 여부 판정.
@@ -14244,6 +14413,7 @@ const SP_D1_PAGES = [
   'dispatch.external-carriers',
   'admin.permissions',
   'admin.permission-groups',
+  'admin.app-release',
   'hr.role-management',
   'hr.slip-cutoff',
   // SP-D2 회계 7개 신규
@@ -14414,7 +14584,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.detail', 'inventory.adjust', 'inventory.transfer',
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees',
+    'admin.employees', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
@@ -14592,7 +14762,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.list', 'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
     'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
-    'admin.employees',
+    'admin.employees', 'admin.app-release',
     'partners.list', 'partners.detail', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',

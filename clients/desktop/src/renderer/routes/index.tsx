@@ -206,6 +206,7 @@ import { AccountingEditRequestsPage } from './admin/AccountingEditRequestsPage'
 // [D-AX-20] 사진 감사 — WAREHOUSE / MANAGER / MASTER.
 // Gateway: `/api/v1/slips/admin/photo-audit` -> slip-service `/slips/admin/photo-audit`.
 import { PhotoAuditPage } from './admin/PhotoAuditPage'
+import { AppReleaseManagementPage } from './admin/AppReleaseManagementPage'
 // [P0-1 Slice A] 재무 보고서 3개 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
 // BE: accounting-service `/accounting/reports/income-statement` + `/balance-sheet`
 import { ReportListPage } from './ReportListPage'
@@ -1562,6 +1563,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="slip.photo-audit" action="view">
             <PhotoAuditPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/app-releases',
+        element: (
+          <PermissionGuard pageCode="admin.app-release" action="view">
+            <AppReleaseManagementPage />
           </PermissionGuard>
         ),
       },

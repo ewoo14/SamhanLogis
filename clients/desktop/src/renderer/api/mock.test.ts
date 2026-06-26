@@ -223,6 +223,65 @@ describe('mock notes receivable transition contract', () => {
   })
 })
 
+describe('mock app version management contract', () => {
+  it('GET /app/version은 clientType별 latestVersion과 forceLevel을 envelope로 반환한다', () => {
+    const resolved = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'DESKTOP', currentVersion: '0.1.0' },
+    }) as MockEnvelope<{
+      latestVersion: string
+      minSupportedVersion: string
+      forceLevel: string
+      releaseNotes: string
+      releasedAt: string
+    }>
+
+    expect(resolved.success).toBe(true)
+    expect(resolved.data.latestVersion).toBeTruthy()
+    expect(['NONE', 'MINOR', 'MAJOR', 'CRITICAL']).toContain(resolved.data.forceLevel)
+  })
+
+  it('POST/PUT/DELETE /app/releases는 in-memory 목록에 반영한다', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/app/releases',
+      data: {
+        clientType: 'WEB',
+        version: `0.3.${Date.now()}`,
+        minSupportedVersion: '0.1.0',
+        forceLevel: 'MINOR',
+        releaseNotes: 'Playwright mock 검증',
+        releasedAt: '2026-06-27T10:00:00+09:00',
+      },
+    }) as MockEnvelope<{ id: number; forceLevel: string }>
+
+    const updated = mockRequest({
+      method: 'PUT',
+      url: `/app/releases/${created.data.id}`,
+      data: {
+        clientType: 'WEB',
+        version: '0.3.1',
+        minSupportedVersion: '0.1.0',
+        forceLevel: 'MAJOR',
+        releaseNotes: '수정된 릴리스',
+        releasedAt: '2026-06-27T10:00:00+09:00',
+      },
+    }) as MockEnvelope<{ id: number; forceLevel: string; releaseNotes: string }>
+
+    expect(updated.data.forceLevel).toBe('MAJOR')
+    expect(updated.data.releaseNotes).toBe('수정된 릴리스')
+
+    const deleted = mockRequest({
+      method: 'DELETE',
+      url: `/app/releases/${created.data.id}`,
+    }) as MockEnvelope<null>
+
+    expect(deleted.success).toBe(true)
+    expect(deleted.data).toBeNull()
+  })
+})
+
 describe('mock collection plan contract', () => {
   it('creates PLANNED plans and rejects terminal or reverse transitions', () => {
     const created = mockRequest({

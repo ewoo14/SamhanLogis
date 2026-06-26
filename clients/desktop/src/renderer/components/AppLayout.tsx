@@ -477,6 +477,7 @@ export function AppLayout() {
   // [C5-2b] MASTER role 문자열 fallback 제거 → system.permission-admin 동적 권한만 사용.
   // BE @RequirePermission(page="system.permission-admin") 가 MASTER bypass 포함 단일 가드.
   const showPermissionDelegation   = showPermissionAdmin
+  const showAppReleaseAdmin        = dynamicCanAccess('admin.app-release', 'view')
   const showApprovalLineConfig     = dynamicCanAccess('admin.approval-line-config', 'view')
   const showSlipCutoff             = dynamicCanAccess('hr.slip-cutoff',              'view')
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
@@ -492,7 +493,7 @@ export function AppLayout() {
   // [Round A P3] 구 showInventoryGroup 집계 변수 삭제 — 창고운영 그룹 게이트는
   // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
-  const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
+  const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showAppReleaseAdmin || showApprovalLineConfig || showSlipCutoff
 
   // [C5 follow-up 사이클1 fix] arologis 메뉴 가시성 = 라우트 PermissionGuard 와 동일 page-code 단일 소스.
   // (사이클1 리뷰 FE P1-2 + Designer D-002: 그룹 UUID 매칭은 라우트 가드와 소스 이원화 — seed 불일치 시
@@ -1266,6 +1267,7 @@ export function AppLayout() {
               '/admin/permission-groups/matrix',
               '/admin/permission-groups/manage',
               '/admin/permission-groups/delegation',
+              '/admin/app-releases',
               '/admin/approval-line-config',
               '/admin/slip-cutoff',
             ]}
@@ -1313,6 +1315,13 @@ export function AppLayout() {
               data-testid="sidebar-hr-permission-delegation"
             >
               권한 위임
+            </SidebarLink>
+            <SidebarLink
+              to="/admin/app-releases"
+              show={showAppReleaseAdmin}
+              data-testid="sidebar-admin-app-releases"
+            >
+              릴리스 관리
             </SidebarLink>
             <SidebarLink
               to="/admin/approval-line-config"

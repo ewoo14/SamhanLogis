@@ -1,0 +1,68 @@
+import type {
+  AppClientType,
+  AppVersionInfo,
+} from '../api/appVersion'
+
+export interface RuntimePlatformFlags {
+  electron: boolean
+  capacitor: boolean
+}
+
+export type VersionPromptState =
+  | { kind: 'none' }
+  | { kind: 'minor'; versionInfo: AppVersionInfo; dismissKey: string }
+  | { kind: 'blocking'; versionInfo: AppVersionInfo }
+
+export interface VersionPromptInput {
+  versionInfo: AppVersionInfo
+  clientType: AppClientType
+  storage: Pick<Storage, 'getItem'> | Map<string, string>
+}
+
+function readStorageValue(
+  storage: Pick<Storage, 'getItem'> | Map<string, string>,
+  key: string,
+): string | null | undefined {
+  if (storage instanceof Map) {
+    return storage.get(key)
+  }
+  return storage.getItem(key)
+}
+
+export function resolveAppClientType(
+  flags: RuntimePlatformFlags,
+): AppClientType {
+  if (flags.electron) return 'DESKTOP'
+  if (flags.capacitor) return 'MOBILE'
+  return 'WEB'
+}
+
+export function appVersionDismissKey(
+  clientType: AppClientType,
+  latestVersion: string,
+): string {
+  return `samhan.app-version.dismissed.${clientType}.${latestVersion}`
+}
+
+export function resolveVersionPromptState({
+  versionInfo,
+  clientType,
+  storage,
+}: VersionPromptInput): VersionPromptState {
+  if (
+    versionInfo.forceLevel === 'CRITICAL'
+    || versionInfo.forceLevel === 'MAJOR'
+  ) {
+    return { kind: 'blocking', versionInfo }
+  }
+
+  if (versionInfo.forceLevel === 'MINOR') {
+    const dismissKey = appVersionDismissKey(clientType, versionInfo.latestVersion)
+    if (readStorageValue(storage, dismissKey) === 'true') {
+      return { kind: 'none' }
+    }
+    return { kind: 'minor', versionInfo, dismissKey }
+  }
+
+  return { kind: 'none' }
+}
