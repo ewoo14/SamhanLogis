@@ -66,13 +66,21 @@ async function attachListeners(
 
     const tokenValue = token.value
 
-    lastRegisteredToken = tokenValue
     try {
       await registerPushToken({
         token: tokenValue,
         platform: toPushDevicePlatform(Capacitor.getPlatform()),
         appClient: APP_CLIENT,
       })
+      if (epoch !== registrationEpoch) {
+        try {
+          await deletePushToken(tokenValue)
+        } catch (error) {
+          console.warn('[push] stale token compensation delete failed', error)
+        }
+        return
+      }
+      lastRegisteredToken = tokenValue
     } catch (error) {
       console.warn('[push] token registration failed', error)
     }

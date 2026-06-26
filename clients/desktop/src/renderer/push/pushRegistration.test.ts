@@ -205,6 +205,34 @@ describe('pushRegistration', () => {
     expect(registerPushToken).not.toHaveBeenCalled()
   })
 
+  it('registration POST 완료 중 로그아웃되면 POST 이후 보상 DELETE를 발행한다', async () => {
+    const registrationPost = createDeferred<void>()
+    registerPushToken.mockReturnValueOnce(registrationPost.promise)
+    const { registerPush, unregisterPush } = await importPushRegistration()
+
+    await registerPush()
+    const registrationCallback = listeners['registration']?.[0]
+    const registration = registrationCallback?.({ value: 'in-flight-token' })
+
+    expect(registerPushToken).toHaveBeenCalledWith({
+      token: 'in-flight-token',
+      platform: 'IOS',
+      appClient: 'DESKTOP_NATIVE',
+    })
+
+    await unregisterPush()
+    expect(deletePushToken).not.toHaveBeenCalled()
+
+    registrationPost.resolve()
+    await registration
+
+    expect(deletePushToken).toHaveBeenCalledTimes(1)
+    expect(deletePushToken).toHaveBeenCalledWith('in-flight-token')
+    expect(deletePushToken.mock.invocationCallOrder[0]).toBeGreaterThan(
+      registerPushToken.mock.invocationCallOrder[0] ?? 0,
+    )
+  })
+
   it('unregisterPush aborts an in-flight registerPush before listeners are attached', async () => {
     const permission = createDeferred<{ receive: 'granted' }>()
     PushNotifications.requestPermissions.mockReturnValueOnce(permission.promise)
