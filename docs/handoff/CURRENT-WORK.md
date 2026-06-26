@@ -4,7 +4,7 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a(#613)+슬12 입력폼(#612)+슬12b 비교/커스텀(#616) 완결·머지(main `29e5cc8c`). PM 자동 진행 중(개발책임자 "대기 없이 자동 진행") → 다음=슬13(미이관 입력 폼 FormGrid 1열)**)
+## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a(#613)+슬12입력폼(#612)+슬12b(#616)+슬13 입력폼1열(#618) 완결·머지(main `b1e2a732`). PM 자동 진행 중(개발책임자 "대기 없이 자동 진행") → 다음=슬14(overflow/scroll 보강)**)
 
 **모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a + 슬12 입력폼 라인카드 canonical 완주·머지.
 
@@ -27,8 +27,13 @@
 - **듀얼리뷰 0수렴**: ④ Opus 5차원(4에이전트) BLOCKING0/MAJOR0/MINOR4 → fix `2eb05aa0`(DPS 카드 사유중복 제거→헤더 slipNo·global.css fallback hex), 수용 2(Kakao size=sm 슬12a 일관·createdAt hidden 의도) → ⑤ Codex **CONVERGED 0 blocking·무수정**(데스크탑↔모바일 단일 핸들러/source/testid 독립 확인).
 - **라이브 QA**: 4화면 390px 오버플로0·컨트롤/폼/탭/빈상태 1열 클린·데스크탑 1280 무회귀 실증. mismatch/populated 카드=무시드(비교 미실행·DPS엑셀/출고전표 0)→라이브 미실증, spec "코드로만 확정" 부합·코드리뷰+Codex 담보(정직). CI 26 pass.
 
+### ✅ 슬13 미이관 입력 폼 1열 완결 (PR #618 MERGED, squash `b1e2a732`)
+인라인/전역 다열 grid 입력 폼이 @media 미적용→≤768px 1열 미전환(라벨 뭉개짐)을 ~22 폼 1열로. 데스크탑 N열 무회귀. **전역 폼클래스 @media 레버리지(슬10 패턴, 9줄)**: `.form-row`·`.sfp-form-grid--2/--3/--driver`·`.driver-edit-grid` `@media≤768 1fr !important`(SlipForm·SlipDetail·TransferForm·DispatchSms·ArologisManualDispatch 일괄) + **인라인 one-off mobile-form-grid**(EstimatePricingConfig·EstimateItemsCatalog·ProductClassifications·ProductForm·GroupwareApprovalTemplateAdmin·SupplierProfile). Flyway 0, FE only.
+- **듀얼리뷰 0수렴**: ④ Opus(FE/커버리지 에이전트 철저+PM 라이브 QA) — 라이브 QA가 **2-pane 미접힘 MAJOR 단독 적발**(groupware-template docW=409→폼 도달불가) → fix `5397c5bd`(TemplateAdmin/ProductClassifications 2-pane mobile-form-grid 1열 접기+死셀렉터 제거) → ⑤ Codex(2-pane 동의·복합입력 1건 제기→**PM 기술판정 revert**: dimensionWrapStyle 6열 W×H×D × 구분자 1열 시 orphan·외곽 1열로 충분·무오버플로 → FE 판정 정확).
+- **라이브 QA**: 전 폼 모바일 1열(multiTrack=0)·2-pane 오버플로 해소(409→390)·데스크탑 N열 보존 실증. CI 26 pass(mock 회귀 hard gate PASS).
+- 🔑 교훈: 전역 폼클래스 @media 1열 !important = 슬10 레버리지(19줄로 ~22폼). **2-pane 부모는 자식 폼 1열만으론 부족**(부모 minmax 다열이 모바일 오버플로/클립 → 부모에도 mobile-form-grid). **복합입력(W×H×D·값+단위)은 1열 분해 금지**(구분자/단위 orphan, 외곽 row 1열로 충분). 라이브 QA가 2-pane 클립 단독 적발(정적 리뷰 미검).
+
 ### 슬12 이후 큐 (canonical 동일·순차)
-- **슬13**: 미이관 입력 폼 ~22(전표8·견적품목6·그룹웨어2·배차5·공급자1) → FormGrid 1열.
 - **슬14**: 권한매트릭스3·거래명세서(StatementBatch)·sub-nav2(ProductClassifications/EstimateItemsCatalog 카테고리탭)·필터바2(PhotoAudit/DocumentReferencePicker) overflow 보강.
 - **슬15**: mobilePriority 잔여 ~7 admin 리스트(GroupwareApprovalTemplateAdmin·PermissionGroupManage·AccountTree·SalesClosing·MonthEndClosing·PeriodCloseList·Warehouses) 폴리시.
 - 와이드 재무리포트 7종=의도적 SKIP 유지(가로스크롤). 보류 에픽=PWA/네이티브/버전③/Phase11.
