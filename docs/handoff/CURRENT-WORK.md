@@ -4,20 +4,16 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-26 — 🚧 **모바일 슬12a 구현+듀얼리뷰 진행 중. 새 세션에서 ⑤Codex 수렴-확인→CI green→머지 이어받기**)
+## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a 완결·머지(PR #613, main `522e2487`). 다음=슬12b(비교/커스텀 4종 useIsMobile 카드 폴백, 개발책임자 지정 대기)**)
 
-**모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a 진행.
+**모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a canonical 완주·머지.
 
-### ⚠️ 이 세션 종료 사유 + 새 세션 필수
-- **Codex MCP 권한 프롬프트가 이 세션 내내 떠서** settings.local.json 에 `mcp__codex__codex`+`mcp__codex__codex-reply` allow 추가했으나, **권한 allow 는 세션 시작 시 로드 → 이 세션엔 미적용** → **새 세션에서 Codex 자동허용** ([[feedback_codex_permission_new_session]]). 그래서 ⑤ 수렴-확인 리뷰를 못 돌리고 정리·인계.
-- 새 세션 재개: `git checkout feat/mobile-s12a-rawtable-cards`(origin 동기화·tree clean, head `4758cb8c`). 웹 :5175 preview 가동 중(슬12a 빌드 반영, 새 asset). Docker 스택 healthy(:8080).
-
-### 슬12a 진행 상태 (PR #613 OPEN)
-- ✅ ① spec `docs/superpowers/specs/2026-06-26-mobile-layout-gap-closure-design.md` + plan `docs/superpowers/plans/2026-06-26-mobile-s12-rawtable-cards.md` (601f39bd).
-- ✅ ② 조기 PR #613. ✅ ③ Codex 구현(ec7d8ac3): 주문서관리·주문승인·알림내역·수동배차 raw `<table>`→공용 DataTable+mobilePriority. typecheck·raw table 0.
-- ✅ ④ Opus 5차원 → fix(e51fdf80): 🔴 DataTable `rowTestId` prop 신설(행 testid `<tr>` 복구 → mock 스펙 `partner-order-list-badge-refresh` 파손 해소·로컬 2/2) · 🟠 NotificationHistory 제목 첫컬럼 primary · MINOR(담당자 secondary·비활성행 dim). 라이브 재QA 무회귀.
-- ✅ ⑤ Codex 독립 리뷰 → 3 MAJOR, PM triage: 채택2 fix(bb6993f5)[주문번호 첫 컬럼 재배치(primary 카드헤더)·rowTestId `string\|undefined` 빈값 생략] + 범위외1(dispatchId testid=main 기존패턴·비노출). fix2 검증(typecheck·mock 2/2·재QA 무회귀).
-- ⏳ **남은 것(새 세션)**: ⑤ Codex 수렴-확인 리뷰(0 잔여 확인) → CI #613 green(현재 GitGuardian pending — mock gate/desktop-playwright 확인) → **PM 자율머지(squash)** → 핸드오프/메모리 갱신.
+### ✅ 슬12a 완결 (PR #613 MERGED 02:51Z, squash `522e2487`)
+원시 `<table>` 리스트 4종(주문서관리 SalesPartnerOrderListPage·주문승인 SalesOrderApprovalsPage·알림내역 NotificationHistoryPage·수동배차 ManualDispatchAdminPage+DriverSelectModal) → 공용 DataTable + `mobilePriority` 카드화. DataTable에 optional `rowTestId` prop 신설(하위호환, truthy만 data-testid). Flyway 0, BE 무변경, design-system+desktop FE only.
+- **듀얼리뷰 0수렴**: ④ Opus 5차원 fix(e51fdf80: rowTestId prop 행 testid 복구→mock `partner-order-list-badge-refresh` 해소·제목 첫컬럼 primary) → ⑤ Codex 3 MAJOR fix(bb6993f5: 주문번호 첫컬럼 primary 카드헤더·rowTestId 빈값 생략; 범위외1=dispatchId testid 기존 main 패턴·비노출) → **⑤ Codex 수렴-확인 `CONVERGED — 0 blocking`**(새 세션 Codex 자동허용 [[feedback_codex_permission_new_session]]).
+- **라이브 QA**(fresh, :8080+:5175 dev_master, mobile390/desktop1280, `scripts/mobile-s12a-qa.cjs`): 주문서관리 카드(주문번호 헤더·연결전표 hidden·체크박스 present)+행클릭 상세진입·데스크탑 8컬럼 무회귀 / 수동배차 emptyMessage / 오버플로 0. 알림내역=로컬 API 에러(불러오지 못함, PR 무관 기존 에러분기)→코드+Codex+mock게이트 담보(정직 보고).
+- **CI**: mock 회귀 hard gate PASS, 30 pass / 1 GitGuardian(dev 시드 `dev_p05_pass!` FP·PM 판정). 모바일 prebuild 1차 ECONNRESET→재실행 PASS.
+- 🔑 교훈: **Codex 권한 allow는 세션 시작 시 로드** → 권한 프롬프트 막히면 정리·인계 후 새 세션 재개가 정답([[feedback_codex_permission_new_session]]). 플레이키 `npm ci` ECONNRESET=코드 무관, `gh run rerun --failed`로 해소.
 
 ### 슬12 이후 큐 (canonical 동일·순차)
 - **슬12b**: 비교/커스텀 4종(DPS비교 InventoryDpsCompare·카카오매칭 KakaoAutoDispatch·아로로지스 가배차 ArologisPreClassify·실배차 ArologisDispatchReconcile) → useIsMobile 카드 폴백.
