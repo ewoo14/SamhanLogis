@@ -4,7 +4,7 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a~14 완결·머지(#613/#612/#616/#618/#620, main `e672aec2`). PM 자동 진행 중(개발책임자 "대기 없이 자동 진행") → 다음=슬15(마지막: mobilePriority 폴리시 잔여 ~7)**)
+## 🔄 세션 재개 지점 (2026-06-26 — 🎉 **모바일 레이아웃 갭 클로저 에픽(슬12~15)+슬12입력폼 전체 완결·머지(#612/#613/#616/#618/#620/#622, main `a8e6e30c`). 자동 진행 큐 소진 → 다음=개발책임자 지정 대기**)
 
 **모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a + 슬12 입력폼 라인카드 canonical 완주·머지.
 
@@ -39,9 +39,24 @@
 - **라이브 QA**: PhotoAudit 필터 모바일1열/데스크탑5열 실증·페이지 오버플로0·데스크탑 무회귀. 와이드 table(Bulk/거래명세서)=무시드 table 미렌더→가로스크롤 래퍼 코드+리뷰 담보(정직). CI 26 pass.
 - 🔑 교훈: 와이드 table은 `overflowX:auto` 래퍼+table minWidth(자연폭 이하면 데스크탑 무영향·모바일만 스크롤). `.mobile-filter-grid`(슬10)는 display:grid 컨테이너에만 발동. rows>0 가드 table은 무시드 시 미렌더→래퍼 효과 라이브 미실증(코드 담보 정직).
 
-### 슬12 이후 큐 (canonical 동일·순차)
-- **슬15**: mobilePriority 잔여 ~7 admin 리스트(GroupwareApprovalTemplateAdmin·PermissionGroupManage·AccountTree·SalesClosing·MonthEndClosing·PeriodCloseList·Warehouses) 폴리시.
-- 와이드 재무리포트 7종=의도적 SKIP 유지(가로스크롤). 보류 에픽=PWA/네이티브/버전③/Phase11.
+### ✅ 슬15 mobilePriority 폴리시 완결 (PR #622 MERGED, squash `a8e6e30c`)
+저traffic admin 리스트 6종 DataTable 컬럼에 mobilePriority(슬5~11 패턴). primary=식별자(코드/그룹명/기간일자/세금계산서번호)·secondary=핵심·hidden=액션/저우선(작업·구분·역마감·이력·순번). WarehousesPage(슬8 기처리)+와이드 7종 제외. 데스크탑 무변동(하위호환 선택필드·@media≤768만). Flyway 0, FE only.
+- **듀얼리뷰 0수렴**: ④ Opus(통합 FE/Design BLOCKING0/MAJOR0/MINOR0·무수정+PM 라이브 QA) + ⑤ Codex CONVERGED 0 blocking·무수정. (Sales/MonthEnd primary가 index1이나 선행 periodType/seq=hidden → 데스크탑 순서 보존+모바일 primary=첫 가시컬럼 동시 만족 = 올바른 설계.)
+- **라이브 QA**: 시드 3종(AccountTree354·Groupware2·PermissionGroup10) data-mobile-priority 실증·결재양식 코드=primary 카드헤더 육안·데스크탑 무회귀. 마감 3종 무시드 정직. CI 26 pass.
+
+### 🎉 모바일 레이아웃 갭 클로저 에픽(슬12~15) 전체 종료 (2026-06-26)
+| 슬라이스 | PR | 머지 | 성과 |
+|---|---|---|---|
+| 슬12a 리스트 4종 | #613 | `522e2487` | 원시 table→DataTable+mobilePriority 카드(rowTestId prop 신설) |
+| 슬12 입력폼 라인카드 | #612 | `8962da6f` | 5폼 라인아이템 useIsMobile 세로 카드(개발책임자 "재개" 지시·stale PR 리베이스 완주) |
+| 슬12b 비교/커스텀 4종 | #616 | `29e5cc8c` | Kakao DataTable + DPS/가배차/실배차 useIsMobile 폴백 |
+| 슬13 입력폼 1열 | #618 | `b1e2a732` | 전역 폼클래스 @media 레버리지+mobile-form-grid+2-pane 접기 |
+| 슬14 overflow/scroll | #620 | `e672aec2` | 와이드 table 스크롤 래퍼·sub-nav·필터바 1열 |
+| 슬15 mobilePriority | #622 | `a8e6e30c` | admin 리스트 6종 컬럼 우선순위 |
+데스크탑 전면 무회귀(isMobile 분기 + @media≤768). 매 슬라이스 canonical 8단계·순차 듀얼리뷰 0수렴(Opus↔Codex, PM 기술판정 포함)·라이브 QA(무시드 정직)·PM 자율머지·매 Bundle ScheduleWakeup. 핸드오프 PR #614/#615/#617/#619/#621/(본 PR). **와이드 재무리포트 7종=의도적 SKIP(가로스크롤 적절).**
+
+### 🔜 다음 (개발책임자 지정 대기)
+모바일 큐 소진. **보류 에픽**: PWA/네이티브 패키징·버전관리+자동업데이트③·Phase11 AWS prod cutover(유일 OPEN 인프라). 기타 도메인 작업은 개발책임자 지정.
 
 ### 워크플로우 규칙 (엄수 [[feedback_canonical_workflow]])
 - canonical 8단계·Codex 구현(Opus 임의구현 금지)·매 라운드 라이브 Docker QA·듀얼리뷰 0수렴·PM 자율머지([[feedback_pm_auto_merge_authority]])·ScheduleWakeup 매단계·가짜데이터 금지.
