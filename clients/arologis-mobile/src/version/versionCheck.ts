@@ -20,6 +20,7 @@ interface RawVersionStatus {
 
 const DEFAULT_DEV_API = 'http://localhost:8097';
 const DEFAULT_PROD_API = 'https://api.arologis.samhan-air.com';
+const VERSION_CHECK_TIMEOUT_MS = 5000;
 
 export function getCurrentAppVersion(): string {
   return Constants.expoConfig?.version ?? '0.0.0';
@@ -65,14 +66,21 @@ export async function fetchMobileVersionStatus(
   currentVersion = getCurrentAppVersion(),
   apiBaseUrl = resolveVersionApiBaseUrl(),
 ): Promise<VersionStatus> {
-  const response = await fetch(buildVersionCheckUrl(apiBaseUrl, currentVersion), {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-  });
-  if (!response.ok) {
-    throw new Error(`Version check failed with HTTP ${response.status}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VERSION_CHECK_TIMEOUT_MS);
+  try {
+    const response = await fetch(buildVersionCheckUrl(apiBaseUrl, currentVersion), {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Version check failed with HTTP ${response.status}`);
+    }
+    return normalizeVersionStatus((await response.json()) as RawVersionStatus);
+  } finally {
+    clearTimeout(timeout);
   }
-  return normalizeVersionStatus((await response.json()) as RawVersionStatus);
 }
 
 function normalizeForceLevel(forceLevel: unknown): ForceLevel {
