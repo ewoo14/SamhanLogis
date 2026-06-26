@@ -29,6 +29,10 @@ const APP_VARIANT = process.env.APP_VARIANT || 'staff';
 
 /** EAS Build 시 CI 가 EXPO_BUILD_NUMBER=<n> 을 주입한다. 로컬 기본값 = 1. */
 const BUILD_NUMBER = process.env.EXPO_BUILD_NUMBER || '1';
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || 'PLACEHOLDER_EAS_PROJECT_ID';
+const HAS_EAS_PROJECT_ID = EAS_PROJECT_ID !== 'PLACEHOLDER_EAS_PROJECT_ID';
+const EAS_UPDATE_URL =
+  process.env.EXPO_PUBLIC_EAS_UPDATE_URL || `https://u.expo.dev/${EAS_PROJECT_ID}`;
 
 /**
  * 빌드 환경별 API base URL 결정.
@@ -105,26 +109,27 @@ module.exports = {
       appVariant:      APP_VARIANT,
       apiBaseUrl:      resolveApiBaseUrl(),
       estimateAppUrl:  resolveEstimateAppUrl(),
+      easUpdateUrl:    EAS_UPDATE_URL,
 
       // EAS 프로젝트 ID — Phase 11 EAS 계정 등록 후 실제 ID 로 교체.
       // `npx eas init` 실행 시 자동 기록 또는 eas.json 의 projectId 와 일치시킬 것.
       eas: {
-        projectId: process.env.EAS_PROJECT_ID || 'PLACEHOLDER_EAS_PROJECT_ID',
+        projectId: EAS_PROJECT_ID,
       },
     },
 
     // ------------------------------------------------------------------ //
-    //  업데이트 (EAS Update) — Phase 11 AWS 배포 후 OTA 패치 전략             //
-    //  현재는 미활성. EAS Update 채널 = BUILD_ENV 와 동일하게 맞춤.            //
+    //  업데이트 (EAS Update) — EAS 계정/projectId 연동 후 활성.               //
+    //  현재는 placeholder URL 을 유지하되 enabled=false 로 publish 를 게이트.  //
     // ------------------------------------------------------------------ //
     updates: {
-      enabled:        BUILD_ENV !== 'development',
-      url:            'https://u.expo.dev/' + (process.env.EAS_PROJECT_ID || 'PLACEHOLDER_EAS_PROJECT_ID'),
+      enabled:        BUILD_ENV !== 'development' && HAS_EAS_PROJECT_ID,
+      url:            EAS_UPDATE_URL,
       fallbackToCacheTimeout: 0,
     },
 
     runtimeVersion: {
-      policy: 'sdkVersion',   // SDK major 업그레이드 시 새 채널로 자동 분리
+      policy: 'appVersion',
     },
 
     ios: {

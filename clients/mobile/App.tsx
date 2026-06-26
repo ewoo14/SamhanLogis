@@ -16,6 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MobileOrderWebViewScreen from './src/screens/MobileOrderWebViewScreen';
 import { usePretendardFontGuarded } from './src/theme/usePretendardFontGuarded';
+import { MobileVersionGate } from './src/version/MobileVersionGate';
 
 export default function App(): JSX.Element {
   // Phase 7 4차 잔여 — Pretendard 통일 폰트 (graceful guard).
@@ -33,7 +34,9 @@ export default function App(): JSX.Element {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <MobileOrderWebViewScreen />
+      <MobileVersionGate>
+        <MobileOrderWebViewScreen />
+      </MobileVersionGate>
     </SafeAreaProvider>
   );
 }

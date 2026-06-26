@@ -1,0 +1,49 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "requireCommit": true
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "BUILD_ENV": "development"
+      },
+      "ios": {
+        "simulator": true
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "BUILD_ENV": "preview"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "preview"
+    },
+    "production": {
+      "distribution": "store",
+      "env": {
+        "BUILD_ENV": "production"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "production",
+      "autoIncrement": true
+    }
+  }
+}

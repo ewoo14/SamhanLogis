@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import { usePretendardFontGuarded } from './src/theme/usePretendardFontGuarded';
+import { MobileVersionGate } from './src/version/MobileVersionGate';
 
 export default function App(): React.ReactElement {
   // Pretendard self-host (mobile-staff 패턴 일관 — Designer-2 채택 2026-05-07).
@@ -31,7 +32,9 @@ export default function App(): React.ReactElement {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <RootNavigator />
+      <MobileVersionGate>
+        <RootNavigator />
+      </MobileVersionGate>
     </SafeAreaProvider>
   );
 }

@@ -21,6 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppRootNavigator from './src/screens/AppRootNavigator';
 import { usePretendardFontGuarded } from './src/theme/usePretendardFontGuarded';
+import { MobileVersionGate } from './src/version/MobileVersionGate';
 
 export default function App(): JSX.Element {
   // Phase 10 W10-3 — Pretendard self-host 정식 (graceful guard 보존).
@@ -37,7 +38,9 @@ export default function App(): JSX.Element {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <AppRootNavigator />
+      <MobileVersionGate>
+        <AppRootNavigator />
+      </MobileVersionGate>
     </SafeAreaProvider>
   );
 }
