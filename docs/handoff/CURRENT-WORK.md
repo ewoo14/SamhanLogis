@@ -4,7 +4,28 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-26 — 🎉 **모바일 레이아웃 갭 클로저 에픽(슬12~15)+슬12입력폼 전체 완결·머지(#612/#613/#616/#618/#620/#622, main `a8e6e30c`). 자동 진행 큐 소진 → 다음=개발책임자 지정 대기**)
+## 🚧 세션 재개 지점 (2026-06-26 야간 — **백오피스 PWA Phase1 진행 중. PR #624 머지 직전, 집PC 재개**)
+
+**개발책임자 "PWA/네이티브 패키징 진행"→PWA-first 결정** (모바일 에픽 슬12~15 완료 후). 브레인스토밍→spec→plan→조기PR→Codex구현→듀얼리뷰→**dev서버 회귀 fix**까지 진행 후 **개발책임자 "집PC 재개" 지시로 세션 종료**.
+
+### ⚡ 즉시 재개 (집PC 첫 세션)
+- `git fetch && git checkout feat/backoffice-pwa` (origin 동기화·**push 완료 head `f8b9a54e`**·tree clean). spec=`docs/superpowers/specs/2026-06-26-backoffice-pwa-design.md`·plan=`docs/superpowers/plans/2026-06-26-backoffice-pwa.md`. **PR #624 OPEN**(미머지).
+- **남은 단계(순서)**: ① **Codex 재수렴 리뷰**(dev fix `git diff 09a4119e..f8b9a54e` — 이번 세션서 디스패치 직전 중단, 재디스패치) → ⑤b 게시 ② **새 mock 게이트(Desktop Playwright, QA E2E run 28228898598 또는 최신) green 확인**(f8b9a54e — dev fix가 hang 해소했는지 핵심 검증) ③ ⑥ PM종합 보강(09a4119e분 게시됨) ④ **⑧ PM 자율 squash 머지**(green+0수렴 시) ⑤ 핸드오프+에픽 보고. ⚠️ **mock 게이트 green 전 머지 금지**(dev fix 미검증).
+
+### PWA Phase1 진행 상태 (PR #624)
+- ✅ ①기획(PWA-first·앱셸 precache·prompt 업데이트)+spec/plan + ②조기PR.
+- ✅ ③Codex 구현(`c14e8f25`): vite-plugin-pwa(웹 full + electron disable 이중빌드)·앱셸 precache·정사각 placeholder 아이콘·PwaUpdatePrompt. PM 정식 npm install로 lock 정합(Codex 샌드박스 EACCES 우회 교정).
+- ✅ ④Opus 통합리뷰(MAJOR1: NetworkOnly→default-deny catch-all fix `09a4119e`)+라이브 PWA QA(SW active·오프라인 앱셸 로그인화면 렌더·Electron 무회귀) ↔ ⑤Codex CONVERGED(실빌드+npm ci 검증).
+- 🔴 **0수렴 후 라이브 mock 게이트가 dev 서버 회귀 단독 적발**: `npx vite src/renderer`(root=src/renderer)가 vite.config 미탐색→`virtual:pwa-register` 미해석→앱 hang(22분). **fix `f8b9a54e`**: `vite.config.ts` 신설(dev/mock 전용 virtual:pwa-register no-op stub 인라인 플러그인, SW없음) + playwright `--config vite.config.ts`. **3-config 분리**(웹=VitePWA full / Electron=disable / dev·mock=stub). 로컬 앱 완전렌더(#root 0→1 대시보드)·typecheck0·build:web0 검증. 결함+교훈 게시(issuecomment-4808196399).
+- 🔑 교훈: **PWA virtual 모듈은 웹빌드·Electron빌드·dev serve 전 경로 해석 검증 필수**(vite-plugin-pwa는 build 모드만 virtual 제공·dev serve는 별도 stub 필요). 정적 듀얼리뷰가 dev 경로 누락→라이브 CI hard gate 단독 적발(false-green 방어 가치). `npx vite [root]`는 config를 root에서 탐색→clients/desktop config는 `--config` 명시 필요.
+- 제약: 직원 실설치(모바일)는 **Phase11 prod HTTPS** 후 활성(본 PR=PWA 인프라+로컬 검증).
+
+### 🔜 PWA 머지 후 백로그 (개발책임자 지정 대기)
+네이티브(Capacitor) 후속 phase · 버전관리+자동업데이트③ · 법인계좌 실시간 연동(리서치) · A2 결재 enforcement 잔여(회계/견적/배차/그룹웨어 명시 결재 chain 설계) · Phase11 AWS prod cutover · CHORE #587(inventory client 403 audit)/#531(RestClient 계약테스트 갭).
+
+---
+
+## 🔄 (이전) 세션 재개 지점 (2026-06-26 — 🎉 **모바일 레이아웃 갭 클로저 에픽(슬12~15)+슬12입력폼 전체 완결·머지(#612/#613/#616/#618/#620/#622, main `a8e6e30c`). 자동 진행 큐 소진 → 다음=개발책임자 지정 대기**)
 
 **모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a + 슬12 입력폼 라인카드 canonical 완주·머지.
 
