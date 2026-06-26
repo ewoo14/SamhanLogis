@@ -62,7 +62,7 @@ export default defineConfig({
   webServer: process.env['PLAYWRIGHT_SKIP_WEB_SERVER'] === '1'
     ? undefined
     : {
-        command: 'npx vite src/renderer --host 127.0.0.1 --port 5173',
+        command: 'npx vite src/renderer --config vite.config.ts --host 127.0.0.1 --port 5173',
         env: { VITE_MOCK_MODE: '1' },
         url: 'http://127.0.0.1:5173/',
         reuseExistingServer: !process.env['CI'],
