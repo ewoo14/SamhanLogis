@@ -233,6 +233,7 @@ export function PhotoAuditPage() {
         <form
           onSubmit={handleSubmit}
           data-testid="photo-audit-filters"
+          className="mobile-filter-grid"
           style={filterFormStyle}
         >
           <label style={selectFieldStyle}>

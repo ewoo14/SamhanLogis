@@ -570,12 +570,16 @@ const subtitleStyle: CSSProperties = {
 const tabsStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
+  flexWrap: 'nowrap',
   gap: 4,
   padding: 2,
   border: '1px solid var(--color-border, #E5E7EB)',
   borderRadius: 6,
   background: 'var(--color-neutral-50, #F7F8FA)',
   alignSelf: 'flex-start',
+  maxWidth: '100%',
+  overflowX: 'auto',
+  WebkitOverflowScrolling: 'touch',
 }
 
 const tabButtonStyle: CSSProperties = {
@@ -588,6 +592,8 @@ const tabButtonStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
 }
 
 const tabButtonSelectedStyle: CSSProperties = {

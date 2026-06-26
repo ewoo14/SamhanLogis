@@ -543,28 +543,30 @@ function PreviewStep({
           </div>
         )}
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr>
-              <th style={tableHeaderStyle}>계정</th>
-              <th style={tableHeaderStyle}>역할</th>
-              <th style={tableHeaderStyle}>적용 내용</th>
-            </tr>
-          </thead>
-          <tbody>
-            {selectedAccounts.map((account) => (
-              <tr key={account.id}>
-                <td style={tableCellStyle}>{account.displayName}</td>
-                <td style={tableCellStyle}>{ROLE_LABEL[account.role] ?? account.role}</td>
-                <td style={tableCellStyle}>
-                  {mode === 'template'
-                    ? `${ROLE_LABEL[templateRole]} 템플릿`
-                    : `${selectedPage} / ${selectedActions.map((action) => ACTION_LABEL[action]).join(', ')}`}
-                </td>
+        <div style={wideTableScrollStyle}>
+          <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={tableHeaderStyle}>계정</th>
+                <th style={tableHeaderStyle}>역할</th>
+                <th style={tableHeaderStyle}>적용 내용</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {selectedAccounts.map((account) => (
+                <tr key={account.id}>
+                  <td style={tableCellStyle}>{account.displayName}</td>
+                  <td style={tableCellStyle}>{ROLE_LABEL[account.role] ?? account.role}</td>
+                  <td style={tableCellStyle}>
+                    {mode === 'template'
+                      ? `${ROLE_LABEL[templateRole]} 템플릿`
+                      : `${selectedPage} / ${selectedActions.map((action) => ACTION_LABEL[action]).join(', ')}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <WizardActions>
@@ -678,6 +680,11 @@ const replaceWarningStyle: React.CSSProperties = {
   color: 'var(--color-warning-800)',
   fontSize: 12,
   lineHeight: 1.5,
+}
+
+const wideTableScrollStyle: React.CSSProperties = {
+  overflowX: 'auto',
+  WebkitOverflowScrolling: 'touch',
 }
 
 const tableHeaderStyle: React.CSSProperties = {

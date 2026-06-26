@@ -184,6 +184,7 @@ export function DocumentReferencePicker({
 
   return (
     <div
+      className="mobile-filter-grid"
       style={{
         ...style,
         position: 'relative',

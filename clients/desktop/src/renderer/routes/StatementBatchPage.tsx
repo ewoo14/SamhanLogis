@@ -43,7 +43,7 @@
  *   <li>{@code statement-batch-print-all} — 전체 일괄 인쇄 버튼</li>
  * </ul>
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@samhan/design-system'
@@ -303,17 +303,19 @@ export function StatementBatchPage() {
       ) : null}
 
       {rows.length > 0 ? (
-        <table
-          data-testid="statement-batch-table"
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 13,
-            background: '#fff',
-            border: '1px solid var(--color-neutral-200, #E5E7EB)',
-          }}
-        >
-          <thead>
+        <div style={wideTableScrollStyle}>
+          <table
+            data-testid="statement-batch-table"
+            style={{
+              width: '100%',
+              minWidth: 900,
+              borderCollapse: 'collapse',
+              fontSize: 13,
+              background: '#fff',
+              border: '1px solid var(--color-neutral-200, #E5E7EB)',
+            }}
+          >
+            <thead>
             <tr
               style={{
                 background: 'var(--color-neutral-50, #F9FAFB)',
@@ -383,7 +385,7 @@ export function StatementBatchPage() {
               </th>
             </tr>
           </thead>
-          <tbody>
+            <tbody>
             {rows.map((row) => {
               const sums = sumPartnerTotals(row)
               const isChecked = selected.has(row.partnerCode)
@@ -460,8 +462,8 @@ export function StatementBatchPage() {
                 </tr>
               )
             })}
-          </tbody>
-          <tfoot>
+            </tbody>
+            <tfoot>
             <tr
               style={{
                 background: 'var(--color-neutral-50, #F9FAFB)',
@@ -509,8 +511,9 @@ export function StatementBatchPage() {
                 ₩ {krw(grandTotal.totalAmount)}
               </td>
             </tr>
-          </tfoot>
-        </table>
+            </tfoot>
+          </table>
+        </div>
       ) : null}
 
       <footer
@@ -529,4 +532,9 @@ export function StatementBatchPage() {
       </footer>
     </>
   )
+}
+
+const wideTableScrollStyle: CSSProperties = {
+  overflowX: 'auto',
+  WebkitOverflowScrolling: 'touch',
 }
