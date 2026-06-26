@@ -7,10 +7,18 @@ const authProvider = {
   clearSession: vi.fn(),
 }
 
+const pushRegistration = {
+  registerPush: vi.fn(),
+  unregisterPush: vi.fn(),
+}
+
 vi.mock('../auth/authProvider', () => ({
   getAuthProvider: () => authProvider,
   isElectronPlatform: false,
+  isCapacitorPlatform: true,
 }))
+
+vi.mock('../push/pushRegistration', () => pushRegistration)
 
 vi.mock('../api/mock', () => ({
   isMockMode: () => false,
@@ -53,6 +61,8 @@ describe('session store authProvider 배선', () => {
   it('setAuth 와 logout 은 provider 를 경유하고 렌더러 캐시를 갱신한다', async () => {
     authProvider.establishSession.mockResolvedValue(undefined)
     authProvider.clearSession.mockResolvedValue(undefined)
+    pushRegistration.registerPush.mockResolvedValue(undefined)
+    pushRegistration.unregisterPush.mockResolvedValue(undefined)
     const login: LoginResponse = {
       token: 'jwt',
       userId: 'u-2',
@@ -64,10 +74,12 @@ describe('session store authProvider 배선', () => {
 
     await useSessionStore.getState().setAuth(login)
     expect(authProvider.establishSession).toHaveBeenCalledWith(login)
+    expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
     expect(useSessionStore.getState().auth?.token).toBe('')
     expect(useSessionStore.getState().auth?.fullName).toBe('개발책임자')
 
     await useSessionStore.getState().logout()
+    expect(pushRegistration.unregisterPush).toHaveBeenCalledTimes(1)
     expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
     expect(useSessionStore.getState().auth).toBeNull()
   })

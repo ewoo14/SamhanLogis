@@ -22,7 +22,12 @@ import { create } from 'zustand'
 import type { AuthSnapshot, AuthGroupItem } from '../types/electron'
 import { MOCK_AUTH, isMockMode } from '../api/mock'
 import type { LoginResponse } from '../api/auth'
-import { getAuthProvider, isElectronPlatform, type SessionInfo } from '../auth/authProvider'
+import {
+  getAuthProvider,
+  isCapacitorPlatform,
+  isElectronPlatform,
+  type SessionInfo,
+} from '../auth/authProvider'
 
 interface SessionState {
   /** 세션 부팅 완료 여부 — false 이면 splash/스피너 표시. */
@@ -64,6 +69,26 @@ function loginToSnapshot(login: LoginResponse): AuthSnapshot {
   }
 }
 
+async function registerPushIfNative(): Promise<void> {
+  if (!isCapacitorPlatform) return
+  try {
+    const { registerPush } = await import('../push/pushRegistration')
+    await registerPush()
+  } catch (error) {
+    console.warn('[session] push 등록 실패', error)
+  }
+}
+
+async function unregisterPushIfNative(): Promise<void> {
+  if (!isCapacitorPlatform) return
+  try {
+    const { unregisterPush } = await import('../push/pushRegistration')
+    await unregisterPush()
+  } catch (error) {
+    console.warn('[session] push 해제 실패', error)
+  }
+}
+
 export const useSessionStore = create<SessionState>((set) => ({
   bootstrapped: false,
   auth: null,
@@ -83,12 +108,14 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
   setAuth: async (login) => {
     await getAuthProvider().establishSession(login)
+    await registerPushIfNative()
     set({ auth: loginToSnapshot(login) })
   },
   clearAuthState: () => {
     set({ auth: null })
   },
   logout: async () => {
+    await unregisterPushIfNative()
     await getAuthProvider().clearSession()
     set({ auth: null })
   },

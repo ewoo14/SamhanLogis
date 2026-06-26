@@ -12,6 +12,10 @@ const config: CapacitorConfig = {
   appId: 'com.samhanair.backoffice',
   appName: '삼한 백오피스',
   webDir: 'dist/capacitor',
+  ios: {
+    contentInset: 'automatic',
+    scheme: 'SamhanPublic',
+  },
   server: {
     androidScheme: 'https',
     cleartext: true,
@@ -25,6 +29,9 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
       style: 'DARK',
       backgroundColor: '#2D77A8',
+    },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
     },
   },
 }
