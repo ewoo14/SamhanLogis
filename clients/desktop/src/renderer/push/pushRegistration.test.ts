@@ -51,6 +51,16 @@ async function importPushRegistration() {
   return mod
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 describe('pushRegistration', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -192,6 +202,24 @@ describe('pushRegistration', () => {
     await registrationCallback?.({ value: 'queued-token' })
 
     expect(deletePushToken).toHaveBeenCalledWith('logout-token')
+    expect(registerPushToken).not.toHaveBeenCalled()
+  })
+
+  it('unregisterPush aborts an in-flight registerPush before listeners are attached', async () => {
+    const permission = createDeferred<{ receive: 'granted' }>()
+    PushNotifications.requestPermissions.mockReturnValueOnce(permission.promise)
+    const { registerPush, unregisterPush } = await importPushRegistration()
+
+    const registration = registerPush()
+    await unregisterPush('logout-token')
+    permission.resolve({ receive: 'granted' })
+    await registration
+    await listeners['registration']?.[0]?.({ value: 'late-token' })
+
+    expect(deletePushToken).toHaveBeenCalledWith('logout-token')
+    expect(PushNotifications.addListener).not.toHaveBeenCalled()
+    expect(PushNotifications.register).not.toHaveBeenCalled()
+    expect(listeners['registration'] ?? []).toHaveLength(0)
     expect(registerPushToken).not.toHaveBeenCalled()
   })
 

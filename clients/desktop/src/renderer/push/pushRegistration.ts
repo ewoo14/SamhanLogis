@@ -56,10 +56,11 @@ function toPushDevicePlatform(platform: string): PushDevicePlatform {
 async function attachListeners(
   PushNotifications: PushNotificationsPlugin,
   Capacitor: CapacitorBridge,
-): Promise<void> {
-  if (listenerHandles.length > 0) return
+  epoch: number,
+): Promise<boolean> {
+  if (epoch !== registrationEpoch) return false
+  if (listenerHandles.length > 0) return true
 
-  const epoch = registrationEpoch
   const registrationHandle = await PushNotifications.addListener('registration', async (token) => {
     if (epoch !== registrationEpoch) return
 
@@ -76,6 +77,10 @@ async function attachListeners(
       console.warn('[push] token registration failed', error)
     }
   })
+  if (epoch !== registrationEpoch) {
+    await registrationHandle.remove()
+    return false
+  }
 
   const receivedHandle = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
     if (typeof window === 'undefined') return
@@ -83,12 +88,28 @@ async function attachListeners(
       detail: notification,
     }))
   })
+  if (epoch !== registrationEpoch) {
+    await Promise.allSettled([
+      registrationHandle.remove(),
+      receivedHandle.remove(),
+    ])
+    return false
+  }
 
   const actionHandle = await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
     routeNotificationDeeplink(action.notification.data)
   })
+  if (epoch !== registrationEpoch) {
+    await Promise.allSettled([
+      registrationHandle.remove(),
+      receivedHandle.remove(),
+      actionHandle.remove(),
+    ])
+    return false
+  }
 
   listenerHandles = [registrationHandle, receivedHandle, actionHandle]
+  return true
 }
 
 function routeNotificationDeeplink(data: Record<string, unknown> | undefined): void {
@@ -119,20 +140,35 @@ export async function registerPush(): Promise<void> {
   if (!isCapacitorPlatform) return
   if (registerInFlight) return registerInFlight
 
-  registerInFlight = (async () => {
+  const operation = (async () => {
+    const startEpoch = registrationEpoch
+    const isStaleRegistration = () => registrationEpoch !== startEpoch
+
     const runtime = await loadPushRuntime()
+    if (isStaleRegistration()) return
     if (!runtime) return
 
     const permission = await runtime.PushNotifications.requestPermissions()
+    if (isStaleRegistration()) return
     if (permission.receive !== 'granted') return
 
-    await attachListeners(runtime.PushNotifications, runtime.Capacitor)
+    const listenersAttached = await attachListeners(
+      runtime.PushNotifications,
+      runtime.Capacitor,
+      startEpoch,
+    )
+    if (isStaleRegistration() || !listenersAttached) return
+
     await runtime.PushNotifications.register()
+    if (isStaleRegistration()) return
   })().finally(() => {
-    registerInFlight = null
+    if (registerInFlight === operation) {
+      registerInFlight = null
+    }
   })
 
-  return registerInFlight
+  registerInFlight = operation
+  return operation
 }
 
 /**
@@ -144,6 +180,7 @@ export async function unregisterPush(token = lastRegisteredToken): Promise<void>
   if (!isCapacitorPlatform) return
 
   await removePushListeners()
+  registerInFlight = null
   if (!token) {
     lastRegisteredToken = null
     return
