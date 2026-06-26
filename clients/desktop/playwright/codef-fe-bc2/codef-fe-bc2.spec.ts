@@ -38,6 +38,10 @@ test.describe('CODEF FE BC2 거래내역 import + source 탭 + 매칭', () => {
 
     await expect(page.getByTestId('codef-import-result')).toContainText('조회')
     await expect(page.getByTestId('codef-import-result')).toContainText('적재')
+    await expect(page.getByLabel('CSV 파일')).toHaveCount(0)
+    await expect(page.getByTestId('bank-transaction-file')).toHaveCount(0)
+    await expect(page.getByTestId('bank-transaction-import')).toHaveCount(0)
+    await expect(page.getByTestId('bank-transaction-import-result')).toHaveCount(0)
     await expect(page.getByTestId('codef-tab-CSV_IMPORT')).toHaveCount(0)
     await expect(page.getByTestId('codef-tab-KFTC')).toHaveCount(0)
     await expect(page.getByTestId('codef-tab-CODEF_BANK')).toBeVisible()
