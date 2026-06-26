@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import { resolve } from 'node:path'
 
 /**
  * desktop vitest 설정.
@@ -7,6 +8,12 @@ import { defineConfig } from 'vitest/config'
  * node 환경에서 실행한다. production typecheck 는 tsconfig 의 `*.test.ts` exclude 로 분리한다.
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@samhan/design-system': resolve(__dirname, '../web/design-system/src/index.ts'),
+    },
+    dedupe: ['react', 'react-dom'],
+  },
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     environment: 'node',

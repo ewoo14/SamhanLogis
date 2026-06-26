@@ -69,4 +69,18 @@ describe('biometricAuth', () => {
 
     await expect(authenticateBiometric('Unlock Samhan Public')).resolves.toBe(false)
   })
+
+  it('returns false for availability and authentication when the native plugin import fails', async () => {
+    vi.resetModules()
+    vi.doMock('@aparajita/capacitor-biometric-auth', () => {
+      throw new Error('native module load failed')
+    })
+
+    const auth = await import('./biometricAuth')
+
+    await expect(auth.isBiometricAvailable()).resolves.toBe(false)
+    await expect(auth.authenticateBiometric('Unlock Samhan Public')).resolves.toBe(false)
+
+    vi.doUnmock('@aparajita/capacitor-biometric-auth')
+  })
 })

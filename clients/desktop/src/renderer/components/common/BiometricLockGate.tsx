@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Button, Modal } from '@samhan/design-system'
 import { isCapacitorPlatform } from '../../auth/authProvider'
 import { authenticateBiometric, isBiometricAvailable } from '../../biometric/biometricAuth'
 
@@ -35,6 +36,8 @@ export function BiometricLockGate({
     try {
       const available = await isBiometricAvailable()
       if (!available) {
+        // 생체 미설정/미가용 시 JWT 유효 세션으로 통과한다.
+        // 생체인증은 토큰 위 재인증 이중 레이어이며, 생체 부재가 기존 인증을 무효화하지 않는다.
         setLocked(false)
         return
       }
@@ -103,68 +106,55 @@ export function BiometricLockGate({
     return <>{children}</>
   }
 
+  if (!locked) {
+    return <>{children}</>
+  }
+
   return (
     <>
-      <div aria-hidden={locked ? 'true' : undefined}>
+      <div aria-hidden="true">
         {children}
       </div>
-      {locked ? (
+      <Modal
+        open
+        onClose={() => {}}
+        title={<span id="biometric-lock-title">생체인증이 필요합니다</span>}
+        closeOnBackdropClick={false}
+        closeOnEsc={false}
+        closeOnHeaderX={false}
+        hideCloseButton
+        size="sm"
+        footer={(
+          <Button
+            type="button"
+            onClick={() => void unlockWithBiometry()}
+            loading={checking}
+            disabled={checking}
+            data-testid="biometric-lock-retry"
+            fullWidth
+          >
+            {checking ? '인증 확인 중' : '다시 인증'}
+          </Button>
+        )}
+      >
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="biometric-lock-title"
           data-testid="biometric-lock-gate"
           style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 10000,
             display: 'grid',
-            placeItems: 'center',
-            padding: 24,
-            background: 'rgba(15, 23, 42, 0.92)',
-            color: '#fff',
+            gap: 'var(--space-3)',
+            textAlign: 'center',
           }}
         >
-          <section
-            style={{
-              width: 'min(100%, 360px)',
-              display: 'grid',
-              gap: 14,
-              textAlign: 'center',
-            }}
-          >
-            <h1 id="biometric-lock-title" style={{ margin: 0, fontSize: 22 }}>
-              생체인증이 필요합니다
-            </h1>
-            <p style={{ margin: 0, color: 'rgba(255, 255, 255, 0.78)', lineHeight: 1.6 }}>
-              백오피스 세션 보호를 위해 Face ID, 지문 또는 기기 잠금으로 다시 인증해 주세요.
+          <p style={{ margin: 0, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            백오피스 세션 보호를 위해 Face ID, 지문 또는 기기 잠금으로 다시 인증해 주세요.
+          </p>
+          {failed ? (
+            <p role="alert" style={{ margin: 0, color: 'var(--color-danger)', fontSize: 'var(--font-size-sm)' }}>
+              인증이 완료되지 않았습니다.
             </p>
-            {failed ? (
-              <p role="alert" style={{ margin: 0, color: '#FCA5A5', fontSize: 13 }}>
-                인증이 완료되지 않았습니다.
-              </p>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => void unlockWithBiometry()}
-              disabled={checking}
-              data-testid="biometric-lock-retry"
-              style={{
-                minHeight: 44,
-                border: 0,
-                borderRadius: 6,
-                background: '#2D77A8',
-                color: '#fff',
-                fontWeight: 700,
-                cursor: checking ? 'default' : 'pointer',
-                opacity: checking ? 0.7 : 1,
-              }}
-            >
-              {checking ? '인증 확인 중' : '다시 인증'}
-            </button>
-          </section>
+          ) : null}
         </div>
-      ) : null}
+      </Modal>
     </>
   )
 }

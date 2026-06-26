@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
@@ -46,6 +46,14 @@ function renderGate() {
   )
 }
 
+function renderGateWithEnabled(enabled: boolean) {
+  return render(
+    <BiometricLockGate bootstrapped enabled={enabled}>
+      <main>secured content</main>
+    </BiometricLockGate>,
+  )
+}
+
 describe('BiometricLockGate', () => {
   const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => mockState.now)
 
@@ -73,6 +81,25 @@ describe('BiometricLockGate', () => {
     expect(screen.getByText('secured content')).toBeTruthy()
     expect(App.addListener).not.toHaveBeenCalled()
     expect(mockState.isBiometricAvailable).not.toHaveBeenCalled()
+  })
+
+  it('passes through without native listeners when explicitly disabled', () => {
+    renderGateWithEnabled(false)
+
+    expect(screen.getByText('secured content')).toBeTruthy()
+    expect(screen.queryByTestId('biometric-lock-gate')).toBeNull()
+    expect(App.addListener).not.toHaveBeenCalled()
+    expect(mockState.isBiometricAvailable).not.toHaveBeenCalled()
+  })
+
+  it('renders unlocked Capacitor content without an extra layout wrapper', async () => {
+    const { container } = renderGate()
+
+    await waitFor(() => {
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(1)
+    })
+
+    expect(container.firstElementChild?.tagName).toBe('MAIN')
   })
 
   it('gracefully unlocks when biometry is unavailable on initial mount', async () => {
@@ -119,5 +146,51 @@ describe('BiometricLockGate', () => {
     })
     expect(screen.getByText('secured content').closest('[aria-hidden]')?.getAttribute('aria-hidden')).toBe('true')
     expect(screen.getByText('생체인증이 필요합니다')).toBeTruthy()
+  })
+
+  it('renders the lock with design-system Modal focus trap surface', async () => {
+    mockState.authenticateBiometric.mockResolvedValueOnce(false)
+
+    renderGate()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('biometric-lock-gate')).toBeTruthy()
+    })
+
+    expect(screen.getByTestId('ds-modal-backdrop')).toBeTruthy()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('unlocks after retry authentication succeeds', async () => {
+    mockState.authenticateBiometric
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+
+    renderGate()
+
+    const retry = await screen.findByTestId('biometric-lock-retry')
+    fireEvent.click(retry)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('biometric-lock-gate')).toBeNull()
+    })
+    expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the lock visible when retry authentication fails again', async () => {
+    mockState.authenticateBiometric
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+
+    renderGate()
+
+    const retry = await screen.findByTestId('biometric-lock-retry')
+    fireEvent.click(retry)
+
+    await waitFor(() => {
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.getByTestId('biometric-lock-gate')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('인증이 완료되지 않았습니다.')
   })
 })
