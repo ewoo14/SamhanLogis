@@ -168,6 +168,12 @@ export function SalesPartnerOrderListPage() {
   }
 
   const columns: DataTableColumn<PartnerOrderSummary>[] = [
+    {
+      key: 'orderNumber',
+      header: '주문 번호',
+      mobilePriority: 'primary',
+      render: (o) => o.orderNumber,
+    },
     ...(canMergeConvert
       ? ([
           {
@@ -202,12 +208,6 @@ export function SalesPartnerOrderListPage() {
           },
         ] as DataTableColumn<PartnerOrderSummary>[])
       : []),
-    {
-      key: 'orderNumber',
-      header: '주문 번호',
-      mobilePriority: 'primary',
-      render: (o) => o.orderNumber,
-    },
     { key: 'partnerCode', header: '거래처 코드', mobilePriority: 'secondary' },
     {
       key: 'partnerName',
@@ -419,7 +419,7 @@ export function SalesPartnerOrderListPage() {
             columns={columns}
             rows={query.data?.content ?? []}
             rowKey={(o) => o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt}`}
-            rowTestId={(o) => `partner-order-row-${o.orderNumber}`}
+            rowTestId={(o) => (o.orderNumber ? `partner-order-row-${o.orderNumber}` : undefined)}
             rowClassName={(o) => (!o.orderNumber ? styles['partnerOrderRowDisabled'] : undefined)}
             onRowClick={handleRowClick}
             emptyMessage="등록된 주문이 없습니다"
