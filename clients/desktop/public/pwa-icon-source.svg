@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PWA placeholder 아이콘. 실 회사 로고 교체 시 동일 파일명 PNG 재생성. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#2D77A8"/>
+  <text x="256" y="320" font-family="'Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-size="200" font-weight="800" fill="#FFFFFF" text-anchor="middle">삼한</text>
+</svg>
