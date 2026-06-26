@@ -23,6 +23,7 @@
     "capture:v4": "node scripts/capture-v4-sales.cjs"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.1",
     "@capacitor/keyboard": "^8.0.5",

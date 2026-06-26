@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppRouter } from './routes'
 import { useSessionStore } from './stores/session'
 import { AppVersionGate } from './components/common/AppVersionGate'
+import { BiometricLockGate } from './components/common/BiometricLockGate'
 
 /**
  * 단일 QueryClient — 5분 staleTime + 1회 retry.
@@ -29,6 +30,7 @@ const queryClient = new QueryClient({
 export function App() {
   const bootstrap = useSessionStore((s) => s.bootstrap)
   const bootstrapped = useSessionStore((s) => s.bootstrapped)
+  const hasSession = useSessionStore((s) => Boolean(s.auth))
 
   useEffect(() => {
     void bootstrap()
@@ -36,7 +38,9 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppRouter />
+      <BiometricLockGate bootstrapped={bootstrapped} enabled={hasSession}>
+        <AppRouter />
+      </BiometricLockGate>
       <AppVersionGate bootstrapped={bootstrapped} />
     </QueryClientProvider>
   )
