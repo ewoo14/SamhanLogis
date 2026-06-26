@@ -15,7 +15,7 @@
 ## 2. 아키텍처
 ### 2.1 백엔드 (dashboard-service 확장)
 - **테이블** `app_release`(Flyway): `client_type`(DESKTOP/WEB/MOBILE), `version`(semver), `force_level`(CRITICAL/MAJOR/MINOR), `release_notes`(TEXT), `released_at`, `min_supported_version`, BaseEntity 7 audit + soft delete.
-- **공개 조회** `GET /app/version?clientType=&currentVersion=` → `{latestVersion, minSupportedVersion, forceLevel(NONE|MINOR|MAJOR|CRITICAL), releaseNotes, releasedAt}`. forceLevel 산정: currentVersion < minSupported → CRITICAL/MAJOR(등록값), < latest → 등록 force_level, ≥ latest → NONE. **인증 불요**(부팅 전 호출 가능, public route).
+- **공개 조회** `GET /app/version?clientType=&currentVersion=` → `{latestVersion, minSupportedVersion, forceLevel(NONE|MINOR|MAJOR|CRITICAL), releaseNotes, releasedAt}`. forceLevel 산정: currentVersion < minSupported → **CRITICAL(강제차단, 등록 force 무관)**, < latest → 등록 force_level, ≥ latest → NONE. **인증 불요**(부팅 전 호출 가능, public route).
 - **admin CRUD** `/app/releases`(GET/POST/PUT/DELETE) `@RequirePermission(admin.app-release)` — 릴리스 등록/수정.
 - 게이트웨이 라우트 + public(/app/version)·인증(/app/releases) 분리.
 

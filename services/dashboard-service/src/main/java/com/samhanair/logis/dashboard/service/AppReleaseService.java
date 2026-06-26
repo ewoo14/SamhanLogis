@@ -90,6 +90,7 @@ public class AppReleaseService {
 
     private AppVersionForceLevel resolveForceLevel(AppRelease latest, String currentVersion) {
         if (Semver.compare(currentVersion, latest.getMinSupportedVersion()) < 0) {
+            // 현재 버전이 minSupportedVersion 미만이면 등록 force_level과 무관하게 강제차단 CRITICAL이다.
             return AppVersionForceLevel.CRITICAL;
         }
         if (Semver.compare(currentVersion, latest.getVersion()) < 0) {

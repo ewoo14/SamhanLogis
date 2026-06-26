@@ -1,5 +1,6 @@
 package com.samhanair.logis.dashboard.domain;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,7 +33,7 @@ public final class Semver {
         if (r.prerelease().isEmpty()) {
             return -1;
         }
-        return l.prerelease().compareTo(r.prerelease());
+        return comparePrerelease(l.prerelease(), r.prerelease());
     }
 
     /** semver 형식을 검증한다. */
@@ -73,6 +74,38 @@ public final class Semver {
             throw new IllegalArgumentException(fieldName + " semver 형식 불일치: " + raw);
         }
         return new Parsed(numbers, prerelease);
+    }
+
+    private static int comparePrerelease(String left, String right) {
+        String[] leftParts = left.split("\\.", -1);
+        String[] rightParts = right.split("\\.", -1);
+        int sharedLength = Math.min(leftParts.length, rightParts.length);
+        for (int i = 0; i < sharedLength; i++) {
+            int compared = comparePrereleaseIdentifier(leftParts[i], rightParts[i]);
+            if (compared != 0) {
+                return compared;
+            }
+        }
+        return Integer.compare(leftParts.length, rightParts.length);
+    }
+
+    private static int comparePrereleaseIdentifier(String left, String right) {
+        boolean leftNumeric = isNumericIdentifier(left);
+        boolean rightNumeric = isNumericIdentifier(right);
+        if (leftNumeric && rightNumeric) {
+            return new BigInteger(left).compareTo(new BigInteger(right));
+        }
+        if (leftNumeric) {
+            return -1;
+        }
+        if (rightNumeric) {
+            return 1;
+        }
+        return left.compareTo(right);
+    }
+
+    private static boolean isNumericIdentifier(String value) {
+        return value.matches("[0-9]+");
     }
 
     private record Parsed(List<Integer> numbers, String prerelease) {
