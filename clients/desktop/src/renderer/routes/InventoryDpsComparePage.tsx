@@ -621,9 +621,8 @@ function DpsMismatchCard({
     >
       <div className="mobile-line-card-header">
         <DpsMismatchBadge mismatch={mismatch} />
-        <span className="mobile-line-card-meta">{mismatch.reason}</span>
+        <span className="mobile-line-card-meta">{mismatch.slipNo ?? '—'}</span>
       </div>
-      <MobileField label="전표번호" value={mismatch.slipNo ?? '—'} />
       <MobileField label="품번" value={mismatch.productCode ?? '—'} />
       <MobileField label="거래처코드" value={mismatch.partnerCode ?? '—'} />
       <MobileField label="출고수량" value={mismatch.expectedQty.toLocaleString()} numeric />

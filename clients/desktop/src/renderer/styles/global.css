@@ -5161,7 +5161,7 @@ button {
 
   .mobile-line-field-value {
     min-width: 0;
-    color: var(--color-neutral-900);
+    color: var(--color-neutral-900, #111827);
     font-size: 13px;
     line-height: 1.35;
     overflow-wrap: anywhere;
@@ -5174,7 +5174,7 @@ button {
 
   .mobile-line-card-meta {
     min-width: 0;
-    color: var(--color-neutral-600);
+    color: var(--color-neutral-600, #4B5563);
     font-size: 12px;
     line-height: 1.35;
     overflow-wrap: anywhere;
