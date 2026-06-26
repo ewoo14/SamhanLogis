@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
@@ -52,6 +52,30 @@ function renderGateWithEnabled(enabled: boolean) {
       <main>secured content</main>
     </BiometricLockGate>,
   )
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((settle) => {
+    resolve = settle
+  })
+  return { promise, resolve }
+}
+
+async function resolveAttempt<T>(attempt: ReturnType<typeof deferred<T>>, value: T) {
+  await act(async () => {
+    attempt.resolve(value)
+    await attempt.promise
+  })
+}
+
+async function waitForRetryReady() {
+  await screen.findByRole('alert')
+  const retry = screen.getByTestId('biometric-lock-retry') as HTMLButtonElement
+  await waitFor(() => {
+    expect(retry.disabled).toBe(false)
+  })
+  return retry
 }
 
 describe('BiometricLockGate', () => {
@@ -162,35 +186,59 @@ describe('BiometricLockGate', () => {
   })
 
   it('unlocks after retry authentication succeeds', async () => {
+    const initialAttempt = deferred<boolean>()
+    const retryAttempt = deferred<boolean>()
     mockState.authenticateBiometric
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true)
+      .mockReturnValueOnce(initialAttempt.promise)
+      .mockReturnValueOnce(retryAttempt.promise)
 
     renderGate()
-
-    const retry = await screen.findByTestId('biometric-lock-retry')
-    fireEvent.click(retry)
 
     await waitFor(() => {
-      expect(screen.queryByTestId('biometric-lock-gate')).toBeNull()
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(1)
     })
-    expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(2)
-  })
+    await resolveAttempt(initialAttempt, false)
 
-  it('keeps the lock visible when retry authentication fails again', async () => {
-    mockState.authenticateBiometric
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(false)
-
-    renderGate()
-
-    const retry = await screen.findByTestId('biometric-lock-retry')
+    const retry = await waitForRetryReady()
     fireEvent.click(retry)
 
     await waitFor(() => {
       expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(2)
     })
-    expect(screen.getByTestId('biometric-lock-gate')).toBeTruthy()
-    expect(screen.getByRole('alert').textContent).toContain('인증이 완료되지 않았습니다.')
+    await resolveAttempt(retryAttempt, true)
+
+    await waitFor(() => {
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(2)
+      expect(screen.queryByTestId('biometric-lock-gate')).toBeNull()
+    })
+  })
+
+  it('keeps the lock visible when retry authentication fails again', async () => {
+    const initialAttempt = deferred<boolean>()
+    const retryAttempt = deferred<boolean>()
+    mockState.authenticateBiometric
+      .mockReturnValueOnce(initialAttempt.promise)
+      .mockReturnValueOnce(retryAttempt.promise)
+
+    renderGate()
+
+    await waitFor(() => {
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(1)
+    })
+    await resolveAttempt(initialAttempt, false)
+
+    const retry = await waitForRetryReady()
+    fireEvent.click(retry)
+
+    await waitFor(() => {
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(2)
+    })
+    await resolveAttempt(retryAttempt, false)
+
+    await waitFor(() => {
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('biometric-lock-gate')).toBeTruthy()
+      expect(screen.getByRole('alert').textContent).toContain('인증이 완료되지 않았습니다.')
+    })
   })
 })
