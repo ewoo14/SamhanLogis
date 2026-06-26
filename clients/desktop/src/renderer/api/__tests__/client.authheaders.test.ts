@@ -8,12 +8,16 @@ const authProvider = {
 
 const platform = vi.hoisted(() => ({
   isElectron: false,
+  isCapacitor: false,
 }))
 
 vi.mock('../../auth/authProvider', () => ({
   getAuthProvider: () => authProvider,
   get isElectronPlatform() {
     return platform.isElectron
+  },
+  get isCapacitorPlatform() {
+    return platform.isCapacitor
   },
 }))
 
@@ -22,6 +26,7 @@ describe('apiClient authProvider 배선', () => {
     vi.resetModules()
     vi.clearAllMocks()
     platform.isElectron = false
+    platform.isCapacitor = false
     authProvider.getAuthHeaders.mockResolvedValue({ Authorization: 'Bearer T' })
     authProvider.clearSession.mockResolvedValue()
     vi.stubGlobal('window', { location: { hash: '', replace: vi.fn() } })
@@ -46,6 +51,45 @@ describe('apiClient authProvider 배선', () => {
     })
 
     expect(authProvider.getAuthHeaders).toHaveBeenCalledTimes(1)
+  })
+
+  it('Capacitor 요청은 쿠키 없이 Bearer 헤더를 보내고 401 시 HashRouter 로그인으로 이동한다', async () => {
+    platform.isCapacitor = true
+    const { apiClient } = await import('../client')
+
+    await apiClient.get('/auth-test', {
+      adapter: async (config) => {
+        expect(config.withCredentials).toBe(false)
+        expect(config.headers.get('Authorization')).toBe('Bearer T')
+        return {
+          data: { ok: true },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+          request: {},
+        }
+      },
+    })
+
+    await expect(apiClient.get('/api/v1/slips', {
+      adapter: async (config) => {
+        const response = {
+          data: { success: false },
+          status: 401,
+          statusText: 'Unauthorized',
+          headers: {},
+          config,
+          request: {},
+        }
+        throw new axios.AxiosError('Unauthorized', undefined, config, {}, response)
+      },
+    })).rejects.toBeInstanceOf(axios.AxiosError)
+
+    expect(authProvider.getAuthHeaders).toHaveBeenCalledTimes(2)
+    expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
+    expect(window.location.hash).toBe('#/login')
+    expect(window.location.replace).not.toHaveBeenCalled()
   })
 
   it('Electron 요청은 access_token 쿠키를 전송하지 않도록 withCredentials=false 로 보낸다', async () => {

@@ -4,16 +4,20 @@
  * 데스크탑 Electron 렌더러를 **웹 브라우저로도** 구동하기 위해, 인증 경로를
  * 플랫폼별 구현으로 추상화한다.
  * - Electron: 기존 `window.samhanAuth` IPC + Bearer 헤더 (electron-store 암호화 저장).
+ * - Capacitor: 네이티브 WebView + Bearer 헤더 (@capacitor/preferences 저장).
  * - Web: httpOnly 쿠키 (브라우저 자동 전송) + `GET /auth/me` bootstrap.
  *
  * 런타임에 `window.samhanAuth` 존재 여부로 플랫폼을 판정해 구현체를 1회 선택한다.
  * Electron 은 항상 preload 가 존재하므로 electronProvider 가 선택되어 **무회귀**가 보장된다.
  *
  * @see ./electronAuthProvider
+ * @see ./capacitorAuthProvider
  * @see ./webAuthProvider
  */
+import { Capacitor } from '@capacitor/core'
 import type { LoginResponse } from '../api/auth'
 import type { AuthGroupItem } from '../types/electron'
+import { createCapacitorAuthProvider } from './capacitorAuthProvider'
 import { createElectronAuthProvider } from './electronAuthProvider'
 import { createWebAuthProvider } from './webAuthProvider'
 
@@ -38,7 +42,7 @@ export interface SessionInfo {
  *
  * - {@link getSession} — 현재 세션 식별정보(없으면 null).
  * - {@link getAuthHeaders} — HTTP 요청에 붙일 인증 헤더. Electron=`Authorization: Bearer`,
- *   Web=`{}`(쿠키 자동 전송).
+ *   Capacitor=`Authorization: Bearer`, Web=`{}`(쿠키 자동 전송).
  * - {@link establishSession} — 로그인 성공 처리. Electron=IPC 저장, Web=식별정보 캐시(쿠키는 Set-Cookie 자동).
  * - {@link clearSession} — 로그아웃. Electron=IPC clear, Web=`POST /auth/logout`(쿠키 만료).
  * - {@link bootstrap} — 부팅 시 세션 복원. Electron=IPC 조회, Web=`GET /auth/me`(쿠키).
@@ -59,6 +63,13 @@ export const isElectronPlatform: boolean =
   typeof window !== 'undefined'
   && typeof window.samhanAuth?.getToken === 'function'
 
+/**
+ * Capacitor 네이티브 플랫폼 여부 — @capacitor/core 런타임 감지.
+ * Electron 은 preload 가 우선하므로 provider 선택 시 Electron 다음 순서로 사용한다.
+ */
+export const isCapacitorPlatform: boolean =
+  typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform()
+
 let cachedProvider: AuthProvider | null = null
 
 /**
@@ -71,6 +82,8 @@ export function getAuthProvider(): AuthProvider {
   if (cachedProvider) return cachedProvider
   cachedProvider = isElectronPlatform
     ? createElectronAuthProvider()
-    : createWebAuthProvider()
+    : isCapacitorPlatform
+      ? createCapacitorAuthProvider()
+      : createWebAuthProvider()
   return cachedProvider
 }

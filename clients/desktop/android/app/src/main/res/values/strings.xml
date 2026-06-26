@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">삼한 백오피스</string>
+    <string name="title_activity_main">삼한 백오피스</string>
+    <string name="package_name">com.samhanair.backoffice</string>
+    <string name="custom_url_scheme">com.samhanair.backoffice</string>
+</resources>

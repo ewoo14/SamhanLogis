@@ -196,3 +196,27 @@ desktop 백오피스를 **설치형 PWA**로도 배포 가능하게 `vite-plugin
 - `virtual:pwa-register` 는 vite-plugin-pwa build 모드에서만 제공되므로 dev serve 는 전용 stub config 가 필요하다(playwright webServer 에 `--config vite.config.ts` 명시 — `npx vite [root]` 는 root 에서 config 탐색).
 - 직원 실설치(모바일 홈화면 추가)는 **Phase 11 prod HTTPS** 활성 후 가능. 본 PR = PWA 인프라 + 로컬 검증.
 - 상세: `docs/dev-reports/2026-06-26-backoffice-pwa.md`.
+
+## 백오피스 네이티브 패키징 N1 — Capacitor Android 스캐폴드 (2026-06-26, PR #627)
+
+Electron/PWA renderer 를 재사용하는 "one renderer, multiple targets" 구조에 Capacitor native 빌드를 추가했다.
+
+| target | command | output | 인증/라우팅 |
+|---|---|---|---|
+| Electron desktop | `npm run build` | `out/main`, `out/preload`, `out/renderer` | Electron IPC + Bearer, HashRouter |
+| PWA web | `npm run build:web` | `dist/web` | httpOnly 쿠키, BrowserRouter, service worker |
+| Capacitor native | `npm run build:capacitor` | `dist/capacitor` | `capacitorAuthProvider` Bearer + Preferences, HashRouter |
+| 개발/mock | `npm run dev` 또는 mock webServer | Vite dev server | PWA stub, service worker 없음 |
+
+Capacitor 빌드는 `vite.capacitor.config.ts`를 사용하며 `VITE_PLATFORM='capacitor'`, `base:''`, `dist/capacitor` 산출로 고정한다. PWA service worker 는 주입하지 않아 `dist/web` 캐시 정책과 네이티브 WebView 자산을 분리한다.
+
+```powershell
+cd clients/desktop
+npm run build:capacitor
+npx cap sync android
+npx cap open android
+```
+
+네이티브 WebView(`capacitor://localhost`)는 api-gateway 로 httpOnly 쿠키 전달이 안정적이지 않으므로 웹 쿠키 경로를 사용하지 않는다. `capacitorAuthProvider`가 로그인 토큰/세션 식별정보를 `@capacitor/preferences`에 저장하고 요청마다 `Authorization: Bearer` 헤더를 붙인다. 이 Bearer 경로는 Electron에서 이미 사용하는 백엔드 계약을 그대로 재사용한다.
+
+제약: N1은 Android 스캐폴드와 자산 sync 기반 구축 단계다. 실제 APK/스토어 배포, iOS 스캐폴드/빌드, secure storage 승격, 푸시/생체인증/스캔은 후속 N2~N5 범위다. 실기기 운영 검증은 Phase 11 HTTPS 게이트웨이 확보 후 진행한다.

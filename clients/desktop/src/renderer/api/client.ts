@@ -3,7 +3,7 @@
  *
  * 인터셉터 동작:
  * 1) 요청 — 플랫폼별 authProvider 에서 인증 헤더를 가져와 병합한다.
- *    Electron 은 기존 Bearer, 웹은 httpOnly 쿠키 전송을 위해 withCredentials 를 사용한다.
+ *    native(Electron/Capacitor)는 Bearer, 웹은 httpOnly 쿠키 전송을 위해 withCredentials 를 사용한다.
  *    파트너 자기범위 키인 `X-Partner-Code` 는 게이트웨이가 JWT claim 에서 권위 주입한다.
  * 2) 응답 — 보호 리소스 401 발생 시 토큰을 즉시 클리어하고 로그인으로 유도한다.
  *    단, 인증 프로브/인증 엔드포인트 401 은 호출자가 직접 처리한다.
@@ -15,7 +15,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { getMockResponse, isMockMode } from './mock'
-import { getAuthProvider, isElectronPlatform } from '../auth/authProvider'
+import { getAuthProvider, isCapacitorPlatform, isElectronPlatform } from '../auth/authProvider'
 import { useSessionStore } from '../stores/session'
 
 interface MockHttpResponse {
@@ -32,6 +32,8 @@ function isMockHttpResponse(value: unknown): value is MockHttpResponse {
 
 const BASE_URL =
   import.meta.env['VITE_API_BASE_URL'] ?? 'http://localhost:8080'
+
+const isNativePlatform = isElectronPlatform || isCapacitorPlatform
 
 const AUTH_ENDPOINT_401_HANDLED_BY_CALLER = /\/auth\/(me|login|logout)\/?$/
 
@@ -75,7 +77,7 @@ apiClient.interceptors.request.use(
       }
     }
     try {
-      config.withCredentials = !isElectronPlatform
+      config.withCredentials = !isNativePlatform
       const headers = await getAuthProvider().getAuthHeaders()
       for (const [key, value] of Object.entries(headers)) {
         config.headers.set(key, value)
@@ -105,9 +107,9 @@ apiClient.interceptors.response.use(
       } finally {
         useSessionStore.getState().clearAuthState()
       }
-      // Electron 은 HashRouter, 웹은 BrowserRouter 기준으로 로그인 경로를 분기한다.
+      // native 는 HashRouter, 웹은 BrowserRouter 기준으로 로그인 경로를 분기한다.
       if (typeof window !== 'undefined') {
-        if (isElectronPlatform) {
+        if (isNativePlatform) {
           window.location.hash = '#/login'
         } else {
           window.location.replace('/login')

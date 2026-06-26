@@ -159,3 +159,12 @@ docs/sample/*
 .codex-temp/
 .gradle-codex-cache/
 .gstack/
+
+# Capacitor / Android 빌드 산출물
+clients/desktop/dist/capacitor/
+clients/desktop/android/.gradle/
+clients/desktop/android/app/build/
+clients/desktop/android/build/
+clients/desktop/android/local.properties
+clients/desktop/android/.idea/
+clients/desktop/android/app/src/main/assets/public/
