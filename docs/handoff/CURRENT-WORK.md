@@ -4,7 +4,7 @@
 
 ---
 
-## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a(PR #613)+슬12 입력폼 라인카드(PR #612) 완결·머지(main `8962da6f`). 다음=슬12b(비교/커스텀 4종 useIsMobile 카드 폴백, 개발책임자 지정 대기)**)
+## 🔄 세션 재개 지점 (2026-06-26 — ✅ **모바일 슬12a(#613)+슬12 입력폼(#612)+슬12b 비교/커스텀(#616) 완결·머지(main `29e5cc8c`). PM 자동 진행 중(개발책임자 "대기 없이 자동 진행") → 다음=슬13(미이관 입력 폼 FormGrid 1열)**)
 
 **모바일 레이아웃 갭 클로저 에픽(슬12~15) 착수.** 개발책임자 "조사한 최적화 미완료 항목 모두 최적화" 지시 → 실서버 라이브 검수(390px)로 갭 ground-truth → spec/plan 확정(**스코프=레이아웃 갭만**, PWA/네이티브/버전에픽③/Phase11=별도 보류) → 슬12a + 슬12 입력폼 라인카드 canonical 완주·머지.
 
@@ -22,8 +22,12 @@
 - **CI**: mock 회귀 hard gate PASS, 25 pass / 1 GitGuardian(dev 시드 `dev_p05_pass!` FP·PM 판정).
 - 🔑 교훈: stale PR 재개=origin/main 리베이스(충돌 0 확인)+force-push 먼저. 모바일 라인카드 CSS는 토큰(`--color-neutral-*`) fallback=현재 hex로 두면 라이트 무변동+다크 적응(안전 토큰화). vite preview는 fresh dist 디스크 서빙(asset 해시 일치로 stale 아님 확인).
 
+### ✅ 슬12b 비교/커스텀 4종 완결 (PR #616 MERGED, squash `29e5cc8c`)
+원시 `<table>` 비교/커스텀 4화면 모바일 카드화. **per-page 판단**: 카카오 자동매칭(KakaoAutoDispatch, 표준 배차리스트)→공용 DataTable+mobilePriority+rowTestId(슬12a 패턴); DPS 입고비교(InventoryDpsCompare)·가배차 분류(ArologisPreClassify table4)·실배차 비교(ArologisDispatchReconcile, 비교/매트릭스)→`useIsMobile()` 분기 카드 폴백(데스크탑 raw table 보존). global.css 보조 클래스(mobile-line-field-value·--numeric·card-meta). Flyway 0, BE 무변경, FE only.
+- **듀얼리뷰 0수렴**: ④ Opus 5차원(4에이전트) BLOCKING0/MAJOR0/MINOR4 → fix `2eb05aa0`(DPS 카드 사유중복 제거→헤더 slipNo·global.css fallback hex), 수용 2(Kakao size=sm 슬12a 일관·createdAt hidden 의도) → ⑤ Codex **CONVERGED 0 blocking·무수정**(데스크탑↔모바일 단일 핸들러/source/testid 독립 확인).
+- **라이브 QA**: 4화면 390px 오버플로0·컨트롤/폼/탭/빈상태 1열 클린·데스크탑 1280 무회귀 실증. mismatch/populated 카드=무시드(비교 미실행·DPS엑셀/출고전표 0)→라이브 미실증, spec "코드로만 확정" 부합·코드리뷰+Codex 담보(정직). CI 26 pass.
+
 ### 슬12 이후 큐 (canonical 동일·순차)
-- **슬12b**: 비교/커스텀 4종(DPS비교 InventoryDpsCompare·카카오매칭 KakaoAutoDispatch·아로로지스 가배차 ArologisPreClassify·실배차 ArologisDispatchReconcile) → useIsMobile 카드 폴백.
 - **슬13**: 미이관 입력 폼 ~22(전표8·견적품목6·그룹웨어2·배차5·공급자1) → FormGrid 1열.
 - **슬14**: 권한매트릭스3·거래명세서(StatementBatch)·sub-nav2(ProductClassifications/EstimateItemsCatalog 카테고리탭)·필터바2(PhotoAudit/DocumentReferencePicker) overflow 보강.
 - **슬15**: mobilePriority 잔여 ~7 admin 리스트(GroupwareApprovalTemplateAdmin·PermissionGroupManage·AccountTree·SalesClosing·MonthEndClosing·PeriodCloseList·Warehouses) 폴리시.
