@@ -10782,7 +10782,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
     // 502 — KFTC 외부 서비스 오류 시나리오
     if (reqAccountFinNo.includes('502')) {
-      return mockError(502, 'KFTC_SUBMIT_FAILED', '오픈뱅킹 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
+      return mockError(502, 'KFTC_SUBMIT_FAILED', 'KFTC 오픈뱅킹 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
     }
 
     // 정상 DRY_RUN 가짜 응답 — BE DepositMatchResponse 필드명 1:1 정합
