@@ -8,7 +8,7 @@
  * - 하단 "전체 알림 보기" 링크 → /notifications
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   acknowledgeNotification,
@@ -18,9 +18,12 @@ import {
   type NotificationCenter,
 } from '../api/notificationApi'
 
+const DROPDOWN_VIEWPORT_GUTTER_PX = 8
+
 export function NotificationBellDropdown() {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -48,6 +51,23 @@ export function NotificationBellDropdown() {
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  useLayoutEffect(() => {
+    const el = panelRef.current
+    if (!open || !el) {
+      if (el) el.style.translate = ''
+      return
+    }
+
+    const alignPanel = () => alignDropdownPanelToViewport(el)
+    alignPanel()
+
+    window.addEventListener('resize', alignPanel)
+    return () => {
+      window.removeEventListener('resize', alignPanel)
+      el.style.translate = ''
+    }
   }, [open])
 
   const handleClickRow = (n: NotificationCenter) => {
@@ -114,6 +134,7 @@ export function NotificationBellDropdown() {
 
       {open ? (
         <div
+          ref={panelRef}
           data-testid="notification-bell-panel"
           style={{
             position: 'absolute',
@@ -241,4 +262,44 @@ export function NotificationBellDropdown() {
 
 function isSafeDeeplink(path: string): boolean {
   return path.startsWith('/') && !path.startsWith('//')
+}
+
+function alignDropdownPanelToViewport(el: HTMLElement): void {
+  el.style.translate = ''
+  const rect = el.getBoundingClientRect()
+  const viewport = getViewportBounds()
+  let offsetX = 0
+
+  if (rect.left < viewport.left) {
+    offsetX = viewport.left - rect.left
+  }
+
+  const shiftedRight = rect.right + offsetX
+  if (shiftedRight > viewport.right) {
+    offsetX += viewport.right - shiftedRight
+  }
+
+  const shiftedLeft = rect.left + offsetX
+  if (shiftedLeft < viewport.left) {
+    offsetX += viewport.left - shiftedLeft
+  }
+
+  const roundedOffsetX = roundCssPx(offsetX)
+  el.style.translate = roundedOffsetX === 0 ? '' : `${roundedOffsetX}px 0`
+}
+
+function getViewportBounds(): { left: number; right: number } {
+  const visualViewport = window.visualViewport
+  const viewportLeft = (visualViewport?.offsetLeft ?? 0) + DROPDOWN_VIEWPORT_GUTTER_PX
+  const viewportWidth = visualViewport?.width ?? window.innerWidth
+
+  return {
+    left: viewportLeft,
+    right: viewportLeft + viewportWidth - (DROPDOWN_VIEWPORT_GUTTER_PX * 2),
+  }
+}
+
+function roundCssPx(value: number): number {
+  const rounded = Math.round(value * 100) / 100
+  return Object.is(rounded, -0) ? 0 : rounded
 }
