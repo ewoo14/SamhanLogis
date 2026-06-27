@@ -8,8 +8,12 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** 사용자별 외부계정 가져오기 선택 scope 서비스. */
 @Service
@@ -17,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserCodefImportScopeService {
 
     private final UserCodefImportScopeRepository repository;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * 인증 사용자 범위에서 선택 scope 를 생성하거나 갱신한다.
@@ -25,8 +30,21 @@ public class UserCodefImportScopeService {
      * @param request 저장 요청
      * @return 저장된 scope 응답
      */
-    @Transactional
     public CodefImportScopeResponse upsert(UUID userId, CodefImportScopeRequest request) {
+        try {
+            return upsertInNewTransaction(userId, request);
+        } catch (DataIntegrityViolationException ex) {
+            return upsertInNewTransaction(userId, request);
+        }
+    }
+
+    private CodefImportScopeResponse upsertInNewTransaction(UUID userId, CodefImportScopeRequest request) {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template.execute(status -> upsertOnce(userId, request));
+    }
+
+    private CodefImportScopeResponse upsertOnce(UUID userId, CodefImportScopeRequest request) {
         UserCodefImportScope scope = repository
                 .findByUserIdAndConnectedId(userId, request.connectedId().trim())
                 .orElseGet(() -> UserCodefImportScope.create(userId, request.connectedId()));
@@ -35,7 +53,7 @@ public class UserCodefImportScopeService {
                 request.cardRefs(),
                 request.loanRefs(),
                 request.defaultImportType());
-        return CodefImportScopeResponse.from(repository.save(scope));
+        return CodefImportScopeResponse.from(repository.saveAndFlush(scope));
     }
 
     /** 인증 사용자 범위에서 선택 scope 를 조회한다. 미저장 상태는 빈 선택으로 응답한다. */

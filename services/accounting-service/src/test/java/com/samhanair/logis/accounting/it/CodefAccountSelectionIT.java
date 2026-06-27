@@ -19,9 +19,16 @@ import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +39,12 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 /** BC3 CODEF 계좌·카드·대출 목록, 사용자별 선택 저장, scoped import 통합 테스트. */
 @SpringBootTest(classes = AccountingServiceApplication.class)
@@ -49,6 +61,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     @MockBean private SlipServiceClient slipServiceClient;
     @MockBean private SlipQueryClient slipQueryClient;
@@ -140,6 +153,98 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accountRefs.length()").value(2))
                 .andExpect(jsonPath("$.data.defaultImportType").value("BANK"));
+
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_codef_import_scope
+                 WHERE user_id = ?::uuid
+                   AND connected_id = ?
+                   AND is_deleted = false
+                """, Integer.class, USER_ID.toString(), CONNECTED_ID);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("동시 scope 저장은 active unique 충돌 없이 둘 다 200 으로 멱등 처리된다")
+    void upsertScopeConcurrentRequests_areBothOkAndKeepSingleActiveRow() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<Integer> first = executor.submit(() -> putScopeAfterStart(start, """
+                    {
+                      "connectedId": "%s",
+                      "accountRefs": ["%s"],
+                      "cardRefs": [],
+                      "loanRefs": [],
+                      "defaultImportType": "BANK"
+                    }
+                    """.formatted(CONNECTED_ID, ACCOUNT_REF_1)));
+            Future<Integer> second = executor.submit(() -> putScopeAfterStart(start, """
+                    {
+                      "connectedId": "%s",
+                      "accountRefs": ["%s"],
+                      "cardRefs": ["%s"],
+                      "loanRefs": [],
+                      "defaultImportType": "CARD"
+                    }
+                    """.formatted(CONNECTED_ID, ACCOUNT_REF_2, CARD_REF_1)));
+
+            start.countDown();
+
+            assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(200, 200);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_codef_import_scope
+                 WHERE user_id = ?::uuid
+                   AND connected_id = ?
+                   AND is_deleted = false
+                """, Integer.class, USER_ID.toString(), CONNECTED_ID);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("scope 저장 중 unique 충돌이 발생하면 재조회 후 update 로 200 응답한다")
+    void upsertScopeRecoversFromUniqueConflictByReloadingAndUpdating() throws Exception {
+        DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
+        definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        TransactionStatus blocker = transactionManager.getTransaction(definition);
+        jdbcTemplate.update("""
+                INSERT INTO user_codef_import_scope
+                    (user_id, connected_id, account_ref_selections, card_ref_selections,
+                     loan_ref_selections, default_import_type)
+                VALUES (?::uuid, ?, '["기존 계좌"]', '[]', '[]', 'BANK')
+                """, USER_ID.toString(), CONNECTED_ID);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<MvcResult> result = executor.submit(() -> saveScope("""
+                        {
+                          "connectedId": "%s",
+                          "accountRefs": ["%s"],
+                          "cardRefs": ["%s"],
+                          "loanRefs": ["%s"],
+                          "defaultImportType": "ALL"
+                        }
+                        """.formatted(CONNECTED_ID, ACCOUNT_REF_1, CARD_REF_1, LOAN_REF_1))
+                .andReturn());
+        try {
+            Thread.sleep(300);
+            assertThat(result.isDone()).isFalse();
+            transactionManager.commit(blocker);
+            blocker = null;
+
+            MvcResult response = result.get(10, TimeUnit.SECONDS);
+            assertThat(response.getResponse().getStatus()).isEqualTo(200);
+            assertThat(response.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                    .contains(ACCOUNT_REF_1, CARD_REF_1, LOAN_REF_1, "\"defaultImportType\":\"ALL\"");
+        } finally {
+            if (blocker != null && !blocker.isCompleted()) {
+                transactionManager.rollback(blocker);
+            }
+            executor.shutdownNow();
+        }
 
         Integer activeCount = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM user_codef_import_scope
@@ -343,6 +448,39 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("목록 조회 connectedId 누락은 한국어 400 INVALID_INPUT")
+    void listEndpointsRejectMissingConnectedIdWithKoreanMessage() throws Exception {
+        for (String path : new String[]{
+                "/accounting/codef/bank-accounts",
+                "/accounting/codef/cards",
+                "/accounting/codef/loans",
+                "/accounting/codef/scopes"
+        }) {
+            mockMvc.perform(auth(get(path)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                    .andExpect(jsonPath("$.message").value("connectedId 는 필수입니다"));
+        }
+    }
+
+    @Test
+    @DisplayName("목록 조회 전송 방식 오류는 import 요청과 같은 메시지로 400 INVALID_INPUT")
+    void listEndpointsRejectInvalidSubmitMethod() throws Exception {
+        for (String path : new String[]{
+                "/accounting/codef/bank-accounts",
+                "/accounting/codef/cards",
+                "/accounting/codef/loans"
+        }) {
+            mockMvc.perform(auth(get(path)
+                            .param("connectedId", CONNECTED_ID)
+                            .param("submitMethod", "INVALID")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                    .andExpect(jsonPath("$.message").value("전송 방식 값이 올바르지 않습니다"));
+        }
+    }
+
+    @Test
     @DisplayName("기존 BC2 /accounting/codef/import 단일 ref 계약은 유지된다")
     void legacyImportEndpointStillWorks() throws Exception {
         mockMvc.perform(auth(post("/accounting/codef/import")
@@ -379,6 +517,12 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         return mockMvc.perform(auth(post("/accounting/codef/import-scoped")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)));
+    }
+
+    private Integer putScopeAfterStart(CountDownLatch start, String body) throws Exception {
+        assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+        MvcResult result = saveScope(body).andReturn();
+        return result.getResponse().getStatus();
     }
 
     private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder auth(

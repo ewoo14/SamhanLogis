@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** CODEF 은행·카드·대출 거래내역 온디맨드 import endpoint. */
+/** 은행·카드·대출 거래내역 가져오기 API. */
 @RestController
 @RequestMapping("/accounting/codef")
 @RequiredArgsConstructor
@@ -52,13 +53,15 @@ public class CodefImportController {
     /** 연결 자격에 등록된 은행계좌 목록을 조회한다. */
     @GetMapping("/bank-accounts")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
-    @Operation(summary = "은행계좌 목록", description = "연결 식별자 기준 은행계좌 ref 목록 조회")
+    @Operation(summary = "은행계좌 목록", description = "연결 식별자 기준 은행계좌 식별값 목록 조회")
     public ApiResponse<BankAccountListResponse> listBankAccounts(
             @RequestParam
             @NotBlank(message = "connectedId 는 필수입니다")
             @Size(max = 128, message = "connectedId 는 최대 128자입니다")
             String connectedId,
-            @RequestParam(required = false) String submitMethod) {
+            @RequestParam(required = false)
+            @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
+            String submitMethod) {
         return ApiResponse.ok(BankAccountListResponse.from(
                 codefClient.listBankAccounts(connectedId, submitMethod)));
     }
@@ -66,13 +69,15 @@ public class CodefImportController {
     /** 연결 자격에 등록된 카드 목록을 조회한다. */
     @GetMapping("/cards")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
-    @Operation(summary = "카드 목록", description = "연결 식별자 기준 카드 ref 목록 조회")
+    @Operation(summary = "카드 목록", description = "연결 식별자 기준 카드 식별값 목록 조회")
     public ApiResponse<CardListResponse> listCards(
             @RequestParam
             @NotBlank(message = "connectedId 는 필수입니다")
             @Size(max = 128, message = "connectedId 는 최대 128자입니다")
             String connectedId,
-            @RequestParam(required = false) String submitMethod) {
+            @RequestParam(required = false)
+            @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
+            String submitMethod) {
         return ApiResponse.ok(CardListResponse.from(
                 codefClient.listCards(connectedId, submitMethod)));
     }
@@ -80,21 +85,23 @@ public class CodefImportController {
     /** 연결 자격에 등록된 대출 목록을 조회한다. */
     @GetMapping("/loans")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
-    @Operation(summary = "대출 목록", description = "연결 식별자 기준 대출 ref 목록 조회")
+    @Operation(summary = "대출 목록", description = "연결 식별자 기준 대출 식별값 목록 조회")
     public ApiResponse<LoanListResponse> listLoans(
             @RequestParam
             @NotBlank(message = "connectedId 는 필수입니다")
             @Size(max = 128, message = "connectedId 는 최대 128자입니다")
             String connectedId,
-            @RequestParam(required = false) String submitMethod) {
+            @RequestParam(required = false)
+            @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
+            String submitMethod) {
         return ApiResponse.ok(LoanListResponse.from(
                 codefClient.listLoans(connectedId, submitMethod)));
     }
 
-    /** CODEF 은행·카드·대출 거래내역을 조회해 BankTransaction 으로 적재한다. */
+    /** 은행·카드·대출 거래내역을 가져와 저장한다. */
     @PostMapping("/import")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
-    @Operation(summary = "거래내역 가져오기", description = "계좌/카드/대출 ref 기준 온디맨드 조회 후 BankTransaction 적재")
+    @Operation(summary = "거래내역 가져오기", description = "계좌/카드/대출 선택값 기준 거래내역을 가져와 저장")
     public ApiResponse<CodefImportResponse> importCodef(
             @Valid @RequestBody CodefImportRequest request) {
         return ApiResponse.ok(codefImportService.importTransactions(
@@ -108,7 +115,7 @@ public class CodefImportController {
                 "거래내역 가져오기가 완료되었습니다.");
     }
 
-    /** 다중 ref 또는 저장 선택 기준으로 거래내역을 조회해 BankTransaction 으로 적재한다. */
+    /** 다중 선택값 또는 저장 선택 기준으로 거래내역을 가져와 저장한다. */
     @PostMapping("/import-scoped")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
     @Operation(summary = "거래내역 선택 범위 가져오기", description = "다중 식별값, 전체 목록, 저장 선택 기준 거래내역 가져오기")
@@ -131,7 +138,7 @@ public class CodefImportController {
     /** 인증 사용자별 가져오기 선택 scope 를 저장한다. */
     @PutMapping("/scopes")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    @Operation(summary = "가져오기 선택 저장", description = "인증 사용자와 연결 식별자 기준 선택 ref 저장")
+    @Operation(summary = "가져오기 선택 저장", description = "인증 사용자와 연결 식별자 기준 선택값 저장")
     public ApiResponse<CodefImportScopeResponse> upsertScope(
             @Valid @RequestBody CodefImportScopeRequest request,
             @RequestHeader("X-User-Id") String userId) {
@@ -142,7 +149,7 @@ public class CodefImportController {
     /** 인증 사용자별 가져오기 선택 scope 를 조회한다. */
     @GetMapping("/scopes")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
-    @Operation(summary = "가져오기 선택 조회", description = "인증 사용자와 연결 식별자 기준 선택 ref 조회")
+    @Operation(summary = "가져오기 선택 조회", description = "인증 사용자와 연결 식별자 기준 선택값 조회")
     public ApiResponse<CodefImportScopeResponse> getScope(
             @RequestParam
             @NotBlank(message = "connectedId 는 필수입니다")
