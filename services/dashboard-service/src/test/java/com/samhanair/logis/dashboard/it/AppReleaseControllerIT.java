@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -19,8 +20,18 @@ import com.samhanair.logis.dashboard.client.PartnerOrderClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +42,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 /** 앱 릴리스 버전 조회 및 admin CRUD 통합 테스트. */
 @SpringBootTest(classes = DashboardServiceApplication.class)
@@ -114,6 +126,23 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("GET /app/version은 clientType 누락 시 내부 타입명을 노출하지 않는 400을 반환한다")
+    void publicVersion_whenClientTypeMissing_returnsInvalidInputWithoutTypeLeak() throws Exception {
+        String body = mockMvc.perform(get("/app/version")
+                        .param("currentVersion", "1.0.0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body)
+                .contains("필수 요청 파라미터가 누락되었습니다.")
+                .doesNotContain("AppClientType")
+                .doesNotContain("clientType");
+    }
+
+    @Test
     @DisplayName("admin CRUD는 admin.app-release 7-action 권한으로 등록/조회/수정/소프트삭제한다")
     void adminCrud_usesAppReleasePageCode_andSoftDeletes() throws Exception {
         String createBody = """
@@ -136,7 +165,7 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.forceLevel").value("MINOR"))
                 .andReturn()
                 .getResponse()
-                .getContentAsString()
+                .getContentAsString(StandardCharsets.UTF_8)
                 .replaceAll("(?s).*\"id\"\\s*:\\s*\"([^\"]+)\".*", "$1");
 
         mockMvc.perform(withActor(get("/app/releases").param("clientType", "DESKTOP")))
@@ -178,6 +207,83 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("동시 POST 중복 릴리스는 200/409로 귀결되고 SQL 제약명을 노출하지 않는다")
+    void adminCreate_whenDuplicateRace_returnsConflictWithoutSqlLeak() throws Exception {
+        String createBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "3.0.0",
+                  "forceLevel": "MINOR",
+                  "releaseNotes": "동시 등록",
+                  "releasedAt": "2026-06-27T11:00:00",
+                  "minSupportedVersion": "2.9.0"
+                }
+                """;
+        installAppReleaseInsertDelayTrigger();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            Callable<MvcResult> request = () -> {
+                assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+                return mockMvc.perform(withActor(post("/app/releases")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(createBody)))
+                        .andReturn();
+            };
+
+            List<Future<MvcResult>> futures = List.of(executor.submit(request), executor.submit(request));
+            start.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            List<String> bodies = new ArrayList<>();
+            for (Future<MvcResult> future : futures) {
+                MvcResult result = future.get(5, TimeUnit.SECONDS);
+                statuses.add(result.getResponse().getStatus());
+                bodies.add(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+            }
+            Collections.sort(statuses);
+
+            assertThat(statuses).containsExactly(200, 409);
+            assertThat(String.join("\n", bodies))
+                    .doesNotContain("ux_app_release_client_type_version_active")
+                    .doesNotContain("client_type")
+                    .doesNotContain("duplicate key value")
+                    .doesNotContain("DataIntegrityViolationException");
+        } finally {
+            dropAppReleaseInsertDelayTrigger();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("없는 앱 릴리스 수정은 응답 메시지에 UUID를 노출하지 않는다")
+    void adminUpdate_whenReleaseNotFound_doesNotExposeUuid() throws Exception {
+        UUID missingId = UUID.fromString("00000000-0000-0000-0000-000000009999");
+        String updateBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "1.0.1",
+                  "forceLevel": "MAJOR",
+                  "releaseNotes": "수정 릴리스",
+                  "releasedAt": "2026-06-27T10:00:00",
+                  "minSupportedVersion": "1.0.0"
+                }
+                """;
+
+        String body = mockMvc.perform(withActor(put("/app/releases/{id}", missingId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody)))
+                .andExpect(status().isNotFound())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body)
+                .contains("앱 릴리스를 찾을 수 없습니다.")
+                .doesNotContain(missingId.toString());
+    }
+
     private void insertRelease(
             String clientType,
             String version,
@@ -192,6 +298,29 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
                     (gen_random_uuid(), ?, ?, ?, ?, '2026-06-27 09:00:00', ?,
                      NOW(), 'it', NOW(), 'it', FALSE)
                 """, clientType, version, forceLevel, releaseNotes, minSupportedVersion);
+    }
+
+    private void installAppReleaseInsertDelayTrigger() {
+        jdbcTemplate.execute("""
+                CREATE OR REPLACE FUNCTION app_release_it_sleep_before_insert()
+                RETURNS trigger AS $$
+                BEGIN
+                    PERFORM pg_sleep(0.5);
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql
+                """);
+        jdbcTemplate.execute("""
+                CREATE TRIGGER app_release_it_sleep_before_insert
+                BEFORE INSERT ON app_release
+                FOR EACH ROW
+                EXECUTE FUNCTION app_release_it_sleep_before_insert()
+                """);
+    }
+
+    private void dropAppReleaseInsertDelayTrigger() {
+        jdbcTemplate.execute("DROP TRIGGER IF EXISTS app_release_it_sleep_before_insert ON app_release");
+        jdbcTemplate.execute("DROP FUNCTION IF EXISTS app_release_it_sleep_before_insert()");
     }
 
     private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder withActor(

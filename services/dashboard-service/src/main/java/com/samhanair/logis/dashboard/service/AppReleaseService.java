@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,13 +49,17 @@ public class AppReleaseService {
     @Transactional
     public AppRelease create(AppReleaseRequest request) {
         ensureUnique(null, request.clientType(), request.version());
-        return repository.save(AppRelease.create(
-                request.clientType(),
-                request.version(),
-                request.forceLevel(),
-                request.releaseNotes(),
-                request.releasedAt(),
-                request.minSupportedVersion()));
+        try {
+            return repository.saveAndFlush(AppRelease.create(
+                    request.clientType(),
+                    request.version(),
+                    request.forceLevel(),
+                    request.releaseNotes(),
+                    request.releasedAt(),
+                    request.minSupportedVersion()));
+        } catch (DataIntegrityViolationException ex) {
+            throw duplicateReleaseConflict(ex);
+        }
     }
 
     /** admin 릴리스 수정. */
@@ -62,13 +67,19 @@ public class AppReleaseService {
     public AppRelease update(UUID id, AppReleaseRequest request) {
         AppRelease release = findActive(id);
         ensureUnique(id, request.clientType(), request.version());
-        return release.update(
-                request.clientType(),
-                request.version(),
-                request.forceLevel(),
-                request.releaseNotes(),
-                request.releasedAt(),
-                request.minSupportedVersion());
+        try {
+            release.update(
+                    request.clientType(),
+                    request.version(),
+                    request.forceLevel(),
+                    request.releaseNotes(),
+                    request.releasedAt(),
+                    request.minSupportedVersion());
+            repository.flush();
+            return release;
+        } catch (DataIntegrityViolationException ex) {
+            throw duplicateReleaseConflict(ex);
+        }
     }
 
     /** admin 릴리스 soft-delete. */
@@ -101,16 +112,19 @@ public class AppReleaseService {
 
     private AppRelease findActive(UUID id) {
         return repository.findById(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "앱 릴리스를 찾을 수 없습니다: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "앱 릴리스를 찾을 수 없습니다."));
     }
 
     private void ensureUnique(UUID currentId, AppClientType clientType, String version) {
         repository.findByClientTypeAndVersion(clientType, version.trim())
                 .filter(existing -> currentId == null || !existing.getId().equals(currentId))
                 .ifPresent(existing -> {
-                    throw new BusinessException(ErrorCode.CONFLICT,
-                            "이미 등록된 앱 릴리스입니다: " + clientType + " " + version);
+                    throw duplicateReleaseConflict(null);
                 });
+    }
+
+    private BusinessException duplicateReleaseConflict(Throwable cause) {
+        return new BusinessException(ErrorCode.CONFLICT, "이미 등록된 앱 릴리스입니다.", cause);
     }
 
     private static AppVersionForceLevel toVersionForceLevel(AppReleaseForceLevel forceLevel) {
