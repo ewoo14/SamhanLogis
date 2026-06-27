@@ -143,7 +143,7 @@ export function PurchaseAccountingSlipFormPage() {
             disabled={mutation.isPending || selectedRows.length === 0}
             onClick={handleSubmit}
           >
-            {mutation.isPending ? '저장 중' : 'DRAFT 저장'}
+            {mutation.isPending ? '저장 중' : '임시저장'}
           </Button>
         </div>
         {mutation.isError ? (

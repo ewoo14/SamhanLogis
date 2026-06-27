@@ -9,8 +9,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Auth Service 전역 예외 핸들러 — {@link BusinessException} → {@link ApiResponse} 매핑.
@@ -69,6 +71,31 @@ public class AuthExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus().value())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 본문이 유효하지 않습니다"));
+    }
+
+    /**
+     * 필수 요청 파라미터 누락 → 400 INVALID_INPUT.
+     *
+     * @param ex 요청 파라미터 누락 예외
+     * @return HTTP 400 {@link ApiResponse}
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingRequestParameter(
+            MissingServletRequestParameterException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus().value())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "필수 요청 파라미터가 누락되었습니다."));
+    }
+
+    /**
+     * 요청 파라미터 타입 변환 실패 → 400 INVALID_INPUT.
+     *
+     * @param ex 타입 변환 실패 예외
+     * @return HTTP 400 {@link ApiResponse}
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus().value())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 파라미터 형식이 올바르지 않습니다."));
     }
 
     /**

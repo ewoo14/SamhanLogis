@@ -303,6 +303,8 @@ export async function getTaxInvoicePrintData(
  */
 export type NtsSubmitMethod = 'DRY_RUN' | 'NTS'
 
+export const DEFAULT_TAX_INVOICE_SUBMIT_METHOD: NtsSubmitMethod = 'DRY_RUN'
+
 /**
  * 국세청 전자세금계산서 발행 요청 — BE {@code EmitNtsRequest}.
  *
@@ -345,7 +347,7 @@ export interface EmitNtsResponse {
  */
 export async function emitTaxInvoiceToNts(
   id: string,
-  submitMethod: NtsSubmitMethod = 'DRY_RUN',
+  submitMethod: NtsSubmitMethod = DEFAULT_TAX_INVOICE_SUBMIT_METHOD,
 ): Promise<EmitNtsResponse> {
   const body: EmitNtsRequest = { submitMethod }
   const res = await apiClient.post<ApiEnvelope<EmitNtsResponse>>(

@@ -8,10 +8,9 @@
  *   <li>라인 표 (read-only) — 품명 / 규격 / 수량 / 단가 / 공급가액 / 부가세</li>
  *   <li>합계 박스 — 공급가액 / 부가세 / 총합</li>
  *   <li>자동 분개 link — journalId 가 있으면 새 탭으로 분개 상세 link</li>
- *   <li>NTS 발행 결과 — eTaxExternalId 표시 (SP-09-1).
+ *   <li>전자세금계산서 발행 결과 — eTaxExternalId 표시 (SP-09-1).
  *       eTaxExternalId = 홈택스 접수번호 (비즈니스 식별자, 사용자 노출 가능).
- *       DRY_RUN 시 "DRY-{taxInvoiceNo}-{epochMilli}" 형식.
- *       Phase 11 실 NTS 응답 계약 확정 후 UUID-like raw ID 반환 여부 재검토 필요.
+ *       운영 응답 계약 확정 후 UUID-like raw ID 반환 여부 재검토 필요.
  *   </li>
  * </ul>
  *
@@ -19,8 +18,8 @@
  * <ul>
  *   <li>DRAFT — "편집" → FormPage 로 이동</li>
  *   <li>DRAFT — "발행" → ISSUED 전이 (자동 분개 알림)</li>
- *   <li>ISSUED — "NTS 발행 (DRY_RUN)" → 국세청 전자세금계산서 발행 confirm 모달 → emit-nts 호출.
- *       shell 단계는 DRY_RUN 고정. Phase 11 sandbox 전환 시 NTS 선택 UI 추가 예정.
+ *   <li>ISSUED — "세금계산서 발행" → 국세청 전자세금계산서 발행 confirm 모달 → emit-nts 호출.
+ *       운영 전환 시 제출 방식 선택 UI 추가 예정.
  *       ACCOUNTANT / MASTER 권한 + ISSUED 상태일 때만 활성 (SP-09-1).</li>
  *   <li>ISSUED — "취소" → CANCELLED 전이 (역분개 알림)</li>
  *   <li>ISSUED / CANCELLED — "인쇄" → window.open(`/accounting/tax-invoices/:id/print`) 새 창</li>
@@ -46,6 +45,7 @@ import {
 } from '@samhan/design-system'
 import {
   TAX_INVOICE_STATUS_LABEL,
+  DEFAULT_TAX_INVOICE_SUBMIT_METHOD,
   cancelTaxInvoice,
   emitTaxInvoiceToNts,
   getTaxInvoice,
@@ -150,7 +150,7 @@ export function TaxInvoiceDetailPage() {
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false)
   const [cancelReason, setCancelReason] = useState<string>('')
   const cancelReasonRef = useRef<HTMLTextAreaElement>(null)
-  /** NTS 발행 confirm modal 표시 여부 (SP-09-1). */
+  /** 세금계산서 발행 confirm modal 표시 여부 (SP-09-1). */
   const [showEmitNtsModal, setShowEmitNtsModal] = useState<boolean>(false)
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
 
@@ -189,19 +189,14 @@ export function TaxInvoiceDetailPage() {
     },
   })
 
-  /**
-   * SP-09-1: 국세청 전자세금계산서 발행 mutation.
-   *
-   * DRY_RUN 기본 — 성공 시 eTaxExternalId 화면 갱신 + audit timeline 무효화.
-   * BE shell 단계: ETaxClient mock 응답.
-   */
+  /** SP-09-1: 국세청 전자세금계산서 발행 mutation. */
   const emitNtsMutation = useMutation({
-    mutationFn: () => emitTaxInvoiceToNts(id, 'DRY_RUN'),
+    mutationFn: () => emitTaxInvoiceToNts(id, DEFAULT_TAX_INVOICE_SUBMIT_METHOD),
     onSuccess: (result) => {
       setShowEmitNtsModal(false)
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'tax-invoices'] })
       // emit 결과의 eTaxExternalId 를 상세 캐시에 낙관적 반영(홈택스 접수번호 즉시 표시 — SP-09-1 T3).
-      // detail invalidate refetch 는 DRY_RUN 미영속 mock 을 덮어써 값이 사라지므로, 결과 기반으로 캐시를 갱신한다.
+      // detail invalidate refetch 는 임시 응답 식별자를 덮어써 값이 사라질 수 있으므로, 결과 기반으로 캐시를 갱신한다.
       // 캐시가 비어있는 경우(레이스)엔 undefined 반환=캐시 삭제 시맨틱을 피하기 위해 invalidate 로 refetch 한다(리뷰 P0).
       const cachedDetail = queryClient.getQueryData<typeof query.data>(['accounting', 'tax-invoice', id])
       if (cachedDetail) {
@@ -218,8 +213,8 @@ export function TaxInvoiceDetailPage() {
       alert(
         `전자세금계산서 국세청 발행 완료\n\n` +
         `발행 번호: ${result.taxInvoiceNo ?? '—'}\n` +
-        `NTS 수신 ID: ${result.eTaxExternalId ?? '—'}\n\n` +
-        `(현재 DRY_RUN 모드 — 운영 발행은 관리자 설정 후 가능합니다)`,
+        `국세청 접수번호: ${result.eTaxExternalId ?? '—'}\n\n` +
+        `실 발행은 관리자 설정 후 가능합니다.`,
       )
     },
     onError: (err: unknown) => {
@@ -230,14 +225,14 @@ export function TaxInvoiceDetailPage() {
         if (status === 409) {
           setTopError(data?.message ?? '이미 국세청에 발행된 세금계산서입니다.')
         } else if (status === 422) {
-          setTopError(data?.message ?? '발행(ISSUED) 상태의 세금계산서만 NTS 전송이 가능합니다.')
+          setTopError(data?.message ?? '발행 완료 상태의 세금계산서만 전송할 수 있습니다.')
         } else if (status === 502) {
-          setTopError('국세청(NTS) 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
+          setTopError('국세청 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
         } else {
-          setTopError(data?.message ?? 'NTS 발행에 실패했습니다.')
+          setTopError(data?.message ?? '세금계산서 발행에 실패했습니다.')
         }
       } else {
-        setTopError('NTS 발행에 실패했습니다.')
+        setTopError('세금계산서 발행에 실패했습니다.')
       }
     },
   })
@@ -266,7 +261,7 @@ export function TaxInvoiceDetailPage() {
   const canCancelTaxInvoice = canAccess('accounting.tax-invoice.cancel', 'update')
   const canEmitTaxInvoiceNts = canAccess('accounting.tax-invoice.emit-nts', 'update')
   /**
-   * SP-09-1: NTS 발행 버튼 활성 조건.
+   * SP-09-1: 세금계산서 발행 버튼 활성 조건.
    * - ISSUED 상태 + ACCOUNTANT / MASTER 권한 + 아직 eTaxExternalId 미등록 시.
    */
   const canEmitNts = isIssued && canEmitTaxInvoiceNts && !t.eTaxExternalId
@@ -372,7 +367,7 @@ export function TaxInvoiceDetailPage() {
       }
     : canEmitNts
       ? {
-          label: emitNtsMutation.isPending ? 'NTS 발행 중...' : 'NTS 발행',
+          label: emitNtsMutation.isPending ? '발행 중...' : '세금계산서 발행',
           onClick: () => setShowEmitNtsModal(true),
           disabled: emitNtsMutation.isPending,
         }
@@ -482,7 +477,7 @@ export function TaxInvoiceDetailPage() {
               { label: '사업자번호', value: t.partnerBusinessNo },
               { label: '주소', value: t.partnerAddress },
               { label: '비고', value: t.description },
-              { label: 'NTS 수신 ID', value: t.eTaxExternalId },
+              { label: '국세청 접수번호', value: t.eTaxExternalId },
             ].map(({ label, value }) => {
               const displayValue = value == null || value === '' ? '-' : String(value)
               return (
@@ -521,10 +516,10 @@ export function TaxInvoiceDetailPage() {
               <Badge variant={STATUS_VARIANT[t.status]}>
                 {TAX_INVOICE_STATUS_LABEL[t.status]}
               </Badge>
-              {/* SP-09-1 D2: NTS 발행 완료 전용 Badge — eTaxExternalId 등록 후 병렬 표시 */}
+              {/* SP-09-1 D2: 전자세금계산서 발행 완료 전용 Badge — eTaxExternalId 등록 후 병렬 표시 */}
               {t.eTaxExternalId ? (
                 <Badge variant="nts" data-testid="tax-invoice-detail-nts-emitted-badge">
-                  NTS 발행 완료
+                  세금계산서 발행 완료
                 </Badge>
               ) : null}
               {/* PR-H4c: 수정 횟수 + 복원 dropdown (DRAFT 만 revert 활성) */}
@@ -619,8 +614,7 @@ export function TaxInvoiceDetailPage() {
                 {issueMutation.isPending ? '발행 중...' : '발행'}
               </Button>
             ) : null}
-            {/* SP-09-1: NTS 발행 — ISSUED + ACCOUNTANT/MASTER + eTaxExternalId 미등록 시만.
-                D1/D5: NTS 녹색 토큰. local .btnNts class 로 hover/focus 상태 포함 완전 정의 */}
+            {/* SP-09-1: 세금계산서 발행 — ISSUED + ACCOUNTANT/MASTER + eTaxExternalId 미등록 시만. */}
             {canEmitNts ? (
               <Button
                 variant="primary"
@@ -629,7 +623,7 @@ export function TaxInvoiceDetailPage() {
                 data-testid="tax-invoice-detail-emit-nts-button"
                 className={styles['btnNts']}
               >
-                {emitNtsMutation.isPending ? 'NTS 발행 중...' : 'NTS 발행 (DRY_RUN)'}
+                {emitNtsMutation.isPending ? '발행 중...' : '세금계산서 발행'}
               </Button>
             ) : null}
             {isIssued && canCancelTaxInvoice ? (
@@ -655,10 +649,9 @@ export function TaxInvoiceDetailPage() {
         </div>
         ) : null}
 
-        {/* SP-09-1: NTS 발행 결과 — eTaxExternalId 등록 후 표시.
-            D1: hardcoded #15803D/#166534 → NTS 토큰 참조.
+        {/* SP-09-1: 세금계산서 발행 결과 — eTaxExternalId 등록 후 표시.
             D3: eTaxExternalId 값 monospace 처리.
-            CANCELLED 시 미표시 — 취소된 세금계산서에 NTS 발행이 유효한 것으로 오해 방지(리뷰 P1). */}
+            CANCELLED 시 미표시 — 취소된 세금계산서에 발행이 유효한 것으로 오해 방지(리뷰 P1). */}
         {t.eTaxExternalId && t.status !== 'CANCELLED' ? (
           <div
             style={{
@@ -677,7 +670,7 @@ export function TaxInvoiceDetailPage() {
           >
             <strong style={{ color: 'var(--color-nts-primary)' }}>전자세금계산서 국세청 발행</strong>
             <span style={{ color: 'var(--color-nts-text)' }}>
-              NTS 수신 ID:{' '}
+              국세청 접수번호:{' '}
               {/* D3: 코드형 식별자 monospace — 이카운트 번호 필드 표준 */}
               <span
                 style={{
@@ -896,14 +889,11 @@ export function TaxInvoiceDetailPage() {
         </div>
       </Modal>
 
-      {/* SP-09-1: NTS 발행 confirm Modal */}
-      {/* SP-09-1: NTS 발행 confirm Modal
-          shell 단계 DRY_RUN 고정 정책 반영 (Codex FE M-01 / Designer M).
-          Phase 11 sandbox 전환 시 NTS 선택 UI 추가 예정. */}
+      {/* SP-09-1: 세금계산서 발행 confirm Modal */}
       <Modal
         open={showEmitNtsModal}
         onClose={() => setShowEmitNtsModal(false)}
-        title="NTS 발행 (DRY_RUN — sandbox 모드)"
+        title="세금계산서 발행"
         data-testid="tax-invoice-emit-nts-modal"
         footer={
           <>
@@ -925,13 +915,13 @@ export function TaxInvoiceDetailPage() {
                 color: '#FFFFFF',
               }}
             >
-              {emitNtsMutation.isPending ? 'NTS 발행 중...' : 'NTS 발행 확인 (DRY_RUN)'}
+              {emitNtsMutation.isPending ? '발행 중...' : '발행 확인'}
             </Button>
           </>
         }
       >
         <p style={{ marginTop: 0, fontSize: 13, color: '#374151' }}>
-          이 세금계산서를 국세청 전자세금계산서 시스템(NTS)에 발행하시겠습니까?
+          이 세금계산서를 국세청 전자세금계산서 시스템에 발행하시겠습니까?
         </p>
         {/* D4: 비가역성 강조 — danger 토큰. 이카운트 참조 "발행 후 수정/취소 불가" 패턴 */}
         <div
@@ -965,10 +955,9 @@ export function TaxInvoiceDetailPage() {
           <strong>공급일자:</strong> {t.supplyDate}<br />
           <strong>총합계:</strong> {fmt(t.totalAmount)} 원<br />
           <br />
-          현재 <strong>DRY_RUN 모드</strong>로 동작합니다 (실제 국세청 전송 없음).
-          운영 발행은 관리자 설정 후 가능합니다.<br />
+          실 발행은 관리자 설정 후 가능합니다.<br />
           <span style={{ color: 'var(--color-nts-text)', fontWeight: 500 }}>
-            Phase 11 sandbox 연동 시 실 NTS 전환 예정.
+            운영 전환 후 국세청 전송이 활성화됩니다.
           </span>
         </div>
       </Modal>

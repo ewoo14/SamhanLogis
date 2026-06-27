@@ -1,10 +1,9 @@
 /**
- * 영수증 OCR 업로드 → 매입 슬립 자동 생성 화면 (SP-09-3).
+ * 영수증 업로드 → 매입 슬립 자동 생성 화면 (SP-09-3).
  *
  * <h2>용도</h2>
- * Naver Clova OCR 를 이용하여 영수증 이미지를 업로드하면 가게명 / 금액 / 부가세 /
- * 일자를 자동 인식하고 매입 슬립을 즉시 생성한다. shell 단계에서는 DRY_RUN 모드가
- * 고정으로 사용되며 Phase 11 sandbox 연동 시 CLOVA 가 활성화된다.
+ * 영수증 이미지를 업로드하면 가게명 / 금액 / 부가세 / 일자를 자동 인식하고
+ * 매입 슬립을 즉시 생성한다.
  *
  * <h2>권한 가드</h2>
  * <ul>
@@ -15,14 +14,14 @@
  * <h2>4개 영역</h2>
  * <ol>
  *   <li>파일 드롭존 + 클릭 업로드 (jpg/png/jpeg, 10MB)</li>
- *   <li>submitMethod 선택 (shell 단계 DRY_RUN 고정 표시 + CLOVA 안내)</li>
- *   <li>OCR 결과 — 가게명 / 금액 / 부가세 / 일자 + 매입 슬립 Badge + slipNo 링크</li>
+ *   <li>처리 방식 안내</li>
+ *   <li>처리 결과 — 가게명 / 금액 / 부가세 / 일자 + 매입 슬립 Badge + slipNo 링크</li>
  *   <li>실패 시 한국어 메시지 (422 / 502 구분)</li>
  * </ol>
  *
  * <h2>UUID 비공개</h2>
  * <p>응답의 slipNo 만 노출. BE DTO 에 slipId (UUID) 미포함 — slipNo 텍스트만 표시
- * (feedback_uuid_no_user_visibility). Phase 11 slipNo 기반 상세 라우트 추가 시 링크 활성화 검토.
+ * (feedback_uuid_no_user_visibility). slipNo 기반 상세 라우트 추가 시 링크 활성화 검토.
  *
  * <h2>data-testid</h2>
  * <ul>
@@ -45,6 +44,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Button } from '@samhan/design-system'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
+  DEFAULT_RECEIPT_SUBMIT_METHOD,
   parseReceipt,
   OcrGatewayError,
   ReceiptValidationError,
@@ -199,7 +199,7 @@ function ResultCard({ result }: ResultCardProps) {
 
       {/* 처리 방식 안내 */}
       <div style={{ fontSize: 11, color: 'var(--color-neutral-500, #6b7280)' }}>
-        처리 방식: {result.submitMethod === 'DRY_RUN' ? 'DRY_RUN (sandbox)' : 'Naver Clova OCR'}
+        처리 방식: {result.submitMethod === DEFAULT_RECEIPT_SUBMIT_METHOD ? '영수증 처리' : '자동 인식 처리'}
       </div>
     </div>
   )
@@ -210,10 +210,9 @@ function ResultCard({ result }: ResultCardProps) {
 // ---------------------------------------------------------------------------
 
 export function PurchaseSlipOcrUploadPage() {
-  usePageTitle('영수증 OCR 업로드')
+  usePageTitle('영수증 처리')
 
-  // shell 단계: DRY_RUN 고정 (Phase 11 sandbox 연동 시 CLOVA 활성)
-  const [submitMethod] = useState<ReceiptSubmitMethod>('DRY_RUN')
+  const [submitMethod] = useState<ReceiptSubmitMethod>(DEFAULT_RECEIPT_SUBMIT_METHOD)
 
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -326,11 +325,11 @@ export function PurchaseSlipOcrUploadPage() {
       {/* 헤더 */}
       <header>
         <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>
-          영수증 OCR 업로드
+          영수증 처리
         </h3>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600, #4B5563)' }}>
-          영수증 이미지를 업로드하면 Naver Clova OCR 이 가게명 / 금액 / 부가세 / 날짜를
-          자동으로 인식하고 매입 슬립을 즉시 생성합니다.
+          영수증 이미지를 업로드하면 가게명 / 금액 / 부가세 / 날짜를 자동으로 인식하고
+          매입 슬립을 즉시 생성합니다.
         </p>
       </header>
 
@@ -348,10 +347,10 @@ export function PurchaseSlipOcrUploadPage() {
           gap: 4,
         }}
       >
-        <div style={{ fontWeight: 600 }}>처리 방식: DRY_RUN (sandbox)</div>
+        <div style={{ fontWeight: 600 }}>처리 방식: 영수증 처리</div>
         <div>
-          현재 shell 단계에서는 DRY_RUN 모드가 고정 사용됩니다.
-          Phase 11 sandbox 연동 완료 후 Naver Clova OCR (CLOVA) 모드가 활성화됩니다.
+          실 자동 인식은 관리자 설정 후 가능합니다. 현재는 업로드한 영수증 정보를 확인해
+          매입 슬립을 생성합니다.
         </div>
       </section>
 

@@ -243,7 +243,7 @@ export function ReportListPage() {
           icon="📑"
           title="전표현황"
           badge="전표"
-          description="전표번호·출처·거래처 기준으로 POSTED 전표를 grouping 조회합니다."
+          description="전표번호·출처·거래처 기준으로 반영완료 전표를 묶어서 조회합니다."
           path="/accounting/reports/journal-status"
         />
         <ReportCard

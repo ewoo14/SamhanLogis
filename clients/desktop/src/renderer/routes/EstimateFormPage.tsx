@@ -980,7 +980,7 @@ export function EstimateFormPage() {
               disabled={isPending}
               data-testid="estimate-form-save-button"
             >
-              {isPending ? '저장 중...' : '저장 (DRAFT)'}
+              {isPending ? '저장 중...' : '임시저장'}
             </Button>
             {isEdit ? (
               <Button
@@ -989,7 +989,7 @@ export function EstimateFormPage() {
                 disabled={isPending}
                 data-testid="estimate-form-send-button"
               >
-                {sendMutation.isPending ? '발송 중...' : '발송 (SENT)'}
+                {sendMutation.isPending ? '발송 중...' : '발송'}
               </Button>
             ) : null}
           </>

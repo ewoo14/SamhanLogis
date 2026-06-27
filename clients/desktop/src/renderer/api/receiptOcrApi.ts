@@ -41,6 +41,8 @@ import { apiClient, type ApiEnvelope } from './client'
  */
 export type ReceiptSubmitMethod = 'DRY_RUN' | 'CLOVA'
 
+export const DEFAULT_RECEIPT_SUBMIT_METHOD: ReceiptSubmitMethod = 'DRY_RUN'
+
 // ---------------------------------------------------------------------------
 // 응답 타입
 // ---------------------------------------------------------------------------

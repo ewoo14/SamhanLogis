@@ -69,7 +69,7 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
  * 출고전표 전환 가능 status 화이트리스트 — BE requireConvertible(DRAFT/ON_HOLD 한정) 과 정합.
  * CONFIRMED 포함 나머지 상태는 전환 불가(BE 409 또는 business rule 위반).
  * CONVERTED: slipNo=null 이어도 이미 전량 전환 완료이므로 FE 에서 차단.
- * NOTE: BE requireConvertible 이 CONVERTED 상태를 slipNo!=null 로만 검사하는 결함이 있어
+ * NOTE: BE requireConvertible 이 전환완료 상태를 slipNo!=null 로만 검사하는 결함이 있어
  *       (slipNo=null + status=CONVERTED 가 BE 를 통과할 수 있음) FE 에서 화이트리스트로 방어.
  */
 const CONVERTIBLE_STATUS: ReadonlySet<string> = new Set(['DRAFT', 'ON_HOLD'])
@@ -213,7 +213,7 @@ export function SalesPartnerOrderDetailPage() {
     onError: (error) => {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 409) {
-          setHoldErrorMessage('진행중(DRAFT) 상태인 주문서만 보류할 수 있습니다.')
+          setHoldErrorMessage('진행중 상태인 주문서만 보류할 수 있습니다.')
           return
         }
         if (error.response?.status === 403) {
@@ -319,7 +319,7 @@ export function SalesPartnerOrderDetailPage() {
     onError: (error) => {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 409) {
-          setHoldErrorMessage('보류(ON_HOLD) 상태인 주문서만 해제할 수 있습니다.')
+          setHoldErrorMessage('보류 상태인 주문서만 해제할 수 있습니다.')
           return
         }
         if (error.response?.status === 403) {

@@ -811,7 +811,7 @@ export function TaxInvoiceFormPage() {
               disabled={isPending}
               data-testid="tax-invoice-form-save-button"
             >
-              {isPending ? '저장 중...' : '저장 (DRAFT)'}
+              {isPending ? '저장 중...' : '임시저장'}
             </Button>
             {isEdit ? (
               <Button
@@ -820,7 +820,7 @@ export function TaxInvoiceFormPage() {
                 disabled={isPending}
                 data-testid="tax-invoice-form-issue-button"
               >
-                {issueMutation.isPending ? '발행 중...' : '발행 (ISSUED)'}
+                {issueMutation.isPending ? '발행 중...' : '발행'}
               </Button>
             ) : null}
           </>

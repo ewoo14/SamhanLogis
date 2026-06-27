@@ -22,7 +22,7 @@ const inputStyle: CSSProperties = {
 
 const SLIP_STATUS_LABEL: Record<SalesAccountingSlipStatus, string> = {
   DRAFT: '임시저장',
-  POSTED: '전기완료',
+  POSTED: '반영완료(전기)',
 }
 
 export function SalesAccountingSlipPage() {
@@ -125,8 +125,8 @@ export function SalesAccountingSlipPage() {
           />
           <select value={status} onChange={(e) => setStatus(e.target.value as SalesAccountingSlipStatus | 'ALL')} style={inputStyle}>
             <option value="ALL">전체</option>
-            <option value="DRAFT">DRAFT</option>
-            <option value="POSTED">POSTED</option>
+            <option value="DRAFT">{SLIP_STATUS_LABEL.DRAFT}</option>
+            <option value="POSTED">{SLIP_STATUS_LABEL.POSTED}</option>
           </select>
         </div>
       </Card>
