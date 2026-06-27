@@ -18,6 +18,7 @@ vi.mock('../../auth/authProvider', () => ({
 }))
 
 vi.mock('../../biometric/biometricAuth', () => ({
+  AUTH_REASON: '앱 보안을 위해 생체 인증으로 다시 인증해 주세요.',
   isBiometricAvailable: mockState.isBiometricAvailable,
   authenticateBiometric: mockState.authenticateBiometric,
 }))
@@ -127,9 +128,17 @@ describe('BiometricLockGate', () => {
   })
 
   it('gracefully unlocks when biometry is unavailable on initial mount', async () => {
-    mockState.isBiometricAvailable.mockResolvedValueOnce(false)
+    const availabilityAttempt = deferred<boolean>()
+    mockState.isBiometricAvailable.mockReturnValueOnce(availabilityAttempt.promise)
 
     renderGate()
+
+    await waitFor(() => {
+      expect(mockState.isBiometricAvailable).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByTestId('biometric-lock-gate')).toBeNull()
+
+    await resolveAttempt(availabilityAttempt, false)
 
     await waitFor(() => {
       expect(screen.queryByTestId('biometric-lock-gate')).toBeNull()
@@ -168,7 +177,9 @@ describe('BiometricLockGate', () => {
     await waitFor(() => {
       expect(screen.getByTestId('biometric-lock-gate')).toBeTruthy()
     })
-    expect(screen.getByText('secured content').closest('[aria-hidden]')?.getAttribute('aria-hidden')).toBe('true')
+    const coveredContent = screen.getByText('secured content').closest('[aria-hidden]')
+    expect(coveredContent?.getAttribute('aria-hidden')).toBe('true')
+    expect(coveredContent?.hasAttribute('inert')).toBe(true)
     expect(screen.getByText('생체인증이 필요합니다')).toBeTruthy()
   })
 
@@ -182,7 +193,40 @@ describe('BiometricLockGate', () => {
     })
 
     expect(screen.getByTestId('ds-modal-backdrop')).toBeTruthy()
-    expect(screen.getByRole('dialog')).toBeTruthy()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toBeTruthy()
+    expect(dialog.getAttribute('aria-describedby')).toBeTruthy()
+    expect(screen.getByText('생체 인증(지문·얼굴 인식) 또는 기기 잠금으로 다시 인증해 주세요.').id)
+      .toBe(dialog.getAttribute('aria-describedby'))
+    expect(document.querySelectorAll('#biometric-lock-title')).toHaveLength(0)
+    expect(screen.getByTestId('biometric-lock-retry').className).toContain('size-lg')
+  })
+
+  it('does not authenticate from a stale resume callback after being disabled', async () => {
+    const { rerender } = render(
+      <BiometricLockGate bootstrapped enabled lockTimeoutMs={60_000}>
+        <main>secured content</main>
+      </BiometricLockGate>,
+    )
+
+    await waitFor(() => {
+      expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(1)
+    })
+
+    mockState.listeners.get('pause')?.()
+    mockState.now = 61_000
+    const staleResume = mockState.listeners.get('resume')
+
+    rerender(
+      <BiometricLockGate bootstrapped enabled={false} lockTimeoutMs={60_000}>
+        <main>secured content</main>
+      </BiometricLockGate>,
+    )
+
+    staleResume?.()
+    await Promise.resolve()
+
+    expect(mockState.authenticateBiometric).toHaveBeenCalledTimes(1)
   })
 
   it('unlocks after retry authentication succeeds', async () => {

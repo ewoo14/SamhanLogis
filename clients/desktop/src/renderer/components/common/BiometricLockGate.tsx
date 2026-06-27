@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, Modal } from '@samhan/design-system'
 import { isCapacitorPlatform } from '../../auth/authProvider'
-import { authenticateBiometric, isBiometricAvailable } from '../../biometric/biometricAuth'
+import { AUTH_REASON, authenticateBiometric, isBiometricAvailable } from '../../biometric/biometricAuth'
 
 const DEFAULT_LOCK_TIMEOUT_MS = 60_000
-const AUTH_REASON = '앱 보안을 위해 생체인증으로 다시 인증해 주세요.'
+const LOCK_DESCRIPTION = '생체 인증(지문·얼굴 인식) 또는 기기 잠금으로 다시 인증해 주세요.'
+const INERT_BACKGROUND_PROPS = { inert: '' } as Record<string, string>
 
 interface BiometricLockGateProps {
   children: ReactNode
@@ -24,17 +25,26 @@ export function BiometricLockGate({
   const [failed, setFailed] = useState(false)
   const backgroundedAtRef = useRef<number | null>(null)
   const authInFlightRef = useRef(false)
+  const bootstrappedRef = useRef(bootstrapped)
+  const enabledRef = useRef(enabled)
+
+  bootstrappedRef.current = bootstrapped
+  enabledRef.current = enabled
+
+  const canAuthenticate = useCallback(() => {
+    return isCapacitorPlatform && bootstrappedRef.current && enabledRef.current
+  }, [])
 
   const unlockWithBiometry = useCallback(async () => {
-    if (!isCapacitorPlatform || !bootstrapped || !enabled || authInFlightRef.current) return
+    if (!canAuthenticate() || authInFlightRef.current) return
 
     authInFlightRef.current = true
-    setLocked(true)
     setChecking(true)
     setFailed(false)
 
     try {
       const available = await isBiometricAvailable()
+      if (!canAuthenticate()) return
       if (!available) {
         // 생체 미설정/미가용 시 JWT 유효 세션으로 통과한다.
         // 생체인증은 토큰 위 재인증 이중 레이어이며, 생체 부재가 기존 인증을 무효화하지 않는다.
@@ -42,14 +52,16 @@ export function BiometricLockGate({
         return
       }
 
+      setLocked(true)
       const authenticated = await authenticateBiometric(AUTH_REASON)
+      if (!canAuthenticate()) return
       setLocked(!authenticated)
       setFailed(!authenticated)
     } finally {
       setChecking(false)
       authInFlightRef.current = false
     }
-  }, [bootstrapped, enabled])
+  }, [canAuthenticate])
 
   useEffect(() => {
     if (!isCapacitorPlatform || !bootstrapped || !enabled) {
@@ -72,9 +84,11 @@ export function BiometricLockGate({
       try {
         const { App } = await import('@capacitor/app')
         const pauseHandle = await App.addListener('pause', () => {
+          if (disposed || !canAuthenticate()) return
           backgroundedAtRef.current = Date.now()
         })
         const resumeHandle = await App.addListener('resume', () => {
+          if (disposed || !canAuthenticate()) return
           const backgroundedAt = backgroundedAtRef.current
           backgroundedAtRef.current = null
           if (backgroundedAt === null) return
@@ -112,13 +126,14 @@ export function BiometricLockGate({
 
   return (
     <>
-      <div aria-hidden="true">
+      <div aria-hidden="true" {...INERT_BACKGROUND_PROPS}>
         {children}
       </div>
       <Modal
         open
         onClose={() => {}}
-        title={<span id="biometric-lock-title">생체인증이 필요합니다</span>}
+        title="생체인증이 필요합니다"
+        description={LOCK_DESCRIPTION}
         closeOnBackdropClick={false}
         closeOnEsc={false}
         closeOnHeaderX={false}
@@ -131,6 +146,7 @@ export function BiometricLockGate({
             loading={checking}
             disabled={checking}
             data-testid="biometric-lock-retry"
+            size="lg"
             fullWidth
           >
             {checking ? '인증 확인 중' : '다시 인증'}
@@ -145,9 +161,6 @@ export function BiometricLockGate({
             textAlign: 'center',
           }}
         >
-          <p style={{ margin: 0, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-            백오피스 세션 보호를 위해 Face ID, 지문 또는 기기 잠금으로 다시 인증해 주세요.
-          </p>
           {failed ? (
             <p role="alert" style={{ margin: 0, color: 'var(--color-danger)', fontSize: 'var(--font-size-sm)' }}>
               인증이 완료되지 않았습니다.

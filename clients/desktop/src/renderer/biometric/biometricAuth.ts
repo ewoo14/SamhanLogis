@@ -2,6 +2,7 @@ import { isCapacitorPlatform } from '../auth/authProvider'
 import type * as CapacitorBiometricAuth from '@aparajita/capacitor-biometric-auth'
 
 type BiometricAuthModule = typeof CapacitorBiometricAuth
+export const AUTH_REASON = '앱 보안을 위해 생체 인증으로 다시 인증해 주세요.'
 
 async function loadBiometricAuth(): Promise<BiometricAuthModule | null> {
   if (!isCapacitorPlatform) return null
@@ -46,7 +47,7 @@ export async function authenticateBiometric(reason: string): Promise<boolean> {
       cancelTitle: '취소',
       allowDeviceCredential: true,
       iosFallbackTitle: '암호 사용',
-      androidTitle: 'Samhan Public 잠금 해제',
+      androidTitle: '삼한 퍼블릭 잠금 해제',
       androidSubtitle: reason,
       androidConfirmationRequired: false,
       androidBiometryStrength: biometric.AndroidBiometryStrength.weak,

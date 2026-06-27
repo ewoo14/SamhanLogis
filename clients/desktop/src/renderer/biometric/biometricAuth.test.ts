@@ -20,7 +20,7 @@ vi.mock('@aparajita/capacitor-biometric-auth', () => ({
   },
 }))
 
-import { authenticateBiometric, isBiometricAvailable } from './biometricAuth'
+import { AUTH_REASON, authenticateBiometric, isBiometricAvailable } from './biometricAuth'
 
 describe('biometricAuth', () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -55,11 +55,13 @@ describe('biometricAuth', () => {
   it('authenticates with the supplied reason and device credential fallback', async () => {
     mockState.authenticate.mockResolvedValueOnce(undefined)
 
-    await expect(authenticateBiometric('Unlock Samhan Public')).resolves.toBe(true)
+    await expect(authenticateBiometric(AUTH_REASON)).resolves.toBe(true)
 
     expect(mockState.authenticate).toHaveBeenCalledWith(expect.objectContaining({
-      reason: 'Unlock Samhan Public',
+      reason: AUTH_REASON,
       allowDeviceCredential: true,
+      androidTitle: '삼한 퍼블릭 잠금 해제',
+      androidSubtitle: AUTH_REASON,
       androidBiometryStrength: 0,
     }))
   })
@@ -67,7 +69,7 @@ describe('biometricAuth', () => {
   it('returns false when native authentication is rejected', async () => {
     mockState.authenticate.mockRejectedValueOnce(new Error('user cancel'))
 
-    await expect(authenticateBiometric('Unlock Samhan Public')).resolves.toBe(false)
+    await expect(authenticateBiometric(AUTH_REASON)).resolves.toBe(false)
   })
 
   it('returns false for availability and authentication when the native plugin import fails', async () => {
@@ -79,7 +81,7 @@ describe('biometricAuth', () => {
     const auth = await import('./biometricAuth')
 
     await expect(auth.isBiometricAvailable()).resolves.toBe(false)
-    await expect(auth.authenticateBiometric('Unlock Samhan Public')).resolves.toBe(false)
+    await expect(auth.authenticateBiometric(auth.AUTH_REASON)).resolves.toBe(false)
 
     vi.doUnmock('@aparajita/capacitor-biometric-auth')
   })
