@@ -15,6 +15,33 @@ import java.util.List;
 public interface CodefClient {
 
     /**
+     * 연결 자격에 등록된 은행계좌 목록을 조회한다.
+     *
+     * @param connectedId   외부계정 연결 식별자
+     * @param submitMethod 전송 방식. null/blank 이면 서버 property fallback
+     * @return 은행계좌 목록
+     */
+    List<AccountInfo> listBankAccounts(String connectedId, String submitMethod);
+
+    /**
+     * 연결 자격에 등록된 카드 목록을 조회한다.
+     *
+     * @param connectedId   외부계정 연결 식별자
+     * @param submitMethod 전송 방식. null/blank 이면 서버 property fallback
+     * @return 카드 목록
+     */
+    List<CardInfo> listCards(String connectedId, String submitMethod);
+
+    /**
+     * 연결 자격에 등록된 대출 목록을 조회한다.
+     *
+     * @param connectedId   외부계정 연결 식별자
+     * @param submitMethod 전송 방식. null/blank 이면 서버 property fallback
+     * @return 대출 목록
+     */
+    List<LoanInfo> listLoans(String connectedId, String submitMethod);
+
+    /**
      * 지정 계좌의 CODEF 은행 거래내역을 조회한다.
      *
      * @param from         조회 시작 일자

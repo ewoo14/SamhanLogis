@@ -42,6 +42,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
+        if ((userId == null || userId.isBlank()) && request.getRequestURI().startsWith("/accounting/codef/")) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
 
         // X-User-Id 존재 시 인증 성립 (role 부재여도 허용)
         if (userId != null && !userId.isBlank()

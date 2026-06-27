@@ -16,6 +16,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,21 +67,56 @@ public class CodefImportService {
         CodefImportType effectiveType = type != null ? type : CodefImportType.ALL;
         validateRequest(from, to, effectiveType, accountRef, cardRef, loanRef);
 
+        return importTransactionsForRefs(
+                from,
+                to,
+                effectiveType,
+                hasText(accountRef) ? List.of(accountRef) : List.of(),
+                hasText(cardRef) ? List.of(cardRef) : List.of(),
+                hasText(loanRef) ? List.of(loanRef) : List.of(),
+                submitMethod);
+    }
+
+    /**
+     * CODEF 은행·카드·대출 거래내역을 다중 ref 기준으로 조회해 멱등 적재한다.
+     *
+     * <p>BC3 scoped import 가 사용하는 공통 경로다. 기존 단일 ref import 도 본 메서드에 위임한다.
+     */
+    @Transactional
+    public CodefImportResponse importTransactionsForRefs(LocalDate from, LocalDate to,
+                                                         CodefImportType type,
+                                                         List<String> accountRefs,
+                                                         List<String> cardRefs,
+                                                         List<String> loanRefs,
+                                                         String submitMethod) {
+        CodefImportType effectiveType = type != null ? type : CodefImportType.ALL;
+        validateMultiRequest(from, to, effectiveType, accountRefs, cardRefs, loanRefs);
+
+        List<String> normalizedAccountRefs = normalizeRefs(accountRefs);
+        List<String> normalizedCardRefs = normalizeRefs(cardRefs);
+        List<String> normalizedLoanRefs = normalizeRefs(loanRefs);
+
         List<SourceTxn> fetched = new ArrayList<>();
-        if (shouldImport(effectiveType, CodefImportType.BANK) && hasText(accountRef)) {
-            codefClient.fetchBankTransactions(from, to, accountRef.trim(), submitMethod).stream()
-                    .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_BANK))
-                    .forEach(fetched::add);
+        if (shouldImport(effectiveType, CodefImportType.BANK)) {
+            for (String accountRef : normalizedAccountRefs) {
+                codefClient.fetchBankTransactions(from, to, accountRef, submitMethod).stream()
+                        .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_BANK))
+                        .forEach(fetched::add);
+            }
         }
-        if (shouldImport(effectiveType, CodefImportType.CARD) && hasText(cardRef)) {
-            codefClient.fetchCardTransactions(from, to, cardRef.trim(), submitMethod).stream()
-                    .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_CARD))
-                    .forEach(fetched::add);
+        if (shouldImport(effectiveType, CodefImportType.CARD)) {
+            for (String cardRef : normalizedCardRefs) {
+                codefClient.fetchCardTransactions(from, to, cardRef, submitMethod).stream()
+                        .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_CARD))
+                        .forEach(fetched::add);
+            }
         }
-        if (shouldImport(effectiveType, CodefImportType.LOAN) && hasText(loanRef)) {
-            codefClient.fetchLoanTransactions(from, to, loanRef.trim(), submitMethod).stream()
-                    .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_LOAN))
-                    .forEach(fetched::add);
+        if (shouldImport(effectiveType, CodefImportType.LOAN)) {
+            for (String loanRef : normalizedLoanRefs) {
+                codefClient.fetchLoanTransactions(from, to, loanRef, submitMethod).stream()
+                        .map(txn -> new SourceTxn(txn, BankTxnSource.CODEF_LOAN))
+                        .forEach(fetched::add);
+            }
         }
 
         int imported = 0;
@@ -177,6 +213,46 @@ public class CodefImportService {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "accountRef, cardRef, loanRef 중 하나는 필수입니다.");
         }
+    }
+
+    private void validateMultiRequest(LocalDate from, LocalDate to, CodefImportType type,
+                                      List<String> accountRefs, List<String> cardRefs, List<String> loanRefs) {
+        if (from == null || to == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 는 필수입니다.");
+        }
+        if (from.isAfter(to)) {
+            throw new BusinessException(ErrorCode.DEPOSIT_DATE_RANGE_INVALID,
+                    "from(" + from + ")이 to(" + to + ")보다 늦습니다.");
+        }
+        if (type == CodefImportType.BANK && normalizeRefs(accountRefs).isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "BANK import 는 accountRefs 가 필수입니다.");
+        }
+        if (type == CodefImportType.CARD && normalizeRefs(cardRefs).isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "CARD import 는 cardRefs 가 필수입니다.");
+        }
+        if (type == CodefImportType.LOAN && normalizeRefs(loanRefs).isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "LOAN import 는 loanRefs 가 필수입니다.");
+        }
+        if (type == CodefImportType.ALL
+                && normalizeRefs(accountRefs).isEmpty()
+                && normalizeRefs(cardRefs).isEmpty()
+                && normalizeRefs(loanRefs).isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "accountRefs, cardRefs, loanRefs 중 하나는 필수입니다.");
+        }
+    }
+
+    private static List<String> normalizeRefs(List<String> refs) {
+        if (refs == null || refs.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String ref : refs) {
+            if (hasText(ref)) {
+                normalized.add(ref.trim());
+            }
+        }
+        return List.copyOf(normalized);
     }
 
     private boolean shouldImport(CodefImportType requestedType, CodefImportType candidateType) {
