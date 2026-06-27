@@ -38,8 +38,8 @@ interface SessionState {
   bootstrap: () => Promise<void>
   /** 로그인 성공 시 호출 — provider 저장/캐시 + 렌더러 세션 갱신. */
   setAuth: (login: LoginResponse) => Promise<void>
-  /** provider 호출 없이 렌더러 auth 캐시만 비운다. 401 전역 가드에서 사용. */
-  clearAuthState: () => void
+  /** provider 세션과 렌더러 auth 캐시를 함께 비운다. 401 전역 가드에서 사용. */
+  clearAuthState: () => Promise<void>
   /** 로그아웃 — provider 세션 정리 + 렌더러 캐시 비움. */
   logout: () => Promise<void>
 }
@@ -113,7 +113,8 @@ export const useSessionStore = create<SessionState>((set) => ({
       console.warn('[session] push registration failed', error)
     })
   },
-  clearAuthState: () => {
+  clearAuthState: async () => {
+    await getAuthProvider().clearSession()
     set({ auth: null })
   },
   logout: async () => {

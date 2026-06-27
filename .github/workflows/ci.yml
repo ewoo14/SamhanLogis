@@ -286,6 +286,11 @@ jobs:
       - name: build:web (renderer web)
         run: npm run build:web
 
+      - name: build:capacitor (native webview)
+        run: npm run build:capacitor
+        env:
+          VITE_API_BASE_URL: ''
+
       - name: 단위 테스트(vitest)
         run: npm test
 

@@ -111,11 +111,9 @@ apiClient.interceptors.response.use(
       }
 
       try {
-        await getAuthProvider().clearSession()
+        await useSessionStore.getState().clearAuthState()
       } catch (clearErr) {
         console.error('[apiClient] 401 후 세션 클리어 실패', clearErr)
-      } finally {
-        useSessionStore.getState().clearAuthState()
       }
       // native 는 HashRouter, 웹은 BrowserRouter 기준으로 로그인 경로를 분기한다.
       if (typeof window !== 'undefined') {

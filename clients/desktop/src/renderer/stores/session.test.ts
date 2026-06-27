@@ -121,6 +121,25 @@ describe('session store authProvider 배선', () => {
     )
   })
 
+  it('clearAuthState 는 provider 저장 세션과 렌더러 캐시를 함께 비운다', async () => {
+    authProvider.clearSession.mockResolvedValue(undefined)
+    const { useSessionStore } = await import('./session')
+    useSessionStore.setState({
+      auth: {
+        token: 'jwt',
+        userId: 'u-clear',
+        role: 'MASTER',
+        fullName: '만료 사용자',
+        groups: [],
+      },
+    })
+
+    await useSessionStore.getState().clearAuthState()
+
+    expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
+    expect(useSessionStore.getState().auth).toBeNull()
+  })
+
   it('setAuth resolves before native push registration settles', async () => {
     authProvider.establishSession.mockResolvedValue(undefined)
     pushRegistration.registerPush.mockReturnValue(new Promise(() => undefined))
