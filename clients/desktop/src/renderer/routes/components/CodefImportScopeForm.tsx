@@ -79,6 +79,16 @@ function selectedCount(selection: SelectionState): number {
   return selection.accountRefs.length + selection.cardRefs.length + selection.loanRefs.length
 }
 
+function isEmptySelection(selection: SelectionState): boolean {
+  return selectedCount(selection) === 0
+}
+
+function isEmptyScope(scope: CodefImportScope): boolean {
+  return scope.accountRefs.length === 0
+    && scope.cardRefs.length === 0
+    && scope.loanRefs.length === 0
+}
+
 function normalizeRefs(refs: string[]): string[] {
   return Array.from(new Set(refs.map((ref) => ref.trim()).filter(Boolean)))
 }
@@ -165,19 +175,30 @@ export function CodefImportScopeForm({
   const accounts = accountsQuery.data ?? []
   const cards = cardsQuery.data ?? []
   const loans = loansQuery.data ?? []
-
-  useEffect(() => {
-    if (!scopeQuery.data || restoredApplied) return
-    setRestoredScope(scopeQuery.data)
-    setType(scopeQuery.data.defaultImportType)
-    setSelection({
+  const loadedScopeSelection = useMemo<SelectionState | null>(() => {
+    if (!scopeQuery.data) return null
+    return {
       accountRefs: normalizeRefs(scopeQuery.data.accountRefs),
       cardRefs: normalizeRefs(scopeQuery.data.cardRefs),
       loanRefs: normalizeRefs(scopeQuery.data.loanRefs),
-    })
+    }
+  }, [scopeQuery.data])
+
+  useEffect(() => {
+    if (!scopeQuery.data || !loadedScopeSelection || restoredApplied) return
+    if (isEmptySelection(loadedScopeSelection)) {
+      setRestoredScope(null)
+      setSelection(EMPTY_SELECTION)
+      setSelectionDirty(false)
+      setRestoredApplied(true)
+      return
+    }
+    setRestoredScope(scopeQuery.data)
+    setType(scopeQuery.data.defaultImportType)
+    setSelection(loadedScopeSelection)
     setSelectionDirty(false)
     setRestoredApplied(true)
-  }, [restoredApplied, scopeQuery.data])
+  }, [loadedScopeSelection, restoredApplied, scopeQuery.data])
 
   const categories = useMemo(() => ([
     {
@@ -344,14 +365,17 @@ export function CodefImportScopeForm({
   const listsLoading = visibleCategories.some((category) => category.isLoading)
   const canSave = canUpdate && !listsLoading && !saveMutation.isPending
   const canImport = canCreate && datesValid && !importMutation.isPending
-  const scopeMissing = scopeQuery.isError
-    && isAxiosError(scopeQuery.error)
-    && (scopeQuery.error.response?.data as { code?: unknown } | undefined)?.code === 'NOT_FOUND'
+  const scopeMissing = Boolean(scopeQuery.data && isEmptyScope(scopeQuery.data))
+    || (
+      scopeQuery.isError
+      && isAxiosError(scopeQuery.error)
+      && (scopeQuery.error.response?.data as { code?: unknown } | undefined)?.code === 'NOT_FOUND'
+    )
 
   return (
     <div className="codef-import-panel">
       <div>
-        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>거래내역 가져오기</h4>
+        <h4 className="codef-import-title">거래내역 가져오기</h4>
         <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-neutral-500)' }}>
           선택한 계좌·카드·대출 거래를 가져와 입출금 내역에 적재합니다.
         </div>
@@ -489,16 +513,21 @@ export function CodefImportScopeForm({
             ...selection.loanRefs.map((ref) => ({ ref, category: 'LOAN' as const })),
           ] as Array<{ ref: string; category: CodefScopeCategory }>)
             .filter((item) => type === 'ALL' || type === item.category)
-            .map((item) => (
-              <TagChip
-                key={`${item.category}-${item.ref}`}
-                label={CATEGORY_LABEL[item.category]}
-                value={itemLabelByRef.get(item.ref)?.label ?? item.ref}
-                removeLabel={itemLabelByRef.get(item.ref)?.label ?? item.ref}
-                onRemove={() => toggleRef(item.category, item.ref, false)}
-                data-testid="codef-selected-chip"
-              />
-            ))
+            .map((item) => {
+              const labelInfo = itemLabelByRef.get(item.ref)
+              if (!labelInfo && !listsLoading) return null
+              const label = labelInfo?.label ?? '로딩 중'
+              return (
+                <TagChip
+                  key={`${item.category}-${item.ref}`}
+                  label={CATEGORY_LABEL[item.category]}
+                  value={label}
+                  removeLabel={label}
+                  onRemove={() => toggleRef(item.category, item.ref, false)}
+                  data-testid="codef-selected-chip"
+                />
+              )
+            })
         )}
       </div>
 

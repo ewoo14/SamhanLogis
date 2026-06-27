@@ -200,16 +200,61 @@ describe('mock CODEF account selection BC3 contract', () => {
     expect(imported.data.fetchedCount).toBe(4)
   })
 
-  it('저장 선택이 없으면 NOT_FOUND mock error 를 반환한다', () => {
+  it('scope 미저장 조회는 200 envelope + empty scope 를 반환한다', () => {
+    const connectedId = `missing-connected-${Date.now()}`
     const missing = mockRequest({
       method: 'GET',
       url: '/accounting/codef/scopes',
-      params: { connectedId: 'missing-connected' },
+      params: { connectedId },
+    }) as MockEnvelope<{
+      connectedId: string
+      accountRefs: string[]
+      cardRefs: string[]
+      loanRefs: string[]
+      defaultImportType: 'ALL'
+    }>
+
+    expect(missing.success).toBe(true)
+    expect(missing.data).toEqual({
+      connectedId,
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'ALL',
+    })
+  })
+
+  it('저장된 scope 가 있지만 refs 가 모두 비어 있으면 import-scoped 는 INVALID_INPUT 을 반환한다', () => {
+    const connectedId = `empty-scope-${Date.now()}`
+    mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'ALL',
+      },
+    })
+
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId,
+        from: '2026-06-01',
+        to: '2026-06-26',
+        type: 'ALL',
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+      },
     }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
 
-    expect(missing.__mockStatus).toBe(404)
-    expect(missing.body.code).toBe('NOT_FOUND')
-    expect(missing.body.message).toContain('먼저 저장')
+    expect(imported.__mockStatus).toBe(400)
+    expect(imported.body.code).toBe('INVALID_INPUT')
+    expect(imported.body.message).toContain('저장된 가져오기 선택이 비어 있습니다')
   })
 })
 

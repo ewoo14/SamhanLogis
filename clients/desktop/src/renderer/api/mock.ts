@@ -5138,7 +5138,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const connectedId = String(config.params?.['connectedId'] ?? '').trim()
     const saved = MOCK_CODEF_IMPORT_SCOPES[connectedId]
     if (!saved) {
-      return mockError(404, 'NOT_FOUND', '저장된 가져오기 선택이 없습니다. 먼저 저장하세요.')
+      return envelope({
+        connectedId,
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'ALL' as const,
+      })
     }
     return envelope(saved)
   }
@@ -5171,6 +5177,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       && body.loanRefs.length === 0
     if (explicitEmptySavedScope && !saved) {
       return mockError(404, 'NOT_FOUND', '저장된 가져오기 선택이 없습니다. 먼저 저장하세요.')
+    }
+    if (
+      explicitEmptySavedScope
+      && saved
+      && saved.accountRefs.length === 0
+      && saved.cardRefs.length === 0
+      && saved.loanRefs.length === 0
+    ) {
+      return mockError(400, 'INVALID_INPUT', '저장된 가져오기 선택이 비어 있습니다. 계좌·카드·대출 중 하나 이상을 선택해 저장하세요.')
     }
 
     const accountRefs = resolveMockCodefRefs(

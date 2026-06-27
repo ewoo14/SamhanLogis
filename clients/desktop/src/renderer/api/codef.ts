@@ -126,6 +126,7 @@ export async function importScopedCodef(
     '/accounting/codef/import-scoped',
     {
       ...request,
+      // 실 CODEF 계약 활성 시 'CODEF' 로 전환한다.
       submitMethod: 'DRY_RUN' satisfies CodefSubmitMethod,
     },
   )

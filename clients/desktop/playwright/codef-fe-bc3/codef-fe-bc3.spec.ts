@@ -17,6 +17,15 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test.describe('BC3 CODEF 계좌/카드/대출 선택 가져오기', () => {
+  test('scope 미저장 200 empty 응답은 미설정 상태로 표시하고 복원 처리하지 않는다', async ({ page }) => {
+    await page.goto(URL, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading', { name: '거래내역 가져오기', exact: true })).toBeVisible()
+
+    await expect(page.getByText('저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.')).toBeVisible()
+    await expect(page.getByText('저장된 선택을 복원했습니다.')).toHaveCount(0)
+    await expect(page.getByTestId('codef-selected-chip')).toHaveCount(0)
+  })
+
   test('카드 다중 선택을 저장하고 저장 기준으로 가져온다', async ({ page }) => {
     await page.goto(URL, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading', { name: '거래내역 가져오기', exact: true })).toBeVisible()
@@ -65,5 +74,39 @@ test.describe('BC3 CODEF 계좌/카드/대출 선택 가져오기', () => {
 
     await expectNoHorizontalOverflow(page)
     await expectNoTechnicalLabels(page)
+  })
+
+  test('모바일 거래처 매칭은 full-width 로 열리고 자동완성 드롭다운과 토스트가 가려지지 않는다', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(URL, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading', { name: '거래내역 가져오기', exact: true })).toBeVisible()
+
+    await page.getByTestId('codef-import-type').selectOption('BANK')
+    await page.getByTestId('codef-bank-account-select-all').check()
+    await page.getByTestId('codef-import-from').fill('2026-06-01')
+    await page.getByTestId('codef-import-to').fill('2026-06-26')
+    await page.getByTestId('codef-import-button').click()
+
+    const toast = page.getByTestId('bank-transaction-toast')
+    await expect(toast).toBeVisible()
+    await expect(toast).toContainText('거래내역 가져오기 완료')
+    const toastBox = await toast.boundingBox()
+    expect(toastBox?.y ?? 0, 'toast 는 모바일 하단 fixed 영역에 표시되어야 한다').toBeGreaterThan(520)
+
+    await page.getByTestId('codef-tab-CODEF_BANK').click()
+    const partnerSearch = page.locator('[data-testid^="bank-transaction-partner-search-CODEF_BANK-"]').first()
+    await expect(partnerSearch).toBeVisible()
+
+    const matchCell = page.locator('td[data-label="거래처 매칭"][data-mobile-priority="secondary"]').first()
+    const matchCellBox = await matchCell.boundingBox()
+    expect(matchCellBox?.width ?? 0, '모바일 거래처 매칭 셀은 160px secondary 칸이 아니라 row 하단 content 폭이어야 한다').toBeGreaterThan(260)
+
+    await partnerSearch.locator('input').fill('123456')
+    const listbox = page.getByRole('listbox', { name: '거래처 목록' }).first()
+    await expect(listbox).toBeVisible()
+    const listboxBox = await listbox.boundingBox()
+    expect(listboxBox?.width ?? 0, '자동완성 드롭다운이 160px secondary 셀에 클리핑되면 안 된다').toBeGreaterThan(260)
+
+    await expectNoHorizontalOverflow(page)
   })
 })

@@ -241,7 +241,7 @@ export function BankTransactionPage() {
         const matched = partnerValueOf(row)
         const pending = matchPartnerMutation.isPending || clearPartnerMutation.isPending
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: matched ? '1fr auto' : '1fr', gap: 8, alignItems: 'end' }}>
+          <div className="bank-transaction-partner-match" style={{ display: 'grid', gridTemplateColumns: matched ? '1fr auto' : '1fr', gap: 8, alignItems: 'end' }}>
             <div data-testid={`bank-transaction-partner-search-${row.source}-${row.externalRef}`}>
               <PartnerAutocomplete
                 label=""
@@ -358,7 +358,7 @@ export function BankTransactionPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>입출금 내역</h3>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>입출금 내역</h3>
           <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
             입금 {formatKrw(totalDeposit)} · 출금 {formatKrw(totalWithdrawal)} · {rows.length}건
           </div>
@@ -370,16 +370,8 @@ export function BankTransactionPage() {
         {toast ? (
           <div
             role={toast.type === 'error' ? 'alert' : 'status'}
-            style={{
-              marginBottom: 12,
-              padding: '10px 12px',
-              border: `1px solid ${toast.type === 'error' ? 'var(--state-danger)' : 'var(--state-success)'}`,
-              borderRadius: 6,
-              background: toast.type === 'error' ? 'var(--state-danger-bg)' : 'var(--state-success-bg)',
-              color: toast.type === 'error' ? 'var(--state-danger)' : 'var(--state-success)',
-              fontSize: 13,
-              fontWeight: 600,
-            }}
+            data-testid="bank-transaction-toast"
+            className={`bank-transaction-toast bank-transaction-toast--${toast.type}`}
           >
             {toast.message}
           </div>
@@ -469,12 +461,14 @@ export function BankTransactionPage() {
                 </div>
               ) : null}
               {tab.key === activeSourceTab ? (
-                <DataTable<BankTransactionRow>
-                  columns={columns}
-                  rows={rows}
-                  rowKey={(row) => `${row.source}|${row.bankAccountLabel}|${row.transactedAt}|${row.amount}|${row.externalRef}`}
-                  emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
-                />
+                <div className="bank-transaction-table">
+                  <DataTable<BankTransactionRow>
+                    columns={columns}
+                    rows={rows}
+                    rowKey={(row) => `${row.source}|${row.bankAccountLabel}|${row.transactedAt}|${row.amount}|${row.externalRef}`}
+                    emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
+                  />
+                </div>
               ) : null}
             </div>
           ))}
