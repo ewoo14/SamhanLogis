@@ -2,12 +2,12 @@ package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.client.CodefClient;
 import com.samhanair.logis.accounting.domain.UserCodefImportScope;
+import com.samhanair.logis.accounting.util.CodefRefNormalizer;
 import com.samhanair.logis.accounting.web.dto.CodefImportResponse;
 import com.samhanair.logis.accounting.web.dto.CodefImportType;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -70,9 +70,9 @@ public class CodefImportScopedService {
                 && isExplicitEmpty(cardRefs)
                 && isExplicitEmpty(loanRefs)) {
             UserCodefImportScope scope = scopeService.getRequired(userId, connectedId);
-            List<String> savedAccountRefs = normalizeRefs(scope.getAccountRefSelections());
-            List<String> savedCardRefs = normalizeRefs(scope.getCardRefSelections());
-            List<String> savedLoanRefs = normalizeRefs(scope.getLoanRefSelections());
+            List<String> savedAccountRefs = CodefRefNormalizer.normalizeRefs(scope.getAccountRefSelections());
+            List<String> savedCardRefs = CodefRefNormalizer.normalizeRefs(scope.getCardRefSelections());
+            List<String> savedLoanRefs = CodefRefNormalizer.normalizeRefs(scope.getLoanRefSelections());
             if (savedAccountRefs.isEmpty() && savedCardRefs.isEmpty() && savedLoanRefs.isEmpty()) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT, EMPTY_SAVED_SCOPE_MESSAGE);
             }
@@ -103,9 +103,9 @@ public class CodefImportScopedService {
         }
 
         return new ResolvedRefs(
-                accountRefs == null ? List.of() : normalizeRefs(accountRefs),
-                cardRefs == null ? List.of() : normalizeRefs(cardRefs),
-                loanRefs == null ? List.of() : normalizeRefs(loanRefs));
+                accountRefs == null ? List.of() : CodefRefNormalizer.normalizeRefs(accountRefs),
+                cardRefs == null ? List.of() : CodefRefNormalizer.normalizeRefs(cardRefs),
+                loanRefs == null ? List.of() : CodefRefNormalizer.normalizeRefs(loanRefs));
     }
 
     private static boolean shouldImport(CodefImportType requestedType, CodefImportType candidateType) {
@@ -114,19 +114,6 @@ public class CodefImportScopedService {
 
     private static boolean isExplicitEmpty(List<String> refs) {
         return refs != null && refs.isEmpty();
-    }
-
-    private static List<String> normalizeRefs(List<String> refs) {
-        if (refs == null || refs.isEmpty()) {
-            return List.of();
-        }
-        LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        for (String ref : refs) {
-            if (ref != null && !ref.isBlank()) {
-                normalized.add(ref.trim());
-            }
-        }
-        return List.copyOf(normalized);
     }
 
     private static void validateConnectedId(String connectedId) {

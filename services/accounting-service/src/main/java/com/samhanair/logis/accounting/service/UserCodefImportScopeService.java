@@ -28,7 +28,7 @@ public class UserCodefImportScopeService {
     @Transactional
     public CodefImportScopeResponse upsert(UUID userId, CodefImportScopeRequest request) {
         UserCodefImportScope scope = repository
-                .findByUserIdAndConnectedIdAndIsDeletedFalse(userId, request.connectedId().trim())
+                .findByUserIdAndConnectedId(userId, request.connectedId().trim())
                 .orElseGet(() -> UserCodefImportScope.create(userId, request.connectedId()));
         scope.updateSelections(
                 request.accountRefs(),
@@ -42,7 +42,7 @@ public class UserCodefImportScopeService {
     @Transactional(readOnly = true)
     public CodefImportScopeResponse get(UUID userId, String connectedId) {
         validateConnectedId(connectedId);
-        return repository.findByUserIdAndConnectedIdAndIsDeletedFalse(userId, connectedId.trim())
+        return repository.findByUserIdAndConnectedId(userId, connectedId.trim())
                 .map(CodefImportScopeResponse::from)
                 .orElseGet(() -> CodefImportScopeResponse.empty(connectedId.trim()));
     }
@@ -51,8 +51,8 @@ public class UserCodefImportScopeService {
     @Transactional(readOnly = true)
     public UserCodefImportScope getRequired(UUID userId, String connectedId) {
         validateConnectedId(connectedId);
-        return repository.findByUserIdAndConnectedIdAndIsDeletedFalse(userId, connectedId.trim())
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
+        return repository.findByUserIdAndConnectedId(userId, connectedId.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "저장된 가져오기 선택이 없습니다."));
     }
 

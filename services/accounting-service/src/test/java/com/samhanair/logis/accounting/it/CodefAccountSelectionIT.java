@@ -206,6 +206,24 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("scoped import 전송 방식 오류는 내부 enum 값을 노출하지 않는다")
+    void importScopedRejectsInvalidSubmitMethodWithoutTechnicalValues() throws Exception {
+        importScoped("""
+                {
+                  "connectedId": "%s",
+                  "from": "2026-06-01",
+                  "to": "2026-06-03",
+                  "type": "BANK",
+                  "accountRefs": ["%s"],
+                  "submitMethod": "INVALID"
+                }
+                """.formatted(CONNECTED_ID, ACCOUNT_REF_1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("submitMethod: 전송 방식 값이 올바르지 않습니다"));
+    }
+
+    @Test
     @DisplayName("type=ALL 이고 ref 배열이 빈 배열이면 저장된 선택을 로드해 가져온다")
     void importScopedAllWithEmptyRefs_loadsSavedSelections() throws Exception {
         saveScope("""
@@ -269,18 +287,57 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("type=ALL 이고 저장 scope row 가 없으면 404 NOT_FOUND 로 구분한다")
+    void importScopedAllWithEmptyRefsAndMissingSavedScope_returnsNotFound() throws Exception {
+        importScoped("""
+                {
+                  "connectedId": "%s",
+                  "from": "2026-06-01",
+                  "to": "2026-06-03",
+                  "type": "ALL",
+                  "accountRefs": [],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "submitMethod": "DRY_RUN"
+                }
+                """.formatted(CONNECTED_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("저장된 가져오기 선택이 없습니다."));
+    }
+
+    @Test
+    @DisplayName("scope 저장 defaultImportType 누락은 400 INVALID_INPUT")
+    void upsertScopeRejectsMissingDefaultImportType() throws Exception {
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "accountRefs": [],
+                  "cardRefs": [],
+                  "loanRefs": []
+                }
+                """.formatted(CONNECTED_ID))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(
+                        "기본 가져오기 구분은 필수입니다")));
+    }
+
+    @Test
     @DisplayName("목록 조회 connectedId blank 는 400 INVALID_INPUT")
     void listEndpointsRejectBlankConnectedId() throws Exception {
         for (String path : new String[]{
                 "/accounting/codef/bank-accounts",
                 "/accounting/codef/cards",
-                "/accounting/codef/loans"
+                "/accounting/codef/loans",
+                "/accounting/codef/scopes"
         }) {
             mockMvc.perform(auth(get(path)
                             .param("connectedId", "   ")
                             .param("submitMethod", "DRY_RUN")))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                    .andExpect(jsonPath("$.message").value("connectedId 는 필수입니다"));
         }
     }
 

@@ -82,6 +82,7 @@ class CodefImportControllerIT extends AbstractPostgresIT {
     void importCodefDryRun_idempotentAndMatchesPartner() throws Exception {
         importCodef()
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("거래내역 가져오기가 완료되었습니다."))
                 .andExpect(jsonPath("$.data.fetchedCount").value(10))
                 .andExpect(jsonPath("$.data.importedCount").value(10))
                 .andExpect(jsonPath("$.data.duplicateSkippedCount").value(0))
@@ -137,6 +138,27 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                 """, Integer.class);
 
         assertThat(loanCount).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("단일 ref import 전송 방식 오류는 내부 enum 값을 노출하지 않는다")
+    void importCodefRejectsInvalidSubmitMethodWithoutTechnicalValues() throws Exception {
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "from": "2026-06-01",
+                                  "to": "2026-06-03",
+                                  "type": "BANK",
+                                  "accountRef": "국민 123-456",
+                                  "submitMethod": "INVALID"
+                                }
+                                """)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("submitMethod: 전송 방식 값이 올바르지 않습니다"));
     }
 
     @Test

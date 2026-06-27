@@ -228,7 +228,7 @@ public class CodefClientImpl implements CodefClient {
         validateCredentials();
         log.warn("[BC1] CODEF 은행 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "CODEF 은행 실 API 호출은 Phase 11/키발급 후 구현 예정입니다.");
+                "금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
     }
 
     /** CODEF 카드 실 API stub — Phase 11 계약·키 발급 후 구현. */
@@ -236,7 +236,7 @@ public class CodefClientImpl implements CodefClient {
         validateCredentials();
         log.warn("[BC1] CODEF 카드 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "CODEF 카드 실 API 호출은 Phase 11/키발급 후 구현 예정입니다.");
+                "금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
     }
 
     /** CODEF 대출 실 API stub — Phase 11 계약·키 발급 후 구현. */
@@ -244,7 +244,7 @@ public class CodefClientImpl implements CodefClient {
         validateCredentials();
         log.warn("[BC1] CODEF 대출 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "CODEF 대출 실 API 호출은 Phase 11/키발급 후 구현 예정입니다.");
+                "금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
     }
 
     /** 실 은행계좌 목록 API stub — Phase 11 계약·키 발급 후 구현. */
@@ -277,11 +277,11 @@ public class CodefClientImpl implements CodefClient {
     private void requireCredential(String value, String name) {
         if (!hasText(value)) {
             throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                    name + " 미설정 — codef.* 환경변수를 확인하세요");
+                    "금융기관 연동 설정이 완료되지 않았습니다. 관리자에게 문의하세요.");
         }
         if (isPlaceholderKey(value)) {
             throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                    name + " 가 placeholder 입니다. CODEF 실 키 설정 필요.");
+                    "금융기관 연동 설정 값이 올바르지 않습니다. 관리자에게 문의하세요.");
         }
     }
 

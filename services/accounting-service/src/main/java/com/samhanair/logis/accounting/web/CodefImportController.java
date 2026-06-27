@@ -39,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/accounting/codef")
 @RequiredArgsConstructor
 @Validated
-@Tag(name = "CODEF 거래내역", description = "CODEF 은행·카드·대출 거래내역 DRY_RUN/실연동 import")
+@Tag(name = "금융기관 거래내역", description = "은행·카드·대출 거래내역 가져오기")
 public class CodefImportController {
 
     private static final String PAGE_CODE = "accounting.bank-matching";
@@ -94,7 +94,7 @@ public class CodefImportController {
     /** CODEF 은행·카드·대출 거래내역을 조회해 BankTransaction 으로 적재한다. */
     @PostMapping("/import")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
-    @Operation(summary = "CODEF 거래내역 import", description = "계좌/카드/대출 ref 기준 온디맨드 조회 후 BankTransaction 적재")
+    @Operation(summary = "거래내역 가져오기", description = "계좌/카드/대출 ref 기준 온디맨드 조회 후 BankTransaction 적재")
     public ApiResponse<CodefImportResponse> importCodef(
             @Valid @RequestBody CodefImportRequest request) {
         return ApiResponse.ok(codefImportService.importTransactions(
@@ -105,7 +105,7 @@ public class CodefImportController {
                         request.cardRef(),
                         request.loanRef(),
                         request.submitMethod()),
-                "CODEF 거래내역 import 가 완료되었습니다.");
+                "거래내역 가져오기가 완료되었습니다.");
     }
 
     /** 다중 ref 또는 저장 선택 기준으로 거래내역을 조회해 BankTransaction 으로 적재한다. */
@@ -144,7 +144,10 @@ public class CodefImportController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     @Operation(summary = "가져오기 선택 조회", description = "인증 사용자와 연결 식별자 기준 선택 ref 조회")
     public ApiResponse<CodefImportScopeResponse> getScope(
-            @RequestParam String connectedId,
+            @RequestParam
+            @NotBlank(message = "connectedId 는 필수입니다")
+            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            String connectedId,
             @RequestHeader("X-User-Id") String userId) {
         return ApiResponse.ok(scopeService.get(parseUserId(userId), connectedId));
     }

@@ -30,7 +30,7 @@ public record CodefImportScopedRequest(
 
         List<@NotBlank(message = "loanRefs 항목은 비어있을 수 없습니다") String> loanRefs,
 
-        @Pattern(regexp = "DRY_RUN|CODEF", message = "submitMethod 는 DRY_RUN 또는 CODEF 만 허용됩니다")
+        @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
         String submitMethod
 ) {
 }

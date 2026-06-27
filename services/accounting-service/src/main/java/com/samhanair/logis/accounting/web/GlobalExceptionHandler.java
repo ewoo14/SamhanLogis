@@ -49,7 +49,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
         String msg = ex.getConstraintViolations().stream()
                 .findFirst()
-                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .map(v -> v.getMessage())
                 .orElse("입력값이 유효하지 않습니다");
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));

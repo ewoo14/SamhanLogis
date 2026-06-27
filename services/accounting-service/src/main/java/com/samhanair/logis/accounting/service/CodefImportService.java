@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.BankTxnSource;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
+import com.samhanair.logis.accounting.util.CodefRefNormalizer;
 import com.samhanair.logis.accounting.web.dto.CodefImportResponse;
 import com.samhanair.logis.accounting.web.dto.CodefImportType;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -16,7 +17,6 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -92,9 +92,9 @@ public class CodefImportService {
         CodefImportType effectiveType = type != null ? type : CodefImportType.ALL;
         validateMultiRequest(from, to, effectiveType, accountRefs, cardRefs, loanRefs);
 
-        List<String> normalizedAccountRefs = normalizeRefs(accountRefs);
-        List<String> normalizedCardRefs = normalizeRefs(cardRefs);
-        List<String> normalizedLoanRefs = normalizeRefs(loanRefs);
+        List<String> normalizedAccountRefs = CodefRefNormalizer.normalizeRefs(accountRefs);
+        List<String> normalizedCardRefs = CodefRefNormalizer.normalizeRefs(cardRefs);
+        List<String> normalizedLoanRefs = CodefRefNormalizer.normalizeRefs(loanRefs);
 
         List<SourceTxn> fetched = new ArrayList<>();
         if (shouldImport(effectiveType, CodefImportType.BANK)) {
@@ -187,7 +187,7 @@ public class CodefImportService {
             return LocalTime.parse(transactionTime.trim(), TIME_FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "CODEF 거래시각 형식이 올바르지 않습니다: " + transactionTime, ex);
+                    "거래시각 형식이 올바르지 않습니다: " + transactionTime, ex);
         }
     }
 
@@ -224,35 +224,22 @@ public class CodefImportService {
             throw new BusinessException(ErrorCode.DEPOSIT_DATE_RANGE_INVALID,
                     "from(" + from + ")이 to(" + to + ")보다 늦습니다.");
         }
-        if (type == CodefImportType.BANK && normalizeRefs(accountRefs).isEmpty()) {
+        if (type == CodefImportType.BANK && CodefRefNormalizer.normalizeRefs(accountRefs).isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "BANK import 는 accountRefs 가 필수입니다.");
         }
-        if (type == CodefImportType.CARD && normalizeRefs(cardRefs).isEmpty()) {
+        if (type == CodefImportType.CARD && CodefRefNormalizer.normalizeRefs(cardRefs).isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "CARD import 는 cardRefs 가 필수입니다.");
         }
-        if (type == CodefImportType.LOAN && normalizeRefs(loanRefs).isEmpty()) {
+        if (type == CodefImportType.LOAN && CodefRefNormalizer.normalizeRefs(loanRefs).isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "LOAN import 는 loanRefs 가 필수입니다.");
         }
         if (type == CodefImportType.ALL
-                && normalizeRefs(accountRefs).isEmpty()
-                && normalizeRefs(cardRefs).isEmpty()
-                && normalizeRefs(loanRefs).isEmpty()) {
+                && CodefRefNormalizer.normalizeRefs(accountRefs).isEmpty()
+                && CodefRefNormalizer.normalizeRefs(cardRefs).isEmpty()
+                && CodefRefNormalizer.normalizeRefs(loanRefs).isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "accountRefs, cardRefs, loanRefs 중 하나는 필수입니다.");
         }
-    }
-
-    private static List<String> normalizeRefs(List<String> refs) {
-        if (refs == null || refs.isEmpty()) {
-            return List.of();
-        }
-        LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        for (String ref : refs) {
-            if (hasText(ref)) {
-                normalized.add(ref.trim());
-            }
-        }
-        return List.copyOf(normalized);
     }
 
     private boolean shouldImport(CodefImportType requestedType, CodefImportType candidateType) {

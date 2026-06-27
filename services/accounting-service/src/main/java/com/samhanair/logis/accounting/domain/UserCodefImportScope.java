@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.domain;
 
+import com.samhanair.logis.accounting.util.CodefRefNormalizer;
 import com.samhanair.logis.accounting.web.dto.CodefImportType;
 import com.samhanair.logis.common.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -10,7 +11,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -87,24 +87,11 @@ public class UserCodefImportScope extends BaseEntity {
      */
     public UserCodefImportScope updateSelections(List<String> accountRefs, List<String> cardRefs,
                                                  List<String> loanRefs, CodefImportType defaultImportType) {
-        this.accountRefSelections = normalizeRefs(accountRefs);
-        this.cardRefSelections = normalizeRefs(cardRefs);
-        this.loanRefSelections = normalizeRefs(loanRefs);
+        this.accountRefSelections = CodefRefNormalizer.normalizeRefs(accountRefs);
+        this.cardRefSelections = CodefRefNormalizer.normalizeRefs(cardRefs);
+        this.loanRefSelections = CodefRefNormalizer.normalizeRefs(loanRefs);
         this.defaultImportType = defaultImportType == null ? CodefImportType.ALL : defaultImportType;
         return this;
-    }
-
-    private static List<String> normalizeRefs(List<String> refs) {
-        if (refs == null || refs.isEmpty()) {
-            return List.of();
-        }
-        LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        for (String ref : refs) {
-            if (ref != null && !ref.isBlank()) {
-                normalized.add(ref.trim());
-            }
-        }
-        return List.copyOf(normalized);
     }
 
     private static void validateConnectedId(String connectedId) {

@@ -39,7 +39,7 @@ public record CodefImportRequest(
         @Pattern(regexp = ".*\\S.*", message = "loanRef 는 null 또는 비어있지 않은 문자열이어야 합니다")
         String loanRef,
 
-        @Pattern(regexp = "DRY_RUN|CODEF", message = "submitMethod 는 DRY_RUN 또는 CODEF 만 허용됩니다")
+        @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
         String submitMethod
 ) {
 }
