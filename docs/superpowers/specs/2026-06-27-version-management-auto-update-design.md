@@ -5,12 +5,12 @@
 
 ## 0. 개발책임자 결정 (2026-06-25)
 - **Option B**: 자체 버전체크 API(`GET /app/version`) + 인앱 팝업 (electron-updater 아님 — 코드서명/인증서 불요).
-- **2단계 강제**: Critical/Major=강제(차단, 업데이트 안 하면 사용 불가) / Minor=권고('다시 보지 않기' 허용).
+- ~~**2단계 강제**: Critical/Major=강제(차단, 업데이트 안 하면 사용 불가) / Minor=권고('다시 보지 않기' 허용).~~ → **정정(2026-06-27 개발책임자 2회 확정)**: **Critical=강제 차단(닫기불가, minSupported 미만) / Major=권고(닫기가능 모달·세션 재표시·영구 dismiss 없음, 앱 사용가능) / Minor=권고 배너('다시 보지 않기' 영속)**.
 - **릴리스노트**: admin 관리화면(DB 등록).
 - 범위: 웹/Electron 공통 + **모바일(사용자 추가 지시)**. 데스크탑 .exe 자동설치는 미포함(신버전 안내→웹사용/수동 재설치).
 
 ## 1. 목표 (V1)
-클라이언트(데스크탑/웹/모바일)가 부팅·주기적으로 **최신 버전·강제수준·릴리스노트를 백엔드에서 조회**하고, 강제수준에 따라 **차단 모달(Critical/Major)** 또는 **권고 토스트(Minor)** 표시. 관리자가 릴리스노트/강제수준을 admin 화면에서 등록.
+클라이언트(데스크탑/웹/모바일)가 부팅·주기적으로 **최신 버전·강제수준·릴리스노트를 백엔드에서 조회**하고, 강제수준에 따라 **차단 모달(Critical, 닫기불가)** / **권고 모달(Major, 닫기가능·세션 재표시)** / **권고 배너(Minor)** 표시. 관리자가 릴리스노트/강제수준을 admin 화면에서 등록.
 
 ## 2. 아키텍처
 ### 2.1 백엔드 (dashboard-service 확장)
@@ -22,7 +22,7 @@
 ### 2.2 공통 클라이언트 (version-check 모듈)
 - 빌드 시 버전 주입: `VITE_APP_VERSION`(define, package.json version 또는 git describe) / Expo `Constants.expoConfig.version`.
 - `checkAppVersion(clientType, currentVersion)` → GET /app/version → forceLevel 분기:
-  - CRITICAL/MAJOR → **차단 모달**(릴리스노트 + 업데이트 안내, 닫기 불가, 앱 사용 차단).
+  - CRITICAL → **차단 모달**(릴리스노트 + 업데이트 안내, 닫기 불가, 앱 사용 차단). MAJOR → **권고 모달**(릴리스노트 + 업데이트 안내, 닫기가능·세션 재표시, 앱 사용가능 — 개발책임자 확정 2026-06-27).
   - MINOR → **권고 토스트/배너**('지금 보기' + '다시 보지 않기'[localStorage 영속]).
   - NONE → no-op.
 - 부팅 1회 + 선택적 주기 폴링.

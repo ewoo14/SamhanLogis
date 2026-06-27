@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "doctor": "expo-doctor",
     "export:web": "expo export --platform web",
-    "capture:v4": "node scripts/capture-v4.cjs"
+    "capture:v4": "node scripts/capture-v4.cjs",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.5",
@@ -29,8 +30,19 @@
     "react-native-webview": "13.13.5"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.13",
     "@types/react": "~19.0.10",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "jest-expo": "~53.0.0",
     "playwright": "^1.59.1",
+    "react-test-renderer": "19.0.0",
     "typescript": "~5.8.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|@testing-library))"
+    ]
   }
 }

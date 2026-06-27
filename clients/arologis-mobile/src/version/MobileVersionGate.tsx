@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
-import { ActivityIndicator, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Linking, Modal, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { checkForOtaUpdate } from './otaUpdates';
 import {
   fetchMobileVersionStatus,
+  getMajorSessionDismissKey,
   getMinorDismissStorageKey,
   isBlockingForceLevel,
   type VersionStatus,
@@ -17,7 +19,17 @@ type GateState =
   | { status: 'checking' }
   | { status: 'pass' }
   | { status: 'minor'; version: VersionStatus }
+  | { status: 'major'; version: VersionStatus; dismissKey: string }
   | { status: 'blocked'; version: VersionStatus };
+
+const STORE_UPDATE_TARGET = {
+  iosBundleId: 'com.samhanair.arologis.driver',
+  androidPackageName: 'com.samhanair.arologis.driver',
+  iosStoreUrl: 'https://apps.apple.com/kr/search?term=arologis%20driver',
+  androidStoreUrl: 'https://play.google.com/store/apps/details?id=com.samhanair.arologis.driver',
+} as const;
+
+const sessionDismissedMajorVersions = new Set<string>();
 
 export function MobileVersionGate({ children }: MobileVersionGateProps): React.ReactElement {
   const [gateState, setGateState] = React.useState<GateState>({ status: 'checking' });
@@ -26,12 +38,19 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
     let mounted = true;
 
     async function runBootChecks() {
-      void checkForOtaUpdate();
       try {
         const version = await fetchMobileVersionStatus();
         if (!mounted) return;
         if (isBlockingForceLevel(version.forceLevel)) {
           setGateState({ status: 'blocked', version });
+          return;
+        }
+
+        void checkForOtaUpdate();
+
+        if (version.forceLevel === 'MAJOR') {
+          const dismissKey = getMajorSessionDismissKey(version.latestVersion || 'unknown');
+          setGateState(sessionDismissedMajorVersions.has(dismissKey) ? { status: 'pass' } : { status: 'major', version, dismissKey });
           return;
         }
         if (version.forceLevel === 'MINOR') {
@@ -42,6 +61,7 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
         }
         setGateState({ status: 'pass' });
       } catch {
+        void checkForOtaUpdate();
         if (mounted) setGateState({ status: 'pass' });
       }
     }
@@ -66,6 +86,15 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
 
   return (
     <View style={styles.root}>
+      {gateState.status === 'major' ? (
+        <MajorVersionModal
+          version={gateState.version}
+          onDismiss={() => {
+            sessionDismissedMajorVersions.add(gateState.dismissKey);
+            setGateState({ status: 'pass' });
+          }}
+        />
+      ) : null}
       {gateState.status === 'minor' ? (
         <MinorVersionBanner
           version={gateState.version}
@@ -82,20 +111,49 @@ export function MobileVersionGate({ children }: MobileVersionGateProps): React.R
 
 function BlockingVersionScreen({ version }: { version: VersionStatus }): React.ReactElement {
   return (
-    <ScrollView contentContainerStyle={styles.blockingScreen}>
-      <Text style={styles.eyebrow}>업데이트 필요</Text>
-      <Text style={styles.title}>새 버전 설치 후 이용할 수 있습니다.</Text>
-      <Text style={styles.body}>
-        현재 앱은 서버 정책상 더 이상 사용할 수 없습니다. 최신 버전 {version.latestVersion || '확인 필요'} 설치 후
-        다시 실행해 주세요.
-      </Text>
-      {version.releaseNotes.length > 0 ? (
-        <View style={styles.notesBox}>
-          <Text style={styles.notesTitle}>릴리스 노트</Text>
-          <Text style={styles.notes}>{version.releaseNotes}</Text>
+    <SafeAreaView style={styles.safeRoot} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.blockingScreen}>
+        <Text style={styles.eyebrow}>업데이트 필요</Text>
+        <Text style={styles.title}>현재 버전은 더 이상 사용할 수 없습니다.</Text>
+        <Text style={styles.body}>
+          서버 정책상 최신 버전 {version.latestVersion || '확인 필요'} 설치 후 다시 실행해 주세요.
+        </Text>
+        <UpdateButton />
+        {version.releaseNotes.length > 0 ? (
+          <View style={styles.notesBox}>
+            <Text style={styles.notesTitle}>릴리스 노트</Text>
+            <Text style={styles.notes}>{version.releaseNotes}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function MajorVersionModal({
+  version,
+  onDismiss,
+}: {
+  version: VersionStatus;
+  onDismiss: () => void;
+}): React.ReactElement {
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <Text style={styles.eyebrow}>업데이트 권장</Text>
+          <Text style={styles.modalTitle}>새 버전 {version.latestVersion || '확인 필요'}을 사용할 수 있습니다.</Text>
+          <Text style={styles.body}>
+            현재 세션은 계속 사용할 수 있지만 안정적인 이용을 위해 업데이트를 권장합니다.
+          </Text>
+          {version.releaseNotes.length > 0 ? <Text style={styles.modalNotes}>{version.releaseNotes}</Text> : null}
+          <View style={styles.actions}>
+            <Button title="나중에" onPress={onDismiss} color="#64748B" />
+            <UpdateButton />
+          </View>
         </View>
-      ) : null}
-    </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -109,18 +167,38 @@ function MinorVersionBanner({
   return (
     <View style={styles.banner}>
       <View style={styles.bannerText}>
-        <Text style={styles.bannerTitle}>새 버전 {version.latestVersion} 사용 가능</Text>
+        <Text style={styles.bannerTitle}>새 버전 {version.latestVersion || '확인 필요'} 사용 가능</Text>
         <Text style={styles.bannerBody} numberOfLines={2}>
           {version.releaseNotes || '안정적인 사용을 위해 업데이트를 권장합니다.'}
         </Text>
       </View>
-      <Button title="다시 보지 않기" onPress={() => void onDismiss()} color="#1E40AF" />
+      <View style={styles.bannerActions}>
+        <UpdateButton />
+        <Button title="다시 보지 않기" onPress={() => void onDismiss()} color="#1E40AF" />
+      </View>
     </View>
   );
 }
 
+function UpdateButton(): React.ReactElement {
+  return <Button title="스토어에서 업데이트" onPress={() => void openStoreUpdateUrl()} color="#1E40AF" />;
+}
+
+async function openStoreUpdateUrl(): Promise<void> {
+  const url = Platform.OS === 'ios' ? STORE_UPDATE_TARGET.iosStoreUrl : STORE_UPDATE_TARGET.androidStoreUrl;
+  try {
+    await Linking.openURL(url);
+  } catch {
+    // Store links are best-effort. The version gate state should remain unchanged.
+  }
+}
+
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
+    backgroundColor: '#FAFBFC',
+  },
+  safeRoot: {
     flex: 1,
     backgroundColor: '#FAFBFC',
   },
@@ -153,6 +231,7 @@ const styles = StyleSheet.create({
   },
   body: {
     marginTop: 12,
+    marginBottom: 16,
     color: '#5C6773',
     fontSize: 15,
     lineHeight: 22,
@@ -175,6 +254,40 @@ const styles = StyleSheet.create({
     color: '#5C6773',
     fontSize: 14,
     lineHeight: 21,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+  },
+  modalCard: {
+    padding: 20,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  modalTitle: {
+    color: '#1A1F2E',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 27,
+  },
+  modalNotes: {
+    marginBottom: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    color: '#334155',
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   banner: {
     flexDirection: 'row',
@@ -199,5 +312,10 @@ const styles = StyleSheet.create({
     color: '#5C6773',
     fontSize: 12,
     lineHeight: 17,
+  },
+  bannerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
   },
 });

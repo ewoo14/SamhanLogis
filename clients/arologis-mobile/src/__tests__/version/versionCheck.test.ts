@@ -18,9 +18,9 @@ describe('arologis mobile version check', () => {
     );
   });
 
-  it('treats CRITICAL and MAJOR as blocking force levels', () => {
+  it('treats only CRITICAL as a blocking force level', () => {
     expect(isBlockingForceLevel('CRITICAL')).toBe(true);
-    expect(isBlockingForceLevel('MAJOR')).toBe(true);
+    expect(isBlockingForceLevel('MAJOR')).toBe(false);
     expect(isBlockingForceLevel('MINOR')).toBe(false);
     expect(isBlockingForceLevel('NONE')).toBe(false);
   });
@@ -43,6 +43,32 @@ describe('arologis mobile version check', () => {
 
   it('uses version-specific AsyncStorage keys for MINOR dismissals', () => {
     expect(getMinorDismissStorageKey('1.1.0')).toBe('samhan.mobile.version.minor.dismissed.1.1.0');
+  });
+
+  it('unwraps the ApiResponse data envelope from the version endpoint', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        code: 'OK',
+        data: {
+          latestVersion: '1.1.0',
+          minSupportedVersion: '1.0.0',
+          forceLevel: 'CRITICAL',
+          releaseNotes: '필수 업데이트',
+          releasedAt: '2026-06-27T00:00:00Z',
+        },
+        timestamp: '2026-06-27T00:00:01Z',
+      }),
+    } as Response);
+
+    await expect(fetchMobileVersionStatus('1.0.0', 'https://api.arologis.samhan-air.com')).resolves.toEqual({
+      latestVersion: '1.1.0',
+      minSupportedVersion: '1.0.0',
+      forceLevel: 'CRITICAL',
+      releaseNotes: '필수 업데이트',
+      releasedAt: '2026-06-27T00:00:00Z',
+    });
   });
 
   it('aborts the version check fetch after the boot timeout', async () => {

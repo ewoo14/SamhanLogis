@@ -18,6 +18,10 @@ interface RawVersionStatus {
   releasedAt?: unknown;
 }
 
+interface ApiResponseEnvelope {
+  data?: unknown;
+}
+
 const DEFAULT_DEV_API = 'http://localhost:8080';
 const DEFAULT_PROD_API = 'https://api.samhan-air.com';
 const VERSION_CHECK_TIMEOUT_MS = 5000;
@@ -55,11 +59,15 @@ export function normalizeVersionStatus(raw: RawVersionStatus): VersionStatus {
 }
 
 export function isBlockingForceLevel(forceLevel: ForceLevel): boolean {
-  return forceLevel === 'CRITICAL' || forceLevel === 'MAJOR';
+  return forceLevel === 'CRITICAL';
 }
 
 export function getMinorDismissStorageKey(latestVersion: string): string {
   return `samhan.mobile.version.minor.dismissed.${latestVersion}`;
+}
+
+export function getMajorSessionDismissKey(latestVersion: string): string {
+  return `samhan.mobile.version.major.session-dismissed.${latestVersion}`;
 }
 
 export async function fetchMobileVersionStatus(
@@ -77,10 +85,18 @@ export async function fetchMobileVersionStatus(
     if (!response.ok) {
       throw new Error(`Version check failed with HTTP ${response.status}`);
     }
-    return normalizeVersionStatus((await response.json()) as RawVersionStatus);
+    return normalizeVersionStatus(unwrapVersionStatus(await response.json()));
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function unwrapVersionStatus(payload: unknown): RawVersionStatus {
+  if (isObjectRecord(payload)) {
+    const envelope = payload as ApiResponseEnvelope;
+    if (isObjectRecord(envelope.data)) return envelope.data as RawVersionStatus;
+  }
+  return isObjectRecord(payload) ? (payload as RawVersionStatus) : {};
 }
 
 function normalizeForceLevel(forceLevel: unknown): ForceLevel {
@@ -88,6 +104,10 @@ function normalizeForceLevel(forceLevel: unknown): ForceLevel {
     return forceLevel;
   }
   return 'NONE';
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function readEnv(name: string): string | undefined {

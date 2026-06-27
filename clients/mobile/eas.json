@@ -45,5 +45,18 @@
       "channel": "production",
       "autoIncrement": true
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "dev@samhan-air.com",
+        "ascAppId": "PLACEHOLDER_APP_STORE_CONNECT_ID",
+        "appleTeamId": "PLACEHOLDER_APPLE_TEAM_ID"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal"
+      }
+    }
   }
 }

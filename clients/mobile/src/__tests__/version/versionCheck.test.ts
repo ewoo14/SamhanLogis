@@ -13,8 +13,8 @@ describe('mobile version check', () => {
   });
 
   it('builds the public MOBILE version endpoint with currentVersion', () => {
-    expect(buildVersionCheckUrl('https://api.samhan-air.com/', '0.4.0')).toBe(
-      'https://api.samhan-air.com/app/version?clientType=MOBILE&currentVersion=0.4.0',
+    expect(buildVersionCheckUrl('https://api.samhan-air.com/', '0.5.0')).toBe(
+      'https://api.samhan-air.com/app/version?clientType=MOBILE&currentVersion=0.5.0',
     );
   });
 
@@ -28,13 +28,13 @@ describe('mobile version check', () => {
   it('normalizes missing release notes to an empty string and preserves versions', () => {
     expect(
       normalizeVersionStatus({
-        latestVersion: '0.5.0',
-        minSupportedVersion: '0.4.0',
+        latestVersion: '0.6.0',
+        minSupportedVersion: '0.5.0',
         forceLevel: 'MINOR',
       }),
     ).toEqual({
-      latestVersion: '0.5.0',
-      minSupportedVersion: '0.4.0',
+      latestVersion: '0.6.0',
+      minSupportedVersion: '0.5.0',
       forceLevel: 'MINOR',
       releaseNotes: '',
       releasedAt: null,
@@ -42,7 +42,7 @@ describe('mobile version check', () => {
   });
 
   it('uses version-specific AsyncStorage keys for MINOR dismissals', () => {
-    expect(getMinorDismissStorageKey('0.5.0')).toBe('samhan.mobile.version.minor.dismissed.0.5.0');
+    expect(getMinorDismissStorageKey('0.6.0')).toBe('samhan.mobile.version.minor.dismissed.0.6.0');
   });
 
   it('unwraps the ApiResponse data envelope from the version endpoint', async () => {
@@ -52,8 +52,8 @@ describe('mobile version check', () => {
         success: true,
         code: 'OK',
         data: {
-          latestVersion: '0.5.0',
-          minSupportedVersion: '0.4.0',
+          latestVersion: '0.6.0',
+          minSupportedVersion: '0.5.0',
           forceLevel: 'CRITICAL',
           releaseNotes: '필수 업데이트',
           releasedAt: '2026-06-27T00:00:00Z',
@@ -62,9 +62,9 @@ describe('mobile version check', () => {
       }),
     } as Response);
 
-    await expect(fetchMobileVersionStatus('0.4.0', 'https://api.samhan-air.com')).resolves.toEqual({
-      latestVersion: '0.5.0',
-      minSupportedVersion: '0.4.0',
+    await expect(fetchMobileVersionStatus('0.5.0', 'https://api.samhan-air.com')).resolves.toEqual({
+      latestVersion: '0.6.0',
+      minSupportedVersion: '0.5.0',
       forceLevel: 'CRITICAL',
       releaseNotes: '필수 업데이트',
       releasedAt: '2026-06-27T00:00:00Z',
@@ -80,7 +80,7 @@ describe('mobile version check', () => {
       }) as typeof fetch);
     });
 
-    const request = fetchMobileVersionStatus('0.4.0', 'https://api.samhan-air.com');
+    const request = fetchMobileVersionStatus('0.5.0', 'https://api.samhan-air.com');
     const assertion = expect(request).rejects.toThrow('aborted');
     await jest.advanceTimersByTimeAsync(5000);
 
