@@ -101,6 +101,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     try {
       const session = await getAuthProvider().bootstrap()
       set({ auth: sessionInfoToSnapshot(session), bootstrapped: true })
+      if (session) void registerPushIfNative()
     } catch (err) {
       console.error('[session] 초기 세션 복원 실패', err)
       set({ auth: null, bootstrapped: true })
@@ -109,9 +110,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setAuth: async (login) => {
     await getAuthProvider().establishSession(login)
     set({ auth: loginToSnapshot(login) })
-    void registerPushIfNative().catch((error) => {
-      console.warn('[session] push registration failed', error)
-    })
+    void registerPushIfNative()
   },
   clearAuthState: async () => {
     try {

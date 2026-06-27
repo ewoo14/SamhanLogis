@@ -85,6 +85,21 @@ describe('pushRegistration', () => {
     expect(registerPushToken).not.toHaveBeenCalled()
   })
 
+  it('권한이 denied 이면 인앱 안내 이벤트를 발행한다', async () => {
+    PushNotifications.requestPermissions.mockResolvedValueOnce({ receive: 'denied' })
+    const denied = vi.fn()
+    window.addEventListener('samhan:push-permission-denied', denied)
+    const { registerPush } = await importPushRegistration()
+
+    await registerPush()
+
+    expect(denied).toHaveBeenCalledTimes(1)
+    expect((denied.mock.calls[0]?.[0] as CustomEvent).detail).toMatchObject({
+      message: '푸시 알림 권한이 거부되었습니다. 기기 설정에서 허용해 주세요.',
+    })
+    window.removeEventListener('samhan:push-permission-denied', denied)
+  })
+
   it('권한 granted 후 registration 토큰을 N3a API에 등록한다', async () => {
     const { registerPush } = await importPushRegistration()
 

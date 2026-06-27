@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { isCapacitorPlatform } from './auth/authProvider'
 import { initCapacitor } from './capacitor/capacitorInit'
+import { PushPermissionDeniedToast } from './components/common/PushPermissionDeniedToast'
 import { PwaUpdatePrompt } from './components/common/PwaUpdatePrompt'
 import './styles/global.css'
 
@@ -23,6 +24,7 @@ if (isCapacitorPlatform) {
 createRoot(container).render(
   <StrictMode>
     <App />
+    <PushPermissionDeniedToast />
     <PwaUpdatePrompt />
   </StrictMode>,
 )

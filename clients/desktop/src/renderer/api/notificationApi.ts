@@ -69,5 +69,5 @@ export const CHANNEL_LABEL: Record<string, string> = {
   SAFETY_STOCK: '안전재고',
   MESSENGER: '메신저',
   APPROVAL: '결재',
-  ECOUNT_IMPORT: '이카운트 import',
+  ECOUNT_IMPORT: '이카운트 이관',
 }

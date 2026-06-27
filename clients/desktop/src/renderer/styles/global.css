@@ -14,6 +14,43 @@
   box-sizing: border-box;
 }
 
+.push-permission-denied-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--color-warning-500, #F59E0B);
+  border-radius: 8px;
+  background: var(--color-neutral-0, #FFFFFF);
+  color: var(--color-neutral-900, #111827);
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.16);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.push-permission-denied-toast span {
+  flex: 1;
+  min-width: 0;
+}
+
+.push-permission-denied-toast button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-neutral-200, #E5E7EB);
+  border-radius: 6px;
+  background: var(--color-neutral-0, #FFFFFF);
+  color: var(--color-neutral-700, #374151);
+  cursor: pointer;
+  font: inherit;
+}
+
 html,
 body,
 #root {

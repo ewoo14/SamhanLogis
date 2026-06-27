@@ -2,7 +2,7 @@
  * 알림 종 dropdown panel — Issue 4 Slice 2.
  *
  * - 60초 polling fetchMyUnread
- * - 채널별 grouping (안전재고 / 메신저 / 결재 / 이카운트 import)
+ * - 채널별 grouping (안전재고 / 메신저 / 결재 / 이카운트 이관)
  * - 각 row 클릭 → acknowledge mutation + cache invalidate + deeplink navigate
  * - 빈 panel 시 "확인할 알림이 없습니다" 표시
  * - 하단 "전체 알림 보기" 링크 → /notifications
@@ -119,7 +119,7 @@ export function NotificationBellDropdown() {
             position: 'absolute',
             top: 44,
             right: 0,
-            width: 360,
+            width: 'min(360px, calc(100vw - 16px))',
             maxHeight: 480,
             overflowY: 'auto',
             background: 'var(--color-neutral-0)',
@@ -140,7 +140,7 @@ export function NotificationBellDropdown() {
           ) : (
             channelKeys.map((channel) => {
               const rows = grouped[channel]!
-              const label = CHANNEL_LABEL[channel] ?? channel
+              const label = CHANNEL_LABEL[channel] ?? '알 수 없는 채널'
               return (
                 <div key={channel} data-testid={`notification-section-${channel}`}>
                   <div

@@ -5,6 +5,10 @@ import {
   type PushDevicePlatform,
 } from '../api/pushTokens'
 import type { PushNotificationsPlugin } from '@capacitor/push-notifications'
+import {
+  PUSH_PERMISSION_DENIED_EVENT,
+  PUSH_PERMISSION_DENIED_MESSAGE,
+} from './pushEvents'
 
 const APP_CLIENT = 'DESKTOP_NATIVE'
 const REGISTRATION_POST_TIMEOUT_MS = 15_000
@@ -136,6 +140,15 @@ function routeNotificationDeeplink(data: Record<string, unknown> | undefined): v
   }
 }
 
+function dispatchPushPermissionDenied(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(PUSH_PERMISSION_DENIED_EVENT, {
+    detail: {
+      message: PUSH_PERMISSION_DENIED_MESSAGE,
+    },
+  }))
+}
+
 function trackRegistrationPost(
   tokenValue: string,
   post: () => Promise<void>,
@@ -191,7 +204,10 @@ export async function registerPush(): Promise<void> {
 
     const permission = await runtime.PushNotifications.requestPermissions()
     if (isStaleRegistration()) return
-    if (permission.receive !== 'granted') return
+    if (permission.receive !== 'granted') {
+      dispatchPushPermissionDenied()
+      return
+    }
 
     const listenersAttached = await attachListeners(
       runtime.PushNotifications,

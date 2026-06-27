@@ -52,7 +52,7 @@ export function NotificationHistoryPage() {
       key: 'channel',
       header: '채널',
       mobilePriority: 'secondary',
-      render: (n) => CHANNEL_LABEL[n.channel] ?? n.channel,
+      render: (n) => CHANNEL_LABEL[n.channel] ?? '알 수 없는 채널',
     },
     {
       key: 'severity',
@@ -100,7 +100,7 @@ export function NotificationHistoryPage() {
             <option value="">전체</option>
             {channels.map((ch) => (
               <option key={ch} value={ch}>
-                {CHANNEL_LABEL[ch] ?? ch}
+                {CHANNEL_LABEL[ch] ?? '알 수 없는 채널'}
               </option>
             ))}
           </select>
@@ -175,6 +175,11 @@ function SeverityBadge({ severity }: { severity: NotificationSeverity }) {
     WARNING: 'var(--color-warning-500)',
     CRITICAL: 'var(--color-danger-500)',
   }
+  const labelMap: Record<NotificationSeverity, string> = {
+    INFO: '정보',
+    WARNING: '경고',
+    CRITICAL: '긴급',
+  }
   return (
     <span
       style={{
@@ -186,7 +191,7 @@ function SeverityBadge({ severity }: { severity: NotificationSeverity }) {
         borderRadius: 4,
       }}
     >
-      {severity}
+      {labelMap[severity]}
     </span>
   )
 }

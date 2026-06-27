@@ -69,6 +69,23 @@ describe('session store authProvider 배선', () => {
     })
   })
 
+  it('bootstrap 은 저장 세션 복원 후 네이티브 push 등록을 시작한다', async () => {
+    authProvider.bootstrap.mockResolvedValue({
+      userId: 'u-restored',
+      role: 'MASTER',
+      fullName: '복원 사용자',
+      groups: [],
+    })
+    pushRegistration.registerPush.mockResolvedValue(undefined)
+    const { useSessionStore } = await import('./session')
+
+    await useSessionStore.getState().bootstrap()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(useSessionStore.getState().bootstrapped).toBe(true)
+    expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
+  })
+
   it('setAuth 와 logout 은 provider 를 경유하고 렌더러 캐시를 갱신한다', async () => {
     authProvider.establishSession.mockResolvedValue(undefined)
     authProvider.clearSession.mockResolvedValue(undefined)
