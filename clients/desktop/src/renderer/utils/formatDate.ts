@@ -1,8 +1,28 @@
 const KST_TIME_ZONE = 'Asia/Seoul'
 
 const twoDigit = (value: string | undefined): string => value?.padStart(2, '0') ?? '00'
+const OFFSETLESS_LOCAL_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/
+
+function offsetlessLocalDateTimeParts(value: string): Record<string, string> | null {
+  const match = OFFSETLESS_LOCAL_DATE_TIME_PATTERN.exec(value.trim())
+  if (!match) return null
+
+  return {
+    year: match[1] ?? '0000',
+    month: match[2] ?? '00',
+    day: match[3] ?? '00',
+    hour: match[4] ?? '00',
+    minute: match[5] ?? '00',
+    second: match[6] ?? '00',
+  }
+}
 
 function kstParts(value: string | Date): Record<string, string> | null {
+  if (typeof value === 'string') {
+    const localParts = offsetlessLocalDateTimeParts(value)
+    if (localParts) return localParts
+  }
+
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return null
 
