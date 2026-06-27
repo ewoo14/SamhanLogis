@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.arologis.client.AuthPermissionAdminClient;
@@ -79,6 +80,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -281,6 +283,23 @@ class ArologisPermissionControllerIT {
                 .andExpect(status().isForbidden());
 
         assertThat(deniedCount(endpoint.page(), endpoint.role(), endpoint.action())).isEqualTo(before + 1.0);
+    }
+
+    @Test
+    void reconcileMissingMultipartFile_returns400WithoutRawPartName() throws Exception {
+        var result = mockMvc.perform(withActor(
+                        multipart("/admin/arologis/dispatch/reconcile")
+                                .param("from", "2026-05-26")
+                                .param("to", "2026-05-27"),
+                        "AROLOGIS_MANAGER"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("필수 업로드 파일이 누락되었습니다."))
+                .andReturn();
+
+        assertThat(result.getResponse().getContentAsString())
+                .doesNotContain("files")
+                .doesNotContain("requestPartName");
     }
 
     static Stream<EndpointCase> endpoints() {

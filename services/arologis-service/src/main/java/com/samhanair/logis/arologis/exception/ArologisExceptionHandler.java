@@ -60,18 +60,15 @@ public class ArologisExceptionHandler {
     }
 
     /**
-     * multipart 필수 파트({@code files} 등) 누락 → 400 INVALID_INPUT.
+     * multipart 필수 파일 누락 → 400 INVALID_INPUT.
      *
-     * <p>운송사 실배차 비교({@code POST /admin/arologis/dispatch/reconcile}) 가 {@code files}
-     * 파트 없이 호출되면 Spring 이 {@link MissingServletRequestPartException} 을 던진다. 전용
-     * 핸들러가 없으면 catch-all {@link #handleUnknown} 로 떨어져 500 이 반환되던 결함을 수정한다
-     * (QA defect — 필수 파트 누락 시 400 기대).
+     * <p>Spring 이 제공하는 raw part name({@code files}, {@code file} 등)은 응답에 노출하지 않는다.
      */
     @ExceptionHandler(MissingServletRequestPartException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingPart(MissingServletRequestPartException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT,
-                        "필수 업로드 파트가 누락되었습니다: " + ex.getRequestPartName()));
+                        "필수 업로드 파일이 누락되었습니다."));
     }
 
     /**
