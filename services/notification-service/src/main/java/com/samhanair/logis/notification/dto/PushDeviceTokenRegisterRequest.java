@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 /**
  * 푸시 토큰 등록 요청.
  *
- * @param token FCM registration token
+ * @param token 푸시 등록 토큰
  * @param platform ANDROID / IOS / WEB
  * @param appClient DESKTOP / MOBILE 등 클라이언트 구분
  */

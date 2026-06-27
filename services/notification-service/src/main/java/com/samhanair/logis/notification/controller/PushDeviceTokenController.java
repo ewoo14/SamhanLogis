@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 인증 사용자 본인의 네이티브 푸시 토큰 등록/해제 API.
  *
- * <p>게이트웨이가 JWT 검증 후 주입한 {@code X-User-Id} 를 Spring Security principal 로 사용한다.
+ * <p>게이트웨이가 인증 검증 후 주입한 principal 을 사용한다.
  * 별도 권한 permission 은 요구하지 않는다.
  */
 @RestController
@@ -35,7 +35,7 @@ public class PushDeviceTokenController {
 
     private final PushDeviceTokenService service;
 
-    /** 로그인/앱 기동 후 현재 디바이스 FCM registration token 을 등록한다. */
+    /** 로그인/앱 기동 후 현재 디바이스 푸시 등록 토큰을 등록한다. */
     @Operation(summary = "푸시 토큰 등록")
     @PostMapping
     public ApiResponse<PushDeviceTokenResponse> register(
@@ -63,7 +63,7 @@ public class PushDeviceTokenController {
         try {
             return UUID.fromString(authentication.getName());
         } catch (IllegalArgumentException ex) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "X-User-Id 형식이 UUID 가 아닙니다");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "인증 정보가 올바르지 않습니다");
         }
     }
 }

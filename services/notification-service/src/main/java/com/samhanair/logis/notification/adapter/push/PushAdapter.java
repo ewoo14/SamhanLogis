@@ -22,7 +22,7 @@ public interface PushAdapter extends NotificationGateway {
     }
 
     /**
-     * 특정 FCM registration token 으로 PUSH 를 1회 발송한다.
+     * 특정 푸시 등록 토큰으로 PUSH 를 1회 발송한다.
      *
      * <p>기본 구현은 기존 단일 gateway 계약을 보존한다. FCM 구현체는 토큰별 발송을 override 한다.
      */

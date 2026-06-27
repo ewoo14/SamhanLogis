@@ -171,3 +171,9 @@ clients/desktop/android/app/src/main/assets/public/
 clients/desktop/android/app/google-services.json
 clients/desktop/ios/App/GoogleService-Info.plist
 clients/desktop/ios/App/App/GoogleService-Info.plist
+services/notification-service/config/*service-account*.json
+services/notification-service/config/*firebase*.json
+services/notification-service/config/*fcm*.json
+services/notification-service/src/main/resources/*service-account*.json
+services/notification-service/src/main/resources/*firebase*.json
+services/notification-service/src/main/resources/*fcm*.json

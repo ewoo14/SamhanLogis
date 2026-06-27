@@ -278,7 +278,7 @@ public class NotificationService {
     }
 
     /**
-     * USER 수신자 PUSH 는 등록된 FCM token 전체에 1회씩 발송한다.
+     * USER 수신자 PUSH 는 등록된 푸시 토큰 전체에 1회씩 발송한다.
      *
      * <p>토큰이 없는 경우 외부 gateway 호출 없이 성공 처리한다. 모바일 미설치 사용자에게 알림을
      * 보내도 형제 service 트랜잭션이 실패하지 않도록 graceful no-op 으로 남긴다.

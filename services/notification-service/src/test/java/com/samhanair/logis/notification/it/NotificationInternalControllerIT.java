@@ -38,7 +38,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  * Internal endpoint 인증 / 발송 / 상태 조회 시나리오 (4 case).
  *
  * <ol>
- *   <li>X-Internal-Token 누락 → 403 (Spring Security)</li>
+ *   <li>X-Internal-Token 누락 → 401 (Spring Security authentication entrypoint)</li>
  *   <li>X-Internal-Token 불일치 → 401 (InternalTokenFilter 직접 응답)</li>
  *   <li>X-Internal-Token 일치 + 발송 → 201, status=SENT (FCM stub-success)</li>
  *   <li>X-Internal-Token 일치 + 미존재 lookup → 404</li>
@@ -93,14 +93,16 @@ class NotificationInternalControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    void send_without_token_returns_403() throws Exception {
+    void send_without_token_returns_401() throws Exception {
         NotificationSendRequest req = new NotificationSendRequest(
                 RecipientType.EXTERNAL_PHONE, null, "010-1234-5678",
                 NotificationChannel.SMS, null, null, "본문", null);
         mockMvc.perform(MockMvcRequestBuilders.post("/internal/notifications/send")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(MockMvcResultMatchers.status().isForbidden());
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("UNAUTHORIZED"));
     }
 
     @Test

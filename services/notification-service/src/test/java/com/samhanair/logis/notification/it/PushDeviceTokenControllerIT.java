@@ -21,6 +21,11 @@ import com.samhanair.logis.notification.repository.NotificationRequestRepository
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -158,6 +163,27 @@ class PushDeviceTokenControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void register_with_invalid_authenticated_user_returns_domain_401_message() throws Exception {
+        Map<String, String> body = Map.of(
+                "token", "native-token-invalid-user",
+                "platform", "IOS",
+                "appClient", "DESKTOP");
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/push-tokens")
+                        .header("X-User-Id", "not-a-uuid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("인증 정보가 올바르지 않습니다"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("X-User-Id"))))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("UUID"))));
+    }
+
+    @Test
     void register_with_invalid_platform_enum_returns_400_invalid_input() throws Exception {
         Map<String, String> body = Map.of(
                 "token", "native-token-invalid-platform",
@@ -172,6 +198,77 @@ class PushDeviceTokenControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(false))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("INVALID_INPUT"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    void register_reactivates_soft_deleted_same_token_without_creating_orphan_row() throws Exception {
+        registerTokenRow(USER_A, "native-token-reactivate", "IOS", "DESKTOP");
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/push-tokens/{token}", "native-token-reactivate")
+                        .header("X-User-Id", USER_A.toString()))
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
+
+        Map<String, String> body = Map.of(
+                "token", "native-token-reactivate",
+                "platform", "ANDROID",
+                "appClient", "MOBILE");
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/push-tokens")
+                        .header("X-User-Id", USER_B.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.platform").value("ANDROID"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.appClient").value("MOBILE"));
+
+        Integer totalCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM push_device_tokens
+                 WHERE token = 'native-token-reactivate'
+                """, Integer.class);
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM push_device_tokens
+                 WHERE token = 'native-token-reactivate'
+                   AND user_id = ?
+                   AND platform = 'ANDROID'
+                   AND app_client = 'MOBILE'
+                   AND is_deleted = FALSE
+                """, Integer.class, USER_B);
+        assertThat(totalCount).isEqualTo(1);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
+    void concurrent_register_same_token_returns_200_and_keeps_single_active_row() throws Exception {
+        Map<String, String> body = Map.of(
+                "token", "native-token-concurrent",
+                "platform", "IOS",
+                "appClient", "DESKTOP");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            CompletableFuture<Integer> first = CompletableFuture.supplyAsync(
+                    () -> postRegisterAfterLatch(USER_A, body, ready, start), executor);
+            CompletableFuture<Integer> second = CompletableFuture.supplyAsync(
+                    () -> postRegisterAfterLatch(USER_A, body, ready, start), executor);
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+            assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM push_device_tokens
+                 WHERE token = 'native-token-concurrent'
+                   AND is_deleted = FALSE
+                """, Integer.class);
+        assertThat(activeCount).isEqualTo(1);
     }
 
     @Test
@@ -209,5 +306,24 @@ class PushDeviceTokenControllerIT extends AbstractPostgresIT {
                 )
                 VALUES (gen_random_uuid(), ?, ?, ?, ?, NOW(), NOW(), 'test', FALSE)
                 """, userId, token, platform, appClient);
+    }
+
+    private int postRegisterAfterLatch(UUID userId, Map<String, String> body,
+                                       CountDownLatch ready, CountDownLatch start) {
+        try {
+            ready.countDown();
+            if (!start.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("동시 등록 시작 latch 대기 시간 초과");
+            }
+            return mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/push-tokens")
+                            .header("X-User-Id", userId.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 }

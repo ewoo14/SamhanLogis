@@ -19,7 +19,7 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * 사용자별 네이티브 푸시 디바이스 토큰.
  *
- * <p>토큰은 FCM registration token 이며 active row 기준으로 전역 유일하다. 로그아웃/기기 변경 시
+ * <p>토큰은 푸시 등록 토큰이며 active row 기준으로 전역 유일하다. 로그아웃/기기 변경 시
  * hard delete 대신 BaseEntity soft delete 를 사용한다.
  */
 @Entity
@@ -64,7 +64,7 @@ public class PushDeviceToken extends BaseEntity {
      * 신규 디바이스 토큰 row 를 생성한다.
      *
      * @param userId 토큰 소유 사용자 UUID
-     * @param token FCM registration token
+     * @param token 푸시 등록 토큰
      * @param platform 디바이스 플랫폼
      * @param appClient 앱 클라이언트 구분
      * @return 영속화 전 entity

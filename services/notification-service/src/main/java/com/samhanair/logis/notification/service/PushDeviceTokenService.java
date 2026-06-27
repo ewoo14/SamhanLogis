@@ -6,6 +6,7 @@ import com.samhanair.logis.notification.repository.PushDeviceTokenRepository;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +26,7 @@ public class PushDeviceTokenService {
      * 토큰 등록 또는 갱신.
      *
      * @param userId 현재 인증 사용자 UUID
-     * @param token FCM registration token
+     * @param token 푸시 등록 토큰
      * @param platform 플랫폼
      * @param appClient 앱 클라이언트
      * @return 저장된 active token entity
@@ -34,17 +35,31 @@ public class PushDeviceTokenService {
     public PushDeviceToken register(UUID userId, String token,
                                     PushDevicePlatform platform, String appClient) {
         String normalizedToken = token == null ? null : token.trim();
+        validate(userId, normalizedToken, platform, appClient);
+        String normalizedAppClient = appClient.trim().toUpperCase();
+        String actor = userId.toString();
+
+        int refreshed = repository.refreshExistingToken(
+                userId, normalizedToken, platform.name(), normalizedAppClient, actor);
+        if (refreshed == 0) {
+            try {
+                repository.insertOrRefreshActiveToken(
+                        UUID.randomUUID(), userId, normalizedToken, platform.name(), normalizedAppClient, actor);
+            } catch (DataIntegrityViolationException ex) {
+                return repository.findByToken(normalizedToken)
+                        .map(existing -> existing.refresh(userId, platform, normalizedAppClient))
+                        .orElseThrow(() -> ex);
+            }
+        }
         return repository.findByToken(normalizedToken)
-                .map(existing -> existing.refresh(userId, platform, appClient))
-                .orElseGet(() -> repository.save(PushDeviceToken.register(
-                        userId, normalizedToken, platform, appClient)));
+                .orElseThrow(() -> new IllegalStateException("푸시 등록 토큰 저장 결과를 조회할 수 없습니다."));
     }
 
     /**
      * 현재 사용자 소유 토큰을 soft-delete 한다. 이미 없거나 타 사용자 토큰이면 멱등 성공 처리한다.
      *
      * @param userId 현재 인증 사용자 UUID
-     * @param token 해제할 FCM registration token
+     * @param token 해제할 푸시 등록 토큰
      */
     @Transactional
     public void revoke(UUID userId, String token) {
@@ -60,5 +75,9 @@ public class PushDeviceTokenService {
     @Transactional(readOnly = true)
     public List<PushDeviceToken> findActiveTokens(UUID userId) {
         return repository.findAllByUserIdOrderByLastSeenAtDesc(userId);
+    }
+
+    private void validate(UUID userId, String token, PushDevicePlatform platform, String appClient) {
+        PushDeviceToken.register(userId, token, platform, appClient);
     }
 }
