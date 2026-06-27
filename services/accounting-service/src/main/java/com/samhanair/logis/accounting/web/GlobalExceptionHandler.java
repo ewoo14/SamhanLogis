@@ -4,7 +4,6 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.validation.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.context.MessageSourceResolvable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,14 +105,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        log.warn("Data integrity violation", ex);
-        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.CONFLICT,
-                        "이미 처리된 요청이거나 데이터가 충돌했습니다. 최신 상태를 확인한 뒤 다시 시도하세요."));
     }
 
     @ExceptionHandler(Exception.class)

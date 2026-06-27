@@ -20,6 +20,7 @@ import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -179,6 +180,27 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
                 .andExpect(jsonPath("$.message").value("시작 날짜는 필수입니다"));
+    }
+
+    @Test
+    @DisplayName("단일 ref import 미래 날짜 오류는 오늘 포함 문구로 반환한다")
+    void importCodefRejectsFutureFromDateWithInclusiveKoreanMessage() throws Exception {
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "from": "%s",
+                                  "to": "2026-06-03",
+                                  "type": "BANK",
+                                  "accountRef": "국민 123-456",
+                                  "submitMethod": "DRY_RUN"
+                                }
+                                """.formatted(LocalDate.now().plusDays(1)))
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("시작 날짜는 오늘 또는 이전이어야 합니다"));
     }
 
     @Test

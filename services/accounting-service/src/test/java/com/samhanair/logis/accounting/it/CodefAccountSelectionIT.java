@@ -546,6 +546,18 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("인증 헤더 형식 이상은 기술명 없이 401")
+    void scopeRejectsMalformedAuthenticationWithoutTechnicalNames() throws Exception {
+        mockMvc.perform(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)
+                        .header("X-User-Id", "not-a-user-id")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("인증 정보가 올바르지 않습니다"));
+    }
+
     private org.springframework.test.web.servlet.ResultActions saveScope(String body) throws Exception {
         return mockMvc.perform(auth(put("/accounting/codef/scopes")
                 .contentType(MediaType.APPLICATION_JSON)

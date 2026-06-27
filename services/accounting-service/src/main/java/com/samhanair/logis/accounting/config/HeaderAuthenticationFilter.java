@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -47,6 +48,12 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
+        if (userId != null && !userId.isBlank()
+                && request.getRequestURI().startsWith("/accounting/codef/")
+                && !isUuid(userId)) {
+            writeUnauthorized(response);
+            return;
+        }
 
         // X-User-Id 존재 시 인증 성립 (role 부재여도 허용)
         if (userId != null && !userId.isBlank()
@@ -65,5 +72,21 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private boolean isUuid(String value) {
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    private void writeUnauthorized(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(
+                "{\"success\":false,\"code\":\"UNAUTHORIZED\",\"message\":\"인증 정보가 올바르지 않습니다\"}");
     }
 }

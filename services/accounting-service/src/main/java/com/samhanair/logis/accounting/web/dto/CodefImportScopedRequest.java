@@ -15,11 +15,11 @@ public record CodefImportScopedRequest(
         String connectedId,
 
         @NotNull(message = "시작 날짜는 필수입니다")
-        @PastOrPresent(message = "시작 날짜는 오늘 이전이어야 합니다")
+        @PastOrPresent(message = "시작 날짜는 오늘 또는 이전이어야 합니다")
         LocalDate from,
 
         @NotNull(message = "종료 날짜는 필수입니다")
-        @PastOrPresent(message = "종료 날짜는 오늘 이전이어야 합니다")
+        @PastOrPresent(message = "종료 날짜는 오늘 또는 이전이어야 합니다")
         LocalDate to,
 
         CodefImportType type,
@@ -30,6 +30,7 @@ public record CodefImportScopedRequest(
 
         List<@NotBlank(message = "대출 식별값은 비어있을 수 없습니다") String> loanRefs,
 
+        // DRY_RUN/CODEF 는 서버-클라이언트 계약에 쓰는 기술 식별자다. 사용자 노출 오류 메시지만 한국어로 유지한다.
         @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
         String submitMethod
 ) {

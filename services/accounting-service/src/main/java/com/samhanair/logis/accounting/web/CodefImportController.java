@@ -163,7 +163,7 @@ public class CodefImportController {
         try {
             return UUID.fromString(userId);
         } catch (IllegalArgumentException ex) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "X-User-Id 는 UUID 형식이어야 합니다.", ex);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "인증 정보가 올바르지 않습니다", ex);
         }
     }
 }
