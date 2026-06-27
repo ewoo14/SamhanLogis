@@ -118,7 +118,7 @@ public class CodefImportScopedService {
 
     private static void validateConnectedId(String connectedId) {
         if (connectedId == null || connectedId.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "connectedId 는 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "연결 식별자는 필수입니다.");
         }
     }
 

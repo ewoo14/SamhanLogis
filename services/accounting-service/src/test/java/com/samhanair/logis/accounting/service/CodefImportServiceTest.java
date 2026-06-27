@@ -62,4 +62,25 @@ class CodefImportServiceTest {
                     assertThat(be.getMessage()).isEqualTo("거래시각 형식이 올바르지 않습니다: 250000");
                 });
     }
+
+    @Test
+    @DisplayName("전체 가져오기 식별값 누락 메시지는 영어 필드명을 노출하지 않는다")
+    void importTransactionsWithAllAndNoRefs_usesKoreanDomainTerms() {
+        LocalDate date = LocalDate.of(2026, 6, 1);
+
+        assertThatThrownBy(() -> service.importTransactions(
+                date,
+                date,
+                CodefImportType.ALL,
+                null,
+                null,
+                null,
+                "DRY_RUN"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                    assertThat(be.getMessage()).isEqualTo("계좌·카드·대출 식별값 중 하나는 필수입니다.");
+                });
+    }
 }

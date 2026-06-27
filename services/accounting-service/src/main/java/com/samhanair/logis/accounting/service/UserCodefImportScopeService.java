@@ -8,6 +8,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -33,7 +34,7 @@ public class UserCodefImportScopeService {
     public CodefImportScopeResponse upsert(UUID userId, CodefImportScopeRequest request) {
         try {
             return upsertInNewTransaction(userId, request);
-        } catch (DataIntegrityViolationException ex) {
+        } catch (DataIntegrityViolationException | ConstraintViolationException ex) {
             return upsertInNewTransaction(userId, request);
         }
     }
@@ -71,12 +72,12 @@ public class UserCodefImportScopeService {
         validateConnectedId(connectedId);
         return repository.findByUserIdAndConnectedId(userId, connectedId.trim())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "저장된 가져오기 선택이 없습니다."));
+                        "저장된 가져오기 선택이 없습니다. 먼저 가져오기 선택을 저장하세요."));
     }
 
     private static void validateConnectedId(String connectedId) {
         if (connectedId == null || connectedId.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "connectedId 는 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "연결 식별자는 필수입니다.");
         }
     }
 }

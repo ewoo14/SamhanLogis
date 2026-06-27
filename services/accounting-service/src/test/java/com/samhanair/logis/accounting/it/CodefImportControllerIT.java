@@ -158,7 +158,27 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-                .andExpect(jsonPath("$.message").value("submitMethod: 전송 방식 값이 올바르지 않습니다"));
+                .andExpect(jsonPath("$.message").value("전송 방식 값이 올바르지 않습니다"));
+    }
+
+    @Test
+    @DisplayName("단일 ref import 필수 날짜 오류는 영어 필드명을 노출하지 않는다")
+    void importCodefRejectsMissingFromDateWithKoreanMessage() throws Exception {
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "to": "2026-06-03",
+                                  "type": "BANK",
+                                  "accountRef": "국민 123-456",
+                                  "submitMethod": "DRY_RUN"
+                                }
+                                """)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("시작 날짜는 필수입니다"));
     }
 
     @Test

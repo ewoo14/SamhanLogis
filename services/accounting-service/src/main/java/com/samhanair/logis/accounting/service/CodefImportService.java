@@ -194,11 +194,11 @@ public class CodefImportService {
     private void validateRequest(LocalDate from, LocalDate to, CodefImportType type,
                                  String accountRef, String cardRef, String loanRef) {
         if (from == null || to == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 는 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "시작 날짜와 종료 날짜는 필수입니다.");
         }
         if (from.isAfter(to)) {
             throw new BusinessException(ErrorCode.DEPOSIT_DATE_RANGE_INVALID,
-                    "from(" + from + ")이 to(" + to + ")보다 늦습니다.");
+                    "시작 날짜(" + from + ")가 종료 날짜(" + to + ")보다 늦습니다.");
         }
         if (type == CodefImportType.BANK && !hasText(accountRef)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "은행 거래내역 가져오기는 계좌 식별값이 필수입니다.");
@@ -211,18 +211,18 @@ public class CodefImportService {
         }
         if (type == CodefImportType.ALL && !hasText(accountRef) && !hasText(cardRef) && !hasText(loanRef)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "accountRef, cardRef, loanRef 중 하나는 필수입니다.");
+                    "계좌·카드·대출 식별값 중 하나는 필수입니다.");
         }
     }
 
     private void validateMultiRequest(LocalDate from, LocalDate to, CodefImportType type,
                                       List<String> accountRefs, List<String> cardRefs, List<String> loanRefs) {
         if (from == null || to == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 는 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "시작 날짜와 종료 날짜는 필수입니다.");
         }
         if (from.isAfter(to)) {
             throw new BusinessException(ErrorCode.DEPOSIT_DATE_RANGE_INVALID,
-                    "from(" + from + ")이 to(" + to + ")보다 늦습니다.");
+                    "시작 날짜(" + from + ")가 종료 날짜(" + to + ")보다 늦습니다.");
         }
         if (type == CodefImportType.BANK && CodefRefNormalizer.normalizeRefs(accountRefs).isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "은행 거래내역 가져오기는 계좌 식별값 목록이 필수입니다.");
@@ -238,7 +238,7 @@ public class CodefImportService {
                 && CodefRefNormalizer.normalizeRefs(cardRefs).isEmpty()
                 && CodefRefNormalizer.normalizeRefs(loanRefs).isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "accountRefs, cardRefs, loanRefs 중 하나는 필수입니다.");
+                    "계좌·카드·대출 식별값 중 하나는 필수입니다.");
         }
     }
 

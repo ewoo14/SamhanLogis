@@ -401,7 +401,7 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
                     "국민 123-456",
                     "CODEF"))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessage("금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
+                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
 
             assertThatThrownBy(() -> client.fetchCardTransactions(
                     LocalDate.of(2026, 6, 1),
@@ -409,7 +409,7 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
                     "법인카드-001",
                     "CODEF"))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessage("금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
+                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
 
             assertThatThrownBy(() -> client.fetchLoanTransactions(
                     LocalDate.of(2026, 6, 1),
@@ -417,7 +417,23 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
                     "기업운전자금대출-001",
                     "CODEF"))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessage("금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
+                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+        }
+
+        @Test
+        @DisplayName("실연동 목록 stub 메시지는 금융기관 연동 안내로 통일한다")
+        void codefListStubMessages_areUnifiedUserMessage() {
+            assertThatThrownBy(() -> client.listBankAccounts("연결-1", "CODEF"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+
+            assertThatThrownBy(() -> client.listCards("연결-1", "CODEF"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+
+            assertThatThrownBy(() -> client.listLoans("연결-1", "CODEF"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
         }
     }
 

@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.context.MessageSourceResolvable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +41,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         String msg = ex.getBindingResult().getFieldErrors().stream()
                 .findFirst()
-                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .map(fe -> isCodefImportBinding(fe.getObjectName())
+                        ? fe.getDefaultMessage()
+                        : fe.getField() + ": " + fe.getDefaultMessage())
                 .orElse("입력값이 유효하지 않습니다");
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
@@ -70,8 +73,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingRequestParameter(
             MissingServletRequestParameterException ex) {
+        String parameterName = "connectedId".equals(ex.getParameterName())
+                ? "연결 식별자"
+                : ex.getParameterName();
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, ex.getParameterName() + " 는 필수입니다"));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, parameterName + "는 필수입니다"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -102,10 +108,24 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation", ex);
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.CONFLICT,
+                        "이미 처리된 요청이거나 데이터가 충돌했습니다. 최신 상태를 확인한 뒤 다시 시도하세요."));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
         log.error("Unhandled exception", ex);
         return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, ex.getMessage()));
+    }
+
+    private boolean isCodefImportBinding(String objectName) {
+        return "codefImportRequest".equals(objectName)
+                || "codefImportScopedRequest".equals(objectName)
+                || "codefImportScopeRequest".equals(objectName);
     }
 }

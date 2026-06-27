@@ -56,8 +56,8 @@ public class CodefImportController {
     @Operation(summary = "은행계좌 목록", description = "연결 식별자 기준 은행계좌 식별값 목록 조회")
     public ApiResponse<BankAccountListResponse> listBankAccounts(
             @RequestParam
-            @NotBlank(message = "connectedId 는 필수입니다")
-            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            @NotBlank(message = "연결 식별자는 필수입니다")
+            @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
             @RequestParam(required = false)
             @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
@@ -72,8 +72,8 @@ public class CodefImportController {
     @Operation(summary = "카드 목록", description = "연결 식별자 기준 카드 식별값 목록 조회")
     public ApiResponse<CardListResponse> listCards(
             @RequestParam
-            @NotBlank(message = "connectedId 는 필수입니다")
-            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            @NotBlank(message = "연결 식별자는 필수입니다")
+            @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
             @RequestParam(required = false)
             @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
@@ -88,8 +88,8 @@ public class CodefImportController {
     @Operation(summary = "대출 목록", description = "연결 식별자 기준 대출 식별값 목록 조회")
     public ApiResponse<LoanListResponse> listLoans(
             @RequestParam
-            @NotBlank(message = "connectedId 는 필수입니다")
-            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            @NotBlank(message = "연결 식별자는 필수입니다")
+            @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
             @RequestParam(required = false)
             @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
@@ -152,8 +152,8 @@ public class CodefImportController {
     @Operation(summary = "가져오기 선택 조회", description = "인증 사용자와 연결 식별자 기준 선택값 조회")
     public ApiResponse<CodefImportScopeResponse> getScope(
             @RequestParam
-            @NotBlank(message = "connectedId 는 필수입니다")
-            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            @NotBlank(message = "연결 식별자는 필수입니다")
+            @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
             @RequestHeader("X-User-Id") String userId) {
         return ApiResponse.ok(scopeService.get(parseUserId(userId), connectedId));

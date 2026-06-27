@@ -228,7 +228,7 @@ public class CodefClientImpl implements CodefClient {
         validateCredentials();
         log.warn("[BC1] CODEF 은행 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
+                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
     }
 
     /** CODEF 카드 실 API stub — Phase 11 계약·키 발급 후 구현. */
@@ -236,7 +236,7 @@ public class CodefClientImpl implements CodefClient {
         validateCredentials();
         log.warn("[BC1] CODEF 카드 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
+                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
     }
 
     /** CODEF 대출 실 API stub — Phase 11 계약·키 발급 후 구현. */
@@ -244,28 +244,28 @@ public class CodefClientImpl implements CodefClient {
         validateCredentials();
         log.warn("[BC1] CODEF 대출 실 API 호출 미구현 — Phase 11/키발급 후 구현. from={} to={}", from, to);
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "금융기관 연동 기능은 Phase 11 이후 활성화됩니다.");
+                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
     }
 
     /** 실 은행계좌 목록 API stub — Phase 11 계약·키 발급 후 구현. */
     private List<AccountInfo> listCodefBankAccounts() {
         validateCredentials();
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "실 은행계좌 목록 조회는 Phase 11 계약 후 활성화됩니다.");
+                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
     }
 
     /** 실 카드 목록 API stub — Phase 11 계약·키 발급 후 구현. */
     private List<CardInfo> listCodefCards() {
         validateCredentials();
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "실 카드 목록 조회는 Phase 11 계약 후 활성화됩니다.");
+                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
     }
 
     /** 실 대출 목록 API stub — Phase 11 계약·키 발급 후 구현. */
     private List<LoanInfo> listCodefLoans() {
         validateCredentials();
         throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "실 대출 목록 조회는 Phase 11 계약 후 활성화됩니다.");
+                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
     }
 
     private void validateCredentials() {

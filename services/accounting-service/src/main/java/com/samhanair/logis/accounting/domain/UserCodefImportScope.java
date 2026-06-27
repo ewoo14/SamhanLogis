@@ -96,10 +96,10 @@ public class UserCodefImportScope extends BaseEntity {
 
     private static void validateConnectedId(String connectedId) {
         if (connectedId == null || connectedId.isBlank()) {
-            throw new IllegalArgumentException("connectedId 는 필수입니다");
+            throw new IllegalArgumentException("연결 식별자는 필수입니다");
         }
         if (connectedId.trim().length() > 128) {
-            throw new IllegalArgumentException("connectedId 는 최대 128자입니다");
+            throw new IllegalArgumentException("연결 식별자는 최대 128자입니다");
         }
     }
 }

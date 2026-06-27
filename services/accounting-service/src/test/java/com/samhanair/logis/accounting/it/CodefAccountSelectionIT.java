@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -18,6 +19,9 @@ import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import com.samhanair.logis.accounting.domain.UserCodefImportScope;
+import com.samhanair.logis.accounting.repository.UserCodefImportScopeRepository;
+import jakarta.persistence.EntityManager;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -36,6 +40,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -62,6 +67,9 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
+    @Autowired private EntityManager entityManager;
+
+    @SpyBean private UserCodefImportScopeRepository userCodefImportScopeRepository;
 
     @MockBean private SlipServiceClient slipServiceClient;
     @MockBean private SlipQueryClient slipQueryClient;
@@ -216,10 +224,20 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                     (user_id, connected_id, account_ref_selections, card_ref_selections,
                      loan_ref_selections, default_import_type)
                 VALUES (?::uuid, ?, '["기존 계좌"]', '[]', '[]', 'BANK')
-                """, USER_ID.toString(), CONNECTED_ID);
+        """, USER_ID.toString(), CONNECTED_ID);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        Future<MvcResult> result = executor.submit(() -> saveScope("""
+        CountDownLatch requestStarted = new CountDownLatch(1);
+        CountDownLatch saveAttempted = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            saveAttempted.countDown();
+            UserCodefImportScope merged = entityManager.merge(invocation.getArgument(0));
+            entityManager.flush();
+            return merged;
+        }).when(userCodefImportScopeRepository).saveAndFlush(any());
+        Future<MvcResult> result = executor.submit(() -> {
+            requestStarted.countDown();
+            return saveScope("""
                         {
                           "connectedId": "%s",
                           "accountRefs": ["%s"],
@@ -228,9 +246,11 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                           "defaultImportType": "ALL"
                         }
                         """.formatted(CONNECTED_ID, ACCOUNT_REF_1, CARD_REF_1, LOAN_REF_1))
-                .andReturn());
+                    .andReturn();
+        });
         try {
-            Thread.sleep(300);
+            assertThat(requestStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(saveAttempted.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(result.isDone()).isFalse();
             transactionManager.commit(blocker);
             blocker = null;
@@ -326,7 +346,25 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                 """.formatted(CONNECTED_ID, ACCOUNT_REF_1))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-                .andExpect(jsonPath("$.message").value("submitMethod: 전송 방식 값이 올바르지 않습니다"));
+                .andExpect(jsonPath("$.message").value("전송 방식 값이 올바르지 않습니다"));
+    }
+
+    @Test
+    @DisplayName("scoped import 필수 연결 식별자 오류는 영어 필드명을 노출하지 않는다")
+    void importScopedRejectsBlankConnectedIdWithKoreanMessage() throws Exception {
+        importScoped("""
+                {
+                  "connectedId": "   ",
+                  "from": "2026-06-01",
+                  "to": "2026-06-03",
+                  "type": "BANK",
+                  "accountRefs": ["%s"],
+                  "submitMethod": "DRY_RUN"
+                }
+                """.formatted(ACCOUNT_REF_1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("연결 식별자는 필수입니다"));
     }
 
     @Test
@@ -409,7 +447,8 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                 """.formatted(CONNECTED_ID))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("저장된 가져오기 선택이 없습니다."));
+                .andExpect(jsonPath("$.message").value(
+                        "저장된 가져오기 선택이 없습니다. 먼저 가져오기 선택을 저장하세요."));
     }
 
     @Test
@@ -443,7 +482,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                             .param("submitMethod", "DRY_RUN")))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-                    .andExpect(jsonPath("$.message").value("connectedId 는 필수입니다"));
+                    .andExpect(jsonPath("$.message").value("연결 식별자는 필수입니다"));
         }
     }
 
@@ -459,7 +498,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             mockMvc.perform(auth(get(path)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-                    .andExpect(jsonPath("$.message").value("connectedId 는 필수입니다"));
+                    .andExpect(jsonPath("$.message").value("연결 식별자는 필수입니다"));
         }
     }
 
