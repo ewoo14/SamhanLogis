@@ -21,20 +21,24 @@ describe('version-check model', () => {
     expect(resolveAppClientType({ electron: false, capacitor: false })).toBe('WEB')
   })
 
-  it('CRITICAL/MAJOR 응답은 닫을 수 없는 차단 상태로 변환한다', () => {
+  it('CRITICAL 응답만 닫을 수 없는 차단 상태로 변환한다', () => {
     const critical = resolveVersionPromptState({
       versionInfo: { ...baseVersionInfo, forceLevel: 'CRITICAL' },
       clientType: 'DESKTOP',
       storage: new Map<string, string>(),
     })
-    const major = resolveVersionPromptState({
+
+    expect(critical.kind).toBe('blocking')
+  })
+
+  it('MAJOR 응답은 세션에서만 닫을 수 있는 권고 상태로 변환한다', () => {
+    const state = resolveVersionPromptState({
       versionInfo: { ...baseVersionInfo, forceLevel: 'MAJOR' },
       clientType: 'WEB',
       storage: new Map<string, string>(),
     })
 
-    expect(critical.kind).toBe('blocking')
-    expect(major.kind).toBe('blocking')
+    expect(state.kind).toBe('recommend')
   })
 
   it('MINOR 응답은 버전별 dismiss 기록이 없을 때만 권고 상태를 만든다', () => {

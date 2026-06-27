@@ -1,0 +1,32 @@
+.releaseForm {
+  display: grid;
+  gap: 12px;
+}
+
+.formGridTwo,
+.formGridThree {
+  display: grid;
+  gap: 12px;
+}
+
+.formGridTwo {
+  grid-template-columns: 1fr 1fr;
+}
+
+.formGridThree {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.releaseForm input,
+.releaseForm select,
+.releaseForm textarea,
+.releaseForm button {
+  min-height: 40px;
+}
+
+@media (max-width: 768px) {
+  .formGridTwo,
+  .formGridThree {
+    grid-template-columns: 1fr;
+  }
+}

@@ -21,6 +21,12 @@ import {
   type AppReleasePayload,
 } from '../../api/appVersion'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import {
+  formatKstDate,
+  formatKstDateTimeInputValue,
+  kstDateTimeInputToIsoOffset,
+} from '../../utils/formatDate'
+import styles from './AppReleaseManagementPage.module.css'
 
 type ReleaseFormState = {
   clientType: AppClientType
@@ -55,7 +61,7 @@ const emptyForm = (): ReleaseFormState => ({
   minSupportedVersion: '',
   forceLevel: 'MINOR',
   releaseNotes: '',
-  releasedAt: new Date().toISOString(),
+  releasedAt: formatKstDateTimeInputValue(new Date()),
 })
 
 function toForm(row: AppRelease): ReleaseFormState {
@@ -65,7 +71,7 @@ function toForm(row: AppRelease): ReleaseFormState {
     minSupportedVersion: row.minSupportedVersion,
     forceLevel: row.forceLevel,
     releaseNotes: row.releaseNotes,
-    releasedAt: row.releasedAt,
+    releasedAt: formatKstDateTimeInputValue(row.releasedAt),
   }
 }
 
@@ -76,7 +82,7 @@ function toPayload(form: ReleaseFormState): AppReleasePayload {
     minSupportedVersion: form.minSupportedVersion.trim(),
     forceLevel: form.forceLevel,
     releaseNotes: form.releaseNotes.trim(),
-    releasedAt: form.releasedAt.trim(),
+    releasedAt: kstDateTimeInputToIsoOffset(form.releasedAt),
   }
 }
 
@@ -164,25 +170,29 @@ export function AppReleaseManagementPage() {
       key: 'clientType',
       header: '클라이언트',
       width: '110px',
+      mobilePriority: 'secondary',
       render: (row) => CLIENT_TYPE_LABEL[row.clientType],
     },
-    { key: 'version', header: '최신 버전', width: '120px' },
-    { key: 'minSupportedVersion', header: '최소 지원', width: '120px' },
+    { key: 'version', header: '최신 버전', width: '120px', mobilePriority: 'primary' },
+    { key: 'minSupportedVersion', header: '최소 지원', width: '120px', mobilePriority: 'secondary' },
     {
       key: 'forceLevel',
       header: '강제 수준',
       width: '100px',
+      mobilePriority: 'primary',
       render: (row) => <ForceBadge level={row.forceLevel} />,
     },
     {
       key: 'releasedAt',
       header: '배포 일시',
       width: '190px',
-      render: (row) => row.releasedAt,
+      mobilePriority: 'secondary',
+      render: (row) => formatKstDate(row.releasedAt),
     },
     {
       key: 'releaseNotes',
       header: '릴리스 노트',
+      mobilePriority: 'hidden',
       render: (row) => (
         <span style={{ display: 'block', maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {row.releaseNotes}
@@ -193,6 +203,7 @@ export function AppReleaseManagementPage() {
       key: 'actions',
       header: '관리',
       width: '150px',
+      mobilePriority: 'secondary',
       render: (row) => (
         <div style={{ display: 'flex', gap: 6 }}>
           <Button
@@ -277,9 +288,9 @@ export function AppReleaseManagementPage() {
         <form
           onSubmit={handleSubmit}
           data-testid="app-release-form"
-          style={{ display: 'grid', gap: 12 }}
+          className={styles.releaseForm}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className={styles.formGridTwo} data-testid="app-release-primary-grid">
             <Select
               label="클라이언트"
               value={form.clientType}
@@ -303,7 +314,7 @@ export function AppReleaseManagementPage() {
               <option value="CRITICAL">긴급</option>
             </Select>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div className={styles.formGridThree} data-testid="app-release-version-grid">
             <Input
               label="최신 버전"
               value={form.version}
@@ -322,6 +333,7 @@ export function AppReleaseManagementPage() {
             />
             <Input
               label="배포 일시"
+              type="datetime-local"
               value={form.releasedAt}
               onChange={(event) => setForm((prev) => ({ ...prev, releasedAt: event.target.value }))}
               required

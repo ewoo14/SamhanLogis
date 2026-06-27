@@ -60,6 +60,51 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await expect(page.getByTestId('app-version-minor-banner')).toHaveCount(0)
   })
 
+  test('MAJOR 권고 모달은 닫을 수 있고 세션에서만 나중에 처리한다', async ({ page }) => {
+    const url = buildUrl('/', {
+      mockRole: 'MANAGER',
+      mockAppForce: 'MAJOR',
+      mockAppLatestVersion: '9.9.2',
+    })
+
+    await page.goto(url, { waitUntil: 'domcontentloaded' })
+    await waitForApp(page)
+
+    const recommendModal = page.getByTestId('app-version-recommend-modal')
+    await expect(recommendModal).toBeVisible()
+    await expect(recommendModal).toContainText('9.9.2')
+    await expect(recommendModal).toContainText('필수 업데이트')
+    await expect(page.getByTestId('app-version-blocking-modal')).toHaveCount(0)
+
+    await page.getByTestId('app-version-recommend-later').click()
+    await expect(recommendModal).toHaveCount(0)
+
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await waitForApp(page)
+    await expect(page.getByTestId('app-version-recommend-modal')).toHaveCount(0)
+
+    const localStorageKeys = await page.evaluate(() => Object.keys(window.localStorage))
+    expect(localStorageKeys.some((key) => key.includes('samhan.app-version.dismissed.WEB.9.9.2'))).toBe(false)
+  })
+
+  test('MINOR 권고 배너는 모바일에서 화면 너비와 안전 영역 안에 머문다', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(buildUrl('/', {
+      mockRole: 'MANAGER',
+      mockAppForce: 'MINOR',
+      mockAppLatestVersion: '9.9.3',
+    }), { waitUntil: 'domcontentloaded' })
+    await waitForApp(page)
+
+    const banner = page.getByTestId('app-version-minor-banner')
+    await expect(banner).toBeVisible()
+    const box = await banner.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.x).toBeGreaterThanOrEqual(15)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  })
+
   test('admin 릴리스 관리 화면에서 등록, 수정, 삭제한다', async ({ page }) => {
     const version = `0.3.${Date.now()}`
 
@@ -75,13 +120,15 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await page.getByTestId('app-release-force-level').selectOption('MINOR')
     await page.getByTestId('app-release-version').fill(version)
     await page.getByTestId('app-release-min-supported').fill('0.1.0')
-    await page.getByTestId('app-release-released-at').fill('2026-06-27T10:00:00+09:00')
+    await expect(page.getByTestId('app-release-released-at')).toHaveAttribute('type', 'datetime-local')
+    await page.getByTestId('app-release-released-at').fill('2026-06-27T10:00')
     await page.getByTestId('app-release-notes').fill('V1b Playwright 등록 검증')
     await page.getByTestId('app-release-save').click()
 
     const rowTestId = `app-release-row-WEB-${version}-2026-06-27T10:00:00+09:00`
 
     await expect(page.getByTestId(rowTestId)).toBeVisible()
+    await expect(page.getByTestId(rowTestId)).toContainText('2026.06.27')
 
     await page.getByTestId(`app-release-edit-WEB-${version}`).click()
     await page.getByTestId('app-release-force-level').selectOption('MAJOR')
@@ -97,5 +144,28 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await page.getByTestId('app-release-delete-confirm').click()
 
     await expect(page.getByTestId(rowTestId)).toHaveCount(0)
+  })
+
+  test('admin 릴리스 관리 폼과 테이블은 모바일에서 1열/우선순위 카드로 표시한다', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(buildUrl('/admin/app-releases', { mockRole: 'MANAGER' }), {
+      waitUntil: 'domcontentloaded',
+    })
+    await waitForApp(page)
+
+    await page.getByTestId('app-release-create-open').click()
+
+    const formGrid = page.getByTestId('app-release-primary-grid')
+    await expect(formGrid).toBeVisible()
+    await expect(formGrid).toHaveCSS('grid-template-columns', /^[0-9.]+px$/)
+
+    const dateInput = page.getByTestId('app-release-released-at')
+    await expect(dateInput).toHaveCSS('min-height', /4[0-9]px/)
+
+    await page.keyboard.press('Escape')
+
+    const firstRow = page.locator('[data-testid^="app-release-row-"]').first()
+    await expect(firstRow).toBeVisible()
+    await expect(firstRow.locator('[data-mobile-priority="primary"]')).toHaveCount(2)
   })
 })

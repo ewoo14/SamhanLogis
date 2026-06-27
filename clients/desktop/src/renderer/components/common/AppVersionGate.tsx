@@ -8,6 +8,7 @@ import {
   resolveVersionPromptState,
   type VersionPromptState,
 } from '../../version/versionCheck'
+import { formatKstDate } from '../../utils/formatDate'
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION ?? '0.0.0'
 type SafeVersionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -78,11 +79,48 @@ function safeLocalStorage(fallbackStorage: Map<string, string>): SafeVersionStor
   }
 }
 
+function safeSessionStorage(fallbackStorage: Map<string, string>): SafeVersionStorage {
+  const fallback = fallbackVersionStorage(fallbackStorage)
+  if (typeof window === 'undefined') return fallback
+  try {
+    const storage = window.sessionStorage
+    const probeKey = '__samhan_version_session_probe__'
+    storage.setItem(probeKey, '1')
+    storage.removeItem(probeKey)
+    return {
+      getItem: (key) => {
+        try {
+          return storage.getItem(key)
+        } catch {
+          return fallback.getItem(key)
+        }
+      },
+      setItem: (key, value) => {
+        try {
+          storage.setItem(key, value)
+        } catch {
+          fallback.setItem(key, value)
+        }
+      },
+      removeItem: (key) => {
+        try {
+          storage.removeItem(key)
+        } catch {
+          fallback.removeItem(key)
+        }
+      },
+    }
+  } catch {
+    return fallback
+  }
+}
+
 export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
   const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
   const [detailOpen, setDetailOpen] = useState(false)
   const checkedRef = useRef(false)
   const fallbackStorageRef = useRef(new Map<string, string>())
+  const fallbackSessionStorageRef = useRef(new Map<string, string>())
   const clientTypeRef = useRef<AppClientType>(
     resolveAppClientType({
       electron: isElectronPlatform,
@@ -95,6 +133,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
     checkedRef.current = true
 
     const storage = safeLocalStorage(fallbackStorageRef.current)
+    const sessionStorage = safeSessionStorage(fallbackSessionStorageRef.current)
 
     getAppVersion({
       clientType: clientTypeRef.current,
@@ -105,6 +144,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
           versionInfo,
           clientType: clientTypeRef.current,
           storage,
+          sessionStorage,
         }))
       })
       .catch((err: unknown) => {
@@ -138,12 +178,14 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
       >
         <div data-testid="app-version-blocking-modal">
           <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', margin: 0 }}>
+            <dt style={{ color: 'var(--color-neutral-500)' }}>업데이트 수준</dt>
+            <dd style={{ margin: 0, fontWeight: 700 }}>{forceLevelLabel(versionInfo.forceLevel)}</dd>
             <dt style={{ color: 'var(--color-neutral-500)' }}>최신 버전</dt>
             <dd style={{ margin: 0, fontWeight: 700 }}>{versionInfo.latestVersion}</dd>
             <dt style={{ color: 'var(--color-neutral-500)' }}>최소 지원</dt>
             <dd style={{ margin: 0 }}>{versionInfo.minSupportedVersion}</dd>
             <dt style={{ color: 'var(--color-neutral-500)' }}>배포 일시</dt>
-            <dd style={{ margin: 0 }}>{versionInfo.releasedAt}</dd>
+            <dd style={{ margin: 0 }}>{formatKstDate(versionInfo.releasedAt)}</dd>
           </dl>
           <div
             style={{
@@ -166,6 +208,63 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
     )
   }
 
+  if (promptState.kind === 'recommend') {
+    const { versionInfo, dismissKey } = promptState
+    const dismiss = () => {
+      safeSessionStorage(fallbackSessionStorageRef.current).setItem(dismissKey, 'true')
+      setPromptState({ kind: 'none' })
+    }
+
+    return (
+      <Modal
+        open
+        onClose={dismiss}
+        title={forceLevelLabel(versionInfo.forceLevel)}
+        description={`현재 ${CURRENT_VERSION} · 최신 ${versionInfo.latestVersion}`}
+        size="md"
+        footer={(
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={dismiss}
+            data-testid="app-version-recommend-later"
+          >
+            나중에
+          </Button>
+        )}
+      >
+        <div data-testid="app-version-recommend-modal">
+          <dl style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', margin: 0 }}>
+            <dt style={{ color: 'var(--color-neutral-500)' }}>업데이트 수준</dt>
+            <dd style={{ margin: 0, fontWeight: 700 }}>{forceLevelLabel(versionInfo.forceLevel)}</dd>
+            <dt style={{ color: 'var(--color-neutral-500)' }}>최신 버전</dt>
+            <dd style={{ margin: 0, fontWeight: 700 }}>{versionInfo.latestVersion}</dd>
+            <dt style={{ color: 'var(--color-neutral-500)' }}>최소 지원</dt>
+            <dd style={{ margin: 0 }}>{versionInfo.minSupportedVersion}</dd>
+            <dt style={{ color: 'var(--color-neutral-500)' }}>배포 일시</dt>
+            <dd style={{ margin: 0 }}>{formatKstDate(versionInfo.releasedAt)}</dd>
+          </dl>
+          <div
+            style={{
+              marginTop: 16,
+              padding: 12,
+              borderRadius: 6,
+              border: '1px solid var(--color-brand-200)',
+              background: 'var(--color-brand-50)',
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.6,
+            }}
+          >
+            {releaseNotesText(versionInfo)}
+          </div>
+          <p style={{ margin: '14px 0 0', color: 'var(--color-neutral-700)', fontSize: 13 }}>
+            앱은 계속 사용할 수 있지만, 이번 세션에서만 안내를 닫을 수 있습니다.
+          </p>
+        </div>
+      </Modal>
+    )
+  }
+
   if (promptState.kind === 'minor') {
     const { versionInfo, dismissKey } = promptState
     const dismiss = () => {
@@ -181,14 +280,16 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
           data-testid="app-version-minor-banner"
           style={{
             position: 'fixed',
-            insetInlineEnd: 16,
-            insetBlockEnd: 84,
+            insetInlineEnd: 'max(16px, env(safe-area-inset-right))',
+            insetInlineStart: 'max(16px, env(safe-area-inset-left))',
+            insetBlockEnd: 'calc(84px + env(safe-area-inset-bottom))',
             zIndex: 9998,
             display: 'grid',
             gridTemplateColumns: '1fr auto auto',
             gap: 8,
             alignItems: 'center',
-            maxWidth: 520,
+            width: 'min(520px, calc(100vw - 32px))',
+            maxWidth: 'calc(100vw - 32px)',
             padding: '12px 14px',
             border: '1px solid var(--color-brand-200)',
             borderRadius: 8,

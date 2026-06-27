@@ -11,12 +11,14 @@ export interface RuntimePlatformFlags {
 export type VersionPromptState =
   | { kind: 'none' }
   | { kind: 'minor'; versionInfo: AppVersionInfo; dismissKey: string }
+  | { kind: 'recommend'; versionInfo: AppVersionInfo; dismissKey: string }
   | { kind: 'blocking'; versionInfo: AppVersionInfo }
 
 export interface VersionPromptInput {
   versionInfo: AppVersionInfo
   clientType: AppClientType
   storage: Pick<Storage, 'getItem'> | Map<string, string>
+  sessionStorage?: Pick<Storage, 'getItem'> | Map<string, string>
 }
 
 function readStorageValue(
@@ -44,16 +46,30 @@ export function appVersionDismissKey(
   return `samhan.app-version.dismissed.${clientType}.${latestVersion}`
 }
 
+export function appVersionSessionDismissKey(
+  clientType: AppClientType,
+  latestVersion: string,
+): string {
+  return `samhan.app-version.session-dismissed.${clientType}.${latestVersion}`
+}
+
 export function resolveVersionPromptState({
   versionInfo,
   clientType,
   storage,
+  sessionStorage,
 }: VersionPromptInput): VersionPromptState {
-  if (
-    versionInfo.forceLevel === 'CRITICAL'
-    || versionInfo.forceLevel === 'MAJOR'
-  ) {
+  if (versionInfo.forceLevel === 'CRITICAL') {
     return { kind: 'blocking', versionInfo }
+  }
+
+  if (versionInfo.forceLevel === 'MAJOR') {
+    const dismissKey = appVersionSessionDismissKey(clientType, versionInfo.latestVersion)
+    const sessionStore = sessionStorage ?? storage
+    if (readStorageValue(sessionStore, dismissKey) === 'true') {
+      return { kind: 'none' }
+    }
+    return { kind: 'recommend', versionInfo, dismissKey }
   }
 
   if (versionInfo.forceLevel === 'MINOR') {
