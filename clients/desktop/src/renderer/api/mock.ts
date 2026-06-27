@@ -5099,7 +5099,118 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(row)
   }
 
-  if (method === 'POST' && url.includes('/accounting/codef/import')) {
+  if (method === 'GET' && url.includes('/accounting/codef/bank-accounts')) {
+    return envelope({ accounts: MOCK_CODEF_BANK_ACCOUNTS })
+  }
+
+  if (method === 'GET' && url.includes('/accounting/codef/cards')) {
+    return envelope({ cards: MOCK_CODEF_CARDS })
+  }
+
+  if (method === 'GET' && url.includes('/accounting/codef/loans')) {
+    return envelope({ loans: MOCK_CODEF_LOANS })
+  }
+
+  if (method === 'PUT' && url.includes('/accounting/codef/scopes')) {
+    const body = parseMockBody(config) as {
+      connectedId?: string
+      accountRefs?: string[]
+      cardRefs?: string[]
+      loanRefs?: string[]
+      defaultImportType?: 'BANK' | 'CARD' | 'LOAN' | 'ALL'
+    }
+    const connectedId = String(body.connectedId ?? '').trim()
+    if (!connectedId) {
+      return mockError(400, 'INVALID_INPUT', '연결 식별자는 필수입니다.')
+    }
+    const saved = {
+      connectedId,
+      accountRefs: normalizeMockRefs(body.accountRefs),
+      cardRefs: normalizeMockRefs(body.cardRefs),
+      loanRefs: normalizeMockRefs(body.loanRefs),
+      defaultImportType: body.defaultImportType ?? 'ALL',
+    }
+    MOCK_CODEF_IMPORT_SCOPES[connectedId] = saved
+    return envelope(saved)
+  }
+
+  if (method === 'GET' && url.includes('/accounting/codef/scopes')) {
+    const connectedId = String(config.params?.['connectedId'] ?? '').trim()
+    const saved = MOCK_CODEF_IMPORT_SCOPES[connectedId]
+    if (!saved) {
+      return mockError(404, 'NOT_FOUND', '저장된 가져오기 선택이 없습니다. 먼저 저장하세요.')
+    }
+    return envelope(saved)
+  }
+
+  if (method === 'POST' && url.includes('/accounting/codef/import-scoped')) {
+    const body = parseMockBody(config) as {
+      connectedId?: string
+      type?: 'BANK' | 'CARD' | 'LOAN' | 'ALL'
+      from?: string
+      to?: string
+      accountRefs?: string[] | null
+      cardRefs?: string[] | null
+      loanRefs?: string[] | null
+    }
+    const connectedId = String(body.connectedId ?? '').trim()
+    const type = body.type ?? 'ALL'
+    const from = String(body.from ?? new Date().toISOString().slice(0, 10))
+    const to = String(body.to ?? from)
+    if (from && to && from > to) {
+      return mockError(422, 'DEPOSIT_DATE_RANGE_INVALID', '시작일은 종료일보다 이전이어야 합니다.')
+    }
+
+    const saved = connectedId ? MOCK_CODEF_IMPORT_SCOPES[connectedId] : undefined
+    const explicitEmptySavedScope = type === 'ALL'
+      && Array.isArray(body.accountRefs)
+      && Array.isArray(body.cardRefs)
+      && Array.isArray(body.loanRefs)
+      && body.accountRefs.length === 0
+      && body.cardRefs.length === 0
+      && body.loanRefs.length === 0
+    if (explicitEmptySavedScope && !saved) {
+      return mockError(404, 'NOT_FOUND', '저장된 가져오기 선택이 없습니다. 먼저 저장하세요.')
+    }
+
+    const accountRefs = resolveMockCodefRefs(
+      type,
+      'BANK',
+      body.accountRefs,
+      saved?.accountRefs,
+      MOCK_CODEF_BANK_ACCOUNTS.map((item) => item.ref),
+    )
+    const cardRefs = resolveMockCodefRefs(
+      type,
+      'CARD',
+      body.cardRefs,
+      saved?.cardRefs,
+      MOCK_CODEF_CARDS.map((item) => item.ref),
+    )
+    const loanRefs = resolveMockCodefRefs(
+      type,
+      'LOAN',
+      body.loanRefs,
+      saved?.loanRefs,
+      MOCK_CODEF_LOANS.map((item) => item.ref),
+    )
+
+    const importedRows = [
+      ...accountRefs.flatMap((accountRef, index) => mockCodefBankRows(accountRef, to, index)),
+      ...cardRefs.flatMap((cardRef, index) => mockCodefCardRows(cardRef, to, index)),
+      ...loanRefs.flatMap((loanRef, index) => mockCodefLoanRows(loanRef, to, index)),
+    ]
+
+    const result = appendMockBankTransactions(importedRows)
+    return envelope({
+      fetchedCount: importedRows.length,
+      importedCount: result.importedCount,
+      duplicateSkippedCount: result.duplicateSkippedCount,
+      matchedCount: 0,
+    })
+  }
+
+  if (method === 'POST' && url.includes('/accounting/codef/import') && !url.includes('/accounting/codef/import-scoped')) {
     const body = parseMockBody(config) as {
       type?: string
       from?: string
@@ -14191,7 +14302,17 @@ let MOCK_COLLECTION_PLANS: Array<{
   },
 ]
 
-let MOCK_BANK_TRANSACTIONS: Array<{
+type MockCodefImportType = 'BANK' | 'CARD' | 'LOAN' | 'ALL'
+
+type MockCodefScope = {
+  connectedId: string
+  accountRefs: string[]
+  cardRefs: string[]
+  loanRefs: string[]
+  defaultImportType: MockCodefImportType
+}
+
+type MockBankTransactionRow = {
   transactedAt: string
   txnType: 'DEPOSIT' | 'WITHDRAWAL'
   amount: string
@@ -14209,7 +14330,201 @@ let MOCK_BANK_TRANSACTIONS: Array<{
   matchedPartnerCode: string | null
   matchedBizNo: string | null
   matchedPartnerName: string | null
-}> = [
+}
+
+const MOCK_CODEF_BANK_ACCOUNTS = [
+  { ref: '국민 123456-78-901234', name: '국민 운영계좌', bankName: '국민은행', accountNumber: '123456-78-901234' },
+  { ref: '하나 987-654321-001', name: '하나 정산계좌', bankName: '하나은행', accountNumber: '987-654321-001' },
+  { ref: '우리 1002-345-678901', name: '우리 급여계좌', bankName: '우리은행', accountNumber: '1002-345-678901' },
+]
+
+const MOCK_CODEF_CARDS = [
+  { ref: '삼한 물류카드', name: '삼한 물류카드', issuerName: '신한카드', cardNumber: '9400-****-****-1201' },
+  { ref: '삼한 정비카드', name: '삼한 정비카드', issuerName: '현대카드', cardNumber: '5521-****-****-0902' },
+  { ref: '삼한 주유카드', name: '삼한 주유카드', issuerName: '국민카드', cardNumber: '3560-****-****-3304' },
+]
+
+const MOCK_CODEF_LOANS = [
+  { ref: '운전자금 대출', name: '운전자금 대출', lenderName: '국민은행', loanType: '운전자금' },
+  { ref: '차량담보 대출', name: '차량담보 대출', lenderName: '하나은행', loanType: '담보대출' },
+]
+
+let MOCK_CODEF_IMPORT_SCOPES: Record<string, MockCodefScope> = {}
+
+function normalizeMockRefs(refs: string[] | null | undefined): string[] {
+  if (!Array.isArray(refs)) return []
+  return Array.from(new Set(refs.map((ref) => String(ref).trim()).filter(Boolean)))
+}
+
+function resolveMockCodefRefs(
+  requestedType: MockCodefImportType,
+  candidateType: Exclude<MockCodefImportType, 'ALL'>,
+  explicitRefs: string[] | null | undefined,
+  savedRefs: string[] | undefined,
+  allRefs: string[],
+): string[] {
+  if (requestedType !== 'ALL' && requestedType !== candidateType) return []
+  if (Array.isArray(explicitRefs) && explicitRefs.length > 0) return normalizeMockRefs(explicitRefs)
+  if (requestedType === 'ALL' && Array.isArray(explicitRefs) && explicitRefs.length === 0 && savedRefs) {
+    return savedRefs
+  }
+  if (explicitRefs === null || explicitRefs === undefined) return allRefs
+  return []
+}
+
+function mockCodefBankRows(accountRef: string, to: string, index: number): MockBankTransactionRow[] {
+  const suffix = String(index + 1).padStart(2, '0')
+  return [
+    {
+      transactedAt: `${to}T09:${String(15 + index).padStart(2, '0')}:00`,
+      txnType: 'DEPOSIT',
+      amount: '2750000',
+      balanceAfter: '15275000',
+      description: '운임 입금',
+      counterpartyName: '삼한테스트상사',
+      counterpartyAccount: null,
+      bankAccountLabel: accountRef,
+      source: 'CODEF_BANK',
+      externalRef: `CODEF-BANK-${to}-${suffix}-001`,
+      cardName: null,
+      approvalId: null,
+      loanName: null,
+      matchStatus: 'UNREFLECTED',
+      matchedPartnerCode: null,
+      matchedBizNo: null,
+      matchedPartnerName: null,
+    },
+    {
+      transactedAt: `${to}T10:${String(20 + index).padStart(2, '0')}:00`,
+      txnType: 'WITHDRAWAL',
+      amount: '420000',
+      balanceAfter: '14855000',
+      description: '운임 정산',
+      counterpartyName: '아로물류 B',
+      counterpartyAccount: null,
+      bankAccountLabel: accountRef,
+      source: 'CODEF_BANK',
+      externalRef: `CODEF-BANK-${to}-${suffix}-002`,
+      cardName: null,
+      approvalId: null,
+      loanName: null,
+      matchStatus: 'UNREFLECTED',
+      matchedPartnerCode: null,
+      matchedBizNo: null,
+      matchedPartnerName: null,
+    },
+  ]
+}
+
+function mockCodefCardRows(cardRef: string, to: string, index: number): MockBankTransactionRow[] {
+  const suffix = String(index + 1).padStart(2, '0')
+  return [
+    {
+      transactedAt: `${to}T12:${String(5 + index).padStart(2, '0')}:00`,
+      txnType: 'WITHDRAWAL',
+      amount: '187000',
+      balanceAfter: '0',
+      description: '주유소 법인카드 승인',
+      counterpartyName: '삼한주유소',
+      counterpartyAccount: null,
+      bankAccountLabel: cardRef,
+      source: 'CODEF_CARD',
+      externalRef: `CODEF-CARD-${to}-${suffix}-001`,
+      cardName: cardRef,
+      approvalId: `CARD-${to.replace(/-/g, '')}-${suffix}-001`,
+      loanName: null,
+      matchStatus: 'UNREFLECTED',
+      matchedPartnerCode: null,
+      matchedBizNo: null,
+      matchedPartnerName: null,
+    },
+    {
+      transactedAt: `${to}T14:${String(35 + index).padStart(2, '0')}:00`,
+      txnType: 'WITHDRAWAL',
+      amount: '66000',
+      balanceAfter: '0',
+      description: '통행료 법인카드 승인',
+      counterpartyName: '고속도로공사',
+      counterpartyAccount: null,
+      bankAccountLabel: cardRef,
+      source: 'CODEF_CARD',
+      externalRef: `CODEF-CARD-${to}-${suffix}-002`,
+      cardName: cardRef,
+      approvalId: `CARD-${to.replace(/-/g, '')}-${suffix}-002`,
+      loanName: null,
+      matchStatus: 'UNREFLECTED',
+      matchedPartnerCode: null,
+      matchedBizNo: null,
+      matchedPartnerName: null,
+    },
+  ]
+}
+
+function mockCodefLoanRows(loanRef: string, to: string, index: number): MockBankTransactionRow[] {
+  const suffix = String(index + 1).padStart(2, '0')
+  const lender = loanRef.includes('차량') ? '하나은행' : '국민은행'
+  return [
+    {
+      transactedAt: `${to}T16:${String(10 + index).padStart(2, '0')}:00`,
+      txnType: 'WITHDRAWAL',
+      amount: '1200000',
+      balanceAfter: '0',
+      description: '대출 이자 출금',
+      counterpartyName: lender,
+      counterpartyAccount: null,
+      bankAccountLabel: loanRef,
+      source: 'CODEF_LOAN',
+      externalRef: `CODEF-LOAN-${to}-${suffix}-001`,
+      cardName: null,
+      approvalId: null,
+      loanName: loanRef,
+      matchStatus: 'UNREFLECTED',
+      matchedPartnerCode: null,
+      matchedBizNo: null,
+      matchedPartnerName: null,
+    },
+    {
+      transactedAt: `${to}T16:${String(30 + index).padStart(2, '0')}:00`,
+      txnType: 'DEPOSIT',
+      amount: '50000000',
+      balanceAfter: '50000000',
+      description: '대출 실행 입금',
+      counterpartyName: lender,
+      counterpartyAccount: null,
+      bankAccountLabel: loanRef,
+      source: 'CODEF_LOAN',
+      externalRef: `CODEF-LOAN-${to}-${suffix}-002`,
+      cardName: null,
+      approvalId: null,
+      loanName: loanRef,
+      matchStatus: 'UNREFLECTED',
+      matchedPartnerCode: null,
+      matchedBizNo: null,
+      matchedPartnerName: null,
+    },
+  ]
+}
+
+function appendMockBankTransactions(rows: MockBankTransactionRow[]): { importedCount: number; duplicateSkippedCount: number } {
+  let importedCount = 0
+  let duplicateSkippedCount = 0
+  for (const row of rows) {
+    const exists = MOCK_BANK_TRANSACTIONS.some((existing) =>
+      existing.bankAccountLabel === row.bankAccountLabel
+      && existing.transactedAt === row.transactedAt
+      && String(existing.amount) === String(row.amount)
+      && existing.externalRef === row.externalRef)
+    if (exists) {
+      duplicateSkippedCount += 1
+    } else {
+      MOCK_BANK_TRANSACTIONS = [row, ...MOCK_BANK_TRANSACTIONS]
+      importedCount += 1
+    }
+  }
+  return { importedCount, duplicateSkippedCount }
+}
+
+let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
   {
     transactedAt: '2026-06-23T09:10:00',
     txnType: 'DEPOSIT',

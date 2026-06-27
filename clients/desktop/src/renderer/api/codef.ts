@@ -3,6 +3,35 @@ import { apiClient, type ApiEnvelope } from './client'
 export type CodefImportType = 'BANK' | 'CARD' | 'LOAN' | 'ALL'
 export type CodefSubmitMethod = 'DRY_RUN' | 'CODEF'
 
+export interface CodefBankAccountItem {
+  ref: string
+  name: string
+  bankName: string
+  accountNumber: string
+}
+
+export interface CodefCardItem {
+  ref: string
+  name: string
+  issuerName: string
+  cardNumber: string
+}
+
+export interface CodefLoanItem {
+  ref: string
+  name: string
+  lenderName: string
+  loanType: string
+}
+
+export interface CodefImportScope {
+  connectedId: string
+  accountRefs: string[]
+  cardRefs: string[]
+  loanRefs: string[]
+  defaultImportType: CodefImportType
+}
+
 export interface CodefImportRequest {
   from: string
   to: string
@@ -11,6 +40,16 @@ export interface CodefImportRequest {
   cardRef?: string
   loanRef?: string
   submitMethod?: CodefSubmitMethod
+}
+
+export interface CodefScopedImportRequest {
+  connectedId: string
+  from: string
+  to: string
+  type: CodefImportType
+  accountRefs?: string[] | null
+  cardRefs?: string[] | null
+  loanRefs?: string[] | null
 }
 
 export interface CodefImportResponse {
@@ -26,6 +65,69 @@ export async function importCodefTransactions(
   const res = await apiClient.post<ApiEnvelope<CodefImportResponse>>(
     '/accounting/codef/import',
     request,
+  )
+  return res.data.data
+}
+
+export async function listCodefBankAccounts(
+  connectedId: string,
+): Promise<CodefBankAccountItem[]> {
+  const res = await apiClient.get<ApiEnvelope<{ accounts: CodefBankAccountItem[] }>>(
+    '/accounting/codef/bank-accounts',
+    { params: { connectedId } },
+  )
+  return res.data.data.accounts
+}
+
+export async function listCodefCards(
+  connectedId: string,
+): Promise<CodefCardItem[]> {
+  const res = await apiClient.get<ApiEnvelope<{ cards: CodefCardItem[] }>>(
+    '/accounting/codef/cards',
+    { params: { connectedId } },
+  )
+  return res.data.data.cards
+}
+
+export async function listCodefLoans(
+  connectedId: string,
+): Promise<CodefLoanItem[]> {
+  const res = await apiClient.get<ApiEnvelope<{ loans: CodefLoanItem[] }>>(
+    '/accounting/codef/loans',
+    { params: { connectedId } },
+  )
+  return res.data.data.loans
+}
+
+export async function saveCodefImportScope(
+  scope: CodefImportScope,
+): Promise<CodefImportScope> {
+  const res = await apiClient.put<ApiEnvelope<CodefImportScope>>(
+    '/accounting/codef/scopes',
+    scope,
+  )
+  return res.data.data
+}
+
+export async function loadCodefImportScope(
+  connectedId: string,
+): Promise<CodefImportScope> {
+  const res = await apiClient.get<ApiEnvelope<CodefImportScope>>(
+    '/accounting/codef/scopes',
+    { params: { connectedId } },
+  )
+  return res.data.data
+}
+
+export async function importScopedCodef(
+  request: CodefScopedImportRequest,
+): Promise<CodefImportResponse> {
+  const res = await apiClient.post<ApiEnvelope<CodefImportResponse>>(
+    '/accounting/codef/import-scoped',
+    {
+      ...request,
+      submitMethod: 'DRY_RUN' satisfies CodefSubmitMethod,
+    },
   )
   return res.data.data
 }

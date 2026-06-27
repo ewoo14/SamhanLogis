@@ -5059,7 +5059,139 @@ button {
   .stm-page { width: auto; margin: 0; }
 }
 
+.codef-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.codef-import-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.codef-import-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.codef-import-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.codef-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.codef-scope-list {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 8px;
+  background: var(--color-neutral-0);
+}
+
+.codef-scope-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.codef-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.codef-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 6px;
+  color: var(--color-neutral-800);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.codef-checkbox-row:hover {
+  background: var(--color-neutral-50);
+}
+
+.codef-checkbox-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  accent-color: var(--color-brand-600);
+  flex: 0 0 auto;
+}
+
+.codef-checkbox-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.codef-selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.codef-import-hint {
+  color: var(--color-neutral-500);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.codef-import-hint--error {
+  color: var(--state-danger);
+}
+
+.codef-import-result {
+  padding: 10px 12px;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 6px;
+  background: var(--color-neutral-50);
+  font-size: 13px;
+}
+
 @media (max-width: 768px) {
+  .codef-import-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .codef-import-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .codef-import-actions > button {
+    min-width: 0;
+  }
+
+  .codef-scope-grid {
+    grid-template-columns: 1fr;
+  }
+
   .mobile-filter-grid {
     grid-template-columns: 1fr !important;
     gap: 8px !important;

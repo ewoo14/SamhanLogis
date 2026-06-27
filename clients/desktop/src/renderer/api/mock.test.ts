@@ -135,6 +135,84 @@ describe('mock monthly income statement contract', () => {
   })
 })
 
+describe('mock CODEF account selection BC3 contract', () => {
+  it('연결 식별자로 계좌/카드/대출 목록을 envelope 로 반환한다', () => {
+    const accounts = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/bank-accounts',
+      params: { connectedId: 'connected-main' },
+    }) as MockEnvelope<{ accounts: Array<{ ref: string; name: string; bankName: string; accountNumber: string }> }>
+    const cards = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/cards',
+      params: { connectedId: 'connected-main' },
+    }) as MockEnvelope<{ cards: Array<{ ref: string; name: string; issuerName: string; cardNumber: string }> }>
+    const loans = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/loans',
+      params: { connectedId: 'connected-main' },
+    }) as MockEnvelope<{ loans: Array<{ ref: string; name: string; lenderName: string; loanType: string }> }>
+
+    expect(accounts.data.accounts).toEqual([
+      { ref: '국민 123456-78-901234', name: '국민 운영계좌', bankName: '국민은행', accountNumber: '123456-78-901234' },
+      { ref: '하나 987-654321-001', name: '하나 정산계좌', bankName: '하나은행', accountNumber: '987-654321-001' },
+      { ref: '우리 1002-345-678901', name: '우리 급여계좌', bankName: '우리은행', accountNumber: '1002-345-678901' },
+    ])
+    expect(cards.data.cards[0]).toEqual({ ref: '삼한 물류카드', name: '삼한 물류카드', issuerName: '신한카드', cardNumber: '9400-****-****-1201' })
+    expect(loans.data.loans[0]).toEqual({ ref: '운전자금 대출', name: '운전자금 대출', lenderName: '국민은행', loanType: '운전자금' })
+  })
+
+  it('scope 저장 후 조회하고 import-scoped 는 선택된 refs 기준으로 거래를 적재한다', () => {
+    const scopePayload = {
+      connectedId: 'connected-main',
+      accountRefs: ['하나 987-654321-001'],
+      cardRefs: ['삼한 정비카드'],
+      loanRefs: [],
+      defaultImportType: 'ALL',
+    }
+
+    const saved = mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: scopePayload,
+    }) as MockEnvelope<typeof scopePayload>
+    const loaded = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/scopes',
+      params: { connectedId: 'connected-main' },
+    }) as MockEnvelope<typeof scopePayload>
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId: 'connected-main',
+        from: '2026-06-01',
+        to: '2026-06-26',
+        type: 'ALL',
+        accountRefs: saved.data.accountRefs,
+        cardRefs: saved.data.cardRefs,
+        loanRefs: saved.data.loanRefs,
+      },
+    }) as MockEnvelope<{ fetchedCount: number; importedCount: number; duplicateSkippedCount: number; matchedCount: number }>
+
+    expect(saved.data).toEqual(scopePayload)
+    expect(loaded.data).toEqual(scopePayload)
+    expect(imported.data.fetchedCount).toBe(4)
+  })
+
+  it('저장 선택이 없으면 NOT_FOUND mock error 를 반환한다', () => {
+    const missing = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/scopes',
+      params: { connectedId: 'missing-connected' },
+    }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
+
+    expect(missing.__mockStatus).toBe(404)
+    expect(missing.body.code).toBe('NOT_FOUND')
+    expect(missing.body.message).toContain('먼저 저장')
+  })
+})
+
 describe('mock notes receivable transition contract', () => {
   it('forces BOARDING on register even when final status is posted', () => {
     const noteNo = `NR-MOCK-FINAL-${Date.now()}`
