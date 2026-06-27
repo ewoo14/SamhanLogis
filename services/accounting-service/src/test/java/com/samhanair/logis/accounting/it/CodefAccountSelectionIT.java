@@ -237,6 +237,54 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("type=ALL 이고 빈 저장 선택을 로드하면 명확한 400 메시지를 반환한다")
+    void importScopedAllWithEmptyRefsAndEmptySavedScope_returnsClearMessage() throws Exception {
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "accountRefs": [],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "defaultImportType": "ALL"
+                }
+                """.formatted(CONNECTED_ID))
+                .andExpect(status().isOk());
+
+        importScoped("""
+                {
+                  "connectedId": "%s",
+                  "from": "2026-06-01",
+                  "to": "2026-06-03",
+                  "type": "ALL",
+                  "accountRefs": [],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "submitMethod": "DRY_RUN"
+                }
+                """.formatted(CONNECTED_ID))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(
+                        "저장된 가져오기 선택이 비어 있습니다. 먼저 계좌/카드/대출을 선택해 저장하세요."));
+    }
+
+    @Test
+    @DisplayName("목록 조회 connectedId blank 는 400 INVALID_INPUT")
+    void listEndpointsRejectBlankConnectedId() throws Exception {
+        for (String path : new String[]{
+                "/accounting/codef/bank-accounts",
+                "/accounting/codef/cards",
+                "/accounting/codef/loans"
+        }) {
+            mockMvc.perform(auth(get(path)
+                            .param("connectedId", "   ")
+                            .param("submitMethod", "DRY_RUN")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        }
+    }
+
+    @Test
     @DisplayName("기존 BC2 /accounting/codef/import 단일 ref 계약은 유지된다")
     void legacyImportEndpointStillWorks() throws Exception {
         mockMvc.perform(auth(post("/accounting/codef/import")

@@ -25,6 +25,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <ul>
  *   <li>X-User-Id 존재 시 인증 성립 — X-User-Role 부재여도 허용.</li>
  *   <li>X-User-Groups 존재 시 각 UUID 에 대해 {@code GROUP_<uuid>} authority 추가.</li>
+ *   <li>{@code /accounting/codef/} 하위 경로는 X-User-Id 가 없으면 명시적으로 401 을 반환한다.</li>
  * </ul>
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {

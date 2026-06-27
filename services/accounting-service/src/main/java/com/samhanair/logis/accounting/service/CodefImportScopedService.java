@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CodefImportScopedService {
 
+    private static final String EMPTY_SAVED_SCOPE_MESSAGE =
+            "저장된 가져오기 선택이 비어 있습니다. 먼저 계좌/카드/대출을 선택해 저장하세요.";
+
     private final CodefClient codefClient;
     private final CodefImportService codefImportService;
     private final UserCodefImportScopeService scopeService;
@@ -67,10 +70,16 @@ public class CodefImportScopedService {
                 && isExplicitEmpty(cardRefs)
                 && isExplicitEmpty(loanRefs)) {
             UserCodefImportScope scope = scopeService.getRequired(userId, connectedId);
+            List<String> savedAccountRefs = normalizeRefs(scope.getAccountRefSelections());
+            List<String> savedCardRefs = normalizeRefs(scope.getCardRefSelections());
+            List<String> savedLoanRefs = normalizeRefs(scope.getLoanRefSelections());
+            if (savedAccountRefs.isEmpty() && savedCardRefs.isEmpty() && savedLoanRefs.isEmpty()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, EMPTY_SAVED_SCOPE_MESSAGE);
+            }
             return new ResolvedRefs(
-                    scope.getAccountRefSelections(),
-                    scope.getCardRefSelections(),
-                    scope.getLoanRefSelections());
+                    savedAccountRefs,
+                    savedCardRefs,
+                    savedLoanRefs);
         }
 
         boolean anyExplicit = accountRefs != null || cardRefs != null || loanRefs != null;

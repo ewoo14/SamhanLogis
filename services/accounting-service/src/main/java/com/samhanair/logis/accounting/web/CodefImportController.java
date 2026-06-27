@@ -20,9 +20,12 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.UUID;
-import org.springframework.web.bind.annotation.GetMapping;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/accounting/codef")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "CODEF 거래내역", description = "CODEF 은행·카드·대출 거래내역 DRY_RUN/실연동 import")
 public class CodefImportController {
 
@@ -50,7 +54,10 @@ public class CodefImportController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     @Operation(summary = "은행계좌 목록", description = "연결 식별자 기준 은행계좌 ref 목록 조회")
     public ApiResponse<BankAccountListResponse> listBankAccounts(
-            @RequestParam String connectedId,
+            @RequestParam
+            @NotBlank(message = "connectedId 는 필수입니다")
+            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            String connectedId,
             @RequestParam(required = false) String submitMethod) {
         return ApiResponse.ok(BankAccountListResponse.from(
                 codefClient.listBankAccounts(connectedId, submitMethod)));
@@ -61,7 +68,10 @@ public class CodefImportController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     @Operation(summary = "카드 목록", description = "연결 식별자 기준 카드 ref 목록 조회")
     public ApiResponse<CardListResponse> listCards(
-            @RequestParam String connectedId,
+            @RequestParam
+            @NotBlank(message = "connectedId 는 필수입니다")
+            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            String connectedId,
             @RequestParam(required = false) String submitMethod) {
         return ApiResponse.ok(CardListResponse.from(
                 codefClient.listCards(connectedId, submitMethod)));
@@ -72,7 +82,10 @@ public class CodefImportController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     @Operation(summary = "대출 목록", description = "연결 식별자 기준 대출 ref 목록 조회")
     public ApiResponse<LoanListResponse> listLoans(
-            @RequestParam String connectedId,
+            @RequestParam
+            @NotBlank(message = "connectedId 는 필수입니다")
+            @Size(max = 128, message = "connectedId 는 최대 128자입니다")
+            String connectedId,
             @RequestParam(required = false) String submitMethod) {
         return ApiResponse.ok(LoanListResponse.from(
                 codefClient.listLoans(connectedId, submitMethod)));
