@@ -10,7 +10,7 @@
  * 스크린샷 저장: docs/qa/sp-09-3-ocr-receipt-shell/screenshots/*.png
  *
  * TC 목록 (5건):
- *   T1 드롭존 빈 상태 진입 + DRY_RUN 안내 표시 + Phase 11 CLOVA 안내
+ *   T1 드롭존 빈 상태 진입 + 영수증 처리 안내 표시
  *   T2 파일 선택 → 업로드 → OCR 결과 카드 (가게명/금액/부가세/일자) + slipNo 표시
  *   T3 10MB+ 파일 거부 422 한국어 메시지 + role="alert" banner
  *   T4 PDF 등 비지원 포맷 422 한국어 메시지
@@ -157,24 +157,24 @@ test.describe('SP-09-3 OCR 영수증 발급 shell QA (T1~T5)', () => {
 
   // -------------------------------------------------------------------------
   /**
-   * T1: 드롭존 빈 상태 진입 + DRY_RUN 안내 표시 + Phase 11 CLOVA 안내
+   * T1: 드롭존 빈 상태 진입 + 영수증 처리 안내 표시
    *
    * 검증 항목:
    *   - /#/purchases/receipt-ocr (HashRouter) 진입 정상
    *   - data-testid="receipt-ocr-drop-zone" 드롭존 표시
-   *   - DRY_RUN 안내 섹션 표시 — 제목 텍스트 locator 기반 검증
-   *   - Phase 11 Naver Clova OCR 안내 텍스트 — 제목 h3 내 "Naver Clova" 포함
+   *   - "처리 방식: 영수증 처리" 안내 섹션 표시 — 제목 텍스트 locator 기반 검증
+   *   - "실 자동 인식은 관리자 설정 후 가능합니다." 안내 텍스트 표시
    *   - data-testid="receipt-ocr-submit-btn" 버튼 표시 (초기 disabled)
    *   - pageerror 없음
    *
    * FE 계약 근거:
-   *   PurchaseSlipOcrUploadPage — submitMethod 고정 DRY_RUN (shell 단계)
-   *   warning section: "처리 방식: DRY_RUN (sandbox)"
-   *   "Phase 11 sandbox 연동 완료 후 Naver Clova OCR (CLOVA) 모드가 활성화됩니다."
+   *   PurchaseSlipOcrUploadPage — 내부 submitMethod 값은 DRY_RUN 유지, UI 는 한국어 표시 문구로 매핑
+   *   warning section: "처리 방식: 영수증 처리"
+   *   "실 자동 인식은 관리자 설정 후 가능합니다. 현재는 업로드한 영수증 정보를 확인해 매입 슬립을 생성합니다."
    *
    * cycle 2 정합 (QA-M1): bodyText OR fallback → data-testid / locator 기반 assertion
    */
-  test('T1: 드롭존 빈 상태 진입 + DRY_RUN 안내 + Phase 11 CLOVA 안내 표시', async ({ page }) => {
+  test('T1: 드롭존 빈 상태 진입 + 영수증 처리 안내 표시', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -198,24 +198,21 @@ test.describe('SP-09-3 OCR 영수증 발급 shell QA (T1~T5)', () => {
       await expect(dropZone, '드롭존 미표시 — data-testid="receipt-ocr-drop-zone" 없음').toBeVisible({ timeout: 5000 })
     })
 
-    // ── step 3: DRY_RUN 안내 섹션 확인 (data-testid 기반 — QA-M1)
-    await test.step('DRY_RUN 처리 방식 안내 섹션 표시 확인', async () => {
-      // warning section 은 "처리 방식: DRY_RUN (sandbox)" 텍스트를 포함
-      // section 요소 내 "DRY_RUN" 텍스트 locator 기반 검증
-      const dryRunSection = page.locator('section').filter({ hasText: 'DRY_RUN' })
+    // ── step 3: 영수증 처리 안내 섹션 확인 (data-testid 기반 — QA-M1)
+    await test.step('영수증 처리 방식 안내 섹션 표시 확인', async () => {
+      const receiptProcessingSection = page.locator('section').filter({ hasText: '처리 방식: 영수증 처리' })
       await expect(
-        dryRunSection,
-        'DRY_RUN 안내 섹션 미표시 — "처리 방식: DRY_RUN (sandbox)" section 없음',
+        receiptProcessingSection,
+        '영수증 처리 안내 섹션 미표시 — "처리 방식: 영수증 처리" section 없음',
       ).toBeVisible({ timeout: 5000 })
     })
 
-    // ── step 4: Phase 11 Clova OCR 안내 표시 확인 (locator 기반 — QA-M1)
-    await test.step('Phase 11 Naver Clova OCR 안내 표시 확인', async () => {
-      // DRY_RUN 안내 섹션 내 "Naver Clova" 또는 "Phase 11" 텍스트 locator 기반
-      const clovaNotice = page.locator('section').filter({ hasText: 'Naver Clova' })
+    // ── step 4: 관리자 설정 후 실 자동 인식 안내 표시 확인 (locator 기반 — QA-M1)
+    await test.step('실 자동 인식 안내 표시 확인', async () => {
+      const autoRecognitionNotice = page.locator('section').filter({ hasText: '실 자동 인식은 관리자 설정 후 가능합니다.' })
       await expect(
-        clovaNotice,
-        'Phase 11 CLOVA 안내 미표시 — "Phase 11 sandbox 연동 완료 후 Naver Clova OCR" 텍스트 section 없음',
+        autoRecognitionNotice,
+        '실 자동 인식 안내 미표시 — "실 자동 인식은 관리자 설정 후 가능합니다." section 없음',
       ).toBeVisible({ timeout: 5000 })
     })
 

@@ -12,7 +12,7 @@
  * TC 목록 (5건):
  *   T1 BE 계약 — POST /{id}/emit-nts + ETaxClient @MockBean + ErrorCode 2건
  *              (TAX_INVOICE_NOT_EMITTABLE 422, TAX_INVOICE_ALREADY_EMITTED 409)
- *   T2 FE 계약 — TaxInvoiceDetailPage "NTS 발행" 버튼 + emit-nts API + ACCOUNTANT/MASTER 권한
+ *   T2 FE 계약 — TaxInvoiceDetailPage "세금계산서 발행" 버튼 + emit-nts API + ACCOUNTANT/MASTER 권한
  *   T3 audit   — TAX_INVOICE_EMIT_NTS 감사 로그 + eTaxExternalId 화면 표시
  *   T4 UUID 비공개 — taxInvoiceNo + eTaxExternalId 만 노출, id(UUID) 텍스트 미노출
  *   T5 권한 가드 — ACCOUNTANT/MASTER 버튼 노출, SALES/MANAGER/INVENTORY 403
@@ -118,7 +118,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    *
    * 검증 항목:
    *   - /accounting/tax-invoices 목록 페이지 로드 정상
-   *   - "NTS 발행" 버튼 또는 emit-nts CTA 가 ISSUED 세금계산서 상세에서 노출
+   *   - "세금계산서 발행" 버튼 또는 emit-nts CTA 가 ISSUED 세금계산서 상세에서 노출
    *   - page.route() 로 emit-nts API mock:
    *       정상: 200 + eTaxExternalId = "DRY-2026/05/18-0001-1747555200000"
    *       TAX_INVOICE_NOT_EMITTABLE: 422 (DRAFT/CANCELLED 에 emit-nts 호출)
@@ -136,7 +136,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
-    // ── step 1: 422 TAX_INVOICE_NOT_EMITTABLE — NTS 발행 버튼 클릭 시 route 를 422 고정
+    // ── step 1: 422 TAX_INVOICE_NOT_EMITTABLE — 세금계산서 발행 버튼 클릭 시 route 를 422 고정
     await test.step('422 TAX_INVOICE_NOT_EMITTABLE — FE error banner 렌더 검증', async () => {
       // emit-nts route 를 422 고정하여 실 버튼 클릭 flow 를 시뮬레이션
       await page.route('**/accounting/tax-invoices/**/emit-nts', async route => {
@@ -146,7 +146,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
           body: JSON.stringify({
             success: false,
             errorCode: 'TAX_INVOICE_NOT_EMITTABLE',
-            message: '발행(ISSUED) 상태의 세금계산서만 e-Tax 전송할 수 있습니다.',
+            message: '발행 완료 상태의 세금계산서만 전송할 수 있습니다.',
           }),
         })
       })
@@ -154,9 +154,9 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       await page.goto(DETAIL_URL_ISSUED, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
-      // NTS 발행 버튼 클릭 시도 (존재 시)
+      // 세금계산서 발행 버튼 클릭 시도 (존재 시)
       const ntsBtn = page.locator(
-        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행")',
       ).first()
       if ((await ntsBtn.count()) > 0) {
         // confirm dialog 자동 수락
@@ -171,10 +171,10 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
         const bodyAfter = (await page.textContent('body')) ?? ''
         const has422Error =
           (await errorBanner.count()) > 0 ||
-          bodyAfter.includes('발행(ISSUED)') ||
+          bodyAfter.includes('발행 완료 상태') ||
           bodyAfter.includes('TAX_INVOICE_NOT_EMITTABLE') ||
           bodyAfter.includes('이미 발행되었거나') ||
-          bodyAfter.includes('e-Tax 전송할 수 없')
+          bodyAfter.includes('전송할 수 없')
         expect(
           has422Error,
           '422 TAX_INVOICE_NOT_EMITTABLE — FE 에러 렌더링 미확인 (버튼 미존재 시 정적 검증으로 대체)',
@@ -194,7 +194,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
           body: JSON.stringify({
             success: false,
             errorCode: 'TAX_INVOICE_ALREADY_EMITTED',
-            message: '이미 NTS 발행이 완료된 세금계산서입니다.',
+            message: '이미 국세청에 발행된 세금계산서입니다.',
           }),
         })
       })
@@ -203,7 +203,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       await page.waitForTimeout(1500)
 
       const ntsBtn409 = page.locator(
-        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행")',
       ).first()
       if ((await ntsBtn409.count()) > 0) {
         page.once('dialog', async dialog => { await dialog.accept() })
@@ -216,7 +216,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
         const bodyAfter409 = (await page.textContent('body')) ?? ''
         const has409Error =
           (await errorBanner409.count()) > 0 ||
-          bodyAfter409.includes('이미 NTS 발행이 완료') ||
+          bodyAfter409.includes('이미 국세청에 발행') ||
           bodyAfter409.includes('TAX_INVOICE_ALREADY_EMITTED') ||
           bodyAfter409.includes('이미 발행되었거나')
         expect(
@@ -279,10 +279,10 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
 
   // -------------------------------------------------------------------------
   /**
-   * T2: FE 계약 — TaxInvoiceDetailPage "NTS 발행" 버튼 + emit-nts API + 권한
+   * T2: FE 계약 — TaxInvoiceDetailPage "세금계산서 발행" 버튼 + emit-nts API + 권한
    *
    * 검증 항목:
-   *   - ACCOUNTANT 역할 ISSUED 상태 세금계산서 상세에서 "NTS 발행" 버튼 노출
+   *   - ACCOUNTANT 역할 ISSUED 상태 세금계산서 상세에서 "세금계산서 발행" 버튼 노출
    *   - 버튼 클릭 시 confirm modal 또는 window.confirm 호출
    *   - emitTaxInvoiceToNts(id, 'DRY_RUN') 함수가 taxInvoiceApi.ts 에 존재 (정적 계약)
    *   - MASTER 역할도 동일 버튼 노출 (ACCOUNTANT/MASTER 공유 권한)
@@ -295,7 +295,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    *   권한: accounting.tax-invoice.list VIEW/UPDATE, accounting.tax-invoice.emit-nts UPDATE
    *   NtsSubmitMethod = 'DRY_RUN' | 'NTS'  (BE @Pattern: DRY_RUN|NTS — C1/M3 fix)
    */
-  test('T2: FE 계약 — "NTS 발행" 버튼 + emit-nts API + ACCOUNTANT/MASTER 권한', async ({ page }) => {
+  test('T2: FE 계약 — "세금계산서 발행" 버튼 + emit-nts API + ACCOUNTANT/MASTER 권한', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -328,14 +328,14 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
     const bodyText = (await page.textContent('body')) ?? ''
 
     // ACCOUNTANT 권한 CTA 영역 확인
-    // "NTS 발행" 버튼 또는 세금계산서 관련 액션 버튼 탐색
+    // "세금계산서 발행" 버튼 또는 세금계산서 관련 액션 버튼 탐색
     const ntsBtn = page.locator(
-      '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행"), button:has-text("전자세금계산서")',
+      '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행"), button:has-text("전자세금계산서")',
     ).first()
 
     const ntsBtnExists = (await ntsBtn.count()) > 0
 
-    // NTS 발행 버튼이 없으면 ISSUED 행 클릭 후 상세에서 탐색
+    // 세금계산서 발행 버튼이 없으면 ISSUED 행 클릭 후 상세에서 탐색
     if (!ntsBtnExists) {
       const issuedRow = page.locator(
         'table tbody tr:has-text("발행"), [data-testid*="tax-invoice-row"]:has-text("발행")',
@@ -346,10 +346,10 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
         await page.waitForTimeout(1000)
 
         const detailNtsBtn = page.locator(
-          '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+          '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행")',
         ).first()
 
-        // NTS 발행 버튼이 상세에서 노출되면 클릭 테스트
+        // 세금계산서 발행 버튼이 상세에서 노출되면 클릭 테스트
         if ((await detailNtsBtn.count()) > 0) {
           page.on('dialog', async dialog => {
             await dialog.accept()
@@ -453,7 +453,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       })
     })
 
-    // ── step 1: ISSUED 단건 상세 진입(ti-001) — NTS 발행 버튼은 상세 페이지에서만 노출.
+    // ── step 1: ISSUED 단건 상세 진입(ti-001) — 세금계산서 발행 버튼은 상세 페이지에서만 노출.
     await test.step('ISSUED detail 진입', async () => {
       await page.goto(DETAIL_URL_ISSUED_TI001, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
@@ -465,19 +465,19 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       ).toBeTruthy()
     })
 
-    // ── step 2: NTS 발행 버튼 클릭 → confirm modal 확인 → route 호출 횟수 검증
-    await test.step('NTS 발행 버튼 클릭 + confirm modal 수락 + route 호출 확인', async () => {
+    // ── step 2: 세금계산서 발행 버튼 클릭 → confirm modal 확인 → route 호출 횟수 검증
+    await test.step('세금계산서 발행 버튼 클릭 + confirm modal 수락 + route 호출 확인', async () => {
       const ntsBtn = page.locator(
-        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행")',
       ).first()
 
-      // ti-001(ISSUED·미발행) 상세에는 NTS 발행 버튼이 노출되어야 한다.
-      await expect(ntsBtn, 'NTS 발행 버튼 미노출 — ISSUED 미발행 상세에서 emit-nts 버튼 필요').toBeVisible({ timeout: 5000 })
+      // ti-001(ISSUED·미발행) 상세에는 세금계산서 발행 버튼이 노출되어야 한다.
+      await expect(ntsBtn, '세금계산서 발행 버튼 미노출 — ISSUED 미발행 상세에서 emit-nts 버튼 필요').toBeVisible({ timeout: 5000 })
       await ntsBtn.click()
 
       // 페이지는 design-system Modal 사용(window.confirm 아님) — 발행 확인 버튼을 정확 testid 로 클릭.
       const confirmBtn = page.locator('[data-testid="tax-invoice-emit-nts-modal-confirm"]')
-      await expect(confirmBtn, 'NTS 발행 확인 모달 미표시').toBeVisible({ timeout: 5000 })
+      await expect(confirmBtn, '세금계산서 발행 확인 모달 미표시').toBeVisible({ timeout: 5000 })
       await confirmBtn.click()
       await page.waitForTimeout(1500)
       // NOTE: emit-nts 호출 검증은 page.route 카운터가 아니라(VITE_MOCK_MODE 에서 in-process mock 이 처리하여
@@ -501,7 +501,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
         'eTaxExternalId 미표시 — emit 후 [data-testid="tax-invoice-detail-etax-external-id"] 배너 노출 필요',
       ).toBeVisible({ timeout: 5000 })
       // 배너에 DRY_RUN 접수번호(DRY-<taxInvoiceNo>-<seq>) 가 실제로 렌더됐는지 — emit 호출 효과 검증.
-      await expect(etaxIdElement, 'NTS 수신 ID(DRY-) 미표시 — emit-nts 실행 효과 없음').toContainText('DRY-')
+      await expect(etaxIdElement, '국세청 접수번호(DRY-) 미표시 — emit-nts 실행 효과 없음').toContainText('DRY-')
     })
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
@@ -572,7 +572,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    * T5: 권한 가드 — ACCOUNTANT/MASTER 버튼 노출, SALES/MANAGER/INVENTORY 403
    *
    * 검증 항목:
-   *   - ACCOUNTANT: 세금계산서 목록 접근 가능 + NTS 발행 CTA 노출 대상
+   *   - ACCOUNTANT: 세금계산서 목록 접근 가능 + 세금계산서 발행 CTA 노출 대상
    *   - MASTER: 세금계산서 목록 접근 가능
    *   - SALES: /accounting/tax-invoices 접근 시 403 또는 redirect
    *   - MANAGER: /accounting/tax-invoices 접근 시 권한 차단 또는 버튼 미노출
@@ -607,9 +607,9 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
         page.url().includes('/login') ||
         page.url().includes('/unauthorized')
 
-      // SALES 페이지에서 즉시 NTS 버튼 count 계산 (이동 전)
+      // SALES 페이지에서 즉시 세금계산서 발행 버튼 count 계산 (이동 전)
       const salesNtsBtnCount = await page.locator(
-        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행")',
       ).count()
 
       await page.screenshot({
@@ -617,26 +617,26 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
         fullPage: true,
       })
 
-      // SALES 역할: 페이지 차단 OR NTS 버튼 미노출 — 둘 중 하나면 가드 동작
+      // SALES 역할: 페이지 차단 OR 세금계산서 발행 버튼 미노출 — 둘 중 하나면 가드 동작
       expect(
         salesBlocked || salesNtsBtnCount === 0,
-        'SALES 역할 권한 가드 실패 — 목록 접근 차단 또는 NTS 버튼 미노출 중 하나 필요 (BE IT case2 커버)',
+        'SALES 역할 권한 가드 실패 — 목록 접근 차단 또는 세금계산서 발행 버튼 미노출 중 하나 필요 (BE IT case2 커버)',
       ).toBeTruthy()
     })
 
     // ── step 2: MANAGER 페이지 진입 → 즉시 managerNtsBtnCount 계산 + assert
-    await test.step('MANAGER 역할 — 진입 직후 NTS 버튼 미노출 확인', async () => {
+    await test.step('MANAGER 역할 — 진입 직후 세금계산서 발행 버튼 미노출 확인', async () => {
       await page.goto(LIST_URL_MANAGER, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1000)
 
       // MANAGER 페이지에서 즉시 계산
       const managerNtsBtnCount = await page.locator(
-        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행")',
       ).count()
 
       expect(
         managerNtsBtnCount === 0,
-        'MANAGER 역할에서 NTS 발행 버튼이 노출됨 — PreAuthorize ACCOUNTANT/MASTER 만 허용 (BE IT case3 커버)',
+        'MANAGER 역할에서 세금계산서 발행 버튼이 노출됨 — PreAuthorize ACCOUNTANT/MASTER 만 허용 (BE IT case3 커버)',
       ).toBeTruthy()
     })
 
@@ -648,7 +648,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
 
       const inventoryBodyText = (await page.textContent('body')) ?? ''
       const inventoryNtsBtnCount = await page.locator(
-        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("NTS 발행"), button:has-text("국세청 발행")',
+        '[data-testid="tax-invoice-detail-emit-nts-button"], button:has-text("세금계산서 발행")',
       ).count()
       const inventoryBlocked =
         inventoryBodyText.includes('권한') ||
@@ -660,7 +660,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
 
       expect(
         inventoryBlocked || inventoryNtsBtnCount === 0,
-        'INVENTORY 역할 권한 가드 실패 — 접근 차단 또는 NTS 버튼 미노출 중 하나 필요',
+        'INVENTORY 역할 권한 가드 실패 — 접근 차단 또는 세금계산서 발행 버튼 미노출 중 하나 필요',
       ).toBeTruthy()
     })
 
