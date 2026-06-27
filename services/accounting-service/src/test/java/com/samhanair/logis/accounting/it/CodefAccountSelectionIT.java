@@ -503,7 +503,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             mockMvc.perform(auth(get(path)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-                    .andExpect(jsonPath("$.message").value("연결 식별자는 필수입니다"));
+                    .andExpect(jsonPath("$.message").value("필수 요청 파라미터가 누락되었습니다."));
         }
     }
 

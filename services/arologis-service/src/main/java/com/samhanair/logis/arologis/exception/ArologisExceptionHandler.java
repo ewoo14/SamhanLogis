@@ -83,17 +83,13 @@ public class ArologisExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT,
-                        "필수 요청 파라미터가 누락되었습니다: " + ex.getParameterName()));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "필수 요청 파라미터가 누락되었습니다."));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        String name = ex.getName();
-        String value = String.valueOf(ex.getValue());
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT,
-                        "잘못된 파라미터 값: " + name + "=" + value));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 파라미터 형식이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(IllegalStateException.class)
@@ -112,6 +108,6 @@ public class ArologisExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
         log.error("Unhandled exception in arologis-service", ex);
         return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, "서버 내부 오류가 발생했습니다."));
     }
 }

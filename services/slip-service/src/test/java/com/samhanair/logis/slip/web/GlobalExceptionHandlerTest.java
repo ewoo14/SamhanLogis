@@ -3,11 +3,15 @@ package com.samhanair.logis.slip.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.OptimisticLockException;
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * slip-service 전역 예외 핸들러 단위 테스트 (§7 협업 Round C P2 #2).
@@ -55,5 +59,35 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getCode()).isEqualTo("CONFLICT");
         assertThat(response.getBody().getMessage())
                 .isEqualTo("동시 수정 충돌 — 다시 시도해 주세요");
+    }
+
+    @Test
+    void handleMissingParam_returnsNeutralKoreanMessage() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleMissingParam(
+                new MissingServletRequestParameterException("from", "LocalDate"));
+
+        assertThat(response.getStatusCode()).isEqualTo(ErrorCode.INVALID_INPUT.getHttpStatus());
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("필수 요청 파라미터가 누락되었습니다.")
+                .doesNotContain("from")
+                .doesNotContain("LocalDate");
+    }
+
+    @Test
+    void handleTypeMismatch_returnsNeutralKoreanMessage() {
+        MethodArgumentTypeMismatchException exception = new MethodArgumentTypeMismatchException(
+                "not-a-date", LocalDate.class, "to", null,
+                new IllegalArgumentException("java.time.LocalDate parse failed"));
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleTypeMismatch(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(ErrorCode.INVALID_INPUT.getHttpStatus());
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("요청 파라미터 형식이 올바르지 않습니다.")
+                .doesNotContain("to")
+                .doesNotContain("not-a-date")
+                .doesNotContain("LocalDate");
     }
 }

@@ -55,12 +55,10 @@ class BundleExpanderIT extends AbstractPostgresIT {
         parent.changeBundle(ProductType.BUNDLE, BundleMode.EXPAND);
         parent = productRepository.save(parent);
 
-        componentRepository.save(BundleComponent.seed(parent.getId(), "C001",
-                new BigDecimal("1"), BundleComponent.QtyMode.FOLLOW_SET,
-                BundleComponent.ComponentKind.INDOOR, "기본", true, null));
-        componentRepository.save(BundleComponent.seed(parent.getId(), "C002",
-                new BigDecimal("2"), BundleComponent.QtyMode.FIXED,
-                BundleComponent.ComponentKind.PANEL, null, false, null));
+        comp(parent, "C001", new BigDecimal("1"), BundleComponent.QtyMode.FOLLOW_SET,
+                BundleComponent.ComponentKind.INDOOR, "기본", true, 1);
+        comp(parent, "C002", new BigDecimal("2"), BundleComponent.QtyMode.FIXED,
+                BundleComponent.ComponentKind.PANEL, null, false, 2);
         productRepository.flush();
         componentRepository.flush();
 
@@ -437,8 +435,13 @@ class BundleExpanderIT extends AbstractPostgresIT {
 
     private void comp(Product parent, String code, BundleComponent.ComponentKind kind, String variant,
                       boolean isDefault, int displayOrder) {
-        BundleComponent component = BundleComponent.seed(parent.getId(), code, BigDecimal.ONE,
-                BundleComponent.QtyMode.FOLLOW_SET, kind, variant, isDefault, null);
+        comp(parent, code, BigDecimal.ONE, BundleComponent.QtyMode.FOLLOW_SET, kind, variant, isDefault, displayOrder);
+    }
+
+    private void comp(Product parent, String code, BigDecimal defaultQty, BundleComponent.QtyMode qtyMode,
+                      BundleComponent.ComponentKind kind, String variant, boolean isDefault, int displayOrder) {
+        BundleComponent component = BundleComponent.seed(parent.getId(), code, defaultQty, qtyMode, kind, variant,
+                isDefault, null);
         component.changeDisplayOrder(displayOrder);
         componentRepository.save(component);
     }

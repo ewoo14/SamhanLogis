@@ -114,6 +114,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
         log.error("Unhandled exception", ex);
         return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, "서버 내부 오류가 발생했습니다."));
     }
 }

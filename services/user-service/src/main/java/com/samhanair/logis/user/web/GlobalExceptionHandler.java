@@ -52,9 +52,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingRequestParameter(
             MissingServletRequestParameterException ex) {
-        String msg = "필수 요청 파라미터가 누락되었습니다: " + ex.getParameterName();
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "필수 요청 파라미터가 누락되었습니다."));
     }
 
     /**
@@ -76,6 +75,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
         log.error("Unhandled exception", ex);
         return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, "서버 내부 오류가 발생했습니다."));
     }
 }
