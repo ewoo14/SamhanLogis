@@ -36,12 +36,13 @@ export function formatKstDateTimeInputValue(value: string | Date): string {
   return `${parts['year']}-${twoDigit(parts['month'])}-${twoDigit(parts['day'])}T${twoDigit(parts['hour'])}:${twoDigit(parts['minute'])}`
 }
 
-export function kstDateTimeInputToIsoOffset(value: string): string {
+export function kstDateTimeInputToLocalDateTime(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return trimmed
-  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(trimmed)) return trimmed
 
   const [datePart, timePart = '00:00'] = trimmed.split('T')
-  const [hour = '00', minute = '00', second = '00'] = timePart.split(':')
-  return `${datePart}T${twoDigit(hour)}:${twoDigit(minute)}:${twoDigit(second)}+09:00`
+  const localTimePart = timePart.replace(/(?:[zZ]|[+-]\d{2}:\d{2})$/, '')
+  const [hour = '00', minute = '00', secondWithFraction = '00'] = localTimePart.split(':')
+  const [second = '00'] = secondWithFraction.split('.')
+  return `${datePart}T${twoDigit(hour)}:${twoDigit(minute)}:${twoDigit(second)}`
 }

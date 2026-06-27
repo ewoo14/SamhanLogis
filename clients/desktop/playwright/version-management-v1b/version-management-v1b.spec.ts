@@ -125,7 +125,7 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await page.getByTestId('app-release-notes').fill('V1b Playwright 등록 검증')
     await page.getByTestId('app-release-save').click()
 
-    const rowTestId = `app-release-row-WEB-${version}-2026-06-27T10:00:00+09:00`
+    const rowTestId = `app-release-row-WEB-${version}-2026-06-27T10:00:00`
 
     await expect(page.getByTestId(rowTestId)).toBeVisible()
     await expect(page.getByTestId(rowTestId)).toContainText('2026.06.27')

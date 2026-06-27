@@ -375,11 +375,12 @@ describe('mock app version management contract', () => {
         minSupportedVersion: '0.1.0',
         forceLevel: 'MINOR',
         releaseNotes: 'Playwright mock 검증',
-        releasedAt: '2026-06-27T10:00:00+09:00',
+        releasedAt: '2026-06-27T10:00:00',
       },
-    }) as MockEnvelope<{ id: string; forceLevel: string }>
+    }) as MockEnvelope<{ id: string; forceLevel: string; releasedAt: string }>
 
     expect(created.data.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(created.data.releasedAt).toBe('2026-06-27T10:00:00')
 
     const updated = mockRequest({
       method: 'PUT',
@@ -390,12 +391,13 @@ describe('mock app version management contract', () => {
         minSupportedVersion: '0.1.0',
         forceLevel: 'MAJOR',
         releaseNotes: '수정된 릴리스',
-        releasedAt: '2026-06-27T10:00:00+09:00',
+        releasedAt: '2026-06-27T10:00:00',
       },
-    }) as MockEnvelope<{ id: string; forceLevel: string; releaseNotes: string }>
+    }) as MockEnvelope<{ id: string; forceLevel: string; releaseNotes: string; releasedAt: string }>
 
     expect(updated.data.forceLevel).toBe('MAJOR')
     expect(updated.data.releaseNotes).toBe('수정된 릴리스')
+    expect(updated.data.releasedAt).toBe('2026-06-27T10:00:00')
 
     const deleted = mockRequest({
       method: 'DELETE',
@@ -404,6 +406,24 @@ describe('mock app version management contract', () => {
 
     expect(deleted.success).toBe(true)
     expect(deleted.data).toBeNull()
+  })
+
+  it('POST /app/releases는 releasedAt offset 포함 payload를 BE LocalDateTime 계약처럼 거부한다', () => {
+    const rejected = mockRequest({
+      method: 'POST',
+      url: '/app/releases',
+      data: {
+        clientType: 'WEB',
+        version: `0.3.${Date.now()}`,
+        minSupportedVersion: '0.1.0',
+        forceLevel: 'MINOR',
+        releaseNotes: 'offset 거부 검증',
+        releasedAt: '2026-06-27T10:00:00+09:00',
+      },
+    }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string } }
+
+    expect(rejected.__mockStatus).toBe(400)
+    expect(rejected.body.code).toBe('INVALID_INPUT')
   })
 })
 

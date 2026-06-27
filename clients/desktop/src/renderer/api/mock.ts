@@ -141,7 +141,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     minSupportedVersion: '0.1.0',
     forceLevel: 'MINOR',
     releaseNotes: '데스크톱 배차 화면 안정화와 버전관리 안내를 추가했습니다.',
-    releasedAt: '2026-06-27T09:00:00+09:00',
+    releasedAt: '2026-06-27T09:00:00',
   },
   {
     id: mockAppReleaseId(2),
@@ -150,7 +150,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     minSupportedVersion: '0.1.0',
     forceLevel: 'MINOR',
     releaseNotes: '웹 백오피스 PWA와 별개인 앱 버전 정책을 적용했습니다.',
-    releasedAt: '2026-06-27T09:00:00+09:00',
+    releasedAt: '2026-06-27T09:00:00',
   },
   {
     id: mockAppReleaseId(3),
@@ -159,7 +159,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     minSupportedVersion: '0.1.0',
     forceLevel: 'MINOR',
     releaseNotes: '모바일 V1c 준비용 시드입니다.',
-    releasedAt: '2026-06-27T09:00:00+09:00',
+    releasedAt: '2026-06-27T09:00:00',
   },
 ]
 
@@ -187,6 +187,10 @@ function isSemverLessThan(a: string, b: string): boolean {
   return compareSemverDesc(a, b) > 0
 }
 
+function isMockLocalDateTime(value: unknown): boolean {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)
+}
+
 function mockAppReleaseFromBody(body: Record<string, unknown>, id: string): MockAppRelease {
   return {
     id,
@@ -195,7 +199,7 @@ function mockAppReleaseFromBody(body: Record<string, unknown>, id: string): Mock
     minSupportedVersion: String(body['minSupportedVersion'] ?? '').trim() || '0.1.0',
     forceLevel: normalizeMockForceLevel(body['forceLevel']),
     releaseNotes: String(body['releaseNotes'] ?? '').trim() || '릴리스 노트가 등록되지 않았습니다.',
-    releasedAt: String(body['releasedAt'] ?? '').trim() || new Date().toISOString(),
+    releasedAt: String(body['releasedAt'] ?? '').trim() || '2026-06-27T09:00:00',
   }
 }
 
@@ -1780,7 +1784,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.endsWith('/app/releases')) {
     const denied = mockRequirePermission('admin.app-release', 'create')
     if (denied) return denied
-    const created = mockAppReleaseFromBody(parseMockBody(config), mockAppReleaseId(mockAppReleaseSeq))
+    const body = parseMockBody(config)
+    if (!isMockLocalDateTime(body['releasedAt'])) {
+      return mockError(400, 'INVALID_INPUT', 'releasedAt은 offset 없는 LocalDateTime 형식이어야 합니다.')
+    }
+    const created = mockAppReleaseFromBody(body, mockAppReleaseId(mockAppReleaseSeq))
     mockAppReleaseSeq += 1
     MOCK_APP_RELEASES = [...MOCK_APP_RELEASES, created]
     return envelope(created)
@@ -1797,7 +1805,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (method === 'PUT') {
       const denied = mockRequirePermission('admin.app-release', 'update')
       if (denied) return denied
-      const updated = mockAppReleaseFromBody(parseMockBody(config), id)
+      const body = parseMockBody(config)
+      if (!isMockLocalDateTime(body['releasedAt'])) {
+        return mockError(400, 'INVALID_INPUT', 'releasedAt은 offset 없는 LocalDateTime 형식이어야 합니다.')
+      }
+      const updated = mockAppReleaseFromBody(body, id)
       MOCK_APP_RELEASES = MOCK_APP_RELEASES.map((release) => release.id === id ? updated : release)
       return envelope(updated)
     }

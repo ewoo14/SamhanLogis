@@ -24,7 +24,7 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import {
   formatKstDate,
   formatKstDateTimeInputValue,
-  kstDateTimeInputToIsoOffset,
+  kstDateTimeInputToLocalDateTime,
 } from '../../utils/formatDate'
 import styles from './AppReleaseManagementPage.module.css'
 
@@ -82,7 +82,7 @@ function toPayload(form: ReleaseFormState): AppReleasePayload {
     minSupportedVersion: form.minSupportedVersion.trim(),
     forceLevel: form.forceLevel,
     releaseNotes: form.releaseNotes.trim(),
-    releasedAt: kstDateTimeInputToIsoOffset(form.releasedAt),
+    releasedAt: kstDateTimeInputToLocalDateTime(form.releasedAt),
   }
 }
 
