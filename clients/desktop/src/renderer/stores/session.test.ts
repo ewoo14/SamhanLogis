@@ -140,6 +140,25 @@ describe('session store authProvider 배선', () => {
     expect(useSessionStore.getState().auth).toBeNull()
   })
 
+  it('clearAuthState 는 provider 세션 정리에 실패해도 렌더러 캐시를 비운다', async () => {
+    authProvider.clearSession.mockRejectedValueOnce(new Error('native clear failed'))
+    const { useSessionStore } = await import('./session')
+    useSessionStore.setState({
+      auth: {
+        token: 'jwt',
+        userId: 'u-stale',
+        role: 'MASTER',
+        fullName: 'Stale User',
+        groups: [],
+      },
+    })
+
+    await expect(useSessionStore.getState().clearAuthState()).rejects.toThrow('native clear failed')
+
+    expect(authProvider.clearSession).toHaveBeenCalledTimes(1)
+    expect(useSessionStore.getState().auth).toBeNull()
+  })
+
   it('setAuth resolves before native push registration settles', async () => {
     authProvider.establishSession.mockResolvedValue(undefined)
     pushRegistration.registerPush.mockReturnValue(new Promise(() => undefined))

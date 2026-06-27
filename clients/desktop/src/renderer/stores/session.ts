@@ -114,8 +114,11 @@ export const useSessionStore = create<SessionState>((set) => ({
     })
   },
   clearAuthState: async () => {
-    await getAuthProvider().clearSession()
-    set({ auth: null })
+    try {
+      await getAuthProvider().clearSession()
+    } finally {
+      set({ auth: null })
+    }
   },
   logout: async () => {
     await unregisterPushIfNative()
