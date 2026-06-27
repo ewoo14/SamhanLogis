@@ -111,7 +111,7 @@ public class CodefImportController {
     /** 다중 ref 또는 저장 선택 기준으로 거래내역을 조회해 BankTransaction 으로 적재한다. */
     @PostMapping("/import-scoped")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
-    @Operation(summary = "거래내역 scoped import", description = "다중 ref, 전체 목록, 저장 선택 기준 거래내역 import")
+    @Operation(summary = "거래내역 선택 범위 가져오기", description = "다중 식별값, 전체 목록, 저장 선택 기준 거래내역 가져오기")
     public ApiResponse<CodefImportResponse> importScoped(
             @Valid @RequestBody CodefImportScopedRequest request,
             @RequestHeader("X-User-Id") String userId) {
@@ -125,7 +125,7 @@ public class CodefImportController {
                         request.loanRefs(),
                         request.submitMethod(),
                         parseUserId(userId)),
-                "거래내역 import 가 완료되었습니다.");
+                "거래내역 가져오기가 완료되었습니다.");
     }
 
     /** 인증 사용자별 가져오기 선택 scope 를 저장한다. */

@@ -166,6 +166,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                 }
                 """.formatted(CONNECTED_ID, ACCOUNT_REF_1, ACCOUNT_REF_2, CARD_REF_1))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("거래내역 가져오기가 완료되었습니다."))
                 .andExpect(jsonPath("$.data.fetchedCount").value(15))
                 .andExpect(jsonPath("$.data.importedCount").value(15))
                 .andExpect(jsonPath("$.data.duplicateSkippedCount").value(0));
