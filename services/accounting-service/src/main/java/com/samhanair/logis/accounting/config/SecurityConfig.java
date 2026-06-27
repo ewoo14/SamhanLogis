@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
 import com.samhanair.logis.security.InternalTokenFilter;
 import org.springframework.context.annotation.Bean;
@@ -24,7 +25,8 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             InternalTokenFilter internalTokenFilter,
-            InternalAuthProperties internalAuthProperties)
+            InternalAuthProperties internalAuthProperties,
+            ObjectMapper objectMapper)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -42,7 +44,7 @@ public class SecurityConfig {
                 .addFilterBefore(new AccountingInternalTokenFilter(internalAuthProperties),
                         UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(internalTokenFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(new HeaderAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new HeaderAuthenticationFilter(objectMapper), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }

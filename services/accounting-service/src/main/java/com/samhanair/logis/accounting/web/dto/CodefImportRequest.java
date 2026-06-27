@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.web.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
@@ -40,6 +41,7 @@ public record CodefImportRequest(
         String loanRef,
 
         // DRY_RUN/CODEF 는 서버-클라이언트 계약에 쓰는 기술 식별자다. 사용자 노출 오류 메시지만 한국어로 유지한다.
+        @Schema(hidden = true)
         @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
         String submitMethod
 ) {

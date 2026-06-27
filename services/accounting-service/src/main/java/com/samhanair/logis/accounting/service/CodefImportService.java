@@ -42,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CodefImportService {
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HHmmss");
+    private static final int MAX_IMPORT_REF_SELECTIONS = 50;
 
     private final CodefClient codefClient;
     private final BankTransactionRepository bankTransactionRepository;
@@ -95,6 +96,7 @@ public class CodefImportService {
         List<String> normalizedAccountRefs = CodefRefNormalizer.normalizeRefs(accountRefs);
         List<String> normalizedCardRefs = CodefRefNormalizer.normalizeRefs(cardRefs);
         List<String> normalizedLoanRefs = CodefRefNormalizer.normalizeRefs(loanRefs);
+        validateRefSelectionLimit(normalizedAccountRefs, normalizedCardRefs, normalizedLoanRefs);
 
         List<SourceTxn> fetched = new ArrayList<>();
         if (shouldImport(effectiveType, CodefImportType.BANK)) {
@@ -239,6 +241,13 @@ public class CodefImportService {
                 && CodefRefNormalizer.normalizeRefs(loanRefs).isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "계좌·카드·대출 식별값 중 하나는 필수입니다.");
+        }
+    }
+
+    private void validateRefSelectionLimit(List<String> accountRefs, List<String> cardRefs, List<String> loanRefs) {
+        int selectedCount = accountRefs.size() + cardRefs.size() + loanRefs.size();
+        if (selectedCount > MAX_IMPORT_REF_SELECTIONS) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "가져오기 선택 항목은 최대 50개까지 허용됩니다.");
         }
     }
 

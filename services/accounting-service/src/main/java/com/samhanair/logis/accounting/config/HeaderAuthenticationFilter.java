@@ -1,5 +1,8 @@
 package com.samhanair.logis.accounting.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -31,6 +34,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final String UNAUTHORIZED_MESSAGE = "인증 정보가 올바르지 않습니다";
+
+    private final ObjectMapper objectMapper;
+
+    public HeaderAuthenticationFilter(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
@@ -41,11 +52,11 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         boolean hasPartialIdentity = (groups != null && !groups.isBlank())
                 || request.getHeader(HttpHeaderConstants.IS_SYSTEM_MASTER_HEADER) != null;
         if ((userId == null || userId.isBlank()) && hasPartialIdentity) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            writeUnauthorized(response);
             return;
         }
         if ((userId == null || userId.isBlank()) && request.getRequestURI().startsWith("/accounting/codef/")) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            writeUnauthorized(response);
             return;
         }
         if (userId != null && !userId.isBlank()
@@ -85,8 +96,9 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private void writeUnauthorized(HttpServletResponse response) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write(
-                "{\"success\":false,\"code\":\"UNAUTHORIZED\",\"message\":\"인증 정보가 올바르지 않습니다\"}");
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json");
+        objectMapper.writeValue(response.getWriter(),
+                ApiResponse.fail(ErrorCode.UNAUTHORIZED, UNAUTHORIZED_MESSAGE));
     }
 }

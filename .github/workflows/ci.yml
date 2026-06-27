@@ -130,6 +130,20 @@ jobs:
       - name: test (${{ matrix.group.name }})
         run: ./gradlew ${{ matrix.group.test-tasks }}
 
+      - name: BC3 CODEF IT skipped=0 hard gate
+        if: matrix.group.name == 'accounting-codef-it'
+        run: |
+          report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.CodefAccountSelectionIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::CodefAccountSelectionIT JUnit report not found; BC3 IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::CodefAccountSelectionIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
       - name: 테스트 리포트 아티팩트 업로드 (실패 포함)
         if: always()
         uses: actions/upload-artifact@v4

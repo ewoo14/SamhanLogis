@@ -319,12 +319,14 @@ class AccountingPermissionControllerIT {
     static class TestSecurityConfig {
 
         @Bean
-        SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
+        SecurityFilterChain testSecurityFilterChain(
+                HttpSecurity http,
+                com.fasterxml.jackson.databind.ObjectMapper objectMapper) throws Exception {
             http
                     .csrf(AbstractHttpConfigurer::disable)
                     .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                     .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                    .addFilterBefore(new com.samhanair.logis.accounting.config.HeaderAuthenticationFilter(),
+                    .addFilterBefore(new com.samhanair.logis.accounting.config.HeaderAuthenticationFilter(objectMapper),
                             UsernamePasswordAuthenticationFilter.class);
             return http.build();
         }

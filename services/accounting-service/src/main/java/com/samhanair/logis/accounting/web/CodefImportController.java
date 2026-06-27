@@ -18,6 +18,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -59,6 +60,7 @@ public class CodefImportController {
             @NotBlank(message = "연결 식별자는 필수입니다")
             @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
+            @Parameter(hidden = true)
             @RequestParam(required = false)
             @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
             String submitMethod) {
@@ -75,6 +77,7 @@ public class CodefImportController {
             @NotBlank(message = "연결 식별자는 필수입니다")
             @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
+            @Parameter(hidden = true)
             @RequestParam(required = false)
             @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
             String submitMethod) {
@@ -91,6 +94,7 @@ public class CodefImportController {
             @NotBlank(message = "연결 식별자는 필수입니다")
             @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
+            @Parameter(hidden = true)
             @RequestParam(required = false)
             @Pattern(regexp = "DRY_RUN|CODEF", message = "전송 방식 값이 올바르지 않습니다")
             String submitMethod) {
@@ -121,7 +125,7 @@ public class CodefImportController {
     @Operation(summary = "거래내역 선택 범위 가져오기", description = "다중 식별값, 전체 목록, 저장 선택 기준 거래내역 가져오기")
     public ApiResponse<CodefImportResponse> importScoped(
             @Valid @RequestBody CodefImportScopedRequest request,
-            @RequestHeader("X-User-Id") String userId) {
+            @Parameter(hidden = true) @RequestHeader("X-User-Id") String userId) {
         return ApiResponse.ok(codefImportScopedService.importTransactionsWithScope(
                         request.from(),
                         request.to(),
@@ -141,7 +145,7 @@ public class CodefImportController {
     @Operation(summary = "가져오기 선택 저장", description = "인증 사용자와 연결 식별자 기준 선택값 저장")
     public ApiResponse<CodefImportScopeResponse> upsertScope(
             @Valid @RequestBody CodefImportScopeRequest request,
-            @RequestHeader("X-User-Id") String userId) {
+            @Parameter(hidden = true) @RequestHeader("X-User-Id") String userId) {
         return ApiResponse.ok(scopeService.upsert(parseUserId(userId), request),
                 "가져오기 선택이 저장되었습니다.");
     }
@@ -155,7 +159,7 @@ public class CodefImportController {
             @NotBlank(message = "연결 식별자는 필수입니다")
             @Size(max = 128, message = "연결 식별자는 최대 128자입니다")
             String connectedId,
-            @RequestHeader("X-User-Id") String userId) {
+            @Parameter(hidden = true) @RequestHeader("X-User-Id") String userId) {
         return ApiResponse.ok(scopeService.get(parseUserId(userId), connectedId));
     }
 

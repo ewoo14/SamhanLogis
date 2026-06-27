@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -26,7 +27,7 @@ class HeaderAuthenticationFilterTest {
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
-        new HeaderAuthenticationFilter().doFilter(request, response, chain);
+        new HeaderAuthenticationFilter(new ObjectMapper()).doFilter(request, response, chain);
 
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         assertThat(authentication).isNotNull();

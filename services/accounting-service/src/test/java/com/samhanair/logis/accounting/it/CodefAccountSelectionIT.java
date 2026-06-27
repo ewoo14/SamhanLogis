@@ -21,9 +21,12 @@ import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.UserCodefImportScope;
 import com.samhanair.logis.accounting.repository.UserCodefImportScopeRepository;
-import jakarta.persistence.EntityManager;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import jakarta.persistence.EntityManager;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -68,6 +72,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private EntityManager entityManager;
+    @Autowired private ObjectMapper objectMapper;
 
     @SpyBean private UserCodefImportScopeRepository userCodefImportScopeRepository;
 
@@ -541,21 +546,107 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     @Test
     @DisplayName("인증 헤더 없는 scope 조회는 401")
     void scopeRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/accounting/codef/scopes")
+        MvcResult result = mockMvc.perform(get("/accounting/codef/scopes")
                         .param("connectedId", CONNECTED_ID))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andReturn();
+
+        assertUnauthorizedEnvelope(result);
     }
 
     @Test
     @DisplayName("인증 헤더 형식 이상은 기술명 없이 401")
     void scopeRejectsMalformedAuthenticationWithoutTechnicalNames() throws Exception {
-        mockMvc.perform(get("/accounting/codef/scopes")
+        MvcResult result = mockMvc.perform(get("/accounting/codef/scopes")
                         .param("connectedId", CONNECTED_ID)
                         .header("X-User-Id", "not-a-user-id")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
-                .andExpect(jsonPath("$.message").value("인증 정보가 올바르지 않습니다"));
+                .andExpect(jsonPath("$.message").value("인증 정보가 올바르지 않습니다"))
+                .andReturn();
+
+        assertUnauthorizedEnvelope(result);
+    }
+
+    @Test
+    @DisplayName("OpenAPI는 gateway 헤더와 submitMethod 기술 선택자를 숨긴다")
+    void openApiHidesGatewayHeadersAndSubmitMethodSelector() throws Exception {
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertOperationHasNoParameter(root, "/accounting/codef/bank-accounts", "get", "submitMethod");
+        assertOperationHasNoParameter(root, "/accounting/codef/cards", "get", "submitMethod");
+        assertOperationHasNoParameter(root, "/accounting/codef/loans", "get", "submitMethod");
+        assertOperationHasNoParameter(root, "/accounting/codef/import-scoped", "post", "X-User-Id");
+        assertOperationHasNoParameter(root, "/accounting/codef/scopes", "put", "X-User-Id");
+        assertOperationHasNoParameter(root, "/accounting/codef/scopes", "get", "X-User-Id");
+
+        assertThat(root.at("/components/schemas/CodefImportRequest/properties").has("submitMethod")).isFalse();
+        assertThat(root.at("/components/schemas/CodefImportScopedRequest/properties").has("submitMethod")).isFalse();
+        assertThat(root.at("/components/schemas/CodefImportRequest").toString()).doesNotContain("DRY_RUN", "CODEF");
+        assertThat(root.at("/components/schemas/CodefImportScopedRequest").toString()).doesNotContain("DRY_RUN", "CODEF");
+    }
+
+    @Test
+    @DisplayName("scoped import 기간 역순은 표준 envelope 로 422")
+    void importScopedRejectsReversedDateRange() throws Exception {
+        importScoped("""
+                {
+                  "connectedId": "%s",
+                  "from": "2026-06-03",
+                  "to": "2026-06-01",
+                  "type": "BANK",
+                  "accountRefs": ["%s"],
+                  "submitMethod": "DRY_RUN"
+                }
+                """.formatted(CONNECTED_ID, ACCOUNT_REF_1))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("DEPOSIT_DATE_RANGE_INVALID"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    @DisplayName("scoped import 명시 ref 과다는 400")
+    void importScopedRejectsExcessiveExplicitRefs() throws Exception {
+        importScoped("""
+                {
+                  "connectedId": "%s",
+                  "from": "2026-06-01",
+                  "to": "2026-06-03",
+                  "type": "BANK",
+                  "accountRefs": [%s],
+                  "submitMethod": "DRY_RUN"
+                }
+                """.formatted(CONNECTED_ID, quotedRefs("ACC-", 51)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("가져오기 선택 항목은 최대 50개까지 허용됩니다."))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    @DisplayName("scoped import 미래 날짜는 400 envelope")
+    void importScopedRejectsFutureDateWithEnvelope() throws Exception {
+        LocalDate future = LocalDate.now().plusDays(1);
+        importScoped("""
+                {
+                  "connectedId": "%s",
+                  "from": "%s",
+                  "to": "%s",
+                  "type": "BANK",
+                  "accountRefs": ["%s"],
+                  "submitMethod": "DRY_RUN"
+                }
+                """.formatted(CONNECTED_ID, future, future, ACCOUNT_REF_1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     private org.springframework.test.web.servlet.ResultActions saveScope(String body) throws Exception {
@@ -581,5 +672,36 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         return builder
                 .header("X-User-Id", USER_ID.toString())
                 .header("X-User-Role", "ACCOUNTANT");
+    }
+
+    private void assertUnauthorizedEnvelope(MvcResult result) throws Exception {
+        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(root.path("success").asBoolean()).isFalse();
+        assertThat(root.path("code").asText()).isEqualTo("UNAUTHORIZED");
+        assertThat(root.has("data")).isTrue();
+        assertThat(root.path("data").isNull()).isTrue();
+        assertThat(root.path("timestamp").asText()).isNotBlank();
+    }
+
+    private static void assertOperationHasNoParameter(JsonNode root, String path, String method, String name) {
+        JsonNode parameters = root.at("/paths/" + escapeJsonPointer(path) + "/" + method + "/parameters");
+        if (parameters.isMissingNode()) {
+            return;
+        }
+        for (JsonNode parameter : parameters) {
+            assertThat(parameter.path("name").asText()).isNotEqualTo(name);
+            assertThat(parameter.toString()).doesNotContain("DRY_RUN", "CODEF");
+        }
+    }
+
+    private static String escapeJsonPointer(String value) {
+        return value.replace("~", "~0").replace("/", "~1");
+    }
+
+    private static String quotedRefs(String prefix, int count) {
+        return IntStream.rangeClosed(1, count)
+                .mapToObj(i -> "\"" + prefix + i + "\"")
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("");
     }
 }
