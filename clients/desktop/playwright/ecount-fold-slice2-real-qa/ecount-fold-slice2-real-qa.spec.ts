@@ -3,7 +3,6 @@
  *
  * 대상: page-code ecount.mig14.cash-list 완전 제거 검증.
  *   1) 회계 카테고리 flat 항목에 '지출 트랜잭션'/'입금 트랜잭션' 메뉴 미노출(형제 항목 유지)
- *   2) 네이티브 대체 — 분개장(/accounting/journals) + 입금매칭(/accounting/deposit-match) 도달·렌더
  *   3) 구 silo route(#/accounting/admin/cash-disbursements, /cash-receipts) 진입 시 silo 화면 미렌더
  *
  * 실서버: api-gateway :8080 (실 권한/데이터), FE renderer dev :5175 (mock OFF).
@@ -92,10 +91,8 @@ test('MASTER — 네이티브 대체: 분개장 + 입금매칭 도달·렌더(�
   await page.waitForTimeout(1200)
   await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'T2-master-native-journals.png'), fullPage: true })
 
-  await gotoHash(page, '/accounting/deposit-match')
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1000)
-  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'T3-master-native-deposit-match.png'), fullPage: true })
 })
 
 test('MASTER — 구 cash silo route 진입 시 화면 미렌더', async ({ page }) => {

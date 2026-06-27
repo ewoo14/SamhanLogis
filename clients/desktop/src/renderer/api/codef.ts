@@ -32,16 +32,6 @@ export interface CodefImportScope {
   defaultImportType: CodefImportType
 }
 
-export interface CodefImportRequest {
-  from: string
-  to: string
-  type: CodefImportType
-  accountRef?: string
-  cardRef?: string
-  loanRef?: string
-  submitMethod?: CodefSubmitMethod
-}
-
 export interface CodefScopedImportRequest {
   connectedId: string
   from: string
@@ -57,16 +47,6 @@ export interface CodefImportResponse {
   importedCount: number
   duplicateSkippedCount: number
   matchedCount: number
-}
-
-export async function importCodefTransactions(
-  request: CodefImportRequest,
-): Promise<CodefImportResponse> {
-  const res = await apiClient.post<ApiEnvelope<CodefImportResponse>>(
-    '/accounting/codef/import',
-    request,
-  )
-  return res.data.data
 }
 
 export async function listCodefBankAccounts(

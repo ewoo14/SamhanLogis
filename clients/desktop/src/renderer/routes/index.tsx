@@ -57,7 +57,6 @@
  * - `/accounting/ledgers`         원장 — 기간/계정/거래처 필터 + 라인 DataTable + CSV 다운로드
  *
  * SP-09-4 신규 라우트 (ACCOUNTANT/MANAGER/MASTER — RoleGuard):
- * - `/accounting/deposit-match`   KFTC 오픈뱅킹 입금 매칭 — 날짜 range + accountFinNo + DRY_RUN 고정
  *
  * 기존 PR #18 의 `/slips`, `/slips/new` 라우트는 폐기.
  */
@@ -287,12 +286,7 @@ import { SalesQueryPage } from './sales-query/SalesQueryPage'
 import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
 // [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
 // BE: slip-service POST /slips/receipt-ocr (multipart/form-data, submitMethod=DRY_RUN|CLOVA)
-// shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 CLOVA 활성.
 import { PurchaseSlipOcrUploadPage } from './PurchaseSlipOcrUploadPage'
-// [SP-09-4] KFTC 오픈뱅킹 입금 매칭 (ACCOUNTANT / MANAGER / MASTER).
-// BE: accounting-service POST /accounting/deposits/fetch-and-match (submitMethod=DRY_RUN|KFTC)
-// shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 KFTC 활성.
-import { DepositMatchPage } from './DepositMatchPage'
 // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
 import { ForbiddenPage } from './ForbiddenPage'
 // [SP-D1 404] 인앱 한국어 404 페이지 — AuthGuard + AppLayout 내부 catch-all.
@@ -569,7 +563,6 @@ const routes = [
       { path: '/purchases/:id/print/purchase', element: <PurchaseSlipPrintPage /> },
 
       // [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
-      // shell 단계: DRY_RUN 고정 표시. Phase 11 sandbox 연동 시 CLOVA 활성.
       // 정적 path `/purchases/receipt-ocr` → `/purchases/:id` 보다 먼저 매칭되어야 함.
       {
         path: '/purchases/receipt-ocr',
@@ -1208,17 +1201,6 @@ const routes = [
         ),
       },
 
-      // [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — ACCOUNTANT / MANAGER / MASTER.
-      // BE: accounting-service POST /accounting/deposits/fetch-and-match (submitMethod=DRY_RUN|KFTC)
-      // shell 단계: DRY_RUN 고정. Phase 11 sandbox 연동 시 KFTC 활성.
-      {
-        path: '/accounting/deposit-match',
-        element: (
-          <PermissionGuard pageCode="accounting.deposit-match" action="view">
-            <DepositMatchPage />
-          </PermissionGuard>
-        ),
-      },
 
       // [2a 메뉴 통합] `/sales/query` / `/purchases/query` 는 기존 deep-link / bookmark
       // 호환을 위한 alias — 사이드바에서는 제거되었고 `/sales`, `/purchases` 가 정식.

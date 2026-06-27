@@ -96,7 +96,6 @@ export type PageCode =
   | 'accounting.sales-slip.accounting'
   | 'accounting.purchase-slip.list'
   | 'accounting.purchase-slip.accounting'
-  | 'accounting.deposit-match'
   | 'accounting.daily-closing'
   | 'accounting.daily-closing.run'
   | 'accounting.daily-closing.unlock'

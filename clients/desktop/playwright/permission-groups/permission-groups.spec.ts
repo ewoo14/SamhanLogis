@@ -29,22 +29,6 @@ test.describe('Permission Groups Phase A', () => {
     await installAuthMock(page)
   })
 
-  test('그룹 선택 → 매트릭스 토글 → 저장 토스트', async ({ page }) => {
-    await page.goto(MATRIX_URL, { waitUntil: 'domcontentloaded' })
-
-    const groupSelect = page.getByTestId('perm-group-select')
-    await expect(groupSelect).toBeVisible()
-    await groupSelect.selectOption({ label: '영업팀' })
-
-    const cell = page.getByTestId('perm-group-matrix-cell-accounting-deposit-match-delete')
-    await expect(cell).toBeVisible()
-    await cell.check()
-
-    await expect(page.getByTestId('perm-group-matrix-change-count')).toContainText('1')
-    await page.getByTestId('perm-group-matrix-save-btn').click()
-    await expect(page.getByRole('alert')).toContainText('권한 변경을 저장했습니다')
-    await expect(page.getByTestId('perm-group-matrix-change-count')).toContainText('0')
-  })
 
   test('그룹 목록 표시·추가·개명·삭제와 빌트인 잠금', async ({ page }) => {
     await page.goto(MANAGE_URL, { waitUntil: 'domcontentloaded' })

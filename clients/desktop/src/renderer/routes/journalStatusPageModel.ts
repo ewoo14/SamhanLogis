@@ -18,7 +18,6 @@ export const JOURNAL_STATUS_SOURCE_OPTIONS: Array<{
   { value: 'SLIP', label: '전표' },
   { value: 'MANUAL', label: '수기' },
   { value: 'CLOSING', label: '결산' },
-  { value: 'KFTC_DEPOSIT', label: '계좌입금' },
   { value: 'CASH_DISBURSEMENT', label: '지출결의서' },
   { value: 'CASH_RECEIPT', label: '현금입금' },
 ]

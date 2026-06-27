@@ -97,7 +97,7 @@ async function mockAccountMatrix(page: Page) {
       await fulfillJson(route, {
         success: true,
         data: {
-          'accounting.deposit-match': {
+          'accounting.daily-closing': {
             ...emptyActions(),
             view: true,
           },
@@ -141,7 +141,7 @@ test.describe('Phase 1 Stage 3 Task 12 permission matrix', () => {
       await expect(page.getByTestId(`perm-matrix-col-all-${action}`)).toBeVisible()
     }
 
-    const cell = page.getByTestId('perm-matrix-cell-accounting-deposit-match-delete')
+    const cell = page.getByTestId('perm-matrix-cell-accounting-daily-closing-delete')
     await expect(cell).toBeVisible()
     await expect(cell).not.toBeChecked()
     await cell.check()

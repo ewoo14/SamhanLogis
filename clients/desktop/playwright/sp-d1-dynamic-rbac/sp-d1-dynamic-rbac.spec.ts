@@ -225,7 +225,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
     await test.step('대표 PageCode 셀 직접 존재 확인 (서로 다른 도메인)', async () => {
       const representativeCells = [
-        'perm-matrix-cell-accounting-deposit-match-view',
+        'perm-matrix-cell-accounting-daily-closing-view',
         'perm-matrix-cell-purchases-receipt-ocr-view',
         'perm-matrix-cell-sales-slip-list-view',
         'perm-matrix-cell-inventory-stock-view',

@@ -434,7 +434,6 @@ export function AppLayout() {
   const showAccountingTaxInvoice  = dynamicCanAccess('accounting.tax-invoice.list', 'view')
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
-  const showAccountingDepositMatch = dynamicCanAccess('accounting.deposit-match',  'view')
   const showAccountingBankMatching = dynamicCanAccess('accounting.bank-matching',  'view')
   const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
@@ -450,7 +449,7 @@ export function AppLayout() {
     || showAccountingPartnerLedger || showAccountingTaxInvoice
     || showAccountingTaxInvoiceBatch || showAccountingTaxInvoiceInbound
     || showAccountingDailyClose
-    || showAccountingLedger || showAccountingDepositMatch || showAccountingBankMatching
+    || showAccountingLedger || showAccountingBankMatching
     || showAccountingAdminLedger
     || showAccountingAdminMigOps || showAccountingEditRequests
   const showDeliveryBatch = dynamicCanAccess('slip.delivery-batch', 'view')
@@ -859,7 +858,6 @@ export function AppLayout() {
               '/accounting/partner-ledger',
               '/accounting/hometax-export',
               '/accounting/supplier-profiles',
-              '/accounting/deposit-match',
               '/accounting/bank-transactions',
               '/accounting/daily-closing',
               '/accounting/ledgers',
@@ -1125,14 +1123,6 @@ export function AppLayout() {
                 data-testid="sidebar-accounting-supplier-profile"
               >
                 공급자 설정
-              </SidebarLink>
-              {/* [SP-09-4] KFTC 오픈뱅킹 입금 매칭 — accounting.deposit-match 동적 RBAC. */}
-              <SidebarLink
-                to="/accounting/deposit-match"
-                show={showAccountingDepositMatch}
-                data-testid="sidebar-accounting-deposit-match"
-              >
-                입금 매칭
               </SidebarLink>
               <SidebarLink
                 to="/accounting/bank-transactions"

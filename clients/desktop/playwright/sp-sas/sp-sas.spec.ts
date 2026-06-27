@@ -157,7 +157,6 @@ test.describe('SP-SAS-5 admin UI and daily closing revision contract', () => {
       '/accounting/balances',
       '/accounting/accounts',
       '/accounting/statement-batch',
-      '/accounting/deposit-match',
       '/accounting/reports',
     ]
     for (const route of expectedRoutes) expect(layout).toContain(route)

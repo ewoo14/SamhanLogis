@@ -118,7 +118,6 @@ export const PAGE_GROUPS: PageGroup[] = [
       'accounting.sales-slip.accounting',
       'accounting.purchase-slip.list',
       'accounting.purchase-slip.accounting',
-      'accounting.deposit-match',
       'accounting.daily-closing',
       'accounting.daily-closing.run',
       'accounting.daily-closing.unlock',
@@ -399,7 +398,6 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   // SP-D1 12개
   'accounting.tax-invoice.emit-nts': 'NTS 발행',
   'accounting.tax-invoice.list': '세금계산서 목록',
-  'accounting.deposit-match': '입금 매칭',
   'accounting.daily-closing': '일마감',
   'accounting.daily-closing.run': '일마감 실행',
   'accounting.daily-closing.unlock': '일마감 해제',

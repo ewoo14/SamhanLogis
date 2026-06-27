@@ -12,7 +12,6 @@ import {
   moveSpecRow,
   specPatchForKeyChange,
   splitRangeSpecValue,
-  validateProductForm,
   type ProductFormValues,
 } from './productFormModel'
 

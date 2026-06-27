@@ -495,7 +495,7 @@ describe('mock bank transaction matching contract', () => {
       .flatMap((row) => [row.description, row.counterpartyName])
       .filter((value): value is string => typeof value === 'string')
 
-    expect(userVisibleText.join(' ')).not.toMatch(/\b(?:CSV|KFTC|CODEF)\b/)
+    expect(userVisibleText.join(' ')).not.toMatch(/\b(?:CSV|CODEF)\b/)
   })
 
   it('matches and clears a partner by 4-key natural key without UUID fields', () => {

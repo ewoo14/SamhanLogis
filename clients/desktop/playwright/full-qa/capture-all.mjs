@@ -77,7 +77,6 @@ const SCREENS = [
   ['acc-vat', '/accounting/reports/vat'],
   ['acc-daily-closing', '/accounting/daily-closing'],
   ['acc-partner-ledger', '/accounting/partner-ledger'],
-  ['acc-deposit-match', '/accounting/deposit-match'],
   ['acc-tax-invoices', '/accounting/tax-invoices'],
   ['acc-period-close', '/accounting/period-close'],
   ['acc-orders', '/accounting/admin/orders'],

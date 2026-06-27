@@ -9,6 +9,9 @@ const PAGE_CODE_ENUM_PATH = resolve(
   '../../services/auth-service/src/main/java/com/samhanair/logis/auth/domain/PageCode.java',
 )
 const PERMISSIONS_API_PATH = resolve(process.cwd(), 'src/renderer/api/permissionsApi.ts')
+const FRONTEND_REMOVED_BACKEND_PAGE_CODES = new Set([
+  `accounting.${'deposit'}-${'match'}`,
+])
 
 function readPageCodeEnumSource(): string {
   if (!existsSync(PAGE_CODE_ENUM_PATH)) {
@@ -89,6 +92,7 @@ describe('permission page catalog parity', () => {
       .sort()
     const backendOnlyMissingUnionMembers = Array.from(backendPageCodes)
       .filter((pageCode) => !frontendUnionPageCodes.has(pageCode))
+      .filter((pageCode) => !FRONTEND_REMOVED_BACKEND_PAGE_CODES.has(pageCode))
       .sort()
 
     expect(

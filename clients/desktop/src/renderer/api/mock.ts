@@ -34,10 +34,7 @@ import type {
   SetMatchedDriverPayload,
 } from './dispatchTask'
 import type { DispatchCollabEdit, DispatchComment } from './dispatchCollab'
-import type {
-  ApprovalLineAdminResponse,
-  ApprovalStatus,
-} from './groupwareApproval'
+import type { ApprovalLineAdminResponse } from './groupwareApproval'
 import type { ApproverOption } from './groupwareApprovalApprover'
 import type { ApprovalAttachment } from './groupwareApprovalAttachment'
 import type { ApprovalTemplate } from './groupwareApprovalTemplate'
@@ -5225,172 +5222,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  if (method === 'POST' && url.includes('/accounting/codef/import') && !url.includes('/accounting/codef/import-scoped')) {
-    const body = parseMockBody(config) as {
-      type?: string
-      from?: string
-      to?: string
-      accountRef?: string
-      cardRef?: string
-      loanRef?: string
-    }
-    const type = String(body.type ?? 'ALL')
-    const from = String(body.from ?? new Date().toISOString().slice(0, 10))
-    const to = String(body.to ?? from)
-    if (from && to && from > to) {
-      return mockError(422, 'CODEF_DATE_RANGE_INVALID', '시작일은 종료일보다 이전이어야 합니다.')
-    }
-    const accountRef = String(body.accountRef ?? '국민 123456-78-901234')
-    const cardRef = String(body.cardRef ?? '삼한 물류카드')
-    const loanRef = String(body.loanRef ?? '운전자금 대출')
-
-    const shouldInclude = (target: 'BANK' | 'CARD' | 'LOAN') => type === 'ALL' || type === target
-    const importedRows = [
-      ...(shouldInclude('BANK') ? [
-        {
-          transactedAt: `${to}T09:15:00`,
-          txnType: 'DEPOSIT' as const,
-          amount: '2750000',
-          balanceAfter: '15275000',
-          description: '운임 입금',
-          counterpartyName: '삼한테스트상사',
-          counterpartyAccount: null,
-          bankAccountLabel: accountRef,
-          source: 'CODEF_BANK' as const,
-          externalRef: `CODEF-BANK-${to}-001`,
-          cardName: null,
-          approvalId: null,
-          loanName: null,
-          matchStatus: 'UNREFLECTED' as const,
-          matchedPartnerCode: null,
-          matchedBizNo: null,
-          matchedPartnerName: null,
-        },
-        {
-          transactedAt: `${to}T10:20:00`,
-          txnType: 'WITHDRAWAL' as const,
-          amount: '420000',
-          balanceAfter: '14855000',
-          description: '운임 정산',
-          counterpartyName: '아로물류 B',
-          counterpartyAccount: null,
-          bankAccountLabel: accountRef,
-          source: 'CODEF_BANK' as const,
-          externalRef: `CODEF-BANK-${to}-002`,
-          cardName: null,
-          approvalId: null,
-          loanName: null,
-          matchStatus: 'UNREFLECTED' as const,
-          matchedPartnerCode: null,
-          matchedBizNo: null,
-          matchedPartnerName: null,
-        },
-      ] : []),
-      ...(shouldInclude('CARD') ? [
-        {
-          transactedAt: `${to}T12:05:00`,
-          txnType: 'WITHDRAWAL' as const,
-          amount: '187000',
-          balanceAfter: '0',
-          description: '주유소 법인카드 승인',
-          counterpartyName: '삼한주유소',
-          counterpartyAccount: null,
-          bankAccountLabel: cardRef,
-          source: 'CODEF_CARD' as const,
-          externalRef: `CODEF-CARD-${to}-001`,
-          cardName: '삼한 물류카드',
-          approvalId: `CARD-${to.replace(/-/g, '')}-001`,
-          loanName: null,
-          matchStatus: 'UNREFLECTED' as const,
-          matchedPartnerCode: null,
-          matchedBizNo: null,
-          matchedPartnerName: null,
-        },
-        {
-          transactedAt: `${to}T14:35:00`,
-          txnType: 'WITHDRAWAL' as const,
-          amount: '66000',
-          balanceAfter: '0',
-          description: '통행료 법인카드 승인',
-          counterpartyName: '고속도로공사',
-          counterpartyAccount: null,
-          bankAccountLabel: cardRef,
-          source: 'CODEF_CARD' as const,
-          externalRef: `CODEF-CARD-${to}-002`,
-          cardName: '삼한 물류카드',
-          approvalId: `CARD-${to.replace(/-/g, '')}-002`,
-          loanName: null,
-          matchStatus: 'UNREFLECTED' as const,
-          matchedPartnerCode: null,
-          matchedBizNo: null,
-          matchedPartnerName: null,
-        },
-      ] : []),
-      ...(shouldInclude('LOAN') ? [
-        {
-          transactedAt: `${to}T16:10:00`,
-          txnType: 'WITHDRAWAL' as const,
-          amount: '1200000',
-          balanceAfter: '0',
-          description: '대출 이자 출금',
-          counterpartyName: '국민은행',
-          counterpartyAccount: null,
-          bankAccountLabel: loanRef,
-          source: 'CODEF_LOAN' as const,
-          externalRef: `CODEF-LOAN-${to}-001`,
-          cardName: null,
-          approvalId: null,
-          loanName: '운전자금 대출',
-          matchStatus: 'UNREFLECTED' as const,
-          matchedPartnerCode: null,
-          matchedBizNo: null,
-          matchedPartnerName: null,
-        },
-        {
-          transactedAt: `${to}T16:11:00`,
-          txnType: 'DEPOSIT' as const,
-          amount: '50000000',
-          balanceAfter: '50000000',
-          description: '대출 실행 입금',
-          counterpartyName: '국민은행',
-          counterpartyAccount: null,
-          bankAccountLabel: loanRef,
-          source: 'CODEF_LOAN' as const,
-          externalRef: `CODEF-LOAN-${to}-002`,
-          cardName: null,
-          approvalId: null,
-          loanName: '운전자금 대출',
-          matchStatus: 'UNREFLECTED' as const,
-          matchedPartnerCode: null,
-          matchedBizNo: null,
-          matchedPartnerName: null,
-        },
-      ] : []),
-    ]
-
-    let importedCount = 0
-    let duplicateSkippedCount = 0
-    for (const row of importedRows) {
-      const exists = MOCK_BANK_TRANSACTIONS.some((existing) =>
-        existing.bankAccountLabel === row.bankAccountLabel
-        && existing.transactedAt === row.transactedAt
-        && String(existing.amount) === String(row.amount)
-        && existing.externalRef === row.externalRef)
-      if (exists) {
-        duplicateSkippedCount += 1
-      } else {
-        MOCK_BANK_TRANSACTIONS = [row, ...MOCK_BANK_TRANSACTIONS]
-        importedCount += 1
-      }
-    }
-
-    return envelope({
-      fetchedCount: importedRows.length,
-      importedCount,
-      duplicateSkippedCount,
-      matchedCount: 0,
-    })
-  }
 
   if (method === 'GET' && url.includes('/accounting/bank-transactions')) {
     const statusFilter = String(config.params?.['matchStatus'] ?? '')
@@ -5759,7 +5590,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       SLIP: '전표',
       MANUAL: '수기',
       CLOSING: '결산',
-      KFTC_DEPOSIT: '계좌입금',
       CASH_DISBURSEMENT: '지출결의서',
       CASH_RECEIPT: '현금입금',
     }
@@ -5846,7 +5676,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       status,
       sourceTypes: selectedSourceTypes.length > 0
         ? selectedSourceTypes
-        : ['SLIP', 'MANUAL', 'CLOSING', 'KFTC_DEPOSIT', 'CASH_DISBURSEMENT', 'CASH_RECEIPT'],
+        : ['SLIP', 'MANUAL', 'CLOSING', 'CASH_DISBURSEMENT', 'CASH_RECEIPT'],
       groupBy,
       groups,
       total: sum(lines),
@@ -10877,113 +10707,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ============================================================================
-  // SP-09-4 KFTC 오픈뱅킹 입금 매칭 mock (POST /accounting/deposits/fetch-and-match)
-  //
-  // submitMethod=DRY_RUN → 가짜 입금 매칭 결과 5건 반환.
-  // 응답 shape = BE DepositMatchResponse 와 1:1 정합.
-  //
-  // 시나리오:
-  //   - accountFinNo 가 빈 문자열 → 422 (code: DEPOSIT_VALIDATION_ERROR)
-  //   - from > to → 422 (code: DEPOSIT_DATE_RANGE_INVALID)
-  //   - accountFinNo 가 "502" 포함 → 502 KFTC 외부 서비스 오류 (code: KFTC_SUBMIT_FAILED)
-  //   - 그 외 → 정상 DRY_RUN 5건 응답
-  //
-  // UUID 비공개: journalDraftId 는 내부 전용 — 화면 미노출 (matchedPartnerCode / matchedTaxInvoiceNo 만 표시).
-  // ============================================================================
-  if (method === 'POST' && url.includes('/accounting/deposits/fetch-and-match')) {
-    const body = parseMockBody(config)
-    const reqFrom = typeof body['from'] === 'string' ? body['from'] : ''
-    const reqTo = typeof body['to'] === 'string' ? body['to'] : ''
-    const reqAccountFinNo = typeof body['accountFinNo'] === 'string' ? body['accountFinNo'] : ''
-
-    // 422 — accountFinNo 누락
-    if (!reqAccountFinNo.trim()) {
-      return mockError(422, 'DEPOSIT_VALIDATION_ERROR', '계좌 핀번호(accountFinNo)를 입력해주세요.')
-    }
-
-    // 422 — from > to
-    if (reqFrom && reqTo && reqFrom > reqTo) {
-      return mockError(422, 'DEPOSIT_DATE_RANGE_INVALID', '시작일은 종료일보다 이전이어야 합니다.')
-    }
-
-    // 502 — KFTC 외부 서비스 오류 시나리오
-    if (reqAccountFinNo.includes('502')) {
-      return mockError(502, 'KFTC_SUBMIT_FAILED', 'KFTC 오픈뱅킹 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
-    }
-
-    // 정상 DRY_RUN 가짜 응답 — BE DepositMatchResponse 필드명 1:1 정합
-    // fields: totalCount / matchedCount / unmatchedCount / results
-    // results[].fields: depositorName / amount / transactionDate / matchedPartnerCode? / matchedTaxInvoiceNo? / journalDraftId? / status
-    const baseDate = reqTo || new Date().toISOString().slice(0, 10)
-    const [baseYear, baseMonth] = baseDate.split('-')
-    const ym = `${baseYear ?? '2026'}-${baseMonth ?? '05'}`
-
-    const dryRunResults = [
-      {
-        depositorName: '○○종합건설',
-        amount: 2750000,
-        transactionDate: `${ym}-02`,
-        matchedPartnerCode: 'P-001',
-        matchedTaxInvoiceNo: '2026/05/02-0001',
-        status: 'MATCHED',
-        journalDraft: {
-          lines: [
-            { side: 'DEBIT', accountCode: '102', accountName: '보통예금', amount: 2750000 },
-            { side: 'CREDIT', accountCode: '110', accountName: '외상매출금', amount: 2750000 },
-          ],
-        },
-      },
-      {
-        depositorName: '△△인테리어',
-        amount: 1320000,
-        transactionDate: `${ym}-05`,
-        matchedPartnerCode: null,
-        matchedTaxInvoiceNo: null,
-        status: 'UNMATCHED',
-      },
-      {
-        depositorName: '□□설비공사',
-        amount: 880000,
-        transactionDate: `${ym}-08`,
-        matchedPartnerCode: null,
-        matchedTaxInvoiceNo: null,
-        status: 'UNMATCHED',
-      },
-      {
-        depositorName: '◇◇냉난방',
-        amount: 4180000,
-        transactionDate: `${ym}-12`,
-        matchedPartnerCode: 'P-004',
-        matchedTaxInvoiceNo: '2026/05/12-0003',
-        status: 'MATCHED',
-        journalDraft: {
-          lines: [
-            { side: 'DEBIT', accountCode: '102', accountName: '보통예금', amount: 4180000 },
-            { side: 'CREDIT', accountCode: '110', accountName: '외상매출금', amount: 4180000 },
-          ],
-        },
-      },
-      {
-        depositorName: '홍길동',
-        amount: 550000,
-        transactionDate: `${ym}-15`,
-        matchedPartnerCode: null,
-        matchedTaxInvoiceNo: null,
-        status: 'UNMATCHED',
-      },
-    ] as const
-
-    const matchedCount = dryRunResults.filter((r) => r.status === 'MATCHED').length
-    const unmatchedCount = dryRunResults.filter((r) => r.status === 'UNMATCHED').length
-
-    return envelope({
-      totalCount: dryRunResults.length,
-      matchedCount,
-      unmatchedCount,
-      results: dryRunResults,
-    })
-  }
-
   // @deprecated — DELETE /accounting/tax-invoices/batch/exclusions/{partnerCode}
   if (method === 'DELETE' && url.includes('/accounting/tax-invoices/batch/exclusions/')) {
     return envelope({ deleted: true })
@@ -11588,6 +11311,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ============================================================================
+
   // D-SER-23: 시리얼 보상 실패 복구 API mock
   // ============================================================================
 
@@ -14336,7 +14060,7 @@ type MockBankTransactionRow = {
   counterpartyName: string | null
   counterpartyAccount: string | null
   bankAccountLabel: string
-  source: 'CSV_IMPORT' | 'KFTC' | 'CODEF_BANK' | 'CODEF_CARD' | 'CODEF_LOAN'
+  source: 'CSV_IMPORT' | 'CODEF_BANK' | 'CODEF_CARD' | 'CODEF_LOAN'
   externalRef: string
   cardName?: string | null
   approvalId?: string | null
@@ -14735,7 +14459,6 @@ const SP_D1_PAGES = [
   'accounting.tax-invoice.inbound',
   'accounting.sales-slip.list',
   'accounting.purchase-slip.list',
-  'accounting.deposit-match',
   'accounting.daily-closing',
   'accounting.daily-closing.run',
   'accounting.daily-closing.unlock',
@@ -14901,7 +14624,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D1
     'accounting.tax-invoice.list', 'accounting.tax-invoice.cancel', 'accounting.tax-invoice.batch-issue',
     'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
-    'accounting.purchase-slip.list', 'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
@@ -14987,8 +14710,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
-    'accounting.sales-slip.list', 'accounting.purchase-slip.list',
-    'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run', 'accounting.general-ledger',
     'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
@@ -15161,8 +14883,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.emit-nts', 'accounting.tax-invoice.list',
     'accounting.tax-invoice.cancel',
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
-    'accounting.sales-slip.list', 'accounting.purchase-slip.list',
-    'accounting.deposit-match', 'accounting.daily-closing',
+    'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     'purchases.receipt-ocr',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)

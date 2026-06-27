@@ -390,7 +390,7 @@ export function BankTransactionPage() {
 
       <Card style={{ padding: 16 }}>
         <div className="mobile-filter-stack" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', marginBottom: 14 }}>
-          <div style={{ display: 'inline-flex', gap: 4, border: '1px solid var(--color-neutral-200)', borderRadius: 6, padding: 3 }}>
+          <div style={{ display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 4, border: '1px solid var(--color-neutral-200)', borderRadius: 6, padding: 3 }}>
             {STATUS_TABS.map((tab) => (
               <Button
                 key={tab.key}

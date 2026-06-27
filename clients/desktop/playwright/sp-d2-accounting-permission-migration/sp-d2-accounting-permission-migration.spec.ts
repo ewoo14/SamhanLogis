@@ -30,7 +30,6 @@
  *   /accounting/tax-invoices/batch    → accounting.tax-invoice.batch-issue (세금계산서 일괄발행)
  *   /accounting/daily-closings        → accounting.daily-closing         (일마감)
  *   /accounting/ledgers               → accounting.general-ledger        (원장)
- *   /accounting/deposit-match         → accounting.deposit-match         (입금 매칭)
  *   /accounting/reports               → accounting.reports               (보고서 목록)
  *   /accounting/reports/*             → accounting.reports               (재무 보고서 6+)
  *   /accounting/period-close          → accounting.period-close          (월말 마감)
@@ -188,13 +187,6 @@ const ACCOUNTING_ROUTES = [
     label: '원장',
   },
   {
-    path: '/accounting/deposit-match',
-    sidebarTestId: 'sidebar-accounting-deposit-match',
-    pageText: ['입금', '매칭', '오픈뱅킹', 'KFTC'],
-    pageCode: 'accounting.deposit-match',
-    label: '입금 매칭',
-  },
-  {
     path: '/accounting/reports',
     sidebarTestId: 'sidebar-accounting-reports',
     pageText: ['재무 보고서', '보고서', '손익'],
@@ -236,7 +228,6 @@ function buildAccountantFullPermissions() {
       { pageCode: 'accounting.tax-invoice.emit-nts', canView: true, canEdit: true },
       { pageCode: 'accounting.tax-invoice.list', canView: true, canEdit: true },
       { pageCode: 'accounting.tax-invoice.batch-issue', canView: true, canEdit: true },
-      { pageCode: 'accounting.deposit-match', canView: true, canEdit: false },
       { pageCode: 'accounting.daily-closing', canView: true, canEdit: true },
       { pageCode: 'accounting.general-ledger', canView: true, canEdit: false },
       // SP-D2 신규 7개 PageCode (V8 seed 기준)
@@ -595,7 +586,6 @@ test.describe('SP-D2 회계 12 페이지 동적 RBAC 마이그레이션 (T1~T5)'
    *   - /accounting/tax-invoices 진입 → 세금계산서 접근 허용 (accounting.tax-invoice.emit-nts 보유)
    *   - /accounting/daily-closings 진입 → 일마감 접근 허용 (accounting.daily-closing 보유)
    *   - 사이드바: tax-invoice.list 매핑 메뉴 (계정과목/분개장/시산표 등) hidden
-   *   - 사이드바: tax-invoice.emit-nts/daily-closing/deposit-match 메뉴는 표시
    *   - pageerror 없음
    */
   test('T3: ACCOUNTANT tax-invoice.batch-issue revoke → 해당 페이지 hidden + 나머지 회계 페이지 표시', async ({ page }) => {
