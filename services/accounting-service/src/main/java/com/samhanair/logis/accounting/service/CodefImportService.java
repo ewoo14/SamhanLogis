@@ -22,8 +22,11 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * CODEF 은행·카드 거래내역 import 서비스 (BC1).
@@ -47,6 +50,7 @@ public class CodefImportService {
     private final CodefClient codefClient;
     private final BankTransactionRepository bankTransactionRepository;
     private final DepositMatchService depositMatchService;
+    private final PlatformTransactionManager transactionManager;
 
     /**
      * CODEF 은행·카드 거래내역을 조회해 BankTransaction 으로 멱등 적재한다.
@@ -60,7 +64,6 @@ public class CodefImportService {
      * @param submitMethod 전송 방식. null/blank 이면 CODEF client property fallback
      * @return import 결과 집계
      */
-    @Transactional
     public CodefImportResponse importTransactions(LocalDate from, LocalDate to,
                                                   CodefImportType type,
                                                   String accountRef, String cardRef, String loanRef,
@@ -83,7 +86,6 @@ public class CodefImportService {
      *
      * <p>BC3 scoped import 가 사용하는 공통 경로다. 기존 단일 ref import 도 본 메서드에 위임한다.
      */
-    @Transactional
     public CodefImportResponse importTransactionsForRefs(LocalDate from, LocalDate to,
                                                          CodefImportType type,
                                                          List<String> accountRefs,
@@ -132,19 +134,29 @@ public class CodefImportService {
                 continue;
             }
 
+            boolean matchedPartner = false;
             if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
                 Optional<PartnerSummary> partner = depositMatchService.resolvePartnerForCounterparty(
                         txn.counterpartyName());
                 if (partner.isPresent() && partner.get().partnerId() != null) {
                     transaction.matchPartner(partner.get().partnerId());
-                    matched++;
+                    matchedPartner = true;
                 }
             } else {
                 // CODEF_LOAN counterparty 는 대출 채권자인 은행명이며 거래처 master 매칭 대상이 아니다.
             }
 
-            bankTransactionRepository.save(transaction);
-            imported++;
+            try {
+                saveInNewTransaction(transaction);
+                imported++;
+                if (matchedPartner) {
+                    matched++;
+                }
+            } catch (DataIntegrityViolationException ex) {
+                duplicateSkipped++;
+                log.debug("[BC1] CODEF import duplicate skipped by DB unique index — source={} externalRef={}",
+                        sourceTxn.source(), txn.externalRef());
+            }
         }
 
         log.info("[BC1] CODEF import 완료 — fetched={} imported={} duplicateSkipped={} matched={}",
@@ -179,6 +191,12 @@ public class CodefImportService {
                 transaction.getTransactedAt(),
                 transaction.getAmount(),
                 transaction.getExternalRef());
+    }
+
+    private void saveInNewTransaction(BankTransaction transaction) {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        template.executeWithoutResult(status -> bankTransactionRepository.saveAndFlush(transaction));
     }
 
     private LocalTime parseTime(String transactionTime) {

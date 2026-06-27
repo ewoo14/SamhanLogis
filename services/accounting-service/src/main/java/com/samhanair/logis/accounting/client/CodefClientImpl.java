@@ -111,19 +111,19 @@ public class CodefClientImpl implements CodefClient {
         return List.of(
                 new CodefTxn("(주)삼성상사", BankTxnType.DEPOSIT, new BigDecimal("1100000.00"),
                         baseDate, "091523", account, "운임 입금",
-                        "CODEF-BANK-" + baseDate + "-001", null, null),
+                        "BANK-" + baseDate + "-001", null, null),
                 new CodefTxn("한국물류(주)", BankTxnType.DEPOSIT, new BigDecimal("550000.00"),
                         baseDate, "101045", account, "운임 정산",
-                        "CODEF-BANK-" + baseDate + "-002", null, null),
+                        "BANK-" + baseDate + "-002", null, null),
                 new CodefTxn("국민은행", BankTxnType.WITHDRAWAL, new BigDecimal("3500.00"),
                         baseDate.plusDays(1), "110012", account, "이체 수수료",
-                        "CODEF-BANK-" + baseDate.plusDays(1) + "-001", null, null),
+                        "BANK-" + baseDate.plusDays(1) + "-001", null, null),
                 new CodefTxn("대한유통", BankTxnType.DEPOSIT, new BigDecimal("3300000.00"),
                         baseDate.plusDays(1), "140230", account, "세금계산서 결제",
-                        "CODEF-BANK-" + baseDate.plusDays(1) + "-002", null, null),
+                        "BANK-" + baseDate.plusDays(1) + "-002", null, null),
                 new CodefTxn("알수없는입금자", BankTxnType.DEPOSIT, new BigDecimal("99000.00"),
                         baseDate.plusDays(2), "090000", account, "미상 입금",
-                        "CODEF-BANK-" + baseDate.plusDays(2) + "-001", null, null)
+                        "BANK-" + baseDate.plusDays(2) + "-001", null, null)
         );
     }
 
@@ -183,7 +183,7 @@ public class CodefClientImpl implements CodefClient {
                 time,
                 cardRef,
                 memo,
-                "CODEF-CARD-" + date + "-" + suffix,
+                "CARD-" + date + "-" + suffix,
                 "삼한 법인카드",
                 approvalId);
     }
@@ -217,7 +217,7 @@ public class CodefClientImpl implements CodefClient {
                 time,
                 loanRef,
                 memo,
-                "CODEF-LOAN-" + date + "-" + suffix,
+                "LOAN-" + date + "-" + suffix,
                 null,
                 null,
                 "기업운전자금대출");

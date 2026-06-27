@@ -20,10 +20,19 @@ import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +44,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 /**
  * CODEF 은행·카드 거래내역 import 통합 테스트 (BC1).
@@ -110,8 +120,16 @@ class CodefImportControllerIT extends AbstractPostgresIT {
 
         assertThat(bankCount).isEqualTo(5);
         assertThat(cardCount).isEqualTo(5);
-        assertThat(bankTransactionRepository.findByExternalRefAndIsDeletedFalse("CODEF-BANK-2026-06-01-001"))
-                .hasValueSatisfying(txn -> assertThat(txn.getMatchedPartnerId()).isEqualTo(PARTNER_ID));
+        assertThat(bankTransactionRepository
+                .findByBankAccountLabelAndTransactedAtAndAmountAndExternalRefAndIsDeletedFalse(
+                        "국민 123-456",
+                        LocalDateTime.of(2026, 6, 1, 9, 15, 23),
+                        new BigDecimal("1100000.00"),
+                        "BANK-2026-06-01-001"))
+                .hasValueSatisfying(txn -> {
+                    assertThat(txn.getMatchedPartnerId()).isEqualTo(PARTNER_ID);
+                    assertThat(txn.getExternalRef()).doesNotContain("CODEF-");
+                });
     }
 
     @Test
@@ -226,11 +244,68 @@ class CodefImportControllerIT extends AbstractPostgresIT {
         Integer duplicatedExternalRefCount = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM bank_transaction
                  WHERE source = 'CODEF_BANK'
-                   AND external_ref = 'CODEF-BANK-2026-06-01-001'
+                   AND external_ref = 'BANK-2026-06-01-001'
                 """, Integer.class);
 
         assertThat(bankCount).isEqualTo(10);
         assertThat(duplicatedExternalRefCount).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("CODEF DRY_RUN 은행 import 5병렬 중복 요청은 모두 200, SQL 누출 없이 멱등 skip")
+    void importCodefBankDryRun_concurrentDuplicateRequests_areIdempotentAndDoNotLeakSql() throws Exception {
+        int requestCount = 5;
+        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<MvcResult>> futures = new ArrayList<>();
+
+        List<MvcResult> results = new ArrayList<>();
+        try {
+            for (int i = 0; i < requestCount; i++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+                    return importCodefBank("국민 123-456").andReturn();
+                }));
+            }
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            for (Future<MvcResult> future : futures) {
+                results.add(future.get(20, TimeUnit.SECONDS));
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+
+        for (MvcResult result : results) {
+            String body = result.getResponse().getContentAsString();
+            assertThat(result.getResponse().getStatus()).as(body).isEqualTo(200);
+            assertThat(body)
+                    .doesNotContain("DataIntegrityViolationException")
+                    .doesNotContain("duplicate key value")
+                    .doesNotContain("uq_bank_transaction_external_active")
+                    .doesNotContain("INSERT INTO")
+                    .doesNotContain("bank_transaction")
+                    .doesNotContain("CODEF-");
+        }
+
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_transaction
+                 WHERE source = 'CODEF_BANK'
+                   AND bank_account_label = '국민 123-456'
+                   AND is_deleted = false
+                """, Integer.class);
+        Integer vendorPrefixCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_transaction
+                 WHERE external_ref LIKE 'CODEF-%'
+                """, Integer.class);
+
+        assertThat(activeCount).isEqualTo(5);
+        assertThat(vendorPrefixCount).isZero();
     }
 
     @Test
