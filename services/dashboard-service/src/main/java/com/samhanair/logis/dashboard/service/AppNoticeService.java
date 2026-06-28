@@ -4,6 +4,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.dashboard.domain.AppNotice;
 import com.samhanair.logis.dashboard.domain.AppNoticeImage;
+import com.samhanair.logis.dashboard.dto.AppNoticeAdminImageResponse;
+import com.samhanair.logis.dashboard.dto.AppNoticeAdminResponse;
 import com.samhanair.logis.dashboard.dto.AppNoticeImageOrderRequest;
 import com.samhanair.logis.dashboard.dto.AppNoticeImageResponse;
 import com.samhanair.logis.dashboard.dto.AppNoticeRequest;
@@ -15,10 +17,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Comparator;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,37 +52,40 @@ public class AppNoticeService {
     @Transactional(readOnly = true)
     public List<AppNoticeResponse> activeNotices() {
         LocalDateTime now = LocalDateTime.now(KST);
-        return noticeRepository
+        List<AppNotice> notices = noticeRepository
                 .findByActiveTrueAndStartAtLessThanEqualAndEndAtGreaterThanEqualOrderByDisplayOrderAscStartAtDesc(
-                        now, now)
-                .stream()
-                .map(this::toResponse)
+                        now, now);
+        Map<UUID, List<AppNoticeImage>> imagesByNoticeId = imagesByNoticeId(notices);
+        return notices.stream()
+                .map(notice -> toResponse(notice, imagesByNoticeId.getOrDefault(notice.getId(), List.of())))
                 .toList();
     }
 
     /** 관리자 전체 목록. */
     @Transactional(readOnly = true)
-    public List<AppNoticeResponse> list() {
-        return noticeRepository.findAllByOrderByDisplayOrderAscStartAtDesc().stream()
-                .map(this::toResponse)
+    public List<AppNoticeAdminResponse> list() {
+        List<AppNotice> notices = noticeRepository.findAllByOrderByDisplayOrderAscStartAtDesc();
+        Map<UUID, List<AppNoticeImage>> imagesByNoticeId = imagesByNoticeId(notices);
+        return notices.stream()
+                .map(notice -> toAdminResponse(notice, imagesByNoticeId.getOrDefault(notice.getId(), List.of())))
                 .toList();
     }
 
     /** 공지 등록. */
     @Transactional
-    public AppNoticeResponse create(AppNoticeRequest request) {
+    public AppNoticeAdminResponse create(AppNoticeRequest request) {
         AppNotice notice = noticeRepository.save(AppNotice.create(
                 request.title(),
                 request.isActive(),
                 request.startAt(),
                 request.endAt(),
                 request.displayOrder()));
-        return toResponse(notice);
+        return toAdminResponse(notice);
     }
 
     /** 공지 수정. */
     @Transactional
-    public AppNoticeResponse update(UUID id, AppNoticeRequest request) {
+    public AppNoticeAdminResponse update(UUID id, AppNoticeRequest request) {
         AppNotice notice = findNotice(id);
         notice.update(
                 request.title(),
@@ -85,7 +93,7 @@ public class AppNoticeService {
                 request.startAt(),
                 request.endAt(),
                 request.displayOrder());
-        return toResponse(notice);
+        return toAdminResponse(notice);
     }
 
     /** 공지 soft-delete. */
@@ -99,7 +107,11 @@ public class AppNoticeService {
 
     /** 공지 이미지 업로드. */
     @Transactional
-    public AppNoticeImageResponse uploadImage(UUID noticeId, MultipartFile file, Integer displayOrder, String caption) {
+    public AppNoticeAdminImageResponse uploadImage(
+            UUID noticeId,
+            MultipartFile file,
+            Integer displayOrder,
+            String caption) {
         validateImage(file);
         AppNotice notice = findNotice(noticeId);
         String fileName = sanitizeFileName(file.getOriginalFilename());
@@ -114,12 +126,12 @@ public class AppNoticeService {
                 storageKey,
                 displayOrder == null ? nextDisplayOrder(notice.getId()) : displayOrder,
                 caption));
-        return AppNoticeImageResponse.from(image, storage.presignedGetUrl(image.getImageKey()));
+        return toAdminImageResponse(image);
     }
 
     /** 이미지 순서 변경. */
     @Transactional
-    public List<AppNoticeImageResponse> reorderImages(UUID noticeId, List<AppNoticeImageOrderRequest> orders) {
+    public List<AppNoticeAdminImageResponse> reorderImages(UUID noticeId, List<AppNoticeImageOrderRequest> orders) {
         findNotice(noticeId);
         List<AppNoticeImage> images = imageRepository.findByNoticeIdOrderByDisplayOrderAsc(noticeId);
         for (AppNoticeImageOrderRequest order : orders) {
@@ -130,8 +142,7 @@ public class AppNoticeService {
             image.reorder(order.displayOrder());
         }
         return imageRepository.findByNoticeIdOrderByDisplayOrderAsc(noticeId).stream()
-                .sorted(Comparator.comparingInt(AppNoticeImage::getDisplayOrder))
-                .map(this::toImageResponse)
+                .map(this::toAdminImageResponse)
                 .toList();
     }
 
@@ -145,16 +156,44 @@ public class AppNoticeService {
         image.softDelete(actor);
     }
 
-    private AppNoticeResponse toResponse(AppNotice notice) {
-        List<AppNoticeImageResponse> images = imageRepository.findByNoticeIdOrderByDisplayOrderAsc(notice.getId())
-                .stream()
+    private Map<UUID, List<AppNoticeImage>> imagesByNoticeId(List<AppNotice> notices) {
+        if (notices.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<UUID> noticeIds = notices.stream()
+                .map(AppNotice::getId)
+                .toList();
+        return imageRepository.findByNoticeIdInOrderByNoticeIdAscDisplayOrderAsc(noticeIds).stream()
+                .collect(Collectors.groupingBy(
+                        AppNoticeImage::getNoticeId,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+    }
+
+    private AppNoticeResponse toResponse(AppNotice notice, List<AppNoticeImage> imageRows) {
+        List<AppNoticeImageResponse> images = imageRows.stream()
                 .map(this::toImageResponse)
                 .toList();
         return AppNoticeResponse.from(notice, images);
     }
 
+    private AppNoticeAdminResponse toAdminResponse(AppNotice notice) {
+        return toAdminResponse(notice, imageRepository.findByNoticeIdOrderByDisplayOrderAsc(notice.getId()));
+    }
+
+    private AppNoticeAdminResponse toAdminResponse(AppNotice notice, List<AppNoticeImage> imageRows) {
+        List<AppNoticeAdminImageResponse> images = imageRows.stream()
+                .map(this::toAdminImageResponse)
+                .toList();
+        return AppNoticeAdminResponse.from(notice, images);
+    }
+
     private AppNoticeImageResponse toImageResponse(AppNoticeImage image) {
         return AppNoticeImageResponse.from(image, storage.presignedGetUrl(image.getImageKey()));
+    }
+
+    private AppNoticeAdminImageResponse toAdminImageResponse(AppNoticeImage image) {
+        return AppNoticeAdminImageResponse.from(image, storage.presignedGetUrl(image.getImageKey()));
     }
 
     private AppNotice findNotice(UUID id) {

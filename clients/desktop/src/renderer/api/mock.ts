@@ -131,7 +131,6 @@ type MockAppRelease = {
 
 type MockAppNoticeImage = {
   id: string
-  imageKey: string
   imageUrl: string
   displayOrder: number
   caption: string | null
@@ -206,14 +205,12 @@ let MOCK_APP_NOTICES: MockAppNotice[] = [
     images: [
       {
         id: mockAppNoticeImageId(1),
-        imageKey: 'app-notices/mock-1/notice-1.png',
         imageUrl: 'https://dummyimage.com/900x520/134e4a/ffffff.png&text=Samhan+Public+Notice',
         displayOrder: 1,
         caption: '개발 그룹에서 팝업공지와 버전 관리를 확인할 수 있습니다.',
       },
       {
         id: mockAppNoticeImageId(2),
-        imageKey: 'app-notices/mock-1/notice-2.png',
         imageUrl: 'https://dummyimage.com/900x520/f2f5f4/134e4a.png&text=Popup+Notice',
         displayOrder: 2,
         caption: '다시 보지 않기는 공지별로 저장됩니다.',
@@ -299,6 +296,17 @@ function sortedMockAppNotices(): MockAppNotice[] {
   return [...MOCK_APP_NOTICES]
     .map((notice) => ({ ...notice, images: sortedMockNoticeImages(notice.images) }))
     .sort((a, b) => a.displayOrder - b.displayOrder || a.startAt.localeCompare(b.startAt))
+}
+
+function activeMockAppNotice(notice: MockAppNotice) {
+  return {
+    ...notice,
+    images: sortedMockNoticeImages(notice.images).map(({ imageUrl, displayOrder, caption }) => ({
+      imageUrl,
+      displayOrder,
+      caption,
+    })),
+  }
 }
 
 function isMockNoticeActive(notice: MockAppNotice): boolean {
@@ -1947,7 +1955,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   if (method === 'GET' && url.endsWith('/app/notices/active')) {
-    return envelope(sortedMockAppNotices().filter(isMockNoticeActive))
+    return envelope(sortedMockAppNotices().filter(isMockNoticeActive).map(activeMockAppNotice))
   }
 
   if (method === 'GET' && url.endsWith('/app/notices')) {
@@ -2014,7 +2022,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const caption = readMockFormValue(config.data, 'caption').trim() || null
     const image: MockAppNoticeImage = {
       id: mockAppNoticeImageId(mockAppNoticeImageSeq),
-      imageKey: `app-notices/${noticeId}/${fileName}`,
       imageUrl: `https://dummyimage.com/900x520/1f6f66/ffffff.png&text=${encodeURIComponent(fileName)}`,
       displayOrder,
       caption,

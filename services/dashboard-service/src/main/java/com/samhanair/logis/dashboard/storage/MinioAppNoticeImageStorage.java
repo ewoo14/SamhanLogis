@@ -1,5 +1,7 @@
 package com.samhanair.logis.dashboard.storage;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import io.minio.BucketExistsArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MakeBucketArgs;
@@ -33,7 +35,7 @@ public class MinioAppNoticeImageStorage implements AppNoticeImageStorage {
     public MinioAppNoticeImageStorage(
             @Value("${app.notice.minio.endpoint:http://localhost:9000}") String endpoint,
             @Value("${app.notice.minio.access-key:samhan}") String accessKey,
-            @Value("${app.notice.minio.secret-key:samhan_dev_pw}") String secretKey,
+            @Value("${app.notice.minio.secret-key:}") String secretKey,
             @Value("${app.notice.minio.bucket:samhan-attachments}") String bucket,
             @Value("${app.notice.minio.presigned-expiry-seconds:300}") int presignedExpirySeconds) {
         this.endpoint = endpoint;
@@ -70,7 +72,7 @@ public class MinioAppNoticeImageStorage implements AppNoticeImageStorage {
                     .contentType(contentType)
                     .build());
         } catch (Exception ex) {
-            throw new IllegalStateException("MinIO 업로드 실패: " + storageKey, ex);
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "공지 이미지 업로드 저장소 오류", ex);
         }
     }
 
@@ -84,7 +86,7 @@ public class MinioAppNoticeImageStorage implements AppNoticeImageStorage {
                     .expiry(presignedExpirySeconds, TimeUnit.SECONDS)
                     .build());
         } catch (Exception ex) {
-            throw new IllegalStateException("MinIO presigned URL 발급 실패: " + storageKey, ex);
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "공지 이미지 URL 발급 실패", ex);
         }
     }
 }

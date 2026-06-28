@@ -47,7 +47,7 @@ describe('appNotice API client', () => {
       startAt: '2026-06-28T09:00:00',
       endAt: '2026-06-30T18:00:00',
       displayOrder: 1,
-      images: [],
+      images: [{ imageUrl: 'https://cdn/notice.png', displayOrder: 1, caption: '공지 이미지' }],
     }
     vi.mocked(apiClient.get).mockResolvedValueOnce(envelope([notice]))
 
@@ -71,10 +71,10 @@ describe('appNotice API client', () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce(envelope([row]))
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce(envelope(row))
-      .mockResolvedValueOnce(envelope({ id: imageId, imageKey: 'key', imageUrl: 'url', displayOrder: 1, caption: '배너' }))
+      .mockResolvedValueOnce(envelope({ id: imageId, imageUrl: 'url', displayOrder: 1, caption: '배너' }))
     vi.mocked(apiClient.put)
       .mockResolvedValueOnce(envelope({ ...row, title: '수정' }))
-      .mockResolvedValueOnce(envelope([{ id: imageId, imageKey: 'key', imageUrl: 'url', displayOrder: 2, caption: '배너' }]))
+      .mockResolvedValueOnce(envelope([{ id: imageId, imageUrl: 'url', displayOrder: 2, caption: '배너' }]))
     vi.mocked(apiClient.delete).mockResolvedValue(envelope(null))
 
     await expect(listAppNotices()).resolves.toEqual([row])

@@ -1,8 +1,9 @@
 package com.samhanair.logis.dashboard.controller;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.dashboard.dto.AppNoticeAdminImageResponse;
+import com.samhanair.logis.dashboard.dto.AppNoticeAdminResponse;
 import com.samhanair.logis.dashboard.dto.AppNoticeImageOrderRequest;
-import com.samhanair.logis.dashboard.dto.AppNoticeImageResponse;
 import com.samhanair.logis.dashboard.dto.AppNoticeRequest;
 import com.samhanair.logis.dashboard.dto.AppNoticeResponse;
 import com.samhanair.logis.dashboard.service.AppNoticeService;
@@ -45,7 +46,7 @@ public class AppNoticeController {
     @Operation(summary = "팝업공지 목록 조회 (Admin)")
     @GetMapping("/app/notices")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
-    public ApiResponse<List<AppNoticeResponse>> list() {
+    public ApiResponse<List<AppNoticeAdminResponse>> list() {
         return ApiResponse.ok(service.list());
     }
 
@@ -53,7 +54,7 @@ public class AppNoticeController {
     @Operation(summary = "팝업공지 등록 (Admin)")
     @PostMapping("/app/notices")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
-    public ApiResponse<AppNoticeResponse> create(@Valid @RequestBody AppNoticeRequest request) {
+    public ApiResponse<AppNoticeAdminResponse> create(@Valid @RequestBody AppNoticeRequest request) {
         return ApiResponse.ok(service.create(request));
     }
 
@@ -61,7 +62,7 @@ public class AppNoticeController {
     @Operation(summary = "팝업공지 수정 (Admin)")
     @PutMapping("/app/notices/{id}")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<AppNoticeResponse> update(
+    public ApiResponse<AppNoticeAdminResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody AppNoticeRequest request) {
         return ApiResponse.ok(service.update(id, request));
@@ -73,7 +74,7 @@ public class AppNoticeController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.DELETE)
     public ApiResponse<Void> delete(
             @PathVariable UUID id,
-            @RequestHeader(value = "X-User-Id", required = false) String actor) {
+            @RequestHeader("X-User-Id") String actor) {
         service.delete(id, actor);
         return ApiResponse.ok(null);
     }
@@ -82,7 +83,7 @@ public class AppNoticeController {
     @Operation(summary = "팝업공지 이미지 업로드 (Admin)")
     @PostMapping("/app/notices/{id}/images")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<AppNoticeImageResponse> uploadImage(
+    public ApiResponse<AppNoticeAdminImageResponse> uploadImage(
             @PathVariable UUID id,
             @RequestPart("file") MultipartFile file,
             @RequestParam(required = false) Integer displayOrder,
@@ -94,7 +95,7 @@ public class AppNoticeController {
     @Operation(summary = "팝업공지 이미지 순서 변경 (Admin)")
     @PutMapping("/app/notices/{id}/images/order")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<List<AppNoticeImageResponse>> reorderImages(
+    public ApiResponse<List<AppNoticeAdminImageResponse>> reorderImages(
             @PathVariable UUID id,
             @Valid @RequestBody List<AppNoticeImageOrderRequest> orders) {
         return ApiResponse.ok(service.reorderImages(id, orders));
@@ -107,7 +108,7 @@ public class AppNoticeController {
     public ApiResponse<Void> deleteImage(
             @PathVariable UUID noticeId,
             @PathVariable UUID imageId,
-            @RequestHeader(value = "X-User-Id", required = false) String actor) {
+            @RequestHeader("X-User-Id") String actor) {
         service.deleteImage(noticeId, imageId, actor);
         return ApiResponse.ok(null);
     }

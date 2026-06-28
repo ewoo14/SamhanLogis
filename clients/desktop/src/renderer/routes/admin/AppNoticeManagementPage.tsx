@@ -80,6 +80,21 @@ function sortedImages(images: AppNoticeImage[]): AppNoticeImage[] {
   return [...images].sort((a, b) => a.displayOrder - b.displayOrder)
 }
 
+function imageOnlyFiles(files: FileList | File[]): File[] {
+  return Array.from(files).filter((file) => file.type.startsWith('image/'))
+}
+
+function imageFileName(imageUrl: string): string {
+  try {
+    const url = new URL(imageUrl)
+    const fileName = url.pathname.split('/').filter(Boolean).at(-1)
+    return fileName ? decodeURIComponent(fileName).split(/[?#&]/)[0] || fileName : '파일명 없음'
+  } catch {
+    const fileName = imageUrl.split('/').filter(Boolean).at(-1)
+    return fileName ? decodeURIComponent(fileName).split(/[?#&]/)[0] || fileName : '파일명 없음'
+  }
+}
+
 export function AppNoticeManagementPage() {
   usePageTitle('팝업공지')
 
@@ -213,12 +228,12 @@ export function AppNoticeManagementPage() {
   }
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    setUploadFiles(Array.from(event.target.files ?? []))
+    setUploadFiles(imageOnlyFiles(event.target.files ?? []))
   }
 
   const handleDropFiles = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
-    setUploadFiles(Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith('image/')))
+    setUploadFiles(imageOnlyFiles(event.dataTransfer.files))
   }
 
   const handleImageDrop = (targetId: string) => {
@@ -269,7 +284,7 @@ export function AppNoticeManagementPage() {
       mobilePriority: 'primary',
       render: (row) => (
         <div className={styles.actionButtons}>
-          <Button type="button" size="sm" variant="secondary" onClick={() => openEdit(row)}>
+          <Button type="button" size="sm" variant="secondary" disabled={!canUpdate} onClick={() => openEdit(row)}>
             수정
           </Button>
           <Button
@@ -284,7 +299,7 @@ export function AppNoticeManagementPage() {
         </div>
       ),
     },
-  ], [canDelete])
+  ], [canDelete, canUpdate])
 
   return (
     <div data-testid="app-notice-admin-page">
@@ -327,6 +342,11 @@ export function AppNoticeManagementPage() {
         size="lg"
       >
         <form onSubmit={handleSubmit} className={styles.noticeForm} data-testid="app-notice-form">
+          {!currentEditing ? (
+            <p className={styles.formNotice}>
+              공지 저장 후 이미지를 추가할 수 있습니다.
+            </p>
+          ) : null}
           <Input
             label="제목"
             value={form.title}
@@ -389,7 +409,15 @@ export function AppNoticeManagementPage() {
               onDrop={handleDropFiles}
               data-testid="app-notice-image-dropzone"
             >
-              <Input type="file" multiple accept="image/*" onChange={handleFiles} data-testid="app-notice-image-input" />
+              <p className={styles.dropzoneHelp}>파일을 끌어다 놓거나 클릭해서 이미지를 선택합니다.</p>
+              <Input
+                label="이미지 파일"
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFiles}
+                data-testid="app-notice-image-input"
+              />
               <Input
                 label="이미지 캡션"
                 value={uploadCaption}
@@ -421,7 +449,7 @@ export function AppNoticeManagementPage() {
                   <img className={styles.thumb} src={image.imageUrl} alt={image.caption ?? currentEditing.title} />
                   <div className={styles.imageMeta}>
                     <strong>{image.caption ?? '캡션 없음'}</strong>
-                    <span>{image.displayOrder} · {image.imageKey}</span>
+                    <span>{image.displayOrder} · {imageFileName(image.imageUrl)}</span>
                   </div>
                   <Button
                     type="button"

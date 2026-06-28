@@ -17,8 +17,8 @@ const notice = {
   endAt: '2026-06-30T18:00:00',
   displayOrder: 1,
   images: [
-    { id: 'img-1', imageKey: 'a.png', imageUrl: 'https://cdn/a.png', displayOrder: 1, caption: '첫 이미지' },
-    { id: 'img-2', imageKey: 'b.png', imageUrl: 'https://cdn/b.png', displayOrder: 2, caption: '둘째 이미지' },
+    { imageUrl: 'https://cdn/a.png', displayOrder: 1, caption: '첫 이미지' },
+    { imageUrl: 'https://cdn/b.png', displayOrder: 2, caption: '둘째 이미지' },
   ],
 }
 
@@ -47,8 +47,24 @@ describe('AppNoticeGate', () => {
     fireEvent.click(screen.getByTestId('app-notice-next'))
 
     expect(screen.getByText('둘째 이미지')).toBeTruthy()
-    expect(screen.getByTestId('app-notice-indicator').textContent).toContain('2 / 2')
+    expect(screen.getByTestId('app-notice-indicator').getAttribute('aria-label')).toBe('이미지 2 / 2')
+    expect(screen.getByTestId('app-notice-indicator').textContent).not.toContain('2 / 2')
+    expect(screen.getByTestId('app-notice-next').style.minHeight).toBe('48px')
+    expect(screen.getByTestId('app-notice-next').style.minWidth).toBe('48px')
     expect(getActiveAppNotices).toHaveBeenCalledTimes(1)
+  })
+
+  it('이미지 로딩 전에는 로딩 상태를 표시하고 load 후 숨긴다', async () => {
+    vi.mocked(getActiveAppNotices).mockResolvedValueOnce([notice])
+
+    render(<AppNoticeGate bootstrapped authenticated />)
+
+    expect(await screen.findByTestId('app-notice-image-loading')).toBeTruthy()
+    fireEvent.load(screen.getByTestId('app-notice-image'))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('app-notice-image-loading')).toBeNull()
+    })
   })
 
   it('공지별 다시 보지 않기는 localStorage에 저장되고 같은 공지를 숨긴다', async () => {

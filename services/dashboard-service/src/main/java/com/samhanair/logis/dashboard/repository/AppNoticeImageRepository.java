@@ -10,4 +10,7 @@ public interface AppNoticeImageRepository extends JpaRepository<AppNoticeImage, 
 
     /** 공지별 이미지 목록. */
     List<AppNoticeImage> findByNoticeIdOrderByDisplayOrderAsc(UUID noticeId);
+
+    /** 여러 공지의 이미지 목록. */
+    List<AppNoticeImage> findByNoticeIdInOrderByNoticeIdAscDisplayOrderAsc(List<UUID> noticeIds);
 }

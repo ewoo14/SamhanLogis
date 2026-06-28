@@ -21,6 +21,6 @@ public class NoopAppNoticeImageStorage implements AppNoticeImageStorage {
 
     @Override
     public String presignedGetUrl(String storageKey) {
-        return "noop://app-notices/" + storageKey;
+        return "noop://" + storageKey;
     }
 }

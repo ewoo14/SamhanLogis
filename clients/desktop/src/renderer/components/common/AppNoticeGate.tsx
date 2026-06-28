@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Modal } from '@samhan/design-system'
-import { getActiveAppNotices, type AppNotice } from '../../api/appNotice'
+import { getActiveAppNotices, type ActiveAppNotice } from '../../api/appNotice'
 
 type SafeNoticeStorage = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -47,7 +47,11 @@ function dismissKey(noticeId: string): string {
   return `${DISMISS_PREFIX}${noticeId}`
 }
 
-function visibleNotice(notices: AppNotice[], storage: SafeNoticeStorage, closedIds: Set<string>): AppNotice | null {
+function visibleNotice(
+  notices: ActiveAppNotice[],
+  storage: SafeNoticeStorage,
+  closedIds: Set<string>,
+): ActiveAppNotice | null {
   return notices.find((notice) => !closedIds.has(notice.id) && storage.getItem(dismissKey(notice.id)) !== 'true') ?? null
 }
 
@@ -58,9 +62,10 @@ export function AppNoticeGate({
   bootstrapped: boolean
   authenticated: boolean
 }) {
-  const [notices, setNotices] = useState<AppNotice[]>([])
+  const [notices, setNotices] = useState<ActiveAppNotice[]>([])
   const [currentNoticeId, setCurrentNoticeId] = useState<string | null>(null)
   const [imageIndex, setImageIndex] = useState(0)
+  const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loaded')
   const [closedIds, setClosedIds] = useState<Set<string>>(() => new Set())
   const checkedRef = useRef(false)
   const fallbackStorageRef = useRef(new Map<string, string>())
@@ -89,11 +94,17 @@ export function AppNoticeGate({
       })
   }, [authenticated, bootstrapped, storage])
 
-  if (!notice) return null
-
-  const images = [...notice.images].sort((a, b) => a.displayOrder - b.displayOrder)
+  const images = useMemo(() => (
+    notice ? [...notice.images].sort((a, b) => a.displayOrder - b.displayOrder) : []
+  ), [notice])
   const image = images[imageIndex] ?? null
   const hasMultiple = images.length > 1
+
+  useEffect(() => {
+    setImageStatus(image ? 'loading' : 'loaded')
+  }, [image?.imageUrl])
+
+  if (!notice) return null
 
   const closeCurrent = () => {
     const nextClosedIds = new Set(closedIds)
@@ -169,16 +180,47 @@ export function AppNoticeGate({
           }}
         >
           {image ? (
-            <img
-              src={image.imageUrl}
-              alt={image.caption ?? notice.title}
-              style={{
-                width: '100%',
-                maxHeight: 'min(62vh, 560px)',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
+            <>
+              {imageStatus === 'loading' ? (
+                <div
+                  data-testid="app-notice-image-loading"
+                  role="status"
+                  aria-live="polite"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: 'var(--color-neutral-600)',
+                    background: 'linear-gradient(90deg, var(--color-neutral-50), var(--color-neutral-100), var(--color-neutral-50))',
+                  }}
+                >
+                  이미지를 불러오는 중입니다.
+                </div>
+              ) : null}
+              {imageStatus === 'error' ? (
+                <div
+                  role="status"
+                  style={{ padding: 24, color: 'var(--state-danger)', textAlign: 'center' }}
+                >
+                  이미지를 불러오지 못했습니다.
+                </div>
+              ) : null}
+              <img
+                data-testid="app-notice-image"
+                src={image.imageUrl}
+                alt={image.caption ?? notice.title}
+                onLoad={() => setImageStatus('loaded')}
+                onError={() => setImageStatus('error')}
+                style={{
+                  width: '100%',
+                  maxHeight: 'min(62vh, 560px)',
+                  objectFit: 'contain',
+                  display: imageStatus === 'error' ? 'none' : 'block',
+                  opacity: imageStatus === 'loaded' ? 1 : 0,
+                }}
+              />
+            </>
           ) : (
             <div style={{ padding: 24, color: 'var(--color-neutral-600)' }}>
               등록된 이미지가 없습니다.
@@ -191,8 +233,16 @@ export function AppNoticeGate({
                 size="sm"
                 variant="secondary"
                 onClick={() => move(-1)}
+                aria-label="이전 이미지"
                 data-testid="app-notice-prev"
-                style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', minWidth: 40 }}
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  minWidth: 48,
+                  minHeight: 48,
+                }}
               >
                 이전
               </Button>
@@ -201,8 +251,16 @@ export function AppNoticeGate({
                 size="sm"
                 variant="secondary"
                 onClick={() => move(1)}
+                aria-label="다음 이미지"
                 data-testid="app-notice-next"
-                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', minWidth: 40 }}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  minWidth: 48,
+                  minHeight: 48,
+                }}
               >
                 다음
               </Button>
@@ -214,12 +272,27 @@ export function AppNoticeGate({
             {image.caption}
           </p>
         ) : null}
-        <div
-          data-testid="app-notice-indicator"
-          style={{ textAlign: 'center', color: 'var(--color-neutral-600)', fontSize: 13 }}
-        >
-          {images.length > 0 ? `${imageIndex + 1} / ${images.length}` : '0 / 0'}
-        </div>
+        {images.length > 0 ? (
+          <div
+            data-testid="app-notice-indicator"
+            aria-live="polite"
+            aria-label={`이미지 ${imageIndex + 1} / ${images.length}`}
+            style={{ display: 'flex', justifyContent: 'center', gap: 6 }}
+          >
+            {images.map((candidate, index) => (
+              <span
+                key={`${candidate.imageUrl}-${candidate.displayOrder}`}
+                aria-hidden="true"
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  background: index === imageIndex ? 'var(--color-primary-600)' : 'var(--color-neutral-300)',
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </Modal>
   )

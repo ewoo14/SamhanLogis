@@ -9,6 +9,7 @@
 .toolbar h1 {
   margin: 0;
   font-size: 22px;
+  color: var(--color-neutral-900);
 }
 
 .toolbar p {
@@ -28,6 +29,16 @@
   gap: 16px;
 }
 
+.formNotice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 6px;
+  background: var(--color-neutral-50);
+  color: var(--color-neutral-700);
+  font-size: 13px;
+}
+
 .formGridTwo {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -43,22 +54,6 @@
   font-weight: 600;
 }
 
-.textareaField {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.textareaField textarea {
-  min-height: 92px;
-  resize: vertical;
-  border: 1px solid var(--color-neutral-300);
-  border-radius: 6px;
-  padding: 10px;
-  font: inherit;
-}
-
 .uploadBox {
   display: grid;
   gap: 10px;
@@ -66,6 +61,12 @@
   border: 1px dashed var(--color-neutral-300);
   border-radius: 8px;
   background: var(--color-neutral-50);
+}
+
+.dropzoneHelp {
+  margin: 0;
+  color: var(--color-neutral-600);
+  font-size: 13px;
 }
 
 .imageList {
@@ -142,6 +143,7 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
+  font: inherit;
 }
 
 @media (max-width: 768px) {

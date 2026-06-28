@@ -2,7 +2,12 @@ import { apiClient, type ApiEnvelope } from './client'
 
 export interface AppNoticeImage {
   id: string
-  imageKey: string
+  imageUrl: string
+  displayOrder: number
+  caption: string | null
+}
+
+export interface ActiveAppNoticeImage {
   imageUrl: string
   displayOrder: number
   caption: string | null
@@ -21,6 +26,11 @@ export interface AppNotice extends AppNoticePayload {
   images: AppNoticeImage[]
 }
 
+export interface ActiveAppNotice extends AppNoticePayload {
+  id: string
+  images: ActiveAppNoticeImage[]
+}
+
 export interface UploadAppNoticeImageParams {
   file: File
   displayOrder?: number
@@ -32,8 +42,8 @@ export interface AppNoticeImageOrder {
   displayOrder: number
 }
 
-export async function getActiveAppNotices(): Promise<AppNotice[]> {
-  const res = await apiClient.get<ApiEnvelope<AppNotice[]>>('/app/notices/active')
+export async function getActiveAppNotices(): Promise<ActiveAppNotice[]> {
+  const res = await apiClient.get<ApiEnvelope<ActiveAppNotice[]>>('/app/notices/active')
   return res.data.data
 }
 

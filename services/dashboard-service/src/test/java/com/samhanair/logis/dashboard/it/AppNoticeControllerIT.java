@@ -93,7 +93,9 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].title").value("게시 중"))
                 .andExpect(jsonPath("$.data[0].images[0].caption").value("첫번째"))
                 .andExpect(jsonPath("$.data[0].images[0].displayOrder").value(1))
-                .andExpect(jsonPath("$.data[0].images[0].imageUrl").value("noop://app-notices/app-notices/" + activeId + "/a.png"))
+                .andExpect(jsonPath("$.data[0].images[0].imageUrl").value("noop://app-notices/" + activeId + "/a.png"))
+                .andExpect(jsonPath("$.data[0].images[0].id").doesNotExist())
+                .andExpect(jsonPath("$.data[0].images[0].imageKey").doesNotExist())
                 .andExpect(jsonPath("$.data[0].images[1].caption").value("두번째"));
     }
 
@@ -177,6 +179,8 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                         .param("displayOrder", "5")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.caption").value("배너"))
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.imageKey").doesNotExist())
                 .andExpect(jsonPath("$.data.displayOrder").value(5))
                 .andExpect(jsonPath("$.data.imageUrl").exists())
                 .andReturn()
@@ -188,7 +192,14 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[{\"id\":\"" + imageId + "\",\"displayOrder\":1}]")))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(imageId))
+                .andExpect(jsonPath("$.data[0].imageKey").doesNotExist())
                 .andExpect(jsonPath("$.data[0].displayOrder").value(1));
+
+        mockMvc.perform(withActor(get("/app/notices")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].images[0].id").value(imageId))
+                .andExpect(jsonPath("$.data[0].images[0].imageKey").doesNotExist());
 
         mockMvc.perform(withActor(delete("/app/notices/{noticeId}/images/{imageId}", noticeId, imageId)))
                 .andExpect(status().isOk());
