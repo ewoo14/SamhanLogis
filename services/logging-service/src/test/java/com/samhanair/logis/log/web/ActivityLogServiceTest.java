@@ -59,14 +59,15 @@ class ActivityLogServiceTest {
     }
 
     @Test
-    @DisplayName("MENU_ACCESS 프론트 이벤트는 AuditLog 문서로 저장한다")
-    void collectMenuAccessSavesAuditLog() {
+    @DisplayName("MENU_ACCESS 프론트 이벤트는 본문 위조 신원을 무시하고 게이트웨이 헤더 신원으로 AuditLog 를 저장한다")
+    void collectMenuAccessUsesTrustedHeaderIdentity() {
+        // 본문에는 위조 userId/userRole 을 넣어, 신뢰 헤더(actorId/actorRole)가 우선됨을 검증.
         FrontAuditLogRequest request = new FrontAuditLogRequest(
                 "MENU_ACCESS",
                 "MENU",
                 "dev.activity-log",
-                "11111111-1111-1111-1111-111111111111",
-                "DEVELOPER",
+                "99999999-9999-9999-9999-999999999999",
+                "MASTER",
                 "로그 메뉴 진입",
                 Instant.parse("2026-06-28T00:30:00Z"),
                 null,
@@ -74,7 +75,8 @@ class ActivityLogServiceTest {
                 null,
                 null);
 
-        service.collectFrontEvent(request, "127.0.0.1", "JUnit");
+        service.collectFrontEvent(
+                request, "11111111-1111-1111-1111-111111111111", "DEVELOPER", "127.0.0.1", "JUnit");
 
         ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
         verify(repository).save(captor.capture());
@@ -83,5 +85,8 @@ class ActivityLogServiceTest {
         assertThat(saved.getResourceType()).isEqualTo("MENU");
         assertThat(saved.getResourceId()).isEqualTo("dev.activity-log");
         assertThat(saved.getServiceName()).isEqualTo("desktop");
+        // 신원은 게이트웨이 헤더(신뢰원)만 — 본문 위조 값은 무시.
+        assertThat(saved.getUserId()).isEqualTo("11111111-1111-1111-1111-111111111111");
+        assertThat(saved.getUserRole()).isEqualTo("DEVELOPER");
     }
 }

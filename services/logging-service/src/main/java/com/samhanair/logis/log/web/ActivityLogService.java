@@ -35,8 +35,14 @@ public class ActivityLogService {
                 result.getSize());
     }
 
-    /** 기존 프론트 감사 이벤트 계약을 AuditLog 문서로 저장한다. */
-    public void collectFrontEvent(FrontAuditLogRequest request, String ipAddress, String userAgent) {
+    /**
+     * 기존 프론트 감사 이벤트 계약을 AuditLog 문서로 저장한다.
+     *
+     * <p>감사 신원(userId·userRole)은 <b>게이트웨이가 주입한 신뢰 헤더(X-User-Id·X-User-Role)</b>만
+     * 사용한다. 요청 본문의 userId/userRole 은 클라이언트가 위조할 수 있으므로 신원으로 신뢰하지 않는다.
+     */
+    public void collectFrontEvent(
+            FrontAuditLogRequest request, String actorId, String actorRole, String ipAddress, String userAgent) {
         String action = defaultString(request.action(), "MENU_ACCESS");
         String resourceType = defaultString(request.resourceType(), "MENU");
         String resourceId = defaultString(request.resourceId(), request.group());
@@ -44,8 +50,8 @@ public class ActivityLogService {
         AuditLog entry = AuditLog.builder()
                 .id(UUID.randomUUID().toString())
                 .serviceName("desktop")
-                .userId(blankToNull(request.userId()))
-                .userRole(defaultString(request.userRole(), request.manager()))
+                .userId(blankToNull(actorId))
+                .userRole(blankToDash(actorRole))
                 .action(action)
                 .resourceType(resourceType)
                 .resourceId(resourceId)
