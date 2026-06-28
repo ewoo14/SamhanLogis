@@ -27,8 +27,8 @@ SELECT gen_random_uuid(), role.id, v.approver_type, v.approver_ref_id,
        NOW(), 'v75-seed', NOW(), 'v75-seed', FALSE
 FROM (VALUES
     (1, 'GROUP', '00000000-0000-0000-0000-000000000101'::uuid),
-    -- TODO: 실 배포 전 관리자 UI 에서 실 대표이사 계정 UUID 로 교체
-    --       현재 값(a0000000-0000-0000-0000-000000000001)은 시드 placeholder 임
+    -- ⚠️ 이 파일 수정 금지(Flyway checksum) — 대표 계정 UUID 는 관리자 UI(결재라인 설정)에서 교체,
+    --    placeholder=a0000000-0000-0000-0000-000000000001
     (2, 'USER',  'a0000000-0000-0000-0000-000000000001'::uuid)
 ) AS v(sequence, approver_type, approver_ref_id)
 JOIN approval_line_config role

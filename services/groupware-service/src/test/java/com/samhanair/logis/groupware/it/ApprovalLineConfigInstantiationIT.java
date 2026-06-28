@@ -118,19 +118,19 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
     }
 
     /**
-     * GROUP 단계 멤버 → 서비스 approve 통과 / 비멤버 → 서비스 approve BusinessException(CONFLICT).
+     * GROUP 단계 비멤버 → 서비스 approve 시 BusinessException(CONFLICT) 단언.
      *
-     * <p>도메인 {@code line.approve()} 직접 호출 금지 — 서비스 경로를 통해
-     * false-green 없이 GROUP 멤버십 판정을 검증한다.
+     * <p>예외 케이스를 성공 케이스와 같은 @Transactional 내에서 혼합하면
+     * RuntimeException 발생 후 트랜잭션이 rollback-only 로 표시되어
+     * 후속 assert 가 false-green 이 될 수 있다. TX 오염 방지를 위해 별도 @Test 로 분리한다.
      */
     @Test
-    void groupStep_allows_groupMember_and_blocks_nonMember() {
-        UUID memberActor = UUID.randomUUID();
+    void groupStep_blocks_nonMember() {
         UUID nonMember = UUID.randomUUID();
         when(configClient.fetchRoles(DOCUMENT_TYPE)).thenReturn(configLine(List.of(
                 new ResolvedRole(0, StepType.GROUP, null, groupId, "groupware.approvals"))));
         ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
-                requester, "그룹 결재", null, List.of(), template.getId(), Map.of()));
+                requester, "그룹 결재 비멤버 차단", null, List.of(), template.getId(), Map.of()));
 
         UUID approvalId = line.getId();
         em.flush();
@@ -142,6 +142,26 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
+    }
+
+    /**
+     * GROUP 단계 멤버 → 서비스 approve 통과 + DB flush/clear 후 영속 상태 단언.
+     *
+     * <p>도메인 {@code line.approve()} 직접 호출 금지 — 서비스 경로를 통해
+     * false-green 없이 GROUP 멤버십 판정을 검증한다.
+     * TX 오염 방지를 위해 {@link #groupStep_blocks_nonMember()} 와 분리 운영한다.
+     */
+    @Test
+    void groupStep_allows_groupMember() {
+        UUID memberActor = UUID.randomUUID();
+        when(configClient.fetchRoles(DOCUMENT_TYPE)).thenReturn(configLine(List.of(
+                new ResolvedRole(0, StepType.GROUP, null, groupId, "groupware.approvals"))));
+        ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
+                requester, "그룹 결재 멤버 승인", null, List.of(), template.getId(), Map.of()));
+
+        UUID approvalId = line.getId();
+        em.flush();
+        em.clear();
 
         // 그룹 멤버 → APPROVED
         ApprovalLine approved = approvalLineService.approve(approvalId, memberActor, Set.of(groupId));

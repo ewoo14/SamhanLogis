@@ -51,10 +51,7 @@ class ApprovalLineAuthorizeControllerIT extends AbstractPostgresIT {
     @DisplayName("authorize — USER 결재자 seed 시 allowed=true + envelope($.data.*) 계약")
     void authorize_withSeededUserApprover_returnsAllowedTrue_andEnvelope() throws Exception {
         UUID userId = UUID.randomUUID();
-        UUID roleId = jdbcTemplate.queryForObject("""
-                SELECT id FROM approval_line_config
-                 WHERE document_type='SLIP_OUTBOUND' AND action_key='OUTBOUND_DISPATCH' AND is_deleted=false
-                """, UUID.class);
+        UUID roleId = roleId("SLIP_OUTBOUND", "OUTBOUND_DISPATCH");
         jdbcTemplate.update("""
                 INSERT INTO approval_line_approver
                     (id, config_role_id, approver_type, approver_ref_id, created_at, created_by, is_deleted)
@@ -90,7 +87,7 @@ class ApprovalLineAuthorizeControllerIT extends AbstractPostgresIT {
                 .andReturn();
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        assertThat(result.getResponse().getContentAsString())
+        assertThat(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .contains("\"configured\"")
                 .contains("\"allowed\"");
     }
@@ -238,7 +235,7 @@ class ApprovalLineAuthorizeControllerIT extends AbstractPostgresIT {
                 .andReturn();
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        String body = result.getResponse().getContentAsString();
+        String body = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(body)
                 .contains("\"configured\":true")
                 .contains("\"sequence\":0")
@@ -261,7 +258,7 @@ class ApprovalLineAuthorizeControllerIT extends AbstractPostgresIT {
                 .andReturn();
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        assertThat(result.getResponse().getContentAsString())
+        assertThat(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .contains("\"configured\":false")
                 .contains("\"roles\":[]");
     }

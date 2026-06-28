@@ -47,12 +47,19 @@ public class ApprovalLineService {
     /**
      * 신규 결재선 생성 + chain 등록. 요청자 본인 차단 / 결재자 0명 차단 / 사용자 미존재 차단 가드.
      *
-     * <p>요청자는 {@code req.requesterId()} 를 사용한다. 헤더 기반 신원이 필요한 경우
+     * <p>요청자는 {@code req.requesterId()} 를 그대로 신뢰한다. <b>HTTP endpoint 에서 직접 호출 금지.</b>
+     * 본문의 requesterId 를 신뢰하므로 identity spoofing 위험이 있다. HTTP 요청 처리 시에는 반드시
      * {@link #createWithActor(ApprovalLineCreateRequest, UUID)} 를 사용한다.
+     *
+     * <p>허용 사용처: IT 테스트, 내부 배치/시드 호출.
      *
      * @param req 결재선 생성 요청
      * @return 영속화된 결재선
+     * @deprecated HTTP 미사용. 헤더 기반 신원이 필요한 경우
+     *             {@link #createWithActor(ApprovalLineCreateRequest, UUID)} 사용.
+     *             IT 테스트·내부 호출에서만 허용.
      */
+    @Deprecated
     @Transactional
     public ApprovalLine create(ApprovalLineCreateRequest req) {
         return createInternal(req, req.requesterId());

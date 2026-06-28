@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
+import com.samhanair.logis.groupware.client.GroupwareApprovalLineConfigClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
@@ -77,6 +78,12 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
     private UserClient userClient;
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
+    /**
+     * Eureka 미가용 환경에서 실 RestClient 호출을 차단한다
+     * ({@code feedback_it_mockbean_external_clients}).
+     */
+    @MockBean
+    private GroupwareApprovalLineConfigClient configClient;
 
     @BeforeEach
     void cleanup() {
@@ -87,6 +94,9 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         org.mockito.ArgumentMatchers.any(PermissionAction.class)))
                 .thenReturn(true);
         lenient().when(userClient.exists(any())).thenReturn(true);
+        // Eureka 미가용 환경 — 실 auth-service RestClient 호출을 차단하고 미설정 상태로 반환한다.
+        lenient().when(configClient.fetchRoles(any()))
+                .thenReturn(GroupwareApprovalLineConfigClient.ConfigLine.unconfigured());
         // Phase 9 W3 — bulk verify 채택. 모든 입력 ID 를 true 매핑하여 통과시킨다.
         lenient().when(userClient.verifyBulk(anyList())).thenAnswer(inv -> {
             java.util.List<java.util.UUID> ids = inv.getArgument(0);
@@ -270,6 +280,25 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         assertThat(persisted.getStatus()).isEqualTo(ApprovalStatus.REJECTED);
         assertThat(persisted.getStepsView().get(0).getApprovedByUserId()).isEqualTo(approver1);
         assertThat(persisted.getStepsView().get(0).getApprovedByUserId()).isNotEqualTo(forgedApproverId);
+    }
+
+    /**
+     * templateId 없음 + approverIds 빈 리스트 → config 미설정 + 수동 결재자 0 → 400 INVALID_INPUT.
+     *
+     * <p>HTTP 레이어를 통해 {@link ApprovalLineService#createWithActor} 경로가
+     * 결재자 부재를 올바르게 거부하는지 계약 단언한다.
+     */
+    @Test
+    void create_approval_with_no_template_and_empty_approvers_returns_400() throws Exception {
+        // configClient 는 unconfigured 반환 (setUp stub). approverIds = 빈 리스트.
+        ApprovalLineCreateRequest req = new ApprovalLineCreateRequest(
+                UUID.fromString(MANAGER_ACCOUNT_ID), "결재자 없음 테스트", null, List.of());
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest());
     }
 
     /** 신원 위조 회귀 테스트용으로 기준 actor 와 다른 UUID 를 만든다. */

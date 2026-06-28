@@ -3,6 +3,7 @@ package com.samhanair.logis.groupware.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.approval.StepType;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.groupware.domain.ResolvedRole;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.time.Duration;
@@ -22,7 +23,6 @@ import org.springframework.web.client.RestClient;
 public class GroupwareApprovalLineConfigClient {
 
     private static final Logger log = LoggerFactory.getLogger(GroupwareApprovalLineConfigClient.class);
-    private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String AUTH_SERVICE_BASE = "http://auth-service";
 
     private final RestClient restClient;
@@ -70,7 +70,7 @@ public class GroupwareApprovalLineConfigClient {
                     .uri(uriBuilder -> uriBuilder.path("/auth/internal/approval-line/roles")
                             .queryParam("documentType", documentType)
                             .build())
-                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .header(HttpHeaderConstants.INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
                     .body(String.class);
             return parse(body);
@@ -104,6 +104,7 @@ public class GroupwareApprovalLineConfigClient {
             }
             return new ConfigLine(true, List.copyOf(roles));
         } catch (Exception ex) {
+            log.warn("결재라인 config 응답 파싱 실패 — msg={}", ex.getMessage(), ex);
             return ConfigLine.unconfigured();
         }
     }
@@ -125,6 +126,9 @@ public class GroupwareApprovalLineConfigClient {
         if (stepType == StepType.GROUP && groupId != null) {
             return List.of(new ResolvedRole(sequence, StepType.GROUP, null, groupId, requiredPageCode));
         }
+        // USER + 빈 userIds 또는 GROUP + null groupId — 설정 항목 누락으로 드롭
+        log.warn("결재라인 config 설정 항목 누락으로 드롭 — stepType={}, sequence={}, userIdsCount={}, groupId={}",
+                stepType, sequence, userIds.size(), groupId);
         return List.of();
     }
 
