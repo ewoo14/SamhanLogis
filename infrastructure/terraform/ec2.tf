@@ -44,7 +44,7 @@ resource "aws_instance" "app" {
     aws_region   = var.aws_region
     rds_endpoint = aws_db_instance.main.address
     rds_username = var.rds_username
-    rds_secret_arn = aws_db_instance.main.master_user_secret[0].secret_arn
+    rds_password_secret_id = aws_secretsmanager_secret.db_password.name
   }))
 
   tags = {
@@ -57,7 +57,10 @@ resource "aws_instance" "app" {
     ignore_changes = [ami]
   }
 
-  depends_on = [aws_db_instance.main]
+  depends_on = [
+    aws_db_instance.main,
+    aws_secretsmanager_secret_version.db_password
+  ]
 }
 
 # ─── ALB (Application Load Balancer) ─────────────────────────────────────────

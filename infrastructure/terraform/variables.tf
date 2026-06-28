@@ -109,6 +109,12 @@ variable "rds_username" {
   sensitive   = true
 }
 
+variable "rds_password" {
+  description = "RDS 마스터 비밀번호. samhan/production/db-password Secrets Manager 시크릿과 RDS password 에 동일 값으로 주입."
+  type        = string
+  sensitive   = true
+}
+
 variable "rds_backup_retention_days" {
   description = "RDS automated backup retention 기간 (일)"
   type        = number

@@ -7,7 +7,7 @@
 #   - mobile.arologis.samhan-air.com → ALB (Store deeplink 페이지)
 #
 # 자원 영향:
-#   - aws_route53_zone.main          (route53.tf) 그대로 재사용.
+#   - data.aws_route53_zone.main     (route53.tf) 기존 hosted zone 재사용.
 #   - aws_acm_certificate.main       (*.samhan-air.com + *.arologis.samhan-air.com SAN)
 #     DNS validation 은 route53.tf 의 validation record for_each 로 자동 포함.
 #   - aws_lb.main                    그대로 재사용 (host-header 라우팅 = Nginx 가 처리).
@@ -17,7 +17,7 @@
 
 # ─── api.arologis.samhan-air.com (REST API — arologis-service:8097) ──────────
 resource "aws_route53_record" "arologis_api" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "api.arologis.${var.domain_name}"
   type    = "A"
 
@@ -30,7 +30,7 @@ resource "aws_route53_record" "arologis_api" {
 
 # ─── app.arologis.samhan-air.com (Electron installer 다운로드 페이지) ────────
 resource "aws_route53_record" "arologis_app" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "app.arologis.${var.domain_name}"
   type    = "A"
 
@@ -43,7 +43,7 @@ resource "aws_route53_record" "arologis_app" {
 
 # ─── mobile.arologis.samhan-air.com (Store deeplink 페이지) ──────────────────
 resource "aws_route53_record" "arologis_mobile" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "mobile.arologis.${var.domain_name}"
   type    = "A"
 

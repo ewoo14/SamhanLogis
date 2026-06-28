@@ -37,6 +37,7 @@ rds_engine_version        = "15.7"
 rds_allocated_storage     = 100
 rds_db_name               = "samhanlogis"
 rds_username              = "samhan"
+rds_password              = "REPLACE_WITH_STRONG_RDS_PASSWORD"
 rds_backup_retention_days = 7  # RDS automated backup 7일 (무료)
 
 # ─── S3 설정 ──────────────────────────────────────────────────────────────────

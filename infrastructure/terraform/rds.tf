@@ -69,6 +69,20 @@ resource "aws_db_parameter_group" "main" {
 
 # ─── RDS Instance ──────────────────────────────────────────────────────────────
 
+resource "aws_secretsmanager_secret" "db_password" {
+  name        = "samhan/production/db-password"
+  description = "SamhanLogis production RDS master password (EC2 user_data 조회용 samhan/* 표준 시크릿)"
+
+  tags = {
+    Name = "${local.name_prefix}-db-password"
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "db_password" {
+  secret_id     = aws_secretsmanager_secret.db_password.id
+  secret_string = var.rds_password
+}
+
 resource "aws_db_instance" "main" {
   identifier = "${local.name_prefix}-rds"
 
@@ -82,9 +96,9 @@ resource "aws_db_instance" "main" {
   storage_encrypted     = true
 
   # 기본 DB (각 service DB 는 flyway/init 스크립트로 별도 생성)
-  db_name                     = var.rds_db_name
-  username                    = var.rds_username
-  manage_master_user_password = true
+  db_name  = var.rds_db_name
+  username = var.rds_username
+  password = var.rds_password
 
   # 네트워크
   db_subnet_group_name   = aws_db_subnet_group.main.name
@@ -170,8 +184,8 @@ output "rds_db_name" {
   value       = aws_db_instance.main.db_name
 }
 
-output "rds_master_user_secret_arn" {
-  description = "RDS managed master user secret ARN (EC2 user_data 에서 비밀번호 조회)"
-  value       = aws_db_instance.main.master_user_secret[0].secret_arn
+output "rds_db_password_secret_arn" {
+  description = "RDS master password Secrets Manager secret ARN (samhan/production/db-password)"
+  value       = aws_secretsmanager_secret.db_password.arn
   sensitive   = true
 }

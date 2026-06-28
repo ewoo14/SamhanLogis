@@ -15,7 +15,7 @@
 | init-rds.sql (15 DB) | READY | user_data.sh 자동 실행 (logging_db 제거 — logging-service 는 ES/RabbitMQ 전용) |
 | user_data.sh (17 service 기동) | READY | ECR pull + compose up |
 | **실 AWS 계정** | NOT-READY | 개발책임자 계정 직접 설정 |
-| **Route 53 Hosted Zone** | NOT-READY | terraform apply 또는 사전 생성 |
+| **Route 53 Hosted Zone** | NOT-READY | 사전 생성 + 도메인 등록기관 NS 위임 후 `route53_zone_id` 입력 |
 | **Secrets Manager 시크릿** | NOT-READY | 아래 단계 0 참조 |
 | **도메인 등록기관 NS 레코드** | NOT-READY | terraform output route53_name_servers 확인 후 수동 |
 | **S3 Terraform state 버킷** | NOT-READY | 단계 0 사전 생성 |
@@ -100,7 +100,7 @@ aws secretsmanager create-secret \
   --region ap-northeast-2
 ```
 
-> RDS master password 는 `rds.tf`의 `manage_master_user_password=true`로 AWS가 관리하는 managed secret을 사용합니다. 별도 `samhan/production/db-password` 시크릿은 만들지 않습니다.
+> RDS master password 는 `samhan/production/db-password` Secrets Manager 시크릿으로 일원화합니다. 이 시크릿은 Terraform `aws_secretsmanager_secret.db_password`가 생성하고, `terraform.tfvars`의 `rds_password` 값이 RDS password 와 시크릿 버전에 함께 주입됩니다. 따라서 EC2 IAM 의 기존 `samhan/*` 정책으로 조회 가능합니다.
 
 ### 0-E. AMI ID 최신 확인
 ```bash
@@ -117,18 +117,18 @@ aws ec2 describe-images \
 ```bash
 cp infrastructure/terraform/terraform.tfvars.example infrastructure/terraform/terraform.tfvars
 # 실 값 입력 (Git 커밋 금지 — .gitignore 에 포함됨):
+#   - rds_password: RDS master password. Terraform 이 samhan/production/db-password 시크릿도 생성.
 #   - route53_zone_id: 0-G 에서 획득
 #   - ec2_ami_id: 0-E 결과
 #   - slack_webhook_url: Slack 웹훅 URL
 #   - ec2_key_pair_name: 기본 null 권장. SSH 없이 SSM Session Manager 로 접속.
 ```
 
-### 0-G. Route 53 Hosted Zone 확인
+### 0-G. Route 53 Hosted Zone 사전 생성/위임 확인
 ```bash
-# 기존 Hosted Zone 이 있으면:
+# Hosted Zone 은 terraform apply 전에 이미 존재하고, 도메인 등록기관 NS 위임이 끝나 있어야 합니다.
 aws route53 list-hosted-zones --query 'HostedZones[?Name==`samhan-air.com.`].Id'
 # → terraform.tfvars 의 route53_zone_id 에 입력 (Z로 시작하는 ID)
-# route53.tf 의 resource "aws_route53_zone" "main" 을 data source 로 교체 필요 (이미 존재하면 중복 오류)
 ```
 
 ### 0-H. Terraform backend 주석 해제
@@ -378,8 +378,8 @@ aws rds restore-db-instance-to-point-in-time \
 | # | 항목 | 수행 시점 |
 |---|------|-----------|
 | M-1 | AWS 계정 생성 + IAM 사용자 발급 | 단계 0 전 |
-| M-2 | samhan-air.com 도메인 Route 53 Hosted Zone 이관 | 단계 0-G |
-| M-3 | Secrets Manager 시크릿 실 값 입력 (jwt-secret/internal-token/arologis-jwt/rabbit-password/S3 access/secret key) | 단계 0-D |
+| M-2 | samhan-air.com Route 53 Hosted Zone 사전 생성 + 도메인 등록기관 NS 위임 | 단계 0-G |
+| M-3 | Secrets Manager 시크릿 실 값 입력 (jwt-secret/internal-token/arologis-jwt/rabbit-password/S3 access/secret key) + terraform.tfvars `rds_password` 입력 | 단계 0-D/0-F |
 | M-4 | SMTP 자격증명 (AWS SES SMTP 발급 + 발신 도메인 인증) | 단계 0 후 |
 | M-5 | AMI ID 최신 확인 + tfvars 업데이트 | 단계 0-E |
 | M-6 | Slack Webhook URL 발급 | 단계 0 |
@@ -392,7 +392,7 @@ aws rds restore-db-instance-to-point-in-time \
 | M-14 | NTS/KFTC/CODEF sandbox 키 (accounting-service) | 운영 후 |
 | M-15 | .env.production 의 SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID 입력 | 단계 3 |
 | M-16 | RabbitMQ 운영 비밀번호 Secrets Manager 주입 (`samhan/production/rabbit-password`) | 단계 0-D |
-| M-17 | route53.tf: 이미 Hosted Zone 존재 시 resource → data source 교체 | 단계 1 전 |
+| M-17 | terraform.tfvars `route53_zone_id` 에 사전 위임된 Hosted Zone ID 입력 | 단계 1 전 |
 | M-18 | AWS S3 access/secret key 실값 수동 주입 (`samhan/production/s3-access-key`, `samhan/production/s3-secret-key`) | 단계 0-D |
 
 ---

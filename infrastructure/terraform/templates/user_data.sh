@@ -106,7 +106,7 @@ cd /opt/samhanlogis
 AWS_REGION="${aws_region}"
 RDS_ENDPOINT="${rds_endpoint}"
 RDS_USERNAME="${rds_username}"
-RDS_SECRET_ARN="${rds_secret_arn}"
+RDS_PASSWORD_SECRET_ID="${rds_password_secret_id}"
 PROJECT_NAME="${project_name}"
 
 # Secrets Manager 에서 비밀값 조회 (실패 시 fail-fast — fallback 없음)
@@ -123,10 +123,9 @@ get_secret_string() {
     }
 }
 
-DB_SECRET_STRING=$(get_secret_string "$RDS_SECRET_ARN" "RDS managed master secret")
-DB_PASSWORD=$(printf '%s' "$DB_SECRET_STRING" | jq -r '.password // empty')
+DB_PASSWORD=$(get_secret_string "$RDS_PASSWORD_SECRET_ID" "$RDS_PASSWORD_SECRET_ID")
 if [ -z "$DB_PASSWORD" ]; then
-    echo "[FATAL] RDS managed master secret 에 password 필드가 없습니다." >&2
+    echo "[FATAL] $RDS_PASSWORD_SECRET_ID 값이 비어 있습니다." >&2
     exit 1
 fi
 

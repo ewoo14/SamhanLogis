@@ -14,18 +14,11 @@
 # Hosted Zone: 사전 생성 필요 (var.route53_zone_id)
 ################################################################################
 
-# ─── Hosted Zone (사전 생성 또는 data source로 참조) ─────────────────────────
+# ─── Hosted Zone (사전 생성된 hosted zone 참조) ───────────────────────────────
 
-# 주의: Hosted Zone 은 도메인 등록 기관에서 NS 레코드를 먼저 설정해야 함.
-# 신규 생성 시 아래 resource 사용. 이미 존재하면 data source 로 교체.
-
-resource "aws_route53_zone" "main" {
-  name    = var.domain_name
-  comment = "SamhanLogis Phase 11 Production"
-
-  tags = {
-    Name = "${local.name_prefix}-hosted-zone"
-  }
+data "aws_route53_zone" "main" {
+  zone_id      = var.route53_zone_id
+  private_zone = false
 }
 
 # ─── ACM 인증서 DNS 검증 레코드 ──────────────────────────────────────────────
@@ -44,7 +37,7 @@ resource "aws_route53_record" "acm_validation" {
   records         = [each.value.record]
   ttl             = 60
   type            = each.value.type
-  zone_id         = aws_route53_zone.main.zone_id
+  zone_id         = data.aws_route53_zone.main.zone_id
 }
 
 resource "aws_acm_certificate_validation" "main" {
@@ -57,7 +50,7 @@ resource "aws_acm_certificate_validation" "main" {
 
 # api.samhan-air.com (api-gateway — 주 엔드포인트)
 resource "aws_route53_record" "api" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "api.${var.domain_name}"
   type    = "A"
 
@@ -70,7 +63,7 @@ resource "aws_route53_record" "api" {
 
 # app.samhan-air.com (desktop 다운로드 page)
 resource "aws_route53_record" "app" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "app.${var.domain_name}"
   type    = "A"
 
@@ -83,7 +76,7 @@ resource "aws_route53_record" "app" {
 
 # order.samhan-air.com (partner-order 웹앱)
 resource "aws_route53_record" "order" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "order.${var.domain_name}"
   type    = "A"
 
@@ -96,7 +89,7 @@ resource "aws_route53_record" "order" {
 
 # sign.samhan-air.com (slip-service signature)
 resource "aws_route53_record" "sign" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "sign.${var.domain_name}"
   type    = "A"
 
@@ -109,7 +102,7 @@ resource "aws_route53_record" "sign" {
 
 # chat.samhan-air.com (groupware-service)
 resource "aws_route53_record" "chat" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "chat.${var.domain_name}"
   type    = "A"
 
@@ -122,7 +115,7 @@ resource "aws_route53_record" "chat" {
 
 # monitor.samhan-air.com (Grafana — 내부 관리용)
 resource "aws_route53_record" "monitor" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "monitor.${var.domain_name}"
   type    = "A"
 
@@ -135,7 +128,7 @@ resource "aws_route53_record" "monitor" {
 
 # quote.samhan-air.com (estimate-app)
 resource "aws_route53_record" "quote" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "quote.${var.domain_name}"
   type    = "A"
 
@@ -149,7 +142,7 @@ resource "aws_route53_record" "quote" {
 # files.samhan-air.com (S3 정적 CDN — CloudFront 추가 시 교체)
 # 현재는 ALB 경유, Phase 12 이후 CloudFront distribution 연결
 resource "aws_route53_record" "files" {
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = data.aws_route53_zone.main.zone_id
   name    = "files.${var.domain_name}"
   type    = "A"
 
@@ -170,12 +163,12 @@ resource "aws_route53_record" "files" {
 
 output "route53_zone_id" {
   description = "Route 53 Hosted Zone ID"
-  value       = aws_route53_zone.main.zone_id
+  value       = data.aws_route53_zone.main.zone_id
 }
 
 output "route53_name_servers" {
-  description = "Route 53 NS 레코드 (도메인 등록기관에 등록 필요)"
-  value       = aws_route53_zone.main.name_servers
+  description = "사전 위임된 Route 53 NS 레코드"
+  value       = data.aws_route53_zone.main.name_servers
 }
 
 output "api_endpoint" {
