@@ -113,6 +113,7 @@ WHITELIST_PATTERNS=(
   'docs/dev-reports/sp-08-8-'
   '\.claude/memory/'
   'docs/qa/sp-09-2-aligo-sms-real-send/'
+  'docs/qa/sp-09-3-ocr-receipt-shell/'
   'docs/qa/sp-09-4-kftc-shell/'
   'docs/qa/sp-09-5-phase9-integration/'
   'docs/dev-reports/sp-09-summary\.md'
