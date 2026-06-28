@@ -381,7 +381,7 @@ describe('mock app version management contract', () => {
 
     expect(created.data.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/)
     expect(created.data.releasedAt).toBe('2026-06-27T10:00:00')
-    expect(created.data.isPublished).toBe(true)
+    expect(created.data.isPublished).toBe(false)
 
     const updated = mockRequest({
       method: 'PUT',
@@ -422,6 +422,15 @@ describe('mock app version management contract', () => {
         releasedAt: '2026-06-27T10:00:00',
       },
     }) as MockEnvelope<{ id: string; version: string; isPublished: boolean }>
+
+    expect(created.data.isPublished).toBe(false)
+
+    const gateAfterCreate = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'WEB', currentVersion: '0.1.0' },
+    }) as MockEnvelope<{ latestVersion: string }>
+    expect(gateAfterCreate.data.latestVersion).not.toBe(created.data.version)
 
     const unpublished = mockRequest({
       method: 'POST',

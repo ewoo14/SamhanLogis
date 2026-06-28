@@ -198,7 +198,7 @@ function isMockLocalDateTime(value: unknown): boolean {
 function mockAppReleaseFromBody(
   body: Record<string, unknown>,
   id: string,
-  isPublished = true,
+  isPublished = false,
 ): MockAppRelease {
   return {
     id,
@@ -1797,7 +1797,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!isMockLocalDateTime(body['releasedAt'])) {
       return mockError(400, 'INVALID_INPUT', 'releasedAt은 offset 없는 LocalDateTime 형식이어야 합니다.')
     }
-    const created = mockAppReleaseFromBody(body, mockAppReleaseId(mockAppReleaseSeq))
+    const created = mockAppReleaseFromBody(body, mockAppReleaseId(mockAppReleaseSeq), false)
     mockAppReleaseSeq += 1
     MOCK_APP_RELEASES = [...MOCK_APP_RELEASES, created]
     return envelope(created)
