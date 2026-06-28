@@ -176,7 +176,7 @@ async function sha256Hex(file: File): Promise<string> {
 
 /**
  * File → base64 문자열 (data: prefix 제외).
- * FileReader 비동기 패턴 (SalesVendorOrderUploadPage 재사용).
+ * FileReader 비동기 패턴.
  */
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

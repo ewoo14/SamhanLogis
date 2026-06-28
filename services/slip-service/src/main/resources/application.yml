@@ -10,8 +10,8 @@ spring:
     multipart:
       # P1-8 (Stage 4) 슬립 첨부 사진 — 단일 파일 ≤5MB, 배송 사진 자동 압축 권장.
       # Controller 레이어에서 endpoint 별 가드 적용 (attachment ≤5MB).
-      max-file-size: 12MB
-      max-request-size: 13MB
+      max-file-size: 6MB
+      max-request-size: 7MB
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:slip_db}
     username: ${DB_USER:samhan}

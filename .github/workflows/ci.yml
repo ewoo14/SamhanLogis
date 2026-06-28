@@ -110,19 +110,6 @@ jobs:
           docker version
           docker ps
 
-      # PR-F2 (Phase 10 step-13) — Tesseract OCR native binary + 한국어 traineddata 사전 설치.
-      # partner-order-service 의 TesseractOcrEngine 통합 회귀 테스트 가 부팅 시점에
-      # @ConditionalOnProperty(samhan.partner-order.ocr.enabled) 활성 케이스를 검증할 수 있도록
-      # accounting+partner 그룹에서만 사전 설치. 단위 테스트는 default disabled (mock) 격리이므로
-      # 미설치 환경에서도 통과하지만, 향후 IT 회귀 추가 시 본 step 이 가드 역할.
-      - name: Tesseract OCR 설치 (PR-F2 — accounting+partner 그룹만)
-        if: matrix.group.name == 'accounting+partner'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr tesseract-ocr-kor tesseract-ocr-eng
-          tesseract --version
-          tesseract --list-langs
-
       # 5차 fix: --no-daemon 제거 — assemble→test 사이 JVM 워밍업 재활용 (52s 절약).
       - name: assemble (전 모듈)
         run: ./gradlew assemble

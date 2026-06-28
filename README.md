@@ -385,7 +385,7 @@ SamhanLogis/    # repository root (제품 표기 = Samhan Public)
 - Node.js 20+ (권장 22+) — client 빌드
 - gh CLI 2.92+ — GitHub Issue/PR
 - 영문 경로 권장 (`C:\dev\SamhanLogis`) — 한글 path 는 JDK 17 `@argfile` 인코딩 한계로 일부 Gradle 작업이 실패할 수 있음
-- **Tesseract OCR 5.x** (선택 — `partner-order-service` 거래처 주문서 OCR 자동 입력 활성 시) — 설치 가이드 [`docs/dev-environment/tesseract-setup.md`](docs/dev-environment/tesseract-setup.md). 환경변수 `SAMHAN_OCR_ENABLED=true` 활성 시에만 진입; 미설치 환경에서는 OCR endpoint 가 503 응답 (graceful fallback), 그 외 기능은 정상 동작
+
 
 ### Service 인벤토리 + 포트 (Phase 8 기준 + Phase 9/10 예정 포함)
 
@@ -785,7 +785,7 @@ cd qa/detox && npm install && npm run build:ios && npm run test:ios
 | Phase 10 readiness (arologis) | `docs/migration/phase10/M-PHASE-10-readiness.md` (renumber, arologis-service 5 슬라이스) |
 | Phase 11 readiness (AWS cutover) | `docs/migration/phase11/M-PHASE-11-readiness.md` (renumber, 기존 phase10) |
 | Phase 11 AWS dry-run plan  | `docs/migration/phase11/M-AWS-MIGRATION-DRY-RUN.md` (renumber, 기존 phase10) |
-| Tesseract OCR 설치 가이드 (PR-F2) | `docs/dev-environment/tesseract-setup.md` (Windows / Linux / Docker / macOS + production secret) |
+
 | dev-reports 누적           | `docs/dev-reports/`                                                 |
 
 ---

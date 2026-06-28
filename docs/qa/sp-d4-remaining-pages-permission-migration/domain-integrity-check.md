@@ -29,7 +29,7 @@ V=canView, E=canEdit, -=both FALSE
 | `sales.partner-order.confirm` | V/E | V/E | - | V/E | - | - | - |
 | `sales.partner-order.history` | V/E | V | V | V | - | - | - |
 | `sales.partner-order.print` | V/E | V | - | V/E | V | - | - |
-| `sales.vendor-order` | V/E | V/E | - | V/E | V | - | - |
+| `sales.vendor-order` _(V76 삭제됨)_ | V/E | V/E | - | V/E | V | - | - |
 | `inventory.warehouse` | V/E | V/E | - | - | V/E | - | V/E |
 | `inventory.stock` | V/E | V | V | V | V/E | V | V/E |
 | `inventory.stock-transfer` | V/E | V/E | - | - | V/E | - | V/E |
@@ -53,19 +53,21 @@ V=canView, E=canEdit, -=both FALSE
 ### 1. V10 seed row 수 검증
 
 ```sql
--- V10 seed 총 154 row 확인 (22 PageCode × 7 ROLE)
+-- V10 seed row 확인 (22 PageCode × 7 ROLE, V10 기준)
+-- NOTE: V76 (2026-06-29) 에서 'sales.vendor-order' soft-delete 됨 → is_deleted=FALSE 행 수는 147 (21 × 7)
 SELECT COUNT(*) AS total_rows
 FROM role_page_permissions
 WHERE page_code IN (
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
-    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    -- 'sales.vendor-order' V76 삭제됨
+    'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region'
 )
 AND is_deleted = FALSE;
--- 기대값: 154
+-- 기대값: 147 (V76 이후 — sales.vendor-order 7행 soft-delete)
 ```
 
 ### 2. 각 PageCode 별 ROLE 매핑 수 검증
@@ -77,7 +79,8 @@ FROM role_page_permissions
 WHERE page_code IN (
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
-    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    -- 'sales.vendor-order' V76 (2026-06-29) soft-delete 됨
+    'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region'
@@ -85,8 +88,7 @@ WHERE page_code IN (
 AND is_deleted = FALSE
 GROUP BY page_code
 ORDER BY page_code;
--- 기대값 (§2 카탈로그 기준, FALSE row 포함 전체):
--- estimates.list: 7, sales.partner-order.list: 7, ... (총 22 × 7 = 154)
+-- 기대값 (V76 이후 — sales.vendor-order 제외, 21 × 7 = 147)
 ```
 
 ### 3. MASTER 전체 V/E TRUE 검증
@@ -99,14 +101,15 @@ WHERE role_code = 'MASTER'
   AND page_code IN (
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
-    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    -- 'sales.vendor-order' V76 (2026-06-29) soft-delete 됨
+    'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps', 'inventory.audit', 'admin.employees', 'admin.users',
     'partners.list', 'partners.detail', 'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region'
   )
   AND is_deleted = FALSE
   AND (can_view = FALSE OR can_edit = FALSE);
--- 기대값: 0 rows (MASTER 는 모두 TRUE)
+-- 기대값: 0 rows (MASTER 는 모두 TRUE, V76 이후 21 PageCode 기준)
 ```
 
 ### 4. admin.users MASTER 전용 검증
@@ -166,7 +169,8 @@ WHERE page_code NOT IN (
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger', 'notification.dispatch-sms.send-audit',
-    'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
+    -- 'purchases.receipt-ocr' V76 (2026-06-29) 삭제됨
+    'purchases.slip.list', 'sales.slip.list',
     'inbound.inspection', 'dispatch.board', 'admin.permissions',
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',

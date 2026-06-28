@@ -59,8 +59,8 @@ ORDER BY page_code;
 -- partners.edit-request
 -- partners.list
 -- products.admin
--- purchases.receipt-ocr
 -- purchases.slip.list
+-- (purchases.receipt-ocr: V76 2026-06-29 삭제됨)
 -- sales.partner-order.confirm
 -- sales.partner-order.draft
 -- sales.partner-order.edit-request
@@ -105,7 +105,7 @@ WHERE page_code IN (
     'purchases.slip.list',
     'sales.slip.list',
     'notification.dispatch-sms.send-audit',
-    'purchases.receipt-ocr',
+    -- 'purchases.receipt-ocr' V76 (2026-06-29) soft-delete 됨
     'inbound.inspection',
     'admin.permissions'
 )

@@ -13,13 +13,14 @@ SP-D1 Flyway V7 seeder 가 삽입한 매입/매출/배차 기본 권한 데이�
 SP-D3 마이그레이션 후에도 6개 pageCode 에 대한 권한 행이 page_permission 테이블에 존재해야 한다.
 
 ```sql
--- SP-D3 대상 6개 PageCode 존재 확인
+-- SP-D3 대상 PageCode 존재 확인
+-- NOTE: V76 (2026-06-29) 에서 'purchases.receipt-ocr' 삭제됨 → 아래 쿼리에서 제외, 기대 행 수 5행.
 SELECT page_code, COUNT(*) AS role_count
 FROM page_permission
 WHERE page_code IN (
     'sales.slip.list',
     'purchases.slip.list',
-    'purchases.receipt-ocr',
+    -- 'purchases.receipt-ocr' V76 삭제됨
     'dispatch.board',
     'notification.dispatch-sms.send-audit',
     'inbound.inspection'
@@ -28,7 +29,7 @@ WHERE page_code IN (
 GROUP BY page_code
 ORDER BY page_code;
 
--- 기대 결과: 6행, 각 role_count >= 2 (MASTER + 해당 역할 최소 1개)
+-- 기대 결과: 5행, 각 role_count >= 2 (MASTER + 해당 역할 최소 1개)
 ```
 
 ---
@@ -54,14 +55,15 @@ WHERE role_code = 'SALES'
 SELECT role_code, page_code, can_view, can_edit
 FROM role_page_permissions
 WHERE role_code = 'WAREHOUSE'
-  AND page_code IN ('purchases.slip.list', 'purchases.receipt-ocr', 'inbound.inspection')
+  AND page_code IN ('purchases.slip.list', 'inbound.inspection')
+  -- 'purchases.receipt-ocr' — V76 (2026-06-29) soft-delete 됨, 제외
   AND is_deleted = FALSE
 ORDER BY page_code;
 
--- 기대 결과 (V9 fix 적용 후):
+-- 기대 결과 (V9 fix + V76 적용 후):
 -- WAREHOUSE | inbound.inspection     | true | true
--- WAREHOUSE | purchases.receipt-ocr  | true | true   ← V9 fix: FALSE→TRUE
 -- WAREHOUSE | purchases.slip.list    | true | false
+-- NOTE: purchases.receipt-ocr 는 V76 에서 soft-delete 됨
 -- NOTE: sales.slip.list 는 V9 fix 로 canView=FALSE 처리됨 (매출 슬립 숨김)
 ```
 
@@ -168,7 +170,7 @@ WHERE role_code = 'MASTER'
   AND page_code IN (
       'sales.slip.list',
       'purchases.slip.list',
-      'purchases.receipt-ocr',
+      -- 'purchases.receipt-ocr' V76 (2026-06-29) 삭제됨
       'dispatch.board',
       'notification.dispatch-sms.send-audit',
       'inbound.inspection'
@@ -176,7 +178,7 @@ WHERE role_code = 'MASTER'
   AND deleted_at IS NULL
 ORDER BY page_code;
 
--- 기대 결과: 6행 모두 can_view=true, can_edit=true
+-- 기대 결과: 5행 모두 can_view=true, can_edit=true (V76 이후 purchases.receipt-ocr 제외)
 ```
 
 ---
@@ -193,7 +195,8 @@ FROM page_permission
 WHERE deleted_at IS NULL
 ORDER BY page_code;
 
--- 기대 결과 (SP-D1 12개 + SP-D2 회계 7개 = 19개):
+-- 기대 결과 (SP-D1~D3 기준, V76 이후):
+-- NOTE: V76 (2026-06-29) 에서 'purchases.receipt-ocr' 삭제됨 → 18개
 -- accounting.accounts
 -- accounting.balances
 -- accounting.daily-closing
@@ -210,7 +213,6 @@ ORDER BY page_code;
 -- dispatch.board
 -- inbound.inspection
 -- notification.dispatch-sms.send-audit
--- purchases.receipt-ocr
 -- purchases.slip.list
 -- sales.slip.list
 ```

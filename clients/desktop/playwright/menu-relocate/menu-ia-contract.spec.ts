@@ -271,6 +271,17 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
     )
   })
 
+  // [PR #658] OCR 메뉴 부재 가드 — 영수증 OCR(purchases.receipt-ocr) / 발주서 업로드(sales.vendor-order)
+  // 메뉴를 완전 삭제한 후 재추가되지 않도록 정적 박제. route 및 한국어 라벨 양쪽을 단언한다.
+  test('OCR 메뉴 부재 — 영수증 OCR / 발주서 업로드 재추가 회귀 가드', () => {
+    expect(appLayout, '영수증 OCR 라벨이 메뉴에 없어야 함').not.toContain('영수증 OCR')
+    expect(appLayout, '발주서 업로드 라벨이 메뉴에 없어야 함').not.toContain('발주서 업로드')
+    expect(appLayout, '/purchases/receipt-ocr route 가 메뉴에 없어야 함').not.toContain('/purchases/receipt-ocr')
+    expect(appLayout, '/sales/vendor-order route 가 메뉴에 없어야 함').not.toContain('/sales/vendor-order')
+    expect(appLayout, 'purchases.receipt-ocr page-code 가 메뉴에 없어야 함').not.toContain('purchases.receipt-ocr')
+    expect(appLayout, 'sales.vendor-order page-code 가 메뉴에 없어야 함').not.toContain('sales.vendor-order')
+  })
+
   // (b) 이동 항목이 지정 그룹 블록 안에서 route+testid+label 3종을 동일 SidebarLink 블록에서
   //     보존하는지 — sidebarLinkBlock 으로 블록을 잘라 hard 단언(false-green 잔여 갭 제거).
   //     [Round B P2] 기존 categoryBlock 전역 매칭은 to/testid/label 이 서로 다른 항목에 흩어져도

@@ -30,13 +30,14 @@ export default defineConfig({
     // 🟢 admin-hr 재게이트 완료(5/5) — TC-HR2 부서 route-게이팅은 AdminLayout(isExecutiveOffice) 으로 이미
     //   구현돼 있었고, mock(is-executive-office)이 hash query 의 mockDepartment 를 못 읽던 버그를 교정해 테스트 가능해짐.
     // 🟢 sp-d1 재게이트 완료 — role-grid→account-select UI 재설계 대응 스펙 재작성 + 한글 라벨/권한설정/한국어404 (PR #386 — #380 supersede).
-    // 🟢 sp-09-5 재게이트(5/5) — fileInput.isAttached()→count, 역할 cross-check 에 page.reload() 세션 재설정.
+    // sp-09-5 (발주서 업로드 OCR) — PR #658 에서 메뉴·구현·스펙 전체 삭제됨.
     // 🟢 phase-2-6c 재게이트(8/8) — 전환 모달 창고선택+qty 상호작용 + 재고현황 페이지 제목 testid 한정.
     // 🟢 sp-09-1 재게이트(5/5) — eTaxExternalId 표시(FE) + emit 낙관적 갱신.
     // 🟢 3-A2-④ B/C 재게이트 — sp-d4(잔여 7도메인 PermissionGuard, 20 TC 전부 green) 재게이트 완료.
     //   잔여 격리 스펙은 각 기능별 verify-then-fix 필요 — triage 후 격리 유지
     //   (sp-09-1 eTaxExternalId 는 위 5/5 재게이트 완료 항목으로 정정):
-    //   phase-2-6c(8: 재고현황 모달), sp-09-2(5: 알리고 SMS), sp-09-3/4/5(각3: OCR/KFTC/vendor),
+    //   phase-2-6c(8: 재고현황 모달), sp-09-2(5: 알리고 SMS),
+    //   sp-09-3/sp-09-4/sp-09-5 — PR #658 에서 OCR·KFTC·발주서 메뉴·스펙 전체 삭제됨.
     //   sp-08-6-6(2: 발행 CTA/라벨), phase-2-5(1: ON_HOLD 필터),
     //   supplier-profile(1: seed 필드), tax-invoice-batch(1: 4탭). 상세: docs/dev-reports/slice-3a2-4-bc-triage.md.
   ],
