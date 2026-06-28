@@ -43,8 +43,8 @@ resource "aws_instance" "app" {
     environment  = var.environment
     aws_region   = var.aws_region
     rds_endpoint = aws_db_instance.main.address
-    rds_password = var.rds_password
     rds_username = var.rds_username
+    # rds_password 는 templatefile 주입 금지 — Secrets Manager 전용 (user_data.sh 참조)
   }))
 
   tags = {
@@ -60,18 +60,9 @@ resource "aws_instance" "app" {
   depends_on = [aws_db_instance.main]
 }
 
-# ─── Elastic IP (EC2 고정 IP — Auto Recovery 후에도 IP 유지) ─────────────────
-
-resource "aws_eip" "app" {
-  instance = aws_instance.app.id
-  domain   = "vpc"
-
-  tags = {
-    Name = "${local.name_prefix}-app-eip"
-  }
-}
-
 # ─── ALB (Application Load Balancer) ─────────────────────────────────────────
+# EIP 제거: EC2 는 private subnet 배치 + ALB 전면 아키텍처 — 퍼블릭 IP 직접 노출 불필요.
+# EC2 아웃바운드(ECR pull / S3 / Secrets Manager) 는 NAT Gateway 경유.
 
 resource "aws_lb" "main" {
   name               = "${local.name_prefix}-alb"
@@ -206,9 +197,9 @@ output "ec2_instance_id" {
   value       = aws_instance.app.id
 }
 
-output "ec2_public_ip" {
-  description = "EC2 Elastic IP"
-  value       = aws_eip.app.public_ip
+output "ec2_private_ip" {
+  description = "EC2 Private IP (private subnet — 외부 직접 접근 불가, SSM Session Manager 또는 ALB 경유)"
+  value       = aws_instance.app.private_ip
 }
 
 output "alb_dns_name" {

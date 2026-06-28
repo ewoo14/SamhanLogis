@@ -78,12 +78,22 @@ resource "aws_ecr_lifecycle_policy" "services" {
       },
       {
         rulePriority = 2
-        description  = "tagged 이미지 최대 10개 보존 (최신 10 keep)"
+        description  = "날짜태그(20YYMMDD-HHmm) 포함 named 이미지 최대 10개 보존"
         selection = {
-          tagStatus   = "tagged"
-          tagPrefixList = ["v", "latest", "main", "release"]
+          tagStatus     = "tagged"
+          tagPrefixList = ["v", "latest", "main", "release", "20"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 3
+        description  = "전체 이미지(태그 무관) 최대 30개 안전망 — prefix 미매칭 태그 누적 방지"
+        selection = {
+          tagStatus   = "any"
           countType   = "imageCountMoreThan"
-          countNumber = 10
+          countNumber = 30
         }
         action = { type = "expire" }
       }

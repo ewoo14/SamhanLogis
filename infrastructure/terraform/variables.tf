@@ -76,10 +76,9 @@ variable "ec2_key_pair_name" {
 }
 
 variable "allowed_ssh_cidr" {
-  description = "SSH 허용 CIDR (운영자 IP)"
+  description = "SSH 허용 CIDR (운영자 고정 IP 필수 — 예: 203.x.x.x/32 또는 사무실 대역 /24). terraform.tfvars 에서 반드시 지정."
   type        = string
-  default     = "0.0.0.0/0"
-  # 실 운영 시 운영자 고정 IP 로 제한할 것
+  # default 없음 (필수값): 0.0.0.0/0 전체 개방 금지. terraform.tfvars.example 참조.
 }
 
 # ─── RDS ─────────────────────────────────────────────────────────────────────

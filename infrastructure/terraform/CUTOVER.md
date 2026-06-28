@@ -12,7 +12,7 @@
 | Terraform IaC (vpc/ec2/rds/alb/route53/s3/iam/monitoring/lambda) | READY | 17 service 현행화 완료 |
 | ECR 리포지토리 (ecr.tf) | READY | 17 service 신규 생성 |
 | docker-compose.prod.yml | READY | RDS/S3 endpoint 반영 |
-| init-rds.sql (16 DB) | READY | user_data.sh 자동 실행 |
+| init-rds.sql (15 DB) | READY | user_data.sh 자동 실행 (logging_db 제거 — logging-service 는 ES/RabbitMQ 전용) |
 | user_data.sh (17 service 기동) | READY | ECR pull + compose up |
 | **실 AWS 계정** | NOT-READY | 개발책임자 계정 직접 설정 |
 | **Route 53 Hosted Zone** | NOT-READY | terraform apply 또는 사전 생성 |
@@ -317,17 +317,16 @@ nslookup api.samhan-air.com 8.8.8.8
 ## 단계 6 — /actuator/health 전체 검증
 
 ```bash
-# ALB를 통한 api-gateway health check
+# ALB DNS HTTPS 헬스체크 (EC2 퍼블릭 IP 불필요 — private subnet + ALB 전면 아키텍처)
+ALB_DNS=$(terraform output -raw alb_dns_name)
+curl -fs "https://${ALB_DNS}/actuator/health" | python3 -m json.tool
+
+# DNS cutover 완료 후 도메인 직접 확인
 curl -fs https://api.samhan-air.com/actuator/health | python3 -m json.tool
 
-# EC2 직접 (임시 — DNS 전파 전)
-EC2_PUBLIC_IP=$(terraform output -raw ec2_public_ip)
-curl -fs "http://${EC2_PUBLIC_IP}:8080/actuator/health" | python3 -m json.tool
-
-# 아로로지스 직접 health check (api-gateway 우회)
-curl -fs "http://${EC2_PUBLIC_IP}:8097/actuator/health" | python3 -m json.tool
-
-# 17 service 전체 health check (SSM 세션 내부)
+# 17 service 전체 health check (SSM Session Manager 세션 내부 localhost curl)
+# EC2 에 퍼블릭 IP 없음 — SSM 으로 접속:
+#   aws ssm start-session --target <INSTANCE_ID> --region ap-northeast-2
 PORTS=(8080 8081 8082 8083 8084 8085 8086 8087 8088 8089 8091 8092 8093 8094 8095 8097)
 for port in "${PORTS[@]}"; do
   status=$(curl -s "http://localhost:${port}/actuator/health" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','N/A'))" 2>/dev/null || echo "FAILED")
@@ -390,6 +389,7 @@ aws rds restore-db-instance-to-point-in-time \
 | M-15 | .env.production 의 SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID 입력 | 단계 3 |
 | M-16 | RabbitMQ 운영 비밀번호 설정 (RABBIT_PASSWORD) | 단계 3 |
 | M-17 | route53.tf: 이미 Hosted Zone 존재 시 resource → data source 교체 | 단계 1 전 |
+| M-18 | ACM 에 `*.arologis.samhan-air.com` SAN 추가 + DNS 검증 + ALB HTTPS 리스너 `aws_lb_listener_certificate` 연결 | 단계 1 전 |
 
 ---
 

@@ -10,7 +10,7 @@ output "phase11_summary" {
     region           = var.aws_region
     environment      = var.environment
     ec2_instance_id  = aws_instance.app.id
-    ec2_public_ip    = aws_eip.app.public_ip
+    ec2_private_ip   = aws_instance.app.private_ip
     rds_endpoint     = aws_db_instance.main.address
     alb_dns          = aws_lb.main.dns_name
     api_url          = "https://api.${var.domain_name}"

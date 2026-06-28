@@ -57,12 +57,15 @@ x-spring-prod: &spring-prod
   SAMHAN_S3_PATH_STYLE_ACCESS: "false"
   SAMHAN_S3_PRESIGNED_EXPIRY: "300"
   AWS_DEFAULT_REGION: ${SAMHAN_AWS_REGION}
+  # us-east-1 fallback presigned 403 회피 — 전 서비스 명시 주입 (slip-service 포함)
+  SAMHAN_AWS_REGION: "ap-northeast-2"
 
 x-service-memory: &service-memory
   mem_limit: 1g
   mem_reservation: 512m
 
-# 공통 의존 (RabbitMQ + Elasticsearch + Eureka + ApiGateway)
+# 공통 의존 (RabbitMQ + Elasticsearch + Eureka)
+# api-gateway service_healthy 의존 제거: 기동 직렬화 7분+ 회피 — 각 서비스는 Eureka 등록 기반 라우팅
 # 단일 앵커 사용 — YAML 이중 << 머지 문제 회피 (Docker Compose Go YAML 파서 호환)
 x-app-depends: &app-depends
   rabbitmq:
@@ -70,8 +73,6 @@ x-app-depends: &app-depends
   elasticsearch:
     condition: service_healthy
   eureka-server:
-    condition: service_healthy
-  api-gateway:
     condition: service_healthy
 
 services:
@@ -323,8 +324,8 @@ services:
       SERVER_PORT: "8085"
       DB_NAME: inventory_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
-      # Phase 11: S3 IAM Role 기반 (endpoint 빈 값 → SDK 자동)
-      SAMHAN_INVENTORY_MINIO_ENABLED: "true"
+      # Phase 11 초기: Noop fallback (crash loop 회피). 실 S3 검증 후 "true" + endpoint 빈값으로 전환
+      SAMHAN_INVENTORY_MINIO_ENABLED: "false"
       SAMHAN_INVENTORY_MINIO_ENDPOINT: ""
       SAMHAN_INVENTORY_MINIO_BUCKET: samhan-attachments
     ports:
@@ -601,6 +602,8 @@ services:
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       # Phase 11: skeleton mode 비활성 (실 endpoint 응답 파싱 가용)
       SAMHAN_DASHBOARD_CLIENT_SKELETON_MODE: "false"
+      # Phase 11 초기: 팝업공지 MinIO Noop fallback (crash loop 회피). 실 S3 검증 후 "true" 전환
+      SAMHAN_NOTICE_MINIO_ENABLED: "false"
     ports:
       - "127.0.0.1:8094:8094"
     depends_on:

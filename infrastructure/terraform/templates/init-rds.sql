@@ -2,7 +2,8 @@
 -- user_data.sh 최초 부팅 시 psql 로 실행됨.
 -- Owner: samhan (RDS master user)
 --
--- 17 service 대응 16 DB 생성 (logging-service 는 ES/RabbitMQ 전용, PostgreSQL 불필요).
+-- 17 service 대응 15 DB 생성.
+-- logging-service: ES + RabbitMQ 전용 (PostgreSQL 미사용) → logging_db 제외.
 -- 기존 infrastructure/postgres/init/01-create-databases.sql + 02-extensions.sql 통합.
 --
 -- 실행 방법 (EC2 user_data.sh 내부):
@@ -10,11 +11,11 @@
 --
 -- 주의: \c 명령은 psql 전용 메타커맨드. psql 로만 실행할 것.
 
--- ─── 16 DB 생성 ───────────────────────────────────────────────────────────────
+-- ─── 15 DB 생성 (logging_db 제외) ────────────────────────────────────────────
 
 -- Phase 1~4 핵심 서비스
 CREATE DATABASE auth_db          OWNER samhan;
-CREATE DATABASE logging_db       OWNER samhan;
+-- logging_db 제외: logging-service 는 Elasticsearch + RabbitMQ 전용, PostgreSQL 미사용
 CREATE DATABASE user_db          OWNER samhan;
 CREATE DATABASE product_db       OWNER samhan;
 CREATE DATABASE inventory_db     OWNER samhan;
@@ -43,10 +44,6 @@ CREATE DATABASE migration_db     OWNER samhan;
 -- pgcrypto : 컬럼 수준 암호화
 
 \c auth_db
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-\c logging_db
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

@@ -23,6 +23,8 @@ echo "=== SamhanLogis Phase 11 EC2 초기화 시작 $(date) ==="
 # ─── 1. 시스템 업데이트 ──────────────────────────────────────────────────────
 echo "[1/7] 시스템 업데이트 + KST 타임존 설정"
 timedatectl set-timezone Asia/Seoul || true
+# monitoring.tf CloudWatch Agent host dimension 일치 (mem/disk 알람 연동)
+hostnamectl set-hostname "${project_name}-${environment}-app-server"
 dnf update -y
 
 # PostgreSQL 클라이언트 (RDS 초기화용 psql)
@@ -106,11 +108,14 @@ RDS_ENDPOINT="${rds_endpoint}"
 RDS_USERNAME="${rds_username}"
 PROJECT_NAME="${project_name}"
 
-# Secrets Manager 에서 비밀값 조회
+# Secrets Manager 에서 비밀값 조회 (실패 시 fail-fast — || fallback 없음, RDS 비밀번호는 SM 전용)
 DB_PASSWORD=$(aws secretsmanager get-secret-value \
     --secret-id samhan/production/db-password \
     --query SecretString --output text \
-    --region "$AWS_REGION" 2>/dev/null || echo "${rds_password}")
+    --region "$AWS_REGION") || {
+    echo "[FATAL] Secrets Manager samhan/production/db-password 조회 실패 — 스크립트를 중단합니다." >&2
+    exit 1
+}
 
 JWT_SECRET=$(aws secretsmanager get-secret-value \
     --secret-id samhan/production/jwt-secret \
@@ -251,41 +256,26 @@ chmod 600 /opt/samhanlogis/.env.production
 echo "[4/7] .env.production 생성 완료"
 
 # ─── 5. RDS 16 DB 초기화 ─────────────────────────────────────────────────────
-echo "[5/7] RDS 16 DB 초기화"
+echo "[5/7] RDS DB 초기화"
 
-# init-rds.sql S3 다운로드 또는 인라인 실행
-# 방법 A (권장): S3 에서 다운로드
+# init-rds.sql S3 다운로드 (실패 시 fail-fast)
+# - MySQL 호환 인라인 폴백 제거: PostgreSQL 은 CREATE DATABASE IF NOT EXISTS 미지원
+# - user_data 로그는 CloudWatch /samhanlogis/production/user-data 로 실시간 전송됨
+# - S3 업로드 선행 필수: CUTOVER.md 단계 3-A 참조
 aws s3 cp "s3://samhan-attachments/deploy/init-rds.sql" /tmp/init-rds.sql \
-    --region "$AWS_REGION" 2>/dev/null || true
+    --region "$AWS_REGION" || {
+    echo "[FATAL] init-rds.sql S3 다운로드 실패 — 스크립트를 중단합니다." >&2
+    exit 1
+}
 
-# 방법 B (fallback): 인라인 CREATE DATABASE
-if [ ! -f /tmp/init-rds.sql ]; then
-cat > /tmp/init-rds.sql << 'INITSQL'
-CREATE DATABASE IF NOT EXISTS auth_db          ;
-CREATE DATABASE IF NOT EXISTS logging_db       ;
-CREATE DATABASE IF NOT EXISTS user_db          ;
-CREATE DATABASE IF NOT EXISTS product_db       ;
-CREATE DATABASE IF NOT EXISTS inventory_db     ;
-CREATE DATABASE IF NOT EXISTS slip_db          ;
-CREATE DATABASE IF NOT EXISTS accounting_db    ;
-CREATE DATABASE IF NOT EXISTS partner_auth_db  ;
-CREATE DATABASE IF NOT EXISTS dc_config_db     ;
-CREATE DATABASE IF NOT EXISTS partner_order_db ;
-CREATE DATABASE IF NOT EXISTS partner_db       ;
-CREATE DATABASE IF NOT EXISTS groupware_db     ;
-CREATE DATABASE IF NOT EXISTS notification_db  ;
-CREATE DATABASE IF NOT EXISTS dashboard_db     ;
-CREATE DATABASE IF NOT EXISTS arologis_db      ;
-CREATE DATABASE IF NOT EXISTS migration_db     ;
-INITSQL
-fi
-
-# psql 로 DB 생성 (CREATE DATABASE IF NOT EXISTS 는 PG 미지원 → 오류 무시)
+# psql RDS DB 초기화
+# ON_ERROR_STOP=off 기본값: 기존 DB already-exists 오류 발생 시 psql 계속 실행 후 종료코드 0
+# 접속 실패(잘못된 엔드포인트/비밀번호) 시 psql 종료코드 비-0 → set -e 로 스크립트 중단
 PGPASSWORD="$DB_PASSWORD" psql \
     -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d postgres \
-    -f /tmp/init-rds.sql 2>&1 | grep -v "already exists" || true
+    -f /tmp/init-rds.sql
 
-echo "[5/7] RDS DB 초기화 완료 (기존 DB 오류 무시됨)"
+echo "[5/7] RDS DB 초기화 완료"
 
 # ─── 6. docker-compose.prod.yml S3 다운로드 ──────────────────────────────────
 echo "[6/7] docker-compose.prod.yml 다운로드"
