@@ -33,9 +33,27 @@ IaC는 머지·validate 통과. 회사 PC(AWS 계정 보유):
 3. `terraform apply` → `CUTOVER.md` 단계 0~6 이식
 4. 수동 18항목(M-1~18: AWS 계정·Secrets Manager 시크릿 7종·SSH키·S3 backend·도메인 hosted zone 위임·ACM `*.arologis` SAN·로컬 PG→RDS 이관) — CUTOVER.md 기재, 선행 필수
 
-## 🚧 백로그 (개발책임자 착수 확인 필요)
-- **OCR → GAS-direct 주문서 전송** — OCR 삭제 후속(레거시 GAS 패턴 재사용). 개발책임자 계획.
-- **Phase 11 AWS 실 cutover** — #660 머지·terraform validate 완료. 회사 PC 실 자격 `terraform apply` + 수동 18항목(CUTOVER.md) 후 운영.
+## 🚧 잔여 백로그 (2026-06-29 전수 검증 — 회사 PC 인계)
+
+> 4소스(열린 이슈·OPEN-ITEMS·메모리·코드) 교차 검증. OPEN-ITEMS-2026-06-19 후속 슬라이스는 대부분 완료(재고조회 모달·§7 collab·메뉴 5분류·estimate SPEC_DETAIL_MAP·기초↔견적 분리 등 — 메모리 ✅).
+
+### A. 즉시 착수 가능 (tracked 이슈)
+- **#587** inventory + 전 서비스 public 엔드포인트 X-Internal-Token 403 갭 audit (AccountingClient 미fix·SlipClient는 #586 완료, 계약테스트 mock false-green). 규모 M.
+- **#531** RestClient 실-HTTP 계약테스트 커버리지 갭 (H위험: inventory AccountingClient/SlipClient·accounting ProductClient NO-TEST. 패턴 `ProductAliasClientTest`). 규모 L.
+- **Phase 11 AWS 실 cutover** — #660 머지·terraform validate 통과. 회사 PC 실 자격 `terraform apply` + 수동 18항목(CUTOVER.md).
+
+### B. 개발책임자 결정 대기 (정책 gate — 착수 전 결정 필요)
+- **OCR → GAS-direct 주문서 전송** — OCR 삭제 후속(레거시 GAS 패턴 재사용).
+- **멀티 세트 동적가격(#19)** — 상업멀티 구성품 합산 동적화 시 견적금액 변동 go/no-go.
+- **결재 self-accept 정책** — 제안자=결정자 분리 강제 여부(신규 업무규칙).
+- **슬립 soft-delete 복원 정책** — full vs 부분 restore.
+- **전표/주문 ON_HOLD(보류) 추가** — 보류 상태 + 리스트 필터(별도 슬라이스).
+
+### C. 후속/minor (비차단)
+- **세금계산서 FE 다운로드 wiring 점검** — BE 완비(엑셀/홈택스 방식), FE 연결만 확인.
+- **collab presence 나머지 5문서** — 배차만 완료(slc6), 회계/주문/견적/그룹웨어 미구현.
+- **A2-G2 GROUP 비-admin 그룹명 lookup** — 현재 구조 라벨 폴백.
+- **외부연동 실 API(NTS·KFTC DRY_RUN stub → 실)** — Phase 11 cutover 후.
 
 ## 완료된 큰 흐름 (이번 야간 자율 세션)
 - ✅ A2 그룹웨어 결재 일원화 에픽(task#24) 완결 — A2-G1 BE + A2-G2 FE 표준 워크플로우(순차 듀얼리뷰·0수렴) 머지.
