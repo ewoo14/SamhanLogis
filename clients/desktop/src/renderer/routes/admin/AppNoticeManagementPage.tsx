@@ -80,19 +80,34 @@ function sortedImages(images: AppNoticeImage[]): AppNoticeImage[] {
   return [...images].sort((a, b) => a.displayOrder - b.displayOrder)
 }
 
-function imageOnlyFiles(files: FileList | File[]): File[] {
-  return Array.from(files).filter((file) => file.type.startsWith('image/'))
+const MAX_UPLOAD_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+
+function selectImageFiles(files: FileList | File[]): { accepted: File[]; rejectedReasons: string[] } {
+  const accepted: File[] = []
+  const rejectedReasons: string[] = []
+  Array.from(files).forEach((file) => {
+    if (!file.type.startsWith('image/')) {
+      rejectedReasons.push(`${file.name}: 이미지 파일만 업로드할 수 있습니다.`)
+      return
+    }
+    if (file.size > MAX_UPLOAD_IMAGE_SIZE_BYTES) {
+      rejectedReasons.push(`${file.name}: 5MB 이하 이미지만 업로드할 수 있습니다.`)
+      return
+    }
+    accepted.push(file)
+  })
+  return { accepted, rejectedReasons }
 }
 
-function imageFileName(imageUrl: string): string {
-  try {
-    const url = new URL(imageUrl)
-    const fileName = url.pathname.split('/').filter(Boolean).at(-1)
-    return fileName ? decodeURIComponent(fileName).split(/[?#&]/)[0] || fileName : '파일명 없음'
-  } catch {
-    const fileName = imageUrl.split('/').filter(Boolean).at(-1)
-    return fileName ? decodeURIComponent(fileName).split(/[?#&]/)[0] || fileName : '파일명 없음'
+function displayImageFileName(image: AppNoticeImage): string {
+  return image.fileName?.trim() || '파일명 없음'
+}
+
+function uploadRejectMessage(rejectedReasons: string[]): string {
+  if (rejectedReasons.length === 1) {
+    return rejectedReasons[0] ?? '이미지를 선택할 수 없습니다.'
   }
+  return `선택하지 않은 파일이 있습니다. ${rejectedReasons.join(' ')}`
 }
 
 export function AppNoticeManagementPage() {
@@ -228,12 +243,20 @@ export function AppNoticeManagementPage() {
   }
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    setUploadFiles(imageOnlyFiles(event.target.files ?? []))
+    const { accepted, rejectedReasons } = selectImageFiles(event.target.files ?? [])
+    setUploadFiles(accepted)
+    if (rejectedReasons.length > 0) {
+      setToast({ type: 'error', message: uploadRejectMessage(rejectedReasons) })
+    }
   }
 
   const handleDropFiles = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
-    setUploadFiles(imageOnlyFiles(event.dataTransfer.files))
+    const { accepted, rejectedReasons } = selectImageFiles(event.dataTransfer.files)
+    setUploadFiles(accepted)
+    if (rejectedReasons.length > 0) {
+      setToast({ type: 'error', message: uploadRejectMessage(rejectedReasons) })
+    }
   }
 
   const handleImageDrop = (targetId: string) => {
@@ -394,7 +417,7 @@ export function AppNoticeManagementPage() {
             <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
               닫기
             </Button>
-            <Button type="submit" disabled={!canUpdate && Boolean(editing)} loading={saveMutation.isPending}>
+            <Button type="submit" disabled={editing ? !canUpdate : !canCreate} loading={saveMutation.isPending}>
               저장
             </Button>
           </div>
@@ -449,7 +472,7 @@ export function AppNoticeManagementPage() {
                   <img className={styles.thumb} src={image.imageUrl} alt={image.caption ?? currentEditing.title} />
                   <div className={styles.imageMeta}>
                     <strong>{image.caption ?? '캡션 없음'}</strong>
-                    <span>{image.displayOrder} · {imageFileName(image.imageUrl)}</span>
+                    <span>{image.displayOrder} · {displayImageFileName(image)}</span>
                   </div>
                   <Button
                     type="button"

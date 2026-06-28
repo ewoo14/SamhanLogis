@@ -7,6 +7,7 @@ import java.util.UUID;
 public record AppNoticeAdminImageResponse(
         UUID id,
         String imageUrl,
+        String fileName,
         int displayOrder,
         String caption) {
 
@@ -14,6 +15,7 @@ public record AppNoticeAdminImageResponse(
         return new AppNoticeAdminImageResponse(
                 image.getId(),
                 imageUrl,
+                image.getOriginalFileName(),
                 image.getDisplayOrder(),
                 image.getCaption());
     }

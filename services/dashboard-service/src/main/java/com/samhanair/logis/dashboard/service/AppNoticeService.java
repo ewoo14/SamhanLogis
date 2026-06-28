@@ -13,8 +13,8 @@ import com.samhanair.logis.dashboard.dto.AppNoticeResponse;
 import com.samhanair.logis.dashboard.repository.AppNoticeImageRepository;
 import com.samhanair.logis.dashboard.repository.AppNoticeRepository;
 import com.samhanair.logis.dashboard.storage.AppNoticeImageStorage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Collections;
@@ -112,18 +112,19 @@ public class AppNoticeService {
             MultipartFile file,
             Integer displayOrder,
             String caption) {
-        validateImage(file);
+        ValidatedImage validatedImage = validateImage(file);
         AppNotice notice = findNotice(noticeId);
         String fileName = sanitizeFileName(file.getOriginalFilename());
         String storageKey = buildStorageKey(notice.getId(), fileName);
-        try (InputStream in = file.getInputStream()) {
-            storage.upload(storageKey, file.getContentType(), file.getSize(), in);
-        } catch (IOException ex) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "공지 이미지 업로드 실패: " + ex.getMessage());
-        }
+        storage.upload(
+                storageKey,
+                validatedImage.contentType(),
+                validatedImage.bytes().length,
+                new ByteArrayInputStream(validatedImage.bytes()));
         AppNoticeImage image = imageRepository.save(AppNoticeImage.create(
                 notice.getId(),
                 storageKey,
+                fileName,
                 displayOrder == null ? nextDisplayOrder(notice.getId()) : displayOrder,
                 caption));
         return toAdminImageResponse(image);
@@ -208,7 +209,7 @@ public class AppNoticeService {
                 .orElse(0) + 1;
     }
 
-    private void validateImage(MultipartFile file) {
+    private ValidatedImage validateImage(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일이 비어 있습니다.");
         }
@@ -216,16 +217,41 @@ public class AppNoticeService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일은 최대 5MB까지 허용됩니다.");
         }
         String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType.toLowerCase())) {
+        String normalizedContentType = contentType == null ? "" : contentType.toLowerCase();
+        if (!ALLOWED_IMAGE_TYPES.contains(normalizedContentType)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "허용되지 않은 이미지 형식입니다.");
         }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "공지 이미지 읽기 실패: " + ex.getMessage());
+        }
+        if (bytes.length == 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일이 비어 있습니다.");
+        }
+        if (bytes.length > MAX_IMAGE_SIZE_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지 파일은 최대 5MB까지 허용됩니다.");
+        }
+        ImageType detectedType = detectImageType(bytes);
+        if (detectedType == null || !detectedType.matches(normalizedContentType)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "허용되지 않은 이미지 형식입니다.");
+        }
+        return new ValidatedImage(bytes, detectedType.storageContentType());
     }
 
     private String sanitizeFileName(String original) {
         if (original == null || original.isBlank()) {
             return "untitled";
         }
-        return original.replace("/", "_").replace("\\", "_");
+        String sanitized = original.replace("/", "_").replace("\\", "_").trim();
+        if (sanitized.isBlank()) {
+            return "untitled";
+        }
+        if (sanitized.length() > 255) {
+            return sanitized.substring(sanitized.length() - 255);
+        }
+        return sanitized;
     }
 
     private String buildStorageKey(UUID noticeId, String fileName) {
@@ -239,5 +265,66 @@ public class AppNoticeService {
             return "";
         }
         return fileName.substring(idx).toLowerCase();
+    }
+
+    private ImageType detectImageType(byte[] bytes) {
+        if (bytes.length >= 3
+                && (bytes[0] & 0xFF) == 0xFF
+                && (bytes[1] & 0xFF) == 0xD8
+                && (bytes[2] & 0xFF) == 0xFF) {
+            return ImageType.JPEG;
+        }
+        if (bytes.length >= 4
+                && (bytes[0] & 0xFF) == 0x89
+                && bytes[1] == 0x50
+                && bytes[2] == 0x4E
+                && bytes[3] == 0x47) {
+            return ImageType.PNG;
+        }
+        if (bytes.length >= 4
+                && bytes[0] == 0x47
+                && bytes[1] == 0x49
+                && bytes[2] == 0x46
+                && bytes[3] == 0x38) {
+            return ImageType.GIF;
+        }
+        if (bytes.length >= 12
+                && bytes[0] == 0x52
+                && bytes[1] == 0x49
+                && bytes[2] == 0x46
+                && bytes[3] == 0x46
+                && bytes[8] == 0x57
+                && bytes[9] == 0x45
+                && bytes[10] == 0x42
+                && bytes[11] == 0x50) {
+            return ImageType.WEBP;
+        }
+        return null;
+    }
+
+    private record ValidatedImage(byte[] bytes, String contentType) {
+    }
+
+    private enum ImageType {
+        JPEG("image/jpeg", Set.of("image/jpeg", "image/jpg")),
+        PNG("image/png", Set.of("image/png")),
+        GIF("image/gif", Set.of("image/gif")),
+        WEBP("image/webp", Set.of("image/webp"));
+
+        private final String storageContentType;
+        private final Set<String> contentTypes;
+
+        ImageType(String storageContentType, Set<String> contentTypes) {
+            this.storageContentType = storageContentType;
+            this.contentTypes = contentTypes;
+        }
+
+        private boolean matches(String contentType) {
+            return contentTypes.contains(contentType);
+        }
+
+        private String storageContentType() {
+            return storageContentType;
+        }
     }
 }

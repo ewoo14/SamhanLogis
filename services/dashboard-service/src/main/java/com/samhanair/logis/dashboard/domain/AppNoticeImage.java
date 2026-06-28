@@ -37,32 +37,55 @@ public class AppNoticeImage extends BaseEntity {
     @Column(name = "image_key", nullable = false, length = 500)
     private String imageKey;
 
+    @Column(name = "original_file_name", nullable = false, length = 255)
+    private String originalFileName;
+
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
     @Column(name = "caption", columnDefinition = "TEXT")
     private String caption;
 
-    private AppNoticeImage(UUID noticeId, String imageKey, int displayOrder, String caption) {
+    private AppNoticeImage(
+            UUID noticeId,
+            String imageKey,
+            String originalFileName,
+            int displayOrder,
+            String caption) {
         if (noticeId == null) {
             throw new IllegalArgumentException("noticeId 필수");
         }
         if (imageKey == null || imageKey.isBlank()) {
             throw new IllegalArgumentException("imageKey 필수");
         }
+        if (originalFileName == null || originalFileName.isBlank()) {
+            throw new IllegalArgumentException("originalFileName 필수");
+        }
+        if (originalFileName.length() > 255) {
+            throw new IllegalArgumentException("originalFileName 은 255자를 초과할 수 없습니다.");
+        }
         this.noticeId = noticeId;
         this.imageKey = imageKey;
+        this.originalFileName = originalFileName.trim();
         reorder(displayOrder);
         renameCaption(caption);
     }
 
     /** 신규 이미지 메타 생성. */
-    public static AppNoticeImage create(UUID noticeId, String imageKey, int displayOrder, String caption) {
-        return new AppNoticeImage(noticeId, imageKey, displayOrder, caption);
+    public static AppNoticeImage create(
+            UUID noticeId,
+            String imageKey,
+            String originalFileName,
+            int displayOrder,
+            String caption) {
+        return new AppNoticeImage(noticeId, imageKey, originalFileName, displayOrder, caption);
     }
 
     /** 이미지 표시 순서 변경. */
     public AppNoticeImage reorder(int displayOrder) {
+        if (displayOrder < 0) {
+            throw new IllegalArgumentException("displayOrder 는 0 이상이어야 합니다.");
+        }
         this.displayOrder = displayOrder;
         return this;
     }

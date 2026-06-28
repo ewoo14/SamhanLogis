@@ -102,6 +102,9 @@ public class AppNotice extends BaseEntity {
         if (startAt.isAfter(endAt)) {
             throw new IllegalArgumentException("게시 시작일시는 종료일시보다 늦을 수 없습니다.");
         }
+        if (displayOrder < 0) {
+            throw new IllegalArgumentException("displayOrder 는 0 이상이어야 합니다.");
+        }
         this.title = title.trim();
         this.active = active;
         this.startAt = startAt;

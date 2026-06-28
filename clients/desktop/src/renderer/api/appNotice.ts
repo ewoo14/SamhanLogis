@@ -3,6 +3,7 @@ import { apiClient, type ApiEnvelope } from './client'
 export interface AppNoticeImage {
   id: string
   imageUrl: string
+  fileName: string
   displayOrder: number
   caption: string | null
 }

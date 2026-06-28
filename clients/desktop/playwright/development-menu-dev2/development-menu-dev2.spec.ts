@@ -73,7 +73,7 @@ test.describe('DEV-2 개발 메뉴 팝업공지', () => {
     await page.getByLabel('이미지 캡션').fill('Playwright 배너')
     await page.getByTestId('app-notice-image-upload').click()
     await expect(page.getByTestId('app-notice-image-list')).toContainText('Playwright 배너')
-    await expect(page.getByTestId('app-notice-image-list')).toContainText('ffffff.png')
+    await expect(page.getByTestId('app-notice-image-list')).toContainText('notice.png')
     await expect(page.getByTestId('app-notice-image-list')).not.toContainText('app-notices/')
 
     await page.getByTestId('app-notice-title').fill(`${title} 수정`)

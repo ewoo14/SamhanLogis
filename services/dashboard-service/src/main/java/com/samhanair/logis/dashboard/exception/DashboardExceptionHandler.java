@@ -3,8 +3,10 @@ package com.samhanair.logis.dashboard.exception;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -12,7 +14,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * dashboard-service 도메인 예외 → {@link ApiResponse} 봉투 매핑.
@@ -38,6 +42,31 @@ public class DashboardExceptionHandler {
                 .orElse("입력값이 유효하지 않습니다");
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
+    }
+
+    /** Bean Validation 요소/파라미터 제약 위반 → 400 INVALID_INPUT. */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
+        String msg = ex.getConstraintViolations().stream()
+                .findFirst()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .orElse("입력값이 유효하지 않습니다");
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, msg));
+    }
+
+    /** Spring 6 handler method validation 실패 → 400 INVALID_INPUT. */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandlerMethodValidation(HandlerMethodValidationException ex) {
+        return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "입력값이 유효하지 않습니다"));
+    }
+
+    /** multipart 크기 초과 → 413 INVALID_INPUT. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "업로드 파일 크기가 허용 한도를 초과했습니다."));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

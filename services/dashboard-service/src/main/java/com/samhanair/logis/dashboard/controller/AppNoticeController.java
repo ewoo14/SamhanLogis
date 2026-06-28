@@ -11,9 +11,11 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 /** 앱 팝업공지 조회 및 admin CRUD endpoint. */
 @RestController
 @RequiredArgsConstructor
+@Validated
 public class AppNoticeController {
 
     static final String PAGE_CODE = "dev.popup-notice";
@@ -86,7 +89,7 @@ public class AppNoticeController {
     public ApiResponse<AppNoticeAdminImageResponse> uploadImage(
             @PathVariable UUID id,
             @RequestPart("file") MultipartFile file,
-            @RequestParam(required = false) Integer displayOrder,
+            @PositiveOrZero @RequestParam(required = false) Integer displayOrder,
             @RequestParam(required = false) String caption) {
         return ApiResponse.ok(service.uploadImage(id, file, displayOrder, caption));
     }
@@ -97,7 +100,7 @@ public class AppNoticeController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<List<AppNoticeAdminImageResponse>> reorderImages(
             @PathVariable UUID id,
-            @Valid @RequestBody List<AppNoticeImageOrderRequest> orders) {
+            @Valid @RequestBody List<@Valid AppNoticeImageOrderRequest> orders) {
         return ApiResponse.ok(service.reorderImages(id, orders));
     }
 

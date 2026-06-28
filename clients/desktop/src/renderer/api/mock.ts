@@ -132,6 +132,7 @@ type MockAppRelease = {
 type MockAppNoticeImage = {
   id: string
   imageUrl: string
+  fileName: string
   displayOrder: number
   caption: string | null
 }
@@ -206,12 +207,14 @@ let MOCK_APP_NOTICES: MockAppNotice[] = [
       {
         id: mockAppNoticeImageId(1),
         imageUrl: 'https://dummyimage.com/900x520/134e4a/ffffff.png&text=Samhan+Public+Notice',
+        fileName: 'samhan-public-notice.png',
         displayOrder: 1,
         caption: '개발 그룹에서 팝업공지와 버전 관리를 확인할 수 있습니다.',
       },
       {
         id: mockAppNoticeImageId(2),
         imageUrl: 'https://dummyimage.com/900x520/f2f5f4/134e4a.png&text=Popup+Notice',
+        fileName: 'popup-notice.png',
         displayOrder: 2,
         caption: '다시 보지 않기는 공지별로 저장됩니다.',
       },
@@ -2028,6 +2031,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const image: MockAppNoticeImage = {
       id: mockAppNoticeImageId(mockAppNoticeImageSeq),
       imageUrl: `https://dummyimage.com/900x520/1f6f66/ffffff.png&text=${encodeURIComponent(fileName)}`,
+      fileName,
       displayOrder,
       caption,
     }

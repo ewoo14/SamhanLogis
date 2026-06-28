@@ -5,6 +5,10 @@ server:
 spring:
   application:
     name: dashboard-service
+  servlet:
+    multipart:
+      max-file-size: 6MB
+      max-request-size: 8MB
   datasource:
     # 시크릿 placeholder — DB 자격증명은 반드시 환경변수로 주입.
     # default 값은 로컬 docker-compose 와의 호환을 위한 자리 표시자이며 실제 환경에서는 override 필수.

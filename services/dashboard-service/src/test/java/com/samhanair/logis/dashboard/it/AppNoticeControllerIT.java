@@ -3,6 +3,7 @@ package com.samhanair.logis.dashboard.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -22,6 +23,7 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +45,9 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
 
     private static final String ACCOUNT_ID = "00000000-0000-0000-0000-000000000501";
     private static final String PAGE_CODE = "dev.popup-notice";
+    private static final String NOOP_NOTICE_IMAGE_URL = "about:blank#app-notice-noop";
+    private static final byte[] ONE_PIXEL_PNG = Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=");
 
     @Autowired
     private MockMvc mockMvc;
@@ -93,10 +98,16 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].title").value("게시 중"))
                 .andExpect(jsonPath("$.data[0].images[0].caption").value("첫번째"))
                 .andExpect(jsonPath("$.data[0].images[0].displayOrder").value(1))
-                .andExpect(jsonPath("$.data[0].images[0].imageUrl").value("noop://app-notices/" + activeId + "/a.png"))
+                .andExpect(jsonPath("$.data[0].images[0].imageUrl").value(NOOP_NOTICE_IMAGE_URL))
                 .andExpect(jsonPath("$.data[0].images[0].id").doesNotExist())
                 .andExpect(jsonPath("$.data[0].images[0].imageKey").doesNotExist())
+                .andExpect(jsonPath("$.data[0].images[0].fileName").doesNotExist())
                 .andExpect(jsonPath("$.data[0].images[1].caption").value("두번째"));
+        assertThat(mockMvc.perform(withActor(get("/app/notices/active")))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8))
+                .doesNotContain("app-notices/");
     }
 
     @Test
@@ -154,8 +165,8 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
         assertThat(deletedRows).isEqualTo(1);
 
         when(dynamicPermissionClient.check(any(UUID.class),
-                org.mockito.ArgumentMatchers.eq(PAGE_CODE),
-                org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE))).thenReturn(false);
+                eq(PAGE_CODE),
+                eq(PermissionAction.CREATE))).thenReturn(false);
         mockMvc.perform(withActor(post("/app/notices")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody)))
@@ -171,7 +182,7 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                 "file",
                 "banner.png",
                 "image/png",
-                "png-bytes".getBytes(StandardCharsets.UTF_8));
+                ONE_PIXEL_PNG);
 
         String imageId = mockMvc.perform(withActor(multipart("/app/notices/{id}/images", noticeId)
                         .file(file)
@@ -181,8 +192,9 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.caption").value("배너"))
                 .andExpect(jsonPath("$.data.id").exists())
                 .andExpect(jsonPath("$.data.imageKey").doesNotExist())
+                .andExpect(jsonPath("$.data.fileName").value("banner.png"))
                 .andExpect(jsonPath("$.data.displayOrder").value(5))
-                .andExpect(jsonPath("$.data.imageUrl").exists())
+                .andExpect(jsonPath("$.data.imageUrl").value(NOOP_NOTICE_IMAGE_URL))
                 .andReturn()
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8)
@@ -194,12 +206,14 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value(imageId))
                 .andExpect(jsonPath("$.data[0].imageKey").doesNotExist())
+                .andExpect(jsonPath("$.data[0].fileName").value("banner.png"))
                 .andExpect(jsonPath("$.data[0].displayOrder").value(1));
 
         mockMvc.perform(withActor(get("/app/notices")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].images[0].id").value(imageId))
-                .andExpect(jsonPath("$.data[0].images[0].imageKey").doesNotExist());
+                .andExpect(jsonPath("$.data[0].images[0].imageKey").doesNotExist())
+                .andExpect(jsonPath("$.data[0].images[0].fileName").value("banner.png"));
 
         mockMvc.perform(withActor(delete("/app/notices/{noticeId}/images/{imageId}", noticeId, imageId)))
                 .andExpect(status().isOk());
@@ -209,6 +223,53 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
                 Integer.class,
                 imageId);
         assertThat(deletedRows).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("admin 팝업공지 권한 거부는 VIEW/UPDATE/DELETE 및 이미지 action별로 403을 반환한다")
+    void adminPermissionDenied_returnsForbiddenByAction() throws Exception {
+        String noticeId = insertNotice("권한 공지", true,
+                "2026-06-28 00:00:00", "2026-06-29 00:00:00", 1);
+        String imageId = insertImage(noticeId, "app-notices/" + noticeId + "/deny.png", 1, "거부");
+        String updateBody = """
+                {
+                  "title": "권한 공지 수정",
+                  "isActive": true,
+                  "startAt": "2026-06-28T09:00:00",
+                  "endAt": "2026-06-29T18:00:00",
+                  "displayOrder": 1
+                }
+                """;
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "deny.png",
+                "image/png",
+                ONE_PIXEL_PNG);
+
+        when(dynamicPermissionClient.check(any(UUID.class), eq(PAGE_CODE), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+        mockMvc.perform(withActor(get("/app/notices")))
+                .andExpect(status().isForbidden());
+
+        when(dynamicPermissionClient.check(any(UUID.class), eq(PAGE_CODE), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        mockMvc.perform(withActor(put("/app/notices/{id}", noticeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(withActor(multipart("/app/notices/{id}/images", noticeId).file(file)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(withActor(put("/app/notices/{noticeId}/images/order", noticeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"id\":\"" + imageId + "\",\"displayOrder\":1}]")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(withActor(delete("/app/notices/{noticeId}/images/{imageId}", noticeId, imageId)))
+                .andExpect(status().isForbidden());
+
+        when(dynamicPermissionClient.check(any(UUID.class), eq(PAGE_CODE), eq(PermissionAction.DELETE)))
+                .thenReturn(false);
+        mockMvc.perform(withActor(delete("/app/notices/{id}", noticeId)))
+                .andExpect(status().isForbidden());
     }
 
     private String insertNotice(String title, boolean active, String startAt, String endAt, int displayOrder) {
@@ -223,14 +284,16 @@ class AppNoticeControllerIT extends AbstractPostgresIT {
         return id.toString();
     }
 
-    private void insertImage(String noticeId, String imageKey, int displayOrder, String caption) {
+    private String insertImage(String noticeId, String imageKey, int displayOrder, String caption) {
+        UUID id = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO app_notice_image
-                    (id, notice_id, image_key, display_order, caption,
+                    (id, notice_id, image_key, original_file_name, display_order, caption,
                      created_at, created_by, modified_at, modified_by, is_deleted)
-                VALUES (?::uuid, ?::uuid, ?, ?, ?,
+                VALUES (?::uuid, ?::uuid, ?, ?, ?, ?,
                         NOW(), 'it', NOW(), 'it', FALSE)
-                """, UUID.randomUUID(), noticeId, imageKey, displayOrder, caption);
+                """, id, noticeId, imageKey, "notice.png", displayOrder, caption);
+        return id.toString();
     }
 
     private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder withActor(
