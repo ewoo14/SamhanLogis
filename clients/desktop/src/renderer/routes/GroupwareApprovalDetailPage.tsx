@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   DataTable,
+  FormField,
   Spinner,
   type DataTableColumn,
 } from '@samhan/design-system'
@@ -38,7 +39,8 @@ import {
   type ApprovalStatus,
   type ApprovalStepView,
 } from '../api/groupwareApproval'
-import { fetchApprovalLineGroups } from '../api/approvalLineConfigApi'
+// P1-C: fetchApprovalLineGroups(/auth/admin/approval-line-configs/groups) 제거 — 비-admin 페이지에서 admin 호출 차단.
+// ApprovalStepView.approverGroupId → resolveApprovalStepDisplayName 에서 '권한그룹' 폴백으로 처리.
 import { getApprovalTemplate, type ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import { GroupwareApprovalCollaborationPanel } from '../components/collab/GroupwareApprovalCollaborationPanel'
 import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
@@ -218,18 +220,11 @@ export function GroupwareApprovalDetailPage() {
     enabled: !!approvalId,
   })
 
-  const groupsQuery = useQuery({
-    queryKey: ['admin', 'approval-line-config', 'groups'],
-    queryFn: fetchApprovalLineGroups,
-    staleTime: 60_000,
-  })
-
   usePageTitle('결재 상세', query.data?.approvalNo)
 
-  const groupNameById = useMemo(
-    () => new Map((groupsQuery.data ?? []).map((group) => [group.id, group.name])),
-    [groupsQuery.data],
-  )
+  // P1-C: admin /auth/admin/approval-line-configs/groups 제거.
+  // GROUP 단계는 resolveApprovalStepDisplayName 내 '권한그룹' 폴백으로 표시.
+  const groupNameById = useMemo(() => new Map<string, string>(), [])
   const requesterIdForSteps = query.data?.requesterId ?? ''
 
   const stepColumns: DataTableColumn<ApprovalStepView>[] = useMemo(() => [
@@ -686,15 +681,21 @@ export function GroupwareApprovalDetailPage() {
                     </Button>
                   </div>
                 ) : null}
-                <input
-                  type="file"
-                  aria-label="결재 첨부 파일"
-                  multiple
-                  onChange={(event) => {
-                    const files = Array.from(event.target.files ?? [])
-                    if (files.length > 0) uploadFileMutation.mutate(files)
-                    event.currentTarget.value = ''
-                  }}
+                <FormField
+                  label="파일 첨부"
+                  render={({ id, ariaDescribedBy }) => (
+                    <input
+                      id={id}
+                      type="file"
+                      multiple
+                      aria-describedby={ariaDescribedBy}
+                      onChange={(event) => {
+                        const files = Array.from(event.target.files ?? [])
+                        if (files.length > 0) uploadFileMutation.mutate(files)
+                        event.currentTarget.value = ''
+                      }}
+                    />
+                  )}
                 />
               </div>
             ) : null}

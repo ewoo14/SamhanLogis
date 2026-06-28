@@ -32,7 +32,7 @@ describe('mock approval-line-config contract', () => {
     }) as MockEnvelope<Array<{ sequence: number; label: string; userId: string; displayName: string }>>
 
     expect(resolved.data).toEqual([
-      { sequence: 2, label: '승인자', userId: 'user-005', displayName: '홍지수' },
+      { sequence: 2, label: '대표', userId: 'user-001', displayName: '김미선' },
     ])
   })
 
@@ -54,8 +54,8 @@ describe('mock approval-line-config contract', () => {
     expect(resolved.data.configured).toBe(true)
     expect(resolved.data.roles).toEqual([
       expect.objectContaining({ sequence: 0, label: '작성자', stepType: 'CREATOR' }),
-      expect.objectContaining({ sequence: 1, label: '회계 검토', stepType: 'GROUP', approverGroupId: 'mock-group-custom-accounting' }),
-      expect.objectContaining({ sequence: 2, label: '승인자', stepType: 'USER', approverUserIds: ['user-005'] }),
+      expect.objectContaining({ sequence: 1, label: '부서장', stepType: 'GROUP', approverGroupId: '00000000-0000-0000-0000-000000000101' }),
+      expect.objectContaining({ sequence: 2, label: '대표', stepType: 'USER', approverUserIds: ['user-001'] }),
     ])
   })
 
@@ -84,7 +84,7 @@ describe('mock approval-line-config contract', () => {
       stepType: 'USER',
     })
     expect(created.data.steps[1]).toMatchObject({
-      approverGroupId: 'mock-group-custom-accounting',
+      approverGroupId: '00000000-0000-0000-0000-000000000101',
       approverName: null,
     })
     expect(created.data.steps[3]).toMatchObject({

@@ -2,6 +2,16 @@ import { apiClient, type ApiEnvelope } from './client'
 
 export type StepType = 'CREATOR' | 'GROUP' | 'USER'
 
+/**
+ * StepType 한국어 라벨 단일 소스.
+ * ApprovalLineConfigPage / GroupwareApprovalCreatePage 에서 import 해 로컬 중복 제거.
+ */
+export const STEP_TYPE_LABEL: Record<StepType, string> = {
+  CREATOR: '작성자',
+  USER: '직접지정',
+  GROUP: '권한그룹',
+}
+
 export interface ApprovalLineRole {
   id: string
   sequence: number

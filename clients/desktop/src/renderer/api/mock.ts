@@ -15422,7 +15422,9 @@ const _mockApprovalLineConfigRoles: MockApprovalLineRole[] = [
     actionKey: 'PARTNER_ORDER_CONVERT',
     createdBy: 'v64-seed',
   },
-  // A2-G2 그룹웨어 지출결의서 — 중앙 config 인스턴스화: 작성자 → 회계팀 GROUP → 승인자 USER.
+  // A2-G2 그룹웨어 지출결의서 — V75__seed_groupware_approval_line_config.sql 정합.
+  // seq0=작성자 CREATOR / seq1=부서장 GROUP(actionKey=groupware.approvals, 그룹=매니저 0000...0101) /
+  // seq2=대표 USER(user-001 김미선, 관리자 UI 에서 실 대표 UUID 교체 예정).
   {
     id: 'mock-approval-line-groupware-expense-creator',
     documentType: 'GROUPWARE_EXPENSE_REPORT',
@@ -15432,29 +15434,29 @@ const _mockApprovalLineConfigRoles: MockApprovalLineRole[] = [
     approvers: [],
     required: true,
     actionKey: null,
-    createdBy: 'mock-a2-g2-seed',
+    createdBy: 'v75-seed',
   },
   {
-    id: 'mock-approval-line-groupware-expense-accounting',
+    id: 'mock-approval-line-groupware-expense-manager',
     documentType: 'GROUPWARE_EXPENSE_REPORT',
     sequence: 1,
-    label: '회계 검토',
+    label: '부서장',
     stepType: 'GROUP',
-    approvers: [{ id: 'mock-approval-line-groupware-expense-accounting-group', type: 'GROUP', refId: 'mock-group-custom-accounting' }],
+    approvers: [{ id: 'mock-approval-line-groupware-expense-manager-group', type: 'GROUP', refId: BUILTIN_GROUP_ID_MANAGER }],
     required: true,
-    actionKey: null,
-    createdBy: 'mock-a2-g2-seed',
+    actionKey: 'groupware.approvals',
+    createdBy: 'v75-seed',
   },
   {
-    id: 'mock-approval-line-groupware-expense-approver',
+    id: 'mock-approval-line-groupware-expense-ceo',
     documentType: 'GROUPWARE_EXPENSE_REPORT',
     sequence: 2,
-    label: '승인자',
+    label: '대표',
     stepType: 'USER',
-    approvers: [{ id: 'mock-approval-line-groupware-expense-approver-user', type: 'USER', refId: 'user-005' }],
+    approvers: [{ id: 'mock-approval-line-groupware-expense-ceo-user', type: 'USER', refId: 'user-001' }],
     required: true,
     actionKey: null,
-    createdBy: 'mock-a2-g2-seed',
+    createdBy: 'v75-seed',
   },
 ]
 
@@ -15520,7 +15522,7 @@ function mockApprovalLineRoleView(role: MockApprovalLineRole) {
     })),
     required: role.required,
     enforced: Boolean(role.actionKey),
-    seedManaged: ['v61-seed', 'v63-seed', 'v64-seed'].includes(role.createdBy),
+    seedManaged: ['v61-seed', 'v63-seed', 'v64-seed', 'v75-seed'].includes(role.createdBy),
   }
 }
 

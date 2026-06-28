@@ -9,7 +9,7 @@ import {
   shouldApplyDefaultApproverPrefill,
   shouldRequireManualApprover,
 } from './GroupwareApprovalCreatePage'
-import type { ApprovalLineDefaultApprover, ApprovalLineRole } from '../api/approvalLineConfigApi'
+import type { ApprovalLineDefaultApprover, ApprovalLineStructure } from '../api/approvalLineConfigApi'
 import type { ApproverOption } from '../api/groupwareApprovalApprover'
 
 describe('GroupwareApprovalCreatePage default approver prefill', () => {
@@ -92,25 +92,9 @@ describe('GroupwareApprovalCreatePage default approver prefill', () => {
   })
 })
 
-const configuredRoles: ApprovalLineRole[] = [
-  {
-    id: 'r0',
-    sequence: 0,
-    label: '작성자',
-    stepType: 'CREATOR',
-    approvers: [],
-    required: true,
-    enforced: false,
-    seedManaged: true,
-  },
-  {
-    id: 'r1',
-    sequence: 1,
-    label: '회계 검토',
-    stepType: 'GROUP',
-    approvers: [{ id: 'a1', type: 'GROUP', refId: 'mock-group-custom-accounting', displayName: '회계팀' }],
-    required: true,
-    enforced: false,
-    seedManaged: false,
-  },
+// V75 구조 기준 — ApprovalLineStructure(비-admin /structure endpoint 형식)
+const configuredRoles: ApprovalLineStructure[] = [
+  { sequence: 0, label: '작성자', stepType: 'CREATOR', actionKey: null },
+  { sequence: 1, label: '부서장', stepType: 'GROUP', actionKey: 'groupware.approvals' },
+  { sequence: 2, label: '대표', stepType: 'USER', actionKey: null },
 ]

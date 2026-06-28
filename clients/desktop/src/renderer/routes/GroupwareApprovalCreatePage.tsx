@@ -28,24 +28,17 @@ import {
   type ApprovalTemplate,
 } from '../api/groupwareApprovalTemplate'
 import {
-  fetchApprovalLineGroups,
-  fetchApprovalLineRoles,
+  fetchApprovalLineStructure,
   fetchDefaultApprovers,
-  type ApprovalLineGroupOption,
+  STEP_TYPE_LABEL,
   type ApprovalLineDefaultApprover,
-  type ApprovalLineRole,
+  type ApprovalLineStructure,
 } from '../api/approvalLineConfigApi'
 import { DynamicApprovalFieldInput } from '../components/groupware/DynamicApprovalFieldInput'
 import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { getAuthProvider } from '../auth/authProvider'
-
-const APPROVAL_LINE_STEP_TYPE_LABEL: Record<ApprovalLineRole['stepType'], string> = {
-  CREATOR: '작성자',
-  USER: '직접지정',
-  GROUP: '권한그룹',
-}
 
 type ReferenceDraft = DocumentReferenceValue
 
@@ -127,7 +120,7 @@ export function buildGroupwareApprovalDocumentType(templateCode: string | null |
 export function shouldRequireManualApprover(
   templateCode: string | null | undefined,
   loadingConfig: boolean,
-  configRoles: ApprovalLineRole[],
+  configRoles: ApprovalLineStructure[],
 ): boolean {
   if (!templateCode?.trim()) return true
   if (loadingConfig) return true
@@ -137,7 +130,7 @@ export function shouldRequireManualApprover(
 export function getApprovalLinePreviewStatus(
   templateCode: string | null | undefined,
   loadingConfig: boolean,
-  configRoles: ApprovalLineRole[],
+  configRoles: ApprovalLineStructure[],
 ): string {
   if (!templateCode?.trim()) return '결재 유형을 먼저 선택하세요.'
   if (loadingConfig) return '결재선을 불러오는 중입니다.'
@@ -177,40 +170,26 @@ export function removeApproverAt(current: ApproverOption[], index: number): Appr
   return current.filter((_, itemIndex) => itemIndex !== index)
 }
 
-function approvalLineRoleApproverText(
-  role: ApprovalLineRole,
-  groupNameById: ReadonlyMap<string, string>,
-): string {
-  if (role.stepType === 'CREATOR') return '작성자 자동'
-  if (role.approvers.length === 0) return role.stepType === 'GROUP' ? '권한그룹 미지정' : '직접지정 미지정'
-  return role.approvers
-    .map((approver) => {
-      if (approver.type === 'GROUP') {
-        return groupNameById.get(approver.refId) ?? approver.displayName
-      }
-      return approver.displayName
-    })
-    .join(', ')
-}
-
+/**
+ * 중앙 결재선 구조 미리보기.
+ *
+ * P1-A/C 수정: 비-admin GET /auth/approval-line-configs/{type}/structure 결과(`ApprovalLineStructure[]`)를
+ * 사용한다. 구조 DTO 에는 결재자 이름·그룹 UUID 가 없으므로 결재 단계 라벨·유형만 표시한다.
+ * 그룹명은 구조 endpoint 가 제공하지 않으며 비-admin 그룹 lookup endpoint 도 없어 생략 처리.
+ *
+ * P2: statusText 이중 렌더 제거(헤더에 1회만), overflowX:auto(모바일 390px 가로 넘침 방지).
+ */
 function ApprovalLineInstancePreview({
   roles,
-  groups,
   loading,
   error,
   statusText,
 }: {
-  roles: ApprovalLineRole[]
-  groups: ApprovalLineGroupOption[]
+  roles: ApprovalLineStructure[]
   loading: boolean
   error: boolean
   statusText: string
 }) {
-  const groupNameById = useMemo(
-    () => new Map(groups.map((group) => [group.id, group.name])),
-    [groups],
-  )
-
   return (
     <section
       data-testid="groupware-approval-line-preview"
@@ -222,6 +201,7 @@ function ApprovalLineInstancePreview({
         border: '1px solid var(--color-neutral-200)',
         borderRadius: 6,
         background: 'var(--color-neutral-50)',
+        overflowX: 'auto',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -242,11 +222,11 @@ function ApprovalLineInstancePreview({
         <div className="mobile-item-list" style={{ display: 'grid', gap: 8 }}>
           {roles.map((role) => (
             <div
-              key={role.id}
+              key={role.sequence}
               data-testid="groupware-approval-line-preview-step"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gridTemplateColumns: 'auto 1fr',
                 gap: 8,
                 alignItems: 'center',
                 padding: '8px 10px',
@@ -259,22 +239,15 @@ function ApprovalLineInstancePreview({
               <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{role.sequence + 1}</strong>
               <span>
                 <span style={{ fontSize: 11, color: 'var(--color-neutral-500)', marginRight: 6 }}>
-                  {APPROVAL_LINE_STEP_TYPE_LABEL[role.stepType]}
+                  {STEP_TYPE_LABEL[role.stepType]}
                 </span>
                 <strong>{role.label}</strong>
-              </span>
-              <span style={{ overflowWrap: 'anywhere' }}>{approvalLineRoleApproverText(role, groupNameById)}</span>
-              <span style={{ color: role.required ? 'var(--color-brand-700)' : 'var(--color-neutral-500)', fontSize: 12 }}>
-                {role.required ? '필수' : '선택'}
               </span>
             </div>
           ))}
         </div>
-      ) : (
-        <p style={{ margin: 0, color: 'var(--color-neutral-500)', fontSize: 13 }}>
-          {statusText}
-        </p>
-      )}
+      ) : null}
+      {/* statusText 이중 렌더 제거: roles.length === 0 시 헤더의 statusText 로 충분 */}
     </section>
   )
 }
@@ -319,31 +292,32 @@ export function GroupwareApprovalCreatePage() {
     [selectedTemplate],
   )
 
-  const approvalLineRolesQuery = useQuery({
-    queryKey: ['groupwareApprovalCreate', 'approval-line-config', selectedDocumentType],
-    queryFn: () => fetchApprovalLineRoles(selectedDocumentType!),
+  /**
+   * P1-A 수정: 비-admin GET /auth/approval-line-configs/{type}/structure 사용.
+   * 기존 fetchApprovalLineRoles(/auth/admin/approval-line-configs?documentType=) → 403 해소.
+   */
+  const approvalLineStructureQuery = useQuery({
+    queryKey: ['groupwareApprovalCreate', 'approval-line-structure', selectedDocumentType],
+    queryFn: () => fetchApprovalLineStructure(selectedDocumentType!),
     enabled: Boolean(selectedDocumentType),
     retry: 1,
   })
 
-  const groupsQuery = useQuery({
-    queryKey: ['admin', 'approval-line-config', 'groups'],
-    queryFn: fetchApprovalLineGroups,
-    staleTime: 60_000,
-  })
+  // P1-A: fetchApprovalLineGroups(/auth/admin/approval-line-configs/groups) 제거.
+  // 구조 endpoint 는 그룹 UUID/이름을 포함하지 않으며 비-admin 그룹 lookup endpoint 없음.
 
   const configRoles = useMemo(
-    () => [...(approvalLineRolesQuery.data ?? [])].sort((a, b) => a.sequence - b.sequence),
-    [approvalLineRolesQuery.data],
+    () => [...(approvalLineStructureQuery.data ?? [])].sort((a, b) => a.sequence - b.sequence),
+    [approvalLineStructureQuery.data],
   )
   const requireManualApprover = shouldRequireManualApprover(
     selectedTemplateCode,
-    approvalLineRolesQuery.isLoading,
+    approvalLineStructureQuery.isLoading,
     configRoles,
   )
   const approvalLinePreviewStatus = getApprovalLinePreviewStatus(
     selectedTemplateCode,
-    approvalLineRolesQuery.isLoading,
+    approvalLineStructureQuery.isLoading,
     configRoles,
   )
 
@@ -351,7 +325,7 @@ export function GroupwareApprovalCreatePage() {
     let cancelled = false
     const capturedEditVersion = approverEditVersionRef.current
     setApprovers([])
-    if (configRoles.length > 0 || approvalLineRolesQuery.isLoading || approvalLineRolesQuery.isError) {
+    if (configRoles.length > 0 || approvalLineStructureQuery.isLoading || approvalLineStructureQuery.isError) {
       return () => {
         cancelled = true
       }
@@ -368,7 +342,7 @@ export function GroupwareApprovalCreatePage() {
     return () => {
       cancelled = true
     }
-  }, [selectedTemplateCode, approvalLineRolesQuery.isLoading, approvalLineRolesQuery.isError, configRoles.length])
+  }, [selectedTemplateCode, approvalLineStructureQuery.isLoading, approvalLineStructureQuery.isError, configRoles.length])
 
   const approverIds = approvers.map((approver) => approver.userId)
   const missingRequired = sortedFields.some((field) =>
@@ -381,7 +355,7 @@ export function GroupwareApprovalCreatePage() {
   )
   const invalid = !canWrite
     || !templateId
-    || approvalLineRolesQuery.isLoading
+    || approvalLineStructureQuery.isLoading
     || !title.trim()
     || (requireManualApprover && approverIds.length === 0)
     || missingRequired
@@ -593,9 +567,8 @@ export function GroupwareApprovalCreatePage() {
 
         <ApprovalLineInstancePreview
           roles={configRoles}
-          groups={groupsQuery.data ?? []}
-          loading={approvalLineRolesQuery.isLoading}
-          error={approvalLineRolesQuery.isError}
+          loading={approvalLineStructureQuery.isLoading}
+          error={approvalLineStructureQuery.isError}
           statusText={approvalLinePreviewStatus}
         />
 

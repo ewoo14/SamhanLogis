@@ -19,6 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { AsyncAutocomplete, Button, Card, DragHandle, Modal, Select, Spinner, TagChip } from '@samhan/design-system'
 import {
   DOC_TYPES,
+  STEP_TYPE_LABEL,
   addApprovalLineApprover,
   addApprovalLineStep,
   deleteApprovalLineStep,
@@ -48,11 +49,6 @@ const FALLBACK_CONFIGURABLE_DOC_TYPES: ConfigurableDocType[] = DOC_TYPES.map((ty
   kind: 'SLIP',
 }))
 
-const APPROVAL_LINE_STEP_TYPE_LABEL: Record<ApprovalLineRole['stepType'], string> = {
-  CREATOR: '작성자',
-  USER: '직접지정',
-  GROUP: '권한그룹',
-}
 
 export function resolveApprovalLineDocTypeSelection(current: string, docTypes: ConfigurableDocType[]): string {
   if (docTypes.some((type) => type.value === current)) return current
@@ -711,7 +707,7 @@ function SortableApprovalRoleRow({
           // CREATOR 라벨은 정적 텍스트 (편집 불가)
           <div style={{ display: 'grid', gap: 2 }}>
             <strong data-testid={`approval-role-label-static-${role.id}`}>{role.label}</strong>
-            <span style={stepTypeTextStyle}>{APPROVAL_LINE_STEP_TYPE_LABEL[role.stepType]}</span>
+            <span style={stepTypeTextStyle}>{STEP_TYPE_LABEL[role.stepType]}</span>
           </div>
         ) : (
           <div style={{ display: 'grid', gap: 2 }}>
@@ -733,7 +729,7 @@ function SortableApprovalRoleRow({
                 ×
               </button>
             </div>
-            <span style={stepTypeTextStyle}>{APPROVAL_LINE_STEP_TYPE_LABEL[role.stepType]}</span>
+            <span style={stepTypeTextStyle}>{STEP_TYPE_LABEL[role.stepType]}</span>
           </div>
         )}
       </td>
@@ -941,7 +937,7 @@ export function ApprovalRoleRow({
       <td style={bodyCellStyle}>{role.sequence + 1}</td>
       <td style={bodyCellStyle}>
         <strong>{role.label}</strong>
-        <span style={stepTypeTextStyle}> {APPROVAL_LINE_STEP_TYPE_LABEL[role.stepType]}</span>
+        <span style={stepTypeTextStyle}> {STEP_TYPE_LABEL[role.stepType]}</span>
       </td>
       <td style={bodyCellStyle}>
         {isCreator ? (
