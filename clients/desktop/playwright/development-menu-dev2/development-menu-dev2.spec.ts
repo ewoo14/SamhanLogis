@@ -106,7 +106,11 @@ test.describe('DEV-2 개발 메뉴 팝업공지', () => {
       await route.fulfill({ contentType: 'image/png', body: ONE_PIXEL_PNG })
     })
 
-    await page.goto(buildUrl('/', { mockRole: 'DEVELOPER' }), { waitUntil: 'domcontentloaded' })
+    // BASE_URL origin 진입 후 localStorage 를 비웠으므로(위), 해시만 바뀌는 이동은 same-document 라
+    // Gate 가 활성 공지를 재요청하지 않는다. 파라미터 URL 로 이동한 뒤 reload 해 ?mockActiveNotice=1 로
+    // 활성 공지를 새로 요청·렌더한다(비운 localStorage 는 reload 후에도 유지).
+    await page.goto(buildUrl('/', { mockRole: 'DEVELOPER', mockActiveNotice: '1' }), { waitUntil: 'domcontentloaded' })
+    await page.reload({ waitUntil: 'domcontentloaded' })
     await page.getByTestId('header-page-title').waitFor({ state: 'visible', timeout: 10_000 })
 
     const modal = page.getByTestId('app-notice-modal')
@@ -152,7 +156,7 @@ test.describe('DEV-2 개발 메뉴 팝업공지', () => {
 
   test('모바일에서 팝업과 admin 폼은 화면 폭을 넘지 않는다', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto(buildUrl('/', { mockRole: 'DEVELOPER' }), { waitUntil: 'domcontentloaded' })
+    await page.goto(buildUrl('/', { mockRole: 'DEVELOPER', mockActiveNotice: '1' }), { waitUntil: 'domcontentloaded' })
     await waitForApp(page)
 
     await expect(page.getByTestId('app-notice-modal')).toBeVisible()

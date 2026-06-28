@@ -1955,6 +1955,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   if (method === 'GET' && url.endsWith('/app/notices/active')) {
+    // 팝업공지 mock 은 기본 OFF — 활성 모달 backdrop 이 데스크톱 회귀 스위트 전체의 클릭을
+    // 가로채 타임아웃되는 회귀를 막는다. DEV-2 팝업 테스트만 ?mockActiveNotice=1 로 opt-in 한다.
+    if (mockLocationParams().get('mockActiveNotice') !== '1') {
+      return envelope([])
+    }
     return envelope(sortedMockAppNotices().filter(isMockNoticeActive).map(activeMockAppNotice))
   }
 
