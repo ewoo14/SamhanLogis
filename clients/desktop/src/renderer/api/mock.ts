@@ -9119,16 +9119,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         fieldValues?: Record<string, string>
       }
       const title = String(body.title ?? '').trim()
+      const requesterId = String(body.requesterId ?? '').trim()
       const approverIds = Array.isArray(body.approverIds) ? body.approverIds : []
-      if (!body.requesterId || !title || approverIds.length === 0) {
-        return mockError(400, 'INVALID_INPUT', '요청자, 제목, 결재자는 필수입니다.')
+      if (!requesterId || !title) {
+        return mockError(400, 'INVALID_INPUT', '요청자와 제목은 필수입니다.')
       }
       const approverSet = new Set<string>()
       for (const approverId of approverIds) {
         if (typeof approverId !== 'string' || !approverId.trim()) {
           return mockError(400, 'INVALID_INPUT', '결재자는 필수입니다.')
         }
-        if (approverId === body.requesterId) {
+        if (approverId === requesterId) {
           return mockError(400, 'INVALID_INPUT', '요청자 본인은 결재자가 될 수 없습니다.')
         }
         if (approverSet.has(approverId)) {
@@ -9143,6 +9144,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       if (body.templateId && !template) {
         return mockError(404, 'NOT_FOUND', '결재유형 템플릿을 찾을 수 없습니다.')
       }
+      const documentType = template ? `GROUPWARE_${template.code}` : null
+      const configRoles = documentType
+        ? _mockApprovalLineConfigRoles
+          .filter((role) => role.documentType === documentType && !role.isDeleted)
+          .sort((a, b) => a.sequence - b.sequence)
+        : []
+      if (configRoles.length === 0 && approverIds.length === 0) {
+        return mockError(400, 'INVALID_INPUT', '결재자 1명 이상 필요')
+      }
       if (template) {
         for (const field of template.fields) {
           const value = fieldValues[field.fieldKey] ?? ''
@@ -9155,25 +9165,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         }
       }
       const next = approvals.length + 1
+      const steps = [
+        ...mockInstantiateApprovalLineSteps(configRoles, requesterId),
+        ...approverIds.map((approverId) => mockUserApprovalStep(approverId)),
+      ].map((step, sequence) => ({ ...step, sequence }))
       const created: ApprovalLineAdminResponse = {
         approvalId: `77777777-aaaa-4aaa-8aaa-${String(next + 10).padStart(12, '0')}`,
         approvalNo: `${MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')}-${next}`,
-        requesterId: body.requesterId,
-        requesterName: mockApprovalUserName(body.requesterId) ?? '요청자',
+        requesterId,
+        requesterName: mockApprovalUserName(requesterId) ?? '요청자',
         title,
         content: typeof body.content === 'string' && body.content.trim() ? body.content : null,
         templateId: template?.id ?? null,
         templateName: template?.name ?? null,
         fieldValues: { ...fieldValues },
         status: 'PENDING',
-        steps: approverIds.map((approverId, sequence) => ({
-          sequence,
-          approverId,
-          approverName: mockApprovalUserName(approverId) ?? `결재자 ${sequence + 1}`,
-          status: 'PENDING',
-          decidedAt: null,
-          reason: null,
-        })),
+        steps,
       }
       approvals.unshift(created)
       return envelope(created)
@@ -10992,6 +10999,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         .sort((a, b) => a.sequence - b.sequence)
         .map(mockApprovalLineRoleView),
     )
+  }
+
+  const approvalLineResolutionMatch = url.match(/\/(?:auth\/)?internal\/approval-line\/roles(?:\?([^#]*))?$/)
+  if (method === 'GET' && approvalLineResolutionMatch) {
+    const params = new URLSearchParams(approvalLineResolutionMatch[1] ?? '')
+    const documentType = params.get('documentType') ?? ''
+    const roles = _mockApprovalLineConfigRoles
+      .filter((role) => role.documentType === documentType && !role.isDeleted)
+      .sort((a, b) => a.sequence - b.sequence)
+    return envelope({
+      configured: roles.length > 0,
+      roles: roles.map(mockApprovalLineResolutionView),
+    })
   }
 
   const approvalLineStructureMatch = url.match(/\/(?:auth\/)?approval-line-configs\/([^/?]+)\/structure$/)
@@ -12826,7 +12846,53 @@ const MOCK_GROUPWARE_APPROVER_OPTIONS: ApproverOption[] = [
 function mockApprovalUserName(userId: string | null | undefined): string | null {
   if (!userId) return null
   if (userId === MOCK_AUTH.userId) return MOCK_AUTH.fullName
-  return MOCK_GROUPWARE_APPROVER_OPTIONS.find((option) => option.userId === userId)?.name ?? null
+  return MOCK_GROUPWARE_APPROVER_OPTIONS.find((option) => option.userId === userId)?.name
+    ?? mockAccountById(userId)?.displayName
+    ?? null
+}
+
+function mockUserApprovalStep(approverId: string): Omit<ApprovalLineAdminResponse['steps'][number], 'sequence'> {
+  return {
+    stepType: 'USER',
+    approverGroupId: null,
+    approverId,
+    approverName: mockApprovalUserName(approverId) ?? null,
+    status: 'PENDING',
+    decidedAt: null,
+    reason: null,
+  }
+}
+
+function mockGroupApprovalStep(groupId: string): Omit<ApprovalLineAdminResponse['steps'][number], 'sequence'> {
+  return {
+    stepType: 'GROUP',
+    approverGroupId: groupId,
+    approverId: null,
+    approverName: null,
+    status: 'PENDING',
+    decidedAt: null,
+    reason: null,
+  }
+}
+
+function mockInstantiateApprovalLineSteps(
+  roles: MockApprovalLineRole[],
+  requesterId: string,
+): Array<Omit<ApprovalLineAdminResponse['steps'][number], 'sequence'>> {
+  return roles.flatMap((role) => {
+    if (role.stepType === 'CREATOR') {
+      // BE ApprovalLine.instantiateFromRoles parity: CREATOR config becomes a USER step for requester.
+      return [mockUserApprovalStep(requesterId)]
+    }
+    const userApproverIds = role.approvers
+      .filter((approver) => approver.type === 'USER')
+      .map((approver) => approver.refId)
+    if (userApproverIds.length > 0) {
+      return userApproverIds.map(mockUserApprovalStep)
+    }
+    const groupApprover = role.approvers.find((approver) => approver.type === 'GROUP')
+    return groupApprover ? [mockGroupApprovalStep(groupApprover.refId)] : []
+  })
 }
 
 const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
@@ -12850,6 +12916,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     steps: [
       {
         sequence: 0,
+        stepType: 'USER',
+        approverGroupId: null,
         approverId: '00000000-0000-0000-0000-000000010002',
         approverName: '김기철',
         status: 'PENDING',
@@ -12858,6 +12926,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
       },
       {
         sequence: 1,
+        stepType: 'USER',
+        approverGroupId: null,
         approverId: '00000000-0000-0000-0000-000000010003',
         approverName: '김은지',
         status: 'PENDING',
@@ -12886,6 +12956,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     steps: [
       {
         sequence: 0,
+        stepType: 'USER',
+        approverGroupId: null,
         approverId: '00000000-0000-0000-0000-000000010002',
         approverName: '김기철',
         status: 'APPROVED',
@@ -12894,6 +12966,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
       },
       {
         sequence: 1,
+        stepType: 'USER',
+        approverGroupId: null,
         approverId: '00000000-0000-0000-0000-000000010003',
         approverName: '김은지',
         status: 'PENDING',
@@ -12916,6 +12990,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     steps: [
       {
         sequence: 0,
+        stepType: 'USER',
+        approverGroupId: null,
         approverId: '00000000-0000-0000-0000-000000010002',
         approverName: '김기철',
         status: 'APPROVED',
@@ -14681,6 +14757,7 @@ const SP_D1_PAGES = [
   'dispatch.external-carriers',
   'admin.permissions',
   'admin.permission-groups',
+  'admin.approval-line-config',
   'admin.app-release',
   'dev.popup-notice',
   'dev.activity-log',
@@ -15345,17 +15422,28 @@ const _mockApprovalLineConfigRoles: MockApprovalLineRole[] = [
     actionKey: 'PARTNER_ORDER_CONVERT',
     createdBy: 'v64-seed',
   },
-  // 슬4c 그룹웨어 지출결의서 — default-approvers 프리필 검증용 USER 결재자.
+  // A2-G2 그룹웨어 지출결의서 — 중앙 config 인스턴스화: 작성자 → 회계팀 GROUP → 승인자 USER.
   {
-    id: 'mock-approval-line-groupware-expense-reviewer',
+    id: 'mock-approval-line-groupware-expense-creator',
     documentType: 'GROUPWARE_EXPENSE_REPORT',
-    sequence: 1,
-    label: '검토자',
-    stepType: 'USER',
-    approvers: [{ id: 'mock-approval-line-groupware-expense-reviewer-user', type: 'USER', refId: 'user-002' }],
+    sequence: 0,
+    label: '작성자',
+    stepType: 'CREATOR',
+    approvers: [],
     required: true,
     actionKey: null,
-    createdBy: 'mock-s4c-seed',
+    createdBy: 'mock-a2-g2-seed',
+  },
+  {
+    id: 'mock-approval-line-groupware-expense-accounting',
+    documentType: 'GROUPWARE_EXPENSE_REPORT',
+    sequence: 1,
+    label: '회계 검토',
+    stepType: 'GROUP',
+    approvers: [{ id: 'mock-approval-line-groupware-expense-accounting-group', type: 'GROUP', refId: 'mock-group-custom-accounting' }],
+    required: true,
+    actionKey: null,
+    createdBy: 'mock-a2-g2-seed',
   },
   {
     id: 'mock-approval-line-groupware-expense-approver',
@@ -15366,7 +15454,7 @@ const _mockApprovalLineConfigRoles: MockApprovalLineRole[] = [
     approvers: [{ id: 'mock-approval-line-groupware-expense-approver-user', type: 'USER', refId: 'user-005' }],
     required: true,
     actionKey: null,
-    createdBy: 'mock-s4c-seed',
+    createdBy: 'mock-a2-g2-seed',
   },
 ]
 
@@ -15442,6 +15530,21 @@ function mockApprovalLineStructureView(role: MockApprovalLineRole) {
     label: role.label,
     stepType: role.stepType,
     actionKey: role.actionKey,
+  }
+}
+
+function mockApprovalLineResolutionView(role: MockApprovalLineRole) {
+  const groupApprover = role.approvers.find((approver) => approver.type === 'GROUP')
+  return {
+    sequence: role.sequence,
+    label: role.label,
+    stepType: role.stepType,
+    approverGroupId: groupApprover?.refId ?? null,
+    approverUserIds: role.approvers
+      .filter((approver) => approver.type === 'USER')
+      .map((approver) => approver.refId),
+    requiredPageCode: role.actionKey,
+    required: role.required,
   }
 }
 

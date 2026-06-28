@@ -14,6 +14,7 @@ export type ApprovalStatus =
   | 'WITHDRAWN'
 
 export type ApprovalStepStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type ApprovalStepType = 'GROUP' | 'USER'
 
 export const APPROVAL_STATUS_LABEL: Record<ApprovalStatus, string> = {
   PENDING: '대기',
@@ -29,9 +30,16 @@ export const APPROVAL_STEP_STATUS_LABEL: Record<ApprovalStepStatus, string> = {
   REJECTED: '반려',
 }
 
+export const APPROVAL_STEP_TYPE_LABEL: Record<ApprovalStepType, string> = {
+  USER: '직접지정',
+  GROUP: '권한그룹',
+}
+
 export interface ApprovalStepView {
   sequence: number
-  approverId: string
+  stepType: ApprovalStepType
+  approverGroupId: string | null
+  approverId: string | null
   approverName: string | null
   status: ApprovalStepStatus
   decidedAt: string | null
@@ -69,6 +77,29 @@ export interface CreateGroupwareApprovalInput {
 export interface GroupwareApprovalDecisionInput {
   approverId: string
   reason?: string | null
+}
+
+export function resolveApprovalStepDisplayName(
+  step: ApprovalStepView,
+  groupNameById: ReadonlyMap<string, string>,
+): string {
+  if (step.stepType === 'GROUP') {
+    if (!step.approverGroupId) return APPROVAL_STEP_TYPE_LABEL.GROUP
+    return groupNameById.get(step.approverGroupId) ?? APPROVAL_STEP_TYPE_LABEL.GROUP
+  }
+  const name = step.approverName?.trim()
+  if (name) return name
+  return APPROVAL_STEP_TYPE_LABEL[step.stepType]
+}
+
+export function resolveApprovalStepTypeLabel(
+  step: ApprovalStepView,
+  requesterId: string,
+): string {
+  if (step.sequence === 0 && step.stepType === 'USER' && step.approverId === requesterId) {
+    return '작성자'
+  }
+  return APPROVAL_STEP_TYPE_LABEL[step.stepType]
 }
 
 export async function listGroupwareApprovals(

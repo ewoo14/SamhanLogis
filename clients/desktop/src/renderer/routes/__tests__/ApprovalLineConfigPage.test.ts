@@ -46,7 +46,7 @@ describe('ApprovalRoleRow', () => {
       }),
     )
 
-    expect(html).toContain('전표 작성자 자동')
+    expect(html).toContain('작성자 자동')
     expect(html).toContain('type="checkbox"')
     expect(html).toContain('disabled=""')
   })

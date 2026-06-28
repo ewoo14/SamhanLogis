@@ -3,6 +3,7 @@ import { apiClient } from './client'
 import {
   fetchApprovalLineGroups,
   fetchApprovalLineRoles,
+  fetchApprovalLineResolvedRoles,
   fetchApprovalLineStructure,
   fetchDefaultApprovers,
   addApprovalLineApprover,
@@ -107,6 +108,30 @@ describe('approvalLineConfigApi contract', () => {
     )
   })
 
+  it('GET /internal/approval-line/roles 로 config 인스턴스화 역할을 조회한다', async () => {
+    const data = {
+      configured: true,
+      roles: [
+        {
+          sequence: 1,
+          label: '회계 검토',
+          stepType: 'GROUP',
+          approverGroupId: 'group/1',
+          approverUserIds: [],
+          requiredPageCode: null,
+          required: true,
+        },
+      ],
+    }
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data } })
+
+    await expect(fetchApprovalLineResolvedRoles('GROUPWARE_EXPENSE/REPORT')).resolves.toEqual(data)
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/auth/internal/approval-line/roles?documentType=GROUPWARE_EXPENSE%2FREPORT',
+    )
+  })
+
   it('GET /approval-line-configs/{documentType}/default-approvers 로 기본 결재자를 조회한다', async () => {
     const rows = [
       { sequence: 2, label: '최종승인', userId: 'user-008', displayName: '김관리' },
@@ -208,6 +233,17 @@ describe('approvalLineConfigApi contract', () => {
     await expect(fetchApprovalLineGroups()).resolves.toBe(groups)
 
     expect(apiClient.get).toHaveBeenCalledWith('/auth/admin/approval-line-configs/groups')
+  })
+
+  it('approval-line groups 조회 실패 시 permission-groups 로 그룹명 lookup 을 fallback 한다', async () => {
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new Error('approval-line groups unavailable'))
+      .mockResolvedValueOnce({ data: { data: [{ id: 'g2', name: '회계팀' }] } })
+
+    await expect(fetchApprovalLineGroups()).resolves.toEqual([{ id: 'g2', name: '회계팀' }])
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, '/auth/admin/approval-line-configs/groups')
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, '/auth/admin/permission-groups')
   })
 
   it('PUT /approval-line-configs/{id}/label 에 라벨 payload 를 전송한다', async () => {

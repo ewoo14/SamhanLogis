@@ -32,10 +32,13 @@ import {
   APPROVAL_STATUS_LABEL,
   APPROVAL_STEP_STATUS_LABEL,
   getGroupwareApproval,
+  resolveApprovalStepDisplayName,
+  resolveApprovalStepTypeLabel,
   type ApprovalLineAdminResponse,
   type ApprovalStatus,
   type ApprovalStepView,
 } from '../api/groupwareApproval'
+import { fetchApprovalLineGroups } from '../api/approvalLineConfigApi'
 import { getApprovalTemplate, type ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import { GroupwareApprovalCollaborationPanel } from '../components/collab/GroupwareApprovalCollaborationPanel'
 import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
@@ -215,7 +218,19 @@ export function GroupwareApprovalDetailPage() {
     enabled: !!approvalId,
   })
 
+  const groupsQuery = useQuery({
+    queryKey: ['admin', 'approval-line-config', 'groups'],
+    queryFn: fetchApprovalLineGroups,
+    staleTime: 60_000,
+  })
+
   usePageTitle('결재 상세', query.data?.approvalNo)
+
+  const groupNameById = useMemo(
+    () => new Map((groupsQuery.data ?? []).map((group) => [group.id, group.name])),
+    [groupsQuery.data],
+  )
+  const requesterIdForSteps = query.data?.requesterId ?? ''
 
   const stepColumns: DataTableColumn<ApprovalStepView>[] = useMemo(() => [
     {
@@ -229,9 +244,14 @@ export function GroupwareApprovalDetailPage() {
       key: 'approver',
       header: '결재자',
       render: (step) => (
-        <span style={{ fontWeight: 600 }}>
-          {displayNameOrFallback(step.approverName, `결재자 ${step.sequence + 1}`)}
-        </span>
+        <div style={{ display: 'grid', gap: 2 }}>
+          <span style={{ fontWeight: 600 }}>
+            {resolveApprovalStepDisplayName(step, groupNameById)}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+            {resolveApprovalStepTypeLabel(step, requesterIdForSteps)}
+          </span>
+        </div>
       ),
     },
     {
@@ -259,7 +279,7 @@ export function GroupwareApprovalDetailPage() {
       header: '사유',
       render: (step) => step.reason || '-',
     },
-  ], [])
+  ], [groupNameById, requesterIdForSteps])
 
   // 첨부 mutation 은 hook 이므로 조기 return(로딩/에러) 보다 위에 선언해야 한다
   // (early return 뒤 hook 선언 시 "Rendered more hooks than during the previous render" 크래시).
@@ -536,13 +556,15 @@ export function GroupwareApprovalDetailPage() {
                   <div key={`${approval.approvalNo}-mobile-${step.sequence}`} className="mobile-item-card">
                     <div className="mobile-item-card-header">
                       <div className="mobile-item-name">
-                        {displayNameOrFallback(step.approverName, `결재자 ${step.sequence + 1}`)}
+                        {resolveApprovalStepDisplayName(step, groupNameById)}
                       </div>
                       <span className="mobile-status-badge" style={approvalStatusBadgeStyle(step.status as ApprovalStatus)}>
                         {APPROVAL_STEP_STATUS_LABEL[step.status]}
                       </span>
                     </div>
-                    <div className="mobile-item-model">순서 {step.sequence + 1}</div>
+                    <div className="mobile-item-model">
+                      순서 {step.sequence + 1} · {resolveApprovalStepTypeLabel(step, approval.requesterId)}
+                    </div>
                     <div className="mobile-item-divider" />
                     <div className="mobile-item-total-row">
                       <span className="mobile-item-total-label">처리일시</span>

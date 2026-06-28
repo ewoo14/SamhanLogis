@@ -20,6 +20,21 @@ export interface ApprovalLineStructure {
   actionKey: string | null
 }
 
+export interface ApprovalLineResolvedRole {
+  sequence: number
+  label: string
+  stepType: StepType
+  approverGroupId: string | null
+  approverUserIds: string[]
+  requiredPageCode: string | null
+  required: boolean
+}
+
+export interface ApprovalLineRoleResolution {
+  configured: boolean
+  roles: ApprovalLineResolvedRole[]
+}
+
 export interface ApprovalLineDefaultApprover {
   sequence: number
   label: string
@@ -102,6 +117,16 @@ export async function fetchApprovalLineStructure(documentType: string): Promise<
   return res.data.data ?? []
 }
 
+export async function fetchApprovalLineResolvedRoles(documentType: string): Promise<ApprovalLineRoleResolution> {
+  const res = await apiClient.get<ApiEnvelope<ApprovalLineRoleResolution>>(
+    `/auth/internal/approval-line/roles?documentType=${encodeURIComponent(documentType)}`,
+  )
+  return {
+    configured: Boolean(res.data.data?.configured),
+    roles: res.data.data?.roles ?? [],
+  }
+}
+
 export async function fetchDefaultApprovers(documentType: string): Promise<ApprovalLineDefaultApprover[]> {
   try {
     const res = await apiClient.get<ApiEnvelope<ApprovalLineDefaultApprover[]>>(
@@ -114,10 +139,17 @@ export async function fetchDefaultApprovers(documentType: string): Promise<Appro
 }
 
 export async function fetchApprovalLineGroups(): Promise<ApprovalLineGroupOption[]> {
-  const res = await apiClient.get<ApiEnvelope<ApprovalLineGroupOption[]>>(
-    '/auth/admin/approval-line-configs/groups',
-  )
-  return res.data.data ?? []
+  try {
+    const res = await apiClient.get<ApiEnvelope<ApprovalLineGroupOption[]>>(
+      '/auth/admin/approval-line-configs/groups',
+    )
+    return res.data.data ?? []
+  } catch {
+    const res = await apiClient.get<ApiEnvelope<ApprovalLineGroupOption[]>>(
+      '/auth/admin/permission-groups',
+    )
+    return (res.data.data ?? []).map((group) => ({ id: group.id, name: group.name }))
+  }
 }
 
 export async function updateApprovalLineRole(

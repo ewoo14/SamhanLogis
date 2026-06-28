@@ -32,7 +32,6 @@ describe('mock approval-line-config contract', () => {
     }) as MockEnvelope<Array<{ sequence: number; label: string; userId: string; displayName: string }>>
 
     expect(resolved.data).toEqual([
-      { sequence: 1, label: '검토자', userId: 'user-002', displayName: '이정훈' },
       { sequence: 2, label: '승인자', userId: 'user-005', displayName: '홍지수' },
     ])
   })
@@ -44,6 +43,54 @@ describe('mock approval-line-config contract', () => {
     }) as MockEnvelope<unknown[]>
 
     expect(resolved.data).toEqual([])
+  })
+
+  it('GROUPWARE 결재라인 roles resolve 는 CREATOR/USER/GROUP 단계를 반환한다', () => {
+    const resolved = mockRequest({
+      method: 'GET',
+      url: '/auth/internal/approval-line/roles?documentType=GROUPWARE_EXPENSE_REPORT',
+    }) as MockEnvelope<{ configured: boolean; roles: Array<Record<string, unknown>> }>
+
+    expect(resolved.data.configured).toBe(true)
+    expect(resolved.data.roles).toEqual([
+      expect.objectContaining({ sequence: 0, label: '작성자', stepType: 'CREATOR' }),
+      expect.objectContaining({ sequence: 1, label: '회계 검토', stepType: 'GROUP', approverGroupId: 'mock-group-custom-accounting' }),
+      expect.objectContaining({ sequence: 2, label: '승인자', stepType: 'USER', approverUserIds: ['user-005'] }),
+    ])
+  })
+
+  it('GROUPWARE 결재 생성은 config 단계 뒤에 override 결재자를 추가한다', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/admin/groupware/approvals',
+      data: {
+        requesterId: 'user-003',
+        title: `A2-G2 mock ${Date.now()}`,
+        content: '본문',
+        templateId: '77777777-dddd-4ddd-8ddd-000000000001',
+        fieldValues: {
+          expenseItem: '테스트',
+          amount: '1000',
+          accountCode: '소모품비',
+          expenseDate: '2026-06-29',
+        },
+        approverIds: ['user-008'],
+      },
+    }) as MockEnvelope<{ steps: Array<Record<string, unknown>> }>
+
+    expect(created.data.steps.map((step) => step.stepType)).toEqual(['USER', 'GROUP', 'USER', 'USER'])
+    expect(created.data.steps[0]).toMatchObject({
+      approverId: 'user-003',
+      stepType: 'USER',
+    })
+    expect(created.data.steps[1]).toMatchObject({
+      approverGroupId: 'mock-group-custom-accounting',
+      approverName: null,
+    })
+    expect(created.data.steps[3]).toMatchObject({
+      approverId: 'user-008',
+      approverName: '정매니저',
+    })
   })
 
   it('GROUPWARE 문서의 sequence 0 GROUP 단계는 삭제할 수 있다', () => {

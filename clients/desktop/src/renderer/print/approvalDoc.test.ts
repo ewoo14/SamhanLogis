@@ -21,6 +21,8 @@ function step(
 ): ApprovalStepView {
   return {
     sequence: input.sequence,
+    stepType: input.stepType ?? 'USER',
+    approverGroupId: input.approverGroupId ?? null,
     approverId: input.approverId ?? `approver-${input.sequence}`,
     approverName: 'approverName' in input
       ? input.approverName ?? null

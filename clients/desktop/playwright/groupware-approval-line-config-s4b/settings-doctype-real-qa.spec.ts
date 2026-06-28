@@ -42,5 +42,11 @@ test('S4b: 결재라인 설정 동적 doc-type (전표+그룹웨어 종류)', as
   // 그룹웨어 종류 선택 → 그 종류의 기본 결재라인 설정 영역
   await select.selectOption('GROUPWARE_EXPENSE_REPORT')
   await page.waitForTimeout(1500)
+  await expect(page.getByText('회계 검토')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('회계팀')).toBeVisible({ timeout: 10_000 })
   await cap(page, 'config-groupware-expense-report')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.waitForTimeout(700)
+  await cap(page, 'config-groupware-expense-report-mobile')
 })
