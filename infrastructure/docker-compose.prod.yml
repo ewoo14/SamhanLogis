@@ -7,11 +7,11 @@
 # 전제 조건:
 #   - .env.production 에 ECR_REGISTRY, SAMHAN_DB_HOST, SAMHAN_DB_PASSWORD 등 설정 완료
 #   - ECR 로그인 완료 (aws ecr get-login-password | docker login ...)
-#   - RDS 16 DB 초기화 완료 (init-rds.sql 실행 또는 user_data.sh 자동 처리)
+#   - RDS 15 DB 초기화 완료 (init-rds.sql 실행 또는 user_data.sh 자동 처리)
 #
 # 아키텍처 결정:
 #   - PostgreSQL → RDS (컨테이너 없음)
-#   - MinIO      → AWS S3 (SAMHAN_S3_ENDPOINT 빈 값 → SDK 자동 전환)
+#   - MinIO      → AWS S3 (SAMHAN_S3_ENDPOINT=https://s3.ap-northeast-2.amazonaws.com)
 #   - Prometheus/Grafana → CloudWatch (컨테이너 없음)
 #   - Nginx      → ALB (컨테이너 없음)
 #   - RabbitMQ   → 컨테이너 유지 (logging-service RabbitMQ 의존)
@@ -51,14 +51,16 @@ x-spring-prod: &spring-prod
   INTERNAL_AUTH_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
   # KST + 컨테이너 메모리 cap (m5.xlarge 16GB, 17 service × max 1GB)
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
-  # S3 — MinIO → AWS S3 자동 전환 (endpoint 빈 값 → SDK IAM Role 기반 자동 엔드포인트)
-  SAMHAN_S3_ENDPOINT: ""
+  # S3 — 운영은 AWS S3 endpoint + Secrets Manager 주입 키 사용
+  SAMHAN_S3_ENDPOINT: ${SAMHAN_S3_ENDPOINT:-https://s3.ap-northeast-2.amazonaws.com}
+  SAMHAN_S3_ACCESS_KEY: ${SAMHAN_S3_ACCESS_KEY}
+  SAMHAN_S3_SECRET_KEY: ${SAMHAN_S3_SECRET_KEY}
   SAMHAN_S3_BUCKET: samhan-attachments
   SAMHAN_S3_PATH_STYLE_ACCESS: "false"
   SAMHAN_S3_PRESIGNED_EXPIRY: "300"
-  AWS_DEFAULT_REGION: ${SAMHAN_AWS_REGION}
+  AWS_DEFAULT_REGION: ${SAMHAN_AWS_REGION:-ap-northeast-2}
   # us-east-1 fallback presigned 403 회피 — 전 서비스 명시 주입 (slip-service 포함)
-  SAMHAN_AWS_REGION: "ap-northeast-2"
+  SAMHAN_AWS_REGION: ${SAMHAN_AWS_REGION:-ap-northeast-2}
 
 x-service-memory: &service-memory
   mem_limit: 1g
@@ -274,6 +276,7 @@ services:
       SERVER_PORT: "8083"
       DB_NAME: user_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_SIGNATURE_PUBLIC_BASE_URL: https://api.samhan-air.com
     ports:
       - "127.0.0.1:8083:8083"
     depends_on:
@@ -324,9 +327,11 @@ services:
       SERVER_PORT: "8085"
       DB_NAME: inventory_db
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
-      # Phase 11 초기: Noop fallback (crash loop 회피). 실 S3 검증 후 "true" + endpoint 빈값으로 전환
-      SAMHAN_INVENTORY_MINIO_ENABLED: "false"
-      SAMHAN_INVENTORY_MINIO_ENDPOINT: ""
+      # Phase 11 운영: S3 호환 MinIO client 활성. NoopInspectionStorage 운영 가드 회피.
+      SAMHAN_INVENTORY_MINIO_ENABLED: "true"
+      SAMHAN_INVENTORY_MINIO_ENDPOINT: ${SAMHAN_S3_ENDPOINT:-https://s3.ap-northeast-2.amazonaws.com}
+      SAMHAN_INVENTORY_MINIO_ACCESS_KEY: ${SAMHAN_S3_ACCESS_KEY}
+      SAMHAN_INVENTORY_MINIO_SECRET_KEY: ${SAMHAN_S3_SECRET_KEY}
       SAMHAN_INVENTORY_MINIO_BUCKET: samhan-attachments
     ports:
       - "127.0.0.1:8085:8085"
@@ -358,6 +363,12 @@ services:
       SAMHAN_AROLOGIS_DISPATCH_URL: http://arologis-service:8097
       SAMHAN_REALTIME_BROKER: in-memory
       SAMHAN_REALTIME_HEARTBEAT_SECONDS: "30"
+      # Phase 11 운영: slip attachment 는 AWS S3 endpoint + Secrets Manager 주입 키 사용
+      SAMHAN_SLIP_MINIO_ENABLED: "true"
+      SAMHAN_SLIP_MINIO_ENDPOINT: ${SAMHAN_S3_ENDPOINT:-https://s3.ap-northeast-2.amazonaws.com}
+      SAMHAN_SLIP_MINIO_ACCESS_KEY: ${SAMHAN_S3_ACCESS_KEY}
+      SAMHAN_SLIP_MINIO_SECRET_KEY: ${SAMHAN_S3_SECRET_KEY}
+      SAMHAN_SLIP_MINIO_BUCKET: samhan-attachments
       # 시리얼 보상 운영 활성 — Phase 11 체크리스트 M-15 참조
       SAMHAN_COMPENSATION_RETENTION_ENABLED: "true"
       SAMHAN_COMPENSATION_PURGE_ENABLED: "true"
@@ -602,8 +613,13 @@ services:
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       # Phase 11: skeleton mode 비활성 (실 endpoint 응답 파싱 가용)
       SAMHAN_DASHBOARD_CLIENT_SKELETON_MODE: "false"
-      # Phase 11 초기: 팝업공지 MinIO Noop fallback (crash loop 회피). 실 S3 검증 후 "true" 전환
-      SAMHAN_NOTICE_MINIO_ENABLED: "false"
+      # Phase 11 운영: 팝업공지 저장소는 AWS S3 endpoint + Secrets Manager 주입 키 사용
+      SAMHAN_NOTICE_MINIO_ENABLED: "true"
+      SAMHAN_NOTICE_MINIO_ENDPOINT: ${SAMHAN_S3_ENDPOINT:-https://s3.ap-northeast-2.amazonaws.com}
+      SAMHAN_NOTICE_MINIO_ACCESS_KEY: ${SAMHAN_S3_ACCESS_KEY}
+      SAMHAN_NOTICE_MINIO_SECRET_KEY: ${SAMHAN_S3_SECRET_KEY}
+      SAMHAN_NOTICE_MINIO_BUCKET: samhan-attachments
+      SAMHAN_NOTICE_MINIO_PRESIGNED_EXPIRY: "300"
     ports:
       - "127.0.0.1:8094:8094"
     depends_on:

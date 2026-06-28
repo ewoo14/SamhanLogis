@@ -34,8 +34,9 @@ param(
     [string]$TerraformDir = "infrastructure\terraform",
     [string]$TfVarsFile = "terraform.tfvars",
     [string]$RdsEndpoint = "",
-    [string]$EC2PublicIp = "",
-    [switch]$DryRun  # DryRun 모드: 실 AWS 자원 생성 없이 plan만
+    [string]$AlbDnsName = "",
+    [string]$InstanceId = "",
+    [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -167,20 +168,30 @@ function Invoke-DbMigration {
         $RdsEndpoint = Read-Host "RDS endpoint 를 입력하세요 (terraform output rds_endpoint)"
     }
 
-    Confirm-Action "RDS($RdsEndpoint) 에 16 DB 를 생성하고 데이터를 마이그레이션합니다."
+    Confirm-Action ("RDS({0}) 에 15 DB 를 생성하고 데이터를 마이그레이션합니다." -f $RdsEndpoint)
 
-    # 17 service 대응 16 DB (logging-service = ES/RabbitMQ 전용, logging_db 포함)
+    # 17 service 대응 15 DB (logging-service = ES/RabbitMQ 전용, logging_db 제외)
     $databases = @(
-        "auth_db", "logging_db", "user_db", "product_db", "inventory_db", "slip_db",
-        "accounting_db", "partner_auth_db", "dc_config_db", "partner_order_db",
-        "partner_db", "groupware_db", "notification_db",
-        "dashboard_db", "arologis_db", "migration_db"
+        "auth_db",
+        "user_db",
+        "product_db",
+        "inventory_db",
+        "slip_db",
+        "accounting_db",
+        "partner_auth_db",
+        "dc_config_db",
+        "partner_order_db",
+        "partner_db",
+        "groupware_db",
+        "notification_db",
+        "dashboard_db",
+        "arologis_db",
+        "migration_db"
     )
 
-    Write-Phase11Log "INFO" "16 DB 생성 (RDS 초기화 — infrastructure/terraform/templates/init-rds.sql 참조)"
+    Write-Phase11Log "INFO" "15 DB 생성 (RDS 초기화 — infrastructure/terraform/templates/init-rds.sql 참조)"
     foreach ($db in $databases) {
         Write-Phase11Log "INFO" "DB 생성: $db"
-        # psql -h $RdsEndpoint -U samhan -d samhanlogis -c "CREATE DATABASE IF NOT EXISTS $db;"
         # 실 실행 시 주석 해제
         Write-Phase11Log "INFO" "[DRY-RUN] CREATE DATABASE $db (실 실행 생략)"
     }
@@ -203,14 +214,14 @@ function Invoke-DnsCutover {
     # Samhan Public 본진 subdomain
     $subdomains = @("api", "app", "order", "sign", "chat", "files", "monitor", "quote")
     foreach ($sub in $subdomains) {
-        Write-Phase11Log "INFO" "DNS record 확인: $sub.samhan-air.com → ALB"
+        Write-Phase11Log "INFO" "DNS record 확인: $($sub).samhan-air.com → ALB"
         # nslookup "$sub.samhan-air.com" 8.8.8.8
     }
 
     # 아로로지스 (spec 2026-05-14 분리) — 별도 subdomain 3개
     $arologisSubdomains = @("api.arologis", "app.arologis", "mobile.arologis")
     foreach ($sub in $arologisSubdomains) {
-        Write-Phase11Log "INFO" "DNS record 확인: $sub.samhan-air.com → ALB (아로로지스)"
+        Write-Phase11Log "INFO" "DNS record 확인: $($sub).samhan-air.com → ALB (아로로지스)"
         # nslookup "$sub.samhan-air.com" 8.8.8.8
     }
 
@@ -236,9 +247,14 @@ function Invoke-HealthCheck {
         "https://mobile.arologis.samhan-air.com/"
     )
 
-    if ($EC2PublicIp) {
-        $endpoints += "http://$EC2PublicIp:8080/actuator/health"
-        $endpoints += "http://$EC2PublicIp:8097/actuator/health"   # arologis-service direct
+    if ($AlbDnsName) {
+        Write-Phase11Log "INFO" "ALB DNS HTTPS 임시 검증: https://$AlbDnsName/actuator/health (인증서 hostname mismatch 때문에 curl.exe -k 사용)"
+        try {
+            curl.exe -k -fs "https://$AlbDnsName/actuator/health" | Out-Null
+            Write-Phase11Log "OK" "PASS: https://$AlbDnsName/actuator/health"
+        } catch {
+            Write-Phase11Log "WARN" "FAIL: https://$AlbDnsName/actuator/health — $($_.Exception.Message)"
+        }
     }
 
     foreach ($url in $endpoints) {
@@ -255,7 +271,11 @@ function Invoke-HealthCheck {
         }
     }
 
-    Write-Phase11Log "INFO" "17 service 전체 health check 는 infrastructure/terraform/CUTOVER.md 참조"
+    Write-Phase11Log "INFO" "17 service 전체 포트 검증은 EC2 SSM Session Manager 내부 localhost curl 로 수행합니다."
+    if ($InstanceId) {
+        Write-Phase11Log "INFO" "SSM 접속: aws ssm start-session --target $InstanceId --region ap-northeast-2"
+    }
+    Write-Phase11Log "INFO" "SSM 내부 실행 포트: 8761 8080 8081 8082 8083 8084 8085 8086 8087 8088 8089 8091 8092 8093 8094 8095 8097"
 }
 
 # ─── 메인 실행 ────────────────────────────────────────────────────────────────

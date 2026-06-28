@@ -70,15 +70,10 @@ variable "ec2_volume_size" {
 }
 
 variable "ec2_key_pair_name" {
-  description = "EC2 SSH 키페어 이름"
+  description = "선택 EC2 키페어 이름. 기본 운영 접속은 SSM Session Manager 이므로 null 권장."
   type        = string
-  default     = "samhanlogis-prod-key"
-}
-
-variable "allowed_ssh_cidr" {
-  description = "SSH 허용 CIDR (운영자 고정 IP 필수 — 예: 203.x.x.x/32 또는 사무실 대역 /24). terraform.tfvars 에서 반드시 지정."
-  type        = string
-  # default 없음 (필수값): 0.0.0.0/0 전체 개방 금지. terraform.tfvars.example 참조.
+  default     = null
+  nullable    = true
 }
 
 # ─── RDS ─────────────────────────────────────────────────────────────────────
@@ -112,13 +107,6 @@ variable "rds_username" {
   type        = string
   default     = "samhan"
   sensitive   = true
-}
-
-variable "rds_password" {
-  description = "RDS 마스터 비밀번호 (Secrets Manager 관리 권장)"
-  type        = string
-  sensitive   = true
-  # terraform.tfvars 에서 주입 — 절대 하드코딩 금지
 }
 
 variable "rds_backup_retention_days" {

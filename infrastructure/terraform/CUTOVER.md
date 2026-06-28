@@ -18,7 +18,6 @@
 | **Route 53 Hosted Zone** | NOT-READY | terraform apply 또는 사전 생성 |
 | **Secrets Manager 시크릿** | NOT-READY | 아래 단계 0 참조 |
 | **도메인 등록기관 NS 레코드** | NOT-READY | terraform output route53_name_servers 확인 후 수동 |
-| **SSH 키페어** | NOT-READY | AWS 콘솔에서 `samhanlogis-prod-key` 생성 |
 | **S3 Terraform state 버킷** | NOT-READY | 단계 0 사전 생성 |
 | **ECR 이미지 push** | NOT-READY | 단계 2 수행 |
 | **RDS snapshot(데이터 이관)** | NOT-READY | 단계 4 수동 수행 |
@@ -64,12 +63,6 @@ aws dynamodb create-table \
 
 ### 0-D. Secrets Manager 시크릿 사전 등록
 ```bash
-# RDS 마스터 비밀번호 (강도 높은 값으로 교체)
-aws secretsmanager create-secret \
-  --name samhan/production/db-password \
-  --secret-string "REPLACE_STRONG_PASSWORD" \
-  --region ap-northeast-2
-
 # JWT 서명 비밀키 (64자 이상 무작위 문자열)
 aws secretsmanager create-secret \
   --name samhan/production/jwt-secret \
@@ -87,18 +80,29 @@ aws secretsmanager create-secret \
   --name samhan/production/arologis-jwt-secret \
   --secret-string "$(openssl rand -hex 32)" \
   --region ap-northeast-2
+
+# RabbitMQ 운영 비밀번호
+aws secretsmanager create-secret \
+  --name samhan/production/rabbit-password \
+  --secret-string "$(openssl rand -hex 32)" \
+  --region ap-northeast-2
+
+# S3 호환 MinIO client 용 access/secret key
+# 실 키는 cutover 직전 개발책임자가 수동 주입합니다.
+aws secretsmanager create-secret \
+  --name samhan/production/s3-access-key \
+  --secret-string "REPLACE_S3_ACCESS_KEY" \
+  --region ap-northeast-2
+
+aws secretsmanager create-secret \
+  --name samhan/production/s3-secret-key \
+  --secret-string "REPLACE_S3_SECRET_KEY" \
+  --region ap-northeast-2
 ```
 
-### 0-E. SSH 키페어 생성 (EC2 SSH 접속용)
-```bash
-aws ec2 create-key-pair \
-  --key-name samhanlogis-prod-key \
-  --region ap-northeast-2 \
-  --query 'KeyMaterial' --output text > samhanlogis-prod-key.pem
-chmod 400 samhanlogis-prod-key.pem
-```
+> RDS master password 는 `rds.tf`의 `manage_master_user_password=true`로 AWS가 관리하는 managed secret을 사용합니다. 별도 `samhan/production/db-password` 시크릿은 만들지 않습니다.
 
-### 0-F. AMI ID 최신 확인
+### 0-E. AMI ID 최신 확인
 ```bash
 # Amazon Linux 2023 최신 AMI (ap-northeast-2)
 aws ec2 describe-images \
@@ -109,18 +113,17 @@ aws ec2 describe-images \
 # 결과를 terraform.tfvars 의 ec2_ami_id 에 업데이트
 ```
 
-### 0-G. terraform.tfvars 작성
+### 0-F. terraform.tfvars 작성
 ```bash
 cp infrastructure/terraform/terraform.tfvars.example infrastructure/terraform/terraform.tfvars
 # 실 값 입력 (Git 커밋 금지 — .gitignore 에 포함됨):
-#   - rds_password: Secrets Manager 동일 값
-#   - allowed_ssh_cidr: 운영자 공인 IP (203.x.x.x/32)
-#   - route53_zone_id: 0-H 에서 획득
-#   - ec2_ami_id: 0-F 결과
+#   - route53_zone_id: 0-G 에서 획득
+#   - ec2_ami_id: 0-E 결과
 #   - slack_webhook_url: Slack 웹훅 URL
+#   - ec2_key_pair_name: 기본 null 권장. SSH 없이 SSM Session Manager 로 접속.
 ```
 
-### 0-H. Route 53 Hosted Zone 확인
+### 0-G. Route 53 Hosted Zone 확인
 ```bash
 # 기존 Hosted Zone 이 있으면:
 aws route53 list-hosted-zones --query 'HostedZones[?Name==`samhan-air.com.`].Id'
@@ -128,7 +131,7 @@ aws route53 list-hosted-zones --query 'HostedZones[?Name==`samhan-air.com.`].Id'
 # route53.tf 의 resource "aws_route53_zone" "main" 을 data source 로 교체 필요 (이미 존재하면 중복 오류)
 ```
 
-### 0-I. Terraform backend 주석 해제
+### 0-H. Terraform backend 주석 해제
 `infrastructure/terraform/main.tf` 내 `# backend "s3"` 블록 주석 해제:
 ```hcl
 backend "s3" {
@@ -237,7 +240,7 @@ aws s3 cp infrastructure/terraform/templates/init-rds.sql \
 ```
 
 > user_data.sh 는 EC2 최초 기동 시 자동 실행됨 (단계 1 terraform apply 완료 후).  
-> 재배포 시: SSM Session Manager 또는 SSH 로 접속 후 수동 실행.
+> 재배포 시: SSM Session Manager 로 접속 후 수동 실행.
 
 ### 3-B. 첫 기동 확인 (EC2 SSM Session Manager)
 ```bash
@@ -317,17 +320,19 @@ nslookup api.samhan-air.com 8.8.8.8
 ## 단계 6 — /actuator/health 전체 검증
 
 ```bash
-# ALB DNS HTTPS 헬스체크 (EC2 퍼블릭 IP 불필요 — private subnet + ALB 전면 아키텍처)
+# ALB DNS HTTPS 임시 헬스체크
+# 인증서는 api.samhan-air.com / *.arologis.samhan-air.com 용이라 ALB DNS hostname 과 불일치합니다.
+# DNS cutover 전 임시 확인에만 -k 를 사용합니다.
 ALB_DNS=$(terraform output -raw alb_dns_name)
-curl -fs "https://${ALB_DNS}/actuator/health" | python3 -m json.tool
+curl -k -fs "https://${ALB_DNS}/actuator/health" | python3 -m json.tool
 
-# DNS cutover 완료 후 도메인 직접 확인
+# DNS cutover 완료 후 운영 도메인 직접 확인 (정식 TLS 검증)
 curl -fs https://api.samhan-air.com/actuator/health | python3 -m json.tool
 
 # 17 service 전체 health check (SSM Session Manager 세션 내부 localhost curl)
 # EC2 에 퍼블릭 IP 없음 — SSM 으로 접속:
 #   aws ssm start-session --target <INSTANCE_ID> --region ap-northeast-2
-PORTS=(8080 8081 8082 8083 8084 8085 8086 8087 8088 8089 8091 8092 8093 8094 8095 8097)
+PORTS=(8761 8080 8081 8082 8083 8084 8085 8086 8087 8088 8089 8091 8092 8093 8094 8095 8097)
 for port in "${PORTS[@]}"; do
   status=$(curl -s "http://localhost:${port}/actuator/health" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','N/A'))" 2>/dev/null || echo "FAILED")
   echo "Port ${port}: ${status}"
@@ -373,13 +378,12 @@ aws rds restore-db-instance-to-point-in-time \
 | # | 항목 | 수행 시점 |
 |---|------|-----------|
 | M-1 | AWS 계정 생성 + IAM 사용자 발급 | 단계 0 전 |
-| M-2 | samhan-air.com 도메인 Route 53 Hosted Zone 이관 | 단계 0-H |
-| M-3 | Secrets Manager 시크릿 실 값 입력 (db-password/jwt-secret/internal-token/arologis-jwt) | 단계 0-D |
+| M-2 | samhan-air.com 도메인 Route 53 Hosted Zone 이관 | 단계 0-G |
+| M-3 | Secrets Manager 시크릿 실 값 입력 (jwt-secret/internal-token/arologis-jwt/rabbit-password/S3 access/secret key) | 단계 0-D |
 | M-4 | SMTP 자격증명 (AWS SES SMTP 발급 + 발신 도메인 인증) | 단계 0 후 |
-| M-5 | SSH 키페어 생성 + .pem 안전 보관 | 단계 0-E |
-| M-6 | AMI ID 최신 확인 + tfvars 업데이트 | 단계 0-F |
-| M-7 | Slack Webhook URL 발급 | 단계 0 |
-| M-8 | terraform.tfvars 실 값 작성 + .gitignore 확인 | 단계 0-G |
+| M-5 | AMI ID 최신 확인 + tfvars 업데이트 | 단계 0-E |
+| M-6 | Slack Webhook URL 발급 | 단계 0 |
+| M-8 | terraform.tfvars 실 값 작성 + .gitignore 확인 | 단계 0-F |
 | M-9 | 도메인 등록기관 NS 레코드 교체 | 단계 5-B |
 | M-10 | 기존 로컬 데이터 → RDS 이관 (pg_dump/restore) | 단계 4 |
 | M-11 | arologis SAMHAN_INSUNG_QUICK_* 인성데이타 vendor sandbox 키 | 운영 후 |
@@ -387,9 +391,9 @@ aws rds restore-db-instance-to-point-in-time \
 | M-13 | Aligo SMS 키 (notification-service) | 운영 후 |
 | M-14 | NTS/KFTC/CODEF sandbox 키 (accounting-service) | 운영 후 |
 | M-15 | .env.production 의 SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID 입력 | 단계 3 |
-| M-16 | RabbitMQ 운영 비밀번호 설정 (RABBIT_PASSWORD) | 단계 3 |
+| M-16 | RabbitMQ 운영 비밀번호 Secrets Manager 주입 (`samhan/production/rabbit-password`) | 단계 0-D |
 | M-17 | route53.tf: 이미 Hosted Zone 존재 시 resource → data source 교체 | 단계 1 전 |
-| M-18 | ACM 에 `*.arologis.samhan-air.com` SAN 추가 + DNS 검증 + ALB HTTPS 리스너 `aws_lb_listener_certificate` 연결 | 단계 1 전 |
+| M-18 | AWS S3 access/secret key 실값 수동 주입 (`samhan/production/s3-access-key`, `samhan/production/s3-secret-key`) | 단계 0-D |
 
 ---
 
@@ -399,7 +403,7 @@ aws rds restore-db-instance-to-point-in-time \
 |------|------|
 | `infrastructure/terraform/main.tf` | Terraform 진입점, 17 service 포트 맵 |
 | `infrastructure/terraform/ec2.tf` | EC2 + ALB + ACM + Auto Recovery |
-| `infrastructure/terraform/rds.tf` | RDS PostgreSQL 15, 16 DB, backup 7일 |
+| `infrastructure/terraform/rds.tf` | RDS PostgreSQL 15, 15 DB, backup 7일 |
 | `infrastructure/terraform/ecr.tf` | ECR 17 service 리포지토리 |
 | `infrastructure/terraform/vpc.tf` | VPC/Subnet/NAT/Security Groups |
 | `infrastructure/terraform/route53.tf` | samhan-air.com 8 subdomain |
@@ -412,7 +416,7 @@ aws rds restore-db-instance-to-point-in-time \
 | `infrastructure/terraform/outputs.tf` | 배포 후 출력값 |
 | `infrastructure/terraform/terraform.tfvars.example` | tfvars 예시 (실 값 없음) |
 | `infrastructure/terraform/templates/user_data.sh` | EC2 최초 기동 스크립트 |
-| `infrastructure/terraform/templates/init-rds.sql` | RDS 16 DB 초기화 SQL |
+| `infrastructure/terraform/templates/init-rds.sql` | RDS 15 DB 초기화 SQL |
 | `infrastructure/terraform/templates/health_check_lambda.py` | Health Check Lambda 소스 |
 | `infrastructure/docker-compose.prod.yml` | 17 service 운영 docker-compose |
 | `infrastructure/scripts/phase11-deploy.ps1` | 배포 자동화 PowerShell |

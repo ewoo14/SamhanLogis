@@ -170,7 +170,7 @@ resource "aws_security_group" "alb" {
 # EC2 Security Group
 resource "aws_security_group" "ec2" {
   name        = "${local.name_prefix}-ec2-sg"
-  description = "EC2 인바운드 — ALB 8080 / SSH 22"
+  description = "EC2 인바운드 — ALB 8080 / Health Check Lambda only. 운영 접속은 SSM Session Manager 사용."
   vpc_id      = aws_vpc.main.id
 
   # api-gateway 포트 (ALB 에서만 허용)
@@ -182,22 +182,15 @@ resource "aws_security_group" "ec2" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  # SSH (운영자 IP 제한 권장)
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
-  }
+  # SSH ingress 없음: 운영 접속은 SSM Session Manager 전용.
 
-  # Health Check Lambda (VPC 내부)
+  # Health Check Lambda (Lambda SG 에서만 허용)
   ingress {
-    description = "Health Check Lambda (VPC)"
+    description     = "Health Check Lambda"
     from_port   = 8080
-    to_port     = 8095
+    to_port     = 8097
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    security_groups = [aws_security_group.lambda.id]
   }
 
   egress {

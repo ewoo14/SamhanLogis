@@ -7,7 +7,7 @@
 #   2. Docker + Docker Compose v2 설치
 #   3. CloudWatch Agent 설치 + 설정
 #   4. .env.production 생성 (Terraform 주입 RDS 엔드포인트)
-#   5. RDS 16 DB 초기화 (init-rds.sql 실행)
+#   5. RDS 15 DB 초기화 (init-rds.sql 실행)
 #   6. docker-compose.prod.yml S3 다운로드
 #   7. ECR 로그인 + 17 service docker-compose up
 #
@@ -106,31 +106,36 @@ cd /opt/samhanlogis
 AWS_REGION="${aws_region}"
 RDS_ENDPOINT="${rds_endpoint}"
 RDS_USERNAME="${rds_username}"
+RDS_SECRET_ARN="${rds_secret_arn}"
 PROJECT_NAME="${project_name}"
 
-# Secrets Manager 에서 비밀값 조회 (실패 시 fail-fast — || fallback 없음, RDS 비밀번호는 SM 전용)
-DB_PASSWORD=$(aws secretsmanager get-secret-value \
-    --secret-id samhan/production/db-password \
-    --query SecretString --output text \
-    --region "$AWS_REGION") || {
-    echo "[FATAL] Secrets Manager samhan/production/db-password 조회 실패 — 스크립트를 중단합니다." >&2
-    exit 1
+# Secrets Manager 에서 비밀값 조회 (실패 시 fail-fast — fallback 없음)
+get_secret_string() {
+    local secret_id="$1"
+    local label="$2"
+
+    aws secretsmanager get-secret-value \
+        --secret-id "$secret_id" \
+        --query SecretString --output text \
+        --region "$AWS_REGION" || {
+        echo "[FATAL] Secrets Manager $label 조회 실패 — 스크립트를 중단합니다." >&2
+        exit 1
+    }
 }
 
-JWT_SECRET=$(aws secretsmanager get-secret-value \
-    --secret-id samhan/production/jwt-secret \
-    --query SecretString --output text \
-    --region "$AWS_REGION" 2>/dev/null || echo "REPLACE_WITH_64CHAR_SECRET")
+DB_SECRET_STRING=$(get_secret_string "$RDS_SECRET_ARN" "RDS managed master secret")
+DB_PASSWORD=$(printf '%s' "$DB_SECRET_STRING" | jq -r '.password // empty')
+if [ -z "$DB_PASSWORD" ]; then
+    echo "[FATAL] RDS managed master secret 에 password 필드가 없습니다." >&2
+    exit 1
+fi
 
-INTERNAL_TOKEN=$(aws secretsmanager get-secret-value \
-    --secret-id samhan/production/internal-token \
-    --query SecretString --output text \
-    --region "$AWS_REGION" 2>/dev/null || echo "REPLACE_INTERNAL_TOKEN")
-
-AROLOGIS_JWT_SECRET=$(aws secretsmanager get-secret-value \
-    --secret-id samhan/production/arologis-jwt-secret \
-    --query SecretString --output text \
-    --region "$AWS_REGION" 2>/dev/null || echo "REPLACE_AROLOGIS_JWT_SECRET")
+JWT_SECRET=$(get_secret_string "samhan/production/jwt-secret" "samhan/production/jwt-secret")
+INTERNAL_TOKEN=$(get_secret_string "samhan/production/internal-token" "samhan/production/internal-token")
+AROLOGIS_JWT_SECRET=$(get_secret_string "samhan/production/arologis-jwt-secret" "samhan/production/arologis-jwt-secret")
+RABBIT_PASSWORD=$(get_secret_string "samhan/production/rabbit-password" "samhan/production/rabbit-password")
+S3_ACCESS_KEY=$(get_secret_string "samhan/production/s3-access-key" "samhan/production/s3-access-key")
+S3_SECRET_KEY=$(get_secret_string "samhan/production/s3-secret-key" "samhan/production/s3-secret-key")
 
 # ECR registry (account_id.dkr.ecr.region.amazonaws.com)
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION")
@@ -162,8 +167,10 @@ SAMHAN_DB_PASSWORD=$${DB_PASSWORD}
 AWS_DEFAULT_REGION=$${AWS_REGION}
 SAMHAN_AWS_REGION=$${AWS_REGION}
 
-# ─── S3 (MinIO → AWS S3 자동 전환: endpoint 빈 값) ──────────
-SAMHAN_S3_ENDPOINT=
+# ─── S3 (MinIO → AWS S3 운영 endpoint) ──────────────────────
+SAMHAN_S3_ENDPOINT=https://s3.ap-northeast-2.amazonaws.com
+SAMHAN_S3_ACCESS_KEY=$${S3_ACCESS_KEY}
+SAMHAN_S3_SECRET_KEY=$${S3_SECRET_KEY}
 SAMHAN_S3_BUCKET=samhan-attachments
 SAMHAN_S3_PATH_STYLE_ACCESS=false
 SAMHAN_S3_PRESIGNED_EXPIRY=300
@@ -186,7 +193,7 @@ SAMHAN_DISCOVERY_PROVIDER=eureka
 RABBIT_HOST=rabbitmq
 RABBIT_PORT=5672
 RABBIT_USER=samhan
-RABBIT_PASSWORD=REPLACE_RABBIT_PASSWORD
+RABBIT_PASSWORD=$${RABBIT_PASSWORD}
 
 # ─── Elasticsearch (docker-compose.prod.yml 컨테이너) ────────
 ES_URI=http://elasticsearch:9200
@@ -255,7 +262,7 @@ EOF
 chmod 600 /opt/samhanlogis/.env.production
 echo "[4/7] .env.production 생성 완료"
 
-# ─── 5. RDS 16 DB 초기화 ─────────────────────────────────────────────────────
+# ─── 5. RDS 15 DB 초기화 ─────────────────────────────────────────────────────
 echo "[5/7] RDS DB 초기화"
 
 # init-rds.sql S3 다운로드 (실패 시 fail-fast)
@@ -269,9 +276,9 @@ aws s3 cp "s3://samhan-attachments/deploy/init-rds.sql" /tmp/init-rds.sql \
 }
 
 # psql RDS DB 초기화
-# ON_ERROR_STOP=off 기본값: 기존 DB already-exists 오류 발생 시 psql 계속 실행 후 종료코드 0
-# 접속 실패(잘못된 엔드포인트/비밀번호) 시 psql 종료코드 비-0 → set -e 로 스크립트 중단
+# ON_ERROR_STOP=1: SQL 오류도 psql 종료코드 비-0 → set -e 로 스크립트 중단
 PGPASSWORD="$DB_PASSWORD" psql \
+    -v ON_ERROR_STOP=1 \
     -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d postgres \
     -f /tmp/init-rds.sql
 

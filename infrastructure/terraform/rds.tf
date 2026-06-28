@@ -7,7 +7,7 @@
 #   - 스토리지: gp3 100 GB
 #   - Multi-AZ: false (비용 최적화 — 사용자 결정 2026-05-08)
 #   - Automated Backup: retention 7일 (무료 — ✅ 적용)
-#   - 16 DB schema 분리 (각 service 별 별도 database — 15 service DB + migration_db)
+#   - 15 DB schema 분리 (logging_db 제외, 각 service 별 별도 database + migration_db)
 #   - Private Subnet 배치 (EC2 SG 에서만 접근)
 ################################################################################
 
@@ -82,9 +82,9 @@ resource "aws_db_instance" "main" {
   storage_encrypted     = true
 
   # 기본 DB (각 service DB 는 flyway/init 스크립트로 별도 생성)
-  db_name  = var.rds_db_name
-  username = var.rds_username
-  password = var.rds_password
+  db_name                     = var.rds_db_name
+  username                    = var.rds_username
+  manage_master_user_password = true
 
   # 네트워크
   db_subnet_group_name   = aws_db_subnet_group.main.name
@@ -148,7 +148,7 @@ resource "aws_iam_role_policy_attachment" "rds_monitoring" {
 }
 
 # ─── 17 service DB 초기화 (user_data.sh 내 init-rds.sql 실행 위임) ──────────
-# EC2 user_data 최초 부팅 시 templates/init-rds.sql 을 실행하여 16개 DB 생성.
+# EC2 user_data 최초 부팅 시 templates/init-rds.sql 을 실행하여 15개 DB 생성.
 # 이후 각 서비스 Flyway 마이그레이션이 각 DB schema 를 자동 구성.
 # Terraform 에서는 RDS 엔드포인트만 관리 (DB/schema 는 init-rds.sql + Flyway 위임).
 
@@ -168,4 +168,10 @@ output "rds_port" {
 output "rds_db_name" {
   description = "RDS 기본 DB 이름"
   value       = aws_db_instance.main.db_name
+}
+
+output "rds_master_user_secret_arn" {
+  description = "RDS managed master user secret ARN (EC2 user_data 에서 비밀번호 조회)"
+  value       = aws_db_instance.main.master_user_secret[0].secret_arn
+  sensitive   = true
 }

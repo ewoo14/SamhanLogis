@@ -44,7 +44,7 @@ resource "aws_instance" "app" {
     aws_region   = var.aws_region
     rds_endpoint = aws_db_instance.main.address
     rds_username = var.rds_username
-    # rds_password 는 templatefile 주입 금지 — Secrets Manager 전용 (user_data.sh 참조)
+    rds_secret_arn = aws_db_instance.main.master_user_secret[0].secret_arn
   }))
 
   tags = {
@@ -54,7 +54,7 @@ resource "aws_instance" "app" {
 
   lifecycle {
     # AMI ID 업데이트 시 replace 방지 (명시적 destroy 필요)
-    ignore_changes = [ami, user_data]
+    ignore_changes = [ami]
   }
 
   depends_on = [aws_db_instance.main]
@@ -120,7 +120,7 @@ resource "aws_lb_target_group_attachment" "app" {
 
 resource "aws_acm_certificate" "main" {
   domain_name               = var.domain_name
-  subject_alternative_names = ["*.${var.domain_name}"]
+  subject_alternative_names = ["*.${var.domain_name}", "*.arologis.${var.domain_name}"]
   validation_method         = "DNS"
 
   lifecycle {
@@ -139,12 +139,14 @@ resource "aws_lb_listener" "https" {
   port              = "443"
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate.main.arn
+  certificate_arn   = aws_acm_certificate_validation.main.certificate_arn
 
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
   }
+
+  depends_on = [aws_acm_certificate_validation.main]
 }
 
 resource "aws_lb_listener" "http_redirect" {

@@ -8,9 +8,8 @@
 #
 # 자원 영향:
 #   - aws_route53_zone.main          (route53.tf) 그대로 재사용.
-#   - aws_acm_certificate.main       (wildcard *.samhan-air.com) 그대로 — *.samhan-air.com 이
-#     *.arologis.samhan-air.com 까지 커버하지 않으므로 SAN 추가 필요 (별도 PR 또는 본 분리 시
-#     수동 ACM 검증). 본 .tf 는 Route 53 record 만 추가 — ACM 갱신은 별도 작업.
+#   - aws_acm_certificate.main       (*.samhan-air.com + *.arologis.samhan-air.com SAN)
+#     DNS validation 은 route53.tf 의 validation record for_each 로 자동 포함.
 #   - aws_lb.main                    그대로 재사용 (host-header 라우팅 = Nginx 가 처리).
 #
 # 비용 영향: Route 53 record 3개 추가만 — 월 ₩0 (Hosted Zone 이미 존재).

@@ -29,8 +29,7 @@ ec2_instance_type = "m5.xlarge"
 # aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*-x86_64" --query 'Images[0].ImageId'
 ec2_ami_id        = "ami-0c9c942bd7bf113a2"
 ec2_volume_size   = 100
-ec2_key_pair_name = "samhanlogis-prod-key"
-allowed_ssh_cidr  = "203.0.113.0/24"  # 실 운영자 IP 로 교체 필수
+ec2_key_pair_name = null  # 운영 접속은 SSM Session Manager 전용. SSH 키페어는 필요 시에만 지정.
 
 # ─── RDS 설정 ─────────────────────────────────────────────────────────────────
 rds_instance_class        = "db.t3.medium"
@@ -38,7 +37,6 @@ rds_engine_version        = "15.7"
 rds_allocated_storage     = 100
 rds_db_name               = "samhanlogis"
 rds_username              = "samhan"
-rds_password              = "REPLACE_WITH_STRONG_PASSWORD"  # Secrets Manager 관리 권장
 rds_backup_retention_days = 7  # RDS automated backup 7일 (무료)
 
 # ─── S3 설정 ──────────────────────────────────────────────────────────────────
