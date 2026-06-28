@@ -69,9 +69,7 @@ import org.springframework.transaction.annotation.Transactional;
  *       — 기존 외부 client 격리 (메모리 가드 {@code feedback_it_mockbean_external_clients.md})</li>
  * </ul>
  *
- * <p>NOTE: Aligo (SP-09-2) 와 Clova OCR (SP-09-3) 은 별도 서비스
- * (notification-service / slip-service) 에 속하므로 각 서비스의 IT
- * ({@code AligoSmsAdapterSendAuditIT} / {@code ReceiptOcrShellIT}) 에서 검증됨.
+ * <p>NOTE: Aligo (SP-09-2) 는 별도 notification-service 에 속하므로 해당 서비스 IT 에서 검증됨.
  * 본 IT 는 accounting-service 내 NTS + KFTC 패턴 일관성에 집중.
  */
 @SpringBootTest(classes = AccountingServiceApplication.class)
@@ -213,8 +211,8 @@ class Phase9VendorIntegrationIT extends AbstractPostgresIT {
     /**
      * Case 4: NTS mode (실 API) 에서 placeholder 키 차단 시 502 + ETAX_SUBMIT_FAILED 에러 코드 일관.
      *
-     * <p>패턴 일관성: 4 vendor 모두 placeholder → 502 BAD_GATEWAY + 각 vendor 에러 코드 반환.
-     * NTS: ETAX_SUBMIT_FAILED / Aligo: SEND_FAILED / Clova: OCR_SUBMIT_FAILED / KFTC: KFTC_SUBMIT_FAILED
+     * <p>패턴 일관성: 외부 vendor placeholder → 502 BAD_GATEWAY + 각 vendor 에러 코드 반환.
+     * NTS: ETAX_SUBMIT_FAILED / Aligo: SEND_FAILED / KFTC: KFTC_SUBMIT_FAILED
      */
     @Test
     @DisplayName("Case 4: NTS placeholder 차단 → 502 ETAX_SUBMIT_FAILED (에러 코드 패턴 일관)")

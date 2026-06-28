@@ -104,7 +104,7 @@ public class ETaxClientImpl implements ETaxClient {
      *   <li>{@code ntsApiKey} 가 blank 이면 즉시 ETAX_SUBMIT_FAILED</li>
      *   <li>{@code ntsApiKey} 가 알려진 placeholder 값 ("PLACEHOLDER_DEV_ONLY", "CHANGE_ME_LOCAL_ONLY",
      *       "changeme", "dummy") 이면 즉시 ETAX_SUBMIT_FAILED — 실수로 placeholder 를 그대로 사용하는 경우 차단.
-     *       SP-09 vendor 통합 정책 4 키워드 (NTS/Aligo/Clova/KFTC 일관).</li>
+     *       SP-09 vendor 통합 정책 4 키워드 (NTS/Aligo/KFTC 일관).</li>
      * </ul>
      *
      * @throws BusinessException(ETAX_SUBMIT_FAILED) API 키 미설정·placeholder·API 호출 실패 시

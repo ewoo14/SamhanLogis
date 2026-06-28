@@ -526,15 +526,6 @@ spring:
           filters:
             - JwtAuthentication
 
-        # [잔여] vendor 발주 OCR — VendorOrderController 풀패스 @RequestMapping("/api/v1/admin/partner-order/vendor").
-        # /api/v1/partner-orders/** predicate 와 세그먼트가 달라 미매칭이었음 → no-strip 라우트 추가.
-        - id: partner-order-admin-v1
-          uri: lb://partner-order-service
-          predicates:
-            - Path=/api/v1/admin/partner-order/**
-          filters:
-            - JwtAuthentication
-
         # partner-auth-service — 주문서 승인 controller 가 `/api/v1/partner-approvals`
         # 풀패스를 보유하므로 StripPrefix 없음. Desktop 주문서 승인 CRUD 경로.
         - id: partner-auth-approvals-v1

@@ -30,7 +30,7 @@
  * SP-D4 마이그레이션 대상 22 PageCode (§2 카탈로그):
  *   estimates.list / sales.partner-order.list / sales.partner-order.draft
  *   sales.partner-order.confirm / sales.partner-order.history / sales.partner-order.print
- *   sales.vendor-order / inventory.warehouse / inventory.stock / inventory.stock-transfer
+ *   inventory.warehouse / inventory.stock / inventory.stock-transfer
  *   inventory.dps / inventory.audit / admin.employees / admin.users / partners.list
  *   partners.detail / partners.block / partners.edit-request / products.list
  *   products.admin / arologis.admin / arologis.region
@@ -133,7 +133,6 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: true, edit: true },
     'sales.partner-order.history': { view: true, edit: true },
     'sales.partner-order.print': { view: true, edit: true },
-    'sales.vendor-order': { view: true, edit: true },
     'inventory.warehouse': { view: true, edit: true },
     'inventory.stock': { view: true, edit: true },
     'inventory.stock-transfer': { view: true, edit: true },
@@ -157,7 +156,6 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: true, edit: true },
     'sales.partner-order.history': { view: true, edit: false },
     'sales.partner-order.print': { view: true, edit: false },
-    'sales.vendor-order': { view: true, edit: true },
     'inventory.warehouse': { view: true, edit: true },
     'inventory.stock': { view: true, edit: false },
     'inventory.stock-transfer': { view: true, edit: true },
@@ -181,7 +179,6 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: false, edit: false },
     'sales.partner-order.history': { view: true, edit: false },
     'sales.partner-order.print': { view: false, edit: false },
-    'sales.vendor-order': { view: false, edit: false },
     'inventory.warehouse': { view: false, edit: false },
     'inventory.stock': { view: true, edit: false },
     'inventory.stock-transfer': { view: false, edit: false },
@@ -205,7 +202,6 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: true, edit: true },
     'sales.partner-order.history': { view: true, edit: false },
     'sales.partner-order.print': { view: true, edit: true },
-    'sales.vendor-order': { view: true, edit: true },
     'inventory.warehouse': { view: false, edit: false },
     'inventory.stock': { view: true, edit: false },
     'inventory.stock-transfer': { view: false, edit: false },
@@ -229,7 +225,6 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: false, edit: false },
     'sales.partner-order.history': { view: false, edit: false },
     'sales.partner-order.print': { view: true, edit: false },
-    'sales.vendor-order': { view: true, edit: false },
     'inventory.warehouse': { view: true, edit: true },
     'inventory.stock': { view: true, edit: true },
     'inventory.stock-transfer': { view: true, edit: true },
@@ -253,7 +248,6 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: false, edit: false },
     'sales.partner-order.history': { view: false, edit: false },
     'sales.partner-order.print': { view: false, edit: false },
-    'sales.vendor-order': { view: false, edit: false },
     'inventory.warehouse': { view: false, edit: false },
     'inventory.stock': { view: true, edit: false },
     'inventory.stock-transfer': { view: false, edit: false },
@@ -277,7 +271,6 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: false, edit: false },
     'sales.partner-order.history': { view: false, edit: false },
     'sales.partner-order.print': { view: false, edit: false },
-    'sales.vendor-order': { view: false, edit: false },
     'inventory.warehouse': { view: true, edit: true },
     'inventory.stock': { view: true, edit: true },
     'inventory.stock-transfer': { view: true, edit: true },
@@ -1547,7 +1540,6 @@ test.describe('SP-D4 회귀 가드 (false green 0건 + SP-D4 PageCode 정합 검
       'sales.partner-order.confirm',
       'sales.partner-order.history',
       'sales.partner-order.print',
-      'sales.vendor-order',
       'inventory.warehouse',
       'inventory.stock',
       'inventory.stock-transfer',

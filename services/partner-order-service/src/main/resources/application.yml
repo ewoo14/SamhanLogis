@@ -92,24 +92,7 @@ samhan:
   outbox:
     cron: "0 */5 * * * *"
     max-retry-hours: 24
-  # PR-F2 (Phase 10 step-13) — Tesseract OCR 거래처 주문서 자동 입력.
-  # default disabled — Tesseract native binary 미설치 환경 (CI / 신규 개발자 첫 부팅) 보호.
-  # 활성화 절차: docs/dev-environment/tesseract-setup.md 참조.
-  # BE-1 TesseractOcrEngine 은 @ConditionalOnProperty(samhan.partner-order.ocr.enabled, true, matchIfMissing=false)
-  # 으로 보호되며, false 시 OCR endpoint 가 503 Service Unavailable 응답 (graceful fallback).
   partner-order:
-    ocr:
-      enabled: ${SAMHAN_OCR_ENABLED:false}
-      # 엔진 종류 — TESSERACT (default, 운영) / MOCK (테스트 / Tesseract 미설치 fallback)
-      engine: ${SAMHAN_OCR_ENGINE:TESSERACT}
-      tesseract:
-        # Linux default 경로. Windows: C:\Program Files\Tesseract-OCR\tessdata
-        # macOS Apple Silicon: /opt/homebrew/share/tessdata
-        data-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/4.00/tessdata}
-        # 한국어 + 영문 (수량/단가/일자 영숫자 인식 보강)
-        language: ${TESSERACT_LANGUAGE:kor+eng}
-        # 6 = 단일 균일 텍스트 블록 (거래처 주문서 표 인식 권장)
-        page-seg-mode: ${TESSERACT_PSM:6}
     vendor:
       # PR-F2 + SP-04 재검증 — 종합견적서/주문서 Google Sheet 원본 tab modelCode → 단가 lookup.
       # `종합견적서` tab 자체는 출력 양식이므로 기본값은 range override 없이

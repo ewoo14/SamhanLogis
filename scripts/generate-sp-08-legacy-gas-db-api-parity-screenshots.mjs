@@ -48,7 +48,7 @@ const screens = [
       ['배차', '가배차 / 지방가배차 / 미배차 / 문자 / 운송사 비교', 'arologis + slip + notification API', '후속 parity 대상'],
       ['창고', 'DPS 입고기록 / 품목별 DPS', 'inventory DB/API', '후속 parity 대상'],
       ['회계', '원장 / 거래명세서 / 계산서 / 일마감', 'accounting + slip DB/API', '후속 parity 대상'],
-      ['외부', '알리고 / vendor OCR 2종', 'dry-run client + partner-order OCR', '후속 parity 대상'],
+      ['외부', '알리고 / 외부 연동', 'dry-run client + partner-order 연동', '후속 parity 대상'],
     ],
     cards: [
       ['원칙', ['UI와 기능은 legacy 그대로', 'Notion 통신만 DB/API로 교체', 'raw 원본은 read-only'], palette.teal],
@@ -159,15 +159,15 @@ const screens = [
     ],
   },
   {
-    file: '07-vendor-ocr-aligo-parity.png',
+    file: '07-vendor-aligo-parity.png',
     active: '주문서 관리',
     role: 'Frontend',
-    title: 'Vendor OCR and Aligo parity',
-    subtitle: '에어디자이너/제이시스템 OCR과 알리고 업로드는 기존 UI 흐름을 보존하고 외부 호출은 dry-run/mock로 검증',
+    title: 'Vendor and Aligo parity',
+    subtitle: '에어디자이너/제이시스템 주문 흐름과 알리고 업로드는 기존 UI 흐름을 보존하고 외부 호출은 dry-run/mock로 검증',
     headers: ['legacy', '컨트롤', 'DB/API 전환', '주의'],
     rows: [
-      ['에어디자이너 주문서 인식', 'PDF 다중 파일 / 담당자 / 미리보기 / 전송', 'partner-order OCR', 'UI parity 미흡'],
-      ['제이시스템 주문서 인식', '이미지 다중 파일 / 거래처 / 담당자 / 슬라이드 preview', 'partner-order OCR', 'UI parity 미흡'],
+      ['에어디자이너 주문서 흐름', 'PDF 다중 파일 / 담당자 / 미리보기 / 전송', 'partner-order 연동', 'UI parity 미흡'],
+      ['제이시스템 주문서 흐름', '이미지 다중 파일 / 거래처 / 담당자 / 슬라이드 preview', 'partner-order 연동', 'UI parity 미흡'],
       ['알리고 자동 업로드', '주소록 sync / 그룹 선택 / 결과', 'notification dry-run', '실 키 비공개'],
     ],
     cards: [
@@ -255,7 +255,7 @@ const screens = [
       ['CI 전', ['lint/build 추가 실행', 'git diff --check', 'skip XML scan'], palette.teal],
       ['PR', ['5-team review', 'TM 통합', 'Claude review', 'Codex review'], palette.blue],
       ['머지', ['checks watch', 'green 후 PM 재점검', 'delete branch'], palette.green],
-      ['다음 PR', ['DPS/배차/회계/vender OCR 구현 PR 분해', '각 PR 상세 캡처'], palette.amber],
+      ['다음 PR', ['DPS/배차/회계/vendor 연동 PR 분해', '각 PR 상세 캡처'], palette.amber],
     ],
   },
 ]

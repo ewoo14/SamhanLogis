@@ -15,8 +15,6 @@ test.describe('SP-07 Google Sheets quote/order source contract', () => {
   const bootstrapTest = read('services/partner-order-service/src/test/java/com/samhanair/logis/partnerorder/service/BootstrapServiceTest.java')
   const catalogClient = read('services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/vendor/client/ProductCatalogLookupClient.java')
   const catalogTest = read('services/partner-order-service/src/test/java/com/samhanair/logis/partnerorder/vendor/client/ProductCatalogLookupClientTest.java')
-  const vendorOrderApi = read('clients/desktop/src/renderer/api/vendorOrderApi.ts')
-  const vendorOrderPage = read('clients/desktop/src/renderer/routes/SalesVendorOrderUploadPage.tsx')
   const productSync = read('services/product-service/src/main/java/com/samhanair/logis/product/service/ProductSheetSyncService.java')
   const productSyncTest = read('services/product-service/src/test/java/com/samhanair/logis/product/it/ProductSheetSyncServiceIT.java')
   const sourceDoc = read('docs/operational-validation/google-sheets-live-source-snapshot.md')
@@ -48,7 +46,7 @@ test.describe('SP-07 Google Sheets quote/order source contract', () => {
     expect(bootstrapTest).toContain('never()).readSheet(eq("test-sheet-id"), eq("전표업로드목록!A1:Z")')
   })
 
-  test('partner-order vendor OCR lookup keeps existing UI contract and uses current increase tabs only', () => {
+  test('partner-order catalog lookup uses current increase tabs only', () => {
     expect(catalogClient).toContain('홈멀티_단가인상!A1:Z')
     expect(catalogClient).toContain('싱글 세트_단가인상!A1:Z')
     expect(catalogClient).toContain('싱글 구성품_단가인상!A1:Z')
@@ -60,15 +58,6 @@ test.describe('SP-07 Google Sheets quote/order source contract', () => {
     expect(catalogClient).not.toContain('종합견적서!A2:C')
     expect(catalogTest).toContain('lookup_주문서경로는_단가인상탭만_읽고_base탭을_사용하지_않는다')
     expect(catalogTest).toContain('lookup_싱글세트는_C열_모델명과_H열_납품가를_그대로_읽는다')
-  })
-
-  test('desktop vendor OCR upload does not add a new price basis UI', () => {
-    expect(vendorOrderApi).not.toContain("VendorOrderPriceBasis = 'CURRENT' | 'BEFORE_INCREASE'")
-    expect(vendorOrderApi).not.toContain("form.append('priceBasis'")
-    expect(vendorOrderPage).not.toContain('vendor-price-current')
-    expect(vendorOrderPage).not.toContain('vendor-price-before-increase')
-    expect(vendorOrderPage).not.toContain('uploadVendorOrder(v, f, { priceBasis: basis })')
-    expect(vendorOrderPage).toContain('uploadVendorOrder(v, f)')
   })
 
   test('product-service DB sync preserves current default and before-increase history mapping', () => {

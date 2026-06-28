@@ -29,7 +29,6 @@
  * - perm-matrix-copy-account                       — 다른 계정 권한 복사 버튼
  * - perm-matrix-change-count                       — 변경 건수 배지 role="status"
  * - perm-matrix-save-btn                           — 저장 버튼 (dirtyKeys.size===0 이면 disabled)
- * - sidebar-purchases-receipt-ocr (AppLayout)      — 영수증 OCR 사이드바 링크 (SP-D1 동적 권한 연동)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -170,7 +169,6 @@ export const PAGE_GROUPS: PageGroup[] = [
   {
     label: '매입',
     pages: [
-      'purchases.receipt-ocr',
       'purchases.slip.list',
       'purchases.slip.edit',
       'purchases.slip.delete',
@@ -292,7 +290,6 @@ export const PAGE_GROUPS: PageGroup[] = [
       'sales.partner-order.tutorial',
       'sales.partner-order.convert',
       'sales.partner-order.revisions',
-      'sales.vendor-order',
     ],
   },
   {
@@ -418,7 +415,6 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'groupware.approval-templates': '결재 양식',
   'messenger.admin': '메신저 관리',
   'messenger.send': '메신저 발송',
-  'purchases.receipt-ocr': '영수증 OCR',
   'purchases.slip.list': '매입 슬립',
   'purchases.slip.edit': '매입 전표 수정',
   'purchases.slip.delete': '매입 전표 삭제',
@@ -526,7 +522,6 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'sales.partner-order.tutorial': '주문 튜토리얼',
   'sales.partner-order.convert': '주문 출고전환',
   'sales.partner-order.revisions': '주문 리비전 복원',
-  'sales.vendor-order': '벤더 주문',
   'inventory.warehouse': '창고관리',
   'inventory.warehouse.admin': '창고관리 admin',
   'inventory.stock': '재고 현황',

@@ -6582,82 +6582,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // ===== PR-F2 vendor OCR — QA 작동 캡처용 mock (BE 미연결 환경) =====
-  // POST /api/v1/admin/partner-order/vendor/upload — multipart, vendor query 보고 fixture 반환
-  if (method === 'POST' && url.includes('/admin/partner-order/vendor/upload')) {
-    // FormData / multipart payload 에서 vendor query 추출 시도. 실패 시 에어디자이너 default.
-    let vendor = 'AIRDESIGNER'
-    try {
-      const data = config.data as FormData | undefined
-      if (data && typeof (data as FormData).get === 'function') {
-        const v = (data as FormData).get('vendor')
-        if (typeof v === 'string') vendor = v
-      }
-    } catch {
-      // ignore
-    }
-    if (vendor === '제이시스템' || vendor === 'JSYSTEM') {
-      return envelope({
-        vendorName: '제이시스템',
-        partnerCode: 'P-J001',
-        ocrText:
-          '제이시스템 발주서\nPartner: P-J001\nHM-7000 헬로멀티 7kW 2 EA 1,500,000\nTOTAL 3,000,000',
-        parsedLines: [
-          {
-            modelCode: 'HM-7000',
-            productName: '헬로멀티 7kW',
-            quantity: 2,
-            unitPrice: 1500000,
-            dcRate: 0.10,
-            finalPrice: 1350000,
-            subtotal: 2700000,
-            source: 'CATALOG',
-          },
-        ],
-        totalAmount: 2700000,
-        parsedTotal: 3000000,
-        suggestions: [
-          'OCR 합계 (3,000,000) 와 라인 합산 (2,700,000) 불일치 — DC 10% 적용 차이',
-        ],
-      })
-    }
-    // AIRDESIGNER default — 매칭 실패 라인 1건 포함 (Step 2 빨간 highlight 캡처용)
-    return envelope({
-      vendorName: '에어디자이너',
-      partnerCode: 'AIRD-001',
-      ocrText:
-        '에어디자이너 발주서\n거래처: AIRD-001\n1. 헬로멀티 5kW [HM-5000] 2개 1,000,000원\n2. 신규품목 [UNKNOWN-CODE] 1개 350,000원\n합계: 2,350,000원',
-      parsedLines: [
-        {
-          modelCode: 'HM-5000',
-          productName: '헬로멀티 5kW',
-          quantity: 2,
-          unitPrice: 950000,
-          dcRate: 0.10,
-          finalPrice: 855000,
-          subtotal: 1710000,
-          source: 'CATALOG',
-        },
-        {
-          modelCode: 'UNKNOWN-CODE',
-          productName: '[매칭미상] 신규품목',
-          quantity: 1,
-          unitPrice: 0,
-          dcRate: 0,
-          finalPrice: 0,
-          subtotal: 0,
-          source: 'MANUAL',
-        },
-      ],
-      totalAmount: 1710000,
-      parsedTotal: 2350000,
-      suggestions: [
-        'OCR 합계 (2,350,000) 와 라인 합산 (2,060,000) 불일치 — 운영자 보정 필요',
-        '모델 코드 [UNKNOWN-CODE] 미식별 — 단가 OCR fallback 적용',
-      ],
-    })
-  }
-
   // ==========================================================================
   // Phase 12 step-6 manual-rewrite Phase A — 50+ page mount 보장 mock 보강.
   // 기존 mock 매칭 체인 (slip / journal / partner-order) 보존 우선,
@@ -10684,47 +10608,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
-  // POST /api/v1/admin/partner-order/vendor/confirm — 확정 → orderNo 반환
-  if (method === 'POST' && url.includes('/admin/partner-order/vendor/confirm')) {
-    const today = new Date()
-    const yymmdd
-      = today.getFullYear()
-      + '/'
-      + String(today.getMonth() + 1).padStart(2, '0')
-      + '/'
-      + String(today.getDate()).padStart(2, '0')
-    const seq = String(Math.floor(Math.random() * 900) + 100)
-    const body = config.data as
-      | { vendorName?: string; partnerCode?: string; lines?: { quantity: number; finalPrice: number }[] }
-      | string
-      | undefined
-    let total = 0
-    let vendorName = '에어디자이너'
-    let partnerCode = 'AIRD-001'
-    try {
-      const parsed = typeof body === 'string' ? JSON.parse(body) : body
-      if (parsed?.vendorName) vendorName = parsed.vendorName
-      if (parsed?.partnerCode) partnerCode = parsed.partnerCode
-      if (Array.isArray(parsed?.lines)) {
-        total = parsed.lines.reduce(
-          (s: number, l: { quantity: number; finalPrice: number }) =>
-            s + (l.quantity || 0) * (l.finalPrice || 0),
-          0,
-        )
-      }
-    } catch {
-      // ignore
-    }
-    return envelope({
-      orderNo: `${yymmdd}-${Number(seq)}`,
-      partnerOrderId: '00000000-0000-0000-0000-' + Date.now().toString().padStart(12, '0'),
-      status: 'PENDING',
-      totalAmount: total,
-      vendorName,
-      partnerCode,
-    })
-  }
-
   // ==========================================================================
   // P0-9 입고 검수 mock endpoint
   // - GET  /api/v1/inventory/inbound-inspections          — 목록 (status 필터)
@@ -11030,66 +10913,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       reason: body.reason ?? '—',
       createdAt: new Date().toISOString(),
       createdBy: '오병승',
-    })
-  }
-
-  // ============================================================================
-  // SP-09-3 영수증 OCR 업로드 mock (POST /slips/receipt-ocr)
-  //
-  // submitMethod=DRY_RUN → 가짜 OCR 결과 + 매입 전표 번호 반환.
-  // 응답 shape = BE ReceiptParseResponse record 와 1:1 정합 (cycle 2 fix — Codex blocker 1).
-  //
-  // 시나리오:
-  //   - 파일명에 "empty" 포함 → 422 빈 파일 에러 (code: RECEIPT_FILE_INVALID — BE ErrorCode 일치)
-  //   - 파일 크기 > 10MB 또는 파일명에 "toolarge" 포함 → 422 크기 초과 에러 (code: RECEIPT_FILE_INVALID)
-  //   - 파일명에"502" 포함 → 502 OCR 외부 서비스 오류 (code: OCR_SUBMIT_FAILED — BE ErrorCode 일치)
-  //   - 그 외 → 정상 DRY_RUN 가짜 응답 (테스트마트)
-  //
-  // UUID 비공개: slipId 는 BE DTO 미포함. slipNo 만 사용자 노출.
-  // ============================================================================
-  if (method === 'POST' && url.includes('/slips/receipt-ocr')) {
-    const formData = config.data instanceof FormData ? config.data : null
-    const fileName = formData?.get('file') instanceof File
-      ? (formData.get('file') as File).name.toLowerCase()
-      : ''
-    const fileSize = formData?.get('file') instanceof File
-      ? (formData.get('file') as File).size
-      : 0
-
-    // 빈 파일 시나리오 (BE ErrorCode: RECEIPT_FILE_INVALID)
-    if (fileName.includes('empty') || fileSize === 0) {
-      return mockError(422, 'RECEIPT_FILE_INVALID', '파일이 비어있습니다. 유효한 영수증 이미지를 업로드하세요.')
-    }
-
-    // 10MB 초과 시나리오 (BE ErrorCode: RECEIPT_FILE_INVALID)
-    const MAX_BYTES = 10 * 1024 * 1024
-    if (fileSize > MAX_BYTES || fileName.includes('toolarge')) {
-      return mockError(422, 'RECEIPT_FILE_INVALID', '파일 크기가 10MB 를 초과합니다. 이미지를 압축하거나 다른 파일을 선택하세요.')
-    }
-
-    // 502 OCR 외부 서비스 오류 시나리오 (BE ErrorCode: OCR_SUBMIT_FAILED)
-    if (fileName.includes('502')) {
-      return mockError(502, 'OCR_SUBMIT_FAILED', 'Naver Clova OCR 외부 서비스에 일시적 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
-    }
-
-    // 정상 DRY_RUN 가짜 응답 — BE ReceiptParseResponse 필드명 1:1 정합
-    // fields: slipNo / vendorName / totalAmount / vatAmount / issuedAt / submitMethod / parseRawJson
-    const today = new Date().toISOString().slice(0, 10)
-    const slipSeq = Math.floor(Math.random() * 9) + 1
-    return envelope({
-      slipNo: `${today}-${slipSeq}`,
-      vendorName: '테스트마트',
-      totalAmount: 55000,
-      vatAmount: 5000,
-      issuedAt: today,
-      submitMethod: 'DRY_RUN',
-      parseRawJson: JSON.stringify({
-        _mode: 'DRY_RUN',
-        vendorName: '테스트마트',
-        totalAmount: 55000,
-        vatAmount: 5000,
-        issuedAt: today,
-      }),
     })
   }
 
@@ -14851,7 +14674,6 @@ const SP_D1_PAGES = [
   'accounting.daily-closing.unlock',
   'accounting.general-ledger',
   'notification.dispatch-sms.send-audit',
-  'purchases.receipt-ocr',
   'purchases.slip.list',
   'sales.slip.list',
   'inbound.inspection',
@@ -14885,7 +14707,6 @@ const SP_D1_PAGES = [
   'sales.partner-order.confirm',
   'sales.partner-order.history',
   'sales.partner-order.print',
-  'sales.vendor-order',
   'inventory.warehouse',
   'inventory.stock',
   'inventory.stock-transfer',
@@ -14991,7 +14812,6 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
  *  sales.partner-order.confirm:MASTER/MANAGER/SALES
  *  sales.partner-order.history:MASTER/MANAGER/ACCOUNTANT/SALES
  *  sales.partner-order.print:  MASTER/MANAGER/SALES/WAREHOUSE
- *  sales.vendor-order:         MASTER/MANAGER/SALES/WAREHOUSE
  *  inventory.warehouse:        MASTER/MANAGER/WAREHOUSE/INVENTORY
  *  inventory.stock:            MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/DISPATCH/INVENTORY
  *  inventory.stock-transfer:   MASTER/MANAGER/WAREHOUSE/INVENTORY
@@ -15016,7 +14836,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
-    'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
+    'purchases.slip.list', 'sales.slip.list',
     'inbound.inspection', 'dispatch.board', 'dispatch.external-carriers',
     // SP-D2 회계 7개 — MANAGER: view 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
@@ -15027,7 +14847,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D4 22개 — MANAGER: 대부분 view 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
-    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
+    'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps', 'inventory.audit',
     'inventory.list', 'inventory.detail', 'inventory.adjust', 'inventory.transfer',
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
@@ -15081,7 +14901,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // SP-D4 — SALES: 견적/주문/거래처/상품 view
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
-    'sales.vendor-order', 'inventory.stock', 'inventory.list', 'inventory.transfer',
+    'inventory.stock', 'inventory.list', 'inventory.transfer',
     'partners.list', 'partners.detail', 'partners.edit-request',
     'products.list', 'products.admin',
     // C2b PermissionGuard 전환 — SALES: view 허용 (V36 seed)
@@ -15101,7 +14921,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run', 'accounting.general-ledger',
-    'purchases.receipt-ocr', 'purchases.slip.list', 'sales.slip.list',
+    'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
     'accounting.reports', 'accounting.receivables', 'accounting.bank-matching', 'accounting.period-close', 'accounting.statement-batch',
@@ -15123,12 +14943,10 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
   ],
-  // SP-D3 V9 fix: sales.slip.list 제거 + purchases.receipt-ocr 추가
-  // (사용자 요구 ② — WAREHOUSE 에게 매출 전표 숨김, 매입 영수증 OCR 허용)
   WAREHOUSE: [
-    'purchases.slip.list', 'purchases.receipt-ocr', 'inbound.inspection',
-    // SP-D4 — WAREHOUSE: 재고/창고/인쇄/벤더주문 view
-    'sales.partner-order.print', 'sales.vendor-order',
+    'purchases.slip.list', 'inbound.inspection',
+    // SP-D4 — WAREHOUSE: 재고/창고/인쇄 view
+    'sales.partner-order.print',
     'inventory.warehouse', 'inventory.stock', 'inventory.stock-transfer',
     'inventory.dps', 'inventory.audit', 'inventory.list', 'inventory.detail',
     'inventory.transfer', 'inventory.stock-balance', 'inventory.safety-stock',
@@ -15177,7 +14995,6 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
  *  sales.partner-order.confirm:MASTER/MANAGER/SALES
  *  sales.partner-order.history:(없음 — view 전용)
  *  sales.partner-order.print:  MASTER/SALES
- *  sales.vendor-order:         MASTER/MANAGER/SALES/WAREHOUSE (BE EP 에 따라 WAREHOUSE 포함)
  *  inventory.warehouse:        MASTER/MANAGER/WAREHOUSE/INVENTORY
  *  inventory.stock:            MASTER/WAREHOUSE/INVENTORY (MANAGER view 전용)
  *  inventory.stock-transfer:   MASTER/MANAGER/WAREHOUSE/INVENTORY
@@ -15207,7 +15024,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D4 — MANAGER: 대부분 edit 허용
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm',
-    'sales.vendor-order', 'inventory.warehouse', 'inventory.stock-transfer',
+    'inventory.warehouse', 'inventory.stock-transfer',
     'inventory.list', 'inventory.adjust', 'inventory.transfer', 'inventory.stock-balance',
     'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
@@ -15256,7 +15073,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // SP-D4 — SALES: 견적/주문/거래처/상품 edit
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.print',
-    'sales.vendor-order', 'inventory.list',
+    'inventory.list',
     'partners.list', 'partners.detail',
     'products.admin',
     // C2b PermissionGuard 전환 — SALES: edit 허용 (V36 seed)
@@ -15276,7 +15093,6 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
-    'purchases.receipt-ocr',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
     'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.period-close',
     'accounting.statement-batch',
@@ -15286,9 +15102,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C5-2c: V36 seed 기반 ACCOUNTANT EDIT 추가
     'sales.slip.confirm',
   ],
-  // SP-D3 V9 fix: purchases.receipt-ocr edit 추가 (WAREHOUSE 매입 영수증 OCR 입력 가능)
   WAREHOUSE: [
-    'inbound.inspection', 'purchases.receipt-ocr',
+    'inbound.inspection',
     // SP-D4 — WAREHOUSE: 재고/창고 edit
     'inventory.warehouse', 'inventory.stock',
     'inventory.stock-transfer', 'inventory.dps',

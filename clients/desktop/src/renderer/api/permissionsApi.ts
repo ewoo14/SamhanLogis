@@ -72,8 +72,8 @@ export interface PermissionActionMatrix {
  * SP-D2: 회계 카테고리 7개 신규 추가 (accounts / journals / balances / reports /
  *         period-close / statement-batch / partner-ledger).
  * Issue 4 Slice 4: 회계 수정/삭제 요청 PageCode 추가.
- * SP-D4: 잔여 7 도메인 22개 신규 추가 (estimates / sales.partner-order.* /
- *         sales.vendor-order / inventory.* / admin.* / partners.* / products.* / arologis.*).
+ * SP-D4: 잔여 7 도메인 신규 추가 (estimates / sales.partner-order.* /
+ *         inventory.* / admin.* / partners.* / products.* / arologis.*).
  * SP-D6-1: system.* / dc-config.import / dashboard.admin + 거래처 DC 설정 권한 추가.
  * SP-D6-2: messenger.* / product edit-request/import / partner-order edit-request/tutorial 추가.
  * SP-D6-3: notification admin / aligo address-book / dispatch save-history/batch 추가.
@@ -109,7 +109,6 @@ export type PageCode =
   | 'groupware.approval-templates'
   | 'messenger.admin'
   | 'messenger.send'
-  | 'purchases.receipt-ocr'
   | 'purchases.slip.list'
   | 'purchases.slip.edit'
   | 'purchases.slip.delete'
@@ -216,7 +215,6 @@ export type PageCode =
   | 'sales.partner-order.tutorial'
   | 'sales.partner-order.convert'
   | 'sales.partner-order.revisions'
-  | 'sales.vendor-order'
   | 'inventory.warehouse'
   | 'inventory.warehouse.admin'
   | 'inventory.stock'

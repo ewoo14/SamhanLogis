@@ -154,10 +154,6 @@ import { BlockedPartnersPage as AdminBlockedPartnersPage } from './admin/Blocked
 import { AligoAddressBookPage as AdminAligoAddressBookPage } from './admin/AligoAddressBookPage'
 // [PR-F1 FE-2] arologis 운송사 실배차 비교 — DISPATCH/MANAGER/MASTER.
 import { ArologisDispatchReconcilePage } from './ArologisDispatchReconcilePage'
-// [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES/MANAGER/MASTER (영업 그룹).
-// legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR native 이식.
-// BE 미연결 (Tesseract OCR endpoint backlog), mock state 로 3-step UX 시뮬레이션.
-import { SalesVendorOrderUploadPage } from './SalesVendorOrderUploadPage'
 // [PR-D Phase B FE-D] 단톡방 매핑 admin — MASTER/MANAGER (BE @PreAuthorize 일치)
 // AdminLayout 은 MASTER 전용이므로 별도 RoleGuard 로 MASTER/MANAGER 진입 허용.
 import { ChatRoomsPage as AdminChatRoomsPage } from './admin/ChatRoomsPage'
@@ -286,9 +282,6 @@ import { SalesClosingPage } from './SalesClosingPage'
 // `/sales/slips`, `/purchases/slips` 로 옮겨 2c 작성 plumbing 합류 전까지 보존.
 import { SalesQueryPage } from './sales-query/SalesQueryPage'
 import { PurchaseQueryPage } from './purchase-query/PurchaseQueryPage'
-// [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
-// BE: slip-service POST /slips/receipt-ocr (multipart/form-data, submitMethod=DRY_RUN|CLOVA)
-import { PurchaseSlipOcrUploadPage } from './PurchaseSlipOcrUploadPage'
 // [PR-HR] 403 접근 거부 페이지 — AdminLayout 대표실 부서 가드 + 일반 권한 부족 redirect 대상.
 import { ForbiddenPage } from './ForbiddenPage'
 // [SP-D1 404] 인앱 한국어 404 페이지 — AuthGuard + AppLayout 내부 catch-all.
@@ -519,19 +512,6 @@ const routes = [
         ),
       },
 
-      // [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES / MANAGER / MASTER.
-      // legacy GAS #10 (에어디자이너) + #14 (제이시스템) 운송장/발주서 OCR native 이식.
-      // 정적 path (`/sales/vendor-order-upload`) → `/sales/:id` 보다 먼저 매칭되어야 함.
-      // BE Tesseract OCR endpoint 미구현 — Designer mock state 만 3-step UX 시뮬레이션.
-      {
-        path: '/sales/vendor-order-upload',
-        element: (
-          <PermissionGuard pageCode="sales.vendor-order" action="view">
-            <SalesVendorOrderUploadPage />
-          </PermissionGuard>
-        ),
-      },
-
       { path: '/sales/:id', element: <SlipDetailPage mode="OUTBOUND" /> },
       // SP-08-6-4 — 거래명세서 (A4 portrait, legacy GAS 동등). 정적 suffix 먼저 매칭.
       { path: '/sales/:id/print/statement', element: <SalesTransactionStatementPrintPage /> },
@@ -563,17 +543,6 @@ const routes = [
       { path: '/purchases/:id', element: <SlipDetailPage mode="INBOUND" /> },
       // SP-08-5-5 — 매입 전표 인쇄 양식 (A4 portrait, 창고/관리자 권한)
       { path: '/purchases/:id/print/purchase', element: <PurchaseSlipPrintPage /> },
-
-      // [SP-09-3] 영수증 OCR 업로드 → 매입 슬립 자동 생성 (WAREHOUSE / MANAGER / MASTER).
-      // 정적 path `/purchases/receipt-ocr` → `/purchases/:id` 보다 먼저 매칭되어야 함.
-      {
-        path: '/purchases/receipt-ocr',
-        element: (
-          <PermissionGuard pageCode="purchases.receipt-ocr" action="view">
-            <PurchaseSlipOcrUploadPage />
-          </PermissionGuard>
-        ),
-      },
 
       // [Phase 2.6c] 재고 현황 — 가용/실재고/예약 3구분.
       // 접근 허용: WAREHOUSE / MANAGER / MASTER (SALES / ACCOUNTANT / DISPATCH 차단).

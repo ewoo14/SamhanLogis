@@ -64,12 +64,6 @@ dependencies {
     // Caffeine — 시트 응답 캐시 (5분 TTL). product-service GoogleSheetsClient 1:1 복제.
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 
-    // PR-F2 — Tesseract OCR (tess4j). 외부 vendor 발주서 PDF/이미지 → text 추출.
-    // Samhan Public 자체 on-prem (legacy GAS Drive OCR + Notion 단가 → 우리 Tesseract +
-    // product-service GoogleSheetsClient 종합견적서 시트 일원화). 외부 의존 = Tesseract native
-    // (DevOps setup script — apt-get install tesseract-ocr-kor / brew install tesseract-lang).
-    implementation 'net.sourceforge.tess4j:tess4j:5.11.0'
-
     implementation project(':shared:common')
     implementation project(':shared:security')
     implementation project(':shared:collab-core')

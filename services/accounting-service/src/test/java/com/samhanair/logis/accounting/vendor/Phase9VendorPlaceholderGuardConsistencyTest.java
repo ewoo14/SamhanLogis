@@ -142,7 +142,7 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
          * ETaxClientImpl CHANGE_ME_LOCAL_ONLY 차단 검증 (SP-09-5 cycle 1 fix 후 GREEN).
          *
          * <p>SP-09-5 회귀 가드 발견 → ETaxClientImpl.isPlaceholderApiKey() 에 CHANGE_ME_LOCAL_ONLY 추가됨.
-         * 4 vendor (NTS/Aligo/Clova/KFTC) 모두 동일 4 키워드 정책 일관 확인.
+         * 3 vendor (NTS/Aligo/KFTC) 모두 동일 4 키워드 정책 일관 확인.
          */
         @Test
         @DisplayName("[회귀 가드] ETaxClientImpl CHANGE_ME_LOCAL_ONLY 차단 — 4 vendor 일관성")
@@ -462,14 +462,6 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
         }
 
         @Test
-        @DisplayName("OCR_SUBMIT_FAILED → 502 BAD_GATEWAY")
-        void ocrSubmitFailed_is502() {
-            assertThat(ErrorCode.OCR_SUBMIT_FAILED.getHttpStatus().value())
-                    .as("OCR_SUBMIT_FAILED 는 502 이어야 한다")
-                    .isEqualTo(502);
-        }
-
-        @Test
         @DisplayName("KFTC_SUBMIT_FAILED → 502 BAD_GATEWAY")
         void kftcSubmitFailed_is502() {
             assertThat(ErrorCode.KFTC_SUBMIT_FAILED.getHttpStatus().value())
@@ -483,14 +475,6 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
             assertThat(ErrorCode.CODEF_SUBMIT_FAILED.getHttpStatus().value())
                     .as("CODEF_SUBMIT_FAILED 는 502 이어야 한다")
                     .isEqualTo(502);
-        }
-
-        @Test
-        @DisplayName("RECEIPT_FILE_INVALID → 422 UNPROCESSABLE_ENTITY")
-        void receiptFileInvalid_is422() {
-            assertThat(ErrorCode.RECEIPT_FILE_INVALID.getHttpStatus().value())
-                    .as("RECEIPT_FILE_INVALID 는 422 이어야 한다")
-                    .isEqualTo(422);
         }
 
         @Test

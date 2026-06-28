@@ -418,7 +418,7 @@ public class Slip extends BaseEntity {
      * 배송지 주소 — V16 (PR-G1) 신규. legacy {@code U_TXT1}.
      *
      * <p>**리팩토링 핵심**: 기존 {@link SlipPublishService#composeMemo} 가 memo 컬럼에
-     * "배송지: ..." 형식으로 prepend 하던 정책 폐기. 본 컬럼에 직접 저장. 인쇄 양식 / OCR 매칭 시
+     * "배송지: ..." 형식으로 prepend 하던 정책 폐기. 본 컬럼에 직접 저장. 인쇄 양식 / 주소 매칭 시
      * memo 파싱 불필요.
      */
     @Column(name = "shipping_address", length = 500)

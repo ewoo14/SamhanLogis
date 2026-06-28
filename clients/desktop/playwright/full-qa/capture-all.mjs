@@ -54,7 +54,6 @@ const SCREENS = [
   ['partner-orders', '/sales/partner-orders'],
   ['order-approvals', '/sales/order-approvals'],
   ['partner-dc-config', '/sales/partner-dc-config'],
-  ['vendor-order-upload', '/sales/vendor-order-upload'],
   ['sales-closing', '/sales/closing'],
   ['next-day-slip', '/sales/next-day-slip'],
   ['slip-cleanup', '/sales/slip-cleanup'],
@@ -63,7 +62,6 @@ const SCREENS = [
   ['purchases-list', '/purchases'],
   ['purchases-query', '/purchases/query'],
   ['purchases-slips', '/purchases/slips'],
-  ['receipt-ocr', '/purchases/receipt-ocr'],
   // 재고
   ['safety-stock-alerts', '/inventory/safety-stock-alerts'],
   // 회계

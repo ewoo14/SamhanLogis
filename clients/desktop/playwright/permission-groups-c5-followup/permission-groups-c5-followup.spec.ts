@@ -57,7 +57,6 @@ test.describe('권한그룹 C5 후속 정리', () => {
       'ARO_ADMIN_DISPATCH_ROLES',
       'SLIP_CLEANUP_ROLES',
       'SLIP_EDIT_REQUEST_REVIEWER_ROLES',
-      'VENDOR_ORDER_OCR_SIDEBAR_ROLES',
       'REGION_MGMT_SIDEBAR_ROLES',
       'SHEET_SYNC_SIDEBAR_ROLES',
       'ALIGO_ADDRESS_BOOK_SIDEBAR_ROLES',
@@ -103,13 +102,9 @@ test.describe('권한그룹 C5 후속 정리', () => {
       /path:\s*'\/sales\/closing'[\s\S]*?<PermissionGuard pageCode="accounting\.period-close" action="view">[\s\S]*?<SalesClosingPage \/>/,
     )
     expect(routes).toMatch(
-      /path:\s*'\/sales\/vendor-order-upload'[\s\S]*?<PermissionGuard pageCode="sales\.vendor-order" action="view">[\s\S]*?<SalesVendorOrderUploadPage \/>/,
-    )
-    expect(routes).toMatch(
       /path:\s*'\/admin\/sheet-sync'[\s\S]*?<PermissionGuard pageCode="products\.sync" action="view">[\s\S]*?<AdminSheetSyncPage \/>/,
     )
     expect(routes).not.toContain('ACCOUNTING_ROLES')
-    expect(routes).not.toContain('VENDOR_ORDER_OCR_ROLES')
     expect(routes).not.toContain('SHEET_SYNC_ROLES')
   })
 

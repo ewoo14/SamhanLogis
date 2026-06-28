@@ -11,7 +11,7 @@
  *
  * TC 목록 (5건):
  *   T1 SALES 로그인 → 매출 슬립 + SMS 발송 이력 접근 가능 / 매입 슬립 + 배차 hidden
- *   T2 WAREHOUSE 로그인 → 매입 슬립 + OCR + 입고 검수 가능 / 매출 슬립 + 배차 hidden
+ *   T2 WAREHOUSE 로그인 → 매입 슬립 + 입고 검수 가능 / 매출 슬립 + 배차 hidden
  *   T3 DISPATCH 로그인 → 배차 보드 route + SMS 발송 이력 가능 / 매입 슬립 + 매출 슬립 hidden
  *   T4 마스터가 SALES 의 purchases.slip.list revoke → SALES 매입 슬립 접근 차단 확인
  *   T5 권한 없는 URL 직접 진입 → redirect "/"
@@ -25,7 +25,6 @@
  * SP-D3 마이그레이션 대상 6 PageCode (routes/index.tsx 1:1 정합):
  *   /sales/slips                          → sales.slip.list               (매출 슬립 목록)
  *   /purchases/slips                      → purchases.slip.list           (매입 슬립 목록)
- *   /purchases/receipt-ocr                → purchases.receipt-ocr        (영수증 OCR)
  *   /dispatch-board                       → dispatch.board               (배차 보드 route)
  *   /arologis/dispatch-sms/send-audit     → notification.dispatch-sms.send-audit (SMS 발송 이력)
  *   /warehouse/inbound-inspections        → inbound.inspection           (입고 검수 — 사이드바 연동)
@@ -283,13 +282,6 @@ const SP_D3_ROUTES = [
     roles: ['WAREHOUSE', 'MANAGER', 'MASTER'],
   },
   {
-    path: '/purchases/receipt-ocr',
-    sidebarTestId: 'sidebar-purchases-receipt-ocr',
-    pageCode: 'purchases.receipt-ocr',
-    label: '영수증 OCR',
-    roles: ['WAREHOUSE', 'ACCOUNTANT', 'MANAGER', 'MASTER'],
-  },
-  {
     path: '/dispatch-board',
     pageCode: 'dispatch.board',
     roles: ['DISPATCH', 'MANAGER', 'MASTER'],
@@ -325,13 +317,12 @@ function buildSalesPermissions() {
   }
 }
 
-/** WAREHOUSE 기본 권한 — 매입 슬립 + OCR + 입고 검수 가능, 매출/배차 없음 */
+/** WAREHOUSE 기본 권한 — 매입 슬립 + 입고 검수 가능, 매출/배차 없음 */
 function buildWarehousePermissions() {
   return {
     success: true,
     data: [
       { pageCode: 'purchases.slip.list', canView: true, canEdit: true },
-      { pageCode: 'purchases.receipt-ocr', canView: true, canEdit: false },
       { pageCode: 'inbound.inspection', canView: true, canEdit: true },
     ],
   }
@@ -376,7 +367,6 @@ const SALES_SLIPS_URL = `${BASE_URL}/#/sales/slips?mockRole=SALES`
 const PURCHASES_SLIPS_URL = `${BASE_URL}/#/purchases/slips?mockRole=SALES`
 const DISPATCH_BOARD_URL = `${BASE_URL}/#/dispatch-board?mockRole=SALES`
 const WAREHOUSE_PURCHASES_URL = `${BASE_URL}/#/purchases/slips?mockRole=WAREHOUSE`
-const WAREHOUSE_OCR_URL = `${BASE_URL}/#/purchases/receipt-ocr?mockRole=WAREHOUSE`
 const DISPATCH_BOARD_DISPATCH_URL = `${BASE_URL}/#/dispatch-board?mockRole=DISPATCH`
 const DISPATCH_SMS_AUDIT_URL = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=DISPATCH`
 const PURCHASES_SLIPS_NO_PERM_URL = `${BASE_URL}/#/purchases/slips?mockRole=NOPERM`
@@ -495,16 +485,15 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T2: WAREHOUSE 로그인 → 매입 슬립 + OCR + 입고 검수 가능 / 매출 슬립 + SMS 이력 hidden
+   * T2: WAREHOUSE 로그인 → 매입 슬립 + 입고 검수 가능 / 매출 슬립 + SMS 이력 hidden
    *
    * 검증 항목:
-   *   - GET /auth/admin/permissions/my → WAREHOUSE: purchases.slip.list + purchases.receipt-ocr + inbound.inspection view=true
+   *   - GET /auth/admin/permissions/my → WAREHOUSE: purchases.slip.list + inbound.inspection view=true
    *   - /purchases/slips 진입 → 매입 슬립 목록 페이지 표시 (PermissionGuard 통과)
-   *   - /purchases/receipt-ocr 진입 → OCR 페이지 표시 (PermissionGuard 통과)
    *   - 사이드바: [data-testid="sidebar-arologis-sms-send-audit"] visible=false
    *   - pageerror 없음
    */
-  test('T2: WAREHOUSE → 매입 슬립 + OCR 접근 가능 + 매출/SMS 이력 hidden', async ({ page }) => {
+  test('T2: WAREHOUSE → 매입 슬립 접근 가능 + 매출/SMS 이력 hidden', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
 
@@ -543,26 +532,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       ).toBe(false)
     })
 
-    await test.step('WAREHOUSE — 영수증 OCR (/purchases/receipt-ocr) 접근 가능 확인', async () => {
-      await page.goto(withMockPerms(WAREHOUSE_OCR_URL, warehousePerms), {
-        waitUntil: 'domcontentloaded',
-        timeout: 20000,
-      })
-      await page.waitForTimeout(1500)
-
-      const currentUrl = page.url()
-
-      const isRedirectedToHome =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/purchases/receipt-ocr'))
-
-      expect(
-        isRedirectedToHome,
-        `WAREHOUSE 영수증 OCR 페이지 접근이 차단됨 — URL: ${currentUrl}. purchases.receipt-ocr view=true 보유 WAREHOUSE 는 접근 허용 필요.`,
-      ).toBe(false)
-    })
-
     await test.step('WAREHOUSE — SMS 발송 이력 사이드바 hidden 확인', async () => {
       await page.goto(withMockPerms(`${BASE_URL}/#/?mockRole=WAREHOUSE`, warehousePerms), {
         waitUntil: 'domcontentloaded',
@@ -588,7 +557,7 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
     })
 
     await page.screenshot({
-      path: test.info().outputPath('T2-warehouse-purchase-ocr-access-dispatch-hidden.png'),
+      path: test.info().outputPath('T2-warehouse-purchase-access-dispatch-hidden.png'),
       fullPage: true,
     })
 
@@ -1060,7 +1029,6 @@ test.describe('SP-D3 회귀 가드 (false green 0건 + SP-D3 PageCode 정합 검
     const requiredPageCodes = [
       'sales.slip.list',
       'purchases.slip.list',
-      'purchases.receipt-ocr',
       'dispatch.board',
       'notification.dispatch-sms.send-audit',
       'inbound.inspection',

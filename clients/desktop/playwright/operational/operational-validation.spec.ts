@@ -42,16 +42,6 @@ function ensureQaDir() {
 
 test.describe('파일시스템 검증 (server 불필요)', () => {
 
-  // 1-FS. Tesseract 설치 가이드 문서 존재
-  test('1-FS. Tesseract 설치 가이드 docs 존재', async () => {
-    const docPath = path.join(PROJECT_ROOT, 'docs', 'dev-environment', 'tesseract-setup.md')
-    expect(fs.existsSync(docPath), `Tesseract 설치 가이드 없음: ${docPath}`).toBeTruthy()
-    ensureQaDir()
-    // 파일시스템 점검은 스크린샷 없이 결과만 기록
-    const content = fs.readFileSync(docPath, 'utf-8')
-    expect(content, 'tesseract-setup.md 내용 없음').toContain('Tesseract')
-  })
-
   // 2-FS. SMTP 환경변수 설정 (auth-service.env)
   test('2-FS. SMTP 환경변수 auth-service.env 검증', async () => {
     const envPath = path.join(PROJECT_ROOT, 'infrastructure', 'env-templates', 'auth-service.env')

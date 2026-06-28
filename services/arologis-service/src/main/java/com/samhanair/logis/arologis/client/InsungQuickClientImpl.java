@@ -22,7 +22,7 @@ import org.springframework.web.client.RestClientException;
 /**
  * 인성데이타 퀵프로그램 REST 어댑터 구현체 — Phase 10 W10-2.
  *
- * <p>SP-09 vendor 시리즈 (NTS/Aligo/Clova/KFTC) 와 동일한 패턴 적용:
+ * <p>SP-09 vendor 시리즈 (NTS/Aligo/KFTC) 와 동일한 패턴 적용:
  * <ul>
  *   <li>placeholder 가드 — 6 키워드 차단 + blank 차단 → {@code INSUNG_QUICK_NOT_CONFIGURED} (502)</li>
  *   <li>timeout 5s + retry 1회 (Spring Retry)</li>

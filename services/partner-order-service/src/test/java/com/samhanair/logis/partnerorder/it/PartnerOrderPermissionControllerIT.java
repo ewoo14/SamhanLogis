@@ -9,7 +9,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -36,11 +35,6 @@ import com.samhanair.logis.partnerorder.service.PartnerOrderPrintService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderQueryService;
 import com.samhanair.logis.partnerorder.service.TutorialStateService;
 import com.samhanair.logis.partnerorder.service.PartnerOrderUpdateService;
-import com.samhanair.logis.partnerorder.vendor.ocr.OcrEngine;
-import com.samhanair.logis.partnerorder.vendor.service.VendorOrderService;
-import com.samhanair.logis.partnerorder.vendor.web.VendorOrderController;
-import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderConfirmResponse;
-import com.samhanair.logis.partnerorder.vendor.web.dto.VendorOrderUploadResponse;
 import com.samhanair.logis.partnerorder.web.PartnerOrderConfirmController;
 import com.samhanair.logis.partnerorder.web.PartnerOrderDeleteController;
 import com.samhanair.logis.partnerorder.web.PartnerOrderDraftController;
@@ -86,7 +80,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -101,7 +94,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @WebMvcTest(
         controllers = {
                 PartnerOrderEditRequestController.class,
-                VendorOrderController.class,
                 PartnerOrderConfirmController.class,
                 PartnerOrderDeleteController.class,
                 PartnerOrderDraftController.class,
@@ -143,8 +135,6 @@ class PartnerOrderPermissionControllerIT {
 
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private PartnerOrderEditRequestService editRequestService;
-    @MockBean private VendorOrderService vendorOrderService;
-    @MockBean private OcrEngine ocrEngine;
     @MockBean private PartnerOrderConfirmService confirmService;
     @MockBean private PartnerOrderDeleteService deleteService;
     @MockBean private PartnerOrderDraftService draftService;
@@ -190,11 +180,6 @@ class PartnerOrderPermissionControllerIT {
         HistoryResponse history = new HistoryResponse(
                 "PO-1", "SLIP-1", "CONFIRMED", "PUBLISHED", BigDecimal.valueOf(1000),
                 LocalDateTime.of(2026, 5, 26, 9, 0));
-        VendorOrderUploadResponse upload = new VendorOrderUploadResponse(
-                "Vendor", "P001", "ocr", List.of(), BigDecimal.valueOf(1000), BigDecimal.valueOf(1000), List.of());
-        VendorOrderConfirmResponse vendorConfirm = new VendorOrderConfirmResponse(
-                "PO-1", "Vendor", "P001", BigDecimal.valueOf(1000), "REGISTERED");
-
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString(), any()))
@@ -206,8 +191,6 @@ class PartnerOrderPermissionControllerIT {
         lenient().when(editRequestService.listPendingForRole(any())).thenReturn(List.of(editRequest));
         lenient().when(editRequestService.listByOrder(any(), any())).thenReturn(List.of(editRequest));
         lenient().when(editRequestService.listByOrder(any(), any(), any())).thenReturn(List.of(editRequest));
-        lenient().when(vendorOrderService.upload(any(), any(), any(), any())).thenReturn(upload);
-        lenient().when(vendorOrderService.confirm(any(), anyString())).thenReturn(vendorConfirm);
         lenient().when(confirmService.confirm(any(), any(), anyString(), any(), any(), any())).thenReturn(confirm);
         lenient().when(draftService.create(any(), anyString(), any())).thenReturn(draft);
         lenient().when(draftService.list(any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of(draft)));
@@ -333,13 +316,6 @@ class PartnerOrderPermissionControllerIT {
                         () -> get("/api/v1/partner-orders/{id}/audit-logs", ORDER_ID)),
                 new EndpointCase("order realtime", "sales.partner-order.history.view", PermissionAction.VIEW, "STAFF", 200,
                         () -> get("/api/v1/partner-orders/{id}/realtime", ORDER_ID)),
-                new EndpointCase("vendor upload", "sales.vendor-order", PermissionAction.CREATE, "MANAGER", 200,
-                        () -> multipart("/api/v1/admin/partner-order/vendor/upload")
-                                .file(new MockMultipartFile("file", "order.png", "image/png", "x".getBytes()))),
-                new EndpointCase("vendor confirm", "sales.vendor-order", PermissionAction.CREATE, "MANAGER", 200,
-                        () -> post("/api/v1/admin/partner-order/vendor/confirm")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(vendorConfirmBody())),
                 new EndpointCase("order confirm", "sales.partner-order.confirm", PermissionAction.CREATE, "SALES", 200,
                         () -> post("/api/v1/partner-orders/{id}/confirm", ORDER_ID)
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -419,12 +395,6 @@ class PartnerOrderPermissionControllerIT {
     private static String confirmBody() {
         return """
                 {"lines":[{"productId":"00000000-0000-0000-0000-000000000301","categoryKey":"wall","quantity":1}]}
-                """;
-    }
-
-    private static String vendorConfirmBody() {
-        return """
-                {"vendorName":"Vendor","partnerCode":"P001","lines":[{"modelCode":"MODEL-1","productName":"Product","quantity":1,"finalPrice":1000}]}
                 """;
     }
 

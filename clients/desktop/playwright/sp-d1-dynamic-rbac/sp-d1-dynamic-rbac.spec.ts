@@ -13,7 +13,7 @@
  *   T1 권한 매트릭스 진입(MASTER) → account-select 옵션 ≥3개 + permission-matrix-table 표시 + 셀 대량 렌더 + 대표 PageCode 셀 표시
  *   T2 임의 셀 체크박스 토글 → perm-matrix-change-count "변경 1건" + perm-matrix-save-btn 활성
  *   T3 토글 후 저장 → toast role="alert" "저장" 포함 메시지 표시
- *   T4 SALES 역할 → 사이드바 영수증 OCR 메뉴 표시 (mockPerms 주입)
+ *   T4 SALES 역할 → 사이드바 권한 메뉴 표시 (mockPerms 주입)
  *   T5 존재하지 않는 URL (비-admin 경로) → 한국어 404 NotFoundPage (AppLayout catch-all — 회색 disabled 화면 X)
  *   T6 MANAGER 진입 → 403/forbidden 또는 redirect
  *
@@ -114,9 +114,6 @@ const PERMISSION_MATRIX_URL_MASTER = `${BASE_URL}/#/admin/permission-matrix?mock
 /** 권한 매트릭스 페이지 — MANAGER */
 const PERMISSION_MATRIX_URL_MANAGER = `${BASE_URL}/#/admin/permission-matrix?mockRole=MANAGER`
 
-/** OCR 영수증 페이지 — SALES (mockPerms 주입으로 OCR 권한 부여) */
-const RECEIPT_OCR_URL_SALES = `${BASE_URL}/#/purchases/receipt-ocr?mockRole=SALES`
-
 /**
  * 존재하지 않는 URL — HashRouter 미매칭 → AppLayout children catch-all → 한국어 404.
  *
@@ -127,21 +124,6 @@ const RECEIPT_OCR_URL_SALES = `${BASE_URL}/#/purchases/receipt-ocr?mockRole=SALE
  *   catch-all 로 매칭되어 한국어 404 NotFoundPage 가 렌더된다.
  */
 const NONEXISTENT_URL = `${BASE_URL}/#/nonexistent-page-xyz-404?mockRole=SALES`
-
-// ---------------------------------------------------------------------------
-// mockPerms 헬퍼 (URL 쿼리 주입용)
-// ---------------------------------------------------------------------------
-
-type MockPerm = { pageCode: string; view?: boolean; edit?: boolean }
-
-function mockPerms(perms: MockPerm[]): string {
-  return btoa(JSON.stringify(perms))
-}
-
-function withMockPerms(url: string, perms: MockPerm[]): string {
-  const separator = url.includes('?') ? '&' : '?'
-  return `${url}${separator}mockPerms=${encodeURIComponent(mockPerms(perms))}`
-}
 
 // ---------------------------------------------------------------------------
 // TC-T1 ~ TC-T6
@@ -226,7 +208,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     await test.step('대표 PageCode 셀 직접 존재 확인 (서로 다른 도메인)', async () => {
       const representativeCells = [
         'perm-matrix-cell-accounting-daily-closing-view',
-        'perm-matrix-cell-purchases-receipt-ocr-view',
+        'perm-matrix-cell-purchases-slip-list-view',
         'perm-matrix-cell-sales-slip-list-view',
         'perm-matrix-cell-inventory-stock-view',
         'perm-matrix-cell-arologis-admin-view',
@@ -253,8 +235,8 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
    * T2: 고정 셀 체크박스 토글 → perm-matrix-change-count "변경 1건" + perm-matrix-save-btn 활성
    *
    * 검증 항목:
-   *   - MANAGER 계정 선택 후 고정 셀 perm-matrix-cell-purchases-receipt-ocr-view 토글
-   *     (MANAGER 계정의 purchases.receipt-ocr view 초기값 = true → false revoke: 1건 변경)
+   *   - MANAGER 계정 선택 후 고정 셀 perm-matrix-cell-purchases-slip-list-view 토글
+   *     (MANAGER 계정의 purchases.slip.list view 초기값 = true → false revoke: 1건 변경)
    *   - 페이지 로드 직후 change-count "변경 0건" 확인 (초기 dirty 없음 단언)
    *   - 고정 셀 1개 클릭 후 perm-matrix-change-count "변경 1건" strict 단언
    *   - perm-matrix-save-btn isEnabled() strict 단언
@@ -262,7 +244,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
    *   - pageerror 없음
    *
    * NOTE: page.route() 미사용 — in-process mock 직접 응답.
-   *       고정 셀 선택 근거: MANAGER 역할의 purchases.receipt-ocr view = true (SP_D1_DEFAULT_VIEW 포함).
+   *       고정 셀 선택 근거: MANAGER 역할의 purchases.slip.list view = true (SP_D1_DEFAULT_VIEW 포함).
    *       매트릭스 로드 후 account-select 에서 MANAGER(김관리) 계정 선택 → 해당 셀 초기값 true.
    *       따라서 클릭 시 true→false revoke 1건 변경 보장.
    */
@@ -271,8 +253,8 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
     attachPageErrorHook(page, errors)
     ensureQaDir()
 
-    // 고정 셀: MANAGER 계정의 purchases.receipt-ocr view (초기값 true)
-    const FIXED_CELL_TESTID = 'perm-matrix-cell-purchases-receipt-ocr-view'
+    // 고정 셀: MANAGER 계정의 purchases.slip.list view (초기값 true)
+    const FIXED_CELL_TESTID = 'perm-matrix-cell-purchases-slip-list-view'
 
     await test.step('MASTER 역할로 권한 매트릭스 페이지 진입', async () => {
       await page.goto(PERMISSION_MATRIX_URL_MASTER, {
@@ -317,7 +299,7 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
       const fixedCell = page.locator(`[data-testid="${FIXED_CELL_TESTID}"]`)
       await expect(
         fixedCell,
-        `고정 셀 [${FIXED_CELL_TESTID}] 미표시 — MANAGER 매트릭스에 purchases.receipt-ocr 행 없음`,
+        `고정 셀 [${FIXED_CELL_TESTID}] 미표시 — MANAGER 매트릭스에 purchases.slip.list 행 없음`,
       ).toBeVisible({ timeout: 5000 })
       await fixedCell.click()
     })
@@ -455,70 +437,6 @@ test.describe('SP-D1 동적 RBAC 권한 매트릭스 (T1~T6)', () => {
 
     await page.screenshot({
       path: path.join(QA_DIR, 'T3-save-toast-change-count-reset.png'),
-      fullPage: true,
-    })
-
-    expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
-  })
-
-  // -------------------------------------------------------------------------
-  /**
-   * T4: SALES 역할 + OCR 권한 주입 → 사이드바 영수증 OCR 메뉴 표시
-   *
-   * 검증 항목:
-   *   - mockPerms 주입으로 purchases.receipt-ocr view=true 부여
-   *   - AppLayout.tsx: showReceiptOcr = dynamicCanAccess('purchases.receipt-ocr', 'view')
-   *     → mockPerms 주입 시 /permissions/my 응답에 purchases.receipt-ocr VIEW 포함
-   *     → SidebarLink show={true} → data-testid="sidebar-purchases-receipt-ocr" 렌더됨
-   *   - strict 단언: sidebar-purchases-receipt-ocr toBeVisible (false-green fallback 금지)
-   *   - disabled class 없음 단언
-   *   - pageerror 없음
-   *
-   * NOTE: page.route() 미사용 — in-process mock 직접 응답.
-   *       .catch(()=>false) / nav/aside fallback 분기 전체 제거 (F1 fix).
-   */
-  test('T4: SALES OCR 권한 주입 → 사이드바 영수증 OCR 메뉴 표시', async ({ page }) => {
-    const errors: string[] = []
-    attachPageErrorHook(page, errors)
-    ensureQaDir()
-
-    const ocrGrantUrl = withMockPerms(RECEIPT_OCR_URL_SALES, [
-      { pageCode: 'sales.slip.list', view: true, edit: true },
-      { pageCode: 'purchases.receipt-ocr', view: true, edit: false },
-    ])
-
-    await test.step('SALES+OCR권한으로 OCR 영수증 페이지 진입', async () => {
-      await page.goto(ocrGrantUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 20000,
-      })
-    })
-
-    await test.step('사이드바 영수증 OCR 메뉴 strict 단언', async () => {
-      // AppLayout: showReceiptOcr = dynamicCanAccess('purchases.receipt-ocr', 'view')
-      // mockPerms 주입 → /permissions/my VIEW 포함 → SidebarLink show=true → 렌더됨.
-      const sidebarOcrLink = page.locator('[data-testid="sidebar-purchases-receipt-ocr"]')
-      await expect(
-        sidebarOcrLink,
-        '사이드바 영수증 OCR [data-testid="sidebar-purchases-receipt-ocr"] 미표시 — mockPerms purchases.receipt-ocr view=true 주입 후 렌더 필요',
-      ).toBeVisible({ timeout: 8000 })
-    })
-
-    await test.step('영수증 OCR 사이드바 링크 disabled 아님 확인', async () => {
-      const sidebarOcrLink = page.locator('[data-testid="sidebar-purchases-receipt-ocr"]')
-      const hasDisabledClass = await sidebarOcrLink.evaluate(el =>
-        el.classList.contains('sidebar-disabled') ||
-        el.closest('.sidebar-disabled') !== null,
-      )
-      expect(
-        hasDisabledClass,
-        '영수증 OCR 사이드바 링크 disabled 상태 — 활성 링크 필요',
-      ).toBe(false)
-    })
-
-    // 단언 통과 후 스크린샷
-    await page.screenshot({
-      path: path.join(QA_DIR, 'T4-sales-ocr-sidebar-visible.png'),
       fullPage: true,
     })
 

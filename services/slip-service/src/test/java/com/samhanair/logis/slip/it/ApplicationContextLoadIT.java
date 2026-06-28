@@ -11,7 +11,6 @@ import com.samhanair.logis.slip.client.NotificationChatRoomClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
-import com.samhanair.logis.slip.client.ReceiptOcrClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
@@ -61,9 +60,6 @@ class ApplicationContextLoadIT extends AbstractPostgresIT {
     private PartnerBlockClient partnerBlockClient;
     @MockBean
     private PartnerInternalClient partnerInternalClient;
-    /** SP-09-3 — ReceiptOcrClient (@MockBean 격리, feedback_it_mockbean_external_clients). */
-    @MockBean
-    private ReceiptOcrClient receiptOcrClient;
     /** SP-08-FU1 — UserInternalClient @MockBean 격리 (ownerFullName graceful fallback). */
     @MockBean
     private UserInternalClient userInternalClient;

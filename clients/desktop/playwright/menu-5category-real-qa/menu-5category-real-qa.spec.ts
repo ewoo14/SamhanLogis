@@ -64,13 +64,11 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
     'partners.block',
     'slip.cleanup',
     'slip.print.next-day',
-    'sales.vendor-order',
     'products.list',
     'products.sync',
   ],
   구매: [
     'purchases.slip.list',
-    'purchases.receipt-ocr',
     'inventory.stock-transfer',
     'inbound.inspection',
     'inventory.audit',

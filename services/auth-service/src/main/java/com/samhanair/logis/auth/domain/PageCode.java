@@ -154,9 +154,6 @@ public enum PageCode {
 
     // ---- 매입 (purchases) ----
 
-    /** Naver Clova OCR 영수증 발급 화면 (SP-09-3). */
-    PURCHASES_RECEIPT_OCR("purchases.receipt-ocr", "영수증 OCR"),
-
     /** 매입 슬립 목록 화면. */
     PURCHASES_SLIP_LIST("purchases.slip.list", "매입 슬립 목록"),
 
@@ -358,9 +355,6 @@ public enum PageCode {
 
     /** 거래처 주문 리비전 복원 — partner-order-service PartnerOrderRevisionController RESTORE 권한. */
     SALES_PARTNER_ORDER_REVISIONS("sales.partner-order.revisions", "거래처주문 리비전 복원"),
-
-    /** 벤더(외주) 발주서 업로드/확정 화면 (SP-D4) — VendorOrderController. */
-    SALES_VENDOR_ORDER("sales.vendor-order", "벤더(외주) 주문"),
 
     // ---- 재고 (inventory) ----
 

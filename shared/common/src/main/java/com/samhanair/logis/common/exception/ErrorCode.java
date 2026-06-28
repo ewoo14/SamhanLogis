@@ -97,16 +97,6 @@ public enum ErrorCode {
     ETAX_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
             "e-Tax 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
     /**
-     * Clova OCR API 호출 실패 — Naver Clova OCR 응답 오류 또는 placeholder 키 차단 시 502 반환 (SP-09-3).
-     */
-    OCR_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,
-            "OCR 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
-    /**
-     * 영수증 파일 유효성 오류 — 빈 파일, 10MB 초과, 비지원 포맷(jpg/png/jpeg 외) 시 422 반환 (SP-09-3).
-     */
-    RECEIPT_FILE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
-            "영수증 파일이 유효하지 않습니다. jpg/png 이미지, 10MB 이하만 허용됩니다."),
-    /**
      * KFTC 오픈뱅킹 API 호출 실패 — API 키 미설정, placeholder 사용, 또는 실 API 오류 시 502 반환 (SP-09-4).
      */
     KFTC_SUBMIT_FAILED(HttpStatus.BAD_GATEWAY,

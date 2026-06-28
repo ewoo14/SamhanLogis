@@ -13,7 +13,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * partner-service internal endpoint 호출 client (PR-F2 vendor.ocr 신규).
+ * partner-service internal endpoint 호출 client.
  *
  * <p>{@code GET /internal/partners/{partnerCode}} 호출 → {@link PartnerSummary} 반환.
  * accounting-service 의 {@code PartnerLookupClient} 패턴을 답습한 fail-soft —

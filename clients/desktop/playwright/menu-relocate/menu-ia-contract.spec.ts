@@ -300,7 +300,6 @@ test.describe('SP-04/Round A 좌측 메뉴 5대분류 IA 정적 계약', () => {
 
     const purchaseBlock = categoryBlock(appLayout, '구매')
     assertSidebarLink(purchaseBlock, 'sidebar-purchases', '/purchases', '구매관리')
-    assertSidebarLink(purchaseBlock, 'sidebar-purchases-receipt-ocr', '/purchases/receipt-ocr', '영수증 OCR')
     assertSidebarLink(purchaseBlock, 'sidebar-transfers', '/transfers', '재고이동 관리')
 
     const accountingBlock = categoryBlock(appLayout, '회계')

@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * 우리 자체 종합견적서 시트로 일원화. 단, {@code 종합견적서} tab 자체는 출력 양식이므로
  * legacy GAS 와 동일하게 홈멀티/싱글/상업멀티 원본 tab 을 직접 읽는다.
  *
- * <p>fail-soft: 시트 read 실패 / 매칭 없음 시 empty 반환 — controller 가 OCR 단가 fallback.
+ * <p>fail-soft: 시트 read 실패 / 매칭 없음 시 empty 반환.
  *
  * <p>본 client 는 IT 에서 {@code @MockBean} 격리 의무.
  */
@@ -32,7 +32,7 @@ public class ProductCatalogLookupClient {
     private final GoogleSheetsClient sheetsClient;
 
     private static final List<CatalogTab> LEGACY_SOURCE_TABS = List.of(
-            // 주문서/발주 OCR 경로는 개발책임자 정정에 따라 *_단가인상 tab 만 사용한다.
+            // 주문서 경로는 개발책임자 정정에 따라 *_단가인상 tab 만 사용한다.
             new CatalogTab("홈멀티_단가인상!A1:Z", 0, 1, 3, 5),
             new CatalogTab("싱글 세트_단가인상!A1:Z", 0, 2, 4, 7),
             new CatalogTab("싱글 구성품_단가인상!A1:Z", 0, 2, 5, 7),

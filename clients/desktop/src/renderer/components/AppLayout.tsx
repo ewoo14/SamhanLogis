@@ -9,8 +9,8 @@
  * - 알림 내역 (`/notifications`)
  *
  * 8 SidebarCategory 그룹 (각 그룹은 권한 1개라도 보이면 헤더+자식 노출, 전무 시 완전 미렌더):
- * - 판매     — 판매관리/견적서/주문서/거래처/DC설정/발송금지/전표정리/내일자전표/협력사 발주 OCR/품목 관리/시트 동기화
- * - 구매     — 구매관리/영수증 OCR/재고이동 관리/입고 검수/재고실사/DPS 비교
+ * - 판매     — 판매관리/견적서/주문서/거래처/DC설정/발송금지/전표정리/내일자전표/품목 관리/시트 동기화
+ * - 구매     — 구매관리/재고이동 관리/입고 검수/재고실사/DPS 비교
  * - 회계     — 매출·매입전표/계정과목/분개장/세금계산서/시산표/재무보고서/마감/원장/운영 회계 항목
  * - 그룹웨어 — 링크발송/알리고 주소록/단톡방 매핑
  * - 인사     — 인사 관리/권한설정/권한 일괄/그룹 권한/권한그룹 관리/권한 위임
@@ -505,7 +505,6 @@ export function AppLayout() {
   const showPurchaseSlipList       = dynamicCanAccess('purchases.slip.list',         'view')
   const showEstimatesList          = dynamicCanAccess('estimates.list',               'view')
   const showPartnerOrderList       = dynamicCanAccess('sales.partner-order.list',     'view')
-  const showVendorOrder            = dynamicCanAccess('sales.vendor-order',           'view')
   const showInventoryWarehouse     = dynamicCanAccess('inventory.warehouse',          'view')
   // inventory.stock — 현재 사이드바 직접 노출 없음 (재고 현황 서브페이지). 라우트 가드에서 사용.
   const showInventoryStockTransfer = dynamicCanAccess('inventory.stock-transfer',     'view')
@@ -577,11 +576,6 @@ export function AppLayout() {
   // [PR-E1 FE-5] 전표 정리 entry — SALES / MANAGER / MASTER
   const showSlipCleanup = dynamicCanAccess('slip.cleanup', 'view')
   const showNextDaySlip = dynamicCanAccess('slip.print.next-day', 'view')
-  const showVendorOrderOcr = showVendorOrder
-  // [SP-09-3 + SP-D1 cycle 2] 영수증 OCR 업로드 entry — 동적 RBAC 권한 연동.
-  // 기존 정적 역할 체크(WAREHOUSE/ACCOUNTANT/MANAGER/MASTER) → purchases.receipt-ocr 동적 canAccess 로 전환.
-  // dynamicCanAccess 는 로딩 중 false(보수적 deny) → 캐시 완료 후 DB 값 적용.
-  const showReceiptOcr = dynamicCanAccess('purchases.receipt-ocr', 'view')
   const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
   const showGroupwareApprovals = dynamicCanAccess('groupware.approvals', 'view')
   const showGroupwareApprovalTemplates = dynamicCanAccess('groupware.approval-templates', 'view')
@@ -600,10 +594,10 @@ export function AppLayout() {
   const showSales =
     showSalesSlipList || showEstimatesList || showPartnerOrderList
     || showPartnerDcConfig || showEstimateConfig || showPartnerManagement || showSlipCleanup
-    || showNextDaySlip || showVendorOrderOcr || showBlockedPartners
+    || showNextDaySlip || showBlockedPartners
     || showAccountingAdminOrder || showProductsList || showSheetSync
   const showPurchase =
-    showPurchaseSlipList || showReceiptOcr || showInventoryStockTransfer
+    showPurchaseSlipList || showInventoryStockTransfer
     || showInboundInspection || showAudit || showDpsCompare || showDpsByProduct
   const showGroupware =
     showDeliveryBatch || showAligoAddressBook || showChatRoomAdmin
@@ -661,7 +655,6 @@ export function AppLayout() {
                 '/admin/blocked-partners',
               '/sales/slip-cleanup',
               '/sales/next-day-slip',
-              '/sales/vendor-order-upload',
               '/products/catalog',
               '/products/estimate-items',
               '/products/classifications',
@@ -757,16 +750,6 @@ export function AppLayout() {
             >
               내일자 전표 이미지
             </SidebarLink>
-            {/* [PR-F2 Designer mock] vendor 발주서 OCR 업로드 — SALES/MANAGER/MASTER.
-                [SP-D4] sales.vendor-order 동적 RBAC 기반. */}
-            <SidebarLink
-              to="/sales/vendor-order-upload"
-              show={showVendorOrderOcr}
-              requiredRole="SALES / MANAGER / MASTER"
-              data-testid="sidebar-sales-vendor-order-upload"
-            >
-              협력사 발주 OCR
-            </SidebarLink>
             <SidebarLink
               to="/products/catalog"
               show={showProductsList}
@@ -812,7 +795,6 @@ export function AppLayout() {
             testId="sidebar-category-toggle-구매"
             activeTargets={[
               '/purchases',
-              '/purchases/receipt-ocr',
               '/transfers',
               '/warehouse/inbound-inspections',
               '/warehouse/audit',
@@ -826,16 +808,6 @@ export function AppLayout() {
               data-testid="sidebar-purchases"
             >
               구매관리
-            </SidebarLink>
-            {/* [SP-09-3] 영수증 OCR 업로드 — WAREHOUSE / ACCOUNTANT / MANAGER / MASTER.
-                구매관리 하위 진입점. ACCOUNTANT 추가 (2026-05-18 사용자 정정). */}
-            <SidebarLink
-              to="/purchases/receipt-ocr"
-              show={showReceiptOcr}
-              requiredRole="WAREHOUSE / ACCOUNTANT / MANAGER / MASTER"
-              data-testid="sidebar-purchases-receipt-ocr"
-            >
-              영수증 OCR
             </SidebarLink>
             <SidebarLink
               to="/transfers"

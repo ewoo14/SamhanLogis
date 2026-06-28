@@ -107,7 +107,7 @@ const screens = [
     active: '주문서 관리',
     role: 'Backend',
     title: '주문서 catalog lookup column 계약',
-    subtitle: '기존 vendor OCR UI/API는 유지하고 ProductCatalogLookupClient는 *_단가인상 tab으로 modelCode 단가 조회',
+    subtitle: '기존 주문 UI/API는 유지하고 ProductCatalogLookupClient는 *_단가인상 tab으로 modelCode 단가 조회',
     headers: ['source tab', 'name col', 'model col', 'unit price col'],
     rows: [
       ['홈멀티_단가인상', 'A', 'B', 'F'],

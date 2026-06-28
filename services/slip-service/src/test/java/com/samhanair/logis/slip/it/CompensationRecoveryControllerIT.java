@@ -18,7 +18,6 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
-import com.samhanair.logis.slip.client.ReceiptOcrClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
@@ -84,9 +83,6 @@ class CompensationRecoveryControllerIT extends AbstractPostgresIT {
 
     @MockBean
     private ProductClient productClient;
-
-    @MockBean
-    private ReceiptOcrClient receiptOcrClient;
 
     @MockBean
     private SmsGateway smsGateway;

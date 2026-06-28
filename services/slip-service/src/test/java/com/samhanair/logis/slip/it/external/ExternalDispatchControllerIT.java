@@ -19,7 +19,6 @@ import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.client.PartnerBlockClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
-import com.samhanair.logis.slip.client.ReceiptOcrClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
@@ -69,7 +68,6 @@ class ExternalDispatchControllerIT extends AbstractPostgresIT {
     @MockBean PartnerBlockClient partnerBlockClient;
     @MockBean PartnerInternalClient partnerInternalClient;
     @MockBean ProductClient productClient;
-    @MockBean ReceiptOcrClient receiptOcrClient;
     @MockBean SmsGateway smsGateway;
     @MockBean UserInternalClient userInternalClient;
     @MockBean WarehouseInternalClient warehouseInternalClient;

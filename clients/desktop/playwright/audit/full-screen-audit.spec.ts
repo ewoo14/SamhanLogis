@@ -105,7 +105,6 @@ const ROUTES: RouteCase[] = [
   { path: '/sales/partner-orders/po-001' },
   { path: '/sales/order-approvals' },
   { path: '/sales/partner-dc-config' },
-  { path: '/sales/vendor-order-upload' },
   { path: '/sales/slip-001' },
   { path: '/sales/slip-001/print/invoice' },
   { path: '/sales/slip-001/print/dispatch' },
@@ -348,7 +347,6 @@ const SALES_ROUTES: RouteCase[] = [
   { path: '/sales/partner-dc-config' },
   { path: '/sales/slip-001' },
   { path: '/sales/next-day-slip' },
-  { path: '/sales/vendor-order-upload' },
 ]
 
 test.describe('Desktop 전 화면 자동 점검 — SALES (표본)', () => {
