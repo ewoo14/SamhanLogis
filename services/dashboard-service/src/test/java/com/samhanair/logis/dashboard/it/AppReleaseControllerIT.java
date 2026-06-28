@@ -126,6 +126,48 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("POST /app/releases 신규 등록은 미발행 상태이며 publish 전까지 /app/version에 반영되지 않는다")
+    void adminCreate_registersUnpublishedRelease_untilExplicitPublish() throws Exception {
+        String createBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "4.0.0",
+                  "forceLevel": "MAJOR",
+                  "releaseNotes": "staged release",
+                  "releasedAt": "2026-06-27T12:00:00",
+                  "minSupportedVersion": "3.0.0"
+                }
+                """;
+
+        String id = mockMvc.perform(withActor(post("/app/releases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value("4.0.0"))
+                .andExpect(jsonPath("$.data.isPublished").value(false))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8)
+                .replaceAll("(?s).*\"id\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "DESKTOP")
+                        .param("currentVersion", "3.0.0"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(withActor(post("/app/releases/{id}/publish", id)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isPublished").value(true));
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "DESKTOP")
+                        .param("currentVersion", "3.0.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("4.0.0"))
+                .andExpect(jsonPath("$.data.forceLevel").value("MAJOR"));
+    }
+
+    @Test
     @DisplayName("GET /app/version은 published 최신만 반영하고 publish/unpublish가 노출 상태를 전환한다")
     void publicVersion_usesPublishedLatestOnly_andPublishToggleControlsVisibility() throws Exception {
         insertRelease("WEB", "1.0.0", "MINOR", "배포 릴리스", "0.9.0", true);

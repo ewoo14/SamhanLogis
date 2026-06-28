@@ -56,7 +56,7 @@ public class AppRelease extends BaseEntity {
     private String minSupportedVersion;
 
     @Column(name = "is_published", nullable = false)
-    private boolean published = true;
+    private boolean published = false;
 
     private AppRelease(
             AppClientType clientType,
