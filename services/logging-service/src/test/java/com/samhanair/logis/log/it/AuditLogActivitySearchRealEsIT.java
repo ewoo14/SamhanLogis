@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -76,10 +77,11 @@ class AuditLogActivitySearchRealEsIT {
     @BeforeEach
     void seed() {
         repository.deleteAll();
+        // 의도적으로 occurredAt 오름차순(=desc 의 역순)으로 색인 — 빈 조건 desc 정렬이 실제로 재정렬함을 검증.
         repository.saveAll(List.of(
-                row("a-1", "MENU_ACCESS", "MENU", "dev.activity-log", "로그 메뉴 진입", "2026-06-28T00:30:00Z"),
+                row("a-3", "UPDATE", "MENU", "admin.app-release", "버전 관리 릴리스 수정", "2026-06-27T23:00:00Z"),
                 row("a-2", "MENU_ACCESS", "MENU", "dev.popup-notice", "팝업공지 메뉴 진입", "2026-06-28T00:20:00Z"),
-                row("a-3", "UPDATE", "MENU", "admin.app-release", "버전 관리 릴리스 수정", "2026-06-27T23:00:00Z")));
+                row("a-1", "MENU_ACCESS", "MENU", "dev.activity-log", "로그 메뉴 진입", "2026-06-28T00:30:00Z")));
         operations.indexOps(IndexCoordinates.of("samhan-audit-logs")).refresh();
     }
 
@@ -109,8 +111,9 @@ class AuditLogActivitySearchRealEsIT {
     void emptyConditionReturnsAllSortedDesc() {
         Page<AuditLog> page = repository.searchActivity(
                 new ActivityLogSearchCondition(null, null, null, null, null, null, null),
-                PageRequest.of(0, 20));
+                PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "occurredAt")));
         assertThat(page.getTotalElements()).isEqualTo(3);
+        // 오름차순 색인을 desc pageable 이 재정렬해 occurredAt 내림차순(a-1 > a-2 > a-3)으로 반환해야 한다.
         assertThat(page.getContent()).extracting(AuditLog::getResourceId)
                 .containsExactly("dev.activity-log", "dev.popup-notice", "admin.app-release");
     }
