@@ -5,6 +5,7 @@
  * approvalNo, title, status, 결재 단계 순번만 표시한다.
  */
 import { apiClient, type ApiEnvelope } from './client'
+import { STEP_TYPE_LABEL } from './approvalLineConfigApi'
 
 export type ApprovalStatus =
   | 'PENDING'
@@ -28,11 +29,6 @@ export const APPROVAL_STEP_STATUS_LABEL: Record<ApprovalStepStatus, string> = {
   PENDING: '대기',
   APPROVED: '승인',
   REJECTED: '반려',
-}
-
-export const APPROVAL_STEP_TYPE_LABEL: Record<ApprovalStepType, string> = {
-  USER: '직접지정',
-  GROUP: '권한그룹',
 }
 
 export interface ApprovalStepView {
@@ -84,12 +80,12 @@ export function resolveApprovalStepDisplayName(
   groupNameById: ReadonlyMap<string, string>,
 ): string {
   if (step.stepType === 'GROUP') {
-    if (!step.approverGroupId) return APPROVAL_STEP_TYPE_LABEL.GROUP
-    return groupNameById.get(step.approverGroupId) ?? APPROVAL_STEP_TYPE_LABEL.GROUP
+    if (!step.approverGroupId) return STEP_TYPE_LABEL.GROUP
+    return groupNameById.get(step.approverGroupId) ?? STEP_TYPE_LABEL.GROUP
   }
   const name = step.approverName?.trim()
   if (name) return name
-  return APPROVAL_STEP_TYPE_LABEL[step.stepType]
+  return STEP_TYPE_LABEL[step.stepType]
 }
 
 export function resolveApprovalStepTypeLabel(
@@ -99,7 +95,7 @@ export function resolveApprovalStepTypeLabel(
   if (step.sequence === 0 && step.stepType === 'USER' && step.approverId === requesterId) {
     return '작성자'
   }
-  return APPROVAL_STEP_TYPE_LABEL[step.stepType]
+  return STEP_TYPE_LABEL[step.stepType]
 }
 
 export async function listGroupwareApprovals(

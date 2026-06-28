@@ -46,6 +46,7 @@ describe('GroupwareApprovalCreatePage default approver prefill', () => {
 
   it('config 결재선이 있으면 수동 결재자 없이 생성 가능하고 override 만 approverIds 로 보낸다', () => {
     expect(shouldRequireManualApprover('EXPENSE_REPORT', false, configuredRoles)).toBe(false)
+    expect(shouldRequireManualApprover('EXPENSE_REPORT', false, creatorOnlyRoles)).toBe(true)
     expect(shouldRequireManualApprover('LEAVE_REQUEST', false, [])).toBe(true)
     expect(shouldRequireManualApprover('LEAVE_REQUEST', true, [])).toBe(true)
     expect(shouldRequireManualApprover('', false, [])).toBe(true)
@@ -55,6 +56,7 @@ describe('GroupwareApprovalCreatePage default approver prefill', () => {
     expect(getApprovalLinePreviewStatus('', false, [])).toBe('결재 유형을 먼저 선택하세요.')
     expect(getApprovalLinePreviewStatus('EXPENSE_REPORT', true, [])).toBe('결재선을 불러오는 중입니다.')
     expect(getApprovalLinePreviewStatus('LEAVE_REQUEST', false, [])).toBe('설정된 결재선이 없습니다. 수동으로 결재자를 추가하세요.')
+    expect(getApprovalLinePreviewStatus('EXPENSE_REPORT', false, creatorOnlyRoles)).toBe('작성자 단독 결재선입니다. 수동으로 결재자를 추가하세요.')
     expect(getApprovalLinePreviewStatus('EXPENSE_REPORT', false, configuredRoles)).toBe('중앙 결재라인 설정이 적용됩니다.')
   })
 
@@ -97,4 +99,8 @@ const configuredRoles: ApprovalLineStructure[] = [
   { sequence: 0, label: '작성자', stepType: 'CREATOR', actionKey: null },
   { sequence: 1, label: '부서장', stepType: 'GROUP', actionKey: 'groupware.approvals' },
   { sequence: 2, label: '대표', stepType: 'USER', actionKey: null },
+]
+
+const creatorOnlyRoles: ApprovalLineStructure[] = [
+  { sequence: 0, label: '작성자', stepType: 'CREATOR', actionKey: null },
 ]

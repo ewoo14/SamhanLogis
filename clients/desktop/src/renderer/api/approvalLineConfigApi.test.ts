@@ -3,7 +3,6 @@ import { apiClient } from './client'
 import {
   fetchApprovalLineGroups,
   fetchApprovalLineRoles,
-  fetchApprovalLineResolvedRoles,
   fetchApprovalLineStructure,
   fetchDefaultApprovers,
   addApprovalLineApprover,
@@ -105,30 +104,6 @@ describe('approvalLineConfigApi contract', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith(
       '/auth/approval-line-configs/SLIP_OUTBOUND/structure',
-    )
-  })
-
-  it('GET /internal/approval-line/roles 로 config 인스턴스화 역할을 조회한다', async () => {
-    const data = {
-      configured: true,
-      roles: [
-        {
-          sequence: 1,
-          label: '회계 검토',
-          stepType: 'GROUP',
-          approverGroupId: 'group/1',
-          approverUserIds: [],
-          requiredPageCode: null,
-          required: true,
-        },
-      ],
-    }
-    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data } })
-
-    await expect(fetchApprovalLineResolvedRoles('GROUPWARE_EXPENSE/REPORT')).resolves.toEqual(data)
-
-    expect(apiClient.get).toHaveBeenCalledWith(
-      '/auth/internal/approval-line/roles?documentType=GROUPWARE_EXPENSE%2FREPORT',
     )
   })
 

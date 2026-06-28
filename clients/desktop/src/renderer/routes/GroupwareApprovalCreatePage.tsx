@@ -124,7 +124,7 @@ export function shouldRequireManualApprover(
 ): boolean {
   if (!templateCode?.trim()) return true
   if (loadingConfig) return true
-  return configRoles.length === 0
+  return !configRoles.some((role) => role.stepType !== 'CREATOR')
 }
 
 export function getApprovalLinePreviewStatus(
@@ -135,6 +135,9 @@ export function getApprovalLinePreviewStatus(
   if (!templateCode?.trim()) return '결재 유형을 먼저 선택하세요.'
   if (loadingConfig) return '결재선을 불러오는 중입니다.'
   if (configRoles.length === 0) return '설정된 결재선이 없습니다. 수동으로 결재자를 추가하세요.'
+  if (!configRoles.some((role) => role.stepType !== 'CREATOR')) {
+    return '작성자 단독 결재선입니다. 수동으로 결재자를 추가하세요.'
+  }
   return '중앙 결재라인 설정이 적용됩니다.'
 }
 

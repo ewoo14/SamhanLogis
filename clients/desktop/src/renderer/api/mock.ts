@@ -11001,19 +11001,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
   }
 
-  const approvalLineResolutionMatch = url.match(/\/(?:auth\/)?internal\/approval-line\/roles(?:\?([^#]*))?$/)
-  if (method === 'GET' && approvalLineResolutionMatch) {
-    const params = new URLSearchParams(approvalLineResolutionMatch[1] ?? '')
-    const documentType = params.get('documentType') ?? ''
-    const roles = _mockApprovalLineConfigRoles
-      .filter((role) => role.documentType === documentType && !role.isDeleted)
-      .sort((a, b) => a.sequence - b.sequence)
-    return envelope({
-      configured: roles.length > 0,
-      roles: roles.map(mockApprovalLineResolutionView),
-    })
-  }
-
   const approvalLineStructureMatch = url.match(/\/(?:auth\/)?approval-line-configs\/([^/?]+)\/structure$/)
   if (method === 'GET' && approvalLineStructureMatch) {
     const documentType = decodeURIComponent(approvalLineStructureMatch[1] ?? 'SLIP_OUTBOUND')
@@ -15424,7 +15411,7 @@ const _mockApprovalLineConfigRoles: MockApprovalLineRole[] = [
   },
   // A2-G2 그룹웨어 지출결의서 — V75__seed_groupware_approval_line_config.sql 정합.
   // seq0=작성자 CREATOR / seq1=부서장 GROUP(actionKey=groupware.approvals, 그룹=매니저 0000...0101) /
-  // seq2=대표 USER(user-001 김미선, 관리자 UI 에서 실 대표 UUID 교체 예정).
+  // seq2=대표 USER placeholder. MASTER(user-001)와 requester 자기결재 충돌을 피하려고 비-MASTER user-008을 사용한다.
   {
     id: 'mock-approval-line-groupware-expense-creator',
     documentType: 'GROUPWARE_EXPENSE_REPORT',
@@ -15453,7 +15440,7 @@ const _mockApprovalLineConfigRoles: MockApprovalLineRole[] = [
     sequence: 2,
     label: '대표',
     stepType: 'USER',
-    approvers: [{ id: 'mock-approval-line-groupware-expense-ceo-user', type: 'USER', refId: 'user-001' }],
+    approvers: [{ id: 'mock-approval-line-groupware-expense-ceo-user', type: 'USER', refId: 'user-008' }],
     required: true,
     actionKey: null,
     createdBy: 'v75-seed',
@@ -15532,21 +15519,6 @@ function mockApprovalLineStructureView(role: MockApprovalLineRole) {
     label: role.label,
     stepType: role.stepType,
     actionKey: role.actionKey,
-  }
-}
-
-function mockApprovalLineResolutionView(role: MockApprovalLineRole) {
-  const groupApprover = role.approvers.find((approver) => approver.type === 'GROUP')
-  return {
-    sequence: role.sequence,
-    label: role.label,
-    stepType: role.stepType,
-    approverGroupId: groupApprover?.refId ?? null,
-    approverUserIds: role.approvers
-      .filter((approver) => approver.type === 'USER')
-      .map((approver) => approver.refId),
-    requiredPageCode: role.actionKey,
-    required: role.required,
   }
 }
 

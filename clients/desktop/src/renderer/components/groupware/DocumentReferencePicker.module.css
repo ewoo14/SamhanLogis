@@ -1,3 +1,9 @@
+.picker {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .dropdown {
   position: absolute;
   z-index: 20;
@@ -60,4 +66,26 @@
 
 .amount {
   text-align: right;
+}
+
+@media (max-width: 480px) {
+  .picker {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dropdown {
+    position: static;
+    grid-column: 1 / -1;
+    margin-top: var(--space-1, 4px);
+    max-width: 100%;
+  }
+
+  .optionDocument,
+  .optionPartner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .amount {
+    text-align: left;
+  }
 }

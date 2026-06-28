@@ -15,7 +15,7 @@ import {
   APPROVAL_ATTACHMENT_TYPE_LABEL,
   listApprovalAttachments,
 } from '../api/groupwareApprovalAttachment'
-import { getApprovalTemplate } from '../api/groupwareApprovalTemplate'
+import { findActiveApprovalTemplate } from '../api/groupwareApprovalTemplate'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PrintLayout, krw } from './PrintLayout'
 import {
@@ -50,7 +50,7 @@ export function ApprovalDocView() {
   const templateId = approvalQuery.data?.templateId ?? null
   const templateQuery = useQuery({
     queryKey: ['groupware-approval-print-template', templateId],
-    queryFn: () => getApprovalTemplate(templateId!),
+    queryFn: () => findActiveApprovalTemplate(templateId!),
     enabled: Boolean(templateId),
   })
 

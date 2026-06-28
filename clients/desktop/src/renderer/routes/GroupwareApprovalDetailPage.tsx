@@ -41,7 +41,7 @@ import {
 } from '../api/groupwareApproval'
 // P1-C: fetchApprovalLineGroups(/auth/admin/approval-line-configs/groups) 제거 — 비-admin 페이지에서 admin 호출 차단.
 // ApprovalStepView.approverGroupId → resolveApprovalStepDisplayName 에서 '권한그룹' 폴백으로 처리.
-import { getApprovalTemplate, type ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
+import { findActiveApprovalTemplate, type ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
 import { GroupwareApprovalCollaborationPanel } from '../components/collab/GroupwareApprovalCollaborationPanel'
 import { DocumentReferencePicker, type DocumentReferenceValue } from '../components/groupware/DocumentReferencePicker'
 import { MobileActionSheet } from '../components/common/MobileActionSheet'
@@ -209,7 +209,7 @@ export function GroupwareApprovalDetailPage() {
 
   const templateQuery = useQuery({
     queryKey: ['groupwareApprovalTemplate', query.data?.templateId],
-    queryFn: () => getApprovalTemplate(query.data!.templateId!),
+    queryFn: () => findActiveApprovalTemplate(query.data!.templateId!),
     enabled: Boolean(query.data?.templateId),
     retry: 1,
   })

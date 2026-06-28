@@ -30,21 +30,6 @@ export interface ApprovalLineStructure {
   actionKey: string | null
 }
 
-export interface ApprovalLineResolvedRole {
-  sequence: number
-  label: string
-  stepType: StepType
-  approverGroupId: string | null
-  approverUserIds: string[]
-  requiredPageCode: string | null
-  required: boolean
-}
-
-export interface ApprovalLineRoleResolution {
-  configured: boolean
-  roles: ApprovalLineResolvedRole[]
-}
-
 export interface ApprovalLineDefaultApprover {
   sequence: number
   label: string
@@ -125,16 +110,6 @@ export async function fetchApprovalLineStructure(documentType: string): Promise<
     `/auth/approval-line-configs/${encodeURIComponent(documentType)}/structure`,
   )
   return res.data.data ?? []
-}
-
-export async function fetchApprovalLineResolvedRoles(documentType: string): Promise<ApprovalLineRoleResolution> {
-  const res = await apiClient.get<ApiEnvelope<ApprovalLineRoleResolution>>(
-    `/auth/internal/approval-line/roles?documentType=${encodeURIComponent(documentType)}`,
-  )
-  return {
-    configured: Boolean(res.data.data?.configured),
-    roles: res.data.data?.roles ?? [],
-  }
 }
 
 export async function fetchDefaultApprovers(documentType: string): Promise<ApprovalLineDefaultApprover[]> {

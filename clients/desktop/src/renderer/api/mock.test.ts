@@ -32,7 +32,7 @@ describe('mock approval-line-config contract', () => {
     }) as MockEnvelope<Array<{ sequence: number; label: string; userId: string; displayName: string }>>
 
     expect(resolved.data).toEqual([
-      { sequence: 2, label: '대표', userId: 'user-001', displayName: '김미선' },
+      { sequence: 2, label: '대표', userId: 'user-008', displayName: '정매니저' },
     ])
   })
 
@@ -43,20 +43,6 @@ describe('mock approval-line-config contract', () => {
     }) as MockEnvelope<unknown[]>
 
     expect(resolved.data).toEqual([])
-  })
-
-  it('GROUPWARE 결재라인 roles resolve 는 CREATOR/USER/GROUP 단계를 반환한다', () => {
-    const resolved = mockRequest({
-      method: 'GET',
-      url: '/auth/internal/approval-line/roles?documentType=GROUPWARE_EXPENSE_REPORT',
-    }) as MockEnvelope<{ configured: boolean; roles: Array<Record<string, unknown>> }>
-
-    expect(resolved.data.configured).toBe(true)
-    expect(resolved.data.roles).toEqual([
-      expect.objectContaining({ sequence: 0, label: '작성자', stepType: 'CREATOR' }),
-      expect.objectContaining({ sequence: 1, label: '부서장', stepType: 'GROUP', approverGroupId: '00000000-0000-0000-0000-000000000101' }),
-      expect.objectContaining({ sequence: 2, label: '대표', stepType: 'USER', approverUserIds: ['user-001'] }),
-    ])
   })
 
   it('GROUPWARE 결재 생성은 config 단계 뒤에 override 결재자를 추가한다', () => {
@@ -74,7 +60,7 @@ describe('mock approval-line-config contract', () => {
           accountCode: '소모품비',
           expenseDate: '2026-06-29',
         },
-        approverIds: ['user-008'],
+        approverIds: ['00000000-0000-0000-0000-000000010004'],
       },
     }) as MockEnvelope<{ steps: Array<Record<string, unknown>> }>
 
@@ -87,9 +73,14 @@ describe('mock approval-line-config contract', () => {
       approverGroupId: '00000000-0000-0000-0000-000000000101',
       approverName: null,
     })
-    expect(created.data.steps[3]).toMatchObject({
+    expect(created.data.steps[2]).toMatchObject({
       approverId: 'user-008',
       approverName: '정매니저',
+    })
+    expect(created.data.steps[2]?.approverId).not.toBe(created.data.steps[0]?.approverId)
+    expect(created.data.steps[3]).toMatchObject({
+      approverId: '00000000-0000-0000-0000-000000010004',
+      approverName: '박배차',
     })
   })
 

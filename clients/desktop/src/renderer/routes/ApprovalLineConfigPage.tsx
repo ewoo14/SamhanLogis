@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AsyncAutocomplete, Button, Card, DragHandle, Modal, Select, Spinner, TagChip } from '@samhan/design-system'
+import { AsyncAutocomplete, Button, Card, DragHandle, Input, Modal, Select, Spinner, TagChip } from '@samhan/design-system'
 import {
   DOC_TYPES,
   STEP_TYPE_LABEL,
@@ -438,7 +438,7 @@ export function ApprovalLineConfigPage() {
         {!rolesQuery.isLoading && !rolesQuery.isError ? (
           <>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: 12, borderBottom: '1px solid var(--color-neutral-200)' }}>
-              <input
+              <Input
                 type="text"
                 value={newStepLabel}
                 onChange={(event) => setNewStepLabel(event.target.value)}
@@ -451,12 +451,10 @@ export function ApprovalLineConfigPage() {
                 aria-label="새 결재 단계 라벨"
                 data-testid="approval-line-new-step-label"
                 disabled={addStepMutation.isPending}
+                inputSize="sm"
+                fullWidth={false}
                 style={{
                   width: 'min(220px, 100%)',
-                  padding: '7px 9px',
-                  border: '1px solid var(--color-neutral-300)',
-                  borderRadius: 4,
-                  fontSize: 13,
                 }}
               />
               <Button
@@ -749,7 +747,7 @@ function SortableApprovalRoleRow({
         )}
       </td>
       <td style={requiredBodyCellStyle}>
-        <input
+        <Input
           type="checkbox"
           checked={role.required}
           disabled={isCreator || saving}
@@ -759,6 +757,9 @@ function SortableApprovalRoleRow({
           }}
           aria-label={`${role.label} 필수`}
           data-testid={`approval-role-required-${role.label}`}
+          inputSize="sm"
+          fullWidth={false}
+          style={{ width: 16, height: 16, padding: 0 }}
         />
       </td>
     </tr>
@@ -854,7 +855,7 @@ function ApprovalRoleLabelInput({
 
   if (editing) {
     return (
-      <input
+      <Input
         ref={inputRef}
         type="text"
         value={inputValue}
@@ -872,13 +873,10 @@ function ApprovalRoleLabelInput({
         aria-label={`${role.label} 라벨 편집`}
         data-testid={`approval-role-label-input-${role.id}`}
         disabled={saving}
+        inputSize="sm"
+        fullWidth={false}
         style={{
-          fontSize: 13,
           fontWeight: 700,
-          border: '1px solid var(--color-primary-400)',
-          borderRadius: 4,
-          padding: '2px 6px',
-          outline: 'none',
           minWidth: 80,
         }}
       />
@@ -963,7 +961,7 @@ export function ApprovalRoleRow({
         )}
       </td>
       <td style={bodyCellStyle}>
-        <input
+        <Input
           type="checkbox"
           checked={role.required}
           disabled={isCreator || saving}
@@ -973,6 +971,9 @@ export function ApprovalRoleRow({
           }}
           aria-label={`${role.label} 필수`}
           data-testid={`approval-role-required-${role.label}`}
+          inputSize="sm"
+          fullWidth={false}
+          style={{ width: 16, height: 16, padding: 0 }}
         />
       </td>
     </tr>

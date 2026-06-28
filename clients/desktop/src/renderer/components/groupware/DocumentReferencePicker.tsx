@@ -184,16 +184,20 @@ export function DocumentReferencePicker({
 
   return (
     <div
-      className="mobile-filter-grid"
+      className={['mobile-filter-grid', styles['picker']].join(' ')}
       style={{
         ...style,
         position: 'relative',
         display: 'grid',
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
         gridTemplateColumns: selectedType === 'PARTNER_LEDGER'
           ? '150px minmax(180px, 1fr) 130px'
           : '150px minmax(220px, 1fr)',
         gap: 8,
         alignItems: 'end',
+        overflowX: 'hidden',
       }}
     >
       <Select
