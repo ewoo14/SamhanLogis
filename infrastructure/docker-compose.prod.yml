@@ -1,0 +1,691 @@
+# SamhanLogis Phase 11 — Production docker-compose (AWS EC2 m5.xlarge)
+#
+# 사용법:
+#   # EC2 /opt/samhanlogis/ 에서 실행 (user_data.sh 가 자동 기동)
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# 전제 조건:
+#   - .env.production 에 ECR_REGISTRY, SAMHAN_DB_HOST, SAMHAN_DB_PASSWORD 등 설정 완료
+#   - ECR 로그인 완료 (aws ecr get-login-password | docker login ...)
+#   - RDS 16 DB 초기화 완료 (init-rds.sql 실행 또는 user_data.sh 자동 처리)
+#
+# 아키텍처 결정:
+#   - PostgreSQL → RDS (컨테이너 없음)
+#   - MinIO      → AWS S3 (SAMHAN_S3_ENDPOINT 빈 값 → SDK 자동 전환)
+#   - Prometheus/Grafana → CloudWatch (컨테이너 없음)
+#   - Nginx      → ALB (컨테이너 없음)
+#   - RabbitMQ   → 컨테이너 유지 (logging-service RabbitMQ 의존)
+#   - Elasticsearch → 컨테이너 유지 (logging-service ES 의존)
+#
+# KST 전역 표준화 (project_kst_timezone_standard.md #479):
+#   - TZ=Asia/Seoul + JAVA_TOOL_OPTIONS -Duser.timezone=Asia/Seoul
+#   - RDS timezone 는 rds.tf parameter group timezone=Asia/Seoul
+
+networks:
+  samhan-prod-net:
+    driver: bridge
+    name: samhan-prod-net
+
+volumes:
+  rabbitmq_data:
+  es_data:
+  arologis_signature_copies:
+
+# ─── 공통 앵커 ───────────────────────────────────────────────────────────────
+
+x-spring-prod: &spring-prod
+  SPRING_PROFILES_ACTIVE: production
+  TZ: "Asia/Seoul"
+  # RDS 공통 DB 접속 (서비스별 DB_NAME / SAMHAN_*_DB_{HOST,NAME} 으로 오버라이드)
+  DB_HOST: ${SAMHAN_DB_HOST}
+  DB_PORT: "5432"
+  DB_USER: ${SAMHAN_DB_USERNAME}
+  DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+  RABBIT_HOST: rabbitmq
+  RABBIT_PORT: "5672"
+  RABBIT_USER: samhan
+  RABBIT_PASSWORD: ${RABBIT_PASSWORD}
+  EUREKA_URL: http://eureka-server:8761/eureka/
+  SAMHAN_DISCOVERY_PROVIDER: eureka
+  SAMHAN_INTERNAL_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
+  INTERNAL_AUTH_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
+  # KST + 컨테이너 메모리 cap (m5.xlarge 16GB, 17 service × max 1GB)
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
+  # S3 — MinIO → AWS S3 자동 전환 (endpoint 빈 값 → SDK IAM Role 기반 자동 엔드포인트)
+  SAMHAN_S3_ENDPOINT: ""
+  SAMHAN_S3_BUCKET: samhan-attachments
+  SAMHAN_S3_PATH_STYLE_ACCESS: "false"
+  SAMHAN_S3_PRESIGNED_EXPIRY: "300"
+  AWS_DEFAULT_REGION: ${SAMHAN_AWS_REGION}
+
+x-service-memory: &service-memory
+  mem_limit: 1g
+  mem_reservation: 512m
+
+# 공통 의존 (RabbitMQ + Elasticsearch + Eureka + ApiGateway)
+# 단일 앵커 사용 — YAML 이중 << 머지 문제 회피 (Docker Compose Go YAML 파서 호환)
+x-app-depends: &app-depends
+  rabbitmq:
+    condition: service_healthy
+  elasticsearch:
+    condition: service_healthy
+  eureka-server:
+    condition: service_healthy
+  api-gateway:
+    condition: service_healthy
+
+services:
+
+  # ===========================================================================
+  # 인프라 서비스 (RabbitMQ + Elasticsearch)
+  # ===========================================================================
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: samhan-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: samhan
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
+      TZ: Asia/Seoul
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - samhan-prod-net
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: samhan-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=Asia/Seoul
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+    networks:
+      - samhan-prod-net
+
+  # ===========================================================================
+  # Spring Services (17 services, ECR 이미지, RDS 연결)
+  # 이미지: ${ECR_REGISTRY}/samhanlogis-production-{service}:{IMAGE_TAG:-latest}
+  # ECR_REGISTRY = <account_id>.dkr.ecr.ap-northeast-2.amazonaws.com (.env.production 주입)
+  # ===========================================================================
+
+  # ─── eureka-server (8761) ──────────────────────────────────────────────────
+  eureka-server:
+    image: ${ECR_REGISTRY}/samhanlogis-production-eureka-server:${IMAGE_TAG:-latest}
+    container_name: samhan-eureka
+    restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      TZ: "Asia/Seoul"
+      SERVER_PORT: "8761"
+      EUREKA_INSTANCE_HOSTNAME: eureka-server
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
+    ports:
+      - "127.0.0.1:8761:8761"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8761/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - samhan-prod-net
+
+  # ─── api-gateway (8080) ────────────────────────────────────────────────────
+  api-gateway:
+    image: ${ECR_REGISTRY}/samhanlogis-production-api-gateway:${IMAGE_TAG:-latest}
+    container_name: samhan-api-gateway
+    restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      TZ: "Asia/Seoul"
+      SERVER_PORT: "8080"
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      SAMHAN_JWT_SECRET: ${SAMHAN_JWT_SECRET}
+      JWT_SECRET: ${SAMHAN_JWT_SECRET}
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_RESPONSE_TIMEOUT: "600s"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
+    ports:
+      - "8080:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - samhan-prod-net
+
+  # ─── auth-service (8081) ───────────────────────────────────────────────────
+  auth-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-auth-service:${IMAGE_TAG:-latest}
+    container_name: samhan-auth-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8081"
+      DB_NAME: auth_db
+      SAMHAN_JWT_SECRET: ${SAMHAN_JWT_SECRET}
+      JWT_SECRET: ${SAMHAN_JWT_SECRET}
+      COOKIE_SECURE: "true"
+      SAMHAN_SMTP_HOST: ${SAMHAN_SMTP_HOST}
+      SAMHAN_SMTP_PORT: ${SAMHAN_SMTP_PORT}
+      SAMHAN_SMTP_AUTH: "true"
+      SAMHAN_SMTP_STARTTLS: "true"
+      SAMHAN_SMTP_USERNAME: ${SAMHAN_SMTP_USERNAME}
+      SAMHAN_SMTP_PASSWORD: ${SAMHAN_SMTP_PASSWORD}
+      SAMHAN_PASSWORD_RESET_FROM_EMAIL: no-reply@samhan-air.com
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── logging-service (8082) ────────────────────────────────────────────────
+  # DB 없음 — Elasticsearch + RabbitMQ 전용
+  logging-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-logging-service:${IMAGE_TAG:-latest}
+    container_name: samhan-logging-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      TZ: "Asia/Seoul"
+      SERVER_PORT: "8082"
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      ES_URI: http://elasticsearch:9200
+      RABBIT_HOST: rabbitmq
+      RABBIT_PORT: "5672"
+      RABBIT_USER: samhan
+      RABBIT_PASSWORD: ${RABBIT_PASSWORD}
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul"
+    ports:
+      - "127.0.0.1:8082:8082"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - samhan-prod-net
+
+  # ─── user-service (8083) ───────────────────────────────────────────────────
+  user-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-user-service:${IMAGE_TAG:-latest}
+    container_name: samhan-user-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8083"
+      DB_NAME: user_db
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+    ports:
+      - "127.0.0.1:8083:8083"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── product-service (8084) ────────────────────────────────────────────────
+  product-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-product-service:${IMAGE_TAG:-latest}
+    container_name: samhan-product-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8084"
+      DB_NAME: product_db
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      # Google Sheets sync — Phase 11 cutover 후 GCP Service Account 실 키 등록 시 true 전환
+      PRODUCT_SYNC_SCHEDULING_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8084:8084"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── inventory-service (8085) ──────────────────────────────────────────────
+  inventory-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-inventory-service:${IMAGE_TAG:-latest}
+    container_name: samhan-inventory-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8085"
+      DB_NAME: inventory_db
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      # Phase 11: S3 IAM Role 기반 (endpoint 빈 값 → SDK 자동)
+      SAMHAN_INVENTORY_MINIO_ENABLED: "true"
+      SAMHAN_INVENTORY_MINIO_ENDPOINT: ""
+      SAMHAN_INVENTORY_MINIO_BUCKET: samhan-attachments
+    ports:
+      - "127.0.0.1:8085:8085"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8085/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── slip-service (8086) ───────────────────────────────────────────────────
+  slip-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-slip-service:${IMAGE_TAG:-latest}
+    container_name: samhan-slip-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8086"
+      DB_NAME: slip_db
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
+      SAMHAN_AROLOGIS_DISPATCH_URL: http://arologis-service:8097
+      SAMHAN_REALTIME_BROKER: in-memory
+      SAMHAN_REALTIME_HEARTBEAT_SECONDS: "30"
+      # 시리얼 보상 운영 활성 — Phase 11 체크리스트 M-15 참조
+      SAMHAN_COMPENSATION_RETENTION_ENABLED: "true"
+      SAMHAN_COMPENSATION_PURGE_ENABLED: "true"
+      SAMHAN_COMPENSATION_ALERT_ENABLED: "true"
+      SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID: ${SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID:-}
+      SAMHAN_COMPENSATION_RETRY_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8086:8086"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8086/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── accounting-service (8087) ─────────────────────────────────────────────
+  accounting-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-accounting-service:${IMAGE_TAG:-latest}
+    container_name: samhan-accounting-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8087"
+      DB_NAME: accounting_db
+      SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
+      SAMHAN_DASHBOARD_SERVICE_URL: http://dashboard-service:8094
+      # 외부 API — DRY_RUN 유지 또는 sandbox 키 발급 후 전환
+      ETAX_SUBMIT_METHOD: ${ETAX_SUBMIT_METHOD:-DRY_RUN}
+      NTS_API_KEY: ${NTS_API_KEY:-}
+      NTS_BASE_URL: https://teht.hometax.go.kr
+      KFTC_SUBMIT_METHOD: ${KFTC_SUBMIT_METHOD:-DRY_RUN}
+      KFTC_API_KEY: ${KFTC_API_KEY:-}
+      KFTC_CLIENT_ID: ${KFTC_CLIENT_ID:-}
+      KFTC_CLIENT_SECRET: ${KFTC_CLIENT_SECRET:-}
+      KFTC_BASE_URL: https://testapi.openbanking.or.kr
+      CODEF_SUBMIT_METHOD: ${CODEF_SUBMIT_METHOD:-DRY_RUN}
+      CODEF_API_KEY: ${CODEF_API_KEY:-}
+      CODEF_CLIENT_ID: ${CODEF_CLIENT_ID:-}
+      CODEF_CLIENT_SECRET: ${CODEF_CLIENT_SECRET:-}
+      CODEF_BASE_URL: https://api.codef.io
+    ports:
+      - "127.0.0.1:8087:8087"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8087/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    networks:
+      - samhan-prod-net
+
+  # ─── partner-order-service (8088) ──────────────────────────────────────────
+  partner-order-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-partner-order-service:${IMAGE_TAG:-latest}
+    container_name: samhan-partner-order-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8088"
+      SAMHAN_PARTNER_ORDER_DB_HOST: ${SAMHAN_DB_HOST}
+      SAMHAN_PARTNER_ORDER_DB_PORT: "5432"
+      SAMHAN_PARTNER_ORDER_DB_NAME: partner_order_db
+      SAMHAN_PARTNER_ORDER_DB_USER: ${SAMHAN_DB_USERNAME}
+      SAMHAN_PARTNER_ORDER_DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
+      SAMHAN_INVENTORY_SERVICE_URL: http://inventory-service:8085
+      SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
+      SAMHAN_DC_CONFIG_SERVICE_URL: http://dc-config-service:8089
+      SAMHAN_PARTNER_AUTH_SERVICE_URL: http://partner-auth-service:8091
+    ports:
+      - "127.0.0.1:8088:8088"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8088/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── dc-config-service (8089) ──────────────────────────────────────────────
+  dc-config-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-dc-config-service:${IMAGE_TAG:-latest}
+    container_name: samhan-dc-config-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8089"
+      SAMHAN_DC_CONFIG_DB_HOST: ${SAMHAN_DB_HOST}
+      SAMHAN_DC_CONFIG_DB_PORT: "5432"
+      SAMHAN_DC_CONFIG_DB_NAME: dc_config_db
+      SAMHAN_DC_CONFIG_DB_USER: ${SAMHAN_DB_USERNAME}
+      SAMHAN_DC_CONFIG_DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+    ports:
+      - "127.0.0.1:8089:8089"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8089/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── partner-auth-service (8091) ───────────────────────────────────────────
+  partner-auth-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-partner-auth-service:${IMAGE_TAG:-latest}
+    container_name: samhan-partner-auth-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8091"
+      DB_NAME: partner_auth_db
+      SAMHAN_JWT_SECRET: ${SAMHAN_JWT_SECRET}
+      JWT_SECRET: ${SAMHAN_JWT_SECRET}
+      SAMHAN_DC_CONFIG_SERVICE_URL: http://dc-config-service:8089
+      DC_CONFIG_URL: http://dc-config-service:8089
+    ports:
+      - "127.0.0.1:8091:8091"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8091/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── groupware-service (8092) ──────────────────────────────────────────────
+  groupware-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-groupware-service:${IMAGE_TAG:-latest}
+    container_name: samhan-groupware-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8092"
+      SAMHAN_GROUPWARE_DB_HOST: ${SAMHAN_DB_HOST}
+      SAMHAN_GROUPWARE_DB_PORT: "5432"
+      SAMHAN_GROUPWARE_DB_NAME: groupware_db
+      SAMHAN_GROUPWARE_DB_USER: ${SAMHAN_DB_USERNAME}
+      SAMHAN_GROUPWARE_DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      # Phase 11 cutover: STRICT 모드 (fail-soft → fail-hard)
+      SAMHAN_USER_CLIENT_FAIL_MODE: STRICT
+    ports:
+      - "127.0.0.1:8092:8092"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8092/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── notification-service (8093) ───────────────────────────────────────────
+  notification-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-notification-service:${IMAGE_TAG:-latest}
+    container_name: samhan-notification-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8093"
+      SAMHAN_NOTIFICATION_DB_HOST: ${SAMHAN_DB_HOST}
+      SAMHAN_NOTIFICATION_DB_PORT: "5432"
+      SAMHAN_NOTIFICATION_DB_NAME: notification_db
+      SAMHAN_NOTIFICATION_DB_USER: ${SAMHAN_DB_USERNAME}
+      SAMHAN_NOTIFICATION_DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      SAMHAN_USER_CLIENT_FAIL_MODE: STRICT
+      SMTP_HOST: ${SAMHAN_SMTP_HOST}
+      SMTP_PORT: ${SAMHAN_SMTP_PORT}
+      SMTP_USERNAME: ${SAMHAN_SMTP_USERNAME}
+      SMTP_PASSWORD: ${SAMHAN_SMTP_PASSWORD}
+      SMTP_FROM: noreply@samhan-air.com
+      SMTP_STARTTLS: "true"
+      SAMHAN_ALIGO_API_URL: ${SAMHAN_ALIGO_API_URL:-}
+      SAMHAN_ALIGO_KEY: ${SAMHAN_ALIGO_KEY:-}
+      SAMHAN_ALIGO_USERID: ${SAMHAN_ALIGO_USERID:-}
+      SAMHAN_ALIGO_SENDER: ${SAMHAN_ALIGO_SENDER:-}
+      SAMHAN_FCM_PROJECT_ID: ${SAMHAN_FCM_PROJECT_ID:-}
+      SAMHAN_FCM_CREDENTIALS_BASE64: ${SAMHAN_FCM_CREDENTIALS_BASE64:-}
+    ports:
+      - "127.0.0.1:8093:8093"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8093/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── dashboard-service (8094) ──────────────────────────────────────────────
+  dashboard-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-dashboard-service:${IMAGE_TAG:-latest}
+    container_name: samhan-dashboard-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8094"
+      SAMHAN_DASHBOARD_DB_HOST: ${SAMHAN_DB_HOST}
+      SAMHAN_DASHBOARD_DB_PORT: "5432"
+      SAMHAN_DASHBOARD_DB_NAME: dashboard_db
+      SAMHAN_DASHBOARD_DB_USER: ${SAMHAN_DB_USERNAME}
+      SAMHAN_DASHBOARD_DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      SAMHAN_ACCOUNTING_SERVICE_URL: http://accounting-service:8087
+      SAMHAN_INVENTORY_SERVICE_URL: http://inventory-service:8085
+      SAMHAN_PARTNER_ORDER_SERVICE_URL: http://partner-order-service:8088
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      # Phase 11: skeleton mode 비활성 (실 endpoint 응답 파싱 가용)
+      SAMHAN_DASHBOARD_CLIENT_SKELETON_MODE: "false"
+    ports:
+      - "127.0.0.1:8094:8094"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8094/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── partner-service (8095) ────────────────────────────────────────────────
+  partner-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-partner-service:${IMAGE_TAG:-latest}
+    container_name: samhan-partner-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8095"
+      SAMHAN_PARTNER_DB_HOST: ${SAMHAN_DB_HOST}
+      SAMHAN_PARTNER_DB_PORT: "5432"
+      SAMHAN_PARTNER_DB_NAME: partner_db
+      SAMHAN_PARTNER_DB_USER: ${SAMHAN_DB_USERNAME}
+      SAMHAN_PARTNER_DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+    ports:
+      - "127.0.0.1:8095:8095"
+    depends_on:
+      <<: *app-depends
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8095/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - samhan-prod-net
+
+  # ─── arologis-service (8097) ───────────────────────────────────────────────
+  # 포트 8097 (8095 아님 — main.tf 기존 오류 수정됨)
+  # 아로로지스 독립 분리 (project_arologis_independent.md 2026-05-14)
+  arologis-service:
+    image: ${ECR_REGISTRY}/samhanlogis-production-arologis-service:${IMAGE_TAG:-latest}
+    container_name: samhan-arologis-service
+    restart: unless-stopped
+    <<: *service-memory
+    environment:
+      <<: *spring-prod
+      SERVER_PORT: "8097"
+      SAMHAN_AROLOGIS_DB_HOST: ${SAMHAN_DB_HOST}
+      SAMHAN_AROLOGIS_DB_PORT: "5432"
+      SAMHAN_AROLOGIS_DB_NAME: arologis_db
+      SAMHAN_AROLOGIS_DB_USER: ${SAMHAN_DB_USERNAME}
+      SAMHAN_AROLOGIS_DB_PASSWORD: ${SAMHAN_DB_PASSWORD}
+      SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
+      # 아로로지스 별도 JWT (Secrets Manager samhan/production/arologis-jwt-secret)
+      SAMHAN_AROLOGIS_JWT_SECRET: ${SAMHAN_AROLOGIS_JWT_SECRET}
+      SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
+      SAMHAN_USER_SERVICE_URL: http://user-service:8083
+      SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
+      SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
+      SAMHAN_SLIP_DISPATCH_TASK_URL: http://slip-service:8086
+      SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE: "false"
+      SAMHAN_AROLOGIS_MATCHER_PROVIDER: ${SAMHAN_AROLOGIS_MATCHER_PROVIDER:-mock}
+      SAMHAN_INSUNG_QUICK_API_URL: ${SAMHAN_INSUNG_QUICK_API_URL:-}
+      SAMHAN_INSUNG_QUICK_API_KEY: ${SAMHAN_INSUNG_QUICK_API_KEY:-}
+      SAMHAN_INSUNG_QUICK_PARTNER_ID: ${SAMHAN_INSUNG_QUICK_PARTNER_ID:-}
+      SAMHAN_INSUNG_QUICK_SANDBOX_MODE: "true"
+      SAMHAN_INSUNG_QUICK_WEBHOOK_SECRET: ${SAMHAN_INSUNG_QUICK_WEBHOOK_SECRET:-}
+      AROLOGIS_SIGNATURE_COPY_DIR: /var/lib/arologis/signature-copies
+      # Phase 11 후속: S3 키로 전환 예정 (CUTOVER.md M-11 참조)
+    ports:
+      - "127.0.0.1:8097:8097"
+    depends_on:
+      <<: *app-depends
+    volumes:
+      - arologis_signature_copies:/var/lib/arologis/signature-copies
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8097/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    networks:
+      - samhan-prod-net

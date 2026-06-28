@@ -167,16 +167,17 @@ function Invoke-DbMigration {
         $RdsEndpoint = Read-Host "RDS endpoint 를 입력하세요 (terraform output rds_endpoint)"
     }
 
-    Confirm-Action "RDS($RdsEndpoint) 에 14 DB 를 생성하고 데이터를 마이그레이션합니다."
+    Confirm-Action "RDS($RdsEndpoint) 에 16 DB 를 생성하고 데이터를 마이그레이션합니다."
 
+    # 17 service 대응 16 DB (logging-service = ES/RabbitMQ 전용, logging_db 포함)
     $databases = @(
-        "auth_db", "user_db", "product_db", "inventory_db", "slip_db",
-        "accounting_db", "logging_db", "partner_db", "partner_auth_db",
-        "dc_config_db", "partner_order_db", "notification_db",
-        "groupware_db", "dashboard_db", "arologis_db"
+        "auth_db", "logging_db", "user_db", "product_db", "inventory_db", "slip_db",
+        "accounting_db", "partner_auth_db", "dc_config_db", "partner_order_db",
+        "partner_db", "groupware_db", "notification_db",
+        "dashboard_db", "arologis_db", "migration_db"
     )
 
-    Write-Phase11Log "INFO" "14 DB 생성 (RDS 초기화)"
+    Write-Phase11Log "INFO" "16 DB 생성 (RDS 초기화 — infrastructure/terraform/templates/init-rds.sql 참조)"
     foreach ($db in $databases) {
         Write-Phase11Log "INFO" "DB 생성: $db"
         # psql -h $RdsEndpoint -U samhan -d samhanlogis -c "CREATE DATABASE IF NOT EXISTS $db;"
@@ -224,7 +225,7 @@ function Invoke-HealthCheck {
     Write-Phase11Log "INFO" "=== Health Check 시작 ==="
 
     # 아로로지스 분리 (spec 2026-05-14, plan DO6):
-    #   - api.samhan-air.com         : Samhan Public 14 service 통합 (api-gateway:8080)
+    #   - api.samhan-air.com         : Samhan Public 17 service 통합 (api-gateway:8080)
     #   - api.arologis.samhan-air.com: 아로로지스 단독 (arologis-service:8097, gateway 우회)
     #   - app/mobile.arologis        : 정적 페이지 (200 응답만 확인)
     $endpoints = @(
@@ -254,7 +255,7 @@ function Invoke-HealthCheck {
         }
     }
 
-    Write-Phase11Log "INFO" "14 service 전체 health check 는 CUTOVER-CHECKLIST.md 참조"
+    Write-Phase11Log "INFO" "17 service 전체 health check 는 infrastructure/terraform/CUTOVER.md 참조"
 }
 
 # ─── 메인 실행 ────────────────────────────────────────────────────────────────

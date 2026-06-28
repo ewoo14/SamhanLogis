@@ -12,7 +12,7 @@
 #   8. EC2 Disk > 85%                → Slack + email (CloudWatch Agent custom metric)
 ################################################################################
 
-# ─── CloudWatch Log Group (14 service 통합) ───────────────────────────────────
+# ─── CloudWatch Log Group (17 service 통합) ───────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "application" {
   name              = "/samhanlogis/production/application"
@@ -116,7 +116,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
 
 resource "aws_cloudwatch_metric_alarm" "rds_connections" {
   alarm_name          = "${local.name_prefix}-rds-connections-high"
-  alarm_description   = "RDS DB 연결 수 > 160 (max_connections=200 의 80%)"
+  alarm_description   = "RDS DB 연결 수 > 240 (max_connections=300 의 80%, 17 service 대응)"
   namespace           = "AWS/RDS"
   metric_name         = "DatabaseConnections"
 
@@ -128,7 +128,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
   evaluation_periods  = 2
   period              = 300
   statistic           = "Average"
-  threshold           = 160
+  threshold           = 240
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [aws_sns_topic.alerts.arn]

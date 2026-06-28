@@ -1,5 +1,5 @@
 ################################################################################
-# ec2.tf — m5.xlarge EC2 인스턴스 (14 service docker-compose)
+# ec2.tf — m5.xlarge EC2 인스턴스 (17 service docker-compose)
 #
 # 구성:
 #   - 인스턴스: m5.xlarge (4 vCPU + 16 GB RAM)

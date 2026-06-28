@@ -51,7 +51,7 @@ variable "availability_zones" {
 # ─── EC2 ─────────────────────────────────────────────────────────────────────
 
 variable "ec2_instance_type" {
-  description = "EC2 인스턴스 타입 (14 service docker-compose)"
+  description = "EC2 인스턴스 타입 (17 service docker-compose + RabbitMQ + Elasticsearch)"
   type        = string
   default     = "m5.xlarge"
 }

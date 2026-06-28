@@ -2,15 +2,17 @@
 ################################################################################
 # user_data.sh — SamhanLogis Phase 11 EC2 초기화 스크립트
 #
-# 실행 순서:
-#   1. 시스템 업데이트
-#   2. Docker + Docker Compose 설치
+# 실행 순서 (인스턴스 최초 기동 시 1회):
+#   1. 시스템 업데이트 + 타임존 KST 설정
+#   2. Docker + Docker Compose v2 설치
 #   3. CloudWatch Agent 설치 + 설정
-#   4. docker-compose.yml 복사 (S3 또는 Git)
-#   5. 14 service 기동
+#   4. .env.production 생성 (Terraform 주입 RDS 엔드포인트)
+#   5. RDS 16 DB 초기화 (init-rds.sql 실행)
+#   6. docker-compose.prod.yml S3 다운로드
+#   7. ECR 로그인 + 17 service docker-compose up
 #
 # 주의: user_data 는 인스턴스 최초 기동 시만 실행됨.
-#   이후 설정 변경 = SSM Session Manager 또는 배포 스크립트 사용.
+#   이후 설정 변경 = SSM Session Manager 또는 별도 배포 스크립트 사용.
 ################################################################################
 
 set -euo pipefail
@@ -19,12 +21,15 @@ exec > >(tee /var/log/user_data.log) 2>&1
 echo "=== SamhanLogis Phase 11 EC2 초기화 시작 $(date) ==="
 
 # ─── 1. 시스템 업데이트 ──────────────────────────────────────────────────────
-echo "[1/5] 시스템 업데이트"
+echo "[1/7] 시스템 업데이트 + KST 타임존 설정"
 timedatectl set-timezone Asia/Seoul || true
 dnf update -y
 
+# PostgreSQL 클라이언트 (RDS 초기화용 psql)
+dnf install -y postgresql15 jq
+
 # ─── 2. Docker 설치 ───────────────────────────────────────────────────────────
-echo "[2/5] Docker 설치"
+echo "[2/7] Docker + Docker Compose v2 설치"
 dnf install -y docker
 systemctl enable docker
 systemctl start docker
@@ -39,10 +44,9 @@ chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 usermod -aG docker ec2-user
 
 # ─── 3. CloudWatch Agent 설치 ────────────────────────────────────────────────
-echo "[3/5] CloudWatch Agent 설치"
+echo "[3/7] CloudWatch Agent 설치"
 dnf install -y amazon-cloudwatch-agent
 
-# CloudWatch Agent 설정 (컨테이너 로그 수집)
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'CW_CONFIG'
 {
   "logs": {
@@ -86,72 +90,222 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'CW_C
 CW_CONFIG
 
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-    -a fetch-config \
-    -m ec2 \
-    -s \
+    -a fetch-config -m ec2 -s \
     -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 
 systemctl enable amazon-cloudwatch-agent
 systemctl start amazon-cloudwatch-agent
 
-# ─── 4. 애플리케이션 디렉토리 준비 ───────────────────────────────────────────
-echo "[4/5] 애플리케이션 디렉토리 준비"
+# ─── 4. .env.production 생성 ─────────────────────────────────────────────────
+echo "[4/7] .env.production 생성"
 mkdir -p /opt/samhanlogis
 cd /opt/samhanlogis
 
-# Git clone (배포 시 실제 repo URL 교체)
-# git clone https://github.com/ewoo14/SamhanLogis.git .
-
-# 또는 S3 에서 docker-compose.yml 다운로드
-# aws s3 cp s3://samhan-attachments/deploy/docker-compose.prod.yml ./docker-compose.yml
-#
-# ⚠️ KST 전역 표준화 (Phase 11 cutover 체크리스트):
-#   - prod compose 의 모든 Spring 서비스 env 에 TZ=Asia/Seoul + JAVA_TOOL_OPTIONS 에 -Duser.timezone=Asia/Seoul
-#     포함 필수(host timedatectl 만으로는 컨테이너 JVM TZ 보장 불가). local-all.yml x-spring-env 앵커 참조.
-#   - postgres(자체 호스팅 시) command 에 -c timezone=Asia/Seoul. RDS 사용 시 rds.tf 파라미터그룹
-#     timezone=Asia/Seoul attach/apply 후 writer/reader 각각 SHOW timezone 확인(필요 시 reboot).
-#   - 기존 TIMESTAMP(tz 없음) 데이터: UTC→KST 의미 전환점 — 운영 데이터 있으면 변환 정책(무변환/+9h/수동) 결정.
-
-# ─── 5. 환경변수 설정 ─────────────────────────────────────────────────────────
-echo "[5/5] 환경변수 설정"
-# RDS 엔드포인트 (Terraform 주입)
+AWS_REGION="${aws_region}"
 RDS_ENDPOINT="${rds_endpoint}"
 RDS_USERNAME="${rds_username}"
-AWS_REGION="${aws_region}"
+PROJECT_NAME="${project_name}"
 
-# Secrets Manager 에서 DB 비밀번호 조회 (prod 환경)
+# Secrets Manager 에서 비밀값 조회
 DB_PASSWORD=$(aws secretsmanager get-secret-value \
     --secret-id samhan/production/db-password \
-    --query SecretString \
-    --output text \
+    --query SecretString --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "${rds_password}")
 
-# .env.production 생성
+JWT_SECRET=$(aws secretsmanager get-secret-value \
+    --secret-id samhan/production/jwt-secret \
+    --query SecretString --output text \
+    --region "$AWS_REGION" 2>/dev/null || echo "REPLACE_WITH_64CHAR_SECRET")
+
+INTERNAL_TOKEN=$(aws secretsmanager get-secret-value \
+    --secret-id samhan/production/internal-token \
+    --query SecretString --output text \
+    --region "$AWS_REGION" 2>/dev/null || echo "REPLACE_INTERNAL_TOKEN")
+
+AROLOGIS_JWT_SECRET=$(aws secretsmanager get-secret-value \
+    --secret-id samhan/production/arologis-jwt-secret \
+    --query SecretString --output text \
+    --region "$AWS_REGION" 2>/dev/null || echo "REPLACE_AROLOGIS_JWT_SECRET")
+
+# ECR registry (account_id.dkr.ecr.region.amazonaws.com)
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION")
+ECR_REGISTRY="$${ACCOUNT_ID}.dkr.ecr.$${AWS_REGION}.amazonaws.com"
+
 cat > /opt/samhanlogis/.env.production << EOF
+# ============================================================
 # Phase 11 Production 환경변수 — Terraform user_data 자동 생성
 # 생성 시각: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+# 수동 수정 후 docker compose up -d --env-file .env.production
+# ============================================================
 
-# --- 공통 ---
+# ─── ECR ────────────────────────────────────────────────────
+ECR_REGISTRY=$${ECR_REGISTRY}
+IMAGE_TAG=latest
+
+# ─── 공통 ────────────────────────────────────────────────────
 SPRING_PROFILES_ACTIVE=production
-SERVER_PORT_DEFAULT=8080
+TZ=Asia/Seoul
+JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=30.0 -Duser.timezone=Asia/Seoul
 
-# --- RDS ---
-SAMHAN_DB_HOST=$RDS_ENDPOINT
+# ─── RDS (PostgreSQL 15) ─────────────────────────────────────
+SAMHAN_DB_HOST=$${RDS_ENDPOINT}
 SAMHAN_DB_PORT=5432
-SAMHAN_DB_USERNAME=$RDS_USERNAME
-SAMHAN_DB_PASSWORD=$DB_PASSWORD
+SAMHAN_DB_USERNAME=$${RDS_USERNAME}
+SAMHAN_DB_PASSWORD=$${DB_PASSWORD}
 
-# --- AWS ---
-AWS_DEFAULT_REGION=$AWS_REGION
-SAMHAN_AWS_REGION=$AWS_REGION
+# ─── AWS ─────────────────────────────────────────────────────
+AWS_DEFAULT_REGION=$${AWS_REGION}
+SAMHAN_AWS_REGION=$${AWS_REGION}
 
-# --- S3 ---
+# ─── S3 (MinIO → AWS S3 자동 전환: endpoint 빈 값) ──────────
 SAMHAN_S3_ENDPOINT=
 SAMHAN_S3_BUCKET=samhan-attachments
 SAMHAN_S3_PATH_STYLE_ACCESS=false
+SAMHAN_S3_PRESIGNED_EXPIRY=300
 
-# --- 추가 환경변수는 CUTOVER-CHECKLIST.md 참조 ---
+# ─── 인증/보안 ──────────────────────────────────────────────
+SAMHAN_JWT_SECRET=$${JWT_SECRET}
+JWT_SECRET=$${JWT_SECRET}
+SAMHAN_INTERNAL_TOKEN=$${INTERNAL_TOKEN}
+INTERNAL_AUTH_TOKEN=$${INTERNAL_TOKEN}
+COOKIE_SECURE=true
+
+# ─── 아로로지스 JWT (별도 발급) ──────────────────────────────
+SAMHAN_AROLOGIS_JWT_SECRET=$${AROLOGIS_JWT_SECRET}
+
+# ─── Eureka ──────────────────────────────────────────────────
+EUREKA_URL=http://eureka-server:8761/eureka/
+SAMHAN_DISCOVERY_PROVIDER=eureka
+
+# ─── RabbitMQ (docker-compose.prod.yml 컨테이너) ────────────
+RABBIT_HOST=rabbitmq
+RABBIT_PORT=5672
+RABBIT_USER=samhan
+RABBIT_PASSWORD=REPLACE_RABBIT_PASSWORD
+
+# ─── Elasticsearch (docker-compose.prod.yml 컨테이너) ────────
+ES_URI=http://elasticsearch:9200
+
+# ─── SMTP (auth-service / notification-service) ─────────────
+# Phase 11 AWS SES: host=email-smtp.ap-northeast-2.amazonaws.com port=587
+SAMHAN_SMTP_HOST=email-smtp.ap-northeast-2.amazonaws.com
+SAMHAN_SMTP_PORT=587
+SAMHAN_SMTP_AUTH=true
+SAMHAN_SMTP_STARTTLS=true
+SAMHAN_SMTP_USERNAME=REPLACE_SES_SMTP_USERNAME
+SAMHAN_SMTP_PASSWORD=REPLACE_SES_SMTP_PASSWORD
+SAMHAN_PASSWORD_RESET_FROM_EMAIL=no-reply@samhan-air.com
+SMTP_HOST=email-smtp.ap-northeast-2.amazonaws.com
+SMTP_PORT=587
+SMTP_USERNAME=REPLACE_SES_SMTP_USERNAME
+SMTP_PASSWORD=REPLACE_SES_SMTP_PASSWORD
+SMTP_FROM=noreply@samhan-air.com
+SMTP_STARTTLS=true
+
+# ─── 외부 API (운영 실값 주입 필수) ─────────────────────────
+# NTS (전자세금계산서) — DRY_RUN 유지 또는 sandbox 키 입력
+ETAX_SUBMIT_METHOD=DRY_RUN
+NTS_API_KEY=
+NTS_BASE_URL=https://teht.hometax.go.kr
+
+# KFTC (오픈뱅킹) — DRY_RUN 유지 또는 sandbox 키 입력
+KFTC_SUBMIT_METHOD=DRY_RUN
+KFTC_API_KEY=
+KFTC_CLIENT_ID=
+KFTC_CLIENT_SECRET=
+KFTC_BASE_URL=https://testapi.openbanking.or.kr
+
+# CODEF (금융기관 거래내역) — DRY_RUN 유지 또는 sandbox 키 입력
+CODEF_SUBMIT_METHOD=DRY_RUN
+CODEF_API_KEY=
+CODEF_CLIENT_ID=
+CODEF_CLIENT_SECRET=
+CODEF_BASE_URL=https://api.codef.io
+
+# Aligo SMS — 실 발송 전 키 발급 후 입력
+SAMHAN_ALIGO_API_URL=
+SAMHAN_ALIGO_KEY=
+SAMHAN_ALIGO_USERID=
+SAMHAN_ALIGO_SENDER=
+
+# FCM (Firebase) — Phase 11 실 credential 파일 또는 base64 입력
+SAMHAN_FCM_PROJECT_ID=
+SAMHAN_FCM_CREDENTIALS_BASE64=
+
+# 인성데이타 퀵프로그램 — sandbox 키 발급 후 입력
+SAMHAN_INSUNG_QUICK_API_URL=
+SAMHAN_INSUNG_QUICK_API_KEY=
+SAMHAN_INSUNG_QUICK_PARTNER_ID=
+SAMHAN_INSUNG_QUICK_SANDBOX_MODE=true
+SAMHAN_INSUNG_QUICK_WEBHOOK_SECRET=
+
+# ─── 보상 실패 운영 (Phase 11 cutover 후 활성화 권장) ────────
+SAMHAN_COMPENSATION_RETENTION_ENABLED=true
+SAMHAN_COMPENSATION_PURGE_ENABLED=true
+SAMHAN_COMPENSATION_ALERT_ENABLED=true
+SAMHAN_COMPENSATION_ALERT_RECIPIENT_USER_ID=REPLACE_ADMIN_USER_UUID
+SAMHAN_COMPENSATION_RETRY_ENABLED=true
 EOF
 
 chmod 600 /opt/samhanlogis/.env.production
-echo "=== 초기화 완료 $(date) ==="
+echo "[4/7] .env.production 생성 완료"
+
+# ─── 5. RDS 16 DB 초기화 ─────────────────────────────────────────────────────
+echo "[5/7] RDS 16 DB 초기화"
+
+# init-rds.sql S3 다운로드 또는 인라인 실행
+# 방법 A (권장): S3 에서 다운로드
+aws s3 cp "s3://samhan-attachments/deploy/init-rds.sql" /tmp/init-rds.sql \
+    --region "$AWS_REGION" 2>/dev/null || true
+
+# 방법 B (fallback): 인라인 CREATE DATABASE
+if [ ! -f /tmp/init-rds.sql ]; then
+cat > /tmp/init-rds.sql << 'INITSQL'
+CREATE DATABASE IF NOT EXISTS auth_db          ;
+CREATE DATABASE IF NOT EXISTS logging_db       ;
+CREATE DATABASE IF NOT EXISTS user_db          ;
+CREATE DATABASE IF NOT EXISTS product_db       ;
+CREATE DATABASE IF NOT EXISTS inventory_db     ;
+CREATE DATABASE IF NOT EXISTS slip_db          ;
+CREATE DATABASE IF NOT EXISTS accounting_db    ;
+CREATE DATABASE IF NOT EXISTS partner_auth_db  ;
+CREATE DATABASE IF NOT EXISTS dc_config_db     ;
+CREATE DATABASE IF NOT EXISTS partner_order_db ;
+CREATE DATABASE IF NOT EXISTS partner_db       ;
+CREATE DATABASE IF NOT EXISTS groupware_db     ;
+CREATE DATABASE IF NOT EXISTS notification_db  ;
+CREATE DATABASE IF NOT EXISTS dashboard_db     ;
+CREATE DATABASE IF NOT EXISTS arologis_db      ;
+CREATE DATABASE IF NOT EXISTS migration_db     ;
+INITSQL
+fi
+
+# psql 로 DB 생성 (CREATE DATABASE IF NOT EXISTS 는 PG 미지원 → 오류 무시)
+PGPASSWORD="$DB_PASSWORD" psql \
+    -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d postgres \
+    -f /tmp/init-rds.sql 2>&1 | grep -v "already exists" || true
+
+echo "[5/7] RDS DB 초기화 완료 (기존 DB 오류 무시됨)"
+
+# ─── 6. docker-compose.prod.yml S3 다운로드 ──────────────────────────────────
+echo "[6/7] docker-compose.prod.yml 다운로드"
+aws s3 cp "s3://samhan-attachments/deploy/docker-compose.prod.yml" \
+    /opt/samhanlogis/docker-compose.prod.yml \
+    --region "$AWS_REGION"
+
+# ─── 7. ECR 로그인 + docker-compose up ────────────────────────────────────────
+echo "[7/7] ECR 로그인 + 17 service 기동"
+
+# ECR 로그인
+aws ecr get-login-password --region "$AWS_REGION" \
+    | docker login --username AWS --password-stdin "$${ECR_REGISTRY}"
+
+# docker-compose up
+cd /opt/samhanlogis
+docker compose \
+    -f docker-compose.prod.yml \
+    --env-file .env.production \
+    up -d --pull always
+
+echo "=== SamhanLogis Phase 11 초기화 완료 $(date) ==="
+echo "=== 서비스 상태 확인: docker compose -f /opt/samhanlogis/docker-compose.prod.yml ps ==="

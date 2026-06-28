@@ -59,25 +59,26 @@ locals {
   name_prefix = "${var.project_name}-${var.environment}"
   account_id  = data.aws_caller_identity.current.account_id
 
-  # 14 service 포트 매핑 (docker-compose 일관)
+  # 17 service 포트 매핑 (application.yml ${SERVER_PORT:...} default 일관)
+  # 갭: 8090 미사용, 8096 미사용 (arologis = 8097)
   service_ports = {
-    eureka-server     = 8761
-    api-gateway       = 8080
-    auth-service      = 8081
-    user-service      = 8082
-    product-service   = 8083
-    inventory-service = 8084
-    slip-service      = 8085
-    accounting-service = 8086
-    logging-service   = 8087
-    partner-service   = 8088
-    partner-auth-service  = 8089
-    dc-config-service = 8090
-    partner-order-service = 8091
-    notification-service  = 8092
-    groupware-service = 8093
-    dashboard-service = 8094
-    arologis-service  = 8095
+    eureka-server         = 8761
+    api-gateway           = 8080
+    auth-service          = 8081
+    logging-service       = 8082
+    user-service          = 8083
+    product-service       = 8084
+    inventory-service     = 8085
+    slip-service          = 8086
+    accounting-service    = 8087
+    partner-order-service = 8088
+    dc-config-service     = 8089
+    partner-auth-service  = 8091
+    groupware-service     = 8092
+    notification-service  = 8093
+    dashboard-service     = 8094
+    partner-service       = 8095
+    arologis-service      = 8097
   }
 
   # samhan-air.com 8 subdomain 목록

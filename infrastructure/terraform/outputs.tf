@@ -1,7 +1,7 @@
 ################################################################################
 # outputs.tf — Phase 11 Terraform 최종 출력값
 #
-# 실 배포 후 이 값들을 14 service 환경변수 + CUTOVER-CHECKLIST 에 사용.
+# 실 배포 후 이 값들을 17 service 환경변수 + CUTOVER.md 런북에 사용.
 ################################################################################
 
 output "phase11_summary" {
@@ -19,7 +19,7 @@ output "phase11_summary" {
 }
 
 output "cutover_env_vars" {
-  description = "14 service application.yml cutover 환경변수 목록"
+  description = "17 service application.yml cutover 환경변수 목록 (docker-compose.prod.yml 참조)"
   sensitive   = false
   value = {
     SAMHAN_DB_URL         = "jdbc:postgresql://${aws_db_instance.main.address}:5432/<service_db>"
