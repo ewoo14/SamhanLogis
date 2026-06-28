@@ -10,7 +10,9 @@
 -- 전 테이블을 정리해야 orphan grant 재materialize 를 막는다.
 -- account_permission_overrides 도 동일 page_code 기준 soft-delete (V59/V60 패턴 동일).
 
--- 1) 레거시(DEPRECATED) 원본 시드 — hard delete
+-- 1) 레거시(DEPRECATED, V39 후 비활성) role_page_permissions 원본 시드 — hard delete.
+--    V53/V59/V60 선례 동일. RolePagePermission 의 앱레이어 soft-delete-only(@SQLRestriction)와 별개 —
+--    본 테이블은 V39 이후 enforcement 진실원(group/account)이 아니므로 deprecated 시드를 마이그레이션에서 물리 삭제한다.
 DELETE FROM role_page_permissions
  WHERE page_code IN ('purchases.receipt-ocr', 'sales.vendor-order');
 
