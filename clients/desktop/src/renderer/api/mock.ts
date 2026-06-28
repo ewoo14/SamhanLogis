@@ -129,6 +129,24 @@ type MockAppRelease = {
   isPublished: boolean
 }
 
+type MockAppNoticeImage = {
+  id: string
+  imageKey: string
+  imageUrl: string
+  displayOrder: number
+  caption: string | null
+}
+
+type MockAppNotice = {
+  id: string
+  title: string
+  isActive: boolean
+  startAt: string
+  endAt: string
+  displayOrder: number
+  images: MockAppNoticeImage[]
+}
+
 function mockAppReleaseId(seq: number): string {
   return `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`
 }
@@ -164,6 +182,43 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     releaseNotes: '모바일 V1c 준비용 시드입니다.',
     releasedAt: '2026-06-27T09:00:00',
     isPublished: true,
+  },
+]
+
+function mockAppNoticeId(seq: number): string {
+  return `00000000-0000-4000-8000-${String(200 + seq).padStart(12, '0')}`
+}
+
+function mockAppNoticeImageId(seq: number): string {
+  return `00000000-0000-4000-8000-${String(300 + seq).padStart(12, '0')}`
+}
+
+let mockAppNoticeSeq = 2
+let mockAppNoticeImageSeq = 3
+let MOCK_APP_NOTICES: MockAppNotice[] = [
+  {
+    id: mockAppNoticeId(1),
+    title: '개발 메뉴 오픈 안내',
+    isActive: true,
+    startAt: '2020-01-01T00:00:00',
+    endAt: '2100-01-01T00:00:00',
+    displayOrder: 1,
+    images: [
+      {
+        id: mockAppNoticeImageId(1),
+        imageKey: 'app-notices/mock-1/notice-1.png',
+        imageUrl: 'https://dummyimage.com/900x520/134e4a/ffffff.png&text=Samhan+Public+Notice',
+        displayOrder: 1,
+        caption: '개발 그룹에서 팝업공지와 버전 관리를 확인할 수 있습니다.',
+      },
+      {
+        id: mockAppNoticeImageId(2),
+        imageKey: 'app-notices/mock-1/notice-2.png',
+        imageUrl: 'https://dummyimage.com/900x520/f2f5f4/134e4a.png&text=Popup+Notice',
+        displayOrder: 2,
+        caption: '다시 보지 않기는 공지별로 저장됩니다.',
+      },
+    ],
   },
 ]
 
@@ -212,12 +267,45 @@ function mockAppReleaseFromBody(
   }
 }
 
+function mockAppNoticeFromBody(
+  body: Record<string, unknown>,
+  id: string,
+  images: MockAppNoticeImage[] = [],
+): MockAppNotice {
+  return {
+    id,
+    title: String(body['title'] ?? '').trim() || '제목 없는 공지',
+    isActive: body['isActive'] !== false,
+    startAt: String(body['startAt'] ?? '').trim() || '2026-06-28T09:00:00',
+    endAt: String(body['endAt'] ?? '').trim() || '2026-06-29T18:00:00',
+    displayOrder: Number(body['displayOrder'] ?? 0),
+    images: sortedMockNoticeImages(images),
+  }
+}
+
 function sortedMockAppReleases(): MockAppRelease[] {
   return [...MOCK_APP_RELEASES].sort((a, b) => {
     const clientCompare = a.clientType.localeCompare(b.clientType)
     if (clientCompare !== 0) return clientCompare
     return compareSemverDesc(a.version, b.version)
   })
+}
+
+function sortedMockNoticeImages(images: MockAppNoticeImage[]): MockAppNoticeImage[] {
+  return [...images].sort((a, b) => a.displayOrder - b.displayOrder)
+}
+
+function sortedMockAppNotices(): MockAppNotice[] {
+  return [...MOCK_APP_NOTICES]
+    .map((notice) => ({ ...notice, images: sortedMockNoticeImages(notice.images) }))
+    .sort((a, b) => a.displayOrder - b.displayOrder || a.startAt.localeCompare(b.startAt))
+}
+
+function isMockNoticeActive(notice: MockAppNotice): boolean {
+  const now = new Date()
+  const start = new Date(notice.startAt)
+  const end = new Date(notice.endAt)
+  return notice.isActive && start.getTime() <= now.getTime() && end.getTime() >= now.getTime()
 }
 
 function readMockFormValue(data: unknown, key: string): string {
@@ -230,6 +318,14 @@ function readMockFormValue(data: unknown, key: string): string {
     return value == null ? '' : String(value)
   }
   return ''
+}
+
+function readMockFormFileName(data: unknown, key: string): string {
+  if (typeof FormData !== 'undefined' && data instanceof FormData) {
+    const value = data.get(key)
+    if (value instanceof File) return value.name
+  }
+  return 'notice-image.png'
 }
 
 const DEFAULT_ESTIMATE_CONFIG_MOCK = {
@@ -1846,6 +1942,114 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const denied = mockRequirePermission('admin.app-release', 'delete')
       if (denied) return denied
       MOCK_APP_RELEASES = MOCK_APP_RELEASES.filter((release) => release.id !== id)
+      return envelope(null)
+    }
+  }
+
+  if (method === 'GET' && url.endsWith('/app/notices/active')) {
+    return envelope(sortedMockAppNotices().filter(isMockNoticeActive))
+  }
+
+  if (method === 'GET' && url.endsWith('/app/notices')) {
+    const denied = mockRequirePermission('dev.popup-notice', 'view')
+    if (denied) return denied
+    return envelope(sortedMockAppNotices())
+  }
+
+  if (method === 'POST' && url.endsWith('/app/notices')) {
+    const denied = mockRequirePermission('dev.popup-notice', 'create')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    if (!isMockLocalDateTime(body['startAt']) || !isMockLocalDateTime(body['endAt'])) {
+      return mockError(400, 'INVALID_INPUT', '게시기간은 offset 없는 LocalDateTime 형식이어야 합니다.')
+    }
+    const created = mockAppNoticeFromBody(body, mockAppNoticeId(mockAppNoticeSeq))
+    mockAppNoticeSeq += 1
+    MOCK_APP_NOTICES = [...MOCK_APP_NOTICES, created]
+    return envelope(created)
+  }
+
+  const appNoticeImageOrderMatch = url.match(/\/app\/notices\/([^/?#]+)\/images\/order$/)
+  if (appNoticeImageOrderMatch && method === 'PUT') {
+    const denied = mockRequirePermission('dev.popup-notice', 'update')
+    if (denied) return denied
+    const noticeId = decodeURIComponent(appNoticeImageOrderMatch[1] ?? '')
+    const index = MOCK_APP_NOTICES.findIndex((notice) => notice.id === noticeId)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '팝업공지를 찾을 수 없습니다.')
+    const orders = Array.isArray(config.data) ? config.data as Array<{ id?: string; displayOrder?: number }> : []
+    const updated = {
+      ...MOCK_APP_NOTICES[index]!,
+      images: sortedMockNoticeImages(MOCK_APP_NOTICES[index]!.images.map((image) => {
+        const order = orders.find((candidate) => candidate.id === image.id)
+        return order ? { ...image, displayOrder: Number(order.displayOrder ?? image.displayOrder) } : image
+      })),
+    }
+    MOCK_APP_NOTICES = MOCK_APP_NOTICES.map((notice) => notice.id === noticeId ? updated : notice)
+    return envelope(updated.images)
+  }
+
+  const appNoticeImageItemMatch = url.match(/\/app\/notices\/([^/?#]+)\/images\/([^/?#]+)$/)
+  if (appNoticeImageItemMatch && method === 'DELETE') {
+    const denied = mockRequirePermission('dev.popup-notice', 'update')
+    if (denied) return denied
+    const noticeId = decodeURIComponent(appNoticeImageItemMatch[1] ?? '')
+    const imageId = decodeURIComponent(appNoticeImageItemMatch[2] ?? '')
+    MOCK_APP_NOTICES = MOCK_APP_NOTICES.map((notice) => (
+      notice.id === noticeId
+        ? { ...notice, images: notice.images.filter((image) => image.id !== imageId) }
+        : notice
+    ))
+    return envelope(null)
+  }
+
+  const appNoticeImagesMatch = url.match(/\/app\/notices\/([^/?#]+)\/images$/)
+  if (appNoticeImagesMatch && method === 'POST') {
+    const denied = mockRequirePermission('dev.popup-notice', 'update')
+    if (denied) return denied
+    const noticeId = decodeURIComponent(appNoticeImagesMatch[1] ?? '')
+    const index = MOCK_APP_NOTICES.findIndex((notice) => notice.id === noticeId)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '팝업공지를 찾을 수 없습니다.')
+    const fileName = readMockFormFileName(config.data, 'file').replace(/[\\/]/g, '_')
+    const displayOrder = Number(readMockFormValue(config.data, 'displayOrder')) || MOCK_APP_NOTICES[index]!.images.length + 1
+    const caption = readMockFormValue(config.data, 'caption').trim() || null
+    const image: MockAppNoticeImage = {
+      id: mockAppNoticeImageId(mockAppNoticeImageSeq),
+      imageKey: `app-notices/${noticeId}/${fileName}`,
+      imageUrl: `https://dummyimage.com/900x520/1f6f66/ffffff.png&text=${encodeURIComponent(fileName)}`,
+      displayOrder,
+      caption,
+    }
+    mockAppNoticeImageSeq += 1
+    const updated = {
+      ...MOCK_APP_NOTICES[index]!,
+      images: sortedMockNoticeImages([...MOCK_APP_NOTICES[index]!.images, image]),
+    }
+    MOCK_APP_NOTICES = MOCK_APP_NOTICES.map((notice) => notice.id === noticeId ? updated : notice)
+    return envelope(image)
+  }
+
+  const appNoticeItemMatch = url.match(/\/app\/notices\/([^/?#]+)$/)
+  if (appNoticeItemMatch) {
+    const id = decodeURIComponent(appNoticeItemMatch[1] ?? '')
+    const index = MOCK_APP_NOTICES.findIndex((notice) => notice.id === id)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '팝업공지를 찾을 수 없습니다.')
+
+    if (method === 'PUT') {
+      const denied = mockRequirePermission('dev.popup-notice', 'update')
+      if (denied) return denied
+      const body = parseMockBody(config)
+      if (!isMockLocalDateTime(body['startAt']) || !isMockLocalDateTime(body['endAt'])) {
+        return mockError(400, 'INVALID_INPUT', '게시기간은 offset 없는 LocalDateTime 형식이어야 합니다.')
+      }
+      const updated = mockAppNoticeFromBody(body, id, MOCK_APP_NOTICES[index]!.images)
+      MOCK_APP_NOTICES = MOCK_APP_NOTICES.map((notice) => notice.id === id ? updated : notice)
+      return envelope(updated)
+    }
+
+    if (method === 'DELETE') {
+      const denied = mockRequirePermission('dev.popup-notice', 'delete')
+      if (denied) return denied
+      MOCK_APP_NOTICES = MOCK_APP_NOTICES.filter((notice) => notice.id !== id)
       return envelope(null)
     }
   }
@@ -14513,6 +14717,7 @@ const SP_D1_PAGES = [
   'admin.permissions',
   'admin.permission-groups',
   'admin.app-release',
+  'dev.popup-notice',
   'hr.role-management',
   'hr.slip-cutoff',
   // SP-D2 회계 7개 신규
@@ -14811,8 +15016,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
-    // DEV-1 — 개발 그룹 버전 관리.
-    'admin.app-release',
+    // DEV-1/2 — 개발 그룹 버전 관리 + 팝업공지.
+    'admin.app-release', 'dev.popup-notice',
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
   ],
@@ -14968,8 +15173,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
-    // DEV-1 — 개발 그룹 버전 관리.
-    'admin.app-release',
+    // DEV-1/2 — 개발 그룹 버전 관리 + 팝업공지.
+    'admin.app-release', 'dev.popup-notice',
   ],
 }
 

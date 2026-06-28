@@ -150,6 +150,7 @@ export type PageCode =
   | 'admin.permissions'
   | 'admin.permission-groups'
   | 'admin.app-release'
+  | 'dev.popup-notice'
   | 'admin.approval-line-config'
   | 'hr.role-management'
   | 'hr.slip-cutoff'

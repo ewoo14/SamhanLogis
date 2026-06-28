@@ -206,6 +206,7 @@ import { AccountingEditRequestsPage } from './admin/AccountingEditRequestsPage'
 // Gateway: `/api/v1/slips/admin/photo-audit` -> slip-service `/slips/admin/photo-audit`.
 import { PhotoAuditPage } from './admin/PhotoAuditPage'
 import { AppReleaseManagementPage } from './admin/AppReleaseManagementPage'
+import { AppNoticeManagementPage } from './admin/AppNoticeManagementPage'
 // [P0-1 Slice A] 재무 보고서 3개 (ACCOUNTANT/MANAGER/MASTER — RoleGuard).
 // BE: accounting-service `/accounting/reports/income-statement` + `/balance-sheet`
 import { ReportListPage } from './ReportListPage'
@@ -1545,6 +1546,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="slip.photo-audit" action="view">
             <PhotoAuditPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/admin/app-notices',
+        element: (
+          <PermissionGuard pageCode="dev.popup-notice" action="view">
+            <AppNoticeManagementPage />
           </PermissionGuard>
         ),
       },

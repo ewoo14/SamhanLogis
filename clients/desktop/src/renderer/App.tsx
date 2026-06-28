@@ -12,6 +12,7 @@ import { AppRouter } from './routes'
 import { useSessionStore } from './stores/session'
 import { AppVersionGate } from './components/common/AppVersionGate'
 import { BiometricLockGate } from './components/common/BiometricLockGate'
+import { AppNoticeGate } from './components/common/AppNoticeGate'
 
 /**
  * 단일 QueryClient — 5분 staleTime + 1회 retry.
@@ -42,6 +43,7 @@ export function App() {
         <AppRouter />
       </BiometricLockGate>
       <AppVersionGate bootstrapped={bootstrapped} />
+      <AppNoticeGate bootstrapped={bootstrapped} authenticated={hasSession} />
     </QueryClientProvider>
   )
 }

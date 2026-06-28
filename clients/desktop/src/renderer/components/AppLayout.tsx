@@ -477,6 +477,7 @@ export function AppLayout() {
   // BE @RequirePermission(page="system.permission-admin") 가 MASTER bypass 포함 단일 가드.
   const showPermissionDelegation   = showPermissionAdmin
   const showAppReleaseAdmin        = dynamicCanAccess('admin.app-release', 'view')
+  const showPopupNoticeAdmin       = dynamicCanAccess('dev.popup-notice', 'view')
   const showApprovalLineConfig     = dynamicCanAccess('admin.approval-line-config', 'view')
   const showSlipCutoff             = dynamicCanAccess('hr.slip-cutoff',              'view')
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
@@ -493,9 +494,8 @@ export function AppLayout() {
   // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
   const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
-  // DEV-1: 개발 그룹은 버전관리(admin.app-release)만 노출한다.
-  // DEV-2/3 에서 dev.popup-notice / dev.activity-log 로 확장 예정.
-  const showDevelopmentGroup = showAppReleaseAdmin
+  // DEV-2: 개발 그룹은 버전관리(admin.app-release) + 팝업공지(dev.popup-notice) 중 하나라도 노출한다.
+  const showDevelopmentGroup = showAppReleaseAdmin || showPopupNoticeAdmin
 
   // [C5 follow-up 사이클1 fix] arologis 메뉴 가시성 = 라우트 PermissionGuard 와 동일 page-code 단일 소스.
   // (사이클1 리뷰 FE P1-2 + Designer D-002: 그룹 UUID 매칭은 라우트 가드와 소스 이원화 — seed 불일치 시
@@ -1330,8 +1330,16 @@ export function AppLayout() {
             testId="sidebar-category-toggle-개발"
             activeTargets={[
               '/admin/app-releases',
+              '/admin/app-notices',
             ]}
           >
+            <SidebarLink
+              to="/admin/app-notices"
+              show={showPopupNoticeAdmin}
+              data-testid="sidebar-dev-popup-notice"
+            >
+              팝업공지
+            </SidebarLink>
             <SidebarLink
               to="/admin/app-releases"
               show={showAppReleaseAdmin}

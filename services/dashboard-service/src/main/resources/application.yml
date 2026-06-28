@@ -79,6 +79,14 @@ app:
   # 운영 / staging 데이터 오염 방지 — default false. KPI 135 + 실시간재고 200 + 매출집계 150 + MV refresh.
   dashboard:
     seed-test-data: ${SAMHAN_DASHBOARD_SEED_TEST_DATA:false}
+  notice:
+    minio:
+      enabled: ${SAMHAN_NOTICE_MINIO_ENABLED:false}
+      endpoint: ${SAMHAN_NOTICE_MINIO_ENDPOINT:${MINIO_ENDPOINT:http://localhost:9000}}
+      access-key: ${SAMHAN_NOTICE_MINIO_ACCESS_KEY:${MINIO_ROOT_USER:samhan}}
+      secret-key: ${SAMHAN_NOTICE_MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:samhan_dev_pw}}
+      bucket: ${SAMHAN_NOTICE_MINIO_BUCKET:samhan-attachments}
+      presigned-expiry-seconds: ${SAMHAN_NOTICE_MINIO_PRESIGNED_EXPIRY:300}
 
 management:
   endpoints:

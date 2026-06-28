@@ -258,6 +258,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     label: '개발',
     pages: [
       'admin.app-release',
+      'dev.popup-notice',
     ],
   },
   {
@@ -457,6 +458,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'admin.permissions': '권한 관리',
   'admin.permission-groups': '권한그룹',
   'admin.app-release': '버전 관리',
+  'dev.popup-notice': '팝업공지',
   'admin.approval-line-config': '결재라인 설정',
   'hr.role-management': '인사 역할관리',
   'hr.slip-cutoff': '출고 마감시간 설정',

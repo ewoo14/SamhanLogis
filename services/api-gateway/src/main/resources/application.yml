@@ -461,6 +461,14 @@ spring:
           filters:
             - JwtAuthentication
 
+        # DEV-2 팝업공지 — active 조회도 인증 후 호출, admin CRUD는 dashboard-service @RequirePermission(dev.popup-notice).
+        - id: dashboard-app-notices-authenticated
+          uri: lb://dashboard-service
+          predicates:
+            - Path=/app/notices,/app/notices/**
+          filters:
+            - JwtAuthentication
+
         # [RC2] arologis admin 컨트롤러는 풀패스 @RequestMapping("/api/v1/arologis/admin") → no-strip 필요.
         # generic arologis-service-v1(strip=2)보다 먼저 선언. 인증 동일(JWT 주입 + Authorization 제거).
         - id: arologis-admin-v1

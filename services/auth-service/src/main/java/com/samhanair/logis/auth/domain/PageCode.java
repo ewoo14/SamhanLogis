@@ -287,6 +287,9 @@ public enum PageCode {
     /** 앱 릴리스 등록/수정/삭제 관리 화면/API — 버전관리 + 자동업데이트 V1a. */
     ADMIN_APP_RELEASE("admin.app-release", "앱 릴리스 관리"),
 
+    /** 개발 메뉴 팝업공지 관리 화면/API — DEV-2. */
+    DEV_POPUP_NOTICE("dev.popup-notice", "팝업공지"),
+
     /** 인사 역할변경/퇴사 관리 — Phase B 관리권위 위임 대상. */
     HR_ROLE_MANAGEMENT("hr.role-management", "인사 역할관리"),
 
