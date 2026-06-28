@@ -5,7 +5,7 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(140px, 0.8fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(180px, 1.2fr) auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(140px, 0.8fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(180px, 1.2fr);
   gap: 10px;
   align-items: end;
 }
@@ -44,6 +44,16 @@
   justify-content: space-between;
   color: #475569;
   font-size: 13px;
+}
+
+.errorMessage {
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .description {

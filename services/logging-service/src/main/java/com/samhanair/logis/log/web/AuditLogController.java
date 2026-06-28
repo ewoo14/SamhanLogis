@@ -95,7 +95,6 @@ public class AuditLogController {
         activityLogService.collectFrontEvent(
                 request,
                 servletRequest.getHeader("X-User-Id"),
-                servletRequest.getHeader("X-User-Role"),
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader("User-Agent"));
         return ApiResponse.ok(null);

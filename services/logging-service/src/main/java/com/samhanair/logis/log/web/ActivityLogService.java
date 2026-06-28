@@ -38,20 +38,22 @@ public class ActivityLogService {
     /**
      * 기존 프론트 감사 이벤트 계약을 AuditLog 문서로 저장한다.
      *
-     * <p>감사 신원(userId·userRole)은 <b>게이트웨이가 주입한 신뢰 헤더(X-User-Id·X-User-Role)</b>만
-     * 사용한다. 요청 본문의 userId/userRole 은 클라이언트가 위조할 수 있으므로 신원으로 신뢰하지 않는다.
+     * <p>감사 신원 userId 는 <b>게이트웨이가 재주입한 신뢰 헤더(X-User-Id)</b>만 사용한다.
+     * gateway 는 legacy 인가 폴백 방지를 위해 X-User-Role 을 제거하므로,
+     * 본문의 userRole/manager 는 감사 화면 표시용 힌트로만 저장한다.
      */
     public void collectFrontEvent(
-            FrontAuditLogRequest request, String actorId, String actorRole, String ipAddress, String userAgent) {
+            FrontAuditLogRequest request, String actorId, String ipAddress, String userAgent) {
         String action = defaultString(request.action(), "MENU_ACCESS");
         String resourceType = defaultString(request.resourceType(), "MENU");
         String resourceId = defaultString(request.resourceId(), request.group());
         String description = defaultString(request.description(), request.message());
+        String displayRole = defaultString(request.userRole(), request.manager());
         AuditLog entry = AuditLog.builder()
                 .id(UUID.randomUUID().toString())
                 .serviceName("desktop")
                 .userId(blankToNull(actorId))
-                .userRole(blankToDash(actorRole))
+                .userRole(displayRole)
                 .action(action)
                 .resourceType(resourceType)
                 .resourceId(resourceId)

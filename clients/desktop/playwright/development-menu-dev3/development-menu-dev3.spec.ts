@@ -86,7 +86,7 @@ test.describe('DEV-3 개발 메뉴 로그', () => {
     await closeNoticeIfOpen(page)
 
     await expect(page.getByTestId('activity-log-filters')).toBeVisible()
-    await expect(page.getByTestId('activity-log-table')).toContainText('시각')
+    await expect(page.getByTestId('activity-log-table')).toContainText('시각(KST)')
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   })
 })

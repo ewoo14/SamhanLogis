@@ -62,7 +62,6 @@ export function ActivityLogPage() {
   const [page, setPage] = useState(0)
   const [resourceId, setResourceId] = useState('')
   const [action, setAction] = useState('')
-  const [userId, setUserId] = useState('')
   const [from, setFrom] = useState(formatKstDateTimeInputValue(new Date(now.getTime() - 24 * 60 * 60 * 1000)))
   const [to, setTo] = useState(formatKstDateTimeInputValue(now))
   const [q, setQ] = useState('')
@@ -71,13 +70,12 @@ export function ActivityLogPage() {
     action,
     resourceType: resourceId ? 'MENU' : undefined,
     resourceId,
-    userId,
     q,
     fromInstant: kstInputToInstant(from),
     toInstant: kstInputToInstant(to),
     page,
     size: PAGE_SIZE,
-  }), [action, from, page, q, resourceId, to, userId])
+  }), [action, from, page, q, resourceId, to])
 
   const query = useQuery({
     queryKey: ['activity-logs', queryParams],
@@ -87,11 +85,14 @@ export function ActivityLogPage() {
   const rows = query.data?.items ?? []
   const totalPages = query.data?.totalPages ?? 0
   const totalElements = query.data?.totalElements ?? 0
+  const errorMessage = query.isError
+    ? '활동 로그를 불러오지 못했습니다(권한 또는 서버 오류).'
+    : null
 
   const columns = useMemo<DataTableColumn<ActivityLogItem>[]>(() => [
     {
       key: 'occurredAt',
-      header: '시각',
+      header: '시각(KST)',
       width: '150px',
       mobilePriority: 'primary',
       render: (row) => formatKst(row.occurredAt),
@@ -183,16 +184,7 @@ export function ActivityLogPage() {
           </select>
         </label>
         <label className={styles.field}>
-          사용자 식별자
-          <Input
-            value={userId}
-            onChange={(event) => resetPage(() => setUserId(event.target.value))}
-            placeholder="조회 조건"
-            data-testid="activity-log-user-filter"
-          />
-        </label>
-        <label className={styles.field}>
-          시작
+          시작(KST)
           <Input
             type="datetime-local"
             value={from}
@@ -201,7 +193,7 @@ export function ActivityLogPage() {
           />
         </label>
         <label className={styles.field}>
-          종료
+          종료(KST)
           <Input
             type="datetime-local"
             value={to}
@@ -225,14 +217,22 @@ export function ActivityLogPage() {
         {query.isFetching ? <span>조회 중</span> : null}
       </div>
 
-      <div data-testid="activity-log-table">
-        <DataTable<ActivityLogItem>
-          rows={rows}
-          columns={columns}
-          rowKey={(row) => `${row.occurredAt}-${row.resourceId}-${row.action}-${row.description}`}
-          emptyMessage="조회된 활동 로그가 없습니다."
-        />
-      </div>
+      {errorMessage ? (
+        <div className={styles.errorMessage} role="alert">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      {!errorMessage ? (
+        <div data-testid="activity-log-table">
+          <DataTable<ActivityLogItem>
+            rows={rows}
+            columns={columns}
+            rowKey={(row) => `${row.occurredAt}-${row.resourceId}-${row.action}-${row.description}`}
+            emptyMessage="조회된 활동 로그가 없습니다."
+          />
+        </div>
+      ) : null}
 
       <div className={styles.pagination}>
         <Button type="button" variant="secondary" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>

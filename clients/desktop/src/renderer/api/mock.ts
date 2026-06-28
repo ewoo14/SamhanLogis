@@ -2059,7 +2059,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // axios config.params 는 mock 어댑터가 URL 에 붙이지 않을 수 있어 병합(다른 핸들러 동일 패턴)
     const cfgParams = (config.params ?? {}) as Record<string, unknown>
     for (const [key, value] of Object.entries(cfgParams)) {
-      if (value != null && value !== '' && !params.has(key)) params.set(key, String(value))
+      if (value == null || value === '') {
+        params.delete(key)
+      } else {
+        params.set(key, String(value))
+      }
     }
     const page = Math.max(0, Number(params.get('page') ?? 0) || 0)
     const size = Math.min(100, Math.max(1, Number(params.get('size') ?? 20) || 20))
