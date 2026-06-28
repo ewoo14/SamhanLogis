@@ -228,7 +228,8 @@ class ApprovalLineAuthorizeControllerIT extends AbstractPostgresIT {
     @DisplayName("GET roles — GROUPWARE 문서 결재선을 sequence 순으로 내부 조회한다")
     void roles_groupwareDocument_returnsConfiguredRoles() throws Exception {
         UUID groupId = UUID.fromString("00000000-0000-0000-0000-000000000101");
-        UUID userId = UUID.fromString("a0000000-0000-0000-0000-000000000001");
+        // V77 으로 대표 USER approver 가 dev_master(a0000000-...001)→dev_manager(a0000000-...003) 로 교체됨(자기결재 충돌 회피).
+        UUID userId = UUID.fromString("a0000000-0000-0000-0000-000000000003");
         MvcResult result = mockMvc.perform(get("/auth/internal/approval-line/roles")
                         .header(INTERNAL_TOKEN_HEADER, "test-internal-token")
                         .param("documentType", "GROUPWARE_EXPENSE_REPORT"))
