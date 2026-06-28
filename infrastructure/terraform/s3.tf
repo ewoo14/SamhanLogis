@@ -92,6 +92,22 @@ resource "aws_s3_bucket_cors_configuration" "attachments" {
   }
 }
 
+# EC2 user_data 최초 기동에 필요한 배포 산출물.
+# Terraform apply 단계에서 첨부 버킷에 먼저 업로드되어야 EC2 첫 부팅이 fail-fast 되지 않는다.
+resource "aws_s3_object" "init_rds" {
+  bucket = aws_s3_bucket.attachments.id
+  key    = "deploy/init-rds.sql"
+  source = "${path.module}/templates/init-rds.sql"
+  etag   = filemd5("${path.module}/templates/init-rds.sql")
+}
+
+resource "aws_s3_object" "compose" {
+  bucket = aws_s3_bucket.attachments.id
+  key    = "deploy/docker-compose.prod.yml"
+  source = "${path.module}/../docker-compose.prod.yml"
+  etag   = filemd5("${path.module}/../docker-compose.prod.yml")
+}
+
 # ─── samhan-logs ─────────────────────────────────────────────────────────────
 
 resource "aws_s3_bucket" "logs" {

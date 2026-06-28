@@ -229,17 +229,17 @@ echo "IMAGE_TAG=${IMAGE_TAG}" >> .env.production.push
 
 ## 단계 3 — EC2 docker-compose.prod.yml 배포 + 서비스 기동
 
-### 3-A. docker-compose.prod.yml + init-rds.sql S3 업로드
+### 3-A. Terraform 자동 업로드 산출물 확인
 ```bash
-# 배포 산출물 S3 업로드 (EC2 user_data 에서 다운로드)
-aws s3 cp infrastructure/docker-compose.prod.yml \
-  s3://samhan-attachments/deploy/docker-compose.prod.yml
-
-aws s3 cp infrastructure/terraform/templates/init-rds.sql \
-  s3://samhan-attachments/deploy/init-rds.sql
+# 배포 산출물은 terraform apply 가 aws_s3_object 로 자동 업로드합니다.
+# EC2 user_data 는 아래 두 객체를 첫 부팅 시 다운로드합니다.
+aws s3 ls s3://samhan-attachments/deploy/docker-compose.prod.yml
+aws s3 ls s3://samhan-attachments/deploy/init-rds.sql
 ```
 
 > user_data.sh 는 EC2 최초 기동 시 자동 실행됨 (단계 1 terraform apply 완료 후).  
+> `infrastructure/docker-compose.prod.yml` 또는 `infrastructure/terraform/templates/init-rds.sql` 변경 시 Terraform `source` + `etag` 감지로 S3 객체가 갱신됨.  
+> `.env.production` 의 SES/NTS/KFTC/CODEF/Aligo 등 운영 실값 보정은 SSM Session Manager 접속 후 수동 수행.  
 > 재배포 시: SSM Session Manager 로 접속 후 수동 실행.
 
 ### 3-B. 첫 기동 확인 (EC2 SSM Session Manager)

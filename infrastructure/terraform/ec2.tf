@@ -59,7 +59,15 @@ resource "aws_instance" "app" {
 
   depends_on = [
     aws_db_instance.main,
-    aws_secretsmanager_secret_version.db_password
+    aws_secretsmanager_secret_version.db_password,
+    aws_s3_object.init_rds,
+    aws_s3_object.compose,
+    aws_iam_instance_profile.ec2_profile,
+    aws_iam_role_policy_attachment.ec2_s3,
+    aws_iam_role_policy_attachment.ec2_secrets,
+    aws_iam_role_policy_attachment.ec2_cloudwatch,
+    aws_iam_role_policy_attachment.ec2_ssm,
+    aws_iam_role_policy_attachment.ec2_ecr
   ]
 }
 
@@ -78,7 +86,7 @@ resource "aws_lb" "main" {
   enable_http2               = true
 
   access_logs {
-    bucket  = var.s3_logs_bucket
+    bucket  = aws_s3_bucket.logs.id
     prefix  = "alb-logs"
     enabled = true
   }
@@ -86,6 +94,8 @@ resource "aws_lb" "main" {
   tags = {
     Name = "${local.name_prefix}-alb"
   }
+
+  depends_on = [aws_s3_bucket_policy.logs]
 }
 
 # ─── ALB Target Group ─────────────────────────────────────────────────────────
