@@ -147,6 +147,18 @@ type MockAppNotice = {
   images: MockAppNoticeImage[]
 }
 
+type MockActivityLog = {
+  occurredAt: string
+  userId: string
+  user: string
+  userRole: string
+  action: string
+  resourceType: string
+  resourceId: string
+  description: string
+  serviceName: string
+}
+
 function mockAppReleaseId(seq: number): string {
   return `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`
 }
@@ -219,6 +231,42 @@ let MOCK_APP_NOTICES: MockAppNotice[] = [
         caption: '다시 보지 않기는 공지별로 저장됩니다.',
       },
     ],
+  },
+]
+
+let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
+  {
+    occurredAt: '2026-06-28T09:12:00+09:00',
+    userId: 'dev-master',
+    user: '개발자',
+    userRole: 'DEVELOPER',
+    action: 'MENU_ACCESS',
+    resourceType: 'MENU',
+    resourceId: 'dev.activity-log',
+    description: '로그 메뉴 진입',
+    serviceName: 'desktop',
+  },
+  {
+    occurredAt: '2026-06-28T09:08:00+09:00',
+    userId: 'dev-master',
+    user: '개발자',
+    userRole: 'DEVELOPER',
+    action: 'MENU_ACCESS',
+    resourceType: 'MENU',
+    resourceId: 'dev.popup-notice',
+    description: '팝업공지 메뉴 진입',
+    serviceName: 'desktop',
+  },
+  {
+    occurredAt: '2026-06-28T08:50:00+09:00',
+    userId: 'master',
+    user: '마스터',
+    userRole: 'MASTER',
+    action: 'UPDATE',
+    resourceType: 'MENU',
+    resourceId: 'admin.app-release',
+    description: '버전 관리 릴리스 정보를 수정했습니다.',
+    serviceName: 'dashboard-service',
   },
 ]
 
@@ -317,6 +365,33 @@ function isMockNoticeActive(notice: MockAppNotice): boolean {
   const start = new Date(notice.startAt)
   const end = new Date(notice.endAt)
   return notice.isActive && start.getTime() <= now.getTime() && end.getTime() >= now.getTime()
+}
+
+function mockActivityLogResponse(row: MockActivityLog) {
+  const { userId: _hidden, ...safe } = row
+  return safe
+}
+
+function filterMockActivityLogs(search: URLSearchParams): MockActivityLog[] {
+  const action = search.get('action')?.trim()
+  const resourceType = search.get('resourceType')?.trim()
+  const resourceId = search.get('resourceId')?.trim()
+  const userId = search.get('userId')?.trim()
+  const q = search.get('q')?.trim()
+  const from = search.get('fromInstant')
+  const to = search.get('toInstant')
+  const fromMs = from ? new Date(from).getTime() : Number.NaN
+  const toMs = to ? new Date(to).getTime() : Number.NaN
+
+  return [...MOCK_ACTIVITY_LOGS]
+    .filter((row) => !action || row.action === action)
+    .filter((row) => !resourceType || row.resourceType === resourceType)
+    .filter((row) => !resourceId || row.resourceId === resourceId)
+    .filter((row) => !userId || row.userId.includes(userId))
+    .filter((row) => !q || row.description.includes(q) || row.resourceId.includes(q))
+    .filter((row) => Number.isNaN(fromMs) || new Date(row.occurredAt).getTime() >= fromMs)
+    .filter((row) => Number.isNaN(toMs) || new Date(row.occurredAt).getTime() <= toMs)
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
 }
 
 function readMockFormValue(data: unknown, key: string): string {
@@ -502,6 +577,10 @@ const BUILTIN_GROUP_BY_ROLE: Record<string, { id: string; name: string }> = {
   DRIVER:       { id: '00000000-0000-0000-0000-000000000107', name: '기사' },
   STAFF:        { id: '00000000-0000-0000-0000-000000000108', name: '사원' },
   DEVELOPER:    { id: '00000000-0000-0000-0000-000000000109', name: '개발자' },
+}
+
+function roleKoreanLabel(role: string): string {
+  return BUILTIN_GROUP_BY_ROLE[role]?.name ?? '사용자'
 }
 
 /**
@@ -1970,6 +2049,50 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('dev.popup-notice', 'view')
     if (denied) return denied
     return envelope(sortedMockAppNotices())
+  }
+
+  if (method === 'GET' && url.includes('/logs/activity')) {
+    const denied = mockRequirePermission('dev.activity-log', 'view')
+    if (denied) return denied
+    const parsed = new URL(url, 'http://mock.local')
+    const params = parsed.searchParams
+    // axios config.params 는 mock 어댑터가 URL 에 붙이지 않을 수 있어 병합(다른 핸들러 동일 패턴)
+    const cfgParams = (config.params ?? {}) as Record<string, unknown>
+    for (const [key, value] of Object.entries(cfgParams)) {
+      if (value != null && value !== '' && !params.has(key)) params.set(key, String(value))
+    }
+    const page = Math.max(0, Number(params.get('page') ?? 0) || 0)
+    const size = Math.min(100, Math.max(1, Number(params.get('size') ?? 20) || 20))
+    const filtered = filterMockActivityLogs(params)
+    const start = page * size
+    const items = filtered.slice(start, start + size).map(mockActivityLogResponse)
+    return envelope({
+      items,
+      totalElements: filtered.length,
+      totalPages: Math.ceil(filtered.length / size),
+      page,
+      size,
+    })
+  }
+
+  if (method === 'POST' && (url.endsWith('/logs/front') || url.endsWith('/api/v1/audit-logs/front'))) {
+    const body = parseMockBody(config)
+    const resourceId = String(body['resourceId'] ?? body['group'] ?? '').trim() || 'unknown'
+    MOCK_ACTIVITY_LOGS = [
+      {
+        occurredAt: String(body['occurredAt'] ?? new Date().toISOString()),
+        userId: String(body['userId'] ?? 'mock-user'),
+        user: roleKoreanLabel(String(body['userRole'] ?? MOCK_AUTH.role)),
+        userRole: String(body['userRole'] ?? MOCK_AUTH.role),
+        action: String(body['action'] ?? 'MENU_ACCESS'),
+        resourceType: String(body['resourceType'] ?? 'MENU'),
+        resourceId,
+        description: String(body['description'] ?? body['message'] ?? `${resourceId} 메뉴 진입`),
+        serviceName: 'desktop',
+      },
+      ...MOCK_ACTIVITY_LOGS,
+    ]
+    return envelope(null)
   }
 
   if (method === 'POST' && url.endsWith('/app/notices')) {
@@ -14734,6 +14857,7 @@ const SP_D1_PAGES = [
   'admin.permission-groups',
   'admin.app-release',
   'dev.popup-notice',
+  'dev.activity-log',
   'hr.role-management',
   'hr.slip-cutoff',
   // SP-D2 회계 7개 신규
@@ -15032,8 +15156,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
-    // DEV-1/2 — 개발 그룹 버전 관리 + 팝업공지.
-    'admin.app-release', 'dev.popup-notice',
+    // DEV-1/2/3 — 개발 그룹 버전 관리 + 팝업공지 + 로그.
+    'admin.app-release', 'dev.popup-notice', 'dev.activity-log',
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
   ],
@@ -15189,8 +15313,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
-    // DEV-1/2 — 개발 그룹 버전 관리 + 팝업공지.
-    'admin.app-release', 'dev.popup-notice',
+    // DEV-1/2/3 — 개발 그룹 버전 관리 + 팝업공지 + 로그.
+    'admin.app-release', 'dev.popup-notice', 'dev.activity-log',
   ],
 }
 

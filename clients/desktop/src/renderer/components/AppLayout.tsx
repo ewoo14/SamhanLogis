@@ -40,6 +40,7 @@ import { usePageTitleStore } from '../stores/pageTitle'
 // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 사이드바 메뉴 동적 hidden 연동.
 import { usePermissions } from '../hooks/usePermissions'
 import { NotificationBellDropdown } from './NotificationBellDropdown'
+import { recordMenuAccess } from '../api/activityLog'
 
 /**
  * 사이드바 NavLink — 권한 없으면 완전 미렌더 (hidden).
@@ -166,6 +167,28 @@ function writeSidebarGroupOpen(storageKey: string, open: boolean): void {
   } catch {
     // localStorage 접근이 막힌 환경에서는 세션 내 상태만 유지한다.
   }
+}
+
+const MENU_ACCESS_DEBOUNCE_MS = 1_000
+
+const ROUTE_PAGE_CODES: Array<{ prefix: string; pageCode: string; label: string }> = [
+  { prefix: '/admin/app-releases', pageCode: 'admin.app-release', label: '버전 관리' },
+  { prefix: '/admin/app-notices', pageCode: 'dev.popup-notice', label: '팝업공지' },
+  { prefix: '/admin/activity-logs', pageCode: 'dev.activity-log', label: '로그' },
+  { prefix: '/notifications', pageCode: 'notifications.center', label: '알림 내역' },
+  { prefix: '/warehouses', pageCode: 'inventory.warehouse', label: '창고 관리' },
+  { prefix: '/sales/partner-orders', pageCode: 'sales.partner-order.list', label: '거래처주문' },
+  { prefix: '/sales/estimates', pageCode: 'estimates.list', label: '견적' },
+  { prefix: '/sales', pageCode: 'sales.slip.list', label: '판매관리' },
+  { prefix: '/purchases', pageCode: 'purchases.slip.list', label: '구매관리' },
+  { prefix: '/accounting', pageCode: 'accounting.reports', label: '회계' },
+  { prefix: '/arologis', pageCode: 'arologis.dispatch.ops', label: '배차' },
+  { prefix: '/dispatch-board', pageCode: 'dispatch.board', label: '배차현황' },
+]
+
+function pageCodeForPath(pathname: string): { pageCode: string; label: string } | null {
+  if (pathname === '/') return { pageCode: 'dashboard.admin', label: '홈' }
+  return ROUTE_PAGE_CODES.find((entry) => pathname.startsWith(entry.prefix)) ?? null
 }
 
 /**
@@ -301,6 +324,7 @@ export function AppLayout() {
   const drawerRef = useRef<HTMLElement | null>(null)
   const drawerToggleRef = useRef<HTMLButtonElement | null>(null)
   const wasDrawerOpenRef = useRef(false)
+  const lastMenuAccessRef = useRef<string | null>(null)
 
   // [SP-D1 cycle 2] 동적 RBAC 권한 훅 — 5분 캐시. 사이드바 메뉴 hidden 연동.
   const { canAccess: dynamicCanAccess } = usePermissions()
@@ -331,6 +355,27 @@ export function AppLayout() {
   useEffect(() => {
     setDrawerOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    const target = pageCodeForPath(location.pathname)
+    if (!target || !auth) return undefined
+    if (lastMenuAccessRef.current === target.pageCode) return undefined
+
+    const timer = window.setTimeout(() => {
+      lastMenuAccessRef.current = target.pageCode
+      void recordMenuAccess({
+        resourceId: target.pageCode,
+        userId: auth.userId,
+        userRole: auth.role,
+        description: `${target.label} 메뉴 진입`,
+        occurredAt: new Date().toISOString(),
+      }).catch((error) => {
+        console.warn('[activity-log] 메뉴 접근 기록 실패', error)
+      })
+    }, MENU_ACCESS_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [auth, location.pathname])
 
   useEffect(() => {
     const handler = () => {
@@ -478,6 +523,7 @@ export function AppLayout() {
   const showPermissionDelegation   = showPermissionAdmin
   const showAppReleaseAdmin        = dynamicCanAccess('admin.app-release', 'view')
   const showPopupNoticeAdmin       = dynamicCanAccess('dev.popup-notice', 'view')
+  const showActivityLogAdmin       = dynamicCanAccess('dev.activity-log', 'view')
   const showApprovalLineConfig     = dynamicCanAccess('admin.approval-line-config', 'view')
   const showSlipCutoff             = dynamicCanAccess('hr.slip-cutoff',              'view')
   const showPartnersList           = dynamicCanAccess('partners.list',                'view')
@@ -494,8 +540,8 @@ export function AppLayout() {
   // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
   const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
-  // DEV-2: 개발 그룹은 버전관리(admin.app-release) + 팝업공지(dev.popup-notice) 중 하나라도 노출한다.
-  const showDevelopmentGroup = showAppReleaseAdmin || showPopupNoticeAdmin
+  // DEV-3: 개발 그룹은 버전관리(admin.app-release) + 팝업공지(dev.popup-notice) + 로그(dev.activity-log) 중 하나라도 노출한다.
+  const showDevelopmentGroup = showAppReleaseAdmin || showPopupNoticeAdmin || showActivityLogAdmin
 
   // [C5 follow-up 사이클1 fix] arologis 메뉴 가시성 = 라우트 PermissionGuard 와 동일 page-code 단일 소스.
   // (사이클1 리뷰 FE P1-2 + Designer D-002: 그룹 UUID 매칭은 라우트 가드와 소스 이원화 — seed 불일치 시
@@ -1331,8 +1377,16 @@ export function AppLayout() {
             activeTargets={[
               '/admin/app-releases',
               '/admin/app-notices',
+              '/admin/activity-logs',
             ]}
           >
+            <SidebarLink
+              to="/admin/activity-logs"
+              show={showActivityLogAdmin}
+              data-testid="sidebar-dev-activity-log"
+            >
+              로그
+            </SidebarLink>
             <SidebarLink
               to="/admin/app-notices"
               show={showPopupNoticeAdmin}

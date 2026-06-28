@@ -145,6 +145,23 @@ spring:
                   - 00000000-0000-0000-0000-000000000100
                   - 00000000-0000-0000-0000-000000000101
 
+        # DEV-3 활동 로그 뷰어 — gateway 는 인증만 수행하고 logging-service @RequirePermission(dev.activity-log)가 최종 게이팅.
+        - id: logging-activity-dev-menu
+          uri: lb://logging-service
+          predicates:
+            - Path=/logs/activity,/logs/front
+          filters:
+            - JwtAuthentication
+
+        # desktop preload legacy 감사 경로 호환 — /api/v1/audit-logs/front → logging-service /logs/front.
+        - id: logging-front-legacy-v1
+          uri: lb://logging-service
+          predicates:
+            - Path=/api/v1/audit-logs/front
+          filters:
+            - JwtAuthentication
+            - SetPath=/logs/front
+
         # ============================================================
         # `/api/v1/*` 표준 routing (Phase 10 W10-6 도입). 14 service 일관.
         # StripPrefix=2 ('api', 'v1') 후 controller `/{service}/...` 매칭.

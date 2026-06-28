@@ -26,14 +26,17 @@ dependencyManagement {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
 
     implementation project(':shared:common')
+    implementation project(':shared:security')
     // PR-H4b (Phase 12 Step 4b) BE-E — shared:realtime-abstraction module 의존 추가.
     // logging-service 는 audit log sink (Elasticsearch) 역할이라 본 PR 범위는 broker bean 만 활성
     // (다른 service 의 SSE 이벤트를 본 service 가 소비하는 향후 시나리오 대비).
@@ -46,6 +49,7 @@ dependencies {
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.testcontainers:elasticsearch'
     testImplementation 'org.testcontainers:rabbitmq'
     testImplementation 'org.testcontainers:junit-jupiter'

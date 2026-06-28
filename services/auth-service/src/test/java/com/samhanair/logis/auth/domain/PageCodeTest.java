@@ -139,6 +139,16 @@ class PageCodeTest {
     }
 
     @Test
+    void developmentMenu_pageCodes_V73_V74_seed와_동기화() {
+        assertThat(PageCode.DEV_POPUP_NOTICE.getCode()).isEqualTo("dev.popup-notice");
+        assertThat(PageCode.DEV_POPUP_NOTICE.getDisplayName()).isEqualTo("팝업공지");
+        assertThat(PageCode.DEV_ACTIVITY_LOG.getCode()).isEqualTo("dev.activity-log");
+        assertThat(PageCode.DEV_ACTIVITY_LOG.getDisplayName()).isEqualTo("활동 로그");
+        assertThat(PageCode.isValid("dev.popup-notice")).isTrue();
+        assertThat(PageCode.isValid("dev.activity-log")).isTrue();
+    }
+
+    @Test
     void spD62_pageCodes_V30_seed와_동기화() {
         assertThat(PageCode.MESSENGER_ADMIN.getCode()).isEqualTo("messenger.admin");
         assertThat(PageCode.MESSENGER_SEND.getCode()).isEqualTo("messenger.send");

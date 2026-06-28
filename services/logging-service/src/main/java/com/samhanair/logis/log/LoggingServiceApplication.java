@@ -7,8 +7,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * Logging Service entrypoint (Phase 1, project plan §3.7).
  *
  * Consumes audit log events from RabbitMQ and persists them into
- * Elasticsearch. REST search endpoints are auth-protected at the gateway
- * (MASTER / MANAGER) — this service trusts upstream and does not re-check.
+ * Elasticsearch. DEV-3 activity endpoints are additionally protected by
+ * downstream dynamic RBAC so DEVELOPER can use the log viewer without opening
+ * the legacy MASTER/MANAGER audit search route.
  */
 @SpringBootApplication
 public class LoggingServiceApplication {

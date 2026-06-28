@@ -290,6 +290,9 @@ public enum PageCode {
     /** 개발 메뉴 팝업공지 관리 화면/API — DEV-2. */
     DEV_POPUP_NOTICE("dev.popup-notice", "팝업공지"),
 
+    /** 개발 메뉴 활동 로그 조회 화면/API — DEV-3. */
+    DEV_ACTIVITY_LOG("dev.activity-log", "활동 로그"),
+
     /** 인사 역할변경/퇴사 관리 — Phase B 관리권위 위임 대상. */
     HR_ROLE_MANAGEMENT("hr.role-management", "인사 역할관리"),
 

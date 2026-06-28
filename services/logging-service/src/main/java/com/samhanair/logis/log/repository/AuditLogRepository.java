@@ -11,7 +11,8 @@ import com.samhanair.logis.log.domain.AuditLog;
 /**
  * Spring Data Elasticsearch repository for {@link AuditLog}.
  */
-public interface AuditLogRepository extends ElasticsearchRepository<AuditLog, String> {
+public interface AuditLogRepository
+        extends ElasticsearchRepository<AuditLog, String>, AuditLogActivityRepository {
 
     Page<AuditLog> findByServiceName(String serviceName, Pageable pageable);
 
