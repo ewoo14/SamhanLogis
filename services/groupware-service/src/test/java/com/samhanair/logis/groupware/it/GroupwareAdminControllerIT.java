@@ -103,15 +103,17 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
     @Test
     void create_approval_returns_201() throws Exception {
-        UUID requester = UUID.randomUUID();
+        // P1-2 fix: requesterId 는 헤더 X-User-Id(MANAGER_ACCOUNT_ID) 에서 읽음.
+        // 본문 requester UUID 는 무시되므로 이름 조회 mock 을 헤더 UUID 기준으로 구성한다.
+        UUID managerActorUuid = UUID.fromString(MANAGER_ACCOUNT_ID);
         UUID approver1 = UUID.randomUUID();
         UUID approver2 = UUID.randomUUID();
         lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(java.util.Map.of(
-                requester, "요청자",
+                managerActorUuid, "요청자",
                 approver1, "1차결재자",
                 approver2, "2차결재자"));
         ApprovalLineCreateRequest req = new ApprovalLineCreateRequest(
-                requester, "휴가 신청", "연차 1일",
+                managerActorUuid, "휴가 신청", "연차 1일",
                 List.of(approver1, approver2));
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
                         .header("X-User-Id", MANAGER_ACCOUNT_ID)
@@ -147,10 +149,11 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
     @Test
     void create_approval_rejects_duplicate_approver_ids() throws Exception {
-        UUID requester = UUID.randomUUID();
+        // P1-2 fix: requesterId 는 헤더 MANAGER_ACCOUNT_ID. approver 는 별도 UUID(자기 자신 아님).
+        UUID managerActorUuid = UUID.fromString(MANAGER_ACCOUNT_ID);
         UUID approver = UUID.randomUUID();
         ApprovalLineCreateRequest req = new ApprovalLineCreateRequest(
-                requester, "중복 결재자 case", null, List.of(approver, approver));
+                managerActorUuid, "중복 결재자 case", null, List.of(approver, approver));
 
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
                         .header("X-User-Id", MANAGER_ACCOUNT_ID)
@@ -192,11 +195,14 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
     @Test
     void approve_first_step_returns_200_in_progress() throws Exception {
-        UUID requester = UUID.randomUUID();
+        // P1-2 fix: requesterId 는 create 헤더 X-User-Id 에서 읽고, actorId 는 approve 헤더에서 읽는다.
+        // create: X-User-Id=MANAGER_ACCOUNT_ID → requesterId. approver1 은 다른 랜덤 UUID.
+        // approve: X-User-Id=approver1.toString() → actorId. 본문 approverId 는 무시.
+        UUID managerActorUuid = UUID.fromString(MANAGER_ACCOUNT_ID);
         UUID approver1 = UUID.randomUUID();
         UUID approver2 = UUID.randomUUID();
         ApprovalLineCreateRequest createReq = new ApprovalLineCreateRequest(
-                requester, "결재 진행 case", null, List.of(approver1, approver2));
+                managerActorUuid, "결재 진행 case", null, List.of(approver1, approver2));
         MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
                         .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
@@ -204,12 +210,14 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(createReq)))
                 .andExpect(MockMvcResultMatchers.status().isCreated())
                 .andReturn();
-        String approvalId = objectMapper.readTree(created.getResponse().getContentAsString())
+        String approvalId = objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .path("data").path("approvalId").asText();
 
+        // approver1 이 approve — X-User-Id 헤더에 approver1 UUID 를 직접 전달
         ApprovalDecisionRequest decision = new ApprovalDecisionRequest(approver1, null);
         mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/approvals/" + approvalId + "/approve")
-                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Id", approver1.toString())
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(decision)))
@@ -219,22 +227,25 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
 
     @Test
     void reject_first_step_returns_200_rejected() throws Exception {
-        UUID requester = UUID.randomUUID();
+        // P1-2 fix: requesterId 는 create 헤더, actorId 는 reject 헤더에서 읽는다.
+        UUID managerActorUuid = UUID.fromString(MANAGER_ACCOUNT_ID);
         UUID approver1 = UUID.randomUUID();
         ApprovalLineCreateRequest createReq = new ApprovalLineCreateRequest(
-                requester, "반려 case", null, List.of(approver1));
+                managerActorUuid, "반려 case", null, List.of(approver1));
         MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/approvals")
                         .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createReq)))
                 .andReturn();
-        String approvalId = objectMapper.readTree(created.getResponse().getContentAsString())
+        String approvalId = objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .path("data").path("approvalId").asText();
 
+        // approver1 이 reject — X-User-Id 헤더에 approver1 UUID 를 직접 전달
         ApprovalDecisionRequest decision = new ApprovalDecisionRequest(approver1, "사유 부족");
         mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/approvals/" + approvalId + "/reject")
-                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Id", approver1.toString())
                         .header("X-User-Role", "MANAGER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(decision)))

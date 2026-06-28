@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -46,11 +47,34 @@ public class ApprovalLineService {
     /**
      * 신규 결재선 생성 + chain 등록. 요청자 본인 차단 / 결재자 0명 차단 / 사용자 미존재 차단 가드.
      *
+     * <p>요청자는 {@code req.requesterId()} 를 사용한다. 헤더 기반 신원이 필요한 경우
+     * {@link #createWithActor(ApprovalLineCreateRequest, UUID)} 를 사용한다.
+     *
      * @param req 결재선 생성 요청
      * @return 영속화된 결재선
      */
     @Transactional
     public ApprovalLine create(ApprovalLineCreateRequest req) {
+        return createInternal(req, req.requesterId());
+    }
+
+    /**
+     * 신규 결재선 생성 + chain 등록 — 게이트웨이 주입 헤더 신원 기반.
+     *
+     * <p>컨트롤러가 {@code X-User-Id} 헤더에서 읽은 {@code actorRequesterId} 를 사용하며
+     * {@code req.requesterId()} 는 무시한다. identity spoofing 방지
+     * ({@code feedback_identity_header_authz_antipattern}).
+     *
+     * @param req              결재선 생성 요청 (requesterId 본문 필드는 무시됨)
+     * @param actorRequesterId 게이트웨이 주입 {@code X-User-Id} 헤더 값
+     * @return 영속화된 결재선
+     */
+    @Transactional
+    public ApprovalLine createWithActor(ApprovalLineCreateRequest req, UUID actorRequesterId) {
+        return createInternal(req, actorRequesterId);
+    }
+
+    private ApprovalLine createInternal(ApprovalLineCreateRequest req, UUID requesterId) {
         List<UUID> overrideApproverIds = safeApproverIds(req.approverIds());
         String documentType = documentTypeFor(req.templateId());
         GroupwareApprovalLineConfigClient.ConfigLine configLine =
@@ -61,11 +85,11 @@ public class ApprovalLineService {
         }
         // Phase 9 W3 — BE backlog #4 채택. 요청자 + 결재자 N 명을 1회 bulk RPC 로 검증
         // (이전: 직렬 N+1 RPC, 현재: 1 RPC + cache hit 기대).
-        validateApproverChain(req.requesterId(), overrideApproverIds);
-        List<UUID> idsToVerify = userIdsToVerify(req.requesterId(), overrideApproverIds, configLine.roles());
+        validateApproverChain(requesterId, overrideApproverIds);
+        List<UUID> idsToVerify = userIdsToVerify(requesterId, overrideApproverIds, configLine.roles());
         Map<UUID, Boolean> existsMap = userClient.verifyBulk(idsToVerify);
-        if (!Boolean.TRUE.equals(existsMap.get(req.requesterId()))) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "요청자 미존재: " + req.requesterId());
+        if (!Boolean.TRUE.equals(existsMap.get(requesterId))) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "요청자 미존재: " + requesterId);
         }
         for (UUID approverId : idsToVerify) {
             if (!Boolean.TRUE.equals(existsMap.get(approverId))) {
@@ -73,7 +97,7 @@ public class ApprovalLineService {
             }
         }
         ApprovalLine line = ApprovalLine.open(
-                approvalNumberService.next(), req.requesterId(), req.title(), req.content());
+                approvalNumberService.next(), requesterId, req.title(), req.content());
         if (documentType != null) {
             line.linkGroupwareDocument(documentType, req.templateId());
         }
@@ -179,8 +203,13 @@ public class ApprovalLineService {
                 if (step.getApproverUserId() != null) {
                     ids.add(step.getApproverUserId());
                 }
+                // GROUP 단계 실처리자(approve 시 기록된 approvedByUserId) 표시명도 수집한다.
+                if (step.getApprovedByUserId() != null) {
+                    ids.add(step.getApprovedByUserId());
+                }
             });
         }
+        ids.removeIf(Objects::isNull);
         if (ids.isEmpty()) {
             return Map.of();
         }
@@ -203,7 +232,11 @@ public class ApprovalLineService {
         }
     }
 
-    /** 결재자 승인 처리 — chain 의 현재 step 결재자만 호출 허용. */
+    /**
+     * 결재자 승인 처리 — USER 전용 경로. chain 의 현재 step 결재자만 호출 허용.
+     *
+     * <p>GROUP 단계가 포함된 결재선에서는 {@link #approve(UUID, UUID, Set)} 를 사용한다.
+     */
     @Transactional
     public ApprovalLine approve(UUID approvalId, UUID approverId) {
         ApprovalLine line = findById(approvalId);
@@ -215,12 +248,58 @@ public class ApprovalLineService {
         return line;
     }
 
-    /** 결재자 반려 처리. */
+    /**
+     * 결재자 승인 처리 — GROUP 단계 컨텍스트를 포함한 경로.
+     *
+     * <p>게이트웨이 주입 {@code X-User-Groups} 헤더의 그룹 UUID 집합을 함께 전달하면
+     * GROUP 단계의 멤버십 검증이 정상 동작한다.
+     *
+     * @param approvalId    결재선 UUID
+     * @param actorUserId   게이트웨이 주입 {@code X-User-Id} 헤더 값
+     * @param actorGroupIds 게이트웨이 주입 {@code X-User-Groups} 헤더의 UUID 집합
+     * @return 승인 처리된 결재선
+     */
+    @Transactional
+    public ApprovalLine approve(UUID approvalId, UUID actorUserId, Set<UUID> actorGroupIds) {
+        ApprovalLine line = findById(approvalId);
+        try {
+            line.approve(actorUserId, actorGroupIds == null ? Set.of() : actorGroupIds, Set.of());
+        } catch (IllegalStateException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
+        }
+        return line;
+    }
+
+    /**
+     * 결재자 반려 처리 — USER 전용 경로.
+     *
+     * <p>GROUP 단계가 포함된 결재선에서는 {@link #reject(UUID, UUID, Set, String)} 를 사용한다.
+     */
     @Transactional
     public ApprovalLine reject(UUID approvalId, UUID approverId, String reason) {
         ApprovalLine line = findById(approvalId);
         try {
             line.reject(approverId, reason);
+        } catch (IllegalStateException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
+        }
+        return line;
+    }
+
+    /**
+     * 결재자 반려 처리 — GROUP 단계 컨텍스트를 포함한 경로.
+     *
+     * @param approvalId    결재선 UUID
+     * @param actorUserId   게이트웨이 주입 {@code X-User-Id} 헤더 값
+     * @param actorGroupIds 게이트웨이 주입 {@code X-User-Groups} 헤더의 UUID 집합
+     * @param reason        반려 사유
+     * @return 반려 처리된 결재선
+     */
+    @Transactional
+    public ApprovalLine reject(UUID approvalId, UUID actorUserId, Set<UUID> actorGroupIds, String reason) {
+        ApprovalLine line = findById(approvalId);
+        try {
+            line.reject(actorUserId, reason, actorGroupIds == null ? Set.of() : actorGroupIds, Set.of());
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }

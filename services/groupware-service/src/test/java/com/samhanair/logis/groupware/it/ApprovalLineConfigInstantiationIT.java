@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.approval.StepType;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
 import com.samhanair.logis.groupware.client.GroupwareApprovalLineConfigClient;
 import com.samhanair.logis.groupware.client.UserClient;
@@ -20,6 +22,8 @@ import com.samhanair.logis.groupware.repository.ApprovalNumberSequenceRepository
 import com.samhanair.logis.groupware.repository.ApprovalTemplateFieldRepository;
 import com.samhanair.logis.groupware.repository.ApprovalTemplateRepository;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,7 +35,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 중앙 결재선 config 기반 그룹웨어 ApprovalStep 인스턴스화 IT. */
+/**
+ * 중앙 결재선 config 기반 그룹웨어 ApprovalStep 인스턴스화 IT.
+ *
+ * <p>각 테스트는 DB flush + clear 후 재로드하여 영속 단계를 단언한다.
+ * GROUP 단계 검증은 도메인 직접 호출이 아닌 서비스 경로({@link ApprovalLineService#approve})로
+ * 수행하여 false-green 을 방지한다.
+ */
 @SpringBootTest(classes = GroupwareServiceApplication.class)
 @Transactional
 class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
@@ -43,6 +53,9 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
     @Autowired private ApprovalTemplateRepository templateRepository;
     @Autowired private ApprovalTemplateFieldRepository fieldRepository;
     @Autowired private ApprovalNumberSequenceRepository numberSequenceRepository;
+
+    @PersistenceContext
+    private EntityManager em;
 
     @MockBean private GroupwareApprovalLineConfigClient configClient;
     @MockBean private UserClient userClient;
@@ -72,6 +85,10 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
         lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(Map.of());
     }
 
+    /**
+     * 설정된 문서 유형은 config 역할과 수동 override 를 합산한 단계로 인스턴스화된다.
+     * DB flush + clear 후 재로드하여 영속된 단계 순서·타입·식별자를 단언한다.
+     */
     @Test
     void configuredDocument_instantiates_configRoles_and_requestOverride() {
         UUID overrideUser = UUID.randomUUID();
@@ -83,31 +100,71 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
         ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
                 requester, "지출 결재", "본문", List.of(overrideUser), template.getId(), Map.of()));
 
-        assertThat(line.getDocumentType()).isEqualTo(DOCUMENT_TYPE);
-        assertThat(line.getStepsView()).hasSize(4);
-        assertThat(line.getStepsView()).extracting(step -> step.getStepType())
+        UUID savedId = line.getId();
+        em.flush();
+        em.clear();
+        ApprovalLine reloaded = approvalLineRepository.findById(savedId).orElseThrow();
+
+        assertThat(reloaded.getDocumentType()).isEqualTo(DOCUMENT_TYPE);
+        assertThat(reloaded.getStepsView()).hasSize(4);
+        assertThat(reloaded.getStepsView()).extracting(step -> step.getStepType())
                 .containsExactly(StepType.USER, StepType.GROUP, StepType.USER, StepType.USER);
-        assertThat(line.getStepsView().get(0).getApproverUserId()).isEqualTo(requester);
-        assertThat(line.getStepsView().get(1).getApproverGroupId()).isEqualTo(groupId);
-        assertThat(line.getStepsView().get(2).getApproverUserId()).isEqualTo(representative);
-        assertThat(line.getStepsView().get(3).getApproverUserId()).isEqualTo(overrideUser);
+        assertThat(reloaded.getStepsView().get(0).getApproverUserId()).isEqualTo(requester);
+        assertThat(reloaded.getStepsView().get(1).getApproverGroupId()).isEqualTo(groupId);
+        assertThat(reloaded.getStepsView().get(1).getApproverUserId()).isNull();
+        assertThat(reloaded.getStepsView().get(2).getApproverUserId()).isEqualTo(representative);
+        assertThat(reloaded.getStepsView().get(3).getApproverUserId()).isEqualTo(overrideUser);
     }
 
+    /**
+     * GROUP 단계 멤버 → 서비스 approve 통과 / 비멤버 → 서비스 approve BusinessException(CONFLICT).
+     *
+     * <p>도메인 {@code line.approve()} 직접 호출 금지 — 서비스 경로를 통해
+     * false-green 없이 GROUP 멤버십 판정을 검증한다.
+     */
     @Test
     void groupStep_allows_groupMember_and_blocks_nonMember() {
-        UUID actor = UUID.randomUUID();
+        UUID memberActor = UUID.randomUUID();
+        UUID nonMember = UUID.randomUUID();
         when(configClient.fetchRoles(DOCUMENT_TYPE)).thenReturn(configLine(List.of(
                 new ResolvedRole(0, StepType.GROUP, null, groupId, "groupware.approvals"))));
         ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
                 requester, "그룹 결재", null, List.of(), template.getId(), Map.of()));
 
-        assertThatThrownBy(() -> line.approve(actor, Set.of(UUID.randomUUID()), Set.of()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("결재자가 아닙니다");
+        UUID approvalId = line.getId();
+        em.flush();
+        em.clear();
 
-        line.approve(actor, Set.of(groupId), Set.of());
+        // 비멤버(다른 그룹만 보유) → CONFLICT
+        assertThatThrownBy(() ->
+                approvalLineService.approve(approvalId, nonMember, Set.of(UUID.randomUUID())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
 
-        assertThat(line.getStatus()).isEqualTo(ApprovalStatus.APPROVED);
+        // 그룹 멤버 → APPROVED
+        ApprovalLine approved = approvalLineService.approve(approvalId, memberActor, Set.of(groupId));
+        assertThat(approved.getStatus()).isEqualTo(ApprovalStatus.APPROVED);
+    }
+
+    /**
+     * GROUP 단계 멤버가 반려하면 결재선이 REJECTED 로 전이된다.
+     */
+    @Test
+    void groupStep_groupMember_reject_propagates_to_line_rejected() {
+        UUID memberActor = UUID.randomUUID();
+        when(configClient.fetchRoles(DOCUMENT_TYPE)).thenReturn(configLine(List.of(
+                new ResolvedRole(0, StepType.GROUP, null, groupId, "groupware.approvals"))));
+        ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
+                requester, "그룹 반려 결재", null, List.of(), template.getId(), Map.of()));
+
+        UUID approvalId = line.getId();
+        em.flush();
+        em.clear();
+
+        ApprovalLine rejected = approvalLineService.reject(
+                approvalId, memberActor, Set.of(groupId), "사유 부족");
+        assertThat(rejected.getStatus()).isEqualTo(ApprovalStatus.REJECTED);
     }
 
     @Test
@@ -118,9 +175,14 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
         ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
                 requester, "1인 지정", null, List.of(), template.getId(), Map.of()));
 
-        assertThat(line.getStepsView()).hasSize(1);
-        assertThat(line.getStepsView().get(0).getStepType()).isEqualTo(StepType.USER);
-        assertThat(line.getStepsView().get(0).getApproverUserId()).isEqualTo(representative);
+        UUID savedId = line.getId();
+        em.flush();
+        em.clear();
+        ApprovalLine reloaded = approvalLineRepository.findById(savedId).orElseThrow();
+
+        assertThat(reloaded.getStepsView()).hasSize(1);
+        assertThat(reloaded.getStepsView().get(0).getStepType()).isEqualTo(StepType.USER);
+        assertThat(reloaded.getStepsView().get(0).getApproverUserId()).isEqualTo(representative);
     }
 
     @Test
@@ -132,9 +194,14 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
         ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
                 requester, "수동 결재", null, List.of(manualApprover), template.getId(), Map.of()));
 
-        assertThat(line.getStepsView()).hasSize(1);
-        assertThat(line.getStepsView().get(0).getStepType()).isEqualTo(StepType.USER);
-        assertThat(line.getStepsView().get(0).getApproverUserId()).isEqualTo(manualApprover);
+        UUID savedId = line.getId();
+        em.flush();
+        em.clear();
+        ApprovalLine reloaded = approvalLineRepository.findById(savedId).orElseThrow();
+
+        assertThat(reloaded.getStepsView()).hasSize(1);
+        assertThat(reloaded.getStepsView().get(0).getStepType()).isEqualTo(StepType.USER);
+        assertThat(reloaded.getStepsView().get(0).getApproverUserId()).isEqualTo(manualApprover);
     }
 
     private GroupwareApprovalLineConfigClient.ConfigLine configLine(List<ResolvedRole> roles) {

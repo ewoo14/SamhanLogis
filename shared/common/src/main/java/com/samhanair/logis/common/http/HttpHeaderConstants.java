@@ -67,6 +67,18 @@ public final class HttpHeaderConstants {
     public static final String IS_PARTNER_HEADER = "X-Is-Partner";
 
     /**
+     * 서비스 간 내부 호출 인증 token header — A2-G1 이후 신규.
+     *
+     * <p>api-gateway 또는 내부 서비스가 {@code X-Internal-Token} 을 주입하여 내부 전용
+     * endpoint({@code /internal/**}) 를 호출한다. 클라이언트(FE/외부)가 이 헤더를
+     * 직접 주입하면 api-gateway 가 strip 하므로 클라이언트 spoofing 이 차단된다.
+     *
+     * <p>defense-in-depth: {@link #INBOUND_IDENTITY_HEADERS} 에 포함하여
+     * 공개 라우트에서도 gateway strip 대상이 되도록 한다.
+     */
+    public static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+
+    /**
      * 클라이언트가 직접 신뢰 경계 안으로 들여보내면 안 되는 identity header 집합.
      *
      * <p>api-gateway 는 보호 라우트에서 JWT claim 기반으로 이 값을 제거 후 재주입하고,
@@ -81,7 +93,8 @@ public final class HttpHeaderConstants {
             PARTNER_CODE_HEADER,
             CALLER_NAME_HEADER,
             USER_DEPARTMENT_HEADER,
-            CALLER_ROLE_HEADER
+            CALLER_ROLE_HEADER,
+            INTERNAL_TOKEN_HEADER
     );
 
     private HttpHeaderConstants() {

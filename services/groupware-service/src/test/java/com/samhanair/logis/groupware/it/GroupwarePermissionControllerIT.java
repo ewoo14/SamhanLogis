@@ -118,9 +118,10 @@ class GroupwarePermissionControllerIT {
                 LocalDateTime.of(2026, 5, 26, 10, 0),
                 null);
 
-        lenient().when(approvalLineService.create(any())).thenReturn(approval);
-        lenient().when(approvalLineService.approve(any(), any())).thenReturn(approval);
-        lenient().when(approvalLineService.reject(any(), any(), any())).thenReturn(approval);
+        // P1-2 fix: 컨트롤러는 createWithActor / approve(3-arg) / reject(4-arg) 를 호출한다.
+        lenient().when(approvalLineService.createWithActor(any(), any())).thenReturn(approval);
+        lenient().when(approvalLineService.approve(any(UUID.class), any(UUID.class), any(java.util.Set.class))).thenReturn(approval);
+        lenient().when(approvalLineService.reject(any(UUID.class), any(UUID.class), any(java.util.Set.class), any())).thenReturn(approval);
         lenient().when(messageService.send(any())).thenReturn(message);
         lenient().when(messageService.inbox(any(), any())).thenReturn(new PageImpl<>(List.of(message), PageRequest.of(0, 50), 1));
         lenient().when(scheduleService.create(any())).thenReturn(schedule);
@@ -188,10 +189,11 @@ class GroupwarePermissionControllerIT {
 
     @Test
     void approvalEndpointsUseRequireDepartmentAndNoPreAuthorize() throws Exception {
-        assertDepartmentGate("createApproval", ApprovalLineCreateRequest.class);
+        // P1-2 fix: 헤더 파라미터 추가로 메서드 시그니처 변경됨.
+        assertDepartmentGate("createApproval", UUID.class, ApprovalLineCreateRequest.class);
         assertDepartmentGate("searchApprovers", String.class, int.class);
-        assertDepartmentGate("approve", UUID.class, ApprovalDecisionRequest.class);
-        assertDepartmentGate("reject", UUID.class, ApprovalDecisionRequest.class);
+        assertDepartmentGate("approve", UUID.class, UUID.class, String.class, ApprovalDecisionRequest.class);
+        assertDepartmentGate("reject", UUID.class, UUID.class, String.class, ApprovalDecisionRequest.class);
     }
 
     static Stream<EndpointCase> endpoints() {

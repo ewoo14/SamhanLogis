@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -90,6 +91,24 @@ public class GroupwareExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException ex) {
         return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.CONFLICT, ex.getMessage()));
+    }
+
+    /**
+     * JPA 낙관락(optimistic locking) 충돌 — 409 CONFLICT 매핑.
+     *
+     * <p>{@code @Version} 필드 불일치 시 Hibernate 가 던지는 {@link ObjectOptimisticLockingFailureException}
+     * 를 잡아 사용자 친화적 메시지로 변환한다. 프론트엔드는 409 수신 시 페이지를 새로고침하도록 안내한다.
+     *
+     * @param ex 낙관락 충돌 예외
+     * @return 409 CONFLICT ApiResponse
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLocking(
+            ObjectOptimisticLockingFailureException ex) {
+        log.warn("낙관적 잠금 충돌 감지: {}", ex.getMessage());
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.CONFLICT,
+                        "동시 수정 충돌이 감지되었습니다. 페이지를 새로고침 후 다시 시도해 주세요."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

@@ -55,15 +55,23 @@ class ApprovalStepBaseTest {
         assertThat(step.getStatus()).isEqualTo(ApprovalStepStatus.PENDING);
     }
 
+    /**
+     * P1-3: GROUP 단계 approve 판정은 그룹 멤버십(groupMatch)만 사용한다.
+     * page-code 단독 일치로 결재권이 부여되는 특권 상승을 방지한다.
+     */
     @Test
-    void matchesActor_은_GROUP모드에서_그룹멤버십_또는_pageCode로_판정한다() {
+    void matchesActor_은_GROUP모드에서_그룹멤버십으로만_판정한다() {
         UUID actor = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         FakeStep step = FakeStep.group(groupId, "groupware.approvals", 0);
 
+        // 그룹 멤버 → true
         assertThat(step.matchesActor(actor, Set.of(groupId), Set.of())).isTrue();
-        assertThat(step.matchesActor(actor, Set.of(), Set.of("groupware.approvals"))).isTrue();
+        // page-code 만으로는 불충분 (특권 상승 방지, P1-3)
+        assertThat(step.matchesActor(actor, Set.of(), Set.of("groupware.approvals"))).isFalse();
+        // 그룹 불일치 + page-code 불일치 → false
         assertThat(step.matchesActor(actor, Set.of(UUID.randomUUID()), Set.of("other.page"))).isFalse();
+        // 1-arg 호환 경로(actorGroupIds=빈 Set) → false
         assertThat(step.matchesActor(actor)).isFalse();
     }
 

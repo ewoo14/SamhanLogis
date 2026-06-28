@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.dto;
 
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.approval.ApprovalStepStatus;
+import com.samhanair.logis.approval.StepType;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ApprovalStep;
 import java.time.LocalDateTime;
@@ -41,8 +42,29 @@ public record ApprovalLineAdminResponse(
         List<StepView> steps
 ) {
 
+    /**
+     * 결재 chain 단계 뷰.
+     *
+     * <p>USER 단계 — {@code approverId}/{@code approverName} = 지정 결재자.
+     * GROUP 단계 — {@code approverGroupId} = 결재 그룹 UUID, {@code approverGroupName} = 그룹 표시명(nullable),
+     * {@code approverId}/{@code approverName} = null(지정 개인 없음; 승인 후 실처리자는
+     * 별도 audit 로 추적).
+     *
+     * @param sequence          chain 순서(0-base)
+     * @param stepType          결재자 식별 방식
+     * @param approverGroupId   GROUP 단계 권한그룹 UUID (USER 단계 null)
+     * @param approverGroupName GROUP 단계 권한그룹 표시명 (조회 불가 시 null)
+     * @param approverId        USER 단계 지정 결재자 UUID (GROUP 단계 null)
+     * @param approverName      USER 단계 지정 결재자 표시명 (GROUP 단계 null)
+     * @param status            단계 처리 상태
+     * @param decidedAt         승인/반려 처리 시각
+     * @param reason            반려 사유 (반려 시만 의미)
+     */
     public record StepView(
             int sequence,
+            StepType stepType,
+            UUID approverGroupId,
+            String approverGroupName,
             UUID approverId,
             String approverName,
             ApprovalStepStatus status,
@@ -55,8 +77,19 @@ public record ApprovalLineAdminResponse(
         }
 
         static StepView from(ApprovalStep s, Map<UUID, String> nameMap) {
-            return new StepView(s.getSequence(), s.getApproverUserId(), displayName(nameMap, s.getApproverUserId()), s.getStatus(),
-                    s.getDecidedAt(), s.getReason());
+            boolean isGroup = s.getStepType() == StepType.GROUP;
+            UUID approverId = isGroup ? null : s.getApproverUserId();
+            return new StepView(
+                    s.getSequence(),
+                    s.getStepType(),
+                    s.getApproverGroupId(),
+                    null,   // approverGroupName: 그룹 표시명 RPC 미구현 → nullable
+                    approverId,
+                    displayName(nameMap, approverId),
+                    s.getStatus(),
+                    s.getDecidedAt(),
+                    s.getReason()
+            );
         }
     }
 

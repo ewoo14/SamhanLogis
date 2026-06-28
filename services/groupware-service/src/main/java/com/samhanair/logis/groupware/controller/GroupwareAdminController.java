@@ -1,6 +1,7 @@
 package com.samhanair.logis.groupware.controller;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
@@ -23,8 +24,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -35,6 +40,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,6 +48,13 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 결재선 / 메신저 / 일정 admin endpoint. 인증 = X-User-* 헤더 (gateway 경유) +
  * {@code @RequireDepartment} / {@code @RequirePermission} 권한 가드.
+ *
+ * <p>신원(identity) 출처 정책 ({@code feedback_identity_header_authz_antipattern}):
+ * <ul>
+ *   <li>요청자 UUID = {@code X-User-Id} 헤더 — 게이트웨이가 JWT 서명 후 주입.</li>
+ *   <li>그룹 UUID 집합 = {@code X-User-Groups} 헤더 — 게이트웨이가 JWT {@code groups} claim 기반 주입.</li>
+ *   <li>본문({@code requesterId}/{@code approverId}) 은 UI 편의 전달용이며 서버에서 신뢰하지 않는다.</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/admin/groupware")
@@ -86,7 +99,12 @@ public class GroupwareAdminController {
                 .toList());
     }
 
-    /** 결재선 생성 + chain 등록. */
+    /**
+     * 결재선 생성 + chain 등록.
+     *
+     * <p>요청자 신원은 {@code X-User-Id} 헤더(게이트웨이 주입)를 사용한다.
+     * 본문 {@code requesterId} 는 UI 편의용이며 서버에서 무시한다.
+     */
     @Operation(summary = "결재선 생성", description = "MASTER / MANAGER 권한 필요")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "생성 성공"),
@@ -98,32 +116,74 @@ public class GroupwareAdminController {
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "groupware.approvals", action = PermissionAction.UPDATE)
     public ResponseEntity<ApiResponse<ApprovalLineAdminResponse>> createApproval(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID requesterId,
             @Valid @RequestBody ApprovalLineCreateRequest req) {
-        var line = approvalLineService.create(req);
+        var line = approvalLineService.createWithActor(req, requesterId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(approvalLineService.toResponse(line)));
     }
 
-    /** 결재 승인. */
+    /**
+     * 결재 승인.
+     *
+     * <p>수행자 신원은 {@code X-User-Id} 헤더, 그룹 멤버십은 {@code X-User-Groups} 헤더
+     * (게이트웨이 주입 comma-join UUID 문자열)를 사용한다. 본문 {@code approverId} 는 무시한다.
+     */
     @Operation(summary = "결재 승인")
     @PutMapping("/approvals/{approvalId}/approve")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "groupware.approvals", action = PermissionAction.UPDATE)
-    public ApiResponse<ApprovalLineAdminResponse> approve(@PathVariable UUID approvalId,
-                                                          @Valid @RequestBody ApprovalDecisionRequest req) {
-        var line = approvalLineService.approve(approvalId, req.approverId());
+    public ApiResponse<ApprovalLineAdminResponse> approve(
+            @PathVariable UUID approvalId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actorId,
+            @RequestHeader(value = HttpHeaderConstants.USER_GROUPS_HEADER, required = false) String groupsHeader,
+            @Valid @RequestBody ApprovalDecisionRequest req) {
+        Set<UUID> groupIds = parseGroupIds(groupsHeader);
+        var line = approvalLineService.approve(approvalId, actorId, groupIds);
         return ApiResponse.ok(approvalLineService.toResponse(line));
     }
 
-    /** 결재 반려. */
+    /**
+     * 결재 반려.
+     *
+     * <p>수행자 신원은 {@code X-User-Id} 헤더, 그룹 멤버십은 {@code X-User-Groups} 헤더
+     * (게이트웨이 주입 comma-join UUID 문자열)를 사용한다. 본문 {@code approverId} 는 무시한다.
+     */
     @Operation(summary = "결재 반려")
     @PutMapping("/approvals/{approvalId}/reject")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "groupware.approvals", action = PermissionAction.UPDATE)
-    public ApiResponse<ApprovalLineAdminResponse> reject(@PathVariable UUID approvalId,
-                                                         @Valid @RequestBody ApprovalDecisionRequest req) {
-        var line = approvalLineService.reject(approvalId, req.approverId(), req.reason());
+    public ApiResponse<ApprovalLineAdminResponse> reject(
+            @PathVariable UUID approvalId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actorId,
+            @RequestHeader(value = HttpHeaderConstants.USER_GROUPS_HEADER, required = false) String groupsHeader,
+            @Valid @RequestBody ApprovalDecisionRequest req) {
+        Set<UUID> groupIds = parseGroupIds(groupsHeader);
+        var line = approvalLineService.reject(approvalId, actorId, groupIds, req.reason());
         return ApiResponse.ok(approvalLineService.toResponse(line));
+    }
+
+    /**
+     * {@code X-User-Groups} 헤더 comma-join 문자열을 UUID Set 으로 파싱한다.
+     *
+     * <p>null/빈 문자열은 빈 Set 으로 처리한다. UUID 형식이 아닌 토큰은 안전하게 무시한다.
+     */
+    private Set<UUID> parseGroupIds(String groupsHeader) {
+        if (groupsHeader == null || groupsHeader.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(groupsHeader.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .map(s -> {
+                    try {
+                        return UUID.fromString(s);
+                    } catch (IllegalArgumentException e) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     // ================================ 메신저 ================================
