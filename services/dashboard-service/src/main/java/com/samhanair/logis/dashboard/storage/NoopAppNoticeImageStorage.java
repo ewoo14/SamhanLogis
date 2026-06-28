@@ -19,7 +19,8 @@ public class NoopAppNoticeImageStorage implements AppNoticeImageStorage {
 
     private static final Logger log = LoggerFactory.getLogger(NoopAppNoticeImageStorage.class);
     private static final String PLACEHOLDER_URL = "about:blank#app-notice-noop";
-    private static final Set<String> SAFE_NOOP_PROFILES = Set.of("local", "test", "default");
+    // 운영류 profile(이미지 누락이 실제 문제)에서만 fail-fast. dev/test/local 등은 Noop 으로 graceful 동작.
+    private static final Set<String> OPERATIONAL_PROFILES = Set.of("prod", "production", "staging", "aws");
 
     private final Environment environment;
 
@@ -44,12 +45,8 @@ public class NoopAppNoticeImageStorage implements AppNoticeImageStorage {
     }
 
     private boolean isOperationalProfile() {
-        String[] activeProfiles = environment.getActiveProfiles();
-        if (activeProfiles.length == 0) {
-            return false;
-        }
-        return Arrays.stream(activeProfiles)
+        return Arrays.stream(environment.getActiveProfiles())
                 .map(profile -> profile.toLowerCase(Locale.ROOT))
-                .anyMatch(profile -> !SAFE_NOOP_PROFILES.contains(profile));
+                .anyMatch(OPERATIONAL_PROFILES::contains);
     }
 }
