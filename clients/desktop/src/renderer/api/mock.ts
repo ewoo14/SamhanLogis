@@ -126,6 +126,7 @@ type MockAppRelease = {
   forceLevel: Exclude<MockAppForceLevel, 'NONE'>
   releaseNotes: string
   releasedAt: string
+  isPublished: boolean
 }
 
 function mockAppReleaseId(seq: number): string {
@@ -142,6 +143,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     forceLevel: 'MINOR',
     releaseNotes: '데스크톱 배차 화면 안정화와 버전관리 안내를 추가했습니다.',
     releasedAt: '2026-06-27T09:00:00',
+    isPublished: true,
   },
   {
     id: mockAppReleaseId(2),
@@ -151,6 +153,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     forceLevel: 'MINOR',
     releaseNotes: '웹 백오피스 PWA와 별개인 앱 버전 정책을 적용했습니다.',
     releasedAt: '2026-06-27T09:00:00',
+    isPublished: true,
   },
   {
     id: mockAppReleaseId(3),
@@ -160,6 +163,7 @@ let MOCK_APP_RELEASES: MockAppRelease[] = [
     forceLevel: 'MINOR',
     releaseNotes: '모바일 V1c 준비용 시드입니다.',
     releasedAt: '2026-06-27T09:00:00',
+    isPublished: true,
   },
 ]
 
@@ -191,7 +195,11 @@ function isMockLocalDateTime(value: unknown): boolean {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)
 }
 
-function mockAppReleaseFromBody(body: Record<string, unknown>, id: string): MockAppRelease {
+function mockAppReleaseFromBody(
+  body: Record<string, unknown>,
+  id: string,
+  isPublished = true,
+): MockAppRelease {
   return {
     id,
     clientType: normalizeMockClientType(body['clientType']),
@@ -200,6 +208,7 @@ function mockAppReleaseFromBody(body: Record<string, unknown>, id: string): Mock
     forceLevel: normalizeMockForceLevel(body['forceLevel']),
     releaseNotes: String(body['releaseNotes'] ?? '').trim() || '릴리스 노트가 등록되지 않았습니다.',
     releasedAt: String(body['releasedAt'] ?? '').trim() || '2026-06-27T09:00:00',
+    isPublished,
   }
 }
 
@@ -1743,7 +1752,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const forcedLevel = params.get('mockAppForce')
     const forcedLatest = params.get('mockAppLatestVersion')
     const latest = [...MOCK_APP_RELEASES]
-      .filter((release) => release.clientType === clientType)
+      .filter((release) => release.clientType === clientType && release.isPublished)
       .sort((a, b) => compareSemverDesc(a.version, b.version))[0]
 
     if (!latest) {
@@ -1794,6 +1803,25 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(created)
   }
 
+  const appReleasePublishMatch = url.match(/\/app\/releases\/([^/?#]+)\/(publish|unpublish)$/)
+  if (appReleasePublishMatch && method === 'POST') {
+    const denied = mockRequirePermission('admin.app-release', 'update')
+    if (denied) return denied
+    const encodedId = appReleasePublishMatch[1]
+    const action = appReleasePublishMatch[2]
+    if (!encodedId || !action) return null
+    const id = decodeURIComponent(encodedId)
+    const index = MOCK_APP_RELEASES.findIndex((release) => release.id === id)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '릴리스를 찾을 수 없습니다.')
+
+    const updated = {
+      ...MOCK_APP_RELEASES[index]!,
+      isPublished: action === 'publish',
+    }
+    MOCK_APP_RELEASES = MOCK_APP_RELEASES.map((release) => release.id === id ? updated : release)
+    return envelope(updated)
+  }
+
   const appReleaseItemMatch = url.match(/\/app\/releases\/([^/?#]+)$/)
   if (appReleaseItemMatch) {
     const encodedId = appReleaseItemMatch[1]
@@ -1809,7 +1837,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       if (!isMockLocalDateTime(body['releasedAt'])) {
         return mockError(400, 'INVALID_INPUT', 'releasedAt은 offset 없는 LocalDateTime 형식이어야 합니다.')
       }
-      const updated = mockAppReleaseFromBody(body, id)
+      const updated = mockAppReleaseFromBody(body, id, MOCK_APP_RELEASES[index]!.isPublished)
       MOCK_APP_RELEASES = MOCK_APP_RELEASES.map((release) => release.id === id ? updated : release)
       return envelope(updated)
     }
@@ -14783,6 +14811,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
+    // DEV-1 — 개발 그룹 버전 관리.
+    'admin.app-release',
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
   ],
@@ -14938,6 +14968,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
   DEVELOPER: [
     // V30/V43 seed — product 운영 보조 그룹.
     'products.list', 'products.admin',
+    // DEV-1 — 개발 그룹 버전 관리.
+    'admin.app-release',
   ],
 }
 

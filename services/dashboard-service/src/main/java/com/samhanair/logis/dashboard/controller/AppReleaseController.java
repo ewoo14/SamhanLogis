@@ -70,6 +70,22 @@ public class AppReleaseController {
         return ApiResponse.ok(AppReleaseResponse.from(service.update(id, request)));
     }
 
+    /** 앱 릴리스 배포. */
+    @Operation(summary = "앱 릴리스 배포 (Admin)")
+    @PostMapping("/app/releases/{id}/publish")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<AppReleaseResponse> publish(@PathVariable UUID id) {
+        return ApiResponse.ok(AppReleaseResponse.from(service.publish(id)));
+    }
+
+    /** 앱 릴리스 배포 취소. */
+    @Operation(summary = "앱 릴리스 배포 취소 (Admin)")
+    @PostMapping("/app/releases/{id}/unpublish")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<AppReleaseResponse> unpublish(@PathVariable UUID id) {
+        return ApiResponse.ok(AppReleaseResponse.from(service.unpublish(id)));
+    }
+
     /** 앱 릴리스 soft-delete. */
     @Operation(summary = "앱 릴리스 삭제 (Admin)")
     @DeleteMapping("/app/releases/{id}")

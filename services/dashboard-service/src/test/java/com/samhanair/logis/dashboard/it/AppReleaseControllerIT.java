@@ -126,6 +126,47 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("GET /app/version은 published 최신만 반영하고 publish/unpublish가 노출 상태를 전환한다")
+    void publicVersion_usesPublishedLatestOnly_andPublishToggleControlsVisibility() throws Exception {
+        insertRelease("WEB", "1.0.0", "MINOR", "배포 릴리스", "0.9.0", true);
+        String unpublishedId = insertRelease("WEB", "2.0.0", "MAJOR", "테스트 릴리스", "1.0.0", false);
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "WEB")
+                        .param("currentVersion", "0.8.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("1.0.0"))
+                .andExpect(jsonPath("$.data.releaseNotes").value("배포 릴리스"));
+
+        mockMvc.perform(withActor(post("/app/releases/{id}/publish", unpublishedId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value("2.0.0"))
+                .andExpect(jsonPath("$.data.isPublished").value(true));
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "WEB")
+                        .param("currentVersion", "1.0.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("2.0.0"))
+                .andExpect(jsonPath("$.data.releaseNotes").value("테스트 릴리스"));
+
+        mockMvc.perform(withActor(post("/app/releases/{id}/unpublish", unpublishedId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isPublished").value(false));
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "WEB")
+                        .param("currentVersion", "1.0.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("1.0.0"));
+
+        when(dynamicPermissionClient.check(any(UUID.class), org.mockito.ArgumentMatchers.eq(PAGE_CODE),
+                org.mockito.ArgumentMatchers.eq(PermissionAction.UPDATE))).thenReturn(false);
+        mockMvc.perform(withActor(post("/app/releases/{id}/publish", unpublishedId)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("GET /app/version은 clientType 누락 시 내부 타입명을 노출하지 않는 400을 반환한다")
     void publicVersion_whenClientTypeMissing_returnsInvalidInputWithoutTypeLeak() throws Exception {
         String body = mockMvc.perform(get("/app/version")
@@ -290,14 +331,26 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
             String forceLevel,
             String releaseNotes,
             String minSupportedVersion) {
+        insertRelease(clientType, version, forceLevel, releaseNotes, minSupportedVersion, true);
+    }
+
+    private String insertRelease(
+            String clientType,
+            String version,
+            String forceLevel,
+            String releaseNotes,
+            String minSupportedVersion,
+            boolean isPublished) {
+        UUID id = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO app_release
-                    (id, client_type, version, force_level, release_notes, released_at, min_supported_version,
+                    (id, client_type, version, force_level, release_notes, released_at, min_supported_version, is_published,
                      created_at, created_by, modified_at, modified_by, is_deleted)
                 VALUES
-                    (gen_random_uuid(), ?, ?, ?, ?, '2026-06-27 09:00:00', ?,
+                    (?::uuid, ?, ?, ?, ?, '2026-06-27 09:00:00', ?, ?,
                      NOW(), 'it', NOW(), 'it', FALSE)
-                """, clientType, version, forceLevel, releaseNotes, minSupportedVersion);
+                """, id, clientType, version, forceLevel, releaseNotes, minSupportedVersion, isPublished);
+        return id.toString();
     }
 
     private void installAppReleaseInsertDelayTrigger() {

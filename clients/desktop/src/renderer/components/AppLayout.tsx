@@ -492,7 +492,10 @@ export function AppLayout() {
   // [Round A P3] 구 showInventoryGroup 집계 변수 삭제 — 창고운영 그룹 게이트는
   // showWarehouseOpsGroup(창고운영 자식 6개와 1:1 정합) 로 교체되어 미소비(dead) 였음.
   // (사이클1 Codex fix C-4) showPartnersGroup 제거 — /admin/partners 직접 링크는 partners.list 1:1.
-  const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showAppReleaseAdmin || showApprovalLineConfig || showSlipCutoff
+  const showAdminHrGroup   = showAdminEmployees || showPermissionAdmin || showPermissionDelegation || showApprovalLineConfig || showSlipCutoff
+  // DEV-1: 개발 그룹은 버전관리(admin.app-release)만 노출한다.
+  // DEV-2/3 에서 dev.popup-notice / dev.activity-log 로 확장 예정.
+  const showDevelopmentGroup = showAppReleaseAdmin
 
   // [C5 follow-up 사이클1 fix] arologis 메뉴 가시성 = 라우트 PermissionGuard 와 동일 page-code 단일 소스.
   // (사이클1 리뷰 FE P1-2 + Designer D-002: 그룹 UUID 매칭은 라우트 가드와 소스 이원화 — seed 불일치 시
@@ -1257,7 +1260,6 @@ export function AppLayout() {
               '/admin/permission-groups/matrix',
               '/admin/permission-groups/manage',
               '/admin/permission-groups/delegation',
-              '/admin/app-releases',
               '/admin/approval-line-config',
               '/admin/slip-cutoff',
             ]}
@@ -1307,13 +1309,6 @@ export function AppLayout() {
               권한 위임
             </SidebarLink>
             <SidebarLink
-              to="/admin/app-releases"
-              show={showAppReleaseAdmin}
-              data-testid="sidebar-admin-app-releases"
-            >
-              릴리스 관리
-            </SidebarLink>
-            <SidebarLink
               to="/admin/approval-line-config"
               show={showApprovalLineConfig}
               data-testid="sidebar-hr-approval-line-config"
@@ -1326,6 +1321,23 @@ export function AppLayout() {
               data-testid="sidebar-hr-slip-cutoff"
             >
               출고 마감시간 설정
+            </SidebarLink>
+          </SidebarCategory>
+
+          <SidebarCategory
+            label="개발"
+            show={showDevelopmentGroup}
+            testId="sidebar-category-toggle-개발"
+            activeTargets={[
+              '/admin/app-releases',
+            ]}
+          >
+            <SidebarLink
+              to="/admin/app-releases"
+              show={showAppReleaseAdmin}
+              data-testid="sidebar-dev-app-releases"
+            >
+              버전 관리
             </SidebarLink>
           </SidebarCategory>
 

@@ -14,6 +14,8 @@ import {
   createAppRelease,
   deleteAppRelease,
   listAppReleases,
+  publishAppRelease,
+  unpublishAppRelease,
   updateAppRelease,
   type AppClientType,
   type AppForceLevel,
@@ -102,8 +104,16 @@ function ForceBadge({ level }: { level: Exclude<AppForceLevel, 'NONE'> }) {
   )
 }
 
+function PublishBadge({ isPublished }: { isPublished: boolean }) {
+  return (
+    <Badge variant={isPublished ? 'success' : 'neutral'}>
+      {isPublished ? '배포됨' : '테스트'}
+    </Badge>
+  )
+}
+
 export function AppReleaseManagementPage() {
-  usePageTitle('릴리스 관리')
+  usePageTitle('버전 관리')
 
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
@@ -140,6 +150,21 @@ export function AppReleaseManagementPage() {
     onSuccess: () => {
       setDeleteTarget(null)
       setToast({ type: 'success', message: '릴리스 정보를 삭제했습니다.' })
+      void invalidate()
+    },
+    onError: (err) => {
+      setToast({ type: 'error', message: extractErrorMessage(err) })
+    },
+  })
+
+  const publishMutation = useMutation({
+    mutationFn: (row: AppRelease) =>
+      row.isPublished ? unpublishAppRelease(row.id) : publishAppRelease(row.id),
+    onSuccess: (row) => {
+      setToast({
+        type: 'success',
+        message: row.isPublished ? '릴리스를 배포했습니다.' : '릴리스 배포를 취소했습니다.',
+      })
       void invalidate()
     },
     onError: (err) => {
@@ -190,6 +215,13 @@ export function AppReleaseManagementPage() {
       render: (row) => formatKstDate(row.releasedAt),
     },
     {
+      key: 'isPublished',
+      header: '배포 상태',
+      width: '110px',
+      mobilePriority: 'primary',
+      render: (row) => <PublishBadge isPublished={row.isPublished} />,
+    },
+    {
       key: 'releaseNotes',
       header: '릴리스 노트',
       mobilePriority: 'hidden',
@@ -202,10 +234,20 @@ export function AppReleaseManagementPage() {
     {
       key: 'actions',
       header: '관리',
-      width: '150px',
+      width: '230px',
       mobilePriority: 'secondary',
       render: (row) => (
         <div style={{ display: 'flex', gap: 6 }}>
+          <Button
+            type="button"
+            size="sm"
+            variant={row.isPublished ? 'secondary' : 'primary'}
+            loading={publishMutation.isPending}
+            onClick={() => publishMutation.mutate(row)}
+            data-testid={`app-release-publish-toggle-${row.clientType}-${row.version}`}
+          >
+            {row.isPublished ? '배포 취소' : '배포'}
+          </Button>
           <Button
             type="button"
             size="sm"
@@ -227,7 +269,7 @@ export function AppReleaseManagementPage() {
         </div>
       ),
     },
-  ], [])
+  ], [publishMutation])
 
   return (
     <div data-testid="app-release-admin-page">
@@ -241,7 +283,7 @@ export function AppReleaseManagementPage() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: 22 }}>릴리스 관리</h1>
+          <h1 style={{ margin: 0, fontSize: 22 }}>버전 관리</h1>
           <p style={{ margin: '6px 0 0', color: 'var(--color-neutral-600)', fontSize: 13 }}>
             클라이언트별 최신 버전, 최소 지원 버전, 강제 수준을 관리합니다.
           </p>

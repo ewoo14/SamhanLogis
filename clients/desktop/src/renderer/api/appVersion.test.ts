@@ -5,6 +5,8 @@ import {
   deleteAppRelease,
   getAppVersion,
   listAppReleases,
+  publishAppRelease,
+  unpublishAppRelease,
   updateAppRelease,
   type AppReleasePayload,
 } from './appVersion'
@@ -67,7 +69,7 @@ describe('appVersion API client', () => {
       releaseNotes: '필수 업데이트',
       releasedAt: '2026-06-27T09:00:00+09:00',
     }
-    const row = { id: releaseId, ...payload }
+    const row = { id: releaseId, ...payload, isPublished: true }
     vi.mocked(apiClient.get).mockResolvedValueOnce(envelope([row]))
     vi.mocked(apiClient.post).mockResolvedValueOnce(envelope(row))
     vi.mocked(apiClient.put).mockResolvedValueOnce(envelope({ ...row, forceLevel: 'MINOR' }))
@@ -82,5 +84,28 @@ describe('appVersion API client', () => {
     expect(apiClient.post).toHaveBeenCalledWith('/app/releases', payload)
     expect(apiClient.put).toHaveBeenCalledWith(`/app/releases/${releaseId}`, { ...payload, forceLevel: 'MINOR' })
     expect(apiClient.delete).toHaveBeenCalledWith(`/app/releases/${releaseId}`)
+  })
+
+  it('admin /app/releases publish/unpublish 경로를 POST로 호출한다', async () => {
+    const releaseId = '00000000-0000-4000-8000-000000000102'
+    const row = {
+      id: releaseId,
+      clientType: 'WEB' as const,
+      version: '0.2.0',
+      minSupportedVersion: '0.1.0',
+      forceLevel: 'MAJOR' as const,
+      releaseNotes: '필수 업데이트',
+      releasedAt: '2026-06-27T09:00:00+09:00',
+      isPublished: true,
+    }
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce(envelope(row))
+      .mockResolvedValueOnce(envelope({ ...row, isPublished: false }))
+
+    await expect(publishAppRelease(releaseId)).resolves.toMatchObject({ isPublished: true })
+    await expect(unpublishAppRelease(releaseId)).resolves.toMatchObject({ isPublished: false })
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, `/app/releases/${releaseId}/publish`)
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, `/app/releases/${releaseId}/unpublish`)
   })
 })

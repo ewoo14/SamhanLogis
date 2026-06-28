@@ -16,15 +16,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class AuthFlywayV71SeedIT extends AbstractPostgresIT {
 
     private static final String PAGE_CODE = "admin.app-release";
-    private static final List<String> WRITE_ROLES = List.of("MASTER", "MANAGER");
+    private static final List<String> WRITE_ROLES = List.of("MASTER", "MANAGER", "DEVELOPER");
     private static final UUID MASTER_GROUP = UUID.fromString("00000000-0000-0000-0000-000000000100");
     private static final UUID MANAGER_GROUP = UUID.fromString("00000000-0000-0000-0000-000000000101");
+    private static final UUID DEVELOPER_GROUP = UUID.fromString("00000000-0000-0000-0000-000000000109");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("V71은 MASTER/MANAGER에 앱 릴리스 관리 4-action 기본값을 seed한다")
+    @DisplayName("앱 릴리스 관리는 MASTER/MANAGER/DEVELOPER에 4-action 기본값을 seed한다")
     void v71SeedsAppReleasePermissions() {
         for (String role : WRITE_ROLES) {
             assertThat(countRolePageRows(role)).isEqualTo(1);
@@ -32,7 +33,9 @@ class AuthFlywayV71SeedIT extends AbstractPostgresIT {
         }
         assertThat(countGroupRows(MASTER_GROUP)).isEqualTo(1);
         assertThat(countGroupRows(MANAGER_GROUP)).isEqualTo(1);
+        assertThat(countGroupRows(DEVELOPER_GROUP)).isEqualTo(1);
         assertThat(countAccountPermissionRows(MANAGER_GROUP)).isGreaterThanOrEqualTo(1);
+        assertThat(countAccountPermissionRows(DEVELOPER_GROUP)).isGreaterThanOrEqualTo(1);
     }
 
     private Integer countRolePageRows(String roleCode) {

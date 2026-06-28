@@ -55,6 +55,9 @@ public class AppRelease extends BaseEntity {
     @Column(name = "min_supported_version", nullable = false, length = 50)
     private String minSupportedVersion;
 
+    @Column(name = "is_published", nullable = false)
+    private boolean published = true;
+
     private AppRelease(
             AppClientType clientType,
             String version,
@@ -95,6 +98,18 @@ public class AppRelease extends BaseEntity {
     /** 앱 릴리스 soft-delete. */
     public AppRelease softDelete(String actor) {
         markDeleted(actor == null || actor.isBlank() ? "system" : actor);
+        return this;
+    }
+
+    /** 릴리스를 사용자 버전 게이트에 노출한다. */
+    public AppRelease publish() {
+        this.published = true;
+        return this;
+    }
+
+    /** 릴리스를 테스트 상태로 전환해 사용자 버전 게이트에서 제외한다. */
+    public AppRelease unpublish() {
+        this.published = false;
         return this;
     }
 

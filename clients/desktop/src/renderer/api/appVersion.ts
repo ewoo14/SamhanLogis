@@ -27,6 +27,7 @@ export interface AppReleasePayload {
 
 export interface AppRelease extends AppReleasePayload {
   id: string
+  isPublished: boolean
 }
 
 export async function getAppVersion(
@@ -73,4 +74,18 @@ export async function deleteAppRelease(id: string): Promise<void> {
   await apiClient.delete<ApiEnvelope<null>>(
     `/app/releases/${encodeURIComponent(String(id))}`,
   )
+}
+
+export async function publishAppRelease(id: string): Promise<AppRelease> {
+  const res = await apiClient.post<ApiEnvelope<AppRelease>>(
+    `/app/releases/${encodeURIComponent(String(id))}/publish`,
+  )
+  return res.data.data
+}
+
+export async function unpublishAppRelease(id: string): Promise<AppRelease> {
+  const res = await apiClient.post<ApiEnvelope<AppRelease>>(
+    `/app/releases/${encodeURIComponent(String(id))}/unpublish`,
+  )
+  return res.data.data
 }

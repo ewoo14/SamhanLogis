@@ -36,7 +36,7 @@ class DashboardFlywayV3AppReleaseIT extends AbstractPostgresIT {
     private DynamicPermissionClient dynamicPermissionClient;
 
     @Test
-    @DisplayName("V3 app_release는 enum CHECK, partial unique, BaseEntity 7 audit 컬럼을 가진다")
+    @DisplayName("app_release는 enum CHECK, partial unique, published 상태, BaseEntity 7 audit 컬럼을 가진다")
     void v3AppReleaseSchemaIsApplied() {
         Integer auditColumns = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -58,6 +58,16 @@ class DashboardFlywayV3AppReleaseIT extends AbstractPostgresIT {
                 """, Integer.class);
         assertThat(partialUnique).isEqualTo(1);
 
+        Integer publishedColumns = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM information_schema.columns
+                 WHERE table_name = 'app_release'
+                   AND column_name = 'is_published'
+                   AND column_default = 'true'
+                   AND is_nullable = 'NO'
+                """, Integer.class);
+        assertThat(publishedColumns).isEqualTo(1);
+
         jdbcTemplate.update("""
                 INSERT INTO app_release
                     (id, client_type, version, force_level, release_notes, released_at, min_supported_version,
@@ -70,5 +80,10 @@ class DashboardFlywayV3AppReleaseIT extends AbstractPostgresIT {
                 "SELECT COUNT(*) FROM app_release WHERE client_type = 'DESKTOP' AND version = '9.9.9'",
                 Integer.class);
         assertThat(count).isEqualTo(1);
+
+        Boolean defaultPublished = jdbcTemplate.queryForObject(
+                "SELECT is_published FROM app_release WHERE client_type = 'DESKTOP' AND version = '9.9.9'",
+                Boolean.class);
+        assertThat(defaultPublished).isTrue();
     }
 }

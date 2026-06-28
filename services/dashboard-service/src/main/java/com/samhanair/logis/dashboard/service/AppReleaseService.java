@@ -88,11 +88,27 @@ public class AppReleaseService {
         findActive(id).softDelete(actor);
     }
 
+    /** 릴리스를 사용자 노출 상태로 전환한다. */
+    @Transactional
+    public AppRelease publish(UUID id) {
+        AppRelease release = findActive(id);
+        release.publish();
+        return release;
+    }
+
+    /** 릴리스를 테스트 상태로 전환한다. */
+    @Transactional
+    public AppRelease unpublish(UUID id) {
+        AppRelease release = findActive(id);
+        release.unpublish();
+        return release;
+    }
+
     private AppRelease latestRelease(AppClientType clientType) {
         if (clientType == null) {
             throw new IllegalArgumentException("clientType 필수");
         }
-        return repository.findByClientType(clientType).stream()
+        return repository.findByClientTypeAndPublishedTrue(clientType).stream()
                 .max(Comparator.comparing(AppRelease::getVersion, Semver::compare)
                         .thenComparing(AppRelease::getReleasedAt))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,

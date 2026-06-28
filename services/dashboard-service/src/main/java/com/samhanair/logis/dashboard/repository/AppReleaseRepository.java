@@ -13,6 +13,9 @@ public interface AppReleaseRepository extends JpaRepository<AppRelease, UUID> {
     /** 클라이언트 유형별 활성 릴리스 목록. */
     List<AppRelease> findByClientType(AppClientType clientType);
 
+    /** 클라이언트 유형별 사용자 노출 릴리스 목록. */
+    List<AppRelease> findByClientTypeAndPublishedTrue(AppClientType clientType);
+
     /** 활성 릴리스 중 클라이언트 유형과 semver 조합 조회. */
     Optional<AppRelease> findByClientTypeAndVersion(AppClientType clientType, String version);
 }

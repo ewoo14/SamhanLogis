@@ -377,10 +377,11 @@ describe('mock app version management contract', () => {
         releaseNotes: 'Playwright mock 검증',
         releasedAt: '2026-06-27T10:00:00',
       },
-    }) as MockEnvelope<{ id: string; forceLevel: string; releasedAt: string }>
+    }) as MockEnvelope<{ id: string; forceLevel: string; releasedAt: string; isPublished: boolean }>
 
     expect(created.data.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/)
     expect(created.data.releasedAt).toBe('2026-06-27T10:00:00')
+    expect(created.data.isPublished).toBe(true)
 
     const updated = mockRequest({
       method: 'PUT',
@@ -406,6 +407,49 @@ describe('mock app version management contract', () => {
 
     expect(deleted.success).toBe(true)
     expect(deleted.data).toBeNull()
+  })
+
+  it('POST /app/releases/:id/publish 와 /unpublish는 배포 상태와 버전 게이트 노출을 전환한다', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/app/releases',
+      data: {
+        clientType: 'WEB',
+        version: `8.8.${Date.now()}`,
+        minSupportedVersion: '0.1.0',
+        forceLevel: 'MAJOR',
+        releaseNotes: '테스트 릴리스',
+        releasedAt: '2026-06-27T10:00:00',
+      },
+    }) as MockEnvelope<{ id: string; version: string; isPublished: boolean }>
+
+    const unpublished = mockRequest({
+      method: 'POST',
+      url: `/app/releases/${created.data.id}/unpublish`,
+    }) as MockEnvelope<{ id: string; version: string; isPublished: boolean }>
+
+    expect(unpublished.data.isPublished).toBe(false)
+
+    const gateAfterUnpublish = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'WEB', currentVersion: '0.1.0' },
+    }) as MockEnvelope<{ latestVersion: string }>
+    expect(gateAfterUnpublish.data.latestVersion).not.toBe(created.data.version)
+
+    const published = mockRequest({
+      method: 'POST',
+      url: `/app/releases/${created.data.id}/publish`,
+    }) as MockEnvelope<{ id: string; version: string; isPublished: boolean }>
+
+    expect(published.data.isPublished).toBe(true)
+
+    const gateAfterPublish = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'WEB', currentVersion: '0.1.0' },
+    }) as MockEnvelope<{ latestVersion: string }>
+    expect(gateAfterPublish.data.latestVersion).toBe(created.data.version)
   })
 
   it('POST /app/releases는 releasedAt offset 포함 payload를 BE LocalDateTime 계약처럼 거부한다', () => {
