@@ -7,6 +7,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.approval.ApprovalStatus;
+import com.samhanair.logis.approval.ApprovalStepStatus;
 import com.samhanair.logis.approval.StepType;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -145,6 +146,14 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
         // 그룹 멤버 → APPROVED
         ApprovalLine approved = approvalLineService.approve(approvalId, memberActor, Set.of(groupId));
         assertThat(approved.getStatus()).isEqualTo(ApprovalStatus.APPROVED);
+
+        em.flush();
+        em.clear();
+        ApprovalLine reloaded = approvalLineRepository.findById(approvalId).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ApprovalStatus.APPROVED);
+        assertThat(reloaded.getStepsView()).hasSize(1);
+        assertThat(reloaded.getStepsView().get(0).getStatus()).isEqualTo(ApprovalStepStatus.APPROVED);
+        assertThat(reloaded.getStepsView().get(0).getApprovedByUserId()).isEqualTo(memberActor);
     }
 
     /**
@@ -165,6 +174,14 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
         ApprovalLine rejected = approvalLineService.reject(
                 approvalId, memberActor, Set.of(groupId), "사유 부족");
         assertThat(rejected.getStatus()).isEqualTo(ApprovalStatus.REJECTED);
+
+        em.flush();
+        em.clear();
+        ApprovalLine reloaded = approvalLineRepository.findById(approvalId).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ApprovalStatus.REJECTED);
+        assertThat(reloaded.getStepsView()).hasSize(1);
+        assertThat(reloaded.getStepsView().get(0).getStatus()).isEqualTo(ApprovalStepStatus.REJECTED);
+        assertThat(reloaded.getStepsView().get(0).getApprovedByUserId()).isEqualTo(memberActor);
     }
 
     @Test

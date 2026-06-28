@@ -7,6 +7,7 @@ ALTER TABLE approval_steps ALTER COLUMN approver_id DROP NOT NULL;
 
 -- 단계 타입별 결재자 식별 무결성: GROUP=approver_group_id 필수, 그 외(USER/CREATOR)=approver_id 필수.
 -- 기존 행(step_type=USER, approver_id NOT NULL)은 즉시 충족한다.
+ALTER TABLE approval_steps DROP CONSTRAINT IF EXISTS ck_approval_steps_approver_identity;
 ALTER TABLE approval_steps ADD CONSTRAINT ck_approval_steps_approver_identity CHECK (
     (step_type = 'GROUP' AND approver_group_id IS NOT NULL)
     OR (step_type <> 'GROUP' AND approver_id IS NOT NULL)
