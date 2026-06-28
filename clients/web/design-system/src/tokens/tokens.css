@@ -78,16 +78,6 @@
   --color-aligo-700:     #0D6460;
   --color-aligo-text:    #074B47;
 
-  /* ---------- color: Clova (Naver Clova OCR 전용) ---------- */
-  /* Naver 공식 녹색 계열 — NTS(#0F6523) / Aligo teal(#0F766E) 와 시각 구분. SP-09-3 */
-  /* WCAG AA: --color-clova-text(#014A22) on --color-clova-50(#F0FDF6) ≈ 10.8:1 (AAA 충족) */
-  --color-clova-primary: #03C75A;
-  --color-clova-50:      #F0FDF6;
-  --color-clova-100:     #DCFCE8;
-  --color-clova-200:     #BBF7D0;
-  --color-clova-700:     #02A04B;
-  --color-clova-text:    #014A22;
-
   /* ---------- color: KFTC (한국금융결제원 오픈뱅킹 전용) ---------- */
   /* KFTC 공식 파란 — NTS(#0F6523) / Aligo(#0F766E) / Clova(#03C75A) 와 4색 시각 구분. SP-09-4 */
   /* WCAG AA: --color-kftc-text(#003662) on --color-kftc-50(#EEF6FF) ≈ 9.4:1 (AAA 충족) */
