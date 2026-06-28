@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -119,6 +119,7 @@ export function AppReleaseManagementPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<AppRelease | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AppRelease | null>(null)
+  const [publishTarget, setPublishTarget] = useState<AppRelease | null>(null)
   const [form, setForm] = useState<ReleaseFormState>(() => emptyForm())
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -129,6 +130,12 @@ export function AppReleaseManagementPage() {
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['admin', 'app-releases'] })
+
+  useEffect(() => {
+    if (!toast) return undefined
+    const timer = window.setTimeout(() => setToast(null), 3_000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   const saveMutation = useMutation({
     mutationFn: (payload: AppReleasePayload) =>
@@ -161,6 +168,7 @@ export function AppReleaseManagementPage() {
     mutationFn: (row: AppRelease) =>
       row.isPublished ? unpublishAppRelease(row.id) : publishAppRelease(row.id),
     onSuccess: (row) => {
+      setPublishTarget(null)
       setToast({
         type: 'success',
         message: row.isPublished ? '릴리스를 배포했습니다.' : '릴리스 배포를 취소했습니다.',
@@ -235,15 +243,15 @@ export function AppReleaseManagementPage() {
       key: 'actions',
       header: '관리',
       width: '230px',
-      mobilePriority: 'secondary',
+      mobilePriority: 'primary',
       render: (row) => (
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div className={styles.actionButtons}>
           <Button
             type="button"
             size="sm"
             variant={row.isPublished ? 'secondary' : 'primary'}
             loading={publishMutation.isPending}
-            onClick={() => publishMutation.mutate(row)}
+            onClick={() => setPublishTarget(row)}
             data-testid={`app-release-publish-toggle-${row.clientType}-${row.version}`}
           >
             {row.isPublished ? '배포 취소' : '배포'}
@@ -269,7 +277,7 @@ export function AppReleaseManagementPage() {
         </div>
       ),
     },
-  ], [publishMutation])
+  ], [publishMutation.isPending])
 
   return (
     <div data-testid="app-release-admin-page">
@@ -304,9 +312,22 @@ export function AppReleaseManagementPage() {
             border: `1px solid ${toast.type === 'error' ? 'var(--state-danger)' : 'var(--state-success)'}`,
             background: toast.type === 'error' ? 'var(--state-danger-bg)' : 'var(--state-success-bg)',
             color: toast.type === 'error' ? 'var(--state-danger)' : 'var(--state-success)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
           }}
         >
-          {toast.message}
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="알림 닫기"
+            data-testid="app-release-toast-close"
+            className={styles.toastClose}
+          >
+            닫기
+          </button>
         </div>
       ) : null}
 
@@ -412,6 +433,39 @@ export function AppReleaseManagementPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={publishTarget !== null}
+        onClose={() => setPublishTarget(null)}
+        title={publishTarget?.isPublished ? '배포 취소' : '릴리스 배포'}
+        footer={(
+          <>
+            <Button type="button" variant="secondary" onClick={() => setPublishTarget(null)}>
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant={publishTarget?.isPublished ? 'danger' : 'primary'}
+              loading={publishMutation.isPending}
+              onClick={() => {
+                if (publishTarget) publishMutation.mutate(publishTarget)
+              }}
+              data-testid="app-release-publish-confirm"
+            >
+              {publishTarget?.isPublished ? '배포 취소' : '배포'}
+            </Button>
+          </>
+        )}
+      >
+        <p data-testid="app-release-publish-dialog" style={{ margin: 0 }}>
+          {publishTarget
+            ? `${CLIENT_TYPE_LABEL[publishTarget.clientType]} ${publishTarget.version} 릴리스를 ${publishTarget.isPublished ? '배포 취소' : '배포'}합니다.`
+            : ''}
+        </p>
+        <p style={{ margin: '8px 0 0', color: 'var(--color-neutral-600)', fontSize: 13 }}>
+          전체 클라이언트의 업데이트 안내와 강제 수준 판단에 즉시 반영됩니다.
+        </p>
       </Modal>
 
       <Modal

@@ -166,6 +166,9 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
 
     const firstRow = page.locator('[data-testid^="app-release-row-"]').first()
     await expect(firstRow).toBeVisible()
-    await expect(firstRow.locator('[data-mobile-priority="primary"]')).toHaveCount(2)
+    await expect(firstRow.locator('[data-mobile-priority="primary"]')).toHaveCount(4)
+    await expect(firstRow.getByRole('button', { name: /배포|배포 취소/ })).toHaveCSS('min-height', /4[0-9]px/)
+    await expect(firstRow.getByRole('button', { name: '수정' })).toHaveCSS('min-height', /4[0-9]px/)
+    await expect(firstRow.getByRole('button', { name: '삭제' })).toHaveCSS('min-height', /4[0-9]px/)
   })
 })

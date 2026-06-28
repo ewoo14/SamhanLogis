@@ -13,10 +13,13 @@
 인사 메뉴 아래 '개발' SidebarCategory 신설(DEVELOPER/MASTER 가시), 3 메뉴(팝업공지·버전관리·로그). 신규 인프라 0 — 기존 자산(DEVELOPER 롤·logging-service·MinIO·AppVersionGate/Modal·SidebarCategory·권한매트릭스) 재사용.
 
 ## 2. 공통 파운데이션 (DEV-1에 포함)
-- **사이드바**: `AppLayout.tsx` 인사 그룹(SidebarCategory) 아래 '개발' SidebarCategory 추가. `showDevelopmentGroup = canAccess('dev.popup-notice','view') || canAccess('dev.version','view') || canAccess('dev.activity-log','view')`. 권한 전무 시 미렌더. testId `sidebar-category-toggle-개발`.
-- **page-code**: `dev.popup-notice`·`dev.version`·`dev.activity-log` (FE permissionsApi 유니온 + BE @RequirePermission enum 정확 일치 [[feedback_fe_canaccess_pagecode_be_match]]).
-- **권한매트릭스**: `PermissionMatrixPage.tsx` PAGE_GROUPS에 `{ label:'개발', pages:['dev.popup-notice','dev.version','dev.activity-log'] }` 추가.
-- **시딩**: auth-service 시드에서 DEVELOPER × dev.* view/edit=true (MASTER는 전권 기존).
+- **사이드바**: `AppLayout.tsx` 인사 그룹(SidebarCategory) 아래 '개발' SidebarCategory 추가. 권한 전무 시 미렌더. testId `sidebar-category-toggle-개발`.
+- **page-code (per-slice 도입 — parity-safe)**: ⚠️ **page-code는 해당 메뉴(+ BE @RequirePermission 엔드포인트)와 함께 슬라이스별 도입** — FE page-code 선도입 시 대응 BE @RequirePermission 부재로 **FE↔BE parity 깨짐**([[feedback_fe_canaccess_pagecode_be_match]]). 따라서:
+  - DEV-1 = 버전관리는 **기존 `admin.app-release` 유지**(rename 금지·기존 V1a/V1b/V1c BE 게이트 호환). `showDevelopmentGroup = canAccess('admin.app-release','view')`.
+  - DEV-2 = `dev.popup-notice` 신규(메뉴+BE 엔드포인트 동시)·showDevelopmentGroup에 OR 추가.
+  - DEV-3 = `dev.activity-log` 신규(메뉴+BE 동시)·OR 추가.
+- **권한매트릭스**: `PermissionMatrixPage.tsx` PAGE_GROUPS에 `{ label:'개발', pages:[...] }` — DEV-1=`['admin.app-release']`, DEV-2/3서 page-code 추가.
+- **시딩**: auth-service 시드에서 DEVELOPER × (DEV-1=admin.app-release, DEV-2/3=dev.*) view/edit=true (MASTER는 전권 기존).
 - **모바일**: 각 화면 데스크탑+모바일(Capacitor/PWA) 반응형 [[feedback_fe_mobile_responsive]].
 
 ## 3. 슬라이스

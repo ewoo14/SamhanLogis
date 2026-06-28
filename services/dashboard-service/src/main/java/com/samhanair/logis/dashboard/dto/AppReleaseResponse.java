@@ -1,5 +1,6 @@
 package com.samhanair.logis.dashboard.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.samhanair.logis.dashboard.domain.AppClientType;
 import com.samhanair.logis.dashboard.domain.AppRelease;
 import com.samhanair.logis.dashboard.domain.AppReleaseForceLevel;
@@ -15,6 +16,7 @@ public record AppReleaseResponse(
         String releaseNotes,
         LocalDateTime releasedAt,
         String minSupportedVersion,
+        @JsonProperty("isPublished")
         boolean isPublished
 ) {
 

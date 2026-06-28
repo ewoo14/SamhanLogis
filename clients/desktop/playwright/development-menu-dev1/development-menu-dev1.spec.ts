@@ -37,10 +37,17 @@ test.describe('DEV-1 개발 메뉴 그룹', () => {
     await expect(firstRow).toContainText('배포됨')
 
     await firstRow.getByRole('button', { name: '배포 취소' }).click()
+    await expect(page.getByRole('dialog', { name: '배포 취소' })).toBeVisible()
+    await expect(page.getByTestId('app-release-publish-dialog')).toContainText('배포 취소')
+    await expect(page.getByTestId('app-release-publish-dialog')).toContainText('릴리스를 배포 취소합니다')
+    await page.getByTestId('app-release-publish-confirm').click()
     await expect(firstRow).toContainText('테스트')
     await expect(firstRow.getByRole('button', { name: '배포' })).toBeVisible()
 
     await firstRow.getByRole('button', { name: '배포' }).click()
+    await expect(page.getByRole('dialog', { name: '릴리스 배포' })).toBeVisible()
+    await expect(page.getByTestId('app-release-publish-dialog')).toContainText('릴리스를 배포합니다')
+    await page.getByTestId('app-release-publish-confirm').click()
     await expect(firstRow).toContainText('배포됨')
     await expect(firstRow.getByRole('button', { name: '배포 취소' })).toBeVisible()
   })
