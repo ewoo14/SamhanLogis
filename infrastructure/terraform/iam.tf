@@ -209,9 +209,9 @@ resource "aws_iam_policy" "lambda_health_check_policy" {
         Resource = "*"
       },
       {
-        Sid    = "SNSPublish"
-        Effect = "Allow"
-        Action = ["sns:Publish"]
+        Sid      = "SNSPublish"
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
         Resource = aws_sns_topic.alerts.arn
       },
       {

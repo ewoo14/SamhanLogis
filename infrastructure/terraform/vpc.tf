@@ -187,9 +187,9 @@ resource "aws_security_group" "ec2" {
   # Health Check Lambda (Lambda SG 에서만 허용)
   ingress {
     description     = "Health Check Lambda"
-    from_port   = 8080
-    to_port     = 8097
-    protocol    = "tcp"
+    from_port       = 8080
+    to_port         = 8097
+    protocol        = "tcp"
     security_groups = [aws_security_group.lambda.id]
   }
 

@@ -42,7 +42,7 @@ resource "aws_ssm_parameter" "health_check_failure_count" {
   value = "0"
 
   lifecycle {
-    ignore_changes = [value]  # Lambda 가 직접 업데이트하므로 Terraform 재적용 시 덮어쓰기 방지
+    ignore_changes = [value] # Lambda 가 직접 업데이트하므로 Terraform 재적용 시 덮어쓰기 방지
   }
 
   tags = {

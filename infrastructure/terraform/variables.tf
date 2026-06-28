@@ -60,7 +60,7 @@ variable "ec2_ami_id" {
   description = "EC2 AMI ID (Amazon Linux 2023)"
   type        = string
   # ap-northeast-2 Amazon Linux 2023 최신 AMI — 실 배포 전 확인 필요
-  default     = "ami-0c9c942bd7bf113a2"
+  default = "ami-0c9c942bd7bf113a2"
 }
 
 variable "ec2_volume_size" {

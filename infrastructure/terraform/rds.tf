@@ -110,8 +110,8 @@ resource "aws_db_instance" "main" {
 
   # ── 백업 설정 (✅ RDS automated backup retention 7일 — 무료) ──────────────
   backup_retention_period = var.rds_backup_retention_days
-  backup_window           = "18:00-19:00"  # UTC 18:00 = KST 03:00 (저트래픽 구간)
-  maintenance_window      = "sun:19:00-sun:20:00"  # UTC 일 19:00 = KST 월 04:00
+  backup_window           = "18:00-19:00"         # UTC 18:00 = KST 03:00 (저트래픽 구간)
+  maintenance_window      = "sun:19:00-sun:20:00" # UTC 일 19:00 = KST 월 04:00
 
   # ── Single-AZ (사용자 결정 — Multi-AZ 보류) ───────────────────────────────
   multi_az = false

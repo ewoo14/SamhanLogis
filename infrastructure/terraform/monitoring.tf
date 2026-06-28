@@ -35,10 +35,10 @@ resource "aws_cloudwatch_log_group" "docker" {
 # ─── ALB 5xx 알람 ──────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
-  alarm_name          = "${local.name_prefix}-alb-5xx-rate"
-  alarm_description   = "ALB 5xx 비율 > 1% (5분 평균) — 서비스 오류 가능성"
-  namespace           = "AWS/ApplicationELB"
-  metric_name         = "HTTPCode_Target_5XX_Count"
+  alarm_name        = "${local.name_prefix}-alb-5xx-rate"
+  alarm_description = "ALB 5xx 비율 > 1% (5분 평균) — 서비스 오류 가능성"
+  namespace         = "AWS/ApplicationELB"
+  metric_name       = "HTTPCode_Target_5XX_Count"
 
   dimensions = {
     LoadBalancer = aws_lb.main.arn_suffix
@@ -48,7 +48,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   evaluation_periods  = 1
   period              = 300
   statistic           = "Sum"
-  threshold           = 10  # 5분간 5xx 10건 이상
+  threshold           = 10 # 5분간 5xx 10건 이상
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -62,10 +62,10 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
 # ─── ALB 응답시간 알람 ────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "alb_response_time" {
-  alarm_name          = "${local.name_prefix}-alb-response-time-p99"
-  alarm_description   = "ALB 응답시간 p99 > 500ms"
-  namespace           = "AWS/ApplicationELB"
-  metric_name         = "TargetResponseTime"
+  alarm_name        = "${local.name_prefix}-alb-response-time-p99"
+  alarm_description = "ALB 응답시간 p99 > 500ms"
+  namespace         = "AWS/ApplicationELB"
+  metric_name       = "TargetResponseTime"
 
   dimensions = {
     LoadBalancer = aws_lb.main.arn_suffix
@@ -75,7 +75,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_response_time" {
   evaluation_periods  = 3
   period              = 60
   extended_statistic  = "p99"
-  threshold           = 0.5  # 500ms
+  threshold           = 0.5 # 500ms
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -88,10 +88,10 @@ resource "aws_cloudwatch_metric_alarm" "alb_response_time" {
 # ─── RDS CPU 알람 ─────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
-  alarm_name          = "${local.name_prefix}-rds-cpu-high"
-  alarm_description   = "RDS CPU > 80% (5분 평균)"
-  namespace           = "AWS/RDS"
-  metric_name         = "CPUUtilization"
+  alarm_name        = "${local.name_prefix}-rds-cpu-high"
+  alarm_description = "RDS CPU > 80% (5분 평균)"
+  namespace         = "AWS/RDS"
+  metric_name       = "CPUUtilization"
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.identifier
@@ -115,10 +115,10 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
 # ─── RDS DB 연결 수 알람 ─────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "rds_connections" {
-  alarm_name          = "${local.name_prefix}-rds-connections-high"
-  alarm_description   = "RDS DB 연결 수 > 240 (max_connections=300 의 80%, 17 service 대응)"
-  namespace           = "AWS/RDS"
-  metric_name         = "DatabaseConnections"
+  alarm_name        = "${local.name_prefix}-rds-connections-high"
+  alarm_description = "RDS DB 연결 수 > 240 (max_connections=300 의 80%, 17 service 대응)"
+  namespace         = "AWS/RDS"
+  metric_name       = "DatabaseConnections"
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.identifier
@@ -142,10 +142,10 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
 # ─── RDS Disk 알람 ───────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "rds_disk" {
-  alarm_name          = "${local.name_prefix}-rds-disk-low"
-  alarm_description   = "RDS 여유 디스크 < 15GB (100GB 기준 85% 사용)"
-  namespace           = "AWS/RDS"
-  metric_name         = "FreeStorageSpace"
+  alarm_name        = "${local.name_prefix}-rds-disk-low"
+  alarm_description = "RDS 여유 디스크 < 15GB (100GB 기준 85% 사용)"
+  namespace         = "AWS/RDS"
+  metric_name       = "FreeStorageSpace"
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.identifier
@@ -155,7 +155,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_disk" {
   evaluation_periods  = 1
   period              = 300
   statistic           = "Minimum"
-  threshold           = 15000000000  # 15 GB (bytes)
+  threshold           = 15000000000 # 15 GB (bytes)
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -169,10 +169,10 @@ resource "aws_cloudwatch_metric_alarm" "rds_disk" {
 # ─── EC2 CPU 알람 ─────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "ec2_cpu" {
-  alarm_name          = "${local.name_prefix}-ec2-cpu-high"
-  alarm_description   = "EC2 CPU > 80% (5분 평균)"
-  namespace           = "AWS/EC2"
-  metric_name         = "CPUUtilization"
+  alarm_name        = "${local.name_prefix}-ec2-cpu-high"
+  alarm_description = "EC2 CPU > 80% (5분 평균)"
+  namespace         = "AWS/EC2"
+  metric_name       = "CPUUtilization"
 
   dimensions = {
     InstanceId = aws_instance.app.id
@@ -196,10 +196,10 @@ resource "aws_cloudwatch_metric_alarm" "ec2_cpu" {
 # ─── EC2 메모리 알람 (CloudWatch Agent custom metric) ─────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "ec2_memory" {
-  alarm_name          = "${local.name_prefix}-ec2-memory-high"
-  alarm_description   = "EC2 메모리 사용률 > 85% (CloudWatch Agent)"
-  namespace           = "SamhanLogis/EC2"
-  metric_name         = "mem_used_percent"
+  alarm_name        = "${local.name_prefix}-ec2-memory-high"
+  alarm_description = "EC2 메모리 사용률 > 85% (CloudWatch Agent)"
+  namespace         = "SamhanLogis/EC2"
+  metric_name       = "mem_used_percent"
 
   dimensions = {
     host = "${local.name_prefix}-app-server"
@@ -222,10 +222,10 @@ resource "aws_cloudwatch_metric_alarm" "ec2_memory" {
 # ─── EC2 Disk 알람 (CloudWatch Agent custom metric) ───────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "ec2_disk" {
-  alarm_name          = "${local.name_prefix}-ec2-disk-high"
-  alarm_description   = "EC2 Disk 사용률 > 85% (CloudWatch Agent)"
-  namespace           = "SamhanLogis/EC2"
-  metric_name         = "disk_used_percent"
+  alarm_name        = "${local.name_prefix}-ec2-disk-high"
+  alarm_description = "EC2 Disk 사용률 > 85% (CloudWatch Agent)"
+  namespace         = "SamhanLogis/EC2"
+  metric_name       = "disk_used_percent"
 
   dimensions = {
     host = "${local.name_prefix}-app-server"

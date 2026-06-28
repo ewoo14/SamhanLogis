@@ -39,11 +39,11 @@ resource "aws_instance" "app" {
   monitoring = true
 
   user_data = base64encode(templatefile("${path.module}/templates/user_data.sh", {
-    project_name = var.project_name
-    environment  = var.environment
-    aws_region   = var.aws_region
-    rds_endpoint = aws_db_instance.main.address
-    rds_username = var.rds_username
+    project_name           = var.project_name
+    environment            = var.environment
+    aws_region             = var.aws_region
+    rds_endpoint           = aws_db_instance.main.address
+    rds_username           = var.rds_username
     rds_password_secret_id = aws_secretsmanager_secret.db_password.name
   }))
 
@@ -180,19 +180,19 @@ resource "aws_lb_listener" "http_redirect" {
 # ─── EC2 Auto Recovery (CloudWatch Alarm) ────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "ec2_auto_recovery" {
-  alarm_name          = "${local.name_prefix}-ec2-auto-recovery"
-  alarm_description   = "EC2 시스템 상태 실패 감지 시 자동 복구 (Tier 1)"
-  namespace           = "AWS/EC2"
-  metric_name         = "StatusCheckFailed_System"
+  alarm_name        = "${local.name_prefix}-ec2-auto-recovery"
+  alarm_description = "EC2 시스템 상태 실패 감지 시 자동 복구 (Tier 1)"
+  namespace         = "AWS/EC2"
+  metric_name       = "StatusCheckFailed_System"
   dimensions = {
     InstanceId = aws_instance.app.id
   }
-  comparison_operator       = "GreaterThanOrEqualToThreshold"
-  evaluation_periods        = 2
-  period                    = 60
-  statistic                 = "Maximum"
-  threshold                 = 1
-  treat_missing_data        = "notBreaching"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
 
   # Auto Recovery 액션 (EC2 SystemStatusCheckFailed → recover)
   alarm_actions = [

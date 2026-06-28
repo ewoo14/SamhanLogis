@@ -60,12 +60,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "attachments" {
     status = "Enabled"
 
     filter {
-      prefix = ""  # 모든 객체에 적용
+      prefix = "" # 모든 객체에 적용
     }
 
     transition {
       days          = 180
-      storage_class = "GLACIER_IR"  # Glacier Instant Retrieval — 즉시 복구 가능
+      storage_class = "GLACIER_IR" # Glacier Instant Retrieval — 즉시 복구 가능
     }
 
     noncurrent_version_transition {
@@ -154,7 +154,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
     status = "Enabled"
 
     filter {
-      prefix = ""  # 모든 객체에 적용
+      prefix = "" # 모든 객체에 적용
     }
 
     expiration {
@@ -176,7 +176,7 @@ resource "aws_s3_bucket_policy" "logs" {
     Statement = [
       {
         Effect    = "Allow"
-        Principal = { AWS = "arn:aws:iam::600734575887:root" }  # ap-northeast-2 ALB 계정
+        Principal = { AWS = "arn:aws:iam::600734575887:root" } # ap-northeast-2 ALB 계정
         Action    = "s3:PutObject"
         Resource  = "${aws_s3_bucket.logs.arn}/alb-logs/*"
       },
