@@ -93,7 +93,6 @@ const SCREENS = [
   { id: '01-link-dispatch', cat: '01-영업', route: '/sales/link-dispatch', role: 'MASTER' },
   { id: '01-next-day-slip', cat: '01-영업', route: '/sales/next-day-slip', role: 'MASTER' },
   { id: '01-slip-cleanup', cat: '01-영업', route: '/sales/slip-cleanup', role: 'MASTER' },
-  { id: '01-vendor-order-upload', cat: '01-영업', route: '/sales/vendor-order-upload', role: 'MASTER' },
   // 매트릭스 § 2.1 추가 PNG (zoom / 실 form 변형)
   { id: '01-partner-form', cat: '01-영업', route: '/admin/partners', role: 'MASTER' },
   { id: '01-partner-search', cat: '01-영업', route: '/admin/partners', role: 'MASTER' },

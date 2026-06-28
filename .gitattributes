@@ -29,3 +29,6 @@
 *.ps1 text eol=crlf
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# UTF-16 LE 스크립트 — EOL 변환 시 바이트 정렬 손상되므로 제외
+infrastructure/scripts/operational-validation.ps1 -text

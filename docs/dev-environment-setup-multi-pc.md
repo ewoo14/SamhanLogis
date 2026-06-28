@@ -47,12 +47,6 @@ notification-service 전용 (`infrastructure/env-templates/notification-service.
 - `SAMHAN_ALIGO_SENDER` — **빈 값 유지** (사전 등록 발신번호, Phase 11 cutover 시 설정)
 - `SAMHAN_ALIGO_API_URL` — **빈 값 유지** (Phase 11 cutover 시 `https://apis.aligo.in` 설정. placeholder 사용 금지)
 
-slip-service 전용 (`infrastructure/env-templates/slip-service.env` 복사 후, SP-09-3 Naver Clova OCR):
-- `OCR_SUBMIT_METHOD` — `DRY_RUN` (기본값 유지, Phase 11 sandbox 전환 시 `CLOVA` 로 변경)
-- `CLOVA_OCR_API_KEY` — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `ReceiptOcrClientImpl` 이 CLOVA 모드에서 blank/placeholder 값을 명시 거부함)
-- `CLOVA_OCR_SECRET_KEY` — **빈 값 유지** (Clova OCR 도메인 Secret Key, Phase 11 cutover 시 설정)
-- `CLOVA_OCR_INVOKE_URL` — **빈 값 유지** (Clova OCR Invoke URL, Phase 11 cutover 시 설정. placeholder 사용 금지)
-
 accounting-service 전용 추가 항목 (SP-09-4 KFTC 오픈뱅킹):
 - `KFTC_SUBMIT_METHOD` — `DRY_RUN` (기본값 유지, Phase 11 sandbox 전환 시 `KFTC` 로 변경)
 - `KFTC_API_KEY` — **빈 값 유지** (Phase 11 sandbox 키 발급 후 실값 설정. placeholder 사용 금지 — `KftcClientImpl` 이 KFTC 모드에서 blank/placeholder 값을 명시 거부함)
@@ -79,7 +73,6 @@ arologis-service 전용 (`infrastructure/env-templates/arologis-service.env` 복
 |---|---|---|---|---|
 | 국세청 (홈택스) NTS | SP-09-1 | `ETaxClientImpl` | `accounting-service.env` | 빈 값 + DRY_RUN |
 | Aligo SMS | SP-09-2 | `AligoSmsAdapter` | `notification-service.env` | 빈 값 + stub |
-| Naver Clova OCR | SP-09-3 (진행) | `ReceiptOcrClient` | `slip-service.env` | 빈 값 + DRY_RUN |
 | 인성데이타 퀵프로그램 | Phase 10 W10-2 | `InsungQuickClient` | `arologis-service.env` | 빈 값 |
 | 오픈뱅킹 KFTC | SP-09-4 | `KftcClientImpl` | `accounting-service.env` | 빈 값 + DRY_RUN |
 

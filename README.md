@@ -207,8 +207,8 @@
 - SP-04: Samhan Public 전메뉴/권한/legacy GAS·노션 이식 감사 완료, PR #206 merge. `/tools/legacy-gas` 27개 GAS 카테고리와 PR #115/#117/#118/#119/#120/#163을 대조하고, 단톡방/발송금지/배차지역/DC CSV row count와 종합견적서/주문서 Google Sheet 원본 tab 계약을 재검증했다.
 - SP-05: Samhan Public 실사용 CRUD 표면 재점검 완료, PR #207 merge. 판매관리/구매관리 목록에서 명시 `상세` 버튼으로 `/sales/:id`, `/purchases/:id`에 진입하도록 보정하고, 거래처 기본 UI와 구매 검수 CTA 문서 상태를 최신화했다.
 - SP-06: legacy GAS/Notion DB 이관 정합성 완료, PR #208 merge. 단톡방/발송금지/배차지역/DC 원본 CSV는 cutover 시 각 service DB로 이관하고, 이후 모든 조회·수정·삭제는 Samhan Public DB CRUD 화면/API만 사용하도록 gateway/스크립트/문서 계약을 고정했다.
-- SP-07: Google Sheets 견적/주문 E2E 원본 계약 정렬 완료, PR #209 merge. GAS UI/기능은 그대로 유지하고 Notion 통신만 DB/API로 치환했다. `종합 견적서` live spreadsheet 27개 tab을 재검증하고, `*_단가인상` 기본 단가는 `ProductSheetSyncService`가 ProductMaster로, base `인상 전 단가`는 `PriceHistory`(effective `2000-01-01`)로 분리 보존한다. output/control form(`종합견적서`, `전표업로드목록`, credential-bearing `전표생성폼`)은 runtime `partner-order-service` bootstrap range-map에서 제외했고, vendor OCR 업로드 UI/API는 신규 `priceBasis` 옵션 없이 기존 계약을 유지한다. 자세한 변경 요약은 [CHANGELOG.md](CHANGELOG.md) 2026-05-16 SP-07 entry 참조.
-- SP-08: legacy GAS DB/API parity 기반 잠금 진행 중. 나머지 GAS 코드는 UI/기능을 그대로 유지하고, Notion live target 문구와 runtime 통신만 Samhan DB/API로 치환한다. 이번 기반 작업은 견적 저장 문구를 Samhan DB로 정리하고, 거래처 주문서 저장내역의 `safeBizNo/sDate/eDate` legacy 시그니처를 유지하되 `safeBizNo`는 client-side 호환 인자로만 소비하며 `/partner-orders/drafts?from=&to=`로 날짜만 전달하고, admin CSV/import label을 `기존 운영 CSV`와 `DB 이관 시드`로 정렬한다. 후속은 DPS/배차/회계/vendor OCR/알리고 화면의 저장내역·인쇄 mock 제거·공통 history/state API parity 순서로 진행한다.
+- SP-07: Google Sheets 견적/주문 E2E 원본 계약 정렬 완료, PR #209 merge. GAS UI/기능은 그대로 유지하고 Notion 통신만 DB/API로 치환했다. `종합 견적서` live spreadsheet 27개 tab을 재검증하고, `*_단가인상` 기본 단가는 `ProductSheetSyncService`가 ProductMaster로, base `인상 전 단가`는 `PriceHistory`(effective `2000-01-01`)로 분리 보존한다. output/control form(`종합견적서`, `전표업로드목록`, credential-bearing `전표생성폼`)은 runtime `partner-order-service` bootstrap range-map에서 제외했다. 자세한 변경 요약은 [CHANGELOG.md](CHANGELOG.md) 2026-05-16 SP-07 entry 참조.
+- SP-08: legacy GAS DB/API parity 기반 잠금 진행 중. 나머지 GAS 코드는 UI/기능을 그대로 유지하고, Notion live target 문구와 runtime 통신만 Samhan DB/API로 치환한다. 이번 기반 작업은 견적 저장 문구를 Samhan DB로 정리하고, 거래처 주문서 저장내역의 `safeBizNo/sDate/eDate` legacy 시그니처를 유지하되 `safeBizNo`는 client-side 호환 인자로만 소비하며 `/partner-orders/drafts?from=&to=`로 날짜만 전달하고, admin CSV/import label을 `기존 운영 CSV`와 `DB 이관 시드`로 정렬한다. 후속은 DPS/배차/회계/알리고 화면의 저장내역·인쇄 mock 제거·공통 history/state API parity 순서로 진행한다.
 - SP-08-2: DPS legacy GAS DB/API parity 완료, PR #211 merge. `inventory-service`에 `dps_save_history` JSONB 저장내역 도메인과 `/warehouse/audit/dps-history` API를 추가하고, `/warehouse/dps-compare`, `/warehouse/dps-compare/by-product`에 실행/저장내역 2탭, latest 자동 복원, 명시 저장/복원 UX를 연결했다.
 - SP-08-3-1: 배차 legacy GAS DB/API parity 기반 잠금 진행. 가배차/지방가배차/미배차/운송사 비교(arologis), 전표정리(slip), 배차문자(notification)의 6 endpoint matrix와 도메인별 history 자리(`dispatch_save_history`, `slip_cleanup_save_history`, `dispatch_sms_save_history`)를 정적 계약/QA 캡처/문서로 고정한다.
 - SP-08-3-2: 아로로지스 배차 4 화면 저장내역 구현 진행. `arologis-service`의 `dispatch_save_history` + `/admin/arologis/dispatches/history` API로 가배차/지방가배차/미배차/운송사 비교 결과를 JSONB 저장하고, `clients/arologis-desktop`에 실행/저장내역 2탭, latest 자동 복원, 명시 저장/복원 UX를 연결한다.
@@ -219,7 +219,7 @@
 - SP-08-4 시리즈: 주문 CRUD parity 4개 PR 완료. 목록·상세(#216), direct PUT(#217), soft delete+견적 변환(#218), 인쇄 양식(#219)이 main `d5c3d573`까지 머지됐다.
 - SP-08-5-1: 매입 목록·상세 endpoint 잠금 진행. 매입은 `slip-service` `Slip(type=INBOUND)`로 유지하고, `GET /api/v1/slips?type=INBOUND&from=&to=` alias와 `GET /api/v1/slips/{id}` 상세를 `WAREHOUSE / MANAGER / MASTER` 권한으로 잠근다. `INVENTORY`는 SP-03 검수 CTA 정책과 동일하게 제외한다.
 - SP-08-5-2: 매입 수정 direct PUT 진행. `PUT /api/v1/slips/{id}`는 INBOUND 전표만 `WAREHOUSE / MANAGER / MASTER`가 `updatedAt` 낙관적 잠금으로 헤더/라인을 즉시 수정하며, 기존 `SlipEditRequestController` 요청·승인 흐름은 별도로 유지한다. `SLIP_EDIT` audit revision을 기록하고, 화면에는 구매번호/변경자명만 표시한다.
-- 다음 후보: SP-08-5-3 매입 soft delete + 검수 연계, SP-08 회계/vendor OCR/Aligo 후속 parity, 품목 마스터 7탭 UI.
+- 다음 후보: SP-08-5-3 매입 soft delete + 검수 연계, SP-08 회계/Aligo 후속 parity, 품목 마스터 7탭 UI.
 
 ## 시스템 구조 (Mermaid)
 
@@ -785,7 +785,6 @@ cd qa/detox && npm install && npm run build:ios && npm run test:ios
 | Phase 10 readiness (arologis) | `docs/migration/phase10/M-PHASE-10-readiness.md` (renumber, arologis-service 5 슬라이스) |
 | Phase 11 readiness (AWS cutover) | `docs/migration/phase11/M-PHASE-11-readiness.md` (renumber, 기존 phase10) |
 | Phase 11 AWS dry-run plan  | `docs/migration/phase11/M-AWS-MIGRATION-DRY-RUN.md` (renumber, 기존 phase10) |
-
 | dev-reports 누적           | `docs/dev-reports/`                                                 |
 
 ---
