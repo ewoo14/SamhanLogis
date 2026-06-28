@@ -184,6 +184,17 @@ public class ApprovalTemplateService {
                 .orElse(null);
     }
 
+    /** 템플릿 code 를 조회한다. 중앙 결재라인 documentType 파생에 사용한다. */
+    @Transactional(readOnly = true)
+    public String findTemplateCodeOrNull(UUID templateId) {
+        if (templateId == null) {
+            return null;
+        }
+        return templateRepository.findById(templateId)
+                .map(ApprovalTemplate::getCode)
+                .orElse(null);
+    }
+
     private ApprovalTemplateResponse toResponse(ApprovalTemplate template) {
         return ApprovalTemplateResponse.from(template, loadFields(template.getId()));
     }

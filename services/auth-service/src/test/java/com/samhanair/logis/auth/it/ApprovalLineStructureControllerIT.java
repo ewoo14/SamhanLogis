@@ -37,7 +37,7 @@ class ApprovalLineStructureControllerIT extends AbstractPostgresIT {
     private static final UUID WAREHOUSE_GROUP_ID =
             UUID.fromString("00000000-0000-0000-0000-000000000103");
     private static final String DOCUMENT_TYPE = "SLIP_OUTBOUND";
-    private static final String GROUPWARE_DOCUMENT_TYPE = "GROUPWARE_EXPENSE_REPORT";
+    private static final String GROUPWARE_DOCUMENT_TYPE = "GROUPWARE_STRUCTURE_IT";
 
     @Autowired
     private MockMvc mockMvc;

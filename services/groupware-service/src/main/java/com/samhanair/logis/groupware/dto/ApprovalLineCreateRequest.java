@@ -1,7 +1,6 @@
 package com.samhanair.logis.groupware.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -14,7 +13,7 @@ import java.util.UUID;
  * @param requesterId 요청자 user UUID
  * @param title 제목
  * @param content 본문 (선택)
- * @param approverIds 결재자 chain (sequence ASC, 1명 이상)
+ * @param approverIds 수동/override 결재자 chain. config 미설정 유형은 1명 이상 필요
  * @param templateId 결재유형 템플릿 UUID (선택)
  * @param fieldValues 템플릿 fieldKey -> value (선택)
  */
@@ -22,7 +21,7 @@ public record ApprovalLineCreateRequest(
         @NotNull UUID requesterId,
         @NotBlank @Size(max = 200) String title,
         @Size(max = 2000) String content,
-        @NotEmpty List<@NotNull UUID> approverIds,
+        List<@NotNull UUID> approverIds,
         UUID templateId,
         Map<String, String> fieldValues
 ) {

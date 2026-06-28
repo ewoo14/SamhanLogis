@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.MappedSuperclass;
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -18,8 +19,8 @@ import lombok.NoArgsConstructor;
  * 부모 결재선으로의 {@code @ManyToOne} 역참조·{@code @Id} 는 소비 서비스 concrete @Entity 가 소유한다
  * (Hibernate 가 @MappedSuperclass 의 per-service 관계 타입을 매핑하지 못하므로).
  *
- * <p>결재자 식별은 {@link StepType} 으로 분기한다 — A1 은 {@link StepType#USER}(approverUserId)만
- * 실배선하고, GROUP(approverGroupId/requiredPageCode)·CREATOR 는 컬럼만 nullable 로 선반영한다.
+ * <p>결재자 식별은 {@link StepType} 으로 분기한다. {@link StepType#USER} 는 특정 사원 UUID,
+ * {@link StepType#GROUP} 은 권한 그룹 UUID 또는 page-code 보유 여부로 판정한다.
  */
 @Getter
 @MappedSuperclass
@@ -85,11 +86,39 @@ public abstract class ApprovalStepBase extends BaseEntity {
         this.status = ApprovalStepStatus.PENDING;
     }
 
-    /** 액터가 본 단계의 결재 권한자인지(A1=USER 모드 동일성). GROUP/CREATOR 는 A2/A4. */
+    /** GROUP 모드 단계 초기화 — 권한그룹 식별자는 필수, page-code 는 보조 판정용이다. */
+    protected void initGroupStep(UUID approverGroupId, String requiredPageCode, int sequence) {
+        if (approverGroupId == null) {
+            throw new IllegalArgumentException("approverGroupId 필수");
+        }
+        this.stepType = StepType.GROUP;
+        this.approverGroupId = approverGroupId;
+        this.requiredPageCode = blankToNull(requiredPageCode);
+        this.sequence = sequence;
+        this.status = ApprovalStepStatus.PENDING;
+    }
+
+    /** 액터가 본 단계의 결재 권한자인지. 기존 USER 전용 호출은 source 호환을 위해 유지한다. */
     boolean matchesActor(UUID actorUserId) {
-        return this.stepType == StepType.USER
-                && this.approverUserId != null
-                && this.approverUserId.equals(actorUserId);
+        return matchesActor(actorUserId, Set.of(), Set.of());
+    }
+
+    /** 액터가 본 단계의 결재 권한자인지. GROUP 은 그룹 멤버십 또는 page-code 보유로 통과한다. */
+    boolean matchesActor(UUID actorUserId, Set<UUID> actorGroupIds, Set<String> actorPageCodes) {
+        if (actorUserId == null) {
+            return false;
+        }
+        if (this.stepType == StepType.USER) {
+            return this.approverUserId != null && this.approverUserId.equals(actorUserId);
+        }
+        if (this.stepType != StepType.GROUP) {
+            return false;
+        }
+        Set<UUID> safeGroupIds = actorGroupIds == null ? Set.of() : actorGroupIds;
+        Set<String> safePageCodes = actorPageCodes == null ? Set.of() : actorPageCodes;
+        boolean groupMatch = this.approverGroupId != null && safeGroupIds.contains(this.approverGroupId);
+        boolean pageMatch = this.requiredPageCode != null && safePageCodes.contains(this.requiredPageCode);
+        return groupMatch || pageMatch;
     }
 
     /** 본 단계 승인. 호출 흐름은 {@link ApprovalLineBase#approve(UUID)} 가 보장. */
@@ -113,5 +142,9 @@ public abstract class ApprovalStepBase extends BaseEntity {
         if (this.status != ApprovalStepStatus.PENDING) {
             throw new IllegalStateException("이미 처리된 결재 단계입니다: " + this.status);
         }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

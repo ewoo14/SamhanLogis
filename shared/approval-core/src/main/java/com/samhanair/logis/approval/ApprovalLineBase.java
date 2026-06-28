@@ -6,6 +6,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.MappedSuperclass;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -102,8 +103,13 @@ public abstract class ApprovalLineBase extends BaseEntity {
 
     /** 결재자 승인. 본인 단계 + 미종료 검증 후 단계 승인 + chain 종합 전이. */
     public void approve(UUID actorUserId) {
+        approve(actorUserId, Set.of(), Set.of());
+    }
+
+    /** GROUP 단계 승인 컨텍스트를 포함한 결재자 승인. */
+    public void approve(UUID actorUserId, Set<UUID> actorGroupIds, Set<String> actorPageCodes) {
         ensureMutable();
-        ApprovalStepBase step = requireCurrentStepFor(actorUserId);
+        ApprovalStepBase step = requireCurrentStepFor(actorUserId, actorGroupIds, actorPageCodes);
         step.approve(actorUserId);
         boolean allApproved = stepsView().stream()
                 .allMatch(s -> s.getStatus() == ApprovalStepStatus.APPROVED);
@@ -112,8 +118,13 @@ public abstract class ApprovalLineBase extends BaseEntity {
 
     /** 결재자 반려 — 즉시 REJECTED. */
     public void reject(UUID actorUserId, String reason) {
+        reject(actorUserId, reason, Set.of(), Set.of());
+    }
+
+    /** GROUP 단계 반려 컨텍스트를 포함한 결재자 반려. */
+    public void reject(UUID actorUserId, String reason, Set<UUID> actorGroupIds, Set<String> actorPageCodes) {
         ensureMutable();
-        ApprovalStepBase step = requireCurrentStepFor(actorUserId);
+        ApprovalStepBase step = requireCurrentStepFor(actorUserId, actorGroupIds, actorPageCodes);
         step.reject(actorUserId, reason);
         this.status = ApprovalStatus.REJECTED;
     }
@@ -140,12 +151,14 @@ public abstract class ApprovalLineBase extends BaseEntity {
         }
     }
 
-    private ApprovalStepBase requireCurrentStepFor(UUID actorUserId) {
+    private ApprovalStepBase requireCurrentStepFor(UUID actorUserId,
+                                                   Set<UUID> actorGroupIds,
+                                                   Set<String> actorPageCodes) {
         ApprovalStepBase step = currentStep();
         if (step == null) {
             throw new IllegalStateException("처리 대기 중인 결재 단계가 없습니다");
         }
-        if (!step.matchesActor(actorUserId)) {
+        if (!step.matchesActor(actorUserId, actorGroupIds, actorPageCodes)) {
             throw new IllegalStateException("현재 결재 단계의 결재자가 아닙니다");
         }
         return step;

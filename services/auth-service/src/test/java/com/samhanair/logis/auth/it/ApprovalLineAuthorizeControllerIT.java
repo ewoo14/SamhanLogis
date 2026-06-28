@@ -1,6 +1,7 @@
 package com.samhanair.logis.auth.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -224,6 +225,68 @@ class ApprovalLineAuthorizeControllerIT extends AbstractPostgresIT {
                 .andReturn();
 
         assertThat(result.getResponse().getStatus()).isBetween(400, 499);
+    }
+
+    @Test
+    @DisplayName("GET roles — GROUPWARE 문서 결재선을 sequence 순으로 내부 조회한다")
+    void roles_groupwareDocument_returnsConfiguredRoles() throws Exception {
+        UUID groupId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID userId = UUID.fromString("a0000000-0000-0000-0000-000000000001");
+        MvcResult result = mockMvc.perform(get("/auth/internal/approval-line/roles")
+                        .header(INTERNAL_TOKEN_HEADER, "test-internal-token")
+                        .param("documentType", "GROUPWARE_EXPENSE_REPORT"))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        String body = result.getResponse().getContentAsString();
+        assertThat(body)
+                .contains("\"configured\":true")
+                .contains("\"sequence\":0")
+                .contains("\"stepType\":\"CREATOR\"")
+                .contains("\"sequence\":1")
+                .contains("\"stepType\":\"GROUP\"")
+                .contains("\"approverGroupId\":\"" + groupId + "\"")
+                .contains("\"requiredPageCode\":\"groupware.approvals\"")
+                .contains("\"sequence\":2")
+                .contains("\"stepType\":\"USER\"")
+                .contains(userId.toString());
+    }
+
+    @Test
+    @DisplayName("GET roles — 미설정 documentType 은 configured=false")
+    void roles_unconfiguredDocument_returnsConfiguredFalse() throws Exception {
+        MvcResult result = mockMvc.perform(get("/auth/internal/approval-line/roles")
+                        .header(INTERNAL_TOKEN_HEADER, "test-internal-token")
+                        .param("documentType", "GROUPWARE_NOT_CONFIGURED"))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        assertThat(result.getResponse().getContentAsString())
+                .contains("\"configured\":false")
+                .contains("\"roles\":[]");
+    }
+
+    @Test
+    @DisplayName("V75 seed — GROUPWARE 예시 결재선은 역할/결재자 중복 없이 멱등 형태")
+    void groupwareApprovalLineSeed_hasExpectedIdempotentShape() {
+        Integer roleCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM approval_line_config
+                 WHERE document_type = 'GROUPWARE_EXPENSE_REPORT'
+                   AND is_deleted = FALSE
+                """, Integer.class);
+        Integer approverCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM approval_line_approver a
+                  JOIN approval_line_config c
+                    ON c.id = a.config_role_id
+                   AND c.document_type = 'GROUPWARE_EXPENSE_REPORT'
+                   AND c.is_deleted = FALSE
+                 WHERE a.is_deleted = FALSE
+                """, Integer.class);
+
+        assertThat(roleCount).isEqualTo(3);
+        assertThat(approverCount).isEqualTo(2);
     }
 
     private UUID roleId(String documentType, String actionKey) {

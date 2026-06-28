@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.approval.ApprovalStepStatus;
+import com.samhanair.logis.approval.StepType;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ApprovalStep;
+import com.samhanair.logis.groupware.domain.ResolvedRole;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +43,47 @@ class ApprovalLineServiceTest {
         assertThat(line.getStepsView()).hasSize(2);
         assertThat(line.getStepsView().get(0).getSequence()).isEqualTo(0);
         assertThat(line.getStepsView().get(1).getSequence()).isEqualTo(1);
+    }
+
+    @Test
+    void instantiateFromRoles_은_CREATOR_USER_GROUP을_순서대로_단계화한다() {
+        UUID requester = UUID.randomUUID();
+        UUID reviewer = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        ApprovalLine line = open(requester, "지출", "본문");
+
+        line.instantiateFromRoles(List.of(
+                new ResolvedRole(0, StepType.CREATOR, null, null, null),
+                new ResolvedRole(1, StepType.USER, reviewer, null, null),
+                new ResolvedRole(2, StepType.GROUP, null, groupId, "groupware.approvals")));
+
+        assertThat(line.getStepsView()).hasSize(3);
+        assertThat(line.getStepsView().get(0).getStepType()).isEqualTo(StepType.USER);
+        assertThat(line.getStepsView().get(0).getApproverUserId()).isEqualTo(requester);
+        assertThat(line.getStepsView().get(1).getApproverUserId()).isEqualTo(reviewer);
+        assertThat(line.getStepsView().get(2).getStepType()).isEqualTo(StepType.GROUP);
+        assertThat(line.getStepsView().get(2).getApproverGroupId()).isEqualTo(groupId);
+        assertThat(line.getStepsView()).extracting(ApprovalStep::getSequence)
+                .containsExactly(0, 1, 2);
+    }
+
+    @Test
+    void appendGroupStep_은_GROUP단계를_추가하고_그룹멤버_승인을_허용한다() {
+        UUID requester = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        ApprovalLine line = open(requester, "결재", null);
+
+        line.appendGroupStep(groupId, "groupware.approvals");
+
+        assertThat(line.currentStep().getStepType()).isEqualTo(StepType.GROUP);
+        assertThatThrownBy(() -> line.approve(actor))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("현재 결재 단계");
+
+        line.approve(actor, Set.of(groupId), Set.of());
+
+        assertThat(line.getStatus()).isEqualTo(ApprovalStatus.APPROVED);
     }
 
     @Test

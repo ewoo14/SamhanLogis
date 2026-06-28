@@ -47,7 +47,7 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
             UUID.fromString("00000000-0000-0000-0000-000000000103");
     private static final String PAGE = "admin.approval-line-config";
     private static final String DOCUMENT_TYPE = "SLIP_OUTBOUND";
-    private static final String GROUPWARE_DOCUMENT_TYPE = "GROUPWARE_EXPENSE_REPORT";
+    private static final String GROUPWARE_DOCUMENT_TYPE = "GROUPWARE_CONFIG_IT";
 
     @Autowired
     private MockMvc mockMvc;
@@ -490,7 +490,7 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
                         .header("X-Is-System-Master", "false")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"documentType":"GROUPWARE_EXPENSE_REPORT","label":"검토자"}
+                                {"documentType":"GROUPWARE_CONFIG_IT","label":"검토자"}
                                 """))
                 .andReturn();
 
@@ -792,7 +792,7 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
     private void cleanApprovalLineApprovers() {
         jdbcTemplate.update("""
                 DELETE FROM approval_line_approver
-                WHERE created_by <> 'v62-seed'
+                WHERE created_by NOT IN ('v62-seed', 'v75-seed')
                    OR created_by IS NULL
                    OR config_role_id IN (
                        SELECT id FROM approval_line_config WHERE document_type = ?
@@ -804,7 +804,7 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
         jdbcTemplate.update("""
                 DELETE FROM approval_line_config
                 WHERE document_type = ?
-                  AND created_by NOT IN ('v61-seed', 'v63-seed', 'v64-seed')
+                  AND created_by NOT IN ('v61-seed', 'v63-seed', 'v64-seed', 'v75-seed')
                 """, DOCUMENT_TYPE);
     }
 

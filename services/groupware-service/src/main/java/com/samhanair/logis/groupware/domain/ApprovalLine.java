@@ -3,6 +3,7 @@ package com.samhanair.logis.groupware.domain;
 import com.samhanair.logis.approval.ApprovalLineBase;
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.approval.ApprovalStepStatus;
+import com.samhanair.logis.approval.StepType;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.CascadeType;
@@ -92,15 +93,77 @@ public class ApprovalLine extends ApprovalLineBase {
 
     /** 결재 chain 에 USER 단계 추가. sequence 0-base 자동, 요청자 본인 차단. */
     public ApprovalStep appendStep(UUID approverUserId) {
+        return appendUserStep(approverUserId, false);
+    }
+
+    /** 결재 chain 에 GROUP 단계 추가. sequence 0-base 자동, 동일 그룹 중복 차단. */
+    public ApprovalStep appendGroupStep(UUID approverGroupId, String requiredPageCode) {
+        if (approverGroupId == null) {
+            throw new IllegalArgumentException("approverGroupId 필수");
+        }
+        if (containsGroupApprover(approverGroupId)) {
+            throw new IllegalArgumentException("동일 권한그룹을 결재선에 중복 추가할 수 없습니다");
+        }
+        ApprovalStep step = ApprovalStep.createGroup(this, approverGroupId, requiredPageCode, this.steps.size());
+        this.steps.add(step);
+        return step;
+    }
+
+    /**
+     * 중앙 결재라인 config 역할을 현재 결재선에 인스턴스화한다.
+     *
+     * <p>CREATOR 는 요청자 USER 단계로 동결하고, USER/GROUP 은 정규화된 역할 값에 따라 단계로 변환한다.
+     * sequence 는 기존 단계 뒤에 0-base 로 재부여한다.
+     */
+    public ApprovalLine instantiateFromRoles(List<ResolvedRole> roles) {
+        if (roles == null || roles.isEmpty()) {
+            throw new IllegalArgumentException("결재 역할 1개 이상 필요");
+        }
+        roles.stream()
+                .sorted(java.util.Comparator.comparingInt(ResolvedRole::sequence))
+                .forEach(role -> {
+                    if (role.stepType() == StepType.CREATOR) {
+                        appendUserStep(getRequesterId(), true);
+                    } else if (role.stepType() == StepType.USER) {
+                        appendUserStep(role.approverUserId(), false);
+                    } else if (role.stepType() == StepType.GROUP) {
+                        appendGroupStep(role.approverGroupId(), role.requiredPageCode());
+                    }
+                });
+        return this;
+    }
+
+    /** 그룹웨어 템플릿 documentType 을 loose ref 로 보관한다. */
+    public ApprovalLine linkGroupwareDocument(String documentType, UUID templateId) {
+        if (documentType != null && !documentType.isBlank()) {
+            linkDocument(documentType.trim(), templateId);
+        }
+        return this;
+    }
+
+    private ApprovalStep appendUserStep(UUID approverUserId, boolean allowRequester) {
         if (approverUserId == null) {
             throw new IllegalArgumentException("approverUserId 필수");
         }
-        if (approverUserId.equals(getRequesterId())) {
+        if (!allowRequester && approverUserId.equals(getRequesterId())) {
             throw new IllegalArgumentException("요청자 본인은 결재자가 될 수 없습니다");
+        }
+        if (containsUserApprover(approverUserId)) {
+            throw new IllegalArgumentException("동일 결재자를 결재선에 중복 추가할 수 없습니다");
         }
         ApprovalStep step = ApprovalStep.createUser(this, approverUserId, this.steps.size());
         this.steps.add(step);
         return step;
+    }
+
+    private boolean containsUserApprover(UUID approverUserId) {
+        return this.steps.stream()
+                .anyMatch(step -> approverUserId.equals(step.getApproverUserId()));
+    }
+
+    private boolean containsGroupApprover(UUID approverGroupId) {
+        return this.steps.stream()
+                .anyMatch(step -> approverGroupId.equals(step.getApproverGroupId()));
     }
 
     /** 결재 chain 의 현재 시점 snapshot — 외부 호출자가 list 조작 불가. */

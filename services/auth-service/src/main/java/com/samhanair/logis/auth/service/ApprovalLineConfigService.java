@@ -11,6 +11,8 @@ import com.samhanair.logis.auth.repository.PermissionGroupRepository;
 import com.samhanair.logis.auth.web.dto.ApprovalLineDefaultApproverView;
 import com.samhanair.logis.auth.web.dto.ApprovalLineGroupOption;
 import com.samhanair.logis.auth.web.dto.ApprovalLineRoleView;
+import com.samhanair.logis.auth.web.dto.ApprovalLineRoleResolutionItem;
+import com.samhanair.logis.auth.web.dto.ApprovalLineRoleResolutionResponse;
 import com.samhanair.logis.auth.web.dto.ApprovalLineStructureView;
 import com.samhanair.logis.auth.web.dto.ApproverView;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -32,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ApprovalLineConfigService {
 
     private static final String ACTOR = "approval-line-config";
-    private static final Set<String> SEED_ACTORS = Set.of("v61-seed", "v63-seed", "v64-seed");
+    private static final Set<String> SEED_ACTORS = Set.of("v61-seed", "v63-seed", "v64-seed", "v75-seed");
 
     private final ApprovalLineConfigRepository repository;
     private final ApprovalLineApproverRepository approverRepository;
@@ -45,6 +47,18 @@ public class ApprovalLineConfigService {
         return repository.findByDocumentTypeOrderBySequenceAsc(documentType).stream()
                 .map(this::toView)
                 .toList();
+    }
+
+    /** 서비스 간 결재선 인스턴스화용 역할 목록을 조회한다. */
+    @Transactional(readOnly = true)
+    public ApprovalLineRoleResolutionResponse resolveRoles(String documentType) {
+        List<ApprovalLineConfig> roles = repository.findByDocumentTypeOrderBySequenceAsc(documentType);
+        if (roles.isEmpty()) {
+            return ApprovalLineRoleResolutionResponse.unconfigured();
+        }
+        return new ApprovalLineRoleResolutionResponse(true, roles.stream()
+                .map(this::toResolutionItem)
+                .toList());
     }
 
     /** 전표 인쇄 결재란 렌더용 구조(sequence/label/type/actionKey)만 조회한다. */
@@ -258,11 +272,40 @@ public class ApprovalLineConfigService {
                 displayName);
     }
 
+    private ApprovalLineRoleResolutionItem toResolutionItem(ApprovalLineConfig role) {
+        List<ApprovalLineApprover> approvers =
+                approverRepository.findByConfigRoleIdAndIsDeletedFalse(role.getId());
+        List<UUID> userIds = approvers.stream()
+                .filter(approver -> approver.getApproverType() == ApproverType.USER)
+                .map(ApprovalLineApprover::getApproverRefId)
+                .toList();
+        UUID groupId = approvers.stream()
+                .filter(approver -> approver.getApproverType() == ApproverType.GROUP)
+                .map(ApprovalLineApprover::getApproverRefId)
+                .findFirst()
+                .orElse(role.getApproverGroupId());
+        String requiredPageCode = role.getStepType() == StepType.GROUP
+                ? blankToNull(role.getActionKey())
+                : null;
+        return new ApprovalLineRoleResolutionItem(
+                role.getSequence(),
+                role.getLabel(),
+                role.getStepType(),
+                groupId,
+                userIds,
+                requiredPageCode,
+                role.isRequired());
+    }
+
     private String accountDisplayName(com.samhanair.logis.auth.domain.Account account) {
         String department = account.getDepartmentName();
         if (department == null || department.isBlank()) {
             return account.getDisplayName();
         }
         return account.getDisplayName() + " (" + department + ")";
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

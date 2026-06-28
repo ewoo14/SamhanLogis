@@ -41,8 +41,19 @@ public class ApprovalStep extends ApprovalStepBase {
         initUserStep(approverUserId, sequence);
     }
 
+    private ApprovalStep(ApprovalLine line, UUID approverGroupId, String requiredPageCode, int sequence) {
+        this.approvalLine = line;
+        initGroupStep(approverGroupId, requiredPageCode, sequence);
+    }
+
     /** USER 모드 단계 생성 — caller = {@link ApprovalLine#appendStep}. */
     static ApprovalStep createUser(ApprovalLine line, UUID approverUserId, int sequence) {
         return new ApprovalStep(line, approverUserId, sequence);
+    }
+
+    /** GROUP 모드 단계 생성 — caller = {@link ApprovalLine#appendGroupStep}. */
+    static ApprovalStep createGroup(ApprovalLine line, UUID approverGroupId,
+                                    String requiredPageCode, int sequence) {
+        return new ApprovalStep(line, approverGroupId, requiredPageCode, sequence);
     }
 }

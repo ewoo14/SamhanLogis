@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,11 @@ class ApprovalLineBaseTest {
         static FakeStep user(UUID approverUserId, int sequence) {
             FakeStep s = new FakeStep();
             s.initUserStep(approverUserId, sequence);
+            return s;
+        }
+        static FakeStep group(UUID approverGroupId, String requiredPageCode, int sequence) {
+            FakeStep s = new FakeStep();
+            s.initGroupStep(approverGroupId, requiredPageCode, sequence);
             return s;
         }
     }
@@ -28,6 +34,11 @@ class ApprovalLineBaseTest {
         }
         FakeStep appendUser(UUID approverUserId) {
             FakeStep s = FakeStep.user(approverUserId, steps.size());
+            steps.add(s);
+            return s;
+        }
+        FakeStep appendGroup(UUID approverGroupId, String requiredPageCode) {
+            FakeStep s = FakeStep.group(approverGroupId, requiredPageCode, steps.size());
             steps.add(s);
             return s;
         }
@@ -76,6 +87,24 @@ class ApprovalLineBaseTest {
         assertThatThrownBy(() -> line.approve(UUID.randomUUID()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("결재자가 아닙니다");
+    }
+
+    @Test
+    void approve_는_GROUP단계에서_그룹멤버십_컨텍스트를_사용한다() {
+        UUID requester = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        FakeLine line = FakeLine.open("2026/06/21-1", requester, "지출결의");
+        line.appendGroup(groupId, "groupware.approvals");
+
+        assertThatThrownBy(() -> line.approve(actor))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("결재자가 아닙니다");
+
+        line.approve(actor, Set.of(groupId), Set.of());
+
+        assertThat(line.getStatus()).isEqualTo(ApprovalStatus.APPROVED);
+        assertThat(line.steps.get(0).getApprovedByUserId()).isEqualTo(actor);
     }
 
     @Test
