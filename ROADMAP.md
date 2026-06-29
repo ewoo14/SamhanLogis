@@ -29,6 +29,10 @@
 
 ---
 
+### 최신 진행 메모 (2026-06-30)
+
+- 협업 코-에디팅 S2b: slip 전표 저장 PUT 이후 기존 `slip_revisions` 버전 스냅샷을 기준으로 헤더 필드와 품목 셀의 이전값→새값 diff 를 계산해 `SlipRevisionResponse.fieldChanges`로 제공한다. 신규 테이블/Flyway 없이 기존 revision 흐름에 편입했고, 입고·출고 direct PUT 수정 경로가 실제 변경 시 EDIT revision 을 남긴다. desktop 버전 이력 패널은 displayName + `presenceColor` 단일색상으로 필드 변경 목록을 표시하며 UUID/connectedId 는 노출하지 않는다. 수정 카운트와 레드라인은 S2c/S2d 후속.
+
 ### 최신 진행 메모 (2026-06-24)
 
 - 출고전표 배송일정(M상N하) 자동 — 구조화 태그 (PR #595): 배송태그(지방/야적)별 상차(M=출고일 잠금)/하차(N) 일정을 `DeliverySchedule` 규칙(N=M+1·일요일→월요일·야적토=일요일·지방당착)으로 자동 계산해 `Slip.unload_date`(V52) 구조화 필드 보유, 특이사항 앞 파생 라벨 `25상26하`/`당착`(메모 미저장). N 편집·당착·M 잠금. 컷오프 8지점에 applyDeliverySchedule 배선(태그변경/override 시만 재계산, override 보존). applyDeliveryTagAutoMemo 폐기. ci.yml `slip.it.schedule.*` 등재. 라이브 QA 9/9.

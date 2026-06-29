@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.revision.web.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 전표 버전이력 1건 응답 DTO (권한 재편 Phase 2.1 Task 4).
@@ -20,8 +21,10 @@ import java.time.LocalDateTime;
  * @param slipNo 전표번호 스냅샷 (표시용)
  * @param slipDate 전표 날짜 스냅샷
  * @param actorName 변경 주체 표시명 (UUID 비공개 가드, 없으면 null)
+ * @param actorColor 변경 주체 색상 hex (presence/coedit 와 동일 팔레트, 없으면 null)
  * @param createdAt 버전 생성 시각 ({@link com.samhanair.logis.common.entity.BaseEntity} createdAt)
  * @param changeSummary 직전 revision 대비 변경 규모 요약
+ * @param fieldChanges 직전 revision 대비 필드/품목 셀 단위 변경 목록
  */
 public record SlipRevisionResponse(
         int revisionNo,
@@ -30,8 +33,10 @@ public record SlipRevisionResponse(
         String slipNo,
         LocalDate slipDate,
         String actorName,
+        String actorColor,
         LocalDateTime createdAt,
-        ChangeSummary changeSummary) {
+        ChangeSummary changeSummary,
+        List<FieldChange> fieldChanges) {
 
     /**
      * 직전 revision 스냅샷 대비 변경 규모 요약.
@@ -49,5 +54,30 @@ public record SlipRevisionResponse(
             int lineAdded,
             int lineRemoved,
             int lineModified) {
+    }
+
+    /**
+     * 직전 revision 대비 필드/셀 단위 변경 1건.
+     *
+     * <p>UUID 비공개 정책에 따라 {@code actorId}, {@code partnerId}, {@code productId} 등 내부
+     * 식별자는 노출하지 않는다. {@code fieldPath} 는 UI 위치 식별용 안정 path 이며 값에는
+     * 업무 표시값만 담는다.
+     *
+     * @param fieldPath 내부 위치 path (예: header.memo, lines[0].quantity)
+     * @param label 사용자 표시 라벨
+     * @param beforeValue 이전값 (최초 작성/신규 셀은 null)
+     * @param afterValue 새값 (삭제/clear 는 null)
+     * @param actorName 변경 주체 표시명
+     * @param actorColor 변경 주체 색상 hex
+     * @param changedAt 변경 시각
+     */
+    public record FieldChange(
+            String fieldPath,
+            String label,
+            String beforeValue,
+            String afterValue,
+            String actorName,
+            String actorColor,
+            LocalDateTime changedAt) {
     }
 }

@@ -2889,6 +2889,15 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-EDX-03 | 사용자 화면 식별자는 name/phone 으로 제한한다. UUID id 는 API path key/DataTable rowKey 등 내부 라우팅 용도로만 사용하고 data-testid suffix 도 name 기반으로 둔다. |
 | D-EDX-04 | 슬2는 마스터 CRUD까지만 구현한다. `external_dispatch` / `external_dispatch_slip` 발송 기록과 SMS/인쇄 실행은 슬3/슬4 범위로 분리한다. |
 
+### D-COEDIT-S2B (slip 문서전역 수정/버전 로그, 2026-06-30)
+
+| 결정 | 내용 |
+|---|---|
+| D-COEDIT-S2B-01 | S2b 기록 시점은 기존 저장 PUT 완료 후의 EDIT revision capture 로 둔다. 즉시영속 전환은 하지 않고, S2a 의 Yjs 편집값이 save-PUT 으로 저장되는 순간 기존 버전 이력에 누적한다. |
+| D-COEDIT-S2B-02 | 저장소는 신규 silo 테이블 없이 `slip_revisions` 기존 스냅샷을 진실원으로 유지한다. API 응답에서 인접 revision snapshot 을 비교해 `fieldChanges`를 산출한다. |
+| D-COEDIT-S2B-03 | diff 구조는 `fieldPath`, 한국어 `label`, `beforeValue`, `afterValue`, `actorName`, `actorColor`, `changedAt` 으로 고정한다. UUID 필드와 actorId/connectedId 는 사용자 응답·화면에 노출하지 않는다. |
+| D-COEDIT-S2B-04 | 수정자 색상은 BE `PresenceColor.fromUserId`와 FE `presenceColorToHex` 계열 단일색상 정책을 따른다. presence, coedit, audit 표시색을 분리하지 않는다. 수정 카운트와 레드라인은 S2c/S2d 후속으로 둔다. |
+
 ### D-DMR (배차 #3 수정제안 재배차/수동기입, 2026-06-12)
 
 | 결정 | 내용 |

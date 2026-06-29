@@ -9,6 +9,11 @@ import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
+import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.FieldChange;
+import com.samhanair.logis.shared.realtime.presence.PresenceColor;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -35,6 +40,50 @@ import org.springframework.transaction.annotation.Transactional;
 public class SlipRevisionService {
 
     private final SlipRevisionRepository repository;
+    private static final java.util.regex.Pattern UUID_PATTERN = java.util.regex.Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+
+    private record HeaderField(String path, String label, java.util.function.Function<SlipSnapshot, Object> reader) {
+    }
+
+    private record LineField(String name, String label, java.util.function.Function<SlipSnapshot.Line, Object> reader) {
+    }
+
+    private static final List<HeaderField> HEADER_FIELDS = List.of(
+            new HeaderField("header.slipNo", "전표번호", SlipSnapshot::slipNo),
+            new HeaderField("header.slipDate", "전표일자", SlipSnapshot::slipDate),
+            new HeaderField("header.partnerName", "거래처명", SlipSnapshot::partnerName),
+            new HeaderField("header.partnerCode", "거래처코드", SlipSnapshot::partnerCode),
+            new HeaderField("header.businessNumber", "사업자번호", SlipSnapshot::businessNumber),
+            new HeaderField("header.memo", "메모", SlipSnapshot::memo),
+            new HeaderField("header.deliveryTag", "배송태그", SlipSnapshot::deliveryTag),
+            new HeaderField("header.deliveryAddress", "배송주소", SlipSnapshot::deliveryAddress),
+            new HeaderField("header.supervisionAddress", "감리주소", SlipSnapshot::supervisionAddress),
+            new HeaderField("header.projectName", "프로젝트명", SlipSnapshot::projectName),
+            new HeaderField("header.recipientPhone", "인수자 번호", SlipSnapshot::recipientPhone),
+            new HeaderField("header.paymentDueDate", "입금예정일", SlipSnapshot::paymentDueDate),
+            new HeaderField("header.destinationWarehouseName", "도착지 창고", SlipSnapshot::destinationWarehouseName),
+            new HeaderField("header.shippingAddress", "배송지", SlipSnapshot::shippingAddress),
+            new HeaderField("header.inspectionAddress", "검수지", SlipSnapshot::inspectionAddress),
+            new HeaderField("header.receiverPhone", "수령자 연락처", SlipSnapshot::receiverPhone),
+            new HeaderField("header.customerTel", "거래처 연락처", SlipSnapshot::customerTel),
+            new HeaderField("header.customerAddress", "거래처 주소", SlipSnapshot::customerAddress),
+            new HeaderField("header.customerRepresentative", "거래처 대표자", SlipSnapshot::customerRepresentative),
+            new HeaderField("header.paymentDueLabel", "결제 만기", SlipSnapshot::paymentDueLabel),
+            new HeaderField("header.discountInfo", "할인 정보", SlipSnapshot::discountInfo),
+            new HeaderField("header.collectTerm", "회수 조건", SlipSnapshot::collectTerm),
+            new HeaderField("header.agreeTerm", "약정 조건", SlipSnapshot::agreeTerm)
+    );
+
+    private static final List<LineField> LINE_FIELDS = List.of(
+            new LineField("productName", "품목명", SlipSnapshot.Line::productName),
+            new LineField("modelName", "모델명", SlipSnapshot.Line::modelName),
+            new LineField("specification", "규격", SlipSnapshot.Line::specification),
+            new LineField("quantity", "수량", SlipSnapshot.Line::quantity),
+            new LineField("unitPrice", "단가", SlipSnapshot.Line::unitPrice),
+            new LineField("lineTotal", "합계", SlipSnapshot.Line::lineTotal),
+            new LineField("note", "비고", SlipSnapshot.Line::note)
+    );
 
     /**
      * 현 전표 상태를 버전 스냅샷 1건으로 캡처해 영속화한다.
@@ -164,15 +213,19 @@ public class SlipRevisionService {
         for (SlipRevision revision : revisions) {
             SlipSnapshot cur = revision.getSnapshot();
             ChangeSummary summary = summarize(prev, cur);
+            String actorColor = resolveActorColor(revision);
+            String actorName = safeActorName(revision.getActorName());
             responses.add(new SlipRevisionResponse(
                     revision.getRevisionNo(),
                     revision.getRevisionType() == null ? null : revision.getRevisionType().name(),
                     revision.getSourceRevisionNo(),
                     revision.getSlipNo(),
                     revision.getSlipDate(),
-                    revision.getActorName(),
+                    actorName,
+                    actorColor,
                     revision.getCreatedAt(),
-                    summary));
+                    summary,
+                    fieldChanges(prev, cur, actorName, actorColor, revision.getCreatedAt())));
             prev = cur;
         }
         // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
@@ -369,5 +422,86 @@ public class SlipRevisionService {
             return a == b;
         }
         return a.compareTo(b) == 0;
+    }
+
+    /**
+     * 직전 스냅샷 대비 사용자 표시 가능한 필드/품목 셀 변경 목록을 만든다.
+     *
+     * <p>UUID 계열 식별자(partnerId/productId/warehouseId)는 복원 내부값이므로 응답에서 제외한다.
+     * 라인은 S2a 저장 구조상 row index 를 기준으로 셀 변경을 표시한다.
+     */
+    private List<FieldChange> fieldChanges(SlipSnapshot prev, SlipSnapshot cur,
+                                           String actorName, String actorColor,
+                                           LocalDateTime changedAt) {
+        List<FieldChange> changes = new ArrayList<>();
+        for (HeaderField field : HEADER_FIELDS) {
+            Object before = prev == null ? null : field.reader().apply(prev);
+            Object after = cur == null ? null : field.reader().apply(cur);
+            addChange(changes, field.path(), field.label(), before, after, actorName, actorColor, changedAt);
+        }
+
+        List<SlipSnapshot.Line> prevLines = prev == null || prev.lines() == null ? List.of() : prev.lines();
+        List<SlipSnapshot.Line> curLines = cur == null || cur.lines() == null ? List.of() : cur.lines();
+        int max = Math.max(prevLines.size(), curLines.size());
+        for (int i = 0; i < max; i++) {
+            SlipSnapshot.Line beforeLine = i < prevLines.size() ? prevLines.get(i) : null;
+            SlipSnapshot.Line afterLine = i < curLines.size() ? curLines.get(i) : null;
+            for (LineField field : LINE_FIELDS) {
+                Object before = beforeLine == null ? null : field.reader().apply(beforeLine);
+                Object after = afterLine == null ? null : field.reader().apply(afterLine);
+                addChange(changes, "lines[" + i + "]." + field.name(),
+                        "품목 " + (i + 1) + "행 " + field.label(),
+                        before, after, actorName, actorColor, changedAt);
+            }
+        }
+        return changes;
+    }
+
+    private void addChange(List<FieldChange> changes, String fieldPath, String label,
+                           Object before, Object after, String actorName, String actorColor,
+                           LocalDateTime changedAt) {
+        if (valueEquals(before, after)) {
+            return;
+        }
+        changes.add(new FieldChange(fieldPath, label, formatValue(before), formatValue(after),
+                actorName, actorColor, changedAt));
+    }
+
+    private boolean valueEquals(Object before, Object after) {
+        if (before instanceof BigDecimal a && after instanceof BigDecimal b) {
+            return bigDecimalEquals(a, b);
+        }
+        return Objects.equals(before, after);
+    }
+
+    private String formatValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal.stripTrailingZeros().toPlainString();
+        }
+        if (value instanceof LocalDate date) {
+            return date.toString();
+        }
+        return String.valueOf(value);
+    }
+
+    private String resolveActorColor(SlipRevision revision) {
+        if (revision.getActorColor() != null && !revision.getActorColor().isBlank()) {
+            return revision.getActorColor();
+        }
+        if (revision.getActorId() == null) {
+            return null;
+        }
+        return PresenceColor.fromUserId(revision.getActorId().toString()).hex();
+    }
+
+    private String safeActorName(String actorName) {
+        if (actorName == null || actorName.isBlank()) {
+            return null;
+        }
+        String trimmed = actorName.trim();
+        return UUID_PATTERN.matcher(trimmed).matches() ? null : trimmed;
     }
 }

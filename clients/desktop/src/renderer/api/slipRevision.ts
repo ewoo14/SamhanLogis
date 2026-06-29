@@ -31,6 +31,24 @@ export interface ChangeSummary {
   lineModified: number
 }
 
+/** revision 한 건에 포함된 필드/품목 셀 단위 변경 1건. */
+export interface SlipRevisionFieldChange {
+  /** 내부 위치 path. UUID 값은 포함하지 않는다. */
+  fieldPath: string
+  /** 사용자 표시 라벨. */
+  label: string
+  /** 이전값. 신규 작성/추가 셀은 null. */
+  beforeValue: string | null
+  /** 새값. 삭제/clear 는 null. */
+  afterValue: string | null
+  /** 변경자 풀네임 — UUID 비공개. */
+  actorName: string | null
+  /** presence/coedit 와 동일한 actor 색상 hex. */
+  actorColor: string | null
+  /** 변경 시각 (LocalDateTime ISO 문자열). */
+  changedAt: string | null
+}
+
 /** revision 발생 유형. */
 export type SlipRevisionType = 'CREATE' | 'EDIT' | 'RESTORE'
 
@@ -51,11 +69,15 @@ export interface SlipRevision {
   /** 해당 시점의 전표일자. */
   slipDate: string
   /** 변경자 풀네임 — 화면 표시. */
-  actorName: string
+  actorName: string | null
+  /** 변경자 색상 hex — presence/coedit 와 동일 팔레트. */
+  actorColor: string | null
   /** 생성 시각 (LocalDateTime ISO 문자열). */
   createdAt: string
   /** 직전 revision 대비 변경 요약. */
   changeSummary: ChangeSummary
+  /** 직전 revision 대비 필드/품목 셀 변경 목록. */
+  fieldChanges: SlipRevisionFieldChange[]
 }
 
 /**

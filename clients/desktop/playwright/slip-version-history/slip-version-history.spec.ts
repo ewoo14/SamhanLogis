@@ -2,7 +2,7 @@
  * Phase 2.1 Task 7 — 전표 버전이력 + 복원 Playwright E2E.
  *
  * 검증 대상: {@code SlipVersionHistoryPanel} (전표 상세 `/sales/:id` 하단 패널) 의
- *   1) 버전이력 목록 렌더 (최신 우선, 배지 + 변경요약)
+ *   1) 버전이력 목록 렌더 (최신 우선, 배지 + 변경요약 + S2b 필드/셀 변경 목록)
  *   2) 최신 revision 은 복원 버튼 미노출
  *   3) 과거 revision "이 시점으로 복원" → confirm modal → 확정 → 성공 toast
  *
@@ -14,8 +14,8 @@
  * 는 {@code mock.ts} fixture 가 응답하므로 별도 {@code page.route} 가 필요 없다
  * (interceptor 가 page.route 보다 앞단이라 page.route 는 발동하지 않는다).
  *
- * <p>revisions fixture 는 2건(rev2 EDIT lineAdded=1, rev1 CREATE)이며 actorName 은
- * MOCK_AUTH.fullName(오병승), slipNo 는 대상 전표(slip-001 → 2026/05/04-1)를 따른다.
+ * <p>revisions fixture 는 2건(rev2 EDIT fieldChanges 2건, rev1 CREATE)이며 actorName 은
+ * MOCK_AUTH.fullName(오병승), actorColor 는 presence/coedit 와 동일 단일색상 hex 를 따른다.
  *
  * <h2>UUID 비공개 가드</h2>
  * <p>화면 단언은 actorName / slipNo / 배지·변경요약 텍스트만 사용한다(slipId 'slip-001'
@@ -28,12 +28,14 @@
  *     && npx playwright test playwright/slip-version-history --reporter=line
  */
 import { expect, test, type Page } from '@playwright/test'
+import { mkdirSync } from 'node:fs'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** mock.ts MOCK_SLIPS[0] (OUTBOUND / PROCESSING) 의 id — fixture getSlip 이 이 전표를 반환. */
 const SLIP_ID = 'slip-001'
 const PAGE_URL = `${BASE_URL}/#/sales/${SLIP_ID}?mockRole=MASTER`
+const SCREENSHOT_DIR = '../../docs/qa/coedit-s2b-audit-log/screenshots'
 
 /**
  * window.samhanAuth stub — AuthGuard 통과용 (matrix.spec 패턴 동일).
@@ -59,8 +61,8 @@ async function installAuthMock(page: Page) {
   })
 }
 
-test.describe('Phase 2.1 전표 버전이력 + 복원', () => {
-  test('버전이력 2건 렌더 + 최신 복원버튼 미노출 + 과거 복원 → confirm → 성공 toast', async ({ page }) => {
+test.describe('S2b 전표 버전이력 필드 변경 로그 + 복원', () => {
+  test('버전이력 2건 렌더 + 필드/셀 변경 목록 + 최신 복원버튼 미노출 + 과거 복원', async ({ page }) => {
     await installAuthMock(page)
 
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
@@ -69,17 +71,28 @@ test.describe('Phase 2.1 전표 버전이력 + 복원', () => {
     await expect(page.getByTestId('slip-version-history-panel')).toBeVisible()
     await expect(page.getByTestId('slip-version-history-list')).toBeVisible()
 
-    // 2) 목록 2건 — rev2(수정 / 라인 +1) + rev1(생성).
+    // 2) 목록 2건 — rev2(수정 / 필드 변경 2건) + rev1(생성).
     const row2 = page.getByTestId('slip-version-history-row-2')
     const row1 = page.getByTestId('slip-version-history-row-1')
     await expect(row2).toBeVisible()
     await expect(row1).toBeVisible()
 
-    // rev2 — '수정' 배지 + 변경요약 "라인 +1" 포함.
+    // rev2 — '수정' 배지 + 변경요약 + 필드/셀 변경 목록 포함.
     await expect(row2).toContainText('수정')
-    await expect(row2).toContainText('+1')
+    await expect(row2).toContainText('메모')
+    await expect(row2).toContainText('긴급 출고 / 2세션 수정')
+    await expect(row2).toContainText('품목 1행 수량')
+    await expect(row2).toContainText('3')
+    await expect(page.getByTestId('slip-version-history-change-header-memo')).toBeVisible()
+    await expect(page.getByTestId('slip-version-history-change-lines-0-quantity')).toBeVisible()
     // rev1 — '생성' 배지.
     await expect(row1).toContainText('생성')
+
+    mkdirSync(SCREENSHOT_DIR, { recursive: true })
+    await page.screenshot({
+      path: `${SCREENSHOT_DIR}/slip-version-history-field-changes.png`,
+      fullPage: true,
+    })
 
     // 3) 최신(rev2)은 복원 버튼 미노출, rev1 만 노출.
     await expect(page.getByTestId('slip-version-history-restore-button-2')).toHaveCount(0)

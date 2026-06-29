@@ -18,6 +18,9 @@ import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
+import com.samhanair.logis.shared.realtime.presence.PresenceColor;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -364,5 +367,55 @@ class SlipRevisionServiceTest {
         assertThat(java.util.Arrays.stream(SlipRevisionResponse.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName))
                 .doesNotContain("actorId");
+    }
+
+    @Test
+    @DisplayName("listWithSummary: 직전 revision 대비 헤더 필드와 품목 셀 변경 목록을 actor 색상과 함께 노출한다")
+    void listWithSummaryExposesFieldLevelChangesWithPresenceColor() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        UUID editorId = UUID.fromString("20000000-0000-0000-0000-000000000001");
+
+        SlipRevision rev1 = SlipRevision.of(slipId, 1, SlipRevisionType.CREATE, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("원본 메모", List.of(line(productId, 1, "1000"))),
+                UUID.randomUUID(), "작성자", null);
+        SlipRevision rev2 = SlipRevision.of(slipId, 2, SlipRevisionType.EDIT, null,
+                "2026/05/29-3", LocalDate.of(2026, 5, 29),
+                snapshot("수정 메모", List.of(line(productId, 3, "1000"))),
+                editorId, "김영업", null);
+
+        when(repository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        List<SlipRevisionResponse> result = service.listWithSummary(slipId);
+
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        JsonNode rev2Json = mapper.valueToTree(result.get(0));
+        JsonNode fieldChanges = rev2Json.get("fieldChanges");
+        assertThat(fieldChanges).isNotNull();
+        JsonNode memoChange = findChange(fieldChanges, "header.memo");
+        JsonNode quantityChange = findChange(fieldChanges, "lines[0].quantity");
+        assertThat(memoChange).isNotNull();
+        assertThat(memoChange.get("label").asText()).isEqualTo("메모");
+        assertThat(memoChange.get("beforeValue").asText()).isEqualTo("원본 메모");
+        assertThat(memoChange.get("afterValue").asText()).isEqualTo("수정 메모");
+        assertThat(memoChange.get("actorName").asText()).isEqualTo("김영업");
+        assertThat(memoChange.get("actorColor").asText())
+                .isEqualTo(PresenceColor.fromUserId(editorId.toString()).hex());
+        assertThat(quantityChange).isNotNull();
+        assertThat(quantityChange.get("label").asText()).isEqualTo("품목 1행 수량");
+        assertThat(quantityChange.get("beforeValue").asText()).isEqualTo("1");
+        assertThat(quantityChange.get("afterValue").asText()).isEqualTo("3");
+        assertThat(rev2Json.has("actorId")).isFalse();
+    }
+
+    private JsonNode findChange(JsonNode changes, String fieldPath) {
+        for (JsonNode change : changes) {
+            if (fieldPath.equals(change.get("fieldPath").asText())) {
+                return change;
+            }
+        }
+        return null;
     }
 }

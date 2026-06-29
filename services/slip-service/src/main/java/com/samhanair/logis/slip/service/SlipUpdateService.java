@@ -6,6 +6,8 @@ import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import com.samhanair.logis.slip.web.dto.SlipUpdateRequest;
 import jakarta.persistence.OptimisticLockException;
@@ -33,6 +35,7 @@ public class SlipUpdateService {
 
     private final SlipRepository slipRepository;
     private final SlipAuditLogService auditLogService;
+    private final SlipRevisionService slipRevisionService;
 
     /**
      * 매입 전표 헤더와 라인을 전체 교체한다.
@@ -79,6 +82,8 @@ public class SlipUpdateService {
             // after 는 saveAndFlush 결과 기준으로 캡처하여 ordering 명확화
             String after = summarize(saved);
             if (!Objects.equals(before, after)) {
+                // 버전 스냅샷은 audit revisionCount 증가와 독립 기록해 기존 PUT 응답 version 계약을 보존한다.
+                slipRevisionService.capture(saved, SlipRevisionType.EDIT, null, actorId, actorName, null);
                 auditLogService.recordBatch(saved.getId(), actorId, actorName, null,
                         List.of(new SlipAuditLogService.ChangeEntry("SLIP_EDIT", before, after)));
             }

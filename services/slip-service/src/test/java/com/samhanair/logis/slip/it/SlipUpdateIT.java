@@ -252,6 +252,53 @@ class SlipUpdateIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("S2b: 매입 direct PUT 저장은 EDIT revision 을 추가하고 헤더/품목 셀 diff 를 버전 이력에 노출한다")
+    void testUpdateAppendsRevisionFieldChanges() throws Exception {
+        String id = createSlip("INBOUND", "SP0852-diff-before");
+        MvcResult detail = mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode data = objectMapper.readTree(detail.getResponse().getContentAsString()).path("data");
+        String updatedAt = data.path("updatedAt").asText();
+        String productId = data.path("lines").get(0).path("productId").asText();
+        Map<String, Object> body = updateBody(updatedAt, "SP0852-diff-after", 7, "135000");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> firstLine = (Map<String, Object>) ((List<?>) body.get("lines")).get(0);
+        firstLine.put("productId", productId);
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "창고담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+
+        MvcResult revisions = mockMvc.perform(get("/slips/{id}/revisions", UUID.fromString(id))
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "감사자")
+                        .header(USER_ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].revisionNo").value(2))
+                .andExpect(jsonPath("$.data[0].revisionType").value("EDIT"))
+                .andExpect(jsonPath("$.data[0].actorName").value("창고담당자"))
+                .andReturn();
+
+        JsonNode latest = objectMapper.readTree(revisions.getResponse().getContentAsString())
+                .path("data").get(0);
+        assertThat(latest.has("actorId")).isFalse();
+        assertThat(latest.path("fieldChanges")).isNotEmpty();
+        assertThat(latest.path("fieldChanges").toString()).contains("\"fieldPath\":\"header.partnerName\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"beforeValue\":\"SP0852-diff-before\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"afterValue\":\"SP0852-diff-after\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"fieldPath\":\"lines[0].quantity\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"beforeValue\":\"3\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"afterValue\":\"7\"");
+    }
+
+    @Test
     @DisplayName("U1: OUTBOUND 전표는 매입 direct PUT endpoint에서 403을 반환한다")
     void testUpdateNonInboundForbidden() throws Exception {
         String id = createSlip("OUTBOUND", "SP0852-출고전표");

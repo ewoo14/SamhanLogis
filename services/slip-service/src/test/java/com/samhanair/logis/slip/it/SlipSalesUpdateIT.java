@@ -234,6 +234,53 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("S2b: 매출 direct PUT 저장은 EDIT revision 을 추가하고 헤더/품목 셀 diff 를 버전 이력에 노출한다")
+    void testUpdateSalesAppendsRevisionFieldChanges() throws Exception {
+        String id = createSlip("OUTBOUND", "SP0862-diff-before");
+        MvcResult detail = mockMvc.perform(get(SLIPS_PATH + "/" + id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode data = objectMapper.readTree(detail.getResponse().getContentAsString()).path("data");
+        String updatedAt = data.path("updatedAt").asText();
+        String productId = data.path("lines").get(0).path("productId").asText();
+        Map<String, Object> body = updateBody(updatedAt, "SP0862-diff-after", 8, "210000");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> firstLine = (Map<String, Object>) ((List<?>) body.get("lines")).get(0);
+        firstLine.put("productId", productId);
+
+        mockMvc.perform(put(SLIPS_PATH + "/" + id + SALES_SUFFIX)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "영업담당자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+
+        MvcResult revisions = mockMvc.perform(get("/slips/{id}/revisions", UUID.fromString(id))
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "감사자")
+                        .header(USER_ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].revisionNo").value(2))
+                .andExpect(jsonPath("$.data[0].revisionType").value("EDIT"))
+                .andExpect(jsonPath("$.data[0].actorName").value("영업담당자"))
+                .andReturn();
+
+        JsonNode latest = objectMapper.readTree(revisions.getResponse().getContentAsString())
+                .path("data").get(0);
+        assertThat(latest.has("actorId")).isFalse();
+        assertThat(latest.path("fieldChanges")).isNotEmpty();
+        assertThat(latest.path("fieldChanges").toString()).contains("\"fieldPath\":\"header.partnerName\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"beforeValue\":\"SP0862-diff-before\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"afterValue\":\"SP0862-diff-after\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"fieldPath\":\"lines[0].quantity\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"beforeValue\":\"3\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"afterValue\":\"8\"");
+    }
+
+    @Test
     @DisplayName("U1: 감리주소만 변경해도 SLIP_EDIT audit revision 1건을 기록한다")
     void testUpdateSalesSupervisionAddressOnlyAuditLogRecorded() throws Exception {
         String id = createSlip("OUTBOUND", "SP0862-supervision-audit");

@@ -3503,8 +3503,29 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         slipNo,
         slipDate: slip.slipDate,
         actorName: MOCK_AUTH.fullName,
+        actorColor: '#DB2777',
         createdAt: '2026-05-29T14:32:18',
-        changeSummary: { headerChanged: 0, lineAdded: 1, lineRemoved: 0, lineModified: 0 },
+        changeSummary: { headerChanged: 1, lineAdded: 0, lineRemoved: 0, lineModified: 1 },
+        fieldChanges: [
+          {
+            fieldPath: 'header.memo',
+            label: '메모',
+            beforeValue: '긴급 출고',
+            afterValue: '긴급 출고 / 2세션 수정',
+            actorName: MOCK_AUTH.fullName,
+            actorColor: '#DB2777',
+            changedAt: '2026-05-29T14:32:18',
+          },
+          {
+            fieldPath: 'lines[0].quantity',
+            label: '품목 1행 수량',
+            beforeValue: '1',
+            afterValue: '3',
+            actorName: MOCK_AUTH.fullName,
+            actorColor: '#DB2777',
+            changedAt: '2026-05-29T14:32:18',
+          },
+        ],
       },
       {
         revisionNo: 1,
@@ -3513,8 +3534,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         slipNo,
         slipDate: slip.slipDate,
         actorName: MOCK_AUTH.fullName,
+        actorColor: '#DB2777',
         createdAt: '2026-05-29T09:10:00',
         changeSummary: { headerChanged: 0, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+        fieldChanges: [],
       },
     ])
   }

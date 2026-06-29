@@ -374,6 +374,10 @@ flowchart LR
 
 ---
 
+### 최신 진행 메모 (2026-06-30)
+
+- **협업 코-에디팅 S2b — slip 문서전역 수정/버전 로그**: S2a 전체 폼 Yjs 바인딩 위에서 저장 PUT 흐름은 유지하고, `slip_revisions` 기존 스냅샷 이력에 헤더 필드/품목 셀 단위 변경 목록을 산출해 붙였다. 기록 단위는 `fieldPath`/라벨/이전값/새값/수정자 표시명/수정자 단일색상/시각이며, direct PUT 입고·출고 수정 경로가 실제 변경 시 EDIT revision 을 남긴다. desktop `SlipVersionHistoryPanel`은 버전별 필드 변경을 표시하고 UUID/connectedId 대신 displayName + `presenceColor` 계열 단일색상만 노출한다. 수정 카운트와 레드라인은 S2c/S2d 후속 범위로 유지한다.
+
 ### 최신 진행 메모 (2026-06-24)
 
 - **출고전표 배송일정(M상N하) 자동 — 구조화 태그** (PR #595): 배송태그(지방/야적)별 **상차(M=출고일 잠금)/하차(N)** 일정을 규칙대로 자동 계산해 **구조화 필드 `unload_date`**(V52)로 보유, 특이사항 앞 파생 라벨 **`25상26하`/`당착`**(`deliveryScheduleLabel`, 메모 미저장). 규칙: N=M+1, **N이 일요일→월요일**(단 야적+M=토→일요일), 지방+N==M→`당착`. **N 편집·당착 옵션**·M 잠금. 컷오프 8지점과 동일 지점에 `applyDeliverySchedule` 배선(태그 신규/변경 OR override 시만 재계산 — 사용자 override 보존). desktop SlipForm 하차일/당착 + 조회/인쇄 라벨. 레거시 `applyDeliveryTagAutoMemo`(memo prepend) 폐기. 라이브 QA 9/9(주말규칙 실API 지방토→월·야적토→일).
