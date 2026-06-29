@@ -105,7 +105,7 @@ test.describe('S2b 전표 버전이력 필드 변경 로그 + 복원', () => {
     await expect(confirmBtn).toBeVisible()
     await confirmBtn.click()
 
-    // 5) restore 성공 → toast 에 'rev 1' 텍스트.
-    await expect(page.getByTestId('slip-version-history-toast')).toContainText('rev 1')
+    // 5) restore 성공 → toast 에 '버전 1' 텍스트(한국어 통일, 리뷰 Design NB-2).
+    await expect(page.getByTestId('slip-version-history-toast')).toContainText('버전 1')
   })
 })
