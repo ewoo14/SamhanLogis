@@ -150,7 +150,7 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
       setToast({
         kind: 'success',
-        text: `rev ${revisionNo} 시점으로 전표를 복원했습니다.`,
+        text: `버전 ${revisionNo} 시점으로 전표를 복원했습니다.`,
       })
     },
     onError: () => {
@@ -274,10 +274,10 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
                     <Badge variant={meta.variant}>
                       {meta.label}
                       {rev.revisionType === 'RESTORE' && rev.sourceRevisionNo != null
-                        ? ` (rev ${rev.sourceRevisionNo})`
+                        ? ` (버전 ${rev.sourceRevisionNo})`
                         : ''}
                     </Badge>
-                    <span style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: rev.actorColor ? presenceColorToHex(rev.actorColor) : 'var(--color-neutral-600)' }}>
                       {rev.actorName}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
@@ -350,7 +350,7 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
       >
         <p style={{ margin: 0, fontSize: 14 }}>
           {restoreTarget
-            ? `rev ${restoreTarget.revisionNo} 시점으로 전표를 복원합니다. 현재 내용은 새 버전으로 대체됩니다.`
+            ? `버전 ${restoreTarget.revisionNo} 시점으로 전표를 복원합니다. 현재 내용은 새 버전으로 대체됩니다.`
             : ''}
         </p>
       </Modal>

@@ -428,7 +428,8 @@ public class SlipRevisionService {
      * 직전 스냅샷 대비 사용자 표시 가능한 필드/품목 셀 변경 목록을 만든다.
      *
      * <p>UUID 계열 식별자(partnerId/productId/warehouseId)는 복원 내부값이므로 응답에서 제외한다.
-     * 라인은 S2a 저장 구조상 row index 를 기준으로 셀 변경을 표시한다.
+     * 라인은 {@code productId} 기준으로 매칭해 셀 변경을 표시한다 — row index 기준 비교는 행
+     * 삽입/삭제 시 엉뚱한 셀끼리 비교돼 잘못된 변경자 귀속(오정보)을 만든다(리뷰 BE B-1).
      */
     private List<FieldChange> fieldChanges(SlipSnapshot prev, SlipSnapshot cur,
                                            String actorName, String actorColor,
@@ -442,19 +443,55 @@ public class SlipRevisionService {
 
         List<SlipSnapshot.Line> prevLines = prev == null || prev.lines() == null ? List.of() : prev.lines();
         List<SlipSnapshot.Line> curLines = cur == null || cur.lines() == null ? List.of() : cur.lines();
-        int max = Math.max(prevLines.size(), curLines.size());
-        for (int i = 0; i < max; i++) {
-            SlipSnapshot.Line beforeLine = i < prevLines.size() ? prevLines.get(i) : null;
-            SlipSnapshot.Line afterLine = i < curLines.size() ? curLines.get(i) : null;
-            for (LineField field : LINE_FIELDS) {
-                Object before = beforeLine == null ? null : field.reader().apply(beforeLine);
-                Object after = afterLine == null ? null : field.reader().apply(afterLine);
-                addChange(changes, "lines[" + i + "]." + field.name(),
-                        "품목 " + (i + 1) + "행 " + field.label(),
-                        before, after, actorName, actorColor, changedAt);
+
+        // 품목 라인을 productId 기준으로 매칭(summarize 와 동일). matched 쌍만 셀 diff, 미매칭은 추가/삭제.
+        Map<UUID, SlipSnapshot.Line> prevById = new LinkedHashMap<>();
+        for (SlipSnapshot.Line line : prevLines) {
+            if (line.productId() != null) {
+                prevById.put(line.productId(), line);
             }
         }
+        // cur 순서 유지 — productId 매칭되면 그 prev 라인과 셀 diff(remove 로 소진), 미매칭(또는 null)이면 행 추가
+        for (int i = 0; i < curLines.size(); i++) {
+            SlipSnapshot.Line curLine = curLines.get(i);
+            SlipSnapshot.Line prevLine =
+                    curLine.productId() == null ? null : prevById.remove(curLine.productId());
+            // 라벨은 현재 행 위치(i) 기준 — 매칭은 productId 로 정확히 하되 표시는 현재 위치(기존 계약).
+            String label = "품목 " + (i + 1) + "행";
+            for (LineField field : LINE_FIELDS) {
+                Object before = prevLine == null ? null : field.reader().apply(prevLine);
+                Object after = field.reader().apply(curLine);
+                addChange(changes, "lines[" + i + "]." + field.name(),
+                        label + " " + field.label(), before, after, actorName, actorColor, changedAt);
+            }
+        }
+        // prevById 에 남은 라인 = cur 에서 삭제됨(productId null prev 라인도 매칭 불가 → 삭제) → value→null
+        int removedIdx = 0;
+        for (SlipSnapshot.Line prevLine : prevLines) {
+            boolean removed = prevLine.productId() == null || prevById.containsKey(prevLine.productId());
+            if (!removed) {
+                continue;
+            }
+            String label = lineLabel(prevLine, -1) + " (삭제)";
+            for (LineField field : LINE_FIELDS) {
+                addChange(changes, "lines.removed[" + removedIdx + "]." + field.name(),
+                        label + " " + field.label(), field.reader().apply(prevLine), null,
+                        actorName, actorColor, changedAt);
+            }
+            removedIdx++;
+        }
         return changes;
+    }
+
+    /**
+     * 품목 라인 표시 라벨 — productName 있으면 "품목 {productName}", 없으면 "품목 {n}행"(추가/매칭) 또는 "품목"(삭제).
+     */
+    private String lineLabel(SlipSnapshot.Line line, int displayIndex) {
+        String productName = line.productName();
+        if (productName != null && !productName.isBlank()) {
+            return "품목 " + productName;
+        }
+        return displayIndex >= 0 ? "품목 " + (displayIndex + 1) + "행" : "품목";
     }
 
     private void addChange(List<FieldChange> changes, String fieldPath, String label,
