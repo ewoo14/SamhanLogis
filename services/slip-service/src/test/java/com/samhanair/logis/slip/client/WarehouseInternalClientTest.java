@@ -43,14 +43,14 @@ class WarehouseInternalClientTest {
 
     @Test
     void findWarehouseName_200은_inventory_warehouse_response에서_name을_파싱한다() {
-        server.expect(requestTo(BASE_URL + "/inventory/warehouses/" + WAREHOUSE_ID))
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withSuccess("""
                         {
                           "success": true,
                           "data": {
-                            "id": "50000000-0000-0000-0000-000000000001",
+                            "warehouseId": "50000000-0000-0000-0000-000000000001",
                             "code": "WH-A",
                             "name": "본사창고",
                             "type": "MAIN",
@@ -65,7 +65,7 @@ class WarehouseInternalClientTest {
 
     @Test
     void findWarehouseName_404는_empty로_fail_soft_처리한다() {
-        server.expect(requestTo(BASE_URL + "/inventory/warehouses/" + WAREHOUSE_ID))
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));

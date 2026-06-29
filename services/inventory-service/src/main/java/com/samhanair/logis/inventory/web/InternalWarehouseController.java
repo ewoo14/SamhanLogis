@@ -8,9 +8,11 @@ import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.inventory.web.dto.WarehouseByCodeResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,11 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
  * inventory-service 내부(internal) 창고 조회 endpoint.
  *
  * <p>경로 prefix {@code /internal/} — SecurityConfig 의 {@code InternalTokenFilter} 가
- * X-Internal-Token 헤더를 검증하므로 별도 권한 어노테이션 불필요 (gateway 미통과).
+ * X-Internal-Token 헤더를 검증하고, 컨트롤러는 {@code ROLE_MASTER} 내부 주체만 허용한다.
  *
  * <p>현재 제공 endpoint:
  * <ul>
  *   <li>{@code GET /internal/inventory/warehouses/by-code?code=} — warehouseCode → UUID 역조회</li>
+ *   <li>{@code GET /internal/inventory/warehouses/{id}} — warehouseId(UUID) → 창고명 조회</li>
  * </ul>
  */
 @RestController
@@ -66,6 +69,35 @@ public class InternalWarehouseController {
         Warehouse warehouse = warehouseRepository.findByCode(code.trim())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "창고 코드 '" + code + "' 를 찾을 수 없습니다"));
+        return ApiResponse.ok(new WarehouseByCodeResponse(
+                warehouse.getId(), warehouse.getCode(), warehouse.getName()));
+    }
+
+    /**
+     * 창고 UUID 로 내부 서비스용 창고 요약을 조회한다.
+     *
+     * <p>slip-service 입고전표 생성 경로에서 {@code destinationWarehouseId} 로 창고명을
+     * snapshot 할 때 사용하는 내부 계약이다. 공개 창고 상세 endpoint 와 달리 사용자 헤더
+     * 없이 {@code X-Internal-Token} 으로 인증된 서비스 호출만 허용한다.
+     *
+     * @param id 창고 UUID
+     * @return 창고 UUID / code / name 응답
+     * @throws BusinessException(NOT_FOUND) 해당 UUID 의 활성 창고가 없을 때
+     */
+    @Operation(
+            summary = "창고 UUID 단건 조회 (internal)",
+            description = "warehouseId(UUID) 로 창고 code/name 을 조회. X-Internal-Token 인증 필수."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "해당 UUID 의 창고 없음"),
+    })
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<WarehouseByCodeResponse> byId(@PathVariable UUID id) {
+        Warehouse warehouse = warehouseRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "창고 '" + id + "' 를 찾을 수 없습니다"));
         return ApiResponse.ok(new WarehouseByCodeResponse(
                 warehouse.getId(), warehouse.getCode(), warehouse.getName()));
     }

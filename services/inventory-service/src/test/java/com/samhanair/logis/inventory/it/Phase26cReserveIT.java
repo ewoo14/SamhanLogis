@@ -134,6 +134,34 @@ class Phase26cReserveIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("T1-5: warehouseId 내부 조회 — 성공 (200)")
+    void byId_success() throws Exception {
+        if (warehouseId == null) return;
+
+        mockMvc.perform(get("/internal/inventory/warehouses/{id}", warehouseId)
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.warehouseId", is(warehouseId.toString())))
+                .andExpect(jsonPath("$.data.code", is(warehouseCode)))
+                .andExpect(jsonPath("$.data.name", notNullValue()));
+    }
+
+    @Test
+    @DisplayName("T1-6: warehouseId 내부 조회 — 없는 UUID 404")
+    void byId_notFound() throws Exception {
+        mockMvc.perform(get("/internal/inventory/warehouses/{id}", UUID.randomUUID())
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("T1-7: warehouseId internal endpoint는 X-Internal-Token 누락 시 접근 불가")
+    void byId_rejectsMissingInternalToken() throws Exception {
+        mockMvc.perform(get("/internal/inventory/warehouses/{id}", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+    }
+
     // ─────────────────────────────────────────────────
     // T2: reserve 정상 + 멱등 + 가용부족 409 + release
     // ─────────────────────────────────────────────────
