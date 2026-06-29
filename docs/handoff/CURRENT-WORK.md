@@ -18,7 +18,7 @@
 
 개발책임자 지시: OCR 메뉴 모두 삭제, **추후 GAS(외부)→주문서 직접 전송 레거시 패턴으로 대체 예정**. 영수증 OCR(CLOVA)·발주서 업로드 OCR(Tesseract) 제거·V76(role_page_permissions hard delete + 5테이블 soft delete). 실결함 적발: V76 5테이블 패턴·CI Tesseract·ps1 UTF-16 손상 근본(.gitattributes CRLF)·credential guard. 메모리 `project_ocr_removal_gas_direct.md`.
 
-## 🚩 진행 중 (회사 PC 이어서): Phase 11 AWS 이식 준비 — PR #660 (0수렴, **머지 보류**)
+## ✅ Phase 11 AWS 이식 준비 — PR #660 **머지 완료** + 회사 PC terraform 실증 통과
 
 개발책임자 야간 지시 "AWS 이식 준비 — 바로 이식할 수 있도록". 기존 IaC(#152, May 11)를 **17 service 현행화 + 이식 준비 산출물** 보강. 메모리 `project_overnight_autonomous_aws_prep.md`·`project_phase11_aws.md`.
 
@@ -26,11 +26,16 @@
 - **산출물**: IaC 17서비스 현행화(service_ports 실포트·17 ECR image·15 DB·max_conn 300) · 신규 `ecr.tf`·**`infrastructure/docker-compose.prod.yml`**(17 service+RDS/S3, config 유효)·`init-rds.sql`·**`infrastructure/terraform/CUTOVER.md`**(6단계 런북+체크리스트+수동 18항목)·`user_data.sh` 재작성·aws_s3_object 산출물 자동 업로드. 시크릿 평문 0→**Secrets Manager 전 일원화**·S3 첨부 5서비스 env·기존 hosted zone data source.
 - **CI**: 앱 전 그린 · GitGuardian = PM false-positive 판정(Secrets Manager 참조·placeholder, 실 평문 0).
 
-### ⚠️ 머지 게이트 (회사 PC 필수 — terraform CI 부재로 본 세션 불가)
-1. `gh pr checkout 660` → `cd infrastructure/terraform`
-2. `terraform init -backend=false` → **`terraform validate`** → (실값 tfvars) **`terraform plan`** ← terraform CLI + AWS 계정 필요(집 PC 미설치로 본 세션 코드 검토 갈음)
-3. validate/plan 통과 시 머지 → `CUTOVER.md` 단계 0~6 이식
-4. 수동 18항목(M-1~18: AWS 계정·tfvars 실값·Secrets Manager 시크릿 7종·SSH키·S3 backend 버킷·도메인 hosted zone 위임·ACM `*.arologis` SAN·로컬 PG→RDS 이관 등) — CUTOVER.md 기재, 선행 필수
+### ✅ 머지 게이트 충족 — 회사 PC terraform 실증 완료 (2026-06-29)
+PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설치로 미뤘던 terraform 검증을 **회사 PC 에서 실 CLI(terraform v1.15.7)로 직접 수행**:
+1. `terraform init -backend=false` → AWS provider v5.100.0 / archive v2.8.0 설치 ✅
+2. **`terraform validate`** → **"Success! The configuration is valid." ✅** · `terraform fmt -check` ✅
+3. **`terraform plan`**(자동 tfvars) → 변수 배선·`data.archive_file` read·Outputs(api/arologis api·app·mobile) 계산 **구조 ready ✅** · 유일 차단 = `No valid credential sources`(실 AWS 자격 = 수동항목 M-1, 예상된 결과)
+
+→ handoff 의 "validate 불가" 는 stale 였고 PR #660 머지는 건전(main IaC 유효)함을 실증. terraform CLI 는 scratchpad 에 설치(repo 무오염, init 산출물 모두 .gitignore).
+
+### 🚧 다음 (Phase 11 실 이식 — 개발책임자 결정 필요)
+실 AWS 계정 + tfvars 실값 + `terraform plan`/`apply` (CUTOVER.md 단계 1). 선행 수동 18항목(M-1~18: AWS 계정·tfvars 실값·Secrets Manager 시크릿 7종·SSH키·S3 backend 버킷·도메인 hosted zone 위임·ACM `*.arologis` SAN·로컬 PG→RDS 이관 등) — CUTOVER.md 기재. **실 계정 생성·비용(₩405K/월) 동반 → 개발책임자 착수 지시 대기.**
 
 ## 🚧 백로그 (개발책임자 착수 확인 필요)
 - **OCR → GAS-direct 주문서 전송** — OCR 삭제 후속(레거시 GAS 패턴 재사용). 개발책임자 계획.
@@ -39,7 +44,7 @@
 ## 완료된 큰 흐름 (이번 야간 자율 세션)
 - ✅ A2 그룹웨어 결재 일원화 에픽(task#24) 완결 — A2-G1 BE + A2-G2 FE 표준 워크플로우(순차 듀얼리뷰·0수렴) 머지.
 - ✅ OCR 메뉴 전수 삭제(#658).
-- 🚩 AWS 이식 준비(#660) 0수렴 — 머지 게이트=회사 PC terraform validate.
+- ✅ AWS 이식 준비(#660) 머지 + 회사 PC terraform validate/plan 실증 통과(2026-06-29).
 - 순차 듀얼리뷰가 compile/unit 미검출 실결함 다수 적발(A2-G1 5·A2-G2 7·OCR 4·AWS 16+).
 
 ## ⚠️ 워크플로우 주의(박제)

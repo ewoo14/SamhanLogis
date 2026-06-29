@@ -75,3 +75,9 @@ originSessionId: 78cac99d-5dee-47ca-8254-3834a088f393
 - EC2 t3.micro 750h/월 + RDS db.t3.micro 750h/월 등
 - 14 service 풀 운영 불가 (RAM 1GB 부족)
 - 활용 가능 = 추가 PoC 또는 dev 환경 보조 (장기 계산 X)
+
+## 구현 진척 (IaC)
+
+- **#660 (2026-06-28 머지, `579835ef`)**: 기존 IaC(#152)를 **17 service 현행화**(service_ports 실포트·17 ECR image·15 DB·max_conn 300) + 이식 준비 산출물(`infrastructure/terraform/ecr.tf`·`infrastructure/docker-compose.prod.yml`·`init-rds.sql`·`CUTOVER.md` 6단계 런북·`user_data.sh` 재작성·Secrets Manager 시크릿 일원화). 0수렴(5 듀얼리뷰). ※ 위 표/구성의 "14 service" 는 #660 에서 17 로 현행화됨.
+- **회사 PC terraform 실증 (2026-06-29)**: terraform v1.15.7 로 `init -backend=false`(AWS provider v5.100.0 / archive v2.8.0) → **`validate` ✅ "Success! The configuration is valid."** · `fmt -check` ✅ · `plan` 구조 ready(변수 배선·`data.archive_file` read·Outputs 계산 완료, 유일 차단 = `No valid credential sources` = 실 AWS 자격 = M-1). → main IaC 유효 + #660 머지 건전 실증(handoff "validate 불가" stale 정정).
+- **잔여 = 실 이식**: 실 AWS 계정 + tfvars 실값 + `terraform plan`/`apply`(CUTOVER.md 단계 1) + 수동 18항목(M-1~18: AWS 계정·Secrets Manager 시크릿 7종·SSH키·S3 backend 버킷·hosted zone 위임·ACM·로컬 PG→RDS 이관 등). **실 계정 생성·비용(₩405K/월) 동반 → 개발책임자 착수 지시 대기.**

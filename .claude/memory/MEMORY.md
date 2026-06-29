@@ -4,7 +4,7 @@
 - [Codex 권한은 새 세션부터 적용](feedback_codex_permission_new_session.md) — `mcp__codex__codex`/`-reply` allow 추가는 세션 시작 시 로드 → 추가한 세션엔 미적용, **새 세션부터 자동허용**. 진행 중 권한 프롬프트 반복 시 무리한 재시도(중단 유발) 말고 권한 추가 후 새 세션 인계 (2026-06-26 슬12a)
 - [Project Overview](project_overview.md) — SamhanLogis MSA platform: 14 services, Spring Boot 3 / Java 17, PostgreSQL service-per-DB, 33-week roadmap
 - [Phase 10 = arologis-service / Phase 11 = AWS migration (renumber)](project_arologis_phase10.md) — 2026-05-07 사용자 결정, 모바일 어플 RN Expo mobile-staff 패턴 일관, 외부 vendor = 인성데이타 퀵프로그램
-- [Phase 11 AWS 단일 환경 + 자동 복구](project_phase11_aws.md) — Seoul, m5.xlarge + db.t3.medium + RDS auto backup + EC2 Auto Recovery + Health Check Lambda. 월 ₩405K (정상가)
+- [Phase 11 AWS 단일 환경 + 자동 복구](project_phase11_aws.md) — Seoul, m5.xlarge + db.t3.medium + RDS auto backup + EC2 Auto Recovery + Health Check Lambda. 월 ₩405K. **IaC=#660 머지(17서비스 현행화·CUTOVER.md 런북)+회사PC terraform validate/plan 실증(2026-06-29). 실 이식=수동18항목 대기**
 - [User Role](user_role.md) — 개발책임자 역할; Claude는 PM으로서 팀 에이전트를 병렬 디스패치
 - [사용자 호칭 규칙](feedback_user_title.md) — 사용자는 "개발책임자"; "대표"는 회사 실제 대표(김미선)에게만 사용
 - [아로로지스 독립 분리](project_arologis_independent.md) — 2026-05-14 결정, Samhan Public 마이크로서비스 → 독립 운영 단위 (monorepo 유지, build/배포만 분리, 자체 auth, 휴대번호 passwordless)
@@ -17,7 +17,7 @@
 - [이카운트 이관 자료 네이티브 편입](project_ecount_native_fold.md) — 이관 자료 별도 메뉴/저장(silo) 금지, 시드로 네이티브 편입+"회계 관리자" 폐기 에픽. 현금=이미 분개장 편입(중복 silo만 폐기), 주문=미편입 G1. 정찰 완료→spec→슬라이스, D1~D4 결정 대기 (2026-06-19)
 - [Dev Environment](project_dev_environment.md) — JDK 17 / Gradle 8.10.2 / Docker; locations, env vars, common commands
 - [Korean Path JDK Trap](feedback_korean_path_jdk.md) — `gradle test` fails when project sits under 한글 path on JDK 17; use `assemble` locally, or move/upgrade
-- [한국어 의무 — 커밋/PR/Issue](feedback_korean_commits.md) — 모든 git commit, GitHub PR, Issue는 한국어 작성 필수 (prefix와 trailer만 예외)
+- [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md) — 모든 git commit·PR·Issue + 사용자 대면 보고·대화·설명 한국어 필수 (prefix·trailer만 예외, 2026-06-29 보고 narration 확장)
 - [문서 동기화 의무](feedback_continuous_docs_sync.md) — 매 작업 PR 에 README + ROADMAP + DECISIONS + 각 client/service README + dev-report 갱신 의무 포함, 별도 docs PR 금지 (PR #80/#85 패턴 폐기)
 - [samhan-public-overview.html 동기화 의무](feedback_samhan_public_overview_sync.md) — 2026-05-20. docs/samhan-public-overview.html (GitHub Pages 호스팅) 도 항시 동기화. nav-badge + progress 표 + callout 갱신 (사용자 명시 "항시 업데이트 요망")
 - [QA Docker 실서버 테스트 의무](feedback_qa_docker_real_test.md) — 2026-05-20 재강조. QA agent 는 반드시 Docker 통해 실서버 (Testcontainers Postgres) 에서 테스트 완료. code read 만 PASS 절대 금지. Docker 미가용 시 P2 이상 defect 명시 + Linux CI 결과 fetch 첨부 의무

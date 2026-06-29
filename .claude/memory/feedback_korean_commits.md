@@ -1,6 +1,6 @@
 ---
-name: 한국어 의무 — 커밋 / PR / Issue
-description: SamhanLogis 프로젝트의 모든 git commit message, GitHub PR (제목+본문), GitHub Issue (제목+본문)는 한국어로만 작성
+name: 한국어 의무 — 커밋 / PR / Issue / 보고
+description: SamhanLogis 프로젝트의 모든 git commit message, GitHub PR·Issue(제목+본문), 그리고 사용자 대면 보고·대화·설명은 한국어로만 작성
 type: feedback
 originSessionId: 78cac99d-5dee-47ca-8254-3834a088f393
 ---
@@ -8,6 +8,7 @@ originSessionId: 78cac99d-5dee-47ca-8254-3834a088f393
 1. **Git commit message** — subject + body
 2. **GitHub Pull Request** — 제목 + 본문 (Summary, Test plan 포함)
 3. **GitHub Issue** — 제목 + 본문 (모든 라벨 설명, 댓글 포함)
+4. **사용자 대면 보고·대화·설명** — 채팅 응답·진행 보고·분석 narration·도구 설명 모두 한국어 (영어 narration 지양)
 
 단 다음은 예외:
 - Conventional commit prefix (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`) — 도구 표준
@@ -18,6 +19,7 @@ originSessionId: 78cac99d-5dee-47ca-8254-3834a088f393
 **Why**: 사용자(대표)가 명시적으로 두 차례 요청.
 - 1차: "깃에 커밋할때는 한국어로 할것"
 - 2차: "깃허브 커밋 메세지는 반드시 한국어로만 작성하고, Pull requests와 Issues 모두 한국어로 해줘야해"
+- 3차 (2026-06-29): 회사 PC 재개 세션 중 영어 narration·도구 설명에 "한국어로 해야지" 지적 → 사용자 대면 보고·대화도 한국어 의무로 확장.
 이 저장소의 기존 커밋들도 대부분 한국어임 (예: "feat: 도메인 활용 전략 — samhan-air.com 서브도메인 (4장)", "v2.0: 팀 조직 개편…"). 일관성과 팀 가독성 모두 한국어가 옳음.
 
 **과거 위반 사례 (2026-05-04)**: Phase 1 commit `b574f49`를 영어로 작성하는 실수. 이 메모리를 사전에 확인하지 않은 결과. **앞으로 commit/PR/Issue 작성 직전에 반드시 본 메모리를 확인할 것.**
