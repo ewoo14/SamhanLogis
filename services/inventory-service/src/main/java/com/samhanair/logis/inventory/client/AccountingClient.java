@@ -99,7 +99,7 @@ public class AccountingClient {
 
         try {
             restClient.post()
-                    .uri("/accounting/journals")
+                    .uri("/internal/accounting/journals")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)

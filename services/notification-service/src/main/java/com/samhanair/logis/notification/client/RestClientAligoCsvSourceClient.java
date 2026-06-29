@@ -68,7 +68,7 @@ public class RestClientAligoCsvSourceClient implements AligoCsvSourceClient {
         try {
             RestClient client = builder.baseUrl(baseUrl).build();
             byte[] csv = client.get()
-                    .uri("/admin/partners/export/aligo-csv")
+                    .uri("/internal/partners/export/aligo-csv")
                     .header("X-Internal-Token", internalToken)
                     .retrieve()
                     .body(byte[].class);

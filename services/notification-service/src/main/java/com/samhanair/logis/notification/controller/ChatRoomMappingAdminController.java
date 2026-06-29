@@ -71,24 +71,10 @@ public class ChatRoomMappingAdminController {
             @RequestParam(required = false) String partnerCode,
             @RequestParam(required = false) String partnerBusinessName,
             @RequestParam(required = false) String chatRoomName) {
-        List<ChatRoomMappingResponse> result;
-        if (partnerCode != null && !partnerCode.isBlank()) {
-            result = mappingService.findByPartnerCode(partnerCode).stream()
-                    .map(ChatRoomMappingResponse::from)
-                    .toList();
-        } else if (partnerBusinessName != null && !partnerBusinessName.isBlank()) {
-            result = mappingService.findByPartnerBusinessName(partnerBusinessName).stream()
-                    .map(ChatRoomMappingResponse::from)
-                    .toList();
-        } else if (chatRoomName != null && !chatRoomName.isBlank()) {
-            result = mappingService.findByChatRoomName(chatRoomName).stream()
-                    .map(ChatRoomMappingResponse::from)
-                    .toList();
-        } else {
-            result = mappingService.findAll().stream()
-                    .map(ChatRoomMappingResponse::from)
-                    .toList();
-        }
+        List<ChatRoomMappingResponse> result = mappingService
+                .listMappings(partnerCode, partnerBusinessName, chatRoomName).stream()
+                .map(ChatRoomMappingResponse::from)
+                .toList();
         return ApiResponse.ok(result);
     }
 

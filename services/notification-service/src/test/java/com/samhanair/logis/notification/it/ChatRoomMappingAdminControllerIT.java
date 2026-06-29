@@ -194,4 +194,30 @@ class ChatRoomMappingAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true));
     }
+    @Test
+    void internal_list_with_valid_token_returns_same_shape_as_admin_list() throws Exception {
+        ChatRoomMappingCreateRequest req = new ChatRoomMappingCreateRequest(
+                "P-INT", "내부테스트거래처", "내부테스트 발주방");
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/notification/admin/chat-rooms")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/notification/admin/chat-rooms")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("partnerCode", "P-INT"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].partnerCode").value("P-INT"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].chatRoomName").value("내부테스트 발주방"));
+    }
+
+    @Test
+    void internal_list_without_token_returns_401() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/notification/admin/chat-rooms"))
+                .andExpect(MockMvcResultMatchers.status().isUnauthorized());
+    }
 }

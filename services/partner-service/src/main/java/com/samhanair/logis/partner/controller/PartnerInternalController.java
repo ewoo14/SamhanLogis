@@ -2,16 +2,26 @@ package com.samhanair.logis.partner.controller;
 
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.partner.dto.PartnerBusinessNumberResponse;
+import com.samhanair.logis.partner.dto.BlockedPartnerResponse;
 import com.samhanair.logis.partner.dto.PartnerDirectoryResponse;
 import com.samhanair.logis.partner.dto.PartnerInternalResponse;
 import com.samhanair.logis.partner.dto.PartnerLookupByIdsRequest;
 import com.samhanair.logis.partner.dto.PartnerLookupByIdsResponse;
+import com.samhanair.logis.partner.service.PartnerAligoExportService;
+import com.samhanair.logis.partner.service.PartnerBlockService;
 import com.samhanair.logis.partner.service.PartnerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,6 +49,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class PartnerInternalController {
 
     private final PartnerService partnerService;
+    private final PartnerAligoExportService aligoExportService;
+    private final PartnerBlockService blockService;
 
     /**
      * 종합견적서 거래처 directory 조회.
@@ -220,5 +232,59 @@ public class PartnerInternalController {
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<PartnerInternalResponse> getPartnerSummary(@PathVariable UUID id) {
         return ApiResponse.ok(PartnerInternalResponse.from(partnerService.findById(id)));
+    }
+
+    /**
+     * Aligo 주소록 업로드용 CSV 를 내부 서비스에 제공한다.
+     *
+     * <p>public admin export 와 같은 {@link PartnerAligoExportService#exportAligoCsv()} 를 재사용한다.
+     * {@code @RequirePermission} 은 사용하지 않고, {@code X-Internal-Token} 으로 인증된
+     * {@code ROLE_MASTER} 내부 주체만 허용한다.
+     *
+     * @return UTF-8 BOM 포함 CSV binary
+     */
+    @Operation(summary = "Aligo 주소록 CSV export (internal)",
+            description = "notification-service Aligo 동기화용. X-Internal-Token 필수.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "CSV binary 응답"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락")
+    })
+    @GetMapping("/export/aligo-csv")
+    @PreAuthorize("hasRole('MASTER')")
+    public ResponseEntity<byte[]> exportAligoCsv() {
+        byte[] csv = aligoExportService.exportAligoCsv();
+        String filename = "aligo-address-book-" + java.time.LocalDate.now() + ".csv";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(csv);
+    }
+
+    /**
+     * BLOCK 발송금지 거래처 목록을 내부 서비스에 제공한다.
+     *
+     * <p>public admin blocks 목록과 같은 {@link PartnerBlockService#findAll(Pageable)} 를 재사용해
+     * {@code Page<BlockedPartnerResponse>} 응답 shape 를 유지한다.
+     *
+     * @param page 0-based page
+     * @param size page size
+     * @return 200 + Page<BlockedPartnerResponse>
+     */
+    @Operation(summary = "BLOCK 발송금지 목록 조회 (internal)",
+            description = "slip-service next-day image 생성용. X-Internal-Token 필수.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락")
+    })
+    @GetMapping("/admin/blocks")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<Page<BlockedPartnerResponse>> findBlocks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "blockedAt"));
+        return ApiResponse.ok(blockService.findAll(pageable).map(BlockedPartnerResponse::from));
     }
 }

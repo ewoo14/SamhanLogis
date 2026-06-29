@@ -64,6 +64,14 @@ public class PartnerBlockClient {
         this.objectMapper = objectMapper;
     }
 
+    PartnerBlockClient(RestClient restClient,
+                       InternalAuthProperties internalAuthProperties,
+                       ObjectMapper objectMapper) {
+        this.restClient = restClient;
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
     /**
      * BLOCK 발송금지 거래처 partner_code 전체 lookup — Set 반환.
      *
@@ -77,7 +85,7 @@ public class PartnerBlockClient {
         }
         try {
             String body = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/api/v1/partners/admin/blocks")
+                    .uri(uriBuilder -> uriBuilder.path("/internal/partners/admin/blocks")
                             .queryParam("page", 0)
                             .queryParam("size", BULK_PAGE_SIZE)
                             .build())

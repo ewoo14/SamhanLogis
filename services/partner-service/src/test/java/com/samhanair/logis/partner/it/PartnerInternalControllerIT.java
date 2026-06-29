@@ -8,7 +8,9 @@ import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.partner.service.PartnerBlockService;
 import java.math.BigDecimal;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +47,8 @@ class PartnerInternalControllerIT extends AbstractPostgresIT {
 
     @Autowired
     private PartnerRepository partnerRepository;
+    @Autowired
+    private PartnerBlockService partnerBlockService;
 
     @BeforeEach
     void seedFixturePartner() {
@@ -338,5 +342,39 @@ class PartnerInternalControllerIT extends AbstractPostgresIT {
                         .value("111-22-33333"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.partners[0].name")
                         .value("(주)테스트거래처"));
+    }
+    @Test
+    void export_aligo_csv_with_valid_token_returns_csv() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/partners/export/aligo-csv")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.header().string(
+                        "Content-Type", Matchers.containsString("text/csv")));
+    }
+
+    @Test
+    void export_aligo_csv_without_internal_token_returns_403() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/partners/export/aligo-csv"))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
+    }
+
+    @Test
+    void admin_blocks_with_valid_token_returns_public_page_shape() throws Exception {
+        partnerBlockService.block("P-2026-0001", "test block");
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/partners/admin/blocks")
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("page", "0")
+                        .param("size", "20"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.content.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.content[0].partnerCode").value("P-2026-0001"));
+    }
+
+    @Test
+    void admin_blocks_without_internal_token_returns_403() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/internal/partners/admin/blocks"))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
     }
 }

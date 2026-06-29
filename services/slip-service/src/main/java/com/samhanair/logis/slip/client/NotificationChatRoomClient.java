@@ -59,6 +59,14 @@ public class NotificationChatRoomClient {
         this.objectMapper = objectMapper;
     }
 
+    NotificationChatRoomClient(RestClient restClient,
+                               InternalAuthProperties internalAuthProperties,
+                               ObjectMapper objectMapper) {
+        this.restClient = restClient;
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
     /**
      * partnerCode → 매핑된 chat_room_name 리스트 lookup.
      *
@@ -77,7 +85,7 @@ public class NotificationChatRoomClient {
         }
         try {
             String body = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/api/v1/notification/admin/chat-rooms")
+                    .uri(uriBuilder -> uriBuilder.path("/internal/notification/admin/chat-rooms")
                             .queryParam("partnerCode", partnerCode)
                             .build())
                     .header(INTERNAL_TOKEN_HEADER, token)
@@ -119,7 +127,7 @@ public class NotificationChatRoomClient {
         }
         try {
             String body = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/api/v1/notification/admin/chat-rooms")
+                    .uri(uriBuilder -> uriBuilder.path("/internal/notification/admin/chat-rooms")
                             .queryParam("partnerBusinessName", partnerName)
                             .build())
                     .header(INTERNAL_TOKEN_HEADER, token)

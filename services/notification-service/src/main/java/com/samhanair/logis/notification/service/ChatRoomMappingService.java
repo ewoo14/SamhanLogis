@@ -38,6 +38,29 @@ public class ChatRoomMappingService {
         return repository.findAllByOrderByPartnerCodeAscChatRoomNameAsc();
     }
 
+    /**
+     * 관리자/내부 endpoint 공통 목록 조회 진입점.
+     *
+     * <p>public admin controller 와 internal controller 가 같은 service 분기 로직을 재사용해
+     * 응답 shape 차이와 필터 우선순위 회귀를 막는다.
+     */
+    @Transactional(readOnly = true)
+    public List<PartnerChatRoomMapping> listMappings(
+            String partnerCode,
+            String partnerBusinessName,
+            String chatRoomName) {
+        if (partnerCode != null && !partnerCode.isBlank()) {
+            return findByPartnerCode(partnerCode);
+        }
+        if (partnerBusinessName != null && !partnerBusinessName.isBlank()) {
+            return findByPartnerBusinessName(partnerBusinessName);
+        }
+        if (chatRoomName != null && !chatRoomName.isBlank()) {
+            return findByChatRoomName(chatRoomName);
+        }
+        return findAll();
+    }
+
     /** 거래처별 매핑 N건. */
     @Transactional(readOnly = true)
     public List<PartnerChatRoomMapping> findByPartnerCode(String partnerCode) {

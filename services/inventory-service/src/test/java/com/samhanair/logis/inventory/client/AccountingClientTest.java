@@ -26,7 +26,7 @@ import org.springframework.web.client.RestClient;
 class AccountingClientTest {
 
     private static final String TOKEN = "test-token-xyz";
-    private static final String ENDPOINT = "http://accounting-service/accounting/journals";
+    private static final String ENDPOINT = "http://accounting-service/internal/accounting/journals";
 
     private MockRestServiceServer server;
     private AccountingClient client;
