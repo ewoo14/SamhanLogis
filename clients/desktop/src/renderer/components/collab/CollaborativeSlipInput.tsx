@@ -54,6 +54,7 @@ export function CollaborativeSlipInput({
   const latestValueRef = useRef(value)
   const [remoteCursors, setRemoteCursors] = useState<RemoteFieldCursor[]>(() => remoteCursorsFor(provider, fieldPath))
   const primaryRemote = remoteCursors[0]
+  const effectiveReadOnly = readOnly || !provider
   latestValueRef.current = value
 
   useEffect(() => {
@@ -129,7 +130,7 @@ export function CollaborativeSlipInput({
         type={type}
         min={min}
         maxLength={maxLength}
-        readOnly={readOnly}
+        readOnly={effectiveReadOnly}
         value={value}
         aria-label={ariaLabel}
         onFocus={updateCursor}
@@ -137,9 +138,10 @@ export function CollaborativeSlipInput({
         onKeyUp={updateCursor}
         onSelect={updateCursor}
         onChange={(event) => {
+          if (effectiveReadOnly) return
           const nextValue = event.target.value
           onValueChange(nextValue)
-          if (!readOnly && provider) setProviderValue(provider, fieldPath, nextValue)
+          if (provider) setProviderValue(provider, fieldPath, nextValue)
           updateCursor()
         }}
       />

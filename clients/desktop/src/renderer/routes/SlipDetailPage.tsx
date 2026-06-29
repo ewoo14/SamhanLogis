@@ -2631,7 +2631,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               type="button"
               variant="primary"
               loading={purchaseUpdateMutation.isPending}
-              disabled={purchaseUpdateMutation.isPending || purchaseEditLines.length === 0}
+              disabled={purchaseUpdateMutation.isPending || !slipFormCoeditProvider || purchaseEditLines.length === 0}
               data-testid="purchase-slip-edit-submit"
               onClick={() => {
                 purchaseUpdateMutation.mutate({
@@ -2890,7 +2890,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               type="button"
               variant="primary"
               loading={salesUpdateMutation.isPending}
-              disabled={salesUpdateMutation.isPending || salesEditLines.length === 0}
+              disabled={salesUpdateMutation.isPending || !slipFormCoeditProvider || salesEditLines.length === 0}
               data-testid="sales-slip-edit-save"
               onClick={() => {
                 salesUpdateMutation.mutate({

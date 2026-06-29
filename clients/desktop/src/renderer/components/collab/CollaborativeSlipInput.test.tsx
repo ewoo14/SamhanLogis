@@ -99,4 +99,25 @@ describe('CollaborativeSlipInput', () => {
 
     expect(onValueChange).toHaveBeenCalledWith('원격 적요')
   })
+
+  it('provider 준비 전에는 입력을 잠가 Y.Doc 과 modal state 분리를 막는다', () => {
+    const onValueChange = vi.fn()
+
+    render(
+      <CollaborativeSlipInput
+        provider={null}
+        fieldPath="header.memo"
+        value="기존 적요"
+        onValueChange={onValueChange}
+        aria-label="적요"
+      />,
+    )
+
+    const input = screen.getByLabelText('적요')
+    expect((input as HTMLInputElement).readOnly).toBe(true)
+
+    fireEvent.change(input, { target: { value: 'provider 전 입력' } })
+
+    expect(onValueChange).not.toHaveBeenCalled()
+  })
 })

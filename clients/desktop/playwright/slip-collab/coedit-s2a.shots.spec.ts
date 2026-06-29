@@ -296,6 +296,7 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     const memoValue = await memoInput.inputValue().catch(() => '(ERROR)')
     const memoPass = memoValue === REMOTE_MEMO
     console.log(`[CHECK-①] header.memo 원격 텍스트 병합: ${memoPass ? 'PASS' : `PARTIAL — "${memoValue.slice(0, 30)}..."`}`)
+    expect(memoValue).toBe(REMOTE_MEMO)
 
     // ─── 검증 ③ 원격 커서 배지 (header.memo → 원격사용자A) ───
     const memoNameBadges = memoFieldWrapper.locator('[aria-hidden="true"]')
@@ -304,6 +305,8 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
       ? await memoNameBadges.first().textContent().catch(() => '')
       : ''
     console.log(`[CHECK-③-memo] 커서 배지 count=${memoBadgeCount} text="${memoBadgeText}" — ${memoBadgeCount > 0 ? 'PASS' : '미표시(SSE 처리 지연 가능)'}`)
+    expect(memoBadgeCount).toBeGreaterThan(0)
+    expect(memoBadgeText).toContain('원격사용자A')
 
     // ─── 검증 ② 품목 셀 수량(items.0.quantity) 원격 값 반영 ───
     // sales-slip-edit-lines testid가 없으면 모달 내 테이블로 대체
@@ -319,6 +322,7 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     const quantityInput = quantityFieldWrapper.locator('input')
     const quantityValue = await quantityInput.inputValue().catch(() => '(ERROR)')
     console.log(`[CHECK-②] items.0.quantity 원격 값: "${quantityValue}" (기대: 7 — 원격 사용자가 2→7 수정)`)
+    expect(quantityValue).toBe('7')
 
     // ─── 검증 ③ 원격 커서 배지 (items.0.quantity → 원격사용자B) ───
     const qtyNameBadges = quantityFieldWrapper.locator('[aria-hidden="true"]')
@@ -327,6 +331,8 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
       ? await qtyNameBadges.first().textContent().catch(() => '')
       : ''
     console.log(`[CHECK-③-qty] 커서 배지 count=${qtyBadgeCount} text="${qtyBadgeText}" — ${qtyBadgeCount > 0 ? 'PASS' : '미표시(SSE 처리 지연 가능)'}`)
+    expect(qtyBadgeCount).toBeGreaterThan(0)
+    expect(qtyBadgeText).toContain('원격사용자B')
 
     // 캡처 ②: desktop-02-remote-fields.png — 편집 모달 헤더+품목 원격 텍스트+커서 배지
     // (스크롤 없이 모달 상단이 보이도록)
@@ -350,6 +356,7 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     // 폴백 제거 후: '' → Y.Doc 에 '' 기록 → coeditLinesToEditLines quantity: Number(''||0) = 0
     const clearPass = clearedValue !== '7' // '7' 로 복원되면 fix 실패
     console.log(`[CHECK-⑤-clear] 수량 clear 후 값: "${clearedValue}" — ${clearPass ? 'PASS (7로 복원 안 됨)' : 'FAIL (이전값 7 복원)'}`)
+    expect(clearedValue).toBe('0')
 
     // 새 수량 5 재입력
     await quantityInput.fill('5')
@@ -386,34 +393,16 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
 
     await expect(page.getByText('2026/05/02-12').first()).toBeVisible({ timeout: 20_000 })
 
-    // 모바일: 수정 버튼 탐색 (툴바 / MobileActionSheet 내부 가능)
-    const editBtnCandidates = [
-      page.getByTestId('sales-slip-edit-button'),
-      page.getByRole('button', { name: '수정' }),
-      page.locator('button').filter({ hasText: '수정' }).first(),
-    ]
-
-    let editBtn = null
-    for (const sel of editBtnCandidates) {
-      const visible = await sel.isVisible({ timeout: 3_000 }).catch(() => false)
-      if (visible) {
-        editBtn = sel
-        break
-      }
-    }
-
-    if (editBtn) {
-      await editBtn.scrollIntoViewIfNeeded()
-      await editBtn.click()
-      const modal = page.getByTestId('sales-slip-edit-modal')
-      const modalVisible = await modal.isVisible({ timeout: 8_000 }).catch(() => false)
-      console.log(`[CHECK] 모바일 수정 모달 오픈: ${modalVisible ? 'PASS' : '미발견'}`)
-      if (modalVisible) {
-        await page.waitForTimeout(2_500)
-      }
-    } else {
-      console.warn('[WARN] 모바일: 수정 버튼 미발견 — 전표 상세 페이지 캡처')
-    }
+    await page.getByRole('button', { name: '더보기' }).click()
+    const editBtn = page.locator('.mobile-more-sheet').getByRole('button', { name: '수정' })
+    await expect(editBtn, '모바일 액션시트에 직접 수정 버튼이 보여야 한다').toBeVisible({ timeout: 3_000 })
+    await editBtn.click()
+    const modal = page.getByRole('dialog', { name: '매출 전표 수정' })
+    await expect(modal, '모바일 수정 모달이 열려야 S2a 모바일 QA 캡처가 유효하다').toBeVisible({ timeout: 8_000 })
+    console.log('[CHECK] 모바일 수정 모달 오픈: PASS')
+    const modalBox = await modal.boundingBox()
+    expect(modalBox?.width ?? 0).toBeLessThanOrEqual(390)
+    await page.waitForTimeout(2_500)
 
     // 캡처 ④: mobile-01.png — 모바일 편집 모달 (원격 텍스트 + 반응형 레이아웃)
     await capture(page, 'mobile-01')
