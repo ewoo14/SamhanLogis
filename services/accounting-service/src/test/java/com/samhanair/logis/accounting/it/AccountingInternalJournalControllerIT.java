@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** accounting-service 내부 분개 생성 endpoint 인증/계약 IT. */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 @AutoConfigureMockMvc
+@MockBean(classes = com.samhanair.logis.security.permission.DynamicPermissionClient.class)
 class AccountingInternalJournalControllerIT extends AbstractPostgresIT {
 
     private static final String URL = "/internal/accounting/journals";
