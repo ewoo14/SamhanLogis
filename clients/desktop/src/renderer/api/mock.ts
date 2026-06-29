@@ -5500,6 +5500,63 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ accounts: MOCK_CODEF_BANK_ACCOUNTS })
   }
 
+  if (method === 'POST' && url.includes('/accounting/codef/connection/institutions')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'create')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const businessType = String(body['businessType'] ?? 'BANK') as MockCodefRegisteredInstitution['businessType']
+    const organizationCode = String(body['organization'] ?? '').trim()
+    const loginType = String(body['loginType'] ?? '').trim()
+    const credentials = body['credentials'] && typeof body['credentials'] === 'object'
+      ? body['credentials'] as Record<string, unknown>
+      : {}
+    if (!organizationCode || !loginType || Object.keys(credentials).length === 0) {
+      return mockError(400, 'INVALID_INPUT', '기관 코드와 로그인 자격은 필수입니다.')
+    }
+
+    const now = new Date().toISOString()
+    const row: MockCodefRegisteredInstitution = {
+      businessType,
+      organizationCode,
+      accountIdentifier: mockCodefAccountIdentifier(businessType),
+      nickname: mockCodefOrganizationName(organizationCode),
+      status: organizationCode === '0302' ? 'ADDITIONAL_AUTH' : 'ACTIVE',
+      registeredAt: now,
+      lastVerifiedAt: now,
+      message: organizationCode === '0302' ? '추가 인증이 필요합니다.' : '등록 완료',
+    }
+    MOCK_CODEF_REGISTERED_INSTITUTIONS = [
+      row,
+      ...MOCK_CODEF_REGISTERED_INSTITUTIONS.filter((item) =>
+        !(item.businessType === row.businessType && item.organizationCode === row.organizationCode)),
+    ]
+    return { __mockStatus: 201, body: envelope(row) }
+  }
+
+  if (method === 'GET' && url.includes('/accounting/codef/connection/institutions')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'view')
+    if (denied) return denied
+    return envelope({ institutions: MOCK_CODEF_REGISTERED_INSTITUTIONS })
+  }
+
+  if (method === 'GET' && url.includes('/accounting/codef/connection/accounts')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'view')
+    if (denied) return denied
+    return envelope({ accounts: MOCK_CODEF_BANK_ACCOUNTS })
+  }
+
+  if (method === 'GET' && url.includes('/accounting/codef/connection/cards')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'view')
+    if (denied) return denied
+    return envelope({ cards: MOCK_CODEF_CARDS })
+  }
+
+  if (method === 'GET' && url.includes('/accounting/codef/connection/loans')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'view')
+    if (denied) return denied
+    return envelope({ loans: MOCK_CODEF_LOANS })
+  }
+
   if (method === 'GET' && url.includes('/accounting/codef/cards')) {
     return envelope({ cards: MOCK_CODEF_CARDS })
   }
@@ -14337,6 +14394,17 @@ type MockCodefScope = {
   defaultImportType: MockCodefImportType
 }
 
+type MockCodefRegisteredInstitution = {
+  businessType: 'BANK' | 'CARD' | 'LOAN'
+  organizationCode: string
+  accountIdentifier: string | null
+  nickname: string | null
+  status: 'ACTIVE' | 'ADDITIONAL_AUTH' | 'ERROR'
+  registeredAt: string
+  lastVerifiedAt: string | null
+  message: string | null
+}
+
 type MockBankTransactionRow = {
   transactedAt: string
   txnType: 'DEPOSIT' | 'WITHDRAWAL'
@@ -14375,6 +14443,25 @@ const MOCK_CODEF_LOANS = [
 ]
 
 let MOCK_CODEF_IMPORT_SCOPES: Record<string, MockCodefScope> = {}
+let MOCK_CODEF_REGISTERED_INSTITUTIONS: MockCodefRegisteredInstitution[] = []
+
+function mockCodefOrganizationName(organizationCode: string): string {
+  const names: Record<string, string> = {
+    '0004': '국민은행',
+    '088': '신한은행',
+    '081': '하나은행',
+    '020': '우리은행',
+    '0301': '신한카드',
+    '0302': '국민카드',
+  }
+  return names[organizationCode] ?? organizationCode
+}
+
+function mockCodefAccountIdentifier(businessType: MockCodefRegisteredInstitution['businessType']): string {
+  if (businessType === 'CARD') return '****-****-****-1201'
+  if (businessType === 'LOAN') return '운전자금'
+  return '123456-**-901234'
+}
 
 function normalizeMockRefs(refs: string[] | null | undefined): string[] {
   if (!Array.isArray(refs)) return []

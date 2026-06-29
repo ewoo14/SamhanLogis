@@ -235,6 +235,7 @@ import { ReceivablesPayablesPage } from './ReceivablesPayablesPage'
 import { NotesReceivablePage } from './NotesReceivablePage'
 import { CollectionPlanPage } from './CollectionPlanPage'
 import { BankTransactionPage } from './BankTransactionPage'
+import { CodefConnectionPage } from './CodefConnectionPage'
 // [P0-1 Slice C] 인쇄 전용 레이아웃 4종.
 import { CashFlowStatementPrintLayout } from './accounting/print/CashFlowStatementPrintLayout'
 import { EquityChangesPrintLayout } from './accounting/print/EquityChangesPrintLayout'
@@ -299,6 +300,7 @@ import { PermissionDelegationPage } from './PermissionDelegationPage'
 import { ApprovalLineConfigPage } from './ApprovalLineConfigPage'
 // [SP-D1 cycle 2] 동적 RBAC PermissionGuard — 서버 권한 매트릭스 기반 라우트 가드.
 import { PermissionGuard } from '../components/PermissionGuard'
+import { RoleGuard } from '../components/RoleGuard'
 // §7 그룹웨어 결재 — 목록/상세 + 협업 패널.
 import { GroupwareApprovalListPage } from './GroupwareApprovalListPage'
 import { GroupwareApprovalDetailPage } from './GroupwareApprovalDetailPage'
@@ -759,6 +761,16 @@ const routes = [
         element: (
           <PermissionGuard pageCode="accounting.bank-matching" action="view">
             <BankTransactionPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/codef-connection',
+        element: (
+          <PermissionGuard pageCode="accounting.bank-matching" action="view">
+            <RoleGuard allow={['MASTER']}>
+              <CodefConnectionPage />
+            </RoleGuard>
           </PermissionGuard>
         ),
       },

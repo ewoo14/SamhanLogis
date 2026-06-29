@@ -1,0 +1,134 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-neutral-900);
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--color-neutral-600);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.credentialGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-neutral-900);
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.statusActive {
+  color: var(--state-success);
+  background: var(--state-success-bg);
+}
+
+.statusAdditionalAuth {
+  color: var(--state-warning);
+  background: var(--state-warning-bg);
+}
+
+.statusError {
+  color: var(--state-danger);
+  background: var(--state-danger-bg);
+}
+
+.statusUnknown {
+  color: var(--color-neutral-700);
+  background: var(--color-neutral-100);
+}
+
+.toast {
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.toastSuccess {
+  color: var(--state-success);
+  background: var(--state-success-bg);
+}
+
+.toastError {
+  color: var(--state-danger);
+  background: var(--state-danger-bg);
+}
+
+@media (max-width: 760px) {
+  .grid,
+  .credentialGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions,
+  .buttonRow {
+    flex-direction: column;
+  }
+
+  .actions button,
+  .buttonRow button {
+    width: 100%;
+  }
+}
