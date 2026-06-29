@@ -45,7 +45,7 @@ type ResultRow =
 const EMPTY_FORM: RegisterForm = {
   businessType: 'BANK',
   organization: '',
-  loginType: 'ID_PASSWORD',
+  loginType: '5',
   loginId: '',
   password: '',
 }
@@ -297,9 +297,9 @@ export function CodefConnectionPage() {
               data-testid="codef-connection-login-type"
               onChange={(event) => updateForm('loginType', event.target.value)}
             >
-              <option value="ID_PASSWORD">아이디/비밀번호</option>
-              <option value="CERT">공동인증서</option>
-              <option value="API">기관 API</option>
+              <option value="5">마이데이터</option>
+              <option value="0">공동인증서</option>
+              <option value="1">아이디/비밀번호</option>
             </Select>
           </FormGrid>
           <datalist id="codef-organization-options">

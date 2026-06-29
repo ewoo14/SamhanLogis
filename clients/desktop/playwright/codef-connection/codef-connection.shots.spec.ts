@@ -95,11 +95,11 @@ for (const { label, width, height } of VIEWPORTS) {
       const resultTable = page.getByTestId('codef-connection-result-table')
       await expect(resultTable).toContainText('계좌·카드·대출 조회 버튼을 눌러 결과를 확인하세요.')
 
-      // 로그인방식 한국어 옵션 존재 확인 (아이디/비밀번호)
+      // 로그인방식 한국어 옵션 존재 확인 (샌드박스 라이브 QA 검증값 loginType=5)
       const loginTypeSelect = page.getByTestId('codef-connection-login-type')
       await expect(loginTypeSelect).toBeVisible()
-      const optionText = await loginTypeSelect.locator('option[value="ID_PASSWORD"]').textContent()
-      expect(optionText?.trim()).toBe('아이디/비밀번호')
+      const optionText = await loginTypeSelect.locator('option[value="5"]').textContent()
+      expect(optionText?.trim()).toBe('마이데이터')
 
       await shot(page, `${label}-01-initial.png`)
     })
@@ -114,7 +114,7 @@ for (const { label, width, height } of VIEWPORTS) {
       // 구분(은행) / 기관코드(0004) / 로그인방식(아이디/비밀번호) / 자격증명
       await page.getByTestId('codef-connection-business-type').selectOption('BANK')
       await page.getByTestId('codef-connection-organization').fill('0004')
-      await page.getByTestId('codef-connection-login-type').selectOption('ID_PASSWORD')
+      await page.getByTestId('codef-connection-login-type').selectOption('5')
       await page.getByTestId('codef-connection-credential-id').fill('samhan-bank-user')
       await page.getByTestId('codef-connection-credential-password').fill('secret-pass')
 
@@ -141,7 +141,7 @@ for (const { label, width, height } of VIEWPORTS) {
       // 등록 폼 입력 + 제출
       await page.getByTestId('codef-connection-business-type').selectOption('BANK')
       await page.getByTestId('codef-connection-organization').fill('0004')
-      await page.getByTestId('codef-connection-login-type').selectOption('ID_PASSWORD')
+      await page.getByTestId('codef-connection-login-type').selectOption('5')
       await page.getByTestId('codef-connection-credential-id').fill('samhan-bank-user')
       await page.getByTestId('codef-connection-credential-password').fill('secret-pass')
       await page.getByTestId('codef-connection-register-button').click()
@@ -179,7 +179,7 @@ for (const { label, width, height } of VIEWPORTS) {
       // 기관 등록 선행
       await page.getByTestId('codef-connection-business-type').selectOption('BANK')
       await page.getByTestId('codef-connection-organization').fill('0004')
-      await page.getByTestId('codef-connection-login-type').selectOption('ID_PASSWORD')
+      await page.getByTestId('codef-connection-login-type').selectOption('5')
       await page.getByTestId('codef-connection-credential-id').fill('samhan-bank-user')
       await page.getByTestId('codef-connection-credential-password').fill('secret-pass')
       await page.getByTestId('codef-connection-register-button').click()

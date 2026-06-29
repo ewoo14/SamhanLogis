@@ -33,7 +33,7 @@ test.describe('CODEF 금융연동 페이지', () => {
     await expect(page.getByTestId('header-page-title')).toHaveText('CODEF 금융연동')
     await page.getByTestId('codef-connection-business-type').selectOption('BANK')
     await page.getByTestId('codef-connection-organization').fill('0004')
-    await page.getByTestId('codef-connection-login-type').selectOption('ID_PASSWORD')
+    await page.getByTestId('codef-connection-login-type').selectOption('5')
     await page.getByTestId('codef-connection-credential-id').fill('samhan-bank-user')
     await page.getByTestId('codef-connection-credential-password').fill('secret-pass')
     await page.getByTestId('codef-connection-register-button').click()
