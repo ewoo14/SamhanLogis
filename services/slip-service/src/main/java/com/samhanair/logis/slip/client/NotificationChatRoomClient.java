@@ -3,12 +3,14 @@ package com.samhanair.logis.slip.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -46,7 +48,23 @@ public class NotificationChatRoomClient {
     public NotificationChatRoomClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                        InternalAuthProperties internalAuthProperties,
                                        ObjectMapper objectMapper) {
-        this.restClient = builder.build();
+        SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
+        rf.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
+        rf.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
+        this.restClient = builder
+                .requestFactory(rf)
+                .build();
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 테스트 전용 생성자 — MockRestServiceServer binding 된 RestClient 를 직접 주입한다.
+     */
+    NotificationChatRoomClient(RestClient restClient,
+                               InternalAuthProperties internalAuthProperties,
+                               ObjectMapper objectMapper) {
+        this.restClient = restClient;
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
     }

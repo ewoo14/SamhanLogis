@@ -34,7 +34,7 @@ class PartnerBlockClientTest {
 
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new PartnerBlockClient(builder, props, new ObjectMapper());
+        client = new PartnerBlockClient(builder.build(), props, new ObjectMapper());
     }
 
     @Test

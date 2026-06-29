@@ -35,7 +35,7 @@ class NotificationChatRoomClientTest {
 
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new NotificationChatRoomClient(builder, props, new ObjectMapper());
+        client = new NotificationChatRoomClient(builder.build(), props, new ObjectMapper());
     }
 
     @Test
