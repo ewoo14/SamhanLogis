@@ -250,7 +250,7 @@ export function CodefConnectionPage() {
       <div className={styles.header}>
         <div>
           <h3 className={styles.title}>CODEF 금융연동</h3>
-          <p className={styles.subtitle}>등록한 기관의 계좌와 카드를 검증 조회합니다.</p>
+          <p className={styles.subtitle}>등록한 기관의 계좌·카드·대출 정보를 검증 조회합니다.</p>
         </div>
         {institutionsQuery.isFetching || verifyMutation.isPending ? <Spinner size="sm" /> : null}
       </div>

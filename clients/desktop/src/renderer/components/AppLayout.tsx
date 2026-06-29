@@ -181,6 +181,7 @@ const ROUTE_PAGE_CODES: Array<{ prefix: string; pageCode: string; label: string 
   { prefix: '/sales/estimates', pageCode: 'estimates.list', label: '견적' },
   { prefix: '/sales', pageCode: 'sales.slip.list', label: '판매관리' },
   { prefix: '/purchases', pageCode: 'purchases.slip.list', label: '구매관리' },
+  { prefix: '/accounting/codef-connection', pageCode: 'accounting.bank-matching', label: 'CODEF 금융연동' },
   { prefix: '/accounting', pageCode: 'accounting.reports', label: '회계' },
   { prefix: '/arologis', pageCode: 'arologis.dispatch.ops', label: '배차' },
   { prefix: '/dispatch-board', pageCode: 'dispatch.board', label: '배차현황' },

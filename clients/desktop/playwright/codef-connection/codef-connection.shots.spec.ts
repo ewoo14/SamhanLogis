@@ -1,7 +1,8 @@
 /**
  * codef-connection.shots.spec.ts
  *
- * CodefConnectionPage Opus 라운드 라이브 QA — 단계별 스크린샷 캡처 + 렌더 검증.
+ * CodefConnectionPage Opus 라운드 라이브 QA — mock 기반 단계별 스크린샷 캡처 + 렌더 검증.
+ * 실 백엔드/CODEF sandbox 계약, 기관 자격 암호화·저장 경로는 본 spec 범위 밖이다.
  *
  * 뷰포트: 데스크톱 1280×800 / 모바일 390×844
  * 4단계: 초기진입 → 폼 입력 → 등록 후(Badge pill) → 계좌 조회 후

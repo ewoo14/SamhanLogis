@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+// Mock 기반 실 컴포넌트 렌더 QA. 실 백엔드/CODEF sandbox 검증은 기관 자격과 암호화 키가 필요해 별도 real QA로 수행한다.
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 function urlFor(role: string): string {
@@ -47,6 +48,14 @@ test.describe('CODEF 금융연동 페이지', () => {
     await expect(page.getByTestId('codef-connection-result-table')).toContainText('국민 운영계좌')
     await expect(page.getByTestId('codef-connection-result-table')).toContainText('국민은행')
 
+    await page.getByTestId('codef-connection-list-cards').click()
+    await expect(page.getByTestId('codef-connection-result-table')).toContainText('삼한 물류카드')
+    await expect(page.getByTestId('codef-connection-result-table')).toContainText('신한카드')
+
+    await page.getByTestId('codef-connection-list-loans').click()
+    await expect(page.getByTestId('codef-connection-result-table')).toContainText('운전자금 대출')
+    await expect(page.getByTestId('codef-connection-result-table')).toContainText('국민은행')
+
     await visibleTextHasNoInternalIds(page)
   })
 
@@ -54,5 +63,12 @@ test.describe('CODEF 금융연동 페이지', () => {
     await page.goto(`${BASE_URL}/#/?mockRole=ACCOUNTANT`, { waitUntil: 'domcontentloaded' })
 
     await expect(page.getByTestId('sidebar-accounting-codef-connection')).toHaveCount(0)
+  })
+
+  test('비-MASTER는 직접 URL 진입도 RoleGuard에서 차단된다', async ({ page }) => {
+    await page.goto(urlFor('ACCOUNTANT'), { waitUntil: 'domcontentloaded' })
+
+    await expect(page.getByText('접근 권한이 없습니다')).toBeVisible()
+    await expect(page.getByTestId('codef-connection-register-button')).toHaveCount(0)
   })
 })
