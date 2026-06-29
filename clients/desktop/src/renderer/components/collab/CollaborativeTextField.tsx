@@ -339,7 +339,7 @@ export function CollaborativeTextField({
             resize: 'vertical',
             border: '1px solid var(--color-neutral-300)',
             borderRadius: 4,
-            padding: '8px 10px',
+            padding: overlays.length > 0 ? '24px 10px 8px' : '8px 10px',
             font: 'inherit',
             lineHeight: 1.5,
             background: readOnly ? 'var(--color-neutral-50)' : undefined,

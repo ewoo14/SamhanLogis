@@ -266,10 +266,10 @@ class SlipCollabIT extends AbstractPostgresIT {
     /**
      * coedit endpoint 는 Yjs update 를 opaque base64 로만 누적·중계하고 awareness 는 저장하지 않는다.
      *
-     * <p>S1 relay 는 기존 {@code slip.comments} VIEW 권한 가드를 공유한다.
+     * <p>S1 snapshot 조회·awareness 는 VIEW, content update 는 CREATE 권한을 요구한다.
      */
     @Test
-    void coedit_update_snapshot_and_awareness_relay_use_slip_comments_view_guard() throws Exception {
+    void coedit_update_uses_create_guard_and_snapshot_awareness_use_view_guard() throws Exception {
         UUID slipId = seedOutboundSlip("2099/06/13-COEDIT-" + SEQ.getAndIncrement()).getId();
 
         mvc.perform(get("/slips/{slipId}/collab/coedit", slipId)
@@ -303,9 +303,7 @@ class SlipCollabIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.updates.length()").value(1));
 
         when(dynamicPermissionClient.check(
-                any(UUID.class), eq("slip.comments"), eq(PermissionAction.VIEW)))
-                .thenReturn(false);
-        when(dynamicPermissionClient.canView(any(), eq("slip.comments")))
+                any(UUID.class), eq("slip.comments"), eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
         mvc.perform(post("/slips/{slipId}/collab/coedit/update", slipId)
