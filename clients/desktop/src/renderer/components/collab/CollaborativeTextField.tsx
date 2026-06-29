@@ -47,6 +47,11 @@ interface CompositionDraft {
   end: Y.RelativePosition
 }
 
+interface RelativeSelection {
+  anchor: Y.RelativePosition
+  head: Y.RelativePosition
+}
+
 /**
  * textarea 내 특정 offset 의 caret 화면 좌표를 mirror-div 기법으로 계산한다.
  * 전체 문자 비율(%) 단순 치환은 멀티라인에서 어긋나므로(리뷰 B-4), 실제 wrapping 을 복제해 측정한다.
@@ -151,6 +156,7 @@ export function CollaborativeTextField({
   const composingRef = useRef(false)
   const compositionDraftRef = useRef<CompositionDraft | null>(null)
   const pendingRemoteRef = useRef(false)
+  const localSelectionRef = useRef<RelativeSelection | null>(null)
   const [provider, setProvider] = useState<CoeditProvider | null>(providerOverride ?? null)
   const [value, setValue] = useState(() => providerOverride?.text.toString() ?? '')
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>(() => providerOverride?.getRemoteCursors() ?? [])
@@ -195,8 +201,19 @@ export function CollaborativeTextField({
       setValue(nextValue)
       const textarea = textareaRef.current
       if (textarea) {
-        const offset = clampOffset(textarea.selectionStart, nextValue.length)
-        queueMicrotask(() => textarea.setSelectionRange(offset, offset))
+        const selection = localSelectionRef.current
+        const fallbackStart = clampOffset(textarea.selectionStart, nextValue.length)
+        const fallbackEnd = clampOffset(textarea.selectionEnd, nextValue.length)
+        const start = selection
+          ? absoluteIndexFromRelative(provider.text, selection.anchor, fallbackStart)
+          : fallbackStart
+        const end = selection
+          ? absoluteIndexFromRelative(provider.text, selection.head, fallbackEnd)
+          : fallbackEnd
+        queueMicrotask(() => {
+          textarea.setSelectionRange(start, end)
+          provider.setLocalCursor(start, end)
+        })
       }
     }
     const unsubscribeText = provider.subscribeText(applyRemoteText)
@@ -237,9 +254,19 @@ export function CollaborativeTextField({
     setOverlays(next)
   }, [value, remoteCursors, scrollTick])
 
+  const rememberLocalSelection = () => {
+    const textarea = textareaRef.current
+    if (!textarea || !provider) return
+    localSelectionRef.current = {
+      anchor: Y.createRelativePositionFromTypeIndex(provider.text, textarea.selectionStart),
+      head: Y.createRelativePositionFromTypeIndex(provider.text, textarea.selectionEnd),
+    }
+  }
+
   const updateLocalCursor = () => {
     const textarea = textareaRef.current
     if (!textarea || !provider) return
+    rememberLocalSelection()
     provider.setLocalCursor(textarea.selectionStart, textarea.selectionEnd)
   }
 

@@ -217,32 +217,15 @@ test.describe('PR #673 S1 Yjs 코-에디팅 QA 스크린샷', () => {
     await page.waitForTimeout(1_500)
 
     const cursorLocator = panel.getByTestId(/coedit-remote-cursor-/)
-    let cursorDetected = false
-    try {
-      await expect(cursorLocator.first()).toContainText('원격 사용자', { timeout: 5_000 })
-      cursorDetected = true
-      console.log('[CHECK-03] 원격 커서 오버레이 텍스트 감지 성공: "원격 사용자"')
-    } catch {
-      console.warn(
-        '[INFO-03] 원격 커서 오버레이 미감지 — 가능한 원인:\n'
-        + '  · SSE EOF 후 awareness 콜백 미완 (page.route static response → backoff 5s)\n'
-        + '  · awarenessDoc.clientID 충돌로 getRemoteCursors() 필터 제외\n'
-        + '  · textarea 미렌더 시점 caretCoordinates 0,0 → overlay 패런트 외 배치\n'
-        + '  실 2세션(Docker 스택 + 실 SSE relay) 환경에서 커서 연동 별도 검증 필요.',
-      )
-    }
+    await expect(cursorLocator.first()).toContainText('원격 사용자', { timeout: 5_000 })
+    console.log('[CHECK-03] 원격 커서 오버레이 텍스트 감지 성공: "원격 사용자"')
 
     await collabField.scrollIntoViewIfNeeded()
-    if (cursorDetected) {
-      // 캡처 ③: desktop-03-remote-cursor (원격 커서 오버레이 + 라벨 표시)
-      await capture(page, 'desktop-03-remote-cursor')
-    } else {
-      // 캡처 ③: 현재 상태 (커서 미표시 — 정직 기록)
-      await capture(page, 'desktop-03-cursor-not-visible')
-    }
+    // 캡처 ③: desktop-03-remote-cursor (원격 커서 오버레이 + 라벨 표시)
+    await capture(page, 'desktop-03-remote-cursor')
 
     // ⑤: UUID 비노출 확인 — 화면 텍스트에 slipId 미표시
-    const pageText = await panel.textContent()
+    const pageText = await page.locator('body').textContent()
     expect(pageText).not.toMatch(/slip-001/)
     expect(pageText).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
   })
@@ -298,7 +281,7 @@ test.describe('PR #673 S1 Yjs 코-에디팅 QA 스크린샷', () => {
     await capture(page, 'mobile-02-local-typed')
 
     // ⑤: UUID 비노출 확인
-    const mobilePanelText = await panel.textContent()
+    const mobilePanelText = await page.locator('body').textContent()
     expect(mobilePanelText).not.toMatch(/slip-001/)
     expect(mobilePanelText).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
   })

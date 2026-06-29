@@ -17,6 +17,7 @@ import type { RealtimeEvent } from './createRealtimeClient'
 const REMOTE_ORIGIN = 'samhan-coedit-remote'
 const POST_DEBOUNCE_MS = 150
 const AWARENESS_DEBOUNCE_MS = 120
+const SNAPSHOT_RESYNC_MS = 5_000
 // 대비 안전한 8색 hex 팔레트(presence PresenceColor 와 동일 값). design-system userIdToColor 의
 // hsl(밝기 50%) 은 흰 텍스트 대비(warm hue) 실패 + hex-alpha 미지원이라 hex 팔레트로 교체.
 const COLOR_PALETTE = [
@@ -126,6 +127,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   const awarenessListeners = new Set<() => void>()
   let queuedUpdates: Uint8Array[] = []
   let flushTimer: ReturnType<typeof setTimeout> | null = null
+  let destroyed = false
 
   const notifyText = () => {
     for (const listener of textListeners) listener()
@@ -140,7 +142,11 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     queuedUpdates = []
     if (next.length === 0) return
     const merged = next.length === 1 ? next[0]! : Y.mergeUpdates(next)
-    void postUpdate(options.slipId, encodeBase64Update(merged))
+    void Promise.resolve(postUpdate(options.slipId, encodeBase64Update(merged))).catch(() => {
+      if (destroyed) return
+      queuedUpdates = [merged, ...queuedUpdates]
+      if (flushTimer === null) flushTimer = setTimeout(flushUpdates, POST_DEBOUNCE_MS)
+    })
   }
 
   const scheduleUpdatePost = (update: Uint8Array) => {
@@ -157,7 +163,12 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     if (pendingAwarenessClients.length === 0) return
     const clients = Array.from(new Set(pendingAwarenessClients))
     pendingAwarenessClients = []
-    void postAwareness(options.slipId, encodeBase64Update(encodeAwarenessUpdate(awareness, clients)))
+    void Promise.resolve(postAwareness(options.slipId, encodeBase64Update(encodeAwarenessUpdate(awareness, clients))))
+      .catch(() => {
+        if (destroyed) return
+        pendingAwarenessClients = [...clients, ...pendingAwarenessClients]
+        if (awarenessTimer === null) awarenessTimer = setTimeout(flushAwareness, AWARENESS_DEBOUNCE_MS)
+      })
   }
   const scheduleAwarenessPost = (clients: number[]) => {
     pendingAwarenessClients.push(...clients)
@@ -184,9 +195,14 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   const localUser = await resolveLocalUser()
   awareness.setLocalStateField('user', localUser)
 
-  const snapshot = await initialUpdates(options.slipId)
-  for (const update of snapshot.updates) {
-    Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
+  const applySnapshot = (snapshot: SlipCoeditUpdatesResponse) => {
+    for (const update of snapshot.updates) {
+      Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
+    }
+  }
+
+  const resyncSnapshot = async () => {
+    applySnapshot(await initialUpdates(options.slipId))
   }
 
   const stream = subscribe(options.slipId, (event) => {
@@ -198,6 +214,13 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
       applyAwarenessUpdate(awareness, decodeBase64Update(event.data.awareness), REMOTE_ORIGIN)
     }
   })
+
+  const snapshot = await initialUpdates(options.slipId)
+  applySnapshot(snapshot)
+
+  const resyncTimer = setInterval(() => {
+    void resyncSnapshot().catch(() => undefined)
+  }, SNAPSHOT_RESYNC_MS)
 
   const textObserver = () => notifyText()
   text.observe(textObserver)
@@ -237,6 +260,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
       return () => awarenessListeners.delete(listener)
     },
     destroy: () => {
+      destroyed = true
       if (flushTimer !== null) {
         clearTimeout(flushTimer)
         flushUpdates()
@@ -245,6 +269,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
         clearTimeout(awarenessTimer)
         flushAwareness()
       }
+      clearInterval(resyncTimer)
       text.unobserve(textObserver)
       awareness.destroy()
       stream.abort()

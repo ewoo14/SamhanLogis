@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
 import { encodeAwarenessUpdate } from 'y-protocols/awareness'
 import { createCoeditProvider, decodeBase64Update, encodeBase64Update } from './createCoeditProvider'
 
 describe('createCoeditProvider', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('remote update를 적용해 Y.Text 상태를 동기화한다', async () => {
     const remoteDoc = new Y.Doc()
     remoteDoc.getText('memo').insert(0, '원격 메모')
@@ -86,5 +90,57 @@ describe('createCoeditProvider', () => {
   it('base64 update 변환은 Uint8Array를 보존한다', () => {
     const update = new Uint8Array([1, 2, 3, 250])
     expect(Array.from(decodeBase64Update(encodeBase64Update(update)))).toEqual(Array.from(update))
+  })
+  it('resyncs snapshot updates missed between initial load and SSE delivery', async () => {
+    vi.useFakeTimers()
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getText('memo').insert(0, 'remote during reconnect')
+    const update = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+    let reads = 0
+
+    const provider = await createCoeditProvider({
+      slipId: 'slip-1',
+      fieldName: 'memo',
+      initialUpdates: async () => {
+        reads += 1
+        return { updates: reads === 1 ? [] : [update] }
+      },
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    expect(provider.text.toString()).toBe('')
+
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    expect(provider.text.toString()).toBe('remote during reconnect')
+    provider.destroy()
+  })
+
+  it('retries a failed local update post without dropping the Yjs update', async () => {
+    vi.useFakeTimers()
+    const postUpdate = vi.fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined)
+
+    const provider = await createCoeditProvider({
+      slipId: 'slip-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate,
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    provider.text.insert(0, 'local')
+    await vi.advanceTimersByTimeAsync(150)
+    expect(postUpdate).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(150)
+
+    expect(postUpdate).toHaveBeenCalledTimes(2)
+    expect(decodeBase64Update(postUpdate.mock.calls[1][1]).length).toBeGreaterThan(0)
+    provider.destroy()
   })
 })

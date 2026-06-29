@@ -90,4 +90,48 @@ describe('CollaborativeTextField', () => {
     expect(text.toString()).toContain('remote ')
     expect(text.toString()).toContain('가')
   })
+
+  it('keeps the local caret position when remote text is inserted before it', async () => {
+    const doc = new Y.Doc()
+    const text = doc.getText('memo')
+    text.insert(0, 'base')
+    let textListener: (() => void) | null = null
+    const provider: CoeditProvider = {
+      text,
+      awareness: {} as CoeditProvider['awareness'],
+      applyRemoteUpdate: vi.fn(),
+      applyRemoteAwareness: vi.fn(),
+      setLocalCursor: vi.fn(),
+      getRemoteCursors: () => [],
+      subscribeText: (listener) => {
+        textListener = listener
+        return () => undefined
+      },
+      subscribeAwareness: () => () => undefined,
+      destroy: vi.fn(),
+    }
+
+    render(
+      <CollaborativeTextField
+        slipId="10000000-0000-0000-0000-000000000001"
+        fieldName="memo"
+        label="memo"
+        providerOverride={provider}
+      />,
+    )
+
+    const textarea = screen.getByLabelText('memo') as HTMLTextAreaElement
+    textarea.setSelectionRange(4, 4)
+    fireEvent.select(textarea)
+
+    act(() => {
+      text.insert(0, 'remote ')
+      textListener?.()
+    })
+    await Promise.resolve()
+
+    expect(textarea.value).toBe('remote base')
+    expect(textarea.selectionStart).toBe('remote base'.length)
+    expect(textarea.selectionEnd).toBe('remote base'.length)
+  })
 })
