@@ -6,11 +6,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.samhanair.logis.accounting.client.ETaxClientImpl;
 import com.samhanair.logis.accounting.client.CodefClientImpl;
 import com.samhanair.logis.accounting.client.KftcClientImpl;
+import com.samhanair.logis.accounting.client.codef.EasyCodefClient;
 import com.samhanair.logis.accounting.config.CodefProperties;
+import com.samhanair.logis.accounting.repository.CodefConnectionRepository;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -312,6 +315,8 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
 
         private CodefClientImpl client;
         private CodefProperties properties;
+        private EasyCodefClient easyCodefClient;
+        private CodefConnectionRepository codefConnectionRepository;
 
         @BeforeEach
         void setUp() {
@@ -321,7 +326,9 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
             ReflectionTestUtils.setField(properties, "apiKey", "real-codef-api-key");
             ReflectionTestUtils.setField(properties, "clientId", "real-codef-client-id");
             ReflectionTestUtils.setField(properties, "clientSecret", "real-codef-client-secret");
-            client = new CodefClientImpl(properties);
+            easyCodefClient = Mockito.mock(EasyCodefClient.class);
+            codefConnectionRepository = Mockito.mock(CodefConnectionRepository.class);
+            client = new CodefClientImpl(properties, Optional.of(easyCodefClient), codefConnectionRepository);
         }
 
         @ParameterizedTest(name = "CODEF apiKey={0} → CODEF_SUBMIT_FAILED (502)")
@@ -421,19 +428,19 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
         }
 
         @Test
-        @DisplayName("실연동 목록 stub 메시지는 금융기관 연동 안내로 통일한다")
-        void codefListStubMessages_areUnifiedUserMessage() {
+        @DisplayName("실연동 목록은 connectedId 미등록 시 등록 안내 메시지를 반환한다")
+        void codefListMessages_requireRegisteredConnectedId() {
             assertThatThrownBy(() -> client.listBankAccounts("연결-1", "CODEF"))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+                    .hasMessage("CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요.");
 
             assertThatThrownBy(() -> client.listCards("연결-1", "CODEF"))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+                    .hasMessage("CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요.");
 
             assertThatThrownBy(() -> client.listLoans("연결-1", "CODEF"))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessage("금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+                    .hasMessage("CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요.");
         }
     }
 

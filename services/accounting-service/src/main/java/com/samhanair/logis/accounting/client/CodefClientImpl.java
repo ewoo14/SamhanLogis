@@ -1,13 +1,16 @@
 package com.samhanair.logis.accounting.client;
 
+import com.samhanair.logis.accounting.client.codef.EasyCodefClient;
 import com.samhanair.logis.accounting.config.CodefProperties;
 import com.samhanair.logis.accounting.domain.BankTxnType;
+import com.samhanair.logis.accounting.repository.CodefConnectionRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -24,6 +27,8 @@ import org.springframework.stereotype.Component;
 public class CodefClientImpl implements CodefClient {
 
     private final CodefProperties properties;
+    private final Optional<EasyCodefClient> easyCodefClient;
+    private final CodefConnectionRepository codefConnectionRepository;
 
     @Override
     public List<AccountInfo> listBankAccounts(String connectedId, String submitMethod) {
@@ -247,25 +252,39 @@ public class CodefClientImpl implements CodefClient {
                 "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
     }
 
-    /** 실 은행계좌 목록 API stub — Phase 11 계약·키 발급 후 구현. */
+    /** 실 은행계좌 목록 API 배선 — 실 SDK 호출 세부 구현은 EasyCodefClient 가 담당한다. */
     private List<AccountInfo> listCodefBankAccounts() {
+        String connectedId = registeredConnectedId();
         validateCredentials();
-        throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+        return requireEasyCodefClient().listBankAccounts(connectedId);
     }
 
-    /** 실 카드 목록 API stub — Phase 11 계약·키 발급 후 구현. */
+    /** 실 카드 목록 API 배선 — 실 SDK 호출 세부 구현은 EasyCodefClient 가 담당한다. */
     private List<CardInfo> listCodefCards() {
+        String connectedId = registeredConnectedId();
         validateCredentials();
-        throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+        return requireEasyCodefClient().listCards(connectedId);
     }
 
-    /** 실 대출 목록 API stub — Phase 11 계약·키 발급 후 구현. */
+    /** 실 대출 목록 API 배선 — 실 SDK 호출 세부 구현은 EasyCodefClient 가 담당한다. */
     private List<LoanInfo> listCodefLoans() {
+        String connectedId = registeredConnectedId();
         validateCredentials();
-        throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
-                "금융기관 직접 연동 기능은 현재 준비 중입니다. 관리자에게 문의하세요.");
+        return requireEasyCodefClient().listLoans(connectedId);
+    }
+
+    private String registeredConnectedId() {
+        String connectedId = codefConnectionRepository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()
+                .map(connection -> connection.getConnectedId())
+                .filter(CodefClientImpl::hasText)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
+                        "CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요."));
+        return connectedId.trim();
+    }
+
+    private EasyCodefClient requireEasyCodefClient() {
+        return easyCodefClient.orElseThrow(() -> new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
+                "CODEF SDK 구현이 아직 연결되지 않았습니다. 관리자에게 문의하세요."));
     }
 
     private void validateCredentials() {

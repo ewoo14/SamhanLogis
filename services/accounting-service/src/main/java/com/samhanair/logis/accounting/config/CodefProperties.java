@@ -30,7 +30,15 @@ public class CodefProperties {
     @Value("${codef.client-secret:}")
     private String clientSecret;
 
+    /** CODEF RSA 공개키 — connectedId 등록 시 SDK 암호화에 사용. */
+    @Value("${codef.public-key:}")
+    private String publicKey;
+
     /** CODEF API Base URL — Phase 11 실 CODEF API 구현 시 사용(현재 미사용). */
     @Value("${codef.base-url:https://api.codef.io}")
     private String baseUrl;
+
+    /** CODEF 샌드박스 Base URL — connectedId 등록 검증 기본값. */
+    @Value("${codef.base-url:https://development.codef.io}")
+    private String sandboxBaseUrl;
 }
