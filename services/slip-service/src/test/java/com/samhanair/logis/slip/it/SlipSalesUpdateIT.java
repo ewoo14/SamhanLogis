@@ -268,7 +268,7 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].actorName").value("영업담당자"))
                 .andReturn();
 
-        JsonNode latest = objectMapper.readTree(revisions.getResponse().getContentAsString())
+        JsonNode latest = objectMapper.readTree(revisions.getResponse().getContentAsByteArray())
                 .path("data").get(0);
         assertThat(latest.has("actorId")).isFalse();
         assertThat(latest.path("fieldChanges")).isNotEmpty();
@@ -278,6 +278,10 @@ class SlipSalesUpdateIT extends AbstractPostgresIT {
         assertThat(latest.path("fieldChanges").toString()).contains("\"fieldPath\":\"lines[0].quantity\"");
         assertThat(latest.path("fieldChanges").toString()).contains("\"beforeValue\":\"3\"");
         assertThat(latest.path("fieldChanges").toString()).contains("\"afterValue\":\"8\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"fieldPath\":\"lines[0].specification\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"afterValue\":\"B형\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"fieldPath\":\"lines[0].note\"");
+        assertThat(latest.path("fieldChanges").toString()).contains("\"afterValue\":\"매출 수정 라인\"");
     }
 
     @Test

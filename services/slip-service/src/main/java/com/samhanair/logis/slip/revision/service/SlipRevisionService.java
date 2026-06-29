@@ -14,8 +14,10 @@ import com.samhanair.logis.shared.realtime.presence.PresenceColor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -264,19 +266,8 @@ public class SlipRevisionService {
 
         int headerChanged = countHeaderChanges(prev, cur);
 
-        // productId 기준 매칭 맵 (null productId 는 added/removed 로만 잡히도록 맵 제외)
-        Map<UUID, SlipSnapshot.Line> prevById = new LinkedHashMap<>();
-        for (SlipSnapshot.Line line : prevLines) {
-            if (line.productId() != null) {
-                prevById.put(line.productId(), line);
-            }
-        }
-        Map<UUID, SlipSnapshot.Line> curById = new LinkedHashMap<>();
-        for (SlipSnapshot.Line line : curLines) {
-            if (line.productId() != null) {
-                curById.put(line.productId(), line);
-            }
-        }
+        // productId 기준 매칭. 동일 productId 복수 행은 등장 순서대로 매칭해 덮어쓰기 오귀속을 방지한다.
+        Map<UUID, Deque<SlipSnapshot.Line>> prevById = lineQueuesByProductId(prevLines);
 
         int lineAdded = 0;
         int lineRemoved = 0;
@@ -294,18 +285,20 @@ public class SlipRevisionService {
             }
         }
 
-        for (Map.Entry<UUID, SlipSnapshot.Line> entry : curById.entrySet()) {
-            SlipSnapshot.Line prevLine = prevById.get(entry.getKey());
+        for (SlipSnapshot.Line curLine : curLines) {
+            if (curLine.productId() == null) {
+                continue;
+            }
+            Deque<SlipSnapshot.Line> prevMatches = prevById.get(curLine.productId());
+            SlipSnapshot.Line prevLine = prevMatches == null ? null : prevMatches.pollFirst();
             if (prevLine == null) {
                 lineAdded++;
-            } else if (lineDiffers(prevLine, entry.getValue())) {
+            } else if (lineDiffers(prevLine, curLine)) {
                 lineModified++;
             }
         }
-        for (UUID prevKey : prevById.keySet()) {
-            if (!curById.containsKey(prevKey)) {
-                lineRemoved++;
-            }
+        for (Deque<SlipSnapshot.Line> remaining : prevById.values()) {
+            lineRemoved += remaining.size();
         }
 
         return new ChangeSummary(headerChanged, lineAdded, lineRemoved, lineModified);
@@ -445,17 +438,13 @@ public class SlipRevisionService {
         List<SlipSnapshot.Line> curLines = cur == null || cur.lines() == null ? List.of() : cur.lines();
 
         // 품목 라인을 productId 기준으로 매칭(summarize 와 동일). matched 쌍만 셀 diff, 미매칭은 추가/삭제.
-        Map<UUID, SlipSnapshot.Line> prevById = new LinkedHashMap<>();
-        for (SlipSnapshot.Line line : prevLines) {
-            if (line.productId() != null) {
-                prevById.put(line.productId(), line);
-            }
-        }
+        Map<UUID, Deque<SlipSnapshot.Line>> prevById = lineQueuesByProductId(prevLines);
         // cur 순서 유지 — productId 매칭되면 그 prev 라인과 셀 diff(remove 로 소진), 미매칭(또는 null)이면 행 추가
         for (int i = 0; i < curLines.size(); i++) {
             SlipSnapshot.Line curLine = curLines.get(i);
-            SlipSnapshot.Line prevLine =
-                    curLine.productId() == null ? null : prevById.remove(curLine.productId());
+            Deque<SlipSnapshot.Line> prevMatches =
+                    curLine.productId() == null ? null : prevById.get(curLine.productId());
+            SlipSnapshot.Line prevLine = prevMatches == null ? null : prevMatches.pollFirst();
             // 라벨은 현재 행 위치(i) 기준 — 매칭은 productId 로 정확히 하되 표시는 현재 위치(기존 계약).
             String label = "품목 " + (i + 1) + "행";
             for (LineField field : LINE_FIELDS) {
@@ -468,7 +457,10 @@ public class SlipRevisionService {
         // prevById 에 남은 라인 = cur 에서 삭제됨(productId null prev 라인도 매칭 불가 → 삭제) → value→null
         int removedIdx = 0;
         for (SlipSnapshot.Line prevLine : prevLines) {
-            boolean removed = prevLine.productId() == null || prevById.containsKey(prevLine.productId());
+            Deque<SlipSnapshot.Line> remaining =
+                    prevLine.productId() == null ? null : prevById.get(prevLine.productId());
+            boolean removed = prevLine.productId() == null
+                    || (remaining != null && remaining.removeFirstOccurrence(prevLine));
             if (!removed) {
                 continue;
             }
@@ -481,6 +473,16 @@ public class SlipRevisionService {
             removedIdx++;
         }
         return changes;
+    }
+
+    private Map<UUID, Deque<SlipSnapshot.Line>> lineQueuesByProductId(List<SlipSnapshot.Line> lines) {
+        Map<UUID, Deque<SlipSnapshot.Line>> byId = new LinkedHashMap<>();
+        for (SlipSnapshot.Line line : lines) {
+            if (line.productId() != null) {
+                byId.computeIfAbsent(line.productId(), ignored -> new ArrayDeque<>()).addLast(line);
+            }
+        }
+        return byId;
     }
 
     /**

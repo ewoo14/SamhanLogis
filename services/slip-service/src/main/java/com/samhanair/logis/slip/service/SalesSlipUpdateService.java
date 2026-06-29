@@ -176,11 +176,13 @@ public class SalesSlipUpdateService {
 
     private String summarizeLines(List<SlipLine> lines) {
         return String.join(",", lines.stream()
-                .map(line -> "%s/%s/%d/%s".formatted(
+                .map(line -> "%s/%s/%s/%d/%s/%s".formatted(
                         nullToEmpty(line.getModelName()),
                         nullToEmpty(line.getProductName()),
+                        nullToEmpty(line.getSpecification()),
                         line.getQuantity(),
-                        normalize(line.getUnitPrice())))
+                        normalize(line.getUnitPrice()),
+                        nullToEmpty(line.getNote())))
                 .toList());
     }
 

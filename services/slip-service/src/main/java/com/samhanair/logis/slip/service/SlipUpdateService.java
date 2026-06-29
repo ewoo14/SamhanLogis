@@ -170,11 +170,13 @@ public class SlipUpdateService {
     private String summarizeLines(List<SlipLine> lines) {
         // String.join 으로 "a,b,c" 형식 — "[a, b, c]" toString() 혼용 방지
         return String.join(",", lines.stream()
-                .map(line -> "%s/%s/%d/%s".formatted(
+                .map(line -> "%s/%s/%s/%d/%s/%s".formatted(
                         nullToEmpty(line.getModelName()),
                         nullToEmpty(line.getProductName()),
+                        nullToEmpty(line.getSpecification()),
                         line.getQuantity(),
-                        normalize(line.getUnitPrice())))
+                        normalize(line.getUnitPrice()),
+                        nullToEmpty(line.getNote())))
                 .toList());
     }
 
