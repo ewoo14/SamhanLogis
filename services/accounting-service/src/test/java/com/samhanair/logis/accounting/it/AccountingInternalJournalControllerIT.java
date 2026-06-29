@@ -1,8 +1,8 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,20 +40,20 @@ class AccountingInternalJournalControllerIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUpJournalService() {
-        when(journalService.create(any(CreateJournalRequest.class))).thenReturn(
-                new JournalDetailResponse(
-                        UUID.fromString("00000000-0000-0000-0000-000000000531"),
-                        "J-20260629-001",
-                        LocalDate.of(2026, 6, 29),
-                        "inventory audit",
-                        JournalSourceType.MANUAL,
-                        JournalStatus.DRAFT,
-                        new BigDecimal("1000"),
-                        new BigDecimal("1000"),
-                        null,
-                        null,
-                        null,
-                        List.of()));
+        JournalDetailResponse response = new JournalDetailResponse(
+                UUID.fromString("00000000-0000-0000-0000-000000000531"),
+                "J-20260629-001",
+                LocalDate.of(2026, 6, 29),
+                "inventory audit",
+                JournalSourceType.MANUAL,
+                JournalStatus.DRAFT,
+                new BigDecimal("1000"),
+                new BigDecimal("1000"),
+                null,
+                null,
+                null,
+                List.of());
+        doReturn(response).when(journalService).create(any(CreateJournalRequest.class));
     }
 
     @Test

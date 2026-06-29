@@ -35,7 +35,7 @@ class NotificationChatRoomClientTest {
 
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new NotificationChatRoomClient(builder.baseUrl(BASE_URL).build(), props, new ObjectMapper());
+        client = new NotificationChatRoomClient(builder, props, new ObjectMapper());
     }
 
     @Test
@@ -44,10 +44,10 @@ class NotificationChatRoomClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withSuccess("""
-                        {"success":true,"data":[{"partnerCode":"P-001","chatRoomName":"발주방"}]}
+                        {"success":true,"data":[{"partnerCode":"P-001","chatRoomName":"Dispatch Room"}]}
                         """, MediaType.APPLICATION_JSON));
 
-        assertThat(client.findChatRoomNames("P-001")).containsExactly("발주방");
+        assertThat(client.findChatRoomNames("P-001")).containsExactly("Dispatch Room");
         server.verify();
     }
 

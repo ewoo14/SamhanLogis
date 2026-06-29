@@ -3,14 +3,12 @@ package com.samhanair.logis.slip.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -48,21 +46,7 @@ public class NotificationChatRoomClient {
     public NotificationChatRoomClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                        InternalAuthProperties internalAuthProperties,
                                        ObjectMapper objectMapper) {
-        SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
-        rf.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
-        rf.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
-        this.restClient = builder
-                .baseUrl(NOTIFICATION_SERVICE_BASE)
-                .requestFactory(rf)
-                .build();
-        this.internalAuthProperties = internalAuthProperties;
-        this.objectMapper = objectMapper;
-    }
-
-    NotificationChatRoomClient(RestClient restClient,
-                               InternalAuthProperties internalAuthProperties,
-                               ObjectMapper objectMapper) {
-        this.restClient = restClient;
+        this.restClient = builder.build();
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
     }
@@ -85,9 +69,8 @@ public class NotificationChatRoomClient {
         }
         try {
             String body = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/internal/notification/admin/chat-rooms")
-                            .queryParam("partnerCode", partnerCode)
-                            .build())
+                    .uri(NOTIFICATION_SERVICE_BASE
+                            + "/internal/notification/admin/chat-rooms?partnerCode={partnerCode}", partnerCode)
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
                     .body(String.class);
@@ -122,14 +105,14 @@ public class NotificationChatRoomClient {
     private List<String> findChatRoomNamesByPartnerBusinessName(String partnerName) {
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
-            log.warn("NotificationChatRoomClient.findChatRoomNamesByPartnerBusinessName — internal token 미설정");
+            log.warn("NotificationChatRoomClient.findChatRoomNamesByPartnerBusinessName internal token missing");
             return Collections.emptyList();
         }
         try {
             String body = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/internal/notification/admin/chat-rooms")
-                            .queryParam("partnerBusinessName", partnerName)
-                            .build())
+                    .uri(NOTIFICATION_SERVICE_BASE
+                                    + "/internal/notification/admin/chat-rooms?partnerBusinessName={partnerName}",
+                            partnerName)
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
                     .body(String.class);
