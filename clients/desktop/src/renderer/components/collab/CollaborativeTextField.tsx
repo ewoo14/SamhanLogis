@@ -35,6 +35,18 @@ interface CursorOverlay extends RemoteCursor {
   selectionWidth: number | null
 }
 
+interface TextDiff {
+  prefix: number
+  deleteLength: number
+  insertValue: string
+}
+
+interface CompositionDraft {
+  startValue: string
+  start: Y.RelativePosition
+  end: Y.RelativePosition
+}
+
 /**
  * textarea 내 특정 offset 의 caret 화면 좌표를 mirror-div 기법으로 계산한다.
  * 전체 문자 비율(%) 단순 치환은 멀티라인에서 어긋나므로(리뷰 B-4), 실제 wrapping 을 복제해 측정한다.
@@ -72,10 +84,8 @@ function caretCoordinates(textarea: HTMLTextAreaElement, offset: number): CaretP
   return point
 }
 
-function applyTextareaValue(text: Y.Text, nextValue: string) {
-  const prevValue = text.toString()
-  if (prevValue === nextValue) return
-
+function diffTextValues(prevValue: string, nextValue: string): TextDiff | null {
+  if (prevValue === nextValue) return null
   let prefix = 0
   while (
     prefix < prevValue.length
@@ -96,8 +106,34 @@ function applyTextareaValue(text: Y.Text, nextValue: string) {
 
   const deleteLength = prevValue.length - prefix - suffix
   const insertValue = nextValue.slice(prefix, nextValue.length - suffix)
-  if (deleteLength > 0) text.delete(prefix, deleteLength)
-  if (insertValue.length > 0) text.insert(prefix, insertValue)
+  return { prefix, deleteLength, insertValue }
+}
+
+function applyTextDiff(text: Y.Text, index: number, deleteLength: number, insertValue: string) {
+  if (deleteLength > 0) text.delete(index, deleteLength)
+  if (insertValue.length > 0) text.insert(index, insertValue)
+}
+
+function applyTextareaValue(text: Y.Text, nextValue: string) {
+  const diff = diffTextValues(text.toString(), nextValue)
+  if (!diff) return
+  applyTextDiff(text, diff.prefix, diff.deleteLength, diff.insertValue)
+}
+
+function absoluteIndexFromRelative(text: Y.Text, position: Y.RelativePosition, fallback: number): number {
+  const doc = text.doc
+  if (!doc) return fallback
+  const absolute = Y.createAbsolutePositionFromRelativePosition(position, doc)
+  if (!absolute || absolute.type !== text) return fallback
+  return clampOffset(absolute.index, text.length)
+}
+
+function applyComposedTextareaValue(text: Y.Text, draft: CompositionDraft, nextValue: string) {
+  const diff = diffTextValues(draft.startValue, nextValue)
+  if (!diff) return
+  const start = absoluteIndexFromRelative(text, draft.start, diff.prefix)
+  const end = absoluteIndexFromRelative(text, draft.end, diff.prefix + diff.deleteLength)
+  applyTextDiff(text, start, Math.max(end - start, 0), diff.insertValue)
 }
 
 function clampOffset(value: number, textLength: number): number {
@@ -113,6 +149,7 @@ export function CollaborativeTextField({
 }: CollaborativeTextFieldProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const composingRef = useRef(false)
+  const compositionDraftRef = useRef<CompositionDraft | null>(null)
   const pendingRemoteRef = useRef(false)
   const [provider, setProvider] = useState<CoeditProvider | null>(providerOverride ?? null)
   const [value, setValue] = useState(() => providerOverride?.text.toString() ?? '')
@@ -236,10 +273,28 @@ export function CollaborativeTextField({
           onScroll={() => setScrollTick((tick) => tick + 1)}
           onCompositionStart={() => {
             composingRef.current = true
+            if (provider) {
+              const textarea = textareaRef.current
+              const start = textarea?.selectionStart ?? 0
+              const end = textarea?.selectionEnd ?? start
+              compositionDraftRef.current = {
+                startValue: value,
+                start: Y.createRelativePositionFromTypeIndex(provider.text, start),
+                end: Y.createRelativePositionFromTypeIndex(provider.text, end),
+              }
+            }
           }}
           onCompositionEnd={(event) => {
             composingRef.current = false
-            if (provider) applyTextareaValue(provider.text, event.currentTarget.value)
+            if (provider) {
+              const draft = compositionDraftRef.current
+              if (draft) {
+                applyComposedTextareaValue(provider.text, draft, event.currentTarget.value)
+              } else {
+                applyTextareaValue(provider.text, event.currentTarget.value)
+              }
+            }
+            compositionDraftRef.current = null
             if (pendingRemoteRef.current) {
               pendingRemoteRef.current = false
               const latest = provider?.text.toString() ?? event.currentTarget.value

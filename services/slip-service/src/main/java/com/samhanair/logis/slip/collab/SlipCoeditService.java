@@ -30,6 +30,7 @@ public class SlipCoeditService {
     private static final int MAX_UPDATES_PER_SLIP = 5_000;
     /** base64 payload 1건 최대 길이(문자, 약 128KB) — 초과 시 거부해 메모리/대역폭 DoS 방지(리뷰 BE B-1). */
     private static final int MAX_PAYLOAD_LENGTH = 128 * 1024;
+    private static final int MAX_TOTAL_PAYLOAD_LENGTH_PER_SLIP = 1024 * 1024;
 
     private final RealtimeBroker broker;
     private final Map<UUID, CopyOnWriteArrayList<String>> updatesBySlip = new ConcurrentHashMap<>();
@@ -46,7 +47,8 @@ public class SlipCoeditService {
         // add+cap 를 원자화 — 동시 다중 add 시 과잉 eviction race 방지(리뷰 BE N-2).
         synchronized (updates) {
             updates.add(normalized);
-            while (updates.size() > MAX_UPDATES_PER_SLIP) {
+            while (updates.size() > MAX_UPDATES_PER_SLIP
+                    || totalPayloadLength(updates) > MAX_TOTAL_PAYLOAD_LENGTH_PER_SLIP) {
                 // TODO(live-coediting-S2): BE 가 Yjs 를 실행하지 않는 S1 에서는 안전 압축 불가.
                 // persist/merge 슬라이스에서 update compaction 을 도입한다.
                 updates.remove(0);
@@ -80,5 +82,13 @@ public class SlipCoeditService {
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "base64 payload 형식이 올바르지 않습니다");
         }
+    }
+
+    private static int totalPayloadLength(List<String> updates) {
+        int total = 0;
+        for (String update : updates) {
+            total += update.length();
+        }
+        return total;
     }
 }

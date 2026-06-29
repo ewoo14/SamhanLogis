@@ -78,4 +78,17 @@ class SlipCoeditServiceTest {
         assertThat(service.listUpdates(SLIP_ID)).hasSize(5_000);
         assertThat(service.listUpdates(SLIP_ID)).doesNotContain(oldest);
     }
+
+    @Test
+    void appendUpdate_caps_accumulated_payload_bytes_and_evicts_oldest() {
+        String chunk = "A".repeat(128 * 1024);
+
+        for (int i = 0; i < 9; i++) {
+            service.appendUpdate(SLIP_ID, chunk);
+        }
+
+        assertThat(service.listUpdates(SLIP_ID)).hasSizeLessThan(9);
+        assertThat(service.listUpdates(SLIP_ID).stream().mapToInt(String::length).sum())
+                .isLessThanOrEqualTo(1024 * 1024);
+    }
 }
