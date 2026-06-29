@@ -20,8 +20,10 @@ import {
 } from '../../api/slipCollab'
 import { SlipCollabRealtimeClient } from '../../realtime/SlipCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useFieldLock } from '../../hooks/useFieldLock'
 import { usePresence } from '../../hooks/usePresence'
 import { SlipVersionHistoryPanel } from '../audit/SlipVersionHistoryPanel'
+import { FieldLockIndicator } from './FieldLockIndicator'
 import { PresenceIndicator } from './PresenceIndicator'
 
 export interface SlipCollaborationPanelProps {
@@ -50,6 +52,8 @@ export const OVERLAY_FIELD_OPTIONS = [
   { value: 'collectTerm', label: '회수 조건' },
   { value: 'agreeTerm', label: '약정 조건' },
 ] as const
+
+const FIELD_LOCK_ENABLED_FIELDS = new Set<string>(['memo', 'shippingAddress'])
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '-'
@@ -139,6 +143,10 @@ export function SlipCollaborationPanel({
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
   const presenceEntries = usePresence({ entityId: slipId, enabled: !!slipId })
+  const fieldLock = useFieldLock({
+    entityId: slipId,
+    enabled: !!slipId && editMode && canAccess('slip.audit-overlay', 'update'),
+  })
 
   const commentQueryKey = useMemo(() => ['slipCollabComments', slipId] as const, [slipId])
   const editQueryKey = useMemo(() => ['slipCollabEdits', slipId] as const, [slipId])
@@ -397,20 +405,29 @@ export function SlipCollaborationPanel({
                   >
                     수정 가능 필드 11종
                   </p>
-                  {OVERLAY_FIELD_OPTIONS.map((option) => (
+                  {OVERLAY_FIELD_OPTIONS.map((option) => {
+                    const lockable = FIELD_LOCK_ENABLED_FIELDS.has(option.value)
+                    const lockedBy = lockable ? fieldLock.lockedBy(option.value) : []
+                    return (
                     <label key={option.value} style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
-                      {option.label}
+                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span>{option.label}</span>
+                        {lockable ? <FieldLockIndicator entries={lockedBy} /> : null}
+                      </span>
                       <Input
                         value={editValues[option.value] ?? ''}
                         onChange={(event) => setEditValues((prev) => ({
                           ...prev,
                           [option.value]: event.target.value,
                         }))}
+                        onFocus={lockable ? () => void fieldLock.acquire(option.value) : undefined}
+                        onBlur={lockable ? () => void fieldLock.release(option.value) : undefined}
                         aria-label={`${option.label} 수정값`}
                         inputSize="sm"
                       />
                     </label>
-                  ))}
+                    )
+                  })}
                   <Input
                     value={editReason}
                     onChange={(event) => setEditReason(event.target.value)}

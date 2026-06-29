@@ -10,10 +10,12 @@
  */
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
+import type { PluginOption } from 'vite'
 import { resolve } from 'node:path'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), VitePWA({ disable: true }) as unknown as PluginOption],
   root: resolve(__dirname, 'src/renderer'),
   resolve: {
     alias: {

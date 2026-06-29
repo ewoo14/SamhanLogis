@@ -17,6 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import com.samhanair.logis.shared.realtime.lock.FieldLockService;
 import com.samhanair.logis.slip.SlipServiceApplication;
 import com.samhanair.logis.slip.audit.repository.SlipAuditLogRepository;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
@@ -53,6 +55,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -105,6 +108,7 @@ class SlipCollabIT extends AbstractPostgresIT {
     /** 시나리오 8(a) — accept 경유 audit revision_no(N-분열 차단) 단언용. */
     @Autowired private SlipAuditLogRepository auditLogRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @SpyBean private RealtimeBroker realtimeBroker;
 
     /* ------------------------------------------------------------------ */
     /* 외부 client MockBean — 누락 시 Eureka 비활성 → 500 ([it-mockbean-external-clients]) */
@@ -261,6 +265,70 @@ class SlipCollabIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("sessionId", "presence-session-denied"))))
                 .andExpect(status().isForbidden());
+    }
+
+    /**
+     * field-lock API 는 soft-lock 계약에 따라 같은 필드 복수 세션을 모두 등록하고,
+     * acquire/release 이벤트를 기존 collab SSE 채널로 발행한다.
+     */
+    @Test
+    void fieldLock_acquire_list_release_keeps_softLock_contract_and_hides_document_uuid()
+            throws Exception {
+        UUID slipId = seedOutboundSlip("2099/06/13-FLOCK-" + SEQ.getAndIncrement()).getId();
+
+        mvc.perform(post("/slips/{slipId}/collab/field-locks/acquire", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(USER_NAME_HEADER, "필드편집자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "sessionId", "field-session-1",
+                                "fieldPath", "memo",
+                                "displayName", "ignored body name"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fieldPath").value("memo"))
+                .andExpect(jsonPath("$.data.sessionId").value("field-session-1"))
+                .andExpect(jsonPath("$.data.displayName").value("필드편집자"))
+                .andExpect(jsonPath("$.data.color").exists())
+                .andExpect(jsonPath("$.data.documentId").doesNotExist())
+                .andExpect(jsonPath("$.data.userId").doesNotExist())
+                .andExpect(jsonPath("$.data.lockedAt").doesNotExist());
+
+        mvc.perform(post("/slips/{slipId}/collab/field-locks/acquire", slipId)
+                        .header(USER_ID_HEADER, "20000000-0000-0000-0000-000000000002")
+                        .header(USER_NAME_HEADER, "동시편집자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "sessionId", "field-session-2",
+                                "fieldPath", "memo"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.displayName").value("동시편집자"));
+
+        mvc.perform(get("/slips/{slipId}/collab/field-locks", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].fieldPath").value("memo"))
+                .andExpect(jsonPath("$.data[0].documentId").doesNotExist());
+
+        mvc.perform(post("/slips/{slipId}/collab/field-locks/release", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "sessionId", "field-session-1",
+                                "fieldPath", "memo"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mvc.perform(get("/slips/{slipId}/collab/field-locks", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].sessionId").value("field-session-2"));
+
+        verify(realtimeBroker, times(2)).publish(
+                eq(slipId), eq(FieldLockService.EVENT_ACQUIRED), any());
+        verify(realtimeBroker).publish(
+                eq(slipId), eq(FieldLockService.EVENT_RELEASED), any());
     }
 
     /* ====================================================================

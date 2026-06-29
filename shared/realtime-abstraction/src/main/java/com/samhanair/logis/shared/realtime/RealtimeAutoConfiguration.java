@@ -4,6 +4,8 @@ import com.samhanair.logis.shared.realtime.broker.BrokerConfiguration;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import com.samhanair.logis.shared.realtime.lock.DefaultEditLockGuard;
 import com.samhanair.logis.shared.realtime.lock.EditLockGuard;
+import com.samhanair.logis.shared.realtime.lock.FieldLockService;
+import com.samhanair.logis.shared.realtime.lock.InMemoryFieldLockService;
 import com.samhanair.logis.shared.realtime.presence.PresenceService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -52,5 +54,12 @@ public class RealtimeAutoConfiguration {
     @ConditionalOnMissingBean(PresenceService.class)
     public PresenceService presenceService(RealtimeBroker broker) {
         return new PresenceService(broker);
+    }
+
+    /** 필드 단위 soft-lock registry — 기존 RealtimeBroker 채널로 acquire/release 이벤트를 발행한다. */
+    @Bean
+    @ConditionalOnMissingBean(FieldLockService.class)
+    public FieldLockService fieldLockService(RealtimeBroker broker) {
+        return new InMemoryFieldLockService(broker);
     }
 }

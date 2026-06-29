@@ -32,7 +32,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** mock.ts MOCK_SLIPS[0] (OUTBOUND / PROCESSING) 의 id — fixture getSlip 이 이 전표를 반환. */
 const SLIP_ID = 'slip-001'
-const PAGE_URL = `${BASE_URL}/#/sales/${SLIP_ID}?mockRole=MASTER`
+const PAGE_URL = `${BASE_URL}/#/sales/${SLIP_ID}?mockRole=MASTER&mockAppForce=NONE`
 
 /**
  * window.samhanAuth stub — AuthGuard 통과용 (slip-version-history.spec 패턴 동일).
@@ -78,10 +78,19 @@ async function seedOtherViewerOnce(page: Page) {
   }, { slipId: SLIP_ID })
 }
 
+async function closeBlockingNoticeIfVisible(page: Page) {
+  const notice = page.getByTestId('app-notice-modal')
+  if (await notice.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: '닫기' }).click()
+    await expect(notice).toHaveCount(0)
+  }
+}
+
 test.describe('§7 입출고전표 협업 패널', () => {
   test('코멘트 등록 → 목록 반영 → 해결 처리', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+    await closeBlockingNoticeIfVisible(page)
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
@@ -113,6 +122,7 @@ test.describe('§7 입출고전표 협업 패널', () => {
   test('수정 버튼 → 편집 → 수정완료 → 이력 diff 반영', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+    await closeBlockingNoticeIfVisible(page)
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
@@ -145,6 +155,7 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await installAuthMock(page)
     await seedOtherViewerOnce(page)
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+    await closeBlockingNoticeIfVisible(page)
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
