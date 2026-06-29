@@ -234,9 +234,22 @@ let MOCK_APP_NOTICES: MockAppNotice[] = [
   },
 ]
 
+/**
+ * 활동 로그 mock 시드의 발생시각을 "현재 기준 N분 전" 상대값으로 생성한다.
+ *
+ * 활동 로그 화면(ActivityLogPage)의 기본 조회 범위가 [현재-24시간, 현재] 슬라이딩
+ * 윈도이므로, 시드 시각을 절대값(예: '2026-06-28T09:12')으로 박으면 그 시점에서
+ * 24시간이 경과한 다음 날 기본 범위 밖으로 빠져 mock 회귀 테스트가 date-bomb 으로
+ * 실패한다(실제로 #656 머지 후 다음 날 DEV-3 3종 false-RED). 상대 시각으로 생성해
+ * 시계와 무관하게 항상 기본 범위 안(+ 내림차순)에 머물도록 고정한다.
+ */
+function mockActivityOccurredAt(minutesAgo: number): string {
+  return new Date(Date.now() - minutesAgo * 60_000).toISOString()
+}
+
 let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
   {
-    occurredAt: '2026-06-28T09:12:00+09:00',
+    occurredAt: mockActivityOccurredAt(10),
     userId: 'dev-master',
     user: '개발자',
     userRole: 'DEVELOPER',
@@ -247,7 +260,7 @@ let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
     serviceName: 'desktop',
   },
   {
-    occurredAt: '2026-06-28T09:08:00+09:00',
+    occurredAt: mockActivityOccurredAt(15),
     userId: 'dev-master',
     user: '개발자',
     userRole: 'DEVELOPER',
@@ -258,7 +271,7 @@ let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
     serviceName: 'desktop',
   },
   {
-    occurredAt: '2026-06-28T08:50:00+09:00',
+    occurredAt: mockActivityOccurredAt(20),
     userId: 'master',
     user: '마스터',
     userRole: 'MASTER',
