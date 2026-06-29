@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -148,16 +147,12 @@ public class CodefConnectionService {
     }
 
     private CodefConnection saveConnection(CodefConnection connection) {
-        try {
-            return connectionRepository.saveAndFlush(connection);
-        } catch (DataIntegrityViolationException ex) {
-            // 동시성 충돌(uq_codef_connection_single_active) 시 승자 connection 복원.
-            // activeConnectionOptional() 재사용 — status=ACTIVE + connectedId 보유 connection 만 복원한다.
-            // (직전 findFirstByIsDeletedFalse 는 status 무필터라 ERROR connection 을 복원할 위험 →
-            //  소급 0수렴 재리뷰 적발. activeConnectionOptional 과 동일 기준으로 일관화.)
-            return activeConnectionOptional()
-                    .orElseThrow(() -> ex);
-        }
+        // 등록 경로는 registerInstitution() 의 lockRegistration()(pg_advisory_xact_lock) 으로 직렬화되고,
+        // 기존 connection 은 in-place 갱신(findFirstByIsDeletedFalse → update)하므로
+        // uq_codef_connection_single_active 동시 INSERT 경합이 발생하지 않는다.
+        // 과거 DataIntegrityViolationException catch 후 재조회는 같은 트랜잭션이 PostgreSQL 에서 abort 되어
+        // ("current transaction is aborted") 무효였다(소급 0수렴 재리뷰 적발) → 제거하고 위반은 그대로 전파한다.
+        return connectionRepository.saveAndFlush(connection);
     }
 
     private EasyCodefClient requireEasyCodefClient() {

@@ -86,6 +86,10 @@ class CodefConnectionServiceIT extends AbstractPostgresIT {
         ArgumentCaptor<CodefRegisterCommand> captor = ArgumentCaptor.forClass(CodefRegisterCommand.class);
         verify(easyCodefClient, org.mockito.Mockito.times(2)).registerInstitution(captor.capture());
         assertThat(captor.getAllValues().get(1).connectedId()).isEqualTo("conn-001");
+
+        // 등록은 lockRegistration() 직렬화 + 기존 row in-place 갱신이므로 두 번째 등록이 새 row 를
+        // INSERT 하지 않는다 → uq_codef_connection_single_active 위반 미발생(saveConnection catch 불필요 박제).
+        assertThat(connectionRepository.findAll()).hasSize(1);
     }
 
     @Test
