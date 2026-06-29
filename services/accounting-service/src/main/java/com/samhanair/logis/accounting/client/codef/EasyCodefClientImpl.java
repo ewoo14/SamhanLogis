@@ -33,10 +33,13 @@ public class EasyCodefClientImpl implements EasyCodefClient {
 
     static final String BANK_ACCOUNT_PRODUCT_URL = "/v1/kr/bank/b/account/account-list";
     static final String CARD_PRODUCT_URL = "/v1/kr/card/p/account/card-list";
+    static final String SANDBOX_CARD_ORGANIZATION = "0301";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final EasyCodefServiceType SERVICE_TYPE = EasyCodefServiceType.SANDBOX;
     private static final String SUCCESS_CODE = "CF-00000";
     private static final String ADDITIONAL_AUTH_CODE = "CF-03002";
+    private static final String SANDBOX_MASKED_CODE = "****";
+    private static final Object SDK_TOKEN_LOCK = new Object();
 
     private final EasyCodef easyCodef;
     private final CodefProperties properties;
@@ -51,7 +54,7 @@ public class EasyCodefClientImpl implements EasyCodefClient {
     public CodefRegisterResult registerInstitution(CodefRegisterCommand command) {
         validatePublicKey();
         HashMap<String, Object> parameterMap = registerParameter(command);
-        String response = invokeSdk(() -> hasText(command.connectedId())
+        String response = invokeSdkThreadSafe(() -> hasText(command.connectedId())
                 ? easyCodef.addAccount(SERVICE_TYPE, parameterMap)
                 : easyCodef.createAccount(SERVICE_TYPE, parameterMap));
         return parseRegisterResult(response);
@@ -82,7 +85,11 @@ public class EasyCodefClientImpl implements EasyCodefClient {
     @Override
     public List<CardInfo> listCards(String connectedId) {
         validateConnectedId(connectedId);
-        return registeredOrganizations(connectedId, "CD").stream()
+        List<RegisteredOrganization> organizations = registeredOrganizations(connectedId, "CD");
+        if (organizations.isEmpty()) {
+            organizations = sandboxCardOrganizations();
+        }
+        return organizations.stream()
                 .flatMap(organization -> parseCards(
                         requestProduct(CARD_PRODUCT_URL, productParameter(connectedId, organization.code())),
                         organization.displayName()).stream())
@@ -151,7 +158,7 @@ public class EasyCodefClientImpl implements EasyCodefClient {
      * @return 은행계좌 목록
      */
     static List<AccountInfo> parseBankAccounts(String json, String defaultBank) {
-        JsonNode root = assertSuccess(json);
+        JsonNode root = assertSuccessOrSandboxMasked(json);
         JsonNode data = root.path("data");
         List<AccountInfo> accounts = new ArrayList<>();
         for (String field : List.of("resDepositTrust", "resForeignCurrency", "resFund", "resInsurance")) {
@@ -200,7 +207,7 @@ public class EasyCodefClientImpl implements EasyCodefClient {
      * @return 대출 목록
      */
     static List<LoanInfo> parseLoans(String json, String defaultLender) {
-        JsonNode root = assertSuccess(json);
+        JsonNode root = assertSuccessOrSandboxMasked(json);
         List<LoanInfo> loans = new ArrayList<>();
         for (JsonNode node : nodes(root.path("data").path("resLoan"))) {
             String account = firstText(text(node, "resAccount"), text(node, "resAccountDisplay"));
@@ -258,13 +265,13 @@ public class EasyCodefClientImpl implements EasyCodefClient {
     private List<RegisteredOrganization> registeredOrganizations(String connectedId, String businessType) {
         HashMap<String, Object> parameterMap = new HashMap<>();
         parameterMap.put("connectedId", connectedId.trim());
-        String response = invokeSdk(() -> easyCodef.getAccountList(SERVICE_TYPE, parameterMap));
+        String response = invokeSdkThreadSafe(() -> easyCodef.getAccountList(SERVICE_TYPE, parameterMap));
         return parseRegisteredOrganizations(response, businessType);
     }
 
     private String requestProduct(String productUrl, HashMap<String, Object> parameterMap) {
         validatePublicKey();
-        return invokeSdk(() -> easyCodef.requestProduct(productUrl, SERVICE_TYPE, parameterMap));
+        return invokeSdkThreadSafe(() -> easyCodef.requestProduct(productUrl, SERVICE_TYPE, parameterMap));
     }
 
     private HashMap<String, Object> productParameter(String connectedId, String organization) {
@@ -274,6 +281,15 @@ public class EasyCodefClientImpl implements EasyCodefClient {
             parameterMap.put("organization", organization.trim());
         }
         return parameterMap;
+    }
+
+    private static List<RegisteredOrganization> sandboxCardOrganizations() {
+        // CODEF SANDBOX getAccountList returns a fixed BK-only payload even after CARD registration.
+        // Keep card list QA functional until Phase 11 production switches SERVICE_TYPE to API.
+        if (SERVICE_TYPE == EasyCodefServiceType.SANDBOX) {
+            return List.of(new RegisteredOrganization(SANDBOX_CARD_ORGANIZATION, "국민카드"));
+        }
+        return List.of();
     }
 
     // package-private: 라이브 QA 회귀 테스트 대상(필드명 organizationCode 박제).
@@ -307,6 +323,21 @@ public class EasyCodefClientImpl implements EasyCodefClient {
         return root;
     }
 
+    private static JsonNode assertSuccessOrSandboxMasked(String json) {
+        JsonNode root = readTree(json);
+        String code = text(root.path("result"), "code");
+        if (SUCCESS_CODE.equals(code)) {
+            return root;
+        }
+        if (SANDBOX_MASKED_CODE.equals(code) && !root.path("data").isMissingNode()) {
+            return root;
+        }
+        JsonNode result = root.path("result");
+        String message = firstText(text(result, "message"), text(result, "extraMessage"),
+                "CODEF 응답이 정상 처리되지 않았습니다.");
+        throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED, message);
+    }
+
     private static JsonNode readTree(String json) {
         try {
             return OBJECT_MAPPER.readTree(json);
@@ -337,6 +368,10 @@ public class EasyCodefClientImpl implements EasyCodefClient {
         if (!hasText(properties.getPublicKey())) {
             throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
                     "CODEF 공개키 설정이 완료되지 않았습니다. 관리자에게 문의하세요.");
+        }
+        if (isPlaceholderKey(properties.getPublicKey())) {
+            throw new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,
+                    "CODEF 공개키 설정 값이 올바르지 않습니다. 관리자에게 문의하세요.");
         }
     }
 
@@ -374,6 +409,21 @@ public class EasyCodefClientImpl implements EasyCodefClient {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static boolean isPlaceholderKey(String key) {
+        String lower = key.trim().toLowerCase(Locale.ROOT);
+        return lower.equals("placeholder_dev_only")
+                || lower.equals("change_me_local_only")
+                || lower.equals("changeme")
+                || lower.equals("dummy");
+    }
+
+    private String invokeSdkThreadSafe(SdkCall call) {
+        // easyCodef 1.0.6 uses a static plain HashMap token cache. Serialize SDK entrypoints in this adapter.
+        synchronized (SDK_TOKEN_LOCK) {
+            return invokeSdk(call);
+        }
     }
 
     private static String invokeSdk(SdkCall call) {

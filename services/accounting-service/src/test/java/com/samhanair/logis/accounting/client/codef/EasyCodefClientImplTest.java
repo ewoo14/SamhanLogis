@@ -1,14 +1,25 @@
 package com.samhanair.logis.accounting.client.codef;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.AccountInfo;
 import com.samhanair.logis.accounting.client.CardInfo;
 import com.samhanair.logis.accounting.client.LoanInfo;
+import com.samhanair.logis.accounting.client.codef.dto.CodefRegisterCommand;
 import com.samhanair.logis.accounting.client.codef.dto.CodefRegisterResult;
+import com.samhanair.logis.accounting.config.CodefProperties;
+import com.samhanair.logis.common.exception.BusinessException;
+import io.codef.api.EasyCodef;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /** EasyCodef 응답 파싱과 순수 매핑 로직 단위 테스트. */
 class EasyCodefClientImplTest {
@@ -72,11 +83,11 @@ class EasyCodefClientImplTest {
     }
 
     @Test
-    @DisplayName("보유계좌 응답의 예금·대출 배열을 AccountInfo와 LoanInfo로 매핑한다")
+    @DisplayName("SANDBOX 마스킹 보유계좌 응답의 예금·대출 배열을 AccountInfo와 LoanInfo로 매핑한다")
     void parseBankAccountsAndLoans() {
         String json = """
                 {
-                  "result": {"code": "CF-00000", "message": "성공"},
+                  "result": {"code": "****", "message": "****"},
                   "data": {
                     "resDepositTrust": [{
                       "resAccount": "06170204000000",
@@ -157,5 +168,50 @@ class EasyCodefClientImplTest {
                 """;
 
         assertThat(EasyCodefClientImpl.parseRegisteredOrganizations(json, "BK")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("기관 등록 SDK 경로도 placeholder 공개키를 차단한다")
+    void registerInstitution_blocksPlaceholderPublicKey() {
+        CodefProperties properties = new CodefProperties();
+        ReflectionTestUtils.setField(properties, "publicKey", "CHANGE_ME_LOCAL_ONLY");
+        EasyCodefClientImpl client = new EasyCodefClientImpl(mock(EasyCodef.class), properties);
+
+        assertThatThrownBy(() -> client.registerInstitution(new CodefRegisterCommand(
+                null,
+                "BANK",
+                "0004",
+                "5",
+                Map.of("id", "sandbox"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("CODEF 공개키 설정 값이 올바르지 않습니다. 관리자에게 문의하세요.");
+    }
+
+    @Test
+    @DisplayName("SANDBOX getAccountList가 CD를 누락해도 카드 검증 목록은 0301 fallback으로 조회한다")
+    void listCards_usesSandboxFallbackWhenAccountListOmitsCards() throws Exception {
+        CodefProperties properties = new CodefProperties();
+        ReflectionTestUtils.setField(properties, "publicKey", "real-codef-public-key");
+        EasyCodef easyCodef = mock(EasyCodef.class);
+        when(easyCodef.getAccountList(any(), any())).thenReturn("""
+                {
+                  "result": {"code": "CF-00000", "message": "성공"},
+                  "data": {"accountList": [
+                    {"businessType": "BK", "organizationCode": "0004", "countryCode": "KR"}
+                  ]}
+                }
+                """);
+        when(easyCodef.requestProduct(eq(EasyCodefClientImpl.CARD_PRODUCT_URL), any(), any())).thenReturn("""
+                {
+                  "result": {"code": "CF-00000", "message": "성공"},
+                  "data": [{"resCardName": "할인카드", "resCardNo": "6253********0000"}]
+                }
+                """);
+        EasyCodefClientImpl client = new EasyCodefClientImpl(easyCodef, properties);
+
+        List<CardInfo> cards = client.listCards("conn-001");
+
+        assertThat(cards).containsExactly(
+                new CardInfo("6253********0000", "할인카드", "국민카드", "6253********0000"));
     }
 }
