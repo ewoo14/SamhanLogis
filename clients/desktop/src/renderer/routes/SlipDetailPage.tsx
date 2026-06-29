@@ -79,9 +79,14 @@ import {
   type SlipEditRequestType,
 } from '../api/slipEditRequest'
 import { SlipCollaborationPanel } from '../components/collab/SlipCollaborationPanel'
+import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
 import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
 import { SlipRealtimeClient } from '../realtime/SlipRealtimeClient'
+import {
+  createDocCoeditProvider,
+  type DocCoeditProvider,
+} from '../realtime/createCoeditProvider'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -269,6 +274,47 @@ function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
   }))
 }
 
+function coeditHeaderValues(slip: SlipDetail, mode: SlipType): Record<string, string> {
+  return {
+    partnerName: slip.partnerName ?? '',
+    partnerCode: slip.partnerCode ?? '',
+    businessNumber: slip.businessNumber ?? '',
+    memo: slip.memo ?? '',
+    deliveryAddress: slip.deliveryAddress ?? '',
+    supervisionAddress: mode === 'OUTBOUND' ? slip.supervisionAddress ?? '' : '',
+    projectName: slip.projectName ?? '',
+    recipientPhone: slip.recipientPhone ?? '',
+    paymentDueDate: slip.paymentDueDate ?? '',
+  }
+}
+
+function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, mode: SlipType) {
+  for (const [fieldName, value] of Object.entries(coeditHeaderValues(slip, mode))) {
+    provider.setHeaderValue(fieldName, value)
+  }
+  provider.replaceItems(toPurchaseEditLines(slip))
+}
+
+function coeditLinesToEditLines(
+  provider: DocCoeditProvider,
+  current: PurchaseEditLine[],
+): PurchaseEditLine[] {
+  return provider.items.toArray().map((_, index) => {
+    const previous = current[index]
+    const quantityValue = provider.getItemValue(index, 'quantity')
+    return {
+      key: previous?.key ?? createEditLineKey(),
+      productId: provider.getItemValue(index, 'productId') || previous?.productId || '',
+      productName: provider.getItemValue(index, 'productName'),
+      modelName: provider.getItemValue(index, 'modelName'),
+      specification: provider.getItemValue(index, 'specification'),
+      quantity: Number(quantityValue || previous?.quantity || 0),
+      unitPrice: provider.getItemValue(index, 'unitPrice') || String(previous?.unitPrice ?? '0'),
+      note: provider.getItemValue(index, 'note') || previous?.note || '',
+    }
+  })
+}
+
 /**
  * "2026-05-04T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4.
  */
@@ -397,6 +443,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const purchaseReloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // §7 협업 수정완료: 확정/완료 전표도 물리 종결 전이면 overlay 필드 편집 가능.
   const [collabEditMode, setCollabEditMode] = useState(false)
+  const [slipFormCoeditProvider, setSlipFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
 
   const detailQuery = useQuery({
     queryKey: ['slip', id],
@@ -809,6 +856,65 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       }
     }
   }, [])
+
+  useEffect(() => {
+    const slipData = detailQuery.data
+    const enabled = !!slipData && (salesEditOpen || purchaseEditOpen)
+    if (!id || !enabled || !slipData) {
+      setSlipFormCoeditProvider(null)
+      return undefined
+    }
+
+    let disposed = false
+    let provider: DocCoeditProvider | null = null
+    let unsubscribeDoc: (() => void) | null = null
+
+    const applyProviderState = (nextProvider: DocCoeditProvider) => {
+      if (mode === 'OUTBOUND') {
+        setSalesPartnerName(nextProvider.getHeaderValue('partnerName'))
+        setSalesPartnerCode(nextProvider.getHeaderValue('partnerCode'))
+        setSalesBusinessNumber(nextProvider.getHeaderValue('businessNumber'))
+        setSalesMemo(nextProvider.getHeaderValue('memo'))
+        setSalesDeliveryAddress(nextProvider.getHeaderValue('deliveryAddress'))
+        setSalesSupervisionAddress(nextProvider.getHeaderValue('supervisionAddress'))
+        setSalesProjectName(nextProvider.getHeaderValue('projectName'))
+        setSalesRecipientPhone(nextProvider.getHeaderValue('recipientPhone'))
+        setSalesPaymentDueDate(nextProvider.getHeaderValue('paymentDueDate'))
+        setSalesEditLines((prev) => coeditLinesToEditLines(nextProvider, prev))
+        return
+      }
+      setPurchasePartnerName(nextProvider.getHeaderValue('partnerName'))
+      setPurchasePartnerCode(nextProvider.getHeaderValue('partnerCode'))
+      setPurchaseBusinessNumber(nextProvider.getHeaderValue('businessNumber'))
+      setPurchaseMemo(nextProvider.getHeaderValue('memo'))
+      setPurchaseDeliveryAddress(nextProvider.getHeaderValue('deliveryAddress'))
+      setPurchaseProjectName(nextProvider.getHeaderValue('projectName'))
+      setPurchaseRecipientPhone(nextProvider.getHeaderValue('recipientPhone'))
+      setPurchasePaymentDueDate(nextProvider.getHeaderValue('paymentDueDate'))
+      setPurchaseEditLines((prev) => coeditLinesToEditLines(nextProvider, prev))
+    }
+
+    void createDocCoeditProvider({ slipId: id }).then((nextProvider) => {
+      if (disposed) {
+        nextProvider.destroy()
+        return
+      }
+      provider = nextProvider
+      if (nextProvider.isEmpty()) seedSlipCoeditProvider(nextProvider, slipData, mode)
+      applyProviderState(nextProvider)
+      unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
+      setSlipFormCoeditProvider(nextProvider)
+    }).catch(() => {
+      if (!disposed) setSlipFormCoeditProvider(null)
+    })
+
+    return () => {
+      disposed = true
+      unsubscribeDoc?.()
+      provider?.destroy()
+      setSlipFormCoeditProvider(null)
+    }
+  }, [detailQuery.data, id, mode, purchaseEditOpen, salesEditOpen])
 
   if (!id) return null
 
@@ -2583,65 +2689,72 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </label>
           <label className="purchase-edit-field">
             <span className="detail-label">거래처</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.partnerName"
               value={purchasePartnerName}
-              onChange={(e) => setPurchasePartnerName(e.target.value)}
+              onValueChange={setPurchasePartnerName}
               aria-label="거래처"
             />
           </label>
           <label className="purchase-edit-field">
             <span className="detail-label">거래처코드</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.partnerCode"
               value={purchasePartnerCode}
-              onChange={(e) => setPurchasePartnerCode(e.target.value)}
+              onValueChange={setPurchasePartnerCode}
               aria-label="거래처코드"
             />
           </label>
           <label className="purchase-edit-field">
             <span className="detail-label">사업자번호</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.businessNumber"
               value={purchaseBusinessNumber}
-              onChange={(e) => setPurchaseBusinessNumber(e.target.value)}
+              onValueChange={setPurchaseBusinessNumber}
               aria-label="사업자번호"
             />
           </label>
           <label className="purchase-edit-field">
             <span className="detail-label">배송주소</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.deliveryAddress"
               value={purchaseDeliveryAddress}
-              onChange={(e) => setPurchaseDeliveryAddress(e.target.value)}
+              onValueChange={setPurchaseDeliveryAddress}
               aria-label="배송주소"
             />
           </label>
           <label className="purchase-edit-field">
             <span className="detail-label">프로젝트명</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.projectName"
               value={purchaseProjectName}
-              onChange={(e) => setPurchaseProjectName(e.target.value)}
+              onValueChange={setPurchaseProjectName}
               aria-label="프로젝트명"
             />
           </label>
           <label className="purchase-edit-field">
             <span className="detail-label">인수자 번호</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.recipientPhone"
               value={purchaseRecipientPhone}
-              onChange={(e) => setPurchaseRecipientPhone(e.target.value)}
+              onValueChange={setPurchaseRecipientPhone}
               aria-label="인수자 번호"
             />
           </label>
           <label className="purchase-edit-field">
             <span className="detail-label">입금예정일</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.paymentDueDate"
               type="date"
               value={purchasePaymentDueDate}
-              onChange={(e) => setPurchasePaymentDueDate(e.target.value)}
+              onValueChange={setPurchasePaymentDueDate}
               aria-label="입금예정일"
             />
           </label>
@@ -2649,10 +2762,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
         <label className="purchase-edit-field purchase-edit-memo">
           <span className="detail-label">적요</span>
-          <Input
-            inputSize="sm"
+          <CollaborativeSlipInput
+            provider={slipFormCoeditProvider}
+            fieldPath="header.memo"
             value={purchaseMemo}
-            onChange={(e) => setPurchaseMemo(e.target.value)}
+            onValueChange={setPurchaseMemo}
             aria-label="적요"
           />
         </label>
@@ -2675,46 +2789,51 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               {purchaseEditLines.map((line, index) => (
                 <tr key={line.key}>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.productName`}
                       value={line.productName ?? ''}
-                      onChange={(e) => updatePurchaseLine(index, { productName: e.target.value })}
+                      onValueChange={(value) => updatePurchaseLine(index, { productName: value })}
                       aria-label={`품목 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.modelName`}
                       value={line.modelName ?? ''}
-                      onChange={(e) => updatePurchaseLine(index, { modelName: e.target.value })}
+                      onValueChange={(value) => updatePurchaseLine(index, { modelName: value })}
                       aria-label={`모델명 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.specification`}
                       value={line.specification ?? ''}
-                      onChange={(e) => updatePurchaseLine(index, { specification: e.target.value })}
+                      onValueChange={(value) => updatePurchaseLine(index, { specification: value })}
                       aria-label={`규격 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.quantity`}
                       type="number"
                       min={1}
                       value={String(line.quantity)}
-                      onChange={(e) => updatePurchaseLine(index, { quantity: Number(e.target.value) })}
+                      onValueChange={(value) => updatePurchaseLine(index, { quantity: Number(value) })}
                       aria-label={`수량 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.unitPrice`}
                       type="number"
                       min={0}
                       value={String(line.unitPrice)}
-                      onChange={(e) => updatePurchaseLine(index, { unitPrice: e.target.value })}
+                      onValueChange={(value) => updatePurchaseLine(index, { unitPrice: value })}
                       aria-label={`단가 ${index + 1}`}
                     />
                   </td>
@@ -2830,74 +2949,82 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">거래처</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.partnerName"
               value={salesPartnerName}
-              onChange={(e) => setSalesPartnerName(e.target.value)}
+              onValueChange={setSalesPartnerName}
               aria-label="거래처"
             />
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">거래처코드</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.partnerCode"
               value={salesPartnerCode}
-              onChange={(e) => setSalesPartnerCode(e.target.value)}
+              onValueChange={setSalesPartnerCode}
               aria-label="거래처코드"
             />
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">사업자번호</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.businessNumber"
               value={salesBusinessNumber}
-              onChange={(e) => setSalesBusinessNumber(e.target.value)}
+              onValueChange={setSalesBusinessNumber}
               aria-label="사업자번호"
             />
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">배송주소</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.deliveryAddress"
               value={salesDeliveryAddress}
-              onChange={(e) => setSalesDeliveryAddress(e.target.value)}
+              onValueChange={setSalesDeliveryAddress}
               aria-label="배송주소"
             />
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">감리주소</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.supervisionAddress"
               value={salesSupervisionAddress}
-              onChange={(e) => setSalesSupervisionAddress(e.target.value)}
+              onValueChange={setSalesSupervisionAddress}
               aria-label="감리주소"
             />
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">프로젝트명</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.projectName"
               value={salesProjectName}
-              onChange={(e) => setSalesProjectName(e.target.value)}
+              onValueChange={setSalesProjectName}
               aria-label="프로젝트명"
             />
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">인수자 번호</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.recipientPhone"
               value={salesRecipientPhone}
-              onChange={(e) => setSalesRecipientPhone(e.target.value)}
+              onValueChange={setSalesRecipientPhone}
               aria-label="인수자 번호"
             />
           </label>
           <label className="sales-edit-field">
             <span className="detail-label">입금예정일</span>
-            <Input
-              inputSize="sm"
+            <CollaborativeSlipInput
+              provider={slipFormCoeditProvider}
+              fieldPath="header.paymentDueDate"
               type="date"
               value={salesPaymentDueDate}
-              onChange={(e) => setSalesPaymentDueDate(e.target.value)}
+              onValueChange={setSalesPaymentDueDate}
               aria-label="입금예정일"
             />
           </label>
@@ -2905,10 +3032,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
         <label className="sales-edit-field sales-edit-memo">
           <span className="detail-label">적요</span>
-          <Input
-            inputSize="sm"
+          <CollaborativeSlipInput
+            provider={slipFormCoeditProvider}
+            fieldPath="header.memo"
             value={salesMemo}
-            onChange={(e) => setSalesMemo(e.target.value)}
+            onValueChange={setSalesMemo}
             aria-label="적요"
           />
         </label>
@@ -2931,46 +3059,51 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               {salesEditLines.map((line, index) => (
                 <tr key={line.key}>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.productName`}
                       value={line.productName ?? ''}
-                      onChange={(e) => updateSalesLine(index, { productName: e.target.value })}
+                      onValueChange={(value) => updateSalesLine(index, { productName: value })}
                       aria-label={`품목 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.modelName`}
                       value={line.modelName ?? ''}
-                      onChange={(e) => updateSalesLine(index, { modelName: e.target.value })}
+                      onValueChange={(value) => updateSalesLine(index, { modelName: value })}
                       aria-label={`모델명 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.specification`}
                       value={line.specification ?? ''}
-                      onChange={(e) => updateSalesLine(index, { specification: e.target.value })}
+                      onValueChange={(value) => updateSalesLine(index, { specification: value })}
                       aria-label={`규격 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.quantity`}
                       type="number"
                       min={1}
                       value={String(line.quantity)}
-                      onChange={(e) => updateSalesLine(index, { quantity: Number(e.target.value) })}
+                      onValueChange={(value) => updateSalesLine(index, { quantity: Number(value) })}
                       aria-label={`수량 ${index + 1}`}
                     />
                   </td>
                   <td>
-                    <Input
-                      inputSize="sm"
+                    <CollaborativeSlipInput
+                      provider={slipFormCoeditProvider}
+                      fieldPath={`items.${index}.unitPrice`}
                       type="number"
                       min={0}
                       value={String(line.unitPrice)}
-                      onChange={(e) => updateSalesLine(index, { unitPrice: e.target.value })}
+                      onValueChange={(value) => updateSalesLine(index, { unitPrice: value })}
                       aria-label={`단가 ${index + 1}`}
                     />
                   </td>
@@ -3256,7 +3389,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   function removePurchaseLine(index: number) {
-    setPurchaseEditLines((prev) => prev.filter((_, i) => i !== index))
+    setPurchaseEditLines((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      slipFormCoeditProvider?.replaceItems(next)
+      return next
+    })
   }
 
   // SP-08-6-2: 매출 수정 라인 헬퍼
@@ -3267,6 +3404,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   function removeSalesLine(index: number) {
-    setSalesEditLines((prev) => prev.filter((_, i) => i !== index))
+    setSalesEditLines((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      slipFormCoeditProvider?.replaceItems(next)
+      return next
+    })
   }
 }

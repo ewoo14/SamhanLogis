@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import { Awareness } from 'y-protocols/awareness'
 import { encodeAwarenessUpdate } from 'y-protocols/awareness'
-import { createCoeditProvider, decodeBase64Update, encodeBase64Update } from './createCoeditProvider'
+import {
+  createCoeditProvider,
+  createDocCoeditProvider,
+  decodeBase64Update,
+  encodeBase64Update,
+} from './createCoeditProvider'
 
 describe('createCoeditProvider', () => {
   afterEach(() => {
@@ -185,5 +190,81 @@ describe('createCoeditProvider', () => {
     expect(postAwareness).toHaveBeenCalledTimes(1)
     await vi.runOnlyPendingTimersAsync()
     expect(postAwareness).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('createDocCoeditProvider', () => {
+  it('header Y.Map 과 items Y.Array 문서 모델 update가 두 Y.Doc 사이에서 수렴한다', async () => {
+    const base = new Y.Doc()
+    base.getArray<Y.Map<unknown>>('items').push([new Y.Map<unknown>()])
+    const baseUpdate = encodeBase64Update(Y.encodeStateAsUpdate(base))
+    const left = await createDocCoeditProvider({
+      slipId: 'slip-1',
+      initialUpdates: async () => ({ updates: [baseUpdate] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const right = await createDocCoeditProvider({
+      slipId: 'slip-1',
+      initialUpdates: async () => ({ updates: [baseUpdate] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    left.setHeaderValue('partnerName', '삼한공조')
+    left.setItemValue(0, 'productName', '실외기')
+    right.setHeaderValue('memo', '오전 배송')
+    right.setItemValue(0, 'quantity', '3')
+
+    right.applyRemoteUpdate(encodeBase64Update(Y.encodeStateAsUpdate(left.doc)))
+    left.applyRemoteUpdate(encodeBase64Update(Y.encodeStateAsUpdate(right.doc)))
+
+    expect(left.getHeaderValue('partnerName')).toBe('삼한공조')
+    expect(right.getHeaderValue('partnerName')).toBe('삼한공조')
+    expect(left.getHeaderValue('memo')).toBe('오전 배송')
+    expect(left.header.get('memo')).toBeInstanceOf(Y.Text)
+    expect(right.getItemValue(0, 'productName')).toBe('실외기')
+    expect(left.getItemValue(0, 'quantity')).toBe('3')
+
+    left.destroy()
+    right.destroy()
+  })
+
+  it('awareness cursor를 fieldPath 단위로 필터링하고 내부 식별자는 반환하지 않는다', async () => {
+    const remoteDoc = new Y.Doc()
+    const remoteAwareness = new Awareness(remoteDoc)
+    remoteAwareness.setLocalState({
+      user: { displayName: '김영업', color: '#2563EB' },
+      cursor: { fieldPath: 'items.0.quantity', anchor: 0, head: 1 },
+    })
+    const awarenessUpdate = encodeBase64Update(
+      encodeAwarenessUpdate(remoteAwareness, [remoteDoc.clientID]),
+    )
+
+    const provider = await createDocCoeditProvider({
+      slipId: 'slip-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    provider.applyRemoteAwareness(awarenessUpdate)
+
+    expect(provider.getRemoteCursors('items.0.quantity')).toEqual([
+      {
+        clientId: remoteDoc.clientID,
+        displayName: '김영업',
+        color: '#2563EB',
+        fieldPath: 'items.0.quantity',
+        anchor: 0,
+        head: 1,
+      },
+    ])
+    expect(provider.getRemoteCursors('header.memo')).toEqual([])
+    expect(provider.getRemoteCursors('items.0.quantity')[0]).not.toHaveProperty('sessionId')
+    provider.destroy()
   })
 })

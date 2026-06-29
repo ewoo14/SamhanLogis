@@ -35,6 +35,8 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 /** mock.ts MOCK_SLIPS[0] (OUTBOUND / PROCESSING) 의 id — fixture getSlip 이 이 전표를 반환. */
 const SLIP_ID = 'slip-001'
 const PAGE_URL = `${BASE_URL}/#/sales/${SLIP_ID}?mockRole=MASTER`
+const DRAFT_SLIP_ID = 'slip-005'
+const DRAFT_PAGE_URL = `${BASE_URL}/#/sales/${DRAFT_SLIP_ID}?mockRole=MASTER`
 
 function encodeBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64')
@@ -224,5 +226,29 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(memo).toHaveValue('원격 seed 메모 + 로컬 입력')
     await expect(panel).not.toContainText(SLIP_ID)
     await expect(panel).not.toContainText('remote-client')
+  })
+
+  test('S2a direct edit modal은 헤더와 품목 셀을 fieldPath 단위 coedit input으로 렌더한다', async ({ page }) => {
+    await installAuthMock(page)
+    await page.goto(DRAFT_PAGE_URL, { waitUntil: 'domcontentloaded' })
+
+    await page.getByTestId('sales-slip-edit-button').click()
+    const modal = page.getByRole('dialog', { name: '매출 전표 수정' })
+    await expect(modal).toBeVisible()
+
+    await expect(page.getByTestId('slip-coedit-field-header-partnerName')).toBeVisible()
+    await expect(page.getByTestId('slip-coedit-field-header-memo')).toBeVisible()
+    await expect(page.getByTestId('slip-coedit-field-items-0-productName')).toBeVisible()
+    await expect(page.getByTestId('slip-coedit-field-items-0-quantity')).toBeVisible()
+    await expect(page.getByTestId('slip-coedit-field-items-0-unitPrice')).toBeVisible()
+
+    await modal.getByLabel('거래처', { exact: true }).fill('한일냉동기술 S2a')
+    await modal.getByLabel('수량 1').fill('3')
+    await modal.getByLabel('단가 1').fill('120000')
+
+    await expect(modal.getByLabel('거래처', { exact: true })).toHaveValue('한일냉동기술 S2a')
+    await expect(modal.getByLabel('수량 1')).toHaveValue('3')
+    await expect(modal.getByLabel('단가 1')).toHaveValue('120000')
+    await expect(modal).not.toContainText(DRAFT_SLIP_ID)
   })
 })

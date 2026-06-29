@@ -1,16 +1,6 @@
 import { Badge } from '@samhan/design-system'
 import type { PresenceColor, PresenceEntry } from '../../realtime/createPresenceClient'
-
-const COLOR_HEX: Record<PresenceColor, string> = {
-  BLUE: '#2563EB',
-  GREEN: '#15803D',
-  AMBER: '#B45309',
-  ROSE: '#E11D48',
-  VIOLET: '#7C3AED',
-  CYAN: '#0E7490',
-  LIME: '#4D7C0F',
-  PINK: '#DB2777',
-}
+import { presenceColorToHex } from '../../utils/presenceColor'
 
 function isPresenceEntry(value: unknown): value is PresenceEntry {
   return typeof value === 'object'
@@ -80,7 +70,7 @@ export function PresenceIndicator({ entries }: PresenceIndicatorProps) {
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: COLOR_HEX[entry.color] ?? '#64748B',
+              background: presenceColorToHex(entry.color),
               flex: '0 0 auto',
             }}
           />
