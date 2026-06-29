@@ -308,9 +308,10 @@ function coeditLinesToEditLines(
       productName: provider.getItemValue(index, 'productName'),
       modelName: provider.getItemValue(index, 'modelName'),
       specification: provider.getItemValue(index, 'specification'),
-      quantity: Number(quantityValue || previous?.quantity || 0),
-      unitPrice: provider.getItemValue(index, 'unitPrice') || String(previous?.unitPrice ?? '0'),
-      note: provider.getItemValue(index, 'note') || previous?.note || '',
+      // 타이핑 coedit 값은 Y.Doc 직접 사용(`|| previous` 폴백 제거) — 빈 문자열로 지울 수 있게(리뷰 FE B-1: 폴백이 ''를 falsy 처리해 숫자 셀 clear 불가). productId 는 선택기반(타이핑 아님)이라 폴백 유지.
+      quantity: Number(quantityValue || 0),
+      unitPrice: provider.getItemValue(index, 'unitPrice'),
+      note: provider.getItemValue(index, 'note'),
     }
   })
 }

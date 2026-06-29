@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { Input } from '@samhan/design-system'
 import type { DocCoeditProvider, RemoteFieldCursor } from '../../realtime/createCoeditProvider'
 
@@ -72,10 +73,13 @@ export function CollaborativeSlipInput({
     }
   }, [fieldPath, onValueChange, provider])
 
-  const wrapperStyle = useMemo(() => {
-    if (!primaryRemote) return undefined
+  const wrapperStyle = useMemo<CSSProperties>(() => {
+    // position: relative — 이름 배지를 absolute 오버레이(입력란 위)로 띄워 품목 테이블 셀 높이·행 정렬 불변(리뷰 Design B-2).
+    if (!primaryRemote) return { position: 'relative', display: 'block' }
     return {
-      borderRadius: 5,
+      position: 'relative',
+      display: 'block',
+      borderRadius: 'var(--radius-md)',
       boxShadow: `0 0 0 2px ${primaryRemote.color}`,
       background: `${primaryRemote.color}14`,
     }
@@ -92,23 +96,28 @@ export function CollaborativeSlipInput({
   return (
     <span
       data-testid={`slip-coedit-field-${fieldPath.replace(/\./g, '-')}`}
-      style={{ display: 'grid', gap: 2, padding: primaryRemote ? 2 : 0, ...wrapperStyle }}
+      style={wrapperStyle}
     >
       {primaryRemote ? (
         <span
+          aria-hidden="true"
           style={{
-            justifySelf: 'start',
+            position: 'absolute',
+            bottom: 'calc(100% + 2px)',
+            left: 0,
+            zIndex: 2,
             maxWidth: 140,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            borderRadius: 4,
+            borderRadius: 'var(--radius-sm, 4px)',
             padding: '1px 6px',
             background: primaryRemote.color,
             color: '#fff',
             fontSize: 'var(--font-size-xs)',
-            fontWeight: 700,
+            fontWeight: 'var(--font-weight-bold)',
             lineHeight: 1.4,
+            pointerEvents: 'none',
           }}
         >
           {primaryRemote.displayName}
