@@ -78,6 +78,14 @@ class CodefConnectionRepositoryIT extends AbstractPostgresIT {
                 """, Timestamp.from(Instant.now())))
                 .isInstanceOf(DataIntegrityViolationException.class);
 
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO codef_connection
+                    (connected_id, status, created_at, created_by, is_deleted)
+                VALUES
+                    (NULL, 'ACTIVE', ?, 'test', false)
+                """, Timestamp.from(Instant.now())))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
         CodefConnection connection = connectionRepository.saveAndFlush(
                 CodefConnection.create("conn-valid", CodefConnectionStatus.ACTIVE));
 

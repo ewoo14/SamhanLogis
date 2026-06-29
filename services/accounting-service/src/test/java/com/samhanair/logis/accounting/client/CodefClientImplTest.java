@@ -28,7 +28,8 @@ class CodefClientImplTest {
         EasyCodefClient easyCodefClient = mock(EasyCodefClient.class);
         CodefConnectionRepository repository = mock(CodefConnectionRepository.class);
         CodefConnection connection = CodefConnection.create("conn-real", CodefConnectionStatus.ACTIVE);
-        when(repository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()).thenReturn(Optional.of(connection));
+        when(repository.findFirstByStatusAndConnectedIdIsNotNullAndIsDeletedFalseOrderByCreatedAtAsc(
+                CodefConnectionStatus.ACTIVE)).thenReturn(Optional.of(connection));
         when(easyCodefClient.listBankAccounts("conn-real"))
                 .thenReturn(List.of(new AccountInfo("bank-ref", "주거래", "국민은행", "123-456")));
         when(easyCodefClient.listCards("conn-real"))
@@ -60,7 +61,21 @@ class CodefClientImplTest {
     @DisplayName("CODEF 목록 조회 시 저장된 connectedId가 없으면 미등록 오류를 반환한다")
     void codefListMethods_requireRegisteredConnectedId() {
         CodefConnectionRepository repository = mock(CodefConnectionRepository.class);
-        when(repository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()).thenReturn(Optional.empty());
+        when(repository.findFirstByStatusAndConnectedIdIsNotNullAndIsDeletedFalseOrderByCreatedAtAsc(
+                CodefConnectionStatus.ACTIVE)).thenReturn(Optional.empty());
+        CodefClientImpl client = new CodefClientImpl(codefProperties(), Optional.of(mock(EasyCodefClient.class)), repository);
+
+        assertThatThrownBy(() -> client.listBankAccounts(null, "CODEF"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요.");
+    }
+
+    @Test
+    @DisplayName("CODEF 목록 조회는 ERROR 연결을 등록된 connectedId로 사용하지 않는다")
+    void codefListMethods_ignoreErrorConnection() {
+        CodefConnectionRepository repository = mock(CodefConnectionRepository.class);
+        when(repository.findFirstByStatusAndConnectedIdIsNotNullAndIsDeletedFalseOrderByCreatedAtAsc(
+                CodefConnectionStatus.ACTIVE)).thenReturn(Optional.empty());
         CodefClientImpl client = new CodefClientImpl(codefProperties(), Optional.of(mock(EasyCodefClient.class)), repository);
 
         assertThatThrownBy(() -> client.listBankAccounts(null, "CODEF"))

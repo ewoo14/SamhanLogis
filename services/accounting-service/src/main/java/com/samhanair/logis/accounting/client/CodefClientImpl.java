@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.client;
 import com.samhanair.logis.accounting.client.codef.EasyCodefClient;
 import com.samhanair.logis.accounting.config.CodefProperties;
 import com.samhanair.logis.accounting.domain.BankTxnType;
+import com.samhanair.logis.accounting.domain.codef.CodefConnectionStatus;
 import com.samhanair.logis.accounting.repository.CodefConnectionRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -274,7 +275,9 @@ public class CodefClientImpl implements CodefClient {
     }
 
     private String registeredConnectedId() {
-        String connectedId = codefConnectionRepository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()
+        String connectedId = codefConnectionRepository
+                .findFirstByStatusAndConnectedIdIsNotNullAndIsDeletedFalseOrderByCreatedAtAsc(
+                        CodefConnectionStatus.ACTIVE)
                 .map(connection -> connection.getConnectedId())
                 .filter(CodefClientImpl::hasText)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CODEF_SUBMIT_FAILED,

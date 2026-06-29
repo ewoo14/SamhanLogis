@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -12,10 +13,13 @@ import com.samhanair.logis.accounting.client.LoanInfo;
 import com.samhanair.logis.accounting.client.codef.EasyCodefClient;
 import com.samhanair.logis.accounting.client.codef.dto.CodefRegisterCommand;
 import com.samhanair.logis.accounting.client.codef.dto.CodefRegisterResult;
+import com.samhanair.logis.accounting.domain.codef.CodefConnection;
+import com.samhanair.logis.accounting.domain.codef.CodefConnectionStatus;
 import com.samhanair.logis.accounting.domain.codef.CodefInstitutionStatus;
 import com.samhanair.logis.accounting.repository.CodefConnectionRepository;
 import com.samhanair.logis.accounting.repository.CodefRegisteredInstitutionRepository;
 import com.samhanair.logis.accounting.service.CodefConnectionService;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +97,31 @@ class CodefConnectionServiceIT extends AbstractPostgresIT {
         var view = service.registerInstitution(new CodefRegisterCommand(null, "BANK", "0004", "1", Map.of("id", "u")));
 
         assertThat(view.status()).isEqualTo(CodefInstitutionStatus.ADDITIONAL_AUTH);
+    }
+
+    @Test
+    @DisplayName("CODEF가 connectedId 없이 성공 상태를 반환하면 ACTIVE 연결을 저장하지 않고 오류 처리한다")
+    void registerInstitution_rejectsSuccessfulResultWithoutConnectedId() {
+        when(easyCodefClient.registerInstitution(any()))
+                .thenReturn(new CodefRegisterResult(null, "ACTIVE", "connectedId missing"));
+
+        assertThatThrownBy(() -> service.registerInstitution(
+                new CodefRegisterCommand(null, "BANK", "0004", "1", Map.of("id", "u"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요.");
+
+        assertThat(connectionRepository.findAll()).isEmpty();
+        assertThat(institutionRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("ERROR 연결은 등록 기관 목록 조회에 사용하지 않는다")
+    void listRegistered_ignoresErrorConnection() {
+        connectionRepository.saveAndFlush(CodefConnection.create(null, CodefConnectionStatus.ERROR));
+
+        assertThatThrownBy(() -> service.listRegistered())
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요.");
     }
 
     @Test

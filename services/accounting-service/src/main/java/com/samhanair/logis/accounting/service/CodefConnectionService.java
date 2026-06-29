@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,8 +47,9 @@ public class CodefConnectionService {
     @Transactional
     public RegisteredInstitutionView registerInstitution(CodefRegisterCommand command) {
         validateCommand(command);
-        Optional<CodefConnection> existing = connectionRepository.findFirstByIsDeletedFalseOrderByCreatedAtAsc();
-        String existingConnectedId = existing.map(CodefConnection::getConnectedId).filter(CodefConnectionService::hasText)
+        connectionRepository.lockRegistration();
+        Optional<CodefConnection> active = activeConnectionOptional();
+        String existingConnectedId = active.map(CodefConnection::getConnectedId).filter(CodefConnectionService::hasText)
                 .orElse(null);
         Map<String, String> credentials = command.credentials() == null ? Map.of() : Map.copyOf(command.credentials());
 
@@ -63,9 +65,13 @@ public class CodefConnectionService {
         CodefConnectionStatus connectionStatus = institutionStatus == CodefInstitutionStatus.ERROR
                 ? CodefConnectionStatus.ERROR
                 : CodefConnectionStatus.ACTIVE;
-        CodefConnection connection = existing.orElseGet(() -> CodefConnection.create(effectiveConnectedId, connectionStatus));
+        if (connectionStatus == CodefConnectionStatus.ACTIVE && !hasText(effectiveConnectedId)) {
+            throw notRegistered();
+        }
+        CodefConnection connection = connectionRepository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()
+                .orElseGet(() -> CodefConnection.create(effectiveConnectedId, connectionStatus));
         connection.update(effectiveConnectedId, connectionStatus);
-        CodefConnection savedConnection = connectionRepository.save(connection);
+        CodefConnection savedConnection = saveConnection(connection);
 
         CodefRegisteredInstitution institution = CodefRegisteredInstitution.create(
                 savedConnection,
@@ -122,7 +128,7 @@ public class CodefConnectionService {
     }
 
     private CodefConnection activeConnection() {
-        return connectionRepository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()
+        return activeConnectionOptional()
                 .orElseThrow(CodefConnectionService::notRegistered);
     }
 
@@ -132,6 +138,22 @@ public class CodefConnectionService {
             throw notRegistered();
         }
         return connectedId;
+    }
+
+    private Optional<CodefConnection> activeConnectionOptional() {
+        return connectionRepository
+                .findFirstByStatusAndConnectedIdIsNotNullAndIsDeletedFalseOrderByCreatedAtAsc(
+                        CodefConnectionStatus.ACTIVE)
+                .filter(connection -> hasText(connection.getConnectedId()));
+    }
+
+    private CodefConnection saveConnection(CodefConnection connection) {
+        try {
+            return connectionRepository.saveAndFlush(connection);
+        } catch (DataIntegrityViolationException ex) {
+            return connectionRepository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()
+                    .orElseThrow(() -> ex);
+        }
     }
 
     private EasyCodefClient requireEasyCodefClient() {

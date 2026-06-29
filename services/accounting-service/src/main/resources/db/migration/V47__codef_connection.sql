@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS codef_connection (
     deleted_by     VARCHAR(50),
     is_deleted     BOOLEAN      NOT NULL DEFAULT FALSE,
 
-    CONSTRAINT pk_codef_connection PRIMARY KEY (id)
+    CONSTRAINT pk_codef_connection PRIMARY KEY (id),
+    CONSTRAINT ck_codef_connection_active_connected_id
+        CHECK (status <> 'ACTIVE' OR (connected_id IS NOT NULL AND BTRIM(connected_id) <> ''))
 );
 
 CREATE TABLE IF NOT EXISTS codef_registered_institution (
