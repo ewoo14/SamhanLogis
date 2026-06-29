@@ -202,7 +202,10 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   }
 
   const resyncSnapshot = async () => {
-    applySnapshot(await initialUpdates(options.slipId))
+    if (destroyed) return
+    const snapshot = await initialUpdates(options.slipId)
+    if (destroyed) return // destroy 후 in-flight fetch 완료 시 destroyed doc 에 applyUpdate 방지(Opus 라운드3).
+    applySnapshot(snapshot)
   }
 
   const stream = subscribe(options.slipId, (event) => {
