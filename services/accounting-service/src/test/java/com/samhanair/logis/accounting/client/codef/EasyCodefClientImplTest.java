@@ -87,8 +87,7 @@ class EasyCodefClientImplTest {
                     "resLoan": [{
                       "resAccount": "75260904000000",
                       "resAccountDisplay": "752609-04-000000",
-                      "resAccountName": "운전자금대출",
-                      "resAccountDeposit": "40"
+                      "resAccountName": "운전자금대출"
                     }]
                   }
                 }
@@ -100,7 +99,7 @@ class EasyCodefClientImplTest {
         assertThat(accounts).containsExactly(
                 new AccountInfo("06170204000000", "급여통장", "국민은행", "061702-04-000000"));
         assertThat(loans).containsExactly(
-                new LoanInfo("75260904000000", "운전자금대출", "국민은행", "40"));
+                new LoanInfo("75260904000000", "운전자금대출", "국민은행", "운전자금대출"));
     }
 
     @Test

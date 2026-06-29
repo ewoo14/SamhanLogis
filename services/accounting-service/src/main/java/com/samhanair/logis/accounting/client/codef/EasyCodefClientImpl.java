@@ -185,7 +185,8 @@ public class EasyCodefClientImpl implements EasyCodefClient {
                 continue;
             }
             String name = firstText(text(node, "resCardName"), text(node, "resCardType"), cardNo);
-            String issuer = firstText(text(node, "resIssuerName"), text(node, "resCardCompany"), defaultIssuer);
+            // CODEF 카드 응답엔 발급사 필드가 없어(README: resCardName/resCardNo/resCardType 만 제공) 등록 기관명을 발급사로 사용.
+            String issuer = defaultIssuer;
             cards.add(new CardInfo(cardNo, name, issuer, cardNo));
         }
         return cards;
@@ -208,7 +209,9 @@ public class EasyCodefClientImpl implements EasyCodefClient {
             }
             String name = firstText(text(node, "resAccountName"), text(node, "resAccountDisplay"), account);
             String lender = firstText(text(node, "resBankName"), defaultLender);
-            String loanType = firstText(text(node, "resAccountDeposit"), text(node, "resAccountLoanExecNo"), name);
+            // 대출 유형 = 가독 상품명(resAccountName). resAccountDeposit 은 예금분류 코드("40" 등)라 유형명이 아님(BE 리뷰 적발).
+            // resLoan 정확 필드는 SDK README 미수록 → 라이브 QA(샌드박스 실응답)로 확정한다.
+            String loanType = name;
             loans.add(new LoanInfo(account, name, lender, loanType));
         }
         return loans;
@@ -221,7 +224,7 @@ public class EasyCodefClientImpl implements EasyCodefClient {
         HashMap<String, Object> account = new HashMap<>();
         account.put("countryCode", "KR");
         account.put("businessType", toCodefBusinessType(command.businessType()));
-        account.put("clientType", "P");
+        account.put("clientType", "P");  // P=개인 기본. 법인(B)은 후속 슬라이스에서 CodefRegisterCommand 로 수용.
         account.put("organization", requireText(command.organization(), "기관 코드는 필수입니다"));
         account.put("loginType", requireText(command.loginType(), "로그인 방식은 필수입니다"));
         if (command.credentials() != null) {

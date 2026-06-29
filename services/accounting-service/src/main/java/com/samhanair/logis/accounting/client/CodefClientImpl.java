@@ -291,6 +291,9 @@ public class CodefClientImpl implements CodefClient {
     }
 
     private void validateCredentials() {
+        // SANDBOX 는 easyCodef SDK 내장 clientId/secret 을 사용하므로 publicKey 만 검증한다.
+        // TODO Phase 11 production(EasyCodefServiceType.API) 전환 시: EasyCodefFactory 에서 setClientInfo(clientId,
+        //      clientSecret) 호출 + properties.clientId/clientSecret blank·placeholder 가드 추가 필요(현재는 SANDBOX 한정).
         requireCredential(properties.getPublicKey(), "CODEF_PUBLIC_KEY");
     }
 
