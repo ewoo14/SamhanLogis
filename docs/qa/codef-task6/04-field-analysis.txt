@@ -1,0 +1,71 @@
+﻿=== CODEF SANDBOX 실 응답 필드 분석 (2026-06-29) ===
+
+## 실행 환경
+- SDK: io.codef.api:easycodef-java:1.0.6
+- ServiceType: EasyCodefServiceType.SANDBOX
+- Sandbox 도메인: https://sandbox.codef.io
+- connectedId 획득: loginType="5" (마이데이터), org="0004" (KB국민은행)
+
+## 1. getAccountList 응답 (connectedId 등록 기관 목록)
+실 응답 필드 in accountList items:
+  organizationCode   : PRESENT  (실 필드명)
+  organization       : ABSENT   <-- EasyCodefClientImpl line287 이 읽는 필드명 (BUG)
+  organizationName   : ABSENT   (fallback to organizationCode 필요)
+  businessType       : PRESENT
+  clientType         : PRESENT
+  loginType          : PRESENT
+  countryCode        : PRESENT
+
+BUG: EasyCodefClientImpl.parseRegisteredOrganizations() line 287
+  현재: text(node, "organization")  -> null (absent)
+  수정: text(node, "organizationCode") -> "0004" (present)
+
+## 2. 은행 보유계좌 (/v1/kr/bank/b/account/account-list) 응답 필드
+result.code: "****" (SANDBOX 마스킹 — assertSuccess 실패)
+data 최상위 배열 키:
+  resDepositTrust    : PRESENT (예금·신탁)
+  resForeignCurrency : PRESENT (외화)
+  resFund            : PRESENT (펀드)
+  resInsurance       : ABSENT  (KB는 보험상품 없음 — graceful)
+  resLoan            : PRESENT (대출, 빈 배열 [])
+
+resDepositTrust[n] 내 필드:
+  resAccount         : PRESENT
+  resAccountDisplay  : PRESENT
+  resAccountName     : PRESENT
+  resAccountNickName : PRESENT
+  resAccountDeposit  : PRESENT
+  resAccountStartDate: PRESENT
+  resAccountEndDate  : PRESENT
+  resAccountCurrency : PRESENT
+  resAccountBalance  : PRESENT
+  resLoanKind        : PRESENT
+  resOverdraftAcctYN : PRESENT
+  resLoanStartDate   : PRESENT
+  resLoanEndDate     : PRESENT
+  resLastTranDate    : PRESENT
+  resLoanBalance     : PRESENT
+  resBankName        : ABSENT  (코드 defaultBank fallback 동작 정상)
+
+parseBankAccounts 파싱 판정: CORRECT (assertSuccess 통과 시)
+parseLoans 파싱 판정: CORRECT (resLoan 빈 배열 → 빈 목록 정상)
+
+## 3. 카드 (/v1/kr/card/p/account/card-list) 응답 필드
+result.code: "CF-00000" (정상)
+data: 배열 (배열 직접 — data.data 중첩 아님)
+
+data[n] 내 필드:
+  resCardNo          : PRESENT (primary 필드 — EasyCodefClientImpl 정상)
+  resCardName        : PRESENT
+  resCardType        : PRESENT
+  resCardNumber      : ABSENT  (fallback 필드, resCardNo로 대체 정상)
+  resValidPeriod     : PRESENT
+  resTrafficYN       : PRESENT
+  resIssueDate       : PRESENT
+  resUserNm          : PRESENT
+  resSleepYN         : PRESENT
+
+parseCards 파싱 판정: CORRECT
+
+## 4. 자격 무저장 확인
+CodefRegisteredInstitution entity: organizationCode, businessType, loginType, connectedId 컬럼만 (자격 없음) PASS

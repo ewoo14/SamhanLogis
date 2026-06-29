@@ -1,0 +1,28 @@
+﻿=== Bug Verification: parseRegisteredOrganizations field name ===
+connectedId: [SANDBOX-CID-REDACTED]
+
+--- [A] getAccountList raw response ---
+{"result":{"code":"CF-00000","extraMessage":"","message":"?��?��"},"data":{"accountList":[{"clientType":"P","organizationCode":"0004","loginType":"0","countryCode":"KR","businessType":"BK"},{"clientType":"P","organizationCode":"0020","loginType":"1","countryCode":"KR","businessType":"BK"}],"connectedId":"[SANDBOX-CID-REDACTED]"}}
+
+--- [B] Field analysis of accountList items ---
+Does accountList contain 'organization' (field EasyCodefClientImpl reads)?  => false
+Does accountList contain 'organizationCode' (actual field)?                 => true
+Does accountList contain 'organizationName'?                                => false
+Does accountList contain 'businessType'?                                    => true
+
+--- [C] Bank product call (using org=0004) ---
+result.code = '****'
+Is CF-00000? false
+Is masked (****)?  true
+
+Full bank response:
+{"result":{"code":"****","extraMessage":"****","message":"****","transactionId":"****"},"data":{"resFund":[{"resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resAccountEndDate":"****","resEarningsRate":"****","resAccount":"****","resAccountDeposit":"****","resAccountInvestedCost":"****","resAccountDisplay":"****"}],"resForeignCurrency":[{"resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resAccountEndDate":"****","resAccount":"****","resAccountDeposit":"****","resLastTranDate":"****","resAccountDisplay":"****"},{"resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resAccountEndDate":"****","resAccount":"****","resAccountDeposit":"****","resLastTranDate":"****","resAccountDisplay":"****"}],"resLoan":[],"resDepositTrust":[{"resAccountEndDate":"****","resAccount":"****","resLoanStartDate":"****","resLoanEndDate":"****","resAccountDeposit":"****","resAccountDisplay":"****","resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resLoanKind":"****","resOverdraftAcctYN":"****","resLastTranDate":"****","resLoanBalance":"****"},{"resAccountEndDate":"****","resAccount":"****","resLoanStartDate":"****","resLoanEndDate":"****","resAccountDeposit":"****","resAccountDisplay":"****","resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resLoanKind":"****","resOverdraftAcctYN":"****","resLastTranDate":"****","resLoanBalance":"****"}]},"connectedId":"****"}
+
+--- [D] Card product (org=0301 KBī��) ---
+Card result.code = 'CF-00000'
+
+Full card response:
+{"result":{"code":"CF-00000","extraMessage":"","message":"?���?","transactionId":"5069429e367745baba92f5c12c4343de"},"data":[{"resCardType":"체크/본인","resValidPeriod":"","resCardName":"OO체크카드-�??��ATM","resTrafficYN":"불�??��","resIssueDate":"","resUserNm":"***","resSleepYN":"","resCardNo":"6056********0000"},{"resCardType":"?��?��/본인","resValidPeriod":"","resCardName":"?��?��카드","resTrafficYN":"불�??��","resIssueDate":"","resUserNm":"***","resSleepYN":"","resCardNo":"6253********0000"},{"resCardType":"체크/본인","resValidPeriod":"","resCardName":"OO체크카드","resTrafficYN":"불�??��","resIssueDate":"","resUserNm":"***","resSleepYN":"","resCardNo":"4214********0000"}]}
+
+=== Probe 3 Complete ===
+

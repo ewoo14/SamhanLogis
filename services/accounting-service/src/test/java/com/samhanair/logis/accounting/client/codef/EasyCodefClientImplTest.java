@@ -121,4 +121,41 @@ class EasyCodefClientImplTest {
         assertThat(cards).containsExactly(
                 new CardInfo("6253********0000", "할인카드", "우리카드", "6253********0000"));
     }
+
+    @Test
+    @DisplayName("getAccountList 등록기관은 organizationCode 필드로 파싱한다(라이브 QA 회귀 박제)")
+    void parseRegisteredOrganizations_usesOrganizationCodeField() {
+        // 실 CODEF SANDBOX getAccountList 응답 스키마: data.accountList[].organizationCode ("organization" 아님)
+        String json = """
+                {
+                  "result": {"code": "CF-00000", "message": "성공"},
+                  "data": {"accountList": [
+                    {"businessType": "BK", "organizationCode": "0004", "countryCode": "KR"},
+                    {"businessType": "CD", "organizationCode": "0301", "countryCode": "KR"}
+                  ]}
+                }
+                """;
+
+        var banks = EasyCodefClientImpl.parseRegisteredOrganizations(json, "BK");
+        var cards = EasyCodefClientImpl.parseRegisteredOrganizations(json, "CD");
+
+        assertThat(banks).hasSize(1);
+        assertThat(banks.get(0).code()).isEqualTo("0004");
+        assertThat(cards).hasSize(1);
+        assertThat(cards.get(0).code()).isEqualTo("0301");
+    }
+
+    @Test
+    @DisplayName("구 필드명 organization 만 있는 응답은 빈 목록(필드명 회귀 가드)")
+    void parseRegisteredOrganizations_ignoresLegacyOrganizationField() {
+        // organizationCode 가 없고 구 "organization" 만 있으면 매칭 안 됨 → CODEF 모드 list 공란 회귀 차단.
+        String json = """
+                {
+                  "result": {"code": "CF-00000", "message": "성공"},
+                  "data": {"accountList": [{"businessType": "BK", "organization": "0004"}]}
+                }
+                """;
+
+        assertThat(EasyCodefClientImpl.parseRegisteredOrganizations(json, "BK")).isEmpty();
+    }
 }

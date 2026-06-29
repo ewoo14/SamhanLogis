@@ -276,7 +276,8 @@ public class EasyCodefClientImpl implements EasyCodefClient {
         return parameterMap;
     }
 
-    private static List<RegisteredOrganization> parseRegisteredOrganizations(String json, String businessType) {
+    // package-private: 라이브 QA 회귀 테스트 대상(필드명 organizationCode 박제).
+    static List<RegisteredOrganization> parseRegisteredOrganizations(String json, String businessType) {
         JsonNode root = assertSuccess(json);
         JsonNode accountList = root.path("data").path("accountList");
         List<RegisteredOrganization> organizations = new ArrayList<>();
@@ -284,7 +285,8 @@ public class EasyCodefClientImpl implements EasyCodefClient {
             if (!businessType.equalsIgnoreCase(text(node, "businessType"))) {
                 continue;
             }
-            String organization = text(node, "organization");
+            // 실 CODEF getAccountList 응답의 등록기관 코드 = organizationCode("organization" 아님 — 라이브 QA 적발: CODEF 모드 list 공란 결함).
+            String organization = text(node, "organizationCode");
             if (hasText(organization)) {
                 organizations.add(new RegisteredOrganization(
                         organization, firstText(text(node, "organizationName"), organization)));
@@ -392,6 +394,6 @@ public class EasyCodefClientImpl implements EasyCodefClient {
         String execute() throws UnsupportedEncodingException, JsonProcessingException, InterruptedException;
     }
 
-    private record RegisteredOrganization(String code, String displayName) {
+    record RegisteredOrganization(String code, String displayName) {
     }
 }

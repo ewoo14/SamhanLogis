@@ -1,0 +1,52 @@
+﻿=== CODEF Probe v2 ===
+
+--- SANDBOX mode tests ---
+org=0004 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"321adb87-a84b-48be-aa7a-d6c4a155a808"},"data":{"successList":[],"errorList":[{"clientType...
+org=0011 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"7c268064-5798-4765-84c4-9f1f69838264"},"data":{"successList":[],"errorList":[{"clientType...
+org=0020 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"600c8a6b-49d2-46cc-9dbf-0a0c339a33ce"},"data":{"successList":[],"errorList":[{"clientType...
+org=0023 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"15c40f92-c974-4eed-be10-433ef7ee3055"},"data":{"successList":[],"errorList":[{"clientType...
+org=0027 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"a660103f-9986-46c6-b352-038c6cd1d60a"},"data":{"successList":[],"errorList":[{"clientType...
+org=0032 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"34f70e03-4be5-4383-8e97-26051aa2f54b"},"data":{"successList":[],"errorList":[{"clientType...
+org=0049 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"40160b21-160b-4531-b271-bfef5aca46f7"},"data":{"successList":[],"errorList":[{"clientType...
+org=0050 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"2abfd7b9-0d3c-4371-9bcb-e94df19f379f"},"data":{"successList":[],"errorList":[{"clientType...
+org=0065 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"0e8571f0-c93c-4739-811a-95d2c8788f79"},"data":{"successList":[],"errorList":[{"clientType...
+org=0071 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"7280661a-de38-4311-bab7-e36e662b4359"},"data":{"successList":[],"errorList":[{"clientType...
+org=0081 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"3b6aa4c1-be6b-46f8-b0c6-c7ab4f0379a8"},"data":{"successList":[],"errorList":[{"clientType...
+org=0088 loginType=0 BK => {"result":{"code":"CF-04000","extraMessage":"","message":"?��?��?�� 계정?���? ?��록에 ?��?��?��?��?��?��.","transactionId":"52cd4026-4c45-4639-8338-0ea88a82d521"},"data":{"successList":[],"errorList":[{"clientType...
+
+--- SANDBOX loginType=5 tests ---
+org=0004 loginType=5 BK => {"result":{"code":"CF-00000","extraMessage":"","message":"?��?��","transactionId":"84fe85bf-4f14-46cb-96f4-16e09c686796"},"data":{"successList":[{"clientType":"P","code":"CF-00000","loginType":"5","coun...
+  *** connectedId FOUND with org=0004 loginType=5
+
+=== Running product tests with connectedId=[CONNECTEDID-REDACTED] ===
+
+--- getAccountList ---
+FULL RESPONSE:
+{"result":{"code":"CF-00000","extraMessage":"","message":"?��?��"},"data":{"accountList":[{"clientType":"P","organizationCode":"0004","loginType":"0","countryCode":"KR","businessType":"BK"},{"clientType":"P","organizationCode":"0020","loginType":"1","countryCode":"KR","businessType":"BK"}],"connectedId":"[CONNECTEDID-REDACTED]"}}
+
+--- Bank account product (/v1/kr/bank/b/account/account-list) ---
+FULL RESPONSE:
+{"result":{"code":"****","extraMessage":"****","message":"****","transactionId":"****"},"data":{"resFund":[{"resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resAccountEndDate":"****","resEarningsRate":"****","resAccount":"****","resAccountDeposit":"****","resAccountInvestedCost":"****","resAccountDisplay":"****"}],"resForeignCurrency":[{"resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resAccountEndDate":"****","resAccount":"****","resAccountDeposit":"****","resLastTranDate":"****","resAccountDisplay":"****"},{"resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resAccountEndDate":"****","resAccount":"****","resAccountDeposit":"****","resLastTranDate":"****","resAccountDisplay":"****"}],"resLoan":[],"resDepositTrust":[{"resAccountEndDate":"****","resAccount":"****","resLoanStartDate":"****","resLoanEndDate":"****","resAccountDeposit":"****","resAccountDisplay":"****","resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resLoanKind":"****","resOverdraftAcctYN":"****","resLastTranDate":"****","resLoanBalance":"****"},{"resAccountEndDate":"****","resAccount":"****","resLoanStartDate":"****","resLoanEndDate":"****","resAccountDeposit":"****","resAccountDisplay":"****","resAccountName":"****","resAccountStartDate":"****","resAccountCurrency":"****","resAccountBalance":"****","resAccountNickName":"****","resLoanKind":"****","resOverdraftAcctYN":"****","resLastTranDate":"****","resLoanBalance":"****"}]},"connectedId":"****"}
+
+[Field Analysis - BANK]
+  resDepositTrust           PRESENT
+  resForeignCurrency        PRESENT
+  resFund                   PRESENT
+  resInsurance              ABSENT
+  resLoan                   PRESENT
+  resAccount                PRESENT
+  resAccountDisplay         PRESENT
+  resAccountName            PRESENT
+  resAccountNickName        PRESENT
+  resBankName               ABSENT
+
+--- Card product (/v1/kr/card/p/account/card-list) ---
+FULL RESPONSE:
+{"result":{"code":"CF-00000","extraMessage":"","message":"?���?","transactionId":"5069429e367745baba92f5c12c4343de"},"data":[{"resCardType":"체크/본인","resValidPeriod":"","resCardName":"OO체크카드-�??��ATM","resTrafficYN":"불�??��","resIssueDate":"","resUserNm":"***","resSleepYN":"","resCardNo":"6056********0000"},{"resCardType":"?��?��/본인","resValidPeriod":"","resCardName":"?��?��카드","resTrafficYN":"불�??��","resIssueDate":"","resUserNm":"***","resSleepYN":"","resCardNo":"6253********0000"},{"resCardType":"체크/본인","resValidPeriod":"","resCardName":"OO체크카드","resTrafficYN":"불�??��","resIssueDate":"","resUserNm":"***","resSleepYN":"","resCardNo":"4214********0000"}]}
+
+[Field Analysis - CARD]
+  resCardName               PRESENT
+  resCardNo                 PRESENT
+  resCardNumber             ABSENT
+  resCardType               PRESENT
+
