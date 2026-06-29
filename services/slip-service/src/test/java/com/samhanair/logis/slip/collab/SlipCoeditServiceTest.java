@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -50,5 +52,30 @@ class SlipCoeditServiceTest {
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.publishAwareness(SLIP_ID, "not-base64!"))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void oversized_payload_is_rejected() {
+        // 128KB(MAX_PAYLOAD_LENGTH) 초과 base64 는 거부 — 메모리/대역폭 DoS 방지(리뷰 BE B-1).
+        String huge = "A".repeat(128 * 1024 + 4);
+        assertThatThrownBy(() -> service.appendUpdate(SLIP_ID, huge))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.publishAwareness(SLIP_ID, huge))
+                .isInstanceOf(BusinessException.class);
+        assertThat(service.listUpdates(SLIP_ID)).isEmpty();
+    }
+
+    @Test
+    void appendUpdate_caps_accumulated_updates_and_evicts_oldest() {
+        // MAX_UPDATES_PER_SLIP(5000) 초과 시 oldest eviction — 누적 무한 증가 방지(리뷰 BE N-4).
+        String oldest = Base64.getEncoder().encodeToString("oldest".getBytes(StandardCharsets.UTF_8));
+        service.appendUpdate(SLIP_ID, oldest);
+        for (int i = 0; i < 5_000; i++) {
+            service.appendUpdate(
+                    SLIP_ID,
+                    Base64.getEncoder().encodeToString(("u" + i).getBytes(StandardCharsets.UTF_8)));
+        }
+        assertThat(service.listUpdates(SLIP_ID)).hasSize(5_000);
+        assertThat(service.listUpdates(SLIP_ID)).doesNotContain(oldest);
     }
 }

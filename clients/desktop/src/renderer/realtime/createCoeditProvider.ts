@@ -4,7 +4,6 @@ import {
   applyAwarenessUpdate,
   encodeAwarenessUpdate,
 } from 'y-protocols/awareness'
-import { userIdToColor } from '@samhan/design-system'
 import {
   getSlipCoeditUpdates,
   postSlipCoeditAwareness,
@@ -17,6 +16,17 @@ import type { RealtimeEvent } from './createRealtimeClient'
 
 const REMOTE_ORIGIN = 'samhan-coedit-remote'
 const POST_DEBOUNCE_MS = 150
+const AWARENESS_DEBOUNCE_MS = 120
+// 대비 안전한 8색 hex 팔레트(presence PresenceColor 와 동일 값). design-system userIdToColor 의
+// hsl(밝기 50%) 은 흰 텍스트 대비(warm hue) 실패 + hex-alpha 미지원이라 hex 팔레트로 교체.
+const COLOR_PALETTE = [
+  '#2563EB', '#15803D', '#B45309', '#E11D48', '#7C3AED', '#0E7490', '#4D7C0F', '#DB2777',
+]
+function colorForUser(seed: string): string {
+  let hash = 0
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
+  return COLOR_PALETTE[hash % COLOR_PALETTE.length]!
+}
 
 export interface RemoteCursor {
   clientId: number
@@ -97,10 +107,10 @@ async function resolveLocalUser(): Promise<{ displayName: string; color: string 
     const displayName = session?.fullName?.trim() || '사용자'
     return {
       displayName,
-      color: userIdToColor(session?.userId || displayName),
+      color: colorForUser(session?.userId || displayName),
     }
   } catch {
-    return { displayName: '사용자', color: '#2563EB' }
+    return { displayName: '사용자', color: COLOR_PALETTE[0]! }
   }
 }
 
@@ -139,6 +149,22 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     flushTimer = setTimeout(flushUpdates, POST_DEBOUNCE_MS)
   }
 
+  // awareness(커서/셀렉트) 도 debounce — 빠른 타이핑/이동 시 매 이벤트 HTTP POST 폭주 방지(FE 리뷰 N-3).
+  let awarenessTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingAwarenessClients: number[] = []
+  const flushAwareness = () => {
+    awarenessTimer = null
+    if (pendingAwarenessClients.length === 0) return
+    const clients = Array.from(new Set(pendingAwarenessClients))
+    pendingAwarenessClients = []
+    void postAwareness(options.slipId, encodeBase64Update(encodeAwarenessUpdate(awareness, clients)))
+  }
+  const scheduleAwarenessPost = (clients: number[]) => {
+    pendingAwarenessClients.push(...clients)
+    if (awarenessTimer !== null) clearTimeout(awarenessTimer)
+    awarenessTimer = setTimeout(flushAwareness, AWARENESS_DEBOUNCE_MS)
+  }
+
   doc.on('update', (update: Uint8Array, origin: unknown) => {
     if (origin === REMOTE_ORIGIN) return
     scheduleUpdatePost(update)
@@ -152,7 +178,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     if (origin === REMOTE_ORIGIN) return
     const changedClients = [...changes.added, ...changes.updated, ...changes.removed]
     if (changedClients.length === 0) return
-    void postAwareness(options.slipId, encodeBase64Update(encodeAwarenessUpdate(awareness, changedClients)))
+    scheduleAwarenessPost(changedClients)
   })
 
   const localUser = await resolveLocalUser()
@@ -214,6 +240,10 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
       if (flushTimer !== null) {
         clearTimeout(flushTimer)
         flushUpdates()
+      }
+      if (awarenessTimer !== null) {
+        clearTimeout(awarenessTimer)
+        flushAwareness()
       }
       text.unobserve(textObserver)
       awareness.destroy()

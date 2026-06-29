@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import * as Y from 'yjs'
 import {
@@ -13,6 +13,63 @@ export interface CollaborativeTextFieldProps {
   label: string
   rows?: number
   providerOverride?: CoeditProvider
+}
+
+// mirror-div 로 복제할 textarea 스타일(폰트/패딩/보더/wrapping) — caret 좌표를 멀티라인·줄바꿈 반영해 계산.
+const MIRROR_STYLE_PROPS = [
+  'boxSizing', 'width', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle',
+  'lineHeight', 'letterSpacing', 'wordSpacing', 'textIndent', 'textTransform',
+  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+  'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+]
+
+interface CaretPoint {
+  top: number
+  left: number
+  height: number
+}
+
+interface CursorOverlay extends RemoteCursor {
+  caret: CaretPoint
+  /** 같은 줄 선택일 때만 하이라이트 폭(멀티라인 선택은 caret 만 — S2). */
+  selectionWidth: number | null
+}
+
+/**
+ * textarea 내 특정 offset 의 caret 화면 좌표를 mirror-div 기법으로 계산한다.
+ * 전체 문자 비율(%) 단순 치환은 멀티라인에서 어긋나므로(리뷰 B-4), 실제 wrapping 을 복제해 측정한다.
+ */
+function caretCoordinates(textarea: HTMLTextAreaElement, offset: number): CaretPoint {
+  const doc = textarea.ownerDocument
+  const win = doc.defaultView ?? window
+  const computed = win.getComputedStyle(textarea)
+  const mirror = doc.createElement('div')
+  const style = mirror.style
+  style.position = 'absolute'
+  style.visibility = 'hidden'
+  style.whiteSpace = 'pre-wrap'
+  style.overflowWrap = 'break-word'
+  style.top = '0'
+  style.left = '-9999px'
+  for (const prop of MIRROR_STYLE_PROPS) {
+    const cssName = prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
+    style.setProperty(cssName, computed.getPropertyValue(cssName))
+  }
+  mirror.textContent = textarea.value.slice(0, offset)
+  const marker = doc.createElement('span')
+  marker.textContent = textarea.value.slice(offset) || '​'
+  mirror.appendChild(marker)
+  doc.body.appendChild(mirror)
+  const lineHeight = parseFloat(computed.lineHeight)
+    || parseFloat(computed.fontSize) * 1.5
+    || 18
+  const point: CaretPoint = {
+    top: marker.offsetTop - textarea.scrollTop,
+    left: marker.offsetLeft - textarea.scrollLeft,
+    height: lineHeight,
+  }
+  doc.body.removeChild(mirror)
+  return point
 }
 
 function applyTextareaValue(text: Y.Text, nextValue: string) {
@@ -47,25 +104,6 @@ function clampOffset(value: number, textLength: number): number {
   return Math.max(0, Math.min(value, textLength))
 }
 
-function remoteCursorStyle(cursor: RemoteCursor, textLength: number): CSSProperties {
-  const min = clampOffset(Math.min(cursor.anchor, cursor.head), textLength)
-  const max = clampOffset(Math.max(cursor.anchor, cursor.head), textLength)
-  const percent = textLength === 0 ? 0 : (min / textLength) * 100
-  const widthPercent = textLength === 0 ? 0 : Math.max(((max - min) / textLength) * 100, 0.8)
-  return {
-    position: 'absolute',
-    left: `calc(${percent}% + 10px)`,
-    top: 34,
-    minWidth: 2,
-    width: max > min ? `${widthPercent}%` : 2,
-    maxWidth: 'calc(100% - 20px)',
-    height: max > min ? 22 : 28,
-    borderLeft: `2px solid ${cursor.color}`,
-    background: max > min ? `${cursor.color}22` : 'transparent',
-    pointerEvents: 'none',
-  }
-}
-
 export function CollaborativeTextField({
   slipId,
   fieldName,
@@ -74,9 +112,13 @@ export function CollaborativeTextField({
   providerOverride,
 }: CollaborativeTextFieldProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const composingRef = useRef(false)
+  const pendingRemoteRef = useRef(false)
   const [provider, setProvider] = useState<CoeditProvider | null>(providerOverride ?? null)
   const [value, setValue] = useState(() => providerOverride?.text.toString() ?? '')
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>(() => providerOverride?.getRemoteCursors() ?? [])
+  const [overlays, setOverlays] = useState<CursorOverlay[]>([])
+  const [scrollTick, setScrollTick] = useState(0)
   const textareaId = useMemo(() => `coedit-${fieldName}`, [fieldName])
 
   useEffect(() => {
@@ -106,17 +148,21 @@ export function CollaborativeTextField({
 
   useEffect(() => {
     if (!provider) return undefined
-    const unsubscribeText = provider.subscribeText(() => {
+    const applyRemoteText = () => {
       const nextValue = provider.text.toString()
+      // IME 조합 중엔 remote 반영을 보류 — value 교체가 조합을 강제 중단시키는 한글 입력 파손 방지(리뷰 FE B-1).
+      if (composingRef.current) {
+        pendingRemoteRef.current = true
+        return
+      }
       setValue(nextValue)
       const textarea = textareaRef.current
       if (textarea) {
         const offset = clampOffset(textarea.selectionStart, nextValue.length)
-        queueMicrotask(() => {
-          textarea.setSelectionRange(offset, offset)
-        })
+        queueMicrotask(() => textarea.setSelectionRange(offset, offset))
       }
-    })
+    }
+    const unsubscribeText = provider.subscribeText(applyRemoteText)
     const unsubscribeAwareness = provider.subscribeAwareness(() => {
       setRemoteCursors(provider.getRemoteCursors())
     })
@@ -126,15 +172,49 @@ export function CollaborativeTextField({
     }
   }, [provider])
 
+  // remote 커서/셀렉트 화면 좌표 계산(mirror-div) — 값/커서/스크롤 변경 시 재측정.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      setOverlays([])
+      return
+    }
+    const next: CursorOverlay[] = remoteCursors.map((cursor) => {
+      const head = clampOffset(cursor.head, value.length)
+      const min = clampOffset(Math.min(cursor.anchor, cursor.head), value.length)
+      const max = clampOffset(Math.max(cursor.anchor, cursor.head), value.length)
+      const caret = caretCoordinates(textarea, head)
+      let selectionWidth: number | null = null
+      if (max > min) {
+        const a = caretCoordinates(textarea, min)
+        const b = caretCoordinates(textarea, max)
+        // 같은 줄 선택만 단순 하이라이트(멀티라인 선택 정밀 렌더는 S2).
+        if (Math.abs(a.top - b.top) < 1) {
+          caret.top = a.top
+          caret.left = a.left
+          selectionWidth = Math.max(b.left - a.left, 2)
+        }
+      }
+      return { ...cursor, caret, selectionWidth }
+    })
+    setOverlays(next)
+  }, [value, remoteCursors, scrollTick])
+
   const updateLocalCursor = () => {
     const textarea = textareaRef.current
     if (!textarea || !provider) return
     provider.setLocalCursor(textarea.selectionStart, textarea.selectionEnd)
   }
 
+  const labelStyle: CSSProperties = {
+    fontSize: 'var(--font-size-sm)',
+    fontWeight: 600,
+    color: 'var(--color-neutral-800)',
+  }
+
   return (
     <div data-testid="collaborative-text-field" style={{ display: 'grid', gap: 6 }}>
-      <label htmlFor={textareaId} style={{ fontSize: 13, fontWeight: 700 }}>
+      <label htmlFor={textareaId} style={labelStyle}>
         {label}
       </label>
       <div style={{ position: 'relative' }}>
@@ -146,12 +226,27 @@ export function CollaborativeTextField({
           onChange={(event) => {
             const nextValue = event.target.value
             setValue(nextValue)
-            if (provider) applyTextareaValue(provider.text, nextValue)
+            // 조합 중엔 Y.Text 반영 보류 — 중간 자모 delta 노이즈 방지. compositionEnd 에서 확정 반영.
+            if (!composingRef.current && provider) applyTextareaValue(provider.text, nextValue)
             updateLocalCursor()
           }}
           onClick={updateLocalCursor}
           onKeyUp={updateLocalCursor}
           onSelect={updateLocalCursor}
+          onScroll={() => setScrollTick((tick) => tick + 1)}
+          onCompositionStart={() => {
+            composingRef.current = true
+          }}
+          onCompositionEnd={(event) => {
+            composingRef.current = false
+            if (provider) applyTextareaValue(provider.text, event.currentTarget.value)
+            if (pendingRemoteRef.current) {
+              pendingRemoteRef.current = false
+              const latest = provider?.text.toString() ?? event.currentTarget.value
+              setValue(latest)
+            }
+            updateLocalCursor()
+          }}
           style={{
             width: '100%',
             minHeight: 96,
@@ -163,30 +258,55 @@ export function CollaborativeTextField({
             lineHeight: 1.5,
           }}
         />
-        {remoteCursors.map((cursor) => (
+        {overlays.map((overlay) => (
           <div
-            key={cursor.clientId}
-            data-testid={`coedit-remote-cursor-${cursor.clientId}`}
-            style={remoteCursorStyle(cursor, value.length)}
+            key={overlay.clientId}
+            data-testid={`coedit-remote-cursor-${overlay.clientId}`}
+            aria-hidden="true"
+            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
           >
+            {overlay.selectionWidth != null ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: overlay.caret.top,
+                  left: overlay.caret.left,
+                  width: overlay.selectionWidth,
+                  height: overlay.caret.height,
+                  // hex 팔레트이므로 8자리 hex alpha(33≈20%) 유효.
+                  background: `${overlay.color}33`,
+                }}
+              />
+            ) : null}
+            <div
+              style={{
+                position: 'absolute',
+                top: overlay.caret.top,
+                left: overlay.caret.left,
+                width: 2,
+                height: overlay.caret.height,
+                background: overlay.color,
+              }}
+            />
             <span
               style={{
                 position: 'absolute',
-                top: -22,
-                left: -2,
+                top: Math.max(overlay.caret.top - 18, 0),
+                left: overlay.caret.left,
                 maxWidth: 120,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 borderRadius: 4,
-                padding: '2px 6px',
-                background: cursor.color,
+                padding: '1px 6px',
+                background: overlay.color,
                 color: '#fff',
-                fontSize: 11,
-                fontWeight: 700,
+                fontSize: 'var(--font-size-xs)',
+                fontWeight: 600,
+                lineHeight: 1.4,
               }}
             >
-              {cursor.displayName}
+              {overlay.displayName}
             </span>
           </div>
         ))}

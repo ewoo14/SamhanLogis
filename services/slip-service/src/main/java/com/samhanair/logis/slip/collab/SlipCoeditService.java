@@ -16,7 +16,10 @@ import org.springframework.stereotype.Service;
  * 전표 협업 텍스트 CRDT update relay.
  *
  * <p>서버는 Yjs update 를 해석하지 않고 opaque base64 byte 로만 저장·중계한다.
- * S1 은 presence 와 같은 노드-로컬 in-memory 제약을 갖는다.
+ * <p><b>운영 제약(S1)</b>: 노드-로컬 in-memory 라 서비스 재시작 시 누적 update 가 소실되고,
+ * 슬립 삭제 시에도 entry 가 자동 회수되지 않는다(TTL/eviction·persist 는 live-coediting-S2 도입). 다중 노드는
+ * sticky-session 또는 registry 외부화 필요(presence 동일). payload 는 {@link #MAX_PAYLOAD_LENGTH}
+ * 로 제한해 메모리/대역폭 폭증(DoS)을 방지한다.
  */
 @Service
 public class SlipCoeditService {
@@ -25,6 +28,8 @@ public class SlipCoeditService {
     public static final String EVENT_AWARENESS = "coedit:awareness";
 
     private static final int MAX_UPDATES_PER_SLIP = 5_000;
+    /** base64 payload 1건 최대 길이(문자, 약 128KB) — 초과 시 거부해 메모리/대역폭 DoS 방지(리뷰 BE B-1). */
+    private static final int MAX_PAYLOAD_LENGTH = 128 * 1024;
 
     private final RealtimeBroker broker;
     private final Map<UUID, CopyOnWriteArrayList<String>> updatesBySlip = new ConcurrentHashMap<>();
@@ -38,11 +43,14 @@ public class SlipCoeditService {
         String normalized = requireBase64(update, "coedit update 는 필수입니다");
         CopyOnWriteArrayList<String> updates = updatesBySlip.computeIfAbsent(
                 slipId, ignored -> new CopyOnWriteArrayList<>());
-        updates.add(normalized);
-        if (updates.size() > MAX_UPDATES_PER_SLIP) {
-            // TODO(live-coediting-S2): BE 가 Yjs 를 실행하지 않는 S1 에서는 안전 압축 불가.
-            // persist/merge 슬라이스에서 update compaction 을 도입한다.
-            updates.remove(0);
+        // add+cap 를 원자화 — 동시 다중 add 시 과잉 eviction race 방지(리뷰 BE N-2).
+        synchronized (updates) {
+            updates.add(normalized);
+            while (updates.size() > MAX_UPDATES_PER_SLIP) {
+                // TODO(live-coediting-S2): BE 가 Yjs 를 실행하지 않는 S1 에서는 안전 압축 불가.
+                // persist/merge 슬라이스에서 update compaction 을 도입한다.
+                updates.remove(0);
+            }
         }
         broker.publish(slipId, EVENT_UPDATE, Map.of("update", normalized));
     }
@@ -62,6 +70,9 @@ public class SlipCoeditService {
         String normalized = value == null ? null : value.trim();
         if (normalized == null || normalized.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, blankMessage);
+        }
+        if (normalized.length() > MAX_PAYLOAD_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "coedit payload 가 허용 크기를 초과했습니다");
         }
         try {
             Base64.getDecoder().decode(normalized);

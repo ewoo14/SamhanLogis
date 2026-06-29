@@ -10,11 +10,12 @@ describe('createCoeditProvider', () => {
     remoteDoc.getText('memo').insert(0, '원격 메모')
     const update = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
 
+    const postUpdate = vi.fn()
     const provider = await createCoeditProvider({
       slipId: 'slip-1',
       fieldName: 'memo',
       initialUpdates: async () => ({ updates: [] }),
-      postUpdate: vi.fn(),
+      postUpdate,
       postAwareness: vi.fn(),
       subscribe: () => ({ abort: vi.fn() }),
     })
@@ -22,6 +23,10 @@ describe('createCoeditProvider', () => {
     provider.applyRemoteUpdate(update)
 
     expect(provider.text.toString()).toBe('원격 메모')
+    // echo 루프 방지(리뷰 FE B-3): REMOTE_ORIGIN 으로 적용된 remote update 는 다시 POST 되지 않는다.
+    // (debounce 150ms 경과 후에도 미호출 — REMOTE_ORIGIN 분기 삭제 시 이 단언이 회귀 검출)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(postUpdate).not.toHaveBeenCalled()
     provider.destroy()
   })
 
