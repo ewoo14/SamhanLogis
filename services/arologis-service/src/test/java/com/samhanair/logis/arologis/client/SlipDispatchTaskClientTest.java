@@ -86,6 +86,7 @@ class SlipDispatchTaskClientTest {
                 .andExpect(jsonPath("$.arologisDispatchId").value(dispatchId.toString()))
                 .andExpect(jsonPath("$.matchedDrivers[0].vehicleGroupSequence").value(1))
                 .andExpect(jsonPath("$.matchedDrivers[0].driverCode").value("D-001"))
+                .andExpect(jsonPath("$.matchedDrivers[0].source").value("AROLOGIS"))
                 .andExpect(jsonPath("$.confirmedAt").value("2026-06-29T01:02:03Z"))
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
@@ -93,7 +94,7 @@ class SlipDispatchTaskClientTest {
                 dispatchId,
                 List.of(new SlipDispatchConfirmRequest.MatchedDriverPayload(
                         1, "TONNAGE_1", "D-001", "홍길동", "010-1111-2222",
-                        "INTERNAL", "서울12가3456")),
+                        "AROLOGIS", "서울12가3456")),
                 Instant.parse("2026-06-29T01:02:03Z")));
 
         assertThat(ok).isTrue();
@@ -132,6 +133,7 @@ class SlipDispatchTaskClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(jsonPath("$.arologisDispatchId").value(dispatchId.toString()))
+                .andExpect(jsonPath("$.decidedAt").exists())
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
         assertThat(client.modificationAccepted(taskId, dispatchId)).isTrue();
@@ -167,6 +169,7 @@ class SlipDispatchTaskClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(jsonPath("$.arologisDispatchId").value(dispatchId.toString()))
+                .andExpect(jsonPath("$.decidedAt").exists())
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
         assertThat(client.cancellationAccepted(taskId, dispatchId)).isTrue();
