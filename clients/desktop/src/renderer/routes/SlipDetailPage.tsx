@@ -445,6 +445,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   // §7 협업 수정완료: 확정/완료 전표도 물리 종결 전이면 overlay 필드 편집 가능.
   const [collabEditMode, setCollabEditMode] = useState(false)
   const [slipFormCoeditProvider, setSlipFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
+  // coedit provider 로딩 중 여부 — 로딩 중에만 입력/저장 잠금(이중소스 방지). 로드 실패(provider=null) 시엔 비-coedit 평문 편집·저장 허용(콜랩 서버 다운 시 영구잠금 회귀 방지, 리뷰 Opus 라운드2 BLOCKING).
+  const [slipFormCoeditPending, setSlipFormCoeditPending] = useState(false)
 
   const detailQuery = useQuery({
     queryKey: ['slip', id],
@@ -863,10 +865,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     const enabled = !!slipData && (salesEditOpen || purchaseEditOpen)
     if (!id || !enabled || !slipData) {
       setSlipFormCoeditProvider(null)
+      setSlipFormCoeditPending(false)
       return undefined
     }
 
     let disposed = false
+    setSlipFormCoeditPending(true)
     let provider: DocCoeditProvider | null = null
     let unsubscribeDoc: (() => void) | null = null
 
@@ -905,8 +909,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
       setSlipFormCoeditProvider(nextProvider)
+      setSlipFormCoeditPending(false)
     }).catch(() => {
-      if (!disposed) setSlipFormCoeditProvider(null)
+      // 로드 실패 — provider 는 null 유지하되 pending 해제 → 입력/저장이 비-coedit 평문 모드로 복귀(영구잠금 방지).
+      if (!disposed) {
+        setSlipFormCoeditProvider(null)
+        setSlipFormCoeditPending(false)
+      }
     })
 
     return () => {
@@ -914,6 +923,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       unsubscribeDoc?.()
       provider?.destroy()
       setSlipFormCoeditProvider(null)
+      setSlipFormCoeditPending(false)
     }
   }, [detailQuery.data, id, mode, purchaseEditOpen, salesEditOpen])
 
@@ -2631,7 +2641,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               type="button"
               variant="primary"
               loading={purchaseUpdateMutation.isPending}
-              disabled={purchaseUpdateMutation.isPending || !slipFormCoeditProvider || purchaseEditLines.length === 0}
+              disabled={purchaseUpdateMutation.isPending || slipFormCoeditPending || purchaseEditLines.length === 0}
               data-testid="purchase-slip-edit-submit"
               onClick={() => {
                 purchaseUpdateMutation.mutate({
@@ -2691,7 +2701,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="purchase-edit-field">
             <span className="detail-label">거래처</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.partnerName"
               value={purchasePartnerName}
               onValueChange={setPurchasePartnerName}
@@ -2701,7 +2711,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="purchase-edit-field">
             <span className="detail-label">거래처코드</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.partnerCode"
               value={purchasePartnerCode}
               onValueChange={setPurchasePartnerCode}
@@ -2711,7 +2721,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="purchase-edit-field">
             <span className="detail-label">사업자번호</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.businessNumber"
               value={purchaseBusinessNumber}
               onValueChange={setPurchaseBusinessNumber}
@@ -2721,7 +2731,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="purchase-edit-field">
             <span className="detail-label">배송주소</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.deliveryAddress"
               value={purchaseDeliveryAddress}
               onValueChange={setPurchaseDeliveryAddress}
@@ -2731,7 +2741,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="purchase-edit-field">
             <span className="detail-label">프로젝트명</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.projectName"
               value={purchaseProjectName}
               onValueChange={setPurchaseProjectName}
@@ -2741,7 +2751,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="purchase-edit-field">
             <span className="detail-label">인수자 번호</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.recipientPhone"
               value={purchaseRecipientPhone}
               onValueChange={setPurchaseRecipientPhone}
@@ -2751,7 +2761,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="purchase-edit-field">
             <span className="detail-label">입금예정일</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.paymentDueDate"
               type="date"
               value={purchasePaymentDueDate}
@@ -2764,7 +2774,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <label className="purchase-edit-field purchase-edit-memo">
           <span className="detail-label">적요</span>
           <CollaborativeSlipInput
-            provider={slipFormCoeditProvider}
+            provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
             fieldPath="header.memo"
             value={purchaseMemo}
             onValueChange={setPurchaseMemo}
@@ -2791,7 +2801,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <tr key={line.key}>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.productName`}
                       value={line.productName ?? ''}
                       onValueChange={(value) => updatePurchaseLine(index, { productName: value })}
@@ -2800,7 +2810,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.modelName`}
                       value={line.modelName ?? ''}
                       onValueChange={(value) => updatePurchaseLine(index, { modelName: value })}
@@ -2809,7 +2819,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.specification`}
                       value={line.specification ?? ''}
                       onValueChange={(value) => updatePurchaseLine(index, { specification: value })}
@@ -2818,7 +2828,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.quantity`}
                       type="number"
                       min={1}
@@ -2829,7 +2839,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.unitPrice`}
                       type="number"
                       min={0}
@@ -2890,7 +2900,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               type="button"
               variant="primary"
               loading={salesUpdateMutation.isPending}
-              disabled={salesUpdateMutation.isPending || !slipFormCoeditProvider || salesEditLines.length === 0}
+              disabled={salesUpdateMutation.isPending || slipFormCoeditPending || salesEditLines.length === 0}
               data-testid="sales-slip-edit-save"
               onClick={() => {
                 salesUpdateMutation.mutate({
@@ -2951,7 +2961,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">거래처</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.partnerName"
               value={salesPartnerName}
               onValueChange={setSalesPartnerName}
@@ -2961,7 +2971,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">거래처코드</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.partnerCode"
               value={salesPartnerCode}
               onValueChange={setSalesPartnerCode}
@@ -2971,7 +2981,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">사업자번호</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.businessNumber"
               value={salesBusinessNumber}
               onValueChange={setSalesBusinessNumber}
@@ -2981,7 +2991,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">배송주소</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.deliveryAddress"
               value={salesDeliveryAddress}
               onValueChange={setSalesDeliveryAddress}
@@ -2991,7 +3001,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">감리주소</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.supervisionAddress"
               value={salesSupervisionAddress}
               onValueChange={setSalesSupervisionAddress}
@@ -3001,7 +3011,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">프로젝트명</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.projectName"
               value={salesProjectName}
               onValueChange={setSalesProjectName}
@@ -3011,7 +3021,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">인수자 번호</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.recipientPhone"
               value={salesRecipientPhone}
               onValueChange={setSalesRecipientPhone}
@@ -3021,7 +3031,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <label className="sales-edit-field">
             <span className="detail-label">입금예정일</span>
             <CollaborativeSlipInput
-              provider={slipFormCoeditProvider}
+              provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
               fieldPath="header.paymentDueDate"
               type="date"
               value={salesPaymentDueDate}
@@ -3034,7 +3044,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <label className="sales-edit-field sales-edit-memo">
           <span className="detail-label">적요</span>
           <CollaborativeSlipInput
-            provider={slipFormCoeditProvider}
+            provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
             fieldPath="header.memo"
             value={salesMemo}
             onValueChange={setSalesMemo}
@@ -3061,7 +3071,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <tr key={line.key}>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.productName`}
                       value={line.productName ?? ''}
                       onValueChange={(value) => updateSalesLine(index, { productName: value })}
@@ -3070,7 +3080,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.modelName`}
                       value={line.modelName ?? ''}
                       onValueChange={(value) => updateSalesLine(index, { modelName: value })}
@@ -3079,7 +3089,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.specification`}
                       value={line.specification ?? ''}
                       onValueChange={(value) => updateSalesLine(index, { specification: value })}
@@ -3088,7 +3098,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.quantity`}
                       type="number"
                       min={1}
@@ -3099,7 +3109,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   </td>
                   <td>
                     <CollaborativeSlipInput
-                      provider={slipFormCoeditProvider}
+                      provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
                       fieldPath={`items.${index}.unitPrice`}
                       type="number"
                       min={0}

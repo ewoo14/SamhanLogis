@@ -100,7 +100,30 @@ describe('CollaborativeSlipInput', () => {
     expect(onValueChange).toHaveBeenCalledWith('원격 적요')
   })
 
-  it('provider 준비 전에는 입력을 잠가 Y.Doc 과 modal state 분리를 막는다', () => {
+  it('coedit 로딩 중(coeditPending)에는 입력을 잠가 Y.Doc 과 modal state 분리를 막는다', () => {
+    const onValueChange = vi.fn()
+
+    render(
+      <CollaborativeSlipInput
+        provider={null}
+        fieldPath="header.memo"
+        value="기존 적요"
+        onValueChange={onValueChange}
+        coeditPending
+        aria-label="적요"
+      />,
+    )
+
+    const input = screen.getByLabelText('적요')
+    expect((input as HTMLInputElement).readOnly).toBe(true)
+
+    fireEvent.change(input, { target: { value: 'provider 전 입력' } })
+
+    expect(onValueChange).not.toHaveBeenCalled()
+  })
+
+  it('coedit 로드 실패/비활성(provider=null·로딩완료) 시엔 평문 편집을 허용해 영구잠금 회귀를 막는다', () => {
+    // 콜랩 서버 다운 등으로 provider 가 끝내 null 이어도 사용자가 전표를 편집할 수 있어야 함(리뷰 Opus 라운드2 BLOCKING).
     const onValueChange = vi.fn()
 
     render(
@@ -114,10 +137,10 @@ describe('CollaborativeSlipInput', () => {
     )
 
     const input = screen.getByLabelText('적요')
-    expect((input as HTMLInputElement).readOnly).toBe(true)
+    expect((input as HTMLInputElement).readOnly).toBe(false)
 
-    fireEvent.change(input, { target: { value: 'provider 전 입력' } })
+    fireEvent.change(input, { target: { value: '평문 편집' } })
 
-    expect(onValueChange).not.toHaveBeenCalled()
+    expect(onValueChange).toHaveBeenCalledWith('평문 편집')
   })
 })

@@ -35,6 +35,8 @@ export interface CollaborativeSlipInputProps {
   maxLength?: number
   inputSize?: 'sm' | 'md' | 'lg'
   readOnly?: boolean
+  /** coedit provider 로딩 중 — 로딩 중에만 입력 잠금(이중소스 방지). 로드 실패(provider=null) 시엔 false 라 평문 편집 허용. */
+  coeditPending?: boolean
   'aria-label': string
 }
 
@@ -48,13 +50,15 @@ export function CollaborativeSlipInput({
   maxLength,
   inputSize = 'sm',
   readOnly,
+  coeditPending,
   'aria-label': ariaLabel,
 }: CollaborativeSlipInputProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const latestValueRef = useRef(value)
   const [remoteCursors, setRemoteCursors] = useState<RemoteFieldCursor[]>(() => remoteCursorsFor(provider, fieldPath))
   const primaryRemote = remoteCursors[0]
-  const effectiveReadOnly = readOnly || !provider
+  // 로딩 중(coeditPending)에만 잠금. provider=null 자체(로드 실패/비활성)는 평문 편집 허용 — onChange 가 modal state 갱신, Yjs 는 provider 있을 때만(영구잠금 회귀 방지, 리뷰 Opus 라운드2).
+  const effectiveReadOnly = readOnly || !!coeditPending
   latestValueRef.current = value
 
   useEffect(() => {
