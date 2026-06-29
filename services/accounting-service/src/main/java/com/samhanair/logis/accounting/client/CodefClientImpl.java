@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * CODEF 은행·카드 거래내역 조회 client 구현체 (BC1).
  *
  * <p>KFTC client 와 동일하게 DRY_RUN 을 기본 경로로 두고, 실 CODEF 경로는 Phase 11 계약·키 발급 후 구현한다.
- * CODEF 모드에서는 api-key/client-id/client-secret 3개 키의 blank 및 placeholder 4키워드를 차단한다.
+ * CODEF 모드에서는 easyCodef SDK가 사용하는 공개키 설정의 blank 및 placeholder 4키워드를 차단한다.
  */
 @Slf4j
 @Component
@@ -291,9 +291,7 @@ public class CodefClientImpl implements CodefClient {
     }
 
     private void validateCredentials() {
-        requireCredential(properties.getApiKey(), "CODEF_API_KEY");
-        requireCredential(properties.getClientId(), "CODEF_CLIENT_ID");
-        requireCredential(properties.getClientSecret(), "CODEF_CLIENT_SECRET");
+        requireCredential(properties.getPublicKey(), "CODEF_PUBLIC_KEY");
     }
 
     private void requireCredential(String value, String name) {

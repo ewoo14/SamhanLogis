@@ -323,15 +323,15 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
             properties = new CodefProperties();
             ReflectionTestUtils.setField(properties, "submitMethod", "CODEF");
             ReflectionTestUtils.setField(properties, "baseUrl", "https://api.codef.io");
-            ReflectionTestUtils.setField(properties, "apiKey", "real-codef-api-key");
-            ReflectionTestUtils.setField(properties, "clientId", "real-codef-client-id");
-            ReflectionTestUtils.setField(properties, "clientSecret", "real-codef-client-secret");
+            // CODEF sandbox SDK 경로는 내장 자격을 사용하므로 현 가드는 publicKey 만 검증한다.
+            // Phase 11 production API type 전환 시 clientId/clientSecret 가드를 확장한다.
+            ReflectionTestUtils.setField(properties, "publicKey", "real-codef-public-key");
             easyCodefClient = Mockito.mock(EasyCodefClient.class);
             codefConnectionRepository = Mockito.mock(CodefConnectionRepository.class);
             client = new CodefClientImpl(properties, Optional.of(easyCodefClient), codefConnectionRepository);
         }
 
-        @ParameterizedTest(name = "CODEF apiKey={0} → CODEF_SUBMIT_FAILED (502)")
+        @ParameterizedTest(name = "CODEF publicKey={0} → CODEF_SUBMIT_FAILED (502)")
         @ValueSource(strings = {
                 "PLACEHOLDER_DEV_ONLY",
                 "placeholder_dev_only",
@@ -343,8 +343,8 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
                 "DUMMY"
         })
         @DisplayName("4 표준 placeholder 키워드 모두 CODEF_SUBMIT_FAILED 차단")
-        void codefApiKey_placeholder_shouldThrowCodefSubmitFailed(String placeholder) {
-            ReflectionTestUtils.setField(properties, "apiKey", placeholder);
+        void codefPublicKey_placeholder_shouldThrowCodefSubmitFailed(String placeholder) {
+            ReflectionTestUtils.setField(properties, "publicKey", placeholder);
 
             assertThatThrownBy(() -> client.fetchBankTransactions(
                     LocalDate.of(2026, 6, 1),
@@ -357,11 +357,10 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
                             .isEqualTo(ErrorCode.CODEF_SUBMIT_FAILED));
         }
 
-        @ParameterizedTest(name = "CODEF clientSecret={0} → CODEF_SUBMIT_FAILED (placeholder 차단)")
-        @ValueSource(strings = {"PLACEHOLDER_DEV_ONLY", "CHANGE_ME_LOCAL_ONLY", "changeme", "dummy"})
-        @DisplayName("CODEF clientSecret placeholder 도 차단")
-        void codefClientSecret_placeholder_shouldThrowCodefSubmitFailed(String placeholder) {
-            ReflectionTestUtils.setField(properties, "clientSecret", placeholder);
+        @Test
+        @DisplayName("CODEF publicKey blank 도 CODEF_SUBMIT_FAILED 차단")
+        void codefPublicKey_blank_shouldThrowCodefSubmitFailed() {
+            ReflectionTestUtils.setField(properties, "publicKey", "");
 
             assertThatThrownBy(() -> client.fetchCardTransactions(
                     LocalDate.of(2026, 6, 1),
@@ -379,6 +378,7 @@ class Phase9VendorPlaceholderGuardConsistencyTest {
             ReflectionTestUtils.setField(properties, "apiKey", "");
             ReflectionTestUtils.setField(properties, "clientId", "");
             ReflectionTestUtils.setField(properties, "clientSecret", "");
+            ReflectionTestUtils.setField(properties, "publicKey", "");
 
             var bank = client.fetchBankTransactions(
                     LocalDate.of(2026, 6, 1),

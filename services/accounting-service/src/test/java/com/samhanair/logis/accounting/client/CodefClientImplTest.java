@@ -89,6 +89,7 @@ class CodefClientImplTest {
         ReflectionTestUtils.setField(properties, "apiKey", "real-codef-api-key");
         ReflectionTestUtils.setField(properties, "clientId", "real-codef-client-id");
         ReflectionTestUtils.setField(properties, "clientSecret", "real-codef-client-secret");
+        ReflectionTestUtils.setField(properties, "publicKey", "real-codef-public-key");
         return properties;
     }
 }
