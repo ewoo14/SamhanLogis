@@ -27,6 +27,353 @@
 
 ---
 
+## 🏗️ 프로젝트 구조
+
+### 백엔드 (17 = 15 도메인 서비스 + 게이트웨이 + 디스커버리, MSA service-per-DB)
+
+| 서비스 | DB | 역할 |
+|---|---|---|
+| **api-gateway** | — | Spring Cloud Gateway — 라우팅·JWT 검증·HeaderAuthenticationFilter·Internal-Token 주입 |
+| **eureka-server** | — | 서비스 디스커버리 |
+| **auth-service** | auth_db | 인증(JWT HS256)·계정·권한그룹·page-code 권한·결재라인 config |
+| **user-service** | user_db | 직원·부서·급여·전자서명·역할변경 |
+| **product-service** | product_db | 품목·카테고리·세트(번들)·사양·DC·견적 lookup(자재/실외기/분기) |
+| **inventory-service** | inventory_db | 창고·재고(잔고/Lot/시리얼)·이동·재고실사·입고검수·창고이동 |
+| **slip-service** | slip_db | 입출고전표·견적·배차·협업(collab/presence)·외부배송 |
+| **accounting-service** | accounting_db | 분개·회계전표(판매/구매)·세금계산서·현금·은행·채권·CODEF |
+| **partner-order-service** | partner_orders | 거래처 주문(주문서)·임시저장·편집요청 |
+| **partner-service** | partners | 거래처 마스터·연락처·배송지·여신이력·첨부 |
+| **partner-auth-service** | partner_auth | 거래처 로그인(사업자번호 passwordless)·세션 |
+| **dc-config-service** | dc_config | 거래처 DC 설정·견적 가격 파라미터(estimate_configs) |
+| **groupware-service** | groupware_db | 결재(approval)·쪽지·일정 |
+| **notification-service** | notification_db | 알림(SMS/push)·알림센터·카톡방 매핑 |
+| **dashboard-service** | dashboard_db | KPI·매출집계·실시간재고·앱 릴리스/공지 |
+| **logging-service** | Elasticsearch | 감사로그(@Document, 월별 인덱스 롤링) |
+| **arologis-service** | arologis_db | (독립 운영 단위) 배차·기사·차량·전자서명·간이회계·행정 |
+
+### 클라이언트 (8)
+
+| 클라이언트 | 스택 | 용도 |
+|---|---|---|
+| **desktop** | Electron + React | 내부 직원 백오피스 (Windows .exe) |
+| **web/design-system** | React + Storybook | 공용 디자인 시스템(@samhan/design-system) |
+| **web/estimate-app** | React (Vite) | 종합견적서 (레거시 GAS 1:1 이식) |
+| **web/order-app** | React (Vite) | 거래처 주문서 |
+| **mobile-public** | Expo RN | 거래처 모바일 |
+| **mobile-staff** | Expo RN | 직원 모바일 |
+| **arologis-desktop** | Electron + React | 아로로지스 행정 백오피스 |
+| **arologis-mobile** | Expo RN | 아로로지스 기사 앱 |
+
+### shared 모듈
+
+| 모듈 | 역할 |
+|---|---|
+| **common** | `BaseEntity`(7 audit 필드 + soft-delete)·`ApiResponse`·예외·ErrorCode |
+| **security** | JWT·`InternalTokenFilter`·`@RequirePermission`·`DynamicPermissionClient` |
+| **discovery-abstraction** | Eureka 디스커버리 추상 |
+| **realtime-abstraction** | SSE·`PresenceService`(협업 동시 접속자) |
+| **collab-core** | 협업(수정완료 1-인 모델 / 코멘트 / diff / 알림) 공유 |
+| **ecount-io** | 이카운트 마이그레이션 IO |
+
+---
+
+## 🗄️ DB ER 다이어그램 (service-per-DB)
+
+> 각 서비스는 **독립 DB**를 가지며 서비스 간은 **물리 FK 없이 UUID 논리 참조**(점선)로 연결된다. 모든 엔티티는 `shared:common`의 **`BaseEntity`(id UUID PK + created/modified/deleted ×(at/by) + is_deleted soft-delete)** 를 상속한다(다이어그램에서는 생략). GitHub 가 아래 Mermaid 블록을 자동으로 **다이어그램 이미지**로 렌더한다.
+
+### 신원·권한·카탈로그 — auth / user / product
+
+```mermaid
+erDiagram
+  ACCOUNT ||--o{ ACCOUNT_GROUP : "account_id"
+  PERMISSION_GROUP ||--o{ ACCOUNT_GROUP : "group_id"
+  ACCOUNT ||--o{ ACCOUNT_PAGE_PERMISSION : "account_id"
+  PERMISSION_GROUP ||--o{ GROUP_PAGE_PERMISSION : "group_id"
+  ACCOUNT ||--o{ PASSWORD_RESET_TOKEN : "user_id"
+  APPROVAL_LINE_CONFIG ||--o{ APPROVAL_LINE_APPROVER : "config_role_id"
+  ACCOUNT {
+    uuid id PK
+    string login_id UK
+    string display_name
+    string department_name
+  }
+  PERMISSION_GROUP {
+    uuid id PK
+    string name UK
+    boolean is_builtin
+  }
+```
+
+```mermaid
+erDiagram
+  DEPARTMENT ||--o{ EMPLOYEE : "department_id"
+  EMPLOYEE ||--o{ PAYROLL_EMPLOYEE : "employee_id"
+  EMPLOYEE ||--o{ EMPLOYEE_CARD : "employee_id"
+  EMPLOYEE ||--o{ EMPLOYEE_SIGNATURE_HANDOFF_TOKEN : "employee_id"
+  EMPLOYEE }o..o| ACCOUNT_auth : "account_id (UUID 논리참조)"
+  EMPLOYEE {
+    uuid id PK
+    uuid account_id "→ auth.Account"
+    string full_name
+    enum role_snapshot
+    bytea signature_png
+  }
+  DEPARTMENT {
+    uuid id PK
+    string code
+    string name
+  }
+```
+
+```mermaid
+erDiagram
+  CATEGORY ||--o{ CATEGORY : "parent_id (self)"
+  CATEGORY ||--o{ PRODUCT : "category_id"
+  PRODUCT ||--o{ PRODUCT_SPEC : "product_id"
+  PRODUCT ||--o{ BUNDLE_COMPONENT : "bundle_product_id"
+  PRODUCT ||--o{ PRODUCT_ESTIMATE_EXPOSURE : "product_id (M:N)"
+  PRODUCT ||--o{ PRODUCT_ALIAS : "main_product_id"
+  PRODUCT ||--o{ PRICE_HISTORY : "product_id"
+  PRODUCT {
+    uuid id PK
+    string model_code "사용자 노출 식별자"
+    string name
+    enum product_type
+    enum bundle_mode
+    decimal selling_price
+  }
+  BUNDLE_COMPONENT {
+    uuid id PK
+    uuid bundle_product_id FK
+    string component_product_code
+    int default_qty
+    boolean is_default
+  }
+```
+
+### 핵심 운영 — inventory / slip / accounting
+
+```mermaid
+erDiagram
+  WAREHOUSE ||--o{ STOCK_BALANCE : "warehouse"
+  WAREHOUSE ||--o{ STOCK_LOT : "warehouse"
+  WAREHOUSE ||--o{ STOCK_TRANSFER : "source/dest"
+  WAREHOUSE ||--o{ INVENTORY_AUDIT : "warehouse"
+  STOCK_TRANSFER ||--o{ STOCK_TRANSFER_LINE : "transfer"
+  INVENTORY_AUDIT ||--o{ INVENTORY_AUDIT_LINE : "audit"
+  INBOUND_INSPECTION ||--o{ INBOUND_INSPECTION_LINE : "inspection"
+  STOCK_BALANCE }o..o| PRODUCT_prod : "product_id (논리)"
+  INBOUND_INSPECTION }o..o| SLIP_slip : "slip_id (논리)"
+  STOCK_BALANCE {
+    uuid id PK
+    uuid product_id "→ product"
+    int available_qty
+    int reserved_qty
+    int total_qty
+  }
+  STOCK_INSTANCE {
+    uuid id PK
+    uuid product_id
+    enum status
+    string inbound_slip_no
+  }
+```
+
+```mermaid
+erDiagram
+  SLIP ||--o{ SLIP_LINE : "slip"
+  SLIP ||--o{ SLIP_SOURCE_ORDER : "slip"
+  SLIP ||--o{ SLIP_COLLAB_SUGGESTION : "slip (협업)"
+  SLIP_COLLAB_SUGGESTION ||--o{ SLIP_COLLAB_COMMENT : "suggestion"
+  ESTIMATE ||--o{ ESTIMATE_LINE : "estimate"
+  ESTIMATE ||--o{ QUOTE_SNAPSHOT : "estimate"
+  DISPATCH_VEHICLE_GROUP ||--o{ DISPATCH_VEHICLE_GROUP_SLIP : "group"
+  DISPATCH_TASK ||--o{ MATCHED_DRIVER : "task"
+  EXTERNAL_DISPATCH ||--o{ EXTERNAL_DISPATCH_SLIP : "ext_dispatch"
+  SLIP }o..o| PARTNER_pt : "partner_id (논리)"
+  SLIP {
+    uuid id PK
+    enum slip_type "INBOUND|OUTBOUND"
+    string slip_no
+    enum status
+    uuid partner_id "→ partner"
+    uuid warehouse_id "→ inventory"
+  }
+  ESTIMATE {
+    uuid id PK
+    string estimate_no
+    enum status
+    uuid converted_slip_id
+  }
+```
+
+```mermaid
+erDiagram
+  JOURNAL ||--o{ JOURNAL_LINE : "journal"
+  JOURNAL_LINE }o--|| CHART_OF_ACCOUNT : "account_id"
+  SALES_ACCOUNTING_SLIP ||--o{ SALES_ACCOUNTING_SLIP_LINE : "slip"
+  SALES_ACCOUNTING_SLIP_LINE ||--o{ SALES_ACCOUNTING_SLIP_ALLOCATION : "line"
+  PURCHASE_ACCOUNTING_SLIP ||--o{ PURCHASE_ACCOUNTING_SLIP_LINE : "slip"
+  TAX_INVOICE ||--o{ TAX_INVOICE_LINE : "invoice"
+  TAX_INVOICE_BATCH ||--o{ TAX_INVOICE_BATCH_EXCLUSION : "batch"
+  BANK_ACCOUNT ||--o{ BANK_TRANSACTION : "bank_account"
+  SUPPLIER_PROFILE ||--o{ SUPPLIER_BANK_ACCOUNT : "supplier"
+  NOTES_RECEIVABLE ||--o{ COLLECTION_PLAN : "receivable"
+  SALES_ACCOUNTING_SLIP }o..o| SLIP_slip : "slip_id (논리)"
+  JOURNAL {
+    uuid id PK
+    string journal_no
+    enum status "DRAFT|APPROVED"
+    decimal total_debit
+    decimal total_credit
+  }
+  CHART_OF_ACCOUNT {
+    uuid id PK
+    string account_code "101~900 한국기준"
+    string account_name
+    enum account_type
+  }
+```
+
+### 거래처·영업 — partner-order / partner / partner-auth / dc-config
+
+```mermaid
+erDiagram
+  PARTNER ||--o{ PARTNER_CONTACT : "partner_id"
+  PARTNER ||--o{ PARTNER_SHIPPING_ADDRESS : "partner_id"
+  PARTNER ||--o{ PARTNER_CREDIT_HISTORY : "partner_id"
+  PARTNER ||--o{ PARTNER_ATTACHMENT : "partner_id"
+  PARTNER_ORDER ||--o{ PARTNER_ORDER_LINE : "partner_order_id"
+  PARTNER_ORDER ||--o{ PARTNER_ORDER_DRAFT : "partner_code"
+  PARTNER_DC ||--|| DC_CONFIG : "1:1 partner_id"
+  PARTNER_AUTH ||--o{ PARTNER_SESSION : "auth_id"
+  PARTNER_ORDER }o..o| PARTNER : "partner_code (논리)"
+  PARTNER_AUTH }o..o| PARTNER_DC : "biz_no 1:1 (논리)"
+  PARTNER {
+    uuid id PK
+    string partner_code UK
+    string biz_no UK
+    string name
+    decimal credit_limit
+    decimal outstanding_balance
+  }
+  PARTNER_ORDER {
+    uuid id PK
+    string order_no "YYYY/MM/DD-N"
+    enum status "DRAFT|ON_HOLD|CONFIRMED|CONVERTED"
+    string slip_no
+  }
+  DC_CONFIG {
+    uuid id PK
+    uuid partner_id FK
+    decimal home_discount_rate
+    decimal commercial_discount_rate
+  }
+  PARTNER_AUTH {
+    uuid id PK
+    string biz_no UK
+    enum status
+    int failed_attempts
+  }
+```
+
+### 협업·알림·대시보드 — groupware / notification / dashboard / logging
+
+```mermaid
+erDiagram
+  APPROVAL_LINE ||--o{ APPROVAL_STEP : "approval_line"
+  APPROVAL_LINE ||--o{ APPROVAL_ATTACHMENT : "approval"
+  APPROVAL_TEMPLATE ||--o{ APPROVAL_TEMPLATE_FIELD : "template"
+  SCHEDULE ||--o{ SCHEDULE_PARTICIPANT : "schedule"
+  NOTIFICATION_REQUEST ||--o{ NOTIFICATION_LOG : "request"
+  APP_NOTICE ||--o{ APP_NOTICE_IMAGE : "notice"
+  APPROVAL_LINE }o..o| EMPLOYEE_user : "requester_id (논리)"
+  APPROVAL_LINE {
+    uuid id PK
+    string approval_no
+    uuid requester_id "→ user"
+    enum status
+  }
+  NOTIFICATION_REQUEST {
+    uuid id PK
+    enum channel "SMS|PUSH"
+    enum status
+    uuid recipient_id "→ user/partner"
+  }
+  PARTNER_CHAT_ROOM_MAPPING {
+    uuid id PK
+    string partner_code "→ partner"
+    string chat_room_name
+  }
+  AUDIT_LOG_es {
+    string id "Elasticsearch @Document"
+    string service_name
+    string action
+    instant occurred_at
+  }
+```
+
+### 아로로지스 (독립 운영 단위) — arologis
+
+```mermaid
+erDiagram
+  DISPATCH ||--o{ VEHICLE : "dispatch_id"
+  VEHICLE ||--o{ VEHICLE_STOP : "vehicle_id"
+  VEHICLE }o--|| DRIVER : "assigned_driver_id"
+  VEHICLE_STOP ||--o{ SIGNATURE : "stop_id"
+  DRIVER ||--o{ DRIVER_LOCATION : "driver_id (GPS, 30일 회전)"
+  AROLOGIS_DEPARTMENT ||--o{ AROLOGIS_EMPLOYEE : "department_id"
+  AROLOGIS_EMPLOYEE ||--|| ADMIN_USER : "admin_user_id"
+  AROLOGIS_SIMPLE_ACCOUNT ||--o{ AROLOGIS_CASH_TXN : "account_code"
+  DISPATCH }o..o| DISPATCH_TASK_slip : "samhan_dispatch_task_id (논리)"
+  VEHICLE_STOP }o..o| PARTNER_pt2 : "parsed_partner_code (논리)"
+  DISPATCH {
+    uuid id PK
+    date dispatch_date
+    text raw_kakao_text
+    uuid samhan_dispatch_task_id "→ slip.DispatchTask"
+  }
+  DRIVER {
+    uuid id PK
+    string driver_code "사용자 노출"
+    string driver_name
+    enum source
+  }
+  VEHICLE_STOP {
+    uuid id PK
+    uuid vehicle_id FK
+    string parsed_partner_name
+    string parsed_partner_code "→ partner"
+    enum status
+  }
+```
+
+### 서비스 간 논리 참조 (UUID, 물리 FK 없음)
+
+```mermaid
+flowchart LR
+  user -->|account_id| auth
+  product -.->|category| product
+  inventory -->|product_id| product
+  inventory -->|slip_id| slip
+  slip -->|partner_id| partner
+  slip -->|source_order_id| partner_order
+  accounting -->|slip_id| slip
+  accounting -->|supplier/partner_id| partner
+  partner_order -->|partner_code| partner
+  partner_order -->|product_id| product
+  partner_order -->|price calc| dc_config
+  partner_auth -->|biz_no 1:1| dc_config
+  groupware -->|requester/approver| user
+  notification -->|recipient| user
+  notification -->|partner_code| partner
+  dashboard -->|partner/product| partner
+  arologis -.->|dispatch_task_id| slip
+  arologis -.->|parsed_partner_code| partner
+```
+
+---
+
 ### 최신 진행 메모 (2026-06-24)
 
 - **출고전표 배송일정(M상N하) 자동 — 구조화 태그** (PR #595): 배송태그(지방/야적)별 **상차(M=출고일 잠금)/하차(N)** 일정을 규칙대로 자동 계산해 **구조화 필드 `unload_date`**(V52)로 보유, 특이사항 앞 파생 라벨 **`25상26하`/`당착`**(`deliveryScheduleLabel`, 메모 미저장). 규칙: N=M+1, **N이 일요일→월요일**(단 야적+M=토→일요일), 지방+N==M→`당착`. **N 편집·당착 옵션**·M 잠금. 컷오프 8지점과 동일 지점에 `applyDeliverySchedule` 배선(태그 신규/변경 OR override 시만 재계산 — 사용자 override 보존). desktop SlipForm 하차일/당착 + 조회/인쇄 라벨. 레거시 `applyDeliveryTagAutoMemo`(memo prepend) 폐기. 라이브 QA 9/9(주말규칙 실API 지방토→월·야적토→일).
