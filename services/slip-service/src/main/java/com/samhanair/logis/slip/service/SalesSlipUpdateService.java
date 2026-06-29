@@ -176,7 +176,8 @@ public class SalesSlipUpdateService {
 
     private String summarizeLines(List<SlipLine> lines) {
         return String.join(",", lines.stream()
-                .map(line -> "%s/%s/%s/%d/%s/%s".formatted(
+                .map(line -> "%s/%s/%s/%s/%d/%s/%s".formatted(
+                        line.getProductId() == null ? "" : line.getProductId().toString(),
                         nullToEmpty(line.getModelName()),
                         nullToEmpty(line.getProductName()),
                         nullToEmpty(line.getSpecification()),
