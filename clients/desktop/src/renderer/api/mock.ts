@@ -47,6 +47,8 @@ declare global {
   interface Window {
     __SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__?: AddVehicleGroupPayload
     __SAMHAN_MOCK_LAST_DISPATCH_BODY__?: { groupIds?: string[] }
+    __SAMHAN_MOCK_SLIP_COEDIT?: Record<string, string[]>
+    __SAMHAN_MOCK_SLIP_COEDIT_SEED?: Record<string, string[]>
   }
 }
 
@@ -3393,6 +3395,44 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (presenceListMatch && method === 'GET') {
     const slipId = presenceListMatch[1]!
     return envelope([...(slipPresenceStore[slipId] ?? [])])
+  }
+
+  // ---- slip coedit relay mock (Yjs update base64 누적 snapshot) ----
+  const gco = globalThis as unknown as {
+    __SAMHAN_MOCK_SLIP_COEDIT?: Record<string, string[]>
+    __SAMHAN_MOCK_SLIP_COEDIT_SEED?: Record<string, string[]>
+  }
+  if (!gco.__SAMHAN_MOCK_SLIP_COEDIT) {
+    gco.__SAMHAN_MOCK_SLIP_COEDIT = {}
+    if (gco.__SAMHAN_MOCK_SLIP_COEDIT_SEED) {
+      for (const [k, v] of Object.entries(gco.__SAMHAN_MOCK_SLIP_COEDIT_SEED)) {
+        gco.__SAMHAN_MOCK_SLIP_COEDIT[k] = [...v]
+      }
+    }
+  }
+  const coeditStore = gco.__SAMHAN_MOCK_SLIP_COEDIT
+  const coeditGetMatch = url.match(/\/api\/v1\/slips\/([^/?]+)\/collab\/coedit(?:\?.*)?$/)
+  if (coeditGetMatch && method === 'GET') {
+    const slipId = coeditGetMatch[1]!
+    return envelope({ updates: [...(coeditStore[slipId] ?? [])] })
+  }
+
+  const coeditUpdateMatch = url.match(/\/api\/v1\/slips\/([^/?]+)\/collab\/coedit\/update(?:\?.*)?$/)
+  if (coeditUpdateMatch && method === 'POST') {
+    const slipId = coeditUpdateMatch[1]!
+    const body = parseMockBody(config)
+    const update = typeof body['update'] === 'string' ? body['update'].trim() : ''
+    if (!update) return mockError(400, 'INVALID_INPUT', 'coedit update 는 필수입니다')
+    coeditStore[slipId] = [...(coeditStore[slipId] ?? []), update]
+    return envelope(null)
+  }
+
+  const coeditAwarenessMatch = url.match(/\/api\/v1\/slips\/([^/?]+)\/collab\/coedit\/awareness(?:\?.*)?$/)
+  if (coeditAwarenessMatch && method === 'POST') {
+    const body = parseMockBody(config)
+    const awareness = typeof body['awareness'] === 'string' ? body['awareness'].trim() : ''
+    if (!awareness) return mockError(400, 'INVALID_INPUT', 'coedit awareness 는 필수입니다')
+    return envelope(null)
   }
 
   // ==========================================================================

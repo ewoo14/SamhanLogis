@@ -6,6 +6,7 @@
  */
 import { apiClient, type ApiEnvelope } from './client'
 import type { SlipDetail } from './slip'
+import { collabHeaders } from '../auth/collabHeaders'
 
 export interface SlipCollabComment {
   id: string
@@ -44,6 +45,10 @@ export interface CommitSlipCollabEditInput {
 export interface CommitSlipCollabEditResponse {
   edit: SlipCollabEdit
   slip: SlipDetail
+}
+
+export interface SlipCoeditUpdatesResponse {
+  updates: string[]
 }
 
 export async function getSlipCollabComments(
@@ -105,4 +110,36 @@ export async function commitSlipCollabEdit(
     input,
   )
   return res.data.data
+}
+
+export async function getSlipCoeditUpdates(
+  slipId: string,
+): Promise<SlipCoeditUpdatesResponse> {
+  const res = await apiClient.get<ApiEnvelope<SlipCoeditUpdatesResponse>>(
+    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/coedit`,
+    { headers: await collabHeaders() },
+  )
+  return res.data.data
+}
+
+export async function postSlipCoeditUpdate(
+  slipId: string,
+  update: string,
+): Promise<void> {
+  await apiClient.post<ApiEnvelope<null>>(
+    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/coedit/update`,
+    { update },
+    { headers: await collabHeaders() },
+  )
+}
+
+export async function postSlipCoeditAwareness(
+  slipId: string,
+  awareness: string,
+): Promise<void> {
+  await apiClient.post<ApiEnvelope<null>>(
+    `/api/v1/slips/${encodeURIComponent(slipId)}/collab/coedit/awareness`,
+    { awareness },
+    { headers: await collabHeaders() },
+  )
 }

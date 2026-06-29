@@ -263,6 +263,58 @@ class SlipCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    /**
+     * coedit endpoint 는 Yjs update 를 opaque base64 로만 누적·중계하고 awareness 는 저장하지 않는다.
+     *
+     * <p>S1 relay 는 기존 {@code slip.comments} VIEW 권한 가드를 공유한다.
+     */
+    @Test
+    void coedit_update_snapshot_and_awareness_relay_use_slip_comments_view_guard() throws Exception {
+        UUID slipId = seedOutboundSlip("2099/06/13-COEDIT-" + SEQ.getAndIncrement()).getId();
+
+        mvc.perform(get("/slips/{slipId}/collab/coedit", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(0));
+
+        mvc.perform(post("/slips/{slipId}/collab/coedit/update", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "AQIDBA=="))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mvc.perform(get("/slips/{slipId}/collab/coedit", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(1))
+                .andExpect(jsonPath("$.data.updates[0]").value("AQIDBA=="));
+
+        mvc.perform(post("/slips/{slipId}/collab/coedit/awareness", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "BQYH"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mvc.perform(get("/slips/{slipId}/collab/coedit", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(1));
+
+        when(dynamicPermissionClient.check(
+                any(UUID.class), eq("slip.comments"), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canView(any(), eq("slip.comments")))
+                .thenReturn(false);
+
+        mvc.perform(post("/slips/{slipId}/collab/coedit/update", slipId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "AQIDBA=="))))
+                .andExpect(status().isForbidden());
+    }
+
     /* ====================================================================
      * 시나리오 2a — 수정완료 단일 필드 실 적용
      * slip.memo 실 변경 + EDIT revision 1건 캡처 검증

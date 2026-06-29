@@ -27,12 +27,18 @@
  *     && node_modules/.bin/playwright test playwright/slip-collab --reporter=line
  */
 import { expect, test, type Page } from '@playwright/test'
+import * as Y from 'yjs'
+import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** mock.ts MOCK_SLIPS[0] (OUTBOUND / PROCESSING) 의 id — fixture getSlip 이 이 전표를 반환. */
 const SLIP_ID = 'slip-001'
 const PAGE_URL = `${BASE_URL}/#/sales/${SLIP_ID}?mockRole=MASTER`
+
+function encodeBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64')
+}
 
 /**
  * window.samhanAuth stub — AuthGuard 통과용 (slip-version-history.spec 패턴 동일).
@@ -76,6 +82,40 @@ async function seedOtherViewerOnce(page: Page) {
     }
     window.localStorage.setItem(storageKey, '1')
   }, { slipId: SLIP_ID })
+}
+
+async function installCoeditSeed(page: Page) {
+  const remoteDoc = new Y.Doc()
+  remoteDoc.getText('memo').insert(0, '원격 seed 메모')
+  const update = encodeBase64(Y.encodeStateAsUpdate(remoteDoc))
+
+  const awarenessDoc = new Y.Doc()
+  const remoteAwareness = new Awareness(awarenessDoc)
+  remoteAwareness.setLocalState({
+    user: { displayName: '원격 사용자', color: '#2563EB' },
+    cursor: { fieldName: 'memo', anchor: 2, head: 7 },
+  })
+  const awareness = encodeBase64(encodeAwarenessUpdate(remoteAwareness, [awarenessDoc.clientID]))
+
+  await page.addInitScript(({ slipId, seededUpdate }) => {
+    const g = globalThis as unknown as {
+      __SAMHAN_MOCK_SLIP_COEDIT_SEED?: Record<string, string[]>
+    }
+    g.__SAMHAN_MOCK_SLIP_COEDIT_SEED = {
+      [slipId]: [seededUpdate],
+    }
+  }, { slipId: SLIP_ID, seededUpdate: update })
+
+  await page.route(`**/api/v1/slips/${SLIP_ID}/collab/stream`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache',
+      },
+      body: `event: coedit:awareness\ndata: ${JSON.stringify({ awareness })}\n\n`,
+    })
+  })
 }
 
 test.describe('§7 입출고전표 협업 패널', () => {
@@ -159,5 +199,30 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(reloadedPanel.getByLabel('김관리 현재 보고 있음')).toHaveCount(0)
     await expect(reloadedPanel.getByLabel('오병승 현재 보고 있음')).toBeVisible()
     await expect(reloadedPanel.getByTestId('presence-indicator')).toHaveAttribute('aria-label', '현재 보고 있음 1명')
+  })
+
+  test('협업 메모는 remote update와 cursor를 렌더하고 로컬 입력 update를 누적한다', async ({ page }) => {
+    await installAuthMock(page)
+    await installCoeditSeed(page)
+    await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+
+    const panel = page.getByTestId('slip-collaboration-panel')
+    await expect(panel).toBeVisible()
+
+    const memo = panel.getByLabel('협업 메모')
+    await expect(memo).toHaveValue('원격 seed 메모')
+    await expect(panel.getByTestId(/coedit-remote-cursor-/)).toContainText('원격 사용자')
+
+    await memo.fill('원격 seed 메모 + 로컬 입력')
+    await page.waitForFunction((slipId) => {
+      const g = globalThis as unknown as {
+        __SAMHAN_MOCK_SLIP_COEDIT?: Record<string, string[]>
+      }
+      return (g.__SAMHAN_MOCK_SLIP_COEDIT?.[slipId]?.length ?? 0) >= 2
+    }, SLIP_ID)
+
+    await expect(memo).toHaveValue('원격 seed 메모 + 로컬 입력')
+    await expect(panel).not.toContainText(SLIP_ID)
+    await expect(panel).not.toContainText('remote-client')
   })
 })

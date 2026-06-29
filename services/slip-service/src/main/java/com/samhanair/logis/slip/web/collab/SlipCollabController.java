@@ -15,6 +15,7 @@ import com.samhanair.logis.shared.realtime.presence.PresenceService;
 import com.samhanair.logis.slip.collab.SlipCollabComment;
 import com.samhanair.logis.slip.collab.SlipCollabEditService;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestionRepository;
+import com.samhanair.logis.slip.collab.SlipCoeditService;
 import com.samhanair.logis.slip.collab.SlipDocumentCollaborationPort;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -24,6 +25,9 @@ import com.samhanair.logis.slip.web.collab.dto.CommitSlipCollabEditRequest;
 import com.samhanair.logis.slip.web.collab.dto.SlipCollabEditResponse;
 import com.samhanair.logis.slip.web.collab.dto.SlipCollabCommentResponse;
 import com.samhanair.logis.slip.web.collab.dto.SlipCollabSuggestionResponse;
+import com.samhanair.logis.slip.web.collab.dto.SlipCoeditAwarenessRequest;
+import com.samhanair.logis.slip.web.collab.dto.SlipCoeditUpdateRequest;
+import com.samhanair.logis.slip.web.collab.dto.SlipCoeditUpdatesResponse;
 import com.samhanair.logis.slip.web.collab.dto.SlipPresenceRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -70,6 +74,7 @@ public class SlipCollabController {
     private final SlipRepository slipRepository;
     private final RealtimeBroker broker;
     private final PresenceService presenceService;
+    private final SlipCoeditService coeditService;
     /**
      * 포트는 concrete 타입으로 주입한다 — 수정완료 시점
      * {@link SlipDocumentCollaborationPort#validateChangeSet} 조기 검증 호출용 (Round C P2).
@@ -84,6 +89,7 @@ public class SlipCollabController {
             SlipRepository slipRepository,
             RealtimeBroker broker,
             PresenceService presenceService,
+            SlipCoeditService coeditService,
             @Qualifier("slipOutboundCollaborationPort") SlipDocumentCollaborationPort outboundPort,
             @Qualifier("slipInboundCollaborationPort") SlipDocumentCollaborationPort inboundPort) {
         this.commentService = commentService;
@@ -92,6 +98,7 @@ public class SlipCollabController {
         this.slipRepository = slipRepository;
         this.broker = broker;
         this.presenceService = presenceService;
+        this.coeditService = coeditService;
         this.outboundPort = outboundPort;
         this.inboundPort = inboundPort;
     }
@@ -235,6 +242,39 @@ public class SlipCollabController {
     public ApiResponse<List<PresenceEntry>> listPresence(@PathVariable UUID slipId) {
         loadSlip(slipId);
         return ApiResponse.ok(presenceService.list(slipId));
+    }
+
+    /** 전표 협업 메모 Yjs update 누적 snapshot. 서버는 update 내용을 해석하지 않는다. */
+    @Operation(summary = "전표 협업 메모 coedit update snapshot")
+    @GetMapping("/coedit")
+    @RequirePermission(page = "slip.comments", action = PermissionAction.VIEW)
+    public ApiResponse<SlipCoeditUpdatesResponse> listCoeditUpdates(@PathVariable UUID slipId) {
+        loadSlip(slipId);
+        return ApiResponse.ok(new SlipCoeditUpdatesResponse(coeditService.listUpdates(slipId)));
+    }
+
+    /** 전표 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
+    @Operation(summary = "전표 협업 메모 coedit update relay")
+    @PostMapping("/coedit/update")
+    @RequirePermission(page = "slip.comments", action = PermissionAction.VIEW)
+    public ApiResponse<Void> appendCoeditUpdate(
+            @PathVariable UUID slipId,
+            @RequestBody(required = false) SlipCoeditUpdateRequest request) {
+        loadSlip(slipId);
+        coeditService.appendUpdate(slipId, request == null ? null : request.update());
+        return ApiResponse.ok(null);
+    }
+
+    /** 전표 협업 메모 cursor/selection relay. 저장하지 않는 ephemeral 이벤트다. */
+    @Operation(summary = "전표 협업 메모 coedit awareness relay")
+    @PostMapping("/coedit/awareness")
+    @RequirePermission(page = "slip.comments", action = PermissionAction.VIEW)
+    public ApiResponse<Void> publishCoeditAwareness(
+            @PathVariable UUID slipId,
+            @RequestBody(required = false) SlipCoeditAwarenessRequest request) {
+        loadSlip(slipId);
+        coeditService.publishAwareness(slipId, request == null ? null : request.awareness());
+        return ApiResponse.ok(null);
     }
 
     /** 전표 협업 SSE stream. 댓글/제안/복원 이벤트는 slipId 채널로 전달된다. */

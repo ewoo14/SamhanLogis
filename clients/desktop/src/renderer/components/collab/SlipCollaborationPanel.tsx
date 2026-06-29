@@ -22,6 +22,7 @@ import { SlipCollabRealtimeClient } from '../../realtime/SlipCollabRealtimeClien
 import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { SlipVersionHistoryPanel } from '../audit/SlipVersionHistoryPanel'
+import { CollaborativeTextField } from './CollaborativeTextField'
 import { PresenceIndicator } from './PresenceIndicator'
 
 export interface SlipCollaborationPanelProps {
@@ -265,6 +266,15 @@ export function SlipCollaborationPanel({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
           <h4 style={{ margin: 0 }}>협업</h4>
           <PresenceIndicator entries={presenceEntries} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <CollaborativeTextField
+            slipId={slipId}
+            fieldName="memo"
+            label="협업 메모"
+            rows={4}
+          />
         </div>
 
         <div className="detail-grid" style={{ alignItems: 'start' }}>
