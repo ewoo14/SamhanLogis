@@ -256,7 +256,7 @@ public class SlipCollabController {
     /** 전표 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
     @Operation(summary = "전표 협업 메모 coedit update relay")
     @PostMapping("/coedit/update")
-    @RequirePermission(page = "slip.comments", action = PermissionAction.VIEW)
+    @RequirePermission(page = "slip.comments", action = PermissionAction.CREATE)
     public ApiResponse<Void> appendCoeditUpdate(
             @PathVariable UUID slipId,
             @RequestBody(required = false) SlipCoeditUpdateRequest request) {

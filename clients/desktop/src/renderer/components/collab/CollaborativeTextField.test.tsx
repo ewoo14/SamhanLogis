@@ -87,6 +87,7 @@ describe('CollaborativeTextField', () => {
     expect(textarea.value).toBe('base가')
     fireEvent.compositionEnd(textarea)
 
+    expect(textarea.value).toBe('remote base가')
     expect(text.toString()).toContain('remote ')
     expect(text.toString()).toContain('가')
   })

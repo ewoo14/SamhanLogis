@@ -140,7 +140,50 @@ describe('createCoeditProvider', () => {
     await vi.advanceTimersByTimeAsync(150)
 
     expect(postUpdate).toHaveBeenCalledTimes(2)
-    expect(decodeBase64Update(postUpdate.mock.calls[1][1]).length).toBeGreaterThan(0)
+    const resentDoc = new Y.Doc()
+    Y.applyUpdate(resentDoc, decodeBase64Update(postUpdate.mock.calls[1][1]))
+    expect(resentDoc.getText('memo').toString()).toBe('local')
     provider.destroy()
+  })
+
+  it('cleans up stream and pending awareness when initial snapshot load fails', async () => {
+    vi.useFakeTimers()
+    const abort = vi.fn()
+    const postAwareness = vi.fn()
+
+    await expect(createCoeditProvider({
+      slipId: 'slip-1',
+      fieldName: 'memo',
+      initialUpdates: async () => {
+        throw new Error('offline')
+      },
+      postUpdate: vi.fn(),
+      postAwareness,
+      subscribe: () => ({ abort }),
+    })).rejects.toThrow('offline')
+
+    expect(abort).toHaveBeenCalledTimes(1)
+    await vi.runOnlyPendingTimersAsync()
+    expect(postAwareness).not.toHaveBeenCalled()
+  })
+
+  it('does not schedule awareness removal posts after destroy', async () => {
+    vi.useFakeTimers()
+    const postAwareness = vi.fn()
+
+    const provider = await createCoeditProvider({
+      slipId: 'slip-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness,
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    provider.destroy()
+
+    expect(postAwareness).toHaveBeenCalledTimes(1)
+    await vi.runOnlyPendingTimersAsync()
+    expect(postAwareness).toHaveBeenCalledTimes(1)
   })
 })

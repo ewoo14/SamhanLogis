@@ -66,28 +66,37 @@ class SlipCoeditServiceTest {
     }
 
     @Test
-    void appendUpdate_caps_accumulated_updates_and_evicts_oldest() {
-        // MAX_UPDATES_PER_SLIP(5000) 초과 시 oldest eviction — 누적 무한 증가 방지(리뷰 BE N-4).
+    void appendUpdate_rejects_when_update_count_limit_would_break_snapshot_contract() {
+        // MAX_UPDATES_PER_SLIP(5000) 초과 시 oldest 를 삭제하지 않고 거부한다 — Yjs prefix log 보존.
         String oldest = Base64.getEncoder().encodeToString("oldest".getBytes(StandardCharsets.UTF_8));
         service.appendUpdate(SLIP_ID, oldest);
         for (int i = 0; i < 5_000; i++) {
-            service.appendUpdate(
-                    SLIP_ID,
-                    Base64.getEncoder().encodeToString(("u" + i).getBytes(StandardCharsets.UTF_8)));
+            String next = Base64.getEncoder().encodeToString(("u" + i).getBytes(StandardCharsets.UTF_8));
+            if (i < 4_999) {
+                service.appendUpdate(SLIP_ID, next);
+            } else {
+                assertThatThrownBy(() -> service.appendUpdate(SLIP_ID, next))
+                        .isInstanceOf(BusinessException.class);
+            }
         }
         assertThat(service.listUpdates(SLIP_ID)).hasSize(5_000);
-        assertThat(service.listUpdates(SLIP_ID)).doesNotContain(oldest);
+        assertThat(service.listUpdates(SLIP_ID)).contains(oldest);
     }
 
     @Test
-    void appendUpdate_caps_accumulated_payload_bytes_and_evicts_oldest() {
+    void appendUpdate_rejects_when_payload_byte_limit_would_break_snapshot_contract() {
         String chunk = "A".repeat(128 * 1024);
 
         for (int i = 0; i < 9; i++) {
-            service.appendUpdate(SLIP_ID, chunk);
+            if (i < 8) {
+                service.appendUpdate(SLIP_ID, chunk);
+            } else {
+                assertThatThrownBy(() -> service.appendUpdate(SLIP_ID, chunk))
+                        .isInstanceOf(BusinessException.class);
+            }
         }
 
-        assertThat(service.listUpdates(SLIP_ID)).hasSizeLessThan(9);
+        assertThat(service.listUpdates(SLIP_ID)).hasSize(8);
         assertThat(service.listUpdates(SLIP_ID).stream().mapToInt(String::length).sum())
                 .isLessThanOrEqualTo(1024 * 1024);
     }

@@ -150,6 +150,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   }
 
   const scheduleUpdatePost = (update: Uint8Array) => {
+    if (destroyed) return
     queuedUpdates.push(update)
     if (flushTimer !== null) clearTimeout(flushTimer)
     flushTimer = setTimeout(flushUpdates, POST_DEBOUNCE_MS)
@@ -171,12 +172,14 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
       })
   }
   const scheduleAwarenessPost = (clients: number[]) => {
+    if (destroyed) return
     pendingAwarenessClients.push(...clients)
     if (awarenessTimer !== null) clearTimeout(awarenessTimer)
     awarenessTimer = setTimeout(flushAwareness, AWARENESS_DEBOUNCE_MS)
   }
 
   doc.on('update', (update: Uint8Array, origin: unknown) => {
+    if (destroyed) return
     if (origin === REMOTE_ORIGIN) return
     scheduleUpdatePost(update)
   })
@@ -185,6 +188,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     changes: { added: number[]; updated: number[]; removed: number[] },
     origin: unknown,
   ) => {
+    if (destroyed) return
     notifyAwareness()
     if (origin === REMOTE_ORIGIN) return
     const changedClients = [...changes.added, ...changes.updated, ...changes.removed]
@@ -209,6 +213,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   }
 
   const stream = subscribe(options.slipId, (event) => {
+    if (destroyed) return
     if (event.event === 'coedit:update' && isCoeditPayload(event.data, 'update')) {
       Y.applyUpdate(doc, decodeBase64Update(event.data.update), REMOTE_ORIGIN)
       return
@@ -218,7 +223,32 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     }
   })
 
-  const snapshot = await initialUpdates(options.slipId)
+  const cleanupFailedInitialization = () => {
+    destroyed = true
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer)
+      flushTimer = null
+    }
+    if (awarenessTimer !== null) {
+      clearTimeout(awarenessTimer)
+      awarenessTimer = null
+    }
+    queuedUpdates = []
+    pendingAwarenessClients = []
+    awareness.destroy()
+    stream.abort()
+    doc.destroy()
+    textListeners.clear()
+    awarenessListeners.clear()
+  }
+
+  let snapshot: SlipCoeditUpdatesResponse
+  try {
+    snapshot = await initialUpdates(options.slipId)
+  } catch (error) {
+    cleanupFailedInitialization()
+    throw error
+  }
   applySnapshot(snapshot)
 
   const resyncTimer = setInterval(() => {
@@ -263,7 +293,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
       return () => awarenessListeners.delete(listener)
     },
     destroy: () => {
-      destroyed = true
+      if (destroyed) return
       if (flushTimer !== null) {
         clearTimeout(flushTimer)
         flushUpdates()
@@ -272,6 +302,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
         clearTimeout(awarenessTimer)
         flushAwareness()
       }
+      destroyed = true
       clearInterval(resyncTimer)
       text.unobserve(textObserver)
       awareness.destroy()

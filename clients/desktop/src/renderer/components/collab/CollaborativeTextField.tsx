@@ -12,6 +12,7 @@ export interface CollaborativeTextFieldProps {
   fieldName: string
   label: string
   rows?: number
+  readOnly?: boolean
   providerOverride?: CoeditProvider
 }
 
@@ -150,6 +151,7 @@ export function CollaborativeTextField({
   fieldName,
   label,
   rows = 4,
+  readOnly = false,
   providerOverride,
 }: CollaborativeTextFieldProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -287,7 +289,9 @@ export function CollaborativeTextField({
           id={textareaId}
           value={value}
           rows={rows}
+          readOnly={readOnly}
           onChange={(event) => {
+            if (readOnly) return
             const nextValue = event.target.value
             setValue(nextValue)
             // 조합 중엔 Y.Text 반영 보류 — 중간 자모 delta 노이즈 방지. compositionEnd 에서 확정 반영.
@@ -338,6 +342,7 @@ export function CollaborativeTextField({
             padding: '8px 10px',
             font: 'inherit',
             lineHeight: 1.5,
+            background: readOnly ? 'var(--color-neutral-50)' : undefined,
           }}
         />
         {overlays.map((overlay) => (

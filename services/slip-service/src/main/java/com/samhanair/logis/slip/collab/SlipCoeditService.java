@@ -44,15 +44,15 @@ public class SlipCoeditService {
         String normalized = requireBase64(update, "coedit update 는 필수입니다");
         CopyOnWriteArrayList<String> updates = updatesBySlip.computeIfAbsent(
                 slipId, ignored -> new CopyOnWriteArrayList<>());
-        // add+cap 를 원자화 — 동시 다중 add 시 과잉 eviction race 방지(리뷰 BE N-2).
+        // 서버가 Yjs update 를 병합하지 않는 S1 에서는 prefix update 삭제 시 신규 접속자 snapshot 계약이 깨진다.
+        // cap 초과는 기존 누적 snapshot 을 보존한 채 거부하고, compaction/persist 는 S2 에서 도입한다.
         synchronized (updates) {
-            updates.add(normalized);
-            while (updates.size() > MAX_UPDATES_PER_SLIP
-                    || totalPayloadLength(updates) > MAX_TOTAL_PAYLOAD_LENGTH_PER_SLIP) {
-                // TODO(live-coediting-S2): BE 가 Yjs 를 실행하지 않는 S1 에서는 안전 압축 불가.
-                // persist/merge 슬라이스에서 update compaction 을 도입한다.
-                updates.remove(0);
+            if (updates.size() >= MAX_UPDATES_PER_SLIP
+                    || totalPayloadLength(updates) + normalized.length() > MAX_TOTAL_PAYLOAD_LENGTH_PER_SLIP) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "coedit snapshot 누적 한도를 초과했습니다");
             }
+            updates.add(normalized);
         }
         broker.publish(slipId, EVENT_UPDATE, Map.of("update", normalized));
     }
