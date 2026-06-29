@@ -329,7 +329,9 @@ public class EasyCodefClientImpl implements EasyCodefClient {
         if (SUCCESS_CODE.equals(code)) {
             return root;
         }
-        if (SANDBOX_MASKED_CODE.equals(code) && !root.path("data").isMissingNode()) {
+        // "****" 마스킹은 data 가 실재(missing/null 아님)할 때만 success 허용 — data:null 오류 은폐 방지(Opus 라운드2 적발).
+        if (SANDBOX_MASKED_CODE.equals(code)
+                && !root.path("data").isMissingNode() && !root.path("data").isNull()) {
             return root;
         }
         JsonNode result = root.path("result");

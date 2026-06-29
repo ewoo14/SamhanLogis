@@ -114,6 +114,17 @@ class EasyCodefClientImplTest {
     }
 
     @Test
+    @DisplayName("SANDBOX 마스킹 코드라도 data가 null이면 오류 처리한다(빈 목록 오반환 방지 — Opus 라운드2)")
+    void parseBankAccounts_maskedCodeWithNullData_throws() {
+        String json = """
+                {"result": {"code": "****", "message": "****"}, "data": null}
+                """;
+
+        assertThatThrownBy(() -> EasyCodefClientImpl.parseBankAccounts(json, "국민은행"))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
     @DisplayName("보유카드 응답 배열을 CardInfo로 매핑한다")
     void parseCards() {
         String json = """
