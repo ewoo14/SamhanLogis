@@ -1,9 +1,11 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Badge,
   Button,
   Card,
   DataTable,
+  FormGrid,
   Input,
   Select,
   Spinner,
@@ -85,16 +87,16 @@ function statusLabel(status: string): string {
   }
 }
 
-function statusClassName(status: string): string {
+function statusVariant(status: string): 'success' | 'warning' | 'danger' | 'neutral' {
   switch (status) {
     case 'ACTIVE':
-      return `${styles.status} ${styles.statusActive}`
+      return 'success'
     case 'ADDITIONAL_AUTH':
-      return `${styles.status} ${styles.statusAdditionalAuth}`
+      return 'warning'
     case 'ERROR':
-      return `${styles.status} ${styles.statusError}`
+      return 'danger'
     default:
-      return `${styles.status} ${styles.statusUnknown}`
+      return 'neutral'
   }
 }
 
@@ -177,7 +179,7 @@ export function CodefConnectionPage() {
       header: '상태',
       width: '130px',
       mobilePriority: 'secondary',
-      render: (row) => <span className={statusClassName(row.status)}>{statusLabel(row.status)}</span>,
+      render: (row) => <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>,
     },
     {
       key: 'registeredAt',
@@ -253,20 +255,21 @@ export function CodefConnectionPage() {
         {institutionsQuery.isFetching || verifyMutation.isPending ? <Spinner size="sm" /> : null}
       </div>
 
+      {toast ? (
+        <div
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          className={`${styles.toast} ${toast.type === 'success' ? styles.toastSuccess : styles.toastError}`}
+        >
+          {toast.message}
+        </div>
+      ) : null}
+
       <Card as="section" padding={4}>
-        {toast ? (
-          <div
-            role={toast.type === 'error' ? 'alert' : 'status'}
-            className={`${styles.toast} ${toast.type === 'success' ? styles.toastSuccess : styles.toastError}`}
-          >
-            {toast.message}
-          </div>
-        ) : null}
         <div className={styles.sectionHeader}>
           <h4 className={styles.sectionTitle}>금융기관 등록</h4>
         </div>
         <form onSubmit={submit}>
-          <div className={styles.grid}>
+          <FormGrid columns={3}>
             <Select
               label="구분"
               required
@@ -287,14 +290,6 @@ export function CodefConnectionPage() {
               data-testid="codef-connection-organization"
               onChange={(event) => updateForm('organization', event.target.value)}
             />
-            <datalist id="codef-organization-options">
-              <option value="0004">국민은행</option>
-              <option value="088">신한은행</option>
-              <option value="081">하나은행</option>
-              <option value="020">우리은행</option>
-              <option value="0301">신한카드</option>
-              <option value="0302">국민카드</option>
-            </datalist>
             <Select
               label="로그인 방식"
               required
@@ -302,12 +297,20 @@ export function CodefConnectionPage() {
               data-testid="codef-connection-login-type"
               onChange={(event) => updateForm('loginType', event.target.value)}
             >
-              <option value="ID_PASSWORD">ID/PW</option>
-              <option value="CERT">인증서</option>
+              <option value="ID_PASSWORD">아이디/비밀번호</option>
+              <option value="CERT">공동인증서</option>
               <option value="API">기관 API</option>
             </Select>
-          </div>
-          <div className={styles.credentialGrid}>
+          </FormGrid>
+          <datalist id="codef-organization-options">
+            <option value="0004">국민은행</option>
+            <option value="088">신한은행</option>
+            <option value="081">하나은행</option>
+            <option value="020">우리은행</option>
+            <option value="0301">신한카드</option>
+            <option value="0302">국민카드</option>
+          </datalist>
+          <FormGrid columns={2} className={styles.credentials}>
             <Input
               label="로그인 ID"
               required
@@ -325,7 +328,7 @@ export function CodefConnectionPage() {
               data-testid="codef-connection-credential-password"
               onChange={(event) => updateForm('password', event.target.value)}
             />
-          </div>
+          </FormGrid>
           <div className={styles.actions}>
             <Button
               type="submit"
@@ -347,7 +350,7 @@ export function CodefConnectionPage() {
               size="sm"
               variant="secondary"
               onClick={() => verifyMutation.mutate('ACCOUNTS')}
-              loading={verifyMutation.isPending && resultMode === 'ACCOUNTS'}
+              loading={verifyMutation.isPending && verifyMutation.variables === 'ACCOUNTS'}
               data-testid="codef-connection-list-accounts"
             >
               계좌 조회
@@ -356,7 +359,7 @@ export function CodefConnectionPage() {
               size="sm"
               variant="secondary"
               onClick={() => verifyMutation.mutate('CARDS')}
-              loading={verifyMutation.isPending && resultMode === 'CARDS'}
+              loading={verifyMutation.isPending && verifyMutation.variables === 'CARDS'}
               data-testid="codef-connection-list-cards"
             >
               카드 조회
@@ -365,7 +368,7 @@ export function CodefConnectionPage() {
               size="sm"
               variant="ghost"
               onClick={() => verifyMutation.mutate('LOANS')}
-              loading={verifyMutation.isPending && resultMode === 'LOANS'}
+              loading={verifyMutation.isPending && verifyMutation.variables === 'LOANS'}
               data-testid="codef-connection-list-loans"
             >
               대출 조회
@@ -393,7 +396,9 @@ export function CodefConnectionPage() {
             rows={results}
             loading={verifyMutation.isPending}
             rowKey={(row) => `${row.kind}|${row.ref}`}
-            emptyMessage="조회된 항목이 없습니다."
+            emptyMessage={resultMode === null
+              ? '계좌·카드·대출 조회 버튼을 눌러 결과를 확인하세요.'
+              : '조회된 항목이 없습니다.'}
           />
         </div>
       </Card>

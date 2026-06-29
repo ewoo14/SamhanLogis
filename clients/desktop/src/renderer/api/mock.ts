@@ -5514,7 +5514,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return mockError(400, 'INVALID_INPUT', '기관 코드와 로그인 자격은 필수입니다.')
     }
 
-    const now = new Date().toISOString()
+    const now = new Date().toISOString().slice(0, 19)  // BE LocalDateTime 포맷(타임존 'Z' 없음)과 일치
     const row: MockCodefRegisteredInstitution = {
       businessType,
       organizationCode,
