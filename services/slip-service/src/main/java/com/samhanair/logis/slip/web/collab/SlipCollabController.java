@@ -249,7 +249,7 @@ public class SlipCollabController {
     @RequirePermission(page = "slip.comments", action = PermissionAction.VIEW)
     public ApiResponse<FieldLockEntry> acquireFieldLock(
             @PathVariable UUID slipId,
-            @RequestBody(required = false) SlipFieldLockRequest request,
+            @RequestBody SlipFieldLockRequest request,
             @RequestHeader(CALLER_ID_HEADER) String callerId,
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         loadSlip(slipId);
@@ -268,14 +268,15 @@ public class SlipCollabController {
     @RequirePermission(page = "slip.comments", action = PermissionAction.VIEW)
     public ApiResponse<Void> releaseFieldLock(
             @PathVariable UUID slipId,
-            @RequestBody(required = false) SlipFieldLockRequest request,
+            @RequestBody SlipFieldLockRequest request,
             @RequestHeader(CALLER_ID_HEADER) String callerId) {
         loadSlip(slipId);
-        resolvePresenceUserId(callerId);
+        String userId = resolvePresenceUserId(callerId);
         fieldLockService.releaseLock(
                 slipId,
                 resolveFieldLockFieldPath(request),
-                resolveFieldLockSessionId(request));
+                resolveFieldLockSessionId(request),
+                userId);
         return ApiResponse.ok(null);
     }
 

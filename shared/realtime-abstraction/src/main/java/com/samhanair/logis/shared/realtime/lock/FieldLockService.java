@@ -27,8 +27,11 @@ public interface FieldLockService {
             String userId,
             String displayName);
 
-    /** 특정 필드의 특정 세션 잠금을 해제한다. 존재하지 않으면 no-op 이다. */
-    void releaseLock(UUID documentId, String fieldPath, String sessionId);
+    /**
+     * 특정 필드의 특정 세션 잠금을 해제한다. **세션 등록자(userId)만 해제 가능**하며,
+     * 존재하지 않거나 소유자 불일치면 no-op 이다(soft-lock — 타인 sessionId 임의 해제 차단).
+     */
+    void releaseLock(UUID documentId, String fieldPath, String sessionId, String userId);
 
     /** 특정 필드의 현재 soft-lock 목록을 반환한다. */
     List<FieldLockEntry> getLock(UUID documentId, String fieldPath);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   SlipFieldLockClient,
+  isFieldLockEntry,
   type FieldLockClient,
   type FieldLockEntry,
   type FieldLockUser,
@@ -8,15 +9,6 @@ import {
 import { getAuthProvider } from '../auth/authProvider'
 
 const HEARTBEAT_MS = 30_000
-
-function isFieldLockEntry(value: unknown): value is FieldLockEntry {
-  return typeof value === 'object'
-    && value !== null
-    && 'fieldPath' in value
-    && 'sessionId' in value
-    && 'displayName' in value
-    && 'color' in value
-}
 
 function upsertLock(entries: FieldLockEntry[], next: FieldLockEntry): FieldLockEntry[] {
   const without = entries.filter((entry) => !(

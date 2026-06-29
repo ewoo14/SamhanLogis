@@ -52,7 +52,7 @@ jobs:
         group:
           - name: shared+auth+gateway
             timeout: 30
-            test-tasks: ':shared:common:test :shared:security:test :shared:user-client-abstraction:test :shared:discovery-abstraction:test :services:eureka-server:test :services:api-gateway:test :services:auth-service:test'
+            test-tasks: ':shared:common:test :shared:security:test :shared:user-client-abstraction:test :shared:discovery-abstraction:test :shared:realtime-abstraction:test :services:eureka-server:test :services:api-gateway:test :services:auth-service:test'
           - name: user+product+inventory+logging
             timeout: 30
             test-tasks: ':services:user-service:test :services:product-service:test :services:inventory-service:test :services:logging-service:test'

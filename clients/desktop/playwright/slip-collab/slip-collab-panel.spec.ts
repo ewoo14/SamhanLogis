@@ -78,6 +78,23 @@ async function seedOtherViewerOnce(page: Page) {
   }, { slipId: SLIP_ID })
 }
 
+/** 다른 사용자(김관리)가 memo 필드를 편집 중인 상태를 mock field-lock store 에 사전 시드. */
+async function seedFieldLockOnce(page: Page) {
+  await page.addInitScript(({ slipId }) => {
+    const g = globalThis as unknown as {
+      __SAMHAN_MOCK_SLIP_FIELD_LOCKS?: Record<string, Array<{
+        fieldPath: string
+        sessionId: string
+        displayName: string
+        color: 'BLUE' | 'GREEN' | 'AMBER' | 'ROSE' | 'VIOLET' | 'CYAN' | 'LIME' | 'PINK'
+      }>>
+    }
+    g.__SAMHAN_MOCK_SLIP_FIELD_LOCKS = {
+      [slipId]: [{ fieldPath: 'memo', sessionId: 'fieldlock-kim-manager', displayName: '김관리', color: 'GREEN' }],
+    }
+  }, { slipId: SLIP_ID })
+}
+
 async function closeBlockingNoticeIfVisible(page: Page) {
   const notice = page.getByTestId('app-notice-modal')
   if (await notice.isVisible().catch(() => false)) {
@@ -170,5 +187,31 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(reloadedPanel.getByLabel('김관리 현재 보고 있음')).toHaveCount(0)
     await expect(reloadedPanel.getByLabel('오병승 현재 보고 있음')).toBeVisible()
     await expect(reloadedPanel.getByTestId('presence-indicator')).toHaveAttribute('aria-label', '현재 보고 있음 1명')
+  })
+
+  test('필드 soft-lock — 다른 사용자가 편집 중인 필드에 편집중 인디케이터 표시', async ({ page }) => {
+    await installAuthMock(page)
+    await seedFieldLockOnce(page)
+    await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+    await closeBlockingNoticeIfVisible(page)
+
+    const panel = page.getByTestId('slip-collaboration-panel')
+    await expect(panel).toBeVisible()
+
+    // 수정 폼 열기 — 필드 라벨 옆 field-lock 인디케이터 노출.
+    await page.getByTestId('slip-collab-edit-open').click()
+    const form = panel.getByTestId('slip-collab-edit-form')
+    await expect(form).toBeVisible()
+
+    // memo 필드 = 다른 사용자(김관리)가 편집 중 → 인디케이터 + 한국어 어순("김관리 … 편집 중").
+    const indicator = form.getByTestId('field-lock-indicator').first()
+    await expect(indicator).toBeVisible()
+    await expect(indicator).toHaveAttribute('aria-label', '다른 사용자 1명 편집 중')
+    await expect(indicator).toContainText('김관리')
+    await expect(indicator).toContainText('편집 중')
+
+    // 본인이 memo 필드 focus → acquire(본인 락은 표시 제외) → 다른 사용자 인디케이터 유지(silent fail 아님).
+    await form.getByLabel('메모 수정값').focus()
+    await expect(indicator).toContainText('김관리')
   })
 })

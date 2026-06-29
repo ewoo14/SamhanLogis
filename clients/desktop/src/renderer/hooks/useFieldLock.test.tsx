@@ -3,7 +3,7 @@ import React from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { useFieldLock } from './useFieldLock'
-import type { FieldLockClient, FieldLockEntry } from '../realtime/createPresenceClient'
+import type { FieldLockClient, FieldLockEntry, FieldLockUser } from '../realtime/createPresenceClient'
 import type { RealtimeEvent } from '../realtime/createRealtimeClient'
 
 const authProvider = {
@@ -119,5 +119,91 @@ describe('useFieldLock', () => {
       }),
       expect.any(AbortSignal),
     ))
+  })
+
+  test('heartbeat 가 활성 필드를 30초마다 재-acquire 한다', async () => {
+    vi.useFakeTimers()
+    try {
+      const acquire = vi.fn(async (_entityId: string, user: FieldLockUser) => ({
+        fieldPath: user.fieldPath,
+        sessionId: user.sessionId,
+        displayName: user.displayName,
+        color: 'BLUE' as const,
+      }))
+      const client: FieldLockClient = {
+        list: vi.fn(async () => []),
+        acquire,
+        release: vi.fn(async () => undefined),
+        subscribe: vi.fn(() => new AbortController()),
+      }
+      render(<Probe client={client} />)
+      // mount 비동기(resolveCurrentUser→refresh→heartbeat setInterval) flush
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+
+      fireEvent.focus(screen.getByLabelText('메모'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      const callsAfterFocus = acquire.mock.calls.length
+      expect(callsAfterFocus).toBeGreaterThanOrEqual(1)
+
+      // 30초 경과 → heartbeat 가 활성 필드(memo) 재-acquire
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_001) })
+      expect(acquire.mock.calls.length).toBeGreaterThan(callsAfterFocus)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('언마운트 시 활성 필드 락을 release 한다', async () => {
+    const release = vi.fn(async () => undefined)
+    const client: FieldLockClient = {
+      list: vi.fn(async () => []),
+      acquire: vi.fn(async (_entityId, user) => ({
+        fieldPath: user.fieldPath,
+        sessionId: user.sessionId,
+        displayName: user.displayName,
+        color: 'BLUE' as const,
+      })),
+      release,
+      subscribe: vi.fn(() => new AbortController()),
+    }
+    const { unmount } = render(<Probe client={client} />)
+    await waitFor(() => expect(client.list).toHaveBeenCalled())
+
+    fireEvent.focus(screen.getByLabelText('메모'))
+    await waitFor(() => expect(client.acquire).toHaveBeenCalled())
+
+    unmount()
+    // cleanup 은 signal 없이 release 호출(useFieldLock useEffect cleanup)
+    await waitFor(() => expect(release).toHaveBeenCalledWith(
+      'slip-1',
+      expect.objectContaining({ fieldPath: 'memo' }),
+    ))
+  })
+
+  test('빠른 focus→blur 는 acquire 와 release 를 모두 호출해 stale 락을 남기지 않는다', async () => {
+    const acquire = vi.fn(async (_entityId: string, user: FieldLockUser) => ({
+      fieldPath: user.fieldPath,
+      sessionId: user.sessionId,
+      displayName: user.displayName,
+      color: 'BLUE' as const,
+    }))
+    const release = vi.fn(async () => undefined)
+    const client: FieldLockClient = {
+      list: vi.fn(async () => []),
+      acquire,
+      release,
+      subscribe: vi.fn(() => new AbortController()),
+    }
+    render(<Probe client={client} />)
+    await waitFor(() => expect(client.list).toHaveBeenCalled())
+
+    const input = screen.getByLabelText('메모')
+    fireEvent.focus(input)
+    fireEvent.blur(input)
+
+    await waitFor(() => expect(acquire).toHaveBeenCalledWith(
+      'slip-1', expect.objectContaining({ fieldPath: 'memo' }), expect.any(AbortSignal)))
+    await waitFor(() => expect(release).toHaveBeenCalledWith(
+      'slip-1', expect.objectContaining({ fieldPath: 'memo' }), expect.any(AbortSignal)))
   })
 })

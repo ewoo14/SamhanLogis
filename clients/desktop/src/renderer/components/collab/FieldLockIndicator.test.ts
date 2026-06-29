@@ -21,7 +21,8 @@ describe('FieldLockIndicator', () => {
       createElement(FieldLockIndicator, { entries }),
     )
 
-    expect(html).toContain('aria-label="다른 사용자 편집 중 2명"')
+    // 한국어 어순 정정(Opus 라운드 fix): "편집 중 N명" → "N명 편집 중"
+    expect(html).toContain('aria-label="다른 사용자 2명 편집 중"')
     expect(html).toContain('title="홍길동, 김관리 편집 중"')
     expect(html).toContain('편집 중')
     expect(html).toContain('홍길동')

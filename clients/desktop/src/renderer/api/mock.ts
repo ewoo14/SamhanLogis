@@ -3395,6 +3395,53 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope([...(slipPresenceStore[slipId] ?? [])])
   }
 
+  // ---- slip field-lock store (필드 단위 soft-lock — presence 패턴 동일, addInitScript 사전 시드 가능) ----
+  type MockFieldLockEntry = MockPresenceEntry & { fieldPath: string }
+  const gfl = globalThis as unknown as {
+    __SAMHAN_MOCK_SLIP_FIELD_LOCKS?: Record<string, MockFieldLockEntry[]>
+  }
+  if (!gfl.__SAMHAN_MOCK_SLIP_FIELD_LOCKS) gfl.__SAMHAN_MOCK_SLIP_FIELD_LOCKS = {}
+  const slipFieldLockStore = gfl.__SAMHAN_MOCK_SLIP_FIELD_LOCKS
+
+  const fieldLockActionMatch = url.match(/\/api\/v1\/slips\/([^/?]+)\/collab\/field-locks\/(acquire|release)(?:\?.*)?$/)
+  if (fieldLockActionMatch && method === 'POST') {
+    // [[inprocess-mock-principles]]: 미매칭 fallthrough 401 방지 — release(Void)도 envelope(null) 반환.
+    const slipId = fieldLockActionMatch[1]!
+    const action = fieldLockActionMatch[2]!
+    const body = parseMockBody(config)
+    const rawSessionId = typeof body['sessionId'] === 'string' ? body['sessionId'].trim() : ''
+    const rawFieldPath = typeof body['fieldPath'] === 'string' ? body['fieldPath'].trim() : ''
+    const rawDisplayName = typeof body['displayName'] === 'string' ? body['displayName'].trim() : ''
+    const sessionId = rawSessionId || `mock-field-lock-${Date.now()}`
+    const fieldPath = rawFieldPath || 'unknown'
+    if (action === 'release') {
+      slipFieldLockStore[slipId] = (slipFieldLockStore[slipId] ?? [])
+        .filter((entry) => !(entry.sessionId === sessionId && entry.fieldPath === fieldPath))
+      return envelope(null)
+    }
+    const displayName = rawDisplayName || MOCK_AUTH.fullName
+    const colorSeed = readMockHeader(config, 'X-User-Id') || sessionId
+    const entry: MockFieldLockEntry = {
+      fieldPath,
+      sessionId,
+      displayName,
+      color: colorForPresence(colorSeed),
+    }
+    // soft-lock: 같은 세션+필드는 갱신(중복 제거 후 재등록), 같은 필드 다른 세션은 공존.
+    slipFieldLockStore[slipId] = [
+      ...(slipFieldLockStore[slipId] ?? []).filter(
+        (item) => !(item.sessionId === sessionId && item.fieldPath === fieldPath)),
+      entry,
+    ]
+    return envelope(entry)
+  }
+
+  const fieldLockListMatch = url.match(/\/api\/v1\/slips\/([^/?]+)\/collab\/field-locks(?:\?.*)?$/)
+  if (fieldLockListMatch && method === 'GET') {
+    const slipId = fieldLockListMatch[1]!
+    return envelope([...(slipFieldLockStore[slipId] ?? [])])
+  }
+
   // ==========================================================================
   // PR-H2: slip audit-log mock (in-memory per-context — capture-pr-h2.js 지원)
   // - 화면 노출 = actorName (UUID 비공개 가드, actorId 는 색상 hash 입력 전용)

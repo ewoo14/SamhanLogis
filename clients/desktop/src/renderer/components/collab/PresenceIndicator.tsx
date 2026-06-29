@@ -1,16 +1,6 @@
 import { Badge } from '@samhan/design-system'
-import type { PresenceColor, PresenceEntry } from '../../realtime/createPresenceClient'
-
-const COLOR_HEX: Record<PresenceColor, string> = {
-  BLUE: '#2563EB',
-  GREEN: '#15803D',
-  AMBER: '#B45309',
-  ROSE: '#E11D48',
-  VIOLET: '#7C3AED',
-  CYAN: '#0E7490',
-  LIME: '#4D7C0F',
-  PINK: '#DB2777',
-}
+// COLOR_HEX 는 createPresenceClient 의 공용 팔레트(PRESENCE_COLOR_HEX) 를 사용 — FieldLockIndicator 와 중복 선언 제거.
+import { PRESENCE_COLOR_HEX as COLOR_HEX, type PresenceEntry } from '../../realtime/createPresenceClient'
 
 function isPresenceEntry(value: unknown): value is PresenceEntry {
   return typeof value === 'object'

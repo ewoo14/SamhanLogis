@@ -28,6 +28,28 @@ export interface FieldLockEntry {
   color: PresenceColor
 }
 
+/** PresenceColor → hex. presence/field-lock 인디케이터 공용 팔레트(컴포넌트별 중복 선언 방지). */
+export const PRESENCE_COLOR_HEX: Record<PresenceColor, string> = {
+  BLUE: '#2563EB',
+  GREEN: '#15803D',
+  AMBER: '#B45309',
+  ROSE: '#E11D48',
+  VIOLET: '#7C3AED',
+  CYAN: '#0E7490',
+  LIME: '#4D7C0F',
+  PINK: '#DB2777',
+}
+
+/** SSE payload 가 FieldLockEntry 인지 판별하는 런타임 타입가드(useFieldLock·FieldLockIndicator 공용). */
+export function isFieldLockEntry(value: unknown): value is FieldLockEntry {
+  return typeof value === 'object'
+    && value !== null
+    && 'fieldPath' in value
+    && 'sessionId' in value
+    && 'displayName' in value
+    && 'color' in value
+}
+
 export interface PresenceUser {
   sessionId: string
   displayName: string

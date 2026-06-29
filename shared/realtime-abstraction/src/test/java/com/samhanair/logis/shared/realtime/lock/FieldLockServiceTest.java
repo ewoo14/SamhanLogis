@@ -56,11 +56,25 @@ class FieldLockServiceTest {
         FieldLockEntry shipping = service.acquireLock(
                 documentId, "shippingAddress", "session-1", "account-user-1", "홍길동");
 
-        service.releaseLock(documentId, "memo", "session-1");
+        service.releaseLock(documentId, "memo", "session-1", "account-user-1");
 
         assertThat(service.getLock(documentId, "memo")).isEmpty();
         assertThat(service.listLocks(documentId)).containsExactly(shipping);
         verify(broker).publish(eq(documentId), eq(FieldLockService.EVENT_RELEASED), eq(memo));
+    }
+
+    @Test
+    void releaseLock_ignoresReleaseFromNonOwnerSession() {
+        FieldLockEntry memo = service.acquireLock(
+                documentId, "memo", "session-1", "account-user-1", "홍길동");
+
+        // 타 사용자(account-user-2)가 session-1 의 sessionId 로 해제 시도 → 소유자 불일치로 무시(no-op)
+        service.releaseLock(documentId, "memo", "session-1", "account-user-2");
+        assertThat(service.getLock(documentId, "memo")).containsExactly(memo);
+
+        // 세션 등록자(account-user-1)는 정상 해제
+        service.releaseLock(documentId, "memo", "session-1", "account-user-1");
+        assertThat(service.getLock(documentId, "memo")).isEmpty();
     }
 
     @Test

@@ -41,6 +41,9 @@ public class InMemoryFieldLockService implements FieldLockService {
     private final Clock clock;
     private final ConcurrentHashMap<UUID, ConcurrentHashMap<String, CopyOnWriteArrayList<FieldLockEntry>>> entries =
             new ConcurrentHashMap<>();
+    // 세션 소유권: documentId -> (sessionId -> userId). release 시 등록자 본인만 해제 가능하도록 검증(PresenceService.owners 패턴).
+    private final ConcurrentHashMap<UUID, ConcurrentHashMap<String, String>> owners =
+            new ConcurrentHashMap<>();
 
     public InMemoryFieldLockService(RealtimeBroker broker) {
         this(broker, DEFAULT_TTL, Clock.systemUTC());
@@ -80,17 +83,27 @@ public class InMemoryFieldLockService implements FieldLockService {
             fieldEntries.add(next);
             return nextDocumentEntries;
         });
+        owners.computeIfAbsent(documentId, ignored -> new ConcurrentHashMap<>())
+                .put(normalizedSessionId, normalizedUserId);
         broker.publish(documentId, FieldLockService.EVENT_ACQUIRED, next);
         return next;
     }
 
     @Override
-    public void releaseLock(UUID documentId, String fieldPath, String sessionId) {
+    public void releaseLock(UUID documentId, String fieldPath, String sessionId, String userId) {
         Objects.requireNonNull(documentId, "documentId 는 필수입니다");
         String normalizedFieldPath = normalizeFieldPath(fieldPath);
         String normalizedSessionId = normalizeSessionId(sessionId);
-        List<FieldLockEntry> removed = new ArrayList<>(1);
+        String normalizedUserId = normalizeUserId(userId);
 
+        // 소유권 검증: 세션 등록자(userId)만 해제. 타 사용자가 listLocks 의 sessionId 로 임의 해제하는 것 차단(soft-lock → 불일치 시 조용히 no-op).
+        ConcurrentHashMap<String, String> documentOwners = owners.get(documentId);
+        String ownerUserId = documentOwners == null ? null : documentOwners.get(normalizedSessionId);
+        if (ownerUserId != null && !ownerUserId.equals(normalizedUserId)) {
+            return;
+        }
+
+        List<FieldLockEntry> removed = new ArrayList<>(1);
         entries.computeIfPresent(documentId, (ignored, documentEntries) -> {
             CopyOnWriteArrayList<FieldLockEntry> fieldEntries = documentEntries.get(normalizedFieldPath);
             if (fieldEntries == null) {
@@ -164,12 +177,35 @@ public class InMemoryFieldLockService implements FieldLockService {
                 entries.remove(documentId, documentEntries);
             }
         }
+        // prune 로 잠금이 모두 사라진 세션의 owner 매핑 정리.
+        for (FieldLockEntry entry : removed) {
+            forgetOwnerIfNoLocks(entry.documentId(), entry.sessionId());
+        }
         return removed.stream().sorted(FIELD_LOCK_ORDER).toList();
     }
 
     @Scheduled(fixedRateString = "${samhan.realtime.field-lock.prune-ms:30000}")
     public void scheduledPruneExpiredLocks() {
         pruneExpiredLocks();
+    }
+
+    /** 세션이 문서에 더 이상 잠금을 갖지 않으면 owner 매핑을 제거한다(검증용 잔여 누수 방지). */
+    private void forgetOwnerIfNoLocks(UUID documentId, String sessionId) {
+        Map<String, CopyOnWriteArrayList<FieldLockEntry>> documentEntries = entries.get(documentId);
+        boolean stillLocked = documentEntries != null
+                && documentEntries.values().stream()
+                        .flatMap(List::stream)
+                        .anyMatch(entry -> entry.sessionId().equals(sessionId));
+        if (stillLocked) {
+            return;
+        }
+        ConcurrentHashMap<String, String> documentOwners = owners.get(documentId);
+        if (documentOwners != null) {
+            documentOwners.remove(sessionId);
+            if (documentOwners.isEmpty()) {
+                owners.remove(documentId, documentOwners);
+            }
+        }
     }
 
     private String normalizeUserId(String userId) {
