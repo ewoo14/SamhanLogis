@@ -94,6 +94,8 @@ class AccountingClientTest {
                 .isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(client.sumSalesByPartner(UUID.randomUUID(), null, LocalDate.of(2026, 1, 31)))
                 .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(client.sumSalesByPartner(UUID.randomUUID(), LocalDate.of(2026, 1, 1), null))
+                .isEqualByComparingTo(BigDecimal.ZERO);
         server.verify();
     }
 
