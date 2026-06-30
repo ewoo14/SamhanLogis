@@ -501,4 +501,65 @@ describe('createDocCoeditProvider lineId APIs', () => {
     expect(provider.getItemValue(1, 'quantity')).toBe('7')
     provider.destroy()
   })
+
+  it('treats empty lineId as no match — never touches legacy lineId-less rows', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    // lineId 미보유 legacy row 모사(replaceItems 는 lineId 를 자동부여하므로 직접 push).
+    const legacy = new Y.Map<unknown>()
+    legacy.set('productName', 'LEGACY')
+    provider.items.push([legacy])
+
+    expect(provider.getItemIndexById('')).toBe(-1)
+    expect(provider.getItemValueById('', 'productName')).toBe('')
+    provider.setItemValueById('', 'productName', 'HACKED')
+    provider.removeItem('')
+
+    expect(provider.items.length).toBe(1)
+    expect(provider.items.get(0).get('productName')).toBe('LEGACY')
+    provider.destroy()
+  })
+
+  it('addItem ignores a caller-supplied lineId in seed and assigns a generated one', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const lineId = provider.addItem({ lineId: 'manual-override', productName: 'X' })
+
+    expect(lineId).not.toBe('manual-override')
+    expect(provider.getItemIndexById('manual-override')).toBe(-1)
+    expect(provider.getItemIndexById(lineId)).toBe(0)
+    expect(provider.getItemValueById(lineId, 'productName')).toBe('X')
+    provider.destroy()
+  })
+
+  it('removeItem is idempotent on an already-removed lineId (no negative length)', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const lineId = provider.addItem({ productName: 'A' })
+
+    provider.removeItem(lineId)
+    provider.removeItem(lineId)
+
+    expect(provider.items.length).toBe(0)
+    expect(provider.getItemIndexById(lineId)).toBe(-1)
+    provider.destroy()
+  })
 })

@@ -427,6 +427,14 @@ function stringifyYValue(value: unknown): string {
   return String(value)
 }
 
+// ── 라인 안정키(lineId) 규약 ───────────────────────────────────────────────
+// coedit 라인 항목은 위치(index) 대신 불변 lineId 로 식별한다.
+// ⚠️ lineId 는 (1) 비어있지 않고 (2) 순수 숫자문자열(/^\d+$/)이 아니어야 한다 —
+//    CollaborativeSlipInput 이 fieldPath `items.{seg}.{cell}` 의 seg 가 숫자면 기존 index API,
+//    아니면 lineId(byId) API 로 분기하므로 순수 숫자 lineId 는 index 로 오라우팅된다.
+//    generateLineId()(UUID/`line-` 접두)는 이 규약을 보장한다. slA1b 에서 서버 line.id 를
+//    lineId 로 시드할 때 그 id 가 정수형이면 반드시 비숫자 형태(예: `sl-${id}`)로 래핑할 것.
+//    (듀얼리뷰 slA1: FE/Codex 공통 지적 — 숫자 seed → index 오라우팅 함정.)
 const LINE_ID_FIELD = 'lineId'
 
 function readLineId(map: Y.Map<unknown>): string {
@@ -442,6 +450,9 @@ function generateLineId(): string {
 }
 
 function findItemIndexById(items: Y.Array<Y.Map<unknown>>, lineId: string): number {
+  // 빈/falsy lineId 는 유효한 라인키가 아니다 — lineId 미보유 legacy row(readLineId→'')와
+  // 우발 매칭을 차단(setItemValueById('')/removeItem('')가 첫 구행을 오손하는 사고 방지, 리뷰 Codex MEDIUM).
+  if (!lineId) return -1
   for (let i = 0; i < items.length; i += 1) {
     if (readLineId(items.get(i)) === lineId) return i
   }
