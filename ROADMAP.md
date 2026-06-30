@@ -32,6 +32,7 @@
 ### 최신 진행 메모 (2026-06-30)
 
 - 협업 코-에디팅 S2b: slip 전표 저장 PUT 이후 기존 `slip_revisions` 버전 스냅샷을 기준으로 헤더 필드와 품목 셀의 이전값→새값 diff 를 계산해 `SlipRevisionResponse.fieldChanges`로 제공한다. 신규 테이블/Flyway 없이 기존 revision 흐름에 편입했고, 입고·출고 direct PUT 수정 경로가 실제 변경 시 EDIT revision 을 남긴다. desktop 버전 이력 패널은 displayName + `presenceColor` 단일색상으로 필드 변경 목록을 표시하며 UUID/connectedId 는 노출하지 않는다. 수정 카운트와 레드라인은 S2c/S2d 후속.
+- 협업 코-에디팅 S2c: 사용자 노출 "전표수정내역"(`editHistoryCount`)을 상태의존으로 게이트한다. 판매전표(OUTBOUND)는 창고이관(`inspect()`→COMPLETED, 재고차감), 그 외(비-OUTBOUND)는 다음 결재선(`send()`→SENT) 後 편집만 카운트하고, 임계 前 드래프트 편집은 S2b 버전로그에 보존하되 카운트에 반영하지 않는다. `revisionCount`(audit revisionNo)는 불변 유지하고 신규 `revision_count_baseline`(V53, 임계 전이 시점 스냅샷)을 차감해 표시한다. 기존 임계통과 전표는 backfill `baseline=0` 으로 현 표시를 보존한다. INBOUND 는 BE·mock 구현하되 `PurchaseQueryPage` 컬럼 미노출(forward-compatible). 레드라인은 S2d 후속. (PR #676)
 
 ### 최신 진행 메모 (2026-06-24)
 

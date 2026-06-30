@@ -2897,6 +2897,9 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-COEDIT-S2B-02 | 저장소는 신규 silo 테이블 없이 `slip_revisions` 기존 스냅샷을 진실원으로 유지한다. API 응답에서 인접 revision snapshot 을 비교해 `fieldChanges`를 산출한다. |
 | D-COEDIT-S2B-03 | diff 구조는 `fieldPath`, 한국어 `label`, `beforeValue`, `afterValue`, `actorName`, `actorColor`, `changedAt` 으로 고정한다. UUID 필드와 actorId/connectedId 는 사용자 응답·화면에 노출하지 않는다. |
 | D-COEDIT-S2B-04 | 수정자 색상은 BE `PresenceColor.fromUserId`와 FE `presenceColorToHex` 계열 단일색상 정책을 따른다. presence, coedit, audit 표시색을 분리하지 않는다. 수정 카운트와 레드라인은 S2c/S2d 후속으로 둔다. |
+| D-COEDIT-S2C-01 | 사용자 노출 "전표수정내역"(`editHistoryCount`) 증가 임계: 판매전표(OUTBOUND)=작성완료·창고이관(재고차감, `inspect()`→COMPLETED) 後 / 그 외(비-OUTBOUND)=작성완료 후 다음 결재선(`send()`→SENT) 後 편집만 카운트. 임계 前 편집은 S2b 버전로그엔 남되 카운트 X (개발책임자 2026-06-30 확정). |
+| D-COEDIT-S2C-02 | `revisionCount`(=audit revisionNo)는 불변 유지하고, 신규 `slips.revision_count_baseline`(V53)에 임계 전이 시점 revisionCount 를 1회 스냅샷한다. `editHistoryCount = baseline==null ? 0 : max(0, revisionCount-baseline)`. 기존 임계통과 전표는 backfill `baseline=0`(현 표시 보존; 과거 baseline 복원 불가에 따른 영구 신/구 불연속 수용, 상세 이력은 S2b 버전로그 보존). |
+| D-COEDIT-S2C-03 | INBOUND(SENT 임계) 카운트는 BE·mock 구현하되 `PurchaseQueryPage` 컬럼은 미노출로 둔다(forward-compatible). 화면 노출 여부는 개발책임자 결정 대기. |
 
 ### D-DMR (배차 #3 수정제안 재배차/수동기입, 2026-06-12)
 

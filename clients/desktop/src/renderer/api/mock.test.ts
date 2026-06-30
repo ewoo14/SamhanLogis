@@ -208,6 +208,25 @@ describe('mock slip query edit history contract', () => {
         expect(row.editHistoryCount).toBe(0)
       }
     }
+
+    // 양방향 잠금(false-green 방지): 빈 결과 공허통과 차단 + 임계통과 행은 편집 시 N건 표시 가능해야 한다.
+    // (전 행을 0 으로 만들면 'N건' 렌더 경로 mock 이 소실되는데 단방향 단언만으론 green 통과 — N1 보강)
+    expect(outbound.data.content.length).toBeGreaterThan(0)
+    expect(inbound.data.content.length).toBeGreaterThan(0)
+    expect(
+      outbound.data.content.some(
+        (row) =>
+          ['COMPLETED', 'SHIPPING', 'DELIVERED', 'CONFIRMED'].includes(row.status) && row.editHistoryCount > 0,
+      ),
+    ).toBe(true)
+    expect(
+      inbound.data.content.some(
+        (row) =>
+          ['SENT', 'ACCEPTED', 'PROCESSING', 'INSPECTING', 'COMPLETED', 'SHIPPING', 'DELIVERED', 'CONFIRMED'].includes(
+            row.status,
+          ) && row.editHistoryCount > 0,
+      ),
+    ).toBe(true)
   })
 })
 
