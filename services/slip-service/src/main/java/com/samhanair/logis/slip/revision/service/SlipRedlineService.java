@@ -67,6 +67,12 @@ public class SlipRedlineService {
             List<FieldChange> changes = revisionService.fieldChanges(
                     prev.getSnapshot(), cur.getSnapshot(), actorName, actorColor, cur.getCreatedAt());
             for (FieldChange change : changes) {
+                // S2d-1: 헤더 필드 한정(안정 fieldPath). 라인 셀(lines[i].*)은 행 인덱스 누적 misattribution
+                // (anchor 後 라인 삽입/삭제/재정렬 시 productId 혼입·이력손실) + 단가/합계 snapshot VAT 제외
+                // 불일치로 본 슬라이스 redline 비대상. 라인 셀 redline(productId 안정키+VAT 정합)은 S2d-1b 후속.
+                if (change.fieldPath().startsWith("lines")) {
+                    continue;
+                }
                 FieldBuilder builder = fields.computeIfAbsent(change.fieldPath(),
                         ignored -> new FieldBuilder(change.fieldPath(), change.label()));
                 if (builder.layers.isEmpty()) {

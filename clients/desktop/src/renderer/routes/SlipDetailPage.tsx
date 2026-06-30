@@ -569,6 +569,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
+      // S2d-1 NB6: 임계 전이(send/inspect)가 redline anchor 를 세팅하므로 redline 도 갱신한다.
+      void queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
       setRejectReason('')
     },
   })
@@ -590,6 +592,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
       await queryClient.invalidateQueries({ queryKey: ['slips'] })
       await queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'OUTBOUND'] })
+      // S2d-1 NB6: 매출 PUT 수정(헤더 변경 포함)이 redline 갱신 트리거.
+      await queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
@@ -618,6 +622,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
       await queryClient.invalidateQueries({ queryKey: ['slips'] })
       await queryClient.invalidateQueries({ queryKey: ['slips', 'query', 'INBOUND'] })
+      // S2d-1 NB6: 매입 PUT 수정(헤더 변경 포함)이 redline 갱신 트리거.
+      await queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
@@ -2248,26 +2254,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                       {idx + 1}
                     </button>
                   </td>
-                  <td className="col-model">
-                    {renderRedlineCell(`lines[${idx}].modelName`, l.modelName ?? '-')}
-                  </td>
-                  <td className="col-product">
-                    {renderRedlineCell(`lines[${idx}].productName`, l.productName ?? '-')}
-                  </td>
-                  <td className="col-spec">
-                    {renderRedlineCell(`lines[${idx}].specification`, l.specification ?? '-')}
-                  </td>
-                  <td className="col-qty">
-                    {renderRedlineCell(`lines[${idx}].quantity`, l.quantity.toLocaleString())}
-                  </td>
-                  <td className="col-price">
-                    {renderRedlineCell(`lines[${idx}].unitPrice`, unitWithVatVal.toLocaleString())}
-                  </td>
+                  {/* S2d-1: 라인 셀은 redline 비대상(헤더 한정). 라인 셀 레드라인(productId 안정키 + 단가/합계 VAT 정합값)은 S2d-1b 후속 — 라인 fieldPath 행인덱스 누적 버그(BE) + 단가/합계 snapshot VAT 제외 불일치(FE/Design) 해소 필요. */}
+                  <td className="col-model">{l.modelName ?? '-'}</td>
+                  <td className="col-product">{l.productName ?? '-'}</td>
+                  <td className="col-spec">{l.specification ?? '-'}</td>
+                  <td className="col-qty">{l.quantity.toLocaleString()}</td>
+                  <td className="col-price">{unitWithVatVal.toLocaleString()}</td>
                   <td className="col-supply">{supplyVal.toLocaleString()}</td>
                   <td className="col-vat">{vatVal.toLocaleString()}</td>
-                  <td className="col-total">
-                    {renderRedlineCell(`lines[${idx}].lineTotal`, totalInclVal.toLocaleString())}
-                  </td>
+                  <td className="col-total">{totalInclVal.toLocaleString()}</td>
                 </tr>
               )
             })
@@ -2311,7 +2306,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         #{idx + 1}
                       </button>
                       <div className="mobile-item-name">
-                        {renderRedlineCell(`lines[${idx}].productName`, l.productName ?? l.modelName ?? '-')}
+                        {/* S2d-1: 라인 셀 redline 비대상(헤더 한정, S2d-1b 후속) */}
+                        {l.productName ?? l.modelName ?? '-'}
                       </div>
                     </div>
                     {l.modelName ? (

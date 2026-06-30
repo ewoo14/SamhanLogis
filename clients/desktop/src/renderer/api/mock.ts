@@ -3492,14 +3492,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             ],
           },
           {
-            fieldPath: 'lines[0].quantity',
-            label: '품목 1행 수량',
+            fieldPath: 'header.shippingAddress',
+            label: '배송지',
             layers: [
-              { value: '1', actorName: null, actorColor: null, changedAt: null },
-              { value: '3', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:15:00' },
-              { value: '5', actorName: '박관리', actorColor: '#2563EB', changedAt: '2026-06-30T10:20:00' },
+              { value: '서울 강남구 (확정 시점)', actorName: null, actorColor: null, changedAt: null },
+              { value: '서울 서초구 (수정)', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:20:00' },
             ],
           },
+          // S2d-1: 라인 셀(lines[*])은 redline 비대상(헤더 한정). 라인 redline 은 S2d-1b 후속.
         ],
       })
     }
