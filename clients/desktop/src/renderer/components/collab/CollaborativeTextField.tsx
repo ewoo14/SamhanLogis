@@ -185,17 +185,23 @@ export function CollaborativeTextField({
     }
     let disposed = false
     let created: CoeditProvider | null = null
-    void createCoeditProvider({ documentId, basePath, fieldName }).then((next) => {
-      if (disposed) {
-        next.destroy()
-        return
-      }
-      created = next
-      setProvider(next)
-      setValue(next.text.toString())
-      setRemoteCursors(next.getRemoteCursors())
-      setRemoteEdits(next.getRemoteEdits(editFieldPath))
-    })
+    void createCoeditProvider({ documentId, basePath, fieldName })
+      .then((next) => {
+        if (disposed) {
+          next.destroy()
+          return
+        }
+        created = next
+        setProvider(next)
+        setValue(next.text.toString())
+        setRemoteCursors(next.getRemoteCursors())
+        setRemoteEdits(next.getRemoteEdits(editFieldPath))
+      })
+      .catch((error) => {
+        // coedit 초기화 실패(네트워크/4xx/5xx/응답 형식 오류) 시 graceful degrade —
+        // provider=null 유지로 읽기전용 빈 textarea 표시. 미처리 promise rejection→pageerror 방지.
+        if (!disposed) console.warn('[coedit] provider 초기화 실패 — 로컬 textarea 로 degrade', error)
+      })
     return () => {
       disposed = true
       created?.destroy()

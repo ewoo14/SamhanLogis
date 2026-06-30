@@ -324,6 +324,9 @@ export function PartnerOrderCollaborationPanel({
             rows={4}
             readOnly={!canWriteComments}
           />
+          <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+            팀 내 실시간 공유 메모입니다. 주문의 “요청사항”(저장 항목)과는 별개로 보관됩니다.
+          </p>
         </div>
 
         <div className="detail-grid" style={{ alignItems: 'start' }}>

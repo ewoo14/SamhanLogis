@@ -520,7 +520,10 @@ export function SalesPartnerOrderDetailPage() {
           : null
     : null
 
-  const collabCurrentValues = query.data
+  // 미저장/미로딩 주문(예: /partner-orders/new → orderId='new')에서는 협업 패널을 마운트하지 않는다.
+  // normalizePartnerOrderDetail 이 빈 응답도 orderNumber='' 인 truthy 객체로 정규화하므로 query.data 만으로는
+  // 게이트가 무력 → 실제 로딩된 주문의 신호인 orderNumber 로 게이트(L161 enabled 와 동일 패턴).
+  const collabCurrentValues = query.data && query.data.orderNumber
     ? {
         memo: query.data.memo,
         dueDate: query.data.dueDate,

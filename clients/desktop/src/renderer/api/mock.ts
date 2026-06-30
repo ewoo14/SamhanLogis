@@ -10462,6 +10462,39 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
+  // ---- partner-order coedit (Yjs relay: GET updates / POST update|awareness) ----
+  // S3-1: CollaborativeTextField('협업 메모') 가 mount 시 GET /collab/coedit 를 호출한다.
+  // 핸들러가 없으면 mock 미매칭(null)→네트워크 fallthrough→list형 응답→getUpdates undefined→
+  // applySnapshot for..of TypeError→pageerror. slip 패턴과 동일한 in-memory relay 미러.
+  {
+    const goc = globalThis as unknown as {
+      __SAMHAN_MOCK_PARTNER_ORDER_COEDIT?: Record<string, string[]>
+    }
+    if (!goc.__SAMHAN_MOCK_PARTNER_ORDER_COEDIT) goc.__SAMHAN_MOCK_PARTNER_ORDER_COEDIT = {}
+    const partnerOrderCoeditStore = goc.__SAMHAN_MOCK_PARTNER_ORDER_COEDIT
+
+    const poCoeditUpdateMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/collab\/coedit\/update(?:\?.*)?$/)
+    if (poCoeditUpdateMatch && method === 'POST') {
+      const orderId = poCoeditUpdateMatch[1]!
+      const body = parseMockBody(config)
+      const update = typeof body['update'] === 'string' ? body['update'] : ''
+      if (!update) return mockError(400, 'INVALID_INPUT', 'update 값이 필요합니다')
+      partnerOrderCoeditStore[orderId] = [...(partnerOrderCoeditStore[orderId] ?? []), update]
+      return envelope(null)
+    }
+
+    const poCoeditAwarenessMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/collab\/coedit\/awareness(?:\?.*)?$/)
+    if (poCoeditAwarenessMatch && method === 'POST') {
+      return envelope(null)
+    }
+
+    const poCoeditMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/collab\/coedit(?:\?.*)?$/)
+    if (poCoeditMatch && method === 'GET') {
+      const orderId = poCoeditMatch[1]!
+      return envelope({ updates: [...(partnerOrderCoeditStore[orderId] ?? [])] })
+    }
+  }
+
   const partnerOrderDetailMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
   if (method === 'GET' && partnerOrderDetailMatch) {
     const poId = partnerOrderDetailMatch[1]!

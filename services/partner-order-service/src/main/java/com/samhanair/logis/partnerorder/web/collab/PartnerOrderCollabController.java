@@ -203,7 +203,12 @@ public class PartnerOrderCollabController {
         return ApiResponse.ok(new PartnerOrderCoeditUpdatesResponse(coeditService.listUpdates(resolvedOrderId)));
     }
 
-    /** 주문 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
+    /**
+     * 주문 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다.
+     *
+     * <p>slip 의 coedit update 가 {@code slip.comments + CREATE} 인 것과 달리, partner-order 는 기존 주문
+     * 문서의 편집이므로 {@code sales.partner-order.edit + UPDATE} 를 사용한다(comments/edits 와 동일 권한 모델).
+     */
     @Operation(summary = "주문 협업 메모 coedit update relay")
     @PostMapping("/coedit/update")
     @RequirePermission(page = WRITE_PAGE_CODE, action = PermissionAction.UPDATE)
