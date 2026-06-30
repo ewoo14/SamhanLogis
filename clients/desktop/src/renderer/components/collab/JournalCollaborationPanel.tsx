@@ -301,10 +301,10 @@ export function JournalCollaborationPanel({
             fieldName="memo"
             label="협업 메모"
             rows={4}
-            readOnly={!canEdit}
+            readOnly={!canWriteComments}
           />
           <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
-            팀 내 실시간 공유 메모입니다. 전표 저장과는 별개로 보관됩니다.
+            팀 내 실시간 공유 메모입니다. 전표의 “적요”·“라인 메모”(저장 항목)와는 별개로 보관됩니다.
           </p>
         </div>
 
