@@ -1711,6 +1711,9 @@ const SAMPLE_LINES = [
     quantity: 2,
     unitPrice: '1850000',
     lineTotal: '3700000',
+    unitPriceWithVat: '2035000',
+    supplyAmount: '3700000',
+    vatAmount: '370000',
     note: null,
   },
   {
@@ -3511,8 +3514,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             fieldPath: 'lines[0].unitPrice',
             label: '단가',
             layers: [
-              { value: '11000', actorName: null, actorColor: null, changedAt: null },
-              { value: '13200', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:25:00' },
+              { value: '1815000', actorName: null, actorColor: null, changedAt: null },
+              { value: '2035000', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:25:00' },
+            ],
+          },
+          {
+            fieldPath: 'lines[0].lineTotal',
+            label: '합계',
+            layers: [
+              { value: '1815000', actorName: null, actorColor: null, changedAt: null },
+              { value: '4070000', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:25:00' },
             ],
           },
         ],

@@ -177,6 +177,7 @@ class SlipRedlineIT extends AbstractPostgresIT {
         transition(id, "send");
         transition(id, "accept");
         transition(id, "process");
+        transition(id, "complete");
         transition(id, "inspect");
 
         Slip anchored = slipRepository.findById(UUID.fromString(id)).orElseThrow();
@@ -193,8 +194,15 @@ class SlipRedlineIT extends AbstractPostgresIT {
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8);
 
-        assertThat(body).contains("lines[0].unitPrice");
-        assertThat(body).contains("lines[0].quantity");
+        // 라인 셀 redline 이 구조적으로 누적되는지(존재 + layers≥2 + actor 체인) 단언 — QA NB-2 강화
+        JsonNode fields = objectMapper.readTree(body).path("fields");
+        JsonNode price = findField(fields, "lines[0].unitPrice");
+        assertThat(price).as("라인 단가 redline 필드").isNotNull();
+        assertThat(price.path("layers").size()).as("단가 누적 layer ≥2").isGreaterThanOrEqualTo(2);
+        assertThat(findField(fields, "lines[0].quantity")).as("라인 수량 redline 필드").isNotNull();
+        // 변경 actor 체인이 실제 노출(누적 layer 가 actor 를 담음)
+        assertThat(body).contains("김영업").contains("박관리");
+        // productId UUID 는 비노출
         assertThat(body).doesNotContain(productId.toString());
     }
 

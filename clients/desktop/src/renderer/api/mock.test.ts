@@ -157,7 +157,7 @@ describe('mock slip redline contract', () => {
 
     const unitPrice = resolved.data.fields.find((field) => field.fieldPath === 'lines[0].unitPrice')
     expect(resolved.data.fields.some((field) => field.fieldPath === 'lines[0].quantity')).toBe(true)
-    expect(unitPrice?.layers.map((layer) => layer.value)).toEqual(['11000', '13200'])
+    expect(unitPrice?.layers.map((layer) => layer.value)).toEqual(['1815000', '2035000'])
   })
 })
 
