@@ -36,7 +36,7 @@ permissions:
   issues: write          # fail 시 GitHub Issue 자동 생성
 
 jobs:
-  # 활성 branch 자동 탐색 — main + feature/integrated-* + feature/legacy-* 등
+  # 활성 branch 자동 탐색 — main + feature/integrated-* + feature/legacy-* + feat/coedit-* 등
   # 모든 활성 long-lived branch 에 대해 nightly matrix 실행.
   discover-branches:
     name: 활성 branch 탐색
@@ -50,15 +50,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 활성 branch 목록 산출 (main + feature/integrated-* + feature/legacy-*)
+      - name: 활성 branch 목록 산출 (main + feature/integrated-* + feature/legacy-* + feat/coedit-*)
         id: list
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # main 은 항상 포함. feature/integrated-* / feature/legacy-* 패턴의
-          # remote branch 만 추가 (단편 fix branch 는 PR CI 로 충분, nightly 미대상).
+          # remote branch 와 협업 coedit active branch 만 추가 (단편 fix branch 는 PR CI 로 충분, nightly 미대상).
           BRANCHES=$(git branch -r | \
-            grep -E 'origin/(main|feature/integrated-.*|feature/legacy-.*)$' | \
+            grep -E 'origin/(main|feature/integrated-.*|feature/legacy-.*|feat/coedit-.*)$' | \
             sed 's|origin/||' | tr -d ' ' | sort -u | jq -R -s -c 'split("\n") | map(select(length>0))')
           echo "branches=$BRANCHES" >> "$GITHUB_OUTPUT"
           echo "탐색된 branch: $BRANCHES"
@@ -77,8 +77,9 @@ jobs:
           - name: slip-it-public
             test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.public_.*" --tests "com.samhanair.logis.slip.web.openapi.*"'
           - name: slip-it-core
-            # web.core/web.internal 외 it.* 패키지(서브패키지 미커버)도 nightly deep-regression 등재 — schedule 슬라이스 신규 IT 포함
-            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.core.*" --tests "com.samhanair.logis.slip.web.internal.*" --tests "com.samhanair.logis.slip.it.schedule.*"'
+            # web.core/web.internal 외 PR CI slip-it-core IT 필터도 nightly deep-regression 등재.
+            # Gradle --tests 는 서브패키지를 자동 포함하지 않으므로 estimate.it.collab 등 신규 하위 패키지를 명시한다.
+            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.core.*" --tests "com.samhanair.logis.slip.web.internal.*" --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.it.collab.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.it.collab.*" --tests "com.samhanair.logis.slip.it.cutoff.*" --tests "com.samhanair.logis.slip.it.schedule.*" --tests "com.samhanair.logis.slip.repository.dispatch.*" --tests "com.samhanair.logis.slip.dispatch.*"'
 
     steps:
       - name: 저장소 체크아웃 (${{ matrix.branch }})

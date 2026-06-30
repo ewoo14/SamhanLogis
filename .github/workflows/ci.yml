@@ -117,6 +117,20 @@ jobs:
       - name: test (${{ matrix.group.name }})
         run: ./gradlew ${{ matrix.group.test-tasks }}
 
+      - name: S3-2 EstimateCollabIT skipped=0 hard gate
+        if: matrix.group.name == 'slip-it-core'
+        run: |
+          report='services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.estimate.it.collab.EstimateCollabIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::EstimateCollabIT JUnit report not found; S3-2 coedit IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::EstimateCollabIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
       - name: BC3 CODEF IT skipped=0 hard gate
         if: matrix.group.name == 'accounting-codef-it'
         run: |
