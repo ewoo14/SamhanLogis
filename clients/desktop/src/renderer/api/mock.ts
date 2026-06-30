@@ -9265,6 +9265,58 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
+  // ---- groupware-approval coedit (Yjs relay: GET updates / POST update|awareness) ----
+  {
+    const ggac = globalThis as unknown as {
+      __SAMHAN_MOCK_GROUPWARE_APPROVAL_COEDIT?: Record<string, string[]>
+    }
+    if (!ggac.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COEDIT) ggac.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COEDIT = {}
+    const groupwareApprovalCoeditStore = ggac.__SAMHAN_MOCK_GROUPWARE_APPROVAL_COEDIT
+
+    const groupwareApprovalCoeditUpdateMatch = url.match(
+      /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/coedit\/update(?:\?.*)?$/,
+    )
+    if (groupwareApprovalCoeditUpdateMatch && method === 'POST') {
+      const denied = mockRequirePermission('groupware.approvals', 'update')
+      if (denied) return denied
+      const approvalId = decodeURIComponent(groupwareApprovalCoeditUpdateMatch[1]!)
+      if (!getMockGroupwareApprovalsStore().some((approval) => approval.approvalId === approvalId)) {
+        return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+      }
+      const body = parseMockBody(config)
+      const update = typeof body['update'] === 'string' ? body['update'] : ''
+      if (!update) return mockError(400, 'INVALID_INPUT', 'update 값이 필요합니다')
+      groupwareApprovalCoeditStore[approvalId] = [...(groupwareApprovalCoeditStore[approvalId] ?? []), update]
+      return envelope(null)
+    }
+
+    const groupwareApprovalCoeditAwarenessMatch = url.match(
+      /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/coedit\/awareness(?:\?.*)?$/,
+    )
+    if (groupwareApprovalCoeditAwarenessMatch && method === 'POST') {
+      const denied = mockRequirePermission('groupware.approvals', 'view')
+      if (denied) return denied
+      const approvalId = decodeURIComponent(groupwareApprovalCoeditAwarenessMatch[1]!)
+      if (!getMockGroupwareApprovalsStore().some((approval) => approval.approvalId === approvalId)) {
+        return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+      }
+      return envelope(null)
+    }
+
+    const groupwareApprovalCoeditMatch = url.match(
+      /\/admin\/groupware\/approvals\/([^/?]+)\/collab\/coedit(?:\?.*)?$/,
+    )
+    if (groupwareApprovalCoeditMatch && method === 'GET') {
+      const denied = mockRequirePermission('groupware.approvals', 'view')
+      if (denied) return denied
+      const approvalId = decodeURIComponent(groupwareApprovalCoeditMatch[1]!)
+      if (!getMockGroupwareApprovalsStore().some((approval) => approval.approvalId === approvalId)) {
+        return mockError(404, 'NOT_FOUND', '대상 결재 문서를 찾을 수 없습니다.')
+      }
+      return envelope({ updates: [...(groupwareApprovalCoeditStore[approvalId] ?? [])] })
+    }
+  }
+
   // ---- groupware-approval presence (join|leave POST + list GET) ----
   {
     const ggap = globalThis as unknown as {

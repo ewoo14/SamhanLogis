@@ -4,6 +4,7 @@ import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -13,6 +14,9 @@ import com.samhanair.logis.groupware.collab.GroupwareApprovalCollabEditService;
 import com.samhanair.logis.groupware.collab.GroupwareApprovalDocumentCollaborationPort;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.web.collab.dto.AddApprovalCollabCommentRequest;
+import com.samhanair.logis.groupware.web.collab.dto.ApprovalCoeditAwarenessRequest;
+import com.samhanair.logis.groupware.web.collab.dto.ApprovalCoeditUpdateRequest;
+import com.samhanair.logis.groupware.web.collab.dto.ApprovalCoeditUpdatesResponse;
 import com.samhanair.logis.groupware.web.collab.dto.ApprovalCollabCommentResponse;
 import com.samhanair.logis.groupware.web.collab.dto.ApprovalCollabEditResponse;
 import com.samhanair.logis.groupware.web.collab.dto.ApprovalCollabSuggestionResponse;
@@ -70,6 +74,7 @@ public class GroupwareApprovalCollabController {
     private final RealtimeBroker broker;
     private final ApprovalLineRepository approvalLineRepository;
     private final PresenceService presenceService;
+    private final CollabCoeditService coeditService;
 
     public GroupwareApprovalCollabController(
             @Qualifier("groupwareApprovalCollabCommentService")
@@ -79,7 +84,8 @@ public class GroupwareApprovalCollabController {
             GroupwareApprovalDocumentCollaborationPort port,
             RealtimeBroker broker,
             ApprovalLineRepository approvalLineRepository,
-            PresenceService presenceService) {
+            PresenceService presenceService,
+            CollabCoeditService coeditService) {
         this.commentService = commentService;
         this.editService = editService;
         this.suggestionRepository = suggestionRepository;
@@ -87,6 +93,7 @@ public class GroupwareApprovalCollabController {
         this.broker = broker;
         this.approvalLineRepository = approvalLineRepository;
         this.presenceService = presenceService;
+        this.coeditService = coeditService;
     }
 
     /** 결재 협업 댓글 등록. */
@@ -185,6 +192,39 @@ public class GroupwareApprovalCollabController {
                 .map(ApprovalCollabSuggestionResponse::from)
                 .toList();
         return ApiResponse.ok(items);
+    }
+
+    /** 결재 협업 메모 Yjs update 누적 snapshot. 서버는 update 내용을 해석하지 않는다. */
+    @Operation(summary = "결재 협업 메모 coedit update snapshot")
+    @GetMapping("/coedit")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<ApprovalCoeditUpdatesResponse> listCoeditUpdates(@PathVariable UUID approvalId) {
+        ensureApprovalExists(approvalId);
+        return ApiResponse.ok(new ApprovalCoeditUpdatesResponse(coeditService.listUpdates(approvalId)));
+    }
+
+    /** 결재 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
+    @Operation(summary = "결재 협업 메모 coedit update relay")
+    @PostMapping("/coedit/update")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<Void> appendCoeditUpdate(
+            @PathVariable UUID approvalId,
+            @RequestBody(required = false) ApprovalCoeditUpdateRequest request) {
+        ensureApprovalExists(approvalId);
+        coeditService.appendUpdate(approvalId, request == null ? null : request.update());
+        return ApiResponse.ok(null);
+    }
+
+    /** 결재 협업 메모 cursor/selection relay. 저장하지 않는 ephemeral 이벤트다. */
+    @Operation(summary = "결재 협업 메모 coedit awareness relay")
+    @PostMapping("/coedit/awareness")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<Void> publishCoeditAwareness(
+            @PathVariable UUID approvalId,
+            @RequestBody(required = false) ApprovalCoeditAwarenessRequest request) {
+        ensureApprovalExists(approvalId);
+        coeditService.publishAwareness(approvalId, request == null ? null : request.awareness());
+        return ApiResponse.ok(null);
     }
 
     /** 결재 협업 SSE stream. 댓글/수정 이벤트는 approvalId 채널로 전달된다. */

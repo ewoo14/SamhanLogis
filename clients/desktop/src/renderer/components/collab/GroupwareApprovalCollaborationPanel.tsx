@@ -26,6 +26,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { GroupwareApprovalPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
+import { CollaborativeTextField } from './CollaborativeTextField'
 
 export interface GroupwareApprovalCollabCurrentValues {
   title: string
@@ -141,6 +142,10 @@ export function GroupwareApprovalCollaborationPanel({
   const editQueryKey = useMemo(() => ['groupwareApprovalCollabEdits', approvalId] as const, [approvalId])
   const approvalQueryKey = useMemo(() => ['groupwareApproval', approvalId] as const, [approvalId])
   const approvalListQueryKey = useMemo(() => ['groupwareApprovals'] as const, [])
+  const collabBasePath = useMemo(
+    () => `/admin/groupware/approvals/${encodeURIComponent(approvalId)}`,
+    [approvalId],
+  )
   const fieldLabelMap = useMemo(
     () => Object.fromEntries(templateFields.map((field) => [field.fieldKey, field.label])),
     [templateFields],
@@ -267,6 +272,20 @@ export function GroupwareApprovalCollaborationPanel({
               {approvalNo}
             </span>
           </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <CollaborativeTextField
+            documentId={approvalId}
+            basePath={collabBasePath}
+            fieldName="memo"
+            label="협업 메모"
+            rows={4}
+            readOnly={!canWrite}
+          />
+          <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+            팀 내 실시간 공유 메모입니다. 결재 문서 제목·내용 저장과는 별개로 보관됩니다.
+          </p>
         </div>
 
         <div className="detail-grid" style={{ alignItems: 'start' }}>
