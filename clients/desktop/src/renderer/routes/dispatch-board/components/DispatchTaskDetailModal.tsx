@@ -784,6 +784,28 @@ export function DispatchTaskDetailModal({
           ) : null}
 
           <section
+            aria-label="협업 메모"
+            style={{
+              borderTop: '1px solid var(--color-neutral-200)',
+              paddingTop: 12,
+              display: 'grid',
+              gap: 4,
+            }}
+          >
+            <CollaborativeTextField
+              documentId={task.id}
+              basePath={collabBasePath}
+              fieldName="memo"
+              label="협업 메모"
+              rows={4}
+              readOnly={!canAccess('dispatch.board', 'update')}
+            />
+            <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+              팀 내 실시간 공유 메모입니다. 배차 “비고”(저장 항목)와는 별개로 보관됩니다.
+            </p>
+          </section>
+
+          <section
             data-testid="dispatch-collab-edit-section"
             aria-labelledby="dispatch-collab-edit-heading"
             style={{
@@ -829,20 +851,6 @@ export function DispatchTaskDetailModal({
                 </span>
               ) : null}
             </header>
-
-            <div style={{ display: 'grid', gap: 4 }}>
-              <CollaborativeTextField
-                documentId={task.id}
-                basePath={collabBasePath}
-                fieldName="memo"
-                label="협업 메모"
-                rows={4}
-                readOnly={!canAccess('dispatch.board', 'update')}
-              />
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
-                팀 내 실시간 공유 메모입니다. 배차 '비고'(저장 항목)와는 별개로 보관됩니다.
-              </p>
-            </div>
 
             {collabEditMode ? (
               <div
