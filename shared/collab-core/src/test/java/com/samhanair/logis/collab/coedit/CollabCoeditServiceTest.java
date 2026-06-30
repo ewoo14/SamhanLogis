@@ -94,4 +94,29 @@ class CollabCoeditServiceTest {
         assertThat(service.listUpdates(DOCUMENT_ID)).hasSize(5_000);
         assertThat(service.listUpdates(DOCUMENT_ID)).contains(oldest);
     }
+
+    @Test
+    void cumulative_byte_cap_rejects_append_before_count_cap() {
+        // 단건 최대 길이(MAX_PAYLOAD_LENGTH) update 8건이면 누적 1MB(MAX_TOTAL_PAYLOAD_LENGTH_PER_DOCUMENT) 정확 도달.
+        // 9번째는 byte 누적 한도 초과로 거부 — 건수 cap(5000) 훨씬 이전 차단(삭제된 SlipCoeditServiceTest byte-cap 커버 복원).
+        String maxUpdate = "A".repeat(CollabCoeditService.MAX_PAYLOAD_LENGTH); // "AAAA..." = 유효 base64(zero bytes)
+        for (int i = 0; i < 8; i++) {
+            service.appendUpdate(DOCUMENT_ID, maxUpdate);
+        }
+        assertThatThrownBy(() -> service.appendUpdate(DOCUMENT_ID, maxUpdate))
+                .isInstanceOf(BusinessException.class);
+        // 기존 prefix 미삭제(신규 접속자 snapshot 계약 보존)
+        assertThat(service.listUpdates(DOCUMENT_ID)).hasSize(8);
+    }
+
+    @Test
+    void blank_or_invalid_base64_is_rejected_without_relay() {
+        assertThatThrownBy(() -> service.appendUpdate(DOCUMENT_ID, "   "))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.appendUpdate(DOCUMENT_ID, "not-base64!"))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.publishAwareness(DOCUMENT_ID, "   "))
+                .isInstanceOf(BusinessException.class);
+        assertThat(service.listUpdates(DOCUMENT_ID)).isEmpty();
+    }
 }

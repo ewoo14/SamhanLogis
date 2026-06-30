@@ -44,3 +44,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
+// 루트 build.gradle 의 leafProjects 리스트에 collab-core 가 없어 useJUnitPlatform() 이 적용되지 않으므로 자가 선언(approval-core 패턴 미러).
+// 누락 시 test task 가 JUnit4 기본으로 동작해 JUnit5 Jupiter @Test 를 0건 발견 → BUILD SUCCESSFUL false-green.
+test {
+    useJUnitPlatform()
+}
