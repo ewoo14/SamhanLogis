@@ -8816,6 +8816,42 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
   }
 
+  // ---- dispatch coedit (Yjs relay: GET updates / POST update|awareness) ----
+  {
+    const gdc = globalThis as unknown as {
+      __SAMHAN_MOCK_DISPATCH_COEDIT?: Record<string, string[]>
+    }
+    if (!gdc.__SAMHAN_MOCK_DISPATCH_COEDIT) gdc.__SAMHAN_MOCK_DISPATCH_COEDIT = {}
+    const dispatchCoeditStore = gdc.__SAMHAN_MOCK_DISPATCH_COEDIT
+
+    const dispatchCoeditUpdateMatch = url.match(
+      /(?:\/api\/v1)?\/admin\/dispatch-tasks\/([^/?]+)\/collab\/coedit\/update(?:\?.*)?$/,
+    )
+    if (dispatchCoeditUpdateMatch && method === 'POST') {
+      const taskId = decodeURIComponent(dispatchCoeditUpdateMatch[1]!)
+      const body = parseMockBody(config)
+      const update = typeof body['update'] === 'string' ? body['update'] : ''
+      if (!update) return mockError(400, 'INVALID_INPUT', 'update 값이 필요합니다')
+      dispatchCoeditStore[taskId] = [...(dispatchCoeditStore[taskId] ?? []), update]
+      return envelope(null)
+    }
+
+    const dispatchCoeditAwarenessMatch = url.match(
+      /(?:\/api\/v1)?\/admin\/dispatch-tasks\/([^/?]+)\/collab\/coedit\/awareness(?:\?.*)?$/,
+    )
+    if (dispatchCoeditAwarenessMatch && method === 'POST') {
+      return envelope(null)
+    }
+
+    const dispatchCoeditMatch = url.match(
+      /(?:\/api\/v1)?\/admin\/dispatch-tasks\/([^/?]+)\/collab\/coedit(?:\?.*)?$/,
+    )
+    if (dispatchCoeditMatch && method === 'GET') {
+      const taskId = decodeURIComponent(dispatchCoeditMatch[1]!)
+      return envelope({ updates: [...(dispatchCoeditStore[taskId] ?? [])] })
+    }
+  }
+
   // ---- dispatch presence (join|leave POST + list GET) ----
   {
     const gdp = globalThis as unknown as {

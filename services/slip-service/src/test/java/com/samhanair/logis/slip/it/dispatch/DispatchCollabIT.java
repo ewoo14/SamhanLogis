@@ -316,6 +316,115 @@ class DispatchCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    /** coedit update relay 가 누적되고 GET snapshot 으로 재구성되며 awareness 는 저장하지 않는다. */
+    @Test
+    void coedit_update_accumulates_andListSnapshot_andAwarenessIsNotPersisted() throws Exception {
+        UUID taskId = seedDispatchedTask("COED").getId();
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}/collab/coedit", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(0));
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/update", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/update", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "YXdhcmU="))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/awareness", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "Y3Vyc29y"))))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}/collab/coedit", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(2))
+                .andExpect(jsonPath("$.data.updates[0]").value("dXBkYXRl"))
+                .andExpect(jsonPath("$.data.updates[1]").value("YXdhcmU="));
+    }
+
+    /** coedit 읽기 계열(GET snapshot / awareness relay)은 VIEW(dispatch.board) 권한 deny 시 403. */
+    @Test
+    void coedit_readEndpoints_deniedWithoutViewPermission_returns403() throws Exception {
+        UUID taskId = seedDispatchedTask("CVD").getId();
+        when(dynamicPermissionClient.check(any(UUID.class), eq(DISPATCH_BOARD_PAGE_CODE), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canView(anyString(), eq(DISPATCH_BOARD_PAGE_CODE))).thenReturn(false);
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}/collab/coedit", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/awareness", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "Y3Vyc29y"))))
+                .andExpect(status().isForbidden());
+    }
+
+    /** coedit update 는 UPDATE(dispatch.board) 권한 deny 시 403 으로 거부된다. */
+    @Test
+    void coedit_update_deniedWithoutUpdatePermission_returns403() throws Exception {
+        UUID taskId = seedDispatchedTask("CUD").getId();
+        when(dynamicPermissionClient.check(any(UUID.class), eq(DISPATCH_BOARD_PAGE_CODE), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canEdit(anyString(), eq(DISPATCH_BOARD_PAGE_CODE))).thenReturn(false);
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/update", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
+                .andExpect(status().isForbidden());
+    }
+
+    /** coedit update 의 body 누락/빈 update 필드는 400 으로 거부되고 snapshot 에 누적되지 않는다. */
+    @Test
+    void coedit_update_nullOrEmptyBody_returns400_andNotPersisted() throws Exception {
+        UUID taskId = seedDispatchedTask("CUN").getId();
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/update", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/update", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}/collab/coedit", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(0));
+    }
+
+    /** coedit awareness 의 body 누락/빈 awareness 필드는 400 으로 거부된다(update 와 대칭). */
+    @Test
+    void coedit_awareness_nullOrEmptyBody_returns400() throws Exception {
+        UUID taskId = seedDispatchedTask("CAWN").getId();
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/awareness", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/collab/coedit/awareness", taskId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
     /** dispatch_collab_suggestions document_type CHECK 는 잘못된 enum 을 거부한다. */
     @Test
     void checkConstraintRejectsInvalidDocumentTypeInSuggestions() {

@@ -4,6 +4,7 @@ import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -19,6 +20,9 @@ import com.samhanair.logis.slip.dispatch.collab.DispatchDocumentCollaborationPor
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.web.dispatch.dto.AddDispatchCommentRequest;
 import com.samhanair.logis.slip.web.dispatch.dto.CommitDispatchCollabEditRequest;
+import com.samhanair.logis.slip.web.dispatch.dto.DispatchCoeditAwarenessRequest;
+import com.samhanair.logis.slip.web.dispatch.dto.DispatchCoeditUpdateRequest;
+import com.samhanair.logis.slip.web.dispatch.dto.DispatchCoeditUpdatesResponse;
 import com.samhanair.logis.slip.web.dispatch.dto.DispatchCollabEditResponse;
 import com.samhanair.logis.slip.web.dispatch.dto.DispatchCollabSuggestionResponse;
 import com.samhanair.logis.slip.web.dispatch.dto.DispatchCommentResponse;
@@ -70,6 +74,7 @@ public class DispatchCollabCommentController {
     private final RealtimeBroker broker;
     private final DispatchTaskRepository dispatchTaskRepository;
     private final PresenceService presenceService;
+    private final CollabCoeditService coeditService;
 
     public DispatchCollabCommentController(
             CollabCommentService<DispatchCollabComment> commentService,
@@ -78,7 +83,8 @@ public class DispatchCollabCommentController {
             DispatchDocumentCollaborationPort port,
             RealtimeBroker broker,
             DispatchTaskRepository dispatchTaskRepository,
-            PresenceService presenceService) {
+            PresenceService presenceService,
+            CollabCoeditService coeditService) {
         this.commentService = commentService;
         this.editService = editService;
         this.suggestionRepository = suggestionRepository;
@@ -86,6 +92,7 @@ public class DispatchCollabCommentController {
         this.broker = broker;
         this.dispatchTaskRepository = dispatchTaskRepository;
         this.presenceService = presenceService;
+        this.coeditService = coeditService;
     }
 
     /**
@@ -192,6 +199,39 @@ public class DispatchCollabCommentController {
                 .map(DispatchCollabSuggestionResponse::from)
                 .toList();
         return ApiResponse.ok(items);
+    }
+
+    /** 배차 협업 메모 Yjs update 누적 snapshot. 서버는 update 내용을 해석하지 않는다. */
+    @Operation(summary = "배차 협업 메모 coedit update snapshot")
+    @GetMapping("/collab/coedit")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
+    public ApiResponse<DispatchCoeditUpdatesResponse> listCoeditUpdates(@PathVariable UUID taskId) {
+        ensureTaskExists(taskId);
+        return ApiResponse.ok(new DispatchCoeditUpdatesResponse(coeditService.listUpdates(taskId)));
+    }
+
+    /** 배차 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
+    @Operation(summary = "배차 협업 메모 coedit update relay")
+    @PostMapping("/collab/coedit/update")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
+    public ApiResponse<Void> appendCoeditUpdate(
+            @PathVariable UUID taskId,
+            @RequestBody(required = false) DispatchCoeditUpdateRequest request) {
+        ensureTaskExists(taskId);
+        coeditService.appendUpdate(taskId, request == null ? null : request.update());
+        return ApiResponse.ok(null);
+    }
+
+    /** 배차 협업 메모 cursor/selection relay. 저장하지 않는 ephemeral 이벤트다. */
+    @Operation(summary = "배차 협업 메모 coedit awareness relay")
+    @PostMapping("/collab/coedit/awareness")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
+    public ApiResponse<Void> publishCoeditAwareness(
+            @PathVariable UUID taskId,
+            @RequestBody(required = false) DispatchCoeditAwarenessRequest request) {
+        ensureTaskExists(taskId);
+        coeditService.publishAwareness(taskId, request == null ? null : request.awareness());
+        return ApiResponse.ok(null);
     }
 
     /** DispatchTask 협업 SSE stream. 댓글/수정 이벤트는 taskId 채널로 전달된다. */

@@ -79,7 +79,7 @@ jobs:
           - name: slip-it-core
             # web.core/web.internal 외 PR CI slip-it-core IT 필터도 nightly deep-regression 등재.
             # Gradle --tests 는 서브패키지를 자동 포함하지 않으므로 estimate.it.collab 등 신규 하위 패키지를 명시한다.
-            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.core.*" --tests "com.samhanair.logis.slip.web.internal.*" --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.it.collab.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.it.collab.*" --tests "com.samhanair.logis.slip.it.cutoff.*" --tests "com.samhanair.logis.slip.it.schedule.*" --tests "com.samhanair.logis.slip.repository.dispatch.*" --tests "com.samhanair.logis.slip.dispatch.*"'
+            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.web.core.*" --tests "com.samhanair.logis.slip.web.internal.*" --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.it.collab.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.it.collab.*" --tests "com.samhanair.logis.slip.it.cutoff.*" --tests "com.samhanair.logis.slip.it.dispatch.*" --tests "com.samhanair.logis.slip.it.schedule.*" --tests "com.samhanair.logis.slip.repository.dispatch.*" --tests "com.samhanair.logis.slip.dispatch.*"'
 
     steps:
       - name: 저장소 체크아웃 (${{ matrix.branch }})
@@ -112,6 +112,20 @@ jobs:
 
       - name: test (slip-service ${{ matrix.group.name }})
         run: ./gradlew ${{ matrix.group.test-tasks }}
+
+      - name: S3-5 DispatchCollabIT skipped=0 hard gate
+        if: matrix.group.name == 'slip-it-core'
+        run: |
+          report='services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.it.dispatch.DispatchCollabIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::DispatchCollabIT JUnit report not found; S3-5 coedit IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::DispatchCollabIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
 
       - name: 테스트 리포트 아티팩트 업로드 (실패 포함)
         if: always()

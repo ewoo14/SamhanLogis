@@ -15,6 +15,7 @@ import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabRealtimePublisher;
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.dto.ApiResponse;
@@ -192,7 +193,8 @@ class DispatchCollabConfigTest {
                         org.mockito.Mockito.mock(DispatchDocumentCollaborationPort.class),
                         broker,
                         taskRepository,
-                        org.mockito.Mockito.mock(com.samhanair.logis.shared.realtime.presence.PresenceService.class));
+                        org.mockito.Mockito.mock(com.samhanair.logis.shared.realtime.presence.PresenceService.class),
+                        org.mockito.Mockito.mock(CollabCoeditService.class));
         UUID taskId = UUID.randomUUID();
         UUID callerId = UUID.randomUUID();
         String uuidShapedCallerName = UUID.randomUUID().toString();
@@ -249,7 +251,8 @@ class DispatchCollabConfigTest {
                         org.mockito.Mockito.mock(DispatchDocumentCollaborationPort.class),
                         broker,
                         taskRepository,
-                        org.mockito.Mockito.mock(com.samhanair.logis.shared.realtime.presence.PresenceService.class));
+                        org.mockito.Mockito.mock(com.samhanair.logis.shared.realtime.presence.PresenceService.class),
+                        org.mockito.Mockito.mock(CollabCoeditService.class));
         UUID taskId = UUID.randomUUID();
         UUID callerId = UUID.randomUUID();
         String callerName = "A".repeat(60);
@@ -307,7 +310,8 @@ class DispatchCollabConfigTest {
                         org.mockito.Mockito.mock(DispatchDocumentCollaborationPort.class),
                         broker,
                         taskRepository,
-                        org.mockito.Mockito.mock(com.samhanair.logis.shared.realtime.presence.PresenceService.class));
+                        org.mockito.Mockito.mock(com.samhanair.logis.shared.realtime.presence.PresenceService.class),
+                        org.mockito.Mockito.mock(CollabCoeditService.class));
         UUID taskId = UUID.randomUUID();
         UUID callerId = UUID.randomUUID();
         DispatchCollabComment saved = DispatchCollabComment.create(

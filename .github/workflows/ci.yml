@@ -71,7 +71,7 @@ jobs:
           - name: slip-it-core
             timeout: 30
             # slip.it.* 가 slip.it.collab.*/slip.it.cutoff.*/slip.it.schedule.* 를 자동 커버하지 않으므로(Gradle --tests 서브패키지 미포함) 명시 추가로 false-green 영구 제거 (§7 Round C P2 / 컷오프 슬라이스 / V52 배송일정)
-            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.it.collab.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.it.collab.*" --tests "com.samhanair.logis.slip.it.cutoff.*" --tests "com.samhanair.logis.slip.it.schedule.*" --tests "com.samhanair.logis.slip.repository.dispatch.*" --tests "com.samhanair.logis.slip.dispatch.*"'
+            test-tasks: ':services:slip-service:test --tests "com.samhanair.logis.slip.comment.it.*" --tests "com.samhanair.logis.slip.estimate.it.*" --tests "com.samhanair.logis.slip.estimate.it.collab.*" --tests "com.samhanair.logis.slip.estimate.snapshot.it.*" --tests "com.samhanair.logis.slip.it.*" --tests "com.samhanair.logis.slip.it.collab.*" --tests "com.samhanair.logis.slip.it.cutoff.*" --tests "com.samhanair.logis.slip.it.dispatch.*" --tests "com.samhanair.logis.slip.it.schedule.*" --tests "com.samhanair.logis.slip.repository.dispatch.*" --tests "com.samhanair.logis.slip.dispatch.*"'
           - name: accounting+partner
             timeout: 30
             test-tasks: ':services:accounting-service:test :services:partner-service:test :services:partner-auth-service:test :services:partner-order-service:test :services:dc-config-service:test'
@@ -128,6 +128,20 @@ jobs:
           skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
           if [ "${skipped:-missing}" != "0" ]; then
             echo "::error::EstimateCollabIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
+      - name: S3-5 DispatchCollabIT skipped=0 hard gate
+        if: matrix.group.name == 'slip-it-core'
+        run: |
+          report='services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.it.dispatch.DispatchCollabIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::DispatchCollabIT JUnit report not found; S3-5 coedit IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::DispatchCollabIT skipped count must be 0, got ${skipped:-missing}."
             exit 1
           fi
 
