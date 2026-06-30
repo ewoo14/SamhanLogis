@@ -9,20 +9,26 @@ import {
 } from '../../realtime/createCoeditProvider'
 
 function valueFromProvider(provider: DocCoeditProvider, fieldPath: string): string {
-  const [scope, rowIndex, cellName] = fieldPath.split('.')
-  if (scope === 'header') return provider.getHeaderValue(rowIndex ?? '')
-  if (scope === 'items') return provider.getItemValue(Number(rowIndex), cellName ?? '')
+  const [scope, rowKey, cellName] = fieldPath.split('.')
+  if (scope === 'header') return provider.getHeaderValue(rowKey ?? '')
+  if (scope === 'items') {
+    const key = rowKey ?? ''
+    if (/^\d+$/.test(key)) return provider.getItemValue(Number(key), cellName ?? '')
+    return provider.getItemValueById(key, cellName ?? '')
+  }
   return ''
 }
 
 function setProviderValue(provider: DocCoeditProvider, fieldPath: string, value: string) {
-  const [scope, rowIndex, cellName] = fieldPath.split('.')
+  const [scope, rowKey, cellName] = fieldPath.split('.')
   if (scope === 'header') {
-    provider.setHeaderValue(rowIndex ?? '', value)
+    provider.setHeaderValue(rowKey ?? '', value)
     return
   }
   if (scope === 'items') {
-    provider.setItemValue(Number(rowIndex), cellName ?? '', value)
+    const key = rowKey ?? ''
+    if (/^\d+$/.test(key)) provider.setItemValue(Number(key), cellName ?? '', value)
+    else provider.setItemValueById(key, cellName ?? '', value)
   }
 }
 

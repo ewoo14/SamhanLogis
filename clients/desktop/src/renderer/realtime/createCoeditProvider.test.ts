@@ -405,3 +405,100 @@ describe('createDocCoeditProvider', () => {
     provider.destroy()
   })
 })
+describe('createDocCoeditProvider lineId APIs', () => {
+  it('adds an item with a stable lineId and stringifies seed cells', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    const lineId = provider.addItem({ productName: 'paper', quantity: 3, nullable: null })
+
+    expect(lineId).toBeTruthy()
+    expect(provider.items.length).toBe(1)
+    expect(provider.getItemIndexById(lineId)).toBe(0)
+    expect(provider.getItemValueById(lineId, 'productName')).toBe('paper')
+    expect(provider.getItemValueById(lineId, 'quantity')).toBe('3')
+    expect(provider.getItemValueById(lineId, 'nullable')).toBe('')
+    expect(provider.getItemValueById(lineId, 'lineId')).toBe(lineId)
+    provider.destroy()
+  })
+
+  it('reads and writes line cells by lineId and no-ops missing lineIds', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const lineId = provider.addItem({ quantity: 1 })
+
+    provider.setItemValueById(lineId, 'quantity', '5')
+    provider.setItemValueById('missing-line', 'quantity', '9')
+
+    expect(provider.getItemValueById(lineId, 'quantity')).toBe('5')
+    expect(provider.getItemValueById('missing-line', 'quantity')).toBe('')
+    expect(provider.items.length).toBe(1)
+    provider.destroy()
+  })
+
+  it('removes items by lineId and treats missing lineIds as idempotent no-ops', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const first = provider.addItem({ productName: 'A' })
+    const second = provider.addItem({ productName: 'B' })
+
+    provider.removeItem(first)
+    provider.removeItem('missing-line')
+
+    expect(provider.items.length).toBe(1)
+    expect(provider.getItemIndexById(first)).toBe(-1)
+    expect(provider.getItemIndexById(second)).toBe(0)
+    expect(provider.getItemValueById(second, 'productName')).toBe('B')
+    provider.destroy()
+  })
+
+  it('replaceItems preserves seeded lineIds, generates missing lineIds, and keeps index APIs unchanged', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    provider.replaceItems([
+      { lineId: 'seed-line-1', productName: 'A', quantity: 1 },
+      { productName: 'B', quantity: 2 },
+      { lineId: '', productName: 'C', quantity: 3 },
+    ])
+
+    const generatedSecond = provider.items.get(1).get('lineId')
+    const generatedThird = provider.items.get(2).get('lineId')
+    expect(provider.items.length).toBe(3)
+    expect(provider.getItemIndexById('seed-line-1')).toBe(0)
+    expect(provider.getItemValueById('seed-line-1', 'productName')).toBe('A')
+    expect(typeof generatedSecond).toBe('string')
+    expect(generatedSecond).not.toBe('')
+    expect(typeof generatedThird).toBe('string')
+    expect(generatedThird).not.toBe('')
+    expect(provider.getItemValue(0, 'productName')).toBe('A')
+    expect(provider.getItemValue(1, 'quantity')).toBe('2')
+    provider.setItemValue(1, 'quantity', '7')
+    expect(provider.getItemValue(1, 'quantity')).toBe('7')
+    provider.destroy()
+  })
+})

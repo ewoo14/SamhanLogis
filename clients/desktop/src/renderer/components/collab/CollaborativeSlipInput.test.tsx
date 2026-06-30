@@ -12,6 +12,11 @@ afterEach(() => {
 })
 
 type TestDocCoeditProvider = DocCoeditProvider & {
+  getItemIndexById: (lineId: string) => number
+  getItemValueById: (lineId: string, cellName: string) => string
+  setItemValueById: (lineId: string, cellName: string, value: string) => void
+  addItem: (seed?: Record<string, unknown>) => string
+  removeItem: (lineId: string) => void
   __emitAwareness: () => void
 }
 
@@ -21,6 +26,12 @@ function providerStub(): TestDocCoeditProvider {
   const items = doc.getArray<Y.Map<unknown>>('items')
   const docListeners = new Set<() => void>()
   const awarenessListeners = new Set<() => void>()
+  const findItemIndexById = (lineId: string) => {
+    for (let i = 0; i < items.length; i += 1) {
+      if (items.get(i).get('lineId') === lineId) return i
+    }
+    return -1
+  }
   return {
     doc,
     header,
@@ -50,6 +61,33 @@ function providerStub(): TestDocCoeditProvider {
     setItemValue: (index, cellName, value) => {
       while (items.length <= index) items.push([new Y.Map<unknown>()])
       items.get(index).set(cellName, value)
+      docListeners.forEach((listener) => listener())
+    },
+    getItemIndexById: findItemIndexById,
+    getItemValueById: (lineId, cellName) => {
+      const index = findItemIndexById(lineId)
+      return index < 0 ? '' : String(items.get(index)?.get(cellName) ?? '')
+    },
+    setItemValueById: (lineId, cellName, value) => {
+      const index = findItemIndexById(lineId)
+      if (index < 0) return
+      items.get(index).set(cellName, value)
+      docListeners.forEach((listener) => listener())
+    },
+    addItem: (seed) => {
+      const lineId = `test-line-${items.length}`
+      const map = new Y.Map<unknown>()
+      map.set('lineId', lineId)
+      for (const [key, value] of Object.entries(seed ?? {})) {
+        if (key !== 'lineId') map.set(key, value == null ? '' : String(value))
+      }
+      items.push([map])
+      docListeners.forEach((listener) => listener())
+      return lineId
+    },
+    removeItem: (lineId) => {
+      const index = findItemIndexById(lineId)
+      if (index >= 0) items.delete(index, 1)
       docListeners.forEach((listener) => listener())
     },
     replaceItems: vi.fn(),
@@ -192,5 +230,58 @@ describe('CollaborativeSlipInput', () => {
     fireEvent.change(input, { target: { value: '평문 편집' } })
 
     expect(onValueChange).toHaveBeenCalledWith('평문 편집')
+  })
+})
+describe('CollaborativeSlipInput item fieldPath routing', () => {
+  it('routes numeric item row keys through the existing index API', () => {
+    const provider = providerStub()
+    const getItemValue = vi.spyOn(provider, 'getItemValue')
+    const getItemValueById = vi.spyOn(provider, 'getItemValueById')
+    const setItemValue = vi.spyOn(provider, 'setItemValue')
+    const setItemValueById = vi.spyOn(provider, 'setItemValueById')
+    provider.setItemValue(0, 'quantity', '1')
+
+    render(
+      <CollaborativeSlipInput
+        provider={provider}
+        fieldPath="items.0.quantity"
+        value=""
+        onValueChange={() => undefined}
+        aria-label="quantity"
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('quantity'), { target: { value: '4' } })
+
+    expect(getItemValue).toHaveBeenCalledWith(0, 'quantity')
+    expect(getItemValueById).not.toHaveBeenCalled()
+    expect(setItemValue).toHaveBeenCalledWith(0, 'quantity', '4')
+    expect(setItemValueById).not.toHaveBeenCalled()
+  })
+
+  it('routes non-numeric item row keys through the lineId API', () => {
+    const provider = providerStub()
+    const lineId = provider.addItem({ quantity: '1' })
+    const getItemValue = vi.spyOn(provider, 'getItemValue')
+    const getItemValueById = vi.spyOn(provider, 'getItemValueById')
+    const setItemValue = vi.spyOn(provider, 'setItemValue')
+    const setItemValueById = vi.spyOn(provider, 'setItemValueById')
+
+    render(
+      <CollaborativeSlipInput
+        provider={provider}
+        fieldPath={`items.${lineId}.quantity`}
+        value=""
+        onValueChange={() => undefined}
+        aria-label="quantity"
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('quantity'), { target: { value: '6' } })
+
+    expect(getItemValueById).toHaveBeenCalledWith(lineId, 'quantity')
+    expect(getItemValue).not.toHaveBeenCalled()
+    expect(setItemValueById).toHaveBeenCalledWith(lineId, 'quantity', '6')
+    expect(setItemValue).not.toHaveBeenCalled()
   })
 })
