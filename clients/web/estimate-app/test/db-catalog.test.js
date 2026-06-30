@@ -56,7 +56,7 @@ jest.mock('axios', () => {
         { modelCode: 'AM040', estimateCategory: 'COMMERCIAL_MULTI', releasePrice: 5800000, deliveryPrice: 4700000 },
       ]);
     }
-    if (/\/price-change-schedule/.test(url)) {
+    if (/\/price-change-schedule$/.test(url)) {
       return ok({
         homemulti: '2026-04-01',
         singleSets: '2026-04-01',
@@ -200,6 +200,8 @@ describe('#30 db-catalog → legacy getter shape', () => {
   });
 
   test('priceChangeSchedule — 변동일 맵 반환 + internal token 헤더 전송', async () => {
+    const getMock = axios.create.mock.results[0].value.get;
+    getMock.mockClear();
     const schedule = await db.priceChangeSchedule();
     expect(schedule).toEqual({
       homemulti: '2026-04-01',
@@ -208,7 +210,6 @@ describe('#30 db-catalog → legacy getter shape', () => {
       oldProducts: '2026-04-01',
     });
 
-    const getMock = axios.create.mock.results[0].value.get;
     const call = getMock.mock.calls.find(([url]) => /\/products\/internal\/price-change-schedule$/.test(url));
     expect(call).toBeTruthy();
     expect(call[1]).toEqual({
