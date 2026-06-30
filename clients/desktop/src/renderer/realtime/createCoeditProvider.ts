@@ -19,6 +19,7 @@ const REMOTE_ORIGIN = 'samhan-coedit-remote'
 const POST_DEBOUNCE_MS = 150
 const AWARENESS_DEBOUNCE_MS = 120
 const SNAPSHOT_RESYNC_MS = 5_000
+export const EDIT_HIGHLIGHT_MS = 2_500
 const HEADER_TEXT_FIELDS = new Set([
   'memo',
   'deliveryAddress',
@@ -41,6 +42,8 @@ export interface CoeditProvider {
   applyRemoteAwareness: (awareness: string) => void
   setLocalCursor: (anchor: number, head: number) => void
   getRemoteCursors: () => RemoteCursor[]
+  setLocalLastEdit: (fieldPath: string) => void
+  getRemoteEdits: (fieldPath?: string, now?: number) => RemoteFieldEdit[]
   subscribeText: (listener: () => void) => () => void
   subscribeAwareness: (listener: () => void) => () => void
   destroy: () => void
@@ -48,6 +51,14 @@ export interface CoeditProvider {
 
 export interface RemoteFieldCursor extends RemoteCursor {
   fieldPath: string
+}
+
+export interface RemoteFieldEdit {
+  clientId: number
+  displayName: string
+  color: string
+  fieldPath: string
+  ts: number
 }
 
 export interface DocCoeditProvider {
@@ -59,6 +70,8 @@ export interface DocCoeditProvider {
   applyRemoteAwareness: (awareness: string) => void
   setLocalCursor: (fieldPath: string, anchor?: number, head?: number) => void
   getRemoteCursors: (fieldPath?: string) => RemoteFieldCursor[]
+  setLocalLastEdit: (fieldPath: string) => void
+  getRemoteEdits: (fieldPath?: string, now?: number) => RemoteFieldEdit[]
   getHeaderValue: (fieldName: string) => string
   setHeaderValue: (fieldName: string, value: string) => void
   getItemValue: (index: number, cellName: string) => string
@@ -138,6 +151,22 @@ function isFieldAwarenessState(value: unknown, fieldPath?: string): value is {
   if (fieldPath && cursor['fieldPath'] !== fieldPath) return false
   return (cursor['anchor'] === undefined || typeof cursor['anchor'] === 'number')
     && (cursor['head'] === undefined || typeof cursor['head'] === 'number')
+}
+
+function isEditAwarenessState(value: unknown, fieldPath?: string): value is {
+  user: { displayName: string; color: string }
+  lastEdit: { fieldPath: string; ts: number }
+} {
+  if (typeof value !== 'object' || value === null) return false
+  const state = value as { user?: unknown; lastEdit?: unknown }
+  if (typeof state.user !== 'object' || state.user === null) return false
+  if (typeof state.lastEdit !== 'object' || state.lastEdit === null) return false
+  const user = state.user as Record<string, unknown>
+  const edit = state.lastEdit as Record<string, unknown>
+  if (typeof user['displayName'] !== 'string' || typeof user['color'] !== 'string') return false
+  if (typeof edit['fieldPath'] !== 'string' || typeof edit['ts'] !== 'number') return false
+  if (fieldPath && edit['fieldPath'] !== fieldPath) return false
+  return true
 }
 
 async function resolveLocalUser(): Promise<{ displayName: string; color: string }> {
@@ -321,6 +350,24 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
         })
       }
       return cursors
+    },
+    setLocalLastEdit: (fieldPath: string) => {
+      awareness.setLocalStateField('lastEdit', { fieldPath, ts: Date.now() })
+    },
+    getRemoteEdits: (fieldPath?: string, now: number = Date.now()) => {
+      const edits: RemoteFieldEdit[] = []
+      for (const [clientId, state] of awareness.getStates()) {
+        if (clientId === doc.clientID || !isEditAwarenessState(state, fieldPath)) continue
+        if (now - state.lastEdit.ts >= EDIT_HIGHLIGHT_MS) continue
+        edits.push({
+          clientId,
+          displayName: state.user.displayName,
+          color: state.user.color,
+          fieldPath: state.lastEdit.fieldPath,
+          ts: state.lastEdit.ts,
+        })
+      }
+      return edits
     },
     subscribeText: (listener: () => void) => {
       textListeners.add(listener)
@@ -544,6 +591,24 @@ export async function createDocCoeditProvider(
         })
       }
       return cursors
+    },
+    setLocalLastEdit: (fieldPath: string) => {
+      awareness.setLocalStateField('lastEdit', { fieldPath, ts: Date.now() })
+    },
+    getRemoteEdits: (fieldPath?: string, now: number = Date.now()) => {
+      const edits: RemoteFieldEdit[] = []
+      for (const [clientId, state] of awareness.getStates()) {
+        if (clientId === doc.clientID || !isEditAwarenessState(state, fieldPath)) continue
+        if (now - state.lastEdit.ts >= EDIT_HIGHLIGHT_MS) continue
+        edits.push({
+          clientId,
+          displayName: state.user.displayName,
+          color: state.user.color,
+          fieldPath: state.lastEdit.fieldPath,
+          ts: state.lastEdit.ts,
+        })
+      }
+      return edits
     },
     getHeaderValue: (fieldName: string) => stringifyYValue(header.get(fieldName)),
     setHeaderValue: (fieldName: string, value: string) => {

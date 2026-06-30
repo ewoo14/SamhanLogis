@@ -81,6 +81,16 @@ button {
   font-family: inherit;
 }
 
+@keyframes slip-edit-pulse {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 /** 앱 레이아웃 골격 — 사이드바 + 본문 2단. */
 .app-shell {
   display: grid;

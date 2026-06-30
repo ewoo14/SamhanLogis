@@ -4,11 +4,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import * as Y from 'yjs'
 import { CollaborativeSlipInput } from './CollaborativeSlipInput'
-import type { DocCoeditProvider } from '../../realtime/createCoeditProvider'
+import type { DocCoeditProvider, RemoteFieldEdit } from '../../realtime/createCoeditProvider'
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
-function providerStub(): DocCoeditProvider {
+type TestDocCoeditProvider = DocCoeditProvider & {
+  __emitAwareness: () => void
+}
+
+function providerStub(): TestDocCoeditProvider {
   const doc = new Y.Doc()
   const header = doc.getMap<unknown>('header')
   const items = doc.getArray<Y.Map<unknown>>('items')
@@ -32,6 +39,8 @@ function providerStub(): DocCoeditProvider {
           head: 1,
         }]
       : []),
+    setLocalLastEdit: vi.fn(),
+    getRemoteEdits: vi.fn((): RemoteFieldEdit[] => []),
     getHeaderValue: (fieldName) => String(header.get(fieldName) ?? ''),
     setHeaderValue: (fieldName, value) => {
       header.set(fieldName, value)
@@ -53,6 +62,9 @@ function providerStub(): DocCoeditProvider {
       awarenessListeners.add(listener)
       listener()
       return () => awarenessListeners.delete(listener)
+    },
+    __emitAwareness: () => {
+      awarenessListeners.forEach((listener) => listener())
     },
     destroy: vi.fn(),
   }
@@ -98,6 +110,42 @@ describe('CollaborativeSlipInput', () => {
     act(() => provider.setHeaderValue('memo', '원격 적요'))
 
     expect(onValueChange).toHaveBeenCalledWith('원격 적요')
+  })
+
+  it('원격 편집 lastEdit 수신 시 펄스와 수정 배지를 표시하고 2.5초 후 소멸한다', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const provider = providerStub()
+    const edit: RemoteFieldEdit = {
+      clientId: 78,
+      displayName: '김영업',
+      color: '#DB2777',
+      fieldPath: 'header.memo',
+      ts: 0,
+    }
+    provider.getRemoteEdits = vi.fn((fieldPath?: string) => (
+      fieldPath === 'header.memo' && Date.now() - edit.ts < 2_500 ? [edit] : []
+    ))
+
+    render(
+      <CollaborativeSlipInput
+        provider={provider}
+        fieldPath="header.memo"
+        value=""
+        onValueChange={() => undefined}
+        aria-label="적요"
+      />,
+    )
+
+    act(() => provider.__emitAwareness())
+
+    expect(screen.getByTestId('slip-coedit-edit-pulse')).toBeTruthy()
+    expect(screen.getByText('김영업 수정')).toBeTruthy()
+
+    act(() => vi.advanceTimersByTime(2_500))
+
+    expect(screen.queryByTestId('slip-coedit-edit-pulse')).toBeNull()
+    expect(screen.queryByText('김영업 수정')).toBeNull()
   })
 
   it('coedit 로딩 중(coeditPending)에는 입력을 잠가 Y.Doc 과 modal state 분리를 막는다', () => {

@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import * as Y from 'yjs'
 import {
+  EDIT_HIGHLIGHT_MS,
   createCoeditProvider,
   type CoeditProvider,
   type RemoteCursor,
+  type RemoteFieldEdit,
 } from '../../realtime/createCoeditProvider'
 
 export interface CollaborativeTextFieldProps {
@@ -162,6 +164,11 @@ export function CollaborativeTextField({
   const [provider, setProvider] = useState<CoeditProvider | null>(providerOverride ?? null)
   const [value, setValue] = useState(() => providerOverride?.text.toString() ?? '')
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>(() => providerOverride?.getRemoteCursors() ?? [])
+  const editFieldPath = useMemo(() => `header.${fieldName}`, [fieldName])
+  const [remoteEdits, setRemoteEdits] = useState<RemoteFieldEdit[]>(() => (
+    providerOverride?.getRemoteEdits(editFieldPath) ?? []
+  ))
+  const editHighlight = remoteEdits[0]
   const [overlays, setOverlays] = useState<CursorOverlay[]>([])
   const [scrollTick, setScrollTick] = useState(0)
   const textareaId = useMemo(() => `coedit-${fieldName}`, [fieldName])
@@ -171,6 +178,7 @@ export function CollaborativeTextField({
       setProvider(providerOverride)
       setValue(providerOverride.text.toString())
       setRemoteCursors(providerOverride.getRemoteCursors())
+      setRemoteEdits(providerOverride.getRemoteEdits(editFieldPath))
       return undefined
     }
     let disposed = false
@@ -184,12 +192,13 @@ export function CollaborativeTextField({
       setProvider(next)
       setValue(next.text.toString())
       setRemoteCursors(next.getRemoteCursors())
+      setRemoteEdits(next.getRemoteEdits(editFieldPath))
     })
     return () => {
       disposed = true
       created?.destroy()
     }
-  }, [fieldName, providerOverride, slipId])
+  }, [editFieldPath, fieldName, providerOverride, slipId])
 
   useEffect(() => {
     if (!provider) return undefined
@@ -221,12 +230,21 @@ export function CollaborativeTextField({
     const unsubscribeText = provider.subscribeText(applyRemoteText)
     const unsubscribeAwareness = provider.subscribeAwareness(() => {
       setRemoteCursors(provider.getRemoteCursors())
+      setRemoteEdits(provider.getRemoteEdits(editFieldPath))
     })
     return () => {
       unsubscribeText()
       unsubscribeAwareness()
     }
-  }, [provider])
+  }, [editFieldPath, provider])
+
+  useEffect(() => {
+    if (!provider || remoteEdits.length === 0) return undefined
+    const timer = setTimeout(() => {
+      setRemoteEdits(provider.getRemoteEdits(editFieldPath))
+    }, EDIT_HIGHLIGHT_MS)
+    return () => clearTimeout(timer)
+  }, [editFieldPath, provider, remoteEdits])
 
   // remote 커서/셀렉트 화면 좌표 계산(mirror-div) — 값/커서/스크롤 변경 시 재측정.
   useLayoutEffect(() => {
@@ -280,13 +298,43 @@ export function CollaborativeTextField({
 
   return (
     <div data-testid="collaborative-text-field" style={{ display: 'grid', gap: 6 }}>
-      <label htmlFor={textareaId} style={labelStyle}>
-        {label}
+      <label
+        htmlFor={textareaId}
+        style={{
+          ...labelStyle,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          minWidth: 0,
+        }}
+      >
+        <span>{label}</span>
+        {editHighlight ? (
+          <span
+            aria-hidden="true"
+            style={{
+              maxWidth: 140,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              borderRadius: 4,
+              padding: '1px 6px',
+              background: editHighlight.color,
+              color: '#fff',
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 600,
+              lineHeight: 1.4,
+            }}
+          >
+            {editHighlight.displayName} 수정
+          </span>
+        ) : null}
       </label>
       <div style={{ position: 'relative' }}>
         <textarea
           ref={textareaRef}
           id={textareaId}
+          aria-label={label}
           value={value}
           rows={rows}
           readOnly={readOnly}
@@ -296,6 +344,7 @@ export function CollaborativeTextField({
             setValue(nextValue)
             // 조합 중엔 Y.Text 반영 보류 — 중간 자모 delta 노이즈 방지. compositionEnd 에서 확정 반영.
             if (!composingRef.current && provider) applyTextareaValue(provider.text, nextValue)
+            if (provider) provider.setLocalLastEdit(editFieldPath)
             updateLocalCursor()
           }}
           onClick={updateLocalCursor}
@@ -324,6 +373,7 @@ export function CollaborativeTextField({
               } else {
                 applyTextareaValue(provider.text, event.currentTarget.value)
               }
+              provider.setLocalLastEdit(editFieldPath)
             }
             compositionDraftRef.current = null
             if (pendingRemoteRef.current) {
@@ -343,8 +393,25 @@ export function CollaborativeTextField({
             font: 'inherit',
             lineHeight: 1.5,
             background: readOnly ? 'var(--color-neutral-50)' : undefined,
+            boxShadow: editHighlight ? `0 0 0 2px ${editHighlight.color}` : undefined,
           }}
         />
+        {editHighlight ? (
+          <span
+            key={editHighlight.ts}
+            data-testid="memo-coedit-edit-pulse"
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 1,
+              borderRadius: 4,
+              background: `${editHighlight.color}22`,
+              animation: `slip-edit-pulse ${EDIT_HIGHLIGHT_MS}ms ease-out forwards`,
+              pointerEvents: 'none',
+            }}
+          />
+        ) : null}
         {overlays.map((overlay) => (
           <div
             key={overlay.clientId}

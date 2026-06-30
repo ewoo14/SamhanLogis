@@ -92,6 +92,48 @@ describe('createCoeditProvider', () => {
     provider.destroy()
   })
 
+  it('awareness remote edit는 최근 편집만 필터링하고 본인과 만료 편집을 제외한다', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-30T03:00:00.000Z'))
+    const remoteDoc = new Y.Doc()
+    const remoteAwareness = new Awareness(remoteDoc)
+    remoteAwareness.setLocalState({
+      user: { displayName: '원격 사용자', color: '#2563EB' },
+      lastEdit: { fieldPath: 'memo', ts: Date.now() },
+    })
+    const awarenessUpdate = encodeBase64Update(
+      encodeAwarenessUpdate(remoteAwareness, [remoteDoc.clientID]),
+    )
+
+    const provider = await createCoeditProvider({
+      slipId: 'slip-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    provider.setLocalLastEdit('memo')
+    provider.applyRemoteAwareness(awarenessUpdate)
+
+    expect(provider.getRemoteEdits('memo', Date.now() + 100)).toEqual([
+      {
+        clientId: remoteDoc.clientID,
+        displayName: '원격 사용자',
+        color: '#2563EB',
+        fieldPath: 'memo',
+        ts: Date.now(),
+      },
+    ])
+    expect(provider.getRemoteEdits('other', Date.now() + 100)).toEqual([])
+    expect(provider.getRemoteEdits('memo', Date.now() + 2_500)).toEqual([])
+    expect(provider.getRemoteEdits('memo')).not.toContainEqual(expect.objectContaining({
+      clientId: provider.awareness.clientID,
+    }))
+    provider.destroy()
+  })
+
   it('base64 update 변환은 Uint8Array를 보존한다', () => {
     const update = new Uint8Array([1, 2, 3, 250])
     expect(Array.from(decodeBase64Update(encodeBase64Update(update)))).toEqual(Array.from(update))
@@ -266,5 +308,46 @@ describe('createDocCoeditProvider', () => {
     expect(provider.getRemoteCursors('header.memo')).toEqual([])
     expect(provider.getRemoteCursors('items.0.quantity')[0]).not.toHaveProperty('sessionId')
     provider.destroy()
+  })
+
+  it('awareness lastEdit를 fieldPath 단위로 필터링하고 본인·만료 편집을 제외한다', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-30T03:00:00.000Z'))
+    const left = await createDocCoeditProvider({
+      slipId: 'slip-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const right = await createDocCoeditProvider({
+      slipId: 'slip-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    left.setLocalLastEdit('header.memo')
+    const editTs = Date.now()
+    right.applyRemoteAwareness(encodeBase64Update(
+      encodeAwarenessUpdate(left.awareness, [left.doc.clientID]),
+    ))
+
+    expect(right.getRemoteEdits('header.memo', editTs + 100)).toEqual([
+      {
+        clientId: left.doc.clientID,
+        displayName: '사용자',
+        color: expect.any(String),
+        fieldPath: 'header.memo',
+        ts: editTs,
+      },
+    ])
+    expect(right.getRemoteEdits('items.0.quantity', editTs + 100)).toEqual([])
+    expect(right.getRemoteEdits('header.memo', editTs + 2_500)).toEqual([])
+    expect(left.getRemoteEdits('header.memo', editTs + 100)).toEqual([])
+
+    left.destroy()
+    right.destroy()
   })
 })
