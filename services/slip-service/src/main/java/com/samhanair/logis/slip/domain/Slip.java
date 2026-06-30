@@ -564,6 +564,16 @@ public class Slip extends BaseEntity {
     @Column(name = "revision_count_baseline")
     private Integer revisionCountBaseline;
 
+    /**
+     * S2d-1 셀 인라인 레드라인 기준 revision.
+     *
+     * <p>OUTBOUND 는 검수 완료(COMPLETED), 비-OUTBOUND 는 다음 결재선 전송(SENT) 시점의
+     * {@code max(slip_revisions.revision_no)} 를 1회 기록한다. null 은 아직 임계 전이를
+     * 통과하지 않은 드래프트 단계다.
+     */
+    @Column(name = "redline_anchor_revision_no")
+    private Integer redlineAnchorRevisionNo;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -1667,6 +1677,17 @@ public class Slip extends BaseEntity {
     private void captureRevisionBaselineIfAbsent() {
         if (this.revisionCountBaseline == null) {
             this.revisionCountBaseline = this.revisionCount == null ? 0 : this.revisionCount;
+        }
+    }
+
+    /**
+     * S2d-1 — 임계 전이 시점 max slip_revisions.revision_no 를 레드라인 anchor 로 1회 기록한다.
+     *
+     * @param maxRevisionNo 임계 전이 시점까지 저장된 최대 revisionNo
+     */
+    public void captureRedlineAnchorIfAbsent(int maxRevisionNo) {
+        if (this.redlineAnchorRevisionNo == null) {
+            this.redlineAnchorRevisionNo = maxRevisionNo;
         }
     }
 

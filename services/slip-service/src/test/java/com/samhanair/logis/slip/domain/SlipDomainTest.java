@@ -118,6 +118,18 @@ class SlipDomainTest {
     }
 
     @Test
+    void redlineAnchorRevisionNo_isCapturedOnce() {
+        Slip slip = newInbound();
+
+        assertThat(slip.getRedlineAnchorRevisionNo()).isNull();
+
+        slip.captureRedlineAnchorIfAbsent(3);
+        slip.captureRedlineAnchorIfAbsent(7);
+
+        assertThat(slip.getRedlineAnchorRevisionNo()).isEqualTo(3);
+    }
+
+    @Test
     void createInbound_nullDestWarehouse_throws() {
         assertThatThrownBy(() -> Slip.createInbound("X", LocalDate.now(), 1,
                 null, PARTNER, "p", DeliveryTag.RETURN, null, "u"))

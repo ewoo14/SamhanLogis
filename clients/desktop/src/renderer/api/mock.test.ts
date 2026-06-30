@@ -124,6 +124,32 @@ describe('mock approval-line-config contract', () => {
   })
 })
 
+describe('mock slip redline contract', () => {
+  it('임계통과 전표는 다층 redline fields 를 반환하고 UUID 원문은 노출하지 않는다', () => {
+    const resolved = mockRequest({
+      method: 'GET',
+      url: '/api/v1/slips/slip-006/redline',
+    }) as MockEnvelope<{
+      anchored: boolean
+      fields: Array<{ fieldPath: string; label: string; layers: Array<{ value: string | null; actorName: string | null }> }>
+    }>
+
+    expect(resolved.data.anchored).toBe(true)
+    const memo = resolved.data.fields.find((field) => field.fieldPath === 'header.memo')
+    expect(memo?.layers.map((layer) => layer.value)).toEqual(['임계 통과 원본 메모', '1차 수정 메모', '2차 수정 메모'])
+    expect(JSON.stringify(resolved.data)).not.toContain('00000000-0000-0000-0000-000000000677')
+  })
+
+  it('드래프트 전표는 anchored=false 와 빈 fields 를 반환한다', () => {
+    const resolved = mockRequest({
+      method: 'GET',
+      url: '/api/v1/slips/slip-001/redline',
+    }) as MockEnvelope<{ anchored: boolean; fields: unknown[] }>
+
+    expect(resolved.data).toEqual({ anchored: false, fields: [] })
+  })
+})
+
 describe('mock monthly income statement contract', () => {
   it('실 BE 월별손익분석 행 순서와 영업외손익 소계 자기정합을 유지한다', () => {
     const resolved = mockRequest({

@@ -25,6 +25,7 @@ import com.samhanair.logis.slip.editrequest.service.SlipEditRequestService;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
@@ -123,6 +124,8 @@ public class SlipService {
      * create/updateSlip/applyOverlayPatch mutation 성공 직후 같은 트랜잭션에서 capture 호출.
      */
     private final SlipRevisionService slipRevisionService;
+    /** S2d-1 — 임계 전이 시점 저장 revision anchor 조회. */
+    private final SlipRevisionRepository slipRevisionRepository;
     /**
      * 권한 재편 Phase 2.1 Task 3 — 복원 SSE broadcast 용 실시간 브로커.
      * point-in-time 복원 성공 직후 {@code slip:restored} 이벤트를 publish 한다
@@ -811,7 +814,12 @@ public class SlipService {
     /** 저장완료 → 전송완료. */
     public SlipDetailResponse send(UUID id) {
         Slip slip = loadOrThrow(id);
-        applyMutation(slip::send);
+        applyMutation(() -> {
+            slip.send();
+            if (slip.getSlipType() != SlipType.OUTBOUND) {
+                slip.captureRedlineAnchorIfAbsent(maxStoredRevisionNo(slip.getId()));
+            }
+        });
         return SlipDetailResponse.from(slip);
     }
 
@@ -884,8 +892,19 @@ public class SlipService {
     public SlipDetailResponse inspect(UUID id, String inspectorUserId) {
         Slip slip = loadOrThrow(id);
         enforceSlipApprovalLine(slip, inspectorUserId, approvalGateForInspect(slip.getSlipType()));
-        applyMutation(() -> slip.inspect(inspectorUserId));
+        applyMutation(() -> {
+            slip.inspect(inspectorUserId);
+            if (slip.getSlipType() == SlipType.OUTBOUND) {
+                slip.captureRedlineAnchorIfAbsent(maxStoredRevisionNo(slip.getId()));
+            }
+        });
         return SlipDetailResponse.from(slip);
+    }
+
+    /** S2d-1 — 저장 스냅샷이 아직 없으면 0을 anchor 로 사용한다. */
+    private int maxStoredRevisionNo(UUID slipId) {
+        Integer maxRevisionNo = slipRevisionRepository.maxRevisionNo(slipId);
+        return maxRevisionNo == null ? 0 : maxRevisionNo;
     }
 
     /**

@@ -68,6 +68,8 @@ class SlipServiceTest {
     @Mock private WarehouseInternalClient warehouseInternalClient;
     /** 권한 재편 Phase 2.1 Task 2 — mutation 스냅샷 캡처. 본 테스트에서는 mock 격리. */
     @Mock private com.samhanair.logis.slip.revision.service.SlipRevisionService slipRevisionService;
+    /** S2d-1 — 임계 전이 anchor max revision 조회. 본 테스트에서는 mock 격리. */
+    @Mock private com.samhanair.logis.slip.revision.repository.SlipRevisionRepository slipRevisionRepository;
     /**
      * 출고 마감 게이트 — SlipService 가 slipDate 기본값 계산 시 LocalDate.now(clock) 사용.
      * Clock @Mock 미등록 시 @InjectMocks 가 null 주입 → NPE.
@@ -545,15 +547,30 @@ class SlipServiceTest {
         // Slice A hotfix: inspect (검수 완료) = INSPECTING → COMPLETED + inspector.
         Slip slip = preparedOutbound(SlipStatus.INSPECTING, 1, new BigDecimal("10.00"));
         when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(slipRevisionRepository.maxRevisionNo(slipId)).thenReturn(5);
 
         SlipDetailResponse res = service.inspect(slipId, "inspector-1");
 
         assertThat(res.status()).isEqualTo(SlipStatus.COMPLETED);
         assertThat(res.inspectorUserId()).isEqualTo("inspector-1");
         assertThat(res.inspectorSignedAt()).isNotNull();
+        assertThat(slip.getRedlineAnchorRevisionNo()).isEqualTo(5);
         // 검수 완료는 inventory mutation 없음 (deduct 는 complete 시점에 이미).
         verify(inventoryClient, never())
                 .deduct(any(), any(), anyInt(), anyBoolean(), anyString(), any());
+    }
+
+    @Test
+    void send_inbound_capturesRedlineAnchorFromMaxStoredRevision() {
+        Slip slip = preparedInbound(SlipStatus.SAVED);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(slipRevisionRepository.maxRevisionNo(slipId)).thenReturn(3);
+
+        SlipDetailResponse res = service.send(slipId);
+
+        assertThat(res.status()).isEqualTo(SlipStatus.SENT);
+        assertThat(slip.getRevisionCountBaseline()).isEqualTo(slip.getRevisionCount());
+        assertThat(slip.getRedlineAnchorRevisionNo()).isEqualTo(3);
     }
 
     @Test

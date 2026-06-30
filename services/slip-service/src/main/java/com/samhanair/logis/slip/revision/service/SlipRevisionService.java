@@ -424,9 +424,9 @@ public class SlipRevisionService {
      * 라인은 {@code productId} 기준으로 매칭해 셀 변경을 표시한다 — row index 기준 비교는 행
      * 삽입/삭제 시 엉뚱한 셀끼리 비교돼 잘못된 변경자 귀속(오정보)을 만든다(리뷰 BE B-1).
      */
-    private List<FieldChange> fieldChanges(SlipSnapshot prev, SlipSnapshot cur,
-                                           String actorName, String actorColor,
-                                           LocalDateTime changedAt) {
+    List<FieldChange> fieldChanges(SlipSnapshot prev, SlipSnapshot cur,
+                                   String actorName, String actorColor,
+                                   LocalDateTime changedAt) {
         List<FieldChange> changes = new ArrayList<>();
         for (HeaderField field : HEADER_FIELDS) {
             Object before = prev == null ? null : field.reader().apply(prev);
@@ -526,7 +526,7 @@ public class SlipRevisionService {
         return String.valueOf(value);
     }
 
-    private String resolveActorColor(SlipRevision revision) {
+    String resolveActorColor(SlipRevision revision) {
         if (revision.getActorColor() != null && !revision.getActorColor().isBlank()) {
             return revision.getActorColor();
         }
@@ -536,7 +536,7 @@ public class SlipRevisionService {
         return PresenceColor.fromUserId(revision.getActorId().toString()).hex();
     }
 
-    private String safeActorName(String actorName) {
+    String safeActorName(String actorName) {
         if (actorName == null || actorName.isBlank()) {
             return null;
         }
