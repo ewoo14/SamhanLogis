@@ -21,7 +21,7 @@ awareness 상태에 **`lastEdit: { fieldPath, ts }`** 추가(FE 정의, relay는
 
 ### 1. `createCoeditProvider.ts` — awareness lastEdit 확장
 - awareness 상태 타입에 옵션 `lastEdit?: { fieldPath: string; ts: number }` 추가. `isFieldAwarenessState` 가드는 cursor 중심 유지(lastEdit는 옵션, 무해 후방호환).
-- `DocCoeditProvider` 인터페이스에 `setLocalLastEdit(fieldPath: string): void` 추가 — 로컬 awareness에 `{ fieldPath, ts: <전달된 timestamp> }` 세팅(`setLocalCursor` 패턴 재사용). **⚠️ `Date.now()`는 워크플로 스크립트 금지 대상이 아닌 런타임 FE라 사용 가능**(브라우저 런타임). 
+- `DocCoeditProvider` 인터페이스에 `setLocalLastEdit(fieldPath: string): void` 추가 — 로컬 awareness에 `{ fieldPath, ts: <전달된 timestamp> }` 세팅(`setLocalCursor` 패턴 재사용). **⚠️ `Date.now()`는 워크플로 스크립트 금지 대상이 아닌 런타임 FE라 사용 가능**(브라우저 런타임).
 - `getRemoteEdits(fieldPath: string): Array<{ userId, displayName, color, ts }>` — 해당 fieldPath에 최근(예: now-ts < 2500ms) lastEdit가 있는 원격 사용자 목록(`getRemoteCursors` 패턴).
 
 ### 2. `CollaborativeSlipInput.tsx` — 편집 시 lastEdit 송신 + 원격 하이라이트
