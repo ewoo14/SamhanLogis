@@ -37,7 +37,7 @@ public class PriceChangeScheduleInternalController {
             description = "order-app categoryKey 4종을 key 로 하는 KST 업무일 기준 변동일 맵을 반환한다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
                     description = "X-Internal-Token 누락 또는 불일치")
     })
     @GetMapping

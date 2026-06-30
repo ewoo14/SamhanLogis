@@ -42,6 +42,21 @@ class PriceChangeScheduleInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.oldProducts").value("2026-04-01"));
     }
 
+    /** 내부 endpoint 는 X-Internal-Token 이 없으면 product-service 규약대로 401 을 반환한다. */
+    @Test
+    void priceChangeSchedule_withoutInternalToken_returns401() throws Exception {
+        mockMvc.perform(get("/products/internal/price-change-schedule"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /** 내부 endpoint 는 X-Internal-Token 이 틀리면 401 을 반환한다. */
+    @Test
+    void priceChangeSchedule_withWrongInternalToken_returns401() throws Exception {
+        mockMvc.perform(get("/products/internal/price-change-schedule")
+                        .header("X-Internal-Token", "wrong-token"))
+                .andExpect(status().isUnauthorized());
+    }
+
     /** category CHECK 제약은 order-app categoryKey 4종 외 값을 거부한다. */
     @Test
     void priceChangeSchedule_rejectsInvalidCategoryByCheckConstraint() {
@@ -52,5 +67,44 @@ class PriceChangeScheduleInternalControllerIT extends AbstractPostgresIT {
                     gen_random_uuid(), ?, ?, now(), 'IT', false
                 )
                 """, "invalidCategory", LocalDate.of(2026, 4, 1)));
+    }
+
+    /** 활성행 partial unique 는 같은 category 의 활성 스케줄 중복을 거부한다. */
+    @Test
+    void priceChangeSchedule_rejectsDuplicateActiveCategoryByPartialUnique() {
+        assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update("""
+                INSERT INTO price_change_schedule (
+                    id, category, effective_date, created_at, created_by, is_deleted
+                ) VALUES (
+                    gen_random_uuid(), ?, ?, now(), 'IT', false
+                )
+                """, "homemulti", LocalDate.of(2026, 5, 1)));
+    }
+
+    /** @SQLRestriction 은 soft-delete 된 행을 제외하고 대체 활성행만 응답한다. */
+    @Test
+    void priceChangeSchedule_excludesSoftDeletedRowAndReturnsReplacement() throws Exception {
+        jdbcTemplate.update("""
+                UPDATE price_change_schedule
+                   SET is_deleted = true,
+                       deleted_at = now(),
+                       deleted_by = 'IT'
+                 WHERE category = ?
+                """, "homemulti");
+        jdbcTemplate.update("""
+                INSERT INTO price_change_schedule (
+                    id, category, effective_date, created_at, created_by, is_deleted
+                ) VALUES (
+                    gen_random_uuid(), ?, ?, now(), 'IT', false
+                )
+                """, "homemulti", LocalDate.of(2026, 5, 1));
+
+        mockMvc.perform(get("/products/internal/price-change-schedule")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.homemulti").value("2026-05-01"))
+                .andExpect(jsonPath("$.data.singleSets").value("2026-04-01"))
+                .andExpect(jsonPath("$.data.commercialMulti").value("2026-04-01"))
+                .andExpect(jsonPath("$.data.oldProducts").value("2026-04-01"));
     }
 }
