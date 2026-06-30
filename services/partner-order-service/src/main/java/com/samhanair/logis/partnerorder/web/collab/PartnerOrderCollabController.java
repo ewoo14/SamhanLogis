@@ -4,6 +4,7 @@ import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -16,6 +17,9 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.collab.dto.AddPartnerOrderCollabCommentRequest;
 import com.samhanair.logis.partnerorder.web.collab.dto.CommitPartnerOrderCollabEditRequest;
+import com.samhanair.logis.partnerorder.web.collab.dto.PartnerOrderCoeditAwarenessRequest;
+import com.samhanair.logis.partnerorder.web.collab.dto.PartnerOrderCoeditUpdateRequest;
+import com.samhanair.logis.partnerorder.web.collab.dto.PartnerOrderCoeditUpdatesResponse;
 import com.samhanair.logis.partnerorder.web.collab.dto.PartnerOrderCollabCommentResponse;
 import com.samhanair.logis.partnerorder.web.collab.dto.PartnerOrderCollabEditResponse;
 import com.samhanair.logis.partnerorder.web.collab.dto.PartnerOrderCollabSuggestionResponse;
@@ -71,6 +75,7 @@ public class PartnerOrderCollabController {
     private final RealtimeBroker broker;
     private final PartnerOrderRepository partnerOrderRepository;
     private final PresenceService presenceService;
+    private final CollabCoeditService coeditService;
 
     public PartnerOrderCollabController(CollabCommentService<PartnerOrderCollabComment> commentService,
                                         PartnerOrderCollabEditService editService,
@@ -78,7 +83,8 @@ public class PartnerOrderCollabController {
                                         PartnerOrderDocumentCollaborationPort port,
                                         RealtimeBroker broker,
                                         PartnerOrderRepository partnerOrderRepository,
-                                        PresenceService presenceService) {
+                                        PresenceService presenceService,
+                                        CollabCoeditService coeditService) {
         this.commentService = commentService;
         this.editService = editService;
         this.suggestionRepository = suggestionRepository;
@@ -86,6 +92,7 @@ public class PartnerOrderCollabController {
         this.broker = broker;
         this.partnerOrderRepository = partnerOrderRepository;
         this.presenceService = presenceService;
+        this.coeditService = coeditService;
     }
 
     /** 주문 협업 댓글 등록. */
@@ -185,6 +192,39 @@ public class PartnerOrderCollabController {
                 .map(PartnerOrderCollabSuggestionResponse::from)
                 .toList();
         return ApiResponse.ok(items);
+    }
+
+    /** 주문 협업 메모 Yjs update 누적 snapshot. 서버는 update 내용을 해석하지 않는다. */
+    @Operation(summary = "주문 협업 메모 coedit update snapshot")
+    @GetMapping("/coedit")
+    @RequirePermission(page = READ_PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<PartnerOrderCoeditUpdatesResponse> listCoeditUpdates(@PathVariable String orderId) {
+        UUID resolvedOrderId = resolveOrderId(orderId);
+        return ApiResponse.ok(new PartnerOrderCoeditUpdatesResponse(coeditService.listUpdates(resolvedOrderId)));
+    }
+
+    /** 주문 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
+    @Operation(summary = "주문 협업 메모 coedit update relay")
+    @PostMapping("/coedit/update")
+    @RequirePermission(page = WRITE_PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<Void> appendCoeditUpdate(
+            @PathVariable String orderId,
+            @RequestBody(required = false) PartnerOrderCoeditUpdateRequest request) {
+        UUID resolvedOrderId = resolveOrderId(orderId);
+        coeditService.appendUpdate(resolvedOrderId, request == null ? null : request.update());
+        return ApiResponse.ok(null);
+    }
+
+    /** 주문 협업 메모 cursor/selection relay. 저장하지 않는 ephemeral 이벤트다. */
+    @Operation(summary = "주문 협업 메모 coedit awareness relay")
+    @PostMapping("/coedit/awareness")
+    @RequirePermission(page = READ_PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<Void> publishCoeditAwareness(
+            @PathVariable String orderId,
+            @RequestBody(required = false) PartnerOrderCoeditAwarenessRequest request) {
+        UUID resolvedOrderId = resolveOrderId(orderId);
+        coeditService.publishAwareness(resolvedOrderId, request == null ? null : request.awareness());
+        return ApiResponse.ok(null);
     }
 
     /** 주문 협업 SSE stream. 댓글/수정 이벤트는 orderId 채널로 전달된다. */

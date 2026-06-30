@@ -539,6 +539,85 @@ class PartnerOrderCollabIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    /** coedit update relay 가 누적되고 GET snapshot 으로 재구성되며, hyphen orderNo path-id 로도 동작한다. */
+    @Test
+    void coedit_update_accumulates_andListSnapshot_andAcceptsHyphenPathId() throws Exception {
+        PartnerOrder order = seedConfirmedOrder("2099/06/27-COED-" + SEQ.getAndIncrement());
+        UUID orderId = order.getId();
+        String pathId = order.getOrderNo().replace("/", "-");
+
+        // 빈 snapshot
+        mvc.perform(get("/api/v1/partner-orders/{orderId}/collab/coedit", orderId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(0));
+
+        // UUID 키로 update 1건
+        mvc.perform(post("/api/v1/partner-orders/{orderId}/collab/coedit/update", orderId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
+                .andExpect(status().isOk());
+
+        // 하이픈형 path-id 로 update 1건 더 — 같은 주문(resolveOrderId) 채널에 누적
+        mvc.perform(post("/api/v1/partner-orders/{orderId}/collab/coedit/update", pathId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "YXdhcmU="))))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/partner-orders/{orderId}/collab/coedit", pathId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(2))
+                .andExpect(jsonPath("$.data.updates[0]").value("dXBkYXRl"))
+                .andExpect(jsonPath("$.data.updates[1]").value("YXdhcmU="));
+    }
+
+    /** coedit update 의 잘못된 base64 는 400, awareness 는 저장하지 않고 200 으로 중계만 한다. */
+    @Test
+    void coedit_rejectsInvalidBase64Update_andAwarenessIsNotPersisted() throws Exception {
+        UUID orderId = seedConfirmedOrder("2099/06/27-COEDV-" + SEQ.getAndIncrement()).getId();
+
+        // 잘못된 base64 → 400
+        mvc.perform(post("/api/v1/partner-orders/{orderId}/collab/coedit/update", orderId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "!!not-base64!!"))))
+                .andExpect(status().isBadRequest());
+
+        // awareness 는 200(중계만) — snapshot 에 누적되지 않음
+        mvc.perform(post("/api/v1/partner-orders/{orderId}/collab/coedit/awareness", orderId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "YXdhcmU="))))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/partner-orders/{orderId}/collab/coedit", orderId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(0));
+    }
+
+    /** coedit update 는 WRITE(sales.partner-order.edit/UPDATE) 권한 deny 시 403 으로 거부된다. */
+    @Test
+    void coedit_update_deniedWithoutWritePermission_returns403() throws Exception {
+        UUID orderId = seedConfirmedOrder("2099/06/27-COEDP-" + SEQ.getAndIncrement()).getId();
+        String writePageCode = com.samhanair.logis.partnerorder.collab.PartnerOrderDocumentCollaborationPort
+                .PARTNER_ORDER_COLLAB_WRITE_PAGE_CODE;
+        when(dynamicPermissionClient.check(
+                any(UUID.class), eq(writePageCode), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canEdit(any(), eq(writePageCode)))
+                .thenReturn(false);
+
+        mvc.perform(post("/api/v1/partner-orders/{orderId}/collab/coedit/update", orderId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
+                .andExpect(status().isForbidden());
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> dataMap(String responseBody) throws Exception {
         return (Map<String, Object>) objectMapper.readValue(responseBody, Map.class).get("data");
