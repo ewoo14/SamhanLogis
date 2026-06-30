@@ -8,6 +8,20 @@ type MockEnvelope<T> = {
   data: T
 }
 
+type MockPage<T> = {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+}
+
+type MockSlipQueryRow = {
+  slipType: 'OUTBOUND' | 'INBOUND'
+  status: string
+  editHistoryCount: number
+}
+
 type MockRole = {
   id: string
   documentType?: string
@@ -170,6 +184,30 @@ describe('mock monthly income statement contract', () => {
     expect(amount(nonOperatingSubtotal?.difference ?? 0)).toBe(
       amount(nonOperatingSubtotal?.annualTotal ?? 0) - amount(nonOperatingSubtotal?.priorYearTotal ?? 0),
     )
+  })
+})
+
+describe('mock slip query edit history contract', () => {
+  it('판매/구매조회 mock 은 상태의존 전표수정내역 카운트 룰을 반영한다', () => {
+    const outbound = mockRequest({
+      method: 'GET',
+      url: '/slips/query?slipType=OUTBOUND&page=0&size=50',
+    }) as MockEnvelope<MockPage<MockSlipQueryRow>>
+    const inbound = mockRequest({
+      method: 'GET',
+      url: '/slips/query?slipType=INBOUND&page=0&size=50',
+    }) as MockEnvelope<MockPage<MockSlipQueryRow>>
+
+    for (const row of outbound.data.content) {
+      if (['DRAFT', 'SAVED', 'SENT', 'ACCEPTED', 'PROCESSING', 'INSPECTING', 'REJECTED', 'CANCELED'].includes(row.status)) {
+        expect(row.editHistoryCount).toBe(0)
+      }
+    }
+    for (const row of inbound.data.content) {
+      if (['DRAFT', 'SAVED', 'REJECTED', 'CANCELED'].includes(row.status)) {
+        expect(row.editHistoryCount).toBe(0)
+      }
+    }
   })
 })
 

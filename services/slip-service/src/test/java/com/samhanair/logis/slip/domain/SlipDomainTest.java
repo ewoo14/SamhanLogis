@@ -50,6 +50,74 @@ class SlipDomainTest {
     }
 
     @Test
+    void inboundSend_capturesRevisionBaseline_andCountsOnlyAfterSent() {
+        Slip slip = newInbound();
+        slip.incrementRevision();
+        slip.incrementRevision();
+
+        assertThat(slip.getRevisionCount()).isEqualTo(2);
+        assertThat(slip.getRevisionCountBaseline()).isNull();
+        assertThat(slip.editHistoryCount()).isZero();
+
+        slip.save();
+        slip.send();
+
+        assertThat(slip.getRevisionCountBaseline()).isEqualTo(2);
+        assertThat(slip.editHistoryCount()).isZero();
+
+        slip.incrementRevision();
+
+        assertThat(slip.getRevisionCount()).isEqualTo(3);
+        assertThat(slip.editHistoryCount()).isEqualTo(1);
+    }
+
+    @Test
+    void outboundSend_doesNotCaptureBaseline_andInspectCountsOnlyAfterCompleted() {
+        Slip slip = newOutbound();
+        slip.incrementRevision();
+
+        slip.save();
+        slip.send();
+
+        assertThat(slip.getRevisionCountBaseline()).isNull();
+        assertThat(slip.editHistoryCount()).isZero();
+
+        slip.accept("warehouse-1");
+        slip.process();
+        slip.complete();
+        slip.inspect("inspector-1");
+
+        assertThat(slip.getRevisionCountBaseline()).isEqualTo(1);
+        assertThat(slip.editHistoryCount()).isZero();
+
+        slip.incrementRevision();
+        slip.incrementRevision();
+
+        assertThat(slip.getRevisionCount()).isEqualTo(3);
+        assertThat(slip.editHistoryCount()).isEqualTo(2);
+    }
+
+    @Test
+    void revisionBaseline_isIdempotent_afterThresholdTransition() {
+        Slip slip = newInbound();
+        slip.incrementRevision();
+        slip.save();
+        slip.send();
+
+        assertThat(slip.getRevisionCountBaseline()).isEqualTo(1);
+
+        slip.incrementRevision();
+        slip.accept("warehouse-1");
+        slip.process();
+        slip.complete();
+        slip.inspect("inspector-1");
+
+        assertThat(slip.getRevisionCount()).isEqualTo(2);
+        assertThat(slip.getRevisionCountBaseline()).isEqualTo(1);
+        assertThat(slip.editHistoryCount()).isEqualTo(1);
+    }
+
+    @Test
     void createInbound_nullDestWarehouse_throws() {
         assertThatThrownBy(() -> Slip.createInbound("X", LocalDate.now(), 1,
                 null, PARTNER, "p", DeliveryTag.RETURN, null, "u"))

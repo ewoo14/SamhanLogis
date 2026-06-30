@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -281,6 +282,71 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content[0].printed", is(true)));
     }
 
+    /**
+     * TC-6: OUTBOUND 전표수정내역은 창고이관(COMPLETED) 이후 편집만 표시한다.
+     *
+     * <p>S2c 룰: 드래프트~검수중 편집 revision 은 감사 revisionNo 에는 남지만 사용자 노출
+     * editHistoryCount 에는 포함하지 않는다.
+     */
+    @Test
+    @DisplayName("TC-6: OUTBOUND editHistoryCount — COMPLETED 이후 편집만 카운트")
+    void tc6_outboundEditHistoryCount_stateDependent() throws Exception {
+        String slipId = createOutboundSlip(TODAY, "TC6거래처", null);
+        String slipNo = getSlipNo(slipId);
+
+        applyRevisions(slipId, 2);
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("slipType", "OUTBOUND")
+                        .param("searchSlipNo", slipNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].editHistoryCount", is(0)));
+
+        advanceOutboundToCompleted(slipId);
+        applyRevisions(slipId, 2);
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("slipType", "OUTBOUND")
+                        .param("searchSlipNo", slipNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].editHistoryCount", is(2)));
+    }
+
+    /**
+     * TC-7: INBOUND 전표수정내역은 다음 결재선 전송(SENT) 이후 편집만 표시한다.
+     */
+    @Test
+    @DisplayName("TC-7: INBOUND editHistoryCount — SENT 이후 편집만 카운트")
+    void tc7_inboundEditHistoryCount_stateDependent() throws Exception {
+        String slipId = createInboundSlip(TODAY, "TC7거래처");
+        String slipNo = getSlipNo(slipId);
+
+        applyRevisions(slipId, 1);
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("slipType", "INBOUND")
+                        .param("searchSlipNo", slipNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].editHistoryCount", is(0)));
+
+        advanceInboundToSent(slipId);
+        applyRevisions(slipId, 1);
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("slipType", "INBOUND")
+                        .param("searchSlipNo", slipNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].editHistoryCount", is(1)));
+    }
+
     // -----------------------------------------------------------------------
     // 헬퍼
     // -----------------------------------------------------------------------
@@ -327,6 +393,40 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
     }
 
     /**
+     * INBOUND 슬립 생성 헬퍼 — 슬립 UUID 반환.
+     */
+    private String createInboundSlip(LocalDate slipDate, String partnerName) throws Exception {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "테스트 입고 제품");
+        line.put("modelName", "IN-001");
+        line.put("quantity", 1);
+        line.put("unitPrice", 30000);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "INBOUND");
+        body.put("slipDate", slipDate.toString());
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerId", UUID.randomUUID().toString());
+        body.put("partnerName", partnerName);
+        body.put("deliveryTag", "RETURN");
+        body.put("memo", "S2c 입고 테스트 메모");
+        body.put("lines", List.of(line));
+
+        MvcResult result = mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, SALES_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String responseBody = result.getResponse().getContentAsString();
+        return objectMapper.readTree(responseBody)
+                .path("data").path("id").asText();
+    }
+
+    /**
      * 도메인 메서드 {@code withProjectInfo} 를 통해 projectName 을 직접 설정한다.
      *
      * <p>IT 에서 도메인 메서드를 직접 호출하여 SlipRepository 를 통해 저장.
@@ -352,6 +452,53 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
                 .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
         slip.recordPrint();
         slipRepository.save(slip);
+    }
+
+    /**
+     * 감사 revisionNo 증가를 실제 도메인 API 로 재현한다.
+     *
+     * @param slipId 대상 슬립 UUID 문자열
+     * @param times  증가 횟수
+     */
+    private void applyRevisions(String slipId, int times) {
+        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+                .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
+        for (int i = 0; i < times; i++) {
+            slip.incrementRevision();
+        }
+        slipRepository.saveAndFlush(slip);
+    }
+
+    /**
+     * OUTBOUND 를 도메인 정규 경로로 COMPLETED 까지 전이한다.
+     */
+    private void advanceOutboundToCompleted(String slipId) {
+        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+                .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
+        if (slip.getSlipType() != SlipType.OUTBOUND) {
+            throw new IllegalStateException("OUTBOUND 테스트 전표가 아닙니다: " + slipId);
+        }
+        slip.save();
+        slip.send();
+        slip.accept("warehouse-1");
+        slip.process();
+        slip.complete();
+        slip.inspect("inspector-1");
+        slipRepository.saveAndFlush(slip);
+    }
+
+    /**
+     * INBOUND 를 도메인 정규 경로로 SENT 까지 전이한다.
+     */
+    private void advanceInboundToSent(String slipId) {
+        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+                .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
+        if (slip.getSlipType() != SlipType.INBOUND) {
+            throw new IllegalStateException("INBOUND 테스트 전표가 아닙니다: " + slipId);
+        }
+        slip.save();
+        slip.send();
+        slipRepository.saveAndFlush(slip);
     }
 
     /**

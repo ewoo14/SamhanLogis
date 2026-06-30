@@ -555,6 +555,15 @@ public class Slip extends BaseEntity {
     @Column(name = "revision_count", nullable = false)
     private Integer revisionCount = 0;
 
+    /**
+     * S2c 상태의존 수정카운트 기준선.
+     *
+     * <p>OUTBOUND 는 검수 완료(COMPLETED), 비-OUTBOUND 는 다음 결재선 전송(SENT) 시점의
+     * {@link #revisionCount} 를 1회 기록한다. null 은 아직 임계 전이를 통과하지 않은 드래프트 단계다.
+     */
+    @Column(name = "revision_count_baseline")
+    private Integer revisionCountBaseline;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -927,6 +936,9 @@ public class Slip extends BaseEntity {
     public void send() {
         requireStatus(SlipStatus.SAVED);
         this.status = SlipStatus.SENT;
+        if (this.slipType != SlipType.OUTBOUND) {
+            captureRevisionBaselineIfAbsent();
+        }
     }
 
     /**
@@ -982,6 +994,9 @@ public class Slip extends BaseEntity {
     public void inspect(String inspectorUserId) {
         requireStatus(SlipStatus.INSPECTING);
         this.status = SlipStatus.COMPLETED;
+        if (this.slipType == SlipType.OUTBOUND) {
+            captureRevisionBaselineIfAbsent();
+        }
         this.inspectorUserId = inspectorUserId;
         this.inspectorSignedAt = LocalDateTime.now();
         this.completedAt = LocalDateTime.now();
@@ -1641,6 +1656,34 @@ public class Slip extends BaseEntity {
         }
         this.revisionCount = this.revisionCount + 1;
         return this.revisionCount;
+    }
+
+    /**
+     * S2c — 사용자 노출 수정 카운트 기준선을 1회만 기록한다.
+     *
+     * <p>상태 전이 자체는 콘텐츠 편집이 아니므로 revision 을 증가시키지 않고, 전이 직전까지 누적된
+     * 드래프트 편집 revisionCount 를 표시 카운트 차감 기준으로 보존한다.
+     */
+    private void captureRevisionBaselineIfAbsent() {
+        if (this.revisionCountBaseline == null) {
+            this.revisionCountBaseline = this.revisionCount == null ? 0 : this.revisionCount;
+        }
+    }
+
+    /**
+     * S2c — 전표수정내역 사용자 표시 카운트.
+     *
+     * <p>{@link #revisionCount} 는 감사 revisionNo 로 계속 증가시키고, 본 메서드만 임계 전이 전
+     * 드래프트 편집분을 제외한다.
+     *
+     * @return 임계 전이 전이면 0, 전이 후면 {@code max(0, revisionCount - baseline)}
+     */
+    public int editHistoryCount() {
+        if (this.revisionCountBaseline == null) {
+            return 0;
+        }
+        int currentRevisionCount = this.revisionCount == null ? 0 : this.revisionCount;
+        return Math.max(0, currentRevisionCount - this.revisionCountBaseline);
     }
 
     /**

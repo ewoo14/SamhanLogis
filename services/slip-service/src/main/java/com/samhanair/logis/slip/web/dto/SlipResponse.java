@@ -32,7 +32,7 @@ import java.util.UUID;
  *   <li>{@code totalAmount} — 라인 lineTotal 합산</li>
  *   <li>{@code totalQuantity} — 라인 수량 합</li>
  *   <li>{@code salesPersonName} — 담당자명 (requesterId 임시 — 후속 user-service resolve)</li>
- *   <li>{@code editHistoryCount} — 수정 이력 건수 (revisionCount 기반)</li>
+ *   <li>{@code editHistoryCount} — 상태의존 수정 이력 건수 (임계 전이 이후 편집만)</li>
  * </ul>
  *
  * <p>UUID 비공개 가드: {@code id} / {@code partnerId} / {@code sourceWarehouseId} /
@@ -87,8 +87,8 @@ public record SlipResponse(
          */
         String salesPersonName,
         /**
-         * 전표 수정 이력 건수 — {@code revisionCount} 기반 임시값.
-         * 후속 슬라이스에서 SlipEditRequest count 로 교체 예정.
+         * 전표 수정 이력 건수 — S2c 상태의존 표시 카운트.
+         * {@code revisionCount} 는 감사 revisionNo 로 유지하고, 사용자 노출 값만 임계 전이 기준선을 차감한다.
          */
         int editHistoryCount,
         /**
@@ -158,8 +158,8 @@ public record SlipResponse(
                 totalQuantity,
                 // 담당자명: requesterId 임시 (후속 user-service resolve 예정)
                 slip.getRequesterId(),
-                // 수정 이력 건수: revisionCount 기반 임시 (후속 SlipEditRequest count 예정)
-                slip.getRevisionCount() != null ? slip.getRevisionCount() : 0,
+                // 수정 이력 건수: S2c 상태의존 표시 카운트(임계 전이 전 편집 제외)
+                slip.editHistoryCount(),
                 // V52 — 하차일 + 배송일정 파생 라벨
                 slip.getUnloadDate(),
                 DeliverySchedule.scheduleLabel(slip.getSlipDate(), slip.getUnloadDate(), slip.getDeliveryTag()));
