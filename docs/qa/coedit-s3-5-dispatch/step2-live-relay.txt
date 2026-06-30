@@ -1,0 +1,41 @@
+라이브 relay round-trip — 실 HTTP 검증
+실행 시각: 2026-07-01T04:34:42+09:00 (KST)
+게이트웨이: http://localhost:8080 (samhan-api-gateway, Up 33h)
+slip-service: http://localhost:18086 (재빌드 후 Up ~2분)
+이미지: infrastructure-slip-service (JAR 2026-07-01T00:31 → 재빌드 후 이미지 교체)
+계정: kimmiseon (MASTER role, userId=891b96e6-7262-4cf2-ad72-bb2a70cb9ed4)
+task_id: 2e9c3ec3-85f8-4985-a1a8-66f993d23bb7 (taskCode=2026/06/12-3, status=DISPATCHED)
+
+=== [PASS] [1] GET /admin/dispatch-tasks/{id}/collab/coedit (초기 빈 snapshot) ===
+→ 200 {"data":{"updates":[]}}
+timestamp: 2026-06-30T19:34:20.684657545Z
+
+=== [PASS] [2] POST /collab/coedit/update (1차, update="dXBkYXRl" = base64("update")) ===
+→ 200 {"success":true,"code":"OK","message":"성공","data":null}
+timestamp: 2026-06-30T19:34:42.223062917Z
+
+=== [PASS] [3] POST /collab/coedit/update (2차, update="YXdhcmU=" = base64("aware")) ===
+→ 200 {"success":true,"code":"OK","message":"성공","data":null}
+timestamp: 2026-06-30T19:34:42.475427517Z
+
+=== [PASS] [4] POST /collab/coedit/awareness (awareness="Y3Vyc29y" = base64("cursor"), 저장 안 됨) ===
+→ 200 {"success":true,"code":"OK","message":"성공","data":null}
+timestamp: 2026-06-30T19:34:42.735199665Z
+
+=== [PASS] [5] GET /collab/coedit 누적 확인 (2건 기대, awareness 미포함) ===
+→ 200 {"data":{"updates":["dXBkYXRl","YXdhcmU="]}}
+timestamp: 2026-06-30T19:34:42.995461750Z
+검증: update 2건 정확히 순서대로 누적, awareness POST 후에도 updates 길이=2 (미저장 확인)
+
+=== [PASS] [6] POST /collab/coedit/update — null body → 400 ===
+→ 400 {"code":"INVALID_INPUT","message":"coedit update 는 필수입니다"}
+timestamp: 2026-06-30T19:34:43.251091979Z
+
+=== [PASS] [7] POST /collab/coedit/update — 빈 {} → 400 ===
+→ 400 {"code":"INVALID_INPUT","message":"coedit update 는 필수입니다"}
+timestamp: 2026-06-30T19:34:43.505131Z
+
+--- 비고 ---
+컨테이너 이슈: 최초 실행 컨테이너(4h old)가 구 JAR(S3-5 이전)로 기동 중이었음
+  → docker compose build + up --no-deps 로 이미지 교체 후 재검증 성공
+  → 이는 PR 머지 후 운영 재배포 필요성을 보여주는 정상적 동작

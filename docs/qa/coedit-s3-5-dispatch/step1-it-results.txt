@@ -1,0 +1,38 @@
+DispatchCollabIT — 로컬 Testcontainers PostgreSQL 16-alpine
+실행 시각: 2026-07-01T04:24:43+09:00 (KST)
+HEAD: 8b311018e (feat/coedit-s3-5-dispatch)
+호스트: DESKTOP-8SO2GTL
+명령어: ./gradlew :services:slip-service:test --tests "*.DispatchCollabIT" --console=plain
+
+결과 요약: tests=16 skipped=0 failures=0 errors=0
+BUILD SUCCESSFUL (25s)
+
+--- 5 coedit 케이스 (핵심 검증 대상) ---
+[PASS] coedit_update_accumulates_andListSnapshot_andAwarenessIsNotPersisted (0.364s)
+  - relay 2건 누적 후 GET snapshot 에 반영, awareness POST 후 snapshot 미포함 확인
+[PASS] coedit_update_nullOrEmptyBody_returns400_andNotPersisted (0.04s)
+  - null body / 빈 {} 모두 400 + snapshot 에 누적 없음
+[PASS] coedit_awareness_nullOrEmptyBody_returns400 (0.026s)
+  - awareness null body / 빈 {} 모두 400 (update 와 대칭)
+[PASS] coedit_readEndpoints_deniedWithoutViewPermission_returns403 (0.013s)
+  - VIEW 권한 deny 시 GET snapshot + awareness 모두 403
+[PASS] coedit_update_deniedWithoutUpdatePermission_returns403 (0.012s)
+  - UPDATE 권한 deny 시 POST update 403
+
+--- 추가 11 케이스 (FIX 커밋 8b311018e 신규) ---
+[PASS] commitEdit_onDispatchedTask_appliesMemoAndRecordsAcceptedHistory (0.077s)
+[PASS] commitEdit_afterPersistenceContextClear_succeeds (0.029s)
+[PASS] commitEdit_onCancelledTask_returns409AndPersistsNothing (0.023s)
+[PASS] commitEdit_onCancelAcceptedTask_returns409AndPersistsNothing (0.189s)
+[PASS] commitEdit_withCoreFields_returns400AndPersistsNothing (0.041s)
+[PASS] commitEdit_withMalformedOrTooLongChangeSet_returns400AndPersistsNothing (0.033s)
+[PASS] commitEdit_notifiesContributorsAndResolvesUsernameRecipients (0.053s)
+[PASS] commitEdit_withoutPermission_returns403 (0.013s)
+[PASS] readEndpoints_withoutPermission_return403 (0.012s)
+[PASS] checkConstraintRejectsInvalidDocumentTypeInSuggestions (0.012s)
+[PASS] checkConstraintRejectsInvalidStatusInSuggestions (0.025s)
+
+CI Linux (GitHub Actions) slip-it-core: SUCCESS
+  run_id: 28470008712
+  HEAD: 8b311018e11479a4217eba0fd3e25afeb1a0e0fc
+  완료: 2026-06-30T19:23:55Z (UTC)
