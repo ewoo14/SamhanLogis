@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE price_change_schedule (
     id             UUID         PRIMARY KEY,
-    category       VARCHAR(32)  NOT NULL,
+    category       VARCHAR(30)  NOT NULL,  -- PartnerOrderLine.category_key VARCHAR(30) 정합
     effective_date DATE         NOT NULL,
     created_at     TIMESTAMP    NOT NULL,
     created_by     VARCHAR(50)  NOT NULL,
