@@ -418,7 +418,11 @@ export function SalesPartnerOrderDetailPage() {
         return
       }
       provider = nextProvider
-      if (nextProvider.isEmpty()) seedPartnerOrderCoeditProvider(nextProvider, orderData)
+      const serverLineCount = toEditLines(orderData).length
+      // 서버 라인 수와 provider 라인 수가 다르면 stale 스냅샷으로 판단하고 서버 라인을 우선한다.
+      if (nextProvider.isEmpty() || nextProvider.items.toArray().length !== serverLineCount) {
+        seedPartnerOrderCoeditProvider(nextProvider, orderData)
+      }
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
       setOrderFormCoeditProvider(nextProvider)
@@ -1400,7 +1404,7 @@ export function SalesPartnerOrderDetailPage() {
                     categoryKey: line.categoryKey,
                     quantity: line.quantity,
                     deliveryPrice: line.deliveryPrice,
-                    remark: line.remark,
+                    remark: line.remark || null,
                   })),
                 })
               }}
@@ -1435,6 +1439,11 @@ export function SalesPartnerOrderDetailPage() {
           >
             {reloadSuccessMessage}
           </div>
+        ) : null}
+        {orderFormCoeditPending ? (
+          <p role="status" data-testid="partner-order-edit-coedit-pending">
+            협업 연결 중…
+          </p>
         ) : null}
         <div className={styles['formGrid']} data-testid="partner-order-edit-form">
           <label className={styles['formField']}>
@@ -1512,6 +1521,7 @@ export function SalesPartnerOrderDetailPage() {
                       aria-label="구분"
                       value={line.categoryKey}
                       data-testid={`partner-order-edit-line-${index}-category`}
+                      disabled={orderFormCoeditPending || updateMutation.isPending}
                       onChange={(e) => updateLine(index, { categoryKey: e.target.value })}
                     >
                       <option value="homemulti">홈멀티</option>

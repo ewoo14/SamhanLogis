@@ -169,7 +169,9 @@ export function CollaborativeTextField({
   const [providerStatus, setProviderStatus] = useState<ProviderStatus>(providerOverride ? 'ready' : 'loading')
   const [value, setValue] = useState(() => providerOverride?.text.toString() ?? '')
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>(() => providerOverride?.getRemoteCursors() ?? [])
-  const editFieldPath = useMemo(() => `header.${fieldName}`, [fieldName])
+  // awareness 네임스페이스를 'field.'로 분리 — 전체폼 coedit 모달의 header.{field}/items.N.{cell}
+  // fieldPath 와 충돌해 presence 하이라이트가 블리드되는 것 방지(동일 basePath 채널 공유 시).
+  const editFieldPath = useMemo(() => `field.${fieldName}`, [fieldName])
   const [remoteEdits, setRemoteEdits] = useState<RemoteFieldEdit[]>(() => (
     providerOverride?.getRemoteEdits(editFieldPath) ?? []
   ))

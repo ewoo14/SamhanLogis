@@ -156,7 +156,7 @@ describe('CollaborativeTextField', () => {
       clientId: 456,
       displayName: '김영업',
       color: '#DB2777',
-      fieldPath: 'header.memo',
+      fieldPath: 'field.memo',
       ts: 0,
     }
     const setLocalLastEdit = vi.fn()
@@ -169,7 +169,7 @@ describe('CollaborativeTextField', () => {
       getRemoteCursors: () => [],
       setLocalLastEdit,
       getRemoteEdits: vi.fn((fieldPath?: string) => (
-        fieldPath === 'header.memo' && Date.now() - edit.ts < 2_500 ? [edit] : []
+        fieldPath === 'field.memo' && Date.now() - edit.ts < 2_500 ? [edit] : []
       )),
       subscribeText: () => () => undefined,
       subscribeAwareness: () => () => undefined,
@@ -191,7 +191,7 @@ describe('CollaborativeTextField', () => {
 
     const textarea = screen.getByLabelText('memo') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '로컬 메모' } })
-    expect(setLocalLastEdit).toHaveBeenCalledWith('header.memo')
+    expect(setLocalLastEdit).toHaveBeenCalledWith('field.memo')
 
     act(() => vi.advanceTimersByTime(2_500))
 

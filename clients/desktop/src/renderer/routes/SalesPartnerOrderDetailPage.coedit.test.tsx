@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { PartnerOrderDetail } from '../api/sales'
@@ -55,6 +55,7 @@ vi.mock('../components/collab/CollaborativeSlipInput', () => ({
     provider: unknown
     fieldPath: string
     value: string
+    onValueChange?: (value: string) => void
     coeditPending?: boolean
     'aria-label': string
   }) => (
@@ -65,7 +66,8 @@ vi.mock('../components/collab/CollaborativeSlipInput', () => ({
       data-provider-present={String(!!props.provider)}
       data-coedit-pending={String(!!props.coeditPending)}
       value={props.value}
-      readOnly
+      disabled={!!props.coeditPending}
+      onChange={(event) => props.onValueChange?.(event.target.value)}
     />
   ),
 }))
@@ -124,8 +126,8 @@ vi.mock('../components/sales/sales.module.css', () => ({ default: new Proxy({}, 
 
 import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
 
-function makeOrder(): PartnerOrderDetail {
-  return {
+function makeOrder(overrides: Partial<PartnerOrderDetail> = {}): PartnerOrderDetail {
+  const order: PartnerOrderDetail = {
     orderNumber: 'PO/2099-1',
     partnerCode: 'PT-001',
     partnerName: '테스트 거래처',
@@ -158,13 +160,14 @@ function makeOrder(): PartnerOrderDetail {
       },
     ],
   }
+  return { ...order, ...overrides }
 }
 
 function makeProvider() {
   const header = new Map<string, string>()
   let rows: Record<string, string>[] = []
   const subscribers = new Set<() => void>()
-  return {
+  const provider = {
     items: {
       toArray: () => rows,
     },
@@ -182,7 +185,14 @@ function makeProvider() {
       return () => subscribers.delete(listener)
     }),
     destroy: vi.fn(),
+    __setRows: (nextRows: Record<string, string>[]) => {
+      rows = nextRows.map((row) => ({ ...row }))
+    },
+    __emit: () => {
+      for (const subscriber of subscribers) subscriber()
+    },
   }
+  return provider
 }
 
 function renderPage() {
@@ -248,5 +258,149 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
 
     expect(screen.getByTestId('partner-order-edit-line-0-category')).not.toBeNull()
     expect(screen.queryByTestId('partner-order-coedit-items-0-categoryKey')).toBeNull()
+  })
+
+  it('provider 라인 수가 서버 라인 수와 다르면 stale 스냅샷으로 보고 서버 라인을 재시드한다', async () => {
+    const provider = makeProvider()
+    const order = makeOrder({
+      lines: [
+        ...makeOrder().lines,
+        {
+          ...makeOrder().lines[0],
+          productId: 'product-2',
+          lineId: 'line-2',
+          modelCode: 'MODEL-2',
+          productName: '제품 2',
+          quantity: 3,
+          subtotal: 30000,
+          remark: '추가 라인',
+        },
+      ],
+    })
+    provider.isEmpty.mockReturnValue(false)
+    provider.__setRows([
+      {
+        productName: 'stale 제품',
+        modelCode: 'STALE',
+        quantity: '1',
+        deliveryPrice: '1',
+        remark: 'stale',
+      },
+    ])
+    mocks.getPartnerOrder.mockResolvedValue(order)
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+
+    await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ productName: '제품 1', modelCode: 'MODEL-1' }),
+      expect.objectContaining({ productName: '제품 2', modelCode: 'MODEL-2' }),
+    ])
+  })
+
+  it('수정모달을 닫으면 provider 구독을 정리하고 destroy 를 호출한다', async () => {
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }))
+
+    await waitFor(() => expect(provider.destroy).toHaveBeenCalledTimes(1))
+  })
+
+  it('provider 생성 실패 시 pending 을 해제하고 평문 입력 가능한 수정모달로 폴백한다', async () => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+
+    const memoInput = await screen.findByTestId('partner-order-coedit-header-memo')
+    await waitFor(() => expect(memoInput.getAttribute('data-provider-present')).toBe('false'))
+    await waitFor(() => expect(memoInput.getAttribute('data-coedit-pending')).toBe('false'))
+    expect((screen.getByTestId('partner-order-edit-submit') as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.change(memoInput, { target: { value: '평문 수정' } })
+    expect((memoInput as HTMLInputElement).value).toBe('평문 수정')
+  })
+
+  it('coedit 연결 중에는 안내 문구를 표시하고 저장/구분 입력을 잠근다', async () => {
+    let resolveProvider!: (provider: ReturnType<typeof makeProvider>) => void
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockReturnValue(
+      new Promise((resolve) => {
+        resolveProvider = resolve
+      }),
+    )
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+
+    expect(await screen.findByText('협업 연결 중…')).not.toBeNull()
+    expect((screen.getByTestId('partner-order-edit-submit') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('partner-order-edit-line-0-category') as HTMLSelectElement).disabled).toBe(true)
+
+    resolveProvider(makeProvider())
+  })
+
+  it('status 가 CONFIRMING 이면 수정 버튼을 노출하지 않는다', async () => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder({ status: 'CONFIRMING' }))
+
+    renderPage()
+
+    await screen.findByText('PO/2099-1')
+    expect(screen.queryByTestId('partner-order-collab-edit-open')).toBeNull()
+    expect(screen.queryByTestId('partner-order-edit-open')).toBeNull()
+  })
+
+  it('subscribeDoc 원격 업데이트를 React form state 에 반영한다', async () => {
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+
+    provider.setHeaderValue('memo', '원격 요청')
+    provider.__setRows([
+      {
+        productName: '원격 제품',
+        modelCode: 'REMOTE-1',
+        quantity: '5',
+        deliveryPrice: '7000',
+        remark: '원격 비고',
+      },
+    ])
+    act(() => {
+      provider.__emit()
+    })
+
+    await waitFor(() => expect((screen.getByTestId('partner-order-coedit-header-memo') as HTMLInputElement).value).toBe('원격 요청'))
+    expect((screen.getByTestId('partner-order-coedit-items-0-productName') as HTMLInputElement).value).toBe('원격 제품')
+    expect((screen.getByTestId('partner-order-coedit-items-0-quantity') as HTMLInputElement).value).toBe('5')
+    expect((screen.getByTestId('partner-order-coedit-items-0-remark') as HTMLInputElement).value).toBe('원격 비고')
+  })
+
+  it('빈 비고를 저장할 때 null 로 복원해 BE null 보존 계약을 유지한다', async () => {
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updatePartnerOrder.mockResolvedValue(makeOrder())
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    const remarkInput = await screen.findByTestId('partner-order-coedit-items-0-remark')
+    fireEvent.change(remarkInput, { target: { value: '' } })
+    fireEvent.click(screen.getByTestId('partner-order-edit-submit'))
+
+    await waitFor(() => expect(mocks.updatePartnerOrder).toHaveBeenCalledTimes(1))
+    expect(mocks.updatePartnerOrder.mock.calls[0][1].lines[0].remark).toBeNull()
   })
 })
