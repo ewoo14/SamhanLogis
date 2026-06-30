@@ -284,7 +284,7 @@ export function GroupwareApprovalCollaborationPanel({
             readOnly={!canWrite}
           />
           <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
-            팀 내 실시간 공유 메모입니다. 결재 문서 제목·내용 저장과는 별개로 보관됩니다.
+            팀 내 실시간 공유 메모입니다. 결재 문서의 “제목”·“내용”·“결재의견”(저장 항목)과는 별개로 보관됩니다.
           </p>
         </div>
 
