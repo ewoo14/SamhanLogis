@@ -195,7 +195,8 @@ class SlipRedlineIT extends AbstractPostgresIT {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         // 라인 셀 redline 이 구조적으로 누적되는지(존재 + layers≥2 + actor 체인) 단언 — QA NB-2 강화
-        JsonNode fields = objectMapper.readTree(body).path("fields");
+        // 응답은 ApiResponse.ok 래핑이므로 data.fields 경로(Codex 라운드 BLOCKING 수정)
+        JsonNode fields = objectMapper.readTree(body).path("data").path("fields");
         JsonNode price = findField(fields, "lines[0].unitPrice");
         assertThat(price).as("라인 단가 redline 필드").isNotNull();
         assertThat(price.path("layers").size()).as("단가 누적 layer ≥2").isGreaterThanOrEqualTo(2);
