@@ -3658,13 +3658,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         status: 'ACCEPTED'; decidedByName: string | null; decidedAt: string | null; createdAt: string
       }>>
       __SAMHAN_MOCK_ESTIMATE_PRESENCE?: Record<string, MockPresenceEntry[]>
+      __SAMHAN_MOCK_ESTIMATE_COEDIT?: Record<string, string[]>
     }
     if (!gecStore.__SAMHAN_MOCK_ESTIMATE_COLLAB_COMMENTS) gecStore.__SAMHAN_MOCK_ESTIMATE_COLLAB_COMMENTS = {}
     if (!gecStore.__SAMHAN_MOCK_ESTIMATE_COLLAB_EDITS) gecStore.__SAMHAN_MOCK_ESTIMATE_COLLAB_EDITS = {}
     if (!gecStore.__SAMHAN_MOCK_ESTIMATE_PRESENCE) gecStore.__SAMHAN_MOCK_ESTIMATE_PRESENCE = {}
+    if (!gecStore.__SAMHAN_MOCK_ESTIMATE_COEDIT) gecStore.__SAMHAN_MOCK_ESTIMATE_COEDIT = {}
     const estimateCommentsStore = gecStore.__SAMHAN_MOCK_ESTIMATE_COLLAB_COMMENTS
     const estimateEditsStore = gecStore.__SAMHAN_MOCK_ESTIMATE_COLLAB_EDITS
     const estimatePresenceStore = gecStore.__SAMHAN_MOCK_ESTIMATE_PRESENCE
+    const estimateCoeditStore = gecStore.__SAMHAN_MOCK_ESTIMATE_COEDIT
 
     const estimateCollabStreamMatch = url.match(/\/slips\/estimates\/([^/?]+)\/collab\/stream(?:\?.*)?$/)
     if (method === 'GET' && estimateCollabStreamMatch) {
@@ -3698,6 +3701,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (estimatePresenceListMatch && method === 'GET') {
       const estimateId = estimatePresenceListMatch[1]!
       return envelope([...(estimatePresenceStore[estimateId] ?? [])])
+    }
+
+    const estimateCoeditUpdateMatch = url.match(/(?:\/api\/v1)?\/slips\/estimates\/([^/?]+)\/collab\/coedit\/update(?:\?.*)?$/)
+    if (estimateCoeditUpdateMatch && method === 'POST') {
+      const estimateId = estimateCoeditUpdateMatch[1]!
+      const body = parseMockBody(config)
+      const update = typeof body['update'] === 'string' ? body['update'] : ''
+      if (!update) return mockError(400, 'INVALID_INPUT', 'update 값이 필요합니다')
+      estimateCoeditStore[estimateId] = [...(estimateCoeditStore[estimateId] ?? []), update]
+      return envelope(null)
+    }
+
+    const estimateCoeditAwarenessMatch = url.match(/(?:\/api\/v1)?\/slips\/estimates\/([^/?]+)\/collab\/coedit\/awareness(?:\?.*)?$/)
+    if (estimateCoeditAwarenessMatch && method === 'POST') {
+      return envelope(null)
+    }
+
+    const estimateCoeditMatch = url.match(/(?:\/api\/v1)?\/slips\/estimates\/([^/?]+)\/collab\/coedit(?:\?.*)?$/)
+    if (estimateCoeditMatch && method === 'GET') {
+      const estimateId = estimateCoeditMatch[1]!
+      return envelope({ updates: [...(estimateCoeditStore[estimateId] ?? [])] })
     }
 
     const estimateCollabCommentCollectionMatch = url.match(/\/slips\/estimates\/([^/?]+)\/collab\/comments(?:\?.*)?$/)

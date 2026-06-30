@@ -4,6 +4,7 @@ import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -20,6 +21,9 @@ import com.samhanair.logis.slip.estimate.repository.EstimateRepository;
 import com.samhanair.logis.slip.estimate.web.EstimatePermissionGuard;
 import com.samhanair.logis.slip.estimate.web.collab.dto.AddEstimateCollabCommentRequest;
 import com.samhanair.logis.slip.estimate.web.collab.dto.CommitEstimateCollabEditRequest;
+import com.samhanair.logis.slip.estimate.web.collab.dto.EstimateCoeditAwarenessRequest;
+import com.samhanair.logis.slip.estimate.web.collab.dto.EstimateCoeditUpdateRequest;
+import com.samhanair.logis.slip.estimate.web.collab.dto.EstimateCoeditUpdatesResponse;
 import com.samhanair.logis.slip.estimate.web.collab.dto.EstimateCollabCommentResponse;
 import com.samhanair.logis.slip.estimate.web.collab.dto.EstimateCollabEditResponse;
 import com.samhanair.logis.slip.estimate.web.collab.dto.EstimateCollabSuggestionResponse;
@@ -70,6 +74,7 @@ public class EstimateCollabController {
     private final EstimateRepository estimateRepository;
     private final EstimatePermissionGuard permissionGuard;
     private final PresenceService presenceService;
+    private final CollabCoeditService coeditService;
 
     public EstimateCollabController(CollabCommentService<EstimateCollabComment> commentService,
                                     EstimateCollabEditService editService,
@@ -78,7 +83,8 @@ public class EstimateCollabController {
                                     RealtimeBroker broker,
                                     EstimateRepository estimateRepository,
                                     EstimatePermissionGuard permissionGuard,
-                                    PresenceService presenceService) {
+                                    PresenceService presenceService,
+                                    CollabCoeditService coeditService) {
         this.commentService = commentService;
         this.editService = editService;
         this.suggestionRepository = suggestionRepository;
@@ -87,6 +93,7 @@ public class EstimateCollabController {
         this.estimateRepository = estimateRepository;
         this.permissionGuard = permissionGuard;
         this.presenceService = presenceService;
+        this.coeditService = coeditService;
     }
 
     /** 견적 협업 댓글 등록. */
@@ -201,6 +208,49 @@ public class EstimateCollabController {
                 .map(EstimateCollabSuggestionResponse::from)
                 .toList();
         return ApiResponse.ok(items);
+    }
+
+    /** 견적 협업 메모 Yjs update 누적 snapshot. 서버는 update 내용을 해석하지 않는다. */
+    @Operation(summary = "견적 협업 메모 coedit update snapshot")
+    @GetMapping("/{estimateId}/collab/coedit")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<EstimateCoeditUpdatesResponse> listCoeditUpdates(
+            @PathVariable UUID estimateId,
+            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        ensureEstimateExists(estimateId);
+        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
+        return ApiResponse.ok(new EstimateCoeditUpdatesResponse(coeditService.listUpdates(estimateId)));
+    }
+
+    /** 견적 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
+    @Operation(summary = "견적 협업 메모 coedit update relay")
+    @PostMapping("/{estimateId}/collab/coedit/update")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<Void> appendCoeditUpdate(
+            @PathVariable UUID estimateId,
+            @RequestBody(required = false) EstimateCoeditUpdateRequest request,
+            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        ensureEstimateExists(estimateId);
+        permissionGuard.checkEdit(parseAccountIdOrNull(callerId), isSystemMaster, PermissionAction.UPDATE);
+        coeditService.appendUpdate(estimateId, request == null ? null : request.update());
+        return ApiResponse.ok(null);
+    }
+
+    /** 견적 협업 메모 cursor/selection relay. 저장하지 않는 ephemeral 이벤트다. */
+    @Operation(summary = "견적 협업 메모 coedit awareness relay")
+    @PostMapping("/{estimateId}/collab/coedit/awareness")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<Void> publishCoeditAwareness(
+            @PathVariable UUID estimateId,
+            @RequestBody(required = false) EstimateCoeditAwarenessRequest request,
+            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+        ensureEstimateExists(estimateId);
+        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
+        coeditService.publishAwareness(estimateId, request == null ? null : request.awareness());
+        return ApiResponse.ok(null);
     }
 
     /** 견적 협업 SSE stream. 댓글/수정 이벤트는 estimateId 채널로 전달된다. */

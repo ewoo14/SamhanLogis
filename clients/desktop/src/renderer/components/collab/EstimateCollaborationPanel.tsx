@@ -23,6 +23,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { EstimatePresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
+import { CollaborativeTextField } from './CollaborativeTextField'
 
 export interface EstimateCollabEditableLine {
   /** BE EstimateDocumentCollaborationPort lineKey 와 동일한 1-based 활성 라인 index. */
@@ -163,6 +164,10 @@ export function EstimateCollaborationPanel({
   const commentQueryKey = useMemo(() => ['estimateCollabComments', estimateId] as const, [estimateId])
   const editQueryKey = useMemo(() => ['estimateCollabEdits', estimateId] as const, [estimateId])
   const estimateQueryKey = useMemo(() => ['estimate', estimateId] as const, [estimateId])
+  const collabBasePath = useMemo(
+    () => `/slips/estimates/${encodeURIComponent(estimateId)}`,
+    [estimateId],
+  )
 
   const canWrite = canAccess('estimates.list', 'update')
   const lines = useMemo(
@@ -302,6 +307,20 @@ export function EstimateCollaborationPanel({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
           <h4 style={{ margin: 0 }}>협업</h4>
           <PresenceIndicator entries={presenceEntries} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <CollaborativeTextField
+            documentId={estimateId}
+            basePath={collabBasePath}
+            fieldName="memo"
+            label="협업 메모"
+            rows={4}
+            readOnly={!canWrite}
+          />
+          <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+            팀 내 실시간 공유 메모입니다. 견적 저장과는 별개로 보관됩니다.
+          </p>
         </div>
 
         <div className="detail-grid" style={{ alignItems: 'start' }}>
