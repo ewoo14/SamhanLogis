@@ -206,6 +206,17 @@ async function priceIncData() {
   return out;
 }
 
+/** 카테고리별 단가 변동일 맵. */
+async function priceChangeSchedule() {
+  const resp = await ax.get(`${PRODUCT_BASE}/products/internal/price-change-schedule`, {
+    headers: { 'X-Internal-Token': INTERNAL_TOKEN },
+  });
+  if (resp.status !== 200) {
+    throw new Error(`price-change-schedule GET → HTTP ${resp.status}`);
+  }
+  return (resp.data && resp.data.data) || {};
+}
+
 /** 사양 상세 맵 → getSpecDetailMap_() 동일 shape. */
 async function specDetailMap() {
   const map = await get('/spec-detail-map');
@@ -226,6 +237,7 @@ module.exports = {
   materialPrices,
   recommendOduData,
   priceIncData,
+  priceChangeSchedule,
   specDetailMap,
   estimateConfig,
 };

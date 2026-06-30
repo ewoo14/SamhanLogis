@@ -1888,6 +1888,7 @@ async function bootstrap(userEmail) {
     try { t.oldProducts = JSON.stringify(await dbCatalog.oldProducts()); } catch (e) { Logger.log('[bootstrap] db old: ' + e.message); t.oldProducts = '[]'; }
     try { t.recommendData = JSON.stringify(await dbCatalog.recommendOduData()); } catch (e) { Logger.log('[bootstrap] db recommend: ' + e.message); t.recommendData = '{"comm":[],"home":[],"homeEx":[]}'; }
     try { t.priceInc = JSON.stringify(await dbCatalog.priceIncData()); } catch (e) { Logger.log('[bootstrap] db priceInc: ' + e.message); t.priceInc = '{"home":{},"comm":{},"single":{}}'; }
+    try { t.priceChangeSchedule = JSON.stringify(await dbCatalog.priceChangeSchedule()); } catch (e) { Logger.log('[bootstrap] db priceChangeSchedule: ' + e.message); t.priceChangeSchedule = '{}'; }
   } else {
     try { t.homemulti = JSON.stringify(getHomeMulti()); } catch (_) { t.homemulti = '[]'; }
     try { t.singleSets = JSON.stringify(getSingleSets()); } catch (_) { t.singleSets = '[]'; }
@@ -1898,6 +1899,7 @@ async function bootstrap(userEmail) {
     try { t.oldProducts = JSON.stringify(getOldProducts_()); } catch (_) { t.oldProducts = '[]'; }
     try { t.recommendData = JSON.stringify(getRecommendOduData()); } catch (_) { t.recommendData = '{"comm":[],"home":[],"homeEx":[]}'; }
     try { t.priceInc = JSON.stringify(getPriceIncData_()); } catch (_) { t.priceInc = '{"home":{},"comm":{},"single":{}}'; }
+    t.priceChangeSchedule = '{}';
   }
 
   try { t.homeDefaults = JSON.stringify(useDb ? getHomeDefaults(estimateConfig) : getHomeDefaults()); } catch (_) { t.homeDefaults = '{}'; }

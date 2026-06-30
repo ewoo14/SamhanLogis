@@ -56,6 +56,14 @@ jest.mock('axios', () => {
         { modelCode: 'AM040', estimateCategory: 'COMMERCIAL_MULTI', releasePrice: 5800000, deliveryPrice: 4700000 },
       ]);
     }
+    if (/\/price-change-schedule/.test(url)) {
+      return ok({
+        homemulti: '2026-04-01',
+        singleSets: '2026-04-01',
+        commercialMulti: '2026-04-01',
+        oldProducts: '2026-04-01',
+      });
+    }
     if (/\/spec-detail-map/.test(url)) {
       return ok(global.__SPEC_DETAIL_MAP_PAYLOAD__ === undefined ? {
         AJ060: {
@@ -104,6 +112,7 @@ jest.mock('axios', () => {
 });
 
 const db = require('../lib/db-catalog');
+const axios = require('axios');
 
 // 분류기 스텁 (estimate-app code.js 의 실 분류기 시그니처 동등 최소본)
 const classifyHome = (name) => ({ catL: '실외기', catM: '단배관', catS: '', disp: '6HP' });
@@ -188,6 +197,25 @@ describe('#30 db-catalog → legacy getter shape', () => {
     expect(p.home.AJ060).toBe(3800000);
     expect(p.comm.AM040).toBe(5800000);
     expect(p.single.AC060).toEqual({ list: 1900000, price: 1400000 });
+  });
+
+  test('priceChangeSchedule — 변동일 맵 반환 + internal token 헤더 전송', async () => {
+    const schedule = await db.priceChangeSchedule();
+    expect(schedule).toEqual({
+      homemulti: '2026-04-01',
+      singleSets: '2026-04-01',
+      commercialMulti: '2026-04-01',
+      oldProducts: '2026-04-01',
+    });
+
+    const getMock = axios.create.mock.results[0].value.get;
+    const call = getMock.mock.calls.find(([url]) => /\/products\/internal\/price-change-schedule$/.test(url));
+    expect(call).toBeTruthy();
+    expect(call[1]).toEqual({
+      headers: {
+        'X-Internal-Token': expect.any(String),
+      },
+    });
   });
 
   test('specDetailMap — product-service shape 그대로 반환', async () => {

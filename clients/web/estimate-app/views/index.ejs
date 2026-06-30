@@ -2254,6 +2254,7 @@ const REC_RAW = <%- recommendData %>;
 const RECOMMEND_DATA = J(REC_RAW, {comm:[], home:[], homeEx:[]});
 const PRICE_INC_RAW = <%- priceInc %>;
 const PRICE_INC = J(PRICE_INC_RAW, {home:{}, comm:{}, single:{}});
+const PRICE_CHANGE_SCHEDULE = J(<%- priceChangeSchedule %>, {});
 
 // 출고가 보정
 function getBaseListPrice(type, model, defaultVal) {
