@@ -599,10 +599,9 @@ class EstimateCollabIT extends AbstractPostgresIT {
     @Test
     void coedit_readEndpoints_deniedWithoutViewPermission_returns403() throws Exception {
         UUID estimateId = seedEstimate("CVD").getId();
+        // account-mode 가드는 check(UUID, page, action) 경로만 사용 → check stub 단독으로 deny 박제(canView 중복 불요).
         when(dynamicPermissionClient.check(
                 any(UUID.class), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.VIEW)))
-                .thenReturn(false);
-        when(dynamicPermissionClient.canView(any(), eq(EstimatePermissionGuard.PAGE_CODE)))
                 .thenReturn(false);
 
         mvc.perform(get("/slips/estimates/{estimateId}/collab/coedit", estimateId)
@@ -645,10 +644,9 @@ class EstimateCollabIT extends AbstractPostgresIT {
     @Test
     void coedit_update_deniedWithoutUpdatePermission_returns403() throws Exception {
         UUID estimateId = seedEstimate("CUD").getId();
+        // account-mode 가드는 check(UUID, page, action) 경로만 사용 → check stub 단독으로 deny 박제(canEdit 중복 불요).
         when(dynamicPermissionClient.check(
                 any(UUID.class), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.UPDATE)))
-                .thenReturn(false);
-        when(dynamicPermissionClient.canEdit(any(), eq(EstimatePermissionGuard.PAGE_CODE)))
                 .thenReturn(false);
 
         mvc.perform(post("/slips/estimates/{estimateId}/collab/coedit/update", estimateId)
@@ -656,6 +654,25 @@ class EstimateCollabIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
                 .andExpect(status().isForbidden());
+    }
+
+    /** coedit awareness 의 body 누락/빈 awareness 필드는 400 으로 거부된다(update 와 대칭). */
+    @Test
+    void coedit_awareness_nullOrEmptyBody_returns400() throws Exception {
+        UUID estimateId = seedEstimate("COED-AW-NULL").getId();
+
+        mvc.perform(post("/slips/estimates/{estimateId}/collab/coedit/awareness", estimateId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(SYSTEM_MASTER_HEADER, "true")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/slips/estimates/{estimateId}/collab/coedit/awareness", estimateId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .header(SYSTEM_MASTER_HEADER, "true")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     /**
