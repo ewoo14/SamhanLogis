@@ -237,6 +237,9 @@ public class SlipDocumentCollaborationPort implements DocumentCollaborationPort 
             SlipSnapshot snapshot = objectMapper.readValue(snapshotJson, SlipSnapshot.class);
             slip.restoreFromSnapshot(snapshot);
             slipRepository.save(slip);
+            // [S2c] collab-core 시스템 복원(SYSTEM_ACTOR "협업 복원")은 사용자 "전표수정내역"
+            // (editHistoryCount)에 카운트하지 않는다 — 사용자 직접 복원(SlipService.restoreToRevision)
+            // 과 달리 프레임워크 동기/복원이므로 incrementRevision 을 의도적으로 호출하지 않는다(결함계열 sweep 명시).
             revisionService.capture(slip, SlipRevisionType.RESTORE, null,
                     SYSTEM_ACTOR_ID, SYSTEM_RESTORE_ACTOR_NAME, null);
         } catch (JsonProcessingException ex) {
