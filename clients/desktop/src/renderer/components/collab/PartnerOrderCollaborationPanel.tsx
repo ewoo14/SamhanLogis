@@ -23,6 +23,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { PartnerOrderPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
+import { CollaborativeTextField } from './CollaborativeTextField'
 
 export interface PartnerOrderCollabEditableLine {
   /** BE PartnerOrderDocumentCollaborationPort lineKey 와 동일한 1-based 활성 라인 index. */
@@ -160,6 +161,11 @@ export function PartnerOrderCollaborationPanel({
   const commentQueryKey = useMemo(() => ['partnerOrderCollabComments', orderId] as const, [orderId])
   const editQueryKey = useMemo(() => ['partnerOrderCollabEdits', orderId] as const, [orderId])
   const orderQueryKey = useMemo(() => ['partner-order', orderId] as const, [orderId])
+
+  const collabBasePath = useMemo(
+    () => `/partner-orders/${encodeURIComponent(orderId)}`,
+    [orderId],
+  )
 
   const canWriteComments = canAccess('sales.partner-order.edit', 'update')
   const canResolveComments = canAccess('sales.partner-order.edit', 'update')
@@ -307,6 +313,17 @@ export function PartnerOrderCollaborationPanel({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
           <h4 style={{ margin: 0 }}>협업</h4>
           <PresenceIndicator entries={presenceEntries} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <CollaborativeTextField
+            documentId={orderId}
+            basePath={collabBasePath}
+            fieldName="memo"
+            label="협업 메모"
+            rows={4}
+            readOnly={!canWriteComments}
+          />
         </div>
 
         <div className="detail-grid" style={{ alignItems: 'start' }}>
