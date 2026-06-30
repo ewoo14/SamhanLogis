@@ -419,8 +419,13 @@ export function SalesPartnerOrderDetailPage() {
       }
       provider = nextProvider
       const serverLineCount = toEditLines(orderData).length
-      // 서버 라인 수와 provider 라인 수가 다르면 stale 스냅샷으로 판단하고 서버 라인을 우선한다.
-      if (nextProvider.isEmpty() || nextProvider.items.toArray().length !== serverLineCount) {
+      const providerLineCount = nextProvider.items.toArray().length
+      // 슬1은 coedit 라인 추가/삭제 UI가 없어 provider 라인수 = seed(서버) 시점 수.
+      // 따라서 라인수 불일치 = stale 스냅샷(서버가 PUT으로 라인 변경)이므로 양방향 모두 server-wins
+      // re-seed: provider>server(서버 라인 제거됨)=categoryKey 오염·제거라인 재저장 차단,
+      // provider<server(서버 라인 추가됨)=라인 유실 차단. 동시 셀편집은 라인수 동일이라 보존됨.
+      // 동시 라인추가(트랙A 라인 CRDT) 도입 시 lineId 기반 reconcile 로 대체 예정.
+      if (nextProvider.isEmpty() || providerLineCount !== serverLineCount) {
         seedPartnerOrderCoeditProvider(nextProvider, orderData)
       }
       applyProviderState(nextProvider)

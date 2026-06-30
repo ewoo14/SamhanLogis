@@ -300,6 +300,37 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
     ])
   })
 
+  it('provider 라인 수가 서버와 다르면(슬1=라인추가 UI 없음→stale) server-wins 로 재시드한다', async () => {
+    // 슬1은 coedit 라인 추가/삭제가 없어 provider 라인수 ≠ 서버 라인수 = stale 스냅샷.
+    // 양방향 모두 server-wins re-seed 로 categoryKey 오염·라인 유실/재저장을 차단한다.
+    const provider = makeProvider()
+    provider.isEmpty.mockReturnValue(false)
+    provider.__setRows([
+      {
+        productName: '제품 1',
+        modelCode: 'MODEL-1',
+        quantity: '2',
+        deliveryPrice: '10000',
+        remark: '라인 비고',
+      },
+      {
+        productName: '스테일 잔여(서버에서 제거됨)',
+        modelCode: 'STALE-EXTRA',
+        quantity: '4',
+        deliveryPrice: '12000',
+        remark: '스테일',
+      },
+    ])
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+
+    // provider(2) ≠ 서버(makeOrder) 라인수 → re-seed(server-wins)
+    await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+  })
+
   it('수정모달을 닫으면 provider 구독을 정리하고 destroy 를 호출한다', async () => {
     const provider = makeProvider()
     mocks.getPartnerOrder.mockResolvedValue(makeOrder())
