@@ -1353,6 +1353,7 @@ const HOME_INC_RAW = __BS.homeInc || {};
 const COMM_INC_RAW = __BS.commInc || {};
 const SINGLE_INC_RAW = __BS.singleInc || {};
 const SINGLE_PARTS_INC_RAW = __BS.singlePartsInc || {};
+const PRICE_CHANGE_SCHEDULE_RAW = __BS.priceChangeSchedule || {};
 const CFG_RAW = __BS.config || {};
 const SPEC_RAW = __BS.specDetailMap || {};
 const SPEC_DETAIL_MAP = J(SPEC_RAW,{});
@@ -1423,10 +1424,15 @@ const HOME_INC = J(HOME_INC_RAW, {});
 const COMM_INC = J(COMM_INC_RAW, {});
 const SINGLE_INC = J(SINGLE_INC_RAW, {});
 const SINGLE_PARTS_INC = J(SINGLE_PARTS_INC_RAW, {});
+const PRICE_CHANGE_SCHEDULE = J(PRICE_CHANGE_SCHEDULE_RAW, {});
 const oldQty=new Map();
 
-// 인상기준일
-const PRICE_INC_DATE = '2026-04-01';
+function incActive(categoryKey, due) {
+  const effectiveDate = PRICE_CHANGE_SCHEDULE && PRICE_CHANGE_SCHEDULE[categoryKey];
+  if (!effectiveDate || !due) return false;
+  return due < String(effectiveDate);
+}
+
 let CONFIG=J(CFG_RAW,{
   homeDiscount: 0.45,
   commDiscount: 0.45,
@@ -2594,7 +2600,7 @@ function homeUnitPrice(model){
   let currentSheetPrice = sheetPrice;
 
   const due = document.getElementById('due')?.value || '';
-  if (due >= '2026-04-01' && HOME_INC[model]) {
+  if (incActive('homemulti', due) && HOME_INC[model]) {
     currentListPrice = HOME_INC[model];
     currentSheetPrice = HOME_INC[model];
   }
@@ -2622,7 +2628,7 @@ function partUnitPrice(p){
     return 7000;
   }
   const due = document.getElementById('due')?.value || '';
-  if (due >= PRICE_INC_DATE && SINGLE_PARTS_INC[p.model]) {
+  if (incActive('singleSets', due) && SINGLE_PARTS_INC[p.model]) {
     return SINGLE_PARTS_INC[p.model];
   }
   return priceFrom(p,{
@@ -2643,7 +2649,7 @@ function setBasePriceLeft(s){
 function singleUnitPrice(it){
   const due = document.getElementById('due')?.value || '';
   let base = Math.round(Number(it.priceRaw ?? it.price ?? 0));
-  if (due >= PRICE_INC_DATE && SINGLE_INC[it.model]) {
+  if (incActive('singleSets', due) && SINGLE_INC[it.model]) {
     base = SINGLE_INC[it.model];
   }
 
@@ -2708,7 +2714,7 @@ function commUnitPrice(model){
   let currentSheetPrice = sheetPrice;
 
   const due = document.getElementById('due')?.value || '';
-  if (due >= '2026-04-01' && COMM_INC[model]) {
+  if (incActive('commercialMulti', due) && COMM_INC[model]) {
     currentListPrice = COMM_INC[model];
     currentSheetPrice = COMM_INC[model];
   }
@@ -3100,7 +3106,7 @@ function pickPanelRow(s){
 // 기본가우선
 function setBasePriceRightFirst(s){
   const due = document.getElementById('due')?.value || '';
-  if (due >= PRICE_INC_DATE && SINGLE_INC[s.model]) {
+  if (incActive('singleSets', due) && SINGLE_INC[s.model]) {
     return SINGLE_INC[s.model];
   }
   const v = priceFrom(s, {

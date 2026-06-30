@@ -3,6 +3,8 @@ package com.samhanair.logis.partnerorder.client;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -60,6 +62,43 @@ public class EstimateCatalogClient {
         return getList(uriBuilder -> uriBuilder
                 .path("/products/internal/estimate-catalog/price-baseline")
                 .build());
+    }
+
+    public Map<String, LocalDate> priceChangeSchedule() {
+        try {
+            Map<String, Object> envelope = restClient.get()
+                    .uri("/products/internal/price-change-schedule")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "product-service price-change-schedule 4xx: " + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service price-change-schedule 5xx: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+
+            Object data = envelope == null ? null : envelope.get("data");
+            if (!(data instanceof Map<?, ?> rawMap)) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "product-service price-change-schedule 응답 포맷 오류 (data 누락)");
+            }
+            Map<String, LocalDate> out = new LinkedHashMap<>();
+            rawMap.forEach((k, v) -> {
+                if (k instanceof String key && v != null) {
+                    out.put(key, LocalDate.parse(v.toString()));
+                }
+            });
+            return out;
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("EstimateCatalogClient price-change-schedule request failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service price-change-schedule 호출 실패", ex);
+        }
     }
 
     private List<Map<String, Object>> getList(java.util.function.Function<

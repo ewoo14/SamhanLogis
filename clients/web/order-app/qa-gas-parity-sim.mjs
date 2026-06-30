@@ -304,7 +304,11 @@ function buildSandbox(src, { dueDate, configObj, discountHome, discountComm }) {
   sandbox.COMM_INC = {};
   sandbox.SINGLE_INC = {};
   sandbox.SINGLE_PARTS_INC = {};
-  sandbox.PRICE_INC_DATE = '2026-04-01';
+  sandbox.PRICE_CHANGE_SCHEDULE = {
+    homemulti: '2026-04-01',
+    commercialMulti: '2026-04-01',
+    singleSets: '2026-04-01',
+  };
   sandbox.AUTO_HOME_MODELS = new Set();
   sandbox.AUTO_SINGLE_IDS = new Set();
 

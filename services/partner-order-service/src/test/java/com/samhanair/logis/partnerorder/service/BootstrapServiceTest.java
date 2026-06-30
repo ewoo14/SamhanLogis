@@ -21,6 +21,7 @@ import com.samhanair.logis.partnerorder.web.dto.BootstrapResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +73,8 @@ class BootstrapServiceTest {
                 .thenReturn(List.of());
         lenient().when(estimateCatalogClient.priceBaseline())
                 .thenReturn(List.of());
+        lenient().when(estimateCatalogClient.priceChangeSchedule())
+                .thenReturn(Map.of());
     }
 
     private void setField(String name, Object value) throws Exception {
@@ -203,6 +206,17 @@ class BootstrapServiceTest {
                 .thenReturn(List.of(
                         Map.of("name", "D7", "price", new BigDecimal("43000")),
                         Map.of("name", "D8", "price", new BigDecimal("51000"))));
+        when(estimateCatalogClient.priceBaseline())
+                .thenReturn(List.of(
+                        baselineRow("HM-1", "HOME_MULTI", "440000", "111000"),
+                        baselineRow("CM-1", "COMMERCIAL_MULTI", "320000", "222000"),
+                        baselineRow("SS-1", "SINGLE_SET", "1100000", "900000"),
+                        baselineRow("PANEL-1", "SINGLE_SET", "65000", "50000")));
+        when(estimateCatalogClient.priceChangeSchedule())
+                .thenReturn(Map.of(
+                        "homemulti", LocalDate.of(2026, 4, 1),
+                        "singleSets", LocalDate.of(2026, 4, 1),
+                        "commercialMulti", LocalDate.of(2026, 5, 1)));
         when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of(
                 makeCacheRow("config", "{\"vatRate\":0.1,\"homeDiscount\":0.45}")));
 
@@ -269,14 +283,20 @@ class BootstrapServiceTest {
         assertThat(commercialPart).containsEntry("price", new BigDecimal("88000"));
 
         // then — 자재가격/단가인상은 배열이 아니라 legacy 객체맵이다.
-        // order-app INC 맵은 인상 후 catalog 값이어야 하며, price-baseline(인상 전)은 estimate-app 전용이다.
+        // 모델 B: base catalog 는 인상 후를 유지하고, INC 맵은 price-baseline(인상 전) 값이다.
+        // baseline 이 없는 모델은 INC 에 넣지 않아 FE 가 base(후)를 유지하게 한다.
         assertThat(payloads.get("singleMatPrices"))
                 .isEqualTo(Map.of("D7", new BigDecimal("43000"), "D8", new BigDecimal("51000")));
-        assertThat(payloads.get("homeInc")).isEqualTo(Map.of("HM-1", new BigDecimal("456000")));
-        assertThat(payloads.get("commInc")).isEqualTo(Map.of("CM-1", new BigDecimal("333000")));
-        assertThat(payloads.get("singleInc")).isEqualTo(Map.of("SS-1", new BigDecimal("1000000")));
-        assertThat(payloads.get("singlePartsInc")).isEqualTo(Map.of("PANEL-1", new BigDecimal("55000")));
-        verify(estimateCatalogClient, never()).priceBaseline();
+        assertThat(payloads.get("homeInc")).isEqualTo(Map.of("HM-1", new BigDecimal("440000")));
+        assertThat(payloads.get("commInc")).isEqualTo(Map.of("CM-1", new BigDecimal("320000")));
+        assertThat(payloads.get("singleInc")).isEqualTo(Map.of("SS-1", new BigDecimal("900000")));
+        assertThat(payloads.get("singlePartsInc")).isEqualTo(Map.of("PANEL-1", new BigDecimal("50000")));
+        assertThat(payloads.get("priceChangeSchedule")).isEqualTo(Map.of(
+                "homemulti", LocalDate.of(2026, 4, 1),
+                "singleSets", LocalDate.of(2026, 4, 1),
+                "commercialMulti", LocalDate.of(2026, 5, 1)));
+        verify(estimateCatalogClient).priceBaseline();
+        verify(estimateCatalogClient).priceChangeSchedule();
 
         @SuppressWarnings("unchecked")
         Map<String, Object> configMap = (Map<String, Object>) payloads.get("config");
@@ -344,6 +364,19 @@ class BootstrapServiceTest {
         row.put("variant", variant);
         row.put("isDefault", isDefault);
         row.put("specText", specText);
+        return row;
+    }
+
+    private static Map<String, Object> baselineRow(
+            String modelCode,
+            String estimateCategory,
+            String releasePrice,
+            String deliveryPrice) {
+        Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("modelCode", modelCode);
+        row.put("estimateCategory", estimateCategory);
+        row.put("releasePrice", bd(releasePrice));
+        row.put("deliveryPrice", bd(deliveryPrice));
         return row;
     }
 

@@ -14,7 +14,8 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 16종 bootstrap 정적 캐시 (legacy index.html 1230~1244 + Code.js doGet 4~23 → 본 entity).
+ * 16종 bootstrap 정적 seed 캐시 (legacy index.html 1230~1244 + Code.js doGet 4~23 → 본 entity).
+ * 단가변동 schedule 은 product-service 동적 payload 로 붙으며 본 정적 seed row 에 저장하지 않는다.
  *
  * <p>각 row 는 하나의 카테고리 ({@link #cacheKey}) — homemulti / singleSets / singleParts /
  * homeDefaults / singleDefaults / singleMatPrices / commercialMulti / commercialParts /

@@ -10,6 +10,7 @@ import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.service.BootstrapService;
 import com.samhanair.logis.partnerorder.web.dto.BootstrapResponse;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
- * 16종 bootstrap 캐시 응답 + DC 9키 제거 가드 검증.
+ * 17종 bootstrap 캐시 응답 + DC 9키 제거 가드 검증.
  *
  * <p>5 외부 client (DcConfig/Product/Inventory/Slip/PartnerAuth) 는 {@code @MockBean} 으로
  * 격리 — 메모리 가드 ({@code feedback_it_mockbean_external_clients}) — Eureka 비활성 환경에서도
@@ -57,15 +58,21 @@ class PartnerOrderBootstrapIT extends AbstractPostgresIT {
         Mockito.lenient().when(slipServiceClient.publishFromPartnerOrder(
                         Mockito.anyMap(), Mockito.anyString()))
                 .thenReturn(SlipServiceClient.PublishResult.published("STUB-SLIP"));
+        Mockito.lenient().when(estimateCatalogClient.priceBaseline())
+                .thenReturn(List.of());
+        Mockito.lenient().when(estimateCatalogClient.priceChangeSchedule())
+                .thenReturn(Map.of("homemulti", LocalDate.of(2026, 4, 1)));
     }
 
     @Test
-    void bootstrap_16_keys_seeded_and_dc_secrets_stripped_from_config() {
+    void bootstrap_17_keys_seeded_and_dc_secrets_stripped_from_config() {
         BootstrapResponse response = bootstrapService.fetch();
         Map<String, Object> payloads = response.payloads();
 
-        // 16개 키 모두 존재 + 순서 보존
+        // 17개 키 모두 존재 + 순서 보존
         assertThat(payloads.keySet()).containsExactlyElementsOf(BootstrapService.CACHE_KEYS);
+        assertThat(payloads.get("priceChangeSchedule"))
+                .isEqualTo(Map.of("homemulti", LocalDate.of(2026, 4, 1)));
 
         // config 키는 DC 9키 미포함 (BootstrapService 가 strip)
         Object cfg = payloads.get("config");

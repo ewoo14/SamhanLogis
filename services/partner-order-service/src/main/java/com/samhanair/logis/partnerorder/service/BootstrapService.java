@@ -13,6 +13,8 @@ import com.samhanair.logis.partnerorder.domain.BootstrapCacheConfig;
 import com.samhanair.logis.partnerorder.repository.BootstrapCacheConfigRepository;
 import com.samhanair.logis.partnerorder.web.dto.BootstrapResponse;
 import jakarta.annotation.PostConstruct;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,7 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 16종 bootstrap prefetch 서비스 (legacy index.html 1230~1244 + Code.js doGet 4~23 대체).
+ * 17종 bootstrap prefetch 서비스 (legacy index.html 1230~1244 + Code.js doGet 4~23 대체).
  *
  * <p><b>PR-D Part 1 보강</b>: 부팅 시 16 cache key 별 시트 직접 read 우선, 실패 시 V2 seed
  * fallback. Samhan Public 자체 service 안에서 시트 read — 외부 시스템 호출 X
@@ -39,12 +41,12 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>{@link Cacheable} 로 in-memory 캐시 — 카탈로그 변경 시 admin endpoint 가 evict.
  * config 키는 DC 9키 ({@code homeDiscount=0.45} 등) 가 제거된 client-safe 사본만 보관 (M3 가드 일관).
  *
- * <p>16 cache key (legacy 와 동일):
+ * <p>17 cache key:
  * <pre>
  *   homemulti, singleSets, singleParts, homeDefaults, singleDefaults, singleMatPrices,
  *   commercialMulti, commercialParts, oldProducts,
  *   homeInc, commInc, singleInc, singlePartsInc,
- *   specDetailMap, config, logoData
+ *   specDetailMap, config, logoData, priceChangeSchedule
  * </pre>
  *
  * <p><b>시트 매핑</b>: {@code app.bootstrap.range-map.<cacheKey>} 에 정의된 A1 range 가 있는
@@ -57,7 +59,7 @@ public class BootstrapService {
 
     private static final Logger log = LoggerFactory.getLogger(BootstrapService.class);
 
-    /** 16종 cacheKey 목록 (FE 응답 키 순서 보존). */
+    /** 17종 cacheKey 목록 (FE 응답 키 순서 보존). */
     public static final List<String> CACHE_KEYS = List.of(
             "homemulti",
             "singleSets",
@@ -74,7 +76,8 @@ public class BootstrapService {
             "singlePartsInc",
             "specDetailMap",
             "config",
-            "logoData");
+            "logoData",
+            "priceChangeSchedule");
 
     /**
      * config 키에서 제거되어야 할 DC 9키 (legacy CFG_RAW). client 응답 노출 금지.
@@ -162,10 +165,10 @@ public class BootstrapService {
     }
 
     /**
-     * 16종 bootstrap 응답 — 시트 prefetch 우선, 부재 시 V2 seed fallback.
+     * 17종 bootstrap 응답 — 시트 prefetch 우선, 부재 시 V2 seed fallback.
      * config 키는 DC 9키 제거 후 응답.
      *
-     * @return BootstrapResponse — payloads Map (16개 cacheKey → 객체)
+     * @return BootstrapResponse — payloads Map (17개 cacheKey → 객체)
      */
     @Cacheable("bootstrap")
     @Transactional(readOnly = true)
@@ -194,13 +197,20 @@ public class BootstrapService {
             BootstrapCacheConfig row = rowsByKey.get(key);
             if (row == null) {
                 // legacy graceful fallback — 빈 객체
-                payloads.put(key, "config".equals(key) ? Map.of() : List.of());
+                payloads.put(key, defaultPayload(key));
                 continue;
             }
             Object parsed = parsePayload(row.getPayloadJson());
             payloads.put(key, applyConfigGuard(key, parsed));
         }
         return new BootstrapResponse(payloads);
+    }
+
+    private Object defaultPayload(String key) {
+        if ("config".equals(key) || "priceChangeSchedule".equals(key)) {
+            return Map.of();
+        }
+        return List.of();
     }
 
     /** config 키에 한해 DC 9키 strip — sheet/seed 양쪽 동일 가드. */
@@ -269,6 +279,8 @@ public class BootstrapService {
         List<Map<String, Object>> commercialParts = nullToEmpty(estimateCatalogClient.components(
                 EstimateCategory.COMMERCIAL_MULTI));
         List<Map<String, Object>> materialPrices = nullToEmpty(estimateCatalogClient.materialPrices());
+        List<Map<String, Object>> priceBaseline = nullToEmpty(estimateCatalogClient.priceBaseline());
+        Map<String, LocalDate> priceChangeSchedule = estimateCatalogClient.priceChangeSchedule();
 
         boolean hasProductData = !(homemulti.isEmpty()
                 && commercialMulti.isEmpty()
@@ -276,11 +288,14 @@ public class BootstrapService {
                 && oldProducts.isEmpty()
                 && singleParts.isEmpty()
                 && commercialParts.isEmpty()
-                && materialPrices.isEmpty());
+                && materialPrices.isEmpty()
+                && priceBaseline.isEmpty()
+                && (priceChangeSchedule == null || priceChangeSchedule.isEmpty()));
         if (!hasProductData) {
             return Map.of();
         }
 
+        Map<String, Map<String, Object>> baselineByModel = baselineByModel(priceBaseline);
         Map<String, Object> payloads = new LinkedHashMap<>();
         payloads.put("homemulti", catalogRows(homemulti, CatalogShape.MULTI));
         payloads.put("singleSets", singleSetRows(singleSets));
@@ -289,10 +304,14 @@ public class BootstrapService {
         payloads.put("commercialMulti", catalogRows(commercialMulti, CatalogShape.MULTI));
         payloads.put("commercialParts", componentRows(commercialParts, true));
         payloads.put("oldProducts", catalogRows(oldProducts, CatalogShape.LEGACY));
-        payloads.put("homeInc", incPriceMap(homemulti, "modelCode", "releasePrice"));
-        payloads.put("commInc", incPriceMap(commercialMulti, "modelCode", "releasePrice"));
-        payloads.put("singleInc", incPriceMap(singleSets, "modelCode", "deliveryPrice"));
-        payloads.put("singlePartsInc", incPriceMap(singleParts, "componentModelCode", "deliveryPrice"));
+        payloads.put("homeInc", incPriceMap(homemulti, baselineByModel, "modelCode", "releasePrice", "homeInc"));
+        payloads.put("commInc", incPriceMap(commercialMulti, baselineByModel,
+                "modelCode", "releasePrice", "commInc"));
+        payloads.put("singleInc", incPriceMap(singleSets, baselineByModel,
+                "modelCode", "deliveryPrice", "singleInc"));
+        payloads.put("singlePartsInc", incPriceMap(singleParts, baselineByModel,
+                "componentModelCode", "deliveryPrice", "singlePartsInc"));
+        payloads.put("priceChangeSchedule", priceChangeSchedule == null ? Map.of() : priceChangeSchedule);
         return payloads;
     }
 
@@ -395,22 +414,43 @@ public class BootstrapService {
         return out;
     }
 
-    /**
-     * order-app 의 *_INC 맵은 legacy GAS "_단가인상" 탭 의미와 동일하게 인상 후 catalog 값을 담는다.
-     * price-baseline(2000-01-01)은 estimate-app 의 "인상 전 단가" 체크박스 전용이므로 여기서 쓰지 않는다.
-     */
-    private Map<String, Object> incPriceMap(List<Map<String, Object>> rows, String modelKey, String priceKey) {
+    /** 모델 B: order-app 의 *_INC 맵은 price-baseline(2000-01-01)의 인상 전 단가만 담는다. */
+    private Map<String, Object> incPriceMap(
+            List<Map<String, Object>> rows,
+            Map<String, Map<String, Object>> baselineByModel,
+            String modelKey,
+            String priceKey,
+            String targetKey) {
         Map<String, Object> out = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
             String modelCode = str(row.get(modelKey));
             if (modelCode == null || modelCode.isBlank()) {
                 continue;
             }
-            java.math.BigDecimal price = decimal(row.get(priceKey));
-            if (price == null || price.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            Map<String, Object> baseline = baselineByModel.get(modelCode);
+            if (baseline == null) {
+                log.warn("[BootstrapService] price-baseline 누락으로 {} 제외: model={}", targetKey, modelCode);
+                continue;
+            }
+            BigDecimal price = decimal(baseline.get(priceKey));
+            if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
+                log.warn("[BootstrapService] price-baseline 가격 결측으로 {} 제외: model={}, priceKey={}",
+                        targetKey, modelCode, priceKey);
                 continue;
             }
             out.put(modelCode, price);
+        }
+        return out;
+    }
+
+    private Map<String, Map<String, Object>> baselineByModel(List<Map<String, Object>> rows) {
+        Map<String, Map<String, Object>> out = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            String modelCode = str(row.get("modelCode"));
+            if (modelCode == null || modelCode.isBlank()) {
+                continue;
+            }
+            out.putIfAbsent(modelCode, row);
         }
         return out;
     }
