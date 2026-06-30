@@ -6,6 +6,9 @@ import com.samhanair.logis.accounting.collab.JournalCollabSuggestionRepository;
 import com.samhanair.logis.accounting.collab.JournalDocumentCollaborationPort;
 import com.samhanair.logis.accounting.web.collab.dto.AddJournalCollabCommentRequest;
 import com.samhanair.logis.accounting.web.collab.dto.CommitJournalCollabEditRequest;
+import com.samhanair.logis.accounting.web.collab.dto.JournalCoeditAwarenessRequest;
+import com.samhanair.logis.accounting.web.collab.dto.JournalCoeditUpdateRequest;
+import com.samhanair.logis.accounting.web.collab.dto.JournalCoeditUpdatesResponse;
 import com.samhanair.logis.accounting.web.collab.dto.JournalCollabCommentResponse;
 import com.samhanair.logis.accounting.web.collab.dto.JournalCollabEditResponse;
 import com.samhanair.logis.accounting.web.collab.dto.JournalCollabSuggestionResponse;
@@ -14,6 +17,7 @@ import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -66,19 +70,22 @@ public class JournalCollabController {
     private final JournalDocumentCollaborationPort port;
     private final RealtimeBroker broker;
     private final PresenceService presenceService;
+    private final CollabCoeditService coeditService;
 
     public JournalCollabController(CollabCommentService<JournalCollabComment> commentService,
                                    JournalCollabEditService editService,
                                    JournalCollabSuggestionRepository suggestionRepository,
                                    JournalDocumentCollaborationPort port,
                                    RealtimeBroker broker,
-                                   PresenceService presenceService) {
+                                   PresenceService presenceService,
+                                   CollabCoeditService coeditService) {
         this.commentService = commentService;
         this.editService = editService;
         this.suggestionRepository = suggestionRepository;
         this.port = port;
         this.broker = broker;
         this.presenceService = presenceService;
+        this.coeditService = coeditService;
     }
 
     /** 회계전표 협업 댓글 등록. */
@@ -178,6 +185,39 @@ public class JournalCollabController {
                 .map(JournalCollabSuggestionResponse::from)
                 .toList();
         return ApiResponse.ok(items);
+    }
+
+    /** 회계전표 협업 메모 Yjs update 누적 snapshot. 서버는 update 내용을 해석하지 않는다. */
+    @Operation(summary = "회계전표 협업 메모 coedit update snapshot")
+    @GetMapping("/coedit")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<JournalCoeditUpdatesResponse> listCoeditUpdates(@PathVariable UUID journalId) {
+        ensureJournalExists(journalId);
+        return ApiResponse.ok(new JournalCoeditUpdatesResponse(coeditService.listUpdates(journalId)));
+    }
+
+    /** 회계전표 협업 메모 Yjs update relay. 같은 collab SSE stream 으로 coedit:update 이벤트가 발행된다. */
+    @Operation(summary = "회계전표 협업 메모 coedit update relay")
+    @PostMapping("/coedit/update")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.UPDATE)
+    public ApiResponse<Void> appendCoeditUpdate(
+            @PathVariable UUID journalId,
+            @RequestBody(required = false) JournalCoeditUpdateRequest request) {
+        ensureJournalExists(journalId);
+        coeditService.appendUpdate(journalId, request == null ? null : request.update());
+        return ApiResponse.ok(null);
+    }
+
+    /** 회계전표 협업 메모 cursor/selection relay. 저장하지 않는 ephemeral 이벤트다. */
+    @Operation(summary = "회계전표 협업 메모 coedit awareness relay")
+    @PostMapping("/coedit/awareness")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<Void> publishCoeditAwareness(
+            @PathVariable UUID journalId,
+            @RequestBody(required = false) JournalCoeditAwarenessRequest request) {
+        ensureJournalExists(journalId);
+        coeditService.publishAwareness(journalId, request == null ? null : request.awareness());
+        return ApiResponse.ok(null);
     }
 
     /** 회계전표 협업 SSE stream. 댓글/수정 이벤트는 journalId 채널로 전달된다. */

@@ -409,6 +409,119 @@ class JournalCollabIT extends AbstractPostgresIT {
                         org.hamcrest.Matchers.containsString("목록용 적요")));
     }
 
+    /** coedit update relay 가 누적되고 GET snapshot 으로 재구성되며 awareness 는 저장하지 않는다. */
+    @Test
+    void coedit_update_accumulates_andListSnapshot_andAwarenessIsNotPersisted() throws Exception {
+        UUID journalId = seedPostedJournal("20990613-CED-" + SEQ.getAndIncrement()).getId();
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/coedit", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(0));
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/update", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/update", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "YXdhcmU="))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/awareness", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "Y3Vyc29y"))))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/coedit", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(2))
+                .andExpect(jsonPath("$.data.updates[0]").value("dXBkYXRl"))
+                .andExpect(jsonPath("$.data.updates[1]").value("YXdhcmU="));
+    }
+
+    /** coedit 읽기 계열(GET snapshot / awareness relay)은 VIEW(accounting.journals) 권한 deny 시 403. */
+    @Test
+    void coedit_readEndpoints_deniedWithoutViewPermission_returns403() throws Exception {
+        UUID journalId = seedPostedJournal("20990613-CVR-" + SEQ.getAndIncrement()).getId();
+        when(dynamicPermissionClient.check(
+                any(UUID.class), eq("accounting.journals"), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canView(any(), eq("accounting.journals")))
+                .thenReturn(false);
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/coedit", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/awareness", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "YXdhcmU="))))
+                .andExpect(status().isForbidden());
+    }
+
+    /** coedit update 는 UPDATE(accounting.journals) 권한 deny 시 403 으로 거부된다. */
+    @Test
+    void coedit_update_deniedWithoutUpdatePermission_returns403() throws Exception {
+        UUID journalId = seedPostedJournal("20990613-CUW-" + SEQ.getAndIncrement()).getId();
+        when(dynamicPermissionClient.check(
+                any(UUID.class), eq("accounting.journals"), eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.canEdit(any(), eq("accounting.journals")))
+                .thenReturn(false);
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/update", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
+                .andExpect(status().isForbidden());
+    }
+
+    /** coedit update 의 body 누락/빈 update 필드는 400 으로 거부되고 snapshot 에 누적되지 않는다. */
+    @Test
+    void coedit_update_nullOrEmptyBody_returns400_andNotPersisted() throws Exception {
+        UUID journalId = seedPostedJournal("20990613-CUN-" + SEQ.getAndIncrement()).getId();
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/update", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/update", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(get("/accounting/journals/{journalId}/collab/coedit", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updates.length()").value(0));
+    }
+
+    /** coedit awareness 의 body 누락/빈 awareness 필드는 400 으로 거부된다(update 와 대칭). */
+    @Test
+    void coedit_awareness_nullOrEmptyBody_returns400() throws Exception {
+        UUID journalId = seedPostedJournal("20990613-CAN-" + SEQ.getAndIncrement()).getId();
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/awareness", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/accounting/journals/{journalId}/collab/coedit/awareness", journalId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
     private Journal seedDraftJournal(String journalNo) {
         Journal journal = Journal.create(journalNo, TEST_DATE, "초기 적요",
                 JournalSourceType.MANUAL, null);

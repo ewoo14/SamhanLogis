@@ -4899,15 +4899,45 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const gjc = globalThis as unknown as {
     __SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS?: Record<string, MockJournalCollabComment[]>
     __SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS?: Record<string, MockJournalCollabEdit[]>
+    __SAMHAN_MOCK_JOURNAL_COEDIT?: Record<string, string[]>
   }
   if (!gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS) gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS = {}
   if (!gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS) gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS = {}
+  if (!gjc.__SAMHAN_MOCK_JOURNAL_COEDIT) gjc.__SAMHAN_MOCK_JOURNAL_COEDIT = {}
   const journalCollabCommentsStore = gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_COMMENTS
   const journalCollabSuggestionsStore = gjc.__SAMHAN_MOCK_JOURNAL_COLLAB_SUGGESTIONS
+  const journalCoeditStore = gjc.__SAMHAN_MOCK_JOURNAL_COEDIT
 
   const journalCollabStreamMatch = url.match(/\/accounting\/journals\/([^/?]+)\/collab\/stream(?:\?.*)?$/)
   if (method === 'GET' && journalCollabStreamMatch) {
     return new Blob([': mock journal collab stream\n\n'], { type: 'text/event-stream;charset=utf-8' })
+  }
+
+  const journalCoeditUpdateMatch = url.match(
+    /(?:\/api\/v1)?\/accounting\/journals\/([^/?]+)\/collab\/coedit\/update(?:\?.*)?$/,
+  )
+  if (journalCoeditUpdateMatch && method === 'POST') {
+    const journalId = journalCoeditUpdateMatch[1]!
+    const body = parseMockBody(config)
+    const update = typeof body['update'] === 'string' ? body['update'] : ''
+    if (!update) return mockError(400, 'INVALID_INPUT', 'update 값이 필요합니다')
+    journalCoeditStore[journalId] = [...(journalCoeditStore[journalId] ?? []), update]
+    return envelope(null)
+  }
+
+  const journalCoeditAwarenessMatch = url.match(
+    /(?:\/api\/v1)?\/accounting\/journals\/([^/?]+)\/collab\/coedit\/awareness(?:\?.*)?$/,
+  )
+  if (journalCoeditAwarenessMatch && method === 'POST') {
+    return envelope(null)
+  }
+
+  const journalCoeditMatch = url.match(
+    /(?:\/api\/v1)?\/accounting\/journals\/([^/?]+)\/collab\/coedit(?:\?.*)?$/,
+  )
+  if (journalCoeditMatch && method === 'GET') {
+    const journalId = journalCoeditMatch[1]!
+    return envelope({ updates: [...(journalCoeditStore[journalId] ?? [])] })
   }
 
   const journalCollabCommentCollectionMatch = url.match(
