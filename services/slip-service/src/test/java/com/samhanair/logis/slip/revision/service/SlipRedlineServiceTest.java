@@ -83,6 +83,29 @@ class SlipRedlineServiceTest {
     }
 
     @Test
+    @DisplayName("anchor 이전 편집은 레드라인 base 에 섞지 않고 anchor 시점 값부터 누적한다")
+    void computeRedlineStartsFromAnchorSnapshot() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 2);
+        SlipRevision rev1 = revision(slipId, 1, snapshot("드래프트 원본", List.of(line(UUID.randomUUID(), 1))));
+        SlipRevision rev2 = revision(slipId, 2, snapshot("임계 시점 메모", List.of(line(UUID.randomUUID(), 1))));
+        SlipRevision rev3 = revision(slipId, 3, snapshot("임계 후 수정", List.of(line(UUID.randomUUID(), 1))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev3, rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        SlipRedlineResponse.FieldRedline memo = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("header.memo"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(memo.layers()).extracting(SlipRedlineResponse.Layer::value)
+                .containsExactly("임계 시점 메모", "임계 후 수정");
+    }
+
+    @Test
     @DisplayName("actorName 이 UUID 문자열이면 레드라인 응답에도 노출하지 않는다")
     void computeRedlineHidesUuidActorName() throws Exception {
         UUID slipId = UUID.randomUUID();

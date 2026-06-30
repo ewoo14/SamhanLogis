@@ -7,7 +7,7 @@ export interface RedlineCellProps {
 }
 
 function formatValue(value: string | null | undefined): string {
-  if (value == null || value === '') return '비움'
+  if (value == null || value.trim() === '') return '비움'
   return value
 }
 
@@ -38,28 +38,37 @@ export function RedlineCell({ layers }: RedlineCellProps) {
     >
       <span
         data-testid="redline-cell-current"
+        aria-label={`현재값: ${current.actorName ? `${current.actorName}, ` : ''}${formatValue(current.value)}`}
         style={{ color: currentColor, fontWeight: 700, overflowWrap: 'anywhere' }}
       >
         {current.actorName ? (
-          <strong style={{ color: currentColor, marginRight: 6 }}>{current.actorName}</strong>
+          <>
+            <strong style={{ color: currentColor }}>{current.actorName}</strong>
+            <span aria-hidden="true" style={{ marginRight: 6 }}>: </span>
+          </>
         ) : null}
         {formatValue(current.value)}
       </span>
       {reversed.slice(1).map((layer, index) => {
         const actorColor = presenceColorToHex(layer.actorColor)
+        const isBase = index === reversed.length - 2
         return (
           <span
             key={`${index}-${layer.changedAt ?? 'base'}-${layer.value ?? 'null'}`}
             data-testid="redline-cell-struck"
+            aria-label={`${isBase ? '기준값' : '이전값'}: ${layer.actorName ? `${layer.actorName}, ` : ''}${formatValue(layer.value)}`}
             style={{
-              color: index === reversed.length - 2 ? 'var(--color-neutral-500)' : actorColor,
+              color: isBase ? 'var(--color-neutral-500)' : actorColor,
               textDecoration: 'line-through',
               overflowWrap: 'anywhere',
               fontSize: 12,
             }}
           >
             {layer.actorName ? (
-              <strong style={{ color: actorColor, marginRight: 6 }}>{layer.actorName}</strong>
+              <>
+                <strong style={{ color: actorColor }}>{layer.actorName}</strong>
+                <span aria-hidden="true" style={{ marginRight: 6 }}>: </span>
+              </>
             ) : null}
             {formatValue(layer.value)}
           </span>

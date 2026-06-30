@@ -37,4 +37,19 @@ describe('RedlineCell', () => {
     expect(screen.getByTestId('redline-cell-plain').textContent).toBe('현재값')
     expect(screen.queryByTestId('redline-cell-struck')).toBeNull()
   })
+
+  it('공백 문자열은 빈 값으로 표시하고 actor/value 의미를 aria-label 에 보존한다', () => {
+    render(
+      <RedlineCell
+        layers={[
+          { value: ' ', actorName: null, actorColor: null, changedAt: null },
+          { value: '수정', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:15:00' },
+        ]}
+      />,
+    )
+
+    expect(screen.getByTestId('redline-cell-current').getAttribute('aria-label')).toBe('현재값: 김영업, 수정')
+    expect(screen.getByTestId('redline-cell-struck').getAttribute('aria-label')).toBe('기준값: 비움')
+    expect(screen.getByTestId('redline-cell-struck').textContent).toContain('비움')
+  })
 })

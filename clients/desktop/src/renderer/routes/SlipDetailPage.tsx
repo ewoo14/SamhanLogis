@@ -72,7 +72,7 @@ import {
   revertToRevision,
   type SlipAuditLogEntry,
 } from '../api/slipAudit'
-import { getRedline, type SlipFieldRedline } from '../api/slipRedline'
+import { getRedline, type SlipFieldRedline, type SlipRedlineLayer } from '../api/slipRedline'
 import { RedlineCell } from '../components/audit/RedlineCell'
 import {
   createSlipEditRequest,
@@ -111,6 +111,11 @@ function memoWithoutTagPrefix(
     }
   }
   return memo
+}
+
+function deliveryTagLabel(value: string | null | undefined): string | null {
+  if (!value) return null
+  return (OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>)[value] ?? value
 }
 
 function isEmptyDetailValue(value: unknown): boolean {
@@ -470,6 +475,31 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     queryFn: () => getRedline(id),
     enabled: !!id,
   })
+
+  const redlineByField = useMemo(() => {
+    const map = new Map<string, SlipFieldRedline>()
+    if (redlineQuery.data?.anchored) {
+      for (const field of redlineQuery.data.fields) {
+        if (field.layers.length >= 2) {
+          map.set(field.fieldPath, field)
+        }
+      }
+    }
+    return map
+  }, [redlineQuery.data])
+
+  const renderRedlineCell = (
+    fieldPath: string,
+    fallback: ReactNode,
+    mapValue?: (value: string | null) => string | null,
+  ) => {
+    const field = redlineByField.get(fieldPath)
+    if (!field) return fallback
+    const layers: SlipRedlineLayer[] = mapValue
+      ? field.layers.map((layer) => ({ ...layer, value: mapValue(layer.value) }))
+      : field.layers
+    return <RedlineCell layers={layers} />
+  }
 
   // Phase 2.6d: 전표 id 변경 시 재고조회 체크 상태 초기화 (P1-1)
   useEffect(() => {
@@ -1196,24 +1226,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     {} as Record<string, AuditLogEntry[]>,
   )
 
-  const redlineByField = useMemo(() => {
-    const map = new Map<string, SlipFieldRedline>()
-    if (redlineQuery.data?.anchored) {
-      for (const field of redlineQuery.data.fields) {
-        if (field.layers.length >= 2) {
-          map.set(field.fieldPath, field)
-        }
-      }
-    }
-    return map
-  }, [redlineQuery.data])
-
-  const renderRedlineCell = (fieldPath: string, fallback: ReactNode) => {
-    const field = redlineByField.get(fieldPath)
-    if (!field) return fallback
-    return <RedlineCell layers={field.layers} />
-  }
-
   /**
    * PR-H2: 수정 횟수 = distinct revisionNo 개수.
    * BE 가 한 revision 에 여러 필드 변경을 묶어 보낼 수 있으므로 set 으로 dedupe.
@@ -1800,14 +1812,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </div>
           <div>
             <span className="detail-label">일자</span>
-            <span className="detail-value">{slip.slipDate}</span>
+            <span className="detail-value">
+              {renderRedlineCell('header.slipDate', slip.slipDate)}
+            </span>
           </div>
           <div>
             <span className="detail-label">배송 태그</span>
             <span className="detail-value">
-              {slip.deliveryTag
-                ? ((OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>)[slip.deliveryTag] ?? slip.deliveryTag)
-                : '-'}
+              {renderRedlineCell(
+                'header.deliveryTag',
+                slip.deliveryTag ? deliveryTagLabel(slip.deliveryTag) : '-',
+                deliveryTagLabel,
+              )}
             </span>
           </div>
           {/*
@@ -1833,9 +1849,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   field="memo"
                   currentValue={memoWithoutTagPrefix(
                     slip.memo,
-                    slip.deliveryTag
-                      ? ((OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>)[slip.deliveryTag] ?? slip.deliveryTag)
-                      : null,
+                    deliveryTagLabel(slip.deliveryTag),
                   )}
                   history={auditByField['memo'] ?? []}
                 />,
@@ -1955,27 +1969,39 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <div className="detail-grid">
           <DetailGridItem value={slip.deliveryAddress} testId="slip-detail-delivery-address">
             <span className="detail-label">배송주소</span>
-            <span className="detail-value">{slip.deliveryAddress ?? '—'}</span>
+            <span className="detail-value">
+              {renderRedlineCell('header.deliveryAddress', slip.deliveryAddress ?? '—')}
+            </span>
           </DetailGridItem>
           <DetailGridItem value={slip.supervisionAddress} testId="slip-detail-supervision-address">
             <span className="detail-label">감리주소</span>
-            <span className="detail-value">{slip.supervisionAddress ?? '—'}</span>
+            <span className="detail-value">
+              {renderRedlineCell('header.supervisionAddress', slip.supervisionAddress ?? '—')}
+            </span>
           </DetailGridItem>
           <DetailGridItem value={slip.projectName} testId="slip-detail-project-name">
             <span className="detail-label">프로젝트명</span>
-            <span className="detail-value">{slip.projectName ?? '—'}</span>
+            <span className="detail-value">
+              {renderRedlineCell('header.projectName', slip.projectName ?? '—')}
+            </span>
           </DetailGridItem>
           <DetailGridItem value={slip.recipientPhone} testId="slip-detail-recipient-phone">
             <span className="detail-label">인수자 번호</span>
-            <span className="detail-value">{slip.recipientPhone ?? '—'}</span>
+            <span className="detail-value">
+              {renderRedlineCell('header.recipientPhone', slip.recipientPhone ?? '—')}
+            </span>
           </DetailGridItem>
           <DetailGridItem value={slip.paymentDueDate} testId="slip-detail-payment-due-date">
             <span className="detail-label">입금예정일</span>
-            <span className="detail-value">{slip.paymentDueDate ?? '—'}</span>
+            <span className="detail-value">
+              {renderRedlineCell('header.paymentDueDate', slip.paymentDueDate ?? '—')}
+            </span>
           </DetailGridItem>
           <DetailGridItem value={slip.businessNumber} testId="slip-detail-business-number">
             <span className="detail-label">사업자번호</span>
-            <span className="detail-value">{slip.businessNumber ?? '—'}</span>
+            <span className="detail-value">
+              {renderRedlineCell('header.businessNumber', slip.businessNumber ?? '—')}
+            </span>
           </DetailGridItem>
           <DetailGridItem value={slip.printed == null ? null : slip.printed} testId="slip-detail-printed">
             <span className="detail-label">인쇄 여부</span>

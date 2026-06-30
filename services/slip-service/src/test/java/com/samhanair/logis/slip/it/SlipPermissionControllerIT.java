@@ -40,6 +40,8 @@ import com.samhanair.logis.slip.publish.PublishSlipResponse;
 import com.samhanair.logis.slip.publish.SlipPublishService;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import com.samhanair.logis.slip.realtime.SlipRealtimeController;
+import com.samhanair.logis.slip.revision.service.SlipRedlineService;
+import com.samhanair.logis.slip.revision.web.SlipRedlineController;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.NextDaySlipImageService;
 import com.samhanair.logis.slip.service.SlipCleanupService;
@@ -98,6 +100,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 SlipPublishController.class,
                 SlipRealtimeController.class,
                 SlipCleanupSaveHistoryController.class,
+                SlipRedlineController.class,
                 EstimateController.class
         },
         properties = "spring.application.name=slip-service")
@@ -133,6 +136,7 @@ class SlipPermissionControllerIT {
     @MockBean private SlipRepository slipRepository;
     @MockBean private SlipPublishService slipPublishService;
     @MockBean private SlipRealtimeBroker realtimeBroker;
+    @MockBean private SlipRedlineService slipRedlineService;
     @MockBean private EstimateService estimateService;
     @MockBean private EstimatePermissionGuard estimatePermissionGuard;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
@@ -221,6 +225,8 @@ class SlipPermissionControllerIT {
                         () -> get("/slips/{id}/comments", ID)),
                 endpoint("audit logs", "slip.audit-overlay", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/audit-logs", ID)),
+                endpoint("redline", "slip.audit-overlay", PermissionAction.VIEW, "SALES",
+                        () -> get("/slips/{id}/redline", ID)),
                 endpoint("attachment list", "slip.attachments.upload", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/attachments", ID)),
                 endpoint("attachment detail", "slip.attachments.upload", PermissionAction.VIEW, "STAFF",

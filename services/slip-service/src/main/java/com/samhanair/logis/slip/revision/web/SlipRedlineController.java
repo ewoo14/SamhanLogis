@@ -30,7 +30,7 @@ public class SlipRedlineController {
     @Operation(summary = "전표 셀 레드라인 조회",
             description = "S2d-1 — 임계 전이 anchor 이후 저장 revision 기반 필드별 누적 레드라인")
     @GetMapping("/redline")
-    @RequirePermission(page = "slip.audit-revert", action = PermissionAction.VIEW)
+    @RequirePermission(page = "slip.audit-overlay", action = PermissionAction.VIEW)
     public ApiResponse<SlipRedlineResponse> getRedline(@PathVariable UUID slipId) {
         return ApiResponse.ok(redlineService.computeRedline(slipId));
     }
