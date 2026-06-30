@@ -801,6 +801,32 @@ class SlipServiceTest {
                 eq(null), any(UUID.class), eq("홍길동"), eq(null));
     }
 
+    // ---------- restore revision ----------
+
+    @Test
+    void restoreToRevision_afterOutboundCompleted_incrementsEditHistoryCount() {
+        // OUTBOUND 임계(COMPLETED) 이후 버전 복원은 사용자 관점의 수정으로 카운트한다.
+        Slip slip = preparedOutbound(SlipStatus.DRAFT, 1, new BigDecimal("10.00"));
+        slip.save();
+        slip.send();
+        slip.accept("warehouse-1");
+        slip.process();
+        slip.complete();
+        slip.inspect("inspector-1");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+
+        assertThat(slip.getRevisionCountBaseline()).isEqualTo(0);
+        assertThat(slip.editHistoryCount()).isZero();
+
+        service.restoreToRevision(slipId, 1, UUID.randomUUID().toString(), "관리자");
+
+        assertThat(slip.getRevisionCount()).isEqualTo(1);
+        assertThat(slip.editHistoryCount()).isEqualTo(1);
+        verify(slipRevisionService, times(1)).restore(
+                eq(slip), eq(1), any(UUID.class), eq("관리자"), eq(null));
+        verify(slipRepository, times(1)).save(slip);
+    }
+
     // ---------- read ----------
 
     @Test

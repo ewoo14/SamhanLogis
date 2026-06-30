@@ -596,6 +596,7 @@ public class SlipService {
      *       LOCKED_REQUIRES_APPROVAL 단계는 APPROVED 요청 1건 필요, mutation 후 소진)</li>
      *   <li>{@link SlipRevisionService#restore} — 대상 스냅샷 로드 + 헤더/라인 통째 복원 +
      *       신규 RESTORE revision 캡처 (마감 lock 가드는 도메인이 책임)</li>
+     *   <li>복원 mutation 을 사용자 수정 카운트에 반영하기 위한 {@code revisionCount} 1회 증가</li>
      *   <li>라인 전량 교체 영속화를 위한 명시 save</li>
      *   <li>{@code slip:restored} SSE broadcast (slipId + 복원 출처 revisionNo)</li>
      * </ol>
@@ -618,6 +619,9 @@ public class SlipService {
         String actorName = resolveActorName(callerName, callerId);
         applyMutation(() -> slipRevisionService.restore(slip, revisionNo,
                 parseActorId(callerId), actorName, null));
+        // 버전 복원도 사용자 관점의 수정이다. audit row 는 만들지 않고 slip_revisions RESTORE 행과
+        // 표시 카운트(revisionCount-baseline)만 증가시켜 audit timeline 의 빈 revisionNo 노출을 피한다.
+        slip.incrementRevision();
         // 라인 전량 교체(markDeleted + 신규 라인 add) 영속화
         slipRepository.save(slip);
         consumedApproval.ifPresent(approval ->

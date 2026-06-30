@@ -22,6 +22,8 @@ import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -86,6 +88,9 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
 
     @Autowired
     private SlipRepository slipRepository;
+
+    @Autowired
+    private SlipRevisionService slipRevisionService;
 
     /** 외부 client 격리 — inventory-service 실제 호출 차단. */
     @MockBean
@@ -317,6 +322,44 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
     }
 
     /**
+     * TC-6B: OUTBOUND 임계 통과 후 버전 복원은 사용자 관점의 수정으로 카운트한다.
+     *
+     * <p>복원 이력 자체는 {@code slip_revisions} RESTORE 행으로 남고, {@code slip_audit_logs} 행은
+     * 만들지 않는다. audit timeline 은 실제 audit row 만 조회하므로 빈 revisionNo 는 노출되지 않는다.
+     */
+    @Test
+    @DisplayName("TC-6B: OUTBOUND editHistoryCount — COMPLETED 이후 버전복원도 카운트")
+    void tc6b_outboundRestoreAfterCompletedIncrementsEditHistoryCount() throws Exception {
+        String slipId = createOutboundSlip(TODAY, "TC6B거래처", null);
+        String slipNo = getSlipNo(slipId);
+        captureCurrentRevision(slipId, SlipRevisionType.CREATE, null);
+
+        advanceOutboundToCompleted(slipId);
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("slipType", "OUTBOUND")
+                        .param("searchSlipNo", slipNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].editHistoryCount", is(0)));
+
+        mockMvc.perform(post("/slips/{slipId}/revisions/{revisionNo}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header("X-User-Name", "IT관리자")
+                        .header(USER_ROLE_HEADER, MASTER_ROLE))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("slipType", "OUTBOUND")
+                        .param("searchSlipNo", slipNo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].editHistoryCount", is(1)));
+    }
+
+    /**
      * TC-7: INBOUND 전표수정내역은 다음 결재선 전송(SENT) 이후 편집만 표시한다.
      */
     @Test
@@ -467,6 +510,16 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
             slip.incrementRevision();
         }
         slipRepository.saveAndFlush(slip);
+    }
+
+    /**
+     * 현재 슬립 상태를 버전이력 스냅샷으로 캡처한다.
+     */
+    private void captureCurrentRevision(String slipId, SlipRevisionType type, Integer sourceRevisionNo) {
+        Slip slip = slipRepository.findById(UUID.fromString(slipId))
+                .orElseThrow(() -> new IllegalStateException("테스트 슬립 미발견: " + slipId));
+        slipRevisionService.capture(slip, type, sourceRevisionNo,
+                UUID.randomUUID(), "IT관리자", null);
     }
 
     /**

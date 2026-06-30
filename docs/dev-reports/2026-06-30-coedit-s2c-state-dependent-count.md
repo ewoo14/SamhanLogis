@@ -34,6 +34,7 @@
 - **backfill 신/구 불연속**(spec §3.4): 기존 임계통과 전표는 baseline=0 → editHistoryCount=revisionCount(드래프트 편집 포함, 현 표시 보존). 신규 전표는 임계 後 편집만. 동일 성격 전표가 V53 전/후 생성에 따라 카운트 산정이 다름(영구). 과거 baseline 복원 불가에 따른 의도된 단순화 — 상세 이력은 S2b 버전로그에 전부 보존.
 - **INBOUND(SENT 임계)는 BE·mock 구현됐으나 화면 미노출**: `PurchaseQueryPage`에 전표수정내역 컬럼 부재. 룰은 forward-compatible(컬럼 추가 시 즉시 동작), 현재 라이브 화면 QA는 판매조회(OUTBOUND)만 가능. 컬럼 노출은 개발책임자 결정 대기.
 - REJECTED/CANCELED 종결 전표의 신/구 카운트 경미 불일치(저노출).
+- **복원=카운트(D-COEDIT-S2C 검토가능)**: 임계 통과 후 버전 복원은 사용자 관점의 수정으로 보아 `revisionCount`를 1회 증가시킨다. 복원 이력은 `slip_revisions` RESTORE 행으로 남고, `slip_audit_logs`에는 빈 revisionNo 행을 만들지 않아 audit timeline 표시에는 영향이 없다.
 
 ## 듀얼리뷰
 Opus 5-agent(BE/FE/Design/DevOps/QA) ↔ Codex 5-agent 순차 0수렴. BE=baseline 계열 완전성 실증(seeder transition chain·restore 비복원·우회 status mutation 없음), DevOps=ci.yml 신규 테스트 3종 CI 커버 실증(XML), FE=mock 24/24 정합. 라이브 QA=slip-service 재빌드 + 실 DB V53 검증 + 전표수정내역 컬럼 0/N건 캡처.

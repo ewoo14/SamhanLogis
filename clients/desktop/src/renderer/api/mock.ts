@@ -3895,7 +3895,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   // GET /slips/{id} (단건 상세) — UUID-like 또는 'slip-001' 패턴
   const slipDetailMatch = url.match(/\/slips\/([^/?]+)$/)
-  if (method === 'GET' && slipDetailMatch && !url.includes('lookup-product') && !url.includes('/slips/edit-requests') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {
+  if (method === 'GET' && slipDetailMatch && !url.includes('/slips/query') && !url.includes('lookup-product') && !url.includes('/slips/edit-requests') && !url.match(/\/slips\/cleanup/) && !url.includes('compensation-failures')) {
     const id = slipDetailMatch[1]!
     const found = MOCK_SLIPS.find((s) => s.id === id) ?? MOCK_SLIPS[0]!
     return envelope({
@@ -3981,12 +3981,30 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // GET /slips/query — 신규 필드 포함 10+ rows (페이지네이션 검증용)
   // ============================================================================
   if (method === 'GET' && url.includes('/slips/query')) {
-    const slipTypeMatch = url.match(/[?&]slipType=([^&]+)/)
-    const slipType = slipTypeMatch?.[1]
-    const pageMatch = url.match(/[?&]page=(\d+)/)
-    const pageNo = parseInt(pageMatch?.[1] ?? '0', 10)
-    const sizeMatch = url.match(/[?&]size=(\d+)/)
-    const pageSize = parseInt(sizeMatch?.[1] ?? '50', 10)
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const configParams = config.params
+    const readQueryParam = (key: string): string | undefined => {
+      if (configParams instanceof URLSearchParams) {
+        return configParams.get(key) ?? urlObj.searchParams.get(key) ?? undefined
+      }
+      const value = (configParams as Record<string, unknown> | undefined)?.[key]
+      if (Array.isArray(value)) {
+        return value[0] == null ? undefined : String(value[0])
+      }
+      if (value != null) {
+        return String(value)
+      }
+      return urlObj.searchParams.get(key) ?? undefined
+    }
+    const slipType = readQueryParam('slipType')
+    const pageNo = parseInt(readQueryParam('page') ?? '0', 10)
+    const pageSize = parseInt(readQueryParam('size') ?? '50', 10)
+    const searchPartnerName = readQueryParam('searchPartnerName')?.toLowerCase()
+    const searchPartnerCode = readQueryParam('searchPartnerCode')?.toLowerCase()
+    const searchBusinessNumber = readQueryParam('searchBusinessNumber')?.toLowerCase()
+    const searchSlipNo = readQueryParam('searchSlipNo')?.toLowerCase()
+    const searchProjectName = readQueryParam('searchProjectName')?.toLowerCase()
+    const searchDeliveryAddress = readQueryParam('searchDeliveryAddress')?.toLowerCase()
 
     /** 판매(OUTBOUND) 조회 12건 mock rows */
     const OUTBOUND_QUERY_ROWS = [
@@ -4272,11 +4290,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       },
     ]
 
-    const allRows = slipType === 'OUTBOUND'
+    const typeRows = slipType === 'OUTBOUND'
       ? OUTBOUND_QUERY_ROWS
       : slipType === 'INBOUND'
         ? INBOUND_QUERY_ROWS
         : [...OUTBOUND_QUERY_ROWS, ...INBOUND_QUERY_ROWS]
+
+    const includes = (value: string | null | undefined, keyword: string | undefined) =>
+      !keyword || (value ?? '').toLowerCase().includes(keyword)
+    const allRows = typeRows.filter((row) =>
+      includes(row.partnerName, searchPartnerName)
+      && includes(row.partnerCode, searchPartnerCode)
+      && includes(row.businessNumber, searchBusinessNumber)
+      && includes(row.slipNo, searchSlipNo)
+      && includes(row.projectName, searchProjectName)
+      && includes(row.deliveryAddress, searchDeliveryAddress),
+    )
 
     const start = pageNo * pageSize
     const pageContent = allRows.slice(start, start + pageSize)
