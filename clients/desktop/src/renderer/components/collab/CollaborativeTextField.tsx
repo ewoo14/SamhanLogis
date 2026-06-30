@@ -10,7 +10,8 @@ import {
 } from '../../realtime/createCoeditProvider'
 
 export interface CollaborativeTextFieldProps {
-  slipId: string
+  documentId: string
+  basePath: string
   fieldName: string
   label: string
   rows?: number
@@ -149,7 +150,8 @@ function clampOffset(value: number, textLength: number): number {
 }
 
 export function CollaborativeTextField({
-  slipId,
+  documentId,
+  basePath,
   fieldName,
   label,
   rows = 4,
@@ -183,7 +185,7 @@ export function CollaborativeTextField({
     }
     let disposed = false
     let created: CoeditProvider | null = null
-    void createCoeditProvider({ slipId, fieldName }).then((next) => {
+    void createCoeditProvider({ documentId, basePath, fieldName }).then((next) => {
       if (disposed) {
         next.destroy()
         return
@@ -198,7 +200,7 @@ export function CollaborativeTextField({
       disposed = true
       created?.destroy()
     }
-  }, [editFieldPath, fieldName, providerOverride, slipId])
+  }, [basePath, documentId, editFieldPath, fieldName, providerOverride])
 
   useEffect(() => {
     if (!provider) return undefined

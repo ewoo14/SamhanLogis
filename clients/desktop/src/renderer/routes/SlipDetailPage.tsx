@@ -94,6 +94,8 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { OUTBOUND_DELIVERY_TAG_LABELS } from '../api/slipCutoff'
 
+const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
+
 /**
  * 특이사항 메모에서 배송태그 자동 접두("[지방] …" 등 레거시 autoMemo)를 제거한다.
  * DispatchDocument 와 동일 로직 — 신규 전표는 no-op, 레거시 호환용.
@@ -376,6 +378,7 @@ function slipActionPageCode(
 export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const params = useParams<{ id: string }>()
   const id = params.id ?? ''
+  const slipCollabBasePath = useMemo(() => `/slips/${id}`, [id])
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
   const queryClient = useQueryClient()
@@ -947,7 +950,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setPurchaseEditLines((prev) => coeditLinesToEditLines(nextProvider, prev))
     }
 
-    void createDocCoeditProvider({ slipId: id }).then((nextProvider) => {
+    void createDocCoeditProvider({
+      documentId: id,
+      basePath: slipCollabBasePath,
+      headerTextFields: SLIP_HEADER_TEXT_FIELDS,
+    }).then((nextProvider) => {
       if (disposed) {
         nextProvider.destroy()
         return
@@ -973,7 +980,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setSlipFormCoeditProvider(null)
       setSlipFormCoeditPending(false)
     }
-  }, [detailQuery.data, id, mode, purchaseEditOpen, salesEditOpen])
+  }, [detailQuery.data, id, mode, purchaseEditOpen, salesEditOpen, slipCollabBasePath])
 
   if (!id) return null
 
@@ -1881,6 +1888,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <MobileCollapsible title="협업 · 코멘트" defaultOpen>
           <SlipCollaborationPanel
             slipId={id}
+            basePath={slipCollabBasePath}
             currentValues={collabEditValues}
             editMode={collabEditMode}
             onEditModeChange={setCollabEditMode}
@@ -1894,6 +1902,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       ) : (
         <SlipCollaborationPanel
           slipId={id}
+          basePath={slipCollabBasePath}
           currentValues={collabEditValues}
           editMode={collabEditMode}
           onEditModeChange={setCollabEditMode}

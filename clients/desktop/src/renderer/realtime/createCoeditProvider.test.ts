@@ -21,7 +21,8 @@ describe('createCoeditProvider', () => {
 
     const postUpdate = vi.fn()
     const provider = await createCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       fieldName: 'memo',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate,
@@ -68,7 +69,8 @@ describe('createCoeditProvider', () => {
     )
 
     const provider = await createCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       fieldName: 'memo',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate: vi.fn(),
@@ -106,7 +108,8 @@ describe('createCoeditProvider', () => {
     )
 
     const provider = await createCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       fieldName: 'memo',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate: vi.fn(),
@@ -146,7 +149,8 @@ describe('createCoeditProvider', () => {
     let reads = 0
 
     const provider = await createCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       fieldName: 'memo',
       initialUpdates: async () => {
         reads += 1
@@ -172,7 +176,8 @@ describe('createCoeditProvider', () => {
       .mockResolvedValueOnce(undefined)
 
     const provider = await createCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       fieldName: 'memo',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate,
@@ -193,13 +198,35 @@ describe('createCoeditProvider', () => {
     provider.destroy()
   })
 
+  it('local update override에는 documentId를 전달한다', async () => {
+    vi.useFakeTimers()
+    const postUpdate = vi.fn()
+
+    const provider = await createCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate,
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    provider.text.insert(0, 'local')
+    await vi.advanceTimersByTimeAsync(150)
+
+    expect(postUpdate).toHaveBeenCalledWith('doc-1', expect.any(String))
+    provider.destroy()
+  })
+
   it('cleans up stream and pending awareness when initial snapshot load fails', async () => {
     vi.useFakeTimers()
     const abort = vi.fn()
     const postAwareness = vi.fn()
 
     await expect(createCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       fieldName: 'memo',
       initialUpdates: async () => {
         throw new Error('offline')
@@ -219,7 +246,8 @@ describe('createCoeditProvider', () => {
     const postAwareness = vi.fn()
 
     const provider = await createCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       fieldName: 'memo',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate: vi.fn(),
@@ -241,14 +269,18 @@ describe('createDocCoeditProvider', () => {
     base.getArray<Y.Map<unknown>>('items').push([new Y.Map<unknown>()])
     const baseUpdate = encodeBase64Update(Y.encodeStateAsUpdate(base))
     const left = await createDocCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      headerTextFields: new Set(['memo']),
       initialUpdates: async () => ({ updates: [baseUpdate] }),
       postUpdate: vi.fn(),
       postAwareness: vi.fn(),
       subscribe: () => ({ abort: vi.fn() }),
     })
     const right = await createDocCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      headerTextFields: new Set(['memo']),
       initialUpdates: async () => ({ updates: [baseUpdate] }),
       postUpdate: vi.fn(),
       postAwareness: vi.fn(),
@@ -286,7 +318,8 @@ describe('createDocCoeditProvider', () => {
     )
 
     const provider = await createDocCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate: vi.fn(),
       postAwareness: vi.fn(),
@@ -314,14 +347,16 @@ describe('createDocCoeditProvider', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-06-30T03:00:00.000Z'))
     const left = await createDocCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate: vi.fn(),
       postAwareness: vi.fn(),
       subscribe: () => ({ abort: vi.fn() }),
     })
     const right = await createDocCoeditProvider({
-      slipId: 'slip-1',
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
       initialUpdates: async () => ({ updates: [] }),
       postUpdate: vi.fn(),
       postAwareness: vi.fn(),
@@ -349,5 +384,24 @@ describe('createDocCoeditProvider', () => {
 
     left.destroy()
     right.destroy()
+  })
+
+  it('headerTextFields에 포함되지 않은 header 필드는 scalar로 저장한다', async () => {
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      headerTextFields: new Set(['memo']),
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    provider.setHeaderValue('memo', '긴 메모')
+    provider.setHeaderValue('partnerName', '삼한공조')
+
+    expect(provider.header.get('memo')).toBeInstanceOf(Y.Text)
+    expect(provider.header.get('partnerName')).toBe('삼한공조')
+    provider.destroy()
   })
 })

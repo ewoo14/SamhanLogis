@@ -4,6 +4,7 @@ import com.samhanair.logis.collab.CollabCommentRecord;
 import com.samhanair.logis.collab.CollabCommentService;
 import com.samhanair.logis.collab.CollabDocumentType;
 import com.samhanair.logis.collab.CollabSuggestionStatus;
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -15,7 +16,6 @@ import com.samhanair.logis.shared.realtime.presence.PresenceService;
 import com.samhanair.logis.slip.collab.SlipCollabComment;
 import com.samhanair.logis.slip.collab.SlipCollabEditService;
 import com.samhanair.logis.slip.collab.SlipCollabSuggestionRepository;
-import com.samhanair.logis.slip.collab.SlipCoeditService;
 import com.samhanair.logis.slip.collab.SlipDocumentCollaborationPort;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -74,7 +74,7 @@ public class SlipCollabController {
     private final SlipRepository slipRepository;
     private final RealtimeBroker broker;
     private final PresenceService presenceService;
-    private final SlipCoeditService coeditService;
+    private final CollabCoeditService coeditService;
     /**
      * 포트는 concrete 타입으로 주입한다 — 수정완료 시점
      * {@link SlipDocumentCollaborationPort#validateChangeSet} 조기 검증 호출용 (Round C P2).
@@ -89,7 +89,7 @@ public class SlipCollabController {
             SlipRepository slipRepository,
             RealtimeBroker broker,
             PresenceService presenceService,
-            SlipCoeditService coeditService,
+            CollabCoeditService coeditService,
             @Qualifier("slipOutboundCollaborationPort") SlipDocumentCollaborationPort outboundPort,
             @Qualifier("slipInboundCollaborationPort") SlipDocumentCollaborationPort inboundPort) {
         this.commentService = commentService;

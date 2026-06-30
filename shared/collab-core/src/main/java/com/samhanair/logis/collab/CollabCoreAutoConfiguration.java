@@ -1,5 +1,6 @@
 package com.samhanair.logis.collab;
 
+import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.shared.realtime.RealtimeAutoConfiguration;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -31,5 +32,12 @@ public class CollabCoreAutoConfiguration {
     @ConditionalOnMissingBean
     public CollabRealtimePublisher collabRealtimePublisher(RealtimeBroker broker) {
         return new CollabRealtimePublisher(broker);
+    }
+
+    /** Yjs update 를 도메인 무관 문서 단위로 누적·중계하는 co-edit relay. */
+    @Bean
+    @ConditionalOnMissingBean
+    public CollabCoeditService collabCoeditService(RealtimeBroker broker) {
+        return new CollabCoeditService(broker);
     }
 }

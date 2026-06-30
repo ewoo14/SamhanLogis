@@ -4,14 +4,9 @@ import {
   applyAwarenessUpdate,
   encodeAwarenessUpdate,
 } from 'y-protocols/awareness'
-import {
-  getSlipCoeditUpdates,
-  postSlipCoeditAwareness,
-  postSlipCoeditUpdate,
-  type SlipCoeditUpdatesResponse,
-} from '../api/slipCollab'
 import { getAuthProvider } from '../auth/authProvider'
-import { SlipCollabRealtimeClient } from './SlipCollabRealtimeClient'
+import { makeCoeditApi, normalizeCoeditBasePath } from './coeditApi'
+import { createRealtimeClient } from './createRealtimeClient'
 import type { RealtimeEvent } from './createRealtimeClient'
 import { presenceHexFromUserId } from '../utils/presenceColor'
 
@@ -20,12 +15,7 @@ const POST_DEBOUNCE_MS = 150
 const AWARENESS_DEBOUNCE_MS = 120
 const SNAPSHOT_RESYNC_MS = 5_000
 export const EDIT_HIGHLIGHT_MS = 2_500
-const HEADER_TEXT_FIELDS = new Set([
-  'memo',
-  'deliveryAddress',
-  'supervisionAddress',
-  'projectName',
-])
+const EMPTY_HEADER_TEXT_FIELDS = new Set<string>()
 
 export interface RemoteCursor {
   clientId: number
@@ -84,12 +74,17 @@ export interface DocCoeditProvider {
 }
 
 export interface CreateCoeditProviderOptions {
-  slipId: string
+  documentId: string
+  basePath: string
   fieldName: string
-  initialUpdates?: (slipId: string) => Promise<SlipCoeditUpdatesResponse>
-  postUpdate?: (slipId: string, update: string) => Promise<void> | void
-  postAwareness?: (slipId: string, awareness: string) => Promise<void> | void
-  subscribe?: (slipId: string, onEvent: (event: RealtimeEvent) => void) => AbortController
+  initialUpdates?: (documentId: string) => Promise<CoeditUpdatesResponse>
+  postUpdate?: (documentId: string, update: string) => Promise<void> | void
+  postAwareness?: (documentId: string, awareness: string) => Promise<void> | void
+  subscribe?: (documentId: string, onEvent: (event: RealtimeEvent) => void) => AbortController
+}
+
+export interface CoeditUpdatesResponse {
+  updates: string[]
 }
 
 export function encodeBase64Update(update: Uint8Array): string {
@@ -114,6 +109,14 @@ function isCoeditPayload(value: unknown, key: 'update' | 'awareness'): value is 
     && value !== null
     && key in value
     && typeof (value as Record<typeof key, unknown>)[key] === 'string'
+}
+
+function createBasePathRealtimeClient(name: string, basePath: string) {
+  const endpointPath = `${normalizeCoeditBasePath(basePath)}/collab/stream`
+  return createRealtimeClient({
+    name,
+    endpointPath: () => endpointPath,
+  })
 }
 
 function isAwarenessState(value: unknown, fieldName: string): value is {
@@ -186,10 +189,14 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   const doc = new Y.Doc()
   const text = doc.getText(options.fieldName)
   const awareness = new Awareness(doc)
-  const initialUpdates = options.initialUpdates ?? getSlipCoeditUpdates
-  const postUpdate = options.postUpdate ?? postSlipCoeditUpdate
-  const postAwareness = options.postAwareness ?? postSlipCoeditAwareness
-  const subscribe = options.subscribe ?? SlipCollabRealtimeClient.subscribe
+  const defaultApi = makeCoeditApi(options.basePath)
+  const initialUpdates = options.initialUpdates
+    ?? (async () => ({ updates: await defaultApi.getUpdates() }))
+  const postUpdate = options.postUpdate
+    ?? ((_documentId: string, update: string) => defaultApi.postUpdate(update))
+  const postAwareness = options.postAwareness
+    ?? ((_documentId: string, awarenessValue: string) => defaultApi.postAwareness(awarenessValue))
+  const subscribe = options.subscribe ?? createBasePathRealtimeClient('coedit', options.basePath).subscribe
   const textListeners = new Set<() => void>()
   const awarenessListeners = new Set<() => void>()
   let queuedUpdates: Uint8Array[] = []
@@ -209,7 +216,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     queuedUpdates = []
     if (next.length === 0) return
     const merged = next.length === 1 ? next[0]! : Y.mergeUpdates(next)
-    void Promise.resolve(postUpdate(options.slipId, encodeBase64Update(merged))).catch(() => {
+    void Promise.resolve(postUpdate(options.documentId, encodeBase64Update(merged))).catch(() => {
       if (destroyed) return
       queuedUpdates = [merged, ...queuedUpdates]
       if (flushTimer === null) flushTimer = setTimeout(flushUpdates, POST_DEBOUNCE_MS)
@@ -231,7 +238,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     if (pendingAwarenessClients.length === 0) return
     const clients = Array.from(new Set(pendingAwarenessClients))
     pendingAwarenessClients = []
-    void Promise.resolve(postAwareness(options.slipId, encodeBase64Update(encodeAwarenessUpdate(awareness, clients))))
+    void Promise.resolve(postAwareness(options.documentId, encodeBase64Update(encodeAwarenessUpdate(awareness, clients))))
       .catch(() => {
         if (destroyed) return
         pendingAwarenessClients = [...clients, ...pendingAwarenessClients]
@@ -266,7 +273,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   const localUser = await resolveLocalUser()
   awareness.setLocalStateField('user', localUser)
 
-  const applySnapshot = (snapshot: SlipCoeditUpdatesResponse) => {
+  const applySnapshot = (snapshot: CoeditUpdatesResponse) => {
     for (const update of snapshot.updates) {
       Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
     }
@@ -274,12 +281,12 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
 
   const resyncSnapshot = async () => {
     if (destroyed) return
-    const snapshot = await initialUpdates(options.slipId)
+    const snapshot = await initialUpdates(options.documentId)
     if (destroyed) return // destroy 후 in-flight fetch 완료 시 destroyed doc 에 applyUpdate 방지(Opus 라운드3).
     applySnapshot(snapshot)
   }
 
-  const stream = subscribe(options.slipId, (event) => {
+  const stream = subscribe(options.documentId, (event) => {
     if (destroyed) return
     if (event.event === 'coedit:update' && isCoeditPayload(event.data, 'update')) {
       Y.applyUpdate(doc, decodeBase64Update(event.data.update), REMOTE_ORIGIN)
@@ -309,9 +316,9 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     awarenessListeners.clear()
   }
 
-  let snapshot: SlipCoeditUpdatesResponse
+  let snapshot: CoeditUpdatesResponse
   try {
-    snapshot = await initialUpdates(options.slipId)
+    snapshot = await initialUpdates(options.documentId)
   } catch (error) {
     cleanupFailedInitialization()
     throw error
@@ -400,11 +407,13 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
 }
 
 export interface CreateDocCoeditProviderOptions {
-  slipId: string
-  initialUpdates?: (slipId: string) => Promise<SlipCoeditUpdatesResponse>
-  postUpdate?: (slipId: string, update: string) => Promise<void> | void
-  postAwareness?: (slipId: string, awareness: string) => Promise<void> | void
-  subscribe?: (slipId: string, onEvent: (event: RealtimeEvent) => void) => AbortController
+  documentId: string
+  basePath: string
+  headerTextFields?: Set<string>
+  initialUpdates?: (documentId: string) => Promise<CoeditUpdatesResponse>
+  postUpdate?: (documentId: string, update: string) => Promise<void> | void
+  postAwareness?: (documentId: string, awareness: string) => Promise<void> | void
+  subscribe?: (documentId: string, onEvent: (event: RealtimeEvent) => void) => AbortController
 }
 
 function stringifyYValue(value: unknown): string {
@@ -443,10 +452,15 @@ export async function createDocCoeditProvider(
   const header = doc.getMap<unknown>('header')
   const items = doc.getArray<Y.Map<unknown>>('items')
   const awareness = new Awareness(doc)
-  const initialUpdates = options.initialUpdates ?? getSlipCoeditUpdates
-  const postUpdate = options.postUpdate ?? postSlipCoeditUpdate
-  const postAwareness = options.postAwareness ?? postSlipCoeditAwareness
-  const subscribe = options.subscribe ?? SlipCollabRealtimeClient.subscribe
+  const headerTextFields = options.headerTextFields ?? EMPTY_HEADER_TEXT_FIELDS
+  const defaultApi = makeCoeditApi(options.basePath)
+  const initialUpdates = options.initialUpdates
+    ?? (async () => ({ updates: await defaultApi.getUpdates() }))
+  const postUpdate = options.postUpdate
+    ?? ((_documentId: string, update: string) => defaultApi.postUpdate(update))
+  const postAwareness = options.postAwareness
+    ?? ((_documentId: string, awarenessValue: string) => defaultApi.postAwareness(awarenessValue))
+  const subscribe = options.subscribe ?? createBasePathRealtimeClient('doc-coedit', options.basePath).subscribe
   const docListeners = new Set<() => void>()
   const awarenessListeners = new Set<() => void>()
   let queuedUpdates: Uint8Array[] = []
@@ -467,7 +481,7 @@ export async function createDocCoeditProvider(
     queuedUpdates = []
     if (next.length === 0) return
     const merged = next.length === 1 ? next[0]! : Y.mergeUpdates(next)
-    void Promise.resolve(postUpdate(options.slipId, encodeBase64Update(merged))).catch(() => {
+    void Promise.resolve(postUpdate(options.documentId, encodeBase64Update(merged))).catch(() => {
       if (destroyed) return
       queuedUpdates = [merged, ...queuedUpdates]
       if (flushTimer === null) flushTimer = setTimeout(flushUpdates, POST_DEBOUNCE_MS)
@@ -484,7 +498,7 @@ export async function createDocCoeditProvider(
     if (pendingAwarenessClients.length === 0) return
     const clients = Array.from(new Set(pendingAwarenessClients))
     pendingAwarenessClients = []
-    void Promise.resolve(postAwareness(options.slipId, encodeBase64Update(encodeAwarenessUpdate(awareness, clients))))
+    void Promise.resolve(postAwareness(options.documentId, encodeBase64Update(encodeAwarenessUpdate(awareness, clients))))
       .catch(() => {
         if (destroyed) return
         pendingAwarenessClients = [...clients, ...pendingAwarenessClients]
@@ -519,18 +533,18 @@ export async function createDocCoeditProvider(
   const localUser = await resolveLocalUser()
   awareness.setLocalStateField('user', localUser)
 
-  const applySnapshot = (snapshot: SlipCoeditUpdatesResponse) => {
+  const applySnapshot = (snapshot: CoeditUpdatesResponse) => {
     for (const update of snapshot.updates) {
       Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
     }
   }
   const resyncSnapshot = async () => {
     if (destroyed) return
-    const snapshot = await initialUpdates(options.slipId)
+    const snapshot = await initialUpdates(options.documentId)
     if (destroyed) return
     applySnapshot(snapshot)
   }
-  const stream = subscribe(options.slipId, (event) => {
+  const stream = subscribe(options.documentId, (event) => {
     if (destroyed) return
     if (event.event === 'coedit:update' && isCoeditPayload(event.data, 'update')) {
       Y.applyUpdate(doc, decodeBase64Update(event.data.update), REMOTE_ORIGIN)
@@ -554,7 +568,7 @@ export async function createDocCoeditProvider(
   }
 
   try {
-    applySnapshot(await initialUpdates(options.slipId))
+    applySnapshot(await initialUpdates(options.documentId))
   } catch (error) {
     cleanupFailedInitialization()
     throw error
@@ -612,7 +626,7 @@ export async function createDocCoeditProvider(
     },
     getHeaderValue: (fieldName: string) => stringifyYValue(header.get(fieldName)),
     setHeaderValue: (fieldName: string, value: string) => {
-      if (HEADER_TEXT_FIELDS.has(fieldName)) {
+      if (headerTextFields.has(fieldName)) {
         setYTextValue(ensureHeaderText(header, fieldName), value)
         return
       }

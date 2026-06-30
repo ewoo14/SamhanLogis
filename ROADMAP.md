@@ -36,6 +36,7 @@
 - 협업 코-에디팅 S2d-1: 임계 통과 전표 조회 시 **헤더 셀**에 anchor 後 누적 레드라인(track-changes)을 인라인 표시한다. 임계 전이 시점 `max(slip_revisions.revision_no)` 를 `redline_anchor_revision_no`(V54)로 고정하고, anchor 後 편집만 기존값 취소선 + 사용자색 수정값으로 재귀 스택 표시한다(`RedlineCell`, S2b 스타일 재사용). S2d-1 은 헤더 필드 한정 — 라인 셀(품목)은 행인덱스 누적·단가/합계 VAT 정합 이슈로 **S2d-1b 후속**, 라이브 Yjs 실시간 track-changes 는 **S2d-2**. (PR #677)
 - 협업 코-에디팅 S2d-1b: 임계 통과 전표 조회 시 **라인 셀**에도 anchor 後 누적 레드라인을 표시한다. `SlipSnapshot.Line`을 VAT 포함 단가·부가세·공급가액 nullable 필드로 additive 확장하고, `productId + 등장순서` 안정키로 최신 행 인덱스 `lines[i].field`를 emit해 라인 삽입/재정렬 후 이력 혼입을 막는다. desktop 전표 상세는 품목명·모델명·규격·수량·단가(VAT포함)·합계(VAT포함)를 `RedlineCell`에 연결하고 숫자 layer는 천단위 포맷한다. legacy VAT-null snapshot은 VAT 제외값 그대로 fallback한다.
 - 협업 코-에디팅 S2d-2: 임계 前 Yjs 라이브 편집 중 타 사용자의 방금 수정한 필드를 awareness `lastEdit:{fieldPath,ts}` 기반으로 사용자색 2.5초 펄스 하이라이트 + `{displayName} 수정` 배지로 표시한다. `CollaborativeSlipInput`과 메모 `CollaborativeTextField`에 송신/표시를 연결했고, BE/slip-service 변경 없이 기존 opaque base64 awareness relay를 그대로 사용한다. 저장 redline accept/reject 및 편집모드 live redline stack은 후속 후보로 남긴다.
+- 협업 코-에디팅 S3-0: slip 전용 Yjs relay/provider를 도메인 무관 공용으로 승격했다. BE는 `shared:collab-core` `CollabCoeditService(documentId)`가 opaque base64 update/awareness relay를 담당하고, slip coedit 3 endpoint는 URL·DTO·권한·SSE event 계약을 유지한 채 delegate한다. FE는 `makeCoeditApi(basePath)`와 `createDocCoeditProvider({ documentId, basePath, headerTextFields })`로 공용화하고, slip은 첫 소비자로 `/slips/{id}`와 긴 헤더 텍스트 필드 집합을 주입한다. 타 문서 rollout은 S3-1+ 후속.
 
 ### 최신 진행 메모 (2026-06-24)
 

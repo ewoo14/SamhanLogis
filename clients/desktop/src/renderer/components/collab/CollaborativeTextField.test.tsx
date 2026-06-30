@@ -37,7 +37,8 @@ describe('CollaborativeTextField', () => {
 
     render(
       <CollaborativeTextField
-        slipId="10000000-0000-0000-0000-000000000001"
+        documentId="10000000-0000-0000-0000-000000000001"
+        basePath="/slips/10000000-0000-0000-0000-000000000001"
         fieldName="memo"
         label="협업 메모"
         providerOverride={provider}
@@ -74,7 +75,8 @@ describe('CollaborativeTextField', () => {
 
     render(
       <CollaborativeTextField
-        slipId="10000000-0000-0000-0000-000000000001"
+        documentId="10000000-0000-0000-0000-000000000001"
+        basePath="/slips/10000000-0000-0000-0000-000000000001"
         fieldName="memo"
         label="memo"
         providerOverride={provider}
@@ -123,7 +125,8 @@ describe('CollaborativeTextField', () => {
 
     render(
       <CollaborativeTextField
-        slipId="10000000-0000-0000-0000-000000000001"
+        documentId="10000000-0000-0000-0000-000000000001"
+        basePath="/slips/10000000-0000-0000-0000-000000000001"
         fieldName="memo"
         label="memo"
         providerOverride={provider}
@@ -175,7 +178,8 @@ describe('CollaborativeTextField', () => {
 
     render(
       <CollaborativeTextField
-        slipId="10000000-0000-0000-0000-000000000001"
+        documentId="10000000-0000-0000-0000-000000000001"
+        basePath="/slips/10000000-0000-0000-0000-000000000001"
         fieldName="memo"
         label="memo"
         providerOverride={provider}

@@ -28,6 +28,8 @@ import { PresenceIndicator } from './PresenceIndicator'
 export interface SlipCollaborationPanelProps {
   /** 전표 UUID — query key/API path 전용. 화면 텍스트 노출 금지. */
   slipId: string
+  /** coedit relay/provider 가 사용할 slip 협업 base path. */
+  basePath: string
   /** overlay 편집 필드의 현재 값 snapshot. */
   currentValues?: Record<string, string | null | undefined>
   /** 상세 상단 "수정" 버튼과 연결되는 편집모드 상태. */
@@ -129,6 +131,7 @@ function isCollabEvent(eventName: string): boolean {
 
 export function SlipCollaborationPanel({
   slipId,
+  basePath,
   currentValues = EMPTY_CURRENT_VALUES,
   editMode = false,
   onEditModeChange,
@@ -278,7 +281,8 @@ export function SlipCollaborationPanel({
 
         <div style={{ marginBottom: 16 }}>
           <CollaborativeTextField
-            slipId={slipId}
+            documentId={slipId}
+            basePath={basePath}
             fieldName="memo"
             label="협업 메모"
             rows={4}

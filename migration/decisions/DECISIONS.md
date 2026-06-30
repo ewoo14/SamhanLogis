@@ -2904,6 +2904,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-COEDIT-S2D-02 | **S2d-1 은 헤더 필드 레드라인 한정**, 라인 셀(품목)은 S2d-1b 후속 분리. 사유: 라인 fieldPath 행인덱스 누적 misattribution(anchor 後 재정렬 시 productId 혼입·이력손실) + 단가/합계 snapshot VAT 제외↔표시 VAT 포함 불일치. S2d-1b 에서 productId 안정키 + VAT 정합값으로 해소. S2d-2 = 라이브 Yjs 실시간 track-changes. (#677) |
 | D-COEDIT-S2D-03 | **S2d-1b 라인 셀 레드라인은 Snapshot 확장 A안**으로 구현한다. `SlipSnapshot.Line`에 `unitPriceWithVat`·`vatAmount`·`supplyAmount` nullable 필드를 additive로 추가하고(Flyway 없음), 라인 redline은 `productId + 등장순서` 안정키로 anchor 後 revision snapshot을 직접 비교한다. 단가/합계는 신규 VAT 필드를 우선 사용하고 legacy VAT-null snapshot은 VAT 제외값 그대로 fallback(×1.1 추정 금지). |
 | D-COEDIT-S2D-04 | **S2d-2 라이브 변경 하이라이트는 접근법 A(awareness `lastEdit` + transient pulse)** 로 구현한다. 로컬 편집 시 FE awareness에 `lastEdit:{fieldPath,ts}`를 세팅하고, 타 클라이언트는 최근 2.5초 미만 원격 lastEdit만 사용자색 펄스 + `{displayName} 수정` 배지로 표시한다. awareness relay는 기존 opaque base64 흐름이므로 BE/slip-service 변경은 0이다. 저장 redline accept/reject 및 편집모드 live redline stack은 비대상이다. |
+| D-COEDIT-S3-00 | **relay/provider 공용화는 계약 무변경 추출로 고정**한다. BE Yjs relay는 `shared:collab-core` `CollabCoeditService(documentId)`가 소유하고, slip은 기존 `/slips/{id}/collab/coedit[/update|/awareness]` endpoint·DTO·권한을 유지한 채 delegate한다. FE는 `makeCoeditApi(basePath)`와 `createDocCoeditProvider({documentId,basePath,headerTextFields})`를 공용 계약으로 삼으며, slip의 긴 헤더 텍스트 필드 집합만 slip 소비자 측 상수로 둔다. 타 문서 rollout은 basePath/headerTextFields 주입으로 진행하고, redline generic화·다중노드 relay 외부화는 별도 후속이다. |
 
 ### D-DMR (배차 #3 수정제안 재배차/수동기입, 2026-06-12)
 
