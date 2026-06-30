@@ -239,10 +239,13 @@ export function CollaborativeTextField({
   }, [editFieldPath, provider])
 
   useEffect(() => {
-    if (!provider || remoteEdits.length === 0) return undefined
+    const first = remoteEdits[0]
+    if (!provider || !first) return undefined
+    // ts 기준 잔여시간 스케줄 — 무관 awareness 리셋에도 편집 ts+EDIT_HIGHLIGHT_MS 에 정확히 소멸(리뷰 FE/Design NB-1).
+    const remaining = Math.max(0, first.ts + EDIT_HIGHLIGHT_MS - Date.now())
     const timer = setTimeout(() => {
       setRemoteEdits(provider.getRemoteEdits(editFieldPath))
-    }, EDIT_HIGHLIGHT_MS)
+    }, remaining)
     return () => clearTimeout(timer)
   }, [editFieldPath, provider, remoteEdits])
 

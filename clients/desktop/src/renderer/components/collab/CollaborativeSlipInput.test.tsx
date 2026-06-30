@@ -89,6 +89,8 @@ describe('CollaborativeSlipInput', () => {
 
     expect(provider.getItemValue(0, 'quantity')).toBe('3')
     expect(onValueChange).toHaveBeenCalledWith('3')
+    // 편집 시 lastEdit 송신(원격에 변경 하이라이트용) — QA NB-1 송신측 단언 보강
+    expect(provider.setLocalLastEdit).toHaveBeenCalledWith('items.0.quantity')
     expect(screen.getByTestId('slip-coedit-field-items-0-quantity').textContent).toContain('김영업')
     expect(screen.queryByText('77')).toBeNull()
   })

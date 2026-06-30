@@ -30,8 +30,11 @@ function remoteCursorsFor(provider: DocCoeditProvider | null, fieldPath: string)
   return provider?.getRemoteCursors(fieldPath) ?? []
 }
 
+const EMPTY_EDITS: RemoteFieldEdit[] = []
 function remoteEditsFor(provider: DocCoeditProvider | null, fieldPath: string): RemoteFieldEdit[] {
-  return provider?.getRemoteEdits(fieldPath) ?? []
+  const edits = provider?.getRemoteEdits(fieldPath) ?? EMPTY_EDITS
+  // 빈 결과는 안정 참조로 반환 — 무관 awareness tick 의 불필요 setState/리셋 방지(리뷰 FE NB-3).
+  return edits.length === 0 ? EMPTY_EDITS : edits
 }
 
 export interface CollaborativeSlipInputProps {
@@ -94,10 +97,13 @@ export function CollaborativeSlipInput({
   }, [fieldPath, onValueChange, provider])
 
   useEffect(() => {
-    if (!provider || remoteEdits.length === 0) return undefined
+    const first = remoteEdits[0]
+    if (!provider || !first) return undefined
+    // ts 기준 잔여시간으로 스케줄 — 무관 awareness 변경에 타이머가 리셋돼도 편집 ts+EDIT_HIGHLIGHT_MS 에 정확히 소멸(리뷰 FE/Design NB-1, 배지 잔존 차단).
+    const remaining = Math.max(0, first.ts + EDIT_HIGHLIGHT_MS - Date.now())
     const timer = setTimeout(() => {
       setRemoteEdits(remoteEditsFor(provider, fieldPath))
-    }, EDIT_HIGHLIGHT_MS)
+    }, remaining)
     return () => clearTimeout(timer)
   }, [fieldPath, provider, remoteEdits])
 

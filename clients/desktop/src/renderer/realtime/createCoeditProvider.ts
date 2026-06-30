@@ -367,7 +367,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
           ts: state.lastEdit.ts,
         })
       }
-      return edits
+      return edits.sort((a, b) => b.ts - a.ts)
     },
     subscribeText: (listener: () => void) => {
       textListeners.add(listener)
@@ -608,7 +608,7 @@ export async function createDocCoeditProvider(
           ts: state.lastEdit.ts,
         })
       }
-      return edits
+      return edits.sort((a, b) => b.ts - a.ts)
     },
     getHeaderValue: (fieldName: string) => stringifyYValue(header.get(fieldName)),
     setHeaderValue: (fieldName: string, value: string) => {
