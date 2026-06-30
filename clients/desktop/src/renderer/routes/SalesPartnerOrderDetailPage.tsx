@@ -28,8 +28,10 @@ import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { apiClient } from '../api/client'
 import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { PartnerOrderCollaborationPanel } from '../components/collab/PartnerOrderCollaborationPanel'
+import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
 import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
+import { createDocCoeditProvider, type DocCoeditProvider } from '../realtime/createCoeditProvider'
 import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -74,6 +76,7 @@ const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
  */
 const CONVERTIBLE_STATUS: ReadonlySet<string> = new Set(['DRAFT', 'ON_HOLD'])
 const COLLAB_LOCKED_STATUS: ReadonlySet<string> = new Set(['CANCELED', 'CONVERTED', 'CONFIRMING'])
+const PARTNER_ORDER_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
 
 type EditLine = PartnerOrderUpdateRequest['lines'][number] & { key: string }
 
@@ -94,6 +97,41 @@ function toEditLines(order: PartnerOrderDetail): EditLine[] {
     deliveryPrice: line.deliveryPrice,
     remark: line.remark,
   }))
+}
+
+function coeditHeaderValues(order: PartnerOrderDetail): Record<string, string> {
+  return {
+    partnerCode: order.partnerCode ?? '',
+    dueDate: order.dueDate ?? '',
+    memo: order.memo ?? '',
+  }
+}
+
+function seedPartnerOrderCoeditProvider(provider: DocCoeditProvider, order: PartnerOrderDetail) {
+  for (const [fieldName, value] of Object.entries(coeditHeaderValues(order))) {
+    provider.setHeaderValue(fieldName, value)
+  }
+  provider.replaceItems(toEditLines(order))
+}
+
+function coeditLinesToEditLines(
+  provider: DocCoeditProvider,
+  current: EditLine[],
+): EditLine[] {
+  return provider.items.toArray().map((_, index) => {
+    const previous = current[index]
+    const quantityValue = provider.getItemValue(index, 'quantity')
+    const deliveryPriceValue = provider.getItemValue(index, 'deliveryPrice')
+    return {
+      key: previous?.key ?? createEditLineKey(),
+      productName: provider.getItemValue(index, 'productName'),
+      modelCode: provider.getItemValue(index, 'modelCode'),
+      categoryKey: previous?.categoryKey ?? 'homemulti',
+      quantity: Number(quantityValue || 0),
+      deliveryPrice: Number(deliveryPriceValue || 0),
+      remark: provider.getItemValue(index, 'remark'),
+    }
+  })
 }
 
 export function SalesPartnerOrderDetailPage() {
@@ -144,6 +182,8 @@ export function SalesPartnerOrderDetailPage() {
   const [dueDate, setDueDate] = useState('')
   const [memo, setMemo] = useState('')
   const [lines, setLines] = useState<EditLine[]>([])
+  const [orderFormCoeditProvider, setOrderFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
+  const [orderFormCoeditPending, setOrderFormCoeditPending] = useState(false)
   const reloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const convertSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -338,10 +378,67 @@ export function SalesPartnerOrderDetailPage() {
     setLines(toEditLines(data))
   }, [])
 
+  const canCollabEdit =
+    !!query.data &&
+    canAccess('sales.partner-order.edit', 'update') &&
+    !COLLAB_LOCKED_STATUS.has(query.data.status)
+
   useEffect(() => {
     if (!query.data || editOpen) return
     syncFormFromData(query.data)
   }, [query.data, editOpen, syncFormFromData])
+
+  useEffect(() => {
+    const orderData = query.data
+    if (!isValidId || !orderData || !editOpen || !canCollabEdit) {
+      setOrderFormCoeditProvider(null)
+      setOrderFormCoeditPending(false)
+      return undefined
+    }
+
+    let disposed = false
+    setOrderFormCoeditPending(true)
+    let provider: DocCoeditProvider | null = null
+    let unsubscribeDoc: (() => void) | null = null
+
+    const applyProviderState = (nextProvider: DocCoeditProvider) => {
+      setPartnerCode(nextProvider.getHeaderValue('partnerCode'))
+      setDueDate(nextProvider.getHeaderValue('dueDate'))
+      setMemo(nextProvider.getHeaderValue('memo'))
+      setLines((prev) => coeditLinesToEditLines(nextProvider, prev))
+    }
+
+    void createDocCoeditProvider({
+      documentId: orderId,
+      basePath: `/partner-orders/${encodeURIComponent(orderId)}`,
+      headerTextFields: PARTNER_ORDER_HEADER_TEXT_FIELDS,
+    }).then((nextProvider) => {
+      if (disposed) {
+        nextProvider.destroy()
+        return
+      }
+      provider = nextProvider
+      if (nextProvider.isEmpty()) seedPartnerOrderCoeditProvider(nextProvider, orderData)
+      applyProviderState(nextProvider)
+      unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
+      setOrderFormCoeditProvider(nextProvider)
+      setOrderFormCoeditPending(false)
+    }).catch(() => {
+      // provider 로드 실패 시 null + pending 해제로 평문 수정 모달을 유지한다(영구잠금 방지).
+      if (!disposed) {
+        setOrderFormCoeditProvider(null)
+        setOrderFormCoeditPending(false)
+      }
+    })
+
+    return () => {
+      disposed = true
+      unsubscribeDoc?.()
+      provider?.destroy()
+      setOrderFormCoeditProvider(null)
+      setOrderFormCoeditPending(false)
+    }
+  }, [canCollabEdit, editOpen, isValidId, orderId, query.data])
 
   const handleConflictReload = useCallback(async () => {
     const result = await refetch()
@@ -401,10 +498,10 @@ export function SalesPartnerOrderDetailPage() {
   }, [orderId])
 
   const openEditDialog = useCallback(() => {
-    if (!query.data) return
+    if (!query.data || !canCollabEdit) return
     syncFormFromData(query.data)
     setEditOpen(true)
-  }, [query.data, syncFormFromData])
+  }, [canCollabEdit, query.data, syncFormFromData])
 
   const openConvertDialog = useCallback(() => {
     if (!query.data) return
@@ -496,11 +593,6 @@ export function SalesPartnerOrderDetailPage() {
     [selectedOrderLines],
   )
 
-  const canCollabEdit =
-    !!query.data &&
-    canAccess('sales.partner-order.edit', 'update') &&
-    !COLLAB_LOCKED_STATUS.has(query.data.status)
-
   const canOpenConvert =
     !!query.data &&
     canConvert &&
@@ -589,7 +681,7 @@ export function SalesPartnerOrderDetailPage() {
                 수정
               </Button>
             ) : null}
-            {query.data && canEdit ? (
+            {query.data && canCollabEdit ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -744,7 +836,7 @@ export function SalesPartnerOrderDetailPage() {
                         수정
                       </button>
                     ) : null}
-                    {canEdit ? (
+                    {canCollabEdit ? (
                       <button
                         type="button"
                         className="mobile-more-sheet-item"
@@ -1293,7 +1385,7 @@ export function SalesPartnerOrderDetailPage() {
               type="button"
               variant="primary"
               data-testid="partner-order-edit-submit"
-              disabled={updateMutation.isPending || !query.data}
+              disabled={updateMutation.isPending || orderFormCoeditPending || !query.data}
               onClick={() => {
                 if (!query.data) return
                 updateMutation.mutate({
@@ -1345,25 +1437,40 @@ export function SalesPartnerOrderDetailPage() {
           </div>
         ) : null}
         <div className={styles['formGrid']} data-testid="partner-order-edit-form">
-          <Input
-            label="거래처 코드"
-            value={partnerCode}
-            onChange={(e) => setPartnerCode(e.target.value)}
-            data-testid="partner-order-edit-partner-code"
-          />
-          <Input
-            label="납기"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            data-testid="partner-order-edit-due-date"
-          />
-          <Input
-            label="요청사항"
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            data-testid="partner-order-edit-memo"
-          />
+          <label className={styles['formField']}>
+            <span>거래처 코드</span>
+            <CollaborativeSlipInput
+              provider={orderFormCoeditProvider}
+              coeditPending={orderFormCoeditPending}
+              fieldPath="header.partnerCode"
+              value={partnerCode}
+              onValueChange={setPartnerCode}
+              aria-label="거래처 코드"
+            />
+          </label>
+          <label className={styles['formField']}>
+            <span>납기</span>
+            <CollaborativeSlipInput
+              provider={orderFormCoeditProvider}
+              coeditPending={orderFormCoeditPending}
+              fieldPath="header.dueDate"
+              type="date"
+              value={dueDate}
+              onValueChange={setDueDate}
+              aria-label="납기"
+            />
+          </label>
+          <label className={styles['formField']}>
+            <span>요청사항</span>
+            <CollaborativeSlipInput
+              provider={orderFormCoeditProvider}
+              coeditPending={orderFormCoeditPending}
+              fieldPath="header.memo"
+              value={memo}
+              onValueChange={setMemo}
+              aria-label="요청사항"
+            />
+          </label>
         </div>
         <div className={`${styles['tableWrap']} ${styles['cardMarginTop']}`}>
           <table className={styles['estTable']}>
@@ -1374,25 +1481,30 @@ export function SalesPartnerOrderDetailPage() {
                 <th>구분</th>
                 <th>수량</th>
                 <th>납품가</th>
+                <th>비고</th>
               </tr>
             </thead>
             <tbody>
               {lines.map((line, index) => (
                 <tr key={line.key}>
                   <td>
-                    <Input
+                    <CollaborativeSlipInput
+                      provider={orderFormCoeditProvider}
+                      coeditPending={orderFormCoeditPending}
+                      fieldPath={`items.${index}.productName`}
                       aria-label="품목명"
                       value={line.productName}
-                      data-testid={`partner-order-edit-line-${index}-product-name`}
-                      onChange={(e) => updateLine(index, { productName: e.target.value })}
+                      onValueChange={(value) => updateLine(index, { productName: value })}
                     />
                   </td>
                   <td>
-                    <Input
+                    <CollaborativeSlipInput
+                      provider={orderFormCoeditProvider}
+                      coeditPending={orderFormCoeditPending}
+                      fieldPath={`items.${index}.modelCode`}
                       aria-label="모델명"
                       value={line.modelCode}
-                      data-testid={`partner-order-edit-line-${index}-model-code`}
-                      onChange={(e) => updateLine(index, { modelCode: e.target.value })}
+                      onValueChange={(value) => updateLine(index, { modelCode: value })}
                     />
                   </td>
                   <td>
@@ -1409,23 +1521,37 @@ export function SalesPartnerOrderDetailPage() {
                     </Select>
                   </td>
                   <td>
-                    <Input
+                    <CollaborativeSlipInput
+                      provider={orderFormCoeditProvider}
+                      coeditPending={orderFormCoeditPending}
+                      fieldPath={`items.${index}.quantity`}
                       aria-label="수량"
                       type="number"
                       min={1}
-                      value={line.quantity}
-                      data-testid={`partner-order-edit-line-${index}-quantity`}
-                      onChange={(e) => updateLine(index, { quantity: Number(e.target.value) })}
+                      value={String(line.quantity)}
+                      onValueChange={(value) => updateLine(index, { quantity: Number(value) })}
                     />
                   </td>
                   <td>
-                    <Input
+                    <CollaborativeSlipInput
+                      provider={orderFormCoeditProvider}
+                      coeditPending={orderFormCoeditPending}
+                      fieldPath={`items.${index}.deliveryPrice`}
                       aria-label="납품가"
                       type="number"
                       min={0}
-                      value={line.deliveryPrice}
-                      data-testid={`partner-order-edit-line-${index}-delivery-price`}
-                      onChange={(e) => updateLine(index, { deliveryPrice: Number(e.target.value) })}
+                      value={String(line.deliveryPrice)}
+                      onValueChange={(value) => updateLine(index, { deliveryPrice: Number(value) })}
+                    />
+                  </td>
+                  <td>
+                    <CollaborativeSlipInput
+                      provider={orderFormCoeditProvider}
+                      coeditPending={orderFormCoeditPending}
+                      fieldPath={`items.${index}.remark`}
+                      aria-label="비고"
+                      value={line.remark ?? ''}
+                      onValueChange={(value) => updateLine(index, { remark: value })}
                     />
                   </td>
                 </tr>
