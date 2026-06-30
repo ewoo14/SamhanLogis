@@ -659,7 +659,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
     /** coedit awareness 의 body 누락/빈 awareness 필드는 400 으로 거부된다(update 와 대칭). */
     @Test
     void coedit_awareness_nullOrEmptyBody_returns400() throws Exception {
-        UUID estimateId = seedEstimate("COED-AW-NULL").getId();
+        UUID estimateId = seedEstimate("CAWN").getId();
 
         mvc.perform(post("/slips/estimates/{estimateId}/collab/coedit/awareness", estimateId)
                         .header(USER_ID_HEADER, ACTOR_ID)

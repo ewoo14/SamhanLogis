@@ -1,0 +1,1 @@
+{"success":false,"code":"FORBIDDEN","message":"[SP-PO-1] 동적 권한 deny — page=estimates.list action=VIEW role=UNKNOWN reason=account permission missing","data":null,"timestamp":"2026-06-30T15:33:33.057824468Z"}
