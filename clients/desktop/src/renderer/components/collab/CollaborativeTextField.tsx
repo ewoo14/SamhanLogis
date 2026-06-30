@@ -56,6 +56,8 @@ interface RelativeSelection {
   head: Y.RelativePosition
 }
 
+type ProviderStatus = 'loading' | 'ready' | 'failed'
+
 /**
  * textarea 내 특정 offset 의 caret 화면 좌표를 mirror-div 기법으로 계산한다.
  * 전체 문자 비율(%) 단순 치환은 멀티라인에서 어긋나므로(리뷰 B-4), 실제 wrapping 을 복제해 측정한다.
@@ -164,6 +166,7 @@ export function CollaborativeTextField({
   const pendingRemoteRef = useRef(false)
   const localSelectionRef = useRef<RelativeSelection | null>(null)
   const [provider, setProvider] = useState<CoeditProvider | null>(providerOverride ?? null)
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus>(providerOverride ? 'ready' : 'loading')
   const [value, setValue] = useState(() => providerOverride?.text.toString() ?? '')
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>(() => providerOverride?.getRemoteCursors() ?? [])
   const editFieldPath = useMemo(() => `header.${fieldName}`, [fieldName])
@@ -174,10 +177,13 @@ export function CollaborativeTextField({
   const [overlays, setOverlays] = useState<CursorOverlay[]>([])
   const [scrollTick, setScrollTick] = useState(0)
   const textareaId = useMemo(() => `coedit-${fieldName}`, [fieldName])
+  const statusId = useMemo(() => `${textareaId}-status`, [textareaId])
+  const effectiveReadOnly = readOnly || providerStatus !== 'ready'
 
   useEffect(() => {
     if (providerOverride) {
       setProvider(providerOverride)
+      setProviderStatus('ready')
       setValue(providerOverride.text.toString())
       setRemoteCursors(providerOverride.getRemoteCursors())
       setRemoteEdits(providerOverride.getRemoteEdits(editFieldPath))
@@ -185,6 +191,11 @@ export function CollaborativeTextField({
     }
     let disposed = false
     let created: CoeditProvider | null = null
+    setProvider(null)
+    setProviderStatus('loading')
+    setValue('')
+    setRemoteCursors([])
+    setRemoteEdits([])
     void createCoeditProvider({ documentId, basePath, fieldName })
       .then((next) => {
         if (disposed) {
@@ -193,14 +204,22 @@ export function CollaborativeTextField({
         }
         created = next
         setProvider(next)
+        setProviderStatus('ready')
         setValue(next.text.toString())
         setRemoteCursors(next.getRemoteCursors())
         setRemoteEdits(next.getRemoteEdits(editFieldPath))
       })
       .catch((error) => {
-        // coedit 초기화 실패(네트워크/4xx/5xx/응답 형식 오류) 시 graceful degrade —
-        // provider=null 유지로 읽기전용 빈 textarea 표시. 미처리 promise rejection→pageerror 방지.
-        if (!disposed) console.warn('[coedit] provider 초기화 실패 — 로컬 textarea 로 degrade', error)
+        // coedit 초기화 실패(네트워크/4xx/5xx/응답 형식 오류) 시 입력을 잠근다.
+        // provider 없이 쓰기 허용 시 저장되지 않는 로컬 메모처럼 보여 데이터 유실을 유발한다.
+        if (!disposed) {
+          setProvider(null)
+          setProviderStatus('failed')
+          setValue('')
+          setRemoteCursors([])
+          setRemoteEdits([])
+          console.warn('[coedit] provider 초기화 실패 — 입력 잠금', error)
+        }
       })
     return () => {
       disposed = true
@@ -346,11 +365,12 @@ export function CollaborativeTextField({
           ref={textareaRef}
           id={textareaId}
           aria-label={label}
+          aria-describedby={statusId}
           value={value}
           rows={rows}
-          readOnly={readOnly}
+          readOnly={effectiveReadOnly}
           onChange={(event) => {
-            if (readOnly) return
+            if (effectiveReadOnly) return
             const nextValue = event.target.value
             setValue(nextValue)
             // 조합 중엔 Y.Text 반영 보류 — 중간 자모 delta 노이즈 방지. compositionEnd 에서 확정 반영.
@@ -403,7 +423,7 @@ export function CollaborativeTextField({
             padding: overlays.length > 0 ? '24px 10px 8px' : '8px 10px',
             font: 'inherit',
             lineHeight: 1.5,
-            background: readOnly ? 'var(--color-neutral-50)' : undefined,
+            background: effectiveReadOnly ? 'var(--color-neutral-50)' : undefined,
             boxShadow: editHighlight ? `0 0 0 2px ${editHighlight.color}` : undefined,
           }}
         />
@@ -476,6 +496,20 @@ export function CollaborativeTextField({
           </div>
         ))}
       </div>
+      {providerStatus === 'loading' ? (
+        <p id={statusId} style={{ margin: 0, fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
+          협업 메모 연결 중...
+        </p>
+      ) : null}
+      {providerStatus === 'failed' ? (
+        <p
+          id={statusId}
+          role="alert"
+          style={{ margin: 0, fontSize: 'var(--font-size-xs)', color: 'var(--color-danger-600)' }}
+        >
+          협업 메모 연결에 실패했습니다. 새로고침 후 다시 시도해 주세요.
+        </p>
+      ) : null}
     </div>
   )
 }
