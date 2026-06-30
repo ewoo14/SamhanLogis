@@ -148,6 +148,17 @@ describe('mock slip redline contract', () => {
 
     expect(resolved.data).toEqual({ anchored: false, fields: [] })
   })
+
+  it('redline에 라인 셀 fields(VAT포함 단가)가 포함된다', () => {
+    const resolved = mockRequest({
+      method: 'GET',
+      url: '/api/v1/slips/slip-006/redline',
+    }) as MockEnvelope<{ fields: Array<{ fieldPath: string; layers: Array<{ value: string | null }> }> }>
+
+    const unitPrice = resolved.data.fields.find((field) => field.fieldPath === 'lines[0].unitPrice')
+    expect(resolved.data.fields.some((field) => field.fieldPath === 'lines[0].quantity')).toBe(true)
+    expect(unitPrice?.layers.map((layer) => layer.value)).toEqual(['11000', '13200'])
+  })
 })
 
 describe('mock monthly income statement contract', () => {

@@ -1905,7 +1905,10 @@ public class Slip extends BaseEntity {
                         line.getQuantity(),
                         line.getUnitPrice(),
                         line.getLineTotal(),
-                        line.getNote()))
+                        line.getNote(),
+                        line.getUnitPriceWithVat(),
+                        line.getVatAmount(),
+                        line.getSupplyAmount()))
                 .toList();
         return new SlipSnapshot(
                 this.slipNo,

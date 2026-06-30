@@ -50,9 +50,12 @@ class SlipRevisionSnapshotTest {
                 "거래처 사업장 주소", "김대표", "익월말", "5% 할인", "월말", "운송비 별도",
                 List.of(
                         new SlipSnapshot.Line(productId, "펌프", "MX-100", "220V", 2,
-                                new BigDecimal("15000.00"), new BigDecimal("30000.00"), "라인메모"),
+                                new BigDecimal("15000.00"), new BigDecimal("30000.00"), "라인메모",
+                                new BigDecimal("16500.00"), new BigDecimal("3000.00"),
+                                new BigDecimal("30000.00")),
                         new SlipSnapshot.Line(UUID.randomUUID(), "밸브", null, null, 5,
-                                new BigDecimal("3000.00"), new BigDecimal("15000.00"), null)));
+                                new BigDecimal("3000.00"), new BigDecimal("15000.00"), null,
+                                null, null, null)));
 
         String json = objectMapper.writeValueAsString(original);
         SlipSnapshot restored = objectMapper.readValue(json, SlipSnapshot.class);

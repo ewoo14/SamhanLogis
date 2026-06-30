@@ -5,16 +5,20 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevision;
+import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
 import com.samhanair.logis.slip.revision.web.dto.SlipRedlineResponse;
 import com.samhanair.logis.slip.revision.web.dto.SlipRedlineResponse.FieldRedline;
 import com.samhanair.logis.slip.revision.web.dto.SlipRedlineResponse.Layer;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.FieldChange;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -82,12 +86,140 @@ public class SlipRedlineService {
                         change.actorColor(), change.changedAt()));
             }
         }
+        addLineRedlines(revisions, fields);
 
         List<FieldRedline> result = fields.values().stream()
                 .filter(builder -> builder.layers.size() >= 2)
                 .map(FieldBuilder::toResponse)
                 .toList();
         return new SlipRedlineResponse(true, result);
+    }
+
+    private void addLineRedlines(List<SlipRevision> revisions, Map<String, FieldBuilder> fields) {
+        if (revisions.size() < 2) {
+            return;
+        }
+        SlipRevision latestRevision = revisions.get(revisions.size() - 1);
+        List<SlipSnapshot.Line> latestLines = safeLines(latestRevision.getSnapshot());
+        for (int curIdx = 0; curIdx < latestLines.size(); curIdx++) {
+            SlipSnapshot.Line curLine = latestLines.get(curIdx);
+            UUID productId = curLine.productId();
+            if (productId == null) {
+                continue;
+            }
+            int occurrence = occurrenceIndex(latestLines, productId, curIdx);
+            for (LineRedlineField field : LineRedlineField.values()) {
+                FieldBuilder builder = buildLineField(revisions, curIdx, productId, occurrence, field);
+                if (builder.layers.size() >= 2) {
+                    fields.put(builder.fieldPath, builder);
+                }
+            }
+        }
+    }
+
+    private FieldBuilder buildLineField(List<SlipRevision> revisions, int curIdx, UUID productId,
+                                        int occurrence, LineRedlineField field) {
+        FieldBuilder builder = new FieldBuilder("lines[" + curIdx + "]." + field.fieldName, field.label);
+        String previousValue = null;
+        boolean hasPrevious = false;
+        for (SlipRevision revision : revisions) {
+            SlipSnapshot.Line line = nthByProductId(safeLines(revision.getSnapshot()), productId, occurrence);
+            if (line == null) {
+                continue;
+            }
+            String value = formatValue(lineDisplay(field, line));
+            if (!hasPrevious) {
+                builder.layers.add(new Layer(value, null, null, null));
+                previousValue = value;
+                hasPrevious = true;
+                continue;
+            }
+            if (!Objects.equals(previousValue, value)) {
+                builder.layers.add(new Layer(value,
+                        revisionService.safeActorName(revision.getActorName()),
+                        revisionService.resolveActorColor(revision),
+                        revision.getCreatedAt()));
+                previousValue = value;
+            }
+        }
+        return builder;
+    }
+
+    private static List<SlipSnapshot.Line> safeLines(SlipSnapshot snapshot) {
+        return snapshot == null || snapshot.lines() == null ? List.of() : snapshot.lines();
+    }
+
+    private static int occurrenceIndex(List<SlipSnapshot.Line> lines, UUID productId, int curIdx) {
+        int occurrence = 0;
+        for (int i = 0; i <= curIdx; i++) {
+            if (productId.equals(lines.get(i).productId())) {
+                occurrence++;
+            }
+        }
+        return occurrence - 1;
+    }
+
+    private static SlipSnapshot.Line nthByProductId(List<SlipSnapshot.Line> lines, UUID productId, int occurrence) {
+        int seen = 0;
+        for (SlipSnapshot.Line line : lines) {
+            if (productId.equals(line.productId())) {
+                if (seen == occurrence) {
+                    return line;
+                }
+                seen++;
+            }
+        }
+        return null;
+    }
+
+    private static String lineDisplay(LineRedlineField field, SlipSnapshot.Line line) {
+        return switch (field) {
+            case MODEL_NAME -> line.modelName();
+            case PRODUCT_NAME -> line.productName();
+            case SPECIFICATION -> line.specification();
+            case QUANTITY -> String.valueOf(line.quantity());
+            case UNIT_PRICE -> plain(line.unitPriceWithVat() != null ? line.unitPriceWithVat() : line.unitPrice());
+            case LINE_TOTAL -> plain(lineTotalDisplayValue(line));
+        };
+    }
+
+    private static BigDecimal lineTotalDisplayValue(SlipSnapshot.Line line) {
+        BigDecimal supply = line.supplyAmount() != null ? line.supplyAmount() : line.lineTotal();
+        if (supply == null) {
+            return null;
+        }
+        if (line.vatAmount() != null) {
+            return supply.add(line.vatAmount());
+        }
+        if (line.supplyAmount() != null) {
+            return supply.add(supply.multiply(new BigDecimal("0.1")).setScale(0, RoundingMode.HALF_UP));
+        }
+        return line.lineTotal();
+    }
+
+    private static String plain(BigDecimal value) {
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
+    }
+
+    private static String formatValue(String value) {
+        return value == null || value.trim().isEmpty() ? "비움" : value;
+    }
+
+    private enum LineRedlineField {
+        MODEL_NAME("modelName", "모델명"),
+        PRODUCT_NAME("productName", "품목명"),
+        SPECIFICATION("specification", "규격"),
+        QUANTITY("quantity", "수량"),
+        UNIT_PRICE("unitPrice", "단가"),
+        LINE_TOTAL("lineTotal", "합계");
+
+        private final String fieldName;
+        private final String label;
+
+        LineRedlineField(String fieldName, String label) {
+            this.fieldName = fieldName;
+            this.label = label;
+        }
     }
 
     private static final class FieldBuilder {

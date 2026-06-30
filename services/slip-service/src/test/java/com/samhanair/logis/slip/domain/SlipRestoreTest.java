@@ -138,7 +138,8 @@ class SlipRestoreTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null,
                 List.of(new SlipSnapshot.Line(UUID.randomUUID(), "펌프", "MX-100", "220V",
-                        2, new BigDecimal("15000.00"), new BigDecimal("30000.00"), "라인메모")));
+                        2, new BigDecimal("15000.00"), new BigDecimal("30000.00"), "라인메모",
+                        null, null, null)));
 
         slip.restoreFromSnapshot(snapshot);
 
@@ -157,11 +158,14 @@ class SlipRestoreTest {
                 null, null, null, null, null, null, null, null, null, null,
                 List.of(
                         new SlipSnapshot.Line(UUID.randomUUID(), "A", null, null,
-                                1, new BigDecimal("100.00"), new BigDecimal("100.00"), null),
+                                1, new BigDecimal("100.00"), new BigDecimal("100.00"), null,
+                                null, null, null),
                         new SlipSnapshot.Line(UUID.randomUUID(), "B", null, null,
-                                2, new BigDecimal("200.00"), new BigDecimal("400.00"), null),
+                                2, new BigDecimal("200.00"), new BigDecimal("400.00"), null,
+                                null, null, null),
                         new SlipSnapshot.Line(UUID.randomUUID(), "C", null, null,
-                                3, new BigDecimal("300.00"), new BigDecimal("900.00"), null)));
+                                3, new BigDecimal("300.00"), new BigDecimal("900.00"), null,
+                                null, null, null)));
 
         slip.restoreFromSnapshot(snapshot);
 
@@ -180,7 +184,8 @@ class SlipRestoreTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null,
                 List.of(new SlipSnapshot.Line(UUID.randomUUID(), "펌프", "MX-100", "220V",
-                        10, new BigDecimal("15000.00"), new BigDecimal("150000.00"), "라인메모")));
+                        10, new BigDecimal("15000.00"), new BigDecimal("150000.00"), "라인메모",
+                        null, null, null)));
 
         slip.restoreFromSnapshot(snapshot);
 

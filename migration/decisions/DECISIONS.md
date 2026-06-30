@@ -2902,6 +2902,7 @@ D-AX-17 배송/검수 사진과 D-AX-18 전표 상세 bridge 이후, 운영자�
 | D-COEDIT-S2C-03 | INBOUND(SENT 임계) 카운트는 BE·mock 구현하되 `PurchaseQueryPage` 컬럼은 미노출로 둔다(forward-compatible). 화면 노출 여부는 개발책임자 결정 대기. |
 | D-COEDIT-S2D-01 | 레드라인(track-changes)은 임계 통과 전표 조회 시 셀에 인라인 표시한다(구글독스식). 임계 전이 시점 `max(slip_revisions.revision_no)` 를 `slips.redline_anchor_revision_no`(V54)로 고정하고 anchor 後 편집만 표시(드래프트 제외). 재귀 스택(기존값 취소선 + 바로 위 수정값 사용자색+라벨, 수정의 수정도 스택). S2b `slip_revisions` 재사용. (개발책임자 brainstorming 2026-06-30, anchor 기반) |
 | D-COEDIT-S2D-02 | **S2d-1 은 헤더 필드 레드라인 한정**, 라인 셀(품목)은 S2d-1b 후속 분리. 사유: 라인 fieldPath 행인덱스 누적 misattribution(anchor 後 재정렬 시 productId 혼입·이력손실) + 단가/합계 snapshot VAT 제외↔표시 VAT 포함 불일치. S2d-1b 에서 productId 안정키 + VAT 정합값으로 해소. S2d-2 = 라이브 Yjs 실시간 track-changes. (#677) |
+| D-COEDIT-S2D-03 | **S2d-1b 라인 셀 레드라인은 Snapshot 확장 A안**으로 구현한다. `SlipSnapshot.Line`에 `unitPriceWithVat`·`vatAmount`·`supplyAmount` nullable 필드를 additive로 추가하고(Flyway 없음), 라인 redline은 `productId + 등장순서` 안정키로 anchor 後 revision snapshot을 직접 비교한다. 단가/합계는 신규 VAT 필드를 우선 사용하고 legacy VAT-null snapshot은 VAT 제외값 그대로 fallback(×1.1 추정 금지). |
 
 ### D-DMR (배차 #3 수정제안 재배차/수동기입, 2026-06-12)
 

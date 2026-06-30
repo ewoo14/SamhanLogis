@@ -34,6 +34,7 @@
 - 협업 코-에디팅 S2b: slip 전표 저장 PUT 이후 기존 `slip_revisions` 버전 스냅샷을 기준으로 헤더 필드와 품목 셀의 이전값→새값 diff 를 계산해 `SlipRevisionResponse.fieldChanges`로 제공한다. 신규 테이블/Flyway 없이 기존 revision 흐름에 편입했고, 입고·출고 direct PUT 수정 경로가 실제 변경 시 EDIT revision 을 남긴다. desktop 버전 이력 패널은 displayName + `presenceColor` 단일색상으로 필드 변경 목록을 표시하며 UUID/connectedId 는 노출하지 않는다. 수정 카운트와 레드라인은 S2c/S2d 후속.
 - 협업 코-에디팅 S2c: 사용자 노출 "전표수정내역"(`editHistoryCount`)을 상태의존으로 게이트한다. 판매전표(OUTBOUND)는 창고이관(`inspect()`→COMPLETED, 재고차감), 그 외(비-OUTBOUND)는 다음 결재선(`send()`→SENT) 後 편집만 카운트하고, 임계 前 드래프트 편집은 S2b 버전로그에 보존하되 카운트에 반영하지 않는다. `revisionCount`(audit revisionNo)는 불변 유지하고 신규 `revision_count_baseline`(V53, 임계 전이 시점 스냅샷)을 차감해 표시한다. 기존 임계통과 전표는 backfill `baseline=0` 으로 현 표시를 보존한다. INBOUND 는 BE·mock 구현하되 `PurchaseQueryPage` 컬럼 미노출(forward-compatible). 레드라인은 S2d 후속. (PR #676)
 - 협업 코-에디팅 S2d-1: 임계 통과 전표 조회 시 **헤더 셀**에 anchor 後 누적 레드라인(track-changes)을 인라인 표시한다. 임계 전이 시점 `max(slip_revisions.revision_no)` 를 `redline_anchor_revision_no`(V54)로 고정하고, anchor 後 편집만 기존값 취소선 + 사용자색 수정값으로 재귀 스택 표시한다(`RedlineCell`, S2b 스타일 재사용). S2d-1 은 헤더 필드 한정 — 라인 셀(품목)은 행인덱스 누적·단가/합계 VAT 정합 이슈로 **S2d-1b 후속**, 라이브 Yjs 실시간 track-changes 는 **S2d-2**. (PR #677)
+- 협업 코-에디팅 S2d-1b: 임계 통과 전표 조회 시 **라인 셀**에도 anchor 後 누적 레드라인을 표시한다. `SlipSnapshot.Line`을 VAT 포함 단가·부가세·공급가액 nullable 필드로 additive 확장하고, `productId + 등장순서` 안정키로 최신 행 인덱스 `lines[i].field`를 emit해 라인 삽입/재정렬 후 이력 혼입을 막는다. desktop 전표 상세는 품목명·모델명·규격·수량·단가(VAT포함)·합계(VAT포함)를 `RedlineCell`에 연결하고 숫자 layer는 천단위 포맷한다. legacy VAT-null snapshot은 VAT 제외값 그대로 fallback한다.
 
 ### 최신 진행 메모 (2026-06-24)
 

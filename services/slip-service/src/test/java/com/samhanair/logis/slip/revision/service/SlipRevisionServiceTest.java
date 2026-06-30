@@ -246,7 +246,8 @@ class SlipRevisionServiceTest {
     private SlipSnapshot.Line line(UUID productId, int quantity, String unitPrice) {
         return new SlipSnapshot.Line(productId, "품목", "모델", "규격",
                 quantity, new BigDecimal(unitPrice),
-                new BigDecimal(unitPrice).multiply(BigDecimal.valueOf(quantity)), null);
+                new BigDecimal(unitPrice).multiply(BigDecimal.valueOf(quantity)), null,
+                null, null, null);
     }
 
     // 스냅샷 헤더의 partnerId/destinationWarehouseId 를 고정해 memo 외 헤더가 우연히 달라지지 않게 한다.

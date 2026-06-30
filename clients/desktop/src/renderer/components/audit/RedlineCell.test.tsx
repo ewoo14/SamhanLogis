@@ -52,4 +52,19 @@ describe('RedlineCell', () => {
     expect(screen.getByTestId('redline-cell-struck').getAttribute('aria-label')).toBe('기준값: 비움')
     expect(screen.getByTestId('redline-cell-struck').textContent).toContain('비움')
   })
+
+  it('format prop으로 각 layer 값을 포맷한다(수량 천단위)', () => {
+    render(
+      <RedlineCell
+        format={(value) => Number(value).toLocaleString()}
+        layers={[
+          { value: '1000', actorName: null, actorColor: null, changedAt: null },
+          { value: '12000', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:15:00' },
+        ]}
+      />,
+    )
+
+    expect(screen.getByTestId('redline-cell-current').textContent).toContain('12,000')
+    expect(screen.getByTestId('redline-cell-struck').textContent).toContain('1,000')
+  })
 })

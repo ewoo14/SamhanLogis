@@ -89,6 +89,9 @@ public record SlipSnapshot(
      * @param unitPrice 단가
      * @param lineTotal 라인 합계 (수량 × 단가)
      * @param note 라인 메모
+     * @param unitPriceWithVat VAT 포함 단가
+     * @param vatAmount 부가세
+     * @param supplyAmount 공급가액
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Line(
@@ -99,6 +102,9 @@ public record SlipSnapshot(
             int quantity,
             BigDecimal unitPrice,
             BigDecimal lineTotal,
-            String note) {
+            String note,
+            BigDecimal unitPriceWithVat,
+            BigDecimal vatAmount,
+            BigDecimal supplyAmount) {
     }
 }

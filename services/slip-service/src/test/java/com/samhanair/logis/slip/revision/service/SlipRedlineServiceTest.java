@@ -144,6 +144,84 @@ class SlipRedlineServiceTest {
         assertThat(response.fields()).isEmpty();
     }
 
+    @Test
+    @DisplayName("라인 단가는 VAT 포함 표시값으로 base+변경 layer 를 누적한다")
+    void computeRedlineAccumulatesLineUnitPriceWithVat() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 1,
+                        "10000", "10000", "11000", "1000", "10000"))));
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 1,
+                        "12000", "12000", "13200", "1200", "12000"))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        SlipRedlineResponse.FieldRedline price = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("lines[0].unitPrice"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(price.layers()).extracting(SlipRedlineResponse.Layer::value)
+                .containsExactly("11000", "13200");
+        assertThat(price.layers().get(0).actorName()).isNull();
+    }
+
+    @Test
+    @DisplayName("라인 redline 은 삽입/재정렬 후에도 productId 체인을 최신 행 인덱스에 귀속한다")
+    void lineRedlineFollowsProductIdAcrossReorder() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productA = UUID.randomUUID();
+        UUID productB = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo", List.of(line(productA, 5))));
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo", List.of(line(productA, 10))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        SlipRevision rev3 = revision(slipId, 3, snapshot("memo", List.of(line(productB, 1), line(productA, 10))),
+                UUID.randomUUID(), "박관리", "#cc4422");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev3, rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        SlipRedlineResponse.FieldRedline aQty = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("lines[1].quantity"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(aQty.layers()).extracting(SlipRedlineResponse.Layer::value)
+                .containsExactly("5", "10");
+        assertThat(response.fields()).noneMatch(field -> field.fieldPath().equals("lines[0].quantity")
+                && field.layers().stream().anyMatch(layer -> "5".equals(layer.value())));
+    }
+
+    @Test
+    @DisplayName("과거 VAT-null 스냅샷은 VAT 제외 단가로 비교하고 단일 layer 는 응답에서 제외한다")
+    void legacySnapshotFallsBackToVatExclusiveAndFiltersSingleLayer() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 1,
+                        "10000", "10000", null, null, null))));
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 1,
+                        "10000", "10000", null, null, null))));
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        assertThat(response.fields()).noneMatch(field -> field.fieldPath().startsWith("lines[")
+                && field.fieldPath().endsWith(".unitPrice"));
+    }
+
     private SlipRedlineService service() {
         return new SlipRedlineService(slipRepository, revisionRepository,
                 new SlipRevisionService(revisionRepository));
@@ -187,8 +265,21 @@ class SlipRedlineServiceTest {
     }
 
     private SlipSnapshot.Line line(UUID productId, int quantity) {
-        return new SlipSnapshot.Line(productId, "품목", "모델", "규격",
-                quantity, new BigDecimal("1000"),
-                BigDecimal.valueOf(quantity).multiply(new BigDecimal("1000")), null);
+        return lineWithAmounts(productId, "품목", "모델", "규격", quantity, "1000",
+                BigDecimal.valueOf(quantity).multiply(new BigDecimal("1000")).toPlainString(),
+                null, null, null);
+    }
+
+    private SlipSnapshot.Line lineWithAmounts(UUID productId, String productName, String modelName,
+                                              String specification, int quantity, String unitPrice,
+                                              String lineTotal, String unitPriceWithVat,
+                                              String vatAmount, String supplyAmount) {
+        return new SlipSnapshot.Line(productId, productName, modelName, specification,
+                quantity, decimal(unitPrice), decimal(lineTotal), null,
+                decimal(unitPriceWithVat), decimal(vatAmount), decimal(supplyAmount));
+    }
+
+    private BigDecimal decimal(String value) {
+        return value == null ? null : new BigDecimal(value);
     }
 }

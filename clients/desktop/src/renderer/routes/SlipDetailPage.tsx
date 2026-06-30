@@ -72,7 +72,7 @@ import {
   revertToRevision,
   type SlipAuditLogEntry,
 } from '../api/slipAudit'
-import { getRedline, type SlipFieldRedline, type SlipRedlineLayer } from '../api/slipRedline'
+import { getRedline, type SlipFieldRedline } from '../api/slipRedline'
 import { RedlineCell } from '../components/audit/RedlineCell'
 import {
   createSlipEditRequest,
@@ -116,6 +116,11 @@ function memoWithoutTagPrefix(
 function deliveryTagLabel(value: string | null | undefined): string | null {
   if (!value) return null
   return (OUTBOUND_DELIVERY_TAG_LABELS as Record<string, string>)[value] ?? value
+}
+
+function formatNumber(value: string): string {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric.toLocaleString() : value
 }
 
 function isEmptyDetailValue(value: unknown): boolean {
@@ -491,14 +496,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const renderRedlineCell = (
     fieldPath: string,
     fallback: ReactNode,
-    mapValue?: (value: string | null) => string | null,
+    format?: (value: string) => string,
   ) => {
     const field = redlineByField.get(fieldPath)
     if (!field) return fallback
-    const layers: SlipRedlineLayer[] = mapValue
-      ? field.layers.map((layer) => ({ ...layer, value: mapValue(layer.value) }))
-      : field.layers
-    return <RedlineCell layers={layers} />
+    return <RedlineCell layers={field.layers} format={format} />
   }
 
   // Phase 2.6d: 전표 id 변경 시 재고조회 체크 상태 초기화 (P1-1)
@@ -1822,7 +1824,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               {renderRedlineCell(
                 'header.deliveryTag',
                 slip.deliveryTag ? deliveryTagLabel(slip.deliveryTag) : '-',
-                deliveryTagLabel,
+                (value) => deliveryTagLabel(value) ?? '비움',
               )}
             </span>
           </div>
@@ -2280,15 +2282,14 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                       {idx + 1}
                     </button>
                   </td>
-                  {/* S2d-1: 라인 셀은 redline 비대상(헤더 한정). 라인 셀 레드라인(productId 안정키 + 단가/합계 VAT 정합값)은 S2d-1b 후속 — 라인 fieldPath 행인덱스 누적 버그(BE) + 단가/합계 snapshot VAT 제외 불일치(FE/Design) 해소 필요. */}
-                  <td className="col-model">{l.modelName ?? '-'}</td>
-                  <td className="col-product">{l.productName ?? '-'}</td>
-                  <td className="col-spec">{l.specification ?? '-'}</td>
-                  <td className="col-qty">{l.quantity.toLocaleString()}</td>
-                  <td className="col-price">{unitWithVatVal.toLocaleString()}</td>
+                  <td className="col-model">{renderRedlineCell(`lines[${idx}].modelName`, l.modelName ?? '-')}</td>
+                  <td className="col-product">{renderRedlineCell(`lines[${idx}].productName`, l.productName ?? '-')}</td>
+                  <td className="col-spec">{renderRedlineCell(`lines[${idx}].specification`, l.specification ?? '-')}</td>
+                  <td className="col-qty">{renderRedlineCell(`lines[${idx}].quantity`, l.quantity.toLocaleString(), formatNumber)}</td>
+                  <td className="col-price">{renderRedlineCell(`lines[${idx}].unitPrice`, unitWithVatVal.toLocaleString(), formatNumber)}</td>
                   <td className="col-supply">{supplyVal.toLocaleString()}</td>
                   <td className="col-vat">{vatVal.toLocaleString()}</td>
-                  <td className="col-total">{totalInclVal.toLocaleString()}</td>
+                  <td className="col-total">{renderRedlineCell(`lines[${idx}].lineTotal`, totalInclVal.toLocaleString(), formatNumber)}</td>
                 </tr>
               )
             })
@@ -2332,8 +2333,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         #{idx + 1}
                       </button>
                       <div className="mobile-item-name">
-                        {/* S2d-1: 라인 셀 redline 비대상(헤더 한정, S2d-1b 후속) */}
-                        {l.productName ?? l.modelName ?? '-'}
+                        {renderRedlineCell(`lines[${idx}].productName`, l.productName ?? l.modelName ?? '-')}
                       </div>
                     </div>
                     {l.modelName ? (

@@ -3499,7 +3499,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               { value: '서울 서초구 (수정)', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:20:00' },
             ],
           },
-          // S2d-1: 라인 셀(lines[*])은 redline 비대상(헤더 한정). 라인 redline 은 S2d-1b 후속.
+          {
+            fieldPath: 'lines[0].quantity',
+            label: '수량',
+            layers: [
+              { value: '1', actorName: null, actorColor: null, changedAt: null },
+              { value: '2', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:25:00' },
+            ],
+          },
+          {
+            fieldPath: 'lines[0].unitPrice',
+            label: '단가',
+            layers: [
+              { value: '11000', actorName: null, actorColor: null, changedAt: null },
+              { value: '13200', actorName: '김영업', actorColor: '#DB2777', changedAt: '2026-06-30T09:25:00' },
+            ],
+          },
         ],
       })
     }

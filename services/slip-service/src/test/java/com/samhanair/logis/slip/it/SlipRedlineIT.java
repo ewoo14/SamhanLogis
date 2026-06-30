@@ -23,9 +23,12 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
+import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -66,6 +69,8 @@ class SlipRedlineIT extends AbstractPostgresIT {
     private ObjectMapper objectMapper;
     @Autowired
     private SlipRepository slipRepository;
+    @Autowired
+    private SlipRevisionService slipRevisionService;
 
     @MockBean
     private InventoryClient inventoryClient;
@@ -162,6 +167,37 @@ class SlipRedlineIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.fields.length()", is(0)));
     }
 
+    @Test
+    @DisplayName("S2d-1b: OUTBOUND inspect anchor 이후 라인 단가/수량 redline 을 반환하고 productId UUID 는 노출하지 않는다")
+    void outboundInspectThenLineEditRendersLineRedlineWithoutUuid() throws Exception {
+        UUID productId = UUID.randomUUID();
+        String id = createOutboundSlip("S2d 라인 원본", productId);
+
+        transition(id, "save");
+        transition(id, "send");
+        transition(id, "accept");
+        transition(id, "process");
+        transition(id, "inspect");
+
+        Slip anchored = slipRepository.findById(UUID.fromString(id)).orElseThrow();
+        assertThat(anchored.getRedlineAnchorRevisionNo()).isNotNull();
+
+        captureLineEdit(UUID.fromString(id), 2, new BigDecimal("12000"), "김영업");
+        captureLineEdit(UUID.fromString(id), 3, new BigDecimal("13000"), "박관리");
+
+        String body = mockMvc.perform(get(SLIPS_PATH + "/{id}/redline", id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body).contains("lines[0].unitPrice");
+        assertThat(body).contains("lines[0].quantity");
+        assertThat(body).doesNotContain(productId.toString());
+    }
+
     private String createInboundSlip(String memo) throws Exception {
         Map<String, Object> line = new HashMap<>();
         line.put("productId", UUID.randomUUID().toString());
@@ -194,6 +230,53 @@ class SlipRedlineIT extends AbstractPostgresIT {
                 .orElseThrow()
                 .getId()
                 .toString();
+    }
+
+    private String createOutboundSlip(String memo, UUID productId) throws Exception {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", productId.toString());
+        line.put("productName", "레드라인 IT 제품");
+        line.put("modelName", "RED-IT");
+        line.put("quantity", 1);
+        line.put("unitPrice", 11000);
+        line.put("priceVatInclusive", true);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "OUTBOUND");
+        body.put("slipDate", TODAY.toString());
+        body.put("sourceWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerId", UUID.randomUUID().toString());
+        body.put("partnerName", "레드라인 거래처");
+        body.put("deliveryTag", "DAY");
+        body.put("memo", memo);
+        body.put("lines", List.of(line));
+
+        MvcResult result = mockMvc.perform(post(SLIPS_PATH)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_NAME_HEADER, "작성자")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return objectMapper.readTree(result.getResponse().getContentAsByteArray())
+                .path("data").path("id").asText();
+    }
+
+    private void transition(String id, String action) throws Exception {
+        mockMvc.perform(post(SLIPS_PATH + "/{id}/" + action, id)
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk());
+    }
+
+    private void captureLineEdit(UUID slipId, int quantity, BigDecimal unitPrice, String actorName) {
+        Slip slip = slipRepository.findById(slipId).orElseThrow();
+        slip.getLines().get(0).changeQuantity(quantity);
+        slip.getLines().get(0).changeUnitPrice(unitPrice);
+        Slip saved = slipRepository.saveAndFlush(slip);
+        slipRevisionService.capture(saved, SlipRevisionType.EDIT, null, TEST_USER_ID, actorName, null);
     }
 
     private void patchMemo(String id, String value, String actorName) throws Exception {
