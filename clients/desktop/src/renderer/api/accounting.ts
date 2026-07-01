@@ -45,6 +45,8 @@ export interface JournalLine {
   credit: string
   /** 거래처명 (자유 입력). */
   partnerName: string | null
+  /** 거래처 UUID — 화면 미노출, DRAFT PUT 왕복 보존용. */
+  partnerId?: string | null
   /** 메모. 기존 FE/fixture 필드명. */
   note: string | null
   /** 메모. 신규 BE 도메인 명칭 호환 필드. */
@@ -110,6 +112,7 @@ function normalizeJournalLine(line: RawJournalLine): JournalLine {
     debit: amountText(line.debit ?? line.debitAmount),
     credit: amountText(line.credit ?? line.creditAmount),
     partnerName: line.partnerName ?? null,
+    partnerId: line.partnerId ?? null,
     note: memo,
     memo,
   }
@@ -181,6 +184,27 @@ export interface CreateJournalRequest {
     credit: string
     partnerName?: string
     note?: string
+  }>
+}
+
+/**
+ * DRAFT 분개 전체 수정 요청 body (BE `UpdateJournalRequest`).
+ *
+ * `expectedVersion` 은 GET 응답의 `version` 을 그대로 전달한다. `partnerId` 는 화면 표시용이
+ * 아니라 거래처 연결 보존용 내부 키이며, slice-2 full-form 저장 시 GET → PUT 왕복되어야 한다.
+ */
+export interface UpdateJournalRequest {
+  expectedVersion: number
+  journalDate: string
+  description?: string
+  lines: Array<{
+    accountCode: string
+    debit: string
+    credit: string
+    partnerId?: string | null
+    partnerName?: string | null
+    note?: string | null
+    memo?: string | null
   }>
 }
 
@@ -292,6 +316,31 @@ export async function createJournal(
   const res = await apiClient.post<ApiEnvelope<RawJournal>>(
     '/accounting/journals',
     body,
+  )
+  return normalizeJournal(res.data.data)
+}
+
+/**
+ * DRAFT 분개 수정. 헤더와 라인을 expectedVersion 기반 낙관락으로 전체 교체한다.
+ */
+export async function updateJournal(
+  id: string,
+  body: UpdateJournalRequest,
+): Promise<Journal> {
+  const requestBody: UpdateJournalRequest = {
+    ...body,
+    lines: body.lines.map((line) => {
+      const memo = line.memo ?? line.note ?? null
+      return {
+        ...line,
+        note: line.note ?? memo,
+        memo,
+      }
+    }),
+  }
+  const res = await apiClient.put<ApiEnvelope<RawJournal>>(
+    `/accounting/journals/${id}`,
+    requestBody,
   )
   return normalizeJournal(res.data.data)
 }

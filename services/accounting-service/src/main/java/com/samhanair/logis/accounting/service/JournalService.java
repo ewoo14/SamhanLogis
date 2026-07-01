@@ -421,6 +421,6 @@ public class JournalService {
     private Journal findOrThrow(UUID id) {
         return journalRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "존재하지 않는 분개입니다: " + id));
+                        "존재하지 않는 분개입니다"));
     }
 }

@@ -379,6 +379,27 @@ class JournalUpdateControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    @DisplayName("PUT /accounting/journals/{id} — 존재하지 않는 분개 오류 메시지는 UUID 를 노출하지 않는다")
+    void updateMissingJournalDoesNotExposeUuidInErrorMessage() throws Exception {
+        String missingId = UUID.randomUUID().toString();
+
+        MvcResult result = mockMvc.perform(put("/accounting/journals/" + missingId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(0L, "2026-05-04", "존재하지 않는 분개",
+                                List.of(
+                                        updateLine("101", "5000", "0", null, "차변"),
+                                        updateLine("401", "0", "5000", null, "대변"))))))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        JsonNode error = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+        assertThat(error.get("message").asText()).isEqualTo("존재하지 않는 분개입니다");
+        assertThat(error.get("message").asText()).doesNotContain(missingId);
+    }
+
     private JsonNode createJournal(String amount) throws Exception {
         MvcResult result = mockMvc.perform(post("/accounting/journals")
                         .header("X-User-Id", UUID.randomUUID().toString())
