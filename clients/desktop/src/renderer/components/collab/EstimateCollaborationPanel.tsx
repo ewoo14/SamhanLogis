@@ -137,7 +137,7 @@ function formatKrw(raw: string | number): string {
 
 function isCollabEvent(eventName: string): boolean {
   // 협업 stream(/collab/stream) 은 comment.* / suggestion.* 만 발행한다.
-  // 본문 실시간 동기화는 coedit(coedit:update)이 담당하며, 구 estimate:edit/EstimateRealtimeClient 채널은 폐기됨.
+  // 본문 실시간 동기화는 coedit(coedit:update)이 담당하며, 구 estimate:edit 채널은 폐기됨.
   return eventName.startsWith('comment.')
     || eventName.startsWith('suggestion.')
     || eventName === 'message'
@@ -212,7 +212,6 @@ export function EstimateCollaborationPanel({
       void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: estimateQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })
-      void queryClient.invalidateQueries({ queryKey: ['estimate', estimateId, 'audit-logs'] })
       void queryClient.invalidateQueries({ queryKey: ['estimates'] })
     })
     return () => ctrl.abort()
@@ -284,7 +283,6 @@ export function EstimateCollaborationPanel({
       void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: estimateQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })
-      void queryClient.invalidateQueries({ queryKey: ['estimate', estimateId, 'audit-logs'] })
       void queryClient.invalidateQueries({ queryKey: ['estimates'] })
       onCommitted?.()
     },
