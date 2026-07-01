@@ -208,11 +208,10 @@ function EstimateMobileLineCard(props: {
           inputSize="sm"
           readOnly={props.isReadOnly}
           type="text"
+          placeholder="예: AJ040RXH4BC1"
+          error={props.line.lookupError ?? undefined}
           aria-label={`라인 ${lineNumber} 모델명`}
         />
-        {props.line.lookupError ? (
-          <div className="mobile-line-error">{props.line.lookupError}</div>
-        ) : null}
       </div>
 
       <div className="mobile-line-field">
@@ -256,6 +255,8 @@ function EstimateMobileLineCard(props: {
           inputSize="sm"
           readOnly={props.isReadOnly}
           type="text"
+          inputMode="numeric"
+          inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
           aria-label={`라인 ${lineNumber} 수량`}
         />
       </div>
@@ -271,6 +272,8 @@ function EstimateMobileLineCard(props: {
           inputSize="sm"
           readOnly={props.isReadOnly}
           type="text"
+          inputMode="decimal"
+          inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
           aria-label={`라인 ${lineNumber} 단가`}
         />
       </div>
@@ -944,14 +947,11 @@ export function EstimateFormPage() {
                   onValueChange={(value) => updateLine(i, { modelName: value })}
                   onBlur={() => handleModelLookup(i)}
                   readOnly={Boolean(isReadOnly)}
+                  placeholder="예: AJ040RXH4BC1"
+                  error={line.lookupError ?? undefined}
                   aria-label={`라인 ${i + 1} 모델명`}
                   data-testid={`estimate-form-line-${i}-model`}
                 />
-                {line.lookupError ? (
-                  <div style={{ fontSize: 10, color: 'var(--state-danger)', marginTop: 2 }}>
-                    {line.lookupError}
-                  </div>
-                ) : null}
               </div>
               <CollaborativeSlipInput
                 provider={estimateFormCoeditProvider}
@@ -981,6 +981,8 @@ export function EstimateFormPage() {
                 value={line.quantity}
                 onValueChange={(value) => updateLine(i, { quantity: value })}
                 readOnly={Boolean(isReadOnly)}
+                inputMode="numeric"
+                inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
                 aria-label={`라인 ${i + 1} 수량`}
                 data-testid={`estimate-form-line-${i}-qty`}
               />
@@ -992,6 +994,8 @@ export function EstimateFormPage() {
                 value={line.unitPrice}
                 onValueChange={(value) => updateLine(i, { unitPrice: value })}
                 readOnly={Boolean(isReadOnly)}
+                inputMode="decimal"
+                inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
                 aria-label={`라인 ${i + 1} 단가`}
                 data-testid={`estimate-form-line-${i}-unit-price`}
               />
