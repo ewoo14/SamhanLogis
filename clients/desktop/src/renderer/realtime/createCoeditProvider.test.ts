@@ -204,6 +204,17 @@ describe('createCoeditProvider', () => {
     const remoteDoc = new Y.Doc()
     remoteDoc.getText('memo').insert(0, 'after corrupt awareness')
     const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+    const remoteAwareness = new Awareness(remoteDoc)
+    remoteAwareness.setLocalState({
+      user: { displayName: '원격 사용자', color: '#2563EB' },
+      cursor: { fieldName: 'memo', anchor: 1, head: 4 },
+    })
+    const validAwareness = encodeBase64Update(
+      encodeAwarenessUpdate(remoteAwareness, [remoteDoc.clientID]),
+    )
+    const partialCorruptAwarenessBytes = decodeBase64Update(validAwareness)
+    partialCorruptAwarenessBytes[0] = 2
+    const partialCorruptAwareness = encodeBase64Update(partialCorruptAwarenessBytes)
 
     const provider = await createCoeditProvider({
       documentId: 'doc-1',
@@ -223,10 +234,19 @@ describe('createCoeditProvider', () => {
       data: { awareness: 'not-a-yjs-awareness-payload' },
       raw: '',
     })).not.toThrow()
-    expect(() => provider.applyRemoteAwareness('dGVzdA==')).not.toThrow()
+    expect(() => provider.applyRemoteAwareness(partialCorruptAwareness)).not.toThrow()
+    expect(provider.getRemoteCursors()).toEqual([])
 
+    provider.applyRemoteAwareness(validAwareness)
     emit?.({ event: 'coedit:update', data: { update: validUpdate }, raw: '' })
 
+    expect(provider.getRemoteCursors()).toEqual([{
+      clientId: remoteDoc.clientID,
+      displayName: '원격 사용자',
+      color: '#2563EB',
+      anchor: 1,
+      head: 4,
+    }])
     expect(provider.text.toString()).toBe('after corrupt awareness')
     expect(warn).toHaveBeenCalledWith('[coedit] corrupt coedit awareness 건너뜀', expect.any(Error))
     expect(warn).toHaveBeenCalledTimes(2)
@@ -599,6 +619,17 @@ describe('createDocCoeditProvider', () => {
     const remoteDoc = new Y.Doc()
     remoteDoc.getMap<unknown>('header').set('partnerName', 'after corrupt awareness')
     const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+    const remoteAwareness = new Awareness(remoteDoc)
+    remoteAwareness.setLocalState({
+      user: { displayName: '원격 사용자', color: '#2563EB' },
+      cursor: { fieldPath: 'header.partnerName', anchor: 2, head: 5 },
+    })
+    const validAwareness = encodeBase64Update(
+      encodeAwarenessUpdate(remoteAwareness, [remoteDoc.clientID]),
+    )
+    const partialCorruptAwarenessBytes = decodeBase64Update(validAwareness)
+    partialCorruptAwarenessBytes[0] = 2
+    const partialCorruptAwareness = encodeBase64Update(partialCorruptAwarenessBytes)
 
     const provider = await createDocCoeditProvider({
       documentId: 'doc-1',
@@ -617,10 +648,20 @@ describe('createDocCoeditProvider', () => {
       data: { awareness: 'not-a-yjs-awareness-payload' },
       raw: '',
     })).not.toThrow()
-    expect(() => provider.applyRemoteAwareness('dGVzdA==')).not.toThrow()
+    expect(() => provider.applyRemoteAwareness(partialCorruptAwareness)).not.toThrow()
+    expect(provider.getRemoteCursors('header.partnerName')).toEqual([])
 
+    provider.applyRemoteAwareness(validAwareness)
     emit?.({ event: 'coedit:update', data: { update: validUpdate }, raw: '' })
 
+    expect(provider.getRemoteCursors('header.partnerName')).toEqual([{
+      clientId: remoteDoc.clientID,
+      displayName: '원격 사용자',
+      color: '#2563EB',
+      fieldPath: 'header.partnerName',
+      anchor: 2,
+      head: 5,
+    }])
     expect(provider.getHeaderValue('partnerName')).toBe('after corrupt awareness')
     expect(warn).toHaveBeenCalledWith('[doc-coedit] corrupt coedit awareness 건너뜀', expect.any(Error))
     expect(warn).toHaveBeenCalledTimes(2)

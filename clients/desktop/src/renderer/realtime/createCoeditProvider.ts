@@ -122,10 +122,14 @@ function safeApplyUpdate(doc: Y.Doc, update: string, origin: unknown, logPrefix:
 
 /** corrupt/비-Yjs awareness update 를 커서 표시 파손 없이 건너뛰기 위한 안전 적용(awareness-side #692 미러). */
 function safeApplyAwareness(awareness: Awareness, encoded: string, origin: unknown, logPrefix: string): boolean {
+  const previousStates = new Map(awareness.states)
+  const previousMeta = new Map(awareness.meta)
   try {
     applyAwarenessUpdate(awareness, decodeBase64Update(encoded), origin)
     return true
   } catch (err) {
+    awareness.states = previousStates
+    awareness.meta = previousMeta
     console.warn(`${logPrefix} corrupt coedit awareness 건너뜀`, err)
     return false
   }
