@@ -167,6 +167,67 @@ describe('createCoeditProvider', () => {
     warn.mockRestore()
   })
 
+  it('SSE coedit:update의 손상 update를 건너뛰고 이후 정상 Y.Text update를 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let emit: Parameters<NonNullable<Parameters<typeof createCoeditProvider>[0]['subscribe']>>[1] | undefined
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getText('memo').insert(0, 'SSE 정상')
+    const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: (_documentId, onEvent) => {
+        emit = onEvent
+        return { abort: vi.fn() }
+      },
+    })
+
+    expect(() => emit?.({ event: 'coedit:update', data: { update: 'dGVzdA==' }, raw: '' })).not.toThrow()
+    expect(provider.text.toString()).toBe('')
+
+    emit?.({ event: 'coedit:update', data: { update: validUpdate }, raw: '' })
+
+    expect(provider.text.toString()).toBe('SSE 정상')
+    expect(warn).toHaveBeenCalledWith('[coedit] corrupt coedit update 건너뜀', expect.any(Error))
+    provider.destroy()
+    warn.mockRestore()
+  })
+
+  it('applyRemoteUpdate의 손상 update를 건너뛰고 상태 부분변이 없이 이후 정상 Y.Text update를 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const seedDoc = new Y.Doc()
+    seedDoc.getText('memo').insert(0, '시드')
+    const seedUpdate = encodeBase64Update(Y.encodeStateAsUpdate(seedDoc))
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getText('memo').insert(0, '시드 이후')
+    const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [seedUpdate] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const beforeCorruptState = provider.text.toString()
+
+    expect(() => provider.applyRemoteUpdate('dGVzdA==')).not.toThrow()
+
+    expect(provider.text.toString()).toBe(beforeCorruptState)
+    provider.applyRemoteUpdate(validUpdate)
+    expect(provider.text.toString()).toBe('시드시드 이후')
+    expect(warn).toHaveBeenCalledWith('[coedit] corrupt coedit update 건너뜀', expect.any(Error))
+    provider.destroy()
+    warn.mockRestore()
+  })
+
   it('resyncs snapshot updates missed between initial load and SSE delivery', async () => {
     vi.useFakeTimers()
     const remoteDoc = new Y.Doc()
@@ -452,6 +513,77 @@ describe('createDocCoeditProvider', () => {
 
     expect(provider.getHeaderValue('partnerName')).toBe('삼한공조')
     expect(provider.getItemValue(0, 'productName')).toBe('실외기')
+    expect(warn).toHaveBeenCalledWith('[doc-coedit] corrupt coedit update 건너뜀', expect.any(Error))
+    provider.destroy()
+    warn.mockRestore()
+  })
+
+  it('SSE coedit:update의 손상 update를 건너뛰고 이후 정상 문서 update를 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let emit: Parameters<NonNullable<Parameters<typeof createDocCoeditProvider>[0]['subscribe']>>[1] | undefined
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getMap<unknown>('header').set('partnerName', 'SSE 거래처')
+    const item = new Y.Map<unknown>()
+    item.set('productName', 'SSE 품목')
+    remoteDoc.getArray<Y.Map<unknown>>('items').push([item])
+    const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: (_documentId, onEvent) => {
+        emit = onEvent
+        return { abort: vi.fn() }
+      },
+    })
+
+    expect(() => emit?.({ event: 'coedit:update', data: { update: 'dGVzdA==' }, raw: '' })).not.toThrow()
+    expect(provider.getHeaderValue('partnerName')).toBe('')
+    expect(provider.items.length).toBe(0)
+
+    emit?.({ event: 'coedit:update', data: { update: validUpdate }, raw: '' })
+
+    expect(provider.getHeaderValue('partnerName')).toBe('SSE 거래처')
+    expect(provider.getItemValue(0, 'productName')).toBe('SSE 품목')
+    expect(warn).toHaveBeenCalledWith('[doc-coedit] corrupt coedit update 건너뜀', expect.any(Error))
+    provider.destroy()
+    warn.mockRestore()
+  })
+
+  it('applyRemoteUpdate의 손상 update를 건너뛰고 상태 부분변이 없이 이후 정상 문서 update를 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const seedDoc = new Y.Doc()
+    seedDoc.getMap<unknown>('header').set('partnerName', '시드 거래처')
+    const seedUpdate = encodeBase64Update(Y.encodeStateAsUpdate(seedDoc))
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getMap<unknown>('header').set('memo', '정상 메모')
+    const item = new Y.Map<unknown>()
+    item.set('productName', '정상 품목')
+    remoteDoc.getArray<Y.Map<unknown>>('items').push([item])
+    const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [seedUpdate] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+    const beforeCorruptHeader = provider.getHeaderValue('partnerName')
+    const beforeCorruptItemCount = provider.items.length
+
+    expect(() => provider.applyRemoteUpdate('dGVzdA==')).not.toThrow()
+
+    expect(provider.getHeaderValue('partnerName')).toBe(beforeCorruptHeader)
+    expect(provider.items.length).toBe(beforeCorruptItemCount)
+    provider.applyRemoteUpdate(validUpdate)
+    expect(provider.getHeaderValue('partnerName')).toBe('시드 거래처')
+    expect(provider.getHeaderValue('memo')).toBe('정상 메모')
+    expect(provider.getItemValue(0, 'productName')).toBe('정상 품목')
     expect(warn).toHaveBeenCalledWith('[doc-coedit] corrupt coedit update 건너뜀', expect.any(Error))
     provider.destroy()
     warn.mockRestore()
