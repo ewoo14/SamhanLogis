@@ -52,9 +52,13 @@ export interface CollaborativeSlipInputProps {
   min?: number
   maxLength?: number
   inputSize?: 'sm' | 'md' | 'lg'
+  label?: string
+  required?: boolean
   readOnly?: boolean
+  onBlur?: () => void
   /** coedit provider 로딩 중 — 로딩 중에만 입력 잠금(이중소스 방지). 로드 실패(provider=null) 시엔 false 라 평문 편집 허용. */
   coeditPending?: boolean
+  'data-testid'?: string
   'aria-label': string
 }
 
@@ -67,8 +71,12 @@ export function CollaborativeSlipInput({
   min,
   maxLength,
   inputSize = 'sm',
+  label,
+  required,
   readOnly,
+  onBlur,
   coeditPending,
+  'data-testid': dataTestId,
   'aria-label': ariaLabel,
 }: CollaborativeSlipInputProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -191,13 +199,20 @@ export function CollaborativeSlipInput({
         type={type}
         min={min}
         maxLength={maxLength}
+        label={label}
+        required={required}
         readOnly={effectiveReadOnly}
         value={value}
         aria-label={ariaLabel}
+        data-testid={dataTestId}
         onFocus={updateCursor}
         onClick={updateCursor}
         onKeyUp={updateCursor}
         onSelect={updateCursor}
+        onBlur={() => {
+          updateCursor()
+          onBlur?.()
+        }}
         onChange={(event) => {
           if (effectiveReadOnly) return
           const nextValue = event.target.value

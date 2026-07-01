@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Input, PartnerAutocomplete, Spinner, type PartnerOption } from '@samhan/design-system'
+import { Button, Card, PartnerAutocomplete, Spinner, type PartnerOption } from '@samhan/design-system'
 import {
   createEstimate,
   getEstimate,
@@ -24,6 +24,7 @@ import {
   updateEstimate,
   type BundleSetOptions,
   type CreateEstimateRequest,
+  type EstimateDetail,
   type EstimateLineRequest,
   type UpdateEstimateRequest,
 } from '../api/estimateApi'
@@ -39,6 +40,8 @@ import {
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
+import { createDocCoeditProvider, type DocCoeditProvider } from '../realtime/createCoeditProvider'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { BundleOptionRow } from './components/BundleOptionRow'
 
@@ -92,6 +95,7 @@ const datePlusDays = (iso: string, days: number): string => {
 }
 
 const fmt = (n: number): string => Math.trunc(n).toLocaleString('ko-KR')
+const ESTIMATE_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
 
 const calcLineSupply = (qty: string, unitPrice: string): number => {
   const q = Number.parseFloat(qty || '0')
@@ -100,10 +104,73 @@ const calcLineSupply = (qty: string, unitPrice: string): number => {
   return Math.trunc(q * p)
 }
 
+function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
+  return estimate.lines.length > 0
+    ? estimate.lines.map((line) => ({
+        uid: nextLineUid(),
+        productId: line.productId,
+        modelName: line.modelName ?? '',
+        productName: line.productName ?? '',
+        specification: line.specification ?? '',
+        quantity: String(line.quantity),
+        // 단가 부가세포함: 폼 단가 입력은 VAT 포함값. 편집 hydrate/coedit seed 모두 같은 값으로 보존.
+        unitPrice: line.unitPriceWithVat ?? line.unitPrice,
+        note: line.note ?? '',
+        lookupError: null,
+        lookupLoading: false,
+        // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음.
+        productType: null,
+        setOptions: emptyBundleSetOptions(),
+      }))
+    : [emptyLine()]
+}
+
+function seedEstimateCoeditProvider(provider: DocCoeditProvider, estimate: EstimateDetail) {
+  provider.setHeaderValue('partnerName', estimate.partnerName)
+  provider.setHeaderValue('partnerBusinessNo', estimate.partnerBusinessNo ?? '')
+  provider.setHeaderValue('partnerAddress', estimate.partnerAddress ?? '')
+  provider.setHeaderValue('estimateDate', estimate.estimateDate)
+  provider.setHeaderValue('validUntil', estimate.validUntil ?? '')
+  provider.setHeaderValue('memo', estimate.memo ?? '')
+  provider.replaceItems(
+    toDraftLinesFromEstimate(estimate).map((line) => ({
+      modelName: line.modelName,
+      productName: line.productName,
+      specification: line.specification,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      productId: line.productId ?? '',
+    })),
+  )
+}
+
+function coeditLinesToDraftLines(provider: DocCoeditProvider, current: DraftLine[]): DraftLine[] {
+  return provider.items.toArray().map((_, index) => {
+    const previous = current[index]
+    return {
+      uid: previous?.uid ?? nextLineUid(),
+      productId: provider.getItemValue(index, 'productId') || null,
+      modelName: provider.getItemValue(index, 'modelName'),
+      productName: provider.getItemValue(index, 'productName'),
+      specification: provider.getItemValue(index, 'specification'),
+      quantity: provider.getItemValue(index, 'quantity') || '0',
+      unitPrice: provider.getItemValue(index, 'unitPrice') || '0',
+      note: previous?.note ?? '',
+      lookupError: null,
+      lookupLoading: false,
+      productType: previous?.productType ?? null,
+      setOptions: previous?.setOptions ?? emptyBundleSetOptions(),
+    }
+  })
+}
+
 function EstimateMobileLineCard(props: {
   line: DraftLine
   index: number
   isReadOnly: boolean
+  provider: DocCoeditProvider | null
+  coeditPending: boolean
+  lineStructureLocked: boolean
   lineIncl: number
   lineSupply: number
   lineVat: number
@@ -121,7 +188,7 @@ function EstimateMobileLineCard(props: {
           type="button"
           className="mobile-line-remove-button"
           onClick={props.onRemove}
-          disabled={props.isReadOnly}
+          disabled={props.lineStructureLocked}
           aria-label={`라인 ${lineNumber} 삭제`}
         >
           삭제
@@ -130,16 +197,17 @@ function EstimateMobileLineCard(props: {
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">모델명</label>
-        <input
-          type="text"
-          className="mobile-line-text-input"
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.modelName`}
           value={props.line.modelName}
-          onChange={(e) => props.onUpdate({ modelName: e.target.value })}
+          onValueChange={(value) => props.onUpdate({ modelName: value })}
           onBlur={props.onLookup}
+          inputSize="sm"
+          readOnly={props.isReadOnly}
+          type="text"
           aria-label={`라인 ${lineNumber} 모델명`}
-          placeholder="예: AJ040RXH4BC1"
-          disabled={props.isReadOnly}
-          data-testid={`estimate-form-line-${props.index}-model`}
         />
         {props.line.lookupError ? (
           <div className="mobile-line-error">{props.line.lookupError}</div>
@@ -148,55 +216,61 @@ function EstimateMobileLineCard(props: {
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">품목명</label>
-        <input
-          type="text"
-          className="mobile-line-text-input"
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.productName`}
           value={props.line.productName}
-          onChange={(e) => props.onUpdate({ productName: e.target.value })}
+          onValueChange={(value) => props.onUpdate({ productName: value })}
+          inputSize="sm"
+          readOnly={props.isReadOnly}
+          type="text"
           aria-label={`라인 ${lineNumber} 품목명`}
-          placeholder={props.line.lookupLoading ? '조회 중...' : '품목명'}
-          disabled={props.isReadOnly}
         />
       </div>
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">규격</label>
-        <input
-          type="text"
-          className="mobile-line-text-input"
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.specification`}
           value={props.line.specification}
-          onChange={(e) => props.onUpdate({ specification: e.target.value })}
+          onValueChange={(value) => props.onUpdate({ specification: value })}
+          inputSize="sm"
+          readOnly={props.isReadOnly}
+          type="text"
           aria-label={`라인 ${lineNumber} 규격`}
-          placeholder="규격"
-          disabled={props.isReadOnly}
         />
       </div>
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">수량</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          className="mobile-line-text-input mobile-line-number-input"
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.quantity`}
           value={props.line.quantity}
-          onChange={(e) => props.onUpdate({ quantity: e.target.value })}
+          onValueChange={(value) => props.onUpdate({ quantity: value })}
+          inputSize="sm"
+          readOnly={props.isReadOnly}
+          type="text"
           aria-label={`라인 ${lineNumber} 수량`}
-          disabled={props.isReadOnly}
-          data-testid={`estimate-form-line-${props.index}-qty`}
         />
       </div>
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">단가(VAT포함)</label>
-        <input
-          type="text"
-          inputMode="decimal"
-          className="mobile-line-text-input mobile-line-number-input"
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.unitPrice`}
           value={props.line.unitPrice}
-          onChange={(e) => props.onUpdate({ unitPrice: e.target.value })}
+          onValueChange={(value) => props.onUpdate({ unitPrice: value })}
+          inputSize="sm"
+          readOnly={props.isReadOnly}
+          type="text"
           aria-label={`라인 ${lineNumber} 단가`}
-          disabled={props.isReadOnly}
-          data-testid={`estimate-form-line-${props.index}-unit-price`}
         />
       </div>
 
@@ -271,12 +345,28 @@ export function EstimateFormPage() {
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()])
   const [topError, setTopError] = useState<string>('')
   const [lineLookupOpen, setLineLookupOpen] = useState(false)
+  const [estimateFormCoeditProvider, setEstimateFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
+  const [estimateFormCoeditPending, setEstimateFormCoeditPending] = useState(false)
+
+  const isReadOnly =
+    isEdit &&
+    detailQuery.data &&
+    detailQuery.data.status !== 'QUOTE_DRAFT' &&
+    detailQuery.data.status !== 'QUOTE_SENT'
+  const canCollabEdit =
+    isEdit &&
+    !!editId &&
+    !!detailQuery.data &&
+    !isReadOnly &&
+    canAccess('estimates.list', 'update')
+  const coeditActive = Boolean(estimateFormCoeditProvider) || estimateFormCoeditPending
 
   // edit mode hydrate
   useEffect(() => {
     if (!isEdit) return
     const e = detailQuery.data
     if (!e) return
+    if (estimateFormCoeditProvider) return
     setPartnerIdSnapshot(e.partnerId)
     setPartnerName(e.partnerName)
     setPartnerBusinessNo(e.partnerBusinessNo ?? '')
@@ -284,29 +374,67 @@ export function EstimateFormPage() {
     setEstimateDate(e.estimateDate)
     setValidUntil(e.validUntil ?? '')
     setMemo(e.memo ?? '')
-    setLines(
-      e.lines.length > 0
-        ? e.lines.map((l) => ({
-            uid: nextLineUid(),
-            productId: l.productId,
-            modelName: l.modelName ?? '',
-            productName: l.productName ?? '',
-            specification: l.specification ?? '',
-            quantity: String(l.quantity),
-            // 단가 부가세포함: 폼 단가 입력은 VAT 포함값. 편집 hydrate 시 저장된 공급단가(unitPrice)가
-            // 아니라 VAT 포함 단가(unitPriceWithVat)를 채워야 재저장(priceVatInclusive=true) 시 금액 보존.
-            unitPrice: l.unitPriceWithVat ?? l.unitPrice,
-            note: l.note ?? '',
-            lookupError: null,
-            lookupLoading: false,
-            // 편집 모드: 이미 전개·저장된 구성품 라인이므로 재전개하지 않음
-            // (개별 SINGLE 품목으로 취급, setOptions 미적용).
-            productType: null,
-            setOptions: emptyBundleSetOptions(),
-          }))
-        : [emptyLine()],
-    )
-  }, [isEdit, detailQuery.data])
+    setLines(toDraftLinesFromEstimate(e))
+  }, [isEdit, detailQuery.data, estimateFormCoeditProvider])
+
+  useEffect(() => {
+    const estimate = detailQuery.data
+    if (!isEdit || !editId || !estimate || !canCollabEdit) {
+      setEstimateFormCoeditProvider(null)
+      setEstimateFormCoeditPending(false)
+      return undefined
+    }
+
+    let disposed = false
+    let provider: DocCoeditProvider | null = null
+    let unsubscribeDoc: (() => void) | null = null
+    setEstimateFormCoeditPending(true)
+
+    const applyProviderState = (nextProvider: DocCoeditProvider) => {
+      setPartnerName(nextProvider.getHeaderValue('partnerName'))
+      setPartnerBusinessNo(nextProvider.getHeaderValue('partnerBusinessNo'))
+      setPartnerAddress(nextProvider.getHeaderValue('partnerAddress'))
+      setEstimateDate(nextProvider.getHeaderValue('estimateDate'))
+      setValidUntil(nextProvider.getHeaderValue('validUntil'))
+      setMemo(nextProvider.getHeaderValue('memo'))
+      setLines((prev) => coeditLinesToDraftLines(nextProvider, prev))
+    }
+
+    void createDocCoeditProvider({
+      documentId: editId,
+      basePath: `/slips/estimates/${editId}`,
+      headerTextFields: ESTIMATE_HEADER_TEXT_FIELDS,
+    }).then((nextProvider) => {
+      if (disposed) {
+        nextProvider.destroy()
+        return
+      }
+      provider = nextProvider
+      const serverLineCount = toDraftLinesFromEstimate(estimate).length
+      const providerLineCount = nextProvider.items.toArray().length
+      // 슬1은 협업 중 라인 추가/삭제를 잠가 index seed-lock 을 유지한다.
+      // provider 라인수와 서버 라인수가 다르면 stale snapshot 으로 보고 서버 기준 재시드한다.
+      if (nextProvider.isEmpty() || providerLineCount !== serverLineCount) {
+        seedEstimateCoeditProvider(nextProvider, estimate)
+      }
+      applyProviderState(nextProvider)
+      unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
+      setEstimateFormCoeditProvider(nextProvider)
+      setEstimateFormCoeditPending(false)
+    }).catch(() => {
+      if (disposed) return
+      setEstimateFormCoeditProvider(null)
+      setEstimateFormCoeditPending(false)
+    })
+
+    return () => {
+      disposed = true
+      unsubscribeDoc?.()
+      if (provider) provider.destroy()
+      setEstimateFormCoeditProvider(null)
+      setEstimateFormCoeditPending(false)
+    }
+  }, [canCollabEdit, detailQuery.data, editId, isEdit])
 
   const totals = useMemo(() => {
     // 단가 부가세포함(라인 단위 eCount, 원 단위): 라인별 합계(VAT포함)=round(수량×단가),
@@ -379,10 +507,11 @@ export function EstimateFormPage() {
   // 모델명 onBlur lookup
   const handleModelLookup = async (index: number) => {
     const line = lines[index]
-    if (!line || !line.modelName.trim()) return
+    const modelName = (estimateFormCoeditProvider?.getItemValue(index, 'modelName') || line?.modelName || '').trim()
+    if (!line || !modelName) return
     updateLine(index, { lookupLoading: true, lookupError: null })
     try {
-      const result = await lookupProductByModelName(line.modelName.trim())
+      const result = await lookupProductByModelName(modelName)
       updateLine(index, {
         productId: result.productId,
         productName: result.productName,
@@ -394,6 +523,15 @@ export function EstimateFormPage() {
         lookupError: null,
         lookupLoading: false,
       })
+      if (estimateFormCoeditProvider) {
+        const nextUnitPrice =
+          line.unitPrice === '0' || !line.unitPrice
+            ? result.sellingPrice
+            : line.unitPrice
+        estimateFormCoeditProvider.setItemValue(index, 'productName', result.productName)
+        estimateFormCoeditProvider.setItemValue(index, 'unitPrice', nextUnitPrice)
+        estimateFormCoeditProvider.setItemValue(index, 'productId', result.productId)
+      }
     } catch (err: unknown) {
       updateLine(index, {
         lookupError:
@@ -537,12 +675,6 @@ export function EstimateFormPage() {
     )
   }
 
-  const isReadOnly =
-    isEdit &&
-    detailQuery.data &&
-    detailQuery.data.status !== 'QUOTE_DRAFT' &&
-    detailQuery.data.status !== 'QUOTE_SENT'
-
   const isPending =
     createMutation.isPending ||
     updateMutation.isPending ||
@@ -606,7 +738,7 @@ export function EstimateFormPage() {
               : null}
             onChange={handlePartnerOptionChange}
             searchPartners={searchPartnerOptions}
-            disabled={Boolean(isReadOnly)}
+            disabled={Boolean(isReadOnly) || coeditActive}
           />
         </div>
 
@@ -619,52 +751,76 @@ export function EstimateFormPage() {
             marginBottom: 16,
           }}
         >
-          <Input
+          <CollaborativeSlipInput
+            provider={estimateFormCoeditProvider}
+            coeditPending={estimateFormCoeditPending}
+            fieldPath="header.partnerName"
             label="거래처명"
             value={partnerName}
-            onChange={(e) => setPartnerName(e.target.value)}
-            disabled={Boolean(isReadOnly)}
+            onValueChange={setPartnerName}
+            readOnly={Boolean(isReadOnly)}
             required
+            aria-label="거래처명"
             data-testid="estimate-form-partner-name"
           />
-          <Input
+          <CollaborativeSlipInput
+            provider={estimateFormCoeditProvider}
+            coeditPending={estimateFormCoeditPending}
+            fieldPath="header.partnerBusinessNo"
             label="사업자번호"
             value={partnerBusinessNo}
-            onChange={(e) => setPartnerBusinessNo(e.target.value)}
-            disabled={Boolean(isReadOnly)}
+            onValueChange={setPartnerBusinessNo}
+            readOnly={Boolean(isReadOnly)}
+            aria-label="사업자번호"
             data-testid="estimate-form-partner-business-no"
           />
-          <Input
+          <CollaborativeSlipInput
+            provider={estimateFormCoeditProvider}
+            coeditPending={estimateFormCoeditPending}
+            fieldPath="header.estimateDate"
             label="작성일"
             type="date"
             value={estimateDate}
-            onChange={(e) => setEstimateDate(e.target.value)}
-            disabled={Boolean(isReadOnly)}
+            onValueChange={setEstimateDate}
+            readOnly={Boolean(isReadOnly)}
+            aria-label="작성일"
             data-testid="estimate-form-estimate-date"
           />
-          <Input
+          <CollaborativeSlipInput
+            provider={estimateFormCoeditProvider}
+            coeditPending={estimateFormCoeditPending}
+            fieldPath="header.validUntil"
             label="유효기간"
             type="date"
             value={validUntil}
-            onChange={(e) => setValidUntil(e.target.value)}
-            disabled={Boolean(isReadOnly)}
+            onValueChange={setValidUntil}
+            readOnly={Boolean(isReadOnly)}
+            aria-label="유효기간"
             data-testid="estimate-form-valid-until"
           />
         </div>
         <div style={{ marginBottom: 16 }}>
-          <Input
+          <CollaborativeSlipInput
+            provider={estimateFormCoeditProvider}
+            coeditPending={estimateFormCoeditPending}
+            fieldPath="header.partnerAddress"
             label="주소"
             value={partnerAddress}
-            onChange={(e) => setPartnerAddress(e.target.value)}
-            disabled={Boolean(isReadOnly)}
+            onValueChange={setPartnerAddress}
+            readOnly={Boolean(isReadOnly)}
+            aria-label="주소"
           />
         </div>
         <div style={{ marginBottom: 16 }}>
-          <Input
+          <CollaborativeSlipInput
+            provider={estimateFormCoeditProvider}
+            coeditPending={estimateFormCoeditPending}
+            fieldPath="header.memo"
             label="비고"
             value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            disabled={Boolean(isReadOnly)}
+            onValueChange={setMemo}
+            readOnly={Boolean(isReadOnly)}
+            aria-label="비고"
           />
         </div>
 
@@ -700,6 +856,7 @@ export function EstimateFormPage() {
               variant="ghost"
               size="sm"
               onClick={() => setLineLookupOpen(true)}
+              disabled={estimateFormCoeditPending}
               data-testid="estimate-line-lookup-btn"
             >
               참조 조회
@@ -721,6 +878,9 @@ export function EstimateFormPage() {
                 line={line}
                 index={i}
                 isReadOnly={Boolean(isReadOnly)}
+                provider={estimateFormCoeditProvider}
+                coeditPending={estimateFormCoeditPending}
+                lineStructureLocked={Boolean(isReadOnly) || coeditActive}
                 lineIncl={lineIncl}
                 lineSupply={lineSupply}
                 lineVat={lineVat}
@@ -732,7 +892,7 @@ export function EstimateFormPage() {
                   <BundleOptionRow
                     line={line}
                     index={i}
-                    disabled={Boolean(isReadOnly)}
+                    disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
                     onChange={(patch) => updateSetOption(i, patch)}
                   />
                 ) : null}
@@ -757,25 +917,16 @@ export function EstimateFormPage() {
                 {i + 1}
               </div>
               <div>
-                <input
+                <CollaborativeSlipInput
+                  provider={estimateFormCoeditProvider}
+                  coeditPending={estimateFormCoeditPending}
+                  fieldPath={`items.${i}.modelName`}
                   type="text"
                   value={line.modelName}
-                  onChange={(e) =>
-                    updateLine(i, { modelName: e.target.value })
-                  }
+                  onValueChange={(value) => updateLine(i, { modelName: value })}
                   onBlur={() => handleModelLookup(i)}
-                  placeholder="예: AJ040RXH4BC1"
-                  disabled={Boolean(isReadOnly)}
-                  style={{
-                    height: 32,
-                    width: '100%',
-                    padding: '0 8px',
-                    border: line.lookupError
-                      ? '1px solid var(--state-danger)'
-                      : '1px solid var(--color-neutral-300)',
-                    borderRadius: 4,
-                    fontSize: 13,
-                  }}
+                  readOnly={Boolean(isReadOnly)}
+                  aria-label={`라인 ${i + 1} 모델명`}
                   data-testid={`estimate-form-line-${i}-model`}
                 />
                 {line.lookupError ? (
@@ -784,71 +935,46 @@ export function EstimateFormPage() {
                   </div>
                 ) : null}
               </div>
-              <input
+              <CollaborativeSlipInput
+                provider={estimateFormCoeditProvider}
+                coeditPending={estimateFormCoeditPending}
+                fieldPath={`items.${i}.productName`}
                 type="text"
                 value={line.productName}
-                onChange={(e) =>
-                  updateLine(i, { productName: e.target.value })
-                }
-                placeholder={line.lookupLoading ? '조회 중...' : '품목명'}
-                disabled={Boolean(isReadOnly)}
-                style={{
-                  height: 32,
-                  padding: '0 8px',
-                  border: '1px solid var(--color-neutral-300)',
-                  borderRadius: 4,
-                  fontSize: 13,
-                  background: line.productId ? '#F9FAFB' : '#fff',
-                }}
+                onValueChange={(value) => updateLine(i, { productName: value })}
+                readOnly={Boolean(isReadOnly)}
+                aria-label={`라인 ${i + 1} 품목명`}
               />
-              <input
+              <CollaborativeSlipInput
+                provider={estimateFormCoeditProvider}
+                coeditPending={estimateFormCoeditPending}
+                fieldPath={`items.${i}.specification`}
                 type="text"
                 value={line.specification}
-                onChange={(e) =>
-                  updateLine(i, { specification: e.target.value })
-                }
-                placeholder="규격"
-                disabled={Boolean(isReadOnly)}
-                style={{
-                  height: 32,
-                  padding: '0 8px',
-                  border: '1px solid var(--color-neutral-300)',
-                  borderRadius: 4,
-                  fontSize: 13,
-                }}
+                onValueChange={(value) => updateLine(i, { specification: value })}
+                readOnly={Boolean(isReadOnly)}
+                aria-label={`라인 ${i + 1} 규격`}
               />
-              <input
+              <CollaborativeSlipInput
+                provider={estimateFormCoeditProvider}
+                coeditPending={estimateFormCoeditPending}
+                fieldPath={`items.${i}.quantity`}
                 type="text"
-                inputMode="numeric"
                 value={line.quantity}
-                onChange={(e) => updateLine(i, { quantity: e.target.value })}
-                disabled={Boolean(isReadOnly)}
-                style={{
-                  height: 32,
-                  padding: '0 8px',
-                  border: '1px solid var(--color-neutral-300)',
-                  borderRadius: 4,
-                  fontSize: 13,
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
+                onValueChange={(value) => updateLine(i, { quantity: value })}
+                readOnly={Boolean(isReadOnly)}
+                aria-label={`라인 ${i + 1} 수량`}
                 data-testid={`estimate-form-line-${i}-qty`}
               />
-              <input
+              <CollaborativeSlipInput
+                provider={estimateFormCoeditProvider}
+                coeditPending={estimateFormCoeditPending}
+                fieldPath={`items.${i}.unitPrice`}
                 type="text"
-                inputMode="decimal"
                 value={line.unitPrice}
-                onChange={(e) => updateLine(i, { unitPrice: e.target.value })}
-                disabled={Boolean(isReadOnly)}
-                style={{
-                  height: 32,
-                  padding: '0 8px',
-                  border: '1px solid var(--color-neutral-300)',
-                  borderRadius: 4,
-                  fontSize: 13,
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
+                onValueChange={(value) => updateLine(i, { unitPrice: value })}
+                readOnly={Boolean(isReadOnly)}
+                aria-label={`라인 ${i + 1} 단가`}
                 data-testid={`estimate-form-line-${i}-unit-price`}
               />
               <div
@@ -870,7 +996,7 @@ export function EstimateFormPage() {
               <button
                 type="button"
                 onClick={() => removeLine(i)}
-                disabled={Boolean(isReadOnly)}
+                disabled={Boolean(isReadOnly) || coeditActive}
                 aria-label={`라인 ${i + 1} 삭제`}
                 style={{
                   height: 32,
@@ -879,7 +1005,7 @@ export function EstimateFormPage() {
                   borderRadius: 4,
                   background: '#fff',
                   color: 'var(--state-danger)',
-                  cursor: isReadOnly ? 'not-allowed' : 'pointer',
+                  cursor: isReadOnly || coeditActive ? 'not-allowed' : 'pointer',
                 }}
               >
                 ×
@@ -889,7 +1015,7 @@ export function EstimateFormPage() {
               <BundleOptionRow
                 line={line}
                 index={i}
-                disabled={Boolean(isReadOnly)}
+                disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
                 onChange={(patch) => updateSetOption(i, patch)}
               />
             ) : null}
@@ -904,6 +1030,7 @@ export function EstimateFormPage() {
               variant="ghost"
               size="sm"
               onClick={addLine}
+              disabled={coeditActive}
               data-testid="estimate-form-add-line"
             >
               + 라인 추가
@@ -913,6 +1040,7 @@ export function EstimateFormPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setLineLookupOpen(true)}
+                disabled={estimateFormCoeditPending}
                 data-testid="estimate-line-lookup-btn"
               >
                 참조 조회
@@ -961,6 +1089,12 @@ export function EstimateFormPage() {
         </div>
       ) : null}
 
+      {estimateFormCoeditPending ? (
+        <p role="status" data-testid="estimate-form-coedit-pending">
+          협업 연결 중…
+        </p>
+      ) : null}
+
       <div
         style={{
           display: 'flex',
@@ -977,7 +1111,7 @@ export function EstimateFormPage() {
             <Button
               variant="ghost"
               onClick={handleSave}
-              disabled={isPending}
+              disabled={isPending || estimateFormCoeditPending}
               data-testid="estimate-form-save-button"
             >
               {isPending ? '저장 중...' : '임시저장'}
@@ -986,7 +1120,7 @@ export function EstimateFormPage() {
               <Button
                 variant="primary"
                 onClick={handleSend}
-                disabled={isPending}
+                disabled={isPending || estimateFormCoeditPending}
                 data-testid="estimate-form-send-button"
               >
                 {sendMutation.isPending ? '발송 중...' : '발송'}
