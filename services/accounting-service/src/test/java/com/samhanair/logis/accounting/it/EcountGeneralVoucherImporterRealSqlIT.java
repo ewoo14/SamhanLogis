@@ -91,7 +91,7 @@ class EcountGeneralVoucherImporterRealSqlIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("동일 전표번호 재import 는 journal_line 을 upsert(갱신)하고 신규 행을 만들지 않는다")
+    @DisplayName("동일 전표번호 재import 는 active journal_line 을 upsert 하고 soft-delete 이력과 충돌하지 않는다")
     void importCsv_동일_전표번호_재import는_journal_line을_upsert_갱신한다() {
         String journalNo = "20990101-8802";
 
@@ -101,6 +101,17 @@ class EcountGeneralVoucherImporterRealSqlIT extends AbstractPostgresIT {
         assertThat(first.rejected()).isZero();
         assertThat(first.imported()).isEqualTo(1);
 
+        UUID journalId = jdbcTemplate.queryForObject(
+                "SELECT id FROM journals WHERE journal_no = ? AND is_deleted = FALSE",
+                UUID.class, journalNo);
+
+        jdbcTemplate.update("""
+                INSERT INTO journal_lines (
+                    id, journal_id, line_no, account_code, debit_amount, credit_amount,
+                    memo, created_at, created_by, is_deleted
+                ) VALUES (?, ?, 1, '101', 1.00, 0.00, 'soft-delete 이력', NOW(), 'it', TRUE)
+                """, UUID.randomUUID(), journalId);
+
         EcountVoucherImportResult second = importer.importCsv(csv("""
                 "2099/01/01 -8802\t","일반전표\t","77,000\t","삼한상사\t","2차 재import(금액 변경)\t",""
                 """), "realsql-it");
@@ -109,22 +120,18 @@ class EcountGeneralVoucherImporterRealSqlIT extends AbstractPostgresIT {
         assertThat(second.updated()).isEqualTo(1);
         assertThat(second.imported()).isZero();
 
-        UUID journalId = jdbcTemplate.queryForObject(
-                "SELECT id FROM journals WHERE journal_no = ? AND is_deleted = FALSE",
-                UUID.class, journalNo);
-
         Integer totalLineRows = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM journal_lines WHERE journal_id = ?",
                 Integer.class, journalId);
-        assertThat(totalLineRows).isEqualTo(1); // upsert = 기존 행 갱신, 중복 삽입 아님
+        assertThat(totalLineRows).isEqualTo(2); // active 1건 갱신 + soft-delete 이력 1건 보존
 
         BigDecimal debit = jdbcTemplate.queryForObject(
-                "SELECT debit_amount FROM journal_lines WHERE journal_id = ? AND line_no = 1",
+                "SELECT debit_amount FROM journal_lines WHERE journal_id = ? AND line_no = 1 AND is_deleted = FALSE",
                 BigDecimal.class, journalId);
         assertThat(debit).isEqualByComparingTo("77000");
 
         String memo = jdbcTemplate.queryForObject(
-                "SELECT memo FROM journal_lines WHERE journal_id = ? AND line_no = 1",
+                "SELECT memo FROM journal_lines WHERE journal_id = ? AND line_no = 1 AND is_deleted = FALSE",
                 String.class, journalId);
         assertThat(memo).isEqualTo("2차 재import(금액 변경)");
     }

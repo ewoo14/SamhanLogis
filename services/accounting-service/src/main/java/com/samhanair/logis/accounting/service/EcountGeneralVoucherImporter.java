@@ -140,8 +140,22 @@ public class EcountGeneralVoucherImporter {
     private UUID upsertJournal(String journalNo, LocalDate journalDate, String description,
                                String status, String postedBy, String actor) {
         return jdbcTemplate.queryForObject("""
-                WITH restored AS (
-                    UPDATE journals
+                WITH restored_one AS (
+                    SELECT id
+                      FROM journals
+                     WHERE journal_no = :journalNo
+                       AND is_deleted = TRUE
+                       AND NOT EXISTS (
+                           SELECT 1
+                             FROM journals active
+                            WHERE active.journal_no = :journalNo
+                              AND active.is_deleted = FALSE
+                       )
+                     ORDER BY modified_at DESC NULLS LAST, created_at DESC NULLS LAST
+                     LIMIT 1
+                     FOR UPDATE
+                ), restored AS (
+                    UPDATE journals j
                        SET journal_date = :journalDate,
                            description = :description,
                            source_type = 'MANUAL',
@@ -154,8 +168,9 @@ public class EcountGeneralVoucherImporter {
                            deleted_by = NULL,
                            modified_at = NOW(),
                            modified_by = :actor
-                     WHERE journal_no = :journalNo AND is_deleted = TRUE
-                     RETURNING id
+                      FROM restored_one
+                     WHERE j.id = restored_one.id
+                     RETURNING j.id
                 ), upserted AS (
                     INSERT INTO journals (
                       id, journal_no, journal_date, description, source_type, source_ref_id,
@@ -194,8 +209,24 @@ public class EcountGeneralVoucherImporter {
     private void replaceLine(UUID journalId, int lineNo, BigDecimal debit, BigDecimal credit,
                              UUID partnerId, String memo, String actor) {
         jdbcTemplate.update("""
-                WITH restored AS (
-                    UPDATE journal_lines
+                WITH restored_one AS (
+                    SELECT id
+                      FROM journal_lines
+                     WHERE journal_id = :journalId
+                       AND line_no = :lineNo
+                       AND is_deleted = TRUE
+                       AND NOT EXISTS (
+                           SELECT 1
+                             FROM journal_lines active
+                            WHERE active.journal_id = :journalId
+                              AND active.line_no = :lineNo
+                              AND active.is_deleted = FALSE
+                       )
+                     ORDER BY modified_at DESC NULLS LAST, created_at DESC NULLS LAST
+                     LIMIT 1
+                     FOR UPDATE
+                ), restored AS (
+                    UPDATE journal_lines jl
                        SET account_code = :accountCode,
                            debit_amount = :debit,
                            credit_amount = :credit,
@@ -206,8 +237,9 @@ public class EcountGeneralVoucherImporter {
                            deleted_by = NULL,
                            modified_at = NOW(),
                            modified_by = :actor
-                     WHERE journal_id = :journalId AND line_no = :lineNo AND is_deleted = TRUE
-                     RETURNING line_no
+                      FROM restored_one
+                     WHERE jl.id = restored_one.id
+                     RETURNING jl.line_no
                 )
                 INSERT INTO journal_lines (
                   id, journal_id, line_no, account_code, debit_amount, credit_amount,
