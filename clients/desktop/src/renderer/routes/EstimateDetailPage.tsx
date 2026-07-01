@@ -21,11 +21,10 @@
  * <p>UUID 비공개 가드 — id 표시 X. estimateNo / partnerName / modelName 만 노출.
  * 매뉴얼 출처: {@code docs/manual/01-영업/06-견적서.md}.
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AuditOverlay,
   Badge,
   Button,
   Card,
@@ -43,17 +42,11 @@ import {
   type EstimateLine,
   type EstimateStatus,
 } from '../api/estimateApi'
-import { estimateAuditApi } from '../api/createAuditApi'
-import { EstimateRealtimeClient } from '../realtime/EstimateRealtimeClient'
 import { EstimateVersionHistoryPanel } from '../components/audit/EstimateVersionHistoryPanel'
 import { EstimateCollaborationPanel } from '../components/collab/EstimateCollaborationPanel'
 import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
-import {
-  AuditLockedBanner,
-  AuditRevisionBadge,
-  groupAuditLogsByField,
-} from '../components/audit/AuditOverlaySection'
+import { AuditLockedBanner } from '../components/audit/AuditOverlaySection'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -99,36 +92,6 @@ export function EstimateDetailPage() {
   const query = useQuery({
     queryKey: ['estimate', id],
     queryFn: () => getEstimate(id),
-  })
-
-  // PR-H4c: audit log 백필 — BE 미구현 시 빈 배열 fallback.
-  const auditQuery = useQuery({
-    queryKey: ['estimate', id, 'audit-logs'],
-    queryFn: () => estimateAuditApi.listAuditLogs(id).catch(() => []),
-    enabled: !!id,
-  })
-
-  // PR-H4c: SSE 구독 — estimate:edit 수신 시 본문 + audit cache invalidate.
-  useEffect(() => {
-    if (!id) return
-    const ctrl = EstimateRealtimeClient.subscribe(id, (evt) => {
-      void queryClient.invalidateQueries({ queryKey: ['estimate', id] })
-      if (evt.event === 'estimate:edit' || evt.event === 'message') {
-        void queryClient.invalidateQueries({ queryKey: ['estimate', id, 'audit-logs'] })
-      }
-    })
-    return () => ctrl.abort()
-  }, [id, queryClient])
-
-  // PR-H4c: revert mutation.
-  const revertMutation = useMutation({
-    mutationFn: (revisionNo: number) =>
-      estimateAuditApi.revertToRevision(id, revisionNo),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['estimate', id] })
-      void queryClient.invalidateQueries({ queryKey: ['estimate', id, 'audit-logs'] })
-    },
-    onError: () => alert('복원에 실패했습니다.'),
   })
 
   usePageTitle('견적서 상세', query.data?.estimateNo)
@@ -206,8 +169,6 @@ export function EstimateDetailPage() {
   const canMutate = canAccess('estimates.list', 'update')
   // PR-H4c: 변환/거절 단계 본문 잠금
   const isLocked = e.status === 'QUOTE_CONVERTED' || e.status === 'QUOTE_REJECTED'
-  const auditLogs = Array.isArray(auditQuery.data) ? auditQuery.data : []
-  const auditByField = groupAuditLogsByField(auditLogs)
 
   const handleSend = () => {
     setTopError('')
@@ -249,7 +210,6 @@ export function EstimateDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['estimate', id] })
     void queryClient.invalidateQueries({ queryKey: ['estimates'] })
     void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', id] })
-    void queryClient.invalidateQueries({ queryKey: ['estimate', id, 'audit-logs'] })
   }
 
   const mobilePrimaryAction = isDraft && canMutate
@@ -529,16 +489,6 @@ export function EstimateDetailPage() {
               <Badge variant={STATUS_VARIANT[e.status]}>
                 {ESTIMATE_STATUS_LABEL[e.status]}
               </Badge>
-              {/* PR-H4c: 수정 횟수 + 복원 dropdown (DRAFT/SENT 만 revert 활성) */}
-              <AuditRevisionBadge
-                logs={auditLogs}
-                isError={auditQuery.isError}
-                reverting={revertMutation.isPending}
-                onRevert={
-                  isDraft || isSent ? (rev) => revertMutation.mutate(rev) : undefined
-                }
-                testIdPrefix="estimate-detail"
-              />
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: '#6B7280' }}>
               작성일: {e.estimateDate}
@@ -576,17 +526,11 @@ export function EstimateDetailPage() {
                   <strong>주소</strong>: {e.partnerAddress}
                 </div>
               ) : null}
-              {/* PR-H4c: 비고 audit overlay — 수정 가능 필드 */}
               <div
                 style={{ marginTop: 4, color: 'var(--ink-primary)' }}
                 data-testid="estimate-detail-audit-overlay-memo"
               >
-                <strong>비고</strong>:{' '}
-                <AuditOverlay
-                  field="memo"
-                  currentValue={e.memo}
-                  history={auditByField['memo'] ?? []}
-                />
+                <strong>비고</strong>: {e.memo}
               </div>
             </div>
           </div>

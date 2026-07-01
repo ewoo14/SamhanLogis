@@ -121,12 +121,6 @@ export const dcConfigAuditApi = createAuditApi({
     `/api/v1/dc-configs/${encodeURIComponent(partnerCode)}/audit-logs`,
 })
 
-export const estimateAuditApi = createAuditApi({
-  listPath: (id) => `/api/v1/estimates/${encodeURIComponent(id)}/audit-logs`,
-  revertPath: (id, rev) =>
-    `/api/v1/estimates/${encodeURIComponent(id)}/revert/${rev}`,
-})
-
 /**
  * 재고 실사 audit timeline — PR-H4c FE-B.
  *
