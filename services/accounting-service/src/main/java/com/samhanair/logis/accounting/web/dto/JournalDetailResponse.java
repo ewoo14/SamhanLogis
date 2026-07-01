@@ -22,6 +22,7 @@ public record JournalDetailResponse(
         LocalDateTime postedAt,
         String postedBy,
         UUID reversedJournalId,
+        Long version,
         List<JournalLineResponse> lines
 ) {
     public static JournalDetailResponse of(Journal journal) {
@@ -40,6 +41,7 @@ public record JournalDetailResponse(
                 journal.getPostedAt(),
                 journal.getPostedBy(),
                 journal.getReversedJournalId(),
+                journal.getVersion(),
                 lineResponses
         );
     }

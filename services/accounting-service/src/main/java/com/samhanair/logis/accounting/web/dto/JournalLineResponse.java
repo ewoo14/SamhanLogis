@@ -15,6 +15,7 @@ public record JournalLineResponse(
         BigDecimal debitAmount,
         BigDecimal creditAmount,
         UUID partnerId,
+        String partnerName,
         String memo
 ) {
     public static JournalLineResponse of(JournalLine line) {
@@ -25,6 +26,7 @@ public record JournalLineResponse(
                 line.getDebitAmount(),
                 line.getCreditAmount(),
                 line.getPartnerId(),
+                line.getPartnerName(),
                 line.getMemo()
         );
     }

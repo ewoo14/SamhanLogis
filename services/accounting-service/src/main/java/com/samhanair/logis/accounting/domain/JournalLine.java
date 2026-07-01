@@ -60,13 +60,17 @@ public class JournalLine extends BaseEntity {
     @Column(name = "partner_id")
     private UUID partnerId;
 
+    /** 거래처명 스냅샷 (선택, 수기 full-form 편집 입력값 보존). */
+    @Column(name = "partner_name", length = 200)
+    private String partnerName;
+
     /** 라인 메모 (최대 500자). */
     @Column(name = "memo", length = 500)
     private String memo;
 
     private JournalLine(Journal journal, int lineNo, String accountCode,
                         BigDecimal debitAmount, BigDecimal creditAmount,
-                        UUID partnerId, String memo) {
+                        UUID partnerId, String partnerName, String memo) {
         validateAmounts(debitAmount, creditAmount);
         this.journal = journal;
         this.lineNo = lineNo;
@@ -74,6 +78,7 @@ public class JournalLine extends BaseEntity {
         this.debitAmount = debitAmount;
         this.creditAmount = creditAmount;
         this.partnerId = partnerId;
+        this.partnerName = partnerName;
         this.memo = memo;
     }
 
@@ -93,8 +98,31 @@ public class JournalLine extends BaseEntity {
     public static JournalLine create(Journal journal, int lineNo, String accountCode,
                                      BigDecimal debitAmount, BigDecimal creditAmount,
                                      UUID partnerId, String memo) {
+        return create(journal, lineNo, accountCode, debitAmount, creditAmount, partnerId, null, memo);
+    }
+
+    /**
+     * 분개 라인 1건 생성. 수기 편집 화면의 거래처명 스냅샷을 함께 보존한다.
+     *
+     * @param journal 부모 Journal (cascade 영속화)
+     * @param lineNo 표시 순번 (1 이상)
+     * @param accountCode 계정 코드 (ChartOfAccount leaf, service 사전 검증)
+     * @param debitAmount 차변 금액 (≥0)
+     * @param creditAmount 대변 금액 (≥0)
+     * @param partnerId 거래처 UUID (선택)
+     * @param partnerName 거래처명 스냅샷 (선택, ≤200자)
+     * @param memo 라인 메모 (선택, ≤500자)
+     * @return 영속화 전 JournalLine
+     * @throws IllegalArgumentException debit/credit 동시 0 또는 동시 양수, 음수, accountCode null
+     */
+    public static JournalLine create(Journal journal, int lineNo, String accountCode,
+                                     BigDecimal debitAmount, BigDecimal creditAmount,
+                                     UUID partnerId, String partnerName, String memo) {
         if (accountCode == null || accountCode.isBlank()) {
             throw new IllegalArgumentException("accountCode 는 필수입니다");
+        }
+        if (partnerName != null && partnerName.length() > 200) {
+            throw new IllegalArgumentException("partnerName 은 최대 200자입니다");
         }
         if (memo != null && memo.length() > 500) {
             throw new IllegalArgumentException("memo 는 최대 500자입니다");
@@ -102,7 +130,7 @@ public class JournalLine extends BaseEntity {
         return new JournalLine(journal, lineNo, accountCode,
                 debitAmount == null ? BigDecimal.ZERO : debitAmount,
                 creditAmount == null ? BigDecimal.ZERO : creditAmount,
-                partnerId, memo);
+                partnerId, partnerName, memo);
     }
 
     /**

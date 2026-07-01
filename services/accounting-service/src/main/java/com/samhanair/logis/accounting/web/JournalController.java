@@ -8,6 +8,7 @@ import com.samhanair.logis.accounting.service.JournalService;
 import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
 import com.samhanair.logis.accounting.web.dto.JournalDetailResponse;
 import com.samhanair.logis.accounting.web.dto.JournalResponse;
+import com.samhanair.logis.accounting.web.dto.UpdateJournalRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -30,6 +31,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -162,6 +164,23 @@ public class JournalController {
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<JournalDetailResponse> getOne(@PathVariable UUID id) {
         return ApiResponse.ok(journalService.getOne(id));
+    }
+
+    /** DRAFT 분개 수정 — 헤더와 라인 전체 교체. */
+    @Operation(summary = "분개 수정", description = "DRAFT 분개의 헤더와 라인을 expectedVersion 낙관락으로 전체 교체")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+                    description = "DRAFT 가 아니거나 expectedVersion 불일치")
+    })
+    @PutMapping("/{id}")
+    @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
+    public ApiResponse<JournalDetailResponse> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateJournalRequest request,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        return ApiResponse.ok(journalService.update(id, request));
     }
 
     /** 게시 — DRAFT → POSTED. 차/대 합계 일치 검증 (도메인). */

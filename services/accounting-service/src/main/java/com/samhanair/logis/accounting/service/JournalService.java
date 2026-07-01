@@ -11,11 +11,15 @@ import com.samhanair.logis.accounting.web.dto.CreateJournalLineRequest;
 import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
 import com.samhanair.logis.accounting.web.dto.JournalDetailResponse;
 import com.samhanair.logis.accounting.web.dto.JournalResponse;
+import com.samhanair.logis.accounting.web.dto.UpdateJournalRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.OptimisticLockException;
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -23,6 +27,7 @@ import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -103,6 +108,45 @@ public class JournalService {
     public JournalDetailResponse getOne(UUID id) {
         Journal journal = findOrThrow(id);
         return JournalDetailResponse.of(journal);
+    }
+
+    /**
+     * DRAFT 분개의 헤더와 라인을 전체 교체한다.
+     *
+     * <p>{@code expectedVersion} 은 Journal 의 {@code @Version} 값과 비교한다. POSTED/REVERSED
+     * 분개는 감사 안전 원칙에 따라 수정하지 않고 409 로 차단한다. 차/대변 합계 일치 여부는
+     * 게시({@link #post(UUID, String)}) 시점에만 검증하므로 DRAFT 임시저장은 불균형을 허용한다.
+     *
+     * @param id 분개 UUID
+     * @param request 수정 요청
+     * @return 수정 후 분개 단건
+     * @throws BusinessException(CONFLICT) DRAFT 가 아니거나 version 이 불일치할 때
+     */
+    public JournalDetailResponse update(UUID id, UpdateJournalRequest request) {
+        Journal journal = findOrThrow(id);
+        if (journal.getStatus() != JournalStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "DRAFT 상태의 분개만 수정할 수 있습니다 (현재: " + journal.getStatus() + ")");
+        }
+        verifyVersion(journal, request.expectedVersion());
+
+        List<JournalLine> replacementLines = new ArrayList<>();
+        int lineNo = 1;
+        for (UpdateJournalRequest.LineRequest lineReq : request.lines()) {
+            accountService.requireLeafAccount(lineReq.accountCode());
+            replacementLines.add(JournalLine.create(journal, lineNo++, lineReq.accountCode(),
+                    lineReq.debit(), lineReq.credit(), null, lineReq.partnerName(), lineReq.memo()));
+        }
+
+        try {
+            journal.updateDraftHeader(request.journalDate(), request.description())
+                    .clearLinesForReplacement();
+            journalRepository.saveAndFlush(journal);
+            replacementLines.forEach(journal::addLine);
+            return JournalDetailResponse.of(journalRepository.saveAndFlush(journal));
+        } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
+            throw optimisticLockConflict();
+        }
     }
 
     /**
@@ -343,6 +387,17 @@ public class JournalService {
     private BusinessException unsupportedOverlayPath(String path) {
         return new BusinessException(ErrorCode.INVALID_INPUT,
                 "원장 필드는 협업 수정완료로 변경할 수 없습니다: " + path);
+    }
+
+    private void verifyVersion(Journal journal, Long expectedVersion) {
+        if (expectedVersion == null || !expectedVersion.equals(journal.getVersion())) {
+            throw optimisticLockConflict();
+        }
+    }
+
+    private BusinessException optimisticLockConflict() {
+        return new BusinessException(ErrorCode.CONFLICT,
+                "다른 사용자가 먼저 수정했습니다. 최신 분개를 다시 불러온 뒤 저장하세요.");
     }
 
     private String toNullableString(Object value) {

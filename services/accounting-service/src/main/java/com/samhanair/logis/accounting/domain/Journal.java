@@ -192,6 +192,63 @@ public class Journal extends BaseEntity {
     }
 
     /**
+     * DRAFT 분개의 헤더를 수정한다.
+     *
+     * <p>POSTED/REVERSED 분개는 감사 안전 원칙에 따라 직접 수정하지 않는다.
+     *
+     * @param journalDate 신규 분개 일자
+     * @param description 신규 적요. null 허용, 500자 이하.
+     * @return 현재 Journal (도메인 메서드 체인용)
+     * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT 가 아닐 때
+     */
+    public Journal updateDraftHeader(LocalDate journalDate, String description) {
+        requireDraft("분개 수정");
+        if (journalDate == null) {
+            throw new IllegalArgumentException("journalDate 는 필수입니다");
+        }
+        if (description != null && description.length() > 500) {
+            throw new IllegalArgumentException("description 은 최대 500자입니다");
+        }
+        this.journalDate = journalDate;
+        this.description = description;
+        return this;
+    }
+
+    /**
+     * DRAFT 분개의 라인을 전체 교체한다.
+     *
+     * <p>기존 라인을 비운 뒤 전달된 라인을 {@link #addLine(JournalLine)} 로 다시 추가한다.
+     * 차/대변 합계 일치 여부는 게시({@link #post(String)}) 시점에만 검증한다.
+     *
+     * @param newLines 교체할 신규 라인 목록
+     * @return 현재 Journal (도메인 메서드 체인용)
+     * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT 가 아닐 때
+     */
+    public Journal replaceLines(List<JournalLine> newLines) {
+        requireDraft("라인 교체");
+        this.lines.clear();
+        if (newLines != null) {
+            newLines.forEach(this::addLine);
+        }
+        return this;
+    }
+
+    /**
+     * DRAFT 분개의 기존 라인을 모두 제거한다.
+     *
+     * <p>{@code journal_id, line_no} unique index 충돌을 피하려면 service 가 본 메서드 호출 후
+     * flush 하고, 신규 라인은 {@link #addLine(JournalLine)} 로 다시 추가한다.
+     *
+     * @return 현재 Journal (도메인 메서드 체인용)
+     * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT 가 아닐 때
+     */
+    public Journal clearLinesForReplacement() {
+        requireDraft("라인 교체");
+        this.lines.clear();
+        return this;
+    }
+
+    /**
      * 게시 (DRAFT → POSTED). 라인 차/대 합계 일치 강제 검증.
      *
      * <p>부수효과:
@@ -296,5 +353,12 @@ public class Journal extends BaseEntity {
         return this.lines.stream()
                 .map(JournalLine::getCreditAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void requireDraft(String action) {
+        if (this.status != JournalStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    action + "은 DRAFT 단계에서만 허용됩니다 (현재: " + this.status + ")");
+        }
     }
 }

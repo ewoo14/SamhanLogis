@@ -53,6 +53,7 @@ class AccountingInternalJournalControllerIT extends AbstractPostgresIT {
                 null,
                 null,
                 null,
+                0L,
                 List.of());
         doReturn(response).when(journalService).create(any(CreateJournalRequest.class));
     }
