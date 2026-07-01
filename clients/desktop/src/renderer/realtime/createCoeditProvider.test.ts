@@ -198,6 +198,42 @@ describe('createCoeditProvider', () => {
     warn.mockRestore()
   })
 
+  it('corrupt awareness를 SSE와 applyRemoteAwareness에서 건너뛰고 이후 정상 update를 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let emit: Parameters<NonNullable<Parameters<typeof createCoeditProvider>[0]['subscribe']>>[1] | undefined
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getText('memo').insert(0, 'after corrupt awareness')
+    const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: (_documentId, onEvent) => {
+        emit = onEvent
+        return { abort: vi.fn() }
+      },
+    })
+
+    expect(() => emit?.({
+      event: 'coedit:awareness',
+      data: { awareness: 'not-a-yjs-awareness-payload' },
+      raw: '',
+    })).not.toThrow()
+    expect(() => provider.applyRemoteAwareness('dGVzdA==')).not.toThrow()
+
+    emit?.({ event: 'coedit:update', data: { update: validUpdate }, raw: '' })
+
+    expect(provider.text.toString()).toBe('after corrupt awareness')
+    expect(warn).toHaveBeenCalledWith('[coedit] corrupt coedit awareness 건너뜀', expect.any(Error))
+    expect(warn).toHaveBeenCalledTimes(2)
+    provider.destroy()
+    warn.mockRestore()
+  })
+
   it('applyRemoteUpdate의 손상 update를 건너뛰고 상태 부분변이 없이 이후 정상 Y.Text update를 적용한다', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const seedDoc = new Y.Doc()
@@ -553,6 +589,41 @@ describe('createDocCoeditProvider', () => {
     expect(provider.getHeaderValue('partnerName')).toBe('SSE 거래처')
     expect(provider.getItemValue(0, 'productName')).toBe('SSE 품목')
     expect(warn).toHaveBeenCalledWith('[doc-coedit] corrupt coedit update 건너뜀', expect.any(Error))
+    provider.destroy()
+    warn.mockRestore()
+  })
+
+  it('doc corrupt awareness를 SSE와 applyRemoteAwareness에서 건너뛰고 이후 정상 update를 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let emit: Parameters<NonNullable<Parameters<typeof createDocCoeditProvider>[0]['subscribe']>>[1] | undefined
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getMap<unknown>('header').set('partnerName', 'after corrupt awareness')
+    const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: (_documentId, onEvent) => {
+        emit = onEvent
+        return { abort: vi.fn() }
+      },
+    })
+
+    expect(() => emit?.({
+      event: 'coedit:awareness',
+      data: { awareness: 'not-a-yjs-awareness-payload' },
+      raw: '',
+    })).not.toThrow()
+    expect(() => provider.applyRemoteAwareness('dGVzdA==')).not.toThrow()
+
+    emit?.({ event: 'coedit:update', data: { update: validUpdate }, raw: '' })
+
+    expect(provider.getHeaderValue('partnerName')).toBe('after corrupt awareness')
+    expect(warn).toHaveBeenCalledWith('[doc-coedit] corrupt coedit awareness 건너뜀', expect.any(Error))
+    expect(warn).toHaveBeenCalledTimes(2)
     provider.destroy()
     warn.mockRestore()
   })
