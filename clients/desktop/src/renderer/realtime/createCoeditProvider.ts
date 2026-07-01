@@ -109,6 +109,17 @@ export function decodeBase64Update(update: string): Uint8Array {
   return bytes
 }
 
+/** corrupt/비-Yjs update 를 문서 전체 브릭 없이 건너뛰기 위한 안전 적용(리뷰 #691 QA 적발). */
+function safeApplyUpdate(doc: Y.Doc, update: string, origin: unknown, logPrefix: string): boolean {
+  try {
+    Y.applyUpdate(doc, decodeBase64Update(update), origin)
+    return true
+  } catch (err) {
+    console.warn(`${logPrefix} corrupt coedit update 건너뜀`, err)
+    return false
+  }
+}
+
 function isCoeditPayload(value: unknown, key: 'update' | 'awareness'): value is Record<typeof key, string> {
   return typeof value === 'object'
     && value !== null
@@ -280,7 +291,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
 
   const applySnapshot = (snapshot: CoeditUpdatesResponse) => {
     for (const update of snapshot.updates) {
-      Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
+      safeApplyUpdate(doc, update, REMOTE_ORIGIN, '[coedit]')
     }
   }
 
@@ -294,7 +305,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
   const stream = subscribe(options.documentId, (event) => {
     if (destroyed) return
     if (event.event === 'coedit:update' && isCoeditPayload(event.data, 'update')) {
-      Y.applyUpdate(doc, decodeBase64Update(event.data.update), REMOTE_ORIGIN)
+      safeApplyUpdate(doc, event.data.update, REMOTE_ORIGIN, '[coedit]')
       return
     }
     if (event.event === 'coedit:awareness' && isCoeditPayload(event.data, 'awareness')) {
@@ -341,7 +352,7 @@ export async function createCoeditProvider(options: CreateCoeditProviderOptions)
     text,
     awareness,
     applyRemoteUpdate: (update: string) => {
-      Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
+      safeApplyUpdate(doc, update, REMOTE_ORIGIN, '[coedit]')
     },
     applyRemoteAwareness: (encodedAwareness: string) => {
       applyAwarenessUpdate(awareness, decodeBase64Update(encodedAwareness), REMOTE_ORIGIN)
@@ -572,7 +583,7 @@ export async function createDocCoeditProvider(
 
   const applySnapshot = (snapshot: CoeditUpdatesResponse) => {
     for (const update of snapshot.updates) {
-      Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
+      safeApplyUpdate(doc, update, REMOTE_ORIGIN, '[doc-coedit]')
     }
   }
   const resyncSnapshot = async () => {
@@ -584,7 +595,7 @@ export async function createDocCoeditProvider(
   const stream = subscribe(options.documentId, (event) => {
     if (destroyed) return
     if (event.event === 'coedit:update' && isCoeditPayload(event.data, 'update')) {
-      Y.applyUpdate(doc, decodeBase64Update(event.data.update), REMOTE_ORIGIN)
+      safeApplyUpdate(doc, event.data.update, REMOTE_ORIGIN, '[doc-coedit]')
       return
     }
     if (event.event === 'coedit:awareness' && isCoeditPayload(event.data, 'awareness')) {
@@ -620,7 +631,7 @@ export async function createDocCoeditProvider(
     items,
     awareness,
     applyRemoteUpdate: (update: string) => {
-      Y.applyUpdate(doc, decodeBase64Update(update), REMOTE_ORIGIN)
+      safeApplyUpdate(doc, update, REMOTE_ORIGIN, '[doc-coedit]')
     },
     applyRemoteAwareness: (encodedAwareness: string) => {
       applyAwarenessUpdate(awareness, decodeBase64Update(encodedAwareness), REMOTE_ORIGIN)

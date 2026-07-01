@@ -141,6 +141,32 @@ describe('createCoeditProvider', () => {
     const update = new Uint8Array([1, 2, 3, 250])
     expect(Array.from(decodeBase64Update(encodeBase64Update(update)))).toEqual(Array.from(update))
   })
+
+  it('initialUpdates의 손상 update를 건너뛰고 정상 Y.Text update를 계속 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const remoteDoc = new Y.Doc()
+    const remoteText = remoteDoc.getText('memo')
+    remoteText.insert(0, '정상1')
+    const firstUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+    remoteText.insert(remoteText.length, '정상2')
+    const secondUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      fieldName: 'memo',
+      initialUpdates: async () => ({ updates: [firstUpdate, 'dGVzdA==', secondUpdate] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    expect(provider.text.toString()).toBe('정상1정상2')
+    expect(warn).toHaveBeenCalledWith('[coedit] corrupt coedit update 건너뜀', expect.any(Error))
+    provider.destroy()
+    warn.mockRestore()
+  })
+
   it('resyncs snapshot updates missed between initial load and SSE delivery', async () => {
     vi.useFakeTimers()
     const remoteDoc = new Y.Doc()
@@ -403,6 +429,32 @@ describe('createDocCoeditProvider', () => {
     expect(provider.header.get('memo')).toBeInstanceOf(Y.Text)
     expect(provider.header.get('partnerName')).toBe('삼한공조')
     provider.destroy()
+  })
+
+  it('initialUpdates의 손상 update를 건너뛰고 정상 문서 update를 계속 적용한다', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const remoteDoc = new Y.Doc()
+    remoteDoc.getMap<unknown>('header').set('partnerName', '삼한공조')
+    const firstUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+    const item = new Y.Map<unknown>()
+    item.set('productName', '실외기')
+    remoteDoc.getArray<Y.Map<unknown>>('items').push([item])
+    const secondUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
+
+    const provider = await createDocCoeditProvider({
+      documentId: 'doc-1',
+      basePath: '/slips/doc-1',
+      initialUpdates: async () => ({ updates: [firstUpdate, 'dGVzdA==', secondUpdate] }),
+      postUpdate: vi.fn(),
+      postAwareness: vi.fn(),
+      subscribe: () => ({ abort: vi.fn() }),
+    })
+
+    expect(provider.getHeaderValue('partnerName')).toBe('삼한공조')
+    expect(provider.getItemValue(0, 'productName')).toBe('실외기')
+    expect(warn).toHaveBeenCalledWith('[doc-coedit] corrupt coedit update 건너뜀', expect.any(Error))
+    provider.destroy()
+    warn.mockRestore()
   })
 })
 describe('createDocCoeditProvider lineId APIs', () => {
