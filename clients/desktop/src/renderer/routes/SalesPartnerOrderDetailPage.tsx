@@ -126,7 +126,7 @@ function coeditLinesToEditLines(
       key: previous?.key ?? createEditLineKey(),
       productName: provider.getItemValue(index, 'productName'),
       modelCode: provider.getItemValue(index, 'modelCode'),
-      categoryKey: previous?.categoryKey ?? 'homemulti',
+      categoryKey: provider.getItemValue(index, 'categoryKey') || previous?.categoryKey || 'homemulti',
       quantity: Number(quantityValue || 0),
       deliveryPrice: Number(deliveryPriceValue || 0),
       remark: provider.getItemValue(index, 'remark'),
@@ -197,6 +197,7 @@ export function SalesPartnerOrderDetailPage() {
   // coedit provider effect 는 query.data 객체 참조 변화가 아니라 모달/권한 상태 전이만 따라가야 한다.
   const orderDataRef = useRef<PartnerOrderDetail | null>(null)
   orderDataRef.current = query.data ?? null
+  const editSessionOrderRef = useRef<PartnerOrderDetail | null>(null)
 
   const auditQuery = useQuery({
     queryKey: ['partner-order', id, 'audit-logs'],
@@ -394,6 +395,7 @@ export function SalesPartnerOrderDetailPage() {
   useEffect(() => {
     const orderData = orderDataRef.current
     if (!isValidId || !orderData || !editOpen || !canCollabEdit) {
+      editSessionOrderRef.current = null
       setOrderFormCoeditProvider(null)
       setOrderFormCoeditPending(false)
       return undefined
@@ -420,8 +422,17 @@ export function SalesPartnerOrderDetailPage() {
         nextProvider.destroy()
         return
       }
+      const latestOrderData = orderDataRef.current
+      if (!latestOrderData) {
+        nextProvider.destroy()
+        editSessionOrderRef.current = null
+        setOrderFormCoeditProvider(null)
+        setOrderFormCoeditPending(false)
+        return
+      }
+      editSessionOrderRef.current = latestOrderData
       provider = nextProvider
-      const serverLineCount = toEditLines(orderData).length
+      const serverLineCount = toEditLines(latestOrderData).length
       const providerLineCount = nextProvider.items.toArray().length
       // 슬1은 coedit 라인 추가/삭제 UI가 없어 provider 라인수 = seed(서버) 시점 수.
       // 따라서 라인수 불일치 = stale 스냅샷(서버가 PUT으로 라인 변경)이므로 양방향 모두 server-wins
@@ -429,7 +440,7 @@ export function SalesPartnerOrderDetailPage() {
       // provider<server(서버 라인 추가됨)=라인 유실 차단. 동시 셀편집은 라인수 동일이라 보존됨.
       // 동시 라인추가(트랙A 라인 CRDT) 도입 시 lineId 기반 reconcile 로 대체 예정.
       if (nextProvider.isEmpty() || providerLineCount !== serverLineCount) {
-        seedPartnerOrderCoeditProvider(nextProvider, orderData)
+        seedPartnerOrderCoeditProvider(nextProvider, latestOrderData)
       }
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
@@ -455,6 +466,10 @@ export function SalesPartnerOrderDetailPage() {
   const handleConflictReload = useCallback(async () => {
     const result = await refetch()
     if (result.data) {
+      editSessionOrderRef.current = result.data
+      if (orderFormCoeditProvider) {
+        seedPartnerOrderCoeditProvider(orderFormCoeditProvider, result.data)
+      }
       syncFormFromData(result.data)
       setConflictMessage(null)
       setReloadSuccessMessage('최신 내용으로 업데이트됐습니다. 다시 저장해 주세요.')
@@ -466,7 +481,7 @@ export function SalesPartnerOrderDetailPage() {
         reloadSuccessTimerRef.current = null
       }, 3000)
     }
-  }, [refetch, syncFormFromData])
+  }, [orderFormCoeditProvider, refetch, syncFormFromData])
 
   const handlePrint = useCallback(async () => {
     setPrintErrorMessage(null)
@@ -511,6 +526,7 @@ export function SalesPartnerOrderDetailPage() {
 
   const openEditDialog = useCallback(() => {
     if (!query.data || !canCollabEdit) return
+    editSessionOrderRef.current = query.data
     syncFormFromData(query.data)
     setEditOpen(true)
   }, [canCollabEdit, query.data, syncFormFromData])
@@ -1399,11 +1415,12 @@ export function SalesPartnerOrderDetailPage() {
               data-testid="partner-order-edit-submit"
               disabled={updateMutation.isPending || orderFormCoeditPending || !query.data}
               onClick={() => {
-                if (!query.data) return
+                const editSessionOrder = editSessionOrderRef.current ?? query.data
+                if (!query.data || !editSessionOrder) return
                 updateMutation.mutate({
-                  updatedAt: query.data.updatedAt,
+                  updatedAt: editSessionOrder.updatedAt,
                   partnerCode,
-                  bizCode: query.data.bizCode,
+                  bizCode: editSessionOrder.bizCode,
                   dueDate: dueDate || null,
                   memo: memo || null,
                   lines: lines.map((line) => ({
@@ -1530,7 +1547,11 @@ export function SalesPartnerOrderDetailPage() {
                       value={line.categoryKey}
                       data-testid={`partner-order-edit-line-${index}-category`}
                       disabled={orderFormCoeditPending || updateMutation.isPending}
-                      onChange={(e) => updateLine(index, { categoryKey: e.target.value })}
+                      onChange={(e) => {
+                        const nextCategory = e.target.value
+                        orderFormCoeditProvider?.setItemValue(index, 'categoryKey', nextCategory)
+                        updateLine(index, { categoryKey: nextCategory })
+                      }}
                     >
                       <option value="homemulti">홈멀티</option>
                       <option value="singleSets">싱글중대형</option>

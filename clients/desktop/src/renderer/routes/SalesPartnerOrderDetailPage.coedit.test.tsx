@@ -179,6 +179,10 @@ function makeProvider() {
       rows = nextRows.map((row) => ({ ...row }))
     }),
     getItemValue: vi.fn((index: number, cellName: string) => rows[index]?.[cellName] ?? ''),
+    setItemValue: vi.fn((index: number, cellName: string, value: string) => {
+      if (!rows[index]) rows[index] = {}
+      rows[index][cellName] = value
+    }),
     isEmpty: vi.fn(() => true),
     subscribeDoc: vi.fn((listener: () => void) => {
       subscribers.add(listener)
@@ -352,6 +356,135 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
 
     expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1)
     expect(provider.destroy).not.toHaveBeenCalled()
+  })
+
+  it('provider 생성 대기 중 query.data 가 바뀌면 resolve 시점 최신 주문 데이터로 seed 한다', async () => {
+    let resolveProvider!: (provider: ReturnType<typeof makeProvider>) => void
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder({ memo: '초기 요청' }))
+    mocks.createDocCoeditProvider.mockReturnValue(
+      new Promise((resolve) => {
+        resolveProvider = resolve
+      }),
+    )
+    mocks.updatePartnerOrder.mockResolvedValue(makeOrder())
+
+    const { client } = renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      client.setQueryData(
+        ['partner-order', 'PO/2099-1'],
+        makeOrder({
+          memo: '리페치 최신 요청',
+          lines: [
+            { ...makeOrder().lines[0], categoryKey: 'commercialMulti' },
+            {
+              ...makeOrder().lines[0],
+              productId: 'product-2',
+              lineId: 'line-2',
+              modelCode: 'MODEL-2',
+              productName: '제품 2',
+              quantity: 3,
+              subtotal: 30000,
+              remark: '최신 추가 라인',
+            },
+          ],
+        }),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    resolveProvider(provider)
+
+    await waitFor(() => expect(provider.setHeaderValue).toHaveBeenCalledWith('memo', '리페치 최신 요청'))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ productName: '제품 1', modelCode: 'MODEL-1', categoryKey: 'commercialMulti' }),
+      expect.objectContaining({ productName: '제품 2', modelCode: 'MODEL-2' }),
+    ])
+    await waitFor(() =>
+      expect((screen.getByTestId('partner-order-edit-line-0-category') as HTMLSelectElement).value).toBe(
+        'commercialMulti',
+      ),
+    )
+
+    fireEvent.click(screen.getByTestId('partner-order-edit-submit'))
+
+    await waitFor(() => expect(mocks.updatePartnerOrder).toHaveBeenCalledTimes(1))
+    expect(mocks.updatePartnerOrder.mock.calls[0][1].lines[0].categoryKey).toBe('commercialMulti')
+  })
+
+  it('수정모달이 열린 뒤 query.data updatedAt 만 바뀌어도 저장은 편집 세션 기준 updatedAt 을 보낸다', async () => {
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder({ updatedAt: '2099-07-01T00:00:00' }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updatePartnerOrder.mockResolvedValue(makeOrder({ updatedAt: '2099-07-03T00:00:00' }))
+
+    const { client } = renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      client.setQueryData(
+        ['partner-order', 'PO/2099-1'],
+        makeOrder({ updatedAt: '2099-07-02T00:00:00', memo: '다른 세션 최신 요청' }),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    fireEvent.click(screen.getByTestId('partner-order-edit-submit'))
+
+    await waitFor(() => expect(mocks.updatePartnerOrder).toHaveBeenCalledTimes(1))
+    expect(mocks.updatePartnerOrder.mock.calls[0][1].updatedAt).toBe('2099-07-01T00:00:00')
+  })
+
+  it('409 conflict reload 는 form state 와 provider 문서를 모두 최신 주문 데이터로 재시드한다', async () => {
+    const provider = makeProvider()
+    const conflictError = Object.assign(new Error('conflict'), {
+      isAxiosError: true,
+      response: { status: 409 },
+    })
+    mocks.getPartnerOrder
+      .mockResolvedValueOnce(makeOrder({ memo: '초기 요청', updatedAt: '2099-07-01T00:00:00' }))
+      .mockResolvedValueOnce(
+        makeOrder({
+          memo: '충돌 후 최신 요청',
+          updatedAt: '2099-07-02T00:00:00',
+          lines: [{ ...makeOrder().lines[0], categoryKey: 'commercialMulti', remark: '최신 라인 비고' }],
+        }),
+      )
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updatePartnerOrder.mockRejectedValue(conflictError)
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByTestId('partner-order-edit-submit'))
+    await screen.findByTestId('partner-order-edit-conflict-banner')
+
+    fireEvent.click(screen.getByTestId('partner-order-edit-reload'))
+
+    await waitFor(() => expect(provider.setHeaderValue).toHaveBeenCalledWith('memo', '충돌 후 최신 요청'))
+    expect(provider.replaceItems).toHaveBeenCalledWith([
+      expect.objectContaining({ categoryKey: 'commercialMulti', remark: '최신 라인 비고' }),
+    ])
+    await waitFor(() =>
+      expect((screen.getByTestId('partner-order-edit-line-0-category') as HTMLSelectElement).value).toBe(
+        'commercialMulti',
+      ),
+    )
+
+    act(() => {
+      provider.__emit()
+    })
+
+    await waitFor(() =>
+      expect((screen.getByTestId('partner-order-coedit-header-memo') as HTMLInputElement).value).toBe(
+        '충돌 후 최신 요청',
+      ),
+    )
   })
 
   it('수정모달을 닫으면 provider 구독을 정리하고 destroy 를 호출한다', async () => {
