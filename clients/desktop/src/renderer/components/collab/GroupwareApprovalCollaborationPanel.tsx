@@ -4,7 +4,7 @@
  * 결재 문서 title/content 수정완료와 코멘트를 한 화면에서 처리한다. approvalId 는
  * query key/API path 전용이며 화면에는 approvalNo 와 본문 정보만 표시한다.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Input } from '@samhan/design-system'
@@ -27,6 +27,9 @@ import { usePresence } from '../../hooks/usePresence'
 import { GroupwareApprovalPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
 import { CollaborativeTextField } from './CollaborativeTextField'
+import { CollaborativeSlipInput } from './CollaborativeSlipInput'
+import { CollaborativeSlipTextArea } from './CollaborativeSlipTextArea'
+import { createDocCoeditProvider, type DocCoeditProvider } from '../../realtime/createCoeditProvider'
 
 export interface GroupwareApprovalCollabCurrentValues {
   title: string
@@ -118,6 +121,25 @@ function isEditableStatus(status: ApprovalStatus): boolean {
   return status === 'PENDING' || status === 'IN_PROGRESS'
 }
 
+function dynamicFieldCoeditKey(fieldKey: string): string {
+  return `field_${fieldKey}`
+}
+
+function seedGroupwareApprovalCoeditProvider(
+  provider: DocCoeditProvider,
+  currentValues: GroupwareApprovalCollabCurrentValues,
+  templateFields: ApprovalTemplateField[],
+) {
+  provider.setHeaderValue('title', valueForEdit(currentValues.title))
+  provider.setHeaderValue('content', valueForEdit(currentValues.content))
+  for (const field of templateFields) {
+    provider.setHeaderValue(
+      dynamicFieldCoeditKey(field.fieldKey),
+      valueForEdit(currentValues.fieldValues?.[field.fieldKey]),
+    )
+  }
+}
+
 export function GroupwareApprovalCollaborationPanel({
   approvalId,
   approvalNo,
@@ -136,6 +158,10 @@ export function GroupwareApprovalCollaborationPanel({
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
+  const [approvalFormCoeditProvider, setApprovalFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
+  const [approvalFormCoeditPending, setApprovalFormCoeditPending] = useState(false)
+  const currentValuesRef = useRef(currentValues)
+  currentValuesRef.current = currentValues
   const presenceEntries = usePresence({ entityId: approvalId, client: GroupwareApprovalPresenceClient, enabled: !!approvalId })
 
   const commentQueryKey = useMemo(() => ['groupwareApprovalCollabComments', approvalId] as const, [approvalId])
@@ -148,6 +174,15 @@ export function GroupwareApprovalCollaborationPanel({
   )
   const fieldLabelMap = useMemo(
     () => Object.fromEntries(templateFields.map((field) => [field.fieldKey, field.label])),
+    [templateFields],
+  )
+  const approvalHeaderTextFields = useMemo(
+    () => new Set([
+      'content',
+      ...templateFields
+        .filter((field) => field.fieldType === 'TEXTAREA')
+        .map((field) => dynamicFieldCoeditKey(field.fieldKey)),
+    ]),
     [templateFields],
   )
 
@@ -169,13 +204,70 @@ export function GroupwareApprovalCollaborationPanel({
 
   useEffect(() => {
     if (!editMode) return
+    if (approvalFormCoeditProvider) return
     setTitleDraft(valueForEdit(currentValues.title))
     setContentDraft(valueForEdit(currentValues.content))
     setFieldDrafts({ ...(currentValues.fieldValues ?? {}) })
     setEditReason('')
     setEditNotice(null)
     setCommitError(null)
-  }, [currentValues.content, currentValues.fieldValues, currentValues.title, editMode])
+  }, [approvalFormCoeditProvider, currentValues.content, currentValues.fieldValues, currentValues.title, editMode])
+
+  useEffect(() => {
+    if (!approvalId || !editMode || !canWrite) {
+      setApprovalFormCoeditProvider(null)
+      setApprovalFormCoeditPending(false)
+      return undefined
+    }
+
+    let disposed = false
+    let provider: DocCoeditProvider | null = null
+    let unsubscribeDoc: (() => void) | null = null
+    setApprovalFormCoeditPending(true)
+
+    const applyProviderState = (nextProvider: DocCoeditProvider) => {
+      setTitleDraft(nextProvider.getHeaderValue('title'))
+      setContentDraft(nextProvider.getHeaderValue('content'))
+      setFieldDrafts((current) => {
+        const next = { ...current }
+        for (const field of templateFields) {
+          next[field.fieldKey] = nextProvider.getHeaderValue(dynamicFieldCoeditKey(field.fieldKey))
+        }
+        return next
+      })
+    }
+
+    void createDocCoeditProvider({
+      documentId: approvalId,
+      basePath: collabBasePath,
+      headerTextFields: approvalHeaderTextFields,
+    }).then((nextProvider) => {
+      if (disposed) {
+        nextProvider.destroy()
+        return
+      }
+      provider = nextProvider
+      if (nextProvider.isEmpty()) {
+        seedGroupwareApprovalCoeditProvider(nextProvider, currentValuesRef.current, templateFields)
+      }
+      applyProviderState(nextProvider)
+      unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
+      setApprovalFormCoeditProvider(nextProvider)
+      setApprovalFormCoeditPending(false)
+    }).catch(() => {
+      if (disposed) return
+      setApprovalFormCoeditProvider(null)
+      setApprovalFormCoeditPending(false)
+    })
+
+    return () => {
+      disposed = true
+      unsubscribeDoc?.()
+      provider?.destroy()
+      setApprovalFormCoeditProvider(null)
+      setApprovalFormCoeditPending(false)
+    }
+  }, [approvalHeaderTextFields, approvalId, canWrite, collabBasePath, editMode, templateFields])
 
   useEffect(() => {
     if (!approvalId) return
@@ -428,24 +520,31 @@ export function GroupwareApprovalCollaborationPanel({
               >
                 <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
                   제목
-                  <Input
+                  <CollaborativeSlipInput
+                    provider={approvalFormCoeditProvider}
+                    coeditPending={approvalFormCoeditPending}
+                    fieldPath="header.title"
                     value={titleDraft}
-                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onValueChange={setTitleDraft}
                     aria-label="제목 수정값"
                     maxLength={200}
                     inputSize="sm"
+                    data-testid="groupware-approval-collab-edit-title"
                   />
                 </label>
                 <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
                   내용
-                  <textarea
+                  <CollaborativeSlipTextArea
+                    provider={approvalFormCoeditProvider}
+                    coeditPending={approvalFormCoeditPending}
+                    fieldPath="header.content"
                     value={contentDraft}
-                    onChange={(event) => setContentDraft(event.target.value)}
+                    onValueChange={setContentDraft}
                     maxLength={2000}
                     rows={5}
                     aria-label="내용 수정값"
                     data-testid="groupware-approval-collab-edit-content"
-                    style={{
+                    textareaStyle={{
                       resize: 'vertical',
                       minHeight: 112,
                       padding: '8px 10px',
@@ -465,9 +564,17 @@ export function GroupwareApprovalCollaborationPanel({
                         field={field}
                         value={fieldDrafts[field.fieldKey] ?? ''}
                         onChange={(value) => setFieldDrafts((current) => ({ ...current, [field.fieldKey]: value }))}
+                        provider={approvalFormCoeditProvider}
+                        fieldPath={`header.${dynamicFieldCoeditKey(field.fieldKey)}`}
+                        coeditPending={approvalFormCoeditPending}
                       />
                     ))}
                   </div>
+                ) : null}
+                {approvalFormCoeditPending ? (
+                  <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+                    협업 연결 중…
+                  </p>
                 ) : null}
                 <Input
                   value={editReason}
@@ -492,7 +599,7 @@ export function GroupwareApprovalCollaborationPanel({
                     variant="primary"
                     size="sm"
                     loading={commitMutation.isPending}
-                    disabled={commitMutation.isPending}
+                    disabled={commitMutation.isPending || approvalFormCoeditPending}
                     onClick={() => commitMutation.mutate()}
                     data-testid="groupware-approval-collab-edit-submit"
                   >

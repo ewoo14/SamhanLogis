@@ -5,28 +5,61 @@
  */
 import { FormField, Input, Select } from '@samhan/design-system'
 import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
+import type { DocCoeditProvider } from '../../realtime/createCoeditProvider'
+import { CollaborativeSlipInput } from '../collab/CollaborativeSlipInput'
+import { CollaborativeSlipTextArea } from '../collab/CollaborativeSlipTextArea'
 
 export interface DynamicApprovalFieldInputProps {
   field: ApprovalTemplateField
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  provider?: DocCoeditProvider | null
+  fieldPath?: string
+  coeditPending?: boolean
 }
+
+function headerKeyFromFieldPath(fieldPath: string): string {
+  const [scope, rowKey] = fieldPath.split('.')
+  return scope === 'header' ? rowKey ?? '' : ''
+}
+
+const textareaStyle = {
+  width: '100%',
+  minHeight: 96,
+  resize: 'vertical',
+  padding: '8px 10px',
+  borderRadius: 4,
+  border: '1px solid var(--color-neutral-300)',
+  fontSize: 13,
+  fontFamily: 'inherit',
+} as const
 
 export function DynamicApprovalFieldInput({
   field,
   value,
   onChange,
   disabled = false,
+  provider = null,
+  fieldPath,
+  coeditPending = false,
 }: DynamicApprovalFieldInputProps) {
   if (field.fieldType === 'SELECT') {
+    const effectiveDisabled = disabled || coeditPending
     return (
       <Select
         label={field.label}
         required={field.required}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
+        onChange={(event) => {
+          const nextValue = event.target.value
+          onChange(nextValue)
+          if (provider && fieldPath) {
+            provider.setHeaderValue(headerKeyFromFieldPath(fieldPath), nextValue)
+            provider.setLocalLastEdit(fieldPath)
+          }
+        }}
+        disabled={effectiveDisabled}
         selectSize="sm"
         data-testid={`dynamic-approval-field-${field.fieldKey}`}
       >
@@ -41,6 +74,32 @@ export function DynamicApprovalFieldInput({
   }
 
   if (field.fieldType === 'TEXTAREA') {
+    if (provider && fieldPath) {
+      return (
+        <FormField
+          label={field.label}
+          required={field.required}
+          render={({ id, ariaDescribedBy, invalid }) => (
+            <CollaborativeSlipTextArea
+              id={id}
+              provider={provider}
+              fieldPath={fieldPath}
+              value={value}
+              onValueChange={onChange}
+              rows={4}
+              placeholder={field.placeholder ?? undefined}
+              readOnly={disabled}
+              coeditPending={coeditPending}
+              textareaStyle={textareaStyle}
+              aria-label={field.label}
+              aria-describedby={ariaDescribedBy}
+              aria-invalid={invalid}
+              data-testid={`dynamic-approval-field-${field.fieldKey}`}
+            />
+          )}
+        />
+      )
+    }
     return (
       <FormField
         label={field.label}
@@ -50,22 +109,13 @@ export function DynamicApprovalFieldInput({
             id={id}
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            disabled={disabled}
+            disabled={disabled || coeditPending}
             rows={4}
             placeholder={field.placeholder ?? undefined}
             aria-describedby={ariaDescribedBy}
             aria-invalid={invalid || undefined}
             data-testid={`dynamic-approval-field-${field.fieldKey}`}
-            style={{
-              width: '100%',
-              minHeight: 96,
-              resize: 'vertical',
-              padding: '8px 10px',
-              borderRadius: 4,
-              border: '1px solid var(--color-neutral-300)',
-              fontSize: 13,
-              fontFamily: 'inherit',
-            }}
+            style={textareaStyle}
           />
         )}
       />
@@ -78,6 +128,26 @@ export function DynamicApprovalFieldInput({
       ? 'date'
       : 'text'
 
+  if (provider && fieldPath) {
+    return (
+      <CollaborativeSlipInput
+        provider={provider}
+        coeditPending={coeditPending}
+        fieldPath={fieldPath}
+        type={inputType}
+        label={field.label}
+        required={field.required}
+        value={value}
+        onValueChange={onChange}
+        readOnly={disabled}
+        placeholder={field.placeholder ?? undefined}
+        inputSize="sm"
+        aria-label={field.label}
+        data-testid={`dynamic-approval-field-${field.fieldKey}`}
+      />
+    )
+  }
+
   return (
     <Input
       type={inputType}
@@ -85,7 +155,7 @@ export function DynamicApprovalFieldInput({
       required={field.required}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      disabled={disabled}
+      disabled={disabled || coeditPending}
       placeholder={field.placeholder ?? undefined}
       inputSize="sm"
       data-testid={`dynamic-approval-field-${field.fieldKey}`}
