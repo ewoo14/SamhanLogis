@@ -203,8 +203,12 @@ describe('createCoeditProvider', () => {
     const seedDoc = new Y.Doc()
     seedDoc.getText('memo').insert(0, '시드')
     const seedUpdate = encodeBase64Update(Y.encodeStateAsUpdate(seedDoc))
+    // remoteDoc 을 seed 상태에서 fork 후 append — 독립 Y.Doc 2개가 위치0에 각각 insert 하면
+    // 병합 순서가 clientID 의존이라 '시드시드 이후'/'시드 이후시드' 로 비결정(=flaky). seed 를 apply 후
+    // 이어붙이면 결정적으로 '시드 이후'.
     const remoteDoc = new Y.Doc()
-    remoteDoc.getText('memo').insert(0, '시드 이후')
+    Y.applyUpdate(remoteDoc, decodeBase64Update(seedUpdate))
+    remoteDoc.getText('memo').insert(2, ' 이후')
     const validUpdate = encodeBase64Update(Y.encodeStateAsUpdate(remoteDoc))
 
     const provider = await createCoeditProvider({
@@ -222,7 +226,7 @@ describe('createCoeditProvider', () => {
 
     expect(provider.text.toString()).toBe(beforeCorruptState)
     provider.applyRemoteUpdate(validUpdate)
-    expect(provider.text.toString()).toBe('시드시드 이후')
+    expect(provider.text.toString()).toBe('시드 이후')
     expect(warn).toHaveBeenCalledWith('[coedit] corrupt coedit update 건너뜀', expect.any(Error))
     provider.destroy()
     warn.mockRestore()
