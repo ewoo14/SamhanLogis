@@ -137,7 +137,7 @@ function formatKrw(raw: string | number): string {
 
 function isCollabEvent(eventName: string): boolean {
   // 협업 stream(/collab/stream) 은 comment.* / suggestion.* 만 발행한다.
-  // 본문 수정(estimate:edit)은 별도 EstimateRealtimeClient 채널 소관이므로 여기서 받지 않는다.
+  // 본문 실시간 동기화는 coedit(coedit:update)이 담당하며, 구 estimate:edit/EstimateRealtimeClient 채널은 폐기됨.
   return eventName.startsWith('comment.')
     || eventName.startsWith('suggestion.')
     || eventName === 'message'

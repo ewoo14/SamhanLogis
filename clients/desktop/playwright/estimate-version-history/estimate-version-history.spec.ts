@@ -10,7 +10,7 @@
  * <h2>Mock 전략 — mock.ts fixture (VITE_MOCK_MODE=1)</h2>
  * <p>desktop 클라이언트는 {@code VITE_MOCK_MODE=1} 일 때 axios request interceptor 가
  * {@code getMockResponse()} 로 백엔드 호출을 fixture 로 대체한다(실 HTTP 미발생).
- * 본 spec 의 모든 endpoint — getEstimate / audit-logs /
+ * 본 spec 의 모든 endpoint — getEstimate /
  * {@code GET /api/v1/slips/estimates/&#42;/revisions} /
  * {@code POST .../revisions/&#42;/restore} — 는 {@code mock.ts} fixture 가 응답하므로
  * 별도 {@code page.route} 가 필요 없다(interceptor 가 page.route 보다 앞단이라 발동하지 않는다).

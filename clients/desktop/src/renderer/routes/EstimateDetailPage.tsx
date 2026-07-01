@@ -528,9 +528,9 @@ export function EstimateDetailPage() {
               ) : null}
               <div
                 style={{ marginTop: 4, color: 'var(--ink-primary)' }}
-                data-testid="estimate-detail-audit-overlay-memo"
+                data-testid="estimate-detail-memo"
               >
-                <strong>비고</strong>: {e.memo}
+                <strong>비고</strong>: {e.memo || '(빈 값)'}
               </div>
             </div>
           </div>

@@ -98,10 +98,6 @@ vi.mock('../api/slip', () => ({
   toApiBundleSetOptions: () => undefined,
 }))
 
-vi.mock('../components/audit/AuditOverlaySection', () => ({
-  AuditRevisionBadge: () => <div data-testid="estimate-audit-badge" />,
-}))
-
 vi.mock('./components/LineLookupReferenceModal', () => ({
   LineLookupReferenceModal: () => <div data-testid="line-lookup-reference-modal" />,
 }))
