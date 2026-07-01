@@ -216,7 +216,7 @@ public class EcountGeneralVoucherImporter {
                 SELECT gen_random_uuid(), :journalId, :lineNo, :accountCode, :debit, :credit,
                   :partnerId, :memo, NOW(), :actor, NOW(), :actor, FALSE
                 WHERE NOT EXISTS (SELECT 1 FROM restored)
-                ON CONFLICT (journal_id, line_no) DO UPDATE SET
+                ON CONFLICT (journal_id, line_no) WHERE is_deleted = FALSE DO UPDATE SET
                   account_code = EXCLUDED.account_code,
                   debit_amount = EXCLUDED.debit_amount,
                   credit_amount = EXCLUDED.credit_amount,

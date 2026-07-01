@@ -330,11 +330,13 @@ export async function updateJournal(
   const requestBody: UpdateJournalRequest = {
     ...body,
     lines: body.lines.map((line) => {
-      const memo = line.memo ?? line.note ?? null
+      // BE LineRequest 는 단일 memo 필드 + @JsonAlias("note"). note/memo 두 키를
+      // 동시에 보내면 Jackson 이 creator property 이중 경로로 InvalidDefinitionException →
+      // 400. memo 한 키로만 전송한다(note 는 fallback 소스로만 사용).
+      const { note, memo, ...rest } = line
       return {
-        ...line,
-        note: line.note ?? memo,
-        memo,
+        ...rest,
+        memo: memo ?? note ?? null,
       }
     }),
   }
@@ -366,7 +368,7 @@ export async function postJournal(id: string): Promise<Journal> {
   }
 }
 
-function extractApiErrorMessage(err: unknown): string | null {
+export function extractApiErrorMessage(err: unknown): string | null {
   if (!axios.isAxiosError(err)) return null
   const data = err.response?.data
   if (typeof data !== 'object' || data === null || !('message' in data)) return null

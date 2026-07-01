@@ -76,7 +76,7 @@ describe('accounting journal API error contract', () => {
     expect(journal.lines[0].partnerId).toBe('11111111-1111-1111-1111-111111111111')
   })
 
-  it('updateJournal 은 expectedVersion, partnerId, note/memo 를 PUT body 에 포함한다', async () => {
+  it('updateJournal 은 note 를 memo 로 정규화하고 단일 memo 키만 PUT body 에 보낸다', async () => {
     vi.mocked(apiClient.put).mockResolvedValueOnce({
       data: {
         data: {
@@ -108,6 +108,8 @@ describe('accounting journal API error contract', () => {
       ],
     })
 
+    // note 만 입력해도 BE @JsonAlias 이중키 충돌을 피하기 위해 memo 단일 키로만 정규화되어
+    // 전송되어야 한다(note 키는 포함하지 않음).
     expect(apiClient.put).toHaveBeenCalledWith('/accounting/journals/journal-1', {
       expectedVersion: 7,
       journalDate: '2026-05-04',
@@ -119,7 +121,6 @@ describe('accounting journal API error contract', () => {
           credit: '0',
           partnerId: '11111111-1111-1111-1111-111111111111',
           partnerName: '거래처A',
-          note: '라인 메모',
           memo: '라인 메모',
         },
       ],
