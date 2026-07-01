@@ -10,7 +10,9 @@ import {
 
 // header 키는 dot 을 포함할 수 있으므로(동적필드 field_a.b 등) 첫 dot 이후 전체를 키로; items 는 index.cell 2-세그먼트 유지.
 function headerKey(fieldPath: string): string {
-  return fieldPath.slice(fieldPath.indexOf('.') + 1)
+  const firstDot = fieldPath.indexOf('.')
+  if (firstDot < 0 || fieldPath.slice(0, firstDot) !== 'header') return ''
+  return fieldPath.slice(firstDot + 1)
 }
 
 function valueFromProvider(provider: DocCoeditProvider, fieldPath: string): string {

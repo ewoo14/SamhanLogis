@@ -233,6 +233,28 @@ describe('CollaborativeSlipInput', () => {
   })
 })
 describe('CollaborativeSlipInput item fieldPath routing', () => {
+  it('keeps a bare header fieldPath routed to the legacy empty header key', () => {
+    const provider = providerStub()
+    const getHeaderValue = vi.spyOn(provider, 'getHeaderValue')
+    const setHeaderValue = vi.spyOn(provider, 'setHeaderValue')
+
+    render(
+      <CollaborativeSlipInput
+        provider={provider}
+        fieldPath="header"
+        value=""
+        onValueChange={() => undefined}
+        aria-label="bare header"
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('bare header'), { target: { value: 'fallback' } })
+
+    expect(getHeaderValue).toHaveBeenCalledWith('')
+    expect(setHeaderValue).toHaveBeenCalledWith('', 'fallback')
+    expect(provider.header.get('header')).toBeUndefined()
+  })
+
   it('routes numeric item row keys through the existing index API', () => {
     const provider = providerStub()
     const getItemValue = vi.spyOn(provider, 'getItemValue')
