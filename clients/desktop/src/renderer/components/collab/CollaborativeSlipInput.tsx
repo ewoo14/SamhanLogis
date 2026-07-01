@@ -8,9 +8,14 @@ import {
   type RemoteFieldEdit,
 } from '../../realtime/createCoeditProvider'
 
+// header 키는 dot 을 포함할 수 있으므로(동적필드 field_a.b 등) 첫 dot 이후 전체를 키로; items 는 index.cell 2-세그먼트 유지.
+function headerKey(fieldPath: string): string {
+  return fieldPath.slice(fieldPath.indexOf('.') + 1)
+}
+
 function valueFromProvider(provider: DocCoeditProvider, fieldPath: string): string {
   const [scope, rowKey, cellName] = fieldPath.split('.')
-  if (scope === 'header') return provider.getHeaderValue(rowKey ?? '')
+  if (scope === 'header') return provider.getHeaderValue(headerKey(fieldPath))
   if (scope === 'items') {
     const key = rowKey ?? ''
     if (/^\d+$/.test(key)) return provider.getItemValue(Number(key), cellName ?? '')
@@ -22,7 +27,7 @@ function valueFromProvider(provider: DocCoeditProvider, fieldPath: string): stri
 function setProviderValue(provider: DocCoeditProvider, fieldPath: string, value: string) {
   const [scope, rowKey, cellName] = fieldPath.split('.')
   if (scope === 'header') {
-    provider.setHeaderValue(rowKey ?? '', value)
+    provider.setHeaderValue(headerKey(fieldPath), value)
     return
   }
   if (scope === 'items') {

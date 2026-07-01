@@ -244,7 +244,8 @@ describe('GroupwareApprovalCollaborationPanel full-form coedit wiring', () => {
     fireEvent.change(screen.getByTestId('dynamic-approval-field-category'), { target: { value: '식대' } })
 
     expect(provider.setHeaderValue).toHaveBeenLastCalledWith('field_category', '식대')
-    expect(provider.setLocalLastEdit).toHaveBeenLastCalledWith('header.field_category')
+    // D2: SELECT 은 edit-pulse 미표시(LWW-no-cursor)라 lastEdit awareness 미방출 → 값 sync 만.
+    expect(provider.setLocalLastEdit).not.toHaveBeenCalled()
   })
 
   it('keeps commit changeSet keys decoupled as field.<key> dot paths', async () => {
@@ -270,5 +271,40 @@ describe('GroupwareApprovalCollaborationPanel full-form coedit wiring', () => {
       'field.category': { after: '식대' },
     })
     expect(payload.changeSet).not.toContain('field_category')
+  })
+
+  it('does not truncate a dynamic fieldKey containing a dot (B1 regression)', async () => {
+    const dottedField: ApprovalTemplateField = {
+      fieldKey: 'cost.center',
+      label: '코스트센터',
+      fieldType: 'TEXT',
+      required: false,
+      displayOrder: 5,
+      options: [],
+      placeholder: null,
+    }
+    const provider = makeProvider()
+    coeditMocks.createDocCoeditProvider.mockResolvedValue(provider)
+    apiMocks.commitGroupwareApprovalCollabEdit.mockResolvedValue({
+      approval: { approvalId: 'approval-dotted', title: '결재 제목' },
+    })
+
+    renderPanel('approval-dotted', {
+      templateFields: [dottedField],
+      currentValues: { title: '결재 제목', content: '초기 본문', fieldValues: { 'cost.center': '초기값' } },
+    })
+    fireEvent.click(screen.getByTestId('groupware-approval-collab-edit-start'))
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalled())
+
+    // seed·write 는 절단 없이 전체 dotted 키를 provider 헤더 키로 사용(field_cost.center) — split[1] 절단이면 field_cost 로 오기록.
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('field_cost.center', '초기값')
+    fireEvent.change(screen.getByTestId('dynamic-approval-field-cost.center'), { target: { value: '변경값' } })
+    expect(provider.setHeaderValue).toHaveBeenLastCalledWith('field_cost.center', '변경값')
+
+    // commit changeSet 은 원본 dotted 키로 field.cost.center (provider 키와 decoupled).
+    fireEvent.click(screen.getByTestId('groupware-approval-collab-edit-submit'))
+    await waitFor(() => expect(apiMocks.commitGroupwareApprovalCollabEdit).toHaveBeenCalledTimes(1))
+    const payload = apiMocks.commitGroupwareApprovalCollabEdit.mock.calls[0][1]
+    expect(JSON.parse(payload.changeSet)).toEqual({ 'field.cost.center': { after: '변경값' } })
   })
 })

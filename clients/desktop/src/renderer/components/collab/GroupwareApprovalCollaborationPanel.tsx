@@ -545,6 +545,7 @@ export function GroupwareApprovalCollaborationPanel({
                     aria-label="내용 수정값"
                     data-testid="groupware-approval-collab-edit-content"
                     textareaStyle={{
+                      width: '100%',
                       resize: 'vertical',
                       minHeight: 112,
                       padding: '8px 10px',

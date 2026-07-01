@@ -20,8 +20,10 @@ export interface DynamicApprovalFieldInputProps {
 }
 
 function headerKeyFromFieldPath(fieldPath: string): string {
-  const [scope, rowKey] = fieldPath.split('.')
-  return scope === 'header' ? rowKey ?? '' : ''
+  // header 키는 dot 을 포함할 수 있으므로(동적필드 field_a.b 등) 첫 dot 이후 전체를 키로 사용 — split[1] 절단 버그 방지.
+  const firstDot = fieldPath.indexOf('.')
+  if (firstDot < 0 || fieldPath.slice(0, firstDot) !== 'header') return ''
+  return fieldPath.slice(firstDot + 1)
 }
 
 const textareaStyle = {
@@ -55,8 +57,8 @@ export function DynamicApprovalFieldInput({
           const nextValue = event.target.value
           onChange(nextValue)
           if (provider && fieldPath) {
+            // SELECT 은 edit-pulse 미표시(D2 LWW-no-cursor)라 lastEdit awareness 는 미시각화 → 값 sync 만.
             provider.setHeaderValue(headerKeyFromFieldPath(fieldPath), nextValue)
-            provider.setLocalLastEdit(fieldPath)
           }
         }}
         disabled={effectiveDisabled}

@@ -8,8 +8,10 @@ import {
 } from '../../realtime/createCoeditProvider'
 
 function headerKeyFromFieldPath(fieldPath: string): string {
-  const [scope, rowKey] = fieldPath.split('.')
-  return scope === 'header' ? rowKey ?? '' : ''
+  // header 키는 dot 을 포함할 수 있으므로(동적필드 field_a.b 등) 첫 dot 이후 전체를 키로 사용 — split[1] 절단 버그 방지.
+  const firstDot = fieldPath.indexOf('.')
+  if (firstDot < 0 || fieldPath.slice(0, firstDot) !== 'header') return ''
+  return fieldPath.slice(firstDot + 1)
 }
 
 function remoteCursorsFor(provider: DocCoeditProvider | null, fieldPath: string): RemoteFieldCursor[] {
