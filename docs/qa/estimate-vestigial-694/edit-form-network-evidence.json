@@ -1,0 +1,14 @@
+{
+  "pr": 694,
+  "page": "EstimateFormPage(edit)",
+  "estimateId": "est-001",
+  "totalBrowserApiUrls": 2,
+  "totalCdpRequests": 419,
+  "deadEndpointAttempts_browserApi": [],
+  "deadEndpointAttempts_cdp": [],
+  "estimateEditOrDeadConsoleErrors": [],
+  "allConsoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

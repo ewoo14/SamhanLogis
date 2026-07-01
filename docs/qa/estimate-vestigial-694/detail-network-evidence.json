@@ -1,0 +1,34 @@
+{
+  "pr": 694,
+  "page": "EstimateDetailPage",
+  "estimateId": "est-001",
+  "totalBrowserApiUrls": 9,
+  "totalCdpRequests": 424,
+  "deadEndpointAttempts_browserApi": [],
+  "deadEndpointAttempts_cdp": [],
+  "deadEndpointFailedRequests": [],
+  "estimateEditOrDeadConsoleErrors": [],
+  "allConsoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "sampleEstimateRelatedUrls": [
+    "http://localhost:8080/slips/estimates/est-001/collab/stream",
+    "http://localhost:8080/api/v1/slips/estimates/est-001/collab/stream",
+    "http://127.0.0.1:5173/routes/EstimateListPage.tsx",
+    "http://127.0.0.1:5173/routes/EstimateFormPage.tsx",
+    "http://127.0.0.1:5173/routes/EstimateDetailPage.tsx",
+    "http://127.0.0.1:5173/routes/EstimatePricingConfigPage.tsx",
+    "http://127.0.0.1:5173/routes/EstimateItemsCatalogPage.tsx",
+    "http://127.0.0.1:5173/api/estimateApi.ts",
+    "http://127.0.0.1:5173/components/audit/EstimateVersionHistoryPanel.tsx",
+    "http://127.0.0.1:5173/components/collab/EstimateCollaborationPanel.tsx",
+    "http://127.0.0.1:5173/api/estimateRevision.ts",
+    "http://127.0.0.1:5173/api/estimateCollab.ts",
+    "http://127.0.0.1:5173/realtime/EstimateCollabRealtimeClient.ts"
+  ]
+}
