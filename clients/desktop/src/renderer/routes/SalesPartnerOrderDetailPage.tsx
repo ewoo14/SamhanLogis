@@ -194,6 +194,9 @@ export function SalesPartnerOrderDetailPage() {
     retry: 1,
   })
   const { refetch } = query
+  // coedit provider effect 는 query.data 객체 참조 변화가 아니라 모달/권한 상태 전이만 따라가야 한다.
+  const orderDataRef = useRef<PartnerOrderDetail | null>(null)
+  orderDataRef.current = query.data ?? null
 
   const auditQuery = useQuery({
     queryKey: ['partner-order', id, 'audit-logs'],
@@ -389,7 +392,7 @@ export function SalesPartnerOrderDetailPage() {
   }, [query.data, editOpen, syncFormFromData])
 
   useEffect(() => {
-    const orderData = query.data
+    const orderData = orderDataRef.current
     if (!isValidId || !orderData || !editOpen || !canCollabEdit) {
       setOrderFormCoeditProvider(null)
       setOrderFormCoeditPending(false)
@@ -447,7 +450,7 @@ export function SalesPartnerOrderDetailPage() {
       setOrderFormCoeditProvider(null)
       setOrderFormCoeditPending(false)
     }
-  }, [canCollabEdit, editOpen, isValidId, orderId, query.data])
+  }, [canCollabEdit, editOpen, isValidId, orderId])
 
   const handleConflictReload = useCallback(async () => {
     const result = await refetch()
@@ -1543,6 +1546,8 @@ export function SalesPartnerOrderDetailPage() {
                       aria-label="수량"
                       type="number"
                       min={1}
+                      inputMode="numeric"
+                      inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
                       value={String(line.quantity)}
                       onValueChange={(value) => updateLine(index, { quantity: Number(value) })}
                     />
@@ -1555,6 +1560,8 @@ export function SalesPartnerOrderDetailPage() {
                       aria-label="납품가"
                       type="number"
                       min={0}
+                      inputMode="decimal"
+                      inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
                       value={String(line.deliveryPrice)}
                       onValueChange={(value) => updateLine(index, { deliveryPrice: Number(value) })}
                     />

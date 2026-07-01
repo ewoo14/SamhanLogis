@@ -197,15 +197,18 @@ function makeProvider() {
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/sales/partner-orders/PO%2F2099-1']}>
-        <Routes>
-          <Route path="/sales/partner-orders/:id" element={<SalesPartnerOrderDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/sales/partner-orders/PO%2F2099-1']}>
+          <Routes>
+            <Route path="/sales/partner-orders/:id" element={<SalesPartnerOrderDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  }
 }
 
 afterEach(() => {
@@ -329,6 +332,26 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
 
     // provider(2) ≠ 서버(makeOrder) 라인수 → re-seed(server-wins)
     await waitFor(() => expect(provider.replaceItems).toHaveBeenCalledTimes(1))
+  })
+
+  it('editOpen 유지 중 query.data 참조만 바뀌어도 provider 를 재생성하지 않는다', async () => {
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    const { client } = renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      // React Query invalidate/refetch 후 새 객체 참조가 들어와도 편집 세션은 유지되어야 한다.
+      client.setQueryData(['partner-order', 'PO/2099-1'], makeOrder({ memo: '리페치 요청' }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1)
+    expect(provider.destroy).not.toHaveBeenCalled()
   })
 
   it('수정모달을 닫으면 provider 구독을 정리하고 destroy 를 호출한다', async () => {
