@@ -20,4 +20,4 @@ for (const update of snapshot.updates) { Y.applyUpdate(doc, decodeBase64Update(u
 - 회귀: 기존 collab/realtime 테스트 무영향.
 
 ## 범위 외(별도)
-EstimateRealtimeClient/createAuditApi 경로 `/api/v1/estimates`→`/slips/estimates` = 별도 경로 fix PR. 세션 소급 sweep = 별도.
+EstimateRealtimeClient/createAuditApi = ✅**PR #694에서 vestigial 제거로 해결(Option A — path fix 아님)**: BE 미구현·폐기 라우트(`/api/v1/estimates/**` P0-A)를 가리키던 dead wiring 제거, 버전이력=revisions·라이브동기=coedit 대체. 세션 소급 sweep = 별도.
