@@ -178,9 +178,10 @@ public class JournalController {
     public ApiResponse<JournalDetailResponse> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateJournalRequest request,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         checkEditPermission(roleHeader);
-        return ApiResponse.ok(journalService.update(id, request));
+        return ApiResponse.ok(journalService.update(id, request, callerOrSystem(callerHeader)));
     }
 
     /** 게시 — DRAFT → POSTED. 차/대 합계 일치 검증 (도메인). */

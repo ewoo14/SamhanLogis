@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,6 +17,7 @@ import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -26,11 +28,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,12 +47,15 @@ class JournalUpdateControllerIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;
     @MockBean private ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    /** FIX 3 마감 가드 IT — POST /accounting/closings 가 내부적으로 호출하는 외부 client 격리. */
+    @MockBean private SlipServiceClient slipServiceClient;
 
     @BeforeEach
     void setUpExternalClients() {
@@ -176,6 +183,200 @@ class JournalUpdateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.totalDebit").value(50000))
                 .andExpect(jsonPath("$.data.totalCredit").value(40000));
+    }
+
+    @Test
+    @DisplayName("PUT /accounting/journals/{id} — 헤더 동일 + 라인만 변경해도 version 이 증가하고, "
+            + "직전 stale expectedVersion 재PUT 은 409 (낙관락 무력화 회귀 가드)")
+    void updateLineOnlyChangeIncrementsVersionAndBlocksStalePut() throws Exception {
+        JsonNode created = createJournal("40000");
+        String id = created.get("id").asText();
+        long staleVersion = created.get("version").asLong();
+        // createBody() 고정값과 완전히 동일한 journalDate("2026-05-04")/description("테스트 분개")
+        // 을 그대로 재전송 — 헤더는 dirty 하지 않고 라인 금액만 바뀌는 경로를 강제로 재현한다.
+
+        MvcResult firstPut = mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(staleVersion, "2026-05-04", "테스트 분개",
+                                List.of(
+                                        updateLine("101", "55000", "0", null, "라인 금액만 변경"),
+                                        updateLine("401", "0", "55000", null, "라인 금액만 변경 대변"))))))
+                .andExpect(status().isOk())
+                // 헤더가 그대로여도 응답 version 이 실제로 +1 되어야 한다(낙관락 무력화 아님).
+                .andExpect(jsonPath("$.data.version").value(staleVersion + 1))
+                .andReturn();
+        long freshVersion = objectMapper.readTree(firstPut.getResponse().getContentAsString())
+                .get("data").get("version").asLong();
+        assertThat(freshVersion).isEqualTo(staleVersion + 1);
+
+        // 직전(변경 전) stale expectedVersion 으로 재PUT → 409. (수정 전 버그: version 이 증가하지
+        // 않아 이 재PUT 이 그대로 200 으로 통과하며 방금 저장한 라인 변경을 덮어썼다.)
+        mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(staleVersion, "2026-05-04", "테스트 분개",
+                                List.of(
+                                        updateLine("101", "10000", "0", null, "충돌 시도"),
+                                        updateLine("401", "0", "10000", null, "충돌 시도 대변"))))))
+                .andExpect(status().isConflict());
+
+        // 응답으로 돌려받은 정확한 최신 version 으로는 정상 저장된다 (응답 version 이 실제 DB 와
+        // 일치함을 round-trip 으로 검증 — deferred lock 보정 누락 시 이 단계가 false-409 로 실패한다).
+        mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(freshVersion, "2026-05-04", "테스트 분개",
+                                List.of(
+                                        updateLine("101", "30000", "0", null, "정상 재저장"),
+                                        updateLine("401", "0", "30000", null, "정상 재저장 대변"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(freshVersion + 1));
+    }
+
+    @Test
+    @DisplayName("PUT /accounting/journals/{id} — 라인 교체는 물리 삭제 대신 markDeleted 되고, "
+            + "재편집 시 동일 line_no 재사용도 충돌 없다")
+    void updateSoftDeletesOldLinesAndAllowsLineNoReuseOnReedit() throws Exception {
+        JsonNode created = createJournal("45000");
+        String id = created.get("id").asText();
+        long version = created.get("version").asLong();
+        String firstLineId = created.get("lines").get(0).get("lineId").asText();
+
+        MvcResult firstPut = mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(version, "2026-05-04", "1차 라인 교체",
+                                List.of(
+                                        updateLine("102", "20000", "0", null, "1차 신규 차변"),
+                                        updateLine("401", "0", "20000", null, "1차 신규 대변"))))))
+                .andExpect(status().isOk())
+                .andReturn();
+        long v1 = objectMapper.readTree(firstPut.getResponse().getContentAsString())
+                .get("data").get("version").asLong();
+
+        // 교체된(구) 라인은 물리 삭제가 아니라 is_deleted=true 로 DB 에 잔존해야 한다.
+        Integer softDeletedCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM journal_lines WHERE id = ? AND is_deleted = TRUE",
+                Integer.class, UUID.fromString(firstLineId));
+        assertThat(softDeletedCount).isEqualTo(1);
+
+        // 2차 PUT — line_no(1,2) 를 다시 사용해도 partial UNIQUE(V49) 덕에 충돌 없이 저장된다.
+        mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(v1, "2026-05-04", "2차 라인 교체",
+                                List.of(
+                                        updateLine("103", "25000", "0", null, "2차 신규 차변"),
+                                        updateLine("401", "0", "25000", null, "2차 신규 대변"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andExpect(jsonPath("$.data.lines[0].lineNo").value(1))
+                .andExpect(jsonPath("$.data.lines[1].lineNo").value(2));
+    }
+
+    @Test
+    @DisplayName("PUT /accounting/journals/{id} — CLOSED 회계 기간 journalDate 는 409 (마감 가드)")
+    void updateBlockedByClosedPeriod() throws Exception {
+        Mockito.when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
+
+        JsonNode created = createJournal("15000");
+        String id = created.get("id").asText();
+        long version = created.get("version").asLong();
+
+        // createBody() 고정 journalDate("2026-05-04") 를 DAILY 마감 처리.
+        Map<String, Object> closingBody = new HashMap<>();
+        closingBody.put("periodType", "DAILY");
+        closingBody.put("periodDate", "2026-05-04");
+        mockMvc.perform(post("/accounting/closings")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(closingBody)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(version, "2026-05-04", "마감 후 수정 시도",
+                                List.of(
+                                        updateLine("101", "15000", "0", null, "차변"),
+                                        updateLine("401", "0", "15000", null, "대변"))))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("PUT /accounting/journals/{id} — 라인 partnerId 가 보존된다")
+    void updatePreservesLinePartnerId() throws Exception {
+        JsonNode created = createJournal("70000");
+        String id = created.get("id").asText();
+        long version = created.get("version").asLong();
+        UUID partnerId = UUID.randomUUID();
+
+        Map<String, Object> debitLine = new HashMap<>();
+        debitLine.put("accountCode", "102");
+        debitLine.put("debit", new BigDecimal("70000"));
+        debitLine.put("credit", BigDecimal.ZERO);
+        debitLine.put("partnerId", partnerId.toString());
+        debitLine.put("partnerName", "거래처B");
+        debitLine.put("memo", "partnerId 보존 확인");
+
+        mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(version, "2026-05-04", "partnerId 보존 확인",
+                                List.of(debitLine, updateLine("401", "0", "70000", null, "대변"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$.data.lines[0].partnerName").value("거래처B"));
+    }
+
+    @Test
+    @DisplayName("PUT /accounting/journals/{id} — 라인 note 키도 memo 로 매핑된다 (JsonAlias)")
+    void updateAcceptsNoteAliasForMemo() throws Exception {
+        JsonNode created = createJournal("25000");
+        String id = created.get("id").asText();
+        long version = created.get("version").asLong();
+
+        Map<String, Object> debitLine = new HashMap<>();
+        debitLine.put("accountCode", "102");
+        debitLine.put("debit", new BigDecimal("25000"));
+        debitLine.put("credit", BigDecimal.ZERO);
+        debitLine.put("note", "note 키로 전달된 메모");
+
+        mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(version, "2026-05-04", "note alias 검증",
+                                List.of(debitLine, updateLine("401", "0", "25000", null, "대변"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].memo").value("note 키로 전달된 메모"));
+    }
+
+    @Test
+    @DisplayName("PUT /accounting/journals/{id} — accountCode 6자 초과는 400")
+    void updateRejectsAccountCodeOverSixChars() throws Exception {
+        JsonNode created = createJournal("5000");
+        String id = created.get("id").asText();
+        long version = created.get("version").asLong();
+
+        mockMvc.perform(put("/accounting/journals/" + id)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody(version, "2026-05-04", "accountCode 검증",
+                                List.of(
+                                        updateLine("1234567", "5000", "0", null, "7자리 계정코드"),
+                                        updateLine("401", "0", "5000", null, "대변"))))))
+                .andExpect(status().isBadRequest());
     }
 
     private JsonNode createJournal(String amount) throws Exception {

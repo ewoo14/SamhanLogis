@@ -118,7 +118,20 @@ public class Journal extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    @OneToMany(mappedBy = "journal", cascade = CascadeType.ALL, orphanRemoval = true,
+    /**
+     * 라인 교체 강제 dirty 카운터 (full-form coedit DRAFT PUT 결함 수정).
+     *
+     * <p>{@link #lines} 는 {@code mappedBy}(inverse) 컬렉션이라 라인만 추가/삭제되면
+     * Hibernate 표준 동작상 소유하지 않는 연관관계 변경으로 간주되어 부모({@code Journal})의
+     * {@link #version} 이 증가하지 않는다 — 즉 헤더(journalDate/description) 가 그대로인
+     * 라인-only 수정은 낙관적 락이 사실상 no-op 된다. 본 필드를 라인 교체마다 +1 하여 Journal
+     * 자신을 매번 dirty 로 만들어 저장 시 {@link #version} 이 항상 증가하도록 강제한다.
+     * (API 응답으로 노출하지 않는 내부 구현 필드.)
+     */
+    @Column(name = "lines_revision", nullable = false)
+    private Integer linesRevision;
+
+    @OneToMany(mappedBy = "journal", cascade = CascadeType.ALL, orphanRemoval = false,
             fetch = FetchType.LAZY)
     private List<JournalLine> lines = new ArrayList<>();
 
@@ -131,6 +144,7 @@ public class Journal extends BaseEntity {
         this.sourceRefId = sourceRefId;
         this.status = JournalStatus.DRAFT;
         this.version = 0L;
+        this.linesRevision = 0;
     }
 
     /**
@@ -177,7 +191,10 @@ public class Journal extends BaseEntity {
     }
 
     /**
-     * 라인 1건 제거 (orphan removal) — DRAFT 단계만.
+     * 라인 1건 제거 — DRAFT 단계만.
+     *
+     * <p>{@code orphanRemoval=false} 정책(full-form coedit DRAFT PUT 결함 수정)에 따라 물리
+     * 삭제 대신 {@link BaseEntity#markDeleted(String)} 로 비활성화한 뒤 컬렉션에서 제거한다.
      *
      * @param lineId 제거할 라인 UUID
      * @return 제거 성공 여부
@@ -188,7 +205,15 @@ public class Journal extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "라인 제거는 DRAFT 단계에서만 허용됩니다 (현재: " + this.status + ")");
         }
-        return this.lines.removeIf(l -> l.getId() != null && l.getId().equals(lineId));
+        JournalLine target = this.lines.stream()
+                .filter(l -> l.getId() != null && l.getId().equals(lineId))
+                .findFirst()
+                .orElse(null);
+        if (target == null) {
+            return false;
+        }
+        target.markDeleted("system");
+        return this.lines.remove(target);
     }
 
     /**
@@ -217,8 +242,10 @@ public class Journal extends BaseEntity {
     /**
      * DRAFT 분개의 라인을 전체 교체한다.
      *
-     * <p>기존 라인을 비운 뒤 전달된 라인을 {@link #addLine(JournalLine)} 로 다시 추가한다.
-     * 차/대변 합계 일치 여부는 게시({@link #post(String)}) 시점에만 검증한다.
+     * <p>기존 라인을 {@code orphanRemoval=false} 정책에 따라 물리 삭제 대신
+     * {@link BaseEntity#markDeleted(String)} 로 비활성화한 뒤, 전달된 라인을
+     * {@link #addLine(JournalLine)} 로 다시 추가한다. 차/대변 합계 일치 여부는
+     * 게시({@link #post(String)}) 시점에만 검증한다.
      *
      * @param newLines 교체할 신규 라인 목록
      * @return 현재 Journal (도메인 메서드 체인용)
@@ -226,26 +253,49 @@ public class Journal extends BaseEntity {
      */
     public Journal replaceLines(List<JournalLine> newLines) {
         requireDraft("라인 교체");
-        this.lines.clear();
+        softDeleteAllLines("system");
         if (newLines != null) {
             newLines.forEach(this::addLine);
         }
+        touchLinesRevision();
         return this;
     }
 
     /**
-     * DRAFT 분개의 기존 라인을 모두 제거한다.
+     * DRAFT 분개의 기존 라인을 모두 제거한다 (라인 전체 교체의 1단계).
      *
-     * <p>{@code journal_id, line_no} unique index 충돌을 피하려면 service 가 본 메서드 호출 후
-     * flush 하고, 신규 라인은 {@link #addLine(JournalLine)} 로 다시 추가한다.
+     * <p>{@code orphanRemoval=false} 정책(full-form coedit DRAFT PUT 결함 수정 — 라인 재편집
+     * 시 감사 이력 보존을 위해 물리 삭제 금지)에 따라, 기존 라인은 물리 삭제 대신
+     * {@link BaseEntity#markDeleted(String)} 로 비활성화한다. {@code journal_id, line_no}
+     * partial UNIQUE index (활성 라인만 대상, V49) 충돌을 피하려면 service 가 본 메서드 호출 후
+     * flush 하여 비활성화를 먼저 반영하고, 신규 라인은 {@link #addLine(JournalLine)} 로 다시
+     * 추가해야 한다.
      *
+     * <p>{@link #linesRevision} 을 함께 증가시켜, 라인만 바뀌고 헤더(journalDate/description)
+     * 가 그대로여도 저장 시 {@link #version} 이 항상 증가하도록 강제한다(낙관적 락 사각지대 방지).
+     *
+     * @param actorId 라인 비활성화 처리자 user-id (null/blank 이면 "system")
      * @return 현재 Journal (도메인 메서드 체인용)
      * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT 가 아닐 때
      */
-    public Journal clearLinesForReplacement() {
+    public Journal clearLinesForReplacement(String actorId) {
         requireDraft("라인 교체");
-        this.lines.clear();
+        softDeleteAllLines(actorId == null || actorId.isBlank() ? "system" : actorId);
+        touchLinesRevision();
         return this;
+    }
+
+    /** 현재 활성 라인 전체를 markDeleted 처리하고 컬렉션에서 제거 (물리 삭제 금지). */
+    private void softDeleteAllLines(String deleter) {
+        for (JournalLine line : new ArrayList<>(this.lines)) {
+            line.markDeleted(deleter);
+        }
+        this.lines.clear();
+    }
+
+    /** {@link #linesRevision} 을 1 증가 — 라인 교체마다 Journal 자신을 강제 dirty 로 표시. */
+    private void touchLinesRevision() {
+        this.linesRevision = (this.linesRevision == null ? 0 : this.linesRevision) + 1;
     }
 
     /**

@@ -117,17 +117,30 @@ public class JournalService {
      * 분개는 감사 안전 원칙에 따라 수정하지 않고 409 로 차단한다. 차/대변 합계 일치 여부는
      * 게시({@link #post(UUID, String)}) 시점에만 검증하므로 DRAFT 임시저장은 불균형을 허용한다.
      *
+     * <p>마감 가드 (full-form coedit DRAFT PUT 결함 수정): {@link #create(CreateJournalRequest)}
+     * 와 동일하게 {@code journalDate} 가 CLOSED 회계 기간에 속하면 차단한다.
+     *
+     * <p>기존 라인은 {@link Journal#clearLinesForReplacement(String)} 이 물리 삭제 대신
+     * markDeleted 처리하므로, 수정 이력은 감사 목적으로 DB 에 보존되고 조회에서만 제외된다.
+     *
      * @param id 분개 UUID
      * @param request 수정 요청
+     * @param actorUserId 처리자 user-id (라인 markDeleted 기록용, X-User-Id 헤더)
      * @return 수정 후 분개 단건
-     * @throws BusinessException(CONFLICT) DRAFT 가 아니거나 version 이 불일치할 때
+     * @throws BusinessException(CONFLICT) DRAFT 가 아니거나, 마감된 기간이거나, version 이 불일치할 때
      */
-    public JournalDetailResponse update(UUID id, UpdateJournalRequest request) {
+    public JournalDetailResponse update(UUID id, UpdateJournalRequest request, String actorUserId) {
         Journal journal = findOrThrow(id);
         if (journal.getStatus() != JournalStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "DRAFT 상태의 분개만 수정할 수 있습니다 (현재: " + journal.getStatus() + ")");
         }
+        monthEndCloseService.findClosedPeriodCovering(request.journalDate())
+                .ifPresent(p -> {
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "마감된 회계 기간입니다 — 해당 일자(" + request.journalDate()
+                                    + ")는 변경할 수 없습니다");
+                });
         verifyVersion(journal, request.expectedVersion());
 
         List<JournalLine> replacementLines = new ArrayList<>();
@@ -135,12 +148,13 @@ public class JournalService {
         for (UpdateJournalRequest.LineRequest lineReq : request.lines()) {
             accountService.requireLeafAccount(lineReq.accountCode());
             replacementLines.add(JournalLine.create(journal, lineNo++, lineReq.accountCode(),
-                    lineReq.debit(), lineReq.credit(), null, lineReq.partnerName(), lineReq.memo()));
+                    lineReq.debit(), lineReq.credit(), lineReq.partnerId(), lineReq.partnerName(),
+                    lineReq.memo()));
         }
 
         try {
             journal.updateDraftHeader(request.journalDate(), request.description())
-                    .clearLinesForReplacement();
+                    .clearLinesForReplacement(actorUserId);
             journalRepository.saveAndFlush(journal);
             replacementLines.forEach(journal::addLine);
             return JournalDetailResponse.of(journalRepository.saveAndFlush(journal));

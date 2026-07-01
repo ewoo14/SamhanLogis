@@ -34,6 +34,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
  *
  * <ul>
  *   <li>{@code POST /accounting/journals} — request body {@code journalDate} 검사</li>
+ *   <li>{@code PUT /accounting/journals/{id}} — request body {@code journalDate} 검사
+ *       (full-form coedit DRAFT PUT 결함 수정 — {@code POST} 만 등재되어 PUT 수정이 마감 가드를
+ *       우회하던 결함 해소)</li>
  *   <li>{@code POST /accounting/tax-invoices} — request body {@code supplyDate} 검사</li>
  *   <li>{@code PUT /accounting/tax-invoices/{id}} — request body {@code supplyDate} 검사</li>
  *   <li>{@code POST /accounting/tax-invoices/{id}/issue} — DB 의 supplyDate 검사 (path-only)</li>
@@ -54,10 +57,13 @@ public class AccountingPeriodGuard implements HandlerInterceptor {
     private static final Set<String> JOURNAL_DATE_BODY_PATHS = new HashSet<>();
     private static final Set<String> SUPPLY_DATE_BODY_PATHS = new HashSet<>();
 
+    /** {@code PUT /accounting/journals/{id}} prefix 매칭용 — {@link #isJournalUpdatePath}. */
+    private static final String JOURNAL_UPDATE_PATH_PREFIX = "/accounting/journals/";
+
     static {
         JOURNAL_DATE_BODY_PATHS.add("POST:/accounting/journals");
         SUPPLY_DATE_BODY_PATHS.add("POST:/accounting/tax-invoices");
-        // PUT /accounting/tax-invoices/{id} 는 prefix 매칭으로 처리
+        // PUT /accounting/journals/{id}, PUT /accounting/tax-invoices/{id} 는 prefix 매칭으로 처리
     }
 
     private final MonthEndCloseService monthEndCloseService;
@@ -74,7 +80,7 @@ public class AccountingPeriodGuard implements HandlerInterceptor {
         }
 
         String key = method + ":" + path;
-        boolean isJournalDate = JOURNAL_DATE_BODY_PATHS.contains(key);
+        boolean isJournalDate = JOURNAL_DATE_BODY_PATHS.contains(key) || isJournalUpdatePath(method, path);
         boolean isSupplyDate = SUPPLY_DATE_BODY_PATHS.contains(key)
                 || (("PUT".equals(method) || "POST".equals(method))
                         && path.startsWith("/accounting/tax-invoices/")
@@ -110,6 +116,23 @@ public class AccountingPeriodGuard implements HandlerInterceptor {
             log.warn("AccountingPeriodGuard 본문 파싱 실패 — 통과 처리: {}", ex.getMessage());
         }
         return true;
+    }
+
+    /**
+     * {@code PUT /accounting/journals/{id}} 경로 판별 — {@code /accounting/journals/} 바로
+     * 다음에 추가 슬래시 없이 단일 segment(분개 UUID) 만 오는 경우만 매칭한다. 이렇게 하면
+     * 동일 prefix 를 공유하는 다른 PUT 이 생기더라도(현재는 없음) 오탐을 피할 수 있다.
+     *
+     * @param method HTTP method
+     * @param path 요청 URI
+     * @return PUT 분개 수정 경로 여부
+     */
+    private static boolean isJournalUpdatePath(String method, String path) {
+        if (!"PUT".equals(method) || !path.startsWith(JOURNAL_UPDATE_PATH_PREFIX)) {
+            return false;
+        }
+        String remainder = path.substring(JOURNAL_UPDATE_PATH_PREFIX.length());
+        return !remainder.isEmpty() && !remainder.contains("/");
     }
 
     private static String readBody(HttpServletRequest request) throws IOException {
