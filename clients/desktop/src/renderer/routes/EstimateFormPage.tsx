@@ -514,7 +514,14 @@ export function EstimateFormPage() {
   // 모델명 onBlur lookup
   const handleModelLookup = async (index: number) => {
     const line = lines[index]
-    const modelName = (estimateFormCoeditProvider?.getItemValue(index, 'modelName') || line?.modelName || '').trim()
+    // provider 가 언마운트 중 destroy 됐을 때 getItemValue 예외로 lookup 이 중단되지 않게 방어(리뷰 LOW).
+    let coeditModelName = ''
+    try {
+      coeditModelName = estimateFormCoeditProvider?.getItemValue(index, 'modelName') ?? ''
+    } catch {
+      coeditModelName = ''
+    }
+    const modelName = (coeditModelName || line?.modelName || '').trim()
     if (!line || !modelName) return
     updateLine(index, { lookupLoading: true, lookupError: null })
     try {
@@ -903,7 +910,7 @@ export function EstimateFormPage() {
                   <BundleOptionRow
                     line={line}
                     index={i}
-                    disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
+                    disabled={Boolean(isReadOnly) || coeditActive}
                     onChange={(patch) => updateSetOption(i, patch)}
                   />
                 ) : null}
