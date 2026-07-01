@@ -3,6 +3,13 @@ import { expect, test, type Page } from '@playwright/test'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 const URL = `${BASE_URL}/#/accounting/bank-transactions?mockRole=ACCOUNTANT`
 
+// date-bomb 방지: import 날짜를 현재월 동적으로 — 리스트 조회 기본 필터(현재월 [월초, 오늘])와 정합.
+// (하드코딩 6월은 월 롤오버 시 리스트 기본 필터에서 제외돼 partner-search 미표시로 CI 적색; 2026-07-01 회귀 방지.)
+const _pad = (n: number) => String(n).padStart(2, '0')
+const _now = new Date()
+const IMPORT_FROM = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-01`
+const IMPORT_TO = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-${_pad(_now.getDate())}`
+
 async function expectNoTechnicalLabels(page: Page): Promise<void> {
   await expect(page.getByText('CODEF')).toHaveCount(0)
   await expect(page.getByText('DRY_RUN')).toHaveCount(0)
@@ -48,8 +55,8 @@ test.describe('BC3 CODEF 계좌/카드/대출 선택 가져오기', () => {
     await expect(page.getByRole('status').filter({ hasText: '가져오기 선택을 저장했습니다.' })).toBeVisible()
     await expect(page.getByText('저장된 선택을 복원했습니다.')).toBeVisible()
 
-    await page.getByTestId('codef-import-from').fill('2026-06-01')
-    await page.getByTestId('codef-import-to').fill('2026-06-26')
+    await page.getByTestId('codef-import-from').fill(IMPORT_FROM)
+    await page.getByTestId('codef-import-to').fill(IMPORT_TO)
     await page.getByTestId('codef-import-button').click()
     await expect(page.getByTestId('codef-import-result')).toContainText('조회')
     await expect(page.getByTestId('codef-import-result')).toContainText('적재')
@@ -67,8 +74,8 @@ test.describe('BC3 CODEF 계좌/카드/대출 선택 가져오기', () => {
 
     await page.getByTestId('codef-import-type').selectOption('BANK')
     await page.getByTestId('codef-bank-account-select-all').check()
-    await page.getByTestId('codef-import-from').fill('2026-06-01')
-    await page.getByTestId('codef-import-to').fill('2026-06-26')
+    await page.getByTestId('codef-import-from').fill(IMPORT_FROM)
+    await page.getByTestId('codef-import-to').fill(IMPORT_TO)
     await page.getByTestId('codef-import-button').click()
     await expect(page.getByTestId('codef-import-result')).toContainText('조회')
 
@@ -83,8 +90,8 @@ test.describe('BC3 CODEF 계좌/카드/대출 선택 가져오기', () => {
 
     await page.getByTestId('codef-import-type').selectOption('BANK')
     await page.getByTestId('codef-bank-account-select-all').check()
-    await page.getByTestId('codef-import-from').fill('2026-06-01')
-    await page.getByTestId('codef-import-to').fill('2026-06-26')
+    await page.getByTestId('codef-import-from').fill(IMPORT_FROM)
+    await page.getByTestId('codef-import-to').fill(IMPORT_TO)
     await page.getByTestId('codef-import-button').click()
 
     const toast = page.getByTestId('bank-transaction-toast')

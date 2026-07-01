@@ -3,6 +3,13 @@ import { expect, test, type Page } from '@playwright/test'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 const URL = `${BASE_URL}/#/accounting/bank-transactions?mockRole=ACCOUNTANT`
 
+// date-bomb 방지: import 날짜를 현재월 동적으로 — 리스트 조회 기본 필터(현재월 [월초, 오늘])와 정합.
+// (하드코딩 6월은 월 롤오버 시 리스트 기본 필터에서 제외돼 partner-search 미표시로 CI 적색; 2026-07-01 회귀 방지.)
+const _pad = (n: number) => String(n).padStart(2, '0')
+const _now = new Date()
+const IMPORT_FROM = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-01`
+const IMPORT_TO = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-${_pad(_now.getDate())}`
+
 async function visibleTextHasNoUuid(page: Page): Promise<void> {
   const uuids = await page.evaluate(() => {
     const uuidRegex = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
@@ -32,8 +39,8 @@ test.describe('CODEF FE BC2 거래내역 import + source 탭 + 매칭', () => {
 
     await expect(page.getByTestId('codef-import-type')).toBeVisible()
     await page.getByTestId('codef-import-type').selectOption('ALL')
-    await page.getByTestId('codef-import-from').fill('2026-06-01')
-    await page.getByTestId('codef-import-to').fill('2026-06-26')
+    await page.getByTestId('codef-import-from').fill(IMPORT_FROM)
+    await page.getByTestId('codef-import-to').fill(IMPORT_TO)
     await page.getByTestId('codef-import-button').click()
 
     await expect(page.getByTestId('codef-import-result')).toContainText('조회')
