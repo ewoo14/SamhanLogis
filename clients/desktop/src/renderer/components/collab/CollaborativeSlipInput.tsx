@@ -211,7 +211,8 @@ export function CollaborativeSlipInput({
         onSelect={updateCursor}
         onBlur={() => {
           updateCursor()
-          onBlur?.()
+          // read-only(잠금/coeditPending) 상태에선 lookup 등 onBlur 부작용 미발생(리뷰 LOW).
+          if (!effectiveReadOnly) onBlur?.()
         }}
         onChange={(event) => {
           if (effectiveReadOnly) return

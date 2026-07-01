@@ -13,7 +13,7 @@
  * <p>매뉴얼 출처: {@code docs/manual/01-영업/06-견적서.md}.
  * UUID 비공개 가드 — productId / partnerId 는 state 에만, 화면 표시는 modelName / partnerName.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Card, PartnerAutocomplete, Spinner, type PartnerOption } from '@samhan/design-system'
@@ -156,8 +156,9 @@ function coeditLinesToDraftLines(provider: DocCoeditProvider, current: DraftLine
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice: provider.getItemValue(index, 'unitPrice') || '0',
       note: previous?.note ?? '',
-      lookupError: null,
-      lookupLoading: false,
+      // 원격 doc 변경마다 재빌드되므로 진행 중 lookup 상태는 previous 에서 보존(스피너 조기소멸 방지, 리뷰 MED).
+      lookupError: previous?.lookupError ?? null,
+      lookupLoading: previous?.lookupLoading ?? false,
       productType: previous?.productType ?? null,
       setOptions: previous?.setOptions ?? emptyBundleSetOptions(),
     }
@@ -360,6 +361,11 @@ export function EstimateFormPage() {
     !isReadOnly &&
     canAccess('estimates.list', 'update')
   const coeditActive = Boolean(estimateFormCoeditProvider) || estimateFormCoeditPending
+  // coedit useEffect 가 detailQuery.data 객체를 deps 로 두면 React Query 리페치/SSE invalidate 마다
+  // provider 가 재생성돼 협업 세션이 끊기고 미저장 CRDT 델타가 재시드로 유실된다(듀얼리뷰 HIGH).
+  // seed 용 최신 스냅샷은 ref 로 읽어 effect 를 안정 트리거(canCollabEdit/editId/isEdit)로만 재실행한다.
+  const estimateDataRef = useRef<EstimateDetail | null>(null)
+  estimateDataRef.current = detailQuery.data ?? null
 
   // edit mode hydrate
   useEffect(() => {
@@ -378,7 +384,7 @@ export function EstimateFormPage() {
   }, [isEdit, detailQuery.data, estimateFormCoeditProvider])
 
   useEffect(() => {
-    const estimate = detailQuery.data
+    const estimate = estimateDataRef.current
     if (!isEdit || !editId || !estimate || !canCollabEdit) {
       setEstimateFormCoeditProvider(null)
       setEstimateFormCoeditPending(false)
@@ -434,7 +440,8 @@ export function EstimateFormPage() {
       setEstimateFormCoeditProvider(null)
       setEstimateFormCoeditPending(false)
     }
-  }, [canCollabEdit, detailQuery.data, editId, isEdit])
+    // deps 에서 detailQuery.data 제외 — 리페치/SSE 재생성 방지(estimate 는 estimateDataRef 로 최신값 사용).
+  }, [canCollabEdit, editId, isEdit])
 
   const totals = useMemo(() => {
     // 단가 부가세포함(라인 단위 eCount, 원 단위): 라인별 합계(VAT포함)=round(수량×단가),
@@ -528,9 +535,13 @@ export function EstimateFormPage() {
           line.unitPrice === '0' || !line.unitPrice
             ? result.sellingPrice
             : line.unitPrice
-        estimateFormCoeditProvider.setItemValue(index, 'productName', result.productName)
-        estimateFormCoeditProvider.setItemValue(index, 'unitPrice', nextUnitPrice)
-        estimateFormCoeditProvider.setItemValue(index, 'productId', result.productId)
+        try {
+          estimateFormCoeditProvider.setItemValue(index, 'productName', result.productName)
+          estimateFormCoeditProvider.setItemValue(index, 'unitPrice', nextUnitPrice)
+          estimateFormCoeditProvider.setItemValue(index, 'productId', result.productId)
+        } catch {
+          // 언마운트 중 provider destroy 가능 — 로컬 state 는 이미 갱신됨. 동기화 실패는 무시(가짜 lookup 오류 방지, 리뷰 LOW).
+        }
       }
     } catch (err: unknown) {
       updateLine(index, {
@@ -1015,7 +1026,7 @@ export function EstimateFormPage() {
               <BundleOptionRow
                 line={line}
                 index={i}
-                disabled={Boolean(isReadOnly) || estimateFormCoeditPending}
+                disabled={Boolean(isReadOnly) || coeditActive}
                 onChange={(patch) => updateSetOption(i, patch)}
               />
             ) : null}
