@@ -40,6 +40,9 @@ public class DispatchVehicleGroupSlip extends BaseEntity {
     @Column(name = "sequence", nullable = false)
     private int sequence;
 
+    @Column(name = "deleted_by_name", length = 100)
+    private String deletedByName;
+
     private DispatchVehicleGroupSlip(UUID vehicleGroupId, UUID slipId, int sequence) {
         if (vehicleGroupId == null) {
             throw new IllegalArgumentException("vehicleGroupId 필수");
@@ -66,5 +69,17 @@ public class DispatchVehicleGroupSlip extends BaseEntity {
             throw new IllegalArgumentException("sequence 는 1 이상");
         }
         this.sequence = sequence;
+    }
+
+    /** 삭제자 표시명을 함께 저장하는 soft-delete helper. */
+    public void markDeletedWithName(String userId, String actorName) {
+        markDeleted(userId);
+        this.deletedByName = actorName;
+    }
+
+    /** soft-delete 복원과 함께 삭제자 표시명도 비운다. */
+    public void markRestoredWithNameCleared() {
+        markRestored();
+        this.deletedByName = null;
     }
 }

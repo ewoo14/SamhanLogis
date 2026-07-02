@@ -149,11 +149,11 @@ public class DispatchTaskHistoryQueryService {
 
         List<UUID> taskIds = tasks.stream().map(DispatchTask::getId).toList();
         List<DispatchVehicleGroup> groups =
-                groupRepo.findByDispatchTaskIdInAndIsDeletedFalseOrderByDispatchTaskIdAscSequenceAsc(taskIds);
+                sortGroups(groupRepo.findByDispatchTaskIdInIncludingDeleted(taskIds));
         List<UUID> groupIds = groups.stream().map(DispatchVehicleGroup::getId).toList();
         List<DispatchVehicleGroupSlip> mappings = groupIds.isEmpty()
                 ? List.of()
-                : groupSlipRepo.findByVehicleGroupIdInAndIsDeletedFalseOrderByVehicleGroupIdAscSequenceAsc(groupIds);
+                : sortMappings(groupSlipRepo.findByVehicleGroupIdInIncludingDeleted(groupIds));
         Set<UUID> slipIds = mappings.stream()
                 .map(DispatchVehicleGroupSlip::getSlipId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -184,6 +184,29 @@ public class DispatchTaskHistoryQueryService {
                         Collectors.toCollection(ArrayList::new)));
 
         return new DispatchSnapshot(groupsByTask, slipsByGroup, slipsById, driversByGroupId);
+    }
+
+    private List<DispatchVehicleGroup> sortGroups(List<DispatchVehicleGroup> groups) {
+        return groups.stream()
+                .sorted(Comparator
+                        .comparing((DispatchVehicleGroup group) -> Boolean.TRUE.equals(group.getIsDeleted()))
+                        .thenComparing(group -> Boolean.TRUE.equals(group.getIsDeleted())
+                                ? group.getDeletedAt()
+                                : null, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparingInt(DispatchVehicleGroup::getSequence))
+                .toList();
+    }
+
+    private List<DispatchVehicleGroupSlip> sortMappings(List<DispatchVehicleGroupSlip> mappings) {
+        return mappings.stream()
+                .sorted(Comparator
+                        .comparing(DispatchVehicleGroupSlip::getVehicleGroupId)
+                        .thenComparing(mapping -> Boolean.TRUE.equals(mapping.getIsDeleted()))
+                        .thenComparing(mapping -> Boolean.TRUE.equals(mapping.getIsDeleted())
+                                ? mapping.getDeletedAt()
+                                : null, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparingInt(DispatchVehicleGroupSlip::getSequence))
+                .toList();
     }
 
     private String summarizePartnerNames(

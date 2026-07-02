@@ -64,6 +64,9 @@ public record DispatchTaskDetailResponse(
             String tonnageDisplay,
             String dispatchStatus,
             int sequence,
+            boolean isDeleted,
+            LocalDateTime deletedAt,
+            String deletedByName,
             List<VehicleGroupSlip> slips
     ) {
         public static VehicleGroup of(DispatchVehicleGroup group, List<VehicleGroupSlip> slips) {
@@ -77,6 +80,9 @@ public record DispatchTaskDetailResponse(
                     group.getTonnage() != null ? group.getTonnage().getDisplayName() : null,
                     group.getDispatchStatus().name(),
                     group.getSequence(),
+                    Boolean.TRUE.equals(group.getIsDeleted()),
+                    group.getDeletedAt(),
+                    group.getDeletedByName(),
                     slips
             );
         }
@@ -86,6 +92,9 @@ public record DispatchTaskDetailResponse(
             UUID id,
             UUID slipId,
             int sequence,
+            boolean isDeleted,
+            LocalDateTime deletedAt,
+            String deletedByName,
             SlipHeader slip
     ) {
         public static VehicleGroupSlip of(DispatchVehicleGroupSlip mapping, Slip slip) {
@@ -93,6 +102,9 @@ public record DispatchTaskDetailResponse(
                     mapping.getId(),
                     mapping.getSlipId(),
                     mapping.getSequence(),
+                    Boolean.TRUE.equals(mapping.getIsDeleted()),
+                    mapping.getDeletedAt(),
+                    mapping.getDeletedByName(),
                     SlipHeader.from(slip)
             );
         }

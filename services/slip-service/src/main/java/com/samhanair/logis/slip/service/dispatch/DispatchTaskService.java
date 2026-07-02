@@ -19,10 +19,12 @@ import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepo
 import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -48,6 +50,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class DispatchTaskService {
 
     private static final int MAX_DAILY_COUNTER = 99_999;
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+    private static final long CASCADE_RESTORE_WINDOW_SECONDS = 2;
 
     private final DispatchTaskRepository taskRepo;
     private final DispatchVehicleGroupRepository groupRepo;
@@ -115,18 +120,19 @@ public class DispatchTaskService {
     }
 
     /** 차량 그룹 삭제 (soft-delete). 그룹의 slip 매핑도 cascade soft-delete. */
-    public void removeVehicleGroup(UUID dispatchTaskId, UUID vehicleGroupId, String actor) {
+    public void removeVehicleGroup(UUID dispatchTaskId, UUID vehicleGroupId, String actor, String callerName) {
         DispatchVehicleGroup group = findGroupOrThrow(vehicleGroupId);
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
         }
         requireDraftTask(dispatchTaskId);
+        String actorName = resolveActorName(callerName);
         slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId)
                 .forEach(m -> {
-                    m.markDeleted(actor);
+                    m.markDeletedWithName(actor, actorName);
                     slipMapRepo.save(m);
                 });
-        group.markDeleted(actor);
+        group.markDeletedWithName(actor, actorName);
         groupRepo.save(group);
         publishBoardChanged("DELETED");
     }
@@ -194,13 +200,14 @@ public class DispatchTaskService {
     }
 
     /** 그룹에서 slip 제거 (soft-delete). */
-    public void removeSlipFromGroup(UUID vehicleGroupId, UUID slipId, String actor) {
+    public void removeSlipFromGroup(UUID vehicleGroupId, UUID slipId, String actor, String callerName) {
         DispatchVehicleGroup group = findGroupOrThrow(vehicleGroupId);
         if (!group.isDispatchPending()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 발송된 차량 그룹의 전표는 제거할 수 없습니다.");
         }
         requireDraftTask(group.getDispatchTaskId());
+        String actorName = resolveActorName(callerName);
         DispatchVehicleGroupSlip mapping = slipMapRepo
                 .findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId)
                 .stream()
@@ -208,9 +215,92 @@ public class DispatchTaskService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "그룹에 매핑된 slip 이 없습니다."));
-        mapping.markDeleted(actor);
+        mapping.markDeletedWithName(actor, actorName);
         slipMapRepo.save(mapping);
         publishBoardChanged("DELETED");
+    }
+
+    /**
+     * 삭제된 차량 그룹을 복원하고, 같은 그룹 삭제 cascade 로 삭제된 하위 전표 매핑도 함께 복원한다.
+     *
+     * <p>{@link DispatchVehicleGroup} / {@link DispatchVehicleGroupSlip} 은
+     * {@code @SQLRestriction("is_deleted = false")} 로 삭제행이 일반 조회에서 빠진다. 복원 대상은
+     * native IncludingDeleted 조회로 먼저 로드해야 한다.
+     *
+     * @param dispatchTaskId 배차 작업 UUID
+     * @param vehicleGroupId 차량 그룹 UUID
+     * @param actor 복원 주체 userId
+     * @param callerName 복원 주체 표시명 원본 (UUID 형태면 저장하지 않음)
+     */
+    public void restoreVehicleGroup(UUID dispatchTaskId, UUID vehicleGroupId, String actor, String callerName) {
+        DispatchVehicleGroup group = groupRepo.findByIdIncludingDeleted(vehicleGroupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "DispatchVehicleGroup 이 존재하지 않습니다: " + vehicleGroupId));
+        if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
+        }
+        requireDraftTask(dispatchTaskId);
+        if (!Boolean.TRUE.equals(group.getIsDeleted())) {
+            return;
+        }
+
+        LocalDateTime deletedAt = group.getDeletedAt();
+        String deletedBy = group.getDeletedBy();
+        String actorName = resolveActorName(callerName);
+        List<DispatchVehicleGroupSlip> cascadeMappings = deletedAt == null || deletedBy == null
+                ? List.of()
+                : slipMapRepo.findDeletedCascadeMappings(
+                        vehicleGroupId,
+                        deletedBy,
+                        deletedAt.minusSeconds(CASCADE_RESTORE_WINDOW_SECONDS),
+                        deletedAt.plusSeconds(CASCADE_RESTORE_WINDOW_SECONDS));
+
+        group.markRestoredWithNameCleared();
+        cascadeMappings.forEach(DispatchVehicleGroupSlip::markRestoredWithNameCleared);
+        groupRepo.save(group);
+        slipMapRepo.saveAll(cascadeMappings);
+        log.info("배차 차량 그룹 복원 — taskId={} groupId={} actor={} actorName={} cascadeMappings={}",
+                dispatchTaskId, vehicleGroupId, actor, actorName, cascadeMappings.size());
+        publishBoardChanged("RESTORED");
+    }
+
+    /**
+     * 삭제된 그룹-전표 매핑 1건을 복원한다.
+     *
+     * <p>삭제된 매핑은 {@code @SQLRestriction} 컬렉션으로는 보이지 않으므로 native IncludingDeleted
+     * 조회를 사용한다.
+     *
+     * @param vehicleGroupId 차량 그룹 UUID
+     * @param slipId 전표 UUID
+     * @param actor 복원 주체 userId
+     * @param callerName 복원 주체 표시명 원본 (UUID 형태면 저장하지 않음)
+     */
+    public void restoreSlipFromGroup(UUID vehicleGroupId, UUID slipId, String actor, String callerName) {
+        DispatchVehicleGroup group = groupRepo.findByIdIncludingDeleted(vehicleGroupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "DispatchVehicleGroup 이 존재하지 않습니다: " + vehicleGroupId));
+        if (Boolean.TRUE.equals(group.getIsDeleted())) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "삭제된 차량 그룹의 전표는 그룹 복원으로만 복원할 수 있습니다.");
+        }
+        if (!group.isDispatchPending()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹의 전표는 복원할 수 없습니다.");
+        }
+        requireDraftTask(group.getDispatchTaskId());
+        DispatchVehicleGroupSlip mapping = slipMapRepo
+                .findByVehicleGroupIdAndSlipIdIncludingDeleted(vehicleGroupId, slipId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "그룹에 매핑된 slip 이 없습니다."));
+        if (!Boolean.TRUE.equals(mapping.getIsDeleted())) {
+            return;
+        }
+        String actorName = resolveActorName(callerName);
+        mapping.markRestoredWithNameCleared();
+        slipMapRepo.save(mapping);
+        log.info("배차 그룹 전표 매핑 복원 — groupId={} slipId={} actor={} actorName={}",
+                vehicleGroupId, slipId, actor, actorName);
+        publishBoardChanged("RESTORED");
     }
 
     /** 배차 목록 변경 발화 (커밋 후). changeType = CREATED/UPDATED/DELETED/STATUS_CHANGED. */
@@ -270,5 +360,24 @@ public class DispatchTaskService {
         return groupRepo.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchVehicleGroup 이 존재하지 않습니다: " + id));
+    }
+
+    /**
+     * 삭제/복원 표시명 안전 변환.
+     *
+     * <p>{@code X-User-Name} 이 UUID 형태이면 사용자 화면에 raw UUID 가 노출되지 않도록 null 로 저장한다.
+     *
+     * @param callerName X-User-Name 헤더 값
+     * @return UUID 가 아닌 표시명, 없으면 null
+     */
+    static String resolveActorName(String callerName) {
+        if (callerName == null || callerName.isBlank()) {
+            return null;
+        }
+        String trimmed = callerName.trim();
+        if (UUID_PATTERN.matcher(trimmed).matches()) {
+            return null;
+        }
+        return trimmed;
     }
 }

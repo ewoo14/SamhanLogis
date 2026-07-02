@@ -189,10 +189,30 @@ public class DispatchTaskAdminController {
     public void removeGroup(@PathVariable UUID taskId,
                             @PathVariable UUID groupId,
                             @RequestHeader(value = "X-User-Id", required = false) String actor,
+                            @RequestHeader(value = "X-User-Name", required = false) String callerName,
                             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
         checkEditPermission(roleHeader);
-        taskService.removeVehicleGroup(taskId, groupId, actor != null ? actor : "system");
+        taskService.removeVehicleGroup(taskId, groupId, actor != null ? actor : "system", callerName);
+    }
+
+    /**
+     * 삭제된 차량 그룹 복원.
+     *
+     * <p>{@code dispatch.board} RESTORE 권한과 기존 EDIT 동적 가드를 함께 적용한다.
+     * 그룹 삭제 시 cascade 로 삭제된 전표 매핑은 서비스에서 같은 삭제시점 기준으로 함께 복원한다.
+     */
+    @Operation(summary = "차량 그룹 복원")
+    @PostMapping("/{taskId}/vehicle-groups/{groupId}/restore")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.RESTORE)
+    public void restoreGroup(@PathVariable UUID taskId,
+                             @PathVariable UUID groupId,
+                             @RequestHeader(value = "X-User-Id", required = false) String actor,
+                             @RequestHeader(value = "X-User-Name", required = false) String callerName,
+                             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        taskService.restoreVehicleGroup(taskId, groupId, actor != null ? actor : "system", callerName);
     }
 
     /**
@@ -247,10 +267,30 @@ public class DispatchTaskAdminController {
                            @PathVariable UUID groupId,
                            @PathVariable UUID slipId,
                            @RequestHeader(value = "X-User-Id", required = false) String actor,
+                           @RequestHeader(value = "X-User-Name", required = false) String callerName,
                            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
         checkEditPermission(roleHeader);
-        taskService.removeSlipFromGroup(groupId, slipId, actor != null ? actor : "system");
+        taskService.removeSlipFromGroup(groupId, slipId, actor != null ? actor : "system", callerName);
+    }
+
+    /**
+     * 삭제된 그룹-전표 매핑 1건 복원.
+     *
+     * <p>{@code dispatch.board} RESTORE 권한과 기존 EDIT 동적 가드를 함께 적용한다.
+     */
+    @Operation(summary = "그룹 전표 매핑 복원")
+    @PostMapping("/{taskId}/vehicle-groups/{groupId}/slips/{slipId}/restore")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.RESTORE)
+    public void restoreSlip(@PathVariable UUID taskId,
+                            @PathVariable UUID groupId,
+                            @PathVariable UUID slipId,
+                            @RequestHeader(value = "X-User-Id", required = false) String actor,
+                            @RequestHeader(value = "X-User-Name", required = false) String callerName,
+                            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+        checkEditPermission(roleHeader);
+        taskService.restoreSlipFromGroup(groupId, slipId, actor != null ? actor : "system", callerName);
     }
 
     /**

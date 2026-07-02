@@ -57,6 +57,9 @@ public class DispatchVehicleGroup extends BaseEntity {
     private DispatchVehicleGroupDispatchStatus dispatchStatus =
             DispatchVehicleGroupDispatchStatus.PENDING;
 
+    @Column(name = "deleted_by_name", length = 100)
+    private String deletedByName;
+
     private DispatchVehicleGroup(
             UUID dispatchTaskId,
             int sequence,
@@ -123,6 +126,18 @@ public class DispatchVehicleGroup extends BaseEntity {
                     "DISPATCHED 만 PENDING 으로 되돌릴 수 있습니다 — 현재=" + this.dispatchStatus);
         }
         this.dispatchStatus = DispatchVehicleGroupDispatchStatus.PENDING;
+    }
+
+    /** 삭제자 표시명을 함께 저장하는 soft-delete helper. */
+    public void markDeletedWithName(String userId, String actorName) {
+        markDeleted(userId);
+        this.deletedByName = actorName;
+    }
+
+    /** soft-delete 복원과 함께 삭제자 표시명도 비운다. */
+    public void markRestoredWithNameCleared() {
+        markRestored();
+        this.deletedByName = null;
     }
 
     /**

@@ -158,7 +158,7 @@ class DispatchEndToEndIT extends AbstractPostgresIT {
                 .hasMessageContaining("이미 발송된 차량 그룹에는 전표를 추가할 수 없습니다.");
         assertThatThrownBy(() -> taskService.reorderSlips(group.getId(), List.of(first.getId())))
                 .hasMessageContaining("이미 발송된 차량 그룹의 전표 순서는 변경할 수 없습니다.");
-        assertThatThrownBy(() -> taskService.removeSlipFromGroup(group.getId(), first.getId(), "ewoo"))
+        assertThatThrownBy(() -> taskService.removeSlipFromGroup(group.getId(), first.getId(), "ewoo", null))
                 .hasMessageContaining("이미 발송된 차량 그룹의 전표는 제거할 수 없습니다.");
     }
 
