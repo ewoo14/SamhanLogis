@@ -270,6 +270,46 @@ describe('mock slip query edit history contract', () => {
   })
 })
 
+describe('mock dispatch restore contract', () => {
+  it('그룹 cascade 복원은 발송된 전표 tombstone 을 복원하지 않는다', async () => {
+    const { isMockDispatchGroupSlipRestorable } = await import('./mock')
+
+    expect(isMockDispatchGroupSlipRestorable({
+      id: 'mapping-dispatched',
+      slipId: 'slip-dispatched',
+      sequence: 1,
+      isDeleted: true,
+      deletedAt: '2026-07-02T10:20:00',
+      deletedByName: '배차담당',
+      slip: {
+        slipNo: 'SLIP-DISPATCHED',
+        partnerCode: 'P-DISPATCHED',
+        partnerName: '발송완료거래처',
+        deliveryAddress: null,
+        recipientPhone: null,
+        dispatchStatus: 'DISPATCHED',
+      },
+    }, false)).toBe(false)
+
+    expect(isMockDispatchGroupSlipRestorable({
+      id: 'mapping-undispatched',
+      slipId: 'slip-undispatched',
+      sequence: 1,
+      isDeleted: true,
+      deletedAt: '2026-07-02T10:20:00',
+      deletedByName: '배차담당',
+      slip: {
+        slipNo: 'SLIP-UNDISPATCHED',
+        partnerCode: 'P-UNDISPATCHED',
+        partnerName: '미발송거래처',
+        deliveryAddress: null,
+        recipientPhone: null,
+        dispatchStatus: 'UNDISPATCHED',
+      },
+    }, false)).toBe(true)
+  })
+})
+
 describe('mock CODEF account selection BC3 contract', () => {
   it('연결 식별자로 계좌/카드/대출 목록을 envelope 로 반환한다', () => {
     const accounts = mockRequest({

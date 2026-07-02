@@ -14021,6 +14021,13 @@ function restoreMockDispatchGroupSlip(row: DispatchVehicleGroupSlipResponse): vo
   row.deletedByName = null
 }
 
+export function isMockDispatchGroupSlipRestorable(
+  row: DispatchVehicleGroupSlipResponse,
+  activeElsewhere: boolean,
+): boolean {
+  return !activeElsewhere && row.slip.dispatchStatus === 'UNDISPATCHED'
+}
+
 function markMockDispatchVehicleGroupDeleted(
   group: DispatchVehicleGroupResponse,
   deletedByName: string | null,
@@ -14056,7 +14063,7 @@ function restoreMockDispatchVehicleGroup(group: DispatchVehicleGroupResponse): v
     const activeElsewhere = MOCK_DISPATCH_TASK_DETAILS.some((t) =>
       t.vehicleGroups.some((g) =>
         g.slips.some((r) => r.slipId === row.slipId && r.isDeleted !== true && r.id !== row.id)))
-    if (activeElsewhere) return
+    if (!isMockDispatchGroupSlipRestorable(row, activeElsewhere)) return
     restoreMockDispatchGroupSlip(row)
   })
 }
