@@ -1636,7 +1636,8 @@ button {
   margin-top: 16px;
 }
 
-/* SP-08-6-2 매출 전표 수정 — 매입과 의미 분리 */
+/* E1-b: 전표 수정 인라인 편집 — 매출/매입 공용 shell */
+.slip-edit-inline,
 .sales-edit-inline {
   display: flex;
   flex-direction: column;
@@ -1649,6 +1650,7 @@ button {
   border-radius: var(--radius-lg, 8px);
   background: var(--color-brand-50, #EFF6FB);
 }
+.slip-edit-inline-header,
 .sales-edit-inline-header {
   display: flex;
   align-items: center;
@@ -1662,9 +1664,11 @@ button {
   padding: 8px 0;
   background: var(--color-brand-50, #EFF6FB);
 }
+.slip-edit-inline-header .detail-section-title,
 .sales-edit-inline-header .detail-section-title {
   margin: 0;
 }
+.slip-edit-inline-actions,
 .sales-edit-inline-actions {
   display: flex;
   justify-content: flex-end;
@@ -1684,13 +1688,16 @@ button {
   margin-top: 16px;
 }
 @media (max-width: 768px) {
+  .slip-edit-inline,
   .sales-edit-inline {
     padding: 12px;
     margin-top: 8px;
   }
+  .slip-edit-inline-actions,
   .sales-edit-inline-actions {
     width: 100%;
   }
+  .slip-edit-inline-actions > button,
   .sales-edit-inline-actions > button {
     flex: 1 1 0;
   }
