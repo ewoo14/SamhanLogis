@@ -159,6 +159,22 @@ class DispatchTaskServiceTest {
     }
 
     @Test
+    void removeVehicleGroup_dispatched_group_throws_conflict() {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        group.markDispatched();
+        when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+
+        assertThatThrownBy(() -> svc.removeVehicleGroup(taskId, groupId, "ewoo", "홍길동"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 발송된 차량 그룹은 삭제할 수 없습니다.");
+        verify(slipMapRepo, never()).findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(any());
+        verify(groupRepo, never()).save(any());
+    }
+
+    @Test
     void assignSlip_appends_next_sequence_in_group() {
         stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();

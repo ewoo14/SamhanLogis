@@ -8605,6 +8605,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (group.isDeleted) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
+    // BE removeVehicleGroup 동형 — 부분발송 후 DRAFT 에 남은 발송완료 그룹도 삭제 불가.
+    if ((group.dispatchStatus ?? 'PENDING') !== 'PENDING') {
+      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹은 삭제할 수 없습니다.')
+    }
     if (task.status !== 'DRAFT') {
       return mockError(409, 'CONFLICT', `배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=${task.status}`)
     }

@@ -126,6 +126,10 @@ public class DispatchTaskService {
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
         }
+        if (!group.isDispatchPending()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹은 삭제할 수 없습니다.");
+        }
         requireDraftTask(dispatchTaskId);
         String actorName = resolveActorName(callerName);
         // cascade 복원의 등호 매칭 기준 — 그룹과 하위 매핑 전체에 동일한 삭제 시각을 주입한다.
