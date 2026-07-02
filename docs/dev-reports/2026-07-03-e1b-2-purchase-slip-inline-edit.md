@@ -27,3 +27,7 @@
 - **cosmetic CSS cleanup PR**: dead `.sales-edit-inline*` alias 제거 + `.purchase-edit-*`/`.sales-edit-*` field/memo/lines → `.slip-edit-*` 통합.
 - 매입 INBOUND seed 데이터 확보 후 `e1b2-purchase-inline-edit-real-qa` 실행.
 - 모바일 편집 카드화(pre-existing)·헤더 필드순서(pre-existing)·a11y(ESC/backdrop).
+
+## Codex 라운드 + Opus 재검 (0수렴)
+- **Codex 라운드**(`c836bfaa8`): 5차원 BLOCKING/HIGH 0. Codex FE HIGH 1건 직접 fix — **409 conflict "최신 내용 불러오기"(reload)가 React form state만 갱신하고 coedit provider Yjs 문서는 stale 로 남던 silent-revert 버그**(reload 직후 재연결 effect 가 stale Yjs 로 방금 갱신한 state 되돌림) → `syncSlipCoeditProvider`(null-guard·header setHeaderValue+replaceItems 재시드) 추가, 매입/매출 reload 양쪽 대칭 호출(`seedSlipCoeditProvider` 위임 DRY). **매출(#703 머지분) 잠재 stale-Yjs 버그도 동반 수정.** 회귀게이트 sp-08-5-2/sp-08-6-2.
+- **Opus 재검**(`c836bfaa8`): FE/BE/Design/DevOps 4차원 전부 **BLOCKING/HIGH 0·새 fix 0** → **0수렴 확정**. **CI 29/29 green**(Desktop Playwright hard gate·silent-skip guard 통과·신규 회귀게이트 hard gate 통과·false-green 아님). FE 가 근본원인(silent revert) 추적·null-guard 필요성(coedit 다운 평문 폴백 보존) 확인. 잔여 NIT=실 409 2-provider 라이브 스펙(future)·모바일 스샷 단언(backlog).
