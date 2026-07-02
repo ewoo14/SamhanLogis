@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
@@ -15,6 +16,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -52,6 +54,7 @@ public class DispatchTaskService {
     private final DispatchVehicleGroupSlipRepository slipMapRepo;
     private final SlipRepository slipRepo;
     private final EntityManager entityManager;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /** 신규 배차 작업 (DRAFT) 생성 — taskCode 자동 생성. */
     public DispatchTask createTask(LocalDate dispatchDate) {
@@ -59,6 +62,7 @@ public class DispatchTaskService {
         DispatchTask t = DispatchTask.create(code, dispatchDate);
         DispatchTask saved = taskRepo.save(t);
         log.info("DispatchTask 생성 — taskCode={} date={}", saved.getTaskCode(), saved.getDispatchDate());
+        publishBoardChanged("CREATED");
         return saved;
     }
 
@@ -91,7 +95,9 @@ public class DispatchTaskService {
             // 사용자 입력 2축 matrix 오류는 서비스 경계에서 400 INVALID_INPUT 으로 변환한다.
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage(), ex);
         }
-        return groupRepo.save(g);
+        DispatchVehicleGroup saved = groupRepo.save(g);
+        publishBoardChanged("UPDATED");
+        return saved;
     }
 
     /**
@@ -103,7 +109,9 @@ public class DispatchTaskService {
         requireDraftTask(dispatchTaskId);
         int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;
         DispatchVehicleGroup g = DispatchVehicleGroup.create(dispatchTaskId, nextSeq, vehicleType);
-        return groupRepo.save(g);
+        DispatchVehicleGroup saved = groupRepo.save(g);
+        publishBoardChanged("UPDATED");
+        return saved;
     }
 
     /** 차량 그룹 삭제 (soft-delete). 그룹의 slip 매핑도 cascade soft-delete. */
@@ -120,6 +128,7 @@ public class DispatchTaskService {
                 });
         group.markDeleted(actor);
         groupRepo.save(group);
+        publishBoardChanged("DELETED");
     }
 
     /** slip 을 그룹에 추가 — sequence 자동 증가 (현재 group 내 slip 개수 + 1). */
@@ -154,7 +163,9 @@ public class DispatchTaskService {
         }
         int nextSeq = slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId).size() + 1;
         DispatchVehicleGroupSlip mapping = DispatchVehicleGroupSlip.create(vehicleGroupId, slipId, nextSeq);
-        return slipMapRepo.save(mapping);
+        DispatchVehicleGroupSlip saved = slipMapRepo.save(mapping);
+        publishBoardChanged("UPDATED");
+        return saved;
     }
 
     /** 그룹 내 slip 순서 재정렬 — orderedSlipIds 순서대로 sequence 1, 2, 3... 갱신. */
@@ -179,6 +190,7 @@ public class DispatchTaskService {
             m.updateSequence(i + 1);
         }
         slipMapRepo.saveAll(mappings);
+        publishBoardChanged("UPDATED");
     }
 
     /** 그룹에서 slip 제거 (soft-delete). */
@@ -198,6 +210,15 @@ public class DispatchTaskService {
                         "그룹에 매핑된 slip 이 없습니다."));
         mapping.markDeleted(actor);
         slipMapRepo.save(mapping);
+        publishBoardChanged("DELETED");
+    }
+
+    /** 배차 목록 변경 발화 (커밋 후). changeType = CREATED/UPDATED/DELETED/STATUS_CHANGED. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 
     /**

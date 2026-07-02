@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -14,8 +15,10 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +58,7 @@ public class DispatchTaskCompletionService {
     private final DispatchVehicleGroupSlipRepository slipMapRepo;
     private final SlipRepository slipRepo;
     private final ArologisDispatchClient arologisClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /** 배차 작업 발송 — 미발송 그룹만 arologis 로 전송한다. */
     public DispatchTask dispatch(UUID dispatchTaskId) {
@@ -141,7 +145,16 @@ public class DispatchTaskCompletionService {
             taskRepo.save(task);
         }
 
+        publishBoardChanged("STATUS_CHANGED");
         return task;
+    }
+
+    /** 배차 상태 전이 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 
     private List<DispatchVehicleGroup> selectGroups(List<DispatchVehicleGroup> groups, List<UUID> groupIds) {

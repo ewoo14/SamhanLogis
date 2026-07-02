@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -17,6 +18,7 @@ import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,6 +55,7 @@ public class DispatchTaskConfirmService {
     private final SlipRepository slipRepo;
     private final MatchedDriverRepository matchedRepo;
     private final NotificationClient notificationClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     public void confirm(UUID dispatchTaskId, DispatchTaskConfirmRequest req) {
         DispatchTask task = taskRepo.findById(dispatchTaskId)
@@ -129,8 +132,20 @@ public class DispatchTaskConfirmService {
             }
         }
 
+        if (completed) {
+            publishBoardChanged("STATUS_CHANGED");
+        }
+
         log.info("[DispatchTaskConfirmService] confirm 완료 — taskCode={} matched={}",
                 task.getTaskCode(), req.matchedDrivers().size());
+    }
+
+    /** 배차 상태 전이 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 
     private static void validateMatchedDriverSequences(

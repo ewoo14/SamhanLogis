@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -50,6 +51,7 @@ class DispatchConfirmAndUnavailableServiceTest {
     @Mock SlipRepository slipRepo;
     @Mock MatchedDriverRepository matchedRepo;
     @Mock NotificationClient notificationClient;
+    @Mock CollectionRealtimePublisher collectionPublisher;
 
     @InjectMocks DispatchTaskConfirmService confirmSvc;
 
@@ -294,7 +296,7 @@ class DispatchConfirmAndUnavailableServiceTest {
     @Test
     void unavailable_marks_FAILED_and_returns_slip_to_UNDISPATCHED() throws Exception {
         DispatchTaskUnavailableService unavailSvc = new DispatchTaskUnavailableService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient, collectionPublisher);
 
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
@@ -330,7 +332,7 @@ class DispatchConfirmAndUnavailableServiceTest {
     @Test
     void unavailable_empty_failedGroups_targets_all_groups() throws Exception {
         DispatchTaskUnavailableService unavailSvc = new DispatchTaskUnavailableService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient, collectionPublisher);
 
         UUID taskId = UUID.randomUUID();
         UUID g1Id = UUID.randomUUID();

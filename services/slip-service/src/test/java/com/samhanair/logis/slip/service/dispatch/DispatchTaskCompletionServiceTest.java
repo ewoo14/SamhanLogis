@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -47,6 +48,7 @@ class DispatchTaskCompletionServiceTest {
     @Mock DispatchVehicleGroupSlipRepository slipMapRepo;
     @Mock SlipRepository slipRepo;
     @Mock ArologisDispatchClient arologisClient;
+    @Mock CollectionRealtimePublisher collectionPublisher;
     @InjectMocks DispatchTaskCompletionService svc;
 
     @Test

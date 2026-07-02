@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTonnage;
@@ -46,6 +47,7 @@ class DispatchTaskServiceTest {
     @Mock SlipRepository slipRepo;
     @Mock EntityManager entityManager;
     @Mock Query advisoryLockQuery;
+    @Mock CollectionRealtimePublisher collectionPublisher;
     @InjectMocks DispatchTaskService svc;
 
     @Test

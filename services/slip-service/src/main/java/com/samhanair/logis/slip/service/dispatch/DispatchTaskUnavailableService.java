@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -13,6 +14,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,7 @@ public class DispatchTaskUnavailableService {
     private final DispatchVehicleGroupSlipRepository slipMapRepo;
     private final SlipRepository slipRepo;
     private final NotificationClient notificationClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     public void unavailable(UUID dispatchTaskId, DispatchTaskUnavailableRequest req) {
         DispatchTask task = taskRepo.findById(dispatchTaskId)
@@ -105,5 +108,14 @@ public class DispatchTaskUnavailableService {
 
         log.info("[DispatchTaskUnavailableService] unavailable 완료 — taskCode={} reason={} groups={}",
                 task.getTaskCode(), req.reason(), targetSequences.size());
+        publishBoardChanged("STATUS_CHANGED");
+    }
+
+    /** 배차 상태 전이 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 }
