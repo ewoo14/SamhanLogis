@@ -1637,6 +1637,32 @@ button {
 }
 
 /* SP-08-6-2 매출 전표 수정 — 매입과 의미 분리 */
+.sales-edit-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-neutral-200, #E5E7EB);
+  border-radius: 8px;
+  background: #fff;
+}
+.sales-edit-inline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sales-edit-inline-header .detail-section-title {
+  margin: 0;
+}
+.sales-edit-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
 .sales-edit-field {
   display: flex;
   flex-direction: column;
@@ -1656,6 +1682,18 @@ button {
 .sales-edit-lines {
   overflow-x: auto;
   margin-top: 16px;
+}
+@media (max-width: 768px) {
+  .sales-edit-inline {
+    padding: 12px;
+    margin-top: 8px;
+  }
+  .sales-edit-inline-actions {
+    width: 100%;
+  }
+  .sales-edit-inline-actions > button {
+    flex: 1 1 0;
+  }
 }
 .driver-edit-actions {
   grid-column: 1 / -1;

@@ -229,13 +229,14 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(panel).not.toContainText('remote-client')
   })
 
-  test('S2a direct edit modal은 헤더와 품목 셀을 fieldPath 단위 coedit input으로 렌더한다', async ({ page }) => {
+  test('S2a direct edit inline form은 헤더와 품목 셀을 fieldPath 단위 coedit input으로 렌더한다', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(DRAFT_PAGE_URL, { waitUntil: 'domcontentloaded' })
 
     await page.getByTestId('sales-slip-edit-button').click()
-    const modal = page.getByRole('dialog', { name: '매출 전표 수정' })
-    await expect(modal).toBeVisible()
+    const inlineForm = page.getByTestId('sales-slip-edit-modal')
+    await expect(inlineForm).toBeVisible()
+    await expect(page.getByRole('dialog', { name: '매출 전표 수정' })).toHaveCount(0)
 
     await expect(page.getByTestId('slip-coedit-field-header-partnerName')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-header-memo')).toBeVisible()
@@ -243,13 +244,13 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(page.getByTestId('slip-coedit-field-items-0-quantity')).toBeVisible()
     await expect(page.getByTestId('slip-coedit-field-items-0-unitPrice')).toBeVisible()
 
-    await modal.getByLabel('거래처', { exact: true }).fill('한일냉동기술 S2a')
-    await modal.getByLabel('수량 1').fill('3')
-    await modal.getByLabel('단가 1').fill('120000')
+    await inlineForm.getByLabel('거래처', { exact: true }).fill('한일냉동기술 S2a')
+    await inlineForm.getByLabel('수량 1').fill('3')
+    await inlineForm.getByLabel('단가 1').fill('120000')
 
-    await expect(modal.getByLabel('거래처', { exact: true })).toHaveValue('한일냉동기술 S2a')
-    await expect(modal.getByLabel('수량 1')).toHaveValue('3')
-    await expect(modal.getByLabel('단가 1')).toHaveValue('120000')
-    await expect(modal).not.toContainText(DRAFT_SLIP_ID)
+    await expect(inlineForm.getByLabel('거래처', { exact: true })).toHaveValue('한일냉동기술 S2a')
+    await expect(inlineForm.getByLabel('수량 1')).toHaveValue('3')
+    await expect(inlineForm.getByLabel('단가 1')).toHaveValue('120000')
+    await expect(inlineForm).not.toContainText(DRAFT_SLIP_ID)
   })
 })

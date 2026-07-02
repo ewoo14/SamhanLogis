@@ -2,7 +2,7 @@
  * PR #674 S2a 코-에디팅 전표 전체 폼 QA 스크린샷 캡처 스펙.
  *
  * 검증 포인트:
- *  ① 전표 편집 모달(매출 전표 수정) — CollaborativeSlipInput 헤더 필드 Yjs 바인딩
+ *  ① 전표 인라인 편집(매출 전표 수정) — CollaborativeSlipInput 헤더 필드 Yjs 바인딩
  *    원격 Y.Doc 업데이트 → header.memo / header.deliveryAddress 원격 텍스트 병합 표시
  *  ② items Y.Array — items[0].quantity / items[0].unitPrice 셀 원격 값 반영
  *  ③ 원격 커서 배지 — header.memo 필드에 "원격사용자A" 배지,
@@ -276,17 +276,18 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     // 캡처 ①: desktop-01-editmode.png — 전표 상세 + "수정" 버튼 표시 확인
     await capture(page, 'desktop-01-editmode')
 
-    // ─── 수정 모달 오픈 ───
+    // ─── 수정 인라인 폼 오픈 ───
     await editBtn.click()
-    // design-system Modal이 data-testid prop을 DOM에 미전달 → 타이틀 텍스트로 확인
-    await expect(page.getByText('매출 전표 수정').first()).toBeVisible({ timeout: 10_000 })
-    console.log('[CHECK] 매출 전표 수정 모달 오픈: PASS')
+    const inlineForm = page.getByTestId('sales-slip-edit-modal')
+    await expect(inlineForm).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('dialog', { name: '매출 전표 수정' })).toHaveCount(0)
+    console.log('[CHECK] 매출 전표 수정 인라인 폼 오픈: PASS')
 
     // coedit provider 초기화 대기:
     //   setSalesEditOpen(true) → useEffect → createDocCoeditProvider
     //   → GET /collab/coedit → Y.applyUpdate → applyProviderState → setState
     //   → SSE subscribe → page.route 인터셉트 → applyRemoteAwareness
-    // 모달 내 coedit field가 나타날 때까지 대기 (최대 8초 timeout 내)
+    // 인라인 폼 내 coedit field가 나타날 때까지 대기 (최대 8초 timeout 내)
     const memoFieldWrapper = page.getByTestId('slip-coedit-field-header-memo')
     await expect(memoFieldWrapper).toBeVisible({ timeout: 8_000 })
     // coedit provider applySnapshot + SSE awareness 처리 대기
@@ -334,8 +335,8 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     expect(qtyBadgeCount).toBeGreaterThan(0)
     expect(qtyBadgeText).toContain('원격사용자B')
 
-    // 캡처 ②: desktop-02-remote-fields.png — 편집 모달 헤더+품목 원격 텍스트+커서 배지
-    // (스크롤 없이 모달 상단이 보이도록)
+    // 캡처 ②: desktop-02-remote-fields.png — 인라인 편집 헤더+품목 원격 텍스트+커서 배지
+    // (스크롤 없이 인라인 폼 상단이 보이도록)
     await capture(page, 'desktop-02-remote-fields')
 
     // ─── 검증 ④ 배지 absolute → 셀 높이 불변 확인 ───
@@ -397,14 +398,15 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     const editBtn = page.locator('.mobile-more-sheet').getByRole('button', { name: '수정' })
     await expect(editBtn, '모바일 액션시트에 직접 수정 버튼이 보여야 한다').toBeVisible({ timeout: 3_000 })
     await editBtn.click()
-    const modal = page.getByRole('dialog', { name: '매출 전표 수정' })
-    await expect(modal, '모바일 수정 모달이 열려야 S2a 모바일 QA 캡처가 유효하다').toBeVisible({ timeout: 8_000 })
-    console.log('[CHECK] 모바일 수정 모달 오픈: PASS')
-    const modalBox = await modal.boundingBox()
-    expect(modalBox?.width ?? 0).toBeLessThanOrEqual(390)
+    const inlineForm = page.getByTestId('sales-slip-edit-modal')
+    await expect(inlineForm, '모바일 수정 인라인 폼이 열려야 S2a 모바일 QA 캡처가 유효하다').toBeVisible({ timeout: 8_000 })
+    await expect(page.getByRole('dialog', { name: '매출 전표 수정' })).toHaveCount(0)
+    console.log('[CHECK] 모바일 수정 인라인 폼 오픈: PASS')
+    const inlineBox = await inlineForm.boundingBox()
+    expect(inlineBox?.width ?? 0).toBeLessThanOrEqual(390)
     await page.waitForTimeout(2_500)
 
-    // 캡처 ④: mobile-01.png — 모바일 편집 모달 (원격 텍스트 + 반응형 레이아웃)
+    // 캡처 ④: mobile-01.png — 모바일 인라인 편집 (원격 텍스트 + 반응형 레이아웃)
     await capture(page, 'mobile-01')
 
     // ⑥ 모바일 UUID 비노출
