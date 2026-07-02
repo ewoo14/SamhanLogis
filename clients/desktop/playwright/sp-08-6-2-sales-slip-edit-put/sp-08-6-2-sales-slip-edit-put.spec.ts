@@ -90,6 +90,7 @@ test.describe('SP-08-6-2 매출 수정 direct PUT 계약', () => {
 
     // 충돌 재로드 로직
     expect(page).toMatch(/handleSalesConflictReload[\s\S]*refetchDetail\(\)/)
+    expect(page).toMatch(/handleSalesConflictReload[\s\S]*syncSlipCoeditProvider\(slipFormCoeditProvider, result\.data, mode\)/)
   })
 
   test('T4 audit timeline contract keeps SLIP_EDIT visible through slip audit logs', () => {

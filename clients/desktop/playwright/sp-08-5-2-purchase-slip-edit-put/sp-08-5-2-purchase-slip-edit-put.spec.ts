@@ -78,6 +78,7 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     expect(page).toContain('최신 내용 불러오기')
     expect(page).toMatch(/handlePurchaseConflictReload[\s\S]*refetchDetail\(\)/)
     expect(page).toMatch(/syncPurchaseFormFromData\(result\.data\)/)
+    expect(page).toMatch(/handlePurchaseConflictReload[\s\S]*syncSlipCoeditProvider\(slipFormCoeditProvider, result\.data, mode\)/)
   })
 
   test('T4 audit timeline contract keeps SLIP_EDIT visible through slip audit logs', () => {

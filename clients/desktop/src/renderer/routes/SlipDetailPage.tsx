@@ -304,11 +304,16 @@ function coeditHeaderValues(slip: SlipDetail, mode: SlipType): Record<string, st
   }
 }
 
-function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, mode: SlipType) {
+function syncSlipCoeditProvider(provider: DocCoeditProvider | null, slip: SlipDetail, mode: SlipType) {
+  if (!provider) return
   for (const [fieldName, value] of Object.entries(coeditHeaderValues(slip, mode))) {
     provider.setHeaderValue(fieldName, value)
   }
   provider.replaceItems(toPurchaseEditLines(slip))
+}
+
+function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, mode: SlipType) {
+  syncSlipCoeditProvider(provider, slip, mode)
 }
 
 function coeditLinesToEditLines(
@@ -876,6 +881,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     const result = await refetchDetail()
     if (result.data) {
       syncPurchaseFormFromData(result.data)
+      syncSlipCoeditProvider(slipFormCoeditProvider, result.data, mode)
       setPurchaseConflictMessage(null)
       setPurchaseIsConflict(false)
       setPurchaseReloadSuccessMessage('최신 내용으로 업데이트됐습니다. 다시 저장해 주세요.')
@@ -887,7 +893,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         purchaseReloadSuccessTimerRef.current = null
       }, 3000)
     }
-  }, [refetchDetail, syncPurchaseFormFromData])
+  }, [mode, refetchDetail, slipFormCoeditProvider, syncPurchaseFormFromData])
 
   useEffect(() => {
     if (!detailQuery.data || purchaseEditOpen) return
@@ -921,6 +927,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     const result = await refetchDetail()
     if (result.data) {
       syncSalesFormFromData(result.data)
+      syncSlipCoeditProvider(slipFormCoeditProvider, result.data, mode)
       setSalesConflictMessage(null)
       setSalesIsConflict(false)
       setSalesReloadSuccessMessage('최신 내용으로 업데이트됐습니다. 다시 저장해 주세요.')
@@ -932,7 +939,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         salesReloadSuccessTimerRef.current = null
       }, 3000)
     }
-  }, [refetchDetail, syncSalesFormFromData])
+  }, [mode, refetchDetail, slipFormCoeditProvider, syncSalesFormFromData])
 
   useEffect(() => {
     if (!detailQuery.data || salesEditOpen) return
