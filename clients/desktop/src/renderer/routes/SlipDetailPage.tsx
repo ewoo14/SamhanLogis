@@ -459,6 +459,19 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const [purchasePaymentDueDate, setPurchasePaymentDueDate] = useState('')
   const [purchaseEditLines, setPurchaseEditLines] = useState<PurchaseEditLine[]>([])
   const purchaseReloadSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 매출 인라인 편집 폼 — 진입 시 뷰 스크롤+포커스용 ref (구 모달 즉시노출/auto-focus 대체).
+  const salesEditFormRef = useRef<HTMLElement>(null)
+  // 매출 인라인 편집 진입 시: read-only 라인 선택/체크 초기화(숨긴 툴바 잔존상태 방지) + 폼으로 스크롤 + 첫 입력 포커스.
+  // 인라인 폼이 전표라인 자리(fold 아래) 렌더라 스크롤 없으면 편집 진입을 인지 못함(리뷰 R1 Design/FE BLOCKING·DevOps).
+  useEffect(() => {
+    if (!(salesEditOpen && mode === 'OUTBOUND')) return
+    setSelectedLineId(null)
+    setCheckedLineIds(new Set())
+    const el = salesEditFormRef.current
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    el.querySelector<HTMLElement>('input, textarea, [contenteditable="true"]')?.focus?.()
+  }, [salesEditOpen, mode])
   // §7 협업 수정완료: 확정/완료 전표도 물리 종결 전이면 overlay 필드 편집 가능.
   const [collabEditMode, setCollabEditMode] = useState(false)
   const [slipFormCoeditProvider, setSlipFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
@@ -1318,6 +1331,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   */
   const salesEditInlineForm = (
     <section
+      ref={salesEditFormRef}
       className="sales-edit-inline"
       aria-label="매출 전표 수정"
       data-testid="sales-slip-edit-modal"
@@ -1477,8 +1491,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               <th>모델명</th>
               <th>규격</th>
               <th>수량</th>
-              <th>단가</th>
-              <th>합계</th>
+              <th>단가(VAT제외)</th>
+              <th>합계(VAT제외)</th>
               <th aria-label="행 삭제" />
             </tr>
           </thead>
@@ -2326,6 +2340,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </Card>
       ) : null}
 
+      {/* 매출 인라인 편집 중에는 read-only 전용 툴바(재고조회·선택라인 행삭제 등)를 숨긴다 —
+          행삭제는 인라인 draft 를 우회해 즉시 BE DELETE 라 stale draft→저장 시 409("다른 사용자") 오인
+          위험(리뷰 라운드1 Design/FE BLOCKING). 편집 시 라인 삭제는 인라인 표의 행별 × 사용. */}
+      {!(salesEditOpen && mode === 'OUTBOUND') ? (
+        <>
       <h4 className="detail-section-title detail-mobile-hide" style={{ marginTop: 24 }}>전표 라인</h4>
 
       {/*
@@ -2413,6 +2432,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           좌측 번호를 클릭하면 해당 라인을 선택할 수 있습니다 (순서 수정 / 추가 / 삭제).
         </p>
       )}
+        </>
+      ) : null}
 
       {salesEditOpen && mode === 'OUTBOUND' ? (
         salesEditInlineForm

@@ -1643,9 +1643,11 @@ button {
   gap: 12px;
   margin-top: 12px;
   padding: 16px;
-  border: 1px solid var(--color-neutral-200, #E5E7EB);
-  border-radius: 8px;
-  background: #fff;
+  /* 편집 중 시각 신호 — read-only 카드(shadow-sm·투명테두리)와 구분되게 brand accent + 옅은 틴트(리뷰 R1 Design MED). */
+  border: 1px solid var(--color-brand-200, #BFD9EA);
+  border-left: 3px solid var(--color-brand-500, #2D77A8);
+  border-radius: var(--radius-lg, 8px);
+  background: var(--color-brand-50, #F0F6FA);
 }
 .sales-edit-inline-header {
   display: flex;
@@ -1653,6 +1655,12 @@ button {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  /* 라인 많아 폼이 길어져도 저장/취소 도달 가능하도록 상단 고정(구 모달 footer 대체, 리뷰 R1 Design MED). */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 0;
+  background: var(--color-brand-50, #F0F6FA);
 }
 .sales-edit-inline-header .detail-section-title {
   margin: 0;
@@ -1667,14 +1675,6 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-}
-.sales-edit-field-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-}
-.sales-edit-field-span2 {
-  grid-column: span 2;
 }
 .sales-edit-memo {
   margin-top: 12px;
