@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
 import { getLegacyEstimateUrl } from './legacy-asset.js'
+import { isAllowedExternalUrl } from './external-url.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -77,9 +78,12 @@ app.whenReady().then(() => {
   // renderer 의 EstimateLegacyWebviewPage 가 src 속성에 사용한다.
   ipcMain.handle('legacy:get-estimate-url', () => getLegacyEstimateUrl())
   // [Phase 6 v4 정정 #22] 종합견적서 외부 web app (clients/web/estimate-app) 진입.
+  // production(packaged) 은 https:// 만 허용, dev(비-packaged) 는 localhost http 도 허용.
+  // (회귀: 버튼이 https prod 도메인 → http://localhost env 기본값으로 바뀌었는데 가드는 그대로여서
+  //  dev 에서 매 클릭 throw → 렌더러가 삼켜 "눌러도 무반응" 이 됐던 버그 수정.)
   ipcMain.handle('legacy:open-external', async (_event, url: string) => {
-    if (typeof url !== 'string' || !url.startsWith('https://')) {
-      throw new Error('Invalid URL — https:// 만 허용')
+    if (!isAllowedExternalUrl(url, app.isPackaged)) {
+      throw new Error('Invalid URL — https:// (dev 는 http://localhost 도) 만 허용')
     }
     await shell.openExternal(url)
   })

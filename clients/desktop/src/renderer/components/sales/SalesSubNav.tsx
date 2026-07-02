@@ -47,7 +47,14 @@ const EXTERNAL_ITEMS = [
 
 export function SalesSubNav() {
   const openExternal = (url: string) => {
-    window.samhanLegacy?.openExternal(url).catch((err) => {
+    const bridge = window.samhanLegacy
+    if (!bridge) {
+      // 웹(비-Electron) 빌드에는 preload 브리지(samhanLegacy)가 없다 → 새 탭 폴백.
+      // (Electron 셸에서는 아래 openExternal(main 프로세스 shell.openExternal)로 처리.)
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    bridge.openExternal(url).catch((err) => {
       console.warn('[SalesSubNav] 외부 link 열기 실패', err)
     })
   }

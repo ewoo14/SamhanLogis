@@ -4,7 +4,37 @@
 > 갱신: 2026-06-30 오전 (**회사PC 재개 세션** — 집PC 인계 완료, **협업 S2b(#675) 머지** squash `3ea02f1e`: Codex 라운드3 0수렴·1:1 라운드 소급보완·실 Docker 라이브 QA). **협업 S2c·S2d-1·S2d-1b·S2d-2(#679 `27c686b7`) 머지**(상태의존 카운트 · 헤더+라인 셀 레드라인 · **라이브 변경 하이라이트** — S2d 계열 완료). **S3-0/S3-1(#681)·S3-2 견적(#682 `f93a2cd89`) coedit 머지(2026-07-01)** — #16 협업 **라이브 coedit 6문서 **메모 단일필드(1차)만** 머지 — ⚠️**full-form(전표 전체)=원 지시·미완**(정정 [[feedback_epic_scope_no_narrowing]]). **현 우선순위=협업 full-form **롤아웃**(정찰 acf36aaa: slip 판매전표는 **이미 full-form ✅** S2a #674 `fcdbb6bea`[createDocCoeditProvider Y.Map헤더+Y.Array품목라인+CollaborativeSlipInput 셀바인딩, 수정모달] — **5문서 중 주문 full-form ✅(#689 `75a967d15`, BLOCKING 2[awareness 블리드·stale corruption] fix·듀얼리뷰 양방향정정·2/6 완료) — 견적·회계·결재·배차 잔여 메모→full-form 이식**. 개발책임자 결정: **트랙B 5문서 롤아웃 + 트랙A slip 하드닝 + 트랙B 롤아웃 병행, 저장충돌=후속). **〔진행 2026-07-01 PM〕** 트랙A **slA1(공유 provider 라인 lineId+add/remove/byId CRDT infra) ✅머지 `1d0d27a81`**(#690, Opus FE+Codex 듀얼리뷰 0수렴, backward-compat 60테스트). **회계 정찰**: 회계 full-form은 ❌BE 수정 PUT 부재(신설 필요)+차/대변 균형+라인 add/remove 본질 → 최대규모·후순위. **전략=사용자 1순위 '더 많은 문서 full-form' → 트랙B 롤아웃 우선**(slA1 infra가 line-CRDT 직접제공 → slA1b 는 hard 전제 아님; 회계/견적이 infra 직접사용 가능). 견적·결재·배차 **fit 정찰 병렬 진행** → 최저난도부터 롤아웃. slA1b(slip 라인 add/remove 소비자, 라이브 모달 retrofit 고위험)·slA1c(dnd-kit reorder)·slA2(셀 char-CRDT)=후순위 enhancement). **〔2026-07-01 PM 최신〕 견적 full-form ✅머지 #691 `d36d6c7cf`(slip·주문·견적 3/6) — 개발책임자 "PR 워크플로우 재준수+세션 위반 전수 보완" 지시로 #691은 정식 5-agent 듀얼·0수렴·라이브 실QA(2세션 SSE 양방향 반영 PASS·-sse-reflected 실캡처)·PM종합 전부 이행. 라이브 QA가 결함 3건 적발: ①applySnapshot corrupt-update 브릭(공유 coedit infra·하드닝 fix PR 착수) ②EstimateRealtimeClient/createAuditApi 경로 `/api/v1/estimates`→`/slips/estimates` 누락(404/500). 다음=①applySnapshot 하드닝 PR ②경로 fix PR ③**세션 소급 sweep**(#690→#689→#686/687→#682-685 각 5-agent+라이브QA 소급) ④결재→회계(BE)→배차 롤아웃. #17 단가변동 보류**. 〔과거 "#16 종결" 표기 철회〕**(slip·주문·견적·회계·결재·배차, #680~#685, 2026-07-01), **다음 = #17 단가변동**(→결재→배차). ⚠️개발책임자 '더 지시한 에픽' 재스캔 결과 = 하단 '추가 지시 에픽(재스캔)' 절. 별도 트랙: 금융연동 vendor(바로빌 권고). 본 파일 = 다음 세션 첫 읽기.
 
 ---
-## 🏠 집PC 세션 종료 (2026-07-02) → 회사PC 재개 (본 절이 최신)
+## 🟢 2026-07-02 회사PC remote-control 세션 — 개발책임자 지시 전수 기록 (본 절이 최신 · 누락금지 진실원)
+
+> 개발책임자 명시: **"내가 지시한 내용 모두 상세히 기록해 놓고 추후 누락없이 진행."** 아래 8개 지시 항목이 이번 세션 접수 전량. 각 항목 상태·확정 결정 병기. 착수 순서 = **버그 → E2 → (E1·task5 병렬/순차) → E3**.
+
+### 📥 접수 지시 전량 (2026-07-02)
+1. **집PC 진행분 이어서 진행** — 최신 핸드오프(`09a58362`) 기준. ✅ 컨텍스트 회복 완료.
+2. **PR #697 close + 브랜치 정리** (회계 원장 수정금지로 폐기 확정). ✅ **완료** — close + 원격 `feat/accounting-journal-draft-update` 삭제.
+3. **[E3] 입금보고서 에픽** = 회계 full-form 이관 대상(원장→입금보고서). 대형 신규(4개 다리: ①통장→입금보고서 생성 ②CashReceipt 수기 CRUD ③라이브 POSTED 분개 ④FE 다중선택·작성폼). brainstorming 착수 대기. **E2 이후.**
+4. **[E2] 전역 라이브 데이터 동기화 + 취소선 삭제** (횡단 인프라·**메인**):
+   - 모든 메뉴 데이터가 실시간 편집상황 반영. 새 데이터 생성 시 다른 사람 화면에도 즉시 생성. **수정도 즉시 반영**(반영 시점=**저장/커밋 순간** ✅확정 Q2). 생성/삭제=발생 즉시.
+   - **삭제 = 하드삭제 금지, 취소선 표시 + 삭제자 추적**(누가 삭제했는지 확인). 삭제행 = **영구 취소선 유지** ✅확정 Q1.
+   - **데스크탑·모바일 무관 전 메뉴** 반영.
+   - ✅확정: **공유 헬퍼로 일반화**(shared/realtime-abstraction) + **배차 파일럿** → 점진 롤아웃. 정찰=product 카탈로그 3종(CATALOG_CHANNEL_ID+afterCommit publisher+SSE+FE invalidateQueries)이 레퍼런스. 모바일=WebView라 웹 SSE 자동반영(RN 신규 불요). 취소선=`@SQLRestriction` 우회+DTO 삭제메타(deletedBy 이름resolve·UUID 비노출)+FE 취소선(신규·최대리스크).
+5. **[E1] 전표 상세 화면 정비 클러스터**(전표들 상세 공통, 병렬 소형):
+   - (A) **메모+수정이력을 폼 최하단으로**(현재 중간). 위치=`SlipDetailPage.tsx:1887-1915` 블록 이동(순수 렌더순서, SlipCollaborationPanel 내부 무변).
+   - (B) **품목행 수정 진행 시 편집 가능** = ✅확정 **상세뷰에서 '수정' 클릭 시 인라인 편집**(별도 모달 대신 상세화면 인라인). 현재 상세뷰 품목테이블=read-only(2135~), 편집은 별도 모달(2957~). linesEditable=DRAFT/SAVED.
+   - (C) **presence(보는 사람) 표시를 코멘트 영역→문서 상단, 더 크게.** 전표들 상세 공통.
+6. **[task5] 배차 전표확인 = 판매전표 미리보기(문서/인쇄 양식) 조회.** 배차는 상세(full-form) 없어 **E2 편입 정상**(별도 coedit 불요). 전표확인만 판매전표 문서형태로 렌더(PrintLayout 자산 연결). 소형.
+7. **[버그] 종합견적서·주문서 여는 메뉴 클릭해도 안 열림** → ✅ **진단완료·fix 진행중**. 근본원인=데스크톱 main `legacy:open-external`(`main/index.ts:80-85`)가 `https://`만 허용하는데 dev URL=`http://localhost:5183/5180` → 매 클릭 throw→렌더러가 삼킴→"무반응"(회귀: `891511d3`가드↔`b4e80707` http로컬 전환). fix=prod https 유지+dev localhost/127.0.0.1 http 허용(`isAllowedExternalUrl` 순수함수 추출·테스트9), SalesSubNav 웹빌드 window.open 폴백. 브랜치 `fix/desktop-external-app-open-http-localhost`.
+8. **착수 순서 = 버그 fix 먼저 → E2 spec** ✅확정.
+
+### 🗂️ 실행 큐 (누락금지 체크리스트 — 완료 시 취소선 대신 ✅)
+- [ ] **버그 fix** (진행중): 조기PR→Codex개발/리뷰→Opus 5-agent→Codex 5-agent→0수렴→PM종합→CI green→머지. (E1과 별개)
+- [ ] **E2** 전역 라이브동기화(공유헬퍼+배차 파일럿): brainstorming→spec→plan→캐논 8단계. 파일럿 검증 후 도메인 점진 롤아웃(데스크탑+모바일 WebView 검증 포함).
+- [ ] **E1** 전표 상세 정비(A 최하단·B 인라인편집·C presence 상단확대): 각 캐논 8단계. 병렬 가능.
+- [ ] **task5** 배차 전표확인 판매전표 미리보기.
+- [ ] **E3** 입금보고서 에픽(brainstorming→spec→슬라이스→캐논). E2 이후, born-live(E2 인프라 소비).
+- 📌 무결성/정책 민감건은 착수 전 개발책임자 확인([[feedback_integrity_domain_policy_preconfirm]]). 매 단계 ScheduleWakeup 재자각·라운드 1:1 게시·라이브 실QA.
+
+---
+## 🏠 집PC 세션 종료 (2026-07-02) → 회사PC 재개
 
 **개발책임자 결정**: 회계전표 **원장(Journal 계정/차변/대변)은 수정 금지**(감사 무결성, 정정=reverse 후 신규) → **슬1(#697 Journal PUT) 폐기 확정**. **입금보고서 등 비-원장 회계 문서가 편집/coedit 대상**으로 이관.
 
