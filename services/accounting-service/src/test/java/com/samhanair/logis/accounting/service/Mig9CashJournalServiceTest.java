@@ -140,6 +140,18 @@ class Mig9CashJournalServiceTest {
     }
 
     @Test
+    void receipt_MIG9_조회는_수기입금보고서를_제외하고_DEPOSIT_REPORT만_대상으로_한다() {
+        receipts(row(3, "CR-001", "REF-CR-001", new BigDecimal("2000"), null));
+
+        service.generateFromReceipts(500, "tester");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class),
+                org.mockito.ArgumentMatchers.<RowMapper<Mig9CashJournalService.CashRow>>any());
+        assertThat(sql.getValue()).contains("kind = 'DEPOSIT_REPORT'");
+    }
+
+    @Test
     void journal_id가_이미_있으면_skip한다() {
         disbursements(row(1, "CD-SKIP", "REF-SKIP", new BigDecimal("1000"), journalId()));
 

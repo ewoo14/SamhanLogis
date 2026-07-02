@@ -216,15 +216,19 @@ public class Mig9CashJournalService {
     }
 
     private List<CashRow> pendingRows(String tableName, int batchSize) {
+        String receiptKindFilter = "cash_receipts".equals(tableName)
+                ? "                   AND kind = 'DEPOSIT_REPORT'\n"
+                : "";
         return jdbcTemplate.query("""
                 SELECT ROW_NUMBER() OVER (ORDER BY transaction_date, slip_no, id) AS source_row_no,
                        id, slip_no, partner_id, amount, transaction_date, memo, journal_id, external_ref
                   FROM %s
                  WHERE is_deleted = FALSE
                    AND journal_id IS NULL
+%s
                  ORDER BY transaction_date, slip_no, id
                  LIMIT :batchSize
-                """.formatted(tableName), new MapSqlParameterSource("batchSize", batchSize), cashRowMapper());
+                """.formatted(tableName, receiptKindFilter), new MapSqlParameterSource("batchSize", batchSize), cashRowMapper());
     }
 
     private RowMapper<CashRow> cashRowMapper() {

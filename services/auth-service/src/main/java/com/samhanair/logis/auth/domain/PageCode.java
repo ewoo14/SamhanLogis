@@ -123,6 +123,9 @@ public enum PageCode {
     /** 거래처 원장 공급처 프로필 API — SP-D6-7. */
     ACCOUNTING_SUPPLIER_PROFILES("accounting.supplier-profiles", "공급처 프로필"),
 
+    /** 입금보고서 수기 CRUD API — E3 S1. */
+    ACCOUNTING_CASH_RECEIPTS("accounting.cash-receipts", "입금보고서"),
+
     // ---- 알림 / SMS (notification) ----
 
     /** Aligo SMS 발송 이력 화면 (SP-09-2). */

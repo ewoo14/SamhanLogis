@@ -1,0 +1,216 @@
+package com.samhanair.logis.accounting.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.domain.CashReceiptKind;
+import com.samhanair.logis.accounting.domain.CashReceiptStatus;
+import com.samhanair.logis.accounting.repository.CashReceiptRepository;
+import com.samhanair.logis.accounting.web.dto.CashReceiptRequest;
+import com.samhanair.logis.accounting.web.dto.CashReceiptResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** 입금보고서 수기 CRUD와 상태 라이프사이클 service. */
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class CashReceiptService {
+
+    private final CashReceiptRepository repository;
+    private final CashReceiptNumberService numberService;
+    private final AccountService accountService;
+    private final ObjectMapper objectMapper;
+
+    /** 수기 입금보고서 생성. S1에서는 journalId 를 비운다. */
+    public CashReceiptResponse createManual(CashReceiptRequest request) {
+        validateAccounts(request.debitAccountCode(), request.creditAccountCode());
+        String slipNo = numberService.next(request.transactionDate());
+        CashReceipt receipt = CashReceipt.createManual(
+                slipNo,
+                request.partnerId(),
+                request.amount(),
+                request.transactionDate(),
+                request.memo(),
+                request.debitAccountCode(),
+                request.creditAccountCode());
+        return CashReceiptResponse.of(repository.save(receipt));
+    }
+
+    /** 입금보고서 목록 조회. */
+    @Transactional(readOnly = true)
+    public Page<CashReceiptResponse> list(UUID partnerId, LocalDate from, LocalDate to,
+                                          CashReceiptStatus status, CashReceiptKind kind,
+                                          Pageable pageable) {
+        return repository.findAll(spec(partnerId, from, to, status, kind), pageable)
+                .map(CashReceiptResponse::of);
+    }
+
+    /** 단건 조회. */
+    @Transactional(readOnly = true)
+    public CashReceiptResponse getOne(UUID id) {
+        return CashReceiptResponse.of(findOrThrow(id));
+    }
+
+    /** DRAFT 입금보고서 수정. */
+    public CashReceiptResponse updateDraft(UUID id, CashReceiptRequest request) {
+        validateAccounts(request.debitAccountCode(), request.creditAccountCode());
+        CashReceipt receipt = findOrThrow(id);
+        receipt.updateDraft(
+                request.amount(),
+                request.transactionDate(),
+                request.memo(),
+                request.partnerId(),
+                request.debitAccountCode(),
+                request.creditAccountCode());
+        return CashReceiptResponse.of(receipt);
+    }
+
+    /** DRAFT → CONFIRMED. 분개 생성은 S2 범위다. */
+    public CashReceiptResponse confirm(UUID id, String actor) {
+        CashReceipt receipt = findOrThrow(id);
+        receipt.confirm(actor);
+        return CashReceiptResponse.of(receipt);
+    }
+
+    /** CONFIRMED → CANCELLED. 역분개는 S2 범위다. */
+    public CashReceiptResponse cancel(UUID id, String actor) {
+        CashReceipt receipt = findOrThrow(id);
+        receipt.cancel(actor);
+        return CashReceiptResponse.of(receipt);
+    }
+
+    /** DRAFT 입금보고서 soft-delete. */
+    public void deleteDraft(UUID id, String actor) {
+        findOrThrow(id).softDeleteDraft(actor);
+    }
+
+    /** 협업 수정완료 changeSet 을 DRAFT 입금보고서에 적용한다. */
+    public CashReceiptResponse applyOverlayPatchBatch(UUID id, Map<String, Object> patches) {
+        if (patches == null || patches.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "적용할 입금보고서 변경 내역이 없습니다");
+        }
+        CashReceipt current = findOrThrow(id);
+        CashReceiptRequest merged = merge(current, patches);
+        return updateDraft(id, merged);
+    }
+
+    /** 협업 changeSet JSON 을 path map 으로 파싱한다. */
+    public Map<String, Object> parseChangeSet(String changeSetJson) {
+        if (changeSetJson == null || changeSetJson.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet 은 필수입니다");
+        }
+        try {
+            JsonNode root = objectMapper.readTree(changeSetJson);
+            if (!root.isObject()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet 은 JSON object 여야 합니다");
+            }
+            Map<String, Object> patches = new LinkedHashMap<>();
+            root.fields().forEachRemaining(entry -> {
+                JsonNode value = entry.getValue();
+                if (value == null || !value.isObject() || !value.has("after")) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "changeSet entry 는 after 필드를 가진 JSON object 여야 합니다: " + entry.getKey());
+                }
+                patches.put(entry.getKey(), toNullableText(value.get("after")));
+            });
+            return patches;
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet JSON 형식이 올바르지 않습니다");
+        }
+    }
+
+    private CashReceiptRequest merge(CashReceipt current, Map<String, Object> patches) {
+        UUID partnerId = current.getPartnerId();
+        java.math.BigDecimal amount = current.getAmount();
+        LocalDate transactionDate = current.getTransactionDate();
+        String memo = current.getMemo();
+        String debitAccountCode = current.getDebitAccountCode();
+        String creditAccountCode = current.getCreditAccountCode();
+        for (Map.Entry<String, Object> patch : patches.entrySet()) {
+            String path = normalizePatchPath(patch.getKey());
+            Object after = patch.getValue();
+            switch (path) {
+                case "partnerId" -> partnerId = UUID.fromString(String.valueOf(after));
+                case "amount" -> amount = new java.math.BigDecimal(String.valueOf(after));
+                case "transactionDate" -> transactionDate = LocalDate.parse(String.valueOf(after));
+                case "memo" -> memo = after == null ? null : String.valueOf(after);
+                case "debitAccountCode" -> debitAccountCode = after == null ? null : String.valueOf(after);
+                case "creditAccountCode" -> creditAccountCode = after == null ? null : String.valueOf(after);
+                default -> throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "지원하지 않는 입금보고서 변경 필드입니다: " + path);
+            }
+        }
+        return new CashReceiptRequest(partnerId, amount, transactionDate, memo,
+                debitAccountCode, creditAccountCode);
+    }
+
+    private String normalizePatchPath(String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "changeSet path 는 필수입니다");
+        }
+        String normalized = rawPath.trim();
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized.replace("/", ".");
+    }
+
+    private void validateAccounts(String debitAccountCode, String creditAccountCode) {
+        accountService.requireLeafAccount(debitAccountCode == null || debitAccountCode.isBlank()
+                ? CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE : debitAccountCode);
+        accountService.requireLeafAccount(creditAccountCode == null || creditAccountCode.isBlank()
+                ? CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE : creditAccountCode);
+    }
+
+    private Specification<CashReceipt> spec(UUID partnerId, LocalDate from, LocalDate to,
+                                            CashReceiptStatus status, CashReceiptKind kind) {
+        return (root, query, cb) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates =
+                    new java.util.ArrayList<>();
+            if (partnerId != null) {
+                predicates.add(cb.equal(root.get("partnerId"), partnerId));
+            }
+            if (from != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("transactionDate"), from));
+            }
+            if (to != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("transactionDate"), to));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (kind != null) {
+                predicates.add(cb.equal(root.get("kind"), kind));
+            }
+            if (query != null) {
+                query.orderBy(cb.desc(root.get("transactionDate")), cb.desc(root.get("slipNo")));
+            }
+            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+    }
+
+    private CashReceipt findOrThrow(UUID id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "입금보고서를 찾을 수 없습니다"));
+    }
+
+    private String toNullableText(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return node.isValueNode() ? node.asText() : node.toString();
+    }
+}

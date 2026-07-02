@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.domain.PeriodStatus;
+import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.shared.realtime.lock.DefaultEditLockGuard;
 import com.samhanair.logis.shared.realtime.lock.EditLockGuard;
@@ -14,7 +15,7 @@ import org.junit.jupiter.api.Test;
 /**
  * PR-H4b BE-A — AccountingLockPolicies × DefaultEditLockGuard 통합 단위 테스트.
  *
- * <p>3개 도메인 (TaxInvoice / Journal / AccountingPeriod) 의 잠금 분기 검증.
+ * <p>4개 도메인 (TaxInvoice / Journal / AccountingPeriod / CashReceipt) 의 잠금 분기 검증.
  */
 class AccountingLockPoliciesTest {
 
@@ -62,6 +63,16 @@ class AccountingLockPoliciesTest {
         assertThatThrownBy(() -> guard.guardCanEdit(PeriodStatus.CLOSED,
                 AccountingLockPolicies.ACCOUNTING_PERIOD, false)).isInstanceOf(LockedException.class);
         guard.guardCanEdit(PeriodStatus.CLOSED, AccountingLockPolicies.ACCOUNTING_PERIOD, true);
+    }
+
+    @Test
+    void cashReceipt_DRAFT_free_CONFIRMED_locked_CANCELLED_terminal() {
+        guard.guardCanEdit(CashReceiptStatus.DRAFT, AccountingLockPolicies.CASH_RECEIPT, false);
+        assertThatThrownBy(() -> guard.guardCanEdit(CashReceiptStatus.CONFIRMED,
+                AccountingLockPolicies.CASH_RECEIPT, false)).isInstanceOf(LockedException.class);
+        guard.guardCanEdit(CashReceiptStatus.CONFIRMED, AccountingLockPolicies.CASH_RECEIPT, true);
+        assertThatThrownBy(() -> guard.guardCanEdit(CashReceiptStatus.CANCELLED,
+                AccountingLockPolicies.CASH_RECEIPT, true)).isInstanceOf(LockedException.class);
     }
 
     @Test
