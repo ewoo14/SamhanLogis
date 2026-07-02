@@ -264,7 +264,7 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - **OCR → GAS-direct 주문서 전송** — OCR 삭제(#658) 후속, 레거시 GAS 패턴 재사용.
 - **결재 self-accept 정책** — 제안자=결정자 분리 강제 여부(신규 업무규칙).
 - **슬립 soft-delete 복원 정책** — full vs 부분 restore.
-- **[task5 후속] DISPATCH 역할 `inventory.warehouse` VIEW 권한** — 배차 전표확인(판매전표 미리보기)의 "출고창고"가 DISPATCH 계정엔 '-'(graceful, MASTER/MANAGER 정상). (a)DISPATCH 에 VIEW 부여(auth V79 1행) / (b)`SlipDetailResponse` 에 창고명 embed(권한 의존 제거) / (c)현행 유지. 배차 담당자의 판매전표 미리보기 사용 여부 + 창고 노출 정책 = 업무규칙 결정. #702 머지됨(비차단, 결정 시 후속).
+- ✅ **[task5 후속·해소] DISPATCH 역할 `inventory.warehouse` VIEW 권한** — 2026-07-03 개발책임자 결정=(a) 채택 → **auth V79/#706 부여**(배차 전표확인 "출고창고" DISPATCH 표시). 잔여 backlog: FE mock 카탈로그(`SP_D1_DEFAULT_VIEW.DISPATCH`)·sp-d4 T09 사이드바 테스트를 DISPATCH inventory.warehouse=true 로 동기화(FE-소비 후속 PR, V78 선례).
 
 ### C. 후속/minor (비차단, 착수 전 코드 재확인)
 - **세금계산서 FE 다운로드 wiring 점검** — BE 완비(엑셀/홈택스), FE 연결만 확인.

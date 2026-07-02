@@ -16,8 +16,8 @@
 - **[MED·FE]** 창고/결재 쿼리 `enabled:!!slip`(slip 로드 후 순차) → cold-cache 깜빡임(CALL_COUNT=2). → **`enabled:!!slipId`**(getSlip 과 병렬, DispatchView 패턴 통일).
 - **[LOW·Design]** 닫기버튼 dead token `--color-action-brand`→`--color-brand-500`. **[LOW·Design]** 헤더 "연락처:"→**"기사 연락처:"**(문서 본문 수요처 "연락처:"와 구분). **[NIT·FE]** 문서 스크롤 컨테이너 `tabIndex={0}`(키보드 스크롤).
 
-## ⚠️ 개발책임자 결정 대기 (비차단·백로그)
-- **[MED·BE] DISPATCH 역할 `inventory.warehouse` VIEW 권한 갭**: `listWarehouses()`가 `@RequirePermission(inventory.warehouse, VIEW)` 가드 → V10 시드상 **DISPATCH 역할=FALSE** → 배차 핵심 페르소나(DISPATCH 계정)는 403 → 판매전표 "출고창고" 필드가 조용히 '-'(graceful, 크래시 없음). MASTER/MANAGER 정상(라이브 QA 실증: dev_master 에서 "본사창고" 표시). **권한 부여 여부 = 업무규칙 결정([[feedback_integrity_domain_policy_preconfirm]]) → 개발책임자 확인.** 후속안: (a) DISPATCH 에 inventory.warehouse VIEW 부여(auth V79 1행), (b) SlipDetailResponse 에 창고명 embed(권한 의존 제거).
+## ✅ 개발책임자 결정 완료 (2026-07-03 → V79/#706 해소)
+- ✅ **[해소 — auth V79/#706, 2026-07-03 개발책임자 결정=후속안 (a) 채택] DISPATCH 역할 `inventory.warehouse` VIEW 권한 갭**: `listWarehouses()`가 `@RequirePermission(inventory.warehouse, VIEW)` 가드 → V10 시드상 **DISPATCH 역할=FALSE** → 배차 핵심 페르소나(DISPATCH 계정)는 403 → 판매전표 "출고창고" 필드가 조용히 '-'(graceful, 크래시 없음). MASTER/MANAGER 정상(라이브 QA 실증: dev_master 에서 "본사창고" 표시). **권한 부여 여부 = 업무규칙 결정([[feedback_integrity_domain_policy_preconfirm]]) → 개발책임자 확인.** 후속안: (a) DISPATCH 에 inventory.warehouse VIEW 부여(auth V79 1행), (b) SlipDetailResponse 에 창고명 embed(권한 의존 제거).
 
 ## 검증
 - typecheck(node+web) 통과 · vitest `SlipDetailModal.test.tsx`+`DispatchDocument.test.ts` **6/6** · dispatch-board 8파일/32 · print 5파일/39 회귀 없음.
@@ -28,7 +28,7 @@
 - **Opus 재검**(`97568ba65`): FE/BE/Design/DevOps 4차원 전부 **BLOCKING/HIGH 0·새 fix 0** → **0수렴 확정**. **CI 32/32 green**(신규 IT `GET_dispatch_board_slip_detail_allows_dispatch_role` CI 로그로 실행 실증·allowlist `it.dispatch.*` 포함·false-green 아님). 신규 엔드포인트로 판매전표 미리보기 라이브 재검(slip-service 재빌드) 완료.
 
 ## 백로그 (비차단)
-- **[개발책임자 결정]** BE `inventory.warehouse VIEW` 권한갭(DISPATCH 출고창고 '-') — 위 §결정 대기.
+- ✅ **[해소]** BE `inventory.warehouse VIEW` 권한갭(DISPATCH 출고창고 '-') — **auth V79/#706 부여 완료**(2026-07-03). FE mock 카탈로그(`SP_D1_DEFAULT_VIEW.DISPATCH`)·sp-d4 T09 사이드바 테스트 동기화는 FE-소비 후속 PR(V78 선례).
 - **[MED·후속]** 신규 엔드포인트 IT 보강 2케이스(비-OUTBOUND 403·무권한 403) — 로직은 SlipType enum 전수+형제 AOP 테스트(`GET_undispatched_slips_rejects_sales_role`)로 검증됨, happy-path IT PASS. 회귀망 보강용.
 - **[LOW]** `getOne()`이 OUTBOUND 판정 전 전체 상세(user Feign 3콜) 조립 — INBOUND id 낭비호출(board 는 OUTBOUND만 노출이라 실경로 무해). **[NIT]** controller `@PathVariable` FQN import 정리.
 - Desktop Playwright 모달 직접 미검증(pre-existing E2E 갭) · 인쇄버튼/전체화면 링크(plan 선택) · dead token 모듈 sweep(3파일 선행).
