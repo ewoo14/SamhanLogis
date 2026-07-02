@@ -8503,6 +8503,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       tonnageDisplay: tonnage ? DISPATCH_TONNAGE_LABEL[tonnage] : null,
       dispatchStatus: 'PENDING',
       sequence,
+      isDeleted: false,
+      deletedAt: null,
+      deletedByName: null,
       slips: [],
     }
     task.vehicleGroups.push(created)
@@ -8540,6 +8543,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       id: `44444444-dddd-4ddd-8ddd-${String(Date.now()).slice(-12)}`,
       slipId,
       sequence: group.slips.length + 1,
+      isDeleted: false,
+      deletedAt: null,
+      deletedByName: null,
       slip: {
         slipNo: source.slipNo,
         partnerCode: source.partnerCode,
@@ -8552,6 +8558,89 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     group.slips.push(created)
     refreshMockDuplicateSlipIds(task)
     return envelope(created)
+  }
+
+  const restoreDispatchVehicleGroupMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/restore(?:\?.*)?$/,
+  )
+  if (method === 'POST' && restoreDispatchVehicleGroupMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'restore')
+    if (denied) return denied
+    const taskId = decodeURIComponent(restoreDispatchVehicleGroupMatch[1]!)
+    const groupId = decodeURIComponent(restoreDispatchVehicleGroupMatch[2]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    if (!task || !group) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
+    }
+    restoreMockDispatchVehicleGroup(group)
+    refreshMockDuplicateSlipIds(task)
+    syncMockDispatchTaskSummary(task)
+    return envelope(null)
+  }
+
+  const deleteDispatchVehicleGroupMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)(?:\?.*)?$/,
+  )
+  if (method === 'DELETE' && deleteDispatchVehicleGroupMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(deleteDispatchVehicleGroupMatch[1]!)
+    const groupId = decodeURIComponent(deleteDispatchVehicleGroupMatch[2]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    if (!task || !group) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
+    }
+    markMockDispatchVehicleGroupDeleted(group, mockDispatchDeletedByName(config))
+    refreshMockDuplicateSlipIds(task)
+    syncMockDispatchTaskSummary(task)
+    return envelope(null)
+  }
+
+  const restoreDispatchGroupSlipMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/slips\/([^/?]+)\/restore(?:\?.*)?$/,
+  )
+  if (method === 'POST' && restoreDispatchGroupSlipMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'restore')
+    if (denied) return denied
+    const taskId = decodeURIComponent(restoreDispatchGroupSlipMatch[1]!)
+    const groupId = decodeURIComponent(restoreDispatchGroupSlipMatch[2]!)
+    const slipId = decodeURIComponent(restoreDispatchGroupSlipMatch[3]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    const row = group?.slips.find((item) => item.slipId === slipId)
+    if (!task || !group || !row) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 전표 매핑이 존재하지 않습니다.')
+    }
+    if (group.isDeleted) {
+      return mockError(409, 'CONFLICT', '삭제된 차량 그룹 안의 전표는 그룹 복원 후 복원하세요.')
+    }
+    restoreMockDispatchGroupSlip(row)
+    refreshMockDuplicateSlipIds(task)
+    syncMockDispatchTaskSummary(task)
+    return envelope(null)
+  }
+
+  const deleteDispatchGroupSlipMatch = url.match(
+    /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/slips\/([^/?]+)(?:\?.*)?$/,
+  )
+  if (method === 'DELETE' && deleteDispatchGroupSlipMatch) {
+    const denied = mockRequirePermission('dispatch.board', 'update')
+    if (denied) return denied
+    const taskId = decodeURIComponent(deleteDispatchGroupSlipMatch[1]!)
+    const groupId = decodeURIComponent(deleteDispatchGroupSlipMatch[2]!)
+    const slipId = decodeURIComponent(deleteDispatchGroupSlipMatch[3]!)
+    const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
+    const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    const row = group?.slips.find((item) => item.slipId === slipId)
+    if (!task || !group || !row) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 전표 매핑이 존재하지 않습니다.')
+    }
+    markMockDispatchGroupSlipDeleted(row, mockDispatchDeletedByName(config))
+    refreshMockDuplicateSlipIds(task)
+    syncMockDispatchTaskSummary(task)
+    return envelope(null)
   }
 
   const dispatchTaskSendMatch = url.match(/\/admin\/dispatch-tasks\/([^/?]+)\/dispatch(?:\?.*)?$/)
@@ -13776,13 +13865,75 @@ function mockDeriveLegacyVehicleType(
 
 function refreshMockDuplicateSlipIds(task: DispatchTaskResponse): DispatchTaskResponse {
   const counts = new Map<string, number>()
+  ensureMockDispatchDeletedMeta(task)
   for (const row of task.vehicleGroups.flatMap((group) => group.slips)) {
+    if (row.isDeleted) continue
     counts.set(row.slipId, (counts.get(row.slipId) ?? 0) + 1)
   }
   task.duplicateSlipIds = [...counts.entries()]
     .filter(([, count]) => count > 1)
     .map(([slipId]) => slipId)
   return task
+}
+
+function ensureMockDispatchDeletedMeta(task: DispatchTaskResponse): DispatchTaskResponse {
+  task.vehicleGroups.forEach((group) => {
+    group.isDeleted = group.isDeleted ?? false
+    group.deletedAt = group.deletedAt ?? null
+    group.deletedByName = group.deletedByName ?? null
+    group.slips.forEach((row) => {
+      row.isDeleted = row.isDeleted ?? false
+      row.deletedAt = row.deletedAt ?? null
+      row.deletedByName = row.deletedByName ?? null
+    })
+  })
+  return task
+}
+
+function mockDispatchDeletedByName(config: AxiosRequestConfig): string | null {
+  const raw = readMockHeader(config, 'X-User-Name').trim()
+  if (!raw) return null
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)
+    ? null
+    : raw
+}
+
+function markMockDispatchGroupSlipDeleted(
+  row: DispatchVehicleGroupSlipResponse,
+  deletedByName: string | null,
+  deletedAt = new Date().toISOString(),
+): void {
+  row.isDeleted = true
+  row.deletedAt = deletedAt
+  row.deletedByName = deletedByName
+}
+
+function restoreMockDispatchGroupSlip(row: DispatchVehicleGroupSlipResponse): void {
+  row.isDeleted = false
+  row.deletedAt = null
+  row.deletedByName = null
+}
+
+function markMockDispatchVehicleGroupDeleted(
+  group: DispatchVehicleGroupResponse,
+  deletedByName: string | null,
+): void {
+  const deletedAt = new Date().toISOString()
+  group.isDeleted = true
+  group.deletedAt = deletedAt
+  group.deletedByName = deletedByName
+  group.slips.forEach((row) => {
+    if (!row.isDeleted) markMockDispatchGroupSlipDeleted(row, deletedByName, deletedAt)
+  })
+}
+
+function restoreMockDispatchVehicleGroup(group: DispatchVehicleGroupResponse): void {
+  group.isDeleted = false
+  group.deletedAt = null
+  group.deletedByName = null
+  group.slips.forEach((row) => {
+    if (row.isDeleted) restoreMockDispatchGroupSlip(row)
+  })
 }
 
 /**

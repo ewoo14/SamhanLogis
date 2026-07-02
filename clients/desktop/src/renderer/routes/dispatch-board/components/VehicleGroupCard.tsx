@@ -19,12 +19,13 @@
 import { useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { useQueryClient } from '@tanstack/react-query'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { Badge, Button } from '@samhan/design-system'
 import {
   DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL,
   DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE,
@@ -46,9 +47,12 @@ import {
   useAssignSlipToGroupMutation,
   useDeleteVehicleGroupMutation,
   useRemoveSlipFromGroupMutation,
+  useRestoreSlipFromGroupMutation,
+  useRestoreVehicleGroupMutation,
 } from '../hooks/useDispatchTask'
 import { DISPATCH_BOARD_QUERY_KEY } from '../hooks/useUnDispatchedSlipsQuery'
 import type { DispatchGroupSlipDragData } from '../DispatchBoardPage'
+import { usePermissions } from '../../../hooks/usePermissions'
 
 interface VehicleGroupCardProps {
   taskId: string | null
@@ -61,6 +65,16 @@ interface VehicleGroupCardProps {
   selected: boolean
   onSelectedChange: (checked: boolean) => void
   onOpenSlipDetail: (slipId: string) => void
+}
+
+const DELETED_ROW_TEXT_STYLE: CSSProperties = {
+  textDecoration: 'line-through',
+  color: 'var(--color-neutral-500)',
+}
+
+function deletedBadgeLabel(deletedByName: string | null | undefined): string {
+  const trimmed = deletedByName?.trim()
+  return trimmed ? `삭제: ${trimmed}` : '삭제됨'
 }
 
 export function VehicleGroupCard({
@@ -78,10 +92,14 @@ export function VehicleGroupCard({
   const deleteMutation = useDeleteVehicleGroupMutation(taskId)
   const assignMutation = useAssignSlipToGroupMutation(taskId)
   const removeSlipMutation = useRemoveSlipFromGroupMutation(taskId)
+  const restoreGroupMutation = useRestoreVehicleGroupMutation(taskId)
+  const restoreSlipMutation = useRestoreSlipFromGroupMutation(taskId)
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
   const slipNoInputRef = useRef<HTMLInputElement | null>(null)
   const [slipNoError, setSlipNoError] = useState<string | null>(null)
 
+  const groupDeleted = group.isDeleted === true
   const slipIdsSorted = group.slips.map((s) => s.slipId)
   const vehicleLabel = formatDispatchVehicleGroupLabel(group)
   const duplicateSlipIdSet = useMemo(() => new Set(duplicateSlipIds), [duplicateSlipIds])
@@ -89,7 +107,8 @@ export function VehicleGroupCard({
   const groupDispatchStatus = group.dispatchStatus ?? 'PENDING'
   const groupStatusTone = DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE[groupDispatchStatus]
   const groupDispatched = groupDispatchStatus === 'DISPATCHED'
-  const canMutateGroup = canEdit && !groupDispatched
+  const canMutateGroup = canEdit && !groupDispatched && !groupDeleted
+  const canRestoreGroup = groupDeleted && !!taskId && canAccess('dispatch.board', 'restore')
   const { setNodeRef, isOver } = useDroppable({
     id: `group:${group.id}`,
     data: { type: 'group', groupId: group.id },
@@ -144,6 +163,7 @@ export function VehicleGroupCard({
           : `1px solid ${statusTone.borderColor}`,
         borderRadius: 8,
         background: canHighlightDrop ? 'var(--color-action-brandSubtle, #DBEAFE)' : statusTone.background,
+        opacity: groupDeleted ? 0.64 : 1,
         transition: 'border-color 120ms, background-color 120ms',
       }}
     >
@@ -169,7 +189,15 @@ export function VehicleGroupCard({
           style={{ width: 16, height: 16 }}
         />
         <span aria-hidden="true" style={{ fontSize: 16 }}>🚚</span>
-        <span style={{ fontWeight: 600, fontSize: 13, color: statusTone.color }}>
+        <span
+          data-testid={`dispatch-board-vehicle-group-${group.sequence}-deleted-label`}
+          style={{
+            fontWeight: 600,
+            fontSize: 13,
+            color: groupDeleted ? 'var(--color-neutral-500)' : statusTone.color,
+            textDecoration: groupDeleted ? 'line-through' : undefined,
+          }}
+        >
           {vehicleLabel} #{group.sequence}
         </span>
         <span
@@ -193,6 +221,11 @@ export function VehicleGroupCard({
         >
           {DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL[groupDispatchStatus]}
         </span>
+        {groupDeleted ? (
+          <Badge variant="danger" data-testid={`dispatch-board-vehicle-group-${group.sequence}-deleted-badge`}>
+            {deletedBadgeLabel(group.deletedByName)}
+          </Badge>
+        ) : null}
         {matchedDriver ? (
           <span
             data-testid={`dispatch-board-vehicle-group-${group.sequence}-driver`}
@@ -235,6 +268,19 @@ export function VehicleGroupCard({
             ×
           </button>
         )}
+        {canRestoreGroup ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={restoreGroupMutation.isPending}
+            onClick={() => restoreGroupMutation.mutate(group.id)}
+            data-testid={`dispatch-board-vehicle-group-${group.sequence}-restore`}
+            aria-label={`${vehicleLabel} #${group.sequence} 그룹 복원`}
+          >
+            복원
+          </Button>
+        ) : null}
       </header>
 
       <div style={{ padding: 8, background: 'var(--color-neutral-0)' }}>
@@ -324,10 +370,18 @@ export function VehicleGroupCard({
                   groupId={group.id}
                   row={row}
                   canEdit={canMutateGroup}
+                  canRestore={!!taskId && !groupDeleted && canAccess('dispatch.board', 'restore')}
+                  restorePending={restoreSlipMutation.isPending}
                   isDuplicate={duplicateSlipIdSet.has(row.slipId)}
                   onOpenDetail={() => onOpenSlipDetail(row.slipId)}
                   onRemove={() =>
                     removeSlipMutation.mutate({
+                      groupId: group.id,
+                      slipId: row.slipId,
+                    })
+                  }
+                  onRestore={() =>
+                    restoreSlipMutation.mutate({
                       groupId: group.id,
                       slipId: row.slipId,
                     })
@@ -351,17 +405,25 @@ function SortableSlipRow({
   groupId,
   row,
   canEdit,
+  canRestore,
+  restorePending,
   isDuplicate,
   onOpenDetail,
   onRemove,
+  onRestore,
 }: {
   groupId: string
   row: DispatchVehicleGroupSlipResponse
   canEdit: boolean
+  canRestore: boolean
+  restorePending: boolean
   isDuplicate: boolean
   onOpenDetail: () => void
   onRemove: () => void
+  onRestore: () => void
 }) {
+  const rowDeleted = row.isDeleted === true
+  const canMutateRow = canEdit && !rowDeleted
   const dragData: DispatchGroupSlipDragData = {
     type: 'group-slip',
     groupId,
@@ -375,12 +437,12 @@ function SortableSlipRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: row.slipId, data: dragData })
+  } = useSortable({ id: row.slipId, data: dragData, disabled: !canMutateRow })
 
-  const style: React.CSSProperties = {
+  const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : rowDeleted ? 0.62 : 1,
   }
 
   return (
@@ -415,13 +477,13 @@ function SortableSlipRow({
         type="button"
         {...listeners}
         {...attributes}
-        disabled={!canEdit}
+        disabled={!canMutateRow}
         aria-label={`정차 ${row.sequence} ${row.slip.slipNo} ${row.slip.partnerName} 드래그`}
-        title={canEdit ? '드래그로 순서 변경' : '편집 불가'}
+        title={canMutateRow ? '드래그로 순서 변경' : '편집 불가'}
         style={{
           background: 'transparent',
           border: 'none',
-          cursor: canEdit ? 'grab' : 'not-allowed',
+          cursor: canMutateRow ? 'grab' : 'not-allowed',
           padding: 0,
           color: 'var(--color-neutral-500)',
         }}
@@ -432,13 +494,14 @@ function SortableSlipRow({
       <button
         type="button"
         onClick={onOpenDetail}
+        disabled={rowDeleted}
         style={{
           flex: 1,
           textAlign: 'left',
           background: 'transparent',
           border: 'none',
           padding: 0,
-          cursor: 'pointer',
+          cursor: rowDeleted ? 'default' : 'pointer',
           fontSize: 12,
           color: 'var(--color-neutral-800)',
         }}
@@ -454,20 +517,47 @@ function SortableSlipRow({
             ⚠
           </span>
         ) : null}
-        <span style={{ fontWeight: 600, marginRight: 6 }}>{row.slip.slipNo}</span>
-        <span>{row.slip.partnerName}</span>
+        <span
+          data-testid={`dispatch-board-group-slip-${row.slip.slipNo}-deleted-label`}
+          style={{
+            fontWeight: 600,
+            marginRight: 6,
+            ...(rowDeleted ? DELETED_ROW_TEXT_STYLE : null),
+          }}
+        >
+          {row.slip.slipNo}
+        </span>
+        <span style={rowDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.slip.partnerName}</span>
       </button>
+      {rowDeleted ? (
+        <Badge variant="danger" data-testid={`dispatch-board-group-slip-${row.slip.slipNo}-deleted-badge`}>
+          {deletedBadgeLabel(row.deletedByName)}
+        </Badge>
+      ) : null}
+      {rowDeleted && canRestore ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={restorePending}
+          onClick={onRestore}
+          data-testid={`dispatch-board-group-slip-${row.slip.slipNo}-restore`}
+          aria-label={`정차 ${row.sequence} ${row.slip.slipNo} 복원`}
+        >
+          복원
+        </Button>
+      ) : null}
       <button
         type="button"
         onClick={onRemove}
-        disabled={!canEdit}
+        disabled={!canMutateRow}
         aria-label={`정차 ${row.sequence} ${row.slip.slipNo} 그룹에서 제거`}
         data-testid={`dispatch-board-group-slip-${row.slip.slipNo}-remove`}
         style={{
           background: 'transparent',
           border: 'none',
-          color: canEdit ? 'var(--color-danger-500)' : 'var(--color-neutral-300)',
-          cursor: canEdit ? 'pointer' : 'not-allowed',
+          color: canMutateRow ? 'var(--color-danger-500)' : 'var(--color-neutral-300)',
+          cursor: canMutateRow ? 'pointer' : 'not-allowed',
           fontSize: 14,
           padding: 4,
         }}

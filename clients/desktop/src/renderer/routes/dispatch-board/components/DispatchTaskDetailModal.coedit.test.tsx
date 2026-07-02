@@ -72,6 +72,8 @@ vi.mock('./CancellationRequestDialog', () => ({ CancellationRequestDialog: () =>
 vi.mock('../hooks/useDispatchTask', () => ({
   dispatchTaskQueryKey: (taskId: string) => ['dispatchTask', taskId],
   useMarkManualDispatchCompleteMutation: () => ({ isPending: false, mutate: vi.fn(), reset: vi.fn() }),
+  useRestoreSlipFromGroupMutation: () => ({ isPending: false, mutate: vi.fn(), reset: vi.fn() }),
+  useRestoreVehicleGroupMutation: () => ({ isPending: false, mutate: vi.fn(), reset: vi.fn() }),
   useSetMatchedDriverMutation: () => ({ isPending: false, isError: false, mutate: vi.fn(), reset: vi.fn() }),
   useStartRedispatchMutation: () => ({ isPending: false, mutate: vi.fn(), reset: vi.fn() }),
 }))

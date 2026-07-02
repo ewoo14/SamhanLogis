@@ -23,6 +23,8 @@ import {
   reorderGroupSlips,
   requestCancellation,
   requestModification,
+  restoreSlipFromGroup,
+  restoreVehicleGroup,
   setMatchedDriver,
   startRedispatch,
   type ListDispatchTasksParams,
@@ -162,6 +164,21 @@ export function useDeleteVehicleGroupMutation(taskId: string | null) {
 }
 
 /**
+ * 삭제 차량 그룹 복원 mutation. 성공 시 상세/보드/완료배차 목록을 모두 재조회한다.
+ */
+export function useRestoreVehicleGroupMutation(taskId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (groupId: string) => restoreVehicleGroup(taskId as string, groupId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
+      void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+      void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
+    },
+  })
+}
+
+/**
  * 타사 기사/차량 수동 기입 mutation.
  *
  * <p>상세 query key 는 task UUID 를 기준으로 한다. 기존 arologisDispatchId key cache 가 남아 있을 수
@@ -255,6 +272,22 @@ export function useRemoveSlipFromGroupMutation(taskId: string | null) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+    },
+  })
+}
+
+/**
+ * 삭제 그룹-전표 매핑 복원 mutation. 성공 시 상세/보드/완료배차 목록을 모두 재조회한다.
+ */
+export function useRestoreSlipFromGroupMutation(taskId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ groupId, slipId }: { groupId: string; slipId: string }) =>
+      restoreSlipFromGroup(taskId as string, groupId, slipId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
+      void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })
+      void qc.invalidateQueries({ queryKey: ['dispatchTasks'] })
     },
   })
 }

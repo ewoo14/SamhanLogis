@@ -8,9 +8,11 @@
  *   <li>{@code POST /admin/dispatch-tasks/today-draft}                                — 오늘의 DRAFT 조회 또는 생성</li>
  *   <li>{@code POST /admin/dispatch-tasks/{taskId}/vehicle-groups}                    — 차량 그룹 추가</li>
  *   <li>{@code DELETE /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}}        — 빈 그룹 삭제</li>
+ *   <li>{@code POST /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/restore} — 삭제 그룹 복원</li>
  *   <li>{@code POST /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/slips}    — slip 그룹 할당</li>
  *   <li>{@code PUT  /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/slips/order} — 그룹 안 slip 순서 변경</li>
  *   <li>{@code DELETE /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/slips/{slipId}} — slip 제거</li>
+ *   <li>{@code POST /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/slips/{slipId}/restore} — slip 매핑 복원</li>
  *   <li>{@code POST /admin/dispatch-tasks/{taskId}/dispatch}                          — 배차 완료 → arologis 발송</li>
  * </ul>
  *
@@ -343,6 +345,9 @@ export interface DispatchVehicleGroupSlipResponse {
   id: string
   slipId: string
   sequence: number
+  isDeleted?: boolean
+  deletedAt?: string | null
+  deletedByName?: string | null
   slip: DispatchTaskSlipHeaderResponse
 }
 
@@ -389,6 +394,9 @@ export interface SetMatchedDriverPayload {
  * @property vehicleBodyType 신 차종 12 enum 값.
  * @property tonnage 신 톤수 10 enum 값. 소형 차종은 null.
  * @property dispatchStatus 그룹 단위 arologis 발송 상태.
+ * @property isDeleted soft-delete 행 여부. 삭제행도 숨기지 않고 취소선 표시한다.
+ * @property deletedAt 삭제 시각.
+ * @property deletedByName 삭제자 표시명. null 이면 사용자명 추정 없이 "삭제됨" fallback.
  * @property slips 그룹 안 slip rows (sequence 순서 보장).
  */
 export interface DispatchVehicleGroupResponse {
@@ -401,6 +409,9 @@ export interface DispatchVehicleGroupResponse {
   tonnage: DispatchTonnage | null
   tonnageDisplay: string | null
   dispatchStatus: DispatchVehicleGroupDispatchStatus
+  isDeleted?: boolean
+  deletedAt?: string | null
+  deletedByName?: string | null
   slips: DispatchVehicleGroupSlipResponse[]
 }
 
@@ -589,6 +600,18 @@ export async function deleteVehicleGroup(
 }
 
 /**
+ * 삭제된 차량 그룹 복원 — `POST /admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/restore`.
+ */
+export async function restoreVehicleGroup(
+  taskId: string,
+  groupId: string,
+): Promise<void> {
+  await apiClient.post(
+    `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/restore`,
+  )
+}
+
+/**
  * 타사 기사/차량 수동 기입 — `PUT .../vehicle-groups/{groupId}/matched-driver`.
  *
  * <p>수동 입력의 driverCode 는 BE 가 `MANUAL` 로 고정 저장한다.
@@ -667,6 +690,19 @@ export async function removeSlipFromGroup(
 ): Promise<void> {
   await apiClient.delete(
     `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/slips/${slipId}`,
+  )
+}
+
+/**
+ * 삭제된 그룹-전표 매핑 복원 — `POST .../vehicle-groups/{groupId}/slips/{slipId}/restore`.
+ */
+export async function restoreSlipFromGroup(
+  taskId: string,
+  groupId: string,
+  slipId: string,
+): Promise<void> {
+  await apiClient.post(
+    `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/slips/${slipId}/restore`,
   )
 }
 

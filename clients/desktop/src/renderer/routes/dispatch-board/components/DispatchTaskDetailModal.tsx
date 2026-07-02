@@ -56,6 +56,8 @@ import { usePermissions } from '../../../hooks/usePermissions'
 import {
   dispatchTaskQueryKey,
   useMarkManualDispatchCompleteMutation,
+  useRestoreSlipFromGroupMutation,
+  useRestoreVehicleGroupMutation,
   useSetMatchedDriverMutation,
   useStartRedispatchMutation,
 } from '../hooks/useDispatchTask'
@@ -146,6 +148,11 @@ const VISUALLY_HIDDEN_STYLE: CSSProperties = {
   border: 0,
 }
 
+const DELETED_ROW_TEXT_STYLE: CSSProperties = {
+  textDecoration: 'line-through',
+  color: 'var(--color-neutral-500)',
+}
+
 type MatchedDriverFormErrors = Partial<Record<keyof SetMatchedDriverPayload, string>>
 type MatchedDriverFormTouched = Partial<Record<keyof SetMatchedDriverPayload, boolean>>
 
@@ -158,6 +165,11 @@ function formatDateTime(value: string | null | undefined): string {
 
 function displayName(value: string | null | undefined): string {
   return value && value !== 'system' ? value : '시스템'
+}
+
+function deletedBadgeLabel(deletedByName: string | null | undefined): string {
+  const trimmed = deletedByName?.trim()
+  return trimmed ? `삭제: ${trimmed}` : '삭제됨'
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -262,6 +274,8 @@ export function DispatchTaskDetailModal({
   const setMatchedDriverMutation = useSetMatchedDriverMutation(task.id)
   const manualCompleteMutation = useMarkManualDispatchCompleteMutation(task.id)
   const startRedispatchMutation = useStartRedispatchMutation(task.id)
+  const restoreGroupMutation = useRestoreVehicleGroupMutation(task.id)
+  const restoreSlipMutation = useRestoreSlipFromGroupMutation(task.id)
   const editQueryKey = useMemo(() => ['dispatchCollabEdits', task.id] as const, [task.id])
   const collabBasePath = useMemo(
     () => `/admin/dispatch-tasks/${encodeURIComponent(task.id)}`,
@@ -296,6 +310,7 @@ export function DispatchTaskDetailModal({
     (task.status === 'DRAFT' ||
       task.status === 'DISPATCHING' ||
       task.status === 'DISPATCHED')
+  const canRestoreDeletedRows = !readOnly && canAccess('dispatch.board', 'restore')
   const banner = STATUS_BANNER_STYLE[task.status]
   const totalSlips = task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)
 
@@ -608,6 +623,7 @@ export function DispatchTaskDetailModal({
                 }}
               >
                 {task.vehicleGroups.map((g) => {
+                  const groupDeleted = g.isDeleted === true
                   const matched = matchedByGroup.get(g.sequence) ?? null
                   const matchedDriverCodeLabel =
                     matched?.driverCode === 'MANUAL'
@@ -619,10 +635,13 @@ export function DispatchTaskDetailModal({
                     DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_TONE[groupDispatchStatus]
                   const canManualComplete =
                     canEditMatchedDriver &&
+                    !groupDeleted &&
                     (task.status === 'DRAFT' || task.status === 'DISPATCHING') &&
                     g.dispatchStatus === 'PENDING' &&
                     matched?.driverCode === 'MANUAL' &&
                     matched.driverSource !== 'AROLOGIS'
+                  const canRestoreGroup =
+                    canRestoreDeletedRows && groupDeleted && !restoreGroupMutation.isPending
                   return (
                     <div
                       key={g.id}
@@ -631,6 +650,7 @@ export function DispatchTaskDetailModal({
                         border: '1px solid var(--color-neutral-200)',
                         borderRadius: 4,
                         overflow: 'hidden',
+                        opacity: groupDeleted ? 0.66 : 1,
                       }}
                     >
                       <header
@@ -644,7 +664,10 @@ export function DispatchTaskDetailModal({
                           fontWeight: 600,
                         }}
                       >
-                        <span>
+                        <span
+                          data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-label`}
+                          style={groupDeleted ? DELETED_ROW_TEXT_STYLE : undefined}
+                        >
                           {vehicleLabel} #{g.sequence}
                         </span>
                         <span
@@ -672,6 +695,11 @@ export function DispatchTaskDetailModal({
                         >
                           {DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL[groupDispatchStatus]}
                         </span>
+                        {groupDeleted ? (
+                          <Badge variant="danger" data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-badge`}>
+                            {deletedBadgeLabel(g.deletedByName)}
+                          </Badge>
+                        ) : null}
                         {matched ? (
                           <span
                             style={{
@@ -685,7 +713,7 @@ export function DispatchTaskDetailModal({
                             {matched.vehiclePlateNumber?.trim() || '-'}
                           </span>
                         ) : null}
-                        {canEditMatchedDriver ? (
+                        {canEditMatchedDriver && !groupDeleted ? (
                           <Button
                             type="button"
                             variant="secondary"
@@ -695,6 +723,18 @@ export function DispatchTaskDetailModal({
                             aria-label={`${vehicleLabel} #${g.sequence} 기사/차량 입력`}
                           >
                             기사/차량 입력
+                          </Button>
+                        ) : null}
+                        {canRestoreGroup ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => restoreGroupMutation.mutate(g.id)}
+                            data-testid={`dispatch-task-detail-restore-group-${g.sequence}`}
+                            aria-label={`${vehicleLabel} #${g.sequence} 그룹 복원`}
+                          >
+                            복원
                           </Button>
                         ) : null}
                         {canManualComplete ? (
@@ -728,35 +768,73 @@ export function DispatchTaskDetailModal({
                         </div>
                       ) : (
                         <ol style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                          {g.slips.map((row) => (
-                            <li
-                              key={row.id}
-                              style={{
-                                display: 'flex',
-                                gap: 8,
-                                padding: '4px 10px',
-                                fontSize: 11,
-                                borderBottom:
-                                  '1px solid var(--color-neutral-100)',
-                              }}
-                            >
-                              <span
+                          {g.slips.map((row) => {
+                            const rowDeleted = row.isDeleted === true
+                            const canRestoreSlip =
+                              canRestoreDeletedRows &&
+                              rowDeleted &&
+                              !groupDeleted &&
+                              !restoreSlipMutation.isPending
+                            return (
+                              <li
+                                key={row.id}
                                 style={{
-                                  color: 'var(--color-neutral-500)',
-                                  minWidth: 18,
-                                  textAlign: 'right',
+                                  display: 'flex',
+                                  gap: 8,
+                                  alignItems: 'center',
+                                  padding: '4px 10px',
+                                  fontSize: 11,
+                                  borderBottom:
+                                    '1px solid var(--color-neutral-100)',
+                                  opacity: rowDeleted ? 0.62 : 1,
                                 }}
                               >
-                                {row.sequence}.
-                              </span>
-                              <span style={{ fontWeight: 600 }}>
-                                {row.slip.slipNo}
-                              </span>
-                              <span style={{ flex: 1 }}>
-                                {row.slip.partnerName}
-                              </span>
-                            </li>
-                          ))}
+                                <span
+                                  style={{
+                                    color: 'var(--color-neutral-500)',
+                                    minWidth: 18,
+                                    textAlign: 'right',
+                                  }}
+                                >
+                                  {row.sequence}.
+                                </span>
+                                <span
+                                  data-testid={`dispatch-task-detail-slip-${row.slip.slipNo}-deleted-label`}
+                                  style={{
+                                    fontWeight: 600,
+                                    ...(rowDeleted ? DELETED_ROW_TEXT_STYLE : null),
+                                  }}
+                                >
+                                  {row.slip.slipNo}
+                                </span>
+                                <span style={{ flex: 1, ...(rowDeleted ? DELETED_ROW_TEXT_STYLE : null) }}>
+                                  {row.slip.partnerName}
+                                </span>
+                                {rowDeleted ? (
+                                  <Badge variant="danger" data-testid={`dispatch-task-detail-slip-${row.slip.slipNo}-deleted-badge`}>
+                                    {deletedBadgeLabel(row.deletedByName)}
+                                  </Badge>
+                                ) : null}
+                                {canRestoreSlip ? (
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() =>
+                                      restoreSlipMutation.mutate({
+                                        groupId: g.id,
+                                        slipId: row.slipId,
+                                      })
+                                    }
+                                    data-testid={`dispatch-task-detail-restore-slip-${row.slip.slipNo}`}
+                                    aria-label={`정차 ${row.sequence} ${row.slip.slipNo} 복원`}
+                                  >
+                                    복원
+                                  </Button>
+                                ) : null}
+                              </li>
+                            )
+                          })}
                         </ol>
                       )}
                     </div>
