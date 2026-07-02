@@ -8567,7 +8567,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/restore(?:\?.*)?$/,
   )
   if (method === 'POST' && restoreDispatchVehicleGroupMatch) {
-    const denied = mockRequirePermission('dispatch.board', 'restore')
+    const denied =
+      mockRequirePermission('dispatch.board', 'restore') ??
+      mockRequirePermission('dispatch.board', 'update')
     if (denied) return denied
     const taskId = decodeURIComponent(restoreDispatchVehicleGroupMatch[1]!)
     const groupId = decodeURIComponent(restoreDispatchVehicleGroupMatch[2]!)
@@ -8600,6 +8602,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!task || !group) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
+    if (group.isDeleted) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
+    }
+    if (task.status !== 'DRAFT') {
+      return mockError(409, 'CONFLICT', `배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=${task.status}`)
+    }
     markMockDispatchVehicleGroupDeleted(group, mockDispatchDeletedByName(config))
     sortMockDispatchDeletedRows(task)
     refreshMockDuplicateSlipIds(task)
@@ -8611,7 +8619,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     /\/admin\/dispatch-tasks\/([^/?]+)\/vehicle-groups\/([^/?]+)\/slips\/([^/?]+)\/restore(?:\?.*)?$/,
   )
   if (method === 'POST' && restoreDispatchGroupSlipMatch) {
-    const denied = mockRequirePermission('dispatch.board', 'restore')
+    const denied =
+      mockRequirePermission('dispatch.board', 'restore') ??
+      mockRequirePermission('dispatch.board', 'update')
     if (denied) return denied
     const taskId = decodeURIComponent(restoreDispatchGroupSlipMatch[1]!)
     const groupId = decodeURIComponent(restoreDispatchGroupSlipMatch[2]!)
@@ -8622,11 +8632,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ).get('mappingId')
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
+    if (!task || !group) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 전표 매핑이 존재하지 않습니다.')
+    }
+    const deletedCandidates = group.slips.filter((item) => item.slipId === slipId && item.isDeleted)
+    if (!mappingId && deletedCandidates.length > 1) {
+      return mockError(409, 'CONFLICT', '삭제된 전표 매핑이 여러 건입니다. 상세 행의 복원 버튼으로 복원하세요.')
+    }
     const row = mappingId
-      ? group?.slips.find((item) => item.id === mappingId)
-      : (group?.slips.find((item) => item.slipId === slipId && item.isDeleted)
-        ?? group?.slips.find((item) => item.slipId === slipId))
-    if (!task || !group || !row) {
+      ? group.slips.find((item) => item.id === mappingId && item.slipId === slipId)
+      : (deletedCandidates[0] ?? group.slips.find((item) => item.slipId === slipId))
+    if (!row) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 전표 매핑이 존재하지 않습니다.')
     }
     if (group.isDeleted) {
@@ -8664,8 +8680,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const slipId = decodeURIComponent(deleteDispatchGroupSlipMatch[3]!)
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
-    const row = group?.slips.find((item) => item.slipId === slipId)
-    if (!task || !group || !row) {
+    if (!task || !group || group.isDeleted) {
+      return mockError(404, 'NOT_FOUND', 'DispatchTask 전표 매핑이 존재하지 않습니다.')
+    }
+    if ((group.dispatchStatus ?? 'PENDING') !== 'PENDING') {
+      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹의 전표는 제거할 수 없습니다.')
+    }
+    if (task.status !== 'DRAFT') {
+      return mockError(409, 'CONFLICT', `배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=${task.status}`)
+    }
+    const row = group.slips.find((item) => item.slipId === slipId && item.isDeleted !== true)
+    if (!row) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 전표 매핑이 존재하지 않습니다.')
     }
     markMockDispatchGroupSlipDeleted(row, mockDispatchDeletedByName(config))

@@ -111,7 +111,11 @@ export function VehicleGroupCard({
   const groupDispatched = groupDispatchStatus === 'DISPATCHED'
   const canMutateGroup = canEdit && !groupDispatched && !groupDeleted
   // 복원은 BE requireDraftTask 와 동일하게 DRAFT 한정 — 비-DRAFT 에서 노출하면 항상 409.
-  const canRestore = !!taskId && isEditableStatus(taskStatus) && canAccess('dispatch.board', 'restore')
+  const canRestore =
+    !!taskId &&
+    canEdit &&
+    isEditableStatus(taskStatus) &&
+    canAccess('dispatch.board', 'restore')
   const canRestoreGroup = groupDeleted && canRestore
   const { setNodeRef, isOver } = useDroppable({
     id: `group:${group.id}`,
@@ -231,6 +235,13 @@ export function VehicleGroupCard({
             title={deletedAtTooltip(group.deletedAt)}
             aria-label={deletedBadgeAriaLabel(group.deletedByName, group.deletedAt)}
             data-testid={`dispatch-board-vehicle-group-${group.sequence}-deleted-badge`}
+            style={{
+              maxWidth: 160,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
             {deletedBadgeLabel(group.deletedByName)}
           </Badge>
@@ -576,14 +587,29 @@ function SortableSlipRow({
         >
           {row.slip.slipNo}
         </span>
-        <span style={rowDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>{row.slip.partnerName}</span>
+        <span
+          style={{
+            minWidth: 0,
+            overflowWrap: 'anywhere',
+            ...(rowDeleted ? DELETED_ROW_TEXT_STYLE : null),
+          }}
+        >
+          {row.slip.partnerName}
+        </span>
       </button>
       {rowDeleted ? (
         <Badge
           variant="neutral"
-          title={deletedAtTooltip(row.deletedAt)}
+          title={deletedBadgeAriaLabel(row.deletedByName, row.deletedAt)}
           aria-label={deletedBadgeAriaLabel(row.deletedByName, row.deletedAt)}
           data-testid={`dispatch-board-group-slip-${row.slip.slipNo}-deleted-badge`}
+          style={{
+            maxWidth: 160,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
         >
           {deletedBadgeLabel(row.deletedByName)}
         </Badge>

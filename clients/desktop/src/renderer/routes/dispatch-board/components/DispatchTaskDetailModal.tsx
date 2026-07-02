@@ -23,7 +23,6 @@
  *  - Modal (design-system) 의 focus trap + ESC 닫기 + 한국어 닫기 라벨 활용.
  */
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
-import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Input, Modal, Select } from '@samhan/design-system'
 import {
@@ -70,6 +69,7 @@ import {
   useSetMatchedDriverMutation,
   useStartRedispatchMutation,
 } from '../hooks/useDispatchTask'
+import { serverErrorMessage } from '../dispatchErrorMessage'
 
 interface DispatchTaskDetailModalProps {
   task: DispatchTaskResponse
@@ -177,13 +177,6 @@ function valueForEdit(value: string | null | undefined): string {
 
 function valueForChange(value: string): string | null {
   return value.length === 0 ? null : value
-}
-
-function serverErrorMessage(error: unknown): string | null {
-  if (!isAxiosError(error)) return null
-  const data = error.response?.data as { message?: unknown } | undefined
-  const msg = data?.message
-  return typeof msg === 'string' && msg.trim() ? msg.trim() : null
 }
 
 function normalizePath(path: string): string {
@@ -312,7 +305,10 @@ export function DispatchTaskDetailModal({
   // 복원은 BE requireDraftTask 와 동일하게 DRAFT 한정 — 발송 후 영구 잔존하는 취소선 행에
   // 항상 409 로 실패하는 활성 버튼을 노출하지 않는다.
   const canRestoreDeletedRows =
-    !readOnly && isEditableStatus(task.status) && canAccess('dispatch.board', 'restore')
+    !readOnly &&
+    isEditableStatus(task.status) &&
+    canAccess('dispatch.board', 'restore') &&
+    canAccess('dispatch.board', 'update')
   const banner = STATUS_BANNER_STYLE[task.status]
   // 카운트는 활성(비삭제) 기준 — 취소선 행 포함 length 는 부풀려진다.
   const liveGroups = activeVehicleGroups(task.vehicleGroups)
@@ -801,6 +797,7 @@ export function DispatchTaskDetailModal({
                                 key={row.id}
                                 style={{
                                   display: 'flex',
+                                  flexWrap: 'wrap',
                                   gap: 8,
                                   alignItems: 'center',
                                   padding: '4px 10px',
@@ -827,15 +824,29 @@ export function DispatchTaskDetailModal({
                                 >
                                   {row.slip.slipNo}
                                 </span>
-                                <span style={{ flex: 1, ...(rowDeleted ? DELETED_ROW_TEXT_STYLE : null) }}>
+                                <span
+                                  style={{
+                                    flex: '1 1 160px',
+                                    minWidth: 0,
+                                    overflowWrap: 'anywhere',
+                                    ...(rowDeleted ? DELETED_ROW_TEXT_STYLE : null),
+                                  }}
+                                >
                                   {row.slip.partnerName}
                                 </span>
                                 {rowDeleted ? (
                                   <Badge
                                     variant="neutral"
-                                    title={deletedAtTooltip(row.deletedAt)}
+                                    title={deletedBadgeAriaLabel(row.deletedByName, row.deletedAt)}
                                     aria-label={deletedBadgeAriaLabel(row.deletedByName, row.deletedAt)}
                                     data-testid={`dispatch-task-detail-slip-${row.slip.slipNo}-deleted-badge`}
+                                    style={{
+                                      maxWidth: 160,
+                                      minWidth: 0,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
                                   >
                                     {deletedBadgeLabel(row.deletedByName)}
                                   </Badge>
