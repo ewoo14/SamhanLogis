@@ -62,6 +62,13 @@ JOIN group_page_permissions gpp
  AND gpp.is_deleted = FALSE
  AND gpp.page_code = 'inventory.warehouse'
 WHERE ag.is_deleted = FALSE
+  AND EXISTS (
+      SELECT 1
+      FROM account_groups dg
+      WHERE dg.account_id = ag.account_id
+        AND dg.group_id = '00000000-0000-0000-0000-000000000106'::uuid
+        AND dg.is_deleted = FALSE
+  )
   AND NOT EXISTS (
       SELECT 1
       FROM account_groups sg

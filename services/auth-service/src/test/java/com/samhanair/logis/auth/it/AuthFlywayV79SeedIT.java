@@ -77,21 +77,59 @@ class AuthFlywayV79SeedIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("V79는 DISPATCH 계정 enforcement 캐시에 inventory.warehouse VIEW를 materialize한다")
-    void dispatchAccountCacheHasWarehouseView() {
-        Boolean canView = jdbcTemplate.queryForObject(
-                """
-                SELECT can_view
+    @DisplayName("V79는 DISPATCH 계정 enforcement 캐시에 inventory.warehouse VIEW만 materialize한다")
+    void dispatchAccountCacheHasWarehouseViewOnly() {
+        PermissionFlags flags = jdbcTemplate.queryForObject(
+            """
+                SELECT can_view, can_create, can_update, can_delete, can_restore, can_download, can_print
                   FROM account_page_permissions
                  WHERE account_id = ?::uuid
                    AND page_code = ?
                    AND is_deleted = FALSE
-                """,
-                Boolean.class,
+            """,
+                (rs, rowNum) -> new PermissionFlags(
+                        rs.getBoolean("can_view"),
+                        rs.getBoolean("can_create"),
+                        rs.getBoolean("can_update"),
+                        rs.getBoolean("can_delete"),
+                        rs.getBoolean("can_restore"),
+                        rs.getBoolean("can_download"),
+                        rs.getBoolean("can_print")),
                 DEV_DISPATCH_ACCOUNT_ID,
                 PAGE_CODE);
 
-        assertThat(canView).isTrue();
+        assertThat(flags.canView()).isTrue();
+        assertThat(flags.canCreate()).isFalse();
+        assertThat(flags.canUpdate()).isFalse();
+        assertThat(flags.canDelete()).isFalse();
+        assertThat(flags.canRestore()).isFalse();
+        assertThat(flags.canDownload()).isFalse();
+        assertThat(flags.canPrint()).isFalse();
+    }
+
+    @Test
+    @DisplayName("V79는 DISPATCH 그룹 소속이 아닌 계정 캐시를 재구체화하지 않는다")
+    void accountCacheMaterializationTouchesOnlyDispatchGroupAccounts() {
+        Integer nonDispatchTouched = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                  FROM account_page_permissions app
+                 WHERE app.page_code = ?
+                   AND app.is_deleted = FALSE
+                   AND app.modified_by = 'v79-dispatch-warehouse-view'
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM account_groups ag
+                        WHERE ag.account_id = app.account_id
+                          AND ag.group_id = ?::uuid
+                          AND ag.is_deleted = FALSE
+                   )
+                """,
+                Integer.class,
+                PAGE_CODE,
+                DISPATCH_GROUP_ID);
+
+        assertThat(nonDispatchTouched).isZero();
     }
 
     private record PermissionFlags(
