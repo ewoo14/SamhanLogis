@@ -14,10 +14,10 @@ import type {
 /**
  * 삭제행 텍스트 스타일 — 앱 공통 '취소' 표현(콜랩 패널·RedlineCell)과 동일한
  * 취소선 + 중립 회색. 컨테이너 opacity 페이드는 쓰지 않는다(활성 [복원] 버튼까지
- * 비활성처럼 보이게 함). 색은 neutral-600 — 삭제행이 실제 렌더되는 배경(그룹 삭제는
- * BE requireDraftTask 로 DRAFT 한정이라 항상 neutral-100 헤더 배경 4.23:1)에서
- * neutral-500 은 WCAG AA(일반 텍스트 4.5:1) 미달이라, 전 배경서 통과하는 neutral-600
- * (최악 배경서도 6.58:1)으로 상향한다.
+ * 비활성처럼 보이게 함). 색은 neutral-600 — 삭제행 카드는 부모 task 의 현재 상태 톤 배경으로
+ * 재렌더되며(DISPATCHING/FAILED 등 전이 시 배경도 변함), 그 배경들 중 가장 어두운
+ * neutral-100(4.23:1)에서 neutral-500 은 WCAG AA(일반 텍스트 4.5:1) 미달이라, 전 배경서
+ * 통과하는 neutral-600(최악 배경서도 6.58:1)으로 상향한다.
  */
 export const DELETED_ROW_TEXT_STYLE: CSSProperties = {
   textDecoration: 'line-through',

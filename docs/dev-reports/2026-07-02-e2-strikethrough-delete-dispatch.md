@@ -47,3 +47,14 @@ soft-delete 행을 목록에서 숨기지 않고 취소선으로 영구 노출�
 - **IncludingDeleted 쿼리용 non-partial 인덱스 부재**: 단일 물류사 규모 OK(CI 개별 쿼리 <0.14s), 삭제행 대량 누적 시 후속 인덱스 검토.
 - **legacy `checkEditPermission` 이중게이트**: RESTORE 엔드포인트가 `@RequirePermission(RESTORE)` + role 기반 canEdit 이중 통과(기존 sibling 공통 패턴, 본 PR 회귀 아님).
 - **복원 mutation loading 스코프 공유**: 카드/모달 내 형제 복원 버튼이 같은 mutation isPending 공유(동시 오조작 방지엔 합리, 혼란 리포트 시 in-flight id 단위 개선).
+
+## 듀얼리뷰 라운드 C~G 추가 fix (0수렴 과정)
+순차 듀얼리뷰(Opus 재검C·Codex D·Opus E·Codex F·Opus G) 가 단일모델·초기 라운드 미검출 실결함을 계속 적발·수정:
+- **"dispatched 그룹 mutation 미차단" 결함계열 6/6 게이트 완결**(C: restoreSlipFromGroup / D: removeVehicleGroup / E: restoreVehicleGroup — 부분발송[task DRAFT·그룹 DISPATCHED]된 그룹의 복원/삭제/재정렬을 실 BE `isDispatchPending` 409 + FE 게이트 + mock 409 로 일관 차단). assignSlip·reorderSlips·removeSlipFromGroup 은 기존 게이트 보유.
+- **WCAG neutral-600**(재검2)·**mappingId 타겟 복원**(재검2)·**삭제배지 title 이름**(C)·**mock↔real 계약정합**(D/F/G: cascade UNDISPATCHED·restore/reorder/matched-driver/manual-complete 삭제그룹 404·복원 RESTORE+UPDATE 이중게이트).
+
+### 잔여 백로그 (라운드 C~G 적발, 비차단·별도 후속)
+- **[MED] assignSlip 중복 활성매핑/UNDISPATCHED 미검증**: mock(+실 BE `assignSlip` 은 same-task 동일 slip 2그룹 활성 여지) — E2 pillar2(삭제/복원) 스코프 밖·pre-existing 별개 계열. 별도 티켓.
+- **[LOW] mock↔BE 에러 문구 불일치 3건**(restore-slip NOT_FOUND/다건409/삭제그룹 안내) — 상태코드·의미 동일, 문구만.
+- **[LOW] restoreSlip mock 체크순서·멱등 단락 미세차** — 정상 UI/레이스 도달 불가(위조 slipId·중복매핑 합성 전제서만 분기).
+- **[NIT] mock deletedByName 100자 truncate 미반영 · 404/400 collapse · 응답바디 잉여필드**(FE invalidate 로 무해) · restoreVehicleGroup native 쿼리 non-partial 인덱스(단일 물류사 규모 OK) · isMappingRestorable N+1(매핑 소량).

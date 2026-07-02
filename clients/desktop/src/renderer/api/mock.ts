@@ -8724,7 +8724,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const groupId = decodeURIComponent(reorderDispatchGroupSlipsMatch[2]!)
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
-    if (!task || !group) {
+    if (!task || !group || group.isDeleted) {
+      // 실 BE findGroupOrThrow(@SQLRestriction is_deleted=false) 동형 — 삭제 그룹은 404.
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
     if ((group.dispatchStatus ?? 'PENDING') !== 'PENDING') {
@@ -9755,7 +9756,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const groupId = decodeURIComponent(setMatchedDriverMatch[2]!)
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
-    if (!task || !group) {
+    if (!task || !group || group.isDeleted) {
+      // 실 BE findByIdAndIsDeletedFalse 동형 — 삭제 그룹은 404.
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
     if (task.status !== 'DRAFT' && task.status !== 'DISPATCHING' && task.status !== 'DISPATCHED') {
@@ -9804,7 +9806,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const groupId = decodeURIComponent(manualDispatchCompleteMatch[2]!)
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
-    if (!task || !group) {
+    if (!task || !group || group.isDeleted) {
+      // 실 BE findByIdAndIsDeletedFalse 동형 — 삭제 그룹은 404.
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
     if (task.status !== 'DRAFT' && task.status !== 'DISPATCHING') {

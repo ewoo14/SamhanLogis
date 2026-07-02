@@ -704,6 +704,13 @@ export function DispatchTaskDetailModal({
                             title={deletedBadgeAriaLabel(g.deletedByName, g.deletedAt)}
                             aria-label={deletedBadgeAriaLabel(g.deletedByName, g.deletedAt)}
                             data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-badge`}
+                            style={{
+                              maxWidth: 160,
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
                           >
                             {deletedBadgeLabel(g.deletedByName)}
                           </Badge>
