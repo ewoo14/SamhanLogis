@@ -282,8 +282,8 @@ export function useRemoveSlipFromGroupMutation(taskId: string | null) {
 export function useRestoreSlipFromGroupMutation(taskId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ groupId, slipId }: { groupId: string; slipId: string }) =>
-      restoreSlipFromGroup(taskId as string, groupId, slipId),
+    mutationFn: ({ groupId, slipId, mappingId }: { groupId: string; slipId: string; mappingId?: string }) =>
+      restoreSlipFromGroup(taskId as string, groupId, slipId, mappingId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: dispatchTaskQueryKey(taskId) })
       void qc.invalidateQueries({ queryKey: DISPATCH_BOARD_QUERY_KEY })

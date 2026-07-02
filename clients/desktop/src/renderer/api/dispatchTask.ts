@@ -695,14 +695,19 @@ export async function removeSlipFromGroup(
 
 /**
  * 삭제된 그룹-전표 매핑 복원 — `POST .../vehicle-groups/{groupId}/slips/{slipId}/restore`.
+ *
+ * <p>같은 (그룹,전표)에 삭제 tombstone 이 여러 건이면(제거→재추가→재제거) mappingId 로 상세의
+ * 특정 행을 지정해 복원한다. 미지정이면 BE 가 단건 tombstone 을 복원한다.
  */
 export async function restoreSlipFromGroup(
   taskId: string,
   groupId: string,
   slipId: string,
+  mappingId?: string,
 ): Promise<void> {
+  const query = mappingId ? `?mappingId=${encodeURIComponent(mappingId)}` : ''
   await apiClient.post(
-    `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/slips/${slipId}/restore`,
+    `/admin/dispatch-tasks/${taskId}/vehicle-groups/${groupId}/slips/${slipId}/restore${query}`,
   )
 }
 

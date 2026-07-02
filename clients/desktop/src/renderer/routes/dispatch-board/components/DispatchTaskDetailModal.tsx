@@ -712,7 +712,7 @@ export function DispatchTaskDetailModal({
                             {deletedBadgeLabel(g.deletedByName)}
                           </Badge>
                         ) : null}
-                        {matched ? (
+                        {matched && !groupDeleted ? (
                           <span
                             style={{
                               marginLeft: 'auto',
@@ -749,7 +749,10 @@ export function DispatchTaskDetailModal({
                             onClick={() => {
                               setTaskActionError(null)
                               restoreGroupMutation.mutate(g.id, {
-                                onError: () => setTaskActionError('복원에 실패했습니다. 배차 상태를 확인하세요.'),
+                                onError: (error) =>
+                                  setTaskActionError(
+                                    serverErrorMessage(error) ?? '복원에 실패했습니다. 배차 상태를 확인하세요.',
+                                  ),
                               })
                             }}
                             data-testid={`dispatch-task-detail-restore-group-${g.sequence}`}
@@ -847,10 +850,13 @@ export function DispatchTaskDetailModal({
                                     onClick={() => {
                                       setTaskActionError(null)
                                       restoreSlipMutation.mutate(
-                                        { groupId: g.id, slipId: row.slipId },
+                                        { groupId: g.id, slipId: row.slipId, mappingId: row.id },
                                         {
-                                          onError: () =>
-                                            setTaskActionError('복원에 실패했습니다. 전표/그룹 상태를 확인하세요.'),
+                                          onError: (error) =>
+                                            setTaskActionError(
+                                              serverErrorMessage(error) ??
+                                                '복원에 실패했습니다. 전표/그룹 상태를 확인하세요.',
+                                            ),
                                         },
                                       )
                                     }}

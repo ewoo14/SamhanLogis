@@ -69,6 +69,20 @@ function initialDispatchTaskIdFromLocation(): string | null {
 }
 
 /**
+ * 미배차 전표를 차량 그룹에 신규 배정할 수 있는 drop 대상인지 판정한다.
+ *
+ * <p>삭제(취소선) 그룹은 BE `@SQLRestriction` 으로 존재하지 않는 것과 같아, 잔존 취소선 행 위에
+ * 드롭해도 배정을 발화하지 않는다(가드 누락 시 실서버 404 silent 실패·mock 은 삭제그룹 내 활성행
+ * 생성). 발송 완료(DISPATCHED) 그룹도 제외한다.
+ */
+export function canAssignSlipToGroupTarget(
+  targetGroup: { dispatchStatus?: string | null; isDeleted?: boolean } | null | undefined,
+): boolean {
+  if (!targetGroup || targetGroup.isDeleted === true) return false
+  return targetGroup.dispatchStatus !== 'DISPATCHED'
+}
+
+/**
  * 그룹 안 sortable slip row 가 useSortable 에 넘기는 data.
  */
 export interface DispatchGroupSlipDragData {
@@ -166,7 +180,7 @@ export default function DispatchBoardPage() {
         overData.type === 'group' ? overData.groupId : overData.groupId
       if (!groupId) return
       const targetGroup = task.vehicleGroups.find((group) => group.id === groupId)
-      if (!targetGroup || targetGroup.dispatchStatus === 'DISPATCHED') return
+      if (!canAssignSlipToGroupTarget(targetGroup)) return
       assignMutation.mutate({ groupId, slipId: activeData.slipId })
       return
     }

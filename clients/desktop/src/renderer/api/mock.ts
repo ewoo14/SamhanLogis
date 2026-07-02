@@ -8522,7 +8522,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const groupId = decodeURIComponent(assignDispatchSlipMatch[2]!)
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
-    if (!task || !group) {
+    if (!task || !group || group.isDeleted) {
+      // 삭제(취소선) 그룹은 BE @SQLRestriction 으로 보이지 않으므로 404 동형.
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
     if (group.dispatchStatus === 'DISPATCHED') {
@@ -8556,6 +8557,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       },
     }
     group.slips.push(created)
+    // 실서버는 매 GET read-time 정렬(활성 먼저+삭제행 뒤)이므로 신규 활성행이 취소선 위로 오도록 동형.
+    sortMockDispatchDeletedRows(task)
     refreshMockDuplicateSlipIds(task)
     return envelope(created)
   }
@@ -8613,10 +8616,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const taskId = decodeURIComponent(restoreDispatchGroupSlipMatch[1]!)
     const groupId = decodeURIComponent(restoreDispatchGroupSlipMatch[2]!)
     const slipId = decodeURIComponent(restoreDispatchGroupSlipMatch[3]!)
+    // 같은 (그룹,전표)에 삭제 tombstone 이 여러 건이면 상세가 행별 mappingId 로 특정 행을 지정한다.
+    const mappingId = new URLSearchParams(
+      url.includes('?') ? url.slice(url.indexOf('?') + 1) : '',
+    ).get('mappingId')
     const task = MOCK_DISPATCH_TASK_DETAILS.find((item) => item.id === taskId)
     const group = task?.vehicleGroups.find((item) => item.id === groupId)
-    const row = group?.slips.find((item) => item.slipId === slipId && item.isDeleted)
-      ?? group?.slips.find((item) => item.slipId === slipId)
+    const row = mappingId
+      ? group?.slips.find((item) => item.id === mappingId)
+      : (group?.slips.find((item) => item.slipId === slipId && item.isDeleted)
+        ?? group?.slips.find((item) => item.slipId === slipId))
     if (!task || !group || !row) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 전표 매핑이 존재하지 않습니다.')
     }

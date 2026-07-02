@@ -32,6 +32,16 @@ public interface DispatchVehicleGroupSlipRepository extends JpaRepository<Dispat
             @Param("vehicleGroupIds") List<UUID> vehicleGroupIds);
 
     /**
+     * 매핑 id 로 soft-deleted 행까지 포함해 단건 조회한다(상세 행 지정 복원 전용).
+     *
+     * <p>{@code @SQLRestriction} 은 활성 행만 보여주므로 {@code findById} 로는 tombstone 을 찾을 수
+     * 없다 — 상세가 노출한 매핑 id 로 특정 삭제행을 복원하려면(같은 그룹·전표에 tombstone 이 여러 건일
+     * 때) native 조회가 필요하다.
+     */
+    @Query(value = "SELECT * FROM dispatch_vehicle_group_slip WHERE id = :id", nativeQuery = true)
+    Optional<DispatchVehicleGroupSlip> findByIdIncludingDeleted(@Param("id") UUID id);
+
+    /**
      * 그룹+전표 기준 매핑을 soft-deleted 행까지 포함해 조회한다.
      *
      * <p>활성/삭제 행이 공존하면(제거 후 같은 전표 재추가) 복원 대상인 삭제행을 우선 반환한다.

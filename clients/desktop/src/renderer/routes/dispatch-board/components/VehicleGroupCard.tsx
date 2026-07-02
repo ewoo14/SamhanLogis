@@ -45,6 +45,7 @@ import {
   deletedAtTooltip,
   deletedBadgeLabel,
 } from '../dispatchDeletedRow'
+import { serverErrorMessage } from '../dispatchErrorMessage'
 import {
   type SlipBoardResponse,
 } from '../../../api/dispatchBoard'
@@ -197,8 +198,8 @@ export function VehicleGroupCard({
           style={{
             fontWeight: 600,
             fontSize: 13,
-            color: groupDeleted ? 'var(--color-neutral-500)' : statusTone.color,
-            textDecoration: groupDeleted ? 'line-through' : undefined,
+            color: statusTone.color,
+            ...(groupDeleted ? DELETED_ROW_TEXT_STYLE : null),
           }}
         >
           {vehicleLabel} #{group.sequence}
@@ -289,7 +290,10 @@ export function VehicleGroupCard({
               onClick={() =>
                 restoreGroupMutation.mutate(group.id, {
                   onSuccess: () => setRestoreError(null),
-                  onError: () => setRestoreError('복원에 실패했습니다. 배차 상태를 확인하세요.'),
+                  onError: (error) =>
+                    setRestoreError(
+                      serverErrorMessage(error) ?? '복원에 실패했습니다. 배차 상태를 확인하세요.',
+                    ),
                 })
               }
               data-testid={`dispatch-board-vehicle-group-${group.sequence}-restore`}
@@ -417,10 +421,14 @@ export function VehicleGroupCard({
                   }
                   onRestore={() =>
                     restoreSlipMutation.mutate(
-                      { groupId: group.id, slipId: row.slipId },
+                      { groupId: group.id, slipId: row.slipId, mappingId: row.id },
                       {
                         onSuccess: () => setRestoreError(null),
-                        onError: () => setRestoreError('복원에 실패했습니다. 전표/그룹 상태를 확인하세요.'),
+                        onError: (error) =>
+                          setRestoreError(
+                            serverErrorMessage(error) ??
+                              '복원에 실패했습니다. 전표/그룹 상태를 확인하세요.',
+                          ),
                       },
                     )
                   }
@@ -537,6 +545,7 @@ function SortableSlipRow({
         disabled={rowDeleted}
         style={{
           flex: 1,
+          minWidth: 0,
           textAlign: 'left',
           background: 'transparent',
           border: 'none',

@@ -240,13 +240,17 @@ public class DispatchTaskService {
      * @param callerName 복원 주체 표시명 원본 (UUID 형태면 저장하지 않음)
      */
     public void restoreVehicleGroup(UUID dispatchTaskId, UUID vehicleGroupId, String actor, String callerName) {
+        // 락 획득 이후에 그룹을 조회한다 — 동시 복원(더블클릭/재시도)에서 먼저 커밋된 복원을 반영한
+        // fresh 스냅샷으로 isDeleted 를 확인해야 조기 return(멱등)을 놓치지 않는다(락 전 조회 시
+        // stale isDeleted=true 로 2차 요청이 순번을 불필요하게 밀고 RESTORED 를 중복 발화).
+        // restoreSlipFromGroup 이 락 이후 매핑을 조회하는 것과 동일 순서.
+        lockVehicleGroupSequence(dispatchTaskId);
         DispatchVehicleGroup group = groupRepo.findByIdIncludingDeleted(vehicleGroupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchVehicleGroup 이 존재하지 않습니다: " + vehicleGroupId));
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
         }
-        lockVehicleGroupSequence(dispatchTaskId);
         requireDraftTask(dispatchTaskId);
         if (!Boolean.TRUE.equals(group.getIsDeleted())) {
             return;
@@ -305,7 +309,7 @@ public class DispatchTaskService {
      * @param callerName 복원 주체 표시명 원본 (UUID 형태면 저장하지 않음)
      */
     public void restoreSlipFromGroup(UUID dispatchTaskId, UUID vehicleGroupId, UUID slipId,
-                                     String actor, String callerName) {
+                                     UUID mappingId, String actor, String callerName) {
         DispatchVehicleGroup group = groupRepo.findByIdIncludingDeleted(vehicleGroupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchVehicleGroup 이 존재하지 않습니다: " + vehicleGroupId));
@@ -322,17 +326,7 @@ public class DispatchTaskService {
         }
         lockSlipAssignment(slipId);
         requireDraftTask(dispatchTaskId);
-        List<DispatchVehicleGroupSlip> deletedCandidates =
-                slipMapRepo.findDeletedByVehicleGroupIdAndSlipId(vehicleGroupId, slipId);
-        if (deletedCandidates.size() > 1) {
-            throw new BusinessException(ErrorCode.CONFLICT,
-                    "삭제된 전표 매핑이 여러 건입니다 — 상세 행 기준 복원이 필요합니다.");
-        }
-        DispatchVehicleGroupSlip mapping = deletedCandidates.isEmpty()
-                ? slipMapRepo.findByVehicleGroupIdAndSlipIdIncludingDeleted(vehicleGroupId, slipId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                                "그룹에 매핑된 slip 이 없습니다."))
-                : deletedCandidates.get(0);
+        DispatchVehicleGroupSlip mapping = resolveRestoreTargetMapping(vehicleGroupId, slipId, mappingId);
         if (!Boolean.TRUE.equals(mapping.getIsDeleted())) {
             return;
         }
@@ -353,6 +347,40 @@ public class DispatchTaskService {
         log.info("배차 그룹 전표 매핑 복원 — groupId={} slipId={} actor={} actorName={}",
                 vehicleGroupId, slipId, actor, actorName);
         publishBoardChanged("RESTORED");
+    }
+
+    /**
+     * 복원 대상 매핑을 확정한다.
+     *
+     * <p>같은 (그룹,전표)에 삭제 tombstone 이 여러 건이면(제거→재추가→재제거) slipId 만으로는 어느
+     * 행을 복원할지 모호하다. 상세 응답이 노출하는 매핑 id 를 {@code mappingId} 로 받아 특정 행을
+     * 지정한다(그룹/전표 소속 검증). mappingId 미지정(하위호환)이면 단건 tombstone 을 복원하고,
+     * 후보가 2건 이상이면 임의 복원 대신 409 로 상세 행 복원을 안내한다(UI 는 항상 mappingId 를 보냄).
+     */
+    private DispatchVehicleGroupSlip resolveRestoreTargetMapping(UUID vehicleGroupId, UUID slipId,
+                                                                 UUID mappingId) {
+        if (mappingId != null) {
+            // mappingId 가 지정 그룹/전표에 속하지 않으면(미존재 또는 타 그룹) IDOR 안전하게 fallback 과
+            // 동일한 "그룹에 매핑된 slip 이 없습니다"(NOT_FOUND)로 통일 — 타 그룹 존재 여부를 누설하지 않는다.
+            DispatchVehicleGroupSlip mapping = slipMapRepo.findByIdIncludingDeleted(mappingId).orElse(null);
+            if (mapping == null
+                    || !mapping.getVehicleGroupId().equals(vehicleGroupId)
+                    || !mapping.getSlipId().equals(slipId)) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "그룹에 매핑된 slip 이 없습니다.");
+            }
+            return mapping;
+        }
+        List<DispatchVehicleGroupSlip> deletedCandidates =
+                slipMapRepo.findDeletedByVehicleGroupIdAndSlipId(vehicleGroupId, slipId);
+        if (deletedCandidates.size() > 1) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "삭제된 전표 매핑이 여러 건입니다 — 상세 행의 복원 버튼으로 복원하세요.");
+        }
+        return deletedCandidates.isEmpty()
+                ? slipMapRepo.findByVehicleGroupIdAndSlipIdIncludingDeleted(vehicleGroupId, slipId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                                "그룹에 매핑된 slip 이 없습니다."))
+                : deletedCandidates.get(0);
     }
 
     /**
@@ -468,6 +496,7 @@ public class DispatchTaskService {
         if (UUID_PATTERN.matcher(trimmed).matches()) {
             return null;
         }
-        return trimmed;
+        // deleted_by_name 컬럼 길이(100) 초과 시 INSERT 500(value too long) 방지 — UUID 널처리와 동일 방어계층.
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 }

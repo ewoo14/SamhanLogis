@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DELETED_ROW_TEXT_STYLE,
   activeSlipRows,
   activeVehicleGroups,
   deletedBadgeAriaLabel,
@@ -63,5 +64,12 @@ describe('dispatchDeletedRow 파생 유틸', () => {
   it('deletedBadgeAriaLabel 은 삭제자와 삭제 시각을 함께 제공한다', () => {
     expect(deletedBadgeAriaLabel('홍길동', '2026-07-02T10:20:00')).toContain('삭제: 홍길동 · 삭제 시각:')
     expect(deletedBadgeAriaLabel(null, null)).toBe('삭제됨')
+  })
+
+  it('삭제행 텍스트는 배차 상태별 배경에서 WCAG AA 대비를 만족하는 neutral-600 을 사용한다', () => {
+    expect(DELETED_ROW_TEXT_STYLE).toMatchObject({
+      textDecoration: 'line-through',
+      color: 'var(--color-neutral-600)',
+    })
   })
 })

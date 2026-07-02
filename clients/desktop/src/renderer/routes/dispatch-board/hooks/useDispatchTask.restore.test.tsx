@@ -77,11 +77,11 @@ describe('dispatch restore mutations', () => {
     )
 
     await act(async () => {
-      await restore!.mutateAsync({ groupId: 'group-1', slipId: 'slip-1' })
+      await restore!.mutateAsync({ groupId: 'group-1', slipId: 'slip-1', mappingId: 'mapping-1' })
     })
 
     await waitFor(() =>
-      expect(apiMocks.restoreSlipFromGroup).toHaveBeenCalledWith('task-1', 'group-1', 'slip-1'),
+      expect(apiMocks.restoreSlipFromGroup).toHaveBeenCalledWith('task-1', 'group-1', 'slip-1', 'mapping-1'),
     )
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: dispatchTaskQueryKey('task-1') })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: DISPATCH_BOARD_QUERY_KEY })

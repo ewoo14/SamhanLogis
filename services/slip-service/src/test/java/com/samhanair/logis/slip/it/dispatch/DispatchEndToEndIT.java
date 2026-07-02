@@ -243,8 +243,32 @@ class DispatchEndToEndIT extends AbstractPostgresIT {
 
         // 복원 강행 시 (vehicle_group_id, slip_id) 활성 unique 위반 — 409 로 차단되어야 한다.
         assertThatThrownBy(() -> taskService.restoreSlipFromGroup(
-                task.getId(), group.getId(), slip.getId(), "ewoo", "복원자"))
+                task.getId(), group.getId(), slip.getId(), null, "ewoo", "복원자"))
                 .hasMessageContaining("이미 활성 배차 매핑이 있는 전표입니다");
+    }
+
+    @Test
+    void restore_slip_with_mapping_id_restores_selected_tombstone_leaving_others() {
+        DispatchTask task = taskService.createTask(LocalDate.of(2099, 7, 6));
+        var group = taskService.addVehicleGroup(task.getId(), DispatchVehicleType.TONNAGE_1);
+        Slip slip = slipRepo.save(newSlip(14));
+        // 제거→재추가→재제거 = 같은 (그룹,전표)에 삭제 tombstone 2건.
+        UUID firstMappingId = taskService.assignSlip(task.getId(), group.getId(), slip.getId()).getId();
+        taskService.removeSlipFromGroup(group.getId(), slip.getId(), "ewoo", "홍길동");
+        UUID secondMappingId = taskService.assignSlip(task.getId(), group.getId(), slip.getId()).getId();
+        taskService.removeSlipFromGroup(group.getId(), slip.getId(), "ewoo", "홍길동");
+
+        // mappingId 없이 복원 = 다건 tombstone 이라 임의 복원 대신 409.
+        assertThatThrownBy(() -> taskService.restoreSlipFromGroup(
+                task.getId(), group.getId(), slip.getId(), null, "ewoo", "복원자"))
+                .hasMessageContaining("삭제된 전표 매핑이 여러 건입니다");
+
+        // mappingId 로 두 번째 tombstone 지정 복원 = native findByIdIncludingDeleted 실 PG 검증.
+        taskService.restoreSlipFromGroup(
+                task.getId(), group.getId(), slip.getId(), secondMappingId, "ewoo", "복원자");
+
+        assertThat(slipMapRepo.findByIdIncludingDeleted(secondMappingId).orElseThrow().getIsDeleted()).isFalse();
+        assertThat(slipMapRepo.findByIdIncludingDeleted(firstMappingId).orElseThrow().getIsDeleted()).isTrue();
     }
 
     @Test

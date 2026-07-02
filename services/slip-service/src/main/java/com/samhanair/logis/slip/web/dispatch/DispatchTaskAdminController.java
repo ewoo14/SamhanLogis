@@ -278,6 +278,8 @@ public class DispatchTaskAdminController {
      * 삭제된 그룹-전표 매핑 1건 복원.
      *
      * <p>{@code dispatch.board} RESTORE 권한과 기존 EDIT 동적 가드를 함께 적용한다.
+     * 같은 (그룹,전표)에 삭제 tombstone 이 여러 건이면(제거→재추가→재제거) {@code mappingId} 쿼리
+     * 파라미터로 상세의 특정 행을 지정한다(미지정 시 단건 tombstone 복원).
      */
     @Operation(summary = "그룹 전표 매핑 복원")
     @PostMapping("/{taskId}/vehicle-groups/{groupId}/slips/{slipId}/restore")
@@ -286,11 +288,12 @@ public class DispatchTaskAdminController {
     public void restoreSlip(@PathVariable UUID taskId,
                             @PathVariable UUID groupId,
                             @PathVariable UUID slipId,
+                            @RequestParam(value = "mappingId", required = false) UUID mappingId,
                             @RequestHeader(value = "X-User-Id", required = false) String actor,
                             @RequestHeader(value = "X-User-Name", required = false) String callerName,
                             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
         checkEditPermission(roleHeader);
-        taskService.restoreSlipFromGroup(taskId, groupId, slipId, actor != null ? actor : "system", callerName);
+        taskService.restoreSlipFromGroup(taskId, groupId, slipId, mappingId, actor != null ? actor : "system", callerName);
     }
 
     /**
