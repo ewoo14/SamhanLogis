@@ -13,17 +13,22 @@
 
 미배차 풀 노출 조건은 `status=COMPLETED + 검수 서명`(SlipRepository.findDispatchReadyOutboundSlips)인데, 라이브 DB의 미배차 실전표 2건이 모두 검수 전 상태(PROCESSING/DRAFT)라 풀이 0건이었다. 검수완료 업무 플로우(결재→창고이관→검수서명) 전체 재현은 본 QA 범위 밖이므로, **기존 실전표 `2026/06/24-902` 1건을 psql 로 COMPLETED+검수서명 상태로 전이**해 풀에 노출시켰다(화면·API 는 전부 실물 — 시드 준비만 DB 직접). 이후 모든 조작(배정·삭제·복원)은 **실 GUI 버튼 → 실 게이트웨이 → 실 slip-service** 경로다.
 
-## 단계별 캡처 (실사용자 화면)
+## 단계별 캡처 (실사용자 화면 — Codex 라운드 fix 반영본, 2026-07-02 재캡처)
 
-| # | 파일 | 검증 |
-|---|---|---|
-| 01 | `01-board-initial.png` | dev_master 로그인·배차 보드 진입 |
-| 02 | `02-group-with-active-slip.png` | 신규 그룹(카고 1톤 #3) + 실전표 `2026/06/24-902` 활성 배정 (1건) |
-| 03 | `03-slip-removed-strikethrough-badge.png` | **전표 제거 → 취소선 + `삭제: [DEV-SEED] 개발마스터` 배지 + [복원] 버튼** — X-User-Name 실전파→resolveActorName→deleted_by_name 저장→화면 표시 전 경로 실증. 카운트 (0건)=활성 기준. 미배차 풀 복귀 |
-| 04 | `04-slip-restored-active.png` | 전표 [복원] → 취소선 소멸·활성 복귀 |
-| 05 | `05-group-deleted-strikethrough-badge.png` | 전표 재제거 후 **그룹 삭제 → 그룹 헤더 취소선+배지+[복원]**, 죽은 × 미노출, opacity 페이드 없는 시각 처리(fix 반영) |
-| 06 | `06-group-restored-individual-tombstone-kept.png` | **그룹 복원 — 개별 삭제된 전표 매핑은 부활하지 않고 취소선 잔존** = 공유 deletedAt **등호 매칭**(±2초 창 제거)의 GUI 실증 |
-| 07 | `07-final-all-restored.png` | 전표 단건 복원 → 전체 활성 복귀 |
+> 1차 캡처(풀페이지 7장)는 상태 변화가 우측 카드 한 장에 몰려 "전부 똑같은 스샷"이 되는
+> 문제(개발책임자 지적)가 있어, 02~06 을 **대상 카드 클로즈업**으로 재설계해 재캡처했다.
+> 재캡처 전 이전 QA 실행들이 남긴 잔재 그룹 9건(tombstone/활성 sequence 중복 — testid 충돌
+> 원인)을 오늘 DRAFT 한정 psql 정리(정직 기록 — QA 부산물 청소).
+
+| # | 파일 | 프레임 | 검증 |
+|---|---|---|---|
+| 01 | `01-board-initial.png` | 전체 | dev_master 로그인·배차 보드 진입 컨텍스트 |
+| 02 | `02-closeup-active-slip-in-group.png` | 카드 CU | 신규 그룹 + 실전표 `2026/06/24-902` 활성 배정 — 취소선 없음(기준선) |
+| 03 | `03-closeup-slip-strikethrough-badge.png` | 카드 CU | **전표 제거 → 행 취소선 + `삭제: [DEV-SEED] 개발마스터` 배지 + [복원]** (그룹 헤더는 활성). X-User-Name 실전파→deleted_by_name 저장 전 경로 실증. 카운트 (0건)=활성 기준 |
+| 04 | `04-closeup-slip-restored-active.png` | 카드 CU | 전표 [복원] → 취소선·배지 소멸(02 와 동일 상태로 복귀하는 것이 정상 — 03→04 대비가 증명) |
+| 05 | `05-closeup-group-strikethrough-badge.png` | 카드 CU | 전표 재제거 후 **그룹 삭제 → 그룹 헤더까지 취소선+배지+[복원]** (03 과 명확 대비 — 헤더 상태) |
+| 06 | `06-closeup-group-restored-tombstone-kept.png` | 카드 CU | **그룹 복원 → 헤더 활성 복귀, 개별 삭제된 전표 행만 취소선 잔존** = 공유 deletedAt **등호 매칭**의 GUI 실증(05 와 헤더 대비. 03 과 동일 상태로 보이는 것이 정상 — 증명은 05→06 전이) |
+| 07 | `07-final-all-restored.png` | 전체 | 전표 단건 복원 → 전체 활성 종료 컨텍스트 |
 
 ## 스펙 내 단언 (스샷 외 자동 검증)
 

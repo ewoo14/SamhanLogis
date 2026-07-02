@@ -110,7 +110,7 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   await page.getByTestId(g('slip-add')).click()
   await expect(slipInGroup()).toBeVisible({ timeout: 10000 })
   await page.waitForTimeout(600)
-  await capture(page, 'group-with-active-slip')
+  await captureCard(page, groupSeq, 'closeup-active-slip-in-group')
 
   // (3) 전표 제거 → 취소선 + "삭제: {이름}" 배지 + 복원 버튼 (영구 노출).
   await slipInGroup('remove').click()
@@ -123,14 +123,15 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   expect(slipLabelDecoration).toContain('line-through')
   await expect(slipInGroup('restore')).toBeVisible()
   await page.waitForTimeout(400)
-  await capture(page, 'slip-removed-strikethrough-badge')
+  await captureCard(page, groupSeq, 'closeup-slip-strikethrough-badge')
 
-  // (4) 전표 복원 → 활성 복귀(취소선 소멸).
+  // (4) 전표 복원 → 활성 복귀(취소선 소멸). ※ 02 컷과 동일 상태로 보이는 것이 정상 —
+  //     복원 = 원상복구이므로. 증명력은 03(취소선) → 04(소멸) 순서 대비에 있다.
   await slipInGroup('restore').click()
   await expect(slipInGroup('deleted-badge')).toHaveCount(0, { timeout: 10000 })
   await expect(slipInGroup()).toBeVisible()
   await page.waitForTimeout(500)
-  await capture(page, 'slip-restored-active')
+  await captureCard(page, groupSeq, 'closeup-slip-restored-active')
 
   // (5) 전표 재제거 후 그룹 삭제(활성 0) → 그룹 취소선+배지.
   await slipInGroup('remove').click()
@@ -141,7 +142,7 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   expect(groupBadgeText).toContain('삭제')
   await expect(page.getByTestId(g('restore'))).toBeVisible()
   await page.waitForTimeout(400)
-  await capture(page, 'group-deleted-strikethrough-badge')
+  await captureCard(page, groupSeq, 'closeup-group-strikethrough-badge')
 
   // (6) 그룹 복원 — 개별 삭제된 전표 매핑은 공유 deletedAt 등호 매칭에 걸리지 않아
   //     cascade 부활하지 않고 취소선 잔존해야 한다(±2초 창 제거 검증).
@@ -149,7 +150,8 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   await expect(page.getByTestId(g('deleted-badge'))).toHaveCount(0, { timeout: 10000 })
   await expect(slipInGroup('deleted-badge')).toBeVisible()
   await page.waitForTimeout(500)
-  await capture(page, 'group-restored-individual-tombstone-kept')
+  // 05(그룹 헤더 취소선) 와의 대비가 증명 — 헤더는 활성 복귀, 행 취소선만 잔존.
+  await captureCard(page, groupSeq, 'closeup-group-restored-tombstone-kept')
 
   // (7) 전표 단건 복원 → 최종 전체 활성.
   await slipInGroup('restore').click()
