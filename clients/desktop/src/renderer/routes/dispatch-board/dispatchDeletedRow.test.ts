@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   activeSlipRows,
   activeVehicleGroups,
+  deletedBadgeAriaLabel,
   deletedAtTooltip,
   deletedBadgeLabel,
 } from './dispatchDeletedRow'
@@ -57,5 +58,10 @@ describe('dispatchDeletedRow 파생 유틸', () => {
     expect(deletedAtTooltip(null)).toBeUndefined()
     expect(deletedAtTooltip('not-a-date')).toBeUndefined()
     expect(deletedAtTooltip('2026-07-02T10:20:00')).toContain('삭제 시각:')
+  })
+
+  it('deletedBadgeAriaLabel 은 삭제자와 삭제 시각을 함께 제공한다', () => {
+    expect(deletedBadgeAriaLabel('홍길동', '2026-07-02T10:20:00')).toContain('삭제: 홍길동 · 삭제 시각:')
+    expect(deletedBadgeAriaLabel(null, null)).toBe('삭제됨')
   })
 })

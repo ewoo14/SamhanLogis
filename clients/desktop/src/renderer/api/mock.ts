@@ -8491,7 +8491,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return mockError(400, 'INVALID_INPUT', '허용되지 않은 차종/톤수 조합')
     }
 
-    const sequence = task.vehicleGroups.length + 1
+    const sequence = nextMockDispatchVehicleGroupSequence(task)
     const vehicleType = mockDeriveLegacyVehicleType(vehicleBodyType, tonnage)
     const created: DispatchVehicleGroupResponse = {
       id: `33333333-dddd-4ddd-8ddd-${String(mockDispatchVehicleGroupCreateSequence++).padStart(12, '0')}`,
@@ -8715,26 +8715,27 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const body = parseMockBody(config) as { groupIds?: string[] }
     const groupIds = Array.isArray(body.groupIds) ? body.groupIds : undefined
     window.__SAMHAN_MOCK_LAST_DISPATCH_BODY__ = groupIds ? { groupIds } : {}
+    const activeGroups = task.vehicleGroups.filter((group) => group.isDeleted !== true)
     // Round C P1-2 BE parity — 발송 이력이 있는 task 의 추가 부분발송 명시 차단 (D-DMR-06).
-    if (task.vehicleGroups.some((group) => group.dispatchStatus !== 'PENDING')) {
+    if (activeGroups.some((group) => group.dispatchStatus !== 'PENDING')) {
       return mockError(409, 'CONFLICT', '이미 아로로지스로 발송된 배차입니다 — 수정하려면 [재배차 시작] 후 전체 재발송하세요')
     }
     if (task.status !== 'DRAFT') {
       return mockError(409, 'CONFLICT', `발송 가능한 미발송 차량 그룹이 없습니다 — 현재=${task.status}`)
     }
-    const targetGroupIds = new Set(groupIds ?? task.vehicleGroups.map((group) => group.id))
-    const targetGroups = task.vehicleGroups
+    const targetGroupIds = new Set(groupIds ?? activeGroups.map((group) => group.id))
+    const targetGroups = activeGroups
       .filter((group) => targetGroupIds.has(group.id) && group.dispatchStatus === 'PENDING')
     if (targetGroups.length === 0) {
       return mockError(400, 'INVALID_INPUT', '발송할 미발송 차량 그룹이 없습니다.')
     }
     targetGroups.forEach((group) => {
       group.dispatchStatus = 'DISPATCHED'
-      group.slips.forEach((row) => {
+      group.slips.filter((row) => row.isDeleted !== true).forEach((row) => {
         row.slip.dispatchStatus = 'DISPATCHING'
       })
     })
-    task.status = task.vehicleGroups.every((group) => group.dispatchStatus === 'DISPATCHED')
+    task.status = activeGroups.every((group) => group.dispatchStatus === 'DISPATCHED')
       ? 'DISPATCHING'
       : 'DRAFT'
     refreshMockDuplicateSlipIds(task)
@@ -13991,6 +13992,12 @@ function restoreMockDispatchVehicleGroup(group: DispatchVehicleGroupResponse): v
   // BE cascade 동형 — 그룹 삭제 시 주입된 공유 deletedAt 등호 매칭 행만 함께 복원한다
   // (같은 사용자가 개별 삭제한 행은 deletedAt 이 달라 잔존). 취소선 기간 중 다른 그룹에
   // 재배정되어 활성 매핑이 있는 전표도 이중 배차 방지를 위해 복원에서 제외.
+  const task = MOCK_DISPATCH_TASK_DETAILS.find((item) =>
+    item.vehicleGroups.some((candidate) => candidate.id === group.id))
+  if (task?.vehicleGroups.some((candidate) =>
+    candidate.id !== group.id && candidate.isDeleted !== true && candidate.sequence === group.sequence)) {
+    group.sequence = nextMockDispatchVehicleGroupSequence(task)
+  }
   const cascadeDeletedAt = group.deletedAt
   group.isDeleted = false
   group.deletedAt = null
@@ -14004,6 +14011,15 @@ function restoreMockDispatchVehicleGroup(group: DispatchVehicleGroupResponse): v
     if (activeElsewhere) return
     restoreMockDispatchGroupSlip(row)
   })
+}
+
+function nextMockDispatchVehicleGroupSequence(task: DispatchTaskResponse): number {
+  return Math.max(
+    0,
+    ...task.vehicleGroups
+      .filter((group) => group.isDeleted !== true)
+      .map((group) => group.sequence),
+  ) + 1
 }
 
 /**
@@ -14039,10 +14055,17 @@ function sortMockDispatchDeletedRows(task: DispatchTaskResponse): void {
 function syncMockDispatchTaskSummary(task: DispatchTaskResponse): void {
   const summary = MOCK_DISPATCH_TASK_SUMMARIES.find((row) => row.taskCode === task.taskCode)
   if (!summary) return
+  const activeGroups = task.vehicleGroups.filter((group) => group.isDeleted !== true)
+  const activeSlips = activeGroups.flatMap((group) =>
+    group.slips.filter((row) => row.isDeleted !== true))
+  const partnerNames = Array.from(new Set(activeSlips.map((row) => row.slip.partnerName)))
+  const head = partnerNames.slice(0, 3).join(', ')
+  const rest = partnerNames.length - 3
   summary.status = task.status
   summary.arologisDispatchId = task.arologisDispatchId
-  summary.vehicleGroupCount = task.vehicleGroups.length
-  summary.slipCount = task.vehicleGroups.reduce((sum, group) => sum + group.slips.length, 0)
+  summary.vehicleGroupCount = activeGroups.length
+  summary.slipCount = activeSlips.length
+  summary.partnerNames = rest > 0 ? `${head} +${rest}` : head
   summary.driverCount = task.matchedDrivers.length
 }
 
@@ -14242,7 +14265,8 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
 ]
 
 const MOCK_DISPATCH_TASK_SUMMARIES: DispatchTaskSummaryResponse[] = MOCK_DISPATCH_TASK_DETAILS.map((task) => {
-  const slips = task.vehicleGroups.flatMap((group) => group.slips)
+  const activeGroups = task.vehicleGroups.filter((group) => group.isDeleted !== true)
+  const slips = activeGroups.flatMap((group) => group.slips.filter((row) => row.isDeleted !== true))
   const partnerNames = Array.from(new Set(slips.map((row) => row.slip.partnerName)))
   const head = partnerNames.slice(0, 3).join(', ')
   const rest = partnerNames.length - 3
@@ -14251,7 +14275,7 @@ const MOCK_DISPATCH_TASK_SUMMARIES: DispatchTaskSummaryResponse[] = MOCK_DISPATC
     taskCode: task.taskCode,
     dispatchDate: task.dispatchDate,
     status: task.status,
-    vehicleGroupCount: task.vehicleGroups.length,
+    vehicleGroupCount: activeGroups.length,
     slipCount: slips.length,
     partnerNames: rest > 0 ? `${head} +${rest}` : head,
     driverCount: task.matchedDrivers.length,

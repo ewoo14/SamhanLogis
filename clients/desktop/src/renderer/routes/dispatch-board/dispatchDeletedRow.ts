@@ -35,6 +35,16 @@ export function deletedAtTooltip(deletedAt: string | null | undefined): string |
   return `삭제 시각: ${parsed.toLocaleString('ko-KR')}`
 }
 
+/** 삭제 배지의 접근성 라벨 — hover title 에만 의존하지 않고 삭제 시각을 보조기술에 제공한다. */
+export function deletedBadgeAriaLabel(
+  deletedByName: string | null | undefined,
+  deletedAt: string | null | undefined,
+): string {
+  const label = deletedBadgeLabel(deletedByName)
+  const tooltip = deletedAtTooltip(deletedAt)
+  return tooltip ? `${label} · ${tooltip}` : label
+}
+
 /** 그룹의 활성(비삭제) 전표 매핑. */
 export function activeSlipRows(
   group: Pick<DispatchVehicleGroupResponse, 'slips'>,

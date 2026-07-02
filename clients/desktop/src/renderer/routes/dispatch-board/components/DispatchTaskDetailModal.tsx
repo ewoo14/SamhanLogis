@@ -41,6 +41,7 @@ import {
   DELETED_ROW_TEXT_STYLE,
   activeSlipRows,
   activeVehicleGroups,
+  deletedBadgeAriaLabel,
   deletedAtTooltip,
   deletedBadgeLabel,
 } from '../dispatchDeletedRow'
@@ -660,6 +661,7 @@ export function DispatchTaskDetailModal({
                           background: 'var(--color-neutral-50)',
                           display: 'flex',
                           alignItems: 'center',
+                          flexWrap: 'wrap',
                           gap: 8,
                           fontSize: 12,
                           fontWeight: 600,
@@ -667,7 +669,11 @@ export function DispatchTaskDetailModal({
                       >
                         <span
                           data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-label`}
-                          style={groupDeleted ? DELETED_ROW_TEXT_STYLE : undefined}
+                          style={{
+                            minWidth: 0,
+                            overflowWrap: 'anywhere',
+                            ...(groupDeleted ? DELETED_ROW_TEXT_STYLE : null),
+                          }}
                         >
                           {vehicleLabel} #{g.sequence}
                         </span>
@@ -700,6 +706,7 @@ export function DispatchTaskDetailModal({
                           <Badge
                             variant="neutral"
                             title={deletedAtTooltip(g.deletedAt)}
+                            aria-label={deletedBadgeAriaLabel(g.deletedByName, g.deletedAt)}
                             data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-badge`}
                           >
                             {deletedBadgeLabel(g.deletedByName)}
@@ -711,6 +718,8 @@ export function DispatchTaskDetailModal({
                               marginLeft: 'auto',
                               fontSize: 11,
                               color: 'var(--color-success-700, #047857)',
+                              minWidth: 0,
+                              overflowWrap: 'anywhere',
                             }}
                           >
                             기사 {matched.driverName} ({matchedDriverCodeLabel}){' '}
@@ -822,6 +831,7 @@ export function DispatchTaskDetailModal({
                                   <Badge
                                     variant="neutral"
                                     title={deletedAtTooltip(row.deletedAt)}
+                                    aria-label={deletedBadgeAriaLabel(row.deletedByName, row.deletedAt)}
                                     data-testid={`dispatch-task-detail-slip-${row.slip.slipNo}-deleted-badge`}
                                   >
                                     {deletedBadgeLabel(row.deletedByName)}

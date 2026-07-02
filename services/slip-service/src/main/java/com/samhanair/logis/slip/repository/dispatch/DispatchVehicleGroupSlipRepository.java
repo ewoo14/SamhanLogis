@@ -51,6 +51,24 @@ public interface DispatchVehicleGroupSlipRepository extends JpaRepository<Dispat
             @Param("slipId") UUID slipId);
 
     /**
+     * 그룹+전표 기준 삭제 tombstone 후보 전체를 최신 삭제순으로 조회한다.
+     *
+     * <p>활성 partial unique 는 삭제행 중복을 막지 않으므로, 단건 복원 API 는 후보가 2건 이상이면
+     * 임의 행을 복원하지 않고 서비스에서 409 로 멈춘다.
+     */
+    @Query(value = """
+            SELECT *
+              FROM dispatch_vehicle_group_slip
+             WHERE vehicle_group_id = :vehicleGroupId
+               AND slip_id = :slipId
+               AND is_deleted = TRUE
+             ORDER BY deleted_at DESC NULLS LAST, id ASC
+            """, nativeQuery = true)
+    List<DispatchVehicleGroupSlip> findDeletedByVehicleGroupIdAndSlipId(
+            @Param("vehicleGroupId") UUID vehicleGroupId,
+            @Param("slipId") UUID slipId);
+
+    /**
      * 그룹 삭제 cascade 로 함께 삭제된 하위 매핑을 조회한다.
      *
      * <p>{@code removeVehicleGroup} 이 그룹과 하위 매핑 전체에 <b>동일한</b> {@code deleted_at} 을

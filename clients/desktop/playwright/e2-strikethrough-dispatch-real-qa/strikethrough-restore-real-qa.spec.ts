@@ -23,12 +23,25 @@ const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e2-strikethrough-dispa
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0
+/** 전체 화면 컨텍스트 컷 — 시작/종료 등 최소한만 사용한다. */
 async function capture(page: Page, name: string): Promise<void> {
   shotNo++
   await page.screenshot({
     path: path.join(SHOTS, `${String(shotNo).padStart(2, '0')}-${name}.png`),
     fullPage: false,
   })
+}
+
+/**
+ * 대상 차량그룹 카드 클로즈업 캡처 — 풀페이지에선 상태 변화가 카드 한 장에 몰려
+ * "전부 똑같은 스샷" 이 되므로(개발책임자 2026-07-02 지적), 각 단계는 카드 요소 단위로
+ * 잘라 변화(취소선/배지/복원버튼)가 이미지 대부분을 차지하게 한다.
+ */
+async function captureCard(page: Page, groupSeq: string, name: string): Promise<void> {
+  shotNo++
+  await page
+    .getByTestId(`dispatch-board-vehicle-group-${groupSeq}`)
+    .screenshot({ path: path.join(SHOTS, `${String(shotNo).padStart(2, '0')}-${name}.png`) })
 }
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }
@@ -82,6 +95,7 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   expect(newSelectId, '신규 그룹 미생성').toBeTruthy()
   const groupSeq = newSelectId!.replace('dispatch-board-vehicle-group-', '').replace('-select', '')
   const g = (suffix: string) => `dispatch-board-vehicle-group-${groupSeq}-${suffix}`
+  const groupCard = page.getByTestId(`dispatch-board-vehicle-group-${groupSeq}`)
 
   // (2) 미배차 풀 첫 전표를 전표번호로 배정 — 풀 필터를 과거로 넓혀 실 DB 미배차 전표를 노출.
   await page.getByTestId('dispatch-board-filter-from').fill('2026-06-01')
@@ -90,35 +104,37 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   const slipRowTestId = await firstSlipRow.getAttribute('data-testid')
   const slipNo = slipRowTestId!.replace('dispatch-board-slip-row-', '')
   const s = (suffix: string) => `dispatch-board-group-slip-${slipNo}-${suffix}`
+  const slipInGroup = (suffix?: string) =>
+    groupCard.getByTestId(suffix ? s(suffix) : `dispatch-board-group-slip-${slipNo}`)
   await page.getByTestId(g('slip-input')).fill(slipNo)
   await page.getByTestId(g('slip-add')).click()
-  await expect(page.getByTestId(`dispatch-board-group-slip-${slipNo}`)).toBeVisible({ timeout: 10000 })
+  await expect(slipInGroup()).toBeVisible({ timeout: 10000 })
   await page.waitForTimeout(600)
   await capture(page, 'group-with-active-slip')
 
   // (3) 전표 제거 → 취소선 + "삭제: {이름}" 배지 + 복원 버튼 (영구 노출).
-  await page.getByTestId(s('remove')).click()
-  await expect(page.getByTestId(s('deleted-badge'))).toBeVisible({ timeout: 10000 })
-  const slipBadgeText = await page.getByTestId(s('deleted-badge')).textContent()
+  await slipInGroup('remove').click()
+  await expect(slipInGroup('deleted-badge')).toBeVisible({ timeout: 10000 })
+  const slipBadgeText = await slipInGroup('deleted-badge').textContent()
   expect(slipBadgeText, 'X-User-Name 실전파 — 삭제자 이름 배지').toContain('삭제:')
-  const slipLabelDecoration = await page
-    .getByTestId(s('deleted-label'))
-    .evaluate((el) => getComputedStyle(el).textDecorationLine)
+  const slipLabelDecoration = await slipInGroup('deleted-label').evaluate(
+    (el) => getComputedStyle(el).textDecorationLine,
+  )
   expect(slipLabelDecoration).toContain('line-through')
-  await expect(page.getByTestId(s('restore'))).toBeVisible()
+  await expect(slipInGroup('restore')).toBeVisible()
   await page.waitForTimeout(400)
   await capture(page, 'slip-removed-strikethrough-badge')
 
   // (4) 전표 복원 → 활성 복귀(취소선 소멸).
-  await page.getByTestId(s('restore')).click()
-  await expect(page.getByTestId(s('deleted-badge'))).toHaveCount(0, { timeout: 10000 })
-  await expect(page.getByTestId(`dispatch-board-group-slip-${slipNo}`)).toBeVisible()
+  await slipInGroup('restore').click()
+  await expect(slipInGroup('deleted-badge')).toHaveCount(0, { timeout: 10000 })
+  await expect(slipInGroup()).toBeVisible()
   await page.waitForTimeout(500)
   await capture(page, 'slip-restored-active')
 
   // (5) 전표 재제거 후 그룹 삭제(활성 0) → 그룹 취소선+배지.
-  await page.getByTestId(s('remove')).click()
-  await expect(page.getByTestId(s('deleted-badge'))).toBeVisible({ timeout: 10000 })
+  await slipInGroup('remove').click()
+  await expect(slipInGroup('deleted-badge')).toBeVisible({ timeout: 10000 })
   await page.getByTestId(g('delete')).click()
   await expect(page.getByTestId(g('deleted-badge'))).toBeVisible({ timeout: 10000 })
   const groupBadgeText = await page.getByTestId(g('deleted-badge')).textContent()
@@ -131,20 +147,20 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   //     cascade 부활하지 않고 취소선 잔존해야 한다(±2초 창 제거 검증).
   await page.getByTestId(g('restore')).click()
   await expect(page.getByTestId(g('deleted-badge'))).toHaveCount(0, { timeout: 10000 })
-  await expect(page.getByTestId(s('deleted-badge'))).toBeVisible()
+  await expect(slipInGroup('deleted-badge')).toBeVisible()
   await page.waitForTimeout(500)
   await capture(page, 'group-restored-individual-tombstone-kept')
 
   // (7) 전표 단건 복원 → 최종 전체 활성.
-  await page.getByTestId(s('restore')).click()
-  await expect(page.getByTestId(s('deleted-badge'))).toHaveCount(0, { timeout: 10000 })
+  await slipInGroup('restore').click()
+  await expect(slipInGroup('deleted-badge')).toHaveCount(0, { timeout: 10000 })
   await page.waitForTimeout(500)
   await capture(page, 'final-all-restored')
 
   // 정리 — QA 그룹을 삭제 상태로 남기지 않고 전표 제거 + 그룹 삭제(soft)로 마무리하되,
   // 취소선 영구 노출 자체가 기능이므로 남는 tombstone 은 정상 데이터다.
-  await page.getByTestId(s('remove')).click()
-  await expect(page.getByTestId(s('deleted-badge'))).toBeVisible({ timeout: 10000 })
+  await slipInGroup('remove').click()
+  await expect(slipInGroup('deleted-badge')).toBeVisible({ timeout: 10000 })
   await page.getByTestId(g('delete')).click()
   await expect(page.getByTestId(g('deleted-badge'))).toBeVisible({ timeout: 10000 })
 })

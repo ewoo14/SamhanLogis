@@ -90,8 +90,9 @@ public class DispatchTaskService {
             DispatchVehicleBodyType vehicleBodyType,
             DispatchTonnage tonnage
     ) {
+        lockVehicleGroupSequence(dispatchTaskId);
         requireDraftTask(dispatchTaskId);
-        int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;
+        int nextSeq = nextVehicleGroupSequence(dispatchTaskId);
         DispatchVehicleGroup g;
         try {
             g = DispatchVehicleGroup.create(dispatchTaskId, nextSeq, vehicleBodyType, tonnage);
@@ -110,8 +111,9 @@ public class DispatchTaskService {
      * <p>기존 테스트/fixture 코드 호환용이다. 사용자-facing 신규 API 는 차종/톤수 2축을 받는다.
      */
     public DispatchVehicleGroup addVehicleGroup(UUID dispatchTaskId, DispatchVehicleType vehicleType) {
+        lockVehicleGroupSequence(dispatchTaskId);
         requireDraftTask(dispatchTaskId);
-        int nextSeq = groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId).size() + 1;
+        int nextSeq = nextVehicleGroupSequence(dispatchTaskId);
         DispatchVehicleGroup g = DispatchVehicleGroup.create(dispatchTaskId, nextSeq, vehicleType);
         DispatchVehicleGroup saved = groupRepo.save(g);
         publishBoardChanged("UPDATED");
@@ -140,7 +142,7 @@ public class DispatchTaskService {
 
     /** slip 을 그룹에 추가 — sequence 자동 증가 (현재 group 내 slip 개수 + 1). */
     public DispatchVehicleGroupSlip assignSlip(UUID dispatchTaskId, UUID vehicleGroupId, UUID slipId) {
-        lockNumberSeries("dispatch_slip_assign_" + slipId);
+        lockSlipAssignment(slipId);
         DispatchVehicleGroup group = findGroupOrThrow(vehicleGroupId);
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
@@ -244,6 +246,7 @@ public class DispatchTaskService {
         if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
         }
+        lockVehicleGroupSequence(dispatchTaskId);
         requireDraftTask(dispatchTaskId);
         if (!Boolean.TRUE.equals(group.getIsDeleted())) {
             return;
@@ -269,6 +272,11 @@ public class DispatchTaskService {
         List<DispatchVehicleGroupSlip> cascadeMappings = deletedAt == null || deletedBy == null
                 ? List.of()
                 : slipMapRepo.findDeletedCascadeMappings(vehicleGroupId, deletedBy, deletedAt);
+        cascadeMappings.stream()
+                .map(DispatchVehicleGroupSlip::getSlipId)
+                .distinct()
+                .sorted()
+                .forEach(this::lockSlipAssignment);
         List<DispatchVehicleGroupSlip> restorable = cascadeMappings.stream()
                 .filter(this::isMappingRestorable)
                 .toList();
@@ -312,11 +320,19 @@ public class DispatchTaskService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 발송된 차량 그룹의 전표는 복원할 수 없습니다.");
         }
+        lockSlipAssignment(slipId);
         requireDraftTask(dispatchTaskId);
-        DispatchVehicleGroupSlip mapping = slipMapRepo
-                .findByVehicleGroupIdAndSlipIdIncludingDeleted(vehicleGroupId, slipId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "그룹에 매핑된 slip 이 없습니다."));
+        List<DispatchVehicleGroupSlip> deletedCandidates =
+                slipMapRepo.findDeletedByVehicleGroupIdAndSlipId(vehicleGroupId, slipId);
+        if (deletedCandidates.size() > 1) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "삭제된 전표 매핑이 여러 건입니다 — 상세 행 기준 복원이 필요합니다.");
+        }
+        DispatchVehicleGroupSlip mapping = deletedCandidates.isEmpty()
+                ? slipMapRepo.findByVehicleGroupIdAndSlipIdIncludingDeleted(vehicleGroupId, slipId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                                "그룹에 매핑된 slip 이 없습니다."))
+                : deletedCandidates.get(0);
         if (!Boolean.TRUE.equals(mapping.getIsDeleted())) {
             return;
         }
@@ -353,6 +369,28 @@ public class DispatchTaskService {
         }
         Slip slip = slipRepo.findById(mapping.getSlipId()).orElse(null);
         return slip != null && slip.getDispatchStatus() == SlipDispatchStatus.UNDISPATCHED;
+    }
+
+    /**
+     * 차량 그룹 sequence 신규 채번.
+     *
+     * <p>삭제행 영구 보존 이후 활성 sequence 는 중간이 비어 있을 수 있다. 활성 개수+1 은
+     * {@code 1,3 -> 3} 처럼 기존 활성 row 와 충돌하므로 항상 활성 max+1 을 사용한다.
+     */
+    private int nextVehicleGroupSequence(UUID dispatchTaskId) {
+        return groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId)
+                .stream()
+                .mapToInt(DispatchVehicleGroup::getSequence)
+                .max()
+                .orElse(0) + 1;
+    }
+
+    private void lockVehicleGroupSequence(UUID dispatchTaskId) {
+        lockNumberSeries("dispatch_group_seq_" + dispatchTaskId);
+    }
+
+    private void lockSlipAssignment(UUID slipId) {
+        lockNumberSeries("dispatch_slip_assign_" + slipId);
     }
 
     /** 배차 목록 변경 발화 (커밋 후). changeType = CREATED/UPDATED/DELETED/STATUS_CHANGED/RESTORED. */

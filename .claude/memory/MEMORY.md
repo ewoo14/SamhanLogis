@@ -15,6 +15,7 @@
 
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md) — git commit·PR·Issue+대면 보고/대화/설명 한국어(prefix·trailer만 예외)
+- [PR 스샷 인라인=커밋 SHA 고정 URL](feedback_pr_screenshot_sha_pinned_urls.md) — 브랜치경로+push직후 게시=camo 하양 캐시("모두 하얀 화면"). full SHA 경로+curl 200, 하양이면 PATCH로 URL 치환 (2026-07-02 #700)
 - [PR 제목 [FEAT]/[FIX] 대괄호+대문자](feedback_pr_title_caps_bracket.md)
 - [권한 표기 풀네임](feedback_role_naming_full.md) — MASTER/MANAGER 풀네임, 약어 금지
 - [전표 용어 — 슬립 금지](feedback_jeonpyo_not_slip.md) — 한글 "전표"(슬립 금지), 영문 slipId는 별개

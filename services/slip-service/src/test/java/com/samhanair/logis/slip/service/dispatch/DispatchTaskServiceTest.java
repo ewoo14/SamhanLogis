@@ -78,6 +78,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void addVehicleGroup_assigns_next_sequence() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         when(taskRepo.findById(taskId)).thenReturn(
                 Optional.of(DispatchTask.create("2026/05/14-9", LocalDate.now())));
@@ -93,6 +94,23 @@ class DispatchTaskServiceTest {
         assertThat(added.getTonnage()).isEqualTo(DispatchTonnage.T_5);
         assertThat(added.getVehicleType()).isEqualTo(DispatchVehicleType.TONNAGE_5);
         verifyBoardChanged("UPDATED");
+    }
+
+    @Test
+    void addVehicleGroup_uses_max_sequence_plus_one_when_active_sequences_have_gap() {
+        stubAdvisoryLock();
+        UUID taskId = UUID.randomUUID();
+        when(taskRepo.findById(taskId)).thenReturn(
+                Optional.of(DispatchTask.create("2026/05/14-9", LocalDate.now())));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(
+                        DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1),
+                        DispatchVehicleGroup.create(taskId, 3, DispatchVehicleType.TONNAGE_1)));
+        when(groupRepo.save(any(DispatchVehicleGroup.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DispatchVehicleGroup added = svc.addVehicleGroup(taskId, DispatchVehicleType.TONNAGE_1);
+
+        assertThat(added.getSequence()).isEqualTo(4);
     }
 
     @Test
@@ -363,6 +381,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void restoreVehicleGroup_restores_group_and_cascade_deleted_mappings() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();
@@ -398,6 +417,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void restoreVehicleGroup_reassigns_sequence_when_taken_by_new_group() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         DispatchVehicleGroup group = DispatchVehicleGroup.create(
@@ -424,6 +444,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void restoreVehicleGroup_excludes_mappings_reassigned_elsewhere() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();
@@ -454,6 +475,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void restoreSlipFromGroup_restores_single_deleted_mapping() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();
@@ -465,8 +487,8 @@ class DispatchTaskServiceTest {
         when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.UNDISPATCHED);
         when(groupRepo.findByIdIncludingDeleted(groupId)).thenReturn(Optional.of(group));
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
-        when(slipMapRepo.findByVehicleGroupIdAndSlipIdIncludingDeleted(groupId, slipId))
-                .thenReturn(Optional.of(mapping));
+        when(slipMapRepo.findDeletedByVehicleGroupIdAndSlipId(groupId, slipId))
+                .thenReturn(List.of(mapping));
         when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId)).thenReturn(List.of());
         when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
         when(slipMapRepo.save(any(DispatchVehicleGroupSlip.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -481,6 +503,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void restoreSlipFromGroup_wrong_task_throws() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         DispatchVehicleGroup group = DispatchVehicleGroup.create(
@@ -495,6 +518,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void restoreSlipFromGroup_active_duplicate_throws_conflict() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();
@@ -504,8 +528,8 @@ class DispatchTaskServiceTest {
         tombstone.markDeletedWithName("deleter", "삭제자");
         when(groupRepo.findByIdIncludingDeleted(groupId)).thenReturn(Optional.of(group));
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
-        when(slipMapRepo.findByVehicleGroupIdAndSlipIdIncludingDeleted(groupId, slipId))
-                .thenReturn(Optional.of(tombstone));
+        when(slipMapRepo.findDeletedByVehicleGroupIdAndSlipId(groupId, slipId))
+                .thenReturn(List.of(tombstone));
         // 제거 후 같은 전표를 재추가해 활성 매핑이 이미 존재 — 복원 강행 시 활성 unique 위반.
         when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId))
                 .thenReturn(List.of(DispatchVehicleGroupSlip.create(groupId, slipId, 2)));
@@ -518,6 +542,7 @@ class DispatchTaskServiceTest {
 
     @Test
     void restoreSlipFromGroup_non_undispatched_slip_throws_conflict() {
+        stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
         UUID slipId = UUID.randomUUID();
@@ -529,14 +554,37 @@ class DispatchTaskServiceTest {
         when(slip.getDispatchStatus()).thenReturn(SlipDispatchStatus.DISPATCHING);
         when(groupRepo.findByIdIncludingDeleted(groupId)).thenReturn(Optional.of(group));
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
-        when(slipMapRepo.findByVehicleGroupIdAndSlipIdIncludingDeleted(groupId, slipId))
-                .thenReturn(Optional.of(tombstone));
+        when(slipMapRepo.findDeletedByVehicleGroupIdAndSlipId(groupId, slipId))
+                .thenReturn(List.of(tombstone));
         when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId)).thenReturn(List.of());
         when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
 
         assertThatThrownBy(() -> svc.restoreSlipFromGroup(taskId, groupId, slipId, "restorer", "복원자"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("미배차 전표만 복원할 수 있습니다");
+        verify(slipMapRepo, never()).save(any());
+    }
+
+    @Test
+    void restoreSlipFromGroup_duplicate_tombstones_throw_conflict() {
+        stubAdvisoryLock();
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        DispatchVehicleGroupSlip first = DispatchVehicleGroupSlip.create(groupId, slipId, 1);
+        DispatchVehicleGroupSlip second = DispatchVehicleGroupSlip.create(groupId, slipId, 2);
+        first.markDeletedWithName("deleter", "삭제자");
+        second.markDeletedWithName("deleter", "삭제자");
+        when(groupRepo.findByIdIncludingDeleted(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
+        when(slipMapRepo.findDeletedByVehicleGroupIdAndSlipId(groupId, slipId))
+                .thenReturn(List.of(first, second));
+
+        assertThatThrownBy(() -> svc.restoreSlipFromGroup(taskId, groupId, slipId, "restorer", "복원자"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("삭제된 전표 매핑이 여러 건입니다");
         verify(slipMapRepo, never()).save(any());
     }
 

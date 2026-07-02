@@ -41,6 +41,7 @@ import {
 import {
   DELETED_ROW_TEXT_STYLE,
   activeSlipRows,
+  deletedBadgeAriaLabel,
   deletedAtTooltip,
   deletedBadgeLabel,
 } from '../dispatchDeletedRow'
@@ -227,6 +228,7 @@ export function VehicleGroupCard({
           <Badge
             variant="neutral"
             title={deletedAtTooltip(group.deletedAt)}
+            aria-label={deletedBadgeAriaLabel(group.deletedByName, group.deletedAt)}
             data-testid={`dispatch-board-vehicle-group-${group.sequence}-deleted-badge`}
           >
             {deletedBadgeLabel(group.deletedByName)}
@@ -571,6 +573,7 @@ function SortableSlipRow({
         <Badge
           variant="neutral"
           title={deletedAtTooltip(row.deletedAt)}
+          aria-label={deletedBadgeAriaLabel(row.deletedByName, row.deletedAt)}
           data-testid={`dispatch-board-group-slip-${row.slip.slipNo}-deleted-badge`}
         >
           {deletedBadgeLabel(row.deletedByName)}
