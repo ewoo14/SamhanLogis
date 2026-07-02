@@ -246,11 +246,11 @@ test.describe('§7 입출고전표 협업 패널', () => {
 
     await inlineForm.getByLabel('거래처', { exact: true }).fill('한일냉동기술 S2a')
     await inlineForm.getByLabel('수량 1').fill('3')
-    await inlineForm.getByLabel('단가 1').fill('120000')
+    await inlineForm.getByLabel('단가(VAT제외) 1').fill('120000')
 
     await expect(inlineForm.getByLabel('거래처', { exact: true })).toHaveValue('한일냉동기술 S2a')
     await expect(inlineForm.getByLabel('수량 1')).toHaveValue('3')
-    await expect(inlineForm.getByLabel('단가 1')).toHaveValue('120000')
+    await expect(inlineForm.getByLabel('단가(VAT제외) 1')).toHaveValue('120000')
     await expect(inlineForm).not.toContainText(DRAFT_SLIP_ID)
   })
 })

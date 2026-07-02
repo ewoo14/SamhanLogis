@@ -470,7 +470,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     const el = salesEditFormRef.current
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    el.querySelector<HTMLElement>('input, textarea, [contenteditable="true"]')?.focus?.()
+    // readonly(판매번호)·disabled 는 건너뛰고 첫 편집 가능 필드에 포커스(Codex 라운드 MED).
+    el.querySelector<HTMLElement>(
+      'input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), [contenteditable="true"]',
+    )?.focus?.()
   }, [salesEditOpen, mode])
   // §7 협업 수정완료: 확정/완료 전표도 물리 종결 전이면 overlay 필드 편집 가능.
   const [collabEditMode, setCollabEditMode] = useState(false)
@@ -1545,7 +1548,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     min={0}
                     value={String(line.unitPrice)}
                     onValueChange={(value) => updateSalesLine(index, { unitPrice: value })}
-                    aria-label={`단가 ${index + 1}`}
+                    aria-label={`단가(VAT제외) ${index + 1}`}
                   />
                 </td>
                 <td className="td-right">
