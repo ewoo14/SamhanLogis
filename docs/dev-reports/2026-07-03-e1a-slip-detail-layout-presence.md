@@ -18,6 +18,10 @@
 - **[LOW·Design]** 헤더 pill 3종 `alignItems:'baseline'`→`'center'`. **[NIT·FE]** presence 제거로 패널 헤더 dead `justifyContent` 정리.
 - **fast-follow(백로그)**: 모바일 "버전 이력/수정 이력" 제목이 패널 내부 + 별도 블록으로 2회 노출(pre-existing, A/C 스코프 밖) — 라벨 구분 또는 두 이력 시스템 통합 후속. presence `+N` Badge lg 미확대(>3명 희소).
 
+## Codex 라운드 + Opus 재검 (0수렴)
+- **Codex 라운드**(`226400c0f`): 5차원 BLOCKING/HIGH 0. Design HIGH 1건 Codex 직접 fix — `PresenceIndicator` 루트 flex 에 `flexWrap/rowGap/maxWidth:100%/minWidth:0`(모바일 **다중 시청자**(3+) 시 인디케이터 내부 칩 wrap, Opus 라운드1 헤더행 flexWrap[칩 전체 새 줄]과 상보) + 다중 시청자 wrap 회귀테스트.
+- **Opus 재검**(`226400c0f`): FE/BE/Design/DevOps 4차원 전부 **BLOCKING/HIGH 0·새 fix 0** → **0수렴 확정**. CI **28/28 green**(Desktop Playwright mock hard-gate 포함; 3커밋 히스토리 `5893560c0` FAIL→`7003793a6` SUCCESS[라운드1 fix]→`226400c0f` SUCCESS 로 BLOCKING 해소·미재퇴행 교차검증). 잔여 MED/LOW/NIT(모바일 이력 중복·리렌더 반경·+N badge·refetch 실패 게이팅 엣지)는 전부 pre-existing·비차단 백로그.
+
 ## 검증
 - `npm run typecheck`(node+web) 통과 · vitest collab **8파일/34** 통과 · 전체 vitest 73파일/509(FE agent) · **slip-collab-panel Playwright 5/5**(BLOCKING fix 실증).
 - **라이브 GUI QA**(real-qa `e1a-slip-detail-real-qa`, mock OFF·:8080·dev_master·실 슬립 2026/06/27-3): `docs/qa/e1a-slip-detail-layout/` — desktop 상단 presence lg + 최하단 협업/이력 + fullpage, 모바일 상단 presence(flexWrap 2행)+fullpage.
