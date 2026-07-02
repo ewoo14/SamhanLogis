@@ -271,7 +271,7 @@ export function SlipCollaborationPanel({
   return (
     <section data-testid="slip-collaboration-panel" style={{ marginTop: 24 }}>
       <Card padding={4} shadow="sm">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+        <div style={{ marginBottom: 16 }}>
           <h4 style={{ margin: 0 }}>협업</h4>
         </div>
 

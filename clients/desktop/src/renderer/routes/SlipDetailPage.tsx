@@ -387,7 +387,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const isMobile = useIsMobile()
   const isOutbound = mode === 'OUTBOUND'
   const listPath = isOutbound ? '/sales' : '/purchases'
-  const presenceEntries = usePresence({ entityId: id, enabled: !!id })
 
   const [rejectReason, setRejectReason] = useState('')
   /** 좌측 넘버링 클릭으로 선택된 라인 ID — 선택 시 상단 툴바 표시 (단일 선택, 행 편집용). */
@@ -472,6 +471,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     enabled: !!id,
   })
   const { refetch: refetchDetail } = detailQuery
+  // presence(보는 사람) — detailQuery 성공(조회권한+존재) 이후에만 join.
+  // enabled 가 !!id 뿐이면 로딩/에러(404/403) 상태에서도 join+heartbeat 유지되어
+  // 본인은 화면서 못 보는데 동료 목록엔 "보는 중"으로 잡힘(리뷰 라운드1 FE HIGH/BE LOW).
+  const presenceEntries = usePresence({ entityId: id, enabled: !!id && !!detailQuery.data })
 
   // PR-H2: audit log 백필 — useQuery cache 키 ['slipAuditLogs', id]
   // SSE "slip:edit" event 수신 시 함께 invalidate.
@@ -1292,10 +1295,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          rowGap: 8,
           marginBottom: 16,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 8, gap: 12 }}>
           <SlipNumberDisplay slipDate={slip.slipDate} seqNo={slip.seqNo} size="lg" />
           {/* PR-H2: 수정 횟수 표시 — auditLogs distinct revisionNo 개수 */}
           <span

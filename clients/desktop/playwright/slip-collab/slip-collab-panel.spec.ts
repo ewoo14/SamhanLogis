@@ -127,8 +127,9 @@ test.describe('§7 입출고전표 협업 패널', () => {
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
-    await expect(panel.getByTestId('presence-indicator')).toBeVisible()
-    await expect(panel.getByLabel('오병승 현재 보고 있음').first()).toBeVisible()
+    // presence 는 이제 패널 밖(SlipDetailPage 상단)에 렌더 → 페이지 스코프로 단언.
+    await expect(page.getByTestId('presence-indicator')).toBeVisible()
+    await expect(page.getByLabel('오병승 현재 보고 있음').first()).toBeVisible()
 
     // 1) 초기 빈 목록 — fresh page = fresh mock store.
     await expect(panel.getByText('아직 코멘트가 없습니다.')).toBeVisible()
@@ -190,17 +191,17 @@ test.describe('§7 입출고전표 협업 패널', () => {
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
-    const presence = panel.getByTestId('presence-indicator')
+    const presence = page.getByTestId('presence-indicator')
     await expect(presence).toHaveAttribute('aria-label', '현재 보고 있음 2명')
-    await expect(panel.getByLabel('김관리 현재 보고 있음')).toBeVisible()
-    await expect(panel.getByLabel('오병승 현재 보고 있음')).toBeVisible()
+    await expect(page.getByLabel('김관리 현재 보고 있음')).toBeVisible()
+    await expect(page.getByLabel('오병승 현재 보고 있음')).toBeVisible()
 
     await page.reload({ waitUntil: 'domcontentloaded' })
     const reloadedPanel = page.getByTestId('slip-collaboration-panel')
     await expect(reloadedPanel).toBeVisible()
-    await expect(reloadedPanel.getByLabel('김관리 현재 보고 있음')).toHaveCount(0)
-    await expect(reloadedPanel.getByLabel('오병승 현재 보고 있음')).toBeVisible()
-    await expect(reloadedPanel.getByTestId('presence-indicator')).toHaveAttribute('aria-label', '현재 보고 있음 1명')
+    await expect(page.getByLabel('김관리 현재 보고 있음')).toHaveCount(0)
+    await expect(page.getByLabel('오병승 현재 보고 있음')).toBeVisible()
+    await expect(page.getByTestId('presence-indicator')).toHaveAttribute('aria-label', '현재 보고 있음 1명')
   })
 
   test('협업 메모는 remote update와 cursor를 렌더하고 로컬 입력 update를 누적한다', async ({ page }) => {
