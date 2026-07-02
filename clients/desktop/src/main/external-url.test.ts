@@ -42,6 +42,24 @@ describe('isAllowedExternalUrl', () => {
     })
   })
 
+  describe('위험 스킴 차단 (게이트 존재 이유 — 회귀 잠금)', () => {
+    // shell.openExternal 로 넘어가면 위험한 스킴은 prod/dev 무관 항상 거부여야 한다.
+    it('javascript: 거부', () => {
+      expect(isAllowedExternalUrl('javascript:alert(1)', false)).toBe(false)
+      expect(isAllowedExternalUrl('javascript:alert(1)', true)).toBe(false)
+    })
+
+    it('data: 거부', () => {
+      expect(isAllowedExternalUrl('data:text/html,<script>alert(1)</script>', false)).toBe(false)
+      expect(isAllowedExternalUrl('data:text/html,x', true)).toBe(false)
+    })
+
+    it('file: 거부 (dev·prod 양쪽)', () => {
+      expect(isAllowedExternalUrl('file:///etc/passwd', false)).toBe(false)
+      expect(isAllowedExternalUrl('file:///C:/Windows/System32', true)).toBe(false)
+    })
+  })
+
   describe('비정상 입력', () => {
     it('문자열이 아니면 거부', () => {
       // @ts-expect-error 런타임 방어 검증
