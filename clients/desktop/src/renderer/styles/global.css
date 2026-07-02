@@ -1644,10 +1644,10 @@ button {
   margin-top: 12px;
   padding: 16px;
   /* 편집 중 시각 신호 — read-only 카드(shadow-sm·투명테두리)와 구분되게 brand accent + 옅은 틴트(리뷰 R1 Design MED). */
-  border: 1px solid var(--color-brand-200, #BFD9EA);
+  border: 1px solid var(--color-brand-200, #AECFE7);
   border-left: 3px solid var(--color-brand-500, #2D77A8);
   border-radius: var(--radius-lg, 8px);
-  background: var(--color-brand-50, #F0F6FA);
+  background: var(--color-brand-50, #EFF6FB);
 }
 .sales-edit-inline-header {
   display: flex;
@@ -1660,7 +1660,7 @@ button {
   top: 0;
   z-index: 2;
   padding: 8px 0;
-  background: var(--color-brand-50, #F0F6FA);
+  background: var(--color-brand-50, #EFF6FB);
 }
 .sales-edit-inline-header .detail-section-title {
   margin: 0;

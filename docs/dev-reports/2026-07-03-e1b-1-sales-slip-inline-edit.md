@@ -26,3 +26,7 @@
 - **[HIGH→후속] 모바일 인라인 편집 카드화**: 편집 표가 모바일서도 데스크톱 표(가로스크롤) — **pre-existing 모달 한계**(신규 회귀 아님), E1-b 모바일 개선 후속.
 - **[MED] 헤더 필드 그룹/순서**(거래처코드 편집에만) — pre-existing 모달 필드셋. E1-b-2 공유화 시 정비.
 - E1-b-2(매입 인라인) · a11y(ESC/backdrop 취소) · coedit-s2a 목 캡처 스크롤(실 2세션 QA 로 대체됨).
+
+## Codex 라운드 + Opus 재검 (0수렴)
+- **Codex 라운드**(`62bcf9276`): 5차원 BLOCKING/HIGH 0. Codex fix 0, 비차단 MED 2건 관찰 → **Opus 직접 fix** — auto-focus 가 readonly(판매번호) 스킵·첫 편집필드 포커스, 단가 input `aria-label` 에 `(VAT제외)` 명시(스펙 동반 갱신).
+- **Opus 재검**(`62bcf9276`): FE/BE/Design/DevOps 4차원 전부 **BLOCKING/HIGH 0·새 fix 0** → **0수렴 확정**. **CI 27/27 green**(Desktop Playwright hard gate 549 passed·skipped=0·false-green 아님, 매입 sp-08-5-2 무회귀). coedit provider 3커밋 걸쳐 100% 무변(2세션 SSE sync 라이브 실증). 잔여 NIT 2 — brand fallback hex 실토큰 정합(fix됨)·`sales-slip-edit-modal` testid 잔재(리네임 churn 회피, 유지).
