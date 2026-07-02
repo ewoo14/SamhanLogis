@@ -19,6 +19,8 @@ import {
   useDispatchTasksQuery,
 } from './hooks/useDispatchTask'
 import { DispatchTaskDetailModal } from './components/DispatchTaskDetailModal'
+import { DispatchTaskRealtimeClient } from '../../realtime/DispatchTaskRealtimeClient'
+import { useCollectionRealtime } from '../../realtime/useCollectionRealtime'
 
 const PAGE_SIZE = 20
 
@@ -50,6 +52,7 @@ export function DispatchHistoryPage() {
     page,
     size: PAGE_SIZE,
   })
+  useCollectionRealtime(DispatchTaskRealtimeClient, 'board', ['dispatchTasks'])
   const detailQuery = useDispatchTaskQuery(selectedDetailKey)
 
   const columns: DataTableColumn<DispatchTaskSummaryResponse>[] = useMemo(
