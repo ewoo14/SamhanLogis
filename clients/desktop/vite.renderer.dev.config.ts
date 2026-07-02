@@ -18,6 +18,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@renderer': resolve(__dirname, 'src/renderer'),
+      // PWA 가상 모듈 stub — 이 QA 서버는 VitePWA 플러그인을 태우지 않는다.
+      'virtual:pwa-register': resolve(__dirname, 'playwright/support/pwa-register-stub.ts'),
     },
   },
   server: {
