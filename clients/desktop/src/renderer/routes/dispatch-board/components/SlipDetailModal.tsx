@@ -16,7 +16,6 @@ import { getSlip } from '../../../api/slip'
 import { listWarehouses, type Warehouse } from '../../../api/inventory'
 import { fetchApprovalLineStructure } from '../../../api/approvalLineConfigApi'
 import { DispatchDocument } from '../../../print/DispatchDocument'
-import { useFitOneA4 } from '../../../print/useFitOneA4'
 
 interface SlipDetailModalProps {
   slipId: string
@@ -33,19 +32,13 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
   const warehousesQuery = useQuery<Warehouse[]>({
     queryKey: ['warehouses'],
     queryFn: listWarehouses,
-    enabled: !!slip,
+    enabled: !!slipId,
   })
   const approvalLineStructureQuery = useQuery({
     queryKey: ['approval-line-structure', 'SLIP_OUTBOUND'],
     queryFn: () => fetchApprovalLineStructure('SLIP_OUTBOUND'),
-    enabled: !!slip,
+    enabled: !!slipId,
   })
-
-  // 판매전표 A4 본문을 모달 폭 안에서 잘리지 않게 높이 기준으로 축소한다.
-  const { ref: fitRef, zoom } = useFitOneA4<HTMLDivElement>([
-    slip?.lines?.length ?? 0,
-    approvalLineStructureQuery.data?.length ?? 0,
-  ])
 
   const title = slip ? `출고전표 ${slip.slipNo}` : '출고전표 상세'
   const sourceWarehouseName =
@@ -62,7 +55,7 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
       onClose={onClose}
       title={title}
       description={slip ? '판매전표 미리보기' : undefined}
-      size="lg"
+      size="xl"
       footer={
         <button
           type="button"
@@ -70,7 +63,7 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
           data-testid="dispatch-board-slip-detail-close"
           style={{
             padding: '8px 16px',
-            background: 'var(--color-action-brand, #1E40AF)',
+            background: 'var(--color-brand-500, #2D77A8)',
             color: 'var(--color-neutral-0)',
             border: 'none',
             borderRadius: 4,
@@ -115,26 +108,21 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
           >
             <span style={{ fontWeight: 600 }}>기사: {slip.driverName ?? '-'}</span>
             <span style={{ color: 'var(--color-neutral-500)' }}>|</span>
-            <span>연락처: {slip.driverPhone ?? '-'}</span>
+            <span>기사 연락처: {slip.driverPhone ?? '-'}</span>
           </section>
 
           <section
             aria-label="판매전표 문서 미리보기"
+            tabIndex={0}
             style={{
               overflowX: 'auto',
               overflowY: 'visible',
               padding: '8px 0 10px',
             }}
           >
-            <div
-              ref={fitRef}
-              style={{
-                zoom,
-                width: 'fit-content',
-                minWidth: '210mm',
-                margin: '0 auto',
-              }}
-            >
+            {/* A4(186mm) 문서를 1:1 로 렌더하고 모달 body 세로 스크롤에 위임 — 인쇄용 useFitOneA4 zoom 축소는
+                스크롤 모달에선 글자 과축소로 판독성 저하(리뷰 라운드1 Design/FE HIGH). Modal size xl 로 폭 수용. */}
+            <div style={{ width: 'fit-content', margin: '0 auto' }}>
               <DispatchDocument
                 slip={slip}
                 roles={approvalRoles}

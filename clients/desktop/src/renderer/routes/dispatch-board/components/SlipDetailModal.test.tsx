@@ -117,7 +117,7 @@ describe('SlipDetailModal 판매전표 미리보기', () => {
       })
     })
     expect(screen.getByText('기사: 김기사')).toBeTruthy()
-    expect(screen.getByText('연락처: 010-1111-2222')).toBeTruthy()
+    expect(screen.getByText('기사 연락처: 010-1111-2222')).toBeTruthy()
   })
 
   it('창고/결재라인 조회 실패 시 문서 내부 폴백값을 쓰도록 null 역할과 - 창고명을 넘긴다', async () => {
