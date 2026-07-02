@@ -8,17 +8,14 @@
 
 > 개발책임자 명시: **"내가 지시한 내용 모두 상세히 기록해 놓고 추후 누락없이 진행."** 아래 8개 지시 항목이 이번 세션 접수 전량. 각 항목 상태·확정 결정 병기. 착수 순서 = **버그 → E2 → (E1·task5 병렬/순차) → E3**.
 
-### ⛔ 2026-07-02 세션 셸 stuck → 새 세션 재개 (E2 기둥2 BE 미커밋 상태 — 최우선 복구)
-> 긴 세션 끝에 bash+PowerShell 모두 timeout(누적 백그라운드: Docker 스택·lingering vite/node·git hang 추정). **새 세션에서 아래 재개.**
-> **⚠️ E2 기둥2 BE Task1-4 = Codex 구현 완료·미커밋**(브랜치 `feat/e2-strikethrough-delete-dispatch` 작업트리에 on-disk, 손실 아님). 컴파일+단위+IT+fresh probe(V55·V78) 통과 확인됨.
-> **새 세션 첫 복구 순서**:
-> 1. 환경 정리: 남은 node/vite 프로세스 kill(`Get-Process node|Stop-Process`), git `.git/index.lock` 있으면 제거, Docker 스택은 유지(후속 QA 재사용).
-> 2. `git branch`(feat/e2-strikethrough-delete-dispatch 인지 확인) → `git status`로 미커밋 BE 변경 확인.
-> 3. **미커밋 BE 커밋**(PM commit 대행): slip-service(V55__dispatch_deleted_by_name.sql·DispatchVehicleGroup/Slip.java·두 Repository·DispatchTaskService·DispatchTaskAdminController·DispatchTaskHistoryQueryService·DispatchTaskDetailResponse + 테스트3) + auth-service(V78__seed_dispatch_board_restore_permission.sql). `.codex/config.toml`은 커밋 제외.
-> 4. push → **조기 PR OPEN**(--draft 금지) 생성 + Codex 개발 라운드 게시.
-> 5. **Task5 FE**(취소선+삭제자배지+복원버튼+restore mutation, Codex) → 커밋.
-> 6. **순차 full 5-agent 듀얼리뷰**(라이브QA Electron 제약 시 정직 disposition+GUI스샷 owed) → 0수렴 → CI → 라이브QA → squash 머지.
-> ⚠️ **듀얼리뷰 주목**: cascade 복원 매칭이 `vehicle_group_id + deleted_by + group.deletedAt ±2초` 휴리스틱(markDeleted가 공유 timestamp 미주입) → 동시삭제 경합 오버/언더매칭 가능성 검토. Plan B=`docs/superpowers/plans/2026-07-02-e2-strikethrough-delete-dispatch-pilot.md`.
+### ⛔ 2026-07-02 오후 세션 종료(개발책임자 지시) → 새 세션 재개: E2 기둥2 **PR #700 듀얼리뷰 1사이클 완료 — Opus 재검 라운드부터**
+> **PR #700**(OPEN, base=main) 커밋 7: BE Task1-4(`ee56ee88`)+핸드오프(`cb74bfd0`)+FE Task5(`1a5caa64`)+**Opus 5-agent 라운드1 fix 37건**(`64760095`)+라이브QA(`7a518619`)+**Codex 5-agent 라운드 fix 9건**(`138f3ce3`)+스샷 클로즈업 재캡처(`22a19e84`). **게시 4건**(Codex 개발×2·Opus 라운드1·Codex 라운드 — 실행=게시 1:1 ✓).
+> **새 세션 재개 순서** (모두 순차 — **병행 금지**, 개발책임자 2026-07-02 재지적):
+> 1. **Opus 재검 라운드**(full 5-agent): Codex fix 9건(sequence max+1·tombstone 중복 409·aria-label·V78 materialize IT·스펙 스코프) 포함 `git diff main...HEAD` 최종 상태 재검 → fix 있으면 Opus 직접+게시 → **양쪽 0 반환까지 Opus↔Codex 반복**(Codex: 새 세션에서 `claude mcp list` 확인 후 mcp__codex__codex, 미회복 시 codex exec 우회).
+> 2. 0수렴 → **PM 종합 게시** → `gh pr checks 700` CI green(22a19e84 기준) 확인 → 머지 게이트 체크리스트(실행=게시 1:1 대조 포함) → **squash 머지**.
+> 3. 머지 전 docs 동기화 커밋: README/ROADMAP/DECISIONS(D-E2-01 계열)/dev-report(`2026-07-02-e2-strikethrough-delete-dispatch.md` 신설)/overview.html + 핸드오프.
+> ⚠️ **세션 교훈(메모리 박제)**: ①PR 스샷 인라인=**full 커밋 SHA 고정 URL**(브랜치 URL+push직후 게시=camo 하양 캐시 — `feedback_pr_screenshot_sha_pinned_urls`) ②스샷=**카드 클로즈업**(풀페이지 7장="전부 똑같은 컷" 지적) ③**한 번에 한 작업**(Codex 라운드 중 QA 스펙 병행 수정 지적).
+> 환경: Docker 스택 healthy(slip=Codex fix 재빌드본·auth V78 적용), 렌더러 vite :5175 는 세션 종료로 소멸 — QA 재실행 시 `cd clients/desktop && VITE_API_BASE_URL=http://localhost:8080 node_modules/.bin/vite dev --config vite.renderer.dev.config.ts`(PWA stub alias 적용됨). QA 시드: 실전표 `2026/06/24-902`=검수완료 전이(풀 노출용), 오늘 DRAFT 잔재 그룹 정리됨. 라이브QA 스펙=`playwright/e2-strikethrough-dispatch-real-qa/`(1 passed).
 
 ### 🚨🚨 워크플로우 규율 — 이 세션 반복 위반 시정 (새 세션·긴 세션 반드시 준수, 단축 절대금지)
 > 개발책임자 2026-07-02 다수 지적. **매 단계 이 블록 재확인하며 진행.** 상세=[[feedback_review_5agent_no_shortcut_strict]]·[[feedback_live_qa_every_round_screenshots]]·[[feedback_pm_no_direct_implementation]]·[[feedback_pr_open_not_draft]]·[[feedback_canonical_workflow]].
