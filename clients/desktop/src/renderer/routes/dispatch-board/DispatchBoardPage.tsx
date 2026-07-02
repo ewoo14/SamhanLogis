@@ -27,6 +27,7 @@
  *  - 모바일 RN 은 별도 화면 (`DispatchBoardScreen`) 에서 TouchSensor 만 활성.
  */
 import { useEffect, useMemo, useState } from 'react'
+import type { QueryKey } from '@tanstack/react-query'
 import {
   DndContext,
   KeyboardSensor,
@@ -47,12 +48,16 @@ import { VehicleGroupColumn } from './components/VehicleGroupColumn'
 import { SlipDetailModal } from './components/SlipDetailModal'
 import { todayIsoSeoul } from '../../api/dispatchBoard'
 import {
+  dispatchTaskQueryKey,
   useAssignSlipToGroupMutation,
   useDispatchTaskQuery,
   useEnsureTodayDraftTaskMutation,
   useReorderGroupSlipsMutation,
 } from './hooks/useDispatchTask'
+import { DISPATCH_BOARD_QUERY_KEY } from './hooks/useUnDispatchedSlipsQuery'
 import type { DispatchSlipDragData } from './components/UnDispatchedSlipList'
+import { DispatchTaskRealtimeClient } from '../../realtime/DispatchTaskRealtimeClient'
+import { useCollectionRealtime } from '../../realtime/useCollectionRealtime'
 
 function initialDispatchTaskIdFromLocation(): string | null {
   if (typeof window === 'undefined') return null
@@ -91,6 +96,15 @@ export default function DispatchBoardPage() {
 
   const ensureDraftMutation = useEnsureTodayDraftTaskMutation()
   const taskQuery = useDispatchTaskQuery(taskId)
+  const realtimeQueryKeys = useMemo<QueryKey[]>(
+    () => [
+      ...(taskId ? [dispatchTaskQueryKey(taskId)] : []),
+      DISPATCH_BOARD_QUERY_KEY,
+      ['dispatchTasks'],
+    ],
+    [taskId],
+  )
+  useCollectionRealtime(DispatchTaskRealtimeClient, 'board', realtimeQueryKeys)
 
   useEffect(() => {
     // VIEW 전용 사용자는 보드 조회만 허용한다. mount 시 task 생성은 UPDATE 권한 보유자만 실행.

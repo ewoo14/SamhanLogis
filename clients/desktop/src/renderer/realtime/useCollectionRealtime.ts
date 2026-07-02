@@ -12,16 +12,18 @@ import type { RealtimeClient } from './createRealtimeClient'
 export function useCollectionRealtime(
   client: RealtimeClient,
   entityIdSentinel: string,
-  queryKey: QueryKey,
+  queryKeys: QueryKey[],
 ): void {
   const queryClient = useQueryClient()
-  const stableQueryKey = JSON.stringify(queryKey)
+  const stableQueryKeys = JSON.stringify(queryKeys)
 
   useEffect(() => {
     if (isMockMode()) return
     const ctrl = client.subscribe(entityIdSentinel, () => {
-      void queryClient.invalidateQueries({ queryKey })
+      queryKeys.forEach((queryKey) => {
+        void queryClient.invalidateQueries({ queryKey })
+      })
     })
     return () => ctrl.abort()
-  }, [client, entityIdSentinel, queryClient, stableQueryKey])
+  }, [client, entityIdSentinel, queryClient, stableQueryKeys])
 }

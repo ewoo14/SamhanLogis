@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.external;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -18,6 +19,7 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.external.ExternalCarrierRepository;
 import com.samhanair.logis.slip.repository.external.ExternalDispatchRepository;
 import com.samhanair.logis.slip.repository.external.ExternalDispatchSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -44,6 +46,7 @@ public class ExternalDispatchService {
     private final SlipRepository slipRepository;
     private final ExternalDispatchSmsComposer smsComposer;
     private final NotificationClient notificationClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /**
      * 선택 전표를 외부기사/배송사에게 지정 채널로 발송한다.
@@ -81,8 +84,19 @@ public class ExternalDispatchService {
         // SMS 는 외부 side effect 라 완전 원자화할 수 없으므로, 성공/실패 판정 이후 DB 상태 전이를
         // 즉시 flush 해 FK/상태 SQL 예외가 HTTP 응답 이후에 늦게 드러나는 창을 줄인다.
         ExternalDispatch saved = externalDispatchRepository.saveAndFlush(dispatch);
+        if (sent) {
+            publishBoardChanged("STATUS_CHANGED");
+        }
         List<String> slipNos = slips.stream().map(Slip::getSlipNo).toList();
         return ExternalDispatchResponse.from(saved, carrier.getName(), slipNos);
+    }
+
+    /** 외부 발송 성공으로 전표 배차 상태가 바뀐 뒤 보드/목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 
     /**

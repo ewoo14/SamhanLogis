@@ -52,7 +52,7 @@ export function DispatchHistoryPage() {
     page,
     size: PAGE_SIZE,
   })
-  useCollectionRealtime(DispatchTaskRealtimeClient, 'board', ['dispatchTasks'])
+  useCollectionRealtime(DispatchTaskRealtimeClient, 'board', [['dispatchTasks']])
   const detailQuery = useDispatchTaskQuery(selectedDetailKey)
 
   const columns: DataTableColumn<DispatchTaskSummaryResponse>[] = useMemo(

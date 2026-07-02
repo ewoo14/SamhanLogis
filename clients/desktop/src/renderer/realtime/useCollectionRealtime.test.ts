@@ -11,7 +11,10 @@ vi.mock('../api/mock', () => ({
   isMockMode: vi.fn(),
 }))
 
-function renderCollectionRealtimeHook(client: RealtimeClient) {
+function renderCollectionRealtimeHook(
+  client: RealtimeClient,
+  queryKeys = [['dispatchTasks']],
+) {
   const queryClient = new QueryClient()
   const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
@@ -20,7 +23,7 @@ function renderCollectionRealtimeHook(client: RealtimeClient) {
   }
 
   function TestComponent() {
-    useCollectionRealtime(client, 'board', ['dispatchTasks'])
+    useCollectionRealtime(client, 'board', queryKeys)
     return null
   }
 
@@ -71,5 +74,37 @@ describe('useCollectionRealtime', () => {
     unmount()
 
     expect(ctrl.signal.aborted).toBe(true)
+  })
+
+  it('단일 SSE 구독 이벤트로 여러 queryKey 를 모두 invalidate 한다', async () => {
+    vi.mocked(isMockMode).mockReturnValue(false)
+    const ctrl = new AbortController()
+    let handler: RealtimeHandler | null = null
+    const client: RealtimeClient = {
+      subscribe: vi.fn((entityId, onEvent) => {
+        handler = onEvent
+        return ctrl
+      }),
+    }
+
+    const queryKeys = [
+      ['dispatchTask', 'task-1'],
+      ['dispatchBoard'],
+      ['dispatchTasks'],
+    ]
+    const { invalidateSpy } = renderCollectionRealtimeHook(client, queryKeys)
+
+    await waitFor(() => {
+      expect(client.subscribe).toHaveBeenCalledTimes(1)
+      expect(client.subscribe).toHaveBeenCalledWith('board', expect.any(Function))
+    })
+
+    handler?.({ event: 'dispatch:board:changed', data: { changeType: 'STATUS_CHANGED' }, raw: '{}' })
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dispatchTask', 'task-1'] })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dispatchBoard'] })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['dispatchTasks'] })
+    })
   })
 })
