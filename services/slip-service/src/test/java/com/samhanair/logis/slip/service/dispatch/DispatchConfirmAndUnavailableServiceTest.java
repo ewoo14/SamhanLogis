@@ -377,6 +377,7 @@ class DispatchConfirmAndUnavailableServiceTest {
         assertThat(task.getStatus()).isEqualTo(DispatchTaskStatus.FAILED);
         assertThat(task.getFailureReason()).isEqualTo("가용 기사 0명");
         verify(slip).markDispatchReleased();
+        verifyBoardStatusChanged();
     }
 
     @Test
@@ -419,5 +420,12 @@ class DispatchConfirmAndUnavailableServiceTest {
 
     private static boolean hasChangeType(Map<String, Object> payload, String expected) {
         return expected.equals(payload.get("changeType"));
+    }
+
+    private void verifyBoardStatusChanged() {
+        verify(collectionPublisher).publishChange(
+                eq(DispatchBoardRealtime.CHANNEL_ID),
+                eq(DispatchBoardRealtime.EVENT_CHANGED),
+                argThat(payload -> hasChangeType(payload, "STATUS_CHANGED")));
     }
 }

@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,10 +25,12 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -87,6 +91,29 @@ class DispatchTaskServiceTest {
         assertThat(added.getVehicleBodyType()).isEqualTo(DispatchVehicleBodyType.WINGBODY);
         assertThat(added.getTonnage()).isEqualTo(DispatchTonnage.T_5);
         assertThat(added.getVehicleType()).isEqualTo(DispatchVehicleType.TONNAGE_5);
+        verifyBoardChanged("UPDATED");
+    }
+
+    @Test
+    void removeVehicleGroup_soft_deletes_group_and_slips_and_publishes_deleted() {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        DispatchVehicleGroupSlip mapping = DispatchVehicleGroupSlip.create(groupId, slipId, 1);
+        when(groupRepo.findById(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
+        when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId))
+                .thenReturn(List.of(mapping));
+        when(groupRepo.save(any(DispatchVehicleGroup.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(slipMapRepo.save(any(DispatchVehicleGroupSlip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        svc.removeVehicleGroup(taskId, groupId, "ewoo");
+
+        assertThat(group.getIsDeleted()).isTrue();
+        assertThat(mapping.getIsDeleted()).isTrue();
+        verifyBoardChanged("DELETED");
     }
 
     @Test
@@ -112,6 +139,7 @@ class DispatchTaskServiceTest {
         DispatchVehicleGroupSlip mapping = svc.assignSlip(taskId, groupId, slipId);
         assertThat(mapping.getSequence()).isEqualTo(2);
         assertThat(mapping.getSlipId()).isEqualTo(slipId);
+        verifyBoardChanged("UPDATED");
     }
 
     @Test
@@ -231,6 +259,7 @@ class DispatchTaskServiceTest {
         assertThat(m3.getSequence()).isEqualTo(1);
         assertThat(m1.getSequence()).isEqualTo(2);
         assertThat(m2.getSequence()).isEqualTo(3);
+        verifyBoardChanged("UPDATED");
     }
 
     @Test
@@ -265,6 +294,7 @@ class DispatchTaskServiceTest {
         svc.removeSlipFromGroup(groupId, slipId, "ewoo");
 
         assertThat(m.getIsDeleted()).isTrue();
+        verifyBoardChanged("DELETED");
     }
 
     @Test
@@ -322,5 +352,16 @@ class DispatchTaskServiceTest {
 
     private static DispatchTask draftTask() {
         return DispatchTask.create("2026/05/14-1", LocalDate.of(2026, 5, 14));
+    }
+
+    private void verifyBoardChanged(String changeType) {
+        verify(collectionPublisher).publishChange(
+                eq(DispatchBoardRealtime.CHANNEL_ID),
+                eq(DispatchBoardRealtime.EVENT_CHANGED),
+                argThat(payload -> hasChangeType(payload, changeType)));
+    }
+
+    private static boolean hasChangeType(Map<String, Object> payload, String expected) {
+        return expected.equals(payload.get("changeType"));
     }
 }

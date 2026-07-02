@@ -3,6 +3,8 @@ package com.samhanair.logis.slip.service.dispatch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,10 +26,12 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -90,6 +94,7 @@ class DispatchTaskCompletionServiceTest {
         verify(arologisClient).send(captor.capture());
         assertThat(captor.getValue().vehicles().get(0).vehicleType())
                 .isEqualTo("TONNAGE_1_5");
+        verifyBoardStatusChanged();
     }
 
     @Test
@@ -318,5 +323,16 @@ class DispatchTaskCompletionServiceTest {
         Field f = entity.getClass().getDeclaredField("id");
         f.setAccessible(true);
         f.set(entity, id);
+    }
+
+    private void verifyBoardStatusChanged() {
+        verify(collectionPublisher).publishChange(
+                eq(DispatchBoardRealtime.CHANNEL_ID),
+                eq(DispatchBoardRealtime.EVENT_CHANGED),
+                argThat(payload -> hasChangeType(payload, "STATUS_CHANGED")));
+    }
+
+    private static boolean hasChangeType(Map<String, Object> payload, String expected) {
+        return expected.equals(payload.get("changeType"));
     }
 }
