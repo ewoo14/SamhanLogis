@@ -2,11 +2,14 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.dto.dispatch.ArologisCancellationRequest;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +36,7 @@ public class DispatchTaskCancellationRequestService {
     private final DispatchTaskRepository taskRepo;
     private final ArologisDispatchClient arologisClient;
     private final NotificationClient notificationClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /**
      * DISPATCHED → CANCEL_REQUESTED + arologis 발송 + notification.
@@ -75,6 +79,15 @@ public class DispatchTaskCancellationRequestService {
 
         log.info("[DispatchTaskCancellationRequestService] 취소 요청 완료 — taskCode={} actor={}",
                 task.getTaskCode(), actor);
+        publishBoardChanged("STATUS_CHANGED");
         return task;
+    }
+
+    /** 배차 취소 요청 상태 전이 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 }

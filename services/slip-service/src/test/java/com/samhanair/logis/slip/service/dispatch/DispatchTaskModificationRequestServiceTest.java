@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.service.dispatch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -10,14 +11,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
 import com.samhanair.logis.slip.dto.dispatch.ArologisModificationRequest;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -35,6 +39,7 @@ class DispatchTaskModificationRequestServiceTest {
     @Mock DispatchTaskRepository taskRepo;
     @Mock ArologisDispatchClient arologisClient;
     @Mock NotificationClient notificationClient;
+    @Mock CollectionRealtimePublisher collectionPublisher;
 
     @InjectMocks DispatchTaskModificationRequestService svc;
 
@@ -52,6 +57,10 @@ class DispatchTaskModificationRequestServiceTest {
         assertThat(res.getModificationReason()).isEqualTo("슬립 추가 필요");
         assertThat(res.getModificationRequestedAt()).isNotNull();
         verify(arologisClient).requestModification(eq(arologisId), any(ArologisModificationRequest.class));
+        verify(collectionPublisher).publishChange(
+                eq(DispatchBoardRealtime.CHANNEL_ID),
+                eq(DispatchBoardRealtime.EVENT_CHANGED),
+                argThat(payload -> hasChangeType(payload, "STATUS_CHANGED")));
     }
 
     @Test
@@ -127,5 +136,9 @@ class DispatchTaskModificationRequestServiceTest {
         Field f = DispatchTask.class.getDeclaredField("arologisDispatchId");
         f.setAccessible(true);
         f.set(task, id);
+    }
+
+    private static boolean hasChangeType(Map<String, Object> payload, String expected) {
+        return expected.equals(payload.get("changeType"));
     }
 }

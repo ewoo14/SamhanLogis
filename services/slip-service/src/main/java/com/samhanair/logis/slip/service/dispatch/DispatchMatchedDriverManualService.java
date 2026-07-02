@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
@@ -16,7 +17,9 @@ import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -37,6 +40,7 @@ public class DispatchMatchedDriverManualService {
     private final SlipRepository slipRepo;
     private final MatchedDriverRepository matchedRepo;
     private final DispatchTaskHistoryQueryService historyQueryService;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /**
      * 차량 그룹에 매칭 기사 정보를 upsert 하고 갱신된 상세 read model 을 반환한다.
@@ -78,6 +82,7 @@ public class DispatchMatchedDriverManualService {
                         "이미 해당 차량 그룹의 매칭 기사 정보가 등록되었습니다.", ex);
             }
         }
+        publishBoardChanged("UPDATED");
         return historyQueryService.detail(taskId);
     }
 
@@ -111,6 +116,7 @@ public class DispatchMatchedDriverManualService {
             slipRepo.save(slip);
         }
         closeTaskIfAllGroupsCompleted(task);
+        publishBoardChanged("STATUS_CHANGED");
         return historyQueryService.detail(taskId);
     }
 
@@ -146,6 +152,14 @@ public class DispatchMatchedDriverManualService {
             return null;
         }
         return value.trim();
+    }
+
+    /** 수동 기사/발송완료 변경 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 
     private DispatchTask findTask(UUID taskId) {

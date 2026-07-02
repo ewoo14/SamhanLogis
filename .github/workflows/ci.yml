@@ -52,7 +52,7 @@ jobs:
         group:
           - name: shared+auth+gateway
             timeout: 30
-            test-tasks: ':shared:common:test :shared:security:test :shared:collab-core:test :shared:user-client-abstraction:test :shared:discovery-abstraction:test :services:eureka-server:test :services:api-gateway:test :services:auth-service:test'
+            test-tasks: ':shared:common:test :shared:security:test :shared:collab-core:test :shared:realtime-abstraction:test :shared:user-client-abstraction:test :shared:discovery-abstraction:test :services:eureka-server:test :services:api-gateway:test :services:auth-service:test'
           - name: user+product+inventory+logging
             timeout: 30
             test-tasks: ':services:user-service:test :services:product-service:test :services:inventory-service:test :services:logging-service:test'
@@ -116,6 +116,20 @@ jobs:
 
       - name: test (${{ matrix.group.name }})
         run: ./gradlew ${{ matrix.group.test-tasks }}
+
+      - name: E2 CollectionRealtimePublisherTest skipped=0 hard gate
+        if: matrix.group.name == 'shared+auth+gateway'
+        run: |
+          report='shared/realtime-abstraction/build/test-results/test/TEST-com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisherTest.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::CollectionRealtimePublisherTest JUnit report not found; E2 realtime-abstraction tests may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::CollectionRealtimePublisherTest skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
 
       - name: S3-2 EstimateCollabIT skipped=0 hard gate
         if: matrix.group.name == 'slip-it-core'

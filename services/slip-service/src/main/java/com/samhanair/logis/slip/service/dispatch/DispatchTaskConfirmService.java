@@ -132,9 +132,7 @@ public class DispatchTaskConfirmService {
             }
         }
 
-        if (completed) {
-            publishBoardChanged("STATUS_CHANGED");
-        }
+        publishBoardChanged("STATUS_CHANGED");
 
         log.info("[DispatchTaskConfirmService] confirm 완료 — taskCode={} matched={}",
                 task.getTaskCode(), req.matchedDrivers().size());

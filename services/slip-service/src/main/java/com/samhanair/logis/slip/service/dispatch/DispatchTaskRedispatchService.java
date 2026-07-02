@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.ArologisDispatchClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -13,7 +14,9 @@ import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +42,7 @@ public class DispatchTaskRedispatchService {
     private final SlipRepository slipRepo;
     private final MatchedDriverRepository matchedRepo;
     private final ArologisDispatchClient arologisDispatchClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /** 수정수락된 배차 작업을 편집 가능한 DRAFT 재배차 상태로 되돌린다. */
     public DispatchTask startRedispatch(UUID taskId) {
@@ -81,6 +85,7 @@ public class DispatchTaskRedispatchService {
 
         log.info("[DispatchTaskRedispatchService] 재배차 시작 — taskCode={} previousArologisDispatchId={}",
                 task.getTaskCode(), previousArologisDispatchId);
+        publishBoardChanged("STATUS_CHANGED");
         return task;
     }
 
@@ -94,5 +99,13 @@ public class DispatchTaskRedispatchService {
             slip.markDispatchCancelled();
             slipRepo.save(slip);
         }
+    }
+
+    /** 재배차 상태 복귀 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 }

@@ -3,13 +3,18 @@ package com.samhanair.logis.slip.service.dispatch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
+import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroup;
+import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleGroupSlip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchVehicleType;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriver;
 import com.samhanair.logis.slip.domain.dispatch.MatchedDriverSource;
@@ -19,8 +24,11 @@ import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.MatchedDriverRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -42,6 +50,7 @@ class DispatchMatchedDriverManualServiceTest {
     @Mock SlipRepository slipRepo;
     @Mock MatchedDriverRepository matchedRepo;
     @Mock DispatchTaskHistoryQueryService historyQueryService;
+    @Mock CollectionRealtimePublisher collectionPublisher;
 
     @Test
     void setMatchedDriver_allows_blank_phone_and_persists_null() throws Exception {
@@ -57,13 +66,17 @@ class DispatchMatchedDriverManualServiceTest {
         when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
         service.setMatchedDriver(taskId, groupId,
                 new SetMatchedDriverRequest("Manual Driver", "", "12A3456", MatchedDriverSource.OTHER));
 
         ArgumentCaptor<MatchedDriver> matchedCaptor = ArgumentCaptor.forClass(MatchedDriver.class);
         verify(matchedRepo).saveAndFlush(matchedCaptor.capture());
         assertThat(matchedCaptor.getValue().getDriverPhoneNumber()).isNull();
+        verify(collectionPublisher).publishChange(
+                eq(DispatchBoardRealtime.CHANNEL_ID),
+                eq(DispatchBoardRealtime.EVENT_CHANGED),
+                argThat(payload -> hasChangeType(payload, "UPDATED")));
     }
 
     @Test
@@ -83,7 +96,7 @@ class DispatchMatchedDriverManualServiceTest {
         when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
         service.setMatchedDriver(taskId, groupId,
                 new SetMatchedDriverRequest("경기기사", "010-1111-2222", "12가3456",
                         MatchedDriverSource.GYEONGGI_QUICK));
@@ -107,7 +120,7 @@ class DispatchMatchedDriverManualServiceTest {
         when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
 
         assertThatThrownBy(() -> service.setMatchedDriver(taskId, groupId,
                 new SetMatchedDriverRequest("아로로지스 위장", "010-1111-2222", "12가3456",
@@ -127,7 +140,7 @@ class DispatchMatchedDriverManualServiceTest {
         when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.empty());
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
 
         assertThatThrownBy(() -> service.setMatchedDriver(taskId, groupId,
                 new SetMatchedDriverRequest("Manual Driver", null, "12A3456", MatchedDriverSource.OTHER)))
@@ -152,7 +165,7 @@ class DispatchMatchedDriverManualServiceTest {
                 .thenThrow(new DataIntegrityViolationException("uq_matched_driver_group_active"));
 
         DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
 
         assertThatThrownBy(() -> service.setMatchedDriver(taskId, groupId,
                 new SetMatchedDriverRequest("Manual Driver", null, "12A3456", MatchedDriverSource.OTHER)))
@@ -161,9 +174,48 @@ class DispatchMatchedDriverManualServiceTest {
                         .isEqualTo(ErrorCode.CONFLICT));
     }
 
+    @Test
+    void markManualDispatchComplete_publishes_status_changed_after_group_and_slip_status_update() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2099/06/12-6", LocalDate.of(2099, 6, 12));
+        setId(task, taskId);
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(group, groupId);
+        MatchedDriver matched = MatchedDriver.create(
+                groupId, "MANUAL", "수동기사", null, MatchedDriverSource.OTHER, "12가3456");
+        DispatchVehicleGroupSlip mapping = DispatchVehicleGroupSlip.create(groupId, slipId, 1);
+        Slip slip = org.mockito.Mockito.mock(Slip.class);
+
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
+        when(matchedRepo.findByVehicleGroupIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(matched));
+        when(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupId))
+                .thenReturn(List.of(mapping));
+        when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(group));
+
+        DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
+
+        service.markManualDispatchComplete(taskId, groupId);
+
+        verify(slip).markDispatchConfirmed();
+        verify(collectionPublisher).publishChange(
+                eq(DispatchBoardRealtime.CHANNEL_ID),
+                eq(DispatchBoardRealtime.EVENT_CHANGED),
+                argThat(payload -> hasChangeType(payload, "STATUS_CHANGED")));
+    }
+
     private static void setId(Object entity, UUID id) throws Exception {
         Field f = entity.getClass().getDeclaredField("id");
         f.setAccessible(true);
         f.set(entity, id);
+    }
+
+    private static boolean hasChangeType(Map<String, Object> payload, String expected) {
+        return expected.equals(payload.get("changeType"));
     }
 }

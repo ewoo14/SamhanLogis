@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -11,7 +12,9 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +47,7 @@ public class DispatchTaskCancellationDecisionService {
     private final DispatchVehicleGroupSlipRepository slipMapRepo;
     private final SlipRepository slipRepo;
     private final NotificationClient notificationClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /** CANCEL_REQUESTED → CANCEL_ACCEPTED → CANCELLED + slip 복귀. */
     public DispatchTask accept(UUID taskId, String actor) {
@@ -75,6 +79,7 @@ public class DispatchTaskCancellationDecisionService {
         }
         log.info("[DispatchTaskCancellationDecisionService.accept] 취소 완료 — taskCode={} actor={}",
                 task.getTaskCode(), actor);
+        publishBoardChanged("STATUS_CHANGED");
         return task;
     }
 
@@ -103,6 +108,7 @@ public class DispatchTaskCancellationDecisionService {
         }
         log.info("[DispatchTaskCancellationDecisionService.reject] 취소 거부 — taskCode={} actor={}",
                 task.getTaskCode(), actor);
+        publishBoardChanged("STATUS_CHANGED");
         return task;
     }
 
@@ -127,5 +133,13 @@ public class DispatchTaskCancellationDecisionService {
         }
         log.info("[DispatchTaskCancellationDecisionService.cascadeUndispatch] taskCode={} slips={}",
                 task.getTaskCode(), undispatched);
+    }
+
+    /** 배차 취소 결정 상태 전이 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 }

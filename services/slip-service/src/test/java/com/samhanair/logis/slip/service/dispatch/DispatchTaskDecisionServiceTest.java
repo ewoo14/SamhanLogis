@@ -3,10 +3,13 @@ package com.samhanair.logis.slip.service.dispatch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
@@ -18,9 +21,11 @@ import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -40,13 +45,14 @@ class DispatchTaskDecisionServiceTest {
     @Mock DispatchVehicleGroupSlipRepository slipMapRepo;
     @Mock SlipRepository slipRepo;
     @Mock NotificationClient notificationClient;
+    @Mock CollectionRealtimePublisher collectionPublisher;
 
     // ---------- Modification ----------
 
     @Test
     void modification_accept_marks_MODIFICATION_ACCEPTED() throws Exception {
         DispatchTaskModificationDecisionService svc = new DispatchTaskModificationDecisionService(
-                taskRepo, notificationClient);
+                taskRepo, notificationClient, collectionPublisher);
         UUID taskId = UUID.randomUUID();
         DispatchTask task = dispatchedTask(taskId, UUID.randomUUID());
         task.markModificationRequested("슬립 추가");
@@ -55,12 +61,13 @@ class DispatchTaskDecisionServiceTest {
         DispatchTask res = svc.accept(taskId, "arologis-master");
         assertThat(res.getStatus()).isEqualTo(DispatchTaskStatus.MODIFICATION_ACCEPTED);
         assertThat(res.getModificationDecidedAt()).isNotNull();
+        verifyBoardStatusChanged();
     }
 
     @Test
     void modification_accept_from_DISPATCHED_throws_CONFLICT() throws Exception {
         DispatchTaskModificationDecisionService svc = new DispatchTaskModificationDecisionService(
-                taskRepo, notificationClient);
+                taskRepo, notificationClient, collectionPublisher);
         UUID taskId = UUID.randomUUID();
         DispatchTask task = dispatchedTask(taskId, UUID.randomUUID());  // DISPATCHED 그대로
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
@@ -72,7 +79,7 @@ class DispatchTaskDecisionServiceTest {
     @Test
     void modification_reject_marks_MODIFICATION_REJECTED_with_reason() throws Exception {
         DispatchTaskModificationDecisionService svc = new DispatchTaskModificationDecisionService(
-                taskRepo, notificationClient);
+                taskRepo, notificationClient, collectionPublisher);
         UUID taskId = UUID.randomUUID();
         DispatchTask task = dispatchedTask(taskId, UUID.randomUUID());
         task.markModificationRequested(null);
@@ -81,12 +88,13 @@ class DispatchTaskDecisionServiceTest {
         DispatchTask res = svc.reject(taskId, "운영 불가 — 기사 일정 충돌", "arologis-master");
         assertThat(res.getStatus()).isEqualTo(DispatchTaskStatus.MODIFICATION_REJECTED);
         assertThat(res.getRejectionReason()).isEqualTo("운영 불가 — 기사 일정 충돌");
+        verifyBoardStatusChanged();
     }
 
     @Test
     void modification_not_found_throws_NOT_FOUND() {
         DispatchTaskModificationDecisionService svc = new DispatchTaskModificationDecisionService(
-                taskRepo, notificationClient);
+                taskRepo, notificationClient, collectionPublisher);
         when(taskRepo.findById(any())).thenReturn(Optional.empty());
         assertThatThrownBy(() -> svc.accept(UUID.randomUUID(), "x"))
                 .isInstanceOf(BusinessException.class);
@@ -97,7 +105,7 @@ class DispatchTaskDecisionServiceTest {
     @Test
     void cancellation_accept_marks_CANCELLED_and_undispatch_slips() throws Exception {
         DispatchTaskCancellationDecisionService svc = new DispatchTaskCancellationDecisionService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient, collectionPublisher);
 
         UUID taskId = UUID.randomUUID();
         UUID groupId = UUID.randomUUID();
@@ -121,12 +129,13 @@ class DispatchTaskDecisionServiceTest {
 
         assertThat(res.getStatus()).isEqualTo(DispatchTaskStatus.CANCELLED);
         verify(slip).markDispatchCancelled();
+        verifyBoardStatusChanged();
     }
 
     @Test
     void cancellation_accept_from_DISPATCHED_throws_CONFLICT() throws Exception {
         DispatchTaskCancellationDecisionService svc = new DispatchTaskCancellationDecisionService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient, collectionPublisher);
         UUID taskId = UUID.randomUUID();
         DispatchTask task = dispatchedTask(taskId, UUID.randomUUID());  // DISPATCHED 그대로
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
@@ -138,7 +147,7 @@ class DispatchTaskDecisionServiceTest {
     @Test
     void cancellation_reject_marks_CANCEL_REJECTED_with_reason() throws Exception {
         DispatchTaskCancellationDecisionService svc = new DispatchTaskCancellationDecisionService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient, collectionPublisher);
         UUID taskId = UUID.randomUUID();
         DispatchTask task = dispatchedTask(taskId, UUID.randomUUID());
         task.markCancelRequested(null);
@@ -147,12 +156,13 @@ class DispatchTaskDecisionServiceTest {
         DispatchTask res = svc.reject(taskId, "이미 운송 중", "arologis-master");
         assertThat(res.getStatus()).isEqualTo(DispatchTaskStatus.CANCEL_REJECTED);
         assertThat(res.getRejectionReason()).isEqualTo("이미 운송 중");
+        verifyBoardStatusChanged();
     }
 
     @Test
     void cancellation_accept_with_no_groups_succeeds() throws Exception {
         DispatchTaskCancellationDecisionService svc = new DispatchTaskCancellationDecisionService(
-                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient);
+                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient, collectionPublisher);
         UUID taskId = UUID.randomUUID();
         DispatchTask task = dispatchedTask(taskId, UUID.randomUUID());
         task.markCancelRequested(null);
@@ -178,5 +188,16 @@ class DispatchTaskDecisionServiceTest {
         Field f = entity.getClass().getDeclaredField("id");
         f.setAccessible(true);
         f.set(entity, id);
+    }
+
+    private void verifyBoardStatusChanged() {
+        verify(collectionPublisher).publishChange(
+                eq(DispatchBoardRealtime.CHANNEL_ID),
+                eq(DispatchBoardRealtime.EVENT_CHANGED),
+                argThat(payload -> hasChangeType(payload, "STATUS_CHANGED")));
+    }
+
+    private static boolean hasChangeType(Map<String, Object> payload, String expected) {
+        return expected.equals(payload.get("changeType"));
     }
 }

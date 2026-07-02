@@ -2,9 +2,12 @@ package com.samhanair.logis.slip.service.dispatch;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTask;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
+import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,7 @@ public class DispatchTaskModificationDecisionService {
 
     private final DispatchTaskRepository taskRepo;
     private final NotificationClient notificationClient;
+    private final CollectionRealtimePublisher collectionPublisher;
 
     /** MODIFICATION_REQUESTED → MODIFICATION_ACCEPTED + notification. */
     public DispatchTask accept(UUID taskId, String actor) {
@@ -54,6 +58,7 @@ public class DispatchTaskModificationDecisionService {
         }
         log.info("[DispatchTaskModificationDecisionService.accept] 수정 수락 — taskCode={} actor={}",
                 task.getTaskCode(), actor);
+        publishBoardChanged("STATUS_CHANGED");
         return task;
     }
 
@@ -82,6 +87,15 @@ public class DispatchTaskModificationDecisionService {
         }
         log.info("[DispatchTaskModificationDecisionService.reject] 수정 거부 — taskCode={} actor={}",
                 task.getTaskCode(), actor);
+        publishBoardChanged("STATUS_CHANGED");
         return task;
+    }
+
+    /** 배차 수정 결정 상태 전이 성공 후 목록 채널을 커밋 뒤 발화한다. */
+    private void publishBoardChanged(String changeType) {
+        collectionPublisher.publishChange(
+                DispatchBoardRealtime.CHANNEL_ID,
+                DispatchBoardRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 }

@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.it.dispatch;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -18,6 +19,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.realtime.DispatchBoardRealtime;
+import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskService;
 import java.time.LocalDate;
 import java.util.Map;
@@ -36,6 +38,7 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 class DispatchTaskServicePublishIT extends AbstractPostgresIT {
 
     @Autowired private DispatchTaskService service;
+    @Autowired private SlipRealtimeBroker broker;
 
     @SpyBean private CollectionRealtimePublisher collectionPublisher;
 
@@ -64,6 +67,15 @@ class DispatchTaskServicePublishIT extends AbstractPostgresIT {
                 eq(DispatchBoardRealtime.CHANNEL_ID),
                 eq(DispatchBoardRealtime.EVENT_CHANGED),
                 argThat(payload -> hasChangeType(payload, "CREATED")));
+    }
+
+    @Test
+    void createTask_실커밋_후_broker_publishCount가_증가한다() {
+        long before = broker.publishCount();
+
+        service.createTask(LocalDate.of(2099, 7, 2));
+
+        assertThat(broker.publishCount()).isEqualTo(before + 1);
     }
 
     private static boolean hasChangeType(Map<String, Object> payload, String expected) {

@@ -40,4 +40,21 @@ class CollectionRealtimePublisherTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
+
+    @Test
+    void 활성_트랜잭션이_커밋없이_종료되면_미발화() {
+        RealtimeBroker broker = new InMemoryRealtimeBroker();
+        CollectionRealtimePublisher publisher = new CollectionRealtimePublisher(broker);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            publisher.publishChange(CHANNEL, "dispatch:board:changed", Map.of("changeType", "DELETED"));
+            assertThat(broker.publishCount()).isZero();
+        } finally {
+            // rollback 경로에서는 afterCommit 이 호출되지 않고 동기화만 해제된다.
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        assertThat(broker.publishCount()).isZero();
+    }
 }
