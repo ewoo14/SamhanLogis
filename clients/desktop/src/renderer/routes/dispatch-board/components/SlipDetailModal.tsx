@@ -3,8 +3,8 @@
  *
  * <p>Phase A FE-5.2.
  *
- * <p>slip-service `GET /slips/{id}` 호출 → 거래처 / 인수자 / 라인 / 메모 표시.
- * 본 모달은 배차 보드 진입 시 가벼운 미리보기 용도 — 정식 수정/취소는 `/sales/:id` 페이지에서 처리.
+ * <p>slip-service `GET /slips/{id}` 호출 → 판매전표 인쇄 본문을 미리보기로 표시.
+ * 본 모달은 배차 보드 진입 시 문서 확인 용도 — 정식 수정/취소는 `/sales/:id` 페이지에서 처리.
  *
  * UUID 비공개:
  * - 모달에 노출되는 식별자 = slipNumber / partnerCode / partnerName / 인수자 phone / address / 라인 modelName.
@@ -13,6 +13,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Modal } from '@samhan/design-system'
 import { getSlip } from '../../../api/slip'
+import { listWarehouses, type Warehouse } from '../../../api/inventory'
+import { fetchApprovalLineStructure } from '../../../api/approvalLineConfigApi'
+import { DispatchDocument } from '../../../print/DispatchDocument'
+import { useFitOneA4 } from '../../../print/useFitOneA4'
 
 interface SlipDetailModalProps {
   slipId: string
@@ -26,15 +30,38 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
     enabled: !!slipId,
   })
   const slip = query.data
+  const warehousesQuery = useQuery<Warehouse[]>({
+    queryKey: ['warehouses'],
+    queryFn: listWarehouses,
+    enabled: !!slip,
+  })
+  const approvalLineStructureQuery = useQuery({
+    queryKey: ['approval-line-structure', 'SLIP_OUTBOUND'],
+    queryFn: () => fetchApprovalLineStructure('SLIP_OUTBOUND'),
+    enabled: !!slip,
+  })
+
+  // 판매전표 A4 본문을 모달 폭 안에서 잘리지 않게 높이 기준으로 축소한다.
+  const { ref: fitRef, zoom } = useFitOneA4<HTMLDivElement>([
+    slip?.lines?.length ?? 0,
+    approvalLineStructureQuery.data?.length ?? 0,
+  ])
 
   const title = slip ? `출고전표 ${slip.slipNo}` : '출고전표 상세'
+  const sourceWarehouseName =
+    warehousesQuery.isSuccess
+      ? warehousesQuery.data.find((w) => w.id === slip?.sourceWarehouseId)?.name ?? '-'
+      : '-'
+  const approvalRoles = approvalLineStructureQuery.isSuccess
+    ? approvalLineStructureQuery.data
+    : null
 
   return (
     <Modal
       open
       onClose={onClose}
       title={title}
-      description={slip ? `${slip.partnerName ?? ''} (${slip.partnerId ? '' : ''})`.trim() : undefined}
+      description={slip ? '판매전표 미리보기' : undefined}
       size="lg"
       footer={
         <button
@@ -72,133 +99,48 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
           data-testid="dispatch-board-slip-detail-body"
           style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
         >
-          <section>
-            <dl
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '120px 1fr',
-                gap: '6px 12px',
-                fontSize: 13,
-                margin: 0,
-              }}
-            >
-              <dt style={{ color: 'var(--color-neutral-500)' }}>전표번호</dt>
-              <dd style={{ margin: 0, fontWeight: 600 }}>{slip.slipNo}</dd>
-              <dt style={{ color: 'var(--color-neutral-500)' }}>전표일자</dt>
-              <dd style={{ margin: 0 }}>{slip.slipDate}</dd>
-              <dt style={{ color: 'var(--color-neutral-500)' }}>거래처</dt>
-              <dd style={{ margin: 0 }}>{slip.partnerName ?? '-'}</dd>
-              <dt style={{ color: 'var(--color-neutral-500)' }}>기사명</dt>
-              <dd style={{ margin: 0 }}>{slip.driverName ?? '-'}</dd>
-              <dt style={{ color: 'var(--color-neutral-500)' }}>기사 연락처</dt>
-              <dd style={{ margin: 0 }}>{slip.driverPhone ?? '-'}</dd>
-              <dt style={{ color: 'var(--color-neutral-500)' }}>메모</dt>
-              <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{slip.memo ?? '-'}</dd>
-            </dl>
+          <section
+            aria-label="배차 기사 정보"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
+              padding: '8px 10px',
+              border: '1px solid var(--color-neutral-200)',
+              borderRadius: 4,
+              background: 'var(--color-neutral-50)',
+              fontSize: 13,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>기사: {slip.driverName ?? '-'}</span>
+            <span style={{ color: 'var(--color-neutral-500)' }}>|</span>
+            <span>연락처: {slip.driverPhone ?? '-'}</span>
           </section>
 
-          <section>
-            <h4 style={{ margin: '4px 0', fontSize: 13, fontWeight: 600 }}>
-              라인 ({slip.lines.length}건)
-            </h4>
-            {slip.lines.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
-                라인이 없습니다.
-              </div>
-            ) : (
-              <div
-                style={{
-                  border: '1px solid var(--color-neutral-200)',
-                  borderRadius: 4,
-                  overflow: 'hidden',
-                }}
-              >
-                <table
-                  style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: 12,
-                  }}
-                >
-                  <thead style={{ background: 'var(--color-neutral-50)' }}>
-                    <tr>
-                      <th
-                        style={{
-                          padding: '6px 8px',
-                          textAlign: 'left',
-                          borderBottom: '1px solid var(--color-neutral-200)',
-                        }}
-                      >
-                        모델/품목
-                      </th>
-                      <th
-                        style={{
-                          padding: '6px 8px',
-                          textAlign: 'right',
-                          borderBottom: '1px solid var(--color-neutral-200)',
-                          width: 80,
-                        }}
-                      >
-                        수량
-                      </th>
-                      <th
-                        style={{
-                          padding: '6px 8px',
-                          textAlign: 'right',
-                          borderBottom: '1px solid var(--color-neutral-200)',
-                          width: 120,
-                        }}
-                      >
-                        합계
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {slip.lines.map((line) => (
-                      <tr key={line.id}>
-                        <td
-                          style={{
-                            padding: '6px 8px',
-                            borderBottom: '1px solid var(--color-neutral-100)',
-                          }}
-                        >
-                          {line.modelName ?? line.productName ?? '-'}
-                          {line.specification ? (
-                            <span
-                              style={{
-                                marginLeft: 6,
-                                fontSize: 11,
-                                color: 'var(--color-neutral-500)',
-                              }}
-                            >
-                              ({line.specification})
-                            </span>
-                          ) : null}
-                        </td>
-                        <td
-                          style={{
-                            padding: '6px 8px',
-                            textAlign: 'right',
-                            borderBottom: '1px solid var(--color-neutral-100)',
-                          }}
-                        >
-                          {line.quantity}
-                        </td>
-                        <td
-                          style={{
-                            padding: '6px 8px',
-                            textAlign: 'right',
-                            borderBottom: '1px solid var(--color-neutral-100)',
-                          }}
-                        >
-                          {line.lineTotal}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <section
+            aria-label="판매전표 문서 미리보기"
+            style={{
+              overflowX: 'auto',
+              overflowY: 'visible',
+              padding: '8px 0 10px',
+            }}
+          >
+            <div
+              ref={fitRef}
+              style={{
+                zoom,
+                width: 'fit-content',
+                minWidth: '210mm',
+                margin: '0 auto',
+              }}
+            >
+              <DispatchDocument
+                slip={slip}
+                roles={approvalRoles}
+                sourceWarehouseName={sourceWarehouseName}
+              />
+            </div>
           </section>
         </div>
       ) : null}
