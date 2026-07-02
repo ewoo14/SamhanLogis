@@ -7,6 +7,9 @@ import type { SlipDetail } from '../../../api/slip'
 import type { ApprovalLineStructure } from '../../../api/approvalLineConfigApi'
 
 vi.mock('@samhan/design-system', () => ({
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
   Modal: ({
     children,
     footer,
@@ -27,9 +30,9 @@ vi.mock('@samhan/design-system', () => ({
   ),
 }))
 
-const getSlipMock = vi.fn()
-vi.mock('../../../api/slip', () => ({
-  getSlip: (id: string) => getSlipMock(id),
+const getDispatchBoardSlipDetailMock = vi.fn()
+vi.mock('../../../api/dispatchBoard', () => ({
+  getDispatchBoardSlipDetail: (id: string) => getDispatchBoardSlipDetailMock(id),
 }))
 
 const listWarehousesMock = vi.fn()
@@ -60,10 +63,6 @@ vi.mock('../../../print/DispatchDocument', () => ({
   },
 }))
 
-vi.mock('../../../print/useFitOneA4', () => ({
-  useFitOneA4: () => ({ ref: { current: null }, zoom: 0.72 }),
-}))
-
 import { SlipDetailModal } from './SlipDetailModal'
 
 function renderModal() {
@@ -82,7 +81,7 @@ afterEach(() => {
 
 describe('SlipDetailModal 판매전표 미리보기', () => {
   it('전표 상세 조회를 유지하고 창고명/결재라인을 판매전표 문서에 주입한다', async () => {
-    getSlipMock.mockResolvedValue(sampleSlip)
+    getDispatchBoardSlipDetailMock.mockResolvedValue(sampleSlip)
     listWarehousesMock.mockResolvedValue([
       {
         id: sampleSlip.sourceWarehouseId,
@@ -106,7 +105,7 @@ describe('SlipDetailModal 판매전표 미리보기', () => {
     renderModal()
 
     await waitFor(() => expect(screen.getByTestId('dispatch-document-preview')).toBeTruthy())
-    expect(getSlipMock).toHaveBeenCalledWith(sampleSlip.id)
+    expect(getDispatchBoardSlipDetailMock).toHaveBeenCalledWith(sampleSlip.id)
     expect(listWarehousesMock).toHaveBeenCalled()
     expect(fetchApprovalLineStructureMock).toHaveBeenCalledWith('SLIP_OUTBOUND')
     await waitFor(() => {
@@ -121,7 +120,7 @@ describe('SlipDetailModal 판매전표 미리보기', () => {
   })
 
   it('창고/결재라인 조회 실패 시 문서 내부 폴백값을 쓰도록 null 역할과 - 창고명을 넘긴다', async () => {
-    getSlipMock.mockResolvedValue(sampleSlip)
+    getDispatchBoardSlipDetailMock.mockResolvedValue(sampleSlip)
     listWarehousesMock.mockRejectedValue(new Error('warehouses failed'))
     fetchApprovalLineStructureMock.mockRejectedValue(new Error('roles failed'))
 

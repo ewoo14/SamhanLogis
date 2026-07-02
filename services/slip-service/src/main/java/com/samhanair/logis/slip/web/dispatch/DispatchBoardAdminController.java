@@ -4,14 +4,19 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
+import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
 import com.samhanair.logis.slip.dto.dispatch.SlipBoardResponse;
+import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskBoardQueryService;
+import com.samhanair.logis.slip.web.dto.SlipDetailResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -44,6 +49,7 @@ public class DispatchBoardAdminController {
     private static final String DISPATCH_BOARD_PAGE_CODE = "dispatch.board";
 
     private final DispatchTaskBoardQueryService queryService;
+    private final SlipService slipService;
     private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
@@ -67,6 +73,33 @@ public class DispatchBoardAdminController {
         // SP-D3 동적 권한 VIEW 가드 — dispatch.board
         checkViewPermission(roleHeader);
         return ApiResponse.ok(queryService.findUnDispatchedSlips(from, to, statuses, page, size));
+    }
+
+    /**
+     * 배차보드 전표확인용 출고전표 상세 조회.
+     *
+     * <p>일반 {@code GET /slips/{id}} 는 매출 전표 권한({@code sales.slip.list})을 유지한다.
+     * 본 endpoint 는 배차보드 사용자가 전표 확인 모달을 열 수 있도록 {@code dispatch.board VIEW}
+     * 권한으로만 노출하며, 출고전표가 아닌 경우는 차단한다.
+     *
+     * @param id 전표 UUID (path param 전용, 화면 표시 금지)
+     * @param roleHeader X-User-Role header (api-gateway 전파)
+     * @return 판매전표 미리보기용 상세 응답
+     */
+    @Operation(summary = "배차보드 전표확인 상세", description = "dispatch.board VIEW 권한으로 출고전표 미리보기 상세를 조회한다.")
+    @GetMapping("/slips/{id}")
+    @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
+    public ApiResponse<SlipDetailResponse> getSlipDetailForDispatchBoard(
+            @org.springframework.web.bind.annotation.PathVariable UUID id,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader
+    ) {
+        checkViewPermission(roleHeader);
+        SlipDetailResponse response = slipService.getOne(id);
+        if (response.slipType() != SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "배차 보드 전표확인은 출고전표만 조회할 수 있습니다.");
+        }
+        return ApiResponse.ok(response);
     }
 
     // =========================================================================

@@ -1992,7 +1992,7 @@ button {
  * 일련번호/창고명(빨강) 한 줄, 박스 형태 배송지/연락처/특이사항, 라벨만 서명, 하단 책임 안내문.
  */
 .dispatch-page {
-  width: var(--print-content-w, 186mm);
+  width: var(--print-page-w, 210mm);
   margin: 0 auto;
   font-family: 'Pretendard', 'Pretendard Variable', 'Noto Sans KR', sans-serif;
   font-size: 11pt;

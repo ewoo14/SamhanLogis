@@ -3,7 +3,7 @@
  *
  * <p>Phase A FE-5.2.
  *
- * <p>slip-service `GET /slips/{id}` 호출 → 판매전표 인쇄 본문을 미리보기로 표시.
+ * <p>slip-service `GET /admin/dispatch-board/slips/{id}` 호출 → 판매전표 인쇄 본문을 미리보기로 표시.
  * 본 모달은 배차 보드 진입 시 문서 확인 용도 — 정식 수정/취소는 `/sales/:id` 페이지에서 처리.
  *
  * UUID 비공개:
@@ -11,8 +11,8 @@
  * - id (slip UUID) 는 GET path 에만 사용.
  */
 import { useQuery } from '@tanstack/react-query'
-import { Modal } from '@samhan/design-system'
-import { getSlip } from '../../../api/slip'
+import { Button, Modal } from '@samhan/design-system'
+import { getDispatchBoardSlipDetail } from '../../../api/dispatchBoard'
 import { listWarehouses, type Warehouse } from '../../../api/inventory'
 import { fetchApprovalLineStructure } from '../../../api/approvalLineConfigApi'
 import { DispatchDocument } from '../../../print/DispatchDocument'
@@ -25,7 +25,7 @@ interface SlipDetailModalProps {
 export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
   const query = useQuery({
     queryKey: ['dispatchBoard', 'slipDetail', slipId],
-    queryFn: () => getSlip(slipId),
+    queryFn: () => getDispatchBoardSlipDetail(slipId),
     enabled: !!slipId,
   })
   const slip = query.data
@@ -57,23 +57,15 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
       description={slip ? '판매전표 미리보기' : undefined}
       size="xl"
       footer={
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="sm"
           onClick={onClose}
           data-testid="dispatch-board-slip-detail-close"
-          style={{
-            padding: '8px 16px',
-            background: 'var(--color-brand-500, #2D77A8)',
-            color: 'var(--color-neutral-0)',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 600,
-          }}
         >
           닫기
-        </button>
+        </Button>
       }
     >
       {query.isLoading ? (
@@ -120,7 +112,7 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
               padding: '8px 0 10px',
             }}
           >
-            {/* A4(186mm) 문서를 1:1 로 렌더하고 모달 body 세로 스크롤에 위임 — 인쇄용 useFitOneA4 zoom 축소는
+            {/* A4(210mm) 문서를 1:1 로 렌더하고 모달 body 세로 스크롤에 위임 — 인쇄용 useFitOneA4 zoom 축소는
                 스크롤 모달에선 글자 과축소로 판독성 저하(리뷰 라운드1 Design/FE HIGH). Modal size xl 로 폭 수용. */}
             <div style={{ width: 'fit-content', margin: '0 auto' }}>
               <DispatchDocument

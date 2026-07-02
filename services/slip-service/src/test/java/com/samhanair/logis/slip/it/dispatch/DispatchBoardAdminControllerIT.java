@@ -101,6 +101,21 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @WithMockUser(username = "dispatcher", authorities = {"ROLE_DISPATCH"})
+    void GET_dispatch_board_slip_detail_allows_dispatch_role() throws Exception {
+        Slip inspected = saveOutboundSlip("2026/05/18-DQ-S1-4", 704, true,
+                LocalDate.of(2026, 5, 18));
+
+        mvc.perform(get("/admin/dispatch-board/slips/{id}", inspected.getId())
+                        .header(USER_ID_HEADER, DISPATCH_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "DISPATCH"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.slipNo").value(inspected.getSlipNo()))
+                .andExpect(jsonPath("$.data.slipType").value("OUTBOUND"));
+    }
+
+    @Test
     @WithMockUser(username = "sales", authorities = {"ROLE_SALES"})
     void GET_undispatched_slips_rejects_sales_role() throws Exception {
         org.mockito.Mockito.when(dynamicPermissionClient.check(
@@ -169,9 +184,13 @@ class DispatchBoardAdminControllerIT extends AbstractPostgresIT {
     }
 
     private Slip saveOutboundSlip(String slipNo, int seqNo, boolean inspected) {
+        return saveOutboundSlip(slipNo, seqNo, inspected, LocalDate.of(2026, 5, 17));
+    }
+
+    private Slip saveOutboundSlip(String slipNo, int seqNo, boolean inspected, LocalDate slipDate) {
         Slip slip = Slip.createOutbound(
                 slipNo,
-                LocalDate.of(2026, 5, 17),
+                slipDate,
                 seqNo,
                 UUID.randomUUID(),
                 null,

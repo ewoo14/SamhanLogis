@@ -10,6 +10,7 @@
  * 노출 endpoint:
  * <ul>
  *   <li>{@link listUnDispatchedSlips} — 일자 범위 + 상태 + 페이지네이션 (50/page default).</li>
+ *   <li>{@link getDispatchBoardSlipDetail} — 배차보드 전표확인용 출고전표 상세.</li>
  * </ul>
  *
  * UUID 비공개 가드 (feedback_uuid_no_user_visibility.md):
@@ -22,6 +23,7 @@
  * @see UnDispatchedSlipList
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
+import type { SlipDetail } from './slip'
 
 /**
  * 미배차 슬립 dispatchStatus 3 값 — BE {@code SlipDispatchStatus} enum 과 1:1.
@@ -117,6 +119,22 @@ export async function listUnDispatchedSlips(
   const res = await apiClient.get<ApiEnvelope<PageResponse<SlipBoardResponse>>>(
     '/admin/dispatch-board/undispatched-slips',
     { params: queryParams },
+  )
+  return res.data.data
+}
+
+/**
+ * 배차보드 전표확인용 출고전표 상세 조회.
+ *
+ * <p>일반 {@code GET /slips/{id}} 는 sales.slip 권한을 따르므로 DISPATCH 역할에서는
+ * 배차보드 미리보기 전용 endpoint 를 사용한다. UUID 는 path param 전용으로만 사용한다.
+ *
+ * @param id 전표 UUID
+ * @return 판매전표 미리보기용 상세 응답
+ */
+export async function getDispatchBoardSlipDetail(id: string): Promise<SlipDetail> {
+  const res = await apiClient.get<ApiEnvelope<SlipDetail>>(
+    `/admin/dispatch-board/slips/${encodeURIComponent(id)}`,
   )
   return res.data.data
 }
