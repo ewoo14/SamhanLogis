@@ -1,0 +1,8 @@
+event:connected
+data:{"entityId":"747eb9d3-50ae-3571-9e17-282f1b4c3c3d"}
+
+:ping
+
+event:dispatch:board:changed
+data:{"changeType":"CREATED"}
+
