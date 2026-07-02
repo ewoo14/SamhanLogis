@@ -23,5 +23,12 @@
 - typecheck(node+web) 통과 · vitest `SlipDetailModal.test.tsx`+`DispatchDocument.test.ts` **6/6** · dispatch-board 8파일/32 · print 5파일/39 회귀 없음.
 - **라이브 GUI QA**(real-qa `task5-dispatch-preview-real-qa`, mock OFF·:8080·dev_master, 실 슬립 2026/03/09-1): 배차보드 미배차 전표 → 전표확인 → **판매전표 미리보기 모달** — 결재란(담당부서~결제예정일)+품목표(월일~수량) **우측 끝까지 무잘림**·1:1 판독 정상·본사창고 표시·기사 연락처 헤더. `docs/qa/task5-dispatch-slip-preview/`.
 
-## 백로그
-- BE 권한갭(위 개발책임자 결정) · Desktop Playwright 이 이 모달 직접 미검증(pre-existing E2E 갭) · 인쇄버튼/전체화면 링크(plan 선택) · dead token 모듈 전체 sweep(dispatch-board 3파일 선행존재).
+## Codex 라운드 + Opus 재검 (0수렴)
+- **Codex 라운드**(`c1010d8bc`, 라이브 재캡처 `97568ba65`): 5차원 BLOCKING/HIGH 0. Codex 직접 fix — **[BE BLOCKING] getSlip(`GET /slips/{id}`)=`sales.slip.list` 가드→DISPATCH 역할 403(기존 요약모달도 배차담당자 미작동)** → 배차보드 전용 `GET /admin/dispatch-board/slips/{id}`(`dispatch.board VIEW`+OUTBOUND-only) 신규+FE 전환+IT(`DispatchBoardAdminControllerIT`, 실 Testcontainers 7 tests). **[Design HIGH]** Modal xl `min-width:min(980px,calc(100vw-space-8))`(소형뷰포트 graceful)·`.dispatch-page` 210mm border-box(A4 정합; @media print `width:100%` override라 **인쇄 불변**). **[DevOps BLOCKING]** real-qa `DEV_PASSWORD` 필수화. **[FE]** 닫기 design-system Button·useFitOneA4 test mock 정리.
+- **Opus 재검**(`97568ba65`): FE/BE/Design/DevOps 4차원 전부 **BLOCKING/HIGH 0·새 fix 0** → **0수렴 확정**. **CI 32/32 green**(신규 IT `GET_dispatch_board_slip_detail_allows_dispatch_role` CI 로그로 실행 실증·allowlist `it.dispatch.*` 포함·false-green 아님). 신규 엔드포인트로 판매전표 미리보기 라이브 재검(slip-service 재빌드) 완료.
+
+## 백로그 (비차단)
+- **[개발책임자 결정]** BE `inventory.warehouse VIEW` 권한갭(DISPATCH 출고창고 '-') — 위 §결정 대기.
+- **[MED·후속]** 신규 엔드포인트 IT 보강 2케이스(비-OUTBOUND 403·무권한 403) — 로직은 SlipType enum 전수+형제 AOP 테스트(`GET_undispatched_slips_rejects_sales_role`)로 검증됨, happy-path IT PASS. 회귀망 보강용.
+- **[LOW]** `getOne()`이 OUTBOUND 판정 전 전체 상세(user Feign 3콜) 조립 — INBOUND id 낭비호출(board 는 OUTBOUND만 노출이라 실경로 무해). **[NIT]** controller `@PathVariable` FQN import 정리.
+- Desktop Playwright 모달 직접 미검증(pre-existing E2E 갭) · 인쇄버튼/전체화면 링크(plan 선택) · dead token 모듈 sweep(3파일 선행).
