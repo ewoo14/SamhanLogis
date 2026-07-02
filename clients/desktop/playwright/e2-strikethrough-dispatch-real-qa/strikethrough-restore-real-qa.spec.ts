@@ -98,7 +98,8 @@ test('취소선 삭제+복원 라이브 — 전표/그룹 삭제 → 취소선+�
   const groupCard = page.getByTestId(`dispatch-board-vehicle-group-${groupSeq}`)
 
   // (2) 미배차 풀 첫 전표를 전표번호로 배정 — 풀 필터를 과거로 넓혀 실 DB 미배차 전표를 노출.
-  await page.getByTestId('dispatch-board-filter-from').fill('2026-06-01')
+  //     보드 표시자격 미배차 전표(실 DEV 시드)는 slip_date 2026-01~03월대라 from 을 연초로 넓힌다.
+  await page.getByTestId('dispatch-board-filter-from').fill('2026-01-01')
   const firstSlipRow = page.locator('[data-testid^="dispatch-board-slip-row-"]').first()
   await expect(firstSlipRow, '미배차 전표 풀이 비어 있음 — DEV 시드 확인 필요').toBeVisible({ timeout: 15000 })
   const slipRowTestId = await firstSlipRow.getAttribute('data-testid')
