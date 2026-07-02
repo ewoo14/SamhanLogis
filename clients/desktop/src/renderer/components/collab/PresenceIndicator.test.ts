@@ -70,6 +70,20 @@ describe('PresenceIndicator', () => {
     expect(html).toContain('aria-label="[DEV-SEED] 오병승 현재 보고 있음"')
   })
 
+  test('lg size 는 상단 문서 presence 용 확대 스타일을 렌더한다', () => {
+    const html = renderToStaticMarkup(
+      createElement(PresenceIndicator, {
+        entries: [{ sessionId: 's1', displayName: '오병승', color: 'BLUE' }],
+        size: 'lg',
+      }),
+    )
+
+    expect(html).toContain('font-size:14px')
+    expect(html).toContain('padding:4px 10px')
+    expect(html).toContain('width:10px')
+    expect(html).toContain('height:10px')
+  })
+
   test('PresenceColor hex 는 BE enum 대비 보정된 AA 색상을 사용한다', () => {
     const entries: PresenceEntry[] = [
       { sessionId: 's1', displayName: '초록', color: 'GREEN' },

@@ -12,9 +12,32 @@ function isPresenceEntry(value: unknown): value is PresenceEntry {
 
 export interface PresenceIndicatorProps {
   entries: PresenceEntry[] | unknown
+  size?: 'md' | 'lg'
 }
 
-export function PresenceIndicator({ entries }: PresenceIndicatorProps) {
+const PRESENCE_INDICATOR_SIZE = {
+  md: {
+    gap: 8,
+    labelFontSize: 12,
+    chipGap: 6,
+    chipPadding: '2px 8px',
+    chipFontSize: 12,
+    dotSize: 8,
+    maxWidth: 200,
+  },
+  lg: {
+    gap: 10,
+    labelFontSize: 14,
+    chipGap: 8,
+    chipPadding: '4px 10px',
+    chipFontSize: 14,
+    dotSize: 10,
+    maxWidth: 240,
+  },
+} as const
+
+export function PresenceIndicator({ entries, size = 'md' }: PresenceIndicatorProps) {
+  const sizeStyle = PRESENCE_INDICATOR_SIZE[size]
   const list = Array.isArray(entries) ? entries.filter(isPresenceEntry) : []
   const deduped = Array.from(
     list.reduce((acc, entry) => {
@@ -32,12 +55,12 @@ export function PresenceIndicator({ entries }: PresenceIndicatorProps) {
     <div
       data-testid="presence-indicator"
       aria-label={`현재 보고 있음 ${deduped.length}명`}
-      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+      style={{ display: 'flex', alignItems: 'center', gap: sizeStyle.gap }}
     >
       <span
         style={{
           color: 'var(--color-neutral-500, #64748B)',
-          fontSize: 12,
+          fontSize: sizeStyle.labelFontSize,
           lineHeight: 1,
           whiteSpace: 'nowrap',
         }}
@@ -53,22 +76,22 @@ export function PresenceIndicator({ entries }: PresenceIndicatorProps) {
             borderRadius: 999,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
-            padding: '2px 8px',
+            gap: sizeStyle.chipGap,
+            padding: sizeStyle.chipPadding,
             border: '1px solid var(--color-neutral-200, #E2E8F0)',
             background: 'var(--color-neutral-50, #F8FAFC)',
             color: 'var(--color-neutral-900, #0F172A)',
-            fontSize: 12,
+            fontSize: sizeStyle.chipFontSize,
             lineHeight: 1.5,
-            maxWidth: 200,
+            maxWidth: sizeStyle.maxWidth,
             boxSizing: 'border-box',
           }}
         >
           <span
             aria-hidden="true"
             style={{
-              width: 8,
-              height: 8,
+              width: sizeStyle.dotSize,
+              height: sizeStyle.dotSize,
               borderRadius: '50%',
               background: presenceColorToHex(entry.color),
               flex: '0 0 auto',
