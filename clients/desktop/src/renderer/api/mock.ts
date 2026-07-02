@@ -8648,6 +8648,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (group.isDeleted) {
       return mockError(409, 'CONFLICT', '삭제된 차량 그룹 안의 전표는 그룹 복원 후 복원하세요.')
     }
+    // BE isDispatchPending 동형 — 발송(부분발송 포함)된 그룹의 전표는 복원 불가(실 BE 409).
+    if ((group.dispatchStatus ?? 'PENDING') !== 'PENDING') {
+      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹의 전표는 복원할 수 없습니다.')
+    }
     // BE requireDraftTask 동형 — 비-DRAFT 복원은 409.
     if (task.status !== 'DRAFT') {
       return mockError(409, 'CONFLICT', `배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=${task.status}`)
@@ -14023,6 +14027,8 @@ function markMockDispatchVehicleGroupDeleted(
 }
 
 function restoreMockDispatchVehicleGroup(group: DispatchVehicleGroupResponse): void {
+  // BE restoreVehicleGroup 멱등 동형 — 이미 활성 그룹이면 no-op(무관 tombstone 스윕 방지).
+  if (group.isDeleted !== true) return
   // BE cascade 동형 — 그룹 삭제 시 주입된 공유 deletedAt 등호 매칭 행만 함께 복원한다
   // (같은 사용자가 개별 삭제한 행은 deletedAt 이 달라 잔존). 취소선 기간 중 다른 그룹에
   // 재배정되어 활성 매핑이 있는 전표도 이중 배차 방지를 위해 복원에서 제외.

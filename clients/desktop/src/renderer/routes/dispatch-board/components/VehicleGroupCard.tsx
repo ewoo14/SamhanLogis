@@ -42,7 +42,6 @@ import {
   DELETED_ROW_TEXT_STYLE,
   activeSlipRows,
   deletedBadgeAriaLabel,
-  deletedAtTooltip,
   deletedBadgeLabel,
 } from '../dispatchDeletedRow'
 import { serverErrorMessage } from '../dispatchErrorMessage'
@@ -232,7 +231,7 @@ export function VehicleGroupCard({
         {groupDeleted ? (
           <Badge
             variant="neutral"
-            title={deletedAtTooltip(group.deletedAt)}
+            title={deletedBadgeAriaLabel(group.deletedByName, group.deletedAt)}
             aria-label={deletedBadgeAriaLabel(group.deletedByName, group.deletedAt)}
             data-testid={`dispatch-board-vehicle-group-${group.sequence}-deleted-badge`}
             style={{
@@ -420,7 +419,7 @@ export function VehicleGroupCard({
                   groupId={group.id}
                   row={row}
                   canEdit={canMutateGroup}
-                  canRestore={!groupDeleted && canRestore}
+                  canRestore={!groupDeleted && !groupDispatched && canRestore}
                   restorePending={restoreSlipMutation.isPending}
                   isDuplicate={row.isDeleted !== true && duplicateSlipIdSet.has(row.slipId)}
                   onOpenDetail={() => onOpenSlipDetail(row.slipId)}

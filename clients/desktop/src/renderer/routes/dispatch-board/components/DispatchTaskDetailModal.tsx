@@ -41,7 +41,6 @@ import {
   activeSlipRows,
   activeVehicleGroups,
   deletedBadgeAriaLabel,
-  deletedAtTooltip,
   deletedBadgeLabel,
 } from '../dispatchDeletedRow'
 import { ModificationRequestDialog } from './ModificationRequestDialog'
@@ -701,7 +700,7 @@ export function DispatchTaskDetailModal({
                         {groupDeleted ? (
                           <Badge
                             variant="neutral"
-                            title={deletedAtTooltip(g.deletedAt)}
+                            title={deletedBadgeAriaLabel(g.deletedByName, g.deletedAt)}
                             aria-label={deletedBadgeAriaLabel(g.deletedByName, g.deletedAt)}
                             data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-badge`}
                           >
@@ -791,7 +790,10 @@ export function DispatchTaskDetailModal({
                           {g.slips.map((row) => {
                             const rowDeleted = row.isDeleted === true
                             const canRestoreSlip =
-                              canRestoreDeletedRows && rowDeleted && !groupDeleted
+                              canRestoreDeletedRows &&
+                              rowDeleted &&
+                              !groupDeleted &&
+                              groupDispatchStatus === 'PENDING'
                             return (
                               <li
                                 key={row.id}

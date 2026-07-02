@@ -584,6 +584,25 @@ class DispatchTaskServiceTest {
     }
 
     @Test
+    void restoreSlipFromGroup_dispatched_group_throws_conflict() {
+        // 발송(부분발송 포함)된 그룹의 전표는 복원 불가 — FE/mock 복원 게이트(그룹 dispatchStatus)와 정합.
+        // (task 는 DRAFT 지만 선택전송으로 특정 그룹만 DISPATCHED 인 상태의 잔존 tombstone 복원 시도 차단.)
+        stubAdvisoryLock();
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID slipId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        group.markDispatched();
+        when(groupRepo.findByIdIncludingDeleted(groupId)).thenReturn(Optional.of(group));
+
+        assertThatThrownBy(() -> svc.restoreSlipFromGroup(taskId, groupId, slipId, null, "restorer", "복원자"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 발송된 차량 그룹의 전표는 복원할 수 없습니다");
+        verify(slipMapRepo, never()).save(any());
+    }
+
+    @Test
     void restoreSlipFromGroup_duplicate_tombstones_throw_conflict() {
         stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();
