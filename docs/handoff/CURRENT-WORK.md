@@ -8,6 +8,18 @@
 
 > 개발책임자 명시: **"내가 지시한 내용 모두 상세히 기록해 놓고 추후 누락없이 진행."** 아래 8개 지시 항목이 이번 세션 접수 전량. 각 항목 상태·확정 결정 병기. 착수 순서 = **버그 → E2 → (E1·task5 병렬/순차) → E3**.
 
+### ⛔ 2026-07-02 세션 셸 stuck → 새 세션 재개 (E2 기둥2 BE 미커밋 상태 — 최우선 복구)
+> 긴 세션 끝에 bash+PowerShell 모두 timeout(누적 백그라운드: Docker 스택·lingering vite/node·git hang 추정). **새 세션에서 아래 재개.**
+> **⚠️ E2 기둥2 BE Task1-4 = Codex 구현 완료·미커밋**(브랜치 `feat/e2-strikethrough-delete-dispatch` 작업트리에 on-disk, 손실 아님). 컴파일+단위+IT+fresh probe(V55·V78) 통과 확인됨.
+> **새 세션 첫 복구 순서**:
+> 1. 환경 정리: 남은 node/vite 프로세스 kill(`Get-Process node|Stop-Process`), git `.git/index.lock` 있으면 제거, Docker 스택은 유지(후속 QA 재사용).
+> 2. `git branch`(feat/e2-strikethrough-delete-dispatch 인지 확인) → `git status`로 미커밋 BE 변경 확인.
+> 3. **미커밋 BE 커밋**(PM commit 대행): slip-service(V55__dispatch_deleted_by_name.sql·DispatchVehicleGroup/Slip.java·두 Repository·DispatchTaskService·DispatchTaskAdminController·DispatchTaskHistoryQueryService·DispatchTaskDetailResponse + 테스트3) + auth-service(V78__seed_dispatch_board_restore_permission.sql). `.codex/config.toml`은 커밋 제외.
+> 4. push → **조기 PR OPEN**(--draft 금지) 생성 + Codex 개발 라운드 게시.
+> 5. **Task5 FE**(취소선+삭제자배지+복원버튼+restore mutation, Codex) → 커밋.
+> 6. **순차 full 5-agent 듀얼리뷰**(라이브QA Electron 제약 시 정직 disposition+GUI스샷 owed) → 0수렴 → CI → 라이브QA → squash 머지.
+> ⚠️ **듀얼리뷰 주목**: cascade 복원 매칭이 `vehicle_group_id + deleted_by + group.deletedAt ±2초` 휴리스틱(markDeleted가 공유 timestamp 미주입) → 동시삭제 경합 오버/언더매칭 가능성 검토. Plan B=`docs/superpowers/plans/2026-07-02-e2-strikethrough-delete-dispatch-pilot.md`.
+
 ### 🚨🚨 워크플로우 규율 — 이 세션 반복 위반 시정 (새 세션·긴 세션 반드시 준수, 단축 절대금지)
 > 개발책임자 2026-07-02 다수 지적. **매 단계 이 블록 재확인하며 진행.** 상세=[[feedback_review_5agent_no_shortcut_strict]]·[[feedback_live_qa_every_round_screenshots]]·[[feedback_pm_no_direct_implementation]]·[[feedback_pr_open_not_draft]]·[[feedback_canonical_workflow]].
 > 1. **PM 직접 구현 금지** — 구현은 **Codex**(mcp__codex__codex danger-full-access, gpt-5.5/high), PM=기획·리뷰(Opus 5-agent)·commit 대행·종합·머지만. infra 오류 시도 PM 직접구현 대체 금지.
