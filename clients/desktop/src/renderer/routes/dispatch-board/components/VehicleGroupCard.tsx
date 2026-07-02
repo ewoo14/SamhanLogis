@@ -115,7 +115,8 @@ export function VehicleGroupCard({
     canEdit &&
     isEditableStatus(taskStatus) &&
     canAccess('dispatch.board', 'restore')
-  const canRestoreGroup = groupDeleted && canRestore
+  // 결함계열 일관 — 발송(DISPATCHED) 그룹은 복원 불가(BE restoreVehicleGroup 409 동형).
+  const canRestoreGroup = groupDeleted && !groupDispatched && canRestore
   const { setNodeRef, isOver } = useDroppable({
     id: `group:${group.id}`,
     data: { type: 'group', groupId: group.id },

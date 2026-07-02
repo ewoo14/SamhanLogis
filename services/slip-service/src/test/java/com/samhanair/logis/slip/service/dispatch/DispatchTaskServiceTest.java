@@ -450,6 +450,25 @@ class DispatchTaskServiceTest {
     }
 
     @Test
+    void restoreVehicleGroup_dispatched_group_throws_conflict() {
+        // 결함계열 일관 — 발송(부분발송 포함) 그룹은 복원 불가(removeVehicleGroup·restoreSlipFromGroup 동일 가드).
+        stubAdvisoryLock();
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        group.markDeletedWithName("deleter", "삭제자");
+        group.markDispatched();
+        when(groupRepo.findByIdIncludingDeleted(groupId)).thenReturn(Optional.of(group));
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
+
+        assertThatThrownBy(() -> svc.restoreVehicleGroup(taskId, groupId, "restorer", "복원자"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 발송된 차량 그룹은 복원할 수 없습니다");
+        verify(groupRepo, never()).save(any());
+    }
+
+    @Test
     void restoreVehicleGroup_reassigns_sequence_when_taken_by_new_group() {
         stubAdvisoryLock();
         UUID taskId = UUID.randomUUID();

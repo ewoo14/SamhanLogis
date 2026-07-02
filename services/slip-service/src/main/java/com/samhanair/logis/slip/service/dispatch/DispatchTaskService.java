@@ -259,6 +259,13 @@ public class DispatchTaskService {
         if (!Boolean.TRUE.equals(group.getIsDeleted())) {
             return;
         }
+        // 결함계열 일관 — 발송(부분발송 포함) 그룹 mutation 차단(removeVehicleGroup·restoreSlipFromGroup 동일 가드).
+        // removeVehicleGroup 이 DISPATCHED 그룹 삭제를 막아 fresh 데이터엔 도달불가하나, 발송완료 그룹이
+        // 복원으로 편집 컨텍스트에 재진입하지 않도록 방어한다(레거시/경합 안전).
+        if (!group.isDispatchPending()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발송된 차량 그룹은 복원할 수 없습니다.");
+        }
 
         // (dispatch_task_id, sequence) 활성 partial unique 방어 — 삭제 후 추가된 그룹이 빈 sequence 를
         // 재사용했으면(addVehicleGroup 은 활성 수 + 1 채번) 복원 그룹을 말번으로 재부여한다.

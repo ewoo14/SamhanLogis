@@ -639,7 +639,8 @@ export function DispatchTaskDetailModal({
                     g.dispatchStatus === 'PENDING' &&
                     matched?.driverCode === 'MANUAL' &&
                     matched.driverSource !== 'AROLOGIS'
-                  const canRestoreGroup = canRestoreDeletedRows && groupDeleted
+                  const canRestoreGroup =
+                    canRestoreDeletedRows && groupDeleted && groupDispatchStatus === 'PENDING'
                   return (
                     <div
                       key={g.id}

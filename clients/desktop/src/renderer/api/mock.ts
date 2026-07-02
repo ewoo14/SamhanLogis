@@ -8578,6 +8578,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!task || !group) {
       return mockError(404, 'NOT_FOUND', 'DispatchTask 차량 그룹이 존재하지 않습니다.')
     }
+    // BE isDispatchPending 동형 — 발송(부분발송 포함) 그룹은 복원 불가.
+    if ((group.dispatchStatus ?? 'PENDING') !== 'PENDING') {
+      return mockError(409, 'CONFLICT', '이미 발송된 차량 그룹은 복원할 수 없습니다.')
+    }
     // BE requireDraftTask 동형 — 비-DRAFT 복원은 409.
     if (task.status !== 'DRAFT') {
       return mockError(409, 'CONFLICT', `배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=${task.status}`)
