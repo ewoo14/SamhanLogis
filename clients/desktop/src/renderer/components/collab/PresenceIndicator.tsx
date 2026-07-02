@@ -55,7 +55,15 @@ export function PresenceIndicator({ entries, size = 'md' }: PresenceIndicatorPro
     <div
       data-testid="presence-indicator"
       aria-label={`현재 보고 있음 ${deduped.length}명`}
-      style={{ display: 'flex', alignItems: 'center', gap: sizeStyle.gap }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: sizeStyle.gap,
+        rowGap: sizeStyle.chipGap,
+        maxWidth: '100%',
+        minWidth: 0,
+      }}
     >
       <span
         style={{

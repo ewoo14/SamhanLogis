@@ -84,6 +84,24 @@ describe('PresenceIndicator', () => {
     expect(html).toContain('height:10px')
   })
 
+  test('lg size 는 모바일 다중 시청자에서 줄바꿈 가능한 루트 flex 를 렌더한다', () => {
+    const html = renderToStaticMarkup(
+      createElement(PresenceIndicator, {
+        entries: [
+          { sessionId: 's1', displayName: '오병승', color: 'BLUE' },
+          { sessionId: 's2', displayName: '김관리', color: 'GREEN' },
+          { sessionId: 's3', displayName: '박출고', color: 'AMBER' },
+        ],
+        size: 'lg',
+      }),
+    )
+
+    expect(html).toContain('flex-wrap:wrap')
+    expect(html).toContain('row-gap:8px')
+    expect(html).toContain('max-width:100%')
+    expect(html).toContain('min-width:0')
+  })
+
   test('PresenceColor hex 는 BE enum 대비 보정된 AA 색상을 사용한다', () => {
     const entries: PresenceEntry[] = [
       { sessionId: 's1', displayName: '초록', color: 'GREEN' },
