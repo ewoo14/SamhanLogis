@@ -335,6 +335,58 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void POST_restore_vehicle_group_end_to_end_with_deleted_by_name() throws Exception {
+        UUID taskId = createTask("2026-05-24");
+        UUID groupId = addGroup(taskId, "TONNAGE_1");
+
+        // 게이트웨이 동형 — X-User-Name 은 URL-encode 된 한글로 도착, 디코딩 필터가 복원한다.
+        String encodedName = java.net.URLEncoder.encode("홍길동", java.nio.charset.StandardCharsets.UTF_8);
+        mvc.perform(delete("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .header("X-User-Name", encodedName))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.vehicleGroups[0].isDeleted").value(true))
+                .andExpect(jsonPath("$.data.vehicleGroups[0].deletedByName").value("홍길동"));
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/restore", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .header("X-User-Name", encodedName))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/admin/dispatch-tasks/{taskId}", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.vehicleGroups[0].isDeleted").value(false))
+                .andExpect(jsonPath("$.data.vehicleGroups[0].deletedByName").value((String) null));
+    }
+
+    @Test
+    void POST_restore_vehicle_group_requires_edit_permission_403() throws Exception {
+        UUID taskId = createTask("2026-05-25");
+        UUID groupId = addGroup(taskId, "TONNAGE_1");
+        mvc.perform(delete("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isNoContent());
+
+        Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
+        Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/restore", taskId, groupId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isForbidden());
+    }
+
     private UUID createTask(String dispatchDate) throws Exception {
         String taskRes = mvc.perform(post("/admin/dispatch-tasks")
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)

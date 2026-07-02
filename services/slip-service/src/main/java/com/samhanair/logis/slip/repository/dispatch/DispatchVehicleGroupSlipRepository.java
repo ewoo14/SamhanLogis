@@ -33,6 +33,10 @@ public interface DispatchVehicleGroupSlipRepository extends JpaRepository<Dispat
 
     /**
      * 그룹+전표 기준 매핑을 soft-deleted 행까지 포함해 조회한다.
+     *
+     * <p>활성/삭제 행이 공존하면(제거 후 같은 전표 재추가) 복원 대상인 삭제행을 우선 반환한다.
+     * 이 경우 복원 가능 여부는 서비스의 활성 중복 가드가 409 로 판정한다 — 복원 강행 시
+     * {@code (vehicle_group_id, slip_id)} 활성 unique 위반이 나기 때문.
      */
     @Query(value = """
             SELECT *
@@ -47,11 +51,12 @@ public interface DispatchVehicleGroupSlipRepository extends JpaRepository<Dispat
             @Param("slipId") UUID slipId);
 
     /**
-     * 그룹 삭제와 같은 cascade 삭제로 판단되는 하위 매핑을 조회한다.
+     * 그룹 삭제 cascade 로 함께 삭제된 하위 매핑을 조회한다.
      *
-     * <p>현재 BaseEntity 는 삭제시각 외부 주입 API 가 없어 그룹/매핑 deletedAt 이 밀리초 단위로
-     * 완전 동일하다고 보장되지 않는다. 서비스는 그룹 deletedAt 기준 ±2초 창과 동일 deletedBy 로
-     * 기존 개별 삭제 매핑을 제외한다.
+     * <p>{@code removeVehicleGroup} 이 그룹과 하위 매핑 전체에 <b>동일한</b> {@code deleted_at} 을
+     * 주입하므로(BaseEntity 공유 시각 오버로드), 같은 deletedBy + deleted_at 등호 매칭으로 cascade
+     * 집합이 정확히 확정된다. 같은 사용자가 근접 시각에 개별 삭제한 매핑은 시각이 달라 제외된다.
+     * (공유 시각 도입 전 데이터는 등호 불일치로 cascade 복원 대상에서 빠지며 단건 복원 경로로 처리.)
      */
     @Query(value = """
             SELECT *
@@ -59,12 +64,11 @@ public interface DispatchVehicleGroupSlipRepository extends JpaRepository<Dispat
              WHERE vehicle_group_id = :vehicleGroupId
                AND is_deleted = TRUE
                AND deleted_by = :deletedBy
-               AND deleted_at BETWEEN :fromDeletedAt AND :toDeletedAt
+               AND deleted_at = :deletedAt
              ORDER BY sequence ASC
             """, nativeQuery = true)
     List<DispatchVehicleGroupSlip> findDeletedCascadeMappings(
             @Param("vehicleGroupId") UUID vehicleGroupId,
             @Param("deletedBy") String deletedBy,
-            @Param("fromDeletedAt") LocalDateTime fromDeletedAt,
-            @Param("toDeletedAt") LocalDateTime toDeletedAt);
+            @Param("deletedAt") LocalDateTime deletedAt);
 }

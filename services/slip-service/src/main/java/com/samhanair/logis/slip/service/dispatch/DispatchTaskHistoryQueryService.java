@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -50,7 +51,12 @@ public class DispatchTaskHistoryQueryService {
     private final MatchedDriverRepository driverRepo;
     private final SlipRepository slipRepo;
 
-    /** 완료배차 내역 목록. */
+    /**
+     * 완료배차 내역 목록.
+     *
+     * <p>목록 summary(차량수/전표수/거래처 요약)는 활성 행 기준이다 — 취소선(삭제행) 노출은
+     * 상세({@link #detail(UUID)}) 전용이며, 여기서 삭제행을 포함하면 카운트가 부풀려진다.
+     */
     public Page<DispatchTaskSummaryResponse> list(
             LocalDate from,
             LocalDate to,
@@ -59,7 +65,7 @@ public class DispatchTaskHistoryQueryService {
     ) {
         Page<DispatchTask> tasks = taskRepo.findByDispatchDateBetweenAndStatusInAndIsDeletedFalse(
                 from, to, statuses, pageable);
-        DispatchSnapshot snapshot = loadSnapshot(tasks.getContent());
+        DispatchSnapshot snapshot = loadSnapshot(tasks.getContent(), false);
 
         return tasks.map(task -> {
             List<DispatchVehicleGroup> groups = snapshot.groupsByTaskId()
@@ -82,13 +88,13 @@ public class DispatchTaskHistoryQueryService {
         });
     }
 
-    /** DispatchTask 상세. */
+    /** DispatchTask 상세 — 취소선(삭제행) 노출을 위해 삭제 그룹/매핑을 포함한다. */
     public DispatchTaskDetailResponse detail(UUID taskId) {
         DispatchTask task = taskRepo.findById(taskId)
                 .or(() -> taskRepo.findByArologisDispatchIdAndIsDeletedFalse(taskId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다."));
-        DispatchSnapshot snapshot = loadSnapshot(List.of(task));
+        DispatchSnapshot snapshot = loadSnapshot(List.of(task), true);
 
         List<DispatchTaskDetailResponse.VehicleGroup> groups = snapshot.groupsByTaskId()
                 .getOrDefault(task.getId(), List.of())
@@ -100,11 +106,17 @@ public class DispatchTaskHistoryQueryService {
                                 .map(mapping -> {
                                     Slip slip = snapshot.slipsById().get(mapping.getSlipId());
                                     if (slip == null) {
+                                        // 취소선(삭제) 매핑의 전표가 이후 삭제된 경우 — 상세 전체를
+                                        // 500/404 로 무너뜨리지 않고 해당 행만 생략한다.
+                                        if (Boolean.TRUE.equals(mapping.getIsDeleted())) {
+                                            return null;
+                                        }
                                         throw new BusinessException(ErrorCode.NOT_FOUND,
                                                 "배차 작업에 연결된 slip 이 존재하지 않습니다.");
                                     }
                                     return DispatchTaskDetailResponse.VehicleGroupSlip.of(mapping, slip);
                                 })
+                                .filter(Objects::nonNull)
                                 .toList()
                 ))
                 .toList();
@@ -116,6 +128,12 @@ public class DispatchTaskHistoryQueryService {
         List<DispatchTaskDetailResponse.MatchedDriverDto> drivers = snapshot.driversByGroupId()
                 .values()
                 .stream()
+                // 삭제(취소선) 그룹의 기사 정보는 노출하지 않는다 — DTO 에 삭제 메타가 없어
+                // 활성 기사처럼 렌더되는 회귀 방지(삭제행 포함 조회 도입 전 기존 동작 유지).
+                .filter(driver -> {
+                    DispatchVehicleGroup group = groupsById.get(driver.getVehicleGroupId());
+                    return group != null && !Boolean.TRUE.equals(group.getIsDeleted());
+                })
                 .sorted(Comparator.comparing(driver ->
                         groupsById.get(driver.getVehicleGroupId()).getSequence()))
                 .map(driver -> DispatchTaskDetailResponse.MatchedDriverDto.of(
@@ -128,10 +146,15 @@ public class DispatchTaskHistoryQueryService {
 
     /**
      * 전체 차량 그룹에서 같은 전표가 2회 이상 들어간 경우 붉은 경고 대상 slipId 로 반환한다.
+     *
+     * <p>활성 매핑만 센다 — 취소선(삭제) 행은 "그룹에서 뺀 뒤 다른 그룹에 재배정" 한 정상 상태를
+     * 중복으로 오탐시키기 때문.
      */
     private List<UUID> duplicateSlipIds(List<DispatchTaskDetailResponse.VehicleGroup> groups) {
         Map<UUID, Long> counts = groups.stream()
+                .filter(group -> !group.isDeleted())
                 .flatMap(group -> group.slips().stream())
+                .filter(slip -> !slip.isDeleted())
                 .collect(Collectors.groupingBy(
                         DispatchTaskDetailResponse.VehicleGroupSlip::slipId,
                         LinkedHashMap::new,
@@ -142,18 +165,28 @@ public class DispatchTaskHistoryQueryService {
                 .toList();
     }
 
-    private DispatchSnapshot loadSnapshot(List<DispatchTask> tasks) {
+    /**
+     * @param includeDeleted true=취소선 상세용(삭제 그룹/매핑 포함 + 활성 우선 정렬),
+     *                       false=목록 summary 용(기존 활성 전용)
+     */
+    private DispatchSnapshot loadSnapshot(List<DispatchTask> tasks, boolean includeDeleted) {
         if (tasks.isEmpty()) {
             return DispatchSnapshot.empty();
         }
 
         List<UUID> taskIds = tasks.stream().map(DispatchTask::getId).toList();
-        List<DispatchVehicleGroup> groups =
-                sortGroups(groupRepo.findByDispatchTaskIdInIncludingDeleted(taskIds));
+        List<DispatchVehicleGroup> groups = includeDeleted
+                ? sortGroups(groupRepo.findByDispatchTaskIdInIncludingDeleted(taskIds))
+                : groupRepo.findByDispatchTaskIdInAndIsDeletedFalseOrderByDispatchTaskIdAscSequenceAsc(taskIds);
         List<UUID> groupIds = groups.stream().map(DispatchVehicleGroup::getId).toList();
-        List<DispatchVehicleGroupSlip> mappings = groupIds.isEmpty()
-                ? List.of()
-                : sortMappings(groupSlipRepo.findByVehicleGroupIdInIncludingDeleted(groupIds));
+        List<DispatchVehicleGroupSlip> mappings;
+        if (groupIds.isEmpty()) {
+            mappings = List.of();
+        } else if (includeDeleted) {
+            mappings = sortMappings(groupSlipRepo.findByVehicleGroupIdInIncludingDeleted(groupIds));
+        } else {
+            mappings = groupSlipRepo.findByVehicleGroupIdInAndIsDeletedFalseOrderByVehicleGroupIdAscSequenceAsc(groupIds);
+        }
         Set<UUID> slipIds = mappings.stream()
                 .map(DispatchVehicleGroupSlip::getSlipId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));

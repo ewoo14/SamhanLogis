@@ -33,9 +33,17 @@ import {
   MANUAL_MATCHED_DRIVER_SOURCE_OPTIONS,
   MATCHED_DRIVER_SOURCE_LABEL,
   formatDispatchVehicleGroupLabel,
+  isEditableStatus,
   type DispatchTaskResponse,
   type SetMatchedDriverPayload,
 } from '../../../api/dispatchTask'
+import {
+  DELETED_ROW_TEXT_STYLE,
+  activeSlipRows,
+  activeVehicleGroups,
+  deletedAtTooltip,
+  deletedBadgeLabel,
+} from '../dispatchDeletedRow'
 import { ModificationRequestDialog } from './ModificationRequestDialog'
 import { CancellationRequestDialog } from './CancellationRequestDialog'
 import {
@@ -148,11 +156,6 @@ const VISUALLY_HIDDEN_STYLE: CSSProperties = {
   border: 0,
 }
 
-const DELETED_ROW_TEXT_STYLE: CSSProperties = {
-  textDecoration: 'line-through',
-  color: 'var(--color-neutral-500)',
-}
-
 type MatchedDriverFormErrors = Partial<Record<keyof SetMatchedDriverPayload, string>>
 type MatchedDriverFormTouched = Partial<Record<keyof SetMatchedDriverPayload, boolean>>
 
@@ -165,11 +168,6 @@ function formatDateTime(value: string | null | undefined): string {
 
 function displayName(value: string | null | undefined): string {
   return value && value !== 'system' ? value : '시스템'
-}
-
-function deletedBadgeLabel(deletedByName: string | null | undefined): string {
-  const trimmed = deletedByName?.trim()
-  return trimmed ? `삭제: ${trimmed}` : '삭제됨'
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -310,9 +308,14 @@ export function DispatchTaskDetailModal({
     (task.status === 'DRAFT' ||
       task.status === 'DISPATCHING' ||
       task.status === 'DISPATCHED')
-  const canRestoreDeletedRows = !readOnly && canAccess('dispatch.board', 'restore')
+  // 복원은 BE requireDraftTask 와 동일하게 DRAFT 한정 — 발송 후 영구 잔존하는 취소선 행에
+  // 항상 409 로 실패하는 활성 버튼을 노출하지 않는다.
+  const canRestoreDeletedRows =
+    !readOnly && isEditableStatus(task.status) && canAccess('dispatch.board', 'restore')
   const banner = STATUS_BANNER_STYLE[task.status]
-  const totalSlips = task.vehicleGroups.reduce((s, g) => s + g.slips.length, 0)
+  // 카운트는 활성(비삭제) 기준 — 취소선 행 포함 length 는 부풀려진다.
+  const liveGroups = activeVehicleGroups(task.vehicleGroups)
+  const totalSlips = liveGroups.reduce((s, g) => s + activeSlipRows(g).length, 0)
 
   const editsQuery = useQuery({
     queryKey: editQueryKey,
@@ -460,7 +463,7 @@ export function DispatchTaskDetailModal({
         open
         onClose={onClose}
         title={`배차 작업 ${task.taskCode}`}
-        description={`${task.dispatchDate} · 차량 ${task.vehicleGroups.length}대 · 전표 ${totalSlips}건`}
+        description={`${task.dispatchDate} · 차량 ${liveGroups.length}대 · 전표 ${totalSlips}건`}
         size="lg"
         footer={
           <div
@@ -608,7 +611,7 @@ export function DispatchTaskDetailModal({
           {/* 차량 그룹 + 정차 list */}
           <section>
             <h4 style={{ margin: '4px 0', fontSize: 13, fontWeight: 600 }}>
-              차량 그룹 ({task.vehicleGroups.length}대)
+              차량 그룹 ({liveGroups.length}대)
             </h4>
             {task.vehicleGroups.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
@@ -640,8 +643,7 @@ export function DispatchTaskDetailModal({
                     g.dispatchStatus === 'PENDING' &&
                     matched?.driverCode === 'MANUAL' &&
                     matched.driverSource !== 'AROLOGIS'
-                  const canRestoreGroup =
-                    canRestoreDeletedRows && groupDeleted && !restoreGroupMutation.isPending
+                  const canRestoreGroup = canRestoreDeletedRows && groupDeleted
                   return (
                     <div
                       key={g.id}
@@ -650,7 +652,6 @@ export function DispatchTaskDetailModal({
                         border: '1px solid var(--color-neutral-200)',
                         borderRadius: 4,
                         overflow: 'hidden',
-                        opacity: groupDeleted ? 0.66 : 1,
                       }}
                     >
                       <header
@@ -676,7 +677,7 @@ export function DispatchTaskDetailModal({
                             color: 'var(--color-neutral-500)',
                           }}
                         >
-                          ({g.slips.length}건)
+                          ({activeSlipRows(g).length}건)
                         </span>
                         {/* Round C — 그룹 단위 발송 상태 배지 (보드 카드와 동일 라벨/톤).
                             재배차 시작 직후 '미발송' 복귀를 모달 레벨에서 검증 가능. */}
@@ -696,7 +697,11 @@ export function DispatchTaskDetailModal({
                           {DISPATCH_VEHICLE_GROUP_DISPATCH_STATUS_LABEL[groupDispatchStatus]}
                         </span>
                         {groupDeleted ? (
-                          <Badge variant="danger" data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-badge`}>
+                          <Badge
+                            variant="neutral"
+                            title={deletedAtTooltip(g.deletedAt)}
+                            data-testid={`dispatch-task-detail-group-${g.sequence}-deleted-badge`}
+                          >
                             {deletedBadgeLabel(g.deletedByName)}
                           </Badge>
                         ) : null}
@@ -730,7 +735,14 @@ export function DispatchTaskDetailModal({
                             type="button"
                             variant="secondary"
                             size="sm"
-                            onClick={() => restoreGroupMutation.mutate(g.id)}
+                            disabled={restoreGroupMutation.isPending}
+                            loading={restoreGroupMutation.isPending}
+                            onClick={() => {
+                              setTaskActionError(null)
+                              restoreGroupMutation.mutate(g.id, {
+                                onError: () => setTaskActionError('복원에 실패했습니다. 배차 상태를 확인하세요.'),
+                              })
+                            }}
                             data-testid={`dispatch-task-detail-restore-group-${g.sequence}`}
                             aria-label={`${vehicleLabel} #${g.sequence} 그룹 복원`}
                           >
@@ -771,10 +783,7 @@ export function DispatchTaskDetailModal({
                           {g.slips.map((row) => {
                             const rowDeleted = row.isDeleted === true
                             const canRestoreSlip =
-                              canRestoreDeletedRows &&
-                              rowDeleted &&
-                              !groupDeleted &&
-                              !restoreSlipMutation.isPending
+                              canRestoreDeletedRows && rowDeleted && !groupDeleted
                             return (
                               <li
                                 key={row.id}
@@ -786,7 +795,6 @@ export function DispatchTaskDetailModal({
                                   fontSize: 11,
                                   borderBottom:
                                     '1px solid var(--color-neutral-100)',
-                                  opacity: rowDeleted ? 0.62 : 1,
                                 }}
                               >
                                 <span
@@ -811,7 +819,11 @@ export function DispatchTaskDetailModal({
                                   {row.slip.partnerName}
                                 </span>
                                 {rowDeleted ? (
-                                  <Badge variant="danger" data-testid={`dispatch-task-detail-slip-${row.slip.slipNo}-deleted-badge`}>
+                                  <Badge
+                                    variant="neutral"
+                                    title={deletedAtTooltip(row.deletedAt)}
+                                    data-testid={`dispatch-task-detail-slip-${row.slip.slipNo}-deleted-badge`}
+                                  >
                                     {deletedBadgeLabel(row.deletedByName)}
                                   </Badge>
                                 ) : null}
@@ -820,12 +832,18 @@ export function DispatchTaskDetailModal({
                                     type="button"
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() =>
-                                      restoreSlipMutation.mutate({
-                                        groupId: g.id,
-                                        slipId: row.slipId,
-                                      })
-                                    }
+                                    disabled={restoreSlipMutation.isPending}
+                                    loading={restoreSlipMutation.isPending}
+                                    onClick={() => {
+                                      setTaskActionError(null)
+                                      restoreSlipMutation.mutate(
+                                        { groupId: g.id, slipId: row.slipId },
+                                        {
+                                          onError: () =>
+                                            setTaskActionError('복원에 실패했습니다. 전표/그룹 상태를 확인하세요.'),
+                                        },
+                                      )
+                                    }}
                                     data-testid={`dispatch-task-detail-restore-slip-${row.slip.slipNo}`}
                                     aria-label={`정차 ${row.sequence} ${row.slip.slipNo} 복원`}
                                   >

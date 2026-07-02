@@ -45,6 +45,7 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
 import { UnDispatchedSlipList } from './components/UnDispatchedSlipList'
 import { VehicleGroupColumn } from './components/VehicleGroupColumn'
+import { activeSlipRows } from './dispatchDeletedRow'
 import { SlipDetailModal } from './components/SlipDetailModal'
 import { todayIsoSeoul } from '../../api/dispatchBoard'
 import {
@@ -178,7 +179,9 @@ export default function DispatchBoardPage() {
       }
       const group = task.vehicleGroups.find((g) => g.id === activeData.groupId)
       if (!group) return
-      const currentIds = group.slips.map((s) => s.slipId)
+      // 삭제행(취소선)은 정렬 대상이 아니다 — BE reorderSlips 는 활성 매핑만 조회하므로 삭제행
+      // slipId 가 섞이면 그룹 전체 드래그 정렬이 400 으로 실패한다.
+      const currentIds = activeSlipRows(group).map((s) => s.slipId)
       const oldIndex = currentIds.indexOf(activeData.slipId)
       const newIndex = currentIds.indexOf(overData.slipId)
       if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return

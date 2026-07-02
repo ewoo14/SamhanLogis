@@ -43,8 +43,19 @@ public abstract class BaseEntity {
     private Boolean isDeleted = Boolean.FALSE;
 
     public void markDeleted(String userId) {
+        markDeleted(userId, LocalDateTime.now());
+    }
+
+    /**
+     * 삭제 시각을 외부에서 주입하는 soft-delete 오버로드.
+     *
+     * <p>부모-자식을 한 트랜잭션에서 cascade soft-delete 할 때 각 엔티티가 각자 {@code now()} 를
+     * 찍으면 "같은 삭제 작업" 을 시각으로 되짚을 수 없다. 호출자가 단일 시각을 전 대상에 주입하면
+     * cascade 복원이 {@code deleted_at} 등호 매칭으로 대상 집합을 정확히 확정할 수 있다.
+     */
+    public void markDeleted(String userId, LocalDateTime deletedAt) {
         this.isDeleted = Boolean.TRUE;
-        this.deletedAt = LocalDateTime.now();
+        this.deletedAt = deletedAt;
         this.deletedBy = userId;
     }
 

@@ -77,6 +77,12 @@ public class DispatchVehicleGroupSlip extends BaseEntity {
         this.deletedByName = actorName;
     }
 
+    /** 삭제자 표시명 + 공유 삭제 시각(cascade 등호 매칭 기준)을 저장하는 soft-delete helper. */
+    public void markDeletedWithName(String userId, String actorName, java.time.LocalDateTime deletedAt) {
+        markDeleted(userId, deletedAt);
+        this.deletedByName = actorName;
+    }
+
     /** soft-delete 복원과 함께 삭제자 표시명도 비운다. */
     public void markRestoredWithNameCleared() {
         markRestored();

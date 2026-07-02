@@ -290,7 +290,7 @@ public class DispatchTaskAdminController {
                             @RequestHeader(value = "X-User-Name", required = false) String callerName,
                             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
         checkEditPermission(roleHeader);
-        taskService.restoreSlipFromGroup(groupId, slipId, actor != null ? actor : "system", callerName);
+        taskService.restoreSlipFromGroup(taskId, groupId, slipId, actor != null ? actor : "system", callerName);
     }
 
     /**

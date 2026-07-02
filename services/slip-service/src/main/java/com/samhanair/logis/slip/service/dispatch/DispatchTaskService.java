@@ -52,7 +52,6 @@ public class DispatchTaskService {
     private static final int MAX_DAILY_COUNTER = 99_999;
     private static final Pattern UUID_PATTERN = Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
-    private static final long CASCADE_RESTORE_WINDOW_SECONDS = 2;
 
     private final DispatchTaskRepository taskRepo;
     private final DispatchVehicleGroupRepository groupRepo;
@@ -127,12 +126,14 @@ public class DispatchTaskService {
         }
         requireDraftTask(dispatchTaskId);
         String actorName = resolveActorName(callerName);
+        // cascade 복원의 등호 매칭 기준 — 그룹과 하위 매핑 전체에 동일한 삭제 시각을 주입한다.
+        LocalDateTime deletedAt = LocalDateTime.now();
         slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(vehicleGroupId)
                 .forEach(m -> {
-                    m.markDeletedWithName(actor, actorName);
+                    m.markDeletedWithName(actor, actorName, deletedAt);
                     slipMapRepo.save(m);
                 });
-        group.markDeletedWithName(actor, actorName);
+        group.markDeletedWithName(actor, actorName, deletedAt);
         groupRepo.save(group);
         publishBoardChanged("DELETED");
     }
@@ -227,6 +228,10 @@ public class DispatchTaskService {
      * {@code @SQLRestriction("is_deleted = false")} 로 삭제행이 일반 조회에서 빠진다. 복원 대상은
      * native IncludingDeleted 조회로 먼저 로드해야 한다.
      *
+     * <p>cascade 집합은 {@code removeVehicleGroup} 이 주입한 공유 삭제 시각의 등호 매칭으로 확정한다.
+     * 삭제(취소선) 기간 동안 다른 그룹/작업에 재배정되었거나 발송 상태가 바뀐 전표는
+     * {@link #isMappingRestorable(DispatchVehicleGroupSlip)} 가드로 복원에서 제외한다(이중 배차 방지).
+     *
      * @param dispatchTaskId 배차 작업 UUID
      * @param vehicleGroupId 차량 그룹 UUID
      * @param actor 복원 주체 userId
@@ -244,23 +249,37 @@ public class DispatchTaskService {
             return;
         }
 
+        // (dispatch_task_id, sequence) 활성 partial unique 방어 — 삭제 후 추가된 그룹이 빈 sequence 를
+        // 재사용했으면(addVehicleGroup 은 활성 수 + 1 채번) 복원 그룹을 말번으로 재부여한다.
+        List<DispatchVehicleGroup> activeGroups =
+                groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(dispatchTaskId);
+        boolean sequenceTaken = activeGroups.stream()
+                .anyMatch(active -> active.getSequence() == group.getSequence());
+        if (sequenceTaken) {
+            int nextSeq = activeGroups.stream()
+                    .mapToInt(DispatchVehicleGroup::getSequence)
+                    .max()
+                    .orElse(0) + 1;
+            group.reassignSequence(nextSeq);
+        }
+
         LocalDateTime deletedAt = group.getDeletedAt();
         String deletedBy = group.getDeletedBy();
         String actorName = resolveActorName(callerName);
         List<DispatchVehicleGroupSlip> cascadeMappings = deletedAt == null || deletedBy == null
                 ? List.of()
-                : slipMapRepo.findDeletedCascadeMappings(
-                        vehicleGroupId,
-                        deletedBy,
-                        deletedAt.minusSeconds(CASCADE_RESTORE_WINDOW_SECONDS),
-                        deletedAt.plusSeconds(CASCADE_RESTORE_WINDOW_SECONDS));
+                : slipMapRepo.findDeletedCascadeMappings(vehicleGroupId, deletedBy, deletedAt);
+        List<DispatchVehicleGroupSlip> restorable = cascadeMappings.stream()
+                .filter(this::isMappingRestorable)
+                .toList();
 
         group.markRestoredWithNameCleared();
-        cascadeMappings.forEach(DispatchVehicleGroupSlip::markRestoredWithNameCleared);
+        restorable.forEach(DispatchVehicleGroupSlip::markRestoredWithNameCleared);
         groupRepo.save(group);
-        slipMapRepo.saveAll(cascadeMappings);
-        log.info("배차 차량 그룹 복원 — taskId={} groupId={} actor={} actorName={} cascadeMappings={}",
-                dispatchTaskId, vehicleGroupId, actor, actorName, cascadeMappings.size());
+        slipMapRepo.saveAll(restorable);
+        log.info("배차 차량 그룹 복원 — taskId={} groupId={} actor={} actorName={} cascade복원={} 제외={}",
+                dispatchTaskId, vehicleGroupId, actor, actorName, restorable.size(),
+                cascadeMappings.size() - restorable.size());
         publishBoardChanged("RESTORED");
     }
 
@@ -268,17 +287,23 @@ public class DispatchTaskService {
      * 삭제된 그룹-전표 매핑 1건을 복원한다.
      *
      * <p>삭제된 매핑은 {@code @SQLRestriction} 컬렉션으로는 보이지 않으므로 native IncludingDeleted
-     * 조회를 사용한다.
+     * 조회를 사용한다. 삭제 기간 동안 전표가 재배정/발송되었으면 부활 시
+     * {@code (vehicle_group_id, slip_id)} 활성 unique 위반·이중 배차가 되므로 409 로 차단한다.
      *
+     * @param dispatchTaskId 배차 작업 UUID (그룹 소속 검증)
      * @param vehicleGroupId 차량 그룹 UUID
      * @param slipId 전표 UUID
      * @param actor 복원 주체 userId
      * @param callerName 복원 주체 표시명 원본 (UUID 형태면 저장하지 않음)
      */
-    public void restoreSlipFromGroup(UUID vehicleGroupId, UUID slipId, String actor, String callerName) {
+    public void restoreSlipFromGroup(UUID dispatchTaskId, UUID vehicleGroupId, UUID slipId,
+                                     String actor, String callerName) {
         DispatchVehicleGroup group = groupRepo.findByIdIncludingDeleted(vehicleGroupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchVehicleGroup 이 존재하지 않습니다: " + vehicleGroupId));
+        if (!group.getDispatchTaskId().equals(dispatchTaskId)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "group 이 task 에 속하지 않습니다.");
+        }
         if (Boolean.TRUE.equals(group.getIsDeleted())) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "삭제된 차량 그룹의 전표는 그룹 복원으로만 복원할 수 있습니다.");
@@ -287,13 +312,24 @@ public class DispatchTaskService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 발송된 차량 그룹의 전표는 복원할 수 없습니다.");
         }
-        requireDraftTask(group.getDispatchTaskId());
+        requireDraftTask(dispatchTaskId);
         DispatchVehicleGroupSlip mapping = slipMapRepo
                 .findByVehicleGroupIdAndSlipIdIncludingDeleted(vehicleGroupId, slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "그룹에 매핑된 slip 이 없습니다."));
         if (!Boolean.TRUE.equals(mapping.getIsDeleted())) {
             return;
+        }
+        if (!slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId).isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 활성 배차 매핑이 있는 전표입니다 — 기존 매핑을 제거한 뒤 복원하세요.");
+        }
+        Slip slip = slipRepo.findById(slipId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "slip 이 존재하지 않습니다: " + slipId));
+        if (slip.getDispatchStatus() != SlipDispatchStatus.UNDISPATCHED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "미배차 전표만 복원할 수 있습니다: " + slip.getDispatchStatus());
         }
         String actorName = resolveActorName(callerName);
         mapping.markRestoredWithNameCleared();
@@ -303,7 +339,23 @@ public class DispatchTaskService {
         publishBoardChanged("RESTORED");
     }
 
-    /** 배차 목록 변경 발화 (커밋 후). changeType = CREATED/UPDATED/DELETED/STATUS_CHANGED. */
+    /**
+     * cascade 복원 대상 매핑이 {@code assignSlip} 불변식(활성 매핑 없음·미배차 전표)을 여전히
+     * 만족하는지 판정한다.
+     *
+     * <p>취소선 기간 동안 전표가 다른 그룹/작업에 재배정되었거나 발송되었을 수 있다 — 그대로
+     * 부활시키면 이중 배차·활성 unique 위반이 되므로 복원에서 제외한다(취소선 행은 잔존하며,
+     * 단건 복원 시도 시 409 로 사유를 안내한다).
+     */
+    private boolean isMappingRestorable(DispatchVehicleGroupSlip mapping) {
+        if (!slipMapRepo.findBySlipIdAndIsDeletedFalse(mapping.getSlipId()).isEmpty()) {
+            return false;
+        }
+        Slip slip = slipRepo.findById(mapping.getSlipId()).orElse(null);
+        return slip != null && slip.getDispatchStatus() == SlipDispatchStatus.UNDISPATCHED;
+    }
+
+    /** 배차 목록 변경 발화 (커밋 후). changeType = CREATED/UPDATED/DELETED/STATUS_CHANGED/RESTORED. */
     private void publishBoardChanged(String changeType) {
         collectionPublisher.publishChange(
                 DispatchBoardRealtime.CHANNEL_ID,

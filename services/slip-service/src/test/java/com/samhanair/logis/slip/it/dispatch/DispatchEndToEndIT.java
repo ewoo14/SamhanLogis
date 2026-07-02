@@ -26,6 +26,8 @@ import com.samhanair.logis.slip.dto.dispatch.DispatchTaskUnavailableRequest;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.dispatch.DispatchTaskRepository;
+import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupRepository;
+import com.samhanair.logis.slip.repository.dispatch.DispatchVehicleGroupSlipRepository;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskConfirmService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskCompletionService;
 import com.samhanair.logis.slip.service.dispatch.DispatchTaskService;
@@ -60,6 +62,8 @@ class DispatchEndToEndIT extends AbstractPostgresIT {
     @Autowired DispatchTaskUnavailableService unavailableService;
     @Autowired DispatchTaskRepository taskRepo;
     @Autowired SlipRepository slipRepo;
+    @Autowired DispatchVehicleGroupRepository groupRepo;
+    @Autowired DispatchVehicleGroupSlipRepository slipMapRepo;
 
     @MockBean ArologisDispatchClient arologisDispatchClient;
     @MockBean NotificationClient notificationClient;
@@ -179,6 +183,91 @@ class DispatchEndToEndIT extends AbstractPostgresIT {
         DispatchTask afterDispatch = taskService.findOrCreateTodayDraft(date);
         assertThat(afterDispatch.getId()).isNotEqualTo(first.getId());
         assertThat(afterDispatch.getStatus()).isEqualTo(DispatchTaskStatus.DRAFT);
+    }
+
+    @Test
+    void remove_group_stamps_shared_deletedAt_and_restore_cascades() {
+        DispatchTask task = taskService.createTask(LocalDate.of(2099, 7, 2));
+        var group = taskService.addVehicleGroup(task.getId(), DispatchVehicleType.TONNAGE_1);
+        Slip s1 = slipRepo.save(newSlip(10));
+        Slip s2 = slipRepo.save(newSlip(11));
+        taskService.assignSlip(task.getId(), group.getId(), s1.getId());
+        taskService.assignSlip(task.getId(), group.getId(), s2.getId());
+
+        taskService.removeVehicleGroup(task.getId(), group.getId(), "ewoo", "홍길동");
+
+        var deletedGroup = groupRepo.findByIdIncludingDeleted(group.getId()).orElseThrow();
+        assertThat(deletedGroup.getIsDeleted()).isTrue();
+        assertThat(deletedGroup.getDeletedByName()).isEqualTo("홍길동");
+        // 공유 삭제 시각 등호 매칭 — 실 PG timestamp 절삭 후에도 그룹 deleted_at 으로 cascade
+        // 매핑 2건이 정확히 잡혀야 한다 (±윈도우 휴리스틱 제거의 실증).
+        var cascade = slipMapRepo.findDeletedCascadeMappings(
+                group.getId(), deletedGroup.getDeletedBy(), deletedGroup.getDeletedAt());
+        assertThat(cascade).hasSize(2);
+
+        taskService.restoreVehicleGroup(task.getId(), group.getId(), "ewoo", "복원자");
+
+        var restored = groupRepo.findByIdIncludingDeleted(group.getId()).orElseThrow();
+        assertThat(restored.getIsDeleted()).isFalse();
+        assertThat(restored.getDeletedByName()).isNull();
+        assertThat(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(group.getId()))
+                .hasSize(2);
+    }
+
+    @Test
+    void restore_group_reassigns_sequence_when_reused_by_new_group() {
+        DispatchTask task = taskService.createTask(LocalDate.of(2099, 7, 3));
+        var first = taskService.addVehicleGroup(task.getId(), DispatchVehicleType.TONNAGE_1);
+        taskService.removeVehicleGroup(task.getId(), first.getId(), "ewoo", "홍길동");
+        // 삭제로 비워진 sequence 1 을 새 그룹이 재사용 — (task, sequence) 활성 partial unique 점유.
+        var occupant = taskService.addVehicleGroup(task.getId(), DispatchVehicleType.TONNAGE_1);
+        assertThat(occupant.getSequence()).isEqualTo(1);
+
+        // 실 PG unique index 위에서 복원 — 말번 재부여가 없으면 23505 로 터지던 시나리오.
+        taskService.restoreVehicleGroup(task.getId(), first.getId(), "ewoo", "복원자");
+
+        var restored = groupRepo.findByIdIncludingDeleted(first.getId()).orElseThrow();
+        assertThat(restored.getIsDeleted()).isFalse();
+        assertThat(restored.getSequence()).isEqualTo(2);
+    }
+
+    @Test
+    void restore_slip_with_active_duplicate_throws_conflict() {
+        DispatchTask task = taskService.createTask(LocalDate.of(2099, 7, 4));
+        var group = taskService.addVehicleGroup(task.getId(), DispatchVehicleType.TONNAGE_1);
+        Slip slip = slipRepo.save(newSlip(12));
+        taskService.assignSlip(task.getId(), group.getId(), slip.getId());
+        taskService.removeSlipFromGroup(group.getId(), slip.getId(), "ewoo", "홍길동");
+        // 취소선 기간 중 같은 전표 재추가 — 같은 그룹에 활성/삭제 매핑 공존.
+        taskService.assignSlip(task.getId(), group.getId(), slip.getId());
+
+        // 복원 강행 시 (vehicle_group_id, slip_id) 활성 unique 위반 — 409 로 차단되어야 한다.
+        assertThatThrownBy(() -> taskService.restoreSlipFromGroup(
+                task.getId(), group.getId(), slip.getId(), "ewoo", "복원자"))
+                .hasMessageContaining("이미 활성 배차 매핑이 있는 전표입니다");
+    }
+
+    @Test
+    void restore_group_excludes_mapping_reassigned_to_other_group() {
+        DispatchTask task = taskService.createTask(LocalDate.of(2099, 7, 5));
+        var groupA = taskService.addVehicleGroup(task.getId(), DispatchVehicleType.TONNAGE_1);
+        var groupB = taskService.addVehicleGroup(task.getId(), DispatchVehicleType.TONNAGE_1);
+        Slip slip = slipRepo.save(newSlip(13));
+        taskService.assignSlip(task.getId(), groupA.getId(), slip.getId());
+        taskService.removeVehicleGroup(task.getId(), groupA.getId(), "ewoo", "홍길동");
+        // 취소선 기간 중 다른 그룹으로 재배정.
+        taskService.assignSlip(task.getId(), groupB.getId(), slip.getId());
+
+        taskService.restoreVehicleGroup(task.getId(), groupA.getId(), "ewoo", "복원자");
+
+        var restoredGroup = groupRepo.findByIdIncludingDeleted(groupA.getId()).orElseThrow();
+        assertThat(restoredGroup.getIsDeleted()).isFalse();
+        // 이중 배차 방지 — groupA 쪽 매핑은 tombstone 잔존, 활성 매핑은 groupB 1건뿐.
+        assertThat(slipMapRepo.findByVehicleGroupIdAndIsDeletedFalseOrderBySequenceAsc(groupA.getId()))
+                .isEmpty();
+        assertThat(slipMapRepo.findBySlipIdAndIsDeletedFalse(slip.getId()))
+                .singleElement()
+                .satisfies(m -> assertThat(m.getVehicleGroupId()).isEqualTo(groupB.getId()));
     }
 
     private Slip newSlip(int seq) {

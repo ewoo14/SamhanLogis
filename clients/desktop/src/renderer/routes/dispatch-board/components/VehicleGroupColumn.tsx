@@ -31,6 +31,7 @@ import {
   useStartRedispatchMutation,
 } from '../hooks/useDispatchTask'
 import { VehicleGroupCard } from './VehicleGroupCard'
+import { activeSlipRows, activeVehicleGroups } from '../dispatchDeletedRow'
 import { AddVehicleModal } from './AddVehicleModal'
 import { DispatchCompleteDialog } from './DispatchCompleteDialog'
 import { DispatchTaskDetailModal } from './DispatchTaskDetailModal'
@@ -98,30 +99,39 @@ export function VehicleGroupColumn({
 
   // Phase C — MODIFICATION_ACCEPTED 는 start-redispatch 후 DRAFT 로 돌아와야 편집 가능.
   const canEdit = isEditableStatus(taskStatus) && canEditDispatch
-  const dispatchableGroups = groups.filter((g) => (g.dispatchStatus ?? 'PENDING') === 'PENDING')
+  // 삭제(취소선) 그룹/행은 발송 게이팅·선택·카운트·중복 판정 대상이 아니다 — 영구 노출 도입 후
+  // groups/slips 배열이 삭제행을 포함하므로 반드시 활성 파생값으로 판정한다.
+  const liveGroups = activeVehicleGroups(groups)
+  const dispatchableGroups = liveGroups.filter((g) => (g.dispatchStatus ?? 'PENDING') === 'PENDING')
   const canDispatch =
-    canEdit && dispatchableGroups.length > 0 && dispatchableGroups.some((g) => g.slips.length > 0)
-  const selectedDispatchGroupIds = groups
-    .filter((g) => selectedGroupIds.has(g.id) && (g.dispatchStatus ?? 'PENDING') === 'PENDING' && g.slips.length > 0)
+    canEdit && dispatchableGroups.length > 0
+      && dispatchableGroups.some((g) => activeSlipRows(g).length > 0)
+  const selectedDispatchGroupIds = liveGroups
+    .filter((g) => selectedGroupIds.has(g.id)
+      && (g.dispatchStatus ?? 'PENDING') === 'PENDING'
+      && activeSlipRows(g).length > 0)
     .map((g) => g.id)
   const canDispatchSelected = canEdit && selectedDispatchGroupIds.length > 0
   const assignedSlips = groups.flatMap((g) => g.slips)
   const duplicateSlipIds = useMemo(() => {
     const ids = new Set(task?.duplicateSlipIds ?? [])
     const counts = new Map<string, number>()
-    for (const row of assignedSlips) {
-      counts.set(row.slipId, (counts.get(row.slipId) ?? 0) + 1)
+    // 활성 행만 센다 — "그룹에서 뺀(취소선) 전표를 다른 그룹에 재배정" 은 중복이 아니다.
+    for (const group of liveGroups) {
+      for (const row of activeSlipRows(group)) {
+        counts.set(row.slipId, (counts.get(row.slipId) ?? 0) + 1)
+      }
     }
     for (const [slipId, count] of counts) {
       if (count > 1) ids.add(slipId)
     }
     return [...ids]
-  }, [assignedSlips, task?.duplicateSlipIds])
+  }, [liveGroups, task?.duplicateSlipIds])
 
   useEffect(() => {
     const selectableGroupIds = new Set(
-      groups
-        .filter((g) => (g.dispatchStatus ?? 'PENDING') === 'PENDING' && g.slips.length > 0)
+      activeVehicleGroups(groups)
+        .filter((g) => (g.dispatchStatus ?? 'PENDING') === 'PENDING' && activeSlipRows(g).length > 0)
         .map((g) => g.id),
     )
     setSelectedGroupIds((prev) => {
@@ -447,10 +457,10 @@ export function VehicleGroupColumn({
           taskCode={taskCode}
           totalSlips={
             completeGroupIds.length > 0
-              ? groups
+              ? liveGroups
                   .filter((g) => completeGroupIds.includes(g.id))
-                  .reduce((sum, g) => sum + g.slips.length, 0)
-              : dispatchableGroups.reduce((sum, g) => sum + g.slips.length, 0)
+                  .reduce((sum, g) => sum + activeSlipRows(g).length, 0)
+              : dispatchableGroups.reduce((sum, g) => sum + activeSlipRows(g).length, 0)
           }
           totalGroups={completeGroupIds.length > 0 ? completeGroupIds.length : dispatchableGroups.length}
           groupIds={completeGroupIds.length > 0 ? completeGroupIds : undefined}

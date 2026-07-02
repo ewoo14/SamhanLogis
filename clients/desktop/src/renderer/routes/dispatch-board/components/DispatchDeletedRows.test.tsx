@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type {
   DispatchTaskResponse,
@@ -12,8 +12,12 @@ vi.mock('@samhan/design-system', () => ({
   Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
     <span {...props}>{children}</span>
   ),
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
+  Button: ({
+    children,
+    loading,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
+    <button aria-busy={loading || undefined} {...props}>{children}</button>
   ),
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Modal: ({
@@ -232,5 +236,120 @@ describe('dispatch deleted rows', () => {
 
     expect(screen.getAllByText('삭제됨').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText(/삭제: /)).toBeNull()
+  })
+
+  it('비-DRAFT 상태에서는 복원 버튼을 노출하지 않는다 (BE requireDraftTask 게이트 정합)', () => {
+    renderWithQueryClient(
+      <VehicleGroupCard
+        taskId="task-1"
+        group={deletedGroup()}
+        matchedDriver={null}
+        canEdit={false}
+        taskStatus="DISPATCHED"
+        duplicateSlipIds={[]}
+        assignedSlips={[]}
+        selected={false}
+        onSelectedChange={vi.fn()}
+        onOpenSlipDetail={vi.fn()}
+      />,
+    )
+    expect(screen.queryByTestId('dispatch-board-vehicle-group-1-restore')).toBeNull()
+
+    const dispatchedTask = { ...taskWithDeletedRows(), status: 'DISPATCHING' as const }
+    renderWithQueryClient(
+      <DispatchTaskDetailModal task={dispatchedTask} onClose={vi.fn()} />,
+    )
+    expect(screen.queryByTestId('dispatch-task-detail-restore-group-1')).toBeNull()
+  })
+
+  it('복원 실패 시 카드에 role=alert 에러를 표시한다', () => {
+    restoreGroupMutate.mockImplementation(
+      (_groupId: string, opts?: { onError?: (e: unknown) => void }) => {
+        opts?.onError?.(new Error('409'))
+      },
+    )
+    renderWithQueryClient(
+      <VehicleGroupCard
+        taskId="task-1"
+        group={deletedGroup()}
+        matchedDriver={null}
+        canEdit
+        taskStatus="DRAFT"
+        duplicateSlipIds={[]}
+        assignedSlips={[]}
+        selected={false}
+        onSelectedChange={vi.fn()}
+        onOpenSlipDetail={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByTestId('dispatch-board-vehicle-group-1-restore'))
+
+    expect(restoreGroupMutate).toHaveBeenCalledWith('group-1', expect.anything())
+    const alert = screen.getByTestId('dispatch-board-vehicle-group-1-restore-error')
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(alert.textContent).toContain('복원에 실패했습니다')
+  })
+
+  it('카운트/게이팅은 활성 행 기준이고 삭제행에는 중복 경고를 표시하지 않는다', () => {
+    const mixedGroup = deletedGroup({
+      isDeleted: false,
+      deletedAt: null,
+      deletedByName: null,
+      slips: [
+        {
+          id: 'mapping-1',
+          slipId: 'slip-1',
+          sequence: 1,
+          isDeleted: true,
+          deletedAt: '2026-07-02T10:20:00',
+          deletedByName: '이운영',
+          slip: {
+            slipNo: 'SLIP-001',
+            partnerCode: 'P-001',
+            partnerName: '동탄공조',
+            deliveryAddress: null,
+            recipientPhone: null,
+            dispatchStatus: 'UNDISPATCHED',
+          },
+        },
+        {
+          id: 'mapping-2',
+          slipId: 'slip-2',
+          sequence: 1,
+          isDeleted: false,
+          deletedAt: null,
+          deletedByName: null,
+          slip: {
+            slipNo: 'SLIP-002',
+            partnerCode: 'P-002',
+            partnerName: '수원설비',
+            deliveryAddress: null,
+            recipientPhone: null,
+            dispatchStatus: 'UNDISPATCHED',
+          },
+        },
+      ],
+    })
+
+    renderWithQueryClient(
+      <VehicleGroupCard
+        taskId="task-1"
+        group={mixedGroup}
+        matchedDriver={null}
+        canEdit
+        taskStatus="DRAFT"
+        duplicateSlipIds={['slip-1']}
+        assignedSlips={[]}
+        selected={false}
+        onSelectedChange={vi.fn()}
+        onOpenSlipDetail={vi.fn()}
+      />,
+    )
+
+    // 삭제행 1 + 활성행 1 → 카운트는 활성 1건, 취소선 행이 있어도 그룹 삭제 게이트는 활성 0 일 때만 풀림.
+    expect(screen.getByTestId('dispatch-board-vehicle-group-1-count').textContent).toBe('(1건)')
+    // 삭제행(slip-1)이 duplicateSlipIds 에 있어도 취소선 행에는 ⚠ 를 붙이지 않는다.
+    expect(screen.queryByTestId('dispatch-board-group-slip-SLIP-001-duplicate-warning')).toBeNull()
   })
 })
