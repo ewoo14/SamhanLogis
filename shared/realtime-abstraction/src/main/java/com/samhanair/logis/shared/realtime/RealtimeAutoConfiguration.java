@@ -2,6 +2,7 @@ package com.samhanair.logis.shared.realtime;
 
 import com.samhanair.logis.shared.realtime.broker.BrokerConfiguration;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.shared.realtime.lock.DefaultEditLockGuard;
 import com.samhanair.logis.shared.realtime.lock.EditLockGuard;
 import com.samhanair.logis.shared.realtime.presence.PresenceService;
@@ -52,5 +53,12 @@ public class RealtimeAutoConfiguration {
     @ConditionalOnMissingBean(PresenceService.class)
     public PresenceService presenceService(RealtimeBroker broker) {
         return new PresenceService(broker);
+    }
+
+    /** 컬렉션(목록) 레벨 변경 발화 헬퍼 — consumer service override 가능. */
+    @Bean
+    @ConditionalOnMissingBean(CollectionRealtimePublisher.class)
+    public CollectionRealtimePublisher collectionRealtimePublisher(RealtimeBroker broker) {
+        return new CollectionRealtimePublisher(broker);
     }
 }
