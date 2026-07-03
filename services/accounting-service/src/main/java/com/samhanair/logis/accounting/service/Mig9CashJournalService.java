@@ -90,7 +90,7 @@ public class Mig9CashJournalService {
             }
             insertLine(journalId, 1, expenseCode, row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
             insertLine(journalId, 2, cashCode, BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
-            if (!linkCash("cash_disbursements", row.id(), journalId, actor)) {
+            if (!linkCash("cash_disbursements", row.id(), row.version(), journalId, actor)) {
                 log.warn("MIG-9 CashDisbursement journal link race — compensating orphan journal. cashId={}, journalId={}",
                         row.id(), journalId);
                 deleteGeneratedJournal(journalId);
@@ -122,7 +122,7 @@ public class Mig9CashJournalService {
                     row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
             insertLine(journalId, 2, receivableCode,
                     BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
-            if (!linkCash("cash_receipts", row.id(), journalId, actor)) {
+            if (!linkCash("cash_receipts", row.id(), row.version(), journalId, actor)) {
                 log.warn("MIG-9 CashReceipt journal link race — compensating orphan journal. cashId={}, journalId={}",
                         row.id(), journalId);
                 deleteGeneratedJournal(journalId);
@@ -230,11 +230,11 @@ public class Mig9CashJournalService {
                 .addValue("actor", actor));
     }
 
-    private boolean linkCash(String tableName, UUID cashId, UUID journalId, String actor) {
+    private boolean linkCash(String tableName, UUID cashId, Long cashVersion, UUID journalId, String actor) {
         // journal_id IS NULL 가드 — 라이브 confirm/PATCH(E3 S2)가 배치와 동시에 같은 행에 분개를
         // 링크하는 레이스에서 last-write-wins 로 분개가 고아화되는 것을 차단한다 (@Version 은 raw
         // UPDATE 를 타지 않으므로 SQL 레벨로 방어).
-        // status='CONFIRMED' 재확인 + version bump 는 cash_receipts 한정 — ①TOCTOU: pendingRows
+        // status='CONFIRMED' 재확인 + version 비교/bump 는 cash_receipts 한정 — ①TOCTOU: pendingRows
         // SELECT 이후~UPDATE 사이에 라이브 cancel 이 커밋되면(CANCELLED, journal_id 는 NULL 유지)
         // 취소행에 유령 POSTED 분개가 링크되고 역분개 경로(409)가 영구 차단됨. 0행 → 보상삭제+skipped.
         // ②version 컬럼은 V49 가 cash_receipts 에만 추가(라이브 편집 @Version 낙관락 무효화 목적) —
@@ -245,6 +245,7 @@ public class Mig9CashJournalService {
                 : "";
         String receiptStatusFilter = isReceipts
                 ? "                   AND status = 'CONFIRMED'\n"
+                        + "                   AND version = :cashVersion\n"
                 : "";
         int updated = jdbcTemplate.update("""
                 UPDATE %s
@@ -257,6 +258,7 @@ public class Mig9CashJournalService {
 %s""".formatted(tableName, receiptOnlyClauses, receiptStatusFilter), new MapSqlParameterSource()
                 .addValue("journalId", journalId)
                 .addValue("actor", actor)
+                .addValue("cashVersion", cashVersion)
                 .addValue("cashId", cashId));
         return updated == 1;
     }
@@ -274,20 +276,23 @@ public class Mig9CashJournalService {
     private List<CashRow> pendingRows(String tableName, int batchSize) {
         // cash_receipts 는 E3 S2 라이브 취소(CANCELLED)가 가능하므로 CONFIRMED 만 배치 대상 —
         // journal_id NULL 인 CANCELLED 행(라이브 취소된 MIG 행)에 유령 POSTED 분개가 생기는 것을 차단.
-        String receiptKindFilter = "cash_receipts".equals(tableName)
+        boolean isReceipts = "cash_receipts".equals(tableName);
+        String receiptKindFilter = isReceipts
                 ? "                   AND kind = 'DEPOSIT_REPORT'\n"
                         + "                   AND status = 'CONFIRMED'\n"
                 : "";
+        String versionProjection = isReceipts ? "version" : "NULL::bigint AS version";
         return jdbcTemplate.query("""
                 SELECT ROW_NUMBER() OVER (ORDER BY transaction_date, slip_no, id) AS source_row_no,
-                       id, slip_no, partner_id, amount, transaction_date, memo, journal_id, external_ref
-                  FROM %s
-                 WHERE is_deleted = FALSE
-                   AND journal_id IS NULL
-%s
-                 ORDER BY transaction_date, slip_no, id
-                 LIMIT :batchSize
-                """.formatted(tableName, receiptKindFilter), new MapSqlParameterSource("batchSize", batchSize), cashRowMapper());
+                       id, slip_no, partner_id, amount, transaction_date, memo, journal_id, external_ref, %s
+                   FROM %s
+                  WHERE is_deleted = FALSE
+                    AND journal_id IS NULL
+ %s
+                  ORDER BY transaction_date, slip_no, id
+                  LIMIT :batchSize
+                """.formatted(versionProjection, tableName, receiptKindFilter),
+                new MapSqlParameterSource("batchSize", batchSize), cashRowMapper());
     }
 
     private RowMapper<CashRow> cashRowMapper() {
@@ -300,7 +305,8 @@ public class Mig9CashJournalService {
                 rs.getObject("transaction_date", LocalDate.class),
                 rs.getString("memo"),
                 rs.getObject("journal_id", UUID.class),
-                rs.getString("external_ref"));
+                rs.getString("external_ref"),
+                rs.getObject("version", Long.class));
     }
 
     private void reject(CashRow row, ErrorCode code, String message, EcountMig9JournalResult.Builder result) {
@@ -343,6 +349,6 @@ public class Mig9CashJournalService {
     }
 
     record CashRow(int sourceRowNo, UUID id, String slipNo, UUID partnerId, BigDecimal amount,
-                   LocalDate transactionDate, String memo, UUID journalId, String externalRef) {
+                   LocalDate transactionDate, String memo, UUID journalId, String externalRef, Long version) {
     }
 }

@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>대상 일자 = journalDate 기준 (귀속 회계 일자)</li>
  *   <li>balanced = |totalDebit - totalCredit| &lt; 0.01 원</li>
  *   <li>계정별 행은 ChartOfAccount displayOrder 오름차순 정렬</li>
- *   <li>분개 건수 = 해당 일자 POSTED+REVERSED Journal 의 고유 건수</li>
+ *   <li>분개 건수 = 해당 일자 POSTED+REVERSED(보상쌍 상쇄) Journal 의 고유 건수</li>
  *   <li>응답 필드명: date / accountSummary / DailyAccountLine (REPORTS-C-DESIGN.md §9 spec)</li>
  * </ul>
  */

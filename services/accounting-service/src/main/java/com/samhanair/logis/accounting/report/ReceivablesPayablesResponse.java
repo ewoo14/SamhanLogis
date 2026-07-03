@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * 채권채무 현황 응답 DTO.
  *
- * <p>읽기전용 보고서이며 신규 Flyway 도메인 없이 POSTED+REVERSED 분개, 받을어음,
+ * <p>읽기전용 보고서이며 신규 Flyway 도메인 없이 POSTED+REVERSED(보상쌍 상쇄) 분개, 받을어음,
  * 수금계획 데이터를 거래처별로 집계한다.
  *
  * @param asOfDate        기준일

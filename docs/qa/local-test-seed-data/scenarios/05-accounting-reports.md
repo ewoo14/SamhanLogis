@@ -20,7 +20,7 @@
 | `GET  /accounting/journals/{id}` | ACCOUNTANT, MASTER | 단건 + lines |
 | `POST /accounting/journals/{id}/post` | ACCOUNTANT, MASTER | DRAFT → POSTED |
 | `POST /accounting/journals/{id}/reverse` | ACCOUNTANT, MASTER | POSTED → REVERSED + 신규 역분개 자동 생성 |
-| `GET  /accounting/balances?period=YYYYMM` | ACCOUNTANT, MASTER | 시산표 (POSTED 분개 라인 집계) |
+| `GET  /accounting/balances?period=YYYYMM` | ACCOUNTANT, MASTER | 시산표 (POSTED+REVERSED(보상쌍 상쇄) 분개 라인 집계) |
 
 > **현황** — 본 슬라이스는 분개장/시산표/계정과목 트리 만 활성. balance-sheet / income-statement / general-ledger 는 향후 슬라이스 (deferred). 본 시나리오는 활성 endpoint 만 검증.
 
@@ -475,7 +475,7 @@ curl -i -X POST http://localhost:8080/api/accounting/journals \
 - [ ] STEP 6 라이프사이클 (DRAFT → POSTED → REVERSED + 자동 역분개)
 - [ ] STEP 7 Negative 6건 모두 기대 status 일치
 - [ ] §9 정합성 9건 모두 만족
-- [ ] QA 스크린샷 1장 — Edge 의 시산표 화면 (POSTED 분개 합계 일치)
+- [ ] QA 스크린샷 1장 — Edge 의 시산표 화면 (POSTED+REVERSED(보상쌍 상쇄) 분개 합계 일치)
   - 저장: `docs/qa/local-test-seed-data/screenshots/05-trial-balance.png`
 
 ---
@@ -893,7 +893,7 @@ GET /accounting/income-statement?from=2026-01-01&to=2026-05-31
 - [ ] §20 한국어 인코딩
 - [ ] §21 향후 보고서 plan 인지
 - [ ] §22 prod-readiness gap 7건
-- [ ] QA 스크린샷 — Edge 시산표 화면 (POSTED 합계 일치)
+- [ ] QA 스크린샷 — Edge 시산표 화면 (POSTED+REVERSED(보상쌍 상쇄) 합계 일치)
 
 ---
 

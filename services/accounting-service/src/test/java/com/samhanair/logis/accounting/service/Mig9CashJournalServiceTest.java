@@ -218,6 +218,9 @@ class Mig9CashJournalServiceTest {
         // pendingRows SELECT 이후 라이브 cancel 이 선행 커밋된 행(CANCELLED, journal_id NULL)에
         // 유령 POSTED 분개가 링크되는 TOCTOU 차단 — status 재확인은 receipts 링크에만 있어야 한다.
         assertThat(linkSql).contains("status = 'CONFIRMED'");
+        // CONFIRMED PATCH 가 pendingRows SELECT 이후 먼저 커밋된 경우 stale 금액/거래처로 만든
+        // 분개가 링크되지 않도록 SELECT 당시 version 도 함께 비교한다.
+        assertThat(linkSql).contains("version = :cashVersion");
     }
 
     @Test
@@ -507,7 +510,7 @@ class Mig9CashJournalServiceTest {
                                                        BigDecimal amount, UUID journalId) {
         return new Mig9CashJournalService.CashRow(
                 rowNo, cashId(), slipNo, partnerId(), amount, LocalDate.of(2026, 5, 20),
-                "메모", journalId, externalRef);
+                "메모", journalId, externalRef, 0L);
     }
 
     private static UUID cashId() {

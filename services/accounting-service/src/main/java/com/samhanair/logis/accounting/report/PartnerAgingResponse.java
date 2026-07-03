@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * 거래처별 미수/미지급금 (Partner Aging) 응답 DTO.
  *
- * <p>집계 대상: POSTED 상태 분개 라인 (journalDate &lt;= asOfDate).
+ * <p>집계 대상: POSTED+REVERSED(보상쌍 상쇄) 분개 라인 (journalDate &lt;= asOfDate).
  *
  * <p>계정 코드:
  * <ul>

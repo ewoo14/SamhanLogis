@@ -34,6 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
 @AutoConfigureMockMvc
 class Mig9CashJournalLinkIT extends AbstractPostgresIT {
 
+    private static final String RECEIPT_SLIP_NO = "IT-MIG9-R1";
+    private static final String RECEIPT_EXTERNAL_REF = "IT:MIG9:R1";
+    private static final String DISBURSEMENT_SLIP_NO = "IT-MIG9-D1";
+    private static final String DISBURSEMENT_EXTERNAL_REF = "IT:MIG9:D1";
+
     @Autowired private Mig9CashJournalService service;
     @Autowired private JdbcTemplate jdbcTemplate;
 
@@ -50,22 +55,23 @@ class Mig9CashJournalLinkIT extends AbstractPostgresIT {
         UUID receiptId = UUID.randomUUID();
         UUID disbursementId = UUID.randomUUID();
         try {
+            cleanupTestRows();
             jdbcTemplate.update("""
                     INSERT INTO cash_receipts (
                         id, slip_no, partner_id, amount, transaction_date, kind, status,
                         memo, journal_id, external_ref, version, created_at, created_by, is_deleted
-                    ) VALUES (?, 'IT-MIG9-R1', ?, 12345.00, DATE '2099-05-01', 'DEPOSIT_REPORT', 'CONFIRMED',
-                        'MIG9 link IT', NULL, 'IT:MIG9:R1', 0, NOW(), 'it', FALSE)
-                    """, receiptId, UUID.randomUUID());
+                    ) VALUES (?, ?, ?, 12345.00, DATE '0001-01-01', 'DEPOSIT_REPORT', 'CONFIRMED',
+                        'MIG9 link IT', NULL, ?, 0, NOW(), 'it', FALSE)
+                    """, receiptId, RECEIPT_SLIP_NO, UUID.randomUUID(), RECEIPT_EXTERNAL_REF);
             jdbcTemplate.update("""
                     INSERT INTO cash_disbursements (
                         id, slip_no, partner_id, amount, transaction_date, kind,
                         memo, journal_id, external_ref, created_at, created_by, is_deleted
-                    ) VALUES (?, 'IT-MIG9-D1', ?, 23456.00, DATE '2099-05-02', 'EXPENSE_VOUCHER',
-                        'MIG9 link IT', NULL, 'IT:MIG9:D1', NOW(), 'it', FALSE)
-                    """, disbursementId, UUID.randomUUID());
+                    ) VALUES (?, ?, ?, 23456.00, DATE '0001-01-02', 'EXPENSE_VOUCHER',
+                        'MIG9 link IT', NULL, ?, NOW(), 'it', FALSE)
+                    """, disbursementId, DISBURSEMENT_SLIP_NO, UUID.randomUUID(), DISBURSEMENT_EXTERNAL_REF);
 
-            var receiptResult = service.generateFromReceipts(500, "it-actor");
+            var receiptResult = service.generateFromReceipts(1, "it-actor");
             // 공유 컨테이너에 타 IT 커밋 잔류가 있어도 견고하도록 하한 단언 + 본 시드 행 개별 단언.
             assertThat(receiptResult.cashReceiptJournalsCreated()).isGreaterThanOrEqualTo(1);
             UUID receiptJournalId = jdbcTemplate.queryForObject(
@@ -76,24 +82,27 @@ class Mig9CashJournalLinkIT extends AbstractPostgresIT {
             assertThat(receiptVersion).isEqualTo(1L);
 
             // PR #710 회귀 고정 — version 컬럼이 없는 disbursements 링크가 42703 없이 성공해야 한다.
-            var disbursementResult = service.generateFromDisbursements(500, "it-actor");
+            var disbursementResult = service.generateFromDisbursements(1, "it-actor");
             assertThat(disbursementResult.cashDisbursementJournalsCreated()).isGreaterThanOrEqualTo(1);
             UUID disbursementJournalId = jdbcTemplate.queryForObject(
                     "SELECT journal_id FROM cash_disbursements WHERE id = ?", UUID.class, disbursementId);
             assertThat(disbursementJournalId).isNotNull();
         } finally {
-            jdbcTemplate.update("""
-                    DELETE FROM journal_lines WHERE journal_id IN (
-                        SELECT journal_id FROM cash_receipts WHERE id = ?
-                        UNION SELECT journal_id FROM cash_disbursements WHERE id = ?)
-                    """, receiptId, disbursementId);
-            jdbcTemplate.update("""
-                    DELETE FROM journals WHERE id IN (
-                        SELECT journal_id FROM cash_receipts WHERE id = ?
-                        UNION SELECT journal_id FROM cash_disbursements WHERE id = ?)
-                    """, receiptId, disbursementId);
-            jdbcTemplate.update("DELETE FROM cash_receipts WHERE id = ?", receiptId);
-            jdbcTemplate.update("DELETE FROM cash_disbursements WHERE id = ?", disbursementId);
+            cleanupTestRows();
         }
+    }
+
+    private void cleanupTestRows() {
+        jdbcTemplate.update("""
+                DELETE FROM journal_lines
+                 WHERE journal_id IN (
+                       SELECT id FROM journals WHERE source_ref IN (?, ?))
+                """, RECEIPT_EXTERNAL_REF, DISBURSEMENT_EXTERNAL_REF);
+        jdbcTemplate.update("DELETE FROM journals WHERE source_ref IN (?, ?)",
+                RECEIPT_EXTERNAL_REF, DISBURSEMENT_EXTERNAL_REF);
+        jdbcTemplate.update("DELETE FROM cash_receipts WHERE slip_no = ? OR external_ref = ?",
+                RECEIPT_SLIP_NO, RECEIPT_EXTERNAL_REF);
+        jdbcTemplate.update("DELETE FROM cash_disbursements WHERE slip_no = ? OR external_ref = ?",
+                DISBURSEMENT_SLIP_NO, DISBURSEMENT_EXTERNAL_REF);
     }
 }
