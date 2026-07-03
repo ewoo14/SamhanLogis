@@ -45,11 +45,12 @@ public class CashReceiptService {
 
     /** 수기 입금보고서 생성. S1에서는 journalId 를 비운다. */
     public CashReceiptResponse createManual(CashReceiptRequest request) {
+        PartnerSummary partner = resolvePartner(request);
         validateAccounts(request.debitAccountCode(), request.creditAccountCode());
         String slipNo = numberService.next(request.transactionDate());
         CashReceipt receipt = CashReceipt.createManual(
                 slipNo,
-                request.partnerId(),
+                partner.partnerId(),
                 request.amount(),
                 request.transactionDate(),
                 request.memo(),
@@ -60,9 +61,14 @@ public class CashReceiptService {
 
     /** 입금보고서 목록 조회. */
     @Transactional(readOnly = true)
-    public Page<CashReceiptResponse> list(UUID partnerId, LocalDate from, LocalDate to,
+    public Page<CashReceiptResponse> list(String partnerCode, String bizNo, String partnerName,
+                                          LocalDate from, LocalDate to,
                                           CashReceiptStatus status, CashReceiptKind kind,
                                           Pageable pageable) {
+        PartnerSummary filterPartner = hasText(partnerCode) || hasText(bizNo) || hasText(partnerName)
+                ? resolvePartner(partnerCode, bizNo, partnerName)
+                : null;
+        UUID partnerId = filterPartner == null ? null : filterPartner.partnerId();
         Page<CashReceipt> page = repository.findAll(spec(partnerId, from, to, status, kind), pageable);
         Map<UUID, PartnerSummary> partners = resolveDisplays(page.getContent());
         Map<UUID, String> journalNos = resolveJournalNos(page.getContent());
@@ -74,42 +80,58 @@ public class CashReceiptService {
 
     /** 단건 조회. */
     @Transactional(readOnly = true)
-    public CashReceiptResponse getOne(UUID id) {
-        return responseOf(findOrThrow(id));
+    public CashReceiptResponse getOne(String slipNo) {
+        return responseOf(findBySlipNoOrThrow(slipNo));
     }
 
     /** DRAFT 입금보고서 수정. */
-    public CashReceiptResponse updateDraft(UUID id, CashReceiptRequest request) {
-        CashReceipt receipt = findOrThrow(id);
+    public CashReceiptResponse updateDraft(String slipNo, CashReceiptRequest request) {
+        CashReceipt receipt = findBySlipNoOrThrow(slipNo);
+        return updateDraft(receipt, request);
+    }
+
+    private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptRequest request) {
         receipt.requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
-        validateAccounts(request.debitAccountCode(), request.creditAccountCode());
-        receipt.updateDraft(
+        PartnerSummary partner = resolvePartner(request);
+        return updateDraft(receipt, new CashReceiptDraftCommand(
+                partner.partnerId(),
                 request.amount(),
                 request.transactionDate(),
                 request.memo(),
-                request.partnerId(),
                 request.debitAccountCode(),
-                request.creditAccountCode());
+                request.creditAccountCode()));
+    }
+
+    private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptDraftCommand command) {
+        receipt.requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
+        validateAccounts(command.debitAccountCode(), command.creditAccountCode());
+        receipt.updateDraft(
+                command.amount(),
+                command.transactionDate(),
+                command.memo(),
+                command.partnerId(),
+                command.debitAccountCode(),
+                command.creditAccountCode());
         return responseOf(receipt);
     }
 
     /** DRAFT → CONFIRMED. 분개 생성은 S2 범위다. */
-    public CashReceiptResponse confirm(UUID id) {
-        CashReceipt receipt = findOrThrow(id);
+    public CashReceiptResponse confirm(String slipNo) {
+        CashReceipt receipt = findBySlipNoOrThrow(slipNo);
         receipt.confirm();
         return responseOf(receipt);
     }
 
     /** CONFIRMED → CANCELLED. 역분개는 S2 범위다. */
-    public CashReceiptResponse cancel(UUID id) {
-        CashReceipt receipt = findOrThrow(id);
+    public CashReceiptResponse cancel(String slipNo) {
+        CashReceipt receipt = findBySlipNoOrThrow(slipNo);
         receipt.cancel();
         return responseOf(receipt);
     }
 
     /** DRAFT 입금보고서 soft-delete. */
-    public void deleteDraft(UUID id, String actor) {
-        findOrThrow(id).softDeleteDraft(actor);
+    public void deleteDraft(String slipNo, String actor) {
+        findBySlipNoOrThrow(slipNo).softDeleteDraft(actor);
     }
 
     /** 협업 수정완료 changeSet 을 DRAFT 입금보고서에 적용한다. */
@@ -118,8 +140,8 @@ public class CashReceiptService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "적용할 입금보고서 변경 내역이 없습니다");
         }
         CashReceipt current = findOrThrow(id);
-        CashReceiptRequest merged = merge(current, patches);
-        return updateDraft(id, merged);
+        CashReceiptDraftCommand merged = merge(current, patches);
+        return updateDraft(current, merged);
     }
 
     /** 협업 changeSet JSON 을 path map 으로 파싱한다. */
@@ -147,7 +169,7 @@ public class CashReceiptService {
         }
     }
 
-    private CashReceiptRequest merge(CashReceipt current, Map<String, Object> patches) {
+    private CashReceiptDraftCommand merge(CashReceipt current, Map<String, Object> patches) {
         UUID partnerId = current.getPartnerId();
         java.math.BigDecimal amount = current.getAmount();
         LocalDate transactionDate = current.getTransactionDate();
@@ -158,7 +180,9 @@ public class CashReceiptService {
             String path = normalizePatchPath(patch.getKey());
             Object after = patch.getValue();
             switch (path) {
-                case "partnerId" -> partnerId = UUID.fromString(String.valueOf(after));
+                case "partnerCode" -> partnerId = resolvePartner(String.valueOf(after), null, null).partnerId();
+                case "bizNo" -> partnerId = resolvePartner(null, String.valueOf(after), null).partnerId();
+                case "partnerName" -> partnerId = resolvePartner(null, null, String.valueOf(after)).partnerId();
                 case "amount" -> amount = new java.math.BigDecimal(String.valueOf(after));
                 case "transactionDate" -> transactionDate = LocalDate.parse(String.valueOf(after));
                 case "memo" -> memo = after == null ? null : String.valueOf(after);
@@ -168,7 +192,7 @@ public class CashReceiptService {
                         "지원하지 않는 입금보고서 변경 필드입니다: " + path);
             }
         }
-        return new CashReceiptRequest(partnerId, amount, transactionDate, memo,
+        return new CashReceiptDraftCommand(partnerId, amount, transactionDate, memo,
                 debitAccountCode, creditAccountCode);
     }
 
@@ -221,6 +245,57 @@ public class CashReceiptService {
         return repository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "입금보고서를 찾을 수 없습니다"));
+    }
+
+    private CashReceipt findBySlipNoOrThrow(String slipNo) {
+        if (!hasText(slipNo)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "slipNo 는 필수입니다");
+        }
+        return repository.findBySlipNo(slipNo.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "입금보고서를 찾을 수 없습니다: " + slipNo));
+    }
+
+    private PartnerSummary resolvePartner(CashReceiptRequest request) {
+        return resolvePartner(request.partnerCode(), request.bizNo(), request.partnerName());
+    }
+
+    private PartnerSummary resolvePartner(String partnerCode, String bizNo, String partnerName) {
+        if (hasText(partnerCode)) {
+            return partnerLookupClient.findByPartnerCode(partnerCode.trim())
+                    .filter(p -> p.partnerId() != null)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                            "거래처코드로 거래처를 찾을 수 없습니다: " + partnerCode));
+        }
+        if (hasText(bizNo)) {
+            return resolveByDirectorySingle(bizNo.trim(), "사업자번호");
+        }
+        if (hasText(partnerName)) {
+            return partnerLookupClient.findByPartnerName(partnerName.trim())
+                    .filter(p -> p.partnerId() != null)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                            "거래처명으로 거래처를 찾을 수 없습니다: " + partnerName));
+        }
+        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                "partnerCode, bizNo, partnerName 중 하나는 필수입니다");
+    }
+
+    private PartnerSummary resolveByDirectorySingle(String query, String label) {
+        List<PartnerSummary> matches = partnerLookupClient.searchDirectory(query, 2);
+        if (matches.isEmpty()) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                    label + "로 거래처를 찾을 수 없습니다: " + query);
+        }
+        if (matches.size() > 1) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                    label + " 조회 결과가 2건 이상입니다. 거래처코드로 다시 선택하세요: " + query);
+        }
+        PartnerSummary partner = matches.get(0);
+        if (partner.partnerId() == null) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                    label + " 조회 결과에 내부 거래처 ID가 없습니다: " + query);
+        }
+        return partner;
     }
 
     private CashReceiptResponse responseOf(CashReceipt receipt) {
@@ -293,10 +368,23 @@ public class CashReceiptService {
         return value == null ? "" : value.replaceAll("[^0-9]", "");
     }
 
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private String toNullableText(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
         }
         return node.isValueNode() ? node.asText() : node.toString();
+    }
+
+    private record CashReceiptDraftCommand(
+            UUID partnerId,
+            java.math.BigDecimal amount,
+            LocalDate transactionDate,
+            String memo,
+            String debitAccountCode,
+            String creditAccountCode) {
     }
 }

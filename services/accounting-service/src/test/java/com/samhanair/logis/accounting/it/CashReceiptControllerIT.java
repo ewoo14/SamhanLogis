@@ -61,7 +61,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     @BeforeEach
     void setUpExternalClients() {
         lenient().when(partnerLookupClient.findByPartnerId(any())).thenReturn(Optional.empty());
-        lenient().when(partnerLookupClient.findByPartnerCode(any())).thenReturn(Optional.empty());
+        lenient().when(partnerLookupClient.findByPartnerCode(any())).thenReturn(Optional.of(new PartnerSummary(
+                PARTNER_ID, "P-CR-001", "삼한입금상사", "123-45-67890", "서울")));
         lenient().when(partnerLookupClient.findByPartnerIdsBatch(any()))
                 .thenReturn(Map.of(PARTNER_ID, new PartnerSummary(
                         PARTNER_ID, "P-CR-001", "삼한입금상사", "123-45-67890", "서울")));
@@ -89,13 +90,15 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.bizNo").value("1234567890"))
                 .andExpect(jsonPath("$.data.partnerName").value("삼한입금상사"))
                 .andExpect(jsonPath("$.data.slipNo").isNotEmpty())
+                .andExpect(jsonPath("$.data.id").doesNotExist())
                 .andExpect(jsonPath("$.data.externalRef").value(org.hamcrest.Matchers.startsWith("MANUAL:")))
                 .andReturn();
 
-        String id = objectMapper.readTree(created.getResponse().getContentAsString())
-                .get("data").get("id").asText();
+        String slipNo = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("slipNo").asText();
 
-        mockMvc.perform(get(BASE_URL + "/" + id)
+        mockMvc.perform(get(BASE_URL + "/detail")
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
@@ -110,15 +113,17 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT")
                         .param("status", "DRAFT")
                         .param("kind", "MANUAL_RECEIPT")
-                        .param("partnerId", PARTNER_ID.toString()))
+                        .param("partnerCode", "P-CR-001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.content[0].partnerId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].id").doesNotExist())
                 .andExpect(jsonPath("$.data.content[0].partnerCode").value("P-CR-001"))
                 .andExpect(jsonPath("$.data.content[0].bizNo").value("1234567890"))
                 .andExpect(jsonPath("$.data.content[0].partnerName").value("삼한입금상사"));
 
-        mockMvc.perform(patch(BASE_URL + "/" + id)
+        mockMvc.perform(patch(BASE_URL + "/detail")
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -129,14 +134,16 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.debitAccountCode").value("102"))
                 .andExpect(jsonPath("$.data.creditAccountCode").value("110"));
 
-        mockMvc.perform(post(BASE_URL + "/" + id + "/confirm")
+        mockMvc.perform(post(BASE_URL + "/confirm")
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.data.journalId").doesNotExist());
 
-        mockMvc.perform(patch(BASE_URL + "/" + id)
+        mockMvc.perform(patch(BASE_URL + "/detail")
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -145,14 +152,16 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
 
         Map<String, Object> invalidAccountBody = updateBody("122000");
         invalidAccountBody.put("debitAccountCode", "999999");
-        mockMvc.perform(patch(BASE_URL + "/" + id)
+        mockMvc.perform(patch(BASE_URL + "/detail")
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidAccountBody)))
                 .andExpect(status().isConflict());
 
-        mockMvc.perform(post(BASE_URL + "/" + id + "/cancel")
+        mockMvc.perform(post(BASE_URL + "/cancel")
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
@@ -181,20 +190,84 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(createBody("30000"))))
                 .andExpect(status().isCreated())
                 .andReturn();
-        String id = objectMapper.readTree(created.getResponse().getContentAsString())
-                .get("data").get("id").asText();
+        String slipNo = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("slipNo").asText();
 
-        mockMvc.perform(delete(BASE_URL + "/" + id)
+        mockMvc.perform(delete(BASE_URL)
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
         entityManager.flush();
         entityManager.clear();
 
-        mockMvc.perform(get(BASE_URL + "/" + id)
+        mockMvc.perform(get(BASE_URL + "/detail")
+                        .param("slipNo", slipNo)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("상태전이 가드 — DRAFT cancel, confirm 재호출, 재cancel, 확정/취소 삭제를 거부한다")
+    void statusTransitionGuards() throws Exception {
+        MvcResult draft = mockMvc.perform(post(BASE_URL)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createBody("40000"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String slipNo = objectMapper.readTree(draft.getResponse().getContentAsString())
+                .get("data").get("slipNo").asText();
+
+        mockMvc.perform(post(BASE_URL + "/cancel")
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post(BASE_URL + "/confirm")
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post(BASE_URL + "/confirm")
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(delete(BASE_URL)
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post(BASE_URL + "/cancel")
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post(BASE_URL + "/cancel")
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post(BASE_URL + "/confirm")
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(delete(BASE_URL)
+                        .param("slipNo", slipNo)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -257,7 +330,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
 
     private Map<String, Object> createBody(String amount) {
         Map<String, Object> body = new HashMap<>();
-        body.put("partnerId", PARTNER_ID);
+        body.put("partnerCode", "P-CR-001");
         body.put("amount", new BigDecimal(amount));
         body.put("transactionDate", "2026-07-03");
         body.put("memo", "수기 입금");

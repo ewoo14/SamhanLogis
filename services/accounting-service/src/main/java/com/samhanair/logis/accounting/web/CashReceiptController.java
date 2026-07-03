@@ -11,7 +11,6 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -56,7 +55,9 @@ public class CashReceiptController {
     @GetMapping
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<Page<CashReceiptResponse>> list(
-            @RequestParam(required = false) UUID partnerId,
+            @RequestParam(required = false) String partnerCode,
+            @RequestParam(required = false) String bizNo,
+            @RequestParam(required = false) String partnerName,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) CashReceiptStatus status,
@@ -64,51 +65,51 @@ public class CashReceiptController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(service.list(partnerId, from, to, status, kind, pageable));
+        return ApiResponse.ok(service.list(partnerCode, bizNo, partnerName, from, to, status, kind, pageable));
     }
 
     /** 입금보고서 단건 조회. */
     @Operation(summary = "입금보고서 단건 조회")
-    @GetMapping("/{id}")
+    @GetMapping("/detail")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
-    public ApiResponse<CashReceiptResponse> getOne(@PathVariable UUID id) {
-        return ApiResponse.ok(service.getOne(id));
+    public ApiResponse<CashReceiptResponse> getOne(@RequestParam String slipNo) {
+        return ApiResponse.ok(service.getOne(slipNo));
     }
 
     /** DRAFT 입금보고서 수정. */
     @Operation(summary = "입금보고서 DRAFT 수정", description = "CONFIRMED/CANCELLED 상태는 거부한다")
-    @PatchMapping("/{id}")
+    @PatchMapping("/detail")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<CashReceiptResponse> updateDraft(
-            @PathVariable UUID id,
+            @RequestParam String slipNo,
             @Valid @RequestBody CashReceiptRequest request) {
-        return ApiResponse.ok(service.updateDraft(id, request));
+        return ApiResponse.ok(service.updateDraft(slipNo, request));
     }
 
     /** DRAFT → CONFIRMED. */
     @Operation(summary = "입금보고서 확정", description = "분개 생성은 S2 범위다")
-    @PostMapping("/{id}/confirm")
+    @PostMapping("/confirm")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<CashReceiptResponse> confirm(@PathVariable UUID id) {
-        return ApiResponse.ok(service.confirm(id));
+    public ApiResponse<CashReceiptResponse> confirm(@RequestParam String slipNo) {
+        return ApiResponse.ok(service.confirm(slipNo));
     }
 
     /** CONFIRMED → CANCELLED. */
     @Operation(summary = "입금보고서 취소", description = "역분개는 S2 범위다")
-    @PostMapping("/{id}/cancel")
+    @PostMapping("/cancel")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<CashReceiptResponse> cancel(@PathVariable UUID id) {
-        return ApiResponse.ok(service.cancel(id));
+    public ApiResponse<CashReceiptResponse> cancel(@RequestParam String slipNo) {
+        return ApiResponse.ok(service.cancel(slipNo));
     }
 
     /** DRAFT 입금보고서 soft-delete. */
     @Operation(summary = "입금보고서 삭제", description = "DRAFT 상태만 soft-delete 한다")
-    @DeleteMapping("/{id}")
+    @DeleteMapping
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.DELETE)
     public ApiResponse<Void> deleteDraft(
-            @PathVariable UUID id,
+            @RequestParam String slipNo,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        service.deleteDraft(id, callerOrSystem(callerHeader));
+        service.deleteDraft(slipNo, callerOrSystem(callerHeader));
         return ApiResponse.ok(null);
     }
 

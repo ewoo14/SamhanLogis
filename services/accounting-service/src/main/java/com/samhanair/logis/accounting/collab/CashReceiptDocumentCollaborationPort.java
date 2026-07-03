@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CashReceiptDocumentCollaborationPort implements DocumentCollaborationPort {
 
     private static final Set<String> SUPPORTED_FIELDS = Set.of(
-            "partnerId", "amount", "transactionDate", "memo",
+            "partnerCode", "bizNo", "partnerName", "amount", "transactionDate", "memo",
             "debitAccountCode", "creditAccountCode");
 
     private final CashReceiptRepository repository;
@@ -51,7 +51,6 @@ public class CashReceiptDocumentCollaborationPort implements DocumentCollaborati
         CashReceipt receipt = load(documentId);
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("slipNo", receipt.getSlipNo());
-        snapshot.put("partnerId", receipt.getPartnerId());
         snapshot.put("amount", receipt.getAmount());
         snapshot.put("transactionDate", receipt.getTransactionDate());
         snapshot.put("kind", receipt.getKind().name());
