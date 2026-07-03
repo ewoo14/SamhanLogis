@@ -432,22 +432,18 @@ button {
 }
 
 .tax-invoice-totals,
-.estimate-totals,
-.journal-totals {
+.estimate-totals {
   display: grid;
   gap: 16px;
   font-variant-numeric: tabular-nums;
-}
-
-.tax-invoice-totals,
-.estimate-totals {
   grid-template-columns: 1fr 160px 160px 200px;
 }
 
-.journal-totals {
-  /* 라인 테이블 colgroup(#/계정과목/차변/대변/나머지)과 동수치 미러 — 열폭 변경 시 함께 갱신. */
-  grid-template-columns: 40px 160px 110px 110px 1fr;
-  gap: 8px;
+/* 분개 상세 합계 — 라인 테이블 마지막 행으로 렌더(div-grid 미러 폐기: 열 정렬을 테이블이 구조 보장). */
+.journal-total-row td {
+  font-weight: 600;
+  background: #f9fafb;
+  border-top: 2px solid #e5e7eb;
 }
 
 @media (max-width: 768px) {
@@ -572,8 +568,7 @@ button {
   }
 
   .tax-invoice-totals,
-  .estimate-totals,
-  .journal-totals {
+  .estimate-totals {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;

@@ -49,6 +49,9 @@ const fmtKrw = (raw: string): string => {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
+/** 합계 행 sentinel id — 실 라인 UUID 와 충돌하지 않는 로컬 표식(화면 미노출). */
+const TOTAL_ROW_ID = '__journal_total__'
+
 const JOURNAL_STATUS_LABEL: Record<string, string> = {
   DRAFT: '작성중',
   POSTED: '확정',
@@ -171,6 +174,25 @@ export function JournalDetailPage() {
     })),
   }
 
+  // 합계는 별도 div-grid 근사가 아니라 테이블 마지막 행으로 편입한다 — table-layout 과 무관하게
+  // 열 정렬을 테이블 자체가 구조적으로 보장(개발책임자 "합계열이 위 열과 안 맞음" 재지적 해소).
+  const isTotalRow = (l: JournalLine) => l.id === TOTAL_ROW_ID
+  const tableRows: JournalLine[] = [
+    ...journal.lines,
+    {
+      id: TOTAL_ROW_ID,
+      lineNo: 0,
+      accountCode: '',
+      accountName: null,
+      debit: journal.totalDebit,
+      credit: journal.totalCredit,
+      partnerName: null,
+      note: null,
+      memo: null,
+    },
+  ]
+
+  // 열 순서 — 개발책임자 지시: 거래처를 차변 왼쪽으로 이동(+너비 확대). 금액(차/대)은 우측 블록.
   const columns: DataTableColumn<JournalLine>[] = [
     {
       key: 'lineNo',
@@ -178,45 +200,48 @@ export function JournalDetailPage() {
       width: '40px',
       align: 'center',
       // lineNo 는 BE 1-based(JournalService lineNo=1..) — 협업 패널 라인 라벨과 일관되게 그대로 표기.
-      render: (l) => l.lineNo,
+      render: (l) => (isTotalRow(l) ? '' : l.lineNo),
     },
     {
       key: 'accountCode',
       header: '계정과목',
       width: '160px',
-      render: (l) => (
-        <span>
-          <span style={{ color: '#6B7280', marginRight: 8, fontVariantNumeric: 'tabular-nums' }}>
-            {l.accountCode}
+      render: (l) =>
+        isTotalRow(l) ? (
+          <span style={{ fontWeight: 600 }}>합계</span>
+        ) : (
+          <span>
+            <span style={{ color: '#6B7280', marginRight: 8, fontVariantNumeric: 'tabular-nums' }}>
+              {l.accountCode}
+            </span>
+            {l.accountName ?? ''}
           </span>
-          {l.accountName ?? ''}
-        </span>
-      ),
+        ),
+    },
+    {
+      key: 'partnerName',
+      header: '거래처',
+      width: '260px',
+      render: (l) => (isTotalRow(l) ? '' : (l.partnerName ?? '—')),
     },
     {
       key: 'debit',
       header: '차변',
       width: '110px',
       align: 'right',
-      render: (l) => fmtKrw(l.debit),
+      render: (l) => (isTotalRow(l) ? <strong>{fmtKrw(l.debit)}</strong> : fmtKrw(l.debit)),
     },
     {
       key: 'credit',
       header: '대변',
       width: '110px',
       align: 'right',
-      render: (l) => fmtKrw(l.credit),
-    },
-    {
-      key: 'partnerName',
-      header: '거래처',
-      width: '260px',
-      render: (l) => l.partnerName ?? '—',
+      render: (l) => (isTotalRow(l) ? <strong>{fmtKrw(l.credit)}</strong> : fmtKrw(l.credit)),
     },
     {
       key: 'note',
       header: '메모',
-      render: (l) => l.memo ?? l.note ?? '—',
+      render: (l) => (isTotalRow(l) ? '' : (l.memo ?? l.note ?? '—')),
     },
   ]
 
@@ -438,8 +463,10 @@ export function JournalDetailPage() {
         <div className="detail-mobile-hide">
           <DataTable
             columns={columns}
-            rows={journal.lines}
+            rows={tableRows}
             rowKey={(l) => l.id}
+            rowClassName={(l) => (isTotalRow(l) ? 'journal-total-row' : undefined)}
+            tableLayout="fixed"
             emptyMessage="라인이 없습니다."
           />
         </div>
@@ -481,26 +508,16 @@ export function JournalDetailPage() {
           )}
         </div>
 
-        {/* 합계 */}
-        <div
-          className="journal-totals"
-          style={{
-            marginTop: 16,
-            padding: '12px 16px',
-            background: '#F9FAFB',
-            borderRadius: 6,
-            fontSize: 14,
-          }}
-        >
-          <div />
-          <div style={{ fontWeight: 600 }}>합계</div>
-          <div style={{ textAlign: 'right', fontWeight: 600 }}>
-            {fmtKrw(journal.totalDebit)}
+        {/* 합계는 라인 테이블 마지막 행(journal-total-row)으로 렌더 — 모바일 카드 합계 별도 표기. */}
+        <div className="mobile-item-list">
+          <div className="mobile-item-card">
+            <div className="mobile-item-total-row">
+              <span className="mobile-item-total-label">합계 (차변/대변)</span>
+              <span className="mobile-item-total-value">
+                {fmtKrw(journal.totalDebit)} / {fmtKrw(journal.totalCredit)}
+              </span>
+            </div>
           </div>
-          <div style={{ textAlign: 'right', fontWeight: 600 }}>
-            {fmtKrw(journal.totalCredit)}
-          </div>
-          <div />
         </div>
       </Card>
 
