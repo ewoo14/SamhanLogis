@@ -25,6 +25,7 @@ import {
   type CreateTaxInvoiceLineRequest,
   type CreateTaxInvoiceRequest,
 } from '../api/taxInvoiceApi'
+import { extractApiErrorMessage as extractErrorMessage } from '../api/apiError'
 import { taxInvoiceAuditApi } from '../api/createAuditApi'
 import { TaxInvoiceRealtimeClient } from '../realtime/AccountingRealtimeClient'
 import { AuditRevisionBadge } from '../components/audit/AuditOverlaySection'
@@ -323,7 +324,7 @@ export function TaxInvoiceFormPage() {
       })
       navigate(`/accounting/tax-invoices/${created.id}`, { replace: true })
     },
-    onError: (err: Error) => setTopError(`저장 실패: ${err.message}`),
+    onError: (err: unknown) => setTopError(`저장 실패: ${extractErrorMessage(err)}`),
   })
 
   const updateMutation = useMutation({
@@ -338,7 +339,7 @@ export function TaxInvoiceFormPage() {
       })
       navigate(`/accounting/tax-invoices/${updated.id}`, { replace: true })
     },
-    onError: (err: Error) => setTopError(`수정 실패: ${err.message}`),
+    onError: (err: unknown) => setTopError(`수정 실패: ${extractErrorMessage(err)}`),
   })
 
   const issueMutation = useMutation({
@@ -355,7 +356,7 @@ export function TaxInvoiceFormPage() {
       )
       navigate(`/accounting/tax-invoices/${issued.id}`, { replace: true })
     },
-    onError: (err: Error) => setTopError(`발행 실패: ${err.message}`),
+    onError: (err: unknown) => setTopError(`발행 실패: ${extractErrorMessage(err)}`),
   })
 
   const buildBody = (): CreateTaxInvoiceRequest | null => {
@@ -429,7 +430,7 @@ export function TaxInvoiceFormPage() {
       issueMutation.mutate(editId)
     } catch (err: unknown) {
       setTopError(
-        `발행 전 저장 실패: ${err instanceof Error ? err.message : String(err)}`,
+        `발행 전 저장 실패: ${extractErrorMessage(err)}`,
       )
     }
   }

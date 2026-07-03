@@ -131,7 +131,7 @@ public class CashReceiptController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "취소 성공 — CANCELLED 및 reverseJournalNo 반환(원분개가 있을 때)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "입금보고서 또는 연결 분개 미존재"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CONFIRMED가 아니거나, 마감 기간, 또는 역분개 불가 상태")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CONFIRMED가 아니거나, 원분개 일자가 마감된 회계 기간, 또는 역분개 불가 상태")
     })
     @PostMapping("/{id:[0-9a-fA-F-]{36}}/cancel")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)

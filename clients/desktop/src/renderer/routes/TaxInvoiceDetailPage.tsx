@@ -28,7 +28,6 @@
  * <p>UUID 비공개 가드 — id / partnerId / journalId 는 path param 전용 (사용자 미노출).
  * taxInvoiceNo / partnerName / eTaxExternalId (홈택스 접수번호) 만 화면 표시.
  */
-import axios from 'axios'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import styles from './TaxInvoiceDetailPage.module.css'
@@ -50,10 +49,13 @@ import {
   emitTaxInvoiceToNts,
   getTaxInvoice,
   issueTaxInvoice,
-  type ApiErrorEnvelope,
   type TaxInvoiceLine,
   type TaxInvoiceStatus,
 } from '../api/taxInvoiceApi'
+import {
+  extractApiErrorMessage as extractErrorMessage,
+  getApiErrorInfo,
+} from '../api/apiError'
 import { taxInvoiceAuditApi } from '../api/createAuditApi'
 import { TaxInvoiceRealtimeClient } from '../realtime/AccountingRealtimeClient'
 import {
@@ -100,26 +102,15 @@ function lineTotal(line: TaxInvoiceLine): number {
  * axios 오류 응답에서 HTTP status + BE {@link ApiErrorEnvelope} 를 함께 추출한다.
  *
  * <p>issueMutation / cancelMutation / emitNtsMutation onError 공통 헬퍼 (fix 라운드 H-02 계열 sweep).
- * AxiosError 가 아니면 둘 다 undefined — 호출부는 최종적으로 err.message 폴백을 사용한다.
  */
-function getApiErrorInfo(err: unknown): { status?: number; data?: ApiErrorEnvelope } {
-  if (!axios.isAxiosError(err)) return {}
-  return { status: err.response?.status, data: err.response?.data as ApiErrorEnvelope | undefined }
-}
 
 /**
  * BE 한국어 message(ApiErrorEnvelope.message) 를 우선 추출하고,
- * 없으면 기존 axios 원문 {@code err.message} 로 폴백한다.
  *
  * <p>issueMutation / cancelMutation 처럼 status 무관 단일 폴백이면 충분한 mutation 에서 사용.
  * emitNtsMutation 은 status(409/422/502) 별 세분화된 폴백 문구가 필요해 {@link getApiErrorInfo} 를
  * 직접 사용한다(기존 동작 무변경 — 리뷰 스코프 최소).
  */
-function extractErrorMessage(err: unknown): string {
-  const { data } = getApiErrorInfo(err)
-  if (data?.message) return data.message
-  return err instanceof Error ? err.message : String(err)
-}
 
 export function TaxInvoiceDetailPage() {
   const navigate = useNavigate()

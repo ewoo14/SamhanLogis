@@ -21,7 +21,7 @@ import {
   type PageResponse,
 } from './client'
 import type { Account, JournalStatus } from '@samhan/design-system'
-import axios from 'axios'
+import { extractApiErrorResponseMessage } from './apiError'
 
 export type { Account } from '@samhan/design-system'
 
@@ -312,20 +312,12 @@ export async function postJournal(id: string): Promise<Journal> {
     )
     return normalizeJournal(res.data.data)
   } catch (err) {
-    const message = extractApiErrorMessage(err)
+    const message = extractApiErrorResponseMessage(err)
     if (message) {
       throw new Error(message)
     }
     throw err
   }
-}
-
-function extractApiErrorMessage(err: unknown): string | null {
-  if (!axios.isAxiosError(err)) return null
-  const data = err.response?.data
-  if (typeof data !== 'object' || data === null || !('message' in data)) return null
-  const message = data.message
-  return typeof message === 'string' && message.trim() ? message : null
 }
 
 /**
@@ -345,7 +337,7 @@ export async function reverseJournal(
     )
     return normalizeJournal(res.data.data)
   } catch (err) {
-    const message = extractApiErrorMessage(err)
+    const message = extractApiErrorResponseMessage(err)
     if (message) {
       throw new Error(message)
     }
