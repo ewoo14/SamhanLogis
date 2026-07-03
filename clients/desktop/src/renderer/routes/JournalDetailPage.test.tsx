@@ -198,6 +198,16 @@ describe('JournalDetailPage 라인 테이블', () => {
     const bodyRows = table!.querySelectorAll('tbody tr')
     // 라인 2건(픽스처) + 합계행 1건 = 3행 — 합계 sentinel 만 남고 라인이 누락되는 회귀도 잡아낸다.
     expect(bodyRows.length).toBe(3)
+
+    // 값-라벨 배정(열 교체 swap) 회귀 고정(Opus 재검 MED) — 비대칭 픽스처(line-1 차변만·line-2
+    // 대변만)로 차변/대변 셀이 각각 올바른 열에 배정됐는지 직접 단언한다.
+    const line1Cells = bodyRows.item(0).querySelectorAll('td')
+    expect(line1Cells.item(3).textContent).toBe('1,000')
+    expect(line1Cells.item(4).textContent).toBe('—')
+    const line2Cells = bodyRows.item(1).querySelectorAll('td')
+    expect(line2Cells.item(3).textContent).toBe('—')
+    expect(line2Cells.item(4).textContent).toBe('1,000')
+
     const totalRow = bodyRows.item(bodyRows.length - 1)
     const totalCells = totalRow.querySelectorAll('td')
     expect(totalRow.classList.contains('journal-total-row')).toBe(true)
@@ -251,14 +261,24 @@ describe('JournalDetailPage 라인 테이블', () => {
 
     await screen.findByText('2026/07/03-1')
 
+    const table = view.container.querySelector('table')
+    expect(table).not.toBeNull()
+    const bodyRows = table!.querySelectorAll('tbody tr')
+
     const ellipsisCells = Array.from(
       view.container.querySelectorAll<HTMLElement>('.journal-cell-ellipsis'),
     )
     const emptyDisplay = ellipsisCells.find((cell) => cell.textContent === '—')
-    const blankDisplay = ellipsisCells.find((cell) => cell.textContent === '')
+    // 거래처 컬럼 명시 스코프(행 인덱스 0=line-empty + data-label, Opus 재검 nit) — 메모(note)
+    // 컬럼도 동일 라인에서 빈 문자열('')을 렌더해 textContent 전역 검색은 어느 셀을 잡았는지
+    // 모호(디버깅 불명확) — 실패 시 즉시 대상 셀을 특정할 수 있도록 명시 스코프한다.
+    const blankDisplay = bodyRows.item(0).querySelector<HTMLElement>(
+      'td[data-label="거래처"] .journal-cell-ellipsis',
+    )
     const valueDisplay = ellipsisCells.find((cell) => cell.textContent === '외상매출금')
 
     expect(emptyDisplay?.getAttribute('title')).toBeNull()
+    expect(blankDisplay?.textContent).toBe('')
     expect(blankDisplay?.getAttribute('title')).toBeNull()
     expect(valueDisplay?.getAttribute('title')).toBe('외상매출금')
   })
