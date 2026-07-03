@@ -134,6 +134,7 @@ public class JournalService {
      * @param actorUserId 역분개 게시자 user-id
      * @return 신규 역분개 단건 (원분개 ID 는 reversedJournalId 로 추적)
      * @throws BusinessException(CONFLICT) 입금보고서 자동 분개(CASH_RECEIPT)를 직접 역분개 시도
+     * @throws BusinessException(CONFLICT) 원분개 일자가 마감된 회계 기간에 속할 때
      */
     public JournalDetailResponse reverse(UUID id, String actorUserId) {
         Journal original = findOrThrow(id);
@@ -143,6 +144,7 @@ public class JournalService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "입금보고서 자동 분개는 원장에서 직접 역분개할 수 없습니다 — 입금보고서 취소/수정으로 처리하세요");
         }
+        requireOriginalJournalDateOpenForReversal(original);
         // 원분개 상태 검증은 markReversed 안에서.
         String reverseNo = journalNumberService.next(original.getJournalDate());
         String reverseDesc = reversalDescription(original);
@@ -205,9 +207,15 @@ public class JournalService {
     /**
      * 자동 역분개 — 원분개를 REVERSED 마킹하고 차/대 swap 한 신규 POSTED Journal 을 자동 생성.
      * 세금계산서 cancel 등 호출. 기존 {@link #reverse} 와 동작 동일하지만 entity 반환.
+     *
+     * <p>원분개 일자가 CLOSED 회계 기간이면 원분개 상태 전이와 역분개 생성 모두
+     * {@link ErrorCode#CONFLICT} 로 차단한다. 마감 해제 후 취소/정정을 재시도해야 한다.
+     *
+     * @throws BusinessException(CONFLICT) 원분개 일자가 마감된 회계 기간에 속할 때
      */
     public Journal autoReverse(UUID originalJournalId, String actorUserId) {
         Journal original = findOrThrow(originalJournalId);
+        requireOriginalJournalDateOpenForReversal(original);
         String reverseNo = journalNumberService.next(original.getJournalDate());
         String reverseDesc = reversalDescription(original);
         Journal reversal = Journal.create(reverseNo, original.getJournalDate(), reverseDesc,
@@ -226,6 +234,26 @@ public class JournalService {
         original.markReversed();
         original.linkReversal(saved.getId());
         return saved;
+    }
+
+    /**
+     * 원분개 일자 기준 역분개 가능 여부 선검증.
+     *
+     * <p>입금보고서 취소/CONFIRMED 수정처럼 도메인 상태를 먼저 바꾸는 호출자는 본 메서드로
+     * 같은 409를 상태 변경 전에 표면화한다. 실제 역분개 생성 직전에는 {@link #autoReverse}
+     * / {@link #reverse} 내부에서 동일 가드를 다시 실행해 기간 마감 race 를 방지한다.
+     */
+    void requireOriginalJournalOpenForReversal(UUID originalJournalId) {
+        requireOriginalJournalDateOpenForReversal(findOrThrow(originalJournalId));
+    }
+
+    private void requireOriginalJournalDateOpenForReversal(Journal original) {
+        monthEndCloseService.findClosedPeriodCovering(original.getJournalDate())
+                .ifPresent(p -> {
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "마감된 기간의 분개는 역분개할 수 없습니다 — 해당 일자("
+                                    + original.getJournalDate() + ")는 마감 해제 후 처리하세요");
+                });
     }
 
     /**

@@ -153,9 +153,17 @@ public class CashReceiptService {
         return responseOf(receipt);
     }
 
-    /** CONFIRMED → CANCELLED 후 원분개가 있으면 자동 역분개를 생성한다. */
+    /**
+     * CONFIRMED → CANCELLED 후 원분개가 있으면 자동 역분개를 생성한다.
+     *
+     * <p>원분개 일자가 마감된 회계 기간이면 상태 전이 전에 409로 차단한다. 실제 역분개
+     * 생성 직전에도 {@link JournalService#autoReverse(UUID, String)} 가 같은 가드를 다시 수행한다.
+     */
     public CashReceiptResponse cancel(UUID id, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
+        if (receipt.getJournalId() != null) {
+            journalService.requireOriginalJournalOpenForReversal(receipt.getJournalId());
+        }
         receipt.cancel();
         if (receipt.getJournalId() != null) {
             Journal reversal = journalService.autoReverse(receipt.getJournalId(), actorUserId);
@@ -193,6 +201,9 @@ public class CashReceiptService {
         }
         requireOpenPeriod(request.transactionDate());
         UUID oldJournalId = receipt.getJournalId();
+        if (oldJournalId != null) {
+            journalService.requireOriginalJournalOpenForReversal(oldJournalId);
+        }
         receipt.updateConfirmed(
                 request.amount(),
                 request.transactionDate(),

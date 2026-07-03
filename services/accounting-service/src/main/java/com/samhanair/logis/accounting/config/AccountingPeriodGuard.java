@@ -41,8 +41,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
  *
  * <p>마감/역마감 endpoint 자체 ({@code /accounting/closings}) 는 가드 대상 제외.
  *
- * <p>가드 대상 외 endpoint 는 service 레이어 도메인 가드만 작동 (예: TaxInvoice.cancel 은
- * 기존에 발행한 분개의 supplyDate 가 마감되어 있어도 역분개 자체는 허용).
+ * <p>가드 대상 외 endpoint 는 service 레이어 도메인 가드만 작동한다. 역분개는
+ * {@code JournalService} 가 원분개 {@code journalDate} 기준으로 CLOSED 기간을 다시 검사해 차단한다.
  */
 @RequiredArgsConstructor
 public class AccountingPeriodGuard implements HandlerInterceptor {

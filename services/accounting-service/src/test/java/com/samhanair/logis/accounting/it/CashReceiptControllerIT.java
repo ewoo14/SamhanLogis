@@ -534,6 +534,71 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("닫힌 원분개 일자의 입금보고서 취소는 409로 차단하고 마감 해제 후 정상 취소된다")
+    void cancelBlockedWhenOriginalJournalDateIsClosedAndSucceedsAfterReopen() throws Exception {
+        MvcResult created = createReceipt(createBody("73100"));
+        String receiptId = data(created).get("id").asText();
+        mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+        UUID originalJournalId = receiptJournalId(receiptId);
+        insertClosedMonthlyPeriod("2026-07-01");
+
+        mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(receiptStatus(receiptId)).isEqualTo("CONFIRMED");
+        org.assertj.core.api.Assertions.assertThat(receiptJournalId(receiptId)).isEqualTo(originalJournalId);
+        org.assertj.core.api.Assertions.assertThat(receiptReverseJournalId(receiptId)).isNull();
+        org.assertj.core.api.Assertions.assertThat(journal(originalJournalId).get("status")).isEqualTo("POSTED");
+        org.assertj.core.api.Assertions.assertThat(reversalCountForOriginal(originalJournalId)).isZero();
+
+        reopenMonthlyPeriod("2026-07-01");
+
+        mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.reverseJournalNo").isNotEmpty());
+        org.assertj.core.api.Assertions.assertThat(journal(originalJournalId).get("status")).isEqualTo("REVERSED");
+        org.assertj.core.api.Assertions.assertThat(receiptReverseJournalId(receiptId)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("닫힌 원분개 + 열린 일자 CONFIRMED PATCH는 409로 차단하고 기존 분개를 보존한다")
+    void confirmedPatchBlockedWhenOriginalJournalDateIsClosedEvenIfTargetDateOpen() throws Exception {
+        MvcResult created = createReceipt(createBody("73200"));
+        String receiptId = data(created).get("id").asText();
+        mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+        UUID originalJournalId = receiptJournalId(receiptId);
+        insertClosedMonthlyPeriod("2026-07-01");
+
+        Map<String, Object> patchToOpenDate = updateBody("73300");
+        patchToOpenDate.put("transactionDate", "2026-08-03");
+        mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patchToOpenDate)))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(receiptStatus(receiptId)).isEqualTo("CONFIRMED");
+        org.assertj.core.api.Assertions.assertThat(receiptAmount(receiptId)).isEqualByComparingTo("73200.00");
+        org.assertj.core.api.Assertions.assertThat(receiptTransactionDate(receiptId)).isEqualTo("2026-07-03");
+        org.assertj.core.api.Assertions.assertThat(receiptJournalId(receiptId)).isEqualTo(originalJournalId);
+        org.assertj.core.api.Assertions.assertThat(receiptReverseJournalId(receiptId)).isNull();
+        org.assertj.core.api.Assertions.assertThat(journal(originalJournalId).get("status")).isEqualTo("POSTED");
+        org.assertj.core.api.Assertions.assertThat(reversalCountForOriginal(originalJournalId)).isZero();
+    }
+
+    @Test
     @DisplayName("입금보고서 자동 분개는 원장 직접 역분개가 409로 차단된다 (원천 문서 경유 강제)")
     void cashReceiptJournalCannotBeReversedDirectly() throws Exception {
         MvcResult created = createReceipt(createBody("73000"));
@@ -879,6 +944,59 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 "SELECT reverse_journal_id FROM cash_receipts WHERE id = ?::uuid",
                 UUID.class,
                 receiptId);
+    }
+
+    private String receiptStatus(String receiptId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT status FROM cash_receipts WHERE id = ?::uuid",
+                String.class,
+                receiptId);
+    }
+
+    private BigDecimal receiptAmount(String receiptId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT amount FROM cash_receipts WHERE id = ?::uuid",
+                BigDecimal.class,
+                receiptId);
+    }
+
+    private String receiptTransactionDate(String receiptId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT transaction_date::text FROM cash_receipts WHERE id = ?::uuid",
+                String.class,
+                receiptId);
+    }
+
+    private int reversalCountForOriginal(UUID originalJournalId) {
+        return jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                  FROM journals
+                 WHERE source_type = 'CASH_RECEIPT'
+                   AND source_ref_id = ?::uuid
+                """,
+                Integer.class,
+                originalJournalId.toString());
+    }
+
+    private void insertClosedMonthlyPeriod(String monthFirst) {
+        jdbcTemplate.update("""
+                INSERT INTO accounting_periods (
+                    id, period_type, period_date, status, total_sales, total_purchase, total_expense,
+                    locked_slip_count, version, created_at, created_by, is_deleted
+                ) VALUES (gen_random_uuid(), 'MONTHLY', ?::date, 'CLOSED', 0, 0, 0, 0, 0, NOW(), 'IT', FALSE)
+                """, monthFirst);
+    }
+
+    private void reopenMonthlyPeriod(String monthFirst) {
+        jdbcTemplate.update("""
+                UPDATE accounting_periods
+                   SET status = 'OPEN',
+                       reversed_at = NOW(),
+                       reversed_by = 'IT'
+                 WHERE period_type = 'MONTHLY'
+                   AND period_date = ?::date
+                """, monthFirst);
     }
 
     private Map<String, Object> journal(UUID journalId) {

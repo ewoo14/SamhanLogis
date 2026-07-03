@@ -6,18 +6,23 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
+import com.samhanair.logis.accounting.domain.AccountingPeriod;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.JournalStatus;
+import com.samhanair.logis.accounting.domain.PeriodType;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CreateJournalLineRequest;
 import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
 import com.samhanair.logis.accounting.web.dto.JournalDetailResponse;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -147,6 +152,48 @@ class JournalServiceTest {
     }
 
     @Test
+    @DisplayName("autoReverse — 원분개 일자가 마감된 기간이면 409로 차단하고 원분개를 보존한다")
+    void autoReverseRejectsClosedOriginalJournalDate() {
+        Journal original = newPersistedDraft();
+        original.post("user-A");
+        when(journalRepository.findById(original.getId())).thenReturn(Optional.of(original));
+        when(monthEndCloseService.findClosedPeriodCovering(TODAY))
+                .thenReturn(Optional.of(closedMonthlyPeriod()));
+
+        assertThatThrownBy(() -> journalService.autoReverse(original.getId(), "user-B"))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(ex.getMessage()).contains("마감된 기간의 분개는 역분개할 수 없습니다");
+                });
+
+        assertThat(original.getStatus()).isEqualTo(JournalStatus.POSTED);
+        assertThat(original.getReversedJournalId()).isNull();
+        verify(journalRepository, never()).save(any(Journal.class));
+        verify(journalNumberService, never()).next(TODAY);
+    }
+
+    @Test
+    @DisplayName("reverse — 원분개 일자가 마감된 기간이면 수동 역분개도 409로 차단한다")
+    void reverseRejectsClosedOriginalJournalDate() {
+        Journal original = newPersistedDraft();
+        original.post("user-A");
+        when(journalRepository.findById(original.getId())).thenReturn(Optional.of(original));
+        when(monthEndCloseService.findClosedPeriodCovering(TODAY))
+                .thenReturn(Optional.of(closedMonthlyPeriod()));
+
+        assertThatThrownBy(() -> journalService.reverse(original.getId(), "user-B"))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(ex.getMessage()).contains("마감된 기간의 분개는 역분개할 수 없습니다");
+                });
+
+        assertThat(original.getStatus()).isEqualTo(JournalStatus.POSTED);
+        assertThat(original.getReversedJournalId()).isNull();
+        verify(journalRepository, never()).save(any(Journal.class));
+        verify(journalNumberService, never()).next(TODAY);
+    }
+
+    @Test
     @DisplayName("getOne — 미존재 시 NOT_FOUND")
     void getOneNotFound() {
         UUID id = UUID.randomUUID();
@@ -167,6 +214,12 @@ class JournalServiceTest {
         j.addLine(com.samhanair.logis.accounting.domain.JournalLine.create(
                 j, 2, "401", BigDecimal.ZERO, new BigDecimal("100000"), null, "상품매출"));
         return j;
+    }
+
+    private AccountingPeriod closedMonthlyPeriod() {
+        AccountingPeriod period = AccountingPeriod.create(PeriodType.MONTHLY, TODAY.withDayOfMonth(1), "5월 마감");
+        period.close("master-1", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0);
+        return period;
     }
 
     private static void setField(Object target, String fieldName, Object value) {
