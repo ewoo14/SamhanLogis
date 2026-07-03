@@ -233,9 +233,11 @@ export const CASH_KIND_LABEL: Record<string, string> = {
   MANUAL_DISBURSEMENT: '수기 지출',
 }
 
+// CashReceiptKind — BE CashReceiptKind enum 3값(DEPOSIT_REPORT/MANUAL_RECEIPT/BANK_LINKED)과 1:1
 export const CASH_RECEIPT_KIND_LABEL: Record<string, string> = {
   DEPOSIT_REPORT: '입금보고서',
   MANUAL_RECEIPT: '수기 입금',
+  BANK_LINKED: '통장연계',
 }
 
 export const ORDER_STATUS_LABEL: Record<string, string> = {

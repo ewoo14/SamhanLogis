@@ -119,7 +119,10 @@ public class CashReceiptService {
         return responseOf(findOrThrow(id));
     }
 
-    /** REST PATCH 상태 분기. DRAFT 는 단순 수정, CONFIRMED 는 역분개 후 재게시한다. */
+    /**
+     * REST PATCH 상태 분기 — 3분기: BANK_LINKED 는 선행 409 거부, DRAFT 는 단순 수정,
+     * CONFIRMED 는 역분개 후 재게시한다.
+     */
     public CashReceiptResponse update(UUID id, CashReceiptRequest request, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
         if (receipt.getKind() == CashReceiptKind.BANK_LINKED) {
@@ -184,6 +187,8 @@ public class CashReceiptService {
      *
      * <p>원분개 일자가 마감된 회계 기간이면 상태 전이 전에 409로 차단한다. 실제 역분개
      * 생성 직전에도 {@link JournalService#autoReverse(UUID, String)} 가 같은 가드를 다시 수행한다.
+     *
+     * <p>BANK_LINKED kind 는 취소 시 연결된 통장거래를 UNREFLECTED 로 원복해 재사용 가능하게 한다.
      */
     public CashReceiptResponse cancel(UUID id, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);

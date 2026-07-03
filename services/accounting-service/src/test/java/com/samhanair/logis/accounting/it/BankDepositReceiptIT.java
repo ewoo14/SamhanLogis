@@ -336,6 +336,74 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("HIGH-1: 선택 로드 후 raw UPDATE 전 matched_partner_id NULL 커밋은 STALE dirty-check 재기록 없이 보존된다")
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void concurrentPartnerClearBetweenLoadAndRawUpdateIsNotOverwrittenByStaleEntity() throws Exception {
+        insertBankTransaction("S3-BANK-CLEARRACE", "2026-07-04T14:30:00", "DEPOSIT", "9500.00",
+                "CSV_IMPORT", "UNREFLECTED", PARTNER_ID, false);
+        AtomicBoolean raceInjected = new AtomicBoolean(false);
+        // "선택 로드"(findUniqueByNaturalKey)는 이미 관리 엔티티를 이전 matched_partner_id 스냅샷으로
+        // persistence context 에 적재한 상태다. raw UPDATE(반영 조건부 UPDATE) 직전에 별도 커넥션이
+        // matched_partner_id 만 NULL 로 커밋(match_status 는 UNREFLECTED 유지 — 조건부 UPDATE 는 여전히 성공)한다.
+        doAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            if (sql.contains("UPDATE bank_transaction")
+                    && sql.contains("cash_receipt_id")
+                    && raceInjected.compareAndSet(false, true)) {
+                try (Connection connection = dataSource.getConnection()) {
+                    connection.setAutoCommit(true);
+                    try (PreparedStatement ps = connection.prepareStatement("""
+                            UPDATE bank_transaction
+                               SET matched_partner_id = NULL,
+                                   modified_at = NOW(),
+                                   modified_by = 'race-clear-partner'
+                             WHERE external_ref = 'S3-BANK-CLEARRACE'
+                            """)) {
+                        assertThat(ps.executeUpdate()).isEqualTo(1);
+                    }
+                }
+            }
+            return invocation.callRealMethod();
+        }).when(namedParameterJdbcTemplate)
+                .update(anyString(), any(SqlParameterSource.class));
+
+        // 가드는 match_status 만 검사하므로 생성은 정상 성공한다(레이스가 겨냥하는 건 dirty-check 재기록 여부).
+        MvcResult created = mockMvc.perform(post(FROM_BANK_URL)
+                        .header("X-User-Id", ACTOR)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "transactions": [%s],
+                                  "transactionDate": "2026-07-04",
+                                  "memo": "S3-BANK-IT 파트너해제레이스"
+                                }
+                                """.formatted(keyJson("S3-BANK-CLEARRACE", "2026-07-04T14:30:00", "9500.00"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.kind").value("BANK_LINKED"))
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andReturn();
+
+        assertThat(raceInjected.get()).isTrue();
+        JsonNode data = data(created);
+        Map<String, Object> receipt = receiptBySlipNo(data.get("slipNo").asText());
+        UUID receiptId = (UUID) receipt.get("id");
+        UUID journalId = (UUID) receipt.get("journal_id");
+
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT match_status, matched_partner_id, matched_journal_id, cash_receipt_id
+                  FROM bank_transaction
+                 WHERE external_ref = 'S3-BANK-CLEARRACE'
+                """);
+        assertThat(row.get("match_status")).isEqualTo("REFLECTED");
+        // 핵심 단언 — 동시 커밋한 matched_partner_id=NULL 이 STALE 스냅샷 dirty-check UPDATE 로
+        // 되돌려지지 않고 그대로 보존된다(HIGH-1 lost-update 회귀 방지).
+        assertThat(row.get("matched_partner_id")).isNull();
+        assertThat(row.get("matched_journal_id")).isEqualTo(journalId);
+        assertThat(row.get("cash_receipt_id")).isEqualTo(receiptId);
+    }
+
+    @Test
     @DisplayName("BANK_LINKED 취소는 역분개 후 연결 통장거래를 UNREFLECTED 로 원복한다")
     void cancelBankLinkedReceiptUnlinksBankTransactions() throws Exception {
         insertBankTransaction("S3-BANK-CANCEL", "2026-07-04T15:00:00", "DEPOSIT", "15000.00",

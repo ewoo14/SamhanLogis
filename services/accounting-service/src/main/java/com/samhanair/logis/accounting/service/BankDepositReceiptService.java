@@ -38,8 +38,16 @@ public class BankDepositReceiptService {
      * 자연키 튜플로 선택한 통장거래를 합산해 입금보고서를 생성하고 즉시 확정한다.
      *
      * <p>분개는 {@link CashReceiptService#confirm(UUID, String)} 를 재사용한다. 통장거래 반영은
-     * {@code WHERE match_status='UNREFLECTED' AND is_deleted=false} 조건부 UPDATE 로 TOCTOU 를 막고,
-     * UPDATE 성공 후 관리 엔티티에도 동일 전이를 적용해 영속 상태를 맞춘다.
+     * {@code WHERE match_status='UNREFLECTED' AND is_deleted=false} 조건부 UPDATE 로 TOCTOU 를 막는다.
+     *
+     * <p><b>raw UPDATE 성공 후 이미 로드된 관리 엔티티({@code transaction})에는 동일 전이를 적용하지
+     * 않는다.</b> {@link BankTransaction} 은 {@code @Version}/{@code @DynamicUpdate} 가 없어, 관리
+     * 엔티티를 dirty 로 만들면 커밋 시점(confirm 의 2회 flush 를 거치는 창)에 로드 당시 스냅샷 기준
+     * 전 컬럼이 무조건 재기록된다 — 그 사이 다른 세션이 커밋한 변경(예: {@code clearPartner} 의
+     * {@code matched_partner_id} NULL 화)을 조용히 되돌리는 lost-update 가 발생한다. 반환값
+     * ({@code confirmed.withoutId()})은 {@code transactions} 엔티티를 전혀 참조하지 않으므로,
+     * in-memory 전이 호출 자체를 생략해 2차 UPDATE 를 원천 차단한다(raw SQL 이 match_status/
+     * matched_journal_id/cash_receipt_id/modified_* 를 모두 갱신하므로 영속 상태 누락도 없다).
      */
     public CashReceiptResponse createFromBankTransactions(BankDepositReceiptRequest request, String actorUserId) {
         if (request == null) {
@@ -52,6 +60,8 @@ public class BankDepositReceiptService {
         BigDecimal amount = transactions.stream()
                 .map(BankTransaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // defense-in-depth — validateTransactions 가 개별 거래 금액의 양수를 이미 보장하므로
+        // 현재는 도달 불가하지만, 향후 호출 순서 변경에 대비해 합산 방어를 유지한다.
         if (amount.signum() <= 0) {
             throw new BusinessException(ErrorCode.CONFLICT, "통장거래 합산 금액은 0보다 커야 합니다");
         }
@@ -74,16 +84,13 @@ public class BankDepositReceiptService {
         }
 
         for (BankTransaction transaction : transactions) {
+            // raw UPDATE 만으로 반영을 완결한다 — 관리 엔티티(transaction)는 절대 mutate 하지 않는다.
+            // 이유는 본 메서드 상단 Javadoc 참조(dirty-check 재기록으로 인한 lost-update 방지).
             int updated = reflectIfStillUnreflected(transaction, receipt.getId(), journalId, callerOrSystem(actorUserId));
             if (updated != 1) {
                 throw new BusinessException(ErrorCode.CONFLICT,
-                        "통장 거래가 이미 반영되었습니다. 새로고침 후 다시 선택하세요: "
+                        "통장거래가 이미 반영되었습니다. 새로고침 후 다시 선택하세요: "
                                 + transaction.getBankAccountLabel() + " / " + transaction.getExternalRef());
-            }
-            try {
-                transaction.linkCashReceipt(receipt.getId(), journalId);
-            } catch (IllegalStateException ex) {
-                throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage(), ex);
             }
         }
         return confirmed.withoutId();
@@ -141,7 +148,7 @@ public class BankDepositReceiptService {
                 partnerId = matchedPartnerId;
             } else if (!partnerId.equals(matchedPartnerId)) {
                 throw new BusinessException(ErrorCode.CONFLICT,
-                        "선택한 통장거래는 동일 거래처로 매칭되어야 합니다");
+                        "선택한 통장거래는 동일 거래처로 매칭되어야 합니다: " + transaction.getExternalRef());
             }
         }
     }

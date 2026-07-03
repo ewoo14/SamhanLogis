@@ -48,7 +48,8 @@ class BankDepositReceiptServiceTest {
         when(bankTransactionService.findUniqueByNaturalKey(anyString(), any(), any(), anyString()))
                 .thenReturn(matchedDeposit("A", PARTNER_ID), matchedDeposit("B", PARTNER_2_ID));
 
-        assertConflict(request(key("A"), key("B")), "동일 거래처");
+        // 자매 검증 분기와 동일하게 externalRef 를 메시지에 포함한다(불일치를 유발한 거래 B 식별).
+        assertConflict(request(key("A"), key("B")), "동일 거래처로 매칭되어야 합니다: B");
         verifyNoInteractions(cashReceiptService);
     }
 
