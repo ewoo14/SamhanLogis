@@ -88,7 +88,11 @@ public class Mig9CashJournalService {
             }
             insertLine(journalId, 1, expenseCode, row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
             insertLine(journalId, 2, cashCode, BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
-            linkCash("cash_disbursements", row.id(), journalId, actor);
+            if (!linkCash("cash_disbursements", row.id(), journalId, actor)) {
+                deleteGeneratedJournal(journalId);
+                result.skipped();
+                return;
+            }
             result.cashDisbursementCreated();
         } catch (EmptyResultDataAccessException ex) {
             reject(row, ErrorCode.MIG9_DEFAULT_ACCOUNT_MISSING,
@@ -114,7 +118,11 @@ public class Mig9CashJournalService {
                     row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
             insertLine(journalId, 2, receivableCode,
                     BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
-            linkCash("cash_receipts", row.id(), journalId, actor);
+            if (!linkCash("cash_receipts", row.id(), journalId, actor)) {
+                deleteGeneratedJournal(journalId);
+                result.skipped();
+                return;
+            }
             result.cashReceiptCreated();
         } catch (EmptyResultDataAccessException ex) {
             reject(row, ErrorCode.MIG9_DEFAULT_ACCOUNT_MISSING,
@@ -172,7 +180,7 @@ public class Mig9CashJournalService {
     }
 
     private UUID insertJournal(CashRow row, JournalSourceType sourceType, String actor) {
-        return jdbcTemplate.queryForObject("""
+        List<UUID> ids = jdbcTemplate.query("""
                 INSERT INTO journals (
                     id, journal_no, journal_date, description, source_type, source_ref,
                     status, posted_at, posted_by, version, created_at, created_by, is_deleted
@@ -189,7 +197,8 @@ public class Mig9CashJournalService {
                 .addValue("description", row.memo())
                 .addValue("sourceType", sourceType.name())
                 .addValue("sourceRef", row.externalRef())
-                .addValue("actor", actor), UUID.class);
+                .addValue("actor", actor), (rs, rowNum) -> rs.getObject("id", UUID.class));
+        return ids.stream().findFirst().orElse(null);
     }
 
     private void insertLine(UUID journalId, int lineNo, String accountCode,
@@ -215,11 +224,11 @@ public class Mig9CashJournalService {
                 .addValue("actor", actor));
     }
 
-    private void linkCash(String tableName, UUID cashId, UUID journalId, String actor) {
+    private boolean linkCash(String tableName, UUID cashId, UUID journalId, String actor) {
         // journal_id IS NULL 가드 — 라이브 confirm/PATCH(E3 S2)가 배치와 동시에 같은 행에 분개를
         // 링크하는 레이스에서 last-write-wins 로 분개가 고아화되는 것을 차단한다 (@Version 은 raw
         // UPDATE 를 타지 않으므로 SQL 레벨로 방어).
-        jdbcTemplate.update("""
+        int updated = jdbcTemplate.update("""
                 UPDATE %s
                    SET journal_id = :journalId,
                        modified_at = NOW(),
@@ -231,6 +240,14 @@ public class Mig9CashJournalService {
                 .addValue("journalId", journalId)
                 .addValue("actor", actor)
                 .addValue("cashId", cashId));
+        return updated == 1;
+    }
+
+    private void deleteGeneratedJournal(UUID journalId) {
+        jdbcTemplate.update("DELETE FROM journal_lines WHERE journal_id = :journalId",
+                new MapSqlParameterSource("journalId", journalId));
+        jdbcTemplate.update("DELETE FROM journals WHERE id = :journalId",
+                new MapSqlParameterSource("journalId", journalId));
     }
 
     private List<CashRow> pendingRows(String tableName, int batchSize) {

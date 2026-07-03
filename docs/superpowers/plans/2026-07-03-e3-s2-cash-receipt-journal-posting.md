@@ -20,7 +20,7 @@
 1. **confirm 분개 게시**: `confirm(id, actor)` — 상태전이 + `postAutoJournal`(일자=transactionDate, 적요="입금보고서 확정 {slipNo} ({거래처명})", sourceType=CASH_RECEIPT, sourceRefId=receipt.id, 라인=차 debitAccountCode / 대 creditAccountCode 각 amount·partnerId·memo) + `linkJournal`. 방어: journalId 잔존 시 409.
 2. **cancel 역분개**: `cancel(id, actor)` — 상태전이 + journalId 있으면 `autoReverse` + `linkReverseJournal`(엔티티 신규 메서드). journalId=null(MIG 미게시)=상태전이만.
 3. **CONFIRMED 수정=역분개+재게시**: PATCH 상태분기 — DRAFT=기존 updateDraft / CONFIRMED=`updateConfirmed`(엔티티 신규·필드 갱신) + 기존 분개 autoReverse + 새 값 postAutoJournal + linkJournal(신규 id 교체) / CANCELLED=409. coedit overlay=DRAFT 한정 불변.
-4. **V50 마이그**: `cash_receipts.reverse_journal_id UUID`(취소 역분개 추적·TaxInvoice 패턴 parity) + COMMENT. 적용 마이그 불변(V48/V49 무변).
+4. **V50/V51/V52 마이그**: V50 `cash_receipts.reverse_journal_id UUID`(취소 역분개 추적·TaxInvoice 패턴 parity) + COMMENT. V51 기본 차변 `103→102` 정정(분개 연결 103 행 preflight abort, 미게시 행만 보정). V52 `partner_aging_snapshot` POSTED+REVERSED 재정의 + unique index 재생성. 적용 마이그 불변(V48/V49 무변).
 5. **DTO/컨트롤러**: confirm/cancel/PATCH `X-User-Id` actor 전파(callerOrSystem), Response `reverseJournalNo` resolve 추가, @Operation "S2 범위다" 문구를 실동작 기술로 갱신.
 6. **aging refresh**: confirm/cancel/CONFIRMED-수정 성공 커밋 후 afterCommit 로 `Mig9AgingSnapshotRefreshService.refresh()`(try/catch warn 비차단).
 7. **계정 단일화**: DepositMatchService 103/110 상수→CashReceipt DEFAULT 상수 참조. Mig9 receipt 경로 계정해석=동일 상수 코드 기반(명칭 lookup 제거·disbursement 경로 무변).
@@ -34,4 +34,4 @@
 
 ## QA (라이브)
 - Docker 실서버: 생성→확정→**회계전표(원장) 화면에서 신규 POSTED 분개 실 GUI 캡처**→CONFIRMED 수정→역분개+재게시 확인→취소→역분개 확인. (S2=BE 슬라이스지만 결과가 기존 회계전표 GUI 에 노출 → 실 GUI 스샷 가능.)
-- fresh PG V50 probe. ⚠️로컬 auth_db V79 checksum mismatch → flyway repair 선행([[feedback_applied_migration_immutable]]).
+- fresh PG V50/V51/V52 probe: reverse_journal_id 컬럼, debit default=102, V52 POSTED+REVERSED MV net 상쇄(confirm→cancel baseline, confirm→PATCH final delta). ⚠️로컬 auth_db V79 checksum mismatch → flyway repair 선행([[feedback_applied_migration_immutable]]).

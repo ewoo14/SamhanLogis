@@ -73,8 +73,9 @@ class Mig9CashJournalServiceTest {
                         default -> throw new EmptyResultDataAccessException(1);
                     };
                 });
-        lenient().when(jdbcTemplate.queryForObject(contains("INSERT INTO journals"), any(SqlParameterSource.class), eq(UUID.class)))
-                .thenReturn(journalId());
+        lenient().when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
+                .thenReturn(List.of(journalId()));
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
     }
 
@@ -186,11 +187,15 @@ class Mig9CashJournalServiceTest {
         service.generateFromReceipts(500, "tester");
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class),
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).query(sql.capture(), any(SqlParameterSource.class),
                 org.mockito.ArgumentMatchers.<RowMapper<Mig9CashJournalService.CashRow>>any());
-        assertThat(sql.getValue()).contains("kind = 'DEPOSIT_REPORT'");
+        String pendingSql = sql.getAllValues().stream()
+                .filter(value -> value.contains("FROM cash_receipts"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(pendingSql).contains("kind = 'DEPOSIT_REPORT'");
         // 라이브 취소(CANCELLED, journal_id null) 행에 유령 POSTED 분개가 생기지 않도록 CONFIRMED 만 대상.
-        assertThat(sql.getValue()).contains("status = 'CONFIRMED'");
+        assertThat(pendingSql).contains("status = 'CONFIRMED'");
     }
 
     @Test
@@ -208,6 +213,20 @@ class Mig9CashJournalServiceTest {
                 .orElseThrow();
         // 라이브 confirm/PATCH 와의 레이스에서 last-write-wins 고아 분개를 차단하는 SQL 가드.
         assertThat(linkSql).contains("journal_id IS NULL");
+    }
+
+    @Test
+    void receipt_link가_0건이면_생성한_journal을_보상삭제하고_skip한다() {
+        receipts(row(4, "CR-LINK-RACE", "REF-CR-LINK-RACE", new BigDecimal("3000"), null));
+        when(jdbcTemplate.update(contains("UPDATE cash_receipts"), any(SqlParameterSource.class)))
+                .thenReturn(0);
+
+        EcountMig9JournalResult result = service.generateFromReceipts(500, "tester");
+
+        assertThat(result.cashReceiptJournalsCreated()).isZero();
+        assertThat(result.skipped()).isEqualTo(1);
+        verify(jdbcTemplate).update(contains("DELETE FROM journal_lines"), any(SqlParameterSource.class));
+        verify(jdbcTemplate).update(contains("DELETE FROM journals"), any(SqlParameterSource.class));
     }
 
     @Test
@@ -255,7 +274,8 @@ class Mig9CashJournalServiceTest {
     @Test
     void source_type_ref_unique_충돌은_MIG9_JOURNAL_DUPLICATE_reject() {
         disbursements(row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
-        when(jdbcTemplate.queryForObject(contains("INSERT INTO journals"), any(SqlParameterSource.class), eq(UUID.class)))
+        when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
                 .thenThrow(new DuplicateKeyException(
                         "duplicate key value violates unique constraint \"journals_source_type_ref_uk\""));
 
@@ -268,9 +288,10 @@ class Mig9CashJournalServiceTest {
         disbursements(
                 row(1, "CD-DUP", "REF-DUP", new BigDecimal("1000"), null),
                 row(2, "CD-NEXT", "REF-NEXT", new BigDecimal("2000"), null));
-        when(jdbcTemplate.queryForObject(contains("INSERT INTO journals"), any(SqlParameterSource.class), eq(UUID.class)))
-                .thenReturn(null)
-                .thenReturn(journalId());
+        when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(journalId()));
 
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
 
@@ -285,7 +306,8 @@ class Mig9CashJournalServiceTest {
     @Test
     void 알수없는_DuplicateKeyException은_그대로_던진다() {
         disbursements(row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
-        when(jdbcTemplate.queryForObject(contains("INSERT INTO journals"), any(SqlParameterSource.class), eq(UUID.class)))
+        when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
                 .thenThrow(new DuplicateKeyException("other_unique"));
 
         assertThatThrownBy(() -> service.generateFromDisbursements(500, "tester"))
@@ -408,14 +430,19 @@ class Mig9CashJournalServiceTest {
     private List<SqlParameterSource> journalParams(int times) {
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
         verify(jdbcTemplate, org.mockito.Mockito.times(times))
-                .queryForObject(contains("INSERT INTO journals"), params.capture(), eq(UUID.class));
+                .query(contains("INSERT INTO journals"), params.capture(),
+                        org.mockito.ArgumentMatchers.<RowMapper<UUID>>any());
         return params.getAllValues();
     }
 
     private List<String> journalSql(int times) {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, org.mockito.Mockito.times(times))
-                .queryForObject(sql.capture(), any(SqlParameterSource.class), eq(UUID.class));
+                .query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<UUID>>any());
+        verify(jdbcTemplate, org.mockito.Mockito.atLeast(times))
+                .query(sql.capture(), any(SqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<UUID>>any());
         return sql.getAllValues().stream()
                 .filter(value -> value.contains("INSERT INTO journals"))
                 .toList();

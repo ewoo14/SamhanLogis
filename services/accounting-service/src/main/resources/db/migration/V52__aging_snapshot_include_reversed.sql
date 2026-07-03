@@ -9,6 +9,10 @@
 -- 잔액 정확성은 net_* 이 담당하며, gross 를 "유효 발생분만" 으로 좁히는 변경은 별도 결정 사항.
 --
 -- 적용 마이그 불변 원칙: V29/V30/V34 는 무변, 신규 V52 로 DROP/CREATE 한다.
+-- 배포 안전성: 운영 중 refresh/read 락 경합으로 장시간 대기하지 않도록 짧게 실패시켜 재시도한다.
+
+SET lock_timeout = '10s';
+SET statement_timeout = '5min';
 
 DROP MATERIALIZED VIEW IF EXISTS partner_aging_snapshot;
 
@@ -56,3 +60,6 @@ COMMENT ON MATERIALIZED VIEW partner_aging_snapshot IS
 -- REFRESH MATERIALIZED VIEW CONCURRENTLY 가 요구하는 UNIQUE 인덱스 재생성.
 CREATE UNIQUE INDEX idx_partner_aging_snapshot_partner_id
     ON partner_aging_snapshot (partner_id);
+
+RESET statement_timeout;
+RESET lock_timeout;

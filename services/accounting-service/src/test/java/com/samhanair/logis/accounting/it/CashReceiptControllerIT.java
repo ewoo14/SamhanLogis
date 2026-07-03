@@ -19,6 +19,7 @@ import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.service.Mig9AgingSnapshotRefreshService;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -56,6 +57,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private EntityManager entityManager;
+    @Autowired private Mig9AgingSnapshotRefreshService agingSnapshotRefreshService;
 
     @MockBean private ETaxClient eTaxClient;
     @MockBean private KftcClient kftcClient;
@@ -381,6 +383,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     void confirmRefreshesAgingSnapshotAfterCommit() throws Exception {
         // 실 커밋(NOT_SUPPORTED) + 실 빈 — @MockBean 이면 NEVER/NOT_SUPPORTED 트랜잭션 프록시가
         // 우회되어 afterCommit 실행 가능성이 검증되지 않는다(과거 NEVER 충돌 false-green).
+        agingSnapshotRefreshService.refresh();
         java.time.OffsetDateTime refreshedBefore = jdbcTemplate.queryForObject(
                 "SELECT MAX(last_refreshed_at) FROM partner_aging_snapshot", java.time.OffsetDateTime.class);
         String receiptId = null;
@@ -408,15 +411,71 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
             org.assertj.core.api.Assertions.assertThat((BigDecimal) agingRow.get("net_receivable"))
                     .isEqualByComparingTo(new BigDecimal("-69100"));
         } finally {
-            // NOT_SUPPORTED 는 실커밋이라 싱글턴 공유 DB 에 잔류 — 후속 IT(집계 창 2026-07 등) 오염 방지 정리.
-            if (receiptId != null) {
-                UUID journalId = receiptJournalId(receiptId);
-                if (journalId != null) {
-                    jdbcTemplate.update("DELETE FROM journal_lines WHERE journal_id = ?", journalId);
-                    jdbcTemplate.update("DELETE FROM journals WHERE id = ?", journalId);
-                }
-                jdbcTemplate.update("DELETE FROM cash_receipts WHERE id = ?::uuid", receiptId);
-            }
+            cleanupCommittedReceiptAndRefreshAging(receiptId);
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("취소 afterCommit refresh는 V52 POSTED+REVERSED MV에서 입금보고서 net을 baseline으로 되돌린다")
+    void cancelRefreshesAgingSnapshotBackToBaseline() throws Exception {
+        agingSnapshotRefreshService.refresh();
+        Map<String, BigDecimal> baseline = agingNetForPartner(PARTNER_ID);
+        String receiptId = null;
+        try {
+            MvcResult created = createReceipt(createBody("69200"));
+            receiptId = data(created).get("id").asText();
+            mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                            .header("X-User-Id", ACCOUNTANT_ID)
+                            .header("X-User-Role", "ACCOUNTANT"))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
+                            .header("X-User-Id", ACCOUNTANT_ID)
+                            .header("X-User-Role", "ACCOUNTANT"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.reverseJournalNo").isNotEmpty());
+
+            Map<String, BigDecimal> afterCancel = agingNetForPartner(PARTNER_ID);
+            org.assertj.core.api.Assertions.assertThat(afterCancel.get("net_cash"))
+                    .isEqualByComparingTo(baseline.get("net_cash"));
+            org.assertj.core.api.Assertions.assertThat(afterCancel.get("net_receivable"))
+                    .isEqualByComparingTo(baseline.get("net_receivable"));
+        } finally {
+            cleanupCommittedReceiptAndRefreshAging(receiptId);
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("CONFIRMED PATCH afterCommit refresh는 역분개+재게시 후 최종 금액만 aging net에 남긴다")
+    void confirmedPatchRefreshesAgingSnapshotToFinalDelta() throws Exception {
+        agingSnapshotRefreshService.refresh();
+        Map<String, BigDecimal> baseline = agingNetForPartner(PARTNER_ID);
+        String receiptId = null;
+        try {
+            MvcResult created = createReceipt(createBody("69300"));
+            receiptId = data(created).get("id").asText();
+            mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                            .header("X-User-Id", ACCOUNTANT_ID)
+                            .header("X-User-Role", "ACCOUNTANT"))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
+                            .header("X-User-Id", ACCOUNTANT_ID)
+                            .header("X-User-Role", "ACCOUNTANT")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateBody("69400"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.amount").value(69400));
+
+            Map<String, BigDecimal> afterPatch = agingNetForPartner(PARTNER_ID);
+            org.assertj.core.api.Assertions.assertThat(afterPatch.get("net_cash"))
+                    .isEqualByComparingTo(baseline.get("net_cash").add(new BigDecimal("69400")));
+            org.assertj.core.api.Assertions.assertThat(afterPatch.get("net_receivable"))
+                    .isEqualByComparingTo(baseline.get("net_receivable").subtract(new BigDecimal("69400")));
+        } finally {
+            cleanupCommittedReceiptAndRefreshAging(receiptId);
         }
     }
 
@@ -812,6 +871,66 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                  WHERE id = ?::uuid
                 """,
                 journalId.toString());
+    }
+
+    private Map<String, BigDecimal> agingNetForPartner(UUID partnerId) {
+        return jdbcTemplate.queryForMap(
+                """
+                SELECT COALESCE(SUM(net_cash), 0) AS net_cash,
+                       COALESCE(SUM(net_receivable), 0) AS net_receivable
+                  FROM partner_aging_snapshot
+                 WHERE partner_id = ?::uuid
+                """,
+                partnerId.toString()).entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> (BigDecimal) entry.getValue()));
+    }
+
+    private void cleanupCommittedReceiptAndRefreshAging(String receiptId) {
+        if (receiptId == null) {
+            return;
+        }
+        List<UUID> journalIds = jdbcTemplate.queryForList(
+                """
+                WITH direct_journals AS (
+                    SELECT id
+                      FROM journals
+                     WHERE source_type = 'CASH_RECEIPT'
+                       AND source_ref_id = ?::uuid
+                    UNION
+                    SELECT journal_id
+                      FROM cash_receipts
+                     WHERE id = ?::uuid
+                       AND journal_id IS NOT NULL
+                    UNION
+                    SELECT reverse_journal_id
+                      FROM cash_receipts
+                     WHERE id = ?::uuid
+                       AND reverse_journal_id IS NOT NULL
+                ),
+                all_journals AS (
+                    SELECT id FROM direct_journals
+                    UNION
+                    SELECT j.id
+                      FROM journals j
+                     WHERE j.source_type = 'CASH_RECEIPT'
+                       AND j.source_ref_id IN (SELECT id FROM direct_journals)
+                )
+                SELECT id FROM all_journals
+                """,
+                UUID.class,
+                receiptId,
+                receiptId,
+                receiptId);
+        for (UUID journalId : journalIds) {
+            jdbcTemplate.update("DELETE FROM journal_lines WHERE journal_id = ?", journalId);
+        }
+        for (UUID journalId : journalIds) {
+            jdbcTemplate.update("DELETE FROM journals WHERE id = ?", journalId);
+        }
+        jdbcTemplate.update("DELETE FROM cash_receipts WHERE id = ?::uuid", receiptId);
+        agingSnapshotRefreshService.refresh();
     }
 
     private List<Map<String, Object>> journalLines(UUID journalId) {

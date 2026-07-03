@@ -63,6 +63,8 @@ export interface Journal {
   journalDate: string
   /** 분개 상태. */
   status: JournalStatus
+  /** 분개 출처. CASH_RECEIPT는 원천 입금보고서에서만 취소/수정한다. */
+  sourceType: string
   /** 적요 (분개 헤더 메모). */
   description: string | null
   /** 차변 합계 (KRW 정수, string). 라인 합산 결과를 BE 가 캐시. */
@@ -121,6 +123,7 @@ export function normalizeJournal(raw: RawJournal): Journal {
     journalNo: String(raw.journalNo ?? ''),
     journalDate: String(raw.journalDate ?? ''),
     status: raw.status as JournalStatus,
+    sourceType: String(raw.sourceType ?? 'MANUAL'),
     description: raw.description ?? null,
     totalDebit: amountText(raw.totalDebit),
     totalCredit: amountText(raw.totalCredit),
@@ -335,11 +338,19 @@ export async function reverseJournal(
   id: string,
   reason: string,
 ): Promise<Journal> {
-  const res = await apiClient.post<ApiEnvelope<RawJournal>>(
-    `/accounting/journals/${id}/reverse`,
-    { reason },
-  )
-  return normalizeJournal(res.data.data)
+  try {
+    const res = await apiClient.post<ApiEnvelope<RawJournal>>(
+      `/accounting/journals/${id}/reverse`,
+      { reason },
+    )
+    return normalizeJournal(res.data.data)
+  } catch (err) {
+    const message = extractApiErrorMessage(err)
+    if (message) {
+      throw new Error(message)
+    }
+    throw err
+  }
 }
 
 /**
