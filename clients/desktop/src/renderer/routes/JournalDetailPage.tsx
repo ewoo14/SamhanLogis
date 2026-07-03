@@ -77,8 +77,9 @@ function journalStatusBadgeStyle(status: string) {
 }
 
 function JournalCellEllipsis({ value }: { value: string }) {
+  const hasTitle = value !== '—' && value !== ''
   return (
-    <span className="journal-cell-ellipsis" title={value === '—' ? undefined : value}>
+    <span className="journal-cell-ellipsis" title={hasTitle ? value : undefined}>
       {value}
     </span>
   )
@@ -224,7 +225,7 @@ export function JournalDetailPage() {
             <span className="journal-account-code">
               {l.accountCode}
             </span>
-            <JournalCellEllipsis value={l.accountName ?? ''} />
+            <JournalCellEllipsis value={l.accountName ?? '—'} />
           </span>
         ),
     },
@@ -518,15 +519,25 @@ export function JournalDetailPage() {
           )}
         </div>
 
-        {/* 합계는 라인 테이블 마지막 행(journal-total-row)으로 렌더 — 모바일 카드 합계 별도 표기. */}
+        {/* 합계는 라인 테이블 마지막 행(journal-total-row)으로 렌더 — 모바일 카드 합계는 별도 표기.
+            차변/대변을 결합 문자열("X / Y")로 렌더하면 10자리 금액에서 개행/절단 위험(Opus 재검 HIGH) —
+            라인 카드가 쓰는 2열 grid(mobile-item-metrics) 패턴을 그대로 재사용해 분리 렌더한다. */}
         {journal.lines.length > 0 ? (
-          <div className="mobile-item-list">
+          <div className="mobile-item-list" data-testid="journal-mobile-total">
             <div className="mobile-item-card">
-              <div className="mobile-item-total-row">
-                <span className="mobile-item-total-label">합계 (차변/대변)</span>
-                <span className="mobile-item-total-value">
-                  {fmtKrw(journal.totalDebit)} / {fmtKrw(journal.totalCredit)}
-                </span>
+              <div className="mobile-item-card-header">
+                <div className="mobile-item-name">합계</div>
+              </div>
+              <div className="mobile-item-divider" />
+              <div className="mobile-item-metrics">
+                <div className="mobile-item-metric">
+                  <span className="mobile-item-metric-label">차변</span>
+                  <span className="mobile-item-metric-value">{fmtKrw(journal.totalDebit)}</span>
+                </div>
+                <div className="mobile-item-metric">
+                  <span className="mobile-item-metric-label">대변</span>
+                  <span className="mobile-item-metric-value">{fmtKrw(journal.totalCredit)}</span>
+                </div>
               </div>
             </div>
           </div>

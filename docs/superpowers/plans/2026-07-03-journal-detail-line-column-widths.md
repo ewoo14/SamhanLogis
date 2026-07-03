@@ -15,3 +15,8 @@
 ## 검증
 - vitest(JournalDetailPage.test.tsx 회귀)·typecheck.
 - 라이브 QA: 실 분개 상세(오늘 S2 분개)에서 열 배치 GUI 캡처 + 라인 금액 셀과 합계 금액 셀 right edge 수치 단언. 분개장 목록 캡처는 현재 REVERSED 목록 화면에서 `J-2026-` 잔여 노출 0건을 실증한다.
+
+## 최종 구현 정정 노트 (Opus 재검 fix 라운드, 2026-07-03)
+- 위 "변경" 절의 초기 계획은 합계를 별도 `.journal-totals` div-grid 로 테이블 열폭을 미러하는 방식이었으나, 최종 구현은 **합계를 `DataTable` 마지막 행(`journal-total-row` sentinel row)으로 편입** — 열 정렬을 테이블 구조 자체가 보장하도록 변경(개발책임자 "합계열이 안 맞음" 재지적 해소).
+- 계정과목/거래처/메모 셀은 `JournalCellEllipsis` 래퍼(`journal-cell-ellipsis` + 조건부 `title`)로 통일 — 긴 값은 CSS ellipsis 로 자르고 hover 시 전체값을 title 로 노출.
+- 모바일 합계 카드는 결합 문자열("차변 / 대변")이 아니라 라인 카드와 동일한 2열 grid(`mobile-item-metrics`) 패턴으로 차변/대변을 분리 렌더 — 10자리 금액 개행/절단 위험 원천 제거(Opus 재검 HIGH fix).

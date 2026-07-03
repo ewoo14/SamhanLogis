@@ -196,6 +196,8 @@ describe('JournalDetailPage 라인 테이블', () => {
     expect(headers).toEqual(['#', '계정과목', '거래처', '차변', '대변', '메모'])
 
     const bodyRows = table!.querySelectorAll('tbody tr')
+    // 라인 2건(픽스처) + 합계행 1건 = 3행 — 합계 sentinel 만 남고 라인이 누락되는 회귀도 잡아낸다.
+    expect(bodyRows.length).toBe(3)
     const totalRow = bodyRows.item(bodyRows.length - 1)
     const totalCells = totalRow.querySelectorAll('td')
     expect(totalRow.classList.contains('journal-total-row')).toBe(true)
@@ -217,5 +219,39 @@ describe('JournalDetailPage 라인 테이블', () => {
     expect(table).not.toBeNull()
     expect(table!.querySelector('.journal-total-row')).toBeNull()
     expect(within(table as HTMLElement).getByText('라인이 없습니다.')).not.toBeNull()
+  })
+})
+
+describe('JournalDetailPage 모바일 합계 카드', () => {
+  it('라인 0건이면 모바일 합계 카드를 렌더하지 않는다', async () => {
+    mocks.isMobile.mockReturnValue(true)
+    renderPage(makeJournal({
+      totalDebit: '0',
+      totalCredit: '0',
+      lines: [],
+    }))
+
+    await screen.findByText('2026/07/03-1')
+
+    expect(screen.queryByTestId('journal-mobile-total')).toBeNull()
+    expect(screen.queryByText('합계')).toBeNull()
+  })
+
+  it('라인 1건 이상이면 합계 카드에 차변/대변을 분리된 값으로 렌더한다(결합 문자열 폐기)', async () => {
+    mocks.isMobile.mockReturnValue(true)
+    renderPage(makeJournal({
+      totalDebit: '1207338853',
+      totalCredit: '1207338853',
+    }))
+
+    await screen.findByText('2026/07/03-1')
+
+    const totalCard = screen.getByTestId('journal-mobile-total')
+    expect(within(totalCard).getByText('합계')).not.toBeNull()
+    expect(within(totalCard).getByText('차변')).not.toBeNull()
+    expect(within(totalCard).getByText('대변')).not.toBeNull()
+    // 차변/대변이 각자 별개 노드에 렌더 — 10자리 금액 결합 문자열("X / Y")은 더 이상 존재하지 않는다.
+    expect(within(totalCard).getAllByText('1,207,338,853')).toHaveLength(2)
+    expect(within(totalCard).queryByText('1,207,338,853 / 1,207,338,853')).toBeNull()
   })
 })

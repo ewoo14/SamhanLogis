@@ -5,6 +5,9 @@
  *  01 분개 상세 전폭 — 차변 좌측 당김·거래처 확대·합계 행 정렬(HIGH fix 검증)
  *  02 라인 테이블+합계 클로즈업 — 차/대 합계가 각 열 아래 정렬
  *  03 분개장 목록(역분개 필터) — 구 J- 형식 시드 정리 후 중복 부재 실증
+ *  01(mobile) 모바일 합계 카드 클로즈업 — 차변/대변 분리 렌더(결합 문자열 개행 위험 해소, Opus 재검 HIGH fix)
+ *
+ * 정상 실행 기대값 = 2 passed + 2 skipped (project 상호배타 skip — 데스크톱 전용/모바일 전용 테스트가 서로 다른 project 를 skip).
  */
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import * as path from 'path'
@@ -205,7 +208,7 @@ test('데스크톱 열 재배분 실증 — 폭·합계행·금액 정렬·J- �
   await captureElement(page, page.locator('table').first(), 'journal-list-no-duplicate-seeds')
 })
 
-test('모바일 합계 카드 실증 — 390px 합계 라벨과 차대변 값 노출', async ({ page }, testInfo) => {
+test('모바일 합계 카드 실증 — 390px 카드 라벨+차대변 분리 값 노출(결합 문자열 폐기)', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes('mobile'), '모바일 전용 단언')
 
   const login = await realLogin(page, 'dev_master')
@@ -213,11 +216,21 @@ test('모바일 합계 카드 실증 — 390px 합계 라벨과 차대변 값 �
 
   const target = await findReversedJournalWithLines(page, login.token)
   expect(target, '전제 데이터 없음: REVERSED 상태이면서 라인 2건 이상인 분개가 필요').toBeTruthy()
-  const expectedTotal = `${fmtKrw(target!.totalDebit)} / ${fmtKrw(target!.totalCredit)}`
+  const debitTotal = fmtKrw(target!.totalDebit)
+  const creditTotal = fmtKrw(target!.totalCredit)
 
   await page.goto(`${BASE_URL}/#/accounting/journals/${target!.id}`)
   await expect(page.getByText(target!.journalNo).first()).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText('합계 (차변/대변)').first()).toBeVisible()
-  await expect(page.getByText(expectedTotal).first()).toBeVisible()
-  await capture(page, 'mobile-total-card')
+
+  // 합계 카드 — 라인 카드와 동일한 2열 grid(mobile-item-metrics) 패턴으로 차변/대변을 분리 렌더.
+  // 결합 문자열("X / Y")은 10자리 금액에서 개행/절단 위험이 있어 폐기(Opus 재검 HIGH fix) — 부재를 명시 단언.
+  const totalCard = page.getByTestId('journal-mobile-total')
+  await expect(totalCard).toBeVisible()
+  await expect(totalCard.getByText('합계')).toBeVisible()
+  await expect(totalCard.getByText('차변')).toBeVisible()
+  await expect(totalCard.getByText('대변')).toBeVisible()
+  await expect(totalCard.getByText(debitTotal).first()).toBeVisible()
+  await expect(totalCard.getByText(creditTotal).first()).toBeVisible()
+  await expect(page.getByText(`${debitTotal} / ${creditTotal}`)).toHaveCount(0)
+  await captureElement(page, totalCard, 'mobile-total-card')
 })
