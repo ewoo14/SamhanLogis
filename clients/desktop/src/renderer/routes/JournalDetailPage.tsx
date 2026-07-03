@@ -495,7 +495,7 @@ export function JournalDetailPage() {
               <div key={line.id} className="mobile-item-card">
                 <div className="mobile-item-card-header">
                   <div className="mobile-item-name">
-                    {line.accountName ?? '계정과목'}
+                    {line.accountName ?? '—'}
                   </div>
                 </div>
                 <div className="mobile-item-model">{line.accountCode}</div>

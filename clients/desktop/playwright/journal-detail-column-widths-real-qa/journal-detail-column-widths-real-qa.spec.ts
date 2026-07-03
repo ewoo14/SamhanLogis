@@ -184,6 +184,31 @@ test('데스크톱 열 재배분 실증 — 폭·합계행·금액 정렬·J- �
   await expectRightEdgesAligned(firstLine.locator('td').nth(4), totals.locator('td').nth(4), '대변')
   await expect(totals.locator('td').nth(3)).toHaveCSS('text-align', 'right')
   await expect(totals.locator('td').nth(4)).toHaveCSS('text-align', 'right')
+  const ellipsisProbe = await table.locator('.journal-cell-ellipsis').evaluateAll((nodes) => {
+    const cells = nodes.map((node) => {
+      const el = node as HTMLElement
+      const style = window.getComputedStyle(el)
+      return {
+        text: el.textContent ?? '',
+        clientWidth: el.clientWidth,
+        scrollWidth: el.scrollWidth,
+        overflow: style.overflow,
+        textOverflow: style.textOverflow,
+        whiteSpace: style.whiteSpace,
+      }
+    })
+    return cells.sort((a, b) => b.scrollWidth - a.scrollWidth)[0] ?? null
+  })
+  expect(ellipsisProbe, '계정과목/거래처/메모 말줄임 셀 존재').toBeTruthy()
+  expect(ellipsisProbe!.overflow, '말줄임 셀 overflow').toBe('hidden')
+  expect(ellipsisProbe!.textOverflow, '말줄임 셀 text-overflow').toBe('ellipsis')
+  expect(ellipsisProbe!.whiteSpace, '말줄임 셀 white-space').toBe('nowrap')
+  if (ellipsisProbe!.scrollWidth > ellipsisProbe!.clientWidth) {
+    expect(
+      ellipsisProbe!.scrollWidth,
+      `말줄임 발생 시 scrollWidth(${ellipsisProbe!.scrollWidth}) > clientWidth(${ellipsisProbe!.clientWidth})`,
+    ).toBeGreaterThan(ellipsisProbe!.clientWidth)
+  }
   const tableBox = await table.boundingBox()
   const totalsBox = await totals.boundingBox()
   expect(tableBox).toBeTruthy()
@@ -227,10 +252,13 @@ test('모바일 합계 카드 실증 — 390px 카드 라벨+차대변 분리 �
   const totalCard = page.getByTestId('journal-mobile-total')
   await expect(totalCard).toBeVisible()
   await expect(totalCard.getByText('합계')).toBeVisible()
-  await expect(totalCard.getByText('차변')).toBeVisible()
-  await expect(totalCard.getByText('대변')).toBeVisible()
-  await expect(totalCard.getByText(debitTotal).first()).toBeVisible()
-  await expect(totalCard.getByText(creditTotal).first()).toBeVisible()
+  const metrics = totalCard.locator('.mobile-item-metric')
+  await expect(metrics).toHaveCount(2)
+  await expect(totalCard.locator('.mobile-item-metric-value')).toHaveCount(2)
+  await expect(metrics.nth(0).locator('.mobile-item-metric-label')).toHaveText('차변')
+  await expect(metrics.nth(0).locator('.mobile-item-metric-value')).toHaveText(debitTotal)
+  await expect(metrics.nth(1).locator('.mobile-item-metric-label')).toHaveText('대변')
+  await expect(metrics.nth(1).locator('.mobile-item-metric-value')).toHaveText(creditTotal)
   await expect(page.getByText(`${debitTotal} / ${creditTotal}`)).toHaveCount(0)
   await captureElement(page, totalCard, 'mobile-total-card')
 })

@@ -220,9 +220,79 @@ describe('JournalDetailPage 라인 테이블', () => {
     expect(table!.querySelector('.journal-total-row')).toBeNull()
     expect(within(table as HTMLElement).getByText('라인이 없습니다.')).not.toBeNull()
   })
+
+  it('셀 말줄임 title 은 실제 값에만 부여하고 빈 값 표시는 제외한다', async () => {
+    const view = renderPage(makeJournal({
+      lines: [
+        {
+          id: 'line-empty',
+          lineNo: 1,
+          accountCode: '102',
+          accountName: null,
+          debit: '1000',
+          credit: '0',
+          partnerName: '',
+          note: null,
+          memo: '',
+        },
+        {
+          id: 'line-value',
+          lineNo: 2,
+          accountCode: '110',
+          accountName: '외상매출금',
+          debit: '0',
+          credit: '1000',
+          partnerName: '테스트 거래처',
+          note: '긴 메모',
+          memo: '긴 메모',
+        },
+      ],
+    }))
+
+    await screen.findByText('2026/07/03-1')
+
+    const ellipsisCells = Array.from(
+      view.container.querySelectorAll<HTMLElement>('.journal-cell-ellipsis'),
+    )
+    const emptyDisplay = ellipsisCells.find((cell) => cell.textContent === '—')
+    const blankDisplay = ellipsisCells.find((cell) => cell.textContent === '')
+    const valueDisplay = ellipsisCells.find((cell) => cell.textContent === '외상매출금')
+
+    expect(emptyDisplay?.getAttribute('title')).toBeNull()
+    expect(blankDisplay?.getAttribute('title')).toBeNull()
+    expect(valueDisplay?.getAttribute('title')).toBe('외상매출금')
+  })
 })
 
 describe('JournalDetailPage 모바일 합계 카드', () => {
+  it('모바일 라인 카드의 계정명이 없으면 데스크톱과 같은 빈 값 표시를 렌더한다', async () => {
+    mocks.isMobile.mockReturnValue(true)
+    renderPage(makeJournal({
+      lines: [
+        {
+          id: 'line-empty-account',
+          lineNo: 1,
+          accountCode: '102',
+          accountName: null,
+          debit: '1000',
+          credit: '0',
+          partnerName: '테스트 거래처',
+          note: '메모',
+          memo: '메모',
+        },
+      ],
+    }))
+
+    await screen.findByText('2026/07/03-1')
+
+    const lines = screen.getByTestId('journal-mobile-lines')
+    const firstCard = lines.querySelector<HTMLElement>('.mobile-item-card')
+    const accountName = firstCard?.querySelector<HTMLElement>('.mobile-item-name')
+    expect(firstCard).not.toBeNull()
+    expect(accountName?.textContent).toBe('—')
+    expect(within(firstCard!).queryByText('계정과목')).toBeNull()
+  })
+
   it('라인 0건이면 모바일 합계 카드를 렌더하지 않는다', async () => {
     mocks.isMobile.mockReturnValue(true)
     renderPage(makeJournal({
