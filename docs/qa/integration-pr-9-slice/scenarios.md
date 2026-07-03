@@ -131,7 +131,7 @@
 |---|---|---|---|---|---|---|
 | 2.3.1 | 회계 외주 | 🔴 | 2.2.1 DRAFT (1,100,000) | `tax-invoice-form-issue-button` 클릭 → 발행 | status=ISSUED + journal_entries 1건 자동 생성: 차변 110(외상매출금) 1,100,000 / 대변 400(매출) 1,000,000 + 255(부가세예수금) 100,000 + 차대변 합계 일치 | 한국 회계 표준 분개 |
 | 2.3.2 | 회계 외주 | 🔴 | 2.3.1 발행 | 시산표 `/accounting/reports/trial-balance` 즉시 조회 | 110/255/400 잔액 즉시 반영 | 시산표 chain |
-| 2.3.3 | 회계 외주 | 🟠 | DRAFT 상태 | 발행 없이 시산표 조회 | DRAFT 분개 미반영 (POSTED 만 집계) | 분개 status 가드 |
+| 2.3.3 | 회계 외주 | 🟠 | DRAFT 상태 | 발행 없이 시산표 조회 | DRAFT 분개 미반영 (POSTED+REVERSED(보상쌍 상쇄) 집계 — DRAFT 만 제외) | 분개 status 가드 |
 
 ### 2.4 인쇄 → e-Tax 표준 양식 시각 회귀 (3 case)
 

@@ -83,7 +83,7 @@ class Mig9CashJournalServiceTest {
     @Test
     void 정상_CashDisbursement_1건은_Journal과_Line_2건을_생성한다() {
         Mig9CashJournalService.CashRow row =
-                row(7, "CD-001", "REF-CD-001", new BigDecimal("1000"), null);
+                disbursementRow(7, "CD-001", "REF-CD-001", new BigDecimal("1000"), null);
         disbursements(row);
 
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
@@ -107,8 +107,8 @@ class Mig9CashJournalServiceTest {
     @Test
     void multi_row_disbursement_2건은_각각_Journal_생성한다() {
         disbursements(
-                row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null),
-                row(2, "CD-002", "REF-CD-002", new BigDecimal("2000"), null));
+                disbursementRow(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null),
+                disbursementRow(2, "CD-002", "REF-CD-002", new BigDecimal("2000"), null));
 
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
 
@@ -121,7 +121,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void disbursement_journal_no는_JD_접두사를_사용한다() {
-        disbursements(row(1, "SAME-001", "REF-CD-SAME", new BigDecimal("1000"), null));
+        disbursements(disbursementRow(1, "SAME-001", "REF-CD-SAME", new BigDecimal("1000"), null));
 
         service.generateFromDisbursements(500, "tester");
 
@@ -139,7 +139,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void slip_no_충돌_안전성_검증() {
-        disbursements(row(1, "SAME-001", "REF-CD-SAME", new BigDecimal("1000"), null));
+        disbursements(disbursementRow(1, "SAME-001", "REF-CD-SAME", new BigDecimal("1000"), null));
         service.generateFromDisbursements(500, "tester");
         SqlParameterSource disbursementJournal = journalParams();
 
@@ -225,7 +225,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void disbursement_link_SQL은_status_조건_없이_journal_id_가드만_사용한다() {
-        disbursements(row(4, "CD-LINK", "REF-CD-LINK", new BigDecimal("3000"), null));
+        disbursements(disbursementRow(4, "CD-LINK", "REF-CD-LINK", new BigDecimal("3000"), null));
 
         service.generateFromDisbursements(500, "tester");
 
@@ -264,7 +264,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void disbursement_link가_0건이면_생성한_journal을_보상삭제하고_skip한다() {
-        disbursements(row(4, "CD-LINK-RACE", "REF-CD-LINK-RACE", new BigDecimal("3000"), null));
+        disbursements(disbursementRow(4, "CD-LINK-RACE", "REF-CD-LINK-RACE", new BigDecimal("3000"), null));
         when(jdbcTemplate.update(contains("UPDATE cash_disbursements"), any(SqlParameterSource.class)))
                 .thenReturn(0);
 
@@ -283,7 +283,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void journal_id가_이미_있으면_skip한다() {
-        disbursements(row(1, "CD-SKIP", "REF-SKIP", new BigDecimal("1000"), journalId()));
+        disbursements(disbursementRow(1, "CD-SKIP", "REF-SKIP", new BigDecimal("1000"), journalId()));
 
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
 
@@ -302,7 +302,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void 기본_계정이_없으면_MIG9_DEFAULT_ACCOUNT_MISSING_reject() {
-        disbursements(row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
+        disbursements(disbursementRow(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
         when(jdbcTemplate.queryForObject(contains("chart_of_accounts"), any(SqlParameterSource.class), eq(String.class)))
                 .thenThrow(new EmptyResultDataAccessException(1));
 
@@ -315,7 +315,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void amount가_0이하면_MIG9_CASH_AMOUNT_INVALID_reject() {
-        disbursements(row(1, "CD-001", "REF-CD-001", BigDecimal.ZERO, null));
+        disbursements(disbursementRow(1, "CD-001", "REF-CD-001", BigDecimal.ZERO, null));
 
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
 
@@ -325,7 +325,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void source_type_ref_unique_충돌은_DuplicateKeyException을_그대로_전파한다() {
-        disbursements(row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
+        disbursements(disbursementRow(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
         when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
                         org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
                 .thenThrow(new DuplicateKeyException(
@@ -338,8 +338,8 @@ class Mig9CashJournalServiceTest {
     @Test
     void duplicate_journal은_ON_CONFLICT_skip하고_다음_row는_정상_처리된다() {
         disbursements(
-                row(1, "CD-DUP", "REF-DUP", new BigDecimal("1000"), null),
-                row(2, "CD-NEXT", "REF-NEXT", new BigDecimal("2000"), null));
+                disbursementRow(1, "CD-DUP", "REF-DUP", new BigDecimal("1000"), null),
+                disbursementRow(2, "CD-NEXT", "REF-NEXT", new BigDecimal("2000"), null));
         when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
                         org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
                 .thenReturn(List.of())
@@ -357,7 +357,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void 알수없는_DuplicateKeyException은_그대로_던진다() {
-        disbursements(row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
+        disbursements(disbursementRow(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
         when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
                         org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))
                 .thenThrow(new DuplicateKeyException("other_unique"));
@@ -368,7 +368,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void reject_sample은_source_row_no를_보존한다() {
-        disbursements(row(42, "CD-001", "REF-CD-001", BigDecimal.ZERO, null));
+        disbursements(disbursementRow(42, "CD-001", "REF-CD-001", BigDecimal.ZERO, null));
 
         EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
 
@@ -388,7 +388,7 @@ class Mig9CashJournalServiceTest {
 
     @Test
     void cash_journal_id를_갱신한다() {
-        disbursements(row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
+        disbursements(disbursementRow(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
 
         service.generateFromDisbursements(500, "tester");
 
@@ -506,11 +506,25 @@ class Mig9CashJournalServiceTest {
         return params.getAllValues();
     }
 
+    /** cash_receipts fixture — version 컬럼이 실존하므로 신규 행 기본값 0L 을 그대로 사용한다. */
     private static Mig9CashJournalService.CashRow row(int rowNo, String slipNo, String externalRef,
                                                        BigDecimal amount, UUID journalId) {
         return new Mig9CashJournalService.CashRow(
                 rowNo, cashId(), slipNo, partnerId(), amount, LocalDate.of(2026, 5, 20),
                 "메모", journalId, externalRef, 0L);
+    }
+
+    /**
+     * cash_disbursements fixture — {@code pendingRows()} 가 disbursements 조회 시
+     * {@code NULL::bigint AS version} 으로 프로젝션한다(V49 version 컬럼은 cash_receipts 전용,
+     * disbursements 에는 컬럼 자체가 없음). 프로덕션과 동일하게 version 을 null 로 고정해
+     * 실제로 존재하지 않는 값(0L)을 fixture 가 흉내 내지 않도록 한다.
+     */
+    private static Mig9CashJournalService.CashRow disbursementRow(int rowNo, String slipNo, String externalRef,
+                                                                   BigDecimal amount, UUID journalId) {
+        return new Mig9CashJournalService.CashRow(
+                rowNo, cashId(), slipNo, partnerId(), amount, LocalDate.of(2026, 5, 20),
+                "메모", journalId, externalRef, null);
     }
 
     private static UUID cashId() {
