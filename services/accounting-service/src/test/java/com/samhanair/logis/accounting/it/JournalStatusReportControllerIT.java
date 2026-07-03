@@ -242,7 +242,7 @@ class JournalStatusReportControllerIT extends AbstractPostgresIT {
                 line("401", "0.00", "1200.00", PARTNER_WILLY, "매출"));
         seedPosted("STATUS-F-CASH", LocalDate.of(2026, 6, 8), "현금 입금",
                 JournalSourceType.CASH_RECEIPT,
-                line("101", "800.00", "0.00", PARTNER_HANIL, "현금입금"),
+                line("101", "800.00", "0.00", PARTNER_HANIL, "입금보고서"),
                 line("401", "0.00", "800.00", PARTNER_HANIL, "매출"));
 
         MvcResult result = mockMvc.perform(get("/accounting/reports/journal-status")
@@ -258,7 +258,7 @@ class JournalStatusReportControllerIT extends AbstractPostgresIT {
         JsonNode data = objectMapper.readTree(result.getResponse()
                 .getContentAsString(StandardCharsets.UTF_8)).get("data");
         assertGroup(data, "계좌입금", "계좌입금", 1, "1200.00");
-        assertGroup(data, "현금입금", "현금입금", 1, "800.00");
+        assertGroup(data, "입금보고서", "입금보고서", 1, "800.00");
     }
 
     @Test

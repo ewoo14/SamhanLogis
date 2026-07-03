@@ -6256,7 +6256,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       MANUAL: '수기',
       CLOSING: '결산',
       CASH_DISBURSEMENT: '지출결의서',
-      CASH_RECEIPT: '현금입금',
+      CASH_RECEIPT: '입금보고서',
     }
     const journals = MOCK_JOURNALS
       .filter((journal) => journal.status === status)
@@ -12476,7 +12476,7 @@ const MOCK_JOURNALS = [
     journalNo: '2026/05/04-006',
     journalDate: '2026-05-04',
     sourceType: 'CASH_RECEIPT' as const,
-    sourceTypeDisplayName: '현금입금',
+    sourceTypeDisplayName: '입금보고서',
     status: 'POSTED' as const,
     description: '입금보고서 확정 2026/05/04-006 (주식회사 윌리)',
     totalDebit: '850000',

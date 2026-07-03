@@ -50,6 +50,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/accounting/cash-receipts";
     private static final String ACCOUNTANT_ID = "00000000-0000-0000-0000-000000000104";
+    private static final String OVERRIDE_DEBIT_ACCOUNT_CODE = "101";
+    private static final String OVERRIDE_CREDIT_ACCOUNT_CODE = "120";
     private static final UUID PARTNER_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
     private static final UUID PARTNER_ID_2 = UUID.fromString("10000000-0000-0000-0000-000000000002");
 
@@ -144,8 +146,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.amount").value(121000))
                 .andExpect(jsonPath("$.data.memo").value("수정 메모"))
-                .andExpect(jsonPath("$.data.debitAccountCode").value("102"))
-                .andExpect(jsonPath("$.data.creditAccountCode").value("110"));
+                .andExpect(jsonPath("$.data.debitAccountCode").value(OVERRIDE_DEBIT_ACCOUNT_CODE))
+                .andExpect(jsonPath("$.data.creditAccountCode").value(OVERRIDE_CREDIT_ACCOUNT_CODE));
 
         mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -228,8 +230,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         assertJournalLines(journalId, "102", "110", new BigDecimal("61000.00"));
 
         Map<String, Object> overrideBody = createBody("62000");
-        overrideBody.put("debitAccountCode", "102");
-        overrideBody.put("creditAccountCode", "110");
+        overrideBody.put("debitAccountCode", OVERRIDE_DEBIT_ACCOUNT_CODE);
+        overrideBody.put("creditAccountCode", OVERRIDE_CREDIT_ACCOUNT_CODE);
         MvcResult overrideReceipt = createReceipt(overrideBody);
         String overrideReceiptId = data(overrideReceipt).get("id").asText();
 
@@ -239,7 +241,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.journalNo").isNotEmpty());
 
-        assertJournalLines(receiptJournalId(overrideReceiptId), "102", "110", new BigDecimal("62000.00"));
+        assertJournalLines(receiptJournalId(overrideReceiptId),
+                OVERRIDE_DEBIT_ACCOUNT_CODE, OVERRIDE_CREDIT_ACCOUNT_CODE, new BigDecimal("62000.00"));
     }
 
     @Test
@@ -293,7 +296,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.data.amount").value(65000))
-                .andExpect(jsonPath("$.data.debitAccountCode").value("102"))
+                .andExpect(jsonPath("$.data.debitAccountCode").value(OVERRIDE_DEBIT_ACCOUNT_CODE))
+                .andExpect(jsonPath("$.data.creditAccountCode").value(OVERRIDE_CREDIT_ACCOUNT_CODE))
                 .andExpect(jsonPath("$.data.journalNo").isNotEmpty())
                 .andReturn();
 
@@ -306,7 +310,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         // 재게시 적요는 최초 확정과 구분된다 (감사 추적성).
         org.assertj.core.api.Assertions.assertThat(journal(newJournalId).get("description").toString())
                 .contains("입금보고서 수정 재게시");
-        assertJournalLines(newJournalId, "102", "110", new BigDecimal("65000.00"));
+        assertJournalLines(newJournalId,
+                OVERRIDE_DEBIT_ACCOUNT_CODE, OVERRIDE_CREDIT_ACCOUNT_CODE, new BigDecimal("65000.00"));
 
         // 무변경 PATCH = 역분개+재게시 생략 (원장 노이즈 차단) — journalId 가 그대로다.
         mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
@@ -332,7 +337,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(journal(newJournalId).get("status")).isEqualTo("REVERSED");
         org.assertj.core.api.Assertions.assertThat(journal(newJournalId).get("reversed_journal_id")).isNotNull();
         org.assertj.core.api.Assertions.assertThat(journal(thirdJournalId).get("status")).isEqualTo("POSTED");
-        assertJournalLines(thirdJournalId, "102", "110", new BigDecimal("65500.00"));
+        assertJournalLines(thirdJournalId,
+                OVERRIDE_DEBIT_ACCOUNT_CODE, OVERRIDE_CREDIT_ACCOUNT_CODE, new BigDecimal("65500.00"));
 
         // 수정 후 취소 — 마지막 재게시 분개가 역분개된다.
         mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
@@ -374,7 +380,8 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
                 .andExpect(jsonPath("$.data.amount").value(69000))
                 .andExpect(jsonPath("$.data.journalNo").isNotEmpty());
-        assertJournalLines(receiptJournalId(patchId.toString()), "102", "110", new BigDecimal("69000.00"));
+        assertJournalLines(receiptJournalId(patchId.toString()),
+                OVERRIDE_DEBIT_ACCOUNT_CODE, OVERRIDE_CREDIT_ACCOUNT_CODE, new BigDecimal("69000.00"));
     }
 
     @Test
@@ -468,7 +475,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                             .header("X-User-Id", ACCOUNTANT_ID)
                             .header("X-User-Role", "ACCOUNTANT")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(updateBody("69400"))))
+                            .content(objectMapper.writeValueAsString(defaultAccountUpdateBody("69400"))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.amount").value(69400));
 
@@ -840,10 +847,19 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     }
 
     private Map<String, Object> updateBody(String amount) {
+        return updateBodyWithAccounts(amount, OVERRIDE_DEBIT_ACCOUNT_CODE, OVERRIDE_CREDIT_ACCOUNT_CODE);
+    }
+
+    private Map<String, Object> defaultAccountUpdateBody(String amount) {
+        return updateBodyWithAccounts(
+                amount, CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE, CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE);
+    }
+
+    private Map<String, Object> updateBodyWithAccounts(String amount, String debitAccountCode, String creditAccountCode) {
         Map<String, Object> body = createBody(amount);
         body.put("memo", "수정 메모");
-        body.put("debitAccountCode", "102");
-        body.put("creditAccountCode", "110");
+        body.put("debitAccountCode", debitAccountCode);
+        body.put("creditAccountCode", creditAccountCode);
         return body;
     }
 

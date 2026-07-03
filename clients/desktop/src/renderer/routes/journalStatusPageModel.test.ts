@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  JOURNAL_STATUS_SOURCE_OPTIONS,
   buildJournalStatusRows,
   displayJournalStatusBizNo,
   fmtJournalStatusKrw,
@@ -9,6 +10,11 @@ import {
 import type { JournalStatusGroup } from '../api/accounting'
 
 describe('journalStatusPageModel', () => {
+  it('입금보고서 출처 라벨을 확정 용어로 표시한다', () => {
+    expect(JOURNAL_STATUS_SOURCE_OPTIONS.find((option) => option.value === 'CASH_RECEIPT')?.label)
+      .toBe('입금보고서')
+  })
+
   it('전표현황 그룹 라인 뒤에 소계 행을 붙인다', () => {
     const group: JournalStatusGroup = {
       groupKey: '2026-06-03',

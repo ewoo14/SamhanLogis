@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 전표현황 보고서 Service.
  *
- * <p>POSTED 분개를 전표 단위로 조회하고 sourceType 다중 필터, 거래처코드 필터,
+ * <p>상태 필터 기준 분개를 전표 단위로 조회하고 sourceType 다중 필터, 거래처코드 필터,
  * grouping(일자/출처/거래처)을 적용한다. 거래처 UUID 는 {@link PartnerLookupClient} 로
  * 내부 해석한 뒤 필터와 lookup 에만 사용하고 응답에는 거래처명만 포함한다.
  *
@@ -129,7 +129,7 @@ public class JournalStatusReportService {
             case CLOSING -> "결산";
             case KFTC_DEPOSIT -> "계좌입금";
             case CASH_DISBURSEMENT -> "지출결의서";
-            case CASH_RECEIPT -> "현금입금";
+            case CASH_RECEIPT -> "입금보고서";
         };
     }
 

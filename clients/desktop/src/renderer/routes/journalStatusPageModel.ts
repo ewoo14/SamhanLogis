@@ -19,7 +19,7 @@ export const JOURNAL_STATUS_SOURCE_OPTIONS: Array<{
   { value: 'MANUAL', label: '수기' },
   { value: 'CLOSING', label: '결산' },
   { value: 'CASH_DISBURSEMENT', label: '지출결의서' },
-  { value: 'CASH_RECEIPT', label: '현금입금' },
+  { value: 'CASH_RECEIPT', label: '입금보고서' },
 ]
 
 export const JOURNAL_STATUS_GROUP_OPTIONS: Array<{
