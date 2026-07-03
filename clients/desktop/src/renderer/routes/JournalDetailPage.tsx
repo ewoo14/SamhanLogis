@@ -183,7 +183,7 @@ export function JournalDetailPage() {
     {
       key: 'accountCode',
       header: '계정과목',
-      width: '220px',
+      width: '160px',
       render: (l) => (
         <span>
           <span style={{ color: '#6B7280', marginRight: 8, fontVariantNumeric: 'tabular-nums' }}>
@@ -196,21 +196,21 @@ export function JournalDetailPage() {
     {
       key: 'debit',
       header: '차변',
-      width: '140px',
+      width: '110px',
       align: 'right',
       render: (l) => fmtKrw(l.debit),
     },
     {
       key: 'credit',
       header: '대변',
-      width: '140px',
+      width: '110px',
       align: 'right',
       render: (l) => fmtKrw(l.credit),
     },
     {
       key: 'partnerName',
       header: '거래처',
-      width: '180px',
+      width: '260px',
       render: (l) => l.partnerName ?? '—',
     },
     {
