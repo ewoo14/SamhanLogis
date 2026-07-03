@@ -234,22 +234,27 @@ public class Mig9CashJournalService {
         // journal_id IS NULL 가드 — 라이브 confirm/PATCH(E3 S2)가 배치와 동시에 같은 행에 분개를
         // 링크하는 레이스에서 last-write-wins 로 분개가 고아화되는 것을 차단한다 (@Version 은 raw
         // UPDATE 를 타지 않으므로 SQL 레벨로 방어).
-        // status='CONFIRMED' 재확인(cash_receipts 만) — pendingRows SELECT 이후~UPDATE 사이에
-        // 라이브 cancel 이 커밋되면(CANCELLED, journal_id 는 NULL 유지) 취소행에 유령 POSTED 분개가
-        // 링크되고 역분개 경로(409)가 영구 차단되는 TOCTOU 를 차단. 0행 → 보상삭제+skipped.
-        String receiptStatusFilter = "cash_receipts".equals(tableName)
+        // status='CONFIRMED' 재확인 + version bump 는 cash_receipts 한정 — ①TOCTOU: pendingRows
+        // SELECT 이후~UPDATE 사이에 라이브 cancel 이 커밋되면(CANCELLED, journal_id 는 NULL 유지)
+        // 취소행에 유령 POSTED 분개가 링크되고 역분개 경로(409)가 영구 차단됨. 0행 → 보상삭제+skipped.
+        // ②version 컬럼은 V49 가 cash_receipts 에만 추가(라이브 편집 @Version 낙관락 무효화 목적) —
+        // cash_disbursements 는 컬럼 자체가 없어 bump 포함 시 배치 전면 실패(42703).
+        boolean isReceipts = "cash_receipts".equals(tableName);
+        String receiptOnlyClauses = isReceipts
+                ? "                       ,version = version + 1\n"
+                : "";
+        String receiptStatusFilter = isReceipts
                 ? "                   AND status = 'CONFIRMED'\n"
                 : "";
         int updated = jdbcTemplate.update("""
                 UPDATE %s
                    SET journal_id = :journalId,
                        modified_at = NOW(),
-                       modified_by = :actor,
-                       version = version + 1
-                 WHERE id = :cashId
+                       modified_by = :actor
+%s                 WHERE id = :cashId
                    AND is_deleted = FALSE
                    AND journal_id IS NULL
-%s""".formatted(tableName, receiptStatusFilter), new MapSqlParameterSource()
+%s""".formatted(tableName, receiptOnlyClauses, receiptStatusFilter), new MapSqlParameterSource()
                 .addValue("journalId", journalId)
                 .addValue("actor", actor)
                 .addValue("cashId", cashId));

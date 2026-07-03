@@ -229,7 +229,7 @@ curl "http://localhost:8080/api/accounting/balances?period=202605" \
 
 **검증 포인트**:
 - [ ] `data.totalDebit == data.totalCredit` (시산표 균형 — 복식부기 무결성)
-- [ ] POSTED 분개만 집계 (DRAFT 5건 / REVERSED 5건 제외)
+- [ ] POSTED+REVERSED(보상쌍 상쇄) 분개 집계 — DRAFT 만 제외 (역분개쌍은 잔액에서 자체 상쇄)
 - [ ] balance 부호 — ASSET/COST_OF_SALES 은 양수, LIABILITY/EQUITY/REVENUE 는 음수 (표시용 — TrialBalanceService 의 부호 규약 인용)
 
 ### 5.1 period 형식 오류 → 400

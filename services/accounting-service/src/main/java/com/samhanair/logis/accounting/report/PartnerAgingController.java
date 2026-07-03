@@ -51,7 +51,7 @@ public class PartnerAgingController {
      *
      * <p>type=RECEIVABLE: 110 외상매출금 기준 거래처별 미수금.
      * type=PAYABLE: 201 외상매입금 기준 거래처별 미지급금.
-     * asOfDate 기준일 이전 누적 POSTED 분개 잔액으로 집계.
+     * asOfDate 기준일 이전 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 잔액으로 집계.
      *
      * @param asOfDate 기준 일자 (YYYY-MM-DD, 필수)
      * @param type     조회 유형 (RECEIVABLE 또는 PAYABLE, 필수)
@@ -60,7 +60,7 @@ public class PartnerAgingController {
      */
     @Operation(
             summary = "거래처별 미수/미지급금 조회",
-            description = "asOfDate 기준 누적 POSTED 분개 잔액 기준 거래처별 미수/미지급금 보고서. " +
+            description = "asOfDate 기준 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 잔액 기준 거래처별 미수/미지급금 보고서. " +
                     "RECEIVABLE: 110 외상매출금 (debit-credit), " +
                     "PAYABLE: 201 외상매입금 (credit-debit). " +
                     "잔액 0 이하 거래처 제외. partnerId null 은 '기타'로 집계.")

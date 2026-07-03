@@ -233,9 +233,11 @@ class Mig9CashJournalServiceTest {
                 .filter(value -> value.contains("UPDATE cash_disbursements"))
                 .findFirst()
                 .orElseThrow();
-        // cash_disbursements 에는 status 컬럼이 없다(V27) — 조건이 섞이면 배치가 SQL 오류로 전면 실패한다.
+        // cash_disbursements 에는 status(V27)·version(V49=cash_receipts 전용) 컬럼이 없다 —
+        // 어느 쪽이든 섞이면 배치가 42703 으로 전면 실패한다. 공백 변형까지 막도록 토큰 자체를 금지.
         assertThat(linkSql).contains("journal_id IS NULL");
-        assertThat(linkSql).doesNotContain("status = 'CONFIRMED'");
+        assertThat(linkSql).doesNotContain("status");
+        assertThat(linkSql).doesNotContain("version");
     }
 
     @Test

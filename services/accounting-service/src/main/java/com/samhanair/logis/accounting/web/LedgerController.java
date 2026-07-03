@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>INVENTORY / SALES role 접근 불가 (매뉴얼 §4 회계 화면 접근 권한)</li>
  * </ul>
  *
- * <p>데이터 소스: {@code journal_lines} (POSTED+REVERSED 분개) — 별도 테이블 없음.
+ * <p>데이터 소스: {@code journal_lines} (POSTED+REVERSED(보상쌍 상쇄) 분개) — 별도 테이블 없음.
  */
 @RestController
 @RequestMapping("/accounting/ledgers")
@@ -52,7 +52,7 @@ public class LedgerController {
      * @return 원장 라인 목록 + 합계 요약
      */
     @Operation(summary = "원장 조회",
-            description = "기간별 + 거래처별 원장 조회. POSTED+REVERSED 분개 라인 기반. "
+            description = "기간별 + 거래처별 원장 조회. POSTED+REVERSED(보상쌍 상쇄) 분개 라인 기반. "
                     + "partnerCode 없으면 전체 거래처 통합 원장.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",

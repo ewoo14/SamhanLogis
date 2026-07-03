@@ -58,7 +58,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   close (DAILY|MONTHLY) : OPEN → CLOSED
  *                            (1) period_date normalize (월별 = 1일)
  *                            (2) slip-service.lock-by-period 호출 → CONFIRMED 슬립 LOCKED
- *                            (3) POSTED 분개 합계 집계 (REVENUE/COST_OF_SALES/SGA) stamp
+ *                            (3) POSTED+REVERSED(보상쌍 상쇄) 분개 합계 집계 (REVENUE/COST_OF_SALES/SGA) stamp
  *                            (4) AccountingPeriod CLOSED + closed_at/by 기록
  *   reverse               : CLOSED → OPEN (MASTER 만 — controller 가드)
  *   list                  : period_type / year 필터

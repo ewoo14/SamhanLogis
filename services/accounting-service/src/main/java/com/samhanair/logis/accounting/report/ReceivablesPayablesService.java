@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 채권채무 현황 보고서 Service.
  *
- * <p>신규 쓰기 도메인/Flyway 없이 기존 POSTED 분개 라인, 받을어음, 수금계획을
+ * <p>신규 쓰기 도메인/Flyway 없이 기존 POSTED+REVERSED(보상쌍 상쇄) 분개 라인, 받을어음, 수금계획을
  * 읽기전용으로 집계한다. 분개는 계정+거래처+분개일자 GROUP BY 로 가져온 뒤
  * service 레이어에서 FIFO 상계하여 남은 잔액을 발생월 aging 버킷에 배분한다.
  *

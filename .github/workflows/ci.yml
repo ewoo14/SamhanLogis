@@ -84,7 +84,7 @@ jobs:
           - name: accounting-cash-receipt-it
             # E3 S1 입금보고서 도메인 기반: 신규 IT 명시 등재로 Gradle --tests false-green 방지.
             timeout: 30
-            test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.CashReceiptControllerIT" --tests "com.samhanair.logis.accounting.editrequest.lock.AccountingLockPoliciesTest" --tests "com.samhanair.logis.accounting.service.Mig9CashJournalServiceTest" :services:auth-service:test --tests "com.samhanair.logis.auth.it.AuthFlywayV80SeedIT"'
+            test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.CashReceiptControllerIT" --tests "com.samhanair.logis.accounting.editrequest.lock.AccountingLockPoliciesTest" --tests "com.samhanair.logis.accounting.service.Mig9CashJournalServiceTest" --tests "com.samhanair.logis.accounting.it.Mig9CashJournalLinkIT" :services:auth-service:test --tests "com.samhanair.logis.auth.it.AuthFlywayV80SeedIT"'
           # 아로로지스 분리 (spec 2026-05-14, plan DO2):
           #   `:services:arologis-service:test` 는 별도 워크플로 `arologis-ci.yml` 의 backend job
           #   으로 이관. 본 그룹에서는 제외. Samhan Public 14 service 만 커버.

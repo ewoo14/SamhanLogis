@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 채권채무 현황 보고서 REST endpoint.
  *
  * <p>권한: {@code accounting.reports} VIEW. 읽기전용 집계 보고서이므로
- * 신규 Flyway 도메인 없이 POSTED 분개, 받을어음, 수금계획을 병합한다.
+ * 신규 Flyway 도메인 없이 POSTED+REVERSED 분개, 받을어음, 수금계획을 병합한다.
  */
 @Tag(name = "회계 보고서", description = "채권채무 현황")
 @RestController
@@ -38,7 +38,7 @@ public class ReceivablesPayablesController {
      */
     @Operation(
             summary = "채권채무 현황 조회",
-            description = "기준일 POSTED 분개 잔액을 월별 aging 버킷으로 분류하고 " +
+            description = "기준일 POSTED+REVERSED(보상쌍 상쇄) 분개 잔액을 월별 aging 버킷으로 분류하고 " +
                     "받을어음/수금계획/여신한도를 거래처별로 병기한다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
