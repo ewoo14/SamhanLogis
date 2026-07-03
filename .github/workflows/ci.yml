@@ -206,6 +206,20 @@ jobs:
             exit 1
           fi
 
+      - name: E3 S1 CashReceiptControllerIT skipped=0 hard gate
+        if: matrix.group.name == 'accounting-cash-receipt-it'
+        run: |
+          report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.CashReceiptControllerIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::CashReceiptControllerIT JUnit report not found; E3 S1 cash receipt IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::CashReceiptControllerIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
       - name: 테스트 리포트 아티팩트 업로드 (실패 포함)
         if: always()
         uses: actions/upload-artifact@v4
@@ -221,9 +235,9 @@ jobs:
         uses: mikepenz/action-junit-report@v4
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'
-          # accounting-codef-it 는 BC3 IT hard gate 이므로 필터/skip false-green 을 막기 위해
-          # JUnit 결과가 0건이면 실패시킨다. 다른 matrix 는 기존 legacy 허용 정책 유지.
-          require_tests: ${{ matrix.group.name == 'accounting-codef-it' }}
+          # accounting-codef-it / accounting-cash-receipt-it 는 좁은 IT hard gate 이므로
+          # 필터/skip false-green 을 막기 위해 JUnit 결과가 0건이면 실패시킨다.
+          require_tests: ${{ matrix.group.name == 'accounting-codef-it' || matrix.group.name == 'accounting-cash-receipt-it' }}
           check_name: JUnit 테스트 결과 (${{ matrix.group.name }})
 
   notion-zero-guard:

@@ -3,6 +3,8 @@ package com.samhanair.logis.accounting.collab;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.service.CashReceiptService;
@@ -20,24 +22,32 @@ class CashReceiptDocumentCollaborationPortTest {
     void loadSnapshotSerializesEditableCashReceiptFields() {
         CashReceiptRepository repository = org.mockito.Mockito.mock(CashReceiptRepository.class);
         CashReceiptService service = org.mockito.Mockito.mock(CashReceiptService.class);
+        PartnerLookupClient partnerLookupClient = org.mockito.Mockito.mock(PartnerLookupClient.class);
         UUID receiptId = UUID.randomUUID();
+        UUID partnerId = UUID.fromString("10000000-0000-0000-0000-000000000001");
         CashReceipt receipt = CashReceipt.createManual(
                 "2026/07/03-1",
-                UUID.fromString("10000000-0000-0000-0000-000000000001"),
+                partnerId,
                 BigDecimal.valueOf(120000),
                 LocalDate.of(2026, 7, 3),
                 "초기 메모",
                 "103",
                 "110");
         org.mockito.Mockito.when(repository.findById(receiptId)).thenReturn(Optional.of(receipt));
+        org.mockito.Mockito.when(partnerLookupClient.findByPartnerId(partnerId))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerId, "P-CR-001", "삼한입금상사", "123-45-67890", "서울")));
 
         CashReceiptDocumentCollaborationPort port = new CashReceiptDocumentCollaborationPort(
-                repository, service, new ObjectMapper());
+                repository, service, partnerLookupClient, new ObjectMapper());
 
         String json = port.loadSnapshot(receiptId);
 
         org.assertj.core.api.Assertions.assertThat(json)
                 .contains("\"slipNo\":\"2026/07/03-1\"")
+                .contains("\"partnerCode\":\"P-CR-001\"")
+                .contains("\"bizNo\":\"1234567890\"")
+                .contains("\"partnerName\":\"삼한입금상사\"")
                 .contains("\"amount\":120000")
                 .contains("\"transactionDate\":\"2026-07-03\"")
                 .contains("\"memo\":\"초기 메모\"")
@@ -48,6 +58,7 @@ class CashReceiptDocumentCollaborationPortTest {
     void applyChangeSetParsesAndAppliesSupportedFieldsOnly() {
         CashReceiptRepository repository = org.mockito.Mockito.mock(CashReceiptRepository.class);
         CashReceiptService service = org.mockito.Mockito.mock(CashReceiptService.class);
+        PartnerLookupClient partnerLookupClient = org.mockito.Mockito.mock(PartnerLookupClient.class);
         UUID receiptId = UUID.randomUUID();
         java.util.Map<String, Object> parsed = new java.util.LinkedHashMap<>();
         parsed.put("amount", "121000");
@@ -56,7 +67,7 @@ class CashReceiptDocumentCollaborationPortTest {
                 .thenReturn(parsed);
 
         CashReceiptDocumentCollaborationPort port = new CashReceiptDocumentCollaborationPort(
-                repository, service, new ObjectMapper());
+                repository, service, partnerLookupClient, new ObjectMapper());
 
         port.applyChangeSet(receiptId, """
                 {
@@ -72,12 +83,13 @@ class CashReceiptDocumentCollaborationPortTest {
     void applyChangeSetRejectsUnsupportedFieldsBeforeApplying() {
         CashReceiptRepository repository = org.mockito.Mockito.mock(CashReceiptRepository.class);
         CashReceiptService service = org.mockito.Mockito.mock(CashReceiptService.class);
+        PartnerLookupClient partnerLookupClient = org.mockito.Mockito.mock(PartnerLookupClient.class);
         java.util.Map<String, Object> parsed = new java.util.LinkedHashMap<>();
         parsed.put("journalId", UUID.randomUUID().toString());
         org.mockito.Mockito.when(service.parseChangeSet(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(parsed);
         CashReceiptDocumentCollaborationPort port = new CashReceiptDocumentCollaborationPort(
-                repository, service, new ObjectMapper());
+                repository, service, partnerLookupClient, new ObjectMapper());
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                         port.applyChangeSet(UUID.randomUUID(), """
@@ -93,13 +105,14 @@ class CashReceiptDocumentCollaborationPortTest {
     void restoreSnapshotConvertsSnapshotToEditableChangeSet() {
         CashReceiptRepository repository = org.mockito.Mockito.mock(CashReceiptRepository.class);
         CashReceiptService service = org.mockito.Mockito.mock(CashReceiptService.class);
+        PartnerLookupClient partnerLookupClient = org.mockito.Mockito.mock(PartnerLookupClient.class);
         UUID receiptId = UUID.randomUUID();
         java.util.Map<String, Object> parsed = new java.util.LinkedHashMap<>();
         parsed.put("memo", "복원 메모");
         org.mockito.Mockito.when(service.parseChangeSet(org.mockito.ArgumentMatchers.contains("\"memo\"")))
                 .thenReturn(parsed);
         CashReceiptDocumentCollaborationPort port = new CashReceiptDocumentCollaborationPort(
-                repository, service, new ObjectMapper());
+                repository, service, partnerLookupClient, new ObjectMapper());
 
         port.restoreSnapshot(receiptId, """
                 {"slipNo":"2026/07/03-1","memo":"복원 메모","journalId":"ignored"}

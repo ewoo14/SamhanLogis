@@ -3,6 +3,8 @@ package com.samhanair.logis.accounting.collab;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.service.CashReceiptService;
@@ -27,13 +29,16 @@ public class CashReceiptDocumentCollaborationPort implements DocumentCollaborati
 
     private final CashReceiptRepository repository;
     private final CashReceiptService service;
+    private final PartnerLookupClient partnerLookupClient;
     private final ObjectMapper objectMapper;
 
     public CashReceiptDocumentCollaborationPort(CashReceiptRepository repository,
                                                 CashReceiptService service,
+                                                PartnerLookupClient partnerLookupClient,
                                                 ObjectMapper objectMapper) {
         this.repository = repository;
         this.service = service;
+        this.partnerLookupClient = partnerLookupClient;
         this.objectMapper = objectMapper.copy()
                 .findAndRegisterModules()
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -49,8 +54,12 @@ public class CashReceiptDocumentCollaborationPort implements DocumentCollaborati
     @Transactional(readOnly = true)
     public String loadSnapshot(UUID documentId) {
         CashReceipt receipt = load(documentId);
+        PartnerSummary partner = partnerLookupClient.findByPartnerId(receipt.getPartnerId()).orElse(null);
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("slipNo", receipt.getSlipNo());
+        snapshot.put("partnerCode", valueOrDefault(partner == null ? null : partner.partnerCode(), "미등록"));
+        snapshot.put("bizNo", digitsOnly(partner == null ? null : partner.bizNo()));
+        snapshot.put("partnerName", valueOrDefault(partner == null ? null : partner.name(), "(미조회)"));
         snapshot.put("amount", receipt.getAmount());
         snapshot.put("transactionDate", receipt.getTransactionDate());
         snapshot.put("kind", receipt.getKind().name());
@@ -136,5 +145,13 @@ public class CashReceiptDocumentCollaborationPort implements DocumentCollaborati
         } catch (JsonProcessingException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "snapshot JSON 형식이 올바르지 않습니다");
         }
+    }
+
+    private static String valueOrDefault(String value, String fallback) {
+        return value != null && !value.isBlank() ? value.trim() : fallback;
+    }
+
+    private static String digitsOnly(String value) {
+        return value == null ? "" : value.replaceAll("[^0-9]", "");
     }
 }

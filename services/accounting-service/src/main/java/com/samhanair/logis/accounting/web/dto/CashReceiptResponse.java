@@ -6,10 +6,12 @@ import com.samhanair.logis.accounting.domain.CashReceiptKind;
 import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
-/** 입금보고서 응답. 내부 partnerId/journalId 대신 화면 표시 식별자만 반환한다. */
+/** 입금보고서 응답. id 는 mutation path 용이며 화면 표시는 slipNo/거래처 표시필드를 사용한다. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CashReceiptResponse(
+        UUID id,
         String slipNo,
         String partnerCode,
         String bizNo,
@@ -26,6 +28,7 @@ public record CashReceiptResponse(
 ) {
     public static CashReceiptResponse of(CashReceipt receipt, PartnerDisplay partner, String journalNo) {
         return new CashReceiptResponse(
+                receipt.getId(),
                 receipt.getSlipNo(),
                 partner.partnerCode(),
                 partner.bizNo(),

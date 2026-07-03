@@ -97,6 +97,30 @@ class AccountingRealtimeIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("GET /accounting/cash-receipts/{id}/realtime — ACCOUNTANT 200 + text/event-stream")
+    void accountantCanSubscribeCashReceiptRealtimeById() throws Exception {
+        UUID entityId = UUID.randomUUID();
+        MvcResult result = mockMvc.perform(get("/accounting/cash-receipts/{id}/realtime", entityId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(result.getResponse().getContentType())
+                .startsWith(MediaType.TEXT_EVENT_STREAM_VALUE);
+    }
+
+    @Test
+    @DisplayName("GET /accounting/cash-receipts/realtime?slipNo=... — legacy query endpoint 404")
+    void legacyCashReceiptRealtimeQueryEndpointReturns404() throws Exception {
+        mockMvc.perform(get("/accounting/cash-receipts/realtime")
+                        .param("slipNo", "MISSING")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     @DisplayName("POST /accounting/entities/{id}/edit-request — ACCOUNTANT 201 + DB PENDING/MANAGER")
     void editRequestCreatePersistsPendingRow() throws Exception {
         UUID entityId = UUID.randomUUID();

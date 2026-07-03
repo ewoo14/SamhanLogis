@@ -1,8 +1,5 @@
 package com.samhanair.logis.accounting.realtime;
 
-import com.samhanair.logis.accounting.repository.CashReceiptRepository;
-import com.samhanair.logis.common.exception.BusinessException;
-import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -25,7 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  *   <li>{@code GET /accounting/tax-invoices/{id}/realtime}</li>
  *   <li>{@code GET /accounting/journals/{id}/realtime}</li>
  *   <li>{@code GET /accounting/closings/{id}/realtime}</li>
- *   <li>{@code GET /accounting/cash-receipts/realtime?slipNo=...}</li>
+ *   <li>{@code GET /accounting/cash-receipts/{id}/realtime}</li>
  * </ul>
  *
  * <p>shared:realtime-abstraction 의 {@link RealtimeBroker} 위임 — 내부 entity UUID 단위 구독.
@@ -52,7 +48,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class AccountingRealtimeController {
 
     private final RealtimeBroker broker;
-    private final CashReceiptRepository cashReceiptRepository;
 
     /** 세금계산서 SSE 구독. */
     @Operation(summary = "세금계산서 실시간 SSE 구독",
@@ -87,13 +82,9 @@ public class AccountingRealtimeController {
     /** 입금보고서 SSE 구독. */
     @Operation(summary = "입금보고서 실시간 SSE 구독",
             description = "text/event-stream. 30s heartbeat keep-alive. event: accounting:edit / accounting:edit-request:*")
-    @GetMapping(path = "/cash-receipts/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(path = "/cash-receipts/{id:[0-9a-fA-F-]{36}}/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission(page = "accounting.cash-receipts", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
-    public SseEmitter subscribeCashReceipt(@RequestParam String slipNo) {
-        UUID id = cashReceiptRepository.findBySlipNo(slipNo)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "입금보고서를 찾을 수 없습니다: " + slipNo))
-                .getId();
+    public SseEmitter subscribeCashReceipt(@PathVariable UUID id) {
         return broker.subscribe(id);
     }
 }
