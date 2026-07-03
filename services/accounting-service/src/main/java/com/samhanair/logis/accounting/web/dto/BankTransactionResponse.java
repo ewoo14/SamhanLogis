@@ -25,9 +25,11 @@ public record BankTransactionResponse(
         MatchStatus matchStatus,
         String matchedPartnerCode,
         String matchedBizNo,
-        String matchedPartnerName
+        String matchedPartnerName,
+        String cashReceiptSlipNo
 ) {
-    public static BankTransactionResponse of(BankTransaction transaction, PartnerDisplay partner) {
+    public static BankTransactionResponse of(BankTransaction transaction, PartnerDisplay partner,
+                                             String cashReceiptSlipNo) {
         return new BankTransactionResponse(
                 transaction.getTransactedAt(),
                 transaction.getTxnType(),
@@ -45,7 +47,8 @@ public record BankTransactionResponse(
                 transaction.getMatchStatus(),
                 partner == null ? null : partner.partnerCode(),
                 partner == null ? null : partner.bizNo(),
-                partner == null ? null : partner.partnerName()
+                partner == null ? null : partner.partnerName(),
+                cashReceiptSlipNo
         );
     }
 

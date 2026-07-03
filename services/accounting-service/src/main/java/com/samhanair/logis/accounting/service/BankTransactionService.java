@@ -146,8 +146,12 @@ public class BankTransactionService {
                 spec,
                 Sort.by(Sort.Order.desc("transactedAt"), Sort.Order.desc("createdAt")));
         Map<UUID, PartnerSummary> partners = resolveDisplays(rows);
+        Map<UUID, String> cashReceiptSlipNos = resolveCashReceiptSlipNos(rows);
         return rows.stream()
-                .map(row -> BankTransactionResponse.of(row, displayOfPartner(row, partners)))
+                .map(row -> BankTransactionResponse.of(
+                        row,
+                        displayOfPartner(row, partners),
+                        cashReceiptSlipNos.get(row.getId())))
                 .toList();
     }
 
@@ -180,7 +184,7 @@ public class BankTransactionService {
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage(), ex);
         }
-        return BankTransactionResponse.of(transaction, displayOf(partner));
+        return BankTransactionResponse.of(transaction, displayOf(partner), null);
     }
 
     /**
@@ -199,7 +203,7 @@ public class BankTransactionService {
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage(), ex);
         }
-        return BankTransactionResponse.of(transaction, null);
+        return BankTransactionResponse.of(transaction, null, null);
     }
 
     private PartnerDisplay displayOfPartner(BankTransaction row, Map<UUID, PartnerSummary> partners) {
@@ -213,8 +217,8 @@ public class BankTransactionService {
      * <p>2-key(label+externalRef)는 같은 계좌에서 같은 externalRef 가 다른 일시/금액으로 공존하면
      * 다건이 되어 정당한 매칭을 거부하므로(BLOCKING 회귀), unique index 전체 키를 사용해 단건 보장.
      */
-    private BankTransaction findUniqueByNaturalKey(String bankAccountLabel, LocalDateTime transactedAt,
-                                                   BigDecimal amount, String externalRef) {
+    public BankTransaction findUniqueByNaturalKey(String bankAccountLabel, LocalDateTime transactedAt,
+                                                  BigDecimal amount, String externalRef) {
         if (!hasText(bankAccountLabel)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "bankAccountLabel 은 필수입니다.");
         }
@@ -231,6 +235,23 @@ public class BankTransactionService {
                         bankAccountLabel.trim(), transactedAt, amount, externalRef.trim())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "통장 거래를 찾을 수 없습니다: " + bankAccountLabel.trim() + " / " + externalRef.trim()));
+    }
+
+    private Map<UUID, String> resolveCashReceiptSlipNos(List<BankTransaction> rows) {
+        List<UUID> ids = rows.stream()
+                .filter(row -> row.getCashReceiptId() != null)
+                .map(BankTransaction::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return repository.findCashReceiptSlipNos(ids).stream()
+                .collect(Collectors.toMap(
+                        BankTransactionRepository.CashReceiptSlipProjection::getTransactionId,
+                        BankTransactionRepository.CashReceiptSlipProjection::getCashReceiptSlipNo,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
     }
 
     private Specification<BankTransaction> bankTransactionSpec(MatchStatus matchStatus, LocalDate from, LocalDate to,

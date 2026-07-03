@@ -47,6 +47,26 @@ public record CashReceiptResponse(
                 receipt.getCreditAccountCode());
     }
 
+    /** 같은 응답 형태를 유지하되 신규 통장연계 생성 응답에서는 mutation UUID 를 노출하지 않는다. */
+    public CashReceiptResponse withoutId() {
+        return new CashReceiptResponse(
+                null,
+                slipNo,
+                partnerCode,
+                bizNo,
+                partnerName,
+                amount,
+                transactionDate,
+                kind,
+                status,
+                memo,
+                journalNo,
+                reverseJournalNo,
+                externalRef,
+                debitAccountCode,
+                creditAccountCode);
+    }
+
     /** API 표시용 거래처 정보. */
     public record PartnerDisplay(String partnerCode, String bizNo, String partnerName) {
     }

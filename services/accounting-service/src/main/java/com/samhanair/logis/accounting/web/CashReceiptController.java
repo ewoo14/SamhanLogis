@@ -2,7 +2,9 @@ package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.domain.CashReceiptKind;
 import com.samhanair.logis.accounting.domain.CashReceiptStatus;
+import com.samhanair.logis.accounting.service.BankDepositReceiptService;
 import com.samhanair.logis.accounting.service.CashReceiptService;
+import com.samhanair.logis.accounting.web.dto.BankDepositReceiptRequest;
 import com.samhanair.logis.accounting.web.dto.CashReceiptRequest;
 import com.samhanair.logis.accounting.web.dto.CashReceiptResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
@@ -46,6 +48,7 @@ public class CashReceiptController {
     private static final String CALLER_HEADER = "X-User-Id";
 
     private final CashReceiptService service;
+    private final BankDepositReceiptService bankDepositReceiptService;
 
     /** 수기 입금보고서 생성. */
     @Operation(summary = "입금보고서 수기 생성", description = "DRAFT 상태로 생성하며 분개는 생성하지 않는다")
@@ -55,6 +58,19 @@ public class CashReceiptController {
     public ApiResponse<CashReceiptResponse> create(
             @Valid @RequestBody CashReceiptRequest request) {
         return ApiResponse.ok(service.createManual(request));
+    }
+
+    /** 통장거래 N건을 합산해 입금보고서를 생성하고 즉시 확정한다. */
+    @Operation(summary = "통장거래 기반 입금보고서 생성",
+            description = "통장거래 자연키 4-키 튜플 N건을 합산해 BANK_LINKED 입금보고서 1건을 생성·확정한다")
+    @PostMapping("/from-bank-transactions")
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
+    public ApiResponse<CashReceiptResponse> createFromBankTransactions(
+            @Valid @RequestBody BankDepositReceiptRequest request,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(bankDepositReceiptService.createFromBankTransactions(
+                request, callerOrSystem(callerHeader)));
     }
 
     /** 입금보고서 목록 조회. */

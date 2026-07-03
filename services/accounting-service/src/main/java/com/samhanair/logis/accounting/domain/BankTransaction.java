@@ -91,6 +91,10 @@ public class BankTransaction extends BaseEntity {
     @Column(name = "matched_journal_id")
     private UUID matchedJournalId;
 
+    /** 통장연계 입금보고서 내부 UUID. API/화면에는 slipNo 만 노출한다. */
+    @Column(name = "cash_receipt_id")
+    private UUID cashReceiptId;
+
     private BankTransaction(LocalDateTime transactedAt, BankTxnType txnType, BigDecimal amount,
                             BigDecimal balanceAfter, String description, String counterpartyName,
                             String counterpartyAccount, String bankAccountLabel, BankTxnSource source,
@@ -174,6 +178,33 @@ public class BankTransaction extends BaseEntity {
         requireStatus(MatchStatus.REFLECTED, MatchStatus.UNREFLECTED);
         this.matchedJournalId = journalId;
         this.matchStatus = MatchStatus.REFLECTED;
+        return this;
+    }
+
+    /**
+     * 통장연계 입금보고서와 분개를 동시에 연결하고 회계 반영 상태로 전환한다.
+     *
+     * <p>기존 {@link #markReflected(UUID)} 시그니처는 강제/수동 반영 경로 호환을 위해 보존하고,
+     * 입금보고서 링크가 필요한 S3 경로는 본 메서드를 사용한다.
+     */
+    public BankTransaction linkCashReceipt(UUID receiptId, UUID journalId) {
+        if (receiptId == null) {
+            throw new IllegalArgumentException("receiptId 는 필수입니다");
+        }
+        markReflected(journalId);
+        this.cashReceiptId = receiptId;
+        return this;
+    }
+
+    /** 통장연계 입금보고서 취소 시 다시 미반영 상태로 되돌리고 연결 키를 제거한다. */
+    public BankTransaction unlinkCashReceipt() {
+        if (this.cashReceiptId == null) {
+            return this;
+        }
+        requireStatus(MatchStatus.UNREFLECTED, MatchStatus.REFLECTED);
+        this.matchStatus = MatchStatus.UNREFLECTED;
+        this.matchedJournalId = null;
+        this.cashReceiptId = null;
         return this;
     }
 

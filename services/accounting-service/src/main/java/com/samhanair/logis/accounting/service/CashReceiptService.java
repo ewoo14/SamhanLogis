@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.CashReceiptKind;
 import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
+import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CashReceiptRequest;
@@ -46,6 +48,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class CashReceiptService {
 
     private final CashReceiptRepository repository;
+    private final BankTransactionRepository bankTransactionRepository;
     private final JournalRepository journalRepository;
     private final CashReceiptNumberService numberService;
     private final AccountService accountService;
@@ -69,6 +72,25 @@ public class CashReceiptService {
                 request.debitAccountCode(),
                 request.creditAccountCode());
         return responseOf(repository.save(receipt));
+    }
+
+    /** 통장연계 입금보고서 DRAFT 를 생성한다. 호출자는 즉시 {@link #confirm(UUID, String)} 로 확정한다. */
+    public CashReceipt createBankLinkedDraft(UUID partnerId, BigDecimal amount, LocalDate transactionDate,
+                                             String memo, String debitAccountCode, String creditAccountCode) {
+        if (partnerId == null) {
+            throw new BusinessException(ErrorCode.CONFLICT, "통장거래 거래처 매칭이 필요합니다");
+        }
+        validateAccounts(debitAccountCode, creditAccountCode);
+        String slipNo = numberService.next(transactionDate);
+        CashReceipt receipt = CashReceipt.createBankLinked(
+                slipNo,
+                partnerId,
+                amount,
+                transactionDate,
+                memo,
+                debitAccountCode,
+                creditAccountCode);
+        return repository.save(receipt);
     }
 
     /** 입금보고서 목록 조회. */
@@ -100,6 +122,10 @@ public class CashReceiptService {
     /** REST PATCH 상태 분기. DRAFT 는 단순 수정, CONFIRMED 는 역분개 후 재게시한다. */
     public CashReceiptResponse update(UUID id, CashReceiptRequest request, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
+        if (receipt.getKind() == CashReceiptKind.BANK_LINKED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "통장연계 입금보고서는 수정할 수 없습니다. 취소 후 재생성하세요");
+        }
         if (receipt.getStatus() == CashReceiptStatus.DRAFT) {
             return updateDraft(receipt, request);
         }
@@ -170,6 +196,9 @@ public class CashReceiptService {
             receipt.linkReverseJournal(reversal.getId());
             log.info("입금보고서 취소 역분개 게시 — slipNo={}, reverseJournalNo={}, actor={}",
                     receipt.getSlipNo(), reversal.getJournalNo(), actorUserId);
+        }
+        if (receipt.getKind() == CashReceiptKind.BANK_LINKED) {
+            unlinkBankTransactions(receipt);
         }
         scheduleAgingRefreshAfterCommit(receipt.getSlipNo());
         return responseOf(receipt);
@@ -341,6 +370,19 @@ public class CashReceiptService {
                 ? CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE : debitAccountCode);
         accountService.requireLeafAccount(creditAccountCode == null || creditAccountCode.isBlank()
                 ? CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE : creditAccountCode);
+    }
+
+    private void unlinkBankTransactions(CashReceipt receipt) {
+        List<BankTransaction> linkedTransactions =
+                bankTransactionRepository.findByCashReceiptIdAndIsDeletedFalse(receipt.getId());
+        for (BankTransaction transaction : linkedTransactions) {
+            try {
+                transaction.unlinkCashReceipt();
+            } catch (IllegalStateException ex) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "통장연계 입금보고서 취소 원복 실패: " + ex.getMessage(), ex);
+            }
+        }
     }
 
     private Specification<CashReceipt> spec(List<UUID> partnerIds, String slipNo, LocalDate from, LocalDate to,

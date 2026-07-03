@@ -111,6 +111,22 @@ public class CashReceipt extends BaseEntity {
     }
 
     /**
+     * 통장거래 합산 입금보고서 생성. 생성 직후 service 가 {@link #confirm()} 과 자동 분개 게시를 이어서 수행한다.
+     */
+    public static CashReceipt createBankLinked(String slipNo, UUID partnerId, BigDecimal amount,
+                                               LocalDate transactionDate, String memo,
+                                               String debitAccountCode, String creditAccountCode) {
+        CashReceipt receipt = new CashReceipt();
+        receipt.assignRequired(slipNo, partnerId, amount, transactionDate,
+                CashReceiptKind.BANK_LINKED, bankLinkedExternalRef(slipNo));
+        receipt.memo = memo;
+        receipt.status = CashReceiptStatus.DRAFT;
+        receipt.debitAccountCode = normalizeAccountCode(debitAccountCode, DEFAULT_DEBIT_ACCOUNT_CODE);
+        receipt.creditAccountCode = normalizeAccountCode(creditAccountCode, DEFAULT_CREDIT_ACCOUNT_CODE);
+        return receipt;
+    }
+
+    /**
      * DRAFT 입금보고서 수정.
      *
      * @return 현재 입금보고서
@@ -219,6 +235,10 @@ public class CashReceipt extends BaseEntity {
 
     private static String manualExternalRef(String slipNo) {
         return "MANUAL:" + slipNo;
+    }
+
+    private static String bankLinkedExternalRef(String slipNo) {
+        return "BANK_LINKED:" + slipNo;
     }
 
     private static void validateSlipNo(String slipNo) {

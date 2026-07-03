@@ -82,9 +82,9 @@ jobs:
             timeout: 30
             test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.CodefImportControllerIT" --tests "com.samhanair.logis.accounting.it.CodefAccountSelectionIT" --tests "com.samhanair.logis.accounting.it.CodefConnectionRepositoryIT" --tests "com.samhanair.logis.accounting.it.CodefConnectionServiceIT" --tests "com.samhanair.logis.accounting.it.CodefConnectionControllerIT"'
           - name: accounting-cash-receipt-it
-            # E3 S1 입금보고서 도메인 기반 + #712 MIG-9 linkCash 링크 IT: 신규 IT 명시 등재로 Gradle --tests false-green 방지.
+            # E3 S1~S3 입금보고서 도메인 기반 + #712 MIG-9 linkCash 링크 IT: 신규 IT 명시 등재로 Gradle --tests false-green 방지.
             timeout: 30
-            test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.CashReceiptControllerIT" --tests "com.samhanair.logis.accounting.editrequest.lock.AccountingLockPoliciesTest" --tests "com.samhanair.logis.accounting.service.Mig9CashJournalServiceTest" --tests "com.samhanair.logis.accounting.it.Mig9CashJournalLinkIT" :services:auth-service:test --tests "com.samhanair.logis.auth.it.AuthFlywayV80SeedIT"'
+            test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.CashReceiptControllerIT" --tests "com.samhanair.logis.accounting.it.BankDepositReceiptIT" --tests "com.samhanair.logis.accounting.editrequest.lock.AccountingLockPoliciesTest" --tests "com.samhanair.logis.accounting.service.Mig9CashJournalServiceTest" --tests "com.samhanair.logis.accounting.it.Mig9CashJournalLinkIT" :services:auth-service:test --tests "com.samhanair.logis.auth.it.AuthFlywayV80SeedIT"'
           # 아로로지스 분리 (spec 2026-05-14, plan DO2):
           #   `:services:arologis-service:test` 는 별도 워크플로 `arologis-ci.yml` 의 backend job
           #   으로 이관. 본 그룹에서는 제외. Samhan Public 14 service 만 커버.
@@ -217,6 +217,20 @@ jobs:
           skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
           if [ "${skipped:-missing}" != "0" ]; then
             echo "::error::CashReceiptControllerIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
+      - name: E3 S3 BankDepositReceiptIT skipped=0 hard gate
+        if: matrix.group.name == 'accounting-cash-receipt-it'
+        run: |
+          report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.BankDepositReceiptIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::BankDepositReceiptIT JUnit report not found; E3 S3 bank-linked cash receipt IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::BankDepositReceiptIT skipped count must be 0, got ${skipped:-missing}."
             exit 1
           fi
 
