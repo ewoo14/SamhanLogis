@@ -11,7 +11,7 @@ import java.util.List;
 public record BankDepositReceiptRequest(
         @NotEmpty(message = "transactions 는 1건 이상이어야 합니다")
         @Size(max = 100, message = "transactions 는 최대 100건입니다")
-        List<@Valid BankTransactionNaturalKeyRequest> transactions,
+        List<@NotNull @Valid BankTransactionNaturalKeyRequest> transactions,
 
         @NotNull(message = "transactionDate 는 필수입니다")
         LocalDate transactionDate,

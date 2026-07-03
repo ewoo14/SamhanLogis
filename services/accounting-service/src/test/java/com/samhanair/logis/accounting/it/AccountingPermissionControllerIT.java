@@ -18,6 +18,8 @@ import com.samhanair.logis.accounting.editrequest.service.AccountingEditRequestS
 import com.samhanair.logis.accounting.editrequest.web.AccountingEditRequestController;
 import com.samhanair.logis.accounting.realtime.AccountingRealtimeController;
 import com.samhanair.logis.accounting.service.AccountService;
+import com.samhanair.logis.accounting.service.BankDepositReceiptService;
+import com.samhanair.logis.accounting.service.CashReceiptService;
 import com.samhanair.logis.accounting.service.DailyClosingService;
 import com.samhanair.logis.accounting.service.EcountAccountImporter;
 import com.samhanair.logis.accounting.service.EcountReimportService;
@@ -43,6 +45,7 @@ import com.samhanair.logis.accounting.report.TrialBalanceReportController;
 import com.samhanair.logis.accounting.report.TrialBalanceSummaryService;
 import com.samhanair.logis.accounting.web.AccountController;
 import com.samhanair.logis.accounting.web.AccountingReportController;
+import com.samhanair.logis.accounting.web.CashReceiptController;
 import com.samhanair.logis.accounting.web.DailyClosingController;
 import com.samhanair.logis.accounting.web.EcountAccountImportController;
 import com.samhanair.logis.accounting.web.EcountReimportController;
@@ -96,6 +99,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 AccountingEditRequestController.class,
                 AccountingRealtimeController.class,
                 AccountingReportController.class,
+                CashReceiptController.class,
                 DailyClosingController.class,
                 EcountAccountImportController.class,
                 EcountReimportController.class,
@@ -131,6 +135,8 @@ class AccountingPermissionControllerIT {
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
     @MockBean private AccountService accountService;
     @MockBean private AccountingEditRequestService editRequestService;
+    @MockBean private BankDepositReceiptService bankDepositReceiptService;
+    @MockBean private CashReceiptService cashReceiptService;
     @MockBean private DailyClosingService dailyClosingService;
     @MockBean private EcountAccountImporter accountImporter;
     @MockBean private EcountReimportService reimportService;
@@ -257,6 +263,22 @@ class AccountingPermissionControllerIT {
                         () -> get("/accounting/closings")),
                 endpoint("period close reverse", "accounting.period-close.reverse", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/accounting/closings/{id}/reverse", ID)),
+                endpoint("cash receipt from bank transactions", "accounting.cash-receipts", PermissionAction.UPDATE, "ACCOUNTANT",
+                        () -> post("/accounting/cash-receipts/from-bank-transactions")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "transactions": [
+                                            {
+                                              "bankAccountLabel": "S3 권한 테스트 계좌",
+                                              "transactedAt": "2026-07-04T09:00:00",
+                                              "amount": 1000.00,
+                                              "externalRef": "S3-PERM-001"
+                                            }
+                                          ],
+                                          "transactionDate": "2026-07-04"
+                                        }
+                                        """)),
                 endpoint("sales accounting slip", "accounting.sales-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/sales-slips")),
                 endpoint("purchase accounting slip", "accounting.purchase-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",

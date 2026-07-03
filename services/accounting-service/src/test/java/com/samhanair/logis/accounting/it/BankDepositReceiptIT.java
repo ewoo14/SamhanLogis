@@ -232,6 +232,30 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("transactions 배열에 null 원소가 있으면 400 INVALID_INPUT 으로 차단한다")
+    void nullTransactionElementReturnsBadRequest() throws Exception {
+        mockMvc.perform(post(FROM_BANK_URL)
+                        .header("X-User-Id", ACTOR)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "transactions": [
+                                    null,
+                                    %s
+                                  ],
+                                  "transactionDate": "2026-07-04",
+                                  "memo": "S3-BANK-IT null 원소"
+                                }
+                                """.formatted(keyJson("S3-BANK-NULL", "2026-07-04T12:10:00", "1000.00"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("transactions")));
+
+        assertNoBankLinkedReceipts();
+    }
+
+    @Test
     @DisplayName("마감월 transactionDate 는 confirm 재사용 가드로 409 처리하고 입금보고서/분개를 남기지 않는다")
     void closedPeriodRollsBackReceiptAndJournal() throws Exception {
         jdbcTemplate.update("""

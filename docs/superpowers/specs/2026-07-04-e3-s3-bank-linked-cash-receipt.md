@@ -55,7 +55,9 @@
 7. aging refresh 는 confirm 재사용으로 afterCommit 자동 상속(자체 경로 신설 금지 — CONCURRENTLY 트랜잭션 내 호출 불가)
 8. markReflected 멱등이 **덮어쓰기 허용** — UNREFLECTED 선별만 승격(재사용 방지 가드)
 9. soft-delete: 대상 조회 자동 제외 — 생성 후 통장거래 삭제 시 dangling 은 Q2 명시 FK 로 완화
-10. page-code 경계: 생성 endpoint 는 두 도메인에 걸침 — `accounting.cash-receipts` CREATE 로 통일 제안(통장 조회는 자체 VIEW 로 이미 보호)
+10. page-code 경계: 생성 endpoint 는 두 도메인에 걸치며 확정+원장 게시(confirm) 경계까지 포함하므로 `accounting.cash-receipts` UPDATE 로 통일한다(통장 조회는 자체 VIEW 로 이미 보호).
+
+S4 메모: 통장연계 입금보고서 생성 버튼 노출 조건은 `canAccess('accounting.cash-receipts', 'update')` 이다.
 
 ## 이후
 
