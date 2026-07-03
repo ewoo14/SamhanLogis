@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * 일계표 (Daily Summary) 응답 DTO (REPORTS-C-DESIGN.md §9 Props spec 일치).
  *
- * <p>특정 일자의 POSTED 분개 전체 집계. 계정과목별 차변/대변/잔액 합계 포함.
+ * <p>특정 일자의 POSTED+REVERSED(보상쌍 상쇄) 분개 전체 집계. 계정과목별 차변/대변/잔액 합계 포함.
  *
  * @param date            집계 일자 (spec 필드명: date)
  * @param journalCount    집계 분개 건수

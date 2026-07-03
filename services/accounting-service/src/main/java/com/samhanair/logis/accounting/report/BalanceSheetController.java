@@ -53,7 +53,7 @@ public class BalanceSheetController {
      */
     @Operation(
             summary = "재무상태표 조회",
-            description = "asOfDate 기준 누적 POSTED 분개 잔액으로 B/S 산출. " +
+            description = "asOfDate 기준 누적 POSTED+REVERSED(보상쌍 상쇄) 분개 잔액으로 B/S 산출. " +
                     "당기순이익은 미처분이익잉여금(343) 에 자동 가산.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

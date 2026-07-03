@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 월계표 (Monthly Summary) 응답 DTO (REPORTS-C-DESIGN.md §9 Props spec 일치).
  *
- * <p>특정 월의 POSTED 분개 전체 집계. 일별 소계 breakdown + 계정별 집계 포함.
+ * <p>특정 월의 POSTED+REVERSED(보상쌍 상쇄) 분개 전체 집계. 일별 소계 breakdown + 계정별 집계 포함.
  *
  * @param period          집계 월 (yyyyMM 형식 레이블, 예: "2026-01")
  * @param yearMonth       집계 YearMonth

@@ -48,7 +48,7 @@ public class MonthlySummaryController {
      */
     @Operation(
             summary = "월계표 조회",
-            description = "특정 월의 POSTED 분개 집계 + 일별 소계 breakdown. " +
+            description = "특정 월의 POSTED+REVERSED(보상쌍 상쇄) 분개 집계 + 일별 소계 breakdown. " +
                     "period=YYYYMM 필수.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

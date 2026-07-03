@@ -56,7 +56,7 @@ public class IncomeStatementController {
      */
     @Operation(
             summary = "손익계산서 조회",
-            description = "POSTED 분개 기준 손익계산서. " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 손익계산서. " +
                     "단월: period=YYYYMM, 기간: fromPeriod=YYYYMM&toPeriod=YYYYMM")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -99,7 +99,7 @@ public class IncomeStatementController {
      */
     @Operation(
             summary = "월별손익분석 조회",
-            description = "POSTED 분개 기준 손익계정 × 월 매트릭스와 전기 연간 비교를 조회합니다.")
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 손익계정 × 월 매트릭스와 전기 연간 비교를 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "파라미터 오류")

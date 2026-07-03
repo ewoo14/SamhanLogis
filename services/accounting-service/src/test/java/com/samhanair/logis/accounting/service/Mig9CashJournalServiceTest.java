@@ -215,6 +215,27 @@ class Mig9CashJournalServiceTest {
         // 라이브 confirm/PATCH 와의 레이스에서 last-write-wins 고아 분개를 차단하는 SQL 가드.
         assertThat(linkSql).contains("journal_id IS NULL");
         assertThat(linkSql).contains("version = version + 1");
+        // pendingRows SELECT 이후 라이브 cancel 이 선행 커밋된 행(CANCELLED, journal_id NULL)에
+        // 유령 POSTED 분개가 링크되는 TOCTOU 차단 — status 재확인은 receipts 링크에만 있어야 한다.
+        assertThat(linkSql).contains("status = 'CONFIRMED'");
+    }
+
+    @Test
+    void disbursement_link_SQL은_status_조건_없이_journal_id_가드만_사용한다() {
+        disbursements(row(4, "CD-LINK", "REF-CD-LINK", new BigDecimal("3000"), null));
+
+        service.generateFromDisbursements(500, "tester");
+
+        ArgumentCaptor<String> updateSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce())
+                .update(updateSql.capture(), any(SqlParameterSource.class));
+        String linkSql = updateSql.getAllValues().stream()
+                .filter(value -> value.contains("UPDATE cash_disbursements"))
+                .findFirst()
+                .orElseThrow();
+        // cash_disbursements 에는 status 컬럼이 없다(V27) — 조건이 섞이면 배치가 SQL 오류로 전면 실패한다.
+        assertThat(linkSql).contains("journal_id IS NULL");
+        assertThat(linkSql).doesNotContain("status = 'CONFIRMED'");
     }
 
     @Test

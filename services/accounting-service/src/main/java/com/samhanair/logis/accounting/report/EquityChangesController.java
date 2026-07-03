@@ -47,7 +47,7 @@ public class EquityChangesController {
      */
     @Operation(
             summary = "자본변동표 조회",
-            description = "POSTED 분개 기준 자본변동표. " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 자본변동표. " +
                     "fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD 형식으로 기간 지정 필수.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

@@ -23,8 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>343 미처분이익잉여금 — 당기순이익 + 배당 반영</li>
  * </ul>
  *
- * <p>기초 잔액 = fromDate 전날(beforeFrom)까지의 POSTED 분개 누적 잔액.
- * 기말 잔액 = toDate 까지의 POSTED 분개 누적 잔액.
+ * <p>기초 잔액 = fromDate 전날(beforeFrom)까지의 POSTED+REVERSED(보상쌍 상쇄) 분개 누적 잔액.
+ * 기말 잔액 = toDate 까지의 POSTED+REVERSED(보상쌍 상쇄) 분개 누적 잔액.
  *
  * <p>당기순이익 계산: 손익계산서 Service (동일 패키지 package-private 메서드) 호출.
  * 배당 = 343 계정에서 debit 분개(이익잉여금 차감 분개) 합계.

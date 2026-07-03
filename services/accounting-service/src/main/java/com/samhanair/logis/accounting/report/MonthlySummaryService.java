@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 월계표 (Monthly Summary) 집계 Service.
  *
- * <p>특정 월의 POSTED 분개 전체를 집계하며, 일별 소계 breakdown + 계정별 집계를 포함한다.
+ * <p>특정 월의 POSTED+REVERSED(보상쌍 상쇄) 분개 전체를 집계하며, 일별 소계 breakdown + 계정별 집계를 포함한다.
  *
  * <p>집계 규칙:
  * <ul>

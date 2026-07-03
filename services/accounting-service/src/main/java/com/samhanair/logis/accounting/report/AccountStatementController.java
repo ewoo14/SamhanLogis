@@ -45,7 +45,7 @@ public class AccountStatementController {
      */
     @Operation(
             summary = "계정명세서 조회",
-            description = "POSTED 분개 기준 특정일의 계정×거래처 잔액 스냅샷을 조회합니다. " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 특정일의 계정×거래처 잔액 스냅샷을 조회합니다. " +
                     "accountCode 미지정 시 채권·채무 계정 전체를 반환합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

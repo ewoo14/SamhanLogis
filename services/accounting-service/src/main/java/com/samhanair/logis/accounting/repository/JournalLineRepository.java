@@ -391,7 +391,7 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     /**
      * 일계표 / 월계표용 — 기간 내 POSTED+REVERSED 분개 건수.
      *
-     * <p>동일 기간에 journalDate 가 속하는 POSTED Journal 의 고유 건수를 반환한다.
+     * <p>동일 기간에 journalDate 가 속하는 POSTED+REVERSED Journal 의 고유 건수를 반환한다.
      *
      * @param from 집계 시작 일자
      * @param to   집계 종료 일자

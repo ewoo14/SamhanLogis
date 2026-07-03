@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 계정명세서 Service.
  *
- * <p>POSTED 분개 라인을 기준일 이하로 GROUP BY 계정×거래처 집계하여, 거래처별 잔액
+ * <p>POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 기준일 이하로 GROUP BY 계정×거래처 집계하여, 거래처별 잔액
  * 스냅샷을 만든다. 기본 계정은 채권(110 외상매출금/111 받을어음/114 단기대여금/120 미수금)과
  * 채무(201 외상매입금/202 지급어음/210 미지급금/212 미지급비용)이다.
  *

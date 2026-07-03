@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 자금현황 보고서 Service.
  *
- * <p>FUND 계정그룹을 계정코드 상수로 관리하고, POSTED 분개 라인만 읽어
+ * <p>FUND 계정그룹을 계정코드 상수로 관리하고, POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 읽어
  * 계정×거래처별 이월잔액/증가/감소/금일잔액을 산출한다.
  *
  * <p>부호 규칙:

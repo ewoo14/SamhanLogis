@@ -57,7 +57,7 @@ public class TrialBalanceReportController {
      */
     @Operation(
             summary = "시산표 조회 (보고서 별칭)",
-            description = "POSTED 분개 기준 시산표. " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 시산표. " +
                     "기존 /accounting/balances 와 동일한 결과, summary 필드 추가.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

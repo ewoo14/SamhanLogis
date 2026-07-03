@@ -15,7 +15,7 @@ import java.math.BigDecimal;
  * @param accountCode 계정 코드 (예: "401")
  * @param accountName 계정명 (예: "상품매출")
  * @param category    계정 카테고리 문자열 (AccountCategory.name())
- * @param amount      집계 금액 (POSTED 분개 기준)
+ * @param amount      집계 금액 (POSTED+REVERSED(보상쌍 상쇄) 분개 기준)
  * @param sortOrder   ChartOfAccount.displayOrder 기준 정렬 순서
  */
 public record IncomeStatementLine(

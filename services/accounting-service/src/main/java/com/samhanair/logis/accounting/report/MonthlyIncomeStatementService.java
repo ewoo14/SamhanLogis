@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 월별손익분석 집계 서비스.
  *
- * <p>읽기 전용 보고서이며 POSTED 분개 라인을 계정코드별 GROUP BY 로 집계한다.
+ * <p>읽기 전용 보고서이며 POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 계정코드별 GROUP BY 로 집계한다.
  * 월별 분해는 1월~12월 기간을 순회하며 기존 계정별 집계 쿼리를 반복 호출한다.
  * 컬렉션 JOIN FETCH 를 사용하지 않아 분개 라인 중복/카르테시안 증폭 위험을 피한다.
  *

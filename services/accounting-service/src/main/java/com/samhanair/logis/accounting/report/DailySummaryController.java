@@ -46,7 +46,7 @@ public class DailySummaryController {
      */
     @Operation(
             summary = "일계표 조회",
-            description = "특정 일자의 POSTED 분개 계정별 차/대 합계. " +
+            description = "특정 일자의 POSTED+REVERSED(보상쌍 상쇄) 분개 계정별 차/대 합계. " +
                     "date=YYYY-MM-DD 필수.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

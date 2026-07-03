@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 자금 입출금내역 2기간 비교 보고서 Service.
  *
- * <p>현금성 계정({@link FundsStatusService#CASH_EQUIVALENT_ACCOUNT_CODES})의 POSTED 분개를
+ * <p>현금성 계정({@link FundsStatusService#CASH_EQUIVALENT_ACCOUNT_CODES})의 POSTED+REVERSED(보상쌍 상쇄) 분개를
  * 읽어 당기와 직전 동일 일수 기간의 입금/출금을 상대계정별로 분해한다. 공식 재무제표
  * 현금흐름표({@link CashFlowStatementService})와 별개인 eCount 자금관리 성격의 읽기 전용 보고서다.
  *

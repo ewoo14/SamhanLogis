@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 재무상태표 (Balance Sheet / B/S) 집계 Service.
  *
- * <p>집계 방식: asOfDate 까지의 모든 POSTED 분개 누적 잔액.
+ * <p>집계 방식: asOfDate 까지의 모든 POSTED+REVERSED(보상쌍 상쇄) 분개 누적 잔액.
  *
  * <p>잔액 부호 규약:
  * <ul>

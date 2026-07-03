@@ -49,7 +49,7 @@ public class TrialBalanceController {
      * @param roleHeader X-User-Role 헤더
      * @throws IllegalArgumentException period 파싱 실패 (400 매핑)
      */
-    @Operation(summary = "시산표", description = "POSTED 분개 라인 집계 (yyyyMM)")
+    @Operation(summary = "시산표", description = "POSTED+REVERSED(보상쌍 상쇄) 분개 라인 집계 (yyyyMM)")
     @GetMapping
     @RequirePermission(page = PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<TrialBalanceResponse> byPeriod(

@@ -55,7 +55,7 @@ public class CashFlowStatementController {
      */
     @Operation(
             summary = "현금흐름표 조회",
-            description = "POSTED 분개 기준 현금흐름표 (영업/투자/재무 직접법). " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 현금흐름표 (영업/투자/재무 직접법). " +
                     "단월: period=YYYYMM, 기간: fromPeriod=YYYYMM&toPeriod=YYYYMM")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

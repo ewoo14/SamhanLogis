@@ -46,7 +46,7 @@ public class FundsStatusController {
      */
     @Operation(
             summary = "자금현황 조회",
-            description = "POSTED 분개 기준 FUND 계정의 계정×거래처별 이월잔액, 증가, 감소, 금일잔액을 조회합니다. " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 FUND 계정의 계정×거래처별 이월잔액, 증가, 감소, 금일잔액을 조회합니다. " +
                     "자금일보와 자금현황표를 하나의 endpoint 로 병합합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -77,7 +77,7 @@ public class FundsStatusController {
      */
     @Operation(
             summary = "자금 증가 상세 조회",
-            description = "POSTED 분개 기준 특정 자금 계정의 증가 라인을 조회합니다. " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 특정 자금 계정의 증가 라인을 조회합니다. " +
                     "자금의증가와 자금증감내역 drill-down 을 하나의 endpoint 로 병합합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

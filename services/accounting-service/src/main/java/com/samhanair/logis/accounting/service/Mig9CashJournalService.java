@@ -234,6 +234,12 @@ public class Mig9CashJournalService {
         // journal_id IS NULL 가드 — 라이브 confirm/PATCH(E3 S2)가 배치와 동시에 같은 행에 분개를
         // 링크하는 레이스에서 last-write-wins 로 분개가 고아화되는 것을 차단한다 (@Version 은 raw
         // UPDATE 를 타지 않으므로 SQL 레벨로 방어).
+        // status='CONFIRMED' 재확인(cash_receipts 만) — pendingRows SELECT 이후~UPDATE 사이에
+        // 라이브 cancel 이 커밋되면(CANCELLED, journal_id 는 NULL 유지) 취소행에 유령 POSTED 분개가
+        // 링크되고 역분개 경로(409)가 영구 차단되는 TOCTOU 를 차단. 0행 → 보상삭제+skipped.
+        String receiptStatusFilter = "cash_receipts".equals(tableName)
+                ? "                   AND status = 'CONFIRMED'\n"
+                : "";
         int updated = jdbcTemplate.update("""
                 UPDATE %s
                    SET journal_id = :journalId,
@@ -243,7 +249,7 @@ public class Mig9CashJournalService {
                  WHERE id = :cashId
                    AND is_deleted = FALSE
                    AND journal_id IS NULL
-                """.formatted(tableName), new MapSqlParameterSource()
+%s""".formatted(tableName, receiptStatusFilter), new MapSqlParameterSource()
                 .addValue("journalId", journalId)
                 .addValue("actor", actor)
                 .addValue("cashId", cashId));

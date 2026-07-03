@@ -41,7 +41,7 @@ public class FundsFlowComparisonController {
      */
     @Operation(
             summary = "자금 입출금내역 2기간 비교 조회",
-            description = "POSTED 분개 기준 현금성 계정의 입금/출금을 상대계정별로 분해하고, " +
+            description = "POSTED+REVERSED(보상쌍 상쇄) 분개 기준 현금성 계정의 입금/출금을 상대계정별로 분해하고, " +
                     "당기와 직전 동일 일수 기간을 비교합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),

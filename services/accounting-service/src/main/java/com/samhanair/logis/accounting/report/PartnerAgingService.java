@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 거래처별 미수/미지급금 (Partner Aging) 집계 Service.
  *
- * <p>집계 대상: journalDate &lt;= asOfDate 의 POSTED 분개 라인.
+ * <p>집계 대상: journalDate &lt;= asOfDate 의 POSTED+REVERSED(보상쌍 상쇄) 분개 라인.
  *
  * <p>계정 코드 및 잔액 계산 규칙:
  * <ul>
