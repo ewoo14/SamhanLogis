@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.OptimisticLockException;
 import java.time.LocalDate;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,23 @@ class GlobalExceptionHandlerTest {
                 .anyMatch(DataIntegrityViolationException.class::equals);
 
         assertThat(hasDataIntegrityHandler).isFalse();
+    }
+
+    @Test
+    void optimisticLock_usesConflictWithoutRawEntityMessage() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        ResponseEntity<?> response = handler.handleOptimisticLock(
+                new OptimisticLockException("Row was updated or deleted by another transaction"));
+
+        assertThat(response.getStatusCode()).isEqualTo(ErrorCode.CONFLICT.getHttpStatus());
+        assertThat(response.getBody()).extracting("code").isEqualTo(ErrorCode.CONFLICT.name());
+        assertThat(response.getBody()).extracting("message")
+                .isEqualTo(ErrorCode.CONFLICT.getDefaultMessage());
+        assertThat(response.getBody()).extracting("message")
+                .asString()
+                .doesNotContain("Row was updated")
+                .doesNotContain("transaction");
     }
 
     @Test

@@ -3,10 +3,12 @@ package com.samhanair.logis.accounting.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.context.MessageSourceResolvable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -29,6 +31,14 @@ public class GlobalExceptionHandler {
         ErrorCode code = ex.getErrorCode();
         return ResponseEntity.status(code.getHttpStatus())
                 .body(ApiResponse.fail(code, ex.getMessage()));
+    }
+
+    /** 낙관적 락 충돌은 내부 entity/PK 메시지를 숨기고 409 CONFLICT 로 매핑한다. */
+    @ExceptionHandler({OptimisticLockException.class, OptimisticLockingFailureException.class})
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(Exception ex) {
+        log.warn("Optimistic lock conflict: {}", ex.getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.CONFLICT, ErrorCode.CONFLICT.getDefaultMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

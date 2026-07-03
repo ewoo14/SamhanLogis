@@ -3,9 +3,9 @@ package com.samhanair.logis.accounting.editrequest.lock;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.domain.PeriodStatus;
-import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.shared.realtime.lock.DefaultEditLockGuard;
 import com.samhanair.logis.shared.realtime.lock.EditLockGuard;

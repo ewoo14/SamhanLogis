@@ -3,18 +3,26 @@ package com.samhanair.logis.accounting.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.CashReceiptKind;
 import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
+import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CashReceiptRequest;
 import com.samhanair.logis.accounting.web.dto.CashReceiptResponse;
+import com.samhanair.logis.accounting.web.dto.CashReceiptResponse.PartnerDisplay;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,8 +37,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class CashReceiptService {
 
     private final CashReceiptRepository repository;
+    private final JournalRepository journalRepository;
     private final CashReceiptNumberService numberService;
     private final AccountService accountService;
+    private final PartnerLookupClient partnerLookupClient;
     private final ObjectMapper objectMapper;
 
     /** 수기 입금보고서 생성. S1에서는 journalId 를 비운다. */
@@ -45,7 +55,7 @@ public class CashReceiptService {
                 request.memo(),
                 request.debitAccountCode(),
                 request.creditAccountCode());
-        return CashReceiptResponse.of(repository.save(receipt));
+        return responseOf(repository.save(receipt));
     }
 
     /** 입금보고서 목록 조회. */
@@ -53,20 +63,26 @@ public class CashReceiptService {
     public Page<CashReceiptResponse> list(UUID partnerId, LocalDate from, LocalDate to,
                                           CashReceiptStatus status, CashReceiptKind kind,
                                           Pageable pageable) {
-        return repository.findAll(spec(partnerId, from, to, status, kind), pageable)
-                .map(CashReceiptResponse::of);
+        Page<CashReceipt> page = repository.findAll(spec(partnerId, from, to, status, kind), pageable);
+        Map<UUID, PartnerSummary> partners = resolveDisplays(page.getContent());
+        Map<UUID, String> journalNos = resolveJournalNos(page.getContent());
+        return page.map(receipt -> CashReceiptResponse.of(
+                receipt,
+                displayOf(partners.get(receipt.getPartnerId())),
+                journalNoOf(receipt, journalNos)));
     }
 
     /** 단건 조회. */
     @Transactional(readOnly = true)
     public CashReceiptResponse getOne(UUID id) {
-        return CashReceiptResponse.of(findOrThrow(id));
+        return responseOf(findOrThrow(id));
     }
 
     /** DRAFT 입금보고서 수정. */
     public CashReceiptResponse updateDraft(UUID id, CashReceiptRequest request) {
-        validateAccounts(request.debitAccountCode(), request.creditAccountCode());
         CashReceipt receipt = findOrThrow(id);
+        receipt.requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
+        validateAccounts(request.debitAccountCode(), request.creditAccountCode());
         receipt.updateDraft(
                 request.amount(),
                 request.transactionDate(),
@@ -74,21 +90,21 @@ public class CashReceiptService {
                 request.partnerId(),
                 request.debitAccountCode(),
                 request.creditAccountCode());
-        return CashReceiptResponse.of(receipt);
+        return responseOf(receipt);
     }
 
     /** DRAFT → CONFIRMED. 분개 생성은 S2 범위다. */
-    public CashReceiptResponse confirm(UUID id, String actor) {
+    public CashReceiptResponse confirm(UUID id) {
         CashReceipt receipt = findOrThrow(id);
-        receipt.confirm(actor);
-        return CashReceiptResponse.of(receipt);
+        receipt.confirm();
+        return responseOf(receipt);
     }
 
     /** CONFIRMED → CANCELLED. 역분개는 S2 범위다. */
-    public CashReceiptResponse cancel(UUID id, String actor) {
+    public CashReceiptResponse cancel(UUID id) {
         CashReceipt receipt = findOrThrow(id);
-        receipt.cancel(actor);
-        return CashReceiptResponse.of(receipt);
+        receipt.cancel();
+        return responseOf(receipt);
     }
 
     /** DRAFT 입금보고서 soft-delete. */
@@ -205,6 +221,76 @@ public class CashReceiptService {
         return repository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "입금보고서를 찾을 수 없습니다"));
+    }
+
+    private CashReceiptResponse responseOf(CashReceipt receipt) {
+        Map<UUID, PartnerSummary> partners = resolveDisplays(List.of(receipt));
+        Map<UUID, String> journalNos = resolveJournalNos(List.of(receipt));
+        return CashReceiptResponse.of(
+                receipt,
+                displayOf(partners.get(receipt.getPartnerId())),
+                journalNoOf(receipt, journalNos));
+    }
+
+    private Map<UUID, PartnerSummary> resolveDisplays(List<CashReceipt> receipts) {
+        List<UUID> ids = receipts.stream()
+                .map(CashReceipt::getPartnerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, PartnerSummary> resolved = partnerLookupClient.findByPartnerIdsBatch(ids);
+        if (resolved == null || resolved.isEmpty()) {
+            return Map.of();
+        }
+        return resolved.values().stream()
+                .filter(p -> p.partnerId() != null)
+                .collect(Collectors.toMap(
+                        PartnerSummary::partnerId,
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+    }
+
+    private Map<UUID, String> resolveJournalNos(List<CashReceipt> receipts) {
+        List<UUID> ids = receipts.stream()
+                .map(CashReceipt::getJournalId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return journalRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(
+                        journal -> journal.getId(),
+                        journal -> journal.getJournalNo(),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+    }
+
+    private static String journalNoOf(CashReceipt receipt, Map<UUID, String> journalNos) {
+        return receipt.getJournalId() == null ? null : journalNos.get(receipt.getJournalId());
+    }
+
+    private static PartnerDisplay displayOf(PartnerSummary partner) {
+        if (partner == null) {
+            return new PartnerDisplay("미등록", "", "(미조회)");
+        }
+        return new PartnerDisplay(
+                valueOrDefault(partner.partnerCode(), "미등록"),
+                digitsOnly(partner.bizNo()),
+                valueOrDefault(partner.name(), "(미조회)"));
+    }
+
+    private static String valueOrDefault(String value, String fallback) {
+        return value != null && !value.isBlank() ? value.trim() : fallback;
+    }
+
+    private static String digitsOnly(String value) {
+        return value == null ? "" : value.replaceAll("[^0-9]", "");
     }
 
     private String toNullableText(JsonNode node) {

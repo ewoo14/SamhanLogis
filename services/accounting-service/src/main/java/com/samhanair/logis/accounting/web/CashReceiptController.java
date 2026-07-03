@@ -89,20 +89,16 @@ public class CashReceiptController {
     @Operation(summary = "입금보고서 확정", description = "분개 생성은 S2 범위다")
     @PostMapping("/{id}/confirm")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<CashReceiptResponse> confirm(
-            @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(service.confirm(id, callerOrSystem(callerHeader)));
+    public ApiResponse<CashReceiptResponse> confirm(@PathVariable UUID id) {
+        return ApiResponse.ok(service.confirm(id));
     }
 
     /** CONFIRMED → CANCELLED. */
     @Operation(summary = "입금보고서 취소", description = "역분개는 S2 범위다")
     @PostMapping("/{id}/cancel")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<CashReceiptResponse> cancel(
-            @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
-        return ApiResponse.ok(service.cancel(id, callerOrSystem(callerHeader)));
+    public ApiResponse<CashReceiptResponse> cancel(@PathVariable UUID id) {
+        return ApiResponse.ok(service.cancel(id));
     }
 
     /** DRAFT 입금보고서 soft-delete. */

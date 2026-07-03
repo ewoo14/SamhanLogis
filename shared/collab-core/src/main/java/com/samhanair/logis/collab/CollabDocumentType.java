@@ -11,6 +11,7 @@ public enum CollabDocumentType {
     SLIP_OUTBOUND("출고전표"),
     SLIP_INBOUND("입고전표"),
     ACCOUNTING_VOUCHER("회계 전표"),
+    ACCOUNTING_CASH_RECEIPT("입금보고서"),
     PARTNER_ORDER("거래처 주문서"),
     ESTIMATE("견적서"),
     APPROVAL_LINE("결재선");

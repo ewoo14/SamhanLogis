@@ -8,35 +8,43 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/** 입금보고서 응답. UUID 는 mutation 식별자이며 화면 표시 키는 slipNo 다. */
+/** 입금보고서 응답. 내부 partnerId/journalId 대신 화면 표시 식별자만 반환한다. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CashReceiptResponse(
         UUID id,
         String slipNo,
-        UUID partnerId,
+        String partnerCode,
+        String bizNo,
+        String partnerName,
         BigDecimal amount,
         LocalDate transactionDate,
         CashReceiptKind kind,
         CashReceiptStatus status,
         String memo,
-        UUID journalId,
+        String journalNo,
         String externalRef,
         String debitAccountCode,
         String creditAccountCode
 ) {
-    public static CashReceiptResponse of(CashReceipt receipt) {
+    public static CashReceiptResponse of(CashReceipt receipt, PartnerDisplay partner, String journalNo) {
         return new CashReceiptResponse(
                 receipt.getId(),
                 receipt.getSlipNo(),
-                receipt.getPartnerId(),
+                partner.partnerCode(),
+                partner.bizNo(),
+                partner.partnerName(),
                 receipt.getAmount(),
                 receipt.getTransactionDate(),
                 receipt.getKind(),
                 receipt.getStatus(),
                 receipt.getMemo(),
-                receipt.getJournalId(),
+                journalNo,
                 receipt.getExternalRef(),
                 receipt.getDebitAccountCode(),
                 receipt.getCreditAccountCode());
+    }
+
+    /** API 표시용 거래처 정보. */
+    public record PartnerDisplay(String partnerCode, String bizNo, String partnerName) {
     }
 }

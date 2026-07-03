@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -71,6 +72,10 @@ public class CashReceipt extends BaseEntity {
     @Column(name = "external_ref", nullable = false, length = 100)
     private String externalRef;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     public static CashReceipt fromMig7Staging(String slipNo, UUID partnerId, BigDecimal amount,
                                               LocalDate transactionDate, CashReceiptKind kind, String memo,
                                               String externalRef) {
@@ -119,14 +124,14 @@ public class CashReceipt extends BaseEntity {
     }
 
     /** DRAFT → CONFIRMED. S2 분개 생성 배선점이며 본 메서드는 상태만 전환한다. */
-    public CashReceipt confirm(String actor) {
+    public CashReceipt confirm() {
         requireDraft("입금보고서 확정은 DRAFT 단계에서만 허용됩니다");
         this.status = CashReceiptStatus.CONFIRMED;
         return this;
     }
 
     /** CONFIRMED → CANCELLED. S2 역분개 배선점이며 본 메서드는 상태만 전환한다. */
-    public CashReceipt cancel(String actor) {
+    public CashReceipt cancel() {
         if (this.status != CashReceiptStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "입금보고서 취소는 CONFIRMED 단계에서만 허용됩니다 (현재: " + this.status + ")");
@@ -168,10 +173,12 @@ public class CashReceipt extends BaseEntity {
         this.externalRef = externalRef;
     }
 
-    private void requireDraft(String message) {
+    /** DRAFT 상태 요구 가드. service 선검증과 도메인 mutation 에서 공통 사용한다. */
+    public CashReceipt requireDraft(String message) {
         if (this.status != CashReceiptStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT, message + " (현재: " + this.status + ")");
         }
+        return this;
     }
 
     private static String manualExternalRef(String slipNo) {

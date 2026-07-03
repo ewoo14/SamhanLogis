@@ -16,6 +16,7 @@ import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -61,6 +62,9 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     void setUpExternalClients() {
         lenient().when(partnerLookupClient.findByPartnerId(any())).thenReturn(Optional.empty());
         lenient().when(partnerLookupClient.findByPartnerCode(any())).thenReturn(Optional.empty());
+        lenient().when(partnerLookupClient.findByPartnerIdsBatch(any()))
+                .thenReturn(Map.of(PARTNER_ID, new PartnerSummary(
+                        PARTNER_ID, "P-CR-001", "삼한입금상사", "123-45-67890", "서울")));
         lenient().when(approvalLineAuthorizeClient.authorize(any(), any(), any()))
                 .thenReturn(new ApprovalLineAuthorizeResult(false, false));
     }
@@ -79,6 +83,11 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.debitAccountCode").value("103"))
                 .andExpect(jsonPath("$.data.creditAccountCode").value("110"))
                 .andExpect(jsonPath("$.data.journalId").doesNotExist())
+                .andExpect(jsonPath("$.data.journalNo").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerId").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerCode").value("P-CR-001"))
+                .andExpect(jsonPath("$.data.bizNo").value("1234567890"))
+                .andExpect(jsonPath("$.data.partnerName").value("삼한입금상사"))
                 .andExpect(jsonPath("$.data.slipNo").isNotEmpty())
                 .andExpect(jsonPath("$.data.externalRef").value(org.hamcrest.Matchers.startsWith("MANUAL:")))
                 .andReturn();
@@ -90,7 +99,11 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.amount").value(120000));
+                .andExpect(jsonPath("$.data.amount").value(120000))
+                .andExpect(jsonPath("$.data.partnerId").doesNotExist())
+                .andExpect(jsonPath("$.data.partnerCode").value("P-CR-001"))
+                .andExpect(jsonPath("$.data.bizNo").value("1234567890"))
+                .andExpect(jsonPath("$.data.partnerName").value("삼한입금상사"));
 
         mockMvc.perform(get(BASE_URL)
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -99,7 +112,11 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .param("kind", "MANUAL_RECEIPT")
                         .param("partnerId", PARTNER_ID.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"));
+                .andExpect(jsonPath("$.data.content[0].status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.content[0].partnerId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].partnerCode").value("P-CR-001"))
+                .andExpect(jsonPath("$.data.content[0].bizNo").value("1234567890"))
+                .andExpect(jsonPath("$.data.content[0].partnerName").value("삼한입금상사"));
 
         mockMvc.perform(patch(BASE_URL + "/" + id)
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -124,6 +141,15 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateBody("122000"))))
+                .andExpect(status().isConflict());
+
+        Map<String, Object> invalidAccountBody = updateBody("122000");
+        invalidAccountBody.put("debitAccountCode", "999999");
+        mockMvc.perform(patch(BASE_URL + "/" + id)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidAccountBody)))
                 .andExpect(status().isConflict());
 
         mockMvc.perform(post(BASE_URL + "/" + id + "/cancel")
@@ -198,6 +224,23 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 """,
                 Integer.class);
         org.assertj.core.api.Assertions.assertThat(checkCount).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("V49 fresh DB에는 CashReceipt version 낙관락 컬럼이 존재한다")
+    void v49MigrationAddsVersionColumn() {
+        Integer columnCount = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                  FROM information_schema.columns
+                 WHERE table_name = 'cash_receipts'
+                   AND column_name = 'version'
+                   AND is_nullable = 'NO'
+                   AND data_type = 'bigint'
+                """,
+                Integer.class);
+
+        org.assertj.core.api.Assertions.assertThat(columnCount).isOne();
     }
 
     private String createCashReceipt(String amount) throws Exception {

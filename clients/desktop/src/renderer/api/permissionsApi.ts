@@ -173,6 +173,7 @@ export type PageCode =
   | 'accounting.statement-batch'
   | 'accounting.partner-ledger'
   | 'accounting.supplier-profiles'
+  | 'accounting.cash-receipts'
   | 'accounting.edit-requests'
   | 'accounting.edit-requests.decide'
   | 'ecount.mig2.product'

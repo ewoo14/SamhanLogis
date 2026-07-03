@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.collab;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.service.CashReceiptService;
@@ -33,7 +34,9 @@ public class CashReceiptDocumentCollaborationPort implements DocumentCollaborati
                                                 ObjectMapper objectMapper) {
         this.repository = repository;
         this.service = service;
-        this.objectMapper = objectMapper.copy().findAndRegisterModules();
+        this.objectMapper = objectMapper.copy()
+                .findAndRegisterModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     @Override
@@ -81,11 +84,21 @@ public class CashReceiptDocumentCollaborationPort implements DocumentCollaborati
         service.applyOverlayPatchBatch(documentId, patches);
     }
 
+    /**
+     * 입금보고서 협업 제안 가능 여부.
+     *
+     * <p>S1에서는 결재선/RBAC 상세 연동 전이므로 인증된 사용자 UUID 존재 여부만 확인한다.
+     */
     @Override
     public boolean canPropose(UUID userId, UUID documentId) {
         return userId != null;
     }
 
+    /**
+     * 입금보고서 협업 제안 결정 가능 여부.
+     *
+     * <p>S1에서는 결재선/RBAC 상세 연동 전이므로 인증된 사용자 UUID 존재 여부만 확인한다.
+     */
     @Override
     public boolean canDecide(UUID userId, UUID documentId) {
         return userId != null;
