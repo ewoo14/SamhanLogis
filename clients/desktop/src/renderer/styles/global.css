@@ -445,7 +445,8 @@ button {
 }
 
 .journal-totals {
-  grid-template-columns: 40px 220px 140px 140px 1fr;
+  /* 라인 테이블 colgroup(#/계정과목/차변/대변/나머지)과 동수치 미러 — 열폭 변경 시 함께 갱신. */
+  grid-template-columns: 40px 160px 110px 110px 1fr;
   gap: 8px;
 }
 

@@ -8,7 +8,9 @@
 ## 변경
 - 계정과목 220→**160px**·차변 140→**110px**(대변 동일 110px — 차/대 금액 열 짝 유지) → **차변 열 시작 위치가 왼쪽으로 당겨짐**.
 - 거래처 180→**260px**(확대). 메모=flexible 유지.
-- 모바일 카드 분기(mobilePriority) 영향 없음 — width 는 데스크톱 테이블 전용.
+- 모바일 무영향 — 이 페이지의 모바일 분기는 `detail-mobile-hide`(테이블 숨김)+자체 카드 리스트이며 ≤768px 에선 colgroup width 자체가 무효(정정: 종전 "mobilePriority" 표기는 기제 오기).
+- 🔴 리뷰 적발 반영: 합계 행 `.journal-totals` grid 가 테이블 열폭을 미러하므로 **동수치 갱신 필수**(40/160/110/110/1fr).
+- 백로그(개발책임자 확인): 거래처 열은 현재 BE `JournalLineResponse` 에 partnerName/accountName 미포함이라 전행 '—' — 확대 효익은 BE enrich 후속(별도 슬라이스) 필요.
 
 ## 검증
 - vitest(JournalDetailPage.test.tsx 회귀)·typecheck.
