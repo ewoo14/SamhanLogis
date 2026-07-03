@@ -442,8 +442,31 @@ button {
 /* 분개 상세 합계 — 라인 테이블 마지막 행으로 렌더(div-grid 미러 폐기: 열 정렬을 테이블이 구조 보장). */
 .journal-total-row td {
   font-weight: 600;
-  background: #f9fafb;
-  border-top: 2px solid #e5e7eb;
+  background: var(--color-surface-secondary);
+  border-top: 2px solid var(--color-border-primary);
+}
+
+.journal-account-cell {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+  gap: 8px;
+}
+
+.journal-account-code {
+  flex: 0 0 auto;
+  color: var(--color-neutral-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-cell-ellipsis {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
@@ -1048,9 +1071,12 @@ button {
   }
 
   .mobile-item-total-label {
+    flex: 0 0 auto;
     color: var(--color-neutral-500, #6B7280);
     font-size: 13px;
     font-weight: 600;
+    white-space: nowrap;
+    word-break: keep-all;
   }
 
   .mobile-item-total-value {

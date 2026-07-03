@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Journal } from '../api/accounting'
@@ -18,15 +18,40 @@ vi.mock('@samhan/design-system', () => ({
     <button {...props}>{children}</button>
   ),
   Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  DataTable: ({ rows, columns, emptyMessage }: any) => (
+  DataTable: ({ rows, columns, emptyMessage, rowKey, rowClassName, tableLayout }: any) => (
     <table>
+      <colgroup>
+        {columns.map((column: any) => (
+          <col key={column.key} style={column.width ? { width: column.width } : undefined} />
+        ))}
+      </colgroup>
+      <thead>
+        <tr>
+          {columns.map((column: any) => (
+            <th
+              key={column.key}
+              style={column.width ? { width: column.width } : undefined}
+              data-align={column.headerAlign ?? column.align ?? 'left'}
+              data-table-layout={tableLayout}
+            >
+              {column.header}
+            </th>
+          ))}
+        </tr>
+      </thead>
       <tbody>
         {rows.length === 0 ? (
-          <tr><td>{emptyMessage}</td></tr>
+          <tr><td colSpan={columns.length}>{emptyMessage}</td></tr>
         ) : rows.map((row: any) => (
-          <tr key={row.id}>
+          <tr key={rowKey ? rowKey(row) : row.id} className={rowClassName?.(row)}>
             {columns.map((column: any) => (
-              <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>
+              <td
+                key={column.key}
+                data-label={column.header}
+                data-align={column.align ?? 'left'}
+              >
+                {column.render ? column.render(row) : row[column.key]}
+              </td>
             ))}
           </tr>
         ))}
@@ -153,5 +178,44 @@ describe('JournalDetailPage 역분개 액션 가드', () => {
     const reverseButton = await screen.findByRole('button', { name: '역분개' })
     expect((reverseButton as HTMLButtonElement).disabled).toBe(false)
     expect(screen.queryByRole('button', { name: '입금보고서에서 처리' })).toBeNull()
+  })
+})
+
+describe('JournalDetailPage 라인 테이블', () => {
+  it('데스크톱 라인 테이블 헤더와 합계행을 고정 순서로 렌더한다', async () => {
+    const view = renderPage(makeJournal({
+      totalDebit: '1000',
+      totalCredit: '1000',
+    }))
+
+    await screen.findByText('2026/07/03-1')
+
+    const table = view.container.querySelector('table')
+    expect(table).not.toBeNull()
+    const headers = Array.from(table!.querySelectorAll('thead th')).map((th) => th.textContent)
+    expect(headers).toEqual(['#', '계정과목', '거래처', '차변', '대변', '메모'])
+
+    const bodyRows = table!.querySelectorAll('tbody tr')
+    const totalRow = bodyRows.item(bodyRows.length - 1)
+    const totalCells = totalRow.querySelectorAll('td')
+    expect(totalRow.classList.contains('journal-total-row')).toBe(true)
+    expect(within(totalRow as HTMLElement).getByText('합계')).not.toBeNull()
+    expect(totalCells.item(3).textContent).toBe('1,000')
+    expect(totalCells.item(4).textContent).toBe('1,000')
+  })
+
+  it('라인 0건 분개는 합계행 없이 테이블 emptyMessage 를 렌더한다', async () => {
+    const view = renderPage(makeJournal({
+      totalDebit: '0',
+      totalCredit: '0',
+      lines: [],
+    }))
+
+    await screen.findByText('2026/07/03-1')
+
+    const table = view.container.querySelector('table')
+    expect(table).not.toBeNull()
+    expect(table!.querySelector('.journal-total-row')).toBeNull()
+    expect(within(table as HTMLElement).getByText('라인이 없습니다.')).not.toBeNull()
   })
 })

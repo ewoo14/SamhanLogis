@@ -76,6 +76,14 @@ function journalStatusBadgeStyle(status: string) {
   }
 }
 
+function JournalCellEllipsis({ value }: { value: string }) {
+  return (
+    <span className="journal-cell-ellipsis" title={value === '—' ? undefined : value}>
+      {value}
+    </span>
+  )
+}
+
 export function JournalDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -177,20 +185,22 @@ export function JournalDetailPage() {
   // 합계는 별도 div-grid 근사가 아니라 테이블 마지막 행으로 편입한다 — table-layout 과 무관하게
   // 열 정렬을 테이블 자체가 구조적으로 보장(개발책임자 "합계열이 위 열과 안 맞음" 재지적 해소).
   const isTotalRow = (l: JournalLine) => l.id === TOTAL_ROW_ID
-  const tableRows: JournalLine[] = [
-    ...journal.lines,
-    {
-      id: TOTAL_ROW_ID,
-      lineNo: 0,
-      accountCode: '',
-      accountName: null,
-      debit: journal.totalDebit,
-      credit: journal.totalCredit,
-      partnerName: null,
-      note: null,
-      memo: null,
-    },
-  ]
+  const tableRows: JournalLine[] = journal.lines.length === 0
+    ? []
+    : [
+        ...journal.lines,
+        {
+          id: TOTAL_ROW_ID,
+          lineNo: 0,
+          accountCode: '',
+          accountName: null,
+          debit: journal.totalDebit,
+          credit: journal.totalCredit,
+          partnerName: null,
+          note: null,
+          memo: null,
+        },
+      ]
 
   // 열 순서 — 개발책임자 지시: 거래처를 차변 왼쪽으로 이동(+너비 확대). 금액(차/대)은 우측 블록.
   const columns: DataTableColumn<JournalLine>[] = [
@@ -210,11 +220,11 @@ export function JournalDetailPage() {
         isTotalRow(l) ? (
           <span style={{ fontWeight: 600 }}>합계</span>
         ) : (
-          <span>
-            <span style={{ color: '#6B7280', marginRight: 8, fontVariantNumeric: 'tabular-nums' }}>
+          <span className="journal-account-cell">
+            <span className="journal-account-code">
               {l.accountCode}
             </span>
-            {l.accountName ?? ''}
+            <JournalCellEllipsis value={l.accountName ?? ''} />
           </span>
         ),
     },
@@ -222,7 +232,7 @@ export function JournalDetailPage() {
       key: 'partnerName',
       header: '거래처',
       width: '260px',
-      render: (l) => (isTotalRow(l) ? '' : (l.partnerName ?? '—')),
+      render: (l) => (isTotalRow(l) ? '' : <JournalCellEllipsis value={l.partnerName ?? '—'} />),
     },
     {
       key: 'debit',
@@ -241,7 +251,7 @@ export function JournalDetailPage() {
     {
       key: 'note',
       header: '메모',
-      render: (l) => (isTotalRow(l) ? '' : (l.memo ?? l.note ?? '—')),
+      render: (l) => (isTotalRow(l) ? '' : <JournalCellEllipsis value={l.memo ?? l.note ?? '—'} />),
     },
   ]
 
@@ -509,16 +519,18 @@ export function JournalDetailPage() {
         </div>
 
         {/* 합계는 라인 테이블 마지막 행(journal-total-row)으로 렌더 — 모바일 카드 합계 별도 표기. */}
-        <div className="mobile-item-list">
-          <div className="mobile-item-card">
-            <div className="mobile-item-total-row">
-              <span className="mobile-item-total-label">합계 (차변/대변)</span>
-              <span className="mobile-item-total-value">
-                {fmtKrw(journal.totalDebit)} / {fmtKrw(journal.totalCredit)}
-              </span>
+        {journal.lines.length > 0 ? (
+          <div className="mobile-item-list">
+            <div className="mobile-item-card">
+              <div className="mobile-item-total-row">
+                <span className="mobile-item-total-label">합계 (차변/대변)</span>
+                <span className="mobile-item-total-value">
+                  {fmtKrw(journal.totalDebit)} / {fmtKrw(journal.totalCredit)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </Card>
 
       {isMobile ? (
