@@ -96,6 +96,31 @@ function lineTotal(line: TaxInvoiceLine): number {
   return Number(line.supplyAmount) + Number(line.vatAmount)
 }
 
+/**
+ * axios 오류 응답에서 HTTP status + BE {@link ApiErrorEnvelope} 를 함께 추출한다.
+ *
+ * <p>issueMutation / cancelMutation / emitNtsMutation onError 공통 헬퍼 (fix 라운드 H-02 계열 sweep).
+ * AxiosError 가 아니면 둘 다 undefined — 호출부는 최종적으로 err.message 폴백을 사용한다.
+ */
+function getApiErrorInfo(err: unknown): { status?: number; data?: ApiErrorEnvelope } {
+  if (!axios.isAxiosError(err)) return {}
+  return { status: err.response?.status, data: err.response?.data as ApiErrorEnvelope | undefined }
+}
+
+/**
+ * BE 한국어 message(ApiErrorEnvelope.message) 를 우선 추출하고,
+ * 없으면 기존 axios 원문 {@code err.message} 로 폴백한다.
+ *
+ * <p>issueMutation / cancelMutation 처럼 status 무관 단일 폴백이면 충분한 mutation 에서 사용.
+ * emitNtsMutation 은 status(409/422/502) 별 세분화된 폴백 문구가 필요해 {@link getApiErrorInfo} 를
+ * 직접 사용한다(기존 동작 무변경 — 리뷰 스코프 최소).
+ */
+function extractErrorMessage(err: unknown): string {
+  const { data } = getApiErrorInfo(err)
+  if (data?.message) return data.message
+  return err instanceof Error ? err.message : String(err)
+}
+
 export function TaxInvoiceDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -167,7 +192,8 @@ export function TaxInvoiceDetailPage() {
         `발행 완료: ${issued.taxInvoiceNo}\n\n자동 분개가 생성되었습니다.\n분개장 메뉴에서 확인할 수 있습니다.`,
       )
     },
-    onError: (err: Error) => setTopError(`발행 실패: ${err.message}`),
+    // fix H-02 계열 sweep: BE 한국어 message(마감 가드 등) 우선 노출, 불가 시 err.message 폴백.
+    onError: (err: unknown) => setTopError(`발행 실패: ${extractErrorMessage(err)}`),
   })
 
   const cancelMutation = useMutation({
@@ -183,9 +209,11 @@ export function TaxInvoiceDetailPage() {
       })
       alert('취소 완료\n\n자동 역분개가 생성되었습니다.')
     },
-    onError: (err: Error) => {
+    // fix H-02 계열 sweep: autoReverse 마감 가드(409) 등 BE 한국어 message 우선 노출,
+    // 불가 시 기존 err.message(axios 원문) 폴백 — emitNtsMutation과 동일 패턴.
+    onError: (err: unknown) => {
       setShowCancelModal(false)
-      setTopError(`취소 실패: ${err.message}`)
+      setTopError(`취소 실패: ${extractErrorMessage(err)}`)
     },
   })
 
@@ -217,22 +245,20 @@ export function TaxInvoiceDetailPage() {
         `실 발행은 관리자 설정 후 가능합니다.`,
       )
     },
+    // fix H-02 계열 sweep: getApiErrorInfo 공통 헬퍼로 axios.isAxiosError + cast 중복 제거.
+    // status 별 세분화 폴백 문구는 기존과 동일(무변경) — non-axios/응답없음 시 status/data 모두
+    // undefined 이므로 아래 else 분기가 기존 "else { 세금계산서 발행에 실패했습니다. }" 와 동일하게 귀결.
     onError: (err: unknown) => {
       setShowEmitNtsModal(false)
-      if (axios.isAxiosError(err)) {
-        const data = err.response?.data as ApiErrorEnvelope | undefined
-        const status = err.response?.status
-        if (status === 409) {
-          setTopError(data?.message ?? '이미 국세청에 발행된 세금계산서입니다.')
-        } else if (status === 422) {
-          setTopError(data?.message ?? '발행 완료 상태의 세금계산서만 전송할 수 있습니다.')
-        } else if (status === 502) {
-          setTopError('국세청 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
-        } else {
-          setTopError(data?.message ?? '세금계산서 발행에 실패했습니다.')
-        }
+      const { status, data } = getApiErrorInfo(err)
+      if (status === 409) {
+        setTopError(data?.message ?? '이미 국세청에 발행된 세금계산서입니다.')
+      } else if (status === 422) {
+        setTopError(data?.message ?? '발행 완료 상태의 세금계산서만 전송할 수 있습니다.')
+      } else if (status === 502) {
+        setTopError('국세청 서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.')
       } else {
-        setTopError('세금계산서 발행에 실패했습니다.')
+        setTopError(data?.message ?? '세금계산서 발행에 실패했습니다.')
       }
     },
   })

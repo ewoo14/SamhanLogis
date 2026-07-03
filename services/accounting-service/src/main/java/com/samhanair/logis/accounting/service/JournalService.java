@@ -237,22 +237,45 @@ public class JournalService {
     }
 
     /**
-     * 원분개 일자 기준 역분개 가능 여부 선검증.
+     * 원분개 일자 기준 역분개 가능 여부 선검증 — {@link #requireOriginalJournalDateOpenForReversal}
+     * 로의 ID 기반 브릿지.
      *
      * <p>입금보고서 취소/CONFIRMED 수정처럼 도메인 상태를 먼저 바꾸는 호출자는 본 메서드로
      * 같은 409를 상태 변경 전에 표면화한다. 실제 역분개 생성 직전에는 {@link #autoReverse}
      * / {@link #reverse} 내부에서 동일 가드를 다시 실행해 기간 마감 race 를 방지한다.
+     *
+     * <p>public — 클래스 레벨 {@code @Transactional} 이 일관 적용되는 공개 API 로 승격
+     * (#719 fix 라운드, 호출부 변경 없음).
+     *
+     * @throws BusinessException(CONFLICT) 원분개 일자가 마감된 회계 기간에 속할 때
      */
-    void requireOriginalJournalOpenForReversal(UUID originalJournalId) {
+    public void requireOriginalJournalOpenForReversal(UUID originalJournalId) {
         requireOriginalJournalDateOpenForReversal(findOrThrow(originalJournalId));
     }
 
-    private void requireOriginalJournalDateOpenForReversal(Journal original) {
+    /**
+     * 원분개 일자가 마감된 회계 기간에 속하면 CONFLICT 로 차단하는 근본 가드.
+     *
+     * <p>{@link #reverse}(수동) / {@link #autoReverse}(자동) 가 역분개 생성 직전에 공통으로
+     * 호출한다 — 입금보고서(CashReceipt) 뿐 아니라 세금계산서(TaxInvoice) 등
+     * {@link #autoReverse} 를 경유하는 모든 자동 역분개 경로에 동일하게 적용된다.
+     *
+     * <p><b>#719 개발책임자 결정(2026-07-04)</b> — {@code AccountingPeriodGuard} 에 있던
+     * "TaxInvoice.cancel 은 발행 분개의 supplyDate 가 마감되어 있어도 역분개 자체는 허용"
+     * 문서화 예외(D-E3-05 계열)는 철회되었다. 세금계산서 취소도 입금보고서와 동일하게
+     * 마감된 원분개는 역분개를 차단한다 (월마감 무결성 일관 적용, 예외 없음).
+     *
+     * <p>public — 클래스 레벨 {@code @Transactional} 이 일관 적용되는 공개 API 로 승격
+     * (#719 fix 라운드, 호출부 변경 없음).
+     *
+     * @throws BusinessException(CONFLICT) 원분개 일자가 마감된 회계 기간에 속할 때
+     */
+    public void requireOriginalJournalDateOpenForReversal(Journal original) {
         monthEndCloseService.findClosedPeriodCovering(original.getJournalDate())
                 .ifPresent(p -> {
                     throw new BusinessException(ErrorCode.CONFLICT,
-                            "마감된 기간의 분개는 역분개할 수 없습니다 — 해당 일자("
-                                    + original.getJournalDate() + ")는 마감 해제 후 처리하세요");
+                            "마감된 회계 기간의 분개는 역분개할 수 없습니다 — 해당 일자("
+                                    + original.getJournalDate() + ")는 마감 해제 후 다시 시도하세요");
                 });
     }
 

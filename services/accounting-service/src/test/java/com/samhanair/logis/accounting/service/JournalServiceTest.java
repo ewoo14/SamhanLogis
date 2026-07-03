@@ -163,7 +163,7 @@ class JournalServiceTest {
         assertThatThrownBy(() -> journalService.autoReverse(original.getId(), "user-B"))
                 .isInstanceOfSatisfying(BusinessException.class, ex -> {
                     assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
-                    assertThat(ex.getMessage()).contains("마감된 기간의 분개는 역분개할 수 없습니다");
+                    assertThat(ex.getMessage()).contains("마감된 회계 기간의 분개는 역분개할 수 없습니다");
                 });
 
         assertThat(original.getStatus()).isEqualTo(JournalStatus.POSTED);
@@ -184,7 +184,7 @@ class JournalServiceTest {
         assertThatThrownBy(() -> journalService.reverse(original.getId(), "user-B"))
                 .isInstanceOfSatisfying(BusinessException.class, ex -> {
                     assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
-                    assertThat(ex.getMessage()).contains("마감된 기간의 분개는 역분개할 수 없습니다");
+                    assertThat(ex.getMessage()).contains("마감된 회계 기간의 분개는 역분개할 수 없습니다");
                 });
 
         assertThat(original.getStatus()).isEqualTo(JournalStatus.POSTED);

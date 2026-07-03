@@ -534,7 +534,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("닫힌 원분개 일자의 입금보고서 취소는 409로 차단하고 마감 해제 후 정상 취소된다")
+    @DisplayName("마감된 원분개 일자의 입금보고서 취소는 409로 차단하고 마감 해제 후 정상 취소된다")
     void cancelBlockedWhenOriginalJournalDateIsClosedAndSucceedsAfterReopen() throws Exception {
         MvcResult created = createReceipt(createBody("73100"));
         String receiptId = data(created).get("id").asText();
@@ -569,7 +569,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("닫힌 원분개 + 열린 일자 CONFIRMED PATCH는 409로 차단하고 기존 분개를 보존한다")
+    @DisplayName("마감된 원분개 + 열린 일자 CONFIRMED PATCH는 409로 차단하고 기존 분개를 보존한다")
     void confirmedPatchBlockedWhenOriginalJournalDateIsClosedEvenIfTargetDateOpen() throws Exception {
         MvcResult created = createReceipt(createBody("73200"));
         String receiptId = data(created).get("id").asText();

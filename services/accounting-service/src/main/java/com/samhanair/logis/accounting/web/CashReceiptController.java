@@ -126,11 +126,12 @@ public class CashReceiptController {
     /** CONFIRMED → CANCELLED — id 는 path 용 UUID, 화면 표시는 slipNo/거래처명. */
     @Operation(summary = "입금보고서 취소",
             description = "CONFIRMED 입금보고서를 CANCELLED로 전환하고 연결된 원분개가 있으면 역분개를 자동 게시한다."
+                    + " 원분개 일자가 마감된 회계 기간이면 상태 전이 전에 409로 차단한다."
                     + " 성공 응답은 reverseJournalNo 문자열만 노출한다")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "취소 성공 — CANCELLED 및 reverseJournalNo 반환(원분개가 있을 때)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "입금보고서 또는 연결 분개 미존재"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CONFIRMED가 아니거나 역분개 불가 상태")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CONFIRMED가 아니거나, 마감 기간, 또는 역분개 불가 상태")
     })
     @PostMapping("/{id:[0-9a-fA-F-]{36}}/cancel")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)

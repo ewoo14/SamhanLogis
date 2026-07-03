@@ -181,10 +181,14 @@ public class JournalController {
     }
 
     /** 역분개 — POSTED → REVERSED. 차/대 swap 한 신규 Journal 자동 생성 + POST. */
-    @Operation(summary = "역분개", description = "POSTED → REVERSED. 차/대 swap 한 신규 Journal 자동 생성 + POST")
+    @Operation(summary = "역분개",
+            description = "POSTED → REVERSED. 차/대 swap 한 신규 Journal 자동 생성 + POST. "
+                    + "원분개 일자가 마감된 회계 기간이면 409, 입금보고서 자동 분개(CASH_RECEIPT)는 원천 문서 경유가 강제되어 409")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "역분개 성공 (응답은 신규 역분개)"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "POSTED 가 아닐 때")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+                    description = "POSTED 가 아니거나, 원분개 일자가 마감된 회계 기간이거나, "
+                            + "입금보고서 자동 분개(원천에서만 취소) 인 경우")
     })
     @PostMapping("/{id}/reverse")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)

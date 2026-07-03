@@ -219,7 +219,13 @@ public class TaxInvoiceService {
      * 취소 — ISSUED → CANCELLED. 원분개 자동 역분개 + reverse_journal_id 연결.
      * 하위 호환용 — 취소 사유 없이 호출. 기존 controller 에서 사용.
      *
+     * <p>원분개 일자가 마감된 회계 기간이면 {@link JournalService#autoReverse} 가 CONFLICT(409)
+     * 로 차단한다 — 세금계산서도 입금보고서(CashReceipt)와 동일하게 마감된 원분개의 취소를
+     * 허용하지 않는다(#719 개발책임자 결정, 기존 "세금계산서는 마감이어도 역분개 허용" 예외 철회).
+     * 예외 발생 시 트랜잭션이 롤백되어 세금계산서는 ISSUED, 원분개는 POSTED 로 유지된다.
+     *
      * @deprecated P0-4 이후 {@link #cancelWithReason(UUID, TaxInvoiceCancelRequest, String)} 사용.
+     * @throws BusinessException(CONFLICT) 원분개 일자가 마감된 회계 기간에 속할 때
      */
     @Deprecated
     public TaxInvoiceDetailResponse cancel(UUID id, String actorUserId) {
@@ -277,10 +283,18 @@ public class TaxInvoiceService {
      *
      * <p>원분개 자동 역분개 + reverse_journal_id 연결.
      *
+     * <p>원분개 일자가 마감된 회계 기간이면 {@link JournalService#autoReverse} 가 CONFLICT(409)
+     * 로 차단한다 — 세금계산서도 입금보고서(CashReceipt)와 동일하게 마감된 원분개의 취소를
+     * 허용하지 않는다(#719 개발책임자 결정, 기존 "세금계산서는 마감이어도 역분개 허용" 예외 철회).
+     * 예외 발생 시 트랜잭션이 롤백되어 세금계산서는 ISSUED, 원분개는 POSTED 로 유지된다
+     * (도메인 {@code ti.cancel(...)} 이 먼저 상태를 CANCELLED 로 바꾸지만, 이후 역분개
+     * 가드가 던지는 예외로 트랜잭션 전체가 롤백되어 영속 상태는 변경되지 않는다).
+     *
      * @param id          세금계산서 UUID
      * @param cancelReq   취소 사유 DTO (5자 이상)
      * @param actorUserId 취소자 user-id
      * @return 취소된 세금계산서 상세 응답
+     * @throws BusinessException(CONFLICT) 원분개 일자가 마감된 회계 기간에 속할 때
      */
     public TaxInvoiceDetailResponse cancelWithReason(UUID id, TaxInvoiceCancelRequest cancelReq,
                                                      String actorUserId) {

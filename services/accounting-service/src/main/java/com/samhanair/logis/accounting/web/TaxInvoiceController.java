@@ -138,12 +138,13 @@ public class TaxInvoiceController {
      * <p>취소 사유 5자 이상 필수. 도메인 {@code TaxInvoice.cancel(reason, actorUserId)} 에서 검증.
      */
     @Operation(summary = "세금계산서 취소",
-            description = "ISSUED → CANCELLED. 취소 사유 5자 이상 필수. 자동 역분개 생성")
+            description = "ISSUED → CANCELLED. 취소 사유 5자 이상 필수. 자동 역분개 생성. "
+                    + "원분개 일자가 마감된 회계 기간이면 409(마감 해제 후 다시 시도 — #719 결정, 입금보고서와 동일 차단)")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "취소 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "취소 사유 미입력 또는 5자 미만"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미존재"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ISSUED 가 아닐 때")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "ISSUED 가 아니거나, 원분개 일자가 마감된 회계 기간인 경우")
     })
     @PostMapping("/{id}/cancel")
     @RequirePermission(page = "accounting.tax-invoice.cancel", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
