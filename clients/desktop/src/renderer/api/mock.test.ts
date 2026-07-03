@@ -29,6 +29,28 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
+describe('mock journal cash receipt contract', () => {
+  it('입금보고서 자동 분개는 post mock 은 허용하고 reverse mock 만 409로 차단한다', () => {
+    const posted = mockRequest({
+      method: 'POST',
+      url: '/accounting/journals/jv-006/post',
+    }) as MockEnvelope<{ status: string; sourceType: string }>
+
+    expect(posted.data.status).toBe('POSTED')
+    expect(posted.data.sourceType).toBe('CASH_RECEIPT')
+
+    const reversed = mockRequest({
+      method: 'POST',
+      url: '/accounting/journals/jv-006/reverse',
+      data: { reason: '취소' },
+    }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
+
+    expect(reversed.__mockStatus).toBe(409)
+    expect(reversed.body.code).toBe('CONFLICT')
+    expect(reversed.body.message).toContain('입금보고서 자동 분개는 원장에서 직접 역분개할 수 없습니다')
+  })
+})
+
 describe('mock approval-line-config contract', () => {
   it('GROUPWARE 기본 결재자 resolve 는 USER 결재자만 sequence 순으로 반환한다', () => {
     const resolved = mockRequest({

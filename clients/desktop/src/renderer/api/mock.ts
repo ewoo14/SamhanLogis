@@ -5169,10 +5169,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && journalPostMatch) {
     const id = journalPostMatch[1]!
     const found = MOCK_JOURNALS.find((j) => j.id === id) ?? MOCK_JOURNALS[0]!
-    if (found.sourceType === 'CASH_RECEIPT') {
-      return mockError(409, 'CONFLICT',
-        '입금보고서 자동 분개는 원장에서 직접 역분개할 수 없습니다 — 입금보고서 취소/수정으로 처리하세요')
-    }
     return envelope({
       ...found,
       status: 'POSTED' as const,
@@ -5190,6 +5186,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       reason?: string
     }
     const found = MOCK_JOURNALS.find((j) => j.id === id) ?? MOCK_JOURNALS[0]!
+    if (found.sourceType === 'CASH_RECEIPT') {
+      return mockError(409, 'CONFLICT',
+        '입금보고서 자동 분개는 원장에서 직접 역분개할 수 없습니다 — 입금보고서 취소/수정으로 처리하세요')
+    }
     return envelope({
       ...found,
       status: 'REVERSED' as const,
