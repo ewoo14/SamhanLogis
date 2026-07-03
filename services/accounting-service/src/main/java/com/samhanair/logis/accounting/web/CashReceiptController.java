@@ -88,12 +88,12 @@ public class CashReceiptController {
     @Operation(summary = "입금보고서 수정",
             description = "DRAFT는 필드만 수정하고, CONFIRMED는 기존 분개를 역분개한 뒤 새 POSTED 분개를 게시한다"
                     + " (분개 미연결 CONFIRMED[MIG 미게시]는 역분개 없이 신규 게시, 무변경 요청은 재게시 생략,"
-                    + " 마감 기간 일자는 409). 성공 응답은 journalNo/reverseJournalNo 문자열만 노출한다. CANCELLED는 거부한다")
+                    + " 새 일자 또는 원분개 일자가 마감된 회계 기간이면 409). 성공 응답은 journalNo/reverseJournalNo 문자열만 노출한다. CANCELLED는 거부한다")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 비-leaf 계정"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "입금보고서, 계정 또는 연결 분개 미존재"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CANCELLED 상태, 마감 기간, 또는 역분개 불가 상태"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CANCELLED 상태, 새 일자·원분개 일자가 마감된 회계 기간, 또는 역분개 불가 상태"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "거래처 조회/매칭 실패")
     })
     @PatchMapping("/{id:[0-9a-fA-F-]{36}}")

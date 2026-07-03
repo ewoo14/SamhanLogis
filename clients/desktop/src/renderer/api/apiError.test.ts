@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AxiosError } from 'axios'
-import { extractApiErrorMessage, getApiErrorInfo } from './apiError'
+import { extractApiErrorMessage, extractApiErrorResponseMessage, getApiErrorInfo } from './apiError'
 
 function axiosError(status: number, data: unknown): AxiosError {
   return new AxiosError(
@@ -40,5 +40,11 @@ describe('apiError helpers', () => {
     const err = axiosError(422, data)
 
     expect(getApiErrorInfo(err)).toEqual({ status: 422, data })
+  })
+
+  it('returns null when axios response has no usable backend message (원본 에러 보존 분기)', () => {
+    expect(extractApiErrorResponseMessage(axiosError(500, {}))).toBeNull()
+    expect(extractApiErrorResponseMessage(axiosError(500, { message: '   ' }))).toBeNull()
+    expect(extractApiErrorResponseMessage(new Error('boom'))).toBeNull()
   })
 })

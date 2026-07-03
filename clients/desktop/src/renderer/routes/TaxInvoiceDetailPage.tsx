@@ -98,20 +98,6 @@ function lineTotal(line: TaxInvoiceLine): number {
   return Number(line.supplyAmount) + Number(line.vatAmount)
 }
 
-/**
- * axios 오류 응답에서 HTTP status + BE {@link ApiErrorEnvelope} 를 함께 추출한다.
- *
- * <p>issueMutation / cancelMutation / emitNtsMutation onError 공통 헬퍼 (fix 라운드 H-02 계열 sweep).
- */
-
-/**
- * BE 한국어 message(ApiErrorEnvelope.message) 를 우선 추출하고,
- *
- * <p>issueMutation / cancelMutation 처럼 status 무관 단일 폴백이면 충분한 mutation 에서 사용.
- * emitNtsMutation 은 status(409/422/502) 별 세분화된 폴백 문구가 필요해 {@link getApiErrorInfo} 를
- * 직접 사용한다(기존 동작 무변경 — 리뷰 스코프 최소).
- */
-
 export function TaxInvoiceDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()

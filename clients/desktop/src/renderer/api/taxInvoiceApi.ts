@@ -25,22 +25,8 @@ import {
   type PageResponse,
 } from './client'
 
-/**
- * BE 공통 오류 응답 envelope — {@code ApiResponse} 오류 필드 구조.
- *
- * <p>BE {@code GlobalExceptionHandler} 가 반환하는 오류 본문과 1:1.
- * {@code code} = ErrorCode enum 문자열 (TAX_INVOICE_ALREADY_EMITTED 등).
- * {@code message} = 한국어 사용자 메시지.
- *
- * <p>FE 에서 {@code err.response?.data as ApiErrorEnvelope} 로 캐스팅 후 사용.
- * 동일 HTTP status 내 세부 ErrorCode 분기가 필요해지면 {@code code} 필드를 사용한다.
- */
-export interface ApiErrorEnvelope {
-  /** ErrorCode enum 문자열 (예: TAX_INVOICE_ALREADY_EMITTED). 부재 시 undefined. */
-  code?: string
-  /** 한국어 사용자 메시지. */
-  message?: string
-}
+/** BE 공통 오류 응답 envelope — 단일 진실원은 apiError.ts (#719 공용화, 하위호환 re-export). */
+export type { ApiErrorEnvelope } from './apiError'
 
 /** 세금계산서 상태 — BE TaxInvoiceStatus 와 1:1. */
 export type TaxInvoiceStatus = 'DRAFT' | 'ISSUED' | 'CANCELLED'
