@@ -133,9 +133,16 @@ public class JournalService {
      * @param id 원분개 UUID
      * @param actorUserId 역분개 게시자 user-id
      * @return 신규 역분개 단건 (원분개 ID 는 reversedJournalId 로 추적)
+     * @throws BusinessException(CONFLICT) 입금보고서 자동 분개(CASH_RECEIPT)를 직접 역분개 시도
      */
     public JournalDetailResponse reverse(UUID id, String actorUserId) {
         Journal original = findOrThrow(id);
+        // 입금보고서 분개를 원장에서 직접 역분개하면 CashReceipt 는 CONFIRMED 로 남은 채
+        // cancel/수정의 autoReverse 가 영구 409 (REVERSED 재역분개 불가) — 원천 문서 경유를 강제한다.
+        if (original.getSourceType() == JournalSourceType.CASH_RECEIPT) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "입금보고서 자동 분개는 원장에서 직접 역분개할 수 없습니다 — 입금보고서 취소/수정으로 처리하세요");
+        }
         // 원분개 상태 검증은 markReversed 안에서.
         String reverseNo = journalNumberService.next(original.getJournalDate());
         String reverseDesc = "[역분개] "
@@ -149,7 +156,7 @@ public class JournalService {
                     origLine.getCreditAmount(),  // swap
                     origLine.getDebitAmount(),   // swap
                     origLine.getPartnerId(),
-                    "[역분개] " + (origLine.getMemo() == null ? "" : origLine.getMemo()));
+                    clampReversalMemo(origLine.getMemo()));
             reversal.addLine(swapped);
         }
         reversal.post(actorUserId);
@@ -213,7 +220,7 @@ public class JournalService {
                     origLine.getCreditAmount(),
                     origLine.getDebitAmount(),
                     origLine.getPartnerId(),
-                    "[역분개] " + (origLine.getMemo() == null ? "" : origLine.getMemo()));
+                    clampReversalMemo(origLine.getMemo()));
             reversal.addLine(swapped);
         }
         reversal.post(actorUserId);
@@ -221,6 +228,16 @@ public class JournalService {
         original.markReversed();
         original.linkReversal(saved.getId());
         return saved;
+    }
+
+    /**
+     * 역분개 라인 memo — "[역분개] " prefix 6자를 더해도 {@link JournalLine} 의 500자 한도를
+     * 넘지 않게 클램프. 원 memo 가 495자 이상이면 prefix 때문에 역분개 생성이
+     * IllegalArgumentException 으로 막혀 원천 문서(입금보고서 등)가 영구 취소불능이 되는 것을 방지.
+     */
+    private static String clampReversalMemo(String originalMemo) {
+        String memo = "[역분개] " + (originalMemo == null ? "" : originalMemo);
+        return memo.length() > 500 ? memo.substring(0, 500) : memo;
     }
 
     /**

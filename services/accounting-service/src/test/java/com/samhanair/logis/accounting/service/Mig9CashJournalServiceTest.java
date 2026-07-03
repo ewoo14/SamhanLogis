@@ -189,6 +189,25 @@ class Mig9CashJournalServiceTest {
         verify(jdbcTemplate).query(sql.capture(), any(SqlParameterSource.class),
                 org.mockito.ArgumentMatchers.<RowMapper<Mig9CashJournalService.CashRow>>any());
         assertThat(sql.getValue()).contains("kind = 'DEPOSIT_REPORT'");
+        // 라이브 취소(CANCELLED, journal_id null) 행에 유령 POSTED 분개가 생기지 않도록 CONFIRMED 만 대상.
+        assertThat(sql.getValue()).contains("status = 'CONFIRMED'");
+    }
+
+    @Test
+    void receipt_link는_journal_id가_비어있는_행에만_기록한다() {
+        receipts(row(4, "CR-LINK", "REF-CR-LINK", new BigDecimal("3000"), null));
+
+        service.generateFromReceipts(500, "tester");
+
+        ArgumentCaptor<String> updateSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce())
+                .update(updateSql.capture(), any(SqlParameterSource.class));
+        String linkSql = updateSql.getAllValues().stream()
+                .filter(value -> value.contains("UPDATE cash_receipts"))
+                .findFirst()
+                .orElseThrow();
+        // 라이브 confirm/PATCH 와의 레이스에서 last-write-wins 고아 분개를 차단하는 SQL 가드.
+        assertThat(linkSql).contains("journal_id IS NULL");
     }
 
     @Test

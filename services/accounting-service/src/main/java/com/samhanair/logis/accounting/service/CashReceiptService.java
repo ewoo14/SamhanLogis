@@ -51,6 +51,7 @@ public class CashReceiptService {
     private final AccountService accountService;
     private final PartnerLookupClient partnerLookupClient;
     private final JournalService journalService;
+    private final MonthEndCloseService monthEndCloseService;
     private final Mig9AgingSnapshotRefreshService agingSnapshotRefreshService;
     private final ObjectMapper objectMapper;
 
@@ -96,12 +97,6 @@ public class CashReceiptService {
         return responseOf(findOrThrow(id));
     }
 
-    /** DRAFT 입금보고서 수정. */
-    public CashReceiptResponse updateDraft(UUID id, CashReceiptRequest request) {
-        CashReceipt receipt = findOrThrow(id);
-        return updateDraft(receipt, request);
-    }
-
     /** REST PATCH 상태 분기. DRAFT 는 단순 수정, CONFIRMED 는 역분개 후 재게시한다. */
     public CashReceiptResponse update(UUID id, CashReceiptRequest request, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
@@ -112,7 +107,7 @@ public class CashReceiptService {
             return updateConfirmed(receipt, request, actorUserId);
         }
         throw new BusinessException(ErrorCode.CONFLICT,
-                "CANCELLED 입금보고서는 수정할 수 없습니다");
+                "입금보고서 수정은 DRAFT/CONFIRMED 상태에서만 허용됩니다 (현재: " + receipt.getStatus() + ")");
     }
 
     private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptRequest request) {
@@ -140,18 +135,21 @@ public class CashReceiptService {
         return responseOf(receipt);
     }
 
-    /** DRAFT → CONFIRMED 후 POSTED 자동 분개를 생성한다. */
+    /** DRAFT → CONFIRMED 후 POSTED 자동 분개를 생성한다. 마감된 회계 기간 일자는 409. */
     public CashReceiptResponse confirm(UUID id, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
         if (receipt.getJournalId() != null) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 분개가 연결된 입금보고서는 다시 확정할 수 없습니다");
         }
-        String partnerName = partnerNameForDescription(receipt);
         receipt.confirm();
-        Journal journal = postReceiptJournal(receipt, partnerName, actorUserId);
+        requireOpenPeriod(receipt.getTransactionDate());
+        Journal journal = postReceiptJournal(receipt,
+                "입금보고서 확정 " + receipt.getSlipNo() + partnerNameSuffix(receipt), actorUserId);
         receipt.linkJournal(journal.getId());
-        scheduleAgingRefreshAfterCommit();
+        log.info("입금보고서 확정 분개 게시 — slipNo={}, journalNo={}, actor={}",
+                receipt.getSlipNo(), journal.getJournalNo(), actorUserId);
+        scheduleAgingRefreshAfterCommit(receipt.getSlipNo());
         return responseOf(receipt);
     }
 
@@ -162,8 +160,10 @@ public class CashReceiptService {
         if (receipt.getJournalId() != null) {
             Journal reversal = journalService.autoReverse(receipt.getJournalId(), actorUserId);
             receipt.linkReverseJournal(reversal.getId());
+            log.info("입금보고서 취소 역분개 게시 — slipNo={}, reverseJournalNo={}, actor={}",
+                    receipt.getSlipNo(), reversal.getJournalNo(), actorUserId);
         }
-        scheduleAgingRefreshAfterCommit();
+        scheduleAgingRefreshAfterCommit(receipt.getSlipNo());
         return responseOf(receipt);
     }
 
@@ -187,6 +187,11 @@ public class CashReceiptService {
                                                 String actorUserId) {
         PartnerSummary partner = resolvePartner(request);
         validateAccounts(request.debitAccountCode(), request.creditAccountCode());
+        if (isUnchanged(receipt, request, partner.partnerId())) {
+            // 무변경 저장 — 역분개+재게시를 생략해 원장 노이즈(분개 2건/저장)를 차단한다.
+            return responseOf(receipt);
+        }
+        requireOpenPeriod(request.transactionDate());
         UUID oldJournalId = receipt.getJournalId();
         receipt.updateConfirmed(
                 request.amount(),
@@ -198,13 +203,43 @@ public class CashReceiptService {
         if (oldJournalId != null) {
             journalService.autoReverse(oldJournalId, actorUserId);
         }
-        Journal journal = postReceiptJournal(receipt, displayOf(partner).partnerName(), actorUserId);
+        // 재게시 적요는 최초 확정과 구분해 원장 감사 추적성을 확보한다.
+        Journal journal = postReceiptJournal(receipt,
+                "입금보고서 수정 재게시 " + receipt.getSlipNo() + partnerNameSuffix(partner), actorUserId);
         receipt.linkJournal(journal.getId());
-        scheduleAgingRefreshAfterCommit();
+        log.info("입금보고서 수정 재게시 — slipNo={}, oldJournalId={}, newJournalNo={}, actor={}",
+                receipt.getSlipNo(), oldJournalId, journal.getJournalNo(), actorUserId);
+        scheduleAgingRefreshAfterCommit(receipt.getSlipNo());
         return responseOf(receipt);
     }
 
-    private Journal postReceiptJournal(CashReceipt receipt, String partnerName, String actorUserId) {
+    /** CONFIRMED 수정 요청이 저장값과 완전히 동일한지 — 동일하면 역분개+재게시를 생략한다. */
+    private boolean isUnchanged(CashReceipt receipt, CashReceiptRequest request, UUID resolvedPartnerId) {
+        return Objects.equals(receipt.getPartnerId(), resolvedPartnerId)
+                && receipt.getAmount() != null && request.amount() != null
+                && receipt.getAmount().compareTo(request.amount()) == 0
+                && Objects.equals(receipt.getTransactionDate(), request.transactionDate())
+                && Objects.equals(receipt.getMemo(), request.memo())
+                && receipt.getDebitAccountCode().equals(
+                        normalizedOrDefault(request.debitAccountCode(), CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE))
+                && receipt.getCreditAccountCode().equals(
+                        normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
+    }
+
+    private static String normalizedOrDefault(String accountCode, String defaultCode) {
+        return accountCode == null || accountCode.isBlank() ? defaultCode : accountCode.trim();
+    }
+
+    /** 마감된 회계 기간이면 409 — 수기 분개 생성(JournalService.create)과 동일 규칙을 자동 게시에도 적용. */
+    private void requireOpenPeriod(LocalDate journalDate) {
+        monthEndCloseService.findClosedPeriodCovering(journalDate)
+                .ifPresent(p -> {
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "마감된 회계 기간입니다 — 해당 일자(" + journalDate + ")의 입금보고서는 확정/수정할 수 없습니다");
+                });
+    }
+
+    private Journal postReceiptJournal(CashReceipt receipt, String description, String actorUserId) {
         List<JournalService.AutoJournalLineSpec> lineSpecs = new ArrayList<>();
         lineSpecs.add(new JournalService.AutoJournalLineSpec(
                 receipt.getDebitAccountCode(),
@@ -220,7 +255,7 @@ public class CashReceiptService {
                 receipt.getMemo()));
         return journalService.postAutoJournal(
                 receipt.getTransactionDate(),
-                "입금보고서 확정 " + receipt.getSlipNo() + " (" + partnerName + ")",
+                description,
                 JournalSourceType.CASH_RECEIPT,
                 receipt.getId(),
                 actorUserId,
@@ -444,29 +479,41 @@ public class CashReceiptService {
                         LinkedHashMap::new));
     }
 
-    private String partnerNameForDescription(CashReceipt receipt) {
-        return displayOf(resolveDisplays(List.of(receipt)).get(receipt.getPartnerId())).partnerName();
+    /**
+     * 분개 적요용 거래처명 접미사 — 미조회 시 빈 문자열(괄호부 생략)로, "(미조회)" 같은
+     * 폴백 문자열이 불변 원장에 영구 각인되는 것을 방지한다.
+     */
+    private String partnerNameSuffix(CashReceipt receipt) {
+        PartnerSummary partner = resolveDisplays(List.of(receipt)).get(receipt.getPartnerId());
+        return partnerNameSuffix(partner);
     }
 
-    private void scheduleAgingRefreshAfterCommit() {
+    private static String partnerNameSuffix(PartnerSummary partner) {
+        if (partner == null || partner.name() == null || partner.name().isBlank()) {
+            return "";
+        }
+        return " (" + partner.name().trim() + ")";
+    }
+
+    private void scheduleAgingRefreshAfterCommit(String slipNo) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            refreshAgingSnapshotSafely();
+            refreshAgingSnapshotSafely(slipNo);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                refreshAgingSnapshotSafely();
+                refreshAgingSnapshotSafely(slipNo);
             }
         });
     }
 
-    private void refreshAgingSnapshotSafely() {
+    private void refreshAgingSnapshotSafely(String slipNo) {
         try {
             agingSnapshotRefreshService.refresh();
         } catch (RuntimeException ex) {
-            log.warn("입금보고서 변경 후 partner_aging_snapshot refresh 실패 - 기능은 계속 진행합니다. error={}",
-                    ex.getMessage(), ex);
+            log.warn("입금보고서 변경 후 partner_aging_snapshot refresh 실패 - 기능은 계속 진행합니다. slipNo={}, error={}",
+                    slipNo, ex.getMessage(), ex);
         }
     }
 

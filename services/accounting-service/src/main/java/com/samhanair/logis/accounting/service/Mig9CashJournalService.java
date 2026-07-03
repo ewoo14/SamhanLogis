@@ -1,7 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
-import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
 import com.samhanair.logis.common.ecount.EcountMig9JournalResult;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -118,7 +118,8 @@ public class Mig9CashJournalService {
             result.cashReceiptCreated();
         } catch (EmptyResultDataAccessException ex) {
             reject(row, ErrorCode.MIG9_DEFAULT_ACCOUNT_MISSING,
-                    "MIG-9 기본 계정 조회 실패: 보통예금(102)/외상매출금(110)", result);
+                    "MIG-9 기본 계정 조회 실패: 보통예금(" + CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE
+                            + ")/외상매출금(" + CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE + ")", result);
         }
     }
 
@@ -215,6 +216,9 @@ public class Mig9CashJournalService {
     }
 
     private void linkCash(String tableName, UUID cashId, UUID journalId, String actor) {
+        // journal_id IS NULL 가드 — 라이브 confirm/PATCH(E3 S2)가 배치와 동시에 같은 행에 분개를
+        // 링크하는 레이스에서 last-write-wins 로 분개가 고아화되는 것을 차단한다 (@Version 은 raw
+        // UPDATE 를 타지 않으므로 SQL 레벨로 방어).
         jdbcTemplate.update("""
                 UPDATE %s
                    SET journal_id = :journalId,
@@ -222,6 +226,7 @@ public class Mig9CashJournalService {
                        modified_by = :actor
                  WHERE id = :cashId
                    AND is_deleted = FALSE
+                   AND journal_id IS NULL
                 """.formatted(tableName), new MapSqlParameterSource()
                 .addValue("journalId", journalId)
                 .addValue("actor", actor)
@@ -229,8 +234,11 @@ public class Mig9CashJournalService {
     }
 
     private List<CashRow> pendingRows(String tableName, int batchSize) {
+        // cash_receipts 는 E3 S2 라이브 취소(CANCELLED)가 가능하므로 CONFIRMED 만 배치 대상 —
+        // journal_id NULL 인 CANCELLED 행(라이브 취소된 MIG 행)에 유령 POSTED 분개가 생기는 것을 차단.
         String receiptKindFilter = "cash_receipts".equals(tableName)
                 ? "                   AND kind = 'DEPOSIT_REPORT'\n"
+                        + "                   AND status = 'CONFIRMED'\n"
                 : "";
         return jdbcTemplate.query("""
                 SELECT ROW_NUMBER() OVER (ORDER BY transaction_date, slip_no, id) AS source_row_no,

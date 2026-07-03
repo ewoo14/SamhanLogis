@@ -84,8 +84,11 @@ public class Journal extends BaseEntity {
     private JournalSourceType sourceType;
 
     /**
-     * 출처 참조 ID — SLIP 면 slip UUID, CLOSING 이면 결산 ID 등. MANUAL 이면 null.
-     * Slice A 본 슬라이스는 MANUAL 만 사용 → 본 필드는 향후 슬라이스용.
+     * 출처 참조 ID — SLIP 면 slip(세금계산서) UUID, CASH_RECEIPT 면 입금보고서 UUID,
+     * CLOSING 이면 결산 ID 등. MANUAL 이면 null.
+     *
+     * <p>주의(이중 의미): 역분개는 sourceRefId=<b>원분개 UUID</b> 로 채운다 — 원천 문서가 아닌
+     * 원분개를 가리킨다 (sourceType 은 autoReverse=원분개 승계 / reverse=MANUAL).
      */
     @Column(name = "source_ref_id")
     private UUID sourceRefId;

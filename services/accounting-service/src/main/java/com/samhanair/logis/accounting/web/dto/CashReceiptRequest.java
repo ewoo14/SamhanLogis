@@ -24,6 +24,9 @@ public record CashReceiptRequest(
         @NotNull(message = "transactionDate 는 필수입니다")
         LocalDate transactionDate,
 
+        // 494 = 분개 라인 memo 한도 500 − "[역분개] " prefix 6자. 495자 이상이면 CONFIRMED 행의
+        // 취소/수정(역분개 라인 생성)이 영구 봉쇄되므로 입력 단계에서 차단한다.
+        @Size(max = 494, message = "memo 는 최대 494자입니다")
         String memo,
 
         @Size(max = 20, message = "debitAccountCode 는 최대 20자입니다")

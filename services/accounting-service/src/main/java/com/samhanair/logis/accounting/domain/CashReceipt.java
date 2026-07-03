@@ -95,7 +95,7 @@ public class CashReceipt extends BaseEntity {
     }
 
     /**
-     * 수기 입금보고서 생성. S1에서는 분개를 생성하지 않으므로 journalId 는 null 로 유지한다.
+     * 수기 입금보고서 생성. 생성 시점에는 분개가 없고(journalId=null) 확정(confirm) 시 게시된다.
      */
     public static CashReceipt createManual(String slipNo, UUID partnerId, BigDecimal amount,
                                            LocalDate transactionDate, String memo,
@@ -118,16 +118,7 @@ public class CashReceipt extends BaseEntity {
     public CashReceipt updateDraft(BigDecimal amount, LocalDate transactionDate, String memo,
                                    UUID partnerId, String debitAccountCode, String creditAccountCode) {
         requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
-        validatePartnerId(partnerId);
-        validateAmount(amount);
-        validateTransactionDate(transactionDate);
-        this.amount = amount;
-        this.transactionDate = transactionDate;
-        this.memo = memo;
-        this.partnerId = partnerId;
-        this.debitAccountCode = normalizeAccountCode(debitAccountCode, DEFAULT_DEBIT_ACCOUNT_CODE);
-        this.creditAccountCode = normalizeAccountCode(creditAccountCode, DEFAULT_CREDIT_ACCOUNT_CODE);
-        return this;
+        return applyEditableFields(amount, transactionDate, memo, partnerId, debitAccountCode, creditAccountCode);
     }
 
     /**
@@ -144,6 +135,12 @@ public class CashReceipt extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "CONFIRMED 입금보고서만 재게시 수정할 수 있습니다 (현재: " + this.status + ")");
         }
+        return applyEditableFields(amount, transactionDate, memo, partnerId, debitAccountCode, creditAccountCode);
+    }
+
+    /** 편집 가능 필드 일괄 갱신 — DRAFT/CONFIRMED 수정의 공통 본문(상태 가드는 각 진입점 소관). */
+    private CashReceipt applyEditableFields(BigDecimal amount, LocalDate transactionDate, String memo,
+                                            UUID partnerId, String debitAccountCode, String creditAccountCode) {
         validatePartnerId(partnerId);
         validateAmount(amount);
         validateTransactionDate(transactionDate);
@@ -156,14 +153,14 @@ public class CashReceipt extends BaseEntity {
         return this;
     }
 
-    /** DRAFT → CONFIRMED. S2 분개 생성 배선점이며 본 메서드는 상태만 전환한다. */
+    /** DRAFT → CONFIRMED. 상태만 전환하며, POSTED 분개 게시는 service(confirm)가 이어서 수행한다. */
     public CashReceipt confirm() {
         requireDraft("입금보고서 확정은 DRAFT 단계에서만 허용됩니다");
         this.status = CashReceiptStatus.CONFIRMED;
         return this;
     }
 
-    /** CONFIRMED → CANCELLED. S2 역분개 배선점이며 본 메서드는 상태만 전환한다. */
+    /** CONFIRMED → CANCELLED. 상태만 전환하며, 원분개 역분개는 service(cancel)가 이어서 수행한다. */
     public CashReceipt cancel() {
         if (this.status != CashReceiptStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -180,7 +177,7 @@ public class CashReceipt extends BaseEntity {
         return this;
     }
 
-    /** 분개 연결. S1 수기 CRUD에서는 호출하지 않는다. */
+    /** 분개 연결 — 확정(confirm)·수정 재게시(updateConfirmed) 경로가 호출한다. */
     public CashReceipt linkJournal(UUID journalId) {
         this.journalId = journalId;
         return this;

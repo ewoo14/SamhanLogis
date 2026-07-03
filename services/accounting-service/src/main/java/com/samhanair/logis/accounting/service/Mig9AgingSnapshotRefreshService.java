@@ -19,7 +19,16 @@ public class Mig9AgingSnapshotRefreshService {
     private final JdbcTemplate jdbcTemplate;
     private final MigOpsMetricsRecorder metricsRecorder;
 
-    @Transactional(propagation = Propagation.NEVER)
+    /**
+     * REFRESH ... CONCURRENTLY 는 트랜잭션 블록 안에서 실행할 수 없다.
+     *
+     * <p>NOT_SUPPORTED: 바인딩된 트랜잭션 리소스를 suspend 하고 신규 autocommit 커넥션으로
+     * 실행한다. afterCommit 콜백(원 tx 리소스가 아직 스레드에 바인딩된 시점 — E3 S2 입금보고서
+     * confirm/cancel/재게시 경로)에서도 안전하다. 과거 NEVER 는 afterCommit 시점을 "기존
+     * 트랜잭션 존재"로 판정해 {@code IllegalTransactionStateException} 으로 매번 실패했다
+     * (PR #710 라이브 QA 실증). MIG 커맨드 경로(트랜잭션 없음)는 동작 불변.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void refresh() {
         try {
             jdbcTemplate.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY partner_aging_snapshot");

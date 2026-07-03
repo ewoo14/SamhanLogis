@@ -85,7 +85,9 @@ public class CashReceiptController {
 
     /** 입금보고서 수정 — DRAFT 는 단순 수정, CONFIRMED 는 역분개 후 재게시. */
     @Operation(summary = "입금보고서 수정",
-            description = "DRAFT는 필드만 수정하고, CONFIRMED는 기존 분개를 역분개한 뒤 새 POSTED 분개를 게시한다. CANCELLED는 거부한다")
+            description = "DRAFT는 필드만 수정하고, CONFIRMED는 기존 분개를 역분개한 뒤 새 POSTED 분개를 게시한다"
+                    + " (분개 미연결 CONFIRMED[MIG 미게시]는 역분개 없이 신규 게시, 무변경 요청은 재게시 생략,"
+                    + " 마감 기간 일자는 409). CANCELLED는 거부한다")
     @PatchMapping("/{id:[0-9a-fA-F-]{36}}")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<CashReceiptResponse> update(
@@ -97,7 +99,8 @@ public class CashReceiptController {
 
     /** DRAFT → CONFIRMED — id 는 path 용 UUID, 화면 표시는 slipNo/거래처명. */
     @Operation(summary = "입금보고서 확정",
-            description = "DRAFT 입금보고서를 CONFIRMED로 전환하고 선택 계정 기준 POSTED 분개를 자동 게시한다")
+            description = "DRAFT 입금보고서를 CONFIRMED로 전환하고 선택 계정 기준 POSTED 분개를 자동 게시한다."
+                    + " 마감된 회계 기간 일자는 409")
     @PostMapping("/{id:[0-9a-fA-F-]{36}}/confirm")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<CashReceiptResponse> confirm(
