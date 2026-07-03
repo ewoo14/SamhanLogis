@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.domain.JournalStatus;
+import com.samhanair.logis.accounting.report.JournalStatusReportService;
 import com.samhanair.logis.accounting.web.dto.JournalResponse;
 import com.samhanair.logis.common.excel.ExcelColumn;
 import com.samhanair.logis.common.excel.ExcelExportRequest;
@@ -95,15 +96,13 @@ public class JournalExcelExportService {
         };
     }
 
+    /**
+     * 거래유형 한글 라벨 — 전표현황과 동일한 단일 진실원
+     * ({@link JournalStatusReportService#sourceTypeDisplayName}) 위임.
+     * 자체 switch 하드코딩은 라벨 drift(동일 분개가 화면·Excel 에서 다른 이름) 원인이라 폐기 (#716).
+     */
     private static String sourceTypeLabel(
             com.samhanair.logis.accounting.domain.JournalSourceType type) {
-        return switch (type) {
-            case SLIP         -> "슬립자동";
-            case MANUAL       -> "수동입력";
-            case CLOSING      -> "결산분개";
-            case KFTC_DEPOSIT -> "KFTC입금매칭";
-            case CASH_DISBURSEMENT -> "현금지출";
-            case CASH_RECEIPT -> "현금회수";
-        };
+        return JournalStatusReportService.sourceTypeDisplayName(type);
     }
 }

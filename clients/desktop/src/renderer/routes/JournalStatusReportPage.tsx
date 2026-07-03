@@ -2,7 +2,7 @@
  * 전표현황 화면 (`/accounting/reports/journal-status`).
  *
  * eCount 전표현황을 상태 필터 기준으로 조회한다. 기본값은 POSTED 이며,
- * 리포트 잔액 계열은 POSTED+REVERSED 보상쌍 상쇄 집계로 분리된다.
+ * 리포트 잔액 계열은 POSTED+REVERSED(보상쌍 상쇄) 집계로 분리된다.
  * sourceType 다중 필터, 거래처 자동완성 필터, 일자/출처/거래처 grouping 을 지원한다.
  */
 import { useMemo, useState } from 'react'
