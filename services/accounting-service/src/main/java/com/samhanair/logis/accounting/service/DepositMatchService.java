@@ -5,6 +5,7 @@ import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.KftcDepositRecord;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
@@ -36,13 +37,16 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@link KftcClient#fetchDeposits} 로 입금 거래 목록 조회 (effectiveMethod 전달)</li>
  *   <li>입금자명으로 {@link PartnerLookupClient#findByPartnerCode} 거래처 매칭 시도</li>
  *   <li>매칭 성공 + 금액 일치 시 {@link TaxInvoiceRepository} 에서 미수금 세금계산서 조회</li>
- *   <li>분개 DRAFT 생성 (차변: 보통예금 103, 대변: 외상매출금 110 — 한국 표준 계정과목)</li>
+ *   <li>분개 DRAFT 생성 (차변/대변 계정은 {@link CashReceipt} 기본 입금 계정과 동일)</li>
  *   <li>매칭 실패 건은 {@link DepositMatchStatus#UNMATCHED} 분류</li>
  * </ol>
  *
+ * <p>입금 기본 계정 코드는 {@link CashReceipt#DEFAULT_DEBIT_ACCOUNT_CODE},
+ * {@link CashReceipt#DEFAULT_CREDIT_ACCOUNT_CODE} 를 단일 source 로 사용한다.
+ *
  * <p>계정과목 코드 (project_korean_accounting.md):
  * <ul>
- *   <li>보통예금: 103 (유동자산 — 현금및현금성자산)</li>
+ *   <li>보통예금: 102 (유동자산 — 현금및현금성자산, V1 chart_of_accounts 시드 기준)</li>
  *   <li>외상매출금: 110 (유동자산 — 매출채권)</li>
  * </ul>
  *
@@ -62,12 +66,6 @@ public class DepositMatchService {
 
     /** SP-D2 — 입금 매칭 페이지 코드. */
     static final String PAGE_CODE = "accounting.deposit-match";
-
-    /** 보통예금 계정과목 코드 (한국 일반기업회계기준 — project_korean_accounting.md). */
-    private static final String ACCOUNT_CODE_DEPOSIT = "103";
-
-    /** 외상매출금 계정과목 코드 (한국 일반기업회계기준). */
-    private static final String ACCOUNT_CODE_RECEIVABLE = "110";
 
     private final KftcClient kftcClient;
     private final PartnerLookupClient partnerLookupClient;
@@ -188,7 +186,7 @@ public class DepositMatchService {
 
         TaxInvoice invoice = invoiceOpt.get();
 
-        // 분개 DRAFT 생성 (차: 보통예금 103 / 대: 외상매출금 110)
+        // 분개 DRAFT 생성 (차: 보통예금 102 / 대: 외상매출금 110)
         UUID journalDraftId = createJournalDraft(deposit, partner, invoice, actorId);
 
         log.info("[SP-09-4] 자동 매칭 성공 — depositorName={} partnerCode={} taxInvoiceNo={}",
@@ -247,12 +245,12 @@ public class DepositMatchService {
     }
 
     /**
-     * 분개 DRAFT 생성 — 차변: 보통예금(103) / 대변: 외상매출금(110).
+     * 분개 DRAFT 생성 — 차변/대변은 입금보고서 기본 계정과 동일하게 사용한다.
      *
      * <p>한국 일반기업회계기준 표준 계정과목:
      * <ul>
-     *   <li>차변: 103 보통예금 (입금 금액 debit)</li>
-     *   <li>대변: 110 외상매출금 (입금 금액 credit)</li>
+     *   <li>차변: {@link CashReceipt#DEFAULT_DEBIT_ACCOUNT_CODE} (입금 금액 debit)</li>
+     *   <li>대변: {@link CashReceipt#DEFAULT_CREDIT_ACCOUNT_CODE} (입금 금액 credit)</li>
      * </ul>
      *
      * @param deposit  입금 거래 레코드
@@ -275,18 +273,18 @@ public class DepositMatchService {
                 invoice.getId()
         );
 
-        // 차변 라인: 보통예금 103
+        // 차변 라인: 입금보고서 기본 차변 계정
         JournalLine debitLine = JournalLine.create(
-                journal, 1, ACCOUNT_CODE_DEPOSIT,
+                journal, 1, CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE,
                 deposit.amount(), BigDecimal.ZERO,
                 partner.partnerId(),
                 "KFTC 입금 — " + deposit.depositorName()
         );
         journal.addLine(debitLine);
 
-        // 대변 라인: 외상매출금 110
+        // 대변 라인: 입금보고서 기본 대변 계정
         JournalLine creditLine = JournalLine.create(
-                journal, 2, ACCOUNT_CODE_RECEIVABLE,
+                journal, 2, CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE,
                 BigDecimal.ZERO, deposit.amount(),
                 partner.partnerId(),
                 "외상매출금 회수 — " + invoice.getTaxInvoiceNo()

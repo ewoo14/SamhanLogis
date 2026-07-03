@@ -8,6 +8,8 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.CashReceiptKind;
 import com.samhanair.logis.accounting.domain.CashReceiptStatus;
+import com.samhanair.logis.accounting.domain.Journal;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CashReceiptRequest;
@@ -15,7 +17,10 @@ import com.samhanair.logis.accounting.web.dto.CashReceiptResponse;
 import com.samhanair.logis.accounting.web.dto.CashReceiptResponse.PartnerDisplay;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,13 +29,17 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** 입금보고서 수기 CRUD와 상태 라이프사이클 service. */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -41,6 +50,8 @@ public class CashReceiptService {
     private final CashReceiptNumberService numberService;
     private final AccountService accountService;
     private final PartnerLookupClient partnerLookupClient;
+    private final JournalService journalService;
+    private final Mig9AgingSnapshotRefreshService agingSnapshotRefreshService;
     private final ObjectMapper objectMapper;
 
     /** 수기 입금보고서 생성. S1에서는 journalId 를 비운다. */
@@ -75,7 +86,8 @@ public class CashReceiptService {
         return page.map(receipt -> CashReceiptResponse.of(
                 receipt,
                 displayOf(partners.get(receipt.getPartnerId())),
-                journalNoOf(receipt, journalNos)));
+                journalNoOf(receipt.getJournalId(), journalNos),
+                journalNoOf(receipt.getReverseJournalId(), journalNos)));
     }
 
     /** 단건 조회. */
@@ -88,6 +100,19 @@ public class CashReceiptService {
     public CashReceiptResponse updateDraft(UUID id, CashReceiptRequest request) {
         CashReceipt receipt = findOrThrow(id);
         return updateDraft(receipt, request);
+    }
+
+    /** REST PATCH 상태 분기. DRAFT 는 단순 수정, CONFIRMED 는 역분개 후 재게시한다. */
+    public CashReceiptResponse update(UUID id, CashReceiptRequest request, String actorUserId) {
+        CashReceipt receipt = findOrThrow(id);
+        if (receipt.getStatus() == CashReceiptStatus.DRAFT) {
+            return updateDraft(receipt, request);
+        }
+        if (receipt.getStatus() == CashReceiptStatus.CONFIRMED) {
+            return updateConfirmed(receipt, request, actorUserId);
+        }
+        throw new BusinessException(ErrorCode.CONFLICT,
+                "CANCELLED 입금보고서는 수정할 수 없습니다");
     }
 
     private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptRequest request) {
@@ -115,17 +140,30 @@ public class CashReceiptService {
         return responseOf(receipt);
     }
 
-    /** DRAFT → CONFIRMED. 분개 생성은 S2 범위다. */
-    public CashReceiptResponse confirm(UUID id) {
+    /** DRAFT → CONFIRMED 후 POSTED 자동 분개를 생성한다. */
+    public CashReceiptResponse confirm(UUID id, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
+        if (receipt.getJournalId() != null) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 분개가 연결된 입금보고서는 다시 확정할 수 없습니다");
+        }
+        String partnerName = partnerNameForDescription(receipt);
         receipt.confirm();
+        Journal journal = postReceiptJournal(receipt, partnerName, actorUserId);
+        receipt.linkJournal(journal.getId());
+        scheduleAgingRefreshAfterCommit();
         return responseOf(receipt);
     }
 
-    /** CONFIRMED → CANCELLED. 역분개는 S2 범위다. */
-    public CashReceiptResponse cancel(UUID id) {
+    /** CONFIRMED → CANCELLED 후 원분개가 있으면 자동 역분개를 생성한다. */
+    public CashReceiptResponse cancel(UUID id, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
         receipt.cancel();
+        if (receipt.getJournalId() != null) {
+            Journal reversal = journalService.autoReverse(receipt.getJournalId(), actorUserId);
+            receipt.linkReverseJournal(reversal.getId());
+        }
+        scheduleAgingRefreshAfterCommit();
         return responseOf(receipt);
     }
 
@@ -143,6 +181,50 @@ public class CashReceiptService {
         current.requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
         CashReceiptDraftCommand merged = merge(current, patches);
         return updateDraft(current, merged);
+    }
+
+    private CashReceiptResponse updateConfirmed(CashReceipt receipt, CashReceiptRequest request,
+                                                String actorUserId) {
+        PartnerSummary partner = resolvePartner(request);
+        validateAccounts(request.debitAccountCode(), request.creditAccountCode());
+        UUID oldJournalId = receipt.getJournalId();
+        receipt.updateConfirmed(
+                request.amount(),
+                request.transactionDate(),
+                request.memo(),
+                partner.partnerId(),
+                request.debitAccountCode(),
+                request.creditAccountCode());
+        if (oldJournalId != null) {
+            journalService.autoReverse(oldJournalId, actorUserId);
+        }
+        Journal journal = postReceiptJournal(receipt, displayOf(partner).partnerName(), actorUserId);
+        receipt.linkJournal(journal.getId());
+        scheduleAgingRefreshAfterCommit();
+        return responseOf(receipt);
+    }
+
+    private Journal postReceiptJournal(CashReceipt receipt, String partnerName, String actorUserId) {
+        List<JournalService.AutoJournalLineSpec> lineSpecs = new ArrayList<>();
+        lineSpecs.add(new JournalService.AutoJournalLineSpec(
+                receipt.getDebitAccountCode(),
+                receipt.getAmount(),
+                BigDecimal.ZERO,
+                receipt.getPartnerId(),
+                receipt.getMemo()));
+        lineSpecs.add(new JournalService.AutoJournalLineSpec(
+                receipt.getCreditAccountCode(),
+                BigDecimal.ZERO,
+                receipt.getAmount(),
+                receipt.getPartnerId(),
+                receipt.getMemo()));
+        return journalService.postAutoJournal(
+                receipt.getTransactionDate(),
+                "입금보고서 확정 " + receipt.getSlipNo() + " (" + partnerName + ")",
+                JournalSourceType.CASH_RECEIPT,
+                receipt.getId(),
+                actorUserId,
+                lineSpecs);
     }
 
     /** 협업 changeSet JSON 을 path map 으로 파싱한다. */
@@ -315,7 +397,8 @@ public class CashReceiptService {
         return CashReceiptResponse.of(
                 receipt,
                 displayOf(partners.get(receipt.getPartnerId())),
-                journalNoOf(receipt, journalNos));
+                journalNoOf(receipt.getJournalId(), journalNos),
+                journalNoOf(receipt.getReverseJournalId(), journalNos));
     }
 
     private Map<UUID, PartnerSummary> resolveDisplays(List<CashReceipt> receipts) {
@@ -341,11 +424,15 @@ public class CashReceiptService {
     }
 
     private Map<UUID, String> resolveJournalNos(List<CashReceipt> receipts) {
-        List<UUID> ids = receipts.stream()
+        LinkedHashSet<UUID> ids = new LinkedHashSet<>();
+        receipts.stream()
                 .map(CashReceipt::getJournalId)
                 .filter(Objects::nonNull)
-                .distinct()
-                .toList();
+                .forEach(ids::add);
+        receipts.stream()
+                .map(CashReceipt::getReverseJournalId)
+                .filter(Objects::nonNull)
+                .forEach(ids::add);
         if (ids.isEmpty()) {
             return Map.of();
         }
@@ -357,8 +444,34 @@ public class CashReceiptService {
                         LinkedHashMap::new));
     }
 
-    private static String journalNoOf(CashReceipt receipt, Map<UUID, String> journalNos) {
-        return receipt.getJournalId() == null ? null : journalNos.get(receipt.getJournalId());
+    private String partnerNameForDescription(CashReceipt receipt) {
+        return displayOf(resolveDisplays(List.of(receipt)).get(receipt.getPartnerId())).partnerName();
+    }
+
+    private void scheduleAgingRefreshAfterCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            refreshAgingSnapshotSafely();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                refreshAgingSnapshotSafely();
+            }
+        });
+    }
+
+    private void refreshAgingSnapshotSafely() {
+        try {
+            agingSnapshotRefreshService.refresh();
+        } catch (RuntimeException ex) {
+            log.warn("입금보고서 변경 후 partner_aging_snapshot refresh 실패 - 기능은 계속 진행합니다. error={}",
+                    ex.getMessage(), ex);
+        }
+    }
+
+    private static String journalNoOf(UUID journalId, Map<UUID, String> journalNos) {
+        return journalId == null ? null : journalNos.get(journalId);
     }
 
     private static PartnerDisplay displayOf(PartnerSummary partner) {

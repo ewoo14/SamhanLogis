@@ -22,11 +22,13 @@ public record CashReceiptResponse(
         CashReceiptStatus status,
         String memo,
         String journalNo,
+        String reverseJournalNo,
         String externalRef,
         String debitAccountCode,
         String creditAccountCode
 ) {
-    public static CashReceiptResponse of(CashReceipt receipt, PartnerDisplay partner, String journalNo) {
+    public static CashReceiptResponse of(CashReceipt receipt, PartnerDisplay partner,
+                                         String journalNo, String reverseJournalNo) {
         return new CashReceiptResponse(
                 receipt.getId(),
                 receipt.getSlipNo(),
@@ -39,6 +41,7 @@ public record CashReceiptResponse(
                 receipt.getStatus(),
                 receipt.getMemo(),
                 journalNo,
+                reverseJournalNo,
                 receipt.getExternalRef(),
                 receipt.getDebitAccountCode(),
                 receipt.getCreditAccountCode());

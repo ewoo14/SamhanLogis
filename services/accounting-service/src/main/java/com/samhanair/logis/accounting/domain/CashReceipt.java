@@ -28,7 +28,10 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class CashReceipt extends BaseEntity {
 
-    public static final String DEFAULT_DEBIT_ACCOUNT_CODE = "103";
+    /** 기본 차변 계정: 보통예금(102) — V1 chart_of_accounts 시드 기준. */
+    public static final String DEFAULT_DEBIT_ACCOUNT_CODE = "102";
+
+    /** 기본 대변 계정: 외상매출금(110) — V1 chart_of_accounts 시드 기준. */
     public static final String DEFAULT_CREDIT_ACCOUNT_CODE = "110";
 
     @Id
@@ -68,6 +71,10 @@ public class CashReceipt extends BaseEntity {
 
     @Column(name = "journal_id")
     private UUID journalId;
+
+    /** 취소 시 생성된 역분개 Journal UUID. 화면에는 전표번호로만 노출한다. */
+    @Column(name = "reverse_journal_id")
+    private UUID reverseJournalId;
 
     @Column(name = "external_ref", nullable = false, length = 100)
     private String externalRef;
@@ -123,6 +130,32 @@ public class CashReceipt extends BaseEntity {
         return this;
     }
 
+    /**
+     * CONFIRMED 입금보고서 수정.
+     *
+     * <p>원장 불변 원칙에 따라 기존 분개 정정은 service 에서 역분개+신규 게시로 처리하고,
+     * 본 메서드는 입금보고서 헤더 필드만 갱신한다.
+     *
+     * @return 현재 입금보고서
+     */
+    public CashReceipt updateConfirmed(BigDecimal amount, LocalDate transactionDate, String memo,
+                                       UUID partnerId, String debitAccountCode, String creditAccountCode) {
+        if (this.status != CashReceiptStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "CONFIRMED 입금보고서만 재게시 수정할 수 있습니다 (현재: " + this.status + ")");
+        }
+        validatePartnerId(partnerId);
+        validateAmount(amount);
+        validateTransactionDate(transactionDate);
+        this.amount = amount;
+        this.transactionDate = transactionDate;
+        this.memo = memo;
+        this.partnerId = partnerId;
+        this.debitAccountCode = normalizeAccountCode(debitAccountCode, DEFAULT_DEBIT_ACCOUNT_CODE);
+        this.creditAccountCode = normalizeAccountCode(creditAccountCode, DEFAULT_CREDIT_ACCOUNT_CODE);
+        return this;
+    }
+
     /** DRAFT → CONFIRMED. S2 분개 생성 배선점이며 본 메서드는 상태만 전환한다. */
     public CashReceipt confirm() {
         requireDraft("입금보고서 확정은 DRAFT 단계에서만 허용됩니다");
@@ -150,6 +183,12 @@ public class CashReceipt extends BaseEntity {
     /** 분개 연결. S1 수기 CRUD에서는 호출하지 않는다. */
     public CashReceipt linkJournal(UUID journalId) {
         this.journalId = journalId;
+        return this;
+    }
+
+    /** 취소 역분개 Journal 연결. */
+    public CashReceipt linkReverseJournal(UUID reverseJournalId) {
+        this.reverseJournalId = reverseJournalId;
         return this;
     }
 

@@ -3,7 +3,8 @@
 > S1(#709)이 마련한 배선점(`confirm()`/`cancel()`/`linkJournal`)에 원장 게시를 연결하는 BE 슬라이스. 통장연계=S3·FE=S4.
 
 ## 개발책임자 확정 결정 (2026-07-03 — 무결성 preconfirm 완료)
-- 계정: 기본 차 103(보통예금)/대 110(외상매출금) + **사용자 변경 가능**(CashReceipt debit/credit 컬럼=S1 기구현) → POSTED 분개는 선택 계정 사용.
+- 계정: 기본 차 **보통예금**/대 **외상매출금(110)** + **사용자 변경 가능**(CashReceipt debit/credit 컬럼=S1 기구현) → POSTED 분개는 선택 계정 사용.
+- 🔴 **구현 중 발견·정정(개발책임자 확인 요청)**: 결정문의 "보통예금(103)" 번호는 DepositMatchService 의 잘못된 주석에서 온 오기 — **실 계정과목표(V1 시드)는 102=보통예금, 103=당좌예금**. 의미(보통예금) 기준 **기본 차변=102 로 교정**(S1 기본값 103=당좌예금 잠재결함 동반 수정, V51 데이터 정정 — S1~S2 사이 분개 게시 0건이라 원장 무영향). 당좌예금(103) 의도였다면 정정 지시 요청.
 - 게시=상태전이 종속: **CONFIRMED→자동 POSTED 분개**, **수정→autoReverse 후 재게시**, **CANCELLED→역분개**.
 - coedit 편집=DRAFT 한정 유지(`applyOverlayPatchBatch`/`parseChangeSet` 무변).
 - 계정 해석 단일화: Mig9(명칭 lookup)·DepositMatch(자체 103/110 상수) → CashReceipt DEFAULT 상수 단일원.

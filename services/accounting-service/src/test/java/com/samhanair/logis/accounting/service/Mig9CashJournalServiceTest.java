@@ -8,18 +8,32 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.accounting.client.KftcClient;
+import com.samhanair.logis.accounting.client.KftcDepositRecord;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.domain.Journal;
+import com.samhanair.logis.accounting.domain.TaxInvoice;
+import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
+import com.samhanair.logis.accounting.repository.JournalRepository;
+import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.common.ecount.EcountMig9JournalResult;
 import com.samhanair.logis.common.exception.BusinessException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.domain.PageImpl;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +57,14 @@ class Mig9CashJournalServiceTest {
         lenient().when(jdbcTemplate.queryForObject(contains("chart_of_accounts"), any(SqlParameterSource.class), eq(String.class)))
                 .thenAnswer(invocation -> {
                     SqlParameterSource params = invocation.getArgument(1);
+                    if (params.hasValue("code")) {
+                        String code = (String) params.getValue("code");
+                        return switch (code) {
+                            case "102" -> "102";
+                            case "110" -> "110";
+                            default -> throw new EmptyResultDataAccessException(1);
+                        };
+                    }
                     String name = (String) params.getValue("name");
                     return switch (name) {
                         case "지급수수료" -> "831";
@@ -136,7 +158,25 @@ class Mig9CashJournalServiceTest {
 
         assertThat(result.cashReceiptJournalsCreated()).isEqualTo(1);
         assertThat(journalParams().getValue("sourceType")).isEqualTo("CASH_RECEIPT");
-        assertThat(lineParams()).extracting(p -> p.getValue("accountCode")).containsExactly("102", "110");
+        assertThat(lineParams()).extracting(p -> p.getValue("accountCode"))
+                .containsExactly(
+                        CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE,
+                        CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE);
+    }
+
+    @Test
+    void receipt_기본_계정_코드가_없으면_MIG9_DEFAULT_ACCOUNT_MISSING_reject() {
+        receipts(row(1, "CR-001", "REF-CR-001", new BigDecimal("1000"), null));
+        when(jdbcTemplate.queryForObject(contains("chart_of_accounts"), any(SqlParameterSource.class), eq(String.class)))
+                .thenThrow(new EmptyResultDataAccessException(1));
+
+        EcountMig9JournalResult result = service.generateFromReceipts(500, "tester");
+
+        assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.samples()).extracting(EcountMig9JournalResult.Sample::code)
+                .containsExactly("MIG9_DEFAULT_ACCOUNT_MISSING");
+        assertThat(result.samples().get(0).message())
+                .contains("보통예금(102)/외상매출금(110)");
     }
 
     @Test
@@ -262,6 +302,68 @@ class Mig9CashJournalServiceTest {
         ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
         verify(jdbcTemplate).update(contains("UPDATE cash_disbursements"), params.capture());
         assertThat(params.getValue().getValue("journalId")).isEqualTo(journalId());
+    }
+
+    @Test
+    void DepositMatchService_분개_DRAFT도_CashReceipt_기본_입금계정을_사용한다() {
+        KftcClient kftcClient = mock(KftcClient.class);
+        PartnerLookupClient partnerLookupClient = mock(PartnerLookupClient.class);
+        TaxInvoiceRepository taxInvoiceRepository = mock(TaxInvoiceRepository.class);
+        JournalRepository journalRepository = mock(JournalRepository.class);
+        JournalNumberService journalNumberService = mock(JournalNumberService.class);
+        DepositMatchAuditRecorder auditRecorder = mock(DepositMatchAuditRecorder.class);
+        DynamicPermissionClient dynamicPermissionClient = mock(DynamicPermissionClient.class);
+        DepositMatchService depositMatchService = new DepositMatchService(
+                kftcClient,
+                partnerLookupClient,
+                taxInvoiceRepository,
+                journalRepository,
+                journalNumberService,
+                auditRecorder,
+                dynamicPermissionClient);
+        UUID partnerId = partnerId();
+        TaxInvoice invoice = TaxInvoice.create(
+                partnerId, "1234567890", "삼한입금상사", "서울",
+                LocalDate.of(2026, 7, 3), "입금 매칭");
+        invoice.addLine(TaxInvoiceLine.createWithAmounts(
+                invoice, 1, "운송료", null, null,
+                BigDecimal.ONE, new BigDecimal("10000"),
+                new BigDecimal("10000"), new BigDecimal("1000"), null));
+        invoice.issue("TI-001", "tester");
+
+        when(kftcClient.fetchDeposits(any(), any(), anyString(), anyString()))
+                .thenReturn(List.of(new KftcDepositRecord(
+                        "P-CR-001",
+                        new BigDecimal("11000.00"),
+                        LocalDate.of(2026, 7, 3),
+                        "120000",
+                        "***-****-1234",
+                        "입금",
+                        "TX-001")));
+        when(partnerLookupClient.findByPartnerCode("P-CR-001"))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerId, "P-CR-001", "삼한입금상사", "123-45-67890", "서울")));
+        when(taxInvoiceRepository.findByFiltersWithType(any(), any(), any(), any(), eq(partnerId), any()))
+                .thenReturn(new PageImpl<>(List.of(invoice)));
+        when(journalNumberService.next(LocalDate.of(2026, 7, 3))).thenReturn("2026/07/03-1");
+        when(journalRepository.save(any(Journal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<DepositMatchResult> results = depositMatchService.fetchAndMatch(
+                LocalDate.of(2026, 7, 3),
+                LocalDate.of(2026, 7, 3),
+                "088000000000000000000001",
+                "DRY_RUN",
+                partnerId,
+                null);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).status()).isEqualTo(DepositMatchStatus.MATCHED);
+        ArgumentCaptor<Journal> journal = ArgumentCaptor.forClass(Journal.class);
+        verify(journalRepository).save(journal.capture());
+        assertThat(journal.getValue().getLines()).extracting(line -> line.getAccountCode())
+                .containsExactly(
+                        CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE,
+                        CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE);
     }
 
     private void disbursements(Mig9CashJournalService.CashRow... rows) {

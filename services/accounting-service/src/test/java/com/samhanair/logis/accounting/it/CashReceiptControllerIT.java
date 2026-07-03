@@ -2,7 +2,9 @@ package com.samhanair.logis.accounting.it;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -18,6 +20,8 @@ import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.service.Mig9AgingSnapshotRefreshService;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -37,6 +41,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** CashReceipt 수기 CRUD + 상태 라이프사이클 IT. */
@@ -60,6 +65,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     @MockBean private PartnerLookupClient partnerLookupClient;
     @MockBean private ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     @MockBean(classes = DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
+    @MockBean private Mig9AgingSnapshotRefreshService agingSnapshotRefreshService;
 
     @BeforeEach
     void setUpExternalClients() {
@@ -88,7 +94,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.kind").value("MANUAL_RECEIPT"))
-                .andExpect(jsonPath("$.data.debitAccountCode").value("103"))
+                .andExpect(jsonPath("$.data.debitAccountCode").value("102"))
                 .andExpect(jsonPath("$.data.creditAccountCode").value("110"))
                 .andExpect(jsonPath("$.data.journalId").doesNotExist())
                 .andExpect(jsonPath("$.data.journalNo").doesNotExist())
@@ -146,14 +152,18 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
-                .andExpect(jsonPath("$.data.journalId").doesNotExist());
+                .andExpect(jsonPath("$.data.journalId").doesNotExist())
+                .andExpect(jsonPath("$.data.journalNo").isNotEmpty());
 
         mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateBody("122000"))))
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.amount").value(122000))
+                .andExpect(jsonPath("$.data.journalNo").isNotEmpty());
 
         Map<String, Object> invalidAccountBody = updateBody("122000");
         invalidAccountBody.put("debitAccountCode", "999999");
@@ -169,7 +179,166 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"))
-                .andExpect(jsonPath("$.data.journalId").doesNotExist());
+                .andExpect(jsonPath("$.data.journalId").doesNotExist())
+                .andExpect(jsonPath("$.data.reverseJournalNo").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("확정은 POSTED 분개를 생성하고 기본/override 계정을 라인에 반영한다")
+    void confirmCreatesPostedJournalWithDefaultAndOverrideAccounts() throws Exception {
+        MvcResult defaultReceipt = createReceipt(createBody("61000"));
+        String defaultReceiptId = data(defaultReceipt).get("id").asText();
+        String defaultSlipNo = data(defaultReceipt).get("slipNo").asText();
+
+        MvcResult confirmed = mockMvc.perform(post(BASE_URL + "/{id}/confirm", defaultReceiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.journalNo").isNotEmpty())
+                .andExpect(jsonPath("$.data.journalId").doesNotExist())
+                .andReturn();
+        String journalNo = data(confirmed).get("journalNo").asText();
+        UUID journalId = receiptJournalId(defaultReceiptId);
+
+        Map<String, Object> journal = journal(journalId);
+        org.assertj.core.api.Assertions.assertThat(journal.get("journal_no")).isEqualTo(journalNo);
+        org.assertj.core.api.Assertions.assertThat(journal.get("status")).isEqualTo("POSTED");
+        org.assertj.core.api.Assertions.assertThat(journal.get("source_type")).isEqualTo("CASH_RECEIPT");
+        org.assertj.core.api.Assertions.assertThat(journal.get("description").toString())
+                .contains("입금보고서 확정", defaultSlipNo, "삼한입금상사");
+        assertJournalLines(journalId, "102", "110", new BigDecimal("61000.00"));
+
+        Map<String, Object> overrideBody = createBody("62000");
+        overrideBody.put("debitAccountCode", "102");
+        overrideBody.put("creditAccountCode", "110");
+        MvcResult overrideReceipt = createReceipt(overrideBody);
+        String overrideReceiptId = data(overrideReceipt).get("id").asText();
+
+        mockMvc.perform(post(BASE_URL + "/{id}/confirm", overrideReceiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.journalNo").isNotEmpty());
+
+        assertJournalLines(receiptJournalId(overrideReceiptId), "102", "110", new BigDecimal("62000.00"));
+    }
+
+    @Test
+    @DisplayName("취소는 원분개를 REVERSED 처리하고 차대 swap 역분개 번호를 응답한다")
+    void cancelCreatesReversalAndExposesReverseJournalNo() throws Exception {
+        MvcResult created = createReceipt(createBody("63000"));
+        String receiptId = data(created).get("id").asText();
+        mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+        UUID originalJournalId = receiptJournalId(receiptId);
+
+        MvcResult cancelled = mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.reverseJournalNo").isNotEmpty())
+                .andExpect(jsonPath("$.data.journalId").doesNotExist())
+                .andReturn();
+
+        UUID reverseJournalId = receiptReverseJournalId(receiptId);
+        org.assertj.core.api.Assertions.assertThat(reverseJournalId).isNotNull();
+        Map<String, Object> original = journal(originalJournalId);
+        Map<String, Object> reversal = journal(reverseJournalId);
+        org.assertj.core.api.Assertions.assertThat(original.get("status")).isEqualTo("REVERSED");
+        org.assertj.core.api.Assertions.assertThat(original.get("reversed_journal_id")).isEqualTo(reverseJournalId);
+        org.assertj.core.api.Assertions.assertThat(reversal.get("status")).isEqualTo("POSTED");
+        org.assertj.core.api.Assertions.assertThat(reversal.get("journal_no"))
+                .isEqualTo(data(cancelled).get("reverseJournalNo").asText());
+        assertReversalLines(reverseJournalId, "102", "110", new BigDecimal("63000.00"));
+    }
+
+    @Test
+    @DisplayName("CONFIRMED PATCH는 기존 분개 역분개 후 새 POSTED 분개로 교체한다")
+    void confirmedPatchReversesExistingJournalAndReposts() throws Exception {
+        MvcResult created = createReceipt(createBody("64000"));
+        String receiptId = data(created).get("id").asText();
+        mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+        UUID oldJournalId = receiptJournalId(receiptId);
+
+        MvcResult patched = mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody("65000"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.amount").value(65000))
+                .andExpect(jsonPath("$.data.debitAccountCode").value("102"))
+                .andExpect(jsonPath("$.data.journalNo").isNotEmpty())
+                .andReturn();
+
+        UUID newJournalId = receiptJournalId(receiptId);
+        org.assertj.core.api.Assertions.assertThat(newJournalId).isNotEqualTo(oldJournalId);
+        org.assertj.core.api.Assertions.assertThat(journal(oldJournalId).get("status")).isEqualTo("REVERSED");
+        org.assertj.core.api.Assertions.assertThat(journal(newJournalId).get("status")).isEqualTo("POSTED");
+        org.assertj.core.api.Assertions.assertThat(journal(newJournalId).get("journal_no"))
+                .isEqualTo(data(patched).get("journalNo").asText());
+        assertJournalLines(newJournalId, "102", "110", new BigDecimal("65000.00"));
+
+        mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody("66000"))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("CONFIRMED journalId null MIG 행은 취소 상태전이만, 수정은 신규 분개 게시를 수행한다")
+    void confirmedMigRowsWithoutJournalIdCanCancelOrPatch() throws Exception {
+        UUID cancelOnlyId = insertConfirmedMigReceipt("MIG-S2-CANCEL", "MIG:S2:CANCEL", "67000");
+        mockMvc.perform(post(BASE_URL + "/{id}/cancel", cancelOnlyId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.journalNo").doesNotExist())
+                .andExpect(jsonPath("$.data.reverseJournalNo").doesNotExist());
+        org.assertj.core.api.Assertions.assertThat(receiptReverseJournalId(cancelOnlyId.toString())).isNull();
+
+        UUID patchId = insertConfirmedMigReceipt("MIG-S2-PATCH", "MIG:S2:PATCH", "68000");
+        mockMvc.perform(patch(BASE_URL + "/{id}", patchId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody("69000"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.amount").value(69000))
+                .andExpect(jsonPath("$.data.journalNo").isNotEmpty());
+        assertJournalLines(receiptJournalId(patchId.toString()), "102", "110", new BigDecimal("69000.00"));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("확정 커밋 후 aging snapshot refresh를 afterCommit으로 호출한다")
+    void confirmSchedulesAgingRefreshAfterCommit() throws Exception {
+        clearInvocations(agingSnapshotRefreshService);
+        MvcResult created = createReceipt(createBody("69100"));
+        String receiptId = data(created).get("id").asText();
+
+        mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+
+        verify(agingSnapshotRefreshService).refresh();
     }
 
     @Test
@@ -375,16 +544,36 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(columnCount).isOne();
     }
 
+    @Test
+    @DisplayName("V50 fresh DB에는 CashReceipt reverse_journal_id 컬럼이 존재한다")
+    void v50MigrationAddsReverseJournalColumn() {
+        Integer columnCount = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                  FROM information_schema.columns
+                 WHERE table_name = 'cash_receipts'
+                   AND column_name = 'reverse_journal_id'
+                   AND data_type = 'uuid'
+                """,
+                Integer.class);
+
+        org.assertj.core.api.Assertions.assertThat(columnCount).isOne();
+    }
+
     private String createCashReceipt(String amount) throws Exception {
-        MvcResult result = mockMvc.perform(post(BASE_URL)
+        MvcResult result = createReceipt(createBody(amount));
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("slipNo").asText();
+    }
+
+    private MvcResult createReceipt(Map<String, Object> body) throws Exception {
+        return mockMvc.perform(post(BASE_URL)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(createBody(amount))))
+                        .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("data").get("slipNo").asText();
     }
 
     private Map<String, Object> createBody(String amount) {
@@ -402,5 +591,98 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         body.put("debitAccountCode", "102");
         body.put("creditAccountCode", "110");
         return body;
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode data(MvcResult result) throws Exception {
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("data");
+    }
+
+    private UUID receiptJournalId(String receiptId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT journal_id FROM cash_receipts WHERE id = ?::uuid",
+                UUID.class,
+                receiptId);
+    }
+
+    private UUID receiptReverseJournalId(String receiptId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT reverse_journal_id FROM cash_receipts WHERE id = ?::uuid",
+                UUID.class,
+                receiptId);
+    }
+
+    private Map<String, Object> journal(UUID journalId) {
+        return jdbcTemplate.queryForMap(
+                """
+                SELECT id, journal_no, status, source_type, source_ref_id, reversed_journal_id, description
+                  FROM journals
+                 WHERE id = ?::uuid
+                """,
+                journalId.toString());
+    }
+
+    private List<Map<String, Object>> journalLines(UUID journalId) {
+        return jdbcTemplate.queryForList(
+                """
+                SELECT line_no, account_code, debit_amount, credit_amount, partner_id
+                  FROM journal_lines
+                 WHERE journal_id = ?::uuid
+                 ORDER BY line_no
+                """,
+                journalId.toString());
+    }
+
+    private void assertJournalLines(UUID journalId, String debitAccount, String creditAccount, BigDecimal amount) {
+        List<Map<String, Object>> lines = journalLines(journalId);
+        org.assertj.core.api.Assertions.assertThat(lines).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(lines.get(0).get("account_code")).isEqualTo(debitAccount);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(0).get("debit_amount"))
+                .isEqualByComparingTo(amount);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(0).get("credit_amount"))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        org.assertj.core.api.Assertions.assertThat(lines.get(1).get("account_code")).isEqualTo(creditAccount);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(1).get("debit_amount"))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(1).get("credit_amount"))
+                .isEqualByComparingTo(amount);
+    }
+
+    private void assertReversalLines(UUID journalId, String debitAccount, String creditAccount, BigDecimal amount) {
+        List<Map<String, Object>> lines = journalLines(journalId);
+        org.assertj.core.api.Assertions.assertThat(lines).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(lines.get(0).get("account_code")).isEqualTo(debitAccount);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(0).get("debit_amount"))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(0).get("credit_amount"))
+                .isEqualByComparingTo(amount);
+        org.assertj.core.api.Assertions.assertThat(lines.get(1).get("account_code")).isEqualTo(creditAccount);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(1).get("debit_amount"))
+                .isEqualByComparingTo(amount);
+        org.assertj.core.api.Assertions.assertThat((BigDecimal) lines.get(1).get("credit_amount"))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    private UUID insertConfirmedMigReceipt(String slipNo, String externalRef, String amount) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                """
+                INSERT INTO cash_receipts (
+                    id, slip_no, partner_id, amount, transaction_date, kind, status,
+                    debit_account_code, credit_account_code, memo, journal_id, external_ref,
+                    version, created_at, created_by, is_deleted
+                )
+                VALUES (
+                    ?::uuid, ?, ?::uuid, ?, '2026-07-03', 'DEPOSIT_REPORT', 'CONFIRMED',
+                    ?, ?, 'MIG 미게시 입금보고서', NULL, ?, 0, NOW(), 'mig-test', FALSE
+                )
+                """,
+                id.toString(),
+                slipNo,
+                PARTNER_ID.toString(),
+                new BigDecimal(amount),
+                CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE,
+                CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE,
+                externalRef);
+        return id;
     }
 }

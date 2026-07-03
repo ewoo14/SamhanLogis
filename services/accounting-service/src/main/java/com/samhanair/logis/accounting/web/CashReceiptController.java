@@ -83,31 +83,38 @@ public class CashReceiptController {
         return ApiResponse.ok(service.getOne(id));
     }
 
-    /** DRAFT 입금보고서 수정 — id 는 path 용 UUID, 화면 표시는 slipNo/거래처명. */
-    @Operation(summary = "입금보고서 DRAFT 수정",
-            description = "id 는 mutation path 용 UUID. CONFIRMED/CANCELLED 상태는 거부한다")
+    /** 입금보고서 수정 — DRAFT 는 단순 수정, CONFIRMED 는 역분개 후 재게시. */
+    @Operation(summary = "입금보고서 수정",
+            description = "DRAFT는 필드만 수정하고, CONFIRMED는 기존 분개를 역분개한 뒤 새 POSTED 분개를 게시한다. CANCELLED는 거부한다")
     @PatchMapping("/{id:[0-9a-fA-F-]{36}}")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<CashReceiptResponse> updateDraft(
+    public ApiResponse<CashReceiptResponse> update(
             @PathVariable UUID id,
-            @Valid @RequestBody CashReceiptRequest request) {
-        return ApiResponse.ok(service.updateDraft(id, request));
+            @Valid @RequestBody CashReceiptRequest request,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(service.update(id, request, callerOrSystem(callerHeader)));
     }
 
     /** DRAFT → CONFIRMED — id 는 path 용 UUID, 화면 표시는 slipNo/거래처명. */
-    @Operation(summary = "입금보고서 확정", description = "id 는 mutation path 용 UUID. 분개 생성은 S2 범위다")
+    @Operation(summary = "입금보고서 확정",
+            description = "DRAFT 입금보고서를 CONFIRMED로 전환하고 선택 계정 기준 POSTED 분개를 자동 게시한다")
     @PostMapping("/{id:[0-9a-fA-F-]{36}}/confirm")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<CashReceiptResponse> confirm(@PathVariable UUID id) {
-        return ApiResponse.ok(service.confirm(id));
+    public ApiResponse<CashReceiptResponse> confirm(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(service.confirm(id, callerOrSystem(callerHeader)));
     }
 
     /** CONFIRMED → CANCELLED — id 는 path 용 UUID, 화면 표시는 slipNo/거래처명. */
-    @Operation(summary = "입금보고서 취소", description = "id 는 mutation path 용 UUID. 역분개는 S2 범위다")
+    @Operation(summary = "입금보고서 취소",
+            description = "CONFIRMED 입금보고서를 CANCELLED로 전환하고 연결된 원분개가 있으면 역분개를 자동 게시한다")
     @PostMapping("/{id:[0-9a-fA-F-]{36}}/cancel")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    public ApiResponse<CashReceiptResponse> cancel(@PathVariable UUID id) {
-        return ApiResponse.ok(service.cancel(id));
+    public ApiResponse<CashReceiptResponse> cancel(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        return ApiResponse.ok(service.cancel(id, callerOrSystem(callerHeader)));
     }
 
     /** DRAFT 입금보고서 soft-delete — id 는 path 용 UUID, 화면 표시는 slipNo/거래처명. */

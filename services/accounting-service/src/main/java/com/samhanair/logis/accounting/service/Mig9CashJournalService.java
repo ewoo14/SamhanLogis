@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.domain.JournalSourceType;
+import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
 import com.samhanair.logis.common.ecount.EcountMig9JournalResult;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -32,7 +33,6 @@ public class Mig9CashJournalService {
 
     private static final String ACCOUNT_EXPENSE = "지급수수료";
     private static final String ACCOUNT_CASH = "보통예금";
-    private static final String ACCOUNT_RECEIVABLE = "외상매출금";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     @Autowired(required = false)
@@ -104,19 +104,21 @@ public class Mig9CashJournalService {
             return;
         }
         try {
-            String cashCode = lookupAccountCode(ACCOUNT_CASH);
-            String receivableCode = lookupAccountCode(ACCOUNT_RECEIVABLE);
+            String cashCode = requireAccountCode(CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE);
+            String receivableCode = requireAccountCode(CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE);
             UUID journalId = insertJournal(row, JournalSourceType.CASH_RECEIPT, actor);
             if (skipDuplicateSource(journalId, result)) {
                 return;
             }
-            insertLine(journalId, 1, cashCode, row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
-            insertLine(journalId, 2, receivableCode, BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
+            insertLine(journalId, 1, cashCode,
+                    row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
+            insertLine(journalId, 2, receivableCode,
+                    BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
             linkCash("cash_receipts", row.id(), journalId, actor);
             result.cashReceiptCreated();
         } catch (EmptyResultDataAccessException ex) {
             reject(row, ErrorCode.MIG9_DEFAULT_ACCOUNT_MISSING,
-                    "MIG-9 기본 계정 조회 실패: 보통예금/외상매출금", result);
+                    "MIG-9 기본 계정 조회 실패: 보통예금(102)/외상매출금(110)", result);
         }
     }
 
@@ -153,8 +155,19 @@ public class Mig9CashJournalService {
                    AND is_leaf = TRUE
                    AND is_deleted = FALSE
                  ORDER BY code
-                 LIMIT 1
+                LIMIT 1
                 """, new MapSqlParameterSource("name", accountName), String.class);
+    }
+
+    private String requireAccountCode(String accountCode) {
+        return jdbcTemplate.queryForObject("""
+                SELECT code
+                  FROM chart_of_accounts
+                 WHERE code = :code
+                   AND is_leaf = TRUE
+                   AND is_deleted = FALSE
+                 LIMIT 1
+                """, new MapSqlParameterSource("code", accountCode), String.class);
     }
 
     private UUID insertJournal(CashRow row, JournalSourceType sourceType, String actor) {
