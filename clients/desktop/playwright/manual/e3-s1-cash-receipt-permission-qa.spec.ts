@@ -34,7 +34,9 @@ async function capture(page: Page, name: string): Promise<void> {
 async function fetchRealToken(): Promise<string> {
   const http = await import('http')
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' })
+    const devPassword = process.env['DEV_PASSWORD']
+    if (!devPassword) { reject(new Error('DEV_PASSWORD 환경변수 필수 (하드코딩 금지·GitGuardian)')); return }
+    const body = JSON.stringify({ loginId: 'dev_master', password: devPassword })
     const req = http.default.request(
       { hostname: '127.0.0.1', port: 8080, path: '/auth/login', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },

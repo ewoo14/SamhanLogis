@@ -13,7 +13,7 @@
 - `CashReceiptStatus` enum·`CashReceipt` 확장(status·debit/credit 계정·`@Version` 낙관락·`createManual`/`updateDraft`/`confirm`/`cancel`/`softDeleteDraft` 도메인 메서드 chain).
 - `CashReceiptNumberService`/`Sequence`(slip_no 채번 `yyyy/MM/dd-N`·PESSIMISTIC_WRITE+ON CONFLICT).
 - `CashReceiptService`(createManual·list[Specification]·getOne·updateDraft·confirm·cancel) — 상태가드 우선·입력 거래처는 `partnerCode/bizNo/partnerName` resolve·partner display 배치 resolve(`PartnerLookupClient.findByPartnerIdsBatch`)·journalNo resolve.
-- `CashReceiptController` `/accounting/cash-receipts` CRUD·`@RequirePermission(accounting.cash-receipts)`·**UUID 비노출**(request=partnerCode/bizNo/partnerName, detail/update/status/delete/realtime=slipNo query, response=slipNo/partnerCode/bizNo/partnerName/journalNo).
+- `CashReceiptController` `/accounting/cash-receipts` CRUD·`@RequirePermission(accounting.cash-receipts)`·**UUID 화면 비노출**(request=partnerCode/bizNo/partnerName, mutation/detail/realtime path=`{id}` UUID, response `id`는 Journal 패턴의 mutation용 식별자, 화면 표시는 slipNo/partnerCode/bizNo/partnerName/journalNo).
 - PageCode `accounting.cash-receipts`(auth) + FE parity(`permissionsApi.ts`·`PermissionMatrixPage`).
 - 마이그: **accounting V48**(status DEFAULT CONFIRMED 소급·debit/credit 계정·CHECK·채번 시퀀스·collab doctype) + **V49**(version 낙관락·V48 불변 준수) + **auth V80**(PageCode 시드 MASTER/MANAGER/ACCOUNTANT·V79 교훈 스코프 제한).
 - born-live: `CollabDocumentType.ACCOUNTING_CASH_RECEIPT`·`AccountingLockPolicies.CASH_RECEIPT`(DRAFT free/CONFIRMED 승인/CANCELLED 종결)·SSE·`CashReceiptDocumentCollaborationPort`(+단위테스트).
@@ -21,7 +21,7 @@
 
 ## 리뷰 (순차 듀얼)
 - **Opus 5-agent R1**: BLOCKING 2·HIGH 2·MED 3·LOW/NIT 다수. 핵심 — ①CollabDocumentType enum **커밋 누락**(PM `git add services/`만 → shared 누락·compile fail, 커밋 위생 실수) ②permissionsApi PageCode parity ③@Version 낙관락 부재 ④partner/journal 표시필드 부재. **Opus+Codex 직접 fix**: 전 경로 커밋·@Version+V49·partner/journal resolve·validateAccounts 순서·dead repo 제거·actor 정리·Javadoc·port 테스트.
-- **Codex 5-agent review fix**: UUID 비공개 계약 보강(request `partnerId` 제거→`partnerCode/bizNo/partnerName` resolve, response `id` 제거, 단건/수정/상태/삭제/realtime `slipNo` query), 상태전이 IT 보강(DRAFT cancel·confirm 재호출·재cancel·CONFIRMED/CANCELLED delete 거부), 문서 UUID 예시 제거.
+- **Codex 5-agent review fix**: UUID 화면 비노출 계약 보강(request `partnerId` 제거→`partnerCode/bizNo/partnerName` resolve, 화면 표시는 slipNo/거래처명, mutation/detail/realtime은 Journal 패턴과 동일하게 `{id}` path-var+response `id` 유지), 상태전이 IT 보강(DRAFT cancel·confirm 재호출·재cancel·CONFIRMED/CANCELLED delete 거부), 문서 UUID 예시 제거.
 - **로컬 검증(2026-07-03)**: `.\gradlew.bat --rerun-tasks :services:accounting-service:test --tests "com.samhanair.logis.accounting.it.CashReceiptControllerIT" --tests "com.samhanair.logis.accounting.editrequest.lock.AccountingLockPoliciesTest" --tests "com.samhanair.logis.accounting.service.Mig9CashJournalServiceTest" :services:auth-service:test --tests "com.samhanair.logis.auth.it.AuthFlywayV80SeedIT"` → BUILD SUCCESSFUL, 28 tasks executed. 세부 evidence: `docs/qa/e3-s1-cash-receipt-domain/verification.md`.
 
 ## backlog (비차단)
