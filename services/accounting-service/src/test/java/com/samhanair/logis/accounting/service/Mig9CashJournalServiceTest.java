@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.data.domain.PageImpl;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
@@ -213,6 +214,7 @@ class Mig9CashJournalServiceTest {
                 .orElseThrow();
         // 라이브 confirm/PATCH 와의 레이스에서 last-write-wins 고아 분개를 차단하는 SQL 가드.
         assertThat(linkSql).contains("journal_id IS NULL");
+        assertThat(linkSql).contains("version = version + 1");
     }
 
     @Test
@@ -225,8 +227,32 @@ class Mig9CashJournalServiceTest {
 
         assertThat(result.cashReceiptJournalsCreated()).isZero();
         assertThat(result.skipped()).isEqualTo(1);
-        verify(jdbcTemplate).update(contains("DELETE FROM journal_lines"), any(SqlParameterSource.class));
-        verify(jdbcTemplate).update(contains("DELETE FROM journals"), any(SqlParameterSource.class));
+        InOrder inOrder = org.mockito.Mockito.inOrder(jdbcTemplate);
+        ArgumentCaptor<SqlParameterSource> lineDeleteParams = ArgumentCaptor.forClass(SqlParameterSource.class);
+        ArgumentCaptor<SqlParameterSource> journalDeleteParams = ArgumentCaptor.forClass(SqlParameterSource.class);
+        inOrder.verify(jdbcTemplate).update(contains("DELETE FROM journal_lines"), lineDeleteParams.capture());
+        inOrder.verify(jdbcTemplate).update(contains("DELETE FROM journals"), journalDeleteParams.capture());
+        assertThat(lineDeleteParams.getValue().getValue("journalId")).isEqualTo(journalId());
+        assertThat(journalDeleteParams.getValue().getValue("journalId")).isEqualTo(journalId());
+    }
+
+    @Test
+    void disbursement_link가_0건이면_생성한_journal을_보상삭제하고_skip한다() {
+        disbursements(row(4, "CD-LINK-RACE", "REF-CD-LINK-RACE", new BigDecimal("3000"), null));
+        when(jdbcTemplate.update(contains("UPDATE cash_disbursements"), any(SqlParameterSource.class)))
+                .thenReturn(0);
+
+        EcountMig9JournalResult result = service.generateFromDisbursements(500, "tester");
+
+        assertThat(result.cashDisbursementJournalsCreated()).isZero();
+        assertThat(result.skipped()).isEqualTo(1);
+        InOrder inOrder = org.mockito.Mockito.inOrder(jdbcTemplate);
+        ArgumentCaptor<SqlParameterSource> lineDeleteParams = ArgumentCaptor.forClass(SqlParameterSource.class);
+        ArgumentCaptor<SqlParameterSource> journalDeleteParams = ArgumentCaptor.forClass(SqlParameterSource.class);
+        inOrder.verify(jdbcTemplate).update(contains("DELETE FROM journal_lines"), lineDeleteParams.capture());
+        inOrder.verify(jdbcTemplate).update(contains("DELETE FROM journals"), journalDeleteParams.capture());
+        assertThat(lineDeleteParams.getValue().getValue("journalId")).isEqualTo(journalId());
+        assertThat(journalDeleteParams.getValue().getValue("journalId")).isEqualTo(journalId());
     }
 
     @Test
@@ -272,7 +298,7 @@ class Mig9CashJournalServiceTest {
     }
 
     @Test
-    void source_type_ref_unique_충돌은_MIG9_JOURNAL_DUPLICATE_reject() {
+    void source_type_ref_unique_충돌은_DuplicateKeyException을_그대로_전파한다() {
         disbursements(row(1, "CD-001", "REF-CD-001", new BigDecimal("1000"), null));
         when(jdbcTemplate.<UUID>query(contains("INSERT INTO journals"), any(SqlParameterSource.class),
                         org.mockito.ArgumentMatchers.<RowMapper<UUID>>any()))

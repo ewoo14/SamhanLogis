@@ -15,6 +15,6 @@ public enum JournalStatus {
     /** 게시 완료 — 시산표 집계 포함. 직접 수정 불가, reverse 만 가능. */
     POSTED,
 
-    /** 역분개 처리 완료 — 시산표에서 차감 효과 (역분개 새 Journal 도 POSTED 로 함께 집계). */
+    /** 원분개가 역분개 처리됨 — 원분개(REVERSED)와 신규 반대분개(POSTED)를 함께 보존·집계한다. */
     REVERSED
 }

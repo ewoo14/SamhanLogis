@@ -114,6 +114,8 @@ test('입금보고서 분개 라이프사이클 — 확정 POSTED·수정 역분
   await page.goto(`${BASE_URL}/#/accounting/journals/${chain.repost.reversedJournalId}`)
   await expect(page.getByText('2026/07/03-4').first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByText(/\[역분개\]/).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: '입금보고서에서 처리' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '역분개' })).toHaveCount(0)
   await capture(page, 'journal-detail-cancel-reversal')
 
   // 4) 원분개(-1) 상세 — REVERSED 상태 + 102/110 150,000 (원장 불변 실증)

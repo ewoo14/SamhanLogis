@@ -138,11 +138,11 @@ public class CashReceiptService {
     /** DRAFT → CONFIRMED 후 POSTED 자동 분개를 생성한다. 마감된 회계 기간 일자는 409. */
     public CashReceiptResponse confirm(UUID id, String actorUserId) {
         CashReceipt receipt = findOrThrow(id);
+        receipt.confirm();
         if (receipt.getJournalId() != null) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 분개가 연결된 입금보고서는 다시 확정할 수 없습니다");
         }
-        receipt.confirm();
         requireOpenPeriod(receipt.getTransactionDate());
         Journal journal = postReceiptJournal(receipt,
                 "입금보고서 확정 " + receipt.getSlipNo() + partnerNameSuffix(receipt), actorUserId);

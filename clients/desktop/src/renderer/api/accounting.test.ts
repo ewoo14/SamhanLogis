@@ -74,4 +74,16 @@ describe('accounting journal API error contract', () => {
 
     expect(journal.sourceType).toBe('CASH_RECEIPT')
   })
+
+  it('normalizeJournal 은 sourceType 누락 시 MANUAL 로 폴백한다', () => {
+    const journal = normalizeJournal({
+      id: 'journal-1',
+      journalNo: '2026/07/03-1',
+      journalDate: '2026-07-03',
+      status: 'POSTED',
+      lines: [],
+    })
+
+    expect(journal.sourceType).toBe('MANUAL')
+  })
 })

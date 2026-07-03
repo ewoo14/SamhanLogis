@@ -2,7 +2,6 @@ package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
-import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.AccountTotal;
@@ -21,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 합계잔액시산표 집계 Service.
  *
- * <p>POSTED 분개만 {@code GROUP BY accountCode} 로 집계한다. 컬렉션 {@code JOIN FETCH} 를
+ * <p>POSTED+REVERSED(보상쌍 상쇄) 분개를 {@code GROUP BY accountCode} 로 집계한다. 컬렉션 {@code JOIN FETCH} 를
  * 사용하지 않으므로 다중 라인 전표에서도 root row 중복이나 카르테시안 증폭이 발생하지 않는다.
  *
  * <p>부호 규칙:
@@ -67,7 +66,7 @@ public class TrialBalanceSummaryService {
         Map<String, AccountTotal> openingRows = rowsByAccount(
                 journalLineRepository.aggregatePostedUpTo(from.minusDays(1)));
         Map<String, AccountTotal> periodRows = rowsByAccount(
-                journalLineRepository.aggregateByAccount(from, to, JournalStatus.POSTED));
+                journalLineRepository.aggregatePostedByAccount(from, to));
 
         LinkedHashSet<String> accountCodes = new LinkedHashSet<>();
         accountCodes.addAll(openingRows.keySet());

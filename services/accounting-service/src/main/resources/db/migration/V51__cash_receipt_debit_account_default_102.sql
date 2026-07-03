@@ -15,7 +15,7 @@ BEGIN
            AND journal_id IS NOT NULL
     ) THEN
         RAISE EXCEPTION
-            'V51 abort: cash_receipts has posted/linked debit_account_code=103 rows; manual data review required before 102 correction';
+            '입금보고서 V51 중단: debit_account_code=103 이면서 분개가 연결된 행이 존재합니다 — 감사 검토 후 수동 정정 필요 (SELECT * FROM cash_receipts WHERE debit_account_code=''103'' AND journal_id IS NOT NULL)';
     END IF;
 END $$;
 

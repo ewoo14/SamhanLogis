@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>당기순이익 계산: 손익계산서 Service (동일 패키지 package-private 메서드) 호출.
  * 배당 = 343 계정에서 debit 분개(이익잉여금 차감 분개) 합계.
- * POSTED 분개만 집계.
+ * POSTED+REVERSED(보상쌍 상쇄) 분개를 집계.
  */
 @Service
 @RequiredArgsConstructor

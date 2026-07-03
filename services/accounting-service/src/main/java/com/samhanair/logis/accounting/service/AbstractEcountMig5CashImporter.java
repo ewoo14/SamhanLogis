@@ -107,7 +107,7 @@ abstract class AbstractEcountMig5CashImporter {
                  WHERE jl.account_code = :accountCode
                    AND jl.is_deleted = FALSE
                    AND j.is_deleted = FALSE
-                   AND j.status = 'POSTED'
+                   AND j.status IN ('POSTED','REVERSED')
                 """, new MapSqlParameterSource("accountCode", agingAccountCode), Long.class);
         if (postedAgingRows == null || postedAgingRows == 0) {
             result.agingValidationSkipped();
@@ -132,7 +132,7 @@ abstract class AbstractEcountMig5CashImporter {
                      WHERE jl.account_code = :accountCode
                        AND jl.is_deleted = FALSE
                        AND j.is_deleted = FALSE
-                       AND j.status = 'POSTED'
+                       AND j.status IN ('POSTED','REVERSED')
                      GROUP BY jl.partner_id
                 )
                 SELECT r.partner_name, r.raw_total::text raw_value,

@@ -2,7 +2,6 @@ package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
-import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.web.dto.TrialBalanceResponse;
@@ -21,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 시산표 집계 service (Plan §7 — A2 결정: service-layer 집계, mat view 미사용).
  *
- * <p>POSTED 분개 라인만 집계. 잔액 부호 규약:
+ * <p>POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 집계. 잔액 부호 규약:
  * <ul>
  *   <li>ASSET / COST_OF_SALES / SGA / INCOME_TAX = debit - credit (차변 잔액)</li>
  *   <li>LIABILITY / EQUITY / REVENUE / NON_OPERATING = credit - debit (대변 잔액)</li>
@@ -46,7 +45,7 @@ public class TrialBalanceService {
         LocalDate to = period.atEndOfMonth();
 
         List<JournalLineRepository.AccountTotal> totals =
-                journalLineRepository.aggregateByAccount(from, to, JournalStatus.POSTED);
+                journalLineRepository.aggregatePostedByAccount(from, to);
 
         Map<String, ChartOfAccount> accountMap = new HashMap<>();
         chartOfAccountRepository.findAll().forEach(a -> accountMap.put(a.getCode(), a));

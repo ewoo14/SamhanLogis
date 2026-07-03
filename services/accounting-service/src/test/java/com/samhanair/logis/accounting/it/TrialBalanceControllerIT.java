@@ -16,14 +16,18 @@ import static org.mockito.Mockito.lenient;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
+import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +58,8 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     @MockBean private ETaxClient eTaxClient;
     /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
     @MockBean private KftcClient kftcClient;
+    @MockBean private PartnerLookupClient partnerLookupClient;
+    @MockBean private ChatRoomMappingClient chatRoomMappingClient;
     @MockBean private ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     /**
      * SP-D2 동적 권한 client 격리. SP-D5 cycle 2 fix (P1-4): {@code @RequirePermission} AOP 가
@@ -67,6 +73,14 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(approvalLineAuthorizeClient.authorize(any(), any(), any()))
                 .thenReturn(new ApprovalLineAuthorizeResult(false, false));
+        lenient().when(partnerLookupClient.findByPartnerCode("P-TB-REV"))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        UUID.fromString("00000000-0000-0000-0000-00000000c710"),
+                        "P-TB-REV",
+                        "리포트역분개상사",
+                        "123-45-67890",
+                        "서울")));
+        lenient().when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(anyString())).thenReturn(List.of());
     }
 
     @Test
@@ -230,6 +244,74 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
         assertThat(amount(salary, "creditBalance")).isEqualByComparingTo("0");
     }
 
+    @Test
+    @DisplayName("리포트 전층은 REVERSED 원분개와 POSTED 역분개를 함께 읽어 잔액을 상쇄한다")
+    void reportsIncludeReversedCompensationPair() throws Exception {
+        UUID partnerId = UUID.fromString("00000000-0000-0000-0000-00000000c710");
+        MvcResult baselineSummary = mockMvc.perform(get("/accounting/reports/trial-balance/summary")
+                        .param("from", "2099-03-01")
+                        .param("to", "2099-03-31")
+                        .param("granularity", "MONTH")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+        BigDecimal baselineReceivableClosing = amount(row(
+                objectMapper.readTree(baselineSummary.getResponse().getContentAsString())
+                        .get("data").get("rows"), "110"), "closingBalance");
+
+        String journalId = createAndPostJournal("2099-03-15", List.of(
+                lineWithPartner("110", "777", "0", partnerId),
+                line("401", "0", "777")
+        ));
+
+        mockMvc.perform(post("/accounting/journals/" + journalId + "/reverse")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.description").value(org.hamcrest.Matchers.containsString("[역분개]")))
+                .andExpect(jsonPath("$.data.description").value(org.hamcrest.Matchers.containsString("2099/03/15-")));
+
+        MvcResult trialBalance = mockMvc.perform(get("/accounting/balances")
+                        .param("period", "209903")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode trialRows = objectMapper.readTree(trialBalance.getResponse().getContentAsString())
+                .get("data").get("rows");
+        assertThat(amount(row(trialRows, "110"), "balance")).isEqualByComparingTo("0");
+        assertThat(amount(row(trialRows, "401"), "balance")).isEqualByComparingTo("0");
+
+        MvcResult summary = mockMvc.perform(get("/accounting/reports/trial-balance/summary")
+                        .param("from", "2099-03-01")
+                        .param("to", "2099-03-31")
+                        .param("granularity", "MONTH")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode summaryRows = objectMapper.readTree(summary.getResponse().getContentAsString())
+                .get("data").get("rows");
+        JsonNode receivable = row(summaryRows, "110");
+        assertThat(amount(receivable, "debitTotal")).isEqualByComparingTo("777");
+        assertThat(amount(receivable, "creditTotal")).isEqualByComparingTo("777");
+        assertThat(amount(receivable, "closingBalance")).isEqualByComparingTo(baselineReceivableClosing);
+
+        MvcResult ledger = mockMvc.perform(get("/accounting/journals/ledger-data")
+                        .param("partnerCode", "P-TB-REV")
+                        .param("from", "2099-03-01")
+                        .param("to", "2099-03-31")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode ledgerLines = objectMapper.readTree(ledger.getResponse().getContentAsString())
+                .get("data").get("lines");
+        assertThat(ledgerLines).hasSize(2);
+        assertThat(amount(ledgerLines.get(ledgerLines.size() - 1), "balance")).isEqualByComparingTo("0");
+    }
+
     private Map<String, Object> balancedJournalBody(String amount) {
         Map<String, Object> debitLine = new HashMap<>();
         debitLine.put("accountCode", "101");
@@ -248,7 +330,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
         return body;
     }
 
-    private void createAndPostJournal(String journalDate, List<Map<String, Object>> lines) throws Exception {
+    private String createAndPostJournal(String journalDate, List<Map<String, Object>> lines) throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("journalDate", journalDate);
         body.put("description", "합계잔액시산표 테스트 분개");
@@ -268,6 +350,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
+        return id;
     }
 
     private Map<String, Object> line(String accountCode, String debitAmount, String creditAmount) {
@@ -275,6 +358,13 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
         line.put("accountCode", accountCode);
         line.put("debitAmount", new BigDecimal(debitAmount));
         line.put("creditAmount", new BigDecimal(creditAmount));
+        return line;
+    }
+
+    private Map<String, Object> lineWithPartner(String accountCode, String debitAmount,
+                                                String creditAmount, UUID partnerId) {
+        Map<String, Object> line = line(accountCode, debitAmount, creditAmount);
+        line.put("partnerId", partnerId);
         return line;
     }
 

@@ -120,12 +120,30 @@ class JournalServiceTest {
 
         assertThat(resp.status()).isEqualTo(JournalStatus.POSTED);
         assertThat(resp.journalNo()).isEqualTo("2026/05/04-2");
+        assertThat(resp.description()).isEqualTo("[역분개] 2026/05/04-1 테스트");
         // 차/대 swap 검증 — 첫 라인은 원래 debit=100000 / credit=0 → swap 후 debit=0 / credit=100000
         assertThat(resp.lines().get(0).debitAmount()).isEqualByComparingTo("0");
         assertThat(resp.lines().get(0).creditAmount()).isEqualByComparingTo("100000");
         // 원분개 상태
         assertThat(original.getStatus()).isEqualTo(JournalStatus.REVERSED);
         assertThat(original.getReversedJournalId()).isEqualTo(reversalId);
+    }
+
+    @Test
+    @DisplayName("autoReverse — 적요에 원분개 번호를 각인한다")
+    void autoReverseDescriptionIncludesOriginalJournalNo() {
+        Journal original = newPersistedDraft();
+        original.post("user-A");
+        when(journalRepository.findById(original.getId())).thenReturn(Optional.of(original));
+        doAnswer(inv -> {
+            Journal saved = inv.getArgument(0);
+            setField(saved, "id", UUID.randomUUID());
+            return saved;
+        }).when(journalRepository).save(any(Journal.class));
+
+        Journal reversal = journalService.autoReverse(original.getId(), "user-B");
+
+        assertThat(reversal.getDescription()).isEqualTo("[역분개] 2026/05/04-1 테스트");
     }
 
     @Test

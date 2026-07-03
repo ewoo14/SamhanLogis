@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 손익계산서 (Income Statement) 집계 Service.
  *
- * <p>집계 대상: POSTED 상태 분개만 (DRAFT / REVERSED 제외).
+ * <p>집계 대상: POSTED+REVERSED(보상쌍 상쇄) 분개 (DRAFT 제외).
  *
  * <p>금액 부호 규약:
  * <ul>

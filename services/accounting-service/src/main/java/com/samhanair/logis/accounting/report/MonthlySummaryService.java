@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>집계 규칙:
  * <ul>
- *   <li>POSTED 분개 라인만 포함 (DRAFT / REVERSED 제외)</li>
+ *   <li>POSTED+REVERSED(보상쌍 상쇄) 분개 라인 포함 (DRAFT 제외)</li>
  *   <li>fromDate = 월 1일, toDate = 월 말일</li>
  *   <li>balanced = |totalDebit - totalCredit| &lt; 0.01 원</li>
  *   <li>dailyBreakdown: 일자 오름차순</li>

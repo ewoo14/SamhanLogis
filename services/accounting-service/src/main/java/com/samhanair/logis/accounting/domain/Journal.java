@@ -78,14 +78,14 @@ public class Journal extends BaseEntity {
     @Column(name = "description", length = 500)
     private String description;
 
-    /** 분개 출처 — SLIP / MANUAL / CLOSING. */
+    /** 분개 출처 — SLIP / MANUAL / CLOSING / CASH_* 등. */
     @Enumerated(EnumType.STRING)
     @Column(name = "source_type", nullable = false, length = 20)
     private JournalSourceType sourceType;
 
     /**
-     * 출처 참조 ID — SLIP 면 slip(세금계산서) UUID, CASH_RECEIPT 면 입금보고서 UUID,
-     * CLOSING 이면 결산 ID 등. MANUAL 이면 null.
+     * 출처 참조 ID — SLIP 면 slip(세금계산서) UUID. CASH_RECEIPT 라이브 게시분은 입금보고서 UUID,
+     * MIG-9 배치 게시분은 source_ref 문자열만 사용하므로 null, 역분개는 원분개 UUID.
      *
      * <p>주의(이중 의미): 역분개는 sourceRefId=<b>원분개 UUID</b> 로 채운다 — 원천 문서가 아닌
      * 원분개를 가리킨다 (sourceType 은 autoReverse=원분개 승계 / reverse=MANUAL).

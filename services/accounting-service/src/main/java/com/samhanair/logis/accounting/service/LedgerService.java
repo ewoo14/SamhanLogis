@@ -33,8 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link LedgerImageService} 가 단일 거래처 + 단톡방 정보를 반환하는 반면,
  * 본 service 는 다중 거래처(전체 또는 단일) + 잔액 합계 요약을 제공한다.
  *
- * <p>데이터 소스: {@code journal_lines} (POSTED 분개 라인) — 별도 ledger_entries 테이블 없음.
- * POSTED 분개만 집계 ({@link com.samhanair.logis.accounting.domain.JournalStatus#POSTED}).
+ * <p>데이터 소스: {@code journal_lines} (POSTED+REVERSED(보상쌍 상쇄) 분개 라인) — 별도 ledger_entries 테이블 없음.
+ * 보상분개 쌍을 함께 집계한다.
  *
  * <p>외부 client {@link PartnerLookupClient} 의존 (partnerCode lookup) — IT 에서
  * {@code @MockBean} 격리 의무 ({@code feedback_it_mockbean_external_clients.md}).

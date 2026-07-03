@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>집계 규칙:
  * <ul>
- *   <li>POSTED 분개 라인만 포함 (DRAFT / REVERSED 제외)</li>
+ *   <li>POSTED+REVERSED(보상쌍 상쇄) 분개 라인 포함 (DRAFT 제외)</li>
  *   <li>대상 일자 = journalDate 기준 (귀속 회계 일자)</li>
  *   <li>balanced = |totalDebit - totalCredit| &lt; 0.01 원</li>
  *   <li>계정별 행은 ChartOfAccount displayOrder 오름차순 정렬</li>

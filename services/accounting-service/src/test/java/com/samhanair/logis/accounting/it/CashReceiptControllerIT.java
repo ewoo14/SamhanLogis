@@ -429,6 +429,9 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                             .header("X-User-Id", ACCOUNTANT_ID)
                             .header("X-User-Role", "ACCOUNTANT"))
                     .andExpect(status().isOk());
+            Map<String, BigDecimal> afterConfirm = agingNetForPartner(PARTNER_ID);
+            org.assertj.core.api.Assertions.assertThat(afterConfirm.get("net_cash"))
+                    .isEqualByComparingTo(baseline.get("net_cash").add(new BigDecimal("69200")));
 
             mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
                             .header("X-User-Id", ACCOUNTANT_ID)

@@ -37,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>재무활동: 230 단기차입금 / 260 장기차입금 증감 / 301 자본금 증자</li>
  * </ul>
  *
- * <p>POSTED 분개만 집계.
+ * <p>POSTED+REVERSED(보상쌍 상쇄) 분개를 집계.
  */
 @Service
 @RequiredArgsConstructor

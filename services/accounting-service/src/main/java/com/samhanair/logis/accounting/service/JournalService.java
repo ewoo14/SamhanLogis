@@ -126,7 +126,7 @@ public class JournalService {
      * <p>부수효과 (단일 트랜잭션):
      * <ol>
      *   <li>원분개 status REVERSED + reversedJournalId = 신규 Journal UUID</li>
-     *   <li>신규 Journal: 동일 journalDate / description "[역분개] {원 description}" / sourceType MANUAL /
+     *   <li>신규 Journal: 동일 journalDate / description "[역분개] {원 전표번호} {원 description}" / sourceType MANUAL /
      *       sourceRefId = 원분개 UUID / 라인 차/대 swap / status POSTED</li>
      * </ol>
      *
@@ -145,8 +145,7 @@ public class JournalService {
         }
         // 원분개 상태 검증은 markReversed 안에서.
         String reverseNo = journalNumberService.next(original.getJournalDate());
-        String reverseDesc = "[역분개] "
-                + (original.getDescription() == null ? original.getJournalNo() : original.getDescription());
+        String reverseDesc = reversalDescription(original);
         Journal reversal = Journal.create(reverseNo, original.getJournalDate(), reverseDesc,
                 JournalSourceType.MANUAL, original.getId());
 
@@ -210,8 +209,7 @@ public class JournalService {
     public Journal autoReverse(UUID originalJournalId, String actorUserId) {
         Journal original = findOrThrow(originalJournalId);
         String reverseNo = journalNumberService.next(original.getJournalDate());
-        String reverseDesc = "[역분개] "
-                + (original.getDescription() == null ? original.getJournalNo() : original.getDescription());
+        String reverseDesc = reversalDescription(original);
         Journal reversal = Journal.create(reverseNo, original.getJournalDate(), reverseDesc,
                 original.getSourceType(), original.getId());
         int lineNo = 1;
@@ -238,6 +236,12 @@ public class JournalService {
     private static String clampReversalMemo(String originalMemo) {
         String memo = "[역분개] " + (originalMemo == null ? "" : originalMemo);
         return memo.length() > 500 ? memo.substring(0, 500) : memo;
+    }
+
+    private static String reversalDescription(Journal original) {
+        String description = "[역분개] " + original.getJournalNo()
+                + (original.getDescription() == null ? "" : " " + original.getDescription());
+        return description.length() > 500 ? description.substring(0, 500) : description;
     }
 
     /**

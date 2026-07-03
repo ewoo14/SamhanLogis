@@ -92,7 +92,7 @@ public class CashReceiptController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 비-leaf 계정"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "입금보고서 또는 계정 미존재"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "입금보고서, 계정 또는 연결 분개 미존재"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "CANCELLED 상태, 마감 기간, 또는 역분개 불가 상태"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "거래처 조회/매칭 실패")
     })
@@ -111,9 +111,9 @@ public class CashReceiptController {
                     + " 성공 응답은 journalNo 문자열만 노출하며, 마감된 회계 기간 일자는 409")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "확정 성공 — CONFIRMED 및 journalNo 반환"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "비-leaf 계정 — 확정 시점 재검증"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "입금보고서 또는 계정 미존재"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT가 아니거나 이미 분개 연결 또는 마감 기간"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "거래처 조회/매칭 실패")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT가 아니거나 이미 분개 연결 또는 마감 기간")
     })
     @PostMapping("/{id:[0-9a-fA-F-]{36}}/confirm")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)

@@ -5169,6 +5169,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && journalPostMatch) {
     const id = journalPostMatch[1]!
     const found = MOCK_JOURNALS.find((j) => j.id === id) ?? MOCK_JOURNALS[0]!
+    if (found.sourceType === 'CASH_RECEIPT') {
+      return mockError(409, 'CONFLICT',
+        '입금보고서 자동 분개는 원장에서 직접 역분개할 수 없습니다 — 입금보고서 취소/수정으로 처리하세요')
+    }
     return envelope({
       ...found,
       status: 'POSTED' as const,
@@ -12251,7 +12255,7 @@ const MOCK_ACCOUNTS = [
 ]
 
 /**
- * 시연용 mock 분개 5건 (DRAFT 1 / POSTED 3 / REVERSED 1).
+ * 시연용 mock 분개 6건 (DRAFT 1 / POSTED 4 / REVERSED 1).
  *
  * BE 응답 형태와 1:1 (라인 포함). 라인은 차변/대변 합계가 일치 (분개 균형 검증 통과).
  */
@@ -12463,6 +12467,46 @@ const MOCK_JOURNALS = [
         credit: '1500000',
         partnerName: '○○종합건설',
         memo: '시스템에어컨 4Way 5HP 1EA (오등록)',
+      },
+    ],
+  },
+  // 6. POSTED: 입금보고서 자동 분개 (원장 직접 역분개 차단)
+  {
+    id: 'jv-006',
+    journalNo: '2026/05/04-006',
+    journalDate: '2026-05-04',
+    sourceType: 'CASH_RECEIPT' as const,
+    sourceTypeDisplayName: '현금입금',
+    status: 'POSTED' as const,
+    description: '입금보고서 확정 2026/05/04-006 (주식회사 윌리)',
+    totalDebit: '850000',
+    totalCredit: '850000',
+    createdByName: '오병승',
+    createdAt: '2026-05-04T15:00:00+09:00',
+    postedAt: '2026-05-04T15:10:00+09:00',
+    reversedAt: null,
+    reverseReason: null,
+    version: 1,
+    lines: [
+      {
+        id: 'jl-006-1',
+        lineNo: 1,
+        accountCode: '1020',
+        accountName: '보통예금',
+        debit: '850000',
+        credit: '0',
+        partnerName: '주식회사 윌리',
+        memo: '입금보고서 자동 분개',
+      },
+      {
+        id: 'jl-006-2',
+        lineNo: 2,
+        accountCode: '1110',
+        accountName: '외상매출금',
+        debit: '0',
+        credit: '850000',
+        partnerName: '주식회사 윌리',
+        memo: '입금보고서 자동 분개',
       },
     ],
   },

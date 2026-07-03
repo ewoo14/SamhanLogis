@@ -1,7 +1,6 @@
 package com.samhanair.logis.accounting.repository;
 
 import com.samhanair.logis.accounting.domain.JournalLine;
-import com.samhanair.logis.accounting.domain.JournalStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,26 +12,6 @@ import org.springframework.data.repository.query.Param;
 /** JournalLine — 분개 라인. 시산표 집계용 native projection 제공. */
 public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> {
 
-    /**
-     * 시산표 집계용 — accountCode 별 debit/credit 합계 (POSTED 분개만 포함).
-     * 기간 [from, to] 의 journalDate 를 가진 분개의 라인만 집계.
-     *
-     * <p>반환 row: [accountCode (String), debitTotal (BigDecimal), creditTotal (BigDecimal)].
-     */
-    @Query("""
-            SELECT l.accountCode AS accountCode,
-                   COALESCE(SUM(l.debitAmount), 0) AS debitTotal,
-                   COALESCE(SUM(l.creditAmount), 0) AS creditTotal
-            FROM JournalLine l
-            WHERE l.journal.journalDate >= :from
-              AND l.journal.journalDate <= :to
-              AND l.journal.status = :status
-            GROUP BY l.accountCode
-            """)
-    List<AccountTotal> aggregateByAccount(@Param("from") LocalDate from,
-                                          @Param("to") LocalDate to,
-                                          @Param("status") JournalStatus status);
-
     /** Spring Data JPA projection — accountCode 별 차/대 합계. */
     interface AccountTotal {
         String getAccountCode();
@@ -41,8 +20,8 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     }
 
     /**
-     * 마감 합계 집계용 — 계정 대분류(앞 1자리 = 1/2/3/4/5/8/9) prefix 로 그룹핑.
-     * 본 슬라이스에서는 service 가 호출 후 prefix 그룹별로 합산. POSTED+REVERSED 보상분개 포함.
+     * 마감/시산표 집계용 — accountCode 별 debit/credit 합계.
+     * 본 슬라이스에서는 service 가 호출 후 prefix 그룹별로 합산. POSTED+REVERSED(보상쌍 상쇄) 포함.
      */
     @Query("""
             SELECT l.accountCode AS accountCode,
@@ -355,10 +334,10 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
                                                     @Param("to") LocalDate to);
 
     /**
-     * 거래처별 최초 미결 분개 일자 조회 — asOfDate 이전 POSTED+REVERSED 분개 라인 중 가장 이른 날짜.
+     * 거래처별 최초 분개 일자 조회 — asOfDate 이전 POSTED+REVERSED 분개 라인 중 가장 이른 날짜.
      *
-     * <p>잔액이 양수인 거래처의 oldestUnpaidDate 산출에 사용.
-     * 보상분개를 함께 읽어 취소된 발생분이 oldest 후보로 남지 않게 한다.
+     * <p>잔액이 양수인 거래처의 oldestUnpaidDate 산출에 사용한다. 보상분개는 원분개와 같은 일자에
+     * 신규 반대 분개를 더하는 모델이므로 MIN(journalDate)는 원 발생일 기준으로 유지된다.
      * partnerId + accountCode 조합으로 조회하며, 1건씩 호출 (N+1 은 거래처 수가 수십~수백 수준).
      *
      * @param partnerId   거래처 UUID

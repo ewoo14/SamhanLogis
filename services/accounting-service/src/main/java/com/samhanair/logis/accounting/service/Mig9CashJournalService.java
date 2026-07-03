@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.RowMapper;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** MIG-9 — MIG-7 CashDisbursement/CashReceipt 를 POSTED Journal 로 자동 생성한다. */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class Mig9CashJournalService {
 
@@ -89,6 +91,8 @@ public class Mig9CashJournalService {
             insertLine(journalId, 1, expenseCode, row.amount(), BigDecimal.ZERO, row.partnerId(), row.memo(), actor);
             insertLine(journalId, 2, cashCode, BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
             if (!linkCash("cash_disbursements", row.id(), journalId, actor)) {
+                log.warn("MIG-9 CashDisbursement journal link race — compensating orphan journal. cashId={}, journalId={}",
+                        row.id(), journalId);
                 deleteGeneratedJournal(journalId);
                 result.skipped();
                 return;
@@ -119,6 +123,8 @@ public class Mig9CashJournalService {
             insertLine(journalId, 2, receivableCode,
                     BigDecimal.ZERO, row.amount(), row.partnerId(), row.memo(), actor);
             if (!linkCash("cash_receipts", row.id(), journalId, actor)) {
+                log.warn("MIG-9 CashReceipt journal link race — compensating orphan journal. cashId={}, journalId={}",
+                        row.id(), journalId);
                 deleteGeneratedJournal(journalId);
                 result.skipped();
                 return;
@@ -232,7 +238,8 @@ public class Mig9CashJournalService {
                 UPDATE %s
                    SET journal_id = :journalId,
                        modified_at = NOW(),
-                       modified_by = :actor
+                       modified_by = :actor,
+                       version = version + 1
                  WHERE id = :cashId
                    AND is_deleted = FALSE
                    AND journal_id IS NULL
@@ -243,6 +250,9 @@ public class Mig9CashJournalService {
         return updated == 1;
     }
 
+    /**
+     * 같은 REQUIRES_NEW tx 내 미커밋 orphan 보상 — 커밋된 분개에 사용 금지(원장 불변).
+     */
     private void deleteGeneratedJournal(UUID journalId) {
         jdbcTemplate.update("DELETE FROM journal_lines WHERE journal_id = :journalId",
                 new MapSqlParameterSource("journalId", journalId));

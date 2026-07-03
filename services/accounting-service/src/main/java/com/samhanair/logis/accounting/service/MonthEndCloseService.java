@@ -108,7 +108,7 @@ public class MonthEndCloseService {
         LocalDate to = periodTo(request.periodType(), normalized);
         int lockedCount = slipServiceClient.lockByPeriod(from, to);
 
-        // (2) 회계 합계 집계 (POSTED 분개만).
+        // (2) 회계 합계 집계 (POSTED+REVERSED(보상쌍 상쇄)).
         List<AccountTotal> totals = journalLineRepository.aggregatePostedByAccount(from, to);
         BigDecimal totalSales = sumByPrefix(totals, "4");
         BigDecimal totalPurchase = sumByPrefix(totals, "5");
