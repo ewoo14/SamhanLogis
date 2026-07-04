@@ -77,6 +77,45 @@ class AccountingAdminQueryServiceTest {
     }
 
     @Test
+    void getOrderDetail_hyphenPathId_fallsBackToSlashStoredOrderNo() {
+        Order order = Order.fromMig8Staging(
+                "2026/05/20-1",
+                PARTNER_ID,
+                "삼한상사",
+                "김매니저",
+                LocalDate.of(2026, 6, 30),
+                "월말결제",
+                "긴급",
+                OrderProgressStatus.IN_PROGRESS,
+                "runtime:order:1");
+        when(orderRepository.findByOrderNo("2026-05-20-1")).thenReturn(Optional.empty());
+        when(orderRepository.findByOrderNo("2026/05/20-1")).thenReturn(Optional.of(order));
+
+        OrderDetailResponse response = service.getOrderDetail("2026-05-20-1");
+
+        assertThat(response.orderNo()).isEqualTo("2026/05/20-1");
+    }
+
+    @Test
+    void getOrderDetail_hyphenStoredMig8OrderNo_stillResolvesOriginalValueFirst() {
+        Order order = Order.fromMig8Staging(
+                "2026-05-20-1",
+                PARTNER_ID,
+                "삼한상사",
+                "김매니저",
+                LocalDate.of(2026, 6, 30),
+                "월말결제",
+                "긴급",
+                OrderProgressStatus.IN_PROGRESS,
+                "mig8:order:1");
+        when(orderRepository.findByOrderNo("2026-05-20-1")).thenReturn(Optional.of(order));
+
+        OrderDetailResponse response = service.getOrderDetail("2026-05-20-1");
+
+        assertThat(response.orderNo()).isEqualTo("2026-05-20-1");
+    }
+
+    @Test
     void ledgerDailyDiff_usesUnfilteredRawDailyTotals() {
         when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
                 .thenReturn(0L);

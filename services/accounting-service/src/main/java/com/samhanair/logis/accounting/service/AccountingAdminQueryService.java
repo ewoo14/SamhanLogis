@@ -4,6 +4,7 @@ import com.samhanair.logis.accounting.domain.Order;
 import com.samhanair.logis.accounting.domain.OrderLine;
 import com.samhanair.logis.accounting.domain.OrderProgressStatus;
 import com.samhanair.logis.accounting.repository.OrderRepository;
+import com.samhanair.logis.accounting.util.DocumentNumberPathResolver;
 import com.samhanair.logis.accounting.web.dto.LedgerStagingResponse;
 import com.samhanair.logis.accounting.web.dto.OrderDetailResponse;
 import com.samhanair.logis.accounting.web.dto.OrderSummaryResponse;
@@ -42,6 +43,7 @@ public class AccountingAdminQueryService {
 
     public OrderDetailResponse getOrderDetail(String orderNo) {
         Order order = orderRepository.findByOrderNo(orderNo)
+                .or(() -> orderRepository.findByOrderNo(DocumentNumberPathResolver.toSlashDocumentNo(orderNo)))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "주문서를 찾을 수 없습니다: " + orderNo));
         return toOrderDetail(order);

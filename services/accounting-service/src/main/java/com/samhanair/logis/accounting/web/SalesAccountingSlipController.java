@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.web;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.service.SalesAccountingSlipService;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
+import com.samhanair.logis.accounting.util.DocumentNumberPathResolver;
 import com.samhanair.logis.accounting.web.dto.CreateSalesAccountingSlipRequest;
 import com.samhanair.logis.accounting.web.dto.SalesAccountingSlipResponse;
 import java.time.LocalDate;
@@ -43,7 +44,7 @@ public class SalesAccountingSlipController {
     @RequirePermission(page = "accounting.sales-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ResponseEntity<Void> post(@PathVariable String slipNo,
             @RequestHeader("X-User-Id") String userId) {
-        service.post(slipNo, userId);
+        service.post(DocumentNumberPathResolver.toSlashDocumentNo(slipNo), userId);
         return ResponseEntity.noContent().build();
     }
 }

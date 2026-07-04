@@ -22,6 +22,7 @@ import {
 } from './client'
 import type { Account, JournalStatus } from '@samhan/design-system'
 import { extractApiErrorResponseMessage } from './apiError'
+import { toOrderPathId } from '../utils/orderNo'
 
 export type { Account } from '@samhan/design-system'
 export type Page<T> = PageResponse<T>
@@ -1923,11 +1924,11 @@ export async function updateCollectionPlanStatus(
   planNo: string,
   status: PlanStatus,
 ): Promise<CollectionPlanRow> {
-  // planNo 는 슬래시 표준(yyyy/MM/dd-N) — encodeURIComponent 로 %2F 인코딩하면 게이트웨이
-  // StrictHttpFirewall 이 차단하므로, 슬래시를 경로 구분자로 두어 BE overload
-  // /{year}/{month}/{daySeq}/status 로 매핑한다. (feedback_slip_order_number_format %2F 함정)
+  // planNo 는 슬래시 표준(yyyy/MM/dd-N)이다. #727 실측상 게이트웨이 %2F 차단이 아니라
+  // 슬래시 경로 라우팅 실패가 원인이므로 URL path 에서는 공용 toOrderPathId(슬래시→하이픈)
+  // 규약을 적용하고, BE 가 하이픈 pathId 를 슬래시 표준 번호로 정규화한다.
   const res = await apiClient.patch<ApiEnvelope<CollectionPlanRow>>(
-    `/accounting/collection-plans/${planNo}/status`,
+    `/accounting/collection-plans/${encodeURIComponent(toOrderPathId(planNo))}/status`,
     { status },
   )
   return res.data.data

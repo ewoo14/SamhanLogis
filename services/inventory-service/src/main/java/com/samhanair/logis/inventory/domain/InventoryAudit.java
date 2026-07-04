@@ -102,7 +102,7 @@ public class InventoryAudit extends BaseEntity {
     /**
      * 새 재고 실사를 PLANNED 상태로 생성한다. snapshot 라인은 별도 addLine 으로 추가.
      *
-     * @param auditNo 채번된 실사번호 (AU-YYYYMMDD-NNN)
+     * @param auditNo 채번된 실사번호 (yyyy/MM/dd-N)
      * @param warehouse 대상 창고 (필수)
      * @param auditDate 실사 기준 일자 (필수)
      * @return PLANNED 상태의 신규 InventoryAudit

@@ -17,7 +17,7 @@ import org.springframework.data.repository.query.Param;
  */
 public interface InventoryAuditRepository extends JpaRepository<InventoryAudit, UUID> {
 
-    /** {@code AU-YYYYMMDD-NNN} 채번용 — 그날 prefix 의 발행 건수 계산. */
+    /** {@code yyyy/MM/dd-N} 채번용 — 그날 prefix 의 발행 건수 계산. */
     long countByAuditNoStartingWith(String prefix);
 
     /**

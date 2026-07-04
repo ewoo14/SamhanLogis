@@ -89,6 +89,13 @@ function mockError(status: number, code: string, message: string) {
   }
 }
 
+function toSlashDocumentNo(value: string): string {
+  if (value.length >= 11 && value.charAt(4) === '-' && value.charAt(7) === '-') {
+    return `${value.slice(0, 4)}/${value.slice(5, 7)}/${value.slice(8)}`
+  }
+  return value
+}
+
 function mockLocationParams(): URLSearchParams {
   if (typeof window === 'undefined' || typeof window.location === 'undefined') {
     return new URLSearchParams()
@@ -5687,7 +5694,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )) {
       return mockError(409, 'CONFLICT', `이미 등록된 자동제안 출처입니다: ${sourceReference}`)
     }
-    const planNo = `CP-${plannedDate.replace(/-/g, '')}-${String(Date.now()).slice(-6)}`
+    const datePrefix = plannedDate.replace(/-/g, '/')
+    const seq = MOCK_COLLECTION_PLANS.filter((row) => row.planNo.startsWith(`${datePrefix}-`)).length + 1
+    const planNo = `${datePrefix}-${seq}`
     const row = {
       planNo,
       partnerCode,
@@ -6150,8 +6159,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   if (method === 'PATCH' && url.includes('/accounting/collection-plans') && url.includes('/status')) {
     const body = parseMockBody(config)
-    // planNo 는 슬래시 표준(yyyy/MM/dd-N) — 다중 세그먼트를 non-greedy 로 포착(BE overload 대응)
-    const planNo = decodeURIComponent(url.match(/\/accounting\/collection-plans\/(.+?)\/status/)?.[1] ?? '')
+    // planNo pathId 는 FE toOrderPathId 규약으로 하이픈 단일 세그먼트이며, mock 도 BE 와 동일하게 역변환한다.
+    const rawPlanNo = decodeURIComponent(url.match(/\/accounting\/collection-plans\/(.+?)\/status/)?.[1] ?? '')
+    const planNo = toSlashDocumentNo(rawPlanNo)
     const status = String(body.status ?? '')
     const index = MOCK_COLLECTION_PLANS.findIndex((row) => row.planNo === planNo)
     if (index < 0) return mockError(404, 'NOT_FOUND', '수금계획을 찾을 수 없습니다.')

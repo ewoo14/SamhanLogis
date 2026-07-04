@@ -97,7 +97,7 @@ public class PublicSlipController {
             @PathVariable String slipNo,
             @Valid @RequestBody PublicSignatureRequest request) {
         try {
-            PublicSignatureResponse body = signatureService.recordSignature(token, slipNo, request);
+            PublicSignatureResponse body = signatureService.recordSignature(token, toSlashDocumentNo(slipNo), request);
             return ResponseEntity.ok(ApiResponse.ok(body));
         } catch (BusinessException ex) {
             if (ex.getErrorCode() == ErrorCode.CONFLICT && ex.getMessage() != null
@@ -123,7 +123,7 @@ public class PublicSlipController {
                     @PathVariable String slipNo,
                     @Valid @RequestBody com.samhanair.logis.slip.delivery.web.dto.PublicDriverSignatureRequest request) {
         try {
-            var body = signatureService.recordDriverSignature(token, slipNo, request);
+            var body = signatureService.recordDriverSignature(token, toSlashDocumentNo(slipNo), request);
             return ResponseEntity.ok(ApiResponse.ok(body));
         } catch (BusinessException ex) {
             if (ex.getErrorCode() == ErrorCode.CONFLICT && ex.getMessage() != null
@@ -163,5 +163,15 @@ public class PublicSlipController {
             }
             throw ex;
         }
+    }
+
+    private static String toSlashDocumentNo(String value) {
+        if (value == null || value.length() < 11) {
+            return value;
+        }
+        if (value.charAt(4) == '-' && value.charAt(7) == '-') {
+            return value.substring(0, 4) + "/" + value.substring(5, 7) + "/" + value.substring(8);
+        }
+        return value;
     }
 }

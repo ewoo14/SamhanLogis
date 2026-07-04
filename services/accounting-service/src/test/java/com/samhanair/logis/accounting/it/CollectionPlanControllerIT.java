@@ -165,6 +165,24 @@ class CollectionPlanControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("상태 전이: 하이픈 path 식별자는 슬래시 표준 planNo로 정규화해 조회한다")
+    void transition_hyphenPathId_normalizesToSlashPlanNo() throws Exception {
+        String planNo = register("P-CP-001", LocalDate.of(2026, 7, 11), "1300000", "MANUAL");
+        String pathId = planNo.replace("/", "-");
+
+        mockMvc.perform(patch(BASE_URL + "/" + pathId + "/status")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"OVERDUE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.planNo").value(planNo))
+                .andExpect(jsonPath("$.data.status").value("OVERDUE"));
+
+        assertPersistedStatus(planNo, "OVERDUE");
+    }
+
+    @Test
     @DisplayName("목록: 상태/거래처 필터 + 예정일 오름차순 정렬")
     void list_filtersAndSortsByPlannedDate() throws Exception {
         register("P-CP-001", LocalDate.of(2026, 8, 20), "2100000", "MANUAL");
@@ -316,7 +334,7 @@ class CollectionPlanControllerIT extends AbstractPostgresIT {
     }
 
     private ResultActions transition(String planNo, String status) throws Exception {
-        return mockMvc.perform(patch(BASE_URL + "/" + planNo + "/status")
+        return mockMvc.perform(patch(BASE_URL + "/" + planNo.replace("/", "-") + "/status")
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", "ACCOUNTANT")
                 .contentType(MediaType.APPLICATION_JSON)

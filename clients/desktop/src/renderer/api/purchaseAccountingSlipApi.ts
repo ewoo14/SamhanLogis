@@ -1,5 +1,6 @@
 import { apiClient, type ApiEnvelope } from './client'
 import { isMockMode } from './mock'
+import { toOrderPathId } from '../utils/orderNo'
 import type {
   SalesTaxType,
   SlipAllocationRequest,
@@ -209,7 +210,7 @@ export async function postPurchaseSlip(
   }
   const res = await apiClient.post<
     PurchaseAccountingSlipResponse | ApiEnvelope<PurchaseAccountingSlipResponse> | ''
-  >(`/admin/purchase-slips/${encodeURIComponent(slipNo)}/post`, {})
+  >(`/admin/purchase-slips/${encodeURIComponent(toOrderPathId(slipNo))}/post`, {})
   if (!res.data) return null
   return unwrap(res.data as PurchaseAccountingSlipResponse | ApiEnvelope<PurchaseAccountingSlipResponse>)
 }

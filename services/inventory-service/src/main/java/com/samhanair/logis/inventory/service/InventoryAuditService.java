@@ -334,7 +334,7 @@ public class InventoryAuditService {
     }
 
     /**
-     * {@code AU-YYYYMMDD-NNN} 채번 — 그날 prefix 의 발행 건수 +1.
+     * {@code yyyy/MM/dd-N} 채번 — 그날 prefix 의 발행 건수 +1.
      *
      * @param date 채번 기준 날짜
      * @return 채번된 auditNo

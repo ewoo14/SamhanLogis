@@ -13,6 +13,7 @@
  *   `<SignatureViewer>` 가 hash 앞 8자만 표시.
  */
 import { apiClient, type ApiEnvelope } from './client'
+import { toOrderPathId } from '../utils/orderNo'
 
 /**
  * 모바일 서명 저장 요청 body — Designer `mobile-spec.md` §2.1.
@@ -92,7 +93,7 @@ export interface SignatureAdminResponse {
  * 분리는 Phase 5. apiClient 의 baseURL 은 동일하나 path 가 `/public/...` 으로 분기.
  *
  * @param token   배치 토큰 (Slice B 발급)
- * @param slipNo  비즈니스 전표번호 (예: "2026-05-05-1" — slug 형식)
+ * @param slipNo  비즈니스 전표번호 (예: "2026/05/05-1" — 표준 슬래시 형식)
  * @param body    서명자명 + PNG + 클라이언트 hash
  */
 export async function recordSignature(
@@ -101,7 +102,7 @@ export async function recordSignature(
   body: RecordSignatureRequest,
 ): Promise<RecordSignatureResponse> {
   const res = await apiClient.post<ApiEnvelope<RecordSignatureResponse>>(
-    `/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(slipNo)}/signature`,
+    `/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(toOrderPathId(slipNo))}/signature`,
     body,
   )
   return res.data.data
@@ -129,7 +130,7 @@ export async function recordDriverSignature(
   body: RecordDriverSignatureRequest,
 ): Promise<RecordDriverSignatureResponse> {
   const res = await apiClient.post<ApiEnvelope<RecordDriverSignatureResponse>>(
-    `/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(slipNo)}/driver-signature`,
+    `/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(toOrderPathId(slipNo))}/driver-signature`,
     body,
   )
   return res.data.data

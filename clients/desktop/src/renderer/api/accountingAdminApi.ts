@@ -5,6 +5,7 @@
  * partnerCode, journalNo) 중심으로 선언한다. id 계열 필드는 사용하지 않는다.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
+import { toOrderPathId } from '../utils/orderNo'
 
 export type OrderProgressStatus =
   | 'COMPLETED'
@@ -109,7 +110,7 @@ export async function getAccountingOrder(
   orderNo: string,
 ): Promise<OrderDetailResponse> {
   const res = await apiClient.get<ApiEnvelope<OrderDetailResponse>>(
-    `/accounting/orders/${encodeURIComponent(orderNo)}`,
+    `/accounting/orders/${encodeURIComponent(toOrderPathId(orderNo))}`,
   )
   return res.data.data
 }

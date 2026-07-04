@@ -32,6 +32,8 @@ const DOCUMENT_NO_KEY_SET = new Set([
   'purchaseSlipNo',
   'linkedSlipNo',
   'sourceSlipNo',
+  'planNo',
+  'auditNo',
   'refSlipNo',
   'voucherNo',
   'documentNo',
@@ -1036,10 +1038,12 @@ describe('mock collection plan contract', () => {
     }) as MockEnvelope<{ planNo: string; status: string }>
 
     expect(created.data.status).toBe('PLANNED')
+    expect(created.data.planNo).toMatch(/^2026\/08\/01-\d+$/)
+    expect(created.data.planNo.startsWith('CP-')).toBe(false)
 
     const overdue = mockRequest({
       method: 'PATCH',
-      url: `/accounting/collection-plans/${encodeURIComponent(created.data.planNo)}/status`,
+      url: `/accounting/collection-plans/${created.data.planNo.replace(/\//g, '-')}/status`,
       data: { status: 'OVERDUE' },
     }) as MockEnvelope<{ status: string }>
     expect(overdue.data.status).toBe('OVERDUE')

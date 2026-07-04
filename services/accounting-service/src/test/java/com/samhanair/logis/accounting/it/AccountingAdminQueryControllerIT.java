@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,6 +22,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -71,6 +73,15 @@ class AccountingAdminQueryControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(withActor(get(url), "MANAGER"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("주문 상세: 하이픈 path 식별자는 단일 세그먼트 그대로 서비스에 전달한다")
+    void orderDetail_hyphenPathId_passesSingleSegmentToService() throws Exception {
+        mockMvc.perform(withActor(get("/accounting/orders/2026-05-20-1"), "MANAGER"))
+                .andExpect(status().isOk());
+
+        verify(adminQueryService).getOrderDetail("2026-05-20-1");
     }
 
     private static Stream<Arguments> mig14ViewEndpoints() {
