@@ -1038,7 +1038,7 @@ describe('mock collection plan contract', () => {
     }) as MockEnvelope<{ planNo: string; status: string }>
 
     expect(created.data.status).toBe('PLANNED')
-    expect(created.data.planNo).toMatch(/^2026\/08\/01-\d+$/)
+    expect(created.data.planNo).toMatch(/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/)
     expect(created.data.planNo.startsWith('CP-')).toBe(false)
 
     const overdue = mockRequest({
@@ -1092,6 +1092,24 @@ describe('mock collection plan contract', () => {
 
     expect(forecast.data.months.map((row) => row.month)).toEqual(['2026-07', '2026-08'])
     expect(Number(forecast.data.totalAmount)).toBeGreaterThan(0)
+  })
+})
+
+describe('mock inventory audit contract', () => {
+  it('GET /inventory/audits returns slash auditNo without legacy AU prefix', () => {
+    const page = mockRequest({
+      method: 'GET',
+      url: '/inventory/audits',
+      params: { page: 0, size: 20 },
+    }) as MockEnvelope<{
+      content: Array<{ auditNo: string }>
+    }>
+
+    expect(page.data.content.length).toBeGreaterThan(0)
+    for (const row of page.data.content) {
+      expect(row.auditNo).toMatch(/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/)
+      expect(row.auditNo.startsWith('AU-')).toBe(false)
+    }
   })
 })
 

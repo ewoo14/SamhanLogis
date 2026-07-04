@@ -8360,8 +8360,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /warehouse/audit (재고 실사 목록)
-  if (method === 'GET' && url.includes('/warehouse/audit') && !url.includes('/dps-compare')) {
-    const auditMatch = url.match(/\/warehouse\/audit\/([^/?]+)$/)
+  if (method === 'GET'
+    && (url.includes('/inventory/audits') || url.includes('/warehouse/audit'))
+    && !url.includes('/dps-compare')) {
+    const auditMatch = url.match(/\/(?:inventory\/audits|warehouse\/audit)\/([^/?]+)$/)
     if (auditMatch && auditMatch[1] !== 'new') {
       const id = auditMatch[1]!
       const found = MOCK_INVENTORY_AUDITS.find((a) => a.id === id) ?? MOCK_INVENTORY_AUDITS[0]!
