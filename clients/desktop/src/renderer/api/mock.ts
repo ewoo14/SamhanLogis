@@ -5574,7 +5574,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return mockError(
         409,
         'CONFLICT',
-        `Cannot transition notes receivable ${noteNo} from ${current.status} to ${status}`,
+        `받을어음(${noteNo}) 현재 상태(${noteStatusDisplayName(current.status)})에서는 ${noteStatusDisplayName(status)} 전환이 허용되지 않습니다.`,
       )
     }
     const updated = {
@@ -6064,7 +6064,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return mockError(
         409,
         'CONFLICT',
-        `Cannot transition collection plan ${planNo} from ${current.status} to ${status}`,
+        `수금계획(${planNo}) 현재 상태(${planStatusDisplayName(current.status)})에서는 ${planStatusDisplayName(status)} 전환이 허용되지 않습니다.`,
       )
     }
     const updated = {
@@ -13194,6 +13194,34 @@ const MOCK_BLOCKED_PARTNERS = [
  *
  * UUID 비공개: id / partnerId / journalId 는 path param 전용 — 화면 미노출.
  */
+function noteStatusDisplayName(status: string): string {
+  switch (status) {
+    case 'BOARDING':
+      return '보유'
+    case 'COLLECTING':
+      return '추심'
+    case 'SETTLED':
+      return '결제완료'
+    case 'DISHONORED':
+      return '부도'
+    default:
+      return status
+  }
+}
+
+function planStatusDisplayName(status: string): string {
+  switch (status) {
+    case 'PLANNED':
+      return '예정'
+    case 'COLLECTED':
+      return '수금완료'
+    case 'OVERDUE':
+      return '연체'
+    default:
+      return status
+  }
+}
+
 function taxInvoiceStatusDisplayName(status: string): string {
   switch (status) {
     case 'DRAFT':
@@ -13202,6 +13230,8 @@ function taxInvoiceStatusDisplayName(status: string): string {
       return '발행'
     case 'CANCELLED':
       return '취소'
+    case 'MIGRATED':
+      return '이관'
     default:
       return status
   }

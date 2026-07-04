@@ -592,7 +592,9 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
                                 }
                                 """.formatted(transactionsJson)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(messagePart)));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(messagePart)))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("UNREFLECTED"))));
     }
 
     private static String keyJson(String externalRef, String transactedAt, String amount) {
