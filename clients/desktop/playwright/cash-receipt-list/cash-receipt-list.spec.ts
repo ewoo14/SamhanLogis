@@ -32,7 +32,7 @@ test.describe('입금보고서 목록 (E3 S4a)', () => {
 
     // 시드 3종 kind 전부 노출 + 전표번호
     const table = page.getByTestId('cash-receipt-list-table')
-    const slip = page.getByTestId('cash-receipt-slip-SLP-202605-021')
+    const slip = page.getByTestId('cash-receipt-slip-2026/05/19-3')
     await expect(slip).toBeVisible()
     // 회귀 가드: 전표번호는 링크(<a>)가 아닌 plain text(상세 링크는 S4b)
     await expect(slip.locator('xpath=ancestor::a')).toHaveCount(0)

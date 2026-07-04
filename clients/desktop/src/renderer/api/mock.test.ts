@@ -98,13 +98,35 @@ describe('mock cash receipt list contract', () => {
     expect(invalidSlipNos).toEqual([])
   })
 
+  it('GET /accounting/cash-receipts mock seed 전표번호·분개번호는 BE 채번 형식(yyyy/MM/dd-N)을 따른다', () => {
+    const page = mockRequest({
+      method: 'GET',
+      url: '/accounting/cash-receipts',
+      params: { page: 0, size: 50 },
+    }) as MockEnvelope<{
+      content: Array<{ slipNo: string; journalNo: string | null }>
+    }>
+
+    // SlipNumberService/JournalNumberService = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
+    const SLIP_FMT = /^\d{4}\/\d{2}\/\d{2}-\d+$/
+    const badSlip = page.data.content
+      .filter((row) => !SLIP_FMT.test(row.slipNo))
+      .map((row) => row.slipNo)
+    const badJournal = page.data.content
+      .filter((row) => row.journalNo != null && !SLIP_FMT.test(row.journalNo))
+      .map((row) => row.journalNo)
+
+    expect(badSlip).toEqual([])
+    expect(badJournal).toEqual([])
+  })
+
   it('partnerName/slipNo/kind/from/to/status 필터와 페이지네이션을 적용한다', () => {
     const filtered = mockRequest({
       method: 'GET',
       url: '/accounting/cash-receipts',
       params: {
         partnerName: '한빛',
-        slipNo: '017',
+        slipNo: '05/18-1',
         kind: 'MANUAL_RECEIPT',
         from: '2026-05-18',
         to: '2026-05-18',
@@ -132,7 +154,7 @@ describe('mock cash receipt list contract', () => {
     })
     expect(filtered.data.content).toEqual([
       expect.objectContaining({
-        slipNo: 'SLP-202605-017',
+        slipNo: '2026/05/18-1',
         partnerName: '한빛상사',
         kind: 'MANUAL_RECEIPT',
         transactionDate: '2026-05-18',

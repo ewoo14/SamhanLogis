@@ -31,13 +31,13 @@ function renderPage() {
 
 const sampleRow = {
   id: '00000000-0000-0000-0000-000000000001',
-  slipNo: 'SLP-202605-021',
+  slipNo: '2026/05/19-3',
   partnerName: '삼한공조',
   amount: '2480000',
   transactionDate: '2026-05-19',
   kind: 'DEPOSIT_REPORT',
   status: 'CONFIRMED',
-  journalNo: 'JRN-202605-49',
+  journalNo: '2026/05/19-12',
 }
 
 afterEach(() => {
@@ -52,8 +52,8 @@ describe('CashReceiptListPage', () => {
     })
     renderPage()
 
-    const slip = await screen.findByTestId('cash-receipt-slip-SLP-202605-021')
-    expect(slip.textContent).toBe('SLP-202605-021')
+    const slip = await screen.findByTestId('cash-receipt-slip-2026/05/19-3')
+    expect(slip.textContent).toBe('2026/05/19-3')
     expect(slip.closest('a')).toBeNull() // dead-link 회귀 가드: <Link> 아님
     expect(slip.tagName).toBe('SPAN')
   })

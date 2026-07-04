@@ -35,7 +35,7 @@ describe('CashReceiptListPage model', () => {
   it('필터 상태를 목록 API 파라미터로 정규화한다', () => {
     const filters: CashReceiptFilterState = {
       partnerName: '  삼한  ',
-      slipNo: ' SLP-202605 ',
+      slipNo: ' 2026/05 ',
       kind: '',
       from: '2026-05-01',
       to: '',
@@ -43,7 +43,7 @@ describe('CashReceiptListPage model', () => {
 
     expect(listCashReceiptQueryOptions(filters, 2, 20)).toEqual({
       partnerName: '삼한',
-      slipNo: 'SLP-202605',
+      slipNo: '2026/05',
       from: '2026-05-01',
       page: 2,
       size: 20,
