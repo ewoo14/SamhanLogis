@@ -2004,6 +2004,21 @@ export interface CashReceiptRequest {
   creditAccountCode?: string
 }
 
+export interface BankTransactionNaturalKey {
+  bankAccountLabel: string
+  transactedAt: string
+  amount: number
+  externalRef: string
+}
+
+export interface BankDepositReceiptRequest {
+  transactions: BankTransactionNaturalKey[]
+  transactionDate: string
+  memo?: string
+  debitAccountCode?: string
+  creditAccountCode?: string
+}
+
 export interface ListCashReceiptsOptions {
   partnerName?: string
   slipNo?: string
@@ -2042,6 +2057,22 @@ export async function createCashReceipt(
   try {
     const res = await apiClient.post<ApiEnvelope<CashReceiptRow>>(
       '/accounting/cash-receipts',
+      body,
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) throw new Error(message)
+    throw err
+  }
+}
+
+export async function createBankDepositReceipt(
+  body: BankDepositReceiptRequest,
+): Promise<CashReceiptRow> {
+  try {
+    const res = await apiClient.post<ApiEnvelope<CashReceiptRow>>(
+      '/accounting/cash-receipts/from-bank-transactions',
       body,
     )
     return res.data.data
@@ -2167,6 +2198,7 @@ export interface BankTransactionRow {
   matchedPartnerCode?: string | null
   matchedBizNo?: string | null
   matchedPartnerName?: string | null
+  cashReceiptSlipNo?: string | null
 }
 
 export interface ListBankTransactionsOptions {

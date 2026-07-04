@@ -5932,6 +5932,71 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  if (method === 'POST' && new URL(url, 'http://mock.local').pathname === '/accounting/cash-receipts/from-bank-transactions') {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'update')
+    if (denied) return denied
+    const body = bankDepositReceiptBodyFromConfig(config)
+    if (!body.transactionDate || body.transactions.length < 1 || body.transactions.length > 100) {
+      return mockError(400, 'INVALID_INPUT', 'transactions 1~100건과 transactionDate 는 필수입니다.')
+    }
+
+    const selectedRows: MockBankTransactionRow[] = []
+    for (const tx of body.transactions) {
+      const key = mockBankTransactionKey({
+        bankAccountLabel: String(tx['bankAccountLabel'] ?? '').trim(),
+        transactedAt: String(tx['transactedAt'] ?? '').trim(),
+        amount: String(tx['amount'] ?? '').trim(),
+        externalRef: String(tx['externalRef'] ?? '').trim(),
+      })
+      const row = MOCK_BANK_TRANSACTIONS.find((candidate) => mockBankTransactionKey(candidate) === key)
+      if (!row) return mockError(404, 'NOT_FOUND', '통장 거래를 찾을 수 없습니다.')
+      selectedRows.push(row)
+    }
+
+    const invalid = selectedRows.find((row) =>
+      row.matchStatus !== 'UNREFLECTED'
+      || row.txnType !== 'DEPOSIT'
+      || row.source === 'CODEF_LOAN'
+      || Number(row.amount) <= 0
+      || !row.matchedPartnerName)
+    if (invalid) {
+      return mockError(409, 'CONFLICT', '미반영 입금 거래와 매칭 거래처가 있는 행만 입금보고서로 생성할 수 있습니다.')
+    }
+    const partnerKeys = new Set(selectedRows.map((row) => row.matchedPartnerCode || row.matchedPartnerName))
+    if (partnerKeys.size > 1) {
+      return mockError(409, 'CONFLICT', '동일 거래처 거래만 한 번에 입금보고서로 생성할 수 있습니다.')
+    }
+
+    const amount = selectedRows.reduce((sum, row) => sum + Number(row.amount), 0)
+    const first = selectedRows[0]!
+    const slipNo = nextMockCashReceiptSlipNo(body.transactionDate)
+    const journalNo = slipNo
+    const created: MockCashReceiptRow = {
+      id: nextMockCashReceiptId(),
+      slipNo,
+      partnerCode: first.matchedPartnerCode ?? '',
+      bizNo: first.matchedBizNo ?? '',
+      partnerName: first.matchedPartnerName ?? '',
+      amount: String(amount),
+      transactionDate: body.transactionDate,
+      kind: 'BANK_LINKED',
+      status: 'CONFIRMED',
+      memo: body.memo,
+      journalNo,
+      reverseJournalNo: null,
+      externalRef: `BANKTXN-${body.transactionDate.replace(/-/g, '')}-${String(MOCK_CASH_RECEIPTS.length + 1).padStart(3, '0')}`,
+      debitAccountCode: body.debitAccountCode,
+      creditAccountCode: body.creditAccountCode,
+    }
+    MOCK_CASH_RECEIPTS.push(created)
+    const selectedKeys = new Set(selectedRows.map(mockBankTransactionKey))
+    MOCK_BANK_TRANSACTIONS = MOCK_BANK_TRANSACTIONS.map((row) =>
+      selectedKeys.has(mockBankTransactionKey(row))
+        ? { ...row, matchStatus: 'REFLECTED', cashReceiptSlipNo: slipNo }
+        : row)
+    return envelope({ ...created, id: null })
+  }
+
   if (method === 'POST' && /\/accounting\/cash-receipts(?:\?|$)/.test(new URL(url, 'http://mock.local').pathname)) {
     const denied = mockRequirePermission('accounting.cash-receipts', 'create')
     if (denied) return denied
@@ -13731,6 +13796,22 @@ function cashReceiptBodyFromConfig(config: AxiosRequestConfig) {
   }
 }
 
+function mockBankTransactionKey(row: Pick<MockBankTransactionRow, 'bankAccountLabel' | 'transactedAt' | 'amount' | 'externalRef'>): string {
+  return `${row.bankAccountLabel}|${row.transactedAt}|${String(row.amount)}|${row.externalRef}`
+}
+
+function bankDepositReceiptBodyFromConfig(config: AxiosRequestConfig) {
+  const body = parseMockBody(config)
+  const transactions = Array.isArray(body['transactions']) ? body['transactions'] : []
+  return {
+    transactions: transactions.map((item) => item as Record<string, unknown>),
+    transactionDate: String(body['transactionDate'] ?? '').trim(),
+    memo: String(body['memo'] ?? '').trim() || null,
+    debitAccountCode: String(body['debitAccountCode'] ?? '102').trim() || '102',
+    creditAccountCode: String(body['creditAccountCode'] ?? '110').trim() || '110',
+  }
+}
+
 /**
  * 재고 실사 (`/warehouse/audit`) — 3건 + PLANNED/IN_PROGRESS/COMPLETED 분포.
  * 결함 #6: status enum 정정 (DRAFT|SUBMITTED|POSTED → PLANNED|IN_PROGRESS|COMPLETED|CANCELLED)
@@ -15526,6 +15607,7 @@ type MockBankTransactionRow = {
   matchedPartnerCode: string | null
   matchedBizNo: string | null
   matchedPartnerName: string | null
+  cashReceiptSlipNo?: string | null
 }
 
 const MOCK_CODEF_BANK_ACCOUNTS = [
@@ -15769,9 +15851,61 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     source: 'CSV_IMPORT',
     externalRef: 'mock-bank-20260623-001',
     matchStatus: 'UNREFLECTED',
-    matchedPartnerCode: null,
-    matchedBizNo: null,
-    matchedPartnerName: null,
+    matchedPartnerCode: 'P-2026-0001',
+    matchedBizNo: '1112233333',
+    matchedPartnerName: '삼한상사',
+    cashReceiptSlipNo: null,
+  },
+  {
+    transactedAt: '2026-06-24T10:05:00',
+    txnType: 'DEPOSIT',
+    amount: '2500000',
+    balanceAfter: '14000000',
+    description: '삼한상사 운임 입금',
+    counterpartyName: '삼한상사',
+    counterpartyAccount: null,
+    bankAccountLabel: '국민 123-456',
+    source: 'CSV_IMPORT',
+    externalRef: 'mock-bank-20260624-004',
+    matchStatus: 'UNREFLECTED',
+    matchedPartnerCode: 'P-2026-0001',
+    matchedBizNo: '1112233333',
+    matchedPartnerName: '삼한상사',
+    cashReceiptSlipNo: null,
+  },
+  {
+    transactedAt: '2026-06-24T12:00:00',
+    txnType: 'DEPOSIT',
+    amount: '900000',
+    balanceAfter: '14900000',
+    description: '아로물류 B 입금',
+    counterpartyName: '아로물류 B',
+    counterpartyAccount: null,
+    bankAccountLabel: '하나 555-111',
+    source: 'CSV_IMPORT',
+    externalRef: 'mock-bank-20260624-005',
+    matchStatus: 'UNREFLECTED',
+    matchedPartnerCode: 'P-2026-0002',
+    matchedBizNo: '2223344444',
+    matchedPartnerName: '아로물류 B',
+    cashReceiptSlipNo: null,
+  },
+  {
+    transactedAt: '2026-06-24T13:00:00',
+    txnType: 'DEPOSIT',
+    amount: '700000',
+    balanceAfter: '15600000',
+    description: '세진산업 입금',
+    counterpartyName: '세진산업',
+    counterpartyAccount: null,
+    bankAccountLabel: '우리 444-222',
+    source: 'CSV_IMPORT',
+    externalRef: 'mock-bank-20260624-006',
+    matchStatus: 'UNREFLECTED',
+    matchedPartnerCode: 'P-SEJIN-003',
+    matchedBizNo: '3456789012',
+    matchedPartnerName: '세진산업',
+    cashReceiptSlipNo: null,
   },
   {
     transactedAt: '2026-06-22T15:40:00',
@@ -15788,6 +15922,7 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     matchedPartnerCode: null,
     matchedBizNo: null,
     matchedPartnerName: null,
+    cashReceiptSlipNo: null,
   },
   {
     transactedAt: '2026-06-21T11:20:00',
@@ -15804,6 +15939,7 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     matchedPartnerCode: 'P-2026-0002',
     matchedBizNo: '2223344444',
     matchedPartnerName: '아로물류 B',
+    cashReceiptSlipNo: '2026/05/15-2',
   },
 ]
 
