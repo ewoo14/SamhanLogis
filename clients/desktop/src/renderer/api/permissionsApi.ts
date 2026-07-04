@@ -167,6 +167,7 @@ export type PageCode =
   | 'accounting.balances.trial-balance'
   | 'accounting.reports'
   | 'accounting.receivables'
+  | 'accounting.bank-card-admin'
   | 'accounting.bank-matching'
   | 'accounting.period-close'
   | 'accounting.period-close.reverse'

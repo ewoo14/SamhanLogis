@@ -2002,6 +2002,17 @@ export interface ListBankTransactionsOptions {
   from?: string
   to?: string
   bankAccountLabel?: string
+  bankAccountLabels?: string[]
+}
+
+export interface BankTransactionFilterPreferences {
+  accountLabels: string[]
+  cardLabels: string[]
+}
+
+export interface BankTransactionFilterLabels {
+  accountLabels: string[]
+  cardLabels: string[]
 }
 
 export interface ImportBankTransactionsMapping {
@@ -2041,17 +2052,44 @@ export interface ClearBankTransactionMatchRequest {
 export async function listBankTransactions(
   options: ListBankTransactionsOptions = {},
 ): Promise<BankTransactionRow[]> {
-  const params: Record<string, string> = {}
+  const params: Record<string, string | string[]> = {}
   if (options.matchStatus) params['matchStatus'] = options.matchStatus
   if (options.from) params['from'] = options.from
   if (options.to) params['to'] = options.to
   if (options.bankAccountLabel) params['bankAccountLabel'] = options.bankAccountLabel
+  if (options.bankAccountLabels && options.bankAccountLabels.length > 0) {
+    params['bankAccountLabels'] = options.bankAccountLabels
+  }
 
   const res = await apiClient.get<ApiEnvelope<BankTransactionRow[]>>(
     '/accounting/bank-transactions',
     { params },
   )
   return res.data.data ?? []
+}
+
+export async function loadBankTransactionFilterPreferences(): Promise<BankTransactionFilterPreferences> {
+  const res = await apiClient.get<ApiEnvelope<BankTransactionFilterPreferences>>(
+    '/accounting/bank-transactions/filter-preferences',
+  )
+  return res.data.data ?? { accountLabels: [], cardLabels: [] }
+}
+
+export async function saveBankTransactionFilterPreferences(
+  preferences: BankTransactionFilterPreferences,
+): Promise<BankTransactionFilterPreferences> {
+  const res = await apiClient.put<ApiEnvelope<BankTransactionFilterPreferences>>(
+    '/accounting/bank-transactions/filter-preferences',
+    preferences,
+  )
+  return res.data.data ?? { accountLabels: [], cardLabels: [] }
+}
+
+export async function listBankTransactionFilterLabels(): Promise<BankTransactionFilterLabels> {
+  const res = await apiClient.get<ApiEnvelope<BankTransactionFilterLabels>>(
+    '/accounting/bank-transactions/filter-labels',
+  )
+  return res.data.data ?? { accountLabels: [], cardLabels: [] }
 }
 
 export async function importBankTransactionsCsv(

@@ -69,6 +69,9 @@ public enum PageCode {
     /** 통장 CSV import 및 입출금 내역 관리. */
     ACCOUNTING_BANK_MATCHING("accounting.bank-matching", "입출금 내역"),
 
+    /** CODEF 계좌/카드 등록기관 관리. */
+    ACCOUNTING_BANK_CARD_ADMIN("accounting.bank-card-admin", "계좌/카드 관리"),
+
     /** 월말 마감 화면 (SP-D2). */
     ACCOUNTING_PERIOD_CLOSE("accounting.period-close", "월말 마감"),
 

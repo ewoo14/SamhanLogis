@@ -764,6 +764,94 @@ describe('mock tax invoice e-Tax contract', () => {
 })
 
 describe('mock bank transaction matching contract', () => {
+  it('stores filter preferences per user and supports multiple bankAccountLabels', () => {
+    const userId = `mock-user-${Date.now()}`
+    const bankAccountLabel = `국민 다중필터 ${Date.now()}`
+    const otherBankAccountLabel = `신한 다중필터 ${Date.now()}`
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/bank-transactions/import',
+      data: { bankAccountLabel },
+    })
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/bank-transactions/import',
+      data: { bankAccountLabel: otherBankAccountLabel },
+    })
+
+    const saved = mockRequest({
+      method: 'PUT',
+      url: '/accounting/bank-transactions/filter-preferences',
+      headers: { 'X-User-Id': userId },
+      data: {
+        accountLabels: [bankAccountLabel, bankAccountLabel, otherBankAccountLabel],
+        cardLabels: ['삼한 물류카드'],
+      },
+    }) as MockEnvelope<{ accountLabels: string[]; cardLabels: string[] }>
+    const loaded = mockRequest({
+      method: 'GET',
+      url: '/accounting/bank-transactions/filter-preferences',
+      headers: { 'X-User-Id': userId },
+    }) as MockEnvelope<{ accountLabels: string[]; cardLabels: string[] }>
+    const filtered = mockRequest({
+      method: 'GET',
+      url: '/accounting/bank-transactions',
+      params: { bankAccountLabels: [bankAccountLabel, otherBankAccountLabel] },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+
+    expect(saved.data.accountLabels).toEqual([bankAccountLabel, otherBankAccountLabel])
+    expect(loaded.data).toEqual(saved.data)
+    expect(new Set(filtered.data.map((row) => row.bankAccountLabel))).toEqual(
+      new Set([bankAccountLabel, otherBankAccountLabel]),
+    )
+  })
+
+  it('returns account/card filter labels and unregisters CODEF institutions by natural key', () => {
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId: 'connected-main',
+        from: '2026-06-01',
+        to: '2026-06-26',
+        accountRefs: ['국민 123456-78-901234'],
+        cardRefs: ['삼한 물류카드'],
+        loanRefs: [],
+      },
+    })
+    const labels = mockRequest({
+      method: 'GET',
+      url: '/accounting/bank-transactions/filter-labels',
+    }) as MockEnvelope<{ accountLabels: string[]; cardLabels: string[] }>
+    expect(labels.data.accountLabels).toContain('국민 123456-78-901234')
+    expect(labels.data.cardLabels).toContain('삼한 물류카드')
+
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/connection/institutions',
+      data: {
+        businessType: 'BANK',
+        organization: '0004',
+        loginType: '1',
+        credentials: { id: 'mock', password: 'secret' },
+      },
+    })
+    const removed = mockRequest({
+      method: 'PATCH',
+      url: '/accounting/codef/connection/institutions/unregister',
+      data: { businessType: 'BANK', organizationCode: '0004' },
+    }) as MockEnvelope<{ businessType: string; organizationCode: string }>
+    const institutions = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/connection/institutions',
+    }) as MockEnvelope<{ institutions: Array<{ businessType: string; organizationCode: string }> }>
+
+    expect(removed.data).toMatchObject({ businessType: 'BANK', organizationCode: '0004' })
+    expect(institutions.data.institutions).not.toContainEqual(
+      expect.objectContaining({ businessType: 'BANK', organizationCode: '0004' }),
+    )
+  })
+
   it('does not expose vendor/source keywords in imported transaction descriptions', () => {
     const bankAccountLabel = `국민 적요테스트 ${Date.now()}`
     mockRequest({

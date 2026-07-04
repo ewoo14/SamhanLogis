@@ -7,6 +7,7 @@ import com.samhanair.logis.accounting.web.dto.LoanListResponse;
 import com.samhanair.logis.accounting.web.dto.RegisterInstitutionRequest;
 import com.samhanair.logis.accounting.web.dto.RegisteredInstitutionListResponse;
 import com.samhanair.logis.accounting.web.dto.RegisteredInstitutionResponse;
+import com.samhanair.logis.accounting.web.dto.UnregisterInstitutionRequest;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
@@ -18,8 +19,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "CODEF 금융연동", description = "CODEF connectedId 기관 등록과 목록 검증")
 public class CodefConnectionController {
 
-    private static final String PAGE_CODE = "accounting.bank-matching";
+    private static final String PAGE_CODE = "accounting.bank-card-admin";
 
     private final CodefConnectionService service;
 
@@ -53,6 +56,18 @@ public class CodefConnectionController {
     @Operation(summary = "CODEF 등록 기관 목록", description = "connectedId에 등록된 금융기관 메타 목록 조회")
     public ApiResponse<RegisteredInstitutionListResponse> listInstitutions() {
         return ApiResponse.ok(RegisteredInstitutionListResponse.from(service.listRegistered()));
+    }
+
+    /** 등록된 CODEF 기관을 해제한다. */
+    @PatchMapping("/institutions/unregister")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.DELETE)
+    @Operation(summary = "CODEF 기관 해제", description = "업무구분+기관코드 자연키로 등록 기관을 soft-delete")
+    public ApiResponse<RegisteredInstitutionResponse> unregisterInstitution(
+            @Valid @RequestBody UnregisterInstitutionRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        RegisteredInstitutionResponse response = RegisteredInstitutionResponse.from(
+                service.unregisterInstitution(request.businessType(), request.organizationCode(), userId));
+        return ApiResponse.ok(response, "CODEF 기관 등록이 해제되었습니다.");
     }
 
     /** 등록된 CODEF 은행계좌 목록을 검증 조회한다. */

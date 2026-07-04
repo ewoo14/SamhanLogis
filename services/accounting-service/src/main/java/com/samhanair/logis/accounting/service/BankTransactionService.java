@@ -11,6 +11,7 @@ import com.samhanair.logis.accounting.domain.MatchStatus;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.accounting.web.dto.BankTransactionImportMapping;
 import com.samhanair.logis.accounting.web.dto.BankTransactionImportResult;
+import com.samhanair.logis.accounting.web.dto.BankTransactionFilterLabelsResponse;
 import com.samhanair.logis.accounting.web.dto.BankTransactionMatchPartnerClearRequest;
 import com.samhanair.logis.accounting.web.dto.BankTransactionMatchPartnerRequest;
 import com.samhanair.logis.accounting.web.dto.BankTransactionResponse;
@@ -138,10 +139,30 @@ public class BankTransactionService {
     @Transactional(readOnly = true)
     public List<BankTransactionResponse> list(MatchStatus matchStatus, LocalDate from, LocalDate to,
                                               String bankAccountLabel) {
+        return list(matchStatus, from, to, bankAccountLabel, List.of());
+    }
+
+    /**
+     * 통장 거래 목록을 조회한다.
+     *
+     * @param matchStatus 매칭 상태 탭 필터
+     * @param from 거래일 시작일
+     * @param to 거래일 종료일
+     * @param bankAccountLabel 하위호환 단일 은행계좌 표시명
+     * @param bankAccountLabels 은행계좌/카드 표시명 다중 선택
+     * @return 거래일 역순 목록
+     */
+    @Transactional(readOnly = true)
+    public List<BankTransactionResponse> list(MatchStatus matchStatus, LocalDate from, LocalDate to,
+                                              String bankAccountLabel, List<String> bankAccountLabels) {
         if (from != null && to != null && to.isBefore(from)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "to 는 from 이후여야 합니다.");
         }
-        Specification<BankTransaction> spec = bankTransactionSpec(matchStatus, from, to, bankAccountLabel);
+        Specification<BankTransaction> spec = bankTransactionSpec(
+                matchStatus,
+                from,
+                to,
+                normalizeLabels(bankAccountLabel, bankAccountLabels));
         List<BankTransaction> rows = repository.findAll(
                 spec,
                 Sort.by(Sort.Order.desc("transactedAt"), Sort.Order.desc("createdAt")));
@@ -153,6 +174,14 @@ public class BankTransactionService {
                         displayOfPartner(row, partners),
                         cashReceiptSlipNos.get(row.getId())))
                 .toList();
+    }
+
+    /** 필터 모달에 표시할 계좌/카드 label 목록을 조회한다. */
+    @Transactional(readOnly = true)
+    public BankTransactionFilterLabelsResponse filterLabels() {
+        return new BankTransactionFilterLabelsResponse(
+                normalizeLabels(null, repository.findDistinctAccountLabels()),
+                normalizeLabels(null, repository.findDistinctCardLabels()));
     }
 
     /**
@@ -247,7 +276,7 @@ public class BankTransactionService {
     }
 
     private Specification<BankTransaction> bankTransactionSpec(MatchStatus matchStatus, LocalDate from, LocalDate to,
-                                                               String bankAccountLabel) {
+                                                               List<String> bankAccountLabels) {
         return (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
             if (matchStatus != null) {
@@ -259,11 +288,26 @@ public class BankTransactionService {
             if (to != null) {
                 predicates.add(cb.lessThan(root.get("transactedAt"), to.plusDays(1).atStartOfDay()));
             }
-            if (hasText(bankAccountLabel)) {
-                predicates.add(cb.equal(root.get("bankAccountLabel"), bankAccountLabel.trim()));
+            if (!bankAccountLabels.isEmpty()) {
+                predicates.add(root.get("bankAccountLabel").in(bankAccountLabels));
             }
             return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
+    }
+
+    private static List<String> normalizeLabels(String singleLabel, List<String> labels) {
+        java.util.LinkedHashSet<String> normalized = new java.util.LinkedHashSet<>();
+        if (hasText(singleLabel)) {
+            normalized.add(singleLabel.trim());
+        }
+        if (labels != null) {
+            for (String label : labels) {
+                if (hasText(label)) {
+                    normalized.add(label.trim());
+                }
+            }
+        }
+        return List.copyOf(normalized);
     }
 
     private BankTransaction toTransaction(String[] row, ColumnResolver resolver, String bankAccountLabel,

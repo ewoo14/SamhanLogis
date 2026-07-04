@@ -235,7 +235,7 @@ import { ReceivablesPayablesPage } from './ReceivablesPayablesPage'
 import { NotesReceivablePage } from './NotesReceivablePage'
 import { CollectionPlanPage } from './CollectionPlanPage'
 import { BankTransactionPage } from './BankTransactionPage'
-import { CodefConnectionPage } from './CodefConnectionPage'
+import { BankCardAdminPage } from './BankCardAdminPage'
 // [P0-1 Slice C] 인쇄 전용 레이아웃 4종.
 import { CashFlowStatementPrintLayout } from './accounting/print/CashFlowStatementPrintLayout'
 import { EquityChangesPrintLayout } from './accounting/print/EquityChangesPrintLayout'
@@ -757,6 +757,14 @@ const routes = [
         ),
       },
       {
+        path: '/accounting/bank-card-admin',
+        element: (
+          <PermissionGuard pageCode="accounting.bank-card-admin" action="view">
+            <BankCardAdminPage />
+          </PermissionGuard>
+        ),
+      },
+      {
         path: '/accounting/bank-transactions',
         element: (
           <PermissionGuard pageCode="accounting.bank-matching" action="view">
@@ -767,10 +775,8 @@ const routes = [
       {
         path: '/accounting/codef-connection',
         element: (
-          <PermissionGuard pageCode="accounting.bank-matching" action="view">
-            <RoleGuard allow={['MASTER']}>
-              <CodefConnectionPage />
-            </RoleGuard>
+          <PermissionGuard pageCode="accounting.bank-card-admin" action="view">
+            <BankCardAdminPage />
           </PermissionGuard>
         ),
       },

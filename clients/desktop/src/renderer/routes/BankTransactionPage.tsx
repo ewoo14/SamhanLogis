@@ -6,6 +6,7 @@ import {
   Card,
   DataTable,
   Input,
+  Modal,
   PartnerAutocomplete,
   Spinner,
   Tabs,
@@ -18,18 +19,51 @@ import {
   BANK_TXN_SOURCE_LABEL,
   BANK_TXN_TYPE_LABEL,
   clearBankTransactionMatch,
+  listBankTransactionFilterLabels,
   listBankTransactions,
+  loadBankTransactionFilterPreferences,
   matchBankTransactionPartner,
+  saveBankTransactionFilterPreferences,
   type BankMatchStatus,
   type BankTransactionRow,
 } from '../api/accounting'
+import {
+  listCodefRegisteredInstitutions,
+  type CodefConnectionBusinessType,
+  type RegisteredInstitutionResponse,
+} from '../api/codefConnectionApi'
 import { searchPartners } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import {
+  bankTransactionPartnerDisplay,
+  effectiveBankTransactionLabels,
+  filterButtonLabel,
+  filterLabelsForQuery,
+  normalizeBankTransactionLabels,
+  type BankTransactionFilterOption,
+} from './BankTransactionFilterModalModel'
 import { CodefImportScopeForm } from './components/CodefImportScopeForm'
 
 type StatusTab = 'ALL' | BankMatchStatus
 type SourceTab = 'ALL' | BankTransactionRow['source']
+type FilterModalKind = 'account' | 'card'
+
+interface LabelFilters {
+  from: string
+  to: string
+  accountLabels: string[]
+  cardLabels: string[]
+}
+
+const ORGANIZATION_LABEL: Record<string, string> = {
+  '0004': '국민은행',
+  '088': '신한은행',
+  '081': '하나은행',
+  '020': '우리은행',
+  '0301': '신한카드',
+  '0302': '국민카드',
+}
 
 const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
   { key: 'ALL', label: '전체' },
@@ -49,6 +83,37 @@ const SOURCE_TAB_ITEMS: TabItem[] = SOURCE_TABS.map((tab) => ({
   label: tab.label,
   testId: tab.testId,
 }))
+
+function organizationName(code: string): string {
+  return ORGANIZATION_LABEL[code] ?? code
+}
+
+function institutionLabel(institution: RegisteredInstitutionResponse): string {
+  const businessTypeLabel: Record<CodefConnectionBusinessType, string> = {
+    BANK: '계좌',
+    CARD: '카드',
+    LOAN: '대출',
+  }
+  return `${organizationName(institution.organizationCode)} ${businessTypeLabel[institution.businessType] ?? ''}`.trim()
+}
+
+function mergeFilterOptions(
+  registeredLabels: string[],
+  transactionLabels: string[],
+): BankTransactionFilterOption[] {
+  const sourceByLabel = new Map<string, BankTransactionFilterOption['source']>()
+  for (const label of registeredLabels) {
+    const trimmed = label.trim()
+    if (trimmed) sourceByLabel.set(trimmed, 'registered')
+  }
+  for (const label of transactionLabels) {
+    const trimmed = label.trim()
+    if (trimmed && !sourceByLabel.has(trimmed)) sourceByLabel.set(trimmed, 'transaction')
+  }
+  return Array.from(sourceByLabel.entries())
+    .sort(([left], [right]) => left.localeCompare(right, 'ko-KR'))
+    .map(([label, source]) => ({ label, source }))
+}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -110,15 +175,6 @@ function partnerValueOf(row: BankTransactionRow): PartnerOption | null {
   }
 }
 
-function partnerDisplay(row: BankTransactionRow): string {
-  // 그룹4 규약: 거래처코드 = 사업자번호(숫자만) + 거래처명.
-  const parts = [
-    row.matchedBizNo ? row.matchedBizNo.replace(/\D/g, '') : null,
-    row.matchedPartnerName,
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' · ') : '—'
-}
-
 export function BankTransactionPage() {
   usePageTitle('입출금 내역', '거래내역 가져오기')
 
@@ -128,12 +184,16 @@ export function BankTransactionPage() {
   const canUpdate = canAccess('accounting.bank-matching', 'update')
   const [activeTab, setActiveTab] = useState<StatusTab>('ALL')
   const [activeSourceTab, setActiveSourceTab] = useState<SourceTab>('ALL')
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<LabelFilters>({
     from: monthStartIso(),
     to: todayIso(),
-    bankAccountLabel: '',
+    accountLabels: [],
+    cardLabels: [],
   })
   const [queryFilters, setQueryFilters] = useState(filters)
+  const [filterModal, setFilterModal] = useState<FilterModalKind | null>(null)
+  const [draftLabels, setDraftLabels] = useState<string[]>([])
+  const [filterSelectionTouched, setFilterSelectionTouched] = useState(false)
   const [toast, setToast] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
 
   useEffect(() => {
@@ -142,6 +202,77 @@ export function BankTransactionPage() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
+  const registeredInstitutionsQuery = useQuery({
+    queryKey: ['accounting', 'codef-connection', 'institutions'],
+    queryFn: listCodefRegisteredInstitutions,
+  })
+
+  const filterLabelsQuery = useQuery({
+    queryKey: ['accounting', 'bank-transactions', 'filter-labels'],
+    queryFn: listBankTransactionFilterLabels,
+  })
+
+  const filterPreferencesQuery = useQuery({
+    queryKey: ['accounting', 'bank-transactions', 'filter-preferences'],
+    queryFn: loadBankTransactionFilterPreferences,
+  })
+
+  const accountFilterOptions = useMemo(() => mergeFilterOptions(
+    (registeredInstitutionsQuery.data ?? [])
+      .filter((row) => row.businessType === 'BANK')
+      .map(institutionLabel),
+    filterLabelsQuery.data?.accountLabels ?? [],
+  ), [filterLabelsQuery.data?.accountLabels, registeredInstitutionsQuery.data])
+
+  const cardFilterOptions = useMemo(() => mergeFilterOptions(
+    (registeredInstitutionsQuery.data ?? [])
+      .filter((row) => row.businessType === 'CARD')
+      .map(institutionLabel),
+    filterLabelsQuery.data?.cardLabels ?? [],
+  ), [filterLabelsQuery.data?.cardLabels, registeredInstitutionsQuery.data])
+
+  useEffect(() => {
+    const saved = filterPreferencesQuery.data
+    if (!saved || filterSelectionTouched) return
+    const restored: LabelFilters = {
+      from: filters.from,
+      to: filters.to,
+      accountLabels: effectiveBankTransactionLabels(saved.accountLabels, accountFilterOptions),
+      cardLabels: effectiveBankTransactionLabels(saved.cardLabels, cardFilterOptions),
+    }
+    setFilters(restored)
+    setQueryFilters(restored)
+  }, [
+    accountFilterOptions,
+    cardFilterOptions,
+    filterPreferencesQuery.data,
+    filterSelectionTouched,
+    filters.from,
+    filters.to,
+  ])
+
+  const queryBankAccountLabels = useMemo(() => [
+    ...filterLabelsForQuery(queryFilters.accountLabels, accountFilterOptions),
+    ...filterLabelsForQuery(queryFilters.cardLabels, cardFilterOptions),
+  ], [accountFilterOptions, cardFilterOptions, queryFilters.accountLabels, queryFilters.cardLabels])
+
+  const saveFilterPreferencesMutation = useMutation({
+    mutationFn: saveBankTransactionFilterPreferences,
+    onSuccess: async (saved) => {
+      const next = {
+        ...filters,
+        accountLabels: effectiveBankTransactionLabels(saved.accountLabels, accountFilterOptions),
+        cardLabels: effectiveBankTransactionLabels(saved.cardLabels, cardFilterOptions),
+      }
+      setFilters(next)
+      setQueryFilters(next)
+      setFilterSelectionTouched(true)
+      await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions', 'filter-preferences'] })
+      await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })
+    },
+    onError: () => setToast({ type: 'error', message: '필터 설정 저장 중 오류가 발생했습니다.' }),
+  })
+
   const transactionsQuery = useQuery({
     queryKey: [
       'accounting',
@@ -149,13 +280,13 @@ export function BankTransactionPage() {
       activeTab,
       queryFilters.from,
       queryFilters.to,
-      queryFilters.bankAccountLabel,
+      queryBankAccountLabels.join('|'),
     ],
     queryFn: () => listBankTransactions({
       matchStatus: activeTab === 'ALL' ? undefined : activeTab,
       from: queryFilters.from || undefined,
       to: queryFilters.to || undefined,
-      bankAccountLabel: queryFilters.bankAccountLabel || undefined,
+      bankAccountLabels: queryBankAccountLabels.length > 0 ? queryBankAccountLabels : undefined,
     }),
   })
 
@@ -183,6 +314,53 @@ export function BankTransactionPage() {
   const totalWithdrawal = rows
     .filter((row) => row.txnType === 'WITHDRAWAL')
     .reduce((sum, row) => sum + Number(row.amount || 0), 0)
+
+  const currentModalOptions = filterModal === 'account' ? accountFilterOptions : cardFilterOptions
+  const currentModalTitle = filterModal === 'account' ? '계좌 선택' : '카드 선택'
+  const currentAllLabels = useMemo(
+    () => normalizeBankTransactionLabels(currentModalOptions.map((option) => option.label)),
+    [currentModalOptions],
+  )
+  const modalAllChecked = currentAllLabels.length > 0
+    && currentAllLabels.every((label) => draftLabels.includes(label))
+
+  function openFilterModal(kind: FilterModalKind) {
+    const selected = kind === 'account' ? filters.accountLabels : filters.cardLabels
+    const options = kind === 'account' ? accountFilterOptions : cardFilterOptions
+    setFilterModal(kind)
+    setDraftLabels(selected.length === 0
+      ? normalizeBankTransactionLabels(options.map((option) => option.label))
+      : normalizeBankTransactionLabels(selected))
+  }
+
+  function toggleDraftLabel(label: string, checked: boolean) {
+    setDraftLabels((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(label)
+      else next.delete(label)
+      return normalizeBankTransactionLabels(Array.from(next))
+    })
+  }
+
+  function persistFilterModal() {
+    if (!filterModal) return
+    const allSelected = currentAllLabels.length > 0
+      && currentAllLabels.every((label) => draftLabels.includes(label))
+    const persistedLabels = allSelected ? [] : normalizeBankTransactionLabels(draftLabels)
+    const nextFilters: LabelFilters = {
+      ...filters,
+      accountLabels: filterModal === 'account' ? persistedLabels : filters.accountLabels,
+      cardLabels: filterModal === 'card' ? persistedLabels : filters.cardLabels,
+    }
+    setFilterModal(null)
+    setFilters(nextFilters)
+    setQueryFilters(nextFilters)
+    setFilterSelectionTouched(true)
+    saveFilterPreferencesMutation.mutate({
+      accountLabels: nextFilters.accountLabels,
+      cardLabels: nextFilters.cardLabels,
+    })
+  }
 
   const columns = useMemo<DataTableColumn<BankTransactionRow>[]>(() => {
     const baseColumns: DataTableColumn<BankTransactionRow>[] = [
@@ -224,7 +402,7 @@ export function BankTransactionPage() {
     },
     {
       key: 'matchedPartnerCode',
-      header: '거래처 매칭',
+      header: '거래처',
       width: '320px',
       mobilePriority: 'secondary',
       render: (row) => {
@@ -236,7 +414,7 @@ export function BankTransactionPage() {
           )
         }
         if (row.matchStatus !== 'UNREFLECTED') {
-          return <span>{partnerDisplay(row)}</span>
+          return <span>{bankTransactionPartnerDisplay(row)}</span>
         }
         const matched = partnerValueOf(row)
         const pending = matchPartnerMutation.isPending || clearPartnerMutation.isPending
@@ -410,10 +588,24 @@ export function BankTransactionPage() {
             종료일
             <Input type="date" value={filters.to} onChange={(event) => setFilters((prev) => ({ ...prev, to: event.target.value }))} />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, minWidth: 180 }}>
-            은행계좌
-            <Input value={filters.bankAccountLabel} onChange={(event) => setFilters((prev) => ({ ...prev, bankAccountLabel: event.target.value }))} placeholder="전체" />
-          </label>
+          <Button
+            type="button"
+            size="sm"
+            variant={filters.accountLabels.length === 0 ? 'ghost' : 'secondary'}
+            onClick={() => openFilterModal('account')}
+            data-testid="bank-transaction-account-filter-button"
+          >
+            {filterButtonLabel('계좌', filters.accountLabels)}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={filters.cardLabels.length === 0 ? 'ghost' : 'secondary'}
+            onClick={() => openFilterModal('card')}
+            data-testid="bank-transaction-card-filter-button"
+          >
+            {filterButtonLabel('카드', filters.cardLabels)}
+          </Button>
           <Button
             size="sm"
             variant="primary"
@@ -426,9 +618,10 @@ export function BankTransactionPage() {
             size="sm"
             variant="ghost"
             onClick={() => {
-              const reset = { from: monthStartIso(), to: todayIso(), bankAccountLabel: '' }
+              const reset = { from: monthStartIso(), to: todayIso(), accountLabels: [], cardLabels: [] }
               setFilters(reset)
               setQueryFilters(reset)
+              setFilterSelectionTouched(true)
               setActiveTab('ALL')
             }}
           >
@@ -474,6 +667,63 @@ export function BankTransactionPage() {
           ))}
         </Tabs>
       </Card>
+
+      <Modal
+        open={filterModal !== null}
+        onClose={() => setFilterModal(null)}
+        title={currentModalTitle}
+        size="sm"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setFilterModal(null)}
+              disabled={saveFilterPreferencesMutation.isPending}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={persistFilterModal}
+              loading={saveFilterPreferencesMutation.isPending}
+              data-testid="bank-transaction-filter-confirm"
+            >
+              확인
+            </Button>
+          </>
+        )}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="codef-checkbox-row">
+            <input
+              type="checkbox"
+              checked={modalAllChecked}
+              disabled={currentAllLabels.length === 0}
+              onChange={(event) => setDraftLabels(event.target.checked ? currentAllLabels : [])}
+              data-testid="bank-transaction-filter-select-all"
+            />
+            <span>전체 선택</span>
+          </label>
+          <div className="codef-checkbox-list" data-testid="bank-transaction-filter-options">
+            {currentModalOptions.length === 0 ? (
+              <div className="codef-import-hint">표시할 항목이 없습니다.</div>
+            ) : null}
+            {currentModalOptions.map((option, index) => (
+              <label key={option.label} className="codef-checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={draftLabels.includes(option.label)}
+                  onChange={(event) => toggleDraftLabel(option.label, event.target.checked)}
+                  data-testid={`bank-transaction-filter-option-${index}`}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

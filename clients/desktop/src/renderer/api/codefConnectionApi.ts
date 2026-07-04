@@ -25,6 +25,11 @@ export interface RegisteredInstitutionListResponse {
   institutions: RegisteredInstitutionResponse[]
 }
 
+export interface UnregisterInstitutionRequest {
+  businessType: CodefConnectionBusinessType
+  organizationCode: string
+}
+
 export interface CodefAccountItem {
   ref: string
   name: string
@@ -63,6 +68,16 @@ export async function listCodefRegisteredInstitutions(): Promise<RegisteredInsti
     `${BASE_PATH}/institutions`,
   )
   return res.data.data.institutions
+}
+
+export async function unregisterCodefInstitution(
+  request: UnregisterInstitutionRequest,
+): Promise<RegisteredInstitutionResponse> {
+  const res = await apiClient.patch<ApiEnvelope<RegisteredInstitutionResponse>>(
+    `${BASE_PATH}/institutions/unregister`,
+    request,
+  )
+  return res.data.data
 }
 
 export async function listCodefConnectionAccounts(): Promise<CodefAccountItem[]> {

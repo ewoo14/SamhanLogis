@@ -97,6 +97,34 @@ public class CodefConnectionService {
     }
 
     /**
+     * 등록된 CODEF 기관을 업무구분+기관코드 자연키로 해제한다.
+     *
+     * @param businessType 업무 구분(BANK/CARD/LOAN)
+     * @param organizationCode 기관 코드
+     * @param actor 해제 수행자 식별자
+     * @return 해제된 기관 표시 정보
+     */
+    @Transactional
+    public RegisteredInstitutionView unregisterInstitution(
+            String businessType,
+            String organizationCode,
+            String actor) {
+        CodefConnection connection = activeConnection();
+        CodefBusinessType type = businessTypeOf(businessType);
+        if (!hasText(organizationCode)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "기관 코드는 필수입니다");
+        }
+        CodefRegisteredInstitution institution = institutionRepository
+                .findFirstByConnectionAndBusinessTypeAndOrganizationCodeAndIsDeletedFalseOrderByRegisteredAtDesc(
+                        connection,
+                        type,
+                        organizationCode.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "등록된 CODEF 기관을 찾을 수 없습니다."));
+        institution.unregister(actor);
+        return RegisteredInstitutionView.from(institutionRepository.saveAndFlush(institution), null);
+    }
+
+    /**
      * CODEF 은행계좌 목록을 조회한다.
      *
      * @return 은행계좌 목록

@@ -2,25 +2,34 @@ package com.samhanair.logis.accounting.web;
 
 import com.samhanair.logis.accounting.domain.MatchStatus;
 import com.samhanair.logis.accounting.service.BankTransactionService;
+import com.samhanair.logis.accounting.service.UserBankTxnFilterService;
+import com.samhanair.logis.accounting.web.dto.BankTransactionFilterLabelsResponse;
+import com.samhanair.logis.accounting.web.dto.BankTransactionFilterPreferenceRequest;
+import com.samhanair.logis.accounting.web.dto.BankTransactionFilterPreferenceResponse;
 import com.samhanair.logis.accounting.web.dto.BankTransactionImportMapping;
 import com.samhanair.logis.accounting.web.dto.BankTransactionImportResult;
 import com.samhanair.logis.accounting.web.dto.BankTransactionMatchPartnerClearRequest;
 import com.samhanair.logis.accounting.web.dto.BankTransactionMatchPartnerRequest;
 import com.samhanair.logis.accounting.web.dto.BankTransactionResponse;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -37,6 +46,7 @@ public class BankTransactionController {
     private static final String PAGE_CODE = "accounting.bank-matching";
 
     private final BankTransactionService service;
+    private final UserBankTxnFilterService filterService;
 
     /** 범용 컬럼 매핑 CSV import. */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -76,8 +86,36 @@ public class BankTransactionController {
             @RequestParam(required = false) MatchStatus matchStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) String bankAccountLabel) {
-        return ApiResponse.ok(service.list(matchStatus, from, to, bankAccountLabel));
+            @RequestParam(required = false) String bankAccountLabel,
+            @RequestParam(required = false) List<String> bankAccountLabels) {
+        return ApiResponse.ok(service.list(matchStatus, from, to, bankAccountLabel, bankAccountLabels));
+    }
+
+    /** 사용자별 입출금내역 계좌/카드 필터 설정 조회. */
+    @GetMapping("/filter-preferences")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
+    @Operation(summary = "입출금내역 필터 설정 조회", description = "X-User-Id 기준 계좌/카드 label 선택 복원")
+    public ApiResponse<BankTransactionFilterPreferenceResponse> getFilterPreferences(
+            @RequestHeader("X-User-Id") String userId) {
+        return ApiResponse.ok(filterService.get(parseUserId(userId)));
+    }
+
+    /** 사용자별 입출금내역 계좌/카드 필터 설정 저장. */
+    @PutMapping("/filter-preferences")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
+    @Operation(summary = "입출금내역 필터 설정 저장", description = "X-User-Id 기준 계좌/카드 label 선택 저장")
+    public ApiResponse<BankTransactionFilterPreferenceResponse> updateFilterPreferences(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestBody BankTransactionFilterPreferenceRequest request) {
+        return ApiResponse.ok(filterService.upsert(parseUserId(userId), request), "필터 설정이 저장되었습니다.");
+    }
+
+    /** 필터 모달에 표시할 계좌/카드 label 목록. */
+    @GetMapping("/filter-labels")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
+    @Operation(summary = "입출금내역 필터 label 목록", description = "거래 실존 계좌/카드 label 을 soft-delete 제외 후 조회")
+    public ApiResponse<BankTransactionFilterLabelsResponse> filterLabels() {
+        return ApiResponse.ok(service.filterLabels());
     }
 
     /** 미반영 통장 거래에 거래처를 수동 지정한다. */
@@ -100,5 +138,13 @@ public class BankTransactionController {
     public ApiResponse<BankTransactionResponse> clearPartner(
             @RequestBody BankTransactionMatchPartnerClearRequest request) {
         return ApiResponse.ok(service.clearPartner(request), "거래처 매칭이 해제되었습니다.");
+    }
+
+    private static UUID parseUserId(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (RuntimeException ex) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "유효한 사용자 식별자가 필요합니다.", ex);
+        }
     }
 }

@@ -181,7 +181,8 @@ const ROUTE_PAGE_CODES: Array<{ prefix: string; pageCode: string; label: string 
   { prefix: '/sales/estimates', pageCode: 'estimates.list', label: '견적' },
   { prefix: '/sales', pageCode: 'sales.slip.list', label: '판매관리' },
   { prefix: '/purchases', pageCode: 'purchases.slip.list', label: '구매관리' },
-  { prefix: '/accounting/codef-connection', pageCode: 'accounting.bank-matching', label: 'CODEF 금융연동' },
+  { prefix: '/accounting/bank-card-admin', pageCode: 'accounting.bank-card-admin', label: '계좌/카드 관리' },
+  { prefix: '/accounting/codef-connection', pageCode: 'accounting.bank-card-admin', label: '계좌/카드 관리' },
   { prefix: '/accounting', pageCode: 'accounting.reports', label: '회계' },
   { prefix: '/arologis', pageCode: 'arologis.dispatch.ops', label: '배차' },
   { prefix: '/dispatch-board', pageCode: 'dispatch.board', label: '배차현황' },
@@ -481,7 +482,7 @@ export function AppLayout() {
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
   const showAccountingBankMatching = dynamicCanAccess('accounting.bank-matching',  'view')
-  const showAccountingCodefConnection = showAccountingBankMatching && auth?.role === 'MASTER'
+  const showAccountingBankCardAdmin = dynamicCanAccess('accounting.bank-card-admin',  'view')
   const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
   const showAccountingAdminMigOps = dynamicCanAccess('ecount.mig.ops-dashboard', 'view')
@@ -496,7 +497,7 @@ export function AppLayout() {
     || showAccountingPartnerLedger || showAccountingTaxInvoice
     || showAccountingTaxInvoiceBatch || showAccountingTaxInvoiceInbound
     || showAccountingDailyClose
-    || showAccountingLedger || showAccountingBankMatching || showAccountingCodefConnection
+    || showAccountingLedger || showAccountingBankMatching || showAccountingBankCardAdmin
     || showAccountingAdminLedger
     || showAccountingAdminMigOps || showAccountingEditRequests
   const showDeliveryBatch = dynamicCanAccess('slip.delivery-batch', 'view')
@@ -881,6 +882,7 @@ export function AppLayout() {
               '/accounting/partner-ledger',
               '/accounting/hometax-export',
               '/accounting/supplier-profiles',
+              '/accounting/bank-card-admin',
               '/accounting/bank-transactions',
               '/accounting/codef-connection',
               '/accounting/daily-closing',
@@ -1149,19 +1151,18 @@ export function AppLayout() {
                 공급자 설정
               </SidebarLink>
               <SidebarLink
+                to="/accounting/bank-card-admin"
+                show={showAccountingBankCardAdmin}
+                data-testid="sidebar-accounting-bank-card-admin"
+              >
+                계좌/카드 관리
+              </SidebarLink>
+              <SidebarLink
                 to="/accounting/bank-transactions"
                 show={showAccountingBankMatching}
                 data-testid="sidebar-accounting-bank-transactions"
               >
                 입출금 내역
-              </SidebarLink>
-              <SidebarLink
-                to="/accounting/codef-connection"
-                show={showAccountingCodefConnection}
-                data-testid="sidebar-accounting-codef-connection"
-                style={{ paddingLeft: 20, fontSize: 13 }}
-              >
-                CODEF 금융연동
               </SidebarLink>
               {/* [SP-08-6-5 P2] 일마감 — accounting.daily-closing 동적 RBAC. */}
               <SidebarLink

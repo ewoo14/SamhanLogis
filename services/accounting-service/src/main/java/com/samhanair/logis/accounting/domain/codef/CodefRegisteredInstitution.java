@@ -96,6 +96,17 @@ public class CodefRegisteredInstitution extends BaseEntity {
         return institution;
     }
 
+    /**
+     * 등록 기관을 soft-delete 한다.
+     *
+     * @param actor 해제 수행자 식별자
+     * @return {@code this}
+     */
+    public CodefRegisteredInstitution unregister(String actor) {
+        markDeleted(actor == null || actor.isBlank() ? "SYSTEM" : actor.trim());
+        return this;
+    }
+
     private static String requireText(String value, String message) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(message);

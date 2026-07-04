@@ -51,6 +51,30 @@ public interface BankTransactionRepository
     List<CashReceiptSlipProjection> findCashReceiptSlipNos(
             @Param("transactionIds") Collection<UUID> transactionIds);
 
+    /** 입출금내역 필터에 표시할 은행계좌 label 목록. */
+    @Query(value = """
+            SELECT DISTINCT bank_account_label
+              FROM bank_transaction
+             WHERE is_deleted = FALSE
+               AND source IN ('CSV_IMPORT', 'CODEF_BANK')
+               AND bank_account_label IS NOT NULL
+               AND BTRIM(bank_account_label) <> ''
+             ORDER BY bank_account_label
+            """, nativeQuery = true)
+    List<String> findDistinctAccountLabels();
+
+    /** 입출금내역 필터에 표시할 카드 label 목록. */
+    @Query(value = """
+            SELECT DISTINCT bank_account_label
+              FROM bank_transaction
+             WHERE is_deleted = FALSE
+               AND source = 'CODEF_CARD'
+               AND bank_account_label IS NOT NULL
+               AND BTRIM(bank_account_label) <> ''
+             ORDER BY bank_account_label
+            """, nativeQuery = true)
+    List<String> findDistinctCardLabels();
+
     /** 통장거래 UUID -> 연결 입금보고서 번호 projection. */
     interface CashReceiptSlipProjection {
         UUID getTransactionId();
