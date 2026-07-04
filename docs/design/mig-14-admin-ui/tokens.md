@@ -149,6 +149,7 @@ CashReceiptKind:
 |---|---|---|
 | `DEPOSIT_REPORT` | 입금보고서 | `status-badge.done` |
 | `MANUAL_RECEIPT` | 수기 입금 | `status-badge.wip` |
+| `BANK_LINKED` | 통장연계 | `status-badge.done` |
 
 OrderProgressStatus:
 

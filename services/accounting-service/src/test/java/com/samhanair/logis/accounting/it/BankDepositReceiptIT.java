@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -388,19 +389,26 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("HIGH-1: 선택 로드 후 raw UPDATE 전 matched_partner_id NULL 커밋은 STALE dirty-check 재기록 없이 보존된다")
+    @DisplayName("로드~승격 사이 매칭 해제 커밋 시 409 롤백되고 해제 상태가 보존된다")
     @SuppressWarnings({"rawtypes", "unchecked"})
-    void concurrentPartnerClearBetweenLoadAndRawUpdateIsNotOverwrittenByStaleEntity() throws Exception {
-        insertBankTransaction("S3-BANK-CLEARRACE", "2026-07-04T14:30:00", "DEPOSIT", "9500.00",
+    void concurrentPartnerClearBetweenLoadAndRawUpdateRollsBackCreation() throws Exception {
+        insertBankTransaction("S3-BANK-CLEARRACE-1", "2026-07-04T14:30:00", "DEPOSIT", "9500.00",
+                "CSV_IMPORT", "UNREFLECTED", PARTNER_ID, false);
+        insertBankTransaction("S3-BANK-CLEARRACE-2", "2026-07-04T14:31:00", "DEPOSIT", "9600.00",
+                "CSV_IMPORT", "UNREFLECTED", PARTNER_ID, false);
+        insertBankTransaction("S3-BANK-CLEARRACE-3", "2026-07-04T14:32:00", "DEPOSIT", "9700.00",
                 "CSV_IMPORT", "UNREFLECTED", PARTNER_ID, false);
         AtomicBoolean raceInjected = new AtomicBoolean(false);
+        AtomicInteger rawUpdateCalls = new AtomicInteger(0);
         // "선택 로드"(findUniqueByNaturalKey)는 이미 관리 엔티티를 이전 matched_partner_id 스냅샷으로
-        // persistence context 에 적재한 상태다. raw UPDATE(반영 조건부 UPDATE) 직전에 별도 커넥션이
-        // matched_partner_id 만 NULL 로 커밋(match_status 는 UNREFLECTED 유지 — 조건부 UPDATE 는 여전히 성공)한다.
+        // persistence context 에 적재한 상태다. 두 번째 raw UPDATE(반영 조건부 UPDATE) 직전에 별도 커넥션이
+        // matched_partner_id 만 NULL 로 커밋(match_status 는 UNREFLECTED 유지)한다.
+        // 서비스는 같은 partner 조건을 raw UPDATE WHERE 에 재확인해 0행 -> 409 -> 전체 롤백해야 한다.
         doAnswer(invocation -> {
             String sql = invocation.getArgument(0, String.class);
             if (sql.contains("UPDATE bank_transaction")
                     && sql.contains("cash_receipt_id")
+                    && rawUpdateCalls.incrementAndGet() == 2
                     && raceInjected.compareAndSet(false, true)) {
                 try (Connection connection = dataSource.getConnection()) {
                     connection.setAutoCommit(true);
@@ -409,7 +417,7 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
                                SET matched_partner_id = NULL,
                                    modified_at = NOW(),
                                    modified_by = 'race-clear-partner'
-                             WHERE external_ref = 'S3-BANK-CLEARRACE'
+                             WHERE external_ref = 'S3-BANK-CLEARRACE-2'
                             """)) {
                         assertThat(ps.executeUpdate()).isEqualTo(1);
                     }
@@ -419,40 +427,46 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
         }).when(namedParameterJdbcTemplate)
                 .update(anyString(), any(SqlParameterSource.class));
 
-        // 가드는 match_status 만 검사하므로 생성은 정상 성공한다(레이스가 겨냥하는 건 dirty-check 재기록 여부).
-        MvcResult created = mockMvc.perform(post(FROM_BANK_URL)
+        mockMvc.perform(post(FROM_BANK_URL)
                         .header("X-User-Id", ACTOR)
                         .header("X-User-Role", "ACCOUNTANT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "transactions": [%s],
+                                  "transactions": [%s,%s,%s],
                                   "transactionDate": "2026-07-04",
                                   "memo": "S3-BANK-IT 파트너해제레이스"
                                 }
-                                """.formatted(keyJson("S3-BANK-CLEARRACE", "2026-07-04T14:30:00", "9500.00"))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.kind").value("BANK_LINKED"))
-                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
-                .andReturn();
+                                """.formatted(
+                                keyJson("S3-BANK-CLEARRACE-1", "2026-07-04T14:30:00", "9500.00"),
+                                keyJson("S3-BANK-CLEARRACE-2", "2026-07-04T14:31:00", "9600.00"),
+                                keyJson("S3-BANK-CLEARRACE-3", "2026-07-04T14:32:00", "9700.00"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("매칭이 변경")));
 
         assertThat(raceInjected.get()).isTrue();
-        JsonNode data = data(created);
-        Map<String, Object> receipt = receiptBySlipNo(data.get("slipNo").asText());
-        UUID receiptId = (UUID) receipt.get("id");
-        UUID journalId = (UUID) receipt.get("journal_id");
+        assertNoBankLinkedReceipts();
+        assertThat(journalCountContaining("S3-BANK-IT 파트너해제레이스")).isZero();
+
+        Integer unreflectedCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM bank_transaction
+                 WHERE external_ref IN ('S3-BANK-CLEARRACE-1', 'S3-BANK-CLEARRACE-2', 'S3-BANK-CLEARRACE-3')
+                   AND match_status = 'UNREFLECTED'
+                   AND matched_journal_id IS NULL
+                   AND cash_receipt_id IS NULL
+                """, Integer.class);
+        assertThat(unreflectedCount).isEqualTo(3);
 
         Map<String, Object> row = jdbcTemplate.queryForMap("""
                 SELECT match_status, matched_partner_id, matched_journal_id, cash_receipt_id
                   FROM bank_transaction
-                 WHERE external_ref = 'S3-BANK-CLEARRACE'
+                 WHERE external_ref = 'S3-BANK-CLEARRACE-2'
                 """);
-        assertThat(row.get("match_status")).isEqualTo("REFLECTED");
-        // 핵심 단언 — 동시 커밋한 matched_partner_id=NULL 이 STALE 스냅샷 dirty-check UPDATE 로
-        // 되돌려지지 않고 그대로 보존된다(HIGH-1 lost-update 회귀 방지).
+        assertThat(row.get("match_status")).isEqualTo("UNREFLECTED");
         assertThat(row.get("matched_partner_id")).isNull();
-        assertThat(row.get("matched_journal_id")).isEqualTo(journalId);
-        assertThat(row.get("cash_receipt_id")).isEqualTo(receiptId);
+        assertThat(row.get("matched_journal_id")).isNull();
+        assertThat(row.get("cash_receipt_id")).isNull();
     }
 
     @Test

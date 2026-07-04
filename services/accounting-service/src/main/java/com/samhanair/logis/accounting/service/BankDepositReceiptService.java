@@ -38,7 +38,8 @@ public class BankDepositReceiptService {
      * 자연키 튜플로 선택한 통장거래를 합산해 입금보고서를 생성하고 즉시 확정한다.
      *
      * <p>분개는 {@link CashReceiptService#confirm(UUID, String)} 를 재사용한다. 통장거래 반영은
-     * {@code WHERE match_status='UNREFLECTED' AND is_deleted=false} 조건부 UPDATE 로 TOCTOU 를 막는다.
+     * {@code WHERE match_status='UNREFLECTED' AND matched_partner_id=<검증 시점 파트너> AND is_deleted=false}
+     * 조건부 UPDATE 로 TOCTOU 를 막는다.
      *
      * <p><b>raw UPDATE 성공 후 이미 로드된 관리 엔티티({@code transaction})에는 동일 전이를 적용하지
      * 않는다.</b> {@link BankTransaction} 은 {@code @Version}/{@code @DynamicUpdate} 가 없어, 관리
@@ -86,10 +87,11 @@ public class BankDepositReceiptService {
         for (BankTransaction transaction : transactions) {
             // raw UPDATE 만으로 반영을 완결한다 — 관리 엔티티(transaction)는 절대 mutate 하지 않는다.
             // 이유는 본 메서드 상단 Javadoc 참조(dirty-check 재기록으로 인한 lost-update 방지).
-            int updated = reflectIfStillUnreflected(transaction, receipt.getId(), journalId, callerOrSystem(actorUserId));
+            int updated = reflectIfStillUnreflected(
+                    transaction, partnerId, receipt.getId(), journalId, callerOrSystem(actorUserId));
             if (updated != 1) {
                 throw new BusinessException(ErrorCode.CONFLICT,
-                        "통장거래가 이미 반영되었습니다. 새로고침 후 다시 선택하세요: "
+                        "통장거래가 이미 반영되었거나 매칭이 변경되었습니다. 새로고침 후 다시 선택하세요: "
                                 + transaction.getBankAccountLabel() + " / " + transaction.getExternalRef());
             }
         }
@@ -153,7 +155,13 @@ public class BankDepositReceiptService {
         }
     }
 
-    private int reflectIfStillUnreflected(BankTransaction transaction, UUID receiptId,
+    /**
+     * 통장거래 반영 직전 불변식을 DB UPDATE 원자 조건으로 재확인한다.
+     *
+     * <p>로드~승격 사이 다른 트랜잭션이 반영 상태를 바꾸거나 거래처 매칭을 해제/변경하면
+     * {@code UNREFLECTED + 동일 파트너} 조건이 깨져 0행이 되고, 호출자는 409로 전체 롤백한다.
+     */
+    private int reflectIfStillUnreflected(BankTransaction transaction, UUID partnerId, UUID receiptId,
                                           UUID journalId, String actorUserId) {
         return namedParameterJdbcTemplate.update("""
                 UPDATE bank_transaction
@@ -164,12 +172,14 @@ public class BankDepositReceiptService {
                        modified_by = :actor
                  WHERE id = :transactionId
                    AND match_status = 'UNREFLECTED'
+                   AND matched_partner_id = :partnerId
                    AND is_deleted = FALSE
                 """,
                 new MapSqlParameterSource()
                         .addValue("journalId", journalId)
                         .addValue("receiptId", receiptId)
                         .addValue("actor", actorUserId)
+                        .addValue("partnerId", partnerId)
                         .addValue("transactionId", transaction.getId()));
     }
 
