@@ -746,6 +746,23 @@ describe('mock collection plan contract', () => {
   })
 })
 
+describe('mock tax invoice e-Tax contract', () => {
+  it('rejects e-Tax emit for non-issued tax invoices with Korean status labels', () => {
+    const rejected = mockRequest({
+      method: 'POST',
+      url: '/accounting/tax-invoices/ti-002/emit-nts',
+      data: { submitMethod: 'DRY_RUN' },
+    }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
+
+    expect(rejected.__mockStatus).toBe(422)
+    expect(rejected.body.code).toBe('TAX_INVOICE_NOT_EMITTABLE')
+    expect(rejected.body.message).toContain('발행 상태')
+    expect(rejected.body.message).toContain('임시저장')
+    expect(rejected.body.message).not.toContain('ISSUED')
+    expect(rejected.body.message).not.toContain('DRAFT')
+  })
+})
+
 describe('mock bank transaction matching contract', () => {
   it('does not expose vendor/source keywords in imported transaction descriptions', () => {
     const bankAccountLabel = `국민 적요테스트 ${Date.now()}`

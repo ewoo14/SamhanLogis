@@ -23,6 +23,7 @@ import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -126,9 +127,14 @@ class CollectionPlanControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("OVERDUE"));
         assertPersistedStatus(planNo, "OVERDUE");
 
-        transition(planNo, "PLANNED")
+        MvcResult plannedRetry = transition(planNo, "PLANNED")
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("CONFLICT"));
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andReturn();
+        String plannedRetryMessage = objectMapper.readTree(plannedRetry.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("message")
+                .asText();
+        assertThat(plannedRetryMessage).contains("예정").doesNotContain("PLANNED");
         assertPersistedStatus(planNo, "OVERDUE");
 
         transition(planNo, "COLLECTED")

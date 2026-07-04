@@ -7792,7 +7792,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return mockError(
         422,
         'TAX_INVOICE_NOT_EMITTABLE',
-        `e-Tax 전송은 ISSUED 상태에서만 허용됩니다 (현재: ${found.status}).`,
+        `e-Tax 전송은 ${taxInvoiceStatusDisplayName('ISSUED')} 상태에서만 허용됩니다 (현재: ${taxInvoiceStatusDisplayName(found.status)})`,
       )
     }
     // 이미 발행된 경우 409
@@ -13194,6 +13194,19 @@ const MOCK_BLOCKED_PARTNERS = [
  *
  * UUID 비공개: id / partnerId / journalId 는 path param 전용 — 화면 미노출.
  */
+function taxInvoiceStatusDisplayName(status: string): string {
+  switch (status) {
+    case 'DRAFT':
+      return '임시저장'
+    case 'ISSUED':
+      return '발행'
+    case 'CANCELLED':
+      return '취소'
+    default:
+      return status
+  }
+}
+
 const MOCK_TAX_INVOICES = [
   {
     id: 'ti-001',

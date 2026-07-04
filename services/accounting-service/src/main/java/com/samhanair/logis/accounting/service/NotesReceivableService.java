@@ -111,7 +111,7 @@ public class NotesReceivableService {
         }
         switch (status) {
             case BOARDING -> throw new BusinessException(ErrorCode.CONFLICT,
-                    "BOARDING 은 등록 시 초기 상태로만 지정할 수 있습니다.");
+                    NoteStatus.BOARDING.getDisplayName() + " 상태는 등록 시에만 지정할 수 있습니다.");
             case COLLECTING -> note.collect();
             case SETTLED -> note.settle();
             case DISHONORED -> note.dishonor();

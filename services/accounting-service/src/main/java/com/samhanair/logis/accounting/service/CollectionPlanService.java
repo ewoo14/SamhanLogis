@@ -119,7 +119,7 @@ public class CollectionPlanService {
         }
         switch (status) {
             case PLANNED -> throw new BusinessException(ErrorCode.CONFLICT,
-                    "PLANNED 는 등록 시 초기 상태로만 지정할 수 있습니다.");
+                    PlanStatus.PLANNED.getDisplayName() + " 상태는 등록 시에만 지정할 수 있습니다.");
             case COLLECTED -> plan.markCollected();
             case OVERDUE -> plan.markOverdue();
         }

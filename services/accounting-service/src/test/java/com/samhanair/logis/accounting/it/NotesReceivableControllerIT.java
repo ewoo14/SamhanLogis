@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
@@ -21,6 +22,7 @@ import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
@@ -136,6 +139,16 @@ class NotesReceivableControllerIT extends AbstractPostgresIT {
     void transition_rejectsInvalidTransitions() throws Exception {
         register("NR-GUARD-1", "P-AR-001", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 7, 10),
                 "2100000", "PROMISSORY", "BOARDING");
+
+        MvcResult boardingRetry = transition("NR-GUARD-1", "BOARDING")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andReturn();
+        String boardingRetryMessage = objectMapper.readTree(boardingRetry.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("message")
+                .asText();
+        assertThat(boardingRetryMessage).contains("보유").doesNotContain("BOARDING");
+        assertPersistedStatus("NR-GUARD-1", "BOARDING");
 
         transition("NR-GUARD-1", "SETTLED")
                 .andExpect(status().isOk())
@@ -273,7 +286,7 @@ class NotesReceivableControllerIT extends AbstractPostgresIT {
                 "SELECT status FROM notes_receivable WHERE note_no = ? AND is_deleted = FALSE",
                 String.class,
                 noteNo);
-        org.assertj.core.api.Assertions.assertThat(actual).isEqualTo(expectedStatus);
+        assertThat(actual).isEqualTo(expectedStatus);
     }
 
     private void register(String noteNo, String partnerCode, LocalDate issueDate, LocalDate maturityDate,
