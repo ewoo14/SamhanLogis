@@ -88,10 +88,10 @@ function mockSource(
 }
 
 const MOCK_SOURCE_SLIPS: SlipAllocationSourceSummary[] = [
-  mockSource('OUTBOUND', 'OUT-20260520-014', '2026-05-20', 'P-10021', '삼한물류 안산센터', '표준 팔레트 A', 6, '750000'),
-  mockSource('OUTBOUND', 'OUT-20260520-018', '2026-05-20', 'P-10021', '삼한물류 안산센터', '표준 팔레트 A', 4, '500000'),
-  mockSource('INBOUND', 'IN-20260520-006', '2026-05-20', 'V-30011', '한빛포장', '완충 포장재 B', 12, '516000'),
-  mockSource('INBOUND', 'IN-20260520-011', '2026-05-20', 'V-30011', '한빛포장', '완충 포장재 B', 8, '344000'),
+  mockSource('OUTBOUND', '2026/05/20-14', '2026-05-20', 'P-10021', '삼한물류 안산센터', '표준 팔레트 A', 6, '750000'),
+  mockSource('OUTBOUND', '2026/05/20-18', '2026-05-20', 'P-10021', '삼한물류 안산센터', '표준 팔레트 A', 4, '500000'),
+  mockSource('INBOUND', '2026/05/20-6', '2026-05-20', 'V-30011', '한빛포장', '완충 포장재 B', 12, '516000'),
+  mockSource('INBOUND', '2026/05/20-11', '2026-05-20', 'V-30011', '한빛포장', '완충 포장재 B', 8, '344000'),
 ]
 
 export async function listSlipAllocationSources(

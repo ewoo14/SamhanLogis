@@ -90,13 +90,13 @@ export const MOCK_PURCHASE_ACCOUNTING_SLIPS: PurchaseAccountingSlipResponse[] = 
         lineTotal: '946000',
         allocations: [
           {
-            sourceSlipNo: 'IN-20260520-006',
+            sourceSlipNo: '2026/05/20-6',
             sourceLineNo: 1,
             allocatedQty: '12',
             allocatedAmount: '516000',
           },
           {
-            sourceSlipNo: 'IN-20260520-011',
+            sourceSlipNo: '2026/05/20-11',
             sourceLineNo: 1,
             allocatedQty: '8',
             allocatedAmount: '344000',
@@ -129,7 +129,7 @@ function buildMockDraft(req: CreatePurchaseAccountingSlipRequest): PurchaseAccou
   return {
     id: null,
     // 실 BE PurchaseAccountingSlipNumberGenerator = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
-    slipNo: `${req.slipDate.replace(/-/g, '/')}-${String(Date.now()).slice(-3)}`,
+    slipNo: `${req.slipDate.replace(/-/g, '/')}-${Number(String(Date.now()).slice(-3)) || 1}`,
     slipDate: req.slipDate,
     partnerCode: req.partnerCode,
     partnerName: req.partnerName,

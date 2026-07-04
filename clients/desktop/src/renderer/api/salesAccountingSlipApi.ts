@@ -102,13 +102,13 @@ export const MOCK_SALES_ACCOUNTING_SLIPS: SalesAccountingSlipResponse[] = [
         lineTotal: '1375000',
         allocations: [
           {
-            sourceSlipNo: 'OUT-20260520-014',
+            sourceSlipNo: '2026/05/20-14',
             sourceLineNo: 1,
             allocatedQty: '6',
             allocatedAmount: '750000',
           },
           {
-            sourceSlipNo: 'OUT-20260520-018',
+            sourceSlipNo: '2026/05/20-18',
             sourceLineNo: 1,
             allocatedQty: '4',
             allocatedAmount: '500000',
@@ -141,7 +141,7 @@ function buildMockDraft(req: CreateSalesAccountingSlipRequest): SalesAccountingS
   return {
     id: null,
     // 실 BE SalesAccountingSlipNumberGenerator = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
-    slipNo: `${req.slipDate.replace(/-/g, '/')}-${String(Date.now()).slice(-3)}`,
+    slipNo: `${req.slipDate.replace(/-/g, '/')}-${Number(String(Date.now()).slice(-3)) || 1}`,
     slipDate: req.slipDate,
     partnerCode: req.partnerCode,
     partnerName: req.partnerName,

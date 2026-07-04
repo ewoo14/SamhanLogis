@@ -113,7 +113,7 @@ const SP_D3_UNDISPATCHED_SLIPS_PAGE = {
   content: [
     {
       id: '77777777-d333-4d33-8d33-000000000001',
-      slipNo: '2026/06/11-SPD3-001',
+      slipNo: '2026/06/11-1',
       slipDate: '2026-06-11',
       partnerCode: 'P-SPD3-001',
       partnerName: '동탄공조',
@@ -123,7 +123,7 @@ const SP_D3_UNDISPATCHED_SLIPS_PAGE = {
     },
     {
       id: '77777777-d333-4d33-8d33-000000000002',
-      slipNo: '2026/06/11-SPD3-002',
+      slipNo: '2026/06/11-2',
       slipDate: '2026-06-11',
       partnerCode: 'P-SPD3-002',
       partnerName: '성남냉열',
@@ -142,7 +142,7 @@ const SP_D3_UNDISPATCHED_SLIPS_PAGE = {
 
 const SP_D3_DISPATCH_TASK = {
   id: 'sp-d3-dispatch-task-001',
-  taskCode: '2026/06/11-SPD3',
+  taskCode: '2026/06/11-1',
   dispatchDate: '2026-06-11',
   status: 'DRAFT',
   arologisDispatchId: null,
@@ -614,9 +614,9 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       expect(bodyText.includes('접근 권한이 없습니다'), 'DISPATCH 배차 보드 — 차단 화면 표시됨').toBe(false)
       // [Round C P1 #8] '대시보드' 라벨 폐기('홈' 리라벨) → 앱 셸 렌더 sentinel 을 aside.app-sidebar 존재로 교체.
       expect(await page.locator('aside.app-sidebar').count(), 'DISPATCH 배차 보드 — 앱 셸 미렌더(빈 화면)').toBeGreaterThanOrEqual(1)
-      await expect(page.getByTestId('dispatch-board-slip-row-2026/06/11-SPD3-001')).toBeVisible()
-      await expect(page.getByTestId('dispatch-board-slip-open-2026/06/11-SPD3-001')).toContainText('동탄공조')
-      await expect(page.getByTestId('dispatch-board-slip-open-2026/06/11-SPD3-001')).toContainText('P-SPD3-001')
+      await expect(page.getByTestId('dispatch-board-slip-row-2026/06/11-1')).toBeVisible()
+      await expect(page.getByTestId('dispatch-board-slip-open-2026/06/11-1')).toContainText('동탄공조')
+      await expect(page.getByTestId('dispatch-board-slip-open-2026/06/11-1')).toContainText('P-SPD3-001')
       await expect(page.getByTestId('dispatch-board-add-vehicle-button')).toBeDisabled()
       await expect(page.getByTestId('dispatch-board-complete-button')).toBeDisabled()
       await expect(page.getByText('배차 작업 초기화 실패')).toHaveCount(0)

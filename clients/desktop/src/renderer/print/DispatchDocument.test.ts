@@ -65,7 +65,7 @@ function renderDocument(approvalRoles: ApprovalLineStructure[] | null): string {
 const sampleSlip: SlipDetail = {
   id: '11111111-1111-1111-1111-111111111111',
   slipType: 'OUTBOUND',
-  slipNo: 'SO-000001',
+  slipNo: '2026/06/22-1',
   slipDate: '2026-06-22',
   seqNo: 1,
   status: 'SAVED',

@@ -12,7 +12,7 @@
  *
  * UUID 비공개 가드:
  * - `Journal.id` / `JournalLine.id` UUID 는 path param 으로만 사용. 화면 표시 X
- * - 사용자에게 노출되는 식별자는 `journalNo` (예: `JV-2026/05-001`) 와
+ * - 사용자에게 노출되는 식별자는 `journalNo` (예: `2026/05/08-1`) 와
  *   `account.code` (4자리 숫자)
  */
 import {
@@ -58,7 +58,7 @@ export interface JournalLine {
 export interface Journal {
   /** 분개 UUID — 화면 미노출. */
   id: string
-  /** 사람이 읽는 분개번호 (예: `JV-2026/05-001`). */
+  /** 사람이 읽는 분개번호 (예: `2026/05/08-1`). */
   journalNo: string
   /** 분개 일자 (YYYY-MM-DD). */
   journalDate: string
@@ -1282,7 +1282,7 @@ export const DAILY_CLOSING_STATUS_LABEL: Record<'LOCKED' | 'OPEN', string> = {
 export interface GeneralLedgerLine {
   /** 분개 일자 (YYYY-MM-DD) — BE 필드명 `date`. */
   date: string
-  /** 사용자 노출 분개번호 (예: JV-2026/05-001). */
+  /** 사용자 노출 분개번호 (예: 2026/05/08-1). */
   journalNo: string
   /** 계정 코드. */
   accountCode: string

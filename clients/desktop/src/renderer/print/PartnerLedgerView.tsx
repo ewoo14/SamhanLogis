@@ -55,7 +55,7 @@ import styles from './PartnerLedgerView.module.css'
 interface LedgerLine {
   /** 분개 일자 (YYYY-MM-DD). */
   date: string
-  /** 사용자 노출 전표/분개 번호 (예: 2026/05/09-7 또는 JV-2026/05-21). */
+  /** 사용자 노출 전표/분개 번호 (예: 2026/05/09-7 또는 2026/05/05-1). */
   slipNo: string
   /** 적요 (분개 헤더 description 또는 슬립 메모). */
   description: string
@@ -122,7 +122,7 @@ const MOCK_DATA: PartnerLedgerData = {
     },
     {
       date: '2026-05-05',
-      slipNo: 'JV-2026/05-21',
+      slipNo: '2026/05/05-1',
       description: '입금 — 보통예금 (신한)',
       debit: 0,
       credit: 2_000_000,
@@ -146,7 +146,7 @@ const MOCK_DATA: PartnerLedgerData = {
     },
     {
       date: '2026-05-20',
-      slipNo: 'JV-2026/05-46',
+      slipNo: '2026/05/20-1',
       description: '입금 — 보통예금 (신한)',
       debit: 0,
       credit: 5_000_000,

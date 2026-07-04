@@ -63,22 +63,22 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
       page.locator('[data-testid="compensation-failures-table"]'),
     ).toBeVisible()
 
-    // seed: 미해소 2건 (2026/06/03-001, 2026/06/02-017)
+    // seed: 미해소 2건 (2026/06/03-1, 2026/06/02-17)
     await expect(
-      page.locator('[data-testid="compensation-failures-row-2026/06/03-001"]'),
+      page.locator('[data-testid="compensation-failures-row-2026/06/03-1"]'),
     ).toBeVisible()
     await expect(
-      page.locator('[data-testid="compensation-failures-row-2026/06/02-017"]'),
+      page.locator('[data-testid="compensation-failures-row-2026/06/02-17"]'),
     ).toBeVisible()
 
     // 미해소 배지
     await expect(
-      page.locator('[data-testid="compensation-failures-badge-2026/06/03-001"]'),
+      page.locator('[data-testid="compensation-failures-badge-2026/06/03-1"]'),
     ).toContainText('미해소')
 
-    // resolved=true 인 seed 행(2026/06/01-042)은 기본 필터에서 숨겨짐
+    // resolved=true 인 seed 행(2026/06/01-42)은 기본 필터에서 숨겨짐
     await expect(
-      page.locator('[data-testid="compensation-failures-row-2026/06/01-042"]'),
+      page.locator('[data-testid="compensation-failures-row-2026/06/01-42"]'),
     ).toHaveCount(0)
   })
 
@@ -90,14 +90,14 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
       .locator('[data-testid="compensation-failures-filter-toggle"]')
       .click()
 
-    // resolved=true seed 행(2026/06/01-042) 표시
+    // resolved=true seed 행(2026/06/01-42) 표시
     await expect(
-      page.locator('[data-testid="compensation-failures-row-2026/06/01-042"]'),
+      page.locator('[data-testid="compensation-failures-row-2026/06/01-42"]'),
     ).toBeVisible()
 
     // 해소됨 배지
     await expect(
-      page.locator('[data-testid="compensation-failures-badge-2026/06/01-042"]'),
+      page.locator('[data-testid="compensation-failures-badge-2026/06/01-42"]'),
     ).toContainText('해소됨')
   })
 
@@ -108,7 +108,7 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
 
     // 해소 처리 버튼 클릭 (첫 번째 미해소 행)
     await page
-      .locator('[data-testid="compensation-failures-resolve-2026/06/03-001"]')
+      .locator('[data-testid="compensation-failures-resolve-2026/06/03-1"]')
       .click()
 
     // 확인 다이얼로그 표시
@@ -118,7 +118,7 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
 
     // 다이얼로그 내 전표번호 노출 (slipNo)
     const dialog = page.locator('[data-testid="compensation-failures-resolve-dialog"]')
-    await expect(dialog).toContainText('2026/06/03-001')
+    await expect(dialog).toContainText('2026/06/03-1')
 
     // UUID 미노출
     const dialogText = await dialog.textContent()
@@ -136,7 +136,7 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
 
     // 미해소 필터 기본 → 목록에서 해소된 행이 사라짐
     await expect(
-      page.locator('[data-testid="compensation-failures-row-2026/06/03-001"]'),
+      page.locator('[data-testid="compensation-failures-row-2026/06/03-1"]'),
     ).toHaveCount(0, { timeout: 5_000 })
 
     // 전체 보기로 전환 후 해소됨 배지 확인
@@ -145,7 +145,7 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
       .click()
 
     await expect(
-      page.locator('[data-testid="compensation-failures-badge-2026/06/03-001"]'),
+      page.locator('[data-testid="compensation-failures-badge-2026/06/03-1"]'),
     ).toContainText('해소됨', { timeout: 5_000 })
   })
 
@@ -153,7 +153,7 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
     await gotoPage(page)
 
     await page
-      .locator('[data-testid="compensation-failures-resolve-2026/06/02-017"]')
+      .locator('[data-testid="compensation-failures-resolve-2026/06/02-17"]')
       .click()
 
     await expect(
@@ -171,7 +171,7 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
 
     // 행 여전히 미해소
     await expect(
-      page.locator('[data-testid="compensation-failures-badge-2026/06/02-017"]'),
+      page.locator('[data-testid="compensation-failures-badge-2026/06/02-17"]'),
     ).toContainText('미해소')
   })
 
@@ -217,12 +217,12 @@ test.describe('D-SER-23 보상 실패 복구 화면', () => {
 
     // 페이지는 정상 진입(미해소 행 표시) — 전체 차단이 아닌 버튼 가드임을 확인.
     await expect(
-      page.locator('[data-testid="compensation-failures-row-2026/06/02-017"]'),
+      page.locator('[data-testid="compensation-failures-row-2026/06/02-17"]'),
     ).toBeVisible()
 
     // 미해소 행이어도 update 권한이 없으면 해소 버튼이 렌더되지 않아야 한다(canAccess update 가드).
     await expect(
-      page.locator('[data-testid="compensation-failures-resolve-2026/06/02-017"]'),
+      page.locator('[data-testid="compensation-failures-resolve-2026/06/02-17"]'),
     ).toHaveCount(0)
   })
 })

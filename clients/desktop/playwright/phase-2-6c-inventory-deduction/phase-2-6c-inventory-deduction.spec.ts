@@ -19,7 +19,7 @@
  *   <li>GET /api/v1/partner-orders/ord-draft → DRAFT, linkedSlipNo=null, convertedQuantity=0</li>
  *   <li>POST /api/v1/partner-orders/{id}/convert-to-slip
  *       mockConvertInventory409=1 → 409 ("재고 부족: 실외기(AJ040RXH4BC1) 요청 2, 가용 0")
- *       기본                     → 성공 { slipNo:'SL-20260530-001', fullyConverted:false }</li>
+ *       기본                     → 성공 { slipNo:'2026/05/30-1', fullyConverted:false }</li>
  * </ul>
  *
  * <h2>no-fake-data 원칙 ([[feedback_no_fake_data_ever]])</h2>
@@ -238,7 +238,7 @@ test.describe('Phase 2.6c 재고 부족 전환 사전차단', () => {
     // 성공 토스트 노출 — slipNo 포함
     const toast = page.getByTestId('partner-order-convert-toast')
     await expect(toast).toBeVisible({ timeout: 10_000 })
-    await expect(toast).toContainText('SL-20260530-001')
+    await expect(toast).toContainText('2026/05/30-1')
 
     // 모달 닫힘 확인
     await expect(page.getByTestId('partner-order-convert-modal-body')).toHaveCount(0)
@@ -250,7 +250,7 @@ test.describe('Phase 2.6c 재고 부족 전환 사전차단', () => {
   // ──────────────────────────────────────────────────────────
   // 시나리오 5: UUID 비공개 가드 — 성공 토스트에 UUID 미포함
   //
-  // 성공 응답의 slipNo 는 'SL-20260530-001' 형식(UUID 아님).
+  // 성공 응답의 slipNo 는 '2026/05/30-1' 형식(UUID 아님).
   // [[feedback_uuid_no_user_visibility]] 준수 확인.
   // ──────────────────────────────────────────────────────────
   test('시나리오 5: 성공 토스트 UUID 미포함 가드', async ({ page }) => {

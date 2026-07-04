@@ -39,7 +39,7 @@ export async function listInboundTaxInvoices(filters: {
       })
       .map((row, index) => ({
         id: row.slipNo,
-        taxInvoiceNo: `IN-${row.slipDate.replace(/-/g, '')}-${String(index + 1).padStart(3, '0')}`,
+        taxInvoiceNo: `${row.slipDate.replace(/-/g, '/')}-${index + 1}`,
         invoiceType: 'PURCHASE',
         partnerCode: row.partnerCode,
         partnerName: row.partnerName,

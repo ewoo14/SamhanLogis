@@ -120,7 +120,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    *   - /accounting/tax-invoices 목록 페이지 로드 정상
    *   - "세금계산서 발행" 버튼 또는 emit-nts CTA 가 ISSUED 세금계산서 상세에서 노출
    *   - page.route() 로 emit-nts API mock:
-   *       정상: 200 + eTaxExternalId = "DRY-2026/05/18-0001-1747555200000"
+   *       정상: 200 + eTaxExternalId = "DRY-2026/05/18-1-1747555200000"
    *       TAX_INVOICE_NOT_EMITTABLE: 422 (DRAFT/CANCELLED 에 emit-nts 호출)
    *       TAX_INVOICE_ALREADY_EMITTED: 409 (중복 발행)
    *   - pageerror 없음
@@ -239,8 +239,8 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
             success: true,
             data: {
               id: 'mock-uuid-0001',
-              taxInvoiceNo: '2026/05/18-0001',
-              eTaxExternalId: 'DRY-2026/05/18-0001-1747555200000',
+              taxInvoiceNo: '2026/05/18-1',
+              eTaxExternalId: 'DRY-2026/05/18-1-1747555200000',
               status: 'ISSUED',
               partnerName: '(주)삼한물류',
               supplyDate: '2026-05-18',
@@ -308,8 +308,8 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
           success: true,
           data: {
             id: 'mock-uuid-0002',
-            taxInvoiceNo: '2026/05/18-0002',
-            eTaxExternalId: 'DRY-2026/05/18-0002-1747555200001',
+            taxInvoiceNo: '2026/05/18-2',
+            eTaxExternalId: 'DRY-2026/05/18-2-1747555200001',
             status: 'ISSUED',
             partnerName: '(주)삼한항공',
             supplyDate: '2026-05-18',
@@ -415,8 +415,8 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
           success: true,
           data: {
             id: 'mock-uuid-0003',
-            taxInvoiceNo: '2026/05/18-0003',
-            eTaxExternalId: 'DRY-2026/05/18-0003-1747555200002',
+            taxInvoiceNo: '2026/05/18-3',
+            eTaxExternalId: 'DRY-2026/05/18-3-1747555200002',
             status: 'ISSUED',
             partnerName: '(주)삼한퍼블릭',
             partnerBusinessNo: '123-45-67890',
@@ -446,7 +446,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
             changedAt: '2026-05-18T09:00:00Z',
             fieldName: 'eTaxExternalId',
             oldValue: null,
-            newValue: 'DRY-2026/05/18-0003-1747555200002',
+            newValue: 'DRY-2026/05/18-3-1747555200002',
             revisionNo: 1,
           },
         ]),
@@ -513,7 +513,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
    *
    * 검증 항목:
    *   - 텍스트 노드에서 UUID v4 패턴 미노출
-   *   - taxInvoiceNo (예: "2026/05/18-0001") 형식 화면 노출 허용
+   *   - taxInvoiceNo (예: "2026/05/18-1") 형식 화면 노출 허용
    *   - eTaxExternalId ("DRY-...") 화면 노출 허용 (UUID 아닌 외부 식별자)
    *   - id / partnerId / journalId UUID 는 href/data-attribute 에만 허용
    *   - pageerror 없음
@@ -550,9 +550,9 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       return found
     })
 
-    // taxInvoiceNo 형식 확인 (yyyy/MM/dd-NNNN) — UUID 가 아님
+    // taxInvoiceNo 형식 확인 (yyyy/MM/dd-N) — UUID 가 아님
     const bodyText = (await page.textContent('body')) ?? ''
-    const hasTaxInvoiceNo = /\d{8}-\d{4}/.test(bodyText)
+    const hasTaxInvoiceNo = /\d{4}\/\d{2}\/\d{2}-[1-9]\d*/.test(bodyText)
 
     ensureQaDir()
     await page.screenshot({
@@ -564,6 +564,7 @@ test.describe('SP-09-1 NTS e-Tax 국세청 전자세금계산서 발행 shell (T
       visibleUuids,
       `UUID 텍스트 노출 위반 (UUID 비공개 원칙 — taxInvoiceNo / eTaxExternalId 만 표시): ${visibleUuids.join(', ')}`,
     ).toHaveLength(0)
+    expect(hasTaxInvoiceNo, '세금계산서 내부번호는 yyyy/MM/dd-N 형식으로 노출되어야 한다').toBeTruthy()
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })
 

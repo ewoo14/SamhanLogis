@@ -122,7 +122,7 @@ function deletedGroup(overrides: Partial<DispatchVehicleGroupResponse> = {}): Di
         deletedAt: '2026-07-02T10:20:00',
         deletedByName: null,
         slip: {
-          slipNo: 'SLIP-001',
+          slipNo: '2026/07/02-1',
           partnerCode: 'P-001',
           partnerName: '동탄공조',
           deliveryAddress: null,
@@ -188,7 +188,7 @@ describe('dispatch deleted rows', () => {
     expect(screen.getByText('삭제됨')).toBeTruthy()
     expect(screen.getByTestId('dispatch-board-vehicle-group-1-deleted-label').style.textDecoration)
       .toContain('line-through')
-    expect(screen.getByTestId('dispatch-board-group-slip-SLIP-001-deleted-label').style.textDecoration)
+    expect(screen.getByTestId('dispatch-board-group-slip-2026/07/02-1-deleted-label').style.textDecoration)
       .toContain('line-through')
   })
 
@@ -203,7 +203,7 @@ describe('dispatch deleted rows', () => {
     )
 
     expect(screen.queryByTestId('dispatch-task-detail-restore-group-1')).toBeNull()
-    expect(screen.queryByTestId('dispatch-task-detail-restore-slip-SLIP-001')).toBeNull()
+    expect(screen.queryByTestId('dispatch-task-detail-restore-slip-2026/07/02-1')).toBeNull()
   })
 
   it('복원 권한이 있으면 보드 카드에서 삭제 그룹 복원 버튼을 노출한다', () => {
@@ -305,7 +305,7 @@ describe('dispatch deleted rows', () => {
           deletedAt: '2026-07-02T10:20:00',
           deletedByName: '이운영',
           slip: {
-            slipNo: 'SLIP-001',
+            slipNo: '2026/07/02-1',
             partnerCode: 'P-001',
             partnerName: '동탄공조',
             deliveryAddress: null,
@@ -321,7 +321,7 @@ describe('dispatch deleted rows', () => {
           deletedAt: null,
           deletedByName: null,
           slip: {
-            slipNo: 'SLIP-002',
+            slipNo: '2026/07/02-2',
             partnerCode: 'P-002',
             partnerName: '수원설비',
             deliveryAddress: null,
@@ -350,6 +350,6 @@ describe('dispatch deleted rows', () => {
     // 삭제행 1 + 활성행 1 → 카운트는 활성 1건, 취소선 행이 있어도 그룹 삭제 게이트는 활성 0 일 때만 풀림.
     expect(screen.getByTestId('dispatch-board-vehicle-group-1-count').textContent).toBe('(1건)')
     // 삭제행(slip-1)이 duplicateSlipIds 에 있어도 취소선 행에는 ⚠ 를 붙이지 않는다.
-    expect(screen.queryByTestId('dispatch-board-group-slip-SLIP-001-duplicate-warning')).toBeNull()
+    expect(screen.queryByTestId('dispatch-board-group-slip-2026/07/02-1-duplicate-warning')).toBeNull()
   })
 })

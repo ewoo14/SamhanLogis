@@ -95,7 +95,7 @@ test.describe('§7 회계전표 협업 패널', () => {
     await page.goto(detailUrl(REVERSED_JOURNAL_ID), { waitUntil: 'domcontentloaded' })
 
     // 분개번호는 앱 헤더 메타([JV-...])와 상세 제목(h3) 2곳에 나타나므로 제목(heading)으로 특정한다.
-    await expect(page.getByRole('heading', { name: '2026/05/01-005', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '2026/05/01-5', exact: true })).toBeVisible()
     await expect(page.getByTestId('journal-collaboration-panel')).toBeVisible()
     await expect(page.getByTestId('journal-collab-edit-open')).toHaveCount(0)
   })

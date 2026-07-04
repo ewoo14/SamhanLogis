@@ -26,7 +26,7 @@ describe('PrintRendererApp outbound copy contract', () => {
 })
 
 const slipData: SlipData = {
-  slipNo: 'SO-000001',
+  slipNo: '2026/06/22-1',
   slipDate: '2026-06-22',
   partnerName: '판매거래처',
   recipientAddress: '서울시 중구',

@@ -147,7 +147,7 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
   // 시나리오 2: 상태 필터 '완료'(CONFIRMED) 전환 → CONFIRMED 행 표시
   //
   // mock.ts status=CONFIRMED → orderNumber='2026/05/03-1', partnerName='한빛쾌적',
-  // linkedSlipNo='SL-20260503-001' 반환.
+  // linkedSlipNo='2026/05/03-1' 반환.
   // ──────────────────────────────────────────────────────────
   test('시나리오 2: 상태 필터 "완료"(CONFIRMED) 전환 → CONFIRMED 행 표시', async ({
     page,
@@ -169,7 +169,7 @@ test.describe('Phase 2.5 주문 보류 + 상태 필터', () => {
     await expect(page.getByRole('table')).toContainText('한빛쾌적')
 
     // linkedSlipNo 표시
-    await expect(page.getByRole('table')).toContainText('SL-20260503-001')
+    await expect(page.getByRole('table')).toContainText('2026/05/03-1')
 
     // DRAFT 행(엘에이시스템에어 2026/05/04-1) 미노출
     await expect(page.getByRole('table')).not.toContainText('엘에이시스템에어')

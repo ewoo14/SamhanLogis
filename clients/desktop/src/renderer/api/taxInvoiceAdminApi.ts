@@ -58,6 +58,10 @@ function unwrap<T>(payload: T | ApiEnvelope<T>): T {
   return payload as T
 }
 
+function mockDocumentNo(date: string, sequence: number): string {
+  return `${date.replace(/-/g, '/')}-${sequence}`
+}
+
 export async function createTaxInvoiceFromSalesSlips(
   body: CreateTaxInvoiceFromSalesSlipsRequest,
 ): Promise<TaxInvoiceFromSalesSlipsResponse> {
@@ -69,7 +73,7 @@ export async function createTaxInvoiceFromSalesSlips(
     const supply = selected.reduce((sum, row) => sum + Number(row.totalSupplyAmount), 0)
     const vat = selected.reduce((sum, row) => sum + Number(row.totalVatAmount), 0)
     return {
-      taxInvoiceNo: `TI-${body.issuedDate.replace(/-/g, '')}-B01`,
+      taxInvoiceNo: mockDocumentNo(body.issuedDate, 1),
       partnerCode: first?.partnerCode ?? 'P-10021',
       partnerName: first?.partnerName ?? '삼한물류 안산센터',
       totalSupplyAmount: String(supply),
@@ -98,7 +102,7 @@ export async function registerInboundTaxInvoice(
     const vat = selected.reduce((sum, row) => sum + Number(row.totalVatAmount), 0)
     return {
       taxInvoiceId: body.purchaseSlipIds[0] ?? 'mock-inbound-tax-invoice-id',
-      taxInvoiceNo: `IN-${body.issuedDate.replace(/-/g, '')}-R01`,
+      taxInvoiceNo: mockDocumentNo(body.issuedDate, 1),
       partnerCode: first?.partnerCode ?? 'V-30011',
       partnerName: first?.partnerName ?? '한빛포장',
       totalSupplyAmount: String(supply),

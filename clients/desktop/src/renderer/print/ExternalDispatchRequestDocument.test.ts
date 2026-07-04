@@ -14,7 +14,7 @@ describe('ExternalDispatchRequestDocument', () => {
     expect(html).toContain('한빛퀵')
     expect(html).toContain('010-7000-0104')
     expect(html).toContain('2026년 06월 24일')
-    expect(html).toContain('2026/06/24-EDP-001')
+    expect(html).toContain('2026/06/24-1')
     expect(html).toContain('서울시 강남구 테스트로 101')
     expect(html).toContain('삼한거래처')
     expect(html).toContain('010-1000-0101')
@@ -60,7 +60,7 @@ const samplePrintData: ExternalDispatchPrintDataResponse = {
   channel: 'PRINT',
   items: [
     {
-      slipNo: '2026/06/24-EDP-001',
+      slipNo: '2026/06/24-1',
       deliveryAddress: '서울시 강남구 테스트로 101',
       recipientName: '삼한거래처',
       recipientPhone: '010-1000-0101',
@@ -68,7 +68,7 @@ const samplePrintData: ExternalDispatchPrintDataResponse = {
       sequence: 1,
     },
     {
-      slipNo: '2026/06/24-EDP-002',
+      slipNo: '2026/06/24-2',
       deliveryAddress: '서울시 서초구 테스트로 102',
       recipientName: '아로현장',
       recipientPhone: '010-1000-0102',

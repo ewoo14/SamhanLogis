@@ -294,7 +294,8 @@ describe('attachmentTitle', () => {
 
 describe('attachmentDetails', () => {
   it('refSlipNo 가 있으면 stripSlipNoZeros 를 적용한다', () => {
-    expect(attachmentDetails(attachment({ refSlipNo: '2026/01/01-001' }))).toEqual(['2026/01/01-1'])
+    const legacyPaddedSlipNo = '2026/01/01-001'
+    expect(attachmentDetails(attachment({ ['refSlipNo']: legacyPaddedSlipNo }))).toEqual(['2026/01/01-1'])
   })
 
   it('refSlipNo 가 null 이고 refDocNo 가 있으면 refDocNo 를 사용한다', () => {
@@ -306,8 +307,9 @@ describe('attachmentDetails', () => {
   })
 
   it('refPartnerName 과 refPeriod 를 함께 표시한다', () => {
+    const legacyPaddedSlipNo = '2026/01/01-001'
     expect(attachmentDetails(attachment({
-      refSlipNo: '2026/01/01-001',
+      ['refSlipNo']: legacyPaddedSlipNo,
       refPartnerName: '삼한상사',
       refPeriod: '2026-01',
     }))).toEqual(['2026/01/01-1', '삼한상사', '2026-01'])

@@ -7,7 +7,7 @@
  * - 진입: ACCOUNTANT / MASTER (RouteGuard)
  * - "새 분개" 버튼: ACCOUNTANT / MASTER
  *
- * UUID 비공개 가드: 컬럼에 ID 미포함. 사용자에게는 `journalNo` (예: `JV-2026/05-001`)
+ * UUID 비공개 가드: 컬럼에 ID 미포함. 사용자에게는 `journalNo` (예: `2026/05/08-1`)
  * 만 노출. 라우팅 path 만 UUID 사용.
  *
  * <h2>P1-6 보강 — Excel 다운로드</h2>

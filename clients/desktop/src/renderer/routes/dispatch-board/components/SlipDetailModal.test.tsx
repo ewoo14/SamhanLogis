@@ -138,7 +138,7 @@ describe('SlipDetailModal 판매전표 미리보기', () => {
 const sampleSlip: SlipDetail = {
   id: '11111111-1111-1111-1111-111111111111',
   slipType: 'OUTBOUND',
-  slipNo: 'SO-000001',
+  slipNo: '2026/07/03-1',
   slipDate: '2026-07-03',
   seqNo: 1,
   status: 'SAVED',

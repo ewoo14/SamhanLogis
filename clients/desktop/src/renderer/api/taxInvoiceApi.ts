@@ -15,7 +15,7 @@
  *
  * <p>UUID 비공개 가드 ({@code feedback_uuid_no_user_visibility.md}):
  * - {@code id} / {@code partnerId} / {@code journalId} 는 path 또는 link 용 (사용자 노출 X)
- * - 화면 표시는 {@code taxInvoiceNo} (예: {@code 2026-05-001}) + {@code partnerName} + {@code partnerBusinessNo}
+ * - 화면 표시는 {@code taxInvoiceNo} (예: {@code 2026/05/08-1}) + {@code partnerName} + {@code partnerBusinessNo}
  *
  * <p>권한: ACCOUNTANT / MASTER 만 — RoleGuard 가 라우팅 단계에서 차단 (BE 도 PreAuthorize 강제).
  */

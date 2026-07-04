@@ -659,7 +659,7 @@ const mockConvertedOrderNos = new Set<string>()
 const MOCK_COMPENSATION_FAILURES = [
   {
     id: 'cf510001-0000-0000-0000-000000000001',
-    slipNo: '2026/06/03-001',
+    slipNo: '2026/06/03-1',
     slipType: 'OUTBOUND',
     phase: 'SERIAL_DEDUCTION',
     productCode: 'PRD-A-001',
@@ -672,7 +672,7 @@ const MOCK_COMPENSATION_FAILURES = [
   },
   {
     id: 'cf510002-0000-0000-0000-000000000002',
-    slipNo: '2026/06/02-017',
+    slipNo: '2026/06/02-17',
     slipType: 'INBOUND',
     phase: 'SERIAL_ASSIGNMENT',
     productCode: 'PRD-B-003',
@@ -685,7 +685,7 @@ const MOCK_COMPENSATION_FAILURES = [
   },
   {
     id: 'cf510003-0000-0000-0000-000000000003',
-    slipNo: '2026/06/01-042',
+    slipNo: '2026/06/01-42',
     slipType: 'OUTBOUND',
     phase: 'SERIAL_DEDUCTION',
     productCode: 'PRD-C-007',
@@ -4017,7 +4017,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && publicShareMatch) {
     return envelope({
       slip: {
-        slipNo: '2026-05-04-2',
+        slipNo: '2026/05/04-2',
         partnerName: '○○종합건설',
         deliveryAddress: '경기도 성남시 분당구 판교로 235',
         deliveryDate: '2026-05-04',
@@ -5136,7 +5136,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
     return envelope({
       id: 'jv-new-' + Date.now(),
-      journalNo: '2026/05/04-099',
+      journalNo: '2026/05/04-99',
       journalDate: body.journalDate ?? '2026-05-04',
       status: 'DRAFT',
       description: body.description ?? null,
@@ -6766,7 +6766,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       submittedAt: '2026-05-03T14:00:00',
       status: 'CONFIRMED' as const,
       totalAmount: 5200000,
-      linkedSlipNo: 'SL-20260503-001',
+      linkedSlipNo: '2026/05/03-1',
     }
     // Phase 2.6b D2: 병합 시나리오 4·5용 — SAME_PARTNER 같은 거래처 2건 (DRAFT + ON_HOLD).
     // partnerCode = '1234567890' (DRAFT_ROW 와 동일 거래처).
@@ -6814,7 +6814,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     content = content
       .map((row) =>
         mockConvertedOrderNos.has(row.orderNumber)
-          ? { ...row, status: 'CONVERTED' as const, linkedSlipNo: 'SL-20260531-MERGE-001' }
+          ? { ...row, status: 'CONVERTED' as const, linkedSlipNo: '2026/05/31-1' }
           : row,
       )
       .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
@@ -7848,7 +7848,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const found = MOCK_TAX_INVOICES.find((t) => t.id === id) ?? MOCK_TAX_INVOICES[1]!
     return envelope({
       ...found,
-      taxInvoiceNo: found.taxInvoiceNo ?? `2026/05/19-${String(Date.now()).slice(-4)}`,
+      taxInvoiceNo: found.taxInvoiceNo ?? `2026/05/19-${Number(String(Date.now()).slice(-4)) || 1}`,
       status: 'ISSUED' as const,
       issuedAt: new Date().toISOString(),
       issuedBy: '이정훈',
@@ -8049,8 +8049,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       totalDiscount: '0',
       taxInvoices: [
         {
-          taxInvoiceNo: 'TI-20260607-001',
-          salesSlipNo: 'SA-20260607-001',
+          taxInvoiceNo: '2026/06/07-1',
+          salesSlipNo: '2026/06/07-1',
           sourceSlipNo: '2026/06/07-1',
           bizNo: '1112233333',
           partnerName: '삼한거래처',
@@ -8084,7 +8084,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       lines: [
         {
           date: '2026-06-10',
-          journalNo: 'JV-2026/06-001',
+          journalNo: '2026/06/10-1',
           accountCode: '102',
           accountName: '보통예금',
           accountCategory: 'ASSET',
@@ -8167,10 +8167,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       periodFrom: '2026-04-01',
       periodTo: '2026-04-30',
       lines: [
-        { date: '2026-04-05', journalNo: 'JV-2026/04-001', accountCode: '110', description: '4월 1주 출고', debit: '3700000', credit: '0', balance: '3700000' },
-        { date: '2026-04-12', journalNo: 'JV-2026/04-002', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2000000', balance: '1700000' },
-        { date: '2026-04-19', journalNo: 'JV-2026/04-003', accountCode: '110', description: '4월 3주 출고', debit: '4750000', credit: '0', balance: '6450000' },
-        { date: '2026-04-26', journalNo: 'JV-2026/04-004', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2200000', balance: '4250000' },
+        { date: '2026-04-05', journalNo: '2026/04/05-1', accountCode: '110', description: '4월 1주 출고', debit: '3700000', credit: '0', balance: '3700000' },
+        { date: '2026-04-12', journalNo: '2026/04/12-1', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2000000', balance: '1700000' },
+        { date: '2026-04-19', journalNo: '2026/04/19-1', accountCode: '110', description: '4월 3주 출고', debit: '4750000', credit: '0', balance: '6450000' },
+        { date: '2026-04-26', journalNo: '2026/04/26-1', accountCode: '110', description: '계좌이체 입금', debit: '0', credit: '2200000', balance: '4250000' },
       ],
     })
   }
@@ -10345,7 +10345,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         updatedAt: '2026-05-30T11:00:00',
         status: slipResyncRequired ? 'CONFIRMED' : 'DRAFT',
         totalAmount: 240000,
-        linkedSlipNo: slipResyncRequired ? 'SL-20260504-001' : null,
+        linkedSlipNo: slipResyncRequired ? '2026/05/04-1' : null,
         deliveryAddress: '서울시 강남구 테헤란로 1',
         siteAddress: '현장 A동',
         contactPhone: '010-1234-5678',
@@ -10435,7 +10435,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // 성공 — { slipNo, convertedOrders } 반환.
   //   mockMerge409=mixed   → 409 (거래처 불일치)
   //   mockMerge409=stock   → 409 (재고 부족)
-  //   기본                 → 성공 (SL-20260531-MERGE-001)
+  //   기본                 → 성공 (2026/05/31-1)
   // ==========================================================================
 
   if (method === 'POST' && /\/api\/v1\/partner-orders\/convert-to-slip-merge/.test(url)) {
@@ -10471,7 +10471,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // 3-D: 변환된 주문번호 기억 → 이후 목록 재페치 시 CONVERTED 로 노출
     for (const co of convertedOrders) mockConvertedOrderNos.add(co.orderNo)
     return envelope({
-      slipNo: 'SL-20260531-MERGE-001',
+      slipNo: '2026/05/31-1',
       convertedOrders,
     })
   }
@@ -10507,7 +10507,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     const fullyConverted = params.get('mockConvertFully') === '1'
     return envelope({
-      slipNo: 'SL-20260530-001',
+      slipNo: '2026/05/30-1',
       orderStatus: fullyConverted ? 'CONVERTED' : 'DRAFT',
       fullyConverted,
     })
@@ -10675,9 +10675,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
                 : 'CONFIRMED'
     const poLinkedSlip =
       poId === 'ord-linked-slip' || poId === 'ord-converted'
-        ? 'SL-20260504-001'
+        ? '2026/05/04-1'
         : poStatus === 'CONFIRMED'
-          ? 'SL-20260504-001'
+          ? '2026/05/04-1'
           : null
     const poLines =
       poId === 'ord-partially-converted'
@@ -10732,9 +10732,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           ]
     return {
       orderNumber: poId === 'ord-canceled'
-        ? '2026/05/04-CAN'
+        ? '2026/05/04-2'
         : poId === 'ord-converted'
-          ? '2026/05/04-CVT'
+          ? '2026/05/04-3'
           : '2026/05/04-1',
       partnerCode: '1234567890',
       bizCode: '1234567890',
@@ -10961,7 +10961,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // Phase 2.6d: ord-error-test → 에러 배너 시나리오 (R-4). __error_test__ productId → batch 500
     if (poId === 'ord-error-test') {
       return envelope({
-        orderNumber: '2026/05/31-ERR',
+        orderNumber: '2026/05/31-99',
         partnerCode: '1234567890',
         bizCode: '1234567890',
         partnerName: '테스트에러거래처',
@@ -11031,7 +11031,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         expandedComponents: [],
       }
       return envelope({
-        orderNumber: poId === 'ord-bundle-only' ? '2026/06/11-SET1' : '2026/06/11-MIX1',
+        orderNumber: poId === 'ord-bundle-only' ? '2026/06/11-1' : '2026/06/11-2',
         partnerCode: '1234567890',
         bizCode: '1234567890',
         partnerName: '엘에이시스템에어',
@@ -11071,7 +11071,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       updatedAt: '2026-05-17T10:05:00',
       status: 'CONFIRMED',
       totalAmount: 685000,
-      linkedSlipNo: 'SL-20260504-001',
+      linkedSlipNo: '2026/05/04-1',
       deliveryAddress: '서울시 강남구 테헤란로 1',
       siteAddress: '현장 A동',
       contactPhone: '010-1234-5678',
@@ -12362,7 +12362,7 @@ const MOCK_JOURNALS = [
   // 1. POSTED: 보통예금 입금 (제품매출 대금)
   {
     id: 'jv-001',
-    journalNo: '2026/05/01-001',
+    journalNo: '2026/05/01-1',
     journalDate: '2026-05-04',
     sourceType: 'SLIP' as const,
     sourceTypeDisplayName: '전표',
@@ -12402,7 +12402,7 @@ const MOCK_JOURNALS = [
   // 2. POSTED: 급여 지급
   {
     id: 'jv-002',
-    journalNo: '2026/05/03-002',
+    journalNo: '2026/05/03-2',
     journalDate: '2026-05-03',
     sourceType: 'MANUAL' as const,
     sourceTypeDisplayName: '수기',
@@ -12452,7 +12452,7 @@ const MOCK_JOURNALS = [
   // 3. POSTED: 임차료 지급
   {
     id: 'jv-003',
-    journalNo: '2026/05/02-003',
+    journalNo: '2026/05/02-3',
     journalDate: '2026-05-02',
     sourceType: 'CASH_DISBURSEMENT' as const,
     sourceTypeDisplayName: '지출결의서',
@@ -12492,7 +12492,7 @@ const MOCK_JOURNALS = [
   // 4. DRAFT: 광고비 (작성중)
   {
     id: 'jv-004',
-    journalNo: '2026/05/04-004',
+    journalNo: '2026/05/04-4',
     journalDate: '2026-05-04',
     sourceType: 'MANUAL' as const,
     sourceTypeDisplayName: '수기',
@@ -12532,7 +12532,7 @@ const MOCK_JOURNALS = [
   // 5. REVERSED: 잘못 등록한 매출 (역분개됨)
   {
     id: 'jv-005',
-    journalNo: '2026/05/01-005',
+    journalNo: '2026/05/01-5',
     journalDate: '2026-05-01',
     sourceType: 'CLOSING' as const,
     sourceTypeDisplayName: '결산',
@@ -12572,12 +12572,12 @@ const MOCK_JOURNALS = [
   // 6. POSTED: 입금보고서 자동 분개 (원장 직접 역분개 차단)
   {
     id: 'jv-006',
-    journalNo: '2026/05/04-006',
+    journalNo: '2026/05/04-6',
     journalDate: '2026-05-04',
     sourceType: 'CASH_RECEIPT' as const,
     sourceTypeDisplayName: '입금보고서',
     status: 'POSTED' as const,
-    description: '입금보고서 확정 2026/05/04-006 (주식회사 윌리)',
+    description: '입금보고서 확정 2026/05/04-6 (주식회사 윌리)',
     totalDebit: '850000',
     totalCredit: '850000',
     createdByName: '오병승',
@@ -13166,7 +13166,7 @@ type MockDispatchReadySlip = {
 const MOCK_DISPATCH_READY_SLIPS: MockDispatchReadySlip[] = [
   {
     id: '77777777-d333-4d33-8d33-000000000001',
-    slipNo: '2026/06/11-SPD3-001',
+    slipNo: '2026/06/11-1',
     slipDate: '2026-06-11',
     partnerCode: 'P-SPD3-001',
     partnerName: '동탄공조',
@@ -13178,7 +13178,7 @@ const MOCK_DISPATCH_READY_SLIPS: MockDispatchReadySlip[] = [
   },
   {
     id: '77777777-d333-4d33-8d33-000000000002',
-    slipNo: '2026/06/11-SPD3-002',
+    slipNo: '2026/06/11-2',
     slipDate: '2026-06-11',
     partnerCode: 'P-SPD3-002',
     partnerName: '성남냉열',
@@ -13339,7 +13339,7 @@ function taxInvoiceStatusDisplayName(status: string): string {
 const MOCK_TAX_INVOICES = [
   {
     id: 'ti-001',
-    taxInvoiceNo: '2026/05/02-0001',
+    taxInvoiceNo: '2026/05/02-1',
     invoiceType: 'SALES' as const,
     partnerId: 'partner-uuid-0001',
     partnerCode: 'P-LASYS-001',
@@ -13415,7 +13415,7 @@ const MOCK_TAX_INVOICES = [
   },
   {
     id: 'ti-003',
-    taxInvoiceNo: '2026/04/28-0099',
+    taxInvoiceNo: '2026/04/28-99',
     invoiceType: 'SALES' as const,
     partnerId: 'partner-uuid-0003',
     partnerCode: 'P-HANBIT-003',
@@ -14388,7 +14388,7 @@ function mockDispatchBoardSlipById(slipId: string) {
   return [
     {
       id: '77777777-d333-4d33-8d33-000000000001',
-      slipNo: '2026/06/11-SPD3-001',
+      slipNo: '2026/06/11-1',
       partnerCode: 'P-SPD3-001',
       partnerName: '동탄공조',
       deliveryAddress: '경기도 화성시 동탄대로 10',
@@ -14397,7 +14397,7 @@ function mockDispatchBoardSlipById(slipId: string) {
     },
     {
       id: '77777777-d333-4d33-8d33-000000000002',
-      slipNo: '2026/06/11-SPD3-002',
+      slipNo: '2026/06/11-2',
       partnerCode: 'P-SPD3-002',
       partnerName: '성남냉열',
       deliveryAddress: '경기도 성남시 분당구 판교로 20',
@@ -14438,7 +14438,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
             slipId: '55555555-aaaa-4aaa-8aaa-000000000001',
             sequence: 1,
             slip: {
-              slipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-001`,
+              slipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-1`,
               partnerCode: 'P-DCH-001',
               partnerName: '동탄공조',
               deliveryAddress: '경기도 화성시 동탄대로 10',
@@ -14451,7 +14451,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
             slipId: '55555555-aaaa-4aaa-8aaa-000000000002',
             sequence: 2,
             slip: {
-              slipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-002`,
+              slipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-2`,
               partnerCode: 'P-DCH-002',
               partnerName: '성남냉열',
               deliveryAddress: '경기도 성남시 분당구 판교로 20',
@@ -14503,7 +14503,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
             slipId: '55555555-bbbb-4bbb-8bbb-000000000003',
             sequence: 1,
             slip: {
-              slipNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS_SLIP_PREFIX}-004`,
+              slipNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS_SLIP_PREFIX}-4`,
               partnerCode: 'P-DCH-003',
               partnerName: '수원설비',
               deliveryAddress: '경기도 수원시 영통구 광교로 30',
@@ -14527,7 +14527,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
   },
   {
     id: '11111111-cccc-4ccc-8ccc-000000000003',
-    taskCode: `${MOCK_DISPATCH_HISTORY_TODAY.replace(/-/g, '/')}-MANUAL`,
+    taskCode: mockTaskCode(MOCK_DISPATCH_HISTORY_TODAY, '3'),
     dispatchDate: MOCK_DISPATCH_HISTORY_TODAY,
     status: 'DISPATCHED',
     arologisDispatchId: null,
@@ -14555,7 +14555,7 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
             slipId: '55555555-cccc-4ccc-8ccc-000000000004',
             sequence: 1,
             slip: {
-              slipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-MANUAL`,
+              slipNo: `${MOCK_DISPATCH_HISTORY_TODAY_SLIP_PREFIX}-4`,
               partnerCode: 'P-DCH-MANUAL',
               partnerName: '수동완료거래처',
               deliveryAddress: '경기도 안양시 동안구 시민대로 40',
@@ -14601,7 +14601,7 @@ const MOCK_DISPATCH_TASK_SUMMARIES: DispatchTaskSummaryResponse[] = MOCK_DISPATC
 const MOCK_DISPATCHES = [
   {
     id: 'disp-001',
-    dispatchNo: 'D-2026/05/10-001',
+    dispatchNo: '2026/05/10-1',
     dispatchDate: '2026-05-10',
     vehicleNo: '12가3456',
     vehicleType: '1톤',
@@ -14616,7 +14616,7 @@ const MOCK_DISPATCHES = [
   },
   {
     id: 'disp-002',
-    dispatchNo: 'D-2026/05/10-002',
+    dispatchNo: '2026/05/10-2',
     dispatchDate: '2026-05-10',
     vehicleNo: '23나7890',
     vehicleType: '2.5톤',
@@ -14631,7 +14631,7 @@ const MOCK_DISPATCHES = [
   },
   {
     id: 'disp-003',
-    dispatchNo: 'D-2026/05/09-005',
+    dispatchNo: '2026/05/09-5',
     dispatchDate: '2026-05-09',
     vehicleNo: '34다1234',
     vehicleType: '1톤',

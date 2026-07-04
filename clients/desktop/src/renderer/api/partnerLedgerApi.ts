@@ -71,7 +71,7 @@ export interface SalesAggregateRow {
 export interface LedgerLine {
   /** 분개 일자 (YYYY-MM-DD). */
   date: string
-  /** 사용자 노출 분개번호 (예: JV-2026/05-001). UUID 대신. */
+  /** 사용자 노출 분개번호 (예: 2026/05/08-1). UUID 대신. */
   journalNo: string
   /** 4자리 계정 코드 (110/401/255 등). */
   accountCode: string

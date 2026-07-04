@@ -18,12 +18,12 @@
  * <h2>Mock 전략 — VITE_MOCK_MODE=1 (mock.ts Phase 2.6a 블록)</h2>
  * <ul>
  *   <li>GET /api/v1/partner-orders/ord-draft         → DRAFT, linkedSlipNo=null, convertedQuantity=0</li>
- *   <li>GET /api/v1/partner-orders/ord-confirmed     → CONFIRMED, linkedSlipNo='SL-20260504-001'</li>
- *   <li>GET /api/v1/partner-orders/ord-linked-slip   → DRAFT, linkedSlipNo='SL-20260504-001'</li>
+ *   <li>GET /api/v1/partner-orders/ord-confirmed     → CONFIRMED, linkedSlipNo='2026/05/04-1'</li>
+ *   <li>GET /api/v1/partner-orders/ord-linked-slip   → DRAFT, linkedSlipNo='2026/05/04-1'</li>
  *   <li>GET /api/v1/partner-orders/ord-partially-converted
  *           → DRAFT, line-po-001 qty=2 converted=1(잔여1), line-po-002 qty=3 converted=3(잔여0)</li>
  *   <li>POST /api/v1/partner-orders/{id}/convert-to-slip
- *           → { slipNo:'SL-20260530-001', orderStatus, fullyConverted }
+ *           → { slipNo:'2026/05/30-1', orderStatus, fullyConverted }
  *           (mockConvert409=1 → 409, mockConvertFully=1 → fullyConverted=true)</li>
  * </ul>
  *
@@ -78,7 +78,7 @@ const HOLD_ORDER_ID = 'ord-hold'
 const CONFIRMED_ORDER_ID = 'ord-confirmed'
 
 /**
- * DRAFT + linkedSlipNo='SL-20260504-001' 주문.
+ * DRAFT + linkedSlipNo='2026/05/04-1' 주문.
  * FE 조건 `linkedSlipNo == null` 검사에 걸려 전환 버튼 미노출.
  */
 const LINKED_SLIP_ORDER_ID = 'ord-linked-slip'
@@ -223,7 +223,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   // 시나리오 2: 라인 수량 입력 → 전환 제출 → 부분전환 성공 토스트
   //
   // mockConvertFully 미설정 → fullyConverted=false
-  // 토스트 문구: "SL-20260530-001 발행 — 잔여 수량이 남아 있습니다"
+  // 토스트 문구: "2026/05/30-1 발행 — 잔여 수량이 남아 있습니다"
   // 모달 닫힘 + partner-order-convert-toast 노출
   //
   // AC-1: 창고 autocomplete 입력 방식으로 창고 선택 (HQ 타이핑 → 첫 번째 후보 클릭)
@@ -251,7 +251,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     // 성공 토스트 — slipNo + 부분전환 문구
     const toast = page.getByTestId('partner-order-convert-toast')
     await expect(toast).toBeVisible({ timeout: 10_000 })
-    await expect(toast).toContainText('SL-20260530-001')
+    await expect(toast).toContainText('2026/05/30-1')
     await expect(toast).toContainText('잔여 수량이 남아 있습니다')
 
     // 모달 닫힘 확인
@@ -286,7 +286,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
 
     const toast = page.getByTestId('partner-order-convert-toast')
     await expect(toast).toBeVisible({ timeout: 10_000 })
-    await expect(toast).toContainText('SL-20260530-001')
+    await expect(toast).toContainText('2026/05/30-1')
     await expect(toast).toContainText('전체 수량 전환 완료')
   })
 
@@ -326,7 +326,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   // 시나리오 6: linkedSlipNo 있는 주문 → 전환 버튼 미노출
   //
   // FE 조건: query.data.linkedSlipNo == null → false → 버튼 미렌더.
-  // ord-linked-slip: status=DRAFT + linkedSlipNo='SL-20260504-001'
+  // ord-linked-slip: status=DRAFT + linkedSlipNo='2026/05/04-1'
   // ──────────────────────────────────────────────────────────
   test('시나리오 6: linkedSlipNo 있는 DRAFT 주문 → 전환 버튼 미노출', async ({ page }) => {
     await installAuthMock(page)
@@ -335,7 +335,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     await expect(page.getByTestId('partner-order-convert-open')).toHaveCount(0)
 
     // 연결 전표 필드에 슬립 번호 노출 확인
-    await expect(page.getByLabel('연결 전표')).toHaveValue('SL-20260504-001')
+    await expect(page.getByLabel('연결 전표')).toHaveValue('2026/05/04-1')
   })
 
   // ──────────────────────────────────────────────────────────
@@ -435,7 +435,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
   //   - partner-order-convert-warehouse 내부 autocomplete input 에 "HQ" 입력
   //     → 후보 listbox 노출 → 첫 번째 option 클릭 → 창고 선택 완료.
   //   - submit 이 enabled 로 전환됨.
-  //   - submit 클릭 → 성공 토스트 (SL-20260530-001 발행 문구).
+  //   - submit 클릭 → 성공 토스트 (2026/05/30-1 발행 문구).
   // ──────────────────────────────────────────────────────────
   test('시나리오 11: AC-1 — 창고 autocomplete 미선택 시 제출 비활성 → 선택 후 전환 성공', async ({
     page,
@@ -464,7 +464,7 @@ test.describe('Phase 2.6a 출고전표 전환', () => {
     await submitBtn.click()
     const toast = page.getByTestId('partner-order-convert-toast')
     await expect(toast).toBeVisible({ timeout: 10_000 })
-    await expect(toast).toContainText('SL-20260530-001')
+    await expect(toast).toContainText('2026/05/30-1')
 
     // 모달 닫힘 확인
     await expect(page.getByTestId('partner-order-convert-modal-body')).toHaveCount(0)

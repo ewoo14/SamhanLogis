@@ -61,7 +61,7 @@ export interface StatementBatchLine {
 
 /** BE {@code StatementBatchRow.StatementSlip} record 와 1:1. */
 export interface StatementBatchSlip {
-  /** 사용자 노출 전표번호 (taxInvoiceNo, 예: TI-2026-05-001). */
+  /** 사용자 노출 전표번호 (taxInvoiceNo, 예: 2026/05/08-1). */
   slipNo: string
   /** 공급일자 (YYYY-MM-DD, LocalDate ISO). */
   slipDate: string

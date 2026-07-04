@@ -271,7 +271,7 @@ test.describe('menu-5category view-only mutation gates', () => {
     await routeDispatchTask(page, { allowCreate: false })
     await gotoWithPerm(page, '/dispatch-board', 'dispatch.board', false, 'DISPATCH')
 
-    await expect(page.getByTestId('dispatch-board-slip-row-2026/06/11-SPD3-001')).toBeVisible()
+    await expect(page.getByTestId('dispatch-board-slip-row-2026/06/11-1')).toBeVisible()
     await expect(page.locator('[data-testid="dispatch-board-add-vehicle-button"]')).toBeDisabled()
     await expect(page.locator('[data-testid="dispatch-board-complete-button"]')).toBeDisabled()
     await expect(page.getByText('배차 작업 초기화 실패')).toHaveCount(0)

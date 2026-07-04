@@ -1,8 +1,52 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
 import { getMockResponse } from './mock'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
+import {
+  createSalesSlipDraft,
+  MOCK_SALES_ACCOUNTING_SLIPS,
+  type SalesAccountingSlipResponse,
+} from './salesAccountingSlipApi'
+import {
+  createPurchaseSlipDraft,
+  MOCK_PURCHASE_ACCOUNTING_SLIPS,
+  type PurchaseAccountingSlipResponse,
+} from './purchaseAccountingSlipApi'
+import { listSlipAllocationSources } from './slipAllocationSourceApi'
+import {
+  createTaxInvoiceFromSalesSlips,
+  registerInboundTaxInvoice,
+} from './taxInvoiceAdminApi'
+import { listInboundTaxInvoices } from './taxInvoiceInboundApi'
+
+const DOCUMENT_NO_KEY_SET = new Set([
+  'slipNo',
+  'journalNo',
+  'reverseJournalNo',
+  'orderNo',
+  'taxInvoiceNo',
+  'salesSlipNo',
+  'purchaseSlipNo',
+  'linkedSlipNo',
+  'sourceSlipNo',
+  'refSlipNo',
+  'voucherNo',
+  'documentNo',
+  'slipNumber',
+])
+
+const ALLOWED_NON_DOCUMENT_MARKERS = new Set([
+  'SLIP-DISPATCHED',
+  'SLIP-UNDISPATCHED',
+  '소계',
+  'STATUS-F-SLIP',
+  ' 2026/05 ',
+  '2026/05',
+  '05/18-1',
+])
 
 type MockEnvelope<T> = {
   success: boolean
@@ -26,6 +70,7 @@ function amount(raw: string | number): number {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllEnvs()
 })
 
@@ -107,8 +152,8 @@ describe('mock cash receipt list contract', () => {
       content: Array<{ slipNo: string; journalNo: string | null }>
     }>
 
-    // SlipNumberService/JournalNumberService = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
-    const SLIP_FMT = /^\d{4}\/\d{2}\/\d{2}-\d+$/
+    // SlipNumberService/JournalNumberService = yyyy/MM/dd-N 슬래시, seq 선행 0 금지.
+    const SLIP_FMT = /^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/
     const badSlip = page.data.content
       .filter((row) => !SLIP_FMT.test(row.slipNo))
       .map((row) => row.slipNo)
@@ -163,6 +208,193 @@ describe('mock cash receipt list contract', () => {
     ])
   })
 })
+
+describe('mock business document number contract', () => {
+  const DOCUMENT_NO_FMT = /^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/
+  const OLD_PREFIX_FMT = /[A-Z]{2,}-20[0-9]{6}-/
+
+  it('전표·분개·세금계산서 mock 번호는 BE 채번 형식과 seq 선행 0 금지를 따른다', async () => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+    vi.spyOn(Date, 'now').mockReturnValue(1770000000001)
+
+    const cashReceipts = mockRequest({
+      method: 'GET',
+      url: '/accounting/cash-receipts',
+      params: { page: 0, size: 50 },
+    }) as MockEnvelope<{
+      content: Array<{ slipNo: string; journalNo: string | null }>
+    }>
+    const taxInvoicePage = mockRequest({
+      method: 'GET',
+      url: '/accounting/tax-invoices',
+      params: { page: 0, size: 20 },
+    }) as MockEnvelope<{
+      content: Array<{ taxInvoiceNo: string | null }>
+    }>
+    const issuedTaxInvoice = mockRequest({
+      method: 'POST',
+      url: '/accounting/tax-invoices/ti-002/issue',
+    }) as MockEnvelope<{ taxInvoiceNo: string }>
+
+    const salesDraft = await createSalesSlipDraft({
+      slipDate: '2026-05-20',
+      partnerId: 'partner-sales',
+      partnerCode: 'P-10021',
+      partnerName: '삼한물류 안산센터',
+      taxType: 'TAXABLE',
+      lines: [],
+    })
+    const purchaseDraft = await createPurchaseSlipDraft({
+      slipDate: '2026-05-20',
+      partnerId: 'partner-purchase',
+      partnerCode: 'V-30011',
+      partnerName: '한빛포장',
+      taxType: 'TAXABLE',
+      lines: [],
+    })
+    const salesTaxInvoice = await createTaxInvoiceFromSalesSlips({
+      salesSlipIds: [MOCK_SALES_ACCOUNTING_SLIPS[0]!.slipNo],
+      issuedDate: '2026-05-20',
+    })
+    const inboundTaxInvoice = await registerInboundTaxInvoice({
+      purchaseSlipIds: [MOCK_PURCHASE_ACCOUNTING_SLIPS[0]!.slipNo],
+      issuedDate: '2026-05-20',
+    })
+    const inboundTaxInvoices = await listInboundTaxInvoices({
+      from: '2026-05-20',
+      to: '2026-05-20',
+    })
+
+    const collectedNos = [
+      ...cashReceipts.data.content.flatMap((row) => [row.slipNo, row.journalNo].filter((v): v is string => v != null)),
+      ...taxInvoicePage.data.content.map((row) => row.taxInvoiceNo).filter((v): v is string => v != null),
+      issuedTaxInvoice.data.taxInvoiceNo,
+      ...MOCK_SALES_ACCOUNTING_SLIPS.map((row) => row.slipNo),
+      ...MOCK_PURCHASE_ACCOUNTING_SLIPS.map((row) => row.slipNo),
+      salesDraft.slipNo,
+      purchaseDraft.slipNo,
+      salesTaxInvoice.taxInvoiceNo,
+      inboundTaxInvoice.taxInvoiceNo,
+      ...inboundTaxInvoices.map((row) => row.taxInvoiceNo),
+    ]
+
+    expect(collectedNos.filter((value) => !DOCUMENT_NO_FMT.test(value))).toEqual([])
+    expect(collectedNos.filter((value) => OLD_PREFIX_FMT.test(value))).toEqual([])
+  })
+
+  it('매출·매입전표 allocation sourceSlipNo 는 source API slipNo 와 cross-file 일치한다', async () => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+
+    const outboundSources = await listSlipAllocationSources({
+      type: 'OUTBOUND',
+      from: '2026-05-20',
+      to: '2026-05-20',
+    })
+    const inboundSources = await listSlipAllocationSources({
+      type: 'INBOUND',
+      from: '2026-05-20',
+      to: '2026-05-20',
+    })
+
+    const salesAllocationNos = allocationNos(MOCK_SALES_ACCOUNTING_SLIPS)
+    const purchaseAllocationNos = allocationNos(MOCK_PURCHASE_ACCOUNTING_SLIPS)
+
+    expect(salesAllocationNos.filter((value) => !DOCUMENT_NO_FMT.test(value))).toEqual([])
+    expect(purchaseAllocationNos.filter((value) => !DOCUMENT_NO_FMT.test(value))).toEqual([])
+    expect(new Set(salesAllocationNos)).toEqual(new Set(outboundSources.map((row) => row.slipNo)))
+    expect(new Set(purchaseAllocationNos)).toEqual(new Set(inboundSources.map((row) => row.slipNo)))
+  })
+
+  it('ledger and statement mock endpoints use BE document number format', () => {
+    const ledgers = mockRequest({
+      method: 'GET',
+      url: '/accounting/ledgers',
+      params: { from: '2026-06-01', to: '2026-06-30' },
+    })
+    const partnerLedger = mockRequest({
+      method: 'GET',
+      url: '/accounting/journals/ledger-data',
+      params: { from: '2026-04-01', to: '2026-04-30' },
+    })
+    const statementBatch = mockRequest({
+      method: 'GET',
+      url: '/accounting/statements/batch-data',
+      params: { from: '2026-04-01', to: '2026-04-30' },
+    })
+
+    const collectedNos = [
+      ...collectDocumentNumberValues(ledgers),
+      ...collectDocumentNumberValues(partnerLedger),
+      ...collectDocumentNumberValues(statementBatch),
+    ]
+
+    expect(collectedNos.filter((value) => !DOCUMENT_NO_FMT.test(value))).toEqual([])
+    expect(collectedNos.filter((value) => OLD_PREFIX_FMT.test(value))).toEqual([])
+  })
+
+  it('renderer document-number field literals use standard format or explicit markers', () => {
+    const rendererRoot = join(process.cwd(), 'src', 'renderer')
+    const fieldPattern = Array.from(DOCUMENT_NO_KEY_SET).join('|')
+    const literalPattern = new RegExp(`\\b(${fieldPattern}): *'([^']+)'`, 'g')
+    const violations = listRendererSourceFiles(rendererRoot).flatMap((file) => {
+      const source = readFileSync(file, 'utf8')
+      return Array.from(source.matchAll(literalPattern))
+        .map((match) => ({
+          file: relative(process.cwd(), file).replace(/\\/g, '/'),
+          field: match[1]!,
+          value: match[2]!,
+        }))
+        .filter(({ value }) => !DOCUMENT_NO_FMT.test(value))
+        .filter(({ value }) => !ALLOWED_NON_DOCUMENT_MARKERS.has(value))
+    })
+
+    expect(violations).toEqual([])
+  })
+})
+
+function collectDocumentNumberValues(value: unknown): string[] {
+  const values: string[] = []
+
+  function visit(current: unknown): void {
+    if (Array.isArray(current)) {
+      current.forEach(visit)
+      return
+    }
+    if (current == null || typeof current !== 'object') {
+      return
+    }
+    for (const [key, entry] of Object.entries(current as Record<string, unknown>)) {
+      if (DOCUMENT_NO_KEY_SET.has(key) && typeof entry === 'string') {
+        values.push(entry)
+      }
+      visit(entry)
+    }
+  }
+
+  visit(value)
+  return values
+}
+
+function listRendererSourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      return listRendererSourceFiles(fullPath)
+    }
+    if (!/\.(ts|tsx)$/.test(entry.name)) {
+      return []
+    }
+    return [fullPath]
+  })
+}
+
+function allocationNos(
+  rows: Array<SalesAccountingSlipResponse | PurchaseAccountingSlipResponse>,
+): string[] {
+  return rows.flatMap((row) =>
+    row.lines.flatMap((line) => line.allocations.map((allocation) => allocation.sourceSlipNo)),
+  )
+}
 
 describe('mock approval-line-config contract', () => {
   it('GROUPWARE 기본 결재자 resolve 는 USER 결재자만 sequence 순으로 반환한다', () => {

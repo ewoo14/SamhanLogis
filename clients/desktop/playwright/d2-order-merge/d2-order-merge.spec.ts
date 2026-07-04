@@ -7,7 +7,7 @@
  *   <li>혼합 거래처 선택(다른 partnerCode) → 버튼 비활성 + 안내 문구</li>
  *   <li>1건만 선택 → 버튼 비활성 (2건 이상 필요)</li>
  *   <li>모달: 창고 미선택 시 제출 비활성 → 창고 선택 후 활성</li>
- *   <li>병합 발행 → 성공 (SL-20260531-MERGE-001 slipNo)</li>
+ *   <li>병합 발행 → 성공 (2026/05/31-1 slipNo)</li>
  *   <li>409(거래처 불일치) → 모달 내 에러 피드백</li>
  *   <li>409(재고 부족) → 모달 내 에러 피드백</li>
  *   <li>기존 Phase 2.6a 단일전환 버튼 여전히 노출 (회귀 0)</li>
@@ -19,7 +19,7 @@
  *       ON_HOLD_ROW(partnerCode=2345678901) + CONFIRMED_ROW(partnerCode=3456789012)</li>
  *   <li>status=DRAFT 필터 시 DRAFT_ROW 1건만 반환</li>
  *   <li>POST /api/v1/partner-orders/convert-to-slip-merge
- *         → SL-20260531-MERGE-001 성공 (mockMerge409=mixed → 409, mockMerge409=stock → 409)</li>
+ *         → 2026/05/31-1 성공 (mockMerge409=mixed → 409, mockMerge409=stock → 409)</li>
  * </ul>
  *
  * <h2>UUID 비공개 가드 ([[feedback_uuid_no_user_visibility]])</h2>
@@ -275,7 +275,7 @@ test.describe('Phase 2.6b D2 다중주문 병합 전환', () => {
 
   // ──────────────────────────────────────────────────────────
   // 시나리오 5 (재작성): 같은 거래처 2건 선택 → 병합 발행 성공 →
-  //   성공 토스트 'SL-20260531-MERGE-001' 노출 + 모달 닫힘.
+  //   성공 토스트 '2026/05/31-1' 노출 + 모달 닫힘.
   //
   // mock 업데이트 (2026-05-31): DRAFT 필터에서 같은 partnerCode 2건 반환.
   // merge 응답 확정: { slipNo, convertedOrders: [{ orderNo, orderStatus, fullyConverted }] }
@@ -313,7 +313,7 @@ test.describe('Phase 2.6b D2 다중주문 병합 전환', () => {
     // 성공 토스트 — 발행 완료 메시지 + slipNo 포함
     const toast = page.getByTestId('merge-convert-success-toast')
     await expect(toast).toBeVisible({ timeout: 10_000 })
-    await expect(toast).toContainText('SL-20260531-MERGE-001')
+    await expect(toast).toContainText('2026/05/31-1')
     await expect(toast).toContainText('발행 완료')
   })
 
