@@ -1,5 +1,6 @@
 import type { CashReceiptRequest, CashReceiptRow } from '../api/accounting'
 import type { PartnerOption } from '@samhan/design-system'
+import { localTodayIso } from './localDate'
 
 export const CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE = '102'
 export const CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE = '110'
@@ -17,14 +18,6 @@ export interface CashReceiptFormState {
 
 export type CashReceiptFormErrors = Partial<Record<keyof CashReceiptFormState | 'partner', string>>
 
-function todayLocal(): string {
-  const d = new Date()
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
-
 export function cashReceiptInitialFormState(
   overrides: Partial<CashReceiptFormState> = {},
 ): CashReceiptFormState {
@@ -33,7 +26,7 @@ export function cashReceiptInitialFormState(
     bizNo: '',
     partnerName: '',
     amount: '',
-    transactionDate: todayLocal(),
+    transactionDate: localTodayIso(),
     memo: '',
     debitAccountCode: CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE,
     creditAccountCode: CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE,
@@ -47,7 +40,7 @@ export function cashReceiptFormStateFromRow(row: CashReceiptRow): CashReceiptFor
     bizNo: row.bizNo ?? '',
     partnerName: row.partnerName ?? '',
     amount: row.amount == null ? '' : String(row.amount),
-    transactionDate: row.transactionDate ?? todayLocal(),
+    transactionDate: row.transactionDate ?? localTodayIso(),
     memo: row.memo ?? '',
     debitAccountCode: row.debitAccountCode ?? CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE,
     creditAccountCode: row.creditAccountCode ?? CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE,

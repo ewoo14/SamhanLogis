@@ -3,6 +3,13 @@ import type {
   BankTransactionNaturalKey,
   BankTransactionRow,
 } from '../api/accounting'
+import {
+  CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE,
+  CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE,
+} from './CashReceiptFormPage.model'
+import { localTodayIso } from './localDate'
+
+export const MAX_BANK_DEPOSIT_RECEIPT_SELECTION = 100
 
 export interface BankDepositReceiptFormState {
   transactionDate: string
@@ -50,6 +57,19 @@ export function isBankDepositReceiptSelectable(row: BankTransactionRow): boolean
     && amountOf(row) > 0
 }
 
+export function bankDepositReceiptSelectionDisabledReason(row: BankTransactionRow): string {
+  if (row.matchStatus !== 'UNREFLECTED') return '이미 반영된 거래입니다.'
+  if (row.txnType === 'WITHDRAWAL') return '출금 거래는 입금보고서로 생성할 수 없습니다.'
+  if (row.source === 'CODEF_LOAN') return '대출 거래는 입금보고서 대상이 아닙니다.'
+  if (!String(row.matchedPartnerName ?? '').trim()) return '미매칭 거래처는 먼저 매칭해야 합니다.'
+  if (amountOf(row) <= 0) return '0원 이하 거래는 입금보고서로 생성할 수 없습니다.'
+  return ''
+}
+
+export function bankDepositReceiptSelectionLimitExceeded(rows: BankTransactionRow[]): boolean {
+  return rows.length > MAX_BANK_DEPOSIT_RECEIPT_SELECTION
+}
+
 export function bankDepositReceiptSelectionSummary(
   rows: BankTransactionRow[],
 ): BankDepositReceiptSelectionSummary {
@@ -77,15 +97,10 @@ export function bankDepositReceiptDefaultFormState(
     .sort((a, b) => b.localeCompare(a))[0]
   return {
     transactionDate: latest ? latest.slice(0, 10) : localTodayIso(),
-    debitAccountCode: '102',
-    creditAccountCode: '110',
+    debitAccountCode: CASH_RECEIPT_DEFAULT_DEBIT_ACCOUNT_CODE,
+    creditAccountCode: CASH_RECEIPT_DEFAULT_CREDIT_ACCOUNT_CODE,
     memo: '',
   }
-}
-
-function localTodayIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export function buildBankDepositReceiptRequest(

@@ -10,10 +10,16 @@ import {
 import { listAccounts, type BankDepositReceiptRequest, type BankTransactionRow } from '../api/accounting'
 import {
   bankDepositReceiptDefaultFormState,
+  bankDepositReceiptSelectionLimitExceeded,
   bankDepositReceiptSelectionSummary,
   buildBankDepositReceiptRequest,
+  MAX_BANK_DEPOSIT_RECEIPT_SELECTION,
   type BankDepositReceiptFormState,
 } from './BankDepositReceiptModal.model'
+import {
+  formatCashReceiptAmount as formatKrw,
+  truncatePartnerName,
+} from './CashReceiptListPage.model'
 
 interface BankDepositReceiptModalProps {
   open: boolean
@@ -21,10 +27,6 @@ interface BankDepositReceiptModalProps {
   submitting: boolean
   onClose: () => void
   onCreate: (request: BankDepositReceiptRequest) => void
-}
-
-function formatKrw(value: number): string {
-  return value.toLocaleString('ko-KR')
 }
 
 export function BankDepositReceiptModal({
@@ -52,9 +54,11 @@ export function BankDepositReceiptModal({
 
   const summary = useMemo(() => bankDepositReceiptSelectionSummary(rows), [rowSignature])
   const accounts = Array.isArray(accountsQuery.data) ? accountsQuery.data : []
+  const selectionLimitExceeded = bankDepositReceiptSelectionLimitExceeded(rows)
   const createDisabled = submitting
     || rows.length === 0
     || summary.mixedPartner
+    || selectionLimitExceeded
     || !form.transactionDate
     || !form.debitAccountCode
     || !form.creditAccountCode
@@ -67,6 +71,10 @@ export function BankDepositReceiptModal({
   const handleCreate = () => {
     if (summary.mixedPartner) {
       setError(summary.blockingMessage ?? '동일 거래처 거래만 선택하세요.')
+      return
+    }
+    if (selectionLimitExceeded) {
+      setError(`입금보고서는 한 번에 최대 ${MAX_BANK_DEPOSIT_RECEIPT_SELECTION.toLocaleString('ko-KR')}건까지 생성할 수 있습니다.`)
       return
     }
     if (!form.transactionDate) {
@@ -82,6 +90,8 @@ export function BankDepositReceiptModal({
       onClose={onClose}
       title="입금보고서 생성"
       size="md"
+      closeOnBackdropClick={!submitting}
+      closeOnEsc={!submitting}
       footer={(
         <>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
@@ -102,6 +112,7 @@ export function BankDepositReceiptModal({
     >
       <div style={{ display: 'grid', gap: 14 }}>
         <div
+          className="mobile-form-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
@@ -118,13 +129,19 @@ export function BankDepositReceiptModal({
           </div>
           <div>
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>거래처</div>
-            <strong>{summary.partnerName || '—'}</strong>
+            <strong title={summary.partnerName}>{truncatePartnerName(summary.partnerName)}</strong>
           </div>
         </div>
 
         {summary.mixedPartner ? (
-          <div className="warning-banner" role="alert" data-testid="bank-deposit-receipt-mixed-warning">
+          <div className="danger-banner" role="alert" data-testid="bank-deposit-receipt-mixed-warning">
             {summary.blockingMessage}
+          </div>
+        ) : null}
+
+        {selectionLimitExceeded ? (
+          <div className="danger-banner" role="alert" data-testid="bank-deposit-receipt-limit-warning">
+            입금보고서는 한 번에 최대 {MAX_BANK_DEPOSIT_RECEIPT_SELECTION.toLocaleString('ko-KR')}건까지 생성할 수 있습니다.
           </div>
         ) : null}
 

@@ -65,8 +65,7 @@ test.describe('E3 S4c bank bulk receipt', () => {
     ]))
     await openBankTransactions(page, `&mockPerms=${perms}`)
 
-    await page.getByTestId('bank-transaction-select-mock-bank-20260623-001').check()
-
+    await expect(page.getByTestId('bank-transaction-select-mock-bank-20260623-001')).toHaveCount(0)
     await expect(page.getByText('입금보고서 생성 권한이 없습니다')).toBeVisible()
     await expect(page.getByTestId('bank-transaction-create-receipt')).toBeDisabled()
   })

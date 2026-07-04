@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Badge,
   Button,
   Card,
   DataTable,
@@ -42,11 +43,19 @@ import {
 } from './BankTransactionFilterModalModel'
 import { BankDepositReceiptModal } from './BankDepositReceiptModal'
 import {
+  bankDepositReceiptSelectionDisabledReason,
+  bankDepositReceiptSelectionLimitExceeded,
   bankDepositReceiptSelectionSummary,
   bankTransactionRowKey,
   isBankDepositReceiptSelectable,
+  MAX_BANK_DEPOSIT_RECEIPT_SELECTION,
 } from './BankDepositReceiptModal.model'
 import { CodefImportScopeForm } from './components/CodefImportScopeForm'
+import {
+  formatCashReceiptAmount,
+  truncatePartnerName,
+} from './CashReceiptListPage.model'
+import { localMonthStartIso, localTodayIso } from './localDate'
 
 type StatusTab = 'ALL' | BankMatchStatus
 type SourceTab = 'ALL' | BankTransactionRow['source']
@@ -78,28 +87,9 @@ const SOURCE_TAB_ITEMS: TabItem[] = SOURCE_TABS.map((tab) => ({
   testId: tab.testId,
 }))
 
-function todayIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function monthStartIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-
 function formatDateTime(value: string): string {
   if (!value) return '—'
   return value.replace('T', ' ').slice(0, 16)
-}
-
-function formatKrw(raw: string | number | null | undefined): string {
-  if (raw === null || raw === undefined || raw === '') return '—'
-  const n = Number(raw)
-  if (!Number.isFinite(n)) return String(raw)
-  if (n === 0) return '—'
-  const abs = Math.abs(Math.round(n)).toLocaleString('ko-KR')
-  return n < 0 ? `-${abs}` : abs
 }
 
 function amountStyle(row: BankTransactionRow): React.CSSProperties {
@@ -150,8 +140,8 @@ export function BankTransactionPage() {
   const [activeTab, setActiveTab] = useState<StatusTab>('ALL')
   const [activeSourceTab, setActiveSourceTab] = useState<SourceTab>('ALL')
   const [filters, setFilters] = useState<LabelFilters>({
-    from: monthStartIso(),
-    to: todayIso(),
+    from: localMonthStartIso(),
+    to: localTodayIso(),
     accountLabels: [],
     cardLabels: [],
   })
@@ -162,6 +152,7 @@ export function BankTransactionPage() {
   const [toast, setToast] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set())
   const [receiptModalOpen, setReceiptModalOpen] = useState(false)
+  const selectAllCheckboxRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (!toast) return
@@ -277,7 +268,11 @@ export function BankTransactionPage() {
       await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })
       await queryClient.invalidateQueries({ queryKey: ['accounting', 'cash-receipts'] })
     },
-    onError: (err: Error) => setToast({ type: 'error', message: `입금보고서 생성 실패: ${err.message}` }),
+    onError: async (err: Error) => {
+      setToast({ type: 'error', message: `입금보고서 생성 실패: ${err.message}` })
+      // 409 race: stale selected rows must be dropped after the server says they are no longer creatable.
+      await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })
+    },
   })
 
   const rawRows = transactionsQuery.data ?? []
@@ -291,9 +286,15 @@ export function BankTransactionPage() {
     })
   }, [rowKeySignature])
 
+  useEffect(() => {
+    if (!canCreateBankDepositReceipt) {
+      setSelectedRowKeys((prev) => prev.size === 0 ? prev : new Set())
+    }
+  }, [canCreateBankDepositReceipt])
+
   const selectableRows = useMemo(
-    () => rows.filter(isBankDepositReceiptSelectable),
-    [rowKeySignature],
+    () => canCreateBankDepositReceipt ? rows.filter(isBankDepositReceiptSelectable) : [],
+    [canCreateBankDepositReceipt, rowKeySignature],
   )
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedRowKeys.has(bankTransactionRowKey(row))),
@@ -305,6 +306,14 @@ export function BankTransactionPage() {
   )
   const selectableAllSelected = selectableRows.length > 0
     && selectableRows.every((row) => selectedRowKeys.has(bankTransactionRowKey(row)))
+  const selectableSomeSelected = selectableRows.some((row) => selectedRowKeys.has(bankTransactionRowKey(row)))
+  const selectionLimitExceeded = bankDepositReceiptSelectionLimitExceeded(selectedRows)
+
+  useEffect(() => {
+    if (selectAllCheckboxRef.current) {
+      selectAllCheckboxRef.current.indeterminate = selectableSomeSelected && !selectableAllSelected
+    }
+  }, [selectableAllSelected, selectableSomeSelected])
   const totalDeposit = rows
     .filter((row) => row.txnType === 'DEPOSIT')
     .reduce((sum, row) => sum + Number(row.amount || 0), 0)
@@ -363,6 +372,7 @@ export function BankTransactionPage() {
   }
 
   function toggleReceiptRow(row: BankTransactionRow, checked: boolean) {
+    if (!canCreateBankDepositReceipt) return
     if (!isBankDepositReceiptSelectable(row)) return
     const key = bankTransactionRowKey(row)
     setSelectedRowKeys((prev) => {
@@ -374,6 +384,7 @@ export function BankTransactionPage() {
   }
 
   function toggleAllReceiptRows() {
+    if (!canCreateBankDepositReceipt) return
     setSelectedRowKeys((prev) => {
       const next = new Set(prev)
       if (selectableAllSelected) {
@@ -394,9 +405,10 @@ export function BankTransactionPage() {
       mobilePriority: 'secondary',
       render: (row) => {
         const selectable = isBankDepositReceiptSelectable(row)
+        const disabledReason = bankDepositReceiptSelectionDisabledReason(row)
         const key = bankTransactionRowKey(row)
         return (
-          <label className="bank-transaction-select-cell">
+          <label className="bank-transaction-select-cell" title={disabledReason || undefined}>
             <input
               type="checkbox"
               checked={selectedRowKeys.has(key)}
@@ -406,9 +418,12 @@ export function BankTransactionPage() {
               data-testid={`bank-transaction-select-${row.externalRef}`}
             />
             {row.matchStatus === 'REFLECTED' && row.cashReceiptSlipNo ? (
-              <span data-testid={`bank-transaction-cash-receipt-slip-${row.externalRef}`}>
+              <Badge
+                variant="success"
+                data-testid={`bank-transaction-cash-receipt-slip-${row.externalRef}`}
+              >
                 {row.cashReceiptSlipNo}
-              </span>
+              </Badge>
             ) : null}
           </label>
         )
@@ -434,7 +449,7 @@ export function BankTransactionPage() {
       align: 'right',
       width: '130px',
       mobilePriority: 'secondary',
-      render: (row) => <span style={amountStyle(row)}>{formatKrw(row.amount)}</span>,
+      render: (row) => <span style={amountStyle(row)}>{formatCashReceiptAmount(row.amount)}</span>,
     },
     {
       key: 'description',
@@ -557,7 +572,7 @@ export function BankTransactionPage() {
       align: 'right',
       width: '130px',
       mobilePriority: 'hidden',
-      render: (row) => formatKrw(row.balanceAfter),
+      render: (row) => formatCashReceiptAmount(row.balanceAfter),
     },
     {
       key: 'source',
@@ -579,8 +594,9 @@ export function BankTransactionPage() {
     },
     ]
 
-    return [...baseColumns, ...sourceSpecificColumns, ...trailingColumns]
-  }, [activeSourceTab, canUpdate, clearPartnerMutation, matchPartnerMutation, selectedRowKeys])
+    const visibleBaseColumns = canCreateBankDepositReceipt ? baseColumns : baseColumns.slice(1)
+    return [...visibleBaseColumns, ...sourceSpecificColumns, ...trailingColumns]
+  }, [activeSourceTab, canCreateBankDepositReceipt, canUpdate, clearPartnerMutation, matchPartnerMutation, selectedRowKeys])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -588,7 +604,7 @@ export function BankTransactionPage() {
         <div>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>입출금 내역</h3>
           <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
-            입금 {formatKrw(totalDeposit)} · 출금 {formatKrw(totalWithdrawal)} · {rows.length}건
+            입금 {formatCashReceiptAmount(totalDeposit)} · 출금 {formatCashReceiptAmount(totalWithdrawal)} · {rows.length}건
           </div>
         </div>
         {transactionsQuery.isFetching ? <Spinner size="sm" /> : null}
@@ -608,8 +624,8 @@ export function BankTransactionPage() {
         <CodefImportScopeForm
           canCreate={canCreate}
           canUpdate={canUpdate}
-          initialFrom={monthStartIso()}
-          initialTo={todayIso()}
+          initialFrom={localMonthStartIso()}
+          initialTo={localTodayIso()}
           onToast={setToast}
           onImported={() => queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })}
         />
@@ -668,7 +684,7 @@ export function BankTransactionPage() {
             size="sm"
             variant="ghost"
             onClick={() => {
-              const reset = { from: monthStartIso(), to: todayIso(), accountLabels: [], cardLabels: [] }
+              const reset = { from: localMonthStartIso(), to: localTodayIso(), accountLabels: [], cardLabels: [] }
               setFilters(reset)
               setQueryFilters(reset)
               setFilterSelectionTouched(true)
@@ -721,28 +737,37 @@ export function BankTransactionPage() {
                       fontSize: 13,
                     }}
                   >
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={toggleAllReceiptRows}
-                      disabled={selectableRows.length === 0}
-                      data-testid="bank-transaction-select-all"
-                    >
-                      {selectableAllSelected ? '선택 해제' : '전체선택'}
-                    </Button>
+                    {canCreateBankDepositReceipt ? (
+                      <label className="bank-transaction-select-cell">
+                        <input
+                          ref={selectAllCheckboxRef}
+                          type="checkbox"
+                          checked={selectableAllSelected}
+                          disabled={selectableRows.length === 0}
+                          onChange={toggleAllReceiptRows}
+                          aria-label="전체 선택"
+                          data-testid="bank-transaction-select-all"
+                        />
+                        <span>전체 선택</span>
+                      </label>
+                    ) : null}
                     <span>
                       선택 <strong>{selectedSummary.count.toLocaleString('ko-KR')}</strong>건
                     </span>
                     <span>
-                      합산 <strong>{formatKrw(selectedSummary.totalAmount)}원</strong>
+                      합산 <strong>{formatCashReceiptAmount(selectedSummary.totalAmount)}원</strong>
                     </span>
                     <span>
-                      거래처 <strong>{selectedSummary.partnerName || '—'}</strong>
+                      거래처 <strong title={selectedSummary.partnerName}>{truncatePartnerName(selectedSummary.partnerName)}</strong>
                     </span>
                     {selectedSummary.mixedPartner ? (
-                      <span role="alert" data-testid="bank-transaction-mixed-partner-warning" style={{ color: 'var(--state-danger)', fontWeight: 700 }}>
+                      <span className="bank-transaction-blocking-warning" role="alert" data-testid="bank-transaction-mixed-partner-warning">
                         동일 거래처만 선택하세요
+                      </span>
+                    ) : null}
+                    {selectionLimitExceeded ? (
+                      <span className="bank-transaction-blocking-warning" role="alert" data-testid="bank-transaction-limit-warning">
+                        최대 {MAX_BANK_DEPOSIT_RECEIPT_SELECTION.toLocaleString('ko-KR')}건까지 생성할 수 있습니다
                       </span>
                     ) : null}
                     {!canCreateBankDepositReceipt ? (
@@ -759,6 +784,7 @@ export function BankTransactionPage() {
                         !canCreateBankDepositReceipt
                         || selectedRows.length === 0
                         || selectedSummary.mixedPartner
+                        || selectionLimitExceeded
                         || createBankDepositReceiptMutation.isPending
                       }
                       onClick={() => setReceiptModalOpen(true)}

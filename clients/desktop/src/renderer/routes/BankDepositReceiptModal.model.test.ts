@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { BankTransactionRow } from '../api/accounting'
 import {
   bankDepositReceiptDefaultFormState,
+  bankDepositReceiptSelectionDisabledReason,
+  bankDepositReceiptSelectionLimitExceeded,
   bankDepositReceiptSelectionSummary,
   bankTransactionNaturalKeyFromRow,
   buildBankDepositReceiptRequest,
   isBankDepositReceiptSelectable,
+  MAX_BANK_DEPOSIT_RECEIPT_SELECTION,
 } from './BankDepositReceiptModal.model'
 
 function row(overrides: Partial<BankTransactionRow> = {}): BankTransactionRow {
@@ -112,5 +115,22 @@ describe('BankDepositReceiptModal.model', () => {
       amount: 1500000,
       externalRef: 'mock-bank-20260623-001',
     })
+  })
+  it('selection preflight blocks more than the BE max size', () => {
+    const withinLimit = Array.from({ length: MAX_BANK_DEPOSIT_RECEIPT_SELECTION }, (_, index) =>
+      row({ externalRef: `mock-bank-within-${index}` }))
+    const overLimit = Array.from({ length: MAX_BANK_DEPOSIT_RECEIPT_SELECTION + 1 }, (_, index) =>
+      row({ externalRef: `mock-bank-over-${index}` }))
+
+    expect(bankDepositReceiptSelectionLimitExceeded(withinLimit)).toBe(false)
+    expect(bankDepositReceiptSelectionLimitExceeded(overLimit)).toBe(true)
+  })
+
+  it('selection disabled reason mirrors non-selectable row causes', () => {
+    expect(bankDepositReceiptSelectionDisabledReason(row({ txnType: 'WITHDRAWAL' }))).toContain('출금')
+    expect(bankDepositReceiptSelectionDisabledReason(row({ matchStatus: 'REFLECTED' }))).toContain('반영')
+    expect(bankDepositReceiptSelectionDisabledReason(row({ source: 'CODEF_LOAN' }))).toContain('대출')
+    expect(bankDepositReceiptSelectionDisabledReason(row({ matchedPartnerName: null }))).toContain('미매칭')
+    expect(bankDepositReceiptSelectionDisabledReason(row())).toBe('')
   })
 })

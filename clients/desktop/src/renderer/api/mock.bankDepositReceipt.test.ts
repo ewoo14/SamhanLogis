@@ -98,4 +98,23 @@ describe('mock bank deposit receipt contract', () => {
     expect(conflict.body.code).toBe('CONFLICT')
     expect(conflict.body.message).toContain('동일 거래처')
   })
+  it('POST /from-bank-transactions rejects more than 100 selected transactions', () => {
+    const rejected = mockRequest({
+      method: 'POST',
+      url: '/accounting/cash-receipts/from-bank-transactions',
+      data: {
+        transactions: Array.from({ length: 101 }, (_, index) => ({
+          bankAccountLabel: 'bulk-limit',
+          transactedAt: `2026-06-24T10:${String(index % 60).padStart(2, '0')}:00`,
+          amount: 1000 + index,
+          externalRef: `bulk-limit-${index}`,
+        })),
+        transactionDate: '2026-06-24',
+      },
+    }) as { __mockStatus: number; body: { code: string; message: string } }
+
+    expect(rejected.__mockStatus).toBe(400)
+    expect(rejected.body.code).toBe('INVALID_INPUT')
+    expect(rejected.body.message).toContain('100')
+  })
 })
