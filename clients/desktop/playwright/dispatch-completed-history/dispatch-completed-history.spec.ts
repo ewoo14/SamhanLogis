@@ -32,7 +32,7 @@ const PREVIOUS_DISPATCH_DATE = offsetIsoSeoul(CURRENT_DISPATCH_DATE, -6)
 const CURRENT_TASK_CODE = taskCode(CURRENT_DISPATCH_DATE, '1')
 const PREVIOUS_TASK_CODE = taskCode(PREVIOUS_DISPATCH_DATE, '2')
 const MANUAL_ONLY_TASK_CODE = taskCode(CURRENT_DISPATCH_DATE, 'MANUAL')
-const CURRENT_SLIP_NO = `${CURRENT_DISPATCH_DATE.replace(/-/g, '/')}-001`
+const CURRENT_SLIP_NO = `${CURRENT_DISPATCH_DATE.replace(/-/g, '/')}-1`
 
 function mockPerms(perms: MockPerm[]): string {
   return btoa(JSON.stringify(perms))

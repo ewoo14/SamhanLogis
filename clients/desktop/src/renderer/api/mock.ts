@@ -14528,7 +14528,8 @@ const MOCK_DISPATCH_TASK_DETAILS: DispatchTaskResponse[] = [
   },
   {
     id: '11111111-cccc-4ccc-8ccc-000000000003',
-    taskCode: mockTaskCode(MOCK_DISPATCH_HISTORY_TODAY, '3'),
+    // 'MANUAL' 은 수동-only 완료 task 의 semantic 식별자(전표번호 아님) — sweep 대상 아님
+    taskCode: mockTaskCode(MOCK_DISPATCH_HISTORY_TODAY, 'MANUAL'),
     dispatchDate: MOCK_DISPATCH_HISTORY_TODAY,
     status: 'DISPATCHED',
     arologisDispatchId: null,
