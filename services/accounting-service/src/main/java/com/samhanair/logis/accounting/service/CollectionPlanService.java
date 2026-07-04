@@ -117,16 +117,11 @@ public class CollectionPlanService {
         if (status == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "status 는 필수입니다.");
         }
-        try {
-            switch (status) {
-                case PLANNED -> {
-                    throw new IllegalStateException("PLANNED 는 등록 시 초기 상태로만 지정할 수 있습니다.");
-                }
-                case COLLECTED -> plan.markCollected();
-                case OVERDUE -> plan.markOverdue();
-            }
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage(), ex);
+        switch (status) {
+            case PLANNED -> throw new BusinessException(ErrorCode.CONFLICT,
+                    "PLANNED 는 등록 시 초기 상태로만 지정할 수 있습니다.");
+            case COLLECTED -> plan.markCollected();
+            case OVERDUE -> plan.markOverdue();
         }
         CollectionPlan saved = repository.save(plan);
         PartnerSummary partner = partnerLookupClient.findByPartnerId(saved.getPartnerId()).orElse(null);

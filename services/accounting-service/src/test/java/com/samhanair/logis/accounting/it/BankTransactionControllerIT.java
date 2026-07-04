@@ -22,6 +22,7 @@ import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.nio.charset.Charset;
@@ -202,7 +203,7 @@ class BankTransactionControllerIT extends AbstractPostgresIT {
         repository.saveAndFlush(transaction);
 
         assertThatThrownBy(() -> transaction.markForced(UUID.randomUUID()))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("전환이 허용되지 않습니다");
 
         mockMvc.perform(get(BASE_URL)

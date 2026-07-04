@@ -179,11 +179,7 @@ public class BankTransactionService {
                     "거래처 내부 식별자를 해석할 수 없습니다: " + request.partnerCode().trim());
         }
 
-        try {
-            transaction.matchPartner(partner.partnerId());
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage(), ex);
-        }
+        transaction.matchPartner(partner.partnerId());
         return BankTransactionResponse.of(transaction, displayOf(partner), null);
     }
 
@@ -198,11 +194,7 @@ public class BankTransactionService {
         }
         BankTransaction transaction = findUniqueByNaturalKey(request.bankAccountLabel(),
                 request.transactedAt(), request.amount(), request.externalRef());
-        try {
-            transaction.clearPartner();
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage(), ex);
-        }
+        transaction.clearPartner();
         return BankTransactionResponse.of(transaction, null, null);
     }
 

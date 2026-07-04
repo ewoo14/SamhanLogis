@@ -57,7 +57,7 @@ class AccountingPeriodDomainTest {
         assertThatThrownBy(() ->
                 p.close("u", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("미마감 상태")
+                .hasMessageContaining("열림 상태")
                 .hasMessageNotContaining("OPEN");
     }
 

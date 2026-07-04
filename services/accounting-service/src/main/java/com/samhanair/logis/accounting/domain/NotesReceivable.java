@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -126,8 +128,9 @@ public class NotesReceivable extends BaseEntity {
                 return;
             }
         }
-        throw new IllegalStateException(
-                "Cannot transition notes receivable " + noteNo + " from " + status + " to " + target);
+        throw new BusinessException(ErrorCode.CONFLICT,
+                "받을어음(" + noteNo + ") 현재 상태(" + status.getDisplayName() + ")에서는 "
+                        + target.getDisplayName() + " 전환이 허용되지 않습니다.");
     }
 
     private static void validateRequired(UUID partnerId, String noteNo, LocalDate issueDate,

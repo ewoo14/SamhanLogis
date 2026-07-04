@@ -11,7 +11,7 @@ class AccountingStatusDisplayNameTest {
     @Test
     @DisplayName("상태 enum displayName은 사용자 노출 한국어 라벨을 제공한다")
     void statusDisplayNames() {
-        assertThat(JournalStatus.DRAFT.getDisplayName()).isEqualTo("작성중");
+        assertThat(JournalStatus.DRAFT.getDisplayName()).isEqualTo("임시저장");
         assertThat(JournalStatus.POSTED.getDisplayName()).isEqualTo("확정");
         assertThat(JournalStatus.REVERSED.getDisplayName()).isEqualTo("역분개");
 
@@ -23,7 +23,7 @@ class AccountingStatusDisplayNameTest {
         assertThat(CashReceiptStatus.CONFIRMED.getDisplayName()).isEqualTo("확정");
         assertThat(CashReceiptStatus.CANCELLED.getDisplayName()).isEqualTo("취소");
 
-        assertThat(PeriodStatus.OPEN.getDisplayName()).isEqualTo("미마감");
+        assertThat(PeriodStatus.OPEN.getDisplayName()).isEqualTo("열림");
         assertThat(PeriodStatus.CLOSED.getDisplayName()).isEqualTo("마감");
 
         assertThat(SalesSlipStatus.DRAFT.getDisplayName()).isEqualTo("임시저장");
@@ -33,9 +33,18 @@ class AccountingStatusDisplayNameTest {
 
         assertThat(MatchStatus.UNREFLECTED.getDisplayName()).isEqualTo("미반영");
         assertThat(MatchStatus.REFLECTED.getDisplayName()).isEqualTo("반영");
-        assertThat(MatchStatus.FORCED.getDisplayName()).isEqualTo("강제반영");
+        assertThat(MatchStatus.FORCED.getDisplayName()).isEqualTo("강제");
 
         assertThat(TaxInvoiceDirection.OUTBOUND.getDisplayName()).isEqualTo("매출(발행)");
         assertThat(TaxInvoiceDirection.INBOUND.getDisplayName()).isEqualTo("매입(수신)");
+
+        assertThat(PlanStatus.PLANNED.getDisplayName()).isEqualTo("예정");
+        assertThat(PlanStatus.COLLECTED.getDisplayName()).isEqualTo("수금완료");
+        assertThat(PlanStatus.OVERDUE.getDisplayName()).isEqualTo("연체");
+
+        assertThat(NoteStatus.BOARDING.getDisplayName()).isEqualTo("보유");
+        assertThat(NoteStatus.COLLECTING.getDisplayName()).isEqualTo("추심");
+        assertThat(NoteStatus.SETTLED.getDisplayName()).isEqualTo("결제완료");
+        assertThat(NoteStatus.DISHONORED.getDisplayName()).isEqualTo("부도");
     }
 }

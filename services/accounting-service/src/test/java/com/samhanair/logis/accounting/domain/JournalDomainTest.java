@@ -90,7 +90,7 @@ class JournalDomainTest {
         JournalLine extra = JournalLine.create(j, 99, "101", new BigDecimal("1"), BigDecimal.ZERO, null, null);
         assertThatThrownBy(() -> j.addLine(extra))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("작성중")
+                .hasMessageContaining("임시저장")
                 .hasMessageNotContaining("DRAFT");
 
         UUID firstId = j.getLines().get(0).getId();

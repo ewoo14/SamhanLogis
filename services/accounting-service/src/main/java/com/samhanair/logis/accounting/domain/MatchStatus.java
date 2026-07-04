@@ -7,7 +7,7 @@ public enum MatchStatus {
     /** 회계 분개로 반영 완료. */
     REFLECTED("반영"),
     /** 거래처 매칭 없이 강제 반영. */
-    FORCED("강제반영");
+    FORCED("강제");
 
     private final String displayName;
 

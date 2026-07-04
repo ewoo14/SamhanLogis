@@ -5923,7 +5923,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     const current = MOCK_BANK_TRANSACTIONS[index]!
     if (current.matchStatus !== 'UNREFLECTED') {
-      return mockError(409, 'CONFLICT', 'UNREFLECTED 거래만 거래처 매칭을 변경할 수 있습니다.')
+      return mockError(409, 'CONFLICT', '미반영 거래만 거래처 매칭을 변경할 수 있습니다.')
     }
     const partner = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
       .find((row) => row.partnerCode === partnerCode)
@@ -5960,7 +5960,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     const current = MOCK_BANK_TRANSACTIONS[index]!
     if (current.matchStatus !== 'UNREFLECTED') {
-      return mockError(409, 'CONFLICT', 'UNREFLECTED 거래만 거래처 매칭을 해제할 수 있습니다.')
+      return mockError(409, 'CONFLICT', '미반영 거래만 거래처 매칭을 해제할 수 있습니다.')
     }
     const next = {
       ...current,

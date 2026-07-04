@@ -353,7 +353,7 @@ public class TaxInvoice extends BaseEntity {
      */
     public void updateBasic(String partnerBusinessNo, String partnerName, String partnerAddress,
                             LocalDate supplyDate, String description) {
-        requireDraft("헤더 수정");
+        requireDraft("헤더 수정은 ");
         if (partnerName == null || partnerName.isBlank() || partnerName.length() > 200) {
             throw new IllegalArgumentException("partnerName 은 1~200자 필수입니다");
         }
@@ -373,14 +373,14 @@ public class TaxInvoice extends BaseEntity {
      * @throws BusinessException(CONFLICT) DRAFT 가 아닐 때
      */
     public void addLine(TaxInvoiceLine line) {
-        requireDraft("라인 추가");
+        requireDraft("라인 추가는 ");
         this.lines.add(line);
         recalcTotals();
     }
 
     /** 라인 일괄 교체 (DRAFT 만, update 헬퍼). */
     public void replaceLines(List<TaxInvoiceLine> newLines) {
-        requireDraft("라인 교체");
+        requireDraft("라인 교체는 ");
         this.lines.clear();
         if (newLines != null) {
             this.lines.addAll(newLines);
@@ -397,7 +397,7 @@ public class TaxInvoice extends BaseEntity {
      * @throws BusinessException(CONFLICT) DRAFT 아니거나, 라인 0건이거나, 합계 0
      */
     public void issue(String taxInvoiceNo, String actorUserId) {
-        requireDraft("발행");
+        requireDraft("발행은 ");
         if (taxInvoiceNo == null || taxInvoiceNo.isBlank() || taxInvoiceNo.length() > 20) {
             throw new IllegalArgumentException("taxInvoiceNo 는 1~20자 필수입니다");
         }
@@ -573,10 +573,19 @@ public class TaxInvoice extends BaseEntity {
         this.totalAmount = this.supplyAmount.add(this.vatAmount);
     }
 
-    private void requireDraft(String action) {
+    /**
+     * DRAFT 상태 요구 가드 — CashReceipt.requireDraft 패턴과 동일하게, 호출부가 조사(은/는)까지
+     * 포함한 완결 문구를 전달한다("헤더 수정은 " 등, 끝에 공백 포함). 여기서는 상태 라벨과
+     * "(현재: …)" 접미만 이어 붙인다 — 조사를 여기서 고정하면 명사별 받침 유무에 따라
+     * 비문("라인 추가은" 등)이 생기므로 호출부 책임으로 둔다.
+     *
+     * @param messagePrefix 조사 포함 완결 문구 (예: {@code "라인 추가는 "})
+     * @throws BusinessException(CONFLICT) DRAFT 가 아닐 때
+     */
+    private void requireDraft(String messagePrefix) {
         if (this.status != TaxInvoiceStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    action + "은 " + TaxInvoiceStatus.DRAFT.getDisplayName()
+                    messagePrefix + TaxInvoiceStatus.DRAFT.getDisplayName()
                             + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
     }

@@ -10,7 +10,7 @@ package com.samhanair.logis.accounting.domain;
 public enum JournalStatus {
 
     /** 작성 중 — 라인 추가/제거/수정 허용. 시산표 집계 미포함. */
-    DRAFT("작성중"),
+    DRAFT("임시저장"),
 
     /** 게시 완료 — 시산표 집계 포함. 직접 수정 불가, reverse 만 가능. */
     POSTED("확정"),

@@ -11,13 +11,15 @@
 
 | enum | 라벨 |
 |---|---|
-| JournalStatus | DRAFT=작성중 · POSTED=확정 · REVERSED=역분개 |
+| JournalStatus | DRAFT=임시저장 · POSTED=확정 · REVERSED=역분개 |
 | TaxInvoiceStatus | DRAFT=임시저장 · ISSUED=발행 · CANCELLED=취소 |
 | CashReceiptStatus | DRAFT=임시저장 · CONFIRMED=확정 · CANCELLED=취소 |
-| AccountingPeriodStatus | OPEN=미마감 · CLOSED=마감 |
+| AccountingPeriodStatus | OPEN=열림 · CLOSED=마감 |
 | SlipPostingStatus(매출/매입 회계전표) | DRAFT=임시저장 · POSTED=반영완료 |
-| MatchStatus(통장) | UNREFLECTED=미반영 · REFLECTED=반영 · FORCED=강제반영 — **#722 지시 반영: '회계반영'→'반영'** |
+| MatchStatus(통장) | UNREFLECTED=미반영 · REFLECTED=반영 · FORCED=강제 — **#722 지시 반영: '회계반영'→'반영'** |
 | TaxInvoiceDirection | OUTBOUND=매출(발행) · INBOUND=매입(수신) |
+
+> 리뷰 판정으로 정정(PR #724 Opus 5-agent 리뷰, 2026-07-04): JournalStatus.DRAFT(작성중→임시저장) · AccountingPeriodStatus.OPEN(미마감→열림) · MatchStatus.FORCED(강제반영→강제) 3건 — 정책 3 "기존 FE 화면 라벨 채택" 기계 적용 결과이며, spec 초안이 FE 실물 미검증 상태로 작성되어 상충이 발생했다.
 
 4. 메시지 문형: "…은(는) [라벨] 상태에서만 가능합니다 (현재: [라벨])" — 기존 문형 유지·토큰만 치환.
 

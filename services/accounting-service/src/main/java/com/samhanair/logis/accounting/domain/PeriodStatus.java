@@ -15,7 +15,7 @@ package com.samhanair.logis.accounting.domain;
  */
 public enum PeriodStatus {
     /** 마감 미시행 또는 역마감 후. */
-    OPEN("미마감"),
+    OPEN("열림"),
 
     /** 마감 완료 — 변경 차단. */
     CLOSED("마감");

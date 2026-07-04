@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -129,8 +131,9 @@ public class CollectionPlan extends BaseEntity {
                 return;
             }
         }
-        throw new IllegalStateException(
-                "Cannot transition collection plan " + planNo + " from " + status + " to " + target);
+        throw new BusinessException(ErrorCode.CONFLICT,
+                "수금계획(" + planNo + ") 현재 상태(" + status.getDisplayName() + ")에서는 "
+                        + target.getDisplayName() + " 전환이 허용되지 않습니다.");
     }
 
     private static void validateRequired(String planNo, UUID partnerId, LocalDate plannedDate,

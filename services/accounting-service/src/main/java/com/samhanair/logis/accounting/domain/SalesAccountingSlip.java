@@ -115,7 +115,7 @@ public class SalesAccountingSlip extends BaseEntity {
         if (this.status != SalesSlipStatus.DRAFT) {
             throw new BusinessException(ErrorCode.SAS_ALREADY_POSTED,
                     SalesSlipStatus.DRAFT.getDisplayName()
-                            + " 상태에서만 POST 가능: " + slipNo + " (현재=" + status.getDisplayName() + ")");
+                            + " 상태에서만 반영할 수 있습니다: " + slipNo + " (현재: " + status.getDisplayName() + ")");
         }
         this.status = SalesSlipStatus.POSTED;
         this.postedAt = LocalDateTime.now();

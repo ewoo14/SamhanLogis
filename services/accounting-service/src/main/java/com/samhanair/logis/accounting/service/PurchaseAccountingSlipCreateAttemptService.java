@@ -107,15 +107,28 @@ public class PurchaseAccountingSlipCreateAttemptService {
         };
     }
 
+    /**
+     * slip-service {@code SlipStatus} SSOT
+     * ({@code services/slip-service/.../domain/SlipStatus.java}) 12종 전수 매핑 — displayName
+     * 값을 그대로 옮긴다(SSOT drift 방지). default 는 신규 상태 추가 시 원어 leak 을 막기 위한
+     * 안전망이나, 12종을 모두 매핑했으므로 실제 도달은 어렵다.
+     */
     private static String slipStatusDisplayName(String slipStatus) {
         if (slipStatus == null) {
             return null;
         }
         return switch (slipStatus) {
-            case "DRAFT" -> "임시저장";
-            case "SAVED" -> "저장";
+            case "DRAFT" -> "작성중";
+            case "SAVED" -> "저장완료";
+            case "SENT" -> "전송완료";
+            case "ACCEPTED" -> "수락";
+            case "PROCESSING" -> "처리중";
+            case "INSPECTING" -> "검수중";
+            case "COMPLETED" -> "처리완료";
+            case "SHIPPING" -> "배송중";
+            case "DELIVERED" -> "배송완료";
             case "CONFIRMED" -> "확정";
-            case "LOCKED" -> "잠금";
+            case "REJECTED" -> "반려";
             case "CANCELED" -> "취소";
             default -> slipStatus;
         };

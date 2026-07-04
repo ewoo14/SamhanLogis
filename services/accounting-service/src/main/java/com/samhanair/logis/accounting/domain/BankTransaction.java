@@ -1,6 +1,8 @@
 package com.samhanair.logis.accounting.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -219,11 +221,17 @@ public class BankTransaction extends BaseEntity {
         return this;
     }
 
-    /** 거래처 매칭/해제는 미반영(UNREFLECTED) 거래에만 허용한다. */
+    /**
+     * 거래처 매칭/해제는 미반영(UNREFLECTED) 거래에만 허용한다.
+     *
+     * <p>과거 {@link IllegalStateException} 로 던져 GlobalExceptionHandler 의 catch-all(500)에
+     * 걸려 사유가 마스킹되는 결함이 있었다 — {@link BusinessException}(CONFLICT) 승격으로
+     * 409 + 실제 한국어 사유가 응답되도록 수정(#724 fix 6a).
+     */
     private void requireUnreflected(String action) {
         if (this.matchStatus != MatchStatus.UNREFLECTED) {
-            throw new IllegalStateException(
-                    "미반영 상태가 아니라(현재 " + matchStatus + ") 거래처 " + action + "을(를) 할 수 없습니다.");
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "미반영 상태가 아니라(현재 " + matchStatus.getDisplayName() + ") 거래처 " + action + "을(를) 할 수 없습니다.");
         }
     }
 
@@ -233,8 +241,8 @@ public class BankTransaction extends BaseEntity {
                 return;
             }
         }
-        throw new IllegalStateException(
-                "현재 상태(" + matchStatus + ")에서는 " + target + " 전환이 허용되지 않습니다.");
+        throw new BusinessException(ErrorCode.CONFLICT,
+                "현재 상태(" + matchStatus.getDisplayName() + ")에서는 " + target.getDisplayName() + " 전환이 허용되지 않습니다.");
     }
 
     private static void validateRequired(LocalDateTime transactedAt, BankTxnType txnType, BigDecimal amount,

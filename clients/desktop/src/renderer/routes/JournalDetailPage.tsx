@@ -53,7 +53,7 @@ const fmtKrw = (raw: string): string => {
 const TOTAL_ROW_ID = '__journal_total__'
 
 const JOURNAL_STATUS_LABEL: Record<string, string> = {
-  DRAFT: '작성중',
+  DRAFT: '임시저장',
   POSTED: '확정',
   REVERSED: '역분개',
 }

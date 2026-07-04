@@ -385,8 +385,8 @@ public class CashReceiptService {
         for (BankTransaction transaction : linkedTransactions) {
             try {
                 transaction.unlinkCashReceipt();
-            } catch (IllegalStateException ex) {
-                throw new BusinessException(ErrorCode.CONFLICT,
+            } catch (BusinessException ex) {
+                throw new BusinessException(ex.getErrorCode(),
                         "통장연계 입금보고서 취소 원복 실패: " + ex.getMessage(), ex);
             }
         }
