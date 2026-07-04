@@ -3,9 +3,11 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CollectionPlan;
+import com.samhanair.logis.accounting.domain.CollectionPlanNumberSequence;
 import com.samhanair.logis.accounting.domain.NotesReceivable;
 import com.samhanair.logis.accounting.domain.PlanBasis;
 import com.samhanair.logis.accounting.domain.PlanStatus;
+import com.samhanair.logis.accounting.repository.CollectionPlanNumberSequenceRepository;
 import com.samhanair.logis.accounting.repository.CollectionPlanRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
@@ -26,11 +28,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -49,10 +49,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class CollectionPlanService {
 
     private static final String ACCOUNT_RECEIVABLE = "110";
-    private static final DateTimeFormatter PLAN_NO_DATE = DateTimeFormatter.BASIC_ISO_DATE;
+    private static final DateTimeFormatter PLAN_NO_DATE = DateTimeFormatter.ofPattern("yyyy/MM/dd");
     private static final List<PlanStatus> OPEN_STATUSES = List.of(PlanStatus.PLANNED, PlanStatus.OVERDUE);
 
     private final CollectionPlanRepository repository;
+    private final CollectionPlanNumberSequenceRepository sequenceRepository;
     private final NotesReceivableRepository notesReceivableRepository;
     private final JournalLineRepository journalLineRepository;
     private final PartnerLookupClient partnerLookupClient;
@@ -250,15 +251,15 @@ public class CollectionPlanService {
     }
 
     private String nextPlanNo(LocalDate plannedDate) {
-        String datePart = (plannedDate == null ? LocalDate.now() : plannedDate).format(PLAN_NO_DATE);
-        for (int i = 0; i < 10; i++) {
-            String candidate = String.format(Locale.ROOT, "CP-%s-%06d",
-                    datePart, ThreadLocalRandom.current().nextInt(1_000_000));
-            if (!repository.existsByPlanNoAndIsDeletedFalse(candidate)) {
-                return candidate;
-            }
-        }
-        throw new BusinessException(ErrorCode.CONFLICT, "수금계획 번호를 생성할 수 없습니다.");
+        LocalDate planDate = plannedDate == null ? LocalDate.now() : plannedDate;
+        CollectionPlanNumberSequence sequence = loadOrCreateLockedSequence(planDate);
+        return planDate.format(PLAN_NO_DATE) + "-" + sequence.next();
+    }
+
+    private CollectionPlanNumberSequence loadOrCreateLockedSequence(LocalDate plannedDate) {
+        sequenceRepository.insertIfAbsent(UUID.randomUUID(), plannedDate);
+        return sequenceRepository.findLockedByPlannedDate(plannedDate)
+                .orElseThrow(() -> new IllegalStateException("수금계획 번호 시퀀스 생성 실패"));
     }
 
     private PartnerSummary resolvePartner(String partnerCode, String bizNo, String partnerName) {

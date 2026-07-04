@@ -6150,7 +6150,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
 
   if (method === 'PATCH' && url.includes('/accounting/collection-plans') && url.includes('/status')) {
     const body = parseMockBody(config)
-    const planNo = decodeURIComponent(url.match(/\/accounting\/collection-plans\/([^/?]+)\/status/)?.[1] ?? '')
+    // planNo 는 슬래시 표준(yyyy/MM/dd-N) — 다중 세그먼트를 non-greedy 로 포착(BE overload 대응)
+    const planNo = decodeURIComponent(url.match(/\/accounting\/collection-plans\/(.+?)\/status/)?.[1] ?? '')
     const status = String(body.status ?? '')
     const index = MOCK_COLLECTION_PLANS.findIndex((row) => row.planNo === planNo)
     if (index < 0) return mockError(404, 'NOT_FOUND', '수금계획을 찾을 수 없습니다.')
@@ -13544,7 +13545,7 @@ const MOCK_CASH_RECEIPTS = [
 const MOCK_INVENTORY_AUDITS = [
   {
     id: 'ia-001',
-    auditNo: 'IA-2026/05-001',
+    auditNo: '2026/05/08-1',
     auditDate: '2026-05-08',
     warehouseId: '11111111-1111-1111-1111-000000000001',
     warehouseCode: 'HQ-001',
@@ -13560,7 +13561,7 @@ const MOCK_INVENTORY_AUDITS = [
   },
   {
     id: 'ia-002',
-    auditNo: 'IA-2026/05-002',
+    auditNo: '2026/05/09-1',
     auditDate: '2026-05-09',
     warehouseId: '11111111-1111-1111-1111-000000000002',
     warehouseCode: 'VH-001',
@@ -13575,7 +13576,7 @@ const MOCK_INVENTORY_AUDITS = [
   },
   {
     id: 'ia-003',
-    auditNo: 'IA-2026/04-099',
+    auditNo: '2026/04/30-1',
     auditDate: '2026-04-30',
     warehouseId: '11111111-1111-1111-1111-000000000001',
     warehouseCode: 'HQ-001',
@@ -15266,7 +15267,7 @@ let MOCK_COLLECTION_PLANS: Array<{
   memo: string | null
 }> = [
   {
-    planNo: 'CP-20260705-000101',
+    planNo: '2026/07/05-1',
     partnerCode: 'P-2026-0001',
     bizNo: '1112233333',
     partnerName: '삼한공조 A',
@@ -15278,7 +15279,7 @@ let MOCK_COLLECTION_PLANS: Array<{
     memo: '받을어음 만기 기준',
   },
   {
-    planNo: 'CP-20260720-000102',
+    planNo: '2026/07/20-1',
     partnerCode: 'P-2026-0002',
     bizNo: '2223344444',
     partnerName: '아로물류 B',

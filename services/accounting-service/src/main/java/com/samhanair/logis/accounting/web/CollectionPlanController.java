@@ -92,4 +92,17 @@ public class CollectionPlanController {
             @RequestBody @Valid UpdateCollectionPlanStatusRequest request) {
         return ApiResponse.ok(service.transition(planNo, request.status()), "수금계획 상태가 변경되었습니다.");
     }
+
+    /** 슬래시 표준 번호({@code yyyy/MM/dd-N}) 상태 전이. */
+    @PatchMapping("/{year}/{month}/{daySeq}/status")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
+    @Operation(summary = "수금계획 상태 전이", description = "yyyy/MM/dd-N 표준 번호 path 지원")
+    public ApiResponse<CollectionPlanResponse> updateStatusBySlashPlanNo(
+            @PathVariable String year,
+            @PathVariable String month,
+            @PathVariable String daySeq,
+            @RequestBody @Valid UpdateCollectionPlanStatusRequest request) {
+        String planNo = year + "/" + month + "/" + daySeq;
+        return ApiResponse.ok(service.transition(planNo, request.status()), "수금계획 상태가 변경되었습니다.");
+    }
 }

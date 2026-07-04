@@ -1923,8 +1923,11 @@ export async function updateCollectionPlanStatus(
   planNo: string,
   status: PlanStatus,
 ): Promise<CollectionPlanRow> {
+  // planNo 는 슬래시 표준(yyyy/MM/dd-N) — encodeURIComponent 로 %2F 인코딩하면 게이트웨이
+  // StrictHttpFirewall 이 차단하므로, 슬래시를 경로 구분자로 두어 BE overload
+  // /{year}/{month}/{daySeq}/status 로 매핑한다. (feedback_slip_order_number_format %2F 함정)
   const res = await apiClient.patch<ApiEnvelope<CollectionPlanRow>>(
-    `/accounting/collection-plans/${encodeURIComponent(planNo)}/status`,
+    `/accounting/collection-plans/${planNo}/status`,
     { status },
   )
   return res.data.data

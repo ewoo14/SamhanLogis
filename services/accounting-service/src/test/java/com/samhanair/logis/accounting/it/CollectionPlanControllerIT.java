@@ -79,6 +79,7 @@ class CollectionPlanControllerIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("DELETE FROM collection_plan");
+        jdbcTemplate.update("DELETE FROM collection_plan_number_sequences");
         jdbcTemplate.update("DELETE FROM notes_receivable WHERE note_no LIKE 'CP-NR-%'");
         jdbcTemplate.update("DELETE FROM journal_lines WHERE memo LIKE 'CP-IT-%'");
         jdbcTemplate.update("DELETE FROM journals WHERE journal_no LIKE 'CP-IT-%'");
@@ -115,6 +116,16 @@ class CollectionPlanControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].status").value("PLANNED"))
                 .andExpect(jsonPath("$.data[0].partnerId").doesNotExist())
                 .andExpect(jsonPath("$.data[0].id").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("채번: 수금계획 번호는 plannedDate 기준 yyyy/MM/dd-N 일자별 순차 번호")
+    void register_assignsSequentialSlashPlanNoPerPlannedDate() throws Exception {
+        String first = register("P-CP-001", LocalDate.of(2026, 12, 24), "1200000", "MANUAL");
+        String second = register("P-CP-001", LocalDate.of(2026, 12, 24), "1300000", "MANUAL");
+
+        assertThat(first).isEqualTo("2026/12/24-1");
+        assertThat(second).isEqualTo("2026/12/24-2");
     }
 
     @Test
@@ -300,7 +311,7 @@ class CollectionPlanControllerIT extends AbstractPostgresIT {
                 .andReturn();
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
         String planNo = root.path("data").path("planNo").asText();
-        assertThat(planNo).startsWith("CP-");
+        assertThat(planNo).matches("\\d{4}/\\d{2}/\\d{2}-\\d+");
         return planNo;
     }
 

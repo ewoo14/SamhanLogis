@@ -111,7 +111,7 @@ class InventoryAuditServiceTest {
                 "user-1");
 
         assertThat(response.status()).isEqualTo(AuditStatus.PLANNED);
-        assertThat(response.auditNo()).startsWith("AU-");
+        assertThat(response.auditNo()).matches("\\d{4}/\\d{2}/\\d{2}-\\d+");
         assertThat(response.lines()).hasSize(1);
         assertThat(response.lines().get(0).expectedQty()).isEqualTo(100);
         assertThat(response.lines().get(0).productName()).isEqualTo("AC");
@@ -299,17 +299,17 @@ class InventoryAuditServiceTest {
     }
 
     @Test
-    void nextAuditNo_format_isPrefixedAndZeroPadded() {
+    void nextAuditNo_format_usesSlashDateAndUnpaddedSequence() {
         when(auditRepository.countByAuditNoStartingWith(any())).thenReturn(2L);
 
         String no = service.nextAuditNo(LocalDate.of(2026, 12, 31));
 
-        assertThat(no).isEqualTo("AU-20261231-003");
+        assertThat(no).isEqualTo("2026/12/31-3");
     }
 
     private InventoryAudit freshAudit() {
         InventoryAudit audit = InventoryAudit.create(
-                "AU-20261231-001", warehouse, LocalDate.of(2026, 12, 31));
+                "2026/12/31-1", warehouse, LocalDate.of(2026, 12, 31));
         ReflectionTestUtils.setField(audit, "id", UUID.randomUUID());
         return audit;
     }

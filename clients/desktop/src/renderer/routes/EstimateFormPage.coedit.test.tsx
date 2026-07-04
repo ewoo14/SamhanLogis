@@ -117,7 +117,7 @@ import { EstimateFormPage } from './EstimateFormPage'
 function makeEstimate(overrides: Partial<EstimateDetail> = {}): EstimateDetail {
   const estimate: EstimateDetail = {
     id: 'estimate-1',
-    estimateNo: 'Q-2099/07-001',
+    estimateNo: '2099/07/01-1',
     estimateDate: '2099-07-01',
     seqNo: 1,
     status: 'QUOTE_DRAFT',

@@ -73,7 +73,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryAuditService {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryAuditService.class);
-    private static final DateTimeFormatter NO_DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final DateTimeFormatter NO_DATE_FMT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
     private final InventoryAuditRepository auditRepository;
     private final InventoryAuditLineRepository auditLineRepository;
@@ -340,9 +340,9 @@ public class InventoryAuditService {
      * @return 채번된 auditNo
      */
     String nextAuditNo(LocalDate date) {
-        String prefix = "AU-" + date.format(NO_DATE_FMT) + "-";
+        String prefix = date.format(NO_DATE_FMT) + "-";
         long seq = auditRepository.countByAuditNoStartingWith(prefix) + 1;
-        return prefix + String.format("%03d", seq);
+        return prefix + seq;
     }
 
     private void adjustStockForLine(InventoryAudit audit, InventoryAuditLine line, String actorUserId) {

@@ -44,7 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>idempotency: {@code auditNo} EXISTS 체크 + 중복 시 skip. 안전 재실행.
  *
- * <p>채번: {@code AU-YYYYMMDD-NNN} 결정적 패턴 — InventoryAuditRepository.countByAuditNoStartingWith
+ * <p>채번: {@code yyyy/MM/dd-N} 결정적 패턴 — InventoryAuditRepository.countByAuditNoStartingWith
  * 를 경유하지 않고 직접 포맷 (시드 전용, 운영 채번과 충돌 방지 위해 일자는 2026-01~2026-05 고정).
  */
 @Component
@@ -123,18 +123,18 @@ public class InventoryAuditSeeder implements CommandLineRunner {
     private List<AuditSpec> buildSpecs() {
         return List.of(
                 // PLANNED — 3건
-                new AuditSpec("AU-20260301-001", LocalDate.of(2026, 3, 1),  AuditPhase.PLANNED,  0),
-                new AuditSpec("AU-20260401-001", LocalDate.of(2026, 4, 1),  AuditPhase.PLANNED,  1),
-                new AuditSpec("AU-20260501-001", LocalDate.of(2026, 5, 1),  AuditPhase.PLANNED,  2),
+                new AuditSpec("2026/03/01-1", LocalDate.of(2026, 3, 1),  AuditPhase.PLANNED,  0),
+                new AuditSpec("2026/04/01-1", LocalDate.of(2026, 4, 1),  AuditPhase.PLANNED,  1),
+                new AuditSpec("2026/05/01-1", LocalDate.of(2026, 5, 1),  AuditPhase.PLANNED,  2),
                 // IN_PROGRESS — 2건 (절반만 actual_qty 입력)
-                new AuditSpec("AU-20260215-001", LocalDate.of(2026, 2, 15), AuditPhase.IN_PROGRESS, 3),
-                new AuditSpec("AU-20260228-001", LocalDate.of(2026, 2, 28), AuditPhase.IN_PROGRESS, 4),
+                new AuditSpec("2026/02/15-1", LocalDate.of(2026, 2, 15), AuditPhase.IN_PROGRESS, 3),
+                new AuditSpec("2026/02/28-1", LocalDate.of(2026, 2, 28), AuditPhase.IN_PROGRESS, 4),
                 // COMPLETED — 3건 (완료 + 차이금액 산출)
-                new AuditSpec("AU-20260131-001", LocalDate.of(2026, 1, 31), AuditPhase.COMPLETED, 5),
-                new AuditSpec("AU-20260201-001", LocalDate.of(2026, 2, 1),  AuditPhase.COMPLETED, 6),
-                new AuditSpec("AU-20260228-002", LocalDate.of(2026, 2, 28), AuditPhase.COMPLETED, 7),
+                new AuditSpec("2026/01/31-1", LocalDate.of(2026, 1, 31), AuditPhase.COMPLETED, 5),
+                new AuditSpec("2026/02/01-1", LocalDate.of(2026, 2, 1),  AuditPhase.COMPLETED, 6),
+                new AuditSpec("2026/02/28-2", LocalDate.of(2026, 2, 28), AuditPhase.COMPLETED, 7),
                 // CANCELLED — 1건
-                new AuditSpec("AU-20260315-001", LocalDate.of(2026, 3, 15), AuditPhase.CANCELLED, 8)
+                new AuditSpec("2026/03/15-1", LocalDate.of(2026, 3, 15), AuditPhase.CANCELLED, 8)
         );
     }
 
