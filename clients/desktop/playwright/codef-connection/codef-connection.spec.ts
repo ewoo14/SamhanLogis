@@ -75,8 +75,9 @@ test.describe('계좌/카드 관리 페이지', () => {
   })
 
   test('ACCOUNTANT 회계 메뉴에 계좌/카드 관리 링크가 노출된다(VIEW)', async ({ page }) => {
-    await page.goto(`${BASE_URL}/#/?mockRole=ACCOUNTANT`, { waitUntil: 'domcontentloaded' })
+    // 회계 라우트 진입으로 회계 섹션이 펼쳐진 상태에서 링크 노출을 검증한다(구 MASTER 전용 링크와 달리 VIEW 로 노출).
+    await page.goto(urlFor('ACCOUNTANT'), { waitUntil: 'domcontentloaded' })
 
-    await expect(page.getByTestId('sidebar-accounting-bank-card-admin')).toHaveCount(1)
+    await expect(page.getByTestId('sidebar-accounting-bank-card-admin')).toBeVisible()
   })
 })
