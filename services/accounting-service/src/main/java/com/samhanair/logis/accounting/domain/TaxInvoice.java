@@ -432,13 +432,13 @@ public class TaxInvoice extends BaseEntity {
     public void markReceived(String actorUserId) {
         if (this.direction != TaxInvoiceDirection.INBOUND) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "INBOUND 세금계산서만 수신 처리 가능: "
-                            + taxInvoiceNo + " direction=" + direction);
+                    TaxInvoiceDirection.INBOUND.getDisplayName() + " 세금계산서만 수신 처리 가능: "
+                            + taxInvoiceNo + " 방향=" + direction.getDisplayName());
         }
         if (this.status != TaxInvoiceStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "DRAFT 상태에서만 수신 처리 가능: "
-                            + taxInvoiceNo + " status=" + status);
+                    TaxInvoiceStatus.DRAFT.getDisplayName() + " 상태에서만 수신 처리 가능: "
+                            + taxInvoiceNo + " 상태=" + status.getDisplayName());
         }
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
@@ -466,7 +466,8 @@ public class TaxInvoice extends BaseEntity {
     public void cancel(String reason, String actorUserId) {
         if (this.status != TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "취소는 ISSUED 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    "취소는 " + TaxInvoiceStatus.ISSUED.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
@@ -493,7 +494,8 @@ public class TaxInvoice extends BaseEntity {
     public void cancel(String actorUserId) {
         if (this.status != TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "취소는 ISSUED 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    "취소는 " + TaxInvoiceStatus.ISSUED.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
@@ -537,7 +539,8 @@ public class TaxInvoice extends BaseEntity {
     public void markEmitted(String eTaxExternalId) {
         if (this.status != TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.TAX_INVOICE_NOT_EMITTABLE,
-                    "e-Tax 전송은 ISSUED 상태에서만 허용됩니다 (현재: " + this.status + ")");
+                    "e-Tax 전송은 " + TaxInvoiceStatus.ISSUED.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         if (this.eTaxExternalId != null && !this.eTaxExternalId.isBlank()) {
             throw new BusinessException(ErrorCode.TAX_INVOICE_ALREADY_EMITTED,
@@ -573,7 +576,8 @@ public class TaxInvoice extends BaseEntity {
     private void requireDraft(String action) {
         if (this.status != TaxInvoiceStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    action + "은 DRAFT 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    action + "은 " + TaxInvoiceStatus.DRAFT.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
     }
 }

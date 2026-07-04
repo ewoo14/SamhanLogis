@@ -160,7 +160,8 @@ public class AccountingPeriod extends BaseEntity {
                       BigDecimal totalExpense, int lockedSlipCount) {
         if (this.status != PeriodStatus.OPEN) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "마감은 OPEN 상태에서만 허용됩니다 (현재: " + this.status + ")");
+                    "마감은 " + PeriodStatus.OPEN.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
@@ -183,7 +184,8 @@ public class AccountingPeriod extends BaseEntity {
     public void reverse(String actorUserId) {
         if (this.status != PeriodStatus.CLOSED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "역마감은 CLOSED 상태에서만 허용됩니다 (현재: " + this.status + ")");
+                    "역마감은 " + PeriodStatus.CLOSED.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");

@@ -293,7 +293,8 @@ class TaxInvoiceServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT))
-                .hasMessageContaining("DRAFT");
+                .hasMessageContaining("임시저장")
+                .hasMessageNotContaining("DRAFT");
     }
 
     // ── 시나리오 10 ──────────────────────────────────────────────────────────

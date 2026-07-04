@@ -207,10 +207,16 @@ class JournalControllerIT extends AbstractPostgresIT {
     @DisplayName("reverse — DRAFT 분개에 reverse 호출 시 409 CONFLICT")
     void reverseDraftConflict() throws Exception {
         String id = createJournalAsAccountant("50000");
-        mockMvc.perform(post("/accounting/journals/" + id + "/reverse")
+        MvcResult result = mockMvc.perform(post("/accounting/journals/" + id + "/reverse")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        org.assertj.core.api.Assertions.assertThat(dataMessage(result))
+                .contains("확정")
+                .doesNotContain("POSTED")
+                .doesNotContain("DRAFT");
     }
 
     /** 잔여 권한 시나리오 — MASTER 도 200, INVENTORY/WAREHOUSE 403. */
@@ -248,6 +254,11 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andReturn();
         return objectMapper.readTree(res.getResponse().getContentAsString())
                 .get("data").get("id").asText();
+    }
+
+    private String dataMessage(MvcResult result) throws Exception {
+        return objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .get("message").asText();
     }
 
     private Map<String, Object> balancedJournalBody(String amount) {

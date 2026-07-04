@@ -71,7 +71,7 @@ class BankDepositReceiptServiceTest {
         when(bankTransactionService.findUniqueByNaturalKey(anyString(), any(), any(), anyString()))
                 .thenReturn(reflected);
 
-        assertConflict(request(key("A")), "UNREFLECTED");
+        assertConflict(request(key("A")), "미반영");
         verifyNoInteractions(cashReceiptService);
     }
 

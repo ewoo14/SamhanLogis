@@ -133,7 +133,7 @@ public class CashReceipt extends BaseEntity {
      */
     public CashReceipt updateDraft(BigDecimal amount, LocalDate transactionDate, String memo,
                                    UUID partnerId, String debitAccountCode, String creditAccountCode) {
-        requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
+        requireDraft("입금보고서 수정은 " + CashReceiptStatus.DRAFT.getDisplayName() + " 상태에서만 허용됩니다");
         return applyEditableFields(amount, transactionDate, memo, partnerId, debitAccountCode, creditAccountCode);
     }
 
@@ -149,7 +149,9 @@ public class CashReceipt extends BaseEntity {
                                        UUID partnerId, String debitAccountCode, String creditAccountCode) {
         if (this.status != CashReceiptStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "CONFIRMED 입금보고서만 재게시 수정할 수 있습니다 (현재: " + this.status + ")");
+                    CashReceiptStatus.CONFIRMED.getDisplayName()
+                            + " 입금보고서만 재게시 수정할 수 있습니다 (현재: "
+                            + this.status.getDisplayName() + ")");
         }
         return applyEditableFields(amount, transactionDate, memo, partnerId, debitAccountCode, creditAccountCode);
     }
@@ -171,7 +173,7 @@ public class CashReceipt extends BaseEntity {
 
     /** DRAFT → CONFIRMED. 상태만 전환하며, POSTED 분개 게시는 service(confirm)가 이어서 수행한다. */
     public CashReceipt confirm() {
-        requireDraft("입금보고서 확정은 DRAFT 단계에서만 허용됩니다");
+        requireDraft("입금보고서 확정은 " + CashReceiptStatus.DRAFT.getDisplayName() + " 상태에서만 허용됩니다");
         this.status = CashReceiptStatus.CONFIRMED;
         return this;
     }
@@ -180,7 +182,8 @@ public class CashReceipt extends BaseEntity {
     public CashReceipt cancel() {
         if (this.status != CashReceiptStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "입금보고서 취소는 CONFIRMED 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    "입금보고서 취소는 " + CashReceiptStatus.CONFIRMED.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = CashReceiptStatus.CANCELLED;
         return this;
@@ -188,7 +191,7 @@ public class CashReceipt extends BaseEntity {
 
     /** DRAFT 입금보고서만 soft-delete 한다. */
     public CashReceipt softDeleteDraft(String actor) {
-        requireDraft("입금보고서 삭제는 DRAFT 단계에서만 허용됩니다");
+        requireDraft("입금보고서 삭제는 " + CashReceiptStatus.DRAFT.getDisplayName() + " 상태에서만 허용됩니다");
         markDeleted(actor == null || actor.isBlank() ? "system" : actor);
         return this;
     }
@@ -228,7 +231,8 @@ public class CashReceipt extends BaseEntity {
     /** DRAFT 상태 요구 가드. service 선검증과 도메인 mutation 에서 공통 사용한다. */
     public CashReceipt requireDraft(String message) {
         if (this.status != CashReceiptStatus.DRAFT) {
-            throw new BusinessException(ErrorCode.CONFLICT, message + " (현재: " + this.status + ")");
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    message + " (현재: " + this.status.getDisplayName() + ")");
         }
         return this;
     }

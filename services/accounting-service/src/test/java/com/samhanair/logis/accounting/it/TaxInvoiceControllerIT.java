@@ -238,10 +238,17 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("ISSUED"));
 
         // 동일 세금계산서 재발행 → DRAFT 아니므로 CONFLICT
-        mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
+        MvcResult result = mockMvc.perform(post("/accounting/tax-invoices/" + id + "/issue")
                         .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
                         .header("X-User-Role", "ACCOUNTANT"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        org.assertj.core.api.Assertions.assertThat(dataMessage(result))
+                .contains("임시저장")
+                .contains("발행")
+                .doesNotContain("DRAFT")
+                .doesNotContain("ISSUED");
     }
 
     @Test
@@ -295,6 +302,11 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
     private com.fasterxml.jackson.databind.JsonNode data(MvcResult result) throws Exception {
         return objectMapper.readTree(
                 result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).get("data");
+    }
+
+    private String dataMessage(MvcResult result) throws Exception {
+        return objectMapper.readTree(
+                result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).get("message").asText();
     }
 
     private String taxInvoiceStatus(String id) {

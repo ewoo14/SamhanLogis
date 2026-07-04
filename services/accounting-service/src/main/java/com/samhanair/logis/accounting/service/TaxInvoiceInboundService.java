@@ -138,7 +138,8 @@ public class TaxInvoiceInboundService {
             }
             if (slip.getStatus() != PurchaseSlipStatus.POSTED) {
                 throw new BusinessException(ErrorCode.SAS_PURCHASE_SLIP_NOT_POSTED,
-                        "POSTED 상태 매입전표만 수신 등록할 수 있습니다: " + slip.getSlipNo());
+                        PurchaseSlipStatus.POSTED.getDisplayName()
+                                + " 상태 매입전표만 수신 등록할 수 있습니다: " + slip.getSlipNo());
             }
             if (slip.getTaxInvoiceId() != null) {
                 throw new BusinessException(ErrorCode.SAS_TAX_INVOICE_ALREADY_LINKED,

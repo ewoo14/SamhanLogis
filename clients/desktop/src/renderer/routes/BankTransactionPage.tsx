@@ -34,7 +34,7 @@ type SourceTab = 'ALL' | BankTransactionRow['source']
 const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
   { key: 'ALL', label: '전체' },
   { key: 'UNREFLECTED', label: '미반영' },
-  { key: 'REFLECTED', label: '회계반영' },
+  { key: 'REFLECTED', label: '반영' },
   { key: 'FORCED', label: '강제' },
 ]
 

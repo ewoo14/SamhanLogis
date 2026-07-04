@@ -174,7 +174,8 @@ public class Journal extends BaseEntity {
     public void addLine(JournalLine line) {
         if (this.status != JournalStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "라인 추가는 DRAFT 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    "라인 추가는 " + JournalStatus.DRAFT.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.lines.add(line);
     }
@@ -189,7 +190,8 @@ public class Journal extends BaseEntity {
     public boolean removeLine(UUID lineId) {
         if (this.status != JournalStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "라인 제거는 DRAFT 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    "라인 제거는 " + JournalStatus.DRAFT.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         return this.lines.removeIf(l -> l.getId() != null && l.getId().equals(lineId));
     }
@@ -211,7 +213,8 @@ public class Journal extends BaseEntity {
     public void post(String actorUserId) {
         if (this.status != JournalStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "게시는 DRAFT 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    "게시는 " + JournalStatus.DRAFT.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
@@ -241,7 +244,8 @@ public class Journal extends BaseEntity {
     public void markReversed() {
         if (this.status != JournalStatus.POSTED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "역분개는 POSTED 단계에서만 허용됩니다 (현재: " + this.status + ")");
+                    "역분개는 " + JournalStatus.POSTED.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = JournalStatus.REVERSED;
     }

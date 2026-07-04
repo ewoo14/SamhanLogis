@@ -126,7 +126,8 @@ public class BankDepositReceiptService {
         for (BankTransaction transaction : transactions) {
             if (transaction.getMatchStatus() != MatchStatus.UNREFLECTED) {
                 throw new BusinessException(ErrorCode.CONFLICT,
-                        "UNREFLECTED 상태 통장거래만 입금보고서로 반영할 수 있습니다: "
+                        MatchStatus.UNREFLECTED.getDisplayName()
+                                + " 상태 통장거래만 입금보고서로 반영할 수 있습니다: "
                                 + transaction.getExternalRef());
             }
             if (transaction.getTxnType() != BankTxnType.DEPOSIT) {

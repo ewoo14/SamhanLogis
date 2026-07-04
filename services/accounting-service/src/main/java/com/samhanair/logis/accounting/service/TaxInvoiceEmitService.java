@@ -121,7 +121,9 @@ public class TaxInvoiceEmitService {
         // 불필요한 외부 API 호출을 방지한다.
         if (ti.getStatus() != com.samhanair.logis.accounting.domain.TaxInvoiceStatus.ISSUED) {
             throw new BusinessException(ErrorCode.TAX_INVOICE_NOT_EMITTABLE,
-                    "e-Tax 전송은 ISSUED 상태에서만 허용됩니다 (현재: " + ti.getStatus() + ")");
+                    "e-Tax 전송은 "
+                            + com.samhanair.logis.accounting.domain.TaxInvoiceStatus.ISSUED.getDisplayName()
+                            + " 상태에서만 허용됩니다 (현재: " + ti.getStatus().getDisplayName() + ")");
         }
         if (ti.getETaxExternalId() != null && !ti.getETaxExternalId().isBlank()) {
             throw new BusinessException(ErrorCode.TAX_INVOICE_ALREADY_EMITTED,

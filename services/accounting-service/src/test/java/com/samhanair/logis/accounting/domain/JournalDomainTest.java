@@ -90,7 +90,8 @@ class JournalDomainTest {
         JournalLine extra = JournalLine.create(j, 99, "101", new BigDecimal("1"), BigDecimal.ZERO, null, null);
         assertThatThrownBy(() -> j.addLine(extra))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("DRAFT");
+                .hasMessageContaining("작성중")
+                .hasMessageNotContaining("DRAFT");
 
         UUID firstId = j.getLines().get(0).getId();
         assertThatThrownBy(() -> j.removeLine(firstId))
@@ -104,7 +105,8 @@ class JournalDomainTest {
 
         assertThatThrownBy(j::markReversed)
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("POSTED");
+                .hasMessageContaining("확정")
+                .hasMessageNotContaining("POSTED");
     }
 
     @Test

@@ -89,7 +89,8 @@ class TaxInvoiceDomainTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT))
-                .hasMessageContaining("INBOUND");
+                .hasMessageContaining("매입(수신)")
+                .hasMessageNotContaining("INBOUND");
     }
 
     @Test
@@ -133,7 +134,8 @@ class TaxInvoiceDomainTest {
         TaxInvoice ti = newDraft();
         assertThatThrownBy(() -> ti.cancel("user-B"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("ISSUED");
+                .hasMessageContaining("발행")
+                .hasMessageNotContaining("ISSUED");
     }
 
     @Test

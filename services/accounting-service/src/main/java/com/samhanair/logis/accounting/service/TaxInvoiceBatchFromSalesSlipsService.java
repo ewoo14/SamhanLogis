@@ -138,7 +138,8 @@ public class TaxInvoiceBatchFromSalesSlipsService {
             }
             if (slip.getStatus() != SalesSlipStatus.POSTED) {
                 throw new BusinessException(ErrorCode.SAS_SALES_SLIP_NOT_POSTED,
-                        "POSTED 상태 매출전표만 묶음 발행할 수 있습니다: " + slip.getSlipNo());
+                        SalesSlipStatus.POSTED.getDisplayName()
+                                + " 상태 매출전표만 묶음 발행할 수 있습니다: " + slip.getSlipNo());
             }
             if (slip.getTaxInvoiceId() != null) {
                 throw new BusinessException(ErrorCode.SAS_TAX_INVOICE_ALREADY_LINKED,

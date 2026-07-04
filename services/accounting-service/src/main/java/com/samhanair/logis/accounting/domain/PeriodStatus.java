@@ -15,8 +15,23 @@ package com.samhanair.logis.accounting.domain;
  */
 public enum PeriodStatus {
     /** 마감 미시행 또는 역마감 후. */
-    OPEN,
+    OPEN("미마감"),
 
     /** 마감 완료 — 변경 차단. */
-    CLOSED
+    CLOSED("마감");
+
+    private final String displayName;
+
+    PeriodStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /**
+     * 사용자 노출 메시지에 사용하는 한국어 상태 라벨.
+     *
+     * @return 한국어 상태 표시명
+     */
+    public String getDisplayName() {
+        return displayName;
+    }
 }

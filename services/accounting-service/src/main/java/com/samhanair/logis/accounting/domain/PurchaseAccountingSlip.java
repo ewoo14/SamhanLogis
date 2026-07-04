@@ -113,7 +113,8 @@ public class PurchaseAccountingSlip extends BaseEntity {
     public void post(String actorUserId) {
         if (this.status != PurchaseSlipStatus.DRAFT) {
             throw new BusinessException(ErrorCode.SAS_ALREADY_POSTED,
-                    "DRAFT 상태에서만 POST 가능: " + slipNo + " (현재=" + status + ")");
+                    PurchaseSlipStatus.DRAFT.getDisplayName()
+                            + " 상태에서만 POST 가능: " + slipNo + " (현재=" + status.getDisplayName() + ")");
         }
         this.status = PurchaseSlipStatus.POSTED;
         this.postedAt = LocalDateTime.now();

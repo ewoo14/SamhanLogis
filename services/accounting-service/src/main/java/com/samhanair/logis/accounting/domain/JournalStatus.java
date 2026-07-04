@@ -10,11 +10,26 @@ package com.samhanair.logis.accounting.domain;
 public enum JournalStatus {
 
     /** 작성 중 — 라인 추가/제거/수정 허용. 시산표 집계 미포함. */
-    DRAFT,
+    DRAFT("작성중"),
 
     /** 게시 완료 — 시산표 집계 포함. 직접 수정 불가, reverse 만 가능. */
-    POSTED,
+    POSTED("확정"),
 
     /** 원분개가 역분개 처리됨 — 원분개(REVERSED)와 신규 반대분개(POSTED)를 함께 보존·집계한다. */
-    REVERSED
+    REVERSED("역분개");
+
+    private final String displayName;
+
+    JournalStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /**
+     * 사용자 노출 메시지에 사용하는 한국어 상태 라벨.
+     *
+     * @return 한국어 상태 표시명
+     */
+    public String getDisplayName() {
+        return displayName;
+    }
 }

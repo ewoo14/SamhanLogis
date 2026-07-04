@@ -73,12 +73,12 @@ public class PurchaseAccountingSlipCreateAttemptService {
         SlipLineSnapshot src = slipServiceClient.getSlipLine(ar.sourceLineId());
         if (!"INBOUND".equals(src.slipType())) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH,
-                    "매입전표는 INBOUND 입고전표만 source 가능 (slip="
-                            + src.slipNo() + " type=" + src.slipType() + ")");
+                    "매입전표는 입고전표만 source 가능 (slip="
+                            + src.slipNo() + " type=" + slipTypeDisplayName(src.slipType()) + ")");
         }
         if (!"CONFIRMED".equals(src.slipStatus())) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_NOT_CONFIRMED,
-                    "(slip=" + src.slipNo() + " 상태=" + src.slipStatus() + ", CONFIRMED 요구)");
+                    "(slip=" + src.slipNo() + " 상태=" + slipStatusDisplayName(src.slipStatus()) + ", 확정 요구)");
         }
         BigDecimal already = allocationRepository.sumAllocatedAmountBySourceLineId(ar.sourceLineId());
         BigDecimal next = already.add(ar.allocatedAmount());
@@ -94,6 +94,31 @@ public class PurchaseAccountingSlipCreateAttemptService {
         entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(:k)")
                 .setParameter("k", lockKey)
                 .getSingleResult();
+    }
+
+    private static String slipTypeDisplayName(String slipType) {
+        if (slipType == null) {
+            return null;
+        }
+        return switch (slipType) {
+            case "OUTBOUND" -> "출고";
+            case "INBOUND" -> "입고";
+            default -> slipType;
+        };
+    }
+
+    private static String slipStatusDisplayName(String slipStatus) {
+        if (slipStatus == null) {
+            return null;
+        }
+        return switch (slipStatus) {
+            case "DRAFT" -> "임시저장";
+            case "SAVED" -> "저장";
+            case "CONFIRMED" -> "확정";
+            case "LOCKED" -> "잠금";
+            case "CANCELED" -> "취소";
+            default -> slipStatus;
+        };
     }
 
 }

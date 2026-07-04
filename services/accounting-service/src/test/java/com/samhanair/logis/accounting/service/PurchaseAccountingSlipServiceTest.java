@@ -289,7 +289,8 @@ class PurchaseAccountingSlipServiceTest {
 
         assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("CONFIRMED");
+                .hasMessageContaining("확정")
+                .hasMessageNotContaining("CONFIRMED");
     }
 
     @Test
@@ -311,7 +312,8 @@ class PurchaseAccountingSlipServiceTest {
 
         assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("INBOUND")
+                .hasMessageContaining("입고")
+                .hasMessageNotContaining("INBOUND")
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH));
     }

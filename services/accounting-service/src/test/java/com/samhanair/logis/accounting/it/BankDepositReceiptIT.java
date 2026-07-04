@@ -215,7 +215,7 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
                 "CSV_IMPORT", "REFLECTED", PARTNER_ID, false);
         expectCreateConflict("[%s]".formatted(
                 keyJson("S3-BANK-REFLECTED", "2026-07-04T12:03:00", "4000.00")),
-                "UNREFLECTED");
+                "미반영");
 
         insertBankTransaction("S3-BANK-LOAN", "2026-07-04T12:04:00", "DEPOSIT", "5000.00",
                 "CODEF_LOAN", "UNREFLECTED", PARTNER_ID, false);

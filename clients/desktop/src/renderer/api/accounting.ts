@@ -1972,7 +1972,7 @@ export const BANK_TXN_SOURCE_LABEL: Record<BankTxnSource, string> = {
 
 export const BANK_MATCH_STATUS_LABEL: Record<BankMatchStatus, string> = {
   UNREFLECTED: '미반영',
-  REFLECTED: '회계반영',
+  REFLECTED: '반영',
   FORCED: '강제',
 }
 

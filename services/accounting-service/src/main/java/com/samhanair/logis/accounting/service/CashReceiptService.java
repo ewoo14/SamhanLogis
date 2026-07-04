@@ -136,11 +136,13 @@ public class CashReceiptService {
             return updateConfirmed(receipt, request, actorUserId);
         }
         throw new BusinessException(ErrorCode.CONFLICT,
-                "입금보고서 수정은 DRAFT/CONFIRMED 상태에서만 허용됩니다 (현재: " + receipt.getStatus() + ")");
+                "입금보고서 수정은 " + CashReceiptStatus.DRAFT.getDisplayName()
+                        + "/" + CashReceiptStatus.CONFIRMED.getDisplayName()
+                        + " 상태에서만 허용됩니다 (현재: " + receipt.getStatus().getDisplayName() + ")");
     }
 
     private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptRequest request) {
-        receipt.requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
+        receipt.requireDraft("입금보고서 수정은 " + CashReceiptStatus.DRAFT.getDisplayName() + " 상태에서만 허용됩니다");
         PartnerSummary partner = resolvePartner(request);
         return updateDraft(receipt, new CashReceiptDraftCommand(
                 partner.partnerId(),
@@ -152,7 +154,7 @@ public class CashReceiptService {
     }
 
     private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptDraftCommand command) {
-        receipt.requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
+        receipt.requireDraft("입금보고서 수정은 " + CashReceiptStatus.DRAFT.getDisplayName() + " 상태에서만 허용됩니다");
         validateAccounts(command.debitAccountCode(), command.creditAccountCode());
         receipt.updateDraft(
                 command.amount(),
@@ -220,7 +222,7 @@ public class CashReceiptService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "적용할 입금보고서 변경 내역이 없습니다");
         }
         CashReceipt current = findOrThrow(id);
-        current.requireDraft("입금보고서 수정은 DRAFT 단계에서만 허용됩니다");
+        current.requireDraft("입금보고서 수정은 " + CashReceiptStatus.DRAFT.getDisplayName() + " 상태에서만 허용됩니다");
         CashReceiptDraftCommand merged = merge(current, patches);
         return updateDraft(current, merged);
     }

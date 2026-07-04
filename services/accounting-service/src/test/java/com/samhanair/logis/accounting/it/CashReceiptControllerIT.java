@@ -545,10 +545,13 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         UUID originalJournalId = receiptJournalId(receiptId);
         insertClosedMonthlyPeriod("2026-07-01");
 
-        mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
+        MvcResult closedCancel = mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andReturn();
+        org.assertj.core.api.Assertions.assertThat(dataMessage(closedCancel))
+                .contains("마감된 회계 기간");
 
         org.assertj.core.api.Assertions.assertThat(receiptStatus(receiptId)).isEqualTo("CONFIRMED");
         org.assertj.core.api.Assertions.assertThat(receiptJournalId(receiptId)).isEqualTo(originalJournalId);
@@ -695,10 +698,16 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         String receiptId = objectMapper.readTree(draft.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
                 .get("data").get("id").asText();
 
-        mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
+        MvcResult draftCancel = mockMvc.perform(post(BASE_URL + "/{id}/cancel", receiptId)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andReturn();
+        org.assertj.core.api.Assertions.assertThat(dataMessage(draftCancel))
+                .contains("확정")
+                .contains("임시저장")
+                .doesNotContain("CONFIRMED")
+                .doesNotContain("DRAFT");
 
         mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -930,6 +939,11 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
 
     private com.fasterxml.jackson.databind.JsonNode data(MvcResult result) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).get("data");
+    }
+
+    private String dataMessage(MvcResult result) throws Exception {
+        return objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .get("message").asText();
     }
 
     private UUID receiptJournalId(String receiptId) {

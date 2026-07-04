@@ -18,14 +18,29 @@ package com.samhanair.logis.accounting.domain;
  */
 public enum TaxInvoiceStatus {
     /** 작성 중 — 수정/삭제 가능, 발행번호 미부여. */
-    DRAFT,
+    DRAFT("임시저장"),
 
     /** 발행 완료 — 수정 불가, 분개 자동 생성, 발행번호 부여. */
-    ISSUED,
+    ISSUED("발행"),
 
     /** 취소 — 역분개 자동, 발행번호는 보존 (감사 추적). */
-    CANCELLED,
+    CANCELLED("취소"),
 
     /** MIG-4 이카운트 raw 에서 이관된 과거 세금계산서. */
-    MIGRATED
+    MIGRATED("이관");
+
+    private final String displayName;
+
+    TaxInvoiceStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /**
+     * 사용자 노출 메시지에 사용하는 한국어 상태 라벨.
+     *
+     * @return 한국어 상태 표시명
+     */
+    public String getDisplayName() {
+        return displayName;
+    }
 }

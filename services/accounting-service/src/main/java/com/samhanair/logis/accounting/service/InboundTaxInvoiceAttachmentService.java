@@ -41,7 +41,7 @@ public class InboundTaxInvoiceAttachmentService {
                         "수신 세금계산서를 찾을 수 없습니다: " + taxInvoiceId));
         if (taxInvoice.getDirection() != TaxInvoiceDirection.INBOUND) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "INBOUND 세금계산서에만 첨부를 등록할 수 있습니다.");
+                    TaxInvoiceDirection.INBOUND.getDisplayName() + " 세금계산서에만 첨부를 등록할 수 있습니다.");
         }
 
         String filename = sanitizeFileName(file.getOriginalFilename());

@@ -348,7 +348,7 @@ public class TaxInvoiceService {
         TaxInvoice ti = findOrThrow(id);
         if (ti.getStatus() == TaxInvoiceStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "DRAFT 상태의 세금계산서는 인쇄할 수 없습니다. 먼저 발행하세요.");
+                    TaxInvoiceStatus.DRAFT.getDisplayName() + " 상태의 세금계산서는 인쇄할 수 없습니다. 먼저 발행하세요.");
         }
 
         List<TaxInvoicePrintResponse.PrintLine> printLines = ti.getLines().stream()
