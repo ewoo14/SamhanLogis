@@ -104,9 +104,9 @@ test.describe('BC3 CODEF 계좌/카드/대출 선택 가져오기', () => {
     const partnerSearch = page.locator('[data-testid^="bank-transaction-partner-search-CODEF_BANK-"]').first()
     await expect(partnerSearch).toBeVisible()
 
-    const matchCell = page.locator('td[data-label="거래처 매칭"][data-mobile-priority="secondary"]').first()
+    const matchCell = page.locator('td[data-label="거래처"][data-mobile-priority="secondary"]').first()
     const matchCellBox = await matchCell.boundingBox()
-    expect(matchCellBox?.width ?? 0, '모바일 거래처 매칭 셀은 160px secondary 칸이 아니라 row 하단 content 폭이어야 한다').toBeGreaterThan(260)
+    expect(matchCellBox?.width ?? 0, '모바일 거래처 셀은 160px secondary 칸이 아니라 row 하단 content 폭이어야 한다').toBeGreaterThan(260)
 
     await partnerSearch.locator('input').fill('123456')
     const listbox = page.getByRole('listbox', { name: '거래처 목록' }).first()

@@ -2001,8 +2001,10 @@ export interface ListBankTransactionsOptions {
   matchStatus?: BankMatchStatus
   from?: string
   to?: string
-  bankAccountLabel?: string
-  bankAccountLabels?: string[]
+  /** 계좌 표시명 다중 선택(빈/미지정=계좌 전체). 계좌 소스행에만 적용. */
+  accountLabels?: string[]
+  /** 카드 표시명 다중 선택(빈/미지정=카드 전체). 카드 소스행에만 적용. */
+  cardLabels?: string[]
 }
 
 export interface BankTransactionFilterPreferences {
@@ -2056,9 +2058,11 @@ export async function listBankTransactions(
   if (options.matchStatus) params['matchStatus'] = options.matchStatus
   if (options.from) params['from'] = options.from
   if (options.to) params['to'] = options.to
-  if (options.bankAccountLabel) params['bankAccountLabel'] = options.bankAccountLabel
-  if (options.bankAccountLabels && options.bankAccountLabels.length > 0) {
-    params['bankAccountLabels'] = options.bankAccountLabels
+  if (options.accountLabels && options.accountLabels.length > 0) {
+    params['accountLabels'] = options.accountLabels
+  }
+  if (options.cardLabels && options.cardLabels.length > 0) {
+    params['cardLabels'] = options.cardLabels
   }
 
   const res = await apiClient.get<ApiEnvelope<BankTransactionRow[]>>(

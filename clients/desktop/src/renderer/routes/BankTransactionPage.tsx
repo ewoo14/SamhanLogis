@@ -43,6 +43,7 @@ import {
   normalizeBankTransactionLabels,
   type BankTransactionFilterOption,
 } from './BankTransactionFilterModalModel'
+import { codefOrganizationName } from './codefOrganizations'
 import { CodefImportScopeForm } from './components/CodefImportScopeForm'
 
 type StatusTab = 'ALL' | BankMatchStatus
@@ -54,15 +55,6 @@ interface LabelFilters {
   to: string
   accountLabels: string[]
   cardLabels: string[]
-}
-
-const ORGANIZATION_LABEL: Record<string, string> = {
-  '0004': '국민은행',
-  '088': '신한은행',
-  '081': '하나은행',
-  '020': '우리은행',
-  '0301': '신한카드',
-  '0302': '국민카드',
 }
 
 const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
@@ -84,17 +76,13 @@ const SOURCE_TAB_ITEMS: TabItem[] = SOURCE_TABS.map((tab) => ({
   testId: tab.testId,
 }))
 
-function organizationName(code: string): string {
-  return ORGANIZATION_LABEL[code] ?? code
-}
-
 function institutionLabel(institution: RegisteredInstitutionResponse): string {
   const businessTypeLabel: Record<CodefConnectionBusinessType, string> = {
     BANK: '계좌',
     CARD: '카드',
     LOAN: '대출',
   }
-  return `${organizationName(institution.organizationCode)} ${businessTypeLabel[institution.businessType] ?? ''}`.trim()
+  return `${codefOrganizationName(institution.organizationCode)} ${businessTypeLabel[institution.businessType] ?? ''}`.trim()
 }
 
 function mergeFilterOptions(
@@ -237,32 +225,34 @@ export function BankTransactionPage() {
     const restored: LabelFilters = {
       from: filters.from,
       to: filters.to,
-      accountLabels: effectiveBankTransactionLabels(saved.accountLabels, accountFilterOptions),
-      cardLabels: effectiveBankTransactionLabels(saved.cardLabels, cardFilterOptions),
+      accountLabels: effectiveBankTransactionLabels(saved.accountLabels),
+      cardLabels: effectiveBankTransactionLabels(saved.cardLabels),
     }
     setFilters(restored)
     setQueryFilters(restored)
   }, [
-    accountFilterOptions,
-    cardFilterOptions,
     filterPreferencesQuery.data,
     filterSelectionTouched,
     filters.from,
     filters.to,
   ])
 
-  const queryBankAccountLabels = useMemo(() => [
-    ...filterLabelsForQuery(queryFilters.accountLabels, accountFilterOptions),
-    ...filterLabelsForQuery(queryFilters.cardLabels, cardFilterOptions),
-  ], [accountFilterOptions, cardFilterOptions, queryFilters.accountLabels, queryFilters.cardLabels])
+  const queryAccountLabels = useMemo(
+    () => filterLabelsForQuery(queryFilters.accountLabels, accountFilterOptions),
+    [accountFilterOptions, queryFilters.accountLabels],
+  )
+  const queryCardLabels = useMemo(
+    () => filterLabelsForQuery(queryFilters.cardLabels, cardFilterOptions),
+    [cardFilterOptions, queryFilters.cardLabels],
+  )
 
   const saveFilterPreferencesMutation = useMutation({
     mutationFn: saveBankTransactionFilterPreferences,
     onSuccess: async (saved) => {
       const next = {
         ...filters,
-        accountLabels: effectiveBankTransactionLabels(saved.accountLabels, accountFilterOptions),
-        cardLabels: effectiveBankTransactionLabels(saved.cardLabels, cardFilterOptions),
+        accountLabels: effectiveBankTransactionLabels(saved.accountLabels),
+        cardLabels: effectiveBankTransactionLabels(saved.cardLabels),
       }
       setFilters(next)
       setQueryFilters(next)
@@ -280,13 +270,15 @@ export function BankTransactionPage() {
       activeTab,
       queryFilters.from,
       queryFilters.to,
-      queryBankAccountLabels.join('|'),
+      queryAccountLabels.join('|'),
+      queryCardLabels.join('|'),
     ],
     queryFn: () => listBankTransactions({
       matchStatus: activeTab === 'ALL' ? undefined : activeTab,
       from: queryFilters.from || undefined,
       to: queryFilters.to || undefined,
-      bankAccountLabels: queryBankAccountLabels.length > 0 ? queryBankAccountLabels : undefined,
+      accountLabels: queryAccountLabels.length > 0 ? queryAccountLabels : undefined,
+      cardLabels: queryCardLabels.length > 0 ? queryCardLabels : undefined,
     }),
   })
 
@@ -356,10 +348,13 @@ export function BankTransactionPage() {
     setFilters(nextFilters)
     setQueryFilters(nextFilters)
     setFilterSelectionTouched(true)
-    saveFilterPreferencesMutation.mutate({
-      accountLabels: nextFilters.accountLabels,
-      cardLabels: nextFilters.cardLabels,
-    })
+    // 필터는 즉시 로컬 적용하되, 서버 저장(PUT=UPDATE 권한)은 UPDATE 보유자만 시도한다.
+    if (canUpdate) {
+      saveFilterPreferencesMutation.mutate({
+        accountLabels: nextFilters.accountLabels,
+        cardLabels: nextFilters.cardLabels,
+      })
+    }
   }
 
   const columns = useMemo<DataTableColumn<BankTransactionRow>[]>(() => {
@@ -719,6 +714,14 @@ export function BankTransactionPage() {
                   data-testid={`bank-transaction-filter-option-${index}`}
                 />
                 <span>{option.label}</span>
+                {option.source === 'transaction' ? (
+                  <span
+                    style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-neutral-500)' }}
+                    title="계좌/카드 관리에 등록되지 않은 거래 내역상 계좌(CSV 자유입력 등)"
+                  >
+                    미등록
+                  </span>
+                ) : null}
               </label>
             ))}
           </div>

@@ -772,14 +772,6 @@ const routes = [
           </PermissionGuard>
         ),
       },
-      {
-        path: '/accounting/codef-connection',
-        element: (
-          <PermissionGuard pageCode="accounting.bank-card-admin" action="view">
-            <BankCardAdminPage />
-          </PermissionGuard>
-        ),
-      },
 
       // [P0-1 Slice C] 分析 보고서 4종 — ACCOUNTANT/MANAGER/MASTER.
       // 정적 `/print` suffix 먼저 등록 (부모 라우트 매칭 우선).

@@ -5940,14 +5940,25 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const statusFilter = String(config.params?.['matchStatus'] ?? '')
     const from = String(config.params?.['from'] ?? '')
     const to = String(config.params?.['to'] ?? '')
-    const bankAccountLabel = String(config.params?.['bankAccountLabel'] ?? '').trim()
-    const bankAccountLabels = normalizeMockRefs(readMockParamList(config.params?.['bankAccountLabels']))
+    const accountLabels = normalizeMockRefs(readMockParamList(config.params?.['accountLabels']))
+    const cardLabels = normalizeMockRefs(readMockParamList(config.params?.['cardLabels']))
+    // 소스 인식 필터(BE 와 동일): 계좌 label→계좌 소스행, 카드 label→카드 소스행, 그 외(대출/KFTC)는 면제.
+    const accountSources = ['CSV_IMPORT', 'CODEF_BANK']
+    const cardSources = ['CODEF_CARD']
     const rows = MOCK_BANK_TRANSACTIONS
       .filter((row) => !statusFilter || row.matchStatus === statusFilter)
       .filter((row) => !from || row.transactedAt.slice(0, 10) >= from)
       .filter((row) => !to || row.transactedAt.slice(0, 10) <= to)
-      .filter((row) => !bankAccountLabel || row.bankAccountLabel === bankAccountLabel)
-      .filter((row) => bankAccountLabels.length === 0 || bankAccountLabels.includes(row.bankAccountLabel))
+      .filter((row) => {
+        if (accountLabels.length === 0 && cardLabels.length === 0) return true
+        if (accountSources.includes(row.source)) {
+          return accountLabels.length === 0 || accountLabels.includes(row.bankAccountLabel)
+        }
+        if (cardSources.includes(row.source)) {
+          return cardLabels.length === 0 || cardLabels.includes(row.bankAccountLabel)
+        }
+        return true
+      })
       .sort((a, b) => b.transactedAt.localeCompare(a.transactedAt))
     return envelope(rows)
   }

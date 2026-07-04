@@ -182,6 +182,51 @@ class CodefConnectionControllerIT extends AbstractPostgresIT {
         assertThat(activeCount).isZero();
     }
 
+    @Test
+    @DisplayName("동일 기관 재등록은 활성 중복행을 만들지 않고 1건만 유지한다(멱등)")
+    void registerInstitution_isIdempotentByNaturalKey() throws Exception {
+        when(easyCodefClient.registerInstitution(any()))
+                .thenReturn(new CodefRegisterResult("conn-idem", "ACTIVE", "등록 완료"));
+        registerBank().andExpect(status().isCreated());
+        registerBank().andExpect(status().isCreated());
+
+        mockMvc.perform(withActor(get(BASE_URL + "/institutions")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.institutions.length()").value(1))
+                .andExpect(jsonPath("$.data.institutions[0].organizationCode").value("0004"));
+
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM codef_registered_institution
+                 WHERE business_type = 'BANK'
+                   AND organization_code = '0004'
+                   AND is_deleted = FALSE
+                """, Integer.class);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("권한 없는 기관 해제 요청은 403으로 차단한다")
+    void unregisterInstitution_deniedByRequirePermission() throws Exception {
+        when(dynamicPermissionClient.check(
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.eq("accounting.bank-card-admin"),
+                        org.mockito.ArgumentMatchers.eq(PermissionAction.DELETE)))
+                .thenReturn(false);
+
+        mockMvc.perform(patch(BASE_URL + "/institutions/unregister")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessType": "BANK",
+                                  "organizationCode": "0004"
+                                }
+                                """)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isForbidden());
+    }
+
     private org.springframework.test.web.servlet.ResultActions registerBank() throws Exception {
         return mockMvc.perform(post(BASE_URL + "/institutions")
                 .contentType(MediaType.APPLICATION_JSON)

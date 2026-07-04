@@ -72,13 +72,20 @@ public class CodefConnectionService {
         connection.update(effectiveConnectedId, connectionStatus);
         CodefConnection savedConnection = saveConnection(connection);
 
-        CodefRegisteredInstitution institution = CodefRegisteredInstitution.create(
-                savedConnection,
-                businessTypeOf(command.businessType()),
-                command.organization(),
-                null,
-                null,
-                institutionStatus);
+        // 멱등 등록: 동일 자연키(connection+businessType+organizationCode)의 활성 행이 있으면 재사용해
+        // 활성 중복을 만들지 않는다(자연키 해제의 대상 모호성 차단). lockRegistration() 하에서 직렬화됨.
+        CodefBusinessType businessType = businessTypeOf(command.businessType());
+        CodefRegisteredInstitution institution = institutionRepository
+                .findFirstByConnectionAndBusinessTypeAndOrganizationCodeAndIsDeletedFalseOrderByRegisteredAtDesc(
+                        savedConnection, businessType, command.organization().trim())
+                .map(existing -> existing.reregister(institutionStatus))
+                .orElseGet(() -> CodefRegisteredInstitution.create(
+                        savedConnection,
+                        businessType,
+                        command.organization(),
+                        null,
+                        null,
+                        institutionStatus));
         CodefRegisteredInstitution savedInstitution = institutionRepository.save(institution);
         return RegisteredInstitutionView.from(savedInstitution, result.message());
     }

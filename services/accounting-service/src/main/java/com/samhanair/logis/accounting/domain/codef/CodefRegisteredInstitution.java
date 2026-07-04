@@ -97,6 +97,24 @@ public class CodefRegisteredInstitution extends BaseEntity {
     }
 
     /**
+     * 이미 등록된 기관을 동일 자연키로 재등록(멱등)한다.
+     *
+     * <p>같은 (connection, businessType, organizationCode) 재등록 시 활성 중복행을 만들지 않고
+     * 기존 행의 상태·등록/검증 시각만 갱신한다. 자연키 기반 해제(unregister)의 대상 모호성을 원천 차단한다.
+     *
+     * @param status 등록 상태
+     * @return {@code this}
+     */
+    public CodefRegisteredInstitution reregister(CodefInstitutionStatus status) {
+        this.status = status == null ? CodefInstitutionStatus.ERROR : status;
+        this.registeredAt = LocalDateTime.now();
+        if (this.status == CodefInstitutionStatus.ACTIVE) {
+            this.lastVerifiedAt = this.registeredAt;
+        }
+        return this;
+    }
+
+    /**
      * 등록 기관을 soft-delete 한다.
      *
      * @param actor 해제 수행자 식별자

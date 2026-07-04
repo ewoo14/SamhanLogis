@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -24,9 +24,10 @@ import {
   type CodefLoanItem,
   type RegisteredInstitutionResponse,
 } from '../api/codefConnectionApi'
+import { codefOrganizationName, codefOrganizationsByBusinessType } from './codefOrganizations'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
-import styles from './CodefConnectionPage.module.css'
+import styles from './BankCardAdminPage.module.css'
 
 type ResultMode = 'ACCOUNTS' | 'CARDS' | 'LOANS'
 type Toast = { type: 'success' | 'error'; message: string } | null
@@ -56,19 +57,6 @@ const BUSINESS_TYPE_LABEL: Record<CodefConnectionBusinessType, string> = {
   BANK: '은행',
   CARD: '카드',
   LOAN: '대출',
-}
-
-const ORGANIZATION_LABEL: Record<string, string> = {
-  '0004': '국민은행',
-  '088': '신한은행',
-  '081': '하나은행',
-  '020': '우리은행',
-  '0301': '신한카드',
-  '0302': '국민카드',
-}
-
-function organizationName(code: string): string {
-  return ORGANIZATION_LABEL[code] ?? code
 }
 
 function formatDateTime(value: string | null): string {
@@ -127,6 +115,12 @@ export function BankCardAdminPage() {
   const [resultMode, setResultMode] = useState<ResultMode | null>(null)
   const [results, setResults] = useState<ResultRow[]>([])
 
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 3000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
   const institutionsQuery = useQuery({
     queryKey: ['accounting', 'bank-card-admin', 'institutions'],
     queryFn: listCodefRegisteredInstitutions,
@@ -183,7 +177,7 @@ export function BankCardAdminPage() {
       header: '기관',
       width: '160px',
       mobilePriority: 'primary',
-      render: (row) => organizationName(row.organizationCode),
+      render: (row) => codefOrganizationName(row.organizationCode),
     },
     {
       key: 'businessType',
@@ -342,12 +336,9 @@ export function BankCardAdminPage() {
             </Select>
           </FormGrid>
           <datalist id="bank-card-admin-organization-options">
-            <option value="0004">국민은행</option>
-            <option value="088">신한은행</option>
-            <option value="081">하나은행</option>
-            <option value="020">우리은행</option>
-            <option value="0301">신한카드</option>
-            <option value="0302">국민카드</option>
+            {codefOrganizationsByBusinessType(form.businessType).map((org) => (
+              <option key={org.code} value={org.code}>{org.name}</option>
+            ))}
           </datalist>
           <FormGrid columns={2} className={styles.credentials}>
             <Input
@@ -406,7 +397,7 @@ export function BankCardAdminPage() {
             </Button>
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               onClick={() => verifyMutation.mutate('LOANS')}
               loading={verifyMutation.isPending && verifyMutation.variables === 'LOANS'}
               data-testid="bank-card-admin-list-loans"

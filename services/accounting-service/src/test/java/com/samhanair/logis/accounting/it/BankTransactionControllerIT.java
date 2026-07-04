@@ -129,20 +129,44 @@ class BankTransactionControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("목록 조회는 bankAccountLabels 다중 파라미터를 IN 조건으로 적용한다")
-    void list_filtersByMultipleBankAccountLabels() throws Exception {
+    @DisplayName("계좌 필터는 계좌 소스행에만 IN 적용하고 카드/대출 소스는 면제로 유지한다")
+    void list_filtersAccountLabelsSourceAware() throws Exception {
         insertNative("DEPOSIT", "CSV_IMPORT", "UNREFLECTED", "1000.00", "multi-a-001", "국민 111");
-        insertNative("DEPOSIT", "CSV_IMPORT", "UNREFLECTED", "2000.00", "multi-b-001", "신한 222");
+        insertNative("DEPOSIT", "CODEF_BANK", "UNREFLECTED", "2000.00", "multi-b-001", "신한 222");
         insertNative("DEPOSIT", "CSV_IMPORT", "UNREFLECTED", "3000.00", "multi-c-001", "농협 333");
+        insertNative("DEPOSIT", "CODEF_CARD", "UNREFLECTED", "4000.00", "multi-d-001", "법인카드 A");
+        insertNative("WITHDRAWAL", "CODEF_LOAN", "UNREFLECTED", "5000.00", "multi-e-001", "우리 대출");
 
+        // 계좌 부분선택: 계좌 소스는 선택 label 만(농협 제외), 카드/대출 소스는 필터 면제로 유지.
         mockMvc.perform(get(BASE_URL)
-                        .param("bankAccountLabels", "국민 111", "신한 222")
+                        .param("accountLabels", "국민 111", "신한 222")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data.length()").value(4))
                 .andExpect(jsonPath("$.data[*].bankAccountLabel")
-                        .value(org.hamcrest.Matchers.containsInAnyOrder("국민 111", "신한 222")));
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                "국민 111", "신한 222", "법인카드 A", "우리 대출")));
+    }
+
+    @Test
+    @DisplayName("카드 필터는 카드 소스행에만 IN 적용하고 계좌/대출 소스는 면제로 유지한다")
+    void list_filtersCardLabelsSourceAware() throws Exception {
+        insertNative("DEPOSIT", "CSV_IMPORT", "UNREFLECTED", "1000.00", "card-a-001", "국민 111");
+        insertNative("DEPOSIT", "CODEF_CARD", "UNREFLECTED", "2000.00", "card-b-001", "법인카드 A");
+        insertNative("DEPOSIT", "CODEF_CARD", "UNREFLECTED", "3000.00", "card-c-001", "법인카드 B");
+        insertNative("WITHDRAWAL", "CODEF_LOAN", "UNREFLECTED", "4000.00", "card-d-001", "우리 대출");
+
+        // 카드 부분선택: 카드 소스는 선택 label 만(법인카드 B 제외), 계좌/대출 소스는 면제로 유지.
+        mockMvc.perform(get(BASE_URL)
+                        .param("cardLabels", "법인카드 A")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(3))
+                .andExpect(jsonPath("$.data[*].bankAccountLabel")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                "국민 111", "법인카드 A", "우리 대출")));
     }
 
     @Test
@@ -225,6 +249,24 @@ class BankTransactionControllerIT extends AbstractPostgresIT {
         denyRequirePermission("accounting.bank-matching", PermissionAction.CREATE);
 
         importCsv(ms949Csv())
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("RequirePermission: accounting.bank-matching UPDATE deny 시 필터 설정 저장 403")
+    void updateFilterPreferences_requiresUpdatePermission() throws Exception {
+        denyRequirePermission("accounting.bank-matching", PermissionAction.UPDATE);
+
+        mockMvc.perform(put(BASE_URL + "/filter-preferences")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "accountLabels": ["국민 111"],
+                                  "cardLabels": []
+                                }
+                                """)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isForbidden());
     }
 

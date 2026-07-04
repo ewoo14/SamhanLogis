@@ -14,19 +14,17 @@ export function normalizeBankTransactionLabels(labels: readonly string[] | null 
   return Array.from(normalized).sort((a, b) => a.localeCompare(b, 'ko-KR'))
 }
 
+/**
+ * 저장된 필터 선택을 복원한다.
+ *
+ * 빈 목록은 전체 선택(무필터)을 의미하고, 비어있지 않으면 저장된 부분선택을 그대로 복원한다.
+ * (과거 구현은 저장값이 있으면 현재 options 전체를 union 해 부분선택을 항상 전체로 팽창시키는
+ * 결함이 있었다 — 저장값을 있는 그대로 복원해야 "계좌 N개만 보기"가 동작한다.)
+ */
 export function effectiveBankTransactionLabels(
   savedLabels: readonly string[] | null | undefined,
-  options: readonly BankTransactionFilterOption[],
 ): string[] {
-  const saved = normalizeBankTransactionLabels(savedLabels)
-  if (saved.length === 0) return []
-
-  const merged = new Set(saved)
-  for (const option of options) {
-    const label = option.label.trim()
-    if (label) merged.add(label)
-  }
-  return Array.from(merged)
+  return normalizeBankTransactionLabels(savedLabels)
 }
 
 export function filterButtonLabel(label: '계좌' | '카드', selectedLabels: readonly string[]): string {

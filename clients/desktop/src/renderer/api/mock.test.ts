@@ -764,20 +764,18 @@ describe('mock tax invoice e-Tax contract', () => {
 })
 
 describe('mock bank transaction matching contract', () => {
-  it('stores filter preferences per user and supports multiple bankAccountLabels', () => {
+  it('stores filter preferences per user and applies source-aware account filter selectively', () => {
     const userId = `mock-user-${Date.now()}`
     const bankAccountLabel = `국민 다중필터 ${Date.now()}`
     const otherBankAccountLabel = `신한 다중필터 ${Date.now()}`
-    mockRequest({
-      method: 'POST',
-      url: '/accounting/bank-transactions/import',
-      data: { bankAccountLabel },
-    })
-    mockRequest({
-      method: 'POST',
-      url: '/accounting/bank-transactions/import',
-      data: { bankAccountLabel: otherBankAccountLabel },
-    })
+    const excludedLabel = `우리 제외 ${Date.now()}`
+    for (const label of [bankAccountLabel, otherBankAccountLabel, excludedLabel]) {
+      mockRequest({
+        method: 'POST',
+        url: '/accounting/bank-transactions/import',
+        data: { bankAccountLabel: label },
+      })
+    }
 
     const saved = mockRequest({
       method: 'PUT',
@@ -796,12 +794,19 @@ describe('mock bank transaction matching contract', () => {
     const filtered = mockRequest({
       method: 'GET',
       url: '/accounting/bank-transactions',
-      params: { bankAccountLabels: [bankAccountLabel, otherBankAccountLabel] },
+      params: { accountLabels: [bankAccountLabel, otherBankAccountLabel] },
     }) as MockEnvelope<Array<Record<string, unknown>>>
 
+    // 저장은 정규화(중복 제거) 후 per-user 로 저장/복원한다.
     expect(saved.data.accountLabels).toEqual([bankAccountLabel, otherBankAccountLabel])
     expect(loaded.data).toEqual(saved.data)
-    expect(new Set(filtered.data.map((row) => row.bankAccountLabel))).toEqual(
+
+    // 계좌 소스행은 선택 label 만 통과하고 미선택 계좌(excludedLabel)는 제외한다.
+    // (대출/카드 등 비계좌 소스의 필터 면제는 BankTransactionControllerIT#list_filtersAccountLabelsSourceAware
+    //  / list_filtersCardLabelsSourceAware 가 실데이터로 권위 검증한다.)
+    const accountRows = filtered.data.filter((row) =>
+      ['CSV_IMPORT', 'CODEF_BANK'].includes(String(row.source)))
+    expect(new Set(accountRows.map((row) => row.bankAccountLabel))).toEqual(
       new Set([bankAccountLabel, otherBankAccountLabel]),
     )
   })

@@ -81,14 +81,17 @@ public class BankTransactionController {
     /** 통장 거래 목록. */
     @GetMapping
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
-    @Operation(summary = "통장 거래 목록", description = "matchStatus 탭, 기간, 은행계좌 표시명 필터")
+    @Operation(summary = "통장 거래 목록",
+            description = "matchStatus 탭, 기간, 계좌/카드 표시명 소스 인식 필터(빈 목록=해당 소스 전체·대출 등은 면제)")
     public ApiResponse<List<BankTransactionResponse>> list(
             @RequestParam(required = false) MatchStatus matchStatus,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) String bankAccountLabel,
-            @RequestParam(required = false) List<String> bankAccountLabels) {
-        return ApiResponse.ok(service.list(matchStatus, from, to, bankAccountLabel, bankAccountLabels));
+            @RequestParam(required = false) List<String> accountLabels,
+            @RequestParam(required = false) List<String> cardLabels) {
+        return ApiResponse.ok(service.list(matchStatus, from, to,
+                accountLabels == null ? List.of() : accountLabels,
+                cardLabels == null ? List.of() : cardLabels));
     }
 
     /** 사용자별 입출금내역 계좌/카드 필터 설정 조회. */

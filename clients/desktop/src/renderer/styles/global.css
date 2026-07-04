@@ -5325,13 +5325,13 @@ button {
     overflow: visible;
   }
 
-  .bank-transaction-table td[data-label='거래처 매칭'][data-mobile-priority='secondary'] {
+  .bank-transaction-table td[data-label='거래처'][data-mobile-priority='secondary'] {
     grid-column: 1 / -1;
     overflow: visible;
     padding-top: 8px;
   }
 
-  .bank-transaction-table td[data-label='거래처 매칭'][data-mobile-priority='secondary'] > * {
+  .bank-transaction-table td[data-label='거래처'][data-mobile-priority='secondary'] > * {
     width: 100%;
     overflow: visible;
   }
