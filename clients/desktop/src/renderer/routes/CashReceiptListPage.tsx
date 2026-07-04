@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Input, Select, type BadgeVariant, type DataTableColumn } from '@samhan/design-system'
 import { FilterChipBar, type FilterChip } from '../components/FilterChipBar'
@@ -20,6 +19,7 @@ import {
 } from './CashReceiptListPage.model'
 import {
   FilterField,
+  PAGE_SIZE,
   PagedTable,
   filterBarStyle,
   headerStyle,
@@ -27,7 +27,6 @@ import {
   pageRootStyle,
 } from './accounting/admin/Mig14AdminShared'
 
-const PAGE_SIZE = 20
 const PAGE_CODE = 'accounting.cash-receipts'
 
 const INITIAL_FILTERS: CashReceiptFilterState = {
@@ -38,6 +37,9 @@ const INITIAL_FILTERS: CashReceiptFilterState = {
   to: '',
 }
 
+// kind 유형별 배지 톤. design-system 팔레트에 중립 informational 톤(info)이 없어 3종을
+// 색으로 구분하려면 상태 톤 중 하나가 필요 — BANK_LINKED(자동 대사)에 success 배정.
+// 승인 상태가 아닌 '유형' 구분 용도이며 라벨 텍스트가 주 구분자다.
 const KIND_TONE: Record<string, BadgeVariant> = {
   DEPOSIT_REPORT: 'brand',
   MANUAL_RECEIPT: 'neutral',
@@ -84,9 +86,9 @@ function amountStyle(row: CashReceiptRow) {
 }
 
 export function CashReceiptListPage() {
-  usePageTitle('현금 입금')
+  usePageTitle('입금보고서')
 
-  const { canAccess, isLoading: permissionLoading } = usePermissions()
+  const { canAccess } = usePermissions()
   const canView = canAccess(PAGE_CODE, 'view')
   const [page, setPage] = useState(0)
   const [filters, setFilters] = useState<CashReceiptFilterState>(INITIAL_FILTERS)
@@ -152,12 +154,10 @@ export function CashReceiptListPage() {
         width: '170px',
         mobilePriority: 'primary',
         render: (row) => isSkeletonRow(row) ? <SkeletonCell width={120} /> : (
-          <Link
-            to={`/accounting/admin/cash-receipts?slipNo=${encodeURIComponent(row.slipNo)}`}
-            style={{ color: 'var(--color-brand-700)', fontWeight: 700, textDecoration: 'none' }}
-          >
+          // S4a 는 목록 전용 — 전표번호 상세 링크는 상세 페이지(S4b) 도입 시 배선한다.
+          <span style={{ fontWeight: 700 }} data-testid={`cash-receipt-slip-${row.slipNo}`}>
             {row.slipNo}
-          </Link>
+          </span>
         ),
       },
       {
@@ -213,29 +213,15 @@ export function CashReceiptListPage() {
     [],
   )
 
-  if (!permissionLoading && !canView) {
-    return (
-      <div style={pageRootStyle}>
-        <h3 style={{ margin: 0 }}>회계 관리자 / 현금 입금</h3>
-        <div className="error-banner" role="alert">
-          현금 입금 화면을 볼 권한이 없습니다.
-        </div>
-      </div>
-    )
-  }
-
+  // 권한 게이트는 라우트의 PermissionGuard(accounting.cash-receipts view)가 담당 —
+  // 미보유 시 홈 리다이렉트되어 본 컴포넌트는 마운트되지 않는다(내부 재검사 불요).
   const rows = query.isLoading ? skeletonRows : (query.data?.content ?? [])
   const isEmpty = !query.isLoading && !query.isError && rows.length === 0
 
   return (
     <div style={pageRootStyle} data-testid="cash-receipt-list-page">
       <div style={headerStyle}>
-        <div>
-          <h3 style={{ margin: 0 }}>회계 관리자 / 현금 입금</h3>
-          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--ink-secondary)' }}>
-            총 {(query.data?.totalElements ?? 0).toLocaleString('ko-KR')}건 · {PAGE_SIZE}건씩 보기
-          </div>
-        </div>
+        <h3 style={{ margin: 0 }}>입금보고서</h3>
         <Button
           type="button"
           variant="secondary"
@@ -315,28 +301,30 @@ export function CashReceiptListPage() {
             다시 시도
           </Button>
         </div>
-      ) : null}
+      ) : (
+        <>
+          <PagedTable
+            columns={columns}
+            rows={rows}
+            loading={false}
+            rowKey={(row) => row.id ?? row.slipNo}
+            emptyMessage="조건에 맞는 입금 자료가 없습니다."
+            page={page}
+            pageData={query.data}
+            onPageChange={setPage}
+            testId="cash-receipt-list-table"
+            pageSize={PAGE_SIZE}
+          />
 
-      <PagedTable
-        columns={columns}
-        rows={query.isError ? [] : rows}
-        loading={false}
-        rowKey={(row) => row.id ?? row.slipNo}
-        emptyMessage="조건에 맞는 입금 자료가 없습니다."
-        page={page}
-        pageData={query.data}
-        onPageChange={setPage}
-        testId="cash-receipt-list-table"
-        pageSize={PAGE_SIZE}
-      />
-
-      {isEmpty ? (
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <Button type="button" variant="secondary" size="sm" onClick={resetFilters}>
-            필터 초기화
-          </Button>
-        </div>
-      ) : null}
+          {isEmpty ? (
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <Button type="button" variant="secondary" size="sm" onClick={resetFilters}>
+                필터 초기화
+              </Button>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   )
 }

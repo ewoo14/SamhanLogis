@@ -1,0 +1,69 @@
+// @vitest-environment jsdom
+import React from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
+
+vi.mock('../hooks/usePermissions', () => ({
+  usePermissions: () => ({ canAccess: () => true, isLoading: false }),
+}))
+vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
+
+const listCashReceiptsMock = vi.fn()
+vi.mock('../api/accounting', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/accounting')>()
+  return { ...actual, listCashReceipts: (...args: unknown[]) => listCashReceiptsMock(...args) }
+})
+
+import { CashReceiptListPage } from './CashReceiptListPage'
+
+function renderPage() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <CashReceiptListPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+const sampleRow = {
+  id: '00000000-0000-0000-0000-000000000001',
+  slipNo: 'SLP-202605-021',
+  partnerName: '삼한공조',
+  amount: '2480000',
+  transactionDate: '2026-05-19',
+  kind: 'DEPOSIT_REPORT',
+  status: 'CONFIRMED',
+  journalNo: 'JRN-202605-49',
+}
+
+afterEach(() => {
+  cleanup()
+  listCashReceiptsMock.mockReset()
+})
+
+describe('CashReceiptListPage', () => {
+  it('전표번호는 링크가 아닌 일반 텍스트로 렌더한다(상세 링크는 S4b)', async () => {
+    listCashReceiptsMock.mockResolvedValue({
+      content: [sampleRow], totalElements: 1, totalPages: 1, number: 0, size: 50, first: true, last: true,
+    })
+    renderPage()
+
+    const slip = await screen.findByTestId('cash-receipt-slip-SLP-202605-021')
+    expect(slip.textContent).toBe('SLP-202605-021')
+    expect(slip.closest('a')).toBeNull() // dead-link 회귀 가드: <Link> 아님
+    expect(slip.tagName).toBe('SPAN')
+  })
+
+  it('오류 시 에러 배너만 노출하고 빈 상태 문구는 동시 노출하지 않는다', async () => {
+    listCashReceiptsMock.mockRejectedValue(new Error('boom'))
+    renderPage()
+
+    await waitFor(() => expect(screen.getByTestId('cash-receipt-error')).toBeTruthy())
+    // 오류+빈 상태 동시 노출 회귀 가드
+    expect(screen.queryByText('조건에 맞는 입금 자료가 없습니다.')).toBeNull()
+  })
+})
