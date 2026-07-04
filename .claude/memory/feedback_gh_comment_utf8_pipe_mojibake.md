@@ -1,7 +1,7 @@
 ---
 name: feedback-gh-comment-utf8-pipe-mojibake
 description: "PR 게시/PATCH 시 한국어 깨짐 방지 — 파이프의 cp949 디코드가 원인, UTF-8 파일 경유+게시 직후 자가 검사 의무"
-metadata: 
+metadata:
   node_type: memory
   type: feedback
   originSessionId: c2ed01c8-fdc9-42e8-b0c2-4893fe025ab5
