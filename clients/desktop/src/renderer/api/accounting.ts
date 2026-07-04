@@ -1924,9 +1924,10 @@ export async function updateCollectionPlanStatus(
   planNo: string,
   status: PlanStatus,
 ): Promise<CollectionPlanRow> {
-  // planNo 는 슬래시 표준(yyyy/MM/dd-N)이다. #727 실측상 게이트웨이 %2F 차단이 아니라
-  // 슬래시 경로 라우팅 실패가 원인이므로 URL path 에서는 공용 toOrderPathId(슬래시→하이픈)
-  // 규약을 적용하고, BE 가 하이픈 pathId 를 슬래시 표준 번호로 정규화한다.
+  // planNo 는 슬래시 표준(yyyy/MM/dd-N)이다. 게이트웨이 StrictHttpFirewall 이 URL 경로의
+  // 인코딩된 슬래시(%2F)를 차단하므로(#728 라이브 실증: %2F 경로 400, 하이픈 경로 200),
+  // URL path 에서는 공용 toOrderPathId(슬래시→하이픈) 규약을 적용하고 BE 가 하이픈 pathId 를
+  // 슬래시 표준 번호로 정규화한다.
   const res = await apiClient.patch<ApiEnvelope<CollectionPlanRow>>(
     `/accounting/collection-plans/${encodeURIComponent(toOrderPathId(planNo))}/status`,
     { status },

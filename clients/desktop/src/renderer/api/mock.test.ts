@@ -1050,7 +1050,7 @@ describe('mock collection plan contract', () => {
 
     const reverse = mockRequest({
       method: 'PATCH',
-      url: `/accounting/collection-plans/${encodeURIComponent(created.data.planNo)}/status`,
+      url: `/accounting/collection-plans/${created.data.planNo.replace(/\//g, '-')}/status`,
       data: { status: 'PLANNED' },
     }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string } }
 
@@ -1059,13 +1059,13 @@ describe('mock collection plan contract', () => {
 
     mockRequest({
       method: 'PATCH',
-      url: `/accounting/collection-plans/${encodeURIComponent(created.data.planNo)}/status`,
+      url: `/accounting/collection-plans/${created.data.planNo.replace(/\//g, '-')}/status`,
       data: { status: 'COLLECTED' },
     })
 
     const doubleCollect = mockRequest({
       method: 'PATCH',
-      url: `/accounting/collection-plans/${encodeURIComponent(created.data.planNo)}/status`,
+      url: `/accounting/collection-plans/${created.data.planNo.replace(/\//g, '-')}/status`,
       data: { status: 'COLLECTED' },
     }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string } }
 
@@ -1092,6 +1092,42 @@ describe('mock collection plan contract', () => {
 
     expect(forecast.data.months.map((row) => row.month)).toEqual(['2026-07', '2026-08'])
     expect(Number(forecast.data.totalAmount)).toBeGreaterThan(0)
+  })
+})
+
+describe('mock accounting order contract', () => {
+  it('GET /accounting/orders returns slash order numbers and accepts hyphen detail path id', () => {
+    const list = mockRequest({
+      method: 'GET',
+      url: '/accounting/orders',
+    }) as MockEnvelope<Array<{ orderNo: string; partnerName: string }>>
+
+    expect(list.data.length).toBeGreaterThan(0)
+    expect(list.data[0].orderNo).toMatch(/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/)
+
+    const detail = mockRequest({
+      method: 'GET',
+      url: `/accounting/orders/${list.data[0].orderNo.replace(/\//g, '-')}`,
+    }) as MockEnvelope<{ orderNo: string; partnerName: string }>
+
+    expect(detail.data.orderNo).toBe(list.data[0].orderNo)
+    expect(detail.data.partnerName).toBe(list.data[0].partnerName)
+  })
+})
+
+describe('mock public driver signature contract', () => {
+  it('POST /public/batches/{token}/slips/{slipNo}/driver-signature accepts hyphen slip path id', () => {
+    const signed = mockRequest({
+      method: 'POST',
+      url: '/public/batches/mock-token/slips/2026-05-04-2/driver-signature',
+      data: {
+        signaturePngBase64: 'data:image/png;base64,AAAA',
+        clientHash: 'driver-hash',
+      },
+    }) as MockEnvelope<{ driverSignedAt: string; driverSignatureHash: string }>
+
+    expect(signed.data.driverSignedAt).toEqual(expect.any(String))
+    expect(signed.data.driverSignatureHash).toBe('driver-hash')
   })
 })
 

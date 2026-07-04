@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -120,6 +122,30 @@ class InventoryAuditServiceTest {
         assertThat(response.lines().get(0).expectedQty()).isEqualTo(100);
         assertThat(response.lines().get(0).productName()).isEqualTo("AC");
         assertThat(response.lines().get(0).unitCost()).isEqualByComparingTo("100000.00");
+    }
+
+    @Test
+    void create_acquiresNumberSequenceLockAfterExternalSnapshotLookups() {
+        StockBalance balance = newBalance(productId, warehouse, 100);
+        when(stockBalanceRepository.findAllByWarehouse_IdAndIsDeletedFalse(eq(warehouseId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(balance)));
+        when(productClient.lookup(anyList())).thenReturn(List.of(
+                new ProductSummary(productId, "AC", "SHA-001", UUID.randomUUID(),
+                        new BigDecimal("100000.00"), "ACTIVE")));
+        when(stockLotRepository.findAvailableLotsForFifo(productId, warehouseId)).thenReturn(List.of());
+        when(auditRepository.save(any(InventoryAudit.class))).thenAnswer(inv -> {
+            InventoryAudit a = inv.getArgument(0);
+            ReflectionTestUtils.setField(a, "id", UUID.randomUUID());
+            return a;
+        });
+
+        service.create(new CreateAuditRequest(warehouseId, LocalDate.of(2026, 12, 31)), "user-1");
+
+        InOrder order = inOrder(productClient, stockLotRepository, auditNumberSequenceRepository, auditRepository);
+        order.verify(productClient).lookup(anyList());
+        order.verify(stockLotRepository).findAvailableLotsForFifo(productId, warehouseId);
+        order.verify(auditNumberSequenceRepository).insertIfAbsent(any(UUID.class), any(LocalDate.class));
+        order.verify(auditRepository).save(any(InventoryAudit.class));
     }
 
     @Test

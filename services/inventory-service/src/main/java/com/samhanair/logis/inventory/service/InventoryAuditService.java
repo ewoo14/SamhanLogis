@@ -32,6 +32,7 @@ import com.samhanair.logis.shared.realtime.lock.EditLockGuard;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,9 +110,6 @@ public class InventoryAuditService {
     public AuditDetailResponse create(CreateAuditRequest req, String requesterId) {
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
 
-        String auditNo = nextAuditNo(LocalDate.now());
-        InventoryAudit audit = InventoryAudit.create(auditNo, warehouse, req.auditDate());
-
         // 해당 창고의 모든 활성 stock_balance snapshot
         Page<StockBalance> firstPage = stockBalanceRepository
                 .findAllByWarehouse_IdAndIsDeletedFalse(warehouse.getId(), Pageable.unpaged());
@@ -130,13 +128,20 @@ public class InventoryAuditService {
             }
         }
 
+        List<AuditLineSnapshot> snapshots = new ArrayList<>();
         for (StockBalance balance : balances) {
             ProductSummary product = productMap.get(balance.getProductId());
             String name = product == null ? "(미상)" : product.name();
             BigDecimal unitCost = resolveUnitCost(balance.getProductId(), warehouse.getId(), product);
             int expected = balance.getTotalQty();
+            snapshots.add(new AuditLineSnapshot(balance.getProductId(), name, expected, unitCost));
+        }
+
+        String auditNo = nextAuditNo(LocalDate.now());
+        InventoryAudit audit = InventoryAudit.create(auditNo, warehouse, req.auditDate());
+        for (AuditLineSnapshot snapshot : snapshots) {
             audit.addLine(InventoryAuditLine.snapshot(
-                    audit, balance.getProductId(), name, expected, unitCost));
+                    audit, snapshot.productId(), snapshot.productName(), snapshot.expectedQty(), snapshot.unitCost()));
         }
 
         InventoryAudit saved = auditRepository.save(audit);
@@ -418,5 +423,8 @@ public class InventoryAuditService {
         return warehouseRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "창고를 찾을 수 없습니다"));
+    }
+
+    private record AuditLineSnapshot(UUID productId, String productName, int expectedQty, BigDecimal unitCost) {
     }
 }

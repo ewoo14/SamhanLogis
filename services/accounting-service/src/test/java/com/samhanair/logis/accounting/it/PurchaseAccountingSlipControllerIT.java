@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -12,7 +13,9 @@ import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipLineSnapshot;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
+import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
+import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
 import com.samhanair.logis.accounting.service.PurchaseAccountingSlipNumberGenerator;
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest;
 import java.math.BigDecimal;
@@ -37,6 +40,7 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper om;
+    @Autowired PurchaseAccountingSlipRepository purchaseSlipRepository;
 
     @MockBean SlipServiceClient slipServiceClient;
     @MockBean ETaxClient eTaxClient;
@@ -185,6 +189,35 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.code").value("SAS_SOURCE_SLIP_TYPE_MISMATCH"));
     }
 
+    @Test
+    void POST_admin_purchase_slips_post_acceptsHyphenDateSlugAndTransitionsPosted() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-8");
+        stubConfirmedSourceLine(sourceSlipId, sourceLineId, new BigDecimal("1500000"));
+
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(request(
+                                sourceSlipId, sourceLineId, SalesTaxType.TAXABLE,
+                                new BigDecimal("10"), new BigDecimal("150000"),
+                                new BigDecimal("1500000"), "P-PURCHASE-SLUG"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+
+        mvc.perform(post("/admin/purchase-slips/2026-05-19-8/post")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNoContent());
+
+        assertThat(purchaseSlipRepository.findBySlipNo("2026/05/19-8"))
+                .get()
+                .extracting("status")
+                .isEqualTo(PurchaseSlipStatus.POSTED);
+    }
+
     private void stubConfirmedSourceLine(UUID sourceSlipId, UUID sourceLineId, BigDecimal lineTotal) {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-2026-05-0042", sourceLineId, "RX다배관 30A",
@@ -193,8 +226,14 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
 
     private static CreatePurchaseAccountingSlipRequest request(UUID sourceSlipId, UUID sourceLineId,
             SalesTaxType taxType, BigDecimal qty, BigDecimal unitPrice, BigDecimal allocatedAmount) {
+        return request(sourceSlipId, sourceLineId, taxType, qty, unitPrice, allocatedAmount, "P-2026-0001");
+    }
+
+    private static CreatePurchaseAccountingSlipRequest request(UUID sourceSlipId, UUID sourceLineId,
+            SalesTaxType taxType, BigDecimal qty, BigDecimal unitPrice, BigDecimal allocatedAmount,
+            String partnerCode) {
         return new CreatePurchaseAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-2026-0001", "(주)한국공조",
+                LocalDate.of(2026, 5, 19), UUID.randomUUID(), partnerCode, "(주)한국공조",
                 taxType, "IT Docker 실서버 검증",
                 List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
                         "RX다배관", "RX다배관 30A", qty, unitPrice,

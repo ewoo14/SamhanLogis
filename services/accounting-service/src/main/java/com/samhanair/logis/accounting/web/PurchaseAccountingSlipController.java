@@ -40,6 +40,14 @@ public class PurchaseAccountingSlipController {
         return ResponseEntity.ok(service.createDraft(req, userId));
     }
 
+    /**
+     * 매입전표를 회계 반영한다.
+     *
+     * @param slipNo 전표번호 path 식별자. URL 단일 세그먼트용 {@code yyyy-MM-dd-N} 하이픈 slug 와
+     *               내부 표준 {@code yyyy/MM/dd-N} 를 모두 수용한다.
+     * @param userId 처리자 ID
+     * @return 204 No Content
+     */
     @PostMapping("/{slipNo}/post")
     @RequirePermission(page = "accounting.purchase-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ResponseEntity<Void> post(@PathVariable String slipNo,

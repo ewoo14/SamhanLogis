@@ -64,6 +64,12 @@ public class PurchaseAccountingSlipService {
                 && cause.getMessage().contains("slip_no");
     }
 
+    /**
+     * 매입전표를 DRAFT 에서 POSTED 로 전이한다.
+     *
+     * @param slipNo 내부 표준 전표번호({@code yyyy/MM/dd-N}). Controller 에서 하이픈 slug 를 정규화해 전달한다.
+     * @param actorUserId 처리자 ID
+     */
     @Transactional
     public void post(String slipNo, String actorUserId) {
         PurchaseAccountingSlip slip = slipRepository.findBySlipNo(slipNo)

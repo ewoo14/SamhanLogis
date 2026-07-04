@@ -9,14 +9,17 @@ package com.samhanair.logis.accounting.util;
  */
 public final class DocumentNumberPathResolver {
 
+    private static final java.util.regex.Pattern DATE_SLUG =
+            java.util.regex.Pattern.compile("^\\d{4}-\\d{2}-\\d{2}-.+$");
+
     private DocumentNumberPathResolver() {
     }
 
     public static String toSlashDocumentNo(String value) {
-        if (value == null || value.length() < 11) {
+        if (value == null || value.length() < 12) {
             return value;
         }
-        if (value.charAt(4) == '-' && value.charAt(7) == '-') {
+        if (DATE_SLUG.matcher(value).matches()) {
             return value.substring(0, 4) + "/" + value.substring(5, 7) + "/" + value.substring(8);
         }
         return value;

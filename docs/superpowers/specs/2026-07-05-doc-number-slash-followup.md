@@ -27,6 +27,11 @@
 5. **[문서]**: InventoryAudit Javadoc stale 3곳(Service:337·domain:105·Repository:20)·`accounting.ts:1926` %2F 주석(실측=미차단으로 정정).
 
 ## 함정
-- %2F는 방화벽 차단이 아님(#727 실측 404) — 그러나 슬래시 slipNo 경로가 라우팅 실패(404)하므로 toOrderPathId+BE resolver 필요. Docker 실 QA로 확정(인증 e2e).
+- **%2F는 게이트웨이 StrictHttpFirewall 이 실제 차단**(#728 라이브 실증: 하이픈 경로 200·%2F 경로 400 — #727 초기 404 관측은 구 accounting 이미지 기준 오차) → toOrderPathId(하이픈)+BE resolver 필요.
 - 적용된 마이그 불변 — 신규 V만. fresh+기존 DB probe.
 - BE 하이픈 수용 시 기존 슬래시 본문(body)과 혼동 없게(경로만 하이픈).
+
+## Disposition (소급 5-agent 리뷰 반영)
+- **[보류] stripSlipNoZeros 인쇄/화면 비대칭**(#727 Design MED): print 계열만 정규화·목록/상세 raw. **본 PR 범위 밖으로 보류** — 근거: 레거시 선행0 데이터는 이미 별건 마이그(accounting V39·slip V47/V48·groupware V7)로 대부분 정규화됐고 현 BE 채번기가 무-pad(선행0 없음)라 신규 데이터 안전. 표시 정합 통일(화면에도 stripSlipNoZeros 적용 or 헬퍼 정책 명문화)은 별도 UI 슬라이스로 분리.
+- **[별건 이슈] 게이트웨이 라우트 부재**: `/admin/sales-slips/**`·`/admin/purchase-slips/**` 라우트 없어 게이트웨이 경유 404(전표 확정 실경로 단절·main 동일·pre-existing). 서명 `/public/batches/**` FE 경로 `/api` prefix 누락 404. → 별도 인프라 이슈 등록(#728 원인 아님).
+- **[보류] DRY 3중 복제**: DocumentNumberPathResolver·PartnerOrderIdResolver·(구)PublicSlipController 동일 로직 → shared/common 이관은 다서비스 리팩터라 별도.

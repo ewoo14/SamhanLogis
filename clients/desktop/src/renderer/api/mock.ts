@@ -90,7 +90,7 @@ function mockError(status: number, code: string, message: string) {
 }
 
 function toSlashDocumentNo(value: string): string {
-  if (value.length >= 11 && value.charAt(4) === '-' && value.charAt(7) === '-') {
+  if (/^\d{4}-\d{2}-\d{2}-.+$/.test(value)) {
     return `${value.slice(0, 4)}/${value.slice(5, 7)}/${value.slice(8)}`
   }
   return value
@@ -4019,6 +4019,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // POST /public/batches/{token}/slips/{slipNo}/driver-signature — 배송기사 모바일 서명 저장
+  const publicDriverSignatureMatch = url.match(
+    /\/public\/batches\/([^/]+)\/slips\/([^/]+)\/driver-signature$/,
+  )
+  if (method === 'POST' && publicDriverSignatureMatch) {
+    const body = parseMockBody(config) as {
+      signaturePngBase64?: string
+      clientHash?: string
+    }
+    return envelope({
+      driverSignedAt: new Date().toISOString(),
+      driverSignatureHash:
+        body.clientHash
+        ?? 'd3f2b1c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1',
+    })
+  }
+
   // GET /public/signatures/{shareToken} — 인수자 view
   const publicShareMatch = url.match(/\/public\/signatures\/([^/?]+)$/)
   if (method === 'GET' && publicShareMatch) {
@@ -5592,6 +5609,37 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       rowIndex === index ? updated : row,
     )
     return envelope(updated)
+  }
+
+  // GET /accounting/orders, /accounting/orders/{orderNo} — 회계 주문 조회 mock.
+  const mockAccountingOrders = [
+    {
+      orderNo: '2026/05/04-1',
+      orderDate: '2026-05-04',
+      partnerCode: 'P-2026-0001',
+      partnerName: '삼한공조',
+      status: 'DRAFT',
+      totalAmount: '3990000',
+      memo: '회계 주문 mock',
+    },
+    {
+      orderNo: '2026/05/31-3',
+      orderDate: '2026-05-31',
+      partnerCode: 'P-2026-0002',
+      partnerName: '한일빌딩',
+      status: 'CONFIRMED',
+      totalAmount: '1200000',
+      memo: null,
+    },
+  ]
+  const accountingOrderDetailMatch = url.match(/\/accounting\/orders\/([^/?]+)$/)
+  if (method === 'GET' && accountingOrderDetailMatch) {
+    const orderNo = toSlashDocumentNo(decodeURIComponent(accountingOrderDetailMatch[1] ?? ''))
+    const found = mockAccountingOrders.find((row) => row.orderNo === orderNo)
+    return found ? envelope(found) : mockError(404, 'NOT_FOUND', '주문을 찾을 수 없습니다.')
+  }
+  if (method === 'GET' && /\/accounting\/orders(?:\?.*)?$/.test(url)) {
+    return envelope(mockAccountingOrders)
   }
 
   // G-2 수금계획 — 등록/목록/상태전이/자동제안/예측. UUID 미노출 mock.
@@ -8360,6 +8408,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /warehouse/audit (재고 실사 목록)
+  // POST /inventory/audits 는 재고 snapshot 생성 범위가 크고 ProductClient/stock lot 조회까지
+  // 모사해야 하므로 이번 doc-number slash parity mock 범위에서 명시적으로 제외한다.
   if (method === 'GET'
     && (url.includes('/inventory/audits') || url.includes('/warehouse/audit'))
     && !url.includes('/dps-compare')) {

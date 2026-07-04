@@ -75,6 +75,8 @@ public class PublicSlipController {
      * 50KB 가드 + Slip.recordSignature 도메인 메서드 위임 + audit INSERT.
      *
      * <p>UUID 비공개: 응답에 slip.id 미포함 — shareToken 만 반환.
+     *
+     * @param slipNo 전표번호 ({@code 2026/05/05-1} 또는 {@code 2026-05-05-1} slug 형식 모두 허용)
      */
     @Operation(summary = "공개 모바일 서명 등록",
             description = "Canvas PNG + SHA-256 서명 저장. 50KB 초과 또는 hash mismatch 시 400. "
@@ -97,7 +99,7 @@ public class PublicSlipController {
             @PathVariable String slipNo,
             @Valid @RequestBody PublicSignatureRequest request) {
         try {
-            PublicSignatureResponse body = signatureService.recordSignature(token, toSlashDocumentNo(slipNo), request);
+            PublicSignatureResponse body = signatureService.recordSignature(token, slipNo, request);
             return ResponseEntity.ok(ApiResponse.ok(body));
         } catch (BusinessException ex) {
             if (ex.getErrorCode() == ErrorCode.CONFLICT && ex.getMessage() != null
@@ -115,6 +117,8 @@ public class PublicSlipController {
      * <p>경로: {@code POST /public/batches/{token}/slips/{slipNo}/driver-signature}.
      * 인수자 서명({@link #recordSignature})과 동일 패턴, 차이: signerName 입력 X
      * (Slip.driverName 재사용), share token 발급 X.
+     *
+     * @param slipNo 전표번호 ({@code 2026/05/05-1} 또는 {@code 2026-05-05-1} slug 형식 모두 허용)
      */
     @PostMapping("/batches/{token}/slips/{slipNo}/driver-signature")
     public ResponseEntity<ApiResponse<com.samhanair.logis.slip.delivery.web.dto.PublicDriverSignatureResponse>>
@@ -123,7 +127,7 @@ public class PublicSlipController {
                     @PathVariable String slipNo,
                     @Valid @RequestBody com.samhanair.logis.slip.delivery.web.dto.PublicDriverSignatureRequest request) {
         try {
-            var body = signatureService.recordDriverSignature(token, toSlashDocumentNo(slipNo), request);
+            var body = signatureService.recordDriverSignature(token, slipNo, request);
             return ResponseEntity.ok(ApiResponse.ok(body));
         } catch (BusinessException ex) {
             if (ex.getErrorCode() == ErrorCode.CONFLICT && ex.getMessage() != null
@@ -163,15 +167,5 @@ public class PublicSlipController {
             }
             throw ex;
         }
-    }
-
-    private static String toSlashDocumentNo(String value) {
-        if (value == null || value.length() < 11) {
-            return value;
-        }
-        if (value.charAt(4) == '-' && value.charAt(7) == '-') {
-            return value.substring(0, 4) + "/" + value.substring(5, 7) + "/" + value.substring(8);
-        }
-        return value;
     }
 }

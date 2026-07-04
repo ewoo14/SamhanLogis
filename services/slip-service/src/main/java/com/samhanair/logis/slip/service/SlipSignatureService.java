@@ -137,6 +137,11 @@ public class SlipSignatureService {
      * 배송기사 서명 기록 — Slice C2 (PR #23 follow-up).
      * 인수자 서명({@link #recordSignature})과 동일 패턴, 차이: signerName 입력 X (Slip.driverName 재사용),
      * share token 발급 X (인수자 share 토큰을 그대로 재사용).
+     *
+     * @param batchToken delivery batch token
+     * @param slipNo 전표번호 ({@code 2026/05/05-1} 또는 {@code 2026-05-05-1} slug 형식 모두 허용)
+     * @param req 요청 body
+     * @return 기사 서명 결과
      */
     public com.samhanair.logis.slip.delivery.web.dto.PublicDriverSignatureResponse recordDriverSignature(
             String batchToken, String slipNo,
