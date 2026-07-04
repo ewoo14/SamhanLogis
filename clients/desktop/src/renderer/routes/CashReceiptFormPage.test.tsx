@@ -165,4 +165,40 @@ describe('CashReceiptFormPage', () => {
       creditAccountCode: '110',
     })))
   })
+
+  it('CONFIRMED 편집 모드는 수정 가능하며 역분개+재게시 경고를 노출한다', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-confirmed',
+      slipNo: '2026/07/05-7',
+      partnerCode: 'P-CONFIRMED',
+      bizNo: '333-33-33333',
+      partnerName: '확정거래처',
+      amount: '760000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'CONFIRMED',
+      memo: '확정 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    mocks.updateCashReceipt.mockResolvedValue({ id: 'receipt-confirmed', slipNo: '2026/07/05-7' })
+    renderPage('/accounting/admin/cash-receipts/receipt-confirmed/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '확정거래처'))
+    expect(screen.getByText('확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.')).not.toBeNull()
+    expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.change(screen.getByLabelText('금액'), { target: { value: '880000' } })
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => expect(mocks.updateCashReceipt).toHaveBeenCalledWith('receipt-confirmed', expect.objectContaining({
+      partnerCode: 'P-CONFIRMED',
+      partnerName: '확정거래처',
+      amount: '880000',
+      transactionDate: '2026-07-05',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })))
+  })
 })

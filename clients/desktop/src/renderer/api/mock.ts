@@ -12717,6 +12717,7 @@ const MOCK_JOURNALS = [
     journalDate: '2026-05-04',
     sourceType: 'CASH_RECEIPT' as const,
     sourceTypeDisplayName: '입금보고서',
+    sourceRefId: '00000000-0000-4000-8000-000000000717',
     status: 'POSTED' as const,
     description: '입금보고서 확정 2026/05/04-6 (주식회사 윌리)',
     totalDebit: '850000',

@@ -91,9 +91,10 @@ export function CashReceiptDetailPage() {
   const isDraft = receipt.status === 'DRAFT'
   const isConfirmed = receipt.status === 'CONFIRMED'
   const isBankLinked = receipt.kind === 'BANK_LINKED'
+  const isCancelled = receipt.status === 'CANCELLED'
   const canUpdate = canAccess(PAGE_CODE, 'update')
   const canDelete = canAccess(PAGE_CODE, 'delete')
-  const canEdit = canUpdate && isDraft && !isBankLinked
+  const canEdit = canUpdate && !isBankLinked && !isCancelled
 
   const handleConfirm = () => {
     setTopError('')

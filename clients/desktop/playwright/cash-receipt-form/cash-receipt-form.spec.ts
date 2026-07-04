@@ -27,7 +27,7 @@ test.describe('입금보고서 작성폼 + 상세/편집 (E3 S4b)', () => {
   test('작성: 프리필·검증·DRAFT 생성 후 상세 이동', async ({ page }) => {
     await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts/new?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
 
-    await expect(page.getByRole('heading', { name: '입금보고서 작성' })).toBeVisible()
+    await expect(page.locator('h3').filter({ hasText: '입금보고서 작성' })).toBeVisible()
     await expect(page.getByLabel('거래일')).toHaveValue(/\d{4}-\d{2}-\d{2}/)
     await expect(page.getByLabel('차변 계정')).toHaveValue('102')
     await expect(page.getByLabel('대변 계정')).toHaveValue('110')
@@ -88,14 +88,23 @@ test.describe('입금보고서 작성폼 + 상세/편집 (E3 S4b)', () => {
     await expect(page.getByRole('button', { name: '저장' })).toBeDisabled()
   })
 
-  test('CONFIRMED: 직접 edit 진입 read-only', async ({ page }) => {
+  test('CONFIRMED: 직접 edit 진입 editable + 역분개 재게시 경고', async ({ page }) => {
     await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts/${CONFIRMED_MANUAL_ID}/edit?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
 
     await expect(page.locator('h3').filter({ hasText: '입금보고서 편집' })).toBeVisible()
-    await expect(page.getByLabel('금액')).toBeDisabled()
-    await expect(page.getByLabel('거래일')).toBeDisabled()
-    await expect(page.getByLabel('적요')).toBeDisabled()
-    await expect(page.getByRole('button', { name: '저장' })).toBeDisabled()
+    await expect(page.getByText('확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.')).toBeVisible()
+    await expect(page.getByLabel('금액')).toBeEnabled()
+    await expect(page.getByLabel('거래일')).toBeEnabled()
+    await expect(page.getByLabel('적요')).toBeEnabled()
+    await expect(page.getByRole('button', { name: '저장' })).toBeEnabled()
+
+    await page.getByLabel('금액').fill('880000')
+    await page.getByLabel('적요').fill('S4b 확정 수정 재게시')
+    await page.getByRole('button', { name: '저장' }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/accounting/admin/cash-receipts/${CONFIRMED_MANUAL_ID}`))
+    await expect(page.getByText('880,000')).toBeVisible()
+    await expect(page.getByText('S4b 확정 수정 재게시')).toBeVisible()
   })
 
   test('확정: DRAFT → CONFIRMED', async ({ page }) => {

@@ -111,6 +111,20 @@ describe('accounting journal API error contract', () => {
     expect(journal.sourceType).toBe('CASH_RECEIPT')
   })
 
+  it('normalizeJournal 은 sourceRefId 를 cashReceiptId 후보로 보존한다', () => {
+    const journal = normalizeJournal({
+      id: 'journal-1',
+      journalNo: '2026/07/03-1',
+      journalDate: '2026-07-03',
+      status: 'POSTED',
+      sourceType: 'CASH_RECEIPT',
+      sourceRefId: '00000000-0000-4000-8000-000000000717',
+      lines: [],
+    })
+
+    expect(journal.sourceRefId).toBe('00000000-0000-4000-8000-000000000717')
+  })
+
   it('normalizeJournal 은 sourceType 누락 시 MANUAL 로 폴백한다', () => {
     const journal = normalizeJournal({
       id: 'journal-1',
@@ -158,10 +172,10 @@ describe('accounting cash receipt API error contract', () => {
     [
       'updateCashReceipt',
       () => {
-        vi.mocked(apiClient.patch).mockRejectedValueOnce(apiMessageError('DRAFT 입금보고서만 수정할 수 있습니다.', 409))
+        vi.mocked(apiClient.patch).mockRejectedValueOnce(apiMessageError('통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.', 409))
         return updateCashReceipt('receipt-1', body)
       },
-      'DRAFT 입금보고서만 수정할 수 있습니다.',
+      '통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.',
     ],
     [
       'confirmCashReceipt',

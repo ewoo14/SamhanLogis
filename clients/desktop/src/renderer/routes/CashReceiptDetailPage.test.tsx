@@ -114,6 +114,14 @@ describe('CashReceiptDetailPage', () => {
     expect(screen.queryByRole('button', { name: '편집 불가' })).toBeNull()
   })
 
+  it('CONFIRMED 수기 입금보고서는 편집 버튼을 노출한다', async () => {
+    renderPage(receipt({ kind: 'MANUAL_RECEIPT', status: 'CONFIRMED', journalNo: '2026/07/05-9' }))
+
+    await screen.findByText('확정')
+    const edit = screen.getByRole('button', { name: '편집' })
+    expect((edit as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('kind와 CONFIRMED 상태 badge tone을 success로 렌더한다', async () => {
     renderPage(receipt({ kind: 'BANK_LINKED', status: 'CONFIRMED' }))
 

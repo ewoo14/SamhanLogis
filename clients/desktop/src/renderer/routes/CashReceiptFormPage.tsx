@@ -124,8 +124,8 @@ export function CashReceiptFormPage() {
 
   const receipt = receiptQuery.data
   const bankLinked = receipt?.kind === 'BANK_LINKED'
-  const isDraft = !isEdit || receipt?.status === 'DRAFT'
-  const readOnly = bankLinked || !isDraft
+  const isConfirmed = receipt?.status === 'CONFIRMED'
+  const readOnly = bankLinked || receipt?.status === 'CANCELLED'
   const accounts = Array.isArray(accountsQuery.data) ? accountsQuery.data : []
 
   return (
@@ -140,6 +140,12 @@ export function CashReceiptFormPage() {
       {bankLinked ? (
         <div className="error-banner" role="alert" style={{ marginBottom: 16, padding: 12 }}>
           통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.
+        </div>
+      ) : null}
+
+      {isConfirmed && !bankLinked ? (
+        <div className="warning-banner" role="status">
+          확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.
         </div>
       ) : null}
 

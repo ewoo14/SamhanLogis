@@ -10,7 +10,7 @@
 ## 결정
 - **D1 슬라이스 경계**: S4b = 수기 작성폼(create) + DRAFT 편집 + 상세페이지(confirm/cancel/delete). **벌크생성(from-bank-transactions)=S4c**(BankTransactionPage DataTable selection 인프라 신규 필요·현재 미지원), **coedit=S4d**(realtime/collab 3파일·영속 DRAFT 전제라 create 폼과 무관). S4a 스펙 확정 슬라이싱 준수.
 - **D2 기본 계정 프리필 = 차변 102(보통예금)/대변 110(외상매출금)** — SSOT=`CashReceipt.java:32/35`(에픽 설계문서 "103"은 오기). override 가능(AccountCodeSelect). `transactionDate`=**오늘 프리필**.
-- **D3 BANK_LINKED 편집 비활성**: 상세/목록에서 BANK_LINKED kind 진입 시 편집/PATCH 버튼 disable(BE 409 대칭·인지). 수기(MANUAL_RECEIPT)·DRAFT만 편집 가능. 확정(POSTED)도 편집 비활성.
+- **D3 편집 가부 (D-E3-04 정합·초안 정정)**: BANK_LINKED·CANCELLED만 편집 비활성(BANK_LINKED=BE 409 대칭). **DRAFT+CONFIRMED 편집 가능** — CONFIRMED 편집 시 "역분개+재게시" 경고배너([[project_accounting_ledger_edit_policy]] "입금보고서=편집대상"·D-E3-04 "CONFIRMED 수정=역분개+재게시", dev-report `2026-07-03-e3-s2-cash-receipt-journal-posting.md`). ⚠️초안의 "확정 편집 비활성"은 D-E3-04 미교차검증 기획 오류 — 라운드2 Design 리뷰 적발 후 정정.
 - **D4 상세페이지 = S4a 전표번호 링크 타깃**. 전표번호 plain text → 상세 링크 승격. coedit 패널 마운트 지점만 남겨 S4d 저비용화(S4b엔 미배선).
 
 ## 요구 (구현 목록)
