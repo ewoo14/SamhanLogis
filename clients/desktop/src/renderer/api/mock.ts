@@ -13523,7 +13523,7 @@ const MOCK_CASH_RECEIPTS = [
     partnerCode: 'P-MIRAE-004',
     bizNo: '4567890123',
     partnerName: '미래유통',
-    amount: '0',
+    amount: '320000',
     transactionDate: '2026-05-13',
     kind: 'MANUAL_RECEIPT' as const,
     status: 'DRAFT' as const,

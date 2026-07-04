@@ -82,6 +82,22 @@ describe('mock cash receipt list contract', () => {
     })
   })
 
+  it('GET /accounting/cash-receipts mock seed 금액은 BE 생성 검증처럼 0보다 크다', () => {
+    const page = mockRequest({
+      method: 'GET',
+      url: '/accounting/cash-receipts',
+      params: { page: 0, size: 50 },
+    }) as MockEnvelope<{
+      content: Array<{ slipNo: string; amount: string }>
+    }>
+
+    const invalidSlipNos = page.data.content
+      .filter((row) => !Number.isFinite(Number(row.amount)) || Number(row.amount) <= 0)
+      .map((row) => row.slipNo)
+
+    expect(invalidSlipNos).toEqual([])
+  })
+
   it('partnerName/slipNo/kind/from/to/status 필터와 페이지네이션을 적용한다', () => {
     const filtered = mockRequest({
       method: 'GET',
