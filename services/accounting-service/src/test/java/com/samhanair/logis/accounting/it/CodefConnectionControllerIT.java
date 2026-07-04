@@ -183,6 +183,35 @@ class CodefConnectionControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("ERROR 상태 연결도 등록기관 목록 조회와 해제를 200으로 처리한다")
+    void registeredInstitutionEndpoints_workWithErrorConnection() throws Exception {
+        when(easyCodefClient.registerInstitution(any()))
+                .thenReturn(new CodefRegisterResult("conn-error", "ERROR", "등록 실패"));
+        registerBank().andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("ERROR"));
+
+        mockMvc.perform(withActor(get(BASE_URL + "/institutions")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.institutions.length()").value(1))
+                .andExpect(jsonPath("$.data.institutions[0].organizationCode").value("0004"))
+                .andExpect(jsonPath("$.data.institutions[0].status").value("ERROR"));
+
+        mockMvc.perform(patch(BASE_URL + "/institutions/unregister")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "businessType": "BANK",
+                                  "organizationCode": "0004"
+                                }
+                                """)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.organizationCode").value("0004"))
+                .andExpect(jsonPath("$.data.status").value("ERROR"));
+    }
+
+    @Test
     @DisplayName("동일 기관 재등록은 활성 중복행을 만들지 않고 1건만 유지한다(멱등)")
     void registerInstitution_isIdempotentByNaturalKey() throws Exception {
         when(easyCodefClient.registerInstitution(any()))

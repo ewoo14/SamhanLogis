@@ -27,23 +27,17 @@ import {
   type BankMatchStatus,
   type BankTransactionRow,
 } from '../api/accounting'
-import {
-  listCodefRegisteredInstitutions,
-  type CodefConnectionBusinessType,
-  type RegisteredInstitutionResponse,
-} from '../api/codefConnectionApi'
 import { searchPartners } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import {
   bankTransactionPartnerDisplay,
+  bankTransactionFilterOptions,
   effectiveBankTransactionLabels,
   filterButtonLabel,
   filterLabelsForQuery,
   normalizeBankTransactionLabels,
-  type BankTransactionFilterOption,
 } from './BankTransactionFilterModalModel'
-import { codefOrganizationName } from './codefOrganizations'
 import { CodefImportScopeForm } from './components/CodefImportScopeForm'
 
 type StatusTab = 'ALL' | BankMatchStatus
@@ -75,33 +69,6 @@ const SOURCE_TAB_ITEMS: TabItem[] = SOURCE_TABS.map((tab) => ({
   label: tab.label,
   testId: tab.testId,
 }))
-
-function institutionLabel(institution: RegisteredInstitutionResponse): string {
-  const businessTypeLabel: Record<CodefConnectionBusinessType, string> = {
-    BANK: '계좌',
-    CARD: '카드',
-    LOAN: '대출',
-  }
-  return `${codefOrganizationName(institution.organizationCode)} ${businessTypeLabel[institution.businessType] ?? ''}`.trim()
-}
-
-function mergeFilterOptions(
-  registeredLabels: string[],
-  transactionLabels: string[],
-): BankTransactionFilterOption[] {
-  const sourceByLabel = new Map<string, BankTransactionFilterOption['source']>()
-  for (const label of registeredLabels) {
-    const trimmed = label.trim()
-    if (trimmed) sourceByLabel.set(trimmed, 'registered')
-  }
-  for (const label of transactionLabels) {
-    const trimmed = label.trim()
-    if (trimmed && !sourceByLabel.has(trimmed)) sourceByLabel.set(trimmed, 'transaction')
-  }
-  return Array.from(sourceByLabel.entries())
-    .sort(([left], [right]) => left.localeCompare(right, 'ko-KR'))
-    .map(([label, source]) => ({ label, source }))
-}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -190,11 +157,6 @@ export function BankTransactionPage() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const registeredInstitutionsQuery = useQuery({
-    queryKey: ['accounting', 'codef-connection', 'institutions'],
-    queryFn: listCodefRegisteredInstitutions,
-  })
-
   const filterLabelsQuery = useQuery({
     queryKey: ['accounting', 'bank-transactions', 'filter-labels'],
     queryFn: listBankTransactionFilterLabels,
@@ -205,19 +167,15 @@ export function BankTransactionPage() {
     queryFn: loadBankTransactionFilterPreferences,
   })
 
-  const accountFilterOptions = useMemo(() => mergeFilterOptions(
-    (registeredInstitutionsQuery.data ?? [])
-      .filter((row) => row.businessType === 'BANK')
-      .map(institutionLabel),
-    filterLabelsQuery.data?.accountLabels ?? [],
-  ), [filterLabelsQuery.data?.accountLabels, registeredInstitutionsQuery.data])
+  const accountFilterOptions = useMemo(
+    () => bankTransactionFilterOptions(filterLabelsQuery.data?.accountLabels),
+    [filterLabelsQuery.data?.accountLabels],
+  )
 
-  const cardFilterOptions = useMemo(() => mergeFilterOptions(
-    (registeredInstitutionsQuery.data ?? [])
-      .filter((row) => row.businessType === 'CARD')
-      .map(institutionLabel),
-    filterLabelsQuery.data?.cardLabels ?? [],
-  ), [filterLabelsQuery.data?.cardLabels, registeredInstitutionsQuery.data])
+  const cardFilterOptions = useMemo(
+    () => bankTransactionFilterOptions(filterLabelsQuery.data?.cardLabels),
+    [filterLabelsQuery.data?.cardLabels],
+  )
 
   useEffect(() => {
     const saved = filterPreferencesQuery.data
@@ -714,14 +672,6 @@ export function BankTransactionPage() {
                   data-testid={`bank-transaction-filter-option-${index}`}
                 />
                 <span>{option.label}</span>
-                {option.source === 'transaction' ? (
-                  <span
-                    style={{ marginLeft: 6, fontSize: 11, color: 'var(--color-neutral-500)' }}
-                    title="계좌/카드 관리에 등록되지 않은 거래 내역상 계좌(CSV 자유입력 등)"
-                  >
-                    미등록
-                  </span>
-                ) : null}
               </label>
             ))}
           </div>

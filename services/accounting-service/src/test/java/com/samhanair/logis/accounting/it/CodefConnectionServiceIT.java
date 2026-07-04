@@ -137,13 +137,24 @@ class CodefConnectionServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("ERROR 연결은 등록 기관 목록 조회에 사용하지 않는다")
-    void listRegistered_ignoresErrorConnection() {
-        connectionRepository.saveAndFlush(CodefConnection.create(null, CodefConnectionStatus.ERROR));
+    @DisplayName("ERROR 연결이어도 저장된 등록 기관 목록은 조회한다")
+    void listRegistered_usesStoredInstitutionEvenWhenConnectionIsError() {
+        CodefConnection connection = connectionRepository.saveAndFlush(
+                CodefConnection.create("conn-error", CodefConnectionStatus.ERROR));
+        institutionRepository.saveAndFlush(com.samhanair.logis.accounting.domain.codef.CodefRegisteredInstitution.create(
+                connection,
+                com.samhanair.logis.accounting.domain.codef.CodefBusinessType.BANK,
+                "0004",
+                null,
+                null,
+                CodefInstitutionStatus.ERROR));
 
-        assertThatThrownBy(() -> service.listRegistered())
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("CODEF 연결 등록이 필요합니다. 먼저 금융기관을 등록하세요.");
+        assertThat(service.listRegistered())
+                .singleElement()
+                .satisfies(view -> {
+                    assertThat(view.organizationCode()).isEqualTo("0004");
+                    assertThat(view.status()).isEqualTo(CodefInstitutionStatus.ERROR);
+                });
     }
 
     @Test

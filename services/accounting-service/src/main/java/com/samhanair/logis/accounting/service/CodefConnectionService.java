@@ -97,7 +97,7 @@ public class CodefConnectionService {
      */
     @Transactional(readOnly = true)
     public List<RegisteredInstitutionView> listRegistered() {
-        CodefConnection connection = activeConnection();
+        CodefConnection connection = storedConnection();
         return institutionRepository.findByConnectionAndIsDeletedFalseOrderByRegisteredAtDesc(connection).stream()
                 .map(institution -> RegisteredInstitutionView.from(institution, null))
                 .toList();
@@ -116,7 +116,8 @@ public class CodefConnectionService {
             String businessType,
             String organizationCode,
             String actor) {
-        CodefConnection connection = activeConnection();
+        connectionRepository.lockRegistration();
+        CodefConnection connection = storedConnection();
         CodefBusinessType type = businessTypeOf(businessType);
         if (!hasText(organizationCode)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "기관 코드는 필수입니다");
@@ -163,6 +164,11 @@ public class CodefConnectionService {
 
     private CodefConnection activeConnection() {
         return activeConnectionOptional()
+                .orElseThrow(CodefConnectionService::notRegistered);
+    }
+
+    private CodefConnection storedConnection() {
+        return connectionRepository.findFirstByIsDeletedFalseOrderByCreatedAtAsc()
                 .orElseThrow(CodefConnectionService::notRegistered);
     }
 

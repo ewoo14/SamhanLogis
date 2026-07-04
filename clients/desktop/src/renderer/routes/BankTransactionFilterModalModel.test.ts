@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   bankTransactionPartnerDisplay,
+  bankTransactionFilterOptions,
   effectiveBankTransactionLabels,
   filterButtonLabel,
   filterLabelsForQuery,
@@ -27,12 +28,19 @@ describe('BankTransactionFilterModalModel', () => {
 
   it('전체 선택은 무필터([])로, 부분 선택은 선택 label 로 쿼리한다', () => {
     const options: BankTransactionFilterOption[] = [
-      { label: '국민 111', source: 'registered' },
-      { label: '신한 222', source: 'transaction' },
+      { label: '국민 111' },
+      { label: '신한 222' },
     ]
     expect(filterLabelsForQuery(['국민 111', '신한 222'], options)).toEqual([])
     expect(filterLabelsForQuery([], options)).toEqual([])
     expect(filterLabelsForQuery(['국민 111'], options)).toEqual(['국민 111'])
+  })
+
+  it('필터 옵션은 거래 내역에 실제 존재하는 label 만 사용한다', () => {
+    expect(bankTransactionFilterOptions([' 신한 222 ', '', '국민 111', '신한 222'])).toEqual([
+      { label: '국민 111' },
+      { label: '신한 222' },
+    ])
   })
 
   it('label 목록은 trim, 중복 제거, 가나다순 정렬을 적용한다', () => {

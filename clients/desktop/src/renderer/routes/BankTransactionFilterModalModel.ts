@@ -2,7 +2,6 @@ import type { BankTransactionRow } from '../api/accounting'
 
 export interface BankTransactionFilterOption {
   label: string
-  source: 'registered' | 'transaction'
 }
 
 export function normalizeBankTransactionLabels(labels: readonly string[] | null | undefined): string[] {
@@ -29,6 +28,12 @@ export function effectiveBankTransactionLabels(
 
 export function filterButtonLabel(label: '계좌' | '카드', selectedLabels: readonly string[]): string {
   return selectedLabels.length === 0 ? `${label} 전체` : `${label} ${selectedLabels.length}개`
+}
+
+export function bankTransactionFilterOptions(
+  labels: readonly string[] | null | undefined,
+): BankTransactionFilterOption[] {
+  return normalizeBankTransactionLabels(labels).map((label) => ({ label }))
 }
 
 export function filterLabelsForQuery(
