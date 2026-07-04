@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Input, Select, type BadgeVariant, type DataTableColumn } from '@samhan/design-system'
 import { FilterChipBar, type FilterChip } from '../components/FilterChipBar'
@@ -86,10 +87,12 @@ function amountStyle(row: CashReceiptRow) {
 }
 
 export function CashReceiptListPage() {
+  const navigate = useNavigate()
   usePageTitle('입금보고서')
 
   const { canAccess } = usePermissions()
   const canView = canAccess(PAGE_CODE, 'view')
+  const canCreate = canAccess(PAGE_CODE, 'create')
   const [page, setPage] = useState(0)
   const [filters, setFilters] = useState<CashReceiptFilterState>(INITIAL_FILTERS)
   const [applied, setApplied] = useState<CashReceiptFilterState>(INITIAL_FILTERS)
@@ -154,10 +157,13 @@ export function CashReceiptListPage() {
         width: '170px',
         mobilePriority: 'primary',
         render: (row) => isSkeletonRow(row) ? <SkeletonCell width={120} /> : (
-          // S4a 는 목록 전용 — 전표번호 상세 링크는 상세 페이지(S4b) 도입 시 배선한다.
-          <span style={{ fontWeight: 700 }} data-testid={`cash-receipt-slip-${row.slipNo}`}>
+          <Link
+            to={`/accounting/admin/cash-receipts/${row.id}`}
+            style={{ fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}
+            data-testid={`cash-receipt-slip-${row.slipNo}`}
+          >
             {row.slipNo}
-          </span>
+          </Link>
         ),
       },
       {
@@ -232,6 +238,16 @@ export function CashReceiptListPage() {
         >
           새로고침
         </Button>
+        {canCreate ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => navigate('/accounting/admin/cash-receipts/new')}
+          >
+            신규 작성
+          </Button>
+        ) : null}
       </div>
 
       <div style={filterBarStyle} data-testid="cash-receipt-filters">

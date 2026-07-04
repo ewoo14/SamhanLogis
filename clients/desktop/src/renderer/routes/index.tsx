@@ -237,6 +237,8 @@ import { CollectionPlanPage } from './CollectionPlanPage'
 import { BankTransactionPage } from './BankTransactionPage'
 import { BankCardAdminPage } from './BankCardAdminPage'
 import { CashReceiptListPage } from './CashReceiptListPage'
+import { CashReceiptFormPage } from './CashReceiptFormPage'
+import { CashReceiptDetailPage } from './CashReceiptDetailPage'
 // [P0-1 Slice C] 인쇄 전용 레이아웃 4종.
 import { CashFlowStatementPrintLayout } from './accounting/print/CashFlowStatementPrintLayout'
 import { EquityChangesPrintLayout } from './accounting/print/EquityChangesPrintLayout'
@@ -1148,6 +1150,30 @@ const routes = [
         element: (
           <PermissionGuard pageCode="accounting.cash-receipts" action="view">
             <CashReceiptListPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/cash-receipts/new',
+        element: (
+          <PermissionGuard pageCode="accounting.cash-receipts" action="create">
+            <CashReceiptFormPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/cash-receipts/:id/edit',
+        element: (
+          <PermissionGuard pageCode="accounting.cash-receipts" action="update">
+            <CashReceiptFormPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/cash-receipts/:id',
+        element: (
+          <PermissionGuard pageCode="accounting.cash-receipts" action="view">
+            <CashReceiptDetailPage />
           </PermissionGuard>
         ),
       },

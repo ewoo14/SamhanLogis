@@ -5932,6 +5932,115 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  if (method === 'POST' && /\/accounting\/cash-receipts(?:\?|$)/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'create')
+    if (denied) return denied
+    const body = cashReceiptBodyFromConfig(config)
+    const amount = Number(body.amount)
+    if (!body.partnerName || !Number.isFinite(amount) || amount <= 0 || !body.transactionDate) {
+      return mockError(400, 'INVALID_INPUT', '거래처, 금액, 거래일은 필수입니다.')
+    }
+    if (body.memo && body.memo.length > 494) {
+      return mockError(400, 'INVALID_INPUT', 'memo 는 최대 494자입니다')
+    }
+    const created = {
+      id: nextMockCashReceiptId(),
+      slipNo: nextMockCashReceiptSlipNo(body.transactionDate),
+      partnerCode: body.partnerCode ?? '',
+      bizNo: body.bizNo ?? '',
+      partnerName: body.partnerName,
+      amount: body.amount,
+      transactionDate: body.transactionDate,
+      kind: 'MANUAL_RECEIPT' as const,
+      status: 'DRAFT' as const,
+      memo: body.memo,
+      journalNo: null,
+      reverseJournalNo: null,
+      externalRef: `MANUAL-${body.transactionDate.replace(/-/g, '')}-${String(MOCK_CASH_RECEIPTS.length + 1).padStart(3, '0')}`,
+      debitAccountCode: body.debitAccountCode,
+      creditAccountCode: body.creditAccountCode,
+    }
+    MOCK_CASH_RECEIPTS.push(created)
+    return envelope(created)
+  }
+
+  if (method === 'GET' && /\/accounting\/cash-receipts\/[0-9a-zA-Z-]{6,36}$/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'view')
+    if (denied) return denied
+    const id = cashReceiptPathId(url)
+    const row = id ? findMockCashReceipt(id) : null
+    if (!row) return mockError(404, 'NOT_FOUND', '입금보고서를 찾을 수 없습니다.')
+    return envelope(row)
+  }
+
+  if (method === 'PATCH' && /\/accounting\/cash-receipts\/[0-9a-zA-Z-]{6,36}$/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'update')
+    if (denied) return denied
+    const id = cashReceiptPathId(url)
+    const row = id ? findMockCashReceipt(id) : null
+    if (!row) return mockError(404, 'NOT_FOUND', '입금보고서를 찾을 수 없습니다.')
+    if (row.kind === 'BANK_LINKED') {
+      return mockError(409, 'CONFLICT', '통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.')
+    }
+    if (row.status === 'CANCELLED') {
+      return mockError(409, 'CONFLICT', '취소된 입금보고서는 수정할 수 없습니다.')
+    }
+    const body = cashReceiptBodyFromConfig(config)
+    const amount = Number(body.amount)
+    if (!body.partnerName || !Number.isFinite(amount) || amount <= 0 || !body.transactionDate) {
+      return mockError(400, 'INVALID_INPUT', '거래처, 금액, 거래일은 필수입니다.')
+    }
+    Object.assign(row, {
+      partnerCode: body.partnerCode ?? '',
+      bizNo: body.bizNo ?? '',
+      partnerName: body.partnerName,
+      amount: body.amount,
+      transactionDate: body.transactionDate,
+      memo: body.memo,
+      debitAccountCode: body.debitAccountCode,
+      creditAccountCode: body.creditAccountCode,
+      journalNo: row.status === 'CONFIRMED' ? row.journalNo ?? nextMockCashReceiptSlipNo(body.transactionDate) : row.journalNo,
+    })
+    return envelope(row)
+  }
+
+  if (method === 'POST' && /\/accounting\/cash-receipts\/[0-9a-zA-Z-]{6,36}\/confirm$/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'update')
+    if (denied) return denied
+    const id = cashReceiptPathId(url)
+    const row = id ? findMockCashReceipt(id) : null
+    if (!row) return mockError(404, 'NOT_FOUND', '입금보고서를 찾을 수 없습니다.')
+    if (row.status !== 'DRAFT') return mockError(409, 'CONFLICT', 'DRAFT 상태만 확정할 수 있습니다.')
+    row.status = 'CONFIRMED'
+    row.journalNo = row.journalNo ?? `${row.transactionDate.replace(/-/g, '/')}-99`
+    return envelope(row)
+  }
+
+  if (method === 'POST' && /\/accounting\/cash-receipts\/[0-9a-zA-Z-]{6,36}\/cancel$/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'update')
+    if (denied) return denied
+    const id = cashReceiptPathId(url)
+    const row = id ? findMockCashReceipt(id) : null
+    if (!row) return mockError(404, 'NOT_FOUND', '입금보고서를 찾을 수 없습니다.')
+    if (row.status !== 'CONFIRMED') return mockError(409, 'CONFLICT', 'CONFIRMED 상태만 취소할 수 있습니다.')
+    row.status = 'CANCELLED'
+    row.reverseJournalNo = row.reverseJournalNo ?? `${row.transactionDate.replace(/-/g, '/')}-98`
+    return envelope(row)
+  }
+
+  if (method === 'DELETE' && /\/accounting\/cash-receipts\/[0-9a-zA-Z-]{6,36}$/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'delete')
+    if (denied) return denied
+    const id = cashReceiptPathId(url)
+    const index = id ? MOCK_CASH_RECEIPTS.findIndex((row) => row.id === id) : -1
+    if (index < 0) return mockError(404, 'NOT_FOUND', '입금보고서를 찾을 수 없습니다.')
+    if (MOCK_CASH_RECEIPTS[index]!.status !== 'DRAFT') {
+      return mockError(409, 'CONFLICT', 'DRAFT 상태만 삭제할 수 있습니다.')
+    }
+    MOCK_CASH_RECEIPTS.splice(index, 1)
+    return envelope(null)
+  }
+
   if (method === 'GET' && url.includes('/accounting/cash-receipts')) {
     const denied = mockRequirePermission('accounting.cash-receipts', 'view')
     if (denied) return denied
@@ -13497,7 +13606,25 @@ const MOCK_TAX_INVOICES = [
   },
 ]
 
-const MOCK_CASH_RECEIPTS = [
+type MockCashReceiptRow = {
+  id: string
+  slipNo: string
+  partnerCode: string
+  bizNo: string
+  partnerName: string
+  amount: string
+  transactionDate: string
+  kind: 'DEPOSIT_REPORT' | 'MANUAL_RECEIPT' | 'BANK_LINKED'
+  status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
+  memo: string | null
+  journalNo: string | null
+  reverseJournalNo: string | null
+  externalRef: string
+  debitAccountCode: string
+  creditAccountCode: string
+}
+
+const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
   {
     id: '00000000-0000-4000-8000-000000000721',
     slipNo: '2026/05/19-3',
@@ -13567,6 +13694,42 @@ const MOCK_CASH_RECEIPTS = [
     creditAccountCode: '110',
   },
 ]
+
+function nextMockCashReceiptId(): string {
+  return `00000000-0000-4000-8000-${String(900000 + MOCK_CASH_RECEIPTS.length + 1).padStart(12, '0')}`
+}
+
+function nextMockCashReceiptSlipNo(transactionDate: string): string {
+  const date = transactionDate || new Date().toISOString().slice(0, 10)
+  const prefix = date.replace(/-/g, '/')
+  const seq = MOCK_CASH_RECEIPTS.filter((row) => row.transactionDate === date).length + 1
+  return `${prefix}-${seq}`
+}
+
+function cashReceiptPathId(url: string): string | null {
+  const match = new URL(url, 'http://mock.local').pathname.match(
+    /\/accounting\/cash-receipts\/([0-9a-zA-Z-]{6,36})(?:\/(?:confirm|cancel))?$/,
+  )
+  return match?.[1] ?? null
+}
+
+function findMockCashReceipt(id: string) {
+  return MOCK_CASH_RECEIPTS.find((row) => row.id === id) ?? null
+}
+
+function cashReceiptBodyFromConfig(config: AxiosRequestConfig) {
+  const body = parseMockBody(config)
+  return {
+    partnerCode: String(body['partnerCode'] ?? '').trim() || null,
+    bizNo: String(body['bizNo'] ?? '').trim() || null,
+    partnerName: String(body['partnerName'] ?? '').trim(),
+    amount: String(body['amount'] ?? '').trim(),
+    transactionDate: String(body['transactionDate'] ?? '').trim(),
+    memo: String(body['memo'] ?? '').trim() || null,
+    debitAccountCode: String(body['debitAccountCode'] ?? '102').trim() || '102',
+    creditAccountCode: String(body['creditAccountCode'] ?? '110').trim() || '110',
+  }
+}
 
 /**
  * 재고 실사 (`/warehouse/audit`) — 3건 + PLANNED/IN_PROGRESS/COMPLETED 분포.

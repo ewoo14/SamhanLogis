@@ -1983,6 +1983,17 @@ export interface CashReceiptRow {
   creditAccountCode?: string | null
 }
 
+export interface CashReceiptRequest {
+  partnerCode?: string
+  bizNo?: string
+  partnerName?: string
+  amount: string
+  transactionDate: string
+  memo?: string
+  debitAccountCode?: string
+  creditAccountCode?: string
+}
+
 export interface ListCashReceiptsOptions {
   partnerName?: string
   slipNo?: string
@@ -2013,6 +2024,80 @@ export async function listCashReceipts(
     { params },
   )
   return res.data.data
+}
+
+export async function createCashReceipt(
+  body: CashReceiptRequest,
+): Promise<CashReceiptRow> {
+  const res = await apiClient.post<ApiEnvelope<CashReceiptRow>>(
+    '/accounting/cash-receipts',
+    body,
+  )
+  return res.data.data
+}
+
+export async function getCashReceipt(id: string): Promise<CashReceiptRow> {
+  const res = await apiClient.get<ApiEnvelope<CashReceiptRow>>(
+    `/accounting/cash-receipts/${id}`,
+  )
+  return res.data.data
+}
+
+export async function updateCashReceipt(
+  id: string,
+  body: CashReceiptRequest,
+): Promise<CashReceiptRow> {
+  try {
+    const res = await apiClient.patch<ApiEnvelope<CashReceiptRow>>(
+      `/accounting/cash-receipts/${id}`,
+      body,
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) throw new Error(message)
+    throw err
+  }
+}
+
+export async function confirmCashReceipt(id: string): Promise<CashReceiptRow> {
+  try {
+    const res = await apiClient.post<ApiEnvelope<CashReceiptRow>>(
+      `/accounting/cash-receipts/${id}/confirm`,
+      {},
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) throw new Error(message)
+    throw err
+  }
+}
+
+export async function cancelCashReceipt(id: string): Promise<CashReceiptRow> {
+  try {
+    const res = await apiClient.post<ApiEnvelope<CashReceiptRow>>(
+      `/accounting/cash-receipts/${id}/cancel`,
+      {},
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) throw new Error(message)
+    throw err
+  }
+}
+
+export async function deleteCashReceipt(id: string): Promise<void> {
+  try {
+    await apiClient.delete<ApiEnvelope<null>>(
+      `/accounting/cash-receipts/${id}`,
+    )
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) throw new Error(message)
+    throw err
+  }
 }
 
 // --------------------------------------------------------------------------

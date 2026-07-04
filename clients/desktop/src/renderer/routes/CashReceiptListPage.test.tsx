@@ -46,7 +46,7 @@ afterEach(() => {
 })
 
 describe('CashReceiptListPage', () => {
-  it('전표번호는 링크가 아닌 일반 텍스트로 렌더한다(상세 링크는 S4b)', async () => {
+  it('전표번호는 상세 링크로 렌더한다', async () => {
     listCashReceiptsMock.mockResolvedValue({
       content: [sampleRow], totalElements: 1, totalPages: 1, number: 0, size: 50, first: true, last: true,
     })
@@ -54,8 +54,7 @@ describe('CashReceiptListPage', () => {
 
     const slip = await screen.findByTestId('cash-receipt-slip-2026/05/19-3')
     expect(slip.textContent).toBe('2026/05/19-3')
-    expect(slip.closest('a')).toBeNull() // dead-link 회귀 가드: <Link> 아님
-    expect(slip.tagName).toBe('SPAN')
+    expect(slip.closest('a')?.getAttribute('href')).toBe('/accounting/admin/cash-receipts/00000000-0000-0000-0000-000000000001')
   })
 
   it('오류 시 에러 배너만 노출하고 빈 상태 문구는 동시 노출하지 않는다', async () => {
