@@ -51,6 +51,81 @@ describe('mock journal cash receipt contract', () => {
   })
 })
 
+describe('mock cash receipt list contract', () => {
+  it('GET /accounting/cash-receipts 는 Page envelope 와 3종 kind 샘플을 반환하고 UUID/사업자번호 표시 필드는 필터 외 화면에서 쓰지 않는다', () => {
+    const page = mockRequest({
+      method: 'GET',
+      url: '/accounting/cash-receipts',
+      params: { page: 0, size: 20 },
+    }) as MockEnvelope<{
+      content: Array<Record<string, unknown>>
+      totalElements: number
+      totalPages: number
+      number: number
+      size: number
+    }>
+
+    expect(page.success).toBe(true)
+    expect(page.data.number).toBe(0)
+    expect(page.data.size).toBe(20)
+    expect(page.data.totalElements).toBeGreaterThanOrEqual(3)
+    expect(new Set(page.data.content.map((row) => row.kind))).toEqual(
+      new Set(['DEPOSIT_REPORT', 'MANUAL_RECEIPT', 'BANK_LINKED']),
+    )
+    expect(page.data.content[0]).toMatchObject({
+      slipNo: expect.any(String),
+      partnerCode: expect.any(String),
+      partnerName: expect.any(String),
+      amount: expect.any(String),
+      transactionDate: expect.any(String),
+      journalNo: expect.any(String),
+    })
+  })
+
+  it('partnerName/slipNo/kind/from/to/status 필터와 페이지네이션을 적용한다', () => {
+    const filtered = mockRequest({
+      method: 'GET',
+      url: '/accounting/cash-receipts',
+      params: {
+        partnerName: '한빛',
+        slipNo: '017',
+        kind: 'MANUAL_RECEIPT',
+        from: '2026-05-18',
+        to: '2026-05-18',
+        status: 'CONFIRMED',
+        page: 0,
+        size: 1,
+      },
+    }) as MockEnvelope<{
+      content: Array<Record<string, unknown>>
+      totalElements: number
+      totalPages: number
+      number: number
+      size: number
+      first: boolean
+      last: boolean
+    }>
+
+    expect(filtered.data).toMatchObject({
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 1,
+      first: true,
+      last: true,
+    })
+    expect(filtered.data.content).toEqual([
+      expect.objectContaining({
+        slipNo: 'SLP-202605-017',
+        partnerName: '한빛상사',
+        kind: 'MANUAL_RECEIPT',
+        transactionDate: '2026-05-18',
+        status: 'CONFIRMED',
+      }),
+    ])
+  })
+})
+
 describe('mock approval-line-config contract', () => {
   it('GROUPWARE 기본 결재자 resolve 는 USER 결재자만 sequence 순으로 반환한다', () => {
     const resolved = mockRequest({

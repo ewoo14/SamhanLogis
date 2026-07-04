@@ -5906,6 +5906,44 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  if (method === 'GET' && url.includes('/accounting/cash-receipts')) {
+    const denied = mockRequirePermission('accounting.cash-receipts', 'view')
+    if (denied) return denied
+    const urlObj = new URL(url, 'http://mock.local')
+    const readParam = (key: string): string =>
+      String(config.params?.[key] ?? urlObj.searchParams.get(key) ?? '').trim()
+    const partnerName = readParam('partnerName').toLowerCase()
+    const slipNo = readParam('slipNo').toLowerCase()
+    const kind = readParam('kind')
+    const from = readParam('from')
+    const to = readParam('to')
+    const status = readParam('status')
+    const page = Number(readParam('page') || 0)
+    const size = Number(readParam('size') || 20)
+    const filtered = MOCK_CASH_RECEIPTS
+      .filter((row) => !partnerName || row.partnerName.toLowerCase().includes(partnerName))
+      .filter((row) => !slipNo || row.slipNo.toLowerCase().includes(slipNo))
+      .filter((row) => !kind || row.kind === kind)
+      .filter((row) => !from || row.transactionDate >= from)
+      .filter((row) => !to || row.transactionDate <= to)
+      .filter((row) => !status || row.status === status)
+      .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate) || b.slipNo.localeCompare(a.slipNo))
+    const safeSize = Number.isFinite(size) && size > 0 ? size : 20
+    const safePage = Number.isFinite(page) && page >= 0 ? page : 0
+    const totalElements = filtered.length
+    const totalPages = Math.max(1, Math.ceil(totalElements / safeSize))
+    const start = safePage * safeSize
+    return envelope({
+      content: filtered.slice(start, start + safeSize),
+      totalElements,
+      totalPages,
+      number: safePage,
+      size: safeSize,
+      first: safePage === 0,
+      last: safePage >= totalPages - 1,
+    })
+  }
+
   if (method === 'GET' && url.includes('/accounting/bank-transactions/filter-preferences')) {
     const denied = mockRequirePermission('accounting.bank-matching', 'view')
     if (denied) return denied
@@ -13427,6 +13465,77 @@ const MOCK_TAX_INVOICES = [
   },
 ]
 
+const MOCK_CASH_RECEIPTS = [
+  {
+    id: '00000000-0000-4000-8000-000000000721',
+    slipNo: 'SLP-202605-021',
+    partnerCode: 'P-SAMHAN-001',
+    bizNo: '1234567890',
+    partnerName: '삼한공조',
+    amount: '2480000',
+    transactionDate: '2026-05-19',
+    kind: 'DEPOSIT_REPORT' as const,
+    status: 'CONFIRMED' as const,
+    memo: '5월 입금보고서 이관분',
+    journalNo: 'JRN-202605-49',
+    reverseJournalNo: null,
+    externalRef: 'MIG7-RECEIPT-021',
+    debitAccountCode: '102',
+    creditAccountCode: '110',
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000717',
+    slipNo: 'SLP-202605-017',
+    partnerCode: 'P-HANBIT-002',
+    bizNo: '2345678901',
+    partnerName: '한빛상사',
+    amount: '760000',
+    transactionDate: '2026-05-18',
+    kind: 'MANUAL_RECEIPT' as const,
+    status: 'CONFIRMED' as const,
+    memo: '수기 입금 확정',
+    journalNo: 'JRN-202605-45',
+    reverseJournalNo: null,
+    externalRef: 'MANUAL-SLP-202605-017',
+    debitAccountCode: '102',
+    creditAccountCode: '110',
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000711',
+    slipNo: 'SLP-202605-011',
+    partnerCode: 'P-SEJIN-003',
+    bizNo: '3456789012',
+    partnerName: '세진산업',
+    amount: '510000',
+    transactionDate: '2026-05-15',
+    kind: 'BANK_LINKED' as const,
+    status: 'CONFIRMED' as const,
+    memo: '통장거래 2건 연계',
+    journalNo: 'JRN-202605-41',
+    reverseJournalNo: null,
+    externalRef: 'BANK-LINKED-SLP-202605-011',
+    debitAccountCode: '102',
+    creditAccountCode: '110',
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000709',
+    slipNo: 'SLP-202605-009',
+    partnerCode: 'P-MIRAE-004',
+    bizNo: '4567890123',
+    partnerName: '미래유통',
+    amount: '0',
+    transactionDate: '2026-05-13',
+    kind: 'MANUAL_RECEIPT' as const,
+    status: 'DRAFT' as const,
+    memo: '작성 중',
+    journalNo: null,
+    reverseJournalNo: null,
+    externalRef: 'MANUAL-SLP-202605-009',
+    debitAccountCode: '102',
+    creditAccountCode: '110',
+  },
+]
+
 /**
  * 재고 실사 (`/warehouse/audit`) — 3건 + PLANNED/IN_PROGRESS/COMPLETED 분포.
  * 결함 #6: status enum 정정 (DRAFT|SUBMITTED|POSTED → PLANNED|IN_PROGRESS|COMPLETED|CANCELLED)
@@ -15673,6 +15782,7 @@ const SP_D1_PAGES = [
   'accounting.receivables',
   'accounting.bank-card-admin',
   'accounting.bank-matching',
+  'accounting.cash-receipts',
   'accounting.period-close',
   'accounting.statement-batch',
   'accounting.partner-ledger',
@@ -15822,7 +15932,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inbound.inspection', 'dispatch.board', 'dispatch.external-carriers',
     // SP-D2 회계 7개 — MANAGER: view 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
-    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
@@ -15906,7 +16016,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
-    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
     // V37 supplier-profiles — ACCOUNTANT: view only
     'accounting.supplier-profiles',
@@ -15999,7 +16109,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.daily-closing.run',
-    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching',
+    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.cash-receipts',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
     // SP-D1 — MANAGER: edit 미허용 (view 전용)
@@ -16076,7 +16186,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
-    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.period-close',
+    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.cash-receipts', 'accounting.period-close',
     'accounting.statement-batch',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',

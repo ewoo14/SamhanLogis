@@ -236,6 +236,7 @@ import { NotesReceivablePage } from './NotesReceivablePage'
 import { CollectionPlanPage } from './CollectionPlanPage'
 import { BankTransactionPage } from './BankTransactionPage'
 import { BankCardAdminPage } from './BankCardAdminPage'
+import { CashReceiptListPage } from './CashReceiptListPage'
 // [P0-1 Slice C] 인쇄 전용 레이아웃 4종.
 import { CashFlowStatementPrintLayout } from './accounting/print/CashFlowStatementPrintLayout'
 import { EquityChangesPrintLayout } from './accounting/print/EquityChangesPrintLayout'
@@ -1139,6 +1140,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="ecount.mig.ops-dashboard" action="view">
             <MigOpsDashboardPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/admin/cash-receipts',
+        element: (
+          <PermissionGuard pageCode="accounting.cash-receipts" action="view">
+            <CashReceiptListPage />
           </PermissionGuard>
         ),
       },

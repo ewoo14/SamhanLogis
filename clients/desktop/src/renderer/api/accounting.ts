@@ -24,6 +24,7 @@ import type { Account, JournalStatus } from '@samhan/design-system'
 import { extractApiErrorResponseMessage } from './apiError'
 
 export type { Account } from '@samhan/design-system'
+export type Page<T> = PageResponse<T>
 
 /**
  * 분개 라인 단건 (BE `JournalLineResponse`).
@@ -1946,6 +1947,65 @@ export async function getCollectionPlanForecast(
   const res = await apiClient.get<ApiEnvelope<CollectionPlanForecast>>(
     '/accounting/collection-plans/forecast',
     { params: { from, to } },
+  )
+  return res.data.data
+}
+
+// --------------------------------------------------------------------------
+// 입금보고서 목록 API — E3 S4a
+// --------------------------------------------------------------------------
+
+export type CashReceiptKind = 'DEPOSIT_REPORT' | 'MANUAL_RECEIPT' | 'BANK_LINKED'
+
+export type CashReceiptStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
+
+export interface CashReceiptRow {
+  /** mutation/detail path 전용 UUID. 화면에는 렌더링하지 않는다. */
+  id?: string | null
+  slipNo: string
+  partnerCode?: string | null
+  bizNo?: string | null
+  partnerName: string
+  amount: string | number
+  transactionDate: string
+  kind: CashReceiptKind | string
+  status: CashReceiptStatus | string
+  memo?: string | null
+  journalNo?: string | null
+  reverseJournalNo?: string | null
+  externalRef?: string | null
+  debitAccountCode?: string | null
+  creditAccountCode?: string | null
+}
+
+export interface ListCashReceiptsOptions {
+  partnerName?: string
+  slipNo?: string
+  kind?: CashReceiptKind | string
+  from?: string
+  to?: string
+  status?: CashReceiptStatus | string
+  page?: number
+  size?: number
+}
+
+export async function listCashReceipts(
+  options: ListCashReceiptsOptions = {},
+): Promise<Page<CashReceiptRow>> {
+  const params: Record<string, string | number> = {
+    page: options.page ?? 0,
+    size: options.size ?? 20,
+  }
+  if (options.partnerName) params['partnerName'] = options.partnerName
+  if (options.slipNo) params['slipNo'] = options.slipNo
+  if (options.kind) params['kind'] = options.kind
+  if (options.from) params['from'] = options.from
+  if (options.to) params['to'] = options.to
+  if (options.status) params['status'] = options.status
+
+  const res = await apiClient.get<ApiEnvelope<Page<CashReceiptRow>>>(
+    '/accounting/cash-receipts',
+    { params },
   )
   return res.data.data
 }

@@ -181,6 +181,7 @@ const ROUTE_PAGE_CODES: Array<{ prefix: string; pageCode: string; label: string 
   { prefix: '/sales/estimates', pageCode: 'estimates.list', label: '견적' },
   { prefix: '/sales', pageCode: 'sales.slip.list', label: '판매관리' },
   { prefix: '/purchases', pageCode: 'purchases.slip.list', label: '구매관리' },
+  { prefix: '/accounting/admin/cash-receipts', pageCode: 'accounting.cash-receipts', label: '입금보고서' },
   { prefix: '/accounting/bank-card-admin', pageCode: 'accounting.bank-card-admin', label: '계좌/카드 관리' },
   { prefix: '/accounting', pageCode: 'accounting.reports', label: '회계' },
   { prefix: '/arologis', pageCode: 'arologis.dispatch.ops', label: '배차' },
@@ -481,6 +482,7 @@ export function AppLayout() {
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
   const showAccountingBankMatching = dynamicCanAccess('accounting.bank-matching',  'view')
+  const showAccountingCashReceipts = dynamicCanAccess('accounting.cash-receipts', 'view')
   const showAccountingBankCardAdmin = dynamicCanAccess('accounting.bank-card-admin',  'view')
   const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
   const showAccountingAdminLedger = dynamicCanAccess('ecount.mig14.ledger', 'view')
@@ -496,7 +498,7 @@ export function AppLayout() {
     || showAccountingPartnerLedger || showAccountingTaxInvoice
     || showAccountingTaxInvoiceBatch || showAccountingTaxInvoiceInbound
     || showAccountingDailyClose
-    || showAccountingLedger || showAccountingBankMatching || showAccountingBankCardAdmin
+    || showAccountingLedger || showAccountingBankMatching || showAccountingCashReceipts || showAccountingBankCardAdmin
     || showAccountingAdminLedger
     || showAccountingAdminMigOps || showAccountingEditRequests
   const showDeliveryBatch = dynamicCanAccess('slip.delivery-batch', 'view')
@@ -882,8 +884,9 @@ export function AppLayout() {
               '/accounting/hometax-export',
               '/accounting/supplier-profiles',
               '/accounting/bank-card-admin',
-              '/accounting/bank-transactions',
-              '/accounting/daily-closing',
+                '/accounting/bank-transactions',
+                '/accounting/admin/cash-receipts',
+                '/accounting/daily-closing',
               '/accounting/ledgers',
               '/accounting/admin/ledger/sales',
               '/accounting/admin/ledger/purchase',
@@ -1161,6 +1164,13 @@ export function AppLayout() {
                 data-testid="sidebar-accounting-bank-transactions"
               >
                 입출금 내역
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/admin/cash-receipts"
+                show={showAccountingCashReceipts}
+                data-testid="sidebar-accounting-cash-receipts"
+              >
+                입금보고서
               </SidebarLink>
               {/* [SP-08-6-5 P2] 일마감 — accounting.daily-closing 동적 RBAC. */}
               <SidebarLink
