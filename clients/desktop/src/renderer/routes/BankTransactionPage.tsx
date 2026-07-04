@@ -43,9 +43,12 @@ import {
 } from './BankTransactionFilterModalModel'
 import { BankDepositReceiptModal } from './BankDepositReceiptModal'
 import {
+  bankDepositReceiptPrunedSelectedRowKeys,
   bankDepositReceiptSelectionDisabledReason,
   bankDepositReceiptSelectionLimitExceeded,
   bankDepositReceiptSelectionSummary,
+  bankDepositReceiptSelectedRows,
+  bankDepositReceiptSelectableRows,
   bankTransactionRowKey,
   isBankDepositReceiptSelectable,
   MAX_BANK_DEPOSIT_RECEIPT_SELECTION,
@@ -276,15 +279,18 @@ export function BankTransactionPage() {
   })
 
   const rawRows = transactionsQuery.data ?? []
-  const rows = rawRows.filter((row) => activeSourceTab === 'ALL' || row.source === activeSourceTab)
-  const rowKeySignature = rows.map(bankTransactionRowKey).join('\n')
+  const rows = useMemo(
+    () => rawRows.filter((row) => activeSourceTab === 'ALL' || row.source === activeSourceTab),
+    [activeSourceTab, rawRows],
+  )
   useEffect(() => {
-    const visibleKeys = new Set(rows.map(bankTransactionRowKey))
+    if (!canCreateBankDepositReceipt) return
     setSelectedRowKeys((prev) => {
-      const next = new Set(Array.from(prev).filter((key) => visibleKeys.has(key)))
-      return next.size === prev.size ? prev : next
+      const next = bankDepositReceiptPrunedSelectedRowKeys(rows, prev)
+      const unchanged = next.size === prev.size && Array.from(next).every((key) => prev.has(key))
+      return unchanged ? prev : next
     })
-  }, [rowKeySignature])
+  }, [canCreateBankDepositReceipt, rows])
 
   useEffect(() => {
     if (!canCreateBankDepositReceipt) {
@@ -293,12 +299,12 @@ export function BankTransactionPage() {
   }, [canCreateBankDepositReceipt])
 
   const selectableRows = useMemo(
-    () => canCreateBankDepositReceipt ? rows.filter(isBankDepositReceiptSelectable) : [],
-    [canCreateBankDepositReceipt, rowKeySignature],
+    () => canCreateBankDepositReceipt ? bankDepositReceiptSelectableRows(rows) : [],
+    [canCreateBankDepositReceipt, rows],
   )
   const selectedRows = useMemo(
-    () => rows.filter((row) => selectedRowKeys.has(bankTransactionRowKey(row))),
-    [rows, selectedRowKeys],
+    () => canCreateBankDepositReceipt ? bankDepositReceiptSelectedRows(rows, selectedRowKeys) : [],
+    [canCreateBankDepositReceipt, rows, selectedRowKeys],
   )
   const selectedSummary = useMemo(
     () => bankDepositReceiptSelectionSummary(selectedRows),
@@ -306,7 +312,7 @@ export function BankTransactionPage() {
   )
   const selectableAllSelected = selectableRows.length > 0
     && selectableRows.every((row) => selectedRowKeys.has(bankTransactionRowKey(row)))
-  const selectableSomeSelected = selectableRows.some((row) => selectedRowKeys.has(bankTransactionRowKey(row)))
+  const selectableSomeSelected = selectedRows.length > 0
   const selectionLimitExceeded = bankDepositReceiptSelectionLimitExceeded(selectedRows)
 
   useEffect(() => {
@@ -411,7 +417,7 @@ export function BankTransactionPage() {
           <label className="bank-transaction-select-cell" title={disabledReason || undefined}>
             <input
               type="checkbox"
-              checked={selectedRowKeys.has(key)}
+              checked={selectable && selectedRowKeys.has(key)}
               disabled={!selectable}
               onChange={(event) => toggleReceiptRow(row, event.target.checked)}
               aria-label={`${formatDateTime(row.transactedAt)} ${row.description} 선택`}

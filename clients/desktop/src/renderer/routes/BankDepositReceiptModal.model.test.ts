@@ -5,7 +5,10 @@ import {
   bankDepositReceiptSelectionDisabledReason,
   bankDepositReceiptSelectionLimitExceeded,
   bankDepositReceiptSelectionSummary,
+  bankDepositReceiptSelectedRows,
+  bankDepositReceiptPrunedSelectedRowKeys,
   bankTransactionNaturalKeyFromRow,
+  bankTransactionRowKey,
   buildBankDepositReceiptRequest,
   isBankDepositReceiptSelectable,
   MAX_BANK_DEPOSIT_RECEIPT_SELECTION,
@@ -59,6 +62,51 @@ describe('BankDepositReceiptModal.model', () => {
     expect(form.transactionDate).toBe('2026-06-25')
     expect(form.debitAccountCode).toBe('102')
     expect(form.creditAccountCode).toBe('110')
+  })
+
+  it('refetch 후 선택 행이 REFLECTED로 바뀌면 선택 집합과 요약에서 제외한다', () => {
+    const reflectedAfterRefetch = row({ matchStatus: 'REFLECTED', cashReceiptSlipNo: '2026/06/23-1' })
+    const stillSelectable = row({
+      amount: '2500000',
+      transactedAt: '2026-06-25T08:05:00',
+      externalRef: 'mock-bank-20260625-002',
+    })
+    const staleSelectedKeys = new Set([
+      bankTransactionRowKey(reflectedAfterRefetch),
+      bankTransactionRowKey(stillSelectable),
+    ])
+
+    const prunedKeys = bankDepositReceiptPrunedSelectedRowKeys(
+      [reflectedAfterRefetch, stillSelectable],
+      staleSelectedKeys,
+    )
+    const selectedRows = bankDepositReceiptSelectedRows(
+      [reflectedAfterRefetch, stillSelectable],
+      staleSelectedKeys,
+    )
+    const summary = bankDepositReceiptSelectionSummary(selectedRows)
+    const payload = buildBankDepositReceiptRequest([reflectedAfterRefetch, stillSelectable], {
+      transactionDate: '2026-06-30',
+      debitAccountCode: '103',
+      creditAccountCode: '110',
+      memo: '',
+    })
+
+    expect(Array.from(prunedKeys)).toEqual([bankTransactionRowKey(stillSelectable)])
+    expect(selectedRows).toEqual([stillSelectable])
+    expect(summary).toMatchObject({
+      count: 1,
+      totalAmount: 2500000,
+      mixedPartner: false,
+    })
+    expect(payload.transactions).toEqual([
+      {
+        bankAccountLabel: '국민 123-456',
+        transactedAt: '2026-06-25T08:05:00',
+        amount: 2500000,
+        externalRef: 'mock-bank-20260625-002',
+      },
+    ])
   })
 
   it('BE DTO 자연키와 계정 override를 정확히 만든다', () => {

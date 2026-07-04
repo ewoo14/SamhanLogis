@@ -57,6 +57,30 @@ export function isBankDepositReceiptSelectable(row: BankTransactionRow): boolean
     && amountOf(row) > 0
 }
 
+export function bankDepositReceiptSelectableRows(
+  rows: BankTransactionRow[],
+): BankTransactionRow[] {
+  return rows.filter(isBankDepositReceiptSelectable)
+}
+
+export function bankDepositReceiptPrunedSelectedRowKeys(
+  rows: BankTransactionRow[],
+  selectedRowKeys: ReadonlySet<string>,
+): Set<string> {
+  const selectableKeys = new Set(bankDepositReceiptSelectableRows(rows).map(bankTransactionRowKey))
+  return new Set(Array.from(selectedRowKeys).filter((key) => selectableKeys.has(key)))
+}
+
+export function bankDepositReceiptSelectedRows(
+  rows: BankTransactionRow[],
+  selectedRowKeys: ReadonlySet<string>,
+): BankTransactionRow[] {
+  return rows.filter((row) => (
+    selectedRowKeys.has(bankTransactionRowKey(row))
+    && isBankDepositReceiptSelectable(row)
+  ))
+}
+
 export function bankDepositReceiptSelectionDisabledReason(row: BankTransactionRow): string {
   if (row.matchStatus !== 'UNREFLECTED') return '이미 반영된 거래입니다.'
   if (row.txnType === 'WITHDRAWAL') return '출금 거래는 입금보고서로 생성할 수 없습니다.'
@@ -108,8 +132,9 @@ export function buildBankDepositReceiptRequest(
   form: BankDepositReceiptFormState,
 ): BankDepositReceiptRequest {
   const memo = form.memo.trim()
+  const selectableRows = bankDepositReceiptSelectableRows(rows)
   return {
-    transactions: rows.map(bankTransactionNaturalKeyFromRow),
+    transactions: selectableRows.map(bankTransactionNaturalKeyFromRow),
     transactionDate: form.transactionDate,
     memo: memo || undefined,
     debitAccountCode: form.debitAccountCode || undefined,
