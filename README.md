@@ -475,7 +475,7 @@ flowchart LR
 
 - MIG-17 (완료): Designer tokens.md와 mock 라벨을 실제 화면 API enum 계약으로 동기화했다.
   - CashKind 라벨은 `EXPENSE_VOUCHER=지출결의서`, `MANUAL_DISBURSEMENT=수기 지출`로 고정한다.
-  - CashReceiptKind 라벨은 `DEPOSIT_REPORT=입금보고서`, `MANUAL_RECEIPT=수기 입금`, `BANK_LINKED=통장연계`로 관리한다.
+  - CashReceiptKind 라벨은 `DEPOSIT_REPORT=입금보고서`, `MANUAL_RECEIPT=수기 입금`, `BANK_LINKED=통장연계`로 고정한다.
   - OrderProgressStatus 라벨은 `COMPLETED=완료`, `IN_PROGRESS=진행`, `CANCELED=취소`, `PENDING=대기`로 고정한다.
   - Ledger mock은 `transformStatus`(`PENDING` / `TRANSFORMED` / `REJECTED`) 기준 변환상태 chip으로 정리한다.
 

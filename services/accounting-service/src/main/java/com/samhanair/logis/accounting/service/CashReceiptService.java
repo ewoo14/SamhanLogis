@@ -40,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-/** 입금보고서 수기 CRUD와 상태 라이프사이클 service. */
+/** 입금보고서 수기 CRUD + 통장연계(BANK_LINKED) 생성 초안과 상태 라이프사이클 service. */
 @Slf4j
 @Service
 @RequiredArgsConstructor

@@ -256,6 +256,34 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("transactions 원소의 내부 필드가 무효(externalRef blank)면 @Valid 캐스케이드로 400 INVALID_INPUT 처리한다")
+    void invalidTransactionElementFieldReturnsBadRequest() throws Exception {
+        mockMvc.perform(post(FROM_BANK_URL)
+                        .header("X-User-Id", ACTOR)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "transactions": [
+                                    {
+                                      "bankAccountLabel": "S3 IT 계좌",
+                                      "transactedAt": "2026-07-04T12:15:00",
+                                      "amount": 1000.00,
+                                      "externalRef": "  "
+                                    }
+                                  ],
+                                  "transactionDate": "2026-07-04",
+                                  "memo": "S3-BANK-IT 내부 필드 무효"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("externalRef")));
+
+        assertNoBankLinkedReceipts();
+    }
+
+    @Test
     @DisplayName("마감월 transactionDate 는 confirm 재사용 가드로 409 처리하고 입금보고서/분개를 남기지 않는다")
     void closedPeriodRollsBackReceiptAndJournal() throws Exception {
         jdbcTemplate.update("""
