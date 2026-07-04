@@ -6,7 +6,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
-const DRAFT_ID = '00000000-0000-4000-8000-000000000709'
+const CONFIRMED_MANUAL_ID = '00000000-0000-4000-8000-000000000717'
 const BANK_LINKED_ID = '00000000-0000-4000-8000-000000000711'
 
 async function createDraftReceipt(page: Page, suffix: string): Promise<string> {
@@ -85,6 +85,16 @@ test.describe('입금보고서 작성폼 + 상세/편집 (E3 S4b)', () => {
 
     await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts/${BANK_LINKED_ID}/edit?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText('통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.')).toBeVisible()
+    await expect(page.getByRole('button', { name: '저장' })).toBeDisabled()
+  })
+
+  test('CONFIRMED: 직접 edit 진입 read-only', async ({ page }) => {
+    await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts/${CONFIRMED_MANUAL_ID}/edit?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
+
+    await expect(page.locator('h3').filter({ hasText: '입금보고서 편집' })).toBeVisible()
+    await expect(page.getByLabel('금액')).toBeDisabled()
+    await expect(page.getByLabel('거래일')).toBeDisabled()
+    await expect(page.getByLabel('적요')).toBeDisabled()
     await expect(page.getByRole('button', { name: '저장' })).toBeDisabled()
   })
 

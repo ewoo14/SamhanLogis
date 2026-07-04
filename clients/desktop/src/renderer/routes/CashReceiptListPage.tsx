@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Input, Select, type BadgeVariant, type DataTableColumn } from '@samhan/design-system'
+import { Badge, Button, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import { FilterChipBar, type FilterChip } from '../components/FilterChipBar'
 import {
   listCashReceipts,
@@ -11,6 +11,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import {
   CASH_RECEIPT_KIND_OPTIONS,
+  KIND_TONE,
   cashReceiptKindLabel,
   formatCashReceiptAmount,
   formatCashReceiptDate,
@@ -36,15 +37,6 @@ const INITIAL_FILTERS: CashReceiptFilterState = {
   kind: '',
   from: '',
   to: '',
-}
-
-// kind 유형별 배지 톤. design-system 팔레트에 중립 informational 톤(info)이 없어 3종을
-// 색으로 구분하려면 상태 톤 중 하나가 필요 — BANK_LINKED(자동 대사)에 success 배정.
-// 승인 상태가 아닌 '유형' 구분 용도이며 라벨 텍스트가 주 구분자다.
-const KIND_TONE: Record<string, BadgeVariant> = {
-  DEPOSIT_REPORT: 'brand',
-  MANUAL_RECEIPT: 'neutral',
-  BANK_LINKED: 'success',
 }
 
 const skeletonRows: CashReceiptRow[] = Array.from({ length: 8 }, (_, index) => ({

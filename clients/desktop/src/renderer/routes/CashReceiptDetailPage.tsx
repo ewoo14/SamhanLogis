@@ -11,6 +11,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import {
+  KIND_TONE,
   cashReceiptKindLabel,
   formatCashReceiptAmount,
   formatCashReceiptDate,
@@ -116,16 +117,13 @@ export function CashReceiptDetailPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h3 style={{ margin: 0, fontVariantNumeric: 'tabular-nums' }}>{receipt.slipNo}</h3>
-              <Badge variant={isBankLinked ? 'success' : 'neutral'}>{cashReceiptKindLabel(String(receipt.kind))}</Badge>
-              <Badge variant={receipt.status === 'CONFIRMED' ? 'brand' : receipt.status === 'CANCELLED' ? 'danger' : 'neutral'}>
+              <Badge variant={KIND_TONE[String(receipt.kind)] ?? 'neutral'}>{cashReceiptKindLabel(String(receipt.kind))}</Badge>
+              <Badge variant={receipt.status === 'CONFIRMED' ? 'success' : receipt.status === 'CANCELLED' ? 'danger' : 'neutral'}>
                 {STATUS_LABEL[String(receipt.status)] ?? receipt.status}
               </Badge>
             </div>
-            <p style={{ marginTop: 8, marginBottom: 0, color: '#6B7280', fontSize: 13 }}>
-              사용자 표시 식별자는 전표번호와 거래처 정보만 사용합니다.
-            </p>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="detail-action-bar">
             <Button type="button" variant="ghost" onClick={() => navigate('/accounting/admin/cash-receipts')}>
               목록
             </Button>
@@ -133,7 +131,7 @@ export function CashReceiptDetailPage() {
               <Button type="button" variant="ghost" onClick={() => navigate(`/accounting/admin/cash-receipts/${receiptId}/edit`)}>
                 편집
               </Button>
-            ) : isBankLinked ? (
+            ) : isBankLinked && canUpdate ? (
               <Button type="button" variant="ghost" disabled title="통장연계 입금보고서는 수정할 수 없습니다.">
                 편집 불가
               </Button>

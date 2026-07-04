@@ -102,7 +102,15 @@ export function CashReceiptFormPage() {
     saveMutation.mutate()
   }
 
-  if (accountsQuery.isLoading || (isEdit && receiptQuery.isLoading)) {
+  if (accountsQuery.isLoading) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
+        <Spinner size="lg" label="계정과목 불러오는 중" />
+      </div>
+    )
+  }
+
+  if (isEdit && receiptQuery.isLoading) {
     return (
       <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
         <Spinner size="lg" label="입금보고서 불러오는 중" />
@@ -116,7 +124,8 @@ export function CashReceiptFormPage() {
 
   const receipt = receiptQuery.data
   const bankLinked = receipt?.kind === 'BANK_LINKED'
-  const readOnly = bankLinked || receipt?.status === 'CANCELLED'
+  const isDraft = !isEdit || receipt?.status === 'DRAFT'
+  const readOnly = bankLinked || !isDraft
   const accounts = Array.isArray(accountsQuery.data) ? accountsQuery.data : []
 
   return (
@@ -176,6 +185,7 @@ export function CashReceiptFormPage() {
               value={state.amount}
               onChange={(event) => patch({ amount: event.target.value.replace(/[^\d.]/g, '') })}
               disabled={readOnly}
+              error={errors.amount}
               required
             />
             <Input
@@ -184,6 +194,7 @@ export function CashReceiptFormPage() {
               value={state.transactionDate}
               onChange={(event) => patch({ transactionDate: event.target.value })}
               disabled={readOnly}
+              error={errors.transactionDate}
               required
             />
           </div>
@@ -220,16 +231,17 @@ export function CashReceiptFormPage() {
             value={state.memo}
             onChange={(event) => patch({ memo: event.target.value })}
             disabled={readOnly}
+            error={errors.memo}
             maxLength={494}
           />
         </div>
       </Card>
 
-      {[errors.amount, errors.transactionDate, errors.memo, topError].filter(Boolean).map((message) => (
-        <div key={message} className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: '#DC2626' }}>
-          {message}
+      {topError ? (
+        <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: '#DC2626' }}>
+          {topError}
         </div>
-      ))}
+      ) : null}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         <Button type="button" variant="ghost" onClick={() => navigate('/accounting/admin/cash-receipts')}>

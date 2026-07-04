@@ -2029,18 +2029,30 @@ export async function listCashReceipts(
 export async function createCashReceipt(
   body: CashReceiptRequest,
 ): Promise<CashReceiptRow> {
-  const res = await apiClient.post<ApiEnvelope<CashReceiptRow>>(
-    '/accounting/cash-receipts',
-    body,
-  )
-  return res.data.data
+  try {
+    const res = await apiClient.post<ApiEnvelope<CashReceiptRow>>(
+      '/accounting/cash-receipts',
+      body,
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) throw new Error(message)
+    throw err
+  }
 }
 
 export async function getCashReceipt(id: string): Promise<CashReceiptRow> {
-  const res = await apiClient.get<ApiEnvelope<CashReceiptRow>>(
-    `/accounting/cash-receipts/${id}`,
-  )
-  return res.data.data
+  try {
+    const res = await apiClient.get<ApiEnvelope<CashReceiptRow>>(
+      `/accounting/cash-receipts/${id}`,
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) throw new Error(message)
+    throw err
+  }
 }
 
 export async function updateCashReceipt(

@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@samhan/design-system', () => ({
-  Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+  Badge: ({ children, variant }: { children: React.ReactNode; variant?: string }) => (
+    <span data-variant={variant}>{children}</span>
+  ),
   Button: ({ children, variant: _variant, size: _size, loading: _loading, ...props }: any) => (
     <button {...props}>{children}</button>
   ),
@@ -80,6 +82,7 @@ function renderPage(row: CashReceiptRow) {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.canAccess.mockReturnValue(true)
 })
 
 describe('CashReceiptDetailPage', () => {
@@ -101,6 +104,21 @@ describe('CashReceiptDetailPage', () => {
     const edit = screen.getByRole('button', { name: '편집 불가' })
     expect((edit as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByRole('button', { name: '편집' })).toBeNull()
+  })
+
+  it('BANK_LINKED 편집 불가 버튼은 update 권한이 있을 때만 노출한다', async () => {
+    mocks.canAccess.mockImplementation((_pageCode, action) => action !== 'update')
+    renderPage(receipt({ kind: 'BANK_LINKED', status: 'CONFIRMED' }))
+
+    await screen.findByText('통장연계')
+    expect(screen.queryByRole('button', { name: '편집 불가' })).toBeNull()
+  })
+
+  it('kind와 CONFIRMED 상태 badge tone을 success로 렌더한다', async () => {
+    renderPage(receipt({ kind: 'BANK_LINKED', status: 'CONFIRMED' }))
+
+    expect((await screen.findByText('통장연계')).getAttribute('data-variant')).toBe('success')
+    expect(screen.getByText('확정').getAttribute('data-variant')).toBe('success')
   })
 
   it('확정/취소/삭제 mutation을 호출한다', async () => {

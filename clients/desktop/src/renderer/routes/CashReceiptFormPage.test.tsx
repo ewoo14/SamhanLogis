@@ -27,12 +27,14 @@ vi.mock('@samhan/design-system', () => ({
     <button {...props}>{children}</button>
   ),
   Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  Input: React.forwardRef<HTMLInputElement, any>(function Input({ label, ...props }, ref) {
+  Input: React.forwardRef<HTMLInputElement, any>(function Input({ label, error, ...props }, ref) {
+    const id = React.useId()
     return (
-      <label>
-        {label ? <span>{label}</span> : null}
-        <input ref={ref} {...props} />
-      </label>
+      <div>
+        {label ? <label htmlFor={id}>{label}</label> : null}
+        <input id={id} ref={ref} aria-invalid={error ? true : undefined} {...props} />
+        {error ? <span role="alert">{error}</span> : null}
+      </div>
     )
   }),
   PartnerAutocomplete: ({ value, onChange, label, disabled }: any) => (

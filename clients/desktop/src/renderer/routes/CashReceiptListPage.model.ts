@@ -1,3 +1,4 @@
+import type { BadgeVariant } from '@samhan/design-system'
 import type { ListCashReceiptsOptions } from '../api/accounting'
 
 export interface CashReceiptFilterState {
@@ -19,6 +20,12 @@ export const CASH_RECEIPT_KIND_LABEL: Record<string, string> = {
   DEPOSIT_REPORT: '입금보고서',
   MANUAL_RECEIPT: '수기 입금',
   BANK_LINKED: '통장연계',
+}
+
+export const KIND_TONE: Record<string, BadgeVariant> = {
+  DEPOSIT_REPORT: 'brand',
+  MANUAL_RECEIPT: 'neutral',
+  BANK_LINKED: 'success',
 }
 
 export function cashReceiptKindLabel(kind: string): string {
