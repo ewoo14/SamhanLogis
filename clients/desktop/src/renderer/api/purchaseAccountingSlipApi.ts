@@ -67,8 +67,8 @@ function unwrap<T>(payload: T | ApiEnvelope<T>): T {
 
 export const MOCK_PURCHASE_ACCOUNTING_SLIPS: PurchaseAccountingSlipResponse[] = [
   {
-    id: 'PAS-20260520-001',
-    slipNo: 'PAS-20260520-001',
+    id: '00000000-0000-4000-8000-0000000a5301',
+    slipNo: '2026/05/20-1',
     slipDate: '2026-05-20',
     partnerCode: 'V-30011',
     partnerName: '한빛포장',
@@ -106,8 +106,8 @@ export const MOCK_PURCHASE_ACCOUNTING_SLIPS: PurchaseAccountingSlipResponse[] = 
     ],
   },
   {
-    id: 'PAS-20260519-003',
-    slipNo: 'PAS-20260519-003',
+    id: '00000000-0000-4000-8000-0000000a5303',
+    slipNo: '2026/05/19-3',
     slipDate: '2026-05-19',
     partnerCode: 'V-30028',
     partnerName: '태영물산',
@@ -128,7 +128,8 @@ function buildMockDraft(req: CreatePurchaseAccountingSlipRequest): PurchaseAccou
   const vat = req.taxType === 'TAXABLE' ? Math.round(supply * 0.1) : 0
   return {
     id: null,
-    slipNo: `PAS-${req.slipDate.replace(/-/g, '')}-${String(Date.now()).slice(-3)}`,
+    // 실 BE PurchaseAccountingSlipNumberGenerator = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
+    slipNo: `${req.slipDate.replace(/-/g, '/')}-${String(Date.now()).slice(-3)}`,
     slipDate: req.slipDate,
     partnerCode: req.partnerCode,
     partnerName: req.partnerName,

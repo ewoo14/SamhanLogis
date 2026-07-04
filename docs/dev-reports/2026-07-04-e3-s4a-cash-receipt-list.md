@@ -18,9 +18,16 @@
 - 라이브 QA GUI 캡처 2장(`docs/qa/727-cash-receipt-list/`·SHA-pinned 인라인+사용자 인라인 전송)
 - ⚠️ 로컬 `client.authheaders.test.ts` 4실패=**환경 flake**(apiClient 미접촉·dev 커밋서도 동일·CI frontend 잡 통과 확인) → CI 권위
 
+## 전표번호 형식 parity (개발책임자 적발 → sweep)
+
+머지 직전 개발책임자가 QA 스샷에서 **전표번호 형식 오류** 적발 — mock 이 `SLP-202605-021`·`JRN-202605-49` placeholder 를 썼으나 합의 표준([[feedback_slip_order_number_format]])은 슬래시 `YYYY/MM/DD-N`, 실 BE(`SlipNumberService`·`JournalNumberService`)는 이미 슬래시 채번. 두 리뷰 라운드가 필드/컬럼은 대조했으나 **값 형식 parity 를 놓침**([[feedback_mock_value_format_be_parity]] 신설). [[feedback_defect_family_sweep_fix]] 로 전수 sweep:
+- **입금보고서**: MOCK_CASH_RECEIPTS slipNo/journalNo → `2026/05/DD-N`, externalRef SLP 임베드 제거, mock.test 형식 가드 테스트.
+- **매출/매입전표**(개발책임자 지시 "이 PR 함께 sweep"): `salesAccountingSlipApi.ts`·`purchaseAccountingSlipApi.ts` mock slipNo `SAS-`/`PAS-` → 슬래시, id → UUID(실 BE parity). sp-sas 회귀 15/15.
+
 ## 파생/백로그
 
 - **S4b 작성폼**(POST/PATCH·account 102·transactionDate 프리필·BANK_LINKED PATCH 비활성=S4 인지 2/3) → **S4c** BankTransactionPage 다중선택→`/from-bank-transactions` 생성 → **S4d** coedit. 전표번호 상세 링크는 S4b(상세 페이지) 도입 시 배선.
+- **🔴 [BE/FE·follow-up] 매출/매입전표 post %2F 의심** — sweep 중 발견: `postSalesSlip`/`postPurchaseSlip`(salesAccountingSlipApi.ts:223 등)이 슬래시 slipNo 를 `encodeURIComponent` 로 **URL 경로**에 넣음(`/admin/sales-slips/${slipNo}/post`) → 게이트웨이 StrictHttpFirewall `%2F` 차단 가능(실 BE slipNo 가 이미 슬래시라 **pre-existing real-mode 의심 버그**, mock 이 가려옴). `toOrderPathId`(슬래시→하이픈) 적용 또는 UUID 경로로 수정 + **Docker 실 QA 검증** 필요([[feedback_slip_order_number_format]] %2F 함정). 별도 슬라이스(판매전표).
 - **[BE·별도 슬라이스]** `CashReceiptService.resolvePartnerFilterIds` partnerName 필터 partner directory 검색 limit=100·페이지네이션 없음 → 100 초과 매칭 시 silent truncation(S1 pre-existing·후속).
 - Playwright 오류/빈 상태 E2E(현 component test unit 커버)·mig-14 admin shared kind 라벨 향후 cross-page 사용 시 위치 재고.
 
