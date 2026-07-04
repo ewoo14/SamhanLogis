@@ -31,6 +31,7 @@
  * 내부 식별자는 React key 또는 PATCH/DELETE path param 으로만 사용.
  */
 import { apiClient, type ApiEnvelope, type PageResponse } from './client'
+import { toOrderPathId } from '../utils/orderNo'
 
 // ---------------------------------------------------------------------------
 // product-service M1a — 카탈로그 / Spec / Template
@@ -318,7 +319,7 @@ export interface EstimateDetail {
  */
 export async function getEstimate(estimateNumber: string): Promise<EstimateDetail> {
   const res = await apiClient.get<ApiEnvelope<LiveEstimateDetailResponse>>(
-    `/slips/estimates/${encodeURIComponent(estimateNumber)}`,
+    `/slips/estimates/${encodeURIComponent(toOrderPathId(estimateNumber))}`,
   )
   const e = res.data.data
   return {
@@ -498,7 +499,7 @@ export async function convertPartnerOrderToSlip(
   request: ConvertToSlipRequest,
 ): Promise<ConvertResult> {
   const res = await apiClient.post<ApiEnvelope<ConvertResult>>(
-    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/convert-to-slip`,
+    `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}/convert-to-slip`,
     request,
   )
   return res.data.data
@@ -637,7 +638,7 @@ export async function getPartnerOrder(
   orderNumber: string,
 ): Promise<PartnerOrderDetail> {
   const res = await apiClient.get<ApiEnvelope<PartnerOrderDetail>>(
-    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
+    `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}`,
   )
   return normalizePartnerOrderDetail(res.data.data)
 }
@@ -648,7 +649,7 @@ export async function updatePartnerOrder(
   request: PartnerOrderUpdateRequest,
 ): Promise<PartnerOrderDetail> {
   const res = await apiClient.put<ApiEnvelope<PartnerOrderDetail>>(
-    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
+    `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}`,
     request,
   )
   return normalizePartnerOrderDetail(res.data.data)
@@ -722,7 +723,7 @@ export async function mergeConvertToSlip(
 /** 주문 soft delete. */
 export async function deletePartnerOrder(orderNumber: string): Promise<void> {
   await apiClient.delete(
-    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}`,
+    `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}`,
   )
 }
 
@@ -736,7 +737,7 @@ export async function deletePartnerOrder(orderNumber: string): Promise<void> {
  */
 export async function holdPartnerOrder(orderNumber: string): Promise<PartnerOrderDetail> {
   const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
-    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/hold`,
+    `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}/hold`,
   )
   return normalizePartnerOrderDetail(res.data.data)
 }
@@ -751,7 +752,7 @@ export async function holdPartnerOrder(orderNumber: string): Promise<PartnerOrde
  */
 export async function releasePartnerOrder(orderNumber: string): Promise<PartnerOrderDetail> {
   const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
-    `/api/v1/partner-orders/${encodeURIComponent(orderNumber)}/release`,
+    `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}/release`,
   )
   return normalizePartnerOrderDetail(res.data.data)
 }

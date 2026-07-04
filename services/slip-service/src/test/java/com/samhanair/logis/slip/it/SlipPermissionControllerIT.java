@@ -175,7 +175,7 @@ class SlipPermissionControllerIT {
         lenient().when(realtimeBroker.subscribe(any())).thenReturn(new SseEmitter(100L));
         lenient().when(estimateService.list(any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of()));
-        lenient().when(estimateService.getOne(any())).thenReturn(null);
+        lenient().when(estimateService.getOne(any(UUID.class))).thenReturn(null);
         lenient().when(slipExcelExportService.export(any(), any(), any(), any(), any()))
                 .thenReturn("xlsx".getBytes());
     }

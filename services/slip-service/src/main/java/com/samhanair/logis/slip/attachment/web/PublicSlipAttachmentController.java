@@ -78,7 +78,8 @@ public class PublicSlipAttachmentController {
             return ResponseEntity.status(HttpStatus.GONE)
                     .body(ApiResponse.fail(ErrorCode.CONFLICT, "토큰이 만료되었습니다"));
         }
-        Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType.OUTBOUND, slipNo)
+        String canonicalSlipNo = canonicalSlipNo(slipNo);
+        Slip slip = slipRepository.findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType.OUTBOUND, canonicalSlipNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "슬립을 찾을 수 없습니다: " + slipNo));
         // 본 슬립이 해당 batch 에 속해야 함 (cross-token 업로드 차단)
@@ -92,5 +93,22 @@ public class PublicSlipAttachmentController {
                 attachmentService.upload(slip.getId(), SlipAttachmentType.DELIVERY,
                         file, exifGpsLat, exifGpsLng, capturedAt, "driver"));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(body));
+    }
+
+    /**
+     * URL path 전용 하이픈 slug 를 저장 표준 슬래시 전표번호로 복원한다.
+     *
+     * <p>저장/화면 표준은 {@code yyyy/MM/dd-N} 이고, URL path 에서는 FE 가
+     * {@code yyyy-MM-dd-N} 단일 세그먼트로 보낸다. 날짜 영역의 첫 두 하이픈만 슬래시로
+     * 되돌리고 순번 구분 하이픈은 유지한다.
+     */
+    private static String canonicalSlipNo(String slipNo) {
+        if (slipNo == null || slipNo.length() < 12) {
+            return slipNo;
+        }
+        if (slipNo.charAt(4) == '-' && slipNo.charAt(7) == '-') {
+            return slipNo.substring(0, 4) + "/" + slipNo.substring(5, 7) + "/" + slipNo.substring(8);
+        }
+        return slipNo;
     }
 }

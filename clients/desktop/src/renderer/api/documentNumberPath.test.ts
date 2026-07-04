@@ -5,12 +5,23 @@ import { postPurchaseSlip } from './purchaseAccountingSlipApi'
 import { recordDriverSignature, recordSignature } from './signature'
 import { getAccountingOrder } from './accountingAdminApi'
 import { updateCollectionPlanStatus } from './accounting'
+import {
+  convertPartnerOrderToSlip,
+  deletePartnerOrder,
+  getEstimate,
+  getPartnerOrder,
+  holdPartnerOrder,
+  releasePartnerOrder,
+  updatePartnerOrder,
+} from './sales'
 
 vi.mock('./client', () => ({
   apiClient: {
+    delete: vi.fn(),
     get: vi.fn(),
     patch: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
   },
 }))
 
@@ -25,11 +36,15 @@ vi.mock('./mock', async () => {
 describe('문서번호 URL path 변환', () => {
   beforeEach(() => {
     vi.mocked(apiClient.get).mockReset()
+    vi.mocked(apiClient.delete).mockReset()
     vi.mocked(apiClient.patch).mockReset()
     vi.mocked(apiClient.post).mockReset()
+    vi.mocked(apiClient.put).mockReset()
+    vi.mocked(apiClient.delete).mockResolvedValue({ data: { data: null } })
     vi.mocked(apiClient.get).mockResolvedValue({ data: { data: {} } })
     vi.mocked(apiClient.patch).mockResolvedValue({ data: { data: {} } })
-    vi.mocked(apiClient.post).mockResolvedValue({ data: '' })
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { data: {} } })
+    vi.mocked(apiClient.put).mockResolvedValue({ data: { data: {} } })
   })
 
   it('매출 회계전표 확정은 슬래시 slipNo를 하이픈 단일 세그먼트로 보낸다', async () => {
@@ -81,6 +96,82 @@ describe('문서번호 URL path 변환', () => {
     expect(apiClient.patch).toHaveBeenCalledWith(
       '/accounting/collection-plans/2026-05-20-6/status',
       { status: 'OVERDUE' },
+    )
+  })
+
+  it('견적서 인쇄 조회는 슬래시 estimateNumber를 하이픈 단일 세그먼트로 보낸다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          estimateNo: '2026/05/20-13',
+          estimateDate: '2026-05-20',
+          partnerName: '거래처',
+          partnerBusinessNo: null,
+          partnerAddress: null,
+          validUntil: null,
+          totalAmount: '0',
+          memo: null,
+          lines: [],
+        },
+      },
+    })
+
+    await getEstimate('2026/05/20-13')
+
+    expect(apiClient.get).toHaveBeenCalledWith('/slips/estimates/2026-05-20-13')
+  })
+
+  it('거래처 주문 상세 조회는 슬래시 orderNumber를 하이픈 단일 세그먼트로 보낸다', async () => {
+    await getPartnerOrder('2026/05/20-7')
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/partner-orders/2026-05-20-7')
+  })
+
+  it('거래처 주문 수정은 슬래시 orderNumber를 하이픈 단일 세그먼트로 보낸다', async () => {
+    await updatePartnerOrder('2026/05/20-8', {
+      updatedAt: '2026-05-20T10:00:00',
+      partnerCode: 'P-001',
+      bizCode: '1234567890',
+      dueDate: null,
+      memo: null,
+      lines: [],
+    })
+
+    expect(apiClient.put).toHaveBeenCalledWith(
+      '/api/v1/partner-orders/2026-05-20-8',
+      expect.any(Object),
+    )
+  })
+
+  it('거래처 주문 부분전환은 슬래시 orderNumber를 하이픈 단일 세그먼트로 보낸다', async () => {
+    await convertPartnerOrderToSlip('2026/05/20-9', {
+      warehouseCode: 'WH-001',
+      items: [],
+    })
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/v1/partner-orders/2026-05-20-9/convert-to-slip',
+      expect.any(Object),
+    )
+  })
+
+  it('거래처 주문 삭제는 슬래시 orderNumber를 하이픈 단일 세그먼트로 보낸다', async () => {
+    await deletePartnerOrder('2026/05/20-10')
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/partner-orders/2026-05-20-10')
+  })
+
+  it('거래처 주문 보류/해제는 슬래시 orderNumber를 하이픈 단일 세그먼트로 보낸다', async () => {
+    await holdPartnerOrder('2026/05/20-11')
+    await releasePartnerOrder('2026/05/20-12')
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/partner-orders/2026-05-20-11/hold',
+    )
+    expect(apiClient.post).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/partner-orders/2026-05-20-12/release',
     )
   })
 })

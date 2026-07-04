@@ -297,6 +297,30 @@ public class EstimateService {
     }
 
     /**
+     * 단건 조회 path-id 해석.
+     *
+     * <p>기존 상세/수정 화면은 UUID 를 전달하고, 인쇄 route 는 사용자 표시 견적번호
+     * {@code yyyy/MM/dd-N} 를 URL-safe 하이픈 slug 로 전달한다. 조회 전용 endpoint 에서만
+     * 두 형식을 모두 허용한다.
+     */
+    @Transactional(readOnly = true)
+    public EstimateDetailResponse getOne(String id) {
+        if (id == null || id.isBlank()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "견적서를 찾을 수 없습니다");
+        }
+        try {
+            return getOne(UUID.fromString(id));
+        } catch (IllegalArgumentException ignored) {
+            String canonicalEstimateNo = toSlashDocumentNo(id);
+            Estimate estimate = estimateRepository.findByEstimateNo(id)
+                    .or(() -> estimateRepository.findByEstimateNo(canonicalEstimateNo))
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                            "견적서를 찾을 수 없습니다"));
+            return EstimateDetailResponse.from(estimate);
+        }
+    }
+
+    /**
      * 페이지 조회 — status / partnerId / 기간 필터.
      */
     @Transactional(readOnly = true)
@@ -371,6 +395,16 @@ public class EstimateService {
         return estimateRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "견적서를 찾을 수 없습니다"));
+    }
+
+    private static String toSlashDocumentNo(String value) {
+        if (value == null || value.length() < 12) {
+            return value;
+        }
+        if (value.matches("^\\d{4}-\\d{2}-\\d{2}-.+$")) {
+            return value.substring(0, 4) + "/" + value.substring(5, 7) + "/" + value.substring(8);
+        }
+        return value;
     }
 
     private void applyMutation(Runnable mutation) {

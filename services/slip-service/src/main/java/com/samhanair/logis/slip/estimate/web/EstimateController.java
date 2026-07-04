@@ -100,7 +100,7 @@ public class EstimateController {
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<EstimateDetailResponse> getOne(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
             @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
         estimatePermissionGuard.checkView(parseAccountId(callerHeader), isSystemMaster);

@@ -138,8 +138,9 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andReturn();
 
         // 2) id 추출 → 단건 조회
-        String id = objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("data").get("id").asText();
+        var created = objectMapper.readTree(result.getResponse().getContentAsString()).get("data");
+        String id = created.get("id").asText();
+        String estimateNo = created.get("estimateNo").asText();
 
         mockMvc.perform(get("/slips/estimates/" + id)
                         .header("X-User-Id", SALES_ACCOUNT_ID)
@@ -148,6 +149,13 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.id").value(id))
                 .andExpect(jsonPath("$.data.totalSupply").isNumber())
                 .andExpect(jsonPath("$.data.totalVat").isNumber());
+
+        mockMvc.perform(get("/slips/estimates/" + estimateNo.replace("/", "-"))
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(id))
+                .andExpect(jsonPath("$.data.estimateNo").value(estimateNo));
     }
 
     /**

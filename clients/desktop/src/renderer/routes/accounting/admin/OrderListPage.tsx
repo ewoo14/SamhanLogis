@@ -8,6 +8,7 @@ import {
   type OrderSummaryRow,
 } from '../../../api/accountingAdminApi'
 import { usePageTitle } from '../../../hooks/usePageTitle'
+import { toOrderPathId } from '../../../utils/orderNo'
 import {
   FilterField,
   MoneyText,
@@ -214,7 +215,7 @@ export function OrderListPage() {
         rows={query.data?.content ?? []}
         loading={query.isLoading}
         rowKey={(row) => row.orderNo}
-        onRowClick={(row) => navigate(`/accounting/admin/orders/${encodeURIComponent(row.orderNo)}`)}
+        onRowClick={(row) => navigate(`/accounting/admin/orders/${encodeURIComponent(toOrderPathId(row.orderNo))}`)}
         emptyMessage="조회된 주문서가 없습니다."
         page={page}
         pageData={query.data}
