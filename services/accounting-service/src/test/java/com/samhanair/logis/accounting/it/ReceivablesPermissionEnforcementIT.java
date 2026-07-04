@@ -127,7 +127,7 @@ class ReceivablesPermissionEnforcementIT {
                  ORDER BY created_at DESC LIMIT 1
                 """, String.class, PARTNER_ID);
 
-        mockMvc.perform(patch("/accounting/collection-plans/" + planNo + "/status")
+        mockMvc.perform(patch("/accounting/collection-plans/" + planNo.replace("/", "-") + "/status")
                         .header("X-User-Id", ACCOUNTANT_ACCOUNT.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"OVERDUE\"}"))

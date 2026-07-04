@@ -96,9 +96,13 @@ export async function uploadAttachmentByToken(
   input: AttachmentUploadInput,
   onProgress?: (ratio: number) => void,
 ): Promise<SlipAttachmentResponseDto> {
-  const url = `${API_BASE_URL}/api/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(slipNo)}/attachments`;
+  const url = `${API_BASE_URL}/api/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(toSlipPathId(slipNo))}/attachments`;
   const body = buildMultipart(input);
   return uploadWithRetry(url, body, undefined, onProgress);
+}
+
+function toSlipPathId(slipNo: string): string {
+  return slipNo.replace(/\//g, '-');
 }
 
 // ----------------------------------------------------------------------
