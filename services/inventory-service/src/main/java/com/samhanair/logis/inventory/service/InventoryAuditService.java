@@ -8,12 +8,14 @@ import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.AuditStatus;
 import com.samhanair.logis.inventory.domain.InventoryAudit;
 import com.samhanair.logis.inventory.domain.InventoryAuditLine;
+import com.samhanair.logis.inventory.domain.InventoryAuditNumberSequence;
 import com.samhanair.logis.inventory.domain.MovementType;
 import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.StockMovement;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.repository.InventoryAuditLineRepository;
+import com.samhanair.logis.inventory.repository.InventoryAuditNumberSequenceRepository;
 import com.samhanair.logis.inventory.repository.InventoryAuditRepository;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
 import com.samhanair.logis.inventory.repository.StockLotRepository;
@@ -76,6 +78,7 @@ public class InventoryAuditService {
     private static final DateTimeFormatter NO_DATE_FMT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
     private final InventoryAuditRepository auditRepository;
+    private final InventoryAuditNumberSequenceRepository auditNumberSequenceRepository;
     private final InventoryAuditLineRepository auditLineRepository;
     private final WarehouseRepository warehouseRepository;
     private final StockBalanceRepository stockBalanceRepository;
@@ -334,15 +337,20 @@ public class InventoryAuditService {
     }
 
     /**
-     * {@code yyyy/MM/dd-N} 채번 — 그날 prefix 의 발행 건수 +1.
+     * {@code yyyy/MM/dd-N} 채번 — 발행일별 시퀀스 row 를 배타 잠금으로 증가.
      *
      * @param date 채번 기준 날짜
      * @return 채번된 auditNo
      */
     String nextAuditNo(LocalDate date) {
-        String prefix = date.format(NO_DATE_FMT) + "-";
-        long seq = auditRepository.countByAuditNoStartingWith(prefix) + 1;
-        return prefix + seq;
+        InventoryAuditNumberSequence sequence = loadOrCreateLockedSequence(date);
+        return date.format(NO_DATE_FMT) + "-" + sequence.next();
+    }
+
+    private InventoryAuditNumberSequence loadOrCreateLockedSequence(LocalDate auditDate) {
+        auditNumberSequenceRepository.insertIfAbsent(UUID.randomUUID(), auditDate);
+        return auditNumberSequenceRepository.findLockedByAuditDate(auditDate)
+                .orElseThrow(() -> new IllegalStateException("재고 실사번호 시퀀스 생성 실패"));
     }
 
     private void adjustStockForLine(InventoryAudit audit, InventoryAuditLine line, String actorUserId) {

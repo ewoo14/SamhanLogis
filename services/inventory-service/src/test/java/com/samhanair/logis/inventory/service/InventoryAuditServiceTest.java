@@ -19,10 +19,12 @@ import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.AuditStatus;
 import com.samhanair.logis.inventory.domain.InventoryAudit;
 import com.samhanair.logis.inventory.domain.InventoryAuditLine;
+import com.samhanair.logis.inventory.domain.InventoryAuditNumberSequence;
 import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.InventoryAuditLineRepository;
+import com.samhanair.logis.inventory.repository.InventoryAuditNumberSequenceRepository;
 import com.samhanair.logis.inventory.repository.InventoryAuditRepository;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
 import com.samhanair.logis.inventory.repository.StockLotRepository;
@@ -60,6 +62,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class InventoryAuditServiceTest {
 
     @Mock private InventoryAuditRepository auditRepository;
+    @Mock private InventoryAuditNumberSequenceRepository auditNumberSequenceRepository;
     @Mock private InventoryAuditLineRepository auditLineRepository;
     @Mock private WarehouseRepository warehouseRepository;
     @Mock private StockBalanceRepository stockBalanceRepository;
@@ -88,6 +91,8 @@ class InventoryAuditServiceTest {
 
         lenient().when(warehouseRepository.findById(warehouseId))
                 .thenReturn(Optional.of(warehouse));
+        lenient().when(auditNumberSequenceRepository.findLockedByAuditDate(any()))
+                .thenAnswer(inv -> Optional.of(InventoryAuditNumberSequence.create(inv.getArgument(0))));
     }
 
     @Test
@@ -99,7 +104,6 @@ class InventoryAuditServiceTest {
                 new ProductSummary(productId, "AC", "SHA-001", UUID.randomUUID(),
                         new BigDecimal("100000.00"), "ACTIVE")));
         when(stockLotRepository.findAvailableLotsForFifo(productId, warehouseId)).thenReturn(List.of());
-        when(auditRepository.countByAuditNoStartingWith(any())).thenReturn(0L);
         when(auditRepository.save(any(InventoryAudit.class))).thenAnswer(inv -> {
             InventoryAudit a = inv.getArgument(0);
             ReflectionTestUtils.setField(a, "id", UUID.randomUUID());
@@ -300,11 +304,30 @@ class InventoryAuditServiceTest {
 
     @Test
     void nextAuditNo_format_usesSlashDateAndUnpaddedSequence() {
-        when(auditRepository.countByAuditNoStartingWith(any())).thenReturn(2L);
+        LocalDate date = LocalDate.of(2026, 12, 31);
+        InventoryAuditNumberSequence sequence = InventoryAuditNumberSequence.create(date);
+        sequence.next();
+        sequence.next();
+        when(auditNumberSequenceRepository.findLockedByAuditDate(date)).thenReturn(Optional.of(sequence));
 
-        String no = service.nextAuditNo(LocalDate.of(2026, 12, 31));
+        String no = service.nextAuditNo(date);
 
         assertThat(no).isEqualTo("2026/12/31-3");
+    }
+
+    @Test
+    void nextAuditNo_sameDateAdvancesSequenceWithoutRecountRace() {
+        LocalDate date = LocalDate.of(2026, 12, 31);
+        InventoryAuditNumberSequence sequence = InventoryAuditNumberSequence.create(date);
+        sequence.next();
+        sequence.next();
+        when(auditNumberSequenceRepository.findLockedByAuditDate(date)).thenReturn(Optional.of(sequence));
+
+        String first = service.nextAuditNo(date);
+        String second = service.nextAuditNo(date);
+
+        assertThat(first).isEqualTo("2026/12/31-3");
+        assertThat(second).isEqualTo("2026/12/31-4");
     }
 
     private InventoryAudit freshAudit() {
