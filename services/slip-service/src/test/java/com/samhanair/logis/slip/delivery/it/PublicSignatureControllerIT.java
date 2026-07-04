@@ -125,6 +125,33 @@ class PublicSignatureControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void recordDriverSignature_hyphenSlug_returns200_andStoresDriverSignature() throws Exception {
+        Context ctx = setupBatchAndSlipReadyForSign();
+
+        byte[] png = pngBytes(64);
+        String hash = sha256Hex(png);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("signaturePngBase64", Base64.getEncoder().encodeToString(png));
+        body.put("clientHash", hash);
+
+        mockMvc.perform(post("/public/batches/" + ctx.batchToken
+                                + "/slips/" + encodeSlipNo(ctx.slipNo) + "/driver-signature")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.driverSignedAt").exists())
+                .andExpect(jsonPath("$.data.driverSignatureHash").value(hash))
+                // UUID 비공개 가드
+                .andExpect(jsonPath("$.data.id").doesNotExist())
+                .andExpect(jsonPath("$.data.slipId").doesNotExist());
+
+        var stored = slipRepository.findById(UUID.fromString(ctx.slipId)).orElseThrow();
+        assertThat(stored.getSlipNo()).contains("/");
+        assertThat(stored.getDriverSignedAt()).isNotNull();
+        assertThat(stored.getDriverSignatureHash()).isEqualTo(hash);
+    }
+
+    @Test
     void recordSignature_hashMismatch_returns400() throws Exception {
         Context ctx = setupBatchAndSlipReadyForSign();
         byte[] png = pngBytes(64);

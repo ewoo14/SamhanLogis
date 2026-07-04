@@ -1100,18 +1100,96 @@ describe('mock accounting order contract', () => {
     const list = mockRequest({
       method: 'GET',
       url: '/accounting/orders',
-    }) as MockEnvelope<Array<{ orderNo: string; partnerName: string }>>
+    }) as MockEnvelope<{
+      content: Array<{
+        orderNo: string
+        partnerName: string
+        managerName: string | null
+        progressStatus: string
+        linkedSlipNo: string | null
+        validUntil: string | null
+        totalSupplyAmount: string
+        totalVatAmount: string
+        totalAmount: string
+      }>
+      totalElements: number
+      totalPages: number
+      number: number
+      size: number
+      first: boolean
+      last: boolean
+    }>
 
-    expect(list.data.length).toBeGreaterThan(0)
-    expect(list.data[0].orderNo).toMatch(/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/)
+    expect(Array.isArray(list.data.content)).toBe(true)
+    expect(list.data.content.length).toBeGreaterThan(0)
+    expect(list.data.totalElements).toBe(list.data.content.length)
+    expect(list.data.totalPages).toBeGreaterThan(0)
+    expect(list.data.number).toBe(0)
+    expect(list.data.size).toBeGreaterThan(0)
+    expect(list.data.first).toBe(true)
+    expect(list.data.last).toBe(true)
+    expect(list.data.content[0].orderNo).toMatch(/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/)
+    expect(list.data.content[0]).toEqual(
+      expect.objectContaining({
+        partnerName: expect.any(String),
+        progressStatus: expect.any(String),
+        totalSupplyAmount: expect.any(String),
+        totalVatAmount: expect.any(String),
+        totalAmount: expect.any(String),
+      }),
+    )
+    expect(list.data.content[0]).not.toHaveProperty('status')
+    expect(list.data.content[0]).not.toHaveProperty('orderDate')
 
     const detail = mockRequest({
       method: 'GET',
-      url: `/accounting/orders/${list.data[0].orderNo.replace(/\//g, '-')}`,
-    }) as MockEnvelope<{ orderNo: string; partnerName: string }>
+      url: `/accounting/orders/${list.data.content[0].orderNo.replace(/\//g, '-')}`,
+    }) as MockEnvelope<{
+      orderNo: string
+      partnerName: string
+      managerName: string | null
+      progressStatus: string
+      linkedSlipNo: string | null
+      validUntil: string | null
+      paymentTerms: string | null
+      reference: string | null
+      totalSupplyAmount: string
+      totalVatAmount: string
+      totalAmount: string
+      lines: Array<{
+        lineNo: number
+        itemName: string
+        quantity: string
+        lineTotal: string
+      }>
+    }>
 
-    expect(detail.data.orderNo).toBe(list.data[0].orderNo)
-    expect(detail.data.partnerName).toBe(list.data[0].partnerName)
+    expect(detail.data.orderNo).toBe(list.data.content[0].orderNo)
+    expect(detail.data.partnerName).toBe(list.data.content[0].partnerName)
+    expect(detail.data).toEqual(
+      expect.objectContaining({
+        managerName: expect.any(String),
+        progressStatus: expect.any(String),
+        linkedSlipNo: expect.any(String),
+        validUntil: expect.any(String),
+        paymentTerms: expect.any(String),
+        reference: expect.any(String),
+        totalSupplyAmount: expect.any(String),
+        totalVatAmount: expect.any(String),
+        totalAmount: expect.any(String),
+      }),
+    )
+    expect(detail.data.lines.length).toBeGreaterThan(0)
+    expect(detail.data.lines[0]).toEqual(
+      expect.objectContaining({
+        lineNo: expect.any(Number),
+        itemName: expect.any(String),
+        quantity: expect.any(String),
+        lineTotal: expect.any(String),
+      }),
+    )
+    expect(detail.data).not.toHaveProperty('status')
+    expect(detail.data).not.toHaveProperty('orderDate')
   })
 })
 
