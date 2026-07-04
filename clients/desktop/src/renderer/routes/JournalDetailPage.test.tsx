@@ -144,7 +144,7 @@ function renderPage(journal: Journal) {
       <MemoryRouter initialEntries={['/accounting/journals/journal-1']}>
         <Routes>
           <Route path="/accounting/journals/:id" element={<JournalDetailPage />} />
-          <Route path="/accounting/admin/cash-receipts/:receiptId" element={<div>입금보고서 상세 라우트</div>} />
+          <Route path="/accounting/admin/cash-receipts" element={<div>현금 입금 관리 라우트</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -164,16 +164,16 @@ describe('JournalDetailPage 역분개 액션 가드', () => {
       description: '입금보고서 확정 2026/07/03-1',
     }))
 
-    const cashReceiptButton = await screen.findByRole('button', { name: '입금보고서에서 처리' })
-    expect((cashReceiptButton as HTMLButtonElement).disabled).toBe(true)
+    const cashReceiptButton = await screen.findByRole('button', { name: '현금 입금 관리 메뉴에서 조회' })
+    expect((cashReceiptButton as HTMLButtonElement).disabled).toBe(false)
     expect(cashReceiptButton.getAttribute('title')).toBe(
-      '이 분개는 입금보고서에서 자동 생성되었습니다. 원천 입금보고서 상세에서 취소/수정하면 역분개가 자동 게시됩니다. 원천 입금보고서 식별자가 없어 상세 이동은 제공되지 않습니다.',
+      '이 분개는 입금보고서에서 자동 생성되었습니다. 원천 입금보고서 상세에서 취소/수정하면 역분개가 자동 게시됩니다. 원장 응답에 원천 입금보고서 식별자가 없어 상세 직접 이동은 제공하지 않습니다.',
     )
     expect(screen.queryByRole('button', { name: '역분개' })).toBeNull()
     expect(screen.getByText('입금보고서 자동 분개는 원천 입금보고서 취소/수정 시 역분개가 자동 게시됩니다.')).not.toBeNull()
   })
 
-  it('CASH_RECEIPT POSTED 분개에 sourceRefId가 있으면 입금보고서 상세로 이동한다', async () => {
+  it('CASH_RECEIPT POSTED 분개에 sourceRefId가 있어도 상세 직접 이동을 약속하지 않고 관리 메뉴로 이동한다', async () => {
     const journal = makeJournal({
       sourceType: 'CASH_RECEIPT',
       description: '입금보고서 확정 2026/07/03-1',
@@ -182,10 +182,10 @@ describe('JournalDetailPage 역분개 액션 가드', () => {
 
     renderPage(journal)
 
-    const cashReceiptButton = await screen.findByRole('button', { name: '입금보고서에서 처리' })
+    const cashReceiptButton = await screen.findByRole('button', { name: '현금 입금 관리 메뉴에서 조회' })
     expect((cashReceiptButton as HTMLButtonElement).disabled).toBe(false)
     cashReceiptButton.click()
-    expect(await screen.findByText('입금보고서 상세 라우트')).not.toBeNull()
+    expect(await screen.findByText('현금 입금 관리 라우트')).not.toBeNull()
   })
 
   it('MANUAL POSTED 분개는 역분개 버튼을 노출한다', async () => {
@@ -193,7 +193,7 @@ describe('JournalDetailPage 역분개 액션 가드', () => {
 
     const reverseButton = await screen.findByRole('button', { name: '역분개' })
     expect((reverseButton as HTMLButtonElement).disabled).toBe(false)
-    expect(screen.queryByRole('button', { name: '입금보고서에서 처리' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '현금 입금 관리 메뉴에서 조회' })).toBeNull()
   })
 })
 

@@ -64,8 +64,8 @@ const CASH_RECEIPT_REVERSE_NOTICE =
 const CASH_RECEIPT_REVERSE_CAPTION =
   '입금보고서 자동 분개는 원천 입금보고서 취소/수정 시 역분개가 자동 게시됩니다.'
 
-const CASH_RECEIPT_LINK_UNAVAILABLE_NOTICE =
-  `${CASH_RECEIPT_REVERSE_NOTICE} 원천 입금보고서 식별자가 없어 상세 이동은 제공되지 않습니다.`
+const CASH_RECEIPT_MANAGEMENT_NOTICE =
+  `${CASH_RECEIPT_REVERSE_NOTICE} 원장 응답에 원천 입금보고서 식별자가 없어 상세 직접 이동은 제공하지 않습니다.`
 
 function journalStatusBadgeStyle(status: string) {
   switch (status) {
@@ -168,9 +168,6 @@ export function JournalDetailPage() {
   const isDraft = journal.status === 'DRAFT'
   const isPosted = journal.status === 'POSTED'
   const isCashReceiptJournal = journal.sourceType === 'CASH_RECEIPT'
-  const cashReceiptRouteId = isCashReceiptJournal
-    ? journal.cashReceiptId ?? journal.sourceRefId ?? null
-    : null
   const canReversePostedJournal = isPosted && !isCashReceiptJournal
   const showCashReceiptReverseNotice = isPosted && isCashReceiptJournal
   // `/accounting/journals/:id/edit` 는 DRAFT 를 hydrate 하지만 저장은 현재도 POST /accounting/journals(CREATE) 를 호출한다.
@@ -276,13 +273,9 @@ export function JournalDetailPage() {
         }
       : isPosted && isCashReceiptJournal && canUpdateJournal
         ? {
-            label: '입금보고서에서 처리',
-            onClick: () => {
-              if (cashReceiptRouteId) {
-                navigate(`/accounting/admin/cash-receipts/${encodeURIComponent(cashReceiptRouteId)}`)
-              }
-            },
-            disabled: !cashReceiptRouteId,
+            label: '현금 입금 관리 메뉴에서 조회',
+            onClick: () => navigate('/accounting/admin/cash-receipts'),
+            disabled: false,
           }
       : null
 
@@ -471,15 +464,10 @@ export function JournalDetailPage() {
             {isPosted && isCashReceiptJournal && canUpdateJournal ? (
               <Button
                 variant="ghost"
-                disabled={!cashReceiptRouteId}
-                onClick={() => {
-                  if (cashReceiptRouteId) {
-                    navigate(`/accounting/admin/cash-receipts/${encodeURIComponent(cashReceiptRouteId)}`)
-                  }
-                }}
-                title={cashReceiptRouteId ? CASH_RECEIPT_REVERSE_NOTICE : CASH_RECEIPT_LINK_UNAVAILABLE_NOTICE}
+                onClick={() => navigate('/accounting/admin/cash-receipts')}
+                title={CASH_RECEIPT_MANAGEMENT_NOTICE}
               >
-                입금보고서에서 처리
+                현금 입금 관리 메뉴에서 조회
               </Button>
             ) : null}
           </div>

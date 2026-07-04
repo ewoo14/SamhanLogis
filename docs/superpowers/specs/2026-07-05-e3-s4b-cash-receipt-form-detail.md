@@ -3,7 +3,7 @@
 > E3 회계 입금보고서 에픽. S4a(#727)=목록 완료. **S4b=수기 입금(MANUAL_RECEIPT) 작성폼 + 상세/편집 페이지 + mutation API/mock**. BE 완비(갭 0). 벌크생성=S4c·coedit=S4d 별도(S4a 확정 슬라이싱 준수).
 
 ## 배경
-- S3(#718)=BankTransaction→BANK_LINKED 입금보고서 **BE 생성/확정**(FE 표면 없음). S4a(#727)=`CashReceiptListPage`(목록·kind 라벨 SSOT·전표번호 plain text). 
+- S3(#718)=BankTransaction→BANK_LINKED 입금보고서 **BE 생성/확정**(FE 표면 없음). S4a(#727)=`CashReceiptListPage`(목록·kind 라벨 SSOT·전표번호 plain text).
 - S4a가 남긴 TODO(`CashReceiptListPage.tsx:157` "상세 페이지(S4b) 도입 시 배선")=본 슬라이스 타깃.
 - BE 완비: `CashReceiptController` = POST(수기 create)·POST /from-bank-transactions(S3)·GET 목록·GET /{id}·PATCH(BANK_LINKED 409 선차단)·confirm·cancel·DELETE(DRAFT soft-delete).
 
