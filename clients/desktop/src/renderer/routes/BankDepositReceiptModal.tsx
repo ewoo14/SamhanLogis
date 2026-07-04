@@ -68,6 +68,11 @@ export function BankDepositReceiptModal({
     setError('')
   }
 
+  const handleClose = () => {
+    if (submitting) return
+    onClose()
+  }
+
   const handleCreate = () => {
     if (summary.mixedPartner) {
       setError(summary.blockingMessage ?? '동일 거래처 거래만 선택하세요.')
@@ -87,14 +92,15 @@ export function BankDepositReceiptModal({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title="입금보고서 생성"
       size="md"
       closeOnBackdropClick={!submitting}
       closeOnEsc={!submitting}
+      hideCloseButton={submitting}
       footer={(
         <>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
+          <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
             취소
           </Button>
           <Button
@@ -125,7 +131,7 @@ export function BankDepositReceiptModal({
           </div>
           <div>
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>합산액</div>
-            <strong>{formatKrw(summary.totalAmount)}원</strong>
+            <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatKrw(summary.totalAmount)}원</strong>
           </div>
           <div>
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>거래처</div>

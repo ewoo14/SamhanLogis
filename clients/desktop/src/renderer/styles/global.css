@@ -4927,9 +4927,9 @@ button {
   padding: 10px 12px;
   margin-bottom: 12px;
   border-radius: 6px;
-  border: 1px solid var(--state-danger);
-  background: var(--state-danger-bg);
-  color: var(--state-danger);
+  border: 1px solid var(--color-danger-300);
+  background: var(--color-danger-50);
+  color: var(--color-danger-800);
   font-size: var(--font-size-sm, 14px);
   font-weight: 600;
 }
@@ -5328,6 +5328,9 @@ button {
 }
 
 .bank-transaction-select-cell input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand-600);
   flex: 0 0 auto;
 }
 
@@ -5335,10 +5338,10 @@ button {
   display: inline-flex;
   align-items: center;
   padding: 4px 8px;
-  border: 1px solid var(--state-danger);
+  border: 1px solid var(--color-danger-300);
   border-radius: 6px;
-  background: var(--state-danger-bg);
-  color: var(--state-danger);
+  background: var(--color-danger-50);
+  color: var(--color-danger-800);
   font-weight: 700;
 }
 

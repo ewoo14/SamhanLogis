@@ -761,7 +761,7 @@ export function BankTransactionPage() {
                       선택 <strong>{selectedSummary.count.toLocaleString('ko-KR')}</strong>건
                     </span>
                     <span>
-                      합산 <strong>{formatCashReceiptAmount(selectedSummary.totalAmount)}원</strong>
+                      합산 <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCashReceiptAmount(selectedSummary.totalAmount)}원</strong>
                     </span>
                     <span>
                       거래처 <strong title={selectedSummary.partnerName}>{truncatePartnerName(selectedSummary.partnerName)}</strong>
@@ -804,6 +804,7 @@ export function BankTransactionPage() {
                     rows={rows}
                     rowKey={bankTransactionRowKey}
                     emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
+                    tableLayout="fixed"
                   />
                 </div>
               ) : null}
