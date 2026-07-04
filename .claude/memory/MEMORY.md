@@ -33,7 +33,8 @@
 - [Dev Environment](project_dev_environment.md) · [Build Conventions](project_build_conventions.md) — JDK17/Gradle/Docker, BaseEntity 7 audit+Soft Delete only
 - [Korean Path JDK Trap](feedback_korean_path_jdk.md) — 한글경로 gradle test 실패→assemble
 - [gradlew 실행권한](feedback_gradlew_exec_bit.md) — `git update-index --chmod=+x gradlew`
-- [PowerShell UTF-8 트랩](feedback_powershell_utf8_writes.md) — body-file=Write/Edit/heredoc만, Set-Content 금지
+- [PowerShell UTF-8 트랩](feedback_powershell_utf8_writes.md)
+- [PR 게시 인코딩 — 파이프 mojibake](feedback_gh_comment_utf8_pipe_mojibake.md) — 게시/PATCH=UTF-8 파일 경유만·직후 자가 검사 의무 (2026-07-04 #724) — body-file=Write/Edit/heredoc만, Set-Content 금지
 - [Bash 커밋=−F 파일](feedback_bash_commit_message_file.md) — @'...'@ here-string 금지, Write→git commit -F
 - [desktop 타입검증=npm run typecheck](feedback_desktop_typecheck_command.md)
 - [Playwright 로컬 버전 skew](feedback_playwright_local_version_skew.md) — node_modules/.bin 직접·desktop cwd

@@ -4,9 +4,27 @@
 > 갱신: 2026-06-30 오전 (**회사PC 재개 세션** — 집PC 인계 완료, **협업 S2b(#675) 머지** squash `3ea02f1e`: Codex 라운드3 0수렴·1:1 라운드 소급보완·실 Docker 라이브 QA). **협업 S2c·S2d-1·S2d-1b·S2d-2(#679 `27c686b7`) 머지**(상태의존 카운트 · 헤더+라인 셀 레드라인 · **라이브 변경 하이라이트** — S2d 계열 완료). **S3-0/S3-1(#681)·S3-2 견적(#682 `f93a2cd89`) coedit 머지(2026-07-01)** — #16 협업 **라이브 coedit 6문서 **메모 단일필드(1차)만** 머지 — ⚠️**full-form(전표 전체)=원 지시·미완**(정정 [[feedback_epic_scope_no_narrowing]]). **현 우선순위=협업 full-form **롤아웃**(정찰 acf36aaa: slip 판매전표는 **이미 full-form ✅** S2a #674 `fcdbb6bea`[createDocCoeditProvider Y.Map헤더+Y.Array품목라인+CollaborativeSlipInput 셀바인딩, 수정모달] — **5문서 중 주문 full-form ✅(#689 `75a967d15`, BLOCKING 2[awareness 블리드·stale corruption] fix·듀얼리뷰 양방향정정·2/6 완료) — 견적·회계·결재·배차 잔여 메모→full-form 이식**. 개발책임자 결정: **트랙B 5문서 롤아웃 + 트랙A slip 하드닝 + 트랙B 롤아웃 병행, 저장충돌=후속). **〔진행 2026-07-01 PM〕** 트랙A **slA1(공유 provider 라인 lineId+add/remove/byId CRDT infra) ✅머지 `1d0d27a81`**(#690, Opus FE+Codex 듀얼리뷰 0수렴, backward-compat 60테스트). **회계 정찰**: 회계 full-form은 ❌BE 수정 PUT 부재(신설 필요)+차/대변 균형+라인 add/remove 본질 → 최대규모·후순위. **전략=사용자 1순위 '더 많은 문서 full-form' → 트랙B 롤아웃 우선**(slA1 infra가 line-CRDT 직접제공 → slA1b 는 hard 전제 아님; 회계/견적이 infra 직접사용 가능). 견적·결재·배차 **fit 정찰 병렬 진행** → 최저난도부터 롤아웃. slA1b(slip 라인 add/remove 소비자, 라이브 모달 retrofit 고위험)·slA1c(dnd-kit reorder)·slA2(셀 char-CRDT)=후순위 enhancement). **〔2026-07-01 PM 최신〕 견적 full-form ✅머지 #691 `d36d6c7cf`(slip·주문·견적 3/6) — 개발책임자 "PR 워크플로우 재준수+세션 위반 전수 보완" 지시로 #691은 정식 5-agent 듀얼·0수렴·라이브 실QA(2세션 SSE 양방향 반영 PASS·-sse-reflected 실캡처)·PM종합 전부 이행. 라이브 QA가 결함 3건 적발: ①applySnapshot corrupt-update 브릭(공유 coedit infra·하드닝 fix PR 착수) ②EstimateRealtimeClient/createAuditApi 경로 `/api/v1/estimates`→`/slips/estimates` 누락(404/500). 다음=①applySnapshot 하드닝 PR ②경로 fix PR ③**세션 소급 sweep**(#690→#689→#686/687→#682-685 각 5-agent+라이브QA 소급) ④결재→회계(BE)→배차 롤아웃. #17 단가변동 보류**. 〔과거 "#16 종결" 표기 철회〕**(slip·주문·견적·회계·결재·배차, #680~#685, 2026-07-01), **다음 = #17 단가변동**(→결재→배차). ⚠️개발책임자 '더 지시한 에픽' 재스캔 결과 = 하단 '추가 지시 에픽(재스캔)' 절. 별도 트랙: 금융연동 vendor(바로빌 권고). 본 파일 = 다음 세션 첫 읽기.
 
 ---
-## ✅ 2026-07-04 집PC 야간~아침 자율 세션 — #719·#718 머지·E3 S3 완결 (본 절이 최신 진실원)
+## ⛔ 2026-07-04 오후 세션 종료 — 다음 세션 즉시 재개 지점 (본 절이 최신 진실원)
 
-> 야간 위임("미완결 슬라이스 전부 주행·워크플로우 절대 준수") 완주. 라운드 1:1 게시·매 라운드 라이브 실QA·마지막 fix full 재검 전부 이행. 감사 대장 `scratchpad/audit-ledger.md`(세션 스크래치) 유지.
+> 개발책임자 "세션 종료 요망"(14:5x). **PR #726(이슈 #722) Codex 개발 산출물이 uncommitted 상태로 작업 트리에 존재** — 브랜치 `feat/bank-card-admin-filter`. 오늘 머지 3건(#719·#718·#724)은 하단 절 참조.
+
+### 🔄 재개 지점 — PR #726 (계좌/카드 관리+필터 모달+'거래처' 컬럼, 이슈 #722)
+1. **산출물 수합**: 작업 트리 수정 20+신규 12 파일(BankCardAdminPage·BankTransactionFilterModalModel+test·UserBankTxnFilter 도메인/리포/서비스·preferences/labels DTO·**V54**(accounting)·**V81**(auth 권한 시드)+AuthFlywayV81SeedIT·BankTransactionPage/AppLayout/PermissionMatrix/index/mock 수정). Codex(exec, 12:53 시작)가 종료 시점 검증 단계 — 완료 보고 유실 가능 → **[[feedback_codex_detached_write_settle]]: git status 안정(쓰기 멎음) 확인 후 수합**.
+2. 검증: `./gradlew :services:accounting-service:test :services:auth-service:test` + `cd clients/desktop && npm run typecheck && npx vitest run`
+3. 커밋(파일 명시 나열 — **잔재 제외**: groupwareApproval.test.ts·clients/desktop/docs/·iotxn*·coedit* 등 기존 untracked) → push → **SHA 확보 후** 개발 게시(#726, UTF-8 파일 경유+게시 후 mojibake 검사)
+4. Opus full 5-agent(QA=라이브: 스택 재빌드[accounting+**auth** V81 시드]→관리 메뉴 등록/해제→필터 모달 선택→목록 반영→기본값 복원→'거래처' name-only — 캡처=**게시 시점 커밋+SHA-pinned 인라인**) → 순차 듀얼 캐논 0수렴 → dev-report → PM종합 → CI → 머지
+- spec=`docs/superpowers/specs/2026-07-04-bank-card-admin-filter.md`(결정 D1~D5 기록). **본 핸드오프 커밋+`.claude/memory` 신규 2건**(fix_in_current_pr·gh_utf8_mojibake, MEMORY.md 인덱스 포함)이 이 브랜치에 동승 — 머지 시 main 반영(다른 PC 는 머지 전이면 이 브랜치 checkout 으로 재개).
+
+### 게시 규율 (오늘 감사 반영 — 재개 세션 필수)
+커밋→SHA 확보→게시(추정 기입 금지) · 게시/PATCH=UTF-8 파일 경유만+직후 mojibake 검사 · 캡처=게시 시점 커밋+인라인 · 경량 확인도 별도 게시 · 기본 라이브 동반 · **리뷰 fix=현재 PR 내 처리**(분리=타 서비스/슬라이스만 — 개발책임자 지시)
+
+### 이후 순번
+#726 완주 → **E3 S4**(FE — S4 인지 4건은 S3 dev-report) → #720(월마감 fix)·#713·#723·#725 backlog. 회신 대기: gross(total_*)·#688.
+
+---
+## ✅ 2026-07-04 집PC 야간~아침 자율 세션 — #719·#718 머지·E3 S3 완결
+
+> 야간 위임("미완결 슬라이스 전부 주행·워크플로우 절대 준수") 완주. 라운드 1:1 게시·매 라운드 라이브 실QA·마지막 fix full 재검 전부 이행. 이후 아침 세션에서 #724(enum 용어)도 머지 — 오늘 총 3건.
 
 ### ✅ 완료
 - **PR #719 머지**: 마감기간 원분개 역분개 가드(A안 409 — 결정 4877750770). 📌**세금계산서도 동일 차단**(결정 4879355985 — 리뷰 BE HIGH 가 "결정문 밖 조용한 파급+문서화 예외 철회" 적발 후 공식 승인). FE 파급 동시 해소 = **공용 `apiError.ts` 승격**(상세+편집+accounting.ts 통합 — raw axios 메시지 계열 3곳 sweep). 순차 듀얼 3회전·fix 4회 0수렴·라이브 2-tab 결정적 실증(캡처 14장). dev-report `2026-07-04-closed-period-reverse-guard.md`. **파생 이슈 #720**: 월마감 실행 100% 실패(slip `/slips/lock-by-period` 가 internal prefix 밖 → 403→409 — QA 라이브가 적발한 사전결함·별도 fix PR 대상).
