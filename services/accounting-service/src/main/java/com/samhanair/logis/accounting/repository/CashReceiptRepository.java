@@ -10,4 +10,6 @@ public interface CashReceiptRepository extends JpaRepository<CashReceipt, UUID>,
         JpaSpecificationExecutor<CashReceipt> {
 
     Optional<CashReceipt> findBySlipNo(String slipNo);
+
+    Optional<CashReceipt> findByIdAndIsDeletedFalse(UUID id);
 }

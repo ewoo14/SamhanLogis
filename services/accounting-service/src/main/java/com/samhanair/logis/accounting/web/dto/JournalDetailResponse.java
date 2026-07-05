@@ -23,15 +23,24 @@ public record JournalDetailResponse(
         LocalDateTime postedAt,
         String postedBy,
         UUID reversedJournalId,
+        UUID sourceRefId,
+        String cashReceiptSlipNo,
         List<JournalLineResponse> lines
 ) {
     public static JournalDetailResponse of(Journal journal) {
-        return of(journal, Map.of(), Map.of());
+        return of(journal, Map.of(), Map.of(), null);
     }
 
     public static JournalDetailResponse of(Journal journal,
                                            Map<String, String> accountNamesByCode,
                                            Map<UUID, String> partnerNamesById) {
+        return of(journal, accountNamesByCode, partnerNamesById, null);
+    }
+
+    public static JournalDetailResponse of(Journal journal,
+                                           Map<String, String> accountNamesByCode,
+                                           Map<UUID, String> partnerNamesById,
+                                           String cashReceiptSlipNo) {
         List<JournalLineResponse> lineResponses = journal.getLines().stream()
                 .map(line -> JournalLineResponse.of(
                         line,
@@ -50,6 +59,8 @@ public record JournalDetailResponse(
                 journal.getPostedAt(),
                 journal.getPostedBy(),
                 journal.getReversedJournalId(),
+                journal.getSourceRefId(),
+                cashReceiptSlipNo,
                 lineResponses
         );
     }

@@ -17,11 +17,13 @@ import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
+import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.domain.PeriodType;
+import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CreateJournalLineRequest;
@@ -65,6 +67,7 @@ class JournalServiceTest {
     @Mock private ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private ChartOfAccountRepository chartOfAccountRepository;
+    @Mock private CashReceiptRepository cashReceiptRepository;
 
     @InjectMocks private JournalService journalService;
 
@@ -260,6 +263,27 @@ class JournalServiceTest {
         assertThat(resp.lines().get(0).accountName()).isEqualTo("현금");
         assertThat(resp.lines().get(1).accountName()).isEqualTo("상품매출");
         verify(partnerLookupClient).findByPartnerIdsBatch(List.of(partnerId));
+    }
+
+    @Test
+    @DisplayName("getOne 은 CASH_RECEIPT 라이브 분개에 원천 입금보고서 전표번호를 함께 노출한다")
+    void getOneAddsCashReceiptSlipNoForLiveCashReceiptJournal() {
+        UUID cashReceiptId = UUID.fromString("00000000-0000-4000-8000-000000000717");
+        Journal journal = Journal.create("2026/07/03-1", TODAY, "입금보고서 확정 2026/07/03-1",
+                JournalSourceType.CASH_RECEIPT, cashReceiptId);
+        setField(journal, "id", UUID.fromString("00000000-0000-4000-8000-000000000718"));
+        CashReceipt receipt = CashReceipt.createManual("2026/07/03-1",
+                UUID.fromString("00000000-0000-4000-8000-000000000719"),
+                new BigDecimal("100000"), TODAY, "입금", "102", "110");
+        setField(receipt, "id", cashReceiptId);
+
+        when(journalRepository.findById(journal.getId())).thenReturn(Optional.of(journal));
+        when(cashReceiptRepository.findByIdAndIsDeletedFalse(cashReceiptId)).thenReturn(Optional.of(receipt));
+
+        JournalDetailResponse resp = journalService.getOne(journal.getId());
+
+        assertThat(resp.sourceRefId()).isEqualTo(cashReceiptId);
+        assertThat(resp.cashReceiptSlipNo()).isEqualTo("2026/07/03-1");
     }
 
     private Journal newPersistedDraft() {

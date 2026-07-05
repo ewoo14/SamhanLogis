@@ -71,6 +71,8 @@ export interface Journal {
   sourceRefId?: string | null
   /** CASH_RECEIPT 원천 입금보고서 UUID. BE 별칭 호환용, 화면 미노출. */
   cashReceiptId?: string | null
+  /** CASH_RECEIPT 원천 입금보고서 전표번호. 화면 링크 라벨에는 UUID 대신 이 값을 사용한다. */
+  cashReceiptSlipNo?: string | null
   /** 적요 (분개 헤더 메모). */
   description: string | null
   /** 차변 합계 (KRW 정수, string). 라인 합산 결과를 BE 가 캐시. */
@@ -136,6 +138,7 @@ export function normalizeJournal(raw: RawJournal): Journal {
     sourceType: String(raw.sourceType ?? 'MANUAL'),
     sourceRefId,
     cashReceiptId,
+    cashReceiptSlipNo: raw.cashReceiptSlipNo == null ? null : String(raw.cashReceiptSlipNo),
     description: raw.description ?? null,
     totalDebit: amountText(raw.totalDebit),
     totalCredit: amountText(raw.totalCredit),

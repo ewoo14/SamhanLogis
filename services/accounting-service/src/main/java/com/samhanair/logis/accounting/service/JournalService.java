@@ -7,6 +7,7 @@ import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CreateJournalLineRequest;
@@ -59,6 +60,7 @@ public class JournalService {
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     private final PartnerLookupClient partnerLookupClient;
     private final ChartOfAccountRepository chartOfAccountRepository;
+    private final CashReceiptRepository cashReceiptRepository;
 
     /**
      * 분개 신규 생성 (DRAFT). 라인 1개 이상 + accountCode leaf 검증 + 라인별 debit/credit 도메인 가드.
@@ -464,7 +466,17 @@ public class JournalService {
                                 (left, right) -> left,
                                 java.util.LinkedHashMap::new));
 
-        return JournalDetailResponse.of(journal, accountNamesByCode, partnerNamesById);
+        return JournalDetailResponse.of(journal, accountNamesByCode, partnerNamesById,
+                resolveCashReceiptSlipNo(journal));
+    }
+
+    private String resolveCashReceiptSlipNo(Journal journal) {
+        if (journal.getSourceType() != JournalSourceType.CASH_RECEIPT || journal.getSourceRefId() == null) {
+            return null;
+        }
+        return cashReceiptRepository.findByIdAndIsDeletedFalse(journal.getSourceRefId())
+                .map(com.samhanair.logis.accounting.domain.CashReceipt::getSlipNo)
+                .orElse(null);
     }
 
     private Journal findOrThrow(UUID id) {

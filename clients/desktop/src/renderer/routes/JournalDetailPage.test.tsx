@@ -147,6 +147,7 @@ function renderPage(journal: Journal) {
         <Routes>
           <Route path="/accounting/journals/:id" element={<JournalDetailPage />} />
           <Route path="/accounting/admin/cash-receipts" element={<div>현금 입금 관리 라우트</div>} />
+          <Route path="/accounting/admin/cash-receipts/:id" element={<div>입금보고서 상세 라우트</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -188,6 +189,24 @@ describe('JournalDetailPage 역분개 액션 가드', () => {
     expect((cashReceiptButton as HTMLButtonElement).disabled).toBe(false)
     cashReceiptButton.click()
     expect(await screen.findByText('현금 입금 관리 라우트')).not.toBeNull()
+  })
+
+  it('CASH_RECEIPT POSTED 분개에 sourceRefId와 cashReceiptSlipNo가 있으면 전표번호 버튼으로 입금보고서 상세로 이동한다', async () => {
+    const journal = makeJournal({
+      sourceType: 'CASH_RECEIPT',
+      description: '입금보고서 확정 2026/07/03-1',
+      sourceRefId: '00000000-0000-4000-8000-000000000717',
+      cashReceiptId: '00000000-0000-4000-8000-000000000717',
+      cashReceiptSlipNo: '2026/07/03-1',
+    })
+
+    renderPage(journal)
+
+    const cashReceiptButton = await screen.findByRole('button', { name: '입금보고서 2026/07/03-1 보기' })
+    expect(cashReceiptButton.getAttribute('title')).toContain('원천 입금보고서 2026/07/03-1 상세로 이동합니다.')
+    expect(cashReceiptButton.textContent).not.toContain('00000000')
+    cashReceiptButton.click()
+    expect(await screen.findByText('입금보고서 상세 라우트')).not.toBeNull()
   })
 
   it('MANUAL POSTED 분개는 역분개 버튼을 노출한다', async () => {

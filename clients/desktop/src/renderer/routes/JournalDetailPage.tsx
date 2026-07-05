@@ -170,6 +170,15 @@ export function JournalDetailPage() {
   const isCashReceiptJournal = journal.sourceType === 'CASH_RECEIPT'
   const canReversePostedJournal = isPosted && !isCashReceiptJournal
   const showCashReceiptReverseNotice = isPosted && isCashReceiptJournal
+  const cashReceiptDetailPath = isCashReceiptJournal && journal.cashReceiptId && journal.cashReceiptSlipNo
+    ? `/accounting/admin/cash-receipts/${journal.cashReceiptId}`
+    : null
+  const cashReceiptActionLabel = cashReceiptDetailPath
+    ? `입금보고서 ${journal.cashReceiptSlipNo} 보기`
+    : '현금 입금 관리 메뉴에서 조회'
+  const cashReceiptActionTitle = cashReceiptDetailPath
+    ? `${CASH_RECEIPT_REVERSE_NOTICE} 원천 입금보고서 ${journal.cashReceiptSlipNo} 상세로 이동합니다.`
+    : CASH_RECEIPT_MANAGEMENT_NOTICE
   // `/accounting/journals/:id/edit` 는 DRAFT 를 hydrate 하지만 저장은 현재도 POST /accounting/journals(CREATE) 를 호출한다.
   const canOpenDraftCreateShell = canAccess('accounting.journals', 'create')
   const canUpdateJournal = canAccess('accounting.journals', 'update')
@@ -274,8 +283,8 @@ export function JournalDetailPage() {
         }
       : isPosted && isCashReceiptJournal && canUpdateJournal
         ? {
-            label: '현금 입금 관리 메뉴에서 조회',
-            onClick: () => navigate('/accounting/admin/cash-receipts'),
+            label: cashReceiptActionLabel,
+            onClick: () => navigate(cashReceiptDetailPath ?? '/accounting/admin/cash-receipts'),
             disabled: false,
           }
       : null
@@ -465,10 +474,10 @@ export function JournalDetailPage() {
             {isPosted && isCashReceiptJournal && canUpdateJournal ? (
               <Button
                 variant="ghost"
-                onClick={() => navigate('/accounting/admin/cash-receipts')}
-                title={CASH_RECEIPT_MANAGEMENT_NOTICE}
+                onClick={() => navigate(cashReceiptDetailPath ?? '/accounting/admin/cash-receipts')}
+                title={cashReceiptActionTitle}
               >
-                현금 입금 관리 메뉴에서 조회
+                {cashReceiptActionLabel}
               </Button>
             ) : null}
           </div>

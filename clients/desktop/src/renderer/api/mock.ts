@@ -12810,6 +12810,9 @@ const MOCK_JOURNALS = [
     journalNo: '2026/05/04-6',
     journalDate: '2026-05-04',
     sourceType: 'CASH_RECEIPT' as const,
+    sourceRefId: '00000000-0000-4000-8000-000000000706',
+    cashReceiptId: '00000000-0000-4000-8000-000000000706',
+    cashReceiptSlipNo: '2026/05/04-6',
     sourceTypeDisplayName: '입금보고서',
     status: 'POSTED' as const,
     description: '입금보고서 확정 2026/05/04-6 (주식회사 윌리)',
@@ -13719,6 +13722,23 @@ type MockCashReceiptRow = {
 }
 
 const MOCK_CASH_RECEIPTS: MockCashReceiptRow[] = [
+  {
+    id: '00000000-0000-4000-8000-000000000706',
+    slipNo: '2026/05/04-6',
+    partnerCode: 'P-WILLY-006',
+    bizNo: '6060606060',
+    partnerName: '주식회사 윌리',
+    amount: '850000',
+    transactionDate: '2026-05-04',
+    kind: 'MANUAL_RECEIPT' as const,
+    status: 'CONFIRMED' as const,
+    memo: '입금보고서 자동 분개',
+    journalNo: '2026/05/04-6',
+    reverseJournalNo: null,
+    externalRef: 'MANUAL-20260504-06',
+    debitAccountCode: '102',
+    creditAccountCode: '110',
+  },
   {
     id: '00000000-0000-4000-8000-000000000721',
     slipNo: '2026/05/19-3',
