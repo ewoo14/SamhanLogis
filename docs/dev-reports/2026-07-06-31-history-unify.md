@@ -137,3 +137,68 @@ Opus 가 fix, 2건은 개발책임자 HOLD.
   - `playwright/coedit-*` 글롭은 실제로 매치되는 최상위 디렉터리가 없다(코드젝트 관례상
     `coedit-s2a.shots.spec.ts` 는 `playwright/slip-collab/` 안에 존재) — no-op 이며
     `playwright/slip-collab/` 지정만으로 이미 포함되어 14/14 에 반영됨.
+
+## Opus 재수렴 fix — CI 하드게이트 자매 spec 협소 sweep 완결 (2026-07-06)
+
+### 근본원인
+
+라운드1 fix(위 §1)의 "CI 자매 spec 갱신"이 `journal-collab-panel.spec.ts`·
+`partner-order-collab-panel.spec.ts`(+ 동일 testid 참조 `-real-qa` 5개)만 갱신하는
+**협소 sweep** 이었다. 용어 통일(rev N→버전 N)·PO 상세 "수정 이력"(`partner-order-edit-audit-timeline`)
+제거가 실제로 깨뜨린 legacy 자매 spec — `estimate-version-history`·`phase-2-4-partner-order-restore`·
+`sp-08-4-2-partner-order-edit-put` — 는 sweep 대상에서 빠져 desktop-playwright 하드게이트(mock 회귀)
+CI 에서 6 테스트 RED 로 확정됐다(PR #747 CI 실행 `28752043088`/job `85252763985`).
+
+### fix — 전수 grep 기반 재sweep (3 파일)
+
+전 `playwright/` spec 대상 `'rev '`(공백 포함 — 실제 UI 텍스트 리터럴, `rev1`/`rev2`/`rev3` 같은
+fixture 내부 shorthand 주석은 비대상) 및 삭제된 testid(`partner-order-edit-audit-timeline`·
+`journal-collab-edit-item`·`partner-order-collab-edit-item`·"아직 수정 이력이 없습니다") 전수 grep 결과:
+
+1. **`estimate-version-history/estimate-version-history.spec.ts`** — restore 성공 toast 단언
+   `'rev 1'` → `'버전 1'` (1곳 + 주석 1곳). `EstimateVersionHistoryPanel` 은 라운드1 에서 이미
+   "rev N"→"버전 N" 으로 갱신됐으나 이 spec 은 sweep 에서 누락돼 있었다.
+2. **`phase-2-4-partner-order-restore/phase-2-4-partner-order-restore.spec.ts`** — RESTORE 배지
+   source 표시·복원 confirm modal·복원 성공/경고 toast(시나리오 1/2/3/7, 4곳 assertion + 2곳
+   주석) 전부 `'rev 1'` → `'버전 1'`. `PartnerOrderVersionHistoryPanel` 도 동일하게 라운드1 에서
+   이미 갱신됐으나 이 spec 이 sweep 누락.
+3. **`sp-08-4-2-partner-order-edit-put/sp-08-4-2-partner-order-edit-put.spec.ts`** — T4 를
+   완전히 재작성. 구 계약(`SalesPartnerOrderDetailPage.tsx` 인라인 `auditQuery`/
+   `partnerOrderAuditApi`/`partner-order-edit-audit-timeline`/`entry.actorName`/`entry.field`)
+   은 라운드1 §5 에서 이미 코드상 삭제되어 있었으나 spec 은 구 계약을 계속 단언해 RED 였다.
+   신 계약(상세 페이지→`PartnerOrderCollaborationPanel`→내장
+   `PartnerOrderVersionHistoryPanel`→`partnerOrderRevision.ts`(`listPartnerOrderRevisions`,
+   `/revisions`))을 검증하도록 파일 4종(page/collabPanel/versionHistoryPanel/revisionApi) 교차
+   read 로 재작성 — actor(`rev.actorName`)·time(`formatLocalDateTime(rev.createdAt)`)·
+   변경요약(`formatChangeSummary(rev)`) 렌더 확인 + 구 testid/식별자 부재(`not.toContain`) 가드.
+
+**스코프 밖 미변경**: `PartnerVersionHistoryPanel`(거래처마스터, `partner-version-history.spec.ts`)
+과 `dispatch-collab-*`(revision API 자체가 없어 `rev ` 패턴 무매치)는 이번 PR 이 건드리지 않은
+별개 컴포넌트/도메인이라 grep 확인만 하고 미수정.
+
+### 검증 — CI 동일 전수 실행 (재발 방지)
+
+- `cd clients/desktop && npm run typecheck` — PASS (exit 0).
+- `cd clients/desktop && npx vitest run` — **PASS, 90 files / 616 tests**.
+- 신규 포트(5480→최종 5173 재확인, `--strictPort`)에 `VITE_MOCK_MODE=1` dev server 단독 기동
+  (`PLAYWRIGHT_SKIP_WEB_SERVER=1`) 후 3단계 확인:
+  1. 수정 3 spec 단독 실행(`estimate-version-history`·`phase-2-4-partner-order-restore`·
+     `sp-08-4-2-partner-order-edit-put`) — **16/16 PASS**(RED 였던 6건 전부 GREEN 전환 확인).
+  2. 인접 영향 디렉터리(`journal-collab`·`partner-order-collab`·`partner-version-history`·
+     `slip-collab`·`slip-version-history`) — **17/17 PASS**(라운드1 fix 유지 + 스코프 밖 컴포넌트
+     무회귀 확인).
+  3. **CI 와 동일 전수 실행**(`testIgnore` 제외 전체 560개, `CI=1`로 workers=2·retries=1·
+     reporter(line+json)까지 CI 설정 그대로 재현) — **560 passed, 0 failed, 0 skipped, 0 flaky**
+     (`duration` 약 5.2분). `node scripts/assert-playwright-ran.mjs` false-green 2차 방어 가드도
+     실제 산출된 `playwright-json/results.json` 로 재실행해 `expected=560 unexpected=0 skipped=0
+     flaky=0` exit 0 확인 — CI 하드게이트가 실제로 요구하는 두 단계(테스트 실행 + 가드) 모두 로컬
+     재현·GREEN.
+  - 최초 8-worker 로컬 실행에서 `admin-hr-guard.spec.ts`/`sidebar-disabled.spec.ts` 가 5 실패/5
+    스킵으로 나타났으나, 두 spec 이 `AUDIT_BASE_URL` 이 아닌 **자체 `HR_BASE_URL`**(기본값
+    `localhost:5173`) 을 참조해 비표준 포트(5480)를 못 찾은 로컬 하네스 false-RED 로 확인 —
+    dev server 를 표준 기본 포트(5173)로 재기동한 재실행에서 0 실패로 해소(코드 변경 아님,
+    이번 PR 스코프와 무관한 관찰 사항으로 별도 조치 없음).
+- 테스트 실행 중 `sp-d4-remaining-pages-permission-migration/screenshots/`·`docs/qa/**` 등 커밋된
+  스크린샷 128개가 실행 부작용으로 로컬 재캡처돼 diff 로 나타났다 — 이번 PR 스코프 밖이므로 HEAD
+  커밋 content 로 전부 원복하고 신규 생성분(`T09-*.png`) 1건은 삭제해 최종 diff 를 spec 3개로
+  한정했다.
