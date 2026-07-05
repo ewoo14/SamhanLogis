@@ -14,7 +14,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-/** partner-service {@code GET /internal/partners/{id}/summary} client. */
+/**
+ * partner-service {@code GET /internal/partners/{id}/summary} client.
+ *
+ * <p>실 수신 계약 = partner-service {@code PartnerInternalResponse(partnerId, partnerCode, name,
+ * bizNo, creditLimit, outstandingBalance, status)}. 사업자등록번호 필드명은 {@code bizNo} 뿐이다 —
+ * PR #746(#22) 라운드1 이전에는 본 필드가 partner-service 응답에 부재해 {@link #parseSummary}
+ * 가 항상 empty 를 반환했고, 결과적으로 MIG-8 partner-order 이식이 100% partner lookup miss 로
+ * reject 되었다 (partner-service 측 {@code PartnerInternalResponse} 에 bizNo 추가로 해소).
+ */
 @Component
 public class PartnerMig8LookupClient {
 
@@ -71,8 +79,9 @@ public class PartnerMig8LookupClient {
             JsonNode data = root.has("data") ? root.get("data") : root;
             UUID partnerId = uuid(data, "partnerId", "id");
             String partnerCode = text(data, "partnerCode");
-            String bizCode = text(data, "businessNo", "businessRegistrationNumber",
-                    "businessRegistrationNo", "bizCode", "bizNo");
+            // 실 수신 필드명은 PartnerInternalResponse.bizNo 하나뿐 — 존재하지 않는 별칭 키를
+            // 다수 나열하면 실제 계약불일치를 은폐할 위험이 있어 정확한 키만 조회한다.
+            String bizCode = text(data, "bizNo");
             String name = text(data, "name", "partnerName", "businessName");
             if (partnerId == null || partnerCode == null || bizCode == null) {
                 return Optional.empty();

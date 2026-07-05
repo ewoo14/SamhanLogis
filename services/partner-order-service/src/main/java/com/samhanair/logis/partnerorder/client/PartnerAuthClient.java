@@ -17,9 +17,16 @@ import org.springframework.web.client.RestClient;
  *
  * <p>거래처 JWT 는 gateway 가 1차 검증 후 X-User-Id 헤더 주입. 본 client 는 추가로:
  * <ul>
- *   <li>{@code GET /api/v1/auth/partner-status?bizNo=...} — 잠금 상태 확인 (운영용)</li>
- *   <li>{@code PATCH /api/v1/auth/partner-tutorial} — tutorial state proxy (M2 가 권위, 본 서비스 mirror)</li>
+ *   <li>{@code GET /api/v1/auth/partner-status?bizNo=...} — 잠금 상태 확인 (운영용). 수신측
+ *       {@code PartnerAuthController.partnerStatus(@RequestParam bizNo)} 계약과 정합 — 거래처
+ *       코드(partnerCode) 가 아닌 사업자등록번호(bizNo) 로 조회한다.</li>
+ *   <li>{@code PATCH /api/v1/auth/partner-tutorial} — tutorial state proxy (M2 가 권위, 본 서비스
+ *       mirror). 수신측 {@code TutorialUpdateRequest(bizNo, platform, done)} 계약과 정합.</li>
  * </ul>
+ *
+ * <p>PR #746(#22) 라운드1 fix — 두 메서드 모두 이전에는 partnerCode/completed 를 전송해 수신측
+ * 계약(bizNo 쿼리, {bizNo,platform,done} 바디)과 불일치했다. 호출측 {@code TutorialStateService}
+ * 가 partnerCode → bizNo 를 해소해 전달한다.
  *
  * <p>회로 차단기 인스턴스: {@code partnerAuthClient}.
  */
@@ -49,17 +56,20 @@ public class PartnerAuthClient {
      * 거래처 잠금 상태 검증 — confirm 흐름 진입 직전에 호출 (선택). 200 정상,
      * 423 LOCKED 또는 404 NOT_FOUND 시 BusinessException 으로 변환.
      *
-     * @param partnerCode 거래처 코드
+     * <p>수신측 {@code PartnerAuthController.partnerStatus} 는 {@code bizNo}(사업자등록번호)
+     * 쿼리 파라미터를 요구한다 — partnerCode 가 아니다.
+     *
+     * @param bizNo 사업자등록번호
      * @return partner-auth 응답 Map (status 등)
      */
-    public Map<String, Object> verifyPartner(String partnerCode) {
-        if (partnerCode == null || partnerCode.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "partnerCode 필수");
+    public Map<String, Object> verifyPartner(String bizNo) {
+        if (bizNo == null || bizNo.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "bizNo 필수");
         }
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> body = restClient.get()
-                    .uri("/api/v1/auth/partner-status?partnerCode={p}", partnerCode)
+                    .uri("/api/v1/auth/partner-status?bizNo={b}", bizNo)
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
@@ -79,16 +89,21 @@ public class PartnerAuthClient {
     /**
      * tutorial state PATCH proxy — M2 가 권위, 본 서비스는 mirror 만 보관.
      *
-     * @param partnerCode 거래처 코드
-     * @param completed true 시 endTut 처리
+     * <p>수신측 {@code TutorialUpdateRequest} 계약: {@code bizNo}(NotBlank) /
+     * {@code platform}("PC"|"MOBILE") / {@code done}(NotNull). partnerCode 가 아닌 bizNo 를 전송한다.
+     *
+     * @param bizNo 사업자등록번호
+     * @param platform "PC" 또는 "MOBILE"
+     * @param done true 시 endTut 처리
      */
-    public void patchTutorialState(String partnerCode, boolean completed) {
-        if (partnerCode == null || partnerCode.isBlank()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "partnerCode 필수");
+    public void patchTutorialState(String bizNo, String platform, boolean done) {
+        if (bizNo == null || bizNo.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "bizNo 필수");
         }
         Map<String, Object> body = Map.of(
-                "partnerCode", partnerCode,
-                "completed", completed);
+                "bizNo", bizNo,
+                "platform", platform,
+                "done", done);
         try {
             restClient.patch()
                     .uri("/api/v1/auth/partner-tutorial")
