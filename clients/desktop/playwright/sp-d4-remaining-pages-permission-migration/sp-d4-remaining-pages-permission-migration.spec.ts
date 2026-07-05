@@ -20,7 +20,7 @@
  *   T06 WAREHOUSE allow inventory.warehouse: /inventory/warehouses → 창고 목록 + 편집 활성
  *   T07 WAREHOUSE deny sales.partner-order.list: /sales/partner-orders 사이드바 hidden
  *   T08 DISPATCH allow arologis.admin: /arologis/admin 200 + 편집 가능
- *   T09 DISPATCH deny inventory.warehouse: 사이드바 hidden
+ *   T09 DISPATCH allow inventory.warehouse: /warehouses 200 + 사이드바 노출
  *   T10 INVENTORY allow inventory.stock: /inventory/stocks 재고 현황 200
  *   T11 INVENTORY deny arologis.admin: 사이드바 hidden
  *   T12 ACCOUNTANT view-only partners.list: /partners 200, edit 버튼 disabled
@@ -248,7 +248,7 @@ const SP_D4_PERMISSION_MATRIX: Record<string, Record<string, { view: boolean; ed
     'sales.partner-order.confirm': { view: false, edit: false },
     'sales.partner-order.history': { view: false, edit: false },
     'sales.partner-order.print': { view: false, edit: false },
-    'inventory.warehouse': { view: false, edit: false },
+    'inventory.warehouse': { view: true, edit: false },
     'inventory.stock': { view: true, edit: false },
     'inventory.stock-transfer': { view: false, edit: false },
     'inventory.dps': { view: false, edit: false },
@@ -954,13 +954,14 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
 
   // -------------------------------------------------------------------------
   /**
-   * T09: DISPATCH deny inventory.warehouse
+   * T09: DISPATCH allow inventory.warehouse
    *
    * 검증:
-   *   - GET /auth/admin/permissions/my → DISPATCH: inventory.warehouse view=false
-   *   - 사이드바에 [data-testid="sidebar-inventory-warehouses"] hidden
+   *   - GET /auth/admin/permissions/my → DISPATCH: inventory.warehouse view=true, edit=false
+   *   - 사이드바에 창고 운영 그룹 노출
+   *   - /warehouses 직접 진입 redirect 미발생
    */
-  test('T09: DISPATCH deny inventory.warehouse → 사이드바 hidden', async ({ page }) => {
+  test('T09: DISPATCH allow inventory.warehouse → /warehouses 200 + 사이드바 노출', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     ensureDirs()
@@ -973,7 +974,23 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
       })
     })
 
-    await test.step('DISPATCH — 사이드바에 창고 관리 메뉴 hidden 확인', async () => {
+    await page.route('**/warehouses**', async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: [{ id: 'wh-dispatch-1', code: 'WH-DSP', name: '배차 출고창고' }],
+            total: 1,
+          }),
+        })
+      } else {
+        await route.continue()
+      }
+    })
+
+    await test.step('DISPATCH — 사이드바에 창고 운영 그룹 노출 확인', async () => {
       await page.goto(`${BASE_URL}/#/?mockRole=DISPATCH`, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
@@ -981,17 +998,22 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
       const sidebarVisible = await sidebar.isVisible().catch(() => false)
       expect(sidebarVisible, '사이드바가 렌더링되어야 함').toBe(true)
 
-      // inventory.warehouse 기반: 창고 운영 그룹 내 입고 검수 링크 (testid: sidebar-warehouse-inbound-inspections)
-      // DISPATCH 는 inventory.warehouse = false 이고 showInventoryGroup 전체 false → 창고 운영 그룹 hidden
-      const warehouseLink = page.locator('[data-testid="sidebar-warehouse-inbound-inspections"]')
-      const warehouseVisible = await warehouseLink.isVisible().catch(() => false)
-      expect(
-        warehouseVisible,
-        'DISPATCH 사이드바에 창고 운영 그룹(입고 검수)이 표시됨 — inventory.warehouse 포함 inventory.* 권한 없으므로 그룹 hidden 필요 (testid: sidebar-warehouse-inbound-inspections)',
-      ).toBe(false)
+      const warehouseGroupToggle = page.locator('[data-testid="sidebar-category-toggle-창고운영"]')
+      await expect(warehouseGroupToggle, '창고 운영 그룹 토글이 표시되어야 함').toBeVisible()
+      if ((await warehouseGroupToggle.getAttribute('aria-expanded')) !== 'true') {
+        await warehouseGroupToggle.click()
+      }
+
+      // inventory.warehouse 기반: 창고 운영 그룹 내 창고관리 링크 (testid: sidebar-warehouses)
+      // DISPATCH 는 V79/#706 이후 inventory.warehouse view=true → 창고관리 링크 visible
+      const warehouseLink = page.locator('[data-testid="sidebar-warehouses"]')
+      await expect(
+        warehouseLink,
+        'DISPATCH 사이드바에 창고관리 링크가 표시되어야 함 — inventory.warehouse view=true 정합 필요 (testid: sidebar-warehouses)',
+      ).toBeVisible()
     })
 
-    await test.step('DISPATCH — /warehouses URL 직접 진입 redirect 확인 (inventory.warehouse PageCode 보호)', async () => {
+    await test.step('DISPATCH — /warehouses URL 직접 진입 허용 확인 (inventory.warehouse PageCode 보호)', async () => {
       await page.goto(INVENTORY_WAREHOUSES_DISPATCH_URL, { waitUntil: 'domcontentloaded', timeout: 20000 })
       await page.waitForTimeout(1500)
 
@@ -1005,13 +1027,14 @@ test.describe('SP-D4 잔여 7 도메인 동적 RBAC 마이그레이션 (T01~T14)
 
       expect(
         isRedirected,
-        `DISPATCH /warehouses 직접 진입 차단 미작동 — URL: ${currentUrl}. inventory.warehouse 권한 없으므로 redirect 필요.`,
-      ).toBe(true)
+        `DISPATCH /warehouses 직접 진입이 차단됨 — URL: ${currentUrl}. inventory.warehouse view=true 보유 DISPATCH 는 접근 허용 필요.`,
+      ).toBe(false)
     })
 
-    await page.screenshot({ path: path.join(SPEC_SS_DIR, 'T09-dispatch-inventory-warehouse-deny.png'), fullPage: true })
+    await page.screenshot({ path: path.join(SPEC_SS_DIR, 'T09-dispatch-inventory-warehouse-allow.png'), fullPage: true })
 
     await page.unroute('**/auth/admin/permissions/my')
+    await page.unroute('**/warehouses**')
 
     expect(errors, `pageerror: ${errors.join(', ')}`).toHaveLength(0)
   })

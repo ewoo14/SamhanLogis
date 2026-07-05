@@ -16311,8 +16311,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
   ],
   DISPATCH: [
     'notification.dispatch-sms.send-audit', 'dispatch.board', 'dispatch.external-carriers',
-    // SP-D4 — DISPATCH: inventory.stock (view 전용) + arologis.*
-    'inventory.stock', 'arologis.admin', 'arologis.region',
+    // SP-D4 — DISPATCH: V79/#706 inventory.warehouse view + inventory.stock (view 전용) + arologis.*
+    'inventory.warehouse', 'inventory.stock', 'arologis.admin', 'arologis.region',
     // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
     'arologis.dispatch.ops', 'dispatch.batch',
     // P1-C: arologis.region.manage — V34 seed MASTER/MANAGER 만 허용, DISPATCH 없음 → 제거
