@@ -235,7 +235,7 @@ CODEF_PUBLIC_KEY=
 CODEF_BASE_URL=https://api.codef.io
 
 # Aligo SMS — 실 발송 전 키 발급 후 입력
-SAMHAN_ALIGO_API_URL=
+SAMHAN_ALIGO_API_URL=https://apis.aligo.in/send/
 SAMHAN_ALIGO_KEY=
 SAMHAN_ALIGO_USERID=
 SAMHAN_ALIGO_SENDER=

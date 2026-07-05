@@ -12,6 +12,8 @@ $ComposeFiles = @(
     "infrastructure/docker/docker-compose.arologis.yml"
 )
 
+$AligoApiUrlDefault = "https://apis.aligo.in/send/"
+
 function Get-ServiceNameFromVar {
     param([string]$Name)
     $token = $Name -replace "^SAMHAN_", "" -replace "_SERVICE_URL$", ""
@@ -208,29 +210,42 @@ $rows = foreach ($record in Get-UrlRecords) {
     }
 }
 
-$aligoPath = Join-Path $Root "infrastructure/env-templates/notification-service.env"
-$aligoLine = Select-String -Path $aligoPath -Pattern "^SAMHAN_ALIGO_API_URL=(.*)$" -Encoding UTF8
-if ($null -eq $aligoLine) {
-    throw "SAMHAN_ALIGO_API_URL is missing from notification-service.env"
-}
-if ([string]::IsNullOrWhiteSpace($aligoLine.Matches[0].Groups[1].Value)) {
-    $rows += [pscustomobject]@{
-        Status = "MISMATCH"
-        Variable = "SAMHAN_ALIGO_API_URL"
-        Service = "notification-service"
-        ConfiguredPort = ""
-        ComposePort = "explicit default required"
-        File = ".\infrastructure\env-templates\notification-service.env"
-        Line = $aligoLine.LineNumber
+$aligoApiUrlChecks = @(
+    @{
+        Path = "infrastructure/env-templates/notification-service.env"
+        Pattern = "^SAMHAN_ALIGO_API_URL=(.*)$"
+        ValueGroup = 1
+        ExpectedShape = "explicit default"
+    },
+    @{
+        Path = "infrastructure/docker-compose.prod.yml"
+        Pattern = "^\s*SAMHAN_ALIGO_API_URL:\s*\$\{SAMHAN_ALIGO_API_URL:-(.*)\}\s*$"
+        ValueGroup = 1
+        ExpectedShape = "compose default"
+    },
+    @{
+        Path = "infrastructure/terraform/templates/user_data.sh"
+        Pattern = "^SAMHAN_ALIGO_API_URL=(.*)$"
+        ValueGroup = 1
+        ExpectedShape = "terraform env default"
     }
-} else {
+)
+
+foreach ($check in $aligoApiUrlChecks) {
+    $aligoPath = Join-Path $Root $check.Path
+    $aligoLine = Select-String -Path $aligoPath -Pattern $check.Pattern -Encoding UTF8
+    if ($null -eq $aligoLine) {
+        throw "SAMHAN_ALIGO_API_URL is missing from $($check.Path)"
+    }
+    $configured = $aligoLine.Matches[0].Groups[$check.ValueGroup].Value
+    $isExpected = $configured -eq $AligoApiUrlDefault
     $rows += [pscustomobject]@{
-        Status = "OK"
+        Status = if ($isExpected) { "OK" } else { "MISMATCH" }
         Variable = "SAMHAN_ALIGO_API_URL"
         Service = "notification-service"
-        ConfiguredPort = ""
-        ComposePort = "explicit default"
-        File = ".\infrastructure\env-templates\notification-service.env"
+        ConfiguredPort = $configured
+        ComposePort = "$($check.ExpectedShape): $AligoApiUrlDefault"
+        File = ".\$($check.Path -replace '/', '\')"
         Line = $aligoLine.LineNumber
     }
 }

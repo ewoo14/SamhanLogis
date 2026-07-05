@@ -7,13 +7,13 @@
 - `SAMHAN_*_SERVICE_URL` 포트를 compose 실 포트 기준으로 전수 대조.
 - arologis-service의 slip-service 기본 URL 8084 오배정을 8086으로 정정.
 - prod compose의 `SAMHAN_USER_CLIENT_FAIL_MODE=STRICT`가 실제 `UserClient` 동작까지 전달되도록 notification/groupware application 설정과 생성자 배선을 추가.
-- notification-service env template의 `SAMHAN_ALIGO_API_URL` 빈 값을 application 기본값과 같은 명시 기본값으로 정합.
+- notification-service env template/prod compose/Terraform user_data의 `SAMHAN_ALIGO_API_URL` 빈 override를 application 기본값과 같은 명시 기본값으로 정합.
 
 ## 근본원인
 
 1. arologis-service가 slip-service를 호출하는 기본값이 과거 product-service 포트인 8084로 남아 있었다. 반면 compose 기준 slip-service의 실 내부 포트는 local-all/prod/partner-order 모두 8086이다.
 2. notification-service와 groupware-service의 prod compose는 `SAMHAN_USER_CLIENT_FAIL_MODE=STRICT`를 주입하지만, 두 `UserClient` wrapper가 `UserVerifierProperties#setFailFast(false)`를 고정 호출했다. 따라서 prod 설정은 존재해도 fail-fast 동작으로 전환되지 않았다.
-3. notification-service env template의 `SAMHAN_ALIGO_API_URL`은 빈 값이었다. Spring application 기본값은 `https://apis.aligo.in/send/`이고 운영 검증 스크립트도 명시 URL을 기대하는 흐름이 있어 템플릿과 런타임 기본값이 어긋났다.
+3. notification-service env template, prod compose, Terraform user_data의 `SAMHAN_ALIGO_API_URL` 빈 값이 Spring application 기본값(`https://apis.aligo.in/send/`)을 가릴 수 있었다. 운영 검증 스크립트도 명시 URL을 기대하는 흐름이 있어 템플릿/운영 주입 지점과 런타임 기본값이 어긋났다.
 
 ## 변경 파일
 
@@ -23,6 +23,8 @@
 | `services/arologis-service/src/main/resources/application.yml` | `samhan.slip-service.url` 기본값 8084 -> 8086 |
 | `services/arologis-service/README.md` | 문서 예시와 의존 포트 8086 정정 |
 | `infrastructure/env-templates/notification-service.env` | `SAMHAN_ALIGO_API_URL=https://apis.aligo.in/send/` 명시 |
+| `infrastructure/docker-compose.prod.yml` | `SAMHAN_ALIGO_API_URL` compose 기본값을 application 기본값과 정합 |
+| `infrastructure/terraform/templates/user_data.sh` | `SAMHAN_ALIGO_API_URL` EC2 env 기본값을 application 기본값과 정합 |
 | `services/notification-service/src/main/resources/application.yml` | `samhan.user-client.fail-mode` 환경변수 배선 추가 |
 | `services/groupware-service/src/main/resources/application.yml` | `samhan.user-client.fail-mode` 환경변수 배선 추가 |
 | `services/notification-service/src/main/java/.../client/UserClient.java` | `FailMode` 생성자 주입 후 `setFailMode()` 전달 |
@@ -63,9 +65,9 @@ local/env-template 기본값은 `OPEN`으로 유지했다. 개발 환경 부팅�
 
 groupware의 표시명 조회/search 계열은 기존처럼 메서드 내부에서 빈 결과 fail-soft를 유지한다. 이번 STRICT 전환 대상은 shared `DefaultUserVerifier`에 위임되는 사용자 존재 검증 경로다.
 
-## ALIGO template 판단
+## ALIGO URL 판단
 
-`SAMHAN_ALIGO_API_URL`은 `https://apis.aligo.in/send/`로 명시했다. `SAMHAN_ALIGO_KEY`, `SAMHAN_ALIGO_USERID`, `SAMHAN_ALIGO_SENDER`는 계속 빈 값이므로 local/template 상태에서 실 API 호출은 credential guard로 차단된다. 빈 env 값이 application 기본값을 덮어 쓰는 혼선을 없애고, 기존 operational validation 기대값과도 정합된다.
+`SAMHAN_ALIGO_API_URL`은 application 기본값과 같은 `https://apis.aligo.in/send/`로 명시한다. 대상은 notification env template, prod compose, Terraform user_data의 EC2 env 파일 생성부다. `SAMHAN_ALIGO_KEY`, `SAMHAN_ALIGO_USERID`, `SAMHAN_ALIGO_SENDER`는 계속 빈 값이므로 local/template/prod bootstrap 상태에서 실 API 호출은 credential guard로 차단된다. 빈 env 값이 application 기본값을 덮어 쓰는 혼선을 없애고, 기존 operational validation 기대값과도 정합된다.
 
 ## RED -> GREEN 검증
 
@@ -208,3 +210,22 @@ DB schema/Flyway 변경 없음.
 | `infrastructure/.env.example` | 죽은 `SAMHAN_SLIP_DISPATCH_TASK_URL` 제거, 오해유발 주석 정정 |
 | `infrastructure/scripts/validate-config-audit.ps1` | `Get-UrlRecords` (d) compose `environment:` 블록 리터럴 스캔 추가(local-all/prod/arologis 3종, +70건, 총 156건) |
 | `.github/workflows/ci.yml` | `config-audit-guard` job `name` 값 큰따옴표로 감싸 YAML 주석 잘림(`#745)`) 수정 |
+
+## Design 중간 fix — ALIGO family 정합
+
+라운드 Design 중간 점검에서 `SAMHAN_ALIGO_API_URL`이 prod compose와 Terraform user_data에서 빈 값으로 주입되어 `services/notification-service/src/main/resources/application.yml`의 기본값(`https://apis.aligo.in/send/`)을 가리는 문제가 확인됐다. round1은 `notification-service.env`만 명시 기본값으로 맞췄고, 실제 운영 주입 지점 2곳은 빈 override가 남아 있었다.
+
+- 조치: `infrastructure/docker-compose.prod.yml`의 `SAMHAN_ALIGO_API_URL`을 `${SAMHAN_ALIGO_API_URL:-https://apis.aligo.in/send/}`로 변경.
+- 조치: `infrastructure/terraform/templates/user_data.sh`의 `SAMHAN_ALIGO_API_URL=`을 `SAMHAN_ALIGO_API_URL=https://apis.aligo.in/send/`로 변경.
+- credential 가드 유지: `SAMHAN_ALIGO_KEY`, `SAMHAN_ALIGO_USERID`, `SAMHAN_ALIGO_SENDER`는 prod compose/Terraform/user template 모두 빈 값 유지.
+- 검증 강화: `validate-config-audit.ps1`이 `notification-service.env`, prod compose, Terraform user_data의 `SAMHAN_ALIGO_API_URL`을 모두 application 기본값과 같은 값으로 검사하도록 확장.
+
+### RED
+
+- `powershell.exe infrastructure/scripts/validate-config-audit.ps1 -Detailed` → prod compose와 Terraform user_data의 `SAMHAN_ALIGO_API_URL` 2건 `MISMATCH`, exit 1.
+
+### GREEN
+
+- `powershell.exe infrastructure/scripts/validate-config-audit.ps1 -Detailed` → `config-audit validation passed: 158 URL/template checks`, exit 0.
+- `docker compose -f infrastructure/docker-compose.prod.yml config | Select-String -Pattern 'ALIGO' -CaseSensitive:$false` → `SAMHAN_ALIGO_API_URL: https://apis.aligo.in/send/`, `SAMHAN_ALIGO_KEY/USERID/SENDER: ""` 확인. 원 요청의 `grep -i ALIGO`는 Windows PowerShell 환경에 `grep` 명령이 없어 동일 목적의 `Select-String`으로 대체했다.
+- `rg -n "SAMHAN_ALIGO_API_URL(:\s*\$\{SAMHAN_ALIGO_API_URL:-\}|=)\s*$" infrastructure` → 매칭 0건(exit 1), 빈 override 잔존 없음.
