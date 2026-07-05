@@ -229,6 +229,16 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                 .contains("입금보고서 확정", defaultSlipNo, "삼한입금상사");
         assertJournalLines(journalId, "102", "110", new BigDecimal("61000.00"));
 
+        // #744 라운드1 LOW — CASH_RECEIPT 라이브 분개는 실 HTTP GET(분개 단건 조회) 응답에도
+        // 원천 입금보고서 전표번호(cashReceiptSlipNo)를 노출한다. 단위 mock 이 아닌 실 Postgres
+        // + 실 컨트롤러/서비스 경로(JournalService.getOne → CashReceiptRepository 실조회)로 검증.
+        mockMvc.perform(get("/accounting/journals/{id}", journalId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sourceRefId").value(defaultReceiptId))
+                .andExpect(jsonPath("$.data.cashReceiptSlipNo").value(defaultSlipNo));
+
         Map<String, Object> overrideBody = createBody("62000");
         overrideBody.put("debitAccountCode", OVERRIDE_DEBIT_ACCOUNT_CODE);
         overrideBody.put("creditAccountCode", OVERRIDE_CREDIT_ACCOUNT_CODE);
