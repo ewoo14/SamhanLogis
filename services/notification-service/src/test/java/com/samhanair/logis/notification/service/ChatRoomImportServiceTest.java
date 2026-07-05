@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -94,6 +95,64 @@ class ChatRoomImportServiceTest {
 
         assertThat(result.inserted()).isEqualTo(2);
         assertThat(result.rejected()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("거래처명 lookup miss — 회사표기/담당자 제거 후보로 실 partnerCode 재해소")
+    void importCsv_businessNameMiss_resolvesWithNormalizedCandidate() throws IOException {
+        when(lookupClient.findPartnerCodeByName("에어디자이너 주식회사 (김미선)"))
+                .thenReturn(Optional.empty());
+        when(lookupClient.findPartnerCodeByName("에어디자이너 주식회사"))
+                .thenReturn(Optional.empty());
+        when(lookupClient.findPartnerCodeByName("에어디자이너"))
+                .thenReturn(Optional.of("P-AIR"));
+
+        String csv = "﻿이카운트 사업자명,카톡방,생성 일시\n"
+                + "에어디자이너 주식회사 (김미선),에어디자이너 발주방,2026년 4월 26일 오전 7:34\n";
+        InputStream stream = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+
+        ChatRoomImportResult result = service.importCsv(stream);
+
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.rejected()).isEmpty();
+        verify(lookupClient).findPartnerCodeByName("에어디자이너 주식회사 (김미선)");
+        verify(lookupClient).findPartnerCodeByName("에어디자이너 주식회사");
+        verify(lookupClient).findPartnerCodeByName("에어디자이너");
+
+        ArgumentCaptor<PartnerChatRoomMapping> captor = ArgumentCaptor.forClass(PartnerChatRoomMapping.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getPartnerCode()).isEqualTo("P-AIR");
+        assertThat(captor.getValue().getPartnerBusinessNameSnapshot())
+                .isEqualTo("에어디자이너 주식회사 (김미선)");
+    }
+
+    @Test
+    @DisplayName("재import backfill — 실 partnerCode 해소 시 기존 LEGACY alias row soft-delete")
+    void importCsv_resolvedPartnerCode_softDeletesLegacyAliasRow() throws IOException {
+        String businessName = "에어디자이너 주식회사";
+        String chatRoomName = "에어디자이너 발주방";
+        String legacyCode = ChatRoomImportService.legacyAliasCode(businessName);
+        PartnerChatRoomMapping legacy = PartnerChatRoomMapping.fromNotionImport(
+                legacyCode, businessName, chatRoomName, null);
+
+        when(lookupClient.findPartnerCodeByName(businessName)).thenReturn(Optional.of("P-AIR"));
+        when(repository.findAllByPartnerBusinessNameSnapshot(businessName))
+                .thenReturn(List.of(legacy));
+
+        String csv = "﻿이카운트 사업자명,카톡방,생성 일시\n"
+                + businessName + "," + chatRoomName + ",2026년 4월 26일 오전 7:34\n";
+        InputStream stream = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+
+        ChatRoomImportResult result = service.importCsv(stream);
+
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.updated()).isZero();
+        assertThat(result.rejected()).isEmpty();
+        assertThat(legacy.getIsDeleted()).isTrue();
+        assertThat(legacy.getDeletedBy()).isEqualTo("chat-room-import-backfill");
+        verify(repository).findByPartnerCodeAndChatRoomName("P-AIR", chatRoomName);
+        verify(repository).findAllByPartnerBusinessNameSnapshot(businessName);
+        verify(repository, times(2)).save(any(PartnerChatRoomMapping.class));
     }
 
     @Test

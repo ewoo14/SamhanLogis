@@ -18,10 +18,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.input.BOMInputStream;
 import org.slf4j.Logger;
@@ -138,11 +140,11 @@ public class ChatRoomImportService {
                         lookupVia = "거래처코드";
                         if (partnerCodeOpt.isEmpty() && businessName != null) {
                             // 코드 검증 실패 시 사업자명 fallback (코드 오타 / 미등록 대비).
-                            partnerCodeOpt = partnerLookupClient.findPartnerCodeByName(businessName);
+                            partnerCodeOpt = findPartnerCodeByNameWithVariants(businessName);
                             lookupVia = "거래처코드 미매칭 → 사업자명 fallback";
                         }
                     } else {
-                        partnerCodeOpt = partnerLookupClient.findPartnerCodeByName(businessName);
+                        partnerCodeOpt = findPartnerCodeByNameWithVariants(businessName);
                         lookupVia = "사업자명";
                     }
                 } catch (Exception e) {
@@ -182,6 +184,7 @@ public class ChatRoomImportService {
                     }
                     repository.save(existing.get());
                     updated++;
+                    backfillLegacyAliasIfResolved(partnerCode, businessName, chatRoomName);
                 } else {
                     // snapshot 필수 — 코드 우선 매핑으로 사업자명 미공급 시 partnerCode placeholder 사용
                     // (entity invariant 보호, 운영자가 admin UI 에서 추후 사업자명 갱신).
@@ -190,6 +193,7 @@ public class ChatRoomImportService {
                             partnerCode, snapshot, chatRoomName, notionCreatedAt);
                     repository.save(entity);
                     inserted++;
+                    backfillLegacyAliasIfResolved(partnerCode, businessName, chatRoomName);
                 }
             }
         } catch (com.opencsv.exceptions.CsvValidationException ex) {
@@ -207,6 +211,92 @@ public class ChatRoomImportService {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    /**
+     * Notion 원본 거래처명과 partner-service 마스터명이 표기만 다른 경우를 순차 재해소한다.
+     *
+     * <p>원문 조회를 항상 먼저 수행하고, 실패할 때만 담당자 괄호/회사 표기/공백을 완화한 후보를
+     * 시도한다. partner-service 가 0건/다중건을 fail-soft empty 로 돌려주므로 본 단계도 row 단위로
+     * 실패를 전파하지 않는다.
+     */
+    private Optional<String> findPartnerCodeByNameWithVariants(String businessName) {
+        for (String candidate : businessNameCandidates(businessName)) {
+            Optional<String> found = partnerLookupClient.findPartnerCodeByName(candidate);
+            if (found.isPresent()) {
+                return found;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static List<String> businessNameCandidates(String businessName) {
+        String raw = trimToNull(businessName);
+        if (raw == null) {
+            return List.of();
+        }
+        Set<String> candidates = new LinkedHashSet<>();
+        addCandidate(candidates, raw);
+
+        String withoutTrailingMemo = stripTrailingParenthetical(raw);
+        addCandidate(candidates, withoutTrailingMemo);
+        addCandidate(candidates, stripCompanyDesignator(raw));
+        addCandidate(candidates, stripCompanyDesignator(withoutTrailingMemo));
+
+        List<String> expanded = new ArrayList<>(candidates);
+        for (String candidate : expanded) {
+            addCandidate(candidates, candidate.replaceAll("\\s+", ""));
+        }
+        return new ArrayList<>(candidates);
+    }
+
+    private static void addCandidate(Set<String> candidates, String value) {
+        String normalized = trimToNull(value == null ? null : value.replaceAll("\\s+", " "));
+        if (normalized != null) {
+            candidates.add(normalized);
+        }
+    }
+
+    private static String stripTrailingParenthetical(String value) {
+        String current = value;
+        String next;
+        do {
+            next = current.replaceAll("\\s*[\\(（][^\\)）]+[\\)）]\\s*$", "").trim();
+            if (next.equals(current)) {
+                return current;
+            }
+            current = next;
+        } while (!current.isBlank());
+        return value;
+    }
+
+    private static String stripCompanyDesignator(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value
+                .replaceAll("^\\s*(주식회사|\\(주\\)|㈜)\\s*", "")
+                .replaceAll("\\s*(주식회사|\\(주\\)|㈜)\\s*$", "")
+                .trim();
+    }
+
+    /**
+     * 기존 전량 LEGACY-NAME row 를 재import 만으로 실 partnerCode row 에 연결한다.
+     *
+     * <p>{@code partner_code} 는 updatable=false 이므로 기존 행을 직접 수정하지 않고, 실 코드 행을
+     * insert/update 한 뒤 동일 원본명+단톡방의 legacy alias 활성 행을 soft-delete 한다.
+     */
+    private void backfillLegacyAliasIfResolved(String partnerCode, String businessName, String chatRoomName) {
+        if (businessName == null || partnerCode == null || partnerCode.startsWith(LEGACY_ALIAS_PREFIX)) {
+            return;
+        }
+        repository.findAllByPartnerBusinessNameSnapshot(businessName).stream()
+                .filter(mapping -> mapping.getPartnerCode().startsWith(LEGACY_ALIAS_PREFIX))
+                .filter(mapping -> mapping.getChatRoomName().equals(chatRoomName))
+                .forEach(mapping -> {
+                    mapping.markDeleted("chat-room-import-backfill");
+                    repository.save(mapping);
+                });
     }
 
     /**

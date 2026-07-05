@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.UriUtils;
 
 /**
  * partner-service 호출 실 구현체 — Phase 10 PR-E 진입 전 선행 BE-E.
@@ -89,8 +88,7 @@ public class RestClientPartnerLookupClient implements PartnerLookupClient {
             RestClient client = builder.baseUrl(baseUrl).build();
             String body = client.get()
                     .uri(uriBuilder -> uriBuilder.path("/internal/partners/by-name")
-                            .queryParam("name", UriUtils.encode(businessName.trim(),
-                                    java.nio.charset.StandardCharsets.UTF_8))
+                            .queryParam("name", businessName.trim())
                             .build())
                     .header("X-Internal-Token", internalToken)
                     .retrieve()

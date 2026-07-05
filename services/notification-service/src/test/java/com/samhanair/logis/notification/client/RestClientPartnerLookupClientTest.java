@@ -112,6 +112,30 @@ class RestClientPartnerLookupClientTest {
     }
 
     @Test
+    @DisplayName("case 3b — findPartnerCodeByName 한글 query 는 한 번만 URL 인코딩")
+    void findPartnerCodeByName_encodes_korean_query_once() {
+        String responseBody = "{\"success\":true,\"data\":{"
+                + "\"partnerCode\":\"P-2026-0003\","
+                + "\"name\":\"에어디자이너 주식회사\","
+                + "\"creditLimit\":0,"
+                + "\"outstandingBalance\":0,"
+                + "\"status\":\"ACTIVE\"}}";
+
+        mockServer.expect(requestTo(BASE_URL
+                        + "/internal/partners/by-name?name=%EC%97%90%EC%96%B4%EB%94%94%EC%9E%90%EC%9D%B4%EB%84%88%20%EC%A3%BC%EC%8B%9D%ED%9A%8C%EC%82%AC"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", INTERNAL_TOKEN))
+                .andRespond(withStatus(HttpStatus.OK)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(responseBody));
+
+        Optional<String> result = client.findPartnerCodeByName("에어디자이너 주식회사");
+
+        assertThat(result).isPresent().contains("P-2026-0003");
+        mockServer.verify();
+    }
+
+    @Test
     @DisplayName("case 4 — findPartnerCodeByName 409 (다중 매칭) → fail-soft empty")
     void findPartnerCodeByName_returns_empty_when_409() {
         mockServer.expect(method(HttpMethod.GET))
