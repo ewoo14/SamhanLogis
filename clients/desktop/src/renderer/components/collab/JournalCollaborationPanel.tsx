@@ -23,7 +23,6 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { JournalPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
-import { CollaborativeTextField } from './CollaborativeTextField'
 
 export interface JournalCollabEditableLine {
   lineNo: number
@@ -152,11 +151,6 @@ export function JournalCollaborationPanel({
   const commentQueryKey = useMemo(() => ['journalCollabComments', journalId] as const, [journalId])
   const editQueryKey = useMemo(() => ['journalCollabEdits', journalId] as const, [journalId])
   const journalQueryKey = useMemo(() => ['accounting', 'journal', journalId] as const, [journalId])
-  const collabBasePath = useMemo(
-    () => `/accounting/journals/${encodeURIComponent(journalId)}`,
-    [journalId],
-  )
-
   const canWriteComments = canAccess('accounting.journals', 'update')
   const canResolveComments = canAccess('accounting.journals', 'update')
   const canDeleteComments = canAccess('accounting.journals', 'update')
@@ -294,22 +288,8 @@ export function JournalCollaborationPanel({
           <PresenceIndicator entries={presenceEntries} />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <CollaborativeTextField
-            documentId={journalId}
-            basePath={collabBasePath}
-            fieldName="memo"
-            label="협업 메모"
-            rows={4}
-            readOnly={!canWriteComments}
-          />
-          <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
-            팀 내 실시간 공유 메모입니다. 전표의 “적요”·“라인 메모”(저장 항목)와는 별개로 보관됩니다.
-          </p>
-        </div>
-
-        <div className="detail-grid" style={{ alignItems: 'start' }}>
-          <section aria-label="코멘트">
+        <div style={{ display: 'grid', gap: 'var(--space-4, 16px)' }}>
+          <section aria-label="코멘트" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>코멘트</h5>
             <div
               data-testid="journal-collab-comment-list"
@@ -413,7 +393,7 @@ export function JournalCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력">
+          <section aria-label="수정 이력" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
 
             {canEdit && editMode ? (

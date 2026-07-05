@@ -21,13 +21,10 @@ import {
 import { SlipCollabRealtimeClient } from '../../realtime/SlipCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
 import { SlipVersionHistoryPanel } from '../audit/SlipVersionHistoryPanel'
-import { CollaborativeTextField } from './CollaborativeTextField'
 
 export interface SlipCollaborationPanelProps {
   /** 전표 UUID — query key/API path 전용. 화면 텍스트 노출 금지. */
   slipId: string
-  /** coedit relay/provider 가 사용할 slip 협업 base path. */
-  basePath: string
   /** overlay 편집 필드의 현재 값 snapshot. */
   currentValues?: Record<string, string | null | undefined>
   /** 상세 상단 "수정" 버튼과 연결되는 편집모드 상태. */
@@ -129,7 +126,6 @@ function isCollabEvent(eventName: string): boolean {
 
 export function SlipCollaborationPanel({
   slipId,
-  basePath,
   currentValues = EMPTY_CURRENT_VALUES,
   editMode = false,
   onEditModeChange,
@@ -275,19 +271,8 @@ export function SlipCollaborationPanel({
           <h4 style={{ margin: 0 }}>협업</h4>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <CollaborativeTextField
-            documentId={slipId}
-            basePath={basePath}
-            fieldName="memo"
-            label="협업 메모"
-            rows={4}
-            readOnly={!canWriteComments}
-          />
-        </div>
-
-        <div className="detail-grid" style={{ alignItems: 'start' }}>
-          <section aria-label="코멘트">
+        <div style={{ display: 'grid', gap: 'var(--space-4, 16px)' }}>
+          <section aria-label="코멘트" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>코멘트</h5>
             <div
               data-testid="slip-collab-comment-list"
@@ -391,7 +376,7 @@ export function SlipCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력">
+          <section aria-label="수정 이력" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
 
             {canEdit && editMode ? (

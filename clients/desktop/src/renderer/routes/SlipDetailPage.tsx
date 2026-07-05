@@ -3110,7 +3110,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         <MobileCollapsible title="협업 · 코멘트" defaultOpen>
           <SlipCollaborationPanel
             slipId={id}
-            basePath={slipCollabBasePath}
             currentValues={collabEditValues}
             editMode={collabEditMode}
             onEditModeChange={setCollabEditMode}
@@ -3124,7 +3123,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       ) : (
         <SlipCollaborationPanel
           slipId={id}
-          basePath={slipCollabBasePath}
           currentValues={collabEditValues}
           editMode={collabEditMode}
           onEditModeChange={setCollabEditMode}

@@ -7,31 +7,31 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 vi.mock('./CollaborativeTextField', () => ({
   CollaborativeTextField: () => <div>협업 메모</div>,
 }))
-vi.mock('../../hooks/usePresence', () => ({ usePresence: () => [] }))
+vi.mock('../audit/SlipVersionHistoryPanel', () => ({
+  SlipVersionHistoryPanel: () => <div data-testid="slip-version-history-stub" />,
+}))
+
 const canAccessMock = vi.fn(() => true)
 vi.mock('../../hooks/usePermissions', () => ({ usePermissions: () => ({ canAccess: canAccessMock }) }))
-vi.mock('../../realtime/PartnerOrderCollabRealtimeClient', () => ({
-  PartnerOrderCollabRealtimeClient: { subscribe: () => ({ abort: () => undefined }) },
+vi.mock('../../realtime/SlipCollabRealtimeClient', () => ({
+  SlipCollabRealtimeClient: { subscribe: () => ({ abort: () => undefined }) },
 }))
-vi.mock('../../api/partnerOrderCollab', () => ({
-  getPartnerOrderCollabComments: vi.fn(() => Promise.resolve([])),
-  getPartnerOrderCollabEdits: vi.fn(() => Promise.resolve([])),
-  addPartnerOrderCollabComment: vi.fn(),
-  deletePartnerOrderCollabComment: vi.fn(),
-  resolvePartnerOrderCollabComment: vi.fn(),
-  commitPartnerOrderCollabEdit: vi.fn(),
+vi.mock('../../api/slipCollab', () => ({
+  getSlipCollabComments: vi.fn(() => Promise.resolve([])),
+  getSlipCollabEdits: vi.fn(() => Promise.resolve([])),
+  addSlipCollabComment: vi.fn(),
+  deleteSlipCollabComment: vi.fn(),
+  resolveSlipCollabComment: vi.fn(),
+  commitSlipCollabEdit: vi.fn(),
 }))
 
-import { PartnerOrderCollaborationPanel } from './PartnerOrderCollaborationPanel'
+import { SlipCollaborationPanel } from './SlipCollaborationPanel'
 
-function renderPanel(orderId: string) {
+function renderPanel(slipId: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <PartnerOrderCollaborationPanel
-        orderId={orderId}
-        currentValues={{ memo: null, dueDate: null, lines: [] }}
-      />
+      <SlipCollaborationPanel slipId={slipId} currentValues={{ memo: null }} />
     </QueryClientProvider>,
   )
 }
@@ -41,9 +41,9 @@ afterEach(() => {
   canAccessMock.mockReturnValue(true)
 })
 
-describe('PartnerOrderCollaborationPanel 협업 패널 배치', () => {
+describe('SlipCollaborationPanel 협업 패널 배치', () => {
   it('협업 메모를 제거하고 코멘트를 수정 이력 위에 전폭으로 렌더한다', () => {
-    renderPanel('2099/06/27-COED-1')
+    renderPanel('slip/id with spaces')
 
     const commentSection = screen.getByLabelText('코멘트')
     const editSection = screen.getByLabelText('수정 이력')

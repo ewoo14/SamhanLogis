@@ -23,7 +23,6 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { PartnerOrderPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
-import { CollaborativeTextField } from './CollaborativeTextField'
 
 export interface PartnerOrderCollabEditableLine {
   /** BE PartnerOrderDocumentCollaborationPort lineKey 와 동일한 1-based 활성 라인 index. */
@@ -161,11 +160,6 @@ export function PartnerOrderCollaborationPanel({
   const commentQueryKey = useMemo(() => ['partnerOrderCollabComments', orderId] as const, [orderId])
   const editQueryKey = useMemo(() => ['partnerOrderCollabEdits', orderId] as const, [orderId])
   const orderQueryKey = useMemo(() => ['partner-order', orderId] as const, [orderId])
-
-  const collabBasePath = useMemo(
-    () => `/partner-orders/${encodeURIComponent(orderId)}`,
-    [orderId],
-  )
 
   const canWriteComments = canAccess('sales.partner-order.edit', 'update')
   const canResolveComments = canAccess('sales.partner-order.edit', 'update')
@@ -315,22 +309,8 @@ export function PartnerOrderCollaborationPanel({
           <PresenceIndicator entries={presenceEntries} />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <CollaborativeTextField
-            documentId={orderId}
-            basePath={collabBasePath}
-            fieldName="memo"
-            label="협업 메모"
-            rows={4}
-            readOnly={!canWriteComments}
-          />
-          <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
-            팀 내 실시간 공유 메모입니다. 주문의 “요청사항”(저장 항목)과는 별개로 보관됩니다.
-          </p>
-        </div>
-
-        <div className="detail-grid" style={{ alignItems: 'start' }}>
-          <section aria-label="코멘트">
+        <div style={{ display: 'grid', gap: 'var(--space-4, 16px)' }}>
+          <section aria-label="코멘트" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>코멘트</h5>
             <div
               data-testid="partner-order-collab-comment-list"
@@ -434,7 +414,7 @@ export function PartnerOrderCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력">
+          <section aria-label="수정 이력" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
 
             {canEdit && editMode ? (

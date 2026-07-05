@@ -26,7 +26,6 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { GroupwareApprovalPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
-import { CollaborativeTextField } from './CollaborativeTextField'
 import { CollaborativeSlipInput } from './CollaborativeSlipInput'
 import { CollaborativeSlipTextArea } from './CollaborativeSlipTextArea'
 import { createDocCoeditProvider, type DocCoeditProvider } from '../../realtime/createCoeditProvider'
@@ -366,22 +365,8 @@ export function GroupwareApprovalCollaborationPanel({
           </div>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <CollaborativeTextField
-            documentId={approvalId}
-            basePath={collabBasePath}
-            fieldName="memo"
-            label="협업 메모"
-            rows={4}
-            readOnly={!canWrite}
-          />
-          <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-neutral-500)' }}>
-            팀 내 실시간 공유 메모입니다. 결재 문서의 “제목”·“내용”·“결재의견”(저장 항목)과는 별개로 보관됩니다.
-          </p>
-        </div>
-
-        <div className="detail-grid" style={{ alignItems: 'start' }}>
-          <section aria-label="코멘트">
+        <div style={{ display: 'grid', gap: 'var(--space-4, 16px)' }}>
+          <section aria-label="코멘트" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>코멘트</h5>
             <div
               data-testid="groupware-approval-collab-comment-list"
@@ -481,7 +466,7 @@ export function GroupwareApprovalCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력">
+          <section aria-label="수정 이력" style={{ width: '100%' }}>
             <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
               <h5 style={{ margin: 0, fontSize: 14 }}>수정 이력</h5>
               {canStartEdit && !editMode ? (
