@@ -376,6 +376,9 @@ export function PartnerOrderCollaborationPanel({
                     placeholder="코멘트 입력..."
                     style={{
                       flex: 1,
+                      width: '100%',
+                      maxWidth: 'min(720px, 100%)',
+                      minWidth: 0,
                       minHeight: 56,
                       resize: 'vertical',
                       border: '1px solid var(--color-neutral-300)',
