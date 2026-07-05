@@ -202,3 +202,99 @@ fixture 내부 shorthand 주석은 비대상) 및 삭제된 testid(`partner-orde
   스크린샷 128개가 실행 부작용으로 로컬 재캡처돼 diff 로 나타났다 — 이번 PR 스코프 밖이므로 HEAD
   커밋 content 로 전부 원복하고 신규 생성분(`T09-*.png`) 1건은 삭제해 최종 diff 를 spec 3개로
   한정했다.
+
+## 개발책임자 2결정 구현 (2026-07-06, Opus)
+
+> 위 "⏸ 개발책임자 HOLD" 2건에 대한 확인 지시 반영. worktree `feat/31-history-unify`(HEAD
+> `41d791d21`)에서 Opus 가 직접 구현. git 동작(commit/push)은 PM 이 대행.
+
+### 결정1 — 회계전표/결재 수정이력 현행 유지(복구)
+
+Journal/GroupwareApproval 은 여전히 full-snapshot revision/restore API 가 없어 Slip/Estimate/
+PartnerOrder 수준의 버전이력 패널 도입은 불가능하다는 판단은 유지한다. 다만 #31 라운드1에서 버전이력
+패널과 **함께 삭제됐던** `.../collab/edits` 기반 "수정 이력"(changeSet before/after diff, 1인
+수정완료 모델) 뷰는 복구한다. 최종 형태 = **코멘트 + 수정이력**(버전이력이 아님을 명시).
+
+- `JournalCollaborationPanel.tsx`/`GroupwareApprovalCollaborationPanel.tsx`: `getJournalCollabEdits`/
+  `getGroupwareApprovalCollabEdits` 호출과 `editQueryKey` 기반 `useQuery` 를 재도입했다. 삭제됐던
+  `normalizePath`/`labelForPath`/`summarizeChangeSet`/`parseChangeSetDiffs` 헬퍼를 복원하고, 새로
+  `fieldPathTestId` 헬퍼(Slip 의 `fieldPathTestId` 패턴과 동일)를 추가했다. commit mutation 의
+  `onSuccess`·realtime(SSE) invalidate 경로 모두에 `editQueryKey` 를 추가해 수정완료/타 세션 이벤트
+  직후 수정 이력이 갱신되도록 했다.
+- 하단 "버전 이력" 격차 안내 카드(`journal-version-history-gap`/`groupware-approval-version-history-gap`,
+  "감사 로그 확인 가능" 오기술 포함)를 완전히 제거하고, `Card as="section" aria-label="수정 이력"`
+  으로 렌더되는 `journal-collab-edit-history-panel`/`groupware-approval-collab-edit-history-panel`
+  로 대체했다 — `journal-collab-edit-list`/`groupware-approval-collab-edit-list`(각 diff 항목은
+  `*-collab-edit-item`) 테스트id 를 복구했다.
+- 타 3도메인(Slip/Estimate/PartnerOrder)은 무변경 — 코멘트+버전이력 그대로.
+- 부수 회귀 방지: `global.css` 의 모바일 `.mobile-section-body h4` 노출 예외 선택자가 옛 gap
+  testid 를 참조하고 있어(#31 라운드1 fix#4), 새 edit-history-panel testid 로 갱신하지 않으면
+  모바일에서 "수정 이력" 제목이 다시 사라지는 회귀가 재발했을 것이다 — 4개 도메인(Slip/Estimate/
+  PartnerOrder/Journal)+Groupware(현재 무의미하지만 대칭성 유지)를 모두 갱신했다. (Groupware 결재
+  협업 패널은 애초 `MobileCollapsible` 로 감싸이지 않아 이 선택자가 실질적으로 no-op 임을 라우트
+  파일 대조로 확인했다.)
+
+### 결정2 — 코멘트→버전이력 anchor 생성 UX(완전 양방향)
+
+5개 협업 패널(Slip/Estimate/PartnerOrder/Journal/GroupwareApproval) 코멘트 입력 영역에 "연결 필드"
+`<Select>`(`@samhan/design-system`, `selectSize="sm"`, 기존 편집 폼의 "라벨 위 컨트롤"
+`display:grid` 관례를 재사용)를 신설했다. 첫 옵션은 "전체 코멘트"(anchor 미지정, `""` → 전송 시
+`undefined`)이고, 이어서 도메인별 옵션이 붙는다:
+
+| 도메인 | anchor 옵션 |
+|---|---|
+| Slip | 기존 export `OVERLAY_FIELD_OPTIONS`(11종) 그대로 재사용 |
+| Journal | 적요(`description`) + N번 라인 메모(`line.N.memo`, `lines` 배열 기반 동적) |
+| Estimate | 비고(`memo`)·유효기간(`validUntil`) + N번 라인 메모(`line.N.note`, 동적) |
+| PartnerOrder | 요청사항(`memo`)·납기(`dueDate`) + N번 라인 비고(`line.N.remark`, 동적) |
+| GroupwareApproval | 제목(`title`)·내용(`content`) + 템플릿 동적 필드(`field.{fieldKey}`, 템플릿 라벨) |
+
+- `addXxxCollabComment` mutation 의 인자를 `body: string` 단일값에서 `{ body, anchor? }` 객체로
+  바꿔 선택된 anchor 를 그대로 BE 로 전송한다. BE `AddXxxCollabCommentRequest.anchor` 는 5개
+  서비스(accounting/groupware/partner-order/slip/estimate) 전부 이미 지원하고 있었고
+  (`@Size(max = CollabCommentRecord.MAX_ANCHOR_LENGTH)`), FE API client(`AddXxxCollabCommentInput`)
+  도 이미 `anchor?: string` 를 갖고 있었다 — 배선(패널 컴포넌트의 mutation 호출)만 누락된 상태였다.
+  등록 성공 시 `commentAnchor` 상태도 `commentBody` 와 함께 초기화한다.
+- 양방향 하이라이트: Slip/Estimate/PartnerOrder 는 #31 라운드1 산출물인 공유 `activeFieldPath`/
+  `activeRevisionNo`/`onRevisionSelect` 상태를 그대로 재사용한다 — "코멘트 클릭→버전이력 하이라이트"
+  방향은 이미 배선돼 있었고 결정2 는 "anchor 를 실제로 만들 수 있는 입력 수단"만 신설했으므로 추가
+  배선이 필요 없다. Journal/GroupwareApproval 은 결정1 로 복구한 수정 이력의 각 diff 행에
+  `role="button"`+`tabIndex={0}`+`onClick={() => setActiveFieldPath(diff.fieldName)}`
+  (`data-testid="*-collab-edit-change-{fieldPathTestId}"`)를 부여해 동일한 `activeFieldPath`
+  공유 상태를 소비하도록 배선했다 — 코멘트 anchor 클릭 ↔ 수정 이력 diff 클릭 양방향 하이라이트가
+  완성됐다(5도메인 일관).
+- 모바일: 새 `<Select>` 는 코멘트 textarea 위에 독립된 한 행으로 배치했다(그리드/코멘트 리스트 등
+  기존 레이아웃에 침습 없음). 별도 플랫폼 분기(`VITE_PLATFORM`)는 두지 않았다 — 반응형 CSS 만으로
+  충분하다고 판단.
+
+### 검증
+
+- `cd clients/web/design-system && npm run build` — PASS.
+- `cd clients/desktop && npm run typecheck` — PASS (exit 0).
+- `cd clients/desktop && npx eslint <5개 패널 + 5개 coedit test 파일>` — 0 errors.
+- `cd clients/desktop && npx vitest run src/renderer/components/collab/` — **PASS, 9 files / 42
+  tests**(#31 라운드1 대비 +7: Journal 결정1 복구+양방향+anchor 등록 3건 신규, Groupware 동형 3건
+  신규, Slip/Estimate/PartnerOrder 각 anchor 등록 1건씩 신규 — 기존 35건은 무회귀).
+- `cd clients/desktop && npx vitest run src/renderer/api/mock.test.ts` — PASS, 44 tests(anchor
+  pass-through 는 이미 mock 이 지원하고 있어 무변경 확인).
+- CI 동일조건(`CI=1`→workers=2·retries=1, 신규 포트+`--strictPort`+`PLAYWRIGHT_SKIP_WEB_SERVER=1`)
+  playwright 4 단계:
+  1. 갱신 spec 단독(`journal-collab-panel.spec.ts`, 결정2 anchor 테스트 2건 신규 포함) — **5/5 PASS**.
+  2. 인접 영향 5 디렉터리(`partner-order-collab`·`slip-collab`·`estimate-version-history`·
+     `phase-2-4-partner-order-restore`·`sp-08-4-2-partner-order-edit-put`) — **27/27 PASS**(무회귀).
+  3. **전수 1차**(testIgnore 제외 562개, 신규 비표준 포트) — 552 passed + `admin-hr-guard`/
+     `sidebar-disabled` 10건 실패·스킵. 두 spec 이 `AUDIT_BASE_URL` 이 아닌 **자체 `HR_BASE_URL`**
+     (기본값 `localhost:5173`) 을 하드코딩 참조해 비표준 포트를 못 찾은 로컬 하네스 false-RED —
+     #31 라운드1 dev-report 에 이미 문서화된 동일 현상(이번 PR 무관, 코드 변경 아님)임을
+     `list` reporter 단독 재실행으로 재확인.
+  4. **전수 2차 — 표준 포트(5173) 재기동 재확인**: (a) `--reporter=line` 단독 실행 — **562 passed,
+     0 failed, 0 skipped (5.3분)**, 프로세스 exit 0. (b) CI 와 완전히 동일한 커맨드(`npx playwright
+     test`, 옵션 없음 → config 기본 리포터 `line+json+html`) 재실행 — **561 passed + 1 flaky**
+     (`sales-query-page.spec.ts` TC-S1, 원인 `net::ERR_NO_BUFFER_SPACE` — 동일 세션에서 대형
+     playwright 스위트를 반복 실행하며 누적된 Windows 소켓 자원 고갈로 인한 일과성 네트워크
+     인프라 문제이며 회계/그룹웨어/코멘트 anchor 와 무관, retry #1 에서 정상 통과), 프로세스
+     exit 0. `node scripts/assert-playwright-ran.mjs` false-green 2차 방어 가드
+     `expected=561 unexpected=0 skipped=0 flaky=1` exit 0 확인(가드는 flaky 를 실패로 보지 않음 —
+     CI 도 동일). CI 하드게이트가 실제로 요구하는 두 단계(테스트 실행+가드) 모두 로컬 재현·GREEN.
+- 실행 부작용 PNG(`docs/qa/**`·`sp-d4-.../screenshots/**` 등)와 신규 캡처 스크린샷 1건은
+  `git checkout --`/삭제로 원복해 최종 diff 를 spec/src/dev-report 로 한정했다.

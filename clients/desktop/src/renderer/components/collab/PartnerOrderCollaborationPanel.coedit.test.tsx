@@ -47,6 +47,7 @@ vi.mock('../../api/partnerOrderCollab', () => ({
   commitPartnerOrderCollabEdit: vi.fn(),
 }))
 
+import { addPartnerOrderCollabComment } from '../../api/partnerOrderCollab'
 import { PartnerOrderCollaborationPanel } from './PartnerOrderCollaborationPanel'
 
 function renderPanel(orderId: string) {
@@ -65,6 +66,7 @@ function renderPanel(orderId: string) {
 afterEach(() => {
   cleanup()
   canAccessMock.mockReturnValue(true)
+  vi.mocked(addPartnerOrderCollabComment).mockReset()
 })
 
 describe('PartnerOrderCollaborationPanel 협업 패널 배치', () => {
@@ -92,5 +94,31 @@ describe('PartnerOrderCollaborationPanel 협업 패널 배치', () => {
 
     fireEvent.click(screen.getByText('주문 버전 선택'))
     expect(screen.getByTestId('partner-order-version-history-stub').getAttribute('data-active-revision')).toBe('4')
+  })
+
+  it('연결 필드를 선택해 코멘트를 등록하면 anchor 가 요청에 포함된다 (결정2 anchor 생성 UX)', async () => {
+    vi.mocked(addPartnerOrderCollabComment).mockResolvedValue({
+      id: 'comment-2',
+      anchor: 'dueDate',
+      authorName: '홍길동',
+      body: '납기 확인 요청',
+      parentId: null,
+      status: 'OPEN',
+      createdAt: '2026-07-06T09:20:00',
+    })
+
+    renderPanel('2099/06/27-COED-1')
+    await screen.findByText('주문 요청사항 확인')
+
+    fireEvent.change(screen.getByTestId('partner-order-collab-comment-anchor-select'), { target: { value: 'dueDate' } })
+    fireEvent.change(screen.getByTestId('partner-order-collab-comment-input'), { target: { value: '납기 확인 요청' } })
+    fireEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => {
+      expect(addPartnerOrderCollabComment).toHaveBeenCalledWith('2099/06/27-COED-1', {
+        body: '납기 확인 요청',
+        anchor: 'dueDate',
+      })
+    })
   })
 })

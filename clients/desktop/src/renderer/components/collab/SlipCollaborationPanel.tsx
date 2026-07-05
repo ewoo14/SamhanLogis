@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
 import {
   addSlipCollabComment,
   commitSlipCollabEdit,
@@ -98,6 +98,7 @@ export function SlipCollaborationPanel({
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [commentBody, setCommentBody] = useState('')
+  const [commentAnchor, setCommentAnchor] = useState('')
   const [editValues, setEditValues] = useState<Record<string, string>>({})
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
@@ -149,9 +150,11 @@ export function SlipCollaborationPanel({
   }, [commentQueryKey, queryClient, slipId])
 
   const addCommentMutation = useMutation({
-    mutationFn: (body: string) => addSlipCollabComment(slipId, { body }),
+    mutationFn: ({ body, anchor }: { body: string; anchor?: string }) =>
+      addSlipCollabComment(slipId, { body, anchor }),
     onSuccess: () => {
       setCommentBody('')
+      setCommentAnchor('')
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     },
   })
@@ -310,6 +313,22 @@ export function SlipCollaborationPanel({
 
             {canWriteComments ? (
               <>
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600, maxWidth: 260, marginTop: 12 }}>
+                  연결 필드
+                  <Select
+                    data-testid="slip-collab-comment-anchor-select"
+                    value={commentAnchor}
+                    onChange={(event) => setCommentAnchor(event.target.value)}
+                    selectSize="sm"
+                  >
+                    <option value="">전체 코멘트</option>
+                    {OVERLAY_FIELD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
                   <textarea
                     data-testid="slip-collab-comment-input"
@@ -337,7 +356,7 @@ export function SlipCollaborationPanel({
                     size="sm"
                     disabled={trimmedComment.length === 0 || addCommentMutation.isPending}
                     loading={addCommentMutation.isPending}
-                    onClick={() => addCommentMutation.mutate(trimmedComment)}
+                    onClick={() => addCommentMutation.mutate({ body: trimmedComment, anchor: commentAnchor || undefined })}
                   >
                     등록
                   </Button>

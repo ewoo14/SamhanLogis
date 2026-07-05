@@ -163,22 +163,33 @@ test.describe('§7 슬라이스1 회계전표 협업 실 QA — 수정완료 1-�
     await page.waitForTimeout(1500)
     await capture(page, 'edit-commit')
 
-    // ⑦ 버전이력 격차 안내 — #31 이력 일원화 이후 changeSet diff 목록은 제거되고
-    //    revision/restore API 부재를 알리는 안내 카드만 남는다(정직 표기).
-    await page.getByTestId('journal-version-history-gap').scrollIntoViewIfNeeded().catch(() => {})
+    // ⑦ 수정 이력 — 개발책임자 결정1(2026-07-06, #31 재확인)로 changeSet diff(before→after)
+    //    목록이 복구됐다(버전이력 아님 — 회계 분개는 revision/restore API 미보유).
+    await page.getByTestId('journal-collab-edit-history-panel').scrollIntoViewIfNeeded().catch(() => {})
     await page.waitForTimeout(400)
-    await capture(page, 'diff-history')
+    await capture(page, 'edit-history')
 
-    // ⑧ 코멘트 입력
+    // ⑧ 코멘트 연결 필드(anchor) 선택 — 결정2 anchor 생성 UX.
+    const anchorSelect = page.getByTestId('journal-collab-comment-anchor-select')
+    await anchorSelect.scrollIntoViewIfNeeded().catch(() => {})
+    await anchorSelect.selectOption('description')
+    await page.waitForTimeout(300)
+    await capture(page, 'comment-anchor-select')
+
+    // ⑨ 코멘트 입력
     const commentInput = page.getByTestId('journal-collab-comment-input')
     await commentInput.scrollIntoViewIfNeeded().catch(() => {})
     await commentInput.fill('실서버 QA 협업 코멘트 — 적요 정정 확인 부탁드립니다')
     await page.waitForTimeout(400)
     await capture(page, 'comment-input')
 
-    // ⑨ 코멘트 등록
+    // ⑩ 코멘트 등록 → anchor(적요) 클릭 시 수정 이력 diff 와 하이라이트 공유(결정2 양방향).
     await page.getByRole('button', { name: '등록' }).click()
     await page.waitForTimeout(1200)
     await capture(page, 'comment-posted')
+
+    await page.getByTestId('journal-collab-comment-item').first().click()
+    await page.waitForTimeout(300)
+    await capture(page, 'comment-anchor-highlight')
   })
 })

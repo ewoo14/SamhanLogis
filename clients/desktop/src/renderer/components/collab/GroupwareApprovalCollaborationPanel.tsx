@@ -7,14 +7,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
 import {
   addGroupwareApprovalCollabComment,
   commitGroupwareApprovalCollabEdit,
   deleteGroupwareApprovalCollabComment,
   getGroupwareApprovalCollabComments,
+  getGroupwareApprovalCollabEdits,
   resolveGroupwareApprovalCollabComment,
   type GroupwareApprovalCollabComment,
+  type GroupwareApprovalCollabEdit,
 } from '../../api/groupwareApprovalCollab'
 import type { ApprovalStatus } from '../../api/groupwareApproval'
 import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
@@ -55,6 +57,53 @@ function displayName(value: string | null | undefined): string {
 function normalizeCollabAnchor(anchor: string | null | undefined): string | null {
   const normalized = (anchor ?? '').trim().replace(/^\/+/, '').replace(/\//g, '.')
   return normalized.length > 0 ? normalized : null
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/^\/+/, '').replace(/\//g, '.')
+}
+
+function labelForPath(path: string, fieldLabelMap: Record<string, string>): string {
+  const normalized = normalizePath(path)
+  if (normalized === 'title') return '제목'
+  if (normalized === 'content') return '내용'
+  if (normalized.startsWith('field.')) {
+    const fieldKey = normalized.slice('field.'.length)
+    return fieldLabelMap[fieldKey] ?? fieldKey
+  }
+  return normalized
+}
+
+function parseChangeSetDiffs(changeSet: string, fieldLabelMap: Record<string, string>): Array<{
+  fieldName: string
+  label: string
+  before: string | null
+  after: string | null
+}> {
+  try {
+    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
+    return Object.entries(parsed).map(([path, change]) => ({
+      fieldName: normalizePath(path),
+      label: labelForPath(path, fieldLabelMap),
+      before: change.before == null ? null : String(change.before),
+      after: change.after == null ? null : String(change.after),
+    }))
+  } catch {
+    return []
+  }
+}
+
+function summarizeChangeSet(changeSet: string, fieldLabelMap: Record<string, string>): string {
+  const diffs = parseChangeSetDiffs(changeSet, fieldLabelMap)
+  if (diffs.length === 0) return '변경 내용 형식을 해석하지 못했습니다.'
+  return diffs
+    .map((diff) => `${diff.label}: ${diff.after ?? '비움'}`)
+    .join(' · ')
+}
+
+/** 필드 경로 → 안전한 data-testid 접미사 (영숫자 이외는 하이픈으로 치환). */
+function fieldPathTestId(fieldPath: string): string {
+  return fieldPath.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -111,6 +160,7 @@ export function GroupwareApprovalCollaborationPanel({
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [commentBody, setCommentBody] = useState('')
+  const [commentAnchor, setCommentAnchor] = useState('')
   const [editMode, setEditMode] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [contentDraft, setContentDraft] = useState('')
@@ -126,11 +176,16 @@ export function GroupwareApprovalCollaborationPanel({
   const presenceEntries = usePresence({ entityId: approvalId, client: GroupwareApprovalPresenceClient, enabled: !!approvalId })
 
   const commentQueryKey = useMemo(() => ['groupwareApprovalCollabComments', approvalId] as const, [approvalId])
+  const editQueryKey = useMemo(() => ['groupwareApprovalCollabEdits', approvalId] as const, [approvalId])
   const approvalQueryKey = useMemo(() => ['groupwareApproval', approvalId] as const, [approvalId])
   const approvalListQueryKey = useMemo(() => ['groupwareApprovals'] as const, [])
   const collabBasePath = useMemo(
     () => `/admin/groupware/approvals/${encodeURIComponent(approvalId)}`,
     [approvalId],
+  )
+  const fieldLabelMap = useMemo(
+    () => Object.fromEntries(templateFields.map((field) => [field.fieldKey, field.label])),
+    [templateFields],
   )
   const approvalHeaderTextFields = useMemo(
     () => new Set([
@@ -149,6 +204,12 @@ export function GroupwareApprovalCollaborationPanel({
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
     queryFn: () => getGroupwareApprovalCollabComments(approvalId),
+    enabled: !!approvalId,
+  })
+
+  const editsQuery = useQuery({
+    queryKey: editQueryKey,
+    queryFn: () => getGroupwareApprovalCollabEdits(approvalId),
     enabled: !!approvalId,
   })
 
@@ -224,16 +285,19 @@ export function GroupwareApprovalCollaborationPanel({
     const ctrl = GroupwareApprovalCollabRealtimeClient.subscribe(approvalId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: approvalQueryKey })
       void queryClient.invalidateQueries({ queryKey: approvalListQueryKey })
     })
     return () => ctrl.abort()
-  }, [approvalId, approvalListQueryKey, approvalQueryKey, commentQueryKey, queryClient])
+  }, [approvalId, approvalListQueryKey, approvalQueryKey, commentQueryKey, editQueryKey, queryClient])
 
   const addCommentMutation = useMutation({
-    mutationFn: (body: string) => addGroupwareApprovalCollabComment(approvalId, { body }),
+    mutationFn: ({ body, anchor }: { body: string; anchor?: string }) =>
+      addGroupwareApprovalCollabComment(approvalId, { body, anchor }),
     onSuccess: () => {
       setCommentBody('')
+      setCommentAnchor('')
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     },
   })
@@ -286,6 +350,7 @@ export function GroupwareApprovalCollaborationPanel({
       queryClient.setQueryData(approvalQueryKey, response.approval)
       void queryClient.invalidateQueries({ queryKey: approvalQueryKey })
       void queryClient.invalidateQueries({ queryKey: approvalListQueryKey })
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       onCommitted?.()
     },
     onError: (error: unknown) => {
@@ -298,6 +363,7 @@ export function GroupwareApprovalCollaborationPanel({
   })
 
   const comments: GroupwareApprovalCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
+  const edits: GroupwareApprovalCollabEdit[] = Array.isArray(editsQuery.data) ? editsQuery.data : []
   const trimmedComment = commentBody.trim()
 
   return (
@@ -401,6 +467,25 @@ export function GroupwareApprovalCollaborationPanel({
 
             {canWrite ? (
               <>
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600, maxWidth: 260, marginTop: 12 }}>
+                  연결 필드
+                  <Select
+                    data-testid="groupware-approval-collab-comment-anchor-select"
+                    aria-label="코멘트 연결 필드"
+                    value={commentAnchor}
+                    onChange={(event) => setCommentAnchor(event.target.value)}
+                    selectSize="sm"
+                  >
+                    <option value="">전체 코멘트</option>
+                    <option value="title">제목</option>
+                    <option value="content">내용</option>
+                    {templateFields.map((field) => (
+                      <option key={field.fieldKey} value={`field.${field.fieldKey}`}>
+                        {field.label}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
                   <textarea
                     data-testid="groupware-approval-collab-comment-input"
@@ -429,7 +514,7 @@ export function GroupwareApprovalCollaborationPanel({
                     size="sm"
                     disabled={trimmedComment.length === 0 || addCommentMutation.isPending}
                     loading={addCommentMutation.isPending}
-                    onClick={() => addCommentMutation.mutate(trimmedComment)}
+                    onClick={() => addCommentMutation.mutate({ body: trimmedComment, anchor: commentAnchor || undefined })}
                   >
                     등록
                   </Button>
@@ -589,15 +674,90 @@ export function GroupwareApprovalCollaborationPanel({
         </div>
       </Card>
       <Card
+        as="section"
+        aria-label="수정 이력"
         padding={4}
         shadow="sm"
-        style={{ marginTop: 24 }}
-        data-testid="groupware-approval-version-history-gap"
+        style={{ marginTop: 24, width: '100%' }}
+        data-testid="groupware-approval-collab-edit-history-panel"
       >
-        <h4 style={{ marginTop: 0 }}>버전 이력</h4>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>
-          그룹웨어 결재 버전이력은 full-snapshot revision/restore API가 없어 이번 화면에서는 코멘트만 제공합니다. 현재 확인 가능한 것은 결재 audit log 계열 이력이며, 동등 버전이력 패널은 후속 백엔드 계약이 필요합니다.
-        </p>
+        <h4 style={{ marginTop: 0 }}>수정 이력</h4>
+        <div
+          data-testid="groupware-approval-collab-edit-list"
+          style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
+        >
+          {editsQuery.isLoading ? (
+            <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
+          ) : editsQuery.isError ? (
+            <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
+              수정 이력을 불러오지 못했습니다.
+            </p>
+          ) : edits.length === 0 ? (
+            <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
+          ) : edits.map((edit) => {
+            const diffs = parseChangeSetDiffs(edit.changeSet, fieldLabelMap)
+            return (
+              <article
+                key={edit.id}
+                data-testid="groupware-approval-collab-edit-item"
+                style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+                  <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
+                  <Badge variant="success">수정완료</Badge>
+                  <span style={{ color: 'var(--color-neutral-500)' }}>
+                    {formatDateTime(edit.decidedAt ?? edit.createdAt)}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+                  {diffs.map((diff) => {
+                    const isActive = diff.fieldName === activeFieldPath
+                    return (
+                      <div
+                        key={`${edit.id}-${diff.fieldName}`}
+                        data-testid={`groupware-approval-collab-edit-change-${fieldPathTestId(diff.fieldName)}`}
+                        data-active={isActive ? 'true' : undefined}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setActiveFieldPath(diff.fieldName)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return
+                          event.preventDefault()
+                          setActiveFieldPath(diff.fieldName)
+                        }}
+                        style={{
+                          fontSize: 13,
+                          overflowWrap: 'anywhere',
+                          padding: isActive ? '4px 6px' : 0,
+                          borderRadius: 4,
+                          background: isActive ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <strong>{diff.label}</strong>
+                        <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
+                          {diff.before ?? '이전값 미기록'}
+                        </span>
+                        <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
+                        <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
+                          {diff.after ?? '비움'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {diffs.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet, fieldLabelMap)}</p>
+                  ) : null}
+                </div>
+                {edit.reason ? (
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                    사유: {edit.reason}
+                  </p>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
       </Card>
     </section>
   )

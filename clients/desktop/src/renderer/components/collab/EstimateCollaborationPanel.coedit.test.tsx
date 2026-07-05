@@ -47,6 +47,7 @@ vi.mock('../../api/estimateCollab', () => ({
   commitEstimateCollabEdit: vi.fn(),
 }))
 
+import { addEstimateCollabComment } from '../../api/estimateCollab'
 import { EstimateCollaborationPanel } from './EstimateCollaborationPanel'
 
 function renderPanel(estimateId: string) {
@@ -65,6 +66,7 @@ function renderPanel(estimateId: string) {
 afterEach(() => {
   cleanup()
   canAccessMock.mockReturnValue(true)
+  vi.mocked(addEstimateCollabComment).mockReset()
 })
 
 describe('EstimateCollaborationPanel 협업 패널 배치', () => {
@@ -92,5 +94,31 @@ describe('EstimateCollaborationPanel 협업 패널 배치', () => {
 
     fireEvent.click(screen.getByText('견적 버전 선택'))
     expect(screen.getByTestId('estimate-version-history-stub').getAttribute('data-active-revision')).toBe('3')
+  })
+
+  it('연결 필드를 선택해 코멘트를 등록하면 anchor 가 요청에 포함된다 (결정2 anchor 생성 UX)', async () => {
+    vi.mocked(addEstimateCollabComment).mockResolvedValue({
+      id: 'comment-2',
+      anchor: 'validUntil',
+      authorName: '홍길동',
+      body: '유효기간 확인 요청',
+      parentId: null,
+      status: 'OPEN',
+      createdAt: '2026-07-06T09:20:00',
+    })
+
+    renderPanel('estimate/id with spaces')
+    await screen.findByText('견적 메모 확인')
+
+    fireEvent.change(screen.getByTestId('estimate-collab-comment-anchor-select'), { target: { value: 'validUntil' } })
+    fireEvent.change(screen.getByTestId('estimate-collab-comment-input'), { target: { value: '유효기간 확인 요청' } })
+    fireEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => {
+      expect(addEstimateCollabComment).toHaveBeenCalledWith('estimate/id with spaces', {
+        body: '유효기간 확인 요청',
+        anchor: 'validUntil',
+      })
+    })
   })
 })

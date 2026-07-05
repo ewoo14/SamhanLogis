@@ -668,12 +668,17 @@ button {
    * 두 하위 섹션을 구분할 라벨이 모바일에서 소실되는 회귀를 낳는다.
    * 전체 선택자를 바꾸지 않고(다른 MobileCollapsible 내부 h4 는 계속 숨김 유지),
    * 버전이력 패널의 data-testid 로만 한정해 라벨을 되살린다(스코프 한정 규칙).
+   *
+   * 개발책임자 결정1(2026-07-06, #31 재확인) — Journal/GroupwareApproval 은 버전이력 격차
+   * 안내 카드(journal-version-history-gap/groupware-approval-version-history-gap) 대신
+   * 수정 이력 패널(journal-collab-edit-history-panel/groupware-approval-collab-edit-history-panel)
+   * 로 대체됐다 — testid 갱신.
    */
   .mobile-section-body [data-testid='slip-version-history-panel'] h4,
   .mobile-section-body [data-testid='estimate-version-history-panel'] h4,
   .mobile-section-body [data-testid='partner-order-version-history-panel'] h4,
-  .mobile-section-body [data-testid='journal-version-history-gap'] h4,
-  .mobile-section-body [data-testid='groupware-approval-version-history-gap'] h4 {
+  .mobile-section-body [data-testid='journal-collab-edit-history-panel'] h4,
+  .mobile-section-body [data-testid='groupware-approval-collab-edit-history-panel'] h4 {
     display: block;
   }
 }

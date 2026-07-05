@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
 import {
   addEstimateCollabComment,
   commitEstimateCollabEdit,
@@ -114,6 +114,7 @@ export function EstimateCollaborationPanel({
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [commentBody, setCommentBody] = useState('')
+  const [commentAnchor, setCommentAnchor] = useState('')
   const [memoDraft, setMemoDraft] = useState('')
   const [validUntilDraft, setValidUntilDraft] = useState('')
   const [lineNoteDrafts, setLineNoteDrafts] = useState<Record<number, string>>({})
@@ -168,9 +169,11 @@ export function EstimateCollaborationPanel({
   }, [commentQueryKey, estimateId, estimateQueryKey, queryClient])
 
   const addCommentMutation = useMutation({
-    mutationFn: (body: string) => addEstimateCollabComment(estimateId, { body }),
+    mutationFn: ({ body, anchor }: { body: string; anchor?: string }) =>
+      addEstimateCollabComment(estimateId, { body, anchor }),
     onSuccess: () => {
       setCommentBody('')
+      setCommentAnchor('')
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     },
   })
@@ -353,6 +356,25 @@ export function EstimateCollaborationPanel({
 
             {canWrite ? (
               <>
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600, maxWidth: 260, marginTop: 12 }}>
+                  연결 필드
+                  <Select
+                    data-testid="estimate-collab-comment-anchor-select"
+                    aria-label="코멘트 연결 필드"
+                    value={commentAnchor}
+                    onChange={(event) => setCommentAnchor(event.target.value)}
+                    selectSize="sm"
+                  >
+                    <option value="">전체 코멘트</option>
+                    <option value="memo">비고</option>
+                    <option value="validUntil">유효기간</option>
+                    {lines.map((line) => (
+                      <option key={line.lineKey} value={lineNotePath(line.lineKey)}>
+                        {line.lineKey}번 라인 메모
+                      </option>
+                    ))}
+                  </Select>
+                </label>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
                   <textarea
                     data-testid="estimate-collab-comment-input"
@@ -381,7 +403,7 @@ export function EstimateCollaborationPanel({
                     size="sm"
                     disabled={trimmedComment.length === 0 || addCommentMutation.isPending}
                     loading={addCommentMutation.isPending}
-                    onClick={() => addCommentMutation.mutate(trimmedComment)}
+                    onClick={() => addCommentMutation.mutate({ body: trimmedComment, anchor: commentAnchor || undefined })}
                   >
                     등록
                   </Button>

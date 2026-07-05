@@ -7,14 +7,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
 import {
   addJournalCollabComment,
   commitJournalCollabEdit,
   deleteJournalCollabComment,
   getJournalCollabComments,
+  getJournalCollabEdits,
   resolveJournalCollabComment,
   type JournalCollabComment,
+  type JournalCollabEdit,
 } from '../../api/journalCollab'
 import { JournalCollabRealtimeClient } from '../../realtime/JournalCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -67,6 +69,59 @@ function normalizeCollabAnchor(anchor: string | null | undefined): string | null
   return normalized.length > 0 ? normalized : null
 }
 
+function normalizePath(path: string): string {
+  return path.replace(/^\/+/, '')
+}
+
+function labelForPath(path: string): string {
+  const normalized = normalizePath(path)
+  if (normalized === 'description') return '적요'
+  const lineMatch = normalized.match(/^line\.(\d+)\.memo$/)
+  if (lineMatch) {
+    // lineNo 는 BE 1-based(JournalService lineNo=1.. / line.{lineNo}.memo) — 그대로 표기한다.
+    return `${lineMatch[1]}번 라인 메모`
+  }
+  return normalized
+}
+
+function summarizeChangeSet(changeSet: string): string {
+  try {
+    const parsed = JSON.parse(changeSet) as Record<string, { after?: unknown }>
+    return Object.entries(parsed)
+      .map(([path, change]) => {
+        const after = change.after == null ? '비움' : String(change.after)
+        return `${labelForPath(path)}: ${after}`
+      })
+      .join(' · ')
+  } catch {
+    return '변경 내용 형식을 해석하지 못했습니다.'
+  }
+}
+
+function parseChangeSetDiffs(changeSet: string): Array<{
+  fieldName: string
+  label: string
+  before: string | null
+  after: string | null
+}> {
+  try {
+    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
+    return Object.entries(parsed).map(([path, change]) => ({
+      fieldName: normalizePath(path),
+      label: labelForPath(path),
+      before: change.before == null ? null : String(change.before),
+      after: change.after == null ? null : String(change.after),
+    }))
+  } catch {
+    return []
+  }
+}
+
+/** 필드 경로 → 안전한 data-testid 접미사 (영숫자 이외는 하이픈으로 치환). */
+function fieldPathTestId(fieldPath: string): string {
+  return fieldPath.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 function valueForEdit(value: string | null | undefined): string {
   return value ?? ''
 }
@@ -96,6 +151,7 @@ export function JournalCollaborationPanel({
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [commentBody, setCommentBody] = useState('')
+  const [commentAnchor, setCommentAnchor] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
   const [lineMemoDrafts, setLineMemoDrafts] = useState<Record<number, string>>({})
   const [editReason, setEditReason] = useState('')
@@ -105,6 +161,7 @@ export function JournalCollaborationPanel({
   const presenceEntries = usePresence({ entityId: journalId, client: JournalPresenceClient, enabled: !!journalId })
 
   const commentQueryKey = useMemo(() => ['journalCollabComments', journalId] as const, [journalId])
+  const editQueryKey = useMemo(() => ['journalCollabEdits', journalId] as const, [journalId])
   const journalQueryKey = useMemo(() => ['accounting', 'journal', journalId] as const, [journalId])
   const canWriteComments = canAccess('accounting.journals', 'update')
   const canResolveComments = canAccess('accounting.journals', 'update')
@@ -119,6 +176,12 @@ export function JournalCollaborationPanel({
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
     queryFn: () => getJournalCollabComments(journalId),
+    enabled: !!journalId,
+  })
+
+  const editsQuery = useQuery({
+    queryKey: editQueryKey,
+    queryFn: () => getJournalCollabEdits(journalId),
     enabled: !!journalId,
   })
 
@@ -140,16 +203,19 @@ export function JournalCollaborationPanel({
     const ctrl = JournalCollabRealtimeClient.subscribe(journalId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: journalQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
     })
     return () => ctrl.abort()
-  }, [commentQueryKey, journalId, journalQueryKey, queryClient])
+  }, [commentQueryKey, editQueryKey, journalId, journalQueryKey, queryClient])
 
   const addCommentMutation = useMutation({
-    mutationFn: (body: string) => addJournalCollabComment(journalId, { body }),
+    mutationFn: ({ body, anchor }: { body: string; anchor?: string }) =>
+      addJournalCollabComment(journalId, { body, anchor }),
     onSuccess: () => {
       setCommentBody('')
+      setCommentAnchor('')
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     },
   })
@@ -203,6 +269,7 @@ export function JournalCollaborationPanel({
       setEditNotice('수정완료되었습니다.')
       // setQueryData(result.journal) 금지 — commit 응답 journal 은 상세 조회 DTO 의 부분집합이라
       // reversedAt/reverseReason 등이 undefined 로 덮여 사라진다. invalidate 로 권위 있는 재조회에 위임.
+      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: journalQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
       onCommitted?.()
@@ -224,6 +291,7 @@ export function JournalCollaborationPanel({
   })
 
   const comments: JournalCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
+  const edits: JournalCollabEdit[] = Array.isArray(editsQuery.data) ? editsQuery.data : []
   const trimmedComment = commentBody.trim()
 
   return (
@@ -320,6 +388,23 @@ export function JournalCollaborationPanel({
 
             {canWriteComments ? (
               <>
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600, maxWidth: 260, marginTop: 12 }}>
+                  연결 필드
+                  <Select
+                    data-testid="journal-collab-comment-anchor-select"
+                    value={commentAnchor}
+                    onChange={(event) => setCommentAnchor(event.target.value)}
+                    selectSize="sm"
+                  >
+                    <option value="">전체 코멘트</option>
+                    <option value="description">적요</option>
+                    {lines.map((line) => (
+                      <option key={line.lineNo} value={lineMemoPath(line.lineNo)}>
+                        {line.lineNo}번 라인 메모
+                      </option>
+                    ))}
+                  </Select>
+                </label>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
                   <textarea
                     data-testid="journal-collab-comment-input"
@@ -347,7 +432,7 @@ export function JournalCollaborationPanel({
                     size="sm"
                     disabled={trimmedComment.length === 0 || addCommentMutation.isPending}
                     loading={addCommentMutation.isPending}
-                    onClick={() => addCommentMutation.mutate(trimmedComment)}
+                    onClick={() => addCommentMutation.mutate({ body: trimmedComment, anchor: commentAnchor || undefined })}
                   >
                     등록
                   </Button>
@@ -480,15 +565,89 @@ export function JournalCollaborationPanel({
         </div>
       </Card>
       <Card
+        as="section"
+        aria-label="수정 이력"
         padding={4}
         shadow="sm"
-        style={{ marginTop: 24 }}
-        data-testid="journal-version-history-gap"
+        style={{ marginTop: 24, width: '100%' }}
+        data-testid="journal-collab-edit-history-panel"
       >
-        <h4 style={{ marginTop: 0 }}>버전 이력</h4>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>
-          회계 분개 버전이력은 full-snapshot revision/restore API가 없어 이번 화면에서는 코멘트만 제공합니다. 현재 확인 가능한 것은 감사 로그 단위 이력이며, 동등 버전이력 패널은 후속 백엔드 계약이 필요합니다.
-        </p>
+        <h4 style={{ marginTop: 0 }}>수정 이력</h4>
+        <div
+          data-testid="journal-collab-edit-list"
+          style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
+        >
+          {editsQuery.isLoading ? (
+            <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
+          ) : editsQuery.isError ? (
+            <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
+              수정 이력을 불러오지 못했습니다.
+            </p>
+          ) : edits.length === 0 ? (
+            <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
+          ) : edits.map((edit) => {
+            const diffs = parseChangeSetDiffs(edit.changeSet)
+            return (
+              <article
+                key={edit.id}
+                data-testid="journal-collab-edit-item"
+                style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+                  <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
+                  <Badge variant="success">수정완료</Badge>
+                  <span style={{ color: 'var(--color-neutral-500)' }}>
+                    {formatDateTime(edit.decidedAt ?? edit.createdAt)}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+                  {diffs.map((diff) => {
+                    const isActive = diff.fieldName === activeFieldPath
+                    return (
+                      <div
+                        key={`${edit.id}-${diff.fieldName}`}
+                        data-testid={`journal-collab-edit-change-${fieldPathTestId(diff.fieldName)}`}
+                        data-active={isActive ? 'true' : undefined}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setActiveFieldPath(diff.fieldName)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return
+                          event.preventDefault()
+                          setActiveFieldPath(diff.fieldName)
+                        }}
+                        style={{
+                          fontSize: 13,
+                          padding: isActive ? '4px 6px' : 0,
+                          borderRadius: 4,
+                          background: isActive ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <strong>{diff.label}</strong>
+                        <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
+                          {diff.before ?? '이전값 미기록'}
+                        </span>
+                        <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
+                        <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
+                          {diff.after ?? '비움'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {diffs.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet)}</p>
+                  ) : null}
+                </div>
+                {edit.reason ? (
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                    사유: {edit.reason}
+                  </p>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
       </Card>
     </section>
   )
