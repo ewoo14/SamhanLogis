@@ -73,3 +73,16 @@
   모든 소비 지점을 전수 점검해야 한다 ([[feedback_defect_family_sweep_fix]]).
 - `RestClient`/`UriComponentsBuilder` 조합에서 쿼리 파라미터를 수동으로 pre-encode 하면 거의 항상
   이중인코딩이다 — Spring 의 URI 빌더 계열에 원문을 그대로 넘기고 인코딩은 프레임워크에 위임할 것.
+
+## 2026-07-06 Codex config 재수렴 후속
+
+- in-scope: notification-service 한정 env template 재수렴. `services/notification-service/src/main/resources/application.yml`
+  의 `${SAMHAN_*}` 소비 변수와 `infrastructure/docker-compose.local-all.yml` / `infrastructure/docker-compose.prod.yml`
+  notification-service 주입값을 대조했고, `infrastructure/env-templates/notification-service.env` 에 누락된
+  `SAMHAN_AUTH_SERVICE_URL`, `SAMHAN_NOTIFICATION_PARTNER_LOOKUP_ENABLED`,
+  `SAMHAN_NOTIFICATION_SEED_TEST_DATA` 를 추가했다.
+- out-of-scope 후속 config-audit 슬라이스: `infrastructure/env-templates/arologis-service.env` 의
+  `SAMHAN_SLIP_SERVICE_URL` 이 compose 기준 `http://slip-service:8086` 이 아닌 `8084` 로 남아 있는 건은
+  arologis-service 범위라 본 fix 에서 수정하지 않았다.
+- out-of-scope 후속 config-audit 슬라이스: prod `SAMHAN_USER_CLIENT_FAIL_MODE=STRICT` 미배선은
+  notification-service config-code mismatch concern 으로 남기고, 본 fix 에서는 문서화만 수행했다.
