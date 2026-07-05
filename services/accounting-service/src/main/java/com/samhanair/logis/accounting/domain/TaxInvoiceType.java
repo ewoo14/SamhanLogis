@@ -13,8 +13,23 @@ package com.samhanair.logis.accounting.domain;
 public enum TaxInvoiceType {
 
     /** 매출 세금계산서 — 우리 회사가 공급자, VAT 납부 의무 발생. */
-    SALES,
+    SALES("매출"),
 
     /** 매입 세금계산서 — 우리 회사가 공급받는자, VAT 공제 가능. */
-    PURCHASE
+    PURCHASE("매입");
+
+    private final String displayName;
+
+    TaxInvoiceType(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /**
+     * 사용자 노출 메시지에 사용하는 한국어 세금계산서 종류 라벨.
+     *
+     * @return 한국어 표시명
+     */
+    public String getDisplayName() {
+        return displayName;
+    }
 }

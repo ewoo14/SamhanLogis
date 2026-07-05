@@ -166,7 +166,9 @@ class TaxInvoiceServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT))
-                .hasMessageContaining("SALES 또는 PURCHASE");
+                .hasMessageContaining("매출 또는 매입")
+                .hasMessageNotContaining("SALES")
+                .hasMessageNotContaining("PURCHASE");
     }
 
     // ── 시나리오 4 ───────────────────────────────────────────────────────────

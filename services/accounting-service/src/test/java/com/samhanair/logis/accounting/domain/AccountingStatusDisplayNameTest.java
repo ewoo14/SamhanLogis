@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.samhanair.logis.common.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +38,8 @@ class AccountingStatusDisplayNameTest {
 
         assertThat(TaxInvoiceDirection.OUTBOUND.getDisplayName()).isEqualTo("매출(발행)");
         assertThat(TaxInvoiceDirection.INBOUND.getDisplayName()).isEqualTo("매입(수신)");
+        assertThat(TaxInvoiceType.SALES.getDisplayName()).isEqualTo("매출");
+        assertThat(TaxInvoiceType.PURCHASE.getDisplayName()).isEqualTo("매입");
 
         assertThat(PlanStatus.PLANNED.getDisplayName()).isEqualTo("예정");
         assertThat(PlanStatus.COLLECTED.getDisplayName()).isEqualTo("수금완료");
@@ -46,5 +49,40 @@ class AccountingStatusDisplayNameTest {
         assertThat(NoteStatus.COLLECTING.getDisplayName()).isEqualTo("추심");
         assertThat(NoteStatus.SETTLED.getDisplayName()).isEqualTo("결제완료");
         assertThat(NoteStatus.DISHONORED.getDisplayName()).isEqualTo("부도");
+    }
+
+    @Test
+    @DisplayName("사용자 노출 회계 오류 기본 메시지는 상태 enum 원문을 포함하지 않는다")
+    void accountingErrorCodeDefaultMessagesDoNotExposeRawStatusCodes() {
+        assertThat(ErrorCode.TAX_INVOICE_NOT_EMITTABLE.getDefaultMessage())
+                .contains("발행")
+                .doesNotContain("ISSUED");
+        assertThat(ErrorCode.SAS_SOURCE_SLIP_NOT_CONFIRMED.getDefaultMessage())
+                .contains("확정")
+                .doesNotContain("CONFIRMED");
+        assertThat(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH.getDefaultMessage())
+                .contains("출고", "입고")
+                .doesNotContain("OUTBOUND", "INBOUND", "source");
+        assertThat(ErrorCode.SAS_OVER_ALLOCATION.getDefaultMessage())
+                .contains("라인")
+                .doesNotContain("line");
+        assertThat(ErrorCode.SAS_LINE_AMOUNT_MISMATCH.getDefaultMessage())
+                .contains("라인")
+                .doesNotContain("line_total");
+        assertThat(ErrorCode.SAS_TAX_TYPE_MIXED.getDefaultMessage())
+                .contains("라인")
+                .doesNotContain("tax_type");
+        assertThat(ErrorCode.SAS_ALREADY_POSTED.getDefaultMessage())
+                .contains("반영완료")
+                .doesNotContain("POSTED");
+        assertThat(ErrorCode.SAS_SALES_SLIP_NOT_POSTED.getDefaultMessage())
+                .contains("반영완료")
+                .doesNotContain("POSTED");
+        assertThat(ErrorCode.SAS_PURCHASE_SLIP_NOT_POSTED.getDefaultMessage())
+                .contains("반영완료")
+                .doesNotContain("POSTED");
+        assertThat(ErrorCode.MIG3_JOURNAL_BALANCE_MISMATCH.getDefaultMessage())
+                .contains("확정")
+                .doesNotContain("POSTED");
     }
 }

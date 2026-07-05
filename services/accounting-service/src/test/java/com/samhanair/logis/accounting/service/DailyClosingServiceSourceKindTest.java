@@ -142,7 +142,11 @@ class DailyClosingServiceSourceKindTest {
                         DailyClosingKind.SALES, DailyClosingSourceKind.PURCHASE_SLIP),
                 "accountant", null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("closingKind/sourceKind");
+                .hasMessageContaining("매출 마감")
+                .hasMessageContaining("매입전표")
+                .hasMessageNotContaining("SALES")
+                .hasMessageNotContaining("PURCHASE_SLIP")
+                .hasMessageNotContaining("closingKind/sourceKind");
     }
 
     private static TaxInvoice issuedTaxInvoice(String no, TaxInvoiceType type,

@@ -444,7 +444,9 @@ public class TaxInvoiceService {
             return TaxInvoiceType.valueOf(raw.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "invoiceType 은 SALES 또는 PURCHASE 만 허용됩니다: " + raw);
+                    "세금계산서 종류는 " + TaxInvoiceType.SALES.getDisplayName()
+                            + " 또는 " + TaxInvoiceType.PURCHASE.getDisplayName()
+                            + "만 허용됩니다: " + raw);
         }
     }
 

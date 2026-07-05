@@ -313,10 +313,12 @@ public class DailyClosingService {
     static void validateKindSourceMatch(DailyClosingKind closingKind,
                                         DailyClosingSourceKind sourceKind) {
         if (closingKind == DailyClosingKind.SALES && sourceKind == DailyClosingSourceKind.PURCHASE_SLIP) {
-            throw new IllegalArgumentException("closingKind/sourceKind 조합이 올바르지 않습니다: SALES + PURCHASE_SLIP");
+            throw new IllegalArgumentException(closingKind.getDisplayName()
+                    + "에는 " + sourceKind.getDisplayName() + "를 사용할 수 없습니다.");
         }
         if (closingKind == DailyClosingKind.PURCHASE && sourceKind == DailyClosingSourceKind.SALES_SLIP) {
-            throw new IllegalArgumentException("closingKind/sourceKind 조합이 올바르지 않습니다: PURCHASE + SALES_SLIP");
+            throw new IllegalArgumentException(closingKind.getDisplayName()
+                    + "에는 " + sourceKind.getDisplayName() + "를 사용할 수 없습니다.");
         }
     }
 

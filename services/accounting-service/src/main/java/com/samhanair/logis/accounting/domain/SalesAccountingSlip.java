@@ -104,9 +104,9 @@ public class SalesAccountingSlip extends BaseEntity {
             BigDecimal diff = line.getLineTotal().subtract(allocatedTotal);
             if (diff.compareTo(BigDecimal.ZERO) != 0) {
                 throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
-                        "line_total 과 allocation 합계가 일치하지 않습니다: lineNo="
-                                + line.getLineNo() + ", lineTotal=" + line.getLineTotal()
-                                + ", allocatedTotal=" + allocatedTotal);
+                        "라인 합계와 배분 합계가 일치하지 않습니다: 라인번호="
+                                + line.getLineNo() + ", 라인합계=" + line.getLineTotal()
+                                + ", 배분합계=" + allocatedTotal);
             }
         }
     }

@@ -84,7 +84,7 @@ public enum ErrorCode {
      * DRAFT 또는 CANCELLED 상태일 때 422 반환 (SP-09-1).
      */
     TAX_INVOICE_NOT_EMITTABLE(HttpStatus.UNPROCESSABLE_ENTITY,
-            "발행(ISSUED) 상태의 세금계산서만 e-Tax 전송할 수 있습니다."),
+            "발행 상태의 세금계산서만 e-Tax 전송할 수 있습니다."),
     /**
      * 세금계산서 e-Tax 중복 발행 — 이미 eTaxExternalId 가 설정된 세금계산서에 emit-nts 재호출.
      * 409 반환 (SP-09-1).
@@ -133,32 +133,32 @@ public enum ErrorCode {
      * 출고/입고전표가 CONFIRMED 상태가 아님 (SAS 슬라이스).
      */
     SAS_SOURCE_SLIP_NOT_CONFIRMED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "출고/입고전표가 CONFIRMED 상태가 아닙니다."),
+            "출고/입고전표가 확정 상태가 아닙니다."),
     /**
      * source 전표 유형 불일치 — 매출은 OUTBOUND, 매입은 INBOUND 만 허용 (SAS 슬라이스).
      */
     SAS_SOURCE_SLIP_TYPE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "source 전표 유형이 잘못되었습니다 (매출=OUTBOUND, 매입=INBOUND 만 허용)"),
+            "원천 전표 유형이 잘못되었습니다 (매출=출고, 매입=입고만 허용)."),
     /**
      * 할당 합계가 출고/입고전표 line 잔여를 초과 (SAS 슬라이스).
      */
     SAS_OVER_ALLOCATION(HttpStatus.UNPROCESSABLE_ENTITY,
-            "할당 합계가 출고/입고전표 line 잔여를 초과합니다."),
+            "할당 합계가 출고/입고전표 라인 잔여를 초과합니다."),
     /**
      * line 의 공급가액+부가세가 line_total 과 다름 (SAS 슬라이스).
      */
     SAS_LINE_AMOUNT_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "line 의 공급가액+부가세가 line_total 과 다릅니다."),
+            "라인의 공급가액+부가세가 라인 합계와 다릅니다."),
     /**
      * 단일 매출/매입전표 내 line 단위 tax_type 혼합 금지 (SAS 슬라이스).
      */
     SAS_TAX_TYPE_MIXED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "단일 매출/매입전표 내 line 단위 tax_type 혼합은 금지됩니다."),
+            "단일 매출/매입전표 내 라인 단위 과세유형 혼합은 금지됩니다."),
     /**
      * 이미 POSTED 된 전표는 수정 불가 (SAS 슬라이스).
      */
     SAS_ALREADY_POSTED(HttpStatus.CONFLICT,
-            "이미 POSTED 된 전표는 수정할 수 없습니다."),
+            "이미 반영완료된 전표는 수정할 수 없습니다."),
     /**
      * 해당 일자 일마감이 잠겨 있음 (SAS 슬라이스).
      */
@@ -178,12 +178,12 @@ public enum ErrorCode {
      * 매출전표가 POSTED 상태가 아니어서 세금계산서 묶음 발행 불가 (SAS 슬라이스).
      */
     SAS_SALES_SLIP_NOT_POSTED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "POSTED 상태 매출전표만 세금계산서 묶음 발행할 수 있습니다."),
+            "반영완료 상태 매출전표만 세금계산서 묶음 발행할 수 있습니다."),
     /**
      * 매입전표가 POSTED 상태가 아니어서 수신 세금계산서 매칭 불가 (SAS 슬라이스).
      */
     SAS_PURCHASE_SLIP_NOT_POSTED(HttpStatus.UNPROCESSABLE_ENTITY,
-            "POSTED 상태 매입전표만 수신 세금계산서와 매칭할 수 있습니다."),
+            "반영완료 상태 매입전표만 수신 세금계산서와 매칭할 수 있습니다."),
     /**
      * 매출/매입전표 번호 생성 충돌 — timestamp 기반 PoC 채번 중 slip_no unique 충돌 발생.
      */
@@ -240,7 +240,7 @@ public enum ErrorCode {
     MIG3_SLIP_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "전표 금액 형식 불일치 또는 0 이하"),
     MIG3_JOURNAL_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "차/대 합계 불일치 - POSTED 전이 차단"),
+            "차/대 합계 불일치 - 확정 전이 차단"),
     MIG3_JOURNAL_LINE_DUPLICATE(HttpStatus.CONFLICT,
             "동일 journal_no/line_no 에 다른 데이터가 존재합니다"),
     MIG3_JOURNAL_GROUP_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,

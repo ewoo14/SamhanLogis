@@ -266,6 +266,9 @@ class PurchaseAccountingSlipServiceTest {
 
         assertThatThrownBy(slip::recalcTotals)
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("라인 합계")
+                .hasMessageNotContaining("line_total")
+                .hasMessageNotContaining("allocation")
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.SAS_LINE_AMOUNT_MISMATCH));
     }
@@ -314,6 +317,8 @@ class PurchaseAccountingSlipServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("입고")
                 .hasMessageNotContaining("INBOUND")
+                .hasMessageNotContaining("source")
+                .hasMessageNotContaining("type")
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH));
     }
