@@ -71,8 +71,9 @@ test.describe('SP-SAS-5 admin UI and daily closing revision contract', () => {
     expect(dailyService).toContain('case TAX_INVOICE')
     expect(dailyService).toContain('case SALES_SLIP')
     expect(dailyService).toContain('case PURCHASE_SLIP')
-    expect(dailyService).toContain('SALES + PURCHASE_SLIP')
-    expect(dailyService).toContain('PURCHASE + SALES_SLIP')
+    expect(dailyService).toContain('validateKindSourceMatch')
+    expect(dailyService).toContain('getDisplayName()')
+    expect(dailyService).toContain('사용할 수 없습니다')
   })
 
   test('6 controllers expose kind/source query parameters', () => {

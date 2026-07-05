@@ -149,6 +149,21 @@ class DailyClosingServiceSourceKindTest {
                 .hasMessageNotContaining("closingKind/sourceKind");
     }
 
+    @Test
+    @DisplayName("매입 마감에 SALES_SLIP sourceKind 를 섞으면 차단한다 (대칭 분기)")
+    void invalidKindSourceCombinationRejected_반대분기() {
+        assertThatThrownBy(() -> service.close(
+                new CreateDailyClosingRequest(DATE, null,
+                        DailyClosingKind.PURCHASE, DailyClosingSourceKind.SALES_SLIP),
+                "accountant", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("매입 마감")
+                .hasMessageContaining("매출전표")
+                .hasMessageNotContaining("PURCHASE")
+                .hasMessageNotContaining("SALES_SLIP")
+                .hasMessageNotContaining("closingKind/sourceKind");
+    }
+
     private static TaxInvoice issuedTaxInvoice(String no, TaxInvoiceType type,
                                                BigDecimal supply, BigDecimal vat) {
         TaxInvoice invoice = TaxInvoice.create(UUID.randomUUID(), "P-001",

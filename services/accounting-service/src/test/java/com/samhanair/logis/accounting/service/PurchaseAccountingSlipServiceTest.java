@@ -142,6 +142,8 @@ class PurchaseAccountingSlipServiceTest {
         assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("잔여를 초과")
+                .hasMessageContaining("전표=")
+                .hasMessageNotContaining("slip=")
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
     }
@@ -293,7 +295,9 @@ class PurchaseAccountingSlipServiceTest {
         assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("확정")
-                .hasMessageNotContaining("CONFIRMED");
+                .hasMessageContaining("전표=")
+                .hasMessageNotContaining("CONFIRMED")
+                .hasMessageNotContaining("slip=");
     }
 
     @Test

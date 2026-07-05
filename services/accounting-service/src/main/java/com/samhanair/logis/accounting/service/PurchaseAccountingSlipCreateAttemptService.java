@@ -78,13 +78,15 @@ public class PurchaseAccountingSlipCreateAttemptService {
         }
         if (!"CONFIRMED".equals(src.slipStatus())) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_NOT_CONFIRMED,
-                    "(slip=" + src.slipNo() + " 상태=" + slipStatusDisplayName(src.slipStatus()) + ", 확정 요구)");
+                    "원천 전표가 확정 상태가 아닙니다 (전표="
+                            + src.slipNo() + ", 상태=" + slipStatusDisplayName(src.slipStatus()) + ")");
         }
         BigDecimal already = allocationRepository.sumAllocatedAmountBySourceLineId(ar.sourceLineId());
         BigDecimal next = already.add(ar.allocatedAmount());
         if (next.compareTo(src.lineTotal()) > 0) {
             throw new BusinessException(ErrorCode.SAS_OVER_ALLOCATION,
-                    "(slip=" + src.slipNo() + " 잔여를 초과: 요청=" + ar.allocatedAmount()
+                    "할당 금액이 원천 전표 잔여를 초과합니다 (전표=" + src.slipNo()
+                            + ", 요청=" + ar.allocatedAmount()
                             + ", 잔여=" + src.lineTotal().subtract(already) + ")");
         }
     }

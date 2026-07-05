@@ -240,7 +240,7 @@ public enum ErrorCode {
     MIG3_SLIP_AMOUNT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,
             "전표 금액 형식 불일치 또는 0 이하"),
     MIG3_JOURNAL_BALANCE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
-            "차/대 합계 불일치 - 확정 전이 차단"),
+            "차/대 합계 불일치 - 확정 전환 차단"),
     MIG3_JOURNAL_LINE_DUPLICATE(HttpStatus.CONFLICT,
             "동일 journal_no/line_no 에 다른 데이터가 존재합니다"),
     MIG3_JOURNAL_GROUP_INVALID(HttpStatus.UNPROCESSABLE_ENTITY,

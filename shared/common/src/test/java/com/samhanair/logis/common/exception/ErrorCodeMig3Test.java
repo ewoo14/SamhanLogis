@@ -15,6 +15,9 @@ class ErrorCodeMig3Test {
         assertThat(ErrorCode.MIG3_VOUCHER_NO_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG3_SLIP_AMOUNT_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(ErrorCode.MIG3_JOURNAL_BALANCE_MISMATCH.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ErrorCode.MIG3_JOURNAL_BALANCE_MISMATCH.getDefaultMessage())
+                .contains("확정 전환 차단")
+                .doesNotContain("확정 전이 차단");
         // Codex BE cycle 2 — 신규 ErrorCode 2종.
         assertThat(ErrorCode.MIG3_JOURNAL_LINE_DUPLICATE.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.MIG3_JOURNAL_GROUP_INVALID.getHttpStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
