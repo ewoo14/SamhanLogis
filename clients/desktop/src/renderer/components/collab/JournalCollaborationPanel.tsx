@@ -392,6 +392,7 @@ export function JournalCollaborationPanel({
                   연결 필드
                   <Select
                     data-testid="journal-collab-comment-anchor-select"
+                    aria-label="코멘트 연결 필드"
                     value={commentAnchor}
                     onChange={(event) => setCommentAnchor(event.target.value)}
                     selectSize="sm"

@@ -298,3 +298,98 @@ PartnerOrder 수준의 버전이력 패널 도입은 불가능하다는 판단�
      CI 도 동일). CI 하드게이트가 실제로 요구하는 두 단계(테스트 실행+가드) 모두 로컬 재현·GREEN.
 - 실행 부작용 PNG(`docs/qa/**`·`sp-d4-.../screenshots/**` 등)와 신규 캡처 스크린샷 1건은
   `git checkout --`/삭제로 원복해 최종 diff 를 spec/src/dev-report 로 한정했다.
+
+## PR #747 재수렴 QA[HIGH]+Design[LOW] fix (2026-07-06, Opus)
+
+> worktree `feat/31-history-unify`(fix 착수 HEAD `70d5863a2`)에서 Opus 가 직접 구현. git 동작
+> (commit/push)은 PM 이 대행.
+
+### 근본원인 (HIGH) — Slip 코멘트 anchor ↔ 버전이력 fieldPath 접두사 불일치
+
+`SlipCollaborationPanel.tsx` 의 `OVERLAY_FIELD_OPTIONS`(11 overlay 필드)는 코멘트 anchor 를
+접두사 없이 저장/전송한다(예: `"memo"`, `"shippingAddress"`). 반면 BE
+`SlipRevisionService.HEADER_FIELDS` 는 헤더 필드 fieldPath 를 전부 `"header."` 접두사로 응답한다
+(예: `"header.memo"`) — 이 11개 overlay 필드도 예외 없이 포함된다. `SlipVersionHistoryPanel.tsx`
+의 `normalizeFieldPath()`(fieldPath 목록 생성·activeFieldPath 정규화 공용)와
+`SlipCollaborationPanel.tsx` 의 `normalizeCollabAnchor()`(코멘트 anchor 정규화) 어느 쪽도 이
+접두사 차이를 정합화하지 않아, `fieldPaths.includes(normalizedActiveFieldPath)` 비교가 11개
+overlay 필드 전량에서 실패했다 — **코멘트→버전이력, 버전이력→코멘트 양방향 모두 완전
+비동작**이었다(#31 라운드1/재수렴 dev-report 가 "이미 배선돼 있다"고 잘못 기술한 부분).
+
+### fix — normalizeFieldPath 1곳에 접두사 strip 추가
+
+`SlipVersionHistoryPanel.tsx` 의 `normalizeFieldPath()` 에 `.replace(/^header\./, '')` 를
+추가했다:
+
+```ts
+function normalizeFieldPath(path: string | null | undefined): string {
+  return (path ?? '').replace(/^\/+/, '').replace(/\//g, '.').replace(/^header\./, '')
+}
+```
+
+이 함수 하나가 (1) 버전이력 필드변경 목록(`fieldPaths`) 생성, (2) `activeFieldPath` prop
+정규화(코멘트 anchor 유래 값 포함), (3) 개별 필드변경 클릭 시 `onRevisionSelect` 콜백에 넘기는
+`normalized` 값 계산 — 3곳 전부에 공용으로 쓰이므로, 한 번의 수정으로 정방향(코멘트 클릭→버전이력
+하이라이트)·역방향(버전이력 클릭→코멘트 하이라이트) 이 모두 정합됐다.
+
+**정방향/역방향 중 "fieldPath 쪽 strip" 을 택한 근거** (anchor 쪽에 `"header."` 를 붙이는 대신):
+BE 코멘트 anchor 필드는 자유 문자열 계약(`@Size(max=...)`)이라 실제 저장/전송되는 anchor 값을 바꾸지
+않는 편이 기존에 이미 등록된 코멘트 anchor 값 및 향후 다른 anchor 소비처(예: 알림, 검색)에 영향이
+없다. 라인 fieldPath(`lines[0].quantity`, `lines.removed[0].productName` 등)는 애초 `"header."`
+접두사가 없어 이 strip 이 영향을 주지 않는다. 타 4도메인(Estimate/PartnerOrder=row-level 근사
+하이라이트, Journal/GroupwareApproval=코멘트 anchor 와 changeSet 키가 완전히 동일한 문자열을 쓰는
+client-side 자기정합 계약)은 `SlipVersionHistoryPanel.normalizeFieldPath` 를 참조하지 않아
+무영향을 코드 read 로 확인했다.
+
+### LOW — 연결 필드 Select `aria-label` 통일
+
+`SlipCollaborationPanel`·`JournalCollaborationPanel`·`PartnerOrderCollaborationPanel` 의 "연결
+필드" `<Select>` 에 `aria-label="코멘트 연결 필드"` 를 추가했다(`data-testid` 바로 다음, 기존
+Estimate/GroupwareApproval 과 동일한 속성 순서) — `EstimateCollaborationPanel`·
+`GroupwareApprovalCollaborationPanel` 은 이미 보유하고 있어 이번으로 5패널 전부 일관됐다.
+
+### 테스트 강화 (재발방지 — "이번 버그가 getByTestId 만 봐서 누락"에 대한 대응)
+
+1. **`SlipVersionHistoryPanel.test.tsx` 신규 2건** — 실제(un-mocked) 컴포넌트에 BE 응답 shape 그대로
+   (`fieldPath: "header.memo"`) 주입: (a) 접두사 없는 `activeFieldPath="memo"`(코멘트 anchor 유래
+   값 재현) 가 `header.memo` 필드변경 + 해당 revision 행을 `data-active="true"` 로 하이라이트하고,
+   매칭 안 되는 다른 필드(`lines[0].quantity`)는 하이라이트하지 않음(정방향). (b) 필드변경 클릭 시
+   `onRevisionSelect` 콜백에 접두사 제거된 `["memo"]` 가 전달됨(역방향). **fix 를 임시로 되돌려
+   재실행 — 신규 4건(본 파일 2 + history-bridge 2, 아래) 전부 RED 확인 후 fix 복원 → 8/8 GREEN
+   재확인**해 진짜 회귀가드임을 검증했다.
+2. **`SlipCollaborationPanel.history-bridge.test.tsx`(신규 파일)** — 기존
+   `SlipCollaborationPanel.coedit.test.tsx` 는 `SlipVersionHistoryPanel` 전체를 stub 처리해
+   `activeFieldPath` prop 을 그대로 echo 하므로 `normalizeFieldPath` 자체가 검증 대상에서 빠진다
+   (이번 버그를 놓친 근본 원인 — "getByTestId 존재만 확인"). 본 파일은 `SlipVersionHistoryPanel`
+   을 stub 하지 않고 두 실컴포넌트를 그대로 조립해, 코멘트 등록(anchor=memo)→클릭→
+   `slip-version-history-change-header-memo` `data-active='true'`(정방향), 그 반대 클릭→코멘트
+   `data-active='true'`+`aria-current='true'`(역방향)를 검증한다. anchor 없는 코멘트는 두 방향
+   모두 하이라이트되지 않음도 함께 확인.
+3. **`playwright/slip-collab/slip-collab-panel.spec.ts` 신규 e2e 1건** — 라이브(mock) 브라우저
+   (Chromium, `VITE_MOCK_MODE=1`)에서 실제 화면으로 동일 시나리오 재현: "연결 필드" Select 에서
+   메모 선택→코멘트 등록→클릭→`header.memo` 버전이력 항목 `data-active='true'`(+같은 revision 행도
+   하이라이트), 그 항목 클릭→코멘트 `data-active='true'`+`aria-current='true'`(역방향). CI mock
+   하드게이트 스위트에 영구 편입되어 563번째 spec 이 됐다.
+4. **5도메인 필드매칭 계약 재확인** — Journal/GroupwareApproval 은 changeSet 키가 코멘트 anchor 와
+   동일 문자열을 쓰는 client-side 자기정합 계약이라(BE prefix 미개입) 기존
+   `*.coedit.test.tsx` 의 실컴포넌트 기반 양방향 `data-active` 단언이 이미 유효함을 코드 read 로
+   재확인했다(변경 불필요). Estimate/PartnerOrder 는 revision API 에 field-level payload 자체가
+   없어 row-level 근사 하이라이트가 설계된 계약이고(JSDoc 명시), 기존 stub 기반 테스트가 그 계약을
+   그대로 검증 중이라 역시 변경하지 않았다.
+
+### 검증
+
+- `cd clients/desktop && npm run typecheck` — PASS.
+- `cd clients/desktop && npm run lint` — 0 errors / 32 warnings(기존 31 + 신규 1건은 fixture
+  `as any` — 같은 파일의 기존 관례와 동일 패턴이라 별도 타입 도입 대신 유지).
+- `cd clients/desktop && npm run build` — PASS(electron-vite build + build:legacy).
+- `cd clients/desktop && npx vitest run src/renderer/components/collab/ src/renderer/components/audit/`
+  — **PASS, 12 files / 51 tests**.
+- `cd clients/desktop && npx vitest run`(전체) — **PASS, 91 files / 627 tests**.
+- CI 동일조건(`CI=1`→workers=2·retries=1, config 기본 webServer 자동기동·표준 포트 5173,
+  `npx playwright test` 옵션 없음) — **563 passed, 0 failed, 0 skipped, 0 flaky (5.5분)**.
+  `node scripts/assert-playwright-ran.mjs` → `expected=563 unexpected=0 skipped=0 flaky=0` exit 0.
+  (563 = 직전 세션 확인된 562 + 이번 신규 e2e 1건.)
+- 실행 부작용 PNG 128건은 `git checkout --` 로 원복, 신규 캡처 1건(`T09-dispatch-inventory-
+  warehouse-allow.png`)은 삭제 — 최종 diff 를 spec 1(수정)+src 5(수정)+test 2(1신규 1수정)+
+  dev-report 로 한정했다.

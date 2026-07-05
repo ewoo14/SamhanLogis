@@ -193,4 +193,48 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(inlineForm.getByLabel('단가(VAT제외) 1')).toHaveValue('120000')
     await expect(inlineForm).not.toContainText(DRAFT_SLIP_ID)
   })
+
+  /**
+   * PR #747 재수렴 HIGH fix 라이브(mock) 회귀 가드 — root cause: BE {@code SlipRevisionService}
+   * 는 헤더 fieldPath 를 {@code "header."} 접두사로 내려주는데(예: {@code "header.memo"}),
+   * FE 코멘트 anchor(OVERLAY_FIELD_OPTIONS)는 접두사 없이 저장된다(예: {@code "memo"}). 두 값이
+   * {@link SlipVersionHistoryPanel} 의 {@code normalizeFieldPath} 를 거치지 않고 그대로 비교되면
+   * 11개 overlay 필드 전량이 매칭 실패한다 — 이 spec 은 실제 코멘트 등록 → 클릭 → 버전이력
+   * 하이라이트(양방향)를 실 브라우저(mock 모드)로 재현해 회귀를 막는다.
+   */
+  test('코멘트 anchor(메모) 클릭 ↔ 버전이력 header.memo 항목이 서로 하이라이트된다 (양방향, PR #747 재수렴 HIGH fix)', async ({ page }) => {
+    await installAuthMock(page)
+    await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+
+    const panel = page.getByTestId('slip-collaboration-panel')
+    await expect(panel).toBeVisible()
+
+    // 연결 필드 = 메모 선택 후 코멘트 등록 (결정2 anchor 생성 UX — OVERLAY_FIELD_OPTIONS 'memo').
+    await panel.getByTestId('slip-collab-comment-anchor-select').selectOption('memo')
+    await panel.getByTestId('slip-collab-comment-input').fill('메모 반영 확인 부탁드립니다')
+    await panel.getByRole('button', { name: '등록' }).click()
+
+    const commentItem = panel.getByTestId('slip-collab-comment-item')
+      .filter({ hasText: '메모 반영 확인 부탁드립니다' })
+    await expect(commentItem).toBeVisible()
+
+    const versionHistory = panel.getByTestId('slip-version-history-panel')
+    const memoChange = versionHistory.getByTestId('slip-version-history-change-header-memo')
+    const revisionRow = versionHistory.getByTestId('slip-version-history-row-2')
+    await expect(memoChange).toBeVisible()
+
+    // 클릭 전 — 아직 activeFieldPath 를 공유하지 않았으므로 미하이라이트.
+    await expect(commentItem).not.toHaveAttribute('data-active', 'true')
+    await expect(memoChange).not.toHaveAttribute('data-active', 'true')
+
+    // 1) 정방향 — 코멘트(anchor=memo) 클릭 → header.memo 버전이력 항목 + revision 행 하이라이트.
+    await commentItem.click()
+    await expect(memoChange).toHaveAttribute('data-active', 'true')
+    await expect(revisionRow).toHaveAttribute('data-active', 'true')
+
+    // 2) 역방향 — 버전이력 항목(header.memo) 클릭 → 코멘트 하이라이트 (같은 세션에서 이어 확인).
+    await memoChange.click()
+    await expect(commentItem).toHaveAttribute('data-active', 'true')
+    await expect(commentItem).toHaveAttribute('aria-current', 'true')
+  })
 })

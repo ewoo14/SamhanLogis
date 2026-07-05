@@ -355,6 +355,7 @@ export function PartnerOrderCollaborationPanel({
                   연결 필드
                   <Select
                     data-testid="partner-order-collab-comment-anchor-select"
+                    aria-label="코멘트 연결 필드"
                     value={commentAnchor}
                     onChange={(event) => setCommentAnchor(event.target.value)}
                     selectSize="sm"

@@ -27,7 +27,11 @@ export interface SlipVersionHistoryPanelProps {
   slipId: string
   /** 협업 패널과 공유하는 선택 revision 번호. */
   activeRevisionNo?: number | null
-  /** 코멘트 anchor 와 연결할 필드 경로. */
+  /**
+   * 코멘트 anchor 와 연결할 필드 경로 — anchor 원형(접두사 없음, 예: {@code "memo"})으로 전달한다.
+   * 내부 비교는 {@link normalizeFieldPath} 로 BE fieldPath 의 {@code "header."} 접두사를 제거해
+   * 맞춘다(PR #747 재수렴 HIGH fix).
+   */
   activeFieldPath?: string | null
   /** 버전 행/변경 항목 선택 시 협업 패널에 공유한다. */
   onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
@@ -78,8 +82,23 @@ function fieldPathTestId(fieldPath: string): string {
   return fieldPath.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
+/**
+ * 코멘트 anchor ↔ 버전이력 fieldPath 비교용 정규화 (PR #747 재수렴 HIGH fix, 근본원인).
+ *
+ * <p>BE {@code SlipRevisionService.HEADER_FIELDS} 는 헤더 필드 fieldPath 를 전부
+ * {@code "header."} 접두사로 내려준다(예: {@code "header.memo"}). 반면 FE 코멘트 anchor(
+ * {@link SlipCollaborationPanel} 의 {@code OVERLAY_FIELD_OPTIONS}) 는 접두사 없이 저장/전송된다
+ * (예: {@code "memo"}) — BE 요청 anchor 계약은 자유 문자열이라 접두사를 붙이지 않는 편이 기존
+ * 저장 anchor 값(및 향후 다른 anchor 소비처)에 영향이 없다. 라인 fieldPath({@code "lines[0]..."})
+ * 는 애초 접두사가 없어 이 strip 이 영향을 주지 않는다.
+ *
+ * <p>양방향 매칭이 성립하려면 두 표현을 같은 canonical 형태로 합쳐야 한다 — 본 함수가
+ * {@code "header."} 접두사를 제거해 fieldPath 쪽을 anchor 쪽 형태로 맞춘다. 이 함수는
+ * fieldPath 목록 생성(this file) 과 activeFieldPath 정규화(comment anchor 유래 값 포함) 양쪽에
+ * 동일하게 쓰이므로, 한 번의 수정으로 코멘트→버전이력·버전이력→코멘트 양방향이 모두 정합된다.
+ */
 function normalizeFieldPath(path: string | null | undefined): string {
-  return (path ?? '').replace(/^\/+/, '').replace(/\//g, '.')
+  return (path ?? '').replace(/^\/+/, '').replace(/\//g, '.').replace(/^header\./, '')
 }
 
 function renderFieldChange(
