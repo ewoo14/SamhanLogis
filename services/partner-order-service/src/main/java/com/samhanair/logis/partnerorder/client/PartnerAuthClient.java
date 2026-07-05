@@ -6,6 +6,7 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
@@ -32,9 +33,15 @@ public class PartnerAuthClient {
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
 
+    @Autowired
     public PartnerAuthClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                              InternalAuthProperties internalAuthProperties) {
         this.restClient = builder.baseUrl(PARTNER_AUTH_BASE).build();
+        this.internalAuthProperties = internalAuthProperties;
+    }
+
+    PartnerAuthClient(RestClient restClient, InternalAuthProperties internalAuthProperties) {
+        this.restClient = restClient;
         this.internalAuthProperties = internalAuthProperties;
     }
 

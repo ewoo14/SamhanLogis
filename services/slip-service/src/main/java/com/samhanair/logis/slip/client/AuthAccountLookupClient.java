@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,7 @@ public class AuthAccountLookupClient {
     private final InternalAuthProperties internalAuthProperties;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public AuthAccountLookupClient(
             @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
             InternalAuthProperties internalAuthProperties,
@@ -43,6 +45,14 @@ public class AuthAccountLookupClient {
                 .baseUrl(AUTH_SERVICE_BASE)
                 .requestFactory(rf)
                 .build();
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    AuthAccountLookupClient(RestClient restClient,
+                            InternalAuthProperties internalAuthProperties,
+                            ObjectMapper objectMapper) {
+        this.restClient = restClient;
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
     }

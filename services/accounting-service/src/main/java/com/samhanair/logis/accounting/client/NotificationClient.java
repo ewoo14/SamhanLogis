@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -31,6 +32,7 @@ public class NotificationClient {
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
 
+    @Autowired
     public NotificationClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                               InternalAuthProperties internalAuthProperties) {
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
@@ -40,6 +42,11 @@ public class NotificationClient {
                 .baseUrl(NOTIFICATION_SERVICE_BASE)
                 .requestFactory(rf)
                 .build();
+        this.internalAuthProperties = internalAuthProperties;
+    }
+
+    NotificationClient(RestClient restClient, InternalAuthProperties internalAuthProperties) {
+        this.restClient = restClient;
         this.internalAuthProperties = internalAuthProperties;
     }
 
@@ -66,7 +73,7 @@ public class NotificationClient {
             return;
         }
         try {
-            restClient.post()
+                    restClient.post()
                     .uri(SEND_PATH)
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .contentType(MediaType.APPLICATION_JSON)
