@@ -156,6 +156,42 @@ class ChatRoomImportServiceTest {
     }
 
     @Test
+    @DisplayName("재import backfill — LEGACY row 가 과거 다른 표기(정규화 후보)로만 조회되어도 회수")
+    void importCsv_resolvedPartnerCode_backfillsLegacyRowMatchedOnlyByNormalizedCandidate() throws IOException {
+        // CSV 원본은 "회사표기 + 담당자 괄호" 가 붙은 최신 표기이지만, LEGACY row 는 과거 어느 시점에
+        // 짧게 정규화된 표기("에어디자이너")로 이미 생성되어 있다 — 리터럴 단건 조회로는 절대 못 찾는 케이스.
+        String rawBusinessName = "에어디자이너 주식회사 (김미선)";
+        String legacySnapshot = "에어디자이너";
+        String chatRoomName = "에어디자이너 발주방";
+        String legacyCode = ChatRoomImportService.legacyAliasCode(legacySnapshot);
+        PartnerChatRoomMapping legacy = PartnerChatRoomMapping.fromNotionImport(
+                legacyCode, legacySnapshot, chatRoomName, null);
+
+        when(lookupClient.findPartnerCodeByName(rawBusinessName)).thenReturn(Optional.empty());
+        when(lookupClient.findPartnerCodeByName("에어디자이너 주식회사")).thenReturn(Optional.empty());
+        when(lookupClient.findPartnerCodeByName("에어디자이너")).thenReturn(Optional.of("P-AIR"));
+
+        // 리터럴(raw) 조회는 miss — 정규화 후보 "에어디자이너" 조회에서만 LEGACY row 반환.
+        lenient().when(repository.findAllByPartnerBusinessNameSnapshot(anyString())).thenReturn(List.of());
+        when(repository.findAllByPartnerBusinessNameSnapshot("에어디자이너")).thenReturn(List.of(legacy));
+
+        String csv = "﻿이카운트 사업자명,카톡방,생성 일시\n"
+                + rawBusinessName + "," + chatRoomName + ",2026년 4월 26일 오전 7:34\n";
+        InputStream stream = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+
+        ChatRoomImportResult result = service.importCsv(stream);
+
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.updated()).isZero();
+        assertThat(result.rejected()).isEmpty();
+        assertThat(legacy.getIsDeleted()).isTrue();
+        assertThat(legacy.getDeletedBy()).isEqualTo("chat-room-import-backfill");
+        verify(repository).findAllByPartnerBusinessNameSnapshot(rawBusinessName);
+        verify(repository).findAllByPartnerBusinessNameSnapshot("에어디자이너");
+        verify(repository, times(2)).save(any(PartnerChatRoomMapping.class));
+    }
+
+    @Test
     @DisplayName("한국어 datetime 파싱 — 오전/오후 + 1자리 시간")
     void importCsv_koreanDateTime_parsed() throws IOException {
         when(lookupClient.findPartnerCodeByName(anyString())).thenReturn(Optional.of("P-001"));

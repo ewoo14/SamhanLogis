@@ -18,12 +18,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.io.input.BOMInputStream;
 import org.slf4j.Logger;
@@ -285,18 +287,30 @@ public class ChatRoomImportService {
      *
      * <p>{@code partner_code} 는 updatable=false 이므로 기존 행을 직접 수정하지 않고, 실 코드 행을
      * insert/update 한 뒤 동일 원본명+단톡방의 legacy alias 활성 행을 soft-delete 한다.
+     *
+     * <p>CSV 원본 {@code businessName} 리터럴 단건으로만 조회하면, 과거 다른 표기(회사표기/담당자
+     * 괄호/공백 차이 등)로 이미 생성된 LEGACY row 는 리터럴이 일치하지 않아 영영 회수되지 않는다
+     * (데이터 갭). {@link #findPartnerCodeByNameWithVariants(String)} 와 동일한
+     * {@link #businessNameCandidates(String)} 정규화 후보 전체를 순차 조회하여 recall 을 넓히되,
+     * soft-delete 대상 자체는 LEGACY prefix + 동일 {@code chatRoomName} 필터로 정밀하게 유지한다
+     * (다른 단톡방에 걸린 legacy row 오삭제 방지). 여러 후보가 같은 row 를 중복 반환할 수 있어 id
+     * 기준 dedupe 후 1회만 soft-delete 한다.
      */
     private void backfillLegacyAliasIfResolved(String partnerCode, String businessName, String chatRoomName) {
         if (businessName == null || partnerCode == null || partnerCode.startsWith(LEGACY_ALIAS_PREFIX)) {
             return;
         }
-        repository.findAllByPartnerBusinessNameSnapshot(businessName).stream()
-                .filter(mapping -> mapping.getPartnerCode().startsWith(LEGACY_ALIAS_PREFIX))
-                .filter(mapping -> mapping.getChatRoomName().equals(chatRoomName))
-                .forEach(mapping -> {
-                    mapping.markDeleted("chat-room-import-backfill");
-                    repository.save(mapping);
-                });
+        Set<UUID> alreadyBackfilled = new HashSet<>();
+        for (String candidate : businessNameCandidates(businessName)) {
+            repository.findAllByPartnerBusinessNameSnapshot(candidate).stream()
+                    .filter(mapping -> mapping.getPartnerCode().startsWith(LEGACY_ALIAS_PREFIX))
+                    .filter(mapping -> mapping.getChatRoomName().equals(chatRoomName))
+                    .filter(mapping -> alreadyBackfilled.add(mapping.getId()))
+                    .forEach(mapping -> {
+                        mapping.markDeleted("chat-room-import-backfill");
+                        repository.save(mapping);
+                    });
+        }
     }
 
     /**
