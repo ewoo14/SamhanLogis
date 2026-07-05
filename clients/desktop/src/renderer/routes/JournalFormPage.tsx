@@ -72,6 +72,8 @@ const today = (): string => {
 const fmt = (n: number): string =>
   n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
+const JOURNAL_LINE_GRID_TEMPLATE = '40px 160px 260px 110px 110px minmax(180px, 1fr)'
+
 interface MobileJournalLineCardProps {
   index: number
   line: DraftLine
@@ -349,37 +351,41 @@ export function JournalFormPage() {
           </div>
         ) : (
           <>
-            {/* 라인 헤더 */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '36px 220px 140px 140px 160px 1fr',
-                gap: 8,
-                padding: '8px 0',
-                borderBottom: '2px solid #E5E7EB',
-                fontSize: 12,
-                color: '#6B7280',
-                fontWeight: 600,
-              }}
-            >
-              <div style={{ textAlign: 'center' }}>#</div>
-              <div>계정과목</div>
-              <div style={{ textAlign: 'right' }}>차변</div>
-              <div style={{ textAlign: 'right' }}>대변</div>
-              <div>거래처</div>
-              <div>메모</div>
-            </div>
+            <div className="journal-line-grid-scroll">
+              {/* 라인 헤더 */}
+              <div
+                className="journal-line-grid-header"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: JOURNAL_LINE_GRID_TEMPLATE,
+                  minWidth: 900,
+                  gap: 8,
+                  padding: '8px 0',
+                  borderBottom: '2px solid var(--color-border)',
+                  fontSize: 12,
+                  color: 'var(--color-text-muted)',
+                  fontWeight: 600,
+                }}
+              >
+                <div style={{ textAlign: 'center' }}>#</div>
+                <div>계정과목</div>
+                <div>거래처</div>
+                <div style={{ textAlign: 'right' }}>차변</div>
+                <div style={{ textAlign: 'right' }}>대변</div>
+                <div>메모</div>
+              </div>
 
-            {lines.map((line, i) => (
-              <JournalLineRow
-                key={line.uid}
-                index={i + 1}
-                line={line}
-                accounts={accounts}
-                onChange={(patch) => updateLine(i, patch)}
-                onRemove={() => removeLine(i)}
-              />
-            ))}
+              {lines.map((line, i) => (
+                <JournalLineRow
+                  key={line.uid}
+                  index={i + 1}
+                  line={line}
+                  accounts={accounts}
+                  onChange={(patch) => updateLine(i, patch)}
+                  onRemove={() => removeLine(i)}
+                />
+              ))}
+            </div>
           </>
         )}
 
@@ -428,37 +434,42 @@ export function JournalFormPage() {
             </div>
           </div>
         ) : (
-          <div
-            style={{
-              marginTop: 16,
-              padding: '12px 16px',
-              background: '#F9FAFB',
-              borderRadius: 6,
-              display: 'grid',
-              gridTemplateColumns: '36px 220px 140px 140px 1fr',
-              gap: 8,
-              fontSize: 14,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            <div />
-            <div style={{ fontWeight: 600 }}>합계</div>
-            <div style={{ textAlign: 'right', fontWeight: 600 }}>
-              {fmt(totals.debit)}
-            </div>
-            <div style={{ textAlign: 'right', fontWeight: 600 }}>
-              {fmt(totals.credit)}
-            </div>
+          <div className="journal-line-grid-scroll">
             <div
+              className="journal-line-grid-total"
               style={{
-                fontSize: 13,
-                color: isBalanced ? '#059669' : '#DC2626',
-                fontWeight: 600,
+                marginTop: 16,
+                padding: '12px 16px',
+                background: 'var(--color-bg-subtle)',
+                borderRadius: 6,
+                display: 'grid',
+                gridTemplateColumns: JOURNAL_LINE_GRID_TEMPLATE,
+                minWidth: 900,
+                gap: 8,
+                fontSize: 14,
+                fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {isBalanced
-                ? '차/대변 일치 ✓'
-                : `차이: ${fmt(totals.diff)} 원`}
+              <div />
+              <div style={{ fontWeight: 600 }}>합계</div>
+              <div />
+              <div data-align="right" style={{ textAlign: 'right', fontWeight: 600 }}>
+                {fmt(totals.debit)}
+              </div>
+              <div data-align="right" style={{ textAlign: 'right', fontWeight: 600 }}>
+                {fmt(totals.credit)}
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: isBalanced ? '#059669' : '#DC2626',
+                  fontWeight: 600,
+                }}
+              >
+                {isBalanced
+                  ? '차/대변 일치 ✓'
+                  : `차이: ${fmt(totals.diff)} 원`}
+              </div>
             </div>
           </div>
         )}

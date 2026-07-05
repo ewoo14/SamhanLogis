@@ -18,45 +18,47 @@ vi.mock('@samhan/design-system', () => ({
     <button {...props}>{children}</button>
   ),
   Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  DataTable: ({ rows, columns, emptyMessage, rowKey, rowClassName, tableLayout }: any) => (
-    <table>
-      <colgroup>
-        {columns.map((column: any) => (
-          <col key={column.key} style={column.width ? { width: column.width } : undefined} />
-        ))}
-      </colgroup>
-      <thead>
-        <tr>
+  DataTable: ({ rows, columns, emptyMessage, rowKey, rowClassName, tableLayout, className }: any) => (
+    <div className={className}>
+      <table>
+        <colgroup>
           {columns.map((column: any) => (
-            <th
-              key={column.key}
-              style={column.width ? { width: column.width } : undefined}
-              data-align={column.headerAlign ?? column.align ?? 'left'}
-              data-table-layout={tableLayout}
-            >
-              {column.header}
-            </th>
+            <col key={column.key} style={column.width ? { width: column.width } : undefined} />
           ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 ? (
-          <tr><td colSpan={columns.length}>{emptyMessage}</td></tr>
-        ) : rows.map((row: any) => (
-          <tr key={rowKey ? rowKey(row) : row.id} className={rowClassName?.(row)}>
+        </colgroup>
+        <thead>
+          <tr>
             {columns.map((column: any) => (
-              <td
+              <th
                 key={column.key}
-                data-label={column.header}
-                data-align={column.align ?? 'left'}
+                style={column.width ? { width: column.width } : undefined}
+                data-align={column.headerAlign ?? column.align ?? 'left'}
+                data-table-layout={tableLayout}
               >
-                {column.render ? column.render(row) : row[column.key]}
-              </td>
+                {column.header}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr><td colSpan={columns.length}>{emptyMessage}</td></tr>
+          ) : rows.map((row: any) => (
+            <tr key={rowKey ? rowKey(row) : row.id} className={rowClassName?.(row)}>
+              {columns.map((column: any) => (
+                <td
+                  key={column.key}
+                  data-label={column.header}
+                  data-align={column.align ?? 'left'}
+                >
+                  {column.render ? column.render(row) : row[column.key]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   ),
   JournalStatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   Spinner: ({ label }: { label?: string }) => <div role="status">{label}</div>,
@@ -210,6 +212,9 @@ describe('JournalDetailPage 라인 테이블', () => {
     expect(table).not.toBeNull()
     const headers = Array.from(table!.querySelectorAll('thead th')).map((th) => th.textContent)
     expect(headers).toEqual(['#', '계정과목', '거래처', '차변', '대변', '메모'])
+    expect(table!.closest('.journal-detail-table-scroll')).not.toBeNull()
+    expect(table!.parentElement?.classList.contains('journal-detail-line-table')).toBe(true)
+    expect(table!.querySelector<HTMLTableColElement>('col:nth-child(6)')?.style.width).toBe('180px')
 
     const bodyRows = table!.querySelectorAll('tbody tr')
     // 라인 2건(픽스처) + 합계행 1건 = 3행 — 합계 sentinel 만 남고 라인이 누락되는 회귀도 잡아낸다.

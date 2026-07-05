@@ -255,6 +255,7 @@ export function JournalDetailPage() {
     {
       key: 'note',
       header: '메모',
+      width: '180px',
       render: (l) => (isTotalRow(l) ? '' : <JournalCellEllipsis value={l.memo ?? l.note ?? '—'} />),
     },
   ]
@@ -474,8 +475,9 @@ export function JournalDetailPage() {
         </div>
         ) : null}
 
-        <div className="detail-mobile-hide">
+        <div className="detail-mobile-hide journal-detail-table-scroll">
           <DataTable
+            className="journal-detail-line-table"
             columns={columns}
             rows={tableRows}
             rowKey={(l) => l.id}

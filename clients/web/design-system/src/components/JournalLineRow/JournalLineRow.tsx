@@ -7,7 +7,7 @@ import { MoneyInput } from '../MoneyInput/MoneyInput'
  * 분개 라인 1건의 데이터 형태 (FE 입력 모델).
  *
  * BE `JournalLineRequest` 와 1:1 매핑되며, 본 컴포넌트는 라인 단위 편집 UI
- * (계정 select + 차변 + 대변 + 거래처 + 메모 + 삭제) 만 담당한다.
+ * (계정 select + 거래처 + 차변 + 대변 + 메모 + 삭제) 만 담당한다.
  *
  * 회계 규칙:
  * - 같은 라인에서 `debit` 과 `credit` 중 하나만 0 보다 커야 한다 (양 쪽 동시 입력 금지).
@@ -57,9 +57,9 @@ export interface JournalLineRowProps {
  * 6 셀 구성 (좌→우):
  * 1. 라인번호 (자동, 1-based)
  * 2. 계정과목 (AccountCodeSelect)
- * 3. 차변 (MoneyInput)
- * 4. 대변 (MoneyInput)
- * 5. 거래처명 (text)
+ * 3. 거래처명 (text)
+ * 4. 차변 (MoneyInput)
+ * 5. 대변 (MoneyInput)
  * 6. 메모 (text) + 삭제 버튼
  *
  * 부모 (`JournalFormPage`) 가 라인 배열을 관리하며, 본 컴포넌트는 단일 라인의
@@ -96,6 +96,17 @@ export const JournalLineRow = forwardRef<HTMLDivElement, JournalLineRowProps>(
             {...(category ? { category } : {})}
           />
         </div>
+        <div className={styles['cellText']}>
+          <input
+            type="text"
+            className={styles['textInput']}
+            value={line.partnerName}
+            onChange={(e) => onChange({ partnerName: e.target.value })}
+            placeholder="거래처"
+            disabled={disabled}
+            aria-label={`라인 ${index} 거래처`}
+          />
+        </div>
         <div className={styles['cellMoney']}>
           <MoneyInput
             value={line.debit}
@@ -110,17 +121,6 @@ export const JournalLineRow = forwardRef<HTMLDivElement, JournalLineRowProps>(
             onChange={(n) => onChange({ credit: n })}
             disabled={disabled}
             ariaLabel={`라인 ${index} 대변`}
-          />
-        </div>
-        <div className={styles['cellText']}>
-          <input
-            type="text"
-            className={styles['textInput']}
-            value={line.partnerName}
-            onChange={(e) => onChange({ partnerName: e.target.value })}
-            placeholder="거래처"
-            disabled={disabled}
-            aria-label={`라인 ${index} 거래처`}
           />
         </div>
         <div className={styles['cellNote']}>

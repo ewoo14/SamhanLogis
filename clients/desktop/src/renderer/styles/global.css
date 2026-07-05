@@ -469,6 +469,17 @@ button {
   white-space: nowrap;
 }
 
+.journal-detail-table-scroll,
+.journal-line-grid-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.journal-detail-line-table {
+  min-width: 860px;
+}
+
 @media (max-width: 768px) {
   .detail-grid,
   .audit-detail-meta,

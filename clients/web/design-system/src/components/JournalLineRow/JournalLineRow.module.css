@@ -1,10 +1,11 @@
-/* JournalLineRow — 분개 라인 1건 (계정 + 차변 + 대변 + 거래처 + 메모 + 삭제). */
+/* JournalLineRow — 분개 라인 1건 (계정 + 거래처 + 차변 + 대변 + 메모 + 삭제). */
 
 .row {
   display: grid;
-  grid-template-columns: 36px 220px 140px 140px 160px 1fr;
+  grid-template-columns: 40px 160px 260px 110px 110px minmax(180px, 1fr);
   align-items: start;
   gap: var(--space-2);
+  min-width: 900px;
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--color-border);
 }
