@@ -699,7 +699,9 @@ services:
       SAMHAN_USER_SERVICE_URL: http://user-service:8083
       SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
       SAMHAN_NOTIFICATION_SERVICE_URL: http://notification-service:8093
-      SAMHAN_SLIP_DISPATCH_TASK_URL: http://slip-service:8086
+      # (제거됨, config-audit #745 재수렴) SAMHAN_SLIP_DISPATCH_TASK_URL — arologis-service
+      # 코드 어디에도 바인딩되지 않는 죽은 변수(grep 0건). SlipDispatchTaskClient 의 배차
+      # confirm/unavailable/수정/취소 회신 6종도 위 SAMHAN_SLIP_SERVICE_URL 을 그대로 소비한다.
       SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE: "false"
       SAMHAN_AROLOGIS_MATCHER_PROVIDER: ${SAMHAN_AROLOGIS_MATCHER_PROVIDER:-mock}
       SAMHAN_INSUNG_QUICK_API_URL: ${SAMHAN_INSUNG_QUICK_API_URL:-}

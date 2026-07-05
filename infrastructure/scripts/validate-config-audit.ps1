@@ -116,6 +116,37 @@ function Get-UrlRecords {
             }
         }
     }
+
+    # (d) compose 파일 자체 `environment:` 블록 리터럴 스캔 — local-all/prod/arologis 3종
+    # (#745 재수렴). env-template/application.yml/.java 는 "선언 템플릿" 일 뿐, 실제 컨테이너에
+    # 주입되는 다운스트림 URL 의 실질 진실원은 compose 파일의 `SAMHAN_*_SERVICE_URL: http://host:PORT`
+    # 리터럴(~70줄, 서비스마다 반복 선언)이다 — 지금까지 이 리터럴 자체는 미스캔이라 arologis.yml
+    # 회귀(SLIP 8086→8084 오타 등)를 놓치는 사각지대였다. 위 (a) 스캔과 동일 정규식 재사용 — YAML
+    # `${VAR:-http://host:PORT}` 중첩표기도 동일한 역추적 원리로 마지막 `:포트` 를 정확히 찾는다.
+    foreach ($relative in $ComposeFiles) {
+        $path = Join-Path $Root $relative
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        $relativePath = Resolve-Path -Relative $path
+        $lineNo = 0
+        foreach ($line in Get-Content $path -Encoding UTF8) {
+            $lineNo++
+            if ($line -match "^\s*#") {
+                # 주석 줄(설명용 언급)은 실배선이 아니므로 제외.
+                continue
+            }
+            if ($line -match "(?<var>SAMHAN_[A-Z0-9_]+_SERVICE_URL):.*?http://[^`"'\s]+:(?<port>\d+)") {
+                [pscustomobject]@{
+                    File = $relativePath
+                    Line = $lineNo
+                    Variable = $Matches["var"]
+                    Service = Get-ServiceNameFromVar $Matches["var"]
+                    ConfiguredPort = [int]$Matches["port"]
+                }
+            }
+        }
+    }
 }
 
 function Test-ComposeServiceHasLine {

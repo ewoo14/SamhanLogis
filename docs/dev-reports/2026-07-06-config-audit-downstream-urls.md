@@ -152,3 +152,59 @@ DB schema/Flyway 변경 없음.
 | `services/arologis-service/.../client/SlipDispatchTaskClient.java` | `@Value` 폴백 무포트→8086 |
 | `infrastructure/scripts/validate-config-audit.ps1` | 중첩표기 regex 보강 · 앵커블록 오인식 가드 · `.java` 리터럴 스캔 추가 · 경로 구분자 크로스플랫폼 가드 |
 | `.github/workflows/ci.yml` | `config-audit-guard` job 신규(회귀 게이트화) |
+
+## 라운드2 (재수렴) fix — #745
+
+> 라운드1 fix 게시 후 재수렴 라운드 지적 3건(중간 2 · 낮음 1), 전부 현재 PR 내(fix/config-audit-downstream-urls) 처리. worktree `.claude/worktrees/cfg` 에서 작업(git 은 PM commit 대행).
+
+### 1. [중간] 죽은 SAMHAN_SLIP_DISPATCH_TASK_URL 잔존 3곳 정리
+
+라운드1 fix(§ 위 item 1)는 `docker-compose.arologis.yml` 한 파일에서만 죽은 변수를 제거했고, 당시 dev-report 는 "`docker-compose.prod.yml`/`arologis-service.env`/`.env.example` 의 동일 변수는 이번 라운드 지적 범위 밖이라 미변경"이라고 명시적으로 스코프를 남겨뒀다. 재수렴 검토 결과 이 3곳이 실제로 그대로 남아 있었다 — `infrastructure/docker-compose.prod.yml:702`(arologis-service 블록), `infrastructure/env-templates/arologis-service.env:103`(주석이 "슬립 배차 회신 URL"이라 별도 유효 URL 처럼 오인 유발), `infrastructure/.env.example:109`.
+
+- 재확인: `grep -rn "slip-dispatch-task\|SLIP_DISPATCH_TASK\|slipDispatchTask" services/` — `SlipDispatchTaskClient` 빈을 참조하는 테스트 mock(`DispatchSaveHistoryIT`/`InsungQuickIntegrationIT`) 2건만 매칭, `@Value` 바인딩 0건 재확인. `SlipDispatchTaskClient.java` 생성자가 실제 소비하는 property 는 `@Value("${samhan.slip-service.url:http://slip-service:8086}")` — `SlipClient`/`SlipServiceClient` 와 완전히 동일한 property 다. `SAMHAN_SLIP_DISPATCH_TASK_URL` 은 이름 자체에 `SERVICE` 토큰이 없어(`_TASK_URL` 로 끝남) config-audit 스캔 정규식(`SAMHAN_[A-Z0-9_]+_SERVICE_URL`) 대상도 애초에 아니었다 — 순수 dead literal.
+- 조치: 3개 파일에서 해당 라인을 제거하고, 오해유발 주석("슬립 배차 회신 URL")을 "호출 URL = 위 SAMHAN_SLIP_SERVICE_URL 재사용" 설명으로 교체 — 라운드1 이 `docker-compose.arologis.yml` 에 남긴 "(제거됨) ..." 설명과 동일한 어조로 통일했다.
+- 범위: `docs/migration/samhan-dispatch-board/`·`docs/qa/samhan-dispatch-board*/`·`docs/superpowers/`·`migration/decisions/DECISIONS.md` 등 과거 스펙/QA 시나리오/의사결정 문서에 남아 있는 동일 변수명 언급은 히스토리 레코드라 이번 지적 범위(`infrastructure/**` 4곳) 밖 — 미변경.
+
+### 2. [중간] validate-config-audit.ps1 — compose environment 리터럴 스캔 사각지대 해소
+
+라운드1 이 추가한 env-template/`application.yml`/`.java` 3원 스캔은 모두 "선언 템플릿" 이다. 정작 컨테이너에 실제로 주입되는 값의 진짜 진실원인 compose 파일(`docker-compose.local-all.yml`/`docker-compose.prod.yml`/`docker-compose.arologis.yml`) 자체 `environment:` 블록의 `SAMHAN_*_SERVICE_URL: http://host:PORT` 리터럴(3개 파일 합산 ~70줄, 서비스마다 반복 선언)은 스캔 대상이 아니었다 — arologis.yml 의 이번 회귀(SLIP 8086→8084 재발) 같은 오타가 compose 파일에서만 발생하면 기존 스캔은 이를 전혀 검출하지 못하는 회귀 사각지대였다.
+
+- 조치: `Get-UrlRecords` 에 (d) 블록 신규 — 기존 `Read-ComposePorts` 가 쓰는 동일 3-파일 목록(`$ComposeFiles`)을 순회하며, 주석 줄(`^\s*#`)을 제외하고 (a) 스캔과 동일한 정규식(`(?<var>SAMHAN_[A-Z0-9_]+_SERVICE_URL):.*?http://[^"'\s]+:(?<port>\d+)`)으로 각 서비스 블록의 URL 리터럴을 추출, `Get-ServiceNameFromVar` 로 대상 서비스명을 도출해 기존 `$composePorts` 교차검증 파이프라인에 그대로 태운다.
+- `Read-ComposePorts`/`Test-ComposeServiceHasLine` 의 `$inServices` 앵커블록 오인식 가드는 (d) 스캔에는 재사용하지 않았다 — (d) 는 "어느 서비스가 선언했는지" 가 아니라 "어떤 변수가 어떤 포트를 가리키는지" 만 필요해 앵커 블록 소속 여부와 무관하기 때문이다. 3개 compose 파일의 `x-*` 앵커(`x-spring-prod`/`x-service-memory`/`x-app-depends`) 내부에 `SAMHAN_*_SERVICE_URL` 패턴이 실제로 존재하지 않음을 grep 으로 사전 확인한 뒤 전체 파일 라인 스캔으로 충분하다고 판단했다.
+- 신규 등재: local-all.yml 29건 + prod.yml 37건(기존 `SAMHAN_USER_CLIENT_FAIL_MODE` prod STRICT 특례 2건은 (d) 신규가 아니라 라운드1 이전부터 있던 별도 체크라 제외) + arologis.yml 4건 = **70건** 신규. 총 체크 수: 86 → **156**(+70).
+- RED 실증: `docker-compose.arologis.yml` 의 `SAMHAN_SLIP_SERVICE_URL` 기본값을 8086→8084로 임시 변경 후 실행 → `MISMATCH SAMHAN_SLIP_SERVICE_URL slip-service 8084 8086 ...docker-compose.arologis.yml:59`, `config-audit validation failed: 1 issue(s)`, exit 1 — (d) 스캔이 compose 파일 자체의 오배선을 실제로 검출함을 실증한 뒤 즉시 원복(`diff` 로 원본과 바이트 단위 동일함 재확인).
+- GREEN: 원복 후 재실행 → `config-audit validation passed: 156 URL/template checks`, exit 0. 신규 70건 포함 전체 156건 Status=OK.
+
+### 3. [낮음] ci.yml — Config Audit Guard job명 YAML 주석 잘림
+
+`.github/workflows/ci.yml:302` 의 `name: Config Audit Guard (다운스트림 URL/포트 정합, #745)` 는 따옴표 없는 plain scalar 였다. YAML 스펙상 공백 뒤에 오는 `#` 는 괄호 안이든 밖이든 무조건 주석 시작으로 해석되므로, `, #745)` 부분이 파싱 시 통째로 잘려나가 GitHub Actions PR 체크 목록/branch protection required-check 이름에는 `Config Audit Guard (다운스트림 URL/포트 정합,` 까지만 노출되는 상태였다.
+
+- 조치: 값을 큰따옴표로 감쌈(`"Config Audit Guard (다운스트림 URL/포트 정합, #745)"`) — 같은 파일 내 기존 관례(`"design-system 사전 빌드 (file: dependency)"` 등 YAML 특수문자 포함 step name 은 이미 큰따옴표 사용)와 일치시켰다.
+- 검증: PyYAML `safe_load` 로 수정 전/후 비교 — 수정 전 `name` 값 36자(`#745)` 로 끝나지 않음, 주석 잘림 재현) vs 수정 후 42자(`#745)` 로 정확히 끝남). 파일 전체 YAML 파싱도 정상 동작(`jobs['config-audit-guard']['name']` 접근 성공, 다른 job 정의에 영향 없음). `needs:` 는 job key(`config-audit-guard`)를 참조하므로 `name:` 표시값 변경과 무관 — 의존관계 영향 없음.
+
+## 검증 (라운드2 재수렴 fix)
+
+### RED
+
+- `docker-compose.arologis.yml` 의 `SAMHAN_SLIP_SERVICE_URL` 기본값을 8086→8084로 임시 변경 → `validate-config-audit.ps1` 실행 → `MISMATCH SAMHAN_SLIP_SERVICE_URL slip-service 8084 8086 ...\docker-compose.arologis.yml:59`, `config-audit validation failed: 1 issue(s)`, exit 1. 즉시 원복.
+- PyYAML 로 ci.yml job name 수정 전 문자열 재현 → 길이 36자, `#745)` 로 끝나지 않음 확인(주석 잘림 재현).
+- 라운드1 종료 시점 스크립트(`git show HEAD:infrastructure/scripts/validate-config-audit.ps1`)를 (d) 블록 추가 전 상태로 원위치 임시 실행해 베이스라인 86건을 별도 재확인 — 죽은 변수 제거(item 1)가 (a)/(b)/(c) 기존 카운트에 영향 없음을 실증(변수명에 `SERVICE` 토큰이 없어 애초 미스캔 대상).
+
+### GREEN
+
+- `powershell.exe infrastructure/scripts/validate-config-audit.ps1 -Detailed` → `config-audit validation passed: 156 URL/template checks`, exit 0. 156건 전부 Status=OK(신규 (d) 70건 포함).
+- `docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml config` → exit 0. `scripts/launch-local-stack.ps1` 과 동일한 `-f` 순서(overlay 조합) — `docker-compose.local-all.yml` 단독 실행은 `samhan-net` 미정의로 exit 1 이 나지만, 이는 overlay 전용 설계(최상위 `networks:` 미선언, base 파일 의존)에 따른 기존 특성이고 본 PR 은 이 파일을 변경하지 않았다.
+- `docker compose -f infrastructure/docker-compose.prod.yml config` → exit 0(미설정 secret/env 경고만, 기존과 동일).
+- `docker compose -f infrastructure/docker/docker-compose.arologis.yml config` → exit 0(미설정 secret/env 경고만, 기존과 동일).
+- `grep -rn "SAMHAN_SLIP_DISPATCH_TASK_URL=http\|SAMHAN_SLIP_DISPATCH_TASK_URL:\s*http" infrastructure/` → 0건.
+- PyYAML `safe_load` 로 ci.yml job name 수정 후 문자열 재확인 → 길이 42자, `#745)` 로 정확히 끝남 확인.
+
+## 변경 파일 (라운드2 재수렴 fix)
+
+| 파일 | 변경 |
+|---|---|
+| `infrastructure/docker-compose.prod.yml` | 죽은 `SAMHAN_SLIP_DISPATCH_TASK_URL` 제거 + 설명 주석 추가 |
+| `infrastructure/env-templates/arologis-service.env` | 죽은 `SAMHAN_SLIP_DISPATCH_TASK_URL` 제거, 오해유발 "슬립 배차 회신 URL" 주석 정정 |
+| `infrastructure/.env.example` | 죽은 `SAMHAN_SLIP_DISPATCH_TASK_URL` 제거, 오해유발 주석 정정 |
+| `infrastructure/scripts/validate-config-audit.ps1` | `Get-UrlRecords` (d) compose `environment:` 블록 리터럴 스캔 추가(local-all/prod/arologis 3종, +70건, 총 156건) |
+| `.github/workflows/ci.yml` | `config-audit-guard` job `name` 값 큰따옴표로 감싸 YAML 주석 잘림(`#745)`) 수정 |

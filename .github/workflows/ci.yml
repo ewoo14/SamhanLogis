@@ -299,7 +299,7 @@ jobs:
       # 해결은 별도 PR (qa/playwright testDir 확장 또는 spec 이전).
 
   config-audit-guard:
-    name: Config Audit Guard (다운스트림 URL/포트 정합, #745)
+    name: "Config Audit Guard (다운스트림 URL/포트 정합, #745)"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
