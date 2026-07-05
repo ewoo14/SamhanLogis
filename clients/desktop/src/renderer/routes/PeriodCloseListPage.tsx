@@ -47,6 +47,7 @@ import {
   type AccountingPeriod,
   type PeriodType,
 } from '../api/closingApi'
+import { extractApiErrorMessage } from '../api/apiError'
 import { closingAuditApi } from '../api/createAuditApi'
 import { ClosingRealtimeClient } from '../realtime/AccountingRealtimeClient'
 import {
@@ -366,13 +367,13 @@ export function PeriodCloseListPage() {
 
         {closeError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
-            마감 실행 실패: {closeError.message}
+            마감 실행 실패: {extractApiErrorMessage(closeError)}
           </div>
         ) : null}
 
         {reverseError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
-            역마감 실패: {reverseError.message}
+            역마감 실패: {extractApiErrorMessage(reverseError)}
           </div>
         ) : null}
       </Card>

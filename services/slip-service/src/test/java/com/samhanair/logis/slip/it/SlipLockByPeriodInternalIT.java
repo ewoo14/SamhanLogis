@@ -77,6 +77,17 @@ class SlipLockByPeriodInternalIT extends AbstractPostgresIT {
     }
 
     @Test
+    void invalidInternalToken_returns401_beforeController() throws Exception {
+        mockMvc.perform(post(URL)
+                        .header("X-Internal-Token", "wrong-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "startDate", "2026-05-01",
+                                "endDate", "2026-05-31"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void validInternalToken_locksConfirmedSlipsInPeriod() throws Exception {
         Slip inPeriod = createConfirmedOutbound("LOCK-OK-" + System.nanoTime(),
                 LocalDate.of(2026, 5, 15));
