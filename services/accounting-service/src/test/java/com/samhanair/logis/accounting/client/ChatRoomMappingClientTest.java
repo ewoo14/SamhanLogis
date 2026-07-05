@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.io.IOException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -24,12 +26,13 @@ class ChatRoomMappingClientTest {
     private static final String ENDPOINT =
             "http://notification-service/internal/notification/admin/chat-rooms?partnerCode=P-001";
 
+    private RestClient.Builder builder;
     private MockRestServiceServer server;
     private ChatRoomMappingClient client;
 
     @BeforeEach
     void setUp() {
-        RestClient.Builder builder = RestClient.builder();
+        builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
 
         InternalAuthProperties props = new InternalAuthProperties();
@@ -77,12 +80,35 @@ class ChatRoomMappingClientTest {
     }
 
     @Test
+    void findChatRoomNamesByPartnerCode_500은_empty로_fail_soft한다() {
+        server.expect(requestTo(ENDPOINT))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThat(client.findChatRoomNamesByPartnerCode("P-001")).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void findChatRoomNamesByPartnerCode_연결_예외는_empty로_fail_soft한다() {
+        server.expect(requestTo(ENDPOINT))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withException(new IOException("connection refused")));
+
+        assertThat(client.findChatRoomNamesByPartnerCode("P-001")).isEmpty();
+        server.verify();
+    }
+
+    @Test
     void findChatRoomNamesByPartnerCode_token이_비면_호출하지_않고_empty를_반환한다() {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(" ");
         ChatRoomMappingClient blankTokenClient =
-                new ChatRoomMappingClient(RestClient.builder(), props, new ObjectMapper());
+                new ChatRoomMappingClient(builder, props, new ObjectMapper());
 
         assertThat(blankTokenClient.findChatRoomNamesByPartnerCode("P-001")).isEmpty();
+        server.verify();
     }
 }
