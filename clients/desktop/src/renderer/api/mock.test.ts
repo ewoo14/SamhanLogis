@@ -1435,6 +1435,49 @@ describe('mock bank transaction matching contract', () => {
 })
 
 describe('mock permission matrix contract', () => {
+  it('입금 매칭 기본 권한은 auth seed role_page_permissions 와 일치한다', () => {
+    const manager = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-manager',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+    const sales = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-sales',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+    const accountantGroup = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permission-groups/00000000-0000-0000-0000-000000000104/permissions',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+
+    expect(manager.data['accounting.deposit-match']).toEqual({
+      view: true,
+      create: false,
+      update: false,
+      delete: false,
+      restore: false,
+      download: true,
+      print: true,
+    })
+    expect(sales.data['accounting.deposit-match']).toEqual({
+      view: false,
+      create: false,
+      update: false,
+      delete: false,
+      restore: false,
+      download: false,
+      print: false,
+    })
+    expect(accountantGroup.data['accounting.deposit-match']).toEqual({
+      view: true,
+      create: true,
+      update: true,
+      delete: true,
+      restore: false,
+      download: true,
+      print: true,
+    })
+  })
+
   it('외부기사/배송사 권한 매트릭스는 V69 action seed 와 같은 액션만 반환한다', () => {
     const matrix = mockRequest({
       method: 'GET',

@@ -70,6 +70,7 @@
   "accounting.reports",
   "accounting.period-close",
   "accounting.period-close.reverse",
+  "accounting.deposit-match",
   "accounting.statement-batch",
   "accounting.partner-ledger",
   "accounting.supplier-profiles",

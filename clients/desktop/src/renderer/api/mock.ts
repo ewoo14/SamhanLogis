@@ -16143,6 +16143,7 @@ const SP_D1_PAGES = [
   'accounting.receivables',
   'accounting.bank-card-admin',
   'accounting.bank-matching',
+  'accounting.deposit-match',
   'accounting.cash-receipts',
   'accounting.period-close',
   'accounting.statement-batch',
@@ -16293,7 +16294,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inbound.inspection', 'dispatch.board', 'dispatch.external-carriers',
     // SP-D2 회계 7개 — MANAGER: view 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
-    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
@@ -16377,7 +16378,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
-    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
     // V37 supplier-profiles — ACCOUNTANT: view only
     'accounting.supplier-profiles',
@@ -16547,7 +16548,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
-    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.cash-receipts', 'accounting.period-close',
+    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close',
     'accounting.statement-batch',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',

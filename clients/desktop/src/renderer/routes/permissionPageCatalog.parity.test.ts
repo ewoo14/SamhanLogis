@@ -10,7 +10,6 @@ const PAGE_CODE_ENUM_PATH = resolve(
 )
 const PERMISSIONS_API_PATH = resolve(process.cwd(), 'src/renderer/api/permissionsApi.ts')
 const FRONTEND_REMOVED_BACKEND_PAGE_CODES = new Set([
-  `accounting.${'deposit'}-${'match'}`,
   'slip.period-lock',
 ])
 

@@ -168,6 +168,7 @@ export type PageCode =
   | 'accounting.receivables'
   | 'accounting.bank-card-admin'
   | 'accounting.bank-matching'
+  | 'accounting.deposit-match'
   | 'accounting.period-close'
   | 'accounting.period-close.reverse'
   | 'accounting.statement-batch'
