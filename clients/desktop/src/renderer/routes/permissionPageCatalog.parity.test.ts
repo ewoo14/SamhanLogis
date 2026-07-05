@@ -11,6 +11,7 @@ const PAGE_CODE_ENUM_PATH = resolve(
 const PERMISSIONS_API_PATH = resolve(process.cwd(), 'src/renderer/api/permissionsApi.ts')
 const FRONTEND_REMOVED_BACKEND_PAGE_CODES = new Set([
   `accounting.${'deposit'}-${'match'}`,
+  'slip.period-lock',
 ])
 
 function readPageCodeEnumSource(): string {
@@ -103,5 +104,15 @@ describe('permission page catalog parity', () => {
       backendOnlyMissingUnionMembers,
       `permissionsApi.ts PageCode union이 BE PageCode enum page-code를 누락했습니다: ${backendOnlyMissingUnionMembers.join(', ')}`,
     ).toEqual([])
+  })
+
+  it('keeps backend-only removed page-codes out of the desktop catalog and union', () => {
+    const frontendPageCodes = extractFrontendPageCodes()
+    const frontendUnionPageCodes = extractFrontendPageCodeUnion(readPermissionsApiSource())
+
+    for (const pageCode of FRONTEND_REMOVED_BACKEND_PAGE_CODES) {
+      expect(frontendPageCodes.has(pageCode), `${pageCode}는 FE 권한 카탈로그에 노출되면 안 됩니다.`).toBe(false)
+      expect(frontendUnionPageCodes.has(pageCode), `${pageCode}는 permissionsApi PageCode union에 남으면 안 됩니다.`).toBe(false)
+    }
   })
 })

@@ -33,7 +33,6 @@
   "sales.partner-dc-config",
   "slip.transfer.process",
   "slip.reject",
-  "slip.period-lock",
   "slip.print.next-day",
   "slip.print.export",
   "slip.cleanup",

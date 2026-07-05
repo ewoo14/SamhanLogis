@@ -194,7 +194,6 @@ export const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'slip.transfer.process',
       'slip.reject',
-      'slip.period-lock',
       'slip.print.next-day',
       'slip.print.export',
       'slip.cleanup',
@@ -429,7 +428,6 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'sales.estimate-config': '견적 가격 설정',
   'slip.transfer.process': '전표 처리',
   'slip.reject': '전표 반려',
-  'slip.period-lock': '기간 잠금',
   'slip.print.next-day': '내일자 전표',
   'slip.print.export': '전표 export',
   'slip.cleanup': '전표정리',

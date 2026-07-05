@@ -121,7 +121,6 @@ export type PageCode =
   | 'sales.estimate-config'
   | 'slip.transfer.process'
   | 'slip.reject'
-  | 'slip.period-lock'
   | 'slip.print.next-day'
   | 'slip.print.export'
   | 'slip.cleanup'
