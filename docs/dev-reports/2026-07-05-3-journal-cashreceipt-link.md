@@ -39,6 +39,20 @@ CashReceipt 확정(`POST /accounting/cash-receipts/{id}/confirm`)은 `sourceType
    실 HTTP `GET /accounting/journals/{id}` 호출 + `$.data.sourceRefId` / `$.data.cashReceiptSlipNo`
    단언 추가(본 문서 하단 상세). LOW② (dead code 오버로드) 는 pre-existing·본 라운드 지시 범위 밖 —
    별도 처리 필요(backlog).
+4. **Codex 5-agent 라운드 #3 findings 직접 fix(#744)**:
+   - FE 링크 노출조건: `JournalDetailPage` 의 "입금보고서 {slipNo} 보기"는 더 이상
+     `accounting.journals:update`(`canUpdateJournal`) 에 묶지 않는다. `cashReceiptDetailPath` 존재 +
+     `accounting.cash-receipts:view` 권한일 때만 노출한다. 따라서 MANAGER 처럼 분개 view-only 인
+     사용자도 입금보고서 view 권한이 있으면 원천 문서를 볼 수 있고, 상세 경로가 없으면 관리 메뉴
+     fallback 버튼도 노출하지 않는다.
+   - 모바일 CTA: 입금보고서 보기는 원천 문서 조회용 보조 액션이므로 `mobile-action-primary` 에서
+     제외하고 더보기 시트의 `mobile-more-sheet-item` 으로 렌더한다. 데스크톱 `Button variant="ghost"`
+     와 같은 보조 액션 성격으로 정렬했다.
+   - BE `sourceRefId` 평가: 유지. FE 상세 라우팅(`/accounting/admin/cash-receipts/:id`)은
+     CashReceipt UUID path param 이 필요하고, `normalizeJournal` 은 BE 별칭 `cashReceiptId` 가 없을 때
+     `sourceRefId` 를 `cashReceiptId` fallback 으로 보존한다. DTO에는 이미 `id`, `reversedJournalId`
+     등 라우팅 UUID가 존재하며, [[feedback_uuid_no_user_visibility]]의 URL path param UUID 허용 예외와
+     동일하다. 화면 렌더는 계속 `cashReceiptSlipNo` 만 사용하고 raw UUID는 표시하지 않는다.
 
 ## 검증 (신규 실 HTTP IT — 실 Postgres, @MockBean 우회 없음)
 
