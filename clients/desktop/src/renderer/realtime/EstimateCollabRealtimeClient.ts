@@ -8,5 +8,5 @@ import { createRealtimeClient } from './createRealtimeClient'
 export const EstimateCollabRealtimeClient = createRealtimeClient({
   name: 'estimate-collab',
   endpointPath: (estimateId) =>
-    `/slips/estimates/${encodeURIComponent(estimateId)}/collab/stream`,
+    `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/stream`,
 })

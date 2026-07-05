@@ -3653,7 +3653,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // ---- estimate collab (stream + comments + edits + presence) ----
-  // /slips/estimates/{id}/collab/* — slip list 가드(`url.includes('/slips')`) 보다 앞서 처리.
+  // /api/v1/slips/estimates/{id}/collab/* — slip list 가드(`url.includes('/slips')`) 보다 앞서 처리.
   {
     const gecStore = globalThis as unknown as {
       __SAMHAN_MOCK_ESTIMATE_COLLAB_COMMENTS?: Record<string, Array<{
@@ -3676,7 +3676,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const estimatePresenceStore = gecStore.__SAMHAN_MOCK_ESTIMATE_PRESENCE
     const estimateCoeditStore = gecStore.__SAMHAN_MOCK_ESTIMATE_COEDIT
 
-    const estimateCollabStreamMatch = url.match(/\/slips\/estimates\/([^/?]+)\/collab\/stream(?:\?.*)?$/)
+    const estimateCollabStreamMatch = url.match(/\/api\/v1\/slips\/estimates\/([^/?]+)\/collab\/stream(?:\?.*)?$/)
     if (method === 'GET' && estimateCollabStreamMatch) {
       return new Blob([': mock estimate collab stream\n\n'], { type: 'text/event-stream;charset=utf-8' })
     }
@@ -3731,7 +3731,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return envelope({ updates: [...(estimateCoeditStore[estimateId] ?? [])] })
     }
 
-    const estimateCollabCommentCollectionMatch = url.match(/\/slips\/estimates\/([^/?]+)\/collab\/comments(?:\?.*)?$/)
+    const estimateCollabCommentCollectionMatch = url.match(/\/api\/v1\/slips\/estimates\/([^/?]+)\/collab\/comments(?:\?.*)?$/)
     if (estimateCollabCommentCollectionMatch) {
       const estimateId = estimateCollabCommentCollectionMatch[1]!
       if (method === 'GET') {
@@ -3753,7 +3753,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       }
     }
 
-    const estimateCollabCommentItemMatch = url.match(/\/slips\/estimates\/([^/?]+)\/collab\/comments\/([^/?]+)(?:\/(resolve))?(?:\?.*)?$/)
+    const estimateCollabCommentItemMatch = url.match(/\/api\/v1\/slips\/estimates\/([^/?]+)\/collab\/comments\/([^/?]+)(?:\/(resolve))?(?:\?.*)?$/)
     if (estimateCollabCommentItemMatch) {
       const estimateId = estimateCollabCommentItemMatch[1]!
       const commentId = estimateCollabCommentItemMatch[2]!
@@ -3771,7 +3771,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       }
     }
 
-    const estimateCollabEditCollectionMatch = url.match(/\/slips\/estimates\/([^/?]+)\/collab\/edits(?:\?.*)?$/)
+    const estimateCollabEditCollectionMatch = url.match(/\/api\/v1\/slips\/estimates\/([^/?]+)\/collab\/edits(?:\?.*)?$/)
     if (estimateCollabEditCollectionMatch) {
       const estimateId = estimateCollabEditCollectionMatch[1]!
       if (method === 'GET') return envelope([...(estimateEditsStore[estimateId] ?? [])])

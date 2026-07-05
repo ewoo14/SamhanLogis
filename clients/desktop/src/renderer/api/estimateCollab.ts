@@ -48,7 +48,7 @@ export interface CommitEstimateCollabEditResponse {
 }
 
 function collabPath(estimateId: string, suffix: string): string {
-  return `/slips/estimates/${encodeURIComponent(estimateId)}/collab/${suffix}`
+  return `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/${suffix}`
 }
 
 export async function getEstimateCollabComments(

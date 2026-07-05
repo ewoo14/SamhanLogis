@@ -27,6 +27,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.estimate.web.EstimatePermissionGuard;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +44,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,6 +94,7 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     /** 외부 RestClient — 모두 MockBean 격리 (Eureka 비활성 시 500 방지). */
     @MockBean private ProductClient productClient;
@@ -156,6 +159,26 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
         JsonNode data = objectMapper.readTree(body).get("data");
         org.assertj.core.api.Assertions.assertThat(data).hasSizeGreaterThanOrEqualTo(2);
         org.assertj.core.api.Assertions.assertThat(data.get(0).has("actorId")).isFalse();
+    }
+
+    @Test
+    @DisplayName("타임라인: JSONB null/필수키 누락 snapshot row 가 있어도 500 없이 안전 처리한다")
+    void timeline_withNullAndIncompleteSnapshots_doesNotReturn500() throws Exception {
+        UUID estimateId = createEstimateAsSales(1);
+        insertCorruptRevision(estimateId, 2, "null");
+        insertCorruptRevision(estimateId, 3, "{}");
+
+        mockMvc.perform(get("/slips/estimates/{id}/revisions", estimateId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "감사자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].revisionNo").value(3))
+                .andExpect(jsonPath("$.data[0].changeSummary.headerChanged")
+                        .value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data[0].changeSummary.lineAdded").value(0))
+                .andExpect(jsonPath("$.data[1].revisionNo").value(1));
     }
 
     // =========================================================================
@@ -345,6 +368,21 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, UUID.randomUUID().toString())
                         .header(ROLE_HEADER, "SALES"))
                 .andExpect(status().isOk());
+    }
+
+    private void insertCorruptRevision(UUID estimateId, int revisionNo, String snapshotJson) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update("""
+                INSERT INTO estimate_revisions
+                    (id, estimate_id, revision_no, revision_type, source_revision_no,
+                     estimate_no, estimate_date, snapshot, actor_id, actor_name, actor_color,
+                     created_at, created_by, modified_at, modified_by, deleted_at, deleted_by, is_deleted)
+                VALUES (?, ?, ?, 'EDIT', NULL,
+                        ?, DATE '2026-05-29', ?::jsonb, NULL, ?, NULL,
+                        ?, 'test', NULL, NULL, NULL, NULL, FALSE)
+                """,
+                UUID.randomUUID(), estimateId, revisionNo, "CORRUPT-" + revisionNo,
+                snapshotJson, "손상데이터", now);
     }
 
     /** {@code count} 개 견적 라인 JSON 맵 리스트 — 각 라인은 고유 productId (productId 기준 changeSummary 매칭). */

@@ -127,11 +127,11 @@ export const PartnerOrderPresenceClient = createPresenceClient({
 export const EstimatePresenceClient = createPresenceClient({
   name: 'estimate',
   presencePath: (estimateId, action) => {
-    const base = `/slips/estimates/${encodeURIComponent(estimateId)}/collab/presence`
+    const base = `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/presence`
     return action ? `${base}/${action}` : base
   },
   streamPath: (estimateId) =>
-    `/slips/estimates/${encodeURIComponent(estimateId)}/collab/stream`,
+    `/api/v1/slips/estimates/${encodeURIComponent(estimateId)}/collab/stream`,
 })
 
 export const GroupwareApprovalPresenceClient = createPresenceClient({

@@ -242,9 +242,9 @@ class EstimateCollabIT extends AbstractPostgresIT {
     /**
      * 권한 없는(비-MASTER) 계정의 수정완료 요청은 403 으로 거부되고 이력이 저장되지 않아야 한다.
      *
-     * <p>{@code @RequirePermission}(PermissionAspect) + EstimatePermissionGuard 이중 가드의 deny 경로를
-     * 실 HTTP 로 회귀 검증한다([enforcement-real-http-test]). MASTER bypass 헤더 없이 동적 권한이
-     * 거부되면 두 가드 모두 deny → 403.
+     * <p>{@code @RequirePermission}(PermissionAspect) 단일 가드의 deny 경로를 실 HTTP 로
+     * 회귀 검증한다([enforcement-real-http-test]). MASTER bypass 헤더 없이 동적 권한이 거부되면
+     * 403 을 반환한다.
      */
     @Test
     void commitEdit_withoutPermission_returns403AndPersistsNothing() throws Exception {
@@ -292,6 +292,48 @@ class EstimateCollabIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, deniedAccount.toString())
                         .accept(MediaType.TEXT_EVENT_STREAM))
                 .andExpect(status().isForbidden());
+    }
+
+    /** 협업 조회 endpoint 는 @RequirePermission 단일 가드만 사용하고 본문에서 권한을 재검사하지 않는다. */
+    @Test
+    void readEndpoints_useSingleRequirePermissionGuard() throws Exception {
+        UUID estimateId = seedAcceptedEstimate("SGV").getId();
+        UUID accountId = UUID.fromString(ACTOR_ID);
+        when(dynamicPermissionClient.check(
+                eq(accountId), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.VIEW)))
+                .thenReturn(true, false);
+
+        mvc.perform(get("/slips/estimates/{estimateId}/collab/comments", estimateId)
+                        .header(USER_ID_HEADER, accountId.toString())
+                        .param("limit", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+
+        verify(dynamicPermissionClient, times(1))
+                .check(eq(accountId), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.VIEW));
+    }
+
+    /** 협업 작성 endpoint 도 @RequirePermission 단일 가드만 사용하고 본문에서 권한을 재검사하지 않는다. */
+    @Test
+    void writeEndpoints_useSingleRequirePermissionGuard() throws Exception {
+        UUID estimateId = seedAcceptedEstimate("SGW").getId();
+        UUID accountId = UUID.fromString(ACTOR_ID);
+        when(dynamicPermissionClient.check(
+                eq(accountId), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.UPDATE)))
+                .thenReturn(true, false);
+
+        mvc.perform(post("/slips/estimates/{estimateId}/collab/comments", estimateId)
+                        .header(USER_ID_HEADER, accountId.toString())
+                        .header(USER_NAME_HEADER, "단일가드작성자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "body", "단일 가드 댓글",
+                                "anchor", "memo"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.body").value("단일 가드 댓글"));
+
+        verify(dynamicPermissionClient, times(1))
+                .check(eq(accountId), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.UPDATE));
     }
 
     /** REJECTED / CONVERTED 견적은 협업 수정완료가 409 로 거부되고 이력이 저장되지 않아야 한다. */
@@ -474,7 +516,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
 
     /**
      * presence join/list 엔드포인트가 헤더 인증, 입력 검증, UUID 비노출 wire 계약,
-     * EstimatePermissionGuard 이중 가드를 지킨다.
+     * {@code @RequirePermission} 단일 가드를 지킨다.
      *
      * <p>검증 시나리오:
      * <ol>
@@ -482,7 +524,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
      *   <li>sessionId 빈값 → 400 (INVALID_INPUT)</li>
      *   <li>정상 join → 200 + data {sessionId, displayName, color} 만 포함</li>
      *   <li>GET presence → 1건 반환</li>
-     *   <li>estimates.list VIEW 동적권한 거부 → 403 (@RequirePermission PermissionAspect 가 컨트롤러 본문 checkView 보다 선행 — 두 가드 모두 deny)</li>
+     *   <li>estimates.list VIEW 동적권한 거부 → 403 (@RequirePermission PermissionAspect 단일 가드)</li>
      * </ol>
      */
     @Test
@@ -538,7 +580,7 @@ class EstimateCollabIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[0].sessionId").value("estimate-presence-session-1"))
                 .andExpect(jsonPath("$.data[0].userId").doesNotExist());
 
-        // (e) estimates.list VIEW 동적권한 거부 → 403 (@RequirePermission PermissionAspect 단계가 본문 checkView 보다 선행, MASTER bypass 헤더 없음)
+        // (e) estimates.list VIEW 동적권한 거부 → 403 (@RequirePermission PermissionAspect 단일 가드, MASTER bypass 헤더 없음)
         UUID estimateId403 = seedEstimate("PRS-403").getId();
         when(dynamicPermissionClient.check(
                 any(UUID.class), eq(EstimatePermissionGuard.PAGE_CODE), eq(PermissionAction.VIEW)))

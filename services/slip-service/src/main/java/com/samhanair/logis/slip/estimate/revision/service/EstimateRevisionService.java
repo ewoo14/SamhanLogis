@@ -172,6 +172,11 @@ public class EstimateRevisionService {
         EstimateSnapshot prev = null;
         for (EstimateRevision revision : revisions) {
             EstimateSnapshot cur = revision.getSnapshot();
+            if (cur == null) {
+                // JSONB null 또는 역직렬화 실패로 snapshot 이 비어 있는 과거 row 는
+                // 타임라인 500 대신 명시적으로 제외한다. 직전 정상 snapshot 기준은 유지한다.
+                continue;
+            }
             ChangeSummary summary = summarize(prev, cur);
             responses.add(new EstimateRevisionResponse(
                     revision.getRevisionNo(),
@@ -213,6 +218,9 @@ public class EstimateRevisionService {
      * @return 변경 규모 요약
      */
     public ChangeSummary summarize(EstimateSnapshot prev, EstimateSnapshot cur) {
+        if (cur == null) {
+            return null;
+        }
         List<EstimateSnapshot.Line> curLines = cur.lines() == null ? List.of() : cur.lines();
         if (prev == null) {
             return new ChangeSummary(0, curLines.size(), 0, 0);

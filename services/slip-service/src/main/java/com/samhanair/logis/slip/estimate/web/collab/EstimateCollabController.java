@@ -62,7 +62,6 @@ public class EstimateCollabController {
 
     private static final String CALLER_ID_HEADER = "X-User-Id";
     private static final String CALLER_NAME_HEADER = "X-User-Name";
-    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
     private static final Pattern UUID_SHAPE = Pattern.compile(
             "(?i)^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$");
 
@@ -72,7 +71,6 @@ public class EstimateCollabController {
     private final EstimateDocumentCollaborationPort port;
     private final RealtimeBroker broker;
     private final EstimateRepository estimateRepository;
-    private final EstimatePermissionGuard permissionGuard;
     private final PresenceService presenceService;
     private final CollabCoeditService coeditService;
 
@@ -82,7 +80,6 @@ public class EstimateCollabController {
                                     EstimateDocumentCollaborationPort port,
                                     RealtimeBroker broker,
                                     EstimateRepository estimateRepository,
-                                    EstimatePermissionGuard permissionGuard,
                                     PresenceService presenceService,
                                     CollabCoeditService coeditService) {
         this.commentService = commentService;
@@ -91,7 +88,6 @@ public class EstimateCollabController {
         this.port = port;
         this.broker = broker;
         this.estimateRepository = estimateRepository;
-        this.permissionGuard = permissionGuard;
         this.presenceService = presenceService;
         this.coeditService = coeditService;
     }
@@ -105,10 +101,8 @@ public class EstimateCollabController {
             @PathVariable UUID estimateId,
             @Valid @RequestBody AddEstimateCollabCommentRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkEdit(parseAccountIdOrNull(callerId), isSystemMaster, PermissionAction.UPDATE);
         EstimateCollabComment saved = commentService.add(
                 CollabDocumentType.ESTIMATE,
                 estimateId,
@@ -126,11 +120,8 @@ public class EstimateCollabController {
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<EstimateCollabCommentResponse>> listComments(
             @PathVariable UUID estimateId,
-            @RequestParam(defaultValue = "20") int limit,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestParam(defaultValue = "20") int limit) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         List<EstimateCollabCommentResponse> items = commentService
                 .listRecent(CollabDocumentType.ESTIMATE, estimateId, limit)
                 .stream()
@@ -146,10 +137,8 @@ public class EstimateCollabController {
     public ApiResponse<Void> deleteComment(
             @PathVariable UUID estimateId,
             @PathVariable UUID commentId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkEdit(parseAccountIdOrNull(callerId), isSystemMaster, PermissionAction.UPDATE);
         commentService.softDelete(
                 CollabDocumentType.ESTIMATE, estimateId, commentId, resolveDeleter(callerId));
         return ApiResponse.ok(null);
@@ -161,11 +150,8 @@ public class EstimateCollabController {
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<EstimateCollabCommentResponse> resolveComment(
             @PathVariable UUID estimateId,
-            @PathVariable UUID commentId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @PathVariable UUID commentId) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkEdit(parseAccountIdOrNull(callerId), isSystemMaster, PermissionAction.UPDATE);
         return ApiResponse.ok(EstimateCollabCommentResponse.from(
                 commentService.resolve(CollabDocumentType.ESTIMATE, estimateId, commentId)));
     }
@@ -179,10 +165,8 @@ public class EstimateCollabController {
             @PathVariable UUID estimateId,
             @Valid @RequestBody CommitEstimateCollabEditRequest request,
             @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkEdit(parseAccountIdOrNull(callerId), isSystemMaster, PermissionAction.UPDATE);
         port.validateChangeSet(request.changeSet());
         EstimateCollabEditService.Result result = editService.commitEdit(
                 port, estimateId, resolveActorId(callerId), resolveActorName(callerName),
@@ -196,11 +180,8 @@ public class EstimateCollabController {
     @GetMapping("/{estimateId}/collab/edits")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<EstimateCollabSuggestionResponse>> listEdits(
-            @PathVariable UUID estimateId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @PathVariable UUID estimateId) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         List<EstimateCollabSuggestionResponse> items = suggestionRepository
                 .findByDocumentTypeAndDocumentIdAndStatusOrderByCreatedAtDesc(
                         CollabDocumentType.ESTIMATE, estimateId, CollabSuggestionStatus.ACCEPTED)
@@ -215,11 +196,8 @@ public class EstimateCollabController {
     @GetMapping("/{estimateId}/collab/coedit")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<EstimateCoeditUpdatesResponse> listCoeditUpdates(
-            @PathVariable UUID estimateId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @PathVariable UUID estimateId) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         return ApiResponse.ok(new EstimateCoeditUpdatesResponse(coeditService.listUpdates(estimateId)));
     }
 
@@ -229,11 +207,8 @@ public class EstimateCollabController {
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<Void> appendCoeditUpdate(
             @PathVariable UUID estimateId,
-            @RequestBody(required = false) EstimateCoeditUpdateRequest request,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestBody(required = false) EstimateCoeditUpdateRequest request) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkEdit(parseAccountIdOrNull(callerId), isSystemMaster, PermissionAction.UPDATE);
         coeditService.appendUpdate(estimateId, request == null ? null : request.update());
         return ApiResponse.ok(null);
     }
@@ -244,11 +219,8 @@ public class EstimateCollabController {
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<Void> publishCoeditAwareness(
             @PathVariable UUID estimateId,
-            @RequestBody(required = false) EstimateCoeditAwarenessRequest request,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestBody(required = false) EstimateCoeditAwarenessRequest request) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         coeditService.publishAwareness(estimateId, request == null ? null : request.awareness());
         return ApiResponse.ok(null);
     }
@@ -257,12 +229,8 @@ public class EstimateCollabController {
     @Operation(summary = "견적 협업 SSE stream 구독")
     @GetMapping(value = "/{estimateId}/collab/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
-    public SseEmitter stream(
-            @PathVariable UUID estimateId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+    public SseEmitter stream(@PathVariable UUID estimateId) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         return broker.subscribe(estimateId);
     }
 
@@ -271,7 +239,7 @@ public class EstimateCollabController {
      *
      * <p>신규 sessionId 의 경우 기존 collab SSE stream 으로 {@code presence:join} 이벤트가 발행된다.
      * {@code X-User-Id} 헤더는 presence userId 로 필수이며, 없으면 401 을 반환한다.
-     * 조회 권한 가드({@link EstimatePermissionGuard#checkView}) 가 함께 적용된다.
+     * 조회 권한은 {@link RequirePermission} 단일 가드로 적용된다.
      */
     @Operation(summary = "견적 협업 presence join/heartbeat")
     @PostMapping("/{estimateId}/collab/presence/join")
@@ -280,10 +248,8 @@ public class EstimateCollabController {
             @PathVariable UUID estimateId,
             @RequestBody(required = false) EstimatePresenceRequest request,
             @RequestHeader(CALLER_ID_HEADER) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         String userId = resolvePresenceUserId(callerId);
         String sessionId = resolvePresenceSessionId(request);
         String displayName = resolvePresenceDisplayName(callerName, request);
@@ -302,10 +268,8 @@ public class EstimateCollabController {
     public ApiResponse<Void> leavePresence(
             @PathVariable UUID estimateId,
             @RequestBody(required = false) EstimatePresenceRequest request,
-            @RequestHeader(CALLER_ID_HEADER) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+            @RequestHeader(CALLER_ID_HEADER) String callerId) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         String userId = resolvePresenceUserId(callerId);
         presenceService.leave(estimateId, resolvePresenceSessionId(request), userId);
         return ApiResponse.ok(null);
@@ -320,29 +284,14 @@ public class EstimateCollabController {
     @Operation(summary = "견적 협업 presence 목록")
     @GetMapping("/{estimateId}/collab/presence")
     @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = PermissionAction.VIEW)
-    public ApiResponse<List<PresenceEntry>> listPresence(
-            @PathVariable UUID estimateId,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
+    public ApiResponse<List<PresenceEntry>> listPresence(@PathVariable UUID estimateId) {
         ensureEstimateExists(estimateId);
-        permissionGuard.checkView(parseAccountIdOrNull(callerId), isSystemMaster);
         return ApiResponse.ok(presenceService.list(estimateId));
     }
 
     private void ensureEstimateExists(UUID estimateId) {
         if (!estimateRepository.existsById(estimateId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "대상 견적을 찾을 수 없습니다");
-        }
-    }
-
-    private UUID parseAccountIdOrNull(String header) {
-        if (header == null || header.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(header);
-        } catch (IllegalArgumentException ex) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "계정 권한 식별자가 올바르지 않습니다.");
         }
     }
 
