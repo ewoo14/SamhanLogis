@@ -115,6 +115,18 @@ function MobileJournalLineCard({
       </div>
 
       <div className="mobile-line-field">
+        <label className="mobile-line-field-label">거래처</label>
+        <input
+          type="text"
+          className="mobile-line-text-input"
+          value={line.partnerName}
+          onChange={(e) => onChange({ partnerName: e.target.value })}
+          placeholder="거래처"
+          aria-label={`라인 ${index} 거래처`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
         <label className="mobile-line-field-label">차변</label>
         <MoneyInput
           value={line.debit}
@@ -129,18 +141,6 @@ function MobileJournalLineCard({
           value={line.credit}
           onChange={(n) => onChange({ credit: n })}
           ariaLabel={`라인 ${index} 대변`}
-        />
-      </div>
-
-      <div className="mobile-line-field">
-        <label className="mobile-line-field-label">거래처</label>
-        <input
-          type="text"
-          className="mobile-line-text-input"
-          value={line.partnerName}
-          onChange={(e) => onChange({ partnerName: e.target.value })}
-          placeholder="거래처"
-          aria-label={`라인 ${index} 거래처`}
         />
       </div>
 
@@ -385,6 +385,43 @@ export function JournalFormPage() {
                   onRemove={() => removeLine(i)}
                 />
               ))}
+
+              <div
+                className="journal-line-grid-total"
+                style={{
+                  marginTop: 16,
+                  padding: '12px 0',
+                  background: 'var(--color-bg-subtle)',
+                  borderRadius: 6,
+                  display: 'grid',
+                  gridTemplateColumns: JOURNAL_LINE_GRID_TEMPLATE,
+                  minWidth: 900,
+                  gap: 8,
+                  fontSize: 14,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                <div />
+                <div style={{ fontWeight: 600 }}>합계</div>
+                <div />
+                <div data-align="right" style={{ textAlign: 'right', fontWeight: 600 }}>
+                  {fmt(totals.debit)}
+                </div>
+                <div data-align="right" style={{ textAlign: 'right', fontWeight: 600 }}>
+                  {fmt(totals.credit)}
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: isBalanced ? '#059669' : '#DC2626',
+                    fontWeight: 600,
+                  }}
+                >
+                  {isBalanced
+                    ? '차/대변 일치 ✓'
+                    : `차이: ${fmt(totals.diff)} 원`}
+                </div>
+              </div>
             </div>
           </>
         )}
@@ -433,46 +470,7 @@ export function JournalFormPage() {
               </span>
             </div>
           </div>
-        ) : (
-          <div className="journal-line-grid-scroll">
-            <div
-              className="journal-line-grid-total"
-              style={{
-                marginTop: 16,
-                padding: '12px 16px',
-                background: 'var(--color-bg-subtle)',
-                borderRadius: 6,
-                display: 'grid',
-                gridTemplateColumns: JOURNAL_LINE_GRID_TEMPLATE,
-                minWidth: 900,
-                gap: 8,
-                fontSize: 14,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              <div />
-              <div style={{ fontWeight: 600 }}>합계</div>
-              <div />
-              <div data-align="right" style={{ textAlign: 'right', fontWeight: 600 }}>
-                {fmt(totals.debit)}
-              </div>
-              <div data-align="right" style={{ textAlign: 'right', fontWeight: 600 }}>
-                {fmt(totals.credit)}
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: isBalanced ? '#059669' : '#DC2626',
-                  fontWeight: 600,
-                }}
-              >
-                {isBalanced
-                  ? '차/대변 일치 ✓'
-                  : `차이: ${fmt(totals.diff)} 원`}
-              </div>
-            </div>
-          </div>
-        )}
+        ) : null}
       </Card>
 
       {topError ? (
