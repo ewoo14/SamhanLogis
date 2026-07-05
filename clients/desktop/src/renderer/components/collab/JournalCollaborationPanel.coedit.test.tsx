@@ -14,7 +14,15 @@ vi.mock('../../realtime/JournalCollabRealtimeClient', () => ({
   JournalCollabRealtimeClient: { subscribe: () => ({ abort: () => undefined }) },
 }))
 vi.mock('../../api/journalCollab', () => ({
-  getJournalCollabComments: vi.fn(() => Promise.resolve([])),
+  getJournalCollabComments: vi.fn(() => Promise.resolve([{
+    id: 'comment-1',
+    anchor: 'description',
+    authorName: '홍길동',
+    body: '적요 확인',
+    parentId: null,
+    status: 'OPEN',
+    createdAt: '2026-07-06T09:00:00',
+  }])),
   getJournalCollabEdits: vi.fn(() => Promise.resolve([])),
   addJournalCollabComment: vi.fn(),
   deleteJournalCollabComment: vi.fn(),
@@ -42,14 +50,15 @@ afterEach(() => {
 })
 
 describe('JournalCollaborationPanel 협업 패널 배치', () => {
-  it('협업 메모를 제거하고 코멘트를 수정 이력 위에 전폭으로 렌더한다', () => {
+  it('협업 헤더와 changeSet 수정 이력 목록을 제거하고 코멘트와 후속 버전이력 안내만 렌더한다', () => {
     renderPanel('journal/id with spaces')
 
     const commentSection = screen.getByLabelText('코멘트')
-    const editSection = screen.getByLabelText('수정 이력')
     expect(screen.queryByText('협업 메모')).toBeNull()
+    expect(screen.queryByRole('heading', { name: '협업' })).toBeNull()
+    expect(screen.queryByLabelText('수정 이력')).toBeNull()
+    expect(screen.queryByTestId('journal-collab-edit-list')).toBeNull()
     expect(commentSection.style.width).toBe('100%')
-    expect(editSection.style.width).toBe('100%')
-    expect(commentSection.compareDocumentPosition(editSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('journal-version-history-gap').textContent).toContain('회계 분개 버전이력')
   })
 })

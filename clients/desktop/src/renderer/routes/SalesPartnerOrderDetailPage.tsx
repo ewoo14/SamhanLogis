@@ -36,7 +36,6 @@ import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
-import { PartnerOrderVersionHistoryPanel } from '../components/audit/PartnerOrderVersionHistoryPanel'
 import styles from '../components/sales/sales.module.css'
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
@@ -1298,13 +1297,6 @@ export function SalesPartnerOrderDetailPage() {
 
             {isMobile ? (
               <>
-                <MobileCollapsible title="버전 이력" className="mobile-section-card">
-                  <PartnerOrderVersionHistoryPanel
-                    orderId={orderId}
-                    status={query.data.status}
-                  />
-                </MobileCollapsible>
-
                 {collabCurrentValues ? (
                   <MobileCollapsible
                     title="협업 · 코멘트"
@@ -1313,6 +1305,7 @@ export function SalesPartnerOrderDetailPage() {
                   >
                     <PartnerOrderCollaborationPanel
                       orderId={orderId}
+                      status={query.data.status}
                       currentValues={collabCurrentValues}
                       editMode={collabEditMode}
                       onEditModeChange={setCollabEditMode}
@@ -1350,14 +1343,10 @@ export function SalesPartnerOrderDetailPage() {
               </>
             ) : (
               <>
-                <PartnerOrderVersionHistoryPanel
-                  orderId={orderId}
-                  status={query.data.status}
-                />
-
                 {collabCurrentValues ? (
                   <PartnerOrderCollaborationPanel
                     orderId={orderId}
+                    status={query.data.status}
                     currentValues={collabCurrentValues}
                     editMode={collabEditMode}
                     onEditModeChange={setCollabEditMode}

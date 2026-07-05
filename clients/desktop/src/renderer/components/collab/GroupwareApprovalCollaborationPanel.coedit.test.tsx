@@ -148,15 +148,16 @@ afterEach(() => {
 })
 
 describe('GroupwareApprovalCollaborationPanel 협업 패널 배치', () => {
-  it('협업 메모를 제거하고 코멘트를 수정 이력 위에 전폭으로 렌더한다', () => {
+  it('협업 헤더와 changeSet 수정 이력 목록을 제거하고 코멘트와 후속 버전이력 안내만 렌더한다', () => {
     renderPanel('approval/id with spaces')
 
     const commentSection = screen.getByLabelText('코멘트')
-    const editSection = screen.getByLabelText('수정 이력')
     expect(screen.queryByText('협업 메모')).toBeNull()
+    expect(screen.queryByRole('heading', { name: '협업' })).toBeNull()
+    expect(screen.queryByLabelText('수정 이력')).toBeNull()
+    expect(screen.queryByTestId('groupware-approval-collab-edit-list')).toBeNull()
     expect(commentSection.style.width).toBe('100%')
-    expect(editSection.style.width).toBe('100%')
-    expect(commentSection.compareDocumentPosition(editSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('groupware-approval-version-history-gap').textContent).toContain('그룹웨어 결재 버전이력')
   })
 })
 

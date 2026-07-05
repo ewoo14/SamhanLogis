@@ -42,7 +42,6 @@ import {
   type EstimateLine,
   type EstimateStatus,
 } from '../api/estimateApi'
-import { EstimateVersionHistoryPanel } from '../components/audit/EstimateVersionHistoryPanel'
 import { EstimateCollaborationPanel } from '../components/collab/EstimateCollaborationPanel'
 import { MobileActionSheet } from '../components/common/MobileActionSheet'
 import { MobileCollapsible } from '../components/common/MobileCollapsible'
@@ -728,10 +727,6 @@ export function EstimateDetailPage() {
 
       {isMobile ? (
         <>
-          <MobileCollapsible title="버전 이력" className="mobile-section-card">
-            <EstimateVersionHistoryPanel estimateId={id} status={e.status} />
-          </MobileCollapsible>
-
           <MobileCollapsible
             title="협업 · 코멘트"
             defaultOpen
@@ -739,6 +734,7 @@ export function EstimateDetailPage() {
           >
             <EstimateCollaborationPanel
               estimateId={id}
+              status={e.status}
               currentValues={{
                 memo: e.memo,
                 validUntil: e.validUntil,
@@ -759,11 +755,9 @@ export function EstimateDetailPage() {
         </>
       ) : (
         <>
-          {/* Phase 2.2 Task 6: 버전이력 패널 + 복원 (편집 불가 상태면 복원 버튼 비활성) */}
-          <EstimateVersionHistoryPanel estimateId={id} status={e.status} />
-
           <EstimateCollaborationPanel
             estimateId={id}
+            status={e.status}
             currentValues={{
               memo: e.memo,
               validUntil: e.validUntil,

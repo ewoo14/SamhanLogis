@@ -13,10 +13,8 @@ import {
   commitJournalCollabEdit,
   deleteJournalCollabComment,
   getJournalCollabComments,
-  getJournalCollabEdits,
   resolveJournalCollabComment,
   type JournalCollabComment,
-  type JournalCollabEdit,
 } from '../../api/journalCollab'
 import { JournalCollabRealtimeClient } from '../../realtime/JournalCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -60,56 +58,13 @@ function displayName(value: string | null | undefined): string {
   return value && value !== 'system' ? value : '시스템'
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/^\/+/, '')
-}
-
 function lineMemoPath(lineNo: number): string {
   return `line.${lineNo}.memo`
 }
 
-function labelForPath(path: string): string {
-  const normalized = normalizePath(path)
-  if (normalized === 'description') return '적요'
-  const lineMatch = normalized.match(/^line\.(\d+)\.memo$/)
-  if (lineMatch) {
-    // lineNo 는 BE 1-based(JournalService lineNo=1.. / line.{lineNo}.memo) — 그대로 표기한다.
-    return `${lineMatch[1]}번 라인 메모`
-  }
-  return normalized
-}
-
-function summarizeChangeSet(changeSet: string): string {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { after?: unknown }>
-    return Object.entries(parsed)
-      .map(([path, change]) => {
-        const after = change.after == null ? '비움' : String(change.after)
-        return `${labelForPath(path)}: ${after}`
-      })
-      .join(' · ')
-  } catch {
-    return '변경 내용 형식을 해석하지 못했습니다.'
-  }
-}
-
-function parseChangeSetDiffs(changeSet: string): Array<{
-  fieldName: string
-  label: string
-  before: string | null
-  after: string | null
-}> {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
-    return Object.entries(parsed).map(([path, change]) => ({
-      fieldName: normalizePath(path),
-      label: labelForPath(path),
-      before: change.before == null ? null : String(change.before),
-      after: change.after == null ? null : String(change.after),
-    }))
-  } catch {
-    return []
-  }
+function normalizeCollabAnchor(anchor: string | null | undefined): string | null {
+  const normalized = (anchor ?? '').trim().replace(/^\/+/, '').replace(/\//g, '.')
+  return normalized.length > 0 ? normalized : null
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -146,10 +101,10 @@ export function JournalCollaborationPanel({
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
+  const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
   const presenceEntries = usePresence({ entityId: journalId, client: JournalPresenceClient, enabled: !!journalId })
 
   const commentQueryKey = useMemo(() => ['journalCollabComments', journalId] as const, [journalId])
-  const editQueryKey = useMemo(() => ['journalCollabEdits', journalId] as const, [journalId])
   const journalQueryKey = useMemo(() => ['accounting', 'journal', journalId] as const, [journalId])
   const canWriteComments = canAccess('accounting.journals', 'update')
   const canResolveComments = canAccess('accounting.journals', 'update')
@@ -164,12 +119,6 @@ export function JournalCollaborationPanel({
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
     queryFn: () => getJournalCollabComments(journalId),
-    enabled: !!journalId,
-  })
-
-  const editsQuery = useQuery({
-    queryKey: editQueryKey,
-    queryFn: () => getJournalCollabEdits(journalId),
     enabled: !!journalId,
   })
 
@@ -191,12 +140,11 @@ export function JournalCollaborationPanel({
     const ctrl = JournalCollabRealtimeClient.subscribe(journalId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: journalQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
     })
     return () => ctrl.abort()
-  }, [commentQueryKey, editQueryKey, journalId, journalQueryKey, queryClient])
+  }, [commentQueryKey, journalId, journalQueryKey, queryClient])
 
   const addCommentMutation = useMutation({
     mutationFn: (body: string) => addJournalCollabComment(journalId, { body }),
@@ -255,7 +203,6 @@ export function JournalCollaborationPanel({
       setEditNotice('수정완료되었습니다.')
       // setQueryData(result.journal) 금지 — commit 응답 journal 은 상세 조회 DTO 의 부분집합이라
       // reversedAt/reverseReason 등이 undefined 로 덮여 사라진다. invalidate 로 권위 있는 재조회에 위임.
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: journalQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['accounting', 'journals'] })
       onCommitted?.()
@@ -277,14 +224,12 @@ export function JournalCollaborationPanel({
   })
 
   const comments: JournalCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
-  const edits: JournalCollabEdit[] = Array.isArray(editsQuery.data) ? editsQuery.data : []
   const trimmedComment = commentBody.trim()
 
   return (
     <section data-testid="journal-collaboration-panel" style={{ marginTop: 24 }}>
       <Card padding={4} shadow="sm">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <h4 style={{ margin: 0 }}>협업</h4>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: presenceEntries.length > 0 ? 12 : 0 }}>
           <PresenceIndicator entries={presenceEntries} />
         </div>
 
@@ -303,11 +248,32 @@ export function JournalCollaborationPanel({
                 </p>
               ) : comments.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
-              ) : comments.map((comment) => (
+              ) : comments.map((comment) => {
+                const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const highlighted = !!fieldPath && fieldPath === activeFieldPath
+                return (
                 <article
                   key={comment.id}
                   data-testid="journal-collab-comment-item"
-                  style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
+                  data-active={highlighted ? 'true' : undefined}
+                  tabIndex={fieldPath ? 0 : undefined}
+                  onClick={() => {
+                    if (!fieldPath) return
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  onKeyDown={(event) => {
+                    if (!fieldPath) return
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  style={{
+                    borderBottom: '1px solid var(--color-neutral-200)',
+                    padding: highlighted ? '8px' : '0 0 8px',
+                    borderRadius: highlighted ? 6 : 0,
+                    background: highlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                    cursor: fieldPath ? 'pointer' : undefined,
+                  }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                     <strong>{displayName(comment.authorName)}</strong>
@@ -319,7 +285,10 @@ export function JournalCollaborationPanel({
                         variant="ghost"
                         size="sm"
                         disabled={resolveCommentMutation.isPending}
-                        onClick={() => resolveCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          resolveCommentMutation.mutate(comment.id)
+                        }}
                       >
                         해결
                       </Button>
@@ -330,7 +299,10 @@ export function JournalCollaborationPanel({
                         variant="ghost"
                         size="sm"
                         disabled={deleteCommentMutation.isPending}
-                        onClick={() => deleteCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          deleteCommentMutation.mutate(comment.id)
+                        }}
                       >
                         삭제
                       </Button>
@@ -340,7 +312,8 @@ export function JournalCollaborationPanel({
                     {comment.body}
                   </p>
                 </article>
-              ))}
+                )
+              })}
             </div>
 
             {canWriteComments ? (
@@ -396,11 +369,8 @@ export function JournalCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력" style={{ width: '100%' }}>
-            <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
-
-            {canEdit && editMode ? (
-              <>
+          {canEdit && editMode ? (
+            <section aria-label="수정" style={{ width: '100%' }}>
                 <div
                   data-testid="journal-collab-edit-form"
                   style={{
@@ -498,69 +468,25 @@ export function JournalCollaborationPanel({
                     {commitError}
                   </p>
                 ) : null}
-              </>
-            ) : null}
-            {editNotice ? (
-              <p role="status" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
-                {editNotice}
-              </p>
-            ) : null}
-
-            <div
-              data-testid="journal-collab-edit-list"
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
-            >
-              {editsQuery.isLoading ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
-              ) : editsQuery.isError ? (
-                <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
-                  수정 이력을 불러오지 못했습니다.
-                </p>
-              ) : edits.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
-              ) : edits.map((edit) => {
-                const diffs = parseChangeSetDiffs(edit.changeSet)
-                return (
-                  <article
-                    key={edit.id}
-                    data-testid="journal-collab-edit-item"
-                    style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                      <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
-                      <Badge variant="success">수정완료</Badge>
-                      <span style={{ color: 'var(--color-neutral-500)' }}>
-                        {formatDateTime(edit.decidedAt ?? edit.createdAt)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-                      {diffs.map((diff) => (
-                        <div key={`${edit.id}-${diff.fieldName}`} style={{ fontSize: 13 }}>
-                          <strong>{diff.label}</strong>
-                          <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
-                            {diff.before ?? '이전값 미기록'}
-                          </span>
-                          <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
-                          <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
-                            {diff.after ?? '비움'}
-                          </span>
-                        </div>
-                      ))}
-                      {diffs.length === 0 ? (
-                        <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet)}</p>
-                      ) : null}
-                    </div>
-                    {edit.reason ? (
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                        사유: {edit.reason}
-                      </p>
-                    ) : null}
-                  </article>
-                )
-              })}
-            </div>
-          </section>
+            </section>
+          ) : null}
+          {editNotice ? (
+            <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
+              {editNotice}
+            </p>
+          ) : null}
         </div>
+      </Card>
+      <Card
+        padding={4}
+        shadow="sm"
+        style={{ marginTop: 24 }}
+        data-testid="journal-version-history-gap"
+      >
+        <h4 style={{ marginTop: 0 }}>버전 이력</h4>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>
+          회계 분개 버전이력은 full-snapshot revision/restore API가 없어 이번 화면에서는 코멘트만 제공합니다. 현재 확인 가능한 것은 감사 로그 단위 이력이며, 동등 버전이력 패널은 후속 백엔드 계약이 필요합니다.
+        </p>
       </Card>
     </section>
   )

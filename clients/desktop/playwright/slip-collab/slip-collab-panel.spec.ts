@@ -3,7 +3,7 @@
  *
  * 검증 대상: {@code SlipCollaborationPanel} (전표 상세 `/sales/:id` 하단 협업 섹션) 의
  *   1) 코멘트 등록 → 목록 반영 (+ 해결 처리 → '해결' 배지)
- *   2) 수정 버튼 → 편집 → 수정완료 → 수정 이력 diff 표시
+ *   2) 수정 버튼 → 편집 → 수정완료 → 버전이력 패널 유지 및 diff 목록 제거
  *
  * <h2>권한 전제 — mock 매트릭스 (Round C P2-1 fix)</h2>
  * <p>패널 버튼은 {@code canAccess('slip.comments'|'slip.audit-overlay', ...)} 로 가드된다.
@@ -113,13 +113,18 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(commentItem).toContainText('해결')
   })
 
-  test('수정 버튼 → 편집 → 수정완료 → 이력 diff 반영', async ({ page }) => {
+  test('수정 버튼 → 편집 → 수정완료 → 버전이력으로 일원화', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
-    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toBeVisible()
+    await expect(panel.getByRole('heading', { name: '협업' })).toHaveCount(0)
+    await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
+    await expect(panel.getByTestId('slip-collab-edit-item')).toHaveCount(0)
+    const versionHistory = panel.getByTestId('slip-version-history-panel')
+    await expect(versionHistory).toBeVisible()
+    await expect(versionHistory.getByTestId('slip-version-history-row-2')).toBeVisible()
     await expect(page.getByTestId('slip-detail-edit-request-button')).toHaveCount(0)
     await expect(page.getByTestId('slip-detail-delete-request-button')).toBeVisible()
 
@@ -133,15 +138,15 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await form.getByLabel('수정 사유').fill('현장 요청 반영')
     await form.getByRole('button', { name: '수정완료' }).click()
 
-    // 3) 목록 반영 — 수정완료 배지 + 이전값 → 새값 diff + 사유.
-    const item = panel.getByTestId('slip-collab-edit-item')
-    await expect(item).toHaveCount(1)
-    await expect(item).toContainText('오병승')
-    await expect(item).toContainText('수정완료')
-    await expect(item).toContainText('메모')
-    await expect(item).toContainText('출고 전 거래처 통화 완료')
-    await expect(item).toContainText('사유: 현장 요청 반영')
-    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toHaveCount(0)
+    // 3) diff 전용 목록은 만들지 않고, 버전이력 패널만 남긴다.
+    await expect(panel.getByTestId('slip-collab-edit-item')).toHaveCount(0)
+    await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
+    await expect(versionHistory).toBeVisible()
+
+    // 4) 버전이력 항목 선택은 공유 highlight 상태를 반영한다.
+    const revisionRow = versionHistory.getByTestId('slip-version-history-row-2')
+    await revisionRow.click()
+    await expect(revisionRow).toHaveAttribute('data-active', 'true')
   })
 
   test('presence list 백필은 다른 시청자와 본인 아바타를 함께 표시한다', async ({ page }) => {

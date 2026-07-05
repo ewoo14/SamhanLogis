@@ -25,6 +25,12 @@ import { presenceColorToHex } from '../../utils/presenceColor'
 export interface SlipVersionHistoryPanelProps {
   /** 전표 UUID — react-query 키 + API path 전용 (화면 노출 X). */
   slipId: string
+  /** 협업 패널과 공유하는 선택 revision 번호. */
+  activeRevisionNo?: number | null
+  /** 코멘트 anchor 와 연결할 필드 경로. */
+  activeFieldPath?: string | null
+  /** 버전 행/변경 항목 선택 시 협업 패널에 공유한다. */
+  onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
 }
 
 /** revision 유형별 한국어 라벨 + Badge 톤. */
@@ -72,12 +78,37 @@ function fieldPathTestId(fieldPath: string): string {
   return fieldPath.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-function renderFieldChange(change: SlipRevisionFieldChange) {
+function normalizeFieldPath(path: string | null | undefined): string {
+  return (path ?? '').replace(/^\/+/, '').replace(/\//g, '.')
+}
+
+function renderFieldChange(
+  change: SlipRevisionFieldChange,
+  options: {
+    active: boolean
+    onSelect?: () => void
+  },
+) {
   const actorColor = presenceColorToHex(change.actorColor)
   return (
     <div
       key={change.fieldPath}
       data-testid={`slip-version-history-change-${fieldPathTestId(change.fieldPath)}`}
+      data-active={options.active ? 'true' : undefined}
+      role={options.onSelect ? 'button' : undefined}
+      tabIndex={options.onSelect ? 0 : undefined}
+      onClick={(event) => {
+        if (!options.onSelect) return
+        event.stopPropagation()
+        options.onSelect()
+      }}
+      onKeyDown={(event) => {
+        if (!options.onSelect) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        event.stopPropagation()
+        options.onSelect()
+      }}
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto minmax(0, 1fr)',
@@ -86,6 +117,10 @@ function renderFieldChange(change: SlipRevisionFieldChange) {
         alignItems: 'start',
         fontSize: 12,
         color: 'var(--color-neutral-700)',
+        padding: options.active ? '4px 6px' : 0,
+        borderRadius: 4,
+        background: options.active ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+        cursor: options.onSelect ? 'pointer' : undefined,
       }}
     >
       <span
@@ -129,7 +164,12 @@ function renderFieldChange(change: SlipRevisionFieldChange) {
 /**
  * 전표 상세 화면용 버전이력 패널. AuditOverlay 인접에 배치한다.
  */
-export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps) {
+export function SlipVersionHistoryPanel({
+  slipId,
+  activeRevisionNo = null,
+  activeFieldPath = null,
+  onRevisionSelect,
+}: SlipVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
   /** 복원 confirm modal 대상 revision (null = 미오픈). */
   const [restoreTarget, setRestoreTarget] = useState<SlipRevision | null>(null)
@@ -254,18 +294,36 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
             // 가장 최근 revision(목록 첫 항목) 은 현재 상태이므로 복원 버튼을 노출하지 않는다.
             const isLatest = rev.revisionNo === revisions[0]?.revisionNo
             const fieldChanges = Array.isArray(rev.fieldChanges) ? rev.fieldChanges : []
+            const fieldPaths = fieldChanges.map((change) => normalizeFieldPath(change.fieldPath))
+            const normalizedActiveFieldPath = normalizeFieldPath(activeFieldPath)
+            const isHighlighted = activeRevisionNo === rev.revisionNo
+              || (!!normalizedActiveFieldPath && fieldPaths.includes(normalizedActiveFieldPath))
             return (
               <li
                 key={rev.revisionNo}
                 data-testid={`slip-version-history-row-${rev.revisionNo}`}
+                data-active={isHighlighted ? 'true' : undefined}
+                aria-current={isHighlighted ? 'true' : undefined}
+                tabIndex={onRevisionSelect ? 0 : undefined}
+                onClick={() => onRevisionSelect?.(rev.revisionNo, fieldPaths)}
+                onKeyDown={(event) => {
+                  if (!onRevisionSelect) return
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onRevisionSelect(rev.revisionNo, fieldPaths)
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 12,
-                  padding: '8px 0',
+                  padding: '8px',
                   borderBottom: '1px solid var(--color-neutral-200)',
                   flexWrap: 'wrap',
+                  borderRadius: 6,
+                  background: isHighlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #D97706)' : undefined,
+                  cursor: onRevisionSelect ? 'pointer' : undefined,
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -297,7 +355,16 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
                         paddingLeft: 2,
                       }}
                     >
-                      {fieldChanges.map(renderFieldChange)}
+                      {fieldChanges.map((change) => {
+                        const normalized = normalizeFieldPath(change.fieldPath)
+                        return renderFieldChange(change, {
+                          active: activeRevisionNo === rev.revisionNo
+                            || (!!normalizedActiveFieldPath && normalizedActiveFieldPath === normalized),
+                          onSelect: onRevisionSelect
+                            ? () => onRevisionSelect(rev.revisionNo, [normalized])
+                            : undefined,
+                        })
+                      })}
                     </div>
                   ) : null}
                 </div>
@@ -307,7 +374,10 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
                     size="sm"
                     data-testid={`slip-version-history-restore-button-${rev.revisionNo}`}
                     disabled={restoreMutation.isPending}
-                    onClick={() => setRestoreTarget(rev)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setRestoreTarget(rev)
+                    }}
                   >
                     이 시점으로 복원
                   </Button>

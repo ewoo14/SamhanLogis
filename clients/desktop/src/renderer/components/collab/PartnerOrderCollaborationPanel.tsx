@@ -13,16 +13,16 @@ import {
   commitPartnerOrderCollabEdit,
   deletePartnerOrderCollabComment,
   getPartnerOrderCollabComments,
-  getPartnerOrderCollabEdits,
   resolvePartnerOrderCollabComment,
   type PartnerOrderCollabComment,
-  type PartnerOrderCollabEdit,
 } from '../../api/partnerOrderCollab'
+import type { PartnerOrderStatus } from '../../api/sales'
 import { PartnerOrderCollabRealtimeClient } from '../../realtime/PartnerOrderCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { PartnerOrderPresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
+import { PartnerOrderVersionHistoryPanel } from '../audit/PartnerOrderVersionHistoryPanel'
 
 export interface PartnerOrderCollabEditableLine {
   /** BE PartnerOrderDocumentCollaborationPort lineKey 와 동일한 1-based 활성 라인 index. */
@@ -45,6 +45,8 @@ export interface PartnerOrderCollabCurrentValues {
 export interface PartnerOrderCollaborationPanelProps {
   /** 주문 식별자 — query key/API path 전용. 화면 텍스트 노출 금지. */
   orderId: string
+  /** 현재 주문 상태 — 버전이력 복원 가드에 전달한다. */
+  status: PartnerOrderStatus
   /** overlay 편집 필드의 현재 값 snapshot. */
   currentValues: PartnerOrderCollabCurrentValues
   /** 상세 상단 "수정" 버튼과 연결되는 편집모드 상태. */
@@ -64,57 +66,13 @@ function displayName(value: string | null | undefined): string {
   return value && value !== 'system' ? value : '시스템'
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/^\/+/, '').replace(/\//g, '.')
-}
-
 function lineRemarkPath(lineKey: number): string {
   return `line.${lineKey}.remark`
 }
 
-function labelForPath(path: string): string {
-  const normalized = normalizePath(path)
-  if (normalized === 'memo') return '요청사항'
-  if (normalized === 'dueDate') return '납기'
-  const lineMatch = normalized.match(/^line\.(\d+)\.remark$/)
-  if (lineMatch) {
-    // lineKey 는 BE PartnerOrderDocumentCollaborationPort 의 1-based 활성 라인 index 와 동일.
-    return `${lineMatch[1]}번 라인 비고`
-  }
-  return normalized
-}
-
-function summarizeChangeSet(changeSet: string): string {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { after?: unknown }>
-    return Object.entries(parsed)
-      .map(([path, change]) => {
-        const after = change.after == null ? '비움' : String(change.after)
-        return `${labelForPath(path)}: ${after}`
-      })
-      .join(' · ')
-  } catch {
-    return '변경 내용 형식을 해석하지 못했습니다.'
-  }
-}
-
-function parseChangeSetDiffs(changeSet: string): Array<{
-  fieldName: string
-  label: string
-  before: string | null
-  after: string | null
-}> {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
-    return Object.entries(parsed).map(([path, change]) => ({
-      fieldName: normalizePath(path),
-      label: labelForPath(path),
-      before: change.before == null ? null : String(change.before),
-      after: change.after == null ? null : String(change.after),
-    }))
-  } catch {
-    return []
-  }
+function normalizeCollabAnchor(anchor: string | null | undefined): string | null {
+  const normalized = (anchor ?? '').trim().replace(/^\/+/, '').replace(/\//g, '.')
+  return normalized.length > 0 ? normalized : null
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -141,6 +99,7 @@ function isCollabEvent(eventName: string): boolean {
 
 export function PartnerOrderCollaborationPanel({
   orderId,
+  status,
   currentValues,
   editMode = false,
   onEditModeChange,
@@ -155,10 +114,11 @@ export function PartnerOrderCollaborationPanel({
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
+  const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
+  const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
   const presenceEntries = usePresence({ entityId: orderId, client: PartnerOrderPresenceClient, enabled: !!orderId })
 
   const commentQueryKey = useMemo(() => ['partnerOrderCollabComments', orderId] as const, [orderId])
-  const editQueryKey = useMemo(() => ['partnerOrderCollabEdits', orderId] as const, [orderId])
   const orderQueryKey = useMemo(() => ['partner-order', orderId] as const, [orderId])
 
   const canWriteComments = canAccess('sales.partner-order.edit', 'update')
@@ -177,12 +137,6 @@ export function PartnerOrderCollaborationPanel({
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
     queryFn: () => getPartnerOrderCollabComments(orderId),
-    enabled: !!orderId,
-  })
-
-  const editsQuery = useQuery({
-    queryKey: editQueryKey,
-    queryFn: () => getPartnerOrderCollabEdits(orderId),
     enabled: !!orderId,
   })
 
@@ -205,12 +159,11 @@ export function PartnerOrderCollaborationPanel({
     const ctrl = PartnerOrderCollabRealtimeClient.subscribe(orderId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: orderQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
     })
     return () => ctrl.abort()
-  }, [commentQueryKey, editQueryKey, orderId, orderQueryKey, queryClient])
+  }, [commentQueryKey, orderId, orderQueryKey, queryClient])
 
   const addCommentMutation = useMutation({
     mutationFn: (body: string) => addPartnerOrderCollabComment(orderId, { body }),
@@ -276,7 +229,6 @@ export function PartnerOrderCollaborationPanel({
       onEditModeChange?.(false)
       setEditNotice('수정완료되었습니다.')
       // setQueryData 금지 — commit 응답은 서버 enrich 필드가 일부 빠질 수 있어 권위 있는 재조회에 위임.
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: orderQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
       onCommitted?.()
@@ -298,14 +250,12 @@ export function PartnerOrderCollaborationPanel({
   })
 
   const comments: PartnerOrderCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
-  const edits: PartnerOrderCollabEdit[] = Array.isArray(editsQuery.data) ? editsQuery.data : []
   const trimmedComment = commentBody.trim()
 
   return (
     <section data-testid="partner-order-collaboration-panel" style={{ marginTop: 24 }}>
       <Card padding={4} shadow="sm">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <h4 style={{ margin: 0 }}>협업</h4>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: presenceEntries.length > 0 ? 12 : 0 }}>
           <PresenceIndicator entries={presenceEntries} />
         </div>
 
@@ -324,11 +274,34 @@ export function PartnerOrderCollaborationPanel({
                 </p>
               ) : comments.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
-              ) : comments.map((comment) => (
+              ) : comments.map((comment) => {
+                const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const highlighted = !!fieldPath && fieldPath === activeFieldPath
+                return (
                 <article
                   key={comment.id}
                   data-testid="partner-order-collab-comment-item"
-                  style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
+                  data-active={highlighted ? 'true' : undefined}
+                  tabIndex={fieldPath ? 0 : undefined}
+                  onClick={() => {
+                    if (!fieldPath) return
+                    setActiveRevisionNo(null)
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  onKeyDown={(event) => {
+                    if (!fieldPath) return
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    setActiveRevisionNo(null)
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  style={{
+                    borderBottom: '1px solid var(--color-neutral-200)',
+                    padding: highlighted ? '8px' : '0 0 8px',
+                    borderRadius: highlighted ? 6 : 0,
+                    background: highlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                    cursor: fieldPath ? 'pointer' : undefined,
+                  }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                     <strong>{displayName(comment.authorName)}</strong>
@@ -340,7 +313,10 @@ export function PartnerOrderCollaborationPanel({
                         variant="ghost"
                         size="sm"
                         disabled={resolveCommentMutation.isPending}
-                        onClick={() => resolveCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          resolveCommentMutation.mutate(comment.id)
+                        }}
                       >
                         해결
                       </Button>
@@ -351,7 +327,10 @@ export function PartnerOrderCollaborationPanel({
                         variant="ghost"
                         size="sm"
                         disabled={deleteCommentMutation.isPending}
-                        onClick={() => deleteCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          deleteCommentMutation.mutate(comment.id)
+                        }}
                       >
                         삭제
                       </Button>
@@ -361,7 +340,8 @@ export function PartnerOrderCollaborationPanel({
                     {comment.body}
                   </p>
                 </article>
-              ))}
+                )
+              })}
             </div>
 
             {canWriteComments ? (
@@ -417,11 +397,8 @@ export function PartnerOrderCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력" style={{ width: '100%' }}>
-            <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
-
-            {canEdit && editMode ? (
-              <>
+          {canEdit && editMode ? (
+            <section aria-label="수정" style={{ width: '100%' }}>
                 <div
                   data-testid="partner-order-collab-edit-form"
                   style={{
@@ -535,70 +512,25 @@ export function PartnerOrderCollaborationPanel({
                     {commitError}
                   </p>
                 ) : null}
-              </>
-            ) : null}
-            {editNotice ? (
-              <p role="status" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
-                {editNotice}
-              </p>
-            ) : null}
-
-            <div
-              data-testid="partner-order-collab-edit-list"
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
-            >
-              {editsQuery.isLoading ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
-              ) : editsQuery.isError ? (
-                <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
-                  수정 이력을 불러오지 못했습니다.
-                </p>
-              ) : edits.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
-              ) : edits.map((edit) => {
-                const diffs = parseChangeSetDiffs(edit.changeSet)
-                return (
-                  <article
-                    key={edit.id}
-                    data-testid="partner-order-collab-edit-item"
-                    style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                      <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
-                      <Badge variant="success">수정완료</Badge>
-                      <span style={{ color: 'var(--color-neutral-500)' }}>
-                        {formatDateTime(edit.decidedAt ?? edit.createdAt)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-                      {diffs.map((diff) => (
-                        <div key={`${edit.id}-${diff.fieldName}`} style={{ fontSize: 13 }}>
-                          <strong>{diff.label}</strong>
-                          <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
-                            {diff.before ?? '이전값 미기록'}
-                          </span>
-                          <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
-                          <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
-                            {diff.after ?? '비움'}
-                          </span>
-                        </div>
-                      ))}
-                      {diffs.length === 0 ? (
-                        <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet)}</p>
-                      ) : null}
-                    </div>
-                    {edit.reason ? (
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                        사유: {edit.reason}
-                      </p>
-                    ) : null}
-                  </article>
-                )
-              })}
-            </div>
-          </section>
+            </section>
+          ) : null}
+          {editNotice ? (
+            <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
+              {editNotice}
+            </p>
+          ) : null}
         </div>
       </Card>
+      <PartnerOrderVersionHistoryPanel
+        orderId={orderId}
+        status={status}
+        activeRevisionNo={activeRevisionNo}
+        activeFieldPath={activeFieldPath}
+        onRevisionSelect={(revisionNo, fieldPaths) => {
+          setActiveRevisionNo(revisionNo)
+          setActiveFieldPath(fieldPaths?.[0] ?? null)
+        }}
+      />
     </section>
   )
 }

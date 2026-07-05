@@ -44,6 +44,12 @@ export interface PartnerOrderVersionHistoryPanelProps {
    * CONFIRMING / CANCELED 면 비활성 (설계서 §3.5 제외목록 방식).
    */
   status: PartnerOrderStatus
+  /** 협업 패널과 공유하는 선택 revision 번호. */
+  activeRevisionNo?: number | null
+  /** 코멘트 anchor 와 공유하는 필드 경로. 현 API 는 field-level 변경을 제공하지 않아 보존 전달용이다. */
+  activeFieldPath?: string | null
+  /** 버전 행 선택 시 협업 패널에 공유한다. */
+  onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
 }
 
 /**
@@ -129,6 +135,8 @@ function formatChangeSummary(rev: PartnerOrderRevision): string {
 export function PartnerOrderVersionHistoryPanel({
   orderId,
   status,
+  activeRevisionNo = null,
+  onRevisionSelect,
 }: PartnerOrderVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
 
@@ -299,18 +307,33 @@ export function PartnerOrderVersionHistoryPanel({
             // 가장 최근 revision(목록 첫 항목)은 현재 상태이므로 복원 버튼을 노출하지 않는다.
             const isLatest = rev.revisionNo === revisions[0]?.revisionNo
             const actor = displayActor(rev.actorName)
+            const isHighlighted = activeRevisionNo === rev.revisionNo
             return (
               <li
                 key={rev.revisionNo}
                 data-testid={`partner-order-version-history-row-${rev.revisionNo}`}
+                data-active={isHighlighted ? 'true' : undefined}
+                aria-current={isHighlighted ? 'true' : undefined}
+                tabIndex={onRevisionSelect ? 0 : undefined}
+                onClick={() => onRevisionSelect?.(rev.revisionNo, [])}
+                onKeyDown={(event) => {
+                  if (!onRevisionSelect) return
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onRevisionSelect(rev.revisionNo, [])
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 12,
-                  padding: '8px 0',
+                  padding: '8px',
                   borderBottom: '1px solid var(--color-neutral-200)',
                   flexWrap: 'wrap',
+                  borderRadius: 6,
+                  background: isHighlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #D97706)' : undefined,
+                  cursor: onRevisionSelect ? 'pointer' : undefined,
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -342,7 +365,10 @@ export function PartnerOrderVersionHistoryPanel({
                     size="sm"
                     data-testid={`partner-order-version-history-restore-button-${rev.revisionNo}`}
                     disabled={!restorable || restoreMutation.isPending}
-                    onClick={() => setRestoreTarget(rev)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setRestoreTarget(rev)
+                    }}
                   >
                     이 시점으로 복원
                   </Button>

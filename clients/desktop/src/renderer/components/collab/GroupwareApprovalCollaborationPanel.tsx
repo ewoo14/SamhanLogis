@@ -13,10 +13,8 @@ import {
   commitGroupwareApprovalCollabEdit,
   deleteGroupwareApprovalCollabComment,
   getGroupwareApprovalCollabComments,
-  getGroupwareApprovalCollabEdits,
   resolveGroupwareApprovalCollabComment,
   type GroupwareApprovalCollabComment,
-  type GroupwareApprovalCollabEdit,
 } from '../../api/groupwareApprovalCollab'
 import type { ApprovalStatus } from '../../api/groupwareApproval'
 import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
@@ -54,46 +52,9 @@ function displayName(value: string | null | undefined): string {
   return value && value !== 'system' ? value : '시스템'
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/^\/+/, '').replace(/\//g, '.')
-}
-
-function labelForPath(path: string, fieldLabelMap: Record<string, string>): string {
-  const normalized = normalizePath(path)
-  if (normalized === 'title') return '제목'
-  if (normalized === 'content') return '내용'
-  if (normalized.startsWith('field.')) {
-    const fieldKey = normalized.slice('field.'.length)
-    return fieldLabelMap[fieldKey] ?? fieldKey
-  }
-  return normalized
-}
-
-function parseChangeSetDiffs(changeSet: string, fieldLabelMap: Record<string, string>): Array<{
-  fieldName: string
-  label: string
-  before: string | null
-  after: string | null
-}> {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
-    return Object.entries(parsed).map(([path, change]) => ({
-      fieldName: normalizePath(path),
-      label: labelForPath(path, fieldLabelMap),
-      before: change.before == null ? null : String(change.before),
-      after: change.after == null ? null : String(change.after),
-    }))
-  } catch {
-    return []
-  }
-}
-
-function summarizeChangeSet(changeSet: string, fieldLabelMap: Record<string, string>): string {
-  const diffs = parseChangeSetDiffs(changeSet, fieldLabelMap)
-  if (diffs.length === 0) return '변경 내용 형식을 해석하지 못했습니다.'
-  return diffs
-    .map((diff) => `${diff.label}: ${diff.after ?? '비움'}`)
-    .join(' · ')
+function normalizeCollabAnchor(anchor: string | null | undefined): string | null {
+  const normalized = (anchor ?? '').trim().replace(/^\/+/, '').replace(/\//g, '.')
+  return normalized.length > 0 ? normalized : null
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -159,21 +120,17 @@ export function GroupwareApprovalCollaborationPanel({
   const [commitError, setCommitError] = useState<string | null>(null)
   const [approvalFormCoeditProvider, setApprovalFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
   const [approvalFormCoeditPending, setApprovalFormCoeditPending] = useState(false)
+  const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
   const currentValuesRef = useRef(currentValues)
   currentValuesRef.current = currentValues
   const presenceEntries = usePresence({ entityId: approvalId, client: GroupwareApprovalPresenceClient, enabled: !!approvalId })
 
   const commentQueryKey = useMemo(() => ['groupwareApprovalCollabComments', approvalId] as const, [approvalId])
-  const editQueryKey = useMemo(() => ['groupwareApprovalCollabEdits', approvalId] as const, [approvalId])
   const approvalQueryKey = useMemo(() => ['groupwareApproval', approvalId] as const, [approvalId])
   const approvalListQueryKey = useMemo(() => ['groupwareApprovals'] as const, [])
   const collabBasePath = useMemo(
     () => `/admin/groupware/approvals/${encodeURIComponent(approvalId)}`,
     [approvalId],
-  )
-  const fieldLabelMap = useMemo(
-    () => Object.fromEntries(templateFields.map((field) => [field.fieldKey, field.label])),
-    [templateFields],
   )
   const approvalHeaderTextFields = useMemo(
     () => new Set([
@@ -192,12 +149,6 @@ export function GroupwareApprovalCollaborationPanel({
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
     queryFn: () => getGroupwareApprovalCollabComments(approvalId),
-    enabled: !!approvalId,
-  })
-
-  const editsQuery = useQuery({
-    queryKey: editQueryKey,
-    queryFn: () => getGroupwareApprovalCollabEdits(approvalId),
     enabled: !!approvalId,
   })
 
@@ -273,12 +224,11 @@ export function GroupwareApprovalCollaborationPanel({
     const ctrl = GroupwareApprovalCollabRealtimeClient.subscribe(approvalId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: approvalQueryKey })
       void queryClient.invalidateQueries({ queryKey: approvalListQueryKey })
     })
     return () => ctrl.abort()
-  }, [approvalId, approvalListQueryKey, approvalQueryKey, commentQueryKey, editQueryKey, queryClient])
+  }, [approvalId, approvalListQueryKey, approvalQueryKey, commentQueryKey, queryClient])
 
   const addCommentMutation = useMutation({
     mutationFn: (body: string) => addGroupwareApprovalCollabComment(approvalId, { body }),
@@ -336,7 +286,6 @@ export function GroupwareApprovalCollaborationPanel({
       queryClient.setQueryData(approvalQueryKey, response.approval)
       void queryClient.invalidateQueries({ queryKey: approvalQueryKey })
       void queryClient.invalidateQueries({ queryKey: approvalListQueryKey })
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       onCommitted?.()
     },
     onError: (error: unknown) => {
@@ -349,14 +298,12 @@ export function GroupwareApprovalCollaborationPanel({
   })
 
   const comments: GroupwareApprovalCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
-  const edits: GroupwareApprovalCollabEdit[] = Array.isArray(editsQuery.data) ? editsQuery.data : []
   const trimmedComment = commentBody.trim()
 
   return (
     <section data-testid="groupware-approval-collaboration-panel" style={{ marginTop: 24 }}>
       <Card padding={4} shadow="sm">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <h4 style={{ margin: 0 }}>협업</h4>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <PresenceIndicator entries={presenceEntries} />
             <span style={{ fontSize: 12, color: 'var(--color-neutral-500)', fontVariantNumeric: 'tabular-nums' }}>
@@ -380,11 +327,32 @@ export function GroupwareApprovalCollaborationPanel({
                 </p>
               ) : comments.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
-              ) : comments.map((comment) => (
+              ) : comments.map((comment) => {
+                const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const highlighted = !!fieldPath && fieldPath === activeFieldPath
+                return (
                 <article
                   key={comment.id}
                   data-testid="groupware-approval-collab-comment-item"
-                  style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
+                  data-active={highlighted ? 'true' : undefined}
+                  tabIndex={fieldPath ? 0 : undefined}
+                  onClick={() => {
+                    if (!fieldPath) return
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  onKeyDown={(event) => {
+                    if (!fieldPath) return
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  style={{
+                    borderBottom: '1px solid var(--color-neutral-200)',
+                    padding: highlighted ? '8px' : '0 0 8px',
+                    borderRadius: highlighted ? 6 : 0,
+                    background: highlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                    cursor: fieldPath ? 'pointer' : undefined,
+                  }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                     <strong>{displayName(comment.authorName)}</strong>
@@ -397,7 +365,10 @@ export function GroupwareApprovalCollaborationPanel({
                         size="sm"
                         aria-label={`${displayName(comment.authorName)} 코멘트 해결`}
                         disabled={resolveCommentMutation.isPending}
-                        onClick={() => resolveCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          resolveCommentMutation.mutate(comment.id)
+                        }}
                       >
                         해결
                       </Button>
@@ -409,7 +380,10 @@ export function GroupwareApprovalCollaborationPanel({
                         size="sm"
                         aria-label={`${displayName(comment.authorName)} 코멘트 삭제`}
                         disabled={deleteCommentMutation.isPending}
-                        onClick={() => deleteCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          deleteCommentMutation.mutate(comment.id)
+                        }}
                       >
                         삭제
                       </Button>
@@ -419,7 +393,8 @@ export function GroupwareApprovalCollaborationPanel({
                     {comment.body}
                   </p>
                 </article>
-              ))}
+                )
+              })}
             </div>
 
             {canWrite ? (
@@ -469,9 +444,8 @@ export function GroupwareApprovalCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력" style={{ width: '100%' }}>
+          <section aria-label="수정" style={{ width: '100%' }}>
             <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-              <h5 style={{ margin: 0, fontSize: 14 }}>수정 이력</h5>
               {canStartEdit && !editMode ? (
                 <Button
                   type="button"
@@ -609,61 +583,19 @@ export function GroupwareApprovalCollaborationPanel({
               </p>
             ) : null}
 
-            <div
-              data-testid="groupware-approval-collab-edit-list"
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
-            >
-              {editsQuery.isLoading ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
-              ) : editsQuery.isError ? (
-                <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
-                  수정 이력을 불러오지 못했습니다.
-                </p>
-              ) : edits.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
-              ) : edits.map((edit) => {
-                const diffs = parseChangeSetDiffs(edit.changeSet, fieldLabelMap)
-                return (
-                  <article
-                    key={edit.id}
-                    data-testid="groupware-approval-collab-edit-item"
-                    style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                      <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
-                      <Badge variant="success">수정완료</Badge>
-                      <span style={{ color: 'var(--color-neutral-500)' }}>
-                        {formatDateTime(edit.decidedAt ?? edit.createdAt)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-                      {diffs.map((diff) => (
-                        <div key={`${edit.id}-${diff.fieldName}`} style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
-                          <strong>{diff.label}</strong>
-                          <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
-                            {diff.before ?? '이전값 미기록'}
-                          </span>
-                          <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
-                          <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
-                            {diff.after ?? '비움'}
-                          </span>
-                        </div>
-                      ))}
-                      {diffs.length === 0 ? (
-                        <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet, fieldLabelMap)}</p>
-                      ) : null}
-                    </div>
-                    {edit.reason ? (
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                        사유: {edit.reason}
-                      </p>
-                    ) : null}
-                  </article>
-                )
-              })}
-            </div>
           </section>
         </div>
+      </Card>
+      <Card
+        padding={4}
+        shadow="sm"
+        style={{ marginTop: 24 }}
+        data-testid="groupware-approval-version-history-gap"
+      >
+        <h4 style={{ marginTop: 0 }}>버전 이력</h4>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>
+          그룹웨어 결재 버전이력은 full-snapshot revision/restore API가 없어 이번 화면에서는 코멘트만 제공합니다. 현재 확인 가능한 것은 결재 audit log 계열 이력이며, 동등 버전이력 패널은 후속 백엔드 계약이 필요합니다.
+        </p>
       </Card>
     </section>
   )

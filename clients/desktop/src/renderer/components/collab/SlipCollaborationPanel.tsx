@@ -13,10 +13,8 @@ import {
   commitSlipCollabEdit,
   deleteSlipCollabComment,
   getSlipCollabComments,
-  getSlipCollabEdits,
   resolveSlipCollabComment,
   type SlipCollabComment,
-  type SlipCollabEdit,
 } from '../../api/slipCollab'
 import { SlipCollabRealtimeClient } from '../../realtime/SlipCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -60,43 +58,9 @@ function displayName(value: string | null | undefined): string {
   return value && value !== 'system' ? value : '시스템'
 }
 
-function summarizeChangeSet(changeSet: string): string {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { after?: unknown }>
-    return Object.entries(parsed)
-      .map(([path, change]) => {
-        const fieldName = path.replace(/^\/+/, '')
-        const label = OVERLAY_FIELD_OPTIONS.find((option) => option.value === fieldName)?.label ?? fieldName
-        const after = change.after == null ? '비움' : String(change.after)
-        return `${label}: ${after}`
-      })
-      .join(' · ')
-  } catch {
-    return '변경 내용 형식을 해석하지 못했습니다.'
-  }
-}
-
-function parseChangeSetDiffs(changeSet: string): Array<{
-  fieldName: string
-  label: string
-  before: string | null
-  after: string | null
-}> {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
-    return Object.entries(parsed).map(([path, change]) => {
-      const fieldName = path.replace(/^\/+/, '')
-      const label = OVERLAY_FIELD_OPTIONS.find((option) => option.value === fieldName)?.label ?? fieldName
-      return {
-        fieldName,
-        label,
-        before: change.before == null ? null : String(change.before),
-        after: change.after == null ? null : String(change.after),
-      }
-    })
-  } catch {
-    return []
-  }
+function normalizeCollabAnchor(anchor: string | null | undefined): string | null {
+  const normalized = (anchor ?? '').trim().replace(/^\/+/, '').replace(/\//g, '.')
+  return normalized.length > 0 ? normalized : null
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -138,10 +102,11 @@ export function SlipCollaborationPanel({
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
+  const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
+  const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
   const editModeInitializedRef = useRef(false)
 
   const commentQueryKey = useMemo(() => ['slipCollabComments', slipId] as const, [slipId])
-  const editQueryKey = useMemo(() => ['slipCollabEdits', slipId] as const, [slipId])
 
   const canWriteComments = canAccess('slip.comments', 'create')
   const canResolveComments = canAccess('slip.comments', 'update')
@@ -151,12 +116,6 @@ export function SlipCollaborationPanel({
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
     queryFn: () => getSlipCollabComments(slipId),
-    enabled: !!slipId,
-  })
-
-  const editsQuery = useQuery({
-    queryKey: editQueryKey,
-    queryFn: () => getSlipCollabEdits(slipId),
     enabled: !!slipId,
   })
 
@@ -182,13 +141,12 @@ export function SlipCollaborationPanel({
     const ctrl = SlipCollabRealtimeClient.subscribe(slipId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slip', slipId] })
     })
     return () => ctrl.abort()
-  }, [commentQueryKey, editQueryKey, queryClient, slipId])
+  }, [commentQueryKey, queryClient, slipId])
 
   const addCommentMutation = useMutation({
     mutationFn: (body: string) => addSlipCollabComment(slipId, { body }),
@@ -236,7 +194,6 @@ export function SlipCollaborationPanel({
     onSuccess: () => {
       onEditModeChange?.(false)
       setEditNotice('수정완료되었습니다.')
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slip', slipId] })
@@ -259,18 +216,11 @@ export function SlipCollaborationPanel({
   })
 
   const comments: SlipCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
-  const edits: SlipCollabEdit[] = Array.isArray(editsQuery.data)
-    ? editsQuery.data
-    : []
   const trimmedComment = commentBody.trim()
 
   return (
     <section data-testid="slip-collaboration-panel" style={{ marginTop: 24 }}>
       <Card padding={4} shadow="sm">
-        <div style={{ marginBottom: 16 }}>
-          <h4 style={{ margin: 0 }}>협업</h4>
-        </div>
-
         <div style={{ display: 'grid', gap: 'var(--space-4, 16px)' }}>
           <section aria-label="코멘트" style={{ width: '100%' }}>
             <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>코멘트</h5>
@@ -286,44 +236,74 @@ export function SlipCollaborationPanel({
                 </p>
               ) : comments.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
-              ) : comments.map((comment) => (
-                <article
-                  key={comment.id}
-                  data-testid="slip-collab-comment-item"
-                  style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                    <strong>{displayName(comment.authorName)}</strong>
-                    <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(comment.createdAt)}</span>
-                    {comment.status === 'RESOLVED' ? <Badge variant="success">해결</Badge> : null}
-                    {canResolveComments && comment.status === 'OPEN' ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={resolveCommentMutation.isPending}
-                        onClick={() => resolveCommentMutation.mutate(comment.id)}
-                      >
-                        해결
-                      </Button>
-                    ) : null}
-                    {canDeleteComments ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={deleteCommentMutation.isPending}
-                        onClick={() => deleteCommentMutation.mutate(comment.id)}
-                      >
-                        삭제
-                      </Button>
-                    ) : null}
-                  </div>
-                  <p style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                    {comment.body}
-                  </p>
-                </article>
-              ))}
+              ) : comments.map((comment) => {
+                const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const highlighted = !!fieldPath && fieldPath === activeFieldPath
+                return (
+                  <article
+                    key={comment.id}
+                    data-testid="slip-collab-comment-item"
+                    data-active={highlighted ? 'true' : undefined}
+                    tabIndex={fieldPath ? 0 : undefined}
+                    onClick={() => {
+                      if (!fieldPath) return
+                      setActiveRevisionNo(null)
+                      setActiveFieldPath(fieldPath)
+                    }}
+                    onKeyDown={(event) => {
+                      if (!fieldPath) return
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      setActiveRevisionNo(null)
+                      setActiveFieldPath(fieldPath)
+                    }}
+                    style={{
+                      borderBottom: '1px solid var(--color-neutral-200)',
+                      padding: highlighted ? '8px' : '0 0 8px',
+                      borderRadius: highlighted ? 6 : 0,
+                      background: highlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                      cursor: fieldPath ? 'pointer' : undefined,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+                      <strong>{displayName(comment.authorName)}</strong>
+                      <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(comment.createdAt)}</span>
+                      {comment.status === 'RESOLVED' ? <Badge variant="success">해결</Badge> : null}
+                      {canResolveComments && comment.status === 'OPEN' ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={resolveCommentMutation.isPending}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            resolveCommentMutation.mutate(comment.id)
+                          }}
+                        >
+                          해결
+                        </Button>
+                      ) : null}
+                      {canDeleteComments ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={deleteCommentMutation.isPending}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            deleteCommentMutation.mutate(comment.id)
+                          }}
+                        >
+                          삭제
+                        </Button>
+                      ) : null}
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      {comment.body}
+                    </p>
+                  </article>
+                )
+              })}
             </div>
 
             {canWriteComments ? (
@@ -379,11 +359,8 @@ export function SlipCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력" style={{ width: '100%' }}>
-            <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
-
-            {canEdit && editMode ? (
-              <>
+          {canEdit && editMode ? (
+            <section aria-label="수정" style={{ width: '100%' }}>
                 <div
                   data-testid="slip-collab-edit-form"
                   style={{
@@ -452,69 +429,25 @@ export function SlipCollaborationPanel({
                     {commitError}
                   </p>
                 ) : null}
-              </>
-            ) : null}
-            {editNotice ? (
-              <p role="status" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
-                {editNotice}
-              </p>
-            ) : null}
-
-            <div
-              data-testid="slip-collab-edit-list"
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
-            >
-              {editsQuery.isLoading ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
-              ) : editsQuery.isError ? (
-                <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
-                  수정 이력을 불러오지 못했습니다.
-                </p>
-              ) : edits.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
-              ) : edits.map((edit) => (
-                <article
-                  key={edit.id}
-                  data-testid="slip-collab-edit-item"
-                  style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                    <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
-                    <Badge variant="success">수정완료</Badge>
-                    <span style={{ color: 'var(--color-neutral-500)' }}>
-                      {formatDateTime(edit.decidedAt ?? edit.createdAt)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-                    {parseChangeSetDiffs(edit.changeSet).map((diff) => (
-                      <div key={`${edit.id}-${diff.fieldName}`} style={{ fontSize: 13 }}>
-                        <strong>{diff.label}</strong>
-                        <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
-                          {diff.before ?? '이전값 미기록'}
-                        </span>
-                        <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
-                        <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
-                          {diff.after ?? '비움'}
-                        </span>
-                      </div>
-                    ))}
-                    {parseChangeSetDiffs(edit.changeSet).length === 0 ? (
-                      <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet)}</p>
-                    ) : null}
-                  </div>
-                  {edit.reason ? (
-                    <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                      사유: {edit.reason}
-                    </p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </section>
+            </section>
+          ) : null}
+          {editNotice ? (
+            <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
+              {editNotice}
+            </p>
+          ) : null}
         </div>
       </Card>
 
-      <SlipVersionHistoryPanel slipId={slipId} />
+      <SlipVersionHistoryPanel
+        slipId={slipId}
+        activeRevisionNo={activeRevisionNo}
+        activeFieldPath={activeFieldPath}
+        onRevisionSelect={(revisionNo, fieldPaths) => {
+          setActiveRevisionNo(revisionNo)
+          setActiveFieldPath(fieldPaths?.[0] ?? null)
+        }}
+      />
     </section>
   )
 }
