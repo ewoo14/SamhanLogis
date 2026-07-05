@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, type ReactNode } from 'react'
 import styles from './JournalLineRow.module.css'
 import { AccountCodeSelect, type Account } from '../AccountCodeSelect/AccountCodeSelect'
 import { MoneyInput } from '../MoneyInput/MoneyInput'
@@ -27,6 +27,8 @@ export interface JournalLineDraft {
   credit: number
   /** 거래처명 (자유 입력). 미입력 시 빈 문자열. */
   partnerName: string
+  /** 거래처 UUID (저장 payload 내부용). 화면 표시 금지. */
+  partnerId?: string | null
   /** 메모 (자유 입력). 미입력 시 빈 문자열. */
   note: string
 }
@@ -42,6 +44,8 @@ export interface JournalLineRowProps {
   onChange: (patch: Partial<JournalLineDraft>) => void
   /** 라인 제거 콜백. 부모가 이 라인을 배열에서 제거. */
   onRemove: () => void
+  /** 거래처 입력 영역 대체 렌더러. 지정 시 자유텍스트 input 대신 호출자가 주입한 피커를 렌더한다. */
+  renderPartnerField?: () => ReactNode
   /** 비활성화 — 분개 status=POSTED 인 경우. */
   disabled?: boolean
   /**
@@ -78,7 +82,7 @@ export interface JournalLineRowProps {
  */
 export const JournalLineRow = forwardRef<HTMLDivElement, JournalLineRowProps>(
   function JournalLineRow(
-    { index, line, accounts, onChange, onRemove, disabled = false, category },
+    { index, line, accounts, onChange, onRemove, renderPartnerField, disabled = false, category },
     ref,
   ) {
     return (
@@ -97,15 +101,19 @@ export const JournalLineRow = forwardRef<HTMLDivElement, JournalLineRowProps>(
           />
         </div>
         <div className={styles['cellText']}>
-          <input
-            type="text"
-            className={styles['textInput']}
-            value={line.partnerName}
-            onChange={(e) => onChange({ partnerName: e.target.value })}
-            placeholder="거래처"
-            disabled={disabled}
-            aria-label={`라인 ${index} 거래처`}
-          />
+          {renderPartnerField ? (
+            renderPartnerField()
+          ) : (
+            <input
+              type="text"
+              className={styles['textInput']}
+              value={line.partnerName}
+              onChange={(e) => onChange({ partnerName: e.target.value })}
+              placeholder="거래처"
+              disabled={disabled}
+              aria-label={`라인 ${index} 거래처`}
+            />
+          )}
         </div>
         <div className={styles['cellMoney']}>
           <MoneyInput

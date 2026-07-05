@@ -98,6 +98,64 @@ describe('mock journal cash receipt contract', () => {
   })
 })
 
+describe('mock manual journal contract', () => {
+  it('POST /accounting/journals 는 BE DTO 필드명으로 라인을 저장하고 partnerId 는 partnerName 으로 enrich 한다', () => {
+    const partnerSearch = mockRequest({
+      method: 'GET',
+      url: '/accounting/partners/search',
+      params: { q: '엘에이', limit: 5 },
+    }) as MockEnvelope<Array<{ partnerId: string; partnerCode: string; name: string }>>
+
+    expect(partnerSearch.data[0]).toMatchObject({
+      partnerId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      partnerCode: '1234567890',
+      name: '엘에이시스템에어',
+    })
+
+    const created = mockRequest({
+      method: 'POST',
+      url: '/accounting/journals',
+      data: {
+        journalDate: '2026-05-04',
+        description: '수동 분개',
+        lines: [
+          {
+            accountCode: '101',
+            debitAmount: '1000',
+            creditAmount: '0',
+            partnerId: partnerSearch.data[0]?.partnerId,
+            memo: '입금 메모',
+          },
+          {
+            accountCode: '401',
+            debitAmount: '0',
+            creditAmount: '1000',
+            partnerId: null,
+          },
+        ],
+      },
+    }) as MockEnvelope<{
+      totalDebit: string
+      totalCredit: string
+      lines: Array<Record<string, unknown>>
+    }>
+
+    expect(created.data.totalDebit).toBe('1000')
+    expect(created.data.totalCredit).toBe('1000')
+    expect(created.data.lines[0]).toMatchObject({
+      accountCode: '101',
+      debitAmount: '1000',
+      creditAmount: '0',
+      partnerName: '엘에이시스템에어',
+      memo: '입금 메모',
+    })
+    expect(created.data.lines[0]).not.toHaveProperty('debit')
+    expect(created.data.lines[0]).not.toHaveProperty('credit')
+    expect(created.data.lines[0]).not.toHaveProperty('note')
+    expect(created.data.lines[0]).not.toHaveProperty('partnerId')
+  })
+})
+
 describe('mock cash receipt list contract', () => {
   it('GET /accounting/cash-receipts 는 Page envelope 와 3종 kind 샘플을 반환하고 UUID/사업자번호 표시 필드는 필터 외 화면에서 쓰지 않는다', () => {
     const page = mockRequest({

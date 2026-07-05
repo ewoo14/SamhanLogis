@@ -489,6 +489,7 @@ function mockRequirePermission(pageCode: string, action: MockPermissionAction): 
 
 function normalizeAdminPartner(row: Record<string, unknown>) {
   return {
+    partnerId: String(row['id'] ?? row['partnerId'] ?? ''),
     partnerCode: String(row['partnerCode'] ?? ''),
     name: String(row['name'] ?? row['partnerName'] ?? ''),
     bizNo: String(row['bizNo'] ?? row['businessNumber'] ?? ''),
@@ -5105,6 +5106,24 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(MOCK_ACCOUNTS)
   }
 
+  // GET /accounting/partners/search — 분개 라인 저장용 partnerId 포함 검색(화면에는 name/code만 표시)
+  if (method === 'GET' && url.includes('/accounting/partners/search')) {
+    const q = (config.params?.['q'] as string | undefined) ?? ''
+    const lower = q.trim().toLowerCase()
+    const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
+      .filter((item) => item.partnerId)
+    const filtered = lower
+      ? allItems.filter(
+          (item) =>
+            item.partnerCode.toLowerCase().includes(lower) ||
+            item.name.toLowerCase().includes(lower) ||
+            item.bizNo.toLowerCase().includes(lower) ||
+            (item.phone ?? '').toLowerCase().includes(lower),
+        )
+      : allItems
+    return envelope(filtered.slice(0, Number(config.params?.['limit'] ?? 20)))
+  }
+
   // GET /accounting/journals/{id} — 단건 상세 (라인 포함)
   const journalDetailMatch = url.match(/\/accounting\/journals\/([^/?]+)$/)
   if (method === 'GET' && journalDetailMatch) {
@@ -5143,19 +5162,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       description?: string
       lines?: Array<{
         accountCode: string
-        debit: string
-        credit: string
-        partnerName?: string
-        note?: string
+        debitAmount: string
+        creditAmount: string
+        partnerId?: string | null
+        memo?: string
       }>
     }
     const lines = body.lines ?? []
     const totalDebit = lines.reduce(
-      (sum, l) => sum + Number.parseInt(l.debit || '0', 10),
+      (sum, l) => sum + Number.parseInt(l.debitAmount || '0', 10),
       0,
     )
     const totalCredit = lines.reduce(
-      (sum, l) => sum + Number.parseInt(l.credit || '0', 10),
+      (sum, l) => sum + Number.parseInt(l.creditAmount || '0', 10),
       0,
     )
     return envelope({
@@ -5173,14 +5192,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       reverseReason: null,
       lines: lines.map((l, i) => ({
         id: 'jl-new-' + i,
-        lineNo: i,
+        lineNo: i + 1,
         accountCode: l.accountCode,
         accountName:
           MOCK_ACCOUNTS.find((a) => a.code === l.accountCode)?.name ?? null,
-        debit: l.debit,
-        credit: l.credit,
-        partnerName: l.partnerName ?? null,
-        note: l.note ?? null,
+        debitAmount: l.debitAmount,
+        creditAmount: l.creditAmount,
+        partnerName: l.partnerId
+          ? (MOCK_ADMIN_PARTNERS
+              .map((row) => normalizeAdminPartner(row))
+              .find((partner) => partner.partnerId === l.partnerId)?.name ?? null)
+          : null,
+        memo: l.memo ?? null,
       })),
       version: 0,
     })

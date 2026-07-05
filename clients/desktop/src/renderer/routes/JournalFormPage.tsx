@@ -23,6 +23,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AccountCodeSelect,
+  AsyncAutocomplete,
   Button,
   Card,
   Input,
@@ -36,7 +37,9 @@ import {
   createJournal,
   getJournal,
   listAccounts,
+  searchJournalPartners,
   type CreateJournalRequest,
+  type JournalPartnerOption,
 } from '../api/accounting'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -55,6 +58,7 @@ const emptyLine = (): DraftLine => ({
   accountCode: '',
   debit: 0,
   credit: 0,
+  partnerId: null,
   partnerName: '',
   note: '',
 })
@@ -80,6 +84,51 @@ interface MobileJournalLineCardProps {
   accounts: Account[]
   onChange: (patch: Partial<JournalLineDraft>) => void
   onRemove: () => void
+}
+
+interface JournalPartnerPickerProps {
+  index: number
+  line: DraftLine
+  onChange: (patch: Partial<JournalLineDraft>) => void
+}
+
+function JournalPartnerPicker({ index, line, onChange }: JournalPartnerPickerProps) {
+  const selected: JournalPartnerOption | null = line.partnerId
+    ? {
+        partnerId: line.partnerId,
+        partnerCode: '',
+        name: line.partnerName,
+        bizNo: null,
+      }
+    : null
+
+  return (
+    <AsyncAutocomplete<JournalPartnerOption>
+      value={selected}
+      onChange={(partner) => onChange({
+        partnerId: partner?.partnerId ?? null,
+        partnerName: partner?.name ?? '',
+      })}
+      search={searchJournalPartners}
+      getKey={(partner) => partner.partnerId}
+      getInputLabel={(partner) => partner.name}
+      matchExact={(partner, trimmed) =>
+        partner.name.toLowerCase() === trimmed.toLowerCase()
+          || partner.partnerCode.toLowerCase() === trimmed.toLowerCase()
+          || (partner.bizNo ?? '').toLowerCase() === trimmed.toLowerCase()}
+      renderOption={(partner) => (
+        <>
+          <span>{partner.name}</span>
+          {partner.partnerCode ? <span> · {partner.partnerCode}</span> : null}
+          {partner.bizNo ? <span> · {partner.bizNo}</span> : null}
+        </>
+      )}
+      listboxLabel={`라인 ${index} 거래처 목록`}
+      ariaLabel={`라인 ${index} 거래처`}
+      placeholder="거래처명 또는 코드"
+      minChars={1}
+    />
+  )
 }
 
 function MobileJournalLineCard({
@@ -116,13 +165,10 @@ function MobileJournalLineCard({
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">거래처</label>
-        <input
-          type="text"
-          className="mobile-line-text-input"
-          value={line.partnerName}
-          onChange={(e) => onChange({ partnerName: e.target.value })}
-          placeholder="거래처"
-          aria-label={`라인 ${index} 거래처`}
+        <JournalPartnerPicker
+          index={index}
+          line={line}
+          onChange={onChange}
         />
       </div>
 
@@ -200,6 +246,7 @@ export function JournalFormPage() {
         accountCode: l.accountCode,
         debit: Number.parseInt(l.debit, 10) || 0,
         credit: Number.parseInt(l.credit, 10) || 0,
+        partnerId: null,
         partnerName: l.partnerName ?? '',
         note: l.memo ?? l.note ?? '',
       })),
@@ -275,10 +322,10 @@ export function JournalFormPage() {
       description: description.trim() || undefined,
       lines: meaningfulLines.map((l) => ({
         accountCode: l.accountCode,
-        debit: String(l.debit),
-        credit: String(l.credit),
-        partnerName: l.partnerName.trim() || undefined,
-        note: l.note.trim() || undefined,
+        debitAmount: String(l.debit),
+        creditAmount: String(l.credit),
+        partnerId: l.partnerId ?? null,
+        memo: l.note.trim() || undefined,
       })),
     }
     createMutation.mutate(body)
@@ -383,6 +430,13 @@ export function JournalFormPage() {
                   accounts={accounts}
                   onChange={(patch) => updateLine(i, patch)}
                   onRemove={() => removeLine(i)}
+                  renderPartnerField={() => (
+                    <JournalPartnerPicker
+                      index={i + 1}
+                      line={line}
+                      onChange={(patch) => updateLine(i, patch)}
+                    />
+                  )}
                 />
               ))}
 

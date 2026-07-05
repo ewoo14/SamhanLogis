@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.lenient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,6 +80,7 @@ class JournalControllerIT extends AbstractPostgresIT {
     void setUpPartnerLookupStub() {
         lenient().when(partnerLookupClient.findByPartnerId(any())).thenReturn(Optional.empty());
         lenient().when(partnerLookupClient.findByPartnerCode(any())).thenReturn(Optional.empty());
+        lenient().when(partnerLookupClient.findByPartnerIdsBatch(anyList())).thenReturn(Map.of());
         lenient().when(approvalLineAuthorizeClient.authorize(any(), any(), any()))
                 .thenReturn(new ApprovalLineAuthorizeResult(false, false));
     }
@@ -144,6 +147,50 @@ class JournalControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /accounting/journals — 라인 응답은 partnerName/accountName 을 표시하고 partnerId 는 숨긴다")
+    void createJournalEnrichesLineNamesWithoutPartnerIdInResponse() throws Exception {
+        UUID partnerId = UUID.fromString("00000000-0000-0000-0000-000000000713");
+        lenient().when(partnerLookupClient.findByPartnerIdsBatch(anyList()))
+                .thenReturn(Map.of(partnerId,
+                        new com.samhanair.logis.accounting.client.PartnerSummary(
+                                partnerId, "P-713", "삼한테스트상사", "123-45-67890", "서울")));
+
+        Map<String, Object> body = balancedJournalBody("100000");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("partnerId", partnerId);
+
+        mockMvc.perform(post("/accounting/journals")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[0].accountName").value("현금"))
+                .andExpect(jsonPath("$.data.lines[0].partnerName").value("삼한테스트상사"))
+                .andExpect(jsonPath("$.data.lines[0].partnerId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /accounting/partners/search — 분개 저장용 partnerId 를 포함한 거래처 검색")
+    void searchJournalPartnerOptions() throws Exception {
+        UUID partnerId = UUID.fromString("00000000-0000-0000-0000-000000000713");
+        lenient().when(partnerLookupClient.searchDirectory(any(), anyInt()))
+                .thenReturn(List.of(new com.samhanair.logis.accounting.client.PartnerSummary(
+                        partnerId, "P-713", "삼한테스트상사", "123-45-67890", "서울")));
+
+        mockMvc.perform(get("/accounting/partners/search")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .param("q", "삼한")
+                        .param("limit", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$.data[0].partnerCode").value("P-713"))
+                .andExpect(jsonPath("$.data[0].name").value("삼한테스트상사"));
     }
 
     @Test

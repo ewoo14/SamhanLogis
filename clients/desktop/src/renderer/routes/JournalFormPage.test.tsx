@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 
@@ -9,10 +9,26 @@ const mocks = vi.hoisted(() => ({
   createJournal: vi.fn(),
   getJournal: vi.fn(),
   listAccounts: vi.fn(),
+  searchJournalPartners: vi.fn(),
   isMobile: vi.fn(() => false),
 }))
 
 vi.mock('@samhan/design-system', () => ({
+  AsyncAutocomplete: ({ ariaLabel, value, onChange, search }: any) => (
+    <div>
+      <input aria-label={ariaLabel} value={value?.name ?? ''} readOnly />
+      <button
+        type="button"
+        aria-label={`${ariaLabel} 선택`}
+        onClick={async () => {
+          const results = await search('삼한')
+          onChange(results[0] ?? null)
+        }}
+      >
+        거래처 선택
+      </button>
+    </div>
+  ),
   AccountCodeSelect: ({ value, ariaLabel }: any) => (
     <input aria-label={ariaLabel ?? '계정과목'} value={value} readOnly />
   ),
@@ -26,15 +42,23 @@ vi.mock('@samhan/design-system', () => ({
       <input value={value} onChange={onChange} {...props} />
     </label>
   ),
-  JournalLineRow: ({ index, line, onChange, onRemove }: any) => (
+  JournalLineRow: ({ index, line, onChange, onRemove, renderPartnerField }: any) => (
     <div className="journal-line-row" data-line-index={index}>
       <div>{index}</div>
-      <input aria-label={`라인 ${index} 계정과목`} value={line.accountCode} readOnly />
       <input
-        aria-label={`라인 ${index} 거래처`}
-        value={line.partnerName}
-        onChange={(e) => onChange({ partnerName: e.target.value })}
+        aria-label={`라인 ${index} 계정과목`}
+        value={line.accountCode}
+        onChange={(e) => onChange({ accountCode: e.target.value })}
       />
+      {renderPartnerField
+        ? renderPartnerField()
+        : (
+            <input
+              aria-label={`라인 ${index} 거래처`}
+              value={line.partnerName}
+              onChange={(e) => onChange({ partnerName: e.target.value })}
+            />
+          )}
       <input
         aria-label={`라인 ${index} 차변`}
         value={line.debit}
@@ -63,6 +87,7 @@ vi.mock('../api/accounting', () => ({
   createJournal: mocks.createJournal,
   getJournal: mocks.getJournal,
   listAccounts: mocks.listAccounts,
+  searchJournalPartners: mocks.searchJournalPartners,
 }))
 
 vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: mocks.isMobile }))
@@ -75,6 +100,14 @@ function renderPage() {
   mocks.listAccounts.mockResolvedValue([
     { code: '102', name: '보통예금', category: 'ASSET' },
     { code: '401', name: '매출', category: 'REVENUE' },
+  ])
+  mocks.searchJournalPartners.mockResolvedValue([
+    {
+      partnerId: '00000000-0000-0000-0000-000000000713',
+      partnerCode: 'P-713',
+      name: '삼한테스트상사',
+      bizNo: '123-45-67890',
+    },
   ])
 
   return render(
@@ -125,6 +158,65 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     expect(totals?.style.paddingRight).toBe(header?.style.paddingRight)
     expect(totals?.children.item(3)?.getAttribute('data-align')).toBe('right')
     expect(totals?.children.item(4)?.getAttribute('data-align')).toBe('right')
+  })
+
+  it('저장 시 BE CreateJournalLineRequest 필드명과 partnerId로 전송한다', async () => {
+    mocks.createJournal.mockResolvedValue({
+      id: 'journal-new',
+      journalNo: '2026/07/05-1',
+      journalDate: '2026-07-05',
+      status: 'DRAFT',
+      sourceType: 'MANUAL',
+      description: '테스트 분개',
+      totalDebit: '1000',
+      totalCredit: '1000',
+      createdByName: '오병승',
+      createdAt: '2026-07-05T09:00:00+09:00',
+      postedAt: null,
+      reversedAt: null,
+      reverseReason: null,
+      lines: [],
+      version: 0,
+    })
+    renderPage()
+
+    await screen.findByText('계정과목')
+
+    fireEvent.change(screen.getByLabelText('적요'), { target: { value: '테스트 분개' } })
+    fireEvent.change(screen.getByLabelText('라인 1 계정과목'), { target: { value: '102' } })
+    fireEvent.change(screen.getByLabelText('라인 1 차변'), { target: { value: '1000' } })
+    fireEvent.change(screen.getByLabelText('라인 1 메모'), { target: { value: '입금 메모' } })
+    fireEvent.click(screen.getByLabelText('라인 1 거래처 선택'))
+    fireEvent.change(screen.getByLabelText('라인 2 계정과목'), { target: { value: '401' } })
+    fireEvent.change(screen.getByLabelText('라인 2 대변'), { target: { value: '1000' } })
+
+    await waitFor(() => {
+      expect((screen.getByLabelText('라인 1 거래처') as HTMLInputElement).value)
+        .toBe('삼한테스트상사')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => expect(mocks.createJournal).toHaveBeenCalledTimes(1))
+    const payload = mocks.createJournal.mock.calls[0][0]
+    expect(payload.lines[0]).toEqual({
+      accountCode: '102',
+      debitAmount: '1000',
+      creditAmount: '0',
+      partnerId: '00000000-0000-0000-0000-000000000713',
+      memo: '입금 메모',
+    })
+    expect(payload.lines[0]).not.toHaveProperty('debit')
+    expect(payload.lines[0]).not.toHaveProperty('credit')
+    expect(payload.lines[0]).not.toHaveProperty('partnerName')
+    expect(payload.lines[0]).not.toHaveProperty('note')
+    expect(payload.lines[1]).toEqual({
+      accountCode: '401',
+      debitAmount: '0',
+      creditAmount: '1000',
+      partnerId: null,
+      memo: undefined,
+    })
   })
 })
 

@@ -192,11 +192,19 @@ export interface CreateJournalRequest {
   description?: string
   lines: Array<{
     accountCode: string
-    debit: string
-    credit: string
-    partnerName?: string
-    note?: string
+    debitAmount: string
+    creditAmount: string
+    partnerId: string | null
+    memo?: string
   }>
+}
+
+/** 분개 라인 거래처 피커 옵션. partnerId 는 저장 payload 내부용이며 화면 표시 금지. */
+export interface JournalPartnerOption {
+  partnerId: string
+  partnerCode: string
+  name: string
+  bizNo?: string | null
 }
 
 /**
@@ -262,6 +270,22 @@ export interface TrialBalance {
 export async function listAccounts(): Promise<Account[]> {
   const res = await apiClient.get<ApiEnvelope<Account[]>>('/accounting/accounts')
   return res.data.data
+}
+
+/**
+ * 분개 라인 거래처 검색.
+ *
+ * 기존 admin 거래처 검색은 UUID 비공개로 partnerCode/name 만 반환하므로, 분개 저장에 필요한
+ * partnerId 는 accounting-service proxy endpoint 에서 내부 token lookup 결과만 받는다.
+ * 화면에는 name/partnerCode 만 표시하고 partnerId 는 POST body 조립에만 사용한다.
+ */
+export async function searchJournalPartners(q: string): Promise<JournalPartnerOption[]> {
+  if (!q.trim()) return []
+  const res = await apiClient.get<ApiEnvelope<JournalPartnerOption[]>>(
+    '/accounting/partners/search',
+    { params: { q, limit: 20 } },
+  )
+  return res.data.data ?? []
 }
 
 /**

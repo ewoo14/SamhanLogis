@@ -6,6 +6,8 @@ import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CreateJournalLineRequest;
 import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
@@ -14,8 +16,10 @@ import com.samhanair.logis.accounting.web.dto.JournalResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -53,6 +57,8 @@ public class JournalService {
     private final AccountService accountService;
     private final MonthEndCloseService monthEndCloseService;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
+    private final PartnerLookupClient partnerLookupClient;
+    private final ChartOfAccountRepository chartOfAccountRepository;
 
     /**
      * 분개 신규 생성 (DRAFT). 라인 1개 이상 + accountCode leaf 검증 + 라인별 debit/credit 도메인 가드.
@@ -87,7 +93,7 @@ public class JournalService {
         }
 
         Journal saved = journalRepository.save(journal);
-        return JournalDetailResponse.of(saved);
+        return toDetailResponse(saved);
     }
 
     /** 페이지 조회 — from/to 일자 범위 + status 필터 (status null 이면 전체). */
@@ -102,7 +108,7 @@ public class JournalService {
     @Transactional(readOnly = true)
     public JournalDetailResponse getOne(UUID id) {
         Journal journal = findOrThrow(id);
-        return JournalDetailResponse.of(journal);
+        return toDetailResponse(journal);
     }
 
     /**
@@ -116,7 +122,7 @@ public class JournalService {
         enforceApprovalLine(parseRealUserId(actorUserId));
         Journal journal = findOrThrow(id);
         journal.post(actorUserId);
-        return JournalDetailResponse.of(journal);
+        return toDetailResponse(journal);
     }
 
     /**
@@ -166,7 +172,7 @@ public class JournalService {
         original.markReversed();
         original.linkReversal(savedReversal.getId());
 
-        return JournalDetailResponse.of(savedReversal);
+        return toDetailResponse(savedReversal);
     }
 
     /**
@@ -331,7 +337,7 @@ public class JournalService {
             }
             throw unsupportedOverlayPath(path);
         }
-        return JournalDetailResponse.of(journal);
+        return toDetailResponse(journal);
     }
 
     /**
@@ -419,6 +425,46 @@ public class JournalService {
 
     private String toNullableString(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    /**
+     * 분개 상세 응답 enrich — 라인 전체의 거래처명/계정명을 배치 조회한다.
+     *
+     * <p>partnerId 는 내부 FK 이므로 응답 DTO 에 싣지 않고, partnerName 만 제공한다. 계정명은
+     * accounting-service 의 ChartOfAccount 마스터를 한 번에 조회한다.
+     */
+    private JournalDetailResponse toDetailResponse(Journal journal) {
+        LinkedHashSet<UUID> partnerIds = new LinkedHashSet<>();
+        LinkedHashSet<String> accountCodes = new LinkedHashSet<>();
+        for (JournalLine line : journal.getLines()) {
+            if (line.getPartnerId() != null) {
+                partnerIds.add(line.getPartnerId());
+            }
+            if (line.getAccountCode() != null && !line.getAccountCode().isBlank()) {
+                accountCodes.add(line.getAccountCode());
+            }
+        }
+
+        Map<UUID, String> partnerNamesById = partnerIds.isEmpty()
+                ? Map.of()
+                : partnerLookupClient.findByPartnerIdsBatch(new ArrayList<>(partnerIds)).entrySet().stream()
+                        .filter(entry -> entry.getValue() != null)
+                        .collect(java.util.stream.Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> entry.getValue().name(),
+                                (left, right) -> left,
+                                java.util.LinkedHashMap::new));
+
+        Map<String, String> accountNamesByCode = accountCodes.isEmpty()
+                ? Map.of()
+                : chartOfAccountRepository.findAllById(accountCodes).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                account -> account.getCode(),
+                                account -> account.getName(),
+                                (left, right) -> left,
+                                java.util.LinkedHashMap::new));
+
+        return JournalDetailResponse.of(journal, accountNamesByCode, partnerNamesById);
     }
 
     private Journal findOrThrow(UUID id) {

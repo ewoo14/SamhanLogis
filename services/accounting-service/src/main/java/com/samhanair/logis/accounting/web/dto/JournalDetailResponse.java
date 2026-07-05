@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** 분개 단건 상세 — 라인 포함. */
@@ -25,8 +26,17 @@ public record JournalDetailResponse(
         List<JournalLineResponse> lines
 ) {
     public static JournalDetailResponse of(Journal journal) {
+        return of(journal, Map.of(), Map.of());
+    }
+
+    public static JournalDetailResponse of(Journal journal,
+                                           Map<String, String> accountNamesByCode,
+                                           Map<UUID, String> partnerNamesById) {
         List<JournalLineResponse> lineResponses = journal.getLines().stream()
-                .map(JournalLineResponse::of)
+                .map(line -> JournalLineResponse.of(
+                        line,
+                        accountNamesByCode.get(line.getAccountCode()),
+                        line.getPartnerId() == null ? null : partnerNamesById.get(line.getPartnerId())))
                 .toList();
         return new JournalDetailResponse(
                 journal.getId(),

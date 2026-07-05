@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
@@ -12,11 +13,16 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
+import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.domain.PeriodType;
+import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CreateJournalLineRequest;
 import com.samhanair.logis.accounting.web.dto.CreateJournalRequest;
@@ -27,6 +33,7 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +63,8 @@ class JournalServiceTest {
     @Mock private AccountService accountService;
     @Mock private MonthEndCloseService monthEndCloseService;
     @Mock private ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
+    @Mock private PartnerLookupClient partnerLookupClient;
+    @Mock private ChartOfAccountRepository chartOfAccountRepository;
 
     @InjectMocks private JournalService journalService;
 
@@ -69,6 +78,10 @@ class JournalServiceTest {
                 .thenReturn(Optional.empty());
         lenient().when(approvalLineAuthorizeClient.authorize(anyString(), anyString(), any(UUID.class)))
                 .thenReturn(new ApprovalLineAuthorizeResult(false, false));
+        lenient().when(partnerLookupClient.findByPartnerIdsBatch(anyList()))
+                .thenReturn(Map.of());
+        lenient().when(chartOfAccountRepository.findAllById(any()))
+                .thenReturn(List.of());
         // accountService.requireLeafAccount 는 void — 기본 no-op (Mockito).
     }
 
@@ -204,13 +217,40 @@ class JournalServiceTest {
                 .hasMessageContaining("존재하지 않는 분개");
     }
 
+    @Test
+    @DisplayName("getOne — 라인 partnerName/accountName 을 배치 조회로 enrich 하고 partnerId 는 응답에서 숨긴다")
+    void getOneEnrichesLineDisplayNamesByBatchLookup() {
+        UUID partnerId = UUID.fromString("00000000-0000-0000-0000-000000000713");
+        Journal journal = newPersistedDraft(partnerId);
+        when(journalRepository.findById(journal.getId())).thenReturn(Optional.of(journal));
+        when(partnerLookupClient.findByPartnerIdsBatch(anyList()))
+                .thenReturn(Map.of(partnerId,
+                        new PartnerSummary(partnerId, "P-713", "삼한테스트상사", "123-45-67890", "서울")));
+        when(chartOfAccountRepository.findAllById(any()))
+                .thenReturn(List.of(
+                        ChartOfAccount.create("101", "현금", AccountCategory.ASSET, "100", true, 1),
+                        ChartOfAccount.create("401", "상품매출", AccountCategory.REVENUE, "400", true, 2)));
+
+        JournalDetailResponse resp = journalService.getOne(journal.getId());
+
+        assertThat(resp.lines().get(0).partnerName()).isEqualTo("삼한테스트상사");
+        assertThat(resp.lines().get(0).accountName()).isEqualTo("현금");
+        assertThat(resp.lines().get(1).partnerName()).isNull();
+        assertThat(resp.lines().get(1).accountName()).isEqualTo("상품매출");
+        verify(partnerLookupClient).findByPartnerIdsBatch(List.of(partnerId));
+    }
+
     private Journal newPersistedDraft() {
+        return newPersistedDraft(null);
+    }
+
+    private Journal newPersistedDraft(UUID firstLinePartnerId) {
         Journal j = Journal.create("2026/05/04-1", TODAY, "테스트",
                 JournalSourceType.MANUAL, (UUID) null);
         UUID id = UUID.randomUUID();
         setField(j, "id", id);
         j.addLine(com.samhanair.logis.accounting.domain.JournalLine.create(
-                j, 1, "101", new BigDecimal("100000"), BigDecimal.ZERO, null, "현금"));
+                j, 1, "101", new BigDecimal("100000"), BigDecimal.ZERO, firstLinePartnerId, "현금"));
         j.addLine(com.samhanair.logis.accounting.domain.JournalLine.create(
                 j, 2, "401", BigDecimal.ZERO, new BigDecimal("100000"), null, "상품매출"));
         return j;
