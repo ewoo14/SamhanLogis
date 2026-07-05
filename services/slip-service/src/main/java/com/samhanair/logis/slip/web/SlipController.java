@@ -15,8 +15,6 @@ import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.web.dto.AddLineRequest;
 import com.samhanair.logis.slip.web.dto.CreateSlipRequest;
 import com.samhanair.logis.slip.web.dto.EditHeaderRequest;
-import com.samhanair.logis.slip.web.dto.LockByPeriodRequest;
-import com.samhanair.logis.slip.web.dto.LockByPeriodResponse;
 import com.samhanair.logis.slip.web.dto.NextDaySlipImageResponse;
 import com.samhanair.logis.slip.web.dto.RejectRequest;
 import com.samhanair.logis.slip.web.dto.SlipCleanupResponse;
@@ -515,31 +513,6 @@ public class SlipController {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
         checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
         return ApiResponse.ok(slipService.cancel(id, callerOrSystem(callerHeader)));
-    }
-
-    /**
-     * 기간 마감 lock — accounting-service Feign 호출 endpoint (P1-8 Stage 4 신규).
-     *
-     * <p>해당 기간의 지정 status 슬립을 일괄 lock_flag=true 로 update. 이미 lock 된 슬립은
-     * idempotent 자동 제외. 본 endpoint 는 internal token 인증만 (ACCOUNTANT/MANAGER/MASTER 도 호출 가능).
-     *
-     * @return 200, lockedCount 포함 응답
-     */
-    @Operation(summary = "기간 마감 lock",
-            description = "accounting-service 마감 처리용 — 기간 + status 조합 일괄 lock_flag=true. idempotent")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "처리 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "기간 누락")
-    })
-    @PostMapping("/lock-by-period")
-    @RequirePermission(page = "slip.period-lock", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
-    public ApiResponse<LockByPeriodResponse> lockByPeriod(
-            @jakarta.validation.Valid @RequestBody LockByPeriodRequest request) {
-        int locked = slipService.lockByPeriod(request.startDate(), request.endDate(),
-                request.status());
-        String statusName = request.status() == null ? "CONFIRMED" : request.status().name();
-        return ApiResponse.ok(new LockByPeriodResponse(
-                request.startDate(), request.endDate(), statusName, locked));
     }
 
     /**

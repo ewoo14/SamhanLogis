@@ -356,7 +356,7 @@ public class Slip extends BaseEntity {
     /**
      * 회계 마감 lock — V14 migration 신규.
      *
-     * <p>accounting-service 가 {@code POST /slips/lock-by-period} Feign 호출 시 해당 기간
+     * <p>accounting-service 가 {@code POST /internal/slips/lock-by-period} 호출 시 해당 기간
      * CONFIRMED 슬립을 일괄 lock_flag=true 로 update. lock 된 슬립은 reject/cancel 도메인 메서드가
      * CONFLICT 던짐 (마감 후 매출 정정 차단).
      *
@@ -1181,7 +1181,7 @@ public class Slip extends BaseEntity {
     /**
      * 회계 마감 lock 적용 — V14 migration 신규.
      *
-     * <p>accounting-service Feign 호출 ({@code POST /slips/lock-by-period}) 시점에 SlipService 가
+     * <p>accounting-service 호출 ({@code POST /internal/slips/lock-by-period}) 시점에 SlipService 가
      * 일괄 호출. CONFIRMED 슬립만 lock 권장 (운영 정책 — 도메인 강제 X, service 레이어 가드).
      * 이미 lock 된 슬립은 재호출 idempotent (no-op).
      */

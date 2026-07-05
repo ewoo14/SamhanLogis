@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,64 @@ class SlipServiceClientTest {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
         client = new SlipServiceClient(builder, props);
+    }
+
+    @Test
+    void lockByPeriod_내부경로_토큰_startDate_endDate_body로_호출하고_lockedCount를_파싱한다() {
+        server.expect(requestTo("http://slip-service/internal/slips/lock-by-period"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json("""
+                        {
+                          "startDate": "2026-05-01",
+                          "endDate": "2026-05-31"
+                        }
+                        """, true))
+                .andRespond(withSuccess("""
+                        {
+                          "success": true,
+                          "data": {
+                            "startDate": "2026-05-01",
+                            "endDate": "2026-05-31",
+                            "status": "CONFIRMED",
+                            "lockedCount": 3
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        int lockedCount = client.lockByPeriod(LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31));
+
+        assertThat(lockedCount).isEqualTo(3);
+        server.verify();
+    }
+
+    @Test
+    void lockByPeriod_4xx는_CONFLICT로_매핑한다() {
+        server.expect(requestTo("http://slip-service/internal/slips/lock-by-period"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> client.lockByPeriod(LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+        server.verify();
+    }
+
+    @Test
+    void lockByPeriod_5xx는_INTERNAL_ERROR로_매핑한다() {
+        server.expect(requestTo("http://slip-service/internal/slips/lock-by-period"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.lockByPeriod(LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
     }
 
     @Test

@@ -12,8 +12,11 @@ import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipSignatureService;
+import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.web.dto.InternalSignatureRegistrationRequest;
 import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
+import com.samhanair.logis.slip.web.dto.LockByPeriodRequest;
+import com.samhanair.logis.slip.web.dto.LockByPeriodResponse;
 import com.samhanair.logis.slip.web.dto.OutboundSlipLineResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import com.samhanair.logis.slip.web.dto.SlipSummary;
@@ -68,6 +71,7 @@ public class SlipInternalController {
     private final SlipAttachmentService attachmentService;
     private final SlipLineRepository slipLineRepository;
     private final SlipRepository slipRepository;
+    private final SlipService slipService;
 
     /**
      * Internal 전자서명 등록 — arologis-service 가 driver-app 캡처 서명을 slip-service 로 전파.
@@ -213,6 +217,34 @@ public class SlipInternalController {
                 slip.getId(),
                 slip.getSlipNo(),
                 slip.getStatus().name()));
+    }
+
+    /**
+     * 기간 마감 lock — accounting-service 월마감/일마감 서비스간 전용 endpoint.
+     *
+     * <p>{@code /internal/**} prefix 로 {@link com.samhanair.logis.security.InternalTokenFilter} 를 경유하며,
+     * 사용자 권한 {@code @RequirePermission} 은 사용하지 않는다. 유효한 내부 토큰은 ROLE_MASTER 로
+     * 인증되고, 본 메서드의 {@code @PreAuthorize} 가 내부 호출만 통과시킨다.
+     *
+     * @param request 기간 잠금 요청 ({@code startDate/endDate/status})
+     * @return ApiResponse wrapper 안 잠금 건수
+     */
+    @Operation(summary = "Internal 기간 마감 lock",
+            description = "accounting-service 마감 처리용. X-Internal-Token 인증 후 기간 + status 조합 "
+                    + "슬립을 lock_flag=true 처리한다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "기간 누락"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "내부 토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "내부 토큰 누락")
+    })
+    @PostMapping("/lock-by-period")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<LockByPeriodResponse> lockByPeriod(@Valid @RequestBody LockByPeriodRequest request) {
+        int locked = slipService.lockByPeriod(request.startDate(), request.endDate(), request.status());
+        String statusName = request.status() == null ? "CONFIRMED" : request.status().name();
+        return ApiResponse.ok(new LockByPeriodResponse(
+                request.startDate(), request.endDate(), statusName, locked));
     }
 
     /**

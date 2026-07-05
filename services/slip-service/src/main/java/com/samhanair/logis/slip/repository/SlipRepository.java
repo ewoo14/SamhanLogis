@@ -168,7 +168,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     // ---- P1-8 (Stage 4) — accounting-service lock-by-period 의존 ----
 
     /**
-     * 기간 + 상태 + lock_flag 조합 조회 — POST /slips/lock-by-period 의 source.
+     * 기간 + 상태 + lock_flag 조합 조회 — POST /internal/slips/lock-by-period 의 source.
      * accounting-service 가 마감 기간 CONFIRMED 슬립을 일괄 lock 처리할 때 본 메서드로 lookup.
      *
      * @param startDate 기간 시작일 (포함)

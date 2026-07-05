@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>POST /accounting/closings/{id}/reverse — {@code @RequirePermission(accounting.period-close.reverse, UPDATE)}</li>
  * </ul>
  *
- * <p>마감 실행 시 slip-service.lock-by-period 호출 → CONFIRMED 슬립 일괄 LOCKED.
+ * <p>마감 실행 시 slip-service.lock-by-period 호출 → CONFIRMED 슬립 일괄 lock_flag=true.
  * 마감 후 해당 기간 분개/세금계산서 입력은 {@code AccountingPeriodGuard} 가 차단.
  *
  * <p>SP-D2 동적 권한: {@code accounting.period-close} 페이지 코드.

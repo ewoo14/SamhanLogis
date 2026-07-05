@@ -19,14 +19,14 @@ import org.springframework.web.client.RestClient;
 
 /**
  * Internal-token 인증 client to {@code slip-service} 의 마감 잠금 endpoint
- * ({@code POST /slips/lock-by-period}).
+ * ({@code POST /internal/slips/lock-by-period}).
  *
  * <p>매출 마감 (P2-4) 단계에서 호출:
  *
  * <ol>
  *   <li>회계담당자가 {@code POST /accounting/closings} 실행 (DAILY 또는 MONTHLY)</li>
  *   <li>service 가 본 client 호출 → slip-service 가 [from, to] 범위의
- *       CONFIRMED 슬립 일괄 LOCKED 전이 + 잠금 건수 반환</li>
+ *       CONFIRMED 슬립 lock_flag=true 처리 + 잠금 건수 반환</li>
  *   <li>service 가 잠금 건수를 {@link com.samhanair.logis.accounting.domain.AccountingPeriod#close} 에 stamp</li>
  * </ol>
  *
@@ -52,7 +52,7 @@ public class SlipServiceClient {
     private static final Logger log = LoggerFactory.getLogger(SlipServiceClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String SLIP_SERVICE_BASE = "http://slip-service";
-    private static final String LOCK_BY_PERIOD_PATH = "/slips/lock-by-period";
+    private static final String LOCK_BY_PERIOD_PATH = "/internal/slips/lock-by-period";
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
@@ -80,8 +80,8 @@ public class SlipServiceClient {
             throw new IllegalArgumentException("to 는 from 이후여야 합니다");
         }
         Map<String, Object> body = new HashMap<>();
-        body.put("from", from.toString());
-        body.put("to", to.toString());
+        body.put("startDate", from.toString());
+        body.put("endDate", to.toString());
 
         try {
             @SuppressWarnings("unchecked")
