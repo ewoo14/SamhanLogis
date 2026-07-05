@@ -1,5 +1,8 @@
 package com.samhanair.logis.slip.estimate.revision.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
@@ -7,6 +10,7 @@ import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevision;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import com.samhanair.logis.slip.estimate.revision.repository.EstimateRevisionRepository;
+import com.samhanair.logis.slip.estimate.revision.repository.EstimateRevisionRepository.EstimateRevisionSnapshotRow;
 import com.samhanair.logis.slip.estimate.revision.web.dto.EstimateRevisionResponse;
 import com.samhanair.logis.slip.estimate.revision.web.dto.EstimateRevisionResponse.ChangeSummary;
 import java.util.ArrayList;
@@ -16,7 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,10 +39,19 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @Transactional
-@RequiredArgsConstructor
 public class EstimateRevisionService {
 
+    private static final Logger log = LoggerFactory.getLogger(EstimateRevisionService.class);
+
     private final EstimateRevisionRepository repository;
+    private final ObjectMapper snapshotObjectMapper;
+
+    public EstimateRevisionService(EstimateRevisionRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
+        this.snapshotObjectMapper = objectMapper.copy()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
+    }
 
     /**
      * 현 견적 상태를 버전 스냅샷 1건으로 캡처해 영속화한다.
@@ -136,12 +150,16 @@ public class EstimateRevisionService {
      */
     public EstimateRevision restore(Estimate estimate, int targetRevisionNo,
                                     UUID actorId, String actorName, String actorColor) {
-        EstimateRevision target = repository
-                .findByEstimateIdAndRevisionNo(estimate.getId(), targetRevisionNo)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "복원 대상 revision 없음 (estimateId=" + estimate.getId()
-                                + ", revisionNo=" + targetRevisionNo + ")"));
-        estimate.restoreFromSnapshot(target.getSnapshot());
+        EstimateSnapshot targetSnapshot = repository
+                .findSnapshotRowByEstimateIdAndRevisionNo(estimate.getId(), targetRevisionNo)
+                .map(target -> parseSnapshotForRestore(
+                        estimate.getId(), targetRevisionNo, target.getSnapshotJson()))
+                .orElseGet(() -> repository.findByEstimateIdAndRevisionNo(estimate.getId(), targetRevisionNo)
+                        .map(EstimateRevision::getSnapshot)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                                "복원 대상 revision 없음 (estimateId=" + estimate.getId()
+                                        + ", revisionNo=" + targetRevisionNo + ")")));
+        estimate.restoreFromSnapshot(targetSnapshot);
         return capture(estimate, EstimateRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
     }
@@ -164,8 +182,41 @@ public class EstimateRevisionService {
      */
     @Transactional(readOnly = true)
     public List<EstimateRevisionResponse> listWithSummary(UUID estimateId) {
-        List<EstimateRevision> revisions = new ArrayList<>(list(estimateId));
+        List<EstimateRevisionSnapshotRow> rows =
+                repository.findSnapshotRowsByEstimateIdOrderByRevisionNoDesc(estimateId);
+        if (rows == null || rows.isEmpty()) {
+            return listWithSummaryFromEntities(estimateId);
+        }
+        List<EstimateRevisionSnapshotRow> revisions = new ArrayList<>(rows);
         // 인접 비교를 위해 revisionNo 오름차순으로 정렬 (list 는 내림차순 반환)
+        revisions.sort(Comparator.comparingInt(EstimateRevisionSnapshotRow::getRevisionNo));
+
+        List<EstimateRevisionResponse> responses = new ArrayList<>(revisions.size());
+        EstimateSnapshot prev = null;
+        for (EstimateRevisionSnapshotRow revision : revisions) {
+            EstimateSnapshot cur = parseSnapshotForSummary(estimateId, revision);
+            if (cur == null) {
+                continue;
+            }
+            ChangeSummary summary = summarize(prev, cur);
+            responses.add(new EstimateRevisionResponse(
+                    revision.getRevisionNo(),
+                    revision.getRevisionType(),
+                    revision.getSourceRevisionNo(),
+                    revision.getEstimateNo(),
+                    revision.getEstimateDate(),
+                    revision.getActorName(),
+                    revision.getCreatedAt(),
+                    summary));
+            prev = cur;
+        }
+        // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
+        java.util.Collections.reverse(responses);
+        return responses;
+    }
+
+    private List<EstimateRevisionResponse> listWithSummaryFromEntities(UUID estimateId) {
+        List<EstimateRevision> revisions = new ArrayList<>(list(estimateId));
         revisions.sort(Comparator.comparingInt(EstimateRevision::getRevisionNo));
 
         List<EstimateRevisionResponse> responses = new ArrayList<>(revisions.size());
@@ -173,8 +224,6 @@ public class EstimateRevisionService {
         for (EstimateRevision revision : revisions) {
             EstimateSnapshot cur = revision.getSnapshot();
             if (cur == null) {
-                // JSONB null 또는 역직렬화 실패로 snapshot 이 비어 있는 과거 row 는
-                // 타임라인 500 대신 명시적으로 제외한다. 직전 정상 snapshot 기준은 유지한다.
                 continue;
             }
             ChangeSummary summary = summarize(prev, cur);
@@ -189,9 +238,32 @@ public class EstimateRevisionService {
                     summary));
             prev = cur;
         }
-        // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
         java.util.Collections.reverse(responses);
         return responses;
+    }
+
+    private EstimateSnapshot parseSnapshotForSummary(UUID estimateId, EstimateRevisionSnapshotRow revision) {
+        try {
+            return snapshotObjectMapper.readValue(revision.getSnapshotJson(), EstimateSnapshot.class);
+        } catch (JsonProcessingException ex) {
+            log.warn("[EstimateRevisionService] 손상된 revision snapshot 요약 제외 — estimateId={}, revisionNo={}, cause={}",
+                    estimateId, revision.getRevisionNo(), ex.getOriginalMessage());
+            return null;
+        }
+    }
+
+    private EstimateSnapshot parseSnapshotForRestore(UUID estimateId, int revisionNo, String snapshotJson) {
+        try {
+            EstimateSnapshot snapshot = snapshotObjectMapper.readValue(snapshotJson, EstimateSnapshot.class);
+            if (snapshot == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "손상된 revision snapshot: estimateId=" + estimateId + ", revisionNo=" + revisionNo);
+            }
+            return snapshot;
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "손상된 revision snapshot: estimateId=" + estimateId + ", revisionNo=" + revisionNo);
+        }
     }
 
     /**

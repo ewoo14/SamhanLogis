@@ -224,7 +224,7 @@ class SlipRedlineServiceTest {
 
     private SlipRedlineService service() {
         return new SlipRedlineService(slipRepository, revisionRepository,
-                new SlipRevisionService(revisionRepository));
+                new SlipRevisionService(revisionRepository, new ObjectMapper().findAndRegisterModules()));
     }
 
     private Slip anchoredSlip(UUID slipId, int anchorRevisionNo) throws Exception {

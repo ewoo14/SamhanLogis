@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -45,6 +46,9 @@ class SlipRevisionServiceTest {
 
     @Mock
     private SlipRevisionRepository repository;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
     private SlipRevisionService service;
@@ -280,6 +284,12 @@ class SlipRevisionServiceTest {
         assertThat(summary.lineAdded()).isEqualTo(2);
         assertThat(summary.lineRemoved()).isZero();
         assertThat(summary.lineModified()).isZero();
+    }
+
+    @Test
+    @DisplayName("summarize: 현재 snapshot 이 null 이면 summary 도 null 로 반환한다")
+    void summarizeReturnsNullWhenCurrentSnapshotIsNull() {
+        assertThat(service.summarize(snapshot("memo", List.of()), null)).isNull();
     }
 
     @Test

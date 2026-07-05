@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.estimate.revision.repository;
 
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevision;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +20,17 @@ import org.springframework.data.repository.query.Param;
  */
 public interface EstimateRevisionRepository extends JpaRepository<EstimateRevision, UUID> {
 
+    interface EstimateRevisionSnapshotRow {
+        Integer getRevisionNo();
+        String getRevisionType();
+        Integer getSourceRevisionNo();
+        String getEstimateNo();
+        LocalDate getEstimateDate();
+        String getActorName();
+        LocalDateTime getCreatedAt();
+        String getSnapshotJson();
+    }
+
     /**
      * 견적의 버전 타임라인을 최신(revisionNo 내림차순) 우선으로 조회한다.
      *
@@ -25,6 +38,23 @@ public interface EstimateRevisionRepository extends JpaRepository<EstimateRevisi
      * @return revisionNo 내림차순 정렬된 버전 목록 (없으면 빈 리스트)
      */
     List<EstimateRevision> findByEstimateIdOrderByRevisionNoDesc(UUID estimateId);
+
+    @Query(value = """
+            SELECT revision_no AS "revisionNo",
+                   revision_type AS "revisionType",
+                   source_revision_no AS "sourceRevisionNo",
+                   estimate_no AS "estimateNo",
+                   estimate_date AS "estimateDate",
+                   actor_name AS "actorName",
+                   created_at AS "createdAt",
+                   snapshot::text AS "snapshotJson"
+            FROM estimate_revisions
+            WHERE estimate_id = :estimateId
+              AND is_deleted = FALSE
+            ORDER BY revision_no DESC
+            """, nativeQuery = true)
+    List<EstimateRevisionSnapshotRow> findSnapshotRowsByEstimateIdOrderByRevisionNoDesc(
+            @Param("estimateId") UUID estimateId);
 
     /**
      * 견적의 특정 revision 스냅샷 1건을 조회한다 (복원 대상 로드용).
@@ -34,6 +64,24 @@ public interface EstimateRevisionRepository extends JpaRepository<EstimateRevisi
      * @return 해당 버전 (없으면 {@link Optional#empty()})
      */
     Optional<EstimateRevision> findByEstimateIdAndRevisionNo(UUID estimateId, Integer revisionNo);
+
+    @Query(value = """
+            SELECT revision_no AS "revisionNo",
+                   revision_type AS "revisionType",
+                   source_revision_no AS "sourceRevisionNo",
+                   estimate_no AS "estimateNo",
+                   estimate_date AS "estimateDate",
+                   actor_name AS "actorName",
+                   created_at AS "createdAt",
+                   snapshot::text AS "snapshotJson"
+            FROM estimate_revisions
+            WHERE estimate_id = :estimateId
+              AND revision_no = :revisionNo
+              AND is_deleted = FALSE
+            """, nativeQuery = true)
+    Optional<EstimateRevisionSnapshotRow> findSnapshotRowByEstimateIdAndRevisionNo(
+            @Param("estimateId") UUID estimateId,
+            @Param("revisionNo") Integer revisionNo);
 
     /**
      * 견적의 현재 최대 revisionNo 를 조회한다 (다음 채번 = +1).

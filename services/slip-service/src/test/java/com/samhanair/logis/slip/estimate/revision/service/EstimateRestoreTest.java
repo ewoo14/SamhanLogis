@@ -14,6 +14,7 @@ import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevision;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateRevisionType;
 import com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot;
 import com.samhanair.logis.slip.estimate.revision.repository.EstimateRevisionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -45,6 +47,9 @@ class EstimateRestoreTest {
 
     @Mock
     private EstimateRevisionRepository repository;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
     private EstimateRevisionService service;

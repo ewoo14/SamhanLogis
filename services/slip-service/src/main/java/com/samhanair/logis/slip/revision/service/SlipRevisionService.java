@@ -1,5 +1,8 @@
 package com.samhanair.logis.slip.revision.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.Slip;
@@ -7,6 +10,7 @@ import com.samhanair.logis.slip.revision.domain.SlipRevision;
 import com.samhanair.logis.slip.revision.domain.SlipRevisionType;
 import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository;
+import com.samhanair.logis.slip.revision.repository.SlipRevisionRepository.SlipRevisionSnapshotRow;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.ChangeSummary;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.FieldChange;
@@ -23,7 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,10 +43,13 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @Transactional
-@RequiredArgsConstructor
 public class SlipRevisionService {
 
+    private static final Logger log = LoggerFactory.getLogger(SlipRevisionService.class);
+
     private final SlipRevisionRepository repository;
+    private final ObjectMapper snapshotObjectMapper;
+
     private static final java.util.regex.Pattern UUID_PATTERN = java.util.regex.Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
@@ -49,6 +57,13 @@ public class SlipRevisionService {
     }
 
     private record LineField(String name, String label, java.util.function.Function<SlipSnapshot.Line, Object> reader) {
+    }
+
+    public SlipRevisionService(SlipRevisionRepository repository, ObjectMapper objectMapper) {
+        this.repository = repository;
+        this.snapshotObjectMapper = objectMapper.copy()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
     }
 
     private static final List<HeaderField> HEADER_FIELDS = List.of(
@@ -180,12 +195,16 @@ public class SlipRevisionService {
      */
     public SlipRevision restore(Slip slip, int targetRevisionNo,
                                 UUID actorId, String actorName, String actorColor) {
-        SlipRevision target = repository
-                .findBySlipIdAndRevisionNo(slip.getId(), targetRevisionNo)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "복원 대상 revision 없음 (slipId=" + slip.getId()
-                                + ", revisionNo=" + targetRevisionNo + ")"));
-        slip.restoreFromSnapshot(target.getSnapshot());
+        SlipSnapshot targetSnapshot = repository
+                .findSnapshotRowBySlipIdAndRevisionNo(slip.getId(), targetRevisionNo)
+                .map(target -> parseSnapshotForRestore(
+                        slip.getId(), targetRevisionNo, target.getSnapshotJson()))
+                .orElseGet(() -> repository.findBySlipIdAndRevisionNo(slip.getId(), targetRevisionNo)
+                        .map(SlipRevision::getSnapshot)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                                "복원 대상 revision 없음 (slipId=" + slip.getId()
+                                        + ", revisionNo=" + targetRevisionNo + ")")));
+        slip.restoreFromSnapshot(targetSnapshot);
         return capture(slip, SlipRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
     }
@@ -206,14 +225,53 @@ public class SlipRevisionService {
      */
     @Transactional(readOnly = true)
     public List<SlipRevisionResponse> listWithSummary(UUID slipId) {
-        List<SlipRevision> revisions = new ArrayList<>(list(slipId));
+        List<SlipRevisionSnapshotRow> rows = repository.findSnapshotRowsBySlipIdOrderByRevisionNoDesc(slipId);
+        if (rows == null || rows.isEmpty()) {
+            return listWithSummaryFromEntities(slipId);
+        }
+        List<SlipRevisionSnapshotRow> revisions = new ArrayList<>(rows);
         // 인접 비교를 위해 revisionNo 오름차순으로 정렬 (list 는 내림차순 반환)
+        revisions.sort(Comparator.comparingInt(SlipRevisionSnapshotRow::getRevisionNo));
+
+        List<SlipRevisionResponse> responses = new ArrayList<>(revisions.size());
+        SlipSnapshot prev = null;
+        for (SlipRevisionSnapshotRow revision : revisions) {
+            SlipSnapshot cur = parseSnapshotForSummary(slipId, revision);
+            if (cur == null) {
+                continue;
+            }
+            ChangeSummary summary = summarize(prev, cur);
+            String actorColor = resolveActorColor(revision);
+            String actorName = safeActorName(revision.getActorName());
+            responses.add(new SlipRevisionResponse(
+                    revision.getRevisionNo(),
+                    revision.getRevisionType(),
+                    revision.getSourceRevisionNo(),
+                    revision.getSlipNo(),
+                    revision.getSlipDate(),
+                    actorName,
+                    actorColor,
+                    revision.getCreatedAt(),
+                    summary,
+                    fieldChanges(prev, cur, actorName, actorColor, revision.getCreatedAt())));
+            prev = cur;
+        }
+        // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
+        java.util.Collections.reverse(responses);
+        return responses;
+    }
+
+    private List<SlipRevisionResponse> listWithSummaryFromEntities(UUID slipId) {
+        List<SlipRevision> revisions = new ArrayList<>(list(slipId));
         revisions.sort(Comparator.comparingInt(SlipRevision::getRevisionNo));
 
         List<SlipRevisionResponse> responses = new ArrayList<>(revisions.size());
         SlipSnapshot prev = null;
         for (SlipRevision revision : revisions) {
             SlipSnapshot cur = revision.getSnapshot();
+            if (cur == null) {
+                continue;
+            }
             ChangeSummary summary = summarize(prev, cur);
             String actorColor = resolveActorColor(revision);
             String actorName = safeActorName(revision.getActorName());
@@ -230,9 +288,32 @@ public class SlipRevisionService {
                     fieldChanges(prev, cur, actorName, actorColor, revision.getCreatedAt())));
             prev = cur;
         }
-        // 응답은 최신(revisionNo 내림차순) 우선으로 뒤집는다
         java.util.Collections.reverse(responses);
         return responses;
+    }
+
+    private SlipSnapshot parseSnapshotForSummary(UUID slipId, SlipRevisionSnapshotRow revision) {
+        try {
+            return snapshotObjectMapper.readValue(revision.getSnapshotJson(), SlipSnapshot.class);
+        } catch (JsonProcessingException ex) {
+            log.warn("[SlipRevisionService] 손상된 revision snapshot 요약 제외 — slipId={}, revisionNo={}, cause={}",
+                    slipId, revision.getRevisionNo(), ex.getOriginalMessage());
+            return null;
+        }
+    }
+
+    private SlipSnapshot parseSnapshotForRestore(UUID slipId, int revisionNo, String snapshotJson) {
+        try {
+            SlipSnapshot snapshot = snapshotObjectMapper.readValue(snapshotJson, SlipSnapshot.class);
+            if (snapshot == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "손상된 revision snapshot: slipId=" + slipId + ", revisionNo=" + revisionNo);
+            }
+            return snapshot;
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "손상된 revision snapshot: slipId=" + slipId + ", revisionNo=" + revisionNo);
+        }
     }
 
     /**
@@ -258,6 +339,9 @@ public class SlipRevisionService {
      * @return 변경 규모 요약
      */
     public ChangeSummary summarize(SlipSnapshot prev, SlipSnapshot cur) {
+        if (cur == null) {
+            return null;
+        }
         List<SlipSnapshot.Line> curLines = cur.lines() == null ? List.of() : cur.lines();
         if (prev == null) {
             return new ChangeSummary(0, curLines.size(), 0, 0);
@@ -527,6 +611,16 @@ public class SlipRevisionService {
     }
 
     String resolveActorColor(SlipRevision revision) {
+        if (revision.getActorColor() != null && !revision.getActorColor().isBlank()) {
+            return revision.getActorColor();
+        }
+        if (revision.getActorId() == null) {
+            return null;
+        }
+        return PresenceColor.fromUserId(revision.getActorId().toString()).hex();
+    }
+
+    String resolveActorColor(SlipRevisionSnapshotRow revision) {
         if (revision.getActorColor() != null && !revision.getActorColor().isBlank()) {
             return revision.getActorColor();
         }

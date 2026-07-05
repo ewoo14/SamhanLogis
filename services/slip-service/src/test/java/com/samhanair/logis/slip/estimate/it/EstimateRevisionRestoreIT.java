@@ -181,6 +181,48 @@ class EstimateRevisionRestoreIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[1].revisionNo").value(1));
     }
 
+    @Test
+    @DisplayName("타임라인: 타입불일치 snapshot row 는 fetch 500 없이 제외하고 직전 정상 snapshot 기준을 유지한다")
+    void timeline_withTypeMismatchedSnapshot_skipsCorruptRevision() throws Exception {
+        UUID estimateId = createEstimateAsSales(1);
+        insertCorruptRevision(estimateId, 2, """
+                {
+                  "estimateNo":"BROKEN-2",
+                  "estimateDate":"not-a-date",
+                  "lines":[]
+                }
+                """);
+
+        mockMvc.perform(get("/slips/estimates/{id}/revisions", estimateId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "감사자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].revisionNo").value(1));
+    }
+
+    @Test
+    @DisplayName("복원: 타입불일치 snapshot revision 은 명확한 내부오류로 거부한다")
+    void restore_withTypeMismatchedSnapshot_returnsExplicitError() throws Exception {
+        UUID estimateId = createEstimateAsSales(1);
+        insertCorruptRevision(estimateId, 2, """
+                {
+                  "estimateNo":"BROKEN-2",
+                  "estimateDate":"not-a-date",
+                  "lines":[]
+                }
+                """);
+
+        mockMvc.perform(post("/slips/estimates/{id}/revisions/{rev}/restore", estimateId, 2)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "복원자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("손상된 revision snapshot")));
+    }
+
     // =========================================================================
     // 시나리오 2 — 복원 (라인 집합이 대상 revision 시점으로 회귀 + 신규 RESTORE revision)
     // =========================================================================

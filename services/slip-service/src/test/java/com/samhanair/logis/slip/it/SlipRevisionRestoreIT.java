@@ -35,6 +35,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -79,6 +80,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private SlipRepository slipRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private InventoryClient inventoryClient;
     @MockBean private ProductClient productClient;
@@ -143,6 +145,46 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
         JsonNode data = objectMapper.readTree(body).get("data");
         org.assertj.core.api.Assertions.assertThat(data).hasSizeGreaterThanOrEqualTo(3);
         org.assertj.core.api.Assertions.assertThat(data.get(0).has("actorId")).isFalse();
+    }
+
+    @Test
+    void timeline_withTypeMismatchedSnapshot_skipsCorruptRevision() throws Exception {
+        UUID slipId = createOutboundSlipAsSales(1);
+        insertCorruptRevision(slipId, 2, """
+                {
+                  "slipNo":"BROKEN-2",
+                  "slipDate":"not-a-date",
+                  "lines":[]
+                }
+                """);
+
+        mockMvc.perform(get("/slips/{id}/revisions", slipId)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "감사자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].revisionNo").value(1));
+    }
+
+    @Test
+    void restore_withTypeMismatchedSnapshot_returnsExplicitError() throws Exception {
+        UUID slipId = createOutboundSlipAsSales(1);
+        insertCorruptRevision(slipId, 2, """
+                {
+                  "slipNo":"BROKEN-2",
+                  "slipDate":"not-a-date",
+                  "lines":[]
+                }
+                """);
+
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 2)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "복원자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("손상된 revision snapshot")));
     }
 
     // =========================================================================
@@ -368,6 +410,21 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
 
     private UUID firstLineId(JsonNode detail) {
         return UUID.fromString(detail.get("lines").get(0).get("id").asText());
+    }
+
+    private void insertCorruptRevision(UUID slipId, int revisionNo, String snapshotJson) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        jdbcTemplate.update("""
+                INSERT INTO slip_revisions
+                    (id, slip_id, revision_no, revision_type, source_revision_no,
+                     slip_no, slip_date, snapshot, actor_id, actor_name, actor_color,
+                     created_at, created_by, modified_at, modified_by, deleted_at, deleted_by, is_deleted)
+                VALUES (?, ?, ?, 'EDIT', NULL,
+                        ?, DATE '2026-05-04', ?::jsonb, NULL, ?, NULL,
+                        ?, 'test', NULL, NULL, NULL, NULL, FALSE)
+                """,
+                UUID.randomUUID(), slipId, revisionNo, "CORRUPT-" + revisionNo,
+                snapshotJson, "손상데이터", now);
     }
 
     /** 도메인 {@link Slip#lock()} 적용 후 저장 (회계 마감 lock 모사). */

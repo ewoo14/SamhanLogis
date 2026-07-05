@@ -3,7 +3,6 @@ package com.samhanair.logis.slip.estimate.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.estimate.domain.EstimateStatus;
 import com.samhanair.logis.slip.estimate.service.EstimateService;
@@ -57,8 +56,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>GET 조회 → {@code @PreAuthorize("isAuthenticated()")}
  *       + {@link EstimatePermissionGuard#checkView(UUID, String)}</li>
- *   <li>POST/PUT write → {@code @RequirePermission}
- *       + {@link EstimatePermissionGuard#checkEdit(UUID, String, PermissionAction)}</li>
+ *   <li>POST/PUT write → {@code @RequirePermission} 단일 가드</li>
  * </ul>
  */
 @RestController
@@ -119,9 +117,7 @@ public class EstimateController {
     public ApiResponse<EstimateDetailResponse> create(
             @Valid @RequestBody CreateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.CREATE);
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         return ApiResponse.ok(estimateService.create(request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -133,9 +129,7 @@ public class EstimateController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEstimateRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         return ApiResponse.ok(estimateService.update(id, request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -145,9 +139,7 @@ public class EstimateController {
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> send(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(estimateService.send(id, callerOrSystem(callerHeader)));
     }
 
@@ -157,9 +149,7 @@ public class EstimateController {
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> accept(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(estimateService.accept(id, callerOrSystem(callerHeader)));
     }
 
@@ -169,9 +159,7 @@ public class EstimateController {
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> reject(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(estimateService.reject(id, callerOrSystem(callerHeader)));
     }
 
@@ -186,9 +174,7 @@ public class EstimateController {
     @RequirePermission(page = "estimates.list", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<EstimateDetailResponse> convert(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = SYSTEM_MASTER_HEADER, required = false) String isSystemMaster) {
-        estimatePermissionGuard.checkEdit(parseAccountId(callerHeader), isSystemMaster, PermissionAction.UPDATE);
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(estimateService.convert(id, callerOrSystem(callerHeader)));
     }
 
