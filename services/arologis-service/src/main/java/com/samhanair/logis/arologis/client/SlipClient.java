@@ -55,7 +55,7 @@ public class SlipClient {
 
     public SlipClient(RestClient.Builder builder,
                       ObjectMapper objectMapper,
-                      @Value("${samhan.slip-service.url:http://localhost:8084}") String baseUrl,
+                      @Value("${samhan.slip-service.url:http://localhost:8086}") String baseUrl,
                       @Value("${app.security.internal.token:}") String internalToken,
                       @Value("${samhan.arologis.client.skeleton-mode:true}") boolean skeletonMode) {
         // DV-1 채택 — SlipClient.Builder 가 이미 timeout 설정된 RequestFactory 를 보유하면 보존,

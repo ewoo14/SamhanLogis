@@ -298,6 +298,21 @@ jobs:
       # (SP-08-7 notion-zero-guard 패턴 일관). spec testDir 외부 testMatch 이슈 (No tests found)
       # 해결은 별도 PR (qa/playwright testDir 확장 또는 spec 이전).
 
+  config-audit-guard:
+    name: Config Audit Guard (다운스트림 URL/포트 정합, #745)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      # SAMHAN_*_SERVICE_URL / samhan.*-service.url 기본 포트가 각 compose 파일의 실 서비스
+      # 포트와 정합하는지 정적 검사 (arologis SlipClient 8084 오배정류 #745 재발 회귀 게이트).
+      # ubuntu-latest 내장 pwsh (PowerShell 7) 사용 — 별도 설치 불필요.
+      - name: 다운스트림 URL/포트 정합 검사 (validate-config-audit.ps1)
+        shell: pwsh
+        run: ./infrastructure/scripts/validate-config-audit.ps1 -Detailed
+
   frontend-ds:
     name: Frontend DS (typecheck + lint + build + storybook)
     runs-on: ubuntu-latest

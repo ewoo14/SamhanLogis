@@ -57,7 +57,7 @@ public class SlipDispatchTaskClient {
     private final boolean skeletonMode;
 
     public SlipDispatchTaskClient(RestClient.Builder builder,
-                                  @Value("${samhan.slip-service.url:http://slip-service}") String baseUrl,
+                                  @Value("${samhan.slip-service.url:http://slip-service:8086}") String baseUrl,
                                   @Value("${app.security.internal.token:}") String internalToken,
                                   @Value("${samhan.arologis.client.skeleton-mode:true}") boolean skeletonMode) {
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();

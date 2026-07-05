@@ -50,9 +50,20 @@ services:
       # 서비스 간 호출 토큰 (legacy share 시)
       SAMHAN_INTERNAL_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
 
-      # 아로로지스 → Samhan Public slip-service 배차 회신 URL
-      # (Phase A — samhan-dispatch-board, Mock matcher 매칭 완료/실패 시점 회신)
-      SAMHAN_SLIP_DISPATCH_TASK_URL: ${SAMHAN_SLIP_DISPATCH_TASK_URL:-http://slip-service:8086}
+      # config-audit #745 재수렴 — 다운스트림 서비스 호출 URL (@Primary 비-LoadBalanced 리터럴
+      # RestClient 4종: PartnerClient/NotificationClient/AuthPermissionAdminClientImpl/
+      # SlipClient·SlipServiceClient·SlipDispatchTaskClient). 본 env 미선언 시 컨테이너 안에서
+      # application.yml 자체 기본값(http://localhost:PORT)으로 폴백 → 별도 컨테이너인 실서비스에
+      # 연결 불가. 같은 samhan-net 위 Samhan Public 14 service 실 컨테이너명:포트로 명시.
+      SAMHAN_PARTNER_SERVICE_URL: ${SAMHAN_PARTNER_SERVICE_URL:-http://partner-service:8095}
+      SAMHAN_SLIP_SERVICE_URL: ${SAMHAN_SLIP_SERVICE_URL:-http://slip-service:8086}
+      SAMHAN_NOTIFICATION_SERVICE_URL: ${SAMHAN_NOTIFICATION_SERVICE_URL:-http://notification-service:8093}
+      SAMHAN_AUTH_SERVICE_URL: ${SAMHAN_AUTH_SERVICE_URL:-http://auth-service:8081}
+
+      # (제거됨) SAMHAN_SLIP_DISPATCH_TASK_URL — arologis-service 코드 어디에도 바인딩되지 않는 죽은
+      # 변수였다(grep 0건). SlipDispatchTaskClient 의 배차 confirm/unavailable/수정/취소 회신 6종은
+      # 위 SAMHAN_SLIP_SERVICE_URL(samhan.slip-service.url) 을 SlipClient/SlipServiceClient 와
+      # 동일하게 그대로 소비한다 — 별도 URL 로 오인되지 않도록 중복 선언을 정리한다.
 
       # Mock matcher 실패 확률 (Phase A only)
       # 0.0=항상 성공 (DISPATCHED) / 1.0=항상 실패 (FAILED → slip UNDISPATCHED 복귀)
