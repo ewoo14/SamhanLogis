@@ -1,0 +1,2632 @@
+{
+  "found": true,
+  "rowInfos": [
+    {
+      "text": "페이지 (192)보기생성수정삭제복원엑셀인쇄행전체",
+      "testIds": [
+        "perm-matrix-col-all-view",
+        "perm-matrix-col-all-create",
+        "perm-matrix-col-all-update",
+        "perm-matrix-col-all-delete",
+        "perm-matrix-col-all-restore",
+        "perm-matrix-col-all-download",
+        "perm-matrix-col-all-print"
+      ]
+    },
+    {
+      "text": "회계 (60)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-accounting",
+        "perm-matrix-domain-all-accounting-off"
+      ]
+    },
+    {
+      "text": "NTS 발행accounting.tax-invoice.emit-nts전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-emit-nts-view",
+        "perm-matrix-cell-accounting-tax-invoice-emit-nts-create",
+        "perm-matrix-cell-accounting-tax-invoice-emit-nts-update",
+        "perm-matrix-cell-accounting-tax-invoice-emit-nts-delete",
+        "perm-matrix-cell-accounting-tax-invoice-emit-nts-restore",
+        "perm-matrix-cell-accounting-tax-invoice-emit-nts-download",
+        "perm-matrix-cell-accounting-tax-invoice-emit-nts-print",
+        "perm-matrix-row-all-accounting-tax-invoice-emit-nts"
+      ]
+    },
+    {
+      "text": "세금계산서 목록accounting.tax-invoice.list전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-list-view",
+        "perm-matrix-cell-accounting-tax-invoice-list-create",
+        "perm-matrix-cell-accounting-tax-invoice-list-update",
+        "perm-matrix-cell-accounting-tax-invoice-list-delete",
+        "perm-matrix-cell-accounting-tax-invoice-list-restore",
+        "perm-matrix-cell-accounting-tax-invoice-list-download",
+        "perm-matrix-cell-accounting-tax-invoice-list-print",
+        "perm-matrix-row-all-accounting-tax-invoice-list"
+      ]
+    },
+    {
+      "text": "세금계산서 발행 묶음accounting.tax-invoice.batch-issue전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-batch-issue-view",
+        "perm-matrix-cell-accounting-tax-invoice-batch-issue-create",
+        "perm-matrix-cell-accounting-tax-invoice-batch-issue-update",
+        "perm-matrix-cell-accounting-tax-invoice-batch-issue-delete",
+        "perm-matrix-cell-accounting-tax-invoice-batch-issue-restore",
+        "perm-matrix-cell-accounting-tax-invoice-batch-issue-download",
+        "perm-matrix-cell-accounting-tax-invoice-batch-issue-print",
+        "perm-matrix-row-all-accounting-tax-invoice-batch-issue"
+      ]
+    },
+    {
+      "text": "수신 세금계산서accounting.tax-invoice.inbound전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-inbound-view",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-create",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-update",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-delete",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-restore",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-download",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-print",
+        "perm-matrix-row-all-accounting-tax-invoice-inbound"
+      ]
+    },
+    {
+      "text": "세금계산서 취소accounting.tax-invoice.cancel전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-cancel-view",
+        "perm-matrix-cell-accounting-tax-invoice-cancel-create",
+        "perm-matrix-cell-accounting-tax-invoice-cancel-update",
+        "perm-matrix-cell-accounting-tax-invoice-cancel-delete",
+        "perm-matrix-cell-accounting-tax-invoice-cancel-restore",
+        "perm-matrix-cell-accounting-tax-invoice-cancel-download",
+        "perm-matrix-cell-accounting-tax-invoice-cancel-print",
+        "perm-matrix-row-all-accounting-tax-invoice-cancel"
+      ]
+    },
+    {
+      "text": "세금계산서 발행 요청accounting.tax-invoice.issue-request전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-issue-request-view",
+        "perm-matrix-cell-accounting-tax-invoice-issue-request-create",
+        "perm-matrix-cell-accounting-tax-invoice-issue-request-update",
+        "perm-matrix-cell-accounting-tax-invoice-issue-request-delete",
+        "perm-matrix-cell-accounting-tax-invoice-issue-request-restore",
+        "perm-matrix-cell-accounting-tax-invoice-issue-request-download",
+        "perm-matrix-cell-accounting-tax-invoice-issue-request-print",
+        "perm-matrix-row-all-accounting-tax-invoice-issue-request"
+      ]
+    },
+    {
+      "text": "세금계산서 실시간accounting.tax-invoice.realtime전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-realtime-view",
+        "perm-matrix-cell-accounting-tax-invoice-realtime-create",
+        "perm-matrix-cell-accounting-tax-invoice-realtime-update",
+        "perm-matrix-cell-accounting-tax-invoice-realtime-delete",
+        "perm-matrix-cell-accounting-tax-invoice-realtime-restore",
+        "perm-matrix-cell-accounting-tax-invoice-realtime-download",
+        "perm-matrix-cell-accounting-tax-invoice-realtime-print",
+        "perm-matrix-row-all-accounting-tax-invoice-realtime"
+      ]
+    },
+    {
+      "text": "수신 세금계산서 관리accounting.tax-invoice.inbound.manage전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-tax-invoice-inbound-manage-view",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-manage-create",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-manage-update",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-manage-delete",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-manage-restore",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-manage-download",
+        "perm-matrix-cell-accounting-tax-invoice-inbound-manage-print",
+        "perm-matrix-row-all-accounting-tax-invoice-inbound-manage"
+      ]
+    },
+    {
+      "text": "매출전표accounting.sales-slip.list전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-sales-slip-list-view",
+        "perm-matrix-cell-accounting-sales-slip-list-create",
+        "perm-matrix-cell-accounting-sales-slip-list-update",
+        "perm-matrix-cell-accounting-sales-slip-list-delete",
+        "perm-matrix-cell-accounting-sales-slip-list-restore",
+        "perm-matrix-cell-accounting-sales-slip-list-download",
+        "perm-matrix-cell-accounting-sales-slip-list-print",
+        "perm-matrix-row-all-accounting-sales-slip-list"
+      ]
+    },
+    {
+      "text": "매출전표 회계분개accounting.sales-slip.accounting전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-sales-slip-accounting-view",
+        "perm-matrix-cell-accounting-sales-slip-accounting-create",
+        "perm-matrix-cell-accounting-sales-slip-accounting-update",
+        "perm-matrix-cell-accounting-sales-slip-accounting-delete",
+        "perm-matrix-cell-accounting-sales-slip-accounting-restore",
+        "perm-matrix-cell-accounting-sales-slip-accounting-download",
+        "perm-matrix-cell-accounting-sales-slip-accounting-print",
+        "perm-matrix-row-all-accounting-sales-slip-accounting"
+      ]
+    },
+    {
+      "text": "매입전표accounting.purchase-slip.list전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-purchase-slip-list-view",
+        "perm-matrix-cell-accounting-purchase-slip-list-create",
+        "perm-matrix-cell-accounting-purchase-slip-list-update",
+        "perm-matrix-cell-accounting-purchase-slip-list-delete",
+        "perm-matrix-cell-accounting-purchase-slip-list-restore",
+        "perm-matrix-cell-accounting-purchase-slip-list-download",
+        "perm-matrix-cell-accounting-purchase-slip-list-print",
+        "perm-matrix-row-all-accounting-purchase-slip-list"
+      ]
+    },
+    {
+      "text": "매입전표 회계분개accounting.purchase-slip.accounting전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-purchase-slip-accounting-view",
+        "perm-matrix-cell-accounting-purchase-slip-accounting-create",
+        "perm-matrix-cell-accounting-purchase-slip-accounting-update",
+        "perm-matrix-cell-accounting-purchase-slip-accounting-delete",
+        "perm-matrix-cell-accounting-purchase-slip-accounting-restore",
+        "perm-matrix-cell-accounting-purchase-slip-accounting-download",
+        "perm-matrix-cell-accounting-purchase-slip-accounting-print",
+        "perm-matrix-row-all-accounting-purchase-slip-accounting"
+      ]
+    },
+    {
+      "text": "일마감accounting.daily-closing전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-daily-closing-view",
+        "perm-matrix-cell-accounting-daily-closing-create",
+        "perm-matrix-cell-accounting-daily-closing-update",
+        "perm-matrix-cell-accounting-daily-closing-delete",
+        "perm-matrix-cell-accounting-daily-closing-restore",
+        "perm-matrix-cell-accounting-daily-closing-download",
+        "perm-matrix-cell-accounting-daily-closing-print",
+        "perm-matrix-row-all-accounting-daily-closing"
+      ]
+    },
+    {
+      "text": "일마감 실행accounting.daily-closing.run전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-daily-closing-run-view",
+        "perm-matrix-cell-accounting-daily-closing-run-create",
+        "perm-matrix-cell-accounting-daily-closing-run-update",
+        "perm-matrix-cell-accounting-daily-closing-run-delete",
+        "perm-matrix-cell-accounting-daily-closing-run-restore",
+        "perm-matrix-cell-accounting-daily-closing-run-download",
+        "perm-matrix-cell-accounting-daily-closing-run-print",
+        "perm-matrix-row-all-accounting-daily-closing-run"
+      ]
+    },
+    {
+      "text": "일마감 해제accounting.daily-closing.unlock전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-daily-closing-unlock-view",
+        "perm-matrix-cell-accounting-daily-closing-unlock-create",
+        "perm-matrix-cell-accounting-daily-closing-unlock-update",
+        "perm-matrix-cell-accounting-daily-closing-unlock-delete",
+        "perm-matrix-cell-accounting-daily-closing-unlock-restore",
+        "perm-matrix-cell-accounting-daily-closing-unlock-download",
+        "perm-matrix-cell-accounting-daily-closing-unlock-print",
+        "perm-matrix-row-all-accounting-daily-closing-unlock"
+      ]
+    },
+    {
+      "text": "원장accounting.general-ledger전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-general-ledger-view",
+        "perm-matrix-cell-accounting-general-ledger-create",
+        "perm-matrix-cell-accounting-general-ledger-update",
+        "perm-matrix-cell-accounting-general-ledger-delete",
+        "perm-matrix-cell-accounting-general-ledger-restore",
+        "perm-matrix-cell-accounting-general-ledger-download",
+        "perm-matrix-cell-accounting-general-ledger-print",
+        "perm-matrix-row-all-accounting-general-ledger"
+      ]
+    },
+    {
+      "text": "홈택스 exportaccounting.hometax-export전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-hometax-export-view",
+        "perm-matrix-cell-accounting-hometax-export-create",
+        "perm-matrix-cell-accounting-hometax-export-update",
+        "perm-matrix-cell-accounting-hometax-export-delete",
+        "perm-matrix-cell-accounting-hometax-export-restore",
+        "perm-matrix-cell-accounting-hometax-export-download",
+        "perm-matrix-cell-accounting-hometax-export-print",
+        "perm-matrix-row-all-accounting-hometax-export"
+      ]
+    },
+    {
+      "text": "계정과목accounting.accounts전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-accounts-view",
+        "perm-matrix-cell-accounting-accounts-create",
+        "perm-matrix-cell-accounting-accounts-update",
+        "perm-matrix-cell-accounting-accounts-delete",
+        "perm-matrix-cell-accounting-accounts-restore",
+        "perm-matrix-cell-accounting-accounts-download",
+        "perm-matrix-cell-accounting-accounts-print",
+        "perm-matrix-row-all-accounting-accounts"
+      ]
+    },
+    {
+      "text": "분개장accounting.journals전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-journals-view",
+        "perm-matrix-cell-accounting-journals-create",
+        "perm-matrix-cell-accounting-journals-update",
+        "perm-matrix-cell-accounting-journals-delete",
+        "perm-matrix-cell-accounting-journals-restore",
+        "perm-matrix-cell-accounting-journals-download",
+        "perm-matrix-cell-accounting-journals-print",
+        "perm-matrix-row-all-accounting-journals"
+      ]
+    },
+    {
+      "text": "분개 실시간accounting.journals.realtime전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-journals-realtime-view",
+        "perm-matrix-cell-accounting-journals-realtime-create",
+        "perm-matrix-cell-accounting-journals-realtime-update",
+        "perm-matrix-cell-accounting-journals-realtime-delete",
+        "perm-matrix-cell-accounting-journals-realtime-restore",
+        "perm-matrix-cell-accounting-journals-realtime-download",
+        "perm-matrix-cell-accounting-journals-realtime-print",
+        "perm-matrix-row-all-accounting-journals-realtime"
+      ]
+    },
+    {
+      "text": "시산표accounting.balances전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-balances-view",
+        "perm-matrix-cell-accounting-balances-create",
+        "perm-matrix-cell-accounting-balances-update",
+        "perm-matrix-cell-accounting-balances-delete",
+        "perm-matrix-cell-accounting-balances-restore",
+        "perm-matrix-cell-accounting-balances-download",
+        "perm-matrix-cell-accounting-balances-print",
+        "perm-matrix-row-all-accounting-balances"
+      ]
+    },
+    {
+      "text": "시산표 조회accounting.balances.trial-balance전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-balances-trial-balance-view",
+        "perm-matrix-cell-accounting-balances-trial-balance-create",
+        "perm-matrix-cell-accounting-balances-trial-balance-update",
+        "perm-matrix-cell-accounting-balances-trial-balance-delete",
+        "perm-matrix-cell-accounting-balances-trial-balance-restore",
+        "perm-matrix-cell-accounting-balances-trial-balance-download",
+        "perm-matrix-cell-accounting-balances-trial-balance-print",
+        "perm-matrix-row-all-accounting-balances-trial-balance"
+      ]
+    },
+    {
+      "text": "재무 보고서accounting.reports전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-reports-view",
+        "perm-matrix-cell-accounting-reports-create",
+        "perm-matrix-cell-accounting-reports-update",
+        "perm-matrix-cell-accounting-reports-delete",
+        "perm-matrix-cell-accounting-reports-restore",
+        "perm-matrix-cell-accounting-reports-download",
+        "perm-matrix-cell-accounting-reports-print",
+        "perm-matrix-row-all-accounting-reports"
+      ]
+    },
+    {
+      "text": "받을어음/수금계획accounting.receivables전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-receivables-view",
+        "perm-matrix-cell-accounting-receivables-create",
+        "perm-matrix-cell-accounting-receivables-update",
+        "perm-matrix-cell-accounting-receivables-delete",
+        "perm-matrix-cell-accounting-receivables-restore",
+        "perm-matrix-cell-accounting-receivables-download",
+        "perm-matrix-cell-accounting-receivables-print",
+        "perm-matrix-row-all-accounting-receivables"
+      ]
+    },
+    {
+      "text": "계좌/카드 관리accounting.bank-card-admin전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-bank-card-admin-view",
+        "perm-matrix-cell-accounting-bank-card-admin-create",
+        "perm-matrix-cell-accounting-bank-card-admin-update",
+        "perm-matrix-cell-accounting-bank-card-admin-delete",
+        "perm-matrix-cell-accounting-bank-card-admin-restore",
+        "perm-matrix-cell-accounting-bank-card-admin-download",
+        "perm-matrix-cell-accounting-bank-card-admin-print",
+        "perm-matrix-row-all-accounting-bank-card-admin"
+      ]
+    },
+    {
+      "text": "입출금 내역accounting.bank-matching전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-bank-matching-view",
+        "perm-matrix-cell-accounting-bank-matching-create",
+        "perm-matrix-cell-accounting-bank-matching-update",
+        "perm-matrix-cell-accounting-bank-matching-delete",
+        "perm-matrix-cell-accounting-bank-matching-restore",
+        "perm-matrix-cell-accounting-bank-matching-download",
+        "perm-matrix-cell-accounting-bank-matching-print",
+        "perm-matrix-row-all-accounting-bank-matching"
+      ]
+    },
+    {
+      "text": "월말 마감accounting.period-close전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-period-close-view",
+        "perm-matrix-cell-accounting-period-close-create",
+        "perm-matrix-cell-accounting-period-close-update",
+        "perm-matrix-cell-accounting-period-close-delete",
+        "perm-matrix-cell-accounting-period-close-restore",
+        "perm-matrix-cell-accounting-period-close-download",
+        "perm-matrix-cell-accounting-period-close-print",
+        "perm-matrix-row-all-accounting-period-close"
+      ]
+    },
+    {
+      "text": "월말 마감 취소accounting.period-close.reverse전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-period-close-reverse-view",
+        "perm-matrix-cell-accounting-period-close-reverse-create",
+        "perm-matrix-cell-accounting-period-close-reverse-update",
+        "perm-matrix-cell-accounting-period-close-reverse-delete",
+        "perm-matrix-cell-accounting-period-close-reverse-restore",
+        "perm-matrix-cell-accounting-period-close-reverse-download",
+        "perm-matrix-cell-accounting-period-close-reverse-print",
+        "perm-matrix-row-all-accounting-period-close-reverse"
+      ]
+    },
+    {
+      "text": "거래명세서 일괄accounting.statement-batch전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-statement-batch-view",
+        "perm-matrix-cell-accounting-statement-batch-create",
+        "perm-matrix-cell-accounting-statement-batch-update",
+        "perm-matrix-cell-accounting-statement-batch-delete",
+        "perm-matrix-cell-accounting-statement-batch-restore",
+        "perm-matrix-cell-accounting-statement-batch-download",
+        "perm-matrix-cell-accounting-statement-batch-print",
+        "perm-matrix-row-all-accounting-statement-batch"
+      ]
+    },
+    {
+      "text": "거래처 원장accounting.partner-ledger전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-partner-ledger-view",
+        "perm-matrix-cell-accounting-partner-ledger-create",
+        "perm-matrix-cell-accounting-partner-ledger-update",
+        "perm-matrix-cell-accounting-partner-ledger-delete",
+        "perm-matrix-cell-accounting-partner-ledger-restore",
+        "perm-matrix-cell-accounting-partner-ledger-download",
+        "perm-matrix-cell-accounting-partner-ledger-print",
+        "perm-matrix-row-all-accounting-partner-ledger"
+      ]
+    },
+    {
+      "text": "공급자 설정accounting.supplier-profiles전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-supplier-profiles-view",
+        "perm-matrix-cell-accounting-supplier-profiles-create",
+        "perm-matrix-cell-accounting-supplier-profiles-update",
+        "perm-matrix-cell-accounting-supplier-profiles-delete",
+        "perm-matrix-cell-accounting-supplier-profiles-restore",
+        "perm-matrix-cell-accounting-supplier-profiles-download",
+        "perm-matrix-cell-accounting-supplier-profiles-print",
+        "perm-matrix-row-all-accounting-supplier-profiles"
+      ]
+    },
+    {
+      "text": "입금보고서accounting.cash-receipts전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-cash-receipts-view",
+        "perm-matrix-cell-accounting-cash-receipts-create",
+        "perm-matrix-cell-accounting-cash-receipts-update",
+        "perm-matrix-cell-accounting-cash-receipts-delete",
+        "perm-matrix-cell-accounting-cash-receipts-restore",
+        "perm-matrix-cell-accounting-cash-receipts-download",
+        "perm-matrix-cell-accounting-cash-receipts-print",
+        "perm-matrix-row-all-accounting-cash-receipts"
+      ]
+    },
+    {
+      "text": "MIG-2 계정ecount.mig2.account전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig2-account-view",
+        "perm-matrix-cell-ecount-mig2-account-create",
+        "perm-matrix-cell-ecount-mig2-account-update",
+        "perm-matrix-cell-ecount-mig2-account-delete",
+        "perm-matrix-cell-ecount-mig2-account-restore",
+        "perm-matrix-cell-ecount-mig2-account-download",
+        "perm-matrix-cell-ecount-mig2-account-print",
+        "perm-matrix-row-all-ecount-mig2-account"
+      ]
+    },
+    {
+      "text": "MIG-2 카드ecount.mig2.card전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig2-card-view",
+        "perm-matrix-cell-ecount-mig2-card-create",
+        "perm-matrix-cell-ecount-mig2-card-update",
+        "perm-matrix-cell-ecount-mig2-card-delete",
+        "perm-matrix-cell-ecount-mig2-card-restore",
+        "perm-matrix-cell-ecount-mig2-card-download",
+        "perm-matrix-cell-ecount-mig2-card-print",
+        "perm-matrix-row-all-ecount-mig2-card"
+      ]
+    },
+    {
+      "text": "MIG-3 매입전표ecount.mig3.purchase-slip전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig3-purchase-slip-view",
+        "perm-matrix-cell-ecount-mig3-purchase-slip-create",
+        "perm-matrix-cell-ecount-mig3-purchase-slip-update",
+        "perm-matrix-cell-ecount-mig3-purchase-slip-delete",
+        "perm-matrix-cell-ecount-mig3-purchase-slip-restore",
+        "perm-matrix-cell-ecount-mig3-purchase-slip-download",
+        "perm-matrix-cell-ecount-mig3-purchase-slip-print",
+        "perm-matrix-row-all-ecount-mig3-purchase-slip"
+      ]
+    },
+    {
+      "text": "MIG-3 매출전표ecount.mig3.sales-slip전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig3-sales-slip-view",
+        "perm-matrix-cell-ecount-mig3-sales-slip-create",
+        "perm-matrix-cell-ecount-mig3-sales-slip-update",
+        "perm-matrix-cell-ecount-mig3-sales-slip-delete",
+        "perm-matrix-cell-ecount-mig3-sales-slip-restore",
+        "perm-matrix-cell-ecount-mig3-sales-slip-download",
+        "perm-matrix-cell-ecount-mig3-sales-slip-print",
+        "perm-matrix-row-all-ecount-mig3-sales-slip"
+      ]
+    },
+    {
+      "text": "MIG-3 일반전표ecount.mig3.general-voucher전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig3-general-voucher-view",
+        "perm-matrix-cell-ecount-mig3-general-voucher-create",
+        "perm-matrix-cell-ecount-mig3-general-voucher-update",
+        "perm-matrix-cell-ecount-mig3-general-voucher-delete",
+        "perm-matrix-cell-ecount-mig3-general-voucher-restore",
+        "perm-matrix-cell-ecount-mig3-general-voucher-download",
+        "perm-matrix-cell-ecount-mig3-general-voucher-print",
+        "perm-matrix-row-all-ecount-mig3-general-voucher"
+      ]
+    },
+    {
+      "text": "MIG-3 분개ecount.mig3.journal-entry전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig3-journal-entry-view",
+        "perm-matrix-cell-ecount-mig3-journal-entry-create",
+        "perm-matrix-cell-ecount-mig3-journal-entry-update",
+        "perm-matrix-cell-ecount-mig3-journal-entry-delete",
+        "perm-matrix-cell-ecount-mig3-journal-entry-restore",
+        "perm-matrix-cell-ecount-mig3-journal-entry-download",
+        "perm-matrix-cell-ecount-mig3-journal-entry-print",
+        "perm-matrix-row-all-ecount-mig3-journal-entry"
+      ]
+    },
+    {
+      "text": "MIG-4 세금계산서ecount.mig4.tax-invoice전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig4-tax-invoice-view",
+        "perm-matrix-cell-ecount-mig4-tax-invoice-create",
+        "perm-matrix-cell-ecount-mig4-tax-invoice-update",
+        "perm-matrix-cell-ecount-mig4-tax-invoice-delete",
+        "perm-matrix-cell-ecount-mig4-tax-invoice-restore",
+        "perm-matrix-cell-ecount-mig4-tax-invoice-download",
+        "perm-matrix-cell-ecount-mig4-tax-invoice-print",
+        "perm-matrix-row-all-ecount-mig4-tax-invoice"
+      ]
+    },
+    {
+      "text": "MIG-4 판매전표 라인ecount.mig4.sales-slip-line전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig4-sales-slip-line-view",
+        "perm-matrix-cell-ecount-mig4-sales-slip-line-create",
+        "perm-matrix-cell-ecount-mig4-sales-slip-line-update",
+        "perm-matrix-cell-ecount-mig4-sales-slip-line-delete",
+        "perm-matrix-cell-ecount-mig4-sales-slip-line-restore",
+        "perm-matrix-cell-ecount-mig4-sales-slip-line-download",
+        "perm-matrix-cell-ecount-mig4-sales-slip-line-print",
+        "perm-matrix-row-all-ecount-mig4-sales-slip-line"
+      ]
+    },
+    {
+      "text": "MIG-4 매출매입내역ecount.mig4.summary전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig4-summary-view",
+        "perm-matrix-cell-ecount-mig4-summary-create",
+        "perm-matrix-cell-ecount-mig4-summary-update",
+        "perm-matrix-cell-ecount-mig4-summary-delete",
+        "perm-matrix-cell-ecount-mig4-summary-restore",
+        "perm-matrix-cell-ecount-mig4-summary-download",
+        "perm-matrix-cell-ecount-mig4-summary-print",
+        "perm-matrix-row-all-ecount-mig4-summary"
+      ]
+    },
+    {
+      "text": "MIG-4 주문서ecount.mig4.order전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig4-order-view",
+        "perm-matrix-cell-ecount-mig4-order-create",
+        "perm-matrix-cell-ecount-mig4-order-update",
+        "perm-matrix-cell-ecount-mig4-order-delete",
+        "perm-matrix-cell-ecount-mig4-order-restore",
+        "perm-matrix-cell-ecount-mig4-order-download",
+        "perm-matrix-cell-ecount-mig4-order-print",
+        "perm-matrix-row-all-ecount-mig4-order"
+      ]
+    },
+    {
+      "text": "MIG-5 지출결의서ecount.mig5.expense-voucher전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig5-expense-voucher-view",
+        "perm-matrix-cell-ecount-mig5-expense-voucher-create",
+        "perm-matrix-cell-ecount-mig5-expense-voucher-update",
+        "perm-matrix-cell-ecount-mig5-expense-voucher-delete",
+        "perm-matrix-cell-ecount-mig5-expense-voucher-restore",
+        "perm-matrix-cell-ecount-mig5-expense-voucher-download",
+        "perm-matrix-cell-ecount-mig5-expense-voucher-print",
+        "perm-matrix-row-all-ecount-mig5-expense-voucher"
+      ]
+    },
+    {
+      "text": "MIG-5 입금보고서ecount.mig5.deposit-report전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig5-deposit-report-view",
+        "perm-matrix-cell-ecount-mig5-deposit-report-create",
+        "perm-matrix-cell-ecount-mig5-deposit-report-update",
+        "perm-matrix-cell-ecount-mig5-deposit-report-delete",
+        "perm-matrix-cell-ecount-mig5-deposit-report-restore",
+        "perm-matrix-cell-ecount-mig5-deposit-report-download",
+        "perm-matrix-cell-ecount-mig5-deposit-report-print",
+        "perm-matrix-row-all-ecount-mig5-deposit-report"
+      ]
+    },
+    {
+      "text": "MIG-6 통장계좌ecount.mig6.bank-account전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig6-bank-account-view",
+        "perm-matrix-cell-ecount-mig6-bank-account-create",
+        "perm-matrix-cell-ecount-mig6-bank-account-update",
+        "perm-matrix-cell-ecount-mig6-bank-account-delete",
+        "perm-matrix-cell-ecount-mig6-bank-account-restore",
+        "perm-matrix-cell-ecount-mig6-bank-account-download",
+        "perm-matrix-cell-ecount-mig6-bank-account-print",
+        "perm-matrix-row-all-ecount-mig6-bank-account"
+      ]
+    },
+    {
+      "text": "MIG-6 고정자산유형ecount.mig6.fixed-asset-type전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig6-fixed-asset-type-view",
+        "perm-matrix-cell-ecount-mig6-fixed-asset-type-create",
+        "perm-matrix-cell-ecount-mig6-fixed-asset-type-update",
+        "perm-matrix-cell-ecount-mig6-fixed-asset-type-delete",
+        "perm-matrix-cell-ecount-mig6-fixed-asset-type-restore",
+        "perm-matrix-cell-ecount-mig6-fixed-asset-type-download",
+        "perm-matrix-cell-ecount-mig6-fixed-asset-type-print",
+        "perm-matrix-row-all-ecount-mig6-fixed-asset-type"
+      ]
+    },
+    {
+      "text": "MIG-7 지출결의서ecount.mig7.cash-disbursement전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig7-cash-disbursement-view",
+        "perm-matrix-cell-ecount-mig7-cash-disbursement-create",
+        "perm-matrix-cell-ecount-mig7-cash-disbursement-update",
+        "perm-matrix-cell-ecount-mig7-cash-disbursement-delete",
+        "perm-matrix-cell-ecount-mig7-cash-disbursement-restore",
+        "perm-matrix-cell-ecount-mig7-cash-disbursement-download",
+        "perm-matrix-cell-ecount-mig7-cash-disbursement-print",
+        "perm-matrix-row-all-ecount-mig7-cash-disbursement"
+      ]
+    },
+    {
+      "text": "MIG-7 입금보고서ecount.mig7.cash-receipt전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig7-cash-receipt-view",
+        "perm-matrix-cell-ecount-mig7-cash-receipt-create",
+        "perm-matrix-cell-ecount-mig7-cash-receipt-update",
+        "perm-matrix-cell-ecount-mig7-cash-receipt-delete",
+        "perm-matrix-cell-ecount-mig7-cash-receipt-restore",
+        "perm-matrix-cell-ecount-mig7-cash-receipt-download",
+        "perm-matrix-cell-ecount-mig7-cash-receipt-print",
+        "perm-matrix-row-all-ecount-mig7-cash-receipt"
+      ]
+    },
+    {
+      "text": "MIG-8 주문ecount.mig8.order전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig8-order-view",
+        "perm-matrix-cell-ecount-mig8-order-create",
+        "perm-matrix-cell-ecount-mig8-order-update",
+        "perm-matrix-cell-ecount-mig8-order-delete",
+        "perm-matrix-cell-ecount-mig8-order-restore",
+        "perm-matrix-cell-ecount-mig8-order-download",
+        "perm-matrix-cell-ecount-mig8-order-print",
+        "perm-matrix-row-all-ecount-mig8-order"
+      ]
+    },
+    {
+      "text": "MIG-9 지출 분개ecount.mig9.cash-journal.disbursement전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig9-cash-journal-disbursement-view",
+        "perm-matrix-cell-ecount-mig9-cash-journal-disbursement-create",
+        "perm-matrix-cell-ecount-mig9-cash-journal-disbursement-update",
+        "perm-matrix-cell-ecount-mig9-cash-journal-disbursement-delete",
+        "perm-matrix-cell-ecount-mig9-cash-journal-disbursement-restore",
+        "perm-matrix-cell-ecount-mig9-cash-journal-disbursement-download",
+        "perm-matrix-cell-ecount-mig9-cash-journal-disbursement-print",
+        "perm-matrix-row-all-ecount-mig9-cash-journal-disbursement"
+      ]
+    },
+    {
+      "text": "MIG-9 입금 분개ecount.mig9.cash-journal.receipt전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig9-cash-journal-receipt-view",
+        "perm-matrix-cell-ecount-mig9-cash-journal-receipt-create",
+        "perm-matrix-cell-ecount-mig9-cash-journal-receipt-update",
+        "perm-matrix-cell-ecount-mig9-cash-journal-receipt-delete",
+        "perm-matrix-cell-ecount-mig9-cash-journal-receipt-restore",
+        "perm-matrix-cell-ecount-mig9-cash-journal-receipt-download",
+        "perm-matrix-cell-ecount-mig9-cash-journal-receipt-print",
+        "perm-matrix-row-all-ecount-mig9-cash-journal-receipt"
+      ]
+    },
+    {
+      "text": "MIG-10 주문 담당자ecount.mig10.order-employee-backfill전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig10-order-employee-backfill-view",
+        "perm-matrix-cell-ecount-mig10-order-employee-backfill-create",
+        "perm-matrix-cell-ecount-mig10-order-employee-backfill-update",
+        "perm-matrix-cell-ecount-mig10-order-employee-backfill-delete",
+        "perm-matrix-cell-ecount-mig10-order-employee-backfill-restore",
+        "perm-matrix-cell-ecount-mig10-order-employee-backfill-download",
+        "perm-matrix-cell-ecount-mig10-order-employee-backfill-print",
+        "perm-matrix-row-all-ecount-mig10-order-employee-backfill"
+      ]
+    },
+    {
+      "text": "MIG-11 매출장ecount.mig11.sales-ledger전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig11-sales-ledger-view",
+        "perm-matrix-cell-ecount-mig11-sales-ledger-create",
+        "perm-matrix-cell-ecount-mig11-sales-ledger-update",
+        "perm-matrix-cell-ecount-mig11-sales-ledger-delete",
+        "perm-matrix-cell-ecount-mig11-sales-ledger-restore",
+        "perm-matrix-cell-ecount-mig11-sales-ledger-download",
+        "perm-matrix-cell-ecount-mig11-sales-ledger-print",
+        "perm-matrix-row-all-ecount-mig11-sales-ledger"
+      ]
+    },
+    {
+      "text": "MIG-11 매입장ecount.mig11.purchase-ledger전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig11-purchase-ledger-view",
+        "perm-matrix-cell-ecount-mig11-purchase-ledger-create",
+        "perm-matrix-cell-ecount-mig11-purchase-ledger-update",
+        "perm-matrix-cell-ecount-mig11-purchase-ledger-delete",
+        "perm-matrix-cell-ecount-mig11-purchase-ledger-restore",
+        "perm-matrix-cell-ecount-mig11-purchase-ledger-download",
+        "perm-matrix-cell-ecount-mig11-purchase-ledger-print",
+        "perm-matrix-row-all-ecount-mig11-purchase-ledger"
+      ]
+    },
+    {
+      "text": "MIG-14 주문ecount.mig14.order-list전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig14-order-list-view",
+        "perm-matrix-cell-ecount-mig14-order-list-create",
+        "perm-matrix-cell-ecount-mig14-order-list-update",
+        "perm-matrix-cell-ecount-mig14-order-list-delete",
+        "perm-matrix-cell-ecount-mig14-order-list-restore",
+        "perm-matrix-cell-ecount-mig14-order-list-download",
+        "perm-matrix-cell-ecount-mig14-order-list-print",
+        "perm-matrix-row-all-ecount-mig14-order-list"
+      ]
+    },
+    {
+      "text": "MIG-14 원장ecount.mig14.ledger전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig14-ledger-view",
+        "perm-matrix-cell-ecount-mig14-ledger-create",
+        "perm-matrix-cell-ecount-mig14-ledger-update",
+        "perm-matrix-cell-ecount-mig14-ledger-delete",
+        "perm-matrix-cell-ecount-mig14-ledger-restore",
+        "perm-matrix-cell-ecount-mig14-ledger-download",
+        "perm-matrix-cell-ecount-mig14-ledger-print",
+        "perm-matrix-row-all-ecount-mig14-ledger"
+      ]
+    },
+    {
+      "text": "MIG-21 운영 대시보드ecount.mig.ops-dashboard전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig-ops-dashboard-view",
+        "perm-matrix-cell-ecount-mig-ops-dashboard-create",
+        "perm-matrix-cell-ecount-mig-ops-dashboard-update",
+        "perm-matrix-cell-ecount-mig-ops-dashboard-delete",
+        "perm-matrix-cell-ecount-mig-ops-dashboard-restore",
+        "perm-matrix-cell-ecount-mig-ops-dashboard-download",
+        "perm-matrix-cell-ecount-mig-ops-dashboard-print",
+        "perm-matrix-row-all-ecount-mig-ops-dashboard"
+      ]
+    },
+    {
+      "text": "회계 수정 요청accounting.edit-requests전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-edit-requests-view",
+        "perm-matrix-cell-accounting-edit-requests-create",
+        "perm-matrix-cell-accounting-edit-requests-update",
+        "perm-matrix-cell-accounting-edit-requests-delete",
+        "perm-matrix-cell-accounting-edit-requests-restore",
+        "perm-matrix-cell-accounting-edit-requests-download",
+        "perm-matrix-cell-accounting-edit-requests-print",
+        "perm-matrix-row-all-accounting-edit-requests"
+      ]
+    },
+    {
+      "text": "회계 수정 요청 승인accounting.edit-requests.decide전부",
+      "testIds": [
+        "perm-matrix-cell-accounting-edit-requests-decide-view",
+        "perm-matrix-cell-accounting-edit-requests-decide-create",
+        "perm-matrix-cell-accounting-edit-requests-decide-update",
+        "perm-matrix-cell-accounting-edit-requests-decide-delete",
+        "perm-matrix-cell-accounting-edit-requests-decide-restore",
+        "perm-matrix-cell-accounting-edit-requests-decide-download",
+        "perm-matrix-cell-accounting-edit-requests-decide-print",
+        "perm-matrix-row-all-accounting-edit-requests-decide"
+      ]
+    },
+    {
+      "text": "이카운트 재importecount.reimport전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-reimport-view",
+        "perm-matrix-cell-ecount-reimport-create",
+        "perm-matrix-cell-ecount-reimport-update",
+        "perm-matrix-cell-ecount-reimport-delete",
+        "perm-matrix-cell-ecount-reimport-restore",
+        "perm-matrix-cell-ecount-reimport-download",
+        "perm-matrix-cell-ecount-reimport-print",
+        "perm-matrix-row-all-ecount-reimport"
+      ]
+    },
+    {
+      "text": "매입 (4)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-purchases",
+        "perm-matrix-domain-all-purchases-off"
+      ]
+    },
+    {
+      "text": "매입 슬립purchases.slip.list전부",
+      "testIds": [
+        "perm-matrix-cell-purchases-slip-list-view",
+        "perm-matrix-cell-purchases-slip-list-create",
+        "perm-matrix-cell-purchases-slip-list-update",
+        "perm-matrix-cell-purchases-slip-list-delete",
+        "perm-matrix-cell-purchases-slip-list-restore",
+        "perm-matrix-cell-purchases-slip-list-download",
+        "perm-matrix-cell-purchases-slip-list-print",
+        "perm-matrix-row-all-purchases-slip-list"
+      ]
+    },
+    {
+      "text": "매입 전표 수정purchases.slip.edit전부",
+      "testIds": [
+        "perm-matrix-cell-purchases-slip-edit-view",
+        "perm-matrix-cell-purchases-slip-edit-create",
+        "perm-matrix-cell-purchases-slip-edit-update",
+        "perm-matrix-cell-purchases-slip-edit-delete",
+        "perm-matrix-cell-purchases-slip-edit-restore",
+        "perm-matrix-cell-purchases-slip-edit-download",
+        "perm-matrix-cell-purchases-slip-edit-print",
+        "perm-matrix-row-all-purchases-slip-edit"
+      ]
+    },
+    {
+      "text": "매입 전표 삭제purchases.slip.delete전부",
+      "testIds": [
+        "perm-matrix-cell-purchases-slip-delete-view",
+        "perm-matrix-cell-purchases-slip-delete-create",
+        "perm-matrix-cell-purchases-slip-delete-update",
+        "perm-matrix-cell-purchases-slip-delete-delete",
+        "perm-matrix-cell-purchases-slip-delete-restore",
+        "perm-matrix-cell-purchases-slip-delete-download",
+        "perm-matrix-cell-purchases-slip-delete-print",
+        "perm-matrix-row-all-purchases-slip-delete"
+      ]
+    },
+    {
+      "text": "입고 검수inbound.inspection전부",
+      "testIds": [
+        "perm-matrix-cell-inbound-inspection-view",
+        "perm-matrix-cell-inbound-inspection-create",
+        "perm-matrix-cell-inbound-inspection-update",
+        "perm-matrix-cell-inbound-inspection-delete",
+        "perm-matrix-cell-inbound-inspection-restore",
+        "perm-matrix-cell-inbound-inspection-download",
+        "perm-matrix-cell-inbound-inspection-print",
+        "perm-matrix-row-all-inbound-inspection"
+      ]
+    },
+    {
+      "text": "매출 (7)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-sales",
+        "perm-matrix-domain-all-sales-off"
+      ]
+    },
+    {
+      "text": "매출 슬립sales.slip.list전부",
+      "testIds": [
+        "perm-matrix-cell-sales-slip-list-view",
+        "perm-matrix-cell-sales-slip-list-create",
+        "perm-matrix-cell-sales-slip-list-update",
+        "perm-matrix-cell-sales-slip-list-delete",
+        "perm-matrix-cell-sales-slip-list-restore",
+        "perm-matrix-cell-sales-slip-list-download",
+        "perm-matrix-cell-sales-slip-list-print",
+        "perm-matrix-row-all-sales-slip-list"
+      ]
+    },
+    {
+      "text": "매출 전표 생성sales.slip.create전부",
+      "testIds": [
+        "perm-matrix-cell-sales-slip-create-view",
+        "perm-matrix-cell-sales-slip-create-create",
+        "perm-matrix-cell-sales-slip-create-update",
+        "perm-matrix-cell-sales-slip-create-delete",
+        "perm-matrix-cell-sales-slip-create-restore",
+        "perm-matrix-cell-sales-slip-create-download",
+        "perm-matrix-cell-sales-slip-create-print",
+        "perm-matrix-row-all-sales-slip-create"
+      ]
+    },
+    {
+      "text": "매출 전표 수정sales.slip.edit전부",
+      "testIds": [
+        "perm-matrix-cell-sales-slip-edit-view",
+        "perm-matrix-cell-sales-slip-edit-create",
+        "perm-matrix-cell-sales-slip-edit-update",
+        "perm-matrix-cell-sales-slip-edit-delete",
+        "perm-matrix-cell-sales-slip-edit-restore",
+        "perm-matrix-cell-sales-slip-edit-download",
+        "perm-matrix-cell-sales-slip-edit-print",
+        "perm-matrix-row-all-sales-slip-edit"
+      ]
+    },
+    {
+      "text": "전표 확정sales.slip.confirm전부",
+      "testIds": [
+        "perm-matrix-cell-sales-slip-confirm-view",
+        "perm-matrix-cell-sales-slip-confirm-create",
+        "perm-matrix-cell-sales-slip-confirm-update",
+        "perm-matrix-cell-sales-slip-confirm-delete",
+        "perm-matrix-cell-sales-slip-confirm-restore",
+        "perm-matrix-cell-sales-slip-confirm-download",
+        "perm-matrix-cell-sales-slip-confirm-print",
+        "perm-matrix-row-all-sales-slip-confirm"
+      ]
+    },
+    {
+      "text": "전표 취소sales.slip.cancel전부",
+      "testIds": [
+        "perm-matrix-cell-sales-slip-cancel-view",
+        "perm-matrix-cell-sales-slip-cancel-create",
+        "perm-matrix-cell-sales-slip-cancel-update",
+        "perm-matrix-cell-sales-slip-cancel-delete",
+        "perm-matrix-cell-sales-slip-cancel-restore",
+        "perm-matrix-cell-sales-slip-cancel-download",
+        "perm-matrix-cell-sales-slip-cancel-print",
+        "perm-matrix-row-all-sales-slip-cancel"
+      ]
+    },
+    {
+      "text": "거래처 DC 설정sales.partner-dc-config전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-dc-config-view",
+        "perm-matrix-cell-sales-partner-dc-config-create",
+        "perm-matrix-cell-sales-partner-dc-config-update",
+        "perm-matrix-cell-sales-partner-dc-config-delete",
+        "perm-matrix-cell-sales-partner-dc-config-restore",
+        "perm-matrix-cell-sales-partner-dc-config-download",
+        "perm-matrix-cell-sales-partner-dc-config-print",
+        "perm-matrix-row-all-sales-partner-dc-config"
+      ]
+    },
+    {
+      "text": "견적 가격 설정sales.estimate-config전부",
+      "testIds": [
+        "perm-matrix-cell-sales-estimate-config-view",
+        "perm-matrix-cell-sales-estimate-config-create",
+        "perm-matrix-cell-sales-estimate-config-update",
+        "perm-matrix-cell-sales-estimate-config-delete",
+        "perm-matrix-cell-sales-estimate-config-restore",
+        "perm-matrix-cell-sales-estimate-config-download",
+        "perm-matrix-cell-sales-estimate-config-print",
+        "perm-matrix-row-all-sales-estimate-config"
+      ]
+    },
+    {
+      "text": "전표 운영 (22)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-slip",
+        "perm-matrix-domain-all-slip-off"
+      ]
+    },
+    {
+      "text": "전표 처리slip.transfer.process전부",
+      "testIds": [
+        "perm-matrix-cell-slip-transfer-process-view",
+        "perm-matrix-cell-slip-transfer-process-create",
+        "perm-matrix-cell-slip-transfer-process-update",
+        "perm-matrix-cell-slip-transfer-process-delete",
+        "perm-matrix-cell-slip-transfer-process-restore",
+        "perm-matrix-cell-slip-transfer-process-download",
+        "perm-matrix-cell-slip-transfer-process-print",
+        "perm-matrix-row-all-slip-transfer-process"
+      ]
+    },
+    {
+      "text": "전표 반려slip.reject전부",
+      "testIds": [
+        "perm-matrix-cell-slip-reject-view",
+        "perm-matrix-cell-slip-reject-create",
+        "perm-matrix-cell-slip-reject-update",
+        "perm-matrix-cell-slip-reject-delete",
+        "perm-matrix-cell-slip-reject-restore",
+        "perm-matrix-cell-slip-reject-download",
+        "perm-matrix-cell-slip-reject-print",
+        "perm-matrix-row-all-slip-reject"
+      ]
+    },
+    {
+      "text": "기간 잠금slip.period-lock전부",
+      "testIds": [
+        "perm-matrix-cell-slip-period-lock-view",
+        "perm-matrix-cell-slip-period-lock-create",
+        "perm-matrix-cell-slip-period-lock-update",
+        "perm-matrix-cell-slip-period-lock-delete",
+        "perm-matrix-cell-slip-period-lock-restore",
+        "perm-matrix-cell-slip-period-lock-download",
+        "perm-matrix-cell-slip-period-lock-print",
+        "perm-matrix-row-all-slip-period-lock"
+      ]
+    },
+    {
+      "text": "내일자 전표slip.print.next-day전부",
+      "testIds": [
+        "perm-matrix-cell-slip-print-next-day-view",
+        "perm-matrix-cell-slip-print-next-day-create",
+        "perm-matrix-cell-slip-print-next-day-update",
+        "perm-matrix-cell-slip-print-next-day-delete",
+        "perm-matrix-cell-slip-print-next-day-restore",
+        "perm-matrix-cell-slip-print-next-day-download",
+        "perm-matrix-cell-slip-print-next-day-print",
+        "perm-matrix-row-all-slip-print-next-day"
+      ]
+    },
+    {
+      "text": "전표 exportslip.print.export전부",
+      "testIds": [
+        "perm-matrix-cell-slip-print-export-view",
+        "perm-matrix-cell-slip-print-export-create",
+        "perm-matrix-cell-slip-print-export-update",
+        "perm-matrix-cell-slip-print-export-delete",
+        "perm-matrix-cell-slip-print-export-restore",
+        "perm-matrix-cell-slip-print-export-download",
+        "perm-matrix-cell-slip-print-export-print",
+        "perm-matrix-row-all-slip-print-export"
+      ]
+    },
+    {
+      "text": "전표정리slip.cleanup전부",
+      "testIds": [
+        "perm-matrix-cell-slip-cleanup-view",
+        "perm-matrix-cell-slip-cleanup-create",
+        "perm-matrix-cell-slip-cleanup-update",
+        "perm-matrix-cell-slip-cleanup-delete",
+        "perm-matrix-cell-slip-cleanup-restore",
+        "perm-matrix-cell-slip-cleanup-download",
+        "perm-matrix-cell-slip-cleanup-print",
+        "perm-matrix-row-all-slip-cleanup"
+      ]
+    },
+    {
+      "text": "정리 저장내역slip.cleanup-history전부",
+      "testIds": [
+        "perm-matrix-cell-slip-cleanup-history-view",
+        "perm-matrix-cell-slip-cleanup-history-create",
+        "perm-matrix-cell-slip-cleanup-history-update",
+        "perm-matrix-cell-slip-cleanup-history-delete",
+        "perm-matrix-cell-slip-cleanup-history-restore",
+        "perm-matrix-cell-slip-cleanup-history-download",
+        "perm-matrix-cell-slip-cleanup-history-print",
+        "perm-matrix-row-all-slip-cleanup-history"
+      ]
+    },
+    {
+      "text": "첨부 업로드slip.attachments.upload전부",
+      "testIds": [
+        "perm-matrix-cell-slip-attachments-upload-view",
+        "perm-matrix-cell-slip-attachments-upload-create",
+        "perm-matrix-cell-slip-attachments-upload-update",
+        "perm-matrix-cell-slip-attachments-upload-delete",
+        "perm-matrix-cell-slip-attachments-upload-restore",
+        "perm-matrix-cell-slip-attachments-upload-download",
+        "perm-matrix-cell-slip-attachments-upload-print",
+        "perm-matrix-row-all-slip-attachments-upload"
+      ]
+    },
+    {
+      "text": "첨부 삭제slip.attachments.delete전부",
+      "testIds": [
+        "perm-matrix-cell-slip-attachments-delete-view",
+        "perm-matrix-cell-slip-attachments-delete-create",
+        "perm-matrix-cell-slip-attachments-delete-update",
+        "perm-matrix-cell-slip-attachments-delete-delete",
+        "perm-matrix-cell-slip-attachments-delete-restore",
+        "perm-matrix-cell-slip-attachments-delete-download",
+        "perm-matrix-cell-slip-attachments-delete-print",
+        "perm-matrix-row-all-slip-attachments-delete"
+      ]
+    },
+    {
+      "text": "배송 사진slip.delivery-attachments.upload전부",
+      "testIds": [
+        "perm-matrix-cell-slip-delivery-attachments-upload-view",
+        "perm-matrix-cell-slip-delivery-attachments-upload-create",
+        "perm-matrix-cell-slip-delivery-attachments-upload-update",
+        "perm-matrix-cell-slip-delivery-attachments-upload-delete",
+        "perm-matrix-cell-slip-delivery-attachments-upload-restore",
+        "perm-matrix-cell-slip-delivery-attachments-upload-download",
+        "perm-matrix-cell-slip-delivery-attachments-upload-print",
+        "perm-matrix-row-all-slip-delivery-attachments-upload"
+      ]
+    },
+    {
+      "text": "사진 감사slip.photo-audit전부",
+      "testIds": [
+        "perm-matrix-cell-slip-photo-audit-view",
+        "perm-matrix-cell-slip-photo-audit-create",
+        "perm-matrix-cell-slip-photo-audit-update",
+        "perm-matrix-cell-slip-photo-audit-delete",
+        "perm-matrix-cell-slip-photo-audit-restore",
+        "perm-matrix-cell-slip-photo-audit-download",
+        "perm-matrix-cell-slip-photo-audit-print",
+        "perm-matrix-row-all-slip-photo-audit"
+      ]
+    },
+    {
+      "text": "댓글slip.comments전부",
+      "testIds": [
+        "perm-matrix-cell-slip-comments-view",
+        "perm-matrix-cell-slip-comments-create",
+        "perm-matrix-cell-slip-comments-update",
+        "perm-matrix-cell-slip-comments-delete",
+        "perm-matrix-cell-slip-comments-restore",
+        "perm-matrix-cell-slip-comments-download",
+        "perm-matrix-cell-slip-comments-print",
+        "perm-matrix-row-all-slip-comments"
+      ]
+    },
+    {
+      "text": "audit patchslip.audit-overlay전부",
+      "testIds": [
+        "perm-matrix-cell-slip-audit-overlay-view",
+        "perm-matrix-cell-slip-audit-overlay-create",
+        "perm-matrix-cell-slip-audit-overlay-update",
+        "perm-matrix-cell-slip-audit-overlay-delete",
+        "perm-matrix-cell-slip-audit-overlay-restore",
+        "perm-matrix-cell-slip-audit-overlay-download",
+        "perm-matrix-cell-slip-audit-overlay-print",
+        "perm-matrix-row-all-slip-audit-overlay"
+      ]
+    },
+    {
+      "text": "audit revertslip.audit-revert전부",
+      "testIds": [
+        "perm-matrix-cell-slip-audit-revert-view",
+        "perm-matrix-cell-slip-audit-revert-create",
+        "perm-matrix-cell-slip-audit-revert-update",
+        "perm-matrix-cell-slip-audit-revert-delete",
+        "perm-matrix-cell-slip-audit-revert-restore",
+        "perm-matrix-cell-slip-audit-revert-download",
+        "perm-matrix-cell-slip-audit-revert-print",
+        "perm-matrix-row-all-slip-audit-revert"
+      ]
+    },
+    {
+      "text": "전표 수정 요청slip.edit-requests전부",
+      "testIds": [
+        "perm-matrix-cell-slip-edit-requests-view",
+        "perm-matrix-cell-slip-edit-requests-create",
+        "perm-matrix-cell-slip-edit-requests-update",
+        "perm-matrix-cell-slip-edit-requests-delete",
+        "perm-matrix-cell-slip-edit-requests-restore",
+        "perm-matrix-cell-slip-edit-requests-download",
+        "perm-matrix-cell-slip-edit-requests-print",
+        "perm-matrix-row-all-slip-edit-requests"
+      ]
+    },
+    {
+      "text": "전표 요청 승인slip.edit-requests.decide전부",
+      "testIds": [
+        "perm-matrix-cell-slip-edit-requests-decide-view",
+        "perm-matrix-cell-slip-edit-requests-decide-create",
+        "perm-matrix-cell-slip-edit-requests-decide-update",
+        "perm-matrix-cell-slip-edit-requests-decide-delete",
+        "perm-matrix-cell-slip-edit-requests-decide-restore",
+        "perm-matrix-cell-slip-edit-requests-decide-download",
+        "perm-matrix-cell-slip-edit-requests-decide-print",
+        "perm-matrix-row-all-slip-edit-requests-decide"
+      ]
+    },
+    {
+      "text": "전표 서명slip.signature전부",
+      "testIds": [
+        "perm-matrix-cell-slip-signature-view",
+        "perm-matrix-cell-slip-signature-create",
+        "perm-matrix-cell-slip-signature-update",
+        "perm-matrix-cell-slip-signature-delete",
+        "perm-matrix-cell-slip-signature-restore",
+        "perm-matrix-cell-slip-signature-download",
+        "perm-matrix-cell-slip-signature-print",
+        "perm-matrix-row-all-slip-signature"
+      ]
+    },
+    {
+      "text": "상품 lookupslip.lookup-product전부",
+      "testIds": [
+        "perm-matrix-cell-slip-lookup-product-view",
+        "perm-matrix-cell-slip-lookup-product-create",
+        "perm-matrix-cell-slip-lookup-product-update",
+        "perm-matrix-cell-slip-lookup-product-delete",
+        "perm-matrix-cell-slip-lookup-product-restore",
+        "perm-matrix-cell-slip-lookup-product-download",
+        "perm-matrix-cell-slip-lookup-product-print",
+        "perm-matrix-row-all-slip-lookup-product"
+      ]
+    },
+    {
+      "text": "배송 배치slip.delivery-batch전부",
+      "testIds": [
+        "perm-matrix-cell-slip-delivery-batch-view",
+        "perm-matrix-cell-slip-delivery-batch-create",
+        "perm-matrix-cell-slip-delivery-batch-update",
+        "perm-matrix-cell-slip-delivery-batch-delete",
+        "perm-matrix-cell-slip-delivery-batch-restore",
+        "perm-matrix-cell-slip-delivery-batch-download",
+        "perm-matrix-cell-slip-delivery-batch-print",
+        "perm-matrix-row-all-slip-delivery-batch"
+      ]
+    },
+    {
+      "text": "영업 모바일slip.mobile-sales전부",
+      "testIds": [
+        "perm-matrix-cell-slip-mobile-sales-view",
+        "perm-matrix-cell-slip-mobile-sales-create",
+        "perm-matrix-cell-slip-mobile-sales-update",
+        "perm-matrix-cell-slip-mobile-sales-delete",
+        "perm-matrix-cell-slip-mobile-sales-restore",
+        "perm-matrix-cell-slip-mobile-sales-download",
+        "perm-matrix-cell-slip-mobile-sales-print",
+        "perm-matrix-row-all-slip-mobile-sales"
+      ]
+    },
+    {
+      "text": "견적 전표발행slip.publish.from-estimate전부",
+      "testIds": [
+        "perm-matrix-cell-slip-publish-from-estimate-view",
+        "perm-matrix-cell-slip-publish-from-estimate-create",
+        "perm-matrix-cell-slip-publish-from-estimate-update",
+        "perm-matrix-cell-slip-publish-from-estimate-delete",
+        "perm-matrix-cell-slip-publish-from-estimate-restore",
+        "perm-matrix-cell-slip-publish-from-estimate-download",
+        "perm-matrix-cell-slip-publish-from-estimate-print",
+        "perm-matrix-row-all-slip-publish-from-estimate"
+      ]
+    },
+    {
+      "text": "주문 전표발행slip.publish.from-partner-order전부",
+      "testIds": [
+        "perm-matrix-cell-slip-publish-from-partner-order-view",
+        "perm-matrix-cell-slip-publish-from-partner-order-create",
+        "perm-matrix-cell-slip-publish-from-partner-order-update",
+        "perm-matrix-cell-slip-publish-from-partner-order-delete",
+        "perm-matrix-cell-slip-publish-from-partner-order-restore",
+        "perm-matrix-cell-slip-publish-from-partner-order-download",
+        "perm-matrix-cell-slip-publish-from-partner-order-print",
+        "perm-matrix-row-all-slip-publish-from-partner-order"
+      ]
+    },
+    {
+      "text": "배차 (4)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-dispatch",
+        "perm-matrix-domain-all-dispatch-off"
+      ]
+    },
+    {
+      "text": "배차 보드dispatch.board전부",
+      "testIds": [
+        "perm-matrix-cell-dispatch-board-view",
+        "perm-matrix-cell-dispatch-board-create",
+        "perm-matrix-cell-dispatch-board-update",
+        "perm-matrix-cell-dispatch-board-delete",
+        "perm-matrix-cell-dispatch-board-restore",
+        "perm-matrix-cell-dispatch-board-download",
+        "perm-matrix-cell-dispatch-board-print",
+        "perm-matrix-row-all-dispatch-board"
+      ]
+    },
+    {
+      "text": "외부기사/배송사dispatch.external-carriers전부",
+      "testIds": [
+        "perm-matrix-cell-dispatch-external-carriers-view",
+        "perm-matrix-cell-dispatch-external-carriers-create",
+        "perm-matrix-cell-dispatch-external-carriers-update",
+        "perm-matrix-cell-dispatch-external-carriers-delete",
+        "perm-matrix-cell-dispatch-external-carriers-restore",
+        "perm-matrix-cell-dispatch-external-carriers-download",
+        "perm-matrix-cell-dispatch-external-carriers-print",
+        "perm-matrix-row-all-dispatch-external-carriers"
+      ]
+    },
+    {
+      "text": "배차문자 저장dispatch.sms-save-history전부",
+      "testIds": [
+        "perm-matrix-cell-dispatch-sms-save-history-view",
+        "perm-matrix-cell-dispatch-sms-save-history-create",
+        "perm-matrix-cell-dispatch-sms-save-history-update",
+        "perm-matrix-cell-dispatch-sms-save-history-delete",
+        "perm-matrix-cell-dispatch-sms-save-history-restore",
+        "perm-matrix-cell-dispatch-sms-save-history-download",
+        "perm-matrix-cell-dispatch-sms-save-history-print",
+        "perm-matrix-row-all-dispatch-sms-save-history"
+      ]
+    },
+    {
+      "text": "배차 SMS batchdispatch.batch전부",
+      "testIds": [
+        "perm-matrix-cell-dispatch-batch-view",
+        "perm-matrix-cell-dispatch-batch-create",
+        "perm-matrix-cell-dispatch-batch-update",
+        "perm-matrix-cell-dispatch-batch-delete",
+        "perm-matrix-cell-dispatch-batch-restore",
+        "perm-matrix-cell-dispatch-batch-download",
+        "perm-matrix-cell-dispatch-batch-print",
+        "perm-matrix-row-all-dispatch-batch"
+      ]
+    },
+    {
+      "text": "알림 (4)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-notifications",
+        "perm-matrix-domain-all-notifications-off"
+      ]
+    },
+    {
+      "text": "SMS 이력notification.dispatch-sms.send-audit전부",
+      "testIds": [
+        "perm-matrix-cell-notification-dispatch-sms-send-audit-view",
+        "perm-matrix-cell-notification-dispatch-sms-send-audit-create",
+        "perm-matrix-cell-notification-dispatch-sms-send-audit-update",
+        "perm-matrix-cell-notification-dispatch-sms-send-audit-delete",
+        "perm-matrix-cell-notification-dispatch-sms-send-audit-restore",
+        "perm-matrix-cell-notification-dispatch-sms-send-audit-download",
+        "perm-matrix-cell-notification-dispatch-sms-send-audit-print",
+        "perm-matrix-row-all-notification-dispatch-sms-send-audit"
+      ]
+    },
+    {
+      "text": "알림 발송notifications.admin전부",
+      "testIds": [
+        "perm-matrix-cell-notifications-admin-view",
+        "perm-matrix-cell-notifications-admin-create",
+        "perm-matrix-cell-notifications-admin-update",
+        "perm-matrix-cell-notifications-admin-delete",
+        "perm-matrix-cell-notifications-admin-restore",
+        "perm-matrix-cell-notifications-admin-download",
+        "perm-matrix-cell-notifications-admin-print",
+        "perm-matrix-row-all-notifications-admin"
+      ]
+    },
+    {
+      "text": "알림 센터notifications.center전부",
+      "testIds": [
+        "perm-matrix-cell-notifications-center-view",
+        "perm-matrix-cell-notifications-center-create",
+        "perm-matrix-cell-notifications-center-update",
+        "perm-matrix-cell-notifications-center-delete",
+        "perm-matrix-cell-notifications-center-restore",
+        "perm-matrix-cell-notifications-center-download",
+        "perm-matrix-cell-notifications-center-print",
+        "perm-matrix-row-all-notifications-center"
+      ]
+    },
+    {
+      "text": "알리고 주소록aligo.address-book전부",
+      "testIds": [
+        "perm-matrix-cell-aligo-address-book-view",
+        "perm-matrix-cell-aligo-address-book-create",
+        "perm-matrix-cell-aligo-address-book-update",
+        "perm-matrix-cell-aligo-address-book-delete",
+        "perm-matrix-cell-aligo-address-book-restore",
+        "perm-matrix-cell-aligo-address-book-download",
+        "perm-matrix-cell-aligo-address-book-print",
+        "perm-matrix-row-all-aligo-address-book"
+      ]
+    },
+    {
+      "text": "그룹웨어 (4)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-그룹웨어",
+        "perm-matrix-domain-all-그룹웨어-off"
+      ]
+    },
+    {
+      "text": "그룹웨어 결재groupware.approvals전부",
+      "testIds": [
+        "perm-matrix-cell-groupware-approvals-view",
+        "perm-matrix-cell-groupware-approvals-create",
+        "perm-matrix-cell-groupware-approvals-update",
+        "perm-matrix-cell-groupware-approvals-delete",
+        "perm-matrix-cell-groupware-approvals-restore",
+        "perm-matrix-cell-groupware-approvals-download",
+        "perm-matrix-cell-groupware-approvals-print",
+        "perm-matrix-row-all-groupware-approvals"
+      ]
+    },
+    {
+      "text": "결재 양식groupware.approval-templates전부",
+      "testIds": [
+        "perm-matrix-cell-groupware-approval-templates-view",
+        "perm-matrix-cell-groupware-approval-templates-create",
+        "perm-matrix-cell-groupware-approval-templates-update",
+        "perm-matrix-cell-groupware-approval-templates-delete",
+        "perm-matrix-cell-groupware-approval-templates-restore",
+        "perm-matrix-cell-groupware-approval-templates-download",
+        "perm-matrix-cell-groupware-approval-templates-print",
+        "perm-matrix-row-all-groupware-approval-templates"
+      ]
+    },
+    {
+      "text": "메신저 관리messenger.admin전부",
+      "testIds": [
+        "perm-matrix-cell-messenger-admin-view",
+        "perm-matrix-cell-messenger-admin-create",
+        "perm-matrix-cell-messenger-admin-update",
+        "perm-matrix-cell-messenger-admin-delete",
+        "perm-matrix-cell-messenger-admin-restore",
+        "perm-matrix-cell-messenger-admin-download",
+        "perm-matrix-cell-messenger-admin-print",
+        "perm-matrix-row-all-messenger-admin"
+      ]
+    },
+    {
+      "text": "메신저 발송messenger.send전부",
+      "testIds": [
+        "perm-matrix-cell-messenger-send-view",
+        "perm-matrix-cell-messenger-send-create",
+        "perm-matrix-cell-messenger-send-update",
+        "perm-matrix-cell-messenger-send-delete",
+        "perm-matrix-cell-messenger-send-restore",
+        "perm-matrix-cell-messenger-send-download",
+        "perm-matrix-cell-messenger-send-print",
+        "perm-matrix-row-all-messenger-send"
+      ]
+    },
+    {
+      "text": "관리 (6)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-admin",
+        "perm-matrix-domain-all-admin-off"
+      ]
+    },
+    {
+      "text": "권한 관리admin.permissions전부",
+      "testIds": [
+        "perm-matrix-cell-admin-permissions-view",
+        "perm-matrix-cell-admin-permissions-create",
+        "perm-matrix-cell-admin-permissions-update",
+        "perm-matrix-cell-admin-permissions-delete",
+        "perm-matrix-cell-admin-permissions-restore",
+        "perm-matrix-cell-admin-permissions-download",
+        "perm-matrix-cell-admin-permissions-print",
+        "perm-matrix-row-all-admin-permissions"
+      ]
+    },
+    {
+      "text": "권한그룹admin.permission-groups전부",
+      "testIds": [
+        "perm-matrix-cell-admin-permission-groups-view",
+        "perm-matrix-cell-admin-permission-groups-create",
+        "perm-matrix-cell-admin-permission-groups-update",
+        "perm-matrix-cell-admin-permission-groups-delete",
+        "perm-matrix-cell-admin-permission-groups-restore",
+        "perm-matrix-cell-admin-permission-groups-download",
+        "perm-matrix-cell-admin-permission-groups-print",
+        "perm-matrix-row-all-admin-permission-groups"
+      ]
+    },
+    {
+      "text": "인사 역할관리hr.role-management전부",
+      "testIds": [
+        "perm-matrix-cell-hr-role-management-view",
+        "perm-matrix-cell-hr-role-management-create",
+        "perm-matrix-cell-hr-role-management-update",
+        "perm-matrix-cell-hr-role-management-delete",
+        "perm-matrix-cell-hr-role-management-restore",
+        "perm-matrix-cell-hr-role-management-download",
+        "perm-matrix-cell-hr-role-management-print",
+        "perm-matrix-row-all-hr-role-management"
+      ]
+    },
+    {
+      "text": "출고 마감시간 설정hr.slip-cutoff전부",
+      "testIds": [
+        "perm-matrix-cell-hr-slip-cutoff-view",
+        "perm-matrix-cell-hr-slip-cutoff-create",
+        "perm-matrix-cell-hr-slip-cutoff-update",
+        "perm-matrix-cell-hr-slip-cutoff-delete",
+        "perm-matrix-cell-hr-slip-cutoff-restore",
+        "perm-matrix-cell-hr-slip-cutoff-download",
+        "perm-matrix-cell-hr-slip-cutoff-print",
+        "perm-matrix-row-all-hr-slip-cutoff"
+      ]
+    },
+    {
+      "text": "DC importdc-config.import전부",
+      "testIds": [
+        "perm-matrix-cell-dc-config-import-view",
+        "perm-matrix-cell-dc-config-import-create",
+        "perm-matrix-cell-dc-config-import-update",
+        "perm-matrix-cell-dc-config-import-delete",
+        "perm-matrix-cell-dc-config-import-restore",
+        "perm-matrix-cell-dc-config-import-download",
+        "perm-matrix-cell-dc-config-import-print",
+        "perm-matrix-row-all-dc-config-import"
+      ]
+    },
+    {
+      "text": "대시보드 관리dashboard.admin전부",
+      "testIds": [
+        "perm-matrix-cell-dashboard-admin-view",
+        "perm-matrix-cell-dashboard-admin-create",
+        "perm-matrix-cell-dashboard-admin-update",
+        "perm-matrix-cell-dashboard-admin-delete",
+        "perm-matrix-cell-dashboard-admin-restore",
+        "perm-matrix-cell-dashboard-admin-download",
+        "perm-matrix-cell-dashboard-admin-print",
+        "perm-matrix-row-all-dashboard-admin"
+      ]
+    },
+    {
+      "text": "개발 (3)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-개발",
+        "perm-matrix-domain-all-개발-off"
+      ]
+    },
+    {
+      "text": "버전 관리admin.app-release전부",
+      "testIds": [
+        "perm-matrix-cell-admin-app-release-view",
+        "perm-matrix-cell-admin-app-release-create",
+        "perm-matrix-cell-admin-app-release-update",
+        "perm-matrix-cell-admin-app-release-delete",
+        "perm-matrix-cell-admin-app-release-restore",
+        "perm-matrix-cell-admin-app-release-download",
+        "perm-matrix-cell-admin-app-release-print",
+        "perm-matrix-row-all-admin-app-release"
+      ]
+    },
+    {
+      "text": "팝업공지dev.popup-notice전부",
+      "testIds": [
+        "perm-matrix-cell-dev-popup-notice-view",
+        "perm-matrix-cell-dev-popup-notice-create",
+        "perm-matrix-cell-dev-popup-notice-update",
+        "perm-matrix-cell-dev-popup-notice-delete",
+        "perm-matrix-cell-dev-popup-notice-restore",
+        "perm-matrix-cell-dev-popup-notice-download",
+        "perm-matrix-cell-dev-popup-notice-print",
+        "perm-matrix-row-all-dev-popup-notice"
+      ]
+    },
+    {
+      "text": "로그dev.activity-log전부",
+      "testIds": [
+        "perm-matrix-cell-dev-activity-log-view",
+        "perm-matrix-cell-dev-activity-log-create",
+        "perm-matrix-cell-dev-activity-log-update",
+        "perm-matrix-cell-dev-activity-log-delete",
+        "perm-matrix-cell-dev-activity-log-restore",
+        "perm-matrix-cell-dev-activity-log-download",
+        "perm-matrix-cell-dev-activity-log-print",
+        "perm-matrix-row-all-dev-activity-log"
+      ]
+    },
+    {
+      "text": "시스템 관리 (3)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-system",
+        "perm-matrix-domain-all-system-off"
+      ]
+    },
+    {
+      "text": "시스템 권한system.permission-admin전부",
+      "testIds": [
+        "perm-matrix-cell-system-permission-admin-view",
+        "perm-matrix-cell-system-permission-admin-create",
+        "perm-matrix-cell-system-permission-admin-update",
+        "perm-matrix-cell-system-permission-admin-delete",
+        "perm-matrix-cell-system-permission-admin-restore",
+        "perm-matrix-cell-system-permission-admin-download",
+        "perm-matrix-cell-system-permission-admin-print",
+        "perm-matrix-row-all-system-permission-admin"
+      ]
+    },
+    {
+      "text": "비밀번호 관리system.password-admin전부",
+      "testIds": [
+        "perm-matrix-cell-system-password-admin-view",
+        "perm-matrix-cell-system-password-admin-create",
+        "perm-matrix-cell-system-password-admin-update",
+        "perm-matrix-cell-system-password-admin-delete",
+        "perm-matrix-cell-system-password-admin-restore",
+        "perm-matrix-cell-system-password-admin-download",
+        "perm-matrix-cell-system-password-admin-print",
+        "perm-matrix-row-all-system-password-admin"
+      ]
+    },
+    {
+      "text": "계정 관리system.account-admin전부",
+      "testIds": [
+        "perm-matrix-cell-system-account-admin-view",
+        "perm-matrix-cell-system-account-admin-create",
+        "perm-matrix-cell-system-account-admin-update",
+        "perm-matrix-cell-system-account-admin-delete",
+        "perm-matrix-cell-system-account-admin-restore",
+        "perm-matrix-cell-system-account-admin-download",
+        "perm-matrix-cell-system-account-admin-print",
+        "perm-matrix-row-all-system-account-admin"
+      ]
+    },
+    {
+      "text": "견적 (1)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-estimates",
+        "perm-matrix-domain-all-estimates-off"
+      ]
+    },
+    {
+      "text": "견적 목록estimates.list전부",
+      "testIds": [
+        "perm-matrix-cell-estimates-list-view",
+        "perm-matrix-cell-estimates-list-create",
+        "perm-matrix-cell-estimates-list-update",
+        "perm-matrix-cell-estimates-list-delete",
+        "perm-matrix-cell-estimates-list-restore",
+        "perm-matrix-cell-estimates-list-download",
+        "perm-matrix-cell-estimates-list-print",
+        "perm-matrix-row-all-estimates-list"
+      ]
+    },
+    {
+      "text": "거래처주문 (12)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-partner-order",
+        "perm-matrix-domain-all-partner-order-off"
+      ]
+    },
+    {
+      "text": "주문 목록sales.partner-order.list전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-list-view",
+        "perm-matrix-cell-sales-partner-order-list-create",
+        "perm-matrix-cell-sales-partner-order-list-update",
+        "perm-matrix-cell-sales-partner-order-list-delete",
+        "perm-matrix-cell-sales-partner-order-list-restore",
+        "perm-matrix-cell-sales-partner-order-list-download",
+        "perm-matrix-cell-sales-partner-order-list-print",
+        "perm-matrix-row-all-sales-partner-order-list"
+      ]
+    },
+    {
+      "text": "주문 작성sales.partner-order.draft전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-draft-view",
+        "perm-matrix-cell-sales-partner-order-draft-create",
+        "perm-matrix-cell-sales-partner-order-draft-update",
+        "perm-matrix-cell-sales-partner-order-draft-delete",
+        "perm-matrix-cell-sales-partner-order-draft-restore",
+        "perm-matrix-cell-sales-partner-order-draft-download",
+        "perm-matrix-cell-sales-partner-order-draft-print",
+        "perm-matrix-row-all-sales-partner-order-draft"
+      ]
+    },
+    {
+      "text": "주문 수정sales.partner-order.edit전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-edit-view",
+        "perm-matrix-cell-sales-partner-order-edit-create",
+        "perm-matrix-cell-sales-partner-order-edit-update",
+        "perm-matrix-cell-sales-partner-order-edit-delete",
+        "perm-matrix-cell-sales-partner-order-edit-restore",
+        "perm-matrix-cell-sales-partner-order-edit-download",
+        "perm-matrix-cell-sales-partner-order-edit-print",
+        "perm-matrix-row-all-sales-partner-order-edit"
+      ]
+    },
+    {
+      "text": "주문 확정sales.partner-order.confirm전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-confirm-view",
+        "perm-matrix-cell-sales-partner-order-confirm-create",
+        "perm-matrix-cell-sales-partner-order-confirm-update",
+        "perm-matrix-cell-sales-partner-order-confirm-delete",
+        "perm-matrix-cell-sales-partner-order-confirm-restore",
+        "perm-matrix-cell-sales-partner-order-confirm-download",
+        "perm-matrix-cell-sales-partner-order-confirm-print",
+        "perm-matrix-row-all-sales-partner-order-confirm"
+      ]
+    },
+    {
+      "text": "주문 이력sales.partner-order.history전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-history-view",
+        "perm-matrix-cell-sales-partner-order-history-create",
+        "perm-matrix-cell-sales-partner-order-history-update",
+        "perm-matrix-cell-sales-partner-order-history-delete",
+        "perm-matrix-cell-sales-partner-order-history-restore",
+        "perm-matrix-cell-sales-partner-order-history-download",
+        "perm-matrix-cell-sales-partner-order-history-print",
+        "perm-matrix-row-all-sales-partner-order-history"
+      ]
+    },
+    {
+      "text": "주문 이력 조회sales.partner-order.history.view전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-history-view-view",
+        "perm-matrix-cell-sales-partner-order-history-view-create",
+        "perm-matrix-cell-sales-partner-order-history-view-update",
+        "perm-matrix-cell-sales-partner-order-history-view-delete",
+        "perm-matrix-cell-sales-partner-order-history-view-restore",
+        "perm-matrix-cell-sales-partner-order-history-view-download",
+        "perm-matrix-cell-sales-partner-order-history-view-print",
+        "perm-matrix-row-all-sales-partner-order-history-view"
+      ]
+    },
+    {
+      "text": "주문서 인쇄sales.partner-order.print전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-print-view",
+        "perm-matrix-cell-sales-partner-order-print-create",
+        "perm-matrix-cell-sales-partner-order-print-update",
+        "perm-matrix-cell-sales-partner-order-print-delete",
+        "perm-matrix-cell-sales-partner-order-print-restore",
+        "perm-matrix-cell-sales-partner-order-print-download",
+        "perm-matrix-cell-sales-partner-order-print-print",
+        "perm-matrix-row-all-sales-partner-order-print"
+      ]
+    },
+    {
+      "text": "주문 수정 요청sales.partner-order.edit-requests전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-edit-requests-view",
+        "perm-matrix-cell-sales-partner-order-edit-requests-create",
+        "perm-matrix-cell-sales-partner-order-edit-requests-update",
+        "perm-matrix-cell-sales-partner-order-edit-requests-delete",
+        "perm-matrix-cell-sales-partner-order-edit-requests-restore",
+        "perm-matrix-cell-sales-partner-order-edit-requests-download",
+        "perm-matrix-cell-sales-partner-order-edit-requests-print",
+        "perm-matrix-row-all-sales-partner-order-edit-requests"
+      ]
+    },
+    {
+      "text": "주문 요청 승인sales.partner-order.edit-requests.decide전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-edit-requests-decide-view",
+        "perm-matrix-cell-sales-partner-order-edit-requests-decide-create",
+        "perm-matrix-cell-sales-partner-order-edit-requests-decide-update",
+        "perm-matrix-cell-sales-partner-order-edit-requests-decide-delete",
+        "perm-matrix-cell-sales-partner-order-edit-requests-decide-restore",
+        "perm-matrix-cell-sales-partner-order-edit-requests-decide-download",
+        "perm-matrix-cell-sales-partner-order-edit-requests-decide-print",
+        "perm-matrix-row-all-sales-partner-order-edit-requests-decide"
+      ]
+    },
+    {
+      "text": "주문 튜토리얼sales.partner-order.tutorial전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-tutorial-view",
+        "perm-matrix-cell-sales-partner-order-tutorial-create",
+        "perm-matrix-cell-sales-partner-order-tutorial-update",
+        "perm-matrix-cell-sales-partner-order-tutorial-delete",
+        "perm-matrix-cell-sales-partner-order-tutorial-restore",
+        "perm-matrix-cell-sales-partner-order-tutorial-download",
+        "perm-matrix-cell-sales-partner-order-tutorial-print",
+        "perm-matrix-row-all-sales-partner-order-tutorial"
+      ]
+    },
+    {
+      "text": "주문 출고전환sales.partner-order.convert전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-convert-view",
+        "perm-matrix-cell-sales-partner-order-convert-create",
+        "perm-matrix-cell-sales-partner-order-convert-update",
+        "perm-matrix-cell-sales-partner-order-convert-delete",
+        "perm-matrix-cell-sales-partner-order-convert-restore",
+        "perm-matrix-cell-sales-partner-order-convert-download",
+        "perm-matrix-cell-sales-partner-order-convert-print",
+        "perm-matrix-row-all-sales-partner-order-convert"
+      ]
+    },
+    {
+      "text": "주문 리비전 복원sales.partner-order.revisions전부",
+      "testIds": [
+        "perm-matrix-cell-sales-partner-order-revisions-view",
+        "perm-matrix-cell-sales-partner-order-revisions-create",
+        "perm-matrix-cell-sales-partner-order-revisions-update",
+        "perm-matrix-cell-sales-partner-order-revisions-delete",
+        "perm-matrix-cell-sales-partner-order-revisions-restore",
+        "perm-matrix-cell-sales-partner-order-revisions-download",
+        "perm-matrix-cell-sales-partner-order-revisions-print",
+        "perm-matrix-row-all-sales-partner-order-revisions"
+      ]
+    },
+    {
+      "text": "재고 (18)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-inventory",
+        "perm-matrix-domain-all-inventory-off"
+      ]
+    },
+    {
+      "text": "창고관리inventory.warehouse전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-warehouse-view",
+        "perm-matrix-cell-inventory-warehouse-create",
+        "perm-matrix-cell-inventory-warehouse-update",
+        "perm-matrix-cell-inventory-warehouse-delete",
+        "perm-matrix-cell-inventory-warehouse-restore",
+        "perm-matrix-cell-inventory-warehouse-download",
+        "perm-matrix-cell-inventory-warehouse-print",
+        "perm-matrix-row-all-inventory-warehouse"
+      ]
+    },
+    {
+      "text": "창고관리 admininventory.warehouse.admin전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-warehouse-admin-view",
+        "perm-matrix-cell-inventory-warehouse-admin-create",
+        "perm-matrix-cell-inventory-warehouse-admin-update",
+        "perm-matrix-cell-inventory-warehouse-admin-delete",
+        "perm-matrix-cell-inventory-warehouse-admin-restore",
+        "perm-matrix-cell-inventory-warehouse-admin-download",
+        "perm-matrix-cell-inventory-warehouse-admin-print",
+        "perm-matrix-row-all-inventory-warehouse-admin"
+      ]
+    },
+    {
+      "text": "재고 현황inventory.stock전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-stock-view",
+        "perm-matrix-cell-inventory-stock-create",
+        "perm-matrix-cell-inventory-stock-update",
+        "perm-matrix-cell-inventory-stock-delete",
+        "perm-matrix-cell-inventory-stock-restore",
+        "perm-matrix-cell-inventory-stock-download",
+        "perm-matrix-cell-inventory-stock-print",
+        "perm-matrix-row-all-inventory-stock"
+      ]
+    },
+    {
+      "text": "재고 이동inventory.stock-transfer전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-stock-transfer-view",
+        "perm-matrix-cell-inventory-stock-transfer-create",
+        "perm-matrix-cell-inventory-stock-transfer-update",
+        "perm-matrix-cell-inventory-stock-transfer-delete",
+        "perm-matrix-cell-inventory-stock-transfer-restore",
+        "perm-matrix-cell-inventory-stock-transfer-download",
+        "perm-matrix-cell-inventory-stock-transfer-print",
+        "perm-matrix-row-all-inventory-stock-transfer"
+      ]
+    },
+    {
+      "text": "DPS 비교inventory.dps전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-dps-view",
+        "perm-matrix-cell-inventory-dps-create",
+        "perm-matrix-cell-inventory-dps-update",
+        "perm-matrix-cell-inventory-dps-delete",
+        "perm-matrix-cell-inventory-dps-restore",
+        "perm-matrix-cell-inventory-dps-download",
+        "perm-matrix-cell-inventory-dps-print",
+        "perm-matrix-row-all-inventory-dps"
+      ]
+    },
+    {
+      "text": "재고 감사inventory.audit전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-audit-view",
+        "perm-matrix-cell-inventory-audit-create",
+        "perm-matrix-cell-inventory-audit-update",
+        "perm-matrix-cell-inventory-audit-delete",
+        "perm-matrix-cell-inventory-audit-restore",
+        "perm-matrix-cell-inventory-audit-download",
+        "perm-matrix-cell-inventory-audit-print",
+        "perm-matrix-row-all-inventory-audit"
+      ]
+    },
+    {
+      "text": "재고 목록inventory.list전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-list-view",
+        "perm-matrix-cell-inventory-list-create",
+        "perm-matrix-cell-inventory-list-update",
+        "perm-matrix-cell-inventory-list-delete",
+        "perm-matrix-cell-inventory-list-restore",
+        "perm-matrix-cell-inventory-list-download",
+        "perm-matrix-cell-inventory-list-print",
+        "perm-matrix-row-all-inventory-list"
+      ]
+    },
+    {
+      "text": "재고 상세inventory.detail전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-detail-view",
+        "perm-matrix-cell-inventory-detail-create",
+        "perm-matrix-cell-inventory-detail-update",
+        "perm-matrix-cell-inventory-detail-delete",
+        "perm-matrix-cell-inventory-detail-restore",
+        "perm-matrix-cell-inventory-detail-download",
+        "perm-matrix-cell-inventory-detail-print",
+        "perm-matrix-row-all-inventory-detail"
+      ]
+    },
+    {
+      "text": "재고 조정inventory.adjust전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-adjust-view",
+        "perm-matrix-cell-inventory-adjust-create",
+        "perm-matrix-cell-inventory-adjust-update",
+        "perm-matrix-cell-inventory-adjust-delete",
+        "perm-matrix-cell-inventory-adjust-restore",
+        "perm-matrix-cell-inventory-adjust-download",
+        "perm-matrix-cell-inventory-adjust-print",
+        "perm-matrix-row-all-inventory-adjust"
+      ]
+    },
+    {
+      "text": "재고 이동 APIinventory.transfer전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-transfer-view",
+        "perm-matrix-cell-inventory-transfer-create",
+        "perm-matrix-cell-inventory-transfer-update",
+        "perm-matrix-cell-inventory-transfer-delete",
+        "perm-matrix-cell-inventory-transfer-restore",
+        "perm-matrix-cell-inventory-transfer-download",
+        "perm-matrix-cell-inventory-transfer-print",
+        "perm-matrix-row-all-inventory-transfer"
+      ]
+    },
+    {
+      "text": "재고 잔액inventory.stock-balance전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-stock-balance-view",
+        "perm-matrix-cell-inventory-stock-balance-create",
+        "perm-matrix-cell-inventory-stock-balance-update",
+        "perm-matrix-cell-inventory-stock-balance-delete",
+        "perm-matrix-cell-inventory-stock-balance-restore",
+        "perm-matrix-cell-inventory-stock-balance-download",
+        "perm-matrix-cell-inventory-stock-balance-print",
+        "perm-matrix-row-all-inventory-stock-balance"
+      ]
+    },
+    {
+      "text": "재고 잔액 조회inventory.stock-balance.view전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-stock-balance-view-view",
+        "perm-matrix-cell-inventory-stock-balance-view-create",
+        "perm-matrix-cell-inventory-stock-balance-view-update",
+        "perm-matrix-cell-inventory-stock-balance-view-delete",
+        "perm-matrix-cell-inventory-stock-balance-view-restore",
+        "perm-matrix-cell-inventory-stock-balance-view-download",
+        "perm-matrix-cell-inventory-stock-balance-view-print",
+        "perm-matrix-row-all-inventory-stock-balance-view"
+      ]
+    },
+    {
+      "text": "안전재고inventory.safety-stock전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-safety-stock-view",
+        "perm-matrix-cell-inventory-safety-stock-create",
+        "perm-matrix-cell-inventory-safety-stock-update",
+        "perm-matrix-cell-inventory-safety-stock-delete",
+        "perm-matrix-cell-inventory-safety-stock-restore",
+        "perm-matrix-cell-inventory-safety-stock-download",
+        "perm-matrix-cell-inventory-safety-stock-print",
+        "perm-matrix-row-all-inventory-safety-stock"
+      ]
+    },
+    {
+      "text": "재고 수정 요청inventory.edit-requests전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-edit-requests-view",
+        "perm-matrix-cell-inventory-edit-requests-create",
+        "perm-matrix-cell-inventory-edit-requests-update",
+        "perm-matrix-cell-inventory-edit-requests-delete",
+        "perm-matrix-cell-inventory-edit-requests-restore",
+        "perm-matrix-cell-inventory-edit-requests-download",
+        "perm-matrix-cell-inventory-edit-requests-print",
+        "perm-matrix-row-all-inventory-edit-requests"
+      ]
+    },
+    {
+      "text": "재고 요청 승인inventory.edit-requests.decide전부",
+      "testIds": [
+        "perm-matrix-cell-inventory-edit-requests-decide-view",
+        "perm-matrix-cell-inventory-edit-requests-decide-create",
+        "perm-matrix-cell-inventory-edit-requests-decide-update",
+        "perm-matrix-cell-inventory-edit-requests-decide-delete",
+        "perm-matrix-cell-inventory-edit-requests-decide-restore",
+        "perm-matrix-cell-inventory-edit-requests-decide-download",
+        "perm-matrix-cell-inventory-edit-requests-decide-print",
+        "perm-matrix-row-all-inventory-edit-requests-decide"
+      ]
+    },
+    {
+      "text": "이카운트 재고ecount.import.inventory전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-import-inventory-view",
+        "perm-matrix-cell-ecount-import-inventory-create",
+        "perm-matrix-cell-ecount-import-inventory-update",
+        "perm-matrix-cell-ecount-import-inventory-delete",
+        "perm-matrix-cell-ecount-import-inventory-restore",
+        "perm-matrix-cell-ecount-import-inventory-download",
+        "perm-matrix-cell-ecount-import-inventory-print",
+        "perm-matrix-row-all-ecount-import-inventory"
+      ]
+    },
+    {
+      "text": "MIG-2 창고ecount.mig2.warehouse전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig2-warehouse-view",
+        "perm-matrix-cell-ecount-mig2-warehouse-create",
+        "perm-matrix-cell-ecount-mig2-warehouse-update",
+        "perm-matrix-cell-ecount-mig2-warehouse-delete",
+        "perm-matrix-cell-ecount-mig2-warehouse-restore",
+        "perm-matrix-cell-ecount-mig2-warehouse-download",
+        "perm-matrix-cell-ecount-mig2-warehouse-print",
+        "perm-matrix-row-all-ecount-mig2-warehouse"
+      ]
+    },
+    {
+      "text": "MIG-5 창고이동ecount.mig5.stock-transfer전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig5-stock-transfer-view",
+        "perm-matrix-cell-ecount-mig5-stock-transfer-create",
+        "perm-matrix-cell-ecount-mig5-stock-transfer-update",
+        "perm-matrix-cell-ecount-mig5-stock-transfer-delete",
+        "perm-matrix-cell-ecount-mig5-stock-transfer-restore",
+        "perm-matrix-cell-ecount-mig5-stock-transfer-download",
+        "perm-matrix-cell-ecount-mig5-stock-transfer-print",
+        "perm-matrix-row-all-ecount-mig5-stock-transfer"
+      ]
+    },
+    {
+      "text": "직원·계정 (7)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-employees",
+        "perm-matrix-domain-all-employees-off"
+      ]
+    },
+    {
+      "text": "직원 관리admin.employees전부",
+      "testIds": [
+        "perm-matrix-cell-admin-employees-view",
+        "perm-matrix-cell-admin-employees-create",
+        "perm-matrix-cell-admin-employees-update",
+        "perm-matrix-cell-admin-employees-delete",
+        "perm-matrix-cell-admin-employees-restore",
+        "perm-matrix-cell-admin-employees-download",
+        "perm-matrix-cell-admin-employees-print",
+        "perm-matrix-row-all-admin-employees"
+      ]
+    },
+    {
+      "text": "계정 관리admin.users전부",
+      "testIds": [
+        "perm-matrix-cell-admin-users-view",
+        "perm-matrix-cell-admin-users-create",
+        "perm-matrix-cell-admin-users-update",
+        "perm-matrix-cell-admin-users-delete",
+        "perm-matrix-cell-admin-users-restore",
+        "perm-matrix-cell-admin-users-download",
+        "perm-matrix-cell-admin-users-print",
+        "perm-matrix-row-all-admin-users"
+      ]
+    },
+    {
+      "text": "결재라인 설정admin.approval-line-config전부",
+      "testIds": [
+        "perm-matrix-cell-admin-approval-line-config-view",
+        "perm-matrix-cell-admin-approval-line-config-create",
+        "perm-matrix-cell-admin-approval-line-config-update",
+        "perm-matrix-cell-admin-approval-line-config-delete",
+        "perm-matrix-cell-admin-approval-line-config-restore",
+        "perm-matrix-cell-admin-approval-line-config-download",
+        "perm-matrix-cell-admin-approval-line-config-print",
+        "perm-matrix-row-all-admin-approval-line-config"
+      ]
+    },
+    {
+      "text": "부서 importecount.mig2.department전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig2-department-view",
+        "perm-matrix-cell-ecount-mig2-department-create",
+        "perm-matrix-cell-ecount-mig2-department-update",
+        "perm-matrix-cell-ecount-mig2-department-delete",
+        "perm-matrix-cell-ecount-mig2-department-restore",
+        "perm-matrix-cell-ecount-mig2-department-download",
+        "perm-matrix-cell-ecount-mig2-department-print",
+        "perm-matrix-row-all-ecount-mig2-department"
+      ]
+    },
+    {
+      "text": "사원 importecount.mig6.employee전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig6-employee-view",
+        "perm-matrix-cell-ecount-mig6-employee-create",
+        "perm-matrix-cell-ecount-mig6-employee-update",
+        "perm-matrix-cell-ecount-mig6-employee-delete",
+        "perm-matrix-cell-ecount-mig6-employee-restore",
+        "perm-matrix-cell-ecount-mig6-employee-download",
+        "perm-matrix-cell-ecount-mig6-employee-print",
+        "perm-matrix-row-all-ecount-mig6-employee"
+      ]
+    },
+    {
+      "text": "인사카드 importecount.mig6.employee-card전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig6-employee-card-view",
+        "perm-matrix-cell-ecount-mig6-employee-card-create",
+        "perm-matrix-cell-ecount-mig6-employee-card-update",
+        "perm-matrix-cell-ecount-mig6-employee-card-delete",
+        "perm-matrix-cell-ecount-mig6-employee-card-restore",
+        "perm-matrix-cell-ecount-mig6-employee-card-download",
+        "perm-matrix-cell-ecount-mig6-employee-card-print",
+        "perm-matrix-row-all-ecount-mig6-employee-card"
+      ]
+    },
+    {
+      "text": "급여사원 importecount.mig6.payroll-employee전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig6-payroll-employee-view",
+        "perm-matrix-cell-ecount-mig6-payroll-employee-create",
+        "perm-matrix-cell-ecount-mig6-payroll-employee-update",
+        "perm-matrix-cell-ecount-mig6-payroll-employee-delete",
+        "perm-matrix-cell-ecount-mig6-payroll-employee-restore",
+        "perm-matrix-cell-ecount-mig6-payroll-employee-download",
+        "perm-matrix-cell-ecount-mig6-payroll-employee-print",
+        "perm-matrix-row-all-ecount-mig6-payroll-employee"
+      ]
+    },
+    {
+      "text": "거래처 (14)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-partners",
+        "perm-matrix-domain-all-partners-off"
+      ]
+    },
+    {
+      "text": "거래처 목록partners.list전부",
+      "testIds": [
+        "perm-matrix-cell-partners-list-view",
+        "perm-matrix-cell-partners-list-create",
+        "perm-matrix-cell-partners-list-update",
+        "perm-matrix-cell-partners-list-delete",
+        "perm-matrix-cell-partners-list-restore",
+        "perm-matrix-cell-partners-list-download",
+        "perm-matrix-cell-partners-list-print",
+        "perm-matrix-row-all-partners-list"
+      ]
+    },
+    {
+      "text": "거래처 상세partners.detail전부",
+      "testIds": [
+        "perm-matrix-cell-partners-detail-view",
+        "perm-matrix-cell-partners-detail-create",
+        "perm-matrix-cell-partners-detail-update",
+        "perm-matrix-cell-partners-detail-delete",
+        "perm-matrix-cell-partners-detail-restore",
+        "perm-matrix-cell-partners-detail-download",
+        "perm-matrix-cell-partners-detail-print",
+        "perm-matrix-row-all-partners-detail"
+      ]
+    },
+    {
+      "text": "거래처 상세 조회partners.detail.view전부",
+      "testIds": [
+        "perm-matrix-cell-partners-detail-view-view",
+        "perm-matrix-cell-partners-detail-view-create",
+        "perm-matrix-cell-partners-detail-view-update",
+        "perm-matrix-cell-partners-detail-view-delete",
+        "perm-matrix-cell-partners-detail-view-restore",
+        "perm-matrix-cell-partners-detail-view-download",
+        "perm-matrix-cell-partners-detail-view-print",
+        "perm-matrix-row-all-partners-detail-view"
+      ]
+    },
+    {
+      "text": "거래처 차단partners.block전부",
+      "testIds": [
+        "perm-matrix-cell-partners-block-view",
+        "perm-matrix-cell-partners-block-create",
+        "perm-matrix-cell-partners-block-update",
+        "perm-matrix-cell-partners-block-delete",
+        "perm-matrix-cell-partners-block-restore",
+        "perm-matrix-cell-partners-block-download",
+        "perm-matrix-cell-partners-block-print",
+        "perm-matrix-row-all-partners-block"
+      ]
+    },
+    {
+      "text": "편집 결재partners.edit-request전부",
+      "testIds": [
+        "perm-matrix-cell-partners-edit-request-view",
+        "perm-matrix-cell-partners-edit-request-create",
+        "perm-matrix-cell-partners-edit-request-update",
+        "perm-matrix-cell-partners-edit-request-delete",
+        "perm-matrix-cell-partners-edit-request-restore",
+        "perm-matrix-cell-partners-edit-request-download",
+        "perm-matrix-cell-partners-edit-request-print",
+        "perm-matrix-row-all-partners-edit-request"
+      ]
+    },
+    {
+      "text": "거래처 검색partners.search전부",
+      "testIds": [
+        "perm-matrix-cell-partners-search-view",
+        "perm-matrix-cell-partners-search-create",
+        "perm-matrix-cell-partners-search-update",
+        "perm-matrix-cell-partners-search-delete",
+        "perm-matrix-cell-partners-search-restore",
+        "perm-matrix-cell-partners-search-download",
+        "perm-matrix-cell-partners-search-print",
+        "perm-matrix-row-all-partners-search"
+      ]
+    },
+    {
+      "text": "거래처 편집partners.edit전부",
+      "testIds": [
+        "perm-matrix-cell-partners-edit-view",
+        "perm-matrix-cell-partners-edit-create",
+        "perm-matrix-cell-partners-edit-update",
+        "perm-matrix-cell-partners-edit-delete",
+        "perm-matrix-cell-partners-edit-restore",
+        "perm-matrix-cell-partners-edit-download",
+        "perm-matrix-cell-partners-edit-print",
+        "perm-matrix-row-all-partners-edit"
+      ]
+    },
+    {
+      "text": "거래처 삭제partners.delete전부",
+      "testIds": [
+        "perm-matrix-cell-partners-delete-view",
+        "perm-matrix-cell-partners-delete-create",
+        "perm-matrix-cell-partners-delete-update",
+        "perm-matrix-cell-partners-delete-delete",
+        "perm-matrix-cell-partners-delete-restore",
+        "perm-matrix-cell-partners-delete-download",
+        "perm-matrix-cell-partners-delete-print",
+        "perm-matrix-row-all-partners-delete"
+      ]
+    },
+    {
+      "text": "신용 이력partners.credit-history전부",
+      "testIds": [
+        "perm-matrix-cell-partners-credit-history-view",
+        "perm-matrix-cell-partners-credit-history-create",
+        "perm-matrix-cell-partners-credit-history-update",
+        "perm-matrix-cell-partners-credit-history-delete",
+        "perm-matrix-cell-partners-credit-history-restore",
+        "perm-matrix-cell-partners-credit-history-download",
+        "perm-matrix-cell-partners-credit-history-print",
+        "perm-matrix-row-all-partners-credit-history"
+      ]
+    },
+    {
+      "text": "차단 bulkpartners.block.bulk전부",
+      "testIds": [
+        "perm-matrix-cell-partners-block-bulk-view",
+        "perm-matrix-cell-partners-block-bulk-create",
+        "perm-matrix-cell-partners-block-bulk-update",
+        "perm-matrix-cell-partners-block-bulk-delete",
+        "perm-matrix-cell-partners-block-bulk-restore",
+        "perm-matrix-cell-partners-block-bulk-download",
+        "perm-matrix-cell-partners-block-bulk-print",
+        "perm-matrix-row-all-partners-block-bulk"
+      ]
+    },
+    {
+      "text": "거래처 4탭partners.4tab전부",
+      "testIds": [
+        "perm-matrix-cell-partners-4tab-view",
+        "perm-matrix-cell-partners-4tab-create",
+        "perm-matrix-cell-partners-4tab-update",
+        "perm-matrix-cell-partners-4tab-delete",
+        "perm-matrix-cell-partners-4tab-restore",
+        "perm-matrix-cell-partners-4tab-download",
+        "perm-matrix-cell-partners-4tab-print",
+        "perm-matrix-row-all-partners-4tab"
+      ]
+    },
+    {
+      "text": "4탭 편집partners.4tab.edit전부",
+      "testIds": [
+        "perm-matrix-cell-partners-4tab-edit-view",
+        "perm-matrix-cell-partners-4tab-edit-create",
+        "perm-matrix-cell-partners-4tab-edit-update",
+        "perm-matrix-cell-partners-4tab-edit-delete",
+        "perm-matrix-cell-partners-4tab-edit-restore",
+        "perm-matrix-cell-partners-4tab-edit-download",
+        "perm-matrix-cell-partners-4tab-edit-print",
+        "perm-matrix-row-all-partners-4tab-edit"
+      ]
+    },
+    {
+      "text": "거래처 수정 요청partners.edit-requests전부",
+      "testIds": [
+        "perm-matrix-cell-partners-edit-requests-view",
+        "perm-matrix-cell-partners-edit-requests-create",
+        "perm-matrix-cell-partners-edit-requests-update",
+        "perm-matrix-cell-partners-edit-requests-delete",
+        "perm-matrix-cell-partners-edit-requests-restore",
+        "perm-matrix-cell-partners-edit-requests-download",
+        "perm-matrix-cell-partners-edit-requests-print",
+        "perm-matrix-row-all-partners-edit-requests"
+      ]
+    },
+    {
+      "text": "거래처 요청 승인partners.edit-requests.decide전부",
+      "testIds": [
+        "perm-matrix-cell-partners-edit-requests-decide-view",
+        "perm-matrix-cell-partners-edit-requests-decide-create",
+        "perm-matrix-cell-partners-edit-requests-decide-update",
+        "perm-matrix-cell-partners-edit-requests-decide-delete",
+        "perm-matrix-cell-partners-edit-requests-decide-restore",
+        "perm-matrix-cell-partners-edit-requests-decide-download",
+        "perm-matrix-cell-partners-edit-requests-decide-print",
+        "perm-matrix-row-all-partners-edit-requests-decide"
+      ]
+    },
+    {
+      "text": "상품 (9)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-products",
+        "perm-matrix-domain-all-products-off"
+      ]
+    },
+    {
+      "text": "상품 목록products.list전부",
+      "testIds": [
+        "perm-matrix-cell-products-list-view",
+        "perm-matrix-cell-products-list-create",
+        "perm-matrix-cell-products-list-update",
+        "perm-matrix-cell-products-list-delete",
+        "perm-matrix-cell-products-list-restore",
+        "perm-matrix-cell-products-list-download",
+        "perm-matrix-cell-products-list-print",
+        "perm-matrix-row-all-products-list"
+      ]
+    },
+    {
+      "text": "상품 목록 조회products.list.view전부",
+      "testIds": [
+        "perm-matrix-cell-products-list-view-view",
+        "perm-matrix-cell-products-list-view-create",
+        "perm-matrix-cell-products-list-view-update",
+        "perm-matrix-cell-products-list-view-delete",
+        "perm-matrix-cell-products-list-view-restore",
+        "perm-matrix-cell-products-list-view-download",
+        "perm-matrix-cell-products-list-view-print",
+        "perm-matrix-row-all-products-list-view"
+      ]
+    },
+    {
+      "text": "상품 관리products.admin전부",
+      "testIds": [
+        "perm-matrix-cell-products-admin-view",
+        "perm-matrix-cell-products-admin-create",
+        "perm-matrix-cell-products-admin-update",
+        "perm-matrix-cell-products-admin-delete",
+        "perm-matrix-cell-products-admin-restore",
+        "perm-matrix-cell-products-admin-download",
+        "perm-matrix-cell-products-admin-print",
+        "perm-matrix-row-all-products-admin"
+      ]
+    },
+    {
+      "text": "상품 가격products.price전부",
+      "testIds": [
+        "perm-matrix-cell-products-price-view",
+        "perm-matrix-cell-products-price-create",
+        "perm-matrix-cell-products-price-update",
+        "perm-matrix-cell-products-price-delete",
+        "perm-matrix-cell-products-price-restore",
+        "perm-matrix-cell-products-price-download",
+        "perm-matrix-cell-products-price-print",
+        "perm-matrix-row-all-products-price"
+      ]
+    },
+    {
+      "text": "상품 수정 요청products.edit-requests전부",
+      "testIds": [
+        "perm-matrix-cell-products-edit-requests-view",
+        "perm-matrix-cell-products-edit-requests-create",
+        "perm-matrix-cell-products-edit-requests-update",
+        "perm-matrix-cell-products-edit-requests-delete",
+        "perm-matrix-cell-products-edit-requests-restore",
+        "perm-matrix-cell-products-edit-requests-download",
+        "perm-matrix-cell-products-edit-requests-print",
+        "perm-matrix-row-all-products-edit-requests"
+      ]
+    },
+    {
+      "text": "상품 요청 승인products.edit-requests.decide전부",
+      "testIds": [
+        "perm-matrix-cell-products-edit-requests-decide-view",
+        "perm-matrix-cell-products-edit-requests-decide-create",
+        "perm-matrix-cell-products-edit-requests-decide-update",
+        "perm-matrix-cell-products-edit-requests-decide-delete",
+        "perm-matrix-cell-products-edit-requests-decide-restore",
+        "perm-matrix-cell-products-edit-requests-decide-download",
+        "perm-matrix-cell-products-edit-requests-decide-print",
+        "perm-matrix-row-all-products-edit-requests-decide"
+      ]
+    },
+    {
+      "text": "상품 importproducts.ecount-import전부",
+      "testIds": [
+        "perm-matrix-cell-products-ecount-import-view",
+        "perm-matrix-cell-products-ecount-import-create",
+        "perm-matrix-cell-products-ecount-import-update",
+        "perm-matrix-cell-products-ecount-import-delete",
+        "perm-matrix-cell-products-ecount-import-restore",
+        "perm-matrix-cell-products-ecount-import-download",
+        "perm-matrix-cell-products-ecount-import-print",
+        "perm-matrix-row-all-products-ecount-import"
+      ]
+    },
+    {
+      "text": "상품 시트 동기화products.sync전부",
+      "testIds": [
+        "perm-matrix-cell-products-sync-view",
+        "perm-matrix-cell-products-sync-create",
+        "perm-matrix-cell-products-sync-update",
+        "perm-matrix-cell-products-sync-delete",
+        "perm-matrix-cell-products-sync-restore",
+        "perm-matrix-cell-products-sync-download",
+        "perm-matrix-cell-products-sync-print",
+        "perm-matrix-row-all-products-sync"
+      ]
+    },
+    {
+      "text": "MIG-2 품목ecount.mig2.product전부",
+      "testIds": [
+        "perm-matrix-cell-ecount-mig2-product-view",
+        "perm-matrix-cell-ecount-mig2-product-create",
+        "perm-matrix-cell-ecount-mig2-product-update",
+        "perm-matrix-cell-ecount-mig2-product-delete",
+        "perm-matrix-cell-ecount-mig2-product-restore",
+        "perm-matrix-cell-ecount-mig2-product-download",
+        "perm-matrix-cell-ecount-mig2-product-print",
+        "perm-matrix-row-all-ecount-mig2-product"
+      ]
+    },
+    {
+      "text": "아로로지스 (14)전체ON전체OFF",
+      "testIds": [
+        "perm-matrix-domain-all-arologis",
+        "perm-matrix-domain-all-arologis-off"
+      ]
+    },
+    {
+      "text": "아로로지스 배차arologis.admin전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-admin-view",
+        "perm-matrix-cell-arologis-admin-create",
+        "perm-matrix-cell-arologis-admin-update",
+        "perm-matrix-cell-arologis-admin-delete",
+        "perm-matrix-cell-arologis-admin-restore",
+        "perm-matrix-cell-arologis-admin-download",
+        "perm-matrix-cell-arologis-admin-print",
+        "perm-matrix-row-all-arologis-admin"
+      ]
+    },
+    {
+      "text": "지역·구역arologis.region전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-region-view",
+        "perm-matrix-cell-arologis-region-create",
+        "perm-matrix-cell-arologis-region-update",
+        "perm-matrix-cell-arologis-region-delete",
+        "perm-matrix-cell-arologis-region-restore",
+        "perm-matrix-cell-arologis-region-download",
+        "perm-matrix-cell-arologis-region-print",
+        "perm-matrix-row-all-arologis-region"
+      ]
+    },
+    {
+      "text": "배차 adminarologis.dispatch.admin전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-dispatch-admin-view",
+        "perm-matrix-cell-arologis-dispatch-admin-create",
+        "perm-matrix-cell-arologis-dispatch-admin-update",
+        "perm-matrix-cell-arologis-dispatch-admin-delete",
+        "perm-matrix-cell-arologis-dispatch-admin-restore",
+        "perm-matrix-cell-arologis-dispatch-admin-download",
+        "perm-matrix-cell-arologis-dispatch-admin-print",
+        "perm-matrix-row-all-arologis-dispatch-admin"
+      ]
+    },
+    {
+      "text": "배차 운영arologis.dispatch.ops전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-dispatch-ops-view",
+        "perm-matrix-cell-arologis-dispatch-ops-create",
+        "perm-matrix-cell-arologis-dispatch-ops-update",
+        "perm-matrix-cell-arologis-dispatch-ops-delete",
+        "perm-matrix-cell-arologis-dispatch-ops-restore",
+        "perm-matrix-cell-arologis-dispatch-ops-download",
+        "perm-matrix-cell-arologis-dispatch-ops-print",
+        "perm-matrix-row-all-arologis-dispatch-ops"
+      ]
+    },
+    {
+      "text": "지역 편집arologis.region.manage전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-region-manage-view",
+        "perm-matrix-cell-arologis-region-manage-create",
+        "perm-matrix-cell-arologis-region-manage-update",
+        "perm-matrix-cell-arologis-region-manage-delete",
+        "perm-matrix-cell-arologis-region-manage-restore",
+        "perm-matrix-cell-arologis-region-manage-download",
+        "perm-matrix-cell-arologis-region-manage-print",
+        "perm-matrix-row-all-arologis-region-manage"
+      ]
+    },
+    {
+      "text": "아로로지스 수정 요청arologis.edit-requests전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-edit-requests-view",
+        "perm-matrix-cell-arologis-edit-requests-create",
+        "perm-matrix-cell-arologis-edit-requests-update",
+        "perm-matrix-cell-arologis-edit-requests-delete",
+        "perm-matrix-cell-arologis-edit-requests-restore",
+        "perm-matrix-cell-arologis-edit-requests-download",
+        "perm-matrix-cell-arologis-edit-requests-print",
+        "perm-matrix-row-all-arologis-edit-requests"
+      ]
+    },
+    {
+      "text": "아로로지스 요청 승인arologis.edit-requests.decide전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-edit-requests-decide-view",
+        "perm-matrix-cell-arologis-edit-requests-decide-create",
+        "perm-matrix-cell-arologis-edit-requests-decide-update",
+        "perm-matrix-cell-arologis-edit-requests-decide-delete",
+        "perm-matrix-cell-arologis-edit-requests-decide-restore",
+        "perm-matrix-cell-arologis-edit-requests-decide-download",
+        "perm-matrix-cell-arologis-edit-requests-decide-print",
+        "perm-matrix-row-all-arologis-edit-requests-decide"
+      ]
+    },
+    {
+      "text": "기사앱arologis.driver전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-driver-view",
+        "perm-matrix-cell-arologis-driver-create",
+        "perm-matrix-cell-arologis-driver-update",
+        "perm-matrix-cell-arologis-driver-delete",
+        "perm-matrix-cell-arologis-driver-restore",
+        "perm-matrix-cell-arologis-driver-download",
+        "perm-matrix-cell-arologis-driver-print",
+        "perm-matrix-row-all-arologis-driver"
+      ]
+    },
+    {
+      "text": "아로로지스 직원arologis.hr.employees전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-hr-employees-view",
+        "perm-matrix-cell-arologis-hr-employees-create",
+        "perm-matrix-cell-arologis-hr-employees-update",
+        "perm-matrix-cell-arologis-hr-employees-delete",
+        "perm-matrix-cell-arologis-hr-employees-restore",
+        "perm-matrix-cell-arologis-hr-employees-download",
+        "perm-matrix-cell-arologis-hr-employees-print",
+        "perm-matrix-row-all-arologis-hr-employees"
+      ]
+    },
+    {
+      "text": "아로로지스 부서arologis.hr.departments전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-hr-departments-view",
+        "perm-matrix-cell-arologis-hr-departments-create",
+        "perm-matrix-cell-arologis-hr-departments-update",
+        "perm-matrix-cell-arologis-hr-departments-delete",
+        "perm-matrix-cell-arologis-hr-departments-restore",
+        "perm-matrix-cell-arologis-hr-departments-download",
+        "perm-matrix-cell-arologis-hr-departments-print",
+        "perm-matrix-row-all-arologis-hr-departments"
+      ]
+    },
+    {
+      "text": "아로로지스 현금출납장arologis.accounting.cashbook전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-accounting-cashbook-view",
+        "perm-matrix-cell-arologis-accounting-cashbook-create",
+        "perm-matrix-cell-arologis-accounting-cashbook-update",
+        "perm-matrix-cell-arologis-accounting-cashbook-delete",
+        "perm-matrix-cell-arologis-accounting-cashbook-restore",
+        "perm-matrix-cell-arologis-accounting-cashbook-download",
+        "perm-matrix-cell-arologis-accounting-cashbook-print",
+        "perm-matrix-row-all-arologis-accounting-cashbook"
+      ]
+    },
+    {
+      "text": "아로로지스 회계 집계arologis.accounting.summary전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-accounting-summary-view",
+        "perm-matrix-cell-arologis-accounting-summary-create",
+        "perm-matrix-cell-arologis-accounting-summary-update",
+        "perm-matrix-cell-arologis-accounting-summary-delete",
+        "perm-matrix-cell-arologis-accounting-summary-restore",
+        "perm-matrix-cell-arologis-accounting-summary-download",
+        "perm-matrix-cell-arologis-accounting-summary-print",
+        "perm-matrix-row-all-arologis-accounting-summary"
+      ]
+    },
+    {
+      "text": "아로로지스 권한arologis.admin.permissions전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-admin-permissions-view",
+        "perm-matrix-cell-arologis-admin-permissions-create",
+        "perm-matrix-cell-arologis-admin-permissions-update",
+        "perm-matrix-cell-arologis-admin-permissions-delete",
+        "perm-matrix-cell-arologis-admin-permissions-restore",
+        "perm-matrix-cell-arologis-admin-permissions-download",
+        "perm-matrix-cell-arologis-admin-permissions-print",
+        "perm-matrix-row-all-arologis-admin-permissions"
+      ]
+    },
+    {
+      "text": "아로로지스 계정과목arologis.accounting.accounts전부",
+      "testIds": [
+        "perm-matrix-cell-arologis-accounting-accounts-view",
+        "perm-matrix-cell-arologis-accounting-accounts-create",
+        "perm-matrix-cell-arologis-accounting-accounts-update",
+        "perm-matrix-cell-arologis-accounting-accounts-delete",
+        "perm-matrix-cell-arologis-accounting-accounts-restore",
+        "perm-matrix-cell-arologis-accounting-accounts-download",
+        "perm-matrix-cell-arologis-accounting-accounts-print",
+        "perm-matrix-row-all-arologis-accounting-accounts"
+      ]
+    }
+  ]
+}

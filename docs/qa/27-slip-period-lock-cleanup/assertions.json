@@ -1,0 +1,9 @@
+{
+  "hasPeriodLockRow": 1,
+  "hasPeriodLockCellView": 1,
+  "hasSlipRejectRow": 1,
+  "hasSlipTransferRow": 1,
+  "hasSlipPrintNextDayRow": 1,
+  "hasSlipCleanupRow": 1,
+  "hasPeriodLockLabelText": true
+}
