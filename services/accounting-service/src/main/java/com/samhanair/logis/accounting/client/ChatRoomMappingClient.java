@@ -16,9 +16,9 @@ import org.springframework.web.client.RestClientResponseException;
  *
  * <p>partner_code → 단톡방 이름 1:N 매핑 조회. 원장/거래명세서 응답에 단톡방 이름 표기.
  *
- * <p>현 단계 notification-service 의 단톡방 매핑 admin endpoint
- * ({@code GET /admin/notifications/chat-room-mappings/by-partner/{partnerCode}}) 를 호출.
- * Internal endpoint 가 추가되면 그 쪽으로 전환.
+ * <p>notification-service 의 내부 단톡방 매핑 endpoint
+ * ({@code GET /internal/notification/admin/chat-rooms?partnerCode=...}) 를 호출한다.
+ * 서비스 간 호출이므로 gateway/admin JWT 경로가 아니라 {@code X-Internal-Token} 인증 경로를 사용한다.
  *
  * <p>fail-soft 패턴 — 404 / 401 / 5xx / 네트워크 모두 empty list 반환. caller (Service) 는
  * 빈 리스트면 chat_room_name 을 "-" 로 fallback 표시.
@@ -61,7 +61,7 @@ public class ChatRoomMappingClient {
         }
         try {
             String body = restClient.get()
-                    .uri("/admin/notifications/chat-room-mappings/by-partner/{partnerCode}",
+                    .uri("/internal/notification/admin/chat-rooms?partnerCode={partnerCode}",
                             partnerCode.trim())
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
