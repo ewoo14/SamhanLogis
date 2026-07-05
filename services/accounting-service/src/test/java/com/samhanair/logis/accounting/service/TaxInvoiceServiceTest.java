@@ -154,8 +154,9 @@ class TaxInvoiceServiceTest {
     @Test
     @DisplayName("3. createFromRequest — 잘못된 invoiceType → BusinessException INVALID_INPUT")
     void scenario3_createFromRequest_invalidInvoiceType() {
+        String rawInvoiceType = "BAD_ENUM";
         TaxInvoiceCreateRequest req = new TaxInvoiceCreateRequest(
-                "WRONG_TYPE",
+                rawInvoiceType,
                 PARTNER_ID, "P-003", "거래처", "123-45-67890",
                 ISSUE_DATE, null,
                 List.of(new TaxInvoiceLineRequest("품목", null,
@@ -168,7 +169,8 @@ class TaxInvoiceServiceTest {
                         .isEqualTo(ErrorCode.INVALID_INPUT))
                 .hasMessageContaining("매출 또는 매입")
                 .hasMessageNotContaining("SALES")
-                .hasMessageNotContaining("PURCHASE");
+                .hasMessageNotContaining("PURCHASE")
+                .hasMessageNotContaining(rawInvoiceType);
     }
 
     // ── 시나리오 4 ───────────────────────────────────────────────────────────

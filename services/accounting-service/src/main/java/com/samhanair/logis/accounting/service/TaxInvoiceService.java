@@ -446,7 +446,7 @@ public class TaxInvoiceService {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "세금계산서 종류는 " + TaxInvoiceType.SALES.getDisplayName()
                             + " 또는 " + TaxInvoiceType.PURCHASE.getDisplayName()
-                            + "만 허용됩니다: " + raw);
+                            + "만 허용됩니다. 허용되지 않는 종류입니다.");
         }
     }
 
