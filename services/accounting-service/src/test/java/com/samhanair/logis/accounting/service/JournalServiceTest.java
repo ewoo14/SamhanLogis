@@ -240,6 +240,28 @@ class JournalServiceTest {
         verify(partnerLookupClient).findByPartnerIdsBatch(List.of(partnerId));
     }
 
+    @Test
+    @DisplayName("getOne — legacy 거래처 name 이 null 이어도 상세 응답 enrich 가 NPE 없이 계속된다")
+    void getOneIgnoresLegacyPartnerWithNullName() {
+        UUID partnerId = UUID.fromString("00000000-0000-0000-0000-000000000713");
+        Journal journal = newPersistedDraft(partnerId);
+        when(journalRepository.findById(journal.getId())).thenReturn(Optional.of(journal));
+        when(partnerLookupClient.findByPartnerIdsBatch(anyList()))
+                .thenReturn(Map.of(partnerId,
+                        new PartnerSummary(partnerId, "P-713", null, "123-45-67890", "서울")));
+        when(chartOfAccountRepository.findAllById(any()))
+                .thenReturn(List.of(
+                        ChartOfAccount.create("101", "현금", AccountCategory.ASSET, "100", true, 1),
+                        ChartOfAccount.create("401", "상품매출", AccountCategory.REVENUE, "400", true, 2)));
+
+        JournalDetailResponse resp = journalService.getOne(journal.getId());
+
+        assertThat(resp.lines().get(0).partnerName()).isNull();
+        assertThat(resp.lines().get(0).accountName()).isEqualTo("현금");
+        assertThat(resp.lines().get(1).accountName()).isEqualTo("상품매출");
+        verify(partnerLookupClient).findByPartnerIdsBatch(List.of(partnerId));
+    }
+
     private Journal newPersistedDraft() {
         return newPersistedDraft(null);
     }

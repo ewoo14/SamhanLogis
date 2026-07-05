@@ -448,7 +448,7 @@ public class JournalService {
         Map<UUID, String> partnerNamesById = partnerIds.isEmpty()
                 ? Map.of()
                 : partnerLookupClient.findByPartnerIdsBatch(new ArrayList<>(partnerIds)).entrySet().stream()
-                        .filter(entry -> entry.getValue() != null)
+                        .filter(entry -> entry.getValue() != null && entry.getValue().name() != null)
                         .collect(java.util.stream.Collectors.toMap(
                                 Map.Entry::getKey,
                                 entry -> entry.getValue().name(),

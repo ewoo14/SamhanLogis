@@ -9,14 +9,17 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ChangeEvent,
   type FocusEvent,
   type ForwardedRef,
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import styles from './AsyncAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
 
@@ -55,6 +58,8 @@ export interface AsyncAutocompleteProps<T> {
   minChars?: number
   /** 입력 후 서버 검색까지 debounce 시간 ms. */
   debounceMs?: number
+  /** dropdown 을 body floating layer 로 렌더한다. overflow 컨테이너 안에서는 기본 true 를 유지한다. */
+  portal?: boolean
 }
 
 /** 컴포넌트 내부 비동기 상태. */
@@ -79,6 +84,7 @@ function AsyncAutocompleteInner<T>(
     disabled = false,
     minChars = 1,
     debounceMs = 250,
+    portal = true,
   }: AsyncAutocompleteProps<T>,
   ref: ForwardedRef<HTMLInputElement>,
 ) {
@@ -92,7 +98,9 @@ function AsyncAutocompleteInner<T>(
   const [candidates, setCandidates] = useState<T[]>([])
   const [status, setStatus] = useState<SearchStatus>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [floatingStyle, setFloatingStyle] = useState<CSSProperties | undefined>(undefined)
 
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
   // blur timer — 항목 click 이벤트보다 먼저 닫히는 것 방지
   const blurTimer = useRef<number | undefined>(undefined)
   // debounce timer
@@ -270,6 +278,41 @@ function AsyncAutocompleteInner<T>(
   const showMinCharsHint =
     open && draft.trim().length > 0 && draft.trim().length < minChars
 
+  const hasFloatingLayer = showMinCharsHint || showLoadingRow || showDropdown || showEmpty
+
+  const updateFloatingPosition = useCallback(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    const rect = wrapper.getBoundingClientRect()
+    setFloatingStyle({
+      position: 'fixed',
+      top: rect.bottom + 4,
+      left: rect.left,
+      right: 'auto',
+      width: rect.width,
+      zIndex: 1000,
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!portal || !hasFloatingLayer) return
+    updateFloatingPosition()
+
+    window.addEventListener('resize', updateFloatingPosition)
+    window.addEventListener('scroll', updateFloatingPosition, true)
+    return () => {
+      window.removeEventListener('resize', updateFloatingPosition)
+      window.removeEventListener('scroll', updateFloatingPosition, true)
+    }
+  }, [hasFloatingLayer, portal, updateFloatingPosition])
+
+  const renderFloatingLayer = (node: ReactNode) => {
+    if (!portal || typeof document === 'undefined' || !document.body) {
+      return node
+    }
+    return createPortal(node, document.body)
+  }
+
   /**
    * label 이 비어 있거나 undefined 인 경우 compact 모드:
    * - FormField 를 건너뛰고 wrapper div 만 렌더.
@@ -286,7 +329,7 @@ function AsyncAutocompleteInner<T>(
     req: boolean,
     ariaDescribedBy: string | undefined,
   ) => (
-    <div className={styles['wrapper']}>
+    <div className={styles['wrapper']} ref={wrapperRef}>
       <div
         className={[
           styles['field'],
@@ -334,77 +377,101 @@ function AsyncAutocompleteInner<T>(
 
       {/* minChars 미달 안내 */}
       {showMinCharsHint ? (
-        <div className={styles['hint']} role="status">
-          {minChars}글자 이상 입력하면 검색합니다.
-        </div>
+        renderFloatingLayer(
+          <div
+            className={styles['hint']}
+            style={portal ? floatingStyle : undefined}
+            role="status"
+          >
+            {minChars}글자 이상 입력하면 검색합니다.
+          </div>,
+        )
       ) : null}
 
       {/* 로딩 중 — dropdown 박스에 "검색 중…" 표시 */}
       {showLoadingRow ? (
-        <ul
-          id={listId}
-          className={styles['dropdown']}
-          role="listbox"
-          aria-label={listboxLabel}
-        >
-          <li
-            className={styles['statusRow']}
-            role="option"
-            aria-selected={false}
+        renderFloatingLayer(
+          <ul
+            id={listId}
+            className={styles['dropdown']}
+            style={portal ? floatingStyle : undefined}
+            role="listbox"
+            aria-label={listboxLabel}
           >
-            <span className={styles['spinnerDot']} aria-hidden="true" />
-            <span>검색 중…</span>
-          </li>
-        </ul>
+            <li
+              className={styles['statusRow']}
+              role="option"
+              aria-selected={false}
+            >
+              <span className={styles['spinnerDot']} aria-hidden="true" />
+              <span>검색 중…</span>
+            </li>
+          </ul>,
+        )
       ) : null}
 
       {/* 후보 dropdown */}
       {showDropdown && candidates.length > 0 ? (
-        <ul
-          id={listId}
-          className={styles['dropdown']}
-          role="listbox"
-          aria-label={listboxLabel}
-        >
-          {candidates.map((item, idx) => {
-            const key = getKey(item)
-            return (
-              <li
-                key={key}
-                id={`${listId}-${key}`}
-                className={[
-                  styles['option'],
-                  value && getKey(value) === key ? styles['optionSelected'] : null,
-                  idx === activeIndex ? styles['optionActive'] : null,
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                role="option"
-                aria-selected={value ? getKey(value) === key : false}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  pick(item)
-                }}
-              >
-                {renderOption(item)}
-              </li>
-            )
-          })}
-        </ul>
+        renderFloatingLayer(
+          <ul
+            id={listId}
+            className={styles['dropdown']}
+            style={portal ? floatingStyle : undefined}
+            role="listbox"
+            aria-label={listboxLabel}
+          >
+            {candidates.map((item, idx) => {
+              const key = getKey(item)
+              return (
+                <li
+                  key={key}
+                  id={`${listId}-${key}`}
+                  className={[
+                    styles['option'],
+                    value && getKey(value) === key ? styles['optionSelected'] : null,
+                    idx === activeIndex ? styles['optionActive'] : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  role="option"
+                  aria-selected={value ? getKey(value) === key : false}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    pick(item)
+                  }}
+                >
+                  {renderOption(item)}
+                </li>
+              )
+            })}
+          </ul>,
+        )
       ) : null}
 
       {/* 빈 결과 */}
       {showEmpty ? (
-        <div className={styles['empty']} role="status">
-          검색 결과 없음
-        </div>
+        renderFloatingLayer(
+          <div
+            className={styles['empty']}
+            style={portal ? floatingStyle : undefined}
+            role="status"
+          >
+            검색 결과 없음
+          </div>,
+        )
       ) : null}
 
       {/* 에러 */}
       {open && status === 'error' && errorMsg ? (
-        <div className={styles['empty']} role="status">
-          {errorMsg}
-        </div>
+        renderFloatingLayer(
+          <div
+            className={styles['empty']}
+            style={portal ? floatingStyle : undefined}
+            role="status"
+          >
+            {errorMsg}
+          </div>,
+        )
       ) : null}
     </div>
   )

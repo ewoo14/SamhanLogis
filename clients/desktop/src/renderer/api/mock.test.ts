@@ -99,6 +99,21 @@ describe('mock journal cash receipt contract', () => {
 })
 
 describe('mock manual journal contract', () => {
+  it('GET /admin/partners/search 는 공유 admin 응답에 partnerId 를 노출하지 않는다', () => {
+    const adminSearch = mockRequest({
+      method: 'GET',
+      url: '/admin/partners/search',
+      params: { q: '엘에이' },
+    }) as MockEnvelope<{ items: Array<Record<string, unknown>> }>
+
+    expect(adminSearch.data.items.length).toBeGreaterThan(0)
+    expect(adminSearch.data.items[0]).toMatchObject({
+      partnerCode: '1234567890',
+      name: '엘에이시스템에어',
+    })
+    expect(adminSearch.data.items[0]).not.toHaveProperty('partnerId')
+  })
+
   it('POST /accounting/journals 는 BE DTO 필드명으로 라인을 저장하고 partnerId 는 partnerName 으로 enrich 한다', () => {
     const partnerSearch = mockRequest({
       method: 'GET',

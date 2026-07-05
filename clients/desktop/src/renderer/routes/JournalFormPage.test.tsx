@@ -3,7 +3,7 @@ import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
 const mocks = vi.hoisted(() => ({
   createJournal: vi.fn(),
@@ -95,7 +95,7 @@ vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
 
 import { JournalFormPage } from './JournalFormPage'
 
-function renderPage() {
+function renderPage(initialEntry = '/accounting/journals/new') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.listAccounts.mockResolvedValue([
     { code: '102', name: '보통예금', category: 'ASSET' },
@@ -112,8 +112,11 @@ function renderPage() {
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/accounting/journals/new']}>
-        <JournalFormPage />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path="/accounting/journals/new" element={<JournalFormPage />} />
+          <Route path="/accounting/journals/:id/edit" element={<JournalFormPage />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -216,6 +219,83 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
       creditAmount: '1000',
       partnerId: null,
       memo: undefined,
+    })
+  })
+
+  it('편집 진입 시 partnerName 만 있는 라인을 표시하고 정확 검색으로 partnerId 를 복원해 저장한다', async () => {
+    mocks.getJournal.mockResolvedValue({
+      id: 'journal-edit',
+      journalNo: '2026/07/05-7',
+      journalDate: '2026-07-05',
+      status: 'DRAFT',
+      sourceType: 'MANUAL',
+      description: '편집 분개',
+      totalDebit: '1000',
+      totalCredit: '1000',
+      createdByName: '오병승',
+      createdAt: '2026-07-05T09:00:00+09:00',
+      postedAt: null,
+      reversedAt: null,
+      reverseReason: null,
+      lines: [
+        {
+          lineNo: 1,
+          accountCode: '102',
+          accountName: '보통예금',
+          debit: '1000',
+          credit: '0',
+          debitAmount: '1000',
+          creditAmount: '0',
+          partnerName: '삼한테스트상사',
+          memo: '입금 메모',
+        },
+        {
+          lineNo: 2,
+          accountCode: '401',
+          accountName: '매출',
+          debit: '0',
+          credit: '1000',
+          debitAmount: '0',
+          creditAmount: '1000',
+          partnerName: null,
+          memo: null,
+        },
+      ],
+      version: 0,
+    })
+    mocks.createJournal.mockResolvedValue({
+      id: 'journal-new-from-edit',
+      journalNo: '2026/07/05-8',
+      journalDate: '2026-07-05',
+      status: 'DRAFT',
+      sourceType: 'MANUAL',
+      description: '편집 분개',
+      totalDebit: '1000',
+      totalCredit: '1000',
+      createdByName: '오병승',
+      createdAt: '2026-07-05T09:05:00+09:00',
+      postedAt: null,
+      reversedAt: null,
+      reverseReason: null,
+      lines: [],
+      version: 0,
+    })
+
+    renderPage('/accounting/journals/journal-edit/edit')
+
+    await waitFor(() => {
+      expect((screen.getByLabelText('라인 1 거래처') as HTMLInputElement).value)
+        .toBe('삼한테스트상사')
+    })
+    await waitFor(() => expect(mocks.searchJournalPartners).toHaveBeenCalledWith('삼한테스트상사'))
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    await waitFor(() => expect(mocks.createJournal).toHaveBeenCalledTimes(1))
+    const payload = mocks.createJournal.mock.calls[0][0]
+    expect(payload.lines[0]).toMatchObject({
+      accountCode: '102',
+      partnerId: '00000000-0000-0000-0000-000000000713',
     })
   })
 })

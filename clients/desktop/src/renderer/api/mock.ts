@@ -489,7 +489,6 @@ function mockRequirePermission(pageCode: string, action: MockPermissionAction): 
 
 function normalizeAdminPartner(row: Record<string, unknown>) {
   return {
-    partnerId: String(row['id'] ?? row['partnerId'] ?? ''),
     partnerCode: String(row['partnerCode'] ?? ''),
     name: String(row['name'] ?? row['partnerName'] ?? ''),
     bizNo: String(row['bizNo'] ?? row['businessNumber'] ?? ''),
@@ -497,6 +496,13 @@ function normalizeAdminPartner(row: Record<string, unknown>) {
     status: row['status'] ?? 'ACTIVE',
     creditLimit: row['creditLimit'] ?? '0',
     outstandingBalance: row['outstandingBalance'] ?? row['currentBalance'] ?? '0',
+  }
+}
+
+function normalizeAccountingPartner(row: Record<string, unknown>) {
+  return {
+    partnerId: String(row['id'] ?? row['partnerId'] ?? ''),
+    ...normalizeAdminPartner(row),
   }
 }
 
@@ -5110,7 +5116,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && url.includes('/accounting/partners/search')) {
     const q = (config.params?.['q'] as string | undefined) ?? ''
     const lower = q.trim().toLowerCase()
-    const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
+    const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAccountingPartner(row))
       .filter((item) => item.partnerId)
     const filtered = lower
       ? allItems.filter(
@@ -5200,7 +5206,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         creditAmount: l.creditAmount,
         partnerName: l.partnerId
           ? (MOCK_ADMIN_PARTNERS
-              .map((row) => normalizeAdminPartner(row))
+              .map((row) => normalizeAccountingPartner(row))
               .find((partner) => partner.partnerId === l.partnerId)?.name ?? null)
           : null,
         memo: l.memo ?? null,
@@ -6247,7 +6253,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (current.matchStatus !== 'UNREFLECTED') {
       return mockError(409, 'CONFLICT', '미반영 거래만 거래처 매칭을 변경할 수 있습니다.')
     }
-    const partner = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
+    const partner = MOCK_ADMIN_PARTNERS.map((row) => normalizeAccountingPartner(row))
       .find((row) => row.partnerCode === partnerCode)
     if (!partner) {
       return mockError(404, 'NOT_FOUND', `등록된 거래처를 찾을 수 없습니다: ${partnerCode}`)
