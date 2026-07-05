@@ -13,7 +13,7 @@
 | 운영 단위 | **독립** (Samhan Public 14 service 와 별도 build/배포 cadence, 같은 docker network `samhan-net` + 같은 Eureka 공유) |
 | Docker image | `samhanpublic/arologis-service:VERSION` (별도 ghcr.io tag `arologis-v*`) |
 | 진입 도메인 | `api.arologis.samhan-air.com` (Nginx host-header → 8097, api-gateway 우회) |
-| 외부 의존성 | **3 client** — partner-service (8095) / slip-service (8084) / notification-service (8093). **UserClient 제거 (D-AX-07, 자체 user 도메인)** |
+| 외부 의존성 | **3 client** — partner-service (8095) / slip-service (8086) / notification-service (8093). **UserClient 제거 (D-AX-07, 자체 user 도메인)** |
 | 인증 | **자체 JWT HS256** (`/auth/admin/login` loginId+password BCrypt / `/auth/driver/login` phoneNumber passwordless / `/auth/refresh` rotation / `/auth/logout` / `/auth/me`) — Samhan Public auth-service 와 무관 |
 | 외부 vendor | 인성데이타 퀵프로그램 (5만 프리랜서 풀, W10-2 통합 시점) |
 
@@ -108,7 +108,7 @@ SAMHAN_INTERNAL_TOKEN=...
 SAMHAN_DISCOVERY_PROVIDER=eureka
 SAMHAN_PARTNER_SERVICE_URL=http://localhost:8095
 SAMHAN_USER_SERVICE_URL=http://localhost:8083
-SAMHAN_SLIP_SERVICE_URL=http://localhost:8084
+SAMHAN_SLIP_SERVICE_URL=http://localhost:8086
 SAMHAN_NOTIFICATION_SERVICE_URL=http://localhost:8093
 SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE=false       # W10-4 (PR #99) 시점 활성 — slip-service 양쪽 저장 활성
 SAMHAN_AROLOGIS_MATCHER_PROVIDER=mock            # mock (W10-1) | insung-quick (W10-2)

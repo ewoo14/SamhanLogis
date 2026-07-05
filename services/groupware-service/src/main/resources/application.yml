@@ -52,6 +52,9 @@ samhan:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
   user-service:
     url: ${SAMHAN_USER_SERVICE_URL:http://localhost:8083}
+  user-client:
+    # OPEN = fail-soft (local/default), STRICT = fail-fast (prod compose cutover).
+    fail-mode: ${SAMHAN_USER_CLIENT_FAIL_MODE:OPEN}
   minio:
     # §7 결재 첨부 파일 storage. false/default 에서는 NoopApprovalAttachmentStorage fallback.
     enabled: ${SAMHAN_MINIO_ENABLED:false}

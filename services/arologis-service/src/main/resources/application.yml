@@ -56,7 +56,7 @@ samhan:
   user-service:
     url: ${SAMHAN_USER_SERVICE_URL:http://localhost:8083}
   slip-service:
-    url: ${SAMHAN_SLIP_SERVICE_URL:http://localhost:8084}
+    url: ${SAMHAN_SLIP_SERVICE_URL:http://localhost:8086}
   notification-service:
     url: ${SAMHAN_NOTIFICATION_SERVICE_URL:http://localhost:8093}
   arologis:

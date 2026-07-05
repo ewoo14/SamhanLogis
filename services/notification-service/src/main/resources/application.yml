@@ -46,6 +46,9 @@ samhan:
     url: ${SAMHAN_AUTH_SERVICE_URL:http://localhost:8081}
   user-service:
     url: ${SAMHAN_USER_SERVICE_URL:http://localhost:8083}
+  user-client:
+    # OPEN = fail-soft (local/default), STRICT = fail-fast (prod compose cutover).
+    fail-mode: ${SAMHAN_USER_CLIENT_FAIL_MODE:OPEN}
   # PR-E 진입 전 선행 BE-E — RestClientPartnerLookupClient 활성. partner-service base URL.
   partner-service:
     url: ${SAMHAN_PARTNER_SERVICE_URL:http://localhost:8095}

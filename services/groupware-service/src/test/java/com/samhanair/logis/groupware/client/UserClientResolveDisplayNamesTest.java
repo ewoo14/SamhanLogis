@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.discovery.ServiceDiscoveryClient;
+import com.samhanair.logis.userclient.UserVerifierProperties;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,7 +32,8 @@ class UserClientResolveDisplayNamesTest {
     void setup() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new UserClient(builder, noopDiscovery(), "http://user-service", "test-token", new ObjectMapper());
+        client = new UserClient(builder, noopDiscovery(), "http://user-service",
+                UserVerifierProperties.FailMode.OPEN, "test-token", new ObjectMapper());
     }
 
     @Test
