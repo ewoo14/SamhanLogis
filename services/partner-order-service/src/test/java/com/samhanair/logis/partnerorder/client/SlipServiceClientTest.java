@@ -36,6 +36,7 @@ class SlipServiceClientTest {
 
     private static final String TOKEN = "test-token";
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
+    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
     private static final String FROM_PARTNER_ORDER =
             "http://slip-service/api/v1/slips/from-partner-order";
     private static final String FROM_ORDERS_MERGE =
@@ -60,6 +61,7 @@ class SlipServiceClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(header("Idempotency-Key", "PO-CONF-P1-1"))
                 .andExpect(jsonPath("$.partnerCode").value("P1"))
                 .andExpect(jsonPath("$.lines[0].itemName").value("품목-1"))
@@ -83,6 +85,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(header("Idempotency-Key", "PO-CONF-P1-1"))
                 .andRespond(withSuccess("""
                         {"success":true,"data":{"slipNo":"SLIP-20260623-001"}}
@@ -102,6 +106,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(header("Idempotency-Key", "PO-CONF-P1-1"))
                 .andRespond(withStatus(HttpStatus.CONFLICT)
                         .body("""
@@ -120,6 +126,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
 
         assertBusinessError(
@@ -133,6 +141,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.FORBIDDEN));
 
         assertBusinessError(
@@ -146,6 +156,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 
         assertBusinessError(
@@ -159,6 +171,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST));
 
         assertBusinessError(
@@ -172,6 +186,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.CREATED)
                         .body("""
                                 {"success":true,"data":{}}
@@ -206,6 +222,7 @@ class SlipServiceClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(header("Idempotency-Key", "PO-MRG-20260623-1"))
                 .andExpect(MockRestRequestMatchers.content().string(containsString("sourceOrders")))
                 .andRespond(withStatus(HttpStatus.CREATED)
@@ -227,6 +244,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_ORDERS_MERGE))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(header("Idempotency-Key", "PO-MRG-20260623-1"))
                 .andRespond(withSuccess("""
                         {"success":true,"data":{"slipNo":"SLIP-MRG-20260623-001"}}
@@ -245,6 +264,8 @@ class SlipServiceClientTest {
         server.expect(requestTo(FROM_ORDERS_MERGE))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(header("Idempotency-Key", "PO-MRG-20260623-1"))
                 .andRespond(withStatus(HttpStatus.CONFLICT)
                         .body("""

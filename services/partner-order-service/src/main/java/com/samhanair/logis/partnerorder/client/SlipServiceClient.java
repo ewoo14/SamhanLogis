@@ -42,10 +42,11 @@ public class SlipServiceClient {
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
     private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
     // Phase C5-4: X-User-Role: MASTER 헤더 주입 제거.
     // slip-service HeaderAuthenticationFilter 는 X-User-Id 단독으로 인증 성립 (C5-3).
     // /api/v1/slips/from-partner-order 경로는 /internal/ prefix 아님 → InternalTokenFilter no-op.
-    // X-Internal-Token + X-User-Id 조합으로 인증 유지.
+    // PermissionAspect MASTER bypass 는 X-Is-System-Master:true 단독 판정이므로 함께 전송한다.
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
     private static final String SLIP_SERVICE_BASE = "http://slip-service";
 
@@ -81,6 +82,7 @@ public class SlipServiceClient {
                     .uri("/api/v1/slips/from-partner-order")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
+                    .header(SYSTEM_MASTER_HEADER, "true")
                     .header(IDEMPOTENCY_HEADER, idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestPayload)
@@ -150,6 +152,7 @@ public class SlipServiceClient {
                     .uri("/api/v1/slips/from-orders-merge")
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .header(USER_ID_HEADER, INTERNAL_CALLER_ID)
+                    .header(SYSTEM_MASTER_HEADER, "true")
                     .header(IDEMPOTENCY_HEADER, idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestPayload)

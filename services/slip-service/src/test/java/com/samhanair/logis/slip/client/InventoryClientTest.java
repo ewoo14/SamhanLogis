@@ -28,6 +28,7 @@ class InventoryClientTest {
 
     private static final String TOKEN = "test-token-xyz";
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
+    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
 
     private MockRestServiceServer server;
     private InventoryClient client;
@@ -51,6 +52,13 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/reserve"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
+                .andExpect(jsonPath("$.productId").value(productId.toString()))
+                .andExpect(jsonPath("$.warehouseId").value(warehouseId.toString()))
+                .andExpect(jsonPath("$.quantity").value(5))
+                .andExpect(jsonPath("$.referenceType").value("SLIP"))
+                .andExpect(jsonPath("$.referenceId").value(slipId.toString()))
                 .andRespond(withSuccess());
 
         client.reserve(productId, warehouseId, 5, "SLIP", slipId);
@@ -63,7 +71,14 @@ class InventoryClientTest {
         UUID warehouseId = UUID.randomUUID();
 
         server.expect(requestTo("http://inventory-service/inventory/release"))
+                .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
+                .andExpect(jsonPath("$.productId").value(productId.toString()))
+                .andExpect(jsonPath("$.warehouseId").value(warehouseId.toString()))
+                .andExpect(jsonPath("$.quantity").value(3))
+                .andExpect(jsonPath("$.referenceType").value("SLIP"))
                 .andRespond(withSuccess());
 
         client.release(productId, warehouseId, 3, "SLIP", UUID.randomUUID());
@@ -75,6 +90,10 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/deduct"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
+                .andExpect(jsonPath("$.quantity").value(2))
+                .andExpect(jsonPath("$.fromReservation").value(true))
                 .andRespond(withSuccess());
 
         client.deduct(UUID.randomUUID(), UUID.randomUUID(), 2, true, "SLIP", UUID.randomUUID());
@@ -86,6 +105,11 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/lots/inbound"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
+                .andExpect(jsonPath("$.quantity").value(10))
+                .andExpect(jsonPath("$.lotNo").value("2026/05/04-1"))
+                .andExpect(jsonPath("$.unitCost").value(100.00))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.inbound(UUID.randomUUID(), UUID.randomUUID(), 10,
@@ -98,8 +122,9 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: master bypass 는 X-Is-System-Master 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.inboundInstances(UUID.randomUUID(), "AC-S2", UUID.randomUUID(), 2,
@@ -114,8 +139,9 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/reserve-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: master bypass 는 X-Is-System-Master 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.productCode").value("AC-S3"))
                 .andExpect(jsonPath("$.warehouseId").value(warehouseId.toString()))
                 .andExpect(jsonPath("$.quantity").value(2))
@@ -131,8 +157,9 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/ship-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: master bypass 는 X-Is-System-Master 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-2"))
                 .andExpect(jsonPath("$.productCode").value("AC-S3"))
                 .andExpect(jsonPath("$.partnerCode").value("P-2026-0001"))
@@ -147,8 +174,9 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/release-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: master bypass 는 X-Is-System-Master 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.outboundSlipNo").value("2026/06/02-3"))
                 .andExpect(jsonPath("$.productCode").value("AC-S3"))
                 .andRespond(withSuccess());
@@ -162,8 +190,9 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/recall-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: master bypass 는 X-Is-System-Master 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.partnerCode").value("P-S4-001"))
                 .andExpect(jsonPath("$.productCode").value("AC-S4"))
                 .andExpect(jsonPath("$.quantity").value(2))
@@ -192,8 +221,9 @@ class InventoryClientTest {
         server.expect(requestTo("http://inventory-service/inventory/instances/unrecall-batch"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: role 와이어 제거 — /internal/ 인증은 X-Internal-Token 전담
+                .andExpect(headerDoesNotExist("X-User-Role")) // C5-4: master bypass 는 X-Is-System-Master 전담
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.recallSlipNo").value("2026/06/03-3"))
                 .andExpect(jsonPath("$.productCode").value("AC-S4"))
                 .andRespond(withSuccess());

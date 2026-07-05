@@ -27,6 +27,7 @@ class InventoryClientTest {
 
     private static final String TOKEN = "test-token";
     private static final String INTERNAL_CALLER_ID = "00000000-0000-0000-0000-000000000000";
+    private static final String SYSTEM_MASTER_HEADER = "X-Is-System-Master";
 
     private MockRestServiceServer server;
     private InventoryClient client;
@@ -51,6 +52,7 @@ class InventoryClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.productId").value(productId.toString()))
                 .andExpect(jsonPath("$.warehouseId").value(warehouseId.toString()))
                 .andExpect(jsonPath("$.quantity").value(7))
@@ -77,6 +79,7 @@ class InventoryClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.referenceType").value("PARTNER_ORDER_CONVERT"))
                 .andExpect(jsonPath("$.referenceId").value(referenceId.toString()))
                 .andRespond(withSuccess("""
@@ -96,6 +99,7 @@ class InventoryClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.CONFLICT));
 
         assertThatThrownBy(() -> client.reserve(UUID.randomUUID(), UUID.randomUUID(),
@@ -116,6 +120,7 @@ class InventoryClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andExpect(jsonPath("$.productId").value(productId.toString()))
                 .andExpect(jsonPath("$.warehouseId").value(warehouseId.toString()))
                 .andExpect(jsonPath("$.quantity").value(3))
@@ -134,6 +139,7 @@ class InventoryClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(header("X-User-Id", INTERNAL_CALLER_ID))
+                .andExpect(header(SYSTEM_MASTER_HEADER, "true"))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 
         assertThatCode(() -> client.release(UUID.randomUUID(), UUID.randomUUID(),
