@@ -163,8 +163,9 @@ test.describe('§7 슬라이스1 회계전표 협업 실 QA — 수정완료 1-�
     await page.waitForTimeout(1500)
     await capture(page, 'edit-commit')
 
-    // ⑦ diff 이력
-    await page.getByTestId('journal-collab-edit-item').first().scrollIntoViewIfNeeded().catch(() => {})
+    // ⑦ 버전이력 격차 안내 — #31 이력 일원화 이후 changeSet diff 목록은 제거되고
+    //    revision/restore API 부재를 알리는 안내 카드만 남는다(정직 표기).
+    await page.getByTestId('journal-version-history-gap').scrollIntoViewIfNeeded().catch(() => {})
     await page.waitForTimeout(400)
     await capture(page, 'diff-history')
 

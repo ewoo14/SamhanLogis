@@ -227,7 +227,7 @@ export function SlipVersionHistoryPanel({
             border: '1px solid',
             borderColor:
               toast.kind === 'success'
-                ? 'var(--color-success-300, #6EE7B7)'
+                ? 'var(--color-success-200, #a7f3d0)'
                 : 'var(--color-danger-300, #FCA5A5)',
             background:
               toast.kind === 'success'
@@ -235,7 +235,7 @@ export function SlipVersionHistoryPanel({
                 : 'var(--color-danger-50, #FEF2F2)',
             color:
               toast.kind === 'success'
-                ? 'var(--color-success-800, #065F46)'
+                ? 'var(--color-success-700, #047857)'
                 : 'var(--color-danger-800, #991B1B)',
             fontSize: 13,
           }}
@@ -322,7 +322,7 @@ export function SlipVersionHistoryPanel({
                   flexWrap: 'wrap',
                   borderRadius: 6,
                   background: isHighlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
-                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #D97706)' : undefined,
+                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #E9A53D)' : undefined,
                   cursor: onRevisionSelect ? 'pointer' : undefined,
                 }}
               >

@@ -3107,7 +3107,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       ) : null}
 
       {isMobile ? (
-        <MobileCollapsible title="협업 · 코멘트" defaultOpen>
+        <MobileCollapsible title="코멘트" defaultOpen>
           <SlipCollaborationPanel
             slipId={id}
             currentValues={collabEditValues}

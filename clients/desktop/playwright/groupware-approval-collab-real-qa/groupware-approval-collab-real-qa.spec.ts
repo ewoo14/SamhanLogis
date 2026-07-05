@@ -126,10 +126,11 @@ test.describe('§7 슬라이스6 그룹웨어 결재 협업 실 QA — 수정완
     await page.waitForTimeout(1_800)
     await capture(page, 'edit-committed')
 
-    // 6) diff 이력 — 제목/내용 before→after + KST 타임스탬프
-    const diffItem = page.getByTestId('groupware-approval-collab-edit-item').first()
-    await diffItem.scrollIntoViewIfNeeded().catch(() => {})
-    await expect(diffItem).toBeVisible({ timeout: 8_000 })
+    // 6) 버전이력 격차 안내 — #31 이력 일원화 이후 changeSet diff 목록은 제거되고
+    //    revision/restore API 부재를 알리는 안내 카드만 남는다(정직 표기).
+    const versionHistoryGap = page.getByTestId('groupware-approval-version-history-gap')
+    await versionHistoryGap.scrollIntoViewIfNeeded().catch(() => {})
+    await expect(versionHistoryGap).toBeVisible({ timeout: 8_000 })
     await page.waitForTimeout(400)
     await capture(page, 'diff-history')
 

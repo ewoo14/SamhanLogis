@@ -277,6 +277,8 @@ export function EstimateCollaborationPanel({
                   key={comment.id}
                   data-testid="estimate-collab-comment-item"
                   data-active={highlighted ? 'true' : undefined}
+                  role={fieldPath ? 'button' : undefined}
+                  aria-current={highlighted ? 'true' : undefined}
                   tabIndex={fieldPath ? 0 : undefined}
                   onClick={() => {
                     if (!fieldPath) return

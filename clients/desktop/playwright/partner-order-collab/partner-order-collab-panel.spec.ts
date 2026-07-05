@@ -3,8 +3,12 @@
  *
  * 검증 대상: SalesPartnerOrderDetailPage (`/sales/partner-orders/:id`) 하단 협업 섹션의
  *   1) 코멘트 등록 → 목록 반영 → 해결 처리
- *   2) 수정 버튼 → 요청사항/납기/라인 비고 편집 → 수정완료 → diff 표시
+ *   2) 수정 버튼 → 요청사항/납기/라인 비고 편집 → 수정완료 → 버전이력으로 일원화
  *   3) 잠금 상태(CANCELED/CONVERTED/CONFIRMING) 주문에서는 수정 버튼 미노출
+ *
+ * <p>#31 이력 일원화(2026-07-06) 이후 "협업" 헤더 + changeSet diff(수정 이력) 목록은
+ * 제거되었고, {@link PartnerOrderVersionHistoryPanel} (row-level highlight) 로 일원화됐다
+ * — slip-collab-panel.spec.ts 와 동일 계약.
  *
  * UUID 비공개 가드: 화면 단언은 작성자 실명, 주문번호, 필드 라벨만 사용한다.
  */
@@ -62,13 +66,20 @@ test.describe('§7 주문 협업 패널', () => {
     await expect(commentItem).toContainText('해결')
   })
 
-  test('수정 버튼 → 요청사항/납기/라인비고 편집 → 수정완료 → diff 반영', async ({ page }) => {
+  test('수정 버튼 → 요청사항/납기/라인비고 편집 → 수정완료 → 버전이력으로 일원화', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(detailUrl(CONFIRMED_ORDER_ID), { waitUntil: 'domcontentloaded' })
 
     const panel = page.getByTestId('partner-order-collaboration-panel')
     await expect(panel).toBeVisible()
-    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toBeVisible()
+    await expect(panel.getByRole('heading', { name: '협업' })).toHaveCount(0)
+    await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
+    await expect(panel.getByTestId('partner-order-collab-edit-item')).toHaveCount(0)
+    // mock fixture(ord-confirmed) 는 rev3(RESTORE)/rev2(EDIT)/rev1(CREATE) 3건 고정 —
+    // 최신(rev3) 행이 버전이력 통합의 회귀 가드.
+    const versionHistory = panel.getByTestId('partner-order-version-history-panel')
+    await expect(versionHistory).toBeVisible()
+    await expect(versionHistory.getByTestId('partner-order-version-history-row-3')).toBeVisible()
 
     await page.getByTestId('partner-order-collab-edit-open').click()
 
@@ -80,18 +91,15 @@ test.describe('§7 주문 협업 패널', () => {
     await form.getByLabel('수정 사유').fill('거래처 요청사항 반영')
     await form.getByRole('button', { name: '수정완료' }).click()
 
-    const item = panel.getByTestId('partner-order-collab-edit-item')
-    await expect(item).toHaveCount(1)
-    await expect(item).toContainText('오병승')
-    await expect(item).toContainText('수정완료')
-    await expect(item).toContainText('요청사항')
-    await expect(item).toContainText('납기')
-    await expect(item).toContainText('1번 라인 비고')
-    await expect(item).toContainText('5/7 오전 입고 후 담당자 확인 요청')
-    await expect(item).toContainText('2026-06-03')
-    await expect(item).toContainText('실외기 설치 위치 재확인')
-    await expect(item).toContainText('사유: 거래처 요청사항 반영')
-    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toHaveCount(0)
+    // diff 전용 목록은 만들지 않고, 버전이력 패널만 남긴다.
+    await expect(panel.getByTestId('partner-order-collab-edit-item')).toHaveCount(0)
+    await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
+    await expect(versionHistory).toBeVisible()
+
+    // 버전이력 항목 선택은 공유 highlight 상태를 반영한다.
+    const revisionRow = versionHistory.getByTestId('partner-order-version-history-row-3')
+    await revisionRow.click()
+    await expect(revisionRow).toHaveAttribute('data-active', 'true')
   })
 
   // 잠금 상태(CANCELED·CONVERTED·CONFIRMING) 3종 모두에서 협업 수정완료 버튼 미노출.

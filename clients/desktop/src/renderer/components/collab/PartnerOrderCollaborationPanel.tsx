@@ -282,6 +282,8 @@ export function PartnerOrderCollaborationPanel({
                   key={comment.id}
                   data-testid="partner-order-collab-comment-item"
                   data-active={highlighted ? 'true' : undefined}
+                  role={fieldPath ? 'button' : undefined}
+                  aria-current={highlighted ? 'true' : undefined}
                   tabIndex={fieldPath ? 0 : undefined}
                   onClick={() => {
                     if (!fieldPath) return

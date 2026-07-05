@@ -35,7 +35,15 @@ export interface EstimateVersionHistoryPanelProps {
   status: EstimateStatus
   /** 협업 패널과 공유하는 선택 revision 번호. */
   activeRevisionNo?: number | null
-  /** 코멘트 anchor 와 공유하는 필드 경로. 현 API 는 field-level 변경을 제공하지 않아 보존 전달용이다. */
+  /**
+   * 코멘트 anchor 와 공유하는 필드 경로.
+   *
+   * <p>현 API({@link EstimateRevision})는 revision 별 field-level 변경 목록을 제공하지
+   * 않아 Slip 수준(field 단위 정확 매칭)의 하이라이트는 불가하다. 코멘트가 가리키는
+   * 필드는 항상 "현재" 문서 상태에 대한 것이므로, 그 필드를 담고 있는 최신(현재)
+   * revision 행만 근사적으로 하이라이트한다(row-level highlight) — 개발책임자 확인 시
+   * revision DTO 에 fieldChanges 가 추가되면 Slip 과 동일한 field 단위 매칭으로 교체한다.
+   */
   activeFieldPath?: string | null
   /** 버전 행 선택 시 협업 패널에 공유한다. */
   onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
@@ -89,6 +97,7 @@ export function EstimateVersionHistoryPanel({
   estimateId,
   status,
   activeRevisionNo = null,
+  activeFieldPath = null,
   onRevisionSelect,
 }: EstimateVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
@@ -114,7 +123,7 @@ export function EstimateVersionHistoryPanel({
       void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })
       setToast({
         kind: 'success',
-        text: `rev ${revisionNo} 시점으로 견적서를 복원했습니다.`,
+        text: `버전 ${revisionNo} 시점으로 견적서를 복원했습니다.`,
       })
     },
     onError: () => {
@@ -165,7 +174,7 @@ export function EstimateVersionHistoryPanel({
             border: '1px solid',
             borderColor:
               toast.kind === 'success'
-                ? 'var(--color-success-300, #6EE7B7)'
+                ? 'var(--color-success-200, #a7f3d0)'
                 : 'var(--color-danger-300, #FCA5A5)',
             background:
               toast.kind === 'success'
@@ -173,7 +182,7 @@ export function EstimateVersionHistoryPanel({
                 : 'var(--color-danger-50, #FEF2F2)',
             color:
               toast.kind === 'success'
-                ? 'var(--color-success-800, #065F46)'
+                ? 'var(--color-success-700, #047857)'
                 : 'var(--color-danger-800, #991B1B)',
             fontSize: 13,
           }}
@@ -231,7 +240,10 @@ export function EstimateVersionHistoryPanel({
             const meta = REVISION_TYPE_META[rev.revisionType]
             // 가장 최근 revision(목록 첫 항목) 은 현재 상태이므로 복원 버튼을 노출하지 않는다.
             const isLatest = rev.revisionNo === revisions[0]?.revisionNo
+            // field-level 변경 목록이 없어 activeFieldPath 는 "현재" 값을 담은 최신 행에만
+            // row-level 로 근사 매칭한다(위 activeFieldPath prop 문서 참고).
             const isHighlighted = activeRevisionNo === rev.revisionNo
+              || (!!activeFieldPath && isLatest)
             return (
               <li
                 key={rev.revisionNo}
@@ -256,7 +268,7 @@ export function EstimateVersionHistoryPanel({
                   flexWrap: 'wrap',
                   borderRadius: 6,
                   background: isHighlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
-                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #D97706)' : undefined,
+                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #E9A53D)' : undefined,
                   cursor: onRevisionSelect ? 'pointer' : undefined,
                 }}
               >
@@ -266,7 +278,7 @@ export function EstimateVersionHistoryPanel({
                     <Badge variant={meta.variant}>
                       {meta.label}
                       {rev.revisionType === 'RESTORE' && rev.sourceRevisionNo != null
-                        ? ` (rev ${rev.sourceRevisionNo})`
+                        ? ` (버전 ${rev.sourceRevisionNo})`
                         : ''}
                     </Badge>
                     <span style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
@@ -333,7 +345,7 @@ export function EstimateVersionHistoryPanel({
       >
         <p style={{ margin: 0, fontSize: 14 }}>
           {restoreTarget
-            ? `rev ${restoreTarget.revisionNo} 시점으로 견적서를 복원합니다. 현재 내용은 새 버전으로 대체됩니다.`
+            ? `버전 ${restoreTarget.revisionNo} 시점으로 견적서를 복원합니다. 현재 내용은 새 버전으로 대체됩니다.`
             : ''}
         </p>
       </Modal>

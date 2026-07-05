@@ -661,6 +661,21 @@ button {
   .mobile-section-body h4 {
     display: none;
   }
+
+  /*
+   * #31 이력 일원화 — 위 블랭킷 규칙(.mobile-section-body h4)은 "코멘트" MobileCollapsible
+   * 내부에 재중첩된 *VersionHistoryPanel 의 "버전 이력" h4 라벨까지 지워, 코멘트/버전이력
+   * 두 하위 섹션을 구분할 라벨이 모바일에서 소실되는 회귀를 낳는다.
+   * 전체 선택자를 바꾸지 않고(다른 MobileCollapsible 내부 h4 는 계속 숨김 유지),
+   * 버전이력 패널의 data-testid 로만 한정해 라벨을 되살린다(스코프 한정 규칙).
+   */
+  .mobile-section-body [data-testid='slip-version-history-panel'] h4,
+  .mobile-section-body [data-testid='estimate-version-history-panel'] h4,
+  .mobile-section-body [data-testid='partner-order-version-history-panel'] h4,
+  .mobile-section-body [data-testid='journal-version-history-gap'] h4,
+  .mobile-section-body [data-testid='groupware-approval-version-history-gap'] h4 {
+    display: block;
+  }
 }
 
 /* SlipDetailPage — 라인 표 + 좌측 넘버링 + 행 액션 툴바 + 하단 액션 */

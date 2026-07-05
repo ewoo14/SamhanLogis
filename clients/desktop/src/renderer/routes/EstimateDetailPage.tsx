@@ -728,7 +728,7 @@ export function EstimateDetailPage() {
       {isMobile ? (
         <>
           <MobileCollapsible
-            title="협업 · 코멘트"
+            title="코멘트"
             defaultOpen
             className="mobile-section-card"
           >
