@@ -569,3 +569,66 @@ PR #747(#31) 중간 Design 리뷰에서 다중필드 역방향 하이라이트 �
   - 신규 포트 `5631`, Vite dev server `--host 127.0.0.1 --port 5631 --strictPort`, `VITE_MOCK_MODE=1`
   - PASS, 563/563 tests
   - `node scripts/assert-playwright-ran.mjs`: `expected=563 unexpected=0 skipped=0 flaky=0`
+
+## Codex 모바일 dedup — SlipDetail 레거시 이력 accordion 제거 (2026-07-06)
+
+### 제거 내용
+
+- `SlipDetailPage.tsx` 모바일 전용 레거시 이력 fragment 전체를 제거했다.
+  - `MobileCollapsible title="버전 이력"`: `revertCandidates` 기반 revision 복원 accordion.
+  - `MobileCollapsible title="수정 이력"`: `auditLogsQuery`/`auditLogs` 기반 최근 8건 요약 accordion.
+- 제거 전 정적 RED 확인:
+  - `MobileCollapsible title="버전 이력"` hit 1건.
+  - `MobileCollapsible title="수정 이력"` hit 1건.
+- 제거 후 동일 정적 체크 GREEN:
+  - `SlipDetailPage.tsx` 안에 위 두 legacy mobile accordion title hit 0건.
+
+### 존치 근거
+
+- 모바일은 이미 `MobileCollapsible title="코멘트"` 안에서 `SlipCollaborationPanel`을 렌더하고, 그 내부
+  `SlipVersionHistoryPanel`이 버전 이력 목록, `이 시점으로 복원`, 복원 confirm modal, 필드 하이라이트,
+  코멘트 양방향 하이라이트를 제공한다.
+- 아래 심볼은 제거 후에도 데스크톱 헤더/복원 select/AuditOverlay/onCommitted invalidation에서 계속 참조된다.
+  - `auditLogsQuery`: 3 hit (`516,1264,1882`)
+  - `auditLogs`: 17 hit (`71,514,516,517,518,566,668,698,860,1264,1265,1285,1292,1871,1882,3118,3131`)
+  - `auditByField`: 3 hit (`1265,2438,2453`)
+  - `revisionCount`: 2 hit (`1285,1887`)
+  - `revertCandidates`: 4 hit (`1291,1893,1894,1914`)
+  - `handleRevert`: 2 hit (`1296,1902`)
+  - `revertMutation`: 3 hit (`856,1304,1898`)
+- 따라서 이번 dedup에서 orphan 삭제는 하지 않았다.
+
+### Sweep 결과
+
+- SlipDetail 모바일 accordion 특정 spec:
+  - `clients/desktop/playwright` + `clients/desktop/src`에서 legacy title 직접 hit는 제거 후 0건.
+  - Slip 관련 spec의 `수정 이력`/`버전 이력` 단언은 `SlipCollaborationPanel` 또는
+    `SlipVersionHistoryPanel` 계약 대상으로 확인되어 변경하지 않았다.
+- 타 도메인 DetailPage:
+  - `EstimateDetailPage.tsx`: legacy mobile `버전 이력`/`수정 이력` accordion title hit 0건.
+  - `JournalDetailPage.tsx`: legacy mobile `버전 이력`/`수정 이력` accordion title hit 0건.
+  - `SalesPartnerOrderDetailPage.tsx`: legacy mobile `버전 이력`/`수정 이력` accordion title hit 0건.
+  - `GroupwareApprovalDetailPage.tsx`: legacy mobile `버전 이력`/`수정 이력` accordion title hit 0건.
+
+### 검증
+
+- `cd clients/desktop && npm run typecheck`
+  - PASS(exit 0), `tsconfig.node.json` + `tsconfig.web.json`.
+  - design-system dist fallback build 불필요.
+- `cd clients/desktop && npx vitest run`
+  - PASS(exit 0), **93 files / 637 tests**, 0 failed.
+- Playwright raw 재현:
+  - 표준 `5173` strict server: `VITE_MOCK_MODE=1 npx vite src/renderer --config vite.config.ts --host 127.0.0.1 --port 5173 --strictPort`
+  - `CI=1 PLAYWRIGHT_SKIP_WEB_SERVER=1 AUDIT_BASE_URL=http://127.0.0.1:5173 VITE_MOCK_MODE=1 npx playwright test`
+  - 결과: **566 passed / 2 failed**. 실패 2건은 이번 변경과 무관한 live-only spec:
+    - `coedit-s3-1-live/check-5177.spec.ts`: `http://127.0.0.1:5177` hard-code.
+    - `coedit-s3-1-live/coedit-s3-1-live-qa.spec.ts`: 주석상 `mock OFF`, `http://127.0.0.1:5174` 실서버 QA.
+- 5173 mock gate 재확인:
+  - 같은 5173 strict server + `--grep-invert 'check react on 5177|S3-1 주문 coedit 실서버 라이브 QA'`
+  - PASS(exit 0), **566 passed / 0 failed / 0 skipped / 0 flaky**.
+  - `node scripts/assert-playwright-ran.mjs`: `expected=566 unexpected=0 skipped=0 flaky=0`, exit 0.
+- CI 게이트 정합(로컬 566 vs CI 563 재조정): CI `desktop-playwright`(mock 회귀 hard gate) job 은
+  gitignore 된 실서버 전용 dir(`coedit-s3-1-live/` 등)을 checkout 에 포함하지 않아 tracked mock 스펙
+  **563** 개만 실행한다(로컬 566 = CI 563 + 물리적으로 존재하는 untracked live/QA 스펙 3). 본 변경은
+  spec-neutral(스펙 추가/삭제 0·UI 순수 삭제)이라 b8bc94098 에서 green 이던 desktop-playwright 게이트가
+  동일 563 으로 유지된다(push 후 실 CI 로 재확인).

@@ -3134,60 +3134,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         />
       )}
 
-      {isMobile ? (
-        <>
-          <MobileCollapsible title="버전 이력" className="mobile-section-card">
-            {revertCandidates.length === 0 ? (
-              <div className="mobile-field-row">
-                <span className="mobile-field-label">복원</span>
-                <span className="mobile-field-value mobile-field-value-empty">-</span>
-              </div>
-            ) : (
-              revertCandidates.map((rev) => (
-                <div key={rev} className="mobile-field-row">
-                  <span className="mobile-field-label">revision #{rev}</span>
-                  <button
-                    type="button"
-                    className="mobile-more-sheet-item"
-                    style={{ minHeight: 44, padding: 0, textAlign: 'right' }}
-                    disabled={revertMutation.isPending}
-                    onClick={() => handleRevert(rev)}
-                  >
-                    이 시점으로 복원
-                  </button>
-                </div>
-              ))
-            )}
-          </MobileCollapsible>
-
-          <MobileCollapsible title="수정 이력" className="mobile-section-card">
-            {auditLogsQuery.isLoading ? (
-              <div className="mobile-field-row">
-                <span className="mobile-field-label">상태</span>
-                <span className="mobile-field-value">불러오는 중</span>
-              </div>
-            ) : auditLogs.length === 0 ? (
-              <div className="mobile-field-row">
-                <span className="mobile-field-label">이력</span>
-                <span className="mobile-field-value mobile-field-value-empty">-</span>
-              </div>
-            ) : (
-              auditLogs.slice(0, 8).map((entry, index) => (
-                <div
-                  key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
-                  className="mobile-field-row"
-                >
-                  <span className="mobile-field-label">rev {entry.revisionNo}</span>
-                  <span className="mobile-field-value">
-                    {entry.field} · {entry.actorName ?? '시스템'}
-                  </span>
-                </div>
-              ))
-            )}
-          </MobileCollapsible>
-        </>
-      ) : null}
-
       {/*
         하단 액션 버튼 (사용자 명시) — 전표 복사 / 삭제 (경고창 필수) / 완료 (다음 단계).
       */}
