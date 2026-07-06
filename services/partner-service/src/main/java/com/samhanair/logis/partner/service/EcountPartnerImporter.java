@@ -7,7 +7,9 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
+import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -22,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -97,6 +100,7 @@ public class EcountPartnerImporter {
 
     private final PartnerRepository partnerRepository;
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final CollectionRealtimePublisher collectionRealtimePublisher;
 
     /**
      * CSV 스트림을 적재한다.
@@ -209,6 +213,13 @@ public class EcountPartnerImporter {
                         + "skippedPlaceholder={} ACTIVE={} SUSPENDED={} hash={} actor={}",
                 totalRows, imported, updated, rejectedNullName, skippedPlaceholder,
                 activeCount, suspendedCount, sourceFileHash, actorUserId);
+
+        if (imported + updated > 0) {
+            collectionRealtimePublisher.publishChange(
+                    PartnerListRealtime.CHANNEL_ID,
+                    PartnerListRealtime.EVENT_CHANGED,
+                    Map.of("changeType", "BULK_UPDATED"));
+        }
 
         return new EcountPartnerImportResult(totalRows, imported, updated, rejectedNullName,
                 skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample);

@@ -7330,17 +7330,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // q 파라미터로 partnerCode/name/bizNo/phone LIKE 필터 (대소문자 무시)
   if (method === 'GET' && url.includes('/admin/partners/search')) {
     const q = (config.params?.['q'] as string | undefined) ?? ''
+    const status = ((config.params?.['status'] as string | undefined)
+      ?? (config.params?.['type'] as string | undefined)
+      ?? '').trim()
     const lower = q.trim().toLowerCase()
     const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
-    const filtered = lower
-      ? allItems.filter(
-          (item) =>
-            item.partnerCode.toLowerCase().includes(lower) ||
-            item.name.toLowerCase().includes(lower) ||
-            item.bizNo.toLowerCase().includes(lower) ||
-            (item.phone ?? '').toLowerCase().includes(lower),
-        )
-      : allItems
+    const filtered = allItems
+      .filter((item) => !status || item.status === status)
+      .filter((item) =>
+        !lower
+        || item.partnerCode.toLowerCase().includes(lower)
+        || item.name.toLowerCase().includes(lower)
+        || item.bizNo.toLowerCase().includes(lower)
+        || (item.phone ?? '').toLowerCase().includes(lower),
+      )
     return envelope({
       items: filtered,
       total: filtered.length,
@@ -7352,10 +7355,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // POST /admin/partners/{partnerCode}/restore — admin/PartnersPage 삭제행 복원.
   const adminPartnerRestoreMatch = url.match(/\/admin\/partners\/([^/?]+)\/restore$/)
   if (method === 'POST' && adminPartnerRestoreMatch) {
+    const denied = mockRequirePermission('partners.delete', 'restore')
+    if (denied) return denied
     const code = decodeURIComponent(adminPartnerRestoreMatch[1] ?? '')
-    const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
+    const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code && p['isDeleted'] === true)
     if (!row) {
       return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    if (MOCK_ADMIN_PARTNERS.some((p) => p['partnerCode'] === code && p['isDeleted'] !== true)) {
+      return mockError(409, 'CONFLICT', `이미 사용 중인 거래처 코드로 활성 거래처가 존재하여 복원할 수 없습니다: ${code}`)
     }
     row['isDeleted'] = false
     row['deletedAt'] = null
@@ -7475,6 +7483,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ message: '거래처 정보가 수정되었습니다' })
   }
   if (method === 'DELETE' && url.match(/\/admin\/partners\/[^/]+$/)) {
+    const denied = mockRequirePermission('partners.delete', 'delete')
+    if (denied) return denied
+    const code = decodeURIComponent(url.match(/\/admin\/partners\/([^/?]+)$/)?.[1] ?? '')
+    const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
+    if (!row) {
+      return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    row['isDeleted'] = true
+    row['deletedAt'] = new Date().toISOString()
+    row['deletedByName'] = MOCK_AUTH.fullName
     return envelope({ message: '거래처가 삭제되었습니다' })
   }
 
@@ -16222,6 +16240,7 @@ const SP_D1_PAGES = [
   'partners.list',
   'partners.detail',
   'partners.edit',
+  'partners.delete',
   'partners.4tab.edit',
   'partners.block',
   'partners.edit-request',
@@ -16298,6 +16317,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'dispatch.external-carriers': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
   // V78: dispatch.board 는 MANAGER/DISPATCH 에도 RESTORE 부여(취소선 복원). DOWNLOAD/PRINT 없음.
   'dispatch.board': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
+  // V82: partners.delete 는 MASTER delete/restore 전용 action-only page-code.
+  'partners.delete': ['DELETE', 'RESTORE'],
 }
 
 /**

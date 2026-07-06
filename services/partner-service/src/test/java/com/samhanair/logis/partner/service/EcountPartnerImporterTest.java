@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -13,12 +14,15 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.EcountPartnerImportResult;
+import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,6 +56,9 @@ class EcountPartnerImporterTest {
 
     @Mock
     private NamedParameterJdbcTemplate jdbcTemplate;
+
+    @Mock
+    private CollectionRealtimePublisher collectionRealtimePublisher;
 
     @InjectMocks
     private EcountPartnerImporter importer;
@@ -93,6 +100,10 @@ class EcountPartnerImporterTest {
 
         assertThat(result.totalRows()).isEqualTo(1);
         assertThat(result.imported()).isEqualTo(1);
+        verify(collectionRealtimePublisher).publishChange(
+                eq(PartnerListRealtime.CHANNEL_ID),
+                eq(PartnerListRealtime.EVENT_CHANGED),
+                eq(Map.of("changeType", "BULK_UPDATED")));
     }
 
     @Test

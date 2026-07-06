@@ -74,6 +74,9 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
                 .thenReturn(true);
         // soft-delete 행까지 물리 삭제. @SQLRestriction 로 인해 HQL deleteAll 은 삭제행을 남겨
         // searchAdminIncludingDeleted 노출·테스트 순서의존 flaky 를 유발하므로 native 로 전량 제거.
+        // FK 자식 테이블에는 ON DELETE CASCADE 가 없으므로 자식→부모 순서로 정리한다.
+        jdbcTemplate.update("DELETE FROM partner_credit_history");
+        jdbcTemplate.update("DELETE FROM partner_attachments");
         jdbcTemplate.update("DELETE FROM partners");
     }
 
@@ -276,18 +279,18 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
         suspended.suspend();
         partnerRepository.saveAndFlush(suspended);
 
-        // type=ACTIVE → ACTIVE 만(P-STAT-ACT). enum ordinal 버그였다면 0건. (search 의 status 파라미터명은 type)
+        // status=ACTIVE → ACTIVE 만(P-STAT-ACT). enum ordinal 버그였다면 0건.
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
                         .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
-                        .param("type", "ACTIVE")
+                        .param("status", "ACTIVE")
                         .param("size", "50"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-STAT-ACT"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("ACTIVE"));
 
-        // type=SUSPENDED → SUSPENDED 만(P-STAT-SUS).
+        // legacy type=SUSPENDED 도 기존 호출 호환으로 유지한다.
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
                         .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")

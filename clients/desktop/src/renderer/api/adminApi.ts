@@ -417,7 +417,7 @@ export interface ListAdminPartnersOptions {
   q?: string
   /** 거래 상태 필터 (ACTIVE / SUSPENDED / TERMINATED). BE ?status= */
   status?: PartnerStatus
-  /** 거래처 유형 필터 (CUSTOMER / SUPPLIER / BOTH). BE ?type= */
+  /** 거래처 유형 필터 (CUSTOMER / SUPPLIER / BOTH). 현재 BE admin 검색 미지원. */
   type?: 'CUSTOMER' | 'SUPPLIER' | 'BOTH'
   page?: number
   size?: number
@@ -435,7 +435,6 @@ export async function listAdminPartners(
   }
   if (options.q && options.q.trim()) params['q'] = options.q.trim()
   if (options.status) params['status'] = options.status
-  if (options.type) params['type'] = options.type
 
   const res = await apiClient.get<ApiEnvelope<AdminPage<PartnerSummary>>>(
     '/admin/partners/search',

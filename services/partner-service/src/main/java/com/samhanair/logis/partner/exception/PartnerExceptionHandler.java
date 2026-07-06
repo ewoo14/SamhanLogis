@@ -5,6 +5,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -23,6 +24,8 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 public class PartnerExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerExceptionHandler.class);
+    private static final String PARTNER_CODE_UNIQUE_INDEX = "ux_partners_partner_code_active";
+    private static final String PARTNER_BIZ_NO_UNIQUE_INDEX = "ux_partners_biz_no_active";
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
@@ -96,6 +99,21 @@ public class PartnerExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
+    }
+
+    /**
+     * create/restore race 로 DB partial unique 제약이 커밋 시점에 터지는 경우도 409 로 고정한다.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        String message = String.valueOf(ex.getMostSpecificCause().getMessage());
+        if (message.contains(PARTNER_CODE_UNIQUE_INDEX) || message.contains(PARTNER_BIZ_NO_UNIQUE_INDEX)) {
+            return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                    .body(ApiResponse.fail(ErrorCode.CONFLICT, "이미 사용 중인 거래처 코드 또는 사업자번호입니다."));
+        }
+        log.error("Unhandled data integrity violation in partner-service", ex);
+        return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR, "서버 내부 오류가 발생했습니다."));
     }
 
     @ExceptionHandler(Exception.class)

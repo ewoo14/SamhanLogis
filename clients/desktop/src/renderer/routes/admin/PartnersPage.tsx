@@ -48,6 +48,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { PartnerListRealtimeClient } from '../../realtime/PartnerListRealtimeClient'
 import { useCollectionRealtime } from '../../realtime/useCollectionRealtime'
 import { PartnerDetailDialog } from './PartnerDetailDialog'
+import './PartnersPage.css'
 import {
   PARTNER_DELETED_ROW_TEXT_STYLE,
   deletedBadgeAriaLabel,
@@ -206,8 +207,11 @@ export function PartnersPage() {
       width: '110px',
       mobilePriority: 'secondary',
       render: (p) => (
-        <Badge variant={STATUS_VARIANT[p.status]}>
-          {PARTNER_STATUS_LABEL[p.status]}
+        <Badge
+          variant={p.isDeleted ? 'neutral' : STATUS_VARIANT[p.status]}
+          aria-label={p.isDeleted ? `삭제됨, 기존 거래 상태 ${PARTNER_STATUS_LABEL[p.status]}` : undefined}
+        >
+          {p.isDeleted ? '삭제됨' : PARTNER_STATUS_LABEL[p.status]}
         </Badge>
       ),
     },
@@ -348,6 +352,7 @@ export function PartnersPage() {
             setTypeFilter(e.target.value as PartnerType | '')
             setPage(0)
           }}
+          disabled
           data-testid="admin-partners-type-filter"
           style={filterSelectStyle}
         >
@@ -378,6 +383,8 @@ export function PartnersPage() {
           rows={query.data?.items ?? []}
           loading={query.isLoading}
           rowKey={(p) => `${p.partnerCode}:${p.isDeleted ? 'D' : 'A'}`}
+          rowClickable={(p) => p.isDeleted !== true}
+          rowClassName={(p) => (p.isDeleted ? 'admin-partners-deleted-row' : undefined)}
           emptyMessage="조건에 맞는 거래처가 없습니다."
           onRowClick={openDetail}
         />

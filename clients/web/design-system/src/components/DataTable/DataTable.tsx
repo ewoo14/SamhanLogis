@@ -28,6 +28,8 @@ export interface DataTableProps<T> {
   /** rows 가 비어있을 때 표시할 메시지. 기본 "데이터가 없습니다." */
   emptyMessage?: string
   onRowClick?: (row: T) => void
+  /** onRowClick 이 있어도 특정 행 클릭을 비활성화할 때 사용한다. */
+  rowClickable?: (row: T) => boolean
   /** React key 추출자. 필수. */
   rowKey: (row: T) => string
   /** Optional test id extractor applied to each data row <tr>. */
@@ -60,6 +62,7 @@ const defaultCell = <T,>(row: T, key: keyof T | string): ReactNode => {
  * - 헤더 sticky top
  * - 행 hover 표시
  * - onRowClick 있으면 cursor pointer + 행 클릭 가능
+ * - rowClickable 이 false 인 행은 클릭 class/handler 를 붙이지 않음
  * - loading=true 면 Spinner 오버레이
  * - rows 비어있으면 emptyMessage 셀 표시
  */
@@ -71,6 +74,7 @@ export function DataTable<T>({
   tableLayout = 'auto',
   emptyMessage = '데이터가 없습니다.',
   onRowClick,
+  rowClickable,
   rowKey,
   rowTestId,
   rowClassName,
@@ -93,8 +97,6 @@ export function DataTable<T>({
     .join(' ')
 
   const isEmpty = rows.length === 0 && !loading
-  const isClickable = Boolean(onRowClick)
-
   return (
     <div className={wrapperClasses}>
       <div className={styles['scroll']}>
@@ -146,9 +148,10 @@ export function DataTable<T>({
                 const k = rowKey(row)
                 const extraClass = rowClassName?.(row)
                 const testId = rowTestId?.(row, index)
+                const canClickRow = Boolean(onRowClick) && (rowClickable?.(row) ?? true)
                 const trClasses = [
                   styles['tr'],
-                  isClickable ? styles['clickable'] : null,
+                  canClickRow ? styles['clickable'] : null,
                   extraClass ? extraClass : null,
                 ]
                   .filter(Boolean)
@@ -158,7 +161,8 @@ export function DataTable<T>({
                     key={k}
                     className={trClasses}
                     {...(testId ? { 'data-testid': testId } : {})}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    aria-disabled={onRowClick && !canClickRow ? true : undefined}
+                    onClick={canClickRow && onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {columns.map((col) => {
                       const alignClass =

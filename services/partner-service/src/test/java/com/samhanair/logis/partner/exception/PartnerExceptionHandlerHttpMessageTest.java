@@ -13,6 +13,7 @@ import com.samhanair.logis.partner.service.PartnerBlockImportService;
 import com.samhanair.logis.partner.service.PartnerBlockService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -72,5 +73,18 @@ class PartnerExceptionHandlerHttpMessageTest {
                 .doesNotContain("from")
                 .doesNotContain("NOT_A_DATE")
                 .doesNotContain("LocalDate");
+    }
+
+    @Test
+    void partnerUniqueConstraintViolation_returnsConflict() {
+        PartnerExceptionHandler handler = new PartnerExceptionHandler();
+        DataIntegrityViolationException exception = new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"ux_partners_partner_code_active\"");
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleDataIntegrity(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(ErrorCode.CONFLICT.getHttpStatus());
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(ErrorCode.CONFLICT.name());
     }
 }
