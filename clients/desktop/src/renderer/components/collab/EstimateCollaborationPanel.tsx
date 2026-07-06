@@ -123,6 +123,7 @@ export function EstimateCollaborationPanel({
   const [commitError, setCommitError] = useState<string | null>(null)
   const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
   const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
+  const [activeRevisionIsLatest, setActiveRevisionIsLatest] = useState(false)
   const presenceEntries = usePresence({ entityId: estimateId, client: EstimatePresenceClient, enabled: !!estimateId })
 
   const commentQueryKey = useMemo(() => ['estimateCollabComments', estimateId] as const, [estimateId])
@@ -249,6 +250,7 @@ export function EstimateCollaborationPanel({
 
   const comments: EstimateCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
   const trimmedComment = commentBody.trim()
+  const highlightsLatestAnchoredComments = activeRevisionNo !== null && activeRevisionIsLatest
 
   return (
     <section data-testid="estimate-collaboration-panel" style={{ marginTop: 24 }}>
@@ -274,7 +276,8 @@ export function EstimateCollaborationPanel({
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
               ) : comments.map((comment) => {
                 const fieldPath = normalizeCollabAnchor(comment.anchor)
-                const highlighted = !!fieldPath && fieldPath === activeFieldPath
+                const highlighted = !!fieldPath
+                  && (fieldPath === activeFieldPath || highlightsLatestAnchoredComments)
                 return (
                 <article
                   key={comment.id}
@@ -286,6 +289,7 @@ export function EstimateCollaborationPanel({
                   onClick={() => {
                     if (!fieldPath) return
                     setActiveRevisionNo(null)
+                    setActiveRevisionIsLatest(false)
                     setActiveFieldPath(fieldPath)
                   }}
                   onKeyDown={(event) => {
@@ -293,6 +297,7 @@ export function EstimateCollaborationPanel({
                     if (event.key !== 'Enter' && event.key !== ' ') return
                     event.preventDefault()
                     setActiveRevisionNo(null)
+                    setActiveRevisionIsLatest(false)
                     setActiveFieldPath(fieldPath)
                   }}
                   style={{
@@ -553,8 +558,9 @@ export function EstimateCollaborationPanel({
         status={status}
         activeRevisionNo={activeRevisionNo}
         activeFieldPath={activeFieldPath}
-        onRevisionSelect={(revisionNo, fieldPaths) => {
+        onRevisionSelect={(revisionNo, fieldPaths, meta) => {
           setActiveRevisionNo(revisionNo)
+          setActiveRevisionIsLatest(meta?.isLatest === true)
           setActiveFieldPath(fieldPaths?.[0] ?? null)
         }}
       />

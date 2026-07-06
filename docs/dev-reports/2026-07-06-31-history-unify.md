@@ -393,3 +393,46 @@ Estimate/GroupwareApproval 과 동일한 속성 순서) — `EstimateCollaborati
 - 실행 부작용 PNG 128건은 `git checkout --` 로 원복, 신규 캡처 1건(`T09-dispatch-inventory-
   warehouse-allow.png`)은 삭제 — 최종 diff 를 spec 1(수정)+src 5(수정)+test 2(1신규 1수정)+
   dev-report 로 한정했다.
+
+## PR #747 Codex 라운드 [HIGH] fix (2026-07-06, Codex)
+
+> worktree `feat/31-history-unify`(fix 착수 HEAD `645c310c7`)에서 Codex가 직접 구현. 개발책임자 지시대로 git 동작(commit/push/status 포함)은 수행하지 않았다.
+
+### 근본원인 — Estimate/PartnerOrder 최신 버전행 → 코멘트 역방향 하이라이트 누락
+
+`EstimateVersionHistoryPanel`과 `PartnerOrderVersionHistoryPanel`은 revision DTO에 field-level diff가 없어 행 클릭 시 `onRevisionSelect(revNo, [])`만 전달했다. 상위 `EstimateCollaborationPanel`/`PartnerOrderCollaborationPanel`은 `fieldPaths?.[0] ?? null`을 `activeFieldPath`로 저장하므로, 버전 최신 행을 클릭해도 코멘트 렌더 조건(`comment.anchor` 정규화값 === `activeFieldPath`)이 항상 false가 됐다.
+
+Slip은 `fieldChanges`가 있어 field 단위 정밀 매핑이 가능하지만, Estimate/PartnerOrder는 현재 BE/DTO 한계상 field 단위 역방향 매핑을 만들 수 없다. 따라서 개발책임자 결정대로 **행-단위 대칭 근사**만 적용했다.
+
+### fix — 최신 row 선택 메타 + anchored comment 전체 하이라이트
+
+- `EstimateVersionHistoryPanel`/`PartnerOrderVersionHistoryPanel`의 `onRevisionSelect`에 선택 row가 최신인지 나타내는 `meta.isLatest`를 추가 전달했다.
+- `EstimateCollaborationPanel`/`PartnerOrderCollaborationPanel`에 `activeRevisionIsLatest` 상태를 추가했다.
+- 코멘트 하이라이트 조건을 `activeFieldPath` 일치 OR `activeRevisionNo != null && activeRevisionIsLatest && comment.anchor 정규화값 존재`로 확장했다.
+- 최신 revision row 클릭: anchored 코멘트 전부 `data-active="true"`.
+- 구 revision row 클릭: field 매핑이 없으므로 코멘트 하이라이트 없음.
+- 코멘트 클릭 정방향은 기존처럼 `activeFieldPath`를 설정하므로 최신 revision row 하이라이트를 유지한다.
+- Slip(field 정밀), Journal/GroupwareApproval(changeSet diff 정밀)는 무변경.
+
+### 테스트 강화 — stub 맹점 보완
+
+신규 테스트 2개를 추가했다.
+
+- `clients/desktop/src/renderer/components/collab/EstimateCollaborationPanel.history-bridge.test.tsx`
+- `clients/desktop/src/renderer/components/collab/PartnerOrderCollaborationPanel.history-bridge.test.tsx`
+
+두 테스트 모두 실제 `*VersionHistoryPanel`을 조립하고 API만 mock한다. 최신 row 클릭 시 anchored 코멘트 2건이 모두 `data-active="true"`가 되는지, anchor 없는 코멘트는 제외되는지, 구 row 클릭 시 anchored 코멘트 하이라이트가 해제되는지를 검증한다.
+
+RED/GREEN 확인:
+
+- production fix 전 신규 테스트 단독 실행: 2 files / 2 tests 모두 RED. 실패 원인은 `expected null to be 'true'`로, 최신 row는 active가 됐지만 코멘트 `data-active`가 null인 원래 결함과 일치했다.
+- production fix 후 동일 테스트 단독 실행: 2 files / 2 tests PASS.
+
+### 검증
+
+- `cd clients/desktop && npm run typecheck` — PASS.
+- `cd clients/desktop && npx vitest run src/renderer/components/collab/ src/renderer/components/audit/` — PASS, 14 files / 53 tests.
+- CI 동일조건 Playwright mock gate — PASS, 563 passed / 0 failed / 0 skipped / 0 flaky.
+  - 실행 방식: Vite를 `127.0.0.1:5173 --strictPort`로 별도 기동, `CI=1`, `PLAYWRIGHT_SKIP_WEB_SERVER=1`, `AUDIT_BASE_URL=http://127.0.0.1:5173`, `npx playwright test`.
+  - `node scripts/assert-playwright-ran.mjs` — `expected=563 unexpected=0 skipped=0 flaky=0`, exit 0.
+  - 주의: 전체 Playwright 내 기존 screenshot spec 실행으로 `docs/qa` PNG 130개의 filesystem `LastWriteTime`이 갱신됐다. 개발책임자 지시의 git 금지 조건 때문에 git diff/status 및 PNG 원복은 수행하지 않았다.

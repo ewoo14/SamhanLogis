@@ -58,7 +58,7 @@ export interface PartnerOrderVersionHistoryPanelProps {
    */
   activeFieldPath?: string | null
   /** 버전 행 선택 시 협업 패널에 공유한다. */
-  onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
+  onRevisionSelect?: (revisionNo: number, fieldPaths?: string[], meta?: { isLatest?: boolean }) => void
 }
 
 /**
@@ -328,12 +328,12 @@ export function PartnerOrderVersionHistoryPanel({
                 data-active={isHighlighted ? 'true' : undefined}
                 aria-current={isHighlighted ? 'true' : undefined}
                 tabIndex={onRevisionSelect ? 0 : undefined}
-                onClick={() => onRevisionSelect?.(rev.revisionNo, [])}
+                onClick={() => onRevisionSelect?.(rev.revisionNo, [], { isLatest })}
                 onKeyDown={(event) => {
                   if (!onRevisionSelect) return
                   if (event.key !== 'Enter' && event.key !== ' ') return
                   event.preventDefault()
-                  onRevisionSelect(rev.revisionNo, [])
+                  onRevisionSelect(rev.revisionNo, [], { isLatest })
                 }}
                 style={{
                   display: 'flex',

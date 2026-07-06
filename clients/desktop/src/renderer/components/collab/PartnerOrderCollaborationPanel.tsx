@@ -117,6 +117,7 @@ export function PartnerOrderCollaborationPanel({
   const [commitError, setCommitError] = useState<string | null>(null)
   const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
   const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
+  const [activeRevisionIsLatest, setActiveRevisionIsLatest] = useState(false)
   const presenceEntries = usePresence({ entityId: orderId, client: PartnerOrderPresenceClient, enabled: !!orderId })
 
   const commentQueryKey = useMemo(() => ['partnerOrderCollabComments', orderId] as const, [orderId])
@@ -254,6 +255,7 @@ export function PartnerOrderCollaborationPanel({
 
   const comments: PartnerOrderCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
   const trimmedComment = commentBody.trim()
+  const highlightsLatestAnchoredComments = activeRevisionNo !== null && activeRevisionIsLatest
 
   return (
     <section data-testid="partner-order-collaboration-panel" style={{ marginTop: 24 }}>
@@ -279,7 +281,8 @@ export function PartnerOrderCollaborationPanel({
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
               ) : comments.map((comment) => {
                 const fieldPath = normalizeCollabAnchor(comment.anchor)
-                const highlighted = !!fieldPath && fieldPath === activeFieldPath
+                const highlighted = !!fieldPath
+                  && (fieldPath === activeFieldPath || highlightsLatestAnchoredComments)
                 return (
                 <article
                   key={comment.id}
@@ -291,6 +294,7 @@ export function PartnerOrderCollaborationPanel({
                   onClick={() => {
                     if (!fieldPath) return
                     setActiveRevisionNo(null)
+                    setActiveRevisionIsLatest(false)
                     setActiveFieldPath(fieldPath)
                   }}
                   onKeyDown={(event) => {
@@ -298,6 +302,7 @@ export function PartnerOrderCollaborationPanel({
                     if (event.key !== 'Enter' && event.key !== ' ') return
                     event.preventDefault()
                     setActiveRevisionNo(null)
+                    setActiveRevisionIsLatest(false)
                     setActiveFieldPath(fieldPath)
                   }}
                   style={{
@@ -550,8 +555,9 @@ export function PartnerOrderCollaborationPanel({
         status={status}
         activeRevisionNo={activeRevisionNo}
         activeFieldPath={activeFieldPath}
-        onRevisionSelect={(revisionNo, fieldPaths) => {
+        onRevisionSelect={(revisionNo, fieldPaths, meta) => {
           setActiveRevisionNo(revisionNo)
+          setActiveRevisionIsLatest(meta?.isLatest === true)
           setActiveFieldPath(fieldPaths?.[0] ?? null)
         }}
       />
