@@ -3,7 +3,6 @@ package com.samhanair.logis.slip.web.dispatch;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.SlipType;
@@ -50,14 +49,12 @@ public class DispatchBoardAdminController {
 
     private final DispatchTaskBoardQueryService queryService;
     private final SlipService slipService;
-    private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
      * 미배차 출고전표 페이지 조회 — default: today ±1일 + UNDISPATCHED + 50/회.
      *
      * <p>SP-D3 동적 권한 VIEW 가드 — dispatch.board pageCode 적용.
      *
-     * @param roleHeader X-User-Role header (api-gateway 전파)
      */
     @Operation(summary = "미배차 출고전표 페이지", description = "default: Asia/Seoul today ±1일 + UNDISPATCHED + 50/회")
     @GetMapping("/undispatched-slips")
@@ -67,11 +64,8 @@ public class DispatchBoardAdminController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Set<SlipDispatchStatus> statuses,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader
-    ) {
+            @RequestParam(defaultValue = "50") int size) {
         // SP-D3 동적 권한 VIEW 가드 — dispatch.board
-        checkViewPermission(roleHeader);
         return ApiResponse.ok(queryService.findUnDispatchedSlips(from, to, statuses, page, size));
     }
 
@@ -83,46 +77,18 @@ public class DispatchBoardAdminController {
      * 권한으로만 노출하며, 출고전표가 아닌 경우는 차단한다.
      *
      * @param id 전표 UUID (path param 전용, 화면 표시 금지)
-     * @param roleHeader X-User-Role header (api-gateway 전파)
      * @return 판매전표 미리보기용 상세 응답
      */
     @Operation(summary = "배차보드 전표확인 상세", description = "dispatch.board VIEW 권한으로 출고전표 미리보기 상세를 조회한다.")
     @GetMapping("/slips/{id}")
     @RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
     public ApiResponse<SlipDetailResponse> getSlipDetailForDispatchBoard(
-            @org.springframework.web.bind.annotation.PathVariable UUID id,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader
-    ) {
-        checkViewPermission(roleHeader);
+            @org.springframework.web.bind.annotation.PathVariable UUID id) {
         SlipDetailResponse response = slipService.getOne(id);
         if (response.slipType() != SlipType.OUTBOUND) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "배차 보드 전표확인은 출고전표만 조회할 수 있습니다.");
         }
         return ApiResponse.ok(response);
-    }
-
-    // =========================================================================
-    // SP-D3 동적 권한 헬퍼
-    // =========================================================================
-
-    /**
-     * SP-D3 동적 VIEW 권한 검증 — dispatch.board 페이지 코드.
-     *
-     * <p>actorRole null/blank 이면 건너뜀.
-     * canView=false 이면 명시적 deny → 403.
-     *
-     * @param actorRole 요청자 role (X-User-Role header)
-     */
-    private void checkViewPermission(String actorRole) {
-        if (actorRole == null || actorRole.isBlank()) {
-            return;
-        }
-        boolean canView = dynamicPermissionClient.canView(actorRole, DISPATCH_BOARD_PAGE_CODE);
-        if (!canView) {
-            log.warn("[SP-D3] 동적 VIEW 권한 차단 — roleCode={} pageCode={}", actorRole, DISPATCH_BOARD_PAGE_CODE);
-            throw new BusinessException(ErrorCode.FORBIDDEN,
-                    "동적 권한 설정에 의해 배차 보드 조회 권한이 차단되었습니다.");
-        }
     }
 }

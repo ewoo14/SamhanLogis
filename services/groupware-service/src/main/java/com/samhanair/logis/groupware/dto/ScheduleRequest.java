@@ -11,9 +11,9 @@ import java.util.UUID;
 /**
  * 일정 등록/수정 요청 DTO.
  *
- * <p>등록 시 ownerId 필수. 수정 시 ownerId 는 path/식별자 의미 (변경 불가, 무시).
+ * <p>ownerId 는 deprecated. 일정 소유자는 {@code X-User-Id} 헤더로만 확정하며 이 값은 무시한다.
  *
- * @param ownerId 소유자 user UUID
+ * @param ownerId deprecated. 소유자 user UUID 로 사용하지 않음
  * @param title 제목
  * @param description 본문 (선택)
  * @param startsAt 시작 시각
@@ -22,7 +22,7 @@ import java.util.UUID;
  * @param participantIds 참여자 user UUID 목록 (선택)
  */
 public record ScheduleRequest(
-        @NotNull UUID ownerId,
+        UUID ownerId,
         @NotBlank @Size(max = 200) String title,
         @Size(max = 2000) String description,
         @NotNull LocalDateTime startsAt,

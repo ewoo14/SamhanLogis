@@ -122,11 +122,11 @@ class GroupwarePermissionControllerIT {
         lenient().when(approvalLineService.createWithActor(any(), any())).thenReturn(approval);
         lenient().when(approvalLineService.approve(any(UUID.class), any(UUID.class), any(java.util.Set.class))).thenReturn(approval);
         lenient().when(approvalLineService.reject(any(UUID.class), any(UUID.class), any(java.util.Set.class), any())).thenReturn(approval);
-        lenient().when(messageService.send(any())).thenReturn(message);
+        lenient().when(messageService.send(any(), any(UUID.class))).thenReturn(message);
         lenient().when(messageService.inbox(any(), any())).thenReturn(new PageImpl<>(List.of(message), PageRequest.of(0, 50), 1));
-        lenient().when(scheduleService.create(any())).thenReturn(schedule);
+        lenient().when(scheduleService.create(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
-        lenient().when(scheduleService.update(any(), any())).thenReturn(schedule);
+        lenient().when(scheduleService.update(any(), any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(userClient.search(anyString(), anyInt())).thenReturn(List.of());
     }
 

@@ -35,7 +35,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, StyleSheet } from 'react-native';
+import { BackHandler, Linking, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
 import { buildOrderShim } from '../webview/legacyOrderShim';
@@ -47,11 +47,27 @@ import { getOrderAppUrl } from '../webview/legacyOrderSource';
  */
 const MOBILE_USER_AGENT_SUFFIX = ' SamhanMobileApp/0.5.0 (samhan-mobile-v4-webview)';
 
+function getOrigin(uri: string): string | null {
+  try {
+    return new URL(uri).origin;
+  } catch (_e) {
+    return null;
+  }
+}
+
+function isAllowedWebViewNavigation(requestUrl: string, appUrl: string): boolean {
+  if (requestUrl === 'about:blank') return true;
+  const appOrigin = getOrigin(appUrl);
+  const requestOrigin = getOrigin(requestUrl);
+  return Boolean(appOrigin && requestOrigin && appOrigin === requestOrigin);
+}
+
 export default function MobileOrderWebViewScreen(): JSX.Element {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const url = getOrderAppUrl();
   const injectedJavaScript = buildOrderShim();
+  const allowedOrigin = getOrigin(url);
 
   // -------- Android hardware 뒤로가기 — WebView history 우선 --------
   useEffect(() => {
@@ -85,12 +101,24 @@ export default function MobileOrderWebViewScreen(): JSX.Element {
     }
   }, []);
 
+  const handleShouldStartLoadWithRequest = useCallback(
+    (request: { url: string }) => {
+      if (isAllowedWebViewNavigation(request.url, url)) return true;
+      Linking.openURL(request.url).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[Order WebView v4] 외부 링크 열기 실패', err);
+      });
+      return false;
+    },
+    [url],
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <WebView
         ref={webViewRef}
         source={{ uri: url }}
-        originWhitelist={['*']}
+        originWhitelist={allowedOrigin ? [allowedOrigin] : []}
         javaScriptEnabled
         domStorageEnabled
         sharedCookiesEnabled
@@ -103,6 +131,7 @@ export default function MobileOrderWebViewScreen(): JSX.Element {
         injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
         onMessage={handleMessage}
         onNavigationStateChange={handleNavStateChange}
+        onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
         startInLoadingState
         style={styles.webview}
         testID="order-webview"

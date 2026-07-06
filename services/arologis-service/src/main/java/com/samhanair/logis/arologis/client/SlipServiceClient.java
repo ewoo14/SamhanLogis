@@ -53,7 +53,7 @@ public class SlipServiceClient {
 
     public SlipServiceClient(RestClient.Builder builder,
                              ObjectMapper objectMapper,
-                             @Value("${samhan.slip-service.url:http://localhost:8084}") String baseUrl,
+                             @Value("${samhan.slip-service.url:http://localhost:8086}") String baseUrl,
                              @Value("${app.security.internal.token:}") String internalToken,
                              @Value("${samhan.arologis.client.skeleton-mode:true}") boolean skeletonMode) {
         this.builder = builder;

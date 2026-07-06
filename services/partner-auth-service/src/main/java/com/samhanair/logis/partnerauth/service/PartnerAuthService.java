@@ -30,9 +30,13 @@ import com.samhanair.logis.partnerauth.repository.PartnerSessionRepository;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,8 +57,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PartnerAuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(PartnerAuthService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int PIN_BOUND = 10_000;
+    private static final int PASSWORD_RESET_RATE_LIMIT = 3;
+    private static final long PASSWORD_RESET_WINDOW_MINUTES = 15;
+    private static final String ADMIN_RESET_PLACEHOLDER_HASH = "{noop}TEMP-RESET";
 
     private final PartnerAuthRepository authRepository;
     private final PartnerLoginAttemptRepository attemptRepository;
@@ -63,6 +71,7 @@ public class PartnerAuthService {
     private final PartnerAuthJwtProperties jwtProperties;
     private final DcConfigClient dcConfigClient;
     private final SmsClient smsClient;
+    private final Map<String, RateLimitBucket> passwordResetRateLimits = new ConcurrentHashMap<>();
 
     // ─────────────────────────────────────────────────────────────────────
     // 1) GET /api/v1/auth/partner-status
@@ -123,11 +132,13 @@ public class PartnerAuthService {
     // 2) POST /api/v1/auth/partner-register
     // ─────────────────────────────────────────────────────────────────────
     public PartnerRegisterResponse register(PartnerRegisterRequest req) {
-        if (authRepository.existsByBizNo(req.bizNo())) {
+        String bizNo = normalizeBizNo(req.bizNo());
+        if (authRepository.existsByBizNo(bizNo)) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 가입 신청된 거래처입니다");
         }
+        String partnerCode = derivePartnerCodeFromBizNo(bizNo);
         PartnerAuth saved = authRepository.save(
-                PartnerAuth.register(req.bizNo(), req.partnerCode(), req.memo()));
+                PartnerAuth.register(bizNo, partnerCode, req.memo()));
         return new PartnerRegisterResponse(saved.getBizNo(), saved.getStatus(), "가입 신청이 접수되었습니다");
     }
 
@@ -138,8 +149,21 @@ public class PartnerAuthService {
         PartnerAuth auth = authRepository.findByBizNo(req.bizNo())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "거래처를 찾을 수 없습니다"));
 
-        // 현재 비밀번호 검증 (NEED_PW_INPUT 단계만)
-        if (auth.getStatus() != PartnerStatus.NEED_PW_SET && auth.getStatus() != PartnerStatus.PENDING) {
+        if (auth.getStatus() == PartnerStatus.PENDING) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "관리자 승인 전에는 비밀번호를 설정할 수 없습니다");
+        }
+
+        // 임시 PIN 이 저장된 NEED_PW_SET 은 등록 연락처 수신자가 입력한 PIN 을 현재 비밀번호로 검증한다.
+        if (requiresPossessionFactor(auth)) {
+            assertPasswordResetRateLimit(req.bizNo(), "password-reset-confirm");
+            if (req.currentPassword() == null || req.currentPassword().isBlank()) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED, "임시 비밀번호를 입력해주세요");
+            }
+            if (!passwordEncoder.matches(req.currentPassword(), auth.getPasswordHash())) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED, "임시 비밀번호가 올바르지 않습니다");
+            }
+        } else if (auth.getStatus() != PartnerStatus.NEED_PW_SET) {
+            // 일반 변경은 현재 비밀번호를 검증한다. 승인 직후 NEED_PW_SET(passwordHash 없음)은 최초 설정이므로 예외.
             if (req.currentPassword() == null || req.currentPassword().isBlank()) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT, "현재 비밀번호를 입력해주세요");
             }
@@ -253,14 +277,28 @@ public class PartnerAuthService {
     public TempPasswordResponse issueTempPassword(TempPasswordRequest req) {
         PartnerAuth auth = authRepository.findByBizNo(req.bizNo())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "거래처를 찾을 수 없습니다"));
+        if (auth.getStatus() == PartnerStatus.PENDING) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "관리자 승인 전에는 임시 비밀번호를 발급할 수 없습니다");
+        }
+
+        assertPasswordResetRateLimit(auth.getBizNo(), "temp-password");
+        PartnerConfigDto config = dcConfigClient.findByBizNo(auth.getBizNo())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "등록 연락처를 찾을 수 없습니다"));
+        String registeredMobileNo = trimToNull(config.mobileNo());
+        if (registeredMobileNo == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "등록 연락처가 없어 임시 비밀번호를 발급할 수 없습니다");
+        }
 
         String tempPlain = generateTempPassword();
         auth.issueTempPassword(passwordEncoder.encode(tempPlain));
-        smsClient.enqueueTempPassword(req.mobileNo(), tempPlain);
+        smsClient.enqueuePasswordResetAttemptNotice(registeredMobileNo);
+        smsClient.enqueueTempPassword(registeredMobileNo, tempPlain);
+        log.info("PartnerAuth password reset requested: bizNo={}, status={}, registeredMobileMasked={}",
+                auth.getBizNo(), auth.getStatus(), maskMobileNo(registeredMobileNo));
 
         return new TempPasswordResponse(
                 "임시 비밀번호가 SMS 로 발송되었습니다 (sms-service 큐잉)",
-                maskMobileNo(req.mobileNo()));
+                maskMobileNo(registeredMobileNo));
     }
 
     private String generateTempPassword() {
@@ -275,6 +313,49 @@ public class PartnerAuthService {
         int len = mobileNo.length();
         return mobileNo.substring(0, 3) + "****" + mobileNo.substring(len - 4);
     }
+
+    /**
+     * 자가등록 요청의 {@code partnerCode} 는 공격자 입력이므로 저장하지 않는다.
+     * 검증된 사업자번호 숫자만으로 서버가 partnerCode 를 파생한다.
+     */
+    private String derivePartnerCodeFromBizNo(String bizNo) {
+        return bizNo;
+    }
+
+    private String normalizeBizNo(String bizNo) {
+        String digits = bizNo == null ? "" : bizNo.replaceAll("\\D", "");
+        if (digits.length() < 10 || digits.length() > 12) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "bizNo 는 10~12자 숫자만 허용합니다");
+        }
+        return digits;
+    }
+
+    private boolean requiresPossessionFactor(PartnerAuth auth) {
+        return auth.getStatus() == PartnerStatus.NEED_PW_SET
+                && auth.getPasswordHash() != null
+                && !ADMIN_RESET_PLACEHOLDER_HASH.equals(auth.getPasswordHash());
+    }
+
+    private void assertPasswordResetRateLimit(String bizNo, String action) {
+        LocalDateTime now = LocalDateTime.now();
+        String key = action + ":" + normalizeBizNo(bizNo);
+        RateLimitBucket bucket = passwordResetRateLimits.compute(key, (ignored, current) -> {
+            if (current == null || current.windowStartedAt.plusMinutes(PASSWORD_RESET_WINDOW_MINUTES).isBefore(now)) {
+                return new RateLimitBucket(now, 1);
+            }
+            return new RateLimitBucket(current.windowStartedAt, current.count + 1);
+        });
+        if (bucket.count > PASSWORD_RESET_RATE_LIMIT) {
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS,
+                    "비밀번호 재설정 요청이 너무 많습니다. 잠시 후 다시 시도해주세요");
+        }
+    }
+
+    private String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private record RateLimitBucket(LocalDateTime windowStartedAt, int count) {}
 
     // ─────────────────────────────────────────────────────────────────────
     // 6) GET /api/v1/auth/partner-expiration

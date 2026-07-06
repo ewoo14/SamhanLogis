@@ -77,6 +77,7 @@
 # Codex
 - [Codex MCP 서버 사용](feedback_codex_plugin_setup.md) — mcp__codex__codex, sandbox workspace-write, 5 agents 병렬
 - [Codex 디스패치=Claude commit 대행+approval never](feedback_codex_sandbox_git.md) — Codex git 금지(파일만), approval-policy never, model 생략+effort high. 집PC codex exec: rev-parse 차단(git show 로 검증)·workspace-write 쓰기차단→fix=danger-full-access+사후 git diff 대조(2026-07-03)
+- [Codex 리뷰도 danger-full-access](feedback_codex_review_sandbox_danger_access.md) — read-only는 이 PC서 테스트 실행(캐시 쓰기)까지 차단→정적분석만. genuine 실QA 리뷰=danger-full-access(git 금지 유지·PM 커밋). 2026-07-06 #31 개발책임자 지적
 - [Codex 모델 자동 전환](feedback_codex_model_auto_switch.md) — 기본 spark+medium, 보안/migration/race 등 gpt-5.5 high
 - [Codex 권한 새 세션부터](feedback_codex_permission_new_session.md) — allow 추가는 새 세션부터, 진행중 무리한 재시도 금지
 - [Codex MCP 세션 한정 한계](feedback_codex_mcp_session_limit.md) — -32000 후 새 세션·codex exec·Agent 대체

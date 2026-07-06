@@ -33,6 +33,7 @@ public class UserClient implements UserVerifier {
     public UserClient(RestClient.Builder builder,
                       ServiceDiscoveryClient discoveryClient,
                       @Value("${samhan.user-service.url:http://localhost:8083}") String baseUrl,
+                      @Value("${samhan.user-client.fail-mode:OPEN}") UserVerifierProperties.FailMode failMode,
                       @Value("${app.security.internal.token:}") String internalToken,
                       UserCacheProperties cacheProperties) {
         this.discoveryClient = discoveryClient;
@@ -41,8 +42,7 @@ public class UserClient implements UserVerifier {
         p.setInternalToken(internalToken);
         p.setTtlSeconds(cacheProperties.getTtlSeconds());
         p.setMaxSize(cacheProperties.getMaxSize());
-        // skeleton 단계 fail-soft 기본 (Phase 10 cutover 시점 fail-fast 토글 — W3 backlog #2)
-        p.setFailFast(false);
+        p.setFailMode(failMode);
         this.delegate = new DefaultUserVerifier(builder, p);
     }
 

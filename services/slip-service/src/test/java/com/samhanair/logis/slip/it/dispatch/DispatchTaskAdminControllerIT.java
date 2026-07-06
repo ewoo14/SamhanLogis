@@ -304,6 +304,11 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
         UUID groupId = addGroup(taskId, "TONNAGE_1");
         Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
         Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
+        Mockito.when(dynamicPermissionClient.check(
+                        UUID.fromString(MASTER_ACCOUNT_ID),
+                        "dispatch.board",
+                        com.samhanair.logis.security.permission.PermissionAction.UPDATE))
+                .thenReturn(false);
 
         mvc.perform(put("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/matched-driver", taskId, groupId)
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
@@ -380,6 +385,11 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
 
         Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
         Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
+        Mockito.when(dynamicPermissionClient.check(
+                        UUID.fromString(MASTER_ACCOUNT_ID),
+                        "dispatch.board",
+                        com.samhanair.logis.security.permission.PermissionAction.RESTORE))
+                .thenReturn(false);
 
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/restore", taskId, groupId)
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.discovery.ServiceDiscoveryClient;
 import com.samhanair.logis.notification.config.UserCacheProperties;
+import com.samhanair.logis.userclient.UserVerifierProperties;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,7 +47,7 @@ class UserClientBulkVerifyTest {
 
         // baseUrl = 의도적 unreachable — fail-soft 정책 (network fail → true) 검증 흐름 유도
         client = new UserClient(RestClient.builder(), discovery,
-                "http://127.0.0.1:1", "test-token", props);
+                "http://127.0.0.1:1", UserVerifierProperties.FailMode.OPEN, "test-token", props);
     }
 
     @Test

@@ -27,6 +27,17 @@ const __dirname = dirname(__filename)
  */
 let mainWindow: BrowserWindow | null = null
 
+function isAllowedAppNavigation(url: string): boolean {
+  if (url === 'about:blank') return true
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (!devUrl) return url.startsWith('file://')
+  try {
+    return new URL(url).origin === new URL(devUrl).origin
+  } catch {
+    return false
+  }
+}
+
 /**
  * 메인 BrowserWindow 를 생성하고 렌더러 컨텐츠를 로드한다.
  *
@@ -47,12 +58,27 @@ function createMainWindow(): void {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       // [Phase 6 v4] webview tag 활성 — legacy estimate index.html 을 격리된
       // 컨텍스트에서 로드하고 별도 preload (legacyShim.mjs) 가 google.script.run
       // shim 을 주입한다. webview 자체는 contextIsolation 활성 + sandbox 분리.
       webviewTag: true,
     },
+  })
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedExternalUrl(url, app.isPackaged)) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isAllowedAppNavigation(url)) return
+    event.preventDefault()
+    if (isAllowedExternalUrl(url, app.isPackaged)) {
+      void shell.openExternal(url)
+    }
   })
 
   mainWindow.once('ready-to-show', () => {

@@ -4,6 +4,19 @@
 > 갱신: 2026-06-30 오전 (**회사PC 재개 세션** — 집PC 인계 완료, **협업 S2b(#675) 머지** squash `3ea02f1e`: Codex 라운드3 0수렴·1:1 라운드 소급보완·실 Docker 라이브 QA). **협업 S2c·S2d-1·S2d-1b·S2d-2(#679 `27c686b7`) 머지**(상태의존 카운트 · 헤더+라인 셀 레드라인 · **라이브 변경 하이라이트** — S2d 계열 완료). **S3-0/S3-1(#681)·S3-2 견적(#682 `f93a2cd89`) coedit 머지(2026-07-01)** — #16 협업 **라이브 coedit 6문서 **메모 단일필드(1차)만** 머지 — ⚠️**full-form(전표 전체)=원 지시·미완**(정정 [[feedback_epic_scope_no_narrowing]]). **현 우선순위=협업 full-form **롤아웃**(정찰 acf36aaa: slip 판매전표는 **이미 full-form ✅** S2a #674 `fcdbb6bea`[createDocCoeditProvider Y.Map헤더+Y.Array품목라인+CollaborativeSlipInput 셀바인딩, 수정모달] — **5문서 중 주문 full-form ✅(#689 `75a967d15`, BLOCKING 2[awareness 블리드·stale corruption] fix·듀얼리뷰 양방향정정·2/6 완료) — 견적·회계·결재·배차 잔여 메모→full-form 이식**. 개발책임자 결정: **트랙B 5문서 롤아웃 + 트랙A slip 하드닝 + 트랙B 롤아웃 병행, 저장충돌=후속). **〔진행 2026-07-01 PM〕** 트랙A **slA1(공유 provider 라인 lineId+add/remove/byId CRDT infra) ✅머지 `1d0d27a81`**(#690, Opus FE+Codex 듀얼리뷰 0수렴, backward-compat 60테스트). **회계 정찰**: 회계 full-form은 ❌BE 수정 PUT 부재(신설 필요)+차/대변 균형+라인 add/remove 본질 → 최대규모·후순위. **전략=사용자 1순위 '더 많은 문서 full-form' → 트랙B 롤아웃 우선**(slA1 infra가 line-CRDT 직접제공 → slA1b 는 hard 전제 아님; 회계/견적이 infra 직접사용 가능). 견적·결재·배차 **fit 정찰 병렬 진행** → 최저난도부터 롤아웃. slA1b(slip 라인 add/remove 소비자, 라이브 모달 retrofit 고위험)·slA1c(dnd-kit reorder)·slA2(셀 char-CRDT)=후순위 enhancement). **〔2026-07-01 PM 최신〕 견적 full-form ✅머지 #691 `d36d6c7cf`(slip·주문·견적 3/6) — 개발책임자 "PR 워크플로우 재준수+세션 위반 전수 보완" 지시로 #691은 정식 5-agent 듀얼·0수렴·라이브 실QA(2세션 SSE 양방향 반영 PASS·-sse-reflected 실캡처)·PM종합 전부 이행. 라이브 QA가 결함 3건 적발: ①applySnapshot corrupt-update 브릭(공유 coedit infra·하드닝 fix PR 착수) ②EstimateRealtimeClient/createAuditApi 경로 `/api/v1/estimates`→`/slips/estimates` 누락(404/500). 다음=①applySnapshot 하드닝 PR ②경로 fix PR ③**세션 소급 sweep**(#690→#689→#686/687→#682-685 각 5-agent+라이브QA 소급) ④결재→회계(BE)→배차 롤아웃. #17 단가변동 보류**. 〔과거 "#16 종결" 표기 철회〕**(slip·주문·견적·회계·결재·배차, #680~#685, 2026-07-01), **다음 = #17 단가변동**(→결재→배차). ⚠️개발책임자 '더 지시한 에픽' 재스캔 결과 = 하단 '추가 지시 에픽(재스캔)' 절. 별도 트랙: 금융연동 vendor(바로빌 권고). 본 파일 = 다음 세션 첫 읽기.
 
 ---
+## 🔴 2026-07-06 세션 — #31 이력 일원화 **HELD**(회사PC 재개·머지 금지) + #22·#745 머지
+
+> **다음 회사PC 재개 = #31(PR #747) 마무리**. 브랜치 `feat/31-history-unify` HEAD `b8bc94098`(push 완료·CI green)·**PR #747 OPEN·머지 금지**(개발책임자 지시).
+>
+> **회사PC 첫 작업 = `SlipDetailPage.tsx` 모바일 구버전 '버전이력/수정이력' 아코디언 중복 제거**(통합 코멘트 패널로 일원화·Slip 모바일만 남은 중복 해소·**이번 PR #747에 함께 포함**) → 그 fix **Opus→Codex 재수렴**(**danger-full-access genuine**·Codex git 금지 유지) → PM 종합(9게이트) → CI green(Frontend Desktop+Playwright 563) → 머지.
+>
+> **#31 완료분(b8bc94098·머지 대기)**: 결정1 회계/결재 collab/edits 수정이력 복구+audit-logs 오기술 제거 · 결정2 코멘트 anchor Select 5도메인 양방향(Slip field-정밀·Estimate/PartnerOrder 행-단위 대칭 근사·회계/결재 diff) · 연결필드 배지 · Slip [HIGH] 네임스페이스(normalizeFieldPath `header.` strip) · Slip [MEDIUM] 다중필드(activeFieldPath→activeFieldPaths[]) · 문서번호 CI-RED(orderNo/estimateNo 표준형+DOCUMENT_NO_KEY_SET 가드) · any 제거 · QA 증거 스샷 8종 커밋(SHA-pinned PR 게시). 다수 Opus 5-agent↔Codex 5-agent 재수렴 0수렴·라이브 QA data-active 실측·CI green.
+>
+> **교훈(재수렴 반복 가치)**: 라이브QA/Codex/Opus 재수렴이 자동테스트 넘어 다층결함 포착 — stub맹점(getByTestId→실컴포넌트+data-active), 형제 CI job(Playwright만 보고 Frontend Desktop RED 놓침), 다중필드 첫-원소 버그, 다중 코멘트 배지 부재. **[[feedback_codex_review_sandbox_danger_access]]**: Codex review를 read-only로 주면 이 PC서 테스트 실행(캐시 쓰기)까지 차단→정적분석만. genuine 실QA 리뷰=danger-full-access(Codex git 금지·PM 커밋 유지).
+>
+> **이번 세션 머지**: #22(#746 X-Internal-Token audit·PartnerAuth/Mig8 실계약·bizNo 근본해소)·#745(config-audit·arologis compose·failFast·validate 158체크·ALIGO 전수정합).
+
+---
 ## ✅ 2026-07-05 세션 — #731 머지·TODO 24 확정·미커밋 전수 정리 (다음 = TODO 순차)
 
 > **오늘 머지 5건**: #726·#727·#728·#730·**#731(E3 S4c 벌크 입금보고서 `10eaa3994`)**.

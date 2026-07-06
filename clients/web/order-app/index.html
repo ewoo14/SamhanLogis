@@ -1359,6 +1359,48 @@ const SPEC_DETAIL_MAP = J(SPEC_RAW,{});
 
 // 유틸
 function J(v,d){if(typeof v==='string'){try{const p=JSON.parse(v);return p==null?d:p;}catch(e){return d;}}return v==null?d:v;}
+function escapeLegacyHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
+function attrSafe_(value) { return escapeLegacyHtml(value); }
+function safeLegacyImageSrc(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  const compact = raw.replace(/[\u0000-\u001F\u007F\s]+/g, '').toLowerCase();
+  if (compact.startsWith('javascript:') || compact.startsWith('vbscript:')) return '';
+  if (compact.startsWith('data:')) {
+    return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(compact) ? raw : '';
+  }
+  if (compact.startsWith('blob:')) return raw;
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  } catch (e) {
+    return '';
+  }
+  return '';
+}
+function safeLegacyImageSrcAttr(value) {
+  const safeUrl = safeLegacyImageSrc(value);
+  return safeUrl ? attrSafe_(encodeURI(safeUrl)) : '';
+}
+function optionHtml_(value) {
+  const safe = escapeLegacyHtml(value);
+  return '<option value="' + safe + '">' + safe + '</option>';
+}
+function jsStringSafe_(value) {
+  return String(value == null ? '' : value)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/</g, '\\x3c');
+}
+function specValueHtml_(value) {
+  return escapeLegacyHtml(value).replace(/&lt;br&gt;/g, '<br>');
+}
 function isExpansionModel(s) {
   if (!s || !s.model) return false;
   const m = String(s.model).toUpperCase();
@@ -2149,17 +2191,19 @@ function specTableWithTriple_(rows, pipeTriple, dropTriple, opt){
     if(!r) return;
     const vCls = noTone ? '' : (coolIdx.includes(i) ? 'cool' : heatIdx.includes(i) ? 'heat' : '');
     const val = (r[1] === undefined || r[1] === null || String(r[1]).trim() === '') ? '-' : r[1];
+    const labelHtml = specValueHtml_(r[0]);
+    const valHtml = specValueHtml_(val);
     if(hasTriple){
       html += `
         <tr>
-          <th class="spec-h">${r[0]}</th>
-          <td class="${vCls}" colspan="2">${val}</td>
+          <th class="spec-h">${labelHtml}</th>
+          <td class="${vCls}" colspan="2">${valHtml}</td>
         </tr>`;
     }else{
       html += `
         <tr>
-          <th class="spec-h">${r[0]}</th>
-          <td class="${vCls}">${val}</td>
+          <th class="spec-h">${labelHtml}</th>
+          <td class="${vCls}">${valHtml}</td>
         </tr>`;
     }
   });
@@ -2172,11 +2216,11 @@ function specTableWithTriple_(rows, pipeTriple, dropTriple, opt){
     tri.forEach(t=>{
       html += `<tr>`;
       if(t.isFirst){
-        html += `<th class="spec-h" rowspan="3">${t.left}</th>`;
+        html += `<th class="spec-h" rowspan="3">${specValueHtml_(t.left)}</th>`;
       }
-      html += `<th class="spec-h sub">${t.rightLabel}</th>`;
+      html += `<th class="spec-h sub">${specValueHtml_(t.rightLabel)}</th>`;
       const tVal = (t.value === undefined || t.value === null || String(t.value).trim() === '') ? '-' : t.value;
-      html += `<td>${tVal}</td>`;
+      html += `<td>${specValueHtml_(tVal)}</td>`;
       html += `</tr>`;
     });
   });
@@ -2198,8 +2242,8 @@ function specTable_(rows, opt){
     const val = (r[1] === undefined || r[1] === null || String(r[1]).trim() === '') ? '-' : r[1];
     html += `
       <tr>
-        <th class="spec-h">${r[0]}</th>
-        <td class="${vCls}">${val}</td>
+        <th class="spec-h">${specValueHtml_(r[0])}</th>
+        <td class="${vCls}">${specValueHtml_(val)}</td>
       </tr>`;
   });
   html += `</tbody></table>`;
@@ -3383,7 +3427,7 @@ function updateHomeFilterOptions(){
     HOME_FILTER.M='';
     HOME_FILTER.S='';
   }
-  selL.innerHTML = '<option value="">대분류 전체</option>' + Ls.map(v=>'<option>'+v+'</option>').join('');
+  selL.innerHTML = '<option value="">대분류 전체</option>' + Ls.map(optionHtml_).join('');
   selL.value = HOME_FILTER.L||'';
 
   let rowsM = rows;
@@ -3394,7 +3438,7 @@ function updateHomeFilterOptions(){
     HOME_FILTER.M='';
     HOME_FILTER.S='';
   }
-  selM.innerHTML = '<option value="">중분류 전체</option>' + Ms.map(v=>'<option>'+v+'</option>').join('');
+  selM.innerHTML = '<option value="">중분류 전체</option>' + Ms.map(optionHtml_).join('');
   selM.disabled = !HOME_FILTER.L;
   selM.value = HOME_FILTER.M||'';
 
@@ -3406,7 +3450,7 @@ function updateHomeFilterOptions(){
     HOME_FILTER.S='';
   }
   if(selS){
-    selS.innerHTML = '<option value="">소분류 전체</option>' + Ss.map(v=>'<option>'+v+'</option>').join('');
+    selS.innerHTML = '<option value="">소분류 전체</option>' + Ss.map(optionHtml_).join('');
     selS.disabled = !HOME_FILTER.M;
     selS.value = HOME_FILTER.S||'';
   }
@@ -3446,7 +3490,7 @@ function updateSingleFilterOptions(){
     SINGLE_FILTER.L='';
     SINGLE_FILTER.M='';
   }
-  selL.innerHTML = '<option value="">대분류 전체</option>' + Ls.map(v=>'<option>'+v+'</option>').join('');
+  selL.innerHTML = '<option value="">대분류 전체</option>' + Ls.map(optionHtml_).join('');
   selL.value = SINGLE_FILTER.L||'';
 
   let rowsM = rows;
@@ -3456,7 +3500,7 @@ function updateSingleFilterOptions(){
   if(SINGLE_FILTER.M && !Ms.includes(SINGLE_FILTER.M)){
     SINGLE_FILTER.M='';
   }
-  selM.innerHTML = '<option value="">중분류 전체</option>' + Ms.map(v=>'<option>'+v+'</option>').join('');
+  selM.innerHTML = '<option value="">중분류 전체</option>' + Ms.map(optionHtml_).join('');
   selM.disabled = !SINGLE_FILTER.L;
   selM.value = SINGLE_FILTER.M||'';
 }
@@ -3773,9 +3817,9 @@ function renderHome(){
     if (state.type === 'SOLD') {
       tdQty.textContent = '품절';
     } else if (state.type === 'FUTURE') {
-      tdQty.innerHTML = `<span style="font-size:8pt">${state.label}</span>`;
+      tdQty.innerHTML = `<span style="font-size:8pt">${escapeLegacyHtml(state.label)}</span>`;
     } else {
-      tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-m="${r?.model||''}" value="${q||''}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`;
+      tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-m="${attrSafe_(r?.model||'')}" value="${attrSafe_(q||'')}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`;
     }
     tr.appendChild(tdQty);
 
@@ -3940,8 +3984,8 @@ function renderSingle(){
     tdQty.className = 'qty';
     const state = getStockState_(s?.note);
     if (state.type === 'SOLD') { tdQty.textContent = '품절'; }
-    else if (state.type === 'FUTURE') { tdQty.innerHTML = `<span style="font-size:8pt; white-space:nowrap;">${state.label}</span>`; }
-    else { tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-sid="${s.id}" data-model="${s.model}" value="${qty || ''}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`; }
+    else if (state.type === 'FUTURE') { tdQty.innerHTML = `<span style="font-size:8pt; white-space:nowrap;">${escapeLegacyHtml(state.label)}</span>`; }
+    else { tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-sid="${attrSafe_(s.id)}" data-model="${attrSafe_(s.model)}" value="${attrSafe_(qty || '')}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`; }
     tr.appendChild(tdQty);
 
     // 단가
@@ -4024,7 +4068,7 @@ function buildSingleSetCompositionHtml_(s){
       const list = Array.from(groups[g.key] || []);
       if(!list.length) return;
       any = true;
-      html += `<div><span style="font-weight:700">${g.title}</span> ${list.join(', ')}</div>`;
+      html += `<div><span style="font-weight:700">${escapeLegacyHtml(g.title)}</span> ${list.map(escapeLegacyHtml).join(', ')}</div>`;
     });
 
     html += '</div>';
@@ -4296,8 +4340,8 @@ function renderComm(){
     tdQty.className='qty';
     const state = getStockState_(r?.note);
     if (state.type === 'SOLD') { tdQty.textContent = '품절'; }
-    else if (state.type === 'FUTURE') { tdQty.innerHTML = `<span style="font-size:8pt">${state.label}</span>`; }
-    else { tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-model="${r?.model||''}" value="${q||''}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`; }
+    else if (state.type === 'FUTURE') { tdQty.innerHTML = `<span style="font-size:8pt">${escapeLegacyHtml(state.label)}</span>`; }
+    else { tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-model="${attrSafe_(r?.model||'')}" value="${attrSafe_(q||'')}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`; }
     tr.appendChild(tdQty);
 
     const tdPrice = document.createElement('td');
@@ -4523,8 +4567,8 @@ function renderOld(){
     tr.classList.add('tint');
     
     tr.innerHTML = `
-      <td class="colL" style="text-align:left; padding:6px 8px;">${item.name||''}</td>
-      <td class="model">${item.model||''}</td>
+      <td class="colL" style="text-align:left; padding:6px 8px;">${escapeLegacyHtml(item.name||'')}</td>
+      <td class="model">${escapeLegacyHtml(item.model||'')}</td>
       <td>
         <div class="qty-box">
           <input class="qty-input" data-idx="${idx}" value="${q||''}" inputmode="numeric" pattern="\\d*" placeholder="0"/>
@@ -5564,7 +5608,7 @@ function openPreview(){
     if (isSet){
       const head = document.createElement('tr');
       head.classList.add('group-top');
-      head.innerHTML = `<td colspan="6" style="text-align:left;font-weight:700">${r?.name||''} (${r.model}) × ${fmt(q)}</td>`;
+      head.innerHTML = `<td colspan="6" style="text-align:left;font-weight:700">${escapeLegacyHtml(r?.name||'')} (${escapeLegacyHtml(r.model)}) × ${fmt(q)}</td>`;
       body.appendChild(head);
 
       explodeCommPreviewParts(r.model, q).forEach(k=>{
@@ -5573,9 +5617,9 @@ function openPreview(){
         tr.classList.add('child');
         const nameTxt = '● ' + (k.name||'');
         tr.innerHTML =
-          `<td style="text-align:left;padding:6px 8px">${nameTxt}</td>`+
-          `<td class="model">${k.model}</td>`+
-          `<td class="unit">${k.unit||''}</td>`+ // 클래스
+          `<td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(nameTxt)}</td>`+
+          `<td class="model">${escapeLegacyHtml(k.model)}</td>`+
+          `<td class="unit">${escapeLegacyHtml(k.unit||'')}</td>`+ // 클래스
           `<td>${fmt(k.qty)}</td>`+
           `<td>${fmt(k.price)}</td>`+
           `<td>${fmt(sub)}</td>`;
@@ -5586,9 +5630,9 @@ function openPreview(){
       const price = commUnitPrice(r.model);
       const tr = document.createElement('tr');
       tr.innerHTML =
-        `<td style="text-align:left;padding:6px 8px">${r?.name||''}</td>`+
-        `<td class="model">${r.model}</td>`+
-        `<td class="unit">${r.unit||''}</td>`+ // 클래스
+        `<td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(r?.name||'')}</td>`+
+        `<td class="model">${escapeLegacyHtml(r.model)}</td>`+
+        `<td class="unit">${escapeLegacyHtml(r.unit||'')}</td>`+ // 클래스
         `<td>${fmt(q)}</td>`+
         `<td>${fmt(price)}</td>`+
         `<td>${fmt(price*q)}</td>`;
@@ -5599,7 +5643,7 @@ function openPreview(){
   
   HOMEMULTI.forEach(r=>{const q=homeQty.get(r.model)||0;if(!q) return;const price=homeUnitPrice(r.model);
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td style="text-align:left;padding:6px 8px">${r?.name||''}</td><td class="model">${r.model}</td><td class="unit">${r.unit||''}</td><td>${fmt(q)}</td><td>${fmt(price)}</td><td>${fmt(price*q)}</td>`; // 🏷️ 클래스
+    tr.innerHTML=`<td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(r?.name||'')}</td><td class="model">${escapeLegacyHtml(r.model)}</td><td class="unit">${escapeLegacyHtml(r.unit||'')}</td><td>${fmt(q)}</td><td>${fmt(price)}</td><td>${fmt(price*q)}</td>`; // 🏷️ 클래스
     body.appendChild(tr);sum+=price*q;});
 
   SINGLE_SETS.forEach(s=>{
@@ -5614,9 +5658,9 @@ function openPreview(){
       const price = getSetUnitNowById(s.id) || calcSetUnitPrice(s);
       const tr = document.createElement('tr');
       tr.innerHTML =
-        `<td style="text-align:left;padding:6px 8px">${s?.name||''}</td>`+
-        `<td class="model">${s.model}</td>`+
-        `<td class="unit">${s.unit||'SET'}</td>`+ // 클래스
+        `<td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(s?.name||'')}</td>`+
+        `<td class="model">${escapeLegacyHtml(s.model)}</td>`+
+        `<td class="unit">${escapeLegacyHtml(s.unit||'SET')}</td>`+ // 클래스
         `<td>${fmt(q)}</td>`+
         `<td>${fmt(price)}</td>`+
         `<td>${fmt(price*q)}</td>`;
@@ -5629,7 +5673,7 @@ function openPreview(){
     head.classList.add('group-top');
     head.innerHTML =
       `<td colspan="6" style="text-align:left;font-weight:700">`+
-      `${s?.name||''} (${s.model}) × ${fmt(q)}</td>`;
+      `${escapeLegacyHtml(s?.name||'')} (${escapeLegacyHtml(s.model)}) × ${fmt(q)}</td>`;
     body.appendChild(head);
 
     const unitOverride = getSetUnitNowById(s.id);
@@ -5639,9 +5683,9 @@ function openPreview(){
       tr.classList.add('child');
       const nameTxt = '● ' + (k.name||'');
       tr.innerHTML =
-        `<td style="text-align:left;padding:6px 8px">${nameTxt}</td>`+
-        `<td class="model">${k.model}</td>`+
-        `<td class="unit">${k.unit||''}</td>`+ // 클래스
+        `<td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(nameTxt)}</td>`+
+        `<td class="model">${escapeLegacyHtml(k.model)}</td>`+
+        `<td class="unit">${escapeLegacyHtml(k.unit||'')}</td>`+ // 클래스
         `<td>${fmt(k.qty)}</td>`+
         `<td>${fmt(k.price)}</td>`+
         `<td>${fmt(sub)}</td>`;
@@ -5667,9 +5711,9 @@ function openPreview(){
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td style="text-align:left;padding:6px 8px">${item.name}</td>
-      <td class="model">${item.model}</td>
-      <td class="unit">${item.unit||'EA'}</td>
+      <td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(item.name)}</td>
+      <td class="model">${escapeLegacyHtml(item.model)}</td>
+      <td class="unit">${escapeLegacyHtml(item.unit||'EA')}</td>
       <td>${fmt(q)}</td>
       <td>${fmt(finalPrice)}</td>
       <td>${fmt(finalPrice*q)}</td>
@@ -6197,8 +6241,8 @@ function initEvents(){
     items.forEach(it=>{
       const tr=document.createElement('tr');
       tr.innerHTML =
-        `<td style="text-align:left;padding:6px 8px">${it.name}</td>`+
-        `<td class="model">${it.model}</td>`+
+        `<td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(it.name)}</td>`+
+        `<td class="model">${escapeLegacyHtml(it.model)}</td>`+
         `<td>${fmt(it.qty)}</td>`+
         `<td>${fmt(it.price)}</td>`+
         `<td>${fmt(it.qty*it.price)}</td>`;
@@ -6919,7 +6963,7 @@ function renderBranchTable(outs, inds){
               <span class="head-sep"></span>
               <span class="ratio-badge" data-ratio="out${i+1}">0%</span>
             </div>
-            <div class="form-hint">${o.model}</div>
+            <div class="form-hint">${escapeLegacyHtml(o.model)}</div>
           </th>
         `).join('')}
       </tr>
@@ -6928,8 +6972,8 @@ function renderBranchTable(outs, inds){
   const body = Array.from({length: ROWS}, (_,r)=>{
     const item = sortedInds[r];
     const chip = item
-      ? `<span class="capsule" draggable="true" data-model="${item.model}" data-cap="${item.cap}">
-           <span class="m">${item.model}</span>
+      ? `<span class="capsule" draggable="true" data-model="${attrSafe_(item.model)}" data-cap="${attrSafe_(item.cap)}">
+           <span class="m">${escapeLegacyHtml(item.model)}</span>
          </span>`
       : '';
     return `
@@ -6959,8 +7003,8 @@ function makeCapsule(model, cap, inGrid){
   el.dataset.model = model;
   el.dataset.cap = String(cap);
   el.innerHTML = inGrid
-    ? `<span class="m">${model}</span><button class="btn-x" title="제거">x</button>`
-    : `<span class="m">${model}</span>`;
+    ? `<span class="m">${escapeLegacyHtml(model)}</span><button class="btn-x" title="제거">x</button>`
+    : `<span class="m">${escapeLegacyHtml(model)}</span>`;
   return el;
 }
 
@@ -7450,7 +7494,8 @@ function showGateImageModal() {
   // 이미지 트랙 구성
   let html = '';
   loadedGateImages.forEach(src => {
-    html += `<div class="img-slide"><img src="${src}"></div>`;
+    const safeSrc = safeLegacyImageSrcAttr(src);
+    if (safeSrc) html += `<div class="img-slide"><img src="${safeSrc}"></div>`;
   });
   track.innerHTML = html;
 
@@ -8076,8 +8121,8 @@ function playWelcomeAnimation(res, callback) {
 
     layer.innerHTML = `
         <div style="text-align:center; color:#a855f7; font-size:28px; font-weight:800; line-height:1.6; display:flex; flex-direction:column; gap:12px;">
-            <div class="anim-line" style="opacity:0; transform:translateY(20px); transition:all 0.8s ease-out;">${cName}</div>
-            <div class="anim-line" style="opacity:0; transform:translateY(20px); transition:all 0.8s ease-out; transition-delay:0.4s;">${rName}님</div>
+            <div class="anim-line" style="opacity:0; transform:translateY(20px); transition:all 0.8s ease-out;">${escapeLegacyHtml(cName)}</div>
+            <div class="anim-line" style="opacity:0; transform:translateY(20px); transition:all 0.8s ease-out; transition-delay:0.4s;">${escapeLegacyHtml(rName)}님</div>
             <div class="anim-line" style="opacity:0; transform:translateY(20px); transition:all 0.8s ease-out; transition-delay:0.8s;">환영합니다.</div>
         </div>
     `;
@@ -8311,10 +8356,10 @@ function renderHistory(data) {
     
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${outDateStr}</td>
-      <td>${orderDateStr}</td>
-      <td style="text-align:left">${row.addr}</td>
-      <td>${row.note}</td>
+      <td>${escapeLegacyHtml(outDateStr)}</td>
+      <td>${escapeLegacyHtml(orderDateStr)}</td>
+      <td style="text-align:left">${escapeLegacyHtml(row.addr)}</td>
+      <td>${escapeLegacyHtml(row.note)}</td>
       <td><button class="btn-mini" onclick="openDetail(${i})">자세히</button></td>
     `;
     tb.appendChild(tr);
@@ -8335,16 +8380,16 @@ window.openDetail = function(idx) {
   reversedItems.forEach(it => {
     itemRows += `
       <tr>
-        <td style="text-align:left">${it.name}</td>
-        <td>${it.model}</td>
-        <td>${it.qty}</td>
+        <td style="text-align:left">${escapeLegacyHtml(it.name)}</td>
+        <td>${escapeLegacyHtml(it.model)}</td>
+        <td>${Number(it.qty || 0).toLocaleString()}</td>
         <td style="text-align:right">${comma(it.price)}</td>
         <td style="text-align:right">${comma(it.subtotal)}</td>
       </tr>`;
   });
 
   el('#detailContent').innerHTML = `
-    <div class="detail-biz-box">${d.bizName}</div>
+    <div class="detail-biz-box">${escapeLegacyHtml(d.bizName)}</div>
     
     <table class="detail-table">
       <thead><tr><th>출고희망</th><th>결제예정</th><th>주문일자</th></tr></thead>
@@ -8363,9 +8408,9 @@ window.openDetail = function(idx) {
       </tbody>
     </table>
 
-    <div class="detail-info-box"><span class="detail-label">배송주소</span>${d.addr}</div>
-    <div class="detail-info-box"><span class="detail-label">현장주소</span>${d.siteAddr}</div>
-    <div class="detail-info-box"><span class="detail-label">인수자</span>${d.receiver}</div>
+    <div class="detail-info-box"><span class="detail-label">배송주소</span>${escapeLegacyHtml(d.addr)}</div>
+    <div class="detail-info-box"><span class="detail-label">현장주소</span>${escapeLegacyHtml(d.siteAddr)}</div>
+    <div class="detail-info-box"><span class="detail-label">인수자</span>${escapeLegacyHtml(d.receiver)}</div>
   `;
   
   el('#dlgOrderDetail').showModal();
@@ -8697,9 +8742,9 @@ async function handleSaveSnapshot(customTheme) {
       sum += rowSub;
       /* 테두리명시 */
       trs += `<tr>
-        <td style="padding:8px 6px; border:1px solid #000000; text-align:left; color:#111111;">${it.name}</td>
-        <td style="padding:8px 6px; border:1px solid #000000; text-align:center; color:#444444;">${it.model}</td>
-        <td style="padding:8px 6px; border:1px solid #000000; text-align:center;">${it.unit || 'EA'}</td>
+        <td style="padding:8px 6px; border:1px solid #000000; text-align:left; color:#111111;">${escapeLegacyHtml(it.name)}</td>
+        <td style="padding:8px 6px; border:1px solid #000000; text-align:center; color:#444444;">${escapeLegacyHtml(it.model)}</td>
+        <td style="padding:8px 6px; border:1px solid #000000; text-align:center;">${escapeLegacyHtml(it.unit || 'EA')}</td>
         <td style="padding:8px 6px; border:1px solid #000000; text-align:center;">${fmt(it.qty)}</td>
         <td style="padding:8px 6px; border:1px solid #000000; text-align:right;">${fmt(it.price)}</td>
         <td style="padding:8px 6px; border:1px solid #000000; text-align:right;">${fmt(rowSub)}</td>
@@ -8710,7 +8755,7 @@ async function handleSaveSnapshot(customTheme) {
     const thStyle = 'background-color:#f3f4f6; color:#111827; padding:10px; border:1px solid #000000; text-align:center; font-weight:bold;';
     wrapper.innerHTML = `
       <h2 style="text-align:center; margin:0 0 15px 0; font-size:26px; color:#111111;">주문서 미리보기</h2>
-      <div style="text-align:right; margin-bottom:8px; font-size:13px; color:#555555; font-weight:bold;">저장일: ${new Date().toLocaleDateString()}<br>주제: ${theme}</div>
+      <div style="text-align:right; margin-bottom:8px; font-size:13px; color:#555555; font-weight:bold;">저장일: ${new Date().toLocaleDateString()}<br>주제: ${escapeLegacyHtml(theme)}</div>
       <table style="width:100%; border-collapse:collapse; font-size:14px; table-layout:fixed; background-color:#ffffff; border:1px solid #000000;">
         <colgroup>
           <col style="width:30%">
@@ -8997,7 +9042,7 @@ function loadSnapshotHistory() {
       }
     })
     .withFailureHandler(err => {
-      tbody.innerHTML = `<tr><td colspan="4" style="padding:30px; color:red;">오류 발생: ${err}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" style="padding:30px; color:red;">오류 발생: ${escapeLegacyHtml(err)}</td></tr>`;
     })
     .getOrderSnapshotHistory(safeBizNo, sDate, eDate); // safeBizNo 인자 추가
 }
@@ -9019,16 +9064,16 @@ function renderSnapshotTable(list) {
   let html = '';
   list.forEach((item, index) => {
     const d = new Date(item.created);
-    const dateStr = new Intl.DateTimeFormat('ko-KR', {
+    const dateStr = Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('ko-KR', {
       year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
     }).format(d);
 
-    const previewBtn = item.image ? `<button class="btn-mini" style="padding:6px 12px; font-size:13px; background-color:#f59e0b; color:#ffffff; border:none;" onclick="showSnapshotPreview(${index})">보기</button>` : '<span style="color:#aaaaaa; font-size:12px;">없음</span>';
+    const previewBtn = safeLegacyImageSrc(item.image) ? `<button class="btn-mini" style="padding:6px 12px; font-size:13px; background-color:#f59e0b; color:#ffffff; border:none;" onclick="showSnapshotPreview(${index})">보기</button>` : '<span style="color:#aaaaaa; font-size:12px;">없음</span>';
 
     /* 주제표시 */
     html += `<tr style="border-bottom:1px solid #eeeeee;">
-              <td style="padding:15px; color:#374151;">${dateStr}</td>
-              <td style="padding:15px; font-weight:bold; color:#2563eb; font-size:16px;">${item.theme}</td>
+              <td style="padding:15px; color:#374151;">${escapeLegacyHtml(dateStr)}</td>
+              <td style="padding:15px; font-weight:bold; color:#2563eb; font-size:16px;">${escapeLegacyHtml(item.theme)}</td>
               <td style="padding:15px;">${previewBtn}</td>
               <td style="padding:15px;">
                   <button class="btn" style="background-color:#2563eb; color:#ffffff; padding:6px 12px; font-size:13px;" onclick="restoreSnapshot(${index})">복원</button>
@@ -9048,6 +9093,11 @@ function showSnapshotPreview(index) {
   const item = window.loadedSnapshotData[index];
   if (!item || !item.image) {
     alert('저장된 미리보기 이미지가 없습니다.');
+    return;
+  }
+  const safeImage = safeLegacyImageSrc(item.image);
+  if (!safeImage) {
+    alert('안전하지 않은 미리보기 이미지 URL입니다.');
     return;
   }
 
@@ -9073,7 +9123,7 @@ function showSnapshotPreview(index) {
   imgWrap.style.borderRadius = '8px';
   
   const img = document.createElement('img');
-  img.src = item.image;
+  img.src = safeImage;
   img.style.display = 'block';
   img.style.margin = '0 auto';
   img.style.minWidth = '400px'; 
@@ -9207,9 +9257,9 @@ document.getElementById('due')?.addEventListener('change', function() {
           const sub = it.qty * it.price;
           totalAmt += sub; // 총합 계산
           trs += `<tr>
-            <td style="text-align:left;padding:6px 8px">${it.name}</td>
-            <td class="model">${it.model}</td>
-            <td class="unit">${it.unit || 'EA'}</td>
+            <td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(it.name)}</td>
+            <td class="model">${escapeLegacyHtml(it.model)}</td>
+            <td class="unit">${escapeLegacyHtml(it.unit || 'EA')}</td>
             <td>${it.qty.toLocaleString()}</td>
             <td>${it.price.toLocaleString()}</td>
             <td>${sub.toLocaleString()}</td>
@@ -9227,8 +9277,8 @@ document.getElementById('due')?.addEventListener('change', function() {
         items.forEach(it => {
           const sub = it.qty * it.price;
           trs += `<tr>
-            <td style="text-align:left;padding:6px 8px">${it.name}</td>
-            <td class="model">${it.model}</td>
+            <td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(it.name)}</td>
+            <td class="model">${escapeLegacyHtml(it.model)}</td>
             <td>${it.qty.toLocaleString()}</td>
             <td>${it.price.toLocaleString()}</td>
             <td>${sub.toLocaleString()}</td>

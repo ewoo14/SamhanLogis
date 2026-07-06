@@ -12,6 +12,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.samhanair.logis.discovery.ServiceDiscoveryClient;
 import com.samhanair.logis.discovery.ServiceInstance;
 import com.samhanair.logis.notification.config.UserCacheProperties;
+import com.samhanair.logis.userclient.UserVerifierProperties;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -52,7 +53,8 @@ class UserClientContractTest {
         UserCacheProperties cacheProperties = new UserCacheProperties();
         cacheProperties.setTtlSeconds(60L);
         cacheProperties.setMaxSize(1000L);
-        client = new UserClient(builder, noopDiscovery(), BASE_URL, INTERNAL_TOKEN, cacheProperties);
+        client = new UserClient(builder, noopDiscovery(), BASE_URL,
+                UserVerifierProperties.FailMode.OPEN, INTERNAL_TOKEN, cacheProperties);
     }
 
     @Test

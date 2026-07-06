@@ -19,6 +19,12 @@ import org.springframework.web.client.RestClientResponseException;
  * accounting-service 의 {@code PartnerLookupClient} 패턴을 답습한 fail-soft —
  * 404 / 401 / 5xx / 네트워크 모두 empty 반환 (caller 가 fallback 처리).
  *
+ * <p>실 수신 계약 = partner-service {@code PartnerInternalResponse(partnerId, partnerCode, name,
+ * bizNo, creditLimit, outstandingBalance, status)}. 사업자번호 필드명은 {@code bizNo} 뿐이다 —
+ * PR #746(#22) 라운드1 fix 전에는 {@code businessNo}/{@code businessRegistrationNumber} 등
+ * 실제로 존재하지 않는 별칭만 조회해 {@link PartnerSummary#businessNo()} 가 항상 null 이었다
+ * (TutorialStateService 의 bizNo 해소가 본 client 를 사용하므로 직접 연쇄 영향).
+ *
  * <p>인증 = X-Internal-Token. IT 에서 {@code @MockBean} 격리 의무
  * (memory feedback_it_mockbean_external_clients).
  */
@@ -93,7 +99,8 @@ public class PartnerLookupClient {
             UUID partnerId = parseUuid(data, "partnerId", "id");
             String partnerCode = textOrNull(data, "partnerCode");
             String name = textOrNull(data, "name", "partnerName", "businessName");
-            String businessNo = textOrNull(data, "businessNo", "businessRegistrationNumber");
+            // 실 수신 필드명은 PartnerInternalResponse.bizNo 하나뿐 (존재하지 않는 별칭 나열 금지).
+            String businessNo = textOrNull(data, "bizNo");
             if (partnerCode == null || partnerCode.isBlank()) {
                 return Optional.empty();
             }

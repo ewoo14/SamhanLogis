@@ -2,6 +2,7 @@ package com.samhanair.logis.security;
 
 import jakarta.annotation.PostConstruct;
 import java.util.Arrays;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
@@ -22,7 +23,8 @@ public class InternalTokenGuard {
     /** dev 환경 기본 토큰 값 — env-templates / application.yml default 와 1:1 일치. */
     public static final String DEV_DEFAULT = "dev-internal-token-change-me";
 
-    private static final String PROD_PROFILE = "prod";
+    /** 운영 프로파일 별칭. 배포 환경은 production 을 사용하므로 prod 단일 검사로는 부족하다. */
+    private static final Set<String> PROD_PROFILES = Set.of("prod", "production");
 
     private final InternalAuthProperties props;
     private final Environment environment;
@@ -36,7 +38,8 @@ public class InternalTokenGuard {
     @PostConstruct
     public void verify() {
         boolean isProd = Arrays.stream(environment.getActiveProfiles())
-                .anyMatch(p -> p.equalsIgnoreCase(PROD_PROFILE));
+                .map(String::toLowerCase)
+                .anyMatch(PROD_PROFILES::contains);
         boolean isDevDefault = DEV_DEFAULT.equals(props.getToken());
 
         if (isProd && isDevDefault) {

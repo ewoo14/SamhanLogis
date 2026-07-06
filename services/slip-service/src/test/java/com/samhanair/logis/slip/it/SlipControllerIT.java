@@ -138,6 +138,27 @@ class SlipControllerIT extends AbstractPostgresIT {
         return body;
     }
 
+    private Map<String, Object> createInboundSlipBody() {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "매입 권한 테스트 제품");
+        line.put("modelName", "PUR-M4");
+        line.put("quantity", 3);
+        line.put("unitPrice", 120000);
+        line.put("note", "M4 매입 전표 권한 테스트");
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "INBOUND");
+        body.put("slipDate", "2026-05-04");
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerId", UUID.randomUUID().toString());
+        body.put("partnerName", "매입 권한 테스트 거래처");
+        body.put("deliveryTag", "RETURN_TRIP");
+        body.put("memo", "M4 매입 전표 권한 테스트");
+        body.put("lines", List.of(line));
+        return body;
+    }
+
     @Test
     void unauthenticated_get_returns403() throws Exception {
         mockMvc.perform(get("/slips"))
@@ -155,6 +176,110 @@ class SlipControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").value(notNullValue()));
+    }
+
+    @Test
+    void salesOnlyAccount_createInboundSlip_returns403() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("purchases.slip.edit"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("sales.slip.create"),
+                        ArgumentMatchers.eq(PermissionAction.CREATE)))
+                .thenReturn(true);
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createInboundSlipBody())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void purchasesAccount_createInboundSlip_returns201_withoutSalesCreateGrant() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("purchases.slip.edit"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(true);
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("sales.slip.create"),
+                        ArgumentMatchers.eq(PermissionAction.CREATE)))
+                .thenReturn(false);
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-User-Role", "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createInboundSlipBody())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.slipType").value("INBOUND"));
+    }
+
+    @Test
+    void salesAccount_createOutboundSlip_returns201_withoutPurchasesGrant() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("purchases.slip.edit"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("sales.slip.create"),
+                        ArgumentMatchers.eq(PermissionAction.CREATE)))
+                .thenReturn(true);
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createOutboundSlipBody())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.slipType").value("OUTBOUND"));
+    }
+
+    @Test
+    void salesOnlyAccount_saveInboundSlip_returns403() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("purchases.slip.edit"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(true);
+
+        MvcResult created = mockMvc.perform(post("/slips")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-User-Role", "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createInboundSlipBody())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String slipId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("purchases.slip.edit"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(false);
+        Mockito.when(dynamicPermissionClient.check(
+                        ArgumentMatchers.eq(accountId),
+                        ArgumentMatchers.eq("sales.slip.edit"),
+                        ArgumentMatchers.eq(PermissionAction.UPDATE)))
+                .thenReturn(true);
+
+        mockMvc.perform(post("/slips/" + slipId + "/save")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

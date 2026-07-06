@@ -45,6 +45,7 @@ public class UserClient implements UserVerifier {
     public UserClient(RestClient.Builder builder,
                       ServiceDiscoveryClient discoveryClient,
                       @Value("${samhan.user-service.url:http://localhost:8083}") String baseUrl,
+                      @Value("${samhan.user-client.fail-mode:OPEN}") UserVerifierProperties.FailMode failMode,
                       @Value("${app.security.internal.token:}") String internalToken,
                       ObjectMapper objectMapper) {
         this.discoveryClient = discoveryClient;
@@ -56,7 +57,7 @@ public class UserClient implements UserVerifier {
         p.setInternalToken(internalToken);
         p.setTtlSeconds(60L);
         p.setMaxSize(10000L);
-        p.setFailFast(false);
+        p.setFailMode(failMode);
         this.delegate = new DefaultUserVerifier(builder, p);
     }
 

@@ -86,6 +86,7 @@ class PartnerInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerCode").value("P-2026-0001"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.name").value("(주)테스트거래처"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerId").exists())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.bizNo").value("111-22-33333"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.creditLimit").value(5000000))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.status")
                         .value(PartnerStatus.ACTIVE.name()));
@@ -243,7 +244,12 @@ class PartnerInternalControllerIT extends AbstractPostgresIT {
     /**
      * SP-08-FU2 P2-3 — partnerId 로 거래처 summary 조회 ({@code GET /internal/partners/{id}/summary}).
      *
-     * <p>정상 케이스: valid token + 존재하는 partnerId → 200 + partnerCode / name 포함.
+     * <p>정상 케이스: valid token + 존재하는 partnerId → 200 + partnerCode / name / bizNo 포함.
+     *
+     * <p>PR #746(#22) 라운드1 fix — {@code bizNo} 회귀 가드. 본 필드 부재 시
+     * accounting-service {@code PartnerLookupClient}·partner-order-service
+     * {@code PartnerMig8LookupClient} 가 사업자등록번호를 항상 lookup miss 로 처리한다
+     * (MIG-8 이식 100% reject 근본 원인이었던 결함).
      */
     @Test
     void get_summary_by_partner_id_returns_200() throws Exception {
@@ -257,7 +263,8 @@ class PartnerInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.success").value(true))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerCode").value("P-2026-0001"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.name").value("(주)테스트거래처"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerId").exists());
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerId").exists())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.bizNo").value("111-22-33333"));
     }
 
     /**

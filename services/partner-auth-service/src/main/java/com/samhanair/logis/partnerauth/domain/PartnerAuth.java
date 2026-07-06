@@ -129,6 +129,9 @@ public class PartnerAuth extends BaseEntity {
 
     /** 비밀번호 설정 / 변경 — 5건 history 검증은 service 에서 선행. */
     public void changePassword(String newHash) {
+        if (this.status == PartnerStatus.PENDING) {
+            throw new IllegalStateException("관리자 승인 전에는 비밀번호를 설정할 수 없습니다");
+        }
         if (this.passwordHash != null) {
             // FIFO 5건 유지
             Deque<String> dq = new ArrayDeque<>(this.passwordHistory == null ? List.of() : this.passwordHistory);
@@ -141,14 +144,17 @@ public class PartnerAuth extends BaseEntity {
         this.passwordHash = newHash;
         this.passwordChangedAt = LocalDateTime.now();
         this.failedAttempts = 0;
-        // PENDING → NEED_PW_INPUT (가입 후 비밀번호 첫 설정 시)
-        if (this.status == PartnerStatus.PENDING || this.status == PartnerStatus.NEED_PW_SET) {
+        // 승인 또는 임시 PIN 검증을 통과한 NEED_PW_SET 만 정상 로그인 대기 상태로 전환한다.
+        if (this.status == PartnerStatus.NEED_PW_SET) {
             this.status = PartnerStatus.NEED_PW_INPUT;
         }
     }
 
     /** 임시 비밀번호 발급 — status = NEED_PW_SET. */
     public void issueTempPassword(String tempHash) {
+        if (this.status == PartnerStatus.PENDING) {
+            throw new IllegalStateException("관리자 승인 전에는 임시 비밀번호를 발급할 수 없습니다");
+        }
         if (this.passwordHash != null) {
             Deque<String> dq = new ArrayDeque<>(this.passwordHistory == null ? List.of() : this.passwordHistory);
             dq.addLast(this.passwordHash);

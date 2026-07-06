@@ -76,6 +76,69 @@ function qs(params: Record<string, string | number | boolean | null | undefined>
   return parts.length ? `?${parts.join('&')}` : ''
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => {
+    const table: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }
+    return table[ch] ?? ch
+  })
+}
+
+const LEGACY_TABLE_ALLOWED_TAGS = new Set([
+  'TABLE',
+  'THEAD',
+  'TBODY',
+  'TFOOT',
+  'TR',
+  'TD',
+  'TH',
+  'COLGROUP',
+  'COL',
+  'SPAN',
+  'DIV',
+  'BR',
+  'STRONG',
+  'B',
+])
+const LEGACY_TABLE_ALLOWED_ATTRS = new Set(['class', 'style', 'colspan', 'rowspan', 'width'])
+
+function isUnsafeLegacyAttrValue(value: string): boolean {
+  const compact = value.replace(/[\u0000-\u001F\u007F\s]+/g, '').toLowerCase()
+  return compact.includes('javascript:') || compact.includes('vbscript:') || /expression\s*\(/i.test(value)
+}
+
+function sanitizeLegacyAttrs(attrs: string): string {
+  const kept: string[] = []
+  const attrRe = /([^\s"'=<>`]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g
+  let match: RegExpExecArray | null
+  while ((match = attrRe.exec(attrs)) !== null) {
+    const name = String(match[1] ?? '').toLowerCase()
+    const value = match[2] ?? match[3] ?? match[4] ?? ''
+    if (!LEGACY_TABLE_ALLOWED_ATTRS.has(name) || name.startsWith('on') || isUnsafeLegacyAttrValue(value)) continue
+    kept.push(`${name}="${escapeHtml(value)}"`)
+  }
+  return kept.length ? ` ${kept.join(' ')}` : ''
+}
+
+export function sanitizeLegacyTableHtmlPassthrough(html: string): string {
+  return String(html ?? '')
+    .replace(/<\s*script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+    .replace(/<\s*\/?\s*([a-zA-Z0-9:-]+)([^>]*)>/g, (match, tagName, attrs) => {
+      const tag = String(tagName).toUpperCase()
+      if (!LEGACY_TABLE_ALLOWED_TAGS.has(tag)) return ''
+      if (/^<\s*\//.test(match)) return `</${tag.toLowerCase()}>`
+      if (/\/\s*>$/.test(match) || tag === 'BR' || tag === 'COL') {
+        return `<${tag.toLowerCase()}${sanitizeLegacyAttrs(String(attrs ?? ''))}>`
+      }
+      return `<${tag.toLowerCase()}${sanitizeLegacyAttrs(String(attrs ?? ''))}>`
+    })
+}
+
 /** legacy `getCustomerDataAsync` 응답 형태 — Apps Script 코드가 기대하는 array<Customer>. */
 interface LegacyCustomer {
   partnerCode: string
@@ -137,15 +200,15 @@ const RPC_MAPPINGS: RpcMapping[] = [
     fromResponse: (data) => {
       // legacy 기대: HTML string (legacy code 가 div.innerHTML = data)
       // backend 가 raw HTML 을 응답하지 않으면 placeholder html 합성
-      if (typeof data === 'string') return data
+      if (typeof data === 'string') return sanitizeLegacyTableHtmlPassthrough(data)
       const page = (data ?? {}) as { content?: unknown[] }
       const rows = Array.isArray(page) ? page : page.content ?? []
       const tdHtml = rows
         .map((r) => {
           const item = r as { modelCode?: string; name?: string; releasePrice?: number }
-          return `<tr><td>${item.modelCode ?? ''}</td><td>${item.name ?? ''}</td><td>${
-            item.releasePrice ?? ''
-          }</td></tr>`
+          return `<tr><td>${escapeHtml(item.modelCode)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(
+            item.releasePrice,
+          )}</td></tr>`
         })
         .join('')
       return `<table style="width:100%"><thead><tr><th>모델명</th><th>품목명</th><th>출시가</th></tr></thead><tbody>${tdHtml}</tbody></table>`

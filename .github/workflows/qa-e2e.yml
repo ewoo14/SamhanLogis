@@ -58,6 +58,7 @@ jobs:
       - name: HTML 리포트 업로드 (실패 + always)
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true  # 스토리지 쿼터 등 업로드 실패가 잡을 red 로 만들지 않도록(테스트 결과만 게이트)
         with:
           name: playwright-report
           path: qa/playwright/playwright-report/
@@ -66,6 +67,7 @@ jobs:
       - name: JUnit 결과 업로드
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true  # 스토리지 쿼터 등 업로드 실패가 잡을 red 로 만들지 않도록(테스트 결과만 게이트)
         with:
           name: playwright-junit
           path: qa/playwright/test-results/
@@ -103,6 +105,7 @@ jobs:
       - name: 리포트 업로드
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true  # 스토리지 쿼터 등 업로드 실패가 잡을 red 로 만들지 않도록(테스트 결과만 게이트)
         with:
           name: desktop-playwright-report
           path: clients/desktop/playwright-report/
@@ -189,6 +192,7 @@ jobs:
       - name: 스모크 테스트 결과 업로드 (실패 + always)
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true  # 스토리지 쿼터 등 업로드 실패가 잡을 red 로 만들지 않도록(테스트 결과만 게이트)
         with:
           name: detox-arologis-report
           path: qa/detox/artifacts/

@@ -1,7 +1,9 @@
 package com.samhanair.logis.partnerauth.it;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,10 +11,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.samhanair.logis.partnerauth.client.DcConfigClient;
+import com.samhanair.logis.partnerauth.client.PartnerConfigDto;
 import com.samhanair.logis.partnerauth.client.SmsClient;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -105,6 +110,18 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void POST_partner_register_201_PENDING_without_partnerCode() throws Exception {
+        mvc.perform(post("/api/v1/auth/partner-register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"bizNo":"1234567898","memo":"new"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.bizNo").value("1234567898"));
+    }
+
+    @Test
     void POST_partner_register_409_중복() throws Exception {
         authRepository.save(PartnerAuth.register("1234567893", "P-IT-003", null));
         mvc.perform(post("/api/v1/auth/partner-register")
@@ -178,6 +195,9 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(
                 "1234567897", "P-IT-007", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
         authRepository.save(pa);
+        when(dcConfigClient.findByBizNo(eq("1234567897"))).thenReturn(Optional.of(
+                new PartnerConfigDto("P-IT-007", "테스트 거래처", "담당자", "01012345678",
+                        List.of(), Map.of(), null)));
 
         mvc.perform(post("/api/v1/auth/partner-temp-password")
                         .contentType(MediaType.APPLICATION_JSON)

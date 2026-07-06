@@ -1,9 +1,6 @@
 package com.samhanair.logis.slip.web.dispatch;
 
 import com.samhanair.logis.common.dto.ApiResponse;
-import com.samhanair.logis.common.exception.BusinessException;
-import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus;
@@ -80,7 +77,6 @@ public class DispatchTaskAdminController {
     private final DispatchTaskCancellationRequestService cancellationRequestService;
     private final DispatchTaskRedispatchService redispatchService;
     private final DispatchTaskHistoryQueryService historyQueryService;
-    private final DynamicPermissionClient dynamicPermissionClient;
 
     /**
      * 완료배차 내역 목록 조회.
@@ -132,10 +128,8 @@ public class DispatchTaskAdminController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DispatchTaskResponse> create(@Valid @RequestBody CreateDispatchTaskRequest req,
-                                                    @RequestHeader(value = "X-User-Id", required = false) String actor,
-                                                    @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+                                                    @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         return ApiResponse.ok(DispatchTaskResponse.from(taskService.createTask(req.dispatchDate())));
     }
 
@@ -150,10 +144,8 @@ public class DispatchTaskAdminController {
     @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
     public ApiResponse<DispatchTaskResponse> todayDraft(
             @Valid @RequestBody CreateDispatchTaskRequest req,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         return ApiResponse.ok(DispatchTaskResponse.from(taskService.findOrCreateTodayDraft(req.dispatchDate())));
     }
 
@@ -169,10 +161,8 @@ public class DispatchTaskAdminController {
     public ApiResponse<DispatchVehicleGroupResponse> addGroup(
             @PathVariable UUID taskId,
             @Valid @RequestBody AddVehicleGroupRequest req,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         return ApiResponse.ok(DispatchVehicleGroupResponse.from(
                 taskService.addVehicleGroup(taskId, req.vehicleBodyType(), req.tonnage())));
     }
@@ -189,10 +179,8 @@ public class DispatchTaskAdminController {
     public void removeGroup(@PathVariable UUID taskId,
                             @PathVariable UUID groupId,
                             @RequestHeader(value = "X-User-Id", required = false) String actor,
-                            @RequestHeader(value = "X-User-Name", required = false) String callerName,
-                            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+                            @RequestHeader(value = "X-User-Name", required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         taskService.removeVehicleGroup(taskId, groupId, actor != null ? actor : "system", callerName);
     }
 
@@ -209,9 +197,7 @@ public class DispatchTaskAdminController {
     public void restoreGroup(@PathVariable UUID taskId,
                              @PathVariable UUID groupId,
                              @RequestHeader(value = "X-User-Id", required = false) String actor,
-                             @RequestHeader(value = "X-User-Name", required = false) String callerName,
-                             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        checkEditPermission(roleHeader);
+                             @RequestHeader(value = "X-User-Name", required = false) String callerName) {
         taskService.restoreVehicleGroup(taskId, groupId, actor != null ? actor : "system", callerName);
     }
 
@@ -228,10 +214,8 @@ public class DispatchTaskAdminController {
             @PathVariable UUID taskId,
             @PathVariable UUID groupId,
             @Valid @RequestBody AssignSlipToGroupRequest req,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         return ApiResponse.ok(DispatchVehicleGroupSlipResponse.from(taskService.assignSlip(taskId, groupId, req.slipId())));
     }
 
@@ -247,10 +231,8 @@ public class DispatchTaskAdminController {
     public void reorderSlips(@PathVariable UUID taskId,
                              @PathVariable UUID groupId,
                              @Valid @RequestBody ReorderSlipsRequest req,
-                             @RequestHeader(value = "X-User-Id", required = false) String actor,
-                             @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+                             @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         taskService.reorderSlips(groupId, req.orderedSlipIds());
     }
 
@@ -267,10 +249,8 @@ public class DispatchTaskAdminController {
                            @PathVariable UUID groupId,
                            @PathVariable UUID slipId,
                            @RequestHeader(value = "X-User-Id", required = false) String actor,
-                           @RequestHeader(value = "X-User-Name", required = false) String callerName,
-                           @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+                           @RequestHeader(value = "X-User-Name", required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         taskService.removeSlipFromGroup(groupId, slipId, actor != null ? actor : "system", callerName);
     }
 
@@ -290,9 +270,7 @@ public class DispatchTaskAdminController {
                             @PathVariable UUID slipId,
                             @RequestParam(value = "mappingId", required = false) UUID mappingId,
                             @RequestHeader(value = "X-User-Id", required = false) String actor,
-                            @RequestHeader(value = "X-User-Name", required = false) String callerName,
-                            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        checkEditPermission(roleHeader);
+                            @RequestHeader(value = "X-User-Name", required = false) String callerName) {
         taskService.restoreSlipFromGroup(taskId, groupId, slipId, mappingId, actor != null ? actor : "system", callerName);
     }
 
@@ -309,10 +287,8 @@ public class DispatchTaskAdminController {
             @PathVariable UUID taskId,
             @PathVariable UUID groupId,
             @Valid @RequestBody SetMatchedDriverRequest req,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         return ApiResponse.ok(matchedDriverManualService.setMatchedDriver(taskId, groupId, req));
     }
 
@@ -328,9 +304,7 @@ public class DispatchTaskAdminController {
     public ApiResponse<DispatchTaskDetailResponse> markManualDispatchComplete(
             @PathVariable UUID taskId,
             @PathVariable UUID groupId,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        checkEditPermission(roleHeader);
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         return ApiResponse.ok(matchedDriverManualService.markManualDispatchComplete(taskId, groupId));
     }
 
@@ -344,10 +318,8 @@ public class DispatchTaskAdminController {
     @RequirePermission(page = "dispatch.board", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<DispatchTaskResponse> dispatch(@PathVariable UUID taskId,
                                                       @Valid @RequestBody(required = false) DispatchTaskDispatchRequest req,
-                                                      @RequestHeader(value = "X-User-Id", required = false) String actor,
-                                                      @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+                                                      @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         return ApiResponse.ok(DispatchTaskResponse.from(completionService.dispatch(
                 taskId,
                 req != null ? req.groupIds() : null)));
@@ -364,9 +336,7 @@ public class DispatchTaskAdminController {
     @RequirePermission(page = "dispatch.board", action = PermissionAction.UPDATE)
     public ApiResponse<DispatchTaskResponse> startRedispatch(
             @PathVariable UUID taskId,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        checkEditPermission(roleHeader);
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         return ApiResponse.ok(DispatchTaskResponse.from(redispatchService.startRedispatch(taskId)));
     }
 
@@ -385,10 +355,8 @@ public class DispatchTaskAdminController {
     public ApiResponse<DispatchTaskResponse> requestModification(
             @PathVariable UUID taskId,
             @Valid @RequestBody ModificationRequestBody req,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         String actorOrSystem = actor != null ? actor : "system";
         return ApiResponse.ok(DispatchTaskResponse.from(
                 modificationRequestService.request(taskId, req.reason(), actorOrSystem)));
@@ -406,10 +374,8 @@ public class DispatchTaskAdminController {
     public ApiResponse<DispatchTaskResponse> requestCancellation(
             @PathVariable UUID taskId,
             @Valid @RequestBody CancellationRequestBody req,
-            @RequestHeader(value = "X-User-Id", required = false) String actor,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = "X-User-Id", required = false) String actor) {
         // SP-D3 동적 권한 EDIT 가드 — dispatch.board
-        checkEditPermission(roleHeader);
         String actorOrSystem = actor != null ? actor : "system";
         return ApiResponse.ok(DispatchTaskResponse.from(
                 cancellationRequestService.request(taskId, req.reason(), actorOrSystem)));
@@ -420,35 +386,4 @@ public class DispatchTaskAdminController {
 
     /** 취소 요청 body — 사유 (선택, 0~500자). */
     public record CancellationRequestBody(@Size(max = 500) String reason) {}
-
-    // =========================================================================
-    // SP-D3 동적 권한 헬퍼
-    // =========================================================================
-
-    /**
-     * SP-D3 동적 EDIT 권한 검증 — dispatch.board 페이지 코드.
-     *
-     * <p>actorRole null/blank 이면 건너뜀.
-     * canEdit=false + canView=true 이면 명시적 deny → 403 (view-only override).
-     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
-     *
-     * @param actorRole 요청자 role (X-User-Role header)
-     */
-    private void checkEditPermission(String actorRole) {
-        if (actorRole == null || actorRole.isBlank()) {
-            return;
-        }
-        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, DISPATCH_BOARD_PAGE_CODE);
-        if (!canEdit) {
-            boolean canView = dynamicPermissionClient.canView(actorRole, DISPATCH_BOARD_PAGE_CODE);
-            if (canView) {
-                log.warn("[SP-D3] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}",
-                        actorRole, DISPATCH_BOARD_PAGE_CODE);
-                throw new BusinessException(ErrorCode.FORBIDDEN,
-                        "동적 권한 설정에 의해 배차 작업 편집 권한이 차단되었습니다.");
-            }
-            log.debug("[SP-D3] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}",
-                    actorRole, DISPATCH_BOARD_PAGE_CODE);
-        }
-    }
 }

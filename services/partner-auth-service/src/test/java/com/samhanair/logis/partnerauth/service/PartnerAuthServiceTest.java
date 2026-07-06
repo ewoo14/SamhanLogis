@@ -14,6 +14,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.JwtTokenProvider;
 import com.samhanair.logis.partnerauth.client.DcConfigClient;
+import com.samhanair.logis.partnerauth.client.PartnerConfigDto;
 import com.samhanair.logis.partnerauth.client.SmsClient;
 import com.samhanair.logis.partnerauth.config.PartnerAuthJwtProperties;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
@@ -32,6 +33,8 @@ import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
 import com.samhanair.logis.partnerauth.repository.PartnerLoginAttemptRepository;
 import com.samhanair.logis.partnerauth.repository.PartnerSessionRepository;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.mockito.ArgumentCaptor;
@@ -100,9 +103,13 @@ class PartnerAuthServiceTest {
     void register_새_거래처_PENDING() {
         when(authRepository.existsByBizNo("1234567890")).thenReturn(false);
         PartnerRegisterResponse res = service.register(
-                new PartnerRegisterRequest("1234567890", "P001", "test"));
+                new PartnerRegisterRequest("1234567890", "ATTACKER-PARTNER", "test"));
+        ArgumentCaptor<PartnerAuth> saved = ArgumentCaptor.forClass(PartnerAuth.class);
+        verify(authRepository).save(saved.capture());
+
         assertThat(res.status()).isEqualTo(PartnerStatus.PENDING);
         assertThat(res.bizNo()).isEqualTo("1234567890");
+        assertThat(saved.getValue().getPartnerCode()).isEqualTo("1234567890");
     }
 
     @Test
@@ -149,6 +156,19 @@ class PartnerAuthServiceTest {
     }
 
     @Test
+    @DisplayName("login — PENDING 자가등록 계정은 승인 전 토큰 미발급")
+    void login_PENDING_승인전_토큰_미발급() {
+        PartnerAuth pa = PartnerAuth.register("1234567890", "1234567890", "self-register");
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        TryLoginResponse r = service.tryLogin(
+                new TryLoginRequest("1234567890", "1357", false), "1.1.1.1", "ua");
+
+        assertThat(r.status()).isEqualTo(PartnerStatus.PENDING);
+        assertThat(r.token()).isNull();
+    }
+
+    @Test
     @DisplayName("로그인 성공 시 token 발급 + failedAttempts reset + lastLoginAt 갱신")
     @SuppressWarnings("deprecation")
     void login_성공_시_토큰_발급() {
@@ -182,6 +202,17 @@ class PartnerAuthServiceTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static PartnerConfigDto partnerConfig(String partnerCode, String mobileNo) {
+        return new PartnerConfigDto(
+                partnerCode,
+                "테스트 거래처",
+                "테스트 담당자",
+                mobileNo,
+                List.of(),
+                Map.of(),
+                null);
     }
 
     @Test
@@ -244,20 +275,146 @@ class PartnerAuthServiceTest {
     }
 
     @Test
+    @DisplayName("setPassword — PENDING 자가등록 계정은 승인 전 비밀번호 설정 거부")
+    void setPassword_PENDING_승인전_거부() {
+        PartnerAuth pa = PartnerAuth.register("1234567890", "1234567890", "self-register");
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        assertThatThrownBy(() -> service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+        assertThat(pa.getStatus()).isEqualTo(PartnerStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("setPassword — 관리자 승인 직후 NEED_PW_SET 최초 설정은 정상 허용")
+    void setPassword_승인후_최초설정_OK() {
+        PartnerAuth pa = PartnerAuth.register("1234567890", "1234567890", "self-register");
+        pa.approvePending();
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        SetPasswordResponse res = service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", null));
+
+        assertThat(res.result()).isEqualTo("OK");
+        assertThat(pa.getStatus()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
+        assertThat(passwordEncoder.matches("5678", pa.getPasswordHash())).isTrue();
+    }
+
+    @Test
     @DisplayName("issueTempPassword — SmsClient 큐잉 + status NEED_PW_SET")
     void tempPassword_SMS_큐잉() {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(
                 "1234567890", "P001", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
         when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+        when(dcConfigClient.findByBizNo("1234567890")).thenReturn(Optional.of(
+                partnerConfig("P001", "01012345678")));
 
-        var res = service.issueTempPassword(new TempPasswordRequest("1234567890", "01012345678"));
+        var res = service.issueTempPassword(new TempPasswordRequest("1234567890", "01000000000"));
         ArgumentCaptor<String> tempPin = ArgumentCaptor.forClass(String.class);
         verify(smsClient).enqueueTempPassword(eq("01012345678"), tempPin.capture());
+        verify(smsClient).enqueuePasswordResetAttemptNotice(eq("01012345678"));
 
         assertThat(tempPin.getValue()).matches("\\d{4}");
         assertThat(passwordEncoder.matches(tempPin.getValue(), pa.getPasswordHash())).isTrue();
         assertThat(res.maskedMobileNo()).startsWith("010").endsWith("5678");
         assertThat(pa.getStatus()).isEqualTo(PartnerStatus.NEED_PW_SET);
+    }
+
+    @Test
+    @DisplayName("issueTempPassword — PENDING 계정은 승인 전 임시 비밀번호 발급 거부")
+    void tempPassword_PENDING_승인전_거부() {
+        PartnerAuth pa = PartnerAuth.register("1234567890", "1234567890", "self-register");
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        assertThatThrownBy(() -> service.issueTempPassword(
+                new TempPasswordRequest("1234567890", "01000000000")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("setPassword — 임시 비밀번호 재설정은 등록 연락처 PIN 검증 후에만 허용")
+    void setPassword_임시PIN_검증후_재설정_OK() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+        when(dcConfigClient.findByBizNo("1234567890")).thenReturn(Optional.of(
+                partnerConfig("P001", "01012345678")));
+
+        service.issueTempPassword(new TempPasswordRequest("1234567890", "01000000000"));
+        ArgumentCaptor<String> tempPin = ArgumentCaptor.forClass(String.class);
+        verify(smsClient).enqueueTempPassword(eq("01012345678"), tempPin.capture());
+
+        assertThatThrownBy(() -> service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+        assertThatThrownBy(() -> service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", "0000")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+
+        SetPasswordResponse res = service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", tempPin.getValue()));
+
+        assertThat(res.result()).isEqualTo("OK");
+        assertThat(pa.getStatus()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
+        assertThat(passwordEncoder.matches("5678", pa.getPasswordHash())).isTrue();
+    }
+
+    @Test
+    @DisplayName("issueTempPassword — 계정 기준 rate limit 초과 시 TOO_MANY_REQUESTS")
+    void tempPassword_rateLimit_차단() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+        when(dcConfigClient.findByBizNo("1234567890")).thenReturn(Optional.of(
+                partnerConfig("P001", "01012345678")));
+
+        service.issueTempPassword(new TempPasswordRequest("1234567890", "01000000000"));
+        service.issueTempPassword(new TempPasswordRequest("1234567890", "01000000000"));
+        service.issueTempPassword(new TempPasswordRequest("1234567890", "01000000000"));
+
+        assertThatThrownBy(() -> service.issueTempPassword(
+                new TempPasswordRequest("1234567890", "01000000000")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    @DisplayName("setPassword — 임시 PIN 확인 실패도 rate limit 으로 브루트포스 차단")
+    void setPassword_임시PIN_rateLimit_차단() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_SET);
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        assertThatThrownBy(() -> service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", "0000")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+        assertThatThrownBy(() -> service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", "0000")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+        assertThatThrownBy(() -> service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", "0000")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+        assertThatThrownBy(() -> service.setPassword(
+                new SetPasswordRequest("1234567890", "5678", "0000")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.TOO_MANY_REQUESTS);
     }
 
     @Test

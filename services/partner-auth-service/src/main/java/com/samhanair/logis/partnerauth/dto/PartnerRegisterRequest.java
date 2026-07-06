@@ -8,6 +8,6 @@ import jakarta.validation.constraints.Size;
 public record PartnerRegisterRequest(
         @NotBlank @Pattern(regexp = "\\d{10,12}", message = "bizNo 는 10~12자 숫자만 허용")
         String bizNo,
-        @NotBlank @Size(max = 30) String partnerCode,
+        @Size(max = 30) String partnerCode,
         @Size(max = 500) String memo
 ) {}

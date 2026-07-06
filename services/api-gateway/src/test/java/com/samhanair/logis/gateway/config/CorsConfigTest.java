@@ -40,4 +40,30 @@ class CorsConfigTest {
         assertThat(config.getAllowedOrigins()).contains("https://app.samhan-air.com");
         assertThat(config.getAllowedOriginPatterns()).contains("app://com.samhanair.logis.desktop");
     }
+
+    @Test
+    @DisplayName("비운영 CORS — localhost/127/file 개발 origin 허용")
+    void nonProdCors_allowsDevelopmentOrigins() {
+        CorsConfiguration config = CorsConfig.corsConfiguration("local");
+
+        assertThat(config.getAllowedOrigins()).contains("http://localhost:5173");
+        assertThat(config.getAllowedOriginPatterns())
+                .contains("http://localhost:*", "http://127.0.0.1:*", "file://*");
+    }
+
+    @Test
+    @DisplayName("운영 CORS — 개발 origin 패턴 제외")
+    void prodCors_excludesDevelopmentOrigins() {
+        CorsConfiguration config = CorsConfig.corsConfiguration("production");
+
+        assertThat(config.getAllowedOrigins())
+                .contains(
+                        "https://app.samhan-air.com",
+                        "https://order.samhan-air.com",
+                        "https://sign.samhan-air.com")
+                .doesNotContain("http://localhost:3000", "http://localhost:5173");
+        assertThat(config.getAllowedOriginPatterns())
+                .contains("app://com.samhanair.logis.desktop", "app://*.samhanair.logis.desktop")
+                .doesNotContain("http://localhost:*", "http://127.0.0.1:*", "file://*");
+    }
 }
