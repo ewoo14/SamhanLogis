@@ -33,9 +33,11 @@ export interface SlipSummary {
   status: SlipStatus
   partnerId: string | null
   partnerName: string | null
+  partnerCode?: string | null
   sourceWarehouseId: string | null
   destinationWarehouseId: string | null
   deliveryTag: DeliveryTagCode | null
+  deliveryTagLabel?: string | null
   requesterId: string | null
   acceptedBy: string | null
   acceptedAt: string | null
@@ -43,6 +45,9 @@ export interface SlipSummary {
   confirmedAt: string | null
   updatedAt: string
   version: number
+  isDeleted?: boolean
+  deletedAt?: string | null
+  deletedByName?: string | null
 }
 
 /** 라인 응답 — BE `SlipLineResponse`. */
@@ -492,6 +497,26 @@ export async function deleteSalesSlip(
 }
 
 /**
+ * 전표 soft-delete 복원 — 목록 삭제행 복원 액션.
+ *
+ * BE `POST /slips/{id}/restore`.
+ * 응답은 라인 미포함 `SlipResponse`.
+ *
+ * 에러 코드:
+ * - 409 Conflict  — 동일 식별자 활성 전표 공존 또는 무결성 충돌
+ * - 403 Forbidden — 권한 부족
+ *
+ * @param id 전표 UUID (path param 전용, 화면 표시 금지)
+ */
+export async function restoreSlip(id: string): Promise<SlipSummary> {
+  const res = await apiClient.post<ApiEnvelope<SlipSummary>>(
+    `/slips/${encodeURIComponent(id)}/restore`,
+    {},
+  )
+  return res.data.data
+}
+
+/**
  * 매입 전표 direct PUT 수정.
  *
  * @param id 전표 UUID (path param 전용, 화면 표시 금지)
@@ -702,6 +727,9 @@ export interface SlipQueryRow {
   destinationWarehouseId: string | null
   /** 낙관적 잠금용 — soft delete / PUT 시 필요. ISO 8601. */
   updatedAt: string
+  isDeleted?: boolean
+  deletedAt?: string | null
+  deletedByName?: string | null
 }
 
 /** 판매/구매 조회 검색 옵션 */

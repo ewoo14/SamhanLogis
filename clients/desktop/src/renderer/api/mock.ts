@@ -1031,6 +1031,11 @@ for (const slip of MOCK_SLIPS as Array<Record<string, unknown>>) {
   if (slip.discountInfo === undefined) slip.discountInfo = null
   if (slip.collectTerm === undefined) slip.collectTerm = null
   if (slip.agreeTerm === undefined) slip.agreeTerm = null
+  if (slip.isDeleted === undefined) slip.isDeleted = false
+  if (slip.deletedAt === undefined) slip.deletedAt = null
+  if (slip.deletedByName === undefined) slip.deletedByName = null
+  if (slip.updatedAt === undefined) slip.updatedAt = '2026-05-04T09:00:00+09:00'
+  if (slip.version === undefined) slip.version = 0
 }
 
 /** 시연용 mock 이동전표 5건 */
@@ -4083,6 +4088,56 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
+  // DELETE /api/v1/slips/{id}/sales — 판매전표 목록 soft delete.
+  const salesSlipDeleteMatch = url.match(/\/slips\/([^/?]+)\/sales(?:\?.*)?$/)
+  if (method === 'DELETE' && salesSlipDeleteMatch) {
+    const denied = mockRequirePermission('sales.slip.list', 'delete')
+    if (denied) return denied
+    const id = decodeURIComponent(salesSlipDeleteMatch[1]!)
+    const row = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!row) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    if (row['slipType'] !== 'OUTBOUND') {
+      return mockError(400, 'INVALID_INPUT', '판매전표만 삭제할 수 있습니다.')
+    }
+    const now = new Date().toISOString()
+    row['isDeleted'] = true
+    row['deletedAt'] = now
+    row['deletedByName'] = MOCK_AUTH.fullName
+    row['updatedAt'] = now
+    row['version'] = Number(row['version'] ?? 0) + 1
+    return envelope(null)
+  }
+
+  // POST /api/v1/slips/{id}/restore — 판매전표 목록 삭제행 복원.
+  const slipRestoreMatch = url.match(/\/slips\/([^/?]+)\/restore(?:\?.*)?$/)
+  if (method === 'POST' && slipRestoreMatch) {
+    const denied = mockRequirePermission('sales.slip.list', 'restore')
+    if (denied) return denied
+    const id = decodeURIComponent(slipRestoreMatch[1]!)
+    const row = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!row) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    if (row['slipType'] !== 'OUTBOUND') {
+      return mockError(400, 'INVALID_INPUT', '판매전표만 복원할 수 있습니다.')
+    }
+    if (row['isDeleted'] === true) {
+      const duplicate = MOCK_SLIPS.some((candidate) =>
+        candidate.id !== id
+        && candidate.slipType === row['slipType']
+        && candidate.slipNo === row['slipNo']
+        && (candidate as Record<string, unknown>)['isDeleted'] !== true)
+      if (duplicate) {
+        return mockError(409, 'CONFLICT', '동일 전표번호의 활성 전표가 있어 복원할 수 없습니다.')
+      }
+    }
+    const now = new Date().toISOString()
+    row['isDeleted'] = false
+    row['deletedAt'] = null
+    row['deletedByName'] = null
+    row['updatedAt'] = now
+    row['version'] = Number(row['version'] ?? 0) + 1
+    return envelope(row)
+  }
+
   // ============================================================================
   // 판매/구매 조회 (SalesQueryPage / PurchaseQueryPage) — 풍성한 컬럼 mock
   // GET /slips/query — 신규 필드 포함 10+ rows (페이지네이션 검증용)
@@ -4442,11 +4497,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     && !url.match(/\/slips\/cleanup/)
     && !slipDetailMatch
   ) {
-    const slipTypeMatch = url.match(/[?&]slipType=([^&]+)/)
-    const slipType = slipTypeMatch?.[1]
-    const filtered = slipType === 'OUTBOUND' || slipType === 'INBOUND'
-      ? MOCK_SLIPS.filter((s) => s.slipType === slipType)
-      : MOCK_SLIPS
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const params = config.params as Record<string, unknown> | undefined
+    const readParam = (key: string): string | undefined => {
+      const value = params?.[key]
+      if (Array.isArray(value)) return value[0] == null ? undefined : String(value[0])
+      if (value != null) return String(value)
+      return urlObj.searchParams.get(key) ?? undefined
+    }
+    const slipType = readParam('slipType')
+    const status = readParam('status')
+    const deliveryTag = readParam('deliveryTag')
+    const filtered = MOCK_SLIPS.filter((s) => {
+      if ((slipType === 'OUTBOUND' || slipType === 'INBOUND') && s.slipType !== slipType) return false
+      if (status && s.status !== status) return false
+      if (deliveryTag && s.deliveryTag !== deliveryTag) return false
+      return true
+    })
     return envelope({
       content: filtered,
       totalElements: filtered.length,
@@ -12411,7 +12478,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           create: legacyCell?.edit ?? false,
           update: legacyCell?.edit ?? false,
           delete: legacyCell?.edit ?? false,
-          restore: false,
+          restore: page === 'sales.slip.list' ? (legacyCell?.edit ?? false) : false,
           download: legacyCell?.view ?? false,
           print: legacyCell?.view ?? false,
         }
@@ -12477,6 +12544,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         if (cell.edit) actions.push(...actionOnly)
       } else {
         if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+        if (cell.pageCode === 'sales.slip.list' && cell.edit) actions.push('RESTORE')
         // download/print 는 BE read-side export 계약을 따르므로 view 권한에서 파생한다.
         if (cell.view) actions.push('DOWNLOAD', 'PRINT')
       }
@@ -16735,7 +16803,7 @@ const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix 
     create: cell?.edit ?? false,
     update: cell?.edit ?? false,
     delete: cell?.edit ?? false,
-    restore: false,
+    restore: page === 'sales.slip.list' ? (cell?.edit ?? false) : false,
     download: cell?.view ?? false,
     print: cell?.view ?? false,
   }

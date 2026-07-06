@@ -1448,9 +1448,37 @@ public class SlipService {
                 }
             }
         }
-        Specification<Slip> spec = buildListSpec(slipType, status, from, to,
-                partnerCode, driverPhone, regionGroup, deliveryTags);
-        return slipRepository.findAll(spec, pageable).map(SlipResponse::from);
+        String normalizedRegionGroup = normalizeListFilter(regionGroup);
+        if (normalizedRegionGroup != null) {
+            Specification<Slip> spec = buildListSpec(slipType, status, from, to,
+                    partnerCode, driverPhone, normalizedRegionGroup, deliveryTags);
+            return slipRepository.findAll(spec, pageable).map(SlipResponse::from);
+        }
+
+        List<String> deliveryTagNames = deliveryTags == null || deliveryTags.isEmpty()
+                ? List.of("__NONE__")
+                : deliveryTags.stream().map(Enum::name).toList();
+        Pageable nativePageable = pageable == null
+                ? PageRequest.of(0, 20)
+                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return slipRepository.listIncludingDeleted(
+                slipType == null ? null : slipType.name(),
+                status == null ? null : status.name(),
+                from,
+                to,
+                normalizeListFilter(partnerCode),
+                normalizeListFilter(driverPhone),
+                deliveryTagNames,
+                deliveryTags == null || deliveryTags.isEmpty(),
+                nativePageable).map(SlipResponse::from);
+    }
+
+    private static String normalizeListFilter(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**

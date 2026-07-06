@@ -54,7 +54,7 @@
  */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
   Badge,
   Button,
@@ -64,12 +64,21 @@ import {
   type DataTableColumn,
   type DeliveryTagCode,
 } from '@samhan/design-system'
-import { listSlips, type SlipSummary, type SlipType } from '../api/slip'
+import { listSlips, restoreSlip, type SlipSummary, type SlipType } from '../api/slip'
+import { extractApiErrorResponseMessage } from '../api/apiError'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { InboundInspectionDialog } from './components/InboundInspectionDialog'
 import { exportSlips } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
+import { SlipListRealtimeClient } from '../realtime/SlipListRealtimeClient'
+import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
+import './SlipListPage.css'
+import {
+  SLIP_DELETED_ROW_TEXT_STYLE,
+  deletedSlipBadgeAriaLabel,
+  deletedSlipBadgeLabel,
+} from './slipDeletedRow'
 
 export interface SlipListPageProps {
   /** OUTBOUND (판매관리 legacy) 또는 INBOUND (구매관리 legacy). */
@@ -113,8 +122,12 @@ const DELIVERY_TAG_LABEL_MAP: Record<DeliveryTagCode, string> = {
   BORROW:             '차용',
 }
 
+// SSE 목록 동기화용 coarse 무효화 키(안정 참조 — 렌더마다 재구독 방지).
+const SLIP_LIST_REALTIME_KEYS: QueryKey[] = [['slips', 'list']]
+
 export function SlipListPage({ mode }: SlipListPageProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const isOutbound = mode === 'OUTBOUND'
   const basePath = isOutbound ? '/sales' : '/purchases'
@@ -123,6 +136,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const canExport = canAccess('slip.print.export', 'download')
   // [C5-2b] canCreateSlip(role) → canAccess('sales.slip.create', 'create')
   const canCreate = canAccess('sales.slip.create', 'create')
+  const canRestore = isOutbound && canAccess('sales.slip.list', 'restore')
 
   // P0-9: INBOUND 모드 검수 Dialog 상태
   const [inspectionSlipId, setInspectionSlipId] = useState<string | null>(null)
@@ -136,12 +150,29 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)
   usePageTitle(isOutbound ? '판매전표 목록' : '입고전표 목록')
 
+  // E2: 판매전표 목록 삭제/복원/수정 이벤트 수신 시 coarse key 무효화.
+  useCollectionRealtime(SlipListRealtimeClient, 'list', SLIP_LIST_REALTIME_KEYS)
+
   const query = useQuery({
     queryKey: ['slips', 'list', mode, deliveryTagFilter],
     queryFn: () =>
       listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, page: 0, size: 20 }),
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
+  })
+
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const restoreMutation = useMutation({
+    mutationFn: restoreSlip,
+    onSuccess: async () => {
+      setRestoreError(null)
+      await queryClient.invalidateQueries({ queryKey: ['slips', 'list'] })
+    },
+    onError: (error) =>
+      setRestoreError(
+        extractApiErrorResponseMessage(error)
+          ?? '복원에 실패했습니다. 전표 상태 또는 권한을 확인하세요.',
+      ),
   })
 
   /** P0-9: INBOUND 전표에서 검수 버튼 표시 조건 — SAVED / CONFIRMED 상태. */
@@ -159,11 +190,32 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       width: '180px',
       mobilePriority: 'primary',
       render: (row) => (
-        <SlipNumberDisplay
-          slipDate={row.slipDate}
-          seqNo={row.seqNo}
-          size="sm"
-        />
+        <span style={row.isDeleted ? SLIP_DELETED_ROW_TEXT_STYLE : undefined}>
+          <SlipNumberDisplay
+            slipDate={row.slipDate}
+            seqNo={row.seqNo}
+            size="sm"
+          />
+          {row.isDeleted ? (
+            <Badge
+              variant="neutral"
+              title={deletedSlipBadgeAriaLabel(row.deletedByName, row.deletedAt)}
+              aria-label={deletedSlipBadgeAriaLabel(row.deletedByName, row.deletedAt)}
+              data-testid={`slip-list-row-${row.slipNo}-deleted-badge`}
+              style={{
+                marginLeft: 8,
+                maxWidth: 160,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                verticalAlign: 'middle',
+              }}
+            >
+              {deletedSlipBadgeLabel(row.deletedByName)}
+            </Badge>
+          ) : null}
+        </span>
       ),
     },
     {
@@ -184,7 +236,16 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       mobilePriority: 'secondary',
       render: (row) => <SlipStatusBadge status={row.status} />,
     },
-    { key: 'partnerName', header: '거래처', mobilePriority: 'secondary' },
+    {
+      key: 'partnerName',
+      header: '거래처',
+      mobilePriority: 'secondary',
+      render: (row) => (
+        <span style={row.isDeleted ? SLIP_DELETED_ROW_TEXT_STYLE : undefined}>
+          {row.partnerName ?? '—'}
+        </span>
+      ),
+    },
     {
       key: 'deliveryTag',
       header: '배송태그',
@@ -192,10 +253,39 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       mobilePriority: 'secondary',
       render: (row) => {
         if (!row.deliveryTag) return null
-        const label = DELIVERY_TAG_LABEL_MAP[row.deliveryTag] ?? row.deliveryTag
+        const label = row.deliveryTagLabel ?? DELIVERY_TAG_LABEL_MAP[row.deliveryTag] ?? row.deliveryTag
         return <Badge variant="neutral">{label}</Badge>
       },
     },
+    ...(isOutbound
+      ? ([
+          {
+            key: 'id',
+            header: '',
+            width: '86px',
+            align: 'right',
+            mobilePriority: 'secondary',
+            render: (row) =>
+              row.isDeleted && canRestore ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={restoreMutation.isPending && restoreMutation.variables === row.id}
+                  disabled={restoreMutation.isPending}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    restoreMutation.mutate(row.id)
+                  }}
+                  data-testid={`slip-list-row-${row.slipNo}-restore`}
+                  aria-label={`${row.slipNo} 전표 복원`}
+                >
+                  복원
+                </Button>
+              ) : null,
+          },
+        ] as DataTableColumn<SlipSummary>[])
+      : []),
     // P0-9: INBOUND 모드에서만 "검수" 액션 컬럼 표시
     ...(!isOutbound
       ? ([
@@ -205,7 +295,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
             width: '80px',
             mobilePriority: 'secondary',
             render: (row) =>
-              INSPECTABLE_STATUSES.includes(row.status) ? (
+              row.isDeleted !== true && INSPECTABLE_STATUSES.includes(row.status) ? (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -321,12 +411,28 @@ export function SlipListPage({ mode }: SlipListPageProps) {
         ) : null}
       </div>
 
+      {restoreError ? (
+        <div
+          className="error-banner"
+          role="alert"
+          data-testid="slip-list-restore-error"
+          style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700)' }}
+        >
+          {restoreError}
+        </div>
+      ) : null}
+
       <DataTable
         columns={columns}
         rows={query.data?.content ?? []}
         loading={query.isLoading}
-        rowKey={(slip) => slip.id}
-        onRowClick={(slip) => navigate(`${basePath}/${slip.id}`)}
+        rowKey={(slip) => `${slip.id}:${slip.isDeleted ? 'D' : 'A'}`}
+        rowClickable={(slip) => slip.isDeleted !== true}
+        rowClassName={(slip) => (slip.isDeleted ? 'slip-list-deleted-row' : undefined)}
+        onRowClick={(slip) => {
+          if (slip.isDeleted === true) return
+          navigate(`${basePath}/${slip.id}`)
+        }}
         emptyMessage="등록된 전표가 없습니다."
       />
 

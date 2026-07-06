@@ -105,6 +105,15 @@ public class Slip extends BaseEntity {
     private String partnerName;
 
     /**
+     * soft-delete 수행자 표시명.
+     *
+     * <p>{@link BaseEntity#getDeletedBy()} 는 감사용 userId 이므로 목록 UI 에 노출하지 않는다.
+     * E2 목록 취소선 UX 는 본 컬럼의 이름만 표시한다.
+     */
+    @Column(name = "deleted_by_name", length = 100)
+    private String deletedByName;
+
+    /**
      * 거래처코드 snapshot — PR-E1 BE-1 (V15 migration) 신규.
      *
      * <p>partner_id (UUID) 와 별도 — UUID 비공개 가드 의무 (memory feedback_uuid_no_user_visibility).
@@ -1161,6 +1170,19 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(CONFLICT)                  마감 lock 적용 슬립 (lock_flag=true)
      */
     public void deleteForSales(String actorId) {
+        deleteForSales(actorId, null);
+    }
+
+    /**
+     * 매출 전표 soft delete — 삭제자 표시명을 함께 저장한다.
+     *
+     * @param actorId 삭제 수행자 ID (audit 기록용, null 허용 → "system" 폴백)
+     * @param actorName 삭제자 표시명 (UUID 비노출용, null 허용)
+     * @throws BusinessException(SLIP_DELETE_NON_SALES)     slipType 이 OUTBOUND 가 아닐 때
+     * @throws BusinessException(SLIP_DELETE_SALES_SHIPPED) DRAFT/SAVED 외 출고 진행 단계일 때
+     * @throws BusinessException(CONFLICT)                  마감 lock 적용 슬립 (lock_flag=true)
+     */
+    public void deleteForSales(String actorId, String actorName) {
         if (this.slipType != SlipType.OUTBOUND) {
             throw new BusinessException(ErrorCode.SLIP_DELETE_NON_SALES,
                     ErrorCode.SLIP_DELETE_NON_SALES.getDefaultMessage());
@@ -1176,6 +1198,13 @@ public class Slip extends BaseEntity {
         }
         this.lines.clear();
         this.markDeleted(deleter);
+        this.deletedByName = sanitizeDeletedByName(actorName);
+    }
+
+    /** soft-delete 복원 후 사용자 표시용 삭제자명을 비운다. */
+    public void markRestoredWithNameCleared() {
+        markRestored();
+        this.deletedByName = null;
     }
 
     /**
@@ -1650,6 +1679,14 @@ public class Slip extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "전이 가능한 상태가 아닙니다: 현재 " + this.status + ", 필요 " + expected);
         }
+    }
+
+    private static String sanitizeDeletedByName(String actorName) {
+        if (actorName == null || actorName.isBlank()) {
+            return null;
+        }
+        String trimmed = actorName.trim();
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 
     // ---------- PR-H2 (Phase 12 Step 2) — audit overlay 보조 ----------

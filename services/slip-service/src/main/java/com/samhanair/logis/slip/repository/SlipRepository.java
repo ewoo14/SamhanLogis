@@ -13,6 +13,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Slip 헤더 — 단건/필터 페이지 조회. partial unique 는 {@code slip_type + slip_no} 컬럼에 적용.
@@ -27,6 +29,14 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
 
     /** 전표 유형 + 전표번호 단건 조회. 판매/구매 번호 중복 허용 정책의 기본 조회 방식. */
     Optional<Slip> findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType slipType, String slipNo);
+
+    /**
+     * soft-deleted row 를 포함해 slipId 로 조회한다.
+     *
+     * <p>{@link org.hibernate.annotations.SQLRestriction} 우회가 필요하므로 native query 를 사용한다.
+     */
+    @Query(value = "SELECT * FROM slips WHERE id = :id", nativeQuery = true)
+    Optional<Slip> findByIdIncludingDeleted(@Param("id") UUID id);
 
     /** 상태별 페이지 조회. soft-delete 제외. */
     Page<Slip> findAllByStatusAndIsDeletedFalse(SlipStatus status, Pageable pageable);
@@ -51,6 +61,114 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
 
     /** slipType + status 동시 필터 페이지. soft-delete 제외. */
     Page<Slip> findAllBySlipTypeAndStatusAndIsDeletedFalse(SlipType slipType, SlipStatus status, Pageable pageable);
+
+    /**
+     * 판매/구매조회 목록용 soft-delete 포함 검색.
+     *
+     * <p>status/slipType/deliveryTag 는 native query 에 enum 객체를 직접 바인딩하지 않고
+     * 반드시 {@code name()} 문자열로 전달한다. raw enum 은 ordinal 로 바인딩될 수 있어
+     * PostgreSQL varchar 비교가 0건이 되는 회귀를 만든다.
+     */
+    @Query(value = """
+            SELECT *
+              FROM slips s
+             WHERE (CAST(:slipType AS varchar) IS NULL OR s.slip_type = CAST(:slipType AS varchar))
+               AND (CAST(:status AS varchar) IS NULL OR s.status = CAST(:status AS varchar))
+               AND s.slip_date BETWEEN :from AND :to
+               AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
+               AND (CAST(:searchPartnerName AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.partner_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerName AS varchar), '%')))
+               AND (CAST(:searchPartnerCode AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.partner_code, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerCode AS varchar), '%')))
+               AND (CAST(:searchBusinessNumber AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.business_number, '')) LIKE LOWER(CONCAT('%', CAST(:searchBusinessNumber AS varchar), '%')))
+               AND (CAST(:searchSlipNo AS varchar) IS NULL
+                    OR LOWER(s.slip_no) LIKE LOWER(CONCAT('%', CAST(:searchSlipNo AS varchar), '%')))
+               AND (CAST(:searchProjectName AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')))
+               AND (CAST(:searchDeliveryAddress AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')))
+             ORDER BY s.slip_date DESC, s.seq_no DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+              FROM slips s
+             WHERE (CAST(:slipType AS varchar) IS NULL OR s.slip_type = CAST(:slipType AS varchar))
+               AND (CAST(:status AS varchar) IS NULL OR s.status = CAST(:status AS varchar))
+               AND s.slip_date BETWEEN :from AND :to
+               AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
+               AND (CAST(:searchPartnerName AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.partner_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerName AS varchar), '%')))
+               AND (CAST(:searchPartnerCode AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.partner_code, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerCode AS varchar), '%')))
+               AND (CAST(:searchBusinessNumber AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.business_number, '')) LIKE LOWER(CONCAT('%', CAST(:searchBusinessNumber AS varchar), '%')))
+               AND (CAST(:searchSlipNo AS varchar) IS NULL
+                    OR LOWER(s.slip_no) LIKE LOWER(CONCAT('%', CAST(:searchSlipNo AS varchar), '%')))
+               AND (CAST(:searchProjectName AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')))
+               AND (CAST(:searchDeliveryAddress AS varchar) IS NULL
+                    OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')))
+            """,
+            nativeQuery = true)
+    Page<Slip> searchIncludingDeleted(
+            @Param("slipType") String slipType,
+            @Param("status") String status,
+            @Param("from") java.time.LocalDate from,
+            @Param("to") java.time.LocalDate to,
+            @Param("deliveryTags") java.util.Collection<String> deliveryTags,
+            @Param("deliveryTagsEmpty") boolean deliveryTagsEmpty,
+            @Param("searchPartnerName") String searchPartnerName,
+            @Param("searchPartnerCode") String searchPartnerCode,
+            @Param("searchBusinessNumber") String searchBusinessNumber,
+            @Param("searchSlipNo") String searchSlipNo,
+            @Param("searchProjectName") String searchProjectName,
+            @Param("searchDeliveryAddress") String searchDeliveryAddress,
+            Pageable pageable);
+
+    /**
+     * 기존 {@code GET /slips} 목록용 soft-delete 포함 검색.
+     *
+     * <p>status/slipType/deliveryTag 는 native query 에 enum 객체를 직접 바인딩하지 않고
+     * 반드시 {@code name()} 문자열로 전달한다. raw enum 은 ordinal 로 바인딩될 수 있어
+     * PostgreSQL varchar 비교가 0건이 되는 회귀를 만든다.
+     */
+    @Query(value = """
+            SELECT *
+              FROM slips s
+             WHERE (CAST(:slipType AS varchar) IS NULL OR s.slip_type = CAST(:slipType AS varchar))
+               AND (CAST(:status AS varchar) IS NULL OR s.status = CAST(:status AS varchar))
+               AND (CAST(:from AS date) IS NULL OR s.slip_date >= CAST(:from AS date))
+               AND (CAST(:to AS date) IS NULL OR s.slip_date <= CAST(:to AS date))
+               AND (CAST(:partnerCode AS varchar) IS NULL OR s.partner_code = CAST(:partnerCode AS varchar))
+               AND (CAST(:driverPhone AS varchar) IS NULL
+                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
+               AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
+             ORDER BY s.slip_date DESC, s.seq_no DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+              FROM slips s
+             WHERE (CAST(:slipType AS varchar) IS NULL OR s.slip_type = CAST(:slipType AS varchar))
+               AND (CAST(:status AS varchar) IS NULL OR s.status = CAST(:status AS varchar))
+               AND (CAST(:from AS date) IS NULL OR s.slip_date >= CAST(:from AS date))
+               AND (CAST(:to AS date) IS NULL OR s.slip_date <= CAST(:to AS date))
+               AND (CAST(:partnerCode AS varchar) IS NULL OR s.partner_code = CAST(:partnerCode AS varchar))
+               AND (CAST(:driverPhone AS varchar) IS NULL
+                    OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
+               AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
+            """,
+            nativeQuery = true)
+    Page<Slip> listIncludingDeleted(
+            @Param("slipType") String slipType,
+            @Param("status") String status,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("partnerCode") String partnerCode,
+            @Param("driverPhone") String driverPhone,
+            @Param("deliveryTags") java.util.Collection<String> deliveryTags,
+            @Param("deliveryTagsEmpty") boolean deliveryTagsEmpty,
+            Pageable pageable);
 
     /** 활성 전체 페이지. soft-delete 제외. */
     Page<Slip> findAllByIsDeletedFalse(Pageable pageable);

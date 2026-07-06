@@ -39,6 +39,7 @@ import com.samhanair.logis.slip.estimate.web.EstimatePermissionGuard;
 import com.samhanair.logis.slip.publish.PublishSlipResponse;
 import com.samhanair.logis.slip.publish.SlipPublishService;
 import com.samhanair.logis.slip.realtime.SlipRealtimeBroker;
+import com.samhanair.logis.slip.realtime.SlipListRealtimeController;
 import com.samhanair.logis.slip.realtime.SlipRealtimeController;
 import com.samhanair.logis.slip.revision.service.SlipRedlineService;
 import com.samhanair.logis.slip.revision.web.SlipRedlineController;
@@ -49,11 +50,13 @@ import com.samhanair.logis.slip.service.SlipCleanupSaveHistoryService;
 import com.samhanair.logis.slip.service.SlipExcelExportService;
 import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.service.SlipSignatureService;
+import com.samhanair.logis.slip.service.SlipRestoreService;
 import com.samhanair.logis.slip.web.SlipController;
 import com.samhanair.logis.slip.web.SlipCleanupSaveHistoryController;
 import com.samhanair.logis.slip.web.SlipLookupController;
 import com.samhanair.logis.slip.web.SlipPublishController;
 import com.samhanair.logis.slip.web.SlipSignatureController;
+import com.samhanair.logis.slip.web.SlipRestoreController;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
@@ -99,13 +102,16 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 DeliveryAttachmentController.class,
                 SlipPublishController.class,
                 SlipRealtimeController.class,
+                SlipListRealtimeController.class,
                 SlipCleanupSaveHistoryController.class,
                 SlipRedlineController.class,
-                EstimateController.class
+                EstimateController.class,
+                SlipRestoreController.class
         },
         properties = "spring.application.name=slip-service")
 @Import({
         PermissionSecurityAutoConfiguration.class,
+        SlipRealtimeBroker.SlipRealtimeBrokerConfig.class,
         SlipPermissionControllerIT.TestSecurityConfig.class,
         SlipPermissionControllerIT.TestMeterConfig.class
 })
@@ -135,10 +141,10 @@ class SlipPermissionControllerIT {
     @MockBean private DeliveryBatchService batchService;
     @MockBean private SlipRepository slipRepository;
     @MockBean private SlipPublishService slipPublishService;
-    @MockBean private SlipRealtimeBroker realtimeBroker;
     @MockBean private SlipRedlineService slipRedlineService;
     @MockBean private EstimateService estimateService;
     @MockBean private EstimatePermissionGuard estimatePermissionGuard;
+    @MockBean private SlipRestoreService slipRestoreService;
     @MockBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @BeforeEach
@@ -172,7 +178,6 @@ class SlipPermissionControllerIT {
                         com.samhanair.logis.slip.domain.SlipStatus.DRAFT,
                         com.samhanair.logis.slip.domain.SlipSourceType.ESTIMATE,
                         "EST-001", null, false)));
-        lenient().when(realtimeBroker.subscribe(any())).thenReturn(new SseEmitter(100L));
         lenient().when(estimateService.list(any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of()));
         lenient().when(estimateService.getOne(any(UUID.class))).thenReturn(null);
@@ -237,6 +242,10 @@ class SlipPermissionControllerIT {
                                 .param("sourceId", "EST-001")),
                 endpoint("slip realtime", "slip.comments", PermissionAction.VIEW, "STAFF",
                         () -> get("/slips/{id}/realtime", ID)),
+                endpoint("slip list realtime", "sales.slip.list", PermissionAction.VIEW, "SALES",
+                        () -> get("/slips/list-realtime")),
+                endpoint("slip list restore", "sales.slip.list", PermissionAction.RESTORE, "SALES",
+                        () -> post("/slips/{id}/restore", ID)),
                 endpoint("next day print data", "slip.print.next-day", PermissionAction.PRINT, "SALES",
                         () -> get("/slips/next-day-image-data")),
                 endpoint("cleanup report", "slip.cleanup", PermissionAction.VIEW, "SALES",

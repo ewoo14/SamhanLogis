@@ -99,7 +99,15 @@ public record SlipResponse(
          * 특이사항 파생 배송일정 라벨 — V52 신규.
          * {@link DeliverySchedule#scheduleLabel} 에서 파생 ({@code "25상26하"} / {@code "당착"} / null).
          */
-        String deliveryScheduleLabel) {
+        String deliveryScheduleLabel,
+        /**
+         * soft-delete 상태. E2 목록은 삭제행도 취소선으로 렌더링하므로 삭제 메타를 포함한다.
+         */
+        boolean isDeleted,
+        /** 삭제 시각. 활성행이면 null. */
+        LocalDateTime deletedAt,
+        /** 삭제자 표시명. UUID/userId 는 노출하지 않는다. */
+        String deletedByName) {
 
     /**
      * Slip 엔티티로부터 응답 record 를 빌드한다.
@@ -162,7 +170,10 @@ public record SlipResponse(
                 slip.editHistoryCount(),
                 // V52 — 하차일 + 배송일정 파생 라벨
                 slip.getUnloadDate(),
-                DeliverySchedule.scheduleLabel(slip.getSlipDate(), slip.getUnloadDate(), slip.getDeliveryTag()));
+                DeliverySchedule.scheduleLabel(slip.getSlipDate(), slip.getUnloadDate(), slip.getDeliveryTag()),
+                Boolean.TRUE.equals(slip.getIsDeleted()),
+                slip.getDeletedAt(),
+                slip.getDeletedByName());
     }
 
     private static LocalDateTime updatedAtOf(Slip slip) {
