@@ -213,6 +213,7 @@ export function SlipVersionHistoryPanel({
       setRestoreTarget(null)
       void queryClient.invalidateQueries({ queryKey: ['slip', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
+      void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', slipId] })
       setToast({
         kind: 'success',
         text: `버전 ${revisionNo} 시점으로 전표를 복원했습니다.`,
