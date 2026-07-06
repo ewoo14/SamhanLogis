@@ -10,7 +10,9 @@
  * 라이브 relay 2-연결 브로드캐스트는 별도 curl 실증(docs/qa/e3-s4d-coedit/) + CashReceiptCoeditIT(6, 실 PG).
  *
  * 실행: cd clients/desktop; 별도 터미널 vite dev(mock off, :5177);
- *   RECEIPT_ID=<draft-uuid> node_modules/.bin/playwright test --config playwright/cash-receipt-coedit-real-qa/playwright.config.ts
+ *   DEV_SEED_PASSWORD=<dev_master 비번> RECEIPT_ID=<draft-uuid> \
+ *     node_modules/.bin/playwright test --config playwright/cash-receipt-coedit-real-qa/playwright.config.ts
+ * (비밀번호는 하드코딩하지 않고 env 로 주입 — CLAUDE.md placeholder 의무.)
  */
 import * as path from 'path'
 import * as fs from 'fs'
@@ -35,7 +37,7 @@ async function capture(page: Page, name: string): Promise<void> {
 async function fetchRealToken(): Promise<string> {
   const http = await import('http')
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({ loginId: 'dev_master', password: 'dev_p05_pass!' })
+    const body = JSON.stringify({ loginId: 'dev_master', password: process.env['DEV_SEED_PASSWORD'] ?? '' })
     const req = http.default.request(
       { hostname: '127.0.0.1', port: 8080, path: '/api/v1/auth/login', method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
