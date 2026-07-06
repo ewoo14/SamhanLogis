@@ -230,6 +230,11 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
         SeededDispatch seeded = dispatchedTaskWithSlip(5);
         Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
         Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
+        Mockito.when(dynamicPermissionClient.check(
+                        UUID.fromString(MASTER_ACCOUNT_ID),
+                        "dispatch.board",
+                        com.samhanair.logis.security.permission.PermissionAction.UPDATE))
+                .thenReturn(false);
 
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/start-redispatch", seeded.taskId())
                         .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
@@ -243,6 +248,11 @@ class DispatchRedispatchManualPolicyIT extends AbstractPostgresIT {
         UUID groupId = addGroup(taskId);
         Mockito.when(dynamicPermissionClient.canView("SALES", "dispatch.board")).thenReturn(true);
         Mockito.when(dynamicPermissionClient.canEdit("SALES", "dispatch.board")).thenReturn(false);
+        Mockito.when(dynamicPermissionClient.check(
+                        UUID.fromString(MASTER_ACCOUNT_ID),
+                        "dispatch.board",
+                        com.samhanair.logis.security.permission.PermissionAction.UPDATE))
+                .thenReturn(false);
 
         mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups/{groupId}/manual-dispatch-complete",
                         taskId, groupId)

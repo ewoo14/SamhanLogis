@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -82,8 +83,18 @@ public class SlipController {
 
     /** SP-D3 — 매입 슬립 목록 페이지 코드. */
     private static final String PURCHASES_SLIP_LIST_PAGE_CODE = "purchases.slip.list";
+    /** 매입 전표 변경 권한 페이지 코드. */
+    private static final String PURCHASES_SLIP_EDIT_PAGE_CODE = "purchases.slip.edit";
     /** SP-D3 — 매출 슬립 목록 페이지 코드. */
     private static final String SALES_SLIP_LIST_PAGE_CODE = "sales.slip.list";
+    /** 매출 전표 생성 권한 페이지 코드. */
+    private static final String SALES_SLIP_CREATE_PAGE_CODE = "sales.slip.create";
+    /** 매출 전표 변경 권한 페이지 코드. */
+    private static final String SALES_SLIP_EDIT_PAGE_CODE = "sales.slip.edit";
+    /** 매출 전표 확정 권한 페이지 코드. */
+    private static final String SALES_SLIP_CONFIRM_PAGE_CODE = "sales.slip.confirm";
+    /** 매출 전표 취소 권한 페이지 코드. */
+    private static final String SALES_SLIP_CANCEL_PAGE_CODE = "sales.slip.cancel";
     /** SP-D3 — 입고 검수 페이지 코드. */
     private static final String INBOUND_INSPECTION_PAGE_CODE = "inbound.inspection";
 
@@ -229,14 +240,12 @@ public class SlipController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.slip.create", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipDetailResponse> create(
             @Valid @RequestBody CreateSlipRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — slipType 기반 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, request.slipType());
+        checkCreatePermission(callerHeader, request.slipType());
         return ApiResponse.ok(slipService.create(request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -247,15 +256,14 @@ public class SlipController {
      */
     @Operation(summary = "헤더 수정", description = "DRAFT/SAVED 단계만. null 필드는 보존")
     @PatchMapping("/{id}/header")
-    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> editHeader(
             @PathVariable UUID id,
             @Valid @RequestBody EditHeaderRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
         return ApiResponse.ok(slipService.editHeader(id, request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -277,15 +285,14 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT/SAVED 이외 단계")
     })
     @PatchMapping("/{id}/driver")
-    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> editDriver(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateSlipDriverRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
         return ApiResponse.ok(slipService.editDriver(id, request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -310,15 +317,14 @@ public class SlipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "DRAFT/SAVED 이외 단계")
     })
     @PatchMapping("/{id}/v20")
-    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> updateV20(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateSlipRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
         return ApiResponse.ok(slipService.updateSlip(id, request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -330,15 +336,14 @@ public class SlipController {
     @Operation(summary = "라인 추가", description = "DRAFT/SAVED 단계만")
     @PostMapping("/{id}/lines")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ApiResponse<SlipDetailResponse> addLine(
             @PathVariable UUID id,
             @Valid @RequestBody AddLineRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.CREATE);
         return ApiResponse.ok(slipService.addLine(id, request, callerOrSystem(callerHeader), callerName));
     }
 
@@ -350,15 +355,14 @@ public class SlipController {
     @Operation(summary = "라인 제거", description = "DRAFT/SAVED 단계만, orphan removal")
     @DeleteMapping("/{id}/lines/{lineId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
     public void removeLine(
             @PathVariable UUID id,
             @PathVariable UUID lineId,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.DELETE);
         slipService.removeLine(id, lineId, callerOrSystem(callerHeader), callerName);
     }
 
@@ -369,13 +373,12 @@ public class SlipController {
      */
     @Operation(summary = "저장", description = "DRAFT → SAVED")
     @PostMapping("/{id}/save")
-    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> save(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
         return ApiResponse.ok(slipService.save(id, callerOrSystem(callerHeader)));
     }
 
@@ -386,12 +389,12 @@ public class SlipController {
      */
     @Operation(summary = "전송", description = "SAVED → SENT")
     @PostMapping("/{id}/send")
-    @RequirePermission(page = "sales.slip.edit", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> send(
             @PathVariable UUID id,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
         return ApiResponse.ok(slipService.send(id));
     }
 
@@ -433,11 +436,10 @@ public class SlipController {
     @RequirePermission(page = "slip.transfer.process", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> inspect(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         SlipType slipType = slipService.getOne(id).slipType();
         if (SlipType.INBOUND.equals(slipType)) {
-            checkEditPermission(roleHeader, INBOUND_INSPECTION_PAGE_CODE);
+            requireAccountPermission(callerHeader, INBOUND_INSPECTION_PAGE_CODE, PermissionAction.UPDATE);
         }
         return ApiResponse.ok(slipService.inspect(id, callerOrSystem(callerHeader)));
     }
@@ -473,10 +475,11 @@ public class SlipController {
     /** 확정 — DELIVERED→CONFIRMED (출고) / COMPLETED→CONFIRMED (입고). */
     @Operation(summary = "확정", description = "출고 DELIVERED→CONFIRMED / 입고 COMPLETED→CONFIRMED")
     @PostMapping("/{id}/confirm")
-    @RequirePermission(page = "sales.slip.confirm", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> confirm(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_CONFIRM_PAGE_CODE, PermissionAction.UPDATE);
         return ApiResponse.ok(slipService.confirm(id, callerOrSystem(callerHeader)));
     }
 
@@ -505,13 +508,12 @@ public class SlipController {
      */
     @Operation(summary = "취소", description = "DRAFT/SAVED/SENT → CANCELED")
     @PostMapping("/{id}/cancel")
-    @RequirePermission(page = "sales.slip.cancel", action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
     public ApiResponse<SlipDetailResponse> cancel(
             @PathVariable UUID id,
-            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         // SP-D3 동적 권한 EDIT 가드 — 기존 전표 slipType 조회 후 pageCode 분기
-        checkEditPermissionBySlipType(roleHeader, slipService.getOne(id).slipType());
+        checkSlipMutationPermission(callerHeader, resolveSlipType(id),
+                SALES_SLIP_CANCEL_PAGE_CODE, PermissionAction.UPDATE);
         return ApiResponse.ok(slipService.cancel(id, callerOrSystem(callerHeader)));
     }
 
@@ -626,33 +628,19 @@ public class SlipController {
     // SP-D3 동적 권한 헬퍼
     // =========================================================================
 
-    /**
-     * SP-D3 동적 VIEW 권한 검증.
-     *
-     * <p>actorRole null/blank 이면 건너뜀.
-     * canView=false 이면 명시적 deny → 403.
-     *
-     * @param actorRole 요청자 role
-     * @param pageCode  페이지 코드 (purchases.slip.list / sales.slip.list)
-     */
+    /** 기존 전표 변경은 서버에서 조회한 실제 slipType 기준으로 계정 권한을 검증한다. */
     private void checkViewPermission(String actorRole, String pageCode) {
         if (actorRole == null || actorRole.isBlank()) {
             return;
         }
         boolean canView = dynamicPermissionClient.canView(actorRole, pageCode);
         if (!canView) {
-            log.warn("[SP-D3] 동적 VIEW 권한 차단 — roleCode={} pageCode={}", actorRole, pageCode);
+            log.warn("[SP-D3] dynamic VIEW permission denied roleCode={} pageCode={}", actorRole, pageCode);
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "동적 권한 설정에 의해 전표 목록 조회 권한이 차단되었습니다.");
         }
     }
 
-    /**
-     * 전표 검색에서 조회 가능한 전표유형을 계산한다.
-     *
-     * <p>{@link RequirePermission} 은 단일 page-code 만 표현할 수 있어 sales/purchases OR 권한은
-     * 컨트롤러에서 명시적으로 계산한다.
-     */
     private EnumSet<SlipType> resolveSearchVisibleTypes(String role, String userGroups, String isSystemMaster) {
         if ("true".equalsIgnoreCase(isSystemMaster)
                 || ((role == null || role.isBlank()) && (userGroups == null || userGroups.isBlank()))) {
@@ -688,50 +676,47 @@ public class SlipController {
         return dynamicPermissionClient.canView(actorRole, pageCode);
     }
 
-    /**
-     * SP-D3 slipType 기반 동적 EDIT 권한 검증 — WRITE 엔드포인트 공통 진입점.
-     *
-     * <p>slipType 이 OUTBOUND 면 {@code sales.slip.list} pageCode,
-     * INBOUND 면 {@code purchases.slip.list} pageCode 로 {@link #checkEditPermission} 을 호출한다.
-     * slipType null 이면 건너뜀.
-     *
-     * @param actorRole 요청자 role (X-User-Role header)
-     * @param slipType  전표 유형 (OUTBOUND / INBOUND)
-     */
-    private void checkEditPermissionBySlipType(String actorRole, SlipType slipType) {
-        if (slipType == null) {
+    /** 신규 전표 생성은 요청 slipType 기준으로 계정 권한을 검증한다. */
+    private void checkCreatePermission(String callerHeader, SlipType slipType) {
+        if (SlipType.INBOUND.equals(slipType)) {
+            requireAccountPermission(callerHeader, PURCHASES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
             return;
         }
-        String pageCode = SlipType.INBOUND.equals(slipType)
-                ? PURCHASES_SLIP_LIST_PAGE_CODE
-                : SALES_SLIP_LIST_PAGE_CODE;
-        checkEditPermission(actorRole, pageCode);
+        requireAccountPermission(callerHeader, SALES_SLIP_CREATE_PAGE_CODE, PermissionAction.CREATE);
     }
 
-    /**
-     * SP-D3 동적 EDIT 권한 검증.
-     *
-     * <p>actorRole null/blank 이면 건너뜀.
-     * canEdit=false + canView=true 이면 명시적 deny → 403.
-     * canEdit=false + canView=false 이면 override row 없음(fallback) → 통과.
-     *
-     * @param actorRole 요청자 role
-     * @param pageCode  페이지 코드 (purchases.slip.list / sales.slip.list)
-     */
-    private void checkEditPermission(String actorRole, String pageCode) {
-        if (actorRole == null || actorRole.isBlank()) {
+    private void checkSlipMutationPermission(
+            String callerHeader, SlipType slipType, String outboundPageCode, PermissionAction outboundAction) {
+        if (SlipType.INBOUND.equals(slipType)) {
+            requireAccountPermission(callerHeader, PURCHASES_SLIP_EDIT_PAGE_CODE, PermissionAction.UPDATE);
             return;
         }
-        boolean canEdit = dynamicPermissionClient.canEdit(actorRole, pageCode);
-        if (!canEdit) {
-            boolean canView = dynamicPermissionClient.canView(actorRole, pageCode);
-            if (canView) {
-                log.warn("[SP-D3] 동적 권한 차단 (view-only override) — roleCode={} pageCode={}", actorRole, pageCode);
-                throw new BusinessException(ErrorCode.FORBIDDEN,
-                        "동적 권한 설정에 의해 전표 편집 권한이 차단되었습니다.");
-            }
-            log.debug("[SP-D3] 동적 권한 override 없음 (fallback) — roleCode={} pageCode={}", actorRole, pageCode);
+        requireAccountPermission(callerHeader, outboundPageCode, outboundAction);
+    }
+
+    /** 권한 분기 전에 전표 유형을 서버 저장값으로 확정한다. */
+    private SlipType resolveSlipType(UUID id) {
+        return slipService.getOne(id).slipType();
+    }
+
+    /** X-User-Id 계정 UUID 기반 권한 검증. 헤더 누락/파싱 실패/권한 없음은 모두 403으로 차단한다. */
+    private void requireAccountPermission(String callerHeader, String pageCode, PermissionAction action) {
+        UUID accountId = parseAccountId(callerHeader);
+        if (accountId == null || !dynamicPermissionClient.check(accountId, pageCode, action)) {
+            log.warn("[M4] slip mutation permission denied accountId={} pageCode={} action={}",
+                    accountId, pageCode, action);
+            throw new BusinessException(ErrorCode.FORBIDDEN, "전표 변경 권한이 없습니다.");
         }
     }
 
+    private UUID parseAccountId(String callerHeader) {
+        if (callerHeader == null || callerHeader.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(callerHeader);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
 }
