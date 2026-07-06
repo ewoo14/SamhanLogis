@@ -16,6 +16,7 @@
  *   - POST   /admin/partners            — 신규 등록
  *   - PUT    /admin/partners/{partnerCode}    — 프로필 수정
  *   - DELETE /admin/partners/{partnerCode}    — soft-delete
+ *   - POST   /admin/partners/{partnerCode}/restore — soft-delete 복원
  * - inventory-service
  *   - GET    /inventory/warehouses/search — q + 페이지네이션
  *   - POST   /inventory/warehouses      — 신규 등록 (기존 createWarehouse 재사용 권장)
@@ -406,6 +407,9 @@ export interface PartnerSummary {
   status: PartnerStatus
   creditLimit: string | number
   outstandingBalance: string | number
+  isDeleted: boolean
+  deletedAt: string | null
+  deletedByName: string | null
 }
 
 /** 거래처 검색 옵션. */
@@ -438,6 +442,13 @@ export async function listAdminPartners(
     { params },
   )
   return res.data.data
+}
+
+/** 거래처 soft-delete 복원 — `POST /admin/partners/{partnerCode}/restore`. */
+export async function restorePartner(partnerCode: string): Promise<void> {
+  await apiClient.post<ApiEnvelope<unknown>>(
+    `/admin/partners/${encodeURIComponent(partnerCode)}/restore`,
+  )
 }
 
 // ---------------------------------------------------------------------------

@@ -216,6 +216,10 @@ public class Partner extends BaseEntity {
     @Column(name = "manager_name", length = 50)
     private String managerName;
 
+    /** soft-delete 표시용 삭제자명. UUID 비공개 가드 후 저장하며, 복원 시 null 로 비운다. */
+    @Column(name = "deleted_by_name", length = 100)
+    private String deletedByName;
+
     private Partner(String partnerCode, String bizNo, String name, String address, String phone,
                     BigDecimal creditLimit) {
         if (partnerCode == null || partnerCode.isBlank()) {
@@ -478,5 +482,17 @@ public class Partner extends BaseEntity {
             throw new IllegalArgumentException("status 는 null 불가");
         }
         this.status = status;
+    }
+
+    /** 삭제자 표시명을 함께 저장하는 soft-delete helper. */
+    public void markDeletedWithName(String userId, String actorName) {
+        markDeleted(userId);
+        this.deletedByName = actorName;
+    }
+
+    /** soft-delete 복원과 함께 삭제자 표시명도 비운다. */
+    public void markRestoredWithNameCleared() {
+        markRestored();
+        this.deletedByName = null;
     }
 }

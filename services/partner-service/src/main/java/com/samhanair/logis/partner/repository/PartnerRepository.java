@@ -89,6 +89,46 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
                               Pageable pageable);
 
     /**
+     * soft-deleted row 를 포함한 admin 거래처 목록 검색.
+     *
+     * <p>{@code Partner} 의 {@code @SQLRestriction("is_deleted = false")} 우회를 위해 native query 를
+     * 사용한다. E2 목록은 삭제행도 취소선으로 표시해야 하므로 admin list 는 본 경로를 사용한다.
+     */
+    @Query(value = """
+            SELECT *
+              FROM partners p
+             WHERE (CAST(:q AS varchar) IS NULL
+                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')))
+               AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
+             ORDER BY p.partner_code ASC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+              FROM partners p
+             WHERE (CAST(:q AS varchar) IS NULL
+                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')))
+               AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
+            """,
+            nativeQuery = true)
+    Page<Partner> searchAdminIncludingDeleted(@Param("q") String q,
+                                              @Param("status") PartnerStatus status,
+                                              Pageable pageable);
+
+    /**
+     * soft-deleted row 를 포함해 거래처 코드로 조회한다.
+     *
+     * <p>삭제행 복원은 {@code @SQLRestriction} 우회 로드가 필요하다.
+     */
+    @Query(value = "SELECT * FROM partners WHERE partner_code = :partnerCode", nativeQuery = true)
+    Optional<Partner> findByPartnerCodeIncludingDeleted(@Param("partnerCode") String partnerCode);
+
+    /**
      * 종합견적서 거래처 directory 조회 — ACTIVE 거래처만 name/bizNo/partnerCode 로 검색한다.
      *
      * <p>admin 검색과 달리 phone 은 검색 대상이 아니다. estimate-app 은 결과의 partnerCode/bizNo 로만

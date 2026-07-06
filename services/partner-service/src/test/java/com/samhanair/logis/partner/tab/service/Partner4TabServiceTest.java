@@ -67,6 +67,8 @@ class Partner4TabServiceTest {
     private PartnerContactRepository contactRepository;
     @Mock
     private com.samhanair.logis.partner.revision.service.PartnerRevisionService partnerRevisionService;
+    @Mock
+    private com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher collectionRealtimePublisher;
 
     @InjectMocks
     private Partner4TabService service;

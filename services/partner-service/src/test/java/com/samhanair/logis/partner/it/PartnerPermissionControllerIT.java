@@ -30,6 +30,7 @@ import com.samhanair.logis.partner.editrequest.domain.PartnerEditRequest;
 import com.samhanair.logis.partner.editrequest.service.PartnerEditRequestService;
 import com.samhanair.logis.partner.editrequest.web.PartnerEditRequestController;
 import com.samhanair.logis.partner.realtime.PartnerRealtimeController;
+import com.samhanair.logis.partner.realtime.PartnerListRealtimeController;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import com.samhanair.logis.partner.service.EcountPartnerImporter;
 import com.samhanair.logis.partner.service.PartnerAligoExportService;
@@ -97,6 +98,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
                 EcountPartnerImportController.class,
                 PartnerEditRequestController.class,
                 PartnerRealtimeController.class,
+                PartnerListRealtimeController.class,
                 Partner4TabController.class
         },
         properties = {
@@ -256,7 +258,8 @@ class PartnerPermissionControllerIT {
         assertDepartmentGate("create", com.samhanair.logis.partner.dto.PartnerAdminRequest.class, String.class);
         assertDepartmentGate("lookupByName", String.class);
         assertDepartmentGate("update", String.class, com.samhanair.logis.partner.dto.PartnerAdminRequest.class, String.class);
-        assertDepartmentGate("delete", String.class, java.security.Principal.class);
+        assertDepartmentGate("delete", String.class, java.security.Principal.class, String.class, String.class);
+        assertDepartmentGate("restore", String.class, java.security.Principal.class, String.class);
         assertDepartmentGate("exportAligoCsv");
         assertDepartmentGate("exportXlsx", String.class, com.samhanair.logis.partner.domain.PartnerStatus.class);
     }
@@ -277,6 +280,8 @@ class PartnerPermissionControllerIT {
                         () -> put("/admin/partners/P-001").contentType(MediaType.APPLICATION_JSON).content(partnerBody())),
                 endpoint("partner delete", "partners.delete", PermissionAction.DELETE, "MANAGER",
                         () -> delete("/admin/partners/P-001")),
+                endpoint("partner restore", "partners.delete", PermissionAction.RESTORE, "MANAGER",
+                        () -> post("/admin/partners/P-001/restore")),
                 endpoint("partner aligo export", "partners.edit", PermissionAction.DOWNLOAD, "MANAGER",
                         () -> get("/admin/partners/export/aligo-csv")),
                 endpoint("partner xlsx export", "partners.edit", PermissionAction.DOWNLOAD, "MANAGER",
@@ -331,6 +336,8 @@ class PartnerPermissionControllerIT {
                         () -> get("/admin/partners/entities/{entityId}/edit-requests", ENTITY_ID)),
                 endpoint("partner realtime", "partners.edit-requests", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/partners/{entityId}/realtime", ENTITY_ID)),
+                endpoint("partner list realtime", "partners.search", PermissionAction.VIEW, "SALES",
+                        () -> get("/admin/partners/list-realtime")),
                 endpoint("4tab full get", "partners.4tab", PermissionAction.VIEW, "SALES",
                         () -> get("/api/v1/partners/P-001/full")),
                 endpoint("4tab full create", "partners.4tab", PermissionAction.CREATE, "SALES",
@@ -368,6 +375,7 @@ class PartnerPermissionControllerIT {
                         || "partner by name".equals(endpoint.name())
                         || "partner update".equals(endpoint.name())
                         || "partner delete".equals(endpoint.name())
+                        || "partner restore".equals(endpoint.name())
                         || "partner aligo export".equals(endpoint.name())
                         || "partner xlsx export".equals(endpoint.name()));
     }

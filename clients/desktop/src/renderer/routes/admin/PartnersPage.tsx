@@ -6,7 +6,7 @@
  *   <li>복합 필터: 거래처 유형(type) / 상태(status) / 거래액 범위 (미래 슬라이스 준비 — disabled 표시)</li>
  *   <li>[신규 등록] 버튼 → `/admin/partners/new` (PartnerCreatePage) 이동</li>
  *   <li>행 클릭 → PartnerDetailDialog (4탭 상세 + 인라인 편집)</li>
- *   <li>30초 polling — 멀티 워크스테이션 동기화 안전망</li>
+ *   <li>SSE 목록 동기화 — 멀티 워크스테이션 변경 즉시 반영</li>
  * </ul>
  *
  * <p>UUID 비공개 — 모든 식별자는 partnerCode (상호 / 사업자번호 표시 가능).
@@ -23,9 +23,9 @@
  * - admin-partners-create-btn
  * - admin-partners-excel-export (P1-6 신규)
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import {
   Badge,
   Button,
@@ -37,13 +37,21 @@ import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownlo
 import {
   listAdminPartners,
   PARTNER_STATUS_LABEL,
+  restorePartner,
   type PartnerStatus,
   type PartnerSummary,
 } from '../../api/adminApi'
 import { PARTNER_TYPE_LABEL, type PartnerType } from '../../api/partnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
+import { PartnerListRealtimeClient } from '../../realtime/PartnerListRealtimeClient'
+import { useCollectionRealtime } from '../../realtime/useCollectionRealtime'
 import { PartnerDetailDialog } from './PartnerDetailDialog'
+import {
+  PARTNER_DELETED_ROW_TEXT_STYLE,
+  deletedBadgeAriaLabel,
+  deletedBadgeLabel,
+} from './partnerDeletedRow'
 
 // ---------------------------------------------------------------------------
 // 상태 variant 맵
@@ -76,8 +84,10 @@ function formatKrw(raw: string | number | null | undefined): string {
 export function PartnersPage() {
   usePageTitle('거래처 관리')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canExport = canAccess('partners.edit', 'download')
+  const canRestore = canAccess('partners.delete', 'restore')
 
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerStatus | ''>('')
@@ -96,8 +106,14 @@ export function PartnersPage() {
   )
   const [dialogOpen, setDialogOpen] = useState(false)
 
+  const partnerListQueryKey = useMemo<QueryKey>(
+    () => ['admin', 'partners', q, statusFilter, typeFilter, page],
+    [q, statusFilter, typeFilter, page],
+  )
+  useCollectionRealtime(PartnerListRealtimeClient, 'list', [partnerListQueryKey])
+
   const query = useQuery({
-    queryKey: ['admin', 'partners', q, statusFilter, typeFilter, page],
+    queryKey: partnerListQueryKey,
     queryFn: () =>
       listAdminPartners({
         q: q || undefined,
@@ -106,8 +122,13 @@ export function PartnersPage() {
         page,
         size: 20,
       }),
-    // PR-H4c FE-C: 30초 polling — 멀티 워크스테이션 동기화 안전망.
-    refetchInterval: 30_000,
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: restorePartner,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
+    },
   })
 
   const totalPages = query.data
@@ -115,6 +136,7 @@ export function PartnersPage() {
     : 1
 
   function openDetail(partner: PartnerSummary) {
+    if (partner.isDeleted === true) return
     // BE Partner4TabController 의 path variable 은 partnerCode (UUID 아님).
     // TM PR #141 cross-check 로 정정 — UUID 비공개 가드 + BE 와 1:1 정렬.
     setSelectedPartnerId(partner.partnerCode)
@@ -128,8 +150,30 @@ export function PartnersPage() {
       header: '상호',
       mobilePriority: 'primary',
       render: (p) => (
-        <span data-testid={`admin-partners-row-${p.partnerCode}`}>
+        <span
+          data-testid={`admin-partners-row-${p.partnerCode}`}
+          style={p.isDeleted ? PARTNER_DELETED_ROW_TEXT_STYLE : undefined}
+        >
           {p.name}
+          {p.isDeleted ? (
+            <Badge
+              variant="neutral"
+              title={deletedBadgeAriaLabel(p.deletedByName, p.deletedAt)}
+              aria-label={deletedBadgeAriaLabel(p.deletedByName, p.deletedAt)}
+              data-testid={`admin-partners-row-${p.partnerCode}-deleted-badge`}
+              style={{
+                marginLeft: 8,
+                maxWidth: 160,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                verticalAlign: 'middle',
+              }}
+            >
+              {deletedBadgeLabel(p.deletedByName)}
+            </Badge>
+          ) : null}
         </span>
       ),
     },
@@ -169,6 +213,31 @@ export function PartnersPage() {
       mobilePriority: 'secondary',
       render: (p) => formatKrw(p.outstandingBalance),
     },
+    {
+      key: 'actions',
+      header: '',
+      width: '96px',
+      align: 'right',
+      mobilePriority: 'secondary',
+      render: (p) =>
+        p.isDeleted && canRestore ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={restoreMutation.isPending && restoreMutation.variables === p.partnerCode}
+            disabled={restoreMutation.isPending}
+            onClick={(event) => {
+              event.stopPropagation()
+              restoreMutation.mutate(p.partnerCode)
+            }}
+            data-testid={`admin-partners-row-${p.partnerCode}-restore`}
+            aria-label={`${p.name} 거래처 복원`}
+          >
+            복원
+          </Button>
+        ) : null,
+    },
   ]
 
   return (
@@ -188,7 +257,7 @@ export function PartnersPage() {
             data-testid="admin-partners-realtime-indicator"
             style={{ fontSize: 12, color: 'var(--ink-tertiary)' }}
           >
-            실시간 자동 갱신 · 30초
+            실시간 자동 갱신
           </span>
           {/* P1-6: Excel 다운로드 — 현재 검색어(q) + 상태 필터 BE 시그니처와 일치
               (BE PartnerAdminController.exportXlsx(q, status) 는 type 미지원 — TM PR #146 cross-check) */}

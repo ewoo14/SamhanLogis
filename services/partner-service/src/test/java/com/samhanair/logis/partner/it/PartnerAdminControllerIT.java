@@ -208,6 +208,47 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
     }
 
+    @Test
+    void delete_search_includes_deleted_metadata_and_restore_reactivates_partner() throws Exception {
+        PartnerAdminRequest req = sampleRequest("P-2026-0018", "999-88-77785");
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-2026-0018")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Name", "이운영")
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "P-2026-0018"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-2026-0018"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].isDeleted").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].deletedByName").value("이운영"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].deletedAt").exists());
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners/P-2026-0018/restore")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerCode").value("P-2026-0018"));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "P-2026-0018"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].isDeleted").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].deletedByName").doesNotExist());
+    }
+
     private PartnerAdminRequest sampleRequest(String partnerCode, String bizNo) {
         return new PartnerAdminRequest(
                 partnerCode,

@@ -496,6 +496,9 @@ function normalizeAdminPartner(row: Record<string, unknown>) {
     status: row['status'] ?? 'ACTIVE',
     creditLimit: row['creditLimit'] ?? '0',
     outstandingBalance: row['outstandingBalance'] ?? row['currentBalance'] ?? '0',
+    isDeleted: row['isDeleted'] === true,
+    deletedAt: (row['deletedAt'] as string | null | undefined) ?? null,
+    deletedByName: (row['deletedByName'] as string | null | undefined) ?? null,
   }
 }
 
@@ -7346,6 +7349,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  // POST /admin/partners/{partnerCode}/restore — admin/PartnersPage 삭제행 복원.
+  const adminPartnerRestoreMatch = url.match(/\/admin\/partners\/([^/?]+)\/restore$/)
+  if (method === 'POST' && adminPartnerRestoreMatch) {
+    const code = decodeURIComponent(adminPartnerRestoreMatch[1] ?? '')
+    const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
+    if (!row) {
+      return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    row['isDeleted'] = false
+    row['deletedAt'] = null
+    row['deletedByName'] = null
+    return envelope(normalizeAdminPartner(row))
+  }
+
   // POST /api/v1/partners/full — PartnerCreatePage 4탭 신규 등록.
   if (method === 'POST' && url.endsWith('/api/v1/partners/full')) {
     const body = parseMockBody(config)
@@ -13245,6 +13262,22 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     creditLimit: '10000000',
     currentBalance: '500000',
     createdAt: '2024-03-10T09:00:00+09:00',
+  },
+  {
+    id: '44444444-4444-4444-4444-444444444444',
+    partnerCode: 'P-DELETED-004',
+    partnerName: '삭제표시 테스트 거래처',
+    representative: '삭제자',
+    businessNumber: '444-44-44444',
+    address: '서울특별시 강서구 공항대로 4',
+    phone: '02-4444-4444',
+    status: 'ACTIVE' as const,
+    creditLimit: '1000000',
+    currentBalance: '0',
+    createdAt: '2024-04-10T09:00:00+09:00',
+    isDeleted: true,
+    deletedAt: '2026-07-02T10:20:00',
+    deletedByName: '이운영',
   },
 ]
 

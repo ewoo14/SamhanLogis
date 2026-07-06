@@ -7,13 +7,17 @@ import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.PartnerAdminRequest;
 import com.samhanair.logis.partner.dto.PartnerDirectoryResponse;
 import com.samhanair.logis.partner.dto.PartnerInternalResponse;
+import com.samhanair.logis.partner.dto.PartnerSummaryResponse;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.revision.domain.PartnerRevisionType;
 import com.samhanair.logis.partner.revision.service.PartnerRevisionService;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -40,6 +44,7 @@ public class PartnerService {
     private static final UUID SYSTEM_ACTOR_ID = new UUID(0L, 0L);
 
     private final PartnerRepository partnerRepository;
+    private final CollectionRealtimePublisher collectionRealtimePublisher;
     /**
      * 거래처 버전이력 캡처 서비스 (권한 재편 Phase 2.3 Task 2). content-mutation 성공 후 현 상태를
      * full-snapshot 1건으로 적재해 point-in-time RESTORE 의 source-of-truth 를 구축한다.
@@ -79,6 +84,7 @@ public class PartnerService {
         // (PartnerAdminController.create) 는 actor 정보를 전달하지 않으므로 system actor 로 기록한다.
         partnerRevisionService.captureFor(saved.getId(), PartnerRevisionType.CREATE, null,
                 SYSTEM_ACTOR_ID, null, null);
+        publishListChanged("CREATED");
         return saved;
     }
 
@@ -156,7 +162,7 @@ public class PartnerService {
      */
     @Transactional(readOnly = true)
     public Page<Partner> findAll(Pageable pageable) {
-        return partnerRepository.findAll(pageable);
+        return partnerRepository.searchAdminIncludingDeleted(null, null, unsorted(pageable));
     }
 
     /**
@@ -169,7 +175,7 @@ public class PartnerService {
     @Transactional(readOnly = true)
     public Page<Partner> searchAdmin(String q, PartnerStatus status, Pageable pageable) {
         String normalized = (q == null || q.isBlank()) ? null : q.trim();
-        return partnerRepository.searchAdmin(normalized, status, pageable);
+        return partnerRepository.searchAdminIncludingDeleted(normalized, status, unsorted(pageable));
     }
 
     /**
@@ -339,6 +345,7 @@ public class PartnerService {
         // 로 전달된 X-User-* 정보를 사용하며, 미전달 시 system actor 로 폴백한다.
         partnerRevisionService.captureFor(partner.getId(), PartnerRevisionType.EDIT, null,
                 actorUserId == null ? SYSTEM_ACTOR_ID : actorUserId, actorName, null);
+        publishListChanged("UPDATED");
         return partner;
     }
 
@@ -363,25 +370,70 @@ public class PartnerService {
      */
     @Transactional
     public void delete(String partnerCode, String actorUserId) {
+        delete(partnerCode, actorUserId, null);
+    }
+
+    /**
+     * 거래처 soft-delete. 현행 무가드 soft-delete 정책을 유지하고, 표시용 삭제자명만 별도 저장한다.
+     */
+    @Transactional
+    public void delete(String partnerCode, String actorUserId, String actorName) {
         Partner partner = findByCode(partnerCode);
-        partner.markDeleted(actorUserId);
+        partner.markDeletedWithName(actorUserId, PartnerSummaryResponse.resolveActorName(actorName));
+        publishListChanged("DELETED");
     }
 
     /** 거래 일시 중지. */
     @Transactional
     public void suspend(String partnerCode) {
         findByCode(partnerCode).suspend();
+        publishListChanged("UPDATED");
     }
 
     /** 거래 재개. */
     @Transactional
     public void activate(String partnerCode) {
         findByCode(partnerCode).activate();
+        publishListChanged("UPDATED");
     }
 
     /** 거래 종료. */
     @Transactional
     public void terminate(String partnerCode) {
         findByCode(partnerCode).terminate();
+        publishListChanged("UPDATED");
+    }
+
+    /**
+     * soft-deleted 거래처 복원.
+     *
+     * <p>{@code @SQLRestriction} 우회를 위해 native lookup 을 사용한다. 이미 활성 행이면 no-op 으로
+     * 응답하며, 삭제 참조가드는 신설하지 않는다.
+     */
+    @Transactional
+    public Partner restore(String partnerCode, String actorUserId) {
+        Partner partner = partnerRepository.findByPartnerCodeIncludingDeleted(partnerCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "해당 코드의 거래처를 찾을 수 없습니다: " + partnerCode));
+        if (Boolean.TRUE.equals(partner.getIsDeleted())) {
+            partner.markRestoredWithNameCleared();
+            publishListChanged("RESTORED");
+        }
+        return partner;
+    }
+
+    /** 거래처 목록 변경 발화 (커밋 후). changeType = CREATED/UPDATED/DELETED/RESTORED. */
+    private void publishListChanged(String changeType) {
+        collectionRealtimePublisher.publishChange(
+                PartnerListRealtime.CHANNEL_ID,
+                PartnerListRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
+    }
+
+    private Pageable unsorted(Pageable pageable) {
+        if (pageable == null || pageable.isUnpaged()) {
+            return Pageable.unpaged();
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }
 }

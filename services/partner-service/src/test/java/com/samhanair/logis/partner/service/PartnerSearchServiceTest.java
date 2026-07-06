@@ -11,6 +11,7 @@ import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.AdminPartnerListResponse;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -30,17 +31,18 @@ class PartnerSearchServiceTest {
     private final PartnerRepository repo = mock(PartnerRepository.class);
     private final com.samhanair.logis.partner.revision.service.PartnerRevisionService revisionService =
             mock(com.samhanair.logis.partner.revision.service.PartnerRevisionService.class);
-    private final PartnerService service = new PartnerService(repo, revisionService);
+    private final CollectionRealtimePublisher collectionPublisher = mock(CollectionRealtimePublisher.class);
+    private final PartnerService service = new PartnerService(repo, collectionPublisher, revisionService);
 
     @Test
     @DisplayName("searchAdmin — q blank → repo 에 null 전달 (필터 미적용)")
     void searchAdmin_normalizes_blank_q_to_null() {
         Pageable pageable = PageRequest.of(0, 10);
-        when(repo.searchAdmin(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(repo.searchAdminIncludingDeleted(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 
         service.searchAdmin("   ", null, pageable);
 
-        verify(repo).searchAdmin(eq(null), eq(null), eq(pageable));
+        verify(repo).searchAdminIncludingDeleted(eq(null), eq(null), eq(pageable));
     }
 
     @Test
@@ -49,7 +51,7 @@ class PartnerSearchServiceTest {
         Partner p = Partner.register("P-2026-0001", "123-45-67890", "(주)테스트",
                 "서울", "02-1111-2222", new BigDecimal("1000000"));
         Pageable pageable = PageRequest.of(0, 10);
-        when(repo.searchAdmin(eq("테스트"), eq(PartnerStatus.ACTIVE), eq(pageable)))
+        when(repo.searchAdminIncludingDeleted(eq("테스트"), eq(PartnerStatus.ACTIVE), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(p), pageable, 1L));
 
         Page<Partner> page = service.searchAdmin("테스트", PartnerStatus.ACTIVE, pageable);
