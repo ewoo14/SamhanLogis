@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
 
@@ -165,6 +165,43 @@ describe('GroupwareApprovalCollaborationPanel 협업 패널 배치', () => {
       expect(editList.textContent).toContain('아직 수정 이력이 없습니다')
     })
     expect(commentSection.compareDocumentPosition(editHistorySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows field-label badges only for anchored comments', async () => {
+    apiMocks.getGroupwareApprovalCollabComments.mockResolvedValue([
+      {
+        id: 'comment-department',
+        anchor: 'field.department',
+        authorName: 'tester',
+        body: 'Groupware department anchor',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:00:00',
+      },
+      {
+        id: 'comment-general',
+        anchor: null,
+        authorName: 'tester',
+        body: 'Groupware general comment',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:05:00',
+      },
+    ])
+
+    renderPanel('approval/id with spaces')
+
+    await screen.findByText('Groupware department anchor')
+    const anchorSelect = screen.getByTestId('groupware-approval-collab-comment-anchor-select')
+    const departmentLabel = anchorSelect.querySelector('option[value="field.department"]')?.textContent
+    const items = screen.getAllByTestId('groupware-approval-collab-comment-item')
+    const departmentComment = items.find((el) => el.textContent?.includes('Groupware department anchor'))
+    const generalComment = items.find((el) => el.textContent?.includes('Groupware general comment'))
+    expect(departmentComment).toBeDefined()
+    expect(generalComment).toBeDefined()
+
+    expect(within(departmentComment!).getByTestId('groupware-approval-collab-comment-anchor-badge').textContent).toBe(departmentLabel)
+    expect(within(generalComment!).queryByTestId('groupware-approval-collab-comment-anchor-badge')).toBeNull()
   })
 
   it('수정 이력 diff 클릭과 코멘트 anchor 클릭이 같은 activeFieldPath 하이라이트 상태를 공유한다 (결정2 양방향)', async () => {

@@ -75,6 +75,14 @@ function normalizeCollabAnchor(anchor: string | null | undefined): string | null
   return normalized.length > 0 ? normalized : null
 }
 
+function labelForAnchor(fieldPath: string): string {
+  if (fieldPath === 'memo') return '요청사항'
+  if (fieldPath === 'dueDate') return '납기'
+  const lineMatch = fieldPath.match(/^line\.(\d+)\.remark$/)
+  if (lineMatch) return `${lineMatch[1]}번 라인 비고`
+  return fieldPath
+}
+
 function valueForEdit(value: string | null | undefined): string {
   return value ?? ''
 }
@@ -281,6 +289,7 @@ export function PartnerOrderCollaborationPanel({
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
               ) : comments.map((comment) => {
                 const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const anchorLabel = fieldPath ? labelForAnchor(fieldPath) : null
                 const highlighted = !!fieldPath
                   && (fieldPath === activeFieldPath || highlightsLatestAnchoredComments)
                 return (
@@ -316,6 +325,15 @@ export function PartnerOrderCollaborationPanel({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                     <strong>{displayName(comment.authorName)}</strong>
                     <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(comment.createdAt)}</span>
+                    {anchorLabel ? (
+                      <Badge
+                        variant="neutral"
+                        data-testid="partner-order-collab-comment-anchor-badge"
+                        style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
+                      >
+                        {anchorLabel}
+                      </Badge>
+                    ) : null}
                     {comment.status === 'RESOLVED' ? <Badge variant="success">해결</Badge> : null}
                     {canResolveComments && comment.status === 'OPEN' ? (
                       <Button

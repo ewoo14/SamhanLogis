@@ -395,6 +395,7 @@ export function GroupwareApprovalCollaborationPanel({
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
               ) : comments.map((comment) => {
                 const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const anchorLabel = fieldPath ? labelForPath(fieldPath, fieldLabelMap) : null
                 const highlighted = !!fieldPath && fieldPath === activeFieldPath
                 return (
                 <article
@@ -425,6 +426,15 @@ export function GroupwareApprovalCollaborationPanel({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                     <strong>{displayName(comment.authorName)}</strong>
                     <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(comment.createdAt)}</span>
+                    {anchorLabel ? (
+                      <Badge
+                        variant="neutral"
+                        data-testid="groupware-approval-collab-comment-anchor-badge"
+                        style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
+                      >
+                        {anchorLabel}
+                      </Badge>
+                    ) : null}
                     {comment.status === 'RESOLVED' ? <Badge variant="success">해결</Badge> : null}
                     {canWrite && comment.status === 'OPEN' ? (
                       <Button

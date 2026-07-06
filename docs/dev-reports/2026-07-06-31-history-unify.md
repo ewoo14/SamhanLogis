@@ -533,3 +533,39 @@ fieldPaths)` 콜백에서 `fieldPaths?.[0] ?? null`만 채택해 단일 `activeF
   금지로 미원복 상태) 위에 `T09-dispatch-inventory-warehouse-allow.png` 1건이 신규 caught로
   추가 관측됐다(과거 라운드에도 동일 파일명으로 반복 관측된 known 부작용) — 지시대로 건드리지
   않았다(git 동작 미수행).
+## Codex 재수렴 Design 중간 fix — anchor 필드명 배지 (2026-07-06)
+
+### 문제
+
+PR #747(#31) 중간 Design 리뷰에서 다중필드 역방향 하이라이트 시 코멘트 카드가 작성자/시간/상태/본문만 표시해, 동시에 하이라이트된 코멘트가 어느 변경 필드에 연결된 것인지 구분하기 어려웠다.
+
+### 조치
+
+- 5개 협업 패널(Slip/Estimate/PartnerOrder/Journal/GroupwareApproval) 코멘트 카드 메타 줄에 anchor가 있는 코멘트에만 `Badge variant="neutral"` 필드명 배지를 추가했다.
+- anchor 없는 `전체 코멘트`는 배지를 렌더링하지 않는다.
+- 라벨은 기존 매핑을 재사용했다.
+  - Slip: `OVERLAY_FIELD_OPTIONS`
+  - Estimate: 기존 필드 라벨 규칙(`비고`, `유효기간`, `N번 라인 메모`)
+  - PartnerOrder: 기존 필드 라벨 규칙(`요청사항`, `납기`, `N번 라인 비고`)
+  - Journal: `labelForPath`
+  - GroupwareApproval: `labelForPath(path, fieldLabelMap)`
+- 배지는 작성자/시간 옆 flex-wrap 메타 영역에 배치해 모바일 폭에서도 본문과 시각 위계가 섞이지 않도록 했다.
+
+### 회귀 테스트
+
+- 5개 패널 테스트에 anchor 배지 노출 및 null anchor 미노출 검증을 추가했다.
+- RED: 구현 전 `*-collab-comment-anchor-badge` 미존재로 5개 신규 assertion 실패 확인.
+- GREEN: 구현 후 대상 5개 테스트 파일 PASS.
+
+### 로컬 검증
+
+- `cd clients/desktop && npm run test -- src/renderer/components/collab/SlipCollaborationPanel.history-bridge.test.tsx src/renderer/components/collab/EstimateCollaborationPanel.history-bridge.test.tsx src/renderer/components/collab/PartnerOrderCollaborationPanel.history-bridge.test.tsx src/renderer/components/collab/JournalCollaborationPanel.coedit.test.tsx src/renderer/components/collab/GroupwareApprovalCollaborationPanel.coedit.test.tsx`
+  - PASS, 5 files / 21 tests
+- `cd clients/desktop && npm run typecheck`
+  - PASS, `tsconfig.node.json` + `tsconfig.web.json`
+- `cd clients/desktop && npx vitest run src/renderer/components/collab/ src/renderer/components/audit/`
+  - PASS, 14 files / 61 tests
+- `cd clients/desktop && CI=1 PLAYWRIGHT_SKIP_WEB_SERVER=1 AUDIT_BASE_URL=http://127.0.0.1:5631 HR_BASE_URL=http://127.0.0.1:5631 npx playwright test`
+  - 신규 포트 `5631`, Vite dev server `--host 127.0.0.1 --port 5631 --strictPort`, `VITE_MOCK_MODE=1`
+  - PASS, 563/563 tests
+  - `node scripts/assert-playwright-ran.mjs`: `expected=563 unexpected=0 skipped=0 flaky=0`

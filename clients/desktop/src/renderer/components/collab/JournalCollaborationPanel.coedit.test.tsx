@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('./CollaborativeTextField', () => ({
@@ -79,6 +79,43 @@ describe('JournalCollaborationPanel 협업 패널 배치', () => {
     const editList = screen.getByTestId('journal-collab-edit-list')
     expect(editList.textContent).toContain('아직 수정 이력이 없습니다')
     expect(commentSection.compareDocumentPosition(editHistorySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows field-label badges only for anchored comments', async () => {
+    apiMocks.getJournalCollabComments.mockResolvedValue([
+      {
+        id: 'comment-description',
+        anchor: 'description',
+        authorName: 'tester',
+        body: 'Journal description anchor',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:00:00',
+      },
+      {
+        id: 'comment-general',
+        anchor: null,
+        authorName: 'tester',
+        body: 'Journal general comment',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:05:00',
+      },
+    ])
+
+    renderPanel('journal/id with spaces')
+
+    await screen.findByText('Journal description anchor')
+    const anchorSelect = screen.getByTestId('journal-collab-comment-anchor-select')
+    const descriptionLabel = anchorSelect.querySelector('option[value="description"]')?.textContent
+    const items = screen.getAllByTestId('journal-collab-comment-item')
+    const descriptionComment = items.find((el) => el.textContent?.includes('Journal description anchor'))
+    const generalComment = items.find((el) => el.textContent?.includes('Journal general comment'))
+    expect(descriptionComment).toBeDefined()
+    expect(generalComment).toBeDefined()
+
+    expect(within(descriptionComment!).getByTestId('journal-collab-comment-anchor-badge').textContent).toBe(descriptionLabel)
+    expect(within(generalComment!).queryByTestId('journal-collab-comment-anchor-badge')).toBeNull()
   })
 
   it('수정 이력 diff 클릭과 코멘트 anchor 클릭이 같은 activeFieldPath 하이라이트 상태를 공유한다 (결정2 양방향)', async () => {

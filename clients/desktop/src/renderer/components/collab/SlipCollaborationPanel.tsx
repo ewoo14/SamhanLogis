@@ -63,6 +63,11 @@ function normalizeCollabAnchor(anchor: string | null | undefined): string | null
   return normalized.length > 0 ? normalized : null
 }
 
+function labelForAnchor(fieldPath: string): string {
+  const normalized = fieldPath.replace(/^header\./, '')
+  return OVERLAY_FIELD_OPTIONS.find((option) => option.value === normalized)?.label ?? fieldPath
+}
+
 function valueForEdit(value: string | null | undefined): string {
   return value ?? ''
 }
@@ -246,6 +251,7 @@ export function SlipCollaborationPanel({
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
               ) : comments.map((comment) => {
                 const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const anchorLabel = fieldPath ? labelForAnchor(fieldPath) : null
                 const highlighted = !!fieldPath && activeFieldPaths.includes(fieldPath)
                 return (
                   <article
@@ -278,6 +284,15 @@ export function SlipCollaborationPanel({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                       <strong>{displayName(comment.authorName)}</strong>
                       <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(comment.createdAt)}</span>
+                      {anchorLabel ? (
+                        <Badge
+                          variant="neutral"
+                          data-testid="slip-collab-comment-anchor-badge"
+                          style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
+                        >
+                          {anchorLabel}
+                        </Badge>
+                      ) : null}
                       {comment.status === 'RESOLVED' ? <Badge variant="success">해결</Badge> : null}
                       {canResolveComments && comment.status === 'OPEN' ? (
                         <Button

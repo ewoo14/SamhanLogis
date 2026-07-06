@@ -12,7 +12,7 @@
  */
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const canAccessMock = vi.fn(() => true)
@@ -88,7 +88,7 @@ vi.mock('../../api/slipRevision', () => ({
   restoreRevision: vi.fn(),
 }))
 
-import { SlipCollaborationPanel } from './SlipCollaborationPanel'
+import { OVERLAY_FIELD_OPTIONS, SlipCollaborationPanel } from './SlipCollaborationPanel'
 import { getSlipCollabComments } from '../../api/slipCollab'
 import { listRevisions } from '../../api/slipRevision'
 
@@ -226,5 +226,41 @@ describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연�
     // 2번째 필드(shippingAddress)에 anchor 된 코멘트도 함께 하이라이트되어야 한다 — 여기가 본
     // fix 의 핵심 검증 지점이다.
     expect(shippingComment!.getAttribute('data-active')).toBe('true')
+  })
+
+  it('anchor comment shows a field-label badge and general comment does not', async () => {
+    vi.mocked(getSlipCollabComments).mockResolvedValueOnce([
+      {
+        id: 'comment-memo-badge',
+        anchor: 'memo',
+        authorName: 'tester',
+        body: 'Slip memo anchor',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:00:00',
+      },
+      {
+        id: 'comment-general-badge',
+        anchor: null,
+        authorName: 'tester',
+        body: 'Slip general comment',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:05:00',
+      },
+    ])
+
+    renderPanel()
+
+    await screen.findByText('Slip memo anchor')
+    const commentItems = screen.getAllByTestId('slip-collab-comment-item')
+    const memoComment = commentItems.find((el) => el.textContent?.includes('Slip memo anchor'))
+    const generalComment = commentItems.find((el) => el.textContent?.includes('Slip general comment'))
+    expect(memoComment).toBeDefined()
+    expect(generalComment).toBeDefined()
+
+    const memoLabel = OVERLAY_FIELD_OPTIONS.find((option) => option.value === 'memo')?.label
+    expect(within(memoComment!).getByTestId('slip-collab-comment-anchor-badge').textContent).toBe(memoLabel)
+    expect(within(generalComment!).queryByTestId('slip-collab-comment-anchor-badge')).toBeNull()
   })
 })

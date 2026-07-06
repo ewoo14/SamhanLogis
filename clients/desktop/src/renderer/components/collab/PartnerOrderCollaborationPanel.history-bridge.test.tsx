@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const canAccessMock = vi.fn(() => true)
@@ -126,5 +126,21 @@ describe('PartnerOrderCollaborationPanel + PartnerOrderVersionHistoryPanel row b
       expect(dueDateComment!.getAttribute('data-active')).toBeNull()
     })
     expect(generalComment!.getAttribute('data-active')).toBeNull()
+  })
+
+  it('shows field-label badges only for anchored comments', async () => {
+    renderPanel()
+
+    await screen.findByText('Partner order memo anchor')
+    const anchorSelect = screen.getByTestId('partner-order-collab-comment-anchor-select')
+    const memoLabel = anchorSelect.querySelector('option[value="memo"]')?.textContent
+    const items = screen.getAllByTestId('partner-order-collab-comment-item')
+    const memoComment = items.find((el) => el.textContent?.includes('Partner order memo anchor'))
+    const generalComment = items.find((el) => el.textContent?.includes('Partner order general comment'))
+    expect(memoComment).toBeDefined()
+    expect(generalComment).toBeDefined()
+
+    expect(within(memoComment!).getByTestId('partner-order-collab-comment-anchor-badge').textContent).toBe(memoLabel)
+    expect(within(generalComment!).queryByTestId('partner-order-collab-comment-anchor-badge')).toBeNull()
   })
 })
