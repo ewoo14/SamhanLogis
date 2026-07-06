@@ -299,6 +299,29 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("SUSPENDED"));
     }
 
+    @Test
+    void restore_whenActivePartnerReusesCode_returns409() throws Exception {
+        // 삭제행 + 동일 code 활성행 공존(partial unique 가 code 재사용 허용) 시 복원=409(활성 unique 위반 방지).
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-DUAL-01", "111-11-22221"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-DUAL-01")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        // 삭제된 P-DUAL-01 위에 동일 code 활성 거래처 신규 생성(partial unique 허용)
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-DUAL-01", "111-11-22222"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        // 삭제행 복원 시도 → 활성행 존재로 409(500 아님)
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners/P-DUAL-01/restore")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isConflict());
+    }
+
     private PartnerAdminRequest sampleRequest(String partnerCode, String bizNo) {
         return new PartnerAdminRequest(
                 partnerCode,

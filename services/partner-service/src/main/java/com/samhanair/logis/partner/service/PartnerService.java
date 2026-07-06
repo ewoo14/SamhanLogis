@@ -418,6 +418,12 @@ public class PartnerService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "해당 코드의 거래처를 찾을 수 없습니다: " + partnerCode));
         if (Boolean.TRUE.equals(partner.getIsDeleted())) {
+            // partnerCode 재사용(삭제행 + 동일코드 활성행 공존)을 partial unique index 가 허용하므로,
+            // 삭제행 복원 시 활성 행이 이미 있으면 unique 위반(500)이 난다 → 사전 409 로 차단(create 의 409 패턴 정합).
+            if (partnerRepository.findByPartnerCode(partnerCode).isPresent()) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "이미 사용 중인 거래처 코드로 활성 거래처가 존재하여 복원할 수 없습니다: " + partnerCode);
+            }
             partner.markRestoredWithNameCleared();
             publishListChanged("RESTORED");
         }
