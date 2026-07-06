@@ -436,3 +436,100 @@ RED/GREEN 확인:
   - 실행 방식: Vite를 `127.0.0.1:5173 --strictPort`로 별도 기동, `CI=1`, `PLAYWRIGHT_SKIP_WEB_SERVER=1`, `AUDIT_BASE_URL=http://127.0.0.1:5173`, `npx playwright test`.
   - `node scripts/assert-playwright-ran.mjs` — `expected=563 unexpected=0 skipped=0 flaky=0`, exit 0.
   - 주의: 전체 Playwright 내 기존 screenshot spec 실행으로 `docs/qa` PNG 130개의 filesystem `LastWriteTime`이 갱신됐다. 개발책임자 지시의 git 금지 조건 때문에 git diff/status 및 PNG 원복은 수행하지 않았다.
+
+## PR #747 최종 Opus 재수렴 fix — 문서번호 계약 위반[Critical]+Slip 다중필드 역방향 누락[Medium]+any 캐스트[Low] (2026-07-06, Opus)
+
+> worktree `feat/31-history-unify`(fix 착수 HEAD `7d8e33b62`)에서 Opus가 직접 구현. 개발책임자 지시대로 git 동작(commit/push/status 포함)은 수행하지 않았다.
+
+### [Critical] Frontend Desktop CI RED — 문서번호 계약 위반(family sweep)
+
+Codex 라운드가 신설한 `PartnerOrderCollaborationPanel.history-bridge.test.tsx` fixture의
+`orderNo: 'PO-2026-0004'`가 `mock.test.ts`의 문서번호 계약(`DOCUMENT_NO_FMT=/^\d{4}\/\d{2}\/\d{2}-[1-9]\d*$/`,
+슬래시 `YYYY/MM/DD-N`)을 위반해 `renderer document-number field literals use standard format or
+explicit markers` 테스트가 RED — `Frontend Desktop (typecheck+lint+build)` CI 단계(`npm test`)가
+빨간불이었다.
+
+- `PartnerOrderCollaborationPanel.history-bridge.test.tsx`(2곳): `orderNo: 'PO-2026-0004'` →
+  `'2026/07/06-4'`.
+- **family sweep**: `mock.test.ts`의 `DOCUMENT_NO_KEY_SET`이 검사하는 15개 키(`slipNo`/`journalNo`/
+  `orderNo`/`taxInvoiceNo`/... )전부를 대상으로 `clients/desktop/src/renderer` 전체를 grep해
+  동일 오기 존재 여부를 전수 확인했다. `EstimateCollaborationPanel.history-bridge.test.tsx`의
+  `estimateNo: 'Q-2026-0003'`(2곳)도 동일한 비표준 리터럴이었으나 `estimateNo`가 당시
+  `DOCUMENT_NO_KEY_SET`에 미등재라 우연히 테스트를 통과하고 있었다 — `'2026/07/05-3'`로 함께
+  교체했다. `SlipCollaborationPanel.history-bridge.test.tsx`을 포함한 신규 3개 test 파일 전체를
+  grep했으나 그 외 위반은 없었다(Slip 쪽 `slipNo: '2026/06/30-1'`은 이미 표준형).
+- **가드 사각 보강**: `estimateNo`를 실제 BE 응답 필드(견적 revision `estimateNo`)이자 화면 미노출
+  UUID의 대체 식별자이므로 `DOCUMENT_NO_KEY_SET`에 신규 등재했다. 등재 전 `estimateNo` 리터럴
+  전수(`documentNumberPath.test.ts`·`EstimateFormPage.coedit.test.tsx`·위 2개 fixture)를 grep해
+  위 fixture 교체 이후에는 전부 표준형임을 먼저 확인한 뒤 등재해, 등재 자체가 새 위반을 만들지
+  않도록 순서를 지켰다.
+
+### [MEDIUM] Slip 다중필드 변경 리비전 역방향 하이라이트 누락
+
+`SlipCollaborationPanel.tsx`가 `SlipVersionHistoryPanel`의 `onRevisionSelect(revisionNo,
+fieldPaths)` 콜백에서 `fieldPaths?.[0] ?? null`만 채택해 단일 `activeFieldPath: string | null`에
+저장하고 있었다 — 리비전 1건이 헤더 필드 2개 이상을 동시에 바꾼 경우(예: 메모+배송지 동시 수정),
+버전이력 행을 클릭해도 **fieldChanges 배열의 첫 원소에 anchor된 코멘트만** 하이라이트되고 2번째
+이후 필드에 anchor된 코멘트는 역방향 하이라이트가 조용히 누락됐다(11필드 폼 1회 제출로 실사용
+가능한 시나리오).
+
+- **`activeFieldPath: string | null` → `activeFieldPaths: string[]`** 확장(Slip 전용 —
+  Estimate/PartnerOrder/Journal/GroupwareApproval은 각자 독립된 동일이름 지역 상태라 무영향을
+  grep으로 확인).
+  - `SlipCollaborationPanel.tsx`: state를 배열로 변경. 정방향(코멘트 클릭)은 `setActiveFieldPaths([fieldPath])`
+    단일원소 배열로, 역방향(버전이력 행 클릭)은 `setActiveFieldPaths(fieldPaths ?? [])`로 콜백이
+    돌려주는 리비전의 fieldPaths 전체를 그대로 저장한다. 코멘트 하이라이트 조건은
+    `activeFieldPaths.includes(fieldPath)`.
+  - `SlipVersionHistoryPanel.tsx`: prop을 `activeFieldPaths?: string[] | null`로 변경하고, 매 렌더
+    `normalizeFieldPath` 정규화 + 빈 문자열 제거를 거친 `Set`(`normalizedActiveFieldPaths`)을 1회
+    계산해 (a) 리비전 행 하이라이트 = `fieldPaths.some((p) => normalizedActiveFieldPaths.has(p))`
+    (배열 중 하나라도 겹치면 행 전체 하이라이트), (b) 개별 필드변경 하이라이트 =
+    `normalizedActiveFieldPaths.has(normalized)`(필드 단위 정밀 유지, 다른 필드까지 과매칭되지
+    않음)로 교체했다.
+  - 종속 stub(`SlipCollaborationPanel.coedit.test.tsx`)과 단위 테스트
+    (`SlipVersionHistoryPanel.test.tsx`)의 prop명·값도 배열로 동기화했다.
+- **다중필드 회귀 가드 신규 4건**:
+  - `SlipVersionHistoryPanel.test.tsx` +2 — `MULTI_FIELD_REVISION`(memo+shippingAddress 동시 변경
+    리비전 1건) fixture로 (a) `activeFieldPaths=['shippingAddress']`만 줬을 때 해당 필드변경+행만
+    하이라이트되고 memo 필드변경은 과매칭되지 않음, (b) `activeFieldPaths=['memo',
+    'shippingAddress']` 둘 다 줬을 때 두 필드변경 모두 하이라이트됨을 검증.
+  - `SlipCollaborationPanel.history-bridge.test.tsx` +1 — 실컴포넌트 조립 기준 end-to-end: 2필드
+    동시 변경 리비전 행 클릭 → 두 필드에 각각 anchor된 코멘트 2건이 모두 `data-active='true'`.
+    **fix를 `fieldPaths?.[0] ?? null`로 되돌려 재실행 → RED 확인(2번째 필드 코멘트만 미매칭) →
+    fix 복원 → GREEN 재확인**해 실질 회귀가드임을 검증했다.
+
+### [LOW] any 캐스트 제거
+
+`SlipVersionHistoryPanel.test.tsx`의 `as any` 캐스트 2건을 모두 제거했다: (1) 이름 있는 fixture
+`HEADER_PREFIXED_REVISION`을 `SlipRevision[]`로 명시 타입(`as any` 제거), (2) 첫 테스트의 인라인
+`mockResolvedValue([...] as any)`도 `SlipRevision` 인터페이스와 정확히 일치해 캐스트 없이 그대로
+타입체크를 통과함을 확인 후 제거.
+
+### 검증
+
+- `cd clients/desktop && npm run typecheck` — PASS (exit 0, tsconfig.node + tsconfig.web 모두).
+- `cd clients/desktop && npm run lint` — 0 errors / 30 warnings(전부 기존·본 라운드 변경 8개 파일과
+  무관 — 경고 개수가 직전 라운드(32) 대비 감소한 것도 본 fix의 `as any` 2건 제거와 일치).
+- `cd clients/desktop && npm run build` — PASS(`build:legacy` fallback 포함 electron-vite build).
+- `cd clients/desktop && npm run build:web` — PASS.
+- `cd clients/desktop && npm run build:capacitor` — PASS.
+- `cd clients/desktop && npx vitest run`(전체) — **PASS, 93 files / 632 tests**(직전 627 + Codex
+  라운드 신규 2 files/2 tests + 본 라운드 신규 3 tests(Slip 다중필드 unit 2 + history-bridge 1) =
+  632, `mock.test.ts` 44 tests 전부 GREEN으로 문서번호 계약 위반 해소 확인).
+- CI 동일조건(`CI=1`→workers=2·retries=1, config 기본 리포터) Playwright 전수:
+  - 1차(신규 포트 5199, 표준 5173 아님) — 553 passed + `admin-hr-guard.spec.ts` 5건 실패. 원인은
+    해당 spec이 `AUDIT_BASE_URL`이 아닌 자체 `HR_BASE_URL`(기본값 `localhost:5173`)을 참조해
+    비표준 포트를 못 찾은 로컬 하네스 false-RED(#31 앞선 라운드에 이미 문서화된 동일 현상, 코드
+    변경 아님) — 재확인만 하고 조치하지 않았다.
+  - 2차(표준 포트 5173 재기동, `--strictPort`로 신규 프로세스 보장) — **562 passed + 1 flaky**
+    (`product-catalog.spec.ts` 시나리오 4b, `toBeGreaterThan` 타이밍 flake로 retry #1 통과 — 품목
+    세트 구성품 검색 모달, 본 라운드 변경 파일과 무관함을 grep으로 확인), 0 failed, exit 0.
+  - `node scripts/assert-playwright-ran.mjs` — `expected=562 unexpected=0 skipped=0 flaky=1` exit
+    0(가드는 flaky를 실패로 보지 않음 — CI도 동일). CI 하드게이트가 요구하는 두 단계(테스트
+    실행+가드) 모두 로컬 재현·GREEN.
+  - `playwright/slip-collab/slip-collab-panel.spec.ts`(5건, PR #747 재수렴 HIGH fix 포함)는 1차·
+    2차 모두 재시도 없이 첫 시도 통과.
+- 부작용 PNG: 실행 중 `docs/qa/**`·`sp-d4-.../screenshots/**` 등 기존 diff(직전 라운드부터 git
+  금지로 미원복 상태) 위에 `T09-dispatch-inventory-warehouse-allow.png` 1건이 신규 caught로
+  추가 관측됐다(과거 라운드에도 동일 파일명으로 반복 관측된 known 부작용) — 지시대로 건드리지
+  않았다(git 동작 미수행).

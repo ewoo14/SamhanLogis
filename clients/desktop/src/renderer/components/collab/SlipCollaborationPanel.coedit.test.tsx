@@ -8,14 +8,14 @@ vi.mock('./CollaborativeTextField', () => ({
   CollaborativeTextField: () => <div>협업 메모</div>,
 }))
 vi.mock('../audit/SlipVersionHistoryPanel', () => ({
-  SlipVersionHistoryPanel: ({ activeFieldPath, activeRevisionNo, onRevisionSelect }: {
-    activeFieldPath?: string | null
+  SlipVersionHistoryPanel: ({ activeFieldPaths, activeRevisionNo, onRevisionSelect }: {
+    activeFieldPaths?: string[] | null
     activeRevisionNo?: number | null
     onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
   }) => (
     <div
       data-testid="slip-version-history-stub"
-      data-active-field={activeFieldPath ?? ''}
+      data-active-field={(activeFieldPaths ?? []).join(',')}
       data-active-revision={activeRevisionNo ?? ''}
     >
       <button type="button" onClick={() => onRevisionSelect?.(2, ['memo'])}>

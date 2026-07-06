@@ -4,7 +4,7 @@
  * (PR #747 재수렴 HIGH fix).
  *
  * <p>{@link SlipCollaborationPanel.coedit.test.tsx} 는 {@code SlipVersionHistoryPanel} 을
- * 통째로 stub 처리해 코멘트→activeFieldPath 배선만 검증한다 — fieldPath 정규화(접두사 정합) 는
+ * 통째로 stub 처리해 코멘트→activeFieldPaths 배선만 검증한다 — fieldPath 정규화(접두사 정합) 는
  * stub 뒤에 가려져 실제로 검증되지 못했다("getByTestId 만 봐서 누락"). 본 파일은
  * {@code SlipVersionHistoryPanel} 을 stub 하지 않고 두 실컴포넌트를 그대로 조립해, BE 가 실제로
  * 내려주는 {@code "header.memo"} 형태와 코멘트 anchor 의 {@code "memo"}(접두사 없음) 형태가
@@ -89,6 +89,8 @@ vi.mock('../../api/slipRevision', () => ({
 }))
 
 import { SlipCollaborationPanel } from './SlipCollaborationPanel'
+import { getSlipCollabComments } from '../../api/slipCollab'
+import { listRevisions } from '../../api/slipRevision'
 
 function renderPanel() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -144,5 +146,85 @@ describe('SlipCollaborationPanel + SlipVersionHistoryPanel 실컴포넌트 연�
     expect(memoComment!.getAttribute('aria-current')).toBe('true')
     // anchor 없는 코멘트는 애초 매칭 대상이 아니므로 하이라이트되지 않는다.
     expect(otherComment!.getAttribute('data-active')).toBeNull()
+  })
+
+  // PR #747 재수렴 MEDIUM fix 회귀 가드 — 리비전 1건이 헤더 필드 2개(memo, shippingAddress)를
+  // 동시에 바꿀 때, 버전이력 행 클릭이 두 필드에 각각 anchor 된 코멘트를 모두 하이라이트해야 한다.
+  // SlipCollaborationPanel 이 fieldPaths?.[0] 처럼 첫 필드만 채택하는 구현으로 되돌아가면
+  // shippingAddress 코멘트 쪽이 매칭되지 않아 RED 가 된다.
+  it('다중필드 변경 리비전 행 선택 → 두 필드에 각각 anchor 된 코멘트가 모두 하이라이트된다 (역방향, 다중필드 회귀 가드)', async () => {
+    vi.mocked(getSlipCollabComments).mockResolvedValueOnce([
+      {
+        id: 'comment-memo-multi',
+        anchor: 'memo',
+        authorName: '홍길동',
+        body: '메모 다중필드 확인',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:00:00',
+      },
+      {
+        id: 'comment-shipping-multi',
+        anchor: 'shippingAddress',
+        authorName: '김영업',
+        body: '배송지 다중필드 확인',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:05:00',
+      },
+    ])
+    vi.mocked(listRevisions).mockResolvedValueOnce([
+      {
+        revisionNo: 5,
+        revisionType: 'EDIT',
+        sourceRevisionNo: null,
+        slipNo: '2026/07/06-5',
+        slipDate: '2026-07-06',
+        actorName: '김영업',
+        actorColor: '#DB2777',
+        createdAt: '2026-07-06T09:30:00',
+        changeSummary: { headerChanged: 2, lineAdded: 0, lineRemoved: 0, lineModified: 0 },
+        fieldChanges: [
+          {
+            fieldPath: 'header.memo',
+            label: '메모',
+            beforeValue: '원본 메모',
+            afterValue: '수정 메모',
+            actorName: '김영업',
+            actorColor: '#DB2777',
+            changedAt: '2026-07-06T09:30:00',
+          },
+          {
+            fieldPath: 'header.shippingAddress',
+            label: '배송지',
+            beforeValue: '서울시 강남구',
+            afterValue: '서울시 서초구',
+            actorName: '김영업',
+            actorColor: '#DB2777',
+            changedAt: '2026-07-06T09:30:00',
+          },
+        ],
+      },
+    ])
+
+    renderPanel()
+
+    await screen.findByText('메모 다중필드 확인')
+    const commentItems = screen.getAllByTestId('slip-collab-comment-item')
+    const memoComment = commentItems.find((el) => el.textContent?.includes('메모 다중필드 확인'))
+    const shippingComment = commentItems.find((el) => el.textContent?.includes('배송지 다중필드 확인'))
+    expect(memoComment).toBeDefined()
+    expect(shippingComment).toBeDefined()
+    expect(memoComment!.getAttribute('data-active')).toBeNull()
+    expect(shippingComment!.getAttribute('data-active')).toBeNull()
+
+    fireEvent.click(await screen.findByTestId('slip-version-history-row-5'))
+
+    await waitFor(() => {
+      expect(memoComment!.getAttribute('data-active')).toBe('true')
+    })
+    // 2번째 필드(shippingAddress)에 anchor 된 코멘트도 함께 하이라이트되어야 한다 — 여기가 본
+    // fix 의 핵심 검증 지점이다.
+    expect(shippingComment!.getAttribute('data-active')).toBe('true')
   })
 })

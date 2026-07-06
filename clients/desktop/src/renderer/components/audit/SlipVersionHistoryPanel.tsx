@@ -28,14 +28,19 @@ export interface SlipVersionHistoryPanelProps {
   /** 협업 패널과 공유하는 선택 revision 번호. */
   activeRevisionNo?: number | null
   /**
-   * 코멘트 anchor 와 연결할 필드 경로 — anchor 원형(접두사 없음, 예: {@code "memo"})으로 전달한다.
-   * 내부 비교는 {@link normalizeFieldPath} 로 BE fieldPath 의 {@code "header."} 접두사를 제거해
-   * 맞춘다(PR #747 재수렴 HIGH fix).
+   * 코멘트 anchor 와 연결할 필드 경로 목록 — anchor 원형(접두사 없음, 예: {@code "memo"})으로
+   * 전달한다. 리비전 1건이 헤더 필드 여러 개를 동시에 바꿀 수 있어 배열로 받는다(PR #747 재수렴
+   * MEDIUM fix — 단일 문자열이면 리비전 행 클릭 시 첫 필드에 anchor 된 코멘트만 하이라이트되고
+   * 2번째 이후 필드의 코멘트는 역방향 하이라이트가 누락된다). 내부 비교는 {@link normalizeFieldPath}
+   * 로 BE fieldPath 의 {@code "header."} 접두사를 제거해 맞춘다(PR #747 재수렴 HIGH fix).
    */
-  activeFieldPath?: string | null
-  /** 버전 행/변경 항목 선택 시 협업 패널에 공유한다. */
+  activeFieldPaths?: string[] | null
+  /** 버전 행/변경 항목 선택 시 협업 패널에 공유한다 — 행 선택 시 해당 리비전의 fieldPaths 전체. */
   onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
 }
+
+/** {@link SlipVersionHistoryPanelProps.activeFieldPaths} 미전달 시 기본값 — 매 렌더 재생성 방지. */
+const EMPTY_ACTIVE_FIELD_PATHS: string[] = []
 
 /** revision 유형별 한국어 라벨 + Badge 톤. */
 const REVISION_TYPE_META: Record<
@@ -94,8 +99,9 @@ function fieldPathTestId(fieldPath: string): string {
  *
  * <p>양방향 매칭이 성립하려면 두 표현을 같은 canonical 형태로 합쳐야 한다 — 본 함수가
  * {@code "header."} 접두사를 제거해 fieldPath 쪽을 anchor 쪽 형태로 맞춘다. 이 함수는
- * fieldPath 목록 생성(this file) 과 activeFieldPath 정규화(comment anchor 유래 값 포함) 양쪽에
- * 동일하게 쓰이므로, 한 번의 수정으로 코멘트→버전이력·버전이력→코멘트 양방향이 모두 정합된다.
+ * fieldPath 목록 생성(this file) 과 activeFieldPaths 정규화(comment anchor 유래 값 포함, 배열 전
+ * 원소에 element-wise 적용) 양쪽에 동일하게 쓰이므로, 한 번의 수정으로 코멘트→버전이력·
+ * 버전이력→코멘트 양방향이 (다중필드 포함) 모두 정합된다.
  */
 function normalizeFieldPath(path: string | null | undefined): string {
   return (path ?? '').replace(/^\/+/, '').replace(/\//g, '.').replace(/^header\./, '')
@@ -186,7 +192,7 @@ function renderFieldChange(
 export function SlipVersionHistoryPanel({
   slipId,
   activeRevisionNo = null,
-  activeFieldPath = null,
+  activeFieldPaths = EMPTY_ACTIVE_FIELD_PATHS,
   onRevisionSelect,
 }: SlipVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
@@ -221,6 +227,16 @@ export function SlipVersionHistoryPanel({
   const revisions: SlipRevision[] = Array.isArray(revisionsQuery.data)
     ? revisionsQuery.data
     : []
+
+  /**
+   * 코멘트 anchor 유래 활성 필드 목록을 canonical 형태(Set)로 정규화한다 — 리비전 행 전체 배열과의
+   * 교집합 판정(다중필드) 및 개별 필드변경과의 포함 판정에 재사용한다(PR #747 재수렴 MEDIUM fix).
+   */
+  const normalizedActiveFieldPaths = new Set(
+    (activeFieldPaths ?? EMPTY_ACTIVE_FIELD_PATHS)
+      .map((path) => normalizeFieldPath(path))
+      .filter((path) => path.length > 0),
+  )
 
   return (
     <Card
@@ -314,9 +330,10 @@ export function SlipVersionHistoryPanel({
             const isLatest = rev.revisionNo === revisions[0]?.revisionNo
             const fieldChanges = Array.isArray(rev.fieldChanges) ? rev.fieldChanges : []
             const fieldPaths = fieldChanges.map((change) => normalizeFieldPath(change.fieldPath))
-            const normalizedActiveFieldPath = normalizeFieldPath(activeFieldPath)
+            // 다중필드 리비전: fieldPaths 중 하나라도 활성 목록에 있으면 행 전체를 하이라이트한다
+            // (PR #747 재수렴 MEDIUM fix — 이전엔 단일 activeFieldPath 비교라 첫 필드만 매칭됐다).
             const isHighlighted = activeRevisionNo === rev.revisionNo
-              || (!!normalizedActiveFieldPath && fieldPaths.includes(normalizedActiveFieldPath))
+              || fieldPaths.some((path) => normalizedActiveFieldPaths.has(path))
             return (
               <li
                 key={rev.revisionNo}
@@ -378,7 +395,7 @@ export function SlipVersionHistoryPanel({
                         const normalized = normalizeFieldPath(change.fieldPath)
                         return renderFieldChange(change, {
                           active: activeRevisionNo === rev.revisionNo
-                            || (!!normalizedActiveFieldPath && normalizedActiveFieldPath === normalized),
+                            || normalizedActiveFieldPaths.has(normalized),
                           onSelect: onRevisionSelect
                             ? () => onRevisionSelect(rev.revisionNo, [normalized])
                             : undefined,

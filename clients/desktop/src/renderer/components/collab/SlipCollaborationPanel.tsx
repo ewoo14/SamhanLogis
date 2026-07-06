@@ -104,7 +104,12 @@ export function SlipCollaborationPanel({
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
   const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
-  const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
+  /**
+   * 코멘트 anchor ↔ 버전이력 fieldPath 공유 하이라이트 상태 — 리비전 1건이 헤더 필드 여러 개를
+   * 동시에 바꿀 수 있어 배열로 관리한다(PR #747 재수렴 MEDIUM fix). 정방향(코멘트 클릭)은
+   * 단일원소 배열([anchor])로, 역방향(버전이력 행 클릭)은 해당 리비전의 fieldPaths 전체로 채운다.
+   */
+  const [activeFieldPaths, setActiveFieldPaths] = useState<string[]>([])
   const editModeInitializedRef = useRef(false)
 
   const commentQueryKey = useMemo(() => ['slipCollabComments', slipId] as const, [slipId])
@@ -241,7 +246,7 @@ export function SlipCollaborationPanel({
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
               ) : comments.map((comment) => {
                 const fieldPath = normalizeCollabAnchor(comment.anchor)
-                const highlighted = !!fieldPath && fieldPath === activeFieldPath
+                const highlighted = !!fieldPath && activeFieldPaths.includes(fieldPath)
                 return (
                   <article
                     key={comment.id}
@@ -253,14 +258,14 @@ export function SlipCollaborationPanel({
                     onClick={() => {
                       if (!fieldPath) return
                       setActiveRevisionNo(null)
-                      setActiveFieldPath(fieldPath)
+                      setActiveFieldPaths([fieldPath])
                     }}
                     onKeyDown={(event) => {
                       if (!fieldPath) return
                       if (event.key !== 'Enter' && event.key !== ' ') return
                       event.preventDefault()
                       setActiveRevisionNo(null)
-                      setActiveFieldPath(fieldPath)
+                      setActiveFieldPaths([fieldPath])
                     }}
                     style={{
                       borderBottom: '1px solid var(--color-neutral-200)',
@@ -464,10 +469,13 @@ export function SlipCollaborationPanel({
       <SlipVersionHistoryPanel
         slipId={slipId}
         activeRevisionNo={activeRevisionNo}
-        activeFieldPath={activeFieldPath}
+        activeFieldPaths={activeFieldPaths}
         onRevisionSelect={(revisionNo, fieldPaths) => {
           setActiveRevisionNo(revisionNo)
-          setActiveFieldPath(fieldPaths?.[0] ?? null)
+          // 리비전 행 클릭 시 해당 리비전의 fieldPaths 전체를 그대로 전달한다 — 다중필드 변경
+          // 리비전에서 2번째 이후 필드에 anchor 된 코멘트도 역방향으로 하이라이트되어야 한다
+          // (PR #747 재수렴 MEDIUM fix — 이전엔 fieldPaths?.[0] 만 채택해 첫 필드만 매칭됐다).
+          setActiveFieldPaths(fieldPaths ?? [])
         }}
       />
     </section>
