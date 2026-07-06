@@ -96,16 +96,14 @@ jobs:
       - name: bootJar (arologis-service)
         run: ./gradlew :services:arologis-service:bootJar
 
-      - name: arologis-service.jar artifact 업로드
-        uses: actions/upload-artifact@v4
-        with:
-          name: arologis-service-jar
-          path: services/arologis-service/build/libs/arologis-service.jar
-          retention-days: 14
+      # arologis-service.jar 아티팩트 업로드는 제거됨(2026-07-06) — 배포(arologis-deploy)는
+      # SSH + docker-compose pull 방식이라 이 아티팩트를 소비하지 않았고(전 워크플로 대상
+      # download-artifact grep 0건), 268MB×N 의 Actions 스토리지만 낭비했다. bootJar 빌드검증은 유지.
 
       - name: 테스트 리포트 artifact 업로드 (실패 포함)
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true  # 스토리지 쿼터 등 업로드 실패가 잡을 red 로 만들지 않도록(테스트 결과만 게이트)
         with:
           name: arologis-test-reports
           path: |
