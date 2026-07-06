@@ -122,7 +122,9 @@ export function CashReceiptFormPage() {
 
   const receipt = receiptQuery.data
   const bankLinked = receipt?.kind === 'BANK_LINKED'
-  const readOnly = Boolean(isEdit && receipt && (bankLinked || receipt.status !== 'DRAFT'))
+  // read-only = 통장연계 또는 취소. CONFIRMED 은 편집 가능(역분개 후 재게시, S4b 기결 기능).
+  const readOnly = Boolean(isEdit && receipt && (bankLinked || receipt.status === 'CANCELLED'))
+  // coedit(실시간 동시편집)은 DRAFT 한정. CONFIRMED 은 비협업 일반편집만.
   const canCollabEdit = Boolean(
     isEdit
       && receiptId
@@ -242,9 +244,15 @@ export function CashReceiptFormPage() {
         </div>
       ) : null}
 
-      {readOnly && !bankLinked ? (
+      {isEdit && receipt?.status === 'CONFIRMED' && !bankLinked ? (
         <div className="warning-banner" role="status">
-          확정/취소된 입금보고서는 협업 편집할 수 없습니다.
+          확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.
+        </div>
+      ) : null}
+
+      {isEdit && receipt?.status === 'CANCELLED' ? (
+        <div className="warning-banner" role="status">
+          취소된 입금보고서는 수정할 수 없습니다.
         </div>
       ) : null}
 
@@ -373,7 +381,7 @@ export function CashReceiptFormPage() {
       </Card>
 
       {topError ? (
-        <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: '#DC2626' }}>
+        <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: 'var(--state-danger)' }}>
           {topError}
         </div>
       ) : null}

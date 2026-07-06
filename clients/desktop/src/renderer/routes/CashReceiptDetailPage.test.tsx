@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   confirmCashReceipt: vi.fn(),
   cancelCashReceipt: vi.fn(),
   deleteCashReceipt: vi.fn(),
-  createDocCoeditProvider: vi.fn(),
   canAccess: vi.fn(() => true),
   navigate: vi.fn(),
 }))
@@ -34,35 +33,6 @@ vi.mock('../api/accounting', () => ({
   deleteCashReceipt: mocks.deleteCashReceipt,
 }))
 
-vi.mock('../realtime/createCoeditProvider', () => ({
-  createDocCoeditProvider: mocks.createDocCoeditProvider,
-}))
-vi.mock('../components/collab/CollaborativeSlipInput', () => ({
-  CollaborativeSlipInput: (props: {
-    provider: any
-    fieldPath: string
-    value: string
-    onValueChange?: (value: string) => void
-    coeditPending?: boolean
-    readOnly?: boolean
-    'aria-label': string
-  }) => (
-    <input
-      aria-label={props['aria-label']}
-      data-testid={`cash-receipt-detail-coedit-${props.fieldPath.replace(/\./g, '-')}`}
-      data-field-path={props.fieldPath}
-      data-provider-present={String(!!props.provider)}
-      data-coedit-pending={String(!!props.coeditPending)}
-      value={props.value}
-      disabled={!!props.coeditPending || !!props.readOnly}
-      onChange={(event) => {
-        const nextValue = event.target.value
-        props.onValueChange?.(nextValue)
-        if (props.provider) props.provider.setHeaderValue(props.fieldPath.replace(/^header\./, ''), nextValue)
-      }}
-    />
-  ),
-}))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
 vi.mock('../hooks/usePermissions', () => ({
   usePermissions: () => ({ canAccess: mocks.canAccess }),
@@ -109,10 +79,6 @@ function renderPage(row: CashReceiptRow) {
   )
 }
 
-beforeEach(() => {
-  mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable in default test double'))
-})
-
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -148,12 +114,19 @@ describe('CashReceiptDetailPage', () => {
     expect(screen.queryByRole('button', { name: '편집 불가' })).toBeNull()
   })
 
-  it('CONFIRMED 수기 입금보고서는 편집 버튼과 coedit provider 를 노출하지 않는다', async () => {
+  it('CONFIRMED 수기 입금보고서는 편집 버튼을 노출한다 (편집 시 역분개 재게시)', async () => {
     renderPage(receipt({ kind: 'MANUAL_RECEIPT', status: 'CONFIRMED', journalNo: '2026/07/05-9' }))
 
     await screen.findByText('확정')
+    expect((screen.getByRole('button', { name: '편집' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('CANCELLED 수기 입금보고서는 편집 버튼을 노출하지 않는다', async () => {
+    renderPage(receipt({ kind: 'MANUAL_RECEIPT', status: 'CANCELLED' }))
+
+    await screen.findByText('취소')
     expect(screen.queryByRole('button', { name: '편집' })).toBeNull()
-    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '편집 불가' })).toBeNull()
   })
 
   it('kind와 CONFIRMED 상태 badge tone을 success로 렌더한다', async () => {
@@ -183,75 +156,4 @@ describe('CashReceiptDetailPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: '삭제' }))
     await waitFor(() => expect(mocks.deleteCashReceipt).toHaveBeenCalledWith('receipt-1'))
   })
-
-  it('DRAFT 상세는 cash-receipt coedit provider 를 seed 하고 header fieldPath 를 배선한다', async () => {
-    const provider = makeProvider()
-    mocks.createDocCoeditProvider.mockResolvedValue(provider)
-
-    renderPage(receipt())
-
-    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
-    expect(mocks.createDocCoeditProvider).toHaveBeenCalledWith({
-      documentId: 'receipt-1',
-      basePath: '/accounting/cash-receipts/receipt-1',
-      headerTextFields: new Set(['memo']),
-    })
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('partnerName', '삼한공조')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('partnerCode', 'P-001')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('bizNo', '123-45-67890')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('transactionDate', '2026-07-05')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('amount', '2480000')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('debitAccountCode', '102')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('creditAccountCode', '110')
-    expect(provider.setHeaderValue).toHaveBeenCalledWith('memo', '수기 입금')
-
-    for (const fieldPath of [
-      'header.partnerName',
-      'header.partnerCode',
-      'header.bizNo',
-      'header.transactionDate',
-      'header.amount',
-      'header.debitAccountCode',
-      'header.creditAccountCode',
-      'header.memo',
-    ]) {
-      const field = await screen.findByTestId(`cash-receipt-detail-coedit-${fieldPath.replace(/\./g, '-')}`)
-      expect(field.getAttribute('data-field-path')).toBe(fieldPath)
-      expect(field.getAttribute('data-provider-present')).toBe('true')
-    }
-  })
-
-  it('BANK_LINKED 상세는 coedit provider 를 생성하지 않는다', async () => {
-    renderPage(receipt({ kind: 'BANK_LINKED', status: 'DRAFT' }))
-
-    await screen.findByText('통장연계')
-    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
-  })
 })
-
-function makeProvider() {
-  const header = new Map<string, string>()
-  const subscribers = new Set<() => void>()
-  return {
-    items: { toArray: () => [] },
-    setHeaderValue: vi.fn((fieldName: string, value: string) => {
-      header.set(fieldName, value)
-    }),
-    getHeaderValue: vi.fn((fieldName: string) => header.get(fieldName) ?? ''),
-    replaceItems: vi.fn(),
-    isEmpty: vi.fn(() => true),
-    subscribeDoc: vi.fn((listener: () => void) => {
-      subscribers.add(listener)
-      return () => subscribers.delete(listener)
-    }),
-    subscribeAwareness: vi.fn(() => () => undefined),
-    getRemoteCursors: vi.fn(() => []),
-    getRemoteEdits: vi.fn(() => []),
-    setLocalCursor: vi.fn(),
-    setLocalLastEdit: vi.fn(),
-    destroy: vi.fn(),
-    __emit: () => {
-      for (const subscriber of subscribers) subscriber()
-    },
-  }
-}

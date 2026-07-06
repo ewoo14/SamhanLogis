@@ -214,7 +214,7 @@ describe('CashReceiptFormPage', () => {
     })))
   })
 
-  it('CONFIRMED 편집 모드는 read-only이며 coedit provider 를 생성하지 않는다', async () => {
+  it('CONFIRMED 편집 모드는 편집 가능하고 역분개 재게시 경고를 표시하며 coedit provider 를 생성하지 않는다', async () => {
     mocks.getCashReceipt.mockResolvedValue({
       id: 'receipt-confirmed',
       slipNo: '2026/07/05-7',
@@ -232,7 +232,31 @@ describe('CashReceiptFormPage', () => {
     renderPage('/accounting/admin/cash-receipts/receipt-confirmed/edit')
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '확정거래처'))
-    expect(screen.getByText('확정/취소된 입금보고서는 협업 편집할 수 없습니다.')).not.toBeNull()
+    expect(screen.getByText('확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.')).not.toBeNull()
+    expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
+  it('CANCELLED 편집 모드는 read-only이며 coedit provider 를 생성하지 않는다', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-cancelled',
+      slipNo: '2026/07/05-8',
+      partnerCode: 'P-CANCELLED',
+      bizNo: '444-44-44444',
+      partnerName: '취소거래처',
+      amount: '500000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'CANCELLED',
+      memo: '취소 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-cancelled/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '취소거래처'))
+    expect(screen.getByText('취소된 입금보고서는 수정할 수 없습니다.')).not.toBeNull()
     expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
     expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()

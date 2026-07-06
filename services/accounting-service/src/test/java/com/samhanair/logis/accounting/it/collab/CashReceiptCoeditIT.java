@@ -159,6 +159,35 @@ class CashReceiptCoeditIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.updates.length()").value(0));
     }
 
+    /** SSE stream 도 VIEW 권한 가드를 적용해 미인가자를 403 으로 거부한다. */
+    @Test
+    void coedit_stream_deniedWithoutViewPermission_returns403() throws Exception {
+        UUID receiptId = seedDraftManualReceipt("20990707-CSD-" + SEQ.getAndIncrement()).getId();
+        org.mockito.Mockito.when(dynamicPermissionClient.check(
+                any(UUID.class), eq("accounting.cash-receipts"), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+
+        mvc.perform(get("/accounting/cash-receipts/{receiptId}/collab/stream", receiptId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isForbidden());
+    }
+
+    /** awareness 도 VIEW 권한 가드를 적용해 미인가자를 403 으로 거부한다. */
+    @Test
+    void coedit_awareness_deniedWithoutViewPermission_returns403() throws Exception {
+        UUID denyId = seedDraftManualReceipt("20990707-CAD-" + SEQ.getAndIncrement()).getId();
+        org.mockito.Mockito.when(dynamicPermissionClient.check(
+                any(UUID.class), eq("accounting.cash-receipts"), eq(PermissionAction.VIEW)))
+                .thenReturn(false);
+
+        mvc.perform(post("/accounting/cash-receipts/{receiptId}/collab/coedit/awareness", denyId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "Y3Vyc29y"))))
+                .andExpect(status().isForbidden());
+    }
+
     private CashReceipt seedDraftManualReceipt(String slipNo) {
         return cashReceiptRepository.saveAndFlush(CashReceipt.createManual(
                 slipNo,
