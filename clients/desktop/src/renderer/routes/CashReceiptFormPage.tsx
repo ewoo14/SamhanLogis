@@ -251,7 +251,7 @@ export function CashReceiptFormPage() {
         </div>
       ) : null}
 
-      {isEdit && receipt?.status === 'CONFIRMED' && !bankLinked ? (
+      {isEdit && receipt?.status === 'CONFIRMED' && !bankLinked && canUpdate ? (
         <div className="warning-banner" role="status">
           확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.
         </div>
