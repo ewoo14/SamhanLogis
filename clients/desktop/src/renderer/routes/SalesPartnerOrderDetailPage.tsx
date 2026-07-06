@@ -26,7 +26,6 @@ import {
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
 import { apiClient } from '../api/client'
-import { partnerOrderAuditApi } from '../api/createAuditApi'
 import { PartnerOrderCollaborationPanel } from '../components/collab/PartnerOrderCollaborationPanel'
 import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
 import { MobileActionSheet } from '../components/common/MobileActionSheet'
@@ -36,13 +35,10 @@ import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
-import { PartnerOrderVersionHistoryPanel } from '../components/audit/PartnerOrderVersionHistoryPanel'
 import styles from '../components/sales/sales.module.css'
 
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 const PARTNER_ORDER_INVENTORY_LOOKUP_TEST_ID = 'partner-order-inventory-lookup-btn'
-const PARTNER_ORDER_EDIT_AUDIT_EMPTY_TEST_ID = 'partner-order-edit-audit-empty'
-const PARTNER_ORDER_EDIT_AUDIT_TIMELINE_TEST_ID = 'partner-order-edit-audit-timeline'
 const statusBadgeStyle = (status: string) => {
   switch (status) {
     case 'ON_HOLD':
@@ -199,13 +195,6 @@ export function SalesPartnerOrderDetailPage() {
   orderDataRef.current = query.data ?? null
   const editSessionOrderRef = useRef<PartnerOrderDetail | null>(null)
 
-  const auditQuery = useQuery({
-    queryKey: ['partner-order', id, 'audit-logs'],
-    queryFn: () => partnerOrderAuditApi.listAuditLogs(orderId),
-    enabled: !!query.data?.orderNumber,
-    retry: 1,
-  })
-
   const updateMutation = useMutation({
     mutationFn: (request: PartnerOrderUpdateRequest) => updatePartnerOrder(orderId, request),
     onSuccess: async () => {
@@ -214,7 +203,6 @@ export function SalesPartnerOrderDetailPage() {
       setEditOpen(false)
       // PUT 응답은 product-service enrich 필드(productType 등)가 빠질 수 있어 상세 GET 재조회로 보정한다.
       await queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
-      await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
@@ -252,7 +240,6 @@ export function SalesPartnerOrderDetailPage() {
       setHoldErrorMessage(null)
       queryClient.setQueryData(['partner-order', id], updated)
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
-      await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
     },
     onError: (error) => {
       if (axios.isAxiosError(error)) {
@@ -358,7 +345,6 @@ export function SalesPartnerOrderDetailPage() {
       setHoldErrorMessage(null)
       queryClient.setQueryData(['partner-order', id], updated)
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
-      await queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
     },
     onError: (error) => {
       if (axios.isAxiosError(error)) {
@@ -1297,104 +1283,39 @@ export function SalesPartnerOrderDetailPage() {
             </div>
 
             {isMobile ? (
-              <>
-                <MobileCollapsible title="버전 이력" className="mobile-section-card">
-                  <PartnerOrderVersionHistoryPanel
-                    orderId={orderId}
-                    status={query.data.status}
-                  />
-                </MobileCollapsible>
-
-                {collabCurrentValues ? (
-                  <MobileCollapsible
-                    title="협업 · 코멘트"
-                    defaultOpen
-                    className="mobile-section-card"
-                  >
-                    <PartnerOrderCollaborationPanel
-                      orderId={orderId}
-                      currentValues={collabCurrentValues}
-                      editMode={collabEditMode}
-                      onEditModeChange={setCollabEditMode}
-                      onCommitted={() => {
-                        void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
-                        void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
-                        void queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
-                      }}
-                    />
-                  </MobileCollapsible>
-                ) : null}
-
-                <MobileCollapsible title="수정 이력" className="mobile-section-card">
-                  {auditQuery.isLoading ? (
-                    <div className={styles['emptyState']}>수정 이력을 불러오는 중…</div>
-                  ) : (auditQuery.data?.length ?? 0) === 0 ? (
-                    <div className={styles['emptyState']} data-testid={PARTNER_ORDER_EDIT_AUDIT_EMPTY_TEST_ID}>
-                      아직 수정 이력이 없습니다
-                    </div>
-                  ) : (
-                    <div data-testid={PARTNER_ORDER_EDIT_AUDIT_TIMELINE_TEST_ID}>
-                      {auditQuery.data!.map((entry, index) => (
-                        <div
-                          key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
-                          className={styles['historyRow']}
-                        >
-                          <strong>{entry.actorName}</strong>
-                          <span>{new Date(entry.changedAt).toLocaleString('ko-KR')}</span>
-                          <span>{entry.field}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </MobileCollapsible>
-              </>
-            ) : (
-              <>
-                <PartnerOrderVersionHistoryPanel
-                  orderId={orderId}
-                  status={query.data.status}
-                />
-
-                {collabCurrentValues ? (
+              collabCurrentValues ? (
+                <MobileCollapsible
+                  title="코멘트"
+                  defaultOpen
+                  className="mobile-section-card"
+                >
                   <PartnerOrderCollaborationPanel
                     orderId={orderId}
+                    status={query.data.status}
                     currentValues={collabCurrentValues}
                     editMode={collabEditMode}
                     onEditModeChange={setCollabEditMode}
                     onCommitted={() => {
                       void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
                       void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
-                      void queryClient.invalidateQueries({ queryKey: ['partner-order', id, 'audit-logs'] })
                     }}
                   />
-                ) : null}
-
-                <div className={`${styles['card']} ${styles['cardMarginTop']}`}>
-                  <div className={styles['cardHead']}>
-                    <div className={styles['cardTitle']}>수정 이력</div>
-                  </div>
-                  {auditQuery.isLoading ? (
-                    <div className={styles['emptyState']}>수정 이력을 불러오는 중…</div>
-                  ) : (auditQuery.data?.length ?? 0) === 0 ? (
-                    <div className={styles['emptyState']} data-testid={PARTNER_ORDER_EDIT_AUDIT_EMPTY_TEST_ID}>
-                      아직 수정 이력이 없습니다
-                    </div>
-                  ) : (
-                    <div data-testid={PARTNER_ORDER_EDIT_AUDIT_TIMELINE_TEST_ID}>
-                      {auditQuery.data!.map((entry, index) => (
-                        <div
-                          key={`${entry.revisionNo}-${entry.field}-${entry.changedAt}-${index}`}
-                          className={styles['historyRow']}
-                        >
-                          <strong>{entry.actorName}</strong>
-                          <span>{new Date(entry.changedAt).toLocaleString('ko-KR')}</span>
-                          <span>{entry.field}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
+                </MobileCollapsible>
+              ) : null
+            ) : (
+              collabCurrentValues ? (
+                <PartnerOrderCollaborationPanel
+                  orderId={orderId}
+                  status={query.data.status}
+                  currentValues={collabCurrentValues}
+                  editMode={collabEditMode}
+                  onEditModeChange={setCollabEditMode}
+                  onCommitted={() => {
+                    void queryClient.invalidateQueries({ queryKey: ['partner-order', id] })
+                    void queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+                  }}
+                />
+              ) : null
             )}
           </>
         ) : null}

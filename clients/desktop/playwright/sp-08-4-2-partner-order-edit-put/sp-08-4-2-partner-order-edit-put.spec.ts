@@ -60,20 +60,29 @@ test.describe('SP-08-4-2 주문 수정 direct PUT 계약', () => {
     expect(page).not.toMatch(/endpoint|internal id/i)
   })
 
-  test('T4 audit log timeline renders actor, time, and changed field', () => {
+  // #31 이력 일원화(2026-07-06) — PO 상세 인라인 "수정 이력"(auditQuery/partnerOrderAuditApi 기반
+  // partner-order-edit-audit-timeline) 은 제거되고, PartnerOrderCollaborationPanel 에 내장된
+  // PartnerOrderVersionHistoryPanel(버전이력 — revisions API)로 일원화됐다. T4 는 신 계약을 검증한다.
+  test('T4 version history panel (버전이력) renders actor, time, and changed field summary', () => {
     const page = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')
-    const api = read('clients/desktop/src/renderer/api/sales.ts')
-    const auditApi = read('clients/desktop/src/renderer/api/createAuditApi.ts')
-    const mock = read('clients/desktop/src/renderer/api/mock.ts')
+    const collabPanel = read('clients/desktop/src/renderer/components/collab/PartnerOrderCollaborationPanel.tsx')
+    const versionHistoryPanel = read('clients/desktop/src/renderer/components/audit/PartnerOrderVersionHistoryPanel.tsx')
+    const revisionApi = read('clients/desktop/src/renderer/api/partnerOrderRevision.ts')
 
-    expect(api).not.toContain('listPartnerOrderAuditLogs')
-    expect(auditApi).toContain('partnerOrderAuditApi')
-    expect(auditApi).toContain('/audit-logs')
-    expect(page).toContain('partner-order-edit-audit-timeline')
-    expect(page).toContain('entry.actorName')
-    expect(page).toContain('entry.field')
-    expect(mock).toContain('fieldName: \'요청사항\'')
-    expect(mock).not.toContain('internal id')
+    // 구 계약(audit-logs 기반 인라인 타임라인)은 완전히 제거됐다.
+    expect(page).not.toContain('partner-order-edit-audit-timeline')
+    expect(page).not.toContain('partnerOrderAuditApi')
+    // 신 계약 — 상세 페이지는 협업 패널을 렌더하고, 협업 패널은 버전이력 패널을 내장한다.
+    expect(page).toContain('PartnerOrderCollaborationPanel')
+    expect(collabPanel).toContain('PartnerOrderVersionHistoryPanel')
+    expect(revisionApi).toContain('listPartnerOrderRevisions')
+    expect(revisionApi).toContain('/revisions')
+    // 버전이력 패널이 actor(actorName)·time(createdAt)·변경요약(changeSummary)을 렌더한다.
+    expect(versionHistoryPanel).toContain('partner-order-version-history-panel')
+    expect(versionHistoryPanel).toContain('rev.actorName')
+    expect(versionHistoryPanel).toContain('formatLocalDateTime(rev.createdAt)')
+    expect(versionHistoryPanel).toContain('formatChangeSummary(rev)')
+    expect(versionHistoryPanel).not.toContain('internal id')
   })
   test('T5: 409 reload 후 success 피드백 + UUID fallback 가드', async () => {
     const tsx = read('clients/desktop/src/renderer/routes/SalesPartnerOrderDetailPage.tsx')

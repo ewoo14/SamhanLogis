@@ -127,9 +127,9 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     await expect(row2).toBeVisible()
     await expect(row1).toBeVisible()
 
-    // rev3 — '복원' 배지 + RESTORE source 표시 "(rev 1)"
+    // rev3 — '복원' 배지 + RESTORE source 표시 "(버전 1)" (#31 이력 일원화 — 용어 통일 rev N→버전 N)
     await expect(row3).toContainText('복원')
-    await expect(row3).toContainText('rev 1')
+    await expect(row3).toContainText('버전 1')
 
     // rev2 — '수정' 배지 + changeSummary (헤더 1 · 라인 +1)
     await expect(row2).toContainText('수정')
@@ -172,17 +172,17 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     // data-testid 가 직접 부여되어 있으므로 getByTestId 사용 가능.
     const restoreModal = page.getByRole('dialog')
     await expect(restoreModal).toBeVisible()
-    await expect(restoreModal).toContainText('rev 1')
+    await expect(restoreModal).toContainText('버전 1')
 
     const confirmBtn = page.getByTestId('partner-order-version-history-restore-confirm')
     await expect(confirmBtn).toBeVisible()
     await expect(confirmBtn).toBeEnabled()
     await confirmBtn.click()
 
-    // 복원 성공 toast — 'rev 1' 포함, kind=success (출고전표 경고 없음)
+    // 복원 성공 toast — '버전 1' 포함, kind=success (출고전표 경고 없음) (#31 용어 통일 rev N→버전 N)
     const toast = page.getByTestId('partner-order-version-history-toast')
     await expect(toast).toBeVisible()
-    await expect(toast).toContainText('rev 1')
+    await expect(toast).toContainText('버전 1')
     // slipResyncRequired=false → '출고전표' 경고 문구 미노출
     await expect(toast).not.toContainText('판매전표')
   })
@@ -221,7 +221,7 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     const toast = page.getByTestId('partner-order-version-history-toast')
     await expect(toast).toBeVisible()
     await expect(toast).toContainText('판매전표')
-    await expect(toast).toContainText('rev 1')
+    await expect(toast).toContainText('버전 1')
   })
 
   // ──────────────────────────────────────────────────────────
@@ -334,10 +334,10 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
     await expect(confirmBtn).toBeVisible()
     await confirmBtn.click()
 
-    // 첫 번째 toast 확인
+    // 첫 번째 toast 확인 (#31 용어 통일 rev N→버전 N)
     const toast = page.getByTestId('partner-order-version-history-toast')
     await expect(toast).toBeVisible()
-    await expect(toast).toContainText('rev 1')
+    await expect(toast).toContainText('버전 1')
 
     // toast 닫힘 대기 (자동 닫힘) 또는 재열기 가능 상태로 복구 대기
     // toast 가 사라질 때까지 최대 5 초 대기
@@ -356,6 +356,6 @@ test.describe('Phase 2.4 거래처 주문 버전이력 + 복원', () => {
 
     // 두 번째 toast 표시 — UI 가 재복원을 차단하지 않음을 검증
     await expect(page.getByTestId('partner-order-version-history-toast')).toBeVisible()
-    await expect(page.getByTestId('partner-order-version-history-toast')).toContainText('rev 1')
+    await expect(page.getByTestId('partner-order-version-history-toast')).toContainText('버전 1')
   })
 })

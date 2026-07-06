@@ -97,8 +97,8 @@ test.describe('Phase 2.2 견적서 버전이력 + 복원', () => {
     await expect(confirmBtn).toBeVisible()
     await confirmBtn.click()
 
-    // 5) restore 성공 → toast 에 'rev 1' 텍스트.
-    await expect(page.getByTestId('estimate-version-history-toast')).toContainText('rev 1')
+    // 5) restore 성공 → toast 에 '버전 1' 텍스트 (#31 이력 일원화 — 용어 통일 rev N→버전 N).
+    await expect(page.getByTestId('estimate-version-history-toast')).toContainText('버전 1')
   })
 
   test('편집 불가(QUOTE_ACCEPTED) 견적 — 복원 버튼 비활성 + 안내 문구', async ({ page }) => {

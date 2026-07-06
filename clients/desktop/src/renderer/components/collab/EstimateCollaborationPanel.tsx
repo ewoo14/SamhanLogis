@@ -7,22 +7,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input } from '@samhan/design-system'
+import { Badge, Button, Card, Input, Select } from '@samhan/design-system'
 import {
   addEstimateCollabComment,
   commitEstimateCollabEdit,
   deleteEstimateCollabComment,
   getEstimateCollabComments,
-  getEstimateCollabEdits,
   resolveEstimateCollabComment,
   type EstimateCollabComment,
-  type EstimateCollabEdit,
 } from '../../api/estimateCollab'
+import type { EstimateStatus } from '../../api/estimateApi'
 import { EstimateCollabRealtimeClient } from '../../realtime/EstimateCollabRealtimeClient'
 import { usePermissions } from '../../hooks/usePermissions'
 import { usePresence } from '../../hooks/usePresence'
 import { EstimatePresenceClient } from '../../realtime/createPresenceClient'
 import { PresenceIndicator } from './PresenceIndicator'
+import { EstimateVersionHistoryPanel } from '../audit/EstimateVersionHistoryPanel'
 
 export interface EstimateCollabEditableLine {
   /** BE EstimateDocumentCollaborationPort lineKey 와 동일한 1-based 활성 라인 index. */
@@ -43,6 +43,8 @@ export interface EstimateCollabCurrentValues {
 export interface EstimateCollaborationPanelProps {
   /** 견적 식별자 — query key/API path 전용. 화면 텍스트 노출 금지. */
   estimateId: string
+  /** 현재 견적 상태 — 버전이력 복원 가드에 전달한다. */
+  status: EstimateStatus
   /** overlay 편집 필드의 현재 값 snapshot. */
   currentValues: EstimateCollabCurrentValues
   /** 상세 상단 "수정" 버튼과 연결되는 편집모드 상태. */
@@ -62,54 +64,21 @@ function displayName(value: string | null | undefined): string {
   return value && value !== 'system' ? value : '시스템'
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/^\/+/, '').replace(/\//g, '.')
-}
-
 function lineNotePath(lineKey: number): string {
   return `line.${lineKey}.note`
 }
 
-function labelForPath(path: string): string {
-  const normalized = normalizePath(path)
-  if (normalized === 'memo') return '비고'
-  if (normalized === 'validUntil') return '유효기간'
-  const lineMatch = normalized.match(/^line\.(\d+)\.note$/)
+function normalizeCollabAnchor(anchor: string | null | undefined): string | null {
+  const normalized = (anchor ?? '').trim().replace(/^\/+/, '').replace(/\//g, '.')
+  return normalized.length > 0 ? normalized : null
+}
+
+function labelForAnchor(fieldPath: string): string {
+  if (fieldPath === 'memo') return '비고'
+  if (fieldPath === 'validUntil') return '유효기간'
+  const lineMatch = fieldPath.match(/^line\.(\d+)\.note$/)
   if (lineMatch) return `${lineMatch[1]}번 라인 메모`
-  return normalized
-}
-
-function summarizeChangeSet(changeSet: string): string {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { after?: unknown }>
-    return Object.entries(parsed)
-      .map(([path, change]) => {
-        const after = change.after == null ? '비움' : String(change.after)
-        return `${labelForPath(path)}: ${after}`
-      })
-      .join(' · ')
-  } catch {
-    return '변경 내용 형식을 해석하지 못했습니다.'
-  }
-}
-
-function parseChangeSetDiffs(changeSet: string): Array<{
-  fieldName: string
-  label: string
-  before: string | null
-  after: string | null
-}> {
-  try {
-    const parsed = JSON.parse(changeSet) as Record<string, { before?: unknown; after?: unknown }>
-    return Object.entries(parsed).map(([path, change]) => ({
-      fieldName: normalizePath(path),
-      label: labelForPath(path),
-      before: change.before == null ? null : String(change.before),
-      after: change.after == null ? null : String(change.after),
-    }))
-  } catch {
-    return []
-  }
+  return fieldPath
 }
 
 function valueForEdit(value: string | null | undefined): string {
@@ -144,6 +113,7 @@ function isCollabEvent(eventName: string): boolean {
 
 export function EstimateCollaborationPanel({
   estimateId,
+  status,
   currentValues,
   editMode = false,
   onEditModeChange,
@@ -152,16 +122,19 @@ export function EstimateCollaborationPanel({
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const [commentBody, setCommentBody] = useState('')
+  const [commentAnchor, setCommentAnchor] = useState('')
   const [memoDraft, setMemoDraft] = useState('')
   const [validUntilDraft, setValidUntilDraft] = useState('')
   const [lineNoteDrafts, setLineNoteDrafts] = useState<Record<number, string>>({})
   const [editReason, setEditReason] = useState('')
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [commitError, setCommitError] = useState<string | null>(null)
+  const [activeRevisionNo, setActiveRevisionNo] = useState<number | null>(null)
+  const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
+  const [activeRevisionIsLatest, setActiveRevisionIsLatest] = useState(false)
   const presenceEntries = usePresence({ entityId: estimateId, client: EstimatePresenceClient, enabled: !!estimateId })
 
   const commentQueryKey = useMemo(() => ['estimateCollabComments', estimateId] as const, [estimateId])
-  const editQueryKey = useMemo(() => ['estimateCollabEdits', estimateId] as const, [estimateId])
   const estimateQueryKey = useMemo(() => ['estimate', estimateId] as const, [estimateId])
   const canWrite = canAccess('estimates.list', 'update')
   const lines = useMemo(
@@ -175,12 +148,6 @@ export function EstimateCollaborationPanel({
   const commentsQuery = useQuery({
     queryKey: commentQueryKey,
     queryFn: () => getEstimateCollabComments(estimateId),
-    enabled: !!estimateId,
-  })
-
-  const editsQuery = useQuery({
-    queryKey: editQueryKey,
-    queryFn: () => getEstimateCollabEdits(estimateId),
     enabled: !!estimateId,
   })
 
@@ -203,18 +170,19 @@ export function EstimateCollaborationPanel({
     const ctrl = EstimateCollabRealtimeClient.subscribe(estimateId, (evt) => {
       if (!isCollabEvent(evt.event)) return
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: estimateQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })
       void queryClient.invalidateQueries({ queryKey: ['estimates'] })
     })
     return () => ctrl.abort()
-  }, [commentQueryKey, editQueryKey, estimateId, estimateQueryKey, queryClient])
+  }, [commentQueryKey, estimateId, estimateQueryKey, queryClient])
 
   const addCommentMutation = useMutation({
-    mutationFn: (body: string) => addEstimateCollabComment(estimateId, { body }),
+    mutationFn: ({ body, anchor }: { body: string; anchor?: string }) =>
+      addEstimateCollabComment(estimateId, { body, anchor }),
     onSuccess: () => {
       setCommentBody('')
+      setCommentAnchor('')
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
     },
   })
@@ -274,7 +242,6 @@ export function EstimateCollaborationPanel({
     onSuccess: () => {
       onEditModeChange?.(false)
       setEditNotice('수정완료되었습니다.')
-      void queryClient.invalidateQueries({ queryKey: editQueryKey })
       void queryClient.invalidateQueries({ queryKey: estimateQueryKey })
       void queryClient.invalidateQueries({ queryKey: ['estimateRevisions', estimateId] })
       void queryClient.invalidateQueries({ queryKey: ['estimates'] })
@@ -290,14 +257,13 @@ export function EstimateCollaborationPanel({
   })
 
   const comments: EstimateCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
-  const edits: EstimateCollabEdit[] = Array.isArray(editsQuery.data) ? editsQuery.data : []
   const trimmedComment = commentBody.trim()
+  const highlightsLatestAnchoredComments = activeRevisionNo !== null && activeRevisionIsLatest
 
   return (
     <section data-testid="estimate-collaboration-panel" style={{ marginTop: 24 }}>
       <Card padding={4} shadow="sm">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <h4 style={{ margin: 0 }}>협업</h4>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: presenceEntries.length > 0 ? 12 : 0 }}>
           <PresenceIndicator entries={presenceEntries} />
         </div>
 
@@ -316,15 +282,53 @@ export function EstimateCollaborationPanel({
                 </p>
               ) : comments.length === 0 ? (
                 <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 코멘트가 없습니다.</p>
-              ) : comments.map((comment) => (
+              ) : comments.map((comment) => {
+                const fieldPath = normalizeCollabAnchor(comment.anchor)
+                const anchorLabel = fieldPath ? labelForAnchor(fieldPath) : null
+                const highlighted = !!fieldPath
+                  && (fieldPath === activeFieldPath || highlightsLatestAnchoredComments)
+                return (
                 <article
                   key={comment.id}
                   data-testid="estimate-collab-comment-item"
-                  style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
+                  data-active={highlighted ? 'true' : undefined}
+                  role={fieldPath ? 'button' : undefined}
+                  aria-current={highlighted ? 'true' : undefined}
+                  tabIndex={fieldPath ? 0 : undefined}
+                  onClick={() => {
+                    if (!fieldPath) return
+                    setActiveRevisionNo(null)
+                    setActiveRevisionIsLatest(false)
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  onKeyDown={(event) => {
+                    if (!fieldPath) return
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    setActiveRevisionNo(null)
+                    setActiveRevisionIsLatest(false)
+                    setActiveFieldPath(fieldPath)
+                  }}
+                  style={{
+                    borderBottom: '1px solid var(--color-neutral-200)',
+                    padding: highlighted ? '8px' : '0 0 8px',
+                    borderRadius: highlighted ? 6 : 0,
+                    background: highlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                    cursor: fieldPath ? 'pointer' : undefined,
+                  }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                     <strong>{displayName(comment.authorName)}</strong>
                     <span style={{ color: 'var(--color-neutral-500)' }}>{formatDateTime(comment.createdAt)}</span>
+                    {anchorLabel ? (
+                      <Badge
+                        variant="neutral"
+                        data-testid="estimate-collab-comment-anchor-badge"
+                        style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}
+                      >
+                        {anchorLabel}
+                      </Badge>
+                    ) : null}
                     {comment.status === 'RESOLVED' ? <Badge variant="success">해결</Badge> : null}
                     {canWrite && comment.status === 'OPEN' ? (
                       <Button
@@ -333,7 +337,10 @@ export function EstimateCollaborationPanel({
                         size="sm"
                         aria-label={`${displayName(comment.authorName)} 코멘트 해결`}
                         disabled={resolveCommentMutation.isPending}
-                        onClick={() => resolveCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          resolveCommentMutation.mutate(comment.id)
+                        }}
                       >
                         해결
                       </Button>
@@ -345,7 +352,10 @@ export function EstimateCollaborationPanel({
                         size="sm"
                         aria-label={`${displayName(comment.authorName)} 코멘트 삭제`}
                         disabled={deleteCommentMutation.isPending}
-                        onClick={() => deleteCommentMutation.mutate(comment.id)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          deleteCommentMutation.mutate(comment.id)
+                        }}
                       >
                         삭제
                       </Button>
@@ -363,11 +373,31 @@ export function EstimateCollaborationPanel({
                     {comment.body}
                   </p>
                 </article>
-              ))}
+                )
+              })}
             </div>
 
             {canWrite ? (
               <>
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600, maxWidth: 260, marginTop: 12 }}>
+                  연결 필드
+                  <Select
+                    data-testid="estimate-collab-comment-anchor-select"
+                    aria-label="코멘트 연결 필드"
+                    value={commentAnchor}
+                    onChange={(event) => setCommentAnchor(event.target.value)}
+                    selectSize="sm"
+                  >
+                    <option value="">전체 코멘트</option>
+                    <option value="memo">비고</option>
+                    <option value="validUntil">유효기간</option>
+                    {lines.map((line) => (
+                      <option key={line.lineKey} value={lineNotePath(line.lineKey)}>
+                        {line.lineKey}번 라인 메모
+                      </option>
+                    ))}
+                  </Select>
+                </label>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-start' }}>
                   <textarea
                     data-testid="estimate-collab-comment-input"
@@ -396,7 +426,7 @@ export function EstimateCollaborationPanel({
                     size="sm"
                     disabled={trimmedComment.length === 0 || addCommentMutation.isPending}
                     loading={addCommentMutation.isPending}
-                    onClick={() => addCommentMutation.mutate(trimmedComment)}
+                    onClick={() => addCommentMutation.mutate({ body: trimmedComment, anchor: commentAnchor || undefined })}
                   >
                     등록
                   </Button>
@@ -420,11 +450,8 @@ export function EstimateCollaborationPanel({
             ) : null}
           </section>
 
-          <section aria-label="수정 이력" style={{ width: '100%' }}>
-            <h5 style={{ margin: '0 0 10px', fontSize: 14 }}>수정 이력</h5>
-
-            {canWrite && editMode ? (
-              <>
+          {canWrite && editMode ? (
+            <section aria-label="수정" style={{ width: '100%' }}>
                 <div
                   data-testid="estimate-collab-edit-form"
                   style={{
@@ -535,73 +562,26 @@ export function EstimateCollaborationPanel({
                     {commitError}
                   </p>
                 ) : null}
-              </>
-            ) : null}
-            {editNotice ? (
-              <p role="status" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
-                {editNotice}
-              </p>
-            ) : null}
-
-            <div
-              data-testid="estimate-collab-edit-list"
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}
-            >
-              {editsQuery.isLoading ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>수정 이력을 불러오는 중...</p>
-              ) : editsQuery.isError ? (
-                <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600)' }}>
-                  수정 이력을 불러오지 못했습니다.
-                </p>
-              ) : edits.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--color-neutral-500)' }}>아직 수정 이력이 없습니다.</p>
-              ) : edits.map((edit) => {
-                const diffs = parseChangeSetDiffs(edit.changeSet)
-                return (
-                  <article
-                    key={edit.id}
-                    data-testid="estimate-collab-edit-item"
-                    style={{ borderBottom: '1px solid var(--color-neutral-200)', paddingBottom: 8 }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                      <strong>{displayName(edit.decidedByName ?? edit.proposerName)}</strong>
-                      <Badge variant="success">수정완료</Badge>
-                      <span style={{ color: 'var(--color-neutral-500)' }}>
-                        {formatDateTime(edit.decidedAt ?? edit.createdAt)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-                      {diffs.map((diff) => (
-                        <div
-                          key={`${edit.id}-${diff.fieldName}`}
-                          style={{ fontSize: 13, overflowWrap: 'anywhere' }}
-                        >
-                          <strong>{diff.label}</strong>
-                          <span style={{ marginLeft: 8, color: 'var(--color-neutral-500)', textDecoration: 'line-through' }}>
-                            {diff.before ?? '이전값 미기록'}
-                          </span>
-                          <span aria-hidden="true" style={{ margin: '0 6px', color: 'var(--color-neutral-400)' }}>→</span>
-                          <span style={{ color: 'var(--color-brand-700, #0F766E)', fontWeight: 700 }}>
-                            {diff.after ?? '비움'}
-                          </span>
-                        </div>
-                      ))}
-                      {diffs.length === 0 ? (
-                        <p style={{ margin: 0, fontSize: 13 }}>{summarizeChangeSet(edit.changeSet)}</p>
-                      ) : null}
-                    </div>
-                    {edit.reason ? (
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                        사유: {edit.reason}
-                      </p>
-                    ) : null}
-                  </article>
-                )
-              })}
-            </div>
-          </section>
+            </section>
+          ) : null}
+          {editNotice ? (
+            <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-success-700, #047857)' }}>
+              {editNotice}
+            </p>
+          ) : null}
         </div>
       </Card>
+      <EstimateVersionHistoryPanel
+        estimateId={estimateId}
+        status={status}
+        activeRevisionNo={activeRevisionNo}
+        activeFieldPath={activeFieldPath}
+        onRevisionSelect={(revisionNo, fieldPaths, meta) => {
+          setActiveRevisionNo(revisionNo)
+          setActiveRevisionIsLatest(meta?.isLatest === true)
+          setActiveFieldPath(fieldPaths?.[0] ?? null)
+        }}
+      />
     </section>
   )
 }

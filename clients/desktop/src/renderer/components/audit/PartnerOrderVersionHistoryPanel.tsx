@@ -32,6 +32,7 @@ import {
   type PartnerOrderRevisionType,
 } from '../../api/partnerOrderRevision'
 import { type PartnerOrderStatus } from '../../api/sales'
+import { presenceColorToHex } from '../../utils/presenceColor'
 
 export interface PartnerOrderVersionHistoryPanelProps {
   /**
@@ -44,6 +45,20 @@ export interface PartnerOrderVersionHistoryPanelProps {
    * CONFIRMING / CANCELED 면 비활성 (설계서 §3.5 제외목록 방식).
    */
   status: PartnerOrderStatus
+  /** 협업 패널과 공유하는 선택 revision 번호. */
+  activeRevisionNo?: number | null
+  /**
+   * 코멘트 anchor 와 공유하는 필드 경로.
+   *
+   * <p>현 API({@link PartnerOrderRevision})는 revision 별 field-level 변경 목록을 제공하지
+   * 않아 Slip 수준(field 단위 정확 매칭)의 하이라이트는 불가하다. 코멘트가 가리키는
+   * 필드는 항상 "현재" 문서 상태에 대한 것이므로, 그 필드를 담고 있는 최신(현재)
+   * revision 행만 근사적으로 하이라이트한다(row-level highlight) — 개발책임자 확인 시
+   * revision DTO 에 fieldChanges 가 추가되면 Slip 과 동일한 field 단위 매칭으로 교체한다.
+   */
+  activeFieldPath?: string | null
+  /** 버전 행 선택 시 협업 패널에 공유한다. */
+  onRevisionSelect?: (revisionNo: number, fieldPaths?: string[], meta?: { isLatest?: boolean }) => void
 }
 
 /**
@@ -129,6 +144,9 @@ function formatChangeSummary(rev: PartnerOrderRevision): string {
 export function PartnerOrderVersionHistoryPanel({
   orderId,
   status,
+  activeRevisionNo = null,
+  activeFieldPath = null,
+  onRevisionSelect,
 }: PartnerOrderVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
 
@@ -165,12 +183,12 @@ export function PartnerOrderVersionHistoryPanel({
         // CONFIRMED 복원 — slip 재발행 필요 경고 우선 노출.
         setToast({
           kind: 'warning',
-          text: `rev ${revisionNo} 시점으로 주문을 복원했습니다.\n⚠ 판매전표가 발행된 주문입니다. 연결 전표 재발행을 확인하세요.`,
+          text: `버전 ${revisionNo} 시점으로 주문을 복원했습니다.\n⚠ 판매전표가 발행된 주문입니다. 연결 전표 재발행을 확인하세요.`,
         })
       } else {
         setToast({
           kind: 'success',
-          text: `rev ${revisionNo} 시점으로 주문을 복원했습니다.`,
+          text: `버전 ${revisionNo} 시점으로 주문을 복원했습니다.`,
         })
       }
     },
@@ -299,18 +317,36 @@ export function PartnerOrderVersionHistoryPanel({
             // 가장 최근 revision(목록 첫 항목)은 현재 상태이므로 복원 버튼을 노출하지 않는다.
             const isLatest = rev.revisionNo === revisions[0]?.revisionNo
             const actor = displayActor(rev.actorName)
+            // field-level 변경 목록이 없어 activeFieldPath 는 "현재" 값을 담은 최신 행에만
+            // row-level 로 근사 매칭한다(위 activeFieldPath prop 문서 참고).
+            const isHighlighted = activeRevisionNo === rev.revisionNo
+              || (!!activeFieldPath && isLatest)
             return (
               <li
                 key={rev.revisionNo}
                 data-testid={`partner-order-version-history-row-${rev.revisionNo}`}
+                data-active={isHighlighted ? 'true' : undefined}
+                aria-current={isHighlighted ? 'true' : undefined}
+                tabIndex={onRevisionSelect ? 0 : undefined}
+                onClick={() => onRevisionSelect?.(rev.revisionNo, [], { isLatest })}
+                onKeyDown={(event) => {
+                  if (!onRevisionSelect) return
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onRevisionSelect(rev.revisionNo, [], { isLatest })
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 12,
-                  padding: '8px 0',
+                  padding: '8px',
                   borderBottom: '1px solid var(--color-neutral-200)',
                   flexWrap: 'wrap',
+                  borderRadius: 6,
+                  background: isHighlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #E9A53D)' : undefined,
+                  cursor: onRevisionSelect ? 'pointer' : undefined,
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -320,11 +356,17 @@ export function PartnerOrderVersionHistoryPanel({
                     <Badge variant={meta.variant}>
                       {meta.label}
                       {rev.revisionType === 'RESTORE' && rev.sourceRevisionNo != null
-                        ? ` (rev ${rev.sourceRevisionNo})`
+                        ? ` (버전 ${rev.sourceRevisionNo})`
                         : ''}
                     </Badge>
                     {actor ? (
-                      <span style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: rev.actorColor ? presenceColorToHex(rev.actorColor) : 'var(--color-neutral-600)',
+                        }}
+                      >
                         {actor}
                       </span>
                     ) : null}
@@ -342,7 +384,10 @@ export function PartnerOrderVersionHistoryPanel({
                     size="sm"
                     data-testid={`partner-order-version-history-restore-button-${rev.revisionNo}`}
                     disabled={!restorable || restoreMutation.isPending}
-                    onClick={() => setRestoreTarget(rev)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setRestoreTarget(rev)
+                    }}
                   >
                     이 시점으로 복원
                   </Button>
@@ -386,7 +431,7 @@ export function PartnerOrderVersionHistoryPanel({
       >
         <p style={{ margin: 0, fontSize: 14 }}>
           {restoreTarget
-            ? `rev ${restoreTarget.revisionNo} 시점으로 주문을 복원합니다. 현재 내용은 새 버전으로 대체됩니다.`
+            ? `버전 ${restoreTarget.revisionNo} 시점으로 주문을 복원합니다. 현재 내용은 새 버전으로 대체됩니다.`
             : ''}
         </p>
       </Modal>

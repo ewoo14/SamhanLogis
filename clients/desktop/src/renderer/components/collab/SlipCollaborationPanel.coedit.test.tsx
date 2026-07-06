@@ -1,14 +1,28 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('./CollaborativeTextField', () => ({
   CollaborativeTextField: () => <div>협업 메모</div>,
 }))
 vi.mock('../audit/SlipVersionHistoryPanel', () => ({
-  SlipVersionHistoryPanel: () => <div data-testid="slip-version-history-stub" />,
+  SlipVersionHistoryPanel: ({ activeFieldPaths, activeRevisionNo, onRevisionSelect }: {
+    activeFieldPaths?: string[] | null
+    activeRevisionNo?: number | null
+    onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
+  }) => (
+    <div
+      data-testid="slip-version-history-stub"
+      data-active-field={(activeFieldPaths ?? []).join(',')}
+      data-active-revision={activeRevisionNo ?? ''}
+    >
+      <button type="button" onClick={() => onRevisionSelect?.(2, ['memo'])}>
+        버전 선택
+      </button>
+    </div>
+  ),
 }))
 
 const canAccessMock = vi.fn(() => true)
@@ -17,7 +31,15 @@ vi.mock('../../realtime/SlipCollabRealtimeClient', () => ({
   SlipCollabRealtimeClient: { subscribe: () => ({ abort: () => undefined }) },
 }))
 vi.mock('../../api/slipCollab', () => ({
-  getSlipCollabComments: vi.fn(() => Promise.resolve([])),
+  getSlipCollabComments: vi.fn(() => Promise.resolve([{
+    id: 'comment-1',
+    anchor: 'memo',
+    authorName: '홍길동',
+    body: '메모 확인',
+    parentId: null,
+    status: 'OPEN',
+    createdAt: '2026-07-06T09:00:00',
+  }])),
   getSlipCollabEdits: vi.fn(() => Promise.resolve([])),
   addSlipCollabComment: vi.fn(),
   deleteSlipCollabComment: vi.fn(),
@@ -25,6 +47,7 @@ vi.mock('../../api/slipCollab', () => ({
   commitSlipCollabEdit: vi.fn(),
 }))
 
+import { addSlipCollabComment } from '../../api/slipCollab'
 import { SlipCollaborationPanel } from './SlipCollaborationPanel'
 
 function renderPanel(slipId: string) {
@@ -39,17 +62,59 @@ function renderPanel(slipId: string) {
 afterEach(() => {
   cleanup()
   canAccessMock.mockReturnValue(true)
+  vi.mocked(addSlipCollabComment).mockReset()
 })
 
 describe('SlipCollaborationPanel 협업 패널 배치', () => {
-  it('협업 메모를 제거하고 코멘트를 수정 이력 위에 전폭으로 렌더한다', () => {
+  it('협업 헤더와 changeSet 수정 이력 목록을 제거하고 코멘트와 버전 이력만 렌더한다', () => {
     renderPanel('slip/id with spaces')
 
     const commentSection = screen.getByLabelText('코멘트')
-    const editSection = screen.getByLabelText('수정 이력')
     expect(screen.queryByText('협업 메모')).toBeNull()
+    expect(screen.queryByRole('heading', { name: '협업' })).toBeNull()
+    expect(screen.queryByLabelText('수정 이력')).toBeNull()
+    expect(screen.queryByTestId('slip-collab-edit-list')).toBeNull()
     expect(commentSection.style.width).toBe('100%')
-    expect(editSection.style.width).toBe('100%')
-    expect(commentSection.compareDocumentPosition(editSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('slip-version-history-stub')).not.toBeNull()
+    expect(commentSection.compareDocumentPosition(screen.getByTestId('slip-version-history-stub')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('코멘트 anchor 클릭과 버전 행 선택이 같은 하이라이트 상태를 공유한다', async () => {
+    renderPanel('slip/id with spaces')
+
+    await screen.findByText('메모 확인')
+    fireEvent.click(screen.getByTestId('slip-collab-comment-item'))
+    await waitFor(() => {
+      expect(screen.getByTestId('slip-version-history-stub').getAttribute('data-active-field')).toBe('memo')
+    })
+
+    fireEvent.click(screen.getByText('버전 선택'))
+    expect(screen.getByTestId('slip-version-history-stub').getAttribute('data-active-revision')).toBe('2')
+  })
+
+  it('연결 필드를 선택해 코멘트를 등록하면 anchor 가 요청에 포함된다 (결정2 anchor 생성 UX)', async () => {
+    vi.mocked(addSlipCollabComment).mockResolvedValue({
+      id: 'comment-2',
+      anchor: 'shippingAddress',
+      authorName: '홍길동',
+      body: '배송지 확인 요청',
+      parentId: null,
+      status: 'OPEN',
+      createdAt: '2026-07-06T09:20:00',
+    })
+
+    renderPanel('slip/id with spaces')
+    await screen.findByText('메모 확인')
+
+    fireEvent.change(screen.getByTestId('slip-collab-comment-anchor-select'), { target: { value: 'shippingAddress' } })
+    fireEvent.change(screen.getByTestId('slip-collab-comment-input'), { target: { value: '배송지 확인 요청' } })
+    fireEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => {
+      expect(addSlipCollabComment).toHaveBeenCalledWith('slip/id with spaces', {
+        body: '배송지 확인 요청',
+        anchor: 'shippingAddress',
+      })
+    })
   })
 })

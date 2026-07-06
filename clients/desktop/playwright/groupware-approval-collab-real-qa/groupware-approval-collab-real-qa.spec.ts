@@ -126,19 +126,31 @@ test.describe('§7 슬라이스6 그룹웨어 결재 협업 실 QA — 수정완
     await page.waitForTimeout(1_800)
     await capture(page, 'edit-committed')
 
-    // 6) diff 이력 — 제목/내용 before→after + KST 타임스탬프
-    const diffItem = page.getByTestId('groupware-approval-collab-edit-item').first()
-    await diffItem.scrollIntoViewIfNeeded().catch(() => {})
-    await expect(diffItem).toBeVisible({ timeout: 8_000 })
+    // 6) 수정 이력 — 개발책임자 결정1(2026-07-06, #31 재확인)로 changeSet diff(before→after)
+    //    목록이 복구됐다(버전이력 아님 — 그룹웨어 결재는 revision/restore API 미보유).
+    const editHistory = page.getByTestId('groupware-approval-collab-edit-history-panel')
+    await editHistory.scrollIntoViewIfNeeded().catch(() => {})
+    await expect(editHistory).toBeVisible({ timeout: 8_000 })
     await page.waitForTimeout(400)
-    await capture(page, 'diff-history')
+    await capture(page, 'edit-history')
 
-    // 7) 코멘트 등록
+    // 7) 코멘트 연결 필드(anchor) 선택 → 등록 — 결정2 anchor 생성 UX.
+    const anchorSelect = page.getByTestId('groupware-approval-collab-comment-anchor-select')
+    await anchorSelect.scrollIntoViewIfNeeded().catch(() => {})
+    await anchorSelect.selectOption('title')
+    await page.waitForTimeout(300)
+    await capture(page, 'comment-anchor-select')
     await page.getByTestId('groupware-approval-collab-comment-input').fill('실서버 QA — 그룹웨어 결재 협업 코멘트 검증')
     await page.getByRole('button', { name: '등록' }).click()
     await page.waitForTimeout(1_500)
-    await page.getByTestId('groupware-approval-collab-comment-item').first().scrollIntoViewIfNeeded().catch(() => {})
+    const commentItem = page.getByTestId('groupware-approval-collab-comment-item').first()
+    await commentItem.scrollIntoViewIfNeeded().catch(() => {})
     await capture(page, 'comment-added')
+
+    // 7-1) anchor(제목) 클릭 → 수정 이력 diff 와 하이라이트 공유(결정2 양방향).
+    await commentItem.click()
+    await page.waitForTimeout(300)
+    await capture(page, 'comment-anchor-highlight')
 
     // 8) APPROVED(최종 결재 완료) 상세 — 잠금 안내(수정 버튼 없음)
     await gotoAndSettle(page, `${BASE_URL}/#/groupware/approvals/${APPROVED_APPROVAL_ID}?mockRole=MASTER`)

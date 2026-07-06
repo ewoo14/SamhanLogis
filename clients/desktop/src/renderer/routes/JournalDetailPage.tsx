@@ -568,7 +568,7 @@ export function JournalDetailPage() {
       </Card>
 
       {isMobile ? (
-        <MobileCollapsible title="협업 · 코멘트" defaultOpen className="mobile-section-card">
+        <MobileCollapsible title="코멘트" defaultOpen className="mobile-section-card">
           <JournalCollaborationPanel
             journalId={journalId}
             currentValues={collabCurrentValues}

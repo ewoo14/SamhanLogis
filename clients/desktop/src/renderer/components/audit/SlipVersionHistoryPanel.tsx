@@ -25,7 +25,22 @@ import { presenceColorToHex } from '../../utils/presenceColor'
 export interface SlipVersionHistoryPanelProps {
   /** 전표 UUID — react-query 키 + API path 전용 (화면 노출 X). */
   slipId: string
+  /** 협업 패널과 공유하는 선택 revision 번호. */
+  activeRevisionNo?: number | null
+  /**
+   * 코멘트 anchor 와 연결할 필드 경로 목록 — anchor 원형(접두사 없음, 예: {@code "memo"})으로
+   * 전달한다. 리비전 1건이 헤더 필드 여러 개를 동시에 바꿀 수 있어 배열로 받는다(PR #747 재수렴
+   * MEDIUM fix — 단일 문자열이면 리비전 행 클릭 시 첫 필드에 anchor 된 코멘트만 하이라이트되고
+   * 2번째 이후 필드의 코멘트는 역방향 하이라이트가 누락된다). 내부 비교는 {@link normalizeFieldPath}
+   * 로 BE fieldPath 의 {@code "header."} 접두사를 제거해 맞춘다(PR #747 재수렴 HIGH fix).
+   */
+  activeFieldPaths?: string[] | null
+  /** 버전 행/변경 항목 선택 시 협업 패널에 공유한다 — 행 선택 시 해당 리비전의 fieldPaths 전체. */
+  onRevisionSelect?: (revisionNo: number, fieldPaths?: string[]) => void
 }
+
+/** {@link SlipVersionHistoryPanelProps.activeFieldPaths} 미전달 시 기본값 — 매 렌더 재생성 방지. */
+const EMPTY_ACTIVE_FIELD_PATHS: string[] = []
 
 /** revision 유형별 한국어 라벨 + Badge 톤. */
 const REVISION_TYPE_META: Record<
@@ -72,12 +87,53 @@ function fieldPathTestId(fieldPath: string): string {
   return fieldPath.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-function renderFieldChange(change: SlipRevisionFieldChange) {
+/**
+ * 코멘트 anchor ↔ 버전이력 fieldPath 비교용 정규화 (PR #747 재수렴 HIGH fix, 근본원인).
+ *
+ * <p>BE {@code SlipRevisionService.HEADER_FIELDS} 는 헤더 필드 fieldPath 를 전부
+ * {@code "header."} 접두사로 내려준다(예: {@code "header.memo"}). 반면 FE 코멘트 anchor(
+ * {@link SlipCollaborationPanel} 의 {@code OVERLAY_FIELD_OPTIONS}) 는 접두사 없이 저장/전송된다
+ * (예: {@code "memo"}) — BE 요청 anchor 계약은 자유 문자열이라 접두사를 붙이지 않는 편이 기존
+ * 저장 anchor 값(및 향후 다른 anchor 소비처)에 영향이 없다. 라인 fieldPath({@code "lines[0]..."})
+ * 는 애초 접두사가 없어 이 strip 이 영향을 주지 않는다.
+ *
+ * <p>양방향 매칭이 성립하려면 두 표현을 같은 canonical 형태로 합쳐야 한다 — 본 함수가
+ * {@code "header."} 접두사를 제거해 fieldPath 쪽을 anchor 쪽 형태로 맞춘다. 이 함수는
+ * fieldPath 목록 생성(this file) 과 activeFieldPaths 정규화(comment anchor 유래 값 포함, 배열 전
+ * 원소에 element-wise 적용) 양쪽에 동일하게 쓰이므로, 한 번의 수정으로 코멘트→버전이력·
+ * 버전이력→코멘트 양방향이 (다중필드 포함) 모두 정합된다.
+ */
+function normalizeFieldPath(path: string | null | undefined): string {
+  return (path ?? '').replace(/^\/+/, '').replace(/\//g, '.').replace(/^header\./, '')
+}
+
+function renderFieldChange(
+  change: SlipRevisionFieldChange,
+  options: {
+    active: boolean
+    onSelect?: () => void
+  },
+) {
   const actorColor = presenceColorToHex(change.actorColor)
   return (
     <div
       key={change.fieldPath}
       data-testid={`slip-version-history-change-${fieldPathTestId(change.fieldPath)}`}
+      data-active={options.active ? 'true' : undefined}
+      role={options.onSelect ? 'button' : undefined}
+      tabIndex={options.onSelect ? 0 : undefined}
+      onClick={(event) => {
+        if (!options.onSelect) return
+        event.stopPropagation()
+        options.onSelect()
+      }}
+      onKeyDown={(event) => {
+        if (!options.onSelect) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        event.stopPropagation()
+        options.onSelect()
+      }}
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto minmax(0, 1fr)',
@@ -86,6 +142,10 @@ function renderFieldChange(change: SlipRevisionFieldChange) {
         alignItems: 'start',
         fontSize: 12,
         color: 'var(--color-neutral-700)',
+        padding: options.active ? '4px 6px' : 0,
+        borderRadius: 4,
+        background: options.active ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+        cursor: options.onSelect ? 'pointer' : undefined,
       }}
     >
       <span
@@ -129,7 +189,12 @@ function renderFieldChange(change: SlipRevisionFieldChange) {
 /**
  * 전표 상세 화면용 버전이력 패널. AuditOverlay 인접에 배치한다.
  */
-export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps) {
+export function SlipVersionHistoryPanel({
+  slipId,
+  activeRevisionNo = null,
+  activeFieldPaths = EMPTY_ACTIVE_FIELD_PATHS,
+  onRevisionSelect,
+}: SlipVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
   /** 복원 confirm modal 대상 revision (null = 미오픈). */
   const [restoreTarget, setRestoreTarget] = useState<SlipRevision | null>(null)
@@ -148,6 +213,7 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
       setRestoreTarget(null)
       void queryClient.invalidateQueries({ queryKey: ['slip', slipId] })
       void queryClient.invalidateQueries({ queryKey: ['slipRevisions', slipId] })
+      void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', slipId] })
       setToast({
         kind: 'success',
         text: `버전 ${revisionNo} 시점으로 전표를 복원했습니다.`,
@@ -162,6 +228,16 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
   const revisions: SlipRevision[] = Array.isArray(revisionsQuery.data)
     ? revisionsQuery.data
     : []
+
+  /**
+   * 코멘트 anchor 유래 활성 필드 목록을 canonical 형태(Set)로 정규화한다 — 리비전 행 전체 배열과의
+   * 교집합 판정(다중필드) 및 개별 필드변경과의 포함 판정에 재사용한다(PR #747 재수렴 MEDIUM fix).
+   */
+  const normalizedActiveFieldPaths = new Set(
+    (activeFieldPaths ?? EMPTY_ACTIVE_FIELD_PATHS)
+      .map((path) => normalizeFieldPath(path))
+      .filter((path) => path.length > 0),
+  )
 
   return (
     <Card
@@ -187,7 +263,7 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
             border: '1px solid',
             borderColor:
               toast.kind === 'success'
-                ? 'var(--color-success-300, #6EE7B7)'
+                ? 'var(--color-success-200, #a7f3d0)'
                 : 'var(--color-danger-300, #FCA5A5)',
             background:
               toast.kind === 'success'
@@ -195,7 +271,7 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
                 : 'var(--color-danger-50, #FEF2F2)',
             color:
               toast.kind === 'success'
-                ? 'var(--color-success-800, #065F46)'
+                ? 'var(--color-success-700, #047857)'
                 : 'var(--color-danger-800, #991B1B)',
             fontSize: 13,
           }}
@@ -254,18 +330,37 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
             // 가장 최근 revision(목록 첫 항목) 은 현재 상태이므로 복원 버튼을 노출하지 않는다.
             const isLatest = rev.revisionNo === revisions[0]?.revisionNo
             const fieldChanges = Array.isArray(rev.fieldChanges) ? rev.fieldChanges : []
+            const fieldPaths = fieldChanges.map((change) => normalizeFieldPath(change.fieldPath))
+            // 다중필드 리비전: fieldPaths 중 하나라도 활성 목록에 있으면 행 전체를 하이라이트한다
+            // (PR #747 재수렴 MEDIUM fix — 이전엔 단일 activeFieldPath 비교라 첫 필드만 매칭됐다).
+            const isHighlighted = activeRevisionNo === rev.revisionNo
+              || fieldPaths.some((path) => normalizedActiveFieldPaths.has(path))
             return (
               <li
                 key={rev.revisionNo}
                 data-testid={`slip-version-history-row-${rev.revisionNo}`}
+                data-active={isHighlighted ? 'true' : undefined}
+                aria-current={isHighlighted ? 'true' : undefined}
+                tabIndex={onRevisionSelect ? 0 : undefined}
+                onClick={() => onRevisionSelect?.(rev.revisionNo, fieldPaths)}
+                onKeyDown={(event) => {
+                  if (!onRevisionSelect) return
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  onRevisionSelect(rev.revisionNo, fieldPaths)
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 12,
-                  padding: '8px 0',
+                  padding: '8px',
                   borderBottom: '1px solid var(--color-neutral-200)',
                   flexWrap: 'wrap',
+                  borderRadius: 6,
+                  background: isHighlighted ? 'var(--color-warning-50, #FEF6E7)' : 'transparent',
+                  boxShadow: isHighlighted ? 'inset 3px 0 0 var(--color-warning-500, #E9A53D)' : undefined,
+                  cursor: onRevisionSelect ? 'pointer' : undefined,
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -297,7 +392,16 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
                         paddingLeft: 2,
                       }}
                     >
-                      {fieldChanges.map(renderFieldChange)}
+                      {fieldChanges.map((change) => {
+                        const normalized = normalizeFieldPath(change.fieldPath)
+                        return renderFieldChange(change, {
+                          active: activeRevisionNo === rev.revisionNo
+                            || normalizedActiveFieldPaths.has(normalized),
+                          onSelect: onRevisionSelect
+                            ? () => onRevisionSelect(rev.revisionNo, [normalized])
+                            : undefined,
+                        })
+                      })}
                     </div>
                   ) : null}
                 </div>
@@ -307,7 +411,10 @@ export function SlipVersionHistoryPanel({ slipId }: SlipVersionHistoryPanelProps
                     size="sm"
                     data-testid={`slip-version-history-restore-button-${rev.revisionNo}`}
                     disabled={restoreMutation.isPending}
-                    onClick={() => setRestoreTarget(rev)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setRestoreTarget(rev)
+                    }}
                   >
                     이 시점으로 복원
                   </Button>

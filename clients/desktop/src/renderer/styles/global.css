@@ -661,6 +661,51 @@ button {
   .mobile-section-body h4 {
     display: none;
   }
+
+  /*
+   * #31 이력 일원화 — 위 블랭킷 규칙(.mobile-section-body h4)은 "코멘트" MobileCollapsible
+   * 내부에 재중첩된 *VersionHistoryPanel 의 "버전 이력" h4 라벨까지 지워, 코멘트/버전이력
+   * 두 하위 섹션을 구분할 라벨이 모바일에서 소실되는 회귀를 낳는다.
+   * 전체 선택자를 바꾸지 않고(다른 MobileCollapsible 내부 h4 는 계속 숨김 유지),
+   * 버전이력 패널의 data-testid 로만 한정해 라벨을 되살린다(스코프 한정 규칙).
+   *
+   * 개발책임자 결정1(2026-07-06, #31 재확인) — Journal/GroupwareApproval 은 버전이력 격차
+   * 안내 카드(journal-version-history-gap/groupware-approval-version-history-gap) 대신
+   * 수정 이력 패널(journal-collab-edit-history-panel/groupware-approval-collab-edit-history-panel)
+   * 로 대체됐다 — testid 갱신.
+   */
+  .mobile-section-body [data-testid='slip-version-history-panel'] h4,
+  .mobile-section-body [data-testid='estimate-version-history-panel'] h4,
+  .mobile-section-body [data-testid='partner-order-version-history-panel'] h4,
+  .mobile-section-body [data-testid='journal-collab-edit-history-panel'] h4,
+  .mobile-section-body [data-testid='groupware-approval-collab-edit-history-panel'] h4 {
+    display: block;
+  }
+
+  /*
+   * #31 이력 일원화 — 모바일에서 통합 협업 패널(SlipCollaborationPanel)이 버전이력·복원·
+   * 필드 하이라이트의 유일 경로가 되면서, 내부 인터랙션의 터치 타겟을 44px 로 확보한다.
+   * .mobile-section-body 하위는 모바일 렌더에서만 존재하므로 데스크톱 density 는 무영향이다.
+   */
+  .mobile-section-body [data-testid='slip-collaboration-panel'] button {
+    min-height: 44px;
+  }
+  .mobile-section-body [data-testid^='slip-version-history-change-'][role='button'] {
+    min-height: 44px;
+    align-content: center;
+  }
+  /*
+   * 복원 확정 등 DS Modal 은 document.body 로 createPortal 되어 위 .mobile-section-body
+   * 스코프 밖에 렌더되므로, 모달 footer 버튼(취소/복원 등)의 모바일 44px 터치타겟을
+   * portal-aware 규칙으로 별도 보강한다(복원 플로우 최종 단계까지 44px 완결).
+   */
+  [data-testid='ds-modal-backdrop'] footer button {
+    min-height: 44px;
+  }
+  /* 코멘트 '연결 필드' 는 <select> 라 위 button 규칙에 안 걸림 — 동일 44px 보강. */
+  .mobile-section-body [data-testid='slip-collaboration-panel'] select {
+    min-height: 44px;
+  }
 }
 
 /* SlipDetailPage — 라인 표 + 좌측 넘버링 + 행 액션 툴바 + 하단 액션 */

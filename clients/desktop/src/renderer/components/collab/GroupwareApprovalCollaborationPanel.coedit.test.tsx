@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
 
@@ -148,15 +148,136 @@ afterEach(() => {
 })
 
 describe('GroupwareApprovalCollaborationPanel 협업 패널 배치', () => {
-  it('협업 메모를 제거하고 코멘트를 수정 이력 위에 전폭으로 렌더한다', () => {
+  it('협업 헤더는 제거하고 코멘트+수정 이력을 전폭으로 렌더한다 (버전이력 안내 카드 없음, #31 결정1 복구)', async () => {
     renderPanel('approval/id with spaces')
 
     const commentSection = screen.getByLabelText('코멘트')
-    const editSection = screen.getByLabelText('수정 이력')
     expect(screen.queryByText('협업 메모')).toBeNull()
+    expect(screen.queryByRole('heading', { name: '협업' })).toBeNull()
     expect(commentSection.style.width).toBe('100%')
-    expect(editSection.style.width).toBe('100%')
-    expect(commentSection.compareDocumentPosition(editSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // #31 이력 일원화가 남긴 버전이력 격차 안내 카드는 결정1로 완전히 대체된다.
+    expect(screen.queryByTestId('groupware-approval-version-history-gap')).toBeNull()
+
+    const editHistorySection = await screen.findByLabelText('수정 이력')
+    expect(editHistorySection.style.width).toBe('100%')
+    const editList = screen.getByTestId('groupware-approval-collab-edit-list')
+    await waitFor(() => {
+      expect(editList.textContent).toContain('아직 수정 이력이 없습니다')
+    })
+    expect(commentSection.compareDocumentPosition(editHistorySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows field-label badges only for anchored comments', async () => {
+    apiMocks.getGroupwareApprovalCollabComments.mockResolvedValue([
+      {
+        id: 'comment-department',
+        anchor: 'field.department',
+        authorName: 'tester',
+        body: 'Groupware department anchor',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:00:00',
+      },
+      {
+        id: 'comment-general',
+        anchor: null,
+        authorName: 'tester',
+        body: 'Groupware general comment',
+        parentId: null,
+        status: 'OPEN',
+        createdAt: '2026-07-06T09:05:00',
+      },
+    ])
+
+    renderPanel('approval/id with spaces')
+
+    await screen.findByText('Groupware department anchor')
+    const anchorSelect = screen.getByTestId('groupware-approval-collab-comment-anchor-select')
+    const departmentLabel = anchorSelect.querySelector('option[value="field.department"]')?.textContent
+    const items = screen.getAllByTestId('groupware-approval-collab-comment-item')
+    const departmentComment = items.find((el) => el.textContent?.includes('Groupware department anchor'))
+    const generalComment = items.find((el) => el.textContent?.includes('Groupware general comment'))
+    expect(departmentComment).toBeDefined()
+    expect(generalComment).toBeDefined()
+
+    expect(within(departmentComment!).getByTestId('groupware-approval-collab-comment-anchor-badge').textContent).toBe(departmentLabel)
+    expect(within(generalComment!).queryByTestId('groupware-approval-collab-comment-anchor-badge')).toBeNull()
+  })
+
+  it('수정 이력 diff 클릭과 코멘트 anchor 클릭이 같은 activeFieldPath 하이라이트 상태를 공유한다 (결정2 양방향)', async () => {
+    apiMocks.getGroupwareApprovalCollabComments.mockResolvedValue([{
+      id: 'comment-1',
+      anchor: 'title',
+      authorName: '홍길동',
+      body: '제목 확인 요청',
+      parentId: null,
+      status: 'OPEN',
+      createdAt: '2026-07-06T09:00:00',
+    }])
+    apiMocks.getGroupwareApprovalCollabEdits.mockResolvedValue([{
+      id: 'edit-1',
+      changeSet: JSON.stringify({
+        title: { before: '창고 소모품 구매', after: '창고 소모품 구매 품의' },
+        'field.department': { before: '영업', after: '총무' },
+      }),
+      reason: null,
+      proposerName: '홍길동',
+      status: 'ACCEPTED',
+      decidedByName: '홍길동',
+      decidedAt: '2026-07-06T09:10:00',
+      createdAt: '2026-07-06T09:10:00',
+    }])
+
+    renderPanel('approval/id with spaces')
+
+    const commentItem = await screen.findByTestId('groupware-approval-collab-comment-item')
+    const titleDiff = await screen.findByTestId('groupware-approval-collab-edit-change-title')
+    const departmentDiff = screen.getByTestId('groupware-approval-collab-edit-change-field-department')
+
+    // 1) 코멘트(anchor=title) 클릭 → 같은 필드 수정 이력 diff 가 하이라이트된다.
+    fireEvent.click(commentItem)
+    await waitFor(() => {
+      expect(titleDiff.getAttribute('data-active')).toBe('true')
+    })
+    expect(departmentDiff.getAttribute('data-active')).toBeNull()
+
+    // 2) 반대 방향 — 다른 필드 diff 클릭 → activeFieldPath 이동으로 코멘트 하이라이트가 해제된다.
+    fireEvent.click(departmentDiff)
+    await waitFor(() => {
+      expect(departmentDiff.getAttribute('data-active')).toBe('true')
+    })
+    expect(titleDiff.getAttribute('data-active')).toBeNull()
+    expect(commentItem.getAttribute('data-active')).toBeNull()
+  })
+
+  it('연결 필드를 선택해 코멘트를 등록하면 anchor 가 요청에 포함된다 (결정2 anchor 생성 UX)', async () => {
+    apiMocks.addGroupwareApprovalCollabComment.mockResolvedValue({
+      id: 'comment-2',
+      anchor: 'field.department',
+      authorName: '홍길동',
+      body: '부서 확인 요청',
+      parentId: null,
+      status: 'OPEN',
+      createdAt: '2026-07-06T09:20:00',
+    })
+
+    renderPanel('approval/id with spaces')
+    await screen.findByLabelText('코멘트')
+
+    fireEvent.change(screen.getByTestId('groupware-approval-collab-comment-anchor-select'), {
+      target: { value: 'field.department' },
+    })
+    fireEvent.change(screen.getByTestId('groupware-approval-collab-comment-input'), {
+      target: { value: '부서 확인 요청' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => {
+      expect(apiMocks.addGroupwareApprovalCollabComment).toHaveBeenCalledWith('approval/id with spaces', {
+        body: '부서 확인 요청',
+        anchor: 'field.department',
+      })
+    })
   })
 })
 

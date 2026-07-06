@@ -27,6 +27,7 @@ const DOCUMENT_NO_KEY_SET = new Set([
   'journalNo',
   'reverseJournalNo',
   'orderNo',
+  'estimateNo',
   'taxInvoiceNo',
   'salesSlipNo',
   'purchaseSlipNo',

@@ -3,7 +3,7 @@
  *
  * 검증 대상: {@code SlipCollaborationPanel} (전표 상세 `/sales/:id` 하단 협업 섹션) 의
  *   1) 코멘트 등록 → 목록 반영 (+ 해결 처리 → '해결' 배지)
- *   2) 수정 버튼 → 편집 → 수정완료 → 수정 이력 diff 표시
+ *   2) 수정 버튼 → 편집 → 수정완료 → 버전이력 패널 유지 및 diff 목록 제거
  *
  * <h2>권한 전제 — mock 매트릭스 (Round C P2-1 fix)</h2>
  * <p>패널 버튼은 {@code canAccess('slip.comments'|'slip.audit-overlay', ...)} 로 가드된다.
@@ -113,13 +113,18 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(commentItem).toContainText('해결')
   })
 
-  test('수정 버튼 → 편집 → 수정완료 → 이력 diff 반영', async ({ page }) => {
+  test('수정 버튼 → 편집 → 수정완료 → 버전이력으로 일원화', async ({ page }) => {
     await installAuthMock(page)
     await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
 
     const panel = page.getByTestId('slip-collaboration-panel')
     await expect(panel).toBeVisible()
-    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toBeVisible()
+    await expect(panel.getByRole('heading', { name: '협업' })).toHaveCount(0)
+    await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
+    await expect(panel.getByTestId('slip-collab-edit-item')).toHaveCount(0)
+    const versionHistory = panel.getByTestId('slip-version-history-panel')
+    await expect(versionHistory).toBeVisible()
+    await expect(versionHistory.getByTestId('slip-version-history-row-2')).toBeVisible()
     await expect(page.getByTestId('slip-detail-edit-request-button')).toHaveCount(0)
     await expect(page.getByTestId('slip-detail-delete-request-button')).toBeVisible()
 
@@ -133,15 +138,15 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await form.getByLabel('수정 사유').fill('현장 요청 반영')
     await form.getByRole('button', { name: '수정완료' }).click()
 
-    // 3) 목록 반영 — 수정완료 배지 + 이전값 → 새값 diff + 사유.
-    const item = panel.getByTestId('slip-collab-edit-item')
-    await expect(item).toHaveCount(1)
-    await expect(item).toContainText('오병승')
-    await expect(item).toContainText('수정완료')
-    await expect(item).toContainText('메모')
-    await expect(item).toContainText('출고 전 거래처 통화 완료')
-    await expect(item).toContainText('사유: 현장 요청 반영')
-    await expect(panel.getByText('아직 수정 이력이 없습니다.')).toHaveCount(0)
+    // 3) diff 전용 목록은 만들지 않고, 버전이력 패널만 남긴다.
+    await expect(panel.getByTestId('slip-collab-edit-item')).toHaveCount(0)
+    await expect(panel.getByLabel('수정 이력')).toHaveCount(0)
+    await expect(versionHistory).toBeVisible()
+
+    // 4) 버전이력 항목 선택은 공유 highlight 상태를 반영한다.
+    const revisionRow = versionHistory.getByTestId('slip-version-history-row-2')
+    await revisionRow.click()
+    await expect(revisionRow).toHaveAttribute('data-active', 'true')
   })
 
   test('presence list 백필은 다른 시청자와 본인 아바타를 함께 표시한다', async ({ page }) => {
@@ -187,5 +192,49 @@ test.describe('§7 입출고전표 협업 패널', () => {
     await expect(inlineForm.getByLabel('수량 1')).toHaveValue('3')
     await expect(inlineForm.getByLabel('단가(VAT제외) 1')).toHaveValue('120000')
     await expect(inlineForm).not.toContainText(DRAFT_SLIP_ID)
+  })
+
+  /**
+   * PR #747 재수렴 HIGH fix 라이브(mock) 회귀 가드 — root cause: BE {@code SlipRevisionService}
+   * 는 헤더 fieldPath 를 {@code "header."} 접두사로 내려주는데(예: {@code "header.memo"}),
+   * FE 코멘트 anchor(OVERLAY_FIELD_OPTIONS)는 접두사 없이 저장된다(예: {@code "memo"}). 두 값이
+   * {@link SlipVersionHistoryPanel} 의 {@code normalizeFieldPath} 를 거치지 않고 그대로 비교되면
+   * 11개 overlay 필드 전량이 매칭 실패한다 — 이 spec 은 실제 코멘트 등록 → 클릭 → 버전이력
+   * 하이라이트(양방향)를 실 브라우저(mock 모드)로 재현해 회귀를 막는다.
+   */
+  test('코멘트 anchor(메모) 클릭 ↔ 버전이력 header.memo 항목이 서로 하이라이트된다 (양방향, PR #747 재수렴 HIGH fix)', async ({ page }) => {
+    await installAuthMock(page)
+    await page.goto(PAGE_URL, { waitUntil: 'domcontentloaded' })
+
+    const panel = page.getByTestId('slip-collaboration-panel')
+    await expect(panel).toBeVisible()
+
+    // 연결 필드 = 메모 선택 후 코멘트 등록 (결정2 anchor 생성 UX — OVERLAY_FIELD_OPTIONS 'memo').
+    await panel.getByTestId('slip-collab-comment-anchor-select').selectOption('memo')
+    await panel.getByTestId('slip-collab-comment-input').fill('메모 반영 확인 부탁드립니다')
+    await panel.getByRole('button', { name: '등록' }).click()
+
+    const commentItem = panel.getByTestId('slip-collab-comment-item')
+      .filter({ hasText: '메모 반영 확인 부탁드립니다' })
+    await expect(commentItem).toBeVisible()
+
+    const versionHistory = panel.getByTestId('slip-version-history-panel')
+    const memoChange = versionHistory.getByTestId('slip-version-history-change-header-memo')
+    const revisionRow = versionHistory.getByTestId('slip-version-history-row-2')
+    await expect(memoChange).toBeVisible()
+
+    // 클릭 전 — 아직 activeFieldPath 를 공유하지 않았으므로 미하이라이트.
+    await expect(commentItem).not.toHaveAttribute('data-active', 'true')
+    await expect(memoChange).not.toHaveAttribute('data-active', 'true')
+
+    // 1) 정방향 — 코멘트(anchor=memo) 클릭 → header.memo 버전이력 항목 + revision 행 하이라이트.
+    await commentItem.click()
+    await expect(memoChange).toHaveAttribute('data-active', 'true')
+    await expect(revisionRow).toHaveAttribute('data-active', 'true')
+
+    // 2) 역방향 — 버전이력 항목(header.memo) 클릭 → 코멘트 하이라이트 (같은 세션에서 이어 확인).
+    await memoChange.click()
+    await expect(commentItem).toHaveAttribute('data-active', 'true')
+    await expect(commentItem).toHaveAttribute('aria-current', 'true')
   })
 })
