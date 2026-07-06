@@ -57,7 +57,13 @@ class EstimateControllerSecurityContractTest {
                         PermissionAction.UPDATE),
                 new WriteMethod(EstimateController.class.getMethod(
                         "convert", UUID.class, String.class),
-                        PermissionAction.UPDATE)
+                        PermissionAction.UPDATE),
+                new WriteMethod(EstimateController.class.getMethod(
+                        "delete", UUID.class, String.class, String.class),
+                        PermissionAction.DELETE),
+                new WriteMethod(EstimateController.class.getMethod(
+                        "restore", UUID.class),
+                        PermissionAction.RESTORE)
         );
 
         for (WriteMethod writeMethod : methods) {

@@ -23,6 +23,14 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID> {
     Optional<Estimate> findByEstimateNo(String estimateNo);
 
     /**
+     * soft-deleted row 를 포함해 id 로 조회한다.
+     *
+     * <p>목록 soft-delete 복원은 {@code @SQLRestriction} 우회 로드가 필요하므로 native query 를 사용한다.
+     */
+    @Query(value = "SELECT * FROM estimates WHERE id = :id LIMIT 1", nativeQuery = true)
+    Optional<Estimate> findByIdIncludingDeleted(@Param("id") UUID id);
+
+    /**
      * 협업 overlay 적용용 조회.
      *
      * <p>라인 메모만 변경되는 경우 자식 {@code estimate_lines} 만 dirty 가 되어 부모 {@code Estimate}
@@ -40,6 +48,36 @@ public interface EstimateRepository extends JpaRepository<Estimate, UUID> {
 
     /** 활성 전체 페이지. */
     Page<Estimate> findAllByIsDeletedFalse(Pageable pageable);
+
+    /**
+     * soft-deleted row 를 포함한 견적 목록 검색.
+     *
+     * <p>{@code status} 는 enum 의 {@link EstimateStatus#name()} 문자열을 전달해야 한다. native query 에
+     * raw enum 을 바인딩하면 ordinal 로 바인딩되어 status 필터가 0건이 되는 회귀가 발생한다.
+     */
+    @Query(value = """
+            SELECT *
+              FROM estimates e
+             WHERE (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
+               AND (CAST(:partnerId AS uuid) IS NULL OR e.partner_id = CAST(:partnerId AS uuid))
+               AND (CAST(:startDate AS date) IS NULL OR e.estimate_date >= CAST(:startDate AS date))
+               AND (CAST(:endDate AS date) IS NULL OR e.estimate_date <= CAST(:endDate AS date))
+             ORDER BY e.is_deleted ASC, e.estimate_date DESC, e.seq_no DESC, e.created_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+              FROM estimates e
+             WHERE (CAST(:status AS varchar) IS NULL OR e.status = CAST(:status AS varchar))
+               AND (CAST(:partnerId AS uuid) IS NULL OR e.partner_id = CAST(:partnerId AS uuid))
+               AND (CAST(:startDate AS date) IS NULL OR e.estimate_date >= CAST(:startDate AS date))
+               AND (CAST(:endDate AS date) IS NULL OR e.estimate_date <= CAST(:endDate AS date))
+            """,
+            nativeQuery = true)
+    Page<Estimate> searchIncludingDeleted(@Param("status") String status,
+                                          @Param("partnerId") UUID partnerId,
+                                          @Param("startDate") LocalDate startDate,
+                                          @Param("endDate") LocalDate endDate,
+                                          Pageable pageable);
 
     /** 상태별 페이지. */
     Page<Estimate> findAllByStatusAndIsDeletedFalse(EstimateStatus status, Pageable pageable);

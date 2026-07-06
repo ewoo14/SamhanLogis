@@ -90,6 +90,9 @@ export interface EstimateSummary {
   convertedAt: string | null
   requesterId: string | null
   version: number
+  isDeleted: boolean
+  deletedAt: string | null
+  deletedByName: string | null
 }
 
 /** 견적서 단건 상세 — BE {@code EstimateDetailResponse}. */
@@ -238,4 +241,19 @@ export async function convertEstimate(id: string): Promise<EstimateDetail> {
     {},
   )
   return res.data.data
+}
+
+/** 견적서 soft-delete. */
+export async function deleteEstimate(id: string): Promise<void> {
+  await apiClient.delete<ApiEnvelope<null>>(
+    `/slips/estimates/${encodeURIComponent(id)}`,
+  )
+}
+
+/** 견적서 soft-delete 복원. */
+export async function restoreEstimate(id: string): Promise<void> {
+  await apiClient.post<ApiEnvelope<EstimateDetail>>(
+    `/slips/estimates/${encodeURIComponent(id)}/restore`,
+    {},
+  )
 }

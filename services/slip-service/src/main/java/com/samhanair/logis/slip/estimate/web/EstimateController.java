@@ -23,6 +23,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -176,6 +177,27 @@ public class EstimateController {
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader) {
         return ApiResponse.ok(estimateService.convert(id, callerOrSystem(callerHeader)));
+    }
+
+    /** 견적서 목록 soft-delete. */
+    @Operation(summary = "견적서 soft-delete", description = "목록에서 취소선 삭제 처리. 원장/전환 전표 미접촉.")
+    @DeleteMapping("/{id}")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.DELETE)
+    public ApiResponse<Void> delete(
+            @PathVariable UUID id,
+            @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
+            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
+        estimateService.delete(id, callerOrSystem(callerHeader), callerName);
+        return ApiResponse.ok(null);
+    }
+
+    /** 견적서 목록 soft-delete 복원. */
+    @Operation(summary = "견적서 soft-delete 복원", description = "삭제행을 활성 견적으로 복원한다. 동일 견적번호 활성행 공존 시 409.")
+    @PostMapping("/{id}/restore")
+    @RequirePermission(page = EstimatePermissionGuard.PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
+    public ApiResponse<EstimateDetailResponse> restore(
+            @PathVariable UUID id) {
+        return ApiResponse.ok(estimateService.restore(id));
     }
 
     private UUID parseAccountId(String header) {

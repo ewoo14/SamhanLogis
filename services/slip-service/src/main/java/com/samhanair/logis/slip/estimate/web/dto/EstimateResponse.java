@@ -26,7 +26,10 @@ public record EstimateResponse(
         LocalDateTime acceptedAt,
         LocalDateTime convertedAt,
         String requesterId,
-        Long version) {
+        Long version,
+        Boolean isDeleted,
+        LocalDateTime deletedAt,
+        String deletedByName) {
 
     public static EstimateResponse from(Estimate estimate) {
         return new EstimateResponse(
@@ -47,6 +50,9 @@ public record EstimateResponse(
                 estimate.getAcceptedAt(),
                 estimate.getConvertedAt(),
                 estimate.getRequesterId(),
-                estimate.getVersion());
+                estimate.getVersion(),
+                estimate.getIsDeleted(),
+                estimate.getDeletedAt(),
+                estimate.getDeletedByName());
     }
 }

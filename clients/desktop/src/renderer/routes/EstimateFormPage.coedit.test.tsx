@@ -135,6 +135,9 @@ function makeEstimate(overrides: Partial<EstimateDetail> = {}): EstimateDetail {
     convertedAt: null,
     requesterId: null,
     version: 1,
+    isDeleted: false,
+    deletedAt: null,
+    deletedByName: null,
     rejectedAt: null,
     memo: '초기 메모',
     lines: [

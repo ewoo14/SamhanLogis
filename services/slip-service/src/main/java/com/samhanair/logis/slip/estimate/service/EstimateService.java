@@ -17,6 +17,8 @@ import com.samhanair.logis.slip.estimate.web.dto.CreateEstimateRequest;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateDetailResponse;
 import com.samhanair.logis.slip.estimate.web.dto.EstimateResponse;
 import com.samhanair.logis.slip.estimate.web.dto.UpdateEstimateRequest;
+import com.samhanair.logis.slip.realtime.EstimateListRealtime;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import jakarta.persistence.OptimisticLockException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,6 +59,7 @@ public class EstimateService {
     private final ProductClient productClient;
     private final EstimateToSlipConverter slipConverter;
     private final EstimateRevisionService estimateRevisionService;
+    private final CollectionRealtimePublisher collectionRealtimePublisher;
 
     /**
      * 견적 라인 추가 — BUNDLE(세트) 품목이면 product-service expand 로 구성품 라인 N개로 전개(옵션 A,
@@ -164,6 +168,7 @@ public class EstimateService {
         // 권한 재편 Phase 2.2 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
         estimateRevisionService.capture(saved, EstimateRevisionType.CREATE, null,
                 parseActorId(requesterId), resolveActorName(requesterName, requesterId), null);
+        publishListChanged("CREATED");
         return EstimateDetailResponse.from(saved);
     }
 
@@ -208,6 +213,7 @@ public class EstimateService {
         // 권한 재편 Phase 2.2 — 헤더/라인 변경 후 EDIT 스냅샷 캡처. 도메인 가드를 통과한 성공 경로에서만 도달한다.
         estimateRevisionService.capture(estimate, EstimateRevisionType.EDIT, null,
                 parseActorId(callerId), resolveActorName(callerName, callerId), null);
+        publishListChanged("UPDATED");
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -215,6 +221,7 @@ public class EstimateService {
     public EstimateDetailResponse send(UUID id, String callerId) {
         Estimate estimate = loadOrThrow(id);
         applyMutation(estimate::send);
+        publishListChanged("STATUS_CHANGED");
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -222,6 +229,7 @@ public class EstimateService {
     public EstimateDetailResponse accept(UUID id, String callerId) {
         Estimate estimate = loadOrThrow(id);
         applyMutation(estimate::accept);
+        publishListChanged("STATUS_CHANGED");
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -229,6 +237,7 @@ public class EstimateService {
     public EstimateDetailResponse reject(UUID id, String callerId) {
         Estimate estimate = loadOrThrow(id);
         applyMutation(estimate::reject);
+        publishListChanged("STATUS_CHANGED");
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -256,6 +265,7 @@ public class EstimateService {
         }
         Slip slip = slipConverter.convert(estimate);
         applyMutation(() -> estimate.markConverted(slip.getId()));
+        publishListChanged("STATUS_CHANGED");
         return EstimateDetailResponse.from(estimate);
     }
 
@@ -288,6 +298,48 @@ public class EstimateService {
         // 라인 전량 교체(clear + 신규 라인 add) 영속화
         estimateRepository.save(estimate);
         return EstimateDetailResponse.from(estimate);
+    }
+
+    /**
+     * 견적 목록 soft-delete.
+     *
+     * <p>CONVERTED 견적도 삭제 가능하다. 본 삭제는 출고전표 전환 결과를 되돌리는 업무 취소가 아니라
+     * 목록 표시 tombstone 처리이며, {@code converted_slip_id} / 전표 원장은 건드리지 않는다.
+     */
+    public void delete(UUID id, String callerId, String callerName) {
+        Estimate estimate = loadOrThrow(id);
+        estimate.markDeletedWithName(callerOrSystem(callerId), resolveActorName(callerName, callerId));
+        publishListChanged("DELETED");
+    }
+
+    /**
+     * 견적 목록 soft-delete 복원.
+     *
+     * <p>동일 견적번호 활성행이 이미 존재하면 partial unique 위반을 사전 409 로 차단하고, 경합으로
+     * {@link DataIntegrityViolationException} 이 발생해도 409 로 매핑한다.
+     */
+    public EstimateDetailResponse restore(UUID id) {
+        Estimate estimate = estimateRepository.findByIdIncludingDeleted(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "견적서를 찾을 수 없습니다"));
+        if (!Boolean.TRUE.equals(estimate.getIsDeleted())) {
+            return EstimateDetailResponse.from(estimate);
+        }
+        if (estimateRepository.findByEstimateNo(estimate.getEstimateNo()).isPresent()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 사용 중인 견적번호로 활성 견적이 존재하여 복원할 수 없습니다: "
+                            + estimate.getEstimateNo());
+        }
+        try {
+            estimate.markRestoredWithNameCleared();
+            Estimate restored = estimateRepository.saveAndFlush(estimate);
+            publishListChanged("RESTORED");
+            return EstimateDetailResponse.from(restored);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 사용 중인 견적번호로 활성 견적이 존재하여 복원할 수 없습니다: "
+                            + estimate.getEstimateNo(), ex);
+        }
     }
 
     /** 단건 조회. */
@@ -326,24 +378,9 @@ public class EstimateService {
     @Transactional(readOnly = true)
     public Page<EstimateResponse> list(EstimateStatus status, UUID partnerId,
                                        LocalDate startDate, LocalDate endDate, Pageable pageable) {
-        Page<Estimate> page;
-        if (status != null && partnerId != null) {
-            page = estimateRepository.findAllByStatusAndPartnerIdAndIsDeletedFalse(
-                    status, partnerId, pageable);
-        } else if (status != null && startDate != null && endDate != null) {
-            page = estimateRepository.findAllByStatusAndEstimateDateBetweenAndIsDeletedFalse(
-                    status, startDate, endDate, pageable);
-        } else if (status != null) {
-            page = estimateRepository.findAllByStatusAndIsDeletedFalse(status, pageable);
-        } else if (partnerId != null) {
-            page = estimateRepository.findAllByPartnerIdAndIsDeletedFalse(partnerId, pageable);
-        } else if (startDate != null && endDate != null) {
-            page = estimateRepository.findAllByEstimateDateBetweenAndIsDeletedFalse(
-                    startDate, endDate, pageable);
-        } else {
-            page = estimateRepository.findAllByIsDeletedFalse(pageable);
-        }
-        return page.map(EstimateResponse::from);
+        return estimateRepository.searchIncludingDeleted(
+                        status == null ? null : status.name(), partnerId, startDate, endDate, pageable)
+                .map(EstimateResponse::from);
     }
 
     /**
@@ -395,6 +432,18 @@ public class EstimateService {
         return estimateRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "견적서를 찾을 수 없습니다"));
+    }
+
+    private String callerOrSystem(String callerId) {
+        return (callerId == null || callerId.isBlank()) ? "system" : callerId.trim();
+    }
+
+    /** 견적 목록 변경 발화 (커밋 후). */
+    private void publishListChanged(String changeType) {
+        collectionRealtimePublisher.publishChange(
+                EstimateListRealtime.CHANNEL_ID,
+                EstimateListRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 
     private static String toSlashDocumentNo(String value) {

@@ -24,6 +24,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -69,6 +70,8 @@ public class Estimate extends BaseEntity {
 
     private static final int MEMO_MAX_LENGTH = 1000;
     private static final int LINE_NOTE_MAX_LENGTH = 200;
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     /** 한국 부가세율 10% — VAT 자동 계산 (도메인 상수, 추후 사용 예정). */
     @SuppressWarnings("unused")
@@ -145,6 +148,9 @@ public class Estimate extends BaseEntity {
 
     @Column(name = "requester_id", nullable = false, length = 50)
     private String requesterId;
+
+    @Column(name = "deleted_by_name", length = 100)
+    private String deletedByName;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -337,6 +343,18 @@ public class Estimate extends BaseEntity {
         this.convertedAt = LocalDateTime.now();
     }
 
+    /** 목록 soft-delete 표시용 삭제자명을 함께 저장한다. */
+    public void markDeletedWithName(String userId, String actorName) {
+        markDeleted(userId);
+        this.deletedByName = safeActorName(actorName);
+    }
+
+    /** 목록 soft-delete 복원 시 표시용 삭제자명을 제거한다. */
+    public void markRestoredWithNameCleared() {
+        markRestored();
+        this.deletedByName = null;
+    }
+
     /** 수정 가능 단계인지 — service 레이어 가드 헬퍼. */
     public boolean isEditable() {
         return EDITABLE_STATUSES.contains(this.status);
@@ -525,5 +543,16 @@ public class Estimate extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "전이 가능한 상태가 아닙니다: 현재 " + this.status + ", 필요 " + expected);
         }
+    }
+
+    private static String safeActorName(String actorName) {
+        if (actorName == null || actorName.isBlank()) {
+            return null;
+        }
+        String trimmed = actorName.trim();
+        if (UUID_PATTERN.matcher(trimmed).matches()) {
+            return null;
+        }
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 }

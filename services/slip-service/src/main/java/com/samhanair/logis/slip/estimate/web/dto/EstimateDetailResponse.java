@@ -31,6 +31,9 @@ public record EstimateDetailResponse(
         String memo,
         String requesterId,
         Long version,
+        Boolean isDeleted,
+        LocalDateTime deletedAt,
+        String deletedByName,
         List<EstimateLineResponse> lines) {
 
     public static EstimateDetailResponse from(Estimate estimate) {
@@ -56,6 +59,9 @@ public record EstimateDetailResponse(
                 estimate.getMemo(),
                 estimate.getRequesterId(),
                 estimate.getVersion(),
+                estimate.getIsDeleted(),
+                estimate.getDeletedAt(),
+                estimate.getDeletedByName(),
                 estimate.getLines().stream()
                         .map(EstimateLineResponse::from)
                         .toList());
