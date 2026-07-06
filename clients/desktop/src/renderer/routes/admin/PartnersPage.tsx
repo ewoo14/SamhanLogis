@@ -41,6 +41,7 @@ import {
   type PartnerStatus,
   type PartnerSummary,
 } from '../../api/adminApi'
+import { extractApiErrorResponseMessage } from '../../api/apiError'
 import { PARTNER_TYPE_LABEL, type PartnerType } from '../../api/partnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -139,9 +140,8 @@ export function PartnersPage() {
     },
     onError: (error) =>
       setRestoreError(
-        error instanceof Error && error.message
-          ? `복원 실패: ${error.message}`
-          : '복원에 실패했습니다. 거래처 상태 또는 권한(임원실 부서)을 확인하세요.',
+        extractApiErrorResponseMessage(error)
+          ?? '복원에 실패했습니다. 거래처 상태 또는 권한(임원실 부서)을 확인하세요.',
       ),
   })
 
@@ -365,7 +365,7 @@ export function PartnersPage() {
           className="error-banner"
           role="alert"
           data-testid="admin-partners-restore-error"
-          style={{ marginBottom: 12, padding: 12, color: 'var(--state-danger)' }}
+          style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700)' }}
         >
           {restoreError}
         </div>
