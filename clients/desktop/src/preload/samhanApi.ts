@@ -76,6 +76,19 @@ function qs(params: Record<string, string | number | boolean | null | undefined>
   return parts.length ? `?${parts.join('&')}` : ''
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => {
+    const table: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }
+    return table[ch] ?? ch
+  })
+}
+
 /** legacy `getCustomerDataAsync` 응답 형태 — Apps Script 코드가 기대하는 array<Customer>. */
 interface LegacyCustomer {
   partnerCode: string
@@ -143,9 +156,9 @@ const RPC_MAPPINGS: RpcMapping[] = [
       const tdHtml = rows
         .map((r) => {
           const item = r as { modelCode?: string; name?: string; releasePrice?: number }
-          return `<tr><td>${item.modelCode ?? ''}</td><td>${item.name ?? ''}</td><td>${
-            item.releasePrice ?? ''
-          }</td></tr>`
+          return `<tr><td>${escapeHtml(item.modelCode)}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(
+            item.releasePrice,
+          )}</td></tr>`
         })
         .join('')
       return `<table style="width:100%"><thead><tr><th>모델명</th><th>품목명</th><th>출시가</th></tr></thead><tbody>${tdHtml}</tbody></table>`

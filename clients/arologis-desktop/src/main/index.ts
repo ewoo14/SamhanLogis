@@ -8,13 +8,13 @@
  * - 인증 토큰 IPC 채널 (`auth:*`) 등록 — preload 가 contextBridge 로 노출
  *
  * 보안 정책 (Samhan Public desktop 패턴 일치):
- * - contextIsolation: true / nodeIntegration: false / sandbox: false (preload 만 IPC 게이트웨이)
+ * - contextIsolation: true / nodeIntegration: false / sandbox: true (preload 만 IPC 게이트웨이)
  *
  * Samhan Public desktop 과 차이:
  * - legacy estimate webview / 종합견적서 link 제거 (배차 도메인 전용).
  * - 자체 auth/* IPC = arologis-service `/auth/admin/login` 응답 토큰 영속.
  */
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
@@ -24,6 +24,30 @@ const __dirname = dirname(__filename)
 
 /** 메인 윈도우 인스턴스 — 다중 윈도우는 본 슬라이스 범위 외. */
 let mainWindow: BrowserWindow | null = null
+
+function isAllowedExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:') return true
+    if (!app.isPackaged && parsed.protocol === 'http:') {
+      return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+    }
+  } catch {
+    return false
+  }
+  return false
+}
+
+function isAllowedAppNavigation(url: string): boolean {
+  if (url === 'about:blank') return true
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (!devUrl) return url.startsWith('file://')
+  try {
+    return new URL(url).origin === new URL(devUrl).origin
+  } catch {
+    return false
+  }
+}
 
 /**
  * 메인 BrowserWindow 를 생성하고 렌더러 컨텐츠를 로드한다.
@@ -45,8 +69,23 @@ function createMainWindow(): void {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
+  })
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isAllowedAppNavigation(url)) return
+    event.preventDefault()
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url)
+    }
   })
 
   mainWindow.once('ready-to-show', () => {
