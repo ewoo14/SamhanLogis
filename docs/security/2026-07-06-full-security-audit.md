@@ -55,14 +55,58 @@
 - **[MEDIUM] JWT secret 부팅가드 부재** — 내부토큰은 (무발동이지만) 가드가 있으나 `SAMHAN_JWT_SECRET`(dev 기본값 `dev-secret-change-me-in-production-32bytes-min!`)은 **어떤 부팅가드도 없음**. prod에서 env 미설정 시 공개된 dev secret로 기동 → JWT 위조 위험. fail-fast 보호 부재.
 - **[LOW→검증] 부팅가드 DEV_DEFAULT 사각지대** — `dc-config`/`partner-order` 등은 내부토큰 dev 기본값이 `dev-only-token-replace`(가드의 `DEV_DEFAULT`와 불일치)라 가드 검사 대상에서 누락.
 
-## 4. 진행 상태 (라운드별 갱신)
+## 4. Opus 라운드 findings (5-에이전트 + 라이브 QA)
+
+> 5개 도메인 병렬 리뷰 + Docker 실서버(localhost 스택) 라이브 QA 결과. confidence = 에이전트 자체 평가(1–10). 라이브 QA 증거: [`qa/2026-07-06-live-qa-evidence.txt`](qa/2026-07-06-live-qa-evidence.txt).
+
+### HIGH
+
+| # | 제목 | 위치 | conf | 라이브 QA |
+|---|---|---|---|---|
+| H1 | **파트너 자가등록 교차테넌트 사칭** — 미인증 등록이 client `partnerCode` 신뢰 + PENDING 승인 우회 → 피해자 공개 사업자번호만으로 피해 테넌트 주문/단가/초안 전권 | `partner-auth-service` `PartnerAuthService.java:125`, `PartnerAuth.java:117/69`, gateway route `partner-auth-public-v1` | 9 | 코드확증(파괴적—비실행) |
+| H2 | **임시비밀번호 계정탈취** — `POST /api/v1/auth/partner-temp-password`가 client가 준 `mobileNo`로 PIN 발송(등록번호 대조 없음) + `NEED_PW_SET`이 현재비번 검증 skip → 완전 탈취 + 피해자 락아웃 | `partner-auth-service` `PartnerAuthService.java:253`, `PartnerAuth.java:151` | 9 | 코드확증(SMS발송—비실행) |
+| H3 | **그룹웨어 쪽지함 IDOR** — `GET /admin/groupware/messages/inbox?userId={uuid}` 소유권 미검, gate `messenger.send`가 전 업무 role에 시드(V30) → 임의 사용자 사쪽지 본문 열람 | `groupware-service` `GroupwareAdminController.java:206`, `MessageService.java:65` | 9 | 코드확증 |
+| H4 | **JWT 서명 secret = 커밋된 dev 기본값 + 부팅가드 부재** — gateway↔auth 공유키가 repo에 커밋(`dev-secret-change-me…`), `InternalTokenGuard` 같은 가드 없음. 공개키를 아는 자가 MASTER JWT 위조 → 전면 우회 | `api-gateway` `application.yml:684`·`JwtProperties.java`, `auth-service` `application.yml:51`, `partner-auth` `:34` | 8 | **✅ 라이브 확증**: 위조토큰→`/products`·`/accounting/journals` **200** |
+| H5 | **arologis 독립배포 부팅가드 부재 + 8097 `0.0.0.0` 노출·secret 미설정** — 공개 dev secret로 `AROLOGIS_MASTER` 위조 → 직접접근 관리자(기사 PII/배차) 탈취. (메인 prod 스택은 127.0.0.1+secret로 미해당) | `arologis-service` `ArologisJwtProperties.java`, `docker/docker-compose.arologis.yml:34` | 7 | 코드확증(별도 배포경로) |
+
+### MEDIUM
+
+| # | 제목 | 위치 | conf | 비고 |
+|---|---|---|---|---|
+| M1 | **그룹웨어 일정 열람 IDOR** — `?ownerId={uuid}` 소유권 미검 (all-role gate) | `GroupwareAdminController.java:232` | 9 | H3 동일 근인 |
+| M2 | **그룹웨어 일정 변조/위조 IDOR** — `PUT …/schedules/{id}` bare findById, `POST`가 body `ownerId` 신뢰 | `GroupwareAdminController.java:244/222` | 8 | read→write 체인 |
+| M3 | **그룹웨어 발신자 위조** — `POST …/messages`가 body `senderId` 신뢰(caller 대조 없음) → 내부 피싱 | `GroupwareAdminController.java:197`, `MessageService.java:34` | 8 | |
+| M4 | **전표타입 권한우회(죽은 코드)** — `checkEditPermissionBySlipType`가 게이트웨이가 strip하는 `X-User-Role` 참조 → 항상 no-op. `sales.slip.edit`만으로 매입전표 변경 가능 | `slip-service` `SlipController.java:701` | 7 | |
+| M5 | **`InternalTokenGuard` 프로파일명 불일치** — 가드는 `"prod"` 검사, 배포는 `SPRING_PROFILES_ACTIVE=production`(+terraform) → 프로덕션 무발동 | `shared/security` `InternalTokenGuard.java:25` | 9 | dev토큰 부팅차단 실패 |
+| M6 | **레거시 웹 주문/견적앱 저장형 XSS** — 백엔드 카탈로그/거래처명을 `.innerHTML`에 무이스케이프(~40곳). 파트너 자가등록 회사명에 payload → 주문폼 열람 시 실행 → 파트너 JWT(sessionStorage) 탈취 | `clients/web/order-app/index.html:5602`, `estimate-app/index.ejs:6043` | 8 | |
+| M7 | **Electron webview HTML 주입** — preload가 무이스케이프 HTML 합성 → 레거시 webview `innerHTML` 실행 | `clients/desktop/src/preload/samhanApi.ts:143` | 7 | contextIsolation로 RCE는 차단 |
+
+### LOW / 하드닝
+
+| # | 제목 | 위치 | conf | 비고 |
+|---|---|---|---|---|
+| L1 | **CORS** `allowedOriginPatterns`에 `localhost:*`/`127.0.0.1:*`/`file://*` + `allowCredentials=true` 프로덕션 잔존 | `api-gateway` `CorsConfig.java:57` | 7 | 원격 미도달, 로컬 상주 공격자만 |
+| L2 | **RN WebView `originWhitelist=['*']`** — 인증 WebView 내 임의 origin 로드 | `clients/mobile/.../MobileOrderWebViewScreen.tsx:93` | 7 | 방어심화 |
+| L3 | **게이트웨이 `/actuator/gateway` = `exposure.include` 등재** — SCG 4.1.x 기본 비활성이라 실제 미노출. **라이브 404 확인** → 오해소지 설정 정리 권고 | `api-gateway` `application.yml:687` | — | ⬇️ E-HIGH에서 하향(라이브 반증) |
+| L4 | Electron `sandbox:false`·`setWindowOpenHandler` 부재 | `clients/desktop/src/main/index.ts:50` | — | 정보성(현재 미악용) |
+| L5 | 루트 `C:…devSamhan-Public.tmp_sync.java` 오추적(시크릿 無)·`samhan_dev_pw` 로컬전용 | repo root, `local-all.yml` | — | 정리 권고 |
+
+### 🔐 신뢰경계 라이브 확증 (설계 견고 — 오탐 방지)
+- **JWT 검증**: `alg=none`·잘못된 서명·토큰없음 = 전부 **401**. jjwt 0.12 `parseSignedClaims` 안전.
+- **게이트웨이 헤더 strip**: 위조 `X-User-Id`+`X-Is-System-Master:true`(토큰X) 경유 = **401**.
+- **downstream 직접접근**: 동일 위조헤더 직접(`:8084`) = **200** → 전 모델이 **127.0.0.1 격리 단일통제**에 의존(H-급 방어심화 관찰).
+- **부서가드**: 위조 MASTER `/admin/users` = **403**(`@RequireDepartment` 방어).
+- **주입 0건**(파라미터 바인딩·서버생성 키·UUID 타입), **SSRF 0건**(host 전부 config/Eureka 바인딩), **역직렬화 0건**, **BCrypt·SecureRandom 일관**, **actuator health/info/prometheus만**, **커밋된 실시크릿 0**.
+
+## 5. 진행 상태 (라운드별 갱신)
 
 | 라운드 | 상태 |
 |---|---|
-| 조기 PR 개설 | ✅ (본 커밋) |
-| Opus 5-에이전트 리뷰 | 🔄 진행 중 |
-| Docker 실사용 QA | ⏳ 대기 |
-| Codex 5-에이전트 리뷰 | ⏳ 대기 (Opus 완료·게시 후) |
+| 조기 PR 개설 | ✅ |
+| Opus 5-에이전트 리뷰 | ✅ (H5·M7·L5 / 상기 표) |
+| Docker 실사용 QA | ✅ (라이브 매트릭스, H4·격리 확증) |
+| Opus 라운드 PR 게시 | 🔄 |
+| Codex 5-에이전트 리뷰 | ⏳ (Opus 게시 후 순차) |
 | 0 수렴 | ⏳ |
 | PM(Fable5) 종합 + 머지 | ⏳ |
 

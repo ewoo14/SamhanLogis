@@ -1,0 +1,31 @@
+================ 보안 라이브 QA (Docker 실서버 :8080) — 2026-07-06T05:13:16Z ================
+
+── A. JWT 위조 (공개 dev secret) ── [HIGH: JWT secret 기본값+가드부재]
+  토큰없음            GET /api/v1/products         -> 401  (기대 401)
+  alg=none 위조       GET /api/v1/products           -> 401  (기대 401=거부)
+  잘못된 서명         GET /api/v1/products        -> 401  (기대 401=거부)
+  위조 MASTER 유효    GET /api/v1/products         -> 200  (NON-401=위조수용!)
+  위조 MASTER 유효    GET /api/v1/accounting/journals -> 200  (NON-401=회계원장 도달!)
+
+── B. 게이트웨이 헤더 위조 strip ── [설계 견고 확인]
+  위조 X-User-Id+Master 헤더(토큰X) /users/me    -> 401  (기대 401=strip)
+
+── C. actuator 노출 ── [E-HIGH 라이브 반증]
+  GET /actuator/health                                 -> 200  (기대 200 공개)
+  GET /actuator/gateway/routes                         -> 404  (200이면 노출; 404=안전)
+  GET /actuator/env                                    -> 404  (기대 404)
+  GET /actuator/beans                                  -> 404  (기대 404)
+
+── D. 부서/권한 방어 ── [부분 방어 확인]
+  위조 MASTER GET /api/v1/admin/users                -> 403  (403=부서가드 방어)
+
+── E. downstream 직접접근 (게이트웨이 우회, loopback) ── [네트워크 격리 의존 실증]
+  직접 127.0.0.1:8084 + 위조 X-User-Id 헤더 /api/v1/products -> 403  (NON-401=헤더신뢰; prod는 127.0.0.1 격리)
+  직접 127.0.0.1:8084 /internal (토큰없음)       -> 403  (기대 401/403=/internal 토큰가드)
+
+================ 요약: 유효 위조토큰=수용(200), 무효(none/wrong/no-token)=401. 서명키가 유일 방벽. ================
+
+── E-2. downstream 직접접근 완전우회 실증 (X-Is-System-Master 헤더까지 위조) ──
+  게이트웨이 :8080 위조 X-User-Id+Master 헤더 /api/v1/products -> 401  (게이트웨이 경유: strip→401)
+  직접 :8084 위조 X-User-Id+Master 헤더 /api/v1/products -> 200  (직접 우회: 200=완전 인증+권한 우회!)
+  → 결론: downstream은 X-User-*/X-Is-System-Master 헤더를 무검증 신뢰. 유일 방벽 = prod의 127.0.0.1 바인딩(네트워크 격리).
