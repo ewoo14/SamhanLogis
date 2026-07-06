@@ -27,4 +27,16 @@ public class SmsClient {
         log.info("SmsClient.enqueueTempPassword: mobileNo masked, length={} (queued, no real send)",
                 tempPassword.length());
     }
+
+    /**
+     * 비밀번호 재설정 시도 알림을 계정 소유자 연락처로 큐잉한다.
+     *
+     * <p>현재 구현은 기존 SMS 큐잉 스텁과 동일하게 감사 로그만 남긴다. 실제 sms-service 연동 시
+     * 본 메서드를 별도 알림 템플릿 publish 로 교체한다.
+     *
+     * @param mobileNo 등록된 계정 소유자 휴대폰 번호
+     */
+    public void enqueuePasswordResetAttemptNotice(String mobileNo) {
+        log.info("SmsClient.enqueuePasswordResetAttemptNotice: mobileNo masked (queued, no real send)");
+    }
 }
