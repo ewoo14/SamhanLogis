@@ -687,3 +687,47 @@ PR #747(#31) 중간 Design 리뷰에서 다중필드 역방향 하이라이트 �
   EditWarehouseModal·AuditOverlaySection·createAuditApi·TaxInvoice).
 - `cd clients/desktop && npx vitest run` — **93 files / 637 tests / 0 failed**.
 - Playwright mock 게이트(CI 동일조건) + 라이브 QA(모바일+데스크톱 실화면)는 라운드 fix+QA 게시에 첨부.
+
+## Codex 재수렴 fix + Opus 재수렴 fix (2026-07-06)
+
+### Codex 5-agent 재수렴 — FE [MED] fix (`9b63065e7`)
+- **Design 0 · BE [MED](레거시 엔드포인트, 아래) · FE [MED]→fix**. FE: 데스크톱 복원 select 제거로
+  통합 패널 `SlipVersionHistoryPanel` restoreMutation 이 유일 복원 경로가 됐는데, onSuccess 가
+  `['slip']`/`['slipRevisions']`만 invalidate 하고 헤더 "수정 N회" 배지 소스 `['slipAuditLogs']` 는
+  누락 → 복원 당사자 클라이언트의 배지 갱신 경로가 비어 있었다(SSE `slip:restored` 는 당사자 탭에서
+  slipAuditLogs invalidate 안 함; 타 열람자는 `SlipCollabRealtimeClient` 가 커버). **Codex 가
+  restoreMutation.onSuccess 에 `['slipAuditLogs', slipId]` invalidate 1줄 추가** → 당사자 즉시 갱신
+  경로 보강.
+- **정확성 단서(BE/QA 재수렴 실측)**: 통합 restore(`SlipService.restoreToRevision`)는 `slip_audit_log`
+  에 row 를 **의도적으로 생성하지 않는다**(RESTORE 는 `slip_revisions` + `Slip.revisionCount` 만 증가).
+  따라서 이 invalidate 는 배지 **수치를 바꾸지는 않으나**(audit-logs↔revisions 는 별개 소스 —
+  **사전존재 데이터모델 이원화**), 올바른 위치의 **방어적 보강**(무해)이다. 배지=실제 총 수정횟수
+  기대와의 괴리(배지는 audit-logs 파생)는 이 PR 신규 아님 → 후속(배지 소스를 `/revisions` 총량으로
+  전환 or restore 시 audit row 기록) 권고.
+
+### Opus 5-agent 재수렴 (final `9b63065e7`) — DevOps 0 · QA 0 · Design/FE [MED] 모달 44px fix
+- **Design + FE 양쪽 독립 확인 [MED]**: f248ce7ec 의 모바일 44px 규칙(`.mobile-section-body
+  [data-testid='slip-collaboration-panel'] button`)이 **복원 확정 Modal 의 "취소"/"복원" 버튼을 커버
+  못함** — DS `Modal` 이 `createPortal(document.body)` 로 `.mobile-section-body` 서브트리 **밖**에
+  렌더돼 자손결합자 규칙이 도달 불가 → 모달 버튼이 DS 기본 md(36px) 로 남아 복원 플로우 최종 단계만
+  44px 목표에서 이탈. (구 모바일은 네이티브 `window.confirm` 이라 없던 갭 — 통합 패널 전환으로 신규.)
+- **fix (Opus 직접·`global.css`)**: **portal-aware** 규칙 `[data-testid='ds-modal-backdrop'] footer
+  button { min-height: 44px }`(모바일 @media 내) 추가 → 모달 footer 버튼 44px 완결. 부수 갭인 코멘트
+  "연결 필드" `<select>`(button 규칙 미매치) 도 `.mobile-section-body [data-testid='slip-collaboration
+  -panel'] select { min-height: 44px }` 로 보강.
+- **QA 재수렴(실백엔드 :8080·실 복원 실행)**: 구조 회귀 0(real-qa 재실행 1 passed)·invalidation 거동
+  실측(배지 즉시값==리로드값==서버 실사실, 스테일 없음·복원 왕복으로 memo 원복 확인).
+- **DevOps 재수렴**: spec-neutral(real-qa testIgnore)·실 CI 30/30 green·typecheck/lint 0 error·인프라 0.
+
+### 개발책임자 후속 필요 (비차단·이번 PR 밖) — 무결성 도메인
+- **[MED][BE] 레거시 `/slips/{id}/audit/revert/{n}`(SlipAuditLogController) 상태잠금 우회**: 이 엔드포인트는
+  권한 게이트(`slip.audit-revert` RESTORE)는 있으나 **상태기반 `guardLockPolicy` 를 호출하지 않아**,
+  `slip.audit-revert:RESTORE` 권한자가 직접(API) 호출 시 배송완료 등 **완전잠금 슬립의 overlay 필드를
+  승인 없이 되돌릴 수 있고**, `slip_revisions` 미기록으로 통합 버전이력에 안 나타나는 **감사 사각지대**가
+  된다(BE 재수렴 grep 실증). 이 PR 도입 아님(BE 0 diff)·FE 소비처 제거로 노출 감소했으나, 기존
+  "엔드포인트 폐기=후속 BE 슬라이스" 결정이 이 상태-우회까지는 미확인 → **폐기 우선순위 재확인 권고**
+  ([[feedback_integrity_domain_policy_preconfirm]]).
+
+### 검증 (재수렴 fix)
+- `cd clients/desktop && npm run typecheck` — PASS. `npm run build`(design-system dist)·mock 게이트·
+  라이브 QA 재확인은 재수렴 라운드 게시에 첨부.

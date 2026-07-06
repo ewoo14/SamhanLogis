@@ -694,6 +694,18 @@ button {
     min-height: 44px;
     align-content: center;
   }
+  /*
+   * 복원 확정 등 DS Modal 은 document.body 로 createPortal 되어 위 .mobile-section-body
+   * 스코프 밖에 렌더되므로, 모달 footer 버튼(취소/복원 등)의 모바일 44px 터치타겟을
+   * portal-aware 규칙으로 별도 보강한다(복원 플로우 최종 단계까지 44px 완결).
+   */
+  [data-testid='ds-modal-backdrop'] footer button {
+    min-height: 44px;
+  }
+  /* 코멘트 '연결 필드' 는 <select> 라 위 button 규칙에 안 걸림 — 동일 44px 보강. */
+  .mobile-section-body [data-testid='slip-collaboration-panel'] select {
+    min-height: 44px;
+  }
 }
 
 /* SlipDetailPage — 라인 표 + 좌측 넘버링 + 행 액션 툴바 + 하단 액션 */
