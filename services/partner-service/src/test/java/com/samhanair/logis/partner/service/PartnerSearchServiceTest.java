@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,11 +42,24 @@ class PartnerSearchServiceTest {
     @DisplayName("searchAdmin — q blank → repo 에 null 전달 (필터 미적용)")
     void searchAdmin_normalizes_blank_q_to_null() {
         Pageable pageable = PageRequest.of(0, 10);
+        when(repo.searchAdmin(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        service.searchAdmin("   ", null, false, pageable);
+
+        verify(repo).searchAdmin(eq(null), eq(null), eq(pageable));
+        verify(repo, never()).searchAdminIncludingDeleted(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("searchAdmin — includeDeleted=true 일 때만 native 포함 검색을 사용한다")
+    void searchAdmin_includeDeleted_uses_native_search() {
+        Pageable pageable = PageRequest.of(0, 10);
         when(repo.searchAdminIncludingDeleted(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 
-        service.searchAdmin("   ", null, pageable);
+        service.searchAdmin("테스트", PartnerStatus.ACTIVE, true, pageable);
 
-        verify(repo).searchAdminIncludingDeleted(eq(null), eq(null), eq(pageable));
+        verify(repo).searchAdminIncludingDeleted(eq("테스트"), eq("ACTIVE"), eq(pageable));
+        verify(repo, never()).searchAdmin(any(), any(), any());
     }
 
     @Test
@@ -54,11 +68,10 @@ class PartnerSearchServiceTest {
         Partner p = Partner.register("P-2026-0001", "123-45-67890", "(주)테스트",
                 "서울", "02-1111-2222", new BigDecimal("1000000"));
         Pageable pageable = PageRequest.of(0, 10);
-        // 서비스는 enum 을 name() 문자열로 변환해 native repo 에 전달한다(ordinal 바인딩 버그 회피).
-        when(repo.searchAdminIncludingDeleted(eq("테스트"), eq("ACTIVE"), eq(pageable)))
+        when(repo.searchAdmin(eq("테스트"), eq(PartnerStatus.ACTIVE), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(p), pageable, 1L));
 
-        Page<Partner> page = service.searchAdmin("테스트", PartnerStatus.ACTIVE, pageable);
+        Page<Partner> page = service.searchAdmin("테스트", PartnerStatus.ACTIVE, false, pageable);
         AdminPartnerListResponse dto = AdminPartnerListResponse.from(page);
 
         assertThat(dto.items()).hasSize(1);

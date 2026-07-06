@@ -135,11 +135,12 @@ public class PartnerAdminController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) PartnerStatus status,
-            @RequestParam(required = false) PartnerStatus type) {
+            @RequestParam(required = false) PartnerStatus type,
+            @RequestParam(defaultValue = "false") boolean includeDeleted) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "partnerCode"));
         PartnerStatus effectiveStatus = status == null ? type : status;
         return ApiResponse.ok(AdminPartnerListResponse.from(
-                partnerService.searchAdmin(q, effectiveStatus, pageable)));
+                partnerService.searchAdmin(q, effectiveStatus, includeDeleted, pageable)));
     }
 
     /**

@@ -35,6 +35,7 @@ import {
 import { exportPartners } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
 import {
+  deletePartner,
   listAdminPartners,
   PARTNER_STATUS_LABEL,
   restorePartner,
@@ -48,7 +49,7 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { PartnerListRealtimeClient } from '../../realtime/PartnerListRealtimeClient'
 import { useCollectionRealtime } from '../../realtime/useCollectionRealtime'
 import { PartnerDetailDialog } from './PartnerDetailDialog'
-import './PartnersPage.css'
+import styles from './PartnersPage.module.css'
 import {
   PARTNER_DELETED_ROW_TEXT_STYLE,
   deletedBadgeAriaLabel,
@@ -93,6 +94,7 @@ export function PartnersPage() {
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canExport = canAccess('partners.edit', 'download')
+  const canDelete = canAccess('partners.delete', 'delete')
   const canRestore = canAccess('partners.delete', 'restore')
 
   const [q, setQ] = useState('')
@@ -127,6 +129,7 @@ export function PartnersPage() {
         q: q || undefined,
         status: statusFilter || undefined,
         type: typeFilter || undefined,
+        includeDeleted: true,
         page,
         size: 20,
       }),
@@ -135,6 +138,7 @@ export function PartnersPage() {
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const restoreMutation = useMutation({
     mutationFn: restorePartner,
+    onMutate: () => setRestoreError(null),
     onSuccess: async () => {
       setRestoreError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
@@ -143,6 +147,19 @@ export function PartnersPage() {
       setRestoreError(
         extractApiErrorResponseMessage(error)
           ?? '복원에 실패했습니다. 거래처 상태 또는 권한(임원실 부서)을 확인하세요.',
+      ),
+  })
+  const deleteMutation = useMutation({
+    mutationFn: deletePartner,
+    onMutate: () => setRestoreError(null),
+    onSuccess: async () => {
+      setRestoreError(null)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
+    },
+    onError: (error) =>
+      setRestoreError(
+        extractApiErrorResponseMessage(error)
+          ?? '삭제에 실패했습니다. 거래처 상태 또는 권한(임원실 부서)을 확인하세요.',
       ),
   })
 
@@ -165,11 +182,13 @@ export function PartnersPage() {
       header: '상호',
       mobilePriority: 'primary',
       render: (p) => (
-        <span
-          data-testid={`admin-partners-row-${p.partnerCode}`}
-          style={p.isDeleted ? PARTNER_DELETED_ROW_TEXT_STYLE : undefined}
-        >
-          {p.name}
+        <>
+          <span
+            data-testid={`admin-partners-row-${p.partnerCode}`}
+            style={p.isDeleted ? PARTNER_DELETED_ROW_TEXT_STYLE : undefined}
+          >
+            {p.name}
+          </span>
           {p.isDeleted ? (
             <Badge
               variant="neutral"
@@ -189,7 +208,7 @@ export function PartnersPage() {
               {deletedBadgeLabel(p.deletedByName)}
             </Badge>
           ) : null}
-        </span>
+        </>
       ),
     },
     { key: 'partnerCode', header: '거래처 코드', width: '140px', mobilePriority: 'secondary' },
@@ -237,24 +256,48 @@ export function PartnersPage() {
       width: '96px',
       align: 'right',
       mobilePriority: 'secondary',
-      render: (p) =>
-        p.isDeleted && canRestore ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            loading={restoreMutation.isPending && restoreMutation.variables === p.partnerCode}
-            disabled={restoreMutation.isPending}
-            onClick={(event) => {
-              event.stopPropagation()
-              restoreMutation.mutate(p.partnerCode)
-            }}
-            data-testid={`admin-partners-row-${p.partnerCode}-restore`}
-            aria-label={`${p.name} 거래처 복원`}
-          >
-            복원
-          </Button>
-        ) : null,
+      render: (p) => {
+        if (p.isDeleted && canRestore) {
+          return (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              loading={restoreMutation.isPending && restoreMutation.variables === p.partnerCode}
+              disabled={restoreMutation.isPending}
+              onClick={(event) => {
+                event.stopPropagation()
+                restoreMutation.mutate(p.partnerCode)
+              }}
+              data-testid={`admin-partners-row-${p.partnerCode}-restore`}
+              aria-label={`${p.name} 거래처 복원`}
+            >
+              복원
+            </Button>
+          )
+        }
+        if (!p.isDeleted && canDelete) {
+          return (
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              loading={deleteMutation.isPending && deleteMutation.variables === p.partnerCode}
+              disabled={deleteMutation.isPending}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (!window.confirm(`${p.name} 거래처를 삭제하시겠습니까?`)) return
+                deleteMutation.mutate(p.partnerCode)
+              }}
+              data-testid={`admin-partners-row-${p.partnerCode}-delete`}
+              aria-label={`${p.name} 거래처 삭제`}
+            >
+              삭제
+            </Button>
+          )
+        }
+        return null
+      },
     },
   ]
 
@@ -273,7 +316,7 @@ export function PartnersPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
             data-testid="admin-partners-realtime-indicator"
-            style={{ fontSize: 12, color: 'var(--ink-tertiary)' }}
+            style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
           >
             실시간 자동 갱신
           </span>
@@ -382,9 +425,9 @@ export function PartnersPage() {
           columns={columns}
           rows={query.data?.items ?? []}
           loading={query.isLoading}
-          rowKey={(p) => `${p.partnerCode}:${p.isDeleted ? 'D' : 'A'}`}
+          rowKey={(p) => `${p.partnerCode}:${p.isDeleted ? `D:${p.deletedAt ?? 'unknown'}` : 'A'}`}
           rowClickable={(p) => p.isDeleted !== true}
-          rowClassName={(p) => (p.isDeleted ? 'admin-partners-deleted-row' : undefined)}
+          rowClassName={(p) => (p.isDeleted ? styles.deletedRow : undefined)}
           emptyMessage="조건에 맞는 거래처가 없습니다."
           onRowClick={openDetail}
         />

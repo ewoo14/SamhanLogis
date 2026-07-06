@@ -289,4 +289,30 @@ class EcountPartnerImporterTest {
         assertThat(r1.sourceFileHash()).isEqualTo(r2.sourceFileHash());
         assertThat(r1.sourceFileHash()).matches("^[0-9A-F]{64}$");
     }
+
+    @Test
+    void importedAfterPartialSuccess_예외가나도_BulkUpdatedSse를발화한다() {
+        String csv = META_LINE + HEADER_LINE
+                + row("CODE001", "20230814", "이성미", "", "테스트", "", "", "", "",
+                "", "", "일반업체", "YES", "등록", "0", "");
+        when(partnerRepository.findByPartnerCode("CODE001")).thenReturn(Optional.empty());
+        wireSaveEcho();
+        when(jdbcTemplate.update(anyString(), any(org.springframework.jdbc.core.namedparam.SqlParameterSource.class)))
+                .thenAnswer(inv -> {
+                    String sql = inv.getArgument(0);
+                    if (sql.stripLeading().startsWith("UPDATE staging.ecount_partner_raw")) {
+                        throw new RuntimeException("staging update failed");
+                    }
+                    return 1;
+                });
+
+        assertThatThrownBy(() -> importer.importCsv(csvStream(csv), "tester"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("staging update failed");
+
+        verify(collectionRealtimePublisher).publishChange(
+                eq(PartnerListRealtime.CHANNEL_ID),
+                eq(PartnerListRealtime.EVENT_CHANGED),
+                eq(Map.of("changeType", "BULK_UPDATED")));
+    }
 }

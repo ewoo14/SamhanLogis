@@ -162,7 +162,7 @@ public class PartnerService {
      */
     @Transactional(readOnly = true)
     public Page<Partner> findAll(Pageable pageable) {
-        return partnerRepository.searchAdminIncludingDeleted(null, null, unsorted(pageable));
+        return partnerRepository.findAll(pageable);
     }
 
     /**
@@ -174,7 +174,21 @@ public class PartnerService {
      */
     @Transactional(readOnly = true)
     public Page<Partner> searchAdmin(String q, PartnerStatus status, Pageable pageable) {
+        return searchAdmin(q, status, false, pageable);
+    }
+
+    /**
+     * 거래처 admin 검색 — includeDeleted=true 인 관리자 목록 전용 경로만 soft-deleted row 를 포함한다.
+     *
+     * <p>기본값(false)은 JPQL 검색을 사용해 {@code @SQLRestriction("is_deleted = false")} 를 적용한다.
+     * 자동완성/전표/회계 소비처가 공유하는 {@code /admin/partners/search} 계약에서 삭제행 누출을 막기 위함이다.
+     */
+    @Transactional(readOnly = true)
+    public Page<Partner> searchAdmin(String q, PartnerStatus status, boolean includeDeleted, Pageable pageable) {
         String normalized = (q == null || q.isBlank()) ? null : q.trim();
+        if (!includeDeleted) {
+            return partnerRepository.searchAdmin(normalized, status, pageable);
+        }
         // native query 는 enum name() 문자열을 요구한다(raw enum → ordinal 바인딩 시 status 필터 영구 0건).
         String statusName = status == null ? null : status.name();
         return partnerRepository.searchAdminIncludingDeleted(normalized, statusName, unsorted(pageable));
