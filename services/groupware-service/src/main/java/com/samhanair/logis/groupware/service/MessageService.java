@@ -29,18 +29,21 @@ public class MessageService {
     private final UserClient userClient;
     private final NotificationPublisher notificationPublisher;
 
-    /** 메신저 발송. 송신자/수신자 사용자 존재 검증 후 row 적재. */
+    /**
+     * 메신저 발송. 송신자는 게이트웨이 주입 {@code X-User-Id} 로만 확정하고
+     * 본문 senderId 는 발신자 위조 방지를 위해 신뢰하지 않는다.
+     */
     @Transactional
-    public Message send(MessageSendRequest req) {
-        if (!userClient.exists(req.senderId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "송신자 미존재: " + req.senderId());
+    public Message send(MessageSendRequest req, UUID senderId) {
+        if (!userClient.exists(senderId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "송신자 미존재: " + senderId);
         }
         if (!userClient.exists(req.recipientId())) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "수신자 미존재: " + req.recipientId());
         }
         try {
-            Message msg = Message.send(req.senderId(), req.recipientId(), req.body());
-            String senderDisplayName = resolveSenderDisplayName(req.senderId());
+            Message msg = Message.send(senderId, req.recipientId(), req.body());
+            String senderDisplayName = resolveSenderDisplayName(senderId);
             Message saved = repository.save(msg);
             NotificationPublishRequest notificationRequest = new NotificationPublishRequest(
                     "MESSENGER",

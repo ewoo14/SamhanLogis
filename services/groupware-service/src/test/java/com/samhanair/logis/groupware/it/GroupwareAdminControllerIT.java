@@ -15,6 +15,8 @@ import com.samhanair.logis.groupware.GroupwareServiceApplication;
 import com.samhanair.logis.groupware.client.GroupwareApprovalLineConfigClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
+import com.samhanair.logis.groupware.domain.Message;
+import com.samhanair.logis.groupware.domain.Schedule;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.dto.MessageSendRequest;
@@ -324,6 +326,49 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void send_message_uses_header_sender_and_ignores_body_sender() throws Exception {
+        UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID forgedSender = differentUuid(actor);
+        UUID recipient = UUID.fromString(MANAGER_ACCOUNT_ID);
+        MessageSendRequest req = new MessageSendRequest(forgedSender, recipient, "발신자 위조 차단");
+
+        MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/messages")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.senderId").value(SALES_ACCOUNT_ID))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.recipientId").value(MANAGER_ACCOUNT_ID))
+                .andReturn();
+
+        UUID messageId = UUID.fromString(objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data").path("messageId").asText());
+        Message persisted = messageRepository.findById(messageId).orElseThrow();
+        assertThat(persisted.getSenderId()).isEqualTo(actor);
+        assertThat(persisted.getSenderId()).isNotEqualTo(forgedSender);
+    }
+
+    @Test
+    void inbox_uses_header_recipient_and_ignores_user_id_param() throws Exception {
+        UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID other = UUID.fromString(MANAGER_ACCOUNT_ID);
+        UUID sender = UUID.randomUUID();
+        messageRepository.save(Message.send(sender, actor, "내 수신함"));
+        messageRepository.save(Message.send(sender, other, "타인 수신함"));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/messages/inbox")
+                        .param("userId", other.toString())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].recipientId").value(SALES_ACCOUNT_ID))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].body").value("내 수신함"));
+    }
+
+    @Test
     void create_schedule_returns_201() throws Exception {
         ScheduleRequest req = new ScheduleRequest(
                 UUID.randomUUID(), "주간 회의", "주간 정기",
@@ -338,6 +383,39 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isCreated())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("DRAFT"));
+    }
+
+    @Test
+    void create_schedule_uses_header_owner_and_keeps_participants() throws Exception {
+        UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID forgedOwner = differentUuid(actor);
+        UUID participant = UUID.fromString(MANAGER_ACCOUNT_ID);
+        ScheduleRequest req = new ScheduleRequest(
+                forgedOwner, "헤더 소유자 일정", "참여자 보존",
+                LocalDateTime.now().plusDays(1),
+                LocalDateTime.now().plusDays(1).plusHours(1),
+                null,
+                List.of(actor, participant));
+
+        MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.ownerId").value(SALES_ACCOUNT_ID))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.participantIds.length()").value(2))
+                .andReturn();
+
+        UUID scheduleId = UUID.fromString(objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data").path("scheduleId").asText());
+        Schedule persisted = scheduleRepository.findById(scheduleId).orElseThrow();
+        assertThat(persisted.getOwnerId()).isEqualTo(actor);
+        assertThat(persisted.getOwnerId()).isNotEqualTo(forgedOwner);
+        assertThat(persisted.getParticipantsView())
+                .extracting(p -> p.getParticipantId())
+                .containsExactlyInAnyOrder(actor, participant);
     }
 
     @Test
@@ -369,5 +447,71 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("조회 fixture"));
+    }
+
+    @Test
+    void find_schedules_uses_header_owner_and_ignores_owner_id_param() throws Exception {
+        UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID other = UUID.fromString(MANAGER_ACCOUNT_ID);
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        scheduleRepository.save(Schedule.create(actor, "내 일정", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null));
+        scheduleRepository.save(Schedule.create(other, "타인 일정", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules")
+                        .param("ownerId", other.toString())
+                        .param("from", base.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                        .param("to", base.plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].ownerId").value(SALES_ACCOUNT_ID))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("내 일정"));
+    }
+
+    @Test
+    void update_schedule_for_other_owner_returns_403_and_does_not_mutate() throws Exception {
+        UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID other = UUID.fromString(MANAGER_ACCOUNT_ID);
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        Schedule otherSchedule = scheduleRepository.save(Schedule.create(other, "타인 원본", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null));
+        ScheduleRequest req = new ScheduleRequest(actor, "침해 수정", "변조",
+                base.plusDays(2), base.plusDays(2).plusHours(1), null, List.of(actor));
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/schedules/" + otherSchedule.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
+
+        Schedule persisted = scheduleRepository.findById(otherSchedule.getId()).orElseThrow();
+        assertThat(persisted.getOwnerId()).isEqualTo(other);
+        assertThat(persisted.getTitle()).isEqualTo("타인 원본");
+        assertThat(persisted.getParticipantsView()).isEmpty();
+    }
+
+    @Test
+    void update_schedule_for_owner_returns_200() throws Exception {
+        UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID participant = UUID.fromString(MANAGER_ACCOUNT_ID);
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        Schedule ownSchedule = scheduleRepository.save(Schedule.create(actor, "내 원본", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null));
+        ScheduleRequest req = new ScheduleRequest(UUID.randomUUID(), "내 수정", "정상 변경",
+                base.plusDays(2), base.plusDays(2).plusHours(1), null, List.of(actor, participant));
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/schedules/" + ownSchedule.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.ownerId").value(SALES_ACCOUNT_ID))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.title").value("내 수정"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.participantIds.length()").value(2));
     }
 }

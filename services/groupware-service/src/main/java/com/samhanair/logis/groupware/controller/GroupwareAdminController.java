@@ -196,8 +196,10 @@ public class GroupwareAdminController {
     })
     @PostMapping("/messages")
     @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
-    public ResponseEntity<ApiResponse<MessageResponse>> sendMessage(@Valid @RequestBody MessageSendRequest req) {
-        var msg = messageService.send(req);
+    public ResponseEntity<ApiResponse<MessageResponse>> sendMessage(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID senderId,
+            @Valid @RequestBody MessageSendRequest req) {
+        var msg = messageService.send(req, senderId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(MessageResponse.from(msg)));
     }
 
@@ -205,8 +207,11 @@ public class GroupwareAdminController {
     @Operation(summary = "메신저 수신함")
     @GetMapping("/messages/inbox")
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
-    public ApiResponse<List<MessageResponse>> inbox(@RequestParam UUID userId) {
-        var page = messageService.inbox(userId, org.springframework.data.domain.PageRequest.of(0, 50));
+    public ApiResponse<List<MessageResponse>> inbox(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID recipientId,
+            @RequestParam(required = false) UUID userId) {
+        // 객체수준 인가: userId 쿼리는 구버전 클라이언트 호환용으로만 받으며 조회 범위는 항상 호출자 본인이다.
+        var page = messageService.inbox(recipientId, org.springframework.data.domain.PageRequest.of(0, 50));
         return ApiResponse.ok(page.map(MessageResponse::from).getContent());
     }
 
@@ -221,8 +226,10 @@ public class GroupwareAdminController {
     })
     @PostMapping("/schedules")
     @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
-    public ResponseEntity<ApiResponse<ScheduleResponse>> createSchedule(@Valid @RequestBody ScheduleRequest req) {
-        var schedule = scheduleService.create(req);
+    public ResponseEntity<ApiResponse<ScheduleResponse>> createSchedule(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID ownerId,
+            @Valid @RequestBody ScheduleRequest req) {
+        var schedule = scheduleService.create(req, ownerId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(ScheduleResponse.from(schedule)));
     }
@@ -232,9 +239,11 @@ public class GroupwareAdminController {
     @GetMapping("/schedules")
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
     public ApiResponse<List<ScheduleResponse>> findSchedules(
-            @RequestParam UUID ownerId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID ownerId,
+            @RequestParam(required = false, name = "ownerId") UUID ignoredOwnerId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        // 객체수준 인가: ownerId 쿼리는 구버전 클라이언트 호환용으로만 받으며 조회 범위는 항상 호출자 본인이다.
         var schedules = scheduleService.findInRange(ownerId, from, to);
         return ApiResponse.ok(schedules.stream().map(ScheduleResponse::from).toList());
     }
@@ -244,8 +253,9 @@ public class GroupwareAdminController {
     @PutMapping("/schedules/{scheduleId}")
     @RequirePermission(page = "messenger.send", action = PermissionAction.UPDATE)
     public ApiResponse<ScheduleResponse> updateSchedule(@PathVariable UUID scheduleId,
+                                                        @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID ownerId,
                                                         @Valid @RequestBody ScheduleRequest req) {
-        var schedule = scheduleService.update(scheduleId, req);
+        var schedule = scheduleService.update(scheduleId, req, ownerId);
         return ApiResponse.ok(ScheduleResponse.from(schedule));
     }
 

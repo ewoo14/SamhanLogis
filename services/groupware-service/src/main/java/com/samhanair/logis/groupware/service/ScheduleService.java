@@ -23,14 +23,19 @@ public class ScheduleService {
     private final ScheduleRepository repository;
     private final UserClient userClient;
 
-    /** 일정 등록 + 참여자 초기 등록. owner / participant 모두 사용자 존재 검증. */
+    /**
+     * 일정 등록 + 참여자 초기 등록.
+     *
+     * <p>소유자는 게이트웨이 주입 {@code X-User-Id} 로만 확정하고 본문 ownerId 는
+     * 타인 소유 일정 생성 방지를 위해 신뢰하지 않는다. 참여자 목록은 기존 정상 흐름을 보존한다.
+     */
     @Transactional
-    public Schedule create(ScheduleRequest req) {
-        if (!userClient.exists(req.ownerId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "소유자 미존재: " + req.ownerId());
+    public Schedule create(ScheduleRequest req, UUID ownerId) {
+        if (!userClient.exists(ownerId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "소유자 미존재: " + ownerId);
         }
         try {
-            Schedule schedule = Schedule.create(req.ownerId(), req.title(), req.description(),
+            Schedule schedule = Schedule.create(ownerId, req.title(), req.description(),
                     req.startsAt(), req.endsAt(), req.status());
             if (req.participantIds() != null) {
                 for (UUID participantId : req.participantIds()) {
@@ -64,10 +69,13 @@ public class ScheduleService {
         return repository.findOwnedInRange(ownerId, from, to);
     }
 
-    /** 일정 수정 + 참여자 재정의 (전체 교체 패턴). */
+    /** 일정 수정 + 참여자 재정의 (전체 교체 패턴). 소유자 본인 일정만 수정 가능하다. */
     @Transactional
-    public Schedule update(UUID scheduleId, ScheduleRequest req) {
+    public Schedule update(UUID scheduleId, ScheduleRequest req, UUID actorUserId) {
         Schedule schedule = findById(scheduleId);
+        if (!schedule.getOwnerId().equals(actorUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "일정 소유자 본인만 수정할 수 있습니다");
+        }
         try {
             schedule.update(req.title(), req.description(), req.startsAt(), req.endsAt(), req.status());
         } catch (IllegalArgumentException ex) {

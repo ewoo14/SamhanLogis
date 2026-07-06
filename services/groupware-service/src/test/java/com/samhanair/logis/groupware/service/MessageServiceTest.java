@@ -90,7 +90,7 @@ class MessageServiceTest {
         TransactionSynchronizationManager.initSynchronization();
         Message saved;
         try {
-            saved = messageService.send(new MessageSendRequest(sender, recipient, "안녕하세요"));
+            saved = messageService.send(new MessageSendRequest(UUID.randomUUID(), recipient, "안녕하세요"), sender);
 
             verify(notificationPublisher, never()).publish(any());
             TransactionSynchronizationManager.getSynchronizations()
