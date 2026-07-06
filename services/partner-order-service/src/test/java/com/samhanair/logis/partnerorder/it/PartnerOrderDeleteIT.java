@@ -116,16 +116,17 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
                  WHERE id = ?
                    AND is_deleted = TRUE
                    AND deleted_at IS NOT NULL
-                   AND deleted_by = '영업담당자'
-                """, Integer.class, order.getId());
+                   AND deleted_by = ?
+                   AND deleted_by_name = '영업담당자'
+                """, Integer.class, order.getId(), SALES_ACCOUNT_ID);
         Integer deletedLines = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                   FROM partner_order_lines
                  WHERE partner_order_id = ?
                    AND is_deleted = TRUE
                    AND deleted_at IS NOT NULL
-                   AND deleted_by = '영업담당자'
-                """, Integer.class, order.getId());
+                   AND deleted_by = ?
+                """, Integer.class, order.getId(), SALES_ACCOUNT_ID);
 
         assertThat(deletedOrders).isEqualTo(1);
         assertThat(deletedLines).isEqualTo(2);

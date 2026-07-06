@@ -93,6 +93,10 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "memo", length = 1000)
     private String memo;
 
+    /** 삭제자 표시명. {@code deleted_by} 는 감사 userId 를 보존하고, 화면용 이름만 본 컬럼에 저장한다. */
+    @Column(name = "deleted_by_name", length = 100)
+    private String deletedByName;
+
     /** 견적 -> 주문 변환 source estimate UUID. 변환 주문만 채운다. */
     @Column(name = "source_estimate_id")
     private UUID sourceEstimateId;
@@ -345,6 +349,28 @@ public class PartnerOrder extends BaseEntity {
     }
 
     /**
+     * 주문 헤더와 전체 라인을 soft-delete 처리하고 화면용 삭제자 이름을 별도 보존한다.
+     *
+     * <p>{@code actorUserId} 는 {@code deleted_by} 감사 필드에만 저장한다. 사용자 화면에는
+     * {@code deleted_by_name} 만 노출해 UUID 비공개 원칙을 지킨다.
+     */
+    public void softDeleteCascadeWithName(String actorUserId, String actorName, LocalDateTime deletedAt) {
+        markDeleted(actorUserId, deletedAt);
+        this.deletedByName = actorName;
+        for (PartnerOrderLine line : this.lines) {
+            if (line.getDeletedAt() == null) {
+                line.markDeleted(actorUserId, deletedAt);
+            }
+        }
+    }
+
+    /** 테스트/단건 복원 검증용: 주문 헤더만 삭제 처리하고 화면용 삭제자 이름을 별도 보존한다. */
+    public void markDeletedWithName(String actorUserId, String actorName, LocalDateTime deletedAt) {
+        markDeleted(actorUserId, deletedAt);
+        this.deletedByName = actorName;
+    }
+
+    /**
      * slip-service 200 replay 또는 201 신규 발행 — slipNo 채움 + status=CONFIRMED.
      *
      * <p><b>레거시(슬라이스 D1 이후)</b>: confirm 자동발행 폐지로 신규 흐름 미사용. 레거시 PENDING_RETRY
@@ -457,6 +483,7 @@ public class PartnerOrder extends BaseEntity {
      */
     public void restoreFromDeleted() {
         markRestored();
+        this.deletedByName = null;
     }
 
     /**

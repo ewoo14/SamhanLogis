@@ -413,6 +413,12 @@ export interface PartnerOrderSummary {
   totalAmount: number
   /** 자동 생성된 출고전표 번호 (CONVERTED 시만). */
   linkedSlipNo: string | null
+  /** soft-delete 행 여부. 목록에서는 삭제행도 포함된다. */
+  isDeleted?: boolean
+  /** 삭제 시각 (ISO 8601). */
+  deletedAt?: string | null
+  /** 삭제자 표시명. UUID 는 BE 에서 정제되어 null 로 온다. */
+  deletedByName?: string | null
 }
 
 /** 주문 라인 — Bundle EXPAND/KEEP 결과 표시. Phase 2.6a: lineId/convertedQuantity 추가. Phase 2.6d: productId 추가. */
@@ -578,6 +584,9 @@ export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): Partner
     status: (raw.status ?? 'DRAFT') as PartnerOrderStatus,
     totalAmount: numberValue(raw.totalAmount),
     linkedSlipNo: raw.linkedSlipNo ?? null,
+    isDeleted: raw.isDeleted === true,
+    deletedAt: raw.deletedAt ?? null,
+    deletedByName: raw.deletedByName ?? null,
     bizCode: raw.bizCode ?? '',
     updatedAt: raw.updatedAt ?? '',
     deliveryAddress: raw.deliveryAddress ?? null,
@@ -725,6 +734,14 @@ export async function deletePartnerOrder(orderNumber: string): Promise<void> {
   await apiClient.delete(
     `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}`,
   )
+}
+
+/** 주문 soft-delete 복원. */
+export async function restorePartnerOrder(orderNumber: string): Promise<PartnerOrderDetail> {
+  const res = await apiClient.post<ApiEnvelope<PartnerOrderDetail>>(
+    `/api/v1/partner-orders/${encodeURIComponent(toOrderPathId(orderNumber))}/restore`,
+  )
+  return normalizePartnerOrderDetail(res.data.data)
 }
 
 /**

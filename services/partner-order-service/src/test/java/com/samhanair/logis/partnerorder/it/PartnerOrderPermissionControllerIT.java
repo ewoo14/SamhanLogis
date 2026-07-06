@@ -172,7 +172,7 @@ class PartnerOrderPermissionControllerIT {
                 LocalDateTime.of(2026, 5, 26, 9, 0));
         PartnerOrderSummaryResponse summary = new PartnerOrderSummaryResponse(
                 "PO-1", "P001", "Partner", LocalDateTime.of(2026, 5, 26, 9, 0),
-                "CONFIRMED", BigDecimal.valueOf(1000), "SLIP-1");
+                "CONFIRMED", BigDecimal.valueOf(1000), "SLIP-1", false, null, null);
         PartnerOrderDetailResponse detail = new PartnerOrderDetailResponse(
                 "PO-1", "P001", "B001", "Partner", LocalDateTime.of(2026, 5, 26, 9, 0),
                 "CONFIRMED", BigDecimal.valueOf(1000), "SLIP-1",

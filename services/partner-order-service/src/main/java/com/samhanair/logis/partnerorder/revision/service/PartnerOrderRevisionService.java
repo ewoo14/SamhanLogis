@@ -8,6 +8,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderLineRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevision;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -69,15 +71,26 @@ public class PartnerOrderRevisionService {
     private final PartnerOrderLineRepository lineRepository;
     private final ObjectMapper objectMapper;
     private final ObjectMapper snapshotObjectMapper;
+    private final PartnerOrderBoardChangePublisher boardChangePublisher;
 
     public PartnerOrderRevisionService(PartnerOrderRevisionRepository revisionRepository,
                                        PartnerOrderRepository orderRepository,
                                        PartnerOrderLineRepository lineRepository,
                                        ObjectMapper objectMapper) {
+        this(revisionRepository, orderRepository, lineRepository, objectMapper, null);
+    }
+
+    @Autowired
+    public PartnerOrderRevisionService(PartnerOrderRevisionRepository revisionRepository,
+                                       PartnerOrderRepository orderRepository,
+                                       PartnerOrderLineRepository lineRepository,
+                                       ObjectMapper objectMapper,
+                                       PartnerOrderBoardChangePublisher boardChangePublisher) {
         this.revisionRepository = revisionRepository;
         this.orderRepository = orderRepository;
         this.lineRepository = lineRepository;
         this.objectMapper = objectMapper;
+        this.boardChangePublisher = boardChangePublisher;
         this.snapshotObjectMapper = objectMapper.copy()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true);
@@ -280,6 +293,9 @@ public class PartnerOrderRevisionService {
         // 7. 복원 결과를 RESTORE revision 으로 캡처
         capture(saved, PartnerOrderRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
+        if (boardChangePublisher != null) {
+            boardChangePublisher.publishListChanged("RESTORED");
+        }
 
         return new PartnerOrderRestoreResult(saved, wasConfirmed);
     }

@@ -663,6 +663,7 @@ export const MOCK_AUTH = {
  * status 를 CONVERTED 로 덮어쓴다. (테스트별 새 page = 새 모듈 → 자동 초기화)
  */
 const mockConvertedOrderNos = new Set<string>()
+const mockDeletedOrderNos = new Set<string>(['2026/05/31-5'])
 
 /**
  * 시리얼 보상 실패 복구 mock seed — D-SER-23 (resolved 혼합 3건).
@@ -7010,6 +7011,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       totalAmount: 1200000,
       linkedSlipNo: null,
     }
+    const DELETED_DRAFT_ROW = {
+      orderNumber: '2026/05/31-5',
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-31T10:00:00',
+      status: 'DRAFT' as const,
+      totalAmount: 980000,
+      linkedSlipNo: null,
+      isDeleted: true,
+      deletedAt: '2026-06-01T11:20:00',
+      deletedByName: '오병승',
+    }
 
     let content: Array<{
       orderNumber: string
@@ -7019,17 +7032,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       status: string
       totalAmount: number
       linkedSlipNo: string | null
+      isDeleted?: boolean
+      deletedAt?: string | null
+      deletedByName?: string | null
     }>
     if (statusParam === 'DRAFT') {
       // DRAFT 필터: 같은 거래처 DRAFT 2건 포함 (시나리오 2/4/5 직접 접근 가능)
-      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW]
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, DELETED_DRAFT_ROW]
     } else if (statusParam === 'ON_HOLD') {
       content = [ON_HOLD_ROW, SAME_PARTNER_ON_HOLD_ROW]
     } else if (statusParam === 'CONFIRMED') {
       content = [CONFIRMED_ROW]
     } else {
       // 전체 또는 기타 — 모든 행 반환 (혼합 시나리오 포함)
-      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, SAME_PARTNER_ON_HOLD_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, DELETED_DRAFT_ROW, SAME_PARTNER_ON_HOLD_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
     }
 
     // 3-D: 병합/전환된 주문은 CONVERTED 로 표시. DRAFT 필터에서는 제외(BE 동작 모사).
@@ -7038,6 +7054,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         mockConvertedOrderNos.has(row.orderNumber)
           ? { ...row, status: 'CONVERTED' as const, linkedSlipNo: '2026/05/31-1' }
           : row,
+      )
+      .map((row) =>
+        mockDeletedOrderNos.has(row.orderNumber)
+          ? {
+              ...row,
+              isDeleted: true,
+              deletedAt: row.deletedAt ?? '2026-06-01T11:20:00',
+              deletedByName: row.deletedByName ?? '오병승',
+            }
+          : { ...row, isDeleted: false, deletedAt: null, deletedByName: null },
       )
       .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
 
@@ -10699,6 +10725,39 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({
       slipNo: '2026/05/31-1',
       convertedOrders,
+    })
+  }
+
+  const partnerOrderDeleteMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
+  if (method === 'DELETE' && partnerOrderDeleteMatch) {
+    const orderNo = toSlashDocumentNo(decodeURIComponent(partnerOrderDeleteMatch[1] ?? ''))
+    mockDeletedOrderNos.add(orderNo)
+    return { data: null, status: 204, statusText: 'No Content', headers: {}, config }
+  }
+
+  const partnerOrderInlineRestoreMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/restore$/)
+  if (method === 'POST' && partnerOrderInlineRestoreMatch) {
+    const orderNo = toSlashDocumentNo(decodeURIComponent(partnerOrderInlineRestoreMatch[1] ?? ''))
+    mockDeletedOrderNos.delete(orderNo)
+    return envelope({
+      orderNumber: orderNo,
+      partnerCode: '1234567890',
+      bizCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-31T10:00:00',
+      status: 'DRAFT',
+      totalAmount: 980000,
+      linkedSlipNo: null,
+      updatedAt: new Date().toISOString(),
+      deliveryAddress: null,
+      siteAddress: null,
+      contactPhone: null,
+      dueDate: null,
+      memo: 'mock restored',
+      isDeleted: false,
+      deletedAt: null,
+      deletedByName: null,
+      lines: [],
     })
   }
 
@@ -16676,12 +16735,15 @@ const emptyMockActionMatrix = (): MockActionMatrix => ({
 
 const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix => {
   const cell = _mockPermissionCells.find((c) => c.roleCode === role && c.pageCode === page)
+  const canRestore = ['sales.partner-order.list', 'dispatch.board'].includes(page)
+    ? cell?.edit ?? false
+    : false
   return {
     view: cell?.view ?? false,
     create: cell?.edit ?? false,
     update: cell?.edit ?? false,
     delete: cell?.edit ?? false,
-    restore: false,
+    restore: canRestore,
     download: cell?.view ?? false,
     print: cell?.view ?? false,
   }

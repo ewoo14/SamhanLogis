@@ -11,6 +11,8 @@ import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderListFilter;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderSummaryResponse;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
@@ -19,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -46,6 +50,7 @@ public class PartnerOrderQueryService {
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerSelfScopeGuard partnerSelfScopeGuard;
     private final ProductClient productClient;
+    private final EntityManager entityManager;
 
     /**
      * 주문 목록을 필터와 페이지 조건으로 조회한다.
@@ -69,14 +74,11 @@ public class PartnerOrderQueryService {
     public Page<PartnerOrderSummaryResponse> list(
             PartnerOrderListFilter filter, Pageable pageable, String callerPartnerCode) {
         PartnerOrderListFilter normalized = normalize(filter);
-        Specification<PartnerOrder> spec = toSpec(normalized);
         String partnerScope = partnerSelfScopeGuard.partnerScopeOrNull(callerPartnerCode);
         if (partnerScope != null) {
             partnerSelfScopeGuard.restrictRequestedPartnerCode(normalized.partnerId(), callerPartnerCode);
-            spec = spec.and(ownPartnerSpec(partnerScope));
         }
-        return partnerOrderRepository.findAll(spec, pageable)
-                .map(PartnerOrderSummaryResponse::from);
+        return listIncludingDeleted(normalized, pageable, partnerScope);
     }
 
     /**
@@ -169,6 +171,86 @@ public class PartnerOrderQueryService {
                 trimToNull(filter.partnerId()),
                 filter.status(),
                 trimToNull(filter.searchKeyword()));
+    }
+
+    /**
+     * 목록 화면 전용 조회. PartnerOrder 엔티티의 {@code @SQLRestriction("is_deleted = false")} 를
+     * 우회해야 삭제행을 취소선/복원 대상으로 표시할 수 있으므로 native query 로만 수행한다.
+     */
+    private Page<PartnerOrderSummaryResponse> listIncludingDeleted(
+            PartnerOrderListFilter filter, Pageable pageable, String partnerScope) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        String where = buildNativeWhereClause(filter, partnerScope, params);
+        String orderBy = " ORDER BY COALESCE(po.confirmed_at, po.created_at) DESC, po.order_no DESC";
+
+        Query countQuery = entityManager.createNativeQuery(
+                "SELECT COUNT(*) FROM partner_orders po WHERE " + where);
+        params.forEach(countQuery::setParameter);
+        long total = ((Number) countQuery.getSingleResult()).longValue();
+        if (total == 0) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+
+        Query dataQuery = entityManager.createNativeQuery(
+                "SELECT * FROM partner_orders po WHERE " + where + orderBy,
+                PartnerOrder.class);
+        params.forEach(dataQuery::setParameter);
+        dataQuery.setFirstResult((int) pageable.getOffset());
+        dataQuery.setMaxResults(pageable.getPageSize());
+
+        @SuppressWarnings("unchecked")
+        List<PartnerOrder> rows = dataQuery.getResultList();
+        return new PageImpl<>(
+                rows.stream().map(PartnerOrderSummaryResponse::from).toList(),
+                pageable,
+                total);
+    }
+
+    private String buildNativeWhereClause(
+            PartnerOrderListFilter filter, String partnerScope, Map<String, Object> params) {
+        List<String> predicates = new ArrayList<>();
+        predicates.add("1 = 1");
+        if (filter.dateFrom() != null) {
+            predicates.add("COALESCE(po.confirmed_at, po.created_at) >= :dateFrom");
+            params.put("dateFrom", filter.dateFrom().atStartOfDay());
+        }
+        if (filter.dateTo() != null) {
+            predicates.add("COALESCE(po.confirmed_at, po.created_at) < :dateTo");
+            params.put("dateTo", filter.dateTo().plusDays(1).atStartOfDay());
+        }
+        if (filter.partnerId() != null) {
+            predicates.add("(LOWER(po.partner_code) LIKE :partnerId OR LOWER(po.biz_code) LIKE :partnerId)");
+            params.put("partnerId", like(filter.partnerId()));
+        }
+        if (filter.status() != null) {
+            predicates.add("po.status = :status");
+            params.put("status", filter.status().name());
+        }
+        if (filter.searchKeyword() != null) {
+            predicates.add("""
+                    (
+                        LOWER(po.order_no) LIKE :searchKeyword
+                        OR LOWER(po.partner_code) LIKE :searchKeyword
+                        OR LOWER(po.biz_code) LIKE :searchKeyword
+                        OR EXISTS (
+                            SELECT 1
+                            FROM partner_order_lines pol
+                            WHERE pol.partner_order_id = po.id
+                              AND (
+                                  LOWER(pol.product_name) LIKE :searchKeyword
+                                  OR LOWER(pol.model_name) LIKE :searchKeyword
+                                  OR LOWER(pol.remark) LIKE :searchKeyword
+                              )
+                        )
+                    )
+                    """);
+            params.put("searchKeyword", like(filter.searchKeyword()));
+        }
+        if (partnerScope != null) {
+            predicates.add("po.partner_code = :partnerScope");
+            params.put("partnerScope", partnerScope);
+        }
+        return String.join(" AND ", predicates);
     }
 
     /**

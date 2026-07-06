@@ -11,6 +11,7 @@ import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.ConvertResultResponse;
 import com.samhanair.logis.partnerorder.web.dto.ConvertToSlipRequest;
@@ -72,6 +73,7 @@ public class PartnerOrderConvertService {
     private final SlipServiceClient slipServiceClient;
     private final InventoryClient inventoryClient;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
+    private final PartnerOrderBoardChangePublisher boardChangePublisher;
 
     /**
      * 주문의 선택 라인을 출고전표로 부분전환한다 (Phase 2.6c — reserve 예약 모델).
@@ -214,11 +216,18 @@ public class PartnerOrderConvertService {
 
         order.markConvertedIfComplete();
         orderRepository.saveAndFlush(order);
+        publishListChanged();
 
         return new ConvertResultResponse(
                 result.slipNo(),
                 order.getStatus().name(),
                 order.getLines().stream().allMatch(PartnerOrderLine::isFullyConverted));
+    }
+
+    private void publishListChanged() {
+        if (boardChangePublisher != null) {
+            boardChangePublisher.publishListChanged("UPDATED");
+        }
     }
 
     private void enforceApprovalLine(UUID actorId) {

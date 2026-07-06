@@ -1123,3 +1123,39 @@
   align-items: center;
   gap: 8px;
 }
+
+/* 주문 목록 삭제행 — 텍스트 취소선은 TS 공통 토큰에서 적용, row 배경만 보조 표시. */
+.partnerOrderRowDeleted {
+  background: var(--color-neutral-50, #f9fafb);
+}
+
+.partnerOrderNumberCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.partnerOrderDeletedBadge {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-neutral-300, #d1d5db);
+  background: var(--color-neutral-100, #f3f4f6);
+  color: var(--color-neutral-700, #374151);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.partnerOrderRestoreError {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-danger-200, #fecaca);
+  border-radius: 6px;
+  background: var(--color-danger-50, #fff1f1);
+  color: var(--color-danger-700, #991b1b);
+  font-size: 13px;
+  font-weight: 600;
+}

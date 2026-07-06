@@ -23,6 +23,7 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -54,6 +56,9 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @Autowired
     private SlipPublishOutboxRepository outboxRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockBean
     private DcConfigClient dcConfigClient;
     @MockBean
@@ -75,7 +80,7 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     void setUp() {
         // slip_publish_outbox.partner_order_id_fkey 위반 회피 — outbox 먼저 cleanup
         outboxRepository.deleteAll();
-        orderRepository.deleteAll();
+        jdbcTemplate.execute("TRUNCATE TABLE partner_orders RESTART IDENTITY CASCADE");
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
@@ -159,8 +164,33 @@ class PartnerOrderListIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.content.length()").value(0));
     }
 
-    private void saveOrder(String orderNo, String partnerCode, String bizCode,
-                           String productName, String modelName, String status) {
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_includes_soft_deleted_rows_with_deleted_metadata() throws Exception {
+        PartnerOrder deleted = saveOrder(
+                "2026/05/07-9",
+                "P-SP0841-D",
+                "4040404040",
+                "삭제 품목",
+                "DEL-001",
+                "CONFIRMING");
+        deleted.markDeletedWithName(ACCOUNT_ID, "삭제담당자", LocalDateTime.parse("2026-05-08T10:15:00"));
+        orderRepository.saveAndFlush(deleted);
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("searchKeyword", "삭제 품목"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/07-9"))
+                .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))
+                .andExpect(jsonPath("$.data.content[0].deletedAt").value("2026-05-08T10:15:00"))
+                .andExpect(jsonPath("$.data.content[0].deletedByName").value("삭제담당자"));
+    }
+
+    private PartnerOrder saveOrder(String orderNo, String partnerCode, String bizCode,
+                                   String productName, String modelName, String status) {
         PartnerOrder order = PartnerOrder.create(
                 partnerCode,
                 bizCode,
@@ -184,7 +214,7 @@ class PartnerOrderListIT extends AbstractPostgresIT {
                 new BigDecimal("100000"),
                 "비고"));
         setConfirmedAt(order, LocalDate.parse(orderNo.substring(0, 10).replace("/", "-")).atTime(10, 0));
-        orderRepository.saveAndFlush(order);
+        return orderRepository.saveAndFlush(order);
     }
 
     /**
