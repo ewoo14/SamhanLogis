@@ -175,7 +175,9 @@ public class PartnerService {
     @Transactional(readOnly = true)
     public Page<Partner> searchAdmin(String q, PartnerStatus status, Pageable pageable) {
         String normalized = (q == null || q.isBlank()) ? null : q.trim();
-        return partnerRepository.searchAdminIncludingDeleted(normalized, status, unsorted(pageable));
+        // native query 는 enum name() 문자열을 요구한다(raw enum → ordinal 바인딩 시 status 필터 영구 0건).
+        String statusName = status == null ? null : status.name();
+        return partnerRepository.searchAdminIncludingDeleted(normalized, statusName, unsorted(pageable));
     }
 
     /**

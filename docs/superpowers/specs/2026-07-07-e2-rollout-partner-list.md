@@ -22,7 +22,9 @@
 
 ### FE (clients/desktop)
 - 신규 `realtime/PartnerListRealtimeClient.ts` (createRealtimeClient, `/admin/partners/list-realtime`).
-- `admin/PartnersPage.tsx`: `useCollectionRealtime(PartnerListRealtimeClient, 'list', [['admin','partners',...]])` + 30초 폴링 제거(안전망 판단)·인디케이터 문구 교체. 삭제행 취소선(neutral-600 WCAG AA)+배지+권한게이트 복원버튼.
+- `admin/PartnersPage.tsx`: `useCollectionRealtime(PartnerListRealtimeClient, 'list', [['admin','partners']])` — **coarse 무효화 키**(필터/페이지 tuple 미포함, 안정 참조. 필터+페이지 tuple 을 넘기면 다른 캐시 페이지가 stale 처리조차 안 됨). 30초 폴링 제거·인디케이터 문구 교체. 삭제행 취소선(neutral-600 WCAG AA)+배지+권한게이트 복원버튼.
+
+> ⚠️ **후순위 defer (개발책임자 결정 — pre-existing)**: search 엔드포인트의 상태 필터 파라미터명은 `type`(PartnerStatus 타입)인데 FE `listAdminPartners` 는 `status`+`type` 를 함께 전송 → FE status 필터가 BE 에 미도달, FE type(거래처유형) 필터는 BE 미지원. E2 범위 밖 계약 불일치이므로 이 슬라이스에서 수정하지 않고 별도 정리(필터 계약 설계 결정 필요).
 - `api/adminApi.ts`: `PartnerSummary` 삭제메타 3필드 + `restorePartner()`.
 - 신규 `admin/partnerDeletedRow.ts` 유틸(배차 `dispatchDeletedRow.ts` 미러).
 

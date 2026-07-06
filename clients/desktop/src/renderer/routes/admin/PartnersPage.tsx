@@ -66,6 +66,10 @@ const STATUS_VARIANT: Record<
   TERMINATED: 'danger',
 }
 
+// SSE 목록 동기화용 coarse 무효화 키(안정 참조 — 렌더마다 재구독 방지). 필터/페이지 미포함이라
+// 다른 필터/페이지로 캐시된 목록도 prefix 매치로 stale 처리된다(멀티 워크스테이션 반영 목적).
+const PARTNER_LIST_REALTIME_KEYS: QueryKey[] = [['admin', 'partners']]
+
 /** KRW 정수 (string 또는 number) → "₩1,234,567" 표시. */
 function formatKrw(raw: string | number | null | undefined): string {
   if (raw === null || raw === undefined) return '—'
@@ -110,7 +114,9 @@ export function PartnersPage() {
     () => ['admin', 'partners', q, statusFilter, typeFilter, page],
     [q, statusFilter, typeFilter, page],
   )
-  useCollectionRealtime(PartnerListRealtimeClient, 'list', [partnerListQueryKey])
+  // ⚠️ 무효화 키는 coarse(위 상수) — 현재 화면의 필터+페이지 tuple 을 넘기면 그 조합만 무효화되고
+  // 다른 캐시 페이지는 stale 처리조차 안 된다(라이브싱크 훼손). 안정 참조라 검색 키입력마다 SSE 재접속도 없음.
+  useCollectionRealtime(PartnerListRealtimeClient, 'list', PARTNER_LIST_REALTIME_KEYS)
 
   const query = useQuery({
     queryKey: partnerListQueryKey,
@@ -124,11 +130,19 @@ export function PartnersPage() {
       }),
   })
 
+  const [restoreError, setRestoreError] = useState<string | null>(null)
   const restoreMutation = useMutation({
     mutationFn: restorePartner,
     onSuccess: async () => {
+      setRestoreError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
     },
+    onError: (error) =>
+      setRestoreError(
+        error instanceof Error && error.message
+          ? `복원 실패: ${error.message}`
+          : '복원에 실패했습니다. 거래처 상태 또는 권한(임원실 부서)을 확인하세요.',
+      ),
   })
 
   const totalPages = query.data
@@ -346,13 +360,24 @@ export function PartnersPage() {
         </select>
       </div>
 
+      {restoreError ? (
+        <div
+          className="error-banner"
+          role="alert"
+          data-testid="admin-partners-restore-error"
+          style={{ marginBottom: 12, padding: 12, color: 'var(--state-danger)' }}
+        >
+          {restoreError}
+        </div>
+      ) : null}
+
       {/* 테이블 */}
       <div data-testid="admin-partners-table">
         <DataTable
           columns={columns}
           rows={query.data?.items ?? []}
           loading={query.isLoading}
-          rowKey={(p) => p.partnerCode}
+          rowKey={(p) => `${p.partnerCode}:${p.isDeleted ? 'D' : 'A'}`}
           emptyMessage="조건에 맞는 거래처가 없습니다."
           onRowClick={openDetail}
         />

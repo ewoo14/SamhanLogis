@@ -51,7 +51,8 @@ class PartnerSearchServiceTest {
         Partner p = Partner.register("P-2026-0001", "123-45-67890", "(주)테스트",
                 "서울", "02-1111-2222", new BigDecimal("1000000"));
         Pageable pageable = PageRequest.of(0, 10);
-        when(repo.searchAdminIncludingDeleted(eq("테스트"), eq(PartnerStatus.ACTIVE), eq(pageable)))
+        // 서비스는 enum 을 name() 문자열로 변환해 native repo 에 전달한다(ordinal 바인딩 버그 회피).
+        when(repo.searchAdminIncludingDeleted(eq("테스트"), eq("ACTIVE"), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(p), pageable, 1L));
 
         Page<Partner> page = service.searchAdmin("테스트", PartnerStatus.ACTIVE, pageable);
