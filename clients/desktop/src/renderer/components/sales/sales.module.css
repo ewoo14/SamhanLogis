@@ -1127,6 +1127,8 @@
 /* 주문 목록 삭제행 — 텍스트 취소선은 TS 공통 토큰에서 적용, row 배경만 보조 표시. */
 .partnerOrderRowDeleted {
   background: var(--color-neutral-50, #f9fafb);
+  /* 삭제행은 행 클릭이 no-op 이므로 클릭 어포던스 제거(DataTable 은 테이블 단위 cursor:pointer 부여). */
+  cursor: default;
 }
 
 .partnerOrderNumberCell {

@@ -95,6 +95,9 @@ public class PartnerOrderDeleteService {
         if (!Boolean.TRUE.equals(order.getIsDeleted())) {
             return PartnerOrderDetailResponse.from(order);
         }
+        // CONFIRMING(전환 중) 상태로 삭제된 주문의 인라인 복원은 전환-중 좀비 행을 부활시켜
+        // 이후 어떤 도메인 메서드로도 복구 불가하므로 차단(409). revision restore 경로와 정합.
+        order.requireRestorable();
 
         LocalDateTime deletedAt = order.getDeletedAt();
         List<PartnerOrderLine> lines = lineRepository.findAllIncludingDeletedByPartnerOrderId(order.getId());

@@ -16324,6 +16324,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'dispatch.external-carriers': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
   // V78: dispatch.board 는 MANAGER/DISPATCH 에도 RESTORE 부여(취소선 복원). DOWNLOAD/PRINT 없음.
   'dispatch.board': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
+  // V83(E2 주문 롤아웃): sales.partner-order.list 는 MASTER/MANAGER/SALES 에 RESTORE 부여(취소선 복원).
+  'sales.partner-order.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
 }
 
 /**

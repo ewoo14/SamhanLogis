@@ -33,6 +33,7 @@ import {
   deletedBadgeAriaLabel,
   deletedBadgeLabel,
 } from '../realtime/deletedRowDisplay'
+import { serverErrorMessage } from './dispatch-board/dispatchErrorMessage'
 import styles from '../components/sales/sales.module.css'
 
 const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
@@ -54,14 +55,17 @@ const ymd = (iso: string | null) => (iso ? formatSlipDate(iso) : '-')
  */
 const MERGE_SELECTABLE_STATUS: ReadonlySet<PartnerOrderStatus> = new Set(['DRAFT', 'ON_HOLD'])
 
+// 비삭제 행은 기존 testid 계약(`partner-order-row-{orderNumber}`)을 보존하고, 삭제 행만 composite
+// 접미사를 붙인다(삭제행+동일코드 활성행 공존 시 React key/testid 충돌 방지). 전체 행에 접미사를
+// 붙이면 기존 Playwright 하드게이트 exact-match 가 깨진다(#757 R1 BLOCKING).
 const partnerOrderRowKey = (o: PartnerOrderSummary) =>
-  `${o.orderNumber ?? o.partnerCode}:${o.isDeleted === true}`
+  o.isDeleted === true
+    ? `${o.orderNumber ?? o.partnerCode}:deleted`
+    : (o.orderNumber ?? o.partnerCode)
 
 function restoreErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message
-  }
-  return '주문 복원에 실패했습니다. 잠시 후 다시 시도하세요.'
+  // BE 한국어 사유(ApiEnvelope.message)를 우선 노출. Axios 제네릭(영문) 폴백 방지.
+  return serverErrorMessage(error) ?? '주문 복원에 실패했습니다. 잠시 후 다시 시도하세요.'
 }
 
 
