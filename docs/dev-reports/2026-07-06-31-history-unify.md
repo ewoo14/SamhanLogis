@@ -632,3 +632,58 @@ PR #747(#31) 중간 Design 리뷰에서 다중필드 역방향 하이라이트 �
   **563** 개만 실행한다(로컬 566 = CI 563 + 물리적으로 존재하는 untracked live/QA 스펙 3). 본 변경은
   spec-neutral(스펙 추가/삭제 0·UI 순수 삭제)이라 b8bc94098 에서 green 이던 desktop-playwright 게이트가
   동일 563 으로 유지된다(push 후 실 CI 로 재확인).
+
+## Opus 5-agent 라운드 fix — 데스크톱 복원 일원화 + 터치타겟 + className (2026-07-06, Opus)
+
+> 모바일 dedup(`3ebb79520`) 대상 Opus 5-agent 리뷰 결과: **이번 커밋 회귀 0·CI 30/30 green**(FE/BE/Design/DevOps
+> 전원 PASS). 리뷰가 드러낸 **사전존재 findings** 처리 스코프를 개발책임자가 확정(Q1=복원 일원화 완성,
+> Q2=Design UX 2건 모두 포함) → Opus 라운드 fix(Opus 직접 구현).
+
+### 결함 배경 (FE HIGH + BE MED 교차 + PM 직접 검증)
+
+데스크톱 "복원..." select(`slip-detail-revert-select`)가 호출하는 `revertToRevision`(slipAudit.ts)의 경로
+`/api/v1/slips/{id}/revert/{n}` 가 BE 실매핑 `SlipAuditLogController`(`@RequestMapping("/slips/{slipId}")` +
+`@PostMapping("/audit/revert/{revisionNo}")` = `/slips/{id}/audit/revert/{n}`) 와 **`audit/` 세그먼트 불일치 →
+실서버 100% 404**. FE mock(mock.ts)이 FE 의 버그 경로를 미러링해 mock/CI 에선 미노출, 실서버 검증 spec 부재
+(`slip-detail-revert*` testid 참조 spec 0건)로 잠복. 제거된 모바일 accordion 도 같은 죽은 경로였다 → 결국
+**두 곳 모두 실서버에선 이미 비동작**이었고, 유일한 정상 복원은 통합 패널의 `SlipVersionHistoryPanel` →
+`/slips/{id}/revisions/{n}/restore`(별개 컨트롤러) 였다.
+
+### fix 1 — 데스크톱 복원 select 제거 → restore 일원화 (Slip #31 완성)
+
+- `SlipDetailPage.tsx`: 데스크톱 `slip-detail-revert-select`(복원 dropdown) 제거 + 고아화된
+  `revertMutation`/`revertCandidates`/`handleRevert` + `revertToRevision` import 제거. `revisionCount`(헤더
+  "수정 N회" 배지)·`auditLogsQuery`/`auditLogs`/`auditByField`(AuditOverlay) 는 존치.
+- `slipAudit.ts`: 죽은 `revertToRevision` 함수 + `SlipRevertResponse` 타입 제거, 헤더 Javadoc 에 일원화 사유
+  명시(`listAuditLogs` 는 존치 — 헤더 배지/AuditOverlay 소비).
+- `mock.ts`: 죽은 `POST /slips/{id}/revert/{n}` mock 핸들러 제거(`slip.audit-revert` 권한 seed 는 존치 —
+  통합 restore 경로가 동일 권한 사용).
+- 결과: 데스크톱·모바일 **모두** 통합 패널 restore 로 수렴 → 404 죽은 버튼 소멸 + Slip 복원 일원화 완성.
+- **범위 밖(미변경) — 동일패턴 sweep 결과**: `createAuditApi.ts` 의 제네릭 `revertToRevision` 은 `config.revertPath`
+  로 **파라미터화**돼 있어 Slip 의 하드코딩 버그와 별개 메커니즘이다(TaxInvoice 가 사용). TaxInvoice 경로 정합
+  여부는 별개 슬라이스 사안이라 이번 PR 에선 확인만 하고 건드리지 않았다.
+
+### fix 2 — 통합 패널 모바일 터치타겟 44px (Design MED)
+
+모바일에서 통합 협업 패널이 버전이력·복원·필드 하이라이트의 **유일 경로**가 되면서 실사용 영향이 커진 28px<44px
+터치타겟을 `global.css` 모바일 스코프 CSS 로 해소:
+- `.mobile-section-body [data-testid='slip-collaboration-panel'] button { min-height: 44px }` — 복원/코멘트
+  액션(해결·삭제·등록) 버튼.
+- `.mobile-section-body [data-testid^='slip-version-history-change-'][role='button'] { min-height: 44px;
+  align-content: center }` — 필드변경 클릭 행(코멘트 역방향 하이라이트 인터랙션).
+- `.mobile-section-body` 하위 DOM 은 모바일 렌더에서만 존재(데스크톱 협업 패널은 MobileCollapsible 무래핑) →
+  **데스크톱 density 무영향**. TSX 로직 무변경(CSS-only).
+
+### fix 3 — "코멘트" MobileCollapsible className 정합 (Design MED)
+
+`SlipDetailPage.tsx` 모바일 "코멘트" `MobileCollapsible` 에 `className="mobile-section-card"` 추가 → 타 3도메인
+(Estimate/Journal/PartnerOrder) collab 패널의 카드 스타일과 정합(#31 5도메인 일원화 취지).
+
+### 검증
+
+- `cd clients/desktop && npm run typecheck` — PASS(exit 0).
+- 제거 심볼 전수 sweep(`slip-detail-revert`/`SlipRevertResponse`/Slip `revertMutation`·`revertCandidates`·
+  `handleRevert`) → SlipDetailPage/slipAudit/mock 및 spec 참조 **0건**(잔여 매치는 전부 무관 컴포넌트:
+  EditWarehouseModal·AuditOverlaySection·createAuditApi·TaxInvoice).
+- `cd clients/desktop && npx vitest run` — **93 files / 637 tests / 0 failed**.
+- Playwright mock 게이트(CI 동일조건) + 라이브 QA(모바일+데스크톱 실화면)는 라운드 fix+QA 게시에 첨부.

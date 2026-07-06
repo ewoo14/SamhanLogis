@@ -69,7 +69,6 @@ import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { invalidateSignature } from '../api/signature'
 import {
   listAuditLogs,
-  revertToRevision,
   type SlipAuditLogEntry,
 } from '../api/slipAudit'
 import { getRedline, type SlipFieldRedline } from '../api/slipRedline'
@@ -849,21 +848,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     },
   })
 
-  /**
-   * PR-H2: 특정 revision 으로 복원 — 200 응답 시 audit-logs / 전표 본체 cache invalidate.
-   * 사용자에게 confirm dialog 후 실행 (실수 방지).
-   */
-  const revertMutation = useMutation({
-    mutationFn: (revisionNo: number) => revertToRevision(id, revisionNo),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['slip', id] })
-      void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
-    },
-    onError: () => {
-      alert('복원에 실패했습니다.')
-    },
-  })
-
   const syncPurchaseFormFromData = useCallback((data: SlipDetail) => {
     setPurchasePartnerName(data.partnerName ?? '')
     setPurchasePartnerCode(data.partnerCode ?? '')
@@ -1283,26 +1267,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * BE 가 한 revision 에 여러 필드 변경을 묶어 보낼 수 있으므로 set 으로 dedupe.
    */
   const revisionCount = new Set(auditLogs.map((l) => l.revisionNo)).size
-
-  /**
-   * PR-H2: revert dropdown 후보 — distinct revisionNo (내림차순).
-   * 가장 최근 revision 을 제외 (이미 현재 상태) — slice(1) 시 의미 모호 → 모두 노출 후 사용자 선택.
-   */
-  const revertCandidates = Array.from(
-    new Set(auditLogs.map((l) => l.revisionNo)),
-  ).sort((a, b) => b - a)
-
-  /** revert 핸들러 — confirm 후 mutation. */
-  const handleRevert = (revisionNo: number) => {
-    if (
-      !window.confirm(
-        `이 전표를 revision #${revisionNo} 시점으로 복원하시겠습니까?\n\n현재 값은 새 revision 으로 보존됩니다.`,
-      )
-    ) {
-      return
-    }
-    revertMutation.mutate(revisionNo)
-  }
 
   const mobileSlipTotal = slip.lines.reduce(
     (sum, line) => sum + slipLineAmounts(line).totalIncl,
@@ -1890,38 +1854,6 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         </div>
         {!isMobile ? (
         <div className="detail-action-bar">
-          {/* PR-H2: 복원 dropdown — revertCandidates 가 있을 때만 표시 */}
-          {revertCandidates.length > 0 ? (
-            <select
-              data-testid="slip-detail-revert-select"
-              defaultValue=""
-              disabled={revertMutation.isPending}
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v) return
-                handleRevert(Number(v))
-                e.target.value = '' // reset selection
-              }}
-              style={{
-                padding: '4px 8px',
-                borderRadius: 4,
-                border: '1px solid var(--color-neutral-300)',
-                fontSize: 13,
-              }}
-              aria-label="이전 revision 으로 복원"
-            >
-              <option value="">복원...</option>
-              {revertCandidates.map((rev) => (
-                <option
-                  key={rev}
-                  value={rev}
-                  data-testid={`slip-detail-revert-button-${rev}`}
-                >
-                  revision #{rev} 으로 복원
-                </option>
-              ))}
-            </select>
-          ) : null}
           {isOutbound ? (
             <div className="detail-print-actions">
               {/* SP-08-6-4: 거래명세서 출력 — /sales/:id/print/statement */}
@@ -3107,7 +3039,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       ) : null}
 
       {isMobile ? (
-        <MobileCollapsible title="코멘트" defaultOpen>
+        <MobileCollapsible title="코멘트" className="mobile-section-card" defaultOpen>
           <SlipCollaborationPanel
             slipId={id}
             currentValues={collabEditValues}

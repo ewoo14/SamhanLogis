@@ -681,6 +681,19 @@ button {
   .mobile-section-body [data-testid='groupware-approval-collab-edit-history-panel'] h4 {
     display: block;
   }
+
+  /*
+   * #31 이력 일원화 — 모바일에서 통합 협업 패널(SlipCollaborationPanel)이 버전이력·복원·
+   * 필드 하이라이트의 유일 경로가 되면서, 내부 인터랙션의 터치 타겟을 44px 로 확보한다.
+   * .mobile-section-body 하위는 모바일 렌더에서만 존재하므로 데스크톱 density 는 무영향이다.
+   */
+  .mobile-section-body [data-testid='slip-collaboration-panel'] button {
+    min-height: 44px;
+  }
+  .mobile-section-body [data-testid^='slip-version-history-change-'][role='button'] {
+    min-height: 44px;
+    align-content: center;
+  }
 }
 
 /* SlipDetailPage — 라인 표 + 좌측 넘버링 + 행 액션 툴바 + 하단 액션 */

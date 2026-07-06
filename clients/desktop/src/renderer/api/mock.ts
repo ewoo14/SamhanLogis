@@ -3869,15 +3869,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ revisionNo: nextRevision, message: '수정되었습니다' })
   }
 
-  // POST /api/v1/slips/{slipId}/revert/{revisionNo} — 특정 revision 으로 복원
-  const auditRevertMatch = url.match(/\/slips\/([^/?]+)\/revert\/(\d+)$/)
-  if (method === 'POST' && auditRevertMatch) {
-    const slipId = auditRevertMatch[1]!
-    const list = auditLogsStore[slipId] ?? []
-    const nextRevision = list.length === 0 ? 1 : Math.max(...list.map((l) => l.revisionNo)) + 1
-    return envelope({ newRevisionNo: nextRevision, message: '복원되었습니다' })
-  }
-
   // GET /admin/slips/search?q=... — 그룹웨어 결재 전표 참조 자동완성.
   if (method === 'GET' && /\/(?:admin\/)?slips\/search(?:\?|$)/.test(url)) {
     const params = new URLSearchParams(url.split('?')[1] ?? '')
