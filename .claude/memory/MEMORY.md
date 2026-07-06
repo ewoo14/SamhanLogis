@@ -1,9 +1,11 @@
 ﻿# 🚨 워크플로우 규율 (매 작업 최우선 — 상세는 각 토픽파일)
 - [🚨 표준 워크플로우 유일 진실원](feedback_canonical_workflow.md) — Opus 기획+조기PR → Codex 개발+게시 → (Opus 5-agent[FE/BE/Design/DevOps/QA·QA=Docker라이브QA+단계별스샷]+fix+게시 ↔ Codex 5-agent+fix+게시) 0수렴까지 → PM 종합(머지전) → CI green → 머지. 🚫순차(병렬금지)·단축금지·라운드 즉시게시·fix후 재리뷰·미준수 소급보완·매단계 ScheduleWakeup
 - [🚨 리뷰 5-agent 필수·단축금지·순차](feedback_review_5agent_no_shortcut_strict.md) — 매 리뷰=5차원 전부(Design N/A금지)·수렴/재검도 full·Opus 완료+게시 후에만 Codex(병렬금지)·실행=게시 1:1·**Codex도 5-agent**·**Codex 지적=false-positive 의심도 독단머지 금지(재수렴+PM종합 후)**·**fix=그 라운드 진행모델** (2026-07-02 #699·2026-07-05 #741)
+- [🚨 Codex 5-agent=mcp 직접(codex-rescue unreliable)](feedback_codex_rescue_unreliable_use_mcp.md) — codex-rescue는 이 환경서 bg태스크화·샌드박스 차단(gradlew/gh/npm)로 findings 미전달 → Codex 5-agent 재수렴=`mcp__codex__codex` 직접 호출로 genuine 확보. 미전달="substance 커버"로 무마 금지=위반 (2026-07-06 #31·#752)
 - [🚨 워크플로우 반복위반 근본원인+머지전 9-게이트](feedback_workflow_discipline_root_cause.md) — 처리량>충실도 역전·결과맞추기 오해·규칙 미대조·부하. 머지전 9-게이트 응답 명시(Opus5+게시·전지적disposition·fix=라운드모델·재수렴0·Codex5+게시·0수렴·PM종합·dev-report·CI). 속도<충실도 (2026-07-05)
 - [기획 spec 기존 결정 교차검증](feedback_spec_cross_check_prior_decisions.md) — 새 slice spec 각 결정을 에픽 dev-report/메모리와 grep 대조(편집가부·상태전이·계정·권한). 리뷰에 "spec 자체가 기존 결정과 상충?" 항목. 기확정(D-E3-04 류) 준수=새 결정 아님 (2026-07-05 #730)
 - [🚨 범위 점증 시 리뷰 재가동](feedback_expanded_scope_reinstate_review.md) — mechanical fix→BE/마이그/다서비스로 커지면 자체 검증(grep/probe/CI)으로 갈음 말고 정식 5-agent+Codex 리뷰+게시 재가동. 미준수=소급 리뷰 (2026-07-04 #727 지적)
+- [🚨 인프라/chore PR도 캐논 예외 아님](feedback_infra_chore_not_canon_exempt.md) — CI/인프라/chore도 기본 캐논. 긴급·자명해도 축약은 착수 전 개발책임자 선확인+PR 기록. PM 임의 단축=위반 (2026-07-06 #751·#750)
 - [🚨 라이브QA 매 라운드 GUI 스샷](feedback_live_qa_every_round_screenshots.md) — Docker 실서버+실 GUI 스크린샷(단계별) 매 리뷰 라운드마다. 끝1회·SSE/API 텍스트로 GUI스샷 대체 금지. dev_master=dev_p05_pass! (2026-07-02)
 - [🚨 PM 직접구현 금지](feedback_pm_no_direct_implementation.md) — 구현=Codex, PM=기획·리뷰·commit대행·머지만. infra오류도 PM직접구현 대체 금지 (2026-07-02)
 - [🚨 가짜 데이터·목업 영구 배제](feedback_no_fake_data_ever.md) — 실데이터·실서버·실화면·실측정만. QA스샷=실캡처만(합성/fixture 금지). 불가 시 정직 보고
