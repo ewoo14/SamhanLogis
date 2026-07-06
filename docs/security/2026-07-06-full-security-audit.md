@@ -111,10 +111,14 @@
 |---|---|
 | 조기 PR 개설 | ✅ |
 | Opus 5-에이전트 리뷰 + 라이브 QA | ✅ |
-| Opus 라운드 PR 게시 | ✅ |
-| Codex 5-에이전트 리뷰 + 게시 | ✅ |
-| 이중검증 0 수렴 | ✅ (REFUTE 0, 신규 0) |
-| PM(Fable5) 종합 | 🔄 |
-| 개발책임자 remediation 승인 → fix(Codex) → CI → 머지 | ⏳ |
+| Opus/Codex 라운드 게시 + 이중검증 0 수렴 | ✅ (REFUTE 0, 신규 0) |
+| PM 종합 → 개발책임자 remediation 승인 | ✅ (전체 착수 + partner-auth 4조치) |
+| fix Batch 1–7 (Codex 구현, PM 검증·commit) | ✅ H1~H5·M1~M7·L1~L4 처리 |
+| Codex fix 라운드 재검 (M6/M7 잔여→Batch6 수렴) | ✅ |
+| 라이브 재QA (H1 확증·V2 적용·healthy 배포) | ✅ |
+| CI green | 🔄 (arologis 회귀 정정 후 재실행) |
+| 개발책임자 disposition(M4 전이·L5) + 최종 머지 승인 | ⏳ |
+
+**disposition 대기 2건**: (1) M4 lifecycle 전이 = `slip.transfer.process` 의도된 창고 RBAC 여부, (2) L5 `samhan_dev_pw` local-only accepted-risk 종료.
 
 > findings 확정분·QA 증거·fix 내역은 본 PR 코멘트에 라운드별 누적 게시.
