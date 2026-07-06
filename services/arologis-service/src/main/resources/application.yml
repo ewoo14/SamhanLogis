@@ -65,10 +65,9 @@ samhan:
     client:
       skeleton-mode: ${SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE:true}
     # 2026-05-14 — 아로로지스 독립 분리 (자체 JWT 발급/검증).
-    # secret 64+ char 의무 (HS256 안전성). dev 기본값은 "dev-only-secret-must-be-..." chained-default,
-    # prod 는 반드시 SAMHAN_AROLOGIS_JWT_SECRET 환경변수 주입.
+    # secret 64+ char 의무 (HS256 안전성). prod/production 은 반드시 SAMHAN_AROLOGIS_JWT_SECRET 환경변수 주입.
     jwt:
-      secret: ${SAMHAN_AROLOGIS_JWT_SECRET:dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x}
+      secret: ${SAMHAN_AROLOGIS_JWT_SECRET:}
       access-expiry-seconds: ${SAMHAN_AROLOGIS_JWT_ACCESS_EXPIRY_SECONDS:3600}
       refresh-expiry-seconds: ${SAMHAN_AROLOGIS_JWT_REFRESH_EXPIRY_SECONDS:2592000}
       issuer: ${SAMHAN_AROLOGIS_JWT_ISSUER:arologis-service}

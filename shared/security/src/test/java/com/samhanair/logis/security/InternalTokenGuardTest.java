@@ -25,6 +25,20 @@ class InternalTokenGuardTest {
     }
 
     @Test
+    void productionProfile_withDevDefault_throwsAndRefusesBoot() {
+        InternalAuthProperties props = new InternalAuthProperties();
+        props.setToken(InternalTokenGuard.DEV_DEFAULT);
+        MockEnvironment env = new MockEnvironment();
+        env.setActiveProfiles("production");
+
+        InternalTokenGuard guard = new InternalTokenGuard(props, env);
+
+        assertThatThrownBy(guard::verify)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("INTERNAL_AUTH_TOKEN");
+    }
+
+    @Test
     void prodProfile_withCustomToken_doesNotThrow() {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken("super-secret-rotated-token-2026");

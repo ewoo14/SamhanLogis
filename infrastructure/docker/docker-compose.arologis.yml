@@ -16,6 +16,7 @@
 #   - AROLOGIS_IMAGE          : 배포 이미지 (예: ghcr.io/.../samhanpublic/arologis-service:arologis-v1.0.0)
 #   - SAMHAN_AROLOGIS_DB_HOST : RDS endpoint (Phase 11 AWS)
 #   - SAMHAN_AROLOGIS_DB_PASSWORD : RDS password
+#   - SAMHAN_AROLOGIS_JWT_SECRET : 아로로지스 독립 JWT 서명 secret (운영 32 bytes 이상, dev 기본값 금지)
 #   - SAMHAN_INTERNAL_TOKEN   : 서비스 간 호출 토큰 (legacy share 시)
 #   - EUREKA_URL              : http://eureka-server:8761/eureka/ (Phase 11 통합 Eureka)
 #
@@ -32,7 +33,8 @@ services:
     container_name: arologis-service
     restart: unless-stopped
     ports:
-      - "8097:8097"
+      # 운영은 ALB/보안그룹 뒤에서만 노출한다. host 직접 바인딩은 loopback 으로 제한.
+      - "127.0.0.1:8097:8097"
     environment:
       # Spring profile
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
@@ -49,6 +51,9 @@ services:
 
       # 서비스 간 호출 토큰 (legacy share 시)
       SAMHAN_INTERNAL_TOKEN: ${SAMHAN_INTERNAL_TOKEN}
+
+      # 아로로지스 독립 JWT 서명 secret. prod/production 부팅 가드가 blank/dev 기본값/32 bytes 미만을 차단한다.
+      SAMHAN_AROLOGIS_JWT_SECRET: ${SAMHAN_AROLOGIS_JWT_SECRET}
 
       # config-audit #745 재수렴 — 다운스트림 서비스 호출 URL (@Primary 비-LoadBalanced 리터럴
       # RestClient 4종: PartnerClient/NotificationClient/AuthPermissionAdminClientImpl/
