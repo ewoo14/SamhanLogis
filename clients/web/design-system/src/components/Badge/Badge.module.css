@@ -43,7 +43,7 @@
   /* [P2 정정] RGB 하드코딩 → success-50 token 일관 */
   background-color: var(--color-success-50);
   border-color: var(--color-success-200);
-  color: var(--color-success);
+  color: var(--color-success-700, #0F766E);
 }
 
 .variant-warning {
@@ -60,7 +60,7 @@
 .variant-danger {
   background-color: var(--color-danger-50);
   border-color: var(--color-danger-200);
-  color: var(--color-danger);
+  color: var(--color-danger-700, #991B1B);
 }
 
 /* SP-09-1: 국세청(NTS) 전자세금계산서 발행 완료 전용 variant */

@@ -59,6 +59,8 @@ async function installRealAuth(page: Page, token: string): Promise<void> {
 
 async function setupApiProxy(page: Page, token: string): Promise<void> {
   const handler = async (route: import('@playwright/test').Route) => {
+    const rt = route.request().resourceType()
+    if (rt !== 'xhr' && rt !== 'fetch') return route.continue()
     const u = new URL(route.request().url())
     const realUrl = `${GW_URL}${u.pathname}${u.search}`
     const headers: Record<string, string> = {}

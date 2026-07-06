@@ -103,6 +103,9 @@ describe('CashReceiptDetailPage', () => {
     expect(await screen.findByText('통장연계')).not.toBeNull()
     const edit = screen.getByRole('button', { name: '편집 불가' })
     expect((edit as HTMLButtonElement).disabled).toBe(true)
+    const describedBy = edit.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy!)?.textContent).toBe('통장연계 입금보고서는 수정할 수 없습니다.')
     expect(screen.queryByRole('button', { name: '편집' })).toBeNull()
   })
 
@@ -128,12 +131,31 @@ describe('CashReceiptDetailPage', () => {
     expect(amount.getAttribute('style')).toContain('color: var(--state-danger)')
   })
 
-  it('CANCELLED 수기 입금보고서는 편집 버튼을 노출하지 않는다', async () => {
+  it('CANCELLED 수기 입금보고서는 편집 불가 버튼과 차단 사유를 노출한다', async () => {
     renderPage(receipt({ kind: 'MANUAL_RECEIPT', status: 'CANCELLED' }))
 
     await screen.findByText('취소')
+    const edit = screen.getByRole('button', { name: '편집 불가' })
+    expect((edit as HTMLButtonElement).disabled).toBe(true)
+    const describedBy = edit.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy!)?.textContent).toBe('취소된 입금보고서는 수정할 수 없습니다.')
     expect(screen.queryByRole('button', { name: '편집' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '편집 불가' })).toBeNull()
+  })
+
+  it('값이 비어 있는 상세 Field 는 em dash fallback 을 렌더한다', async () => {
+    renderPage(receipt({
+      partnerCode: null,
+      bizNo: null,
+      journalNo: null,
+      reverseJournalNo: null,
+      externalRef: null,
+      memo: null,
+    }))
+
+    await screen.findByRole('heading', { name: '2026/07/05-1' })
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(6)
+    expect(screen.queryByText('-')).toBeNull()
   })
 
   it('kind와 CONFIRMED 상태 badge tone을 success로 렌더한다', async () => {
