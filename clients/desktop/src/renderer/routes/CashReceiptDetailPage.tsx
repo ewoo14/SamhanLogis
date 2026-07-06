@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Card, Spinner } from '@samhan/design-system'
@@ -25,11 +25,19 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: '취소',
 }
 
-function Field({ label, value }: { label: string; value: string | null | undefined }) {
+function Field({
+  label,
+  value,
+  valueStyle,
+}: {
+  label: string
+  value: string | null | undefined
+  valueStyle?: CSSProperties
+}) {
   return (
     <div>
       <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>{label}</div>
-      <div style={{ marginTop: 4, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{value || '-'}</div>
+      <div style={{ marginTop: 4, fontSize: 14, fontVariantNumeric: 'tabular-nums', ...valueStyle }}>{value || '-'}</div>
     </div>
   )
 }
@@ -75,6 +83,17 @@ export function CashReceiptDetailPage() {
     onError: (err: Error) => setTopError(`삭제 실패: ${err.message}`),
   })
 
+  const receipt = query.data
+  const isDraft = receipt?.status === 'DRAFT'
+  const isConfirmed = receipt?.status === 'CONFIRMED'
+  const isBankLinked = receipt?.kind === 'BANK_LINKED'
+  const isCancelled = receipt?.status === 'CANCELLED'
+  const canUpdate = canAccess(PAGE_CODE, 'update')
+  const canDelete = canAccess(PAGE_CODE, 'delete')
+  // 편집 진입 = 비-통장연계 & 미취소. CONFIRMED 도 편집 가능(편집폼에서 역분개 재게시 경고).
+  // 실시간 coedit(동시편집)은 편집폼에서 DRAFT 한정으로 배선된다(상세는 읽기전용).
+  const canEdit = canUpdate && !isBankLinked && !isCancelled
+
   if (query.isLoading) {
     return (
       <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
@@ -83,18 +102,9 @@ export function CashReceiptDetailPage() {
     )
   }
 
-  if (query.isError || !query.data) {
+  if (query.isError || !receipt) {
     return <div className="error-banner" role="alert">입금보고서를 불러오지 못했습니다.</div>
   }
-
-  const receipt = query.data
-  const isDraft = receipt.status === 'DRAFT'
-  const isConfirmed = receipt.status === 'CONFIRMED'
-  const isBankLinked = receipt.kind === 'BANK_LINKED'
-  const isCancelled = receipt.status === 'CANCELLED'
-  const canUpdate = canAccess(PAGE_CODE, 'update')
-  const canDelete = canAccess(PAGE_CODE, 'delete')
-  const canEdit = canUpdate && !isBankLinked && !isCancelled
 
   const handleConfirm = () => {
     setTopError('')
@@ -160,7 +170,11 @@ export function CashReceiptDetailPage() {
           <Field label="거래처 코드" value={receipt.partnerCode ?? null} />
           <Field label="사업자번호" value={receipt.bizNo ?? null} />
           <Field label="거래일" value={formatCashReceiptDate(receipt.transactionDate)} />
-          <Field label="금액" value={formatCashReceiptAmount(receipt.amount)} />
+          <Field
+            label="금액"
+            value={formatCashReceiptAmount(receipt.amount)}
+            valueStyle={Number(receipt.amount) < 0 ? { color: 'var(--state-danger)' } : undefined}
+          />
           <Field label="차변 계정" value={receipt.debitAccountCode ?? null} />
           <Field label="대변 계정" value={receipt.creditAccountCode ?? null} />
           <Field label="연결 분개번호" value={receipt.journalNo ?? null} />
@@ -168,12 +182,10 @@ export function CashReceiptDetailPage() {
           <Field label="외부 참조" value={receipt.externalRef ?? null} />
           <Field label="적요" value={receipt.memo ?? null} />
         </div>
-
-        {/* S4d coedit panel mount point: DRAFT 영속 협업은 후속 슬라이스에서 배선한다. */}
       </Card>
 
       {topError ? (
-        <div className="error-banner" role="alert" style={{ marginTop: 16, padding: 12, color: '#DC2626' }}>
+        <div className="error-banner" role="alert" style={{ marginTop: 16, padding: 12, color: 'var(--state-danger)' }}>
           {topError}
         </div>
       ) : null}

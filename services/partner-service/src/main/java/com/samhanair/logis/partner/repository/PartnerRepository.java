@@ -89,6 +89,57 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
                               Pageable pageable);
 
     /**
+     * soft-deleted row 를 포함한 admin 거래처 목록 검색.
+     *
+     * <p>{@code Partner} 의 {@code @SQLRestriction("is_deleted = false")} 우회를 위해 native query 를
+     * 사용한다. E2 목록은 삭제행도 취소선으로 표시해야 하므로 admin list 는 본 경로를 사용한다.
+     *
+     * <p>⚠️ {@code status} 는 반드시 enum 의 <b>name() 문자열</b>("ACTIVE" 등)로 전달해야 한다.
+     * native query 에 raw enum 을 바인딩하면 Hibernate 가 {@code @Enumerated(STRING)} 매핑과 무관하게
+     * ordinal(정수)로 바인딩하여 {@code p.status = CAST(:status AS varchar)} 가 영구 불일치(0건) 하기 때문.
+     * ({@code ProductRepository.search} 와 동일 패턴.)
+     */
+    @Query(value = """
+            SELECT *
+              FROM partners p
+             WHERE (CAST(:q AS varchar) IS NULL
+                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')))
+               AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
+             ORDER BY p.partner_code ASC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+              FROM partners p
+             WHERE (CAST(:q AS varchar) IS NULL
+                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
+                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')))
+               AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
+            """,
+            nativeQuery = true)
+    Page<Partner> searchAdminIncludingDeleted(@Param("q") String q,
+                                              @Param("status") String status,
+                                              Pageable pageable);
+
+    /**
+     * soft-deleted row 를 포함해 거래처 코드로 조회한다.
+     *
+     * <p>삭제행 복원은 {@code @SQLRestriction} 우회 로드가 필요하다.
+     *
+     * <p>partial unique index 는 <b>활성</b> 행의 partnerCode 중복만 막으므로, 삭제 후 코드 재사용 시
+     * 동일 partnerCode 의 (삭제행 + 활성행) 복수 행이 존재할 수 있다. 복원 대상은 삭제행이므로
+     * {@code is_deleted DESC}(삭제행 우선) + 최근 삭제 순 + {@code LIMIT 1} 로 단건을 결정론적으로 반환한다
+     * (복수 반환 시 {@code IncorrectResultSizeDataAccessException} 500 방지).
+     */
+    @Query(value = "SELECT * FROM partners WHERE partner_code = :partnerCode "
+            + "ORDER BY is_deleted DESC, deleted_at DESC NULLS LAST LIMIT 1", nativeQuery = true)
+    Optional<Partner> findByPartnerCodeIncludingDeleted(@Param("partnerCode") String partnerCode);
+
+    /**
      * 종합견적서 거래처 directory 조회 — ACTIVE 거래처만 name/bizNo/partnerCode 로 검색한다.
      *
      * <p>admin 검색과 달리 phone 은 검색 대상이 아니다. estimate-app 은 결과의 partnerCode/bizNo 로만

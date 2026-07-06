@@ -7,6 +7,7 @@ import com.samhanair.logis.partner.domain.PartnerContact;
 import com.samhanair.logis.partner.domain.PartnerPriceDiscount;
 import com.samhanair.logis.partner.domain.PartnerShippingAddress;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.revision.domain.PartnerRevisionType;
 import com.samhanair.logis.partner.revision.service.PartnerRevisionService;
 import com.samhanair.logis.partner.tab.dto.PartnerBasicResponse;
@@ -21,8 +22,10 @@ import com.samhanair.logis.partner.tab.dto.PartnerShippingAddressResponse;
 import com.samhanair.logis.partner.tab.repository.PartnerContactRepository;
 import com.samhanair.logis.partner.tab.repository.PartnerPriceDiscountRepository;
 import com.samhanair.logis.partner.tab.repository.PartnerShippingAddressRepository;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -54,6 +57,7 @@ public class Partner4TabService {
     private final PartnerPriceDiscountRepository priceDiscountRepository;
     private final PartnerShippingAddressRepository shippingAddressRepository;
     private final PartnerContactRepository contactRepository;
+    private final CollectionRealtimePublisher collectionRealtimePublisher;
     /**
      * 거래처 버전이력 캡처 서비스 (권한 재편 Phase 2.3 Task 2). 4탭 content-mutation 성공 후 같은 TX 에서
      * 거래처 헤더 + 4탭 자식 현재값을 full-snapshot 1건으로 적재한다 (자식 교체가 flush 된 뒤 조립).
@@ -180,6 +184,7 @@ public class Partner4TabService {
         // 버전이력 화면의 변경자 공란을 해소한다 (UUID 비공개 가드는 컨트롤러 displayNameOrNull 에서 적용).
         partnerRevisionService.captureFor(partnerId, PartnerRevisionType.CREATE, null,
                 SYSTEM_ACTOR_ID, actorName, null);
+        publishListChanged("CREATED");
 
         return buildFullResponse(partner, partnerId);
     }
@@ -238,6 +243,7 @@ public class Partner4TabService {
         // 권한 재편 Phase 2.3 — 4탭 일괄 수정 후 EDIT 스냅샷 캡처. buildFullResponse 가 자식을 재조회해
         // flush 를 유발하므로 capture 의 assemble 는 교체된 자식을 읽는다.
         captureEdit(partnerId, actorId, actorName);
+        publishListChanged("UPDATED");
         return response;
     }
 
@@ -483,6 +489,13 @@ public class Partner4TabService {
     private void captureEdit(UUID partnerId, UUID actorId, String actorName) {
         partnerRevisionService.captureFor(partnerId, PartnerRevisionType.EDIT, null,
                 actorId == null ? SYSTEM_ACTOR_ID : actorId, actorName, null);
+    }
+
+    private void publishListChanged(String changeType) {
+        collectionRealtimePublisher.publishChange(
+                PartnerListRealtime.CHANNEL_ID,
+                PartnerListRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 
     /**

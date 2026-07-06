@@ -61,6 +61,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class PartnerAdminController {
 
     private static final String ROLE_HEADER = "X-User-Role";
+    private static final String USER_ID_HEADER = "X-User-Id";
+    private static final String USER_NAME_HEADER = "X-User-Name";
 
     private final PartnerService partnerService;
     private final PartnerCreditService creditService;
@@ -118,24 +120,26 @@ public class PartnerAdminController {
      * 거래처 admin 검색 — Phase 10 P0-5 (q + status 필터 + 페이지네이션).
      *
      * <p>frontend {@code /admin/partners} 화면 backing — q (partnerCode/name/bizNo/phone LIKE) +
-     * type (PartnerStatus 필터). UUID 비공개 — 응답은 {@link AdminPartnerListResponse} (items =
+     * status (PartnerStatus 필터). UUID 비공개 — 응답은 {@link AdminPartnerListResponse} (items =
      * partnerCode 등 비즈니스 식별자만).
      *
      * <p>{@code GET /admin/partners} (위 {@link #findAll(Pageable)}) 와 별도 — 본 endpoint 는
      * 검색 / 필터 화면용, 위 endpoint 는 Spring Data {@link Page} raw 응답.
      */
     @Operation(summary = "거래처 admin 검색 (Phase 10 P0-5)",
-            description = "SALES / MANAGER / MASTER 권한. q + type(status) 필터. items / total / page / size 형식 응답.")
+            description = "SALES / MANAGER / MASTER 권한. q + status 필터. items / total / page / size 형식 응답.")
     @GetMapping("/search")
     @RequirePermission(page = "partners.search", action = PermissionAction.VIEW)
     public ApiResponse<AdminPartnerListResponse> search(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) PartnerStatus status,
             @RequestParam(required = false) PartnerStatus type) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "partnerCode"));
+        PartnerStatus effectiveStatus = status == null ? type : status;
         return ApiResponse.ok(AdminPartnerListResponse.from(
-                partnerService.searchAdmin(q, type, pageable)));
+                partnerService.searchAdmin(q, effectiveStatus, pageable)));
     }
 
     /**
@@ -200,10 +204,38 @@ public class PartnerAdminController {
     @DeleteMapping("/{partnerCode}")
     @RequireDepartment(Department.EXECUTIVE_OFFICE)
     @RequirePermission(page = "partners.delete", action = PermissionAction.DELETE)
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String partnerCode, Principal principal) {
-        String actor = principal != null ? principal.getName() : "system";
-        partnerService.delete(partnerCode, actor);
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable String partnerCode,
+            Principal principal,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String callerId,
+            @RequestHeader(value = USER_NAME_HEADER, required = false) String callerName) {
+        String actor = resolveActorUserId(callerId, principal);
+        partnerService.delete(partnerCode, actor, callerName);
         return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    /**
+     * 거래처 soft-delete 복원.
+     *
+     * <p>삭제 정책 가드 신설 없이 BaseEntity soft-delete undo 만 수행한다.
+     */
+    @Operation(summary = "거래처 soft-delete 복원")
+    @PostMapping("/{partnerCode}/restore")
+    @RequireDepartment(Department.EXECUTIVE_OFFICE)
+    @RequirePermission(page = "partners.delete", action = PermissionAction.RESTORE)
+    public ApiResponse<PartnerAdminResponse> restore(
+            @PathVariable String partnerCode,
+            Principal principal,
+            @RequestHeader(value = USER_ID_HEADER, required = false) String callerId) {
+        return ApiResponse.ok(PartnerAdminResponse.from(
+                partnerService.restore(partnerCode, resolveActorUserId(callerId, principal))));
+    }
+
+    private String resolveActorUserId(String callerId, Principal principal) {
+        if (callerId != null && !callerId.isBlank()) {
+            return callerId.trim();
+        }
+        return principal != null ? principal.getName() : "system";
     }
 
     /**

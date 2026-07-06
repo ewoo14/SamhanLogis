@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AccountCodeSelect,
   Button,
   Card,
-  Input,
   PartnerAutocomplete,
   Spinner,
   type PartnerOption,
@@ -18,6 +17,9 @@ import {
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
+import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
+import { createDocCoeditProvider, type DocCoeditProvider } from '../realtime/createCoeditProvider'
 import {
   buildCashReceiptRequest,
   cashReceiptFormStateFromRow,
@@ -29,11 +31,37 @@ import {
 } from './CashReceiptFormPage.model'
 
 const PAGE_CODE = 'accounting.cash-receipts'
+const CASH_RECEIPT_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
+
+function seedCashReceiptCoeditProvider(provider: DocCoeditProvider, state: CashReceiptFormState) {
+  provider.setHeaderValue('partnerName', state.partnerName)
+  provider.setHeaderValue('partnerCode', state.partnerCode)
+  provider.setHeaderValue('bizNo', state.bizNo)
+  provider.setHeaderValue('transactionDate', state.transactionDate)
+  provider.setHeaderValue('amount', state.amount)
+  provider.setHeaderValue('debitAccountCode', state.debitAccountCode)
+  provider.setHeaderValue('creditAccountCode', state.creditAccountCode)
+  provider.setHeaderValue('memo', state.memo)
+}
+
+function stateFromCashReceiptCoeditProvider(provider: DocCoeditProvider): CashReceiptFormState {
+  return {
+    partnerName: provider.getHeaderValue('partnerName'),
+    partnerCode: provider.getHeaderValue('partnerCode'),
+    bizNo: provider.getHeaderValue('bizNo'),
+    transactionDate: provider.getHeaderValue('transactionDate'),
+    amount: provider.getHeaderValue('amount'),
+    debitAccountCode: provider.getHeaderValue('debitAccountCode'),
+    creditAccountCode: provider.getHeaderValue('creditAccountCode'),
+    memo: provider.getHeaderValue('memo'),
+  }
+}
 
 export function CashReceiptFormPage() {
   const navigate = useNavigate()
   const params = useParams<{ id?: string }>()
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
   const receiptId = params['id']
   const isEdit = Boolean(receiptId)
 
@@ -42,6 +70,8 @@ export function CashReceiptFormPage() {
   const [state, setState] = useState<CashReceiptFormState>(() => cashReceiptInitialFormState())
   const [errors, setErrors] = useState<CashReceiptFormErrors>({})
   const [topError, setTopError] = useState('')
+  const [coeditProvider, setCoeditProvider] = useState<DocCoeditProvider | null>(null)
+  const [coeditPending, setCoeditPending] = useState(false)
 
   const accountsQuery = useQuery({
     queryKey: ['accounting', 'accounts'],
@@ -54,10 +84,14 @@ export function CashReceiptFormPage() {
     enabled: isEdit,
   })
 
+  const receiptDataRef = useRef<typeof receiptQuery.data | null>(null)
+  receiptDataRef.current = receiptQuery.data ?? null
+
   useEffect(() => {
     if (!isEdit || !receiptQuery.data) return
+    if (coeditProvider) return
     setState(cashReceiptFormStateFromRow(receiptQuery.data))
-  }, [isEdit, receiptQuery.data])
+  }, [isEdit, receiptQuery.data, coeditProvider])
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -86,12 +120,84 @@ export function CashReceiptFormPage() {
     })
   }
 
+  const receipt = receiptQuery.data
+  const bankLinked = receipt?.kind === 'BANK_LINKED'
+  const canUpdate = canAccess(PAGE_CODE, 'update')
+  // read-only = 권한 없음, 통장연계 또는 취소. CONFIRMED 은 편집 가능(역분개 후 재게시, S4b 기결 기능).
+  const readOnly = Boolean(isEdit && receipt && (!canUpdate || bankLinked || receipt.status === 'CANCELLED'))
+  // coedit(실시간 동시편집)은 DRAFT 한정. CONFIRMED 은 비협업 일반편집만.
+  const canCollabEdit = Boolean(
+    isEdit
+      && receiptId
+      && receipt
+      && receipt.status === 'DRAFT'
+      && !bankLinked
+      && canUpdate,
+  )
+  const coeditActive = Boolean(coeditProvider) || coeditPending
+
+  useEffect(() => {
+    const receiptSnapshot = receiptDataRef.current
+    if (!isEdit || !receiptId || !receiptSnapshot || !canCollabEdit) {
+      setCoeditProvider(null)
+      setCoeditPending(false)
+      return undefined
+    }
+
+    let disposed = false
+    let provider: DocCoeditProvider | null = null
+    let unsubscribeDoc: (() => void) | null = null
+    setCoeditPending(true)
+
+    const applyProviderState = (nextProvider: DocCoeditProvider) => {
+      setState(stateFromCashReceiptCoeditProvider(nextProvider))
+    }
+
+    void createDocCoeditProvider({
+      documentId: receiptId,
+      basePath: `/accounting/cash-receipts/${receiptId}`,
+      headerTextFields: CASH_RECEIPT_HEADER_TEXT_FIELDS,
+    }).then((nextProvider) => {
+      if (disposed) {
+        nextProvider.destroy()
+        return
+      }
+      provider = nextProvider
+      if (nextProvider.isEmpty()) {
+        seedCashReceiptCoeditProvider(nextProvider, cashReceiptFormStateFromRow(receiptSnapshot))
+      }
+      applyProviderState(nextProvider)
+      unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
+      setCoeditProvider(nextProvider)
+      setCoeditPending(false)
+    }).catch(() => {
+      if (disposed) return
+      setCoeditProvider(null)
+      setCoeditPending(false)
+    })
+
+    return () => {
+      disposed = true
+      unsubscribeDoc?.()
+      if (provider) provider.destroy()
+      setCoeditProvider(null)
+      setCoeditPending(false)
+    }
+    // receiptQuery.data 는 deps 에 넣지 않는다. SSE invalidate/refetch 로 provider 재생성 시 미저장 CRDT 가 유실된다.
+  }, [canCollabEdit, isEdit, receiptId])
+
   const handlePartnerChange = (partner: PartnerOption | null) => {
-    patch({
+    const next = {
       partnerCode: partner?.partnerCode ?? '',
       bizNo: partner?.bizNo ?? '',
       partnerName: partner?.name ?? '',
-    })
+    }
+    patch(next)
+    if (coeditProvider) {
+      coeditProvider.setHeaderValue('partnerCode', next.partnerCode)
+      coeditProvider.setHeaderValue('bizNo', next.bizNo)
+      coeditProvider.setHeaderValue('partnerName', next.partnerName)
+    }
   }
 
   const handleSave = () => {
@@ -122,10 +228,6 @@ export function CashReceiptFormPage() {
     return <div className="error-banner" role="alert">입금보고서를 불러오지 못했습니다.</div>
   }
 
-  const receipt = receiptQuery.data
-  const bankLinked = receipt?.kind === 'BANK_LINKED'
-  const isConfirmed = receipt?.status === 'CONFIRMED'
-  const readOnly = bankLinked || receipt?.status === 'CANCELLED'
   const accounts = Array.isArray(accountsQuery.data) ? accountsQuery.data : []
 
   return (
@@ -138,14 +240,26 @@ export function CashReceiptFormPage() {
       </div>
 
       {bankLinked ? (
-        <div className="error-banner" role="alert" style={{ marginBottom: 16, padding: 12 }}>
+        <div className="warning-banner" role="status">
           통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.
         </div>
       ) : null}
 
-      {isConfirmed && !bankLinked ? (
+      {isEdit && receipt && !canUpdate ? (
+        <div className="warning-banner" role="status">
+          입금보고서 수정 권한이 없어 읽기 전용으로 표시됩니다.
+        </div>
+      ) : null}
+
+      {isEdit && receipt?.status === 'CONFIRMED' && !bankLinked && canUpdate ? (
         <div className="warning-banner" role="status">
           확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.
+        </div>
+      ) : null}
+
+      {isEdit && receipt?.status === 'CANCELLED' ? (
+        <div className="danger-banner" role="status">
+          취소된 입금보고서는 수정할 수 없습니다.
         </div>
       ) : null}
 
@@ -158,50 +272,70 @@ export function CashReceiptFormPage() {
             onChange={handlePartnerChange}
             searchPartners={searchPartners}
             error={errors.partner}
-            disabled={readOnly}
+            disabled={readOnly || coeditActive}
             required
           />
 
           <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-            <Input
+            <CollaborativeSlipInput
+              provider={coeditProvider}
+              coeditPending={coeditPending}
+              fieldPath="header.partnerName"
               label="거래처명"
               value={state.partnerName}
-              onChange={(event) => patch({ partnerName: event.target.value })}
-              disabled={readOnly}
+              onValueChange={(value) => patch({ partnerName: value })}
+              readOnly={readOnly}
               required
+              aria-label="거래처명"
             />
-            <Input
+            <CollaborativeSlipInput
+              provider={coeditProvider}
+              coeditPending={coeditPending}
+              fieldPath="header.bizNo"
               label="사업자번호"
               value={state.bizNo}
-              onChange={(event) => patch({ bizNo: event.target.value })}
-              disabled={readOnly}
+              onValueChange={(value) => patch({ bizNo: value })}
+              readOnly={readOnly}
+              aria-label="사업자번호"
             />
-            <Input
+            <CollaborativeSlipInput
+              provider={coeditProvider}
+              coeditPending={coeditPending}
+              fieldPath="header.partnerCode"
               label="거래처 코드"
               value={state.partnerCode}
-              onChange={(event) => patch({ partnerCode: event.target.value })}
-              disabled={readOnly}
+              onValueChange={(value) => patch({ partnerCode: value })}
+              readOnly={readOnly}
+              aria-label="거래처 코드"
             />
           </div>
 
           <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Input
+            <CollaborativeSlipInput
+              provider={coeditProvider}
+              coeditPending={coeditPending}
+              fieldPath="header.amount"
               label="금액"
               inputMode="numeric"
               value={state.amount}
-              onChange={(event) => patch({ amount: event.target.value.replace(/[^\d.]/g, '') })}
-              disabled={readOnly}
+              onValueChange={(value) => patch({ amount: value.replace(/[^\d.]/g, '') })}
+              readOnly={readOnly}
               error={errors.amount}
               required
+              aria-label="금액"
             />
-            <Input
+            <CollaborativeSlipInput
+              provider={coeditProvider}
+              coeditPending={coeditPending}
+              fieldPath="header.transactionDate"
               label="거래일"
               type="date"
               value={state.transactionDate}
-              onChange={(event) => patch({ transactionDate: event.target.value })}
-              disabled={readOnly}
+              onValueChange={(value) => patch({ transactionDate: value })}
+              readOnly={readOnly}
               error={errors.transactionDate}
               required
+              aria-label="거래일"
             />
           </div>
 
@@ -210,11 +344,14 @@ export function CashReceiptFormPage() {
               <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600 }}>차변 계정</label>
               <AccountCodeSelect
                 value={state.debitAccountCode}
-                onChange={(code) => patch({ debitAccountCode: code })}
+                onChange={(code) => {
+                  patch({ debitAccountCode: code })
+                  coeditProvider?.setHeaderValue('debitAccountCode', code)
+                }}
                 accounts={accounts}
                 ariaLabel="차변 계정"
                 required
-                disabled={readOnly}
+                disabled={readOnly || coeditPending}
                 error={errors.debitAccountCode}
               />
             </div>
@@ -222,31 +359,44 @@ export function CashReceiptFormPage() {
               <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600 }}>대변 계정</label>
               <AccountCodeSelect
                 value={state.creditAccountCode}
-                onChange={(code) => patch({ creditAccountCode: code })}
+                onChange={(code) => {
+                  patch({ creditAccountCode: code })
+                  coeditProvider?.setHeaderValue('creditAccountCode', code)
+                }}
                 accounts={accounts}
                 ariaLabel="대변 계정"
                 required
-                disabled={readOnly}
+                disabled={readOnly || coeditPending}
                 error={errors.creditAccountCode}
               />
             </div>
           </div>
 
-          <Input
+          <CollaborativeSlipInput
+            provider={coeditProvider}
+            coeditPending={coeditPending}
+            fieldPath="header.memo"
             label="적요"
             value={state.memo}
-            onChange={(event) => patch({ memo: event.target.value })}
-            disabled={readOnly}
+            onValueChange={(value) => patch({ memo: value })}
+            readOnly={readOnly}
             error={errors.memo}
             maxLength={494}
+            aria-label="적요"
           />
         </div>
       </Card>
 
       {topError ? (
-        <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: '#DC2626' }}>
+        <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: 'var(--state-danger)' }}>
           {topError}
         </div>
+      ) : null}
+
+      {coeditPending ? (
+        <p role="status" data-testid="cash-receipt-form-coedit-pending">
+          협업 연결 중…
+        </p>
       ) : null}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
@@ -257,7 +407,7 @@ export function CashReceiptFormPage() {
           type="button"
           variant="primary"
           onClick={handleSave}
-          disabled={readOnly || saveMutation.isPending}
+          disabled={readOnly || coeditPending || saveMutation.isPending}
         >
           {saveMutation.isPending ? '저장 중...' : '저장'}
         </Button>

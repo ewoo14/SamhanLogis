@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.partner.PartnerServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
+import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.dto.PartnerAdminRequest;
 import com.samhanair.logis.partner.repository.PartnerRepository;
 import java.math.BigDecimal;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -52,6 +54,9 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
 
@@ -67,7 +72,12 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
                 .when(dynamicPermissionClient.check(
                         Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
                 .thenReturn(true);
-        partnerRepository.deleteAll();
+        // soft-delete 행까지 물리 삭제. @SQLRestriction 로 인해 HQL deleteAll 은 삭제행을 남겨
+        // searchAdminIncludingDeleted 노출·테스트 순서의존 flaky 를 유발하므로 native 로 전량 제거.
+        // FK 자식 테이블에는 ON DELETE CASCADE 가 없으므로 자식→부모 순서로 정리한다.
+        jdbcTemplate.update("DELETE FROM partner_credit_history");
+        jdbcTemplate.update("DELETE FROM partner_attachments");
+        jdbcTemplate.update("DELETE FROM partners");
     }
 
     @Test
@@ -206,6 +216,113 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", MASTER_ACCOUNT_ID)
                         .header("X-User-Role", "MASTER"))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
+    }
+
+    @Test
+    void delete_search_includes_deleted_metadata_and_restore_reactivates_partner() throws Exception {
+        PartnerAdminRequest req = sampleRequest("P-2026-0018", "999-88-77785");
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-2026-0018")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Name", "이운영")
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "P-2026-0018"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-2026-0018"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].isDeleted").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].deletedByName").value("이운영"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].deletedAt").exists());
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners/P-2026-0018/restore")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.partnerCode").value("P-2026-0018"));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "P-2026-0018"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].isDeleted").value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].deletedByName").doesNotExist());
+    }
+
+    @Test
+    void search_status_filter_returns_only_matching_status() throws Exception {
+        // @Enumerated(STRING) enum 을 native query 에 raw 바인딩하면 Hibernate 가 ordinal(정수)로 바인딩해
+        // status 필터가 영구 0건이 되는 회귀를 실 Postgres 로 고정한다(searchAdminIncludingDeleted).
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-STAT-ACT", "111-11-11111"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-STAT-SUS", "222-22-22222"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        Partner suspended = partnerRepository.findByPartnerCode("P-STAT-SUS").orElseThrow();
+        suspended.suspend();
+        partnerRepository.saveAndFlush(suspended);
+
+        // status=ACTIVE → ACTIVE 만(P-STAT-ACT). enum ordinal 버그였다면 0건.
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("status", "ACTIVE")
+                        .param("size", "50"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-STAT-ACT"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("ACTIVE"));
+
+        // legacy type=SUSPENDED 도 기존 호출 호환으로 유지한다.
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("type", "SUSPENDED")
+                        .param("size", "50"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-STAT-SUS"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("SUSPENDED"));
+    }
+
+    @Test
+    void restore_whenActivePartnerReusesCode_returns409() throws Exception {
+        // 삭제행 + 동일 code 활성행 공존(partial unique 가 code 재사용 허용) 시 복원=409(활성 unique 위반 방지).
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-DUAL-01", "111-11-22221"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-DUAL-01")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        // 삭제된 P-DUAL-01 위에 동일 code 활성 거래처 신규 생성(partial unique 허용)
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-DUAL-01", "111-11-22222"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        // 삭제행 복원 시도 → 활성행 존재로 409(500 아님)
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners/P-DUAL-01/restore")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID).header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isConflict());
     }
 
     private PartnerAdminRequest sampleRequest(String partnerCode, String bizNo) {

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { DocCoeditProvider } from '../realtime/createCoeditProvider'
 
 const mocks = vi.hoisted(() => ({
   createCashReceipt: vi.fn(),
@@ -11,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   updateCashReceipt: vi.fn(),
   listAccounts: vi.fn(),
   searchPartners: vi.fn(),
+  createDocCoeditProvider: vi.fn(),
+  canAccess: vi.fn(() => true),
   navigate: vi.fn(),
 }))
 
@@ -63,7 +66,45 @@ vi.mock('../api/accounting', () => ({
 }))
 
 vi.mock('../api/partnerApi', () => ({ searchPartners: mocks.searchPartners }))
+vi.mock('../realtime/createCoeditProvider', () => ({
+  createDocCoeditProvider: mocks.createDocCoeditProvider,
+}))
+vi.mock('../components/collab/CollaborativeSlipInput', () => ({
+  CollaborativeSlipInput: (props: {
+    provider: DocCoeditProvider | null
+    fieldPath: string
+    value: string
+    onValueChange?: (value: string) => void
+    coeditPending?: boolean
+    readOnly?: boolean
+    error?: string
+    'aria-label': string
+  }) => (
+    <label>
+      <input
+        aria-label={props['aria-label']}
+        data-testid={`cash-receipt-coedit-${props.fieldPath.replace(/\./g, '-')}`}
+        data-field-path={props.fieldPath}
+        data-provider-present={String(!!props.provider)}
+        data-coedit-pending={String(!!props.coeditPending)}
+        value={props.value}
+        disabled={!!props.coeditPending || !!props.readOnly}
+        onChange={(event) => {
+          const nextValue = event.target.value
+          props.onValueChange?.(nextValue)
+          if (props.provider) {
+            props.provider.setHeaderValue(props.fieldPath.replace(/^header\./, ''), nextValue)
+          }
+        }}
+      />
+      {props.error ? <span role="alert">{props.error}</span> : null}
+    </label>
+  ),
+}))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
+vi.mock('../hooks/usePermissions', () => ({
+  usePermissions: () => ({ canAccess: mocks.canAccess }),
+}))
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
   return { ...actual, useNavigate: () => mocks.navigate }
@@ -80,7 +121,9 @@ const accounts = [
 function renderPage(path = '/accounting/admin/cash-receipts/new') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.listAccounts.mockResolvedValue(accounts)
-  return render(
+  return {
+    client,
+    ...render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
@@ -89,12 +132,18 @@ function renderPage(path = '/accounting/admin/cash-receipts/new') {
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
-  )
+    ),
+  }
 }
+
+beforeEach(() => {
+  mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable in default test double'))
+})
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.canAccess.mockReturnValue(true)
 })
 
 describe('CashReceiptFormPage', () => {
@@ -166,7 +215,7 @@ describe('CashReceiptFormPage', () => {
     })))
   })
 
-  it('CONFIRMED 편집 모드는 수정 가능하며 역분개+재게시 경고를 노출한다', async () => {
+  it('CONFIRMED 편집 모드는 편집 가능하고 역분개 재게시 경고를 표시하며 coedit provider 를 생성하지 않는다', async () => {
     mocks.getCashReceipt.mockResolvedValue({
       id: 'receipt-confirmed',
       slipNo: '2026/07/05-7',
@@ -181,24 +230,217 @@ describe('CashReceiptFormPage', () => {
       debitAccountCode: '102',
       creditAccountCode: '110',
     })
-    mocks.updateCashReceipt.mockResolvedValue({ id: 'receipt-confirmed', slipNo: '2026/07/05-7' })
     renderPage('/accounting/admin/cash-receipts/receipt-confirmed/edit')
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '확정거래처'))
     expect(screen.getByText('확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.')).not.toBeNull()
     expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(false)
     expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false)
+    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
 
-    fireEvent.change(screen.getByLabelText('금액'), { target: { value: '880000' } })
-    fireEvent.click(screen.getByRole('button', { name: '저장' }))
-
-    await waitFor(() => expect(mocks.updateCashReceipt).toHaveBeenCalledWith('receipt-confirmed', expect.objectContaining({
-      partnerCode: 'P-CONFIRMED',
-      partnerName: '확정거래처',
-      amount: '880000',
+  it('BANK_LINKED+CONFIRMED 편집 모드는 read-only이며 coedit provider 를 생성하지 않는다', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-bank-linked-confirmed',
+      slipNo: '2026/07/05-9',
+      partnerCode: 'P-BANK',
+      bizNo: '555-55-55555',
+      partnerName: '통장거래처',
+      amount: '920000',
       transactionDate: '2026-07-05',
+      kind: 'BANK_LINKED',
+      status: 'CONFIRMED',
+      memo: '통장연계 적요',
       debitAccountCode: '102',
       creditAccountCode: '110',
-    })))
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-bank-linked-confirmed/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '통장거래처'))
+    expect(screen.getByText('통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.')).not.toBeNull()
+    expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
+  it('UPDATE 권한 없이 편집 URL에 직접 진입하면 read-only이며 coedit provider 를 생성하지 않는다', async () => {
+    mocks.canAccess.mockImplementation((_pageCode, action) => action !== 'update')
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-no-update',
+      slipNo: '2026/07/05-10',
+      partnerCode: 'P-DENY',
+      bizNo: '666-66-66666',
+      partnerName: '권한없음거래처',
+      amount: '450000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '권한 없음 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-no-update/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '권한없음거래처'))
+    expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
+  it('CANCELLED 편집 모드는 read-only이며 coedit provider 를 생성하지 않는다', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-cancelled',
+      slipNo: '2026/07/05-8',
+      partnerCode: 'P-CANCELLED',
+      bizNo: '444-44-44444',
+      partnerName: '취소거래처',
+      amount: '500000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'CANCELLED',
+      memo: '취소 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-cancelled/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '취소거래처'))
+    expect(screen.getByText('취소된 입금보고서는 수정할 수 없습니다.')).not.toBeNull()
+    expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
+  it('DRAFT 편집 모드는 cash-receipt provider 를 seed 하고 header fieldPath 를 배선한다', async () => {
+    const provider = makeProvider()
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-1',
+      slipNo: '2026/07/05-1',
+      partnerCode: 'P-EDIT',
+      bizNo: '222-22-22222',
+      partnerName: '편집거래처',
+      amount: '760000',
+      transactionDate: '2026-07-04',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '초기 적요',
+      debitAccountCode: '103',
+      creditAccountCode: '110',
+    })
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+
+    renderPage('/accounting/admin/cash-receipts/receipt-1/edit')
+
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+    expect(mocks.createDocCoeditProvider).toHaveBeenCalledWith({
+      documentId: 'receipt-1',
+      basePath: '/accounting/cash-receipts/receipt-1',
+      headerTextFields: new Set(['memo']),
+    })
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('partnerName', '편집거래처')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('partnerCode', 'P-EDIT')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('bizNo', '222-22-22222')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('transactionDate', '2026-07-04')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('amount', '760000')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('debitAccountCode', '103')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('creditAccountCode', '110')
+    expect(provider.setHeaderValue).toHaveBeenCalledWith('memo', '초기 적요')
+
+    for (const fieldPath of [
+      'header.partnerName',
+      'header.bizNo',
+      'header.partnerCode',
+      'header.amount',
+      'header.transactionDate',
+      'header.memo',
+    ]) {
+      const field = await screen.findByTestId(`cash-receipt-coedit-${fieldPath.replace(/\./g, '-')}`)
+      expect(field.getAttribute('data-field-path')).toBe(fieldPath)
+      expect(field.getAttribute('data-provider-present')).toBe('true')
+    }
+    expect((screen.getByTestId('cash-receipt-partner-autocomplete') as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('React Query data 참조가 바뀌어도 provider 를 재생성하지 않는다', async () => {
+    const provider = makeProvider()
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-1',
+      slipNo: '2026/07/05-1',
+      partnerCode: 'P-EDIT',
+      bizNo: '222-22-22222',
+      partnerName: '편집거래처',
+      amount: '760000',
+      transactionDate: '2026-07-04',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '초기 적요',
+      debitAccountCode: '103',
+      creditAccountCode: '110',
+    })
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    const { client } = renderPage('/accounting/admin/cash-receipts/receipt-1/edit')
+
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+    client.setQueryData(['accounting', 'cash-receipt', 'receipt-1'], {
+      id: 'receipt-1',
+      slipNo: '2026/07/05-1',
+      partnerCode: 'P-EDIT',
+      bizNo: '222-22-22222',
+      partnerName: '리페치거래처',
+      amount: '770000',
+      transactionDate: '2026-07-04',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '리페치 적요',
+      debitAccountCode: '103',
+      creditAccountCode: '110',
+    })
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '편집거래처'))
+
+    expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1)
+    expect(provider.destroy).not.toHaveBeenCalled()
   })
 })
+
+type TestDocCoeditProvider = DocCoeditProvider & {
+  __emit: () => void
+}
+
+function makeProvider(): TestDocCoeditProvider {
+  const header = new Map<string, string>()
+  const subscribers = new Set<() => void>()
+  return {
+    doc: {} as DocCoeditProvider['doc'],
+    header: {} as DocCoeditProvider['header'],
+    items: { toArray: () => [] } as DocCoeditProvider['items'],
+    awareness: {} as DocCoeditProvider['awareness'],
+    applyRemoteUpdate: vi.fn(),
+    applyRemoteAwareness: vi.fn(),
+    setHeaderValue: vi.fn((fieldName: string, value: string) => {
+      header.set(fieldName, value)
+    }),
+    getHeaderValue: vi.fn((fieldName: string) => header.get(fieldName) ?? ''),
+    getItemValue: vi.fn(() => ''),
+    setItemValue: vi.fn(),
+    getItemIndexById: vi.fn(() => -1),
+    getItemValueById: vi.fn(() => ''),
+    setItemValueById: vi.fn(),
+    addItem: vi.fn(() => 'line-1'),
+    removeItem: vi.fn(),
+    replaceItems: vi.fn(),
+    isEmpty: vi.fn(() => true),
+    subscribeDoc: vi.fn((listener: () => void) => {
+      subscribers.add(listener)
+      return () => subscribers.delete(listener)
+    }),
+    subscribeAwareness: vi.fn(() => () => undefined),
+    getRemoteCursors: vi.fn(() => []),
+    getRemoteEdits: vi.fn(() => []),
+    setLocalCursor: vi.fn(),
+    setLocalLastEdit: vi.fn(),
+    destroy: vi.fn(),
+    __emit: () => {
+      for (const subscriber of subscribers) subscriber()
+    },
+  }
+}

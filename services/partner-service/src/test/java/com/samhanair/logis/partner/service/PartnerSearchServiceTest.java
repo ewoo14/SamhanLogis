@@ -10,9 +10,13 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerStatus;
 import com.samhanair.logis.partner.dto.AdminPartnerListResponse;
+import com.samhanair.logis.partner.realtime.PartnerListRealtime;
 import com.samhanair.logis.partner.repository.PartnerRepository;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
@@ -30,17 +34,18 @@ class PartnerSearchServiceTest {
     private final PartnerRepository repo = mock(PartnerRepository.class);
     private final com.samhanair.logis.partner.revision.service.PartnerRevisionService revisionService =
             mock(com.samhanair.logis.partner.revision.service.PartnerRevisionService.class);
-    private final PartnerService service = new PartnerService(repo, revisionService);
+    private final CollectionRealtimePublisher collectionPublisher = mock(CollectionRealtimePublisher.class);
+    private final PartnerService service = new PartnerService(repo, collectionPublisher, revisionService);
 
     @Test
     @DisplayName("searchAdmin — q blank → repo 에 null 전달 (필터 미적용)")
     void searchAdmin_normalizes_blank_q_to_null() {
         Pageable pageable = PageRequest.of(0, 10);
-        when(repo.searchAdmin(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(repo.searchAdminIncludingDeleted(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
 
         service.searchAdmin("   ", null, pageable);
 
-        verify(repo).searchAdmin(eq(null), eq(null), eq(pageable));
+        verify(repo).searchAdminIncludingDeleted(eq(null), eq(null), eq(pageable));
     }
 
     @Test
@@ -49,7 +54,8 @@ class PartnerSearchServiceTest {
         Partner p = Partner.register("P-2026-0001", "123-45-67890", "(주)테스트",
                 "서울", "02-1111-2222", new BigDecimal("1000000"));
         Pageable pageable = PageRequest.of(0, 10);
-        when(repo.searchAdmin(eq("테스트"), eq(PartnerStatus.ACTIVE), eq(pageable)))
+        // 서비스는 enum 을 name() 문자열로 변환해 native repo 에 전달한다(ordinal 바인딩 버그 회피).
+        when(repo.searchAdminIncludingDeleted(eq("테스트"), eq("ACTIVE"), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(p), pageable, 1L));
 
         Page<Partner> page = service.searchAdmin("테스트", PartnerStatus.ACTIVE, pageable);
@@ -61,5 +67,37 @@ class PartnerSearchServiceTest {
         assertThat(dto.total()).isEqualTo(1);
         assertThat(dto.page()).isEqualTo(0);
         assertThat(dto.size()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("delete — 목록 realtime DELETED 발화를 publisher 에 위임한다")
+    void delete_publishesListChanged() {
+        Partner p = Partner.register("P-2026-0002", "123-45-67891", "(주)삭제",
+                "서울", "02-1111-3333", new BigDecimal("1000000"));
+        when(repo.findByPartnerCode("P-2026-0002")).thenReturn(Optional.of(p));
+
+        service.delete("P-2026-0002", "actor-1", "이운영");
+
+        verify(collectionPublisher).publishChange(
+                eq(PartnerListRealtime.CHANNEL_ID),
+                eq(PartnerListRealtime.EVENT_CHANGED),
+                eq(Map.of("changeType", "DELETED")));
+    }
+
+    @Test
+    @DisplayName("restore — 삭제행 복원 시 목록 realtime RESTORED 발화를 publisher 에 위임한다")
+    void restore_publishesListChanged() {
+        Partner p = Partner.register("P-2026-0003", "123-45-67892", "(주)복원",
+                "서울", "02-1111-4444", new BigDecimal("1000000"));
+        p.markDeletedWithName("actor-1", "이운영");
+        when(repo.findByPartnerCodeIncludingDeleted("P-2026-0003")).thenReturn(Optional.of(p));
+        when(repo.findByPartnerCode("P-2026-0003")).thenReturn(Optional.empty());
+
+        service.restore("P-2026-0003", "actor-2");
+
+        verify(collectionPublisher).publishChange(
+                eq(PartnerListRealtime.CHANNEL_ID),
+                eq(PartnerListRealtime.EVENT_CHANGED),
+                eq(Map.of("changeType", "RESTORED")));
     }
 }

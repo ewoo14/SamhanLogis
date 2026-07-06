@@ -178,6 +178,20 @@ jobs:
             exit 1
           fi
 
+      - name: S4d CashReceiptCoeditIT skipped=0 hard gate
+        if: matrix.group.name == 'accounting+partner'
+        run: |
+          report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.collab.CashReceiptCoeditIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::CashReceiptCoeditIT JUnit report not found; S4d coedit IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::CashReceiptCoeditIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
       - name: S3-4 ApprovalCollabIT skipped=0 hard gate
         if: matrix.group.name == 'phase9-10 (groupware+notification+dashboard)'
         run: |

@@ -496,6 +496,9 @@ function normalizeAdminPartner(row: Record<string, unknown>) {
     status: row['status'] ?? 'ACTIVE',
     creditLimit: row['creditLimit'] ?? '0',
     outstandingBalance: row['outstandingBalance'] ?? row['currentBalance'] ?? '0',
+    isDeleted: row['isDeleted'] === true,
+    deletedAt: (row['deletedAt'] as string | null | undefined) ?? null,
+    deletedByName: (row['deletedByName'] as string | null | undefined) ?? null,
   }
 }
 
@@ -7353,23 +7356,45 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // q 파라미터로 partnerCode/name/bizNo/phone LIKE 필터 (대소문자 무시)
   if (method === 'GET' && url.includes('/admin/partners/search')) {
     const q = (config.params?.['q'] as string | undefined) ?? ''
+    const status = ((config.params?.['status'] as string | undefined)
+      ?? (config.params?.['type'] as string | undefined)
+      ?? '').trim()
     const lower = q.trim().toLowerCase()
     const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
-    const filtered = lower
-      ? allItems.filter(
-          (item) =>
-            item.partnerCode.toLowerCase().includes(lower) ||
-            item.name.toLowerCase().includes(lower) ||
-            item.bizNo.toLowerCase().includes(lower) ||
-            (item.phone ?? '').toLowerCase().includes(lower),
-        )
-      : allItems
+    const filtered = allItems
+      .filter((item) => !status || item.status === status)
+      .filter((item) =>
+        !lower
+        || item.partnerCode.toLowerCase().includes(lower)
+        || item.name.toLowerCase().includes(lower)
+        || item.bizNo.toLowerCase().includes(lower)
+        || (item.phone ?? '').toLowerCase().includes(lower),
+      )
     return envelope({
       items: filtered,
       total: filtered.length,
       page: 0,
       size: 20,
     })
+  }
+
+  // POST /admin/partners/{partnerCode}/restore — admin/PartnersPage 삭제행 복원.
+  const adminPartnerRestoreMatch = url.match(/\/admin\/partners\/([^/?]+)\/restore$/)
+  if (method === 'POST' && adminPartnerRestoreMatch) {
+    const denied = mockRequirePermission('partners.delete', 'restore')
+    if (denied) return denied
+    const code = decodeURIComponent(adminPartnerRestoreMatch[1] ?? '')
+    const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code && p['isDeleted'] === true)
+    if (!row) {
+      return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    if (MOCK_ADMIN_PARTNERS.some((p) => p['partnerCode'] === code && p['isDeleted'] !== true)) {
+      return mockError(409, 'CONFLICT', `이미 사용 중인 거래처 코드로 활성 거래처가 존재하여 복원할 수 없습니다: ${code}`)
+    }
+    row['isDeleted'] = false
+    row['deletedAt'] = null
+    row['deletedByName'] = null
+    return envelope(normalizeAdminPartner(row))
   }
 
   // POST /api/v1/partners/full — PartnerCreatePage 4탭 신규 등록.
@@ -7484,6 +7509,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ message: '거래처 정보가 수정되었습니다' })
   }
   if (method === 'DELETE' && url.match(/\/admin\/partners\/[^/]+$/)) {
+    const denied = mockRequirePermission('partners.delete', 'delete')
+    if (denied) return denied
+    const code = decodeURIComponent(url.match(/\/admin\/partners\/([^/?]+)$/)?.[1] ?? '')
+    const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
+    if (!row) {
+      return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    row['isDeleted'] = true
+    row['deletedAt'] = new Date().toISOString()
+    row['deletedByName'] = MOCK_AUTH.fullName
     return envelope({ message: '거래처가 삭제되었습니다' })
   }
 
@@ -13305,6 +13340,22 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     currentBalance: '500000',
     createdAt: '2024-03-10T09:00:00+09:00',
   },
+  {
+    id: '44444444-4444-4444-4444-444444444444',
+    partnerCode: 'P-DELETED-004',
+    partnerName: '삭제표시 테스트 거래처',
+    representative: '삭제자',
+    businessNumber: '444-44-44444',
+    address: '서울특별시 강서구 공항대로 4',
+    phone: '02-4444-4444',
+    status: 'ACTIVE' as const,
+    creditLimit: '1000000',
+    currentBalance: '0',
+    createdAt: '2024-04-10T09:00:00+09:00',
+    isDeleted: true,
+    deletedAt: '2026-07-02T10:20:00',
+    deletedByName: '이운영',
+  },
 ]
 
 /**
@@ -16248,6 +16299,7 @@ const SP_D1_PAGES = [
   'partners.list',
   'partners.detail',
   'partners.edit',
+  'partners.delete',
   'partners.4tab.edit',
   'partners.block',
   'partners.edit-request',
@@ -16324,6 +16376,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'dispatch.external-carriers': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
   // V78: dispatch.board 는 MANAGER/DISPATCH 에도 RESTORE 부여(취소선 복원). DOWNLOAD/PRINT 없음.
   'dispatch.board': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
+  // V82: partners.delete 는 MASTER delete/restore 전용 action-only page-code.
+  'partners.delete': ['DELETE', 'RESTORE'],
   // V83(E2 주문 롤아웃): sales.partner-order.list 는 MASTER/MANAGER/SALES 에 RESTORE 부여(취소선 복원).
   'sales.partner-order.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
 }

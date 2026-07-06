@@ -5,8 +5,11 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partner.domain.Partner;
 import com.samhanair.logis.partner.domain.PartnerCreditHistory;
 import com.samhanair.logis.partner.repository.PartnerCreditHistoryRepository;
+import com.samhanair.logis.partner.realtime.PartnerListRealtime;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +31,7 @@ public class PartnerCreditService {
 
     private final PartnerService partnerService;
     private final PartnerCreditHistoryRepository historyRepository;
+    private final CollectionRealtimePublisher collectionRealtimePublisher;
 
     /**
      * 슬립 발행으로 미수금 증가 + 이력 적재.
@@ -51,7 +55,9 @@ public class PartnerCreditService {
                             + ", status=" + partner.getStatus());
         }
         partner.increaseBalance(amount);
-        return historyRepository.save(PartnerCreditHistory.slipIssued(partner, amount, slipNo));
+        PartnerCreditHistory saved = historyRepository.save(PartnerCreditHistory.slipIssued(partner, amount, slipNo));
+        publishListChanged();
+        return saved;
     }
 
     /**
@@ -66,7 +72,9 @@ public class PartnerCreditService {
     public PartnerCreditHistory recordPayment(String partnerCode, BigDecimal amount, String paymentNo, String note) {
         Partner partner = partnerService.findByCode(partnerCode);
         partner.decreaseBalance(amount);
-        return historyRepository.save(PartnerCreditHistory.payment(partner, amount, paymentNo, note));
+        PartnerCreditHistory saved = historyRepository.save(PartnerCreditHistory.payment(partner, amount, paymentNo, note));
+        publishListChanged();
+        return saved;
     }
 
     /**
@@ -80,7 +88,9 @@ public class PartnerCreditService {
     public PartnerCreditHistory changeCreditLimit(String partnerCode, BigDecimal newLimit, String note) {
         Partner partner = partnerService.findByCode(partnerCode);
         BigDecimal delta = partner.changeCreditLimit(newLimit);
-        return historyRepository.save(PartnerCreditHistory.creditLimitChange(partner, delta, note));
+        PartnerCreditHistory saved = historyRepository.save(PartnerCreditHistory.creditLimitChange(partner, delta, note));
+        publishListChanged();
+        return saved;
     }
 
     /**
@@ -102,5 +112,12 @@ public class PartnerCreditService {
         Partner partner = partnerService.findByCode(partnerCode);
         return historyRepository.findAllByPartnerIdOrderByOccurredAtDesc(partner.getId(), Pageable.unpaged())
                 .getContent();
+    }
+
+    private void publishListChanged() {
+        collectionRealtimePublisher.publishChange(
+                PartnerListRealtime.CHANNEL_ID,
+                PartnerListRealtime.EVENT_CHANGED,
+                Map.of("changeType", "UPDATED"));
     }
 }
