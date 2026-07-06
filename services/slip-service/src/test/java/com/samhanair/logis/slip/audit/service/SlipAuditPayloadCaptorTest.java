@@ -26,7 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * PR-H2 BE — TM 보완 #2: SSE event payload 형식 정확성 검증 (3 case).
+ * PR-H2 BE — TM 보완 #2: SSE event payload 형식 정확성 검증 (2 case).
  *
  * <p>Mockito ArgumentCaptor 로 broker.publish 호출 시 payload 캡처 + JSON schema 일관성 assertion.
  *
@@ -34,7 +34,6 @@ import org.springframework.test.util.ReflectionTestUtils;
  *   <li>recordOverlayPatch payload schema — revisionNo / actorId / actorName / actorColor /
  *       changes 5 키 + changes[0] 의 fieldName/oldValue/newValue 3 키</li>
  *   <li>recordBatch payload — 다중 changes 가 같은 순서로 직렬화</li>
- *   <li>revertToRevision payload — revertedFromRevisionNo 추가 키 포함</li>
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
@@ -108,30 +107,5 @@ class SlipAuditPayloadCaptorTest {
         assertThat(emitted.get(0).get("fieldName")).isEqualTo("memo");
         assertThat(emitted.get(1).get("fieldName")).isEqualTo("shippingAddress");
         assertThat(emitted.get(2).get("fieldName")).isEqualTo("receiverPhone");
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void revertToRevision_payload_hasRevertedFromRevisionNoKey() {
-        // 사전 mutation 시뮬
-        slip.applyOverlayPatch("memo", "수정");
-        slip.incrementRevision(); // revisionCount=1
-
-        SlipAuditLog row = SlipAuditLog.record(slipId, 1, actorId, "홍길동", null,
-                "memo", "원본", "수정");
-        ReflectionTestUtils.setField(row, "id", UUID.randomUUID());
-        when(auditLogRepository.findBySlipIdAndRevisionNo(slipId, 1)).thenReturn(List.of(row));
-
-        service.revertToRevision(slipId, 1, UUID.randomUUID(), "관리자", null);
-
-        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
-        org.mockito.Mockito.verify(broker).publish(eq(slipId),
-                eq(SlipAuditLogService.EVENT_SLIP_REVERTED), captor.capture());
-
-        Map<String, Object> payload = captor.getValue();
-        assertThat(payload).containsKey("revertedFromRevisionNo");
-        assertThat(payload.get("revertedFromRevisionNo")).isEqualTo(1);
-        // 일반 schema 도 보존
-        assertThat(payload).containsKeys("revisionNo", "actorId", "actorName", "changes");
     }
 }

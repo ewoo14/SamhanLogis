@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,8 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@link #recordBatch} — 다중 필드 같은 revision_no 로 일괄 기록 (editHeader 등).
  *       slip.incrementRevision 1회 호출 후 모든 changes 에 동일 revisionNo 적용.</li>
  *   <li>{@link #listBySlip} — FE timeline 표시 (최신 revision 우선).</li>
- *   <li>{@link #revertToRevision} — 특정 revision 으로 복원. 복원 자체도 신규 audit row 1행
- *       (action="REVERT", new_value=과거 값) 으로 영원 추적.</li>
  * </ul>
  *
  * <p><b>SSE event 형식</b> ({@code "slip:edit"}):
@@ -49,16 +46,12 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>UUID 비공개</b>: payload 에 actorId 포함은 FE 색상 hash 의 결정성을 위해 (한 사용자 =
  * 항상 같은 색). 사용자 화면 표시는 actorName 만 사용. UUID 자체는 화면에 출력 금지.
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SlipAuditLogService {
 
     /** SSE event name — 슬립 본문 수정. */
     public static final String EVENT_SLIP_EDIT = "slip:edit";
-
-    /** SSE event name — audit revert (과거 값으로 되돌림). */
-    public static final String EVENT_SLIP_REVERTED = "slip:reverted";
 
     private final SlipAuditLogRepository auditLogRepository;
     private final SlipRepository slipRepository;
@@ -147,77 +140,6 @@ public class SlipAuditLogService {
     public List<SlipAuditLog> listBySlip(UUID slipId) {
         Objects.requireNonNull(slipId, "slipId 는 필수입니다");
         return auditLogRepository.findBySlipIdOrderByRevisionNoDescChangedAtDesc(slipId);
-    }
-
-    /**
-     * 특정 revision 으로 복원 (undo) — revert 자체도 신규 revision 으로 audit 기록.
-     *
-     * <p>알고리즘:
-     * <ol>
-     *   <li>해당 revision 의 audit row 들 조회 — 각 row 의 oldValue 가 "복원할 과거 상태"</li>
-     *   <li>현 시점 slip 값 snapshot → revertedChanges = [{name, currentValue, oldValueAtRev}]</li>
-     *   <li>slip.applyOverlayPatch 로 oldValue 복원 (마감 lock 가드)</li>
-     *   <li>{@link #recordBatch} 로 신규 revisionNo 의 audit row 들 INSERT
-     *       — fieldName 은 동일, oldValue=현 값, newValue=과거 값</li>
-     *   <li>SSE event {@code slip:reverted} broadcast (별도 event name 으로 FE 분기)</li>
-     * </ol>
-     *
-     * @param slipId 대상 슬립
-     * @param targetRevisionNo 복원 대상 revision 번호 (1 이상)
-     * @param actorId 복원 작업자 UUID
-     * @param actorName 복원 작업자 표시명
-     * @param actorColor FE 색상 hex (선택)
-     * @return 신규 INSERT 된 audit row 리스트
-     * @throws BusinessException(NOT_FOUND) 슬립 미존재 또는 해당 revision audit 미존재
-     * @throws BusinessException(INVALID_INPUT) targetRevisionNo &lt; 1
-     * @throws BusinessException(CONFLICT) 마감 lock 적용 슬립
-     */
-    @Transactional
-    public List<SlipAuditLog> revertToRevision(UUID slipId, int targetRevisionNo,
-                                               UUID actorId, String actorName, String actorColor) {
-        Objects.requireNonNull(slipId, "slipId 는 필수입니다");
-        if (targetRevisionNo < 1) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "targetRevisionNo 는 1 이상이어야 합니다: " + targetRevisionNo);
-        }
-        Slip slip = slipRepository.findById(slipId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "슬립을 찾을 수 없습니다: " + slipId));
-        List<SlipAuditLog> targetRows = auditLogRepository.findBySlipIdAndRevisionNo(
-                slipId, targetRevisionNo);
-        if (targetRows.isEmpty()) {
-            throw new BusinessException(ErrorCode.NOT_FOUND,
-                    "해당 revision 의 audit log 가 없습니다: revisionNo=" + targetRevisionNo);
-        }
-
-        // 1) 현 값 snapshot + slip 복원 (마감 lock 가드는 applyOverlayPatch 내부)
-        List<ChangeEntry> revertedChanges = new ArrayList<>(targetRows.size());
-        int newRevisionNo = slip.incrementRevision();
-        for (SlipAuditLog row : targetRows) {
-            String fieldName = row.getFieldName();
-            String currentValue = slip.readOverlayField(fieldName);
-            String restoreTo = row.getOldValue();
-            slip.applyOverlayPatch(fieldName, restoreTo);
-            revertedChanges.add(new ChangeEntry(fieldName, currentValue, restoreTo));
-        }
-
-        // 2) revert 자체를 신규 audit 로 기록 (감사 영원 보존)
-        List<SlipAuditLog> saved = new ArrayList<>(revertedChanges.size());
-        for (ChangeEntry change : revertedChanges) {
-            saved.add(auditLogRepository.save(SlipAuditLog.record(
-                    slipId, newRevisionNo, actorId, actorName, actorColor,
-                    change.fieldName(), change.oldValue(), change.newValue())));
-        }
-
-        // 3) SSE broadcast — slip:reverted (FE 가 별도 분기 — "되돌리기 by 홍길동" 표시)
-        Map<String, Object> payload = buildEventPayload(
-                newRevisionNo, actorId, actorName, actorColor, revertedChanges);
-        payload.put("revertedFromRevisionNo", targetRevisionNo);
-        broker.publish(slipId, EVENT_SLIP_REVERTED, payload);
-
-        log.info("[PR-H2] slip {} revert revision={} → 신규 revision={} ({} 필드 복원)",
-                slipId, targetRevisionNo, newRevisionNo, saved.size());
-        return saved;
     }
 
     /**

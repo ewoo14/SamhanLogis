@@ -215,8 +215,6 @@ class SlipPermissionControllerIT {
                         () -> delete("/slips/{id}/signature", ID)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"재서명\"}")),
-                endpoint("audit revert", "slip.audit-revert", PermissionAction.RESTORE, "MANAGER",
-                        () -> post("/slips/{id}/audit/revert/{revisionNo}", ID, 1)),
                 endpoint("edit request pending", "slip.edit-requests.decide", PermissionAction.VIEW, "MANAGER",
                         () -> get("/slips/edit-requests").param("targetRole", "MANAGER")),
                 endpoint("edit request by slip", "slip.edit-requests", PermissionAction.VIEW, "STAFF",

@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,14 +29,12 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>{@code GET    /slips/{id}/audit-logs} — audit timeline (최신 revision 우선)</li>
  *   <li>{@code PATCH  /slips/{id}/audit/overlay} — 단일 필드 patch + audit + SSE broadcast</li>
- *   <li>{@code POST   /slips/{id}/audit/revert/{revisionNo}} — 특정 revision 으로 복원</li>
  * </ul>
  *
  * <p>권한 매트릭스:
  * <ul>
  *   <li>조회 — 모든 인증 사용자 (slip 화면 표시)</li>
  *   <li>overlay patch — SALES, WAREHOUSE, MANAGER, MASTER (실시간 협업 주체)</li>
- *   <li>revert — MANAGER, MASTER (audit 되돌리기는 권한자 한정)</li>
  * </ul>
  *
  * <p>응답 형식 = {@link ApiResponse} wrapper.
@@ -90,44 +87,5 @@ public class SlipAuditLogController {
             @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
         return ApiResponse.ok(slipService.applyOverlayPatch(slipId,
                 request.fieldName(), request.newValue(), callerId, callerName));
-    }
-
-    /**
-     * 특정 revision 으로 복원 (undo) — 신규 revision 으로 audit 기록 + SSE
-     * {@code slip:reverted} broadcast.
-     */
-    @Operation(summary = "audit revert (특정 revision 복원)",
-            description = "PR-H2 — 과거 revision 으로 되돌림. 복원 자체도 신규 audit row 로 영원 추적")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "복원 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "revisionNo 누락"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "슬립/revision 미존재"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "마감 lock")
-    })
-    @PostMapping("/audit/revert/{revisionNo}")
-    @RequirePermission(page = "slip.audit-revert", action = com.samhanair.logis.security.permission.PermissionAction.RESTORE)
-    public ApiResponse<List<SlipAuditLogResponse>> revertToRevision(
-            @PathVariable UUID slipId,
-            @PathVariable int revisionNo,
-            @RequestHeader(value = CALLER_ID_HEADER, required = false) String callerId,
-            @RequestHeader(value = CALLER_NAME_HEADER, required = false) String callerName) {
-        UUID actorId = parseActorId(callerId);
-        String actorName = (callerName != null && !callerName.isBlank())
-                ? callerName
-                : (callerId == null || callerId.isBlank() ? "system" : callerId);
-        List<SlipAuditLog> reverted = auditLogService.revertToRevision(
-                slipId, revisionNo, actorId, actorName, null);
-        return ApiResponse.ok(reverted.stream().map(SlipAuditLogResponse::from).toList());
-    }
-
-    private UUID parseActorId(String callerId) {
-        if (callerId == null || callerId.isBlank()) {
-            return new UUID(0L, 0L);
-        }
-        try {
-            return UUID.fromString(callerId);
-        } catch (IllegalArgumentException ex) {
-            return new UUID(0L, 0L);
-        }
     }
 }
