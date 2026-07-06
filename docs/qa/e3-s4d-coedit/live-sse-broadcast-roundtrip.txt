@@ -1,0 +1,23 @@
+=== [1] GET coedit 초기 (updates 비어있어야) ===
+updates_len= 0
+=== [2] 세션A: SSE /stream 구독 시작 (백그라운드) ===
+=== [3] 세션B: update POST (편집 발생) [bGl2ZXFhLTJzZXNzaW9uLWJyb2FkY2FzdA==] ===
+  http=200
+=== [4] 세션B: awareness POST ===
+  http=200
+=== [5] GET coedit 재조회 (update 누적 확인) ===
+updates_len= 1
+has_broadcast= True
+=== [6] 세션A SSE 수신 (2연결 브로드캐스트 실증) ===
+--- raw SSE (첫 20줄) ---
+event:connected
+data:{"entityId":"66bebd05-7c08-44f5-9467-bf29f09e2b04"}
+
+event:coedit:update
+data:{"update":"bGl2ZXFhLTJzZXNzaW9uLWJyb2FkY2FzdA=="}
+
+event:coedit:awareness
+data:{"awareness":"bGl2ZXFhLTJzZXNzaW9uLWJyb2FkY2FzdA=="}
+
+--- broadcast payload 수신? ---
+matches=2
