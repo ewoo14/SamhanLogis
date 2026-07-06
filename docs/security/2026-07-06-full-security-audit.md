@@ -98,16 +98,23 @@
 - **부서가드**: 위조 MASTER `/admin/users` = **403**(`@RequireDepartment` 방어).
 - **주입 0건**(파라미터 바인딩·서버생성 키·UUID 타입), **SSRF 0건**(host 전부 config/Eureka 바인딩), **역직렬화 0건**, **BCrypt·SecureRandom 일관**, **actuator health/info/prometheus만**, **커밋된 실시크릿 0**.
 
-## 5. 진행 상태 (라운드별 갱신)
+## 5. Codex 라운드 검증 결과 (독립·적대적, gpt-5.5 high, read-only)
+
+**13 CONFIRM · 4 AMEND · 0 REFUTE · 신규 finding 0** → Opus 라운드와 실질 finding 집합 **수렴**.
+
+- **AMEND**: M4(전표 우회는 `X-User-Role` no-op 범위로 한정), M6(XSS sink 실재하나 "파트너 회사명→sink" source 경로 미확정), L3(actuator/gateway 라이브 404 — 설정정리), L5(dev_pw/tmp 범위)
+- **REFUTE 0** — 오탐 없음. H1~H5·M1~M3·M5는 CONFIRM conf 8~9.
+
+## 6. 진행 상태 (라운드별 갱신)
 
 | 라운드 | 상태 |
 |---|---|
 | 조기 PR 개설 | ✅ |
-| Opus 5-에이전트 리뷰 | ✅ (H5·M7·L5 / 상기 표) |
-| Docker 실사용 QA | ✅ (라이브 매트릭스, H4·격리 확증) |
-| Opus 라운드 PR 게시 | 🔄 |
-| Codex 5-에이전트 리뷰 | ⏳ (Opus 게시 후 순차) |
-| 0 수렴 | ⏳ |
-| PM(Fable5) 종합 + 머지 | ⏳ |
+| Opus 5-에이전트 리뷰 + 라이브 QA | ✅ |
+| Opus 라운드 PR 게시 | ✅ |
+| Codex 5-에이전트 리뷰 + 게시 | ✅ |
+| 이중검증 0 수렴 | ✅ (REFUTE 0, 신규 0) |
+| PM(Fable5) 종합 | 🔄 |
+| 개발책임자 remediation 승인 → fix(Codex) → CI → 머지 | ⏳ |
 
 > findings 확정분·QA 증거·fix 내역은 본 PR 코멘트에 라운드별 누적 게시.
