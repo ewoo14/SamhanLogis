@@ -121,6 +121,13 @@ describe('CashReceiptDetailPage', () => {
     expect((screen.getByRole('button', { name: '편집' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
+  it('금액이 음수이면 회계 표시 규약에 따라 danger 색상으로 렌더한다', async () => {
+    renderPage(receipt({ amount: '-12000' }))
+
+    const amount = await screen.findByText('-12,000')
+    expect(amount.getAttribute('style')).toContain('color: var(--state-danger)')
+  })
+
   it('CANCELLED 수기 입금보고서는 편집 버튼을 노출하지 않는다', async () => {
     renderPage(receipt({ kind: 'MANUAL_RECEIPT', status: 'CANCELLED' }))
 

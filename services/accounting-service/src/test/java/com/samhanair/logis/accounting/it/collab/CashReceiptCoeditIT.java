@@ -29,6 +29,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -111,12 +112,13 @@ class CashReceiptCoeditIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
-    /** CONFIRMED 또는 BANK_LINKED 입금보고서는 coedit relay 자체를 409 로 거부한다. */
+    /** CONFIRMED, BANK_LINKED, CANCELLED 입금보고서는 coedit relay 자체를 409 로 거부한다. */
     @Test
-    void coedit_rejectsConfirmedOrBankLinkedReceipt() throws Exception {
+    void coedit_rejectsNonDraftOrBankLinkedReceipt_onAllEndpoints() throws Exception {
         CashReceipt confirmed = seedDraftManualReceipt("20990707-CONF-" + SEQ.getAndIncrement());
         confirmed.confirm();
         cashReceiptRepository.saveAndFlush(confirmed);
+
         UUID bankLinkedId = cashReceiptRepository.saveAndFlush(CashReceipt.createBankLinked(
                 "20990707-BANK-" + SEQ.getAndIncrement(),
                 PARTNER_ID,
@@ -126,15 +128,24 @@ class CashReceiptCoeditIT extends AbstractPostgresIT {
                 "102",
                 "110")).getId();
 
-        mvc.perform(get("/accounting/cash-receipts/{receiptId}/collab/coedit", confirmed.getId())
-                        .header(USER_ID_HEADER, ACTOR_ID))
-                .andExpect(status().isConflict());
+        CashReceipt cancelled = seedDraftManualReceipt("20990707-CAN-" + SEQ.getAndIncrement());
+        cancelled.confirm();
+        cancelled.cancel();
+        cashReceiptRepository.saveAndFlush(cancelled);
 
-        mvc.perform(post("/accounting/cash-receipts/{receiptId}/collab/coedit/update", bankLinkedId)
-                        .header(USER_ID_HEADER, ACTOR_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
-                .andExpect(status().isConflict());
+        assertAllCoeditEndpointsReturn(confirmed.getId(), status().isConflict());
+        assertAllCoeditEndpointsReturn(bankLinkedId, status().isConflict());
+        assertAllCoeditEndpointsReturn(cancelled.getId(), status().isConflict());
+    }
+
+    /** soft-delete 된 입금보고서는 coedit relay 모든 표면에서 404 로 숨긴다. */
+    @Test
+    void coedit_rejectsSoftDeletedReceipt_onAllEndpoints() throws Exception {
+        CashReceipt deleted = seedDraftManualReceipt("20990707-DEL-" + SEQ.getAndIncrement());
+        deleted.softDeleteDraft(ACTOR_ID);
+        cashReceiptRepository.saveAndFlush(deleted);
+
+        assertAllCoeditEndpointsReturn(deleted.getId(), status().isNotFound());
     }
 
     /** 빈 coedit payload 는 400 으로 거부되고 snapshot 에 누적되지 않는다. */
@@ -197,5 +208,28 @@ class CashReceiptCoeditIT extends AbstractPostgresIT {
                 "수기 입금",
                 "102",
                 "110"));
+    }
+
+    private void assertAllCoeditEndpointsReturn(UUID receiptId, ResultMatcher expectedStatus) throws Exception {
+        mvc.perform(get("/accounting/cash-receipts/{receiptId}/collab/coedit", receiptId)
+                        .header(USER_ID_HEADER, ACTOR_ID))
+                .andExpect(expectedStatus);
+
+        mvc.perform(post("/accounting/cash-receipts/{receiptId}/collab/coedit/update", receiptId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("update", "dXBkYXRl"))))
+                .andExpect(expectedStatus);
+
+        mvc.perform(post("/accounting/cash-receipts/{receiptId}/collab/coedit/awareness", receiptId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awareness", "Y3Vyc29y"))))
+                .andExpect(expectedStatus);
+
+        mvc.perform(get("/accounting/cash-receipts/{receiptId}/collab/stream", receiptId)
+                        .header(USER_ID_HEADER, ACTOR_ID)
+                        .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_JSON))
+                .andExpect(expectedStatus);
     }
 }

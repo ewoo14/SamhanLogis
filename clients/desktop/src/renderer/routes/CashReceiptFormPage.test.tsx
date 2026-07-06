@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { DocCoeditProvider } from '../realtime/createCoeditProvider'
 
 const mocks = vi.hoisted(() => ({
   createCashReceipt: vi.fn(),
@@ -70,7 +71,7 @@ vi.mock('../realtime/createCoeditProvider', () => ({
 }))
 vi.mock('../components/collab/CollaborativeSlipInput', () => ({
   CollaborativeSlipInput: (props: {
-    provider: any
+    provider: DocCoeditProvider | null
     fieldPath: string
     value: string
     onValueChange?: (value: string) => void
@@ -238,6 +239,54 @@ describe('CashReceiptFormPage', () => {
     expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
   })
 
+  it('BANK_LINKED+CONFIRMED 편집 모드는 read-only이며 coedit provider 를 생성하지 않는다', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-bank-linked-confirmed',
+      slipNo: '2026/07/05-9',
+      partnerCode: 'P-BANK',
+      bizNo: '555-55-55555',
+      partnerName: '통장거래처',
+      amount: '920000',
+      transactionDate: '2026-07-05',
+      kind: 'BANK_LINKED',
+      status: 'CONFIRMED',
+      memo: '통장연계 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-bank-linked-confirmed/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '통장거래처'))
+    expect(screen.getByText('통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.')).not.toBeNull()
+    expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
+  it('UPDATE 권한 없이 편집 URL에 직접 진입하면 read-only이며 coedit provider 를 생성하지 않는다', async () => {
+    mocks.canAccess.mockImplementation((_pageCode, action) => action !== 'update')
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-no-update',
+      slipNo: '2026/07/05-10',
+      partnerCode: 'P-DENY',
+      bizNo: '666-66-66666',
+      partnerName: '권한없음거래처',
+      amount: '450000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '권한 없음 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-no-update/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '권한없음거래처'))
+    expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
   it('CANCELLED 편집 모드는 read-only이며 coedit provider 를 생성하지 않는다', async () => {
     mocks.getCashReceipt.mockResolvedValue({
       id: 'receipt-cancelled',
@@ -353,15 +402,31 @@ describe('CashReceiptFormPage', () => {
   })
 })
 
-function makeProvider() {
+type TestDocCoeditProvider = DocCoeditProvider & {
+  __emit: () => void
+}
+
+function makeProvider(): TestDocCoeditProvider {
   const header = new Map<string, string>()
   const subscribers = new Set<() => void>()
   return {
-    items: { toArray: () => [] },
+    doc: {} as DocCoeditProvider['doc'],
+    header: {} as DocCoeditProvider['header'],
+    items: { toArray: () => [] } as DocCoeditProvider['items'],
+    awareness: {} as DocCoeditProvider['awareness'],
+    applyRemoteUpdate: vi.fn(),
+    applyRemoteAwareness: vi.fn(),
     setHeaderValue: vi.fn((fieldName: string, value: string) => {
       header.set(fieldName, value)
     }),
     getHeaderValue: vi.fn((fieldName: string) => header.get(fieldName) ?? ''),
+    getItemValue: vi.fn(() => ''),
+    setItemValue: vi.fn(),
+    getItemIndexById: vi.fn(() => -1),
+    getItemValueById: vi.fn(() => ''),
+    setItemValueById: vi.fn(),
+    addItem: vi.fn(() => 'line-1'),
+    removeItem: vi.fn(),
     replaceItems: vi.fn(),
     isEmpty: vi.fn(() => true),
     subscribeDoc: vi.fn((listener: () => void) => {

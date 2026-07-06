@@ -122,8 +122,9 @@ export function CashReceiptFormPage() {
 
   const receipt = receiptQuery.data
   const bankLinked = receipt?.kind === 'BANK_LINKED'
-  // read-only = 통장연계 또는 취소. CONFIRMED 은 편집 가능(역분개 후 재게시, S4b 기결 기능).
-  const readOnly = Boolean(isEdit && receipt && (bankLinked || receipt.status === 'CANCELLED'))
+  const canUpdate = canAccess(PAGE_CODE, 'update')
+  // read-only = 권한 없음, 통장연계 또는 취소. CONFIRMED 은 편집 가능(역분개 후 재게시, S4b 기결 기능).
+  const readOnly = Boolean(isEdit && receipt && (!canUpdate || bankLinked || receipt.status === 'CANCELLED'))
   // coedit(실시간 동시편집)은 DRAFT 한정. CONFIRMED 은 비협업 일반편집만.
   const canCollabEdit = Boolean(
     isEdit
@@ -131,7 +132,7 @@ export function CashReceiptFormPage() {
       && receipt
       && receipt.status === 'DRAFT'
       && !bankLinked
-      && canAccess(PAGE_CODE, 'update'),
+      && canUpdate,
   )
   const coeditActive = Boolean(coeditProvider) || coeditPending
 
@@ -239,8 +240,14 @@ export function CashReceiptFormPage() {
       </div>
 
       {bankLinked ? (
-        <div className="error-banner" role="alert" style={{ marginBottom: 16, padding: 12 }}>
+        <div className="warning-banner" role="status">
           통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.
+        </div>
+      ) : null}
+
+      {isEdit && receipt && !canUpdate ? (
+        <div className="warning-banner" role="status">
+          입금보고서 수정 권한이 없어 읽기 전용으로 표시됩니다.
         </div>
       ) : null}
 
@@ -251,7 +258,7 @@ export function CashReceiptFormPage() {
       ) : null}
 
       {isEdit && receipt?.status === 'CANCELLED' ? (
-        <div className="warning-banner" role="status">
+        <div className="danger-banner" role="status">
           취소된 입금보고서는 수정할 수 없습니다.
         </div>
       ) : null}
