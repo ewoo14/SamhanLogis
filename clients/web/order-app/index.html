@@ -1365,6 +1365,27 @@ function escapeLegacyHtml(value) {
   });
 }
 function attrSafe_(value) { return escapeLegacyHtml(value); }
+function safeLegacyImageSrc(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  const compact = raw.replace(/[\u0000-\u001F\u007F\s]+/g, '').toLowerCase();
+  if (compact.startsWith('javascript:') || compact.startsWith('vbscript:')) return '';
+  if (compact.startsWith('data:')) {
+    return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(compact) ? raw : '';
+  }
+  if (compact.startsWith('blob:')) return raw;
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  } catch (e) {
+    return '';
+  }
+  return '';
+}
+function safeLegacyImageSrcAttr(value) {
+  const safeUrl = safeLegacyImageSrc(value);
+  return safeUrl ? attrSafe_(encodeURI(safeUrl)) : '';
+}
 function optionHtml_(value) {
   const safe = escapeLegacyHtml(value);
   return '<option value="' + safe + '">' + safe + '</option>';
@@ -7473,7 +7494,8 @@ function showGateImageModal() {
   // 이미지 트랙 구성
   let html = '';
   loadedGateImages.forEach(src => {
-    html += `<div class="img-slide"><img src="${attrSafe_(src)}"></div>`;
+    const safeSrc = safeLegacyImageSrcAttr(src);
+    if (safeSrc) html += `<div class="img-slide"><img src="${safeSrc}"></div>`;
   });
   track.innerHTML = html;
 
@@ -8360,7 +8382,7 @@ window.openDetail = function(idx) {
       <tr>
         <td style="text-align:left">${escapeLegacyHtml(it.name)}</td>
         <td>${escapeLegacyHtml(it.model)}</td>
-        <td>${it.qty}</td>
+        <td>${Number(it.qty || 0).toLocaleString()}</td>
         <td style="text-align:right">${comma(it.price)}</td>
         <td style="text-align:right">${comma(it.subtotal)}</td>
       </tr>`;
@@ -9042,15 +9064,15 @@ function renderSnapshotTable(list) {
   let html = '';
   list.forEach((item, index) => {
     const d = new Date(item.created);
-    const dateStr = new Intl.DateTimeFormat('ko-KR', {
+    const dateStr = Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('ko-KR', {
       year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
     }).format(d);
 
-    const previewBtn = item.image ? `<button class="btn-mini" style="padding:6px 12px; font-size:13px; background-color:#f59e0b; color:#ffffff; border:none;" onclick="showSnapshotPreview(${index})">보기</button>` : '<span style="color:#aaaaaa; font-size:12px;">없음</span>';
+    const previewBtn = safeLegacyImageSrc(item.image) ? `<button class="btn-mini" style="padding:6px 12px; font-size:13px; background-color:#f59e0b; color:#ffffff; border:none;" onclick="showSnapshotPreview(${index})">보기</button>` : '<span style="color:#aaaaaa; font-size:12px;">없음</span>';
 
     /* 주제표시 */
     html += `<tr style="border-bottom:1px solid #eeeeee;">
-              <td style="padding:15px; color:#374151;">${dateStr}</td>
+              <td style="padding:15px; color:#374151;">${escapeLegacyHtml(dateStr)}</td>
               <td style="padding:15px; font-weight:bold; color:#2563eb; font-size:16px;">${escapeLegacyHtml(item.theme)}</td>
               <td style="padding:15px;">${previewBtn}</td>
               <td style="padding:15px;">
@@ -9071,6 +9093,11 @@ function showSnapshotPreview(index) {
   const item = window.loadedSnapshotData[index];
   if (!item || !item.image) {
     alert('저장된 미리보기 이미지가 없습니다.');
+    return;
+  }
+  const safeImage = safeLegacyImageSrc(item.image);
+  if (!safeImage) {
+    alert('안전하지 않은 미리보기 이미지 URL입니다.');
     return;
   }
 
@@ -9096,7 +9123,7 @@ function showSnapshotPreview(index) {
   imgWrap.style.borderRadius = '8px';
   
   const img = document.createElement('img');
-  img.src = item.image;
+  img.src = safeImage;
   img.style.display = 'block';
   img.style.margin = '0 auto';
   img.style.minWidth = '400px'; 

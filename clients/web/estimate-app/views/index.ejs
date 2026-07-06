@@ -2453,6 +2453,27 @@ function escapeEstimateHtml(s) {
 function escapeEstimateAttr(s) {
   return escapeEstimateHtml(s);
 }
+function safeEstimateImageSrc(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  const compact = raw.replace(/[\u0000-\u001F\u007F\s]+/g, '').toLowerCase();
+  if (compact.startsWith('javascript:') || compact.startsWith('vbscript:')) return '';
+  if (compact.startsWith('data:')) {
+    return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(compact) ? raw : '';
+  }
+  if (compact.startsWith('blob:')) return raw;
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  } catch (e) {
+    return '';
+  }
+  return '';
+}
+function safeEstimateImageSrcAttr(value) {
+  const safeUrl = safeEstimateImageSrc(value);
+  return safeUrl ? escapeEstimateAttr(encodeURI(safeUrl)) : '';
+}
 function escapeEstimateJsString(s) {
   return String(s == null ? '' : s)
     .replace(/\\/g, '\\\\')
@@ -11836,7 +11857,8 @@ async function processPCExport(type) {
     const logoDiv = document.createElement('div');
     logoDiv.style.marginBottom = '0px'; 
     logoDiv.style.textAlign = 'left'; 
-    logoDiv.innerHTML = `<img src="${samsungLogo}" style="height:17.5px; width:auto;">`; 
+    const safeLogo = safeEstimateImageSrcAttr(samsungLogo);
+    logoDiv.innerHTML = safeLogo ? `<img src="${safeLogo}" style="height:17.5px; width:auto;">` : ''; 
     wrapper.appendChild(logoDiv);
   }
 
@@ -13465,7 +13487,8 @@ function showGateImageModal() {
   // 이미지 트랙 구성
   let html = '';
   loadedGateImages.forEach(src => {
-    html += `<div class="img-slide"><img src="${src}"></div>`;
+    const safeSrc = safeEstimateImageSrcAttr(src);
+    if (safeSrc) html += `<div class="img-slide"><img src="${safeSrc}"></div>`;
   });
   track.innerHTML = html;
 
@@ -13820,8 +13843,8 @@ var currentSlipData = null;
 // 생성
 function getSlipInnerContent(d) {
   // 로고
-  let logoSrc = "";
-  if (typeof samsungLogo !== 'undefined' && samsungLogo) logoSrc = samsungLogo;
+  let safeLogoSrc = "";
+  if (typeof samsungLogo !== 'undefined' && samsungLogo) safeLogoSrc = safeEstimateImageSrcAttr(samsungLogo);
 
   // 가공
   let whText = d.warehouse || '';
@@ -13836,6 +13859,8 @@ function getSlipInnerContent(d) {
   } else if (d.date) {
     payDateStr = d.date.slice(5).replace('-', '');
   }
+  const safeWhText = escapeEstimateHtml(whText);
+  const safePayDateStr = escapeEstimateHtml(payDateStr);
 
   const lightGray = '#ccc';
 
@@ -13857,7 +13882,7 @@ function getSlipInnerContent(d) {
 
   return `
     <div style="margin-bottom: 5px;">
-      <img src="${logoSrc}" style="width:150px;">
+      ${safeLogoSrc ? `<img src="${safeLogoSrc}" style="width:150px;">` : ''}
     </div>
 
     <div style="display:flex; gap:20px; margin-bottom:20px; height:120px;">
@@ -13878,7 +13903,7 @@ function getSlipInnerContent(d) {
              <td style="border-right:1px solid #000; font-weight:bold; padding:0; background:#fff;">${escapeEstimateHtml(d.manager||'')}</td>
              <td style="border-right:1px solid #000; padding:0; background:#fff;"></td>
              <td style="border-right:1px solid #000; padding:0; background:#fff;"></td>
-             <td style="font-weight:bold; padding:0; background:#fff;">${payDateStr}</td>
+             <td style="font-weight:bold; padding:0; background:#fff;">${safePayDateStr}</td>
           </tr>
         </table>
       </div>
@@ -13889,7 +13914,7 @@ function getSlipInnerContent(d) {
          ${escapeEstimateHtml(d.date.replace(/-/g, '/'))} -${escapeEstimateHtml(d.slipNo)}
       </div>
       <div style="border:1px solid #000; padding:0 20px; font-size:24px; font-weight:bold; display:flex; align-items:center; color:#dc2626; background:#fff;">
-         ${whText}
+         ${safeWhText}
       </div>
     </div>
 
@@ -14169,8 +14194,8 @@ function numberToKorean(num) {
 
 // 거래명세서 내부 HTML
 function getInvoiceInnerContent(d, priceMap) {
-  const logoSrc = (typeof samsungLogo !== 'undefined' && samsungLogo) ? samsungLogo : '';
-  const stampSrc = (typeof stamp !== 'undefined' && stamp) ? stamp : '';
+  const safeLogoSrc = (typeof samsungLogo !== 'undefined' && samsungLogo) ? safeEstimateImageSrcAttr(samsungLogo) : '';
+  const safeStampSrc = (typeof stamp !== 'undefined' && stamp) ? safeEstimateImageSrcAttr(stamp) : '';
   
   // 데이터 가공
   const items = d.items ? [...d.items].reverse() : [];
@@ -14232,7 +14257,7 @@ function getInvoiceInnerContent(d, priceMap) {
       <div style="display:flex; height:200px; margin-bottom:10px; flex-shrink:0;">
         <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end; margin-right:20px; position:relative;">
            <div style="position:absolute; top:0; left:0;">
-             ${logoSrc ? `<img src="${logoSrc}" style="height:36px;">` : `<span style="font-size:34px; font-weight:bold;">SAMSUNG</span>`}
+             ${safeLogoSrc ? `<img src="${safeLogoSrc}" style="height:36px;">` : `<span style="font-size:34px; font-weight:bold;">SAMSUNG</span>`}
            </div>
            
            <div style="text-align:center; margin-bottom:5px;">
@@ -14247,7 +14272,7 @@ function getInvoiceInnerContent(d, priceMap) {
         </div>
 
         <div style="width:440px; position:relative;">
-           <img src="${stampSrc}" style="position:absolute; width:80px; top:45px; right:20px; z-index:10; opacity:0.8;">
+           ${safeStampSrc ? `<img src="${safeStampSrc}" style="position:absolute; width:80px; top:45px; right:20px; z-index:10; opacity:0.8;">` : ''}
            <table style="width:100%; height:100%; border-collapse:collapse; border:2px solid black; text-align:center; font-size:14px;">
               <colgroup>
                  <col style="width:40px;"> <col style="width:90px;"> <col> <col style="width:60px;"> <col>
@@ -17495,7 +17520,8 @@ async function handleSaveSnapshot(customTheme) {
         const logoDiv = document.createElement('div');
         logoDiv.style.marginBottom = '0px'; 
         logoDiv.style.textAlign = 'left'; 
-        logoDiv.innerHTML = '<img src="' + samsungLogo + '" style="height:17.5px; width:auto;">'; 
+        const safeLogo = safeEstimateImageSrcAttr(samsungLogo);
+        logoDiv.innerHTML = safeLogo ? '<img src="' + safeLogo + '" style="height:17.5px; width:auto;">' : ''; 
         wrapper.appendChild(logoDiv);
       }
 
@@ -17807,14 +17833,14 @@ function renderSnapshotTable(list) {
   let html = '';
   list.forEach((item, index) => {
     const d = new Date(item.created);
-    const dateStr = new Intl.DateTimeFormat('ko-KR', {
+    const dateStr = Number.isNaN(d.getTime()) ? '' : new Intl.DateTimeFormat('ko-KR', {
       year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
     }).format(d);
 
-    const previewBtn = item.image ? '<button class="btn-mini" style="padding:6px 12px; font-size:13px; background:#f59e0b; color:#fff; border:none;" onclick="showSnapshotPreview(' + index + ')">보기</button>' : '<span style="color:#aaa; font-size:12px;">없음</span>';
+    const previewBtn = safeEstimateImageSrc(item.image) ? '<button class="btn-mini" style="padding:6px 12px; font-size:13px; background:#f59e0b; color:#fff; border:none;" onclick="showSnapshotPreview(' + index + ')">보기</button>' : '<span style="color:#aaa; font-size:12px;">없음</span>';
 
     html += '<tr style="border-bottom:1px solid #eee;">' +
-              '<td style="padding:15px; color:#374151;">' + dateStr + '</td>' +
+              '<td style="padding:15px; color:#374151;">' + escapeEstimateHtml(dateStr) + '</td>' +
               '<td style="padding:15px; font-weight:bold; color:#2563eb; font-size:16px;">' + escapeEstimateHtml(item.custName) + '</td>' +
               '<td style="padding:15px;">' + previewBtn + '</td>' +
               '<td style="padding:15px;">' +
@@ -17835,11 +17861,11 @@ window.restoreSnapshot = function(index) {
 /* 견적 미리보기 이미지 팝업 */
 function showSnapshotPreview(index) {
   const item = window.loadedSnapshotData[index];
-  logAction('조회', '저장내역 미리보기 - ' + (item.custName || '미상'));
   if (!item || !item.image) {
     alert('저장된 미리보기 이미지가 없습니다.');
     return;
   }
+  logAction('조회', '저장내역 미리보기 - ' + (item.custName || '미상'));
   
   const overlay = document.createElement('div');
   overlay.style.position = 'fixed';
@@ -17863,7 +17889,12 @@ function showSnapshotPreview(index) {
   
   // 크기지정
   const img = document.createElement('img');
-  img.src = item.image;
+  const safeImage = safeEstimateImageSrc(item.image);
+  if (!safeImage) {
+    alert('안전하지 않은 미리보기 이미지 URL입니다.');
+    return;
+  }
+  img.src = safeImage;
   img.style.display = 'block';
   img.style.margin = '0 auto';
   img.style.minWidth = '600px'; 
