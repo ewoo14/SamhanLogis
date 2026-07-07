@@ -24,7 +24,8 @@ const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const LOGIN_ID = process.env['LOGIN_ID'] ?? 'dev_master'
 const ORDER_NO = process.env['ORDER_NO'] ?? '2026/06/08-1983'
 const ORDER_PATH = ORDER_NO.replace(/\//g, '-') // 2026-06-08-1983
-const EXPECTED_TOTAL = 1560000
+// 이식성: 대상 주문 합계는 env 로 주입(하드결합 시 시드 정리 후 재실행 불가 — real-qa 이식성 교훈).
+const EXPECTED_TOTAL = Number(process.env['EXPECTED_TOTAL'] ?? '1560000')
 
 const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list')
 fs.mkdirSync(SHOTS, { recursive: true })
@@ -116,6 +117,7 @@ test('E2 주문 soft-delete/복원/누출차단 라이브 실증', async ({ page
   const delDetail = await page.request.get(`${API_BASE}/api/v1/partner-orders/${ORDER_PATH}`, { headers: H })
   probe['leak_detail_status'] = delDetail.status()
   // (b) 목록/검색 — 삭제행은 isDeleted=true 로만 표기(활성행으로 누출되지 않음)
+  // R2 fix 신계약: includeDeleted 미지정(기본) = 활성 행만 — 삭제 tombstone 자체가 목록에 없어야 한다.
   const listRes = await page.request.get(`${API_BASE}/api/v1/partner-orders?status=DRAFT&page=0&size=300&searchKeyword=${encodeURIComponent(ORDER_NO)}`, { headers: H })
   const listJson = (await listRes.json()).data
   const matches = (listJson?.content ?? []).filter((r: any) => r.orderNumber === ORDER_NO)
@@ -123,6 +125,13 @@ test('E2 주문 soft-delete/복원/누출차단 라이브 실증', async ({ page
   probe['leak_list_activeCount'] = matches.filter((r: any) => r.isDeleted !== true).length
   probe['leak_list_deletedCount'] = matches.filter((r: any) => r.isDeleted === true).length
   probe['leak_list_row'] = matches[0]
+  // 내부 opt-in(includeDeleted=true) = 취소선/복원용 tombstone 행이 삭제 메타데이터와 함께 노출.
+  const inclRes = await page.request.get(`${API_BASE}/api/v1/partner-orders?status=DRAFT&page=0&size=300&includeDeleted=true&searchKeyword=${encodeURIComponent(ORDER_NO)}`, { headers: H })
+  const inclJson = (await inclRes.json()).data
+  const inclMatches = (inclJson?.content ?? []).filter((r: any) => r.orderNumber === ORDER_NO)
+  probe['optin_list_deletedCount'] = inclMatches.filter((r: any) => r.isDeleted === true).length
+  probe['optin_list_activeCount'] = inclMatches.filter((r: any) => r.isDeleted !== true).length
+  probe['optin_list_row'] = inclMatches[0]
   // (c) 단일 전환(convert-to-slip) — 삭제 주문 404 (전표전환 누출 차단)
   const convRes = await page.request.post(`${API_BASE}/api/v1/partner-orders/${ORDER_PATH}/convert-to-slip`, {
     headers: H, data: { warehouseCode: 'HQ-001', items: [{ orderLineId: preJson.lines?.[0]?.lineId ?? '00000000-0000-0000-0000-000000000000', quantity: 1 }] },
@@ -138,6 +147,7 @@ test('E2 주문 soft-delete/복원/누출차단 라이브 실증', async ({ page
   probe['leak_print_status'] = printRes.status()
   console.log('[LEAK-PROBES]', JSON.stringify({
     detail: probe['leak_detail_status'], list_active: probe['leak_list_activeCount'], list_deleted: probe['leak_list_deletedCount'],
+    optin_deleted: probe['optin_list_deletedCount'], optin_active: probe['optin_list_activeCount'],
     convert: probe['leak_convert_status'], merge: probe['leak_merge_status'], print: probe['leak_print_status'], mergeCb: probe['gui_mergeCheckboxOnDeletedRow'],
   }))
 
@@ -170,7 +180,10 @@ test('E2 주문 soft-delete/복원/누출차단 라이브 실증', async ({ page
   expect(Number(postJson.totalAmount), 'restore 합계 생존').toBe(EXPECTED_TOTAL)
   expect(probe['leak_detail_status'], '삭제 상세 누출차단(404)').toBe(404)
   expect(probe['leak_list_activeCount'], '삭제행 활성 누출 0').toBe(0)
-  expect(probe['leak_list_deletedCount'], '삭제행은 취소선표기로만 존재').toBe(1)
+  // R2 fix 신계약: 기본 목록은 tombstone 자체 미노출, 내부 opt-in 만 삭제행 표기.
+  expect(probe['leak_list_deletedCount'], '기본 목록 삭제행 미노출(신계약)').toBe(0)
+  expect(probe['optin_list_deletedCount'], 'opt-in 목록 삭제행 취소선표기 존재').toBe(1)
+  expect(probe['optin_list_activeCount'], 'opt-in 목록 활성 오표기 0').toBe(0)
   expect(probe['leak_convert_status'], '삭제 전환 누출차단').toBeGreaterThanOrEqual(400)
   expect(probe['leak_merge_status'], '삭제 병합 누출차단').toBeGreaterThanOrEqual(400)
   expect(Number(probe['gui_mergeCheckboxOnDeletedRow']), '삭제행 병합체크박스 부재').toBe(0)
