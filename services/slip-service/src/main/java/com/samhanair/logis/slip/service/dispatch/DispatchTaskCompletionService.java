@@ -89,7 +89,7 @@ public class DispatchTaskCompletionService {
         // 첫 발송·재배차(전 그룹 PENDING) 는 DRAFT 에서만 진행한다.
         if (task.getStatus() != DispatchTaskStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "발송 가능한 미발송 차량 그룹이 없습니다 — 현재=" + task.getStatus());
+                    "발송 가능한 미발송 차량 그룹이 없습니다 — 현재=" + task.getStatus().getDisplayName());
         }
 
         List<DispatchVehicleGroup> selectedGroups = selectGroups(groups, groupIds);

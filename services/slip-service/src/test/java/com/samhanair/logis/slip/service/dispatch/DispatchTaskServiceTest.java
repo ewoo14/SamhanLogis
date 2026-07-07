@@ -113,6 +113,30 @@ class DispatchTaskServiceTest {
         assertThat(added.getSequence()).isEqualTo(4);
     }
 
+    /**
+     * #725 H-1 — {@code requireDraftTask} 위반(비-DRAFT 배차 작업 편집 시도) 은 409 로 승격되어야 하며,
+     * 메시지는 {@link com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus#getDisplayName()}
+     * 한국어 라벨만 사용해야 한다 — DRAFT/DISPATCHING 원어 노출은 FE
+     * {@code dispatchErrorMessage.ts} 가 BusinessException message 를 그대로 배너에 노출하므로
+     * 사용자 노출 결함이다.
+     */
+    @Test
+    void addVehicleGroup_non_draft_task_throws_conflict_with_korean_displayname_only() {
+        stubAdvisoryLock();
+        UUID taskId = UUID.randomUUID();
+        DispatchTask task = draftTask();
+        task.markDispatching();
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> svc.addVehicleGroup(taskId, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("작성 중")
+                .hasMessageContaining("발송 완료, 매칭 대기")
+                .hasMessageNotContaining("DRAFT")
+                .hasMessageNotContaining("DISPATCHING");
+        verify(groupRepo, never()).save(any());
+    }
+
     @Test
     void removeVehicleGroup_soft_deletes_group_and_slips_and_publishes_deleted() {
         UUID taskId = UUID.randomUUID();
@@ -232,9 +256,13 @@ class DispatchTaskServiceTest {
         when(taskRepo.findById(taskId)).thenReturn(Optional.of(draftTask()));
         when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
 
+        // #725 H-1 — slip.getDispatchStatus() 는 displayName 으로만 노출한다 (원어 DISPATCHING 유출 금지).
+        // FE dispatchErrorMessage.ts 가 BusinessException message 를 그대로 배너에 노출한다.
         assertThatThrownBy(() -> svc.assignSlip(taskId, groupId, slipId))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("미배차 전표만 배차 그룹에 추가할 수 있습니다");
+                .hasMessageContaining("미배차 전표만 배차 그룹에 추가할 수 있습니다")
+                .hasMessageContaining("발송 완료, 매칭 대기")
+                .hasMessageNotContaining("DISPATCHING");
         verify(slipMapRepo, never()).save(any());
     }
 
@@ -612,9 +640,12 @@ class DispatchTaskServiceTest {
         when(slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId)).thenReturn(List.of());
         when(slipRepo.findById(slipId)).thenReturn(Optional.of(slip));
 
+        // #725 H-1 — slip.getDispatchStatus() 는 displayName 으로만 노출한다 (원어 DISPATCHING 유출 금지).
         assertThatThrownBy(() -> svc.restoreSlipFromGroup(taskId, groupId, slipId, null, "restorer", "복원자"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("미배차 전표만 복원할 수 있습니다");
+                .hasMessageContaining("미배차 전표만 복원할 수 있습니다")
+                .hasMessageContaining("발송 완료, 매칭 대기")
+                .hasMessageNotContaining("DISPATCHING");
         verify(slipMapRepo, never()).save(any());
     }
 

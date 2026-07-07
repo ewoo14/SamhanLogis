@@ -57,7 +57,7 @@ public class DispatchTaskUnavailableService {
         if (task.getStatus() != DispatchTaskStatus.DISPATCHING
                 && task.getStatus() != DispatchTaskStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "발송 중인 배차 작업만 매칭 불가 처리 가능 — 현재=" + task.getStatus());
+                    "발송 중인 배차 작업만 매칭 불가 처리 가능 — 현재=" + task.getStatus().getDisplayName());
         }
 
         // 부분 발송 task 는 미발송 그룹이 남아 DRAFT 일 수 있다. multi-dispatch-id 정밀 전이 전까지는

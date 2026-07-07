@@ -15,7 +15,25 @@ package com.samhanair.logis.slip.domain.dispatch;
  * <p>arologis FAILED 회신 시 매핑된 slip 의 dispatchStatus 는 UNDISPATCHED 로 복귀.
  */
 public enum SlipDispatchStatus {
-    UNDISPATCHED,
-    DISPATCHING,
-    DISPATCHED
+    UNDISPATCHED("미배차"),
+    DISPATCHING("발송 완료, 매칭 대기"),
+    DISPATCHED("배차 완료");
+
+    private final String displayName;
+
+    SlipDispatchStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /**
+     * 사용자 노출 메시지/배지에 사용하는 한국어 상태 라벨.
+     *
+     * <p>desktop {@code SLIP_DISPATCH_STATUS_LABEL} (clients/desktop/src/renderer/api/dispatchBoard.ts)
+     * 과 동일한 문구를 SSOT 로 사용한다 (#725 — IllegalState 상태전이 메시지 sweep).
+     *
+     * @return 한국어 상태 표시명
+     */
+    public String getDisplayName() {
+        return displayName;
+    }
 }

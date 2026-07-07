@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
-import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.client.NotificationClient;
 import com.samhanair.logis.slip.domain.Slip;
@@ -343,6 +342,37 @@ class DispatchConfirmAndUnavailableServiceTest {
                 .hasMessageContaining("아직 발송되지 않은 차량 그룹입니다");
     }
 
+    /**
+     * #725 H-1 — 이미 DISPATCHED 인 task 재호출(멱등성 위반) 메시지는
+     * {@link DispatchTaskStatus#getDisplayName()} 한국어 라벨만 사용해야 한다(원어 DISPATCHED
+     * 유출 금지). FE {@code dispatchErrorMessage.ts} 가 BusinessException message 를 그대로
+     * 배너에 노출한다.
+     */
+    @Test
+    void confirm_on_already_dispatched_task_throws_conflict_with_korean_displayname_only() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2026/05/14-CONFLICT", LocalDate.now());
+        setId(task, taskId);
+        task.markDispatching();
+        task.markDispatched(UUID.randomUUID());
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+
+        DispatchTaskConfirmRequest req = new DispatchTaskConfirmRequest(
+                UUID.randomUUID(),
+                List.of(new DispatchTaskConfirmRequest.MatchedDriverPayload(
+                        1, "TONNAGE_1", "D-001", "홍길동",
+                        "010-1234-5678", MatchedDriverSource.AROLOGIS, "12가3456")),
+                Instant.now());
+
+        assertThatThrownBy(() -> confirmSvc.confirm(taskId, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("발송 중인 배차 작업만 confirm 가능")
+                .hasMessageContaining("배차 완료")
+                .hasMessageNotContaining("DISPATCHED");
+        verify(groupRepo, never()).findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(any());
+    }
+
     @Test
     void unavailable_marks_FAILED_and_returns_slip_to_UNDISPATCHED() throws Exception {
         DispatchTaskUnavailableService unavailSvc = new DispatchTaskUnavailableService(
@@ -410,6 +440,36 @@ class DispatchConfirmAndUnavailableServiceTest {
         unavailSvc.unavailable(taskId, req);
 
         assertThat(task.getStatus()).isEqualTo(DispatchTaskStatus.FAILED);
+    }
+
+    /**
+     * #725 H-1 — 이미 DISPATCHED 인 task 재호출(멱등성 위반) 메시지는
+     * {@link DispatchTaskStatus#getDisplayName()} 한국어 라벨만 사용해야 한다(원어 DISPATCHED
+     * 유출 금지).
+     */
+    @Test
+    void unavailable_on_already_dispatched_task_throws_conflict_with_korean_displayname_only() throws Exception {
+        DispatchTaskUnavailableService unavailSvc = new DispatchTaskUnavailableService(
+                taskRepo, groupRepo, slipMapRepo, slipRepo, notificationClient, collectionPublisher);
+
+        UUID taskId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2026/05/14-UNAVAIL-CONFLICT", LocalDate.now());
+        setId(task, taskId);
+        task.markDispatching();
+        task.markDispatched(UUID.randomUUID());
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+
+        DispatchTaskUnavailableRequest req = new DispatchTaskUnavailableRequest(
+                UUID.randomUUID(), "가용 기사 0명", null);
+
+        assertThatThrownBy(() -> unavailSvc.unavailable(taskId, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("발송 중인 배차 작업만 매칭 불가 처리 가능")
+                .hasMessageContaining("배차 완료")
+                .hasMessageNotContaining("DISPATCHED");
+        assertThat(task.getStatus()).isEqualTo(DispatchTaskStatus.DISPATCHED);
+        verify(groupRepo, never()).findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(any());
     }
 
     private static void setId(Object entity, UUID id) throws Exception {

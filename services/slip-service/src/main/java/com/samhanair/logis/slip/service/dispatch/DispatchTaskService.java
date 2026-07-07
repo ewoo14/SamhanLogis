@@ -161,7 +161,7 @@ public class DispatchTaskService {
                         "slip 이 존재하지 않습니다: " + slipId));
         if (slip.getDispatchStatus() != SlipDispatchStatus.UNDISPATCHED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "미배차 전표만 배차 그룹에 추가할 수 있습니다: " + slip.getDispatchStatus());
+                    "미배차 전표만 배차 그룹에 추가할 수 있습니다: " + slip.getDispatchStatus().getDisplayName());
         }
         for (DispatchVehicleGroupSlip existing : slipMapRepo.findBySlipIdAndIsDeletedFalse(slipId)) {
             if (existing.getVehicleGroupId().equals(vehicleGroupId)) {
@@ -350,7 +350,7 @@ public class DispatchTaskService {
                         "slip 이 존재하지 않습니다: " + slipId));
         if (slip.getDispatchStatus() != SlipDispatchStatus.UNDISPATCHED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "미배차 전표만 복원할 수 있습니다: " + slip.getDispatchStatus());
+                    "미배차 전표만 복원할 수 있습니다: " + slip.getDispatchStatus().getDisplayName());
         }
         String actorName = resolveActorName(callerName);
         mapping.markRestoredWithNameCleared();
@@ -485,7 +485,8 @@ public class DispatchTaskService {
         DispatchTask task = findTaskOrThrow(id);
         if (task.getStatus() != DispatchTaskStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "배차 작업 편집은 DRAFT 상태에서만 가능합니다 — 현재=" + task.getStatus());
+                    "배차 작업 편집은 " + DispatchTaskStatus.DRAFT.getDisplayName()
+                            + " 상태에서만 가능합니다 — 현재=" + task.getStatus().getDisplayName());
         }
         return task;
     }

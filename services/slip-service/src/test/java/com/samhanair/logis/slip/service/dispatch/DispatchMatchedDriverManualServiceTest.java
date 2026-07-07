@@ -130,6 +130,64 @@ class DispatchMatchedDriverManualServiceTest {
                         .isEqualTo(ErrorCode.CONFLICT));
     }
 
+    /**
+     * #725 H-1 — recordableTask 위반(작성/발송/완료 외 상태) 메시지는
+     * {@link com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus#getDisplayName()} 한국어
+     * 라벨만 사용해야 한다(원어 FAILED 유출 금지). FE {@code dispatchErrorMessage.ts} 가
+     * BusinessException message 를 그대로 배너에 노출한다.
+     */
+    @Test
+    void setMatchedDriver_rejects_non_recordable_task_status_with_korean_displayname_only() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2099/06/12-7", LocalDate.of(2099, 6, 12));
+        setId(task, taskId);
+        task.markDispatching();
+        task.markFailed("가용 기사 0명");
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(group, groupId);
+
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
+
+        DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
+
+        assertThatThrownBy(() -> service.setMatchedDriver(taskId, groupId,
+                new SetMatchedDriverRequest("Manual Driver", null, "12A3456", MatchedDriverSource.OTHER)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("배차 불가")
+                .hasMessageNotContaining("FAILED");
+    }
+
+    /**
+     * #725 H-1 — editableTask 위반(작성 중/발송 중 외 상태) 메시지는
+     * {@link com.samhanair.logis.slip.domain.dispatch.DispatchTaskStatus#getDisplayName()} 한국어
+     * 라벨만 사용해야 한다(원어 DISPATCHED 유출 금지).
+     */
+    @Test
+    void markManualDispatchComplete_rejects_non_editable_task_status_with_korean_displayname_only() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2099/06/12-8", LocalDate.of(2099, 6, 12));
+        setId(task, taskId);
+        task.markDispatching();
+        task.markDispatched(UUID.randomUUID());
+        DispatchVehicleGroup group = DispatchVehicleGroup.create(taskId, 1, DispatchVehicleType.TONNAGE_1);
+        setId(group, groupId);
+
+        when(taskRepo.findByIdAndIsDeletedFalse(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByIdAndIsDeletedFalse(groupId)).thenReturn(Optional.of(group));
+
+        DispatchMatchedDriverManualService service = new DispatchMatchedDriverManualService(
+                taskRepo, groupRepo, slipMapRepo, slipRepo, matchedRepo, historyQueryService, collectionPublisher);
+
+        assertThatThrownBy(() -> service.markManualDispatchComplete(taskId, groupId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("배차 완료")
+                .hasMessageNotContaining("DISPATCHED");
+    }
+
     @Test
     void setMatchedDriver_ignores_soft_deleted_group() {
         UUID taskId = UUID.randomUUID();

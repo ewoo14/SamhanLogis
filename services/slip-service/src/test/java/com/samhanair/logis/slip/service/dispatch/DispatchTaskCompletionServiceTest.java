@@ -113,6 +113,36 @@ class DispatchTaskCompletionServiceTest {
         verify(arologisClient, never()).send(any());
     }
 
+    /**
+     * #725 H-1 — task 가 DRAFT 가 아니면서 모든 그룹이 여전히 PENDING(미발송)인 방어적 분기는
+     * {@link DispatchTaskStatus#getDisplayName()} 한국어 라벨만 노출해야 한다(원어 DISPATCHING 유출
+     * 금지). FE {@code dispatchErrorMessage.ts} 가 BusinessException message 를 그대로 배너에
+     * 노출하므로 사용자 노출 결함이다. (위 {@code _without_pending_groups_} 테스트는 groups 가
+     * 비어 있어 앞선 "차량 그룹이 없습니다" 분기로 빠지므로 이 분기를 실제로 검증하지 않는다.)
+     */
+    @Test
+    void dispatch_when_task_not_draft_and_all_groups_still_pending_throws_conflict_with_displayname() throws Exception {
+        UUID taskId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        DispatchTask task = DispatchTask.create("2026/05/14-7", LocalDate.now());
+        setIdViaReflection(task, taskId);
+        task.markDispatching();
+        DispatchVehicleGroup pendingGroup = DispatchVehicleGroup.create(
+                taskId, 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
+        setIdViaReflection(pendingGroup, groupId);
+
+        when(taskRepo.findById(taskId)).thenReturn(Optional.of(task));
+        when(groupRepo.findByDispatchTaskIdAndIsDeletedFalseOrderBySequenceAsc(taskId))
+                .thenReturn(List.of(pendingGroup));
+
+        assertThatThrownBy(() -> svc.dispatch(taskId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("발송 가능한 미발송 차량 그룹이 없습니다")
+                .hasMessageContaining("발송 완료, 매칭 대기")
+                .hasMessageNotContaining("DISPATCHING");
+        verify(arologisClient, never()).send(any());
+    }
+
     @Test
     void dispatch_with_no_groups_throws() throws Exception {
         UUID taskId = UUID.randomUUID();

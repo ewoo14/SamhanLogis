@@ -64,7 +64,7 @@ public class DispatchTaskConfirmService {
         if (task.getStatus() != DispatchTaskStatus.DISPATCHING
                 && task.getStatus() != DispatchTaskStatus.DRAFT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "발송 중인 배차 작업만 confirm 가능 — 현재=" + task.getStatus());
+                    "발송 중인 배차 작업만 confirm 가능 — 현재=" + task.getStatus().getDisplayName());
         }
 
         List<DispatchVehicleGroup> groups =

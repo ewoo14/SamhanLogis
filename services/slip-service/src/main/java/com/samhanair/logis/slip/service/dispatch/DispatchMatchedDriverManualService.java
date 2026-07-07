@@ -182,7 +182,8 @@ public class DispatchMatchedDriverManualService {
                 || task.getStatus() == DispatchTaskStatus.DISPATCHED;
         if (!recordableTask) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "기사/차량 기록은 작성/발송/완료 상태의 배차 작업에서만 가능합니다 — 현재=" + task.getStatus());
+                    "기사/차량 기록은 작성/발송/완료 상태의 배차 작업에서만 가능합니다 — 현재="
+                            + task.getStatus().getDisplayName());
         }
     }
 
@@ -191,7 +192,8 @@ public class DispatchMatchedDriverManualService {
                 || task.getStatus() == DispatchTaskStatus.DISPATCHING;
         if (!editableTask) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "수동기입은 작성 중이거나 일부 발송 중인 배차 작업에서만 가능합니다 — 현재=" + task.getStatus());
+                    "수동기입은 작성 중이거나 일부 발송 중인 배차 작업에서만 가능합니다 — 현재="
+                            + task.getStatus().getDisplayName());
         }
         if (!group.isDispatchPending()) {
             throw new BusinessException(ErrorCode.CONFLICT,
