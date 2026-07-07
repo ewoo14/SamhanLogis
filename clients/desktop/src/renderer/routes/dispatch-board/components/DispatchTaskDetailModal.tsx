@@ -38,11 +38,10 @@ import {
 } from '../../../api/dispatchTask'
 import {
   DELETED_ROW_TEXT_STYLE,
-  activeSlipRows,
-  activeVehicleGroups,
   deletedBadgeAriaLabel,
   deletedBadgeLabel,
-} from '../dispatchDeletedRow'
+} from '../../../realtime/deletedRowDisplay'
+import { activeSlipRows, activeVehicleGroups } from '../dispatchDeletedRow'
 import { ModificationRequestDialog } from './ModificationRequestDialog'
 import { CancellationRequestDialog } from './CancellationRequestDialog'
 import {

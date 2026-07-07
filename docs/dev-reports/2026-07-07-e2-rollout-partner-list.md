@@ -23,3 +23,22 @@
 - Partner `@Version` optimistic lock(신규 마이그 필요·last-write-wins 잔존).
 - LOW/NIT 정리(mock RESTORE already-active 200 parity·PartnersPage.css → *.module.css·adminApi JSDoc·typeFilter scaffolding 제거).
 - 공용 `deletedRowDisplay.ts` 승격(Track C 머지 후 통합).
+
+## 소급 재검 fix (#760) — 2026-07-07
+
+Track B 머지(#756) 후 **full 5-agent + 실 GUI 라이브 QA 소급 재검**(축소 라운드 보완)이 잡은 결함 fix-forward:
+- **🔴 CRITICAL**: `searchAdmin`/`findAll` 이 무조건 `searchAdminIncludingDeleted`(native, @SQLRestriction 우회) 위임 → 공유 `/admin/partners/search`·`/admin/partners` 가 삭제(취소선) 거래처를 자동완성 5소비처(견적/입금/세금계산서/전표/계좌매칭)에 노출 → **`includeDeleted`(기본 false=활성전용 JPQL)** 게이팅·PartnersPage listAdminPartners 만 true. 라이브 실증: 삭제 후 `search`(includeDeleted 미전송)=`items:[] total:0`, `?includeDeleted=true`=노출.
+- HIGH: 복원버튼 `aria-disabled` 전파 제거·FE 삭제버튼 신설. Design HIGH: 실시간 인디케이터 대비.
+- R1(소급) fix: 삭제배지 단일 inline-flex 래퍼(모바일 카드뷰 배지 우측벌어짐 해소)·status 필터 IT native경로 재커버(`includeDeleted=true` enum-CAST 가드)·컨트롤러 includeDeleted Javadoc·`restoreError`→`actionError`(삭제/복원 공용 명칭).
+- 라이브 GUI 증적: `docs/qa/e2-partner-list-retro/*.png`(삭제버튼→취소선→복원·모바일 배지).
+
+⚠️ **교훈**: 미커밋 편집 중인 worktree에 git 조작(cleanup)하는 백그라운드 QA 에이전트를 동시 실행하면 편집이 revert됨 — 중복 에이전트는 즉시 정리, QA는 커밋 후 실행.
+
+## STEP4 (Opus 독립 적대검증 — Codex 한도 대체, 개발책임자 승인) fix — 2026-07-07
+
+적대검증(refute 관점)이 R1이 놓친 실결함 포착 → Opus 직접 fix:
+- **🔴 CRITICAL(FE 적대검증)**: partnerCode 재사용으로 동일코드 삭제행 N≥2·활성0 시, 복원 요청이 partnerCode만 전송 → BE가 `ORDER BY deleted_at DESC LIMIT 1`로 "최근 삭제행"만 복원 → 사용자가 클릭한 행과 다른 거래처 무통보 복원(데이터무결성). fix: 동일코드 삭제행 ≥2면 복원 버튼 비활성+안내(오복원 원천차단). 개별복원은 후속 deletedAt 기반 restore API로 확장(백로그).
+- **🟠 HIGH(Design)**: 실시간 인디케이터 `neutral-500`(4.55~4.83:1 무여유·다크 FAIL) → `neutral-600`(7.08:1).
+- **🟡 MED**: 이름 span flex/ellipsis(긴 상호 2줄꺾임+배지 붕뜸 해소)·배지 flexShrink:0 / restore·delete 상호 disabled(동시 in-flight시 에러메시지 소실 방지).
+- **QA 라이브(적대)**: CRITICAL 누출 fix HOLDS(q/대소문자/wildcard/페이지네이션/status직교/코드재사용 전 벡터 안전)·모바일 배지 post-fix 실캡처(375/390px gap=8px). IT 312·vitest 650 genuine.
+- 백로그: `includeDeleted=true` 인가경계 부재(VIEW 사용자 직접 API로 deletedByName 열람 — 세분 permission 검토)·중복 param 방어·Button danger variant 전역 대비(design-system SSOT sweep).

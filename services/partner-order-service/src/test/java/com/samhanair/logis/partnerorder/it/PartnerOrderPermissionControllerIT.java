@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -172,11 +173,12 @@ class PartnerOrderPermissionControllerIT {
                 LocalDateTime.of(2026, 5, 26, 9, 0));
         PartnerOrderSummaryResponse summary = new PartnerOrderSummaryResponse(
                 "PO-1", "P001", "Partner", LocalDateTime.of(2026, 5, 26, 9, 0),
-                "CONFIRMED", BigDecimal.valueOf(1000), "SLIP-1");
+                "CONFIRMED", BigDecimal.valueOf(1000), "SLIP-1", false, null, null);
         PartnerOrderDetailResponse detail = new PartnerOrderDetailResponse(
                 "PO-1", "P001", "B001", "Partner", LocalDateTime.of(2026, 5, 26, 9, 0),
                 "CONFIRMED", BigDecimal.valueOf(1000), "SLIP-1",
-                LocalDateTime.of(2026, 5, 26, 9, 0), null, null, null, null, "memo", List.of());
+                LocalDateTime.of(2026, 5, 26, 9, 0), null, null, null, null, "memo", List.of(),
+                false, null, null);
         HistoryResponse history = new HistoryResponse(
                 "PO-1", "SLIP-1", "CONFIRMED", "PUBLISHED", BigDecimal.valueOf(1000),
                 LocalDateTime.of(2026, 5, 26, 9, 0));
@@ -203,7 +205,7 @@ class PartnerOrderPermissionControllerIT {
                 .thenReturn(new PageImpl<>(List.of(history), PageRequest.of(0, 20), 1));
         lenient().when(queryService.list(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
-        lenient().when(queryService.list(any(), any(), any()))
+        lenient().when(queryService.list(any(), any(), any(), anyBoolean()))
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
         lenient().when(queryService.findDetailById(anyString())).thenReturn(detail);
         lenient().when(queryService.findDetailById(anyString(), any())).thenReturn(detail);

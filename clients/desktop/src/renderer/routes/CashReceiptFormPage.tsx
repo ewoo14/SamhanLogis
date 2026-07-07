@@ -135,6 +135,39 @@ export function CashReceiptFormPage() {
       && canUpdate,
   )
   const coeditActive = Boolean(coeditProvider) || coeditPending
+  const editNotice = (() => {
+    if (!isEdit || !receipt) return null
+    if (receipt.status === 'CANCELLED') {
+      return {
+        className: 'danger-banner',
+        role: 'alert' as const,
+        text: '취소된 입금보고서는 수정할 수 없습니다.',
+      }
+    }
+    if (bankLinked) {
+      // 위 CANCELLED 분기가 이미 return 하므로 여기 도달 시 status !== 'CANCELLED' 는 항상 참(중복 조건 제거).
+      return {
+        className: 'warning-banner',
+        role: 'status' as const,
+        text: '통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.',
+      }
+    }
+    if (!canUpdate) {
+      return {
+        className: 'warning-banner',
+        role: 'status' as const,
+        text: '입금보고서 수정 권한이 없어 읽기 전용으로 표시됩니다.',
+      }
+    }
+    if (receipt.status === 'CONFIRMED') {
+      return {
+        className: 'warning-banner',
+        role: 'status' as const,
+        text: '확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.',
+      }
+    }
+    return null
+  })()
 
   useEffect(() => {
     const receiptSnapshot = receiptDataRef.current
@@ -239,27 +272,9 @@ export function CashReceiptFormPage() {
         </p>
       </div>
 
-      {bankLinked ? (
-        <div className="warning-banner" role="status">
-          통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.
-        </div>
-      ) : null}
-
-      {isEdit && receipt && !canUpdate ? (
-        <div className="warning-banner" role="status">
-          입금보고서 수정 권한이 없어 읽기 전용으로 표시됩니다.
-        </div>
-      ) : null}
-
-      {isEdit && receipt?.status === 'CONFIRMED' && !bankLinked && canUpdate ? (
-        <div className="warning-banner" role="status">
-          확정된 입금보고서를 수정하면 기존 분개가 역분개되고 새 분개로 재게시됩니다.
-        </div>
-      ) : null}
-
-      {isEdit && receipt?.status === 'CANCELLED' ? (
-        <div className="danger-banner" role="status">
-          취소된 입금보고서는 수정할 수 없습니다.
+      {editNotice ? (
+        <div className={editNotice.className} role={editNotice.role}>
+          {editNotice.text}
         </div>
       ) : null}
 
@@ -387,8 +402,10 @@ export function CashReceiptFormPage() {
         </div>
       </Card>
 
-      {topError ? (
-        <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: 'var(--state-danger)' }}>
+      {/* editNotice 가 이미 role="alert"(CANCELLED) 인 경우 topError 를 억제해 한 화면에 alert 2개가
+          동시 노출(getByRole('alert') strict 위반·AT 중복공지)되지 않게 상호배타 렌더. */}
+      {topError && editNotice?.role !== 'alert' ? (
+        <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: 'var(--color-danger-700, #991B1B)' }}>
           {topError}
         </div>
       ) : null}

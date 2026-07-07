@@ -8,6 +8,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
@@ -59,6 +60,7 @@ public class PartnerOrderUpdateService {
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerOrderAuditLogService auditLogService;
     private final PartnerOrderRevisionService revisionService;
+    private final PartnerOrderBoardChangePublisher boardChangePublisher;
 
     /**
      * 주문 헤더와 라인을 즉시 수정한다.
@@ -93,6 +95,7 @@ public class PartnerOrderUpdateService {
             // Phase 2.4 버전이력 훅 — 본사 직결 수정 후 스냅샷 캡처 (EDIT)
             revisionService.capture(saved, PartnerOrderRevisionType.EDIT, null,
                     actorId, actorName, null);
+            publishListChanged();
 
             return PartnerOrderDetailResponse.from(saved);
         } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
@@ -139,6 +142,7 @@ public class PartnerOrderUpdateService {
                 auditLogService.recordBatch(saved, actorId, actorName, null, changes);
                 revisionService.capture(saved, PartnerOrderRevisionType.EDIT, null,
                         actorId, actorName, null);
+                publishListChanged();
             }
             return PartnerOrderDetailResponse.from(saved);
         } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
@@ -152,6 +156,12 @@ public class PartnerOrderUpdateService {
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.PARTNER_ORDER_NOT_FOUND,
                         ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
+    }
+
+    private void publishListChanged() {
+        if (boardChangePublisher != null) {
+            boardChangePublisher.publishListChanged("UPDATED");
+        }
     }
 
     private void verifyVersion(PartnerOrder order, LocalDateTime requestUpdatedAt) {

@@ -207,19 +207,19 @@ public class EcountPartnerImporter {
         } catch (IOException | CsvValidationException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "CSV 파싱 실패: " + ex.getMessage(), ex);
+        } finally {
+            if (imported + updated > 0) {
+                collectionRealtimePublisher.publishChange(
+                        PartnerListRealtime.CHANNEL_ID,
+                        PartnerListRealtime.EVENT_CHANGED,
+                        Map.of("changeType", "BULK_UPDATED"));
+            }
         }
 
         log.info("MIG-1 import 완료 — total={} imported={} updated={} rejectedNullName={} "
                         + "skippedPlaceholder={} ACTIVE={} SUSPENDED={} hash={} actor={}",
                 totalRows, imported, updated, rejectedNullName, skippedPlaceholder,
                 activeCount, suspendedCount, sourceFileHash, actorUserId);
-
-        if (imported + updated > 0) {
-            collectionRealtimePublisher.publishChange(
-                    PartnerListRealtime.CHANNEL_ID,
-                    PartnerListRealtime.EVENT_CHANGED,
-                    Map.of("changeType", "BULK_UPDATED"));
-        }
 
         return new EcountPartnerImportResult(totalRows, imported, updated, rejectedNullName,
                 skippedPlaceholder, activeCount, suspendedCount, sourceFileHash, rejectedSample);

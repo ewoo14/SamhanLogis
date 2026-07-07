@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,9 +21,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 거래처 주문 list 조회 endpoint — FE desktop SalesPartnerOrderListPage 가 호출.
+ * 거래처 주문 list 조회 endpoint — FE desktop SalesPartnerOrderListPage(내부)와 파트너 PWA
+ * 셀프서비스가 공유한다.
  *
- * <p>GET /api/v1/partner-orders — 전체 페이지 조회 (createdAt DESC).
+ * <p>GET /api/v1/partner-orders — 전체 페이지 조회. 정렬은 서버 고정(확정일 없으면 생성일 DESC,
+ * 주문번호 DESC 보조).
+ *
+ * <p>{@code includeDeleted=true} 는 내부 관리자 목록 전용 opt-in(삭제행+deletedByName 포함,
+ * E2 취소선/복원 표시) — 파트너({@code X-Is-Partner}) 호출은 서비스 계층이 파라미터와 무관하게
+ * 활성 행만 반환한다(#757 R2 HIGH fail-closed).
  *
  * <p>SP-D6-2 동적 권한 가드: {@code sales.partner-order.list} VIEW.
  */
@@ -37,7 +42,9 @@ public class PartnerOrderListController {
 
     private final PartnerOrderQueryService partnerOrderQueryService;
 
-    @Operation(summary = "거래처 주문 목록", description = "날짜/거래처/상태/검색어 필터를 적용한 주문 페이지. createdAt DESC")
+    @Operation(summary = "거래처 주문 목록",
+            description = "날짜/거래처/상태/검색어 필터를 적용한 주문 페이지. 확정일(없으면 생성일) DESC 서버 고정 정렬. "
+                    + "includeDeleted=true 는 내부 관리자 목록 전용(삭제행+deletedByName 포함) — 파트너 호출은 항상 활성 행만.")
     @GetMapping
     @RequirePermission(page = "sales.partner-order.list", action = PermissionAction.VIEW,
             partnerSelfService = true)
@@ -49,12 +56,16 @@ public class PartnerOrderListController {
             @RequestParam(required = false) String partnerId,
             @RequestParam(required = false) PartnerOrderStatus status,
             @RequestParam(required = false) String searchKeyword,
+            @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        // Pageable Sort 미사용 — 두 조회 경로(native/Specification) 모두 서버 고정 정렬이라
+        // Sort 를 실어 보내면 무시되는 죽은 파라미터가 된다(#757 R2 LOW).
+        Pageable pageable = PageRequest.of(page, size);
         Page<?> result = partnerOrderQueryService.list(
                 new PartnerOrderListFilter(dateFrom, dateTo, partnerId, status, searchKeyword),
                 pageable,
-                partnerCode);
+                partnerCode,
+                includeDeleted);
         return ApiResponse.ok(result);
     }
 

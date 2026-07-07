@@ -7,6 +7,7 @@ import com.samhanair.logis.partnerorder.client.EstimateClient;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
@@ -35,6 +36,7 @@ public class PartnerOrderFromEstimateService {
     private final PartnerOrderAuditLogService auditLogService;
     private final EstimateClient estimateClient;
     private final PartnerOrderRevisionService revisionService;
+    private final PartnerOrderBoardChangePublisher boardChangePublisher;
     private final EntityManager entityManager;
 
     /**
@@ -85,8 +87,15 @@ public class PartnerOrderFromEstimateService {
         // Phase 2.4 버전이력 훅 — 견적→주문 변환 시 첫 스냅샷 캡처 (CREATE)
         revisionService.capture(saved, PartnerOrderRevisionType.CREATE, null,
                 actorId, actorName, null);
+        publishListChanged();
 
         return PartnerOrderDetailResponse.from(saved);
+    }
+
+    private void publishListChanged() {
+        if (boardChangePublisher != null) {
+            boardChangePublisher.publishListChanged("CREATED");
+        }
     }
 
     private BusinessException alreadyConverted() {

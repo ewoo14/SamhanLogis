@@ -259,8 +259,34 @@ describe('CashReceiptFormPage', () => {
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '통장거래처'))
     expect(screen.getByText('통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.')).not.toBeNull()
     expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('차변 계정') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('대변 계정') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
     expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
+  it('BANK_LINKED+CANCELLED+무권한 편집 모드는 취소 배너 하나만 alert로 표시한다', async () => {
+    mocks.canAccess.mockImplementation((_pageCode, action) => action !== 'update')
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-bank-linked-cancelled',
+      slipNo: '2026/07/05-11',
+      partnerCode: 'P-CANCELLED-BANK',
+      bizNo: '777-77-77777',
+      partnerName: '취소통장거래처',
+      amount: '120000',
+      transactionDate: '2026-07-05',
+      kind: 'BANK_LINKED',
+      status: 'CANCELLED',
+      memo: '취소 통장연계 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-bank-linked-cancelled/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '취소통장거래처'))
+    expect(screen.getByRole('alert').textContent).toBe('취소된 입금보고서는 수정할 수 없습니다.')
+    expect(screen.queryByText('통장연계 입금보고서는 수정할 수 없습니다. 취소 후 다시 생성하세요.')).toBeNull()
+    expect(screen.queryByText('입금보고서 수정 권한이 없어 읽기 전용으로 표시됩니다.')).toBeNull()
   })
 
   it('UPDATE 권한 없이 편집 URL에 직접 진입하면 read-only이며 coedit provider 를 생성하지 않는다', async () => {
@@ -283,6 +309,8 @@ describe('CashReceiptFormPage', () => {
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '권한없음거래처'))
     expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('차변 계정') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('대변 계정') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
     expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
   })
@@ -305,10 +333,38 @@ describe('CashReceiptFormPage', () => {
     renderPage('/accounting/admin/cash-receipts/receipt-cancelled/edit')
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '취소거래처'))
-    expect(screen.getByText('취소된 입금보고서는 수정할 수 없습니다.')).not.toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('취소된 입금보고서는 수정할 수 없습니다.')
     expect((screen.getByLabelText('금액') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('차변 계정') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('대변 계정') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true)
     expect(mocks.createDocCoeditProvider).not.toHaveBeenCalled()
+  })
+
+  it('저장 실패 topError 배너는 danger-700 텍스트 대비를 사용한다', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-save-fail',
+      slipNo: '2026/07/05-12',
+      partnerCode: 'P-FAIL',
+      bizNo: '888-88-88888',
+      partnerName: '저장실패거래처',
+      amount: '330000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '저장 실패 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    mocks.updateCashReceipt.mockRejectedValue(new Error('서버 오류'))
+    renderPage('/accounting/admin/cash-receipts/receipt-save-fail/edit')
+
+    await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '저장실패거래처'))
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('저장 실패: 서버 오류')
+    expect(alert.getAttribute('style')).toContain('color: var(--color-danger-700, #991B1B)')
   })
 
   it('DRAFT 편집 모드는 cash-receipt provider 를 seed 하고 header fieldPath 를 배선한다', async () => {

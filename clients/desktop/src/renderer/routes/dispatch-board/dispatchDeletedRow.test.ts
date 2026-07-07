@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   DELETED_ROW_TEXT_STYLE,
-  activeSlipRows,
-  activeVehicleGroups,
   deletedBadgeAriaLabel,
   deletedAtTooltip,
   deletedBadgeLabel,
+} from '../../realtime/deletedRowDisplay'
+import {
+  activeSlipRows,
+  activeVehicleGroups,
 } from './dispatchDeletedRow'
 import type { DispatchVehicleGroupResponse } from '../../api/dispatchTask'
 

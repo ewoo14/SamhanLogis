@@ -1,6 +1,51 @@
 # 현재 작업 핸드오프 노트
 
 > 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
+
+---
+
+## 🔴🔴 2026-07-07 회사PC 이어받기 — E2/E3 롤아웃 5-PR 파이프라인 (야간 자율 PM · full-canon 엄수 · 단축0)
+
+> **회사PC 첫 작업 = 이 절만 읽고 즉시 이어받기.** 집PC 원격 한계로 인계. **프로덕션 코드 전부 커밋·push 완료**. 로컬 worktree(wtAfix/wtD/wtC/wtE)는 집PC 로컬 — 회사PC는 아래 브랜치를 `git worktree add` 또는 체크아웃으로 재생성. STEP4=**Opus 독립 적대검증**(Codex 사용량 한도 Jul11까지·개발책임자 승인 대체 [[project_ci_billing_blocker]]).
+
+### 개요
+E3 S4d(입금보고서 coedit) 소급 + E2 롤아웃(거래처/판매전표/주문/견적 목록 = 실시간 동기화 + 취소선 soft-delete/복원) 5개 PR을 full-canon 엄격 진행. **이 세션의 적대검증 STEP4가 머지 전 CRITICAL 다수 포착**(D 감사자료 누출·거래처 rowKey 오복원·C 파트너 실명 누출·D restore 빈껍데기) — 단축했으면 배포됐을 결함들(개발책임자 "단축금지" 정당성 실증).
+
+### 파이프라인 (머지순 auth: **C(V83)→D(V84)→E(V85)** · out-of-order 방지)
+| PR | 브랜치 / HEAD | CI | 상태 | 다음 |
+|---|---|---|---|---|
+| ✅ #760 거래처 | 머지됨 main `3f1541c65` | — | 🔴삭제행 누출+rowKey 오복원 fix·머지 | — |
+| #761 입금 | `fix/e3-s4d-retro` **570e446c6** | 36✅ | STEP4+clean QA(3 PASS)+nit fix 게시 | **PM 9-게이트→머지(독립·지금 가능)** |
+| D #758 판매전표 | `feat/e2-rollout-slip-list` **a677fb822** | 31✅ | R1+STEP4 완료(🔴누출 5-agent 견고+QA라이브 실증·HIGH restore라인 fix+IT) | **C 머지 후→9-게이트→머지(V84)** |
+| C #757 주문 | `feat/e2-rollout-order-list` **8f71e326a** | 31✅ | R2 4/5·spec-drift fix(CI green화) | **아래 R2 fix→STEP4 재수렴→머지(V83 최우선)** |
+| E #759 견적 | `feat/e2-rollout-estimate-list` **202b21e5d** | R1 | R1 findings 미fix | **fix→STEP4→머지(V85, D 후)** |
+
+### 🚨 C(#757) R2 findings — 회사PC 즉시 착수 (⚠️C QA DONE 후 wtC 편집)
+- **🔴 HIGH (FE가 BE 놓친 것 포착·채택)**: `PartnerOrderQueryService.list()`가 **내부직원+파트너 PWA 셀프서비스 양 audience 공유**(`@RequirePermission(...partnerSelfService=true)` `PartnerOrderListController`). fix가 무조건 `listIncludingDeleted`(native·is_deleted 술어 부재)로 바꿔 → **파트너(`X-Is-Partner`) 호출 시 삭제 주문+내부직원 실명(`deletedByName`)이 외부 파트너 누출**(자기거래처 한정이나 내부 감사행위·실명 노출). BE는 "단일소비처=내부전용" 판정했으나 FE가 파트너겸용 반증 → **채택(독단기각 금지·재수렴)**. **fix**=`includeDeleted` 내부전용 게이트(파트너=활성전용, D 거래처/판매전표 opt-in 패턴 준용). `PartnerOrderQueryService.java:74-82,180-207`·`PartnerOrderListController.java:42-43`·`PartnerOrderSummaryResponse.java:35-47`·`PartnerOrderListIT`에 파트너스코프 삭제행 미노출 IT.
+- **🟡 MEDIUM (BE)**: 인라인 restore(`POST /{id}/restore` `restoreDeleted`)의 라인 재활성화·totalAmount **assert IT 부재**(기존 IT는 revision restore 경로만). `deletedAt.equals` 매칭 무방비→IT 추가.
+- **🟡 MEDIUM (Design F-1)**: 삭제행 status 배지가 **원래 의미색 배경 유지**(`STATUS_CLASS[o.status]` 미드롭 `SalesPartnerOrderListPage.tsx:313-320`)→"삭제된 완료 주문이 초록 pill"(혼합신호·다크 잠재FAIL)→삭제행 배지 중립화(neutral-100+neutral-600/700, 한국어 상태텍스트 보존).
+- **🟢 LOW**: (BE)구 `softDeleteCascade(String)` 삭제분 헤더≠라인시각→신규 restore시 빈껍데기(신규삭제분 무해·시각윈도우/전량복원 fallback)·정렬 Pageable Sort 무시 죽은param·V83 라벨 v82·AuthFlywayV83SeedIT 부재 / (Design F-2)`rowClickable` 미전달→삭제행 클릭 어포던스 잔존(`rowClickable={(o)=>!o.isDeleted&&!!o.orderNumber}`) / (FE)mockPerms RESTORE 미부여.
+- **C R2 QA(ab2197a0 라이브) 완료 — 내부 MASTER(dev_master) 관점 전건 PASS**: 누출차단(상세404·전환404·병합404·인쇄404·병합체크박스 부재)·**restore 라인 생존 실증**(수량1·소계 1,560,000 보존, 빈껍데기 아님)·취소선·복원 net-zero·IT 13/13 genuine(신규 `list_includes_soft_deleted_rows_with_deleted_metadata`). 스샷 `docs/qa/e2-rollout-order-list/` (C 브랜치 커밋됨). **⚠️ 단 QA는 내부만 테스트 — 파트너(`X-Is-Partner`) audience 미검증 → 위 FE HIGH(파트너 누출) 유효·fix 후 파트너 관점 QA 재실행 필요**(내부는 정상 확인됨). QA도 MEDIUM(인라인 restore 테스트공백=BE와 수렴)·LOW(전체N건 카운트가 삭제행 포함, by-design 인지) 관찰.
+- C R2 반증(정상): 취소선 실렌더(픽셀99.4%·라이브)·mock pagecode·rowKey·coarse키·실시간(가시없음)·aria 한국어·마이그/게이트웨이/allowlist·CI genuine green. **내부 관점 D-family 구조적 방어**(includeDeleted 격리·단일시각 cascade)·**파트너 audience 누출 1건만 잔여 HIGH**.
+
+### E(#759) R1 findings — D 후 착수
+- **🟠 HIGH**: V85가 `estimates.list` 복원권한을 MASTER에만(MANAGER/SALES는 can_delete 보유→삭제가능·복원불가 비대칭)→**3역할 부여**(V83/V84 정합).
+- **🟠 HIGH (정책=개발책임자 결정)**: E `delete()`가 CONVERTED(주문전환) 견적도 상태무관 삭제 허용(주문은 DELETABLE={DRAFT,CONFIRMING} 차단)→**안전기본값=차단(주문 준용)+개발책임자 확인 코멘트**.
+- **Design MED×4**: 목록조회 배너 `--color-semantic-danger`(미정의)→danger-700·rowClassName 틴트·헤더 raw hex→neutral-600·deleteEstimate 미사용 스코프. **LOW**: V85 upsert 좁힘·미사용 query 5개 제거.
+- E shared-leak 없음(단일소비처). **단 D-family(restore 라인·누출) 자가점검 필수**.
+
+### 워크플로우 규율 (매 작업 최우선 — [[feedback_canonical_workflow]] [[feedback_review_5agent_no_shortcut_strict]] [[feedback_workflow_discipline_root_cause]])
+- Opus 5-agent(FE/BE/Design/DevOps/QA=라이브GUI) → STEP4=**Opus 독립 적대검증**(refute·Codex Jul11 대체). fix=라운드모델(Opus 직접). **0수렴까지 반복**. **타에이전트 지적=false-positive 의심도 독단기각 금지**(재수렴+PM종합). 매 라운드 실 GUI 스샷.
+- **PM 9-게이트**: Opus5게시·전지적disposition·fix=라운드모델·재수렴0·STEP4게시·0수렴·PM종합·dev-report·CI genuine green.
+- 매 단계 **ScheduleWakeup 재자각**. 동시 gradle 자제(캐시경합 false-fail 실측)·격리 `--rerun-tasks --no-build-cache`·**exit-0 신뢰말고 XML 직접**·**QA 에이전트 DONE 후 그 worktree 편집**(revert 사고).
+
+### PARK / 백로그 (아침 보고)
+판매조회 담당자명 UUID 노출(`SlipResponse.salesPersonName` raw requesterId·선존재·prod)·design-system danger/success SSOT sweep(Badge/Button/SlipStatus·다크모드)·`searchIncludingDeleted` rename·SSE FE 조건화(INBOUND 403)·mock GET parity·mobile flake·GitGuardian·@Version·상호vs거래처명 용어·미해결 #729/#725/#723/#715/#714·`--color-semantic-danger` 미정의·Codex 복구(Jul11) 소급재검(선택).
+
+### 회사PC 셋업
+1. `git pull`(main `3f1541c65`+본 핸드오프) → 2. `.\scripts\sync-claude-memory.ps1` → 3. **머지권한** `.claude/settings.json`(gitignore·per-machine) allow에 `"Bash(gh pr merge:*)"` 추가(표준승인 유효) → 4. worktree 재생성 `git worktree add ../Samhan-Public-wtC feat/e2-rollout-order-list` 등(또는 브랜치 직접) → 5. 이 절 읽고 **C R2 fix부터**(HIGH 파트너누출→C 라이브QA 재실행→STEP4 재수렴→머지 V83→D 머지→#761 머지→E).
+
+---
 > 갱신: 2026-06-30 오전 (**회사PC 재개 세션** — 집PC 인계 완료, **협업 S2b(#675) 머지** squash `3ea02f1e`: Codex 라운드3 0수렴·1:1 라운드 소급보완·실 Docker 라이브 QA). **협업 S2c·S2d-1·S2d-1b·S2d-2(#679 `27c686b7`) 머지**(상태의존 카운트 · 헤더+라인 셀 레드라인 · **라이브 변경 하이라이트** — S2d 계열 완료). **S3-0/S3-1(#681)·S3-2 견적(#682 `f93a2cd89`) coedit 머지(2026-07-01)** — #16 협업 **라이브 coedit 6문서 **메모 단일필드(1차)만** 머지 — ⚠️**full-form(전표 전체)=원 지시·미완**(정정 [[feedback_epic_scope_no_narrowing]]). **현 우선순위=협업 full-form **롤아웃**(정찰 acf36aaa: slip 판매전표는 **이미 full-form ✅** S2a #674 `fcdbb6bea`[createDocCoeditProvider Y.Map헤더+Y.Array품목라인+CollaborativeSlipInput 셀바인딩, 수정모달] — **5문서 중 주문 full-form ✅(#689 `75a967d15`, BLOCKING 2[awareness 블리드·stale corruption] fix·듀얼리뷰 양방향정정·2/6 완료) — 견적·회계·결재·배차 잔여 메모→full-form 이식**. 개발책임자 결정: **트랙B 5문서 롤아웃 + 트랙A slip 하드닝 + 트랙B 롤아웃 병행, 저장충돌=후속). **〔진행 2026-07-01 PM〕** 트랙A **slA1(공유 provider 라인 lineId+add/remove/byId CRDT infra) ✅머지 `1d0d27a81`**(#690, Opus FE+Codex 듀얼리뷰 0수렴, backward-compat 60테스트). **회계 정찰**: 회계 full-form은 ❌BE 수정 PUT 부재(신설 필요)+차/대변 균형+라인 add/remove 본질 → 최대규모·후순위. **전략=사용자 1순위 '더 많은 문서 full-form' → 트랙B 롤아웃 우선**(slA1 infra가 line-CRDT 직접제공 → slA1b 는 hard 전제 아님; 회계/견적이 infra 직접사용 가능). 견적·결재·배차 **fit 정찰 병렬 진행** → 최저난도부터 롤아웃. slA1b(slip 라인 add/remove 소비자, 라이브 모달 retrofit 고위험)·slA1c(dnd-kit reorder)·slA2(셀 char-CRDT)=후순위 enhancement). **〔2026-07-01 PM 최신〕 견적 full-form ✅머지 #691 `d36d6c7cf`(slip·주문·견적 3/6) — 개발책임자 "PR 워크플로우 재준수+세션 위반 전수 보완" 지시로 #691은 정식 5-agent 듀얼·0수렴·라이브 실QA(2세션 SSE 양방향 반영 PASS·-sse-reflected 실캡처)·PM종합 전부 이행. 라이브 QA가 결함 3건 적발: ①applySnapshot corrupt-update 브릭(공유 coedit infra·하드닝 fix PR 착수) ②EstimateRealtimeClient/createAuditApi 경로 `/api/v1/estimates`→`/slips/estimates` 누락(404/500). 다음=①applySnapshot 하드닝 PR ②경로 fix PR ③**세션 소급 sweep**(#690→#689→#686/687→#682-685 각 5-agent+라이브QA 소급) ④결재→회계(BE)→배차 롤아웃. #17 단가변동 보류**. 〔과거 "#16 종결" 표기 철회〕**(slip·주문·견적·회계·결재·배차, #680~#685, 2026-07-01), **다음 = #17 단가변동**(→결재→배차). ⚠️개발책임자 '더 지시한 에픽' 재스캔 결과 = 하단 '추가 지시 에픽(재스캔)' 절. 별도 트랙: 금융연동 vendor(바로빌 권고). 본 파일 = 다음 세션 첫 읽기.
 
 ---

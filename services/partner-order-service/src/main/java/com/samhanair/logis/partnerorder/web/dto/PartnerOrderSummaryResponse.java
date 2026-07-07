@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.web.dto;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.regex.Pattern;
 
 /**
  * 주문 목록 행 응답.
@@ -16,8 +17,14 @@ public record PartnerOrderSummaryResponse(
         LocalDateTime submittedAt,
         String status,
         BigDecimal totalAmount,
-        String linkedSlipNo
+        String linkedSlipNo,
+        boolean isDeleted,
+        LocalDateTime deletedAt,
+        String deletedByName
 ) {
+
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     /**
      * Entity 를 목록 행 DTO 로 변환한다.
@@ -33,6 +40,20 @@ public record PartnerOrderSummaryResponse(
                 order.getConfirmedAt(),
                 order.getStatus().name(),
                 order.getTotalAmount(),
-                order.getSlipNo());
+                order.getSlipNo(),
+                Boolean.TRUE.equals(order.getIsDeleted()),
+                order.getDeletedAt(),
+                resolveActorName(order.getDeletedByName()));
+    }
+
+    private static String resolveActorName(String actorName) {
+        if (actorName == null || actorName.isBlank()) {
+            return null;
+        }
+        String trimmed = actorName.trim();
+        if (UUID_PATTERN.matcher(trimmed).matches()) {
+            return null;
+        }
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 }

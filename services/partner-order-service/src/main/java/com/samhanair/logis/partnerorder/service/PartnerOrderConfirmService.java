@@ -13,6 +13,7 @@ import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderDraftRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
@@ -74,6 +75,7 @@ public class PartnerOrderConfirmService {
     // 슬라이스 D1: slipServiceClient / outboxRepository 제거 — confirm 은 slip 미발행.
 
     private final PartnerOrderRevisionService revisionService;
+    private final PartnerOrderBoardChangePublisher boardChangePublisher;
 
     private final EntityManager entityManager;
 
@@ -180,8 +182,15 @@ public class PartnerOrderConfirmService {
         UUID actorId = parseActorId(actorUserId);
         revisionService.capture(order, PartnerOrderRevisionType.CREATE, null,
                 actorId, actorName, null);
+        publishListChanged();
 
         return ConfirmResponse.from(order);
+    }
+
+    private void publishListChanged() {
+        if (boardChangePublisher != null) {
+            boardChangePublisher.publishListChanged("CREATED");
+        }
     }
 
     /**

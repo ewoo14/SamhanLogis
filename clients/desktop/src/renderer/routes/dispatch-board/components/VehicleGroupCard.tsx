@@ -40,10 +40,10 @@ import {
 } from '../../../api/dispatchTask'
 import {
   DELETED_ROW_TEXT_STYLE,
-  activeSlipRows,
   deletedBadgeAriaLabel,
   deletedBadgeLabel,
-} from '../dispatchDeletedRow'
+} from '../../../realtime/deletedRowDisplay'
+import { activeSlipRows } from '../dispatchDeletedRow'
 import { serverErrorMessage } from '../dispatchErrorMessage'
 import {
   type SlipBoardResponse,
