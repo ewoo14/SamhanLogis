@@ -448,6 +448,57 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
         assertLineStillDeleted(lineIdB);
     }
 
+    /**
+     * BE 적대검증 BLOCKING fix — 레거시(단일시각 각인 도입 이전) 삭제 전표 fail-loud 회귀가드.
+     *
+     * <p>{@code slip_db} 실측(2026/06/03-1): 단일시각 각인이 도입되기 전 {@code deleteForSales} 로
+     * 삭제된 전표는 헤더와 라인이 각자 다른 {@code deletedAt} 을 가진다. 이 상태에서 시각한정 복원
+     * 쿼리는 0-match 로 끝나 헤더만 살아나고 라인은 전부 삭제 상태로 남는 "무음 빈 껍데기" 가
+     * 200 OK 로 반환될 위험이 있었다 — native UPDATE 로 라인 {@code deletedAt} 만 헤더와
+     * 어긋나게 만들어 이 레거시 상태를 재현하고, 복원 요청이 409 CONFLICT 로 fail-loud 하며
+     * 트랜잭션이 롤백되어 헤더·라인 모두 {@code is_deleted=true} 로 남는지(라인 미소실) 단언한다.
+     */
+    @Test
+    @DisplayName("헤더·라인 삭제시각이 어긋난 레거시 삭제 전표는 인라인 복원 시 409 로 fail-loud 한다 "
+            + "(BE 적대검증 BLOCKING — 무음 빈 껍데기 차단, slip_db 실측 2026/06/03-1 재현)")
+    void restoreFailsLoudlyForLegacyMismatchedDeletedAtRows() throws Exception {
+        JsonNode created = createOutboundWithLines("E2-레거시불일치",
+                List.of(lineOf("E2-A-legacy", 1, 1000), lineOf("E2-B-legacy", 1, 2000)));
+        String id = created.path("id").asText();
+        String updatedAtAfterCreate = fetchUpdatedAt(id);
+
+        // 정상(단일시각) 헤더삭제 — 이 시점엔 헤더·라인 deletedAt 이 전부 동일 시각 T.
+        mockMvc.perform(delete("/slips/{id}/sales", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_NAME_HEADER, "이운영")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("updatedAt", updatedAtAfterCreate))))
+                .andExpect(status().isOk());
+
+        // 레거시 시뮬 — 라인 deletedAt 만 헤더와 어긋나게 만든다(단일시각 도입 이전 상태 재현).
+        jdbcTemplate.update(
+                "UPDATE slip_lines SET deleted_at = deleted_at + interval '1 second' WHERE slip_id = ?::uuid",
+                id);
+
+        mockMvc.perform(post("/slips/{id}/restore", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("CONFLICT")));
+
+        // 트랜잭션 롤백 확인 — 헤더는 여전히 삭제 상태(목록에서도 삭제행 유지), 라인은 미소실
+        // (물리 2건 그대로) + 전부 여전히 삭제 상태(부활 0건).
+        Boolean headerStillDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM slips WHERE id = ?::uuid", Boolean.class, id);
+        Integer totalLineRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM slip_lines WHERE slip_id = ?::uuid", Integer.class, id);
+
+        assertThat(headerStillDeleted).isTrue();
+        assertThat(totalLineRows).isEqualTo(2);
+        assertActiveLineCount(id, 0);
+    }
+
     private CreatedSlip createOutbound(String partnerName) throws Exception {
         Map<String, Object> line = Map.of(
                 "productId", UUID.randomUUID().toString(),

@@ -52,3 +52,29 @@ STEP4 fix(위 "🟠 HIGH(BE+DevOps 수렴) fix")가 도입한 `restoreDeletedLin
   - `restoreDoesNotResurrectLinesOrphanedByRevisionRestore` — `addLine` 으로 B 추가(rev2) 후 `POST /revisions/1/restore` 로 rev1(A 만) 복원 — 구세대 A·B 개별삭제 + 신규 A' 생성 → 헤더삭제→복원. A' 1건(1,000)만 부활, 구세대 A·B 는 영구 삭제 유지.
 - `./gradlew :services:slip-service:test --tests "*SlipRestore*" --tests "*SlipListE2*" --rerun-tasks --no-build-cache` → XML 직접 집계: **`SlipRestoreTest` 7 + `SlipListE2RealtimeRestoreIT` 11 = 18 tests, 0 failures, 0 errors, 0 skipped**(기존 무편집 복원 IT `restoreClearsMetadataAndPublishesListChanged` 포함 전체 통과 — 회귀 없음).
 - 전체 slip-service 모듈 test suite(`./gradlew :services:slip-service:test --rerun-tasks --no-build-cache`, 174 test 파일, canon `feedback_changed_module_full_test_before_push`) → XML 직접 집계: **1200 tests, 0 failures, 0 errors, 0 skipped** — `SlipSalesDeleteIT`(9, `deleteForSales` 가드/권한/audit) · `SlipRevisionRestoreIT`(8)·`SlipSalesUpdateIT`(11, `replaceSalesLines`) · `SlipDeleteIT`(10, `deleteForPurchase`/INBOUND — 본 fix 비대상, 미변경 확인) 등 인접 회귀가드 전부 통과, 전체 모듈 회귀 없음.
+
+## BE 적대검증 BLOCKING fix — 🔴 레거시(헤더≠라인 삭제시각 불일치) 전표 무음 빈 껍데기 → fail-loud (2026-07-07, 개발책임자 결정)
+
+위 시각한정 복원 fix(`6ec05f4ef`)에 대한 BE 적대검증이 **실데이터로 BLOCKING** 확인: 단일시각 각인이 도입되기 **이전**에 `deleteForSales` 로 삭제된 레거시 판매전표는 헤더·라인이 각자 다른 `deletedAt` 을 가진다(그 당시엔 라인마다·헤더 별도로 각자 `now()` 를 찍었음). 이런 전표에 시각한정 복원 쿼리(`restoreDeletedLinesBySlipIdAndDeletedAt`)를 그대로 적용하면 **0-match** 로 끝나 헤더만 `is_deleted=false` 로 되돌아가고 라인은 전부 삭제 상태로 남는 **무음 빈 껍데기가 200 OK 로 반환**된다. `slip_db` 실측 1건 확인: `2026/06/03-1`, 삭제 라인 2건 전부 헤더 삭제시각과 불일치. 주문(C) 은 `PartnerOrderRevisionType.DELETE` revision fallback 이 있어 인라인 복원이 막혀도 버전이력 복원으로 복구 가능하지만, 판매전표(D) 는 `SlipRevisionType` 에 `DELETE` 타입이 아직 없어 이 fallback 이 미도입 — 인라인 복원이 막히면 현재 복구 수단이 없다.
+
+**개발책임자 결정 = fail-loud**: 무음 빈 껍데기를 절대 반환하지 말고, 레거시(헤더≠라인 시각) 삭제행은 인라인 복원을 명시적으로 거부(409 CONFLICT)해 데이터 오염(라인 영구소실 은폐)을 차단한다.
+
+- **`SlipLineRepository#countDeletedLinesBySlipId(UUID slipId)`** 신규 — `SELECT COUNT(*) FROM slip_lines WHERE slip_id=:slipId AND is_deleted=TRUE`(native, `long` 리턴 — 기존 count 쿼리 컨벤션과 일치).
+- **`SlipRestoreService#restore()`**: `markRestoredWithNameCleared()` **이전**에 `deletedLineCount` 캡처 → 라인 복원 쿼리(`restoreDeletedLinesBySlipIdAndDeletedAt`)의 실제 리턴값(`restored`)과 대조 → `deletedLineCount > 0 && restored == 0` 이면 `BusinessException(CONFLICT, "레거시 삭제 전표(헤더·라인 삭제 시각 불일치)는 인라인 복원할 수 없습니다: " + slipNo)` throw → `@Transactional` 롤백으로 헤더·라인 모두 `is_deleted=true` 그대로 유지(목록에서도 여전히 삭제행). `headerDeletedAt == null` 이라 애초에 매칭 쿼리를 시도조차 못 한 경우도 `restored` 가 0 으로 남아 동일 조건으로 fail-loud 처리된다. 정상(단일시각) 삭제분은 `restored > 0` 이라 영향 없음(회귀 없음, 아래 검증).
+- **Javadoc**: `SlipRestoreService#restore()`/`SlipLineRepository#countDeletedLinesBySlipId` 에 레거시 한계(DELETE revision fallback 미도입 — 오염 차단만 하고 레거시행 자체의 인라인 복구 수단은 없음, DB 운영 절차 필요) 명시.
+
+### 회귀 IT 신규 1건
+
+- `restoreFailsLoudlyForLegacyMismatchedDeletedAtRows`(`SlipListE2RealtimeRestoreIT`) — 정상 삭제(단일시각) 후 native `UPDATE slip_lines SET deleted_at = deleted_at + interval '1 second' WHERE slip_id=?` 로 라인 시각만 헤더와 어긋나게 만들어 레거시 상태를 시뮬 → 복원 요청 시 **409 CONFLICT**(`$.code=CONFLICT`) 단언 + 롤백 확인(헤더 `is_deleted=true` 유지·라인 물리 2건 그대로(`SELECT COUNT(*) FROM slip_lines`)·전부 여전히 `is_deleted=true`(부활 0건, `assertActiveLineCount(id, 0)`)).
+- 기존 정상(단일시각) 삭제→복원 성공 IT(`restoreClearsMetadataAndPublishesListChanged`)도 같은 실행에서 재검증 — 회귀 없음.
+
+### 검증 (genuine — Testcontainers 실 PG, `--rerun-tasks --no-build-cache`)
+
+- `compileJava`/`compileTestJava` green.
+- `./gradlew :services:slip-service:test --tests "*SlipListE2RealtimeRestoreIT" --tests "*SlipRestore*" --rerun-tasks --no-build-cache` → XML 직접 집계: **`SlipRestoreTest` 7 + `SlipListE2RealtimeRestoreIT` 12(기존 11 + 신규 1) = 19 tests, 0 failures, 0 errors, 0 skipped**. 신규 fail-loud 테스트 포함 12건 전부 통과(테스트명 개별 확인: `헤더·라인 삭제시각이 어긋난 레거시 삭제 전표는...` 실행·통과).
+- 전체 slip-service 모듈 test suite 재검증(`./gradlew :services:slip-service:test --rerun-tasks --no-build-cache`, 174 test 파일) → XML 직접 집계: **1201 tests(직전 1200 + 신규 fail-loud 1), 0 failures, 0 errors, 0 skipped** — 전체 모듈 회귀 없음.
+
+### 백로그 — BE 적대 MED (부수 발견)
+
+- **`deleteForPurchase`(INBOUND) 동일 결함군, 현재 dormant**: 매입전표 삭제도 여전히 라인별 각자 `now()` 로 개별 markDeleted 하는 구식 cascade(단일시각 각인 미적용). 다만 `SlipRestoreService.restore()` 가 OUTBOUND 전용 가드(404)라 INBOUND 인라인 복원 경로 자체가 없어 현재는 실질 영향 없음(dormant). 향후 INBOUND 목록에 동일 인라인 복원 기능을 이식할 경우 `deleteForPurchase` 도 `deleteForSales` 와 동일하게 단일시각 각인 + fail-loud 가드를 준용해야 한다.
+- **DELETE revision 도입**: 주문(C) `PartnerOrderRevisionType.DELETE` 대비 Slip 은 `SlipRevisionType` 에 `DELETE` 부재 — 레거시 삭제행의 실질 복구 수단(revision-restore fallback) 자체가 없다. 본 fix 는 "오염 차단"까지만 — "복구"는 후속 에픽(DELETE revision 도입) 대기.

@@ -36,4 +36,22 @@ public interface SlipLineRepository extends JpaRepository<SlipLine, UUID> {
             + "WHERE slip_id = :slipId AND is_deleted = TRUE AND deleted_at = :deletedAt", nativeQuery = true)
     int restoreDeletedLinesBySlipIdAndDeletedAt(@Param("slipId") UUID slipId,
                                                 @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * slip 단위로 현재 soft-deleted 상태인 라인 수를 센다 (BE 적대검증 BLOCKING fix — 레거시 삭제
+     * 전표 fail-loud 판정용).
+     *
+     * <p>단일시각 도입({@code Slip#deleteForSales}) <b>이전</b>에 삭제된 레거시 전표는 헤더와 라인이
+     * 각자 다른 {@code deleted_at} 을 갖는다({@link #restoreDeletedLinesBySlipIdAndDeletedAt} 이
+     * 0-match). 이 카운트를 복원 시도 <b>이전</b>에 캡처해 두면, 복원 쿼리의 리턴값(실제 복원된 라인
+     * 수)과 대조해 "삭제 라인이 있었는데 하나도 복원되지 않음" 상황을 탐지할 수 있다 — 탐지 시
+     * {@code SlipRestoreService#restore} 가 CONFLICT 로 fail-loud 처리해 무음 빈 껍데기 복원을 막는다.
+     *
+     * @param slipId 대상 slip UUID
+     * @return 현재 soft-deleted 상태인 라인 수 (0 이면 삭제 라인 없음 — 원래 라인 0건 전표이거나
+     *         이미 정상 복원된 상태)
+     */
+    @Query(value = "SELECT COUNT(*) FROM slip_lines WHERE slip_id = :slipId AND is_deleted = TRUE",
+            nativeQuery = true)
+    long countDeletedLinesBySlipId(@Param("slipId") UUID slipId);
 }
