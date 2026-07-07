@@ -66,6 +66,7 @@ class SlipServiceListSpecTest {
     private void stubListIncludingDeletedReturnsEmpty() {
         Page<Slip> empty = new PageImpl<>(Collections.emptyList(), pageable, 0);
         when(slipRepository.listIncludingDeleted(
+                anyBoolean(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
@@ -88,6 +89,7 @@ class SlipServiceListSpecTest {
         stubListIncludingDeletedReturnsEmpty();
         service.list(null, null, null, null, null, null, null, pageable);
         verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
@@ -105,6 +107,7 @@ class SlipServiceListSpecTest {
         stubListIncludingDeletedReturnsEmpty();
         service.list(SlipType.OUTBOUND, SlipStatus.SAVED, pageable);
         verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
                 org.mockito.ArgumentMatchers.eq("OUTBOUND"),
                 org.mockito.ArgumentMatchers.eq("SAVED"),
                 org.mockito.ArgumentMatchers.isNull(),
@@ -124,6 +127,7 @@ class SlipServiceListSpecTest {
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 null, null, null, pageable);
         verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 1)),
@@ -142,6 +146,7 @@ class SlipServiceListSpecTest {
         service.list(null, null, null, null,
                 "P-2026-0001", null, null, pageable);
         verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
@@ -160,6 +165,7 @@ class SlipServiceListSpecTest {
         service.list(null, null, null, null, null,
                 "1234", null, pageable);
         verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),

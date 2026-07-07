@@ -33,6 +33,11 @@ public class SlipRestoreService {
     public Slip restore(UUID slipId) {
         Slip slip = slipRepository.findByIdIncludingDeleted(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다."));
+        // deleteForSales 의 OUTBOUND 타입가드와 대칭 — 복원도 판매전표(OUTBOUND) 전용.
+        // sales.slip.list RESTORE 권한만으로 INBOUND(구매) 전표를 UUID 로 복원하는 최소권한 우회를 차단.
+        if (slip.getSlipType() != com.samhanair.logis.slip.domain.SlipType.OUTBOUND) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "전표를 찾을 수 없습니다.");
+        }
         if (!Boolean.TRUE.equals(slip.getIsDeleted())) {
             slip.getLines().size();
             return slip;

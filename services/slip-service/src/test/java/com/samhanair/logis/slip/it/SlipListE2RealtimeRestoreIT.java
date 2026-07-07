@@ -115,8 +115,8 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("삭제된 판매전표도 목록에 남고 deletedByName 이름 메타만 노출한다")
-    void queryIncludesDeletedSlipMetadata() throws Exception {
+    @DisplayName("판매조회(/slips/query)는 활성전용 — 삭제행이 조회·엑셀에 누출되지 않는다 (#758 CRITICAL 회귀가드)")
+    void queryEndpointExcludesDeletedSlip() throws Exception {
         CreatedSlip created = createOutbound("E2-삭제행");
 
         mockMvc.perform(delete("/slips/{id}/sales", created.id())
@@ -127,6 +127,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(Map.of("updatedAt", created.updatedAt()))))
                 .andExpect(status().isOk());
 
+        // /slips/query 는 판매/구매조회 화면·엑셀 export 공용 — 삭제행 노출 시 감사자료 오염(#758 CRITICAL).
         mockMvc.perform(get("/slips/query")
                         .header(USER_ID_HEADER, ACTOR_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES")
@@ -135,10 +136,32 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                         .param("dateFrom", TODAY.toString())
                         .param("dateTo", TODAY.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].slipNo", is(created.slipNo())))
-                .andExpect(jsonPath("$.data.content[0].isDeleted", is(true)))
-                .andExpect(jsonPath("$.data.content[0].deletedByName", is("이운영")))
-                .andExpect(jsonPath("$.data.content[0].deletedBy").doesNotExist());
+                .andExpect(jsonPath("$.data.content[?(@.slipNo=='" + created.slipNo() + "')]").isEmpty());
+    }
+
+    @Test
+    @DisplayName("판매전표 목록(/slips)은 includeDeleted 미전송 시 활성전용 — 삭제행 기본 제외 (#758 CRITICAL 회귀가드)")
+    void slipListDefaultExcludesDeletedSlip() throws Exception {
+        CreatedSlip created = createOutbound("E2-기본제외");
+
+        mockMvc.perform(delete("/slips/{id}/sales", created.id())
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_NAME_HEADER, "이운영")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("updatedAt", created.updatedAt()))))
+                .andExpect(status().isOk());
+
+        // includeDeleted 를 보내지 않으면(자동완성·타 소비처와 동일) 삭제행이 노출되지 않아야 한다.
+        mockMvc.perform(get("/slips")
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES")
+                        .param("slipType", "OUTBOUND")
+                        .param("from", TODAY.toString())
+                        .param("to", TODAY.toString())
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[?(@.slipNo=='" + created.slipNo() + "')]").isEmpty());
     }
 
     @Test
@@ -158,6 +181,7 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, ACTOR_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES")
                         .param("slipType", "OUTBOUND")
+                        .param("includeDeleted", "true")
                         .param("from", TODAY.toString())
                         .param("to", TODAY.toString())
                         .param("size", "50"))

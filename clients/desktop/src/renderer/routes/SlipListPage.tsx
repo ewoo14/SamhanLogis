@@ -156,7 +156,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const query = useQuery({
     queryKey: ['slips', 'list', mode, deliveryTagFilter],
     queryFn: () =>
-      listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, page: 0, size: 20 }),
+      listSlips({ slipType: mode, deliveryTag: deliveryTagFilter, includeDeleted: mode === 'OUTBOUND', page: 0, size: 20 }),
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
   })
@@ -190,11 +190,14 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       width: '180px',
       mobilePriority: 'primary',
       render: (row) => (
-        <span style={row.isDeleted ? SLIP_DELETED_ROW_TEXT_STYLE : undefined}>
+        // 취소선은 SlipNumberDisplay(inline-flex atomic box) 자신에 직접 지정 — 조상 span 의
+        // line-through 는 atomic 자손에 전파되지 않아 전표번호가 취소선 없이 렌더되던 회귀 해소.
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
           <SlipNumberDisplay
             slipDate={row.slipDate}
             seqNo={row.seqNo}
             size="sm"
+            style={row.isDeleted ? SLIP_DELETED_ROW_TEXT_STYLE : undefined}
           />
           {row.isDeleted ? (
             <Badge
@@ -203,7 +206,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
               aria-label={deletedSlipBadgeAriaLabel(row.deletedByName, row.deletedAt)}
               data-testid={`slip-list-row-${row.slipNo}-deleted-badge`}
               style={{
-                marginLeft: 8,
+                flexShrink: 0,
                 maxWidth: 160,
                 minWidth: 0,
                 overflow: 'hidden',
@@ -234,7 +237,12 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       header: '상태',
       width: '120px',
       mobilePriority: 'secondary',
-      render: (row) => <SlipStatusBadge status={row.status} />,
+      render: (row) =>
+        row.isDeleted ? (
+          <Badge variant="neutral" aria-label={`삭제됨 (기존 상태 ${row.status})`}>삭제됨</Badge>
+        ) : (
+          <SlipStatusBadge status={row.status} />
+        ),
     },
     {
       key: 'partnerName',
@@ -327,7 +335,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
           {/* PR-H4c FE-B: 실시간 자동 갱신 안내 (입고/출고 SlipListPage 통합 적용) */}
           <span
             data-testid="slip-list-realtime-indicator"
-            style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
+            style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}
           >
             실시간 자동 갱신 · 30초
           </span>

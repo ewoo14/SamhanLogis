@@ -387,6 +387,8 @@ export interface ListSlipsOptions {
   status?: SlipStatus
   /** 배송태그 필터 — OUTBOUND: 8종, INBOUND: 3종. */
   deliveryTag?: DeliveryTagCode | null
+  /** 삭제행(취소선) 포함 여부 — OUTBOUND 목록 화면 전용 opt-in. 기본 미전송(활성전용). */
+  includeDeleted?: boolean
   page?: number
   size?: number
 }
@@ -418,6 +420,8 @@ export async function listSlips(
   if (options.slipType) params['slipType'] = options.slipType
   if (options.status) params['status'] = options.status
   if (options.deliveryTag) params['deliveryTag'] = options.deliveryTag
+  // E2 삭제행(취소선) 노출은 OUTBOUND 목록 화면 전용 opt-in. BE 는 미전송/false 시 활성전용(엑셀·조회·INBOUND 누출 차단).
+  if (options.includeDeleted) params['includeDeleted'] = 'true'
 
   const res = await apiClient.get<ApiEnvelope<PageResponse<SlipSummary>>>(
     '/slips',

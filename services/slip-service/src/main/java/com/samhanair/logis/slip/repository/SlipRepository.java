@@ -88,6 +88,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                     OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')))
                AND (CAST(:searchDeliveryAddress AS varchar) IS NULL
                     OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')))
+               AND s.is_deleted = FALSE
              ORDER BY s.slip_date DESC, s.seq_no DESC
             """,
             countQuery = """
@@ -109,6 +110,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                     OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')))
                AND (CAST(:searchDeliveryAddress AS varchar) IS NULL
                     OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')))
+               AND s.is_deleted = FALSE
             """,
             nativeQuery = true)
     Page<Slip> searchIncludingDeleted(
@@ -144,6 +146,7 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND (CAST(:driverPhone AS varchar) IS NULL
                     OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
+               AND (:includeDeleted = TRUE OR s.is_deleted = FALSE)
              ORDER BY s.slip_date DESC, s.seq_no DESC
             """,
             countQuery = """
@@ -157,9 +160,11 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND (CAST(:driverPhone AS varchar) IS NULL
                     OR COALESCE(s.driver_phone, '') LIKE CONCAT('%', CAST(:driverPhone AS varchar), '%'))
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
+               AND (:includeDeleted = TRUE OR s.is_deleted = FALSE)
             """,
             nativeQuery = true)
     Page<Slip> listIncludingDeleted(
+            @Param("includeDeleted") boolean includeDeleted,
             @Param("slipType") String slipType,
             @Param("status") String status,
             @Param("from") LocalDate from,

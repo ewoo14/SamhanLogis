@@ -144,6 +144,7 @@ public class SlipController {
             @RequestParam(required = false) String driverPhone,
             @RequestParam(required = false) String regionGroup,
             @RequestParam(required = false, name = "deliveryTag") java.util.List<DeliveryTag> deliveryTags,
+            @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestHeader(value = "X-User-Role", required = false) String role,
@@ -168,8 +169,10 @@ public class SlipController {
         }
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("slipDate"), Sort.Order.desc("seqNo")));
+        // E2 삭제행(취소선) 노출은 OUTBOUND(판매전표) 목록 화면 전용 — INBOUND·기타 소비처는 활성전용.
+        boolean effectiveIncludeDeleted = SlipType.OUTBOUND.equals(effectiveSlipType) && includeDeleted;
         return ApiResponse.ok(slipService.list(effectiveSlipType, status, from, to,
-                partnerCode, driverPhone, regionGroup, deliveryTags, pageable));
+                partnerCode, driverPhone, regionGroup, deliveryTags, effectiveIncludeDeleted, pageable));
     }
 
     /**
