@@ -99,6 +99,55 @@ describe('mock journal cash receipt contract', () => {
   })
 })
 
+describe('mock 주문 목록 soft-delete parity (#757 STEP4 FE)', () => {
+  // BE parity: includeDeleted 는 내부 관리자 opt-in — 미요청 시 활성행만(@SQLRestriction 모사),
+  // 요청 시 삭제행 + deletedByName 포함. mock.ts 리팩터가 이 계약을 조용히 깨면 데모/오프라인 모드의
+  // 취소선/복원 UI 가 회귀하므로 실 mock 핸들러로 고정한다(신규 리스트 로직 회귀망 공백 해소).
+  type OrderRow = {
+    orderNumber: string
+    status: string
+    totalAmount: number
+    isDeleted?: boolean
+    deletedAt?: string | null
+    deletedByName?: string | null
+  }
+  const listOrders = (params: Record<string, unknown>): OrderRow[] => {
+    const res = mockRequest({
+      method: 'GET',
+      url: '/api/v1/partner-orders',
+      params,
+    }) as MockEnvelope<{ content: OrderRow[] }>
+    return res.data.content
+  }
+
+  it('includeDeleted 미요청(기본) 시 삭제행을 제외한다 (활성 전용)', () => {
+    const rows = listOrders({ status: 'DRAFT' })
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((r) => r.isDeleted !== true)).toBe(true)
+    expect(rows.some((r) => r.orderNumber === '2026/05/31-5')).toBe(false)
+  })
+
+  it('includeDeleted=true 시 삭제행을 deletedByName·deletedAt 과 함께 포함한다', () => {
+    const rows = listOrders({ status: 'DRAFT', includeDeleted: true })
+    const deleted = rows.find((r) => r.orderNumber === '2026/05/31-5')
+    expect(deleted).toBeDefined()
+    expect(deleted?.isDeleted).toBe(true)
+    expect(deleted?.deletedByName).toBe('오병승')
+    expect(deleted?.deletedAt).toBeTruthy()
+    // 상태·합계 parity — 삭제됐어도 원래 값 보존(중립 배지는 FE 렌더 책임).
+    expect(deleted?.status).toBe('DRAFT')
+    expect(deleted?.totalAmount).toBe(980000)
+  })
+
+  it('includeDeleted=true 여도 활성행은 삭제 메타(deletedByName)가 비어 있다', () => {
+    const rows = listOrders({ status: 'DRAFT', includeDeleted: true })
+    const active = rows.filter((r) => r.orderNumber !== '2026/05/31-5')
+    expect(active.length).toBeGreaterThan(0)
+    expect(active.every((r) => r.isDeleted !== true)).toBe(true)
+    expect(active.every((r) => r.deletedByName == null)).toBe(true)
+  })
+})
+
 describe('mock manual journal contract', () => {
   it('GET /admin/partners/search 는 공유 admin 응답에 partnerId 를 노출하지 않는다', () => {
     const adminSearch = mockRequest({

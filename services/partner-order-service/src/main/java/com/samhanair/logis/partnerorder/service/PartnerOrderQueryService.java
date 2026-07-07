@@ -85,6 +85,12 @@ public class PartnerOrderQueryService {
         PartnerOrderListFilter normalized = normalize(filter);
         String partnerScope = partnerSelfScopeGuard.partnerScopeOrNull(callerPartnerCode);
         if (partnerScope != null) {
+            // 검증 전용 호출 — 파트너가 타 거래처 partnerId 필터를 요청하면 여기서 throw 한다.
+            // 반환값은 의도적으로 폐기한다: 이 분기(partnerScope != null)에서 그 반환값은 항상
+            // partnerScope 와 동일하고(requested==null → partnerScope, requested==partnerScope →
+            // partnerScope, 그 외엔 이미 throw), 실제 스코프 강제는 별도 경로인
+            // listActiveOnly(..., partnerScope) → ownPartnerSpec(partnerScope) 가 담당한다.
+            // 이 불변식을 모르고 반환값을 "정리"하면 스코프 강제가 깨질 수 있다(#757 STEP4 BE LOW).
             partnerSelfScopeGuard.restrictRequestedPartnerCode(normalized.partnerId(), callerPartnerCode);
         }
         if (!includeDeleted || partnerScope != null) {

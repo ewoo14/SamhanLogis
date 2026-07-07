@@ -58,10 +58,15 @@ const MERGE_SELECTABLE_STATUS: ReadonlySet<PartnerOrderStatus> = new Set(['DRAFT
 // 비삭제 행은 기존 testid 계약(`partner-order-row-{orderNumber}`)을 보존하고, 삭제 행만 composite
 // 접미사를 붙인다(삭제행+동일코드 활성행 공존 시 React key/testid 충돌 방지). 전체 행에 접미사를
 // 붙이면 기존 Playwright 하드게이트 exact-match 가 깨진다(#757 R1 BLOCKING).
-const partnerOrderRowKey = (o: PartnerOrderSummary) =>
-  o.isDeleted === true
-    ? `${o.orderNumber ?? o.partnerCode}:deleted`
-    : (o.orderNumber ?? o.partnerCode)
+//
+// orderNumber 는 order_no NOT NULL UNIQUE 라 실주문에서 항상 존재하지만, 이론상 누락 행이 유입될 때
+// partnerCode 단독 폴백은 같은 거래처 다건에서 React key/testid 충돌을 낳는다. submittedAt 을
+// disambiguator 로 부가해 리팩터 전 견고성을 유지한다(#757 STEP4 FE MED). 폴백 경로만 영향받으므로
+// 하드게이트(실 orderNumber 행)는 그대로다.
+const partnerOrderRowKey = (o: PartnerOrderSummary) => {
+  const base = o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt ?? 'na'}`
+  return o.isDeleted === true ? `${base}:deleted` : base
+}
 
 function restoreErrorMessage(error: unknown): string {
   // BE 한국어 사유(ApiEnvelope.message)를 우선 노출. Axios 제네릭(영문) 폴백 방지.
@@ -113,6 +118,8 @@ export function SalesPartnerOrderListPage() {
     setDateTo('')
     // 필터 변경 시 선택 초기화
     setSelectedOrderNumbers(new Set())
+    // 복원 실패 배너는 다른 필터로 이동하면 맥락이 사라지므로 함께 소거(#757 STEP4 FE LOW).
+    setRestoreError(null)
   }
 
   const isPreConfirmStatus =
@@ -337,36 +344,43 @@ export function SalesPartnerOrderListPage() {
         </span>
       ),
     },
-    {
-      key: 'restore',
-      header: '복원',
-      align: 'center',
-      mobilePriority: 'secondary',
-      render: (o) => {
-        if (o.isDeleted !== true || !canRestoreDeletedOrder) {
-          return null
-        }
-        const key = partnerOrderRowKey(o)
-        return (
-          <span onClick={(e) => e.stopPropagation()}>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              data-testid={`partner-order-restore-${key}`}
-              disabled={!o.orderNumber || restoreMutation.isPending}
-              onClick={() => {
-                if (!o.orderNumber) return
-                setRestoreError(null)
-                restoreMutation.mutate(o.orderNumber)
-              }}
-            >
-              복원
-            </Button>
-          </span>
-        )
-      },
-    },
+    ...(canRestoreDeletedOrder
+      ? ([
+          {
+            key: 'restore',
+            header: '복원',
+            align: 'center',
+            mobilePriority: 'secondary',
+            render: (o) => {
+              // 삭제행에만 복원 버튼 노출. 복원 권한(RESTORE)이 없는 사용자에게는 컬럼 자체를
+              // 생략한다(mergeSelect 컬럼과 동일 관례로 빈 헤더 잔존 방지, #757 STEP4 FE LOW).
+              // BE @RequirePermission(RESTORE) 이중 방어는 유지된다.
+              if (o.isDeleted !== true) {
+                return null
+              }
+              const key = partnerOrderRowKey(o)
+              return (
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    data-testid={`partner-order-restore-${key}`}
+                    disabled={!o.orderNumber || restoreMutation.isPending}
+                    onClick={() => {
+                      if (!o.orderNumber) return
+                      setRestoreError(null)
+                      restoreMutation.mutate(o.orderNumber)
+                    }}
+                  >
+                    복원
+                  </Button>
+                </span>
+              )
+            },
+          },
+        ] as DataTableColumn<PartnerOrderSummary>[])
+      : []),
   ]
 
   const handleRowClick = (o: PartnerOrderSummary) => {
@@ -416,6 +430,23 @@ export function SalesPartnerOrderListPage() {
             className={styles['partnerOrderRestoreError']}
           >
             {restoreError}
+            <button
+              type="button"
+              aria-label="복원 오류 알림 닫기"
+              data-testid="partner-order-restore-error-dismiss"
+              onClick={() => setRestoreError(null)}
+              style={{
+                marginLeft: 8,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 16,
+                lineHeight: 1,
+                color: 'inherit',
+              }}
+            >
+              &times;
+            </button>
           </div>
         ) : null}
         {/* Phase 2.6b D2: 병합 전환 성공 토스트 */}
