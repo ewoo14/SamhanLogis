@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.repository;
 
 import com.samhanair.logis.slip.domain.SlipLine;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -11,19 +12,28 @@ import org.springframework.data.repository.query.Param;
 public interface SlipLineRepository extends JpaRepository<SlipLine, UUID> {
 
     /**
-     * 소프트삭제된 라인을 slip 단위로 일괄 복원한다 (헤더 복원의 라인 cascade 대칭).
+     * 소프트삭제된 라인 중 <b>헤더와 동일 시각에 삭제된 라인만</b> slip 단위로 일괄 복원한다
+     * (헤더 복원의 라인 cascade 대칭 — #758 머지게이트 감사 HIGH fix).
      *
-     * <p>{@code deleteForSales} 가 삭제 시 모든 라인을 {@code markDeleted} 하므로, 복원도 동일 라인들을
-     * 되살려야 복원 전표가 품목·수량·금액 0 의 빈 껍데기가 되지 않는다. {@code SlipLine} 의
-     * {@code @SQLRestriction("is_deleted = false")} 때문에 JPA 로는 삭제 라인을 로드할 수 없어
-     * native bulk update 로 처리한다. 호출 후 헤더 엔티티는 {@code EntityManager.refresh} 로 갱신해야
-     * 되살아난 라인이 컬렉션에 반영된다.
+     * <p>{@code Slip#deleteForSales} 는 헤더 삭제 시 cascade 되는 모든 라인에
+     * {@code markDeleted(deleter, now)} 로 <b>단일 시각</b>을 각인한다. 복원도 그 시각과 정확히
+     * 일치하는 라인만 대상으로 삼아야 복원 전표가 품목·수량·금액 0 의 빈 껍데기가 되지 않으면서도, 편집
+     * 플로우({@code removeLine}/{@code replaceSalesLines}/{@code restoreFromSnapshot} 등)에서 다른
+     * 시각에 개별 soft-delete 된 라인까지 오복원(중복 부활)하지 않는다. 과거 {@code slipId} 만으로
+     * 무차별 복원하던 {@code restoreDeletedLinesBySlipId} 는 이 시각 한정 버전으로 대체되었다.
+     *
+     * <p>{@code SlipLine} 의 {@code @SQLRestriction("is_deleted = false")} 때문에 JPA 로는 삭제 라인을
+     * 로드할 수 없어 native bulk update 로 처리한다. 호출 후 헤더 엔티티는 {@code EntityManager.refresh}
+     * 로 갱신해야 되살아난 라인이 컬렉션에 반영된다.
      *
      * @param slipId 복원 대상 slip UUID
+     * @param deletedAt 헤더의 삭제 시각 ({@code Slip#getDeletedAt()}) — 이 값과 정확히 일치하는
+     *                  라인만 복원 대상
      * @return 복원된 라인 수
      */
     @Modifying
     @Query(value = "UPDATE slip_lines SET is_deleted = FALSE, deleted_at = NULL, deleted_by = NULL "
-            + "WHERE slip_id = :slipId AND is_deleted = TRUE", nativeQuery = true)
-    int restoreDeletedLinesBySlipId(@Param("slipId") UUID slipId);
+            + "WHERE slip_id = :slipId AND is_deleted = TRUE AND deleted_at = :deletedAt", nativeQuery = true)
+    int restoreDeletedLinesBySlipIdAndDeletedAt(@Param("slipId") UUID slipId,
+                                                @Param("deletedAt") LocalDateTime deletedAt);
 }

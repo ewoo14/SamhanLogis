@@ -1176,6 +1176,16 @@ public class Slip extends BaseEntity {
     /**
      * 매출 전표 soft delete — 삭제자 표시명을 함께 저장한다.
      *
+     * <p><b>단일 시각 각인 (#758 머지게이트 감사 HIGH fix)</b>: {@code LocalDateTime.now()} 를
+     * 이 메서드에서 <b>한 번만</b> 캡처해 헤더와 cascade 되는 모든 라인에 동일하게 주입한다.
+     * {@link com.samhanair.logis.slip.service.SlipRestoreService#restore} 가 "이 삭제 작업으로
+     * cascade 된 라인" 을 {@code deletedAt} 등호 매칭으로 정확히 식별해 복원할 수 있도록 하기
+     * 위함이다 — 각자 {@code now()} 를 따로 찍으면 이 매칭이 불가능해 편집으로 이미 개별
+     * soft-delete 된 라인(예: {@code removeLine}/{@code replaceSalesLines}/
+     * {@code restoreFromSnapshot})까지 함께 부활한다(#758 CRITICAL 재현). 이들 편집 경로의
+     * {@code markDeleted(deleter)}(1-arg, 각자 {@code now()}) 호출은 의도적으로 그대로 둔다
+     * (PartnerOrder(C) #757 R2 정합 패턴).
+     *
      * @param actorId 삭제 수행자 ID (audit 기록용, null 허용 → "system" 폴백)
      * @param actorName 삭제자 표시명 (UUID 비노출용, null 허용)
      * @throws BusinessException(SLIP_DELETE_NON_SALES)     slipType 이 OUTBOUND 가 아닐 때
@@ -1193,11 +1203,16 @@ public class Slip extends BaseEntity {
         }
         requireNotLocked();
         String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
+        // 단일 시각 각인(#758 머지게이트 감사 HIGH fix) — 헤더/라인이 동일 deletedAt 을 가져야
+        // 복원(SlipRestoreService) 이 deletedAt 등호 매칭으로 이 삭제 작업의 라인만 식별한다.
+        // removeLine/replaceLines/replaceSalesLines/restoreFromSnapshot 의 markDeleted(deleter)
+        // (1-arg, 각자 now()) 는 편집 경로라 복원 대상에서 배제되어야 하므로 그대로 둔다.
+        LocalDateTime now = LocalDateTime.now();
         for (SlipLine line : new ArrayList<>(this.lines)) {
-            line.markDeleted(deleter);
+            line.markDeleted(deleter, now);
         }
         this.lines.clear();
-        this.markDeleted(deleter);
+        this.markDeleted(deleter, now);
         this.deletedByName = sanitizeDeletedByName(actorName);
     }
 

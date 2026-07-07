@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -289,6 +291,163 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                 argThat(payload -> "RESTORED".equals(payload.get("changeType"))));
     }
 
+    /**
+     * #758 머지게이트 감사 HIGH — 편집경로 1/3: {@code removeLine}(DELETE /slips/{id}/lines/{lineId}).
+     *
+     * <p>재현 시나리오: 라인 A(1×1,000)를 {@code removeLine} 으로 개별 편집삭제(T1) → 남은 라인
+     * B(1×2,000)만 있는 상태에서 헤더삭제(T2, cascade) → 복원. 수정 전 버그는 {@code slipId} 만으로
+     * 삭제 라인을 무차별 복원해 A(T1)까지 부활시켜 수량/금액이 중복 집계됐다. 수정 후에는 T2 로
+     * cascade 된 B 만 부활하고 A 는 영구히 삭제 상태로 남아야 한다.
+     */
+    @Test
+    @DisplayName("removeLine 으로 편집삭제된 라인은 헤더 삭제→복원 후에도 오복원되지 않는다 "
+            + "(#758 머지게이트 감사 HIGH — 편집경로 1/3: removeLine)")
+    void restoreDoesNotResurrectLineRemovedViaRemoveLineEndpoint() throws Exception {
+        JsonNode created = createOutboundWithLines("E2-removeLine편집",
+                List.of(lineOf("E2-A-remove", 1, 1000), lineOf("E2-B-remove", 1, 2000)));
+        String id = created.path("id").asText();
+        String lineIdA = created.path("lines").get(0).path("id").asText();
+
+        // 편집 플로우 — 라인 A 만 개별 soft-delete (헤더 삭제와 다른 시각 T1).
+        mockMvc.perform(delete("/slips/{id}/lines/{lineId}", id, lineIdA)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isNoContent());
+
+        String updatedAtAfterEdit = fetchUpdatedAt(id);
+
+        // 헤더 삭제 — 이 시점에 남은 라인 B 만 cascade soft-delete(T2).
+        mockMvc.perform(delete("/slips/{id}/sales", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_NAME_HEADER, "이운영")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("updatedAt", updatedAtAfterEdit))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/slips/{id}/restore", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isDeleted", is(false)))
+                .andExpect(jsonPath("$.data.totalQuantity", is(1)))
+                .andExpect(jsonPath("$.data.totalAmount", is(2000.0)));
+
+        assertActiveLineCount(id, 1);
+        assertLineStillDeleted(lineIdA);
+    }
+
+    /**
+     * #758 머지게이트 감사 HIGH — 편집경로 2/3: 매출 direct PUT 편집({@code replaceSalesLines}).
+     *
+     * <p>재현 시나리오: 라인 A(1×10,000) 생성 후 매출 PUT 편집으로 라인 B(1×20,000)로 전체
+     * 교체(A 는 T1 개별삭제) → 헤더삭제(T2, cascade 는 B 만) → 복원. 수정 전 버그는 A(T1)까지
+     * 부활시켜 합계가 30,000(중복)이 됐다. 수정 후에는 20,000(B 만)이어야 한다.
+     */
+    @Test
+    @DisplayName("매출 direct PUT 편집(replaceSalesLines)으로 교체제거된 라인은 헤더 삭제→복원 후에도 "
+            + "오복원되지 않는다 (#758 머지게이트 감사 HIGH — 편집경로 2/3: 매출 PUT)")
+    void restoreDoesNotResurrectLineRemovedViaSalesPutEdit() throws Exception {
+        JsonNode created = createOutboundWithLines("E2-PUT편집",
+                List.of(lineOf("E2-A-put", 1, 10000)));
+        String id = created.path("id").asText();
+        String lineIdA = created.path("lines").get(0).path("id").asText();
+
+        String updatedAtAfterCreate = fetchUpdatedAt(id);
+        Map<String, Object> putBody = new java.util.HashMap<>();
+        putBody.put("updatedAt", updatedAtAfterCreate);
+        putBody.put("lines", List.of(lineOf("E2-B-put", 1, 20000)));
+
+        // 매출 direct PUT 편집 — 기존 라인(A) 전량 soft-delete(T1) 후 신규 라인(B) 생성.
+        mockMvc.perform(put("/slips/{id}/sales", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(putBody)))
+                .andExpect(status().isOk());
+
+        String updatedAtAfterEdit = fetchUpdatedAt(id);
+
+        // 헤더 삭제 — 이 시점에 활성인 라인 B 만 cascade soft-delete(T2).
+        mockMvc.perform(delete("/slips/{id}/sales", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_NAME_HEADER, "이운영")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("updatedAt", updatedAtAfterEdit))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/slips/{id}/restore", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isDeleted", is(false)))
+                .andExpect(jsonPath("$.data.totalQuantity", is(1)))
+                .andExpect(jsonPath("$.data.totalAmount", is(20000.0)));
+
+        assertActiveLineCount(id, 1);
+        assertLineStillDeleted(lineIdA);
+    }
+
+    /**
+     * #758 머지게이트 감사 HIGH — 편집경로 3/3: 리비전 복원({@code restoreFromSnapshot}).
+     *
+     * <p>재현 시나리오: 라인 A(1×1,000) 생성(rev1) → 라인 B(1×5,000) 추가(rev2, addLine) →
+     * rev1 시점으로 리비전 복원({@code POST /revisions/1/restore}) — {@code restoreFromSnapshot} 이
+     * 당시 활성 라인 A·B 를 모두 개별삭제(T1, 각자 markDeleted("system"))하고 스냅샷 기준 새 라인
+     * A'(1×1,000)를 재생성한다 → 헤더삭제(T2, cascade 는 A' 만) → 복원. 수정 전 버그는 구세대
+     * A·B(T1)까지 부활시켜 라인 3건(중복)이 됐다. 수정 후에는 A' 1건(수량1/합계1,000)이어야 한다.
+     */
+    @Test
+    @DisplayName("리비전 복원(restoreFromSnapshot)으로 개별삭제된 구세대 라인은 헤더 삭제→복원 후에도 "
+            + "오복원되지 않는다 (#758 머지게이트 감사 HIGH — 편집경로 3/3: revision restore)")
+    void restoreDoesNotResurrectLinesOrphanedByRevisionRestore() throws Exception {
+        JsonNode created = createOutboundWithLines("E2-리비전편집",
+                List.of(lineOf("E2-A-rev", 1, 1000)));
+        String id = created.path("id").asText();
+        String lineIdA = created.path("lines").get(0).path("id").asText();
+
+        // rev2 — 라인 B 추가 (addLine, EDIT revision 캡처)
+        MvcResult addLineResult = mockMvc.perform(post("/slips/{id}/lines", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(lineOf("E2-B-rev", 1, 5000))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode afterAddLine = objectMapper.readTree(addLineResult.getResponse().getContentAsString()).path("data");
+        String lineIdB = afterAddLine.path("lines").get(1).path("id").asText();
+
+        // rev1(라인 A 만) 으로 복원 — 현재 활성 라인(A,B) 을 개별삭제(T1)하고 스냅샷 기준 새 A' 생성.
+        mockMvc.perform(post("/slips/{slipId}/revisions/{revisionNo}/restore", id, 1)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk());
+
+        String updatedAtAfterRevisionRestore = fetchUpdatedAt(id);
+
+        // 헤더 삭제 — 이 시점의 유일한 활성 라인(A')만 cascade soft-delete(T2).
+        mockMvc.perform(delete("/slips/{id}/sales", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_NAME_HEADER, "이운영")
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("updatedAt", updatedAtAfterRevisionRestore))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/slips/{id}/restore", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isDeleted", is(false)))
+                .andExpect(jsonPath("$.data.totalQuantity", is(1)))
+                .andExpect(jsonPath("$.data.totalAmount", is(1000.0)));
+
+        assertActiveLineCount(id, 1);
+        assertLineStillDeleted(lineIdA);
+        assertLineStillDeleted(lineIdB);
+    }
+
     private CreatedSlip createOutbound(String partnerName) throws Exception {
         Map<String, Object> line = Map.of(
                 "productId", UUID.randomUUID().toString(),
@@ -341,6 +500,71 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                 "tester");
         slip.updateSalesHeader("동일번호활성행", "E2-DUAL", null, null, null, null, null, null, null);
         slipRepository.saveAndFlush(slip);
+    }
+
+    /**
+     * 라인 목록을 직접 지정해 OUTBOUND 전표를 생성한다 (편집경로 회귀 IT 전용 — #758 fix).
+     *
+     * @param partnerName 거래처명 (표시/구분용)
+     * @param lines       생성할 라인 목록 ({@link #lineOf} 로 구성)
+     * @return 생성 응답의 {@code data} 노드 (id/slipNo/lines[].id 등 포함)
+     */
+    private JsonNode createOutboundWithLines(String partnerName, List<Map<String, Object>> lines) throws Exception {
+        Map<String, Object> body = Map.of(
+                "slipType", "OUTBOUND",
+                "slipDate", TODAY.toString(),
+                "sourceWarehouseId", UUID.randomUUID().toString(),
+                "destinationWarehouseId", UUID.randomUUID().toString(),
+                "partnerId", UUID.randomUUID().toString(),
+                "partnerName", partnerName,
+                "memo", "E2 판매전표 편집경로 회귀 IT (#758)",
+                "lines", lines);
+
+        MvcResult createResult = mockMvc.perform(post("/slips")
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data");
+    }
+
+    /** {@code AddLineRequest}/생성 요청 공용 라인 항목 — productId 는 매 호출 랜덤 신규 생성. */
+    private Map<String, Object> lineOf(String productName, int quantity, int unitPrice) {
+        return Map.of(
+                "productId", UUID.randomUUID().toString(),
+                "productName", productName,
+                "modelName", "E2-SLIP",
+                "quantity", quantity,
+                "unitPrice", unitPrice);
+    }
+
+    /** 단건 GET 으로 최신 {@code updatedAt}(낙관적 잠금 토큰)을 조회한다. */
+    private String fetchUpdatedAt(String id) throws Exception {
+        MvcResult detailResult = mockMvc.perform(get("/slips/{id}", id)
+                        .header(USER_ID_HEADER, ACTOR_ID.toString())
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(detailResult.getResponse().getContentAsString())
+                .path("data").path("updatedAt").asText();
+    }
+
+    /** {@code slip_lines} 활성(비삭제) 라인 수를 raw SQL 로 단언한다 (JPA {@code @SQLRestriction} 우회 확인). */
+    private void assertActiveLineCount(String slipId, int expectedCount) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM slip_lines WHERE slip_id = ?::uuid AND is_deleted = FALSE",
+                Integer.class, slipId);
+        assertThat(count).isEqualTo(expectedCount);
+    }
+
+    /** 편집으로 개별삭제된 라인이 복원 이후에도 여전히 {@code is_deleted=true} 인지 raw SQL 로 단언한다. */
+    private void assertLineStillDeleted(String lineId) {
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM slip_lines WHERE id = ?::uuid",
+                Boolean.class, lineId);
+        assertThat(isDeleted).isTrue();
     }
 
     private record CreatedSlip(String id, String slipNo, String updatedAt) {
