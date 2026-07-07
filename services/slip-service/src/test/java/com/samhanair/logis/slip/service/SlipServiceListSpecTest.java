@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +63,21 @@ class SlipServiceListSpecTest {
         when(slipRepository.findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class))).thenReturn(empty);
     }
 
+    private void stubListIncludingDeletedReturnsEmpty() {
+        Page<Slip> empty = new PageImpl<>(Collections.emptyList(), pageable, 0);
+        when(slipRepository.listIncludingDeleted(
+                anyBoolean(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                anyBoolean(),
+                any(Pageable.class))).thenReturn(empty);
+    }
+
     @SuppressWarnings("unchecked")
     private ArgumentCaptor<Specification<Slip>> captureSpec() {
         return ArgumentCaptor.forClass(Specification.class);
@@ -70,49 +86,95 @@ class SlipServiceListSpecTest {
     // case 1 — 모든 param null (전체 활성)
     @Test
     void list_allNull_callsFindAllWithSpec() {
-        stubFindAllReturnsEmpty();
+        stubListIncludingDeletedReturnsEmpty();
         service.list(null, null, null, null, null, null, null, pageable);
-        ArgumentCaptor<Specification<Slip>> spec = captureSpec();
-        verify(slipRepository).findAll(spec.capture(), any(Pageable.class));
-        assertThat(spec.getValue()).isNotNull();
+        verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(true),
+                any(Pageable.class));
     }
 
     // case 2 — slipType + status (회귀 — 기존 2 param 메서드도 위임 지원)
     @Test
     void list_2param_overload_delegates() {
-        stubFindAllReturnsEmpty();
+        stubListIncludingDeletedReturnsEmpty();
         service.list(SlipType.OUTBOUND, SlipStatus.SAVED, pageable);
-        ArgumentCaptor<Specification<Slip>> spec = captureSpec();
-        verify(slipRepository).findAll(spec.capture(), any(Pageable.class));
-        assertThat(spec.getValue()).isNotNull();
+        verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
+                org.mockito.ArgumentMatchers.eq("OUTBOUND"),
+                org.mockito.ArgumentMatchers.eq("SAVED"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(true),
+                any(Pageable.class));
     }
 
     // case 3 — from + to 날짜 범위
     @Test
     void list_dateRange_callsFindAll() {
-        stubFindAllReturnsEmpty();
+        stubListIncludingDeletedReturnsEmpty();
         service.list(null, null,
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 null, null, null, pageable);
-        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
+        verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 1)),
+                org.mockito.ArgumentMatchers.eq(LocalDate.of(2026, 5, 31)),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(true),
+                any(Pageable.class));
     }
 
     // case 4 — partnerCode 정확 일치
     @Test
     void list_partnerCode_callsFindAll() {
-        stubFindAllReturnsEmpty();
+        stubListIncludingDeletedReturnsEmpty();
         service.list(null, null, null, null,
                 "P-2026-0001", null, null, pageable);
-        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
+        verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq("P-2026-0001"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(true),
+                any(Pageable.class));
     }
 
     // case 5 — driverPhone like
     @Test
     void list_driverPhone_callsFindAll() {
-        stubFindAllReturnsEmpty();
+        stubListIncludingDeletedReturnsEmpty();
         service.list(null, null, null, null, null,
                 "1234", null, pageable);
-        verify(slipRepository).findAll(org.mockito.ArgumentMatchers.<Specification<Slip>>any(), any(Pageable.class));
+        verify(slipRepository).listIncludingDeleted(
+                org.mockito.ArgumentMatchers.eq(false),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq("1234"),
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.eq(true),
+                any(Pageable.class));
     }
 
     // case 6 — regionGroup 정확 일치

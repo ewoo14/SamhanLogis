@@ -4,6 +4,7 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.OptimisticLockException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -113,6 +114,13 @@ public class GlobalExceptionHandler {
         log.warn("Optimistic lock conflict: {}", ex.getClass().getSimpleName());
         return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.CONFLICT, "동시 수정 충돌 — 다시 시도해 주세요"));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("Data integrity conflict: {}", ex.getClass().getSimpleName());
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.CONFLICT, "데이터 중복 또는 무결성 충돌입니다."));
     }
 
     @ExceptionHandler(Exception.class)

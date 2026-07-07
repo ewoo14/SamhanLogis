@@ -27,3 +27,24 @@
 ## 후속(별도)
 - collab-core 공용 SSE 에러 프레임(단일-Accept EventSource) 전 서비스(slip/groupware/accounting) 검토.
 - `InMemoryRealtimeBroker` SSE 구독수 상한(공통 broker DoS 정책).
+
+## 소급 재검 fix (#761) — 2026-07-07
+
+Track A 머지(#755) 후 **full 5-agent + 실 GUI 라이브 QA 소급 재검**이 잡은 결함 fix-forward:
+- **🔴 CRITICAL(CI hard gate)**: 상세 aria-describedby 사유 span("통장연계 입금보고서는 수정할 수 없습니다…") 텍스트가 Kind 배지 "통장연계"와 substring 중첩 → 기존 `cash-receipt-form.spec.ts:82` `getByText('통장연계')` strict-mode 2매칭 → Desktop Playwright(mock) genuine 실패 → **`getByText('통장연계', { exact: true })`** 로 좁힘.
+- **FE HIGH**: real-qa 스펙 proxy 에 `/collab/stream` `route.abort()` 누락(coedit 활성 시 SSE fetch teardown hang) → resourceType 가드와 이중방어로 abort 추가.
+- **BE MED**: allow-list(kind != MANUAL_RECEIPT) fail-closed 분기가 IT 미커버(DRAFT+DEPOSIT_REPORT 는 팩토리상 도달불가) → reflection 으로 DRAFT DEPOSIT_REPORT 상태 만들어 409 고정.
+- Design/FE LOW: Badge success 폴백 리터럴 `#0F766E`(Aligo색)→`#047857`(실토큰). (배너 도달불가 조건 정리·Detail 문구 통일·useId·음수금액 대비=STEP4/백로그.)
+- 라이브 GUI 증적: `docs/qa/e3-s4d-retro/*.png`(배너 우선순위 CANCELLED/BANK_LINKED/CONFIRMED 각 단일·Badge 대비 픽셀실측 #047857/#991B1B·aria 대칭). 무권한 배너는 라우트 가드 redirect 로 도달불가(정직).
+
+이전 Badge success/danger 대비(3.1~3.7:1 AA미달)·배너 3중 중첩·real-qa 백지마운트는 Track A 소급 fix 본체(#761 커밋)로 해소.
+
+## STEP4 (Opus 독립 적대검증 — Codex 한도 대체, 개발책임자 승인) fix — 2026-07-07
+
+적대검증(refute 관점)이 R1이 놓친 실결함 포착 → Opus 직접 fix:
+- **🟠 HIGH(Design)**: 음수금액 `--state-danger`(3.76:1 AA미달)를 같은 파일이 이미 고친 토큰과 달리 누락 → `--color-danger-700`(7.56:1)+테스트 갱신.
+- **🟠 MED-HIGH(Design)**: disabled 네이티브 버튼의 aria-describedby 는 포커스 제외로 키보드/AT 미도달 → 편집차단 사유를 **화면 visible 텍스트로 승격**(neutral-600).
+- **🟡 MED(FE)**: CANCELLED 배너 role=alert 가 기존 topError(role=alert)와 충돌(2-alert strict 위반) → topError 를 `editNotice.role !== 'alert'` 상호배타 렌더.
+- **LOW**: 배너 죽은조건(`bankLinked && status!=='CANCELLED'`→`bankLinked`) 단순화·`_adhoc` QA 산출물 삭제.
+- **BE·DevOps 적대검증 = 통과(0)**: kind allow-list 9조합 fail-closed 확정·DEPOSIT_REPORT reflection IT genuine·CRITICAL(spec strict) 직전커밋 FAILURE→HEAD SUCCESS 로 562→563 실측·design-system Badge 무회귀.
+- 백로그: Badge/Button/SlipStatus danger·success 색 분절(design-system SSOT sweep)·다크모드 오버라이드·`--color-semantic-danger` 미정의(90+파일).

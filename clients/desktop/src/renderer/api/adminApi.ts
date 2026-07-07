@@ -419,6 +419,8 @@ export interface ListAdminPartnersOptions {
   status?: PartnerStatus
   /** 거래처 유형 필터 (CUSTOMER / SUPPLIER / BOTH). 현재 BE admin 검색 미지원. */
   type?: 'CUSTOMER' | 'SUPPLIER' | 'BOTH'
+  /** 관리자 거래처 목록 전용. true 일 때만 soft-deleted row 를 포함한다. */
+  includeDeleted?: boolean
   page?: number
   size?: number
 }
@@ -429,18 +431,24 @@ export interface ListAdminPartnersOptions {
 export async function listAdminPartners(
   options: ListAdminPartnersOptions = {},
 ): Promise<AdminPage<PartnerSummary>> {
-  const params: Record<string, string | number> = {
+  const params: Record<string, string | number | boolean> = {
     page: options.page ?? 0,
     size: options.size ?? 20,
   }
   if (options.q && options.q.trim()) params['q'] = options.q.trim()
   if (options.status) params['status'] = options.status
+  if (options.includeDeleted) params['includeDeleted'] = true
 
   const res = await apiClient.get<ApiEnvelope<AdminPage<PartnerSummary>>>(
     '/admin/partners/search',
     { params },
   )
   return res.data.data
+}
+
+/** 거래처 soft-delete — `DELETE /admin/partners/{partnerCode}`. */
+export async function deletePartner(partnerCode: string): Promise<void> {
+  await apiClient.delete(`/admin/partners/${encodeURIComponent(partnerCode)}`)
 }
 
 /** 거래처 soft-delete 복원 — `POST /admin/partners/{partnerCode}/restore`. */

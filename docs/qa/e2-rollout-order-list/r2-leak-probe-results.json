@@ -1,0 +1,75 @@
+{
+  "orderNo": "2026/07/07-9001",
+  "ts": "2026-07-07T06:41:27.450Z",
+  "pre": {
+    "status": 200,
+    "total": 550000,
+    "lines": 1,
+    "isDeleted": false,
+    "lineDetail": [
+      {
+        "productId": "aa757c01-0000-4000-8000-000000009001",
+        "lineId": "aa757b01-0000-4000-8000-000000009001",
+        "modelCode": "QA-MODEL-A",
+        "productName": "QA 활성 품목",
+        "categoryKey": "homemulti",
+        "quantity": 1,
+        "deliveryPrice": 550000,
+        "subtotal": 550000,
+        "remark": null,
+        "convertedQuantity": 0,
+        "bundleMode": null,
+        "productType": null,
+        "expandedComponents": []
+      }
+    ]
+  },
+  "gui_deletedRowRendered": true,
+  "gui_restoreBtnVisible": true,
+  "gui_mergeCheckboxOnDeletedRow": 0,
+  "leak_detail_status": 404,
+  "leak_list_matchCount": 0,
+  "leak_list_activeCount": 0,
+  "leak_list_deletedCount": 0,
+  "optin_list_deletedCount": 1,
+  "optin_list_activeCount": 0,
+  "optin_list_row": {
+    "orderNumber": "2026/07/07-9001",
+    "partnerCode": "8428102605",
+    "partnerName": null,
+    "submittedAt": null,
+    "status": "DRAFT",
+    "totalAmount": 550000,
+    "linkedSlipNo": null,
+    "isDeleted": true,
+    "deletedAt": "2026-07-07T15:41:30.612582",
+    "deletedByName": "[DEV-SEED] 개발마스터"
+  },
+  "leak_convert_status": 404,
+  "leak_merge_status": 404,
+  "leak_print_status": 404,
+  "gui_restoreBtnGoneAfterRestore": 0,
+  "post": {
+    "status": 200,
+    "total": 550000,
+    "lines": 1,
+    "isDeleted": false,
+    "lineDetail": [
+      {
+        "productId": "aa757c01-0000-4000-8000-000000009001",
+        "lineId": "aa757b01-0000-4000-8000-000000009001",
+        "modelCode": "QA-MODEL-A",
+        "productName": "QA 활성 품목",
+        "categoryKey": "homemulti",
+        "quantity": 1,
+        "deliveryPrice": 550000,
+        "subtotal": 550000,
+        "remark": null,
+        "convertedQuantity": 0,
+        "bundleMode": null,
+        "productType": null,
+        "expandedComponents": []
+      }
+    ]
+  }
+}

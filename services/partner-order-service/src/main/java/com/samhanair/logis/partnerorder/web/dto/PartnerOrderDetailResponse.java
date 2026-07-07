@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * 주문 상세 응답.
@@ -34,8 +35,14 @@ public record PartnerOrderDetailResponse(
         String contactPhone,
         String dueDate,
         String memo,
-        List<LineResponse> lines
+        List<LineResponse> lines,
+        boolean isDeleted,
+        LocalDateTime deletedAt,
+        String deletedByName
 ) {
+
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     /**
      * Entity 를 상세 DTO 로 변환한다 (productType enrich 없음 — 모든 라인 {@code productType=null}).
@@ -81,7 +88,10 @@ public record PartnerOrderDetailResponse(
                 order.getLines().stream()
                         .map(line -> LineResponse.from(
                                 line, productTypeByModelCode.get(trimToNull(line.getModelName()))))
-                        .toList());
+                        .toList(),
+                Boolean.TRUE.equals(order.getIsDeleted()),
+                order.getDeletedAt(),
+                resolveActorName(order.getDeletedByName()));
     }
 
     private static String trimToNull(String value) {
@@ -89,6 +99,18 @@ public record PartnerOrderDetailResponse(
             return null;
         }
         return value.trim();
+    }
+
+    /** 삭제자 표시명 — UUID 형태(actorId 폴백)면 노출하지 않고, 100자 초과는 truncate. */
+    private static String resolveActorName(String actorName) {
+        if (actorName == null || actorName.isBlank()) {
+            return null;
+        }
+        String trimmed = actorName.trim();
+        if (UUID_PATTERN.matcher(trimmed).matches()) {
+            return null;
+        }
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 
     /**

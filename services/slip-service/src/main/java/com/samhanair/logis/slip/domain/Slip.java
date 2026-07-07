@@ -105,6 +105,15 @@ public class Slip extends BaseEntity {
     private String partnerName;
 
     /**
+     * soft-delete 수행자 표시명.
+     *
+     * <p>{@link BaseEntity#getDeletedBy()} 는 감사용 userId 이므로 목록 UI 에 노출하지 않는다.
+     * E2 목록 취소선 UX 는 본 컬럼의 이름만 표시한다.
+     */
+    @Column(name = "deleted_by_name", length = 100)
+    private String deletedByName;
+
+    /**
      * 거래처코드 snapshot — PR-E1 BE-1 (V15 migration) 신규.
      *
      * <p>partner_id (UUID) 와 별도 — UUID 비공개 가드 의무 (memory feedback_uuid_no_user_visibility).
@@ -1161,6 +1170,29 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(CONFLICT)                  마감 lock 적용 슬립 (lock_flag=true)
      */
     public void deleteForSales(String actorId) {
+        deleteForSales(actorId, null);
+    }
+
+    /**
+     * 매출 전표 soft delete — 삭제자 표시명을 함께 저장한다.
+     *
+     * <p><b>단일 시각 각인 (#758 머지게이트 감사 HIGH fix)</b>: {@code LocalDateTime.now()} 를
+     * 이 메서드에서 <b>한 번만</b> 캡처해 헤더와 cascade 되는 모든 라인에 동일하게 주입한다.
+     * {@link com.samhanair.logis.slip.service.SlipRestoreService#restore} 가 "이 삭제 작업으로
+     * cascade 된 라인" 을 {@code deletedAt} 등호 매칭으로 정확히 식별해 복원할 수 있도록 하기
+     * 위함이다 — 각자 {@code now()} 를 따로 찍으면 이 매칭이 불가능해 편집으로 이미 개별
+     * soft-delete 된 라인(예: {@code removeLine}/{@code replaceSalesLines}/
+     * {@code restoreFromSnapshot})까지 함께 부활한다(#758 CRITICAL 재현). 이들 편집 경로의
+     * {@code markDeleted(deleter)}(1-arg, 각자 {@code now()}) 호출은 의도적으로 그대로 둔다
+     * (PartnerOrder(C) #757 R2 정합 패턴).
+     *
+     * @param actorId 삭제 수행자 ID (audit 기록용, null 허용 → "system" 폴백)
+     * @param actorName 삭제자 표시명 (UUID 비노출용, null 허용)
+     * @throws BusinessException(SLIP_DELETE_NON_SALES)     slipType 이 OUTBOUND 가 아닐 때
+     * @throws BusinessException(SLIP_DELETE_SALES_SHIPPED) DRAFT/SAVED 외 출고 진행 단계일 때
+     * @throws BusinessException(CONFLICT)                  마감 lock 적용 슬립 (lock_flag=true)
+     */
+    public void deleteForSales(String actorId, String actorName) {
         if (this.slipType != SlipType.OUTBOUND) {
             throw new BusinessException(ErrorCode.SLIP_DELETE_NON_SALES,
                     ErrorCode.SLIP_DELETE_NON_SALES.getDefaultMessage());
@@ -1171,11 +1203,23 @@ public class Slip extends BaseEntity {
         }
         requireNotLocked();
         String deleter = (actorId == null || actorId.isBlank()) ? "system" : actorId;
+        // 단일 시각 각인(#758 머지게이트 감사 HIGH fix) — 헤더/라인이 동일 deletedAt 을 가져야
+        // 복원(SlipRestoreService) 이 deletedAt 등호 매칭으로 이 삭제 작업의 라인만 식별한다.
+        // removeLine/replaceLines/replaceSalesLines/restoreFromSnapshot 의 markDeleted(deleter)
+        // (1-arg, 각자 now()) 는 편집 경로라 복원 대상에서 배제되어야 하므로 그대로 둔다.
+        LocalDateTime now = LocalDateTime.now();
         for (SlipLine line : new ArrayList<>(this.lines)) {
-            line.markDeleted(deleter);
+            line.markDeleted(deleter, now);
         }
         this.lines.clear();
-        this.markDeleted(deleter);
+        this.markDeleted(deleter, now);
+        this.deletedByName = sanitizeDeletedByName(actorName);
+    }
+
+    /** soft-delete 복원 후 사용자 표시용 삭제자명을 비운다. */
+    public void markRestoredWithNameCleared() {
+        markRestored();
+        this.deletedByName = null;
     }
 
     /**
@@ -1650,6 +1694,14 @@ public class Slip extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "전이 가능한 상태가 아닙니다: 현재 " + this.status + ", 필요 " + expected);
         }
+    }
+
+    private static String sanitizeDeletedByName(String actorName) {
+        if (actorName == null || actorName.isBlank()) {
+            return null;
+        }
+        String trimmed = actorName.trim();
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 
     // ---------- PR-H2 (Phase 12 Step 2) — audit overlay 보조 ----------

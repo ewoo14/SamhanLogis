@@ -1330,7 +1330,7 @@ public class SlipService {
      */
     @Transactional(readOnly = true)
     public Page<SlipResponse> list(SlipType slipType, SlipStatus status, Pageable pageable) {
-        return list(slipType, status, null, null, null, null, null, null, pageable);
+        return list(slipType, status, null, null, null, null, null, null, false, pageable);
     }
 
     /**
@@ -1407,7 +1407,7 @@ public class SlipService {
                                    LocalDate from, LocalDate to,
                                    String partnerCode, String driverPhone,
                                    String regionGroup, Pageable pageable) {
-        return list(slipType, status, from, to, partnerCode, driverPhone, regionGroup, null, pageable);
+        return list(slipType, status, from, to, partnerCode, driverPhone, regionGroup, null, false, pageable);
     }
 
     /**
@@ -1437,6 +1437,7 @@ public class SlipService {
                                    String partnerCode, String driverPhone,
                                    String regionGroup,
                                    java.util.List<DeliveryTag> deliveryTags,
+                                   boolean includeDeleted,
                                    Pageable pageable) {
         // slipType-deliveryTag 정합 가드
         if (slipType != null && deliveryTags != null && !deliveryTags.isEmpty()) {
@@ -1448,9 +1449,38 @@ public class SlipService {
                 }
             }
         }
-        Specification<Slip> spec = buildListSpec(slipType, status, from, to,
-                partnerCode, driverPhone, regionGroup, deliveryTags);
-        return slipRepository.findAll(spec, pageable).map(SlipResponse::from);
+        String normalizedRegionGroup = normalizeListFilter(regionGroup);
+        if (normalizedRegionGroup != null) {
+            Specification<Slip> spec = buildListSpec(slipType, status, from, to,
+                    partnerCode, driverPhone, normalizedRegionGroup, deliveryTags);
+            return slipRepository.findAll(spec, pageable).map(SlipResponse::from);
+        }
+
+        List<String> deliveryTagNames = deliveryTags == null || deliveryTags.isEmpty()
+                ? List.of("__NONE__")
+                : deliveryTags.stream().map(Enum::name).toList();
+        Pageable nativePageable = pageable == null
+                ? PageRequest.of(0, 20)
+                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return slipRepository.listIncludingDeleted(
+                includeDeleted,
+                slipType == null ? null : slipType.name(),
+                status == null ? null : status.name(),
+                from,
+                to,
+                normalizeListFilter(partnerCode),
+                normalizeListFilter(driverPhone),
+                deliveryTagNames,
+                deliveryTags == null || deliveryTags.isEmpty(),
+                nativePageable).map(SlipResponse::from);
+    }
+
+    private static String normalizeListFilter(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**

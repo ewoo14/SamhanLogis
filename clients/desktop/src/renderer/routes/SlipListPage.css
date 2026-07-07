@@ -1,0 +1,11 @@
+.slip-list-deleted-row.slip-list-deleted-row {
+  cursor: default;
+}
+
+.slip-list-deleted-row.slip-list-deleted-row > td {
+  background-color: var(--color-bg-subtle);
+}
+
+.slip-list-deleted-row.slip-list-deleted-row > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-border-strong);
+}

@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.PartnerOrderDetailResponse;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerOrderHoldService {
 
     private final PartnerOrderRepository partnerOrderRepository;
+    private final PartnerOrderBoardChangePublisher boardChangePublisher;
 
     /**
      * 진행중(DRAFT) 주문을 보류(ON_HOLD)로 전이한다.
@@ -47,6 +49,7 @@ public class PartnerOrderHoldService {
                         ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
         order.markOnHold();
         partnerOrderRepository.saveAndFlush(order);
+        publishListChanged();
         return PartnerOrderDetailResponse.from(order);
     }
 
@@ -69,6 +72,13 @@ public class PartnerOrderHoldService {
                         ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
         order.releaseHold();
         partnerOrderRepository.saveAndFlush(order);
+        publishListChanged();
         return PartnerOrderDetailResponse.from(order);
+    }
+
+    private void publishListChanged() {
+        if (boardChangePublisher != null) {
+            boardChangePublisher.publishListChanged("UPDATED");
+        }
     }
 }

@@ -19,5 +19,8 @@ metadata:
 - **fix 디스패치 전 필수 자문**: "이 라운드는 Opus인가 Codex인가?" → 그 모델로만 fix.
 - **병렬이어도 각 슬라이스 단계를 느리게·정확히** — 속도 < 충실도. 병렬은 PR 다중 in-flight로 얻되 각 PR은 단축 0.
 - **PM은 매 머지 직전 9-게이트를 응답에 체크로 명시**(사용자 감사).
+- **🚨 매 단계 후 ScheduleWakeup(WorkflowWakeup)으로 캐논 재자각**(2026-07-07 개발책임자 지시) — 한 단계(1~2 작업묶음) 끝나면 다음 단계 워크플로우를 재명시한 ScheduleWakeup 예약 후 턴 종료. **mega턴 금지**(부하 누적이 단축 유발). 짧게 끊어 매번 워크플로우를 스스로 재확인하는 것이 반복위반 방지 메커니즘.
+
+**🔴 2026-07-07 재발 + 경험적 증거(단축=실버그 은폐)**: 야간 3슬라이스 병렬 완주 압박에 또 단축 — GUI 스샷을 SSE로그로 갈음·R2/R3를 4/2-agent로 축소·phantom(빌링) CI 위에 머지·A/B 머지 후 D/E 리필 안 함. 개발책임자 반복 질책 후 **축소 라운드를 full 5-agent+실 GUI QA로 소급 재검하니, 단축이 놓친 🔴CRITICAL(거래처 목록 소급 fix가 `searchAdmin`/`findAll`을 무조건 IncludingDeleted 위임 → 공유 `/admin/partners/search`가 삭제 거래처를 견적/입금/세금계산서/전표/계좌매칭 자동완성 5소비처에 노출) 실증**. full canon 아니었으면 프로덕션에 묻혔을 데이터누출. → **단축은 "결과 맞음"이 아니라 실 버그를 숨긴다**는 경험적 확증. GUI QA도 하네스(proxy-glob 백지·stale docker) 고치면 실제로 되는데 "안 된다"며 갈음한 것 = 조기 포기. **속도<충실도 절대·라운드 축소 0·대체 금지**.
 
 **How to apply**: 매 fix 착수 전 라운드 모델 확인. 매 머지 직전 9-게이트를 응답에 나열·각 ☑ 근거. 병렬 압박 시 "속도<충실도" 재확인. [[feedback_review_5agent_no_shortcut_strict]] [[feedback_canonical_workflow]] [[feedback_fix_in_current_pr_no_split]] [[feedback_emit_real_tool_calls]]

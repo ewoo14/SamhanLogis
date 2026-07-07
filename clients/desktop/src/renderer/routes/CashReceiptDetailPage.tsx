@@ -37,7 +37,7 @@ function Field({
   return (
     <div>
       <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>{label}</div>
-      <div style={{ marginTop: 4, fontSize: 14, fontVariantNumeric: 'tabular-nums', ...valueStyle }}>{value || '-'}</div>
+      <div style={{ marginTop: 4, fontSize: 14, fontVariantNumeric: 'tabular-nums', ...valueStyle }}>{value || '—'}</div>
     </div>
   )
 }
@@ -93,6 +93,12 @@ export function CashReceiptDetailPage() {
   // 편집 진입 = 비-통장연계 & 미취소. CONFIRMED 도 편집 가능(편집폼에서 역분개 재게시 경고).
   // 실시간 coedit(동시편집)은 편집폼에서 DRAFT 한정으로 배선된다(상세는 읽기전용).
   const canEdit = canUpdate && !isBankLinked && !isCancelled
+  const editBlockedReason = isCancelled
+    ? '취소된 입금보고서는 수정할 수 없습니다.'
+    : isBankLinked
+      ? '통장연계 입금보고서는 수정할 수 없습니다.'
+      : ''
+  const editBlockedReasonId = editBlockedReason ? 'cash-receipt-edit-block-reason' : undefined
 
   if (query.isLoading) {
     return (
@@ -142,10 +148,26 @@ export function CashReceiptDetailPage() {
               <Button type="button" variant="ghost" onClick={() => navigate(`/accounting/admin/cash-receipts/${receiptId}/edit`)}>
                 편집
               </Button>
-            ) : isBankLinked && canUpdate ? (
-              <Button type="button" variant="ghost" disabled title="통장연계 입금보고서는 수정할 수 없습니다.">
-                편집 불가
-              </Button>
+            ) : editBlockedReason && canUpdate ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled
+                  title={editBlockedReason}
+                  aria-describedby={editBlockedReasonId}
+                >
+                  편집 불가
+                </Button>
+                {/* 사유를 sr-only 로만 두면 disabled 버튼(포커스 제외)의 aria-describedby 가 키보드/AT 사용자에게
+                    도달하지 않는다(STEP4 적대검증 MED-HIGH). 화면에 보이는 텍스트로 승격해 전 사용자가 인지. */}
+                <span
+                  id={editBlockedReasonId}
+                  style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}
+                >
+                  {editBlockedReason}
+                </span>
+              </>
             ) : null}
             {isDraft && canUpdate ? (
               <Button type="button" variant="primary" onClick={handleConfirm} disabled={confirmMutation.isPending}>
@@ -173,7 +195,7 @@ export function CashReceiptDetailPage() {
           <Field
             label="금액"
             value={formatCashReceiptAmount(receipt.amount)}
-            valueStyle={Number(receipt.amount) < 0 ? { color: 'var(--state-danger)' } : undefined}
+            valueStyle={Number(receipt.amount) < 0 ? { color: 'var(--color-danger-700, #991B1B)' } : undefined}
           />
           <Field label="차변 계정" value={receipt.debitAccountCode ?? null} />
           <Field label="대변 계정" value={receipt.creditAccountCode ?? null} />
@@ -185,7 +207,7 @@ export function CashReceiptDetailPage() {
       </Card>
 
       {topError ? (
-        <div className="error-banner" role="alert" style={{ marginTop: 16, padding: 12, color: 'var(--state-danger)' }}>
+        <div className="error-banner" role="alert" style={{ marginTop: 16, padding: 12, color: 'var(--color-danger-700, #991B1B)' }}>
           {topError}
         </div>
       ) : null}

@@ -59,7 +59,12 @@ async function installRealAuth(page: Page, token: string): Promise<void> {
 
 async function setupApiProxy(page: Page, token: string): Promise<void> {
   const handler = async (route: import('@playwright/test').Route) => {
+    const rt = route.request().resourceType()
+    if (rt !== 'xhr' && rt !== 'fetch') return route.continue()
     const u = new URL(route.request().url())
+    // SSE(/collab/stream)는 응답이 종료되지 않아 route.fetch() 가 teardown 까지 hang → abort 로 끊고 실 클라이언트 재연결에 위임
+    // (proxy resourceType 가드와 함께 이중방어 — feedback_realqa_proxy_glob_resourcetype).
+    if (u.pathname.endsWith('/collab/stream')) return route.abort()
     const realUrl = `${GW_URL}${u.pathname}${u.search}`
     const headers: Record<string, string> = {}
     for (const { name, value } of await route.request().headersArray()) {

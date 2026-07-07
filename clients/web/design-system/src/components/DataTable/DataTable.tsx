@@ -161,7 +161,6 @@ export function DataTable<T>({
                     key={k}
                     className={trClasses}
                     {...(testId ? { 'data-testid': testId } : {})}
-                    aria-disabled={onRowClick && !canClickRow ? true : undefined}
                     onClick={canClickRow && onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {columns.map((col) => {

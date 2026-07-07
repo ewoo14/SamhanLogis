@@ -666,6 +666,7 @@ export const MOCK_AUTH = {
  * status 를 CONVERTED 로 덮어쓴다. (테스트별 새 page = 새 모듈 → 자동 초기화)
  */
 const mockConvertedOrderNos = new Set<string>()
+const mockDeletedOrderNos = new Set<string>(['2026/05/31-5'])
 
 /**
  * 시리얼 보상 실패 복구 mock seed — D-SER-23 (resolved 혼합 3건).
@@ -1031,6 +1032,11 @@ for (const slip of MOCK_SLIPS as Array<Record<string, unknown>>) {
   if (slip.discountInfo === undefined) slip.discountInfo = null
   if (slip.collectTerm === undefined) slip.collectTerm = null
   if (slip.agreeTerm === undefined) slip.agreeTerm = null
+  if (slip.isDeleted === undefined) slip.isDeleted = false
+  if (slip.deletedAt === undefined) slip.deletedAt = null
+  if (slip.deletedByName === undefined) slip.deletedByName = null
+  if (slip.updatedAt === undefined) slip.updatedAt = '2026-05-04T09:00:00+09:00'
+  if (slip.version === undefined) slip.version = 0
 }
 
 /** 시연용 mock 이동전표 5건 */
@@ -4145,6 +4151,58 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(null)
   }
 
+  // DELETE /api/v1/slips/{id}/sales — 판매전표 목록 soft delete.
+  const salesSlipDeleteMatch = url.match(/\/slips\/([^/?]+)\/sales(?:\?.*)?$/)
+  if (method === 'DELETE' && salesSlipDeleteMatch) {
+    // BE SalesSlipDeleteController + FE SlipDetailPage 게이트가 모두 sales.slip.edit:delete 이므로 mock 도 일치시킨다
+    // (sales.slip.edit=true·sales.slip.list=false 인 MANAGER 가 mock 에서만 403 오반환되던 divergence 해소).
+    const denied = mockRequirePermission('sales.slip.edit', 'delete')
+    if (denied) return denied
+    const id = decodeURIComponent(salesSlipDeleteMatch[1]!)
+    const row = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!row) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    if (row['slipType'] !== 'OUTBOUND') {
+      return mockError(400, 'INVALID_INPUT', '판매전표만 삭제할 수 있습니다.')
+    }
+    const now = new Date().toISOString()
+    row['isDeleted'] = true
+    row['deletedAt'] = now
+    row['deletedByName'] = MOCK_AUTH.fullName
+    row['updatedAt'] = now
+    row['version'] = Number(row['version'] ?? 0) + 1
+    return envelope(null)
+  }
+
+  // POST /api/v1/slips/{id}/restore — 판매전표 목록 삭제행 복원.
+  const slipRestoreMatch = url.match(/\/slips\/([^/?]+)\/restore(?:\?.*)?$/)
+  if (method === 'POST' && slipRestoreMatch) {
+    const denied = mockRequirePermission('sales.slip.list', 'restore')
+    if (denied) return denied
+    const id = decodeURIComponent(slipRestoreMatch[1]!)
+    const row = MOCK_SLIPS.find((s) => s.id === id) as Record<string, unknown> | undefined
+    if (!row) return mockError(404, 'NOT_FOUND', '전표를 찾을 수 없습니다.')
+    if (row['slipType'] !== 'OUTBOUND') {
+      return mockError(400, 'INVALID_INPUT', '판매전표만 복원할 수 있습니다.')
+    }
+    if (row['isDeleted'] === true) {
+      const duplicate = MOCK_SLIPS.some((candidate) =>
+        candidate.id !== id
+        && candidate.slipType === row['slipType']
+        && candidate.slipNo === row['slipNo']
+        && (candidate as Record<string, unknown>)['isDeleted'] !== true)
+      if (duplicate) {
+        return mockError(409, 'CONFLICT', '동일 전표번호의 활성 전표가 있어 복원할 수 없습니다.')
+      }
+    }
+    const now = new Date().toISOString()
+    row['isDeleted'] = false
+    row['deletedAt'] = null
+    row['deletedByName'] = null
+    row['updatedAt'] = now
+    row['version'] = Number(row['version'] ?? 0) + 1
+    return envelope(row)
+  }
+
   // ============================================================================
   // 판매/구매 조회 (SalesQueryPage / PurchaseQueryPage) — 풍성한 컬럼 mock
   // GET /slips/query — 신규 필드 포함 10+ rows (페이지네이션 검증용)
@@ -4504,11 +4562,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     && !url.match(/\/slips\/cleanup/)
     && !slipDetailMatch
   ) {
-    const slipTypeMatch = url.match(/[?&]slipType=([^&]+)/)
-    const slipType = slipTypeMatch?.[1]
-    const filtered = slipType === 'OUTBOUND' || slipType === 'INBOUND'
-      ? MOCK_SLIPS.filter((s) => s.slipType === slipType)
-      : MOCK_SLIPS
+    const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
+    const params = config.params as Record<string, unknown> | undefined
+    const readParam = (key: string): string | undefined => {
+      const value = params?.[key]
+      if (Array.isArray(value)) return value[0] == null ? undefined : String(value[0])
+      if (value != null) return String(value)
+      return urlObj.searchParams.get(key) ?? undefined
+    }
+    const slipType = readParam('slipType')
+    const status = readParam('status')
+    const deliveryTag = readParam('deliveryTag')
+    const filtered = MOCK_SLIPS.filter((s) => {
+      if ((slipType === 'OUTBOUND' || slipType === 'INBOUND') && s.slipType !== slipType) return false
+      if (status && s.status !== status) return false
+      if (deliveryTag && s.deliveryTag !== deliveryTag) return false
+      return true
+    })
     return envelope({
       content: filtered,
       totalElements: filtered.length,
@@ -7026,6 +7096,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // status 쿼리 파라미터 추출 (URL 또는 config.params 에서)
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const statusParam = urlObj.searchParams.get('status') ?? (config.params?.['status'] as string | undefined)
+    // BE parity(#757 R2 HIGH): includeDeleted=true(내부 관리자 opt-in)일 때만 삭제행 포함.
+    const includeDeletedParam =
+      urlObj.searchParams.get('includeDeleted') ?? String(config.params?.['includeDeleted'] ?? '')
+    const includeDeleted = includeDeletedParam === 'true'
 
     // Phase 2.5 — status 별 fixture rows
     const DRAFT_ROW = {
@@ -7075,6 +7149,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       totalAmount: 1200000,
       linkedSlipNo: null,
     }
+    const DELETED_DRAFT_ROW = {
+      orderNumber: '2026/05/31-5',
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-31T10:00:00',
+      status: 'DRAFT' as const,
+      totalAmount: 980000,
+      linkedSlipNo: null,
+      isDeleted: true,
+      deletedAt: '2026-06-01T11:20:00',
+      deletedByName: '오병승',
+    }
 
     let content: Array<{
       orderNumber: string
@@ -7084,17 +7170,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       status: string
       totalAmount: number
       linkedSlipNo: string | null
+      isDeleted?: boolean
+      deletedAt?: string | null
+      deletedByName?: string | null
     }>
     if (statusParam === 'DRAFT') {
       // DRAFT 필터: 같은 거래처 DRAFT 2건 포함 (시나리오 2/4/5 직접 접근 가능)
-      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW]
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, DELETED_DRAFT_ROW]
     } else if (statusParam === 'ON_HOLD') {
       content = [ON_HOLD_ROW, SAME_PARTNER_ON_HOLD_ROW]
     } else if (statusParam === 'CONFIRMED') {
       content = [CONFIRMED_ROW]
     } else {
       // 전체 또는 기타 — 모든 행 반환 (혼합 시나리오 포함)
-      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, SAME_PARTNER_ON_HOLD_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, DELETED_DRAFT_ROW, SAME_PARTNER_ON_HOLD_ROW, ON_HOLD_ROW, CONFIRMED_ROW]
     }
 
     // 3-D: 병합/전환된 주문은 CONVERTED 로 표시. DRAFT 필터에서는 제외(BE 동작 모사).
@@ -7104,7 +7193,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           ? { ...row, status: 'CONVERTED' as const, linkedSlipNo: '2026/05/31-1' }
           : row,
       )
+      .map((row) =>
+        mockDeletedOrderNos.has(row.orderNumber)
+          ? {
+              ...row,
+              isDeleted: true,
+              deletedAt: row.deletedAt ?? '2026-06-01T11:20:00',
+              deletedByName: row.deletedByName ?? '오병승',
+            }
+          : { ...row, isDeleted: false, deletedAt: null, deletedByName: null },
+      )
       .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
+      // BE parity: 기본(활성만) — includeDeleted 미요청 시 삭제행 제외(@SQLRestriction 경로 모사).
+      .filter((row) => includeDeleted || row.isDeleted !== true)
 
     return envelope({
       content,
@@ -7396,8 +7497,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ?? (config.params?.['type'] as string | undefined)
       ?? '').trim()
     const lower = q.trim().toLowerCase()
+    const includeDeleted = config.params?.['includeDeleted'] === true || config.params?.['includeDeleted'] === 'true'
     const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
     const filtered = allItems
+      .filter((item) => includeDeleted || item.isDeleted !== true)
       .filter((item) => !status || item.status === status)
       .filter((item) =>
         !lower
@@ -7550,6 +7653,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const code = decodeURIComponent(url.match(/\/admin\/partners\/([^/?]+)$/)?.[1] ?? '')
     const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
     if (!row) {
+      return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    if (row['isDeleted'] === true) {
       return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
     }
     row['isDeleted'] = true
@@ -10799,6 +10905,39 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  const partnerOrderDeleteMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
+  if (method === 'DELETE' && partnerOrderDeleteMatch) {
+    const orderNo = toSlashDocumentNo(decodeURIComponent(partnerOrderDeleteMatch[1] ?? ''))
+    mockDeletedOrderNos.add(orderNo)
+    return { data: null, status: 204, statusText: 'No Content', headers: {}, config }
+  }
+
+  const partnerOrderInlineRestoreMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/restore$/)
+  if (method === 'POST' && partnerOrderInlineRestoreMatch) {
+    const orderNo = toSlashDocumentNo(decodeURIComponent(partnerOrderInlineRestoreMatch[1] ?? ''))
+    mockDeletedOrderNos.delete(orderNo)
+    return envelope({
+      orderNumber: orderNo,
+      partnerCode: '1234567890',
+      bizCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-31T10:00:00',
+      status: 'DRAFT',
+      totalAmount: 980000,
+      linkedSlipNo: null,
+      updatedAt: new Date().toISOString(),
+      deliveryAddress: null,
+      siteAddress: null,
+      contactPhone: null,
+      dueDate: null,
+      memo: 'mock restored',
+      isDeleted: false,
+      deletedAt: null,
+      deletedByName: null,
+      lines: [],
+    })
+  }
+
   // ==========================================================================
   // Phase 2.6a: 주문 부분전환 — POST /api/v1/partner-orders/{id}/convert-to-slip
   //
@@ -12473,7 +12612,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           create: legacyCell?.edit ?? false,
           update: legacyCell?.edit ?? false,
           delete: legacyCell?.edit ?? false,
-          restore: false,
+          restore: page === 'sales.slip.list' ? (legacyCell?.edit ?? false) : false,
           download: legacyCell?.view ?? false,
           print: legacyCell?.view ?? false,
         }
@@ -12516,7 +12655,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       for (const p of mockPerms) {
         const actions: string[] = []
         if (p.view) actions.push('VIEW', 'DOWNLOAD', 'PRINT')
-        if (p.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+        // action-only page(복원 지원 페이지 포함)는 role-cell 경로(아래)와 동일하게 지정
+        // 액션 집합을 부여 — 기존 CRUD 고정 도출은 RESTORE 미부여(#757 R2 LOW)·convert
+        // 과다 grant 를 만들었다.
+        const actionOnly = MOCK_ACTION_ONLY_PAGES[p.pageCode]
+        if (p.edit) actions.push(...(actionOnly ?? ['CREATE', 'UPDATE', 'DELETE']))
         if (actions.length > 0) permissions[p.pageCode] = actions
       }
       return envelope(permissions)
@@ -12539,6 +12682,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         if (cell.edit) actions.push(...actionOnly)
       } else {
         if (cell.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+        if (cell.pageCode === 'sales.slip.list' && cell.edit) actions.push('RESTORE')
         // download/print 는 BE read-side export 계약을 따르므로 view 권한에서 파생한다.
         if (cell.view) actions.push('DOWNLOAD', 'PRINT')
       }
@@ -16424,6 +16568,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'dispatch.board': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
   // V82: partners.delete 는 MASTER delete/restore 전용 action-only page-code.
   'partners.delete': ['DELETE', 'RESTORE'],
+  // V83(E2 주문 롤아웃): sales.partner-order.list 는 MASTER/MANAGER/SALES 에 RESTORE 부여(취소선 복원).
+  'sales.partner-order.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
 }
 
 /**
@@ -16835,12 +16981,15 @@ const emptyMockActionMatrix = (): MockActionMatrix => ({
 
 const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix => {
   const cell = _mockPermissionCells.find((c) => c.roleCode === role && c.pageCode === page)
+  const canRestore = ['sales.partner-order.list', 'dispatch.board', 'sales.slip.list'].includes(page)
+    ? cell?.edit ?? false
+    : false
   return {
     view: cell?.view ?? false,
     create: cell?.edit ?? false,
     update: cell?.edit ?? false,
     delete: cell?.edit ?? false,
-    restore: false,
+    restore: canRestore,
     download: cell?.view ?? false,
     print: cell?.view ?? false,
   }

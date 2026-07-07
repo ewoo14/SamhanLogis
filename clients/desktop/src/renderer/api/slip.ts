@@ -33,9 +33,11 @@ export interface SlipSummary {
   status: SlipStatus
   partnerId: string | null
   partnerName: string | null
+  partnerCode?: string | null
   sourceWarehouseId: string | null
   destinationWarehouseId: string | null
   deliveryTag: DeliveryTagCode | null
+  deliveryTagLabel?: string | null
   requesterId: string | null
   acceptedBy: string | null
   acceptedAt: string | null
@@ -43,6 +45,9 @@ export interface SlipSummary {
   confirmedAt: string | null
   updatedAt: string
   version: number
+  isDeleted?: boolean
+  deletedAt?: string | null
+  deletedByName?: string | null
 }
 
 /** 라인 응답 — BE `SlipLineResponse`. */
@@ -382,6 +387,8 @@ export interface ListSlipsOptions {
   status?: SlipStatus
   /** 배송태그 필터 — OUTBOUND: 8종, INBOUND: 3종. */
   deliveryTag?: DeliveryTagCode | null
+  /** 삭제행(취소선) 포함 여부 — OUTBOUND 목록 화면 전용 opt-in. 기본 미전송(활성전용). */
+  includeDeleted?: boolean
   page?: number
   size?: number
 }
@@ -413,6 +420,8 @@ export async function listSlips(
   if (options.slipType) params['slipType'] = options.slipType
   if (options.status) params['status'] = options.status
   if (options.deliveryTag) params['deliveryTag'] = options.deliveryTag
+  // E2 삭제행(취소선) 노출은 OUTBOUND 목록 화면 전용 opt-in. BE 는 미전송/false 시 활성전용(엑셀·조회·INBOUND 누출 차단).
+  if (options.includeDeleted) params['includeDeleted'] = 'true'
 
   const res = await apiClient.get<ApiEnvelope<PageResponse<SlipSummary>>>(
     '/slips',
@@ -489,6 +498,26 @@ export async function deleteSalesSlip(
     `/slips/${encodeURIComponent(id)}/sales`,
     { data: { updatedAt } },
   )
+}
+
+/**
+ * 전표 soft-delete 복원 — 목록 삭제행 복원 액션.
+ *
+ * BE `POST /slips/{id}/restore`.
+ * 응답은 라인 미포함 `SlipResponse`.
+ *
+ * 에러 코드:
+ * - 409 Conflict  — 동일 식별자 활성 전표 공존 또는 무결성 충돌
+ * - 403 Forbidden — 권한 부족
+ *
+ * @param id 전표 UUID (path param 전용, 화면 표시 금지)
+ */
+export async function restoreSlip(id: string): Promise<SlipSummary> {
+  const res = await apiClient.post<ApiEnvelope<SlipSummary>>(
+    `/slips/${encodeURIComponent(id)}/restore`,
+    {},
+  )
+  return res.data.data
 }
 
 /**
@@ -702,6 +731,9 @@ export interface SlipQueryRow {
   destinationWarehouseId: string | null
   /** 낙관적 잠금용 — soft delete / PUT 시 필요. ISO 8601. */
   updatedAt: string
+  isDeleted?: boolean
+  deletedAt?: string | null
+  deletedByName?: string | null
 }
 
 /** 판매/구매 조회 검색 옵션 */

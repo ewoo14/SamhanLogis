@@ -100,7 +100,7 @@ public class CashReceiptCollabController {
         CashReceipt receipt = cashReceiptRepository.findByIdAndIsDeletedFalse(receiptId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "입금보고서를 찾을 수 없습니다"));
-        if (receipt.getStatus() != CashReceiptStatus.DRAFT || receipt.getKind() == CashReceiptKind.BANK_LINKED) {
+        if (receipt.getStatus() != CashReceiptStatus.DRAFT || receipt.getKind() != CashReceiptKind.MANUAL_RECEIPT) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "입금보고서 coedit 은 DRAFT 수기 입금보고서에서만 사용할 수 있습니다");
         }

@@ -11,6 +11,7 @@ import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
+import com.samhanair.logis.partnerorder.realtime.PartnerOrderBoardChangePublisher;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.web.dto.MergeConvertResultResponse;
 import com.samhanair.logis.partnerorder.web.dto.MergeConvertToSlipRequest;
@@ -75,6 +76,7 @@ public class PartnerOrderMergeConvertService {
     private final SlipServiceClient slipServiceClient;
     private final InventoryClient inventoryClient;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
+    private final PartnerOrderBoardChangePublisher boardChangePublisher;
 
     /**
      * 여러 주문의 선택 라인을 단일 출고전표로 병합 발행한다 (Phase 2.6b D2).
@@ -244,10 +246,17 @@ public class PartnerOrderMergeConvertService {
                     order.getLines().stream().allMatch(PartnerOrderLine::isFullyConverted)));
         }
         orderRepository.saveAll(orders);
+        publishListChanged();
 
         log.info("[D2] 병합 전환 완료 — {}개 주문 → slip {} (idemKey={})",
                 orders.size(), result.slipNo(), idempotencyKey);
         return new MergeConvertResultResponse(result.slipNo(), results);
+    }
+
+    private void publishListChanged() {
+        if (boardChangePublisher != null) {
+            boardChangePublisher.publishListChanged("UPDATED");
+        }
     }
 
     private void enforceApprovalLine(UUID actorId) {

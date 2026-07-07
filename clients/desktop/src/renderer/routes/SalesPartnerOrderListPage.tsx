@@ -9,11 +9,12 @@
  */
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
   listPartnerOrders,
+  restorePartnerOrder,
   type PartnerOrderStatus,
   type PartnerOrderSummary,
 } from '../api/sales'
@@ -24,6 +25,15 @@ import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import { MergeConvertDialog } from './components/MergeConvertDialog'
+import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
+import { PartnerOrderBoardRealtimeClient } from '../realtime/PartnerOrderBoardRealtimeClient'
+import {
+  DELETED_ROW_TEXT_STYLE,
+  deletedAtTooltip,
+  deletedBadgeAriaLabel,
+  deletedBadgeLabel,
+} from '../realtime/deletedRowDisplay'
+import { serverErrorMessage } from './dispatch-board/dispatchErrorMessage'
 import styles from '../components/sales/sales.module.css'
 
 const STATUS_CLASS: Record<PartnerOrderStatus, string> = {
@@ -44,6 +54,24 @@ const ymd = (iso: string | null) => (iso ? formatSlipDate(iso) : '-')
  * CONFIRMED/CANCELED/CONVERTED 행은 체크박스 비활성.
  */
 const MERGE_SELECTABLE_STATUS: ReadonlySet<PartnerOrderStatus> = new Set(['DRAFT', 'ON_HOLD'])
+
+// 비삭제 행은 기존 testid 계약(`partner-order-row-{orderNumber}`)을 보존하고, 삭제 행만 composite
+// 접미사를 붙인다(삭제행+동일코드 활성행 공존 시 React key/testid 충돌 방지). 전체 행에 접미사를
+// 붙이면 기존 Playwright 하드게이트 exact-match 가 깨진다(#757 R1 BLOCKING).
+//
+// orderNumber 는 order_no NOT NULL UNIQUE 라 실주문에서 항상 존재하지만, 이론상 누락 행이 유입될 때
+// partnerCode 단독 폴백은 같은 거래처 다건에서 React key/testid 충돌을 낳는다. submittedAt 을
+// disambiguator 로 부가해 리팩터 전 견고성을 유지한다(#757 STEP4 FE MED). 폴백 경로만 영향받으므로
+// 하드게이트(실 orderNumber 행)는 그대로다.
+const partnerOrderRowKey = (o: PartnerOrderSummary) => {
+  const base = o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt ?? 'na'}`
+  return o.isDeleted === true ? `${base}:deleted` : base
+}
+
+function restoreErrorMessage(error: unknown): string {
+  // BE 한국어 사유(ApiEnvelope.message)를 우선 노출. Axios 제네릭(영문) 폴백 방지.
+  return serverErrorMessage(error) ?? '주문 복원에 실패했습니다. 잠시 후 다시 시도하세요.'
+}
 
 
 /**
@@ -73,8 +101,10 @@ export function SalesPartnerOrderListPage() {
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
   /** Phase 2.6b D2: 병합 전환 성공 토스트 메시지 — null 이면 비표시. */
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
 
   const canMergeConvert = canAccess('sales.partner-order.convert', 'create')
+  const canRestoreDeletedOrder = canAccess('sales.partner-order.list', 'restore')
 
   /**
    * P1-3: status 변경 시 기간 필터 초기화 + 컨텍스트 힌트 표시.
@@ -88,6 +118,8 @@ export function SalesPartnerOrderListPage() {
     setDateTo('')
     // 필터 변경 시 선택 초기화
     setSelectedOrderNumbers(new Set())
+    // 복원 실패 배너는 다른 필터로 이동하면 맥락이 사라지므로 함께 소거(#757 STEP4 FE LOW).
+    setRestoreError(null)
   }
 
   const isPreConfirmStatus =
@@ -98,8 +130,8 @@ export function SalesPartnerOrderListPage() {
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 
-  // PR-H4c: list page entity-unbound — 30s polling 으로 SSE invalidate 효과를 흉내
-  // (단건 row SSE 는 SalesPartnerOrderDetailPage 진입 시 활성화).
+  useCollectionRealtime(PartnerOrderBoardRealtimeClient, 'board', [['partner-orders']])
+
   const query = useQuery({
     queryKey: ['partner-orders', dateFrom, dateTo, partnerId, statusFilter, searchKeyword, 0],
     queryFn: () => listPartnerOrders(0, 50, {
@@ -108,9 +140,25 @@ export function SalesPartnerOrderListPage() {
       partnerId: partnerId.trim() || undefined,
       status: statusFilter || undefined,
       searchKeyword: searchKeyword.trim() || undefined,
+      // 내부 관리자 목록 전용 opt-in — E2 취소선/복원 표시용 삭제행 포함(#757 R2 HIGH:
+      // BE 기본값은 활성만이며 파트너 호출은 값과 무관하게 활성 행만 반환).
+      includeDeleted: true,
     }),
     retry: 1,
-    refetchInterval: 30_000,
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: restorePartnerOrder,
+    onSuccess: async (restored) => {
+      setRestoreError(null)
+      await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+      if (restored.orderNumber) {
+        await queryClient.invalidateQueries({ queryKey: ['partner-order', restored.orderNumber] })
+      }
+    },
+    onError: (error) => {
+      setRestoreError(restoreErrorMessage(error))
+    },
   })
 
   /**
@@ -118,7 +166,7 @@ export function SalesPartnerOrderListPage() {
    * 병합 가능 조건: 2건 이상 + 모두 같은 partnerCode.
    */
   const selectedOrders: PartnerOrderSummary[] = (query.data?.content ?? []).filter(
-    (o) => o.orderNumber && selectedOrderNumbers.has(o.orderNumber),
+    (o) => o.orderNumber && o.isDeleted !== true && selectedOrderNumbers.has(o.orderNumber),
   )
 
   const selectedCount = selectedOrders.length
@@ -172,7 +220,25 @@ export function SalesPartnerOrderListPage() {
       key: 'orderNumber',
       header: '주문 번호',
       mobilePriority: 'primary',
-      render: (o) => o.orderNumber,
+      render: (o) => {
+        const deleted = o.isDeleted === true
+        return (
+          <span className={styles['partnerOrderNumberCell']}>
+            <span style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+              {o.orderNumber}
+            </span>
+            {deleted ? (
+              <span
+                className={styles['partnerOrderDeletedBadge']}
+                title={deletedAtTooltip(o.deletedAt)}
+                aria-label={deletedBadgeAriaLabel(o.deletedByName, o.deletedAt)}
+              >
+                {deletedBadgeLabel(o.deletedByName)}
+              </span>
+            ) : null}
+          </span>
+        )
+      },
     },
     ...(canMergeConvert
       ? ([
@@ -185,6 +251,7 @@ export function SalesPartnerOrderListPage() {
             render: (o) => {
               const isSelectable =
                 !!o.orderNumber &&
+                o.isDeleted !== true &&
                 MERGE_SELECTABLE_STATUS.has(o.status as PartnerOrderStatus)
               const isSelected = !!o.orderNumber && selectedOrderNumbers.has(o.orderNumber)
               return (
@@ -208,47 +275,120 @@ export function SalesPartnerOrderListPage() {
           },
         ] as DataTableColumn<PartnerOrderSummary>[])
       : []),
-    { key: 'partnerCode', header: '거래처 코드', mobilePriority: 'secondary' },
+    {
+      key: 'partnerCode',
+      header: '거래처 코드',
+      mobilePriority: 'secondary',
+      render: (o) => (
+        <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {o.partnerCode}
+        </span>
+      ),
+    },
     {
       key: 'partnerName',
       header: '거래처명',
       mobilePriority: 'secondary',
-      render: (o) => o.partnerName ?? o.partnerCode,
+      render: (o) => (
+        <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {o.partnerName ?? o.partnerCode}
+        </span>
+      ),
     },
     {
       key: 'submittedAt',
       header: '발송일',
       mobilePriority: 'secondary',
-      render: (o) => ymd(o.submittedAt),
+      render: (o) => (
+        <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {ymd(o.submittedAt)}
+        </span>
+      ),
     },
     {
       key: 'totalAmount',
       header: '합계',
       align: 'right',
       mobilePriority: 'secondary',
-      render: (o) => `${krw(o.totalAmount)}원`,
+      render: (o) => (
+        <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {krw(o.totalAmount)}원
+        </span>
+      ),
     },
     {
       key: 'status',
       header: '상태',
       mobilePriority: 'secondary',
-      render: (o) => (
-        <span className={`${styles['statusBadge']} ${STATUS_CLASS[o.status]}`}>
-          {PARTNER_ORDER_STATUS_LABEL[o.status]}
-        </span>
-      ),
+      render: (o) => {
+        const deleted = o.isDeleted === true
+        // 삭제행 배지는 원래 의미색(예: 완료=초록)을 유지하면 "삭제됐는데 정상 완료" 혼합
+        // 신호가 되므로 중립색으로 통일한다(#757 R2 Design F-1). 상태 텍스트는 보존.
+        return (
+          <span
+            className={`${styles['statusBadge']} ${deleted ? styles['statusDeletedNeutral'] : STATUS_CLASS[o.status]}`}
+            style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
+          >
+            {PARTNER_ORDER_STATUS_LABEL[o.status]}
+          </span>
+        )
+      },
     },
     {
       key: 'linkedSlipNo',
       header: '연결 전표',
       mobilePriority: 'hidden',
-      render: (o) => o.linkedSlipNo ?? '-',
+      render: (o) => (
+        <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {o.linkedSlipNo ?? '-'}
+        </span>
+      ),
     },
+    ...(canRestoreDeletedOrder
+      ? ([
+          {
+            key: 'restore',
+            header: '복원',
+            align: 'center',
+            mobilePriority: 'secondary',
+            render: (o) => {
+              // 삭제행에만 복원 버튼 노출. 복원 권한(RESTORE)이 없는 사용자에게는 컬럼 자체를
+              // 생략한다(mergeSelect 컬럼과 동일 관례로 빈 헤더 잔존 방지, #757 STEP4 FE LOW).
+              // BE @RequirePermission(RESTORE) 이중 방어는 유지된다.
+              if (o.isDeleted !== true) {
+                return null
+              }
+              const key = partnerOrderRowKey(o)
+              return (
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    data-testid={`partner-order-restore-${key}`}
+                    disabled={!o.orderNumber || restoreMutation.isPending}
+                    onClick={() => {
+                      if (!o.orderNumber) return
+                      setRestoreError(null)
+                      restoreMutation.mutate(o.orderNumber)
+                    }}
+                  >
+                    복원
+                  </Button>
+                </span>
+              )
+            },
+          },
+        ] as DataTableColumn<PartnerOrderSummary>[])
+      : []),
   ]
 
   const handleRowClick = (o: PartnerOrderSummary) => {
     if (!o.orderNumber) {
       console.warn('[SalesPartnerOrderListPage] orderNumber 누락 row 무시', o)
+      return
+    }
+    if (o.isDeleted === true) {
       return
     }
     navigate(`/sales/partner-orders/${encodeURIComponent(toOrderPathId(o.orderNumber))}`)
@@ -280,9 +420,35 @@ export function SalesPartnerOrderListPage() {
         </div>
         {/* PR-H4c FE-A: list 화면 audit 안내 — 상세 변경 이력은 row 클릭 후 상세에서 확인 */}
         <AuditInfoBanner
-          message="주문 row 를 클릭하면 상세 화면에서 변경 이력 (수정 횟수 / 복원) 을 확인할 수 있습니다. 본 목록은 30초마다 자동 갱신됩니다."
+          message="주문 row 를 클릭하면 상세 화면에서 변경 이력 (수정 횟수 / 복원) 을 확인할 수 있습니다. 본 목록은 주문 변경 시 자동 갱신됩니다."
           testId="partner-order-list-audit-info-banner"
         />
+        {restoreError ? (
+          <div
+            role="alert"
+            data-testid="partner-order-restore-error"
+            className={styles['partnerOrderRestoreError']}
+          >
+            {restoreError}
+            <button
+              type="button"
+              aria-label="복원 오류 알림 닫기"
+              data-testid="partner-order-restore-error-dismiss"
+              onClick={() => setRestoreError(null)}
+              style={{
+                marginLeft: 8,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 16,
+                lineHeight: 1,
+                color: 'inherit',
+              }}
+            >
+              &times;
+            </button>
+          </div>
+        ) : null}
         {/* Phase 2.6b D2: 병합 전환 성공 토스트 */}
         {convertSuccessMessage ? (
           <div
@@ -418,10 +584,14 @@ export function SalesPartnerOrderListPage() {
           <DataTable
             columns={columns}
             rows={query.data?.content ?? []}
-            rowKey={(o) => o.orderNumber ?? `row-${o.partnerCode}-${o.submittedAt}`}
-            rowTestId={(o) => (o.orderNumber ? `partner-order-row-${o.orderNumber}` : undefined)}
-            rowClassName={(o) => (!o.orderNumber ? styles['partnerOrderRowDisabled'] : undefined)}
+            rowKey={partnerOrderRowKey}
+            rowTestId={(o) => `partner-order-row-${partnerOrderRowKey(o)}`}
+            rowClassName={(o) => {
+              if (o.isDeleted === true) return styles['partnerOrderRowDeleted']
+              return !o.orderNumber ? styles['partnerOrderRowDisabled'] : undefined
+            }}
             onRowClick={handleRowClick}
+            rowClickable={(o) => o.isDeleted !== true && !!o.orderNumber}
             emptyMessage="등록된 주문이 없습니다"
           />
         )}

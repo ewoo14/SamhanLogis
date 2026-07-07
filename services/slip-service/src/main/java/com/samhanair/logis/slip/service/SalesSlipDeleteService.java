@@ -4,12 +4,15 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.audit.service.SlipAuditLogService;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.realtime.SlipListRealtime;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.web.dto.SlipDeleteRequest;
+import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import jakarta.persistence.OptimisticLockException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -36,6 +39,7 @@ public class SalesSlipDeleteService {
 
     private final SlipRepository slipRepository;
     private final SlipAuditLogService auditLogService;
+    private final CollectionRealtimePublisher collectionRealtimePublisher;
 
     /**
      * 매출 전표를 soft delete 처리한다.
@@ -66,11 +70,12 @@ public class SalesSlipDeleteService {
 
         String before = summarize(slip);
         try {
-            slip.deleteForSales(actorId.toString());
+            slip.deleteForSales(actorId.toString(), actorName);
             Slip saved = slipRepository.saveAndFlush(slip);
             String after = "deleted=true|deletedAt=" + saved.getDeletedAt();
             auditLogService.recordBatch(saved.getId(), actorId, actorName, null,
                     List.of(new SlipAuditLogService.ChangeEntry("SLIP_DELETE", before, after)));
+            publishListChanged("DELETED");
         } catch (OptimisticLockException | OptimisticLockingFailureException ex) {
             throw optimisticLockConflict();
         }
@@ -136,5 +141,12 @@ public class SalesSlipDeleteService {
         return new BusinessException(
                 ErrorCode.SLIP_OPTIMISTIC_LOCK_CONFLICT,
                 ErrorCode.SLIP_OPTIMISTIC_LOCK_CONFLICT.getDefaultMessage());
+    }
+
+    private void publishListChanged(String changeType) {
+        collectionRealtimePublisher.publishChange(
+                SlipListRealtime.CHANNEL_ID,
+                SlipListRealtime.EVENT_CHANGED,
+                Map.of("changeType", changeType));
     }
 }

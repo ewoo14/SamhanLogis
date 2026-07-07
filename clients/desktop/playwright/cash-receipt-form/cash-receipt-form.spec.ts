@@ -79,7 +79,8 @@ test.describe('입금보고서 작성폼 + 상세/편집 (E3 S4b)', () => {
   test('BANK_LINKED: 상세 편집 비활성 + 직접 edit 진입 read-only', async ({ page }) => {
     await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts/${BANK_LINKED_ID}?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
 
-    await expect(page.getByText('통장연계')).toBeVisible()
+    // exact: true — 상세 aria-describedby 사유 span("통장연계 입금보고서는 수정할 수 없습니다…")과의 strict-mode 2중 매칭 회피(Kind 배지만 매칭).
+    await expect(page.getByText('통장연계', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '편집 불가' })).toBeDisabled()
     await expect(page.getByRole('button', { name: /^편집$/ })).toHaveCount(0)
 

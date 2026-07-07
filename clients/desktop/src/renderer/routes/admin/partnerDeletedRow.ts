@@ -2,7 +2,6 @@
  * 거래처 삭제행(취소선) 공용 표시/파생 유틸 — E2.
  */
 import type { CSSProperties } from 'react'
-import type { PartnerSummary } from '../../api/adminApi'
 
 /** 삭제행 텍스트 스타일 — 배차 취소선 표시와 동일 톤. */
 export const PARTNER_DELETED_ROW_TEXT_STYLE: CSSProperties = {
@@ -32,9 +31,4 @@ export function deletedBadgeAriaLabel(
   const label = deletedBadgeLabel(deletedByName)
   const tooltip = deletedAtTooltip(deletedAt)
   return tooltip ? `${label} · ${tooltip}` : label
-}
-
-/** 활성(비삭제) 거래처 목록 파생값. */
-export function activePartnerRows(rows: PartnerSummary[]): PartnerSummary[] {
-  return rows.filter((row) => row.isDeleted !== true)
 }

@@ -457,6 +457,13 @@
   background: var(--state-neutral-bg, #f3f4f6);
   color: var(--state-neutral, #4b5563);
 }
+/* 삭제행 상태 배지 — 원래 의미색(완료=초록 등)을 드롭하고 중립 배경으로 통일(#757 R2 Design F-1).
+   텍스트 색/취소선은 DELETED_ROW_TEXT_STYLE(neutral-600)이 인라인으로 적용되어(인라인 우선) 이
+   클래스는 배경만 담당한다. color 선언은 항상 인라인에 가려지는 dead declaration 이라 제거함
+   (#757 STEP4 Design MED). */
+.statusDeletedNeutral {
+  background: var(--color-neutral-100, #f3f4f6);
+}
 .statusOnHold {
   /* 보류(ON_HOLD) — warning 토큰 참조 (주황 계열, 주의 표시). */
   background: var(--state-warning-bg, #fef3c7);
@@ -1122,4 +1129,42 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 주문 목록 삭제행 — 텍스트 취소선은 TS 공통 토큰에서 적용, row 배경만 보조 표시. */
+.partnerOrderRowDeleted {
+  background: var(--color-neutral-50, #f9fafb);
+  /* 삭제행은 행 클릭이 no-op 이므로 클릭 어포던스 제거(DataTable 은 테이블 단위 cursor:pointer 부여). */
+  cursor: default;
+}
+
+.partnerOrderNumberCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.partnerOrderDeletedBadge {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-neutral-300, #d1d5db);
+  background: var(--color-neutral-100, #f3f4f6);
+  color: var(--color-neutral-700, #374151);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.partnerOrderRestoreError {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-danger-200, #fecaca);
+  border-radius: 6px;
+  background: var(--color-danger-50, #fff1f1);
+  color: var(--color-danger-700, #991b1b);
+  font-size: 13px;
+  font-weight: 600;
 }

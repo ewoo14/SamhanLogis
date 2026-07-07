@@ -374,6 +374,9 @@ services:
       <<: *spring-env
       SERVER_PORT: "8091"
       DB_NAME: partner_auth_db
+      # 게이트웨이/auth-service 와 동일 시크릿 필수 — 누락 시 파트너 JWT 가 yml fallback 으로
+      # 서명되어 게이트웨이 검증 401(파트너 셀프서비스 E2E 불가 — #757 파트너 QA 에서 실측).
+      SAMHAN_JWT_SECRET: dev-only-secret-must-be-64-chars-or-longer-for-hmac-sha256-min-x
     ports:
       - "127.0.0.1:8091:8091"
     depends_on: *service-depends

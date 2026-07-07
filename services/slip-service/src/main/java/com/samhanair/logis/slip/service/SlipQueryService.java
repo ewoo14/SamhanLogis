@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -116,12 +117,29 @@ public class SlipQueryService {
         LocalDate resolvedFrom = (dateFrom != null) ? dateFrom : today.minusDays(DEFAULT_DATE_RANGE_DAYS);
         LocalDate resolvedTo = (dateTo != null) ? dateTo : today.plusDays(DEFAULT_DATE_RANGE_DAYS);
 
-        Specification<Slip> spec = buildQuerySpec(
-                slipType, status, resolvedFrom, resolvedTo, deliveryTags,
-                searchPartnerName, searchPartnerCode, searchBusinessNumber,
-                searchSlipNo, searchProjectName, searchDeliveryAddress);
+        List<String> deliveryTagNames = deliveryTags == null || deliveryTags.isEmpty()
+                ? List.of("__NO_DELIVERY_TAG_FILTER__")
+                : deliveryTags.stream().map(DeliveryTag::name).toList();
+        boolean deliveryTagsEmpty = deliveryTags == null || deliveryTags.isEmpty();
 
-        return slipRepository.findAll(spec, pageable).map(SlipResponse::from);
+        Pageable nativePageable = pageable == null || pageable.isUnpaged()
+                ? Pageable.unpaged()
+                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.unsorted());
+        return slipRepository.searchIncludingDeleted(
+                        slipType == null ? null : slipType.name(),
+                        status == null ? null : status.name(),
+                        resolvedFrom,
+                        resolvedTo,
+                        deliveryTagNames,
+                        deliveryTagsEmpty,
+                        normalize(searchPartnerName),
+                        normalize(searchPartnerCode),
+                        normalize(searchBusinessNumber),
+                        normalize(searchSlipNo),
+                        normalize(searchProjectName),
+                        normalize(searchDeliveryAddress),
+                        nativePageable)
+                .map(SlipResponse::from);
     }
 
     /**
@@ -220,5 +238,9 @@ public class SlipQueryService {
 
     private static boolean isNotBlank(String s) {
         return s != null && !s.isBlank();
+    }
+
+    private static String normalize(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 }
