@@ -3,6 +3,8 @@ package com.samhanair.logis.slip.domain.dispatch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -71,12 +73,17 @@ class DispatchVehicleGroupTest {
 
     @Test
     void resetToPending_rejects_non_dispatched_group() {
+        // #725 — 과거 IllegalStateException(500 마스킹) → BusinessException(CONFLICT, 409) 승격.
         DispatchVehicleGroup g = DispatchVehicleGroup.create(
                 UUID.randomUUID(), 1, DispatchVehicleBodyType.CARGO, DispatchTonnage.T_1);
 
         assertThatThrownBy(g::resetToPending)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("DISPATCHED 만 PENDING");
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT))
+                .hasMessageContaining("발송완료")
+                .hasMessageNotContaining("DISPATCHED")
+                .hasMessageNotContaining("PENDING");
     }
 
     @Test

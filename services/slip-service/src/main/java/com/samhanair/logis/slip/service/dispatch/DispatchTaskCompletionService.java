@@ -116,12 +116,10 @@ public class DispatchTaskCompletionService {
         log.info("[DispatchTaskCompletionService] arologis 발송 완료 — taskCode={} arologisDispatchId={}",
                 task.getTaskCode(), response != null ? response.arologisDispatchId() : null);
         if (response != null) {
-            try {
-                task.recordPendingArologisDispatchId(response.arologisDispatchId());
-                taskRepo.save(task);
-            } catch (IllegalStateException ex) {
-                throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-            }
+            // recordPendingArologisDispatchId() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접
+            // 던진다 (#725) — 여기서 IllegalStateException 을 잡아 변환할 필요가 없다.
+            task.recordPendingArologisDispatchId(response.arologisDispatchId());
+            taskRepo.save(task);
         }
 
         // 대상 그룹 + 매핑된 slip 만 발송 상태로 전이한다.

@@ -39,16 +39,34 @@ package com.samhanair.logis.slip.domain.dispatch;
  * </ul>
  */
 public enum DispatchTaskStatus {
-    DRAFT,
-    DISPATCHING,
-    DISPATCHED,
-    FAILED,
+    DRAFT("작성 중"),
+    DISPATCHING("발송 완료, 매칭 대기"),
+    DISPATCHED("배차 완료"),
+    FAILED("배차 불가"),
     // ---- Phase C 신규 (D-DC-03) ----
-    MODIFICATION_REQUESTED,
-    MODIFICATION_ACCEPTED,
-    MODIFICATION_REJECTED,
-    CANCEL_REQUESTED,
-    CANCEL_ACCEPTED,
-    CANCEL_REJECTED,
-    CANCELLED
+    MODIFICATION_REQUESTED("수정 요청 중"),
+    MODIFICATION_ACCEPTED("수정 수락됨"),
+    MODIFICATION_REJECTED("수정 거부됨"),
+    CANCEL_REQUESTED("취소 요청 중"),
+    CANCEL_ACCEPTED("취소 수락됨"),
+    CANCEL_REJECTED("취소 거부됨"),
+    CANCELLED("배차 취소 완료");
+
+    private final String displayName;
+
+    DispatchTaskStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /**
+     * 사용자 노출 메시지/배지에 사용하는 한국어 상태 라벨.
+     *
+     * <p>desktop {@code DISPATCH_TASK_STATUS_LABEL} (clients/desktop/src/renderer/api/dispatchTask.ts)
+     * 과 동일한 문구를 SSOT 로 사용한다 (#725 — IllegalState 상태전이 메시지 sweep).
+     *
+     * @return 한국어 상태 표시명
+     */
+    public String getDisplayName() {
+        return displayName;
+    }
 }

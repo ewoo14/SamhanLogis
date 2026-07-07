@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.domain.dispatch;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -119,11 +121,18 @@ public class DispatchVehicleGroup extends BaseEntity {
         this.dispatchStatus = DispatchVehicleGroupDispatchStatus.DISPATCHED;
     }
 
-    /** 재배차 편집 진입을 위해 발송 완료 그룹을 미발송 상태로 되돌린다. */
+    /**
+     * 재배차 편집 진입을 위해 발송 완료 그룹을 미발송 상태로 되돌린다.
+     *
+     * <p>과거 {@link IllegalStateException} 로 던져 GlobalExceptionHandler 의 catch-all(500)에
+     * 걸려 사유가 마스킹되는 결함이 있었다 — {@link BusinessException}(CONFLICT) 승격으로
+     * 409 + 실제 한국어 사유가 응답되도록 수정한다 (#725).
+     */
     public void resetToPending() {
         if (this.dispatchStatus != DispatchVehicleGroupDispatchStatus.DISPATCHED) {
-            throw new IllegalStateException(
-                    "DISPATCHED 만 PENDING 으로 되돌릴 수 있습니다 — 현재=" + this.dispatchStatus);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "차량 그룹 재배차 재설정은 " + DispatchVehicleGroupDispatchStatus.DISPATCHED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.dispatchStatus.getDisplayName() + ")");
         }
         this.dispatchStatus = DispatchVehicleGroupDispatchStatus.PENDING;
     }

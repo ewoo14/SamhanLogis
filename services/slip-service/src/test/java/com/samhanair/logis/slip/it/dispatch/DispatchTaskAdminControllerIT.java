@@ -194,6 +194,47 @@ class DispatchTaskAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(status().is4xxClientError());
     }
 
+    /**
+     * #725 — 상태전이 위반이 {@link IllegalStateException} 500 마스킹이 아닌 409 CONFLICT +
+     * 한국어 메시지(원어 enum 미노출)로 응답되는지 검증한다.
+     *
+     * <p>dispatch() 직후 task 는 DISPATCHED 가 아닌 DISPATCHING(matching 대기) 상태다 — 이 상태에서
+     * [취소 요청]을 호출하면 {@code DispatchTask.markCancelRequested()} 가드가 걸린다. 과거에는
+     * {@link IllegalStateException} 이 GlobalExceptionHandler catch-all 에 걸려 500 "서버 내부 오류"
+     * 로 마스킹되었다.
+     */
+    @Test
+    void POST_cancellation_request_before_DISPATCHED_returns_409_with_korean_message() throws Exception {
+        UUID arologisId = UUID.randomUUID();
+        Mockito.when(arologisDispatchClient.send(ArgumentMatchers.any()))
+                .thenReturn(new ArologisDispatchResponse(
+                        arologisId, UUID.randomUUID(), Instant.now(), Instant.now()));
+
+        UUID taskId = createTask("2026-05-26");
+        addGroup(taskId, "TONNAGE_1");
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISPATCHING"));
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/cancellation-request", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("reason", "테스트 취소"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("배차 완료")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("발송 완료, 매칭 대기")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("DISPATCHED"))))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("DISPATCHING"))));
+    }
+
     @Test
     void POST_dispatch_with_group_calls_arologis() throws Exception {
         // arologis mock 응답 설정

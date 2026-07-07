@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.it.dispatch;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -70,6 +71,59 @@ class DispatchTaskInternalControllerIT extends AbstractPostgresIT {
     void setUpUserInternalClient() {
         Mockito.lenient().when(userInternalClient.resolveFullName(ArgumentMatchers.any()))
                 .thenReturn(java.util.Optional.of("담당자"));
+    }
+
+    /**
+     * #725 — arologis 회신 receive endpoint 도 상태전이 위반 시 {@link IllegalStateException} 500
+     * 마스킹이 아닌 409 CONFLICT + 한국어 메시지(원어 enum 미노출)로 응답해야 한다.
+     *
+     * <p>dispatch() 직후 task 는 MODIFICATION_REQUESTED 가 아닌 DISPATCHING 상태다 — 이 상태에서
+     * arologis 가 [수정 수락] 회신을 보내면 {@code DispatchTask.markModificationAccepted()} 가드가
+     * 걸린다.
+     */
+    @Test
+    void modification_accepted_before_MODIFICATION_REQUESTED_returns_409_with_korean_message() throws Exception {
+        UUID arologisId = UUID.randomUUID();
+        Mockito.when(arologisDispatchClient.send(ArgumentMatchers.any()))
+                .thenReturn(new ArologisDispatchResponse(
+                        arologisId, UUID.randomUUID(), Instant.now(), Instant.now()));
+
+        String taskRes = mvc.perform(post("/admin/dispatch-tasks")
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("dispatchDate", "2026-05-27"))))
+                .andReturn().getResponse().getContentAsString();
+        UUID taskId = UUID.fromString((String) dataMap(taskRes).get("id"));
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/vehicle-groups", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "vehicleBodyType", "CARGO",
+                                "tonnage", "T_1"))));
+
+        mvc.perform(post("/admin/dispatch-tasks/{taskId}/dispatch", taskId)
+                        .header(USER_ID_HEADER, MASTER_ACCOUNT_ID)
+                        .header(USER_ROLE_HEADER, "MASTER"))
+                .andExpect(status().isOk());
+
+        Map<String, Object> acceptedBody = Map.of("arologisDispatchId", arologisId.toString());
+
+        mvc.perform(post("/internal/slip/dispatch-tasks/{taskId}/modification-accepted", taskId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(acceptedBody)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("수정 수락")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("수정 요청 중")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("MODIFICATION_REQUESTED"))))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("DISPATCHING"))));
     }
 
     @Test

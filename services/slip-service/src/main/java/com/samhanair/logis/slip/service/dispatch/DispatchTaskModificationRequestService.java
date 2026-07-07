@@ -59,11 +59,8 @@ public class DispatchTaskModificationRequestService {
                     "arologisDispatchId 가 없어 수정 요청 발송 불가 — taskCode=" + task.getTaskCode());
         }
 
-        try {
-            task.markModificationRequested(reason);
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-        }
+        // markModificationRequested() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접 던진다 (#725).
+        task.markModificationRequested(reason);
         taskRepo.save(task);
 
         arologisClient.requestModification(task.getArologisDispatchId(),

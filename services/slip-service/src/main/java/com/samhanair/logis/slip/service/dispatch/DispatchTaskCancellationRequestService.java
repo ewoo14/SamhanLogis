@@ -56,11 +56,8 @@ public class DispatchTaskCancellationRequestService {
                     "arologisDispatchId 가 없어 취소 요청 발송 불가 — taskCode=" + task.getTaskCode());
         }
 
-        try {
-            task.markCancelRequested(reason);
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-        }
+        // markCancelRequested() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접 던진다 (#725).
+        task.markCancelRequested(reason);
         taskRepo.save(task);
 
         arologisClient.requestCancellation(task.getArologisDispatchId(),

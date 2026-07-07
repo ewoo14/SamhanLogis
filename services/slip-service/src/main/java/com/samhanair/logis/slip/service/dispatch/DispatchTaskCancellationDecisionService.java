@@ -55,11 +55,8 @@ public class DispatchTaskCancellationDecisionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + taskId));
 
-        try {
-            task.markCancelAccepted();
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-        }
+        // markCancelAccepted() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접 던진다 (#725).
+        task.markCancelAccepted();
         taskRepo.save(task);
 
         cascadeUndispatch(task);
@@ -88,11 +85,8 @@ public class DispatchTaskCancellationDecisionService {
         DispatchTask task = taskRepo.findById(taskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + taskId));
-        try {
-            task.markCancelRejected(rejectionReason);
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-        }
+        // markCancelRejected() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접 던진다 (#725).
+        task.markCancelRejected(rejectionReason);
         taskRepo.save(task);
 
         try {

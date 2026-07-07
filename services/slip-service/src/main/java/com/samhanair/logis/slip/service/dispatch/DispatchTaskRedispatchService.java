@@ -51,11 +51,8 @@ public class DispatchTaskRedispatchService {
                         "DispatchTask 가 존재하지 않습니다: " + taskId));
         UUID previousArologisDispatchId = task.getArologisDispatchId();
 
-        try {
-            task.markBackToDraftForRedispatch();
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-        }
+        // markBackToDraftForRedispatch() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접 던진다 (#725).
+        task.markBackToDraftForRedispatch();
         taskRepo.save(task);
 
         List<DispatchVehicleGroup> groups =

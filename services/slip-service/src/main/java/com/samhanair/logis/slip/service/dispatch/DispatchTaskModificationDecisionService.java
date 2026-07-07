@@ -39,11 +39,8 @@ public class DispatchTaskModificationDecisionService {
         DispatchTask task = taskRepo.findById(taskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + taskId));
-        try {
-            task.markModificationAccepted();
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-        }
+        // markModificationAccepted() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접 던진다 (#725).
+        task.markModificationAccepted();
         taskRepo.save(task);
 
         try {
@@ -67,11 +64,8 @@ public class DispatchTaskModificationDecisionService {
         DispatchTask task = taskRepo.findById(taskId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "DispatchTask 가 존재하지 않습니다: " + taskId));
-        try {
-            task.markModificationRejected(rejectionReason);
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
-        }
+        // markModificationRejected() 는 상태 위반 시 BusinessException(CONFLICT) 을 직접 던진다 (#725).
+        task.markModificationRejected(rejectionReason);
         taskRepo.save(task);
 
         try {

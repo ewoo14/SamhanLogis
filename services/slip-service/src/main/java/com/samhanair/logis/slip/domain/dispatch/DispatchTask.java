@@ -33,6 +33,13 @@ import org.hibernate.annotations.UuidGenerator;
  * <p>Phase C (수정/취소 흐름, D-DC-01~09) — DISPATCHED 상태에서 수정/취소 요청 → 아로로지스 수락/거부 →
  * 재 dispatch 또는 취소. 4 신규 column ({@code modificationReason} / {@code rejectionReason} /
  * {@code modificationRequestedAt} / {@code modificationDecidedAt}).
+ *
+ * <p><b>상태전이 가드 예외 정책 (#725)</b>: 모든 {@code mark*()} 상태전이 가드는
+ * {@link IllegalStateException} 이 아닌 {@link BusinessException}({@link ErrorCode#CONFLICT}) 을
+ * 던진다. 과거 {@link IllegalStateException} 은 slip-service {@code GlobalExceptionHandler} 의
+ * catch-all 에 걸려 409 대신 500 "서버 내부 오류" 로 마스킹되고 실제 사유가 유실되는 결함이 있었다.
+ * 메시지는 {@link DispatchTaskStatus#getDisplayName()} 한국어 라벨만 사용한다 (enum 원어 노출 금지,
+ * [feedback_uuid_no_user_visibility] 와 별개로 #721/#724 에서 확립된 정책).
  */
 @Entity
 @Getter
@@ -110,7 +117,9 @@ public class DispatchTask extends BaseEntity {
     /** DRAFT → DISPATCHING (배차 완료 trigger). */
     public void markDispatching() {
         if (this.status != DispatchTaskStatus.DRAFT) {
-            throw new IllegalStateException("DRAFT 만 DISPATCHING 으로 전이 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 완료 처리는 " + DispatchTaskStatus.DRAFT.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.DISPATCHING;
     }
@@ -118,7 +127,9 @@ public class DispatchTask extends BaseEntity {
     /** DISPATCHING → DISPATCHED (arologis confirm 회신). */
     public void markDispatched(UUID arologisDispatchId) {
         if (this.status != DispatchTaskStatus.DISPATCHING) {
-            throw new IllegalStateException("DISPATCHING 만 DISPATCHED 로 전이 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 매칭 확정은 " + DispatchTaskStatus.DISPATCHING.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.DISPATCHED;
         this.arologisDispatchId = arologisDispatchId;
@@ -135,8 +146,10 @@ public class DispatchTask extends BaseEntity {
             return;
         }
         if (this.status != DispatchTaskStatus.DRAFT && this.status != DispatchTaskStatus.DISPATCHING) {
-            throw new IllegalStateException(
-                    "발송 대기/진행 중인 작업만 arologisDispatchId 기록 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "아로로지스 발송ID 기록은 " + DispatchTaskStatus.DRAFT.getDisplayName() + "/"
+                            + DispatchTaskStatus.DISPATCHING.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.arologisDispatchId = arologisDispatchId;
     }
@@ -144,7 +157,9 @@ public class DispatchTask extends BaseEntity {
     /** DISPATCHING → FAILED (arologis unavailable 회신). */
     public void markFailed(String reason) {
         if (this.status != DispatchTaskStatus.DISPATCHING) {
-            throw new IllegalStateException("DISPATCHING 만 FAILED 로 전이 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 매칭 불가 처리는 " + DispatchTaskStatus.DISPATCHING.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.FAILED;
         this.failureReason = reason;
@@ -159,8 +174,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markModificationRequested(String reason) {
         if (this.status != DispatchTaskStatus.DISPATCHED) {
-            throw new IllegalStateException(
-                    "MODIFICATION_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 수정 요청은 " + DispatchTaskStatus.DISPATCHED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.MODIFICATION_REQUESTED;
         this.modificationReason = reason;
@@ -173,8 +189,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markModificationAccepted() {
         if (this.status != DispatchTaskStatus.MODIFICATION_REQUESTED) {
-            throw new IllegalStateException(
-                    "MODIFICATION_ACCEPTED 는 MODIFICATION_REQUESTED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 수정 수락 처리는 " + DispatchTaskStatus.MODIFICATION_REQUESTED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.MODIFICATION_ACCEPTED;
         this.modificationDecidedAt = LocalDateTime.now();
@@ -187,8 +204,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markModificationRejected(String rejectionReason) {
         if (this.status != DispatchTaskStatus.MODIFICATION_REQUESTED) {
-            throw new IllegalStateException(
-                    "MODIFICATION_REJECTED 는 MODIFICATION_REQUESTED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 수정 거부 처리는 " + DispatchTaskStatus.MODIFICATION_REQUESTED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.MODIFICATION_REJECTED;
         this.rejectionReason = rejectionReason;
@@ -202,8 +220,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markCancelRequested(String reason) {
         if (this.status != DispatchTaskStatus.DISPATCHED) {
-            throw new IllegalStateException(
-                    "CANCEL_REQUESTED 는 DISPATCHED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 취소 요청은 " + DispatchTaskStatus.DISPATCHED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.CANCEL_REQUESTED;
         this.modificationReason = reason;
@@ -216,8 +235,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markCancelAccepted() {
         if (this.status != DispatchTaskStatus.CANCEL_REQUESTED) {
-            throw new IllegalStateException(
-                    "CANCEL_ACCEPTED 는 CANCEL_REQUESTED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 취소 수락 처리는 " + DispatchTaskStatus.CANCEL_REQUESTED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.CANCEL_ACCEPTED;
         this.modificationDecidedAt = LocalDateTime.now();
@@ -230,8 +250,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markCancelRejected(String rejectionReason) {
         if (this.status != DispatchTaskStatus.CANCEL_REQUESTED) {
-            throw new IllegalStateException(
-                    "CANCEL_REJECTED 는 CANCEL_REQUESTED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 취소 거부 처리는 " + DispatchTaskStatus.CANCEL_REQUESTED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.CANCEL_REJECTED;
         this.rejectionReason = rejectionReason;
@@ -244,8 +265,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markCancelled() {
         if (this.status != DispatchTaskStatus.CANCEL_ACCEPTED) {
-            throw new IllegalStateException(
-                    "CANCELLED 는 CANCEL_ACCEPTED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "배차 취소 완료 처리는 " + DispatchTaskStatus.CANCEL_ACCEPTED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.CANCELLED;
     }
@@ -257,8 +279,9 @@ public class DispatchTask extends BaseEntity {
      */
     public void markBackToDraftForRedispatch() {
         if (this.status != DispatchTaskStatus.MODIFICATION_ACCEPTED) {
-            throw new IllegalStateException(
-                    "DRAFT 재 진입은 MODIFICATION_ACCEPTED 에서만 가능 — 현재=" + this.status);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "재배차 시작은 " + DispatchTaskStatus.MODIFICATION_ACCEPTED.getDisplayName()
+                            + " 상태에서만 가능합니다 (현재: " + this.status.getDisplayName() + ")");
         }
         this.status = DispatchTaskStatus.DRAFT;
         // arologisDispatchId 는 새 dispatch 발송 후 markDispatched() 에서 재 설정.
@@ -274,7 +297,7 @@ public class DispatchTask extends BaseEntity {
     public void guardCollabModifiable() {
         if (COLLAB_LOCKED_STATUSES.contains(this.status)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "배차 협업 수정완료가 불가능한 상태입니다: " + this.status);
+                    "배차 협업 수정완료가 불가능한 상태입니다 (현재: " + this.status.getDisplayName() + ")");
         }
     }
 
