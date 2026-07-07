@@ -163,6 +163,18 @@ export function PartnersPage() {
       ),
   })
 
+  // partnerCode 재사용으로 동일 코드에 삭제행이 2건 이상이면, 복원 요청은 partnerCode 만으로 특정 행을
+  // 지목할 수 없어 BE 가 "가장 최근 삭제행"(ORDER BY deleted_at DESC LIMIT 1)을 복원 → 사용자가 클릭한
+  // 행과 다른 거래처가 조용히 복원되는 오복원 위험. 그 코드의 복원 버튼을 비활성화해 원천 차단한다
+  // (개별 복원은 후속 deletedAt 기반 restore API 로 확장 예정 — dev-report 백로그).
+  const deletedCountByCode = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of query.data?.items ?? []) {
+      if (p.isDeleted) counts[p.partnerCode] = (counts[p.partnerCode] ?? 0) + 1
+    }
+    return counts
+  }, [query.data])
+
   const totalPages = query.data
     ? Math.max(1, Math.ceil(query.data.total / query.data.size))
     : 1
@@ -188,7 +200,14 @@ export function PartnersPage() {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, maxWidth: '100%', minWidth: 0 }}>
           <span
             data-testid={`admin-partners-row-${p.partnerCode}`}
-            style={p.isDeleted ? PARTNER_DELETED_ROW_TEXT_STYLE : undefined}
+            style={{
+              flex: '1 1 auto',
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              ...(p.isDeleted ? PARTNER_DELETED_ROW_TEXT_STYLE : {}),
+            }}
           >
             {p.name}
           </span>
@@ -199,6 +218,7 @@ export function PartnersPage() {
               aria-label={deletedBadgeAriaLabel(p.deletedByName, p.deletedAt)}
               data-testid={`admin-partners-row-${p.partnerCode}-deleted-badge`}
               style={{
+                flexShrink: 0,
                 maxWidth: 160,
                 minWidth: 0,
                 overflow: 'hidden',
@@ -260,13 +280,17 @@ export function PartnersPage() {
       mobilePriority: 'secondary',
       render: (p) => {
         if (p.isDeleted && canRestore) {
+          const ambiguousRestore = (deletedCountByCode[p.partnerCode] ?? 0) >= 2
           return (
             <Button
               type="button"
               variant="secondary"
               size="sm"
               loading={restoreMutation.isPending && restoreMutation.variables === p.partnerCode}
-              disabled={restoreMutation.isPending}
+              disabled={restoreMutation.isPending || deleteMutation.isPending || ambiguousRestore}
+              title={ambiguousRestore
+                ? '동일 거래처 코드에 삭제 기록이 여러 건이라 개별 복원이 불가합니다. 관리자에게 문의하세요.'
+                : undefined}
               onClick={(event) => {
                 event.stopPropagation()
                 restoreMutation.mutate(p.partnerCode)
@@ -285,7 +309,7 @@ export function PartnersPage() {
               variant="danger"
               size="sm"
               loading={deleteMutation.isPending && deleteMutation.variables === p.partnerCode}
-              disabled={deleteMutation.isPending}
+              disabled={deleteMutation.isPending || restoreMutation.isPending}
               onClick={(event) => {
                 event.stopPropagation()
                 if (!window.confirm(`${p.name} 거래처를 삭제하시겠습니까?`)) return
@@ -318,7 +342,7 @@ export function PartnersPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
             data-testid="admin-partners-realtime-indicator"
-            style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}
+            style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}
           >
             실시간 자동 갱신
           </span>

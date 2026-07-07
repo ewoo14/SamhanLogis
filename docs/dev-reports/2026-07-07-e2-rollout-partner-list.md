@@ -33,3 +33,12 @@ Track B 머지(#756) 후 **full 5-agent + 실 GUI 라이브 QA 소급 재검**(�
 - 라이브 GUI 증적: `docs/qa/e2-partner-list-retro/*.png`(삭제버튼→취소선→복원·모바일 배지).
 
 ⚠️ **교훈**: 미커밋 편집 중인 worktree에 git 조작(cleanup)하는 백그라운드 QA 에이전트를 동시 실행하면 편집이 revert됨 — 중복 에이전트는 즉시 정리, QA는 커밋 후 실행.
+
+## STEP4 (Opus 독립 적대검증 — Codex 한도 대체, 개발책임자 승인) fix — 2026-07-07
+
+적대검증(refute 관점)이 R1이 놓친 실결함 포착 → Opus 직접 fix:
+- **🔴 CRITICAL(FE 적대검증)**: partnerCode 재사용으로 동일코드 삭제행 N≥2·활성0 시, 복원 요청이 partnerCode만 전송 → BE가 `ORDER BY deleted_at DESC LIMIT 1`로 "최근 삭제행"만 복원 → 사용자가 클릭한 행과 다른 거래처 무통보 복원(데이터무결성). fix: 동일코드 삭제행 ≥2면 복원 버튼 비활성+안내(오복원 원천차단). 개별복원은 후속 deletedAt 기반 restore API로 확장(백로그).
+- **🟠 HIGH(Design)**: 실시간 인디케이터 `neutral-500`(4.55~4.83:1 무여유·다크 FAIL) → `neutral-600`(7.08:1).
+- **🟡 MED**: 이름 span flex/ellipsis(긴 상호 2줄꺾임+배지 붕뜸 해소)·배지 flexShrink:0 / restore·delete 상호 disabled(동시 in-flight시 에러메시지 소실 방지).
+- **QA 라이브(적대)**: CRITICAL 누출 fix HOLDS(q/대소문자/wildcard/페이지네이션/status직교/코드재사용 전 벡터 안전)·모바일 배지 post-fix 실캡처(375/390px gap=8px). IT 312·vitest 650 genuine.
+- 백로그: `includeDeleted=true` 인가경계 부재(VIEW 사용자 직접 API로 deletedByName 열람 — 세분 permission 검토)·중복 param 방어·Button danger variant 전역 대비(design-system SSOT sweep).
