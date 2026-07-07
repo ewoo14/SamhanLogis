@@ -133,9 +133,19 @@ class CashReceiptCoeditIT extends AbstractPostgresIT {
         cancelled.cancel();
         cashReceiptRepository.saveAndFlush(cancelled);
 
+        // DRAFT + DEPOSIT_REPORT: 앱 팩토리(fromMig7Staging)로는 항상 CONFIRMED 라 정상경로로는 도달 불가하나,
+        // allow-list(status != DRAFT || kind != MANUAL_RECEIPT) fail-closed 가드를 reflection 으로 DRAFT
+        // DEPOSIT_REPORT 상태를 만들어 고정한다(향후 kind 조건이 실수로 완화돼도 CI 가 잡도록).
+        CashReceipt draftDeposit = seedDraftManualReceipt("20990707-DEP-" + SEQ.getAndIncrement());
+        java.lang.reflect.Field kindField = CashReceipt.class.getDeclaredField("kind");
+        kindField.setAccessible(true);
+        kindField.set(draftDeposit, com.samhanair.logis.accounting.domain.CashReceiptKind.DEPOSIT_REPORT);
+        cashReceiptRepository.saveAndFlush(draftDeposit);
+
         assertAllCoeditEndpointsReturn(confirmed.getId(), status().isConflict());
         assertAllCoeditEndpointsReturn(bankLinkedId, status().isConflict());
         assertAllCoeditEndpointsReturn(cancelled.getId(), status().isConflict());
+        assertAllCoeditEndpointsReturn(draftDeposit.getId(), status().isConflict());
     }
 
     /** soft-delete 된 입금보고서는 coedit relay 모든 표면에서 404 로 숨긴다. */

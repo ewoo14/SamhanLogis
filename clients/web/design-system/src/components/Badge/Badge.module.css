@@ -43,7 +43,7 @@
   /* [P2 정정] RGB 하드코딩 → success-50 token 일관 */
   background-color: var(--color-success-50);
   border-color: var(--color-success-200);
-  color: var(--color-success-700, #0F766E);
+  color: var(--color-success-700, #047857);
 }
 
 .variant-warning {
