@@ -212,6 +212,30 @@ async function expectHeaderWidth(header: Locator, expected: number, label: strin
 }
 
 /**
+ * #714 정정 — 1440px(넓은 뷰포트) 처럼 컨테이너(table 실폭)가 열 spec 폭 합(860px)보다 넓은 경우,
+ * DataTable 의 `.table{width:100%}` + `table-layout:fixed` + colgroup 전 열 명시폭 조합은 CSS2.1
+ * fixed-layout 알고리즘상 초과분을 spec 폭 비례로 전 열에 배분한다(Chromium 실측 확인 — 1440px
+ * 기준 스케일 ×1.2977: 계정과목 160→~207·거래처 260→~337·메모 180→~233). exact 폭 대신 "기준 열
+ * (메모) 대비 spec 비율"이 보존됐는지를 단언한다 — 실제 스케일팩터(뷰포트 실폭·폰트·스크롤바 등에
+ * 의존)를 몰라도 fixed-layout 알고리즘의 정의상 항상 성립해 안정적이다.
+ */
+async function expectHeaderWidthRatio(
+  header: Locator,
+  referenceWidth: number,
+  specWidth: number,
+  specReferenceWidth: number,
+  label: string,
+): Promise<void> {
+  const box = await header.boundingBox()
+  expect(box, `${label}: header bounding box`).toBeTruthy()
+  const expectedWidth = specWidth * (referenceWidth / specReferenceWidth)
+  expect(
+    Math.abs(box!.width - expectedWidth),
+    `${label}: header width(실측 ${box!.width}px) vs 비례배분 기대폭(${expectedWidth.toFixed(1)}px, spec 비율 ${specWidth}/${specReferenceWidth})`,
+  ).toBeLessThanOrEqual(3)
+}
+
+/**
  * lineNo(# 열) 로 tbody 행 인덱스를 찾는다 — 테스트가 별도 fetch 로 얻은 라인 배열과 화면 렌더
  * 순서가 반드시 일치한다는 가정(JPA `@OneToMany lines` 에 `@OrderBy` 부재) 없이, 렌더된 DOM
  * 자체에서 lineNo 텍스트로 직접 매칭한다.
@@ -298,14 +322,38 @@ test('데스크톱 열 재배분 실증 — 폭·합계행·금액 정렬·J- �
   const table = page.locator('table').first()
   const headers = table.locator('thead th')
   await expect(headers).toHaveText(['#', '계정과목', '거래처', '차변', '대변', '메모'])
-  await expectHeaderWidth(headers.nth(1), 160, '계정과목')
-  await expectHeaderWidth(headers.nth(2), 260, '거래처')
-  await expectHeaderWidth(headers.nth(3), 110, '차변')
-  await expectHeaderWidth(headers.nth(4), 110, '대변')
-  // #714 회귀 가드 — 메모 열은 과거 width 미지정(auto 잔여폭)이라 좁은 폭에서 압축(1024px 실측
-  // 20px)됐던 이력이 있다(#711 QA 라운드). 명시 고정폭(180px) 유지를 1440px 베이스라인에서도
-  // 직접 단언한다(기존엔 텍스트만 확인·폭 미확인 — 좁은 폭 케이스는 아래 별도 테스트가 담당).
-  await expectHeaderWidth(headers.nth(5), 180, '메모')
+  // #714 정정 — 1440px(넓은 뷰포트) 에서 exact spec 폭 단언은 구조적으로 항상 FAIL 한다: 테이블
+  // 실폭(1440px 뷰포트의 실 콘텐츠 영역, 실측 clientWidth~1118px)이 열 spec 합(860px)보다 넓으면
+  // fixed-layout 알고리즘이 초과분을 전 열에 spec 비례로 배분한다(정상 반응형 동작 — 넓은 뷰포트는
+  // 비례확대로 전폭을 채우고, 반대로 컨테이너가 spec 합보다 좁은 1024px/앱 minWidth 는 열이 spec
+  // 폭을 유지한 채 가로 스크롤로 전환된다: 아래 별도 테스트가 그 경우를 정확히 담당, 여기선 무변경).
+  // exact 폭 대신 "메모 열 대비 spec 비율 보존"을 단언한다.
+  const memoHeaderBox = await headers.nth(5).boundingBox()
+  expect(memoHeaderBox, '메모(1440px): header bounding box').toBeTruthy()
+  await expectHeaderWidthRatio(headers.nth(1), memoHeaderBox!.width, 160, 180, '계정과목(1440px)')
+  await expectHeaderWidthRatio(headers.nth(2), memoHeaderBox!.width, 260, 180, '거래처(1440px)')
+  await expectHeaderWidthRatio(headers.nth(3), memoHeaderBox!.width, 110, 180, '차변(1440px)')
+  await expectHeaderWidthRatio(headers.nth(4), memoHeaderBox!.width, 110, 180, '대변(1440px)')
+  // #714 회귀 가드(존치) — 메모 열은 과거 width 미지정(auto 잔여폭)이라 좁은 폭에서 압축(1024px
+  // 실측 20px)됐던 이력이 있다(#711 QA 라운드). 1440px 는 비례확대만 발생하고 압축은 없으므로
+  // 여기서는 절대 하한(spec 180px 이상 = 압축 아님)만 단언한다 — exact 폭 회귀 재발은 아래 1024px
+  // 전용 테스트가 정확히 담당한다(무변경).
+  expect(
+    memoHeaderBox!.width,
+    `메모(1440px): 비례확대 하한 미달(실측 ${memoHeaderBox!.width}px, spec 180px 미만=압축 의심)`,
+  ).toBeGreaterThanOrEqual(180)
+  // 1440px(넓은 뷰포트) = 컨테이너가 열 spec 합(860px)보다 넓어 비례확대로 100% 채워야 정상 — 가로
+  // 스크롤이 발생하면 비례확대가 미동작(회귀)했다는 뜻이다(1024px/minWidth 의 스크롤 발생과는 반대
+  // 의미 — 아래 별도 테스트가 그 경우를 담당).
+  const scrollContainerAt1440 = page.locator('.journal-detail-table-scroll')
+  const scrollMetricsAt1440 = await scrollContainerAt1440.evaluate((el) => ({
+    scrollWidth: el.scrollWidth,
+    clientWidth: el.clientWidth,
+  }))
+  expect(
+    Math.abs(scrollMetricsAt1440.scrollWidth - scrollMetricsAt1440.clientWidth),
+    `1440px: 가로 스크롤 발생(비례확대 미동작 의심) — scrollWidth(${scrollMetricsAt1440.scrollWidth}) vs clientWidth(${scrollMetricsAt1440.clientWidth})`,
+  ).toBeLessThanOrEqual(2)
   await expect(headers.nth(2)).toHaveText('거래처')
   await expect(headers.nth(3)).toHaveText('차변')
   await expect(headers.nth(4)).toHaveText('대변')
