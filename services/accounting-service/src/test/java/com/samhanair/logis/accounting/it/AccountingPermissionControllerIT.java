@@ -263,6 +263,15 @@ class AccountingPermissionControllerIT {
                         () -> get("/accounting/closings")),
                 endpoint("period close reverse", "accounting.period-close.reverse", PermissionAction.UPDATE, "MANAGER",
                         () -> post("/accounting/closings/{id}/reverse", ID)),
+                endpoint("cash receipt create", "accounting.cash-receipts", PermissionAction.CREATE, "ACCOUNTANT",
+                        () -> post("/accounting/cash-receipts")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "amount": 1000.00,
+                                          "transactionDate": "2026-07-04"
+                                        }
+                                        """)),
                 endpoint("cash receipt from bank transactions", "accounting.cash-receipts", PermissionAction.UPDATE, "ACCOUNTANT",
                         () -> post("/accounting/cash-receipts/from-bank-transactions")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -279,6 +288,25 @@ class AccountingPermissionControllerIT {
                                           "transactionDate": "2026-07-04"
                                         }
                                         """)),
+                endpoint("cash receipt list", "accounting.cash-receipts", PermissionAction.VIEW, "ACCOUNTANT",
+                        () -> get("/accounting/cash-receipts")),
+                endpoint("cash receipt get one", "accounting.cash-receipts", PermissionAction.VIEW, "ACCOUNTANT",
+                        () -> get("/accounting/cash-receipts/{id}", ID)),
+                endpoint("cash receipt update", "accounting.cash-receipts", PermissionAction.UPDATE, "ACCOUNTANT",
+                        () -> patch("/accounting/cash-receipts/{id}", ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "amount": 1500.00,
+                                          "transactionDate": "2026-07-04"
+                                        }
+                                        """)),
+                endpoint("cash receipt confirm", "accounting.cash-receipts", PermissionAction.UPDATE, "ACCOUNTANT",
+                        () -> post("/accounting/cash-receipts/{id}/confirm", ID)),
+                endpoint("cash receipt cancel", "accounting.cash-receipts", PermissionAction.UPDATE, "ACCOUNTANT",
+                        () -> post("/accounting/cash-receipts/{id}/cancel", ID)),
+                endpoint("cash receipt delete draft", "accounting.cash-receipts", PermissionAction.DELETE, "ACCOUNTANT",
+                        () -> delete("/accounting/cash-receipts/{id}", ID)),
                 endpoint("sales accounting slip", "accounting.sales-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
                         () -> get("/admin/sales-slips")),
                 endpoint("purchase accounting slip", "accounting.purchase-slip.accounting", PermissionAction.VIEW, "ACCOUNTANT",
