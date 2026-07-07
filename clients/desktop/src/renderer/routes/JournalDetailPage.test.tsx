@@ -275,7 +275,15 @@ describe('JournalDetailPage 라인 테이블', () => {
     expect(headers).toEqual(['#', '계정과목', '거래처', '차변', '대변', '메모'])
     expect(table!.closest('.journal-detail-table-scroll')).not.toBeNull()
     expect(table!.parentElement?.classList.contains('journal-detail-line-table')).toBe(true)
-    expect(table!.querySelector<HTMLTableColElement>('col:nth-child(6)')?.style.width).toBe('180px')
+    // #714 회귀 가드 — 6열 전부 명시 고정폭이어야 한다(메모 열만 단건 검증하면 다른 열이 width
+    // 미지정(auto)으로 되돌아가는 회귀를 놓친다). width 미지정 열이 하나라도 있으면 좁은 폭
+    // 컨테이너에서 그 열이 압축 소실된다(#711 QA 라운드 실측: 메모 width 미지정 시 1024px 서
+    // 20px 압축·헤더 "메"만 가시 — 이슈 #714). jsdom 은 실 레이아웃을 계산하지 않으므로 여기서는
+    // 폭 스펙 자체의 구조적 존재를 고정하고, 실 압축 여부는 real-qa 1024px 케이스가 담당한다.
+    const colWidths = Array.from(
+      table!.querySelectorAll<HTMLTableColElement>('colgroup col'),
+    ).map((col) => col.style.width)
+    expect(colWidths).toEqual(['40px', '160px', '260px', '110px', '110px', '180px'])
 
     const bodyRows = table!.querySelectorAll('tbody tr')
     // 라인 2건(픽스처) + 합계행 1건 = 3행 — 합계 sentinel 만 남고 라인이 누락되는 회귀도 잡아낸다.
