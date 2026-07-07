@@ -1544,4 +1544,50 @@ describe('mock permission matrix contract', () => {
       print: false,
     })
   })
+
+  // #759 STEP4 HIGH-2 fix — E2 견적 목록 mock 3역할(MASTER/MANAGER/SALES) 복원권한 parity.
+  // BE V85(services/auth-service V85__seed_estimate_list_restore_permission.sql)는
+  // MASTER/MANAGER/SALES 3역할에 estimates.list can_restore=TRUE 만 additive grant 한다
+  // (V10+V39 backfill 기준 can_download/can_print 는 estimates.list 가 preserve 목록에
+  // 없어 이미 FALSE — 본 fix 는 그 값을 보존한 채 RESTORE 만 추가한다).
+  it('estimates.list 계정 매트릭스는 MANAGER/SALES 에 RESTORE 를 부여하고 DOWNLOAD/PRINT 는 V39 seed(FALSE)를 그대로 보존한다', () => {
+    const manager = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-manager',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+    const sales = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-sales',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+
+    const expected = {
+      view: true,
+      create: true,
+      update: true,
+      delete: true,
+      restore: true,
+      download: false,
+      print: false,
+    }
+    expect(manager.data['estimates.list']).toEqual(expected)
+    expect(sales.data['estimates.list']).toEqual(expected)
+  })
+
+  it('GET /auth/admin/permissions/my (기본 role=MANAGER) 의 estimates.list 액션에 RESTORE 를 포함한다', () => {
+    // mock.ts _resolveMockRole() 은 window.location 의 ?mockRole= override 가 없으면
+    // 'MANAGER' 를 기본 반환한다(vitest node 환경 — window undefined 로 override 불가 경로와
+    // 동일 기본값). 이 테스트는 그 기본 role 로 실제 /my 응답을 실측한다.
+    const myPermissions = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/my',
+    }) as MockEnvelope<Record<string, string[]>>
+
+    expect(myPermissions.data['estimates.list']).toEqual([
+      'VIEW',
+      'CREATE',
+      'UPDATE',
+      'DELETE',
+      'RESTORE',
+    ])
+  })
 })

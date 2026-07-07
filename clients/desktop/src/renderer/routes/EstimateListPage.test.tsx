@@ -121,7 +121,7 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     )
   })
 
-  it('삭제행은 견적번호만 취소선 처리하고 삭제 배지는 취소선 span 바깥 형제로 렌더하며 행 클릭을 막는다', async () => {
+  it('삭제행은 모든 데이터 열에 취소선 처리하고 삭제 배지는 견적번호 취소선 span 바깥 형제로 렌더하며 행 클릭을 막는다', async () => {
     listEstimatesMock.mockResolvedValue(pageOf([
       estimateRow({
         id: 'estimate-deleted',
@@ -144,9 +144,18 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(estimateNo.contains(badge)).toBe(false)
     expect(badge.parentElement).toBe(estimateNo.parentElement)
 
-    // 공유 DataTable 은 삭제행 클릭 차단을 rowClickable(false → onClick 미부착) + onRowClick
-    // isDeleted 가드로 처리하고 aria-disabled 는 설정하지 않는다(main 222ed087a dead-affordance
-    // fix 병합 반영). 클릭 차단은 아래 navigate 미호출로 실증한다(#759 병합 정합).
+    // STEP4 HIGH-1 fix(#759): estimateNo 1열만이 아니라 partnerBusinessNo/partnerName/
+    // estimateDate/validUntil/totalAmount 나머지 데이터 열도 모두 취소선 처리한다
+    // (주문(C) SalesPartnerOrderListPage 미러 정합).
+    for (const cellText of ['1234567890', '삭제거래처', '2026-07-07', '2026-08-07', '₩110,000']) {
+      const cell = within(row).getByText(cellText)
+      expect(cell.getAttribute('style') ?? '').toContain('line-through')
+    }
+
+    // 공유 DataTable 은 현재 삭제행에 aria-disabled 를 설정하지 않는다 — 클릭 차단은
+    // rowClickable(false → onClick 미부착) + onRowClick isDeleted 가드로 처리한다
+    // (특정 커밋 SHA 비의존, 공유 DataTable 컴포넌트 계약 기준). 클릭 차단은 아래
+    // navigate 미호출로 실증한다(#759 병합 정합).
     fireEvent.click(row)
 
     expect(navigateMock).not.toHaveBeenCalled()
@@ -180,6 +189,6 @@ describe('EstimateListPage E2 list realtime and restore', () => {
 
     const alert = await screen.findByTestId('estimate-list-restore-error')
     expect(alert.textContent).toContain('이미 사용 중인 견적번호')
-    expect(alert.getAttribute('style') ?? '').toContain('var(--color-danger-700)')
+    expect(alert.getAttribute('style') ?? '').toContain('var(--color-danger-700, #991B1B)')
   })
 })

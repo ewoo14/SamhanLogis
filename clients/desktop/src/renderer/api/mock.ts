@@ -15263,6 +15263,25 @@ const MOCK_ESTIMATES = [
     note: '대박빌딩 신축 — 채택 → 출고 진행',
     lines: SAMPLE_LINES,
   },
+  // MED-1(#759 STEP4 fix): 삭제행 취소선/배지/복원버튼 GUI 도달용 시드(주문 DELETED_DRAFT_ROW·
+  // 거래처 P-DELETED-004 선례 정합). isDeleted/deletedAt/deletedByName 은 mockEstimateSummary 가
+  // Record<string, unknown> 캐스팅으로 읽으므로 기본 shape 밖 추가 필드로 부여한다.
+  {
+    id: 'est-004',
+    estimateNumber: '2026/05/20-3',
+    estimateDate: '2026-05-20',
+    expirationDate: '2026-06-19',
+    status: 'DRAFT' as const,
+    partnerCode: '6789012345',
+    partnerName: '한울설비',
+    totalAmount: '1250000',
+    createdByName: '오병승',
+    note: '삭제행 취소선/복원 QA 시나리오 — soft delete 이후 상태',
+    lines: SAMPLE_LINES,
+    isDeleted: true,
+    deletedAt: '2026-05-21T09:40:00',
+    deletedByName: '오병승',
+  },
 ]
 
 function mockEstimateSummary(row: (typeof MOCK_ESTIMATES)[number]) {
@@ -16570,6 +16589,12 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'partners.delete': ['DELETE', 'RESTORE'],
   // V83(E2 주문 롤아웃): sales.partner-order.list 는 MASTER/MANAGER/SALES 에 RESTORE 부여(취소선 복원).
   'sales.partner-order.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
+  // V85(E2 견적 롤아웃, #759 STEP4 HIGH-2 fix): estimates.list 는 sales.partner-order.list 와
+  // 동일하게 MASTER/MANAGER/SALES 에 RESTORE 부여(취소선 복원). 누락 시 fallback 경로
+  // (accountMatrix restore: page === 'sales.slip.list'만 하드코딩·/permissions/my 의
+  // cell.pageCode === 'sales.slip.list'만 하드코딩)에 estimates.list 가 걸리지 않아
+  // mock 모드 MANAGER/SALES 의 canAccess('estimates.list','restore') 가 항상 false 였다.
+  'estimates.list': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
 }
 
 /**

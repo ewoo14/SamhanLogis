@@ -29,11 +29,37 @@ import org.hibernate.annotations.UuidGenerator;
  *   <li>vatAmount = supplyAmount × 0.10 (부가세 10%)</li>
  *   <li>lineTotal = supplyAmount + vatAmount</li>
  * </ul>
+ *
+ * <p><b>주의 — {@code is_deleted}/{@code @SQLRestriction} 는 현재 완전 dead code</b>
+ * (2026-07-07 BE 적대검증, PR #759 STEP4 백로그 L1). {@link Estimate#lines} 는
+ * {@code orphanRemoval=true} 로 매핑되어 있고, 라인 제거 경로({@link Estimate#removeLine},
+ * {@link Estimate#restoreFromSnapshot} 의 {@code lines.clear()})는 전부 컬렉션에서 빼는
+ * 즉시 Hibernate 가 물리 DELETE 를 실행한다. 이 클래스에는 {@code @SQLDelete} 오버라이드가
+ * 없고 {@code markDeleted()} 를 호출하는 코드 경로도 0건이라, {@code is_deleted=true} 인 라인
+ * 행이 실제로 존재한 적이 없다(soft-delete 자체가 발생하지 않는다). <b>이것이 견적 라인이
+ * 판매전표(D) 의 헤더≠라인 삭제시각 불일치로 인한 over-restore·레거시 빈껍데기 결함군
+ * (#758 STEP4 감사, {@link com.samhanair.logis.slip.service.SlipRestoreService} 참조)에서
+ * 구조적으로 안전한 이유다</b> — 애초에 soft-delete 라인이 없으니 시각 불일치도 있을 수 없다.
+ *
+ * <p><b>향후 라인 단위 soft-delete 기능을 추가한다면</b> 반드시 {@code Slip} 의 cascade
+ * 삭제/복원 패턴을 준용할 것:
+ * <ol>
+ *   <li>헤더 삭제 시 라인 전체에 <b>단일 시각</b>을 각인하는 cascade soft-delete
+ *       ({@code markDeleted(deleter, deletedAt)} — 동일 인스턴트 주입, 라인마다 각자
+ *       {@code now()} 찍는 것 금지)</li>
+ *   <li>복원은 그 시각과 정확히 일치하는 라인만 대상으로 삼는 시각매칭 쿼리</li>
+ *   <li>삭제 라인 수 대비 복원 라인 수가 어긋나면(레거시 등) 무음 부분복원 대신 즉시
+ *       실패시키는 fail-loud 가드
+ *       ({@link com.samhanair.logis.slip.service.SlipRestoreService#restore} 참조)</li>
+ * </ol>
+ * 헤더≠라인 삭제시각 정합 보장 없이 단순히 {@code @SQLDelete} 만 얹으면, 판매전표(D)에서
+ * 실측된 over-restore(#758 CRITICAL)와 레거시 빈껍데기 결함이 견적에도 그대로 재현된다.
  */
 @Entity
 @Getter
 @Table(name = "estimate_lines")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+// 위 클래스 Javadoc "주의" 단락 참조 — is_deleted 는 orphanRemoval 물리삭제만 쓰여 dead code.
 @SQLRestriction("is_deleted = false")
 public class EstimateLine extends BaseEntity {
 

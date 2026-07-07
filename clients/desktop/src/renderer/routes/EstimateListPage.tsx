@@ -165,7 +165,12 @@ export function EstimateListPage() {
       width: '140px',
       mobilePriority: 'hidden',
       render: (row) => (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <span
+          style={{
+            fontVariantNumeric: 'tabular-nums',
+            ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
+          }}
+        >
           {row.partnerBusinessNo ? row.partnerBusinessNo.replace(/\D/g, '') : '—'}
         </span>
       ),
@@ -174,25 +179,38 @@ export function EstimateListPage() {
       key: 'partnerName',
       header: '거래처',
       mobilePriority: 'secondary',
-      render: (row) => row.partnerName,
+      render: (row) => (
+        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {row.partnerName}
+        </span>
+      ),
     },
     {
       key: 'estimateDate',
       header: '작성일',
       width: '110px',
       mobilePriority: 'hidden',
+      render: (row) => (
+        <span style={row.isDeleted ? DELETED_ROW_TEXT_STYLE : undefined}>
+          {row.estimateDate}
+        </span>
+      ),
     },
     {
       key: 'validUntil',
       header: '유효기간',
       width: '120px',
       mobilePriority: 'secondary',
-      render: (row) =>
-        row.validUntil ? (
-          <span>{row.validUntil}</span>
-        ) : (
-          <span style={{ color: '#9CA3AF' }}>—</span>
-        ),
+      render: (row) => (
+        <span
+          style={{
+            ...(row.validUntil ? {} : { color: '#9CA3AF' }),
+            ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
+          }}
+        >
+          {row.validUntil ?? '—'}
+        </span>
+      ),
     },
     {
       key: 'totalAmount',
@@ -201,7 +219,12 @@ export function EstimateListPage() {
       align: 'right',
       mobilePriority: 'secondary',
       render: (row) => (
-        <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <strong
+          style={{
+            fontVariantNumeric: 'tabular-nums',
+            ...(row.isDeleted ? DELETED_ROW_TEXT_STYLE : {}),
+          }}
+        >
           {fmtKrw(row.totalAmount)}
         </strong>
       ),
@@ -367,7 +390,7 @@ export function EstimateListPage() {
             className="error-banner"
             role="alert"
             data-testid="estimate-list-restore-error"
-            style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700)' }}
+            style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700, #991B1B)' }}
           >
             {restoreError}
           </div>

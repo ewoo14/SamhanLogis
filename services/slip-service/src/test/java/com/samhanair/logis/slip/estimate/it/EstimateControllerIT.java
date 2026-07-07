@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.estimate.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -418,6 +419,101 @@ class EstimateControllerIT extends AbstractPostgresIT {
                 eq(EstimateListRealtime.EVENT_CHANGED),
                 ArgumentMatchers.<Map<String, Object>>argThat(
                         payload -> "RESTORED".equals(payload.get("changeType"))));
+    }
+
+    /**
+     * CONVERTED 견적 delete→restore 회귀 (PR #759 STEP4 적대검증 M2, 2026-07-07).
+     *
+     * <p>개발책임자 결정 — "CONVERTED 견적도 삭제 가능(상태 무관, 목록 tombstone 처리이며
+     * {@code converted_slip_id}/전표 원장은 건드리지 않는다)"
+     * ({@link com.samhanair.logis.slip.estimate.service.EstimateService#delete} Javadoc) 이
+     * 안전함을 값 검증으로 고정한다.
+     * {@link com.samhanair.logis.slip.estimate.service.EstimateService#delete}/{@link
+     * com.samhanair.logis.slip.estimate.service.EstimateService#restore} 는
+     * {@code slipConverter}({@code EstimateToSlipConverter})나
+     * {@code SlipRepository} 를 전혀 참조하지 않고, {@code converted_slip_id} 는 logical FK
+     * ({@code V13__add_estimate.sql} — {@code REFERENCES} 미선언)이므로 물리적 cascade 경로 자체가
+     * 없다 — 이 테스트는 그 무연쇄성을 코드 리뷰가 아닌 실행 값으로 고정한다.
+     *
+     * <p>검증 순서: 생성 → convert(CONVERTED 전이 + Slip(OUTBOUND DRAFT) 실제 발행) → 변환 직후
+     * Slip 행 스냅샷 캡처 → delete(상태 무관 허용) → 목록 includeDeleted 에 삭제행으로 노출되면서
+     * status/convertedSlipId 보존 → restore → status/convertedSlipId 보존 + Slip 행이 스냅샷과
+     * 완전 동일(is_deleted/status/version/deleted_at/modified_at 전부 무변화).
+     */
+    @Test
+    @DisplayName("CONVERTED 견적 삭제→복원은 상태무관 허용되며 status/convertedSlipId 보존 + Slip 테이블 무연쇄")
+    void deleteAndRestore_convertedEstimate_preservesStatusAndSlipTableUntouched() throws Exception {
+        // 1) 생성 → 즉시 변환 (DRAFT → CONVERTED). productClient 등 외부 RestClient 만 MockBean 이고
+        //    SlipRepository/OutboundCutoffGuard/SlipNumberService 는 실 빈 + 실 DB 이므로 Slip(OUTBOUND
+        //    DRAFT) 이 slips 테이블에 실제로 발행된다.
+        MvcResult created = mockMvc.perform(post("/slips/estimates")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Name", "작성자")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildCreateRequest())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String id = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+
+        MvcResult converted = mockMvc.perform(post("/slips/estimates/{id}/convert", id)
+                        .header("X-User-Id", SALES_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
+                .andExpect(jsonPath("$.data.convertedSlipId").isNotEmpty())
+                .andReturn();
+        String convertedSlipId = objectMapper.readTree(converted.getResponse().getContentAsString())
+                .get("data").get("convertedSlipId").asText();
+        assertThat(convertedSlipId).isNotBlank();
+
+        // 변환 직후 Slip 행 스냅샷 — delete/restore 전체에 걸쳐 이 값과 계속 동일해야 "무연쇄".
+        // (entityManager.flush() 로 convert() 가 영속화한 Slip 을 물리 INSERT 로 내보낸 뒤 조회 —
+        //  restore_whenActiveEstimateReusesNumber_returns409 와 동일한 flush+raw SQL 조합 패턴.)
+        entityManager.flush();
+        Map<String, Object> slipSnapshotBeforeDelete = jdbcTemplate.queryForMap(
+                "SELECT is_deleted, status, version, deleted_at, modified_at FROM slips WHERE id = ?::uuid",
+                convertedSlipId);
+
+        // 2) delete — CONVERTED 도 삭제 허용(상태 무관). 출고전표 원장 미접촉이 정책.
+        mockMvc.perform(delete("/slips/estimates/{id}", id)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Name", "이운영"))
+                .andExpect(status().isOk());
+
+        // 3) 목록 includeDeleted 노출 — 삭제행이면서 CONVERTED 상태/convertedSlipId 를 그대로 보존.
+        mockMvc.perform(get("/slips/estimates")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(id))
+                .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))
+                .andExpect(jsonPath("$.data.content[0].status").value("QUOTE_CONVERTED"))
+                .andExpect(jsonPath("$.data.content[0].convertedSlipId").value(convertedSlipId))
+                .andExpect(jsonPath("$.data.content[0].deletedByName").value("이운영"));
+
+        entityManager.flush();
+        Map<String, Object> slipSnapshotAfterDelete = jdbcTemplate.queryForMap(
+                "SELECT is_deleted, status, version, deleted_at, modified_at FROM slips WHERE id = ?::uuid",
+                convertedSlipId);
+        assertThat(slipSnapshotAfterDelete).isEqualTo(slipSnapshotBeforeDelete);
+
+        // 4) restore — status/convertedSlipId 보존 확인.
+        mockMvc.perform(post("/slips/estimates/{id}/restore", id)
+                        .header("X-User-Id", SALES_ACCOUNT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(id))
+                .andExpect(jsonPath("$.data.isDeleted").value(false))
+                .andExpect(jsonPath("$.data.status").value("QUOTE_CONVERTED"))
+                .andExpect(jsonPath("$.data.convertedSlipId").value(convertedSlipId))
+                .andExpect(jsonPath("$.data.deletedByName").doesNotExist());
+
+        // Slip 테이블 무연쇄 — restore 이후에도 변환 직후 스냅샷과 완전히 동일(행 자체를 전혀 건드리지
+        // 않음: is_deleted/status/version/deleted_at/modified_at 전부 무변화).
+        entityManager.flush();
+        Map<String, Object> slipSnapshotAfterRestore = jdbcTemplate.queryForMap(
+                "SELECT is_deleted, status, version, deleted_at, modified_at FROM slips WHERE id = ?::uuid",
+                convertedSlipId);
+        assertThat(slipSnapshotAfterRestore).isEqualTo(slipSnapshotBeforeDelete);
     }
 
     /**
