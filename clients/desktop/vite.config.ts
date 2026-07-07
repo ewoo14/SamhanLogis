@@ -20,6 +20,10 @@ function pwaRegisterDevStub(): Plugin {
   const resolved = '\0' + id
   return {
     name: 'pwa-register-dev-stub',
+    // enforce:'pre' 로 Vite 코어 `vite:resolve` 보다 먼저 실행돼야 `virtual:pwa-register` 를
+    // 일반 npm 패키지로 오인(‘Failed to resolve import’)하기 전에 stub 으로 가로챈다. 미지정 시
+    // dev serve/real-qa 렌더러 부팅 실패(#765).
+    enforce: 'pre',
     resolveId(source) {
       if (source === id) return resolved
     },
